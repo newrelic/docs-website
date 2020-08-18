@@ -2,7 +2,7 @@ module.exports = {
   siteMetadata: {
     title: 'New Relic Documentation',
     description:
-      'Description TBD',
+      'New Relic Documentation',
     author: 'New Relic',
     repository: 'https://github.com/newrelic/docs-website',
     siteUrl: 'https://docs.newrelic.com',
