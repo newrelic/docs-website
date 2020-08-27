@@ -6,7 +6,7 @@ The `docs-website` project is the code and data behind the new docs.newrelic.com
 
 ## Getting Started
 
-You can serve this site locally to quickly see your changes and additions before you PR them. To get started, navigate into your new site’s directory and start it up, as follows.
+You can serve this site locally to quickly see your changes and additions before you PR them. To get started, navigate into your new site’s directory and start it up, as follows. 
 
 ```
 git clone git@github.com:newrelic/docs-website.git
