@@ -15,16 +15,15 @@ const basicDocPageTemplate = ({ data }) => {
 };
 
 basicDocPageTemplate.propTypes = {
-  data: PropTypes.object,
+  data: PropTypes.object.isRequired,
 };
 
 export const pageQuery = graphql`
-  query($filepath: String!) {
-    mdx(fileAbsolutePath: { eq: $filepath }) {
-      body {
-        frontmatter {
-          title
-        }
+  query($fileRelativePath: String!) {
+    mdx(fields: { fileRelativePath: { eq: $fileRelativePath } }) {
+      body
+      frontmatter {
+        title
       }
     }
   }
