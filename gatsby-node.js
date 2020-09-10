@@ -1,6 +1,7 @@
 const path = require('path');
 
-const CONTENT_DIR = `${process.cwd()}/src/content/`;
+const CONTENT_DIR = 'src/content/';
+const TEMPLATE_DIR = 'src/templates/';
 
 exports.onCreateNode = ({ node, getNode, actions }) => {
   if (node.internal.type === 'Mdx') {
@@ -8,7 +9,9 @@ exports.onCreateNode = ({ node, getNode, actions }) => {
     const { fileAbsolutePath } = node;
 
     // Get the file path to be used as the page location
-    const value = fileAbsolutePath.replace(CONTENT_DIR, '').replace('.mdx', '');
+    const value = fileAbsolutePath
+      .replace(`${process.cwd()}/${CONTENT_DIR}`, '')
+      .replace('.mdx', '');
     createNodeField({ node, name: 'fileRelativePath', value });
   }
 };
@@ -49,7 +52,7 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
 
     createPage({
       path: fileRelativePath,
-      component: path.resolve(`src/templates/${frontmatter.template}.js`),
+      component: path.resolve(`${TEMPLATE_DIR}${frontmatter.template}.js`),
       context: {
         fileRelativePath,
       },
