@@ -14,11 +14,11 @@ const GATSBY_CONTENT_TYPES = {
 };
 
 const GATSBY_TEMPLATE = {
-  page: 'basicDocPageTemplate',
-  api_doc: 'basicDocPageTemplate',
-  release_notes: 'releaseNotePageTemplate',
-  release_notes_platform: 'releaseNotePlatformPageTemplate',
-  troubleshooting_doc: 'basicDocPageTemplate',
+  page: 'basicDoc',
+  api_doc: 'basicDoc',
+  release_notes: 'basicDoc',
+  release_notes_platform: 'basicDoc',
+  troubleshooting_doc: 'basicDoc',
 };
 
 // IDs grouped by content type (related GH issue in comments)
@@ -55,7 +55,7 @@ const getCategories = (url) => {
 const getFrontmatter = (type, doc) => `---
 title: ${doc.title}
 contentType: ${GATSBY_CONTENT_TYPES[type]}
-templateKey: ${GATSBY_TEMPLATE[type]}
+template: ${GATSBY_TEMPLATE[type]}
 ---
 
 `;
