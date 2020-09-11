@@ -1,18 +1,24 @@
 const path = require('path');
 
-const CONTENT_DIR = 'src/content/';
+const { createFilePath } = require(`gatsby-source-filesystem`);
+
 const TEMPLATE_DIR = 'src/templates/';
 
 exports.onCreateNode = ({ node, getNode, actions }) => {
   if (node.internal.type === 'Mdx') {
     const { createNodeField } = actions;
-    const { fileAbsolutePath } = node;
 
     // Get the file path to be used as the page location
-    const value = fileAbsolutePath
-      .replace(`${process.cwd()}/${CONTENT_DIR}`, '')
-      .replace('.mdx', '');
-    createNodeField({ node, name: 'fileRelativePath', value });
+    const fileRelativePath = createFilePath({
+      node,
+      getNode,
+      trailingSlash: false,
+    });
+    createNodeField({
+      node,
+      name: 'fileRelativePath',
+      value: fileRelativePath,
+    });
   }
 };
 
