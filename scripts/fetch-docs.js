@@ -3,6 +3,7 @@ const fs = require('fs');
 const fetch = require('node-fetch');
 
 const logger = require('./utils/logger');
+const createIndexPages = require('./create-index-pages');
 const { BASE_URL, BASE_DIR } = require('./constants');
 
 const GATSBY_CONTENT_TYPES = {
@@ -89,13 +90,14 @@ const fetchPages = async () => {
     // Step 5: add content to file
     const content = frontmatter + doc.body;
     fs.writeFile(fileName, content, (err) => {
-      if (err) {
-        console.log(`Error, could not create ${fileName}`, e);
-      }
+      if (err) logger.error(`Could not create ${fileName}.`);
     });
 
     // Step 6: party!
   });
+
+  logger.normal('Creating index pages');
+  createIndexPages();
 
   logger.success('Migration complete');
 };
