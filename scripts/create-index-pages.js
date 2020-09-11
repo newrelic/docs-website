@@ -46,8 +46,11 @@ const createIndexPage = (dir) => {
 };
 
 const createIndexPages = () => {
-  createIndexPage('/foo-stuff');
+  // TODO: recursively loop over folders
+  // TODO: if a folder does not have an index page, create one
 };
 
-// module.exports = createIndexPages;
+module.exports = createIndexPages;
+
+// TODO: remove this (just used for easier testing)
 createIndexPages();
