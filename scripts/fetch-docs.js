@@ -52,6 +52,13 @@ const getCategories = (url) => {
     .slice(0, -1);
 };
 
+const format = (html) => {
+  return html
+    .replace(/\r\n?/g, '\n')
+    .replace(/\t/g, '  ')
+    .replace(/\n+/g, '\n');
+};
+
 const getFrontmatter = (type, doc) => `---
 title: ${doc.title}
 contentType: ${GATSBY_CONTENT_TYPES[type]}
@@ -85,7 +92,7 @@ const fetchPages = async () => {
     const frontmatter = getFrontmatter(type, doc);
 
     // Step 5: add content to file
-    const content = frontmatter + doc.body;
+    const content = frontmatter + format(doc.body);
     fs.writeFile(fileName, content, (err) => {
       if (err) {
         console.log(`Error, could not create ${fileName}`, e);
