@@ -18,6 +18,8 @@ title: ${title}
 template: basicDoc
 ---
 
+# ${title}
+
 `;
 
 const getPageContent = (dir, files) =>
