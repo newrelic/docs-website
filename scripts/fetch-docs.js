@@ -2,8 +2,8 @@ const fetch = require('node-fetch');
 const fs = require('fs');
 const path = require('path');
 
-const BASE_URL = 'https://docs.newrelic.com/api/ui/content';
-const BASE_DIR = path.join(__dirname, '..', 'src/content');
+const logger = require('./utils/logger');
+const { BASE_URL, BASE_DIR } = require('./constants');
 
 const GATSBY_CONTENT_TYPES = {
   page: 'page',
@@ -41,7 +41,7 @@ const fetchDoc = async (type, id) => {
     const result = await resp.json();
     return result.docs[0].doc;
   } catch (e) {
-    console.log(`Error, could not fetch ${url}`, e);
+    logger.error(`Error, could not fetch ${url}: ${e}`);
   }
 };
 
@@ -62,12 +62,14 @@ template: ${GATSBY_TEMPLATE[type]}
 
 const fetchPages = async () => {
   // Step 1: get the docs
+  logger.normal('Fetching JSON');
   const requests = input.flatMap(({ type, ids }) =>
     ids.map((id) => fetchDoc(type, id))
   );
 
   const results = await Promise.all(requests);
 
+  logger.normal('Creating Directories');
   results.forEach((doc) => {
     // Step 2: create the directory structure
     const dir = path.join(BASE_DIR, ...getCategories(doc.docUrl));
@@ -94,6 +96,8 @@ const fetchPages = async () => {
 
     // Step 6: party!
   });
+
+  logger.success('Success');
 };
 
 // Run the script via `node path_to_script`
