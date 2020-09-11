@@ -1,8 +1,7 @@
 module.exports = {
   siteMetadata: {
     title: 'New Relic Documentation',
-    description:
-      'New Relic Documentation',
+    description: 'New Relic Documentation',
     author: 'New Relic',
     repository: 'https://github.com/newrelic/docs-website',
     siteUrl: 'https://docs.newrelic.com',
@@ -56,5 +55,37 @@ module.exports = {
     // this (optional) plugin enables Progressive Web App + Offline functionality
     // To learn more, visit: https://gatsby.dev/offline
     // `gatsby-plugin-offline`,
+    {
+      resolve: 'gatsby-source-filesystem',
+      options: {
+        name: 'markdown-pages',
+        path: `${__dirname}/src/content`,
+      },
+    },
+    'gatsby-remark-images',
+    'gatsby-transformer-remark',
+    {
+      resolve: 'gatsby-plugin-mdx',
+      options: {
+        gatsbyRemarkPlugins: [
+          {
+            resolve: 'gatsby-remark-images',
+            options: {
+              maxHeight: 400,
+              maxWidth: 1200,
+              fit: 'inside',
+              linkImagesToOriginal: false,
+            },
+          },
+          {
+            resolve: `gatsby-remark-autolink-headers`,
+            options: {
+              enableCustomId: true,
+              icon: false,
+            },
+          },
+        ],
+      },
+    },
   ],
-}
+};
