@@ -4,10 +4,11 @@ const path = require('path');
 const logger = require('./utils/logger');
 const { BASE_DIR } = require('./constants');
 
-const getTitle = (dir) =>
-  dir
+const getTitle = (item) =>
+  item
     .split('/')
     .slice(-1)[0]
+    .replace('.mdx', '')
     .split('-')
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(' ');
@@ -23,7 +24,8 @@ const getPageContent = (dir, files) =>
   files
     .map((file) => {
       const path = `${dir}/${file}`;
-      const label = `title: ${file}`;
+      // TODO: get the label from frontmatter
+      const label = getTitle(file);
       return `* [${path}](${label})`;
     })
     .join('\n');
