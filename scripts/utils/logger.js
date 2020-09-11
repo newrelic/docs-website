@@ -8,14 +8,14 @@ const TYPES = {
 };
 
 const STYLES = {
-  [TYPES.LOG]: chalk.inverse,
+  [TYPES.LOG]: chalk.white,
   [TYPES.SUCCESS]: chalk.green.inverse,
   [TYPES.WARN]: chalk.yellow.inverse,
   [TYPES.ERROR]: chalk.red.inverse,
 };
 
 const log = (type) => (message) => {
-  console.log(STYLES[type](` ${TYPES[type]} `), message);
+  console.log(STYLES[type](TYPES[type]), message);
 };
 
 module.exports = {

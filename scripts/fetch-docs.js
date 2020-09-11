@@ -1,6 +1,6 @@
-const fetch = require('node-fetch');
-const fs = require('fs');
 const path = require('path');
+const fs = require('fs');
+const fetch = require('node-fetch');
 
 const logger = require('./utils/logger');
 const { BASE_URL, BASE_DIR } = require('./constants');
@@ -97,7 +97,7 @@ const fetchPages = async () => {
     // Step 6: party!
   });
 
-  logger.success('Success');
+  logger.success('Migration complete');
 };
 
 // Run the script via `node path_to_script`
