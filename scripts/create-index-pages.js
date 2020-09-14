@@ -56,6 +56,9 @@ const createIndexPage = async (dir) => {
       return [content, subDirHeading, subDirContent].join('\n');
     }, '');
 
+    // if there is an index.mdx, don't overwrite or make a new one
+    if (files.some((file) => file.name === 'index.mdx')) return;
+
     // combine links and add them to a new index.mdx file
     const fileName = `${dir}/index.mdx`;
     const content = getFrontmatter(title) + dirLinks + subLinks;
@@ -69,13 +72,7 @@ const createIndexPage = async (dir) => {
 };
 
 const createIndexPages = () => {
-  // TODO: recursively loop over folders
-  // TODO: if a folder does not have an index page, create one
-  const dir = path.join(BASE_DIR, 'foo-stuff');
-  createIndexPage(dir);
+  createIndexPage(BASE_DIR);
 };
 
 module.exports = createIndexPages;
-
-// TODO: remove this (just used for easier testing)
-createIndexPages();
