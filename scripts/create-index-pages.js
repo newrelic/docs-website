@@ -34,7 +34,14 @@ const getPageContent = (dir, files) => {
     .join('\n');
 };
 
-const createIndexPage = async (dir) => {
+const getSubheading = (dir, level) => {
+  const title = getTitle(dir);
+  const hashes = [...Array(level).keys()].reduce((acc) => '#' + acc, '');
+
+  return `\n${hashes} ${title}\n`;
+};
+
+const createIndexPage = async (dir, level = 2) => {
   const title = getTitle(dir);
 
   try {
@@ -55,8 +62,8 @@ const createIndexPage = async (dir) => {
       // We need to await the results of the last loop, before we can add to it.
       const content = await contentPromise;
 
-      const subDirContent = await createIndexPage(subDir);
-      const subDirHeading = '\n## ' + getTitle(subDir) + '\n';
+      const subDirContent = await createIndexPage(subDir, level + 1);
+      const subDirHeading = getSubheading(subDir, level);
 
       return [content, subDirHeading, subDirContent].join('\n');
     }, '');
