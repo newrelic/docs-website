@@ -38,15 +38,16 @@ const createIndexPage = async (dir) => {
   const title = getTitle(dir);
 
   try {
-    // get all sub directories
     const nodes = (await fs.readdir(dir, { withFileTypes: true })) || [];
+
+    // get files (and links) for this directory
+    const files = nodes.filter((node) => !node.isDirectory());
+    const dirLinks = getPageContent(dir, files);
+
+    // get all sub directories
     const subDirs = nodes
       .filter((node) => node.isDirectory())
       .map(({ name }) => path.join(dir, name));
-
-    // get links for this directory
-    const files = nodes.filter((node) => !node.isDirectory());
-    const dirLinks = getPageContent(dir, files);
 
     // get links for sub directories (make index pages along the way)
     const subLinks = await subDirs.reduce(async (content, subDir) => {
