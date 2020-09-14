@@ -5,8 +5,8 @@ const logger = require('./utils/logger');
 const { BASE_DIR } = require('./constants');
 const { resolve } = require('path');
 
-const getTitle = (item) =>
-  item
+const getTitle = (file) =>
+  file
     .split('/')
     .slice(-1)[0]
     .replace('.mdx', '')
@@ -23,9 +23,8 @@ template: basicDoc
 
 `;
 
-const getPageContent = (dir, files) =>
-  files &&
-  files
+const getPageContent = (dir, files) => {
+  return files
     .map((file) => {
       const path = `${dir}/${file.name}`;
       // TODO: get the label from frontmatter
@@ -33,26 +32,30 @@ const getPageContent = (dir, files) =>
       return `* [${path}](${label})`;
     })
     .join('\n');
+};
 
 const createIndexPage = async (dir) => {
   const title = getTitle(dir);
-  const fullDir = path.join(BASE_DIR, dir);
 
   try {
     // get all sub directories
-    const nodes = await fs.readdir(fullDir, { withFileTypes: true });
-    const subDirs = nodes ? nodes.filter((node) => node.isDirectory()) : [];
+    const nodes = (await fs.readdir(dir, { withFileTypes: true })) || [];
+    const subDirs = nodes
+      .filter((node) => node.isDirectory())
+      .map(({ name }) => path.join(dir, name));
 
     // get links for this directory
-    const dirLinks = getPageContent(dir, nodes);
+    const files = nodes.filter((node) => !node.isDirectory());
+    const dirLinks = getPageContent(dir, files);
 
     // get links for sub directories (make index pages along the way)
-    const subLinks = subDirs.reduce((content, subDir) => {
-      return content + createIndexPage(subDir.name);
+    const subLinks = await subDirs.reduce(async (content, subDir) => {
+      const subDirContent = await createIndexPage(subDir);
+      return content + '\n' + subDirContent + '\n';
     }, '');
 
     // combine links and add them to a new index.mdx file
-    const fileName = `${fullDir}/index.mdx`;
+    const fileName = `${dir}/index.mdx`;
     const content = getFrontmatter(title) + dirLinks + subLinks;
     await fs.writeFile(fileName, content);
 
@@ -66,7 +69,8 @@ const createIndexPage = async (dir) => {
 const createIndexPages = () => {
   // TODO: recursively loop over folders
   // TODO: if a folder does not have an index page, create one
-  createIndexPage('foo-stuff');
+  const dir = path.join(BASE_DIR, 'foo-stuff');
+  createIndexPage(dir);
 };
 
 module.exports = createIndexPages;
