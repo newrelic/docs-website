@@ -1,4 +1,4 @@
-const fs = require('fs');
+const fs = require('fs').promises;
 const path = require('path');
 
 const logger = require('./utils/logger');
@@ -34,38 +34,33 @@ const getPageContent = (dir, files) =>
     })
     .join('\n');
 
-// TODO: create all links in and nested under this directory
-const createIndexPage = (dir) => {
+const createIndexPage = async (dir) => {
   const title = getTitle(dir);
   const fullDir = path.join(BASE_DIR, dir);
 
-  /* 
-  Desired output: list of links, nested structure 
-  1. Check if there are any directories in this directory
-  2. If there are no directories, create and return a list of links
-  3. If there are directories, create all the links for this folder and then call the function again for the subdirectories
-  */
+  try {
+    // get all sub directories
+    const nodes = await fs.readdir(fullDir, { withFileTypes: true });
+    const subDirs = nodes ? nodes.filter((node) => node.isDirectory()) : [];
 
-  const linkContent = new Promise((resolve, reject) => {
-    fs.readdir(fullDir, { withFileTypes: true }, (err, files) => {
-      if (err) logger.error(`Unabled to read files for ${dir}.`);
+    // get links for this directory
+    const dirLinks = getPageContent(dir, nodes);
 
-      const subDirs = files && files.filter((file) => file.isDirectory());
-      const subLinkContent =
-        subDirs &&
-        subDirs.reduce((content, subDir) => {
-          return content + createIndexPage(subDir.name);
-        }, '');
-      const currentLinkContent = getPageContent(dir, files);
+    // get links for sub directories (make index pages along the way)
+    const subLinks = subDirs.reduce((content, subDir) => {
+      return content + createIndexPage(subDir.name);
+    }, '');
 
-      return resolve(currentLinkContent + subLinkContent);
-    });
-  });
-  const fileName = `${fullDir}/index.mdx`;
-  const content = getFrontmatter(title) + linkContent;
-  fs.writeFile(fileName, content, (err) => {
-    if (err) logger.error(`Could not create ${fileName}.`);
-  });
+    // combine links and add them to a new index.mdx file
+    const fileName = `${fullDir}/index.mdx`;
+    const content = getFrontmatter(title) + dirLinks + subLinks;
+    await fs.writeFile(fileName, content);
+
+    // return the links for this page (to be used by a parent, if applicable)
+    return dirLinks + subLinks;
+  } catch (err) {
+    logger.error(`Unabled to create index for ${dir}: ${err}`);
+  }
 };
 
 const createIndexPages = () => {
