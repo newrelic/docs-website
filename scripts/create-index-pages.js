@@ -32,6 +32,7 @@ const getPageContent = (dir, files) =>
     })
     .join('\n');
 
+// TODO: create all links in and nested under this directory
 const createIndexPage = (dir) => {
   const title = getTitle(dir);
   const fullDir = path.join(BASE_DIR, dir);
@@ -50,6 +51,7 @@ const createIndexPage = (dir) => {
 const createIndexPages = () => {
   // TODO: recursively loop over folders
   // TODO: if a folder does not have an index page, create one
+  createIndexPage('foo-stuff');
 };
 
 module.exports = createIndexPages;
