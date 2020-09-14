@@ -51,7 +51,8 @@ const createIndexPage = async (dir) => {
     // get links for sub directories (make index pages along the way)
     const subLinks = await subDirs.reduce(async (content, subDir) => {
       const subDirContent = await createIndexPage(subDir);
-      return content + '\n' + subDirContent + '\n';
+      const subDirHeading = '\n## ' + getTitle(subDir) + '\n';
+      return [content, subDirHeading, subDirContent].join('\n');
     }, '');
 
     // combine links and add them to a new index.mdx file
