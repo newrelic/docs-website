@@ -19,8 +19,6 @@ title: ${title}
 template: basicDoc
 ---
 
-# ${title}
-
 `;
 
 const getPageContent = (dir, files) => {
@@ -29,7 +27,7 @@ const getPageContent = (dir, files) => {
       const path = `${dir}/${file.name}`.replace(BASE_DIR, '');
       // TODO: get the label from frontmatter
       const label = getTitle(file.name);
-      return `* [${path}](${label})`;
+      return `* [${label}](${path})`;
     })
     .join('\n');
 };
