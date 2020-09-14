@@ -50,9 +50,14 @@ const createIndexPage = async (dir) => {
       .map(({ name }) => path.join(dir, name));
 
     // get links for sub directories (make index pages along the way)
-    const subLinks = await subDirs.reduce(async (content, subDir) => {
+    const subLinks = await subDirs.reduce(async (contentPromise, subDir) => {
+      // Due to this being async, the previous (accumulator) result is a promise.
+      // We need to await the results of the last loop, before we can add to it.
+      const content = await contentPromise;
+
       const subDirContent = await createIndexPage(subDir);
       const subDirHeading = '\n## ' + getTitle(subDir) + '\n';
+
       return [content, subDirHeading, subDirContent].join('\n');
     }, '');
 
@@ -71,8 +76,8 @@ const createIndexPage = async (dir) => {
   }
 };
 
-const createIndexPages = () => {
-  createIndexPage(BASE_DIR);
+const createIndexPages = async () => {
+  await createIndexPage(BASE_DIR);
 };
 
 module.exports = createIndexPages;

@@ -97,7 +97,7 @@ const fetchPages = async () => {
   });
 
   logger.normal('Creating index pages');
-  createIndexPages();
+  await createIndexPages();
 
   logger.success('Migration complete');
 };
