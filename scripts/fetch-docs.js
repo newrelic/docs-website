@@ -1,6 +1,7 @@
 const path = require('path');
 const fs = require('fs');
 const fetch = require('node-fetch');
+const TurndownService = require('turndown');
 
 const logger = require('./utils/logger');
 const createIndexPages = require('./create-index-pages');
@@ -87,12 +88,17 @@ const fetchPages = async () => {
     // NOTE: this should be returned in the JSON payload
     const type = input.find(({ ids }) => ids.includes(doc.docId)).type;
     const frontmatter = getFrontmatter(type, doc);
+    const turndownService = new TurndownService({
+      headingStyle: 'atx',
+    });
+    turndownService.addRule('codeBlocks', {
+      filter: ['pre'],
+      replacement: function (content) {
+        return '\`\`\`' + content + '\`\`\`' + '\n';
+      },
+    });
 
-    // Step 5: add content to file
-    const bodyContent = [formatWhitespace, escapeBraces].reduce(
-      (acc, curr) => curr(acc),
-      doc.body
-    );
+    const bodyContent = turndownService.turndown(doc.body);
     const content = frontmatter + bodyContent;
     fs.writeFile(fileName, content, (err) => {
       if (err) logger.error(`Could not create ${fileName}.`);
