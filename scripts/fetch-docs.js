@@ -5,6 +5,7 @@ const fetch = require('node-fetch');
 const logger = require('./utils/logger');
 const createIndexPages = require('./create-index-pages');
 const { BASE_URL, BASE_DIR } = require('./constants');
+const { formatWhitespace, escapeBraces } = require('./codemods/replaceChars');
 
 const GATSBY_CONTENT_TYPES = {
   page: 'page',
@@ -53,13 +54,6 @@ const getCategories = (url) => {
     .slice(0, -1);
 };
 
-const format = (html) => {
-  return html
-    .replace(/\r\n?/g, '\n')
-    .replace(/\t/g, '  ')
-    .replace(/\n+/g, '\n');
-};
-
 const getFrontmatter = (type, doc) => `---
 title: ${doc.title}
 contentType: ${GATSBY_CONTENT_TYPES[type]}
@@ -95,7 +89,11 @@ const fetchPages = async () => {
     const frontmatter = getFrontmatter(type, doc);
 
     // Step 5: add content to file
-    const content = frontmatter + format(doc.body);
+    const bodyContent = [formatWhitespace, escapeBraces].reduce(
+      (acc, curr) => curr(acc),
+      doc.body
+    );
+    const content = frontmatter + bodyContent;
     fs.writeFile(fileName, content, (err) => {
       if (err) logger.error(`Could not create ${fileName}.`);
     });
