@@ -1,9 +1,10 @@
-const fetch = require('node-fetch');
-const fs = require('fs');
 const path = require('path');
+const fs = require('fs');
+const fetch = require('node-fetch');
 
-const BASE_URL = 'https://docs.newrelic.com/api/ui/content';
-const BASE_DIR = path.join(__dirname, '..', 'src/content');
+const logger = require('./utils/logger');
+const createIndexPages = require('./create-index-pages');
+const { BASE_URL, BASE_DIR } = require('./constants');
 
 const GATSBY_CONTENT_TYPES = {
   page: 'page',
@@ -41,7 +42,7 @@ const fetchDoc = async (type, id) => {
     const result = await resp.json();
     return result.docs[0].doc;
   } catch (e) {
-    console.log(`Error, could not fetch ${url}`, e);
+    logger.error(`Error, could not fetch ${url}: ${e}`);
   }
 };
 
@@ -69,12 +70,14 @@ template: ${GATSBY_TEMPLATE[type]}
 
 const fetchPages = async () => {
   // Step 1: get the docs
+  logger.normal('Fetching JSON');
   const requests = input.flatMap(({ type, ids }) =>
     ids.map((id) => fetchDoc(type, id))
   );
 
   const results = await Promise.all(requests);
 
+  logger.normal('Creating Directories');
   results.forEach((doc) => {
     // Step 2: create the directory structure
     const dir = path.join(BASE_DIR, ...getCategories(doc.docUrl));
@@ -94,13 +97,16 @@ const fetchPages = async () => {
     // Step 5: add content to file
     const content = frontmatter + format(doc.body);
     fs.writeFile(fileName, content, (err) => {
-      if (err) {
-        console.log(`Error, could not create ${fileName}`, e);
-      }
+      if (err) logger.error(`Could not create ${fileName}.`);
     });
 
     // Step 6: party!
   });
+
+  logger.normal('Creating index pages');
+  await createIndexPages();
+
+  logger.success('Migration complete');
 };
 
 // Run the script via `node path_to_script`
