@@ -24,7 +24,9 @@ template: basicDoc
 const getPageContent = (dir, files) => {
   return files
     .map((file) => {
-      const path = `${dir}/${file.name}`.replace(BASE_DIR, '');
+      const path = `${dir}/${file.name}`
+        .replace(BASE_DIR, '')
+        .replace('.mdx', '');
       // TODO: get the label from frontmatter
       const label = getTitle(file.name);
       return `* [${label}](${path})`;
