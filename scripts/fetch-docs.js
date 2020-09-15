@@ -97,6 +97,7 @@ const fetchPages = async () => {
         return '\`\`\`' + content + '\`\`\`' + '\n';
       },
     });
+    turndownService.keep(['table']);
 
     const bodyContent = turndownService.turndown(doc.body);
     const content = frontmatter + bodyContent;
