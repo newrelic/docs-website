@@ -1,9 +1,10 @@
 const fs = require('fs').promises;
+const fsSync = require('fs');
 const path = require('path');
+const fm = require('front-matter');
 
 const logger = require('./utils/logger');
 const { BASE_DIR } = require('./constants');
-const { resolve } = require('path');
 
 const getTitle = (file) =>
   file
@@ -27,8 +28,8 @@ const getPageContent = (dir, files) => {
       const path = `${dir}/${file.name}`
         .replace(BASE_DIR, '')
         .replace('.mdx', '');
-      // TODO: get the label from frontmatter
-      const label = getTitle(file.name);
+      const fileContent = fsSync.readFileSync(`${dir}/${file.name}`, 'utf8');
+      const label = fm(fileContent).attributes.title || getTitle(file.name);
       return `* [${label}](${path})`;
     })
     .join('\n');
