@@ -2,6 +2,7 @@ const path = require('path');
 const fs = require('fs');
 const fetch = require('node-fetch');
 const TurndownService = require('turndown');
+require('dotenv').config();
 
 const logger = require('./utils/logger');
 const createIndexPages = require('./create-index-pages');
@@ -14,6 +15,8 @@ const GATSBY_CONTENT_TYPES = {
   release_notes: 'releaseNote',
   release_notes_platform: 'releaseNotePlatform',
   troubleshooting_doc: 'troubleshootingDoc',
+  nr1_announcement: 'nr1Announcement',
+  attribute_definition: 'attributeDef',
 };
 
 const GATSBY_TEMPLATE = {
@@ -22,6 +25,8 @@ const GATSBY_TEMPLATE = {
   release_notes: 'basicDoc',
   release_notes_platform: 'basicDoc',
   troubleshooting_doc: 'basicDoc',
+  nr1_announcement: 'basicDoc',
+  attribute_definition: 'basicDoc',
 };
 
 // IDs grouped by content type (related GH issue in comments)
@@ -31,8 +36,8 @@ const input = [
   { type: 'release_notes', ids: ['40416', '40466'] }, // #48
   { type: 'release_notes_platform', ids: ['40531', '40506'] }, // #49
   { type: 'troubleshooting_doc', ids: ['40351', '15086'] }, // #50
-  // { type: 'nr1_announcement', ids: ['40491', '40516'] }, // #47
-  // { type: 'attribute_definition', ids: ['40336', '40016'] }, // 46
+  { type: 'nr1_announcement', ids: ['40491', '40516'] }, // #47
+  { type: 'attribute_definition', ids: ['40336', '40016'] }, // 46
 ];
 
 const getUrl = (type, id) => [BASE_URL, type, id].join('/');
@@ -40,7 +45,12 @@ const getUrl = (type, id) => [BASE_URL, type, id].join('/');
 const fetchDoc = async (type, id) => {
   const url = getUrl(type, id);
   try {
-    const resp = await fetch(url);
+    const resp = await fetch(url, {
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Phpshield-Key-Disable': process.env.ACQUIA_DEV_PHP_SHIELD_KEY,
+      },
+    });
     const result = await resp.json();
     return result.docs[0].doc;
   } catch (e) {
@@ -50,7 +60,7 @@ const fetchDoc = async (type, id) => {
 
 const getCategories = (url) => {
   return url
-    .replace('https://docs.newrelic.com/docs/', '')
+    .replace('https://docs-dev.newrelic.com/', '')
     .split('/')
     .slice(0, -1);
 };
@@ -94,12 +104,13 @@ const fetchPages = async () => {
     turndownService.addRule('codeBlocks', {
       filter: ['pre'],
       replacement: function (content) {
-        return '\`\`\`' + content + '\`\`\`' + '\n';
+        // return '```' + '\n' + content + '```' + '\n';
+        return `~~~\n${content}\n~~~\n`;
       },
     });
     turndownService.keep(['table']);
 
-    const bodyContent = turndownService.turndown(doc.body);
+    const bodyContent = doc.body ? turndownService.turndown(doc.body) : '';
     const content = frontmatter + bodyContent;
     fs.writeFile(fileName, content, (err) => {
       if (err) logger.error(`Could not create ${fileName}.`);
