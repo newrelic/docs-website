@@ -28,21 +28,20 @@ const GATSBY_TEMPLATE = {
   attribute_definition: 'basicDoc',
 };
 
-// IDs grouped by content type (related GH issue in comments)
 const input = [
-  { type: 'page', ids: ['38576', '40431'] }, // #44
-  { type: 'api_doc', ids: ['37696', '40421'] }, // #45
-  { type: 'release_notes', ids: ['40416', '40466'] }, // #48
-  { type: 'release_notes_platform', ids: ['40531', '40506'] }, // #49
-  { type: 'troubleshooting_doc', ids: ['40351', '15086'] }, // #50
-  { type: 'nr1_announcement', ids: ['40491', '40516'] }, // #47
-  { type: 'attribute_definition', ids: ['40336', '40016'] }, // 46
+  'page',
+  'api_doc',
+  'release_notes',
+  'release_notes_platform',
+  'troubleshooting_doc',
+  'nr1_announcement',
+  'attribute_definition',
 ];
 
-const getUrl = (type, id) => [BASE_URL, type, id].join('/');
+const getUrl = (type) => [BASE_URL, type, 'list'].join('/');
 
-const fetchDoc = async (type, id) => {
-  const url = getUrl(type, id);
+const fetchDoc = async (type) => {
+  const url = getUrl(type);
   try {
     const resp = await fetch(url, {
       headers: {
@@ -51,7 +50,7 @@ const fetchDoc = async (type, id) => {
       },
     });
     const result = await resp.json();
-    return result.docs[0].doc;
+    return result.docs.map((item) => item.doc);
   } catch (e) {
     logger.error(`Error, could not fetch ${url}: ${e}`);
   }
@@ -65,7 +64,7 @@ const getCategories = (url) => {
 };
 
 const getFrontmatter = (type, doc) => `---
-title: ${doc.title}
+title: ${doc.title.replace(':', '-')}
 contentType: ${GATSBY_CONTENT_TYPES[type]}
 template: ${GATSBY_TEMPLATE[type]}
 ---
@@ -75,14 +74,11 @@ template: ${GATSBY_TEMPLATE[type]}
 const fetchPages = async () => {
   // Step 1: get the docs
   logger.normal('Fetching JSON');
-  const requests = input.flatMap(({ type, ids }) =>
-    ids.map((id) => fetchDoc(type, id))
-  );
-
+  const requests = input.map(fetchDoc);
   const results = await Promise.all(requests);
 
   logger.normal('Creating Directories');
-  results.forEach((doc) => {
+  results.flat().forEach((doc) => {
     // Step 2: create the directory structure
     const dir = path.join(BASE_DIR, ...getCategories(doc.docUrl));
     if (!fs.existsSync(dir)) {
@@ -94,9 +90,7 @@ const fetchPages = async () => {
     const fileName = `${dir}/${slug}.mdx`;
 
     // Step 4: create frontmatter based on content type
-    // NOTE: this should be returned in the JSON payload
-    const type = input.find(({ ids }) => ids.includes(doc.docId)).type;
-    const frontmatter = getFrontmatter(type, doc);
+    const frontmatter = getFrontmatter(doc.type, doc);
 
     // Step 5: Convert content to markdown and write to file
     const turndownService = new TurndownService({
