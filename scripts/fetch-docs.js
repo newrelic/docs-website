@@ -7,7 +7,6 @@ require('dotenv').config();
 const logger = require('./utils/logger');
 const createIndexPages = require('./create-index-pages');
 const { BASE_URL, BASE_DIR } = require('./constants');
-const { formatWhitespace, escapeBraces } = require('./codemods/replaceChars');
 
 const GATSBY_CONTENT_TYPES = {
   page: 'page',
