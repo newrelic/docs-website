@@ -97,13 +97,14 @@ const fetchPages = async () => {
     // NOTE: this should be returned in the JSON payload
     const type = input.find(({ ids }) => ids.includes(doc.docId)).type;
     const frontmatter = getFrontmatter(type, doc);
+
+    // Step 5: Convert content to markdown and write to file
     const turndownService = new TurndownService({
       headingStyle: 'atx',
     });
     turndownService.addRule('codeBlocks', {
       filter: ['pre'],
       replacement: function (content) {
-        // return '```' + '\n' + content + '```' + '\n';
         return `~~~\n${content}\n~~~\n`;
       },
     });
