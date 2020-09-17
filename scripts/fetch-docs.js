@@ -6,7 +6,7 @@ require('dotenv').config();
 
 const logger = require('./utils/logger');
 const createIndexPages = require('./create-index-pages');
-const { BASE_URL, BASE_DIR } = require('./constants');
+const { TYPES, BASE_URL, BASE_DIR } = require('./constants');
 
 const GATSBY_CONTENT_TYPES = {
   page: 'page',
@@ -27,16 +27,6 @@ const GATSBY_TEMPLATE = {
   nr1_announcement: 'basicDoc',
   attribute_definition: 'basicDoc',
 };
-
-const input = [
-  'page',
-  'api_doc',
-  'release_notes',
-  'release_notes_platform',
-  'troubleshooting_doc',
-  'nr1_announcement',
-  'attribute_definition',
-];
 
 const getUrl = (type) => [BASE_URL, type, 'list'].join('/');
 
@@ -74,7 +64,7 @@ template: ${GATSBY_TEMPLATE[type]}
 const fetchPages = async () => {
   // Step 1: get the docs
   logger.normal('Fetching JSON');
-  const requests = input.map(fetchDoc);
+  const requests = TYPES.map(fetchDoc);
   const results = await Promise.all(requests);
 
   logger.normal('Creating Directories');
