@@ -2,15 +2,14 @@ const fs = require('fs');
 const { TYPES } = require('./constants');
 const toMarkdown = require('./converters/to-markdown');
 
-// TODO: no magic string
 const converters = {
-  page: toMarkdown,
-  api_doc: toMarkdown,
-  release_notes: toMarkdown,
-  release_notes_platform: toMarkdown,
-  troubleshooting_doc: toMarkdown,
-  nr1_announcement: toMarkdown,
-  attribute_definition: toMarkdown,
+  [TYPES.BASIC_PAGE]: toMarkdown,
+  [TYPES.API_DOC]: toMarkdown,
+  [TYPES.RELEASE_NOTE]: toMarkdown,
+  [TYPES.RELEASE_NOTE_PLATFORM]: toMarkdown,
+  [TYPES.TROUBLESHOOTING]: toMarkdown,
+  [TYPES.WHATS_NEW]: toMarkdown,
+  [TYPES.ATTRIBUTE_DEFINITION]: toMarkdown,
 };
 
 const convertDocs = (docs) => {

@@ -1,36 +1,38 @@
 const path = require('path');
 
+const TYPES = {
+  BASIC_PAGE: 'page',
+  API_DOC: 'api_doc',
+  RELEASE_NOTE: 'release_notes',
+  RELEASE_NOTE_PLATFORM: 'release_notes_platform',
+  TROUBLESHOOTING: 'troubleshooting_doc',
+  WHATS_NEW: 'nr1_announcement',
+  ATTRIBUTE_DEFINITION: 'attribute_definition',
+};
+
 module.exports = {
   BASE_URL: 'https://docs-dev.newrelic.com/api/migration/content',
   BASE_DIR: path.join(__dirname, '..', 'src/content'),
 
-  TYPES: [
-    'page',
-    'api_doc',
-    'release_notes',
-    'release_notes_platform',
-    'troubleshooting_doc',
-    'nr1_announcement',
-    'attribute_definition',
-  ],
+  TYPES,
 
   GATSBY_CONTENT_TYPES: {
-    page: 'page',
-    api_doc: 'apiDoc',
-    release_notes: 'releaseNote',
-    release_notes_platform: 'releaseNotePlatform',
-    troubleshooting_doc: 'troubleshootingDoc',
-    nr1_announcement: 'nr1Announcement',
-    attribute_definition: 'attributeDef',
+    [TYPES.BASIC_PAGE]: 'page',
+    [TYPES.API_DOC]: 'apiDoc',
+    [TYPES.RELEASE_NOTE]: 'releaseNote',
+    [TYPES.RELEASE_NOTE_PLATFORM]: 'releaseNotePlatform',
+    [TYPES.TROUBLESHOOTING]: 'troubleshootingDoc',
+    [TYPES.WHATS_NEW]: 'nr1Announcement',
+    [TYPES.ATTRIBUTE_DEFINITION]: 'attributeDef',
   },
 
   GATSBY_TEMPLATE: {
-    page: 'basicDoc',
-    api_doc: 'basicDoc',
-    release_notes: 'basicDoc',
-    release_notes_platform: 'basicDoc',
-    troubleshooting_doc: 'basicDoc',
-    nr1_announcement: 'basicDoc',
-    attribute_definition: 'basicDoc',
+    [TYPES.BASIC_PAGE]: 'basicDoc',
+    [TYPES.API_DOC]: 'basicDoc',
+    [TYPES.RELEASE_NOTE]: 'basicDoc',
+    [TYPES.RELEASE_NOTE_PLATFORM]: 'basicDoc',
+    [TYPES.TROUBLESHOOTING]: 'basicDoc',
+    [TYPES.WHATS_NEW]: 'basicDoc',
+    [TYPES.ATTRIBUTE_DEFINITION]: 'basicDoc',
   },
 };

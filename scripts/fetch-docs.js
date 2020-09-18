@@ -23,7 +23,7 @@ const fetchDoc = async (type) => {
 };
 
 const fetchDocs = async () => {
-  const requests = TYPES.map(fetchDoc);
+  const requests = Object.values(TYPES).map(fetchDoc);
   const results = await Promise.all(requests);
 
   return results;
