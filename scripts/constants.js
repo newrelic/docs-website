@@ -13,4 +13,24 @@ module.exports = {
     'nr1_announcement',
     'attribute_definition',
   ],
+
+  GATSBY_CONTENT_TYPES: {
+    page: 'page',
+    api_doc: 'apiDoc',
+    release_notes: 'releaseNote',
+    release_notes_platform: 'releaseNotePlatform',
+    troubleshooting_doc: 'troubleshootingDoc',
+    nr1_announcement: 'nr1Announcement',
+    attribute_definition: 'attributeDef',
+  },
+
+  GATSBY_TEMPLATE: {
+    page: 'basicDoc',
+    api_doc: 'basicDoc',
+    release_notes: 'basicDoc',
+    release_notes_platform: 'basicDoc',
+    troubleshooting_doc: 'basicDoc',
+    nr1_announcement: 'basicDoc',
+    attribute_definition: 'basicDoc',
+  },
 };

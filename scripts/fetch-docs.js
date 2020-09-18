@@ -6,27 +6,13 @@ require('dotenv').config();
 
 const logger = require('./utils/logger');
 const createIndexPages = require('./create-index-pages');
-const { TYPES, BASE_URL, BASE_DIR } = require('./constants');
-
-const GATSBY_CONTENT_TYPES = {
-  page: 'page',
-  api_doc: 'apiDoc',
-  release_notes: 'releaseNote',
-  release_notes_platform: 'releaseNotePlatform',
-  troubleshooting_doc: 'troubleshootingDoc',
-  nr1_announcement: 'nr1Announcement',
-  attribute_definition: 'attributeDef',
-};
-
-const GATSBY_TEMPLATE = {
-  page: 'basicDoc',
-  api_doc: 'basicDoc',
-  release_notes: 'basicDoc',
-  release_notes_platform: 'basicDoc',
-  troubleshooting_doc: 'basicDoc',
-  nr1_announcement: 'basicDoc',
-  attribute_definition: 'basicDoc',
-};
+const {
+  TYPES,
+  BASE_URL,
+  BASE_DIR,
+  GATSBY_CONTENT_TYPES,
+  GATSBY_TEMPLATE,
+} = require('./constants');
 
 const getUrl = (type) => [BASE_URL, type, 'list'].join('/');
 
@@ -99,16 +85,7 @@ const fetchDocs = async () => {
     fs.writeFile(fileName, content, (err) => {
       if (err) logger.error(`Could not create ${fileName}.`);
     });
-
-    // Step 6: party!
   });
-
-  logger.normal('Creating index pages');
-  await createIndexPages();
-
-  logger.success('Migration complete');
 };
 
-// Run the script via `node path_to_script`
-// fetchDocs();
 module.exports = fetchDocs;
