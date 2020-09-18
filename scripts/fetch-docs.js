@@ -72,7 +72,7 @@ template: ${GATSBY_TEMPLATE[type]}
 
 `;
 
-const fetchPages = async () => {
+const fetchDocs = async () => {
   // Step 1: get the docs
   logger.normal('Fetching JSON');
   const requests = input.flatMap(({ type, ids }) =>
@@ -126,4 +126,5 @@ const fetchPages = async () => {
 };
 
 // Run the script via `node path_to_script`
-fetchPages();
+// fetchDocs();
+module.exports = fetchDocs;
