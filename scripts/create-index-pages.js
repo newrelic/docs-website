@@ -43,6 +43,11 @@ const getSubheading = (dir, level) => {
 };
 
 const createIndexPage = async (dir, level = 2) => {
+  // dont run for the attribute definitions
+  if (dir === path.join(BASE_DIR, 'attribute-dictionary')) {
+    return false;
+  }
+
   const title = getTitle(dir);
 
   try {

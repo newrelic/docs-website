@@ -1,6 +1,7 @@
 const fs = require('fs');
 const { TYPES } = require('./constants');
 const toMarkdown = require('./converters/to-markdown');
+const toJSON = require('./converters/to-json');
 
 const converters = {
   [TYPES.BASIC_PAGE]: toMarkdown,
@@ -9,7 +10,7 @@ const converters = {
   [TYPES.RELEASE_NOTE_PLATFORM]: toMarkdown,
   [TYPES.TROUBLESHOOTING]: toMarkdown,
   [TYPES.WHATS_NEW]: toMarkdown,
-  [TYPES.ATTRIBUTE_DEFINITION]: toMarkdown,
+  [TYPES.ATTRIBUTE_DEFINITION]: toJSON,
 };
 
 const convertDocs = (docs) => {
