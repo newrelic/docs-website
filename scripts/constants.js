@@ -6,6 +6,7 @@ module.exports = {
 
   TYPES: {
     BASIC_PAGE: 'page',
+    LANDING_PAGE: 'landing_page',
     API_DOC: 'api_doc',
     RELEASE_NOTE: 'release_notes',
     RELEASE_NOTE_PLATFORM: 'release_notes_platform',

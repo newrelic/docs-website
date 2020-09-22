@@ -3,6 +3,7 @@ const { TYPES } = require('../constants');
 
 const GATSBY_CONTENT_TYPES = {
   [TYPES.BASIC_PAGE]: 'page',
+  [TYPES.LANDING_PAGE]: 'landingPage',
   [TYPES.API_DOC]: 'apiDoc',
   [TYPES.RELEASE_NOTE]: 'releaseNote',
   [TYPES.RELEASE_NOTE_PLATFORM]: 'releaseNotePlatform',
@@ -12,6 +13,7 @@ const GATSBY_CONTENT_TYPES = {
 
 const GATSBY_TEMPLATE = {
   [TYPES.BASIC_PAGE]: 'basicDoc',
+  [TYPES.LANDING_PAGE]: 'basicDoc',
   [TYPES.API_DOC]: 'basicDoc',
   [TYPES.RELEASE_NOTE]: 'releaseNote',
   [TYPES.RELEASE_NOTE_PLATFORM]: 'releaseNotePlatform',
