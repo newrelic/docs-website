@@ -1,8 +1,8 @@
-module.exports = ({ types: _t }) => {
+module.exports = ({ types: t }) => {
   return {
     visitor: {
       JSXIdentifier(path) {
-        if (path.node.name === 'Button') {
+        if (t.isJSXIdentifier(path.node, { name: 'Button' })) {
           path.node.name = 'CoolButton';
         }
       },
