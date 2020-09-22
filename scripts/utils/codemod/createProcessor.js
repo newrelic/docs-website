@@ -12,20 +12,22 @@ const createProcessor = () => {
     .use(toMDAST)
     .use(remarkMdx)
     .use(toMDXAST)
-    .use(processHtml)
+    .use(jsx, {
+      visitors: {
+        JSXIdentifier(path) {
+          if (path.node.name === 'Button') {
+            path.node.name = 'CoolButton';
+          }
+        },
+      },
+    })
     .use(stringify)
     .use(frontmatter, ['yaml']);
 };
 
-const processHtml = () => (tree) => {
+const jsx = ({ visitors }) => (tree) => {
   visit(tree, 'jsx', async (node) => {
-    node.value = transformJSX(node.value, {
-      JSXIdentifier(path) {
-        if (path.node.name === 'Button') {
-          path.node.name = 'CoolButton';
-        }
-      },
-    });
+    node.value = transformJSX(node.value, visitors);
   });
 };
 
