@@ -2,37 +2,8 @@ const path = require('path');
 const TurndownService = require('turndown');
 
 const getCategories = require('../utils/get-categories');
-const { BASE_DIR, TYPES } = require('../constants');
-
-const GATSBY_CONTENT_TYPES = {
-  [TYPES.BASIC_PAGE]: 'page',
-  [TYPES.LANDING_PAGE]: 'landingPage',
-  [TYPES.API_DOC]: 'apiDoc',
-  [TYPES.RELEASE_NOTE]: 'releaseNote',
-  [TYPES.RELEASE_NOTE_PLATFORM]: 'releaseNotePlatform',
-  [TYPES.TROUBLESHOOTING]: 'troubleshootingDoc',
-  [TYPES.WHATS_NEW]: 'nr1Announcement',
-  [TYPES.ATTRIBUTE_DEFINITION]: 'attributeDef',
-};
-
-const GATSBY_TEMPLATE = {
-  [TYPES.BASIC_PAGE]: 'basicDoc',
-  [TYPES.LANDING_PAGE]: 'basicDoc',
-  [TYPES.API_DOC]: 'basicDoc',
-  [TYPES.RELEASE_NOTE]: 'basicDoc',
-  [TYPES.RELEASE_NOTE_PLATFORM]: 'basicDoc',
-  [TYPES.TROUBLESHOOTING]: 'basicDoc',
-  [TYPES.WHATS_NEW]: 'basicDoc',
-  [TYPES.ATTRIBUTE_DEFINITION]: 'basicDoc',
-};
-
-const getFrontmatter = (type, doc) => `---
-title: ${doc.title.replace(':', '-')}
-contentType: ${GATSBY_CONTENT_TYPES[type]}
-template: ${GATSBY_TEMPLATE[type]}
----
-
-`;
+const getFrontmatter = require('../frontmatter/get-frontmatter');
+const { TYPES, BASE_DIR } = require('../constants');
 
 const toMarkdown = (doc) => {
   const dir = path.join(BASE_DIR, ...getCategories(doc.docUrl));
