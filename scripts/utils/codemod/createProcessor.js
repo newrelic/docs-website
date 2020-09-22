@@ -8,14 +8,22 @@ const jsx = require('./jsx');
 const jsxComment = require('./jsxComment');
 
 const createProcessor = ({ codemods }) => {
-  return unified()
-    .use(stringify)
+  const processor = unified()
+    .use(stringify, { bullet: '*' })
     .use(toMDAST)
     .use(remarkMdx)
     .use(jsxComment)
     .use(toMDXAST)
     .use(jsx, { plugins: codemods.jsx })
     .use(frontmatter, ['yaml']);
+
+  codemods.mdx.forEach((plugin) => {
+    Array.isArray(plugin)
+      ? processor.use(plugin[0], plugin[1])
+      : processor.use(plugin);
+  });
+
+  return processor;
 };
 
 module.exports = createProcessor;
