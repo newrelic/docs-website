@@ -3,7 +3,7 @@ module.exports = ({ types: t }) => {
     visitor: {
       JSXIdentifier(path) {
         if (t.isJSXIdentifier(path.node, { name: 'CoolButton' })) {
-          path.node.name = 'CoolButton2';
+          path.replaceWith(t.jsxIdentifier('CoolButton2'));
         }
       },
     },
