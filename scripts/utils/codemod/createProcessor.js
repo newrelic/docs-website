@@ -5,8 +5,7 @@ const frontmatter = require('remark-frontmatter');
 const toMDXAST = require('@mdx-js/mdx/md-ast-to-mdx-ast');
 const remarkMdx = require('remark-mdx');
 const visit = require('unist-util-visit');
-const traverse = require('@babel/traverse').default;
-const generate = require('@babel/generator').default;
+const transformJSX = require('./transformJSX');
 
 const createProcessor = () => {
   return unified()
@@ -20,21 +19,13 @@ const createProcessor = () => {
 
 const processHtml = () => (tree) => {
   visit(tree, 'jsx', async (node) => {
-    const ast = require('@babel/parser').parse(node.value, {
-      plugins: ['jsx'],
-    });
-
-    traverse(ast, {
+    node.value = transformJSX(node.value, {
       JSXIdentifier(path) {
         if (path.node.name === 'Button') {
           path.node.name = 'CoolButton';
         }
       },
     });
-
-    const { code } = generate(ast, {}, node.value);
-
-    node.value = code;
   });
 };
 
