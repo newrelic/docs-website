@@ -3,7 +3,7 @@ const TurndownService = require('turndown');
 
 const getCategories = require('../utils/get-categories');
 const getFrontmatter = require('../frontmatter/get-frontmatter');
-const { BASE_DIR } = require('../constants');
+const { TYPES, BASE_DIR } = require('../constants');
 
 const toMarkdown = (doc) => {
   const dir = path.join(BASE_DIR, ...getCategories(doc.docUrl));
