@@ -9,11 +9,11 @@ const transformJSX = require('./transformJSX');
 
 const createProcessor = ({ codemods }) => {
   return unified()
+    .use(stringify)
     .use(toMDAST)
     .use(remarkMdx)
     .use(toMDXAST)
     .use(jsx, { plugins: codemods.jsx })
-    .use(stringify)
     .use(frontmatter, ['yaml']);
 };
 
