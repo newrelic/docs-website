@@ -7,9 +7,15 @@ import { MDXRenderer } from 'gatsby-plugin-mdx';
 const whatsNewTemplate = ({ data }) => {
   const { mdx } = data;
   const { frontmatter, body } = mdx;
+  const { title, summary, learnMoreLink, getStartedLink } = frontmatter;
   return (
     <>
-      <h1>{frontmatter.title}</h1>
+      <h1>{title}</h1>
+      <ul>
+        <li>{`summary: ${summary}`}</li>
+        <li>{`getStartedLink: ${getStartedLink}`}</li>
+        <li>{`learnMoreLink: ${learnMoreLink}`}</li>
+      </ul>
       <MDXProvider>
         <MDXRenderer>{body}</MDXRenderer>
       </MDXProvider>
@@ -27,7 +33,6 @@ export const pageQuery = graphql`
       body
       frontmatter {
         title
-        topics
         summary
         learnMoreLink
         getStartedLink
