@@ -6,6 +6,7 @@ const { BASE_DIR, TYPES } = require('../constants');
 
 const GATSBY_CONTENT_TYPES = {
   [TYPES.BASIC_PAGE]: 'page',
+  [TYPES.LANDING_PAGE]: 'landingPage',
   [TYPES.API_DOC]: 'apiDoc',
   [TYPES.RELEASE_NOTE]: 'releaseNote',
   [TYPES.RELEASE_NOTE_PLATFORM]: 'releaseNotePlatform',
@@ -16,6 +17,7 @@ const GATSBY_CONTENT_TYPES = {
 
 const GATSBY_TEMPLATE = {
   [TYPES.BASIC_PAGE]: 'basicDoc',
+  [TYPES.LANDING_PAGE]: 'basicDoc',
   [TYPES.API_DOC]: 'basicDoc',
   [TYPES.RELEASE_NOTE]: 'basicDoc',
   [TYPES.RELEASE_NOTE_PLATFORM]: 'basicDoc',
@@ -35,7 +37,8 @@ template: ${GATSBY_TEMPLATE[type]}
 const toMarkdown = (doc) => {
   const dir = path.join(BASE_DIR, ...getCategories(doc.docUrl));
   const slug = doc.docUrl.split('/').slice(-1);
-  const fileName = `${dir}/${slug}.mdx`;
+  const fileName =
+    doc.type === TYPES.LANDING_PAGE ? `${dir}/index.mdx` : `${dir}/${slug}.mdx`;
 
   // Create frontmatter based on content type
   const frontmatter = getFrontmatter(doc.type, doc);

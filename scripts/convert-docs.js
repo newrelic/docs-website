@@ -5,6 +5,7 @@ const toJSON = require('./converters/to-json');
 
 const converters = {
   [TYPES.BASIC_PAGE]: toMarkdown,
+  [TYPES.LANDING_PAGE]: toMarkdown,
   [TYPES.API_DOC]: toMarkdown,
   [TYPES.RELEASE_NOTE]: toMarkdown,
   [TYPES.RELEASE_NOTE_PLATFORM]: toMarkdown,
