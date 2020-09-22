@@ -1,5 +1,5 @@
 const createProcessor = require('./utils/codemod/createProcessor');
-const { read } = require('to-vfile');
+const { read, write } = require('to-vfile');
 const codemods = require('../codemods');
 
 const FILE =
@@ -9,9 +9,8 @@ const process = async (path) => {
   const file = await read(path);
   const processor = createProcessor({ codemods });
 
-  const { contents } = await processor.process(file);
-
-  console.log(contents);
+  await processor.process(file);
+  await write(file, 'utf-8');
 };
 
 process(FILE);
