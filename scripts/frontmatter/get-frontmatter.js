@@ -64,7 +64,6 @@ const addCustomFrontmatter = {
     return {
       releaseDateTime: doc.releasedOn || '',
       releaseImpact: doc.releaseImpact || [],
-      downloadLink: doc.downloadLink || '',
     };
   },
   [TYPES.WHATS_NEW]: (doc) => {

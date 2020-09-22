@@ -7,14 +7,13 @@ import { MDXRenderer } from 'gatsby-plugin-mdx';
 const releaseNotePlatformTemplate = ({ data }) => {
   const { mdx } = data;
   const { frontmatter, body } = mdx;
-  const { title, releaseDateTime, releaseImpact, downloadLink } = frontmatter;
+  const { title, releaseDateTime, releaseImpact } = frontmatter;
   return (
     <>
       <h1>{title}</h1>
       <ul>
         <li>{`releaseDateTime: ${releaseDateTime}`}</li>
         <li>{`releaseImpact: ${releaseImpact}`}</li>
-        <li>{`downloadLink: ${downloadLink}`}</li>
       </ul>
       <MDXProvider>
         <MDXRenderer>{body}</MDXRenderer>
@@ -35,7 +34,6 @@ export const pageQuery = graphql`
         title
         releaseDateTime
         releaseImpact
-        downloadLink
       }
     }
   }
