@@ -19,15 +19,6 @@ const GATSBY_TEMPLATE = {
   [TYPES.WHATS_NEW]: 'basicDoc',
 };
 
-const FRONTMATTER_TEMPLATE = {
-  [TYPES.BASIC_PAGE]: 'page',
-  [TYPES.API_DOC]: 'apiDoc',
-  [TYPES.RELEASE_NOTE]: 'releaseNote',
-  [TYPES.RELEASE_NOTE_PLATFORM]: 'releaseNotePlatform',
-  [TYPES.TROUBLESHOOTING]: 'troubleshooting',
-  [TYPES.WHATS_NEW]: 'whatsNew',
-};
-
 const getFrontmatter = (type, doc) => {
   const defaultFrontmatter = {
     title: doc.title.replace(':', '-'),
@@ -38,39 +29,45 @@ const getFrontmatter = (type, doc) => {
 
   return frontmatter.stringify('', {
     ...defaultFrontmatter,
-    ...addCustomFrontmatter[FRONTMATTER_TEMPLATE[type]](doc),
+    ...addCustomFrontmatter[type](doc),
   });
 };
 
 const addCustomFrontmatter = {
-  apiDoc: (doc) => {
-    return;
+  [TYPES.API_DOC]: (doc) => {
+    return {};
   },
-  page: (doc) => {
+  [TYPES.BASIC_PAGE]: (doc) => {
     return {
-      japaneseVersion: doc.japaneseVersionExists === 'yes',
+      japaneseVersion:
+        doc.japaneseVersionExists === 'yes'
+          ? 'https://docs.newrelic.co.jp/' + doc.url
+          : '',
     };
   },
-  troubleshooting: (doc) => {
+  [TYPES.TROUBLESHOOTING]: (doc) => {
     return {
-      japaneseVersion: doc.japaneseVersionExists === 'yes',
+      japaneseVersion:
+        doc.japaneseVersionExists === 'yes'
+          ? 'https://docs.newrelic.co.jp/' + doc.url
+          : '',
     };
   },
-  releaseNote: (doc) => {
+  [TYPES.RELEASE_NOTE]: (doc) => {
     return {
       releaseDateTime: doc.releasedOn || '',
       releaseVersion: doc.releaseVersion || '',
       downloadLink: doc.downloadLink || '',
     };
   },
-  releaseNotePlatform: (doc) => {
+  [TYPES.RELEASE_NOTE_PLATFORM]: (doc) => {
     return {
       releaseDateTime: doc.releasedOn || '',
       releaseImpact: doc.releaseImpact || [],
       downloadLink: doc.downloadLink || '',
     };
   },
-  whatsNew: (doc) => {
+  [TYPES.WHATS_NEW]: (doc) => {
     return {
       summary: doc.summary || '',
       learnMoreLink: doc.learnMoreLink || '',
@@ -80,13 +77,11 @@ const addCustomFrontmatter = {
 };
 
 const getTopics = (doc) => {
-  const topics = [];
-  for (let i = 1; i < 4; i++) {
-    let currTopic = doc[`topic_${i}`];
-    if (currTopic) {
-      topics.push(currTopic);
-    }
-  }
+  const topics = Object.entries(doc).reduce(
+    (topics, [key, value]) =>
+      key.startsWith('topic_') ? [...topics, value] : topics,
+    []
+  );
   return topics.length ? topics : '';
 };
 
