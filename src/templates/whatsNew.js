@@ -41,4 +41,4 @@ export const pageQuery = graphql`
   }
 `;
 
-export default whatsNewPlatformTemplate;
+export default whatsNewTemplate;

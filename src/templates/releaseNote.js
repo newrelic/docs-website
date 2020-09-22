@@ -33,7 +33,6 @@ export const pageQuery = graphql`
       body
       frontmatter {
         title
-        topics
         releaseDateTime
         releaseVersion
         downloadLink
