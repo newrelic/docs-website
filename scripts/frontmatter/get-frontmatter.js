@@ -13,10 +13,10 @@ const GATSBY_CONTENT_TYPES = {
 const GATSBY_TEMPLATE = {
   [TYPES.BASIC_PAGE]: 'basicDoc',
   [TYPES.API_DOC]: 'basicDoc',
-  [TYPES.RELEASE_NOTE]: 'basicDoc',
-  [TYPES.RELEASE_NOTE_PLATFORM]: 'basicDoc',
+  [TYPES.RELEASE_NOTE]: 'releaseNote',
+  [TYPES.RELEASE_NOTE_PLATFORM]: 'releaseNotePlatform',
   [TYPES.TROUBLESHOOTING]: 'basicDoc',
-  [TYPES.WHATS_NEW]: 'basicDoc',
+  [TYPES.WHATS_NEW]: 'whatsNew',
 };
 
 const getFrontmatter = (type, doc) => {
