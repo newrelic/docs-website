@@ -1,15 +1,17 @@
 const { parse } = require('@babel/parser');
 const traverse = require('@babel/traverse').default;
 const generate = require('@babel/generator').default;
+const types = require('@babel/types');
 
-const transformJSX = (jsx, visitors) => {
+const transformJSX = (jsx, plugins) => {
   const ast = parse(jsx, {
     plugins: ['jsx'],
   });
 
-  Array.of(visitors)
-    .flat()
-    .forEach((visitors) => traverse(ast, visitors));
+  const visitors = plugins.map((plugin) => plugin({ types }).visitor);
+  const visitor = traverse.visitors.merge(visitors);
+
+  traverse(ast, visitor);
 
   return generate(ast).code.replace(/;$/, '');
 };

@@ -7,27 +7,19 @@ const remarkMdx = require('remark-mdx');
 const visit = require('unist-util-visit');
 const transformJSX = require('./transformJSX');
 
-const createProcessor = () => {
+const createProcessor = ({ codemods }) => {
   return unified()
     .use(toMDAST)
     .use(remarkMdx)
     .use(toMDXAST)
-    .use(jsx, {
-      visitors: {
-        JSXIdentifier(path) {
-          if (path.node.name === 'Button') {
-            path.node.name = 'CoolButton';
-          }
-        },
-      },
-    })
+    .use(jsx, { plugins: codemods.jsx })
     .use(stringify)
     .use(frontmatter, ['yaml']);
 };
 
-const jsx = ({ visitors }) => (tree) => {
+const jsx = ({ plugins }) => (tree) => {
   visit(tree, 'jsx', (node) => {
-    node.value = transformJSX(node.value, visitors);
+    node.value = transformJSX(node.value, plugins);
   });
 };
 
