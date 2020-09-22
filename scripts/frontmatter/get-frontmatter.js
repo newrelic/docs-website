@@ -29,16 +29,17 @@ const getFrontmatter = (type, doc) => {
     topics: getTopics(doc),
   };
 
+  const customFrontmatter = addCustomFrontmatter[type]
+    ? addCustomFrontmatter[type](doc)
+    : {};
+
   return frontmatter.stringify('', {
     ...defaultFrontmatter,
-    ...addCustomFrontmatter[type](doc),
+    ...customFrontmatter,
   });
 };
 
 const addCustomFrontmatter = {
-  [TYPES.API_DOC]: (doc) => {
-    return {};
-  },
   [TYPES.BASIC_PAGE]: (doc) => {
     return {
       japaneseVersion:
