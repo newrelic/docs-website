@@ -7,7 +7,9 @@ const transformJSX = (jsx, visitors) => {
     plugins: ['jsx'],
   });
 
-  traverse(ast, visitors);
+  Array.of(visitors)
+    .flat()
+    .forEach((visitors) => traverse(ast, visitors));
 
   return generate(ast).code.replace(/;$/, '');
 };
