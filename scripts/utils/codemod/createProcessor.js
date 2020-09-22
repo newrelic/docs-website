@@ -26,7 +26,7 @@ const createProcessor = () => {
 };
 
 const jsx = ({ visitors }) => (tree) => {
-  visit(tree, 'jsx', async (node) => {
+  visit(tree, 'jsx', (node) => {
     node.value = transformJSX(node.value, visitors);
   });
 };
