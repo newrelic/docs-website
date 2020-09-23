@@ -29,7 +29,7 @@ const toMarkdown = (doc) => {
 
   // Turn div tags into JSX
   turndownService.addRule('htmlToJSX', {
-    filter: ['div', 'table'],
+    filter: ['div', 'dl', 'table'],
     replacement: (content, node) => htmlToJSXConverter.convert(node.outerHTML),
   });
 
