@@ -1,9 +1,12 @@
 const path = require('path');
 const TurndownService = require('turndown');
+const HTMLtoJSX = require('htmltojsx');
 
 const getCategories = require('../utils/get-categories');
 const getFrontmatter = require('../frontmatter/get-frontmatter');
 const { TYPES, BASE_DIR } = require('../constants');
+
+const htmlToJSXConverter = new HTMLtoJSX({ createClass: false });
 
 const toMarkdown = (doc) => {
   const dir = path.join(BASE_DIR, ...getCategories(doc.docUrl));
@@ -21,12 +24,14 @@ const toMarkdown = (doc) => {
 
   turndownService.addRule('codeBlocks', {
     filter: ['pre'],
-    replacement: function (content) {
-      return `~~~\n${content}\n~~~\n`;
-    },
+    replacement: (content) => `~~~\n${content}\n~~~\n`,
   });
 
-  turndownService.keep(['table']);
+  // Turn div tags into JSX
+  turndownService.addRule('htmlToJSX', {
+    filter: ['div', 'dl', 'table'],
+    replacement: (content, node) => htmlToJSXConverter.convert(node.outerHTML),
+  });
 
   const bodyContent = doc.body ? turndownService.turndown(doc.body) : '';
   const content = frontmatter + bodyContent;
