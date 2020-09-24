@@ -1,8 +1,7 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 import { graphql } from 'gatsby';
-import { MDXProvider } from '@mdx-js/react';
-import { MDXRenderer } from 'gatsby-plugin-mdx';
+import MDXContainer from '../components/MDXContainer';
 
 const whatsNewTemplate = ({ data }) => {
   const { mdx } = data;
@@ -16,9 +15,7 @@ const whatsNewTemplate = ({ data }) => {
         <li>{`getStartedLink: ${getStartedLink}`}</li>
         <li>{`learnMoreLink: ${learnMoreLink}`}</li>
       </ul>
-      <MDXProvider>
-        <MDXRenderer>{body}</MDXRenderer>
-      </MDXProvider>
+      <MDXContainer>{body}</MDXContainer>
     </>
   );
 };
