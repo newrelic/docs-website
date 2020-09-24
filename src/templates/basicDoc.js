@@ -1,8 +1,7 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 import { graphql } from 'gatsby';
-import { MDXProvider } from '@mdx-js/react';
-import { MDXRenderer } from 'gatsby-plugin-mdx';
+import MDXContainer from '../components/MDXContainer';
 
 const basicDocPageTemplate = ({ data }) => {
   const { mdx } = data;
@@ -11,9 +10,7 @@ const basicDocPageTemplate = ({ data }) => {
   return (
     <>
       <h1>{frontmatter.title}</h1>
-      <MDXProvider>
-        <MDXRenderer>{body}</MDXRenderer>
-      </MDXProvider>
+      <MDXContainer>{body}</MDXContainer>
     </>
   );
 };

@@ -1,8 +1,7 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 import { graphql } from 'gatsby';
-import { MDXProvider } from '@mdx-js/react';
-import { MDXRenderer } from 'gatsby-plugin-mdx';
+import MDXContainer from '../components/MDXContainer';
 
 const releaseNotePlatformTemplate = ({ data }) => {
   const { mdx } = data;
@@ -15,9 +14,7 @@ const releaseNotePlatformTemplate = ({ data }) => {
         <li>{`releaseDateTime: ${releaseDateTime}`}</li>
         <li>{`releaseImpact: ${releaseImpact}`}</li>
       </ul>
-      <MDXProvider>
-        <MDXRenderer>{body}</MDXRenderer>
-      </MDXProvider>
+      <MDXContainer>{body}</MDXContainer>
     </>
   );
 };
