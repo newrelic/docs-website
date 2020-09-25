@@ -38,7 +38,7 @@ const toMarkdown = (doc) => {
         const level = Number(node.nodeName.charAt(1));
         const heading = [repeat('#', level), content].join(' ');
 
-        return `\n\n${heading} {${node.getAttribute('id')}}\n\n`;
+        return `\n\n${heading} {#${node.getAttribute('id')}}\n\n`;
       },
     })
     .addRule('codeBlocks', {
