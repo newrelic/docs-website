@@ -17,6 +17,15 @@ const turndown = new TurndownService({
 
 const repeat = (char, num) => Array(num + 1).join(char);
 
+const replaceInnerContent = (node, content) => {
+  const closingTag = `</${node.nodeName.toLowerCase()}>`;
+  const tag = node.outerHTML.slice(0, node.outerHTML.indexOf(node.innerHTML));
+
+  return htmlToJSXConverter
+    .convert(tag)
+    .replace(`\n${closingTag}`, content + closingTag);
+};
+
 const toMarkdown = (doc) => {
   const dir = path.join(BASE_DIR, ...getCategories(doc.docUrl));
   const slug = doc.docUrl.split('/').slice(-1);
@@ -75,7 +84,15 @@ const toMarkdown = (doc) => {
         );
       },
       replacement: (_content, node) => {
-        return htmlToJSXConverter.convert(node.outerHTML);
+        return htmlToJSXConverter.convert(node.outerHTML).trim();
+      },
+    })
+    .addRule('callouts', {
+      filter: (node) => {
+        return node.className.includes('callout-');
+      },
+      replacement: (content, node) => {
+        return replaceInnerContent(node, content);
       },
     });
 
