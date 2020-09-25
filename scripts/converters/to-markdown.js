@@ -2,11 +2,35 @@ const path = require('path');
 const TurndownService = require('turndown');
 const HTMLtoJSX = require('htmltojsx');
 
+const prettier = require('prettier/standalone');
+const parserBabel = require('prettier/parser-babel');
+
+const formatCode = (code, formatOptions = {}) =>
+  prettier.format(code, {
+    trailingComma: 'es5',
+    printWidth: 80,
+    tabWidth: 2,
+    semi: true,
+    singleQuote: true,
+    plugins: [parserBabel],
+    parser: 'babel',
+    ...formatOptions,
+  });
+
 const getCategories = require('../utils/get-categories');
 const getFrontmatter = require('../frontmatter/get-frontmatter');
 const { TYPES, BASE_DIR } = require('../constants');
 
 const htmlToJSXConverter = new HTMLtoJSX({ createClass: false });
+
+const turndown = new TurndownService({
+  headingStyle: 'atx',
+  hr: '---',
+  codeBlockStyle: 'fenced',
+  fence: '```',
+});
+
+const defaultRules = turndown.rules.options.rules;
 
 const toMarkdown = (doc) => {
   const dir = path.join(BASE_DIR, ...getCategories(doc.docUrl));
@@ -17,24 +41,23 @@ const toMarkdown = (doc) => {
   // Create frontmatter based on content type
   const frontmatter = getFrontmatter(doc.type, doc);
 
-  // Convert content to markdown
-  const turndownService = new TurndownService({
-    headingStyle: 'atx',
-  });
+  turndown
+    .addRule('codeBlocks', {
+      filter: ['pre'],
+      replacement: defaultRules.fencedCodeBlock.replacement,
+    })
+    .addRule('htmlToJSX', {
+      filter: ['div', 'dl', 'table'],
+      replacement: (_content, node) =>
+        htmlToJSXConverter.convert(node.outerHTML),
+    });
 
-  turndownService.addRule('codeBlocks', {
-    filter: ['pre'],
-    replacement: (content) => `~~~\n${content}\n~~~\n`,
-  });
-
-  // Turn div tags into JSX
-  turndownService.addRule('htmlToJSX', {
-    filter: ['div', 'dl', 'table'],
-    replacement: (content, node) => htmlToJSXConverter.convert(node.outerHTML),
-  });
-
-  const bodyContent = doc.body ? turndownService.turndown(doc.body) : '';
-  const content = frontmatter + bodyContent;
+  // const bodyContent = doc.body ? turndown.turndown(doc.body) : '';
+  const content =
+    frontmatter +
+    formatCode(htmlToJSXConverter.convert(doc.body || ''))
+      .trim()
+      .replace(/;$/, '');
 
   return { content, fileName };
 };
