@@ -2,21 +2,6 @@ const path = require('path');
 const TurndownService = require('turndown');
 const HTMLtoJSX = require('htmltojsx');
 
-const prettier = require('prettier/standalone');
-const parserBabel = require('prettier/parser-babel');
-
-const formatCode = (code, formatOptions = {}) =>
-  prettier.format(code, {
-    trailingComma: 'es5',
-    printWidth: 80,
-    tabWidth: 2,
-    semi: true,
-    singleQuote: true,
-    plugins: [parserBabel],
-    parser: 'babel',
-    ...formatOptions,
-  });
-
 const getCategories = require('../utils/get-categories');
 const getFrontmatter = require('../frontmatter/get-frontmatter');
 const { TYPES, BASE_DIR } = require('../constants');
@@ -30,7 +15,7 @@ const turndown = new TurndownService({
   fence: '```',
 });
 
-const defaultRules = turndown.rules.options.rules;
+const repeat = (char, num) => Array(num + 1).join(char);
 
 const toMarkdown = (doc) => {
   const dir = path.join(BASE_DIR, ...getCategories(doc.docUrl));
@@ -42,22 +27,59 @@ const toMarkdown = (doc) => {
   const frontmatter = getFrontmatter(doc.type, doc);
 
   turndown
-    .addRule('codeBlocks', {
-      filter: ['pre'],
-      replacement: defaultRules.fencedCodeBlock.replacement,
+    .addRule('headingWithID', {
+      filter: (node) => {
+        return (
+          ['H1', 'H2', 'H3', 'H4', 'H5', 'H6'].includes(node.nodeName) &&
+          node.getAttribute('id')
+        );
+      },
+      replacement: (content, node) => {
+        const level = Number(node.nodeName.charAt(1));
+        const heading = [repeat('#', level), content].join(' ');
+
+        return `\n\n${heading} {${node.getAttribute('id')}}\n\n`;
+      },
     })
-    .addRule('htmlToJSX', {
-      filter: ['div', 'dl', 'table'],
-      replacement: (_content, node) =>
-        htmlToJSXConverter.convert(node.outerHTML),
+    .addRule('codeBlocks', {
+      filter: 'pre',
+      replacement: (_content, node, options) => {
+        const className = node.getAttribute('class') || '';
+        const language = (className.match(/language-(\S+)/) || [null, ''])[1];
+        const code = node.textContent;
+
+        const fenceChar = options.fence.charAt(0);
+        const fenceInCodeRegex = new RegExp(`^${fenceChar}{3,}`, 'gm');
+
+        let fenceSize = 3;
+        let match;
+
+        while ((match = fenceInCodeRegex.exec(code))) {
+          if (match[0].length >= fenceSize) {
+            fenceSize = match[0].length + 1;
+          }
+        }
+
+        const fence = repeat(fenceChar, fenceSize);
+
+        return `\n\n${fence}${language}\n${code.replace(
+          /\n$/,
+          ''
+        )}\n${fence}\n\n`;
+      },
+    })
+    .addRule('icons', {
+      filter: (node) => {
+        return (
+          node.nodeName === 'I' && node.className.split(' ').includes('fa')
+        );
+      },
+      replacement: (_content, node) => {
+        return htmlToJSXConverter.convert(node.outerHTML);
+      },
     });
 
-  // const bodyContent = doc.body ? turndown.turndown(doc.body) : '';
-  const content =
-    frontmatter +
-    formatCode(htmlToJSXConverter.convert(doc.body || ''))
-      .trim()
-      .replace(/;$/, '');
+  const content = frontmatter + turndown.turndown(doc.body || '');
 
   return { content, fileName };
 };
