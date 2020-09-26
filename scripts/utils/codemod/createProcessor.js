@@ -2,18 +2,19 @@ const unified = require('unified');
 const toMDAST = require('remark-parse');
 const stringify = require('remark-stringify');
 const frontmatter = require('remark-frontmatter');
-const toMDXAST = require('@mdx-js/mdx/md-ast-to-mdx-ast');
 const remarkMdx = require('remark-mdx');
 const jsx = require('./jsx');
-const jsxComment = require('./jsxComment');
+
+const util = require('util');
 
 const createProcessor = ({ codemods }) => {
   const processor = unified()
     .use(stringify, { bullet: '*' })
     .use(toMDAST)
     .use(remarkMdx)
-    .use(jsxComment)
-    .use(toMDXAST)
+    // .use(() => (tree) => {
+    //   console.log(util.inspect(tree, { depth: null, colors: true }));
+    // })
     .use(jsx, { plugins: codemods.jsx })
     .use(frontmatter, ['yaml']);
 

@@ -36,20 +36,20 @@ const toMarkdown = (doc) => {
   const frontmatter = getFrontmatter(doc.type, doc);
 
   turndown
-    .addRule('headingWithID', {
-      filter: (node) => {
-        return (
-          ['H1', 'H2', 'H3', 'H4', 'H5', 'H6'].includes(node.nodeName) &&
-          node.getAttribute('id')
-        );
-      },
-      replacement: (content, node) => {
-        const level = Number(node.nodeName.charAt(1));
-        const heading = [repeat('#', level), content].join(' ');
+    // .addRule('headingWithID', {
+    //   filter: (node) => {
+    //     return (
+    //       ['H1', 'H2', 'H3', 'H4', 'H5', 'H6'].includes(node.nodeName) &&
+    //       node.getAttribute('id')
+    //     );
+    //   },
+    //   replacement: (content, node) => {
+    //     const level = Number(node.nodeName.charAt(1));
+    //     const heading = [repeat('#', level), content].join(' ');
 
-        return `\n\n${heading} {#${node.getAttribute('id')}}\n\n`;
-      },
-    })
+    //     return `\n\n${heading} {#${node.getAttribute('id')}}\n\n`;
+    //   },
+    // })
     .addRule('codeBlocks', {
       filter: 'pre',
       replacement: (_content, node, options) => {

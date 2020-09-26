@@ -2,7 +2,9 @@ const visit = require('unist-util-visit');
 const babel = require('@babel/core');
 
 const jsx = ({ plugins }) => (tree) => {
-  visit(tree, 'jsx', (node) => {
+  console.log(require('util').inspect(tree, { depth: null, colors: true }));
+
+  visit(tree, 'mdxBlockElement', (node) => {
     node.value = transformJSX(node.value, plugins);
   });
 };
