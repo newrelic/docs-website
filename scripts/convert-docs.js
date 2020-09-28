@@ -2,6 +2,13 @@ const fs = require('fs');
 const { TYPES } = require('./constants');
 const toMarkdown = require('./converters/to-markdown');
 const toJSON = require('./converters/to-json');
+const prettier = require('prettier');
+
+const format = (code) =>
+  prettier.format(code, {
+    parser: 'html',
+    plugins: [require('prettier/parser-html')],
+  });
 
 const converters = {
   [TYPES.BASIC_PAGE]: toMarkdown,
@@ -22,6 +29,20 @@ const convertDocs = (docs) => {
     fs.writeFile(fileName, content, (err) => {
       if (err) logger.error(`Could not create ${fileName}.`);
     });
+
+    if (process.env.DEBUG) {
+      fs.writeFile(
+        fileName.replace('.mdx', '.html'),
+        format(doc.body || ''),
+        (err) => {
+          if (err) {
+            logger.error(
+              `Could not create ${fileName.replace('.mdx', '.html')}`
+            );
+          }
+        }
+      );
+    }
   });
 };
 
