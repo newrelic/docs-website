@@ -81,6 +81,16 @@ const toMarkdown = (doc) => {
     },
   });
 
+  // We need to keep paragraphs inside of table cells to ensure the
+  // `htmlToJSXConverter` running on the entirety of the table does not collapse
+  // the paragraphs inside of the table cells. We clean this up in a codemod
+  // later
+  turndownService.addRule('paragraphsInsideTables', {
+    filter: (node) =>
+      node.nodeName === 'P' && node.parentNode.nodeName === 'TD',
+    replacement: (content) => `<p>${content}</p>`,
+  });
+
   const bodyContent = doc.body ? turndownService.turndown(doc.body) : '';
   const content = frontmatter + bodyContent;
 
