@@ -1,5 +1,5 @@
 const path = require('path');
-const TurndownService = require('turndown');
+const TurndownService = require('../utils/turndown');
 const HTMLtoJSX = require('htmltojsx');
 
 const getCategories = require('../utils/get-categories');
@@ -7,29 +7,6 @@ const getFrontmatter = require('../frontmatter/get-frontmatter');
 const { TYPES, BASE_DIR } = require('../constants');
 
 const htmlToJSXConverter = new HTMLtoJSX({ createClass: false });
-
-const escapes = [
-  [/\\/g, '\\\\'],
-  [/\*/g, '\\*'],
-  [/^-/g, '\\-'],
-  [/^\+ /g, '\\+ '],
-  [/^(=+)/g, '\\$1'],
-  [/^(#{1,6}) /g, '\\$1 '],
-  [/`/g, '\\`'],
-  [/^~~~/g, '\\~~~'],
-  [/\[/g, '\\['],
-  [/\]/g, '\\]'],
-  [/_/g, '\\_'],
-  [/^(\d+)\. /g, '$1\\. '],
-  [/</g, '&lt;'],
-  [/>/g, '&gt;'],
-];
-
-TurndownService.prototype.escape = (string) => {
-  return escapes.reduce((accumulator, escape) => {
-    return accumulator.replace(escape[0], escape[1]);
-  }, string);
-};
 
 const replaceWithContent = (node, content) => {
   const openingTag = node.outerHTML.slice(
