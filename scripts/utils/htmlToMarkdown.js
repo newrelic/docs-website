@@ -1,5 +1,6 @@
 const Turndown = require('turndown');
 const HTMLtoJSX = require('htmltojsx');
+const { extractTags } = require('./node');
 
 const escapes = [
   [/\\/g, '\\\\'],
@@ -37,17 +38,18 @@ const turndown = new Turndown({
 
 const htmlToJSXConverter = new HTMLtoJSX({ createClass: false });
 
-const replaceWithContent = (node, content) => {
-  const openingTag = node.outerHTML.slice(
-    0,
-    node.outerHTML.indexOf(node.innerHTML)
-  );
-  const closingTag = `</${node.tagName.toLowerCase()}>\n`;
+// TODO: Use with components we want to keep
+// const replaceWithContent = (node, content) => {
+//   const openingTag = node.outerHTML.slice(
+//     0,
+//     node.outerHTML.indexOf(node.innerHTML)
+//   );
+//   const closingTag = `</${node.tagName.toLowerCase()}>\n`;
 
-  const outerJSX = htmlToJSXConverter.convert(`${openingTag}|||${closingTag}`);
+//   const outerJSX = htmlToJSXConverter.convert(`${openingTag}|||${closingTag}`);
 
-  return outerJSX.replace('|||', `\n${content}\n`).trim();
-};
+//   return outerJSX.replace('|||', `\n${content}\n`).trim();
+// };
 
 turndown
   .addRule('codeBlocks', {
@@ -56,26 +58,12 @@ turndown
   })
   .addRule('htmlToJSX', {
     filter: ['div', 'dl'],
-    replacement: (content, node) => {
-      return htmlToJSXConverter.convert(node.outerHTML);
-      if (
-        node.tagName === 'TABLE' &&
-        fileName.endsWith('recordcustomevent-net-agent-api.mdx')
-      ) {
-        console.log('--------', fileName, '----------');
-        console.log(content);
-      }
-      return replaceWithContent(node, content);
-    },
+    replacement: (_content, node) => htmlToJSXConverter.convert(node.outerHTML),
   })
   .addRule('table', {
     filter: 'table',
     replacement: (content, node) => {
-      const openingTag = node.outerHTML.slice(
-        0,
-        node.outerHTML.indexOf(node.innerHTML)
-      );
-      const closingTag = `</${node.tagName.toLowerCase()}>\n`;
+      const [openingTag, closingTag] = extractTags(node);
 
       return htmlToJSXConverter.convert(
         [openingTag, content, closingTag].join('\n')
@@ -85,16 +73,7 @@ turndown
   .addRule('tableContents', {
     filter: ['td', 'th', 'thead', 'tbody', 'tr'],
     replacement: (content, node) => {
-      // console.log('-----', fileName, '-----');
-      // console.log({
-      //   tag: node.nodeName,
-      //   attributes: Array.from(node.attributes).map((attr) => attr.name),
-      // });
-      const openingTag = node.outerHTML.slice(
-        0,
-        node.outerHTML.indexOf(node.innerHTML)
-      );
-      const closingTag = `</${node.tagName.toLowerCase()}>\n`;
+      const [openingTag, closingTag] = extractTags(node);
 
       return [openingTag, content, closingTag].join('\n');
     },
