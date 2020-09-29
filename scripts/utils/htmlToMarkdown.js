@@ -106,7 +106,19 @@ turndown
   .addRule('paragraphsInsideTableCells', {
     filter: (node) =>
       node.nodeName === 'P' && node.parentNode.nodeName === 'TD',
-    replacement: (content) => `<p>${content}</p>\n`,
+    replacement: (content, node) => {
+      const needsNewlineFix = ['OL', 'UL'].includes(
+        node.previousSibling && node.previousSibling.nodeName
+      );
+
+      // Unfortunately the `htmlToJSXConverter` squashes newlines when we run
+      // it on the entire table. Because of this, some paragraphs that proceed
+      // lists end up as a child of the list instead of a sibling. We will use
+      // a codemod to fix this in post processing.
+      const openingTag = needsNewlineFix ? '<p data-fixnewline>' : '<p>';
+
+      return `${openingTag}${content}</p>\n`;
+    },
   });
 
 module.exports = (html) => turndown.turndown(html);
