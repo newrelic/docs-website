@@ -2,20 +2,20 @@ import React, { useState, useRef } from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/core';
 import Collapser from './Collapser';
-import Chevron from './Chevron';
+import { Icon } from '@newrelic/gatsby-theme-newrelic';
 
 const collapserIcon = (isOpen) => css`
   margin-left: auto;
   transition: transform 0.6s ease;
-  color: #777;
+  color: var(--accent-text-color);
   ${isOpen &&
   `
 transform: rotate(180deg);`}
 `;
 
-const CollapserRow = ({ title, id, children }) => {
-  const [isOpen, toggleOpen] = useState();
-  const [setHeight, setHeightState] = useState('0px');
+const CollapserRow = ({ title, id, openByDefault, children }) => {
+  const [isOpen, toggleOpen] = useState(openByDefault);
+  const [setHeight, setHeightState] = useState(isOpen ? 'auto' : '0px');
 
   const content = useRef(null);
   const toggleCollapser = () => {
@@ -37,19 +37,19 @@ const CollapserRow = ({ title, id, children }) => {
           onClick={toggleCollapser}
           type="button"
           css={css`
-            color: #444;
             cursor: pointer;
-            padding: 12px 14px;
-            border: 1px solid #616161;
+            padding: 0.75rem;
+            border: 1px solid var(--border-color);
             background-color: inherit;
             border-radius: 3px;
             display: flex;
             align-items: center;
             transition: background-color 0.6s ease;
-            &:hover,
-            &:active {
-              background-color: var(--nr1--base-colors--ui--gray--2);
-              cursor: pointer;
+            &:hover {
+              background-color: var(--color-neutrals-100);
+              .dark-mode & {
+                background-color: var(--color-dark-100);
+              }
             }
           `}
         >
@@ -67,7 +67,11 @@ const CollapserRow = ({ title, id, children }) => {
           >
             {title}
           </h5>
-          <Chevron width={20} css={collapserIcon(isOpen)} />
+          <Icon
+            name={Icon.TYPE.CHEVRON_DOWN}
+            size="1.25rem"
+            css={collapserIcon(isOpen)}
+          />
         </button>
         <div
           ref={content}
@@ -87,7 +91,12 @@ const CollapserRow = ({ title, id, children }) => {
 CollapserRow.propTypes = {
   title: PropTypes.string.isRequired,
   id: PropTypes.string,
+  openByDefault: PropTypes.bool,
   children: PropTypes.node.isRequired,
+};
+
+CollapserRow.defaultProps = {
+  openByDefault: false,
 };
 
 export default CollapserRow;
