@@ -1,3 +1,5 @@
+const indentedCodeBlock = require('./codemods/indentedCodeBlock');
+
 module.exports = {
   siteMetadata: {
     title: 'New Relic Documentation',
@@ -67,6 +69,7 @@ module.exports = {
     {
       resolve: 'gatsby-plugin-mdx',
       options: {
+        remarkPlugins: [indentedCodeBlock],
         gatsbyRemarkPlugins: [
           {
             resolve: 'gatsby-remark-images',
