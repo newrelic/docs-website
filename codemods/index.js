@@ -1,10 +1,8 @@
 const collapseParagraphs = require('./collapseParagraphs');
 const paragraphsInsideTableCells = require('./paragraphsInsideTableCells');
+const { isMdxBlockElement } = require('./utils/mdxast');
 
 module.exports = [
-  [
-    collapseParagraphs,
-    [(node) => node.type === 'mdxBlockElement' && node.name === 'td'],
-  ],
+  [collapseParagraphs, [isMdxBlockElement('td')]],
   paragraphsInsideTableCells,
 ];
