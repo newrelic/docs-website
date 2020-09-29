@@ -4,6 +4,8 @@ import { css } from '@emotion/core';
 import { MDXRenderer } from 'gatsby-plugin-mdx';
 import { MDXProvider } from '@mdx-js/react';
 import { MDXCodeBlock, Callout } from '@newrelic/gatsby-theme-newrelic';
+import Collapser from './Collapser';
+import CollapserRow from './CollapserRow';
 
 const Wrapper = ({ children }) => (
   <div
@@ -62,6 +64,8 @@ const components = {
   pre: (props) => props.children,
   wrapper: Wrapper,
   Callout,
+  Collapser,
+  CollapserRow,
 };
 
 const MDXContainer = ({ children }) => (
