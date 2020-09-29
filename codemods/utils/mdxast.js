@@ -22,11 +22,38 @@ const flatten = (node) => {
   node.children = node.children[0].children;
 };
 
+const hasAttribute = curry((attribute, node) =>
+  node.attributes.some((attr) => attr.name === attribute)
+);
+
+const removeAttribute = curry((attribute, node) => {
+  const idx = node.attributes.findIndex((attr) => {
+    return typeof attribute === 'function'
+      ? attribute(attr)
+      : attr.name === attribute;
+  });
+
+  if (idx !== -1) {
+    node.attributes.splice(idx, 1);
+  }
+});
+
+const removeChild = curry((child, parent) => {
+  const idx = parent.children.indexOf(child);
+
+  if (idx !== -1) {
+    parent.children.splice(idx, 1);
+  }
+});
+
 module.exports = {
   flatten,
   isMdxBlockElement,
   isMdxElement,
   isMdxSpanElement,
+  hasAttribute,
   hasOnlyChild,
+  removeAttribute,
+  removeChild,
   isType,
 };
