@@ -1,3 +1,10 @@
-const uppercaseHeadings = require('./uppercase-headings');
+const collapseParagraphs = require('./collapseParagraphs');
+const paragraphsInsideTableCells = require('./paragraphsInsideTableCells');
 
-module.exports = [uppercaseHeadings];
+module.exports = [
+  [
+    collapseParagraphs,
+    [(node) => node.type === 'mdxBlockElement' && node.name === 'td'],
+  ],
+  paragraphsInsideTableCells,
+];
