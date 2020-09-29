@@ -3,33 +3,29 @@ import PropTypes from 'prop-types';
 import { css } from '@emotion/core';
 import Collapser from './Collapser';
 import Chevron from './Chevron';
-// import './Collapser.css';
 
 const collapserIcon = (isOpen) => css`
   margin-left: auto;
   transition: transform 0.6s ease;
+  color: #777;
   ${isOpen &&
   `
 transform: rotate(180deg);`}
 `;
 
-const CollapserRow = ({ title, isOpen, children }) => {
-  const [setOpen, toggleOpen] = useState(isOpen);
+const CollapserRow = ({ title, id, children }) => {
+  const [isOpen, toggleOpen] = useState();
   const [setHeight, setHeightState] = useState('0px');
-  const [setRotate, setRotateState] = useState('collapser__icon');
 
   const content = useRef(null);
   const toggleCollapser = () => {
-    toggleOpen(setOpen ? false : true);
-    // setActiveState(isOpen === '' ? 'open' : '');
-    setHeightState(setOpen ? '0px' : `${content.current.scrollHeight}px`);
-    // setRotateState(setOpen ? 'collapser__icon' : 'collapser__icon rotate');
+    toggleOpen(!isOpen);
+    setHeightState(isOpen ? '0px' : `${content.current.scrollHeight}px`);
   };
 
   return (
     <Collapser>
       <div
-        className="collapser__section"
         css={css`
           display: flex;
           flex-direction: column;
@@ -38,7 +34,6 @@ const CollapserRow = ({ title, isOpen, children }) => {
         `}
       >
         <button
-          className={`collapser ${setOpen}`}
           onClick={toggleCollapser}
           type="button"
           css={css`
@@ -58,8 +53,8 @@ const CollapserRow = ({ title, isOpen, children }) => {
             }
           `}
         >
-          <p
-            className="collapser__title"
+          <h5
+            id={id}
             css={css`
               font-family: 'Open Sans', sans-serif;
               font-weight: 600;
@@ -71,13 +66,12 @@ const CollapserRow = ({ title, isOpen, children }) => {
             `}
           >
             {title}
-          </p>
-          <Chevron width={20} fill={'#777'} css={collapserIcon(setOpen)} />
+          </h5>
+          <Chevron width={20} css={collapserIcon(isOpen)} />
         </button>
         <div
           ref={content}
           style={{ maxHeight: `${setHeight}` }}
-          className="collapser__content"
           css={css`
             overflow: hidden;
             transition: max-height 0.6s ease;
@@ -92,12 +86,8 @@ const CollapserRow = ({ title, isOpen, children }) => {
 
 CollapserRow.propTypes = {
   title: PropTypes.string.isRequired,
-  isOpen: PropTypes.bool,
+  id: PropTypes.string,
   children: PropTypes.node.isRequired,
-};
-
-CollapserRow.defaultProps = {
-  isOpen: false,
 };
 
 export default CollapserRow;
