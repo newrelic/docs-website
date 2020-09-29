@@ -13,8 +13,6 @@ const collapseParagraphs = (types = []) => (tree) => {
       }
     }
   );
-
-  return tree;
 };
 
 module.exports = collapseParagraphs;
