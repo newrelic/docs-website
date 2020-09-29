@@ -26,11 +26,14 @@ const convertDocs = (docs) => {
   docs.flat().forEach((doc) => {
     const { content, fileName } = converters[doc.type](doc);
 
-    // Write the file
     fs.writeFile(fileName, content, (err) => {
       if (err) logger.error(`Could not create ${fileName}.`);
     });
 
+    // Run `DEBUG=true yarn migrate` to also write a `.html` file right next to
+    // the `.mdx` file. This can help us look at the original HTML to compare
+    // with the generated markdown to ensure we don't miss edge cases. These
+    // files should not be committed.
     if (process.env.DEBUG) {
       fs.writeFile(
         fileName.replace('.mdx', '.html'),
