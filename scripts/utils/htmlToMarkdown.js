@@ -106,7 +106,7 @@ turndown
   .addRule('paragraphsInsideTableCells', {
     filter: (node) =>
       node.nodeName === 'P' && node.parentNode.nodeName === 'TD',
-    replacement: (content) => `<p>${content}</p>`,
+    replacement: (content) => `<p>${content}</p>\n`,
   });
 
 module.exports = (html) => turndown.turndown(html);
