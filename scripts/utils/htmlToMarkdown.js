@@ -34,6 +34,8 @@ Turndown.prototype.escape = (string) => {
 
 const turndown = new Turndown({
   headingStyle: 'atx',
+  codeBlockStyle: 'fenced',
+  fence: '```',
 });
 
 const htmlToJSXConverter = new HTMLtoJSX({ createClass: false });
@@ -51,10 +53,29 @@ const htmlToJSXConverter = new HTMLtoJSX({ createClass: false });
 //   return outerJSX.replace('|||', `\n${content}\n`).trim();
 // };
 
+const repeat = (character, count) => Array(count + 1).join(character);
+
 turndown
   .addRule('codeBlocks', {
     filter: ['pre'],
-    replacement: (content) => `~~~\n${content}\n~~~\n`,
+    replacement: (_content, node, options) => {
+      const code = node.textContent;
+      const fenceChar = options.fence.charAt(0);
+      const fenceInCodeRegex = new RegExp(`^${fenceChar}{3,}`, 'gm');
+
+      let fenceSize = 3;
+      let match;
+
+      while ((match = fenceInCodeRegex.exec(code))) {
+        if (match[0].length >= fenceSize) {
+          fenceSize = match[0].length + 1;
+        }
+      }
+
+      const fence = repeat(fenceChar, fenceSize);
+
+      return `\n\n${fence}\n${code.replace(/\n$/, '')}\n${fence}\n\n`;
+    },
   })
   .addRule('htmlToJSX', {
     filter: ['div', 'dl'],
