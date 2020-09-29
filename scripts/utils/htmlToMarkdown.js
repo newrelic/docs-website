@@ -58,6 +58,15 @@ const repeat = (character, count) => Array(count + 1).join(character);
 turndown
   .addRule('codeBlocks', {
     filter: ['pre'],
+
+    // The implementation for this code block rule is mostly a copy of the
+    // original code block implementation:
+    // https://github.com/domchristie/turndown/blob/5c4d19b98b8c36e612e2fe045c390d20625b39ef/src/commonmark-rules.js#L111-L134
+    //
+    // The difference with this implementation compared to the original is
+    // that this strips out parsing the language. None of the <pre> tags in
+    // the docs site include language information, so we don't need to try and
+    // detect it.
     replacement: (_content, node, options) => {
       const code = node.textContent;
       const fenceChar = options.fence.charAt(0);
