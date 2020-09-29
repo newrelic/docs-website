@@ -45,8 +45,10 @@ const CollapserRow = ({ title, id, openByDefault, children }) => {
             display: flex;
             align-items: center;
             transition: background-color 0.6s ease;
-            &:hover {
+            &:hover,
+            &:focus {
               background-color: var(--color-neutrals-100);
+              outline: none;
               .dark-mode & {
                 background-color: var(--color-dark-100);
               }
