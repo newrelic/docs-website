@@ -1,3 +1,4 @@
-const uppercaseHeadings = require('./uppercase-headings');
+const indentedCodeBlock = require('./indentedCodeBlock');
+const paragraphsInsideTableCells = require('./paragraphsInsideTableCells');
 
-module.exports = [uppercaseHeadings];
+module.exports = [paragraphsInsideTableCells, indentedCodeBlock];

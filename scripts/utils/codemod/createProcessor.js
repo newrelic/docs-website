@@ -6,7 +6,12 @@ const remarkMdx = require('remark-mdx');
 
 const createProcessor = ({ codemods }) => {
   const processor = unified()
-    .use(stringify, { bullet: '*' })
+    .use(stringify, {
+      bullet: '*',
+      commonmark: true,
+      fences: true,
+      listItemIndent: '1',
+    })
     .use(toMDAST)
     .use(remarkMdx)
     .use(frontmatter, ['yaml']);
