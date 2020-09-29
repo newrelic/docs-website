@@ -3,6 +3,7 @@ const { TYPES } = require('./constants');
 const toMarkdown = require('./converters/to-markdown');
 const toJSON = require('./converters/to-json');
 const prettier = require('prettier');
+const logger = require('./utils/logger');
 
 const format = (code) =>
   prettier.format(code, {
