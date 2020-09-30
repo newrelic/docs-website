@@ -1,6 +1,7 @@
 const Turndown = require('turndown');
 const HTMLtoJSX = require('htmltojsx');
 const { extractTags } = require('./node');
+const { node } = require('prop-types');
 
 const SPECIAL_COMPONENTS = [
   { tag: 'div', className: 'callout-tip' },
@@ -84,19 +85,19 @@ turndown
     },
   })
   .addRule('specialComponents', {
-    filter: (node) =>
-      SPECIAL_COMPONENTS.some(
+    filter: (node) => {
+      return SPECIAL_COMPONENTS.some(
         ({ tag, className }) =>
           tag === node.nodeName.toLowerCase() &&
           node.classList.contains(className)
-      ),
+      );
+    },
     replacement: (content, node) => {
       const [openingTag, closingTag] = extractTags(node);
 
       const outerJSX = htmlToJSXConverter.convert(
         `${openingTag}|||${closingTag}\n`
       );
-
       return outerJSX.replace('|||', `\n${content}\n`);
     },
   })
@@ -142,6 +143,14 @@ turndown
 
       return `${openingTag}${content}</p>\n`;
     },
+  })
+  .addRule('videos', {
+    filter: (node) => {
+      return (
+        node.nodeName === 'IFRAME' && node.classList.contains('wistia_embed')
+      );
+    },
+    replacement: (_content, node) => htmlToJSXConverter.convert(node.outerHTML),
   });
 
 module.exports = (html) => turndown.turndown(html);
