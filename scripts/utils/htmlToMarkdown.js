@@ -9,6 +9,7 @@ const SPECIAL_COMPONENTS = [
   { tag: 'div', className: 'callout-permissions' },
   { tag: 'div', className: 'callout-note' },
   { tag: 'div', className: 'callout-pricing' },
+  { tag: 'i', className: 'fa' },
 ];
 
 const escapes = [
