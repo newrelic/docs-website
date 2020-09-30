@@ -2,6 +2,8 @@ const Turndown = require('turndown');
 const HTMLtoJSX = require('htmltojsx');
 const { extractTags } = require('./node');
 
+const SPECIAL_COMPONENTS = [{ tag: 'div', className: 'callout-' }];
+
 const escapes = [
   [/\\/g, '\\\\'],
   [/\*/g, '\\*'],
@@ -40,19 +42,6 @@ const turndown = new Turndown({
 
 const htmlToJSXConverter = new HTMLtoJSX({ createClass: false });
 
-// TODO: Use with components we want to keep
-// const replaceWithContent = (node, content) => {
-//   const openingTag = node.outerHTML.slice(
-//     0,
-//     node.outerHTML.indexOf(node.innerHTML)
-//   );
-//   const closingTag = `</${node.tagName.toLowerCase()}>\n`;
-
-//   const outerJSX = htmlToJSXConverter.convert(`${openingTag}|||${closingTag}`);
-
-//   return outerJSX.replace('|||', `\n${content}\n`).trim();
-// };
-
 const repeat = (character, count) => Array(count + 1).join(character);
 
 turndown
@@ -86,8 +75,25 @@ turndown
       return `\n\n${fence}\n${code.replace(/\n$/, '')}\n${fence}\n\n`;
     },
   })
+  .addRule('specialComponents', {
+    filter: (node) =>
+      SPECIAL_COMPONENTS.some(
+        ({ tag, className }) =>
+          tag === node.nodeName.toLowerCase() &&
+          node.className.includes(className)
+      ),
+    replacement: (content, node) => {
+      const [openingTag, closingTag] = extractTags(node);
+
+      const outerJSX = htmlToJSXConverter.convert(
+        `${openingTag}|||${closingTag}\n`
+      );
+
+      return outerJSX.replace('|||', `\n${content}\n`);
+    },
+  })
   .addRule('htmlToJSX', {
-    filter: ['div', 'dl'],
+    filter: ['dl'],
     replacement: (_content, node) => htmlToJSXConverter.convert(node.outerHTML),
   })
   .addRule('table', {
