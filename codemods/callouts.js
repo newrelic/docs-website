@@ -5,6 +5,10 @@ const {
   removeAttribute,
 } = require('./utils/mdxast');
 
+const SPECIAL_VARIANTS = {
+  permissions: 'tip',
+};
+
 const callouts = () => (tree) => {
   visit(
     tree,
@@ -28,7 +32,7 @@ const callouts = () => (tree) => {
 
       div.name = 'Callout';
 
-      addAttribute('variant', variant, div);
+      addAttribute('variant', SPECIAL_VARIANTS[variant] || variant, div);
       removeAttribute('className', div);
     }
   );
