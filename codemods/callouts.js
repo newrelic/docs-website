@@ -20,7 +20,11 @@ const callouts = () => (tree) => {
       const { value: className } = div.attributes.find(
         (attr) => attr.name === 'className'
       );
-      const variant = className.replace('callout-', '');
+      const callout = className
+        .split(/\s+/)
+        .find((className) => className.startsWith('callout-'));
+
+      const variant = callout.replace('callout-', '');
 
       div.name = 'Callout';
 
