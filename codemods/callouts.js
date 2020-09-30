@@ -7,6 +7,8 @@ const {
 
 const SPECIAL_VARIANTS = {
   permissions: 'tip',
+  note: 'tip',
+  pricing: 'tip',
 };
 
 const callouts = () => (tree) => {
