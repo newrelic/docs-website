@@ -2,7 +2,14 @@ const Turndown = require('turndown');
 const HTMLtoJSX = require('htmltojsx');
 const { extractTags } = require('./node');
 
-const SPECIAL_COMPONENTS = [{ tag: 'div', className: 'callout-' }];
+const SPECIAL_COMPONENTS = [
+  { tag: 'div', className: 'callout-tip' },
+  { tag: 'div', className: 'callout-important' },
+  { tag: 'div', className: 'callout-caution' },
+  { tag: 'div', className: 'callout-permissions' },
+  { tag: 'div', className: 'callout-note' },
+  { tag: 'div', className: 'callout-pricing' },
+];
 
 const escapes = [
   [/\\/g, '\\\\'],
@@ -80,7 +87,7 @@ turndown
       SPECIAL_COMPONENTS.some(
         ({ tag, className }) =>
           tag === node.nodeName.toLowerCase() &&
-          node.className.includes(className)
+          node.classList.contains(className)
       ),
     replacement: (content, node) => {
       const [openingTag, closingTag] = extractTags(node);
