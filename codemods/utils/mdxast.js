@@ -38,6 +38,14 @@ const removeAttribute = curry((attribute, node) => {
   }
 });
 
+const addAttribute = curry((name, value, node) => {
+  node.attributes.push({
+    name,
+    value,
+    type: 'mdxAttribute',
+  });
+});
+
 const removeChild = curry((child, parent) => {
   const idx = parent.children.indexOf(child);
 
@@ -47,6 +55,7 @@ const removeChild = curry((child, parent) => {
 });
 
 module.exports = {
+  addAttribute,
   flatten,
   isMdxBlockElement,
   isMdxElement,
