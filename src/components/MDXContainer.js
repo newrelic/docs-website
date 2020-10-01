@@ -3,7 +3,7 @@ import PropTypes from 'prop-types';
 import { css } from '@emotion/core';
 import { MDXRenderer } from 'gatsby-plugin-mdx';
 import { MDXProvider } from '@mdx-js/react';
-import { MDXCodeBlock, Callout } from '@newrelic/gatsby-theme-newrelic';
+import { MDXCodeBlock, Callout, Video } from '@newrelic/gatsby-theme-newrelic';
 
 const Wrapper = ({ children }) => (
   <div
@@ -62,6 +62,7 @@ const components = {
   pre: (props) => props.children,
   wrapper: Wrapper,
   Callout,
+  Video,
 };
 
 const MDXContainer = ({ children }) => (
