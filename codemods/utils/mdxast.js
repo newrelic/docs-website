@@ -26,6 +26,14 @@ const hasAttribute = curry((attribute, node) =>
   node.attributes.some((attr) => attr.name === attribute)
 );
 
+const findAttribute = (attributeName, node) => {
+  if (!node.attributes) {
+    return null;
+  }
+  const attribute = node.attributes.find((attr) => attr.name === attributeName);
+  return attribute ? attribute.value : null;
+};
+
 const hasClassName = (className, node) => {
   if (!node.attributes) {
     return false;
@@ -72,6 +80,7 @@ module.exports = {
   isMdxElement,
   isMdxSpanElement,
   hasAttribute,
+  findAttribute,
   hasClassName,
   hasOnlyChild,
   removeAttribute,
