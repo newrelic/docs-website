@@ -6,6 +6,7 @@ const mapToVFiles = require('./utils/migrate/map-to-vfiles');
 const logger = require('./utils/logger');
 const runCodemod = require('./utils/codemod/run');
 const { write } = require('to-vfile');
+const createRawHTMLFiles = require('./utils/migrate/create-raw-html-files');
 
 const run = async () => {
   logger.normal('Starting migration');
@@ -31,6 +32,15 @@ const run = async () => {
 
     logger.normal('Saving changes');
     await Promise.all(files.map((file) => write(file, 'utf-8')));
+
+    // Run `DEBUG=true yarn migrate` to also write a `.html` file right next to
+    // the `.mdx` file. This can help us look at the original HTML to compare
+    // with the generated markdown to ensure we don't miss edge cases. These
+    // files should not be committed.
+    if (process.env.DEBUG) {
+      logger.normal('[DEBUG] Creating raw HTML files');
+      createRawHTMLFiles(files);
+    }
 
     logger.success('Migration complete!');
   } catch (err) {
