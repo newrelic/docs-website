@@ -5,7 +5,7 @@ import { MDXRenderer } from 'gatsby-plugin-mdx';
 import { MDXProvider } from '@mdx-js/react';
 import { MDXCodeBlock, Callout } from '@newrelic/gatsby-theme-newrelic';
 import Collapser from './Collapser';
-import CollapserRow from './CollapserRow';
+import CollapserGroup from './CollapserGroup';
 
 const Wrapper = ({ children }) => (
   <div
@@ -65,7 +65,7 @@ const components = {
   wrapper: Wrapper,
   Callout,
   Collapser,
-  CollapserRow,
+  CollapserGroup,
 };
 
 const MDXContainer = ({ children }) => (
