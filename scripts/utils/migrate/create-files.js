@@ -11,22 +11,21 @@ const EXTENSIONS = {
 const createFiles = (docs) => {
   return docs.map((doc) => {
     const url = new URL(doc.docUrl);
-    const pathSegments = url.pathname.replace(/^\//, '').split('/');
 
-    const dirname = path.join(BASE_DIR, ...pathSegments.slice(0, -1));
-
-    return vfile({
-      stem:
-        doc.type === TYPES.LANDING_PAGE
-          ? 'index'
-          : pathSegments[pathSegments.length - 1],
+    const file = vfile({
       extname: EXTENSIONS[doc.type] || DEFAULT_EXTENSION,
-      dirname,
+      path: path.join(BASE_DIR, url.pathname),
       contents: doc.body || '',
       meta: {
         doc,
       },
     });
+
+    if (doc.type === TYPES.LANDING_PAGE) {
+      file.stem = 'index';
+    }
+
+    return file;
   });
 };
 
