@@ -4,6 +4,7 @@ const convertDocs = require('./utils/migrate/convert-docs');
 const createIndexPages = require('./utils/migrate/create-index-pages');
 const mapToVFiles = require('./utils/migrate/map-to-vfiles');
 const logger = require('./utils/logger');
+const runCodemod = require('./utils/codemod/run');
 
 const run = async () => {
   logger.normal('Starting migration');
@@ -21,6 +22,11 @@ const run = async () => {
 
     logger.normal('Creating index pages');
     await createIndexPages();
+
+    logger.normal('Running codemods');
+    await Promise.all(
+      files.filter((file) => file.extname === '.mdx').map(runCodemod)
+    );
 
     logger.success('Migration complete!');
   } catch (err) {
