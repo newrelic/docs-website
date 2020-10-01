@@ -1,7 +1,8 @@
 const fetchDocs = require('./fetch-docs');
-const createDirectories = require('./create-directories');
-const convertDocs = require('./convert-docs');
-const createIndexPages = require('./create-index-pages');
+const createDirectories = require('./utils/migrate/create-directories');
+const convertDocs = require('./utils/migrate/convert-docs');
+const createIndexPages = require('./utils/migrate/create-index-pages');
+const mapToVFiles = require('./utils/migrate/map-to-vfiles');
 const logger = require('./utils/logger');
 
 const run = async () => {
@@ -10,12 +11,13 @@ const run = async () => {
   try {
     logger.normal('Fetching JSON');
     const docs = await fetchDocs();
+    const files = mapToVFiles(docs);
 
     logger.normal('Creating directories');
-    createDirectories(docs);
+    createDirectories(files);
 
     logger.normal('Creating files for Gatsby');
-    convertDocs(docs);
+    convertDocs(files);
 
     logger.normal('Creating index pages');
     await createIndexPages();
