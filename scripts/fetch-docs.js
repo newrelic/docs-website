@@ -8,6 +8,7 @@ const getUrl = (type) => [BASE_URL, type, 'list'].join('/');
 
 const fetchDoc = async (type) => {
   const url = getUrl(type);
+
   try {
     const resp = await fetch(url, {
       headers: {
@@ -16,16 +17,18 @@ const fetchDoc = async (type) => {
       },
     });
     const result = await resp.json();
+
     return result.docs.map((item) => item.doc);
   } catch (e) {
     logger.error(`Error, could not fetch ${url}: ${e}`);
   }
 };
 
-const fetchDocs = () => {
+const fetchDocs = async () => {
   const requests = Object.values(TYPES).map(fetchDoc);
+  const docs = await Promise.all(requests);
 
-  return Promise.all(requests);
+  return docs.flat();
 };
 
 module.exports = fetchDocs;
