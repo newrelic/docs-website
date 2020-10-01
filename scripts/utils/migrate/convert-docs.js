@@ -1,5 +1,5 @@
-const toMarkdown = require('./converters/to-markdown');
-const toJSON = require('./converters/to-json');
+const toMarkdown = require('../../converters/to-markdown');
+const toJSON = require('../../converters/to-json');
 
 const converters = {
   '.mdx': toMarkdown,
