@@ -1,6 +1,4 @@
-const path = require('path');
-const getCategories = require('../utils/get-categories');
-const { TYPES, BASE_DIR } = require('../constants');
+const { TYPES } = require('../constants');
 
 const JSON_BY_TYPE = {
   [TYPES.ATTRIBUTE_DEFINITION]: (doc) => ({
@@ -12,15 +10,11 @@ const JSON_BY_TYPE = {
   }),
 };
 
-const toJSON = (doc) => {
-  const dir = path.join(BASE_DIR, ...getCategories(doc.docUrl));
-  const slug = doc.docUrl.split('/').slice(-1);
-  const fileName = `${dir}/${slug}.json`;
-
+const toJSON = (file) => {
+  const { doc } = file.meta;
   const json = JSON_BY_TYPE[doc.type](doc);
-  const content = JSON.stringify(json, null, 2);
 
-  return { content, fileName };
+  file.contents = JSON.stringify(json, null, 2);
 };
 
 module.exports = toJSON;
