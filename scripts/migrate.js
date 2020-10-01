@@ -1,4 +1,4 @@
-const fetchDocs = require('./fetch-docs');
+const fetchDocs = require('./utils/migrate/fetch-docs');
 const createDirectories = require('./utils/migrate/create-directories');
 const convertDocs = require('./utils/migrate/convert-docs');
 const createIndexPages = require('./utils/migrate/create-index-pages');

@@ -1,8 +1,8 @@
 const fetch = require('node-fetch');
 require('dotenv').config();
 
-const logger = require('./utils/logger');
-const { TYPES, BASE_URL } = require('./constants');
+const logger = require('../logger');
+const { TYPES, BASE_URL } = require('../../constants');
 
 const getUrl = (type) =>
   [BASE_URL, 'api/migration/content', type, 'list'].join('/');
