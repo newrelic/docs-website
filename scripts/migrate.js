@@ -22,16 +22,16 @@ const run = async () => {
     logger.normal('Creating files for Gatsby');
     convertDocs(files);
 
-    logger.normal('Creating index pages');
-    await createIndexPages();
-
     logger.normal('Running codemods');
     await Promise.all(
       files.filter((file) => file.extname === '.mdx').map(runCodemod)
     );
 
-    logger.normal('Saving changes');
+    logger.normal('Saving changes to files');
     await Promise.all(files.map((file) => write(file, 'utf-8')));
+
+    logger.normal('Creating index pages');
+    await createIndexPages();
 
     // Run `DEBUG=true yarn migrate` to also write a `.html` file right next to
     // the `.mdx` file. This can help us look at the original HTML to compare
