@@ -22,11 +22,10 @@ const fetchDoc = async (type) => {
   }
 };
 
-const fetchDocs = async () => {
+const fetchDocs = () => {
   const requests = Object.values(TYPES).map(fetchDoc);
-  const results = await Promise.all(requests);
 
-  return results;
+  return Promise.all(requests);
 };
 
 module.exports = fetchDocs;
