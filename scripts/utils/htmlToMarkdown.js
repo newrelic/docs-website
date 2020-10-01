@@ -84,19 +84,19 @@ turndown
     },
   })
   .addRule('specialComponents', {
-    filter: (node) => {
-      return SPECIAL_COMPONENTS.some(
+    filter: (node) =>
+      SPECIAL_COMPONENTS.some(
         ({ tag, className }) =>
           tag === node.nodeName.toLowerCase() &&
           node.classList.contains(className)
-      );
-    },
+      ),
     replacement: (content, node) => {
       const [openingTag, closingTag] = extractTags(node);
 
       const outerJSX = htmlToJSXConverter.convert(
         `${openingTag}|||${closingTag}\n`
       );
+
       return outerJSX.replace('|||', `\n${content}\n`);
     },
   })
