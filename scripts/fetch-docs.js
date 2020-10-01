@@ -4,7 +4,8 @@ require('dotenv').config();
 const logger = require('./utils/logger');
 const { TYPES, BASE_URL } = require('./constants');
 
-const getUrl = (type) => [BASE_URL, type, 'list'].join('/');
+const getUrl = (type) =>
+  [BASE_URL, 'api/migration/content', type, 'list'].join('/');
 
 const fetchDoc = async (type) => {
   const url = getUrl(type);
