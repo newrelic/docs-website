@@ -9,27 +9,30 @@ const { write } = require('to-vfile');
 const createRawHTMLFiles = require('./utils/migrate/create-raw-html-files');
 const reporter = require('vfile-reporter');
 
+const all = (list, fn) => Promise.all(list.map(fn));
+
 const run = async () => {
   logger.normal('Starting migration');
 
   try {
     logger.normal('Fetching JSON');
     const docs = await fetchDocs();
-    const files = docs.map(toVFile);
+    const files = await all(docs, toVFile);
 
     logger.normal('Creating directories');
     createDirectories(files);
 
     logger.normal('Converting files');
-    files.forEach(convertFile);
+    await all(files, convertFile);
 
     logger.normal('Running codemods on .mdx files');
-    await Promise.all(
-      files.filter((file) => file.extname === '.mdx').map(runCodemod)
+    await all(
+      files.filter((file) => file.extname === '.mdx'),
+      runCodemod
     );
 
     logger.normal('Saving changes to files');
-    await Promise.all(files.map((file) => write(file, 'utf-8')));
+    await all(files, (file) => write(file, 'utf-8'));
 
     logger.normal('Creating index pages');
     await createIndexPages();
