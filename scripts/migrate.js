@@ -2,7 +2,7 @@ const fetchDocs = require('./utils/migrate/fetch-docs');
 const createDirectories = require('./utils/migrate/create-directories');
 const convertDocs = require('./utils/migrate/convert-docs');
 const createIndexPages = require('./utils/migrate/create-index-pages');
-const mapToVFiles = require('./utils/migrate/map-to-vfiles');
+const toVFile = require('./utils/migrate/to-vfile');
 const logger = require('./utils/logger');
 const runCodemod = require('./utils/codemod/run');
 const { write } = require('to-vfile');
@@ -15,7 +15,7 @@ const run = async () => {
   try {
     logger.normal('Fetching JSON');
     const docs = await fetchDocs();
-    const files = mapToVFiles(docs);
+    const files = docs.map(toVFile);
 
     logger.normal('Creating directories');
     createDirectories(files);
