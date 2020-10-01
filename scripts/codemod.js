@@ -1,4 +1,4 @@
-const createProcessor = require('./utils/codemod/createProcessor');
+const createProcessor = require('./utils/codemod/create-processor');
 const { write } = require('to-vfile');
 const vfileGlob = require('vfile-glob');
 const codemods = require('../codemods');
