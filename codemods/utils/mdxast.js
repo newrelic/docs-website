@@ -26,6 +26,17 @@ const hasAttribute = curry((attribute, node) =>
   node.attributes.some((attr) => attr.name === attribute)
 );
 
+const hasClassName = (className, node) => {
+  if (!node.attributes) {
+    return false;
+  }
+  return node.attributes.some(
+    (attr) =>
+      attr.name === 'className' &&
+      attr.value.split(/\s+/).some((cn) => cn === className)
+  );
+};
+
 const removeAttribute = curry((attribute, node) => {
   const idx = node.attributes.findIndex((attr) => {
     return typeof attribute === 'function'
@@ -61,6 +72,7 @@ module.exports = {
   isMdxElement,
   isMdxSpanElement,
   hasAttribute,
+  hasClassName,
   hasOnlyChild,
   removeAttribute,
   removeChild,
