@@ -3,8 +3,8 @@ const fsSync = require('fs');
 const path = require('path');
 const fm = require('front-matter');
 
-const logger = require('./utils/logger');
-const { BASE_DIR } = require('./constants');
+const logger = require('../logger');
+const { BASE_DIR } = require('../constants');
 
 const getTitle = (file) =>
   file
@@ -37,7 +37,7 @@ const getPageContent = (dir, files) => {
 
 const getSubheading = (dir, level) => {
   const title = getTitle(dir);
-  const hashes = [...Array(level).keys()].reduce((acc) => '#' + acc, '');
+  const hashes = [...Array(level).keys()].reduce((acc) => `#${acc}`, '');
 
   return `\n${hashes} ${title}\n`;
 };

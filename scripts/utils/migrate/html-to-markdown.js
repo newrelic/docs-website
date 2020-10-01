@@ -1,6 +1,6 @@
 const Turndown = require('turndown');
 const HTMLtoJSX = require('htmltojsx');
-const { extractTags } = require('./node');
+const { extractTags } = require('../node');
 
 const SPECIAL_COMPONENTS = [
   { tag: 'div', className: 'callout-tip' },

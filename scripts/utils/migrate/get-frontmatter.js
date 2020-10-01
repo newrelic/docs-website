@@ -21,7 +21,9 @@ const GATSBY_TEMPLATE = {
   [TYPES.WHATS_NEW]: 'whatsNew',
 };
 
-const getFrontmatter = (type, doc) => {
+const getFrontmatter = (doc) => {
+  const { type } = doc;
+
   const defaultFrontmatter = {
     title: doc.title.replace(':', '-'),
     contentType: GATSBY_CONTENT_TYPES[type],
@@ -44,7 +46,7 @@ const addCustomFrontmatter = {
     return {
       japaneseVersion:
         doc.japaneseVersionExists === 'yes'
-          ? 'https://docs.newrelic.co.jp/' + doc.url
+          ? `https://docs.newrelic.co.jp/${doc.url}`
           : '',
     };
   },
@@ -52,7 +54,7 @@ const addCustomFrontmatter = {
     return {
       japaneseVersion:
         doc.japaneseVersionExists === 'yes'
-          ? 'https://docs.newrelic.co.jp/' + doc.url
+          ? `https://docs.newrelic.co.jp/${doc.url}`
           : '',
     };
   },
