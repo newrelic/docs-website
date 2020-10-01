@@ -142,6 +142,14 @@ turndown
 
       return `${openingTag}${content}</p>\n`;
     },
+  })
+  .addRule('videos', {
+    filter: (node) => {
+      return (
+        node.nodeName === 'IFRAME' && node.classList.contains('wistia_embed')
+      );
+    },
+    replacement: (_content, node) => htmlToJSXConverter.convert(node.outerHTML),
   });
 
 module.exports = (html) => turndown.turndown(html);
