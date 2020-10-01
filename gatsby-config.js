@@ -1,3 +1,5 @@
+const indentedCodeBlock = require('./codemods/indentedCodeBlock');
+
 module.exports = {
   siteMetadata: {
     title: 'New Relic Documentation',
@@ -67,6 +69,13 @@ module.exports = {
     {
       resolve: 'gatsby-plugin-mdx',
       options: {
+        // Include our patch for handling indented code blocks to ensure the
+        // fence does not get rendered as part of the block. There is an open
+        // issue in the MDX project about this:
+        // https://github.com/mdx-js/mdx/issues/1283
+        //
+        // If this is addressed in MDX v2, we can safely remove this.
+        remarkPlugins: [indentedCodeBlock],
         gatsbyRemarkPlugins: [
           {
             resolve: 'gatsby-remark-images',

@@ -1,3 +1,11 @@
-const uppercaseHeadings = require('./uppercase-headings');
+const indentedCodeBlock = require('./indentedCodeBlock');
+const paragraphsInsideTableCells = require('./paragraphsInsideTableCells');
+const callouts = require('./callouts');
+const videos = require('./videos');
 
-module.exports = [uppercaseHeadings];
+module.exports = [
+  paragraphsInsideTableCells,
+  indentedCodeBlock,
+  callouts,
+  videos,
+];

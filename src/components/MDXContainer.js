@@ -3,7 +3,7 @@ import PropTypes from 'prop-types';
 import { css } from '@emotion/core';
 import { MDXRenderer } from 'gatsby-plugin-mdx';
 import { MDXProvider } from '@mdx-js/react';
-import { MDXCodeBlock, Callout } from '@newrelic/gatsby-theme-newrelic';
+import { MDXCodeBlock, Callout, Video } from '@newrelic/gatsby-theme-newrelic';
 import Collapser from './Collapser';
 import CollapserGroup from './CollapserGroup';
 
@@ -66,6 +66,7 @@ const components = {
   Callout,
   Collapser,
   CollapserGroup,
+  Video,
 };
 
 const MDXContainer = ({ children }) => (
