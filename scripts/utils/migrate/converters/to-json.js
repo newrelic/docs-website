@@ -11,7 +11,7 @@ const JSON_BY_TYPE = {
 };
 
 const toJSON = (file) => {
-  const { doc } = file.meta;
+  const { doc } = file.data;
   const json = JSON_BY_TYPE[doc.type](doc);
 
   file.contents = JSON.stringify(json, null, 2);

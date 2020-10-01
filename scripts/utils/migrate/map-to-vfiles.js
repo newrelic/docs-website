@@ -19,7 +19,7 @@ const mapToVFiles = (docs) => {
     const file = vfile({
       path: path.join(BASE_DIR, dirname, filename + extension),
       contents: doc.body || '',
-      meta: {
+      data: {
         doc,
       },
     });

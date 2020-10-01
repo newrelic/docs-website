@@ -12,7 +12,7 @@ const createRawHTMLFiles = (files) => {
   files.forEach((file) => {
     writeSync(
       vfile({
-        contents: format(file.meta.doc.body || ''),
+        contents: format(file.data.doc.body || ''),
         path: file.path,
         extname: '.html',
       }),
