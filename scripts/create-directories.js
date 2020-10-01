@@ -1,13 +1,11 @@
 const fs = require('fs');
-const path = require('path');
 
-const getCategories = require('./utils/get-categories');
-const { BASE_DIR } = require('./constants');
+const uniq = (arr) => [...new Set(arr)];
 
-const createDirectories = (docs) => {
-  docs.flat().forEach((doc) => {
-    const dir = path.join(BASE_DIR, ...getCategories(doc.docUrl));
+const createDirectories = (files) => {
+  const directories = files.map((f) => f.dirname);
 
+  uniq(directories).forEach((dir) => {
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
     }
