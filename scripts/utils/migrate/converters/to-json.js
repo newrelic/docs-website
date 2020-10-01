@@ -1,4 +1,4 @@
-const { TYPES } = require('../constants');
+const { TYPES } = require('../../../constants');
 
 const JSON_BY_TYPE = {
   [TYPES.ATTRIBUTE_DEFINITION]: (doc) => ({
