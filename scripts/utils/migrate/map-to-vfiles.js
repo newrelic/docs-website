@@ -1,6 +1,6 @@
 const path = require('path');
 const vfile = require('vfile');
-const { BASE_DIR, TYPES } = require('../../constants');
+const { BASE_DIR, TYPES } = require('../constants');
 
 const DEFAULT_EXTENSION = '.mdx';
 

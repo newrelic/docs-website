@@ -4,7 +4,7 @@ const path = require('path');
 const fm = require('front-matter');
 
 const logger = require('../logger');
-const { BASE_DIR } = require('../../constants');
+const { BASE_DIR } = require('../constants');
 
 const getTitle = (file) =>
   file

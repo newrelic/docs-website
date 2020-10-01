@@ -1,5 +1,5 @@
 const frontmatter = require('@github-docs/frontmatter');
-const { TYPES } = require('../../constants');
+const { TYPES } = require('../constants');
 
 const GATSBY_CONTENT_TYPES = {
   [TYPES.BASIC_PAGE]: 'page',
