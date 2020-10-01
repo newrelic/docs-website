@@ -6,10 +6,6 @@ const converters = {
   '.json': toJSON,
 };
 
-const convertDocs = (files) => {
-  files.forEach((file) => {
-    converters[file.extname](file);
-  });
-};
+const convertDocs = (file) => converters[file.extname](file);
 
 module.exports = convertDocs;

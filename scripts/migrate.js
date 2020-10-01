@@ -1,6 +1,6 @@
 const fetchDocs = require('./utils/migrate/fetch-docs');
 const createDirectories = require('./utils/migrate/create-directories');
-const convertDocs = require('./utils/migrate/convert-docs');
+const convertFile = require('./utils/migrate/convert-file');
 const createIndexPages = require('./utils/migrate/create-index-pages');
 const toVFile = require('./utils/migrate/to-vfile');
 const logger = require('./utils/logger');
@@ -20,10 +20,10 @@ const run = async () => {
     logger.normal('Creating directories');
     createDirectories(files);
 
-    logger.normal('Creating files for Gatsby');
-    convertDocs(files);
+    logger.normal('Converting files');
+    files.forEach(convertFile);
 
-    logger.normal('Running codemods');
+    logger.normal('Running codemods on .mdx files');
     await Promise.all(
       files.filter((file) => file.extname === '.mdx').map(runCodemod)
     );
