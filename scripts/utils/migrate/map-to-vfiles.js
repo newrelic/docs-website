@@ -11,19 +11,18 @@ const EXTENSIONS = {
 const mapToVFiles = (docs) => {
   return docs.map((doc) => {
     const url = new URL(doc.docUrl);
+    const dirname = path.dirname(url.pathname);
+    const basename = path.basename(url.pathname);
+    const filename = doc.type === TYPES.LANDING_PAGE ? 'index' : basename;
+    const extension = EXTENSIONS[doc.type] || DEFAULT_EXTENSION;
 
     const file = vfile({
-      extname: EXTENSIONS[doc.type] || DEFAULT_EXTENSION,
-      path: path.join(BASE_DIR, url.pathname),
+      path: path.join(BASE_DIR, dirname, filename + extension),
       contents: doc.body || '',
       meta: {
         doc,
       },
     });
-
-    if (doc.type === TYPES.LANDING_PAGE) {
-      file.stem = 'index';
-    }
 
     return file;
   });
