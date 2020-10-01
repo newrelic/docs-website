@@ -12,7 +12,7 @@ const collapserIcon = (isOpen) => css`
 transform: rotate(180deg);`}
 `;
 
-const Collapser = ({ title, id, openByDefault, children }) => {
+const Collapser = ({ title, id, openByDefault, className, children }) => {
   const [isOpen, toggleOpen] = useState(openByDefault);
   const [height, setHeight] = useState(isOpen ? 'auto' : '0px');
 
@@ -24,11 +24,11 @@ const Collapser = ({ title, id, openByDefault, children }) => {
 
   return (
     <div
+      className={className}
       css={css`
         display: flex;
         flex-direction: column;
         border-radius: 3px;
-        margin: 1rem;
       `}
     >
       <button
@@ -98,6 +98,7 @@ Collapser.propTypes = {
   title: PropTypes.string.isRequired,
   id: PropTypes.string,
   openByDefault: PropTypes.bool,
+  className: PropTypes.string,
   children: PropTypes.node.isRequired,
 };
 

@@ -1,9 +1,23 @@
-import React from 'react';
+import React, { Children, cloneElement } from 'react';
 import PropTypes from 'prop-types';
-import { css } from '@emotion/core';
+import { ClassNames } from '@emotion/core';
 
 const CollapserGroup = ({ children }) => {
-  return <div>{children}</div>;
+  return (
+    <div>
+      <ClassNames>
+        {({ css }) => {
+          return Children.map(children, (child) =>
+            cloneElement(child, {
+              className: css`
+                margin-bottom: 1rem;
+              `,
+            })
+          );
+        }}
+      </ClassNames>
+    </div>
+  );
 };
 
 CollapserGroup.propTypes = {
