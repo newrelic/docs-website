@@ -7,6 +7,7 @@ const logger = require('./utils/logger');
 const runCodemod = require('./utils/codemod/run');
 const { write } = require('to-vfile');
 const createRawHTMLFiles = require('./utils/migrate/create-raw-html-files');
+const reporter = require('vfile-reporter');
 
 const run = async () => {
   logger.normal('Starting migration');
@@ -41,6 +42,8 @@ const run = async () => {
       logger.normal('[DEBUG] Creating raw HTML files');
       createRawHTMLFiles(files);
     }
+
+    console.error(reporter(files, { quiet: true }));
 
     logger.success('Migration complete!');
   } catch (err) {
