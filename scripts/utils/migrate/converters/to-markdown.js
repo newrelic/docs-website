@@ -1,4 +1,4 @@
-const htmlToMarkdown = require('../../htmlToMarkdown');
+const htmlToMarkdown = require('../html-to-markdown');
 const getFrontmatter = require('../../../frontmatter/get-frontmatter');
 
 const toMarkdown = (file) => {
