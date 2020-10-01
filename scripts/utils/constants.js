@@ -2,7 +2,7 @@ const path = require('path');
 
 module.exports = {
   BASE_URL: 'https://docs-dev.newrelic.com',
-  BASE_DIR: path.join(__dirname, '..', 'src/content'),
+  BASE_DIR: path.join(__dirname, '..', '..', 'src/content'),
 
   TYPES: {
     BASIC_PAGE: 'page',
