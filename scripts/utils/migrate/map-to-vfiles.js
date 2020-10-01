@@ -8,7 +8,7 @@ const EXTENSIONS = {
   [TYPES.ATTRIBUTE_DEFINITION]: '.json',
 };
 
-const createFiles = (docs) => {
+const mapToVFiles = (docs) => {
   return docs.map((doc) => {
     const url = new URL(doc.docUrl);
 
@@ -29,4 +29,4 @@ const createFiles = (docs) => {
   });
 };
 
-module.exports = createFiles;
+module.exports = mapToVFiles;
