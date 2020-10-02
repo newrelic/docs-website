@@ -10,6 +10,7 @@ const SPECIAL_COMPONENTS = [
   { tag: 'div', className: 'callout-note' },
   { tag: 'div', className: 'callout-pricing' },
   { tag: 'i', className: 'fa' },
+  { tag: 'dl', className: 'clamshell-list' },
 ];
 
 const escapes = [
@@ -100,10 +101,6 @@ turndown
       return outerJSX.replace('|||', `\n${content}\n`);
     },
   })
-  .addRule('htmlToJSX', {
-    filter: ['dl'],
-    replacement: (_content, node) => htmlToJSXConverter.convert(node.outerHTML),
-  })
   .addRule('table', {
     filter: 'table',
     replacement: (content, node) => {
@@ -150,6 +147,14 @@ turndown
       );
     },
     replacement: (_content, node) => htmlToJSXConverter.convert(node.outerHTML),
+  })
+  .addRule('clamshellContents', {
+    filter: ['dt', 'dd'],
+    replacement: (content, node) => {
+      const [openingTag, closingTag] = extractTags(node);
+
+      return [openingTag, content, closingTag].join('\n');
+    },
   });
 
 module.exports = (html) => turndown.turndown(html);
