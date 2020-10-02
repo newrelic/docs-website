@@ -1,22 +1,44 @@
 const visit = require('unist-util-visit');
 const {
   addAttribute,
-  hasClassName,
   findAttribute,
+  isMdxBlockElement,
 } = require('./utils/mdxast');
 
-const videos = () => (tree) => {
+const getVideoProps = (src) => {
+  const url = new URL(src);
+  if (url.hostname === 'fast.wistia.net') {
+    return {
+      type: 'wistia',
+      id: src.match(/iframe\/([a-zA-Z0-9]+)\??/)[1],
+    };
+  }
+  if (url.hostname === 'www.youtube.com') {
+    return {
+      type: 'youtube',
+      id: src.match(/embed\/([a-zA-Z0-9]+)\??/)[1],
+    };
+  } else {
+    return null;
+  }
+};
+
+const videos = () => (tree, file) => {
   visit(
     tree,
-    (node) => hasClassName('wistia_embed', node),
+    (node) => isMdxBlockElement('iframe', node),
     (iframe) => {
       iframe.name = 'Video';
-      const videoID = findAttribute('src', iframe).match(
-        /iframe\/([a-zA-Z0-9]+)\??/
-      )[1];
+      const srcAttr = findAttribute('src', iframe);
+      const videoProps =
+        getVideoProps(srcAttr) ||
+        file.fail(
+          new Error(`Video type not recognized for ${srcAttr}`),
+          iframe.position
+        );
       iframe.attributes = [];
-      addAttribute('type', 'wistia', iframe);
-      addAttribute('id', videoID, iframe);
+      addAttribute('type', videoProps.type, iframe);
+      addAttribute('id', videoProps.id, iframe);
     }
   );
 };
