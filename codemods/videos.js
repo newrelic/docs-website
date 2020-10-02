@@ -1,7 +1,6 @@
 const visit = require('unist-util-visit');
 const {
   addAttribute,
-  hasClassName,
   findAttribute,
   isMdxBlockElement,
 } = require('./utils/mdxast');
