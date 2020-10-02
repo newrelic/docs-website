@@ -45,6 +45,16 @@ const hasClassName = (className, node) => {
   );
 };
 
+const setAttribute = (name, value, node) => {
+  const attribute = findAttribute(name, value);
+
+  if (attribute) {
+    attribute.value = value;
+  } else {
+    addAttribute(name, value, node);
+  }
+};
+
 const removeAttribute = curry((attribute, node) => {
   const idx = node.attributes.findIndex((attr) => {
     return typeof attribute === 'function'
@@ -86,4 +96,5 @@ module.exports = {
   removeAttribute,
   removeChild,
   isType,
+  setAttribute,
 };
