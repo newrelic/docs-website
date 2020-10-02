@@ -15,6 +15,8 @@ const getVideoProps = (src) => {
   if (domain === 'www.youtube.com') {
     propsObj.type = 'youtube';
     propsObj.id = src.match(/embed\/([a-zA-Z0-9]+)\??/)[1];
+  } else {
+    throw new Error('Video type not recognized.');
   }
   return propsObj;
 };
