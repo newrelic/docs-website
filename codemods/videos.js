@@ -6,31 +6,36 @@ const {
 } = require('./utils/mdxast');
 
 const getVideoProps = (src) => {
-  const domain = src.split('/')[2];
   const url = new URL(src);
   if (url.hostname === 'fast.wistia.net') {
     return {
-      id: src.match(/iframe\/([a-zA-Z0-9]+)\??/)[1],
       type: 'wistia',
+      id: src.match(/iframe\/([a-zA-Z0-9]+)\??/)[1],
     };
   }
   if (url.hostname === 'www.youtube.com') {
     return {
-      id: src.match(/embed\/([a-zA-Z0-9]+)\??/)[1],
       type: 'youtube',
+      id: src.match(/embed\/([a-zA-Z0-9]+)\??/)[1],
     };
   } else {
-    throw new Error('Video type not recognized.');
+    return null;
   }
 };
 
-const videos = () => (tree) => {
+const videos = () => (tree, file) => {
   visit(
     tree,
     (node) => isMdxBlockElement('iframe', node),
     (iframe) => {
       iframe.name = 'Video';
-      const videoProps = getVideoProps(findAttribute('src', iframe));
+      const srcAttr = findAttribute('src', iframe);
+      const videoProps =
+        getVideoProps(srcAttr) ||
+        file.fail(
+          new Error(`Video type not recognized for ${srcAttr}`),
+          iframe.position
+        );
       iframe.attributes = [];
       addAttribute('type', videoProps.type, iframe);
       addAttribute('id', videoProps.id, iframe);
