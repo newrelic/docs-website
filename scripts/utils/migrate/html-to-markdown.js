@@ -144,9 +144,7 @@ turndown
     },
   })
   .addRule('videos', {
-    filter: (node) => {
-      return node.nodeName === 'IFRAME';
-    },
+    filter: 'iframe',
     replacement: (_content, node) => htmlToJSXConverter.convert(node.outerHTML),
   });
 

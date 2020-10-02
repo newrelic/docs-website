@@ -6,19 +6,22 @@ const {
 } = require('./utils/mdxast');
 
 const getVideoProps = (src) => {
-  const propsObj = {};
   const domain = src.split('/')[2];
-  if (domain === 'fast.wistia.net') {
-    propsObj.type = 'wistia';
-    propsObj.id = src.match(/iframe\/([a-zA-Z0-9]+)\??/)[1];
+  const url = new URL(src);
+  if (url.hostname === 'fast.wistia.net') {
+    return {
+      id: src.match(/iframe\/([a-zA-Z0-9]+)\??/)[1],
+      type: 'wistia',
+    };
   }
-  if (domain === 'www.youtube.com') {
-    propsObj.type = 'youtube';
-    propsObj.id = src.match(/embed\/([a-zA-Z0-9]+)\??/)[1];
+  if (url.hostname === 'www.youtube.com') {
+    return {
+      id: src.match(/embed\/([a-zA-Z0-9]+)\??/)[1],
+      type: 'youtube',
+    };
   } else {
     throw new Error('Video type not recognized.');
   }
-  return propsObj;
 };
 
 const videos = () => (tree) => {
