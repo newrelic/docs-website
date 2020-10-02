@@ -145,9 +145,7 @@ turndown
   })
   .addRule('videos', {
     filter: (node) => {
-      return (
-        node.nodeName === 'IFRAME' && node.classList.contains('wistia_embed')
-      );
+      return node.nodeName === 'IFRAME';
     },
     replacement: (_content, node) => htmlToJSXConverter.convert(node.outerHTML),
   });
