@@ -151,7 +151,7 @@ const createIndexPages = async (files) => {
               '/',
               node.path
                 .replace('.mdx', '')
-                .replace(BASE_DIR)
+                .replace(BASE_DIR, '')
                 .replace(/\/index\/?$/, '')
             ),
             '',
