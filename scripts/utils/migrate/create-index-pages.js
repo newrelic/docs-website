@@ -1,96 +1,194 @@
-const fs = require('fs').promises;
-const fsSync = require('fs');
 const path = require('path');
 const fm = require('front-matter');
+const u = require('unist-builder');
+const visit = require('unist-util-visit');
+const convert = require('unist-util-is/convert');
+const vfile = require('vfile');
+const { root, link, heading, text } = require('mdast-builder');
+const unified = require('unified');
+const stringify = require('remark-stringify');
+const remarkFrontmatter = require('remark-frontmatter');
+const yaml = require('js-yaml');
+const headingRange = require('mdast-util-heading-range');
+const { write } = require('to-vfile');
 
-const logger = require('../logger');
+const isIndexFile = convert({ type: 'mdxFile', name: 'index.mdx' });
 const { BASE_DIR } = require('../constants');
 
-const getTitle = (file) =>
-  file
-    .split('/')
-    .slice(-1)[0]
-    .replace('.mdx', '')
-    .split('-')
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(' ');
+const capitalize = (word) => word.charAt(0).toUpperCase() + word.slice(1);
 
-const getFrontmatter = (title) => `---
-title: ${title}
-template: basicDoc
----
+const REPLACEMENTS = [
+  [/ios/gi, 'iOS'],
+  [/apm/gi, 'APM'],
+  [/new relic/gi, 'New Relic'],
+  [/\bphp\b/gi, 'PHP'],
+  [/\bui\b/gi, 'UI'],
+  [/\bapi\b/gi, 'API'],
+  [/([wW])hats/gi, "$1hat's"],
+];
 
-`;
+const replace = (string) =>
+  REPLACEMENTS.reduce(
+    (str, [regex, replacement]) => str.replace(regex, replacement),
+    string
+  );
 
-const getPageContent = (dir, files) => {
-  return files
-    .map((file) => {
-      const path = `${dir}/${file.name}`
-        .replace(BASE_DIR, '')
-        .replace('.mdx', '');
-      const fileContent = fsSync.readFileSync(`${dir}/${file.name}`, 'utf8');
-      const label = fm(fileContent).attributes.title || getTitle(file.name);
-      return `* [${label}](${path})`;
-    })
-    .join('\n');
+const toTitle = (dirname) => {
+  const [firstWord, ...words] = dirname.split('-');
+
+  return replace([capitalize(firstWord), ...words].join(' '));
 };
 
-const getSubheading = (dir, level) => {
-  const title = getTitle(dir);
-  const hashes = [...Array(level).keys()].reduce((acc) => `#${acc}`, '');
-
-  return `\n${hashes} ${title}\n`;
+const TYPES = {
+  '.mdx': {
+    type: 'mdxFile',
+    attributes: (file) => ({
+      title: fm(file.contents).attributes.title,
+    }),
+  },
+  '.json': {
+    type: 'jsonFile',
+    attributes: () => ({}),
+  },
 };
 
-const createIndexPage = async (dir, level = 2) => {
-  // dont run for the attribute definitions
-  if (dir === path.join(BASE_DIR, 'attribute-dictionary')) {
-    return false;
+const createSubfolders = (folders, file, parent) => {
+  if (folders.length === 0) {
+    const { type, attributes: getAttributes } = TYPES[file.extname];
+
+    return {
+      ...parent,
+      children: [
+        ...parent.children,
+        u(type, {
+          name: file.basename,
+          path: path.join(parent.path, file.basename),
+          ...getAttributes(file),
+        }),
+      ],
+    };
   }
 
-  const title = getTitle(dir);
+  const [folder, ...subfolders] = folders;
 
-  try {
-    const nodes = (await fs.readdir(dir, { withFileTypes: true })) || [];
+  const node =
+    parent.children.find((child) => child.name === folder) ||
+    u(
+      'directory',
+      {
+        name: folder,
+        path: path.join(parent.path || '', folder),
+        title: toTitle(folder),
+      },
+      []
+    );
 
-    // get files (and links) for this directory
-    const files = nodes.filter((node) => !node.isDirectory());
-    const dirLinks = getPageContent(dir, files);
+  const idx = parent.children.indexOf(node);
+  const insertIdx = idx === -1 ? parent.children.length : idx;
 
-    // get all sub directories
-    const subDirs = nodes
-      .filter((node) => node.isDirectory())
-      .map(({ name }) => path.join(dir, name));
-
-    // get links for sub directories (make index pages along the way)
-    const subLinks = await subDirs.reduce(async (contentPromise, subDir) => {
-      // Due to this being async, the previous (accumulator) result is a promise.
-      // We need to await the results of the last loop, before we can add to it.
-      const content = await contentPromise;
-
-      const subDirContent = await createIndexPage(subDir, level + 1);
-      const subDirHeading = getSubheading(subDir, level);
-
-      return [content, subDirHeading, subDirContent].join('\n');
-    }, '');
-
-    // if there is an index.mdx, don't overwrite or make a new one
-    if (files.some((file) => file.name === 'index.mdx')) return;
-
-    // combine links and add them to a new index.mdx file
-    const fileName = `${dir}/index.mdx`;
-    const content = getFrontmatter(title) + dirLinks + subLinks;
-    await fs.writeFile(fileName, content);
-
-    // return the links for this page (to be used by a parent, if applicable)
-    return dirLinks + subLinks;
-  } catch (err) {
-    logger.error(`Unabled to create index for ${dir}: ${err}`);
-  }
+  return {
+    ...parent,
+    children: [
+      ...parent.children.slice(0, insertIdx),
+      createSubfolders(subfolders, file, node),
+      ...parent.children.slice(insertIdx + 1),
+    ],
+  };
 };
 
-const createIndexPages = async () => {
-  await createIndexPage(BASE_DIR);
+const toMDX = (tree) =>
+  unified().use(stringify).use(remarkFrontmatter, ['yaml']).stringify(tree);
+
+const frontmatter = (attributes) => ({
+  type: 'yaml',
+  value: yaml.safeDump(attributes),
+});
+
+const createIndexPages = async (files) => {
+  const contentDirectory = files
+    .sort((a, b) => a.path.localeCompare(b.path))
+    .reduce(
+      (tree, file) => createSubfolders(file.dirname.split('/'), file, tree),
+      u('root', [])
+    );
+
+  visit(contentDirectory, 'directory', (dir) => {
+    if (dir.name === 'attribute-dictionary') {
+      return [visit.SKIP];
+    }
+
+    const hasIndexFile = dir.children.some(isIndexFile);
+
+    if (dir.path === 'src' || hasIndexFile) {
+      return;
+    }
+
+    const tree = root([
+      frontmatter({ title: dir.title, template: 'basicDoc' }),
+    ]);
+
+    visit(
+      dir,
+      (node) => node.type === 'directory' && node !== dir,
+      (subdir) => {
+        if (subdir.name === 'attribute-dictionary') {
+          return [visit.SKIP];
+        }
+
+        const depth = subdir.path
+          .replace(new RegExp(`${dir.path}\\/`, ''))
+          .split('/').length;
+
+        tree.children.push(heading(depth + 1, text(toTitle(subdir.name))));
+      }
+    );
+
+    visit(dir, 'mdxFile', (node, _idx, parent) => {
+      if (parent === dir) {
+        tree.children.push(
+          link(
+            path.join(
+              '/',
+              node.path
+                .replace('.mdx', '')
+                .replace(BASE_DIR)
+                .replace(/\/index\/?$/, '')
+            ),
+            '',
+            text(node.title)
+          )
+        );
+      } else {
+        headingRange(tree, parent.title, (start, nodes, end) => {
+          return [
+            start,
+            ...[
+              ...nodes,
+              link(
+                path.join(
+                  '/',
+                  node.path
+                    .replace('.mdx', '')
+                    .replace(BASE_DIR, '')
+                    .replace(/\/index\/?$/, '')
+                ),
+                '',
+                text(node.title)
+              ),
+            ],
+            end,
+          ];
+        });
+      }
+    });
+
+    const indexFile = vfile({
+      path: path.join(dir.path, 'index.mdx'),
+      contents: toMDX(tree),
+    });
+
+    write(indexFile, 'utf-8').catch((e) => console.error(e));
+  });
 };
 
 module.exports = createIndexPages;
