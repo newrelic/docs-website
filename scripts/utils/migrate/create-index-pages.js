@@ -159,26 +159,30 @@ const createIndexPages = async (files) => {
           )
         );
       } else {
-        headingRange(tree, parent.title, (start, nodes, end) => {
-          return [
-            start,
-            ...[
-              ...nodes,
-              link(
-                path.join(
-                  '/',
-                  node.path
-                    .replace('.mdx', '')
-                    .replace(BASE_DIR, '')
-                    .replace(/\/index\/?$/, '')
+        headingRange(
+          tree,
+          (value) => parent.title === value,
+          (start, nodes, end) => {
+            return [
+              start,
+              ...[
+                link(
+                  path.join(
+                    '/',
+                    node.path
+                      .replace('.mdx', '')
+                      .replace(BASE_DIR, '')
+                      .replace(/\/index\/?$/, '')
+                  ),
+                  '',
+                  text(node.title)
                 ),
-                '',
-                text(node.title)
-              ),
-            ],
-            end,
-          ];
-        });
+                ...nodes,
+              ],
+              end,
+            ];
+          }
+        );
       }
     });
 
