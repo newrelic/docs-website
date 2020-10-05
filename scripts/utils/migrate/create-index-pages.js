@@ -37,19 +37,15 @@ const toTitle = (dirname) => {
   return replace([capitalize(firstWord), ...words].join(' '));
 };
 
-const TYPES = {
-  '.mdx': (file) => ({
-    frontmatter: fm(file.contents).attributes,
-  }),
-  '.json': () => ({}),
-};
-
 const SKIPPED_FOLDERS = ['src/content/attribute-dictionary'];
 
 const createIndexPages = async (files) => {
   const contentDirectory = fromList(
     files.sort((a, b) => a.path.localeCompare(b.path)),
-    (file) => TYPES[file.extname](file)
+    (file) =>
+      file.extname === '.mdx'
+        ? { frontmatter: fm(file.contents).attributes }
+        : {}
   );
 
   visit(contentDirectory, 'directory', (dir) => {
