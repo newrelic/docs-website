@@ -4,7 +4,7 @@ const fm = require('front-matter');
 const visit = require('unist-util-visit');
 const convert = require('unist-util-is/convert');
 const vfile = require('vfile');
-const { root, link, heading, text, list } = require('mdast-builder');
+const { root, link, heading, text, list, listItem } = require('mdast-builder');
 const toMDX = require('./to-mdx');
 const { frontmatter } = require('../mdast');
 const { BASE_DIR } = require('../constants');
@@ -78,16 +78,14 @@ const generateMDX = (dir) => {
         );
       } else if (isMDXFile(node)) {
         const lastChild = last(tree.children);
-        const fileLink = link(
-          toURL(node),
-          '',
-          text(node.data.frontmatter.title)
+        const linkListItem = listItem(
+          link(toURL(node), '', text(node.data.frontmatter.title))
         );
 
         if (isList(lastChild)) {
-          lastChild.children.push(fileLink);
+          lastChild.children.push(linkListItem);
         } else {
-          tree.children.push(list('unordered', [fileLink]));
+          tree.children.push(list('unordered', [linkListItem]));
         }
       }
     }
