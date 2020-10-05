@@ -13,8 +13,7 @@ const fromList = require('../unist-fs-util-from-list');
 
 const isIndexFile = convert({ type: 'file', basename: 'index.mdx' });
 const isMDXFile = convert({ type: 'file', extension: '.mdx' });
-
-const capitalize = (word) => word.charAt(0).toUpperCase() + word.slice(1);
+const isDirectory = convert('directory');
 
 const REPLACEMENTS = [
   [/ios/gi, 'iOS'],
@@ -32,15 +31,18 @@ const replace = (string) =>
     string
   );
 
-const toTitle = (dirname) => {
-  const [firstWord, ...words] = dirname.split('-');
+const capitalize = (word) => word.charAt(0).toUpperCase() + word.slice(1);
 
-  return replace([capitalize(firstWord), ...words].join(' '));
+const titleize = (dirname) => {
+  const [firstWord, ...words] = dirname.split('-');
+  const title = [capitalize(firstWord), ...words].join(' ');
+
+  return replace(title);
 };
 
 const SKIPPED_FOLDERS = ['src/content/attribute-dictionary'];
 
-const shouldSkip = (dir) => SKIPPED_FOLDERS.includes(dir.path);
+const shouldSkipDirectory = (dir) => SKIPPED_FOLDERS.includes(dir.path);
 
 const toURL = (node) =>
   path.join(
@@ -53,22 +55,22 @@ const toURL = (node) =>
 
 const generateMDX = (dir) => {
   const tree = root([
-    frontmatter({ title: toTitle(dir.basename), template: 'basicDoc' }),
+    frontmatter({ title: titleize(dir.basename), template: 'basicDoc' }),
   ]);
 
   visit(
     dir,
     (node) => node !== dir,
     (node) => {
-      if (shouldSkip(node)) {
+      if (shouldSkipDirectory(node)) {
         return [visit.SKIP];
       }
 
-      if (node.type === 'directory') {
+      if (isDirectory(node)) {
         const depth = node.path
           .replace(new RegExp(`${dir.path}\\/`, ''))
           .split('/').length;
-        tree.children.push(heading(depth + 1, text(toTitle(node.basename))));
+        tree.children.push(heading(depth + 1, text(titleize(node.basename))));
       } else if (isMDXFile(node)) {
         tree.children.push(
           link(toURL(node), '', text(node.data.frontmatter.title))
@@ -90,7 +92,7 @@ const createIndexPages = async (files) => {
   );
 
   visit(contentDirectory, 'directory', (dir) => {
-    if (shouldSkip(dir)) {
+    if (shouldSkipDirectory(dir)) {
       return [visit.SKIP];
     }
 
