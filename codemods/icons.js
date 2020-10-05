@@ -1,8 +1,18 @@
 const visit = require('unist-util-visit');
-const { findAttribute, hasClassName, isMdxElement } = require('./utils/mdxast');
+const {
+  findAttribute,
+  hasClassName,
+  isMdxElement,
+  removeAttribute,
+  addAttribute,
+} = require('./utils/mdxast');
 
 const ICON_NAME = /\bfa-((?!\d)[a-z-]+\b)/;
 const ICON_SIZE = /fa-(\d)x/;
+
+const FA_TO_FEATHER_ICONS = {
+  bolt: 'zap',
+};
 
 const icons = () => (tree, file) => {
   visit(
@@ -10,7 +20,7 @@ const icons = () => (tree, file) => {
     (node) => isMdxElement('i', node) && hasClassName('fa', node),
     (icon) => {
       const className = findAttribute('className', icon);
-      const [, size] = className.match(ICON_SIZE) || ['fa-1x', '1'];
+      const [, size] = className.match(ICON_SIZE) || [];
       const [, name] = className.match(ICON_NAME);
 
       const unknownClassNames = className
@@ -32,7 +42,25 @@ const icons = () => (tree, file) => {
         );
       }
 
-      file.message(`Unable to map icon '${name}'`, icon.position.start);
+      const featherIcon = FA_TO_FEATHER_ICONS[name];
+
+      if (!featherIcon) {
+        return file.message(
+          `Unable to map icon '${name}'`,
+          icon.position.start
+        );
+      }
+
+      icon.name = 'Icon';
+      icon.children = [];
+
+      addAttribute('name', featherIcon, icon);
+      removeAttribute('className', icon);
+      removeAttribute('aria-hidden', icon);
+
+      if (size) {
+        addAttribute('size', `${size}em`, icon);
+      }
     }
   );
 };
