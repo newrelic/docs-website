@@ -77,7 +77,6 @@ const createSubfolders = (folders, file, parent) => {
       {
         name: folder,
         path: path.join(parent.path || '', folder),
-        title: toTitle(folder),
       },
       []
     );
@@ -113,7 +112,7 @@ const createIndexPages = async (files) => {
     }
 
     const tree = root([
-      frontmatter({ title: dir.title, template: 'basicDoc' }),
+      frontmatter({ title: toTitle(dir.name), template: 'basicDoc' }),
     ]);
 
     visit(
