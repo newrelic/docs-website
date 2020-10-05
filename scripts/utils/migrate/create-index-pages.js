@@ -8,6 +8,7 @@ const { root, link, heading, text } = require('mdast-builder');
 const { write } = require('to-vfile');
 const toMDX = require('./to-mdx');
 const { frontmatter } = require('../mdast');
+const { last } = require('lodash');
 
 const isIndexFile = convert({ type: 'mdxFile', name: 'index.mdx' });
 const { BASE_DIR } = require('../constants');
@@ -23,6 +24,10 @@ const REPLACEMENTS = [
   [/\bapi\b/gi, 'API'],
   [/([wW])hats/gi, "$1hat's"],
 ];
+
+const directory = (path, children = []) => {
+  return u('directory', { name: last(path.split('/')), path }, children);
+};
 
 const replace = (string) =>
   REPLACEMENTS.reduce(
@@ -72,14 +77,7 @@ const createSubfolders = (folders, file, parent) => {
 
   const node =
     parent.children.find((child) => child.name === folder) ||
-    u(
-      'directory',
-      {
-        name: folder,
-        path: path.join(parent.path || '', folder),
-      },
-      []
-    );
+    directory(path.join(parent.path || '', folder));
 
   const idx = parent.children.indexOf(node);
   const insertIdx = idx === -1 ? parent.children.length : idx;
