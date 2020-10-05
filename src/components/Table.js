@@ -2,7 +2,7 @@ import React from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/core';
 
-const Table = () => (
+const Table = ({ children }) => (
   <table
     css={css`
       border-collapse: collapse;
@@ -11,14 +11,15 @@ const Table = () => (
       text-align: left;
       td,
       th {
-        padding: 0.5rem;
+        padding: 0.5rem 1rem;
       }
       th {
         border-bottom: 3px solid var(--color-brand-600);
       }
       tbody {
         tr {
-          border-bottom: 1px solid var(--border-color);
+          border: 1px solid var(--border-color);
+          border-top: 0;
         }
         tr:nth-child(odd) {
           background-color: var(--color-neutrals-100);
@@ -29,47 +30,7 @@ const Table = () => (
       }
     `}
   >
-    <thead>
-      <tr>
-        <th>Firstname</th>
-        <th>Lastname</th>
-        <th>Age</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr>
-        <td>Jill</td>
-        <td>
-          <div>
-            <ul>
-              <li>hello there</li>
-            </ul>
-          </div>
-        </td>
-        <td>50</td>
-      </tr>
-      <tr>
-        <td>Eve</td>
-        <td>Jackson</td>
-        <td>94</td>
-      </tr>
-      <tr>
-        <td>Jill</td>
-        <td>
-          <div>
-            <ul>
-              <li>hello there</li>
-            </ul>
-          </div>
-        </td>
-        <td>50</td>
-      </tr>
-      <tr>
-        <td>Eve</td>
-        <td>Jackson</td>
-        <td>94</td>
-      </tr>
-    </tbody>
+    {children}
   </table>
 );
 
