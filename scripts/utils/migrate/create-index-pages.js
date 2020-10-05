@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 const path = require('path');
 const fm = require('front-matter');
 const visit = require('unist-util-visit');
