@@ -52,6 +52,10 @@ const toURL = (node) =>
       .replace(/\/index\/?$/, '')
   );
 
+const depthOf = (node, dir) => {
+  return node.path.replace(new RegExp(`${dir.path}\\/`, '')).split('/').length;
+};
+
 const generateMDX = (dir) => {
   const tree = root([
     frontmatter({ title: titleize(dir.basename), template: 'basicDoc' }),
@@ -66,10 +70,10 @@ const generateMDX = (dir) => {
       }
 
       if (isDirectory(node)) {
-        const depth = node.path
-          .replace(new RegExp(`${dir.path}\\/`, ''))
-          .split('/').length;
-        tree.children.push(heading(depth + 1, text(titleize(node.basename))));
+        // Start headings at level 2
+        tree.children.push(
+          heading(depthOf(node, dir) + 1, text(titleize(node.basename)))
+        );
       } else if (isMDXFile(node)) {
         tree.children.push(
           link(toURL(node), '', text(node.data.frontmatter.title))
