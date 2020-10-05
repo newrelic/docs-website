@@ -33,7 +33,7 @@ const replace = (string) =>
 
 const capitalize = (word) => word.charAt(0).toUpperCase() + word.slice(1);
 
-const titleize = (dirname) => {
+const sentenceCase = (dirname) => {
   const [firstWord, ...words] = dirname.split('-');
   const title = [capitalize(firstWord), ...words].join(' ');
 
@@ -59,7 +59,7 @@ const depthOf = (node, dir) => {
 
 const generateMDX = (dir) => {
   const tree = root([
-    frontmatter({ title: titleize(dir.basename), template: 'basicDoc' }),
+    frontmatter({ title: sentenceCase(dir.basename), template: 'basicDoc' }),
   ]);
 
   visit(
@@ -73,7 +73,7 @@ const generateMDX = (dir) => {
       if (isDirectory(node)) {
         // Start headings at level 2
         tree.children.push(
-          heading(depthOf(node, dir) + 1, text(titleize(node.basename)))
+          heading(depthOf(node, dir) + 1, text(sentenceCase(node.basename)))
         );
       } else if (isMDXFile(node)) {
         const lastChild = last(tree.children);
