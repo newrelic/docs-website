@@ -41,13 +41,11 @@ const toTitle = (dirname) => {
 
 const TYPES = {
   '.mdx': {
-    type: 'mdxFile',
     attributes: (file) => ({
-      title: fm(file.contents).attributes.title,
+      frontmatter: fm(file.contents).attributes,
     }),
   },
   '.json': {
-    type: 'jsonFile',
     attributes: () => ({}),
   },
 };
@@ -124,7 +122,7 @@ const createIndexPages = async (files) => {
                   .replace(/\/index\/?$/, '')
               ),
               '',
-              text(node.data.title)
+              text(node.data.frontmatter.title)
             )
           );
         }
