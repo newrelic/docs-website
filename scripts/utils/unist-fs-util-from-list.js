@@ -7,9 +7,9 @@ const buildSubtree = (
   file,
   parent,
   getAttributes,
-  folders = file.dirname.split('/')
+  [pathSegment, ...remainingSegments] = file.path.split('/')
 ) => {
-  if (folders.length === 0) {
+  if (pathSegment === file.basename) {
     parent.children.push(
       fileNode(path.join(parent.path, file.basename), getAttributes(file))
     );
@@ -17,17 +17,15 @@ const buildSubtree = (
     return parent;
   }
 
-  const [folder, ...subfolders] = folders;
-
   const node =
-    parent.children.find((child) => child.basename === folder) ||
-    directory(path.join(parent.path || '', folder));
+    parent.children.find((child) => child.basename === pathSegment) ||
+    directory(path.join(parent.path || '', pathSegment));
 
   if (parent.children.indexOf(node) === -1) {
     parent.children.push(node);
   }
 
-  buildSubtree(file, node, getAttributes, subfolders);
+  buildSubtree(file, node, getAttributes, remainingSegments);
 
   return parent;
 };
