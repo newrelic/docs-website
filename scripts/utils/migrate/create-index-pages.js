@@ -8,6 +8,7 @@ const { root, link, heading, text } = require('mdast-builder');
 const { write } = require('to-vfile');
 const toMDX = require('./to-mdx');
 const { frontmatter } = require('../mdast');
+const { insertChild } = require('../unist');
 const { last } = require('lodash');
 
 const isIndexFile = convert({ type: 'mdxFile', name: 'index.mdx' });
@@ -60,17 +61,14 @@ const createSubfolders = (folders, file, parent) => {
   if (folders.length === 0) {
     const { type, attributes: getAttributes } = TYPES[file.extname];
 
-    return {
-      ...parent,
-      children: [
-        ...parent.children,
-        u(type, {
-          name: file.basename,
-          path: path.join(parent.path, file.basename),
-          ...getAttributes(file),
-        }),
-      ],
-    };
+    return insertChild(
+      u(type, {
+        name: file.basename,
+        path: path.join(parent.path, file.basename),
+        ...getAttributes(file),
+      }),
+      parent
+    );
   }
 
   const [folder, ...subfolders] = folders;
@@ -80,16 +78,12 @@ const createSubfolders = (folders, file, parent) => {
     directory(path.join(parent.path || '', folder));
 
   const idx = parent.children.indexOf(node);
-  const insertIdx = idx === -1 ? parent.children.length : idx;
 
-  return {
-    ...parent,
-    children: [
-      ...parent.children.slice(0, insertIdx),
-      createSubfolders(subfolders, file, node),
-      ...parent.children.slice(insertIdx + 1),
-    ],
-  };
+  return insertChild(
+    createSubfolders(subfolders, file, node),
+    parent,
+    idx === -1 ? parent.children.length : idx
+  );
 };
 
 const createIndexPages = async (files) => {
