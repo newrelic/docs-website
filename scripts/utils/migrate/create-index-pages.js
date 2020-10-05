@@ -9,7 +9,6 @@ const unified = require('unified');
 const stringify = require('remark-stringify');
 const remarkFrontmatter = require('remark-frontmatter');
 const yaml = require('js-yaml');
-const headingRange = require('mdast-util-heading-range');
 const { write } = require('to-vfile');
 
 const isIndexFile = convert({ type: 'mdxFile', name: 'index.mdx' });
@@ -113,10 +112,6 @@ const createIndexPages = async (files) => {
     );
 
   visit(contentDirectory, 'directory', (dir) => {
-    if (dir.name === 'attribute-dictionary') {
-      return [visit.SKIP];
-    }
-
     const hasIndexFile = dir.children.some(isIndexFile);
 
     if (dir.path === 'src' || hasIndexFile) {
@@ -129,62 +124,34 @@ const createIndexPages = async (files) => {
 
     visit(
       dir,
-      (node) => node.type === 'directory' && node !== dir,
-      (subdir) => {
-        if (subdir.name === 'attribute-dictionary') {
+      (node) => node !== dir,
+      (node) => {
+        if (node.name === 'attribute-dictionary') {
           return [visit.SKIP];
         }
 
-        const depth = subdir.path
-          .replace(new RegExp(`${dir.path}\\/`, ''))
-          .split('/').length;
-
-        tree.children.push(heading(depth + 1, text(toTitle(subdir.name))));
+        if (node.type === 'directory') {
+          const depth = node.path
+            .replace(new RegExp(`${dir.path}\\/`, ''))
+            .split('/').length;
+          tree.children.push(heading(depth + 1, text(toTitle(node.name))));
+        } else if (node.type === 'mdxFile') {
+          tree.children.push(
+            link(
+              path.join(
+                '/',
+                node.path
+                  .replace('.mdx', '')
+                  .replace(BASE_DIR, '')
+                  .replace(/\/index\/?$/, '')
+              ),
+              '',
+              text(node.title)
+            )
+          );
+        }
       }
     );
-
-    visit(dir, 'mdxFile', (node, _idx, parent) => {
-      if (parent === dir) {
-        tree.children.push(
-          link(
-            path.join(
-              '/',
-              node.path
-                .replace('.mdx', '')
-                .replace(BASE_DIR, '')
-                .replace(/\/index\/?$/, '')
-            ),
-            '',
-            text(node.title)
-          )
-        );
-      } else {
-        headingRange(
-          tree,
-          (value) => parent.title === value,
-          (start, nodes, end) => {
-            return [
-              start,
-              ...[
-                link(
-                  path.join(
-                    '/',
-                    node.path
-                      .replace('.mdx', '')
-                      .replace(BASE_DIR, '')
-                      .replace(/\/index\/?$/, '')
-                  ),
-                  '',
-                  text(node.title)
-                ),
-                ...nodes,
-              ],
-              end,
-            ];
-          }
-        );
-      }
-    });
 
     const indexFile = vfile({
       path: path.join(dir.path, 'index.mdx'),
