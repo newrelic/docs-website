@@ -9,9 +9,10 @@ const { write } = require('to-vfile');
 const toMDX = require('./to-mdx');
 const { frontmatter } = require('../mdast');
 const { insertChild } = require('../unist');
-const { directory } = require('../unist-fs-builder');
+const { directory, file: fileNode } = require('../unist-fs-builder');
 
-const isIndexFile = convert({ type: 'mdxFile', name: 'index.mdx' });
+const isIndexFile = convert({ type: 'file', basename: 'index.mdx' });
+const isMDXFile = convert({ type: 'file', extension: '.mdx' });
 const { BASE_DIR } = require('../constants');
 
 const capitalize = (word) => word.charAt(0).toUpperCase() + word.slice(1);
@@ -55,14 +56,10 @@ const SKIPPED_FOLDERS = ['src/content/attribute-dictionary'];
 
 const createSubfolders = (folders, file, parent) => {
   if (folders.length === 0) {
-    const { type, attributes: getAttributes } = TYPES[file.extname];
+    const { attributes: getAttributes } = TYPES[file.extname];
 
     return insertChild(
-      u(type, {
-        name: file.basename,
-        path: path.join(parent.path, file.basename),
-        ...getAttributes(file),
-      }),
+      fileNode(path.join(parent.path, file.basename), getAttributes(file)),
       parent
     );
   }
@@ -116,7 +113,7 @@ const createIndexPages = async (files) => {
             .replace(new RegExp(`${dir.path}\\/`, ''))
             .split('/').length;
           tree.children.push(heading(depth + 1, text(toTitle(node.name))));
-        } else if (node.type === 'mdxFile') {
+        } else if (isMDXFile(node)) {
           tree.children.push(
             link(
               path.join(
@@ -127,7 +124,7 @@ const createIndexPages = async (files) => {
                   .replace(/\/index\/?$/, '')
               ),
               '',
-              text(node.title)
+              text(node.data.title)
             )
           );
         }
