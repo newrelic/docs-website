@@ -41,6 +41,45 @@ const SKIPPED_FOLDERS = ['src/content/attribute-dictionary'];
 
 const shouldSkip = (dir) => SKIPPED_FOLDERS.includes(dir.path);
 
+const generateMDX = (dir) => {
+  const tree = root([
+    frontmatter({ title: toTitle(dir.basename), template: 'basicDoc' }),
+  ]);
+
+  visit(
+    dir,
+    (node) => node !== dir,
+    (node) => {
+      if (shouldSkip(node)) {
+        return [visit.SKIP];
+      }
+
+      if (node.type === 'directory') {
+        const depth = node.path
+          .replace(new RegExp(`${dir.path}\\/`, ''))
+          .split('/').length;
+        tree.children.push(heading(depth + 1, text(toTitle(node.basename))));
+      } else if (isMDXFile(node)) {
+        tree.children.push(
+          link(
+            path.join(
+              '/',
+              node.path
+                .replace('.mdx', '')
+                .replace(BASE_DIR, '')
+                .replace(/\/index\/?$/, '')
+            ),
+            '',
+            text(node.data.frontmatter.title)
+          )
+        );
+      }
+    }
+  );
+
+  return toMDX(tree);
+};
+
 const createIndexPages = async (files) => {
   const contentDirectory = fromList(
     files.sort((a, b) => a.path.localeCompare(b.path)),
@@ -59,44 +98,9 @@ const createIndexPages = async (files) => {
       return;
     }
 
-    const tree = root([
-      frontmatter({ title: toTitle(dir.basename), template: 'basicDoc' }),
-    ]);
-
-    visit(
-      dir,
-      (node) => node !== dir,
-      (node) => {
-        if (shouldSkip(node)) {
-          return [visit.SKIP];
-        }
-
-        if (node.type === 'directory') {
-          const depth = node.path
-            .replace(new RegExp(`${dir.path}\\/`, ''))
-            .split('/').length;
-          tree.children.push(heading(depth + 1, text(toTitle(node.basename))));
-        } else if (isMDXFile(node)) {
-          tree.children.push(
-            link(
-              path.join(
-                '/',
-                node.path
-                  .replace('.mdx', '')
-                  .replace(BASE_DIR, '')
-                  .replace(/\/index\/?$/, '')
-              ),
-              '',
-              text(node.data.frontmatter.title)
-            )
-          );
-        }
-      }
-    );
-
     const indexFile = vfile({
       path: path.join(dir.path, 'index.mdx'),
-      contents: toMDX(tree),
+      contents: generateMDX(dir),
     });
 
     write(indexFile, 'utf-8').catch((e) => console.error(e));
