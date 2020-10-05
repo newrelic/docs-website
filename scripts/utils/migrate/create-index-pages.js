@@ -40,21 +40,17 @@ const toTitle = (dirname) => {
 };
 
 const TYPES = {
-  '.mdx': {
-    attributes: (file) => ({
-      frontmatter: fm(file.contents).attributes,
-    }),
-  },
-  '.json': {
-    attributes: () => ({}),
-  },
+  '.mdx': (file) => ({
+    frontmatter: fm(file.contents).attributes,
+  }),
+  '.json': () => ({}),
 };
 
 const SKIPPED_FOLDERS = ['src/content/attribute-dictionary'];
 
 const createSubfolders = (folders, file, parent) => {
   if (folders.length === 0) {
-    const { attributes: getAttributes } = TYPES[file.extname];
+    const getAttributes = TYPES[file.extname];
 
     return insertChild(
       fileNode(path.join(parent.path, file.basename), getAttributes(file)),
