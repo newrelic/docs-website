@@ -2,6 +2,7 @@ import React from 'react';
 import PropTypes from 'prop-types';
 import { graphql } from 'gatsby';
 import MDXContainer from '../components/MDXContainer';
+import Table from '../components/Table';
 import { GlobalHeader } from '@newrelic/gatsby-theme-newrelic';
 
 const basicDocPageTemplate = ({ data }) => {
@@ -13,6 +14,7 @@ const basicDocPageTemplate = ({ data }) => {
       <GlobalHeader />
       <h1>{frontmatter.title}</h1>
       <MDXContainer>{body}</MDXContainer>
+      <Table />
     </>
   );
 };
