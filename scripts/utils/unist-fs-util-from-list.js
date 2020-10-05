@@ -1,6 +1,5 @@
 const path = require('path');
 const { root, directory, file: fileNode } = require('./unist-fs-builder');
-const { insertChild } = require('./unist');
 
 const noop = () => {};
 
@@ -11,10 +10,11 @@ const buildSubtree = (
   folders = file.dirname.split('/')
 ) => {
   if (folders.length === 0) {
-    return insertChild(
-      fileNode(path.join(parent.path, file.basename), getAttributes(file)),
-      parent
+    parent.children.push(
+      fileNode(path.join(parent.path, file.basename), getAttributes(file))
     );
+
+    return parent;
   }
 
   const [folder, ...subfolders] = folders;
@@ -23,13 +23,13 @@ const buildSubtree = (
     parent.children.find((child) => child.basename === folder) ||
     directory(path.join(parent.path || '', folder));
 
-  const idx = parent.children.indexOf(node);
+  if (parent.children.indexOf(node) === -1) {
+    parent.children.push(node);
+  }
 
-  return insertChild(
-    buildSubtree(file, node, getAttributes, subfolders),
-    parent,
-    idx === -1 ? null : idx
-  );
+  buildSubtree(file, node, getAttributes, subfolders);
+
+  return parent;
 };
 
 const fromList = (files, getAttributes = noop) => {
