@@ -4,7 +4,7 @@ const path = require('path');
 const directory = (dirpath, children = []) => {
   return u(
     'directory',
-    { name: path.basename(dirpath), path: dirpath },
+    { basename: path.basename(dirpath), path: dirpath },
     children
   );
 };

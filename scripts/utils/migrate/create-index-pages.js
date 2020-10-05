@@ -61,7 +61,7 @@ const createSubfolders = (folders, file, parent) => {
   const [folder, ...subfolders] = folders;
 
   const node =
-    parent.children.find((child) => child.name === folder) ||
+    parent.children.find((child) => child.basename === folder) ||
     directory(path.join(parent.path || '', folder));
 
   const idx = parent.children.indexOf(node);
@@ -91,7 +91,7 @@ const createIndexPages = async (files) => {
     }
 
     const tree = root([
-      frontmatter({ title: toTitle(dir.name), template: 'basicDoc' }),
+      frontmatter({ title: toTitle(dir.basename), template: 'basicDoc' }),
     ]);
 
     visit(
@@ -106,7 +106,7 @@ const createIndexPages = async (files) => {
           const depth = node.path
             .replace(new RegExp(`${dir.path}\\/`, ''))
             .split('/').length;
-          tree.children.push(heading(depth + 1, text(toTitle(node.name))));
+          tree.children.push(heading(depth + 1, text(toTitle(node.basename))));
         } else if (isMDXFile(node)) {
           tree.children.push(
             link(
