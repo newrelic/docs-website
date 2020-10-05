@@ -1,6 +1,5 @@
 const path = require('path');
 const fm = require('front-matter');
-const u = require('unist-builder');
 const visit = require('unist-util-visit');
 const convert = require('unist-util-is/convert');
 const vfile = require('vfile');
@@ -9,11 +8,15 @@ const { write } = require('to-vfile');
 const toMDX = require('./to-mdx');
 const { frontmatter } = require('../mdast');
 const { insertChild } = require('../unist');
-const { directory, file: fileNode } = require('../unist-fs-builder');
+const {
+  directory,
+  file: fileNode,
+  root: fsRoot,
+} = require('../unist-fs-builder');
+const { BASE_DIR } = require('../constants');
 
 const isIndexFile = convert({ type: 'file', basename: 'index.mdx' });
 const isMDXFile = convert({ type: 'file', extension: '.mdx' });
-const { BASE_DIR } = require('../constants');
 
 const capitalize = (word) => word.charAt(0).toUpperCase() + word.slice(1);
 
@@ -78,7 +81,7 @@ const createIndexPages = async (files) => {
     .sort((a, b) => a.path.localeCompare(b.path))
     .reduce(
       (tree, file) => createSubfolders(file.dirname.split('/'), file, tree),
-      u('root', [])
+      fsRoot([])
     );
 
   visit(contentDirectory, 'directory', (dir) => {

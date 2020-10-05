@@ -18,4 +18,6 @@ const file = (filepath, data = {}) => {
   });
 };
 
-module.exports = { directory, file };
+const root = (children = []) => u('root', children);
+
+module.exports = { directory, file, root };
