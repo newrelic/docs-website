@@ -39,6 +39,8 @@ const toTitle = (dirname) => {
 
 const SKIPPED_FOLDERS = ['src/content/attribute-dictionary'];
 
+const shouldSkip = (dir) => SKIPPED_FOLDERS.includes(dir.path);
+
 const createIndexPages = async (files) => {
   const contentDirectory = fromList(
     files.sort((a, b) => a.path.localeCompare(b.path)),
@@ -49,7 +51,7 @@ const createIndexPages = async (files) => {
   );
 
   visit(contentDirectory, 'directory', (dir) => {
-    if (SKIPPED_FOLDERS.includes(dir.path)) {
+    if (shouldSkip(dir)) {
       return [visit.SKIP];
     }
 
@@ -65,7 +67,7 @@ const createIndexPages = async (files) => {
       dir,
       (node) => node !== dir,
       (node) => {
-        if (SKIPPED_FOLDERS.includes(node.path)) {
+        if (shouldSkip(node)) {
           return [visit.SKIP];
         }
 
