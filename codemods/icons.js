@@ -11,8 +11,19 @@ const ICON_NAME = /\bfa-((?!\d)[a-z-]+\b)/;
 const ICON_SIZE = /fa-(\d)x/;
 
 const FA_TO_FEATHER_ICONS = {
+  'bar-chart': 'bar-chart-2',
   bolt: 'zap',
+  'caret-down': 'chevron-down',
+  'check-square-o': 'check-square',
+  cog: 'settings',
+  'commenting-o': 'message-circle',
+  database: 'database',
+  'exclamation-triangle': 'alert-triangle',
+  filter: 'filter',
+  'life-ring': 'life-buoy',
   'list-ol': 'list',
+  'minus-circle': 'minus-circle',
+  sliders: 'sliders',
   terminal: 'terminal',
 };
 
