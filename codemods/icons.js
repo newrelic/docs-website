@@ -23,7 +23,7 @@ const icons = () => (tree, file) => {
       const [, size] = className.match(ICON_SIZE) || [];
       const [, name] = className.match(ICON_NAME);
 
-      const unknownClassNames = className
+      const unhandledClassNames = className
         .split(/\s+/)
         .filter(
           (className) =>
@@ -31,13 +31,13 @@ const icons = () => (tree, file) => {
             !ICON_NAME.test(className) &&
             !ICON_SIZE.test(className)
         )
-        .filter(Boolean);
+        .filter(Boolean)
+        .map((className) => `'${className}'`)
+        .join(', ');
 
-      if (unknownClassNames.length) {
+      if (unhandledClassNames) {
         file.message(
-          `Unable to handle additional classNames: ${unknownClassNames.join(
-            ' '
-          )}`,
+          `The following class names are not handled and will be dropped: ${unhandledClassNames}`,
           icon.position.start
         );
       }
