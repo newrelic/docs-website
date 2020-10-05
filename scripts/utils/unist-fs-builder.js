@@ -9,9 +9,9 @@ const directory = (dirpath, children = []) => {
   );
 };
 
-const file = (filepath, data = {}) => {
+const file = (filepath, data) => {
   return u('file', {
-    data,
+    data: data || {},
     extension: path.extname(filepath),
     path: filepath,
     basename: path.basename(filepath),
