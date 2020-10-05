@@ -34,7 +34,8 @@ const Table = ({ children }) => (
   </table>
 );
 
-//accept data props
-//if has data props, check children for the prop values that match the tables
+Table.propTypes = {
+  children: PropTypes.node,
+};
 
 export default Table;
