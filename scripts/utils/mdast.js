@@ -1,8 +1,6 @@
 const yaml = require('js-yaml');
+const u = require('unist-builder');
 
-const frontmatter = (attributes) => ({
-  type: 'yaml',
-  value: yaml.safeDump(attributes),
-});
+const frontmatter = (attributes) => u('yaml', yaml.safeDump(attributes));
 
 module.exports = { frontmatter };
