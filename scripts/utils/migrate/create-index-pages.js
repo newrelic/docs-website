@@ -9,7 +9,7 @@ const { write } = require('to-vfile');
 const toMDX = require('./to-mdx');
 const { frontmatter } = require('../mdast');
 const { insertChild } = require('../unist');
-const { last } = require('lodash');
+const { directory } = require('../unist-fs-builder');
 
 const isIndexFile = convert({ type: 'mdxFile', name: 'index.mdx' });
 const { BASE_DIR } = require('../constants');
@@ -25,10 +25,6 @@ const REPLACEMENTS = [
   [/\bapi\b/gi, 'API'],
   [/([wW])hats/gi, "$1hat's"],
 ];
-
-const directory = (path, children = []) => {
-  return u('directory', { name: last(path.split('/')), path }, children);
-};
 
 const replace = (string) =>
   REPLACEMENTS.reduce(
