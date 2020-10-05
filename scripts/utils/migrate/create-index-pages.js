@@ -103,6 +103,7 @@ const createIndexPages = async (files) => {
       contents: generateMDX(dir),
     });
 
+    // eslint-disable-next-line no-console
     write(indexFile, 'utf-8').catch((e) => console.error(e));
   });
 };
