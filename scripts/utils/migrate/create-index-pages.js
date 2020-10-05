@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 const path = require('path');
 const fm = require('front-matter');
 const visit = require('unist-util-visit');
@@ -98,13 +99,13 @@ const createIndexPages = async (files) => {
       return;
     }
 
-    const indexFile = vfile({
-      path: path.join(dir.path, 'index.mdx'),
-      contents: generateMDX(dir),
-    });
-
-    // eslint-disable-next-line no-console
-    write(indexFile, 'utf-8').catch((e) => console.error(e));
+    write(
+      vfile({
+        path: path.join(dir.path, 'index.mdx'),
+        contents: generateMDX(dir),
+      }),
+      'utf-8'
+    ).catch((e) => console.error(e));
   });
 };
 
