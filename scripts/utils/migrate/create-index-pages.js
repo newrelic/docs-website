@@ -79,7 +79,7 @@ const generateMDX = (dir) => {
       } else if (isMDXFile(node)) {
         const lastChild = last(tree.children);
         const linkListItem = listItem(
-          link(toURL(node), '', text(node.data.frontmatter.title))
+          link(toURL(node), '', text(node.data.frontmatter.title.trim()))
         );
 
         if (isList(lastChild)) {
