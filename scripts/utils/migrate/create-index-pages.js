@@ -49,6 +49,8 @@ const TYPES = {
   },
 };
 
+const SKIPPED_FOLDERS = ['src/content/attribute-dictionary'];
+
 const createSubfolders = (folders, file, parent) => {
   if (folders.length === 0) {
     const { type, attributes: getAttributes } = TYPES[file.extname];
@@ -102,7 +104,7 @@ const createIndexPages = async (files) => {
     );
 
   visit(contentDirectory, 'directory', (dir) => {
-    if (dir.name === 'attribute-dictionary') {
+    if (SKIPPED_FOLDERS.includes(dir.path)) {
       return [visit.SKIP];
     }
 
@@ -118,7 +120,7 @@ const createIndexPages = async (files) => {
       dir,
       (node) => node !== dir,
       (node) => {
-        if (node.name === 'attribute-dictionary') {
+        if (SKIPPED_FOLDERS.includes(node.path)) {
           return [visit.SKIP];
         }
 
