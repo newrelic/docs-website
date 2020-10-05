@@ -14,7 +14,7 @@ const buildSubtree = (
       fileNode(path.join(parent.path, file.basename), getAttributes(file))
     );
 
-    return parent;
+    return;
   }
 
   const node =
@@ -26,15 +26,14 @@ const buildSubtree = (
   }
 
   buildSubtree(file, node, getAttributes, remainingSegments);
-
-  return parent;
 };
 
 const fromList = (files, getAttributes = noop) => {
-  return files.reduce(
-    (tree, file) => buildSubtree(file, tree, getAttributes),
-    root([])
-  );
+  return files.reduce((tree, file) => {
+    buildSubtree(file, tree, getAttributes);
+
+    return tree;
+  }, root([]));
 };
 
 module.exports = fromList;
