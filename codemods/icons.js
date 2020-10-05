@@ -13,6 +13,7 @@ const ICON_SIZE = /fa-(\d)x/;
 const FA_TO_FEATHER_ICONS = {
   bolt: 'zap',
   'list-ol': 'list',
+  terminal: 'terminal',
 };
 
 const icons = () => (tree, file) => {
