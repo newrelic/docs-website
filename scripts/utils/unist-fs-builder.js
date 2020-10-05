@@ -9,4 +9,13 @@ const directory = (dirpath, children = []) => {
   );
 };
 
-module.exports = { directory };
+const file = (filepath, data = {}) => {
+  return u('file', {
+    data,
+    extension: path.extname(filepath),
+    path: filepath,
+    basename: path.basename(filepath),
+  });
+};
+
+module.exports = { directory, file };
