@@ -82,7 +82,7 @@ const createSubfolders = (folders, file, parent) => {
   return insertChild(
     createSubfolders(subfolders, file, node),
     parent,
-    idx === -1 ? parent.children.length : idx
+    idx === -1 ? null : idx
   );
 };
 
