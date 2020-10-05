@@ -5,11 +5,9 @@ const visit = require('unist-util-visit');
 const convert = require('unist-util-is/convert');
 const vfile = require('vfile');
 const { root, link, heading, text } = require('mdast-builder');
-const unified = require('unified');
-const stringify = require('remark-stringify');
-const remarkFrontmatter = require('remark-frontmatter');
-const yaml = require('js-yaml');
 const { write } = require('to-vfile');
+const toMDX = require('./to-mdx');
+const { frontmatter } = require('../mdast');
 
 const isIndexFile = convert({ type: 'mdxFile', name: 'index.mdx' });
 const { BASE_DIR } = require('../constants');
@@ -94,14 +92,6 @@ const createSubfolders = (folders, file, parent) => {
     ],
   };
 };
-
-const toMDX = (tree) =>
-  unified().use(stringify).use(remarkFrontmatter, ['yaml']).stringify(tree);
-
-const frontmatter = (attributes) => ({
-  type: 'yaml',
-  value: yaml.safeDump(attributes),
-});
 
 const createIndexPages = async (files) => {
   const contentDirectory = files
