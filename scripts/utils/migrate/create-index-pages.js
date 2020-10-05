@@ -102,9 +102,11 @@ const createIndexPages = async (files) => {
     );
 
   visit(contentDirectory, 'directory', (dir) => {
-    const hasIndexFile = dir.children.some(isIndexFile);
+    if (dir.name === 'attribute-dictionary') {
+      return [visit.SKIP];
+    }
 
-    if (dir.path === 'src' || hasIndexFile) {
+    if (dir.path === 'src' || dir.children.some(isIndexFile)) {
       return;
     }
 
