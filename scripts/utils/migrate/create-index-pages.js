@@ -42,6 +42,15 @@ const SKIPPED_FOLDERS = ['src/content/attribute-dictionary'];
 
 const shouldSkip = (dir) => SKIPPED_FOLDERS.includes(dir.path);
 
+const toURL = (node) =>
+  path.join(
+    '/',
+    node.path
+      .replace('.mdx', '')
+      .replace(BASE_DIR, '')
+      .replace(/\/index\/?$/, '')
+  );
+
 const generateMDX = (dir) => {
   const tree = root([
     frontmatter({ title: toTitle(dir.basename), template: 'basicDoc' }),
@@ -62,17 +71,7 @@ const generateMDX = (dir) => {
         tree.children.push(heading(depth + 1, text(toTitle(node.basename))));
       } else if (isMDXFile(node)) {
         tree.children.push(
-          link(
-            path.join(
-              '/',
-              node.path
-                .replace('.mdx', '')
-                .replace(BASE_DIR, '')
-                .replace(/\/index\/?$/, '')
-            ),
-            '',
-            text(node.data.frontmatter.title)
-          )
+          link(toURL(node), '', text(node.data.frontmatter.title))
         );
       }
     }
