@@ -5,7 +5,6 @@ const visit = require('unist-util-visit');
 const convert = require('unist-util-is/convert');
 const vfile = require('vfile');
 const { root, link, heading, text } = require('mdast-builder');
-const { write } = require('to-vfile');
 const toMDX = require('./to-mdx');
 const { frontmatter } = require('../mdast');
 const { BASE_DIR } = require('../constants');
@@ -82,7 +81,7 @@ const generateMDX = (dir) => {
   return toMDX(tree);
 };
 
-const createIndexPages = async (files) => {
+const createIndexPages = (files) => {
   const contentDirectory = fromList(
     files.sort((a, b) => a.path.localeCompare(b.path)),
     (file) =>
@@ -90,6 +89,8 @@ const createIndexPages = async (files) => {
         ? { frontmatter: fm(file.contents).attributes }
         : {}
   );
+
+  const indexFiles = [];
 
   visit(contentDirectory, 'directory', (dir) => {
     if (shouldSkipDirectory(dir)) {
@@ -100,14 +101,15 @@ const createIndexPages = async (files) => {
       return;
     }
 
-    write(
+    indexFiles.push(
       vfile({
         path: path.join(dir.path, 'index.mdx'),
         contents: generateMDX(dir),
-      }),
-      'utf-8'
-    ).catch((e) => console.error(e));
+      })
+    );
   });
+
+  return indexFiles;
 };
 
 module.exports = createIndexPages;
