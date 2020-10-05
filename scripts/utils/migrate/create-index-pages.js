@@ -4,15 +4,17 @@ const fm = require('front-matter');
 const visit = require('unist-util-visit');
 const convert = require('unist-util-is/convert');
 const vfile = require('vfile');
-const { root, link, heading, text } = require('mdast-builder');
+const { root, link, heading, text, list } = require('mdast-builder');
 const toMDX = require('./to-mdx');
 const { frontmatter } = require('../mdast');
 const { BASE_DIR } = require('../constants');
 const fromList = require('../unist-fs-util-from-list');
+const { last } = require('lodash');
 
 const isIndexFile = convert({ type: 'file', basename: 'index.mdx' });
 const isMDXFile = convert({ type: 'file', extension: '.mdx' });
 const isDirectory = convert('directory');
+const isList = convert('list');
 
 const REPLACEMENTS = [
   [/ios/gi, 'iOS'],
@@ -75,9 +77,18 @@ const generateMDX = (dir) => {
           heading(depthOf(node, dir) + 1, text(titleize(node.basename)))
         );
       } else if (isMDXFile(node)) {
-        tree.children.push(
-          link(toURL(node), '', text(node.data.frontmatter.title))
+        const lastChild = last(tree.children);
+        const fileLink = link(
+          toURL(node),
+          '',
+          text(node.data.frontmatter.title)
         );
+
+        if (isList(lastChild)) {
+          lastChild.children.push(fileLink);
+        } else {
+          tree.children.push(list('unordered', [fileLink]));
+        }
       }
     }
   );
