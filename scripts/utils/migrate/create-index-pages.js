@@ -7,13 +7,8 @@ const { root, link, heading, text } = require('mdast-builder');
 const { write } = require('to-vfile');
 const toMDX = require('./to-mdx');
 const { frontmatter } = require('../mdast');
-const { insertChild } = require('../unist');
-const {
-  directory,
-  file: fileNode,
-  root: fsRoot,
-} = require('../unist-fs-builder');
 const { BASE_DIR } = require('../constants');
+const fromList = require('../unist-fs-util-from-list');
 
 const isIndexFile = convert({ type: 'file', basename: 'index.mdx' });
 const isMDXFile = convert({ type: 'file', extension: '.mdx' });
@@ -51,38 +46,11 @@ const TYPES = {
 
 const SKIPPED_FOLDERS = ['src/content/attribute-dictionary'];
 
-const createSubfolders = (folders, file, parent) => {
-  if (folders.length === 0) {
-    const getAttributes = TYPES[file.extname];
-
-    return insertChild(
-      fileNode(path.join(parent.path, file.basename), getAttributes(file)),
-      parent
-    );
-  }
-
-  const [folder, ...subfolders] = folders;
-
-  const node =
-    parent.children.find((child) => child.basename === folder) ||
-    directory(path.join(parent.path || '', folder));
-
-  const idx = parent.children.indexOf(node);
-
-  return insertChild(
-    createSubfolders(subfolders, file, node),
-    parent,
-    idx === -1 ? null : idx
-  );
-};
-
 const createIndexPages = async (files) => {
-  const contentDirectory = files
-    .sort((a, b) => a.path.localeCompare(b.path))
-    .reduce(
-      (tree, file) => createSubfolders(file.dirname.split('/'), file, tree),
-      fsRoot([])
-    );
+  const contentDirectory = fromList(
+    files.sort((a, b) => a.path.localeCompare(b.path)),
+    (file) => TYPES[file.extname](file)
+  );
 
   visit(contentDirectory, 'directory', (dir) => {
     if (SKIPPED_FOLDERS.includes(dir.path)) {
