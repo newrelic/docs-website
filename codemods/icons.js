@@ -54,7 +54,8 @@ const icons = () => (tree, file) => {
       if (unhandledClassNames) {
         file.message(
           `The following class names are not handled and will be dropped: ${unhandledClassNames}`,
-          icon.position.start
+          icon.position.start,
+          'icons'
         );
       }
 
@@ -63,7 +64,8 @@ const icons = () => (tree, file) => {
       if (!featherIcon) {
         return file.message(
           `Unable to map icon '${name}'`,
-          icon.position.start
+          icon.position.start,
+          'icons'
         );
       }
 
