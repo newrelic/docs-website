@@ -19,11 +19,11 @@ const buttons = () => (tree) => {
       );
     },
     (a) => {
-      a.name = 'Button';
-
       const { value: className } = a.attributes.find(
         (attr) => attr.name === 'className'
       );
+
+      const { value: href } = a.attributes.find((attr) => attr.name === 'href');
 
       const variant = className
         .split(/\s+/)
@@ -33,12 +33,18 @@ const buttons = () => (tree) => {
         )
         .replace('btn-', '');
 
+      if (href) {
+        a.attributes.push({
+          name: 'as',
+          value: 'a',
+          type: 'mdxBlockElement',
+        });
+      } else {
+        removeAttribute('href', a);
+      }
+
+      a.name = 'Button';
       addAttribute('variant', variant, a);
-      a.attributes.push({
-        name: 'as',
-        value: 'a',
-        type: 'mdxBlockElement',
-      });
       removeAttribute('className', a);
     }
   );
