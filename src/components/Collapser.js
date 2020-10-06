@@ -1,7 +1,9 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/core';
 import { Icon } from '@newrelic/gatsby-theme-newrelic';
+import { animated, useSpring } from 'react-spring';
+import useMeasure from 'react-use-measure';
 
 const collapserIcon = (isOpen) => css`
   margin-left: auto;
@@ -13,14 +15,9 @@ transform: rotate(180deg);`}
 `;
 
 const Collapser = ({ title, id, openByDefault, className, children }) => {
-  const [isOpen, toggleOpen] = useState(openByDefault);
-  const [height, setHeight] = useState(isOpen ? 'auto' : '0px');
-
-  const content = useRef(null);
-  const toggleCollapser = () => {
-    toggleOpen(!isOpen);
-    setHeight(isOpen ? '0px' : `${content.current.scrollHeight}px`);
-  };
+  const [isOpen, setIsOpen] = useState(openByDefault);
+  const [ref, { height }] = useMeasure();
+  const style = useSpring({ height: isOpen ? height : 0 });
 
   return (
     <div
@@ -29,21 +26,21 @@ const Collapser = ({ title, id, openByDefault, className, children }) => {
         display: flex;
         flex-direction: column;
         border-radius: 3px;
+        border: 1px solid var(--border-color);
       `}
     >
       <button
-        onClick={toggleCollapser}
+        onClick={() => setIsOpen((isOpen) => !isOpen)}
         type="button"
         css={css`
           cursor: pointer;
           padding: 0.75rem;
           background-color: inherit;
-          border-radius: 3px;
           display: flex;
           align-items: center;
           transition: background-color 0.6s ease;
-          border: 1px solid var(--border-color);
-          ${isOpen && `border-bottom: 1px dotted var(--border-color);`}
+          border: none;
+
           &:hover,
           &:focus {
             background-color: var(--color-neutrals-100);
@@ -70,26 +67,23 @@ const Collapser = ({ title, id, openByDefault, className, children }) => {
           css={collapserIcon(isOpen)}
         />
       </button>
-      <div
-        ref={content}
+
+      <animated.div
+        style={style}
         css={css`
           overflow: hidden;
-          transition: max-height 0.6s ease;
-          max-height: ${height};
-          border-left: 1px solid var(--border-color);
-          border-bottom: 1px solid var(--border-color);
-          border-right: 1px solid var(--border-color);
-          ${!isOpen && `border-bottom: none`}
         `}
       >
         <div
+          ref={ref}
           css={css`
+            border-top: 1px solid var(--border-color);
             padding: 1rem;
           `}
         >
           {children}
         </div>
-      </div>
+      </animated.div>
     </div>
   );
 };
