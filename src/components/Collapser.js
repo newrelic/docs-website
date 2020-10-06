@@ -1,7 +1,10 @@
-import React, { useState, useRef } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/core';
 import { Icon } from '@newrelic/gatsby-theme-newrelic';
+// Use the renderprops API since we are animating 'auto'
+// https://www.react-spring.io/docs/hooks/basics
+import { animated, Spring } from 'react-spring/renderprops';
 
 const collapserIcon = (isOpen) => css`
   margin-left: auto;
@@ -13,14 +16,13 @@ transform: rotate(180deg);`}
 `;
 
 const Collapser = ({ title, id, openByDefault, className, children }) => {
-  const [isOpen, toggleOpen] = useState(openByDefault);
-  const [height, setHeight] = useState(isOpen ? 'auto' : '0px');
+  const [isMounted, setIsMounted] = useState(false);
+  const [isOpen, setIsOpen] = useState(openByDefault);
+  const [showBorder, setShowBorder] = useState(false);
 
-  const content = useRef(null);
-  const toggleCollapser = () => {
-    toggleOpen(!isOpen);
-    setHeight(isOpen ? '0px' : `${content.current.scrollHeight}px`);
-  };
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   return (
     <div
@@ -29,21 +31,24 @@ const Collapser = ({ title, id, openByDefault, className, children }) => {
         display: flex;
         flex-direction: column;
         border-radius: 3px;
+        border: 1px solid var(--border-color);
       `}
     >
       <button
-        onClick={toggleCollapser}
+        onClick={() => setIsOpen((isOpen) => !isOpen)}
         type="button"
         css={css`
           cursor: pointer;
           padding: 0.75rem;
           background-color: inherit;
-          border-radius: 3px;
           display: flex;
           align-items: center;
           transition: background-color 0.6s ease;
-          border: 1px solid var(--border-color);
-          ${isOpen && `border-bottom: 1px dotted var(--border-color);`}
+          border: none;
+          border-bottom: ${isOpen || showBorder
+            ? '1px solid var(--border-color)'
+            : 'none'};
+
           &:hover,
           &:focus {
             background-color: var(--color-neutrals-100);
@@ -70,26 +75,36 @@ const Collapser = ({ title, id, openByDefault, className, children }) => {
           css={collapserIcon(isOpen)}
         />
       </button>
-      <div
-        ref={content}
-        css={css`
-          overflow: hidden;
-          transition: max-height 0.6s ease;
-          max-height: ${height};
-          border-left: 1px solid var(--border-color);
-          border-bottom: 1px solid var(--border-color);
-          border-right: 1px solid var(--border-color);
-          ${!isOpen && `border-bottom: none`}
-        `}
+
+      <Spring
+        to={{ height: isOpen ? 'auto' : 0 }}
+        onFrame={({ height }) => {
+          // Hide the bottom border on the button only when the collapser is
+          // expanded or animating closed. We want to hide it when its almost
+          // closed to avoid showing a double bottom border.
+          if (height <= 1.5) {
+            setShowBorder(false);
+          }
+        }}
+        onStart={() => setShowBorder(isMounted && true)}
       >
-        <div
-          css={css`
-            padding: 1rem;
-          `}
-        >
-          {children}
-        </div>
-      </div>
+        {(style) => (
+          <animated.div
+            style={style}
+            css={css`
+              overflow: hidden;
+            `}
+          >
+            <div
+              css={css`
+                padding: 1rem;
+              `}
+            >
+              {children}
+            </div>
+          </animated.div>
+        )}
+      </Spring>
     </div>
   );
 };
