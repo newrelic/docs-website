@@ -16,17 +16,17 @@ const images = () => (tree, file) => {
         url: downloadImgUrl,
         dest: path.join('src/images'),
       };
-      download
-        .image(options)
-        .then(({ filename }) => {
-          console.log('Image saved at:', filename);
-        })
-        .catch(
-          file.fail(
-            new Error(`Error saving file at url: ${downloadImgUrl}`),
-            image.position
-          )
+      try {
+        const downloadImage = download.image(options);
+        console.log(`Image downloaded: ${downloadImgUrl}`);
+        const gatsbyImgUrl = `/images/${downloadImgUrl.split('image/')[1]}`;
+        image.url = gatsbyImgUrl;
+      } catch (error) {
+        file.fail(
+          new Error(`Error saving file at url: ${downloadImgUrl}`),
+          image.position
         );
+      }
     }
   );
 };
