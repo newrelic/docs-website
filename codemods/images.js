@@ -2,6 +2,7 @@ const visit = require('unist-util-visit');
 const download = require('image-downloader');
 const path = require('path');
 const fs = require('fs');
+const { BASE_URL } = '../../scripts/utils/constants';
 
 const { setAttribute, isType } = require('./utils/mdxast');
 
@@ -10,10 +11,8 @@ const images = () => (tree, file) => {
     tree,
     (node) => isType('image', node),
     (image) => {
-      const currDirectoryPath = file.history[0].substring(
-        0,
-        file.history[0].lastIndexOf('/')
-      );
+      console.log(file.dirname);
+      const currDirectoryPath = file.dirname;
       const imageDirectory = path.join(currDirectoryPath, 'images');
       if (!fs.existsSync(imageDirectory)) {
         fs.mkdirSync(imageDirectory);
@@ -21,7 +20,7 @@ const images = () => (tree, file) => {
 
       const downloadImgUrl = image.url.includes('.newrelic.com/')
         ? image.url
-        : `https://docs-dev.newrelic.com${image.url}`;
+        : path.join(BASE_URL, image.url);
       const options = {
         url: downloadImgUrl,
         dest: imageDirectory,
