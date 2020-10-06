@@ -1,96 +1,127 @@
-const fs = require('fs').promises;
-const fsSync = require('fs');
 const path = require('path');
 const fm = require('front-matter');
-
-const logger = require('../logger');
+const visit = require('unist-util-visit');
+const convert = require('unist-util-is/convert');
+const vfile = require('vfile');
+const { root, link, heading, text, list, listItem } = require('mdast-builder');
+const toMDX = require('./to-mdx');
+const { frontmatter } = require('../mdast');
 const { BASE_DIR } = require('../constants');
+const fromList = require('../unist-fs-util-from-list');
+const { last } = require('lodash');
 
-const getTitle = (file) =>
-  file
-    .split('/')
-    .slice(-1)[0]
-    .replace('.mdx', '')
-    .split('-')
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(' ');
+const isIndexFile = convert({ type: 'file', basename: 'index.mdx' });
+const isMDXFile = convert({ type: 'file', extension: '.mdx' });
+const isDirectory = convert('directory');
+const isList = convert('list');
 
-const getFrontmatter = (title) => `---
-title: ${title}
-template: basicDoc
----
+const REPLACEMENTS = [
+  [/ios/gi, 'iOS'],
+  [/apm/gi, 'APM'],
+  [/new relic/gi, 'New Relic'],
+  [/\bphp\b/gi, 'PHP'],
+  [/\bui\b/gi, 'UI'],
+  [/\bapi\b/gi, 'API'],
+  [/([wW])hats/gi, "$1hat's"],
+];
 
-`;
+const replace = (string) =>
+  REPLACEMENTS.reduce(
+    (str, [regex, replacement]) => str.replace(regex, replacement),
+    string
+  );
 
-const getPageContent = (dir, files) => {
-  return files
-    .map((file) => {
-      const path = `${dir}/${file.name}`
-        .replace(BASE_DIR, '')
-        .replace('.mdx', '');
-      const fileContent = fsSync.readFileSync(`${dir}/${file.name}`, 'utf8');
-      const label = fm(fileContent).attributes.title || getTitle(file.name);
-      return `* [${label}](${path})`;
-    })
-    .join('\n');
+const capitalize = (word) => word.charAt(0).toUpperCase() + word.slice(1);
+
+const sentenceCase = (dirname) => {
+  const [firstWord, ...words] = dirname.split('-');
+  const title = [capitalize(firstWord), ...words].join(' ');
+
+  return replace(title);
 };
 
-const getSubheading = (dir, level) => {
-  const title = getTitle(dir);
-  const hashes = [...Array(level).keys()].reduce((acc) => `#${acc}`, '');
+const SKIPPED_FOLDERS = ['src/content/attribute-dictionary'];
 
-  return `\n${hashes} ${title}\n`;
+const shouldSkipDirectory = (dir) => SKIPPED_FOLDERS.includes(dir.path);
+
+const toURL = (node) =>
+  path.join(
+    '/',
+    node.path
+      .replace('.mdx', '')
+      .replace(BASE_DIR, '')
+      .replace(/\/index\/?$/, '')
+  );
+
+const depthOf = (node, dir) => {
+  return node.path.replace(new RegExp(`${dir.path}\\/`, '')).split('/').length;
 };
 
-const createIndexPage = async (dir, level = 2) => {
-  // dont run for the attribute definitions
-  if (dir === path.join(BASE_DIR, 'attribute-dictionary')) {
-    return false;
-  }
+const generateMDX = (dir) => {
+  const tree = root([
+    frontmatter({ title: sentenceCase(dir.basename), template: 'basicDoc' }),
+  ]);
 
-  const title = getTitle(dir);
+  visit(
+    dir,
+    (node) => node !== dir,
+    (node) => {
+      if (shouldSkipDirectory(node)) {
+        return [visit.SKIP];
+      }
 
-  try {
-    const nodes = (await fs.readdir(dir, { withFileTypes: true })) || [];
+      if (isDirectory(node)) {
+        // Start headings at level 2
+        tree.children.push(
+          heading(depthOf(node, dir) + 1, text(sentenceCase(node.basename)))
+        );
+      } else if (isMDXFile(node)) {
+        const lastChild = last(tree.children);
+        const linkListItem = listItem(
+          link(toURL(node), '', text(node.data.frontmatter.title.trim()))
+        );
 
-    // get files (and links) for this directory
-    const files = nodes.filter((node) => !node.isDirectory());
-    const dirLinks = getPageContent(dir, files);
+        if (isList(lastChild)) {
+          lastChild.children.push(linkListItem);
+        } else {
+          tree.children.push(list('unordered', [linkListItem]));
+        }
+      }
+    }
+  );
 
-    // get all sub directories
-    const subDirs = nodes
-      .filter((node) => node.isDirectory())
-      .map(({ name }) => path.join(dir, name));
-
-    // get links for sub directories (make index pages along the way)
-    const subLinks = await subDirs.reduce(async (contentPromise, subDir) => {
-      // Due to this being async, the previous (accumulator) result is a promise.
-      // We need to await the results of the last loop, before we can add to it.
-      const content = await contentPromise;
-
-      const subDirContent = await createIndexPage(subDir, level + 1);
-      const subDirHeading = getSubheading(subDir, level);
-
-      return [content, subDirHeading, subDirContent].join('\n');
-    }, '');
-
-    // if there is an index.mdx, don't overwrite or make a new one
-    if (files.some((file) => file.name === 'index.mdx')) return;
-
-    // combine links and add them to a new index.mdx file
-    const fileName = `${dir}/index.mdx`;
-    const content = getFrontmatter(title) + dirLinks + subLinks;
-    await fs.writeFile(fileName, content);
-
-    // return the links for this page (to be used by a parent, if applicable)
-    return dirLinks + subLinks;
-  } catch (err) {
-    logger.error(`Unabled to create index for ${dir}: ${err}`);
-  }
+  return toMDX(tree);
 };
 
-const createIndexPages = async () => {
-  await createIndexPage(BASE_DIR);
+const createIndexPages = (files) => {
+  const contentDirectory = fromList(
+    files.sort((a, b) => a.path.localeCompare(b.path)),
+    (file) =>
+      file.extname === '.mdx'
+        ? { frontmatter: fm(file.contents).attributes }
+        : {}
+  );
+
+  const indexFiles = [];
+
+  visit(contentDirectory, 'directory', (dir) => {
+    if (shouldSkipDirectory(dir)) {
+      return [visit.SKIP];
+    }
+
+    if (dir.path === 'src' || dir.children.some(isIndexFile)) {
+      return;
+    }
+
+    indexFiles.push(
+      vfile({
+        path: path.join(dir.path, 'index.mdx'),
+        contents: generateMDX(dir),
+      })
+    );
+  });
+
+  return indexFiles;
 };
 
 module.exports = createIndexPages;

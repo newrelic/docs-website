@@ -1,6 +1,7 @@
 const Turndown = require('turndown');
 const HTMLtoJSX = require('htmltojsx');
 const { extractTags } = require('../node');
+const repeat = require('../repeat');
 
 const SPECIAL_COMPONENTS = [
   { tag: 'div', className: 'callout-tip' },
@@ -50,8 +51,6 @@ const turndown = new Turndown({
 });
 
 const htmlToJSXConverter = new HTMLtoJSX({ createClass: false });
-
-const repeat = (character, count) => Array(count + 1).join(character);
 
 turndown
   .addRule('codeBlocks', {

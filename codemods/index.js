@@ -4,6 +4,7 @@ const callouts = require('./callouts');
 const clamshells = require('./clamshells');
 const videos = require('./videos');
 const images = require('./images');
+const tables = require('./tables');
 
 module.exports = [
   paragraphsInsideTableCells,
@@ -12,4 +13,5 @@ module.exports = [
   clamshells,
   videos,
   images,
+  tables,
 ];

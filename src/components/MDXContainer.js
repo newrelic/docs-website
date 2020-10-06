@@ -6,6 +6,7 @@ import { MDXProvider } from '@mdx-js/react';
 import { MDXCodeBlock, Callout, Video } from '@newrelic/gatsby-theme-newrelic';
 import Collapser from './Collapser';
 import CollapserGroup from './CollapserGroup';
+import Table from './Table';
 
 const Wrapper = ({ children }) => (
   <div
@@ -66,6 +67,7 @@ const components = {
   Callout,
   Collapser,
   CollapserGroup,
+  Table,
   Video,
 };
 

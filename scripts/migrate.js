@@ -31,11 +31,11 @@ const run = async () => {
       runCodemod
     );
 
-    logger.normal('Saving changes to files');
-    await all(files, (file) => write(file, 'utf-8'));
-
     logger.normal('Creating index pages');
-    await createIndexPages();
+    const indexFiles = createIndexPages(files);
+
+    logger.normal('Saving changes to files');
+    await all(files.concat(indexFiles), (file) => write(file, 'utf-8'));
 
     // Run `DEBUG=true yarn migrate` to also write a `.html` file right next to
     // the `.mdx` file. This can help us look at the original HTML to compare
