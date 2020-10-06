@@ -29,12 +29,7 @@ const Collapser = ({ title, id, openByDefault, className, children }) => {
         border: 1px solid var(--border-color);
       `}
     >
-      <animated.button
-        style={{
-          borderBottom: style.height.interpolate((height) =>
-            height >= 1 ? '1px solid var(--border-color)' : 'none'
-          ),
-        }}
+      <button
         onClick={() => setIsOpen((isOpen) => !isOpen)}
         type="button"
         css={css`
@@ -71,7 +66,7 @@ const Collapser = ({ title, id, openByDefault, className, children }) => {
           size="1.25rem"
           css={collapserIcon(isOpen)}
         />
-      </animated.button>
+      </button>
 
       <animated.div
         style={style}
@@ -82,6 +77,7 @@ const Collapser = ({ title, id, openByDefault, className, children }) => {
         <div
           ref={ref}
           css={css`
+            border-top: 1px solid var(--border-color);
             padding: 1rem;
           `}
         >
