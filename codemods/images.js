@@ -2,7 +2,6 @@ const visit = require('unist-util-visit');
 const download = require('image-downloader');
 const path = require('path');
 const fs = require('fs');
-const logger = require('../scripts/utils/logger');
 const { BASE_URL } = require('../scripts/utils/constants');
 const { isType } = require('./utils/mdxast');
 
@@ -24,17 +23,17 @@ const images = () => async (tree, file) => {
         : path.join(BASE_URL, image.url);
 
       try {
-        promises.push(
-          download.image({
-            url: downloadImgUrl,
-            dest: imageDirectory,
-          })
-        );
+        const promise = download.image({
+          url: downloadImgUrl,
+          dest: imageDirectory,
+        });
 
-        logger.normal(`Image downloaded: ${downloadImgUrl}`);
+        promises.push(promise);
 
-        const gatsbyImgUrl = `./images/${downloadImgUrl.split('image/')[1]}`;
-        image.url = gatsbyImgUrl;
+        const { filename } = await promise;
+
+        // eslint-disable-next-line require-atomic-updates
+        image.url = `./images/${path.basename(filename)}`;
       } catch (error) {
         file.fail(
           new Error(`Error saving file at url: ${downloadImgUrl}`),
