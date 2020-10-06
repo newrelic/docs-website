@@ -3,33 +3,37 @@ const download = require('image-downloader');
 const path = require('path');
 const fs = require('fs');
 const { BASE_URL } = require('../scripts/utils/constants');
+const { isType } = require('./utils/mdxast');
 
-const { setAttribute, isType } = require('./utils/mdxast');
+const images = () => async (tree, file) => {
+  const promises = [];
 
-const images = () => (tree, file) => {
   visit(
     tree,
     (node) => isType('image', node),
-    (image) => {
-      console.log(file.dirname);
-      const currDirectoryPath = file.dirname;
-      const imageDirectory = path.join(currDirectoryPath, 'images');
+    async (image) => {
+      const imageDirectory = path.join(file.dirname, 'images');
+
       if (!fs.existsSync(imageDirectory)) {
         fs.mkdirSync(imageDirectory);
       }
-      console.log(BASE_URL);
+
       const downloadImgUrl = image.url.includes('.newrelic.com/')
         ? image.url
         : path.join(BASE_URL, image.url);
-      const options = {
-        url: downloadImgUrl,
-        dest: imageDirectory,
-      };
+
       try {
-        const downloadImage = download.image(options);
-        console.log(`Image downloaded: ${downloadImgUrl}`);
-        const gatsbyImgUrl = `./images/${downloadImgUrl.split('image/')[1]}`;
-        image.url = gatsbyImgUrl;
+        const promise = download.image({
+          url: downloadImgUrl,
+          dest: imageDirectory,
+        });
+
+        promises.push(promise);
+
+        const { filename } = await promise;
+
+        // eslint-disable-next-line require-atomic-updates
+        image.url = `./images/${path.basename(filename)}`;
       } catch (error) {
         file.fail(
           new Error(`Error saving file at url: ${downloadImgUrl}`),
@@ -38,6 +42,8 @@ const images = () => (tree, file) => {
       }
     }
   );
+
+  await Promise.all(promises);
 };
 
 module.exports = images;
