@@ -50,7 +50,9 @@ const buttons = () => (tree, file) => {
     }
   );
 
-  // We are assuming all pages have frontmatter
+  // We are assuming all pages have frontmatter and therefore not handling
+  // pages where frontmatter is missing. If the need arises, we'll have to insert
+  // the import statement as the first child instead of the second child.
 
   if (addImport) {
     tree.children.splice(1, 0, {
