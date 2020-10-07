@@ -77,7 +77,7 @@ module.exports = {
       options: {
         host: 'https://www.docs-preview.newrelic.com',
         sitemap: 'https://www.docs-preview.newrelic.com/sitemap.xml',
-        policy: [{ userAgent: '*', Disallow: '/' }],
+        policy: [{ userAgent: '*', disallow: '/' }],
       },
     },
     'gatsby-remark-images',
