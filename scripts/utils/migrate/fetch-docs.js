@@ -2,14 +2,13 @@ const fetch = require('node-fetch');
 require('dotenv').config();
 
 const logger = require('../logger');
-const { TYPES, BASE_URL } = require('../constants');
+const { TYPES, ITEMS_PER_TYPE, BASE_URL } = require('../constants');
 
 const getUrl = (type) =>
   [BASE_URL, 'api/migration/content', type, 'list'].join('/');
 
 const fetchDoc = async (type) => {
-  const url = getUrl(type);
-
+  const url = `${getUrl(type)}?items_per_page=${ITEMS_PER_TYPE[type]}`;
   try {
     const resp = await fetch(url, {
       headers: {

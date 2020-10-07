@@ -14,4 +14,15 @@ module.exports = {
     WHATS_NEW: 'nr1_announcement',
     ATTRIBUTE_DEFINITION: 'attribute_definition',
   },
+
+  ITEMS_PER_TYPE: {
+    page: '170',
+    landing_page: '40',
+    api_doc: '60',
+    release_notes: '170',
+    release_notes_platform: '50',
+    troubleshooting_doc: '60',
+    nr1_announcement: '170',
+    attribute_definition: '100',
+  },
 };
