@@ -6,8 +6,9 @@ import { MDXProvider } from '@mdx-js/react';
 import {
   MDXCodeBlock,
   Callout,
-  Video,
   Button,
+  Icon,
+  Video,
 } from '@newrelic/gatsby-theme-newrelic';
 import Collapser from './Collapser';
 import CollapserGroup from './CollapserGroup';
@@ -75,6 +76,7 @@ const components = {
   Callout,
   Collapser,
   CollapserGroup,
+  Icon,
   Table,
   Video,
 };

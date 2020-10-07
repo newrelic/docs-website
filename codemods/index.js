@@ -5,6 +5,7 @@ const clamshells = require('./clamshells');
 const videos = require('./videos');
 const tables = require('./tables');
 const buttons = require('./buttons');
+const icons = require('./icons');
 
 module.exports = [
   paragraphsInsideTableCells,
@@ -14,4 +15,5 @@ module.exports = [
   videos,
   tables,
   buttons,
+  icons,
 ];
