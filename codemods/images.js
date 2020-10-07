@@ -1,57 +1,45 @@
-const visit = require('unist-util-visit');
 const download = require('image-downloader');
 const path = require('path');
 const fs = require('fs');
 const { BASE_URL } = require('../scripts/utils/constants');
-const convert = require('unist-util-is/convert');
-
-const isImage = convert('image');
+const { selectAll } = require('unist-util-select');
 
 const images = () => async (tree, file) => {
-  const promises = [];
   const imageDirectory = path.join(file.dirname, 'images');
+  const imageNodes = selectAll('image', tree);
 
-  if (!fs.existsSync(imageDirectory)) {
+  if (imageNodes.length > 0 && !fs.existsSync(imageDirectory)) {
     fs.mkdirSync(imageDirectory);
   }
 
-  const downloadImage = async (node) => {
-    const url = node.url.startsWith('http')
-      ? node.url
-      : path.join(BASE_URL, node.url);
+  await Promise.all(imageNodes.map((node) => downloadImage(node, file)));
+};
 
-    try {
-      const { filename } = await download.image({
-        url,
-        dest: imageDirectory,
-      });
+const downloadImage = async (node, file) => {
+  // don't do anything if the image url is already a relative path
+  if (node.url.startsWith('.')) {
+    return;
+  }
 
-      return filename;
-    } catch (e) {
-      file.fail(
-        `Error downloading file: ${url}`,
-        node.position.start,
-        'images'
-      );
-    }
-  };
+  const url = node.url.startsWith('http')
+    ? node.url
+    : path.join(BASE_URL, node.url);
 
-  visit(tree, isImage, async (image) => {
-    try {
-      const promise = downloadImage(image);
+  try {
+    const { filename } = await download.image({
+      url,
+      dest: path.join(file.dirname, 'images'),
+    });
 
-      promises.push(promise);
-
-      const filename = await promise;
-
-      // eslint-disable-next-line require-atomic-updates
-      image.url = `./images/${path.basename(filename)}`;
-    } catch (error) {
-      // do nothing
-    }
-  });
-
-  await Promise.all(promises);
+    // eslint-disable-next-line require-atomic-updates
+    node.url = `./images/${path.basename(filename)}`;
+  } catch (e) {
+    file.message(
+      `Unable to download file: ${url}`,
+      node.position.start,
+      'images'
+    );
+  }
 };
 
 module.exports = images;
