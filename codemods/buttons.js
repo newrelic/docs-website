@@ -9,9 +9,6 @@ const {
 const VARIANTS = ['btn-primary'];
 
 const buttons = () => (tree, file) => {
-  if (file.path === './src/content/docs/agents/go-agent/index.mdx') {
-    console.dir(tree, { depth: 4 });
-  }
   let addImport = false;
   visit(
     tree,
