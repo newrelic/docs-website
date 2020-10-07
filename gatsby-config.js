@@ -75,8 +75,8 @@ module.exports = {
     {
       resolve: 'gatsby-plugin-robots-txt',
       options: {
-        host: 'https://www.docs-preview.newrelic.com',
-        sitemap: 'https://www.docs-preview.newrelic.com/sitemap.xml',
+        host: 'https://docs-preview.newrelic.com',
+        sitemap: 'https://docs-preview.newrelic.com/sitemap.xml',
         policy: [{ userAgent: '*', disallow: '/' }],
       },
     },
