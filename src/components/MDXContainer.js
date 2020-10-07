@@ -6,12 +6,14 @@ import { MDXProvider } from '@mdx-js/react';
 import {
   MDXCodeBlock,
   Callout,
+  Button,
   Icon,
   Video,
 } from '@newrelic/gatsby-theme-newrelic';
 import Collapser from './Collapser';
 import CollapserGroup from './CollapserGroup';
 import Table from './Table';
+import { Link } from 'gatsby';
 
 const Wrapper = ({ children }) => (
   <div
@@ -66,9 +68,11 @@ Wrapper.propTypes = {
 };
 
 const components = {
+  Link,
   code: MDXCodeBlock,
   pre: (props) => props.children,
   wrapper: Wrapper,
+  Button,
   Callout,
   Collapser,
   CollapserGroup,
