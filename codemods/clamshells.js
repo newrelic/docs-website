@@ -18,7 +18,7 @@ const clamshells = () => (tree) => {
 
       visit(
         dl,
-        (node) => isMdxBlockElement('dt', node),
+        (node, _idx, parent) => isMdxBlockElement('dt', node) && parent === dl,
         (dt, idx) => {
           const dd = dl.children[idx + 1];
 
@@ -34,7 +34,7 @@ const clamshells = () => (tree) => {
 
       visit(
         dl,
-        (node) => isMdxBlockElement('dd', node),
+        (node, _idx, parent) => isMdxBlockElement('dd', node) && parent === dl,
         (dd) => {
           removeChild(dd, dl);
         }
