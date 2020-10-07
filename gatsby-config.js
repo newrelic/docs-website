@@ -70,6 +70,16 @@ module.exports = {
         path: `${__dirname}/src/content`,
       },
     },
+    // This plugin is set to disallow to prevent crawling of the site during preview
+    // mode
+    {
+      resolve: 'gatsby-plugin-robots-txt',
+      options: {
+        host: 'https://www.docs-preview.newrelic.com',
+        sitemap: 'https://www.docs-preview.newrelic.com/sitemap.xml',
+        policy: [{ userAgent: '*', Disallow: '/' }],
+      },
+    },
     'gatsby-remark-images',
     'gatsby-transformer-remark',
     {
