@@ -8,10 +8,12 @@ const tables = require('./tables');
 const buttons = require('./buttons');
 const icons = require('./icons');
 const codeBlocks = require('./codeBlocks');
+const inlineCodeBlocks = require('./inlineCodeBlocks');
 
 module.exports = [
   paragraphsInsideTableCells,
   codeBlocks,
+  inlineCodeBlocks,
   indentedCodeBlock,
   callouts,
   clamshells,

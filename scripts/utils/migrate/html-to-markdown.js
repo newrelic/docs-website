@@ -54,6 +54,15 @@ const turndown = new Turndown({
 const htmlToJSXConverter = new HTMLtoJSX({ createClass: false });
 
 turndown
+  .addRule('inlineCodeBlocks', {
+    filter: (node) =>
+      node.nodeName === 'CODE' && node.parentNode.nodeName !== 'PRE',
+    replacement: (_content, node) => {
+      const buffer = Buffer.from(node.textContent.trim());
+
+      return `<code>${buffer.toString('base64')}</code>`;
+    },
+  })
   .addRule('codeBlocks', {
     filter: ['pre'],
 
