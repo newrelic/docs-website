@@ -40,9 +40,10 @@ const sentenceCase = (dirname) => {
   return replace(title);
 };
 
-const SKIPPED_FOLDERS = ['src/content/attribute-dictionary'];
+const SKIPPED_FOLDERS = ['src/content/attribute-dictionary', 'images'];
 
-const shouldSkipDirectory = (dir) => SKIPPED_FOLDERS.includes(dir.path);
+const shouldSkipDirectory = (dir) =>
+  SKIPPED_FOLDERS.includes(dir.path) || SKIPPED_FOLDERS.includes(dir.basename);
 
 const toURL = (node) =>
   path.join(

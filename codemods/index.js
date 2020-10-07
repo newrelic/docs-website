@@ -3,6 +3,7 @@ const paragraphsInsideTableCells = require('./paragraphsInsideTableCells');
 const callouts = require('./callouts');
 const clamshells = require('./clamshells');
 const videos = require('./videos');
+const images = require('./images');
 const tables = require('./tables');
 const icons = require('./icons');
 
@@ -12,6 +13,7 @@ module.exports = [
   callouts,
   clamshells,
   videos,
+  images,
   tables,
   icons,
 ];
