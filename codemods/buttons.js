@@ -1,29 +1,27 @@
 const visit = require('unist-util-visit');
 const {
-  isMdxBlockElement,
   removeAttribute,
   addAttribute,
+  hasClassName,
+  findAttribute,
 } = require('./utils/mdxast');
 
 const VARIANTS = ['btn-primary'];
 
-const buttons = () => (tree) => {
+const buttons = () => (tree, file) => {
+  if (file.path === './src/content/docs/agents/go-agent/index.mdx') {
+    console.dir(tree, { depth: 4 });
+  }
+  let addImport = false;
   visit(
     tree,
     (node) => {
-      return (
-        isMdxBlockElement('a', node) &&
-        node.attributes.some(
-          (attr) => attr.name === 'className' && attr.value.includes('btn')
-        )
-      );
+      return hasClassName('btn', node);
     },
     (a) => {
-      const { value: className } = a.attributes.find(
-        (attr) => attr.name === 'className'
-      );
-
-      const { value: href } = a.attributes.find((attr) => attr.name === 'href');
+      addImport = true;
+      const className = findAttribute('className', a);
+      const href = findAttribute('href', a);
 
       const variant = className
         .split(/\s+/)
@@ -36,18 +34,30 @@ const buttons = () => (tree) => {
       if (href) {
         a.attributes.push({
           name: 'as',
-          value: 'a',
-          type: 'mdxBlockElement',
+          value: {
+            type: 'mdxValueExpression',
+            value: 'Link',
+          },
+          type: 'mdxAttribute',
         });
-      } else {
-        removeAttribute('href', a);
+        addAttribute('to', href, a);
       }
 
       a.name = 'Button';
       addAttribute('variant', variant, a);
       removeAttribute('className', a);
+      removeAttribute('href', a);
     }
   );
+
+  // We are assuming all pages have frontmatter
+
+  if (addImport) {
+    tree.children.splice(1, 0, {
+      type: 'import',
+      value: `import { Link } from 'gatsby'`,
+    });
+  }
 };
 
 module.exports = buttons;

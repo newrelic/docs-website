@@ -144,11 +144,7 @@ turndown
     replacement: (_content, node) => htmlToJSXConverter.convert(node.outerHTML),
   })
   .addRule('buttons', {
-    filter: (node) => {
-      return (
-        node.getAttribute('class') && node.getAttribute('class').includes('btn')
-      );
-    },
+    filter: (node) => node.classList.contains('btn'),
     replacement: (_content, node) => htmlToJSXConverter.convert(node.outerHTML),
   });
 
