@@ -66,22 +66,15 @@ turndown
     // the docs site include language information, so we don't need to try and
     // detect it.
     replacement: (_content, node, options) => {
-      const code = node.textContent;
-      const fenceChar = options.fence.charAt(0);
-      const fenceInCodeRegex = new RegExp(`^${fenceChar}{3,}`, 'gm');
+      const buffer = Buffer.from(node.textContent.trim());
+      const language =
+        node.firstChild.nodeName === 'CODE'
+          ? node.firstChild.getAttribute('type')
+          : null;
 
-      let fenceSize = 3;
-      let match;
-
-      while ((match = fenceInCodeRegex.exec(code))) {
-        if (match[0].length >= fenceSize) {
-          fenceSize = match[0].length + 1;
-        }
-      }
-
-      const fence = repeat(fenceChar, fenceSize);
-
-      return `\n\n${fence}\n${code.replace(/\n$/, '')}\n${fence}\n\n`;
+      return language
+        ? `\n<pre language="${language}">${buffer.toString('base64')}</pre>\n`
+        : `\n<pre>${buffer.toString('base64')}</pre>\n`;
     },
   })
   .addRule('specialComponents', {
