@@ -7,7 +7,7 @@ const images = require('./images');
 const tables = require('./tables');
 const buttons = require('./buttons');
 const icons = require('./icons');
-const codeBlocks = require('./codeblocks');
+const codeBlocks = require('./codeBlocks');
 
 module.exports = [
   paragraphsInsideTableCells,
