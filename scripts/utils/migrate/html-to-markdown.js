@@ -142,6 +142,10 @@ turndown
   .addRule('videos', {
     filter: 'iframe',
     replacement: (_content, node) => htmlToJSXConverter.convert(node.outerHTML),
+  })
+  .addRule('buttons', {
+    filter: (node) => node.classList.contains('btn'),
+    replacement: (_content, node) => htmlToJSXConverter.convert(node.outerHTML),
   });
 
 module.exports = (html) => turndown.turndown(html);
