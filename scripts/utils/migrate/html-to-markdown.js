@@ -82,8 +82,10 @@ turndown
           : null;
 
       return language
-        ? `\n<pre language="${language}">${buffer.toString('base64')}</pre>\n`
-        : `\n<pre>${buffer.toString('base64')}</pre>\n`;
+        ? `\n\n<pre language="${language}">${buffer.toString(
+            'base64'
+          )}</pre>\n\n`
+        : `\n\n<pre>${buffer.toString('base64')}</pre>\n\n`;
     },
   })
   .addRule('specialComponents', {
@@ -100,7 +102,9 @@ turndown
         `${openingTag}|||${closingTag}\n`
       );
 
-      return outerJSX.replace('|||', `\n${content}\n`);
+      const whitespace = node.isBlock ? '\n\n' : '';
+
+      return `${whitespace}${outerJSX.replace('|||', `\n${content}\n`)}`;
     },
   })
   .addRule('table', {
