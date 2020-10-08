@@ -13,8 +13,11 @@ const MAPPED_ATTRIBUTES = {
 };
 
 const DEPRECATED_ATTRIBUTES = {
+  // https://developer.mozilla.org/en-US/docs/Web/HTML/Element/table
   table: ['align', 'border', 'cellspacing', 'cellpadding', 'height'],
+  // https://developer.mozilla.org/en-US/docs/Web/HTML/Element/th
   th: ['scope', 'valign'],
+  // https://developer.mozilla.org/en-US/docs/Web/HTML/Element/td
   td: ['align'],
 };
 
