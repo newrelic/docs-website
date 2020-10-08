@@ -12,7 +12,11 @@ const MAPPED_ATTRIBUTES = {
   width: 'width',
 };
 
-const DEPRECATED_ATTRIBUTES = ['valign', 'scope'];
+const DEPRECATED_ATTRIBUTES = {
+  table: ['align', 'border', 'cellspacing', 'cellpadding', 'height'],
+  th: ['scope', 'valign'],
+  td: ['align'],
+};
 
 const DIGITS_ONLY = /^\d+$/;
 
@@ -63,9 +67,12 @@ const objectToJSString = (obj) => {
 };
 
 const htmlToJSXAttributes = (element, file) => {
-  const attributes = Array.from(element.attributes).filter(
-    (attr) => !DEPRECATED_ATTRIBUTES.includes(attr.name)
-  );
+  const attributes = Array.from(element.attributes).filter((attr) => {
+    const deprecatedAttrs =
+      DEPRECATED_ATTRIBUTES[element.nodeName.toLowerCase()] || [];
+
+    return !deprecatedAttrs.includes(attr.name);
+  });
 
   const unhandledAttributes = attributes
     .filter((attr) => !hasOwnProperty(MAPPED_ATTRIBUTES, attr.name))
@@ -73,7 +80,7 @@ const htmlToJSXAttributes = (element, file) => {
 
   if (unhandledAttributes.length > 0) {
     file.message(
-      `The following properties are set on the element '${element.nodeName.toLowerCase()}' and will be discarded: ${unhandledAttributes.join(
+      `The following attributes are set on the element '${element.nodeName.toLowerCase()}' and will be discarded: ${unhandledAttributes.join(
         ', '
       )}`,
       null,
