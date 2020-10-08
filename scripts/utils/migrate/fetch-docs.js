@@ -8,7 +8,15 @@ const getUrl = (type) =>
   [BASE_URL, 'api/migration/content', type, 'list'].join('/');
 
 const fetchDoc = async (type) => {
-  const url = `${getUrl(type)}?items_per_page=${ITEMS_PER_TYPE[type]}`;
+  const params = new URLSearchParams();
+  const perPage = ITEMS_PER_TYPE[type];
+
+  if (perPage) {
+    params.set('items_per_page', perPage);
+  }
+
+  const url = `${getUrl(type)}?${params}`;
+
   try {
     const resp = await fetch(url, {
       headers: {
