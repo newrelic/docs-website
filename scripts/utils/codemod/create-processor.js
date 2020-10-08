@@ -9,7 +9,6 @@ const createProcessor = ({ codemods }) => {
   const processor = unified()
     .use(stringify, {
       bullet: '*',
-      commonmark: true,
       fences: true,
       listItemIndent: '1',
     })
