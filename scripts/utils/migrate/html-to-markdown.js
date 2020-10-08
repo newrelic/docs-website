@@ -116,18 +116,10 @@ module.exports = (file) => {
         return [openingTag, content, closingTag].join('\n');
       },
     })
-    .addRule('tableContents', {
-      filter: ['td', 'th', 'thead', 'tbody', 'tr'],
+    .addRule('innerElements', {
+      filter: ['td', 'th', 'thead', 'tbody', 'tr', 'dd', 'dt'],
       replacement: (content, node) =>
         `\n${fauxHtmlToJSX(node, content, file)}\n`,
-    })
-    .addRule('innerElements', {
-      filter: ['dd', 'dt'],
-      replacement: (content, node) => {
-        const [openingTag, closingTag] = extractTags(node);
-
-        return [openingTag, content, closingTag].join('\n');
-      },
     })
     .addRule('videos', {
       filter: 'iframe',
