@@ -26,6 +26,13 @@ module.exports = {
           contentPadding: '2rem',
           maxWidth: '1700px',
         },
+        // This option is set to disallow to prevent crawling of the site during preview
+        // mode
+        robots: {
+          host: 'https://docs-preview.newrelic.com',
+          sitemap: 'https://docs-preview.newrelic.com/sitemap.xml',
+          policy: [{ userAgent: '*', disallow: '/' }],
+        },
         newrelic: {
           configs: {
             development: {
@@ -70,6 +77,7 @@ module.exports = {
         path: `${__dirname}/src/content`,
       },
     },
+
     'gatsby-remark-images',
     'gatsby-transformer-remark',
     {
