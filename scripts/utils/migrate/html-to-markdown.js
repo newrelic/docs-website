@@ -1,5 +1,6 @@
 const Turndown = require('turndown');
 const HTMLtoJSX = require('htmltojsx');
+const fauxHtmlToJSX = require('./html-to-jsx');
 const { extractTags } = require('../node');
 const repeat = require('../repeat');
 
@@ -115,8 +116,12 @@ turndown
       return [openingTag, content, closingTag].join('\n');
     },
   })
+  .addRule('tableContents', {
+    filter: ['td', 'th', 'thead', 'tbody', 'tr'],
+    replacement: (content, node) => `\n${fauxHtmlToJSX(node, content)}\n`,
+  })
   .addRule('innerElements', {
-    filter: ['td', 'th', 'thead', 'tbody', 'tr', 'dd', 'dt'],
+    filter: ['dd', 'dt'],
     replacement: (content, node) => {
       const [openingTag, closingTag] = extractTags(node);
 
