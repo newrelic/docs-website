@@ -108,16 +108,8 @@ module.exports = (file) => {
         return `${whitespace}${outerJSX.replace('|||', `\n${content}\n`)}`;
       },
     })
-    .addRule('table', {
-      filter: 'table',
-      replacement: (content, node) => {
-        const [openingTag, closingTag] = extractTags(node);
-
-        return [openingTag, content, closingTag].join('\n');
-      },
-    })
-    .addRule('innerElements', {
-      filter: ['td', 'th', 'thead', 'tbody', 'tr', 'dd', 'dt'],
+    .addRule('customHandled', {
+      filter: ['table', 'td', 'th', 'thead', 'tbody', 'tr', 'dd', 'dt'],
       replacement: (content, node) =>
         `\n${fauxHtmlToJSX(node, content, file)}\n`,
     })
