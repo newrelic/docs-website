@@ -1,8 +1,7 @@
 const Turndown = require('turndown');
 const HTMLtoJSX = require('htmltojsx');
-const fauxHtmlToJSX = require('./html-to-jsx');
+const fauxHtmlToJSX = require('./faux-html-to-jsx');
 const { extractTags } = require('../node');
-const repeat = require('../repeat');
 
 const SPECIAL_COMPONENTS = [
   { tag: 'div', className: 'callout-tip' },
@@ -119,7 +118,8 @@ module.exports = (file) => {
     })
     .addRule('tableContents', {
       filter: ['td', 'th', 'thead', 'tbody', 'tr'],
-      replacement: (content, node) => `\n${fauxHtmlToJSX(node, content)}\n`,
+      replacement: (content, node) =>
+        `\n${fauxHtmlToJSX(node, content, file)}\n`,
     })
     .addRule('innerElements', {
       filter: ['dd', 'dt'],
