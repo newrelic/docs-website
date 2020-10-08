@@ -1,5 +1,4 @@
 const indentedCodeBlock = require('./indentedCodeBlock');
-const paragraphsInsideTableCells = require('./paragraphsInsideTableCells');
 const callouts = require('./callouts');
 const clamshells = require('./clamshells');
 const videos = require('./videos');
@@ -11,7 +10,6 @@ const codeBlocks = require('./codeBlocks');
 const inlineCodeBlocks = require('./inlineCodeBlocks');
 
 module.exports = [
-  paragraphsInsideTableCells,
   codeBlocks,
   inlineCodeBlocks,
   indentedCodeBlock,
