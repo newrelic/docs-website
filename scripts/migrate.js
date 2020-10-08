@@ -28,7 +28,13 @@ const run = async () => {
     logger.normal('Running codemods on .mdx files');
     await all(
       files.filter((file) => file.extname === '.mdx'),
-      runCodemod
+      async (file) => {
+        try {
+          await runCodemod(file);
+        } catch (e) {
+          // do nothing
+        }
+      }
     );
 
     logger.normal('Creating index pages');

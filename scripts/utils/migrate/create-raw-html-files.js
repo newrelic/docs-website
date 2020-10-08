@@ -10,9 +10,17 @@ const format = (code) =>
 
 const createRawHTMLFiles = (files) => {
   files.forEach((file) => {
+    let contents = file.data.doc.body || '';
+
+    try {
+      contents = format(contents);
+    } catch (e) {
+      // do nothing
+    }
+
     writeSync(
       vfile({
-        contents: format(file.data.doc.body || ''),
+        contents,
         path: file.path,
         extname: '.html',
       }),
