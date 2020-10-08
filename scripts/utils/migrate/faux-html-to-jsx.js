@@ -38,7 +38,7 @@ const TRANSFORMS = {
       return key === '' ? styles : { ...styles, [toJSXKey(key)]: value };
     }, {});
 
-    return jsxExpression(objectToJSString(styles));
+    return jsxExpression(toJSXObject(styles));
   },
   width: (value) =>
     DIGITS_ONLY.test(value) ? jsxExpression(value) : quote(value),
@@ -61,7 +61,7 @@ const toJSXKey = (key) =>
 const toJSXValue = (value) =>
   typeof value === 'number' ? value : quote(value);
 
-const objectToJSString = (obj) => {
+const toJSXObject = (obj) => {
   const objectString = Object.entries(obj)
     .map(([key, value]) => [key, toJSXValue(value)].join(': '))
     .join(', ');
