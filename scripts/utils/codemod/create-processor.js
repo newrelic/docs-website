@@ -1,5 +1,5 @@
 const unified = require('unified');
-const toMDAST = require('remark-parse');
+const parse = require('remark-parse');
 const stringify = require('remark-stringify');
 const frontmatter = require('remark-frontmatter');
 const remarkMdx = require('remark-mdx');
@@ -9,11 +9,10 @@ const createProcessor = ({ codemods }) => {
   const processor = unified()
     .use(stringify, {
       bullet: '*',
-      commonmark: true,
       fences: true,
       listItemIndent: '1',
     })
-    .use(toMDAST)
+    .use(parse)
     .use(remarkMdx)
     .use(remarkMdxjs)
     .use(frontmatter, ['yaml']);
