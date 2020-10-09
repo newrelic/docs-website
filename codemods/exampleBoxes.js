@@ -9,14 +9,14 @@ const {
 } = require('./utils/mdxast');
 const { last } = require('lodash');
 
-const exampleBoxes = () => (tree, file) => {
+const exampleBoxes = () => (tree) => {
   visit(
     tree,
     (node) =>
       isMdxBlockElement('dl', node) && hasClassName('example-box', node),
     (dl) => {
       dl.name = 'CollapserGroup';
-      // removeAttribute('className', dl);
+      removeAttribute('className', dl);
 
       visit(
         dl,
