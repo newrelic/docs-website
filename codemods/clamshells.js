@@ -8,7 +8,6 @@ const {
   removeChild,
   setAttribute,
 } = require('./utils/mdxast');
-const { stringify, mdxValueExpression } = require('./utils/mdxast-builder');
 const toJSXExpression = require('./utils/to-jsx-expression');
 
 const clamshells = () => (tree, file) => {
@@ -29,11 +28,7 @@ const clamshells = () => (tree, file) => {
           if (isPlainText(dt)) {
             setAttribute('title', toString(dt), dt);
           } else {
-            setAttribute(
-              'title',
-              mdxValueExpression(stringify(toJSXExpression(dt, file)).trim()),
-              dt
-            );
+            setAttribute('title', toJSXExpression(dt, file), dt);
           }
 
           dt.name = 'Collapser';

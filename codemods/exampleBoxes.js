@@ -9,7 +9,7 @@ const {
   setAttribute,
 } = require('./utils/mdxast');
 const { last } = require('lodash');
-const { stringify, mdxValueExpression } = require('./utils/mdxast-builder');
+const toString = require('mdast-util-to-string');
 const toJSXExpression = require('./utils/to-jsx-expression');
 
 const exampleBoxes = () => (tree, file) => {
@@ -34,11 +34,7 @@ const exampleBoxes = () => (tree, file) => {
           } else if (isPlainText(dt)) {
             setAttribute('title', toString(dt), dt);
           } else {
-            setAttribute(
-              'title',
-              mdxValueExpression(stringify(toJSXExpression(dt, file)).trim()),
-              dt
-            );
+            setAttribute('title', toJSXExpression(dt, file), dt);
           }
 
           dt.name = 'Collapser';

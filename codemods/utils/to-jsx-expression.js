@@ -1,12 +1,18 @@
-const { mdxAttribute, mdxSpanElement } = require('./mdxast-builder');
+const {
+  mdxAttribute,
+  mdxSpanElement,
+  mdxValueExpression,
+} = require('./mdxast-builder');
 const { root, text } = require('mdast-builder');
+const stringify = require('./mdxast-stringify');
 
 const toJSXExpression = (node, file) => {
   const children = transformChildren(node, file);
-
-  return root(
+  const tree = root(
     children.length === 1 ? children : [mdxSpanElement(null, [], children)]
   );
+
+  return mdxValueExpression(stringify(tree).trim());
 };
 
 const transformChildren = (node, file) => {
@@ -32,6 +38,7 @@ const TRANSFORMERS = {
   paragraph: transformChildren,
   inlineCode: (node) => mdxSpanElement('code', [], [text(node.value)]),
   text: (node) => node,
+  strong: (node) => mdxSpanElement('strong', [], [text(node.value)]),
   link: (node) => {
     const isRelative = node.url.startsWith('http');
 
