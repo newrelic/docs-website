@@ -3,6 +3,7 @@ const toString = require('mdast-util-to-string');
 const {
   removeAttribute,
   isMdxBlockElement,
+  isPlainText,
   hasClassName,
   removeChild,
   setAttribute,
@@ -24,14 +25,8 @@ const clamshells = () => (tree, file) => {
         (node, _idx, parent) => isMdxBlockElement('dt', node) && parent === dl,
         (dt, idx) => {
           const dd = dl.children[idx + 1];
-          const isPlainTextTitle =
-            dt.children.length === 1 &&
-            dt.children[0].type === 'paragraph' &&
-            dt.children[0].children.every((node) => node.type === 'text');
 
-          dt.name = 'Collapser';
-
-          if (isPlainTextTitle) {
+          if (isPlainText(dt)) {
             setAttribute('title', toString(dt), dt);
           } else {
             setAttribute(
@@ -41,6 +36,7 @@ const clamshells = () => (tree, file) => {
             );
           }
 
+          dt.name = 'Collapser';
           dt.children = dd.children;
         }
       );
