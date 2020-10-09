@@ -8,7 +8,6 @@ const {
   removeChild,
   setAttribute,
 } = require('./utils/mdxast');
-const { last } = require('lodash');
 const toString = require('mdast-util-to-string');
 const toJSXExpression = require('./utils/to-jsx-expression');
 
@@ -21,34 +20,58 @@ const exampleBoxes = () => (tree, file) => {
       dl.name = 'CollapserGroup';
       removeAttribute('className', dl);
 
-      visit(
-        dl,
-        (node, _idx, parent) => isMdxBlockElement('dt', node) && parent === dl,
-        (dt, idx) => {
-          const dd = dl.children[idx + 1];
-          const isSimpleExample = dd == null || dd.name !== 'dd';
-          const children = isSimpleExample ? [last(dt.children)] : dd.children;
+      if (dl.children.length === 1) {
+        const node = dl.children[0];
 
-          if (isSimpleExample) {
-            setAttribute('title', select('text', dt).value, dt);
-          } else if (isPlainText(dt)) {
-            setAttribute('title', toString(dt), dt);
-          } else {
-            setAttribute('title', toJSXExpression(dt, file), dt);
+        node.name = 'Collapser';
+
+        if (node.children.length > 2) {
+          file.message(
+            'Simple collapser example has more than 2 child nodes. Please revisit this implementation to handle the additional nodes',
+            node.position.start,
+            'example-boxes'
+          );
+        }
+
+        const [title, children] = node.children;
+
+        setAttribute(
+          'title',
+          isPlainText(title) ? toString(title) : toJSXExpression(title, file),
+          node
+        );
+
+        node.children = [children];
+      } else {
+        visit(
+          dl,
+          (node, idx, parent) =>
+            parent === dl &&
+            isMdxBlockElement('dt', node) &&
+            parent.children[idx + 1] != null,
+          (dt, idx) => {
+            const dd = dl.children[idx + 1];
+
+            setAttribute(
+              'title',
+              isPlainText(dt) ? toString(dt) : toJSXExpression(dt, file),
+              dt
+            );
+
+            dt.name = 'Collapser';
+            dt.children = dd.children;
           }
+        );
 
-          dt.name = 'Collapser';
-          dt.children = children;
-        }
-      );
-
-      visit(
-        dl,
-        (node, _idx, parent) => isMdxBlockElement('dd', node) && parent === dl,
-        (dd) => {
-          removeChild(dd, dl);
-        }
-      );
+        visit(
+          dl,
+          (node, _idx, parent) =>
+            parent === dl && isMdxBlockElement('dd', node),
+          (dd) => {
+            removeChild(dd, dl);
+          }
+        );
+      }
     }
   );
 };
