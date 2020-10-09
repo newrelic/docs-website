@@ -3,7 +3,7 @@ import PropTypes from 'prop-types';
 import { graphql } from 'gatsby';
 import MDXContainer from '../components/MDXContainer';
 import Table from '../components/Table';
-import SEO from '../components/SEO';
+import SEO from '../components/seo';
 
 const basicDocPageTemplate = ({ data }) => {
   const { mdx } = data;

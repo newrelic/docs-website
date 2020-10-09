@@ -2,7 +2,7 @@ import React from 'react';
 import PropTypes from 'prop-types';
 import { graphql } from 'gatsby';
 import MDXContainer from '../components/MDXContainer';
-import SEO from '../components/SEO';
+import SEO from '../components/seo';
 
 const releaseNoteTemplate = ({ data }) => {
   const { mdx } = data;
