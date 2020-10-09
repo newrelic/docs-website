@@ -55,7 +55,7 @@ const TRANSFORMERS = {
     const isExternal = node.url.startsWith('http');
 
     return mdxSpanElement(
-      isExternal ? 'a' : 'Link',
+      isExternal ? 'ExternalLink' : 'Link',
       [mdxAttribute(isExternal ? 'href' : 'to', node.url)],
       transformChildren(node)
     );

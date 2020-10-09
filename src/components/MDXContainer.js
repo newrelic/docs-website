@@ -5,6 +5,7 @@ import { MDXRenderer } from 'gatsby-plugin-mdx';
 import { MDXProvider } from '@mdx-js/react';
 import {
   MDXCodeBlock,
+  ExternalLink,
   Callout,
   Button,
   Icon,
@@ -82,6 +83,9 @@ const components = {
   Callout,
   Collapser,
   CollapserGroup,
+  ExternalLink: (props) => (
+    <ExternalLink {...props} onClick={(e) => e.stopPropagation()} />
+  ),
   Icon,
   InlineCode,
   Table,
