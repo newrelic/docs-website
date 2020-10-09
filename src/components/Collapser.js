@@ -89,7 +89,7 @@ const Collapser = ({ title, id, openByDefault, className, children }) => {
 };
 
 Collapser.propTypes = {
-  title: PropTypes.string.isRequired,
+  title: PropTypes.oneOfType([PropTypes.string, PropTypes.node]),
   id: PropTypes.string,
   openByDefault: PropTypes.bool,
   className: PropTypes.string,
