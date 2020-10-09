@@ -2,6 +2,7 @@ import React from 'react';
 import PropTypes from 'prop-types';
 import { graphql } from 'gatsby';
 import MDXContainer from '../components/MDXContainer';
+import SEO from '../components/SEO';
 
 const releaseNoteTemplate = ({ data }) => {
   const { mdx } = data;
@@ -9,6 +10,7 @@ const releaseNoteTemplate = ({ data }) => {
   const { title, releaseDateTime, releaseVersion, downloadLink } = frontmatter;
   return (
     <>
+      <SEO title={title} />
       <h1>{title}</h1>
       <ul>
         <li>{`releaseDateTime: ${releaseDateTime}`}</li>

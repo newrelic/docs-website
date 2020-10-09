@@ -2,6 +2,7 @@ import React from 'react';
 import PropTypes from 'prop-types';
 import { graphql } from 'gatsby';
 import MDXContainer from '../components/MDXContainer';
+import SEO from '../components/SEO';
 
 const whatsNewTemplate = ({ data }) => {
   const { mdx } = data;
@@ -9,6 +10,7 @@ const whatsNewTemplate = ({ data }) => {
   const { title, summary, learnMoreLink, getStartedLink } = frontmatter;
   return (
     <>
+      <SEO title={title} />
       <h1>{title}</h1>
       <ul>
         <li>{`summary: ${summary}`}</li>
