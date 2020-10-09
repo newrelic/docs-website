@@ -50,14 +50,15 @@ const TRANSFORMERS = {
   paragraph: transformChildren,
   inlineCode: (node) => mdxSpanElement('InlineCode', [], [escape(node.value)]),
   text: (node) => node,
-  strong: (node) => mdxSpanElement('strong', [], transformChildren(node)),
-  link: (node) => {
+  strong: (node, file) =>
+    mdxSpanElement('strong', [], transformChildren(node, file)),
+  link: (node, file) => {
     const isExternal = node.url.startsWith('http');
 
     return mdxSpanElement(
       isExternal ? 'ExternalLink' : 'Link',
       [mdxAttribute(isExternal ? 'href' : 'to', node.url)],
-      transformChildren(node)
+      transformChildren(node, file)
     );
   },
 };
