@@ -1,6 +1,7 @@
 const {
   mdxAttribute,
   mdxSpanElement,
+  mdxSpanExpression,
   mdxValueExpression,
 } = require('./mdxast-builder');
 const { root, text } = require('mdast-builder');
@@ -34,9 +35,20 @@ const transformChildren = (node, file) => {
     .filter(Boolean);
 };
 
+const escape = (str) => {
+  return str.indexOf('{') === -1
+    ? text(str)
+    : // this implementation assumes that text with an opening '{' have a
+      // matching closing '}'. MDX v2 currently fails to parse '{' in a string
+      // without a closing '}', so we'll need to handle this differently if we
+      // end up having cases where the text contents only include an opening '{'
+      // https://github.com/mdx-js/mdx/issues/1081
+      mdxSpanExpression(`'${str.replace("'", "'")}'`);
+};
+
 const TRANSFORMERS = {
   paragraph: transformChildren,
-  inlineCode: (node) => mdxSpanElement('code', [], [text(node.value)]),
+  inlineCode: (node) => mdxSpanElement('code', [], [escape(node.value)]),
   text: (node) => node,
   strong: (node) => mdxSpanElement('strong', [], transformChildren(node)),
   link: (node) => {
