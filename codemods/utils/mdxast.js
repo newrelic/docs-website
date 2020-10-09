@@ -83,12 +83,22 @@ const removeChild = curry((child, parent) => {
   }
 });
 
+const isPlainText = (node) => {
+  return (
+    node.children.every((node) => node.type === 'text') ||
+    (node.children.length === 1 &&
+      node.children[0].type === 'paragraph' &&
+      isPlainText(node.children[0]))
+  );
+};
+
 module.exports = {
   addAttribute,
   flatten,
   isMdxBlockElement,
   isMdxElement,
   isMdxSpanElement,
+  isPlainText,
   hasAttribute,
   findAttribute,
   hasClassName,

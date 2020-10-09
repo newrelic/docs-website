@@ -1,13 +1,16 @@
 const visit = require('unist-util-visit');
+const toString = require('mdast-util-to-string');
 const {
   removeAttribute,
   isMdxBlockElement,
+  isPlainText,
   hasClassName,
   removeChild,
   setAttribute,
 } = require('./utils/mdxast');
+const toJSXExpression = require('./utils/to-jsx-expression');
 
-const clamshells = () => (tree) => {
+const clamshells = () => (tree, file) => {
   visit(
     tree,
     (node) =>
@@ -22,12 +25,13 @@ const clamshells = () => (tree) => {
         (dt, idx) => {
           const dd = dl.children[idx + 1];
 
+          setAttribute(
+            'title',
+            isPlainText(dt) ? toString(dt) : toJSXExpression(dt, file),
+            dt
+          );
+
           dt.name = 'Collapser';
-
-          visit(dt, 'text', (text) => {
-            setAttribute('title', text.value, dt);
-          });
-
           dt.children = dd.children;
         }
       );
