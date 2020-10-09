@@ -38,14 +38,14 @@ const TRANSFORMERS = {
   paragraph: transformChildren,
   inlineCode: (node) => mdxSpanElement('code', [], [text(node.value)]),
   text: (node) => node,
-  strong: (node) => mdxSpanElement('strong', [], [text(node.value)]),
+  strong: (node) => mdxSpanElement('strong', [], transformChildren(node)),
   link: (node) => {
-    const isRelative = node.url.startsWith('http');
+    const isExternal = node.url.startsWith('http');
 
     return mdxSpanElement(
-      isRelative ? 'Link' : 'a',
-      [mdxAttribute(isRelative ? 'to' : 'href', node.url)],
-      node.children
+      isExternal ? 'a' : 'Link',
+      [mdxAttribute(isExternal ? 'href' : 'to', node.url)],
+      transformChildren(node)
     );
   },
 };
