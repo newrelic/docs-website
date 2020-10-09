@@ -25,11 +25,11 @@ const clamshells = () => (tree, file) => {
         (dt, idx) => {
           const dd = dl.children[idx + 1];
 
-          if (isPlainText(dt)) {
-            setAttribute('title', toString(dt), dt);
-          } else {
-            setAttribute('title', toJSXExpression(dt, file), dt);
-          }
+          setAttribute(
+            'title',
+            isPlainText(dt) ? toString(dt) : toJSXExpression(dt, file),
+            dt
+          );
 
           dt.name = 'Collapser';
           dt.children = dd.children;
