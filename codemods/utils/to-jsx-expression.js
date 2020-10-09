@@ -43,12 +43,12 @@ const escape = (str) => {
       // without a closing '}', so we'll need to handle this differently if we
       // end up having cases where the text contents only include an opening '{'
       // https://github.com/mdx-js/mdx/issues/1081
-      mdxSpanExpression(`'${str.replace("'", "'")}'`);
+      mdxSpanExpression(`'${str.replace("'", "\\'")}'`);
 };
 
 const TRANSFORMERS = {
   paragraph: transformChildren,
-  inlineCode: (node) => mdxSpanElement('code', [], [escape(node.value)]),
+  inlineCode: (node) => mdxSpanElement('InlineCode', [], [escape(node.value)]),
   text: (node) => node,
   strong: (node) => mdxSpanElement('strong', [], transformChildren(node)),
   link: (node) => {

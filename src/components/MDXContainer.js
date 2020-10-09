@@ -67,6 +67,12 @@ Wrapper.propTypes = {
   children: PropTypes.node,
 };
 
+const InlineCode = ({ children }) => <code>{children}</code>;
+
+InlineCode.propTypes = {
+  children: PropTypes.node,
+};
+
 const components = {
   Link,
   code: MDXCodeBlock,
@@ -77,6 +83,7 @@ const components = {
   Collapser,
   CollapserGroup,
   Icon,
+  InlineCode,
   Table,
   Video,
 };
