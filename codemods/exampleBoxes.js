@@ -11,69 +11,67 @@ const {
 const toString = require('mdast-util-to-string');
 const toJSXExpression = require('./utils/to-jsx-expression');
 
+const isExampleBox = (node) =>
+  isMdxBlockElement('dl', node) && hasClassName('example-box', node);
+
 const exampleBoxes = () => (tree, file) => {
   visit(
     tree,
-    (node) =>
-      isMdxBlockElement('dl', node) && hasClassName('example-box', node),
+    (node) => isExampleBox(node) && node.children.length === 1,
     (dl) => {
+      const child = dl.children[0];
+      const [title, children] = child.children;
+
+      if (child.children.length > 2) {
+        file.message(
+          'Simple collapser example has more than 2 child nodes. Please revisit this implementation to handle the additional nodes',
+          child.position.start,
+          'example-boxes'
+        );
+      }
+
+      setAttribute(
+        'title',
+        isPlainText(title) ? toString(title) : toJSXExpression(title, file),
+        child
+      );
+
       dl.name = 'CollapserGroup';
+      child.name = 'Collapser';
+      child.children = [children];
       removeAttribute('className', dl);
+    }
+  );
 
-      if (dl.children.length === 1) {
-        const node = dl.children[0];
+  visit(tree, isExampleBox, (dl) => {
+    dl.name = 'CollapserGroup';
+    removeAttribute('className', dl);
 
-        node.name = 'Collapser';
-
-        if (node.children.length > 2) {
-          file.message(
-            'Simple collapser example has more than 2 child nodes. Please revisit this implementation to handle the additional nodes',
-            node.position.start,
-            'example-boxes'
-          );
-        }
-
-        const [title, children] = node.children;
+    visit(
+      dl,
+      (node, _idx, parent) => parent === dl && isMdxBlockElement('dt', node),
+      (dt, idx) => {
+        const dd = dl.children[idx + 1];
 
         setAttribute(
           'title',
-          isPlainText(title) ? toString(title) : toJSXExpression(title, file),
-          node
+          isPlainText(dt) ? toString(dt) : toJSXExpression(dt, file),
+          dt
         );
 
-        node.children = [children];
-      } else {
-        visit(
-          dl,
-          (node, idx, parent) =>
-            parent === dl &&
-            isMdxBlockElement('dt', node) &&
-            parent.children[idx + 1] != null,
-          (dt, idx) => {
-            const dd = dl.children[idx + 1];
-
-            setAttribute(
-              'title',
-              isPlainText(dt) ? toString(dt) : toJSXExpression(dt, file),
-              dt
-            );
-
-            dt.name = 'Collapser';
-            dt.children = dd.children;
-          }
-        );
-
-        visit(
-          dl,
-          (node, _idx, parent) =>
-            parent === dl && isMdxBlockElement('dd', node),
-          (dd) => {
-            removeChild(dd, dl);
-          }
-        );
+        dt.name = 'Collapser';
+        dt.children = dd.children;
       }
-    }
-  );
+    );
+
+    visit(
+      dl,
+      (node, _idx, parent) => parent === dl && isMdxBlockElement('dd', node),
+      (dd) => {
+        removeChild(dd, dl);
+      }
+    );
+  });
 };
 
 module.exports = exampleBoxes;
