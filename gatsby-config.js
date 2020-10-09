@@ -3,6 +3,7 @@ const indentedCodeBlock = require('./codemods/indentedCodeBlock');
 module.exports = {
   siteMetadata: {
     title: 'New Relic Documentation',
+    titleTemplate: '%s | New Relic Documentation',
     description: 'New Relic Documentation',
     author: 'New Relic',
     repository: 'https://github.com/newrelic/docs-website',

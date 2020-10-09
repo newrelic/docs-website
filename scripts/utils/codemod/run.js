@@ -1,10 +1,14 @@
 const codemods = require('../../../codemods');
 const createProcessor = require('./create-processor');
 
-const run = (file) => {
+const run = async (file) => {
   const processor = createProcessor({ codemods });
 
-  return processor.process(file);
+  try {
+    await processor.process(file);
+  } catch (e) {
+    file.fail(`${e.message}\n${e.stack}`);
+  }
 };
 
 module.exports = run;

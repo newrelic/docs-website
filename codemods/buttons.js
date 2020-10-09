@@ -6,7 +6,8 @@ const {
   findAttribute,
 } = require('./utils/mdxast');
 
-const VARIANTS = ['btn-primary'];
+const VARIANT = /\bbtn-((?!lg)[a-z]+\b)/;
+const VARIANTS = { primary: 'primary', secondary: 'link' };
 
 const buttons = () => (tree, file) => {
   let addImport = false;
@@ -20,13 +21,8 @@ const buttons = () => (tree, file) => {
       const className = findAttribute('className', a);
       const href = findAttribute('href', a);
 
-      const variant = className
-        .split(/\s+/)
-        .find(
-          (className) =>
-            className.startsWith('btn-') && VARIANTS.includes(className)
-        )
-        .replace('btn-', '');
+      const [, variant] = className.match(VARIANT) || [];
+      const themeVariant = VARIANTS[variant];
 
       if (href) {
         a.attributes.push({
@@ -41,9 +37,18 @@ const buttons = () => (tree, file) => {
       }
 
       a.name = 'Button';
-      addAttribute('variant', variant, a);
       removeAttribute('className', a);
       removeAttribute('href', a);
+
+      if (themeVariant) {
+        addAttribute('variant', themeVariant, a);
+      } else {
+        file.message(
+          `Unknown variant '${variant}'`,
+          a.position.start,
+          'buttons'
+        );
+      }
     }
   );
 

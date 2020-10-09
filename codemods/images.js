@@ -1,49 +1,45 @@
-const visit = require('unist-util-visit');
 const download = require('image-downloader');
 const path = require('path');
 const fs = require('fs');
 const { BASE_URL } = require('../scripts/utils/constants');
-const { isType } = require('./utils/mdxast');
+const { selectAll } = require('unist-util-select');
 
 const images = () => async (tree, file) => {
-  const promises = [];
+  const imageDirectory = path.join(file.dirname, 'images');
+  const imageNodes = selectAll('image', tree);
 
-  visit(
-    tree,
-    (node) => isType('image', node),
-    async (image) => {
-      const imageDirectory = path.join(file.dirname, 'images');
+  if (imageNodes.length > 0 && !fs.existsSync(imageDirectory)) {
+    fs.mkdirSync(imageDirectory);
+  }
 
-      if (!fs.existsSync(imageDirectory)) {
-        fs.mkdirSync(imageDirectory);
-      }
+  await Promise.all(imageNodes.map((node) => downloadImage(node, file)));
+};
 
-      const downloadImgUrl = image.url.includes('.newrelic.com/')
-        ? image.url
-        : path.join(BASE_URL, image.url);
+const downloadImage = async (node, file) => {
+  // don't do anything if the image url is already a relative path
+  if (node.url.startsWith('.')) {
+    return;
+  }
 
-      try {
-        const promise = download.image({
-          url: downloadImgUrl,
-          dest: imageDirectory,
-        });
+  const url = node.url.startsWith('http')
+    ? node.url
+    : path.join(BASE_URL, node.url);
 
-        promises.push(promise);
+  try {
+    const { filename } = await download.image({
+      url,
+      dest: path.join(file.dirname, 'images'),
+    });
 
-        const { filename } = await promise;
-
-        // eslint-disable-next-line require-atomic-updates
-        image.url = `./images/${path.basename(filename)}`;
-      } catch (error) {
-        file.fail(
-          new Error(`Error saving file at url: ${downloadImgUrl}`),
-          image.position
-        );
-      }
-    }
-  );
-
-  await Promise.all(promises);
+    // eslint-disable-next-line require-atomic-updates
+    node.url = `./images/${path.basename(filename)}`;
+  } catch (e) {
+    file.message(
+      `Unable to download file: ${url}`,
+      node.position.start,
+      'images'
+    );
+  }
 };
 
 module.exports = images;
