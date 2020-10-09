@@ -1,6 +1,7 @@
 const indentedCodeBlock = require('./indentedCodeBlock');
 const callouts = require('./callouts');
 const clamshells = require('./clamshells');
+const exampleBoxes = require('./exampleBoxes');
 const videos = require('./videos');
 const images = require('./images');
 const tables = require('./tables');
@@ -15,6 +16,7 @@ module.exports = [
   indentedCodeBlock,
   callouts,
   clamshells,
+  exampleBoxes,
   videos,
   images,
   tables,

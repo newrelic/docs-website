@@ -12,6 +12,7 @@ const SPECIAL_COMPONENTS = [
   { tag: 'div', className: 'callout-pricing' },
   { tag: 'i', className: 'fa' },
   { tag: 'dl', className: 'clamshell-list' },
+  { tag: 'dl', className: 'example-box' },
 ];
 
 const escapes = [

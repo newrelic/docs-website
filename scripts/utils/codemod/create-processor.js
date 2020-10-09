@@ -5,7 +5,7 @@ const frontmatter = require('remark-frontmatter');
 const remarkMdx = require('remark-mdx');
 const remarkMdxjs = require('remark-mdxjs');
 
-const createProcessor = ({ codemods }) => {
+const createProcessor = ({ codemods = [] } = {}) => {
   const processor = unified()
     .use(stringify, {
       bullet: '*',
