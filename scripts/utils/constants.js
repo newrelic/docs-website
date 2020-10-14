@@ -22,8 +22,7 @@ module.exports = {
     release_notes: '170',
     release_notes_platform: '50',
     troubleshooting_doc: '60',
-    // not currently working with query param
-    // nr1_announcement: '170',
+    nr1_announcement: '20',
     attribute_definition: '100',
   },
 };
