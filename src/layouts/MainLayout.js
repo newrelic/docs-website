@@ -22,7 +22,6 @@ const MainLayout = ({ children }) => {
   `);
 
   const [isMobileNavOpen, setMobileNavOpen] = useState(false);
-
   const isSmallScreen = useMedia('(max-width: 760px)');
 
   return (
