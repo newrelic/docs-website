@@ -1,9 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
 import PropTypes from 'prop-types';
 import { GlobalHeader } from '@newrelic/gatsby-theme-newrelic';
 import { graphql, useStaticQuery } from 'gatsby';
 import { css } from '@emotion/core';
 import Sidebar from '../components/Sidebar';
+import MobileHeader from '../components/MobileHeader';
+import { useMedia } from 'react-use';
 
 const MainLayout = ({ children }) => {
   const {
@@ -18,6 +20,10 @@ const MainLayout = ({ children }) => {
       }
     }
   `);
+
+  const [isMobileNavOpen, setMobileNavOpen] = useState(false);
+
+  const isSmallScreen = useMedia('(max-width: 760px)');
 
   return (
     <div
@@ -46,41 +52,63 @@ const MainLayout = ({ children }) => {
 
           @media screen and (max-width: 760px) {
             grid-template-columns: minmax(0, 1fr);
+            grid-template-areas:
+              'mobile-header'
+              'content'
+              'footer';
+            grid-template-rows: unset;
+            padding: ${layout.contentPadding};
           }
         `}
       >
-        <Sidebar
-          css={css`
-            position: fixed;
-            top: var(--global-header-height);
-            width: var(--sidebar-width);
-            height: calc(100vh - var(--global-header-height));
-            overflow: auto;
-
-            @media (max-width: 760px) {
-              display: none;
-            }
-          `}
-        />
-        <div
-          css={css`
-            grid-area: sidebar;
-          `}
-        />
+        {isSmallScreen ? (
+          <MobileHeader
+            isOpen={isMobileNavOpen}
+            onToggle={() => setMobileNavOpen((open) => !open)}
+            css={css`
+              grid-area: mobile-header;
+            `}
+          />
+        ) : (
+          <>
+            <Sidebar
+              css={css`
+                position: fixed;
+                top: var(--global-header-height);
+                width: var(--sidebar-width);
+                height: calc(100vh - var(--global-header-height));
+                overflow: auto;
+              `}
+            />
+            <div
+              css={css`
+                grid-area: sidebar;
+              `}
+            />
+          </>
+        )}
         <main
           css={css`
+            display: ${isMobileNavOpen ? 'none' : 'block'};
             grid-area: content;
             padding-top: ${layout.contentPadding};
             padding-right: ${layout.contentPadding};
+
+            @media screen and (max-width: 760px) {
+              padding: 0;
+            }
           `}
         >
           {children}
         </main>
         <footer
           css={css`
+            display: ${isMobileNavOpen ? 'none' : 'block'};
             grid-area: footer;
           `}
-        />
+        >
+          FOOTER
+        </footer>
       </div>
     </div>
   );
