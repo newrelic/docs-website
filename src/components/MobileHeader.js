@@ -1,22 +1,10 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/core';
-import { Link, graphql, useStaticQuery } from 'gatsby';
+import { Link } from 'gatsby';
 import { HamburgerMenu } from '@newrelic/gatsby-theme-newrelic';
 
 const MobileHeader = ({ className, isOpen, onToggle }) => {
-  const {
-    site: { layout },
-  } = useStaticQuery(graphql`
-    query {
-      site {
-        layout {
-          contentPadding
-        }
-      }
-    }
-  `);
-
   return (
     <header
       data-swiftype-index={false}
