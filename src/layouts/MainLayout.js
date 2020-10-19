@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
 import { GlobalHeader } from '@newrelic/gatsby-theme-newrelic';
 import { graphql, useStaticQuery } from 'gatsby';
@@ -6,6 +6,7 @@ import { css } from '@emotion/core';
 import Sidebar from '../components/Sidebar';
 import MobileHeader from '../components/MobileHeader';
 import { useMedia } from 'react-use';
+import { useLocation } from '@reach/router';
 
 const MainLayout = ({ children }) => {
   const {
@@ -21,8 +22,13 @@ const MainLayout = ({ children }) => {
     }
   `);
 
-  const [isMobileNavOpen, setMobileNavOpen] = useState(false);
+  const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
+  const location = useLocation();
   const isSmallScreen = useMedia('(max-width: 760px)');
+
+  useEffect(() => {
+    setIsMobileNavOpen(false);
+  }, [location.pathname]);
 
   return (
     <div
@@ -63,7 +69,7 @@ const MainLayout = ({ children }) => {
         {isSmallScreen ? (
           <MobileHeader
             isOpen={isMobileNavOpen}
-            onToggle={() => setMobileNavOpen((open) => !open)}
+            onToggle={() => setIsMobileNavOpen((open) => !open)}
             css={css`
               grid-area: mobile-header;
             `}
