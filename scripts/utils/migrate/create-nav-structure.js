@@ -4,14 +4,6 @@ const vfile = require('vfile');
 const yaml = require('js-yaml');
 const { BASE_DIR, NAV_DIR } = require('../constants');
 
-const slug = (str) =>
-  str
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, '-')
-    .replace(/-+/, '-')
-    .replace(/[^a-z0-9 -]/g, '');
-
 const createNavStructure = (files) => {
   if (!fs.existsSync(NAV_DIR)) {
     fs.mkdirSync(NAV_DIR);
@@ -33,11 +25,7 @@ const createNavStructure = (files) => {
         return [...nav, buildSubnav(file, { title, children: [] }, subtopics)];
       }
 
-      return [
-        ...nav.slice(0, idx),
-        buildSubnav(file, nav[idx], subtopics),
-        ...nav.slice(idx + 1),
-      ];
+      return update(nav, idx, (node) => buildSubnav(file, node, subtopics));
     }, [])
     .map((node) =>
       vfile({
@@ -47,11 +35,30 @@ const createNavStructure = (files) => {
     );
 };
 
+const slug = (str) =>
+  str
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '-')
+    .replace(/-+/, '-')
+    .replace(/[^a-z0-9 -]/g, '');
+
 const toPath = (file) =>
   path
     .join(file.dirname, path.basename(file.path, file.extname))
     .replace(BASE_DIR, '')
     .replace(/\/index$/, '');
+
+const update = (items, idx, updater) => [
+  ...items.slice(0, idx),
+  updater(items[idx]),
+  ...items.slice(idx + 1),
+];
+
+const updateChild = (parent, idx, updater) => ({
+  ...parent,
+  children: update(parent.children || [], idx, updater),
+});
 
 const buildSubnav = (file, parent, topics) => {
   const title = (topics[0] || file.data.doc.title).trim();
@@ -60,18 +67,12 @@ const buildSubnav = (file, parent, topics) => {
   const idx = children.findIndex((node) => node.title === title);
 
   switch (true) {
-    case topics.length === 0 && idx >= 0: {
-      const node = children[idx];
-
-      return {
-        ...parent,
-        children: [
-          ...children.slice(0, idx),
-          { title: node.title, path: toPath(file), ...node },
-          ...children.slice(idx + 1),
-        ],
-      };
-    }
+    case topics.length === 0 && idx >= 0:
+      return updateChild(parent, idx, ({ title, ...attrs }) => ({
+        title,
+        path: toPath(file),
+        ...attrs,
+      }));
 
     case topics.length === 0:
       return {
@@ -88,16 +89,10 @@ const buildSubnav = (file, parent, topics) => {
         ],
       };
 
-    default: {
-      return {
-        ...parent,
-        children: [
-          ...children.slice(0, idx),
-          buildSubnav(file, parent.children[idx], subtopics),
-          ...children.slice(idx + 1),
-        ],
-      };
-    }
+    default:
+      return updateChild(parent, idx, (node) =>
+        buildSubnav(file, node, subtopics)
+      );
   }
 };
 
