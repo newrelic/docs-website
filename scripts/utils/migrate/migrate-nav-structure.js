@@ -49,7 +49,11 @@ const move = (files, { from, to }) => {
   const child = findCategory(nav, subtopics);
 
   if (!child) {
-    logger.warn(`Path not found: ${from.join(' > ')}`);
+    sourceFile.message(
+      `Nav path not found: ${from.join(' > ')}`,
+      null,
+      'migrate-nav-structure'
+    );
 
     return files;
   }

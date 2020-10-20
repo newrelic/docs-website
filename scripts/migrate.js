@@ -64,7 +64,7 @@ const run = async () => {
       createRawHTMLFiles(files);
     }
 
-    console.error(reporter(files, { quiet: true }));
+    console.error(reporter(files.concat(navFiles), { quiet: true }));
 
     logger.success('Migration complete!');
   } catch (err) {
