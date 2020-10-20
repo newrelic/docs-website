@@ -26,6 +26,7 @@ module.exports = [
     from: ['APIs', 'Get started', 'Intro to APIs'],
     to: ['Telemetry Data Platform', 'APIs'],
   },
+  { type: INSTRUCTIONS.REMOVE, path: ['APIs'] },
   {
     type: INSTRUCTIONS.MOVE,
     from: ['Telemetry Data Platform', 'Ingest and manage data', 'Get started'],
