@@ -53,25 +53,24 @@ const remove = (files, { path }) => {
 };
 
 const move = (files, { from, to }) => {
-  const child = findNode(files, from);
+  const node = findNode(files, from);
 
-  if (!child) {
+  if (!node) {
     return files;
   }
 
   if (isRoot(to)) {
-    const destinationFileName = `${slugify(to[0] || child.title)}.yml`;
     const destinationFile = vfile({
-      path: path.join(NAV_DIR, destinationFileName),
-      contents: yaml.safeDump(child, { lineWidth: 99999 }),
+      path: path.join(NAV_DIR, `${slugify(to[0] || node.title)}.yml`),
+      contents: yaml.safeDump(node, { lineWidth: 99999 }),
     });
 
-    return remove([...files, destinationFile], { path: from });
+    files = [...files, destinationFile];
+  } else {
+    files = add(files, { node, path: to });
   }
 
-  const updatedFiles = add(files, { node: child, path: to });
-
-  return remove(updatedFiles, { path: from });
+  return remove(files, { path: from });
 };
 
 const rename = (files, { path, title }) => {
