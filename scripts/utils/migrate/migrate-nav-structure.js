@@ -27,10 +27,40 @@ const migrateNavStructure = (files) => {
         return move(files, instruction);
       case TYPES.REMOVE:
         return remove(files, instruction);
+      case TYPES.RENAME:
+        return rename(files, instruction);
       default:
         throw new Error(`Unknown instruction: ${instruction.type}`);
     }
   }, files);
+};
+
+const rename = (files, { path, title }) => {
+  const sourceFileName = `${slugify(path[0])}.yml`;
+  const sourceFile = files.find((file) => file.basename === sourceFileName);
+
+  if (!sourceFile) {
+    logger.warn(`File not found: ${path.join(NAV_DIR, sourceFileName)}`);
+
+    return files;
+  }
+
+  const nav = yaml.safeLoad(sourceFile.contents);
+  const updatedNav = updateRecursive(
+    nav,
+    path.slice(1),
+    (node) => ({ ...node, title }),
+    () =>
+      sourceFile.message(
+        `Nav path not found: ${path.join(' > ')}`,
+        null,
+        'migrate-nav-structure:rename'
+      )
+  );
+
+  sourceFile.contents = yaml.safeDump(updatedNav, { lineWidth: 9999 });
+
+  return files;
 };
 
 const move = (files, { from, to }) => {
@@ -52,7 +82,7 @@ const move = (files, { from, to }) => {
     sourceFile.message(
       `Nav path not found: ${from.join(' > ')}`,
       null,
-      'migrate-nav-structure'
+      'migrate-nav-structure:move'
     );
 
     return files;
@@ -97,6 +127,37 @@ const move = (files, { from, to }) => {
   return remove(files, { path: from });
 };
 
+const update = (items, idx, updater) => [
+  ...items.slice(0, idx),
+  updater(items[idx]),
+  ...items.slice(idx + 1),
+];
+
+const updateChild = (parent, idx, updater) => ({
+  ...parent,
+  children: update(parent.children || [], idx, updater),
+});
+
+const updateRecursive = (parent, topics, updater, notFound) => {
+  const [title, ...subtopics] = topics;
+  const { children = [] } = parent;
+  const idx = children.findIndex((child) => child.title === title);
+
+  if (idx === -1) {
+    notFound();
+
+    return parent;
+  }
+
+  if (subtopics.length === 0) {
+    return updateChild(parent, idx, updater);
+  }
+
+  return updateChild(parent, idx, (child) =>
+    updateRecursive(child, subtopics, updater, notFound)
+  );
+};
+
 const addChild = (node, parent, topics) => {
   const [title, ...subtopics] = topics;
   const { children = [] } = parent;
@@ -119,14 +180,7 @@ const addChild = (node, parent, topics) => {
     };
   }
 
-  return {
-    ...parent,
-    children: [
-      ...children.slice(0, idx),
-      addChild(node, children[idx], subtopics),
-      ...children.slice(idx + 1),
-    ],
-  };
+  return updateChild(parent, idx, (child) => addChild(node, child, subtopics));
 };
 
 const remove = (files, { path }) => {
