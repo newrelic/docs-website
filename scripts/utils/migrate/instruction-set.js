@@ -153,4 +153,38 @@ module.exports = [
     path: ['Full-Stack Observability', 'Synthetics'],
     title: 'Synthetic monitoring',
   },
+
+  // ----- Alerts and Applied Intelligence ----- \\
+  {
+    type: INSTRUCTIONS.DUPLICATE,
+    from: [
+      'Full-Stack Observability',
+      'Infrastructure monitoring',
+      'Infrastructure alert conditions',
+    ],
+    to: ['Alerts and Applied intelligence', 'New Relic alerts'],
+  },
+
+  // ----- Using New Relic ----- \\
+
+  {
+    type: INSTRUCTIONS.MOVE,
+    from: ['Using New Relic'],
+    to: ['New Relic in practice'],
+  },
+  {
+    type: INSTRUCTIONS.MOVE,
+    from: ['New Relic One'],
+    to: ['New Relic in practice'],
+  },
+  {
+    type: INSTRUCTIONS.MOVE,
+    from: ['Query your data'],
+    to: ['New Relic in practice'],
+  },
+  {
+    type: INSTRUCTIONS.MOVE,
+    from: ['Mobile apps'],
+    to: ['New Relic in practice'],
+  },
 ];
