@@ -45,6 +45,15 @@ const rename = (files, { path, title }) => {
     return files;
   }
 
+  if (!title) {
+    sourceFile.message(
+      'Title not given in instruction',
+      null,
+      'migrate-nav-structure:rename'
+    );
+    return files;
+  }
+
   const nav = yaml.safeLoad(sourceFile.contents);
   const updatedNav = updateRecursive(
     nav,
