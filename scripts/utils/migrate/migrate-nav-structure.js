@@ -207,7 +207,13 @@ const remove = (files, { path }) => {
   const updatedNav =
     subtopics.length === 0
       ? { title, children: [] }
-      : filterCategory(nav, subtopics);
+      : filterCategory(nav, subtopics, () =>
+          sourceFile.message(
+            `Nav path not found: ${path.join(' > ')}`,
+            null,
+            'migrate-nav-structure:remove'
+          )
+        );
 
   if (updatedNav.children.length === 0) {
     return files.filter((file) => file !== sourceFile);
@@ -218,8 +224,14 @@ const remove = (files, { path }) => {
   return files;
 };
 
-const filterCategory = (nav, topics) => {
+const filterCategory = (nav, topics, missing) => {
   const [title, ...subtopics] = topics;
+  const idx = nav.children.findIndex((child) => child.title === title);
+
+  if (idx === -1) {
+    missing();
+    return nav;
+  }
 
   if (subtopics.length === 0) {
     return {
@@ -228,13 +240,11 @@ const filterCategory = (nav, topics) => {
     };
   }
 
-  const idx = nav.children.findIndex((child) => child.title === title);
-
   return {
     ...nav,
     children: [
       ...nav.children.slice(0, idx),
-      filterCategory(nav.children[idx], subtopics),
+      filterCategory(nav.children[idx], subtopics, missing),
       ...nav.children.slice(idx + 1),
     ],
   };
