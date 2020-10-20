@@ -87,8 +87,9 @@ const rename = (files, { path, title }) => {
   return files;
 };
 
-const add = (files, { node, path }) => {
-  const destinationFileName = `${slugify(path[0] || node.title)}.yml`;
+const add = (files, { node, path: pathName }) => {
+  const title = pathName[0] || node.title;
+  const destinationFileName = `${slugify(title)}.yml`;
 
   let destinationFile = files.find(
     (file) => file.basename === destinationFileName
@@ -97,10 +98,7 @@ const add = (files, { node, path }) => {
   if (!destinationFile) {
     destinationFile = vfile({
       path: path.join(NAV_DIR, destinationFileName),
-      contents: yaml.safeDump(
-        { title: path[0], children: [] },
-        { lineWidth: 9999 }
-      ),
+      contents: yaml.safeDump({ title, children: [] }, { lineWidth: 9999 }),
     });
 
     files = [...files, destinationFile];
@@ -109,7 +107,7 @@ const add = (files, { node, path }) => {
   const updatedNav = addChild(
     node,
     yaml.safeLoad(destinationFile.contents),
-    path.slice(1)
+    pathName.slice(1)
   );
 
   destinationFile.contents = yaml.safeDump(updatedNav, { lineWidth: 9999 });
@@ -142,43 +140,19 @@ const move = (files, { from, to }) => {
     return files;
   }
 
-  const destinationFileName = `${slugify(to[0] || child.title)}.yml`;
-  let destinationFile = files.find(
-    (file) => file.basename === destinationFileName
-  );
-
   if (to.length === 0) {
-    destinationFile = vfile({
+    const destinationFileName = `${slugify(to[0] || child.title)}.yml`;
+    const destinationFile = vfile({
       path: path.join(NAV_DIR, destinationFileName),
       contents: yaml.safeDump(child, { lineWidth: 99999 }),
     });
 
-    files = [...files, destinationFile];
-
-    return remove(files, { path: from });
+    return remove([...files, destinationFile], { path: from });
   }
 
-  if (!destinationFile) {
-    destinationFile = vfile({
-      path: path.join(NAV_DIR, destinationFileName),
-      contents: yaml.safeDump(
-        { title: to[0], children: [] },
-        { lineWidth: 9999 }
-      ),
-    });
+  const updatedFiles = add(files, { node: child, path: to });
 
-    files = [...files, destinationFile];
-  }
-
-  const updatedNav = addChild(
-    child,
-    yaml.safeLoad(destinationFile.contents),
-    to.slice(1)
-  );
-
-  destinationFile.contents = yaml.safeDump(updatedNav, { lineWidth: 9999 });
-
-  return remove(files, { path: from });
+  return remove(updatedFiles, { path: from });
 };
 
 const update = (items, idx, updater) => [
