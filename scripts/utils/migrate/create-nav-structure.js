@@ -47,44 +47,57 @@ const createNavStructure = (files) => {
     );
 };
 
-const buildSubnav = (file, parent, topics) => {
-  if (topics.length === 0) {
-    return {
-      ...parent,
-      children: [
-        ...parent.children,
-        {
-          title: file.data.doc.title.trim(),
-          path: path
-            .join(file.dirname, path.basename(file.path, file.extname))
-            .replace(BASE_DIR, '')
-            .replace(/\/index$/, ''),
-        },
-      ],
-    };
-  }
+const toPath = (file) =>
+  path
+    .join(file.dirname, path.basename(file.path, file.extname))
+    .replace(BASE_DIR, '')
+    .replace(/\/index$/, '');
 
-  const [title, ...subtopics] = topics;
+const buildSubnav = (file, parent, topics) => {
+  const title = (topics[0] || file.data.doc.title).trim();
+  const subtopics = topics.slice(1);
   const idx = parent.children.findIndex((node) => node.title === title);
 
-  if (idx === -1) {
-    return {
-      ...parent,
-      children: [
-        ...parent.children,
-        buildSubnav(file, { title, children: [] }, subtopics),
-      ],
-    };
-  }
+  switch (true) {
+    case topics.length === 0 && idx >= 0: {
+      const node = parent.children[idx];
 
-  return {
-    ...parent,
-    children: [
-      ...parent.children.slice(0, idx),
-      buildSubnav(file, parent.children[idx], subtopics),
-      ...parent.children.slice(idx + 1),
-    ],
-  };
+      return {
+        ...parent,
+        children: [
+          ...parent.children.slice(0, idx),
+          { title: node.title, path: toPath(file), ...node },
+          ...parent.children.slice(idx + 1),
+        ],
+      };
+    }
+
+    case topics.length === 0:
+      return {
+        ...parent,
+        children: [...parent.children, { title, path: toPath(file) }],
+      };
+
+    case idx === -1:
+      return {
+        ...parent,
+        children: [
+          ...parent.children,
+          buildSubnav(file, { title, children: [] }, subtopics),
+        ],
+      };
+
+    default: {
+      return {
+        ...parent,
+        children: [
+          ...parent.children.slice(0, idx),
+          buildSubnav(file, parent.children[idx], subtopics),
+          ...parent.children.slice(idx + 1),
+        ],
+      };
+    }
+  }
 };
 
 module.exports = createNavStructure;
