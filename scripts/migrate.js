@@ -8,6 +8,7 @@ const logger = require('./utils/logger');
 const runCodemod = require('./utils/codemod/run');
 const { write } = require('to-vfile');
 const createRawHTMLFiles = require('./utils/migrate/create-raw-html-files');
+const migrateNavStructure = require('./utils/migrate/migrate-nav-structure');
 const reporter = require('vfile-reporter');
 
 const all = (list, fn) => Promise.all(list.map(fn));
@@ -42,7 +43,7 @@ const run = async () => {
     const indexFiles = createIndexPages(files);
 
     logger.normal('Creating nav structure');
-    const navFiles = createNavStructure(files);
+    const navFiles = migrateNavStructure(createNavStructure(files));
 
     logger.normal('Saving changes to files');
     await all(files.concat(indexFiles, navFiles), (file) =>
