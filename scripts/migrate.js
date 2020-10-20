@@ -10,6 +10,8 @@ const { write } = require('to-vfile');
 const createRawHTMLFiles = require('./utils/migrate/create-raw-html-files');
 const migrateNavStructure = require('./utils/migrate/migrate-nav-structure');
 const reporter = require('vfile-reporter');
+const rimraf = require('rimraf');
+const { NAV_DIR } = require('./utils/constants');
 
 const all = (list, fn) => Promise.all(list.map(fn));
 
@@ -17,6 +19,9 @@ const run = async () => {
   logger.normal('Starting migration');
 
   try {
+    logger.normal('Cleaning...');
+    rimraf.sync(NAV_DIR);
+
     logger.normal('Fetching JSON');
     const docs = await fetchDocs();
     const files = await all(docs, toVFile);
