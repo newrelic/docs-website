@@ -27,7 +27,7 @@ const createNavStructure = (files) => {
     .map((node) =>
       vfile({
         path: path.join(NAV_DIR, `${slug(node.title)}.yml`),
-        contents: yaml.safeDump(node),
+        contents: yaml.safeDump(node, { lineWidth: 99999 }),
       })
     );
 };
