@@ -2,179 +2,18 @@ const yaml = require('js-yaml');
 const vfile = require('vfile');
 const path = require('path');
 const slugify = require('../slugify');
-const { NAV_DIR } = require('../constants');
+const { NAV_DIR, INSTRUCTIONS } = require('../constants');
 const logger = require('../logger');
-
-const TYPES = {
-  MOVE: 'MOVE',
-  RENAME: 'RENAME',
-  REMOVE: 'REMOVE',
-  DUPLICATE: 'DUPLICATE',
-};
-
-const instructions = [
-  {
-    type: TYPES.MOVE,
-    from: ['Security', 'New Relic security'],
-    to: [],
-  },
-  {
-    type: TYPES.MOVE,
-    from: ['APIs', 'Get started', 'Intro to APIs'],
-    to: ['Telemetry Data Platform', 'APIs'],
-  },
-  {
-    type: TYPES.MOVE,
-    from: ['Telemetry Data Platform', 'Ingest and manage data', 'Get started'],
-    to: ['Telemetry Data Platform'],
-  },
-  {
-    type: TYPES.MOVE,
-    from: [
-      'Telemetry Data Platform',
-      'Ingest and manage data',
-      'Understand data',
-    ],
-    to: ['Telemetry Data Platform'],
-  },
-  {
-    type: TYPES.MOVE,
-    from: ['Telemetry Data Platform', 'Ingest and manage data', 'Manage data'],
-    to: ['Telemetry Data Platform'],
-  },
-  {
-    type: TYPES.MOVE,
-    from: ['Telemetry Data Platform', 'Ingest and manage data', 'Ingest APIs'],
-    to: ['Telemetry Data Platform'],
-  },
-  {
-    type: TYPES.MOVE,
-    from: ['Logs'],
-    to: ['Full-Stack Observability'],
-  },
-  {
-    type: TYPES.RENAME,
-    path: [
-      'Full-Stack Observability',
-      'Logs',
-      'Enable log management in New Relic',
-    ],
-    title: 'Logs in context',
-  },
-  {
-    type: TYPES.MOVE,
-    from: ['APM'],
-    to: ['Full-Stack Observability'],
-  },
-  {
-    type: TYPES.MOVE,
-    from: ['Browser'],
-    to: ['Full-Stack Observability'],
-  },
-  {
-    type: TYPES.RENAME,
-    path: ['Full-Stack Observability', 'Browser'],
-    title: 'Browser monitoring',
-  },
-  {
-    type: TYPES.MOVE,
-    from: ['Understand dependencies'],
-    to: ['Full-Stack Observability'],
-  },
-  {
-    type: TYPES.MOVE,
-    from: ['Infrastructure'],
-    to: ['Full-Stack Observability'],
-  },
-  {
-    type: TYPES.RENAME,
-    path: ['Full-Stack Observability', 'Infrastructure'],
-    title: 'Infrastructure monitoring',
-  },
-  {
-    type: TYPES.MOVE,
-    from: [
-      'Full-Stack Observability',
-      'Infrastructure monitoring',
-      'Infrastructure alerts',
-      'Infrastucture alert conditions',
-    ],
-    to: ['Full-Stack Observability', 'Infrastructure monitoring'],
-  },
-  {
-    type: TYPES.REMOVE,
-    path: [
-      'Full-Stack Observability',
-      'Infrastructure monitoring',
-      'Infrastructure alerts',
-    ],
-  },
-  {
-    type: TYPES.MOVE,
-    from: [
-      'Full-Stack Observability',
-      'Infrastructure monitoring',
-      'Infrastructure monitoring UI',
-      'Infrastucture UI',
-    ],
-    to: ['Full-Stack Observability', 'Infrastructure monitoring'],
-  },
-  {
-    type: TYPES.REMOVE,
-    path: [
-      'Full-Stack Observability',
-      'Infrastructure monitoring',
-      'Infrastucture monitoring UI',
-    ],
-  },
-  {
-    type: TYPES.MOVE,
-    from: [
-      'Full-Stack Observability',
-      'Infrastructure monitoring',
-      'Integrations',
-      'Types of integrations',
-    ],
-    to: ['Full-Stack Observability', 'Infrastructure monitoring'],
-  },
-  {
-    type: TYPES.REMOVE,
-    path: [
-      'Full-Stack Observability',
-      'Infrastructure monitoring',
-      'Integrations',
-    ],
-  },
-  {
-    type: TYPES.MOVE,
-    from: ['Mobile Monitoring'],
-    to: ['Full-Stack Observability'],
-  },
-  {
-    type: TYPES.MOVE,
-    from: ['Serverless function monitoring'],
-    to: ['Full-Stack Observability'],
-  },
-  {
-    type: TYPES.MOVE,
-    from: ['Synthetics'],
-    to: ['Full-Stack Observability'],
-  },
-  {
-    type: TYPES.RENAME,
-    path: ['Full-Stack Observability', 'Synthetics'],
-    title: 'Synthetic monitoring',
-  },
-];
+const instructions = require('./instruction-set');
 
 const migrateNavStructure = (files) => {
   return instructions.reduce((files, instruction) => {
     switch (instruction.type) {
-      case TYPES.MOVE:
+      case INSTRUCTIONS.MOVE:
         return move(files, instruction);
-      case TYPES.REMOVE:
+      case INSTRUCTIONS.REMOVE:
         return remove(files, instruction);
-      case TYPES.RENAME:
+      case INSTRUCTIONS.RENAME:
         return rename(files, instruction);
       default:
         throw new Error(`Unknown instruction: ${instruction.type}`);

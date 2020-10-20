@@ -5,6 +5,13 @@ module.exports = {
   BASE_DIR: 'src/content',
   NAV_DIR: 'src/nav',
 
+  INSTRUCTIONS: {
+    MOVE: 'MOVE',
+    RENAME: 'RENAME',
+    REMOVE: 'REMOVE',
+    DUPLICATE: 'DUPLICATE',
+  },
+
   TYPES: {
     BASIC_PAGE: 'page',
     LANDING_PAGE: 'landing_page',
