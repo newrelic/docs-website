@@ -23,17 +23,43 @@ const migrateNavStructure = (files) => {
   }, files);
 };
 
-const duplicate = (files, { from, to }) => {
-  const subtopics = from.slice(1);
-  const sourceFileName = `${slugify(from[0])}.yml`;
-  const sourceFile = files.find((file) => file.basename === sourceFileName);
+const remove = (files, { path }) => {
+  const sourceFile = findFile(files, path);
 
   if (!sourceFile) {
-    logger.warn(`File not found: ${path.join(NAV_DIR, sourceFileName)}`);
-
     return files;
   }
 
+  const [title, ...subtopics] = path;
+  const nav = yaml.safeLoad(sourceFile.contents);
+  const updatedNav =
+    subtopics.length === 0
+      ? { title, children: [] }
+      : filterCategory(nav, subtopics, () =>
+          sourceFile.message(
+            `Nav path not found: ${path.join(' > ')}`,
+            null,
+            'migrate-nav-structure:remove'
+          )
+        );
+
+  if (updatedNav.children.length === 0) {
+    return files.filter((file) => file !== sourceFile);
+  }
+
+  sourceFile.contents = yaml.safeDump(updatedNav, { lineWidth: 9999 });
+
+  return files;
+};
+
+const move = (files, { from, to }) => {
+  const sourceFile = findFile(files, from);
+
+  if (!sourceFile) {
+    return files;
+  }
+
+  const subtopics = from.slice(1);
   const nav = yaml.safeLoad(sourceFile.contents);
   const child = subtopics.length === 0 ? nav : findCategory(nav, subtopics);
 
@@ -41,22 +67,31 @@ const duplicate = (files, { from, to }) => {
     sourceFile.message(
       `Nav path not found: ${from.join(' > ')}`,
       null,
-      'migrate-nav-structure:duplicate'
+      'migrate-nav-structure:move'
     );
 
     return files;
   }
 
-  return add(files, { node: child, path: to });
+  if (to.length === 0) {
+    const destinationFileName = `${slugify(to[0] || child.title)}.yml`;
+    const destinationFile = vfile({
+      path: path.join(NAV_DIR, destinationFileName),
+      contents: yaml.safeDump(child, { lineWidth: 99999 }),
+    });
+
+    return remove([...files, destinationFile], { path: from });
+  }
+
+  const updatedFiles = add(files, { node: child, path: to });
+
+  return remove(updatedFiles, { path: from });
 };
 
 const rename = (files, { path, title }) => {
-  const sourceFileName = `${slugify(path[0])}.yml`;
-  const sourceFile = files.find((file) => file.basename === sourceFileName);
+  const sourceFile = findFile(files, path);
 
   if (!sourceFile) {
-    logger.warn(`File not found: ${path.join(NAV_DIR, sourceFileName)}`);
-
     return files;
   }
 
@@ -87,17 +122,56 @@ const rename = (files, { path, title }) => {
   return files;
 };
 
-const add = (files, { node, path: pathName }) => {
-  const title = pathName[0] || node.title;
-  const destinationFileName = `${slugify(title)}.yml`;
+const duplicate = (files, { from, to }) => {
+  const sourceFile = findFile(files, from);
 
-  let destinationFile = files.find(
-    (file) => file.basename === destinationFileName
+  if (!sourceFile) {
+    return files;
+  }
+
+  const subtopics = from.slice(1);
+  const nav = yaml.safeLoad(sourceFile.contents);
+  const child = subtopics.length === 0 ? nav : findCategory(nav, subtopics);
+
+  if (!child) {
+    sourceFile.message(
+      `Nav path not found: ${from.join(' > ')}`,
+      null,
+      'migrate-nav-structure:duplicate'
+    );
+
+    return files;
+  }
+
+  return add(files, { node: child, path: to });
+};
+
+const findFile = (files, path) => {
+  const fileName = `${slugify(path[0])}.yml`;
+  const file = files.find((file) => file.basename === fileName);
+
+  if (!file) {
+    logger.warn(`File not found: ${path.join(NAV_DIR, fileName)}`);
+
+    return null;
+  }
+
+  return file;
+};
+
+const isRoot = (path) => path.length === 0;
+
+const add = (files, { node, path: pathName }) => {
+  let destinationFile = findFile(
+    files,
+    isRoot(pathName) ? [node.title] : pathName
   );
 
   if (!destinationFile) {
+    const title = pathName[0] || node.title;
+
     destinationFile = vfile({
-      path: path.join(NAV_DIR, destinationFileName),
+      path: path.join(NAV_DIR, `${slugify(title)}.yml`),
       contents: yaml.safeDump({ title, children: [] }, { lineWidth: 9999 }),
     });
 
@@ -113,46 +187,6 @@ const add = (files, { node, path: pathName }) => {
   destinationFile.contents = yaml.safeDump(updatedNav, { lineWidth: 9999 });
 
   return files;
-};
-
-const move = (files, { from, to }) => {
-  const sourceFileName = `${slugify(from[0])}.yml`;
-  const subtopics = from.slice(1);
-
-  const sourceFile = files.find((file) => file.basename === sourceFileName);
-
-  if (!sourceFile) {
-    logger.warn(`File not found: ${path.join(NAV_DIR, sourceFileName)}`);
-
-    return files;
-  }
-
-  const nav = yaml.safeLoad(sourceFile.contents);
-  const child = subtopics.length === 0 ? nav : findCategory(nav, subtopics);
-
-  if (!child) {
-    sourceFile.message(
-      `Nav path not found: ${from.join(' > ')}`,
-      null,
-      'migrate-nav-structure:move'
-    );
-
-    return files;
-  }
-
-  if (to.length === 0) {
-    const destinationFileName = `${slugify(to[0] || child.title)}.yml`;
-    const destinationFile = vfile({
-      path: path.join(NAV_DIR, destinationFileName),
-      contents: yaml.safeDump(child, { lineWidth: 99999 }),
-    });
-
-    return remove([...files, destinationFile], { path: from });
-  }
-
-  const updatedFiles = add(files, { node: child, path: to });
-
-  return remove(updatedFiles, { path: from });
 };
 
 const update = (items, idx, updater) => [
@@ -209,38 +243,6 @@ const addChild = (node, parent, topics) => {
   }
 
   return updateChild(parent, idx, (child) => addChild(node, child, subtopics));
-};
-
-const remove = (files, { path }) => {
-  const [title, ...subtopics] = path;
-  const sourceFileName = `${slugify(title)}.yml`;
-  const sourceFile = files.find((file) => file.basename === sourceFileName);
-
-  if (!sourceFile) {
-    logger.warn(`File not found: ${path.join(NAV_DIR, sourceFileName)}`);
-
-    return files;
-  }
-
-  const nav = yaml.safeLoad(sourceFile.contents);
-  const updatedNav =
-    subtopics.length === 0
-      ? { title, children: [] }
-      : filterCategory(nav, subtopics, () =>
-          sourceFile.message(
-            `Nav path not found: ${path.join(' > ')}`,
-            null,
-            'migrate-nav-structure:remove'
-          )
-        );
-
-  if (updatedNav.children.length === 0) {
-    return files.filter((file) => file !== sourceFile);
-  }
-
-  sourceFile.contents = yaml.safeDump(updatedNav, { lineWidth: 9999 });
-
-  return files;
 };
 
 const filterCategory = (nav, topics, missing) => {
