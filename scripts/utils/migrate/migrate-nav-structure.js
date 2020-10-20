@@ -387,6 +387,15 @@ const filterCategory = (nav, topics, missing) => {
     };
   }
 
+  const child = filterCategory(nav.children[idx], subtopics, missing);
+
+  if (child.children.length === 0 && !child.path) {
+    return {
+      ...nav,
+      children: [...nav.children.slice(0, idx), ...nav.children.slice(idx + 1)],
+    };
+  }
+
   return {
     ...nav,
     children: [
