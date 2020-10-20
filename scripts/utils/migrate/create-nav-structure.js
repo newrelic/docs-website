@@ -56,18 +56,19 @@ const toPath = (file) =>
 const buildSubnav = (file, parent, topics) => {
   const title = (topics[0] || file.data.doc.title).trim();
   const subtopics = topics.slice(1);
-  const idx = parent.children.findIndex((node) => node.title === title);
+  const { children = [] } = parent;
+  const idx = children.findIndex((node) => node.title === title);
 
   switch (true) {
     case topics.length === 0 && idx >= 0: {
-      const node = parent.children[idx];
+      const node = children[idx];
 
       return {
         ...parent,
         children: [
-          ...parent.children.slice(0, idx),
+          ...children.slice(0, idx),
           { title: node.title, path: toPath(file), ...node },
-          ...parent.children.slice(idx + 1),
+          ...children.slice(idx + 1),
         ],
       };
     }
@@ -75,14 +76,14 @@ const buildSubnav = (file, parent, topics) => {
     case topics.length === 0:
       return {
         ...parent,
-        children: [...parent.children, { title, path: toPath(file) }],
+        children: [...children, { title, path: toPath(file) }],
       };
 
     case idx === -1:
       return {
         ...parent,
         children: [
-          ...parent.children,
+          ...children,
           buildSubnav(file, { title, children: [] }, subtopics),
         ],
       };
@@ -91,9 +92,9 @@ const buildSubnav = (file, parent, topics) => {
       return {
         ...parent,
         children: [
-          ...parent.children.slice(0, idx),
+          ...children.slice(0, idx),
           buildSubnav(file, parent.children[idx], subtopics),
-          ...parent.children.slice(idx + 1),
+          ...children.slice(idx + 1),
         ],
       };
     }
