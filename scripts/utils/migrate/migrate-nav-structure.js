@@ -74,26 +74,24 @@ const move = (files, { from, to }) => {
 };
 
 const rename = (files, { path, title }) => {
-  const sourceFile = findFile(files, path);
+  const file = findFile(files, path);
 
-  if (!sourceFile) {
+  if (!file) {
     return files;
   }
 
-  const nav = yaml.safeLoad(sourceFile.contents);
-  const updatedNav = updateRecursive(
-    nav,
+  const updatedNav = updateNodeAtPath(
+    yaml.safeLoad(file.contents),
     path.slice(1),
     (node) => ({ ...node, title }),
     () =>
-      sourceFile.message(
+      file.message(
         `Nav path not found: ${path.join(' > ')}`,
-        null,
         'migrate-nav-structure:rename'
       )
   );
 
-  sourceFile.contents = yaml.safeDump(updatedNav, { lineWidth: 9999 });
+  file.contents = yaml.safeDump(updatedNav, { lineWidth: 9999 });
 
   return files;
 };
@@ -182,23 +180,22 @@ const updateChild = (parent, idx, updater) => ({
   children: update(parent.children || [], idx, updater),
 });
 
-const updateRecursive = (parent, topics, updater, notFound) => {
-  const [title, ...subtopics] = topics;
+const updateNodeAtPath = (parent, [title, ...path], updater, missing) => {
   const { children = [] } = parent;
   const idx = children.findIndex((child) => child.title === title);
 
   if (idx === -1) {
-    notFound();
+    missing();
 
     return parent;
   }
 
-  if (subtopics.length === 0) {
+  if (path.length === 0) {
     return updateChild(parent, idx, updater);
   }
 
   return updateChild(parent, idx, (child) =>
-    updateRecursive(child, subtopics, updater, notFound)
+    updateNodeAtPath(child, path, updater, missing)
   );
 };
 
