@@ -46,7 +46,7 @@ const move = (files, { from, to }) => {
   }
 
   const nav = yaml.safeLoad(sourceFile.contents);
-  const child = findCategory(nav, subtopics);
+  const child = subtopics.length === 0 ? nav : findCategory(nav, subtopics);
 
   if (!child) {
     sourceFile.message(
@@ -141,7 +141,10 @@ const remove = (files, { path }) => {
   }
 
   const nav = yaml.safeLoad(sourceFile.contents);
-  const updatedNav = filterCategory(nav, subtopics);
+  const updatedNav =
+    subtopics.length === 0
+      ? { title, children: [] }
+      : filterCategory(nav, subtopics);
 
   if (updatedNav.children.length === 0) {
     return files.filter((file) => file !== sourceFile);
