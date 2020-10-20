@@ -21,8 +21,14 @@ const GATSBY_TEMPLATE = {
   [TYPES.WHATS_NEW]: 'whatsNew',
 };
 
-const getFrontmatter = (doc) => {
-  const { type } = doc;
+const getFrontmatter = (file) => {
+  const {
+    data,
+    data: {
+      doc,
+      doc: { type },
+    },
+  } = file;
 
   const defaultFrontmatter = {
     title: doc.title.replace(':', '-'),
@@ -31,7 +37,7 @@ const getFrontmatter = (doc) => {
   };
 
   const customFrontmatter = addCustomFrontmatter[type]
-    ? addCustomFrontmatter[type](doc)
+    ? addCustomFrontmatter[type](data)
     : {};
 
   return frontmatter.stringify('', {
@@ -41,63 +47,52 @@ const getFrontmatter = (doc) => {
 };
 
 const addCustomFrontmatter = {
-  [TYPES.LANDING_PAGE]: (doc) => ({
-    topics: getTopics(doc),
+  [TYPES.LANDING_PAGE]: ({ topics }) => ({
+    topics,
   }),
-  [TYPES.API_DOC]: (doc) => ({
-    topics: getTopics(doc),
+  [TYPES.API_DOC]: ({ topics }) => ({
+    topics,
   }),
-  [TYPES.BASIC_PAGE]: (doc) => {
+  [TYPES.BASIC_PAGE]: ({ doc, topics }) => {
     return {
-      topics: getTopics(doc),
+      topics,
       japaneseVersion:
         doc.japaneseVersionExists === 'yes'
           ? `https://docs.newrelic.co.jp/${doc.url}`
           : '',
     };
   },
-  [TYPES.TROUBLESHOOTING]: (doc) => {
+  [TYPES.TROUBLESHOOTING]: ({ doc, topics }) => {
     return {
-      topics: getTopics(doc),
+      topics,
       japaneseVersion:
         doc.japaneseVersionExists === 'yes'
           ? `https://docs.newrelic.co.jp/${doc.url}`
           : '',
     };
   },
-  [TYPES.RELEASE_NOTE]: (doc) => {
+  [TYPES.RELEASE_NOTE]: ({ doc, topics }) => {
     return {
-      topics: getTopics(doc),
+      topics,
       releaseDateTime: doc.releasedOn || '',
       releaseVersion: doc.releaseVersion || '',
       downloadLink: doc.downloadLink || '',
     };
   },
-  [TYPES.RELEASE_NOTE_PLATFORM]: (doc) => {
+  [TYPES.RELEASE_NOTE_PLATFORM]: ({ doc, topics }) => {
     return {
-      topics: getTopics(doc),
+      topics,
       releaseDateTime: doc.releasedOn || '',
       releaseImpact: doc.releaseImpact || [],
     };
   },
-  [TYPES.WHATS_NEW]: (doc) => {
+  [TYPES.WHATS_NEW]: ({ doc }) => {
     return {
       summary: doc.summary || '',
       learnMoreLink: doc.learnMoreLink || '',
       getStartedLink: doc.getStartedLink || '',
     };
   },
-};
-
-const getTopics = (doc) => {
-  const topics = Object.entries(doc)
-    .reduce(
-      (topics, [key, value]) =>
-        key.startsWith('topic_') ? [...topics, value] : topics,
-      []
-    )
-    .filter(Boolean);
-  return topics.length ? topics : [];
 };
 
 module.exports = getFrontmatter;
