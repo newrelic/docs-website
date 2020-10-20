@@ -28,7 +28,6 @@ const getFrontmatter = (doc) => {
     title: doc.title.replace(':', '-'),
     contentType: GATSBY_CONTENT_TYPES[type],
     template: GATSBY_TEMPLATE[type],
-    topics: getTopics(doc),
   };
 
   const customFrontmatter = addCustomFrontmatter[type]
@@ -42,8 +41,15 @@ const getFrontmatter = (doc) => {
 };
 
 const addCustomFrontmatter = {
+  [TYPES.LANDING_PAGE]: (doc) => ({
+    topics: getTopics(doc),
+  }),
+  [TYPES.API_DOC]: (doc) => ({
+    topics: getTopics(doc),
+  }),
   [TYPES.BASIC_PAGE]: (doc) => {
     return {
+      topics: getTopics(doc),
       japaneseVersion:
         doc.japaneseVersionExists === 'yes'
           ? `https://docs.newrelic.co.jp/${doc.url}`
@@ -52,6 +58,7 @@ const addCustomFrontmatter = {
   },
   [TYPES.TROUBLESHOOTING]: (doc) => {
     return {
+      topics: getTopics(doc),
       japaneseVersion:
         doc.japaneseVersionExists === 'yes'
           ? `https://docs.newrelic.co.jp/${doc.url}`
@@ -60,6 +67,7 @@ const addCustomFrontmatter = {
   },
   [TYPES.RELEASE_NOTE]: (doc) => {
     return {
+      topics: getTopics(doc),
       releaseDateTime: doc.releasedOn || '',
       releaseVersion: doc.releaseVersion || '',
       downloadLink: doc.downloadLink || '',
@@ -67,6 +75,7 @@ const addCustomFrontmatter = {
   },
   [TYPES.RELEASE_NOTE_PLATFORM]: (doc) => {
     return {
+      topics: getTopics(doc),
       releaseDateTime: doc.releasedOn || '',
       releaseImpact: doc.releaseImpact || [],
     };
@@ -86,7 +95,7 @@ const getTopics = (doc) => {
       key.startsWith('topic_') ? [...topics, value] : topics,
     []
   );
-  return topics.length ? topics : '';
+  return topics.length ? topics : [];
 };
 
 module.exports = getFrontmatter;
