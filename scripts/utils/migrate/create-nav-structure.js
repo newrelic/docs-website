@@ -11,21 +11,18 @@ const createNavStructure = (files) => {
 
   return files
     .reduce((nav, file) => {
-      const {
-        topics: [title, ...subtopics],
-      } = file.data;
+      const { topics } = file.data;
 
-      if (!title) {
+      if (topics.length === 0) {
         return nav;
       }
 
+      const [title, ...subtopics] = topics;
       const idx = nav.findIndex((node) => node.title === title);
 
-      if (idx === -1) {
-        return [...nav, buildSubnav(file, { title, children: [] }, subtopics)];
-      }
-
-      return update(nav, idx, (node) => buildSubnav(file, node, subtopics));
+      return idx === -1
+        ? [...nav, buildSubnav(file, { title, children: [] }, subtopics)]
+        : update(nav, idx, (node) => buildSubnav(file, node, subtopics));
     }, [])
     .map((node) =>
       vfile({
