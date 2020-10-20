@@ -24,7 +24,9 @@ const run = async () => {
 
     logger.normal('Fetching JSON');
     const docs = await fetchDocs();
-    const files = await all(docs, toVFile);
+    const files = await all(docs, toVFile).then((files) =>
+      files.sort((a, b) => a.path.localeCompare(b.path))
+    );
 
     logger.normal('Creating directories');
     createDirectories(files);
