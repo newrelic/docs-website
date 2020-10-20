@@ -15,10 +15,39 @@ const migrateNavStructure = (files) => {
         return remove(files, instruction);
       case INSTRUCTIONS.RENAME:
         return rename(files, instruction);
+      case INSTRUCTIONS.DUPLICATE:
+        return duplicate(files, instruction);
       default:
         throw new Error(`Unknown instruction: ${instruction.type}`);
     }
   }, files);
+};
+
+const duplicate = (files, { from, to }) => {
+  const subtopics = from.slice(1);
+  const sourceFileName = `${slugify(from[0])}.yml`;
+  const sourceFile = files.find((file) => file.basename === sourceFileName);
+
+  if (!sourceFile) {
+    logger.warn(`File not found: ${path.join(NAV_DIR, sourceFileName)}`);
+
+    return files;
+  }
+
+  const nav = yaml.safeLoad(sourceFile.contents);
+  const child = subtopics.length === 0 ? nav : findCategory(nav, subtopics);
+
+  if (!child) {
+    sourceFile.message(
+      `Nav path not found: ${from.join(' > ')}`,
+      null,
+      'migrate-nav-structure:duplicate'
+    );
+
+    return files;
+  }
+
+  return add(files, { node: child, path: to });
 };
 
 const rename = (files, { path, title }) => {
@@ -54,6 +83,36 @@ const rename = (files, { path, title }) => {
   );
 
   sourceFile.contents = yaml.safeDump(updatedNav, { lineWidth: 9999 });
+
+  return files;
+};
+
+const add = (files, { node, path }) => {
+  const destinationFileName = `${slugify(path[0] || node.title)}.yml`;
+
+  let destinationFile = files.find(
+    (file) => file.basename === destinationFileName
+  );
+
+  if (!destinationFile) {
+    destinationFile = vfile({
+      path: path.join(NAV_DIR, destinationFileName),
+      contents: yaml.safeDump(
+        { title: path[0], children: [] },
+        { lineWidth: 9999 }
+      ),
+    });
+
+    files = [...files, destinationFile];
+  }
+
+  const updatedNav = addChild(
+    node,
+    yaml.safeLoad(destinationFile.contents),
+    path.slice(1)
+  );
+
+  destinationFile.contents = yaml.safeDump(updatedNav, { lineWidth: 9999 });
 
   return files;
 };
