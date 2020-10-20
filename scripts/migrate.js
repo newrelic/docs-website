@@ -45,7 +45,9 @@ const run = async () => {
     const navFiles = createNavStructure(files);
 
     logger.normal('Saving changes to files');
-    await all(files.concat(indexFiles), (file) => write(file, 'utf-8'));
+    await all(files.concat(indexFiles, navFiles), (file) =>
+      write(file, 'utf-8')
+    );
 
     // Run `DEBUG=true yarn migrate` to also write a `.html` file right next to
     // the `.mdx` file. This can help us look at the original HTML to compare
