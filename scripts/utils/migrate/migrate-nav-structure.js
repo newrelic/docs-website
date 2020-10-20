@@ -31,7 +31,7 @@ const remove = (files, { path }) => {
   }
 
   const [title, ...subtopics] = path;
-  const nav = yaml.safeLoad(sourceFile.contents);
+  const nav = load(sourceFile);
   const updatedNav =
     subtopics.length === 0
       ? { title, children: [] }
@@ -47,7 +47,7 @@ const remove = (files, { path }) => {
     return files.filter((file) => file !== sourceFile);
   }
 
-  sourceFile.contents = yaml.safeDump(updatedNav, { lineWidth: 9999 });
+  write(sourceFile, updatedNav);
 
   return files;
 };
@@ -62,8 +62,9 @@ const move = (files, { from, to }) => {
   if (isRoot(to)) {
     const destinationFile = vfile({
       path: path.join(NAV_DIR, `${slugify(to[0] || node.title)}.yml`),
-      contents: yaml.safeDump(node, { lineWidth: 99999 }),
     });
+
+    write(destinationFile, node);
 
     files = [...files, destinationFile];
   } else {
@@ -81,7 +82,7 @@ const rename = (files, { path, title }) => {
   }
 
   const updatedNav = updateNodeAtPath(
-    yaml.safeLoad(file.contents),
+    load(file),
     path.slice(1),
     (node) => ({ ...node, title }),
     () =>
@@ -91,7 +92,7 @@ const rename = (files, { path, title }) => {
       )
   );
 
-  file.contents = yaml.safeDump(updatedNav, { lineWidth: 9999 });
+  write(file, updatedNav);
 
   return files;
 };
@@ -113,19 +114,16 @@ const add = (files, { node, path: pathName }) => {
 
     destinationFile = vfile({
       path: path.join(NAV_DIR, `${slugify(title)}.yml`),
-      contents: yaml.safeDump({ title, children: [] }, { lineWidth: 9999 }),
     });
+
+    write(destinationFile, { title, children: [] });
 
     files = [...files, destinationFile];
   }
 
-  const updatedNav = addChild(
-    node,
-    yaml.safeLoad(destinationFile.contents),
-    pathName.slice(1)
-  );
+  const updatedNav = addChild(node, load(destinationFile), pathName.slice(1));
 
-  destinationFile.contents = yaml.safeDump(updatedNav, { lineWidth: 9999 });
+  write(destinationFile, updatedNav);
 
   return files;
 };
@@ -151,7 +149,7 @@ const findNode = (files, path) => {
   }
 
   const subtopics = path.slice(1);
-  const nav = yaml.safeLoad(file.contents);
+  const nav = load(file);
   const child = subtopics.length === 0 ? nav : findCategory(nav, subtopics);
 
   if (!child) {
@@ -259,16 +257,23 @@ const filterCategory = (nav, topics, missing) => {
   };
 };
 
-const findCategory = (nav, topics) => {
-  if (topics.length === 0) {
+const findCategory = (nav, path) => {
+  if (path.length === 0) {
     return nav;
   }
 
-  const [title, ...subtopics] = topics;
+  const [title, ...subtopics] = path;
   const { children = [] } = nav;
   const child = children.find((child) => child.title === title);
 
   return child ? findCategory(child, subtopics) : null;
+};
+
+const load = (file) => yaml.safeLoad(file.contents);
+
+const write = (file, contents) => {
+  // set high line width to avoid wrapping
+  file.contents = yaml.safeDump(contents, { lineWidth: 9999 });
 };
 
 module.exports = migrateNavStructure;
