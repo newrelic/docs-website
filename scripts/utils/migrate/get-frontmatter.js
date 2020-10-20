@@ -31,7 +31,7 @@ const getFrontmatter = (file) => {
   } = file;
 
   const defaultFrontmatter = {
-    title: doc.title.replace(':', '-'),
+    title: doc.title,
     contentType: GATSBY_CONTENT_TYPES[type],
     template: GATSBY_TEMPLATE[type],
   };
