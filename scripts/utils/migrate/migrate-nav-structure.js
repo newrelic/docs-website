@@ -48,6 +48,12 @@ const move = (files, { from, to }) => {
   const nav = yaml.safeLoad(sourceFile.contents);
   const child = findCategory(nav, subtopics);
 
+  if (!child) {
+    logger.warn(`Path not found: ${from.join(' > ')}`);
+
+    return files;
+  }
+
   const destinationFileName = `${slugify(to[0] || child.title)}.yml`;
   let destinationFile = files.find(
     (file) => file.basename === destinationFileName
@@ -170,9 +176,10 @@ const findCategory = (nav, topics) => {
   }
 
   const [title, ...subtopics] = topics;
-  const child = nav.children.find((child) => child.title === title);
+  const { children = [] } = nav;
+  const child = children.find((child) => child.title === title);
 
-  return findCategory(child, subtopics);
+  return child ? findCategory(child, subtopics) : null;
 };
 
 module.exports = migrateNavStructure;
