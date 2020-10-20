@@ -60,7 +60,7 @@ const run = async () => {
 
     logger.success('Migration complete!');
   } catch (err) {
-    logger.error(`Error running migration: ${err}`);
+    logger.error(`Error running migration: ${err.stack}`);
   }
 };
 
