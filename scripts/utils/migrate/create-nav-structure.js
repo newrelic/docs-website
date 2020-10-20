@@ -3,6 +3,7 @@ const path = require('path');
 const vfile = require('vfile');
 const yaml = require('js-yaml');
 const { BASE_DIR, NAV_DIR } = require('../constants');
+const slugify = require('../slugify');
 
 const createNavStructure = (files) => {
   if (!fs.existsSync(NAV_DIR)) {
@@ -26,19 +27,11 @@ const createNavStructure = (files) => {
     }, [])
     .map((node) =>
       vfile({
-        path: path.join(NAV_DIR, `${slug(node.title)}.yml`),
+        path: path.join(NAV_DIR, `${slugify(node.title)}.yml`),
         contents: yaml.safeDump(node, { lineWidth: 99999 }),
       })
     );
 };
-
-const slug = (str) =>
-  str
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, '-')
-    .replace(/-+/, '-')
-    .replace(/[^a-z0-9 -]/g, '');
 
 const toPath = (file) =>
   path
