@@ -23,21 +23,21 @@ const migrateNavStructure = (files) => {
   }, files);
 };
 
-const remove = (files, { path }) => {
-  const sourceFile = findFile(files, path);
+const remove = (files, { path: pathSegments }) => {
+  const sourceFile = findFile(files, pathSegments);
 
   if (!sourceFile) {
     return files;
   }
 
-  const [title, ...subtopics] = path;
+  const [title, ...subtopics] = pathSegments;
   const nav = load(sourceFile);
   const updatedNav =
     subtopics.length === 0
       ? { title, children: [] }
       : filterCategory(nav, subtopics, () =>
           sourceFile.message(
-            `Nav path not found: ${path.join(' > ')}`,
+            `Nav path not found: ${pathSegments.join(' > ')}`,
             null,
             'migrate-nav-structure:remove'
           )
@@ -74,8 +74,8 @@ const move = (files, { from, to }) => {
   return remove(files, { path: from });
 };
 
-const rename = (files, { path, title }) => {
-  const file = findFile(files, path);
+const rename = (files, { path: pathSegments, title }) => {
+  const file = findFile(files, pathSegments);
 
   if (!file) {
     return files;
@@ -83,11 +83,11 @@ const rename = (files, { path, title }) => {
 
   const updatedNav = updateNodeAtPath(
     load(file),
-    path.slice(1),
+    pathSegments.slice(1),
     (node) => ({ ...node, title }),
     () =>
       file.message(
-        `Nav path not found: ${path.join(' > ')}`,
+        `Nav path not found: ${pathSegments.join(' > ')}`,
         'migrate-nav-structure:rename'
       )
   );
@@ -103,14 +103,14 @@ const duplicate = (files, { from, to }) => {
   return child ? add(files, { node: child, path: to }) : files;
 };
 
-const add = (files, { node, path: pathName }) => {
+const add = (files, { node, path: pathSegments }) => {
   let destinationFile = findFile(
     files,
-    isRoot(pathName) ? [node.title] : pathName
+    isRoot(pathSegments) ? [node.title] : pathSegments
   );
 
   if (!destinationFile) {
-    const title = pathName[0] || node.title;
+    const title = pathSegments[0] || node.title;
 
     destinationFile = vfile({
       path: path.join(NAV_DIR, `${slugify(title)}.yml`),
@@ -121,15 +121,19 @@ const add = (files, { node, path: pathName }) => {
     files = [...files, destinationFile];
   }
 
-  const updatedNav = addChild(node, load(destinationFile), pathName.slice(1));
+  const updatedNav = addChild(
+    node,
+    load(destinationFile),
+    pathSegments.slice(1)
+  );
 
   write(destinationFile, updatedNav);
 
   return files;
 };
 
-const findFile = (files, path) => {
-  const fileName = `${slugify(path[0])}.yml`;
+const findFile = (files, pathSegments) => {
+  const fileName = `${slugify(pathSegments[0])}.yml`;
   const file = files.find((file) => file.basename === fileName);
 
   if (!file) {
@@ -141,20 +145,20 @@ const findFile = (files, path) => {
   return file;
 };
 
-const findNode = (files, path) => {
-  const file = findFile(files, path);
+const findNode = (files, pathSegments) => {
+  const file = findFile(files, pathSegments);
 
   if (!file) {
     return null;
   }
 
-  const subtopics = path.slice(1);
+  const subtopics = pathSegments.slice(1);
   const nav = load(file);
   const child = subtopics.length === 0 ? nav : findCategory(nav, subtopics);
 
   if (!child) {
     file.message(
-      `Nav path not found: ${path.join(' > ')}`,
+      `Nav path not found: ${pathSegments.join(' > ')}`,
       null,
       'migrate-nav-structure:move'
     );
