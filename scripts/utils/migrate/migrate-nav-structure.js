@@ -182,7 +182,12 @@ const updateChild = (parent, idx, updater) => ({
   children: update(parent.children || [], idx, updater),
 });
 
-const updateNodeAtPath = (parent, [title, ...path], updater, missing) => {
+const updateNodeAtPath = (
+  parent,
+  [title, ...pathSegments],
+  updater,
+  missing
+) => {
   const { children = [] } = parent;
   const idx = children.findIndex((child) => child.title === title);
 
@@ -192,21 +197,21 @@ const updateNodeAtPath = (parent, [title, ...path], updater, missing) => {
     return parent;
   }
 
-  if (path.length === 0) {
+  if (pathSegments.length === 0) {
     return updateChild(parent, idx, updater);
   }
 
   return updateChild(parent, idx, (child) =>
-    updateNodeAtPath(child, path, updater, missing)
+    updateNodeAtPath(child, pathSegments, updater, missing)
   );
 };
 
-const addChild = (node, parent, topics) => {
-  const [title, ...subtopics] = topics;
+const addChild = (node, parent, pathSegments) => {
+  const [title, ...remainingSegments] = pathSegments;
   const { children = [] } = parent;
   const idx = children.findIndex((node) => node.title === title);
 
-  if (topics.length === 0) {
+  if (pathSegments.length === 0) {
     return {
       ...parent,
       children: [...children, node],
@@ -218,16 +223,18 @@ const addChild = (node, parent, topics) => {
       ...parent,
       children: [
         ...children,
-        addChild(node, { title, children: [] }, subtopics),
+        addChild(node, { title, children: [] }, remainingSegments),
       ],
     };
   }
 
-  return updateChild(parent, idx, (child) => addChild(node, child, subtopics));
+  return updateChild(parent, idx, (child) =>
+    addChild(node, child, remainingSegments)
+  );
 };
 
-const filterCategory = (nav, topics, missing) => {
-  const [title, ...subtopics] = topics;
+const filterCategory = (nav, pathSegments, missing) => {
+  const [title, ...remainingSegments] = pathSegments;
   const idx = nav.children.findIndex((child) => child.title === title);
 
   if (idx === -1) {
@@ -235,14 +242,14 @@ const filterCategory = (nav, topics, missing) => {
     return nav;
   }
 
-  if (subtopics.length === 0) {
+  if (remainingSegments.length === 0) {
     return {
       ...nav,
       children: nav.children.filter((child) => child.title !== title),
     };
   }
 
-  const child = filterCategory(nav.children[idx], subtopics, missing);
+  const child = filterCategory(nav.children[idx], remainingSegments, missing);
 
   if (child.children.length === 0 && !child.path) {
     return {
@@ -255,22 +262,22 @@ const filterCategory = (nav, topics, missing) => {
     ...nav,
     children: [
       ...nav.children.slice(0, idx),
-      filterCategory(nav.children[idx], subtopics, missing),
+      filterCategory(nav.children[idx], remainingSegments, missing),
       ...nav.children.slice(idx + 1),
     ],
   };
 };
 
-const findCategory = (nav, path) => {
-  if (path.length === 0) {
+const findCategory = (nav, pathSegments) => {
+  if (pathSegments.length === 0) {
     return nav;
   }
 
-  const [title, ...subtopics] = path;
+  const [title, ...remainingSegments] = pathSegments;
   const { children = [] } = nav;
   const child = children.find((child) => child.title === title);
 
-  return child ? findCategory(child, subtopics) : null;
+  return child ? findCategory(child, remainingSegments) : null;
 };
 
 const load = (file) => yaml.safeLoad(file.contents);
