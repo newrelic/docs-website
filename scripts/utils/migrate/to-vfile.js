@@ -26,15 +26,13 @@ const toVFile = (doc) => {
 };
 
 const getTopics = (doc) => {
-  const topics = Object.entries(doc)
+  return Object.entries(doc)
     .reduce(
       (topics, [key, value]) =>
         key.startsWith('topic_') ? [...topics, value] : topics,
       []
     )
     .filter(Boolean);
-
-  return topics.length ? topics : [];
 };
 
 module.exports = toVFile;
