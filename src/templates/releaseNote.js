@@ -27,7 +27,7 @@ releaseNoteTemplate.propTypes = {
 };
 
 export const pageQuery = graphql`
-  query($fileRelativePath: String!) {
+  query($fileRelativePath: String!, $nav: String) {
     mdx(fields: { fileRelativePath: { eq: $fileRelativePath } }) {
       body
       frontmatter {
@@ -37,6 +37,7 @@ export const pageQuery = graphql`
         downloadLink
       }
     }
+    ...MainLayout_allNavYaml
   }
 `;
 

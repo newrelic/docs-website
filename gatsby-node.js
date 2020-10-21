@@ -39,6 +39,7 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
             }
             frontmatter {
               template
+              topics
             }
           }
         }
@@ -61,6 +62,7 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
       component: path.resolve(`${TEMPLATE_DIR}${frontmatter.template}.js`),
       context: {
         fileRelativePath,
+        nav: frontmatter.topics && frontmatter.topics[0],
       },
     });
   });

@@ -8,19 +8,34 @@ import MobileHeader from '../components/MobileHeader';
 import { useMedia } from 'react-use';
 import { useLocation } from '@reach/router';
 
-const MainLayout = ({ children }) => {
-  const {
-    site: { layout },
-  } = useStaticQuery(graphql`
-    query {
-      site {
-        layout {
-          contentPadding
-          maxWidth
-        }
-      }
-    }
-  `);
+const MainLayout = ({ data, children }) => {
+  console.log(data);
+  const layout = {};
+  // const {
+  //   site: { layout },
+  //   allNavYaml: { edges: navMenu },
+  // } = useStaticQuery(graphql`
+  //   query {
+  //     site {
+  //       layout {
+  //         contentPadding
+  //         maxWidth
+  //       }
+  //     }
+  //     allNavYaml {
+  //       edges {
+  //         node {
+  //           title
+  //           id
+  //           pages {
+  //             title
+  //             path
+  //           }
+  //         }
+  //       }
+  //     }
+  //   }
+  // `);
 
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const location = useLocation();
@@ -122,5 +137,21 @@ const MainLayout = ({ children }) => {
 MainLayout.propTypes = {
   children: PropTypes.node,
 };
+
+export const query = graphql`
+  fragment MainLayout_allNavYaml on Query {
+    allNavYaml {
+      edges {
+        node {
+          title
+          path
+        }
+      }
+    }
+    navYaml(title: { eq: $nav }) {
+      title
+    }
+  }
+`;
 
 export default MainLayout;
