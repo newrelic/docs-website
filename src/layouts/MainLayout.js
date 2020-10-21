@@ -149,8 +149,27 @@ export const query = graphql`
       }
     }
     navYaml(title: { eq: $nav }) {
-      title
+      ...MainLayout_navFields
+      pages {
+        ...MainLayout_navFields
+        pages {
+          ...MainLayout_navFields
+          pages {
+            ...MainLayout_navFields
+            pages {
+              ...MainLayout_navFields
+              pages {
+                ...MainLayout_navFields
+              }
+            }
+          }
+        }
+      }
     }
+  }
+  fragment MainLayout_navFields on NavYaml {
+    title
+    path
   }
 `;
 

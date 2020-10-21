@@ -67,3 +67,28 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
     });
   });
 };
+exports.createSchemaCustomization = ({ actions }) => {
+  const { createTypes } = actions;
+
+  const typeDefs = `
+  type NavYaml implements Node @dontInfer {
+    id: ID!
+    title: String!
+    path: String
+    pages: [NavYaml!]!
+  }
+  `;
+
+  createTypes(typeDefs);
+};
+exports.createResolvers = ({ createResolvers }) => {
+  createResolvers({
+    NavYaml: {
+      pages: {
+        resolve: (source) => {
+          return source.pages || [];
+        },
+      },
+    },
+  });
+};
