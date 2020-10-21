@@ -22,7 +22,14 @@ const createNavStructure = (files) => {
       const idx = nav.findIndex((node) => node.title === title);
 
       return idx === -1
-        ? [...nav, buildSubnav(file, { title, pages: [] }, subtopics)]
+        ? [
+            ...nav,
+            buildSubnav(
+              file,
+              { title, path: `/docs/${slugify(title)}`, pages: [] },
+              subtopics
+            ),
+          ]
         : update(nav, idx, (node) => buildSubnav(file, node, subtopics));
     }, [])
     .map((node) =>

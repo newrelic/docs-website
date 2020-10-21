@@ -64,7 +64,7 @@ const move = (files, { from, to }) => {
       path: path.join(NAV_DIR, `${slugify(to[0] || node.title)}.yml`),
     });
 
-    write(destinationFile, node);
+    write(destinationFile, { path: `/docs/${slugify(node.title)}`, ...node });
 
     files = [...files, destinationFile];
   } else {
@@ -116,7 +116,11 @@ const add = (files, { node, path: pathSegments }) => {
       path: path.join(NAV_DIR, `${slugify(title)}.yml`),
     });
 
-    write(destinationFile, { title, pages: [] });
+    write(destinationFile, {
+      title,
+      path: `/docs/${slugify(title)}`,
+      pages: [],
+    });
 
     files = [...files, destinationFile];
   }
