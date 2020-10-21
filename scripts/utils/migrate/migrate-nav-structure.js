@@ -53,7 +53,7 @@ const remove = (files, { path: pathSegments }) => {
 };
 
 const move = (files, { from, to }) => {
-  const node = findNode(files, from);
+  const node = findNode(files, from, { operation: 'move' });
 
   if (!node) {
     return files;
@@ -98,7 +98,7 @@ const rename = (files, { path: pathSegments, title }) => {
 };
 
 const duplicate = (files, { from, to }) => {
-  const child = findNode(files, from);
+  const child = findNode(files, from, { operation: 'duplicate' });
 
   return child ? add(files, { node: child, path: to }) : files;
 };
@@ -145,7 +145,7 @@ const findFile = (files, pathSegments) => {
   return file;
 };
 
-const findNode = (files, pathSegments) => {
+const findNode = (files, pathSegments, { operation } = {}) => {
   const file = findFile(files, pathSegments);
 
   if (!file) {
@@ -160,7 +160,7 @@ const findNode = (files, pathSegments) => {
     file.message(
       `Nav path not found: ${pathSegments.join(' > ')}`,
       null,
-      'migrate-nav-structure:move'
+      operation ? `migrate-nav-structure:${operation}` : 'migrate-nav-structure'
     );
 
     return null;
