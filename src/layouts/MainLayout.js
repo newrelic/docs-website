@@ -1,16 +1,20 @@
 import React, { useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
 import { GlobalHeader } from '@newrelic/gatsby-theme-newrelic';
-import { graphql, useStaticQuery } from 'gatsby';
+import { graphql } from 'gatsby';
 import { css } from '@emotion/core';
 import Sidebar from '../components/Sidebar';
 import MobileHeader from '../components/MobileHeader';
 import { useMedia } from 'react-use';
 import { useLocation } from '@reach/router';
+import RootNavigation from '../components/RootNavigation';
+import SubNavigation from '../components/SubNavigation';
 
-const MainLayout = ({ data, children }) => {
+const MainLayout = ({ data, children, path }) => {
   const {
     site: { layout },
+    subNav,
+    ...rootNav
   } = data;
 
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
@@ -75,7 +79,13 @@ const MainLayout = ({ data, children }) => {
                 height: calc(100vh - var(--global-header-height));
                 overflow: auto;
               `}
-            />
+            >
+              {path === '/' ? (
+                <RootNavigation nav={rootNav} />
+              ) : (
+                <SubNavigation nav={subNav} />
+              )}
+            </Sidebar>
             <div
               css={css`
                 grid-area: sidebar;
@@ -113,6 +123,7 @@ const MainLayout = ({ data, children }) => {
 MainLayout.propTypes = {
   children: PropTypes.node,
   data: PropTypes.object,
+  path: PropTypes.string,
 };
 
 export const query = graphql`
@@ -123,15 +134,7 @@ export const query = graphql`
         maxWidth
       }
     }
-    allNavYaml {
-      edges {
-        node {
-          title
-          path
-        }
-      }
-    }
-    navYaml(title: { eq: $nav }) {
+    subNav: navYaml(title: { eq: $nav }) {
       ...MainLayout_navFields
       pages {
         ...MainLayout_navFields
@@ -149,6 +152,8 @@ export const query = graphql`
         }
       }
     }
+
+    ...RootNavigation_pages
   }
   fragment MainLayout_navFields on NavYaml {
     title

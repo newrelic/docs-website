@@ -3,7 +3,7 @@ import PropTypes from 'prop-types';
 import { css } from '@emotion/core';
 import { Link } from 'gatsby';
 
-const Sidebar = ({ className }) => (
+const Sidebar = ({ className, children }) => (
   <aside
     data-swiftype-index={false}
     className={className}
@@ -37,7 +37,7 @@ const Sidebar = ({ className }) => (
         Logo
       </Link>
     </div>
-    <div>Navigation goes here</div>
+    {children}
   </aside>
 );
 Sidebar.propTypes = {
