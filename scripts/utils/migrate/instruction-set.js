@@ -203,4 +203,8 @@ module.exports = [
     from: ['Mobile apps'],
     to: ['New Relic in practice'],
   },
+  {
+    type: INSTRUCTIONS.REMOVE,
+    path: ['Plugins'],
+  },
 ];
