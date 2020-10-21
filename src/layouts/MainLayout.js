@@ -9,33 +9,9 @@ import { useMedia } from 'react-use';
 import { useLocation } from '@reach/router';
 
 const MainLayout = ({ data, children }) => {
-  console.log(data);
-  const layout = {};
-  // const {
-  //   site: { layout },
-  //   allNavYaml: { edges: navMenu },
-  // } = useStaticQuery(graphql`
-  //   query {
-  //     site {
-  //       layout {
-  //         contentPadding
-  //         maxWidth
-  //       }
-  //     }
-  //     allNavYaml {
-  //       edges {
-  //         node {
-  //           title
-  //           id
-  //           pages {
-  //             title
-  //             path
-  //           }
-  //         }
-  //       }
-  //     }
-  //   }
-  // `);
+  const {
+    site: { layout },
+  } = data;
 
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const location = useLocation();
@@ -136,10 +112,17 @@ const MainLayout = ({ data, children }) => {
 
 MainLayout.propTypes = {
   children: PropTypes.node,
+  data: PropTypes.object,
 };
 
 export const query = graphql`
   fragment MainLayout_allNavYaml on Query {
+    site {
+      layout {
+        contentPadding
+        maxWidth
+      }
+    }
     allNavYaml {
       edges {
         node {
