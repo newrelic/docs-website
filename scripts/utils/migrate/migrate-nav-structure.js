@@ -258,14 +258,9 @@ const filterCategory = (nav, pathSegments, missing) => {
     };
   }
 
-  return {
-    ...nav,
-    children: [
-      ...nav.children.slice(0, idx),
-      filterCategory(nav.children[idx], remainingSegments, missing),
-      ...nav.children.slice(idx + 1),
-    ],
-  };
+  return updateChild(nav, idx, (node) =>
+    filterCategory(node, remainingSegments, missing)
+  );
 };
 
 const findCategory = (nav, pathSegments) => {
