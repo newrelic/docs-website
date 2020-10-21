@@ -35,7 +35,7 @@ export const pageQuery = graphql`
         releaseImpact
       }
     }
-    ...MainLayout_allNavYaml
+    ...MainLayout_query
   }
 `;
 

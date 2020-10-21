@@ -37,7 +37,7 @@ export const pageQuery = graphql`
         downloadLink
       }
     }
-    ...MainLayout_allNavYaml
+    ...MainLayout_query
   }
 `;
 

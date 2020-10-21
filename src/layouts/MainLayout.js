@@ -116,7 +116,7 @@ MainLayout.propTypes = {
 };
 
 export const query = graphql`
-  fragment MainLayout_allNavYaml on Query {
+  fragment MainLayout_query on Query {
     site {
       layout {
         contentPadding
