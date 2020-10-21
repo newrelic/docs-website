@@ -1,13 +1,13 @@
 import React from 'react';
 import PropTypes from 'prop-types';
-import { css } from '@emotion/core';
-import { graphql, Link } from 'gatsby';
+import { graphql } from 'gatsby';
+import NavigationItem from './NavigationItem';
 
 const RootNavigation = ({ nav }) => {
   const { tdp, fso, ai, pages } = nav;
 
   return (
-    <nav>
+    <nav role="navigation" aria-label="Navigation">
       <NavigationItem page={tdp} />
       <NavigationItem page={fso} />
       <NavigationItem page={ai} />
@@ -19,32 +19,8 @@ const RootNavigation = ({ nav }) => {
   );
 };
 
-const NavigationItem = ({ page }) => {
-  return (
-    <Link
-      to={page.path}
-      css={css`
-        display: flex;
-        color: var(--primary-text-color);
-        transition: 0.2s ease-out;
-        padding: 0.5rem;
-
-        &:hover {
-          color: var(--primary-text-hover-color);
-        }
-      `}
-    >
-      {page.title}
-    </Link>
-  );
-};
-
 RootNavigation.propTypes = {
   nav: PropTypes.arrayOf(PropTypes.object).isRequired,
-};
-
-NavigationItem.propTypes = {
-  page: PropTypes.object,
 };
 
 export const query = graphql`
