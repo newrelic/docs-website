@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import PropTypes from 'prop-types';
+import { css } from '@emotion/core';
 import NavLink from './NavLink';
 
 const NavigationItem = ({ page, icon, depth = 0 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const linkProps = {
-    depth,
     icon,
     isExpanded,
     expandable: page.pages?.length > 0,
@@ -14,7 +14,11 @@ const NavigationItem = ({ page, icon, depth = 0 }) => {
   };
 
   return (
-    <>
+    <div
+      css={css`
+        padding-left: ${depth === 0 ? '0' : '1rem'};
+      `}
+    >
       {page.path ? (
         <NavLink to={page.path} {...linkProps} />
       ) : (
@@ -25,7 +29,7 @@ const NavigationItem = ({ page, icon, depth = 0 }) => {
         page.pages?.map((page) => (
           <NavigationItem key={page.title} page={page} depth={depth + 1} />
         ))}
-    </>
+    </div>
   );
 };
 

@@ -3,17 +3,19 @@ import PropTypes from 'prop-types';
 import { css } from '@emotion/core';
 import { Link } from 'gatsby';
 import { Icon } from '@newrelic/gatsby-theme-newrelic';
+import { useMatch } from '@reach/router';
 
 const NavLink = ({
   as: Element = Link,
   icon: LinkIcon,
   title,
-  depth,
   isExpanded,
   expandable,
   onClick,
   ...props
 }) => {
+  const isCurrentPage = Boolean(useMatch(props.to || '/'));
+
   return (
     <Element
       {...props}
@@ -25,13 +27,23 @@ const NavLink = ({
         cursor: pointer;
         color: var(--primary-text-color);
         transition: 0.2s ease-out;
-        padding: 0.5rem 0;
-        padding-left: ${depth * 1}rem;
+        padding: 0.5rem 0.5rem 0.5rem 1rem;
+        margin: 0 -1rem;
         font-size: 0.875rem;
 
         &:hover {
           color: var(--primary-text-hover-color);
         }
+
+        ${isCurrentPage &&
+        css`
+          background: var(--color-neutrals-100);
+          border-radius: 0.25rem;
+
+          .dark-mode & {
+            background: var(--color-dark-100);
+          }
+        `}
       `}
     >
       {LinkIcon && (
@@ -73,6 +85,7 @@ NavLink.propTypes = {
   isExpanded: PropTypes.bool.isRequired,
   expandable: PropTypes.bool.isRequired,
   onClick: PropTypes.func,
+  to: PropTypes.string,
 };
 
 export default NavLink;
