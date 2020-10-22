@@ -13,7 +13,8 @@ const SubNavigation = ({ nav }) => (
         color: var(--primary-text-color);
         display: flex;
         align-items: center;
-        padding: 1rem 0;
+        padding: 0.5rem 0;
+        margin-top: 0.5rem;
         margin-bottom: 0.5rem;
         transition: 0.2s ease-out;
 
