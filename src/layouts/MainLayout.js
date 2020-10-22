@@ -12,7 +12,7 @@ import SubNavigation from '../components/SubNavigation';
 import { animated, useTransition } from 'react-spring';
 
 const MainLayout = ({ data = {}, children, path }) => {
-  const { subNav, ...rootNav } = data;
+  const { subnav, ...rootNav } = data;
 
   const {
     site: { layout },
@@ -30,7 +30,7 @@ const MainLayout = ({ data = {}, children, path }) => {
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const location = useLocation();
   // maintain the previous subnav so that exit transitions preserve the nav data
-  const previousSubNav = usePrevious(subNav);
+  const previousSubnav = usePrevious(subnav);
 
   const isSmallScreen = useMedia('(max-width: 760px)');
   const transition = useTransition(path === '/', {
@@ -131,7 +131,7 @@ const MainLayout = ({ data = {}, children, path }) => {
                       padding-bottom: ${layout.contentPadding};
                     `}
                   >
-                    <SubNavigation nav={subNav || previousSubNav} />
+                    <SubNavigation nav={subnav || previousSubnav} />
                   </animated.div>
                 );
               })}
@@ -178,7 +178,7 @@ MainLayout.propTypes = {
 
 export const query = graphql`
   fragment MainLayout_query on Query {
-    subNav: navYaml(title: { eq: $nav }) {
+    subnav: navYaml(title: { eq: $nav }) {
       ...MainLayout_navFields
       pages {
         ...MainLayout_navFields
