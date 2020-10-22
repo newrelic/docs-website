@@ -81,6 +81,7 @@ exports.createSchemaCustomization = ({ actions }) => {
 
   createTypes(typeDefs);
 };
+
 exports.createResolvers = ({ createResolvers }) => {
   createResolvers({
     NavYaml: {
