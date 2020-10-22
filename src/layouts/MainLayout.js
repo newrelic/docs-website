@@ -33,7 +33,7 @@ const MainLayout = ({ data = {}, children, path }) => {
   const previousSubNav = usePrevious(subNav);
 
   const isSmallScreen = useMedia('(max-width: 760px)');
-  const transitions = useTransition(path === '/', null, {
+  const transition = useTransition(path === '/', {
     config: { mass: 1, friction: 34, tension: 400 },
     from: (isRoot) => ({
       opacity: 0,
@@ -107,21 +107,29 @@ const MainLayout = ({ data = {}, children, path }) => {
                 overflow: auto;
               `}
             >
-              {transitions.map(({ item: isRoot, props }) => {
-                const style = {
-                  ...props,
-                  left: layout.contentPadding,
-                  right: layout.contentPadding,
-                  top: layout.contentPadding,
-                  paddingBottom: layout.contentPadding,
-                };
-
+              {transition((style, isRoot) => {
                 return isRoot ? (
-                  <animated.div style={style}>
+                  <animated.div
+                    style={style}
+                    css={css`
+                      left: ${layout.contentPadding};
+                      right: ${layout.contentPadding};
+                      top: ${layout.contentPadding};
+                      padding-bottom: ${layout.contentPadding};
+                    `}
+                  >
                     <RootNavigation nav={rootNav} />
                   </animated.div>
                 ) : (
-                  <animated.div style={style}>
+                  <animated.div
+                    style={style}
+                    css={css`
+                      left: ${layout.contentPadding};
+                      right: ${layout.contentPadding};
+                      top: ${layout.contentPadding};
+                      padding-bottom: ${layout.contentPadding};
+                    `}
+                  >
                     <SubNavigation nav={subNav || previousSubNav} />
                   </animated.div>
                 );
