@@ -44,6 +44,7 @@ export const query = graphql`
     }
 
     pages: allNavYaml(
+      sort: { fields: [title] }
       filter: {
         title: {
           nin: [
