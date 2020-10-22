@@ -22,7 +22,14 @@ const createNavStructure = (files) => {
       const idx = nav.findIndex((node) => node.title === title);
 
       return idx === -1
-        ? [...nav, buildSubnav(file, { title, children: [] }, subtopics)]
+        ? [
+            ...nav,
+            buildSubnav(
+              file,
+              { title, path: `/docs/${slugify(title)}`, pages: [] },
+              subtopics
+            ),
+          ]
         : update(nav, idx, (node) => buildSubnav(file, node, subtopics));
     }, [])
     .map((node) =>
@@ -47,14 +54,14 @@ const update = (items, idx, updater) => [
 
 const updateChild = (parent, idx, updater) => ({
   ...parent,
-  children: update(parent.children || [], idx, updater),
+  pages: update(parent.pages || [], idx, updater),
 });
 
 const buildSubnav = (file, parent, topics) => {
   const title = (topics[0] || file.data.doc.title).trim();
   const subtopics = topics.slice(1);
-  const { children = [] } = parent;
-  const idx = children.findIndex((node) => node.title === title);
+  const { pages = [] } = parent;
+  const idx = pages.findIndex((node) => node.title === title);
 
   switch (true) {
     case topics.length === 0 && idx >= 0:
@@ -67,16 +74,13 @@ const buildSubnav = (file, parent, topics) => {
     case topics.length === 0:
       return {
         ...parent,
-        children: [...children, { title, path: toPath(file) }],
+        pages: [...pages, { title, path: toPath(file) }],
       };
 
     case idx === -1:
       return {
         ...parent,
-        children: [
-          ...children,
-          buildSubnav(file, { title, children: [] }, subtopics),
-        ],
+        pages: [...pages, buildSubnav(file, { title, pages: [] }, subtopics)],
       };
 
     default:

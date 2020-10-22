@@ -34,7 +34,7 @@ const remove = (files, { path: pathSegments }) => {
   const nav = load(sourceFile);
   const updatedNav =
     subtopics.length === 0
-      ? { title, children: [] }
+      ? { title, pages: [] }
       : filterCategory(nav, subtopics, () =>
           sourceFile.message(
             `Nav path not found: ${pathSegments.join(' > ')}`,
@@ -43,7 +43,7 @@ const remove = (files, { path: pathSegments }) => {
           )
         );
 
-  if (updatedNav.children.length === 0) {
+  if (updatedNav.pages.length === 0) {
     return files.filter((file) => file !== sourceFile);
   }
 
@@ -64,7 +64,7 @@ const move = (files, { from, to }) => {
       path: path.join(NAV_DIR, `${slugify(to[0] || node.title)}.yml`),
     });
 
-    write(destinationFile, node);
+    write(destinationFile, { path: `/docs/${slugify(node.title)}`, ...node });
 
     files = [...files, destinationFile];
   } else {
@@ -116,7 +116,11 @@ const add = (files, { node, path: pathSegments }) => {
       path: path.join(NAV_DIR, `${slugify(title)}.yml`),
     });
 
-    write(destinationFile, { title, children: [] });
+    write(destinationFile, {
+      title,
+      path: `/docs/${slugify(title)}`,
+      pages: [],
+    });
 
     files = [...files, destinationFile];
   }
@@ -179,7 +183,7 @@ const update = (items, idx, updater) => [
 
 const updateChild = (parent, idx, updater) => ({
   ...parent,
-  children: update(parent.children || [], idx, updater),
+  pages: update(parent.pages || [], idx, updater),
 });
 
 const updateNodeAtPath = (
@@ -188,8 +192,8 @@ const updateNodeAtPath = (
   updater,
   missing
 ) => {
-  const { children = [] } = parent;
-  const idx = children.findIndex((child) => child.title === title);
+  const { pages = [] } = parent;
+  const idx = pages.findIndex((child) => child.title === title);
 
   if (idx === -1) {
     missing();
@@ -208,22 +212,22 @@ const updateNodeAtPath = (
 
 const addChild = (node, parent, pathSegments) => {
   const [title, ...remainingSegments] = pathSegments;
-  const { children = [] } = parent;
-  const idx = children.findIndex((node) => node.title === title);
+  const { pages = [] } = parent;
+  const idx = pages.findIndex((node) => node.title === title);
 
   if (pathSegments.length === 0) {
     return {
       ...parent,
-      children: [...children, node],
+      pages: [...pages, node],
     };
   }
 
   if (idx === -1) {
     return {
       ...parent,
-      children: [
-        ...children,
-        addChild(node, { title, children: [] }, remainingSegments),
+      pages: [
+        ...pages,
+        addChild(node, { title, pages: [] }, remainingSegments),
       ],
     };
   }
@@ -235,7 +239,7 @@ const addChild = (node, parent, pathSegments) => {
 
 const filterCategory = (nav, pathSegments, missing) => {
   const [title, ...remainingSegments] = pathSegments;
-  const idx = nav.children.findIndex((child) => child.title === title);
+  const idx = nav.pages.findIndex((child) => child.title === title);
 
   if (idx === -1) {
     missing();
@@ -245,16 +249,16 @@ const filterCategory = (nav, pathSegments, missing) => {
   if (remainingSegments.length === 0) {
     return {
       ...nav,
-      children: nav.children.filter((child) => child.title !== title),
+      pages: nav.pages.filter((child) => child.title !== title),
     };
   }
 
-  const child = filterCategory(nav.children[idx], remainingSegments, missing);
+  const child = filterCategory(nav.pages[idx], remainingSegments, missing);
 
-  if (child.children.length === 0 && !child.path) {
+  if (child.pages.length === 0 && !child.path) {
     return {
       ...nav,
-      children: [...nav.children.slice(0, idx), ...nav.children.slice(idx + 1)],
+      pages: [...nav.pages.slice(0, idx), ...nav.pages.slice(idx + 1)],
     };
   }
 
@@ -269,8 +273,8 @@ const findCategory = (nav, pathSegments) => {
   }
 
   const [title, ...remainingSegments] = pathSegments;
-  const { children = [] } = nav;
-  const child = children.find((child) => child.title === title);
+  const { pages = [] } = nav;
+  const child = pages.find((child) => child.title === title);
 
   return child ? findCategory(child, remainingSegments) : null;
 };

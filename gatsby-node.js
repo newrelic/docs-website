@@ -39,6 +39,7 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
             }
             frontmatter {
               template
+              topics
             }
           }
         }
@@ -61,7 +62,44 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
       component: path.resolve(`${TEMPLATE_DIR}${frontmatter.template}.js`),
       context: {
         fileRelativePath,
+        nav: frontmatter.topics && frontmatter.topics[0],
       },
     });
   });
+};
+exports.createSchemaCustomization = ({ actions }) => {
+  const { createTypes } = actions;
+
+  const typeDefs = `
+  type NavYaml implements Node @dontInfer {
+    id: ID!
+    title: String!
+    path: String
+    pages: [NavYaml!]!
+  }
+  `;
+
+  createTypes(typeDefs);
+};
+
+exports.createResolvers = ({ createResolvers }) => {
+  createResolvers({
+    NavYaml: {
+      pages: {
+        resolve: (source) => {
+          return source.pages || [];
+        },
+      },
+    },
+  });
+};
+
+exports.onCreatePage = ({ page, actions }) => {
+  const { createPage } = actions;
+
+  if (page.path.match(/404/)) {
+    page.context.layout = '404';
+
+    createPage(page);
+  }
 };

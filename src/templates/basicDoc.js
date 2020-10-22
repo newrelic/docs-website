@@ -24,13 +24,14 @@ basicDocPageTemplate.propTypes = {
 };
 
 export const pageQuery = graphql`
-  query($fileRelativePath: String!) {
+  query($fileRelativePath: String!, $nav: String) {
     mdx(fields: { fileRelativePath: { eq: $fileRelativePath } }) {
       body
       frontmatter {
         title
       }
     }
+    ...MainLayout_query
   }
 `;
 
