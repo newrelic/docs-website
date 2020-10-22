@@ -6,6 +6,7 @@ import { Icon } from '@newrelic/gatsby-theme-newrelic';
 
 const NavLink = ({
   as: Element = Link,
+  icon: LinkIcon,
   title,
   depth,
   isExpanded,
@@ -33,6 +34,15 @@ const NavLink = ({
         }
       `}
     >
+      {LinkIcon && (
+        <LinkIcon
+          size="1.75rem"
+          css={css`
+            margin-right: 0.5rem;
+          `}
+        />
+      )}
+
       <span
         css={css`
           flex: 1;
@@ -57,6 +67,7 @@ const NavLink = ({
 
 NavLink.propTypes = {
   as: PropTypes.elementType,
+  icon: PropTypes.elementType,
   title: PropTypes.string.isRequired,
   depth: PropTypes.number.isRequired,
   isExpanded: PropTypes.bool.isRequired,

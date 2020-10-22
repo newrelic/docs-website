@@ -2,10 +2,11 @@ import React, { useState } from 'react';
 import PropTypes from 'prop-types';
 import NavLink from './NavLink';
 
-const NavigationItem = ({ page, depth = 0 }) => {
+const NavigationItem = ({ page, icon, depth = 0 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const linkProps = {
     depth,
+    icon,
     isExpanded,
     expandable: page.pages?.length > 0,
     title: page.title,
@@ -30,6 +31,7 @@ const NavigationItem = ({ page, depth = 0 }) => {
 
 NavigationItem.propTypes = {
   depth: PropTypes.number,
+  icon: PropTypes.elementType,
   page: PropTypes.shape({
     title: PropTypes.string.isRequired,
     path: PropTypes.string,
