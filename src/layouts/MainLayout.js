@@ -9,8 +9,9 @@ import { useMedia, usePrevious } from 'react-use';
 import RootNavigation from '../components/RootNavigation';
 import SubNavigation from '../components/SubNavigation';
 import { animated, useTransition } from 'react-spring';
+import { useLocation } from '@reach/router';
 
-const MainLayout = ({ data = {}, children, path }) => {
+const MainLayout = ({ data = {}, children }) => {
   const { subnav, ...rootNav } = data;
 
   const {
@@ -26,12 +27,14 @@ const MainLayout = ({ data = {}, children, path }) => {
     }
   `);
 
+  const location = useLocation();
+
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   // maintain the previous subnav so that exit transitions preserve the nav data
   const previousSubnav = usePrevious(subnav);
 
   const isSmallScreen = useMedia('(max-width: 760px)');
-  const transition = useTransition(path === '/', {
+  const transition = useTransition(location.pathname === '/', {
     config: { mass: 1, friction: 34, tension: 400 },
     initial: null,
     from: (isRoot) => ({
@@ -49,7 +52,7 @@ const MainLayout = ({ data = {}, children, path }) => {
 
   useEffect(() => {
     setIsMobileNavOpen(false);
-  }, [path]);
+  }, [location.pathname]);
 
   return (
     <div
@@ -171,7 +174,6 @@ const MainLayout = ({ data = {}, children, path }) => {
 MainLayout.propTypes = {
   children: PropTypes.node,
   data: PropTypes.object,
-  path: PropTypes.string,
 };
 
 export const query = graphql`
