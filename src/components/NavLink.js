@@ -3,10 +3,10 @@ import PropTypes from 'prop-types';
 import { css } from '@emotion/core';
 import { Link } from 'gatsby';
 import { Icon } from '@newrelic/gatsby-theme-newrelic';
-import { useMatch } from '@reach/router';
 
 const NavLink = ({
   as: Element = Link,
+  active,
   icon: LinkIcon,
   title,
   isExpanded,
@@ -14,8 +14,6 @@ const NavLink = ({
   onClick,
   ...props
 }) => {
-  const isCurrentPage = Boolean(useMatch(props.to || '/'));
-
   return (
     <Element
       {...props}
@@ -35,7 +33,7 @@ const NavLink = ({
           color: var(--primary-text-hover-color);
         }
 
-        ${isCurrentPage &&
+        ${active &&
         css`
           background: var(--color-neutrals-100);
           border-radius: 0.25rem;
@@ -79,6 +77,7 @@ const NavLink = ({
 
 NavLink.propTypes = {
   as: PropTypes.elementType,
+  active: PropTypes.bool,
   icon: PropTypes.elementType,
   title: PropTypes.string.isRequired,
   depth: PropTypes.number.isRequired,
