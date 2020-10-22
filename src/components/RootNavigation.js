@@ -2,15 +2,18 @@ import React from 'react';
 import PropTypes from 'prop-types';
 import { graphql } from 'gatsby';
 import NavigationItem from './NavigationItem';
+import AIIcon from './AIIcon';
+import FSOIcon from './FSOIcon';
+import TDPIcon from './TDPIcon';
 
 const RootNavigation = ({ nav }) => {
   const { tdp, fso, ai, pages } = nav;
 
   return (
     <nav role="navigation" aria-label="Navigation">
-      <NavigationItem page={tdp} />
-      <NavigationItem page={fso} />
-      <NavigationItem page={ai} />
+      <NavigationItem page={tdp} icon={TDPIcon} />
+      <NavigationItem page={fso} icon={FSOIcon} />
+      <NavigationItem page={ai} icon={AIIcon} />
       <hr />
       {pages.edges.map(({ node }) => (
         <NavigationItem key={node.title} page={node} />
