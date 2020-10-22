@@ -6,7 +6,6 @@ import { css } from '@emotion/core';
 import Sidebar from '../components/Sidebar';
 import MobileHeader from '../components/MobileHeader';
 import { useMedia, usePrevious } from 'react-use';
-import { useLocation } from '@reach/router';
 import RootNavigation from '../components/RootNavigation';
 import SubNavigation from '../components/SubNavigation';
 import { animated, useTransition } from 'react-spring';
@@ -28,7 +27,6 @@ const MainLayout = ({ data = {}, children, path }) => {
   `);
 
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
-  const location = useLocation();
   // maintain the previous subnav so that exit transitions preserve the nav data
   const previousSubnav = usePrevious(subnav);
 
@@ -51,7 +49,7 @@ const MainLayout = ({ data = {}, children, path }) => {
 
   useEffect(() => {
     setIsMobileNavOpen(false);
-  }, [location.pathname]);
+  }, [path]);
 
   return (
     <div
