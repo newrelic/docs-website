@@ -29,13 +29,13 @@ const MainLayout = ({ data, children, path }) => {
     from: (isRoot) => ({
       opacity: 0,
       position: 'absolute',
-      transform: `translateX(${isRoot ? '-125px' : '125px'})`,
+      transform: `translateX(${isRoot ? '125px' : '-125px'})`,
     }),
 
     enter: { opacity: 1, transform: 'translateX(0)' },
     leave: (isRoot) => ({
       opacity: 0,
-      transform: `translateX(${isRoot ? '-125px' : '125px'})`,
+      transform: `translateX(${isRoot ? '125px' : '-125px'})`,
     }),
   });
 
