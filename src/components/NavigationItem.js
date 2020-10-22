@@ -54,6 +54,15 @@ const NavLink = ({
   );
 };
 
+NavLink.propTypes = {
+  as: PropTypes.elementType,
+  title: PropTypes.string.isRequired,
+  depth: PropTypes.number.isRequired,
+  isExpanded: PropTypes.bool.isRequired,
+  expandable: PropTypes.bool.isRequired,
+  onClick: PropTypes.func,
+};
+
 const NavigationItem = ({ page, depth = 0 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const linkProps = {
