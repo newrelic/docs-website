@@ -104,7 +104,7 @@ const MainLayout = ({ data, children, path }) => {
                   left: '2rem',
                   right: '2rem',
                   top: '2rem',
-                  bottom: '2rem',
+                  paddingBottom: '2rem',
                 };
 
                 return isRoot ? (
