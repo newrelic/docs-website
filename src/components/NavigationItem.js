@@ -5,7 +5,7 @@ import { Link } from 'gatsby';
 import { Icon } from '@newrelic/gatsby-theme-newrelic';
 
 const NavLink = ({
-  as: Element = 'div',
+  as: Element = Link,
   title,
   depth,
   isExpanded,
@@ -75,9 +75,9 @@ const NavigationItem = ({ page, depth = 0 }) => {
   return (
     <>
       {page.path ? (
-        <NavLink as={Link} to={page.path} {...linkProps} />
+        <NavLink to={page.path} {...linkProps} />
       ) : (
-        <NavLink {...linkProps} />
+        <NavLink as="div" {...linkProps} />
       )}
 
       {isExpanded &&

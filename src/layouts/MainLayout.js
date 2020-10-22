@@ -9,6 +9,7 @@ import { useMedia } from 'react-use';
 import { useLocation } from '@reach/router';
 import RootNavigation from '../components/RootNavigation';
 import SubNavigation from '../components/SubNavigation';
+import { animated, useTransition } from 'react-spring';
 
 const MainLayout = ({ data, children, path }) => {
   const {
@@ -20,6 +21,19 @@ const MainLayout = ({ data, children, path }) => {
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const location = useLocation();
   const isSmallScreen = useMedia('(max-width: 760px)');
+  const transitions = useTransition(path === '/', null, {
+    from: (isRoot) => ({
+      opacity: 0,
+      position: 'absolute',
+      transform: `translateX(${isRoot ? '-150px' : '150px'})`,
+    }),
+
+    enter: { opacity: 1, transform: 'translateX(0)' },
+    leave: (isRoot) => ({
+      opacity: 0,
+      transform: `translateX(${isRoot ? '-150px' : '150px'})`,
+    }),
+  });
 
   useEffect(() => {
     setIsMobileNavOpen(false);
@@ -80,10 +94,18 @@ const MainLayout = ({ data, children, path }) => {
                 overflow: auto;
               `}
             >
-              {path === '/' ? (
-                <RootNavigation nav={rootNav} />
-              ) : (
-                <SubNavigation nav={subNav} />
+              {transitions.map(({ item: isRoot, props }) =>
+                isRoot ? (
+                  <animated.div style={props}>
+                    <RootNavigation nav={rootNav} />
+                  </animated.div>
+                ) : (
+                  <animated.div style={props}>
+                    <SubNavigation
+                      nav={subNav || { title: 'surprise', pages: [] }}
+                    />
+                  </animated.div>
+                )
               )}
             </Sidebar>
             <div
