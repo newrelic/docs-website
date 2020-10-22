@@ -2,13 +2,12 @@ import React from 'react';
 import PropTypes from 'prop-types';
 import { graphql } from 'gatsby';
 import NavigationItem from './NavigationItem';
-import { animated } from 'react-spring';
 
-const RootNavigation = ({ nav, style }) => {
+const RootNavigation = ({ nav }) => {
   const { tdp, fso, ai, pages } = nav;
 
   return (
-    <animated.nav role="navigation" aria-label="Navigation" style={style}>
+    <nav role="navigation" aria-label="Navigation">
       <NavigationItem page={tdp} />
       <NavigationItem page={fso} />
       <NavigationItem page={ai} />
@@ -16,13 +15,12 @@ const RootNavigation = ({ nav, style }) => {
       {pages.edges.map(({ node }) => (
         <NavigationItem key={node.title} page={node} />
       ))}
-    </animated.nav>
+    </nav>
   );
 };
 
 RootNavigation.propTypes = {
   nav: PropTypes.arrayOf(PropTypes.object).isRequired,
-  style: PropTypes.object,
 };
 
 export const query = graphql`

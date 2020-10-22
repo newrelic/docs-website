@@ -26,6 +26,7 @@ const NavLink = ({
         transition: 0.2s ease-out;
         padding: 0.5rem 0;
         padding-left: ${depth * 1}rem;
+        font-size: 0.875rem;
 
         &:hover {
           color: var(--primary-text-hover-color);
@@ -67,6 +68,7 @@ const NavigationItem = ({ page, depth = 0 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const linkProps = {
     depth,
+    isExpanded,
     expandable: page.pages?.length > 0,
     title: page.title,
     onClick: () => setIsExpanded((expanded) => !expanded),

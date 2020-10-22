@@ -4,10 +4,9 @@ import { css } from '@emotion/core';
 import NavigationItem from './NavigationItem';
 import { Link } from 'gatsby';
 import { Icon } from '@newrelic/gatsby-theme-newrelic';
-import { animated } from 'react-spring';
 
-const SubNavigation = ({ nav, style }) => (
-  <animated.div style={style}>
+const SubNavigation = ({ nav }) => (
+  <>
     <Link
       to="/"
       css={css`
@@ -38,12 +37,11 @@ const SubNavigation = ({ nav, style }) => (
         <NavigationItem key={page.title} page={page} />
       ))}
     </nav>
-  </animated.div>
+  </>
 );
 
 SubNavigation.propTypes = {
   nav: PropTypes.object,
-  style: PropTypes.object,
 };
 
 export default SubNavigation;

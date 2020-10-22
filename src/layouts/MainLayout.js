@@ -9,7 +9,7 @@ import { useMedia, usePrevious } from 'react-use';
 import { useLocation } from '@reach/router';
 import RootNavigation from '../components/RootNavigation';
 import SubNavigation from '../components/SubNavigation';
-import { useTransition } from 'react-spring';
+import { animated, useTransition } from 'react-spring';
 
 const MainLayout = ({ data, children, path }) => {
   const {
@@ -98,13 +98,25 @@ const MainLayout = ({ data, children, path }) => {
                 overflow: auto;
               `}
             >
-              {transitions.map(({ item: isRoot, props }) =>
-                isRoot ? (
-                  <RootNavigation nav={rootNav} style={props} />
+              {transitions.map(({ item: isRoot, props }) => {
+                const style = {
+                  ...props,
+                  left: '2rem',
+                  right: '2rem',
+                  top: '2rem',
+                  bottom: '2rem',
+                };
+
+                return isRoot ? (
+                  <animated.div style={style}>
+                    <RootNavigation nav={rootNav} />
+                  </animated.div>
                 ) : (
-                  <SubNavigation nav={subNav || previousSubNav} style={props} />
-                )
-              )}
+                  <animated.div style={style}>
+                    <SubNavigation nav={subNav || previousSubNav} />
+                  </animated.div>
+                );
+              })}
             </Sidebar>
             <div
               css={css`
