@@ -2,54 +2,73 @@ import React, { useState } from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/core';
 import { Link } from 'gatsby';
-import styled from '@emotion/styled';
 import { Icon } from '@newrelic/gatsby-theme-newrelic';
 
-const StyledLink = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  cursor: pointer;
-  color: var(--primary-text-color);
-  transition: 0.2s ease-out;
-  padding: 0.5rem 0;
-  padding-left: ${({ depth }) => depth * 1}rem;
+const NavLink = ({
+  as: Element = 'div',
+  title,
+  depth,
+  isExpanded,
+  expandable,
+  onClick,
+  ...props
+}) => {
+  return (
+    <Element
+      {...props}
+      onClick={onClick}
+      css={css`
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        cursor: pointer;
+        color: var(--primary-text-color);
+        transition: 0.2s ease-out;
+        padding: 0.5rem 0;
+        padding-left: ${depth * 1}rem;
 
-  &:hover {
-    color: var(--primary-text-hover-color);
-  }
-`;
+        &:hover {
+          color: var(--primary-text-hover-color);
+        }
+      `}
+    >
+      <span
+        css={css`
+          flex: 1;
+        `}
+      >
+        {title}
+      </span>
+
+      {expandable && (
+        <Icon
+          name="chevron-down"
+          size="1rem"
+          css={css`
+            transform: rotate(${isExpanded ? 0 : -90}deg);
+            transition: 0.2s ease-out;
+          `}
+        />
+      )}
+    </Element>
+  );
+};
 
 const NavigationItem = ({ page, depth = 0 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
-  const linkProps = { depth, children: page.title };
+  const linkProps = {
+    depth,
+    expandable: page.pages?.length > 0,
+    title: page.title,
+    onClick: () => setIsExpanded((expanded) => !expanded),
+  };
 
   return (
     <>
       {page.path ? (
-        <StyledLink as={Link} to={page.path} {...linkProps} />
+        <NavLink as={Link} to={page.path} {...linkProps} />
       ) : (
-        <StyledLink
-          {...linkProps}
-          onClick={() => setIsExpanded((expanded) => !expanded)}
-        >
-          <span
-            css={css`
-              flex: 1;
-            `}
-          >
-            {linkProps.children}
-          </span>
-
-          <Icon
-            name="chevron-down"
-            size="1rem"
-            css={css`
-              transform: rotate(${isExpanded ? 0 : -90}deg);
-              transition: 0.2s ease-out;
-            `}
-          />
-        </StyledLink>
+        <NavLink {...linkProps} />
       )}
 
       {isExpanded &&
