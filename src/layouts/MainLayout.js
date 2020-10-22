@@ -35,6 +35,7 @@ const MainLayout = ({ data = {}, children, path }) => {
   const isSmallScreen = useMedia('(max-width: 760px)');
   const transition = useTransition(path === '/', {
     config: { mass: 1, friction: 34, tension: 400 },
+    initial: null,
     from: (isRoot) => ({
       opacity: 0,
       position: 'absolute',
