@@ -5,11 +5,11 @@ import { graphql } from 'gatsby';
 import { css } from '@emotion/core';
 import Sidebar from '../components/Sidebar';
 import MobileHeader from '../components/MobileHeader';
-import { useMedia } from 'react-use';
+import { useMedia, usePrevious } from 'react-use';
 import { useLocation } from '@reach/router';
 import RootNavigation from '../components/RootNavigation';
 import SubNavigation from '../components/SubNavigation';
-import { animated, useTransition } from 'react-spring';
+import { useTransition } from 'react-spring';
 
 const MainLayout = ({ data, children, path }) => {
   const {
@@ -20,18 +20,22 @@ const MainLayout = ({ data, children, path }) => {
 
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const location = useLocation();
+  // maintain the previous subnav so that exit transitions preserve the nav data
+  const previousSubNav = usePrevious(subNav);
+
   const isSmallScreen = useMedia('(max-width: 760px)');
   const transitions = useTransition(path === '/', null, {
+    config: { mass: 1, friction: 34, tension: 400 },
     from: (isRoot) => ({
       opacity: 0,
       position: 'absolute',
-      transform: `translateX(${isRoot ? '-150px' : '150px'})`,
+      transform: `translateX(${isRoot ? '-125px' : '125px'})`,
     }),
 
     enter: { opacity: 1, transform: 'translateX(0)' },
     leave: (isRoot) => ({
       opacity: 0,
-      transform: `translateX(${isRoot ? '-150px' : '150px'})`,
+      transform: `translateX(${isRoot ? '-125px' : '125px'})`,
     }),
   });
 
@@ -96,15 +100,9 @@ const MainLayout = ({ data, children, path }) => {
             >
               {transitions.map(({ item: isRoot, props }) =>
                 isRoot ? (
-                  <animated.div style={props}>
-                    <RootNavigation nav={rootNav} />
-                  </animated.div>
+                  <RootNavigation nav={rootNav} style={props} />
                 ) : (
-                  <animated.div style={props}>
-                    <SubNavigation
-                      nav={subNav || { title: 'surprise', pages: [] }}
-                    />
-                  </animated.div>
+                  <SubNavigation nav={subNav || previousSubNav} style={props} />
                 )
               )}
             </Sidebar>

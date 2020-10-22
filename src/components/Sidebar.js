@@ -7,7 +7,7 @@ const Sidebar = ({ className, children }) => (
     data-swiftype-index={false}
     className={className}
     css={css`
-      padding: 0 2rem 2rem;
+      padding: 2rem;
       border-right: 1px solid var(--divider-color);
 
       @media screen and (max-width: 760px) {
