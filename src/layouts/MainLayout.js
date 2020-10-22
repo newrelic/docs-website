@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
 import { GlobalHeader } from '@newrelic/gatsby-theme-newrelic';
-import { graphql } from 'gatsby';
+import { graphql, useStaticQuery } from 'gatsby';
 import { css } from '@emotion/core';
 import Sidebar from '../components/Sidebar';
 import MobileHeader from '../components/MobileHeader';
@@ -11,12 +11,21 @@ import RootNavigation from '../components/RootNavigation';
 import SubNavigation from '../components/SubNavigation';
 import { animated, useTransition } from 'react-spring';
 
-const MainLayout = ({ data, children, path }) => {
+const MainLayout = ({ data = {}, children, path }) => {
+  const { subNav, ...rootNav } = data;
+
   const {
     site: { layout },
-    subNav,
-    ...rootNav
-  } = data;
+  } = useStaticQuery(graphql`
+    query {
+      site {
+        layout {
+          contentPadding
+          maxWidth
+        }
+      }
+    }
+  `);
 
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const location = useLocation();
@@ -101,10 +110,10 @@ const MainLayout = ({ data, children, path }) => {
               {transitions.map(({ item: isRoot, props }) => {
                 const style = {
                   ...props,
-                  left: '2rem',
-                  right: '2rem',
-                  top: '2rem',
-                  paddingBottom: '2rem',
+                  left: layout.contentPadding,
+                  right: layout.contentPadding,
+                  top: layout.contentPadding,
+                  paddingBottom: layout.contentPadding,
                 };
 
                 return isRoot ? (
@@ -160,12 +169,6 @@ MainLayout.propTypes = {
 
 export const query = graphql`
   fragment MainLayout_query on Query {
-    site {
-      layout {
-        contentPadding
-        maxWidth
-      }
-    }
     subNav: navYaml(title: { eq: $nav }) {
       ...MainLayout_navFields
       pages {
@@ -187,6 +190,7 @@ export const query = graphql`
 
     ...RootNavigation_pages
   }
+
   fragment MainLayout_navFields on NavYaml {
     title
     path
