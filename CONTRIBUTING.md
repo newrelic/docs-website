@@ -137,7 +137,7 @@ when creating documentation. Refer to our [Component Guide](COMPONENT_GUIDE.md) 
 
 ## Updating the navigation
 
-Navigation for [docs.newrelic.com](https://docs.newrelic.com) is stored in `YAML` files located in the [`src/nav`](./src/nav) directory. Each top-level navigation should have it's own configuration file. For example, here is a snippet of the [`src/nav/insights.yml`](./src/nav/insights.yml) configuration:
+Navigation for [docs.newrelic.com](https://docs.newrelic.com) is stored in `YAML` files located in the [src/nav](./src/nav) directory. Each top-level navigation should have it's own configuration file. For example, here is a snippet of the [src/nav/insights.yml](./src/nav/insights.yml) configuration:
 
 ```yml
 title: Insights
@@ -171,11 +171,11 @@ When the user goes to a page, we determine which section of the site they are on
 ## Adding a new page
 
 1. Determine which section of the navigation you would like the page to belong to (i.e. _Full Stack Observability_).
-2. Find the configuration file for that section (i.e. [`src/nav/full-stack-observability.yml`](./src/nav/full-stack-observability.yml)).
+2. Find the configuration file for that section (i.e. [src/nav/full-stack-observability.yml](./src/nav/full-stack-observability.yml)).
 3. Find the parent page you would like the new page to live under.
 4. Add a "node" for the page under the parent page's `children`.
 
-If you intend on adding an entirely new section to the navigation, create a new file in the [`src/nav`](./src/nav) directory using the same format as outlined above.
+If you intend on adding an entirely new section to the navigation, create a new file in the [src/nav](./src/nav) directory using the same format as outlined above.
 
 ## Moving a page to a new location
 
