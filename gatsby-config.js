@@ -53,7 +53,7 @@ module.exports = {
     {
       resolve: 'gatsby-plugin-layout',
       options: {
-        component: require.resolve('./src/layouts/MainLayout'),
+        component: require.resolve('./src/layouts'),
       },
     },
     {
@@ -109,6 +109,13 @@ module.exports = {
             },
           },
         ],
+      },
+    },
+    `gatsby-transformer-yaml`,
+    {
+      resolve: `gatsby-source-filesystem`,
+      options: {
+        path: `./src/nav/`,
       },
     },
   ],

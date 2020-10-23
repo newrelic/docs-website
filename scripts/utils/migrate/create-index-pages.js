@@ -95,12 +95,8 @@ const generateMDX = (dir) => {
 };
 
 const createIndexPages = (files) => {
-  const contentDirectory = fromList(
-    files.sort((a, b) => a.path.localeCompare(b.path)),
-    (file) =>
-      file.extname === '.mdx'
-        ? { frontmatter: fm(file.contents).attributes }
-        : {}
+  const contentDirectory = fromList(files, (file) =>
+    file.extname === '.mdx' ? { frontmatter: fm(file.contents).attributes } : {}
   );
 
   const indexFiles = [];

@@ -15,15 +15,24 @@ const toVFile = (doc) => {
   const filename = doc.type === TYPES.LANDING_PAGE ? 'index' : basename;
   const extension = EXTENSIONS[doc.type] || DEFAULT_EXTENSION;
 
-  const file = vfile({
+  return vfile({
     path: path.join(BASE_DIR, dirname, filename + extension),
     contents: doc.body || '',
     data: {
       doc,
+      topics: getTopics(doc),
     },
   });
+};
 
-  return file;
+const getTopics = (doc) => {
+  return Object.entries(doc)
+    .reduce(
+      (topics, [key, value]) =>
+        key.startsWith('topic_') ? [...topics, value] : topics,
+      []
+    )
+    .filter(Boolean);
 };
 
 module.exports = toVFile;

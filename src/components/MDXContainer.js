@@ -14,7 +14,7 @@ import {
 import Collapser from './Collapser';
 import CollapserGroup from './CollapserGroup';
 import Table from './Table';
-import { Link } from 'gatsby';
+import MDXLink from './MDXLink';
 
 const Wrapper = ({ children }) => (
   <div
@@ -75,7 +75,7 @@ InlineCode.propTypes = {
 };
 
 const components = {
-  Link,
+  a: MDXLink,
   code: MDXCodeBlock,
   pre: (props) => props.children,
   wrapper: Wrapper,

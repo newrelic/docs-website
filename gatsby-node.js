@@ -26,8 +26,8 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
   const { createPage } = actions;
 
   // NOTE: update 1,000 magic number
-  const result = await graphql(`
-    {
+  const { data, errors } = await graphql(`
+    query {
       allMdx(
         limit: 1000
         filter: { fileAbsolutePath: { regex: "/src/content/" } }
@@ -39,29 +39,119 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
             }
             frontmatter {
               template
+              topics
+            }
+          }
+        }
+      }
+
+      allNavYaml {
+        edges {
+          node {
+            ...NavFields
+            pages {
+              ...NavFields
+              pages {
+                ...NavFields
+                pages {
+                  ...NavFields
+                  pages {
+                    ...NavFields
+                    pages {
+                      ...NavFields
+                      pages {
+                        ...NavFields
+                        pages {
+                          ...NavFields
+                        }
+                      }
+                    }
+                  }
+                }
+              }
             }
           }
         }
       }
     }
+
+    fragment NavFields on NavYaml {
+      title
+      path
+    }
   `);
 
-  // Handle errors
-  if (result.errors) {
+  if (errors) {
     reporter.panicOnBuild(`Error while running GraphQL query.`);
     return;
   }
 
-  result.data.allMdx.edges.forEach(({ node }) => {
+  const { allMdx, allNavYaml } = data;
+
+  allMdx.edges.forEach(({ node }) => {
     const { frontmatter, fields } = node;
     const { fileRelativePath } = fields;
+
+    const nav = allNavYaml.edges
+      .map(({ node }) => node)
+      .find((nav) => findPage(nav, fileRelativePath));
 
     createPage({
       path: fileRelativePath,
       component: path.resolve(`${TEMPLATE_DIR}${frontmatter.template}.js`),
       context: {
         fileRelativePath,
+        nav: nav && nav.title,
       },
     });
   });
+};
+
+exports.createSchemaCustomization = ({ actions }) => {
+  const { createTypes } = actions;
+
+  const typeDefs = `
+  type NavYaml implements Node @dontInfer {
+    id: ID!
+    title: String!
+    path: String
+    pages: [NavYaml!]!
+  }
+  `;
+
+  createTypes(typeDefs);
+};
+
+exports.createResolvers = ({ createResolvers }) => {
+  createResolvers({
+    NavYaml: {
+      pages: {
+        resolve: (source) => {
+          return source.pages || [];
+        },
+      },
+    },
+  });
+};
+
+exports.onCreatePage = ({ page, actions }) => {
+  const { createPage } = actions;
+
+  if (page.path.match(/404/)) {
+    page.context.layout = '404';
+
+    createPage(page);
+  }
+};
+
+const findPage = (page, path) => {
+  if (page.path === path) {
+    return page;
+  }
+
+  if (page.pages == null || page.pages.length === 0) {
+    return null;
+  }
+
+  return page.pages.find((child) => findPage(child, path));
 };

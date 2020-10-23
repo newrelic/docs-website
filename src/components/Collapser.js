@@ -1,9 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useLayoutEffect, useRef } from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/core';
 import { Icon } from '@newrelic/gatsby-theme-newrelic';
 import { animated, useSpring } from 'react-spring';
-import useMeasure from 'react-use-measure';
 
 const collapserIcon = (isOpen) => css`
   margin-left: auto;
@@ -15,9 +14,16 @@ transform: rotate(180deg);`}
 `;
 
 const Collapser = ({ title, id, openByDefault, className, children }) => {
+  const ref = useRef();
   const [isOpen, setIsOpen] = useState(openByDefault);
-  const [ref, { height }] = useMeasure();
+  const [height, setHeight] = useState(0);
   const style = useSpring({ height: isOpen ? height : 0 });
+
+  useLayoutEffect(() => {
+    const { height } = ref.current.getBoundingClientRect();
+
+    setHeight(height);
+  }, []);
 
   return (
     <div
