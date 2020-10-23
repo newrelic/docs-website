@@ -1,30 +1,185 @@
-# Contributing
+# Table of Contents
 
-Contributions are always welcome. Before contributing please read the
-[code of conduct](./CODE_OF_CONDUCT.md) and [search the issue tracker](issues); your issue may have already been discussed or fixed in `main`. To contribute,
-[fork](https://help.github.com/articles/fork-a-repo/) this repository, commit your changes, and [send a Pull Request](https://help.github.com/articles/using-pull-requests/).
+- [Table of Contents](#table-of-contents)
+  - [Guidelines for contributing](#guidelines-for-contributing)
+  - [Getting started](#getting-started)
+    - [Using multiple versions of Node](#using-multiple-versions-of-node)
+    - [Quick edits](#quick-edits)
+    - [Cloning vs Forking](#cloning-vs-forking)
+    - [Submitting a PR from a forked repo](#submitting-a-pr-from-a-forked-repo)
+    - [Submitting a PR from a cloned repo](#submitting-a-pr-from-a-cloned-repo)
+    - [Using the `develop` branch](#using-the-develop-branch)
+    - [Draft PRs](#draft-prs)
+    - [Deploy previews with Amplify](#deploy-previews-with-amplify)
+  - [Style guide adherence](#style-guide-adherence)
+  - [Reusable components](#reusable-components)
+  - [Editing existing pages](#editing-existing-pages)
+  - [Creating new pages](#creating-new-pages)
+  - [Deleting pages](#deleting-pages)
+  - [Updating the navigation](#updating-the-navigation)
+  - [Adding a new page](#adding-a-new-page)
+  - [Moving a page to a new location](#moving-a-page-to-a-new-location)
 
-Note that our [code of conduct](./CODE_OF_CONDUCT.md) applies to all platforms and venues related to this project; please follow it in all your interactions with the project and its participants.
+## Guidelines for contributing
 
-## Feature Requests
+The Documentation Team and Developer Experience Team at New Relic welcomes contributions to this repository.
+There are several ways you can contribute.
 
-Feature requests should be submitted in the [Issue tracker](../../issues), with a description of the expected behavior & use case, where they’ll remain closed until sufficient interest, [e.g. :+1: reactions](https://help.github.com/articles/about-discussions-in-issues-and-pull-requests/), has been [shown by the community](../../issues?q=label%3A%22votes+needed%22+sort%3Areactions-%2B1-desc).
-Before submitting an Issue, please search for similar ones in the
-[closed issues](../../issues?q=is%3Aissue+is%3Aclosed+label%3Aenhancement).
+If you wish to make documentation edits or add new
+documentation, follow our documentation contribution guidelines below.
 
-## Pull Requests
+If you'd like to to make code contributions follow the code contribution
+guidelines below.
 
-1. Ensure any install or build dependencies are removed before the end of the layer when doing a build.
-2. Increase the version numbers in any examples files and the README.md to the new version that this Pull Request would represent. The versioning scheme we use is [SemVer](http://semver.org/).
-3. You may merge the Pull Request in once you have the sign-off of two other developers, or if you do not have permission to do that, you may request the second reviewer to merge it for you.
+## Getting started
 
-## Contributor License Agreement
+### Using multiple versions of Node
 
-Keep in mind that when you submit your Pull Request, you'll need to sign the CLA via the click-through using CLA-Assistant. If you'd like to execute our corporate CLA, or if you have any questions, please drop us an email at opensource@newrelic.com.
+If you intend to run multiple versions of Node please be aware that the New Relic
+Developer Site is currently on Node v12. Therefore it's recommended you use Node Version Manager [NVM](https://github.com/nvm-sh/nvm) to manage Node versions.
 
-For more information about CLAs, please check out Alex Russell’s excellent post,
-[“Why Do I Need to Sign This?”](https://infrequently.org/2008/06/why-do-i-need-to-sign-this/).
+Review [this article](https://itnext.io/nvm-the-easiest-way-to-switch-node-js-environments-on-your-machine-in-a-flash-17babb7d5f1b)
+which clearly explains the setup and configuration of NVM.
 
-## Slack
+### Quick edits
 
-We host a public Slack with a dedicated channel for contributors and maintainers of open source projects hosted by New Relic.  If you are contributing to this project, you're welcome to request access to the #oss-contributors channel in the newrelicusers.slack.com workspace.  To request access, see https://newrelicusers-signup.herokuapp.com/.
+If you see a minor problem in our documentation that you want to quickly fix,
+you can use the Github `Edit This File` button to submit a change.
+
+0. Create a [Github](https://github.com/) account if you don't already have one.
+1. View the file on Github.
+2. In the file click on the pencil icon within the code block.
+3. Provide a clear explanation of the change as a comment.
+4. create a new branch.
+5. Submit a `PR`.
+6. And you are done!
+
+### Cloning vs Forking
+
+To be able to [Clone](https://help.github.com/en/github/creating-cloning-and-archiving-repositories/cloning-a-repository) this repository and contribute you will need to be given write access to the repository. This is reserved for New Relic Employees only. Contact the Developer Experience team (developer-website-content Slack channel) if you need write access.
+
+As a non New Relic employee you can [Fork](https://help.github.com/en/github/getting-started-with-github/fork-a-repo) the repository and contribute as needed.
+
+### Submitting a PR from a forked repo
+
+0. Create a [Github](https://github.com/) account if you don't already have one.
+1. `Fork` this this repository.
+2. Make your changes.
+3. Test your changes! Review the project's [READ ME](README.md) for instructions on how to build and run tests locally.
+4. Submit a `Pull Request` to this project with your changes.
+5. If/when your `PR` is accepted, the automation in this project will build the site and deploy a new version of the code to `docs.newrelic.com`.
+6. And you are done!
+
+### Submitting a PR from a cloned repo
+
+0. Create a [Github](https://github.com/) account if you don't already have one.
+1. `Clone` this repository.
+2. Create a new branch locally.
+3. Make your changes.
+4. Test your changes! Review the project's [READ ME](README.md) for instructions on how to build and run tests locally.
+5. Submit a `Pull Request` to this project with your changes.
+6. If/when your `PR` is accepted, the automation in this project will build the site and deploy a new version of the code to `docs.newrelic.com`.
+7. And you are done!
+
+### Using the `develop` branch
+
+Use the `develop` branch when creating your working branch locally. `develop` will always contain the most
+current source code. The `develop` branch will be merged into the `main` branch by the maintainers when a new release is ready to ship.
+
+All pull requests should be made against the `develop` branch.
+
+### Draft PRs
+
+`Draft PRs` are ideal for in progress work or work you need others to contribute to.
+
+To submit a [Draft PR](https://github.blog/2019-02-14-introducing-draft-pull-requests/):
+
+1. Make your code changes and submit a `Pull Request`.
+2. Select Create a draft pull request on the PR submission screen on Github.
+   You can find this by clicking on the Create pull request button at the bottom of the
+   `PR` you wish to submit.
+3. Once you are ready to have the `PR` reviewed and merge, click the Ready for review button on the `PR`.
+
+### Deploy previews with Amplify
+
+PRs that are opened from a branch in this repo (not forks) will generate preview links on Amplify automatically. Amplify preview links can be found within the PR under the `Checks` Tab.
+
+## Style guide adherence
+
+In order to drive consistency in our documentation New Relic has provided a detailed [Style Guide](STYLE_GUIDE.md)
+for you to follow when making contributions. Refer to this guide prior to contributing.
+When making documentation contributions follow these guidelines.
+
+## Reusable components
+
+In order to drive simplicity and ease of use New Relic has provided a set of reusable components you can leverage
+when creating documentation. Refer to our [Component Guide](COMPONENT_GUIDE.md) for more information.
+
+## Editing existing pages
+
+1. To edit an existing page you can view the page's source code by clicking on the `Edit` icon in the upper right corner of the site.
+2. Follow the instructions above to `Fork` or `Clone` the repo and make your edits.
+3. Follow the instructions above to submit a `PR` for your change.
+
+## Creating new pages
+
+1. If you'd like to create an entirely new page of documentation file a [Documentation Request](https://github.com/newrelic/docs-website/issues/new/choose)
+2. The Documentation Team will review the request to add a new documentation page.
+3. If a new page is approved you may be asked to help write the page content.
+4. If you are willing to assist in the process of creating a new page, then follow the instructions above to `Fork` or `Clone` the repo and make your edits.
+5. Follow the instructions above to submit a `PR` for your change.
+
+## Deleting pages
+
+1. If you feel a page needs to be deleted file a [Documentation Request](https://github.com/newrelic/docs-website/issues/new/choose).
+2. The Documentation Team will review the request to delete an existing documentation page.
+3. If the deletion is approved, The Developer Experience Team will delete the page.
+
+## Updating the navigation
+
+Navigation for [docs.newrelic.com](https://docs.newrelic.com) is stored in `YAML` files located in the [src/nav](./src/nav) directory. Each top-level navigation should have it's own configuration file. For example, here is a snippet of the [src/nav/insights.yml](./src/nav/insights.yml) configuration:
+
+```yml
+title: Insights
+children:
+  - title: Use Insights UI
+    children:
+      - title: Getting started
+        children:
+          - title: Introduction to New Relic Insights
+            path: /docs/insights/use-insights-ui/getting-started/introduction-new-relic-insights
+      - title: Manage dashboards
+        children:
+          - title: Chart types
+            path: /docs/insights/use-insights-ui/manage-dashboards/chart-types
+          - title: Filter Insights dashboards
+            path: /docs/insights/use-insights-ui/manage-dashboards/filter-insights-dashboards
+          - title: View, organize, share Insights dashboards
+            path: /docs/insights/use-insights-ui/manage-dashboards/view-organize-share-insights-dashboards
+```
+
+Each "node" in the `.yml` configuration file can have the following properties:
+
+| Key        | Required? | Description                               |
+| ---------- | --------- | ----------------------------------------- |
+| `title`    | yes       | The text that is shown in the navigation. |
+| `path`     | no        | The URL path to the page.                 |
+| `children` | no        | Any sub-navigation "nodes".               |
+
+When the user goes to a page, we determine which section of the site they are on and load the appropriate `.yml` file to populate the sidebar navigation. The navigation for the homepage is an aggregate of all the top-level pages.
+
+## Adding a new page
+
+1. Determine which section of the navigation you would like the page to belong to (i.e. _Full Stack Observability_).
+2. Find the configuration file for that section (i.e. [src/nav/full-stack-observability.yml](./src/nav/full-stack-observability.yml)).
+3. Find the parent page you would like the new page to live under.
+4. Add a "node" for the page under the parent page's `children`.
+
+If you intend on adding an entirely new section to the navigation, create a new file in the [src/nav](./src/nav) directory using the same format as outlined above.
+
+## Moving a page to a new location
+
+1. Determine which section of the navigation the page.
+2. Find the configuration file for that section.
+3. Find the page within the configuration file and delete that entry.
+4. Follow the steps above to add the page to a new location.
