@@ -145,7 +145,7 @@ const HomePage = ({ data }) => {
           <IntegrationTile
             name=".NET"
             icon="dotnet"
-            to="/docs/agents/go-agent"
+            to="/docs/agents/net-agent"
           />
           <IntegrationTile
             name="Node.js"
@@ -195,7 +195,7 @@ const HomePage = ({ data }) => {
           <IntegrationTile
             name="Azure"
             icon="azure"
-            to="/docs/integrations/microsoft-azure-integrations/"
+            to="/docs/integrations/microsoft-azure-integrations"
           />
           <IntegrationTile
             name="Google Cloud"
