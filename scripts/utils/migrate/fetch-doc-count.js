@@ -27,7 +27,7 @@ const fetchDocCount = async () => {
               migratedCount, 
               totalCount
           }), 
-          path: `${process.cwd()}/src/count`,
+          path: `${process.cwd()}/src/data/count`,
           extname: '.json'
       }))
     } catch {
