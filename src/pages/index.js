@@ -19,6 +19,7 @@ const HomePage = ({ data }) => {
   return (
     <>
       <Section layout={layout}>
+        <h1>Welcome to New Relic</h1>
         <div
           css={css`
             display: flex;
@@ -34,14 +35,12 @@ const HomePage = ({ data }) => {
               margin-right: 2rem;
 
               @media screen and (max-width: 1500px) {
-                flex-direction: column;
+                max-width: 550px;
                 margin-right: 0;
                 margin-bottom: 2rem;
-                max-width: 600px;
               }
             `}
           >
-            <h1>Welcome to New Relic</h1>
             <p>
               If you're new, follow these three steps to create an account and
               get going (it's free!).
@@ -66,10 +65,27 @@ const HomePage = ({ data }) => {
           <div
             css={css`
               display: grid;
-              grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+              grid-template-columns: repeat(3, 1fr);
               grid-gap: 1rem;
               counter-reset: welcome-tile;
               flex: 2;
+              align-self: flex-start;
+
+              @media screen and (max-width: 1500px) {
+                align-self: auto;
+              }
+
+              @media screen and (max-width: 1050px) {
+                grid-template-columns: 1fr;
+              }
+
+              @media screen and (max-width: 760px) {
+                grid-template-columns: repeat(3, 1fr);
+              }
+
+              @media screen and (max-width: 650px) {
+                grid-template-columns: 1fr;
+              }
             `}
           >
             <WelcomeTile
@@ -264,14 +280,34 @@ const pulse = keyframes`
 
 const WelcomeTile = ({ description, title, to }) => (
   <SurfaceLink
-    base={Surface.BASE.SECONDARY}
+    base={Surface.BASE.PRIMARY}
     to={to}
     css={css`
       text-align: center;
-      padding: 4rem 1rem 0;
+      padding: 3.5rem 1rem 1.5rem;
       color: currentColor;
       position: relative;
-      height: 250px;
+      min-height: 200px;
+
+      @media screen and (max-width: 1050px) {
+        min-height: 175px;
+
+        &:not(:last-child) {
+          margin-bottom: 2rem;
+        }
+      }
+
+      @media screen and (max-width: 760px) {
+        && {
+          margin-bottom: 0;
+        }
+      }
+
+      @media screen and (max-width: 650px) {
+        &:not(:last-child) {
+          margin-bottom: 2rem;
+        }
+      }
 
       .light-mode & {
         border: 1px solid var(--border-color);
@@ -304,7 +340,7 @@ const WelcomeTile = ({ description, title, to }) => (
         border-radius: 50%;
         height: 2.75rem;
         width: 2.75rem;
-        border: 3px solid var(--color-dark-100);
+        border: 1px solid var(--color-dark-100);
         background: var(--primary-background-color);
         transition: border-color 0.15s ease-out;
 
@@ -334,22 +370,12 @@ WelcomeTile.propTypes = {
 };
 
 const DocTileGrid = ({ children }) => {
-  const maxTiles = Math.min(Children.count(children), 5);
-
   return (
     <div
       css={css`
         display: grid;
-        grid-template-columns: repeat(${maxTiles}, 1fr);
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
         grid-gap: 1rem;
-
-        @media screen and (max-width: 1470px) {
-          grid-template-columns: repeat(3, 1fr);
-        }
-
-        @media screen and (max-width: 700px) {
-          grid-template-columns: 1fr;
-        }
       `}
     >
       {children}
