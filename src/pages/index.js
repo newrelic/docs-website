@@ -7,6 +7,7 @@ import { rgba } from 'polished';
 import AIIcon from '../components/AIIcon';
 import FSOIcon from '../components/FSOIcon';
 import TDPIcon from '../components/TDPIcon';
+import IntegrationIcon from '../components/IntegrationIcon';
 import SurfaceLink from '../components/SurfaceLink';
 
 const HomePage = ({ data }) => {
@@ -93,11 +94,11 @@ const HomePage = ({ data }) => {
         <SectionDescription>
           Ingest, visualize, and alert on all your telemetry data in one place.
         </SectionDescription>
-        <TileGrid>
+        <DocTileGrid>
           {tdpGuides.map((guide, idx) => (
             <DocTile key={idx} guide={guide} base={Surface.BASE.SECONDARY} />
           ))}
-        </TileGrid>
+        </DocTileGrid>
       </Section>
       <Section layout={layout}>
         <SectionTitle title="Full-Stack Observability" icon={FSOIcon} />
@@ -105,11 +106,11 @@ const HomePage = ({ data }) => {
           Analyze and troubleshoot problems easily across your entire software
           stack.
         </SectionDescription>
-        <TileGrid>
+        <DocTileGrid>
           {fsoGuides.map((guide, idx) => (
             <DocTile key={idx} guide={guide} base={Surface.BASE.PRIMARY} />
           ))}
-        </TileGrid>
+        </DocTileGrid>
       </Section>
       <Section alternate layout={layout}>
         <SectionTitle
@@ -120,11 +121,202 @@ const HomePage = ({ data }) => {
           Automatically detect anomalies, correlate issues, and reduce alert
           noise.
         </SectionDescription>
-        <TileGrid>
+        <DocTileGrid>
           {aiGuides.map((guide, idx) => (
             <DocTile key={idx} guide={guide} base={Surface.BASE.SECONDARY} />
           ))}
-        </TileGrid>
+        </DocTileGrid>
+      </Section>
+      <Section layout={layout}>
+        <SectionTitle title="New Relic integrations" />
+        <SectionDescription>
+          <Link to="/docs/integrations/intro-integrations/get-started/introduction-new-relic-integrations">
+            Integrations
+          </Link>{' '}
+          connect the technologies in your stack to New Relic. Here are a few of
+          our{' '}
+          <a href="https://newrelic.com/integrations" rel="noopener noreferrer">
+            370+ integrations
+          </a>
+          :
+        </SectionDescription>
+
+        <IntegrationTitle>
+          Back-end, front-end, and mobile applications
+        </IntegrationTitle>
+        <IntegrationTileGrid>
+          <IntegrationTile name="C SDK" icon="c" to="/docs/agents/c-sdk" />
+          <IntegrationTile name="Go" icon="go" to="/docs/agents/go-agent" />
+          <IntegrationTile
+            name="Java"
+            icon="java"
+            to="/docs/agents/java-agent"
+          />
+          <IntegrationTile
+            name=".NET"
+            icon="dotnet"
+            to="/docs/agents/go-agent"
+          />
+          <IntegrationTile
+            name="Node.js"
+            icon="nodejs"
+            to="/docs/agents/nodejs-agent"
+          />
+          <IntegrationTile name="PHP" icon="php" to="/docs/agents/php-agent" />
+          <IntegrationTile
+            name="Python"
+            icon="python"
+            to="/docs/agents/python-agent"
+          />
+          <IntegrationTile
+            name="Ruby"
+            icon="ruby"
+            to="/docs/agents/ruby-agent"
+          />
+          <IntegrationTile
+            name="Android"
+            icon="android"
+            to="/docs/mobile-monitoring/new-relic-mobile-android/get-started/introduction-new-relic-mobile-android"
+          />
+          <IntegrationTile
+            name="iOS"
+            icon="apple"
+            to="/docs/mobile-monitoring/new-relic-mobile-ios/get-started/introduction-new-relic-mobile-ios"
+          />
+          <IntegrationTile
+            name="Browser"
+            icon="javascript"
+            to="/docs/browser"
+          />
+          <IntegrationTile
+            name="Synthetics"
+            icon="newrelic"
+            to="/docs/synthetics"
+          />
+        </IntegrationTileGrid>
+
+        <IntegrationTitle>Infrastructure and cloud platforms</IntegrationTitle>
+        <IntegrationTileGrid>
+          <IntegrationTile
+            name="AWS"
+            icon="aws"
+            to="/docs/integrations/amazon-integrations"
+          />
+          <IntegrationTile
+            name="Azure"
+            icon="azure"
+            to="/docs/integrations/microsoft-azure-integrations/"
+          />
+          <IntegrationTile
+            name="Google Cloud"
+            icon="gcloud"
+            to="/docs/integrations/google-cloud-platform-integrations"
+          />
+          <IntegrationTile
+            name="Linux"
+            icon="linux"
+            to="/docs/infrastructure/install-configure-manage-infrastructure/linux-installation/install-infrastructure-linux-using-package-manager"
+          />
+          <IntegrationTile
+            name="Windows"
+            icon="windows"
+            to="/docs/infrastructure/install-configure-manage-infrastructure/windows-installation/install-infrastructure-windows-server-using-msi-installer"
+          />
+          <IntegrationTile
+            name="Kubernetes"
+            icon="kubernetes"
+            to="/docs/integrations/kubernetes-integration/get-started/introduction-kubernetes-integration"
+          />
+          <IntegrationTile
+            name="Apache"
+            icon="apache"
+            to="/docs/integrations/host-integrations/host-integrations-list/apache-monitoring-integration"
+          />
+          <IntegrationTile
+            name="Kafka"
+            icon="kafka"
+            to="/docs/integrations/host-integrations/host-integrations-list/kafka-monitoring-integration"
+          />
+          <IntegrationTile
+            name="Microsoft SQL"
+            icon="mssql"
+            to="/docs/integrations/host-integrations/host-integrations-list/microsoft-sql-server-monitoring-integration"
+          />
+          <IntegrationTile
+            name="MongoDB"
+            icon="mongodb"
+            to="/docs/integrations/host-integrations/host-integrations-list/mongodb-monitoring-integration"
+          />
+          <IntegrationTile
+            name="MySQL"
+            icon="mysql"
+            to="/docs/integrations/host-integrations/host-integrations-list/mysql-monitoring-integration"
+          />
+          <IntegrationTile
+            name="NGINX"
+            icon="nginx"
+            to="/docs/integrations/host-integrations/host-integrations-list/nginx-monitoring-integration"
+          />
+          <IntegrationTile
+            name="PostgreSQL"
+            icon="postgresql"
+            to="/docs/integrations/host-integrations/host-integrations-list/postgresql-monitoring-integration"
+          />
+          <IntegrationTile
+            name="Redis"
+            icon="redis"
+            to="/docs/integrations/host-integrations/host-integrations-list/redis-monitoring-integration"
+          />
+        </IntegrationTileGrid>
+
+        <IntegrationTitle>Open-source monitoring systems</IntegrationTitle>
+        <IntegrationTileGrid>
+          <IntegrationTile
+            name="Dropwizard"
+            icon="dropwizard"
+            to="/docs/integrations/open-source-telemetry-integrations/open-source-telemetry-integration-list/new-relics-dropwizard-integration"
+          />
+          <IntegrationTile
+            name="Istio"
+            icon="istio"
+            to="/docs/integrations/open-source-telemetry-integrations/open-source-telemetry-integration-list/new-relics-istio-integration"
+          />
+          <IntegrationTile
+            name="JMX"
+            icon="jmx"
+            to="/docs/integrations/host-integrations/host-integrations-list/jmx-monitoring-integration"
+          />
+          <IntegrationTile
+            name="Kamon"
+            icon="kamon"
+            to="/docs/integrations/open-source-telemetry-integrations/open-source-telemetry-integration-list/kamon-reporter"
+          />
+          <IntegrationTile
+            name="Micrometer"
+            icon="micrometer"
+            to="/docs/integrations/open-source-telemetry-integrations/open-source-telemetry-integration-list/new-relics-micrometer-integration"
+          />
+          <IntegrationTile
+            name="OpenCensus"
+            icon="opencensus"
+            to="/docs/integrations/open-source-telemetry-integrations/open-source-telemetry-integration-list/new-relics-opencensus-integration"
+          />
+          <IntegrationTile
+            name="OpenTelemetry"
+            icon="opentelemetry"
+            to="/docs/integrations/open-source-telemetry-integrations/open-source-telemetry-integration-list/new-relics-opentelemetry-integration"
+          />
+          <IntegrationTile
+            name="Prometheus"
+            icon="prometheus"
+            to="/docs/integrations/prometheus-integrations/get-started/prometheus-integrations-how-choose"
+          />
+          <IntegrationTile
+            name="StatsD"
+            icon="statsd"
+            to="/docs/integrations/host-integrations/host-integrations-list/statsd-monitoring-integration-version-2"
+          />
+        </IntegrationTileGrid>
       </Section>
     </>
   );
@@ -320,12 +512,14 @@ const SectionTitle = ({ title, icon: Icon }) => (
       align-items: center;
     `}
   >
-    <Icon
-      size="3rem"
-      css={css`
-        margin-right: 1rem;
-      `}
-    />
+    {Icon && (
+      <Icon
+        size="3rem"
+        css={css`
+          margin-right: 1rem;
+        `}
+      />
+    )}
     {title}
   </h2>
 );
@@ -421,7 +615,7 @@ WelcomeTile.propTypes = {
   to: PropTypes.string,
 };
 
-const TileGrid = ({ children }) => (
+const DocTileGrid = ({ children }) => (
   <div
     css={css`
       display: grid;
@@ -441,7 +635,7 @@ const TileGrid = ({ children }) => (
   </div>
 );
 
-TileGrid.propTypes = {
+DocTileGrid.propTypes = {
   children: PropTypes.node,
 };
 
@@ -469,6 +663,7 @@ const DocTile = ({ base, guide: { title, description, to } }) => (
     <p>{description}</p>
   </SurfaceLink>
 );
+
 DocTile.propTypes = {
   base: Surface.propTypes.base,
   guide: PropTypes.shape({
@@ -476,6 +671,82 @@ DocTile.propTypes = {
     description: PropTypes.string.isRequired,
     to: PropTypes.string.isRequired,
   }).isRequired,
+};
+
+const IntegrationTitle = ({ children }) => (
+  <h3
+    css={css`
+      margin-top: 2rem;
+      margin-bottom: 1rem;
+    `}
+  >
+    {children}
+  </h3>
+);
+
+IntegrationTitle.propTypes = {
+  children: PropTypes.node,
+};
+
+const IntegrationTileGrid = ({ children }) => (
+  <div
+    css={css`
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+      grid-gap: 1rem;
+    `}
+  >
+    {children}
+  </div>
+);
+
+IntegrationTileGrid.propTypes = {
+  children: PropTypes.node,
+};
+
+const IntegrationTile = ({ name, icon, to }) => (
+  <SurfaceLink
+    to={to}
+    base={Surface.BASE.SECONDARY}
+    css={css`
+      text-align: center;
+      padding: 0.5rem;
+      color: currentColor;
+
+      &:hover {
+        color: currentColor;
+      }
+
+      .light-mode & {
+        border: 1px solid var(--border-color);
+
+        &:hover {
+          border-color: var(--border-hover-color);
+        }
+      }
+    `}
+  >
+    <IntegrationIcon
+      name={icon}
+      size="2rem"
+      css={css`
+        margin-bottom: 0.5rem;
+      `}
+    />
+    <div
+      css={css`
+        font-size: 0.875rem;
+      `}
+    >
+      {name}
+    </div>
+  </SurfaceLink>
+);
+
+IntegrationTile.propTypes = {
+  name: PropTypes.string,
+  icon: IntegrationIcon.propTypes.name,
+  to: PropTypes.string,
 };
 
 export default HomePage;
