@@ -17,7 +17,7 @@ const fetchDocCount = async () => {
       });
       const result = await resp.json();
       
-      const totalCount = result.docs[0].count.all; 
+      const totalCount = parseInt(result.docs[0].count.all); 
       const migratedCount = Object.values(ITEMS_PER_TYPE).reduce((acc, cur)=>{
         return parseInt(cur) + acc
       }, 0)
