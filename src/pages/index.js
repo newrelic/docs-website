@@ -1,4 +1,4 @@
-import React, { Children } from 'react';
+import React, { Children, Fragment } from 'react';
 import PropTypes from 'prop-types';
 import { css, keyframes } from '@emotion/core';
 import { Link, graphql } from 'gatsby';
@@ -9,7 +9,7 @@ import FSOIcon from '../components/FSOIcon';
 import TDPIcon from '../components/TDPIcon';
 import IntegrationIcon from '../components/IntegrationIcon';
 import SurfaceLink from '../components/SurfaceLink';
-import { tdp, fso, ai, security } from '../data/homepage.yml';
+import { tdp, fso, ai, security, integrations } from '../data/homepage.yml';
 
 const HomePage = ({ data }) => {
   const {
@@ -131,182 +131,17 @@ const HomePage = ({ data }) => {
           :
         </SectionDescription>
 
-        <IntegrationTitle>
-          Back-end, front-end, and mobile applications
-        </IntegrationTitle>
-        <IntegrationTileGrid>
-          <IntegrationTile name="C SDK" icon="c" to="/docs/agents/c-sdk" />
-          <IntegrationTile name="Go" icon="go" to="/docs/agents/go-agent" />
-          <IntegrationTile
-            name="Java"
-            icon="java"
-            to="/docs/agents/java-agent"
-          />
-          <IntegrationTile
-            name=".NET"
-            icon="dotnet"
-            to="/docs/agents/net-agent"
-          />
-          <IntegrationTile
-            name="Node.js"
-            icon="nodejs"
-            to="/docs/agents/nodejs-agent"
-          />
-          <IntegrationTile name="PHP" icon="php" to="/docs/agents/php-agent" />
-          <IntegrationTile
-            name="Python"
-            icon="python"
-            to="/docs/agents/python-agent"
-          />
-          <IntegrationTile
-            name="Ruby"
-            icon="ruby"
-            to="/docs/agents/ruby-agent"
-          />
-          <IntegrationTile
-            name="Android"
-            icon="android"
-            to="/docs/mobile-monitoring/new-relic-mobile-android/get-started/introduction-new-relic-mobile-android"
-          />
-          <IntegrationTile
-            name="iOS"
-            icon="apple"
-            to="/docs/mobile-monitoring/new-relic-mobile-ios/get-started/introduction-new-relic-mobile-ios"
-          />
-          <IntegrationTile
-            name="Browser"
-            icon="javascript"
-            to="/docs/browser"
-          />
-          <IntegrationTile
-            name="Synthetics"
-            icon="newrelic"
-            to="/docs/synthetics"
-          />
-        </IntegrationTileGrid>
+        {integrations.map(({ title, tiles }, idx) => (
+          <Fragment key={idx}>
+            <IntegrationTitle>{title}</IntegrationTitle>
+            <IntegrationTileGrid>
+              {tiles.map(({ name, icon, link }) => (
+                <IntegrationTile key={name} name={name} icon={icon} to={link} />
+              ))}
+            </IntegrationTileGrid>
+          </Fragment>
+        ))}
 
-        <IntegrationTitle>Infrastructure and cloud platforms</IntegrationTitle>
-        <IntegrationTileGrid>
-          <IntegrationTile
-            name="AWS"
-            icon="aws"
-            to="/docs/integrations/amazon-integrations"
-          />
-          <IntegrationTile
-            name="Azure"
-            icon="azure"
-            to="/docs/integrations/microsoft-azure-integrations"
-          />
-          <IntegrationTile
-            name="Google Cloud"
-            icon="gcloud"
-            to="/docs/integrations/google-cloud-platform-integrations"
-          />
-          <IntegrationTile
-            name="Linux"
-            icon="linux"
-            to="/docs/infrastructure/install-configure-manage-infrastructure/linux-installation/install-infrastructure-linux-using-package-manager"
-          />
-          <IntegrationTile
-            name="Windows"
-            icon="windows"
-            to="/docs/infrastructure/install-configure-manage-infrastructure/windows-installation/install-infrastructure-windows-server-using-msi-installer"
-          />
-          <IntegrationTile
-            name="Kubernetes"
-            icon="kubernetes"
-            to="/docs/integrations/kubernetes-integration/get-started/introduction-kubernetes-integration"
-          />
-          <IntegrationTile
-            name="Apache"
-            icon="apache"
-            to="/docs/integrations/host-integrations/host-integrations-list/apache-monitoring-integration"
-          />
-          <IntegrationTile
-            name="Kafka"
-            icon="kafka"
-            to="/docs/integrations/host-integrations/host-integrations-list/kafka-monitoring-integration"
-          />
-          <IntegrationTile
-            name="Microsoft SQL"
-            icon="mssql"
-            to="/docs/integrations/host-integrations/host-integrations-list/microsoft-sql-server-monitoring-integration"
-          />
-          <IntegrationTile
-            name="MongoDB"
-            icon="mongodb"
-            to="/docs/integrations/host-integrations/host-integrations-list/mongodb-monitoring-integration"
-          />
-          <IntegrationTile
-            name="MySQL"
-            icon="mysql"
-            to="/docs/integrations/host-integrations/host-integrations-list/mysql-monitoring-integration"
-          />
-          <IntegrationTile
-            name="NGINX"
-            icon="nginx"
-            to="/docs/integrations/host-integrations/host-integrations-list/nginx-monitoring-integration"
-          />
-          <IntegrationTile
-            name="PostgreSQL"
-            icon="postgresql"
-            to="/docs/integrations/host-integrations/host-integrations-list/postgresql-monitoring-integration"
-          />
-          <IntegrationTile
-            name="Redis"
-            icon="redis"
-            to="/docs/integrations/host-integrations/host-integrations-list/redis-monitoring-integration"
-          />
-        </IntegrationTileGrid>
-
-        <IntegrationTitle>Open-source monitoring systems</IntegrationTitle>
-        <IntegrationTileGrid>
-          <IntegrationTile
-            name="Dropwizard"
-            icon="dropwizard"
-            to="/docs/integrations/open-source-telemetry-integrations/open-source-telemetry-integration-list/new-relics-dropwizard-integration"
-          />
-          <IntegrationTile
-            name="Istio"
-            icon="istio"
-            to="/docs/integrations/open-source-telemetry-integrations/open-source-telemetry-integration-list/new-relics-istio-integration"
-          />
-          <IntegrationTile
-            name="JMX"
-            icon="jmx"
-            to="/docs/integrations/host-integrations/host-integrations-list/jmx-monitoring-integration"
-          />
-          <IntegrationTile
-            name="Kamon"
-            icon="kamon"
-            to="/docs/integrations/open-source-telemetry-integrations/open-source-telemetry-integration-list/kamon-reporter"
-          />
-          <IntegrationTile
-            name="Micrometer"
-            icon="micrometer"
-            to="/docs/integrations/open-source-telemetry-integrations/open-source-telemetry-integration-list/new-relics-micrometer-integration"
-          />
-          <IntegrationTile
-            name="OpenCensus"
-            icon="opencensus"
-            to="/docs/integrations/open-source-telemetry-integrations/open-source-telemetry-integration-list/new-relics-opencensus-integration"
-          />
-          <IntegrationTile
-            name="OpenTelemetry"
-            icon="opentelemetry"
-            to="/docs/integrations/open-source-telemetry-integrations/open-source-telemetry-integration-list/new-relics-opentelemetry-integration"
-          />
-          <IntegrationTile
-            name="Prometheus"
-            icon="prometheus"
-            to="/docs/integrations/prometheus-integrations/get-started/prometheus-integrations-how-choose"
-          />
-          <IntegrationTile
-            name="StatsD"
-            icon="statsd"
-            to="/docs/integrations/host-integrations/host-integrations-list/statsd-monitoring-integration-version-2"
-          />
-        </IntegrationTileGrid>
         <div
           css={css`
             margin-top: 4rem;
