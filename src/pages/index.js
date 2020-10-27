@@ -332,6 +332,18 @@ const HomePage = ({ data }) => {
           </Button>
         </div>
       </Section>
+      <Section layout={layout}>
+        <SectionTitle title="Security, privacy, and legal information" />
+        <SectionDescription>
+          Find out how we ensure security, data privacy, and compliance, and
+          find our terms of service.
+        </SectionDescription>
+        <DocTileGrid maxTiles={4}>
+          {securityGuides.map((guide, idx) => (
+            <DocTile key={idx} guide={guide} base={Surface.BASE.PRIMARY} />
+          ))}
+        </DocTileGrid>
+      </Section>
     </>
   );
 };
@@ -499,6 +511,33 @@ const aiGuides = [
   },
 ];
 
+const securityGuides = [
+  {
+    title: 'Data privacy',
+    description:
+      'New Relic takes your data privacy seriously. Our principles-based approach aims to go beyond the legal requirements for consent.',
+    to: '/docs/security/security-privacy/data-privacy',
+  },
+  {
+    title: 'Security compliance',
+    description:
+      'Whether your data is in transit to New Relic or at rest in our storage, strong encryption measures can help protect against unauthorized access or theft of valuable data.',
+    to: '/docs/security/security-privacy/compliance',
+  },
+  {
+    title: 'Securiy bulletins',
+    description:
+      'Security bulletins are a way for us to let you know about security vulnerabilities, remediation strategies, and applicable updates. ',
+    to: '/docs/security/new-relic-security/security-bulletins',
+  },
+  {
+    title: 'Licenses',
+    description:
+      "All about New Relic's licenses, Usage Plan, and policies. Find out what open source software we use in our products.",
+    to: '/docs/licenses',
+  },
+];
+
 const Section = ({ alternate, layout, ...props }) => {
   return (
     <section
@@ -633,11 +672,11 @@ WelcomeTile.propTypes = {
   to: PropTypes.string,
 };
 
-const DocTileGrid = ({ children }) => (
+const DocTileGrid = ({ children, maxTiles }) => (
   <div
     css={css`
       display: grid;
-      grid-template-columns: repeat(5, 1fr);
+      grid-template-columns: repeat(${maxTiles}, 1fr);
       grid-gap: 1rem;
 
       @media screen and (max-width: 1470px) {
@@ -655,6 +694,11 @@ const DocTileGrid = ({ children }) => (
 
 DocTileGrid.propTypes = {
   children: PropTypes.node,
+  maxTiles: PropTypes.number,
+};
+
+DocTileGrid.defaultProps = {
+  maxTiles: 5,
 };
 
 const DocTile = ({ base, guide: { title, description, to } }) => (
