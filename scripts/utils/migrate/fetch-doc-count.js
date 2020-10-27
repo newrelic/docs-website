@@ -2,6 +2,7 @@ const fetch = require('node-fetch');
 require('dotenv').config();
 const { writeSync } = require('to-vfile');
 const vfile = require('vfile');
+const { ITEMS_PER_TYPE } = require('../constants');
 
 const logger = require('../logger');
 
@@ -15,9 +16,17 @@ const fetchDocCount = async () => {
         }
       });
       const result = await resp.json();
-      console.log(result)
+      
+      const totalCount = result.docs[0].count.all; 
+      const migratedCount = Object.values(ITEMS_PER_TYPE).reduce((acc, cur)=>{
+        return parseInt(cur) + acc
+      }, 0)
+
       writeSync( vfile({
-          contents: JSON.stringify(result), 
+          contents: JSON.stringify({
+              migratedCount, 
+              totalCount
+          }), 
           path: `${process.cwd()}/src/count`,
           extname: '.json'
       }))
