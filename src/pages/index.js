@@ -2,7 +2,7 @@ import React from 'react';
 import PropTypes from 'prop-types';
 import { css, keyframes } from '@emotion/core';
 import { Link, graphql } from 'gatsby';
-import { Surface } from '@newrelic/gatsby-theme-newrelic';
+import { Button, Surface } from '@newrelic/gatsby-theme-newrelic';
 import { rgba } from 'polished';
 import AIIcon from '../components/AIIcon';
 import FSOIcon from '../components/FSOIcon';
@@ -317,6 +317,20 @@ const HomePage = ({ data }) => {
             to="/docs/integrations/host-integrations/host-integrations-list/statsd-monitoring-integration-version-2"
           />
         </IntegrationTileGrid>
+        <div
+          css={css`
+            margin-top: 4rem;
+            text-align: center;
+          `}
+        >
+          <Button
+            as="a"
+            href="https://newrelic.com/integrations"
+            variant={Button.VARIANT.PRIMARY}
+          >
+            See all 370+ integrations
+          </Button>
+        </div>
       </Section>
     </>
   );
@@ -492,6 +506,10 @@ const Section = ({ alternate, layout, ...props }) => {
         background: ${alternate && 'var(--secondary-background-color)'};
         margin: 0 -${layout.contentPadding};
         padding: ${layout.contentPadding};
+
+        &:first-child {
+          padding-top: 0;
+        }
       `}
       {...props}
     />
