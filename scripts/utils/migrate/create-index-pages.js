@@ -106,7 +106,11 @@ const createIndexPages = (files) => {
       return [visit.SKIP];
     }
 
-    if (dir.path === 'src' || dir.children.some(isIndexFile)) {
+    if (
+      dir.path === 'src' ||
+      dir.path === 'src/content' ||
+      dir.children.some(isIndexFile)
+    ) {
       return;
     }
 

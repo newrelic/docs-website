@@ -60,6 +60,8 @@ const MainLayout = ({ data = {}, children }) => {
         --global-header-height: 36px;
         --sidebar-width: 300px;
 
+        display: grid;
+        grid-template-rows: auto 1fr;
         min-height: 100vh;
       `}
     >
