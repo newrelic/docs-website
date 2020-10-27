@@ -96,7 +96,7 @@ const HomePage = ({ data }) => {
         </SectionDescription>
         <DocTileGrid>
           {tdpGuides.map((guide, idx) => (
-            <DocTile key={idx} guide={guide} base={Surface.BASE.SECONDARY} />
+            <DocTile key={idx} guide={guide} />
           ))}
         </DocTileGrid>
       </Section>
@@ -108,7 +108,7 @@ const HomePage = ({ data }) => {
         </SectionDescription>
         <DocTileGrid>
           {fsoGuides.map((guide, idx) => (
-            <DocTile key={idx} guide={guide} base={Surface.BASE.PRIMARY} />
+            <DocTile key={idx} guide={guide} />
           ))}
         </DocTileGrid>
       </Section>
@@ -123,7 +123,7 @@ const HomePage = ({ data }) => {
         </SectionDescription>
         <DocTileGrid>
           {aiGuides.map((guide, idx) => (
-            <DocTile key={idx} guide={guide} base={Surface.BASE.SECONDARY} />
+            <DocTile key={idx} guide={guide} />
           ))}
         </DocTileGrid>
       </Section>
@@ -340,7 +340,7 @@ const HomePage = ({ data }) => {
         </SectionDescription>
         <DocTileGrid maxTiles={4}>
           {securityGuides.map((guide, idx) => (
-            <DocTile key={idx} guide={guide} base={Surface.BASE.PRIMARY} />
+            <DocTile key={idx} guide={guide} />
           ))}
         </DocTileGrid>
       </Section>
@@ -525,7 +525,7 @@ const securityGuides = [
     to: '/docs/security/security-privacy/compliance',
   },
   {
-    title: 'Securiy bulletins',
+    title: 'Security bulletins',
     description:
       'Security bulletins are a way for us to let you know about security vulnerabilities, remediation strategies, and applicable updates. ',
     to: '/docs/security/new-relic-security/security-bulletins',
@@ -611,7 +611,7 @@ const pulse = keyframes`
 
 const WelcomeTile = ({ description, title, to }) => (
   <SurfaceLink
-    base={Surface.BASE.PRIMARY}
+    base={Surface.BASE.SECONDARY}
     to={to}
     css={css`
       text-align: center;
@@ -619,6 +619,10 @@ const WelcomeTile = ({ description, title, to }) => (
       color: currentColor;
       position: relative;
       height: 250px;
+
+      .light-mode & {
+        border: 1px solid var(--border-color);
+      }
 
       &::before {
         content: counter(welcome-tile);
@@ -647,9 +651,13 @@ const WelcomeTile = ({ description, title, to }) => (
         border-radius: 50%;
         height: 2.75rem;
         width: 2.75rem;
-        border: 1px solid ${rgba('#008c99', 0.3)};
+        border: 3px solid var(--color-dark-100);
         background: var(--primary-background-color);
         transition: border-color 0.15s ease-out;
+
+        .light-mode & {
+          border: 1px solid ${rgba('#008c99', 0.3)};
+        }
       }
 
       &:hover {
@@ -701,17 +709,22 @@ DocTileGrid.defaultProps = {
   maxTiles: 5,
 };
 
-const DocTile = ({ base, guide: { title, description, to } }) => (
+const DocTile = ({ guide: { title, description, to } }) => (
   <SurfaceLink
-    base={base}
+    base={Surface.BASE.SECONDARY}
     to={to}
     css={css`
       color: currentColor;
       padding: 1rem;
       min-height: 170px;
 
+      .light-mode & {
+        border: 1px solid var(--border-color);
+      }
+
       &:hover {
         color: currentColor;
+        border-color: var(--border-hover-color);
       }
     `}
   >
@@ -727,7 +740,6 @@ const DocTile = ({ base, guide: { title, description, to } }) => (
 );
 
 DocTile.propTypes = {
-  base: Surface.propTypes.base,
   guide: PropTypes.shape({
     title: PropTypes.string.isRequired,
     description: PropTypes.string.isRequired,
