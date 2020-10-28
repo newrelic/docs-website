@@ -55,7 +55,10 @@ const remove = (files, { path: pathSegments }) => {
 };
 
 const move = (files, { from, to }) => {
-  const node = findNode(files, from, { operation: 'move' });
+  const isWildcard = last(from) === '*';
+  const node = findNode(files, isWildcard ? from.slice(0, -1) : from, {
+    operation: 'move',
+  });
 
   if (!node) {
     return files;
@@ -69,6 +72,14 @@ const move = (files, { from, to }) => {
     write(destinationFile, { path: `/docs/${slugify(node.title)}`, ...node });
 
     files = [...files, destinationFile];
+  } else if (isWildcard) {
+    return node.pages.reduce(
+      (files, node) =>
+        remove(add(files, { node, path: to }), {
+          path: from.slice(0, -1).concat(node.title),
+        }),
+      files
+    );
   } else {
     files = add(files, { node, path: to });
   }
@@ -291,6 +302,8 @@ const findCategory = (nav, pathSegments) => {
 
   return child ? findCategory(child, remainingSegments) : null;
 };
+
+const last = (items) => items[items.length - 1];
 
 const load = (file) => yaml.safeLoad(file.contents);
 
