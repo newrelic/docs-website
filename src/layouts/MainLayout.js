@@ -93,6 +93,7 @@ const MainLayout = ({ data = {}, children, pageContext }) => {
               'footer';
             grid-template-rows: unset;
             padding: ${layout.contentPadding};
+            padding-bottom: 0;
           }
         `}
       >
@@ -169,8 +170,12 @@ const MainLayout = ({ data = {}, children, pageContext }) => {
             --logo-icon-color: currentColor;
             --logo-text-color: currentColor;
 
-            margin: 0 -${layout.contentPadding};
+            margin-left: -${layout.contentPadding};
             display: ${isMobileNavOpen ? 'none' : 'block'};
+
+            @media screen and (max-width: 760px) {
+              margin: 0 -${layout.contentPadding};
+            }
           `}
         />
       </div>
