@@ -43,7 +43,7 @@ const remove = (files, { path: pathSegments }) => {
           )
         );
 
-  if (updatedNav.pages.length === 0) {
+  if (updatedNav.pages.length === 0 && !updatedNav.path) {
     return files.filter((file) => file !== sourceFile);
   }
 
