@@ -1,7 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
-import { GlobalHeader, GlobalFooter } from '@newrelic/gatsby-theme-newrelic';
-import { graphql, useStaticQuery } from 'gatsby';
+import {
+  GlobalHeader,
+  GlobalFooter,
+  Logo,
+} from '@newrelic/gatsby-theme-newrelic';
+import { Link, graphql, useStaticQuery } from 'gatsby';
 import { css } from '@emotion/core';
 import Sidebar from '../components/Sidebar';
 import MobileHeader from '../components/MobileHeader';
@@ -36,7 +40,7 @@ const MainLayout = ({ data = {}, children, pageContext }) => {
   const isSmallScreen = useMedia('(max-width: 760px)');
   const transition = useTransition(location.pathname === '/', {
     config: { mass: 1, friction: 34, tension: 400 },
-    initial: null,
+    initial: { position: 'absolute' },
     from: (isRoot) => ({
       opacity: 0,
       position: 'absolute',
@@ -111,29 +115,28 @@ const MainLayout = ({ data = {}, children, pageContext }) => {
                 overflow: auto;
               `}
             >
+              <Link
+                to="/"
+                css={css`
+                  display: block;
+                  margin-bottom: 1rem;
+                `}
+              >
+                <Logo />
+              </Link>
               {transition((style, isRoot) => {
+                const containerStyle = css`
+                  left: ${layout.contentPadding};
+                  right: ${layout.contentPadding};
+                  top: calc(${layout.contentPadding} + 3rem);
+                  padding-bottom: ${layout.contentPadding};
+                `;
                 return isRoot ? (
-                  <animated.div
-                    style={style}
-                    css={css`
-                      left: ${layout.contentPadding};
-                      right: ${layout.contentPadding};
-                      top: ${layout.contentPadding};
-                      padding-bottom: ${layout.contentPadding};
-                    `}
-                  >
+                  <animated.div style={style} css={containerStyle}>
                     <RootNavigation nav={rootNav} />
                   </animated.div>
                 ) : (
-                  <animated.div
-                    style={style}
-                    css={css`
-                      left: ${layout.contentPadding};
-                      right: ${layout.contentPadding};
-                      top: ${layout.contentPadding};
-                      padding-bottom: ${layout.contentPadding};
-                    `}
-                  >
+                  <animated.div style={style} css={containerStyle}>
                     <SubNavigation nav={subnav || previousSubnav} />
                   </animated.div>
                 );
