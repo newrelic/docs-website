@@ -12,6 +12,7 @@ module.exports = {
     REMOVE: 'REMOVE',
     DUPLICATE: 'DUPLICATE',
     UPDATE: 'UPDATE',
+    REORDER: 'REORDER',
   },
 
   TYPES: {

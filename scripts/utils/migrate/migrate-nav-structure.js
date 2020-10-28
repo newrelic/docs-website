@@ -22,10 +22,48 @@ const migrateNavStructure = (files) => {
         return rename(files, instruction);
       case INSTRUCTIONS.DUPLICATE:
         return duplicate(files, instruction);
+      case INSTRUCTIONS.REORDER:
+        return reorder(files, instruction);
       default:
         throw new Error(`Unknown instruction: ${instruction.type}`);
     }
   }, files);
+};
+
+const reorder = (files, { path: pathSegments, index }) => {
+  const file = findFile(files, pathSegments);
+
+  if (!file) {
+    return files;
+  }
+
+  const nav = load(file);
+  const title = last(pathSegments);
+  const [, ...remainingSegments] = pathSegments.slice(0, -1);
+
+  const reorderChild = (parent) => {
+    const child = parent.pages.find((child) => child.title === title);
+    const pages = parent.pages.filter((node) => node !== child);
+
+    return {
+      ...parent,
+      pages: [...pages.slice(0, index), child, ...pages.slice(index)],
+    };
+  };
+
+  const updatedNav =
+    remainingSegments.length === 0
+      ? reorderChild(nav)
+      : updateNodeAtPath(nav, pathSegments.slice(1, -1), reorderChild, () =>
+          file.message(
+            `Nav path not found: ${pathSegments.join(' > ')}`,
+            'migrate-nav-structure:reorder'
+          )
+        );
+
+  write(file, updatedNav);
+
+  return files;
 };
 
 const update = (files, { path: pathSegments, node, replace = false }) => {
@@ -141,7 +179,7 @@ const rename = (files, { path: pathSegments, title }) => {
 
   const updatedNav = updateNodeAtPath(
     load(file),
-    remainingSegments,
+    pathSegments.slice(1),
     (node) => ({ ...node, title }),
     () =>
       file.message(
