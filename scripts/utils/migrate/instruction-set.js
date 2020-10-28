@@ -116,6 +116,14 @@ module.exports = [
     title: 'Infrastructure monitoring',
   },
   {
+    type: INSTRUCTIONS.REMOVE,
+    path: [
+      'Full-Stack Observability',
+      'Infrastructure monitoring',
+      'Infrastructure monitoring',
+    ],
+  },
+  {
     type: INSTRUCTIONS.MOVE,
     from: [
       'Full-Stack Observability',
@@ -175,6 +183,14 @@ module.exports = [
     to: ['Full-Stack Observability'],
   },
   {
+    type: INSTRUCTIONS.REMOVE,
+    path: [
+      'Full-Stack Observability',
+      'Mobile monitoring',
+      'Mobile monitoring',
+    ],
+  },
+  {
     type: INSTRUCTIONS.MOVE,
     from: ['Serverless function monitoring'],
     to: ['Full-Stack Observability'],
@@ -188,6 +204,14 @@ module.exports = [
     type: INSTRUCTIONS.RENAME,
     path: ['Full-Stack Observability', 'Synthetics'],
     title: 'Synthetic monitoring',
+  },
+  {
+    type: INSTRUCTIONS.REMOVE,
+    path: [
+      'Full-Stack Observability',
+      'Synthetic monitoring',
+      'Synthetic monitoring',
+    ],
   },
   {
     type: INSTRUCTIONS.UPDATE,
