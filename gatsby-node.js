@@ -1,6 +1,6 @@
 const path = require('path');
 
-const { createFilePath } = require(`gatsby-source-filesystem`);
+const { createFilePath } = require('gatsby-source-filesystem');
 
 const TEMPLATE_DIR = 'src/templates/';
 
@@ -8,16 +8,16 @@ exports.onCreateNode = ({ node, getNode, actions }) => {
   if (node.internal.type === 'Mdx') {
     const { createNodeField } = actions;
 
-    // Get the file path to be used as the page location
-    const fileRelativePath = createFilePath({
+    createNodeField({
       node,
-      getNode,
-      trailingSlash: false,
+      name: 'slug',
+      value: createFilePath({ node, getNode, trailingSlash: false }),
     });
+
     createNodeField({
       node,
       name: 'fileRelativePath',
-      value: fileRelativePath,
+      value: getFileRelativePath(node.fileAbsolutePath),
     });
   }
 };
@@ -36,6 +36,7 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
           node {
             fields {
               fileRelativePath
+              slug
             }
             frontmatter {
               template
@@ -90,17 +91,18 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
 
   allMdx.edges.forEach(({ node }) => {
     const { frontmatter, fields } = node;
-    const { fileRelativePath } = fields;
+    const { fileRelativePath, slug } = fields;
 
     const nav = allNavYaml.edges
       .map(({ node }) => node)
-      .find((nav) => findPage(nav, fileRelativePath));
+      .find((nav) => findPage(nav, slug));
 
     createPage({
-      path: fileRelativePath,
+      path: slug,
       component: path.resolve(`${TEMPLATE_DIR}${frontmatter.template}.js`),
       context: {
         fileRelativePath,
+        slug,
         nav: nav && nav.title,
       },
     });
@@ -142,7 +144,15 @@ exports.onCreatePage = ({ page, actions }) => {
 
     createPage(page);
   }
+
+  if (!page.context.fileRelativePath) {
+    page.context.fileRelativePath = getFileRelativePath(page.componentPath);
+
+    createPage(page);
+  }
 };
+
+const getFileRelativePath = (path) => path.replace(`${process.cwd()}/`, '');
 
 const findPage = (page, path) => {
   if (page.path === path) {
