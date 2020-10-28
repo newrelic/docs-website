@@ -310,6 +310,11 @@ module.exports = [
     title: 'Overview',
   },
   { type: INSTRUCTIONS.REORDER, path: ['Insights', 'Overview'], index: 0 },
+  {
+    type: INSTRUCTIONS.RENAME,
+    path: ['Licenses', 'Licenses'],
+    title: 'Overview',
+  },
 
   // ----- Alerts and Applied Intelligence ----- \\
   {
