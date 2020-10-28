@@ -27,8 +27,8 @@ releaseNoteTemplate.propTypes = {
 };
 
 export const pageQuery = graphql`
-  query($fileRelativePath: String!, $nav: String) {
-    mdx(fields: { fileRelativePath: { eq: $fileRelativePath } }) {
+  query($slug: String!, $nav: String) {
+    mdx(fields: { slug: { eq: $slug } }) {
       body
       frontmatter {
         title

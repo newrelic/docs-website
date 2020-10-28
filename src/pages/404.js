@@ -1,15 +1,20 @@
 import React from 'react';
+import PropTypes from 'prop-types';
 import { css } from '@emotion/core';
 import { Link } from 'gatsby';
 import SkewedContainer from '../components/SkewedContainer';
-import { GlobalHeader } from '@newrelic/gatsby-theme-newrelic';
+import { GlobalHeader, GlobalFooter } from '@newrelic/gatsby-theme-newrelic';
 
-const NotFoundPage = () => {
+const NotFoundPage = ({ pageContext }) => {
   return (
     <div
       css={css`
         display: grid;
         grid-template-rows: auto 1fr auto;
+        grid-template-areas:
+          'header'
+          'content'
+          'footer';
         min-height: 100vh;
       `}
     >
@@ -20,6 +25,7 @@ const NotFoundPage = () => {
           flex-direction: column;
           justify-content: center;
           text-align: center;
+          grid-area: content;
         `}
       >
         <SkewedContainer
@@ -44,8 +50,19 @@ const NotFoundPage = () => {
           </p>
         </SkewedContainer>
       </div>
+      <GlobalFooter
+        fileRelativePath={pageContext.fileRelativePath}
+        css={css`
+          --logo-icon-color: currentColor;
+          --logo-text-color: currentColor;
+        `}
+      />
     </div>
   );
+};
+
+NotFoundPage.propTypes = {
+  pageContext: PropTypes.object.isRequired,
 };
 
 export default NotFoundPage;

@@ -8,6 +8,7 @@ module.exports = {
     author: 'New Relic',
     repository: 'https://github.com/newrelic/docs-website',
     siteUrl: 'https://docs.newrelic.com',
+    branch: 'develop',
   },
   plugins: [
     `gatsby-plugin-react-helmet`,
