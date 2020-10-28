@@ -9,6 +9,8 @@ const instructions = require('./instruction-set');
 const migrateNavStructure = (files) => {
   return instructions.reduce((files, instruction) => {
     switch (instruction.type) {
+      case INSTRUCTIONS.ADD:
+        return add(files, instruction);
       case INSTRUCTIONS.MOVE:
         return move(files, instruction);
       case INSTRUCTIONS.REMOVE:
