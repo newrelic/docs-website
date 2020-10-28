@@ -38,7 +38,15 @@ const update = (files, { path: pathSegments, node, replace = false }) => {
   const updatedNav = updateNodeAtPath(
     load(file),
     pathSegments.slice(1),
-    (child) => (replace ? node : { ...child, ...node }),
+    (child) =>
+      replace
+        ? node
+        : // keep a consistent key order
+          {
+            title: node.title || child.title,
+            path: node.path || child.path,
+            pages: node.pages || child.pages,
+          },
     () =>
       file.message(
         `Nav path not found: ${pathSegments.join(' > ')}`,
