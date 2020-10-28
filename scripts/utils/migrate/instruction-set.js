@@ -16,17 +16,7 @@ module.exports = [
   },
   {
     type: INSTRUCTIONS.MOVE,
-    from: ['New Relic security', 'New Relic security', 'Data privacy'],
-    to: ['New Relic security'],
-  },
-  {
-    type: INSTRUCTIONS.MOVE,
-    from: ['New Relic security', 'New Relic security', 'Compliance'],
-    to: ['New Relic security'],
-  },
-  {
-    type: INSTRUCTIONS.MOVE,
-    from: ['New Relic security', 'New Relic security', 'Security bulletins'],
+    from: ['New Relic security', 'New Relic security', '*'],
     to: ['New Relic security'],
   },
   {
