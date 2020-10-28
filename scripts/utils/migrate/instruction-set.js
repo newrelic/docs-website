@@ -2,24 +2,28 @@ const { INSTRUCTIONS } = require('../constants');
 
 module.exports = [
   {
+    type: INSTRUCTIONS.RENAME,
+    path: ['Security'],
+    title: 'New Relic security',
+  },
+  {
     type: INSTRUCTIONS.MOVE,
-    from: ['Security', 'New Relic security', 'Data privacy'],
+    from: ['New Relic security', 'New Relic security', 'Data privacy'],
     to: ['New Relic security'],
   },
   {
     type: INSTRUCTIONS.MOVE,
-    from: ['Security', 'New Relic security', 'Compliance'],
+    from: ['New Relic security', 'New Relic security', 'Compliance'],
     to: ['New Relic security'],
   },
   {
     type: INSTRUCTIONS.MOVE,
-    from: ['Security', 'New Relic security', 'Security bulletins'],
+    from: ['New Relic security', 'New Relic security', 'Security bulletins'],
     to: ['New Relic security'],
   },
   {
-    type: INSTRUCTIONS.MOVE,
-    from: ['Security', 'Security and privacy'],
-    to: ['New Relic security'],
+    type: INSTRUCTIONS.REMOVE,
+    path: ['New Relic security', 'Security and privacy'],
   },
   {
     type: INSTRUCTIONS.MOVE,
