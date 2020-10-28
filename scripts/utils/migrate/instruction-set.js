@@ -189,7 +189,81 @@ module.exports = [
     path: ['Full-Stack Observability', 'Synthetics'],
     title: 'Synthetic monitoring',
   },
-
+  {
+    type: INSTRUCTIONS.UPDATE,
+    path: ['Agents', 'C SDK'],
+    node: {
+      path: '/docs/agents/c-sdk',
+    },
+  },
+  { type: INSTRUCTIONS.REMOVE, path: ['Agents', 'C SDK', 'C SDK'] },
+  {
+    type: INSTRUCTIONS.UPDATE,
+    path: ['Agents', 'Go agent'],
+    node: {
+      path: '/docs/agents/go-agent',
+    },
+  },
+  { type: INSTRUCTIONS.REMOVE, path: ['Agents', 'Go agent', 'Go agent'] },
+  {
+    type: INSTRUCTIONS.UPDATE,
+    path: ['Agents', 'Java agent'],
+    node: {
+      path: '/docs/agents/java-agent',
+    },
+  },
+  { type: INSTRUCTIONS.REMOVE, path: ['Agents', 'Java agent', 'Java agent'] },
+  {
+    type: INSTRUCTIONS.UPDATE,
+    path: ['Agents', 'NET agent'],
+    node: {
+      title: '.NET agent',
+      path: '/docs/agents/net-agent',
+    },
+  },
+  { type: INSTRUCTIONS.REMOVE, path: ['Agents', '.NET agent', '.NET agent'] },
+  {
+    type: INSTRUCTIONS.UPDATE,
+    path: ['Agents', 'Nodejs agent'],
+    node: {
+      title: 'Node.js agent',
+      path: '/docs/agents/nodejs-agent',
+    },
+  },
+  {
+    type: INSTRUCTIONS.REMOVE,
+    path: ['Agents', 'Node.js agent', 'Node.js agent'],
+  },
+  {
+    type: INSTRUCTIONS.UPDATE,
+    path: ['Agents', 'PHP agent'],
+    node: {
+      path: '/docs/agents/php-agent',
+    },
+  },
+  { type: INSTRUCTIONS.REMOVE, path: ['Agents', 'PHP agent', 'PHP agent'] },
+  {
+    type: INSTRUCTIONS.UPDATE,
+    path: ['Agents', 'Python agent'],
+    node: {
+      path: '/docs/agents/python-agent',
+    },
+  },
+  {
+    type: INSTRUCTIONS.REMOVE,
+    path: ['Agents', 'Python agent', 'Python agent'],
+  },
+  {
+    type: INSTRUCTIONS.UPDATE,
+    path: ['Agents', 'Ruby agent'],
+    node: {
+      path: '/docs/agents/ruby-agent',
+    },
+  },
+  {
+    type: INSTRUCTIONS.REMOVE,
+    path: ['Agents', 'Ruby agent', 'Ruby agent'],
+  },
   // ----- Alerts and Applied Intelligence ----- \\
   {
     type: INSTRUCTIONS.DUPLICATE,
