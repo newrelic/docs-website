@@ -1,12 +1,14 @@
 import React from 'react';
+import PropTypes from 'prop-types';
 import { css } from '@emotion/core';
 import { Icon } from '@newrelic/gatsby-theme-newrelic';
 
-const Logo = () => {
+const Logo = ({ className }) => {
   return (
     <div
+      className={className}
       css={css`
-        display: flex;
+        display: inline-flex;
         align-items: center;
         font-size: 1.5rem;
       `}
@@ -34,6 +36,10 @@ const Logo = () => {
       </span>
     </div>
   );
+};
+
+Logo.propTypes = {
+  className: PropTypes.string,
 };
 
 export default Logo;
