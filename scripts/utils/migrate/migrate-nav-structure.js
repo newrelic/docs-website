@@ -5,6 +5,7 @@ const slugify = require('../slugify');
 const { NAV_DIR, INSTRUCTIONS } = require('../constants');
 const logger = require('../logger');
 const instructions = require('./instruction-set');
+const { omit } = require('lodash');
 
 const migrateNavStructure = (files) => {
   return instructions.reduce((files, instruction) => {
@@ -45,7 +46,7 @@ const remove = (files, { path: pathSegments }) => {
           )
         );
 
-  if (updatedNav.pages.length === 0 && !updatedNav.path) {
+  if (shouldRemoveNode(updatedNav)) {
     return files.filter((file) => file !== sourceFile);
   }
 
@@ -73,7 +74,7 @@ const move = (files, { from, to }) => {
 
     files = [...files, destinationFile];
   } else if (isWildcard) {
-    return node.pages.reduce(
+    return (node.pages || []).reduce(
       (files, node) =>
         remove(add(files, { node, path: to }), {
           path: from.slice(0, -1).concat(node.title),
@@ -199,7 +200,7 @@ const findNode = (files, pathSegments, { operation } = {}) => {
 
 const isRoot = (path) => path.length === 0;
 
-const update = (items, idx, updater) => [
+const updateList = (items, idx, updater) => [
   ...items.slice(0, idx),
   updater(items[idx]),
   ...items.slice(idx + 1),
@@ -207,7 +208,7 @@ const update = (items, idx, updater) => [
 
 const updateChild = (parent, idx, updater) => ({
   ...parent,
-  pages: update(parent.pages || [], idx, updater),
+  pages: updateList(parent.pages || [], idx, updater),
 });
 
 const updateNodeAtPath = (
@@ -271,19 +272,17 @@ const filterCategory = (nav, pathSegments, missing) => {
   }
 
   if (remainingSegments.length === 0) {
-    return {
-      ...nav,
-      pages: nav.pages.filter((child) => child.title !== title),
-    };
+    const pages = nav.pages.filter((child) => child.title !== title);
+
+    return pages.length === 0 ? omit(nav, ['pages']) : { ...nav, pages };
   }
 
   const child = filterCategory(nav.pages[idx], remainingSegments, missing);
 
-  if (child.pages.length === 0 && !child.path) {
-    return {
-      ...nav,
-      pages: [...nav.pages.slice(0, idx), ...nav.pages.slice(idx + 1)],
-    };
+  if (shouldRemoveNode(child)) {
+    const pages = [...nav.pages.slice(0, idx), ...nav.pages.slice(idx + 1)];
+
+    return pages.length === 0 ? omit(nav, ['pages']) : { ...nav, pages };
   }
 
   return updateChild(nav, idx, (node) =>
@@ -311,5 +310,8 @@ const write = (file, contents) => {
   // set high line width to avoid wrapping
   file.contents = yaml.safeDump(contents, { lineWidth: 9999 });
 };
+
+const shouldRemoveNode = (node) =>
+  !node.path && (!node.pages || node.pages.length === 0);
 
 module.exports = migrateNavStructure;
