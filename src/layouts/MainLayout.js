@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
-import { GlobalHeader } from '@newrelic/gatsby-theme-newrelic';
+import { GlobalHeader, GlobalFooter } from '@newrelic/gatsby-theme-newrelic';
 import { graphql, useStaticQuery } from 'gatsby';
 import { css } from '@emotion/core';
 import Sidebar from '../components/Sidebar';
@@ -11,7 +11,7 @@ import SubNavigation from '../components/SubNavigation';
 import { animated, useTransition } from 'react-spring';
 import { useLocation } from '@reach/router';
 
-const MainLayout = ({ data = {}, children }) => {
+const MainLayout = ({ data = {}, children, pageContext }) => {
   const { subnav, ...rootNav } = data;
 
   const {
@@ -160,14 +160,16 @@ const MainLayout = ({ data = {}, children }) => {
         >
           {children}
         </main>
-        <footer
+        <GlobalFooter
+          fileRelativePath={pageContext.fileRelativePath}
           css={css`
+            --logo-icon-color: currentColor;
+            --logo-text-color: currentColor;
+
+            margin: 0 -${layout.contentPadding};
             display: ${isMobileNavOpen ? 'none' : 'block'};
-            grid-area: footer;
           `}
-        >
-          FOOTER
-        </footer>
+        />
       </div>
     </div>
   );
@@ -176,6 +178,7 @@ const MainLayout = ({ data = {}, children }) => {
 MainLayout.propTypes = {
   children: PropTypes.node,
   data: PropTypes.object,
+  pageContext: PropTypes.object,
 };
 
 export const query = graphql`
