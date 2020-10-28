@@ -81,9 +81,20 @@ const rename = (files, { path: pathSegments, title }) => {
     return files;
   }
 
+  const [, ...remainingSegments] = pathSegments;
+  const nav = load(file);
+
+  if (remainingSegments.length === 0) {
+    file.stem = slugify(title);
+
+    write(file, { ...nav, title });
+
+    return files;
+  }
+
   const updatedNav = updateNodeAtPath(
     load(file),
-    pathSegments.slice(1),
+    remainingSegments,
     (node) => ({ ...node, title }),
     () =>
       file.message(
