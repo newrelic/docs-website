@@ -12,6 +12,8 @@ const migrateNavStructure = (files) => {
     switch (instruction.type) {
       case INSTRUCTIONS.ADD:
         return add(files, instruction);
+      case INSTRUCTIONS.UPDATE:
+        return update(files, instruction);
       case INSTRUCTIONS.MOVE:
         return move(files, instruction);
       case INSTRUCTIONS.REMOVE:
@@ -24,6 +26,29 @@ const migrateNavStructure = (files) => {
         throw new Error(`Unknown instruction: ${instruction.type}`);
     }
   }, files);
+};
+
+const update = (files, { path: pathSegments, node, replace = false }) => {
+  const file = findFile(files, pathSegments);
+
+  if (!file) {
+    return files;
+  }
+
+  const updatedNav = updateNodeAtPath(
+    load(file),
+    pathSegments.slice(1),
+    (child) => (replace ? node : { ...child, ...node }),
+    () =>
+      file.message(
+        `Nav path not found: ${pathSegments.join(' > ')}`,
+        'migrate-nav-structure:update'
+      )
+  );
+
+  write(file, updatedNav);
+
+  return files;
 };
 
 const remove = (files, { path: pathSegments }) => {
