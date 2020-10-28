@@ -7,6 +7,14 @@ module.exports = [
     title: 'New Relic security',
   },
   {
+    type: INSTRUCTIONS.ADD,
+    path: ['New Relic security'],
+    node: {
+      title: 'Overview',
+      path: '/docs/security',
+    },
+  },
+  {
     type: INSTRUCTIONS.MOVE,
     from: ['New Relic security', 'New Relic security', 'Data privacy'],
     to: ['New Relic security'],
