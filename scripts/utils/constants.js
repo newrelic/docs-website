@@ -11,6 +11,7 @@ module.exports = {
     RENAME: 'RENAME',
     REMOVE: 'REMOVE',
     DUPLICATE: 'DUPLICATE',
+    UPDATE: 'UPDATE',
   },
 
   TYPES: {
