@@ -76,13 +76,12 @@ module.exports = [
   },
   {
     type: INSTRUCTIONS.MOVE,
-    from: ['Browser'],
+    from: ['Browser', 'Browser monitoring'],
     to: ['Full-Stack Observability'],
   },
   {
-    type: INSTRUCTIONS.RENAME,
-    path: ['Full-Stack Observability', 'Browser'],
-    title: 'Browser monitoring',
+    type: INSTRUCTIONS.REMOVE,
+    path: ['Browser'],
   },
   {
     type: INSTRUCTIONS.MOVE,
