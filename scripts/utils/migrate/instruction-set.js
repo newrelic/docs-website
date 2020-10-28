@@ -196,6 +196,11 @@ module.exports = [
       path: '/docs/agents/c-sdk',
     },
   },
+  {
+    type: INSTRUCTIONS.MOVE,
+    from: ['Agents', 'C SDK', 'C SDK', '*'],
+    to: ['Agents', 'C SDK'],
+  },
   { type: INSTRUCTIONS.REMOVE, path: ['Agents', 'C SDK', 'C SDK'] },
   {
     type: INSTRUCTIONS.UPDATE,
@@ -204,6 +209,11 @@ module.exports = [
       path: '/docs/agents/go-agent',
     },
   },
+  {
+    type: INSTRUCTIONS.MOVE,
+    from: ['Agents', 'Go agent', 'Go agent', '*'],
+    to: ['Agents', 'Go agent'],
+  },
   { type: INSTRUCTIONS.REMOVE, path: ['Agents', 'Go agent', 'Go agent'] },
   {
     type: INSTRUCTIONS.UPDATE,
@@ -211,6 +221,11 @@ module.exports = [
     node: {
       path: '/docs/agents/java-agent',
     },
+  },
+  {
+    type: INSTRUCTIONS.MOVE,
+    from: ['Agents', 'Java agent', 'Java agent', '*'],
+    to: ['Agents', 'Java agent'],
   },
   { type: INSTRUCTIONS.REMOVE, path: ['Agents', 'Java agent', 'Java agent'] },
   {
@@ -221,6 +236,11 @@ module.exports = [
       path: '/docs/agents/net-agent',
     },
   },
+  {
+    type: INSTRUCTIONS.MOVE,
+    from: ['Agents', '.NET agent', '.NET agent', '*'],
+    to: ['Agents', '.NET agent'],
+  },
   { type: INSTRUCTIONS.REMOVE, path: ['Agents', '.NET agent', '.NET agent'] },
   {
     type: INSTRUCTIONS.UPDATE,
@@ -229,6 +249,11 @@ module.exports = [
       title: 'Node.js agent',
       path: '/docs/agents/nodejs-agent',
     },
+  },
+  {
+    type: INSTRUCTIONS.MOVE,
+    from: ['Agents', 'Node.js agent', 'Node.js agent', '*'],
+    to: ['Agents', 'Node.js agent'],
   },
   {
     type: INSTRUCTIONS.REMOVE,
@@ -241,6 +266,11 @@ module.exports = [
       path: '/docs/agents/php-agent',
     },
   },
+  {
+    type: INSTRUCTIONS.MOVE,
+    from: ['Agents', 'PHP agent', 'PHP agent', '*'],
+    to: ['Agents', 'PHP agent'],
+  },
   { type: INSTRUCTIONS.REMOVE, path: ['Agents', 'PHP agent', 'PHP agent'] },
   {
     type: INSTRUCTIONS.UPDATE,
@@ -248,6 +278,11 @@ module.exports = [
     node: {
       path: '/docs/agents/python-agent',
     },
+  },
+  {
+    type: INSTRUCTIONS.MOVE,
+    from: ['Agents', 'Python agent', 'Python agent', '*'],
+    to: ['Agents', 'Python agent'],
   },
   {
     type: INSTRUCTIONS.REMOVE,
@@ -261,9 +296,21 @@ module.exports = [
     },
   },
   {
+    type: INSTRUCTIONS.MOVE,
+    from: ['Agents', 'Ruby agent', 'Ruby agent', '*'],
+    to: ['Agents', 'Ruby agent'],
+  },
+  {
     type: INSTRUCTIONS.REMOVE,
     path: ['Agents', 'Ruby agent', 'Ruby agent'],
   },
+  {
+    type: INSTRUCTIONS.RENAME,
+    path: ['Insights', 'Insights'],
+    title: 'Overview',
+  },
+  { type: INSTRUCTIONS.REORDER, path: ['Insights', 'Overview'], index: 0 },
+
   // ----- Alerts and Applied Intelligence ----- \\
   {
     type: INSTRUCTIONS.DUPLICATE,
