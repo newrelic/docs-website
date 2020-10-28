@@ -84,6 +84,15 @@ module.exports = [
   },
   {
     type: INSTRUCTIONS.MOVE,
+    from: ['Full-Stack Observability', 'APM', 'New Relic APM', '*'],
+    to: ['Full-Stack Observability', 'APM'],
+  },
+  {
+    type: INSTRUCTIONS.REMOVE,
+    path: ['Full-Stack Observability', 'APM', 'New Relic APM'],
+  },
+  {
+    type: INSTRUCTIONS.MOVE,
     from: ['Browser', 'Browser monitoring'],
     to: ['Full-Stack Observability'],
   },
