@@ -6,7 +6,7 @@ const { ITEMS_PER_TYPE } = require('../constants');
 
 const logger = require('../logger');
 
-const fetchDocCount = async () => {
+const fetchDocCount = async (files) => {
     const url = 'https://docs-dev.newrelic.com/api/migration/content/count'
     try {
       const resp = await fetch(url, {
@@ -18,15 +18,13 @@ const fetchDocCount = async () => {
       const result = await resp.json();
       
       const totalCount = parseInt(result.docs[0].count.all); 
-      const migratedCount = Object.values(ITEMS_PER_TYPE).reduce((acc, cur)=>{
-        return parseInt(cur) + acc
-      }, 0)
+      const migratedCount = files.length;
 
       writeSync( vfile({
           contents: JSON.stringify({
               migratedCount, 
               totalCount
-          }), 
+          }, null, 2), 
           path: `${process.cwd()}/src/data/count`,
           extname: '.json'
       }))

@@ -29,7 +29,7 @@ const run = async () => {
     const files = await all(docs, toVFile).then((files) =>
       files.sort((a, b) => a.path.localeCompare(b.path))
     );
-    const docCount = await fetchDocCount();
+    const docCount = await fetchDocCount(files);
 
     logger.normal('Creating directories');
     createDirectories(files);
