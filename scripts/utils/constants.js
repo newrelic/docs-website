@@ -6,10 +6,13 @@ module.exports = {
   NAV_DIR: 'src/nav',
 
   INSTRUCTIONS: {
+    ADD: 'ADD',
     MOVE: 'MOVE',
     RENAME: 'RENAME',
     REMOVE: 'REMOVE',
     DUPLICATE: 'DUPLICATE',
+    UPDATE: 'UPDATE',
+    REORDER: 'REORDER',
   },
 
   TYPES: {
