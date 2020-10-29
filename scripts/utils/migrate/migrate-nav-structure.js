@@ -5,10 +5,15 @@ const slugify = require('../slugify');
 const { NAV_DIR, INSTRUCTIONS } = require('../constants');
 const logger = require('../logger');
 const instructions = require('./instruction-set');
+const { omit } = require('lodash');
 
 const migrateNavStructure = (files) => {
   return instructions.reduce((files, instruction) => {
     switch (instruction.type) {
+      case INSTRUCTIONS.ADD:
+        return add(files, instruction);
+      case INSTRUCTIONS.UPDATE:
+        return update(files, instruction);
       case INSTRUCTIONS.MOVE:
         return move(files, instruction);
       case INSTRUCTIONS.REMOVE:
@@ -17,10 +22,79 @@ const migrateNavStructure = (files) => {
         return rename(files, instruction);
       case INSTRUCTIONS.DUPLICATE:
         return duplicate(files, instruction);
+      case INSTRUCTIONS.REORDER:
+        return reorder(files, instruction);
       default:
         throw new Error(`Unknown instruction: ${instruction.type}`);
     }
   }, files);
+};
+
+const reorder = (files, { path: pathSegments, index }) => {
+  const file = findFile(files, pathSegments);
+
+  if (!file) {
+    return files;
+  }
+
+  const nav = load(file);
+  const title = last(pathSegments);
+  const [, ...remainingSegments] = pathSegments.slice(0, -1);
+
+  const reorderChild = (parent) => {
+    const child = parent.pages.find((child) => child.title === title);
+    const pages = parent.pages.filter((node) => node !== child);
+
+    return {
+      ...parent,
+      pages: [...pages.slice(0, index), child, ...pages.slice(index)],
+    };
+  };
+
+  const updatedNav =
+    remainingSegments.length === 0
+      ? reorderChild(nav)
+      : updateNodeAtPath(nav, pathSegments.slice(1, -1), reorderChild, () =>
+          file.message(
+            `Nav path not found: ${pathSegments.join(' > ')}`,
+            'migrate-nav-structure:reorder'
+          )
+        );
+
+  write(file, updatedNav);
+
+  return files;
+};
+
+const update = (files, { path: pathSegments, node, replace = false }) => {
+  const file = findFile(files, pathSegments);
+
+  if (!file) {
+    return files;
+  }
+
+  const updatedNav = updateNodeAtPath(
+    load(file),
+    pathSegments.slice(1),
+    (child) =>
+      replace
+        ? node
+        : // keep a consistent key order
+          {
+            title: node.title || child.title,
+            path: node.path || child.path,
+            pages: node.pages || child.pages,
+          },
+    () =>
+      file.message(
+        `Nav path not found: ${pathSegments.join(' > ')}`,
+        'migrate-nav-structure:update'
+      )
+  );
+
+  write(file, updatedNav);
+
+  return files;
 };
 
 const remove = (files, { path: pathSegments }) => {
@@ -43,7 +117,7 @@ const remove = (files, { path: pathSegments }) => {
           )
         );
 
-  if (updatedNav.pages.length === 0) {
+  if (shouldRemoveNode(updatedNav)) {
     return files.filter((file) => file !== sourceFile);
   }
 
@@ -53,7 +127,10 @@ const remove = (files, { path: pathSegments }) => {
 };
 
 const move = (files, { from, to }) => {
-  const node = findNode(files, from, { operation: 'move' });
+  const isWildcard = last(from) === '*';
+  const node = findNode(files, isWildcard ? from.slice(0, -1) : from, {
+    operation: 'move',
+  });
 
   if (!node) {
     return files;
@@ -67,6 +144,14 @@ const move = (files, { from, to }) => {
     write(destinationFile, { path: `/docs/${slugify(node.title)}`, ...node });
 
     files = [...files, destinationFile];
+  } else if (isWildcard) {
+    return (node.pages || []).reduce(
+      (files, node) =>
+        remove(add(files, { node, path: to }), {
+          path: from.slice(0, -1).concat(node.title),
+        }),
+      files
+    );
   } else {
     files = add(files, { node, path: to });
   }
@@ -78,6 +163,17 @@ const rename = (files, { path: pathSegments, title }) => {
   const file = findFile(files, pathSegments);
 
   if (!file) {
+    return files;
+  }
+
+  const [, ...remainingSegments] = pathSegments;
+  const nav = load(file);
+
+  if (remainingSegments.length === 0) {
+    file.stem = slugify(title);
+
+    write(file, { ...nav, title });
+
     return files;
   }
 
@@ -175,7 +271,7 @@ const findNode = (files, pathSegments, { operation } = {}) => {
 
 const isRoot = (path) => path.length === 0;
 
-const update = (items, idx, updater) => [
+const updateList = (items, idx, updater) => [
   ...items.slice(0, idx),
   updater(items[idx]),
   ...items.slice(idx + 1),
@@ -183,7 +279,7 @@ const update = (items, idx, updater) => [
 
 const updateChild = (parent, idx, updater) => ({
   ...parent,
-  pages: update(parent.pages || [], idx, updater),
+  pages: updateList(parent.pages || [], idx, updater),
 });
 
 const updateNodeAtPath = (
@@ -247,19 +343,17 @@ const filterCategory = (nav, pathSegments, missing) => {
   }
 
   if (remainingSegments.length === 0) {
-    return {
-      ...nav,
-      pages: nav.pages.filter((child) => child.title !== title),
-    };
+    const pages = nav.pages.filter((child) => child.title !== title);
+
+    return pages.length === 0 ? omit(nav, ['pages']) : { ...nav, pages };
   }
 
   const child = filterCategory(nav.pages[idx], remainingSegments, missing);
 
-  if (child.pages.length === 0 && !child.path) {
-    return {
-      ...nav,
-      pages: [...nav.pages.slice(0, idx), ...nav.pages.slice(idx + 1)],
-    };
+  if (shouldRemoveNode(child)) {
+    const pages = [...nav.pages.slice(0, idx), ...nav.pages.slice(idx + 1)];
+
+    return pages.length === 0 ? omit(nav, ['pages']) : { ...nav, pages };
   }
 
   return updateChild(nav, idx, (node) =>
@@ -279,11 +373,16 @@ const findCategory = (nav, pathSegments) => {
   return child ? findCategory(child, remainingSegments) : null;
 };
 
+const last = (items) => items[items.length - 1];
+
 const load = (file) => yaml.safeLoad(file.contents);
 
 const write = (file, contents) => {
   // set high line width to avoid wrapping
   file.contents = yaml.safeDump(contents, { lineWidth: 9999 });
 };
+
+const shouldRemoveNode = (node) =>
+  !node.path && (!node.pages || node.pages.length === 0);
 
 module.exports = migrateNavStructure;
