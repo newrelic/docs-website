@@ -1,4 +1,5 @@
 const { curry } = require('lodash/fp');
+const convert = require('unist-util-is/convert');
 
 const isType = curry((type, node) => node.type === type);
 
@@ -34,7 +35,7 @@ const findAttribute = (attributeName, node) => {
   return attribute ? attribute.value : null;
 };
 
-const hasClassName = (className, node) => {
+const hasClassName = curry((className, node) => {
   if (!node.attributes) {
     return false;
   }
@@ -43,7 +44,7 @@ const hasClassName = (className, node) => {
       attr.name === 'className' &&
       attr.value.split(/\s+/).some((cn) => cn === className)
   );
-};
+});
 
 const setAttribute = (name, value, node) => {
   const attribute = findAttribute(name, value);
@@ -92,6 +93,12 @@ const isPlainText = (node) => {
   );
 };
 
+const findChild = (node, test) => {
+  const matches = convert(test);
+
+  return node.children.find((child, idx) => matches(child, idx, node));
+};
+
 module.exports = {
   addAttribute,
   flatten,
@@ -103,6 +110,7 @@ module.exports = {
   findAttribute,
   hasClassName,
   hasOnlyChild,
+  findChild,
   removeAttribute,
   removeChild,
   isType,
