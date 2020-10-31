@@ -85,6 +85,25 @@ const landingPageTileGrid = () => (tree, file) => {
       );
     }
   });
+
+  visit(
+    tree,
+    (_node, _idx, parent) => parent === tree,
+    (node, idx, parent) => {
+      const previous = idx && parent.children[idx - 1];
+
+      if (
+        previous &&
+        isMdxBlockElement('LandingPageTileGrid', previous) &&
+        isMdxBlockElement('LandingPageTileGrid', node)
+      ) {
+        previous.children = previous.children.concat(node.children);
+        removeChild(node, parent);
+
+        return idx;
+      }
+    }
+  );
 };
 
 module.exports = landingPageTileGrid;
