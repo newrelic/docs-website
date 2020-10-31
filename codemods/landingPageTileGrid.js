@@ -59,7 +59,9 @@ const landingPageTileGrid = () => (tree, file) => {
       }
 
       if (endsTitleSentence) {
-        plainTextNode.value = plainTextNode.value.replace(/^\.\s+/, '').trim();
+        plainTextNode.value = plainTextNode.value
+          .replace(/^\.\s+/, '')
+          .trimStart();
       }
 
       removeChild(titleNode, paragraph);
