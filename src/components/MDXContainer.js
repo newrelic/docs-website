@@ -15,6 +15,8 @@ import Collapser from './Collapser';
 import CollapserGroup from './CollapserGroup';
 import Table from './Table';
 import MDXLink from './MDXLink';
+import LandingPageTile from './LandingPageTile';
+import LandingPageTileGrid from './LandingPageTileGrid';
 
 const Wrapper = ({ children }) => (
   <div
@@ -88,6 +90,8 @@ const components = {
   ),
   Icon,
   InlineCode,
+  LandingPageTile,
+  LandingPageTileGrid,
   Table,
   Video,
 };
