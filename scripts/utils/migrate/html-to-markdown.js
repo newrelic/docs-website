@@ -136,14 +136,6 @@ module.exports = (file) => {
         file.data.doc.type === TYPES.LANDING_PAGE && isLandingPageTile(node),
       replacement: (content) =>
         `<div className="landing-page-tile">\n\n${content}\n\n</div>\n\n`,
-    })
-    .addRule('landingPageTileGrid', {
-      filter: (node) =>
-        file.data.doc.type === TYPES.LANDING_PAGE &&
-        node.classList.contains('row') &&
-        Array.from(node.childNodes).every(isLandingPageTile),
-      replacement: (content) =>
-        `<div className="landing-page-tile-grid">\n\n${content}\n\n</div>\n\n`,
     });
 
   return turndown.turndown(file.contents);

@@ -10,7 +10,9 @@ const {
 } = require('./utils/mdxast');
 const is = require('unist-util-is');
 const toString = require('mdast-util-to-string');
+const { mdxBlockElement } = require('./utils/mdxast-builder');
 
+const isLandingPageTile = isMdxBlockElement('LandingPageTile');
 const isTitleLink = (node) =>
   is(node, 'link') && is(node.children[0], 'strong');
 
@@ -29,11 +31,6 @@ const extractTitle = (node) => {
 };
 
 const landingPageTileGrid = () => (tree, file) => {
-  visit(tree, hasClassName('landing-page-tile-grid'), (div) => {
-    div.name = 'LandingPageTileGrid';
-    removeAttribute('className', div);
-  });
-
   visit(tree, hasClassName('landing-page-tile'), (div) => {
     div.name = 'LandingPageTile';
     removeAttribute('className', div);
@@ -62,7 +59,7 @@ const landingPageTileGrid = () => (tree, file) => {
       }
 
       if (endsTitleSentence) {
-        plainTextNode.value = plainTextNode.value.replace(/^\.\s+/, '');
+        plainTextNode.value = plainTextNode.value.replace(/^\.\s+/, '').trim();
       }
 
       removeChild(titleNode, paragraph);
@@ -91,17 +88,30 @@ const landingPageTileGrid = () => (tree, file) => {
     (_node, _idx, parent) => parent === tree,
     (node, idx, parent) => {
       const previous = idx && parent.children[idx - 1];
+      const isFirstTile =
+        (isLandingPageTile(node) && idx === 0) ||
+        (isLandingPageTile(node) && !isLandingPageTile(previous));
 
-      if (
-        previous &&
-        isMdxBlockElement('LandingPageTileGrid', previous) &&
-        isMdxBlockElement('LandingPageTileGrid', node)
-      ) {
-        previous.children = previous.children.concat(node.children);
-        removeChild(node, parent);
-
-        return idx;
+      if (!isFirstTile) {
+        return;
       }
+
+      const count = parent.children
+        .slice(idx)
+        .findIndex((child, idx, items) => {
+          const previous = items[idx - 1];
+
+          return (
+            previous && isLandingPageTile(previous) && !isLandingPageTile(child)
+          );
+        });
+
+      const tiles = parent.children.slice(idx, idx + count);
+      const tileGrid = mdxBlockElement('LandingPageTileGrid', [], tiles);
+
+      parent.children.splice(idx, count, tileGrid);
+
+      return idx + 1;
     }
   );
 };
