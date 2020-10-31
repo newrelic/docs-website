@@ -29,7 +29,12 @@ const extractTitle = (node) => {
 };
 
 const landingPageTileGrid = () => (tree, file) => {
-  const visitTile = (div) => {
+  visit(tree, hasClassName('landing-page-tile-grid'), (div) => {
+    div.name = 'LandingPageTileGrid';
+    removeAttribute('className', div);
+  });
+
+  visit(tree, hasClassName('landing-page-tile'), (div) => {
     div.name = 'LandingPageTile';
     removeAttribute('className', div);
 
@@ -41,12 +46,23 @@ const landingPageTileGrid = () => (tree, file) => {
     const titleNode = paragraph && findChild(paragraph, isTitle);
 
     if (titleNode) {
+      const plainTextNode = is(paragraph.children[1], 'text')
+        ? paragraph.children[1]
+        : null;
+
+      const endsTitleSentence =
+        Boolean(plainTextNode) && /^\.\s+/.test(plainTextNode.value);
+
       const [text, link] = extractTitle(titleNode);
 
-      setAttribute('title', text, div);
+      setAttribute('title', endsTitleSentence ? `${text}.` : text, div);
 
       if (link) {
         setAttribute('href', link, div);
+      }
+
+      if (endsTitleSentence) {
+        plainTextNode.value = plainTextNode.value.replace(/^\.\s+/, '');
       }
 
       removeChild(titleNode, paragraph);
@@ -68,13 +84,6 @@ const landingPageTileGrid = () => (tree, file) => {
         'landing-page-title-grid'
       );
     }
-  };
-
-  visit(tree, hasClassName('landing-page-tile-grid'), (div) => {
-    div.name = 'LandingPageTileGrid';
-    removeAttribute('className', div);
-
-    div.children.forEach((child) => visitTile(child));
   });
 };
 
