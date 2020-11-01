@@ -16,6 +16,10 @@ const LandingPageTile = ({ children, title, icon, href }) => (
       position: relative;
       min-height: 200px;
 
+      .light-mode & {
+        border: 1px solid var(--border-color);
+      }
+
       &:hover {
         color: currentColor;
       }
@@ -35,6 +39,7 @@ const LandingPageTile = ({ children, title, icon, href }) => (
           border-radius: 50%;
           width: 4.5rem;
           height: 4.5rem;
+          border: 1px solid var(--border-color);
 
           .dark-mode & {
             border: 3px solid var(--color-dark-100);
