@@ -11,6 +11,7 @@ const codeBlocks = require('./codeBlocks');
 const inlineCodeBlocks = require('./inlineCodeBlocks');
 const landingPageTileGrid = require('./landingPageTileGrid');
 const landingPageImagePlacement = require('./landingPageImagePlacement');
+const collapseLandingPageTileGrids = require('./collapseLandingPageTileGrids');
 
 module.exports = [
   codeBlocks,
@@ -26,4 +27,5 @@ module.exports = [
   icons,
   landingPageTileGrid,
   landingPageImagePlacement,
+  collapseLandingPageTileGrids,
 ];
