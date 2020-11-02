@@ -101,6 +101,15 @@ const MDXContainer = ({ children, className, components = {} }) => (
         font-weight: bold;
       }
 
+      h1,
+      h2,
+      h3,
+      h4,
+      h5,
+      h6 {
+        scroll-margin-top: calc(var(--global-header-height) + 2rem);
+      }
+
       li:not(:last-child) {
         margin-bottom: 0.75rem;
       }
