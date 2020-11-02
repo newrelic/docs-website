@@ -62,6 +62,29 @@ const MDXContainer = ({ children, components = {} }) => (
       p:last-child {
         margin-bottom: 0;
       }
+
+      p,
+      ol,
+      ul {
+        margin-bottom: 1.5rem;
+
+        &:last-child {
+          margin-bottom: 0;
+        }
+      }
+
+      ol,
+      ul {
+        margin-top: 0;
+        padding-left: 1rem;
+      }
+
+      h1,
+      h2,
+      h3 {
+        margin-bottom: 1rem;
+      }
+
       h1,
       h2 {
         font-weight: bold;
@@ -77,8 +100,8 @@ const MDXContainer = ({ children, components = {} }) => (
         font-weight: bold;
       }
 
-      li {
-        margin-bottom: 1rem;
+      li:not(:last-child) {
+        margin-bottom: 0.75rem;
       }
 
       ul li ul {
