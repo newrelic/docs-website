@@ -1,8 +1,42 @@
-import React from 'react';
+import React, { Children } from 'react';
 import PropTypes from 'prop-types';
+import { css } from '@emotion/core';
 import { graphql } from 'gatsby';
 import MDXContainer from '../components/MDXContainer';
 import SEO from '../components/seo';
+
+const isMdxType = (element, mdxType) => element.props?.mdxType === mdxType;
+
+const Wrapper = ({ children }) => {
+  children = Children.toArray(children);
+
+  const viewAllButtonIdx = children.findIndex(
+    (element, idx) =>
+      isMdxType(element, 'Button') &&
+      isMdxType(children[idx - 1], 'LandingPageTileGrid')
+  );
+
+  return [
+    ...children.slice(0, viewAllButtonIdx),
+    <div
+      key="viewAllButton"
+      css={css`
+        text-align: center;
+      `}
+    >
+      {children[viewAllButtonIdx]}
+    </div>,
+    ...children.slice(viewAllButtonIdx + 1),
+  ];
+};
+
+Wrapper.propTypes = {
+  children: PropTypes.node,
+};
+
+const components = {
+  wrapper: Wrapper,
+};
 
 const LandingPage = ({ data }) => {
   const { mdx } = data;
@@ -12,7 +46,7 @@ const LandingPage = ({ data }) => {
     <>
       <SEO title={frontmatter.title} />
       <h1>{frontmatter.title}</h1>
-      <MDXContainer>{body}</MDXContainer>
+      <MDXContainer components={components}>{body}</MDXContainer>
     </>
   );
 };
