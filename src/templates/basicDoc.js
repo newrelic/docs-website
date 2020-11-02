@@ -4,6 +4,7 @@ import { css } from '@emotion/core';
 import { graphql } from 'gatsby';
 import MDXContainer from '../components/MDXContainer';
 import SEO from '../components/seo';
+import TableOfContents from '../components/TableOfContents';
 import {
   ContributingGuidelines,
   PageTools,
@@ -51,6 +52,7 @@ const BasicDoc = ({ data }) => {
           `}
         >
           <ContributingGuidelines fileRelativePath={fileRelativePath} />
+          <TableOfContents page={mdx} />
         </PageTools>
       </div>
     </>
@@ -71,6 +73,8 @@ export const pageQuery = graphql`
       fields {
         fileRelativePath
       }
+
+      ...TableOfContents_page
     }
     ...MainLayout_query
   }
