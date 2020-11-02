@@ -28,6 +28,19 @@ module.exports = {
           contentPadding: '2rem',
           maxWidth: '1700px',
         },
+        prism: {
+          languages: [
+            'xml',
+            'xml-doc',
+            'c',
+            'go',
+            'java',
+            'php',
+            'phpdoc',
+            'csharp',
+            'python',
+          ],
+        },
         // This option is set to disallow to prevent crawling of the site during preview
         // mode
         robots: {
