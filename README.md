@@ -6,6 +6,15 @@ The `docs-website` project is the code and data behind the new docs.newrelic.com
 
 ## Getting Started
 
+### Dependencies
+
+In order to run the project locally, you must have the following installed:
+
+* [Node v12](https://nodejs.org/en/) (as specified in `.nvmrc`)
+* [Yarn](https://yarnpkg.com/)
+
+### Running Locally
+
 You can serve this site locally to quickly see your changes and additions before you PR them. To get started, navigate into your new site’s directory and start it up, as follows.
 
 ```shell
@@ -14,10 +23,6 @@ cd docs-website/
 yarn
 yarn start
 ```
-
-### Dependencies
-
-Node v12 is used in this project as specified in .nvmrc.
 
 ## Support
 

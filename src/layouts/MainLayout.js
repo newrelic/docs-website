@@ -167,9 +167,6 @@ const MainLayout = ({ data = {}, children, pageContext }) => {
         <GlobalFooter
           fileRelativePath={pageContext.fileRelativePath}
           css={css`
-            --logo-icon-color: currentColor;
-            --logo-text-color: currentColor;
-
             margin-left: -${layout.contentPadding};
             display: ${isMobileNavOpen ? 'none' : 'block'};
 

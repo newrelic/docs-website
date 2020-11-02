@@ -2,6 +2,7 @@ const Turndown = require('turndown');
 const HTMLtoJSX = require('htmltojsx');
 const fauxHtmlToJSX = require('./faux-html-to-jsx');
 const { extractTags } = require('../node');
+const { TYPES } = require('../constants');
 
 const SPECIAL_COMPONENTS = [
   { tag: 'div', className: 'callout-tip' },
@@ -48,6 +49,11 @@ Turndown.prototype.escape = (string) => {
 };
 
 const htmlToJSXConverter = new HTMLtoJSX({ createClass: false });
+
+const isLandingPageTile = (node) =>
+  node.classList.contains('col') &&
+  node.childNodes[0].classList.contains('col-md-3') &&
+  node.childNodes[1].classList.contains('col-md-9');
 
 module.exports = (file) => {
   const turndown = new Turndown({
@@ -124,6 +130,12 @@ module.exports = (file) => {
       filter: (node) => node.classList.contains('btn'),
       replacement: (_content, node) =>
         htmlToJSXConverter.convert(node.outerHTML),
+    })
+    .addRule('landingPageTile', {
+      filter: (node) =>
+        file.data.doc.type === TYPES.LANDING_PAGE && isLandingPageTile(node),
+      replacement: (content) =>
+        `<div className="landing-page-tile">\n\n${content}\n\n</div>\n\n`,
     });
 
   return turndown.turndown(file.contents);

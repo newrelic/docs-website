@@ -15,8 +15,35 @@ import Collapser from './Collapser';
 import CollapserGroup from './CollapserGroup';
 import Table from './Table';
 import MDXLink from './MDXLink';
+import LandingPageTile from './LandingPageTile';
+import LandingPageTileGrid from './LandingPageTileGrid';
 
-const Wrapper = ({ children }) => (
+const InlineCode = ({ children }) => <code>{children}</code>;
+
+InlineCode.propTypes = {
+  children: PropTypes.node,
+};
+
+const defaultComponents = {
+  a: MDXLink,
+  code: MDXCodeBlock,
+  pre: (props) => props.children,
+  Button,
+  Callout,
+  Collapser,
+  CollapserGroup,
+  ExternalLink: (props) => (
+    <ExternalLink {...props} onClick={(e) => e.stopPropagation()} />
+  ),
+  Icon,
+  InlineCode,
+  LandingPageTile,
+  LandingPageTileGrid,
+  Table,
+  Video,
+};
+
+const MDXContainer = ({ children, components = {} }) => (
   <div
     css={css`
       > *:first-child {
@@ -35,6 +62,29 @@ const Wrapper = ({ children }) => (
       p:last-child {
         margin-bottom: 0;
       }
+
+      p,
+      ol,
+      ul {
+        margin-bottom: 1.5rem;
+
+        &:last-child {
+          margin-bottom: 0;
+        }
+      }
+
+      ol,
+      ul {
+        margin-top: 0;
+        padding-left: 1rem;
+      }
+
+      h1,
+      h2,
+      h3 {
+        margin-bottom: 1rem;
+      }
+
       h1,
       h2 {
         font-weight: bold;
@@ -50,8 +100,8 @@ const Wrapper = ({ children }) => (
         font-weight: bold;
       }
 
-      li {
-        margin-bottom: 1rem;
+      li:not(:last-child) {
+        margin-bottom: 0.75rem;
       }
 
       ul li ul {
@@ -60,45 +110,14 @@ const Wrapper = ({ children }) => (
       }
     `}
   >
-    {children}
+    <MDXProvider components={{ ...defaultComponents, ...components }}>
+      <MDXRenderer>{children}</MDXRenderer>
+    </MDXProvider>
   </div>
 );
 
-Wrapper.propTypes = {
-  children: PropTypes.node,
-};
-
-const InlineCode = ({ children }) => <code>{children}</code>;
-
-InlineCode.propTypes = {
-  children: PropTypes.node,
-};
-
-const components = {
-  a: MDXLink,
-  code: MDXCodeBlock,
-  pre: (props) => props.children,
-  wrapper: Wrapper,
-  Button,
-  Callout,
-  Collapser,
-  CollapserGroup,
-  ExternalLink: (props) => (
-    <ExternalLink {...props} onClick={(e) => e.stopPropagation()} />
-  ),
-  Icon,
-  InlineCode,
-  Table,
-  Video,
-};
-
-const MDXContainer = ({ children }) => (
-  <MDXProvider components={components}>
-    <MDXRenderer>{children}</MDXRenderer>
-  </MDXProvider>
-);
-
 MDXContainer.propTypes = {
+  components: PropTypes.object,
   children: PropTypes.node,
 };
 
