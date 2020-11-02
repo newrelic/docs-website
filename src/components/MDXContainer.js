@@ -43,8 +43,9 @@ const defaultComponents = {
   Video,
 };
 
-const MDXContainer = ({ children, components = {} }) => (
+const MDXContainer = ({ children, className, components = {} }) => (
   <div
+    className={className}
     css={css`
       > *:first-child {
         margin-top: 0;
@@ -117,6 +118,7 @@ const MDXContainer = ({ children, components = {} }) => (
 );
 
 MDXContainer.propTypes = {
+  className: PropTypes.string,
   components: PropTypes.object,
   children: PropTypes.node,
 };
