@@ -47,7 +47,8 @@ const hasClassName = curry((className, node) => {
 });
 
 const setAttribute = (name, value, node) => {
-  const attribute = findAttribute(name, value);
+  const attribute =
+    node.attributes && node.attributes.find((attr) => attr.name === name);
 
   if (attribute) {
     attribute.value = value;
