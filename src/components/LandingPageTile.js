@@ -11,7 +11,7 @@ const LandingPageTile = ({ children, title, icon, href }) => (
     base={Surface.BASE.SECONDARY}
     to={href}
     css={css`
-      padding: ${icon ? '3rem' : '1rem'} 1rem 1rem;
+      padding: ${icon ? '3.25rem' : '2rem'} 2rem 2rem;
       color: currentColor;
       position: relative;
       min-height: 200px;
