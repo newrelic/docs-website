@@ -106,20 +106,25 @@ const createIndexPages = (files) => {
       return [visit.SKIP];
     }
 
-    if (
-      dir.path === 'src' ||
-      dir.path === 'src/content' ||
-      dir.children.some(isIndexFile)
-    ) {
+    if (dir.path === 'src' || dir.path === 'src/content') {
       return;
     }
 
-    indexFiles.push(
-      vfile({
-        path: path.join(dir.path, 'index.mdx'),
-        contents: generateMDX(dir),
-      })
-    );
+    if (dir.children.some(isIndexFile)) {
+      indexFiles.push(
+        vfile({
+          path: path.join(dir.path, 'table-of-contents.mdx'),
+          contents: generateMDX(dir),
+        })
+      );
+    } else {
+      indexFiles.push(
+        vfile({
+          path: path.join(dir.path, 'index.mdx'),
+          contents: generateMDX(dir),
+        })
+      );
+    }
   });
 
   return indexFiles;
