@@ -13,6 +13,7 @@ const landingPageTileGrid = require('./landingPageTileGrid');
 const landingPageImagePlacement = require('./landingPageImagePlacement');
 const collapseLandingPageTileGrids = require('./collapseLandingPageTileGrids');
 const landingPageButtonType = require('./landingPageButtonType');
+const tocLinks = require('./tocLinks');
 
 module.exports = [
   codeBlocks,
@@ -30,4 +31,5 @@ module.exports = [
   landingPageImagePlacement,
   collapseLandingPageTileGrids,
   landingPageButtonType,
+  tocLinks,
 ];
