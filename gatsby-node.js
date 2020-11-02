@@ -13,12 +13,6 @@ exports.onCreateNode = ({ node, getNode, actions }) => {
       name: 'slug',
       value: createFilePath({ node, getNode, trailingSlash: false }),
     });
-
-    createNodeField({
-      node,
-      name: 'fileRelativePath',
-      value: getFileRelativePath(node.fileAbsolutePath),
-    });
   }
 };
 
