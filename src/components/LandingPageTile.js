@@ -76,7 +76,7 @@ const LandingPageTile = ({ children, title, icon, href }) => (
 
 LandingPageTile.propTypes = {
   children: PropTypes.node,
-  title: PropTypes.string,
+  title: PropTypes.string.isRequired,
   icon: PropTypes.string,
   href: PropTypes.string,
 };
