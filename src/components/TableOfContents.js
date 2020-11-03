@@ -41,7 +41,7 @@ const TableOfContents = ({ headings }) => {
     }
   }, [changedActiveHash]);
 
-  return (
+  return headings.length === 0 ? null : (
     <PageTools.Section>
       <PageTools.Title>On this page</PageTools.Title>
       <nav
