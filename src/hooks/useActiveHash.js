@@ -2,9 +2,12 @@ import { useEffect, useRef, useState } from 'react';
 import getScrollHeight from '../utils/scrollHeight';
 import { useWindowSize } from 'react-use';
 
+// global header height + layout content padding
+const MIN_THRESHOLD = 68;
+
 const useActiveHash = (ids) => {
   const { height } = useWindowSize();
-  const threshold = height * 0.2;
+  const threshold = Math.max(height * 0.2, MIN_THRESHOLD);
   const [activeHash, setActiveHash] = useState(
     () => window.location.hash || ids[0]
   );
