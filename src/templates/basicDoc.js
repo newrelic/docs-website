@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/core';
 import { graphql } from 'gatsby';
@@ -9,14 +9,39 @@ import {
   ContributingGuidelines,
   PageTools,
 } from '@newrelic/gatsby-theme-newrelic';
+import GithubSlugger from 'github-slugger';
+import toString from 'mdast-util-to-string';
+
+const slugs = new GithubSlugger();
+
+const H2 = ({ children, ...props }) => {
+  return <h2 {...props}>{children}</h2>;
+};
+
+H2.propTypes = {
+  children: PropTypes.node,
+};
 
 const BasicDoc = ({ data }) => {
   const { mdx } = data;
   const {
+    mdxAST,
     frontmatter,
     body,
     fields: { fileRelativePath },
   } = mdx;
+
+  const headings = useMemo(
+    () =>
+      mdxAST.children
+        .filter((node) => node.type === 'heading' && node.depth === 2)
+        .map((heading) => {
+          const text = toString(heading);
+
+          return { id: slugs.slug(text), text };
+        }),
+    [mdxAST]
+  );
 
   return (
     <>
@@ -36,6 +61,7 @@ const BasicDoc = ({ data }) => {
         `}
       >
         <MDXContainer
+          components={{ h2: H2 }}
           css={css`
             grid-area: content;
           `}
@@ -52,7 +78,7 @@ const BasicDoc = ({ data }) => {
           `}
         >
           <ContributingGuidelines fileRelativePath={fileRelativePath} />
-          <TableOfContents page={mdx} />
+          <TableOfContents headings={headings} />
         </PageTools>
       </div>
     </>
@@ -67,14 +93,13 @@ export const pageQuery = graphql`
   query($slug: String!, $nav: String) {
     mdx(fields: { slug: { eq: $slug } }) {
       body
+      mdxAST
       frontmatter {
         title
       }
       fields {
         fileRelativePath
       }
-
-      ...TableOfContents_page
     }
     ...MainLayout_query
   }
