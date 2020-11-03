@@ -13,6 +13,7 @@ import {
 } from '@newrelic/gatsby-theme-newrelic';
 import Collapser from './Collapser';
 import CollapserGroup from './CollapserGroup';
+import RelatedContent from './RelatedContent';
 import Table from './Table';
 import MDXLink from './MDXLink';
 import LandingPageTile from './LandingPageTile';
@@ -41,6 +42,7 @@ const defaultComponents = {
   LandingPageTileGrid,
   Table,
   Video,
+  RelatedContent,
 };
 
 const MDXContainer = ({ children, components = {} }) => (
