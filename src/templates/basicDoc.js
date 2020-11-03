@@ -9,14 +9,21 @@ import {
   ContributingGuidelines,
   PageTools,
 } from '@newrelic/gatsby-theme-newrelic';
+import toString from 'mdast-util-to-string';
+import RelatedContent from '../components/RelatedContent';
 
 const BasicDoc = ({ data }) => {
   const { mdx } = data;
   const {
+    mdxAST,
     frontmatter,
     body,
     fields: { fileRelativePath },
   } = mdx;
+
+  const moreHelpExists = mdxAST.children.find(
+    (node) => node.type === 'heading' && toString(node) === 'For more help'
+  );
 
   return (
     <>
@@ -39,6 +46,7 @@ const BasicDoc = ({ data }) => {
           css={css`
             grid-area: content;
           `}
+          relatedContent={moreHelpExists ? null : <RelatedContent />}
         >
           {body}
         </MDXContainer>
@@ -66,6 +74,7 @@ BasicDoc.propTypes = {
 export const pageQuery = graphql`
   query($slug: String!, $nav: String) {
     mdx(fields: { slug: { eq: $slug } }) {
+      mdxAST
       body
       frontmatter {
         title

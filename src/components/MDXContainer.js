@@ -46,7 +46,12 @@ const defaultComponents = {
   RelatedContent,
 };
 
-const MDXContainer = ({ children, className, components = {} }) => {
+const MDXContainer = ({
+  children,
+  className,
+  components,
+  relatedContent = {},
+}) => {
   const {
     site: { layout },
   } = useStaticQuery(graphql`
@@ -141,6 +146,7 @@ const MDXContainer = ({ children, className, components = {} }) => {
       <MDXProvider components={{ ...defaultComponents, ...components }}>
         <MDXRenderer>{children}</MDXRenderer>
       </MDXProvider>
+      {relatedContent && relatedContent}
     </div>
   );
 };
@@ -149,6 +155,7 @@ MDXContainer.propTypes = {
   className: PropTypes.string,
   components: PropTypes.object,
   children: PropTypes.node,
+  relatedContent: PropTypes.func,
 };
 
 export default MDXContainer;
