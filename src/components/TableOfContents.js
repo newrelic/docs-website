@@ -38,9 +38,13 @@ const TableOfContents = ({ headings }) => {
                     color: var(--primary-text-color);
 
                     &.active {
-                      background: var(--color-dark-100);
+                      background: var(--color-neutrals-100);
                       padding-left: 0.5rem;
                       padding-right: 0.5rem;
+
+                      .dark-mode & {
+                        background: var(--color-dark-100);
+                      }
                     }
                   `}
                 >
