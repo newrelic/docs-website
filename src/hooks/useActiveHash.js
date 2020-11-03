@@ -4,7 +4,7 @@ import { useWindowSize } from 'react-use';
 
 const useActiveHash = (ids) => {
   const { height } = useWindowSize();
-  const threshold = height * 0.3;
+  const threshold = height * 0.2;
   const [activeHash, setActiveHash] = useState(
     () => window.location.hash || ids[0]
   );
