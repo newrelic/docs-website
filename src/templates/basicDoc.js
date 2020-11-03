@@ -10,14 +10,6 @@ import {
   PageTools,
 } from '@newrelic/gatsby-theme-newrelic';
 
-const H2 = ({ children, ...props }) => {
-  return <h2 {...props}>{children}</h2>;
-};
-
-H2.propTypes = {
-  children: PropTypes.node,
-};
-
 const BasicDoc = ({ data }) => {
   const { mdx } = data;
   const {
@@ -44,7 +36,6 @@ const BasicDoc = ({ data }) => {
         `}
       >
         <MDXContainer
-          components={{ h2: H2 }}
           css={css`
             grid-area: content;
           `}
