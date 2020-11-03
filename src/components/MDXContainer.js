@@ -11,6 +11,7 @@ import {
   Icon,
   Video,
 } from '@newrelic/gatsby-theme-newrelic';
+import { useStaticQuery, graphql } from 'gatsby';
 import Collapser from './Collapser';
 import CollapserGroup from './CollapserGroup';
 import Table from './Table';
@@ -43,80 +44,107 @@ const defaultComponents = {
   Video,
 };
 
-const MDXContainer = ({ children, components = {} }) => (
-  <div
-    css={css`
-      > *:first-child {
-        margin-top: 0;
+const MDXContainer = ({ children, className, components = {} }) => {
+  const {
+    site: { layout },
+  } = useStaticQuery(graphql`
+    query {
+      site {
+        layout {
+          contentPadding
+        }
       }
+    }
+  `);
 
-      code {
-        padding: 0.125rem;
-        border-radius: 2px;
-      }
+  return (
+    <div
+      className={className}
+      css={css`
+        > *:first-child {
+          margin-top: 0;
+        }
 
-      :not(pre) > code {
-        background: var(--tertiary-background-color);
-      }
+        code {
+          padding: 0.125rem;
+          border-radius: 2px;
+        }
 
-      p:last-child {
-        margin-bottom: 0;
-      }
+        :not(pre) > code {
+          background: var(--tertiary-background-color);
+        }
 
-      p,
-      ol,
-      ul {
-        margin-bottom: 1.5rem;
-
-        &:last-child {
+        p:last-child {
           margin-bottom: 0;
         }
-      }
 
-      ol,
-      ul {
-        margin-top: 0;
-        padding-left: 1rem;
-      }
+        p,
+        ol,
+        ul {
+          margin-bottom: 1.5rem;
 
-      h1,
-      h2,
-      h3 {
-        margin-bottom: 1rem;
-      }
-
-      h1,
-      h2 {
-        font-weight: bold;
-
-        &:not(:first-child) {
-          margin-top: 2rem;
+          &:last-child {
+            margin-bottom: 0;
+          }
         }
-      }
 
-      h3,
-      h4 {
-        margin-top: 1rem;
-        font-weight: bold;
-      }
+        ol,
+        ul {
+          margin-top: 0;
+          padding-left: 1rem;
+        }
 
-      li:not(:last-child) {
-        margin-bottom: 0.75rem;
-      }
+        h1,
+        h2,
+        h3 {
+          margin-bottom: 1rem;
+        }
 
-      ul li ul {
-        margin-top: 1rem;
-        line-height: 1;
-      }
-    `}
-  >
-    <MDXProvider components={{ ...defaultComponents, ...components }}>
-      <MDXRenderer>{children}</MDXRenderer>
-    </MDXProvider>
-  </div>
-);
+        h1,
+        h2 {
+          font-weight: bold;
+
+          &:not(:first-child) {
+            margin-top: 2rem;
+          }
+        }
+
+        h3,
+        h4 {
+          margin-top: 1rem;
+          font-weight: bold;
+        }
+
+        h1,
+        h2,
+        h3,
+        h4,
+        h5,
+        h6 {
+          scroll-margin-top: calc(
+            var(--global-header-height) + ${layout.contentPadding}
+          );
+        }
+
+        li:not(:last-child) {
+          margin-bottom: 0.75rem;
+        }
+
+        ul li ul {
+          margin-top: 1rem;
+          line-height: 1;
+        }
+      `}
+    >
+      <MDXProvider components={{ ...defaultComponents, ...components }}>
+        <MDXRenderer>{children}</MDXRenderer>
+      </MDXProvider>
+    </div>
+  );
+};
 
 MDXContainer.propTypes = {
+  className: PropTypes.string,
   components: PropTypes.object,
   children: PropTypes.node,
 };
