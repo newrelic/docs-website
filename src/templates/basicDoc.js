@@ -12,8 +12,6 @@ import {
 import GithubSlugger from 'github-slugger';
 import toString from 'mdast-util-to-string';
 
-const slugs = new GithubSlugger();
-
 const H2 = ({ children, ...props }) => {
   return <h2 {...props}>{children}</h2>;
 };
@@ -31,17 +29,17 @@ const BasicDoc = ({ data }) => {
     fields: { fileRelativePath },
   } = mdx;
 
-  const headings = useMemo(
-    () =>
-      mdxAST.children
-        .filter((node) => node.type === 'heading' && node.depth === 2)
-        .map((heading) => {
-          const text = toString(heading);
+  const headings = useMemo(() => {
+    const slugs = new GithubSlugger();
 
-          return { id: slugs.slug(text), text };
-        }),
-    [mdxAST]
-  );
+    return mdxAST.children
+      .filter((node) => node.type === 'heading' && node.depth === 2)
+      .map((heading) => {
+        const text = toString(heading);
+
+        return { id: slugs.slug(text), text };
+      });
+  }, [mdxAST]);
 
   return (
     <>
