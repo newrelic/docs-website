@@ -8,9 +8,13 @@ const MIN_THRESHOLD = 68;
 const useActiveHash = (ids) => {
   const { height } = useWindowSize();
   const threshold = Math.max(height * 0.2, MIN_THRESHOLD);
-  const [activeHash, setActiveHash] = useState(
-    () => window.location.hash || ids[0]
-  );
+  const [activeHash, setActiveHash] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return window.location.hash || ids[0];
+    }
+
+    return ids[0];
+  });
   const activeHashRef = useRef(activeHash);
 
   useEffect(() => {
