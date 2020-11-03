@@ -89,7 +89,10 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
 
     const nav = allNavYaml.edges
       .map(({ node }) => node)
-      .find((nav) => findPage(nav, slug));
+      .find((nav) =>
+        // table-of-contents pages should get the same nav as their landing page
+        findPage(nav, slug.replace(/\/table-of-contents$/, ''))
+      );
 
     createPage({
       path: slug,

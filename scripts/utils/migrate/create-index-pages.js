@@ -60,7 +60,10 @@ const depthOf = (node, dir) => {
 
 const generateMDX = (dir) => {
   const tree = root([
-    frontmatter({ title: sentenceCase(dir.basename), template: 'basicDoc' }),
+    frontmatter({
+      title: sentenceCase(dir.basename),
+      template: 'tableOfContents',
+    }),
   ]);
 
   visit(
