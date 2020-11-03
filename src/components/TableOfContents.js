@@ -74,6 +74,7 @@ const TableOfContents = ({ headings }) => {
                     font-size: 0.875rem;
                     padding: 0.5rem 0;
                     color: var(--primary-text-color);
+                    transition: color 0.2s ease-out;
 
                     &.active {
                       background: var(--color-neutrals-100);
