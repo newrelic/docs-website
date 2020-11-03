@@ -1,13 +1,30 @@
 import React, { useEffect, useMemo, useRef } from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/core';
+import { graphql } from 'gatsby';
 import { Icon, PageTools } from '@newrelic/gatsby-theme-newrelic';
 import useActiveHash from '../hooks/useActiveHash';
 import { usePrevious } from 'react-use';
+import GithubSlugger from 'github-slugger';
+import toString from 'mdast-util-to-string';
 
 const prop = (name) => (obj) => obj[name];
 
-const TableOfContents = ({ headings }) => {
+const TableOfContents = ({ page }) => {
+  const { mdxAST } = page;
+
+  const headings = useMemo(() => {
+    const slugs = new GithubSlugger();
+
+    return mdxAST.children
+      .filter((node) => node.type === 'heading' && node.depth === 2)
+      .map((heading) => {
+        const text = toString(heading);
+
+        return { id: slugs.slug(text), text };
+      });
+  }, [mdxAST]);
+
   const raf = useRef();
   const navRef = useRef();
   const activeRef = useRef();
@@ -106,12 +123,13 @@ const TableOfContents = ({ headings }) => {
 };
 
 TableOfContents.propTypes = {
-  headings: PropTypes.arrayOf(
-    PropTypes.shape({
-      id: PropTypes.string,
-      text: PropTypes.string,
-    })
-  ),
+  page: PropTypes.shape({ mdxAST: PropTypes.object }).isRequired,
 };
+
+export const query = graphql`
+  fragment TableOfContents_page on Mdx {
+    mdxAST
+  }
+`;
 
 export default TableOfContents;
