@@ -36,3 +36,5 @@ export const pageQuery = graphql`
     ...MainLayout_query
   }
 `;
+
+export default TableOfContentsPage;
