@@ -50,7 +50,7 @@ const MDXContainer = ({
   children,
   className,
   components,
-  relatedContent = {},
+  relatedContent = null,
 }) => {
   const {
     site: { layout },
