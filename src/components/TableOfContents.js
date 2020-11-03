@@ -1,19 +1,56 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/core';
 import { Icon, PageTools } from '@newrelic/gatsby-theme-newrelic';
 import useActiveHash from '../hooks/useActiveHash';
+import { usePrevious } from 'react-use';
 
 const prop = (name) => (obj) => obj[name];
 
 const TableOfContents = ({ headings }) => {
+  const raf = useRef();
+  const navRef = useRef();
+  const activeRef = useRef();
   const headingIds = useMemo(() => headings.map(prop('id')), [headings]);
   const activeHash = useActiveHash(headingIds);
+  const previousActiveHash = usePrevious(activeHash);
+  const changedActiveHash = activeHash !== previousActiveHash;
+
+  useEffect(() => {
+    if (!activeRef.current) {
+      return;
+    }
+
+    const navRect = navRef.current.getBoundingClientRect();
+    const activeElementRect = activeRef.current.getBoundingClientRect();
+
+    const scrollTop = activeElementRect.top - navRect.top;
+    const offset = activeRef.current.offsetTop - navRef.current.offsetTop;
+    const bottom = scrollTop + activeElementRect.height;
+    const isVisible = bottom <= navRect.height && scrollTop > 0;
+
+    if (!isVisible) {
+      cancelAnimationFrame(raf.current);
+
+      raf.current = requestAnimationFrame(() => {
+        navRef.current.scrollTo({
+          top: offset - navRect.height / 2,
+          behavior: 'smooth',
+        });
+      });
+    }
+  }, [changedActiveHash]);
 
   return (
     <PageTools.Section>
       <PageTools.Title>On this page</PageTools.Title>
-      <nav>
+      <nav
+        ref={navRef}
+        css={css`
+          max-height: 60vh;
+          overflow-y: auto;
+        `}
+      >
         <ul
           css={css`
             list-style: none;
@@ -27,6 +64,7 @@ const TableOfContents = ({ headings }) => {
             return (
               <li key={id}>
                 <a
+                  ref={isActive ? activeRef : null}
                   href={`#${id}`}
                   className={isActive ? 'active' : null}
                   css={css`
