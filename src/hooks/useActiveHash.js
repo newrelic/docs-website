@@ -14,6 +14,10 @@ const useActiveHash = (ids) => {
   const activeHashRef = useRef(activeHash);
 
   useEffect(() => {
+    if (ids.length === 0) {
+      return;
+    }
+
     const handler = () => {
       const elements = ids.map((id) => document.getElementById(id));
       const scrollTop = document.documentElement.scrollTop;
