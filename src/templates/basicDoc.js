@@ -10,7 +10,7 @@ import {
   PageTools,
 } from '@newrelic/gatsby-theme-newrelic';
 import toString from 'mdast-util-to-string';
-import RelatedContent from '../components/RelatedContent';
+import DefaultRelatedContent from '../components/DefaultRelatedContent';
 
 const BasicDoc = ({ data }) => {
   const { mdx } = data;
@@ -46,7 +46,9 @@ const BasicDoc = ({ data }) => {
           css={css`
             grid-area: content;
           `}
-          relatedContent={moreHelpExists ? null : <RelatedContent />}
+          defaultRelatedContent={
+            moreHelpExists ? null : <DefaultRelatedContent />
+          }
         >
           {body}
         </MDXContainer>

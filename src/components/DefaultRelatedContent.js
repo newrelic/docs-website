@@ -1,7 +1,7 @@
 import React from 'react';
 import { ExternalLink } from '@newrelic/gatsby-theme-newrelic';
 
-const RelatedContent = () => {
+const DefaultRelatedContent = () => {
   return (
     <div data-swiftype-index={false}>
       <h2>For more help</h2>
@@ -39,4 +39,4 @@ const RelatedContent = () => {
   );
 };
 
-export default RelatedContent;
+export default DefaultRelatedContent;

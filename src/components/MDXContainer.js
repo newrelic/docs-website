@@ -14,7 +14,7 @@ import {
 import { useStaticQuery, graphql } from 'gatsby';
 import Collapser from './Collapser';
 import CollapserGroup from './CollapserGroup';
-import RelatedContent from './RelatedContent';
+import DefaultRelatedContent from './DefaultRelatedContent';
 import Table from './Table';
 import MDXLink from './MDXLink';
 import LandingPageTile from './LandingPageTile';
@@ -43,14 +43,14 @@ const defaultComponents = {
   LandingPageTileGrid,
   Table,
   Video,
-  RelatedContent,
+  DefaultRelatedContent,
 };
 
 const MDXContainer = ({
   children,
   className,
   components,
-  relatedContent = null,
+  defaultRelatedContent = null,
 }) => {
   const {
     site: { layout },
@@ -146,7 +146,7 @@ const MDXContainer = ({
       <MDXProvider components={{ ...defaultComponents, ...components }}>
         <MDXRenderer>{children}</MDXRenderer>
       </MDXProvider>
-      {relatedContent && relatedContent}
+      {defaultRelatedContent && defaultRelatedContent}
     </div>
   );
 };
@@ -155,7 +155,7 @@ MDXContainer.propTypes = {
   className: PropTypes.string,
   components: PropTypes.object,
   children: PropTypes.node,
-  relatedContent: PropTypes.func,
+  defaultRelatedContent: PropTypes.func,
 };
 
 export default MDXContainer;
