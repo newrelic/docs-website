@@ -19,6 +19,7 @@
   - [Updating the navigation](#updating-the-navigation)
   - [Adding a new page](#adding-a-new-page)
   - [Moving a page to a new location](#moving-a-page-to-a-new-location)
+  - [Private edits](#private-edits)
 
 ## Guidelines for contributing
 
@@ -183,3 +184,18 @@ If you intend on adding an entirely new section to the navigation, create a new 
 2. Find the configuration file for that section.
 3. Find the page within the configuration file and delete that entry.
 4. Follow the steps above to add the page to a new location.
+
+## Private edits
+
+If you have access to a private version of this repository, you can contribute and review content without sharing it publicly.
+
+_NOTE: with all of these steps, if you have SSH Keys set up, you will want to use the SSH URL (not the HTTPS URL)._
+
+### Bring your private work back into the public repository
+1. Click the fork button in the GitHub UI for the [docs-website repository](https://github.com/newrelic/docs-website).
+2. Clone the fork on your computer: `git clone https://github.com/yourname/docs-website`.
+3. Change into the fork repo: `cd docs-website`.
+4. Connect the private repo: `git remote add private https://github.com/yourname/private-repo.git`.
+5. Make a new branch: `git checkout -b your_branch_name`.
+6. Pull in content from you private repo: `git pull private main`.
+7. Push your new work up to GitHub: `git push origin your_branch_name`.
