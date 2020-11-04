@@ -17,7 +17,7 @@ const releaseNoteTemplate = ({ data }) => {
         <li>{`releaseVersion: ${releaseVersion}`}</li>
         <li>{`downloadLink: ${downloadLink}`}</li>
       </ul>
-      <MDXContainer>{body}</MDXContainer>
+      <MDXContainer body={body} />
     </>
   );
 };
