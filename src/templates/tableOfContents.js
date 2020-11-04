@@ -13,7 +13,7 @@ const TableOfContentsPage = ({ data }) => {
     <>
       <SEO title={frontmatter.title} />
       <h1>{frontmatter.title}</h1>
-      <MDXContainer>{body}</MDXContainer>
+      <MDXContainer body={body} />
     </>
   );
 };
