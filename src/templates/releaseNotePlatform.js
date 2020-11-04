@@ -16,7 +16,7 @@ const releaseNotePlatformTemplate = ({ data }) => {
         <li>{`releaseDateTime: ${releaseDateTime}`}</li>
         <li>{`releaseImpact: ${releaseImpact}`}</li>
       </ul>
-      <MDXContainer>{body}</MDXContainer>
+      <MDXContainer body={body} />
     </>
   );
 };

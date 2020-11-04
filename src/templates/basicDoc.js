@@ -46,11 +46,9 @@ const BasicDoc = ({ data }) => {
           css={css`
             grid-area: content;
           `}
-          defaultRelatedContent={
-            moreHelpExists ? null : <DefaultRelatedContent />
-          }
+          body={body}
         >
-          {body}
+          {moreHelpExists ? null : <DefaultRelatedContent />}
         </MDXContainer>
         <PageTools
           css={css`
