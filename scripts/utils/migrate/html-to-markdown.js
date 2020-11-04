@@ -136,7 +136,13 @@ module.exports = (file) => {
         file.data.doc.type === TYPES.LANDING_PAGE && isLandingPageTile(node),
       replacement: (content) =>
         `<div className="landing-page-tile">\n\n${content}\n\n</div>\n\n`,
+    })
+    .addRule('moreHelp', {
+      filter: (node) =>
+        node.nodeName === 'H2' &&
+        node.textContent === 'For more help' &&
+        !node.nextElementSibling,
+      replacement: () => '',
     });
-
   return turndown.turndown(file.contents);
 };

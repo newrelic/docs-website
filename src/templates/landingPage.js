@@ -46,7 +46,7 @@ const LandingPage = ({ data }) => {
     <>
       <SEO title={frontmatter.title} />
       <h1>{frontmatter.title}</h1>
-      <MDXContainer components={components}>{body}</MDXContainer>
+      <MDXContainer components={components} body={body} />
     </>
   );
 };

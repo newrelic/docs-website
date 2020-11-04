@@ -17,7 +17,7 @@ const whatsNewTemplate = ({ data }) => {
         <li>{`getStartedLink: ${getStartedLink}`}</li>
         <li>{`learnMoreLink: ${learnMoreLink}`}</li>
       </ul>
-      <MDXContainer>{body}</MDXContainer>
+      <MDXContainer body={body} />
     </>
   );
 };

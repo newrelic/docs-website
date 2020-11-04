@@ -9,22 +9,21 @@ import {
   ContributingGuidelines,
   PageTools,
 } from '@newrelic/gatsby-theme-newrelic';
-
-const H2 = ({ children, ...props }) => {
-  return <h2 {...props}>{children}</h2>;
-};
-
-H2.propTypes = {
-  children: PropTypes.node,
-};
+import toString from 'mdast-util-to-string';
+import DefaultRelatedContent from '../components/DefaultRelatedContent';
 
 const BasicDoc = ({ data }) => {
   const { mdx } = data;
   const {
+    mdxAST,
     frontmatter,
     body,
     fields: { fileRelativePath },
   } = mdx;
+
+  const moreHelpExists = mdxAST.children.find(
+    (node) => node.type === 'heading' && toString(node) === 'For more help'
+  );
 
   return (
     <>
@@ -44,12 +43,12 @@ const BasicDoc = ({ data }) => {
         `}
       >
         <MDXContainer
-          components={{ h2: H2 }}
           css={css`
             grid-area: content;
           `}
+          body={body}
         >
-          {body}
+          {moreHelpExists ? null : <DefaultRelatedContent />}
         </MDXContainer>
         <PageTools
           css={css`
@@ -75,6 +74,7 @@ BasicDoc.propTypes = {
 export const pageQuery = graphql`
   query($slug: String!, $nav: String) {
     mdx(fields: { slug: { eq: $slug } }) {
+      mdxAST
       body
       frontmatter {
         title
