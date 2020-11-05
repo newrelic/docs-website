@@ -41,6 +41,7 @@ const fetchDoc = async (type) => {
 
 const fetchDocs = async () => {
   const requests = Object.values(TYPES).map(fetchDoc);
+  // TODO: get these working?
   const hardCodedRequests = DIRECT_URLS.map(callApi);
 
   const docs = await Promise.all([...requests, ...hardCodedRequests]);
