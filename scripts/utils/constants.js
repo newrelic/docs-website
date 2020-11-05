@@ -1,18 +1,12 @@
 const path = require('path');
 
-const BASE_URL = 'https://docs-dev.newrelic.com';
-
 module.exports = {
-  BASE_URL,
   BASE_DIR: 'src/content',
   NAV_DIR: 'src/nav',
+  BASE_URL: 'https://docs-dev.newrelic.com',
 
-  // URLs for specific pages we want to migrate
-  DIRECT_URLS: [
-    `${BASE_URL}/api/ui/content/page/10916`,
-    `${BASE_URL}/api/ui/content/page/14746`,
-    // `${BASE_URL}/api/ui/content/page/41001`,
-  ],
+  // IDS for page nodes that we want to ensure get migrated
+  DIRECT_IDS: [10916, 14746],
 
   INSTRUCTIONS: {
     ADD: 'ADD',
