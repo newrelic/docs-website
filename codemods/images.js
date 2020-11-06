@@ -25,14 +25,16 @@ const downloadImage = async (node, file) => {
     ? node.url
     : path.join(BASE_URL, node.url);
 
+  const filename = path.basename(url).replace(/\%20/g, '-');
+
   try {
-    const { filename } = await download.image({
+    await download.image({
       url,
-      dest: path.join(file.dirname, 'images'),
+      dest: path.join(file.dirname, 'images', filename),
     });
 
     // eslint-disable-next-line require-atomic-updates
-    node.url = `./images/${path.basename(filename)}`;
+    node.url = `./images/${filename}`;
   } catch (e) {
     file.message(
       `Unable to download file: ${url}`,
