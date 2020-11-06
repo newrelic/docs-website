@@ -21,20 +21,24 @@ const downloadImage = async (node, file) => {
     return;
   }
 
-  const url = node.url.startsWith('http')
+  const urlString = node.url.startsWith('http')
     ? node.url
     : path.join(BASE_URL, node.url);
 
-  const filename = path.basename(url).replace(/\%20/g, '-');
+  const url = new URL(urlString);
 
   try {
-    await download.image({
-      url,
-      dest: path.join(file.dirname, 'images', filename),
+    const { filename } = await download.image({
+      url: urlString,
+      dest: path.join(
+        file.dirname,
+        'images',
+        path.basename(url.pathname).replace(/%20/g, '-')
+      ),
     });
 
     // eslint-disable-next-line require-atomic-updates
-    node.url = `./images/${filename}`;
+    node.url = `./images/${path.basename(filename)}`;
   } catch (e) {
     file.message(
       `Unable to download file: ${url}`,
