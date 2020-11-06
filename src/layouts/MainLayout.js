@@ -2,12 +2,12 @@ import React, { useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
 import {
   GlobalHeader,
-  GlobalFooter,
+  Layout,
   Logo,
+  useLayout,
 } from '@newrelic/gatsby-theme-newrelic';
 import { Link, graphql, useStaticQuery } from 'gatsby';
 import { css } from '@emotion/core';
-import Sidebar from '../components/Sidebar';
 import MobileHeader from '../components/MobileHeader';
 import { useMedia, usePrevious } from 'react-use';
 import RootNavigation from '../components/RootNavigation';
@@ -17,6 +17,7 @@ import { useLocation } from '@reach/router';
 
 const MainLayout = ({ data = {}, children, pageContext }) => {
   const { subnav, ...rootNav } = data;
+  const { contentPadding } = useLayout();
 
   const {
     site: { layout },
@@ -38,7 +39,8 @@ const MainLayout = ({ data = {}, children, pageContext }) => {
   const previousSubnav = usePrevious(subnav);
 
   const isSmallScreen = useMedia('(max-width: 760px)');
-  const transition = useTransition(location.pathname === '/', {
+  const isRootPath = location.pathname === '/';
+  const transition = useTransition(isRootPath, {
     config: { mass: 1, friction: 34, tension: 400 },
     initial: { position: 'absolute' },
     from: (isRoot) => ({
@@ -59,124 +61,64 @@ const MainLayout = ({ data = {}, children, pageContext }) => {
   }, [location.pathname]);
 
   return (
-    <div
-      css={css`
-        --global-header-height: 36px;
-        --sidebar-width: 300px;
-
-        display: grid;
-        grid-template-rows: auto 1fr;
-        min-height: 100vh;
-      `}
-    >
+    <>
       <GlobalHeader />
-      <div
-        css={css`
-          margin: 0 auto;
-          max-width: ${layout.maxWidth};
-          display: grid;
-          grid-template-areas:
-            'sidebar content'
-            'sidebar footer';
-          grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
-          grid-template-rows: 1fr auto;
-          grid-gap: ${layout.contentPadding};
-          width: 100%;
-          max-width: ${layout.maxWidth};
-          margin: 0 auto;
-
-          @media screen and (max-width: 760px) {
-            grid-template-columns: minmax(0, 1fr);
-            grid-template-areas:
-              'mobile-header'
-              'content'
-              'footer';
-            grid-template-rows: unset;
-            padding: ${layout.contentPadding};
+      {isSmallScreen && (
+        <MobileHeader
+          isOpen={isMobileNavOpen}
+          onToggle={() => setIsMobileNavOpen((open) => !open)}
+          css={css`
+            padding: ${contentPadding};
             padding-bottom: 0;
-          }
-        `}
-      >
-        {isSmallScreen ? (
-          <MobileHeader
-            isOpen={isMobileNavOpen}
-            onToggle={() => setIsMobileNavOpen((open) => !open)}
+          `}
+        >
+          {isRootPath ? (
+            <RootNavigation nav={rootNav} />
+          ) : (
+            <SubNavigation nav={subnav} />
+          )}
+        </MobileHeader>
+      )}
+      <Layout>
+        <Layout.Sidebar>
+          <Link
+            to="/"
             css={css`
-              grid-area: mobile-header;
+              display: block;
+              margin-bottom: 1rem;
             `}
-          />
-        ) : (
-          <>
-            <Sidebar
-              css={css`
-                position: fixed;
-                top: var(--global-header-height);
-                width: var(--sidebar-width);
-                height: calc(100vh - var(--global-header-height));
-                overflow: auto;
-              `}
-            >
-              <Link
-                to="/"
-                css={css`
-                  display: block;
-                  margin-bottom: 1rem;
-                `}
-              >
-                <Logo />
-              </Link>
-              {transition((style, isRoot) => {
-                const containerStyle = css`
-                  left: ${layout.contentPadding};
-                  right: ${layout.contentPadding};
-                  top: calc(${layout.contentPadding} + 3rem);
-                  padding-bottom: ${layout.contentPadding};
-                `;
-                return isRoot ? (
-                  <animated.div style={style} css={containerStyle}>
-                    <RootNavigation nav={rootNav} />
-                  </animated.div>
-                ) : (
-                  <animated.div style={style} css={containerStyle}>
-                    <SubNavigation nav={subnav || previousSubnav} />
-                  </animated.div>
-                );
-              })}
-            </Sidebar>
-            <div
-              css={css`
-                grid-area: sidebar;
-              `}
-            />
-          </>
-        )}
-        <main
+          >
+            <Logo />
+          </Link>
+          {transition((style, isRoot) => {
+            const containerStyle = css`
+              left: ${layout.contentPadding};
+              right: ${layout.contentPadding};
+              top: calc(${layout.contentPadding} + 3rem);
+              padding-bottom: ${layout.contentPadding};
+            `;
+
+            return isRoot ? (
+              <animated.div style={style} css={containerStyle}>
+                <RootNavigation nav={rootNav} />
+              </animated.div>
+            ) : (
+              <animated.div style={style} css={containerStyle}>
+                <SubNavigation nav={subnav || previousSubnav} />
+              </animated.div>
+            );
+          })}
+        </Layout.Sidebar>
+        <Layout.Main
           css={css`
             display: ${isMobileNavOpen ? 'none' : 'block'};
-            grid-area: content;
-            padding-top: ${layout.contentPadding};
-            padding-right: ${layout.contentPadding};
-
-            @media screen and (max-width: 760px) {
-              padding: 0;
-            }
           `}
         >
           {children}
-        </main>
-        <GlobalFooter
-          fileRelativePath={pageContext.fileRelativePath}
-          css={css`
-            margin-left: -${layout.contentPadding};
-            display: ${isMobileNavOpen ? 'none' : 'block'};
-
-            @media screen and (max-width: 760px) {
-              margin: 0 -${layout.contentPadding};
-            }
-          `}
-        />
-      </div>
-    </div>
+        </Layout.Main>
+        <Layout.Footer fileRelativePath={pageContext.fileRelativePath} />
+      </Layout>
+    </>
   );
 };
 
