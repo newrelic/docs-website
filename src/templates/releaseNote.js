@@ -1,23 +1,22 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 import { graphql } from 'gatsby';
+import { Layout } from '@newrelic/gatsby-theme-newrelic';
+import PageTitle from '../components/PageTitle';
 import MDXContainer from '../components/MDXContainer';
 import SEO from '../components/seo';
 
 const releaseNoteTemplate = ({ data }) => {
   const { mdx } = data;
   const { frontmatter, body } = mdx;
-  const { title, releaseDateTime, releaseVersion, downloadLink } = frontmatter;
+  const { title } = frontmatter;
   return (
     <>
       <SEO title={title} />
-      <h1>{title}</h1>
-      <ul>
-        <li>{`releaseDateTime: ${releaseDateTime}`}</li>
-        <li>{`releaseVersion: ${releaseVersion}`}</li>
-        <li>{`downloadLink: ${downloadLink}`}</li>
-      </ul>
-      <MDXContainer body={body} />
+      <PageTitle>{title}</PageTitle>
+      <Layout.Content>
+        <MDXContainer body={body} />
+      </Layout.Content>
     </>
   );
 };
@@ -32,9 +31,6 @@ export const pageQuery = graphql`
       body
       frontmatter {
         title
-        releaseDateTime
-        releaseVersion
-        downloadLink
       }
     }
     ...MainLayout_query

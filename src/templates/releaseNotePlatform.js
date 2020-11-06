@@ -1,22 +1,22 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 import { graphql } from 'gatsby';
+import { Layout } from '@newrelic/gatsby-theme-newrelic';
 import MDXContainer from '../components/MDXContainer';
+import PageTitle from '../components/PageTitle';
 import SEO from '../components/seo';
 
 const releaseNotePlatformTemplate = ({ data }) => {
   const { mdx } = data;
   const { frontmatter, body } = mdx;
-  const { title, releaseDateTime, releaseImpact } = frontmatter;
+  const { title } = frontmatter;
   return (
     <>
       <SEO title={title} />
-      <h1>{title}</h1>
-      <ul>
-        <li>{`releaseDateTime: ${releaseDateTime}`}</li>
-        <li>{`releaseImpact: ${releaseImpact}`}</li>
-      </ul>
-      <MDXContainer body={body} />
+      <PageTitle>{title}</PageTitle>
+      <Layout.Content>
+        <MDXContainer body={body} />
+      </Layout.Content>
     </>
   );
 };
@@ -31,8 +31,6 @@ export const pageQuery = graphql`
       body
       frontmatter {
         title
-        releaseDateTime
-        releaseImpact
       }
     }
     ...MainLayout_query
