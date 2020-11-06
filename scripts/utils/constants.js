@@ -1,9 +1,23 @@
 const path = require('path');
 
 module.exports = {
-  BASE_URL: 'https://docs-dev.newrelic.com',
   BASE_DIR: 'src/content',
   NAV_DIR: 'src/nav',
+  BASE_URL: 'https://docs-dev.newrelic.com',
+
+  // IDS for page nodes that we want to ensure get migrated
+  DIRECT_IDS: [
+    10916,
+    14746,
+    23906,
+    38731,
+    37621,
+    39861,
+    23781,
+    27301,
+    36516,
+    38811,
+  ],
 
   INSTRUCTIONS: {
     ADD: 'ADD',

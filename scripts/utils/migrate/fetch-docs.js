@@ -2,21 +2,12 @@ const fetch = require('node-fetch');
 require('dotenv').config();
 
 const logger = require('../logger');
-const { TYPES, ITEMS_PER_TYPE, BASE_URL } = require('../constants');
+const { TYPES, ITEMS_PER_TYPE, BASE_URL, DIRECT_IDS } = require('../constants');
 
 const getUrl = (type) =>
   [BASE_URL, 'api/migration/content', type, 'list'].join('/');
 
-const fetchDoc = async (type) => {
-  const params = new URLSearchParams();
-  const perPage = ITEMS_PER_TYPE[type];
-
-  if (perPage) {
-    params.set('items_per_page', perPage);
-  }
-
-  const url = `${getUrl(type)}?${params}`;
-
+const callApi = async (url) => {
   try {
     const resp = await fetch(url, {
       headers: {
@@ -32,9 +23,24 @@ const fetchDoc = async (type) => {
   }
 };
 
+const fetchDoc = async (type) => {
+  const params = new URLSearchParams();
+  const perPage = ITEMS_PER_TYPE[type];
+
+  if (perPage) {
+    params.set('items_per_page', perPage);
+  }
+
+  return callApi(`${getUrl(type)}?${params}`);
+};
+
 const fetchDocs = async () => {
   const requests = Object.values(TYPES).map(fetchDoc);
-  const docs = await Promise.all(requests);
+  const hardCodedRequests = DIRECT_IDS.map(
+    (id) => `${BASE_URL}/api/migration/content/page/${id}`
+  ).map(callApi);
+
+  const docs = await Promise.all([...requests, ...hardCodedRequests]);
 
   return docs.flat();
 };
