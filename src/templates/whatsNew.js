@@ -1,23 +1,22 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 import { graphql } from 'gatsby';
+import { Layout } from '@newrelic/gatsby-theme-newrelic';
+import PageTitle from '../components/PageTitle';
 import MDXContainer from '../components/MDXContainer';
 import SEO from '../components/seo';
 
 const whatsNewTemplate = ({ data }) => {
   const { mdx } = data;
   const { frontmatter, body } = mdx;
-  const { title, summary, learnMoreLink, getStartedLink } = frontmatter;
+  const { title } = frontmatter;
   return (
     <>
       <SEO title={title} />
-      <h1>{title}</h1>
-      <ul>
-        <li>{`summary: ${summary}`}</li>
-        <li>{`getStartedLink: ${getStartedLink}`}</li>
-        <li>{`learnMoreLink: ${learnMoreLink}`}</li>
-      </ul>
-      <MDXContainer body={body} />
+      <PageTitle>{title}</PageTitle>
+      <Layout.Content>
+        <MDXContainer body={body} />
+      </Layout.Content>
     </>
   );
 };
@@ -32,9 +31,6 @@ export const pageQuery = graphql`
       body
       frontmatter {
         title
-        summary
-        learnMoreLink
-        getStartedLink
       }
     }
     ...MainLayout_query

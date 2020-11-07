@@ -2,9 +2,9 @@ import React from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/core';
 import { Link } from 'gatsby';
-import { HamburgerMenu } from '@newrelic/gatsby-theme-newrelic';
+import { Logo, HamburgerMenu } from '@newrelic/gatsby-theme-newrelic';
 
-const MobileHeader = ({ className, isOpen, onToggle }) => {
+const MobileHeader = ({ className, children, isOpen, onToggle }) => {
   return (
     <header
       data-swiftype-index={false}
@@ -20,17 +20,20 @@ const MobileHeader = ({ className, isOpen, onToggle }) => {
           justify-content: space-between;
         `}
       >
-        <Link to="/">Logo</Link>
+        <Link to="/">
+          <Logo />
+        </Link>
 
         <HamburgerMenu onToggle={onToggle} isOpen={isOpen} />
       </div>
 
-      {isOpen && <div>Navigation goes here</div>}
+      {isOpen && <div>{children}</div>}
     </header>
   );
 };
 
 MobileHeader.propTypes = {
+  children: PropTypes.string,
   className: PropTypes.string,
   isOpen: PropTypes.bool.isRequired,
   onToggle: PropTypes.func.isRequired,

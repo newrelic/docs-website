@@ -4,6 +4,8 @@ const {
   mdxSpanExpression,
   mdxValueExpression,
 } = require('./mdxast-builder');
+
+const { isPlainText } = require('./mdxast');
 const { root, text } = require('mdast-builder');
 const stringify = require('./mdxast-stringify');
 
@@ -12,8 +14,9 @@ const toJSXExpression = (node, file) => {
   const tree = root(
     children.length === 1 ? children : [mdxSpanElement(null, [], children)]
   );
+  const expression = stringify(tree).trim();
 
-  return mdxValueExpression(stringify(tree).trim());
+  return isPlainText(tree) ? expression : mdxValueExpression(expression);
 };
 
 const transformChildren = (node, file) => {
