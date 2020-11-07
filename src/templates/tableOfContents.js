@@ -1,6 +1,8 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 import { graphql } from 'gatsby';
+import { Layout } from '@newrelic/gatsby-theme-newrelic';
+import PageTitle from '../components/PageTitle';
 import SEO from '../components/seo';
 import MDXContainer from '../components/MDXContainer';
 
@@ -12,8 +14,10 @@ const TableOfContentsPage = ({ data }) => {
   return (
     <>
       <SEO title={frontmatter.title} />
-      <h1>{frontmatter.title}</h1>
-      <MDXContainer body={body} />
+      <PageTitle>{frontmatter.title}</PageTitle>
+      <Layout.Content>
+        <MDXContainer body={body} />
+      </Layout.Content>
     </>
   );
 };

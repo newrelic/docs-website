@@ -20,7 +20,6 @@ const SEO = ({ title }) => {
   return (
     <Helmet titleTemplate={siteMetadata.titleTemplate}>
       <title>{title || siteMetadata.defaultTitle}</title>
-      <link rel="icon" type="image/png" href="/favicon.png" />
     </Helmet>
   );
 };
