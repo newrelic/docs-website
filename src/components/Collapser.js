@@ -12,6 +12,8 @@ const collapserIcon = (isOpen) => css`
   ${isOpen && `transform: rotate(180deg);`}
 `;
 
+const ResizeObserver = global.ResizeObserver || class ResizeObserver {};
+
 const Collapser = ({ title, id, openByDefault, className, children }) => {
   const [element, ref] = useState();
   const [isOpen, setIsOpen] = useState(openByDefault);
