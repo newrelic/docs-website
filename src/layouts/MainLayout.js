@@ -10,6 +10,7 @@ import { Link, graphql, useStaticQuery } from 'gatsby';
 import { css } from '@emotion/core';
 import MobileHeader from '../components/MobileHeader';
 import { useMedia, usePrevious } from 'react-use';
+import Seo from '../components/seo';
 import RootNavigation from '../components/RootNavigation';
 import SubNavigation from '../components/SubNavigation';
 import { animated, useTransition } from 'react-spring';
@@ -62,6 +63,7 @@ const MainLayout = ({ data = {}, children, pageContext }) => {
 
   return (
     <>
+      <Seo />
       <GlobalHeader />
       {isSmallScreen && (
         <MobileHeader
