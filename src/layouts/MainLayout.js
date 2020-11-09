@@ -98,6 +98,10 @@ const MainLayout = ({ data = {}, children, pageContext }) => {
               padding-bottom: ${layout.contentPadding};
             `;
 
+            if (isRoot) {
+              document.title = 'New Relic Documentation';
+            }
+
             return isRoot ? (
               <animated.div style={style} css={containerStyle}>
                 <RootNavigation nav={rootNav} />
