@@ -1,29 +1,45 @@
-import React, { useState, useLayoutEffect, useRef } from 'react';
+import React, { useState, useMemo } from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/core';
 import { Icon } from '@newrelic/gatsby-theme-newrelic';
 import { animated, useSpring } from 'react-spring';
+import { usePrevious, useIsomorphicLayoutEffect } from 'react-use';
 
 const collapserIcon = (isOpen) => css`
   margin-left: auto;
   transition: transform 0.6s ease;
   color: var(--accent-text-color);
-  ${isOpen &&
-  `
-transform: rotate(180deg);`}
+  ${isOpen && `transform: rotate(180deg);`}
 `;
 
 const Collapser = ({ title, id, openByDefault, className, children }) => {
-  const ref = useRef();
+  const [element, ref] = useState();
   const [isOpen, setIsOpen] = useState(openByDefault);
   const [height, setHeight] = useState(0);
-  const style = useSpring({ height: isOpen ? height : 0 });
+  const { height: viewHeight } = useSpring({ height: isOpen ? height : 0 });
+  const previousIsOpen = usePrevious(isOpen);
 
-  useLayoutEffect(() => {
-    const { height } = ref.current.getBoundingClientRect();
+  const observer = useMemo(
+    () =>
+      new ResizeObserver(([entry]) => {
+        // Unfortunatly entry.contentRect does NOT return the box sizing info
+        // (border + padding), which leads to an incorrect height when fully
+        // expanded. We are using getBoundingClientRect() to get a more accurate
+        // height.
+        const { height } = entry.target.getBoundingClientRect();
 
-    setHeight(height);
-  }, []);
+        setHeight(height);
+      }),
+    []
+  );
+
+  useIsomorphicLayoutEffect(() => {
+    if (element) {
+      observer.observe(element);
+    }
+
+    return () => observer.disconnect();
+  }, [element]);
 
   return (
     <div
@@ -75,7 +91,7 @@ const Collapser = ({ title, id, openByDefault, className, children }) => {
       </button>
 
       <animated.div
-        style={style}
+        style={{ height: isOpen && previousIsOpen ? 'auto' : viewHeight }}
         css={css`
           overflow: hidden;
         `}
