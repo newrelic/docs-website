@@ -6,12 +6,20 @@ The `docs-website` project is the code and data behind the new docs.newrelic.com
 
 ## Getting Started
 
+### Making a Fork
+
+If you would like to make a contribution to the site, feel free to [make a fork](https://guides.github.com/activities/forking/) of the repository and follow the information below to get it running locally.
+
 ### Dependencies
 
 In order to run the project locally, you must have the following installed:
 
 * [Node v12](https://nodejs.org/en/) (as specified in `.nvmrc`)
 * [Yarn](https://yarnpkg.com/)
+
+### Installing `yarn`
+
+Yarn is used by the project for installing dependencies and running tasks. To install yarn, follow the steps on the [yarn website](https://yarnpkg.com/getting-started/install). After installing `yarn`, you should no longer need to use `npm` for anything in the project.
 
 ### Running Locally
 
