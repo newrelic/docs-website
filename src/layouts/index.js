@@ -6,7 +6,7 @@ const Layout = ({ children, ...props }) => {
   const { pageContext } = props;
 
   switch (pageContext.layout) {
-    case '404':
+    case 'basic':
       return children;
     default:
       return <MainLayout {...props}>{children}</MainLayout>;
