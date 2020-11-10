@@ -6,6 +6,10 @@ The `docs-website` project is the code and data behind the new docs.newrelic.com
 
 ## Getting Started
 
+### Making a Fork
+
+If you would like to make a contribution to the site, feel free to [make a fork](https://guides.github.com/activities/forking/) of the repository and follow the information below to get it running locally.
+
 ### Dependencies
 
 In order to run the project locally, you must have the following installed:
