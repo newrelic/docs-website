@@ -13,6 +13,10 @@ In order to run the project locally, you must have the following installed:
 * [Node v12](https://nodejs.org/en/) (as specified in `.nvmrc`)
 * [Yarn](https://yarnpkg.com/)
 
+### Installing `yarn`
+
+Yarn is used by the project for installing dependencies and running tasks. To install yarn, follow the steps on the [yarn website](https://yarnpkg.com/getting-started/install). After installing `yarn`, you should no longer need to use `npm` for anything in the project.
+
 ### Running Locally
 
 You can serve this site locally to quickly see your changes and additions before you PR them. To get started, navigate into your new site’s directory and start it up, as follows.
