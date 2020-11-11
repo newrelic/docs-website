@@ -17,9 +17,12 @@ const SEO = ({ title }) => {
     }
   `);
 
+  const { defaultTitle, titleTemplate } = siteMetadata;
+  const template = title ? titleTemplate : '%s';
+
   return (
-    <Helmet titleTemplate={siteMetadata.titleTemplate}>
-      <title>{title || siteMetadata.defaultTitle}</title>
+    <Helmet titleTemplate={template}>
+      <title>{title || defaultTitle}</title>
     </Helmet>
   );
 };

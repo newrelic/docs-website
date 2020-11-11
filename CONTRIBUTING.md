@@ -169,6 +169,8 @@ Each "node" in the `.yml` configuration file can have the following properties:
 
 When the user goes to a page, we determine which section of the site they are on and load the appropriate `.yml` file to populate the sidebar navigation. The navigation for the homepage is an aggregate of all the top-level pages.
 
+**NOTE**: Each category has it's own `index.md` page (list of pages for that category). When updating the navigation, you may also want to update these pages to better reflect the new information architecture.
+
 ## Adding a new page
 
 1. Determine which section of the navigation you would like the page to belong to (i.e. _Full Stack Observability_).
