@@ -1,5 +1,7 @@
 const indentedCodeBlock = require('./codemods/indentedCodeBlock');
 
+const siteUrl = 'https://docs.newrelic.com';
+
 module.exports = {
   siteMetadata: {
     title: 'New Relic Documentation',
@@ -7,7 +9,7 @@ module.exports = {
     description: 'New Relic Documentation',
     author: 'New Relic',
     repository: 'https://github.com/newrelic/docs-website',
-    siteUrl: 'https://docs.newrelic.com',
+    siteUrl: siteUrl,
     branch: 'develop',
   },
   plugins: [
@@ -92,7 +94,13 @@ module.exports = {
         path: `${__dirname}/src/content`,
       },
     },
-
+    {
+      resolve: 'gatsby-source-filesystem',
+      options: {
+        name: 'markdown-attr-defs',
+        path: `${__dirname}/src/content/attribute-dictionary`,
+      },
+    },
     'gatsby-remark-images',
     'gatsby-transformer-remark',
     {
@@ -130,6 +138,39 @@ module.exports = {
       resolve: `gatsby-source-filesystem`,
       options: {
         path: `./src/nav/`,
+      },
+    },
+    {
+      resolve: `gatsby-plugin-json-output`,
+      options: {
+        siteUrl: siteUrl,
+        graphQLQuery: `
+        {
+          allMarkdownRemark(filter: {frontmatter: {contentType: {eq: "attributeDefinition"}}}) {
+            edges {
+              node {
+                frontmatter {
+                  name
+                  eventTypes
+                  units
+                }
+                rawMarkdownBody
+                html
+              }
+            }
+          }
+        }
+      `,
+        serializeFeed: (results) =>
+          results.data.allMarkdownRemark.edges.map(({ node }) => ({
+            name: node.frontmatter.name,
+            eventTypes: node.frontmatter.eventTypes,
+            units: node.frontmatter.units,
+            definitionMarkdown: node.rawMarkdownBody,
+            definition: node.html,
+          })),
+        feedFilename: 'attributeDefinitions',
+        nodesPerFeedFile: 100,
       },
     },
   ],
