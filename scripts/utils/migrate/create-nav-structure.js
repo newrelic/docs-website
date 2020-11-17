@@ -5,6 +5,8 @@ const yaml = require('js-yaml');
 const { BASE_DIR, NAV_DIR } = require('../constants');
 const slugify = require('../slugify');
 
+const SKIPPED_TOPICS = ['New Relic only'];
+
 const createNavStructure = (files) => {
   if (!fs.existsSync(NAV_DIR)) {
     fs.mkdirSync(NAV_DIR);
@@ -12,6 +14,10 @@ const createNavStructure = (files) => {
 
   return files
     .reduce((nav, file) => {
+      if (SKIPPED_TOPICS.some((topic) => file.data.topics.includes(topic))) {
+        return nav;
+      }
+
       const { topics } = file.data;
 
       if (topics.length === 0) {
