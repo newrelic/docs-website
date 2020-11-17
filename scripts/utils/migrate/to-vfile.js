@@ -24,7 +24,7 @@ const toVFile = (doc, { baseDir = CONTENT_DIR, dirname, filename }) => {
   }
 
   return vfile({
-    path: path.join(CONTENT_DIR, dirname, filename + extension),
+    path: path.join(baseDir, dirname, filename + extension),
     contents: doc.body || '',
     data: {
       doc,
