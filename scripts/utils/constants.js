@@ -1,7 +1,7 @@
 const path = require('path');
 
 module.exports = {
-  BASE_DIR: 'src/content',
+  CONTENT_DIR: 'src/content',
   NAV_DIR: 'src/nav',
   BASE_URL: 'https://docs-dev.newrelic.com',
 

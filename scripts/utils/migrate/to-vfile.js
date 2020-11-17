@@ -1,6 +1,6 @@
 const path = require('path');
 const vfile = require('vfile');
-const { BASE_DIR, TYPES } = require('../constants');
+const { CONTENT_DIR, TYPES } = require('../constants');
 
 const DEFAULT_EXTENSION = '.mdx';
 
@@ -16,7 +16,7 @@ const toVFile = (doc) => {
   const extension = EXTENSIONS[doc.type] || DEFAULT_EXTENSION;
 
   return vfile({
-    path: path.join(BASE_DIR, dirname, filename + extension),
+    path: path.join(CONTENT_DIR, dirname, filename + extension),
     contents: doc.body || '',
     data: {
       doc,

@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const vfile = require('vfile');
 const yaml = require('js-yaml');
-const { BASE_DIR, NAV_DIR } = require('../constants');
+const { CONTENT_DIR, NAV_DIR } = require('../constants');
 const slugify = require('../slugify');
 
 const createNavStructure = (files) => {
@@ -43,7 +43,7 @@ const createNavStructure = (files) => {
 const toPath = (file) =>
   path
     .join(file.dirname, path.basename(file.path, file.extname))
-    .replace(BASE_DIR, '')
+    .replace(CONTENT_DIR, '')
     .replace(/\/index$/, '');
 
 const update = (items, idx, updater) => [

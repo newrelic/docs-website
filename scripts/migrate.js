@@ -12,7 +12,7 @@ const createRawHTMLFiles = require('./utils/migrate/create-raw-html-files');
 const migrateNavStructure = require('./utils/migrate/migrate-nav-structure');
 const reporter = require('vfile-reporter');
 const rimraf = require('rimraf');
-const { NAV_DIR, BASE_DIR } = require('./utils/constants');
+const { NAV_DIR, CONTENT_DIR } = require('./utils/constants');
 
 const all = (list, fn) => Promise.all(list.map(fn));
 
@@ -21,7 +21,7 @@ const run = async () => {
 
   try {
     logger.normal('Resetting content');
-    rimraf.sync(BASE_DIR);
+    rimraf.sync(CONTENT_DIR);
     rimraf.sync(NAV_DIR);
 
     logger.normal('Fetching JSON');
