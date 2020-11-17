@@ -1,6 +1,7 @@
 const fetchDocs = require('./utils/migrate/fetch-docs');
 const fetchDocCount = require('./utils/migrate/fetch-doc-count');
 const fetchAttributeDefinitions = require('./utils/migrate/fetch-attribute-definitions');
+const fetchEventDefinitions = require('./utils/migrate/fetch-event-definitions');
 const createDirectories = require('./utils/migrate/create-directories');
 const convertFile = require('./utils/migrate/convert-file');
 const createIndexPages = require('./utils/migrate/create-index-pages');
@@ -30,6 +31,7 @@ const run = async () => {
     logger.normal('Fetching JSON');
     const docs = await fetchDocs();
     const attributeDefs = await fetchAttributeDefinitions();
+    const eventDefs = await fetchEventDefinitions();
     const attributeDefFiles = await all(attributeDefs, (doc) =>
       toVFile(doc, {
         baseDir: DICTIONARY_DIR,
@@ -37,16 +39,24 @@ const run = async () => {
         dirname: ({ eventTypes }) => eventTypes[0],
       })
     );
+    const eventDefFiles = await all(eventDefs, (doc) =>
+      toVFile(doc, {
+        baseDir: DICTIONARY_DIR,
+        filename: ({ name }) => `${name}.event-definition`,
+        dirname: prop('name'),
+      })
+    );
+    const definitionFiles = attributeDefFiles.concat(eventDefFiles);
     const files = await all(docs, toVFile).then((files) =>
       files.sort((a, b) => a.path.localeCompare(b.path))
     );
     await fetchDocCount(files);
 
     logger.normal('Creating directories');
-    createDirectories(files.concat(attributeDefFiles));
+    createDirectories(files.concat(definitionFiles));
 
     logger.normal('Converting files');
-    await all(files.concat(attributeDefFiles), convertFile);
+    await all(files.concat(definitionFiles), convertFile);
 
     logger.normal('Running codemods on .mdx files');
     await all(
@@ -67,7 +77,7 @@ const run = async () => {
     const navFiles = migrateNavStructure(createNavStructure(files));
 
     logger.normal('Saving changes to files');
-    await all(files.concat(indexFiles, navFiles, attributeDefFiles), (file) =>
+    await all(files.concat(indexFiles, navFiles, definitionFiles), (file) =>
       write(file, 'utf-8')
     );
 

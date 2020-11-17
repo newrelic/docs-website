@@ -114,6 +114,10 @@ const addCustomFrontmatter = {
       }).filter(([, value]) => value != null)
     );
   },
+  [TYPES.EVENT_DEFINITION]: ({ doc }) => ({
+    name: doc.name,
+    dataSources: doc.dataSources,
+  }),
 };
 
 module.exports = getFrontmatter;

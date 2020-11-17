@@ -39,6 +39,7 @@ module.exports = {
     TROUBLESHOOTING: 'troubleshooting_doc',
     WHATS_NEW: 'nr1_announcement',
     ATTRIBUTE_DEFINITION: 'attribute_definition',
+    EVENT_DEFINITION: 'event_definition',
   },
 
   ITEMS_PER_TYPE: {

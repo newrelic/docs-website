@@ -4,7 +4,7 @@ const { TYPES, ITEMS_PER_TYPE, DIRECT_IDS } = require('../constants');
 
 const prop = (name) => (obj) => obj[name];
 
-const IGNORED_TYPES = [TYPES.ATTRIBUTE_DEFINITION];
+const IGNORED_TYPES = [TYPES.ATTRIBUTE_DEFINITION, TYPES.EVENT_DEFINITION];
 
 const fetchDocs = async () => {
   const requests = Object.values(TYPES)
