@@ -37,7 +37,6 @@ module.exports = {
     RELEASE_NOTE_PLATFORM: 'release_notes_platform',
     TROUBLESHOOTING: 'troubleshooting_doc',
     WHATS_NEW: 'nr1_announcement',
-    ATTRIBUTE_DEFINITION: 'attribute_definition',
   },
 
   ITEMS_PER_TYPE: {
@@ -48,6 +47,5 @@ module.exports = {
     release_notes_platform: '50',
     troubleshooting_doc: '60',
     nr1_announcement: '20',
-    attribute_definition: '100',
   },
 };
