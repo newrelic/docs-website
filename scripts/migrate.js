@@ -16,6 +16,7 @@ const rimraf = require('rimraf');
 const { NAV_DIR, CONTENT_DIR, DICTIONARY_DIR } = require('./utils/constants');
 
 const all = (list, fn) => Promise.all(list.map(fn));
+const prop = (name) => (obj) => obj[name];
 
 const run = async () => {
   logger.normal('Starting migration');
@@ -28,14 +29,21 @@ const run = async () => {
 
     logger.normal('Fetching JSON');
     const docs = await fetchDocs();
-    const attributeDefinitions = await fetchAttributeDefinitions();
+    const attributeDefs = await fetchAttributeDefinitions();
+    const attributeDefFiles = await all(attributeDefs, (doc) =>
+      toVFile(doc, {
+        baseDir: DICTIONARY_DIR,
+        filename: prop('title'),
+        dirname: ({ eventTypes }) => eventTypes[0],
+      })
+    );
     const files = await all(docs, toVFile).then((files) =>
       files.sort((a, b) => a.path.localeCompare(b.path))
     );
     await fetchDocCount(files);
 
     logger.normal('Creating directories');
-    createDirectories(files);
+    createDirectories(files.concat(attributeDefFiles));
 
     logger.normal('Converting files');
     await all(files, convertFile);
@@ -59,7 +67,7 @@ const run = async () => {
     const navFiles = migrateNavStructure(createNavStructure(files));
 
     logger.normal('Saving changes to files');
-    await all(files.concat(indexFiles, navFiles), (file) =>
+    await all(files.concat(indexFiles, navFiles, attributeDefFiles), (file) =>
       write(file, 'utf-8')
     );
 
