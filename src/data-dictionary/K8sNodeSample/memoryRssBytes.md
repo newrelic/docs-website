@@ -1,0 +1,8 @@
+---
+name: memoryRssBytes
+units: bytes (B)
+events:
+  - K8sNodeSample
+---
+
+Bytes of rss memory.

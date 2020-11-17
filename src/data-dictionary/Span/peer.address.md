@@ -1,0 +1,7 @@
+---
+name: peer.address
+events:
+  - Span
+---
+
+The address of the datastore, including the host name and the port, path, or ID. Reported when 'category' is 'datastore.' Example: mysql-db.servers.net:3306.

@@ -1,0 +1,7 @@
+---
+name: db.innodb.bufferPoolPagesData
+events:
+  - MysqlSample
+---
+
+Number of pages in the InnoDB buffer pool containing data.
