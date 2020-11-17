@@ -5,7 +5,7 @@ const { CONTENT_DIR, TYPES } = require('../constants');
 const DEFAULT_EXTENSION = '.mdx';
 
 const EXTENSIONS = {
-  [TYPES.ATTRIBUTE_DEFINITION]: '.json',
+  [TYPES.ATTRIBUTE_DEFINITION]: '.md',
 };
 
 const toVFile = (doc, { baseDir = CONTENT_DIR, dirname, filename }) => {
