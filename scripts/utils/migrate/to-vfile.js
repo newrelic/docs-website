@@ -8,12 +8,20 @@ const EXTENSIONS = {
   [TYPES.ATTRIBUTE_DEFINITION]: '.json',
 };
 
-const toVFile = (doc) => {
+const toVFile = (doc, { baseDir = CONTENT_DIR, dirname, filename }) => {
   const url = new URL(doc.docUrl);
-  const dirname = path.dirname(url.pathname);
   const basename = path.basename(url.pathname);
-  const filename = doc.type === TYPES.LANDING_PAGE ? 'index' : basename;
   const extension = EXTENSIONS[doc.type] || DEFAULT_EXTENSION;
+  dirname = dirname || path.dirname(url.pathname);
+  filename = filename || (doc.type === TYPES.LANDING_PAGE ? 'index' : basename);
+
+  if (typeof dirname === 'function') {
+    dirname = dirname(doc);
+  }
+
+  if (typeof filename === 'function') {
+    filename = filename(doc);
+  }
 
   return vfile({
     path: path.join(CONTENT_DIR, dirname, filename + extension),
