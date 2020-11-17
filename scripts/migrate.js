@@ -1,5 +1,6 @@
 const fetchDocs = require('./utils/migrate/fetch-docs');
 const fetchDocCount = require('./utils/migrate/fetch-doc-count');
+const fetchAttributeDefinitions = require('./utils/migrate/fetch-attribute-definitions');
 const createDirectories = require('./utils/migrate/create-directories');
 const convertFile = require('./utils/migrate/convert-file');
 const createIndexPages = require('./utils/migrate/create-index-pages');
@@ -26,6 +27,7 @@ const run = async () => {
 
     logger.normal('Fetching JSON');
     const docs = await fetchDocs();
+    const attributeDefinitions = await fetchAttributeDefinitions();
     const files = await all(docs, toVFile).then((files) =>
       files.sort((a, b) => a.path.localeCompare(b.path))
     );
