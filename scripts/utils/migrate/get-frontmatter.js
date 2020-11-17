@@ -37,23 +37,22 @@ const getFrontmatter = (file) => {
   };
 
   const customFrontmatter = addCustomFrontmatter[type]
-    ? addCustomFrontmatter[type](data)
-    : {};
+    ? addCustomFrontmatter[type](data, defaultFrontmatter)
+    : defaultFrontmatter;
 
-  return frontmatter.stringify('', {
-    ...defaultFrontmatter,
-    ...customFrontmatter,
-  });
+  return frontmatter.stringify('', customFrontmatter);
 };
 
 const addCustomFrontmatter = {
-  [TYPES.LANDING_PAGE]: ({ topics }) => ({
+  [TYPES.LANDING_PAGE]: ({ topics }, defaultFrontmatter) => ({
+    ...defaultFrontmatter,
     topics,
   }),
-  [TYPES.API_DOC]: ({ topics }) => ({
+  [TYPES.API_DOC]: ({ topics }, defaultFrontmatter) => ({
+    ...defaultFrontmatter,
     topics,
   }),
-  [TYPES.BASIC_PAGE]: ({ doc, topics }) => {
+  [TYPES.BASIC_PAGE]: ({ doc, topics }, defaultFrontmatter) => {
     let japaneseUrl = '';
     if (doc.japaneseVersionExists === 'yes') {
       const url = new URL(doc.docUrl);
@@ -61,11 +60,12 @@ const addCustomFrontmatter = {
       japaneseUrl = url.href;
     }
     return {
+      ...defaultFrontmatter,
       topics,
       japaneseVersion: japaneseUrl,
     };
   },
-  [TYPES.TROUBLESHOOTING]: ({ doc, topics }) => {
+  [TYPES.TROUBLESHOOTING]: ({ doc, topics }, defaultFrontmatter) => {
     let japaneseUrl = '';
     if (doc.japaneseVersionExists === 'yes') {
       const url = new URL(doc.docUrl);
@@ -73,32 +73,40 @@ const addCustomFrontmatter = {
       japaneseUrl = url.href;
     }
     return {
+      ...defaultFrontmatter,
       topics,
       japaneseVersion: japaneseUrl,
     };
   },
-  [TYPES.RELEASE_NOTE]: ({ doc, topics }) => {
+  [TYPES.RELEASE_NOTE]: ({ doc, topics }, defaultFrontmatter) => {
     return {
+      ...defaultFrontmatter,
       topics,
       releaseDateTime: doc.releasedOn || '',
       releaseVersion: doc.releaseVersion || '',
       downloadLink: doc.downloadLink || '',
     };
   },
-  [TYPES.RELEASE_NOTE_PLATFORM]: ({ doc, topics }) => {
+  [TYPES.RELEASE_NOTE_PLATFORM]: ({ doc, topics }, defaultFrontmatter) => {
     return {
+      ...defaultFrontmatter,
       topics,
       releaseDateTime: doc.releasedOn || '',
       releaseImpact: doc.releaseImpact || [],
     };
   },
-  [TYPES.WHATS_NEW]: ({ doc }) => {
+  [TYPES.WHATS_NEW]: ({ doc }, defaultFrontmatter) => {
     return {
+      ...defaultFrontmatter,
       summary: doc.summary || '',
       learnMoreLink: doc.learnMoreLink || '',
       getStartedLink: doc.getStartedLink || '',
     };
   },
+  [TYPES.ATTRIBUTE_DEFINITION]: ({ doc }) => ({
+    name: doc.title,
+    events: doc.eventTypes,
+  }),
 };
 
 module.exports = getFrontmatter;
