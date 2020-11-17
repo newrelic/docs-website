@@ -84,7 +84,9 @@ const update = (files, { path: pathSegments, node, replace = false }) => {
           Object.entries({
             title: node.title || child.title,
             path: node.path || child.path,
-            hidden: hasOwnProperty(node, 'hidden') ? node.hidden : child.hidden,
+            primary: hasOwnProperty(node, 'primary')
+              ? node.primary
+              : child.primary,
             pages: node.pages || child.pages,
           }).filter(([, value]) => value !== undefined)
         );
