@@ -1,0 +1,6 @@
+---
+name: MongoDatabaseSample
+dataSources:
+  - MongoDB
+---
+

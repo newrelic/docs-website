@@ -1,0 +1,6 @@
+---
+name: CouchbaseBucketSample
+dataSources:
+  - Couchbase
+---
+

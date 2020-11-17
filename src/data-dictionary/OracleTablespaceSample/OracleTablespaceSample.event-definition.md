@@ -1,0 +1,6 @@
+---
+name: OracleTablespaceSample
+dataSources:
+  - OracleDB
+---
+

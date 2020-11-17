@@ -1,0 +1,6 @@
+---
+name: MssqlDatabaseSample
+dataSources:
+  - MSSQL
+---
+

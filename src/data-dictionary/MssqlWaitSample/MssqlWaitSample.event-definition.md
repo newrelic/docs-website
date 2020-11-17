@@ -1,0 +1,6 @@
+---
+name: MssqlWaitSample
+dataSources:
+  - MSSQL
+---
+

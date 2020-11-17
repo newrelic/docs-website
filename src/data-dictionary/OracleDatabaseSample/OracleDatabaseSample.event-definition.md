@@ -1,0 +1,6 @@
+---
+name: OracleDatabaseSample
+dataSources:
+  - OracleDB
+---
+

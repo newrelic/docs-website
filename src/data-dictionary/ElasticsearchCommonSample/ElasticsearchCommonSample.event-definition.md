@@ -1,0 +1,6 @@
+---
+name: ElasticsearchCommonSample
+dataSources:
+  - Elasticsearch
+---
+

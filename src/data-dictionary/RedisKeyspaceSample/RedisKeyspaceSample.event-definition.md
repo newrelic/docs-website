@@ -1,0 +1,6 @@
+---
+name: RedisKeyspaceSample
+dataSources:
+  - Redis
+---
+

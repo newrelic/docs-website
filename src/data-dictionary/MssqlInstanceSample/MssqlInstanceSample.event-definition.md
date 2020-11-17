@@ -1,0 +1,6 @@
+---
+name: MssqlInstanceSample
+dataSources:
+  - MSSQL
+---
+
