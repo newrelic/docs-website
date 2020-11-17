@@ -3,6 +3,7 @@ const path = require('path');
 module.exports = {
   CONTENT_DIR: 'src/content',
   NAV_DIR: 'src/nav',
+  DICTIONARY_DIR: 'src/data-dictionary',
   BASE_URL: 'https://docs-dev.newrelic.com',
 
   // IDS for page nodes that we want to ensure get migrated
