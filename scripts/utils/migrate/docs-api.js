@@ -2,6 +2,8 @@ const fetch = require('node-fetch');
 const logger = require('../logger');
 const { BASE_URL } = require('../constants');
 
+require('dotenv').config();
+
 const get = async (pathname, { page, perPage } = {}) => {
   const params = new URLSearchParams();
 

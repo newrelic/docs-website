@@ -1,8 +1,5 @@
 const path = require('path');
 const docsApi = require('./docs-api');
-
-require('dotenv').config();
-
 const { TYPES, ITEMS_PER_TYPE, DIRECT_IDS } = require('../constants');
 
 const prop = (name) => (obj) => obj[name];
