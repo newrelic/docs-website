@@ -37,6 +37,21 @@ const callApi = async (pathname, { page, perPage } = {}) => {
   }
 };
 
+const paginate = async (
+  pathname,
+  { page = 1, perPage, maxPages = Infinity } = {}
+) => {
+  const { pages, docs } = await callApi(pathname, { page, perPage });
+
+  if (page < pages.total && page < maxPages) {
+    return docs.concat(
+      await paginate(pathname, { page: page + 1, perPage, maxPages })
+    );
+  }
+
+  return docs;
+};
+
 const fetchDocs = async () => {
   const requests = Object.values(TYPES).map((type) =>
     callApi(path.join('/api/migration/content', type, 'list'), {
@@ -48,9 +63,11 @@ const fetchDocs = async () => {
     callApi(`/api/migration/content/page/${id}`)
   );
 
+  const nrOnly = await paginate('/api/migration/content/page/nr-only/list');
+
   const docs = await Promise.all([...requests, ...hardCodedRequests]);
 
-  return docs.flatMap(prop('docs')).map(prop('doc'));
+  return docs.flatMap(prop('docs')).concat(nrOnly).map(prop('doc'));
 };
 
 module.exports = fetchDocs;
