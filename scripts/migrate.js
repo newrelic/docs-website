@@ -46,7 +46,7 @@ const run = async () => {
     createDirectories(files.concat(attributeDefFiles));
 
     logger.normal('Converting files');
-    await all(files, convertFile);
+    await all(files.concat(attributeDefFiles), convertFile);
 
     logger.normal('Running codemods on .mdx files');
     await all(
