@@ -46,6 +46,7 @@ export const query = graphql`
     pages: allNavYaml(
       sort: { fields: [title] }
       filter: {
+        primary: { eq: true }
         title: {
           nin: [
             "Telemetry Data Platform"
