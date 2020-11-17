@@ -103,10 +103,17 @@ const addCustomFrontmatter = {
       getStartedLink: doc.getStartedLink || '',
     };
   },
-  [TYPES.ATTRIBUTE_DEFINITION]: ({ doc }) => ({
-    name: doc.title,
-    events: doc.eventTypes,
-  }),
+  [TYPES.ATTRIBUTE_DEFINITION]: ({ doc }) => {
+    return Object.fromEntries(
+      Object.entries({
+        name: doc.title,
+        units: doc.units
+          ? doc.units.replace('<b>Unit of measurement:</b>', '').trim()
+          : null,
+        events: doc.eventTypes,
+      }).filter(([, value]) => value != null)
+    );
+  },
 };
 
 module.exports = getFrontmatter;
