@@ -7,6 +7,9 @@ const logger = require('../logger');
 const instructions = require('./instruction-set');
 const { omit } = require('lodash');
 
+const hasOwnProperty = (obj, key) =>
+  Object.prototype.hasOwnProperty.call(obj, key);
+
 const migrateNavStructure = (files) => {
   return instructions.reduce((files, instruction) => {
     switch (instruction.type) {
@@ -73,24 +76,32 @@ const update = (files, { path: pathSegments, node, replace = false }) => {
     return files;
   }
 
-  const updatedNav = updateNodeAtPath(
-    load(file),
-    pathSegments.slice(1),
-    (child) =>
-      replace
-        ? node
-        : // keep a consistent key order
-          {
+  const updateChild = (child) =>
+    // keep a consistent key order
+    replace
+      ? node
+      : Object.fromEntries(
+          Object.entries({
             title: node.title || child.title,
             path: node.path || child.path,
+            rootNav: hasOwnProperty(node, 'rootNav')
+              ? node.rootNav
+              : child.rootNav,
             pages: node.pages || child.pages,
-          },
-    () =>
-      file.message(
-        `Nav path not found: ${pathSegments.join(' > ')}`,
-        'migrate-nav-structure:update'
-      )
-  );
+          }).filter(([, value]) => value !== undefined)
+        );
+
+  const nav = load(file);
+
+  const updatedNav =
+    pathSegments.length === 1
+      ? updateChild(nav)
+      : updateNodeAtPath(nav, pathSegments.slice(1), updateChild, () =>
+          file.message(
+            `Nav path not found: ${pathSegments.join(' > ')}`,
+            'migrate-nav-structure:update'
+          )
+        );
 
   write(file, updatedNav);
 

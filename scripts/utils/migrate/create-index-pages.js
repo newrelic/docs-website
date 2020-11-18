@@ -40,7 +40,11 @@ const sentenceCase = (dirname) => {
   return replace(title);
 };
 
-const SKIPPED_FOLDERS = ['src/content/attribute-dictionary', 'images'];
+const SKIPPED_FOLDERS = [
+  'src/content/attribute-dictionary',
+  'images',
+  'new-relic-only',
+];
 
 const shouldSkipDirectory = (dir) =>
   SKIPPED_FOLDERS.includes(dir.path) || SKIPPED_FOLDERS.includes(dir.basename);
