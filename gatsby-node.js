@@ -4,6 +4,9 @@ const { createFilePath } = require('gatsby-source-filesystem');
 
 const TEMPLATE_DIR = 'src/templates/';
 
+const hasOwnProperty = (obj, key) =>
+  Object.prototype.hasOwnProperty.call(obj, key);
+
 exports.onCreateNode = ({ node, getNode, actions }) => {
   if (node.internal.type === 'Mdx') {
     const { createNodeField } = actions;
@@ -125,6 +128,7 @@ exports.createSchemaCustomization = ({ actions }) => {
     title: String!
     path: String
     pages: [NavYaml!]!
+    rootNav: Boolean!
   }
   `;
 
@@ -138,6 +142,10 @@ exports.createResolvers = ({ createResolvers }) => {
         resolve: (source) => {
           return source.pages || [];
         },
+      },
+      rootNav: {
+        resolve: (source) =>
+          hasOwnProperty(source, 'rootNav') ? source.rootNav : true,
       },
     },
   });

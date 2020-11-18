@@ -367,4 +367,13 @@ module.exports = [
     type: INSTRUCTIONS.REMOVE,
     path: ['Plugins'],
   },
+
+  // ----- New Relic only ----- \\
+  {
+    type: INSTRUCTIONS.UPDATE,
+    path: ['New Relic only'],
+    node: {
+      rootNav: false,
+    },
+  },
 ];

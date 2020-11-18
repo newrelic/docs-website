@@ -5,7 +5,7 @@ const vfile = require('vfile');
 
 const logger = require('../logger');
 
-const fetchDocCount = async (files) => {
+const fetchDocCount = async (migratedCount) => {
   const url = 'https://docs-dev.newrelic.com/api/migration/content/count';
   try {
     const resp = await fetch(url, {
@@ -17,7 +17,6 @@ const fetchDocCount = async (files) => {
     const result = await resp.json();
 
     const totalCount = parseInt(result.docs[0].count.all);
-    const migratedCount = files.length;
 
     writeSync(
       vfile({
