@@ -107,6 +107,7 @@ const addCustomFrontmatter = {
     return Object.fromEntries(
       Object.entries({
         name: doc.title,
+        type: 'attribute',
         units: doc.units
           ? doc.units.replace('<b>Unit of measurement:</b>', '').trim()
           : null,
@@ -116,6 +117,7 @@ const addCustomFrontmatter = {
   },
   [TYPES.EVENT_DEFINITION]: ({ doc }) => ({
     name: doc.name,
+    type: 'event',
     dataSources: doc.dataSources,
   }),
 };
