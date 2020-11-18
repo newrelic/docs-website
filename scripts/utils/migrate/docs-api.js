@@ -7,11 +7,11 @@ require('dotenv').config();
 const get = async (pathname, { page, perPage } = {}) => {
   const params = new URLSearchParams();
 
-  if (page) {
+  if (page != null) {
     params.set('page', page);
   }
 
-  if (perPage) {
+  if (perPage != null) {
     params.set('items_per_page', perPage);
   }
 
@@ -35,7 +35,7 @@ const get = async (pathname, { page, perPage } = {}) => {
 
 const paginate = async (
   pathname,
-  { page = 1, perPage, maxPages = Infinity } = {}
+  { page = 0, perPage, maxPages = Infinity } = {}
 ) => {
   const { pages, docs } = await get(pathname, { page, perPage });
 
