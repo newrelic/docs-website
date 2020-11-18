@@ -6,7 +6,7 @@ const vfile = require('vfile');
 const { root, link, heading, text, list, listItem } = require('mdast-builder');
 const toMDX = require('./to-mdx');
 const { frontmatter } = require('../mdast');
-const { BASE_DIR } = require('../constants');
+const { CONTENT_DIR } = require('../constants');
 const fromList = require('../unist-fs-util-from-list');
 const { last } = require('lodash');
 
@@ -54,7 +54,7 @@ const toURL = (node) =>
     '/',
     node.path
       .replace('.mdx', '')
-      .replace(BASE_DIR, '')
+      .replace(CONTENT_DIR, '')
       .replace(/\/index\/?$/, '')
   );
 
