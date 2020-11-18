@@ -373,7 +373,7 @@ module.exports = [
     type: INSTRUCTIONS.UPDATE,
     path: ['New Relic only'],
     node: {
-      root: false,
+      rootNav: false,
     },
   },
 ];

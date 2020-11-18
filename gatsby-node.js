@@ -128,7 +128,7 @@ exports.createSchemaCustomization = ({ actions }) => {
     title: String!
     path: String
     pages: [NavYaml!]!
-    root: Boolean!
+    rootNav: Boolean!
   }
   `;
 
@@ -143,9 +143,9 @@ exports.createResolvers = ({ createResolvers }) => {
           return source.pages || [];
         },
       },
-      root: {
+      rootNav: {
         resolve: (source) =>
-          hasOwnProperty(source, 'root') ? source.root : true,
+          hasOwnProperty(source, 'rootNav') ? source.rootNav : true,
       },
     },
   });
