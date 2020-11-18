@@ -1,8 +1,9 @@
 const path = require('path');
 
 module.exports = {
-  BASE_DIR: 'src/content',
+  CONTENT_DIR: 'src/content',
   NAV_DIR: 'src/nav',
+  DICTIONARY_DIR: 'src/data-dictionary',
   BASE_URL: 'https://docs-dev.newrelic.com',
 
   // IDS for page nodes that we want to ensure get migrated
@@ -38,6 +39,7 @@ module.exports = {
     TROUBLESHOOTING: 'troubleshooting_doc',
     WHATS_NEW: 'nr1_announcement',
     ATTRIBUTE_DEFINITION: 'attribute_definition',
+    EVENT_DEFINITION: 'event_definition',
   },
 
   ITEMS_PER_TYPE: {

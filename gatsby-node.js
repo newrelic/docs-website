@@ -4,6 +4,9 @@ const { createFilePath } = require('gatsby-source-filesystem');
 
 const TEMPLATE_DIR = 'src/templates/';
 
+const hasOwnProperty = (obj, key) =>
+  Object.prototype.hasOwnProperty.call(obj, key);
+
 exports.onCreateNode = ({ node, getNode, actions }) => {
   if (node.internal.type === 'Mdx') {
     const { createNodeField } = actions;
@@ -93,16 +96,26 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
         // table-of-contents pages should get the same nav as their landing page
         findPage(nav, slug.replace(/\/table-of-contents$/, ''))
       );
-
-    createPage({
-      path: slug,
-      component: path.resolve(`${TEMPLATE_DIR}${frontmatter.template}.js`),
-      context: {
-        fileRelativePath,
-        slug,
-        nav: nav && nav.title,
-      },
-    });
+    if (process.env.NODE_ENV === 'development' && !frontmatter.template) {
+      createPage({
+        path: slug,
+        component: path.resolve(TEMPLATE_DIR, 'dev/missingTemplate.js'),
+        context: {
+          fileRelativePath,
+          layout: 'basic',
+        },
+      });
+    } else {
+      createPage({
+        path: slug,
+        component: path.resolve(`${TEMPLATE_DIR}${frontmatter.template}.js`),
+        context: {
+          fileRelativePath,
+          slug,
+          nav: nav && nav.title,
+        },
+      });
+    }
   });
 };
 
@@ -115,6 +128,7 @@ exports.createSchemaCustomization = ({ actions }) => {
     title: String!
     path: String
     pages: [NavYaml!]!
+    rootNav: Boolean!
   }
   `;
 
@@ -129,6 +143,10 @@ exports.createResolvers = ({ createResolvers }) => {
           return source.pages || [];
         },
       },
+      rootNav: {
+        resolve: (source) =>
+          hasOwnProperty(source, 'rootNav') ? source.rootNav : true,
+      },
     },
   });
 };
@@ -137,7 +155,7 @@ exports.onCreatePage = ({ page, actions }) => {
   const { createPage } = actions;
 
   if (page.path.match(/404/)) {
-    page.context.layout = '404';
+    page.context.layout = 'basic';
 
     createPage(page);
   }

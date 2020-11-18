@@ -1,48 +1,30 @@
-const fetch = require('node-fetch');
-require('dotenv').config();
+const path = require('path');
+const docsApi = require('./docs-api');
+const { prop } = require('../functional');
+const { TYPES, ITEMS_PER_TYPE, DIRECT_IDS } = require('../constants');
 
-const logger = require('../logger');
-const { TYPES, ITEMS_PER_TYPE, BASE_URL, DIRECT_IDS } = require('../constants');
-
-const getUrl = (type) =>
-  [BASE_URL, 'api/migration/content', type, 'list'].join('/');
-
-const callApi = async (url) => {
-  try {
-    const resp = await fetch(url, {
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Phpshield-Key-Disable': process.env.ACQUIA_DEV_PHP_SHIELD_KEY,
-      },
-    });
-    const result = await resp.json();
-
-    return result.docs.map((item) => item.doc);
-  } catch (e) {
-    logger.error(`Error, could not fetch ${url}: ${e}`);
-  }
-};
-
-const fetchDoc = async (type) => {
-  const params = new URLSearchParams();
-  const perPage = ITEMS_PER_TYPE[type];
-
-  if (perPage) {
-    params.set('items_per_page', perPage);
-  }
-
-  return callApi(`${getUrl(type)}?${params}`);
-};
+const IGNORED_TYPES = [TYPES.ATTRIBUTE_DEFINITION, TYPES.EVENT_DEFINITION];
 
 const fetchDocs = async () => {
-  const requests = Object.values(TYPES).map(fetchDoc);
-  const hardCodedRequests = DIRECT_IDS.map(
-    (id) => `${BASE_URL}/api/migration/content/page/${id}`
-  ).map(callApi);
+  const requests = Object.values(TYPES)
+    .filter((type) => !IGNORED_TYPES.includes(type))
+    .map((type) =>
+      docsApi.get(path.join('/api/migration/content', type, 'list'), {
+        perPage: ITEMS_PER_TYPE[type],
+      })
+    );
+
+  const hardCodedRequests = DIRECT_IDS.map((id) =>
+    docsApi.get(`/api/migration/content/page/${id}`)
+  );
+
+  const nrOnly = await docsApi.paginate(
+    '/api/migration/content/page/nr-only/list'
+  );
 
   const docs = await Promise.all([...requests, ...hardCodedRequests]);
 
-  return docs.flat();
+  return docs.flatMap(prop('docs')).concat(nrOnly).map(prop('doc'));
 };
 
 module.exports = fetchDocs;

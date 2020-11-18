@@ -1,9 +1,9 @@
+const toMDX = require('./converters/to-mdx');
 const toMarkdown = require('./converters/to-markdown');
-const toJSON = require('./converters/to-json');
 
 const converters = {
-  '.mdx': toMarkdown,
-  '.json': toJSON,
+  '.mdx': toMDX,
+  '.md': toMarkdown,
 };
 
 const convertFile = (file) => converters[file.extname](file);

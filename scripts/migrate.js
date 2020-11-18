@@ -1,5 +1,7 @@
 const fetchDocs = require('./utils/migrate/fetch-docs');
 const fetchDocCount = require('./utils/migrate/fetch-doc-count');
+const fetchAttributeDefinitions = require('./utils/migrate/fetch-attribute-definitions');
+const fetchEventDefinitions = require('./utils/migrate/fetch-event-definitions');
 const createDirectories = require('./utils/migrate/create-directories');
 const convertFile = require('./utils/migrate/convert-file');
 const createIndexPages = require('./utils/migrate/create-index-pages');
@@ -12,7 +14,8 @@ const createRawHTMLFiles = require('./utils/migrate/create-raw-html-files');
 const migrateNavStructure = require('./utils/migrate/migrate-nav-structure');
 const reporter = require('vfile-reporter');
 const rimraf = require('rimraf');
-const { NAV_DIR, BASE_DIR } = require('./utils/constants');
+const { prop } = require('./utils/functional');
+const { NAV_DIR, CONTENT_DIR, DICTIONARY_DIR } = require('./utils/constants');
 
 const all = (list, fn) => Promise.all(list.map(fn));
 
@@ -21,21 +24,39 @@ const run = async () => {
 
   try {
     logger.normal('Resetting content');
-    rimraf.sync(BASE_DIR);
+    rimraf.sync(CONTENT_DIR);
     rimraf.sync(NAV_DIR);
+    rimraf.sync(DICTIONARY_DIR);
 
     logger.normal('Fetching JSON');
     const docs = await fetchDocs();
+    const attributeDefs = await fetchAttributeDefinitions();
+    const eventDefs = await fetchEventDefinitions();
+    const attributeDefFiles = await all(attributeDefs, (doc) =>
+      toVFile(doc, {
+        baseDir: DICTIONARY_DIR,
+        filename: prop('title'),
+        dirname: ({ eventTypes }) => `/events/${eventTypes[0]}`,
+      })
+    );
+    const eventDefFiles = await all(eventDefs, (doc) =>
+      toVFile(doc, {
+        baseDir: DICTIONARY_DIR,
+        filename: ({ name }) => `${name}.event-definition`,
+        dirname: ({ name }) => `/events/${name}`,
+      })
+    );
+    const definitionFiles = attributeDefFiles.concat(eventDefFiles);
     const files = await all(docs, toVFile).then((files) =>
       files.sort((a, b) => a.path.localeCompare(b.path))
     );
-    await fetchDocCount(files);
+    await fetchDocCount(files.concat(definitionFiles).length);
 
     logger.normal('Creating directories');
-    createDirectories(files);
+    createDirectories(files.concat(definitionFiles));
 
     logger.normal('Converting files');
-    await all(files, convertFile);
+    await all(files.concat(definitionFiles), convertFile);
 
     logger.normal('Running codemods on .mdx files');
     await all(
@@ -56,7 +77,7 @@ const run = async () => {
     const navFiles = migrateNavStructure(createNavStructure(files));
 
     logger.normal('Saving changes to files');
-    await all(files.concat(indexFiles, navFiles), (file) =>
+    await all(files.concat(indexFiles, navFiles, definitionFiles), (file) =>
       write(file, 'utf-8')
     );
 
