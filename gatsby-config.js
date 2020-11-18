@@ -9,7 +9,7 @@ module.exports = {
     description: 'New Relic Documentation',
     author: 'New Relic',
     repository: 'https://github.com/newrelic/docs-website',
-    siteUrl: siteUrl,
+    siteUrl,
     branch: 'develop',
   },
   plugins: [
