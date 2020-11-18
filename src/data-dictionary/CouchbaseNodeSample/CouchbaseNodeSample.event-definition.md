@@ -1,6 +1,0 @@
----
-name: CouchbaseNodeSample
-dataSources:
-  - Couchbase
----
-

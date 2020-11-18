@@ -1,6 +1,0 @@
----
-name: HAProxyFrontendSample
-dataSources:
-  - HAProxy
----
-

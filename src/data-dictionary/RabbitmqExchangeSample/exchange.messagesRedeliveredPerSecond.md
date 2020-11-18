@@ -1,7 +1,0 @@
----
-name: exchange.messagesRedeliveredPerSecond
-events:
-  - RabbitmqExchangeSample
----
-
-Rate of subset of messages in deliver\_get which had the redelivered flag set per queue per second.

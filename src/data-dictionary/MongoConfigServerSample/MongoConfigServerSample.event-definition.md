@@ -1,6 +1,0 @@
----
-name: MongoConfigServerSample
-dataSources:
-  - MongoDB
----
-

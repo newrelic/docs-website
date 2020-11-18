@@ -1,6 +1,0 @@
----
-name: MssqlDatabaseSample
-dataSources:
-  - MSSQL
----
-

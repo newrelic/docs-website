@@ -1,6 +1,0 @@
----
-name: ElasticsearchNodeSample
-dataSources:
-  - Elasticsearch
----
-

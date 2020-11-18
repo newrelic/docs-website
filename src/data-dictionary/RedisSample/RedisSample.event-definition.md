@@ -1,6 +1,0 @@
----
-name: RedisSample
-dataSources:
-  - Redis
----
-

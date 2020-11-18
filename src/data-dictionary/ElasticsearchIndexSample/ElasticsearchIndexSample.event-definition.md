@@ -1,6 +1,0 @@
----
-name: ElasticsearchIndexSample
-dataSources:
-  - Elasticsearch
----
-

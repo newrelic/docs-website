@@ -1,6 +1,0 @@
----
-name: CouchbaseQueryEngineSample
-dataSources:
-  - Couchbase
----
-

@@ -1,7 +1,0 @@
----
-name: stats.lockWaitsPerSecond
-events:
-  - MssqlInstanceSample
----
-
-The number of times per second that MS SQL Server is unable to retain a lock right away for a resource.

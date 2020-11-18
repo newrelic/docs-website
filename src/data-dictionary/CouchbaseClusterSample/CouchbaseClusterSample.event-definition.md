@@ -1,6 +1,0 @@
----
-name: CouchbaseClusterSample
-dataSources:
-  - Couchbase
----
-

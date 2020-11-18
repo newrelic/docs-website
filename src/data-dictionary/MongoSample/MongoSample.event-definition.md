@@ -1,6 +1,0 @@
----
-name: MongoSample
-dataSources:
-  - MongoDB
----
-

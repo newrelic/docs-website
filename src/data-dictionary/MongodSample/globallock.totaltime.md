@@ -1,7 +1,0 @@
----
-name: globallock.totaltime
-events:
-  - MongodSample
----
-
-The time since the database last started and created the global lock.

@@ -1,6 +1,0 @@
----
-name: ElasticsearchClusterSample
-dataSources:
-  - Elasticsearch
----
-

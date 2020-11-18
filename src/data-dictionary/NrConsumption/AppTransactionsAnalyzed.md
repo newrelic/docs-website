@@ -1,9 +1,0 @@
----
-name: AppTransactionsAnalyzed
-units: count
-events:
-  - NrConsumption
-  - NrMTDConsumption
----
-
-The number of APM app transactions analyzed by New Relic AI.

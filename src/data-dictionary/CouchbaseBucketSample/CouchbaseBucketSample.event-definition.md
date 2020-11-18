@@ -1,6 +1,0 @@
----
-name: CouchbaseBucketSample
-dataSources:
-  - Couchbase
----
-
