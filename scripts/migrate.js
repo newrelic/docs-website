@@ -14,10 +14,10 @@ const createRawHTMLFiles = require('./utils/migrate/create-raw-html-files');
 const migrateNavStructure = require('./utils/migrate/migrate-nav-structure');
 const reporter = require('vfile-reporter');
 const rimraf = require('rimraf');
+const { prop } = require('./utils/functional');
 const { NAV_DIR, CONTENT_DIR, DICTIONARY_DIR } = require('./utils/constants');
 
 const all = (list, fn) => Promise.all(list.map(fn));
-const prop = (name) => (obj) => obj[name];
 
 const run = async () => {
   logger.normal('Starting migration');

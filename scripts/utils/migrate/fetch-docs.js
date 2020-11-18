@@ -1,8 +1,7 @@
 const path = require('path');
 const docsApi = require('./docs-api');
+const { prop } = require('../functional');
 const { TYPES, ITEMS_PER_TYPE, DIRECT_IDS } = require('../constants');
-
-const prop = (name) => (obj) => obj[name];
 
 const IGNORED_TYPES = [TYPES.ATTRIBUTE_DEFINITION, TYPES.EVENT_DEFINITION];
 
