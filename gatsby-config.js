@@ -94,13 +94,6 @@ module.exports = {
         path: `${__dirname}/src/content`,
       },
     },
-    {
-      resolve: 'gatsby-source-filesystem',
-      options: {
-        name: 'markdown-attr-defs',
-        path: `${__dirname}/src/content/attribute-dictionary`,
-      },
-    },
     'gatsby-remark-images',
     'gatsby-transformer-remark',
     {
@@ -141,21 +134,28 @@ module.exports = {
       },
     },
     {
+      resolve: 'gatsby-source-filesystem',
+      options: {
+        name: 'data-dictionary',
+        path: `${__dirname}/src/data-dictionary`,
+      },
+    },
+    {
       resolve: `gatsby-plugin-json-output`,
       options: {
-        siteUrl: siteUrl,
+        siteUrl,
         graphQLQuery: `
         {
-          allMarkdownRemark(filter: {frontmatter: {contentType: {eq: "attributeDefinition"}}}) {
+          allMarkdownRemark(filter: {frontmatter: {type: {eq: "attribute"}}}) {
             edges {
               node {
+                rawMarkdownBody
                 frontmatter {
+                  type
+                  events
                   name
-                  eventTypes
                   units
                 }
-                rawMarkdownBody
-                html
               }
             }
           }
@@ -164,13 +164,41 @@ module.exports = {
         serializeFeed: (results) =>
           results.data.allMarkdownRemark.edges.map(({ node }) => ({
             name: node.frontmatter.name,
-            eventTypes: node.frontmatter.eventTypes,
+            events: node.frontmatter.events,
             units: node.frontmatter.units,
-            definitionMarkdown: node.rawMarkdownBody,
-            definition: node.html,
+            definition: node.rawMarkdownBody.trim(),
           })),
-        feedFilename: 'attributeDefinitions',
-        nodesPerFeedFile: 100,
+        feedFilename: 'attribute-definitions',
+        nodesPerFeedFile: Infinity,
+      },
+    },
+    {
+      resolve: `gatsby-plugin-json-output`,
+      options: {
+        siteUrl,
+        graphQLQuery: `
+        {
+          allMarkdownRemark(filter: {frontmatter: {type: {eq: "event"}}}) {
+            edges {
+              node {
+                rawMarkdownBody
+                frontmatter {
+                  name
+                  dataSources
+                }
+              }
+            }
+          }
+        }
+      `,
+        serializeFeed: (results) =>
+          results.data.allMarkdownRemark.edges.map(({ node }) => ({
+            name: node.frontmatter.name,
+            dataSources: node.frontmatter.dataSources,
+            definition: node.rawMarkdownBody.trim(),
+          })),
+        feedFilename: 'event-definitions',
+        nodesPerFeedFile: Infinity,
       },
     },
   ],
