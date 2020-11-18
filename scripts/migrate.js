@@ -36,14 +36,14 @@ const run = async () => {
       toVFile(doc, {
         baseDir: DICTIONARY_DIR,
         filename: prop('title'),
-        dirname: ({ eventTypes }) => eventTypes[0],
+        dirname: ({ eventTypes }) => `/events/${eventTypes[0]}`,
       })
     );
     const eventDefFiles = await all(eventDefs, (doc) =>
       toVFile(doc, {
         baseDir: DICTIONARY_DIR,
         filename: ({ name }) => `${name}.event-definition`,
-        dirname: prop('name'),
+        dirname: ({ name }) => `/events/${name}`,
       })
     );
     const definitionFiles = attributeDefFiles.concat(eventDefFiles);
