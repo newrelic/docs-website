@@ -13,20 +13,23 @@ exports.createSchemaCustomization = ({ actions }) => {
     type DataDictionaryAttribute implements Node {
       name: String!
       definition: String!
-      units: String
+      events: [DataDictionaryEvent!]!
     }
   `);
 };
 
-// exports.createResolvers = ({ createResolvers }) => {
-//   createResolvers({
-//     Query: {
-//       dataDictionary: {
-//         resolve: () => ({}),
-//       },
-//     },
-//   });
-// };
+exports.createResolvers = ({ createResolvers }) => {
+  createResolvers({
+    DataDictionaryAttribute: {
+      events: {
+        resolve: (source, _args, context) =>
+          context.nodeModel
+            .getAllNodes({ type: 'DataDictionaryEvent' })
+            .filter((event) => source.events.includes(event.name)),
+      },
+    },
+  });
+};
 
 exports.sourceNodes = (
   { actions, createNodeId, createContentDigest, getNodesByType },
@@ -42,7 +45,6 @@ exports.sourceNodes = (
     .filter(({ frontmatter }) => frontmatter.type === 'event')
     .forEach((event) => {
       const { frontmatter, rawMarkdownBody } = event;
-      const eventId = createNodeId(`DataDictionaryEvent-${frontmatter.name}`);
 
       const attributeIds = dataDictionaryNodes
         .filter(
@@ -60,12 +62,13 @@ exports.sourceNodes = (
             name: frontmatter.name,
             definition: rawMarkdownBody.trim(),
             units: frontmatter.units,
+            events: frontmatter.events,
           };
 
           createNode({
             ...data,
             id,
-            parent: eventId,
+            parent: null,
             children: [],
             internal: {
               type: 'DataDictionaryAttribute',
@@ -84,7 +87,7 @@ exports.sourceNodes = (
 
       createNode({
         ...data,
-        id: eventId,
+        id: createNodeId(`DataDictionaryEvent-${frontmatter.name}`),
         parent: null,
         children: attributeIds,
         internal: {
