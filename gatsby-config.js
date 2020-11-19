@@ -2,6 +2,8 @@ const indentedCodeBlock = require('./codemods/indentedCodeBlock');
 
 const siteUrl = 'https://docs.newrelic.com';
 
+const dataDictionaryPath = `${__dirname}/src/data-dictionary`;
+
 module.exports = {
   siteMetadata: {
     title: 'New Relic Documentation',
@@ -94,6 +96,13 @@ module.exports = {
         path: `${__dirname}/src/content`,
       },
     },
+    {
+      resolve: 'gatsby-source-filesystem',
+      options: {
+        name: 'data-dictionary',
+        path: dataDictionaryPath,
+      },
+    },
     'gatsby-remark-images',
     'gatsby-transformer-remark',
     {
@@ -131,13 +140,6 @@ module.exports = {
       resolve: `gatsby-source-filesystem`,
       options: {
         path: `./src/nav/`,
-      },
-    },
-    {
-      resolve: 'gatsby-source-filesystem',
-      options: {
-        name: 'data-dictionary',
-        path: `${__dirname}/src/data-dictionary`,
       },
     },
     {
