@@ -203,5 +203,11 @@ module.exports = {
         nodesPerFeedFile: Infinity,
       },
     },
+    {
+      resolve: 'gatsby-source-data-dictionary',
+      options: {
+        path: dataDictionaryPath,
+      },
+    },
   ],
 };
