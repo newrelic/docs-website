@@ -1,5 +1,8 @@
 const uniq = (arr) => [...new Set(arr)];
 
+const getFileRelativePath = (absolutePath) =>
+  absolutePath.replace(`${process.cwd()}/`, '');
+
 exports.createSchemaCustomization = ({ actions }) => {
   const { createTypes } = actions;
 
@@ -44,8 +47,6 @@ exports.sourceNodes = (
   dataDictionaryNodes
     .filter(({ frontmatter }) => frontmatter.type === 'event')
     .forEach((event) => {
-      const { frontmatter, rawMarkdownBody } = event;
-
       const attributeIds = dataDictionaryNodes
         .filter(
           ({ frontmatter }) =>
@@ -53,7 +54,7 @@ exports.sourceNodes = (
             frontmatter.events.includes(event.frontmatter.name)
         )
         .map((attribute) => {
-          const { frontmatter, rawMarkdownBody } = attribute;
+          const { frontmatter, rawMarkdownBody, fileAbsolutePath } = attribute;
           const id = createNodeId(
             `attribute-${event.frontmatter.name}-${frontmatter.name}`
           );
@@ -63,6 +64,7 @@ exports.sourceNodes = (
             definition: rawMarkdownBody.trim(),
             units: frontmatter.units,
             events: frontmatter.events,
+            fileRelativePath: getFileRelativePath(fileAbsolutePath),
           };
 
           createNode({
@@ -79,10 +81,13 @@ exports.sourceNodes = (
           return id;
         });
 
+      const { frontmatter, rawMarkdownBody, fileAbsolutePath } = event;
+
       const data = {
         name: frontmatter.name,
         dataSources: frontmatter.dataSources,
         definition: rawMarkdownBody.trim(),
+        fileRelativePath: getFileRelativePath(fileAbsolutePath),
       };
 
       createNode({
