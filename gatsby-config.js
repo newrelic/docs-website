@@ -1,5 +1,7 @@
 const indentedCodeBlock = require('./codemods/indentedCodeBlock');
 
+const siteUrl = 'https://docs.newrelic.com';
+
 module.exports = {
   siteMetadata: {
     title: 'New Relic Documentation',
@@ -7,7 +9,7 @@ module.exports = {
     description: 'New Relic Documentation',
     author: 'New Relic',
     repository: 'https://github.com/newrelic/docs-website',
-    siteUrl: 'https://docs.newrelic.com',
+    siteUrl,
     branch: 'develop',
   },
   plugins: [
@@ -92,7 +94,6 @@ module.exports = {
         path: `${__dirname}/src/content`,
       },
     },
-
     'gatsby-remark-images',
     'gatsby-transformer-remark',
     {
@@ -130,6 +131,74 @@ module.exports = {
       resolve: `gatsby-source-filesystem`,
       options: {
         path: `./src/nav/`,
+      },
+    },
+    {
+      resolve: 'gatsby-source-filesystem',
+      options: {
+        name: 'data-dictionary',
+        path: `${__dirname}/src/data-dictionary`,
+      },
+    },
+    {
+      resolve: `gatsby-plugin-json-output`,
+      options: {
+        siteUrl,
+        graphQLQuery: `
+        {
+          allMarkdownRemark(filter: {frontmatter: {type: {eq: "attribute"}}}) {
+            edges {
+              node {
+                rawMarkdownBody
+                frontmatter {
+                  type
+                  events
+                  name
+                  units
+                }
+              }
+            }
+          }
+        }
+      `,
+        serializeFeed: (results) =>
+          results.data.allMarkdownRemark.edges.map(({ node }) => ({
+            name: node.frontmatter.name,
+            events: node.frontmatter.events,
+            units: node.frontmatter.units,
+            definition: node.rawMarkdownBody.trim(),
+          })),
+        feedFilename: 'attribute-definitions',
+        nodesPerFeedFile: Infinity,
+      },
+    },
+    {
+      resolve: `gatsby-plugin-json-output`,
+      options: {
+        siteUrl,
+        graphQLQuery: `
+        {
+          allMarkdownRemark(filter: {frontmatter: {type: {eq: "event"}}}) {
+            edges {
+              node {
+                rawMarkdownBody
+                frontmatter {
+                  name
+                  dataSources
+                }
+              }
+            }
+          }
+        }
+      `,
+        serializeFeed: (results) =>
+          results.data.allMarkdownRemark.edges.map(({ node }) => ({
+            name: node.frontmatter.name,
+            dataSources: node.frontmatter.dataSources,
+            definition: node.rawMarkdownBody.trim(),
+          })),
+        feedFilename: 'event-definitions',
+        nodesPerFeedFile: Infinity,
       },
     },
   ],
