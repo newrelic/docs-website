@@ -52,7 +52,9 @@ exports.sourceNodes = (
         )
         .map((attribute) => {
           const { frontmatter, rawMarkdownBody } = attribute;
-          const id = createNodeId(`attribute-${frontmatter.name}`);
+          const id = createNodeId(
+            `attribute-${event.frontmatter.name}-${frontmatter.name}`
+          );
 
           const data = {
             name: frontmatter.name,
