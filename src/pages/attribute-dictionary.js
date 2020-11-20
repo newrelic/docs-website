@@ -82,16 +82,19 @@ const AttributeDictionary = ({ data, pageContext, location, navigate }) => {
 
           <div
             css={css`
+              display: none;
               position: sticky;
               top: var(--global-header-height);
               font-size: 0.875rem;
               background: var(--primary-background-color);
-              padding: 2rem 0 1rem 0;
+              padding: 2rem 0;
             `}
           >
             Displaying {filteredEvents.length} of {events.length} results{' '}
             {filteredEvents.length !== events.length && (
-              <Button variant={Button.VARIANT.LINK}>Clear</Button>
+              <Button as={Link} to="?" variant={Button.VARIANT.LINK}>
+                Clear
+              </Button>
             )}
           </div>
 
@@ -122,6 +125,8 @@ AttributeDictionary.propTypes = {
   navigate: PropTypes.func.isRequired,
 };
 
+const pluralize = (word, count) => (count === 1 ? word : `${word}s`);
+
 const EventDefinition = memo(({ event, filteredAttribute, hidden }) => {
   const filteredAttributes = filteredAttribute
     ? event.childrenDataDictionaryAttribute.filter(
@@ -143,7 +148,17 @@ const EventDefinition = memo(({ event, filteredAttribute, hidden }) => {
         }
       `}
     >
-      <h2>
+      <h2
+        css={css`
+          position: sticky;
+          top: var(--global-header-height);
+          background: var(--primary-background-color);
+          padding: 1rem 0;
+
+          // cover up the right table border
+          margin-right: -1px;
+        `}
+      >
         <code
           css={css`
             background: none !important;
@@ -163,7 +178,7 @@ const EventDefinition = memo(({ event, filteredAttribute, hidden }) => {
             margin-right: 0.5rem;
           `}
         >
-          Data source{event.dataSources.length === 1 ? '' : 's'}
+          Data {pluralize('source', event.dataSources.length)}
         </span>
         <TagList>
           {event.dataSources.map((dataSource) => (
