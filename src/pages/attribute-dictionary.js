@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/core';
 import { graphql } from 'gatsby';
@@ -6,6 +6,7 @@ import {
   ContributingGuidelines,
   Layout,
   Link,
+  useQueryParams,
 } from '@newrelic/gatsby-theme-newrelic';
 import SEO from '../components/seo';
 import DataDictionaryFilter from '../components/DataDictionaryFilter';
@@ -14,7 +15,11 @@ import Table from '../components/Table';
 
 const AttributeDictionary = ({ data, pageContext, location, navigate }) => {
   const { allDataDictionaryEvent } = data;
-  const events = allDataDictionaryEvent.edges.map((edge) => edge.node);
+  const events = useMemo(
+    () => allDataDictionaryEvent.edges.map((edge) => edge.node),
+    [allDataDictionaryEvent]
+  );
+  const { queryParams } = useQueryParams();
 
   return (
     <>
@@ -96,11 +101,7 @@ const AttributeDictionary = ({ data, pageContext, location, navigate }) => {
           <ContributingGuidelines
             fileRelativePath={pageContext.fileRelativePath}
           />
-          <DataDictionaryFilter
-            events={events}
-            location={location}
-            navigate={navigate}
-          />
+          <DataDictionaryFilter events={events} />
         </Layout.PageTools>
       </div>
     </>
