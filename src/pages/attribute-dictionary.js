@@ -7,9 +7,12 @@ import {
   Layout,
 } from '@newrelic/gatsby-theme-newrelic';
 import SEO from '../components/seo';
+import DataDictionaryFilter from '../components/DataDictionaryFilter';
 import PageTitle from '../components/PageTitle';
 
 const AttributeDictionary = ({ data, pageContext }) => {
+  const { allDataDictionaryEvent } = data;
+
   return (
     <>
       <SEO title="New Relic data dictionary" />
@@ -31,6 +34,9 @@ const AttributeDictionary = ({ data, pageContext }) => {
           <ContributingGuidelines
             fileRelativePath={pageContext.fileRelativePath}
           />
+          <DataDictionaryFilter
+            events={allDataDictionaryEvent.edges.map((edge) => edge.node)}
+          />
         </Layout.PageTools>
       </div>
     </>
@@ -44,17 +50,10 @@ AttributeDictionary.propTypes = {
 
 export const pageQuery = graphql`
   query {
-    attributes: allMarkdownRemark(
-      filter: { frontmatter: { type: { eq: "attribute" } } }
-    ) {
+    allDataDictionaryEvent(sort: { fields: [name] }) {
       edges {
         node {
-          html
-          frontmatter {
-            name
-            events
-            units
-          }
+          ...DataDictionaryFilter_events
         }
       }
     }
