@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { memo, useMemo } from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/core';
 import { graphql } from 'gatsby';
@@ -51,50 +51,7 @@ const AttributeDictionary = ({ data, pageContext, location, navigate }) => {
           </p>
 
           {events.map((event) => (
-            <div
-              key={event.name}
-              css={css`
-                &:not(:last-child) {
-                  margin-bottom: 2rem;
-                }
-              `}
-            >
-              <h2>{event.name}</h2>
-              <div
-                dangerouslySetInnerHTML={{ __html: event.definition.html }}
-              />
-              <Table>
-                <thead>
-                  <tr>
-                    <th>Attribute</th>
-                    <th>Definition</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {event.childrenDataDictionaryAttribute.map((attribute) => (
-                    <tr key={attribute.name}>
-                      <td
-                        css={css`
-                          width: 1px;
-                        `}
-                      >
-                        {attribute.name}
-                      </td>
-                      <td
-                        css={css`
-                          p:last-child {
-                            margin-bottom: 0;
-                          }
-                        `}
-                        dangerouslySetInnerHTML={{
-                          __html: attribute.definition.html,
-                        }}
-                      />
-                    </tr>
-                  ))}
-                </tbody>
-              </Table>
-            </div>
+            <EventDefinition key={event.name} event={event} />
           ))}
         </Layout.Content>
         <Layout.PageTools>
@@ -113,6 +70,55 @@ AttributeDictionary.propTypes = {
   pageContext: PropTypes.object.isRequired,
   location: PropTypes.object.isRequired,
   navigate: PropTypes.func.isRequired,
+};
+
+const EventDefinition = memo(({ event }) => (
+  <div
+    key={event.name}
+    css={css`
+      &:not(:last-child) {
+        margin-bottom: 2rem;
+      }
+    `}
+  >
+    <h2>{event.name}</h2>
+    <div dangerouslySetInnerHTML={{ __html: event.definition.html }} />
+    <Table>
+      <thead>
+        <tr>
+          <th>Attribute</th>
+          <th>Definition</th>
+        </tr>
+      </thead>
+      <tbody>
+        {event.childrenDataDictionaryAttribute.map((attribute) => (
+          <tr key={attribute.name}>
+            <td
+              css={css`
+                width: 1px;
+              `}
+            >
+              {attribute.name}
+            </td>
+            <td
+              css={css`
+                p:last-child {
+                  margin-bottom: 0;
+                }
+              `}
+              dangerouslySetInnerHTML={{
+                __html: attribute.definition.html,
+              }}
+            />
+          </tr>
+        ))}
+      </tbody>
+    </Table>
+  </div>
+));
+
+EventDefinition.propTypes = {
+  event: PropTypes.object.isRequired,
 };
 
 export const pageQuery = graphql`
