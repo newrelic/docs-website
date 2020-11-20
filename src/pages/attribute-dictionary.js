@@ -37,7 +37,7 @@ const AttributeDictionary = ({ data, pageContext, location, navigate }) => {
       );
     }
 
-    return filteredEvents;
+    return filteredEvents.map((event) => event.name);
   }, [events, queryParams]);
 
   return (
@@ -69,10 +69,11 @@ const AttributeDictionary = ({ data, pageContext, location, navigate }) => {
             <Link to="/docs/integrations">integration documentation</Link>.
           </p>
 
-          {filteredEvents.map((event) => (
+          {events.map((event) => (
             <EventDefinition
               key={event.name}
               event={event}
+              hidden={!filteredEvents.includes(event.name)}
               filteredAttribute={queryParams.get('attribute')}
             />
           ))}
@@ -95,7 +96,7 @@ AttributeDictionary.propTypes = {
   navigate: PropTypes.func.isRequired,
 };
 
-const EventDefinition = memo(({ event, filteredAttribute }) => {
+const EventDefinition = memo(({ event, filteredAttribute, hidden }) => {
   const filteredAttributes = filteredAttribute
     ? event.childrenDataDictionaryAttribute.filter(
         (attribute) => attribute.name === filteredAttribute
@@ -105,7 +106,12 @@ const EventDefinition = memo(({ event, filteredAttribute }) => {
   return (
     <div
       key={event.name}
+      className={hidden ? 'hidden' : null}
       css={css`
+        &.hidden {
+          display: none;
+        }
+
         &:not(:last-child) {
           margin-bottom: 2rem;
         }
@@ -151,6 +157,7 @@ const EventDefinition = memo(({ event, filteredAttribute }) => {
 EventDefinition.propTypes = {
   event: PropTypes.object.isRequired,
   filteredAttribute: PropTypes.string,
+  hidden: PropTypes.bool.isRequired,
 };
 
 export const pageQuery = graphql`
