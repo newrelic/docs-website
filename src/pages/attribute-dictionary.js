@@ -1,13 +1,17 @@
 import React, { memo, useMemo } from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/core';
-import { graphql } from 'gatsby';
+import { graphql, Link } from 'gatsby';
 import {
+  Button,
+  Callout,
   ContributingGuidelines,
   Layout,
-  Link,
+  Tag,
+  TagList,
   useQueryParams,
 } from '@newrelic/gatsby-theme-newrelic';
+
 import SEO from '../components/seo';
 import DataDictionaryFilter from '../components/DataDictionaryFilter';
 import PageTitle from '../components/PageTitle';
@@ -63,11 +67,26 @@ const AttributeDictionary = ({ data, pageContext, location, navigate }) => {
             attached to New Relic events and other data objects (like Metric and
             Span data).
           </p>
-          <p>
+          <Callout variant={Callout.VARIANT.TIP}>
             This dictionary does not contain data reported by Infrastructure
             integrations. To learn about that data, see the{' '}
             <Link to="/docs/integrations">integration documentation</Link>.
-          </p>
+          </Callout>
+
+          <hr />
+
+          <div
+            css={css`
+              position: sticky;
+              top: var(--global-header-height);
+              font-size: 0.875rem;
+              background: var(--primary-background-color);
+              padding: 2rem 0 1rem 0;
+            `}
+          >
+            Displaying {filteredEvents.length} of {events.length} results{' '}
+            <Button variant={Button.VARIANT.LINK}>Clear</Button>
+          </div>
 
           {events.map((event) => (
             <EventDefinition
@@ -118,12 +137,34 @@ const EventDefinition = memo(({ event, filteredAttribute, hidden }) => {
       `}
     >
       <h2>{event.name}</h2>
+      <div
+        css={css`
+          margin-bottom: 1rem;
+        `}
+      >
+        <span
+          css={css`
+            font-size: 0.75rem;
+            margin-right: 0.5rem;
+          `}
+        >
+          Data source{event.dataSources.length === 1 ? '' : 's'}
+        </span>
+        <TagList>
+          {event.dataSources.map((dataSource) => (
+            <Tag as={Link} to={`?dataSource=${dataSource}`} key={dataSource}>
+              {dataSource}
+            </Tag>
+          ))}
+        </TagList>
+      </div>
       <div dangerouslySetInnerHTML={{ __html: event.definition.html }} />
       <Table>
         <thead>
           <tr>
             <th>Attribute</th>
             <th>Definition</th>
+            <th>Events</th>
           </tr>
         </thead>
         <tbody>
@@ -134,7 +175,20 @@ const EventDefinition = memo(({ event, filteredAttribute, hidden }) => {
                   width: 1px;
                 `}
               >
-                {attribute.name}
+                <div>{attribute.name}</div>
+                {attribute.units && (
+                  <span
+                    css={css`
+                      font-size: 0.75rem;
+
+                      .dark-mode & {
+                        color: var(--color-dark-600);
+                      }
+                    `}
+                  >
+                    {attribute.units}
+                  </span>
+                )}
               </td>
               <td
                 css={css`
@@ -146,6 +200,26 @@ const EventDefinition = memo(({ event, filteredAttribute, hidden }) => {
                   __html: attribute.definition.html,
                 }}
               />
+              <td
+                css={css`
+                  width: 1px;
+                `}
+              >
+                <ul
+                  css={css`
+                    margin: 0;
+                    list-style: none;
+                    padding-left: 0;
+                    font-size: 0.875rem;
+                  `}
+                >
+                  {attribute.events.map((event) => (
+                    <li key={event.name}>
+                      <Link to={`?event=${event.name}`}>{event.name}</Link>
+                    </li>
+                  ))}
+                </ul>
+              </td>
             </tr>
           ))}
         </tbody>
@@ -166,13 +240,18 @@ export const pageQuery = graphql`
       edges {
         node {
           name
+          dataSources
           definition {
             html
           }
           childrenDataDictionaryAttribute {
             name
+            units
             definition {
               html
+            }
+            events {
+              name
             }
           }
           ...DataDictionaryFilter_events
