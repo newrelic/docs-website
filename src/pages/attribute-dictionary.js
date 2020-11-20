@@ -10,7 +10,7 @@ import SEO from '../components/seo';
 import DataDictionaryFilter from '../components/DataDictionaryFilter';
 import PageTitle from '../components/PageTitle';
 
-const AttributeDictionary = ({ data, pageContext }) => {
+const AttributeDictionary = ({ data, pageContext, location, navigate }) => {
   const { allDataDictionaryEvent } = data;
 
   return (
@@ -36,6 +36,8 @@ const AttributeDictionary = ({ data, pageContext }) => {
           />
           <DataDictionaryFilter
             events={allDataDictionaryEvent.edges.map((edge) => edge.node)}
+            location={location}
+            navigate={navigate}
           />
         </Layout.PageTools>
       </div>
@@ -46,6 +48,8 @@ const AttributeDictionary = ({ data, pageContext }) => {
 AttributeDictionary.propTypes = {
   data: PropTypes.object.isRequired,
   pageContext: PropTypes.object.isRequired,
+  location: PropTypes.object.isRequired,
+  navigate: PropTypes.func.isRequired,
 };
 
 export const pageQuery = graphql`
