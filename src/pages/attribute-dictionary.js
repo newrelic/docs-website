@@ -99,12 +99,20 @@ const AttributeDictionary = ({ data, pageContext, location, navigate }) => {
           </div>
 
           {events.map((event) => (
-            <EventDefinition
+            <div
               key={event.name}
-              event={event}
-              hidden={!filteredEvents.includes(event.name)}
-              filteredAttribute={queryParams.get('attribute')}
-            />
+              className={filteredEvents.includes(event.name) ? '' : 'hidden'}
+              css={css`
+                &.hidden {
+                  display: none;
+                }
+              `}
+            >
+              <EventDefinition
+                event={event}
+                filteredAttribute={queryParams.get('attribute')}
+              />
+            </div>
           ))}
         </Layout.Content>
         <Layout.PageTools>
@@ -127,7 +135,7 @@ AttributeDictionary.propTypes = {
 
 const pluralize = (word, count) => (count === 1 ? word : `${word}s`);
 
-const EventDefinition = memo(({ event, filteredAttribute, hidden }) => {
+const EventDefinition = memo(({ event, filteredAttribute }) => {
   const filteredAttributes = filteredAttribute
     ? event.childrenDataDictionaryAttribute.filter(
         (attribute) => attribute.name === filteredAttribute
@@ -137,12 +145,7 @@ const EventDefinition = memo(({ event, filteredAttribute, hidden }) => {
   return (
     <div
       key={event.name}
-      className={hidden ? 'hidden' : null}
       css={css`
-        &.hidden {
-          display: none;
-        }
-
         &:not(:last-child) {
           margin-bottom: 2rem;
         }
@@ -268,7 +271,6 @@ const EventDefinition = memo(({ event, filteredAttribute, hidden }) => {
 EventDefinition.propTypes = {
   event: PropTypes.object.isRequired,
   filteredAttribute: PropTypes.string,
-  hidden: PropTypes.bool.isRequired,
 };
 
 export const pageQuery = graphql`
