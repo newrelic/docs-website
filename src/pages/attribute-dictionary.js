@@ -59,7 +59,12 @@ const AttributeDictionary = ({ data, pageContext, location, navigate }) => {
       >
         <PageTitle>New Relic data dictionary</PageTitle>
         <Layout.Content>
-          <p>
+          <p
+            css={css`
+              color: var(--secondary-text-color);
+              font-size: 1.125rem;
+            `}
+          >
             This data dictionary lists and defines the{' '}
             <Link to="/docs/using-new-relic/welcome-new-relic/getting-started/glossary#attribute">
               attributes
@@ -85,7 +90,9 @@ const AttributeDictionary = ({ data, pageContext, location, navigate }) => {
             `}
           >
             Displaying {filteredEvents.length} of {events.length} results{' '}
-            <Button variant={Button.VARIANT.LINK}>Clear</Button>
+            {filteredEvents.length !== events.length && (
+              <Button variant={Button.VARIANT.LINK}>Clear</Button>
+            )}
           </div>
 
           {events.map((event) => (
@@ -136,7 +143,15 @@ const EventDefinition = memo(({ event, filteredAttribute, hidden }) => {
         }
       `}
     >
-      <h2>{event.name}</h2>
+      <h2>
+        <code
+          css={css`
+            background: none !important;
+          `}
+        >
+          {event.name}
+        </code>
+      </h2>
       <div
         css={css`
           margin-bottom: 1rem;
@@ -162,7 +177,7 @@ const EventDefinition = memo(({ event, filteredAttribute, hidden }) => {
       <Table>
         <thead>
           <tr>
-            <th>Attribute</th>
+            <th>Attribute name</th>
             <th>Definition</th>
             <th>Events</th>
           </tr>
@@ -175,7 +190,14 @@ const EventDefinition = memo(({ event, filteredAttribute, hidden }) => {
                   width: 1px;
                 `}
               >
-                <div>{attribute.name}</div>
+                <code
+                  css={css`
+                    display: block;
+                    background: none !important;
+                  `}
+                >
+                  {attribute.name}
+                </code>
                 {attribute.units && (
                   <span
                     css={css`
