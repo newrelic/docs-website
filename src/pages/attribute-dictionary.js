@@ -5,6 +5,7 @@ import { graphql } from 'gatsby';
 import {
   ContributingGuidelines,
   Layout,
+  Link,
 } from '@newrelic/gatsby-theme-newrelic';
 import SEO from '../components/seo';
 import DataDictionaryFilter from '../components/DataDictionaryFilter';
@@ -30,6 +31,20 @@ const AttributeDictionary = ({ data, pageContext, location, navigate }) => {
       >
         <PageTitle>New Relic data dictionary</PageTitle>
         <Layout.Content>
+          <p>
+            This data dictionary lists and defines the{' '}
+            <Link to="/docs/using-new-relic/welcome-new-relic/getting-started/glossary#attribute">
+              attributes
+            </Link>{' '}
+            attached to New Relic events and other data objects (like Metric and
+            Span data).
+          </p>
+          <p>
+            This dictionary does not contain data reported by Infrastructure
+            integrations. To learn about that data, see the{' '}
+            <Link to="/docs/integrations">integration documentation</Link>.
+          </p>
+
           {events.map((event) => (
             <div
               key={event.name}
