@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { memo, useEffect, useMemo, useState } from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/core';
 import { graphql } from 'gatsby';
@@ -206,4 +206,4 @@ FormControl.propTypes = {
   children: PropTypes.node,
 };
 
-export default DataDictionaryFilter;
+export default memo(DataDictionaryFilter);
