@@ -9,13 +9,13 @@ exports.createSchemaCustomization = ({ actions }) => {
   createTypes(`
     type DataDictionaryEvent implements Node {
       name: String!
-      definition: String!
+      definition: MarkdownRemark! @link
       dataSources: [String!]!
     }
 
     type DataDictionaryAttribute implements Node {
       name: String!
-      definition: String!
+      definition: MarkdownRemark! @link
       events: [DataDictionaryEvent!]!
     }
   `);
@@ -54,17 +54,18 @@ exports.sourceNodes = (
             frontmatter.events.includes(event.frontmatter.name)
         )
         .map((attribute) => {
-          const { frontmatter, rawMarkdownBody, fileAbsolutePath } = attribute;
+          const { frontmatter, fileAbsolutePath } = attribute;
+
           const id = createNodeId(
             `attribute-${event.frontmatter.name}-${frontmatter.name}`
           );
 
           const data = {
             name: frontmatter.name,
-            definition: rawMarkdownBody.trim(),
             units: frontmatter.units,
             events: frontmatter.events,
             fileRelativePath: getFileRelativePath(fileAbsolutePath),
+            definition: attribute.id,
           };
 
           createNode({
@@ -72,6 +73,7 @@ exports.sourceNodes = (
             id,
             parent: null,
             children: [],
+            plugin: 'gatsby-source-data-dictionary',
             internal: {
               type: 'DataDictionaryAttribute',
               contentDigest: createContentDigest(data),
@@ -81,12 +83,12 @@ exports.sourceNodes = (
           return id;
         });
 
-      const { frontmatter, rawMarkdownBody, fileAbsolutePath } = event;
+      const { frontmatter, fileAbsolutePath } = event;
 
       const data = {
         name: frontmatter.name,
         dataSources: frontmatter.dataSources,
-        definition: rawMarkdownBody.trim(),
+        definition: event.id,
         fileRelativePath: getFileRelativePath(fileAbsolutePath),
       };
 
@@ -95,6 +97,7 @@ exports.sourceNodes = (
         id: createNodeId(`DataDictionaryEvent-${frontmatter.name}`),
         parent: null,
         children: attributeIds,
+        plugin: 'gatsby-source-data-dictionary',
         internal: {
           type: 'DataDictionaryEvent',
           contentDigest: createContentDigest(data),
