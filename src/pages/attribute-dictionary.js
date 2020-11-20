@@ -9,9 +9,11 @@ import {
 import SEO from '../components/seo';
 import DataDictionaryFilter from '../components/DataDictionaryFilter';
 import PageTitle from '../components/PageTitle';
+import Table from '../components/Table';
 
 const AttributeDictionary = ({ data, pageContext, location, navigate }) => {
   const { allDataDictionaryEvent } = data;
+  const events = allDataDictionaryEvent.edges.map((edge) => edge.node);
 
   return (
     <>
@@ -28,14 +30,59 @@ const AttributeDictionary = ({ data, pageContext, location, navigate }) => {
       >
         <PageTitle>New Relic data dictionary</PageTitle>
         <Layout.Content>
-          <div>Stuff</div>
+          {events.map((event) => (
+            <div
+              key={event.name}
+              css={css`
+                &:not(:last-child) {
+                  margin-bottom: 2rem;
+                }
+              `}
+            >
+              <h2>{event.name}</h2>
+              <div
+                dangerouslySetInnerHTML={{ __html: event.definition.html }}
+              />
+              <Table>
+                <thead>
+                  <tr>
+                    <th>Attribute</th>
+                    <th>Definition</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {event.childrenDataDictionaryAttribute.map((attribute) => (
+                    <tr key={attribute.name}>
+                      <td
+                        css={css`
+                          width: 1px;
+                        `}
+                      >
+                        {attribute.name}
+                      </td>
+                      <td
+                        css={css`
+                          p:last-child {
+                            margin-bottom: 0;
+                          }
+                        `}
+                        dangerouslySetInnerHTML={{
+                          __html: attribute.definition.html,
+                        }}
+                      />
+                    </tr>
+                  ))}
+                </tbody>
+              </Table>
+            </div>
+          ))}
         </Layout.Content>
         <Layout.PageTools>
           <ContributingGuidelines
             fileRelativePath={pageContext.fileRelativePath}
           />
           <DataDictionaryFilter
-            events={allDataDictionaryEvent.edges.map((edge) => edge.node)}
+            events={events}
             location={location}
             navigate={navigate}
           />
@@ -57,6 +104,16 @@ export const pageQuery = graphql`
     allDataDictionaryEvent(sort: { fields: [name] }) {
       edges {
         node {
+          name
+          definition {
+            html
+          }
+          childrenDataDictionaryAttribute {
+            name
+            definition {
+              html
+            }
+          }
           ...DataDictionaryFilter_events
         }
       }
