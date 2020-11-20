@@ -15,11 +15,30 @@ import Table from '../components/Table';
 
 const AttributeDictionary = ({ data, pageContext, location, navigate }) => {
   const { allDataDictionaryEvent } = data;
+  const { queryParams } = useQueryParams();
+
   const events = useMemo(
     () => allDataDictionaryEvent.edges.map((edge) => edge.node),
     [allDataDictionaryEvent]
   );
-  const { queryParams } = useQueryParams();
+
+  const filteredEvents = useMemo(() => {
+    let filteredEvents = events;
+
+    if (queryParams.has('dataSource')) {
+      filteredEvents = filteredEvents.filter((event) =>
+        event.dataSources.includes(queryParams.get('dataSource'))
+      );
+    }
+
+    if (queryParams.has('event')) {
+      filteredEvents = filteredEvents.filter(
+        (event) => event.name === queryParams.get('event')
+      );
+    }
+
+    return filteredEvents;
+  }, [events, queryParams]);
 
   return (
     <>
@@ -50,8 +69,12 @@ const AttributeDictionary = ({ data, pageContext, location, navigate }) => {
             <Link to="/docs/integrations">integration documentation</Link>.
           </p>
 
-          {events.map((event) => (
-            <EventDefinition key={event.name} event={event} />
+          {filteredEvents.map((event) => (
+            <EventDefinition
+              key={event.name}
+              event={event}
+              filteredAttribute={queryParams.get('attribute')}
+            />
           ))}
         </Layout.Content>
         <Layout.PageTools>
@@ -72,53 +95,62 @@ AttributeDictionary.propTypes = {
   navigate: PropTypes.func.isRequired,
 };
 
-const EventDefinition = memo(({ event }) => (
-  <div
-    key={event.name}
-    css={css`
-      &:not(:last-child) {
-        margin-bottom: 2rem;
-      }
-    `}
-  >
-    <h2>{event.name}</h2>
-    <div dangerouslySetInnerHTML={{ __html: event.definition.html }} />
-    <Table>
-      <thead>
-        <tr>
-          <th>Attribute</th>
-          <th>Definition</th>
-        </tr>
-      </thead>
-      <tbody>
-        {event.childrenDataDictionaryAttribute.map((attribute) => (
-          <tr key={attribute.name}>
-            <td
-              css={css`
-                width: 1px;
-              `}
-            >
-              {attribute.name}
-            </td>
-            <td
-              css={css`
-                p:last-child {
-                  margin-bottom: 0;
-                }
-              `}
-              dangerouslySetInnerHTML={{
-                __html: attribute.definition.html,
-              }}
-            />
+const EventDefinition = memo(({ event, filteredAttribute }) => {
+  const filteredAttributes = filteredAttribute
+    ? event.childrenDataDictionaryAttribute.filter(
+        (attribute) => attribute.name === filteredAttribute
+      )
+    : event.childrenDataDictionaryAttribute;
+
+  return (
+    <div
+      key={event.name}
+      css={css`
+        &:not(:last-child) {
+          margin-bottom: 2rem;
+        }
+      `}
+    >
+      <h2>{event.name}</h2>
+      <div dangerouslySetInnerHTML={{ __html: event.definition.html }} />
+      <Table>
+        <thead>
+          <tr>
+            <th>Attribute</th>
+            <th>Definition</th>
           </tr>
-        ))}
-      </tbody>
-    </Table>
-  </div>
-));
+        </thead>
+        <tbody>
+          {filteredAttributes.map((attribute) => (
+            <tr key={attribute.name}>
+              <td
+                css={css`
+                  width: 1px;
+                `}
+              >
+                {attribute.name}
+              </td>
+              <td
+                css={css`
+                  p:last-child {
+                    margin-bottom: 0;
+                  }
+                `}
+                dangerouslySetInnerHTML={{
+                  __html: attribute.definition.html,
+                }}
+              />
+            </tr>
+          ))}
+        </tbody>
+      </Table>
+    </div>
+  );
+});
 
 EventDefinition.propTypes = {
   event: PropTypes.object.isRequired,
+  filteredAttribute: PropTypes.string,
 };
 
 export const pageQuery = graphql`
