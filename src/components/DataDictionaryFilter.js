@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/core';
 import { graphql } from 'gatsby';
@@ -28,6 +28,14 @@ const DataDictionaryFilter = ({ events }) => {
       ),
     [events]
   );
+
+  useEffect(() => {
+    setFormState({
+      dataSource: queryParams.get('dataSource'),
+      event: queryParams.get('event'),
+      attribute: queryParams.get('attribute'),
+    });
+  }, [queryParams]);
 
   const filteredEvents = useMemo(
     () =>
