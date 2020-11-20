@@ -33,5 +33,6 @@ module.exports = {
         ignoreRestSiblings: false,
       },
     ],
+    'jsx-a11y/no-onchange': 'off',
   },
 };
