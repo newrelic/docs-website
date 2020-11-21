@@ -195,7 +195,13 @@ const EventDefinition = memo(({ event, filteredAttribute }) => {
       <Table>
         <thead>
           <tr>
-            <th>Attribute name</th>
+            <th
+              css={css`
+                white-space: nowrap;
+              `}
+            >
+              Attribute name
+            </th>
             <th>Definition</th>
             <th>Events</th>
           </tr>
