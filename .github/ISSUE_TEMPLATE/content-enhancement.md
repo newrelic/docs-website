@@ -11,7 +11,7 @@ Before opening a new issue, please search existing issues: https://github.com/ne
 
 DISCLAIMER: Not every feature request will be worked on, but hearing about what you want is important. Don't be afraid to add a feature request! -->
 
-### Is your enhnacement request related to a problem? Please describe
+### Is your enhancement request related to a problem? Please describe
 
 A clear and concise description of what the problem is.
 
