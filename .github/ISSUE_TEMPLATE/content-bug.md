@@ -14,7 +14,7 @@ assignees: ''
 
 ### Description
 
-A clear and concise description of what the content bug is.
+A clear and concise description of the bug in our docs.
 
 ### Affected docs
 
