@@ -1,13 +1,13 @@
 ---
 name: "Content: Enhancement or feature request \U0001F4DA"
-about: 'Suggest an enhancement to a doc (or a brand-new doc)!'
+about: Suggest an enhancement to a doc (or a brand-new doc)!
 title: Request some docs improvements!
 labels: content-enhancement
 assignees: ''
+
 ---
 
-<!--
-Before opening a new issue, please search existing issues: https://github.com/newrelic/docs-website/issues.
+<!-- Before opening a new issue, please search existing issues: https://github.com/newrelic/docs-website/issues.
 
 DISCLAIMER: Not every feature request will be worked on, but hearing about what you want is important. Don't be afraid to add a feature request! -->
 

@@ -1,9 +1,10 @@
 ---
 name: "Site: Bug report \U0001F41B"
-about: 'Report a bug or defect with the site code (layout, design, etc.)!'
+about: Report a bug or defect with the site code (layout, design, etc.)!
 title: This is a bug please fix!
 labels: site-bug
 assignees: ''
+
 ---
 
 <!-- Please fill out each section below, otherwise, your issue will be closed. This info allows Gatsby maintainers to diagnose (and fix!) your issue as quickly as possible.
