@@ -1,15 +1,16 @@
 ---
-name: "Bug report \U0001F41B"
-about: 'Report a bug or defect!'
+name: "Site: Bug report \U0001F41B"
+about: 'Report a bug or defect with the site code (layout, design, etc.)!'
 title: This is a bug please fix!
-labels: bug
+labels: site-bug
 assignees: ''
 ---
 
 <!-- Please fill out each section below, otherwise, your issue will be closed. This info allows Gatsby maintainers to diagnose (and fix!) your issue as quickly as possible.
 
 ** Check for existing issues**
- Before opening a new issue, please search existing issues: https://github.com/newrelic/docs-website/issues -->
+
+Before opening a new issue, please search existing issues: https://github.com/newrelic/docs-website/issues -->
 
 ### Description
 
