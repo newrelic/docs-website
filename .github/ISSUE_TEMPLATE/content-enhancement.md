@@ -2,7 +2,7 @@
 name: "Content: Enhancement or feature request \U0001F4DA"
 about: 'Suggest an enhancement to a doc (or a brand-new doc)!'
 title: Request some docs improvements!
-labels: content-enhancement
+labels: enhancement, content
 assignees: ''
 ---
 

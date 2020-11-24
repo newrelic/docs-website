@@ -2,7 +2,7 @@
 name: "Content: Bug report \U0001F41E"
 about: 'Report a bug or issue with the content of a doc!'
 title: This is a docs bug! Please fix!
-labels: content-bug
+labels: bug, content
 assignees: ''
 ---
 
