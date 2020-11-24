@@ -2,7 +2,7 @@
 name: "Site: Feature request \U0001F4A1"
 about: 'Suggest an enhancement to the site itself (layout, design, etc.)!'
 title: 'This is an enhancement request!'
-labels: site-enhancement, site
+labels: enhancement, site
 assignees: ''
 ---
 

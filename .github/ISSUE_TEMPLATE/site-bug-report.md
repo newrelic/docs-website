@@ -2,7 +2,7 @@
 name: "Site: Bug report \U0001F41B"
 about: 'Report a bug or defect with the site code (layout, design, etc.)!'
 title: This is a bug please fix!
-labels: site-bug, site
+labels: bug, site
 assignees: ''
 ---
 
