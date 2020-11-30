@@ -53,6 +53,7 @@ exports.sourceNodes = (
             frontmatter.type === 'attribute' &&
             frontmatter.events.includes(event.frontmatter.name)
         )
+        .sort((a, b) => (a.frontmatter.name > b.frontmatter.name ? 1 : -1))
         .map((attribute) => {
           const { frontmatter, fileAbsolutePath } = attribute;
 
