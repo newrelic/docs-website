@@ -1,16 +1,14 @@
 ---
 name: "Content: Bug report \U0001F41E"
-about: 'Report a bug or issue with the content of a doc!'
+about: 'Report a bug or issue with the content of a doc.'
 title: This is a docs bug! Please fix!
 labels: bug, content
 assignees: ''
 ---
 
-<!-- Please fill out each section below, otherwise, your issue will be closed. This info allows our writers to diagnose (and fix!) your issue as quickly as possible.
+<!-- Please fill out each section below. This helps our writers diagnose your issue as quickly as possible. **THIS REPO IS PUBLIC. Any information included in this form is accessible on the internet!**
 
-** Check for existing issues**
-
- Before opening a new issue, please search existing issues: https://github.com/newrelic/docs-website/issues -->
+** Check for existing issues**: Before opening a new issue, please search existing issues: https://github.com/newrelic/docs-website/issues -->
 
 ### Description
 
