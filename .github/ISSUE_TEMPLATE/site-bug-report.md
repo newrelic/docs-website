@@ -1,16 +1,14 @@
 ---
 name: "Site: Bug report \U0001F41B"
-about: 'Report a bug or defect with the site code (layout, design, etc.)!'
-title: This is a bug please fix!
+about: 'Report a bug or defect with the site code (layout, design, etc.).'
+title: This is a bug! Please fix!
 labels: bug, site
 assignees: ''
 ---
 
-<!-- Please fill out each section below, otherwise, your issue will be closed. This info allows Gatsby maintainers to diagnose (and fix!) your issue as quickly as possible.
+<!-- Please fill out each section below, otherwise, your issue will be closed. This info allows our engineers to diagnose your issue as quickly as possible. **THIS REPO IS PUBLIC. Any information included in this form is accessible on the internet!**
 
-** Check for existing issues**
-
-Before opening a new issue, please search existing issues: https://github.com/newrelic/docs-website/issues -->
+** Check for existing issues**: Before opening a new issue, please search existing issues: https://github.com/newrelic/docs-website/issues -->
 
 ### Description
 

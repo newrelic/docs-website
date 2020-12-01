@@ -1,15 +1,14 @@
 ---
 name: "Content: Enhancement or feature request \U0001F4DA"
-about: 'Suggest an enhancement to a doc (or a brand-new doc)!'
+about: 'Suggest an enhancement to a doc (or a brand-new doc!).'
 title: Request some docs improvements!
 labels: enhancement, content
 assignees: ''
 ---
 
-<!--
-Before opening a new issue, please search existing issues: https://github.com/newrelic/docs-website/issues.
+<!-- Please fill out each section below. This helps our writers diagnose your issue as quickly as possible. **THIS REPO IS PUBLIC. Any information included in this form is accessible on the internet!**
 
-DISCLAIMER: Not every feature request will be worked on, but hearing about what you want is important. Don't be afraid to add a feature request! -->
+** Check for existing issues**: Before opening a new issue, please search existing issues: https://github.com/newrelic/docs-website/issues -->
 
 ### Is your enhancement request related to a problem? Please describe
 
