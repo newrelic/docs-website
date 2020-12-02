@@ -148,14 +148,19 @@ module.exports = {
         siteUrl,
         graphQLQuery: `
         {
-          allMarkdownRemark(filter: {frontmatter: {type: {eq: "attribute"}}}) {
+          allDataDictionaryEvent {
             edges {
               node {
-                rawMarkdownBody
-                frontmatter {
-                  type
-                  events
+                name
+                definition {
+                  rawMarkdownBody
+                }
+                dataSources
+                childrenDataDictionaryAttribute {
                   name
+                  definition {
+                    rawMarkdownBody
+                  }
                   units
                 }
               }
@@ -163,43 +168,21 @@ module.exports = {
           }
         }
       `,
-        serializeFeed: (results) =>
-          results.data.allMarkdownRemark.edges.map(({ node }) => ({
-            name: node.frontmatter.name,
-            events: node.frontmatter.events,
-            units: node.frontmatter.units,
-            definition: node.rawMarkdownBody.trim(),
+        serializeFeed: ({ data }) =>
+          data.allDataDictionaryEvent.edges.map(({ node }) => ({
+            name: node.name,
+            definition:
+              node.definition && node.definition.rawMarkdownBody.trim(),
+            dataSources: node.dataSources,
+            attributes: node.childrenDataDictionaryAttribute.map(
+              (attribute) => ({
+                name: attribute.name,
+                definition: attribute.definition.rawMarkdownBody.trim(),
+                units: attribute.units,
+              })
+            ),
           })),
-        feedFilename: 'attribute-definitions',
-        nodesPerFeedFile: Infinity,
-      },
-    },
-    {
-      resolve: `gatsby-plugin-json-output`,
-      options: {
-        siteUrl,
-        graphQLQuery: `
-        {
-          allMarkdownRemark(filter: {frontmatter: {type: {eq: "event"}}}) {
-            edges {
-              node {
-                rawMarkdownBody
-                frontmatter {
-                  name
-                  dataSources
-                }
-              }
-            }
-          }
-        }
-      `,
-        serializeFeed: (results) =>
-          results.data.allMarkdownRemark.edges.map(({ node }) => ({
-            name: node.frontmatter.name,
-            dataSources: node.frontmatter.dataSources,
-            definition: node.rawMarkdownBody.trim(),
-          })),
-        feedFilename: 'event-definitions',
+        feedFilename: 'data-dictionary',
         nodesPerFeedFile: Infinity,
       },
     },
