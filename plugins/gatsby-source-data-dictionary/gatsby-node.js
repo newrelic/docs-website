@@ -1,6 +1,7 @@
+const { difference } = require('lodash');
+
 const uniq = (arr) => [...new Set(arr)];
 const prop = (key) => (obj) => obj[key];
-const { difference } = require('lodash');
 
 const getFileRelativePath = (absolutePath) =>
   absolutePath.replace(`${process.cwd()}/`, '');
