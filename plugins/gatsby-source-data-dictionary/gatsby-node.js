@@ -1,4 +1,6 @@
 const uniq = (arr) => [...new Set(arr)];
+const prop = (key) => (obj) => obj[key];
+const { difference } = require('lodash');
 
 const getFileRelativePath = (absolutePath) =>
   absolutePath.replace(`${process.cwd()}/`, '');
@@ -44,64 +46,76 @@ exports.sourceNodes = (
     node.fileAbsolutePath.includes(pluginOptions.path)
   );
 
-  dataDictionaryNodes
+  const attributeEvents = uniq(
+    dataDictionaryNodes
+      .filter(({ frontmatter }) => frontmatter.type === 'attribute')
+      .flatMap(({ frontmatter }) => frontmatter.events)
+  );
+
+  const events = dataDictionaryNodes
     .filter(({ frontmatter }) => frontmatter.type === 'event')
-    .forEach((event) => {
-      const attributeIds = dataDictionaryNodes
-        .filter(
-          ({ frontmatter }) =>
-            frontmatter.type === 'attribute' &&
-            frontmatter.events.includes(event.frontmatter.name)
-        )
-        .map((attribute) => {
-          const { frontmatter, fileAbsolutePath } = attribute;
+    .map(({ id, fileAbsolutePath, frontmatter }) => ({
+      name: frontmatter.name,
+      dataSources: frontmatter.dataSources,
+      definition: id,
+      fileRelativePath: getFileRelativePath(fileAbsolutePath),
+    }));
 
-          const id = createNodeId(
-            `attribute-${event.frontmatter.name}-${frontmatter.name}`
-          );
+  const missingEvents = difference(
+    attributeEvents,
+    events.map(prop('name'))
+  ).map((name) => ({
+    name,
+    dataSources: [],
+    definition: null,
+    fileRelativePath: null,
+  }));
 
-          const data = {
-            name: frontmatter.name,
-            units: frontmatter.units,
-            events: frontmatter.events,
-            fileRelativePath: getFileRelativePath(fileAbsolutePath),
-            definition: attribute.id,
-          };
+  events.concat(missingEvents).forEach((event) => {
+    const attributeIds = dataDictionaryNodes
+      .filter(
+        ({ frontmatter }) =>
+          frontmatter.type === 'attribute' &&
+          frontmatter.events.includes(event.name)
+      )
+      .map((attribute) => {
+        const { frontmatter, fileAbsolutePath } = attribute;
 
-          createNode({
-            ...data,
-            id,
-            parent: null,
-            children: [],
-            plugin: 'gatsby-source-data-dictionary',
-            internal: {
-              type: 'DataDictionaryAttribute',
-              contentDigest: createContentDigest(data),
-            },
-          });
+        const id = createNodeId(`attribute-${event.name}-${frontmatter.name}`);
 
-          return id;
+        const data = {
+          name: frontmatter.name,
+          units: frontmatter.units,
+          events: frontmatter.events,
+          fileRelativePath: getFileRelativePath(fileAbsolutePath),
+          definition: attribute.id,
+        };
+
+        createNode({
+          ...data,
+          id,
+          parent: null,
+          children: [],
+          plugin: 'gatsby-source-data-dictionary',
+          internal: {
+            type: 'DataDictionaryAttribute',
+            contentDigest: createContentDigest(data),
+          },
         });
 
-      const { frontmatter, fileAbsolutePath } = event;
-
-      const data = {
-        name: frontmatter.name,
-        dataSources: frontmatter.dataSources,
-        definition: event.id,
-        fileRelativePath: getFileRelativePath(fileAbsolutePath),
-      };
-
-      createNode({
-        ...data,
-        id: createNodeId(`DataDictionaryEvent-${frontmatter.name}`),
-        parent: null,
-        children: attributeIds,
-        plugin: 'gatsby-source-data-dictionary',
-        internal: {
-          type: 'DataDictionaryEvent',
-          contentDigest: createContentDigest(data),
-        },
+        return id;
       });
+
+    createNode({
+      ...event,
+      id: createNodeId(`DataDictionaryEvent-${event.name}`),
+      parent: null,
+      children: attributeIds,
+      plugin: 'gatsby-source-data-dictionary',
+      internal: {
+        type: 'DataDictionaryEvent',
+        contentDigest: createContentDigest(event),
+      },
     });
+  });
 };
