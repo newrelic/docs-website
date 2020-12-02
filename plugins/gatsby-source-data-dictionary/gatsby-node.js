@@ -11,7 +11,7 @@ exports.createSchemaCustomization = ({ actions }) => {
   createTypes(`
     type DataDictionaryEvent implements Node {
       name: String!
-      definition: MarkdownRemark! @link
+      definition: MarkdownRemark @link
       dataSources: [String!]!
     }
 
