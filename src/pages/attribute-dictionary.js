@@ -191,7 +191,7 @@ const EventDefinition = memo(({ event, filteredAttribute }) => {
           ))}
         </TagList>
       </div>
-      <div dangerouslySetInnerHTML={{ __html: event.definition.html }} />
+      <div dangerouslySetInnerHTML={{ __html: event.definition?.html }} />
       <Table>
         <thead>
           <tr>
