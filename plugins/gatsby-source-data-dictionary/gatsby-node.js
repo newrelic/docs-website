@@ -86,6 +86,7 @@ exports.sourceNodes = (
               toPath: `/attribute-dictionary/?event=${event}&attribute=${frontmatter.name}`,
               isPermanent: true,
               redirectInBrowser: true,
+              trailingSlash: false,
             });
           });
 
