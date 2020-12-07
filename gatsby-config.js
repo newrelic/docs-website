@@ -192,5 +192,6 @@ module.exports = {
         path: dataDictionaryPath,
       },
     },
+    `gatsby-plugin-meta-redirect`,
   ],
 };
