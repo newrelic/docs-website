@@ -81,14 +81,10 @@ exports.sourceNodes = (
           });
 
           frontmatter.events.forEach((event) => {
-            console.log({
-              fromPath: `/attribute-dictionary/${event.toLowerCase()}/${frontmatter.name.toLowerCase()}`,
-              toPath: `/attribute-dictionary?event=${event}&attribute=${frontmatter.name}`,
-              redirectInBrowser: true,
-            });
             createRedirect({
               fromPath: `/attribute-dictionary/${event.toLowerCase()}/${frontmatter.name.toLowerCase()}`,
-              toPath: `/attribute-dictionary?event=${event}&attribute=${frontmatter.name}`,
+              toPath: `/attribute-dictionary/?event=${event}&attribute=${frontmatter.name}`,
+              isPermanent: true,
               redirectInBrowser: true,
             });
           });
