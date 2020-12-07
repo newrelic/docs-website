@@ -17,13 +17,13 @@ import DataDictionaryFilter from '../components/DataDictionaryFilter';
 import PageTitle from '../components/PageTitle';
 import Table from '../components/Table';
 
-import useMedia from 'use-media';
+import { useMedia } from 'react-use';
 
 const AttributeDictionary = ({ data, pageContext, location, navigate }) => {
   const { allDataDictionaryEvent } = data;
   const { queryParams } = useQueryParams();
 
-  const isMobileScreen = useMedia({ maxWidth: 1240 });
+  const isMobileScreen = useMedia('(max-width: 1240)');
 
   const events = useMemo(
     () => allDataDictionaryEvent.edges.map((edge) => edge.node),
