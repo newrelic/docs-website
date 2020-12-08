@@ -6,7 +6,7 @@ const env = process.env.ENV;
 const HOSTS = {
   staging: 'https://data-dictionary.staging-service.newrelic.com',
   production: 'https://data-dictionary.service.newrelic.com',
-  'eu-production': 'https://data-dictionary.service.newrelic.com',
+  'eu-production': 'https://data-dictionary.service.eu.newrelic.com',
 };
 
 const sync = async () => {
