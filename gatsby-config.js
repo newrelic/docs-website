@@ -151,8 +151,9 @@ module.exports = {
 					allMdx(filter: {frontmatter: {contentType: {eq: "nr1Announcement"}}}) {
 						nodes {
 							frontmatter {
-								title
-								releaseDateTime
+                title
+                docsID
+								releaseDate
 								getStartedLink
 								learnMoreLink
 								summary
@@ -169,10 +170,10 @@ module.exports = {
         serialize: ({ data }) => ({
           announcements: data.allMdx.nodes.map(
             ({ frontmatter, html, fields }) => ({
-              docsID: null, // TODO
+              docsID: frontmatter.docsID,
               title: frontmatter.title,
               summary: frontmatter.summary,
-              releaseDateTime: frontmatter.releaseDateTime,
+              releaseDateTime: frontmatter.releaseDate,
               learnMoreLink: frontmatter.learnMoreLink,
               getStartedLink: frontmatter.getStartedLink,
               body: html,

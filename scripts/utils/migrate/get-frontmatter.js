@@ -99,6 +99,8 @@ const addCustomFrontmatter = {
     return {
       ...defaultFrontmatter,
       summary: doc.summary || '',
+      docsID: doc.docId,
+      releaseDate: doc.releaseDateTime.split(' ')[0],
       learnMoreLink: doc.learnMoreLink || '',
       getStartedLink: doc.getStartedLink || '',
     };
