@@ -6,10 +6,8 @@ exports.onPostBuild = async ({ graphql, store }, pluginOptions) => {
   const { query, serialize } = pluginOptions;
 
   try {
-    // query graphql
     const resp = await graphql(query);
 
-    // conver the results into the right format
     const data = serialize(resp);
 
     // make directory and save the file
