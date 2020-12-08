@@ -18,7 +18,7 @@ exports.onPostBuild = async ({ graphql, store }, pluginOptions) => {
     }
 
     fs.writeFileSync(filepath, JSON.stringify(data));
-  } catch (err) {
+  } catch (error) {
     console.error(`Unable to fetch data for JSON: ${error}`);
   }
 };
