@@ -152,7 +152,7 @@ module.exports = {
 						nodes {
 							frontmatter {
                 title
-                docsID
+                id
 								releaseDate
 								getStartedLink
 								learnMoreLink
@@ -170,7 +170,7 @@ module.exports = {
         serialize: ({ data }) => ({
           announcements: data.allMdx.nodes.map(
             ({ frontmatter, html, fields }) => ({
-              docsID: frontmatter.docsID,
+              docsID: frontmatter.id,
               title: frontmatter.title,
               summary: frontmatter.summary,
               releaseDateTime: frontmatter.releaseDate,
