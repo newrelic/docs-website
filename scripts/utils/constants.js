@@ -60,6 +60,6 @@ module.exports = {
     release_notes: 1,
     release_notes_platform: 1,
     troubleshooting_doc: 1,
-    nr1_announcement: 1,
+    nr1_announcement: Infinity,
   },
 };
