@@ -52,4 +52,14 @@ module.exports = {
     nr1_announcement: '20',
     attribute_definition: '100',
   },
+
+  MAX_PAGES_PER_TYPE: {
+    page: 1,
+    landing_page: 1,
+    api_doc: 1,
+    release_notes: 1,
+    release_notes_platform: 1,
+    troubleshooting_doc: 1,
+    nr1_announcement: Infinity,
+  },
 };
