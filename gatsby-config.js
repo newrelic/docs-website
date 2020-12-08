@@ -143,6 +143,31 @@ module.exports = {
       },
     },
     {
+      resolve: 'gatsby-plugin-generate-json',
+      options: {
+        query: `
+        {
+					allMdx(filter: {frontmatter: {contentType: {eq: "nr1Announcement"}}}) {
+						nodes {
+							frontmatter {
+								title
+								releaseDateTime
+								getStartedLink
+								learnMoreLink
+								summary
+							}
+							fields {
+								slug
+							}
+							html
+						}
+					}
+        }
+        `,
+        path: '/api/nr1/content/nr1-announcements.json',
+      },
+    },
+    {
       resolve: `gatsby-plugin-json-output`,
       options: {
         siteUrl,
