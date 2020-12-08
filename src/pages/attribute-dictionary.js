@@ -1,4 +1,4 @@
-import React, { memo, useMemo } from 'react';
+import React, { memo, useEffect, useMemo, useRef, useState } from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/core';
 import { graphql, Link } from 'gatsby';
@@ -17,9 +17,13 @@ import DataDictionaryFilter from '../components/DataDictionaryFilter';
 import PageTitle from '../components/PageTitle';
 import Table from '../components/Table';
 
+import { useMedia } from 'react-use';
+
 const AttributeDictionary = ({ data, pageContext, location, navigate }) => {
   const { allDataDictionaryEvent } = data;
   const { queryParams } = useQueryParams();
+
+  const isMobileScreen = useMedia('(max-width: 1240)');
 
   const events = useMemo(
     () => allDataDictionaryEvent.edges.map((edge) => edge.node),
@@ -52,13 +56,26 @@ const AttributeDictionary = ({ data, pageContext, location, navigate }) => {
           display: grid;
           grid-template-areas:
             'page-title page-title'
+            'page-description page-tools'
             'content page-tools';
           grid-template-columns: minmax(0, 1fr) 320px;
           grid-column-gap: 2rem;
+          @media (max-width: 1240px) {
+            grid-template-areas:
+              'page-title'
+              'page-description'
+              'page-tools'
+              'content';
+            grid-template-columns: minmax(0, 1fr);
+          }
         `}
       >
         <PageTitle>New Relic data dictionary</PageTitle>
-        <Layout.Content>
+        <div
+          css={css`
+            grid-area: 'page-description';
+          `}
+        >
           <p
             css={css`
               color: var(--secondary-text-color);
@@ -79,7 +96,8 @@ const AttributeDictionary = ({ data, pageContext, location, navigate }) => {
           </Callout>
 
           <hr />
-
+        </div>
+        <Layout.Content>
           <div
             css={css`
               display: none;
@@ -115,10 +133,19 @@ const AttributeDictionary = ({ data, pageContext, location, navigate }) => {
             </div>
           ))}
         </Layout.Content>
-        <Layout.PageTools>
-          <ContributingGuidelines
-            fileRelativePath={pageContext.fileRelativePath}
-          />
+        <Layout.PageTools
+          css={css`
+            background-color: var(--primary-background-color);
+            @media (max-width: 1240px) {
+              position: static;
+            }
+          `}
+        >
+          {!isMobileScreen && (
+            <ContributingGuidelines
+              fileRelativePath={pageContext.fileRelativePath}
+            />
+          )}
           <DataDictionaryFilter events={events} />
         </Layout.PageTools>
       </div>
@@ -160,6 +187,10 @@ const EventDefinition = memo(({ event, filteredAttribute }) => {
 
           // cover up the right table border
           margin-right: -1px;
+
+          @media (max-width: 1240px) {
+            position: static;
+          }
         `}
       >
         <code

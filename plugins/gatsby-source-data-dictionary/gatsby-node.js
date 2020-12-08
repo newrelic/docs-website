@@ -41,7 +41,7 @@ exports.sourceNodes = (
   { actions, createNodeId, createContentDigest, getNodesByType },
   pluginOptions
 ) => {
-  const { createNode } = actions;
+  const { createNode, createRedirect } = actions;
 
   const dataDictionaryNodes = getNodesByType('MarkdownRemark').filter((node) =>
     node.fileAbsolutePath.includes(pluginOptions.path)
@@ -79,6 +79,7 @@ exports.sourceNodes = (
           frontmatter.type === 'attribute' &&
           frontmatter.events.includes(event.name)
       )
+      .sort((a, b) => (a.frontmatter.name > b.frontmatter.name ? 1 : -1))
       .map((attribute) => {
         const { frontmatter, fileAbsolutePath } = attribute;
 
@@ -102,6 +103,16 @@ exports.sourceNodes = (
             type: 'DataDictionaryAttribute',
             contentDigest: createContentDigest(data),
           },
+        });
+
+        frontmatter.events.forEach((event) => {
+          createRedirect({
+            fromPath: `/attribute-dictionary/${event.toLowerCase()}/${frontmatter.name.toLowerCase()}`,
+            toPath: `/attribute-dictionary/?event=${event}&attribute=${frontmatter.name}`,
+            isPermanent: true,
+            redirectInBrowser: true,
+            trailingSlash: false,
+          });
         });
 
         return id;
