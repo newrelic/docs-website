@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { Fragment } from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/core';
 import SEO from '../components/seo';
@@ -54,7 +54,7 @@ const WhatsNew = ({ data }) => {
             `}
           >
             {postsByDate.map(([date, posts], idx) => (
-              <>
+              <Fragment key={date}>
                 <div
                   css={css`
                     position: relative;
@@ -161,7 +161,7 @@ const WhatsNew = ({ data }) => {
                     </div>
                   ))}
                 </div>
-              </>
+              </Fragment>
             ))}
           </div>
         </Layout.Content>
