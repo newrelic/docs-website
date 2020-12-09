@@ -6,6 +6,8 @@ import PageTitle from '../components/PageTitle';
 import { graphql } from 'gatsby';
 import { Layout, Link } from '@newrelic/gatsby-theme-newrelic';
 
+const MOBILE_BREAKPOINT = '960px';
+
 const WhatsNew = ({ data }) => {
   const { allMarkdownRemark } = data;
   const posts = allMarkdownRemark.edges.map(({ node }) => node);
@@ -45,6 +47,10 @@ const WhatsNew = ({ data }) => {
               .dark-mode & {
                 --timeline-color: var(--color-dark-200);
               }
+
+              @media screen and (max-width: ${MOBILE_BREAKPOINT}) {
+                grid-template-columns: auto;
+              }
             `}
           >
             {postsByDate.map(([date, posts], idx) => (
@@ -56,6 +62,12 @@ const WhatsNew = ({ data }) => {
                     border-right: var(--timeline-width) solid
                       var(--timeline-color);
                     text-align: right;
+
+                    @media screen and (max-width: ${MOBILE_BREAKPOINT}) {
+                      text-align: left;
+                      border-right: none;
+                      padding-right: 0;
+                    }
                   `}
                 >
                   <span
@@ -63,10 +75,25 @@ const WhatsNew = ({ data }) => {
                       line-height: 1;
                       font-weight: 600;
                       font-size: 0.875rem;
+                      color: var(--color-neutrals-900);
+
+                      .dark-mode & {
+                        color: var(--color-dark-900);
+                      }
+
+                      @media screen and (max-width: ${MOBILE_BREAKPOINT}) {
+                        display: block;
+                        font-size: 1rem;
+                        margin-bottom: 1rem;
+                        border-top: 1px solid var(--divider-color);
+                        border-bottom: 1px solid var(--divider-color);
+                        padding: 1rem 0;
+                      }
                     `}
                   >
                     {date}
                   </span>
+
                   <div
                     css={css`
                       position: absolute;
@@ -93,6 +120,10 @@ const WhatsNew = ({ data }) => {
                         background: var(--primary-background-color);
                         border-radius: 50%;
                       }
+
+                      @media screen and (max-width: ${MOBILE_BREAKPOINT}) {
+                        display: none;
+                      }
                     `}
                   />
                 </div>
@@ -113,9 +144,9 @@ const WhatsNew = ({ data }) => {
                       <Link
                         to={post.fields.slug}
                         css={css`
+                          display: inline-block;
                           font-size: 1.25rem;
                           margin-bottom: 0.5rem;
-                          line-height: 1;
                         `}
                       >
                         {post.frontmatter.title}
