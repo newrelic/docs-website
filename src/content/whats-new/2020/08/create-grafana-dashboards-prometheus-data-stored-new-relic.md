@@ -17,7 +17,7 @@ This process requires Prometheus version 2.15.0 or higher and Grafana version 6.
 
 You’ll also need to [sign up for New Relic](https://newrelic.com/signup/).
 
-![A screenshot of a Grafana dashboard with Prometheus data](https://docs-dev.newrelic.com/sites/default/files/thumbnails/image/prometheus_grafana_dashboard.png "A screenshot of a Grafana dashboard with Prometheus data")
+![A screenshot of a Grafana dashboard with Prometheus data](./images/prometheus_grafana_dashboard.png "A screenshot of a Grafana dashboard with Prometheus data")
 
 Here's an example of how these Grafana dashboards with Prometheus data look in our new dark mode.
 
