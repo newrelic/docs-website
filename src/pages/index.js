@@ -1,4 +1,4 @@
-import React, { Children, Fragment } from 'react';
+import React, { Fragment } from 'react';
 import PropTypes from 'prop-types';
 import { css, keyframes } from '@emotion/core';
 import { Link, graphql } from 'gatsby';
