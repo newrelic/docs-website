@@ -156,7 +156,7 @@ export const query = graphql`
 
   fragment MainLayout_navFields on NavYaml {
     title
-    path
+    url: path
   }
 `;
 

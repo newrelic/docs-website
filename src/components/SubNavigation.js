@@ -1,9 +1,8 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/core';
-import NavigationItem from './NavigationItem';
 import { Link } from 'gatsby';
-import { Icon } from '@newrelic/gatsby-theme-newrelic';
+import { NavItem, Icon } from '@newrelic/gatsby-theme-newrelic';
 
 const SubNavigation = ({ nav }) => (
   <>
@@ -34,7 +33,7 @@ const SubNavigation = ({ nav }) => (
     <h2>{nav?.title}</h2>
     <nav role="navigation" aria-label="SubNavigation">
       {nav?.pages.map((page) => (
-        <NavigationItem key={page.title} page={page} />
+        <NavItem key={page.title} page={page} />
       ))}
     </nav>
   </>
