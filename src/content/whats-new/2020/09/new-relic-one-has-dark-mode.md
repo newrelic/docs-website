@@ -13,3 +13,18 @@ You wanted it, and we delivered. Dark mode is here! Head to the account dropdown
 ![An animated image showing where to choose dark mode in the account dropdown.](./images/dark-mode-example.gif "Set dark mode theme in your account dropdown.")
 
 ## UI walkthrough
+
+<iframe
+  allow="autoplay; fullscreen"
+  allowfullscreen=""
+  allowtransparency="true"
+  class="wistia_embed"
+  frameborder="0"
+  height="100%"
+  msallowfullscreen=""
+  name="wistia_embed"
+  scrolling="no"
+  src="https://fast.wistia.net/embed/iframe/ej8rjucux9?videoFoam=true"
+  title="Check Out New Relic One Video"
+  width="100%"
+/>
