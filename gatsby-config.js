@@ -1,3 +1,4 @@
+const path = require('path');
 const indentedCodeBlock = require('./codemods/indentedCodeBlock');
 
 const siteUrl = 'https://docs.newrelic.com';
@@ -140,6 +141,46 @@ module.exports = {
       resolve: `gatsby-source-filesystem`,
       options: {
         path: `./src/nav/`,
+      },
+    },
+    {
+      resolve: 'gatsby-plugin-generate-json',
+      options: {
+        query: `
+        {
+					allMdx(filter: {frontmatter: {contentType: {eq: "nr1Announcement"}}}) {
+						nodes {
+							frontmatter {
+                title
+                id
+								releaseDate
+								getStartedLink
+								learnMoreLink
+								summary
+							}
+							fields {
+								slug
+							}
+							html
+						}
+					}
+        }
+        `,
+        path: '/api/nr1/content/nr1-announcements.json',
+        serialize: ({ data }) => ({
+          announcements: data.allMdx.nodes.map(
+            ({ frontmatter, html, fields }) => ({
+              docsID: frontmatter.id,
+              title: frontmatter.title,
+              summary: frontmatter.summary,
+              releaseDateTime: frontmatter.releaseDate,
+              learnMoreLink: frontmatter.learnMoreLink,
+              getStartedLink: frontmatter.getStartedLink,
+              body: html,
+              docUrl: path.join(siteUrl, fields.slug),
+            })
+          ),
+        }),
       },
     },
     {

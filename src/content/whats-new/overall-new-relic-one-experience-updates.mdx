@@ -3,6 +3,8 @@ title: Overall New Relic One experience updates
 contentType: nr1Announcement
 template: whatsNew
 summary: We&#039;ve made updates across all of New Relic One!
+id: '40481'
+releaseDate: '2020-07-30'
 learnMoreLink: ''
 getStartedLink: ''
 ---
