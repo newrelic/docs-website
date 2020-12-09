@@ -15,6 +15,7 @@ const RootNavigation = ({ nav }) => {
       {pages.edges.map(({ node }) => (
         <NavItem key={node.title} page={node} />
       ))}
+      <NavItem page={{ title: "What's new", url: '/whats-new' }} />
     </nav>
   );
 };
