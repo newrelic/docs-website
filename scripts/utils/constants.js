@@ -54,12 +54,12 @@ module.exports = {
   },
 
   MAX_PAGES_PER_TYPE: {
-    page: 2,
-    landing_page: 2,
-    api_doc: 2,
-    release_notes: 2,
-    release_notes_platform: 2,
-    troubleshooting_doc: 2,
+    page: 3,
+    landing_page: 3,
+    api_doc: 3,
+    release_notes: 3,
+    release_notes_platform: 3,
+    troubleshooting_doc: 3,
     nr1_announcement: Infinity,
   },
 };
