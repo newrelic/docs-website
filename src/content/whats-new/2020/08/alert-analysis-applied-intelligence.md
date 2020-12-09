@@ -12,12 +12,12 @@ getStartedLink: >-
 
 Dig deeper into alerts you receive with automatic alert analysis, which provides context and an explanation about each alert violation. You can also get a structured view and additional information about the entity and what was happening around it when the threshold was crossed to help you troubleshoot even faster. Alert analysis includes:
 
-* A chart of the violation
-* Details about recent activity, the violation, and the entity
-* A suggestion of key attributes that may explain the alert
-* A comparison of signals showing associated anomalies (if you’ve configured Proactive Detection) and related signals for this specific entity, such as CPU, throughput, and more, that occurred around the same time as the alert violation
+*   A chart of the violation
+*   Details about recent activity, the violation, and the entity
+*   A suggestion of key attributes that may explain the alert
+*   A comparison of signals showing associated anomalies (if you’ve configured Proactive Detection) and related signals for this specific entity, such as CPU, throughput, and more, that occurred around the same time as the alert violation
 
-![A screenshot of alert analysis features with labels.](./images/alert-analysis-details.png "A screenshot of alert analysis features with labels.")
+![A screenshot of alert analysis features with labels.](https://docs-dev.newrelic.com/sites/default/files/thumbnails/image/alert-analysis-details.png "A screenshot of alert analysis features with labels.")
 
 To view an alert analysis, in the **[one.newrelic.com](https://one.newrelic.com)** top nav, click **Alerts & AI**, then in the side nav under Incident Intelligence click **Issue Feed**.
 
