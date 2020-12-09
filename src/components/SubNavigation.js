@@ -23,7 +23,7 @@ const SubNavigation = ({ nav }) => (
       `}
     >
       <Icon
-        name={Icon.TYPE.ARROW_LEFT_CIRCLE}
+        name="fe-arrow-left-circle"
         size="1rem"
         css={css`
           margin-right: 0.5rem;
