@@ -53,116 +53,131 @@ const WhatsNew = ({ data }) => {
               }
             `}
           >
-            {postsByDate.map(([date, posts], idx) => (
-              <Fragment key={date}>
-                <div
-                  css={css`
-                    position: relative;
-                    padding-right: 2rem;
-                    border-right: var(--timeline-width) solid
-                      var(--timeline-color);
-                    text-align: right;
+            {postsByDate.map(([date, posts], idx) => {
+              const isLast = idx === postsByDate.length - 1;
 
-                    @media screen and (max-width: ${MOBILE_BREAKPOINT}) {
-                      text-align: left;
-                      border-right: none;
-                      padding-right: 0;
-                    }
-                  `}
-                >
-                  <span
+              return (
+                <Fragment key={date}>
+                  <div
                     css={css`
-                      line-height: 1;
-                      font-weight: 600;
-                      font-size: 0.875rem;
-                      color: var(--color-neutrals-900);
+                      position: relative;
+                      padding-right: 2rem;
+                      text-align: right;
 
-                      .dark-mode & {
-                        color: var(--color-dark-900);
-                      }
+                      ${css`
+                        &::after {
+                          content: '';
+                          position: absolute;
+                          width: var(--timeline-width);
+                          background: var(--timeline-color);
+                          top: ${idx === 0 ? 'calc(var(--ring-size) / 2)' : 0};
+                          bottom: ${isLast
+                            ? 'calc(100% - (var(--ring-size) / 2))'
+                            : 0};
+                          right: calc(var(--timeline-width) * -1);
+                          z-index: -1;
+                        }
+                      `}
 
                       @media screen and (max-width: ${MOBILE_BREAKPOINT}) {
-                        display: block;
-                        font-size: 1rem;
-                        margin-bottom: 1rem;
-                        border-top: 1px solid var(--divider-color);
-                        border-bottom: 1px solid var(--divider-color);
-                        padding: 1rem 0;
+                        text-align: left;
+                        border-right: none;
+                        padding-right: 0;
                       }
                     `}
                   >
-                    {date}
-                  </span>
-
-                  <div
-                    css={css`
-                      position: absolute;
-                      top: 0.25rem;
-                      right: calc((var(--timeline-width) * -1) / 2);
-                      transform: translateX(50%);
-                      width: var(--ring-size);
-                      height: var(--ring-size);
-                      border-radius: 50%;
-                      background: var(--timeline-color);
-
-                      &::after {
-                        content: '';
-                        position: absolute;
-                        top: 50%;
-                        left: 50%;
-                        width: calc(
-                          var(--ring-size) - (var(--ring-border-width) * 2)
-                        );
-                        height: calc(
-                          var(--ring-size) - (var(--ring-border-width) * 2)
-                        );
-                        transform: translate(-50%, -50%);
-                        background: var(--primary-background-color);
-                        border-radius: 50%;
-                      }
-
-                      @media screen and (max-width: ${MOBILE_BREAKPOINT}) {
-                        display: none;
-                      }
-                    `}
-                  />
-                </div>
-                <div>
-                  {posts.map((post) => (
-                    <div
-                      key={post.id}
+                    <span
                       css={css`
-                        margin-bottom: 2rem;
+                        line-height: 1;
+                        font-weight: 600;
+                        font-size: 0.875rem;
+                        color: var(--color-neutrals-900);
 
-                        &:last-child {
-                          margin-bottom: ${idx === postsByDate.length - 1
-                            ? '0'
-                            : '4'}rem;
+                        .dark-mode & {
+                          color: var(--color-dark-900);
+                        }
+
+                        @media screen and (max-width: ${MOBILE_BREAKPOINT}) {
+                          display: block;
+                          font-size: 1rem;
+                          margin-bottom: 1rem;
+                          border-top: 1px solid var(--divider-color);
+                          border-bottom: 1px solid var(--divider-color);
+                          padding: 1rem 0;
                         }
                       `}
                     >
-                      <Link
-                        to={post.fields.slug}
+                      {date}
+                    </span>
+
+                    <div
+                      css={css`
+                        position: absolute;
+                        top: 5px;
+                        right: calc((var(--timeline-width) * -1) / 2);
+                        transform: translateX(50%);
+                        width: var(--ring-size);
+                        height: var(--ring-size);
+                        border-radius: 50%;
+                        background: var(--timeline-color);
+
+                        &::after {
+                          content: '';
+                          position: absolute;
+                          top: 50%;
+                          left: 50%;
+                          width: calc(
+                            var(--ring-size) - (var(--ring-border-width) * 2)
+                          );
+                          height: calc(
+                            var(--ring-size) - (var(--ring-border-width) * 2)
+                          );
+                          transform: translate(-50%, -50%);
+                          background: var(--primary-background-color);
+                          border-radius: 50%;
+                        }
+
+                        @media screen and (max-width: ${MOBILE_BREAKPOINT}) {
+                          display: none;
+                        }
+                      `}
+                    />
+                  </div>
+                  <div>
+                    {posts.map((post) => (
+                      <div
+                        key={post.id}
                         css={css`
-                          display: inline-block;
-                          font-size: 1.25rem;
-                          margin-bottom: 0.5rem;
+                          margin-bottom: 2rem;
+
+                          &:last-child {
+                            margin-bottom: ${isLast ? 0 : '4rem'};
+                          }
                         `}
                       >
-                        {post.frontmatter.title}
-                      </Link>
-                      <p
-                        css={css`
-                          margin-bottom: 0;
-                        `}
-                      >
-                        {post.frontmatter.summary}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              </Fragment>
-            ))}
+                        <Link
+                          to={post.fields.slug}
+                          css={css`
+                            display: inline-block;
+                            font-size: 1.25rem;
+                            margin-bottom: 0.5rem;
+                          `}
+                        >
+                          {post.frontmatter.title}
+                        </Link>
+                        <p
+                          css={css`
+                            margin-bottom: 0;
+                          `}
+                        >
+                          {post.frontmatter.summary}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </Fragment>
+              );
+            })}
           </div>
         </Layout.Content>
       </div>
