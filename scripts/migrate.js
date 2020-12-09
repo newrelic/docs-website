@@ -10,6 +10,7 @@ const createNavStructure = require('./utils/migrate/create-nav-structure');
 const toVFile = require('./utils/migrate/to-vfile');
 const logger = require('./utils/logger');
 const runCodemod = require('./utils/codemod/run');
+const codemods = require('../codemods');
 const { write } = require('to-vfile');
 const createRawHTMLFiles = require('./utils/migrate/create-raw-html-files');
 const migrateNavStructure = require('./utils/migrate/migrate-nav-structure');
@@ -84,7 +85,7 @@ const run = async () => {
       files.filter((file) => file.extname === '.mdx'),
       async (file) => {
         try {
-          await runCodemod(file);
+          await runCodemod(file, { codemods });
         } catch (e) {
           // do nothing
         }

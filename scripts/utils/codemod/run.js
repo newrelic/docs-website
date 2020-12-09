@@ -1,7 +1,6 @@
-const codemods = require('../../../codemods');
 const createProcessor = require('./create-processor');
 
-const run = async (file) => {
+const run = async (file, { codemods }) => {
   const processor = createProcessor({ codemods });
 
   try {
