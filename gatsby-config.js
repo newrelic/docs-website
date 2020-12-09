@@ -104,8 +104,26 @@ module.exports = {
         path: dataDictionaryPath,
       },
     },
-    'gatsby-remark-images',
-    'gatsby-transformer-remark',
+    {
+      resolve: 'gatsby-transformer-remark',
+      options: {
+        plugins: [
+          {
+            resolve: 'gatsby-remark-images',
+            options: {
+              fit: 'inside',
+              linkImagesToOriginal: false,
+            },
+          },
+          // Gifs are not supported via gatsby-remark-images (https://github.com/gatsbyjs/gatsby/issues/7317).
+          // It is recommended to therefore use this plugin to copy files with a
+          // .gif extension to the public folder.
+          //
+          // Source: https://github.com/gatsbyjs/gatsby/issues/7317#issuecomment-412984851
+          'gatsby-remark-copy-linked-files',
+        ],
+      },
+    },
     {
       resolve: 'gatsby-plugin-mdx',
       options: {
@@ -148,22 +166,22 @@ module.exports = {
       options: {
         query: `
         {
-					allMdx(filter: {frontmatter: {contentType: {eq: "nr1Announcement"}}}) {
-						nodes {
-							frontmatter {
+          allMarkdownRemark(filter: {fields: {slug: {regex: "/whats-new/"}}}) {
+            nodes {
+              frontmatter {
                 title
                 id
-								releaseDate
-								getStartedLink
-								learnMoreLink
-								summary
-							}
-							fields {
-								slug
-							}
-							html
-						}
-					}
+                releaseDate
+                getStartedLink
+                learnMoreLink
+                summary
+              }
+              fields {
+                slug
+              }
+              html
+            }
+          }
         }
         `,
         path: '/api/nr1/content/nr1-announcements.json',
