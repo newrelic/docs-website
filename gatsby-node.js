@@ -161,6 +161,7 @@ exports.createSchemaCustomization = ({ actions }) => {
     id: ID!
     title: String!
     path: String
+    icon: String
     pages: [NavYaml!]!
     rootNav: Boolean!
   }

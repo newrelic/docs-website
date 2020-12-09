@@ -367,6 +367,27 @@ module.exports = [
     type: INSTRUCTIONS.REMOVE,
     path: ['Plugins'],
   },
+  {
+    type: INSTRUCTIONS.UPDATE,
+    path: ['Telemetry Data Platform'],
+    node: {
+      icon: 'nr-tdp',
+    },
+  },
+  {
+    type: INSTRUCTIONS.UPDATE,
+    path: ['Alerts and Applied intelligence'],
+    node: {
+      icon: 'nr-ai',
+    },
+  },
+  {
+    type: INSTRUCTIONS.UPDATE,
+    path: ['Full-Stack Observability'],
+    node: {
+      icon: 'nr-fso',
+    },
+  },
 
   // ----- New Relic only ----- \\
   {

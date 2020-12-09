@@ -84,6 +84,7 @@ const update = (files, { path: pathSegments, node, replace = false }) => {
           Object.entries({
             title: node.title || child.title,
             path: node.path || child.path,
+            icon: node.icon || child.icon,
             rootNav: hasOwnProperty(node, 'rootNav')
               ? node.rootNav
               : child.rootNav,
