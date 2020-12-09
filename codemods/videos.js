@@ -6,6 +6,10 @@ const {
 } = require('./utils/mdxast');
 
 const getVideoProps = (src) => {
+  if (src.startsWith('//')) {
+    src = `https:${src}`;
+  }
+
   const url = new URL(src);
   if (url.hostname === 'fast.wistia.net') {
     return {
