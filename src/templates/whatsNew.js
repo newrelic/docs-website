@@ -3,38 +3,40 @@ import PropTypes from 'prop-types';
 import { graphql } from 'gatsby';
 import { Layout } from '@newrelic/gatsby-theme-newrelic';
 import PageTitle from '../components/PageTitle';
-import MDXContainer from '../components/MDXContainer';
 import SEO from '../components/seo';
 
-const whatsNewTemplate = ({ data }) => {
-  const { mdx } = data;
-  const { frontmatter, body } = mdx;
-  const { title } = frontmatter;
+const WhatsNewTemplate = ({ data }) => {
+  const {
+    markdownRemark: {
+      html,
+      frontmatter: { title },
+    },
+  } = data;
+
   return (
     <>
       <SEO title={title} />
       <PageTitle>{title}</PageTitle>
       <Layout.Content>
-        <MDXContainer body={body} />
+        <div dangerouslySetInnerHTML={{ __html: html }} />
       </Layout.Content>
     </>
   );
 };
 
-whatsNewTemplate.propTypes = {
+WhatsNewTemplate.propTypes = {
   data: PropTypes.object.isRequired,
 };
 
 export const pageQuery = graphql`
-  query($slug: String!, $nav: String) {
-    mdx(fields: { slug: { eq: $slug } }) {
-      body
+  query($slug: String!) {
+    markdownRemark(fields: { slug: { eq: $slug } }) {
+      html
       frontmatter {
         title
       }
     }
-    ...MainLayout_query
   }
 `;
 
-export default whatsNewTemplate;
+export default WhatsNewTemplate;

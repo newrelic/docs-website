@@ -8,7 +8,11 @@ const hasOwnProperty = (obj, key) =>
   Object.prototype.hasOwnProperty.call(obj, key);
 
 exports.onCreateNode = ({ node, getNode, actions }) => {
-  if (node.internal.type === 'Mdx') {
+  if (
+    node.internal.type === 'Mdx' ||
+    (node.internal.type === 'MarkdownRemark' &&
+      node.fileAbsolutePath.includes('src/content'))
+  ) {
     const { createNodeField } = actions;
 
     createNodeField({
@@ -25,6 +29,21 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
   // NOTE: update 1,000 magic number
   const { data, errors } = await graphql(`
     query {
+      allMarkdownRemark(
+        filter: { fileAbsolutePath: { regex: "/src/content/" } }
+      ) {
+        edges {
+          node {
+            frontmatter {
+              template
+            }
+            fields {
+              slug
+            }
+          }
+        }
+      }
+
       allMdx(
         limit: 1000
         filter: { fileAbsolutePath: { regex: "/src/content/" } }
@@ -37,7 +56,6 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
             }
             frontmatter {
               template
-              topics
             }
           }
         }
@@ -84,7 +102,7 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
     return;
   }
 
-  const { allMdx, allNavYaml } = data;
+  const { allMarkdownRemark, allMdx, allNavYaml } = data;
 
   allMdx.edges.forEach(({ node }) => {
     const { frontmatter, fields } = node;
@@ -96,6 +114,7 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
         // table-of-contents pages should get the same nav as their landing page
         findPage(nav, slug.replace(/\/table-of-contents$/, ''))
       );
+
     if (process.env.NODE_ENV === 'development' && !frontmatter.template) {
       createPage({
         path: slug,
@@ -116,6 +135,21 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
         },
       });
     }
+  });
+
+  allMarkdownRemark.edges.forEach(({ node }) => {
+    const {
+      frontmatter: { template },
+      fields: { slug },
+    } = node;
+
+    createPage({
+      path: slug,
+      component: path.resolve(`${TEMPLATE_DIR}${template}.js`),
+      context: {
+        slug,
+      },
+    });
   });
 };
 

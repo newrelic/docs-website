@@ -1,3 +1,4 @@
+const path = require('path');
 const indentedCodeBlock = require('./codemods/indentedCodeBlock');
 
 const siteUrl = 'https://docs.newrelic.com';
@@ -103,8 +104,26 @@ module.exports = {
         path: dataDictionaryPath,
       },
     },
-    'gatsby-remark-images',
-    'gatsby-transformer-remark',
+    {
+      resolve: 'gatsby-transformer-remark',
+      options: {
+        plugins: [
+          {
+            resolve: 'gatsby-remark-images',
+            options: {
+              fit: 'inside',
+              linkImagesToOriginal: false,
+            },
+          },
+          // Gifs are not supported via gatsby-remark-images (https://github.com/gatsbyjs/gatsby/issues/7317).
+          // It is recommended to therefore use this plugin to copy files with a
+          // .gif extension to the public folder.
+          //
+          // Source: https://github.com/gatsbyjs/gatsby/issues/7317#issuecomment-412984851
+          'gatsby-remark-copy-linked-files',
+        ],
+      },
+    },
     {
       resolve: 'gatsby-plugin-mdx',
       options: {
@@ -140,6 +159,70 @@ module.exports = {
       resolve: `gatsby-source-filesystem`,
       options: {
         path: `./src/nav/`,
+      },
+    },
+    {
+      resolve: 'gatsby-plugin-generate-json',
+      options: {
+        query: `
+        {
+          allMarkdownRemark(filter: {fields: {slug: {regex: "/whats-new/"}}}) {
+            nodes {
+              frontmatter {
+                title
+                id
+                releaseDate
+                getStartedLink
+                learnMoreLink
+                summary
+              }
+              fields {
+                slug
+              }
+              html
+            }
+          }
+        }
+        `,
+        path: '/api/nr1/content/nr1-announcements.json',
+        serialize: ({ data }) => ({
+          announcements: data.allMarkdownRemark.nodes.map(
+            ({ frontmatter, html, fields }) => ({
+              docsID: frontmatter.id,
+              title: frontmatter.title,
+              summary: frontmatter.summary,
+              releaseDateTime: frontmatter.releaseDate,
+              learnMoreLink: frontmatter.learnMoreLink,
+              getStartedLink: frontmatter.getStartedLink,
+              body: html,
+              docUrl: path.join(siteUrl, fields.slug),
+            })
+          ),
+        }),
+      },
+    },
+    {
+      resolve: 'gatsby-plugin-generate-json',
+      options: {
+        query: `
+        {
+          allMarkdownRemark(filter: {fields: {slug: {regex: "/whats-new/"}}}) {
+            nodes {
+              frontmatter {
+                id
+              }
+            }
+          }
+        }
+        `,
+        path: '/api/nr1/content/nr1-announcements/ids.json',
+        serialize: ({ data }) => ({
+          announcements: data.allMarkdownRemark.nodes.map(
+            ({ frontmatter }) => ({
+              docsID: frontmatter.id,
+            })
+          ),
+        }),
       },
     },
     {

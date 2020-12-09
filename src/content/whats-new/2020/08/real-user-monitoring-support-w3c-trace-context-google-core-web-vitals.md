@@ -2,7 +2,9 @@
 title: 'Real-user monitoring support for W3C trace context and Google Core Web Vitals '
 contentType: nr1Announcement
 template: whatsNew
-summary: We&#039;ve added support for W3C trace context and Google Core Web Vitals!
+summary: We've added support for W3C trace context and Google Core Web Vitals!
+id: '40486'
+releaseDate: '2020-08-26'
 learnMoreLink: ''
 getStartedLink: ''
 ---

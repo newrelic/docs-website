@@ -5,6 +5,7 @@ module.exports = {
   NAV_DIR: 'src/nav',
   DICTIONARY_DIR: 'src/data-dictionary',
   BASE_URL: 'https://docs-dev.newrelic.com',
+  WHATS_NEW_DIR: 'src/content/whats-new',
 
   // IDS for page nodes that we want to ensure get migrated
   DIRECT_IDS: [
@@ -51,5 +52,15 @@ module.exports = {
     troubleshooting_doc: '60',
     nr1_announcement: '20',
     attribute_definition: '100',
+  },
+
+  MAX_PAGES_PER_TYPE: {
+    page: 1,
+    landing_page: 1,
+    api_doc: 1,
+    release_notes: 1,
+    release_notes_platform: 1,
+    troubleshooting_doc: 1,
+    nr1_announcement: Infinity,
   },
 };
