@@ -1,5 +1,6 @@
 const frontmatter = require('@github-docs/frontmatter');
 const { TYPES } = require('../constants');
+const he = require('he');
 
 const GATSBY_CONTENT_TYPES = {
   [TYPES.BASIC_PAGE]: 'page',
@@ -98,7 +99,7 @@ const addCustomFrontmatter = {
   [TYPES.WHATS_NEW]: ({ doc }, defaultFrontmatter) => {
     return {
       ...defaultFrontmatter,
-      summary: doc.summary || '',
+      summary: he.decode(doc.summary || ''),
       id: doc.docId,
       releaseDate: doc.releaseDateTime.split(' ')[0],
       learnMoreLink: doc.learnMoreLink || '',
