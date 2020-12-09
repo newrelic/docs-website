@@ -186,7 +186,7 @@ module.exports = {
         `,
         path: '/api/nr1/content/nr1-announcements.json',
         serialize: ({ data }) => ({
-          announcements: data.allMdx.nodes.map(
+          announcements: data.allMarkdownRemark.nodes.map(
             ({ frontmatter, html, fields }) => ({
               docsID: frontmatter.id,
               title: frontmatter.title,
@@ -196,6 +196,30 @@ module.exports = {
               getStartedLink: frontmatter.getStartedLink,
               body: html,
               docUrl: path.join(siteUrl, fields.slug),
+            })
+          ),
+        }),
+      },
+    },
+    {
+      resolve: 'gatsby-plugin-generate-json',
+      options: {
+        query: `
+        {
+          allMarkdownRemark(filter: {fields: {slug: {regex: "/whats-new/"}}}) {
+            nodes {
+              frontmatter {
+                id
+              }
+            }
+          }
+        }
+        `,
+        path: '/api/nr1/content/nr1-announcements/ids.json',
+        serialize: ({ data }) => ({
+          announcements: data.allMarkdownRemark.nodes.map(
+            ({ frontmatter }) => ({
+              docsID: frontmatter.id,
             })
           ),
         }),
