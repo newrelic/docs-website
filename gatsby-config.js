@@ -148,22 +148,22 @@ module.exports = {
       options: {
         query: `
         {
-					allMdx(filter: {frontmatter: {contentType: {eq: "nr1Announcement"}}}) {
-						nodes {
-							frontmatter {
+          allMarkdownRemark(filter: {fields: {slug: {regex: "/whats-new/"}}}) {
+            nodes {
+              frontmatter {
                 title
                 id
-								releaseDate
-								getStartedLink
-								learnMoreLink
-								summary
-							}
-							fields {
-								slug
-							}
-							html
-						}
-					}
+                releaseDate
+                getStartedLink
+                learnMoreLink
+                summary
+              }
+              fields {
+                slug
+              }
+              html
+            }
+          }
         }
         `,
         path: '/api/nr1/content/nr1-announcements.json',
