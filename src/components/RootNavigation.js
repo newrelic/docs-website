@@ -1,22 +1,19 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 import { graphql } from 'gatsby';
-import NavigationItem from './NavigationItem';
-import AIIcon from './AIIcon';
-import FSOIcon from './FSOIcon';
-import TDPIcon from './TDPIcon';
+import { NavItem } from '@newrelic/gatsby-theme-newrelic';
 
 const RootNavigation = ({ nav }) => {
   const { tdp, fso, ai, pages } = nav;
 
   return (
     <nav role="navigation" aria-label="Navigation">
-      <NavigationItem page={tdp} icon={TDPIcon} />
-      <NavigationItem page={fso} icon={FSOIcon} />
-      <NavigationItem page={ai} icon={AIIcon} />
+      <NavItem page={tdp} />
+      <NavItem page={fso} />
+      <NavItem page={ai} />
       <hr />
       {pages.edges.map(({ node }) => (
-        <NavigationItem key={node.title} page={node} />
+        <NavItem key={node.title} page={node} />
       ))}
     </nav>
   );
@@ -30,17 +27,20 @@ export const query = graphql`
   fragment RootNavigation_pages on Query {
     tdp: navYaml(title: { eq: "Telemetry Data Platform" }) {
       title
-      path
+      url: path
+      icon
     }
 
     fso: navYaml(title: { eq: "Full-Stack Observability" }) {
       title
-      path
+      url: path
+      icon
     }
 
     ai: navYaml(title: { eq: "Alerts and Applied intelligence" }) {
       title
-      path
+      url: path
+      icon
     }
 
     pages: allNavYaml(
@@ -59,7 +59,7 @@ export const query = graphql`
       edges {
         node {
           title
-          path
+          url: path
         }
       }
     }
