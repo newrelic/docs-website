@@ -113,7 +113,6 @@ const WhatsNew = ({ data }) => {
                       <Link
                         to={post.fields.slug}
                         css={css`
-                          display: block;
                           font-size: 1.25rem;
                           margin-bottom: 0.5rem;
                           line-height: 1;
