@@ -115,6 +115,12 @@ module.exports = {
               linkImagesToOriginal: false,
             },
           },
+          // Gifs are not supported via gatsby-remark-images (https://github.com/gatsbyjs/gatsby/issues/7317).
+          // It is recommended to therefore use this plugin to copy files with a
+          // .gif extension to the public folder.
+          //
+          // Source: https://github.com/gatsbyjs/gatsby/issues/7317#issuecomment-412984851
+          'gatsby-remark-copy-linked-files',
         ],
       },
     },
