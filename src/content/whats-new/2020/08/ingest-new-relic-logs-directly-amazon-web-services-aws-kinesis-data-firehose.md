@@ -4,7 +4,7 @@ title: >-
   Firehose
 contentType: nr1Announcement
 template: whatsNew
-summary: New Relic can ingest data from Amazon&#039;s Kinesis Data Firehose.
+summary: New Relic can ingest data from Amazon's Kinesis Data Firehose.
 id: '40516'
 releaseDate: '2020-08-16'
 learnMoreLink: >-
