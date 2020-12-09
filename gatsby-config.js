@@ -104,8 +104,20 @@ module.exports = {
         path: dataDictionaryPath,
       },
     },
-    'gatsby-remark-images',
-    'gatsby-transformer-remark',
+    {
+      resolve: 'gatsby-transformer-remark',
+      options: {
+        plugins: [
+          {
+            resolve: 'gatsby-remark-images',
+            options: {
+              fit: 'inside',
+              linkImagesToOriginal: false,
+            },
+          },
+        ],
+      },
+    },
     {
       resolve: 'gatsby-plugin-mdx',
       options: {
