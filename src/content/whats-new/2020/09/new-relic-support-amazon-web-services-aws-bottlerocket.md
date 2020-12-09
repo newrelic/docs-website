@@ -5,6 +5,8 @@ template: whatsNew
 summary: >-
   Gain full visibility into your workloads and infrastructure running on AWS
   Bottlerocket.
+id: '40501'
+releaseDate: '2020-09-04'
 learnMoreLink: ''
 getStartedLink: 'https://blog.newrelic.com/product-news/aws-bottlerocket/'
 ---
