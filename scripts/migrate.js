@@ -91,6 +91,14 @@ const run = async () => {
         }
       }
     );
+    logger.normal('Running codemods on whats new files');
+    await all(whatsNewFiles, async (file) => {
+      try {
+        await runCodemod(file, { codemods: [require('../codemods/images')] });
+      } catch (e) {
+        // do nothing
+      }
+    });
 
     logger.normal('Creating index pages');
     const indexFiles = createIndexPages(files);
@@ -113,7 +121,9 @@ const run = async () => {
       createRawHTMLFiles(files.concat(whatsNewFiles));
     }
 
-    console.error(reporter(files.concat(navFiles), { quiet: true }));
+    console.error(
+      reporter(files.concat(navFiles, whatsNewFiles), { quiet: true })
+    );
 
     logger.success('Migration complete!');
   } catch (err) {
