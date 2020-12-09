@@ -7,6 +7,7 @@ const DEFAULT_EXTENSION = '.mdx';
 const EXTENSIONS = {
   [TYPES.ATTRIBUTE_DEFINITION]: '.md',
   [TYPES.EVENT_DEFINITION]: '.md',
+  [TYPES.WHATS_NEW]: '.md',
 };
 
 const toVFile = (doc, { baseDir = CONTENT_DIR, dirname, filename }) => {

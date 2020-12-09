@@ -6,7 +6,7 @@ const toMarkdown = (file) => {
     headingStyle: 'atx',
     codeBlockStyle: 'fenced',
     fence: '```',
-  });
+  }).keep('iframe');
 
   file.contents = getFrontmatter(file) + turndown.turndown(file.contents);
 };
