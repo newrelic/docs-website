@@ -157,7 +157,7 @@ const createNav = (path, { createNodeId, nodeModel }) => {
   }
 
   return {
-    id: createNodeId(path),
+    id: createNodeId(nav.title),
     title: nav.title,
     pages: nav.pages,
   };
