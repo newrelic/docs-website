@@ -28,20 +28,17 @@ exports.createResolvers = ({ createResolvers, createNodeId }) => {
         },
         resolve: async (_source, args, context) => {
           const { slug } = args;
-          const { nodeModel } = context;
+          const utils = { nodeModel: context.nodeModel, createNodeId };
 
           switch (true) {
             case slug === '/':
-              return createRootNav({ nodeModel, createNodeId });
+              return createRootNav(utils);
 
             case slug.startsWith('/whats-new'):
-              return createWhatsNewNav({ nodeModel, createNodeId });
+              return createWhatsNewNav(utils);
 
             default:
-              return createNav(slug, {
-                nodeModel: context.nodeModel,
-                createNodeId,
-              });
+              return createNav(slug, utils);
           }
         },
       },
@@ -88,19 +85,25 @@ const createWhatsNewNav = async ({ createNodeId, nodeModel }) => {
     type: 'MarkdownRemark',
     query: {
       filter: {
-        frontmatter: {
-          template: 'whatsNew',
+        fileAbsolutePath: {
+          regex: '/src/content/whats-new/',
         },
+      },
+      sort: {
+        fields: ['frontmatter.releaseDate', 'frontmatter.title'],
+        order: ['DESC', 'ASC'],
       },
     },
   });
 
-  console.log(posts);
-
   return {
     id: createNodeId('whats-new'),
     title: "What's new",
-    pages: [],
+    pages: posts.map((post) => ({
+      title: post.frontmatter.title,
+      url: post.fields.slug,
+      pages: [],
+    })),
   };
 };
 
