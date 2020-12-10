@@ -4,7 +4,7 @@ const sub = require('date-fns/sub');
 const isAfter = require('date-fns/isAfter');
 const isBefore = require('date-fns/isBefore');
 
-const RECENT_POSTS_COUNT = 5;
+const RECENT_POSTS_COUNT = 10;
 
 exports.createSchemaCustomization = ({ actions }) => {
   const { createTypes } = actions;
