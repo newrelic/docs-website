@@ -11,7 +11,6 @@ const SPECIAL_COMPONENTS = [
   { tag: 'div', className: 'callout-permissions' },
   { tag: 'div', className: 'callout-note' },
   { tag: 'div', className: 'callout-pricing' },
-  { tag: 'i', className: 'fa' },
   { tag: 'dl', className: 'clamshell-list' },
   { tag: 'dl', className: 'example-box' },
 ];
@@ -161,6 +160,11 @@ module.exports = (file) => {
         node.textContent === 'For more help' &&
         !node.nextElementSibling,
       replacement: () => '',
+    })
+    .addRule('icons', {
+      filter: (node) => node.nodeName === 'I' && node.classList.contains('fa'),
+      replacement: (content, node) =>
+        htmlToJSXConverter.convert(node.outerHTML),
     });
 
   return turndown.turndown(file.contents);
