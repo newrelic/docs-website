@@ -78,7 +78,7 @@ const createRootNav = async ({ createNodeId, nodeModel }) => ({
     type: 'NavYaml',
     query: {
       filter: {
-        rootNav: true,
+        rootNav: { eq: true },
       },
       sort: {
         fields: ['title'],
