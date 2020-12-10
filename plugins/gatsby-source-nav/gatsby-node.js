@@ -72,9 +72,8 @@ exports.onCreatePage = ({ page, actions }) => {
   }
 };
 
-const createRootNav = async ({ createNodeId, nodeModel }) => ({
-  id: createNodeId('root'),
-  pages: await nodeModel.runQuery({
+const createRootNav = async ({ createNodeId, nodeModel }) => {
+  const nav = await nodeModel.runQuery({
     type: 'NavYaml',
     query: {
       filter: {
@@ -85,8 +84,13 @@ const createRootNav = async ({ createNodeId, nodeModel }) => ({
         order: ['ASC'],
       },
     },
-  }),
-});
+  });
+
+  return {
+    id: createNodeId('root'),
+    pages: nav.map((item) => ({ ...item, pages: [] })),
+  };
+};
 
 const createWhatsNewNav = async ({ createNodeId, nodeModel }) => {
   const posts = await nodeModel.runQuery({

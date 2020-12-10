@@ -23,7 +23,7 @@ const MainLayout = ({ data = {}, children, pageContext }) => {
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const isSmallScreen = useMedia('(max-width: 760px)');
 
-  const transition = useTransition(nav?.id === rootNav.id ? rootNav : nav, {
+  const transition = useTransition(nav, {
     key: nav?.id,
     config: { mass: 1, friction: 34, tension: 400 },
     initial: { position: 'absolute' },
@@ -121,11 +121,6 @@ export const query = graphql`
   fragment MainLayout_query on Query {
     rootNav: nav(slug: "/") {
       id
-      pages {
-        title
-        icon
-        url
-      }
     }
     nav(slug: $slug) {
       id
