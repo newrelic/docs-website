@@ -137,7 +137,7 @@ module.exports = (file) => {
     .addRule('customHandled', {
       filter: ['table', 'td', 'th', 'thead', 'tbody', 'tr', 'dd', 'dt'],
       replacement: (content, node) =>
-        `\n${fauxHtmlToJSX(node, content, file)}\n`,
+        `\n\n${fauxHtmlToJSX(node, content, file)}\n`,
     })
     .addRule('videos', {
       filter: 'iframe',
