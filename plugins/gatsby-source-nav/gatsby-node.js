@@ -36,7 +36,7 @@ exports.createResolvers = ({ createResolvers, createNodeId }) => {
         },
         resolve: async (_source, args, context) => {
           const { slug } = args;
-          const utils = { nodeModel: context.nodeModel, createNodeId };
+          const utils = { args, nodeModel: context.nodeModel, createNodeId };
 
           switch (true) {
             case slug === '/':
@@ -46,7 +46,7 @@ exports.createResolvers = ({ createResolvers, createNodeId }) => {
               return createWhatsNewNav(utils);
 
             default:
-              return createNav(slug, utils);
+              return createNav(utils);
           }
         },
       },
@@ -146,10 +146,11 @@ const formatPosts = (posts) =>
     pages: [],
   }));
 
-const createNav = (path, { createNodeId, nodeModel }) => {
+const createNav = ({ args, createNodeId, nodeModel }) => {
+  const { slug } = args;
   const nav = nodeModel.getAllNodes({ type: 'NavYaml' }).find((nav) =>
     // table-of-contents pages should get the same nav as their landing page
-    findPage(nav, path.replace(/\/table-of-contents$/, ''))
+    findPage(nav, slug.replace(/\/table-of-contents$/, ''))
   );
 
   if (!nav) {
