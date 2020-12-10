@@ -5,6 +5,7 @@ module.exports = {
   NAV_DIR: 'src/nav',
   DICTIONARY_DIR: 'src/data-dictionary',
   BASE_URL: 'https://docs-dev.newrelic.com',
+  WHATS_NEW_DIR: 'src/content/whats-new',
 
   // IDS for page nodes that we want to ensure get migrated
   DIRECT_IDS: [

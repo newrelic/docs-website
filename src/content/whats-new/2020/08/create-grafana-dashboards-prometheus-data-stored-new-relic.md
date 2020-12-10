@@ -3,6 +3,8 @@ title: Create Grafana dashboards with Prometheus data stored in New Relic
 contentType: nr1Announcement
 template: whatsNew
 summary: You can create Grafana dashboards with Prometheus data stored in New Relic!
+id: '40456'
+releaseDate: '2020-08-10'
 learnMoreLink: >-
   https://docs.newrelic.com/docs/integrations/grafana-integrations/get-started/grafana-support-prometheus-promql
 getStartedLink: >-
@@ -13,11 +15,9 @@ We’ve teamed up with [Grafana Labs](https://grafana.com/) so you can use our [
 
 Follow the steps below or [use this more detailed walkthrough](https://blog.newrelic.com/product-news/grafana-dashboards-prometheus-telemetry-data-platform/) to send Prometheus data to New Relic, so that Grafana can populate your existing Prometheus-specific dashboards with that data.
 
-<Callout variant="tip">
-  This process requires Prometheus version 2.15.0 or higher and Grafana version 6.7.0 or higher.
+This process requires Prometheus version 2.15.0 or higher and Grafana version 6.7.0 or higher.
 
-  You’ll also need to [sign up for New Relic](https://newrelic.com/signup/).
-</Callout>
+You’ll also need to [sign up for New Relic](https://newrelic.com/signup/).
 
 ![A screenshot of a Grafana dashboard with Prometheus data](./images/prometheus_grafana_dashboard.png "A screenshot of a Grafana dashboard with Prometheus data")
 

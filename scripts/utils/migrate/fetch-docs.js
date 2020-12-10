@@ -8,7 +8,11 @@ const {
   MAX_PAGES_PER_TYPE,
 } = require('../constants');
 
-const IGNORED_TYPES = [TYPES.ATTRIBUTE_DEFINITION, TYPES.EVENT_DEFINITION];
+const IGNORED_TYPES = [
+  TYPES.ATTRIBUTE_DEFINITION,
+  TYPES.EVENT_DEFINITION,
+  TYPES.WHATS_NEW,
+];
 
 const fetchDocs = async () => {
   const requests = Object.values(TYPES)

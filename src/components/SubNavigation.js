@@ -1,9 +1,8 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/core';
-import NavigationItem from './NavigationItem';
 import { Link } from 'gatsby';
-import { Icon } from '@newrelic/gatsby-theme-newrelic';
+import { NavItem, Icon } from '@newrelic/gatsby-theme-newrelic';
 
 const SubNavigation = ({ nav }) => (
   <>
@@ -23,7 +22,7 @@ const SubNavigation = ({ nav }) => (
       `}
     >
       <Icon
-        name={Icon.TYPE.ARROW_LEFT_CIRCLE}
+        name="fe-arrow-left-circle"
         size="1rem"
         css={css`
           margin-right: 0.5rem;
@@ -31,12 +30,16 @@ const SubNavigation = ({ nav }) => (
       />
       Home
     </Link>
-    <h2>{nav?.title}</h2>
-    <nav role="navigation" aria-label="SubNavigation">
-      {nav?.pages.map((page) => (
-        <NavigationItem key={page.title} page={page} />
-      ))}
-    </nav>
+    {nav && (
+      <>
+        <h2>{nav?.title}</h2>
+        <nav role="navigation" aria-label="SubNavigation">
+          {nav.pages.map((page) => (
+            <NavItem key={page.title} page={page} />
+          ))}
+        </nav>
+      </>
+    )}
   </>
 );
 
