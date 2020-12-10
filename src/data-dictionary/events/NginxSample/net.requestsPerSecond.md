@@ -5,6 +5,6 @@ events:
   - NginxSample
 ---
 
-Number of requests per second.
+Total number of client requests per second.
 
-For NGINX Plus systems.open source systems.
+For NGINX open source systems.
