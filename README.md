@@ -20,13 +20,17 @@ On every one of our docs, you can [create an issue]([link to issue template page
 
 ### Create an issue
 
-We have a set of issue templates to help you get started.
+Issues are a quick way to give us feedback about our docs. We'll review your issue and follow up with you if we have any questions.
+
+We have a set of issue templates to help you get started. You can create an issue to let us know when you find an error or notice something missing. You can also let us know about things you'd like to see.
 
 ### Edit a page
 
-When you edit a doc, you'll be able to start editing it on GitHub right away. See our [Contributors guide]() for information on how to fork our site and submit pull requests.
+If you'd like to get more directly involved, you can make some changes yourself. On any article, click the **Edit this page** button to get started making a change.
 
-Our [Style guide]() will give you some insight into how we think about writing and documenation, as well as our flavor of Markdown.
+When you edit a doc, you'll be able to start editing it on GitHub right away. See our [Contributors guide](https://github.com/newrelic/docs-website/blob/readme-update/CONTRIBUTING.md) for information on how to fork our site and submit pull requests. This includes information on what you'll need to build the site locally on your computer.
+
+Our [Style guide](https://github.com/newrelic/docs-website/blob/readme-update/STYLE_GUIDE.md) will give you some insight into how we think about writing and documenation, as well as our flavor of Markdown.
 
 ## Contributing
 
