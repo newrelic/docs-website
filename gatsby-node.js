@@ -44,10 +44,7 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
         }
       }
 
-      allMdx(
-        limit: 1000
-        filter: { fileAbsolutePath: { regex: "/src/content/" } }
-      ) {
+      allMdx(filter: { fileAbsolutePath: { regex: "/src/content/" } }) {
         edges {
           node {
             fields {
