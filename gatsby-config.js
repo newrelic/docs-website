@@ -275,6 +275,7 @@ module.exports = {
         path: dataDictionaryPath,
       },
     },
+    'gatsby-source-nav',
     `gatsby-plugin-meta-redirect`,
   ],
 };

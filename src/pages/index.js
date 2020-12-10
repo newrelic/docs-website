@@ -1,12 +1,9 @@
-import React, { Children, Fragment } from 'react';
+import React, { Fragment } from 'react';
 import PropTypes from 'prop-types';
 import { css, keyframes } from '@emotion/core';
 import { Link, graphql } from 'gatsby';
-import { Button, Surface } from '@newrelic/gatsby-theme-newrelic';
+import { Button, Icon, Surface } from '@newrelic/gatsby-theme-newrelic';
 import { rgba } from 'polished';
-import AIIcon from '../components/AIIcon';
-import FSOIcon from '../components/FSOIcon';
-import TDPIcon from '../components/TDPIcon';
 import IntegrationIcon from '../components/IntegrationIcon';
 import SurfaceLink from '../components/SurfaceLink';
 import { tdp, fso, ai, security, integrations } from '../data/homepage.yml';
@@ -107,7 +104,7 @@ const HomePage = ({ data }) => {
         </div>
       </Section>
       <Section alternate layout={layout}>
-        <SectionTitle title={tdp.title} icon={TDPIcon} />
+        <SectionTitle title={tdp.title} icon="nr-tdp" />
         <SectionDescription>{tdp.description}</SectionDescription>
         <DocTileGrid>
           {tdp.tiles.map((guide, idx) => (
@@ -116,7 +113,7 @@ const HomePage = ({ data }) => {
         </DocTileGrid>
       </Section>
       <Section layout={layout}>
-        <SectionTitle title={fso.title} icon={FSOIcon} />
+        <SectionTitle title={fso.title} icon="nr-fso" />
         <SectionDescription>{fso.description}</SectionDescription>
         <DocTileGrid>
           {fso.tiles.map((guide, idx) => (
@@ -125,7 +122,7 @@ const HomePage = ({ data }) => {
         </DocTileGrid>
       </Section>
       <Section alternate layout={layout}>
-        <SectionTitle title={ai.title} icon={AIIcon} />
+        <SectionTitle title={ai.title} icon="nr-ai" />
         <SectionDescription>{ai.description}</SectionDescription>
         <DocTileGrid>
           {ai.tiles.map((guide, idx) => (
@@ -197,7 +194,7 @@ HomePage.propTypes = {
 };
 
 export const pageQuery = graphql`
-  query($nav: String) {
+  query($slug: String!) {
     site {
       layout {
         contentPadding
@@ -231,15 +228,16 @@ Section.propTypes = {
   }),
 };
 
-const SectionTitle = ({ title, icon: Icon }) => (
+const SectionTitle = ({ title, icon }) => (
   <h2
     css={css`
       display: flex;
       align-items: center;
     `}
   >
-    {Icon && (
+    {icon && (
       <Icon
+        name={icon}
         size="3rem"
         css={css`
           margin-right: 1rem;

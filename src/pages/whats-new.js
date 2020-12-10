@@ -190,7 +190,7 @@ WhatsNew.propTypes = {
 };
 
 export const pageQuery = graphql`
-  query {
+  query($slug: String!) {
     allMarkdownRemark(
       sort: {
         fields: [frontmatter___releaseDate, frontmatter___title]
@@ -212,6 +212,8 @@ export const pageQuery = graphql`
         }
       }
     }
+
+    ...MainLayout_query
   }
 `;
 

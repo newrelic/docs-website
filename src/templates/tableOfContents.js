@@ -27,7 +27,7 @@ TableOfContentsPage.propTypes = {
 };
 
 export const pageQuery = graphql`
-  query($slug: String!, $nav: String) {
+  query($slug: String!) {
     mdx(fields: { slug: { eq: $slug } }) {
       body
       frontmatter {
