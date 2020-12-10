@@ -60,40 +60,6 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
           }
         }
       }
-
-      allNavYaml {
-        edges {
-          node {
-            ...NavFields
-            pages {
-              ...NavFields
-              pages {
-                ...NavFields
-                pages {
-                  ...NavFields
-                  pages {
-                    ...NavFields
-                    pages {
-                      ...NavFields
-                      pages {
-                        ...NavFields
-                        pages {
-                          ...NavFields
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-
-    fragment NavFields on NavYaml {
-      title
-      path
     }
   `);
 
@@ -102,18 +68,11 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
     return;
   }
 
-  const { allMarkdownRemark, allMdx, allNavYaml } = data;
+  const { allMarkdownRemark, allMdx } = data;
 
   allMdx.edges.forEach(({ node }) => {
     const { frontmatter, fields } = node;
     const { fileRelativePath, slug } = fields;
-
-    const nav = allNavYaml.edges
-      .map(({ node }) => node)
-      .find((nav) =>
-        // table-of-contents pages should get the same nav as their landing page
-        findPage(nav, slug.replace(/\/table-of-contents$/, ''))
-      );
 
     if (process.env.NODE_ENV === 'development' && !frontmatter.template) {
       createPage({
@@ -131,7 +90,6 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
         context: {
           fileRelativePath,
           slug,
-          nav: nav && nav.title,
         },
       });
     }
@@ -161,6 +119,7 @@ exports.createSchemaCustomization = ({ actions }) => {
     id: ID!
     title: String!
     path: String
+    icon: String
     pages: [NavYaml!]!
     rootNav: Boolean!
   }
@@ -202,15 +161,3 @@ exports.onCreatePage = ({ page, actions }) => {
 };
 
 const getFileRelativePath = (path) => path.replace(`${process.cwd()}/`, '');
-
-const findPage = (page, path) => {
-  if (page.path === path) {
-    return page;
-  }
-
-  if (page.pages == null || page.pages.length === 0) {
-    return null;
-  }
-
-  return page.pages.find((child) => findPage(child, path));
-};
