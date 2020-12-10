@@ -23,20 +23,20 @@ const MainLayout = ({ data = {}, children, pageContext }) => {
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const isSmallScreen = useMedia('(max-width: 760px)');
 
-  const transition = useTransition(nav.id === rootNav.id ? rootNav : nav, {
-    key: nav.id,
+  const transition = useTransition(nav?.id === rootNav.id ? rootNav : nav, {
+    key: nav?.id,
     config: { mass: 1, friction: 34, tension: 400 },
     initial: { position: 'absolute' },
     from: (nav) => ({
       opacity: 0,
       position: 'absolute',
-      transform: `translateX(${nav.id === rootNav.id ? '125px' : '-125px'})`,
+      transform: `translateX(${nav?.id === rootNav.id ? '125px' : '-125px'})`,
     }),
 
     enter: { opacity: 1, transform: 'translateX(0)' },
     leave: (nav) => ({
       opacity: 0,
-      transform: `translateX(${nav.id === rootNav.id ? '125px' : '-125px'})`,
+      transform: `translateX(${nav?.id === rootNav.id ? '125px' : '-125px'})`,
     }),
   });
 
@@ -82,6 +82,10 @@ const MainLayout = ({ data = {}, children, pageContext }) => {
               top: calc(${contentPadding} + 3rem);
               padding-bottom: ${contentPadding};
             `;
+
+            if (!nav) {
+              return null;
+            }
 
             return nav.id === rootNav.id ? (
               <animated.div style={style} css={containerStyle}>
