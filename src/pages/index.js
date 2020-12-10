@@ -194,7 +194,7 @@ HomePage.propTypes = {
 };
 
 export const pageQuery = graphql`
-  query($nav: String, $slug: String!) {
+  query($slug: String!) {
     site {
       layout {
         contentPadding

@@ -102,7 +102,7 @@ const MainLayout = ({ data = {}, children, pageContext }) => {
 
             return isRoot ? (
               <animated.div style={style} css={containerStyle}>
-                <RootNavigation nav={rootNav} />
+                <RootNavigation nav={nav} />
               </animated.div>
             ) : (
               <animated.div style={style} css={containerStyle}>
@@ -151,18 +151,12 @@ export const query = graphql`
         }
       }
     }
-
-    ...RootNavigation_pages
   }
 
   fragment MainLayout_navPages on NavItem {
     title
     url
-  }
-
-  fragment MainLayout_navFields on NavYaml {
-    title
-    url: path
+    icon
   }
 `;
 
