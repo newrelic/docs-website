@@ -31,6 +31,7 @@ const escapes = [
   [/^(\d+)\. /g, '$1\\. '],
   [/{/g, '\\{'],
   [/~/g, "{'~'}"],
+  [/\u200b/g, ''],
 
   // Because we are converting to JSX, we need to ensure opening and closing < >
   // are properly escaped to their HTML entities, otherwise it is parsed as the
