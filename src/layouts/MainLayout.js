@@ -17,7 +17,7 @@ import { animated, useTransition } from 'react-spring';
 import { useLocation } from '@reach/router';
 
 const MainLayout = ({ data = {}, children, pageContext }) => {
-  const { nav, subnav, ...rootNav } = data;
+  const { nav, ...rootNav } = data;
   const { contentPadding } = useLayout();
 
   const {
@@ -145,24 +145,6 @@ export const query = graphql`
               ...MainLayout_navPages
               pages {
                 ...MainLayout_navPages
-              }
-            }
-          }
-        }
-      }
-    }
-    subnav: navYaml(title: { eq: $nav }) {
-      ...MainLayout_navFields
-      pages {
-        ...MainLayout_navFields
-        pages {
-          ...MainLayout_navFields
-          pages {
-            ...MainLayout_navFields
-            pages {
-              ...MainLayout_navFields
-              pages {
-                ...MainLayout_navFields
               }
             }
           }
