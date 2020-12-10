@@ -17,7 +17,7 @@ import { animated, useTransition } from 'react-spring';
 import { useLocation } from '@reach/router';
 
 const MainLayout = ({ data = {}, children, pageContext }) => {
-  const { subnav, ...rootNav } = data;
+  const { nav, subnav, ...rootNav } = data;
   const { contentPadding } = useLayout();
 
   const {
@@ -77,7 +77,7 @@ const MainLayout = ({ data = {}, children, pageContext }) => {
           {isRootPath ? (
             <RootNavigation nav={rootNav} />
           ) : (
-            <SubNavigation nav={subnav} />
+            <SubNavigation nav={nav} />
           )}
         </MobileHeader>
       )}
@@ -132,6 +132,25 @@ MainLayout.propTypes = {
 
 export const query = graphql`
   fragment MainLayout_query on Query {
+    nav(slug: $slug) {
+      id
+      title
+      pages {
+        ...MainLayout_navPages
+        pages {
+          ...MainLayout_navPages
+          pages {
+            ...MainLayout_navPages
+            pages {
+              ...MainLayout_navPages
+              pages {
+                ...MainLayout_navPages
+              }
+            }
+          }
+        }
+      }
+    }
     subnav: navYaml(title: { eq: $nav }) {
       ...MainLayout_navFields
       pages {
@@ -152,6 +171,11 @@ export const query = graphql`
     }
 
     ...RootNavigation_pages
+  }
+
+  fragment MainLayout_navPages on NavItem {
+    title
+    url
   }
 
   fragment MainLayout_navFields on NavYaml {
