@@ -1,3 +1,11 @@
+const parseISO = require('date-fns/parseISO');
+const startOfMonth = require('date-fns/startOfMonth');
+const sub = require('date-fns/sub');
+const isAfter = require('date-fns/isAfter');
+const isBefore = require('date-fns/isBefore');
+
+const RECENT_POSTS_COUNT = 5;
+
 exports.createSchemaCustomization = ({ actions }) => {
   const { createTypes } = actions;
 
@@ -45,7 +53,7 @@ exports.createResolvers = ({ createResolvers, createNodeId }) => {
     },
     NavItem: {
       url: {
-        resolve: (source) => source.path,
+        resolve: (source) => source.url || source.path,
       },
       pages: {
         resolve: (source) => source.pages || [],
@@ -96,16 +104,47 @@ const createWhatsNewNav = async ({ createNodeId, nodeModel }) => {
     },
   });
 
+  const recentPosts = posts.slice(0, RECENT_POSTS_COUNT);
+  const remainingPosts = posts.slice(RECENT_POSTS_COUNT);
+  const now = new Date();
+  const firstOfMonth = startOfMonth(now);
+  const lastMonth = sub(firstOfMonth, { months: 1 });
+
+  const thisMonthsPosts = remainingPosts.filter((post) =>
+    isAfter(parseDate(post), firstOfMonth)
+  );
+
+  const lastMonthsPosts = remainingPosts.filter(
+    (post) =>
+      isAfter(parseDate(post), lastMonth) &&
+      isBefore(parseDate(post), firstOfMonth)
+  );
+
+  const olderPosts = remainingPosts.filter(
+    (post) => !thisMonthsPosts.includes(post) && !lastMonthsPosts.includes(post)
+  );
+
   return {
     id: createNodeId('whats-new'),
     title: "What's new",
-    pages: posts.map((post) => ({
-      title: post.frontmatter.title,
-      url: post.fields.slug,
-      pages: [],
-    })),
+    pages: formatPosts(recentPosts).concat(
+      [
+        { title: 'This month', pages: formatPosts(thisMonthsPosts) },
+        { title: 'Last month', pages: formatPosts(lastMonthsPosts) },
+        { title: 'Older', pages: formatPosts(olderPosts) },
+      ].filter(({ pages }) => pages.length)
+    ),
   };
 };
+
+const parseDate = (post) => parseISO(post.frontmatter.releaseDate);
+
+const formatPosts = (posts) =>
+  posts.map((post) => ({
+    title: post.frontmatter.title,
+    url: post.fields.slug,
+    pages: [],
+  }));
 
 const createNav = (path, { createNodeId, nodeModel }) => {
   const nav = nodeModel.getAllNodes({ type: 'NavYaml' }).find((nav) =>
