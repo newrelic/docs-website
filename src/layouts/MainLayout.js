@@ -37,7 +37,7 @@ const MainLayout = ({ data = {}, children, pageContext }) => {
 
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   // maintain the previous subnav so that exit transitions preserve the nav data
-  const previousSubnav = usePrevious(subnav);
+  const previousSubnav = usePrevious(nav);
 
   const isSmallScreen = useMedia('(max-width: 760px)');
   const isRootPath = location.pathname === '/';
@@ -106,7 +106,7 @@ const MainLayout = ({ data = {}, children, pageContext }) => {
               </animated.div>
             ) : (
               <animated.div style={style} css={containerStyle}>
-                <SubNavigation nav={subnav || previousSubnav} />
+                <SubNavigation nav={nav || previousSubnav} />
               </animated.div>
             );
           })}
