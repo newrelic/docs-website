@@ -30,7 +30,7 @@ module.exports = {
       options: {
         layout: {
           contentPadding: '2rem',
-          maxWidth: '1700px',
+          maxWidth: '1600px',
         },
         prism: {
           languages: [
