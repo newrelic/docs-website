@@ -195,7 +195,7 @@ module.exports = {
               learnMoreLink: frontmatter.learnMoreLink,
               getStartedLink: frontmatter.getStartedLink,
               body: html,
-              docUrl: path.join(siteUrl, fields.slug),
+              docUrl: new URL(fields.slug, siteUrl).href,
             })
           ),
         }),
@@ -275,6 +275,7 @@ module.exports = {
         path: dataDictionaryPath,
       },
     },
+    'gatsby-source-nav',
     `gatsby-plugin-meta-redirect`,
   ],
 };
