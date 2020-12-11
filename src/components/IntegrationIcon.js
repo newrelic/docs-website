@@ -716,7 +716,7 @@ const ICONS = {
     />
   ),
   kamon: (
-    <g fill-rule="nonzero" fill="none">
+    <g fillRule="nonzero" fill="none">
       <path
         d="M16.699 26.73l3.698 3.85a.738.738 0 00.507.203h9.07c.527 0 .841-.476.527-.82L22.09 19.574a.478.478 0 00-.7.01l-4.722 6.537c-.162.182-.142.425.03.608z"
         fill="#DADADA"

@@ -44,14 +44,16 @@ Our [Style guide](https://github.com/newrelic/docs-website/blob/readme-update/ST
 
 Reading the style guide is totally optional! Our writers are here to make sure everything is formatted and worded right. We're looking your technical insight and knowhow. Let us handle the little details for you.
 
-## Contributing
+## 🚧 Contributing
 
-We encourage your contributions to improve `docs-website`! Keep in mind when you submit your pull request, you'll need to sign the CLA via the click-through using CLA-Assistant. You only have to sign the CLA one time per project.
-Let us know if you have any questions, or need to execute our corporate CLA on behalf of a company: opensource@newrelic.com.
+We welcome contributions to the New Relic Docs Site. Please review our
+[Contributors Guide](CONTRIBUTING.md) prior to submitting any code.
 
-## Content and code license
+Keep in mind when you submit your pull request, you'll need to sign the CLA via the click-through using CLA-Assistant. You only have to sign the CLA one time per project. If you have any questions, or to execute our corporate CLA, required if your contribution is on behalf of a company, please drop us an email at opensource@newrelic.com.
 
-- The content of New Relic product documentation in the `docs-website` repository is licensed under a [CC-BY-NC-SA 4.0 license](LICENSE).
-- Code, including sample code, contained in the `docs-website` repository is licensed under the [Apache 2.0 license](LICENSE-CODE.md).
-- When using New Relic logos, follow New Relic’s [media assets guidelines](https://newrelic.com/about/media-assets).
-- The `docs-website` project also uses source code from third-party libraries. You can find full details on which libraries are used and the terms under which they are licensed in the third-party notices document.
+## 🏛️ Content and code license
+
+* The content of New Relic product documentation in the `docs-website` repository is licensed under a [CC-BY-NC-SA 4.0 license](LICENSE).
+* Code, including sample code, contained in the `docs-website` repository is licensed under the [Apache 2.0 license](LICENSE-CODE.md).
+* When using New Relic logos, follow New Relic’s [media assets guidelines](https://newrelic.com/about/media-assets).
+* The `docs-website` project also uses source code from third-party libraries. You can find full details on which libraries are used and the terms under which they are licensed in the third-party notices document.

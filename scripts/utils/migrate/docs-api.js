@@ -39,7 +39,8 @@ const paginate = async (
 ) => {
   const { pages, docs } = await get(pathname, { page, perPage });
 
-  if (page < pages.total && page < maxPages) {
+  // account for the 0 based offset on pages when comparing with max pages
+  if (page < pages.total && page + 1 < maxPages) {
     return docs.concat(
       await paginate(pathname, { page: page + 1, perPage, maxPages })
     );

@@ -19,7 +19,7 @@ import Table from '../components/Table';
 
 import { useMedia } from 'react-use';
 
-const AttributeDictionary = ({ data, pageContext, location, navigate }) => {
+const AttributeDictionary = ({ data, pageContext }) => {
   const { allDataDictionaryEvent } = data;
   const { queryParams } = useQueryParams();
 

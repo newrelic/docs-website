@@ -1,10 +1,12 @@
 ---
-title: 'Tracing the Gap: AWS X-Ray Integration'
+title: 'Tracing the gap: AWS X-Ray integration'
 contentType: nr1Announcement
 template: whatsNew
 summary: >-
   Use New Relic with AWS X-Ray, a critical distributed tracing tool for getting
   visibility across your AWS services.
+id: '40461'
+releaseDate: '2020-08-16'
 learnMoreLink: 'https://blog.newrelic.com/product-news/aws-x-ray-integration/'
 getStartedLink: >-
   https://docs.newrelic.com/docs/integrations/amazon-integrations/aws-integrations-list/aws-x-ray-monitoring-integration
