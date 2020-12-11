@@ -96,6 +96,9 @@ const WhatsNew = ({ data }) => {
                   >
                     <span
                       css={css`
+                        display: inline-flex;
+                        align-items: center;
+                        height: 1.875rem;
                         line-height: 1;
                         font-weight: 600;
                         font-size: 0.875rem;
@@ -121,7 +124,7 @@ const WhatsNew = ({ data }) => {
                     <div
                       css={css`
                         position: absolute;
-                        top: 5px;
+                        top: 7px;
                         right: calc((var(--timeline-width) * -1) / 2);
                         transform: translateX(50%);
                         width: var(--ring-size);
