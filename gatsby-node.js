@@ -26,7 +26,6 @@ exports.onCreateNode = ({ node, getNode, actions }) => {
 exports.createPages = async ({ actions, graphql, reporter }) => {
   const { createPage } = actions;
 
-  // NOTE: update 1,000 magic number
   const { data, errors } = await graphql(`
     query {
       allMarkdownRemark(
