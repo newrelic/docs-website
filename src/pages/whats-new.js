@@ -15,7 +15,10 @@ const WhatsNew = ({ data }) => {
   const postsByDate = Array.from(
     posts
       .reduce((map, post) => {
-        const key = post.frontmatter.releaseDate;
+        const { releaseDate } = post.frontmatter;
+        const [monthOnly, year] = releaseDate.split(', ');
+        const key =
+          year === now.getFullYear().toString() ? monthOnly : releaseDate;
 
         return map.set(key, [...(map.get(key) || []), post]);
       }, new Map())
@@ -55,7 +58,6 @@ const WhatsNew = ({ data }) => {
             `}
           >
             {postsByDate.map(([date, posts], idx) => {
-              const [monthOnly, year] = date.split(',');
               const isLast = idx === postsByDate.length - 1;
 
               return (
@@ -109,9 +111,7 @@ const WhatsNew = ({ data }) => {
                         }
                       `}
                     >
-                      {year.trim() === now.getFullYear().toString()
-                        ? monthOnly
-                        : date}
+                      {date}
                     </span>
 
                     <div
