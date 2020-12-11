@@ -9,7 +9,13 @@ const WhatsNewTemplate = ({ data }) => {
   const {
     markdownRemark: {
       html,
-      frontmatter: { title },
+      frontmatter: {
+        title,
+        summary,
+        releaseDate,
+        learnMoreLink,
+        getStartedLink,
+      },
     },
   } = data;
 
