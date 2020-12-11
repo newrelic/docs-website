@@ -131,13 +131,15 @@ const createWhatsNewNav = async ({ createNodeId, nodeModel }) => {
   return {
     id: createNodeId('whats-new'),
     title: "What's new",
-    pages: formatPosts(recentPosts).concat(
-      [
-        { title: 'This month', pages: formatPosts(thisMonthsPosts) },
-        { title: 'Last month', pages: formatPosts(lastMonthsPosts) },
-        { title: 'Older', pages: formatPosts(olderPosts) },
-      ].filter(({ pages }) => pages.length)
-    ),
+    pages: [{ title: 'Overview', url: '/whats-new' }]
+      .concat(formatPosts(recentPosts))
+      .concat(
+        [
+          { title: 'This month', pages: formatPosts(thisMonthsPosts) },
+          { title: 'Last month', pages: formatPosts(lastMonthsPosts) },
+          { title: 'Older', pages: formatPosts(olderPosts) },
+        ].filter(({ pages }) => pages.length)
+      ),
   };
 };
 

@@ -94,7 +94,12 @@ const run = async () => {
     logger.normal('Running codemods on whats new files');
     await all(whatsNewFiles, async (file) => {
       try {
-        await runCodemod(file, { codemods: [require('../codemods/images')] });
+        await runCodemod(file, {
+          codemods: [
+            require('../codemods/images'),
+            require('../codemods/markdownVideos'),
+          ],
+        });
       } catch (e) {
         // do nothing
       }

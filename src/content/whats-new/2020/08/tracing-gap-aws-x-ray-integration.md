@@ -1,5 +1,5 @@
 ---
-title: 'Tracing the Gap: AWS X-Ray Integration'
+title: 'Tracing the gap: AWS X-Ray integration'
 contentType: nr1Announcement
 template: whatsNew
 summary: >-

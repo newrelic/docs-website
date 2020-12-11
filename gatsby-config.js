@@ -1,4 +1,3 @@
-const path = require('path');
 const indentedCodeBlock = require('./codemods/indentedCodeBlock');
 
 const siteUrl = 'https://docs.newrelic.com';
@@ -31,7 +30,7 @@ module.exports = {
       options: {
         layout: {
           contentPadding: '2rem',
-          maxWidth: '1700px',
+          maxWidth: '1600px',
         },
         prism: {
           languages: [
@@ -112,6 +111,7 @@ module.exports = {
             resolve: 'gatsby-remark-images',
             options: {
               fit: 'inside',
+              maxWidth: 850,
               linkImagesToOriginal: false,
             },
           },
@@ -121,6 +121,13 @@ module.exports = {
           //
           // Source: https://github.com/gatsbyjs/gatsby/issues/7317#issuecomment-412984851
           'gatsby-remark-copy-linked-files',
+          'gatsby-remark-videos',
+          {
+            resolve: 'gatsby-remark-gifs',
+            options: {
+              maxWidth: 850,
+            },
+          },
         ],
       },
     },

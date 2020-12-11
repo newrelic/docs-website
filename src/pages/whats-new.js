@@ -1,4 +1,4 @@
-import React, { Fragment } from 'react';
+import React, { Fragment, useMemo } from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/core';
 import SEO from '../components/seo';
@@ -9,12 +9,16 @@ import { Layout, Link } from '@newrelic/gatsby-theme-newrelic';
 const MOBILE_BREAKPOINT = '960px';
 
 const WhatsNew = ({ data }) => {
+  const now = useMemo(() => new Date(), []);
   const { allMarkdownRemark } = data;
   const posts = allMarkdownRemark.edges.map(({ node }) => node);
   const postsByDate = Array.from(
     posts
       .reduce((map, post) => {
-        const key = post.frontmatter.releaseDate;
+        const { releaseDate } = post.frontmatter;
+        const [monthOnly, year] = releaseDate.split(', ');
+        const key =
+          year === now.getFullYear().toString() ? monthOnly : releaseDate;
 
         return map.set(key, [...(map.get(key) || []), post]);
       }, new Map())
@@ -83,11 +87,18 @@ const WhatsNew = ({ data }) => {
                         text-align: left;
                         border-right: none;
                         padding-right: 0;
+
+                        &::after {
+                          display: none;
+                        }
                       }
                     `}
                   >
                     <span
                       css={css`
+                        display: inline-flex;
+                        align-items: center;
+                        height: 1.875rem;
                         line-height: 1;
                         font-weight: 600;
                         font-size: 0.875rem;
@@ -113,7 +124,7 @@ const WhatsNew = ({ data }) => {
                     <div
                       css={css`
                         position: absolute;
-                        top: 5px;
+                        top: 7px;
                         right: calc((var(--timeline-width) * -1) / 2);
                         transform: translateX(50%);
                         width: var(--ring-size);
