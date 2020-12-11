@@ -137,8 +137,7 @@ We use "What's new" posts, or NR1 announcements, to let people know about new fe
 
 1. If it doesn't exist, create the folder for the current year and month in the [`src/content/whats-new/`](https://github.com/newrelic/docs-website/tree/develop/src/content/whats-new) directory (i.e. `src/content/whats-new/2020/12` for December 2020).
 2. Create a markdown file (`.md`) in the right year and month directory (**note:** this is _not_ a MDX file).
-3. Create your post using markdown and the frontmatter fields outlined below.
-4. Follow the instructions above to submit a `PR` for your change.
+3. Add this to the top of your markdown file. This is the frontmatter for What's new posts.
 
 | field            | Description
 | ---------------- | -----------
@@ -149,6 +148,8 @@ We use "What's new" posts, or NR1 announcements, to let people know about new fe
 | `releaseDate`    | The date of the post in the format `YYYY-MM-DD` (i.e. `2020-12-05` For December 5, 2020)
 | `learnMoreLink`  | A link to learn more about the feature being announced (i.e. a link to the blog)
 | `getStartedLink` | A link to a relevant documentation site post
+
+4. Submit a pull request for your new what's new post.
 
 ## Deleting pages
 
