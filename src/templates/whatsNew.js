@@ -5,6 +5,7 @@ import { graphql } from 'gatsby';
 import { Icon, Layout } from '@newrelic/gatsby-theme-newrelic';
 import PageTitle from '../components/PageTitle';
 import SEO from '../components/seo';
+import MarkdownContainer from '../components/MarkdownContainer';
 
 const WhatsNewTemplate = ({ data }) => {
   const {
@@ -75,7 +76,7 @@ const WhatsNewTemplate = ({ data }) => {
           max-width: 850px;
         `}
       >
-        <div dangerouslySetInnerHTML={{ __html: html }} />
+        <MarkdownContainer dangerouslySetInnerHTML={{ __html: html }} />
       </Layout.Content>
     </>
   );

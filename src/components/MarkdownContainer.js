@@ -3,11 +3,16 @@ import PropTypes from 'prop-types';
 import { css } from '@emotion/core';
 import { useLayout } from '@newrelic/gatsby-theme-newrelic';
 
-const MarkdownContainer = ({ children, className }) => {
+const MarkdownContainer = ({
+  children,
+  className,
+  dangerouslySetInnerHTML,
+}) => {
   const { contentPadding } = useLayout();
 
   return (
     <div
+      dangerouslySetInnerHTML={dangerouslySetInnerHTML}
       className={className}
       css={css`
         > *:first-child {
@@ -93,6 +98,7 @@ const MarkdownContainer = ({ children, className }) => {
 MarkdownContainer.propTypes = {
   children: PropTypes.node,
   className: PropTypes.string,
+  dangerouslySetInnerHTML: PropTypes.object,
 };
 
 export default MarkdownContainer;
