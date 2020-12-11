@@ -87,6 +87,10 @@ const WhatsNew = ({ data }) => {
                         text-align: left;
                         border-right: none;
                         padding-right: 0;
+
+                        &::after {
+                          display: none;
+                        }
                       }
                     `}
                   >
