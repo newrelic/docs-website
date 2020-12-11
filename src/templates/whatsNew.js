@@ -49,7 +49,7 @@ const WhatsNewTemplate = ({ data }) => {
               top: 1px;
               margin-right: 0.25rem;
             `}
-          />{' '}
+          />
           {releaseDate}
         </div>
         <p
