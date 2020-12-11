@@ -19,7 +19,7 @@ const MarkdownContainer = ({
           margin-top: 0;
         }
 
-        code {
+        *:not(pre) > code {
           padding: 0.2em 0.4em;
           border-radius: 3px;
           font-size: 85%;
@@ -28,10 +28,6 @@ const MarkdownContainer = ({
           .dark-mode & {
             background: var(--color-dark-200);
           }
-        }
-
-        pre > code {
-          background: inherit !important;
         }
 
         p:last-child {
