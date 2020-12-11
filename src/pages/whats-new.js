@@ -1,4 +1,4 @@
-import React, { Fragment } from 'react';
+import React, { Fragment, useMemo } from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/core';
 import SEO from '../components/seo';
@@ -9,6 +9,7 @@ import { Layout, Link } from '@newrelic/gatsby-theme-newrelic';
 const MOBILE_BREAKPOINT = '960px';
 
 const WhatsNew = ({ data }) => {
+  const now = useMemo(() => new Date(), []);
   const { allMarkdownRemark } = data;
   const posts = allMarkdownRemark.edges.map(({ node }) => node);
   const postsByDate = Array.from(
@@ -54,6 +55,7 @@ const WhatsNew = ({ data }) => {
             `}
           >
             {postsByDate.map(([date, posts], idx) => {
+              const [monthOnly, year] = date.split(',');
               const isLast = idx === postsByDate.length - 1;
 
               return (
@@ -107,7 +109,9 @@ const WhatsNew = ({ data }) => {
                         }
                       `}
                     >
-                      {date}
+                      {year.trim() === now.getFullYear().toString()
+                        ? monthOnly
+                        : date}
                     </span>
 
                     <div
