@@ -122,6 +122,12 @@ module.exports = {
           // Source: https://github.com/gatsbyjs/gatsby/issues/7317#issuecomment-412984851
           'gatsby-remark-copy-linked-files',
           'gatsby-remark-videos',
+          {
+            resolve: 'gatsby-remark-gifs',
+            options: {
+              maxWidth: 850,
+            },
+          },
         ],
       },
     },
