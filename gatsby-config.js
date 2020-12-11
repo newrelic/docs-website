@@ -111,6 +111,7 @@ module.exports = {
             resolve: 'gatsby-remark-images',
             options: {
               fit: 'inside',
+              maxWidth: 850,
               linkImagesToOriginal: false,
             },
           },
