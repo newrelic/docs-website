@@ -2,40 +2,52 @@
 
 # New Relic Docs
 
-This repo contains the documentation website code and Markdown source files for  our preview Docs site: docs-preview.newrelic.com. When it's ready, all of our docs will live here.
+This is the repo for the New Relic Docs site: docs.newrelic.com. 
 
-Read on to learn more about who we are and how you can contribute.
+Right now, it contains the documentation website code and Markdown source files we're using to build our preview Docs site: docs-preview.newrelic.com. When it's ready, all of our docs will live here.
+
+You may also be interested in the New Relic [Developer website](https://github.com/newrelic/developer-website) and [Open Source website](https://github.com/newrelic/opensource-website) repos.
+
+Read on to learn more about who we are and how you can contribute to the New Relic Docs site.
 
 ## We'd like your help
 
-From early on, our Docs site has been managed by a team of writers. We've always welcomed contributions from anyone at New Relic. We credit our technical accuracy and comprehensive documentation to this openness. In a sense, it's documentation as conversation.
+From early on, our Docs site has been managed by a team of writers. We've always welcomed contributions from anyone at New Relic and now we're open sourcing our docs to invite input from anyone at all. We credit our technical accuracy and comprehensive documentation to this openness. 
+
+In a sense, it's documentation as conversation. By making our docs open source, we hope to expand this conversation.
 
 Open sourcing our docs seemed like a great way to expand this conversation beyond New Relic.
 
-We're here working every day to improve our docs, but we'd love to hear from you. Come join the conversation.
+We're here working every day to improve our docs and we'd love to hear from you. Come join the conversation.
 
 ## Get started
 
-On every one of our docs, you can [create an issue]([link to issue template page](https://github.com/newrelic/docs-website/issues/new/choose)) or [edit a page]([link to more detailed instructions about contributing](https://github.com/newrelic/docs-website/blob/develop/CONTRIBUTING.md)). 
+On each page of our docs, you can [create an issue](https://github.com/newrelic/docs-website/issues/new/choose) or [edit a page](https://github.com/newrelic/docs-website/blob/develop/CONTRIBUTING.md). 
 
 ### Create an issue
 
 Issues are a quick way to give us feedback about our docs. We'll review your issue and follow up with you if we have any questions.
 
-We have a set of issue templates to help you get started. You can create an issue to let us know when you find an error or notice something missing. You can also let us know about things you'd like to see.
+You can create an issue to let us know when you find an error or notice something missing. You can also let us know about things you'd like to see.
+
+Go here to [create an issue](https://github.com/newrelic/docs-website/issues/new/choose).
 
 ### Edit a page
 
-If you'd like to get more directly involved, you can make some changes yourself. On any article, click the **Edit this page** button to get started making a change.
+If you'd like to get more directly involved, you can make some changes yourself. On any doc, click the **Edit this page** button to get started making a change.
 
-When you edit a doc, you'll be able to start editing it on GitHub right away. See our [Contributors guide](https://github.com/newrelic/docs-website/blob/readme-update/CONTRIBUTING.md) for information on how to fork our site and submit pull requests. This includes information on what you'll need to build the site locally on your computer.
+You can edit a doc directly on the GitHub site. You don't need to actively fork the site or build it locally to help out. This is the easiest way to contribute.
 
-Our [Style guide](https://github.com/newrelic/docs-website/blob/readme-update/STYLE_GUIDE.md) will give you some insight into how we think about writing and documenation, as well as our flavor of Markdown.
+If you'd like to go deeper, see our [Contributors guide](https://github.com/newrelic/docs-website/blob/readme-update/CONTRIBUTING.md) for information on how to fork our site, build it locally, and submit pull requests.
+
+Our [Style guide](https://github.com/newrelic/docs-website/blob/readme-update/STYLE_GUIDE.md) will give you some insight into how we think about writing and documentation, as well as our flavor of Markdown. 
+
+Reading the style guide is totally optional! Our writers are here to make sure everything is formatted and worded right. We're looking your technical insight and knowhow. Let us handle the little details for you.
 
 ## Contributing
 
 We encourage your contributions to improve `docs-website`! Keep in mind when you submit your pull request, you'll need to sign the CLA via the click-through using CLA-Assistant. You only have to sign the CLA one time per project.
-If you have any questions, or to execute our corporate CLA, required if your contribution is on behalf of a company, please drop us an email at opensource@newrelic.com.
+Let us know if you have any questions, or need to execute our corporate CLA on behalf of a company: opensource@newrelic.com.
 
 ## Content and code license
 
