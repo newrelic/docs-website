@@ -133,7 +133,7 @@ when creating documentation. Refer to our [Component Guide](COMPONENT_GUIDE.md) 
 
 ### Adding a "what's new" post
 
-"What's new", sometimes referred to as "NR1 Announcements", provides a way to communicate new features in New Relic. These posts are displayed [on the documentation site](https://docs.newrelic.com/whats-new) as well as [within the product](https://one.newrelic.com/launcher/jerome.plg-whats-new-launcher?pane=eyJuZXJkbGV0SWQiOiJqZXJvbWUucGxnLXdoYXRzLW5ldyJ9). To add a new post:
+We use "What's new" posts, or NR1 announcements, to let people know about new features and updates in [New Relic One](https://one.newrelic.com/launcher/jerome.plg-whats-new-launcher?pane=eyJuZXJkbGV0SWQiOiJqZXJvbWUucGxnLXdoYXRzLW5ldyJ9). You can also find What's new on our [Docs site](https://docs.newrelic.com/whats-new). To add a new post:
 
 1. If it doesn't exist, create the folder for the current year and month in the [`src/content/whats-new/`](https://github.com/newrelic/docs-website/tree/develop/src/content/whats-new) directory (i.e. `src/content/whats-new/2020/12` for December 2020).
 2. Create a markdown file (`.md`) in the desired directory (**note:** this is _not_ a MDX file).
