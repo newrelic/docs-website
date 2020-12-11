@@ -20,12 +20,18 @@ const MarkdownContainer = ({
         }
 
         code {
-          padding: 0.125rem;
-          border-radius: 2px;
+          padding: 0.2em 0.4em;
+          border-radius: 3px;
+          font-size: 85%;
+          background: var(--color-neutrals-200);
+
+          .dark-mode & {
+            background: var(--color-dark-200);
+          }
         }
 
-        :not(pre) > code {
-          background: var(--tertiary-background-color);
+        pre > code {
+          background: inherit !important;
         }
 
         p:last-child {
@@ -78,6 +84,10 @@ const MarkdownContainer = ({
           scroll-margin-top: calc(
             var(--global-header-height) + ${contentPadding}
           );
+
+          code {
+            font-size: inherit;
+          }
         }
 
         li:not(:last-child) {
