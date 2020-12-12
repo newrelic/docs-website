@@ -1,9 +1,12 @@
+const path = require('path');
 const fetch = require('node-fetch');
 require('dotenv').config();
 const { writeSync } = require('to-vfile');
 const vfile = require('vfile');
 
 const logger = require('../logger');
+
+const { DATA_DIR } = require('../constants');
 
 const fetchDocCount = async (migratedCount) => {
   const url = 'https://docs-dev.newrelic.com/api/migration/content/count';
@@ -28,8 +31,7 @@ const fetchDocCount = async (migratedCount) => {
           null,
           2
         ),
-        path: `${process.cwd()}/src/data/count`,
-        extname: '.json',
+        path: path.join(DATA_DIR, 'count.json'),
       })
     );
   } catch {
