@@ -1,13 +1,16 @@
 const path = require('path');
 const vfile = require('vfile');
 const { write } = require('to-vfile');
-const { DATA_DIR } = require('../constants');
+const { DATA_DIR, CONTENT_DIR } = require('../constants');
+
+const getSlug = ({ path: filepath }) =>
+  filepath.replace(CONTENT_DIR, '').replace('.md', '');
 
 module.exports = async (whatsNewFiles) => {
   const content = whatsNewFiles.reduce(
     (acc, vfile) => ({
       ...acc,
-      [vfile.path]: vfile.data.doc.docId,
+      [getSlug(vfile)]: vfile.data.doc.docId,
     }),
     {}
   );
@@ -17,7 +20,5 @@ module.exports = async (whatsNewFiles) => {
     contents: JSON.stringify(content, null, 2),
   });
 
-  write(file, 'utf-8');
-
-  // stretch-goal: comment?
+  await write(file, 'utf-8');
 };
