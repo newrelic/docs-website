@@ -177,7 +177,6 @@ module.exports = {
             nodes {
               frontmatter {
                 title
-                id
                 releaseDate
                 getStartedLink
                 learnMoreLink
@@ -192,44 +191,39 @@ module.exports = {
         }
         `,
         path: '/api/nr1/content/nr1-announcements.json',
-        serialize: ({ data }) => ({
-          announcements: data.allMarkdownRemark.nodes.map(
-            ({ frontmatter, html, fields }) => ({
-              docsID: frontmatter.id,
-              title: frontmatter.title,
-              summary: frontmatter.summary,
-              releaseDateTime: frontmatter.releaseDate,
-              learnMoreLink: frontmatter.learnMoreLink,
-              getStartedLink: frontmatter.getStartedLink,
-              body: html,
-              docUrl: new URL(fields.slug, siteUrl).href,
-            })
-          ),
-        }),
+        serialize: ({ data }) => {
+          const ids = JSON.parse(require('./src/data/whats-new-ids.json'));
+
+          return {
+            announcements: data.allMarkdownRemark.nodes.map(
+              ({ frontmatter, html, fields }) => ({
+                docsID: ids[fields.slug],
+                title: frontmatter.title,
+                summary: frontmatter.summary,
+                releaseDateTime: frontmatter.releaseDate,
+                learnMoreLink: frontmatter.learnMoreLink,
+                getStartedLink: frontmatter.getStartedLink,
+                body: html,
+                docUrl: new URL(fields.slug, siteUrl).href,
+              })
+            ),
+          };
+        },
       },
     },
     {
       resolve: 'gatsby-plugin-generate-json',
       options: {
-        query: `
-        {
-          allMarkdownRemark(filter: {fields: {slug: {regex: "/whats-new/"}}}) {
-            nodes {
-              frontmatter {
-                id
-              }
-            }
-          }
-        }
-        `,
         path: '/api/nr1/content/nr1-announcements/ids.json',
-        serialize: ({ data }) => ({
-          announcements: data.allMarkdownRemark.nodes.map(
-            ({ frontmatter }) => ({
-              docsID: frontmatter.id,
-            })
-          ),
-        }),
+        serialize: () => {
+          const ids = JSON.parse(require('./src/data/whats-new-ids.json'));
+
+          return {
+            announcements: Object.values(ids).map((id) => ({
+              docsID: id,
+            })),
+          };
+        },
       },
     },
     {
