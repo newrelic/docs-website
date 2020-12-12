@@ -1,3 +1,5 @@
+const fs = require('fs');
+const path = require('path');
 const indentedCodeBlock = require('./codemods/indentedCodeBlock');
 
 const siteUrl = 'https://docs.newrelic.com';
@@ -192,7 +194,9 @@ module.exports = {
         `,
         path: '/api/nr1/content/nr1-announcements.json',
         serialize: ({ data }) => {
-          const ids = JSON.parse(require('./src/data/whats-new-ids.json'));
+          const ids = JSON.parse(
+            fs.readFileSync(path.join(__dirname, 'src/data/whats-new-ids.json'))
+          );
 
           return {
             announcements: data.allMarkdownRemark.nodes.map(
@@ -216,7 +220,9 @@ module.exports = {
       options: {
         path: '/api/nr1/content/nr1-announcements/ids.json',
         serialize: () => {
-          const ids = JSON.parse(require('./src/data/whats-new-ids.json'));
+          const ids = JSON.parse(
+            fs.readFileSync(path.join(__dirname, 'src/data/whats-new-ids.json'))
+          );
 
           return {
             announcements: Object.values(ids).map((id) => ({
