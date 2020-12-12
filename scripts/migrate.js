@@ -3,6 +3,7 @@ const fetchDocCount = require('./utils/migrate/fetch-doc-count');
 const fetchAttributeDefinitions = require('./utils/migrate/fetch-attribute-definitions');
 const fetchEventDefinitions = require('./utils/migrate/fetch-event-definitions');
 const fetchWhatsNew = require('./utils/migrate/fetch-whats-new');
+const saveWhatsNewIds = require('./utils/migrate/save-whats-new-ids');
 const createDirectories = require('./utils/migrate/create-directories');
 const convertFile = require('./utils/migrate/convert-file');
 const createIndexPages = require('./utils/migrate/create-index-pages');
@@ -66,6 +67,7 @@ const run = async () => {
         },
       })
     );
+    await saveWhatsNewIds(whatsNewFiles);
     const definitionFiles = attributeDefFiles.concat(eventDefFiles);
     const files = await all(docs, toVFile).then((files) =>
       files.sort((a, b) => a.path.localeCompare(b.path))

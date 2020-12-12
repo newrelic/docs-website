@@ -6,6 +6,7 @@ module.exports = {
   DICTIONARY_DIR: 'src/data-dictionary',
   BASE_URL: 'https://docs-dev.newrelic.com',
   WHATS_NEW_DIR: 'src/content/whats-new',
+  DATA_DIR: 'src/data',
 
   // IDS for page nodes that we want to ensure get migrated
   DIRECT_IDS: [
