@@ -142,14 +142,13 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
       frontmatter: { template },
       fields: { slug },
     } = node;
-    const fileRelativePath = fileAbsolutePath.match(/src\/.*/g)[0];
 
     createPage({
       path: slug,
       component: path.resolve(`${TEMPLATE_DIR}${template}.js`),
       context: {
         slug,
-        fileRelativePath,
+        fileRelativePath: getFileRelativePath(fileAbsolutePath),
       },
     });
   });
