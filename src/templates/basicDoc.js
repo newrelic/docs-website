@@ -6,6 +6,7 @@ import PageTitle from '../components/PageTitle';
 import MDXContainer from '../components/MDXContainer';
 import SEO from '../components/seo';
 import TableOfContents from '../components/TableOfContents';
+import SimpleFeedback from '../components/SimpleFeedback';
 import {
   ContributingGuidelines,
   Layout,
@@ -14,13 +15,19 @@ import toString from 'mdast-util-to-string';
 import DefaultRelatedContent from '../components/DefaultRelatedContent';
 
 const BasicDoc = ({ data }) => {
-  const { mdx } = data;
+  const { mdx, site } = data;
   const {
     mdxAST,
     frontmatter,
     body,
     fields: { fileRelativePath },
   } = mdx;
+
+  const issueUrl = `${site.siteMetadata.repository}/issues/new`;
+  const title = `Feedback+for:+${frontmatter.title.replace(' ', '+')}`;
+  const labels = `eng,feedback`;
+  const positiveFeedback = `${issueUrl}?labels=${labels},feedback-positive&title=${title}`;
+  const negativeFeedback = `${issueUrl}?labels=${labels},feedback-negative&title=${title}`;
 
   const moreHelpExists = mdxAST.children.find(
     (node) => node.type === 'heading' && toString(node) === 'For more help'
@@ -61,6 +68,10 @@ const BasicDoc = ({ data }) => {
         >
           <ContributingGuidelines fileRelativePath={fileRelativePath} />
           <TableOfContents page={mdx} />
+          <SimpleFeedback
+            positiveUrl={positiveFeedback}
+            negativeUrl={negativeFeedback}
+          />
         </Layout.PageTools>
       </div>
     </>
@@ -73,6 +84,11 @@ BasicDoc.propTypes = {
 
 export const pageQuery = graphql`
   query($slug: String!) {
+    site {
+      siteMetadata {
+        repository
+      }
+    }
     mdx(fields: { slug: { eq: $slug } }) {
       mdxAST
       body

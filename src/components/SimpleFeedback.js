@@ -21,7 +21,12 @@ const SimpleFeedback = ({ positiveUrl, negativeUrl }) => (
         gap: 0.5rem;
       `}
     >
-      <Button as="a" href={positiveUrl} variant={Button.VARIANT.NORMAL}>
+      <Button
+        as="a"
+        href={positiveUrl}
+        variant={Button.VARIANT.NORMAL}
+        target="_blank"
+      >
         <Icon
           size="0.75rem"
           name="thumbs-up"
@@ -31,7 +36,12 @@ const SimpleFeedback = ({ positiveUrl, negativeUrl }) => (
         />
         Yes
       </Button>
-      <Button as="a" href={negativeUrl} variant={Button.VARIANT.NORMAL}>
+      <Button
+        as="a"
+        href={negativeUrl}
+        variant={Button.VARIANT.NORMAL}
+        target="_blank"
+      >
         <Icon
           size="0.75rem"
           name="thumbs-down"
