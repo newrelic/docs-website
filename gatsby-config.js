@@ -7,6 +7,11 @@ const siteUrl = 'https://docs.newrelic.com';
 const dataDictionaryPath = `${__dirname}/src/data-dictionary`;
 
 module.exports = {
+  flags: {
+    DEV_SSR: true,
+    LAZY_IMAGES: true,
+    QUERY_ON_DEMAND: true,
+  },
   siteMetadata: {
     title: 'New Relic Documentation',
     titleTemplate: '%s | New Relic Documentation',
