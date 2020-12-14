@@ -1,3 +1,4 @@
+const fs = require('fs');
 const path = require('path');
 const indentedCodeBlock = require('./codemods/indentedCodeBlock');
 
@@ -6,6 +7,11 @@ const siteUrl = 'https://docs.newrelic.com';
 const dataDictionaryPath = `${__dirname}/src/data-dictionary`;
 
 module.exports = {
+  flags: {
+    DEV_SSR: true,
+    LAZY_IMAGES: true,
+    QUERY_ON_DEMAND: true,
+  },
   siteMetadata: {
     title: 'New Relic Documentation',
     titleTemplate: '%s | New Relic Documentation',
@@ -31,7 +37,7 @@ module.exports = {
       options: {
         layout: {
           contentPadding: '2rem',
-          maxWidth: '1700px',
+          maxWidth: '1600px',
         },
         prism: {
           languages: [
@@ -111,7 +117,7 @@ module.exports = {
           {
             resolve: 'gatsby-remark-images',
             options: {
-              fit: 'inside',
+              maxWidth: 850,
               linkImagesToOriginal: false,
             },
           },
@@ -121,6 +127,13 @@ module.exports = {
           //
           // Source: https://github.com/gatsbyjs/gatsby/issues/7317#issuecomment-412984851
           'gatsby-remark-copy-linked-files',
+          'gatsby-remark-videos',
+          {
+            resolve: 'gatsby-remark-gifs',
+            options: {
+              maxWidth: 850,
+            },
+          },
         ],
       },
     },
@@ -140,7 +153,6 @@ module.exports = {
             options: {
               maxHeight: 400,
               maxWidth: 1200,
-              fit: 'inside',
               linkImagesToOriginal: false,
             },
           },
@@ -170,7 +182,6 @@ module.exports = {
             nodes {
               frontmatter {
                 title
-                id
                 releaseDate
                 getStartedLink
                 learnMoreLink
@@ -185,44 +196,43 @@ module.exports = {
         }
         `,
         path: '/api/nr1/content/nr1-announcements.json',
-        serialize: ({ data }) => ({
-          announcements: data.allMarkdownRemark.nodes.map(
-            ({ frontmatter, html, fields }) => ({
-              docsID: frontmatter.id,
-              title: frontmatter.title,
-              summary: frontmatter.summary,
-              releaseDateTime: frontmatter.releaseDate,
-              learnMoreLink: frontmatter.learnMoreLink,
-              getStartedLink: frontmatter.getStartedLink,
-              body: html,
-              docUrl: new URL(fields.slug, siteUrl).href,
-            })
-          ),
-        }),
+        serialize: ({ data }) => {
+          const ids = JSON.parse(
+            fs.readFileSync(path.join(__dirname, 'src/data/whats-new-ids.json'))
+          );
+
+          return {
+            announcements: data.allMarkdownRemark.nodes.map(
+              ({ frontmatter, html, fields }) => ({
+                docsID: ids[fields.slug],
+                title: frontmatter.title,
+                summary: frontmatter.summary,
+                releaseDateTime: frontmatter.releaseDate,
+                learnMoreLink: frontmatter.learnMoreLink,
+                getStartedLink: frontmatter.getStartedLink,
+                body: html,
+                docUrl: new URL(fields.slug, siteUrl).href,
+              })
+            ),
+          };
+        },
       },
     },
     {
       resolve: 'gatsby-plugin-generate-json',
       options: {
-        query: `
-        {
-          allMarkdownRemark(filter: {fields: {slug: {regex: "/whats-new/"}}}) {
-            nodes {
-              frontmatter {
-                id
-              }
-            }
-          }
-        }
-        `,
         path: '/api/nr1/content/nr1-announcements/ids.json',
-        serialize: ({ data }) => ({
-          announcements: data.allMarkdownRemark.nodes.map(
-            ({ frontmatter }) => ({
-              docsID: frontmatter.id,
-            })
-          ),
-        }),
+        serialize: () => {
+          const ids = JSON.parse(
+            fs.readFileSync(path.join(__dirname, 'src/data/whats-new-ids.json'))
+          );
+
+          return {
+            announcements: Object.values(ids).map((id) => ({
+              docsID: id,
+            })),
+          };
+        },
       },
     },
     {
