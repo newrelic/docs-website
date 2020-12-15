@@ -9,4 +9,4 @@ events:
   - AwsLambdaInvocationError
 ---
 
-The total response time of all externals, in seconds.
+The total response time of all external (out-of-process) services, in seconds.
