@@ -135,7 +135,7 @@ when creating documentation. Refer to our [Component Guide](COMPONENT_GUIDE.md) 
 
 ### Adding a what's new post
 
-New Relic use "what's new" posts, or NR1 announcements, to let our customers know about new features and updates in the [New Relic One](https://one.newrelic.com/launcher/jerome.plg-whats-new-launcher?pane=eyJuZXJkbGV0SWQiOiJqZXJvbWUucGxnLXdoYXRzLW5ldyJ9) product. You can also find What's new on our [Docs site](https://docs.newrelic.com/whats-new).
+New Relic uses "what's new" posts, or NR1 announcements, to let our customers know about new features and updates in the [New Relic One](https://one.newrelic.com/launcher/jerome.plg-whats-new-launcher?pane=eyJuZXJkbGV0SWQiOiJqZXJvbWUucGxnLXdoYXRzLW5ldyJ9) product. You can also find What's new on our [Docs site](https://docs.newrelic.com/whats-new).
 
 To add a new post:
 
