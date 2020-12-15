@@ -286,6 +286,7 @@ module.exports = {
       },
     },
     'gatsby-source-nav',
-    `gatsby-plugin-meta-redirect`,
+    'gatsby-plugin-auto-index-pages',
+    'gatsby-plugin-meta-redirect',
   ],
 };
