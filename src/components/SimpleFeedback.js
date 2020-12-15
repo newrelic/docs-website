@@ -4,25 +4,31 @@ import { graphql, useStaticQuery } from 'gatsby';
 import { css } from '@emotion/core';
 import { Button, Icon, PageTools } from '@newrelic/gatsby-theme-newrelic';
 
-const SimpleFeedback = ({ pageTitle }) => {
+const SimpleFeedback = ({ title, slug }) => {
   const { site } = useStaticQuery(graphql`
     query FeedbackQuery {
       site {
         siteMetadata {
+          siteUrl
           repository
         }
       }
     }
   `);
 
-  const issueUrl = `${site.siteMetadata.repository}/issues/new`;
-  const labels = `content,feedback`;
-  const title = pageTitle
-    ? `Feedback+for:+${pageTitle.replace(' ', '+')}`
+  const { repository, siteUrl } = site.siteMetadata;
+  const issueUrl = `${repository}/issues/new`;
+  const labels = ['content', 'feedback'].join(',');
+
+  const issueTitle = title
+    ? `Feedback:+${title.replace(' ', '+')}`
     : 'Website Feedback';
 
-  const positiveFeedback = `${issueUrl}?labels=${labels},feedback-positive&title=${title}`;
-  const negativeFeedback = `${issueUrl}?labels=${labels},feedback-negative&title=${title}`;
+  const body =
+    title && slug ? `&body=Page:%20[${title}](${siteUrl}${slug})` : '';
+
+  const positiveFeedback = `${issueUrl}?labels=${labels},feedback-positive&title=${issueTitle}${body}`;
+  const negativeFeedback = `${issueUrl}?labels=${labels},feedback-negative&title=${issueTitle}${body}`;
 
   return (
     <PageTools.Section>
@@ -87,6 +93,7 @@ const SimpleFeedback = ({ pageTitle }) => {
 
 SimpleFeedback.propTypes = {
   title: PropTypes.string,
+  slug: PropTypes.string,
 };
 
 export default SimpleFeedback;

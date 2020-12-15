@@ -20,8 +20,9 @@ const BasicDoc = ({ data }) => {
     mdxAST,
     frontmatter,
     body,
-    fields: { fileRelativePath },
+    fields: { fileRelativePath, slug },
   } = mdx;
+  console.log(fileRelativePath);
 
   const moreHelpExists = mdxAST.children.find(
     (node) => node.type === 'heading' && toString(node) === 'For more help'
@@ -62,7 +63,7 @@ const BasicDoc = ({ data }) => {
         >
           <ContributingGuidelines fileRelativePath={fileRelativePath} />
           <TableOfContents page={mdx} />
-          <SimpleFeedback pageTitle={frontmatter.title} />
+          <SimpleFeedback title={frontmatter.title} slug={slug} />
         </Layout.PageTools>
       </div>
     </>
@@ -83,6 +84,7 @@ export const pageQuery = graphql`
       }
       fields {
         fileRelativePath
+        slug
       }
       ...TableOfContents_page
     }
