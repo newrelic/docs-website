@@ -7,6 +7,11 @@ const siteUrl = 'https://docs.newrelic.com';
 const dataDictionaryPath = `${__dirname}/src/data-dictionary`;
 
 module.exports = {
+  flags: {
+    DEV_SSR: true,
+    LAZY_IMAGES: true,
+    QUERY_ON_DEMAND: true,
+  },
   siteMetadata: {
     title: 'New Relic Documentation',
     titleTemplate: '%s | New Relic Documentation',
@@ -112,7 +117,6 @@ module.exports = {
           {
             resolve: 'gatsby-remark-images',
             options: {
-              fit: 'inside',
               maxWidth: 850,
               linkImagesToOriginal: false,
             },
@@ -149,7 +153,6 @@ module.exports = {
             options: {
               maxHeight: 400,
               maxWidth: 1200,
-              fit: 'inside',
               linkImagesToOriginal: false,
             },
           },

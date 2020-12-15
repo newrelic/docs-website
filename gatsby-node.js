@@ -66,7 +66,6 @@ exports.onCreateNode = ({ node, getNode, actions }) => {
 exports.createPages = async ({ actions, graphql, reporter }) => {
   const { createPage } = actions;
 
-  // NOTE: update 1,000 magic number
   const { data, errors } = await graphql(`
     query {
       allMarkdownRemark(
@@ -74,6 +73,7 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
       ) {
         edges {
           node {
+            fileAbsolutePath
             frontmatter {
               template
             }
@@ -84,10 +84,7 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
         }
       }
 
-      allMdx(
-        limit: 1000
-        filter: { fileAbsolutePath: { regex: "/src/content/" } }
-      ) {
+      allMdx(filter: { fileAbsolutePath: { regex: "/src/content/" } }) {
         edges {
           node {
             fields {
@@ -137,6 +134,7 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
 
   allMarkdownRemark.edges.forEach(({ node }) => {
     const {
+      fileAbsolutePath,
       frontmatter: { template },
       fields: { slug },
     } = node;
@@ -146,6 +144,7 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
       component: path.resolve(`${TEMPLATE_DIR}${template}.js`),
       context: {
         slug,
+        fileRelativePath: getFileRelativePath(fileAbsolutePath),
       },
     });
   });
