@@ -74,6 +74,7 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
       ) {
         edges {
           node {
+            fileAbsolutePath
             frontmatter {
               template
             }
@@ -137,6 +138,7 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
 
   allMarkdownRemark.edges.forEach(({ node }) => {
     const {
+      fileAbsolutePath,
       frontmatter: { template },
       fields: { slug },
     } = node;
@@ -146,6 +148,7 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
       component: path.resolve(`${TEMPLATE_DIR}${template}.js`),
       context: {
         slug,
+        fileRelativePath: getFileRelativePath(fileAbsolutePath),
       },
     });
   });
