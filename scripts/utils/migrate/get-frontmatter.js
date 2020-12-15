@@ -7,7 +7,6 @@ const GATSBY_CONTENT_TYPES = {
   [TYPES.LANDING_PAGE]: 'landingPage',
   [TYPES.API_DOC]: 'apiDoc',
   [TYPES.RELEASE_NOTE]: 'releaseNote',
-  [TYPES.RELEASE_NOTE_PLATFORM]: 'releaseNotePlatform',
   [TYPES.TROUBLESHOOTING]: 'troubleshootingDoc',
   [TYPES.WHATS_NEW]: 'nr1Announcement',
 };
@@ -17,7 +16,6 @@ const GATSBY_TEMPLATE = {
   [TYPES.LANDING_PAGE]: 'landingPage',
   [TYPES.API_DOC]: 'basicDoc',
   [TYPES.RELEASE_NOTE]: 'releaseNote',
-  [TYPES.RELEASE_NOTE_PLATFORM]: 'releaseNotePlatform',
   [TYPES.TROUBLESHOOTING]: 'basicDoc',
   [TYPES.WHATS_NEW]: 'whatsNew',
 };
@@ -86,14 +84,6 @@ const addCustomFrontmatter = {
       releaseDateTime: doc.releasedOn || '',
       releaseVersion: doc.releaseVersion || '',
       downloadLink: doc.downloadLink || '',
-    };
-  },
-  [TYPES.RELEASE_NOTE_PLATFORM]: ({ doc, topics }, defaultFrontmatter) => {
-    return {
-      ...defaultFrontmatter,
-      topics,
-      releaseDateTime: doc.releasedOn || '',
-      releaseImpact: doc.releaseImpact || [],
     };
   },
   [TYPES.WHATS_NEW]: ({ doc }, defaultFrontmatter) => {
