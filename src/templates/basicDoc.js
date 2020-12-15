@@ -23,12 +23,6 @@ const BasicDoc = ({ data }) => {
     fields: { fileRelativePath },
   } = mdx;
 
-  const issueUrl = `${site.siteMetadata.repository}/issues/new`;
-  const title = `Feedback+for:+${frontmatter.title.replace(' ', '+')}`;
-  const labels = `eng,feedback`;
-  const positiveFeedback = `${issueUrl}?labels=${labels},feedback-positive&title=${title}`;
-  const negativeFeedback = `${issueUrl}?labels=${labels},feedback-negative&title=${title}`;
-
   const moreHelpExists = mdxAST.children.find(
     (node) => node.type === 'heading' && toString(node) === 'For more help'
   );
@@ -68,10 +62,7 @@ const BasicDoc = ({ data }) => {
         >
           <ContributingGuidelines fileRelativePath={fileRelativePath} />
           <TableOfContents page={mdx} />
-          <SimpleFeedback
-            positiveUrl={positiveFeedback}
-            negativeUrl={negativeFeedback}
-          />
+          <SimpleFeedback pageTitle={frontmatter.title} />
         </Layout.PageTools>
       </div>
     </>
@@ -84,11 +75,6 @@ BasicDoc.propTypes = {
 
 export const pageQuery = graphql`
   query($slug: String!) {
-    site {
-      siteMetadata {
-        repository
-      }
-    }
     mdx(fields: { slug: { eq: $slug } }) {
       mdxAST
       body
