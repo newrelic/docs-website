@@ -147,7 +147,6 @@ To add a new post:
 
 | field            | Description
 | ---------------- | -----------
-| `contentType`    | This value should _always_ be `nr1Announcement` for what's new posts
 | `template`       | This value should _always_ be `whatsNew` for what's new posts
 | `title`          | The title of the post
 | `summary`        | A short summary of the post.  A single sentence of about 10-20 words.
