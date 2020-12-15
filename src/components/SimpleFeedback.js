@@ -39,6 +39,11 @@ const SimpleFeedback = ({ pageTitle }) => {
           display: flex;
           margin-top: 0.5rem;
           justify-content: center;
+          align-items: flex-start;
+
+          a {
+            flex-grow: 1;
+          }
 
           > *:first-child {
             margin-right: 0.5rem;
@@ -55,7 +60,7 @@ const SimpleFeedback = ({ pageTitle }) => {
             size="0.75rem"
             name="thumbs-up"
             css={css`
-              margin-right: 0.25rem;
+              margin-right: 0.5rem;
             `}
           />
           Yes
@@ -70,7 +75,7 @@ const SimpleFeedback = ({ pageTitle }) => {
             size="0.75rem"
             name="thumbs-down"
             css={css`
-              margin-right: 0.25rem;
+              margin-right: 0.5rem;
             `}
           />
           No
