@@ -139,7 +139,7 @@ New Relic uses "what's new" posts, or NR1 announcements, to let our customers kn
 
 To add a new post:
 
-1. If the post doesn't exist, create the folder for the current year and month in the [`src/content/whats-new/`](https://github.com/newrelic/docs-website/tree/develop/src/content/whats-new) directory (e.g. `src/content/whats-new/2020/12` for December 2020). **note:** the year and month definition will determine where to place the post in the navigation on the [Docs site](https://docs.newrelic.com/whats-new).
+1. If the post doesn't exist, create the folder for the current year and month in the [`src/content/whats-new/`](https://github.com/newrelic/docs-website/tree/develop/src/content/whats-new) directory (e.g. `src/content/whats-new/2020/12` for December 2020). **Note:** The year and month definition will determine where to place the post in the navigation on the [Docs site](https://docs.newrelic.com/whats-new).
 2. Create a markdown file (`.md`) in the correct year and month directory (**note:** this is _not_ a MDX file).
 3. Add the correct frontmatter to the top of your markdown file between a set of `---` which specifies a frontmatter block.
 
