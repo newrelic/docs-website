@@ -1,13 +1,24 @@
+const fs = require('fs');
+const path = require('path');
 const indentedCodeBlock = require('./codemods/indentedCodeBlock');
 
+const siteUrl = 'https://docs.newrelic.com';
+
+const dataDictionaryPath = `${__dirname}/src/data-dictionary`;
+
 module.exports = {
+  flags: {
+    DEV_SSR: true,
+    LAZY_IMAGES: true,
+    QUERY_ON_DEMAND: true,
+  },
   siteMetadata: {
     title: 'New Relic Documentation',
     titleTemplate: '%s | New Relic Documentation',
     description: 'New Relic Documentation',
     author: 'New Relic',
     repository: 'https://github.com/newrelic/docs-website',
-    siteUrl: 'https://docs.newrelic.com',
+    siteUrl,
     branch: 'develop',
   },
   plugins: [
@@ -26,7 +37,7 @@ module.exports = {
       options: {
         layout: {
           contentPadding: '2rem',
-          maxWidth: '1700px',
+          maxWidth: '1600px',
         },
         prism: {
           languages: [
@@ -92,9 +103,40 @@ module.exports = {
         path: `${__dirname}/src/content`,
       },
     },
-
-    'gatsby-remark-images',
-    'gatsby-transformer-remark',
+    {
+      resolve: 'gatsby-source-filesystem',
+      options: {
+        name: 'data-dictionary',
+        path: dataDictionaryPath,
+      },
+    },
+    {
+      resolve: 'gatsby-transformer-remark',
+      options: {
+        plugins: [
+          {
+            resolve: 'gatsby-remark-images',
+            options: {
+              maxWidth: 850,
+              linkImagesToOriginal: false,
+            },
+          },
+          // Gifs are not supported via gatsby-remark-images (https://github.com/gatsbyjs/gatsby/issues/7317).
+          // It is recommended to therefore use this plugin to copy files with a
+          // .gif extension to the public folder.
+          //
+          // Source: https://github.com/gatsbyjs/gatsby/issues/7317#issuecomment-412984851
+          'gatsby-remark-copy-linked-files',
+          'gatsby-remark-videos',
+          {
+            resolve: 'gatsby-remark-gifs',
+            options: {
+              maxWidth: 850,
+            },
+          },
+        ],
+      },
+    },
     {
       resolve: 'gatsby-plugin-mdx',
       options: {
@@ -111,7 +153,6 @@ module.exports = {
             options: {
               maxHeight: 400,
               maxWidth: 1200,
-              fit: 'inside',
               linkImagesToOriginal: false,
             },
           },
@@ -132,5 +173,119 @@ module.exports = {
         path: `./src/nav/`,
       },
     },
+    {
+      resolve: 'gatsby-plugin-generate-json',
+      options: {
+        query: `
+        {
+          allMarkdownRemark(filter: {fields: {slug: {regex: "/whats-new/"}}}) {
+            nodes {
+              frontmatter {
+                title
+                releaseDate
+                getStartedLink
+                learnMoreLink
+                summary
+              }
+              fields {
+                slug
+              }
+              html
+            }
+          }
+        }
+        `,
+        path: '/api/nr1/content/nr1-announcements.json',
+        serialize: ({ data }) => {
+          const ids = JSON.parse(
+            fs.readFileSync(path.join(__dirname, 'src/data/whats-new-ids.json'))
+          );
+
+          return {
+            announcements: data.allMarkdownRemark.nodes.map(
+              ({ frontmatter, html, fields }) => ({
+                docsID: ids[fields.slug],
+                title: frontmatter.title,
+                summary: frontmatter.summary,
+                releaseDateTime: frontmatter.releaseDate,
+                learnMoreLink: frontmatter.learnMoreLink,
+                getStartedLink: frontmatter.getStartedLink,
+                body: html,
+                docUrl: new URL(fields.slug, siteUrl).href,
+              })
+            ),
+          };
+        },
+      },
+    },
+    {
+      resolve: 'gatsby-plugin-generate-json',
+      options: {
+        path: '/api/nr1/content/nr1-announcements/ids.json',
+        serialize: () => {
+          const ids = JSON.parse(
+            fs.readFileSync(path.join(__dirname, 'src/data/whats-new-ids.json'))
+          );
+
+          return {
+            announcements: Object.values(ids).map((id) => ({
+              docsID: id,
+            })),
+          };
+        },
+      },
+    },
+    {
+      resolve: `gatsby-plugin-json-output`,
+      options: {
+        siteUrl,
+        graphQLQuery: `
+        {
+          allDataDictionaryEvent {
+            edges {
+              node {
+                name
+                definition {
+                  rawMarkdownBody
+                }
+                dataSources
+                childrenDataDictionaryAttribute {
+                  name
+                  definition {
+                    rawMarkdownBody
+                  }
+                  units
+                }
+              }
+            }
+          }
+        }
+      `,
+        serializeFeed: ({ data }) =>
+          data.allDataDictionaryEvent.edges.map(({ node }) => ({
+            name: node.name,
+            definition:
+              node.definition && node.definition.rawMarkdownBody.trim(),
+            dataSources: node.dataSources,
+            attributes: node.childrenDataDictionaryAttribute.map(
+              (attribute) => ({
+                name: attribute.name,
+                definition: attribute.definition.rawMarkdownBody.trim(),
+                units: attribute.units,
+              })
+            ),
+          })),
+        feedFilename: 'data-dictionary',
+        nodesPerFeedFile: Infinity,
+      },
+    },
+    {
+      resolve: 'gatsby-source-data-dictionary',
+      options: {
+        path: dataDictionaryPath,
+      },
+    },
+    'gatsby-source-nav',
+    `gatsby-plugin-meta-redirect`,
   ],
 };

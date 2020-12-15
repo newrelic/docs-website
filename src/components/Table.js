@@ -9,22 +9,28 @@ const Table = ({ children }) => (
       border-spacing: 0;
       width: 100%;
       text-align: left;
+
       td,
       th {
         padding: 0.5rem 1rem;
       }
+
       th {
         border-bottom: 3px solid var(--color-brand-600);
       }
+
       tbody {
         tr {
           border: 1px solid var(--border-color);
           border-top: 0;
-        }
-        tr:nth-child(odd) {
-          background-color: var(--color-neutrals-100);
-          .dark-mode & {
-            background-color: var(--color-dark-100);
+          vertical-align: middle;
+
+          &:nth-child(odd) {
+            background-color: var(--color-neutrals-100);
+
+            .dark-mode & {
+              background-color: var(--color-dark-100);
+            }
           }
         }
       }

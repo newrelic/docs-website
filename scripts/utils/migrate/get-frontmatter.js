@@ -1,12 +1,12 @@
 const frontmatter = require('@github-docs/frontmatter');
 const { TYPES } = require('../constants');
+const he = require('he');
 
 const GATSBY_CONTENT_TYPES = {
   [TYPES.BASIC_PAGE]: 'page',
   [TYPES.LANDING_PAGE]: 'landingPage',
   [TYPES.API_DOC]: 'apiDoc',
   [TYPES.RELEASE_NOTE]: 'releaseNote',
-  [TYPES.RELEASE_NOTE_PLATFORM]: 'releaseNotePlatform',
   [TYPES.TROUBLESHOOTING]: 'troubleshootingDoc',
   [TYPES.WHATS_NEW]: 'nr1Announcement',
 };
@@ -16,7 +16,6 @@ const GATSBY_TEMPLATE = {
   [TYPES.LANDING_PAGE]: 'landingPage',
   [TYPES.API_DOC]: 'basicDoc',
   [TYPES.RELEASE_NOTE]: 'releaseNote',
-  [TYPES.RELEASE_NOTE_PLATFORM]: 'releaseNotePlatform',
   [TYPES.TROUBLESHOOTING]: 'basicDoc',
   [TYPES.WHATS_NEW]: 'whatsNew',
 };
@@ -87,18 +86,12 @@ const addCustomFrontmatter = {
       downloadLink: doc.downloadLink || '',
     };
   },
-  [TYPES.RELEASE_NOTE_PLATFORM]: ({ doc, topics }, defaultFrontmatter) => {
-    return {
-      ...defaultFrontmatter,
-      topics,
-      releaseDateTime: doc.releasedOn || '',
-      releaseImpact: doc.releaseImpact || [],
-    };
-  },
   [TYPES.WHATS_NEW]: ({ doc }, defaultFrontmatter) => {
     return {
       ...defaultFrontmatter,
-      summary: doc.summary || '',
+      summary: he.decode(doc.summary || ''),
+      id: doc.docId,
+      releaseDate: doc.releaseDateTime.split(' ')[0],
       learnMoreLink: doc.learnMoreLink || '',
       getStartedLink: doc.getStartedLink || '',
     };
