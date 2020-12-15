@@ -15,7 +15,7 @@ import toString from 'mdast-util-to-string';
 import DefaultRelatedContent from '../components/DefaultRelatedContent';
 
 const BasicDoc = ({ data }) => {
-  const { mdx, site } = data;
+  const { mdx } = data;
   const {
     mdxAST,
     frontmatter,
