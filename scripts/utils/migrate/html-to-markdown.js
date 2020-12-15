@@ -11,7 +11,6 @@ const SPECIAL_COMPONENTS = [
   { tag: 'div', className: 'callout-permissions' },
   { tag: 'div', className: 'callout-note' },
   { tag: 'div', className: 'callout-pricing' },
-  { tag: 'i', className: 'fa' },
   { tag: 'dl', className: 'clamshell-list' },
   { tag: 'dl', className: 'example-box' },
 ];
@@ -31,6 +30,7 @@ const escapes = [
   [/^(\d+)\. /g, '$1\\. '],
   [/{/g, '\\{'],
   [/~/g, "{'~'}"],
+  [/\u200b/g, ''],
 
   // Because we are converting to JSX, we need to ensure opening and closing < >
   // are properly escaped to their HTML entities, otherwise it is parsed as the
@@ -50,6 +50,10 @@ Turndown.prototype.escape = (string) => {
 
 const htmlToJSXConverter = new HTMLtoJSX({ createClass: false });
 
+const cleanAttribute = (attribute) => {
+  return attribute ? attribute.replace(/(\n+\s*)+/g, '\n') : '';
+};
+
 const isLandingPageTile = (node) =>
   node.classList.contains('col') &&
   node.childNodes[0].classList.contains('col-md-3') &&
@@ -63,6 +67,19 @@ module.exports = (file) => {
   });
 
   turndown
+    .addRule('links', {
+      filter: (node) => node.nodeName === 'A' && node.getAttribute('href'),
+      replacement: (content, node) => {
+        const href = node.getAttribute('href').replace(/~/g, '%7E');
+        let title = cleanAttribute(node.getAttribute('title'));
+
+        if (title) {
+          title = ` "${title}"`;
+        }
+
+        return `[${content}](${href}${title})`;
+      },
+    })
     .addRule('inlineCodeBlocks', {
       filter: (node) =>
         node.nodeName === 'CODE' && node.parentNode.nodeName !== 'PRE',
@@ -83,7 +100,7 @@ module.exports = (file) => {
       // that this strips out parsing the language. None of the <pre> tags in
       // the docs site include language information, so we don't need to try and
       // detect it.
-      replacement: (_content, node, options) => {
+      replacement: (_content, node) => {
         const buffer = Buffer.from(node.textContent.trim());
         const language =
           node.firstChild.nodeName === 'CODE'
@@ -119,7 +136,7 @@ module.exports = (file) => {
     .addRule('customHandled', {
       filter: ['table', 'td', 'th', 'thead', 'tbody', 'tr', 'dd', 'dt'],
       replacement: (content, node) =>
-        `\n${fauxHtmlToJSX(node, content, file)}\n`,
+        `\n\n${fauxHtmlToJSX(node, content, file)}\n`,
     })
     .addRule('videos', {
       filter: 'iframe',
@@ -143,6 +160,12 @@ module.exports = (file) => {
         node.textContent === 'For more help' &&
         !node.nextElementSibling,
       replacement: () => '',
+    })
+    .addRule('icons', {
+      filter: (node) => node.nodeName === 'I' && node.classList.contains('fa'),
+      replacement: (content, node) =>
+        htmlToJSXConverter.convert(node.outerHTML),
     });
+
   return turndown.turndown(file.contents);
 };
