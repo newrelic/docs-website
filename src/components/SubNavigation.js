@@ -22,7 +22,7 @@ const SubNavigation = ({ nav }) => (
       `}
     >
       <Icon
-        name="fe-arrow-left-circle"
+        name="fe-home"
         size="1rem"
         css={css`
           margin-right: 0.5rem;

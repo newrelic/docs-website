@@ -1,14 +1,15 @@
 import React, { useMemo } from 'react';
 import PropTypes from 'prop-types';
+import { css } from '@emotion/core';
 import { graphql } from 'gatsby';
-import { Layout, Link } from '@newrelic/gatsby-theme-newrelic';
+import { Icon, Layout, Link } from '@newrelic/gatsby-theme-newrelic';
 import PageTitle from '../components/PageTitle';
 import SEO from '../components/seo';
-import MarkdownContainer from '../components/MarkdownContainer';
 
 const TableOfContentsPage = ({ data, pageContext }) => {
   const { nav } = data;
   const { slug } = pageContext;
+  const landingPageSlug = slug.replace('/table-of-contents', '');
   const subnav = useMemo(
     () => findPage(nav, slug.replace('/table-of-contents', '')),
     [nav, slug]
@@ -20,12 +21,72 @@ const TableOfContentsPage = ({ data, pageContext }) => {
     <>
       <SEO title={title} />
       <PageTitle>{title}</PageTitle>
-      <Layout.Content>
-        <MarkdownContainer>
-          {pages.map((page) => (
-            <TableOfContents key={page.title} root={page} />
-          ))}
-        </MarkdownContainer>
+      <Link
+        to={landingPageSlug}
+        css={css`
+          color: var(--primary-text-color);
+          display: inline-flex;
+          align-items: center;
+          transition: 0.2s ease-out;
+          margin-bottom: 2rem;
+
+          &:hover {
+            color: var(--primary-text-hover-color);
+          }
+        `}
+      >
+        <Icon
+          name="fe-arrow-left-circle"
+          size="1rem"
+          css={css`
+            margin-right: 0.5rem;
+          `}
+        />
+        Back to overview
+      </Link>
+      <Layout.Content
+        css={css`
+          h1,
+          h2,
+          h3 {
+            font-weight: bold;
+          }
+
+          h1,
+          h2 {
+            &:not(:first-child) {
+              margin-top: 3rem;
+            }
+          }
+
+          h3 {
+            margin-top: 1rem;
+          }
+
+          h2 {
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid var(--divider-color);
+          }
+
+          ul {
+            list-style: none;
+            padding-left: 0;
+            margin-top: 0;
+            margin-left: 1rem;
+
+            &:not(:last-child) {
+              margin-bottom: 2rem;
+            }
+          }
+
+          li:not(:last-child) {
+            margin-bottom: 0.75rem;
+          }
+        `}
+      >
+        {pages.map((page) => (
+          <TableOfContents key={page.title} root={page} />
+        ))}
       </Layout.Content>
     </>
   );
