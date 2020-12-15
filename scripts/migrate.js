@@ -107,16 +107,12 @@ const run = async () => {
       }
     });
 
-    logger.normal('Creating index pages');
-    const indexFiles = createIndexPages(files);
-
     logger.normal('Creating nav structure');
     const navFiles = migrateNavStructure(createNavStructure(files));
 
     logger.normal('Saving changes to files');
-    await all(
-      files.concat(indexFiles, navFiles, definitionFiles, whatsNewFiles),
-      (file) => write(file, 'utf-8')
+    await all(files.concat(navFiles, definitionFiles, whatsNewFiles), (file) =>
+      write(file, 'utf-8')
     );
 
     // Run `DEBUG=true yarn migrate` to also write a `.html` file right next to
