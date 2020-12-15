@@ -22,7 +22,6 @@ const BasicDoc = ({ data }) => {
     body,
     fields: { fileRelativePath, slug },
   } = mdx;
-  console.log(fileRelativePath);
 
   const moreHelpExists = mdxAST.children.find(
     (node) => node.type === 'heading' && toString(node) === 'For more help'
