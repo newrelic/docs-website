@@ -6,10 +6,10 @@ import PageTitle from '../components/PageTitle';
 import MDXContainer from '../components/MDXContainer';
 import SEO from '../components/seo';
 import TableOfContents from '../components/TableOfContents';
-import SimpleFeedback from '../components/SimpleFeedback';
 import {
   ContributingGuidelines,
   Layout,
+  SimpleFeedback,
 } from '@newrelic/gatsby-theme-newrelic';
 import toString from 'mdast-util-to-string';
 import DefaultRelatedContent from '../components/DefaultRelatedContent';
@@ -63,7 +63,11 @@ const BasicDoc = ({ data }) => {
         >
           <ContributingGuidelines fileRelativePath={fileRelativePath} />
           <TableOfContents page={mdx} />
-          <SimpleFeedback title={frontmatter.title} slug={slug} />
+          <SimpleFeedback
+            title={frontmatter.title}
+            slug={slug}
+            labels={['content', 'feedback']}
+          />
         </Layout.PageTools>
       </div>
     </>
