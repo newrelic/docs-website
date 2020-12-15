@@ -150,7 +150,7 @@ To add a new post:
 | `contentType`    | This value should _always_ be `nr1Announcement` for what's new posts
 | `template`       | This value should _always_ be `whatsNew` for what's new posts
 | `title`          | The title of the post
-| `summary`        | A short summary of the post
+| `summary`        | A short summary of the post.  A single sentence of about 10-20 words.
 | `releaseDate`    | The date of the post in the format `YYYY-MM-DD` (i.e. `2020-12-05` For December 5, 2020)
 | `learnMoreLink`  | A link to learn more about the feature being announced (i.e. a link to the blog)
 | `getStartedLink` | A link to a relevant documentation site post
