@@ -18,7 +18,10 @@ const SimpleFeedback = ({ positiveUrl, negativeUrl }) => (
         display: flex;
         margin-top: 0.5rem;
         justify-content: center;
-        gap: 0.5rem;
+
+        > *:first-child {
+          margin-right: 0.5rem;
+        }
       `}
     >
       <Button
