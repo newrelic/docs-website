@@ -21,8 +21,6 @@ const SimpleFeedback = ({ pageTitle }) => {
     ? `Feedback+for:+${pageTitle.replace(' ', '+')}`
     : 'Website Feedback';
 
-  console.log(site);
-
   const positiveFeedback = `${issueUrl}?labels=${labels},feedback-positive&title=${title}`;
   const negativeFeedback = `${issueUrl}?labels=${labels},feedback-negative&title=${title}`;
 
