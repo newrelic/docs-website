@@ -9,6 +9,7 @@ import TableOfContents from '../components/TableOfContents';
 import {
   ContributingGuidelines,
   Layout,
+  SimpleFeedback,
 } from '@newrelic/gatsby-theme-newrelic';
 import toString from 'mdast-util-to-string';
 import DefaultRelatedContent from '../components/DefaultRelatedContent';
@@ -19,7 +20,7 @@ const BasicDoc = ({ data }) => {
     mdxAST,
     frontmatter,
     body,
-    fields: { fileRelativePath },
+    fields: { fileRelativePath, slug },
   } = mdx;
 
   const moreHelpExists = mdxAST.children.find(
@@ -61,6 +62,11 @@ const BasicDoc = ({ data }) => {
         >
           <ContributingGuidelines fileRelativePath={fileRelativePath} />
           <TableOfContents page={mdx} />
+          <SimpleFeedback
+            title={frontmatter.title}
+            slug={slug}
+            labels={['content', 'feedback']}
+          />
         </Layout.PageTools>
       </div>
     </>
@@ -81,6 +87,7 @@ export const pageQuery = graphql`
       }
       fields {
         fileRelativePath
+        slug
       }
       ...TableOfContents_page
     }
