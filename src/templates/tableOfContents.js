@@ -5,6 +5,7 @@ import { graphql } from 'gatsby';
 import { Icon, Layout, Link } from '@newrelic/gatsby-theme-newrelic';
 import PageTitle from '../components/PageTitle';
 import SEO from '../components/seo';
+import TableOfContentsContainer from '../components/TableOfContentsContainer';
 
 const TableOfContentsPage = ({ data, pageContext }) => {
   const { nav } = data;
@@ -44,49 +45,12 @@ const TableOfContentsPage = ({ data, pageContext }) => {
         />
         Back to overview
       </Link>
-      <Layout.Content
-        css={css`
-          h1,
-          h2,
-          h3 {
-            font-weight: bold;
-          }
-
-          h1,
-          h2 {
-            &:not(:first-child) {
-              margin-top: 3rem;
-            }
-          }
-
-          h3 {
-            margin-top: 1rem;
-          }
-
-          h2 {
-            padding-bottom: 0.5rem;
-            border-bottom: 1px solid var(--divider-color);
-          }
-
-          ul {
-            list-style: none;
-            padding-left: 0;
-            margin-top: 0;
-            margin-left: 1rem;
-
-            &:not(:last-child) {
-              margin-bottom: 2rem;
-            }
-          }
-
-          li:not(:last-child) {
-            margin-bottom: 0.75rem;
-          }
-        `}
-      >
-        {pages.map((page) => (
-          <TableOfContents key={page.title} root={page} />
-        ))}
+      <Layout.Content>
+        <TableOfContentsContainer>
+          {pages.map((page) => (
+            <TableOfContents key={page.title} root={page} />
+          ))}
+        </TableOfContentsContainer>
       </Layout.Content>
     </>
   );
