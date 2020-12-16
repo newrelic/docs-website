@@ -22,7 +22,7 @@ const SubNavigation = ({ nav }) => (
       `}
     >
       <Icon
-        name="fe-arrow-left-circle"
+        name="fe-home"
         size="1rem"
         css={css`
           margin-right: 0.5rem;
@@ -32,7 +32,7 @@ const SubNavigation = ({ nav }) => (
     </Link>
     {nav && (
       <>
-        <h2>{nav?.title}</h2>
+        <h2>{nav.title}</h2>
         <nav role="navigation" aria-label="SubNavigation">
           {nav.pages.map((page) => (
             <NavItem key={page.title} page={page} />

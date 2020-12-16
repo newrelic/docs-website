@@ -286,6 +286,12 @@ module.exports = {
       },
     },
     'gatsby-source-nav',
-    `gatsby-plugin-meta-redirect`,
+    {
+      resolve: 'gatsby-plugin-auto-index-pages',
+      options: {
+        skippedDirectories: ['', 'whats-new', 'docs/release-notes'],
+      },
+    },
+    'gatsby-plugin-meta-redirect',
   ],
 };

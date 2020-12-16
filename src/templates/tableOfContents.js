@@ -1,22 +1,55 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import PropTypes from 'prop-types';
+import { css } from '@emotion/core';
 import { graphql } from 'gatsby';
-import { Layout } from '@newrelic/gatsby-theme-newrelic';
+import { Icon, Layout, Link } from '@newrelic/gatsby-theme-newrelic';
 import PageTitle from '../components/PageTitle';
 import SEO from '../components/seo';
-import MDXContainer from '../components/MDXContainer';
+import IndexContents from '../components/IndexContents';
 
-const TableOfContentsPage = ({ data }) => {
+const TableOfContentsPage = ({ data, pageContext }) => {
   const {
-    mdx: { body, frontmatter },
+    nav,
+    mdx: {
+      frontmatter: { title },
+    },
   } = data;
+  const { slug } = pageContext;
+  const landingPageSlug = slug.replace('/table-of-contents', '');
+  const subnav = useMemo(() => (nav ? findPage(nav, landingPageSlug) : null), [
+    nav,
+    landingPageSlug,
+  ]);
 
   return (
     <>
-      <SEO title={frontmatter.title} />
-      <PageTitle>{frontmatter.title}</PageTitle>
+      <SEO title={title} />
+      <PageTitle>{title}</PageTitle>
+      <Link
+        to={landingPageSlug}
+        css={css`
+          color: var(--primary-text-color);
+          display: inline-flex;
+          align-items: center;
+          transition: 0.2s ease-out;
+          margin-bottom: 2rem;
+
+          &:hover {
+            color: var(--primary-text-hover-color);
+          }
+        `}
+      >
+        <Icon
+          name="fe-arrow-left-circle"
+          size="1rem"
+          css={css`
+            margin-right: 0.5rem;
+          `}
+        />
+        Back to overview
+      </Link>
       <Layout.Content>
-        <MDXContainer body={body} />
+        {subnav && <IndexContents nav={subnav} />}
       </Layout.Content>
     </>
   );
@@ -24,21 +57,30 @@ const TableOfContentsPage = ({ data }) => {
 
 TableOfContentsPage.propTypes = {
   data: PropTypes.object.isRequired,
+  pageContext: PropTypes.object.isRequired,
 };
 
 export const pageQuery = graphql`
-  query($slug: String!) {
-    mdx(fields: { slug: { eq: $slug } }) {
-      body
+  query($slug: String!, $landingPageSlug: String!) {
+    mdx(fields: { slug: { eq: $landingPageSlug } }) {
       frontmatter {
         title
-      }
-      fields {
-        fileRelativePath
       }
     }
     ...MainLayout_query
   }
 `;
+
+const findPage = (page, path) => {
+  if (page.url === path) {
+    return page;
+  }
+
+  if (page.pages == null || page.pages.length === 0) {
+    return null;
+  }
+
+  return page.pages.find((child) => findPage(child, path));
+};
 
 export default TableOfContentsPage;
