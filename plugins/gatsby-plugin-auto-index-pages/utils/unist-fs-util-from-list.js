@@ -11,7 +11,7 @@ const buildSubtree = (
 ) => {
   if (pathSegment === file.basename) {
     parent.children.push(
-      fileNode(path.join(parent.path, file.basename), getAttributes(file))
+      fileNode(path.join(parent.path || '', file.basename), getAttributes(file))
     );
 
     return;
