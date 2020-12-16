@@ -6,7 +6,6 @@ const fetchWhatsNew = require('./utils/migrate/fetch-whats-new');
 const saveWhatsNewIds = require('./utils/migrate/save-whats-new-ids');
 const createDirectories = require('./utils/migrate/create-directories');
 const convertFile = require('./utils/migrate/convert-file');
-const createIndexPages = require('./utils/migrate/create-index-pages');
 const createNavStructure = require('./utils/migrate/create-nav-structure');
 const toVFile = require('./utils/migrate/to-vfile');
 const logger = require('./utils/logger');
@@ -107,16 +106,12 @@ const run = async () => {
       }
     });
 
-    logger.normal('Creating index pages');
-    const indexFiles = createIndexPages(files);
-
     logger.normal('Creating nav structure');
     const navFiles = migrateNavStructure(createNavStructure(files));
 
     logger.normal('Saving changes to files');
-    await all(
-      files.concat(indexFiles, navFiles, definitionFiles, whatsNewFiles),
-      (file) => write(file, 'utf-8')
+    await all(files.concat(navFiles, definitionFiles, whatsNewFiles), (file) =>
+      write(file, 'utf-8')
     );
 
     // Run `DEBUG=true yarn migrate` to also write a `.html` file right next to

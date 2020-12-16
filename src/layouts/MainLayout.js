@@ -83,11 +83,7 @@ const MainLayout = ({ data = {}, children, pageContext }) => {
               padding-bottom: ${contentPadding};
             `;
 
-            if (!nav) {
-              return null;
-            }
-
-            return nav.id === rootNav.id ? (
+            return nav?.id === rootNav.id ? (
               <animated.div style={style} css={containerStyle}>
                 <RootNavigation nav={nav} />
               </animated.div>

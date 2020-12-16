@@ -10,17 +10,23 @@
     - [Submitting a PR from a cloned repo](#submitting-a-pr-from-a-cloned-repo)
     - [Using the `develop` branch](#using-the-develop-branch)
     - [Draft PRs](#draft-prs)
+    - [Using Conventional Commits](#using-conventional-commits)
+      - [Use `chore`](#use-chore)
+      - [Use `fix`](#use-fix)
+      - [Use `feat`](#use-feat)
     - [Deploy previews with Amplify](#deploy-previews-with-amplify)
   - [Style guide adherence](#style-guide-adherence)
   - [Reusable components](#reusable-components)
   - [Editing existing pages](#editing-existing-pages)
   - [Creating new pages](#creating-new-pages)
-    - [Adding a "what's new" post](#adding-a-whats-new-post)
+    - [Adding a what's new post](#adding-a-whats-new-post)
+    - [What's new post frontmatter example](#whats-new-post-frontmatter-example)
   - [Deleting pages](#deleting-pages)
   - [Updating the navigation](#updating-the-navigation)
   - [Adding a new page](#adding-a-new-page)
   - [Moving a page to a new location](#moving-a-page-to-a-new-location)
   - [Private edits](#private-edits)
+    - [Bring your private work back into the public repository](#bring-your-private-work-back-into-the-public-repository)
 
 ## Guidelines for contributing
 
@@ -102,6 +108,37 @@ To submit a [Draft PR](https://github.blog/2019-02-14-introducing-draft-pull-req
    `PR` you wish to submit.
 3. Once you are ready to have the `PR` reviewed and merge, click the Ready for review button on the `PR`.
 
+### Using Conventional Commits
+
+Please help the maintainers by leveraging the following [conventional commit](https://www.conventionalcommits.org/en/v1.0.0/)
+standards in your pull request title and commit messages.
+
+#### Use `chore`
+
+- for minor changes / additions / corrections to content.
+- for minor changes / additions / corrections to images.
+- for minor non-functional changes / additions to github actions, github templates, package or config updates, etc
+
+```bash
+git commit -m "chore: adjusting config and content"
+```
+
+#### Use `fix`
+
+- for minor functional corrections to code.
+
+```bash
+git commit -m "fix: typo and prop error in the code of conduct"
+```
+
+#### Use `feat`
+
+- for major functional changes or additions to code.
+
+```bash
+git commit -m "feat(media): creating a video landing page"
+```
+
 ### Deploy previews with Amplify
 
 PRs that are opened from a branch in this repo (not forks) will generate preview links on Amplify automatically. Amplify preview links can be found within the PR under the `Checks` Tab.
@@ -131,23 +168,48 @@ when creating documentation. Refer to our [Component Guide](COMPONENT_GUIDE.md) 
 4. If you are willing to assist in the process of creating a new page, then follow the instructions above to `Fork` or `Clone` the repo and make your edits.
 5. Follow the instructions above to submit a `PR` for your change.
 
-### Adding a "what's new" post
+### Adding a what's new post
 
-We use "What's new" posts, or NR1 announcements, to let people know about new features and updates in [New Relic One](https://one.newrelic.com/launcher/jerome.plg-whats-new-launcher?pane=eyJuZXJkbGV0SWQiOiJqZXJvbWUucGxnLXdoYXRzLW5ldyJ9). You can also find What's new on our [Docs site](https://docs.newrelic.com/whats-new). To add a new post:
+New Relic uses "what's new" posts, or NR1 announcements, to let our customers know about new features and updates in the [New Relic One](https://one.newrelic.com/launcher/jerome.plg-whats-new-launcher?pane=eyJuZXJkbGV0SWQiOiJqZXJvbWUucGxnLXdoYXRzLW5ldyJ9) product. You can also find What's new on our [Docs site](https://docs.newrelic.com/whats-new).
 
-1. If it doesn't exist, create the folder for the current year and month in the [`src/content/whats-new/`](https://github.com/newrelic/docs-website/tree/develop/src/content/whats-new) directory (i.e. `src/content/whats-new/2020/12` for December 2020).
-2. Create a markdown file (`.md`) in the right year and month directory (**note:** this is _not_ a MDX file).
-3. Add this to the top of your markdown file. This is the frontmatter for What's new posts.
+To add a new post:
+
+1. If the post doesn't exist, create the folder for the current year and month in the [`src/content/whats-new/`](https://github.com/newrelic/docs-website/tree/develop/src/content/whats-new) directory (e.g. `src/content/whats-new/2020/12` for December 2020). **Note:** The year and month definition will determine where to place the post in the navigation on the [Docs site](https://docs.newrelic.com/whats-new).
+2. Create a markdown file (`.md`) in the correct year and month directory (**note:** this is _not_ a MDX file).
+3. Add the correct frontmatter to the top of your markdown file between a set of ---. This marks it as a frontmatter content block.
+
+``` md
 
 | field            | Description
 | ---------------- | -----------
-| `contentType`    | This value should _always_ be `nr1Announcement` for what's new posts
 | `template`       | This value should _always_ be `whatsNew` for what's new posts
 | `title`          | The title of the post
-| `summary`        | A short summary of the post (shown [within the product](https://one.newrelic.com/launcher/jerome.plg-whats-new-launcher?pane=eyJuZXJkbGV0SWQiOiJqZXJvbWUucGxnLXdoYXRzLW5ldyJ9) and the [documentation site](https://docs.newrelic.com/whats-new))
+| `summary`        | A short summary of the post.  A single sentence of about 10-20 words.
 | `releaseDate`    | The date of the post in the format `YYYY-MM-DD` (i.e. `2020-12-05` For December 5, 2020)
 | `learnMoreLink`  | A link to learn more about the feature being announced (i.e. a link to the blog)
 | `getStartedLink` | A link to a relevant documentation site post
+
+```
+
+### What's new post frontmatter example
+
+``` md
+---
+title: Percentiles now available in events-to-metrics service
+contentType: nr1Announcement
+template: whatsNew
+summary: >-
+  For the events-to-metrics service, return an attribute's approximate value at
+  a given percentile.
+id: '41551'
+releaseDate: '2020-12-01'
+learnMoreLink: >-
+  https://docs.newrelic.com/docs/query-your-data/nrql-new-relic-query-language/get-started/nrql-syntax-clauses-functions#func-percentile
+getStartedLink: >-
+  https://docs.newrelic.com/docs/accounts/accounts/data-management/introduction-events-metrics-service
+---
+
+```
 
 4. Submit a pull request for your new what's new post.
 
