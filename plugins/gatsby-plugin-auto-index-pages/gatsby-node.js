@@ -108,7 +108,8 @@ exports.createPages = async ({ actions, graphql, reporter }, pluginOptions) => {
   });
 
   tableOfContentsNodes.forEach((node) => {
-    const slug = path.join(getSlug(node), 'table-of-contents');
+    const landingPageSlug = getSlug(node);
+    const slug = path.join(landingPageSlug, 'table-of-contents');
 
     createPage({
       path: slug,
@@ -116,6 +117,7 @@ exports.createPages = async ({ actions, graphql, reporter }, pluginOptions) => {
       context: {
         fileRelativePath: null,
         slug,
+        landingPageSlug,
       },
     });
   });
