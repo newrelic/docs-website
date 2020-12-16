@@ -16,7 +16,9 @@ const IndexContents = ({ nav }) => {
 };
 
 IndexContents.propTypes = {
-  nav: PropTypes.object,
+  nav: PropTypes.shape({
+    pages: PropTypes.array.isRequired,
+  }).isRequired,
 };
 
 const TableOfContents = ({ root, depth = 2 }) => {
