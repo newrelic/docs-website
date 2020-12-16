@@ -22,6 +22,7 @@ const REPLACEMENTS = [
   [/\bui\b/gi, 'UI'],
   [/\bapi\b/gi, 'API'],
   [/([wW])hats/gi, "$1hat's"],
+  [/\bsdk\b/gi, 'SDK'],
 ];
 
 exports.createPages = async ({ actions, graphql }) => {
