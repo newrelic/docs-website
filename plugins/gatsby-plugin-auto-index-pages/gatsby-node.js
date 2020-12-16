@@ -9,10 +9,7 @@ const h = require('hastscript');
 const u = require('unist-builder');
 
 const isDirectory = convert('directory');
-const isFile = convert('file');
 const isList = convert({ type: 'element', tagName: 'ul' });
-
-const SKIPPED_FOLDERS = ['', 'whats-new', 'docs/release-notes'];
 
 const REPLACEMENTS = [
   [/ios/gi, 'iOS'],
@@ -25,7 +22,8 @@ const REPLACEMENTS = [
   [/\bsdk\b/gi, 'SDK'],
 ];
 
-exports.createPages = async ({ actions, graphql }) => {
+exports.createPages = async ({ actions, graphql }, pluginOptions) => {
+  const { skippedDirectories } = pluginOptions;
   const { createPage } = actions;
 
   const { data } = await graphql(`
@@ -110,7 +108,7 @@ exports.createPages = async ({ actions, graphql }) => {
   visit(list, 'directory', (dir) => {
     const slug = `/${dir.path}`;
 
-    if (shouldSkipDirectory(dir)) {
+    if (skippedDirectories.includes(dir.path)) {
       return [visit.SKIP];
     }
 
@@ -201,50 +199,8 @@ const replace = (string) =>
 
 const capitalize = (word) => word.charAt(0).toUpperCase() + word.slice(1);
 
-const shouldSkipDirectory = (dir) =>
-  SKIPPED_FOLDERS.includes(dir.path) || SKIPPED_FOLDERS.includes(dir.basename);
-
 const depthOf = (node, dir) =>
   node.path.replace(new RegExp(`${dir.path}\\/`, '')).split('/').length;
 
-const uniq = (arr) => [...new Set(arr)];
-
-const getTitle = (node) =>
-  (node.childMdx || node.childMarkdownRemark).frontmatter.title;
-
 const getSlug = (node) =>
   (node.childMdx || node.childMarkdownRemark).fields.slug;
-
-const findPage = (page, path) => {
-  if (page.path === path) {
-    return page;
-  }
-
-  if (page.pages == null || page.pages.length === 0) {
-    return null;
-  }
-
-  return page.pages.find((child) => findPage(child, path));
-};
-
-const getPathToNode = (node, url, path = []) => {
-  if (node.path === url) {
-    return path;
-  }
-
-  if (node.pages == null || node.pages.length === 0) {
-    return null;
-  }
-
-  path.push(node.title);
-
-  const found = node.pages.find((child) => {
-    return getPathToNode(child, url, path);
-  });
-
-  if (found) {
-    return path;
-  }
-
-  path.pop();
-};
