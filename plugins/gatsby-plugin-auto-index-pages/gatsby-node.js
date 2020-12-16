@@ -1,26 +1,8 @@
 const path = require('path');
 const fromList = require('./utils/unist-fs-util-from-list');
 const visit = require('unist-util-visit');
-const convert = require('unist-util-is/convert');
-const { last } = require('lodash');
-const unified = require('unified');
-const html = require('rehype-stringify');
-const h = require('hastscript');
-const u = require('unist-builder');
-
-const isDirectory = convert('directory');
-const isList = convert({ type: 'element', tagName: 'ul' });
-
-const REPLACEMENTS = [
-  [/ios/gi, 'iOS'],
-  [/apm/gi, 'APM'],
-  [/new relic/gi, 'New Relic'],
-  [/\bphp\b/gi, 'PHP'],
-  [/\bui\b/gi, 'UI'],
-  [/\bapi\b/gi, 'API'],
-  [/([wW])hats/gi, "$1hat's"],
-  [/\bsdk\b/gi, 'SDK'],
-];
+const generateHTML = require('./utils/generate-html');
+const { sentenceCase } = require('./utils/string');
 
 exports.createPages = async ({ actions, graphql, reporter }, pluginOptions) => {
   const { skippedDirectories } = pluginOptions;
@@ -148,58 +130,6 @@ exports.createPages = async ({ actions, graphql, reporter }, pluginOptions) => {
     });
   });
 };
-
-const generateHTML = (dir) => {
-  const tree = u('root', []);
-
-  visit(
-    dir,
-    (node) => node !== dir,
-    (node) => {
-      if (isDirectory(node)) {
-        // Start headings at level 2
-        const depth = depthOf(node, dir) + 1;
-
-        tree.children.push(h(`h${depth}`, sentenceCase(node.basename)));
-
-        return;
-      }
-
-      const lastChild = last(tree.children);
-      const linkListItem = h('li', [
-        h('a', { href: node.data.fields.slug }, [
-          node.data.frontmatter.title.trim(),
-        ]),
-      ]);
-
-      if (lastChild && isList(lastChild)) {
-        lastChild.children.push(linkListItem);
-      } else {
-        tree.children.push(h('ul', [linkListItem]));
-      }
-    }
-  );
-
-  return unified().use(html).stringify(tree);
-};
-
-const sentenceCase = (dirname) => {
-  const [firstWord, ...words] = dirname.split('-');
-  const title = [capitalize(firstWord), ...words].join(' ');
-
-  return replace(title);
-};
-
-const replace = (string) =>
-  REPLACEMENTS.reduce(
-    (str, [regex, replacement]) => str.replace(regex, replacement),
-    string
-  );
-
-const capitalize = (word) => word.charAt(0).toUpperCase() + word.slice(1);
-
-const depthOf = (node, dir) =>
-  node.path.replace(new RegExp(`${dir.path}\\/`, '')).split('/').length;
 
 const getSlug = (node) =>
   (node.childMdx || node.childMarkdownRemark).fields.slug;
