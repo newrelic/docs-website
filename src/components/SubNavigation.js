@@ -32,7 +32,7 @@ const SubNavigation = ({ nav }) => (
     </Link>
     {nav && (
       <>
-        <h2>{nav?.title}</h2>
+        <h2>{nav.title}</h2>
         <nav role="navigation" aria-label="SubNavigation">
           {nav.pages.map((page) => (
             <NavItem key={page.title} page={page} />

@@ -1,6 +1,7 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 import { Layout } from '@newrelic/gatsby-theme-newrelic';
+import { graphql } from 'gatsby';
 import PageTitle from '../components/PageTitle';
 import SEO from '../components/seo';
 import TableOfContentsContainer from '../components/TableOfContentsContainer';
@@ -22,5 +23,11 @@ const IndexPage = ({ pageContext }) => {
 IndexPage.propTypes = {
   pageContext: PropTypes.object.isRequired,
 };
+
+export const pageQuery = graphql`
+  query($slug: String!) {
+    ...MainLayout_query
+  }
+`;
 
 export default IndexPage;
