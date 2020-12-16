@@ -11,17 +11,15 @@ const TableOfContentsPage = ({ data, pageContext }) => {
   const { nav } = data;
   const { slug } = pageContext;
   const landingPageSlug = slug.replace('/table-of-contents', '');
-  const subnav = useMemo(() => findPage(nav, landingPageSlug), [
+  const subnav = useMemo(() => (nav ? findPage(nav, landingPageSlug) : null), [
     nav,
     landingPageSlug,
   ]);
 
-  const { title } = subnav;
-
   return (
     <>
-      <SEO title={title} />
-      <PageTitle>{title}</PageTitle>
+      <SEO title={subnav?.title} />
+      {subnav && <PageTitle>{subnav.title}</PageTitle>}
       <Link
         to={landingPageSlug}
         css={css`
@@ -46,7 +44,7 @@ const TableOfContentsPage = ({ data, pageContext }) => {
         Back to overview
       </Link>
       <Layout.Content>
-        <IndexContents nav={subnav} />
+        {subnav && <IndexContents nav={subnav} />}
       </Layout.Content>
     </>
   );
