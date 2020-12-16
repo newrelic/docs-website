@@ -14,7 +14,6 @@ exports.createPages = async ({ actions, graphql, reporter }, pluginOptions) => {
         filter: {
           sourceInstanceName: { eq: "markdown-pages" }
           base: { in: ["index.mdx", "index.md"] }
-          relativePath: { regex: "/^(?!whats-new).*$/" }
         }
       ) {
         nodes {
