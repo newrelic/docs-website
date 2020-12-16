@@ -11,10 +11,10 @@ const TableOfContentsPage = ({ data, pageContext }) => {
   const { nav } = data;
   const { slug } = pageContext;
   const landingPageSlug = slug.replace('/table-of-contents', '');
-  const subnav = useMemo(
-    () => findPage(nav, slug.replace('/table-of-contents', '')),
-    [nav, slug]
-  );
+  const subnav = useMemo(() => findPage(nav, landingPageSlug), [
+    nav,
+    landingPageSlug,
+  ]);
 
   const { title } = subnav;
 
