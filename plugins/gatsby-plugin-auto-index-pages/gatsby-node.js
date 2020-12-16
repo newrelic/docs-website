@@ -22,11 +22,11 @@ const REPLACEMENTS = [
   [/\bsdk\b/gi, 'SDK'],
 ];
 
-exports.createPages = async ({ actions, graphql }, pluginOptions) => {
+exports.createPages = async ({ actions, graphql, reporter }, pluginOptions) => {
   const { skippedDirectories } = pluginOptions;
   const { createPage } = actions;
 
-  const { data } = await graphql(`
+  const { data, errors } = await graphql(`
     query MyQuery {
       tableOfContents: allFile(
         filter: {
@@ -49,10 +49,10 @@ exports.createPages = async ({ actions, graphql }, pluginOptions) => {
         }
       }
       allFile(
+        sort: { fields: [relativePath] }
         filter: {
           sourceInstanceName: { eq: "markdown-pages" }
           base: { nin: ["index.mdx", "index.md"] }
-          sort: { fields: [relativePath] }
           children: {
             elemMatch: { internal: { type: { in: ["MarkdownRemark", "Mdx"] } } }
           }
@@ -80,12 +80,11 @@ exports.createPages = async ({ actions, graphql }, pluginOptions) => {
         }
       }
     }
-
-    fragment NavFields on NavYaml {
-      title
-      path
-    }
   `);
+
+  if (errors) {
+    reporter.panicOnBuild(errors[0]);
+  }
 
   const {
     tableOfContents: { nodes: tableOfContentsNodes },
