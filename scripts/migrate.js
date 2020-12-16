@@ -6,7 +6,6 @@ const fetchWhatsNew = require('./utils/migrate/fetch-whats-new');
 const saveWhatsNewIds = require('./utils/migrate/save-whats-new-ids');
 const createDirectories = require('./utils/migrate/create-directories');
 const convertFile = require('./utils/migrate/convert-file');
-const createIndexPages = require('./utils/migrate/create-index-pages');
 const createNavStructure = require('./utils/migrate/create-nav-structure');
 const toVFile = require('./utils/migrate/to-vfile');
 const logger = require('./utils/logger');
