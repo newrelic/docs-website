@@ -84,7 +84,6 @@ exports.createPages = async ({ actions, graphql, reporter }, pluginOptions) => {
   }));
 
   const list = fromList(files, ({ contents }) => contents);
-  const indexPages = [];
 
   visit(list, 'directory', (dir) => {
     const slug = `/${dir.path}`;
@@ -97,21 +96,13 @@ exports.createPages = async ({ actions, graphql, reporter }, pluginOptions) => {
       return;
     }
 
-    indexPages.push({
-      slug,
-      title: sentenceCase(dir.basename),
-      html: generateHTML(dir),
-    });
-  });
-
-  indexPages.forEach(({ slug, title, html }) => {
     createPage({
       path: slug,
       component: path.resolve('src/templates/indexPage.js'),
       context: {
         slug,
-        html,
-        title,
+        html: generateHTML(dir),
+        title: sentenceCase(dir.basename),
         fileRelativePath: null,
       },
     });
