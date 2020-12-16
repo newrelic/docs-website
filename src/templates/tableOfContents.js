@@ -8,7 +8,12 @@ import SEO from '../components/seo';
 import IndexContents from '../components/IndexContents';
 
 const TableOfContentsPage = ({ data, pageContext }) => {
-  const { nav } = data;
+  const {
+    nav,
+    mdx: {
+      frontmatter: { title },
+    },
+  } = data;
   const { slug } = pageContext;
   const landingPageSlug = slug.replace('/table-of-contents', '');
   const subnav = useMemo(() => (nav ? findPage(nav, landingPageSlug) : null), [
@@ -18,8 +23,8 @@ const TableOfContentsPage = ({ data, pageContext }) => {
 
   return (
     <>
-      <SEO title={subnav?.title} />
-      {subnav && <PageTitle>{subnav.title}</PageTitle>}
+      <SEO title={title} />
+      <PageTitle>{title}</PageTitle>
       <Link
         to={landingPageSlug}
         css={css`
@@ -56,7 +61,12 @@ TableOfContentsPage.propTypes = {
 };
 
 export const pageQuery = graphql`
-  query($slug: String!) {
+  query($slug: String!, $landingPageSlug: String!) {
+    mdx(fields: { slug: { eq: $landingPageSlug } }) {
+      frontmatter {
+        title
+      }
+    }
     ...MainLayout_query
   }
 `;
