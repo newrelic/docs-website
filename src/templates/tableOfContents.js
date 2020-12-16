@@ -59,29 +59,7 @@ TableOfContentsPage.propTypes = {
 
 export const pageQuery = graphql`
   query($slug: String!) {
-    nav(slug: $slug) {
-      pages {
-        ...TableOfContents_navPages
-        pages {
-          ...TableOfContents_navPages
-          pages {
-            ...TableOfContents_navPages
-            pages {
-              ...TableOfContents_navPages
-              pages {
-                ...TableOfContents_navPages
-              }
-            }
-          }
-        }
-      }
-    }
     ...MainLayout_query
-  }
-
-  fragment TableOfContents_navPages on NavItem {
-    title
-    url
   }
 `;
 
