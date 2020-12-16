@@ -59,7 +59,7 @@ module.exports = {
     landing_page: Infinity,
     api_doc: Infinity,
     release_notes: Infinity,
-    troubleshooting_doc: 6,
+    troubleshooting_doc: Infinity,
     nr1_announcement: Infinity,
   },
 };
