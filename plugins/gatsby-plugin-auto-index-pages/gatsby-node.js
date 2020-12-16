@@ -30,26 +30,6 @@ exports.createPages = async ({ actions, graphql }) => {
 
   const { data } = await graphql(`
     query MyQuery {
-      allNavYaml {
-        nodes {
-          ...NavFields
-          pages {
-            ...NavFields
-            pages {
-              ...NavFields
-              pages {
-                ...NavFields
-                pages {
-                  ...NavFields
-                  pages {
-                    ...NavFields
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
       tableOfContents: allFile(
         filter: {
           sourceInstanceName: { eq: "markdown-pages" }
@@ -74,6 +54,7 @@ exports.createPages = async ({ actions, graphql }) => {
         filter: {
           sourceInstanceName: { eq: "markdown-pages" }
           base: { nin: ["index.mdx", "index.md"] }
+          sort: { fields: [relativePath] }
           children: {
             elemMatch: { internal: { type: { in: ["MarkdownRemark", "Mdx"] } } }
           }
@@ -109,7 +90,6 @@ exports.createPages = async ({ actions, graphql }) => {
   `);
 
   const {
-    allNavYaml: { nodes: navNodes },
     tableOfContents: { nodes: tableOfContentsNodes },
     allFile: { nodes: fileNodes },
   } = data;
