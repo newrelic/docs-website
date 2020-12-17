@@ -1,6 +1,8 @@
 const fs = require('fs');
 const path = require('path');
 const indentedCodeBlock = require('./codemods/indentedCodeBlock');
+const format = require('date-fns/format');
+const parseISO = require('date-fns/parseISO');
 
 const siteUrl = 'https://docs.newrelic.com';
 
@@ -295,31 +297,38 @@ module.exports = {
           {
             query: `
               {
-                allMdx(filter: {frontmatter: {releaseDateTime: {ne: null}}}) {
+                allMdx(filter: {fileAbsolutePath: {regex: "/docs/release-notes/"}}) {
                   nodes {
                     id
                     slug
+                    html
                     frontmatter {
-                      releaseDateTime
-                      title
+                      releaseDate
+                      subject
+                      version
                     }
                   }
                 }
               }
             `,
             serialize: ({ query: { site, allMdx } }) =>
-              allMdx.nodes.map(({ frontmatter, slug, id }) => ({
-                title,
-                custom_elements: [
-                  { guid: id },
-                  { link: new URL(slug, site.siteMetadata.siteUrl).href },
-                  { pubDate: frontmatter.releaseDateTime },
-                  { 'content:encoded': null }, // TODO: get raw HTML for this?
-                  {
-                    description: `Released on: ${frontmatter.releaseDateTime}.`,
-                  },
-                ],
-              })),
+              allMdx.nodes.map(({ frontmatter, slug, id, html }) => {
+                const date = parseISO(frontmatter.releaseDate);
+                const formattedDate = format(date, 'EE, dd LLL yyyy');
+
+                return {
+                  guid: id,
+                  title: `${frontmatter.subject} ${frontmatter.version}`,
+                  custom_elements: [
+                    { link: new URL(slug, site.siteMetadata.siteUrl).href },
+                    { pubDate: formattedDate },
+                    { 'content:encoded': html },
+                    {
+                      description: `Released on: ${formattedDate}.`,
+                    },
+                  ],
+                };
+              }),
             output: '/rss.xml',
             title: 'Release Notes RSS Feed',
           },
