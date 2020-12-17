@@ -24,6 +24,7 @@ const {
   DICTIONARY_DIR,
   WHATS_NEW_DIR,
 } = require('./utils/constants');
+const copyManualEdits = require('./utils/migrate/copy-manual-edits');
 
 const all = (list, fn) => Promise.all(list.map(fn));
 
@@ -113,6 +114,9 @@ const run = async () => {
     await all(files.concat(navFiles, definitionFiles, whatsNewFiles), (file) =>
       write(file, 'utf-8')
     );
+
+    logger.normal('Copying manual edits');
+    await copyManualEdits();
 
     // Run `DEBUG=true yarn migrate` to also write a `.html` file right next to
     // the `.mdx` file. This can help us look at the original HTML to compare
