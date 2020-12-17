@@ -307,16 +307,19 @@ module.exports = {
                 }
               }
             `,
-            serialize: ({ query: { site, allMdx } }) => {
-              return allMdx.nodes.map(({ frontmatter, slug, id }) => ({
-                title: frontmatter.title,
-                link: new URL(slug, site.siteMetadata.siteUrl).href, // TODO: formatting?
-                description: null, // TODO: find something to add here (or remove it)
-                pubDate: frontmatter.releaseDateTime, // TODO: get this to show in XML
-                'content:encoded': null, // TODO: get raw HTML for this?
-                guid: id,
-              }));
-            },
+            serialize: ({ query: { site, allMdx } }) =>
+              allMdx.nodes.map(({ frontmatter, slug, id }) => ({
+                title,
+                custom_elements: [
+                  { guid: id },
+                  { link: new URL(slug, site.siteMetadata.siteUrl).href },
+                  { pubDate: frontmatter.releaseDateTime },
+                  { 'content:encoded': null }, // TODO: get raw HTML for this?
+                  {
+                    description: `Released on: ${frontmatter.releaseDateTime}.`,
+                  },
+                ],
+              })),
             output: '/rss.xml',
             title: 'Release Notes RSS Feed',
           },
