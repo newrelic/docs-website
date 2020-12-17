@@ -12,6 +12,6 @@ getStartedLink: ''
 
 Sharing insights, dashboards, and curated views from anywhere in New Relic One just got easier. In New Relic One, click the permalink icon to automatically copy a short, permanent URL to your clipboard. Then, you can share that observability throughout your organization.
 
-![• New Relic ONE™ copy.png](./images/%E2%80%A2-New-Relic-ONE%E2%84%A2-copy.png "• New Relic ONE™ copy.png")
+![new-relic-one-ss.png](./images/new-relic-one-ss.png "new-relic-one-ss.png")
 
 Use the permalink button to share what you're seeing with other people in your organization.
