@@ -2,7 +2,7 @@ const fs = require('fs');
 const vfileGlob = require('vfile-glob');
 const { write } = require('to-vfile');
 
-const copyManualEdits = async () => {
+const copyManualEdits = () => {
   return new Promise((resolve) => {
     vfileGlob('./src/manual-edits/**/*').subscribe({
       next: async (file) => {
