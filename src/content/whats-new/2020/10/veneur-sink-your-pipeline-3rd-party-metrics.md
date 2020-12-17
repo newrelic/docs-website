@@ -1,9 +1,6 @@
 ---
 title: 'Veneur sink: Your pipeline to 3rd party metrics'
-contentType: nr1Announcement
-template: whatsNew
 summary: Send metrics to New Relic using our Veneur sink.
-id: '41291'
 releaseDate: '2020-10-30'
 learnMoreLink: 'https://blog.newrelic.com/product-news/new-relic-veneur-sink/'
 getStartedLink: 'https://github.com/stripe/veneur#what-is-veneur'

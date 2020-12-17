@@ -6,10 +6,16 @@ import PageTitle from '../components/PageTitle';
 import MDXContainer from '../components/MDXContainer';
 import SEO from '../components/seo';
 
-const releaseNoteTemplate = ({ data }) => {
-  const { mdx } = data;
-  const { frontmatter, body } = mdx;
-  const { title } = frontmatter;
+const ReleaseNoteTemplate = ({ data }) => {
+  const {
+    mdx: {
+      body,
+      frontmatter: { subject, version },
+    },
+  } = data;
+
+  const title = `${subject} ${version}`;
+
   return (
     <>
       <SEO title={title} />
@@ -21,7 +27,7 @@ const releaseNoteTemplate = ({ data }) => {
   );
 };
 
-releaseNoteTemplate.propTypes = {
+ReleaseNoteTemplate.propTypes = {
   data: PropTypes.object.isRequired,
 };
 
@@ -30,11 +36,12 @@ export const pageQuery = graphql`
     mdx(fields: { slug: { eq: $slug } }) {
       body
       frontmatter {
-        title
+        subject
+        version
       }
     }
     ...MainLayout_query
   }
 `;
 
-export default releaseNoteTemplate;
+export default ReleaseNoteTemplate;

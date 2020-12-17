@@ -1,11 +1,8 @@
 ---
 title: Percentiles now available in events-to-metrics service
-contentType: nr1Announcement
-template: whatsNew
 summary: >-
   For the events-to-metrics service, return an attribute's approximate value at
   a given percentile.
-id: '41551'
 releaseDate: '2020-12-01'
 learnMoreLink: >-
   https://docs.newrelic.com/docs/query-your-data/nrql-new-relic-query-language/get-started/nrql-syntax-clauses-functions#func-percentile

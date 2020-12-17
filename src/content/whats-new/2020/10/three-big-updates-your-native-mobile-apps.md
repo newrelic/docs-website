@@ -1,17 +1,13 @@
 ---
 title: Three big updates for your native mobile apps
-contentType: nr1Announcement
-template: whatsNew
 summary: >-
   Three big updates: The New Relic iOS and tvOS agents will now be distributed
   as the New Relic XCFramework Agent 7.0.0. For instrumenting React Native
   applications, we have an experimental open source React Native Module. Plus,
   we’ve improved reliability from our Android service and changed the way our
   service handles Android stack deobfuscation.
-id: '41281'
 releaseDate: '2020-10-29'
 learnMoreLink: 'https://blog.newrelic.com/product-news/mobile-updates-october-2020/'
-getStartedLink: ''
 ---
 
 The New Relic iOS and tvOS agents will now be distributed as the [New Relic XCFramework Agent 7.0.0](https://docs.newrelic.com/docs/release-notes/mobile-release-notes/xcframework-release-notes/xcframework-agent-700). This agent supports iOS, tvOS, and the newly added [iOS for Mac Catalyst](https://developer.apple.com/mac-catalyst). Additionally, the New Relic XCFramework Agent will be distributed as a [dynamically linked library](https://developer.apple.com/library/archive/documentation/DeveloperTools/Conceptual/DynamicLibraries/100-Articles/OverviewOfDynamicLibraries.html).
