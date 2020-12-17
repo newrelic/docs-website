@@ -20,6 +20,11 @@ const GATSBY_TEMPLATE = {
   [TYPES.WHATS_NEW]: 'whatsNew',
 };
 
+const REGEX = {
+  MATCH_ON_SEMANTIC_VERSION: /^(.*?)\d+\.\d+(\.\d+){0,2}/,
+  MATCH_ON_V_VERSION: /^(.*?)v+\d+/,
+};
+
 const getFrontmatter = (file) => {
   const {
     data,
@@ -81,8 +86,16 @@ const addCustomFrontmatter = {
     };
   },
   [TYPES.RELEASE_NOTE]: ({ doc, topics }) => {
-    // TODO browser agent versioning is v34339 and breaks this
-    const subject = doc.title.match(/^(.*?)\d+\.\d+(\.\d+){0,2}/)[1].trim();
+    // NOTE: Most agent titles are "Agent Name 1.2.3", but the browser agent
+    // use the title scheme: "Browser Agent v123".
+    const titleBySemantic = doc.title.match(REGEX.MATCH_ON_SEMANTIC_VERSION);
+    const titleByVersion = doc.title.match(REGEX.MATCH_ON_V_VERSION);
+
+    const subject =
+      titleBySemantic && titleBySemantic.length >= 1
+        ? titleBySemantic[1].trim()
+        : titleByVersion[1].trim();
+
     return stripNulls({
       subject,
       releaseDate: doc.releasedOn.split(' ')[0],
