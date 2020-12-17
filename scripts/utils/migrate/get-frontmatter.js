@@ -90,7 +90,7 @@ const addCustomFrontmatter = {
   [TYPES.WHATS_NEW]: ({ doc }) => {
     return stripNulls({
       title: doc.title,
-      summary: doc.summary ? he.decode(doc.summary) : null,
+      summary: doc.summary ? he.decode(doc.summary).trim() : null,
       releaseDate: doc.releaseDateTime.split(' ')[0],
       learnMoreLink: doc.learnMoreLink,
       getStartedLink: doc.getStartedLink,
