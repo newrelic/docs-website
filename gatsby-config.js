@@ -280,6 +280,50 @@ module.exports = {
       },
     },
     {
+      resolve: 'gatsby-plugin-feed',
+      options: {
+        query: `
+          {
+            site {
+              siteMetadata {
+                siteUrl
+              }
+            }
+          }
+        `,
+        feeds: [
+          {
+            query: `
+              {
+                allMdx(filter: {frontmatter: {releaseDateTime: {ne: null}}}) {
+                  nodes {
+                    id
+                    slug
+                    frontmatter {
+                      releaseDateTime
+                      title
+                    }
+                  }
+                }
+              }
+            `,
+            serialize: ({ query: { site, allMdx } }) => {
+              return allMdx.nodes.map(({ frontmatter, slug, id }) => ({
+                title: frontmatter.title,
+                link: new URL(slug, site.siteMetadata.siteUrl).href, // TODO: formatting?
+                description: null, // TODO: find something to add here (or remove it)
+                pubDate: frontmatter.releaseDateTime, // TODO: get this to show in XML
+                'content:encoded': null, // TODO: get raw HTML for this?
+                guid: id,
+              }));
+            },
+            output: '/rss.xml',
+            title: 'Release Notes RSS Feed',
+          },
+        ],
+      },
+    },
+    {
       resolve: 'gatsby-source-data-dictionary',
       options: {
         path: dataDictionaryPath,
