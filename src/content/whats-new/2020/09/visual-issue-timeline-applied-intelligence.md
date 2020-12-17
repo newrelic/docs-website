@@ -1,9 +1,6 @@
 ---
 title: Visual issue timeline in Applied Intelligence
-contentType: nr1Announcement
-template: whatsNew
-summary: 'Use our Gantt-style timeline chart to see your related events. '
-id: '40931'
+summary: Use our Gantt-style timeline chart to see your related events.
 releaseDate: '2020-09-01'
 learnMoreLink: 'https://blog.newrelic.com/product-news/feature-roundup-applied-intelligence/'
 getStartedLink: >-

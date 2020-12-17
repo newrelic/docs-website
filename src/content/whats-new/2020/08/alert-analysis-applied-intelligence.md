@@ -1,11 +1,8 @@
 ---
 title: Alert analysis for Applied Intelligence
-contentType: nr1Announcement
-template: whatsNew
 summary: >-
   Alert analysis gives you greater context for your alert violations and
   notifications.
-id: '40491'
 releaseDate: '2020-08-18'
 learnMoreLink: 'https://blog.newrelic.com/product-news/how-to-analyze-alert-violations/'
 getStartedLink: >-

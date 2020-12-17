@@ -1,11 +1,8 @@
 ---
 title: New Relic achieves AWS Outposts Ready designation
-contentType: nr1Announcement
-template: whatsNew
 summary: >-
   New Relic has achieved the AWS Outposts Ready designation, part of the Amazon
   Web Services (AWS) Service Ready Program.
-id: '40841'
 releaseDate: '2020-10-07'
 learnMoreLink: 'https://newrelic.com/press-release/20200915'
 getStartedLink: >-

@@ -1,11 +1,8 @@
 ---
 title: Scheduled alert muting
-contentType: nr1Announcement
-template: whatsNew
 summary: >-
   Schedule when you want to mute alerts to avoid messages during maintenance or
   deployments.
-id: '40941'
 releaseDate: '2020-07-30'
 learnMoreLink: >-
   https://discuss.newrelic.com/t/release-muting-rules-single-occurrence-scheduling/110098

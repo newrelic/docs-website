@@ -1,9 +1,6 @@
 ---
 title: New Relic One has dark mode!
-contentType: nr1Announcement
-template: whatsNew
 summary: We now have dark mode!
-id: '40426'
 releaseDate: '2020-09-04'
 learnMoreLink: 'https://blog.newrelic.com/product-news/embrace-the-dark-mode/'
 getStartedLink: >-
