@@ -1,0 +1,19 @@
+const vfileGlob = require('vfile-glob');
+const { write } = require('to-vfile');
+
+const copyManualEdits = async () => {
+  return new Promise((resolve) => {
+    vfileGlob('./src/manual-edits/**/*').subscribe({
+      next: async (file) => {
+        file.path = file.path.replace('src/manual-edits', 'src/content');
+
+        await write(file, 'utf-8');
+      },
+      complete: () => {
+        resolve();
+      },
+    });
+  });
+};
+
+module.exports = copyManualEdits;
