@@ -108,10 +108,12 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
   const { allMarkdownRemark, allMdx } = data;
 
   allMdx.edges.forEach(({ node }) => {
-    const { frontmatter, fields } = node;
+    const { fields } = node;
     const { fileRelativePath, slug } = fields;
 
-    if (process.env.NODE_ENV === 'development' && !frontmatter.template) {
+    const template = getTemplate(node);
+
+    if (process.env.NODE_ENV === 'development' && !template) {
       createPage({
         path: slug,
         component: path.resolve(TEMPLATE_DIR, 'dev/missingTemplate.js'),
@@ -123,7 +125,7 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
     } else {
       createPage({
         path: slug,
-        component: path.resolve(`${TEMPLATE_DIR}${frontmatter.template}.js`),
+        component: path.resolve(`${TEMPLATE_DIR}${template}.js`),
         context: {
           fileRelativePath,
           slug,
@@ -135,13 +137,12 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
   allMarkdownRemark.edges.forEach(({ node }) => {
     const {
       fileAbsolutePath,
-      frontmatter: { template },
       fields: { slug },
     } = node;
 
     createPage({
       path: slug,
-      component: path.resolve(`${TEMPLATE_DIR}${template}.js`),
+      component: path.resolve(`${TEMPLATE_DIR}${getTemplate(node)}.js`),
       context: {
         slug,
         fileRelativePath: getFileRelativePath(fileAbsolutePath),
@@ -196,6 +197,17 @@ exports.onCreatePage = ({ page, actions }) => {
     page.context.fileRelativePath = getFileRelativePath(page.componentPath);
 
     createPage(page);
+  }
+};
+
+const getTemplate = (node) => {
+  switch (true) {
+    case node.fileAbsolutePath.includes('src/content/docs/release-notes'):
+      return 'releaseNote';
+    case node.fileAbsolutePath.includes('src/content/whats-new'):
+      return 'whatsNew';
+    default:
+      return node.frontmatter.template;
   }
 };
 
