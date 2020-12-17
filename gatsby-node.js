@@ -73,11 +73,11 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
       ) {
         edges {
           node {
-            fileAbsolutePath
             frontmatter {
               template
             }
             fields {
+              fileRelativePath
               slug
             }
           }
@@ -108,8 +108,9 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
   const { allMarkdownRemark, allMdx } = data;
 
   allMdx.edges.forEach(({ node }) => {
-    const { fields } = node;
-    const { fileRelativePath, slug } = fields;
+    const {
+      fields: { fileRelativePath, slug },
+    } = node;
 
     const template = getTemplate(node);
 
@@ -136,8 +137,7 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
 
   allMarkdownRemark.edges.forEach(({ node }) => {
     const {
-      fileAbsolutePath,
-      fields: { slug },
+      fields: { fileRelativePath, slug },
     } = node;
 
     createPage({
@@ -145,7 +145,7 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
       component: path.resolve(`${TEMPLATE_DIR}${getTemplate(node)}.js`),
       context: {
         slug,
-        fileRelativePath: getFileRelativePath(fileAbsolutePath),
+        fileRelativePath,
       },
     });
   });
@@ -202,9 +202,9 @@ exports.onCreatePage = ({ page, actions }) => {
 
 const getTemplate = (node) => {
   switch (true) {
-    case node.fileAbsolutePath.includes('src/content/docs/release-notes'):
+    case node.fileRelativePath.includes('src/content/docs/release-notes'):
       return 'releaseNote';
-    case node.fileAbsolutePath.includes('src/content/whats-new'):
+    case node.fileRelativePath.includes('src/content/whats-new'):
       return 'whatsNew';
     default:
       return node.frontmatter.template;
