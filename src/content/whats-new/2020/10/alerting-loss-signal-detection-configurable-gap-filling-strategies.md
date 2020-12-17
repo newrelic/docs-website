@@ -1,9 +1,6 @@
 ---
 title: 'Alerting: Loss of signal detection and configurable gap-filling strategies'
-contentType: nr1Announcement
-template: whatsNew
 summary: Specify how long the system should wait before a signal is considered lost.
-id: '40961'
 releaseDate: '2020-10-09'
 learnMoreLink: >-
   https://discuss.newrelic.com/t/announcing-new-relic-one-streaming-alerts-for-nrql-conditions/115361

@@ -1,9 +1,6 @@
 ---
 title: New Relic One now has a new UI for OpenTelemetry
-contentType: nr1Announcement
-template: whatsNew
 summary: Check out our APM functionality for your OpenTelemetry data.
-id: '40951'
 releaseDate: '2020-10-14'
 learnMoreLink: 'https://blog.newrelic.com/product-news/opentelemetry-user-experience/'
 getStartedLink: >-

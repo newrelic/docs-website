@@ -1,12 +1,8 @@
 ---
 title: Store data in an encrypted storage solution with NerdStorageVault
-contentType: nr1Announcement
-template: whatsNew
 summary: Store and receive sensitive third-party secrets data.
-id: '41516'
 releaseDate: '2020-10-13'
 learnMoreLink: 'https://developer.newrelic.com/explore-docs/nerdstoragevault'
-getStartedLink: ''
 ---
 
 [NerdGraph](https://developer.newrelic.com/collect-data/get-started-nerdgraph-api-explorer) allows you to access your New Relic data, but when you want to fetch third-party data, NerdStorageVault allows you to safely store a secret to authenticate with a third-party service.

@@ -77,36 +77,34 @@ const addCustomFrontmatter = {
       japaneseVersion: japaneseUrl,
     };
   },
-  [TYPES.RELEASE_NOTE]: ({ doc, topics }, defaultFrontmatter) => {
-    return {
-      ...defaultFrontmatter,
-      topics,
-      releaseDateTime: doc.releasedOn || '',
-      releaseVersion: doc.releaseVersion || '',
-      downloadLink: doc.downloadLink || '',
-    };
+  [TYPES.RELEASE_NOTE]: ({ doc }) => {
+    const subject = doc.title.match(/^(.*?)\d+\.\d+(\.\d+){0,2}/)[1].trim();
+
+    return stripNulls({
+      subject,
+      releaseDate: doc.releasedOn.split(' ')[0],
+      version: doc.releaseVersion,
+      downloadLink: doc.downloadLink,
+    });
   },
-  [TYPES.WHATS_NEW]: ({ doc }, defaultFrontmatter) => {
-    return {
-      ...defaultFrontmatter,
-      summary: he.decode(doc.summary || ''),
-      id: doc.docId,
+  [TYPES.WHATS_NEW]: ({ doc }) => {
+    return stripNulls({
+      title: doc.title,
+      summary: doc.summary ? he.decode(doc.summary).trim() : null,
       releaseDate: doc.releaseDateTime.split(' ')[0],
-      learnMoreLink: doc.learnMoreLink || '',
-      getStartedLink: doc.getStartedLink || '',
-    };
+      learnMoreLink: doc.learnMoreLink,
+      getStartedLink: doc.getStartedLink,
+    });
   },
   [TYPES.ATTRIBUTE_DEFINITION]: ({ doc }) => {
-    return Object.fromEntries(
-      Object.entries({
-        name: doc.title,
-        type: 'attribute',
-        units: doc.units
-          ? doc.units.replace('<b>Unit of measurement:</b>', '').trim()
-          : null,
-        events: doc.eventTypes,
-      }).filter(([, value]) => value != null)
-    );
+    return stripNulls({
+      name: doc.title,
+      type: 'attribute',
+      units: doc.units
+        ? doc.units.replace('<b>Unit of measurement:</b>', '').trim()
+        : null,
+      events: doc.eventTypes,
+    });
   },
   [TYPES.EVENT_DEFINITION]: ({ doc }) => ({
     name: doc.name,
@@ -114,5 +112,8 @@ const addCustomFrontmatter = {
     dataSources: doc.dataSources,
   }),
 };
+
+const stripNulls = (obj) =>
+  Object.fromEntries(Object.entries(obj).filter(([, value]) => value != null));
 
 module.exports = getFrontmatter;

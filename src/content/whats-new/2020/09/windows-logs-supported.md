@@ -1,11 +1,7 @@
 ---
 title: Windows Logs supported
-contentType: nr1Announcement
-template: whatsNew
 summary: Support for Windows Logs with New Relic's infrastructure agent
-id: '41091'
 releaseDate: '2020-09-09'
-learnMoreLink: ''
 getStartedLink: >-
   https://docs.newrelic.com/docs/integrations/host-integrations/host-integrations-list/windows-event-log-integration
 ---

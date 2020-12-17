@@ -1,9 +1,6 @@
 ---
 title: Issue summary and analysis in Applied Intelligence
-contentType: nr1Announcement
-template: whatsNew
 summary: Rely on the issue summary to help you identify and resolve relevant issues.
-id: '40926'
 releaseDate: '2020-09-01'
 learnMoreLink: 'https://blog.newrelic.com/product-news/feature-roundup-applied-intelligence/'
 getStartedLink: >-

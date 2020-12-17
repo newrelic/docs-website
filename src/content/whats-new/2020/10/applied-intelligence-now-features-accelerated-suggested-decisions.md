@@ -1,9 +1,6 @@
 ---
 title: Applied Intelligence now features accelerated suggested decisions
-contentType: nr1Announcement
-template: whatsNew
 summary: Reduce alert noise by using our suggested correlation decisions.
-id: '40936'
 releaseDate: '2020-10-01'
 learnMoreLink: >-
   https://blog.newrelic.com/product-news/how-to-use-decisions-applied-intelligence/

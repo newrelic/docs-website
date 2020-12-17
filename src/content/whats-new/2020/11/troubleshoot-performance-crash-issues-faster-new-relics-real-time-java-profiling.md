@@ -2,12 +2,9 @@
 title: >-
   Troubleshoot performance and crash issues faster with New Relic's real-time
   Java profiling
-contentType: nr1Announcement
-template: whatsNew
 summary: >-
   New Relic is excited to announce the availability of real-time Java profiling
-  using Java Flight Recorder (JFR). 
-id: '41366'
+  using Java Flight Recorder (JFR).
 releaseDate: '2020-11-03'
 learnMoreLink: 'https://blog.newrelic.com/product-news/real-time-java-profiling/'
 getStartedLink: >-

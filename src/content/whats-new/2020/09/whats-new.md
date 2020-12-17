@@ -1,12 +1,7 @@
 ---
 title: What's new?
-contentType: nr1Announcement
-template: whatsNew
 summary: Your in-product destination for New Relic One updates!
-id: '40471'
 releaseDate: '2020-09-04'
-learnMoreLink: ''
-getStartedLink: ''
 ---
 
 Over the last month or two, we’ve made a lot of [changes](https://blog.newrelic.com/product-news/reimagined-new-relic-one-experience/). As we continue to build out new features and make iterations to New Relic One based on your feedback, we want to ensure you have an easy way to find all the information that you care about and need to navigate the platform.

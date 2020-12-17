@@ -1,9 +1,8 @@
 ---
 title: New Relic Edge with Infinite Tracing
-contentType: nr1Announcement
-template: whatsNew
-summary: "New Relic users with Pro or Enterprise Full-Stack Observability can now access and benefit from New Relic Edge.\r\n"
-id: '40781'
+summary: >-
+  New Relic users with Pro or Enterprise Full-Stack Observability can now access
+  and benefit from New Relic Edge.
 releaseDate: '2020-09-29'
 learnMoreLink: 'https://blog.newrelic.com/product-news/new-relic-edge-ga/'
 getStartedLink: >-
