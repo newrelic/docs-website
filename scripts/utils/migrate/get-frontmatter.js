@@ -87,15 +87,14 @@ const addCustomFrontmatter = {
       downloadLink: doc.downloadLink,
     });
   },
-  [TYPES.WHATS_NEW]: ({ doc }, defaultFrontmatter) => {
-    return {
-      ...defaultFrontmatter,
-      summary: he.decode(doc.summary || ''),
-      id: doc.docId,
+  [TYPES.WHATS_NEW]: ({ doc }) => {
+    return stripNulls({
+      title: doc.title,
+      summary: doc.summary ? he.decode(doc.summary) : null,
       releaseDate: doc.releaseDateTime.split(' ')[0],
-      learnMoreLink: doc.learnMoreLink || '',
-      getStartedLink: doc.getStartedLink || '',
-    };
+      learnMoreLink: doc.learnMoreLink,
+      getStartedLink: doc.getStartedLink,
+    });
   },
   [TYPES.ATTRIBUTE_DEFINITION]: ({ doc }) => {
     return stripNulls({
