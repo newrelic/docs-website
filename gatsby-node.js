@@ -48,17 +48,25 @@ exports.onPreBootstrap = async ({ reporter, store }) => {
 };
 
 exports.onCreateNode = ({ node, getNode, actions }) => {
+  const { createNodeField } = actions;
+
   if (
     node.internal.type === 'Mdx' ||
     (node.internal.type === 'MarkdownRemark' &&
       node.fileAbsolutePath.includes('src/content'))
   ) {
-    const { createNodeField } = actions;
-
     createNodeField({
       node,
       name: 'slug',
       value: createFilePath({ node, getNode, trailingSlash: false }),
+    });
+  }
+
+  if (node.internal.type === 'MarkdownRemark') {
+    createNodeField({
+      node,
+      name: 'fileRelativePath',
+      value: getFileRelativePath(node.fileAbsolutePath),
     });
   }
 };
@@ -107,7 +115,7 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
 
   const { allMarkdownRemark, allMdx } = data;
 
-  allMdx.edges.forEach(({ node }) => {
+  allMdx.edges.concat(allMarkdownRemark.edges).forEach(({ node }) => {
     const {
       fields: { fileRelativePath, slug },
     } = node;
@@ -126,7 +134,7 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
     } else {
       createPage({
         path: slug,
-        component: path.resolve(`${TEMPLATE_DIR}${template}.js`),
+        component: path.resolve(path.join(TEMPLATE_DIR, `${template}.js`)),
         context: {
           fileRelativePath,
           slug,
@@ -134,27 +142,16 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
       });
     }
   });
-
-  allMarkdownRemark.edges.forEach(({ node }) => {
-    const {
-      fields: { fileRelativePath, slug },
-    } = node;
-
-    createPage({
-      path: slug,
-      component: path.resolve(`${TEMPLATE_DIR}${getTemplate(node)}.js`),
-      context: {
-        slug,
-        fileRelativePath,
-      },
-    });
-  });
 };
 
 exports.createSchemaCustomization = ({ actions }) => {
   const { createTypes } = actions;
 
   const typeDefs = `
+  type MarkdownRemarkFrontmatter {
+    template: String
+  }
+
   type NavYaml implements Node @dontInfer {
     id: ID!
     title: String!
@@ -201,10 +198,14 @@ exports.onCreatePage = ({ page, actions }) => {
 };
 
 const getTemplate = (node) => {
+  const {
+    fields: { fileRelativePath },
+  } = node;
+
   switch (true) {
-    case node.fileRelativePath.includes('src/content/docs/release-notes'):
+    case fileRelativePath.includes('src/content/docs/release-notes'):
       return 'releaseNote';
-    case node.fileRelativePath.includes('src/content/whats-new'):
+    case fileRelativePath.includes('src/content/whats-new'):
       return 'whatsNew';
     default:
       return node.frontmatter.template;
