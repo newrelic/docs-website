@@ -47,10 +47,13 @@ const addCustomFrontmatter = {
     ...defaultFrontmatter,
     topics,
   }),
-  [TYPES.API_DOC]: ({ topics }, defaultFrontmatter) => ({
-    ...defaultFrontmatter,
-    topics,
-  }),
+  [TYPES.API_DOC]: ({ doc, topics }, defaultFrontmatter) => {
+    return {
+      ...defaultFrontmatter,
+      shortDescription: doc.shortDescription,
+      topics,
+    };
+  },
   [TYPES.BASIC_PAGE]: ({ doc, topics }, defaultFrontmatter) => {
     let japaneseUrl = '';
     if (doc.japaneseVersionExists === 'yes') {
@@ -77,9 +80,9 @@ const addCustomFrontmatter = {
       japaneseVersion: japaneseUrl,
     };
   },
-  [TYPES.RELEASE_NOTE]: ({ doc }) => {
+  [TYPES.RELEASE_NOTE]: ({ doc, topics }) => {
+    // TODO browser agent versioning is v34339 and breaks this
     const subject = doc.title.match(/^(.*?)\d+\.\d+(\.\d+){0,2}/)[1].trim();
-
     return stripNulls({
       subject,
       releaseDate: doc.releasedOn.split(' ')[0],
