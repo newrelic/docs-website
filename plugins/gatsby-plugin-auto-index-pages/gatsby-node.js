@@ -45,6 +45,8 @@ exports.createPages = async ({ actions, graphql, reporter }, pluginOptions) => {
           childMdx {
             frontmatter {
               title
+              contentType
+              shortDescription
             }
             fields {
               slug
