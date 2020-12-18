@@ -78,7 +78,7 @@ const addCustomFrontmatter = {
     };
   },
   [TYPES.RELEASE_NOTE]: ({ doc }, _, file) => {
-    const match = doc.title.match(/^(.*?)\d+\.\d+(\.\d+){0,2}/);
+    const match = doc.title.match(/^(.*?)v?\d+(\.\d+){0,3}/);
 
     if (!match) {
       file.message(
