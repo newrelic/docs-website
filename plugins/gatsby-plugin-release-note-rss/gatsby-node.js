@@ -56,7 +56,7 @@ const getFeedItem = (node, siteMetadata) => {
   };
 };
 
-const generateFeed = (publicDir, siteMetadata) => async (group) => {
+const generateFeed = (publicDir, siteMetadata, reporter) => async (group) => {
   const title = `${group.fieldValue} release notes`;
   const feedPath = path.join(path.dirname(group.nodes[0].slug), 'feed');
 
@@ -67,7 +67,7 @@ const generateFeed = (publicDir, siteMetadata) => async (group) => {
     site_url: siteMetadata.siteUrl,
   };
 
-  console.log(`\t[*] ${feedOptions.feed_url}`);
+  reporter.info(`\t[*] ${feedOptions.feed_url}`);
 
   const feed = group.nodes.reduce((rss, node) => {
     rss.item(getFeedItem(node, siteMetadata));
@@ -84,17 +84,20 @@ const generateFeed = (publicDir, siteMetadata) => async (group) => {
   fs.writeFileSync(filepath, feed.xml());
 };
 
-exports.onPostBuild = async ({ graphql, store }) => {
+exports.onPostBuild = async ({ graphql, store, reporter }) => {
   const { program } = store.getState();
   const publicDir = path.join(program.directory, 'public');
 
   try {
-    console.log('[*] Generating XML feeds for RSS');
+    reporter.info('[*] Generating XML feeds for RSS');
     const { site, allMdx } = await releaseNotesQuery(graphql);
 
-    await allMdx.group.forEach(generateFeed(publicDir, site.siteMetadata));
-    console.log('\t[*] Done!');
+    await allMdx.group.forEach(
+      generateFeed(publicDir, site.siteMetadata, reporter)
+    );
+
+    reporter.info('\t[*] Done!');
   } catch (error) {
-    console.error(`[!] Unable to create RSS feed: ${error}`);
+    reporter.panicOnBuild(`[!] Unable to create RSS feed: ${error}`);
   }
 };
