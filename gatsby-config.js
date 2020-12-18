@@ -281,58 +281,7 @@ module.exports = {
         nodesPerFeedFile: Infinity,
       },
     },
-    {
-      resolve: 'gatsby-plugin-generate-rss',
-      options: {
-        feeds: [
-          {
-            title: 'Java Agent Release Notes',
-            path: 'java-agent.xml',
-            regex:
-              '/docs/release-notes/agent-release-notes/java-release-notes/',
-          },
-          {
-            title: '.NET Agent Release Notes',
-            path: 'dotnet-agent.xml',
-            regex: '/docs/release-notes/agent-release-notes/net-release-notes/',
-          },
-          {
-            title: 'NodeJS Agent Release Notes',
-            path: 'node-agent.xml',
-            regex:
-              '/docs/release-notes/agent-release-notes/nodejs-release-notes/',
-          },
-          {
-            title: 'PHP Agent Release Notes',
-            path: 'php-agent.xml',
-            regex: '/docs/release-notes/agent-release-notes/php-release-notes/',
-          },
-          {
-            title: 'Python Agent Release Notes',
-            path: 'python-agent.xml',
-            regex:
-              '/docs/release-notes/agent-release-notes/python-release-notes/',
-          },
-          {
-            title: 'Ruby Agent Release Notes',
-            path: 'ruby-agent.xml',
-            regex:
-              '/docs/release-notes/agent-release-notes/ruby-release-notes/',
-          },
-          {
-            title: 'Android Release Notes',
-            path: 'android.xml',
-            regex:
-              '/docs/release-notes/mobile-release-notes/android-release-notes',
-          },
-          {
-            title: 'iOS Release Notes',
-            path: 'ios.xml',
-            regex: '/docs/release-notes/mobile-release-notes/ios-release-notes',
-          },
-        ],
-      },
-    },
+    'gatsby-plugin-release-note-rss',
     {
       resolve: 'gatsby-source-data-dictionary',
       options: {
