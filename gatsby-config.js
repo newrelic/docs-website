@@ -1,8 +1,6 @@
 const fs = require('fs');
 const path = require('path');
 const indentedCodeBlock = require('./codemods/indentedCodeBlock');
-const format = require('date-fns/format');
-const parseISO = require('date-fns/parseISO');
 
 const siteUrl = 'https://docs.newrelic.com';
 
