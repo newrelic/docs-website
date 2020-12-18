@@ -41,7 +41,7 @@ const getFrontmatter = (file) => {
   };
 
   const customFrontmatter = addCustomFrontmatter[type]
-    ? addCustomFrontmatter[type](data, defaultFrontmatter)
+    ? addCustomFrontmatter[type](data, defaultFrontmatter, file)
     : defaultFrontmatter;
 
   return frontmatter.stringify('', customFrontmatter);
@@ -85,22 +85,25 @@ const addCustomFrontmatter = {
       japaneseVersion: japaneseUrl,
     };
   },
-  [TYPES.RELEASE_NOTE]: ({ doc }) => {
-    // NOTE: Most agent titles are "Agent Name 1.2.3", but the browser agent
-    // use the title scheme: "Browser Agent v123".
-    const titleBySemantic = doc.title.match(REGEX.MATCH_ON_SEMANTIC_VERSION);
-    const titleByVersion = doc.title.match(REGEX.MATCH_ON_V_VERSION);
+  [TYPES.RELEASE_NOTE]: ({ doc }, _, file) => {
+    const match = doc.title.match(/^(.*?)v?\d+(\.\d+){0,3}/);
 
-    const subject =
-      titleBySemantic && titleBySemantic.length >= 1
-        ? titleBySemantic[1].trim()
-        : titleByVersion[1].trim();
+    if (!match) {
+      file.message(
+        `Unable to extract subject: ${doc.title}`,
+        null,
+        'get-frontmatter'
+      );
+    }
 
     return stripNulls({
-      subject,
+      subject: match ? match[1].trim() : doc.title.trim(),
       releaseDate: doc.releasedOn.split(' ')[0],
       version: doc.releaseVersion,
       downloadLink: doc.downloadLink,
+      template: file.path.match(/src\/content\/docs\/release-notes/)
+        ? null
+        : 'releaseNote',
     });
   },
   [TYPES.WHATS_NEW]: ({ doc }) => {
