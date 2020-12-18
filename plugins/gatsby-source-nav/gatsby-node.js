@@ -49,6 +49,9 @@ exports.createResolvers = ({ createResolvers, createNodeId }) => {
             case slug.startsWith('/whats-new'):
               return createWhatsNewNav(utils);
 
+            case slug.startsWith('/docs/release-notes'):
+              return createReleaseNotesNav(utils);
+
             default:
               return createNav(utils);
           }
@@ -143,6 +146,51 @@ const createWhatsNewNav = async ({ createNodeId, nodeModel }) => {
           { title: 'Older', pages: formatPosts(olderPosts) },
         ].filter(({ pages }) => pages.length)
       ),
+  };
+};
+
+const createReleaseNotesNav = async ({ createNodeId, nodeModel }) => {
+  const posts = await nodeModel.runQuery({
+    type: 'Mdx',
+    query: {
+      filter: {
+        fileAbsolutePath: {
+          regex: '/src/content/docs/release-notes/',
+        },
+      },
+      sort: {
+        fields: ['frontmatter.releaseDate'],
+        order: ['DESC'],
+      },
+    },
+  });
+
+  const subjects = posts
+    .reduce((acc, curr) => [...new Set([...acc, curr.frontmatter.subject])], [])
+    .filter(Boolean)
+    .sort();
+
+  const formatReleaseNotePosts = (posts) =>
+    posts.map((post) => ({
+      title: `${post.frontmatter.subject} v${post.frontmatter.version}`,
+      url: post.fields.slug,
+      pages: [],
+    }));
+
+  const filterBySubject = (subject, posts) =>
+    posts.filter((post) => post.frontmatter.subject === subject);
+
+  return {
+    id: createNodeId('release-notes'),
+    title: 'Release Notes',
+    pages: [{ title: 'Overview', url: '/docs/release-notes' }].concat(
+      subjects.map((subject) => {
+        return {
+          title: subject,
+          pages: formatReleaseNotePosts(filterBySubject(subject, posts)),
+        };
+      })
+    ),
   };
 };
 
