@@ -7,7 +7,6 @@ import { rgba } from 'polished';
 import IntegrationIcon from '../components/IntegrationIcon';
 import SurfaceLink from '../components/SurfaceLink';
 import { tdp, fso, ai, security, integrations } from '../data/homepage.yml';
-import { injectIntl, Link, FormattedMessage } from 'gatsby-plugin-intl';
 
 const HomePage = ({ data, intl }) => {
   const {
