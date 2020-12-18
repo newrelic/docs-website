@@ -85,7 +85,7 @@ const addCustomFrontmatter = {
       japaneseVersion: japaneseUrl,
     };
   },
-  [TYPES.RELEASE_NOTE]: ({ doc, topics }) => {
+  [TYPES.RELEASE_NOTE]: ({ doc }) => {
     // NOTE: Most agent titles are "Agent Name 1.2.3", but the browser agent
     // use the title scheme: "Browser Agent v123".
     const titleBySemantic = doc.title.match(REGEX.MATCH_ON_SEMANTIC_VERSION);
