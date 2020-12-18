@@ -7,8 +7,9 @@ import { rgba } from 'polished';
 import IntegrationIcon from '../components/IntegrationIcon';
 import SurfaceLink from '../components/SurfaceLink';
 import { tdp, fso, ai, security, integrations } from '../data/homepage.yml';
+import { injectIntl, Link, FormattedMessage } from 'gatsby-plugin-intl';
 
-const HomePage = ({ data }) => {
+const HomePage = ({ data, intl }) => {
   const {
     site: { layout },
   } = data;
@@ -16,7 +17,7 @@ const HomePage = ({ data }) => {
   return (
     <>
       <Section layout={layout}>
-        <h1>Welcome to New Relic</h1>
+        <h1>{intl.formatMessage({ id: 'title' })}</h1>
         <div
           css={css`
             display: flex;
