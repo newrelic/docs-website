@@ -282,56 +282,18 @@ module.exports = {
       },
     },
     {
-      resolve: 'gatsby-plugin-feed',
+      resolve: 'gatsby-plugin-generate-rss',
       options: {
-        query: `
-          {
-            site {
-              siteMetadata {
-                siteUrl
-              }
-            }
-          }
-        `,
         feeds: [
           {
-            query: `
-              {
-                allMdx(filter: {fileAbsolutePath: {regex: "/docs/release-notes/"}}) {
-                  nodes {
-                    id
-                    slug
-                    html
-                    frontmatter {
-                      releaseDate
-                      subject
-                      version
-                    }
-                  }
-                }
-              }
-            `,
-            serialize: ({ query: { site, allMdx } }) =>
-              allMdx.nodes.map(({ frontmatter, slug, id, html }) => {
-                const date = parseISO(frontmatter.releaseDate);
-                const formattedDate = format(date, 'EE, dd LLL yyyy');
-                const time = '00:00:00 +0000'; // time necessary for RSS validity
-
-                return {
-                  guid: id,
-                  title: `${frontmatter.subject} ${frontmatter.version}`,
-                  custom_elements: [
-                    { link: new URL(slug, site.siteMetadata.siteUrl).href },
-                    { pubDate: `${formattedDate} ${time}` },
-                    { 'content:encoded': html },
-                    {
-                      description: `Released on: ${formattedDate} ${time}.`,
-                    },
-                  ],
-                };
-              }),
-            output: '/rss.xml',
-            title: 'Release Notes RSS Feed',
+            title: 'Agent Release Notes',
+            path: 'agent-release-notes.xml',
+            regex: '/docs/release-notes/agent-release-notes/',
+          },
+          {
+            title: 'Mobile Release Notes',
+            path: 'mobile-release-notes.xml',
+            regex: '/docs/release-notes/mobile-release-notes/',
           },
         ],
       },
