@@ -20,11 +20,6 @@ const GATSBY_TEMPLATE = {
   [TYPES.WHATS_NEW]: 'whatsNew',
 };
 
-const REGEX = {
-  MATCH_ON_SEMANTIC_VERSION: /^(.*?)\d+\.\d+(\.\d+){0,2}/,
-  MATCH_ON_V_VERSION: /^(.*?)v+\d+/,
-};
-
 const getFrontmatter = (file) => {
   const {
     data,
