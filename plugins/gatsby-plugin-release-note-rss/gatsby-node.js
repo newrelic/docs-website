@@ -31,7 +31,9 @@ const releaseNotesQuery = async (graphql) => {
     }
   `;
 
-  return await graphql(query);
+  const { data } = await graphql(query);
+
+  return data;
 };
 
 // converts graphQL response (node) into a consumable format for RSS
@@ -67,14 +69,14 @@ const generateFeed = (publicDir, siteMetadata, reporter) => async (group) => {
     site_url: siteMetadata.siteUrl,
   };
 
-  reporter.info(`\t[*] ${feedOptions.feed_url}`);
+  reporter.info(`\t${feedOptions.feed_url}`);
 
   const feed = group.nodes.reduce((rss, node) => {
     rss.item(getFeedItem(node, siteMetadata));
     return rss;
   }, new RSS(feedOptions));
 
-  const filepath = path.join(publicDir, options.path);
+  const filepath = path.join(publicDir, feedPath);
   const dir = path.dirname(filepath);
 
   if (!fs.existsSync(dir)) {
@@ -89,15 +91,15 @@ exports.onPostBuild = async ({ graphql, store, reporter }) => {
   const publicDir = path.join(program.directory, 'public');
 
   try {
-    reporter.info('[*] Generating XML feeds for RSS');
+    reporter.info('Generating XML feeds for RSS');
     const { site, allMdx } = await releaseNotesQuery(graphql);
 
     await allMdx.group.forEach(
       generateFeed(publicDir, site.siteMetadata, reporter)
     );
 
-    reporter.info('\t[*] Done!');
+    reporter.info('\tDone!');
   } catch (error) {
-    reporter.panicOnBuild(`[!] Unable to create RSS feed: ${error}`);
+    reporter.panicOnBuild(`Unable to create RSS feed: ${error}`);
   }
 };
