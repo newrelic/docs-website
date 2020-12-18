@@ -203,7 +203,8 @@ const getTemplate = (node) => {
   } = node;
 
   switch (true) {
-    case fileRelativePath.includes('src/content/docs/release-notes'):
+    case fileRelativePath.includes('src/content/docs/release-notes') &&
+      path.basename(fileRelativePath) !== 'index.mdx':
       return 'releaseNote';
     case fileRelativePath.includes('src/content/whats-new'):
       return 'whatsNew';
