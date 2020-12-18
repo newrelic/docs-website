@@ -82,7 +82,7 @@ const generateFeed = (graphql, publicDir, siteMetadata) => async (options) => {
 
   // https://github.com/dylang/node-rss#feedoptions
   const feedOptions = {
-    title: siteMetadata.title,
+    title: `${siteMetadata.title} - ${options.title}`,
     feed_url: new URL(options.path, siteMetadata.siteUrl).href,
     site_url: siteMetadata.siteUrl,
   };
