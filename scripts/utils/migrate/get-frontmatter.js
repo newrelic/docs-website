@@ -93,6 +93,9 @@ const addCustomFrontmatter = {
       releaseDate: doc.releasedOn.split(' ')[0],
       version: doc.releaseVersion,
       downloadLink: doc.downloadLink,
+      template: file.path.match(/src\/content\/docs\/release-notes/)
+        ? null
+        : 'releaseNote',
     });
   },
   [TYPES.WHATS_NEW]: ({ doc }) => {
