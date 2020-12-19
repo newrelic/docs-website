@@ -88,8 +88,10 @@ const addCustomFrontmatter = {
       );
     }
 
+    const subject = match ? match[1].trim() : doc.title.trim();
+
     return stripNulls({
-      subject: match ? match[1].trim() : doc.title.trim(),
+      subject: normalizeSubject(subject),
       releaseDate: doc.releasedOn.split(' ')[0],
       version: doc.releaseVersion,
       downloadLink: doc.downloadLink,
@@ -122,6 +124,23 @@ const addCustomFrontmatter = {
     type: 'event',
     dataSources: doc.dataSources,
   }),
+};
+
+const normalizeSubject = (subject) => {
+  const replacements = [
+    [/ios/i, 'iOS'],
+    [/(?<=\s)Agent/, 'agent'],
+    [/node(?=\s)/i, 'Node.js'],
+    ['Private Minion', 'private minion'],
+    [/^NET/, '.NET'],
+    [/Infrastructure\s(\w+\s)?Agent/, 'infrastructure $1agent'],
+    [/java/, 'Java'],
+  ];
+
+  return replacements.reduce(
+    (str, [regex, replacement]) => str.replace(regex, replacement),
+    subject
+  );
 };
 
 const stripNulls = (obj) =>
