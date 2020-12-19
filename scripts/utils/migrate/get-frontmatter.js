@@ -133,7 +133,7 @@ const normalizeSubject = (subject) => {
     [/node(?=\s)/i, 'Node.js'],
     ['Private Minion', 'private minion'],
     [/^NET/, '.NET'],
-    [/Infrastructure\s(\w+\s)?Agent/, 'infrastructure $1agent'],
+    [/infrastructure\s(\w+\s)?agent/i, 'infrastructure $1agent'],
     [/java/, 'Java'],
   ];
 
