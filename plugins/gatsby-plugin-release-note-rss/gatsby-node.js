@@ -76,7 +76,7 @@ const generateFeed = (publicDir, siteMetadata, reporter) => async (group) => {
     return rss;
   }, new RSS(feedOptions));
 
-  const filepath = path.join(publicDir, feedPath);
+  const filepath = path.join(publicDir, `${feedPath}.xml`);
   const dir = path.dirname(filepath);
 
   if (!fs.existsSync(dir)) {
