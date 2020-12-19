@@ -14,7 +14,7 @@ const ReleaseNoteTemplate = ({ data }) => {
     },
   } = data;
 
-  const title = `${subject} ${version}`;
+  const title = `${subject} v${version}`;
 
   return (
     <>
