@@ -2,7 +2,7 @@ import React from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/core';
 import { graphql } from 'gatsby';
-import { Icon, Layout } from '@newrelic/gatsby-theme-newrelic';
+import { Icon, Layout, Link } from '@newrelic/gatsby-theme-newrelic';
 import PageTitle from '../components/PageTitle';
 import MDXContainer from '../components/MDXContainer';
 import SEO from '../components/seo';
@@ -11,7 +11,7 @@ const ReleaseNoteTemplate = ({ data }) => {
   const {
     mdx: {
       body,
-      frontmatter: { subject, version, releaseDate },
+      frontmatter: { downloadLink, subject, version, releaseDate },
     },
   } = data;
 
@@ -32,6 +32,9 @@ const ReleaseNoteTemplate = ({ data }) => {
 
       <div
         css={css`
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
           font-size: 0.75rem;
           color: var(--color-dark-600);
           display: flex;
@@ -42,16 +45,37 @@ const ReleaseNoteTemplate = ({ data }) => {
           margin-bottom: 1rem;
         `}
       >
-        <Icon
-          name="fe-calendar"
-          size="0.75rem"
-          css={css`
-            position: relative;
-            top: 1px;
-            margin-right: 0.25rem;
-          `}
-        />
-        {releaseDate}
+        <span>
+          <Icon
+            name="fe-calendar"
+            size="0.75rem"
+            css={css`
+              position: relative;
+              top: 1px;
+              margin-right: 0.25rem;
+            `}
+          />
+          {releaseDate}
+        </span>
+        {downloadLink && (
+          <Link
+            to={downloadLink}
+            css={css`
+              display: inline-flex;
+              align-items: center;
+            `}
+          >
+            Download{' '}
+            <Icon
+              name="fe-external-link"
+              css={css`
+                margin-left: 0.25rem;
+                position: relative;
+                top: -1px;
+              `}
+            />
+          </Link>
+        )}
       </div>
       <Layout.Content
         css={css`
@@ -76,6 +100,7 @@ export const pageQuery = graphql`
         subject
         version
         releaseDate(formatString: "MMMM D, YYYY")
+        downloadLink
       }
     }
     ...MainLayout_query
