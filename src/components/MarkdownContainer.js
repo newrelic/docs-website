@@ -92,7 +92,6 @@ const MarkdownContainer = ({
 
         ul li ul {
           margin-top: 1rem;
-          line-height: 1;
         }
       `}
     >
