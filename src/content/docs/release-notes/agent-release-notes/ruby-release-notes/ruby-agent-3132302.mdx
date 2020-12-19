@@ -1,0 +1,12 @@
+---
+subject: Ruby agent
+releaseDate: '2015-09-28'
+version: 3.13.2.302
+downloadLink: 'https://rubygems.org/downloads/newrelic_rpm-3.13.2.302.gem'
+---
+
+### Bug Fixes
+
+* Don't fail to send data when using **mathn** library
+
+  Version 3.12.1 introduced a bug with applications using the **mathn** library that would prevent the agent from sending data to New Relic. This has been fixed.

@@ -1,11 +1,8 @@
 ---
 title: Anomalies visible in the activity stream
-contentType: nr1Announcement
-template: whatsNew
 summary: >-
   The activity stream shows recent events so you can quickly see what's
   happening in your system.
-id: '40921'
 releaseDate: '2020-09-11'
 learnMoreLink: 'https://blog.newrelic.com/product-news/new-capabilities-proactive-detection/'
 getStartedLink: >-

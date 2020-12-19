@@ -1,0 +1,28 @@
+---
+subject: Go agent
+releaseDate: '2018-12-18'
+version: '2.2'
+downloadLink: 'https://github.com/newrelic/go-agent/tree/v2.2.0'
+---
+
+### 2.2 Notes
+
+* The `Transaction` parameter to [NewRoundTripper](https://godoc.org/github.com/newrelic/go-agent#NewRoundTripper) and [StartExternalSegment](https://godoc.org/github.com/newrelic/go-agent#StartExternalSegment) is now optional: If it is `nil`, then a `Transaction` will be looked for in the request's context (using [FromContext](https://godoc.org/github.com/newrelic/go-agent#FromContext)). Passing a `nil` transaction is **STRONGLY** recommended when using [NewRoundTripper](https://godoc.org/github.com/newrelic/go-agent#NewRoundTripper) since it allows one `http.Client.Transport` to be used for multiple transactions. Example use:
+
+```
+client := &http.Client{}
+client.Transport = newrelic.NewRoundTripper(nil, client.Transport)
+request, _ := http.NewRequest("GET", "http://example.com", nil)
+request = newrelic.RequestWithTransactionContext(request, txn)
+resp, err := client.Do(request)
+```
+
+* Introduced `Transaction.SetWebRequest(WebRequest)` method which marks the transaction as a web transaction. If the `WebRequest` parameter is non-nil, `SetWebRequest` will collect details on request attributes, url, and method. This method is useful if you don't have access to the request at the beginning of the transaction, or if your request is not an `*http.Request` (just add methods to your request that satisfy [WebRequest](https://godoc.org/github.com/newrelic/go-agent#WebRequest)). To use an `*http.Request` as the parameter, use the [NewWebRequest](https://godoc.org/github.com/newrelic/go-agent#NewWebRequest) transformation function. Example:
+
+```
+var request *http.Request = getInboundRequest()
+txn.SetWebRequest(newrelic.NewWebRequest(request))
+```
+
+* Fixed `Debug` in `nrlogrus` package. Previous versions of the New Relic Go Agent incorrectly logged to Info level instead of Debug. This has now been fixed. Thanks to @paddycarey for catching this.
+* [nrgin.Transaction](https://godoc.org/github.com/newrelic/go-agent/_integrations/nrgin/v1#Transaction) may now be called with either a `context.Context` or a `*gin.Context`. If you were passing a `*gin.Context` around your functions as a `context.Context`, you may access the Transaction by calling either [nrgin.Transaction](https://godoc.org/github.com/newrelic/go-agent/_integrations/nrgin/v1#Transaction) or [FromContext](https://godoc.org/github.com/newrelic/go-agent#FromContext). These functions now work nicely together. For example, [FromContext](https://godoc.org/github.com/newrelic/go-agent#FromContext) will return the `Transaction` added by [nrgin.Middleware](https://godoc.org/github.com/newrelic/go-agent/_integrations/nrgin/v1#Middleware). Thanks to @rodriguezgustavo for the suggestion.

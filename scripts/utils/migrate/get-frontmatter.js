@@ -36,7 +36,7 @@ const getFrontmatter = (file) => {
   };
 
   const customFrontmatter = addCustomFrontmatter[type]
-    ? addCustomFrontmatter[type](data, defaultFrontmatter)
+    ? addCustomFrontmatter[type](data, defaultFrontmatter, file)
     : defaultFrontmatter;
 
   return frontmatter.stringify('', customFrontmatter);
@@ -77,36 +77,47 @@ const addCustomFrontmatter = {
       japaneseVersion: japaneseUrl,
     };
   },
-  [TYPES.RELEASE_NOTE]: ({ doc, topics }, defaultFrontmatter) => {
-    return {
-      ...defaultFrontmatter,
-      topics,
-      releaseDateTime: doc.releasedOn || '',
-      releaseVersion: doc.releaseVersion || '',
-      downloadLink: doc.downloadLink || '',
-    };
+  [TYPES.RELEASE_NOTE]: ({ doc }, _, file) => {
+    const match = doc.title.match(/^(.*?)v?\d+(\.\d+){0,3}/);
+
+    if (!match) {
+      file.message(
+        `Unable to extract subject: ${doc.title}`,
+        null,
+        'get-frontmatter'
+      );
+    }
+
+    const subject = match ? match[1].trim() : doc.title.trim();
+
+    return stripNulls({
+      subject: normalizeSubject(subject),
+      releaseDate: doc.releasedOn.split(' ')[0],
+      version: doc.releaseVersion,
+      downloadLink: doc.downloadLink,
+      template: file.path.match(/src\/content\/docs\/release-notes/)
+        ? null
+        : 'releaseNote',
+    });
   },
-  [TYPES.WHATS_NEW]: ({ doc }, defaultFrontmatter) => {
-    return {
-      ...defaultFrontmatter,
-      summary: he.decode(doc.summary || ''),
-      id: doc.docId,
+  [TYPES.WHATS_NEW]: ({ doc }) => {
+    return stripNulls({
+      title: doc.title,
+      summary: doc.summary ? he.decode(doc.summary).trim() : null,
       releaseDate: doc.releaseDateTime.split(' ')[0],
-      learnMoreLink: doc.learnMoreLink || '',
-      getStartedLink: doc.getStartedLink || '',
-    };
+      learnMoreLink: doc.learnMoreLink,
+      getStartedLink: doc.getStartedLink,
+    });
   },
   [TYPES.ATTRIBUTE_DEFINITION]: ({ doc }) => {
-    return Object.fromEntries(
-      Object.entries({
-        name: doc.title,
-        type: 'attribute',
-        units: doc.units
-          ? doc.units.replace('<b>Unit of measurement:</b>', '').trim()
-          : null,
-        events: doc.eventTypes,
-      }).filter(([, value]) => value != null)
-    );
+    return stripNulls({
+      name: doc.title,
+      type: 'attribute',
+      units: doc.units
+        ? doc.units.replace('<b>Unit of measurement:</b>', '').trim()
+        : null,
+      events: doc.eventTypes,
+    });
   },
   [TYPES.EVENT_DEFINITION]: ({ doc }) => ({
     name: doc.name,
@@ -114,5 +125,25 @@ const addCustomFrontmatter = {
     dataSources: doc.dataSources,
   }),
 };
+
+const normalizeSubject = (subject) => {
+  const replacements = [
+    [/ios/i, 'iOS'],
+    [/(?<=\s)Agent/, 'agent'],
+    [/node(?=\s)/i, 'Node.js'],
+    ['Private Minion', 'private minion'],
+    [/^NET/, '.NET'],
+    [/infrastructure\s(\w+\s)?agent/i, 'infrastructure $1agent'],
+    [/java/, 'Java'],
+  ];
+
+  return replacements.reduce(
+    (str, [regex, replacement]) => str.replace(regex, replacement),
+    subject
+  );
+};
+
+const stripNulls = (obj) =>
+  Object.fromEntries(Object.entries(obj).filter(([, value]) => value != null));
 
 module.exports = getFrontmatter;

@@ -1,12 +1,7 @@
 ---
 title: Overall New Relic One experience updates
-contentType: nr1Announcement
-template: whatsNew
 summary: We've made updates across all of New Relic One!
-id: '40481'
 releaseDate: '2020-07-30'
-learnMoreLink: ''
-getStartedLink: ''
 ---
 
 We listened to you about what’s working and what’s not. That’s why we [reimagined New Relic One](https://blog.newrelic.com/product-news/reimagined-new-relic-one-experience/) by unifying all of our capabilities within a single experience, completely removing the barriers to observability. Easily navigate the platform and take advantage of powerful, new and improved features like search, a feature toggle, an Alerts & AI section, a feedback form, the ability to add data, and more!

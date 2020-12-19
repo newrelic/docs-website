@@ -1,9 +1,6 @@
 ---
 title: 'Applied Intelligence: Better, smarter webhooks'
-contentType: nr1Announcement
-template: whatsNew
 summary: Webhooks now automatically deliver anomaly charts.
-id: '41206'
 releaseDate: '2020-10-15'
 learnMoreLink: >-
   https://docs.newrelic.com/docs/alerts-applied-intelligence/applied-intelligence/incident-intelligence/get-started-incident-intelligence#3-configure-pathways

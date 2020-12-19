@@ -1,9 +1,6 @@
 ---
 title: New Relic Lambda extension
-contentType: nr1Announcement
-template: whatsNew
 summary: Our new extension improves observability of your Lambda data.
-id: '41386'
 releaseDate: '2020-11-12'
 learnMoreLink: 'https://github.com/newrelic/newrelic-lambda-extension'
 getStartedLink: >-

@@ -18,18 +18,20 @@ const Wrapper = ({ children }) => {
       isMdxType(children[idx - 1], 'LandingPageTileGrid')
   );
 
-  return [
-    ...children.slice(0, viewAllButtonIdx),
-    <div
-      key="viewAllButton"
-      css={css`
-        text-align: center;
-      `}
-    >
-      {children[viewAllButtonIdx]}
-    </div>,
-    ...children.slice(viewAllButtonIdx + 1),
-  ];
+  return viewAllButtonIdx === -1
+    ? children
+    : [
+        ...children.slice(0, viewAllButtonIdx),
+        <div
+          key="viewAllButton"
+          css={css`
+            text-align: center;
+          `}
+        >
+          {children[viewAllButtonIdx]}
+        </div>,
+        ...children.slice(viewAllButtonIdx + 1),
+      ];
 };
 
 Wrapper.propTypes = {

@@ -1,12 +1,7 @@
 ---
 title: 'Applied Intelligence: Deployment events in the issue feed'
-contentType: nr1Announcement
-template: whatsNew
 summary: Applied Intelligence now includes any relevant APM deployment data.
-id: '41211'
 releaseDate: '2020-09-30'
-learnMoreLink: ''
-getStartedLink: ''
 ---
 
 Making it easier for you to connect the dots and find the root cause of issues, New Relic’s AIOps solution, Applied Intelligence, now includes any relevant APM deployment data related to issues. Changes, such as deployments, account for a high percentage of the root causes of incidents and having that information at hand can be crucial to the speedy diagnosis and resolution of issues impacting your environment.
