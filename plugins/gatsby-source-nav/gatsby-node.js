@@ -1,11 +1,12 @@
 const parseISO = require('date-fns/parseISO');
 const startOfMonth = require('date-fns/startOfMonth');
+const startOfYear = require('date-fns/startOfYear');
+const getYear = require('date-fns/getYear');
+const getMonth = require('date-fns/getMonth');
 const sub = require('date-fns/sub');
 const isAfter = require('date-fns/isAfter');
 const isBefore = require('date-fns/isBefore');
 const isEqual = require('date-fns/isEqual');
-
-const RECENT_POSTS_COUNT = 5;
 
 const isEqualOrAfter = (date, compareDate) =>
   isEqual(date, compareDate) || isAfter(date, compareDate);
@@ -115,10 +116,11 @@ const createWhatsNewNav = async ({ createNodeId, nodeModel }) => {
     },
   });
 
-  const recentPosts = posts.slice(0, RECENT_POSTS_COUNT);
   const now = new Date();
   const firstOfMonth = startOfMonth(now);
   const lastMonth = sub(firstOfMonth, { months: 1 });
+  const firstOfYear = startOfYear(now);
+  const lastYear = sub(firstOfYear, { years: 1 });
 
   const thisMonthsPosts = posts.filter((post) =>
     isEqualOrAfter(parseDate(post), firstOfMonth)
@@ -130,22 +132,27 @@ const createWhatsNewNav = async ({ createNodeId, nodeModel }) => {
       isBefore(parseDate(post), firstOfMonth)
   );
 
-  const olderPosts = posts.filter((post) =>
-    isBefore(parseDate(post), lastMonth)
+  const thisYearsPosts = posts.filter((post) =>
+    isEqualOrAfter(parseDate(post), firstOfYear)
+  );
+
+  const lastYearsPosts = posts.filter(
+    (post) =>
+      isEqualOrAfter(parseDate(post), lastYear) &&
+      isBefore(parseDate(post), firstOfYear)
   );
 
   return {
     id: createNodeId('whats-new'),
     title: "What's new",
-    pages: [{ title: 'Overview', url: '/whats-new' }]
-      .concat(formatPosts(recentPosts))
-      .concat(
-        [
-          { title: 'This month', pages: formatPosts(thisMonthsPosts) },
-          { title: 'Last month', pages: formatPosts(lastMonthsPosts) },
-          { title: 'Older', pages: formatPosts(olderPosts) },
-        ].filter(({ pages }) => pages.length)
-      ),
+    pages: [{ title: 'Overview', url: '/whats-new' }].concat(
+      [
+        { title: 'This month', pages: formatPosts(thisMonthsPosts) },
+        { title: 'Last month', pages: formatPosts(lastMonthsPosts) },
+        { title: 'This Year', pages: formatPosts(thisYearsPosts) },
+        { title: 'Last Year', pages: formatPosts(lastYearsPosts) },
+      ].filter(({ pages }) => pages.length)
+    ),
   };
 };
 
