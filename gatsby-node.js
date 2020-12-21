@@ -138,6 +138,7 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
         context: {
           fileRelativePath,
           slug,
+          slugRegex: `${slug}/.+/`,
         },
       });
     }
