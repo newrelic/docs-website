@@ -418,7 +418,11 @@ module.exports = [
   },
   {
     type: INSTRUCTIONS.UPDATE,
-    path: ['Browser monitoring', 'Browser agent and SPA API'],
+    path: [
+      'Full-Stack Observability',
+      'Browser monitoring',
+      'Browser agent and SPA API',
+    ],
     node: {
       path: '/docs/browser/new-relic-browser/browser-agent-spa-api',
     },
