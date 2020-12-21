@@ -402,4 +402,39 @@ module.exports = [
       path: '/docs/agents/php-agent/php-agent-api',
     },
   },
+  {
+    type: INSTRUCTIONS.UPDATE,
+    path: ['Agents', '.NET agent', 'NET agent API'],
+    node: {
+      path: '/docs/agents/net-agent/net-agent-api',
+    },
+  },
+  {
+    type: INSTRUCTIONS.UPDATE,
+    path: ['Agents', 'Python agent', 'Python agent API'],
+    node: {
+      path: '/docs/agents/python-agent/python-agent-api',
+    },
+  },
+  {
+    type: INSTRUCTIONS.UPDATE,
+    path: ['Browser monitoring', 'Browser agent and SPA API'],
+    node: {
+      path: '/docs/browser/new-relic-browser/browser-agent-spa-api',
+    },
+  },
+  {
+    type: INSTRUCTIONS.UPDATE,
+    path: ['Mobile monitoring', 'New Relic Mobile Android', 'Android SDK API'],
+    node: {
+      path: '/docs/mobile-monitoring/new-relic-mobile-android/android-sdk-api',
+    },
+  },
+  {
+    type: INSTRUCTIONS.UPDATE,
+    path: ['Mobile monitoring', 'New Relic Mobile iOS', 'iOS SDK API'],
+    node: {
+      path: '/docs/mobile-monitoring/new-relic-mobile-ios/ios-sdk-api',
+    },
+  },
 ];
