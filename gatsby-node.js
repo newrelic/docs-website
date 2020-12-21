@@ -204,12 +204,14 @@ const getTemplate = (node) => {
   } = node;
 
   switch (true) {
+    case Boolean(node.frontmatter.template):
+      return node.frontmatter.template;
     case fileRelativePath.includes('src/content/docs/release-notes'):
       return 'releaseNote';
     case fileRelativePath.includes('src/content/whats-new'):
       return 'whatsNew';
     default:
-      return node.frontmatter.template;
+      throw new Error(`Unknown template for doc: ${fileRelativePath}`);
   }
 };
 

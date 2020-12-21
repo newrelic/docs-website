@@ -5,8 +5,6 @@ const isAfter = require('date-fns/isAfter');
 const isBefore = require('date-fns/isBefore');
 const isEqual = require('date-fns/isEqual');
 
-const RECENT_POSTS_COUNT = 5;
-
 const isEqualOrAfter = (date, compareDate) =>
   isEqual(date, compareDate) || isAfter(date, compareDate);
 
@@ -48,6 +46,9 @@ exports.createResolvers = ({ createResolvers, createNodeId }) => {
 
             case slug.startsWith('/whats-new'):
               return createWhatsNewNav(utils);
+
+            case slug.startsWith('/docs/release-notes'):
+              return createReleaseNotesNav(utils);
 
             default:
               return createNav(utils);
@@ -112,7 +113,6 @@ const createWhatsNewNav = async ({ createNodeId, nodeModel }) => {
     },
   });
 
-  const recentPosts = posts.slice(0, RECENT_POSTS_COUNT);
   const now = new Date();
   const firstOfMonth = startOfMonth(now);
   const lastMonth = sub(firstOfMonth, { months: 1 });
@@ -134,15 +134,58 @@ const createWhatsNewNav = async ({ createNodeId, nodeModel }) => {
   return {
     id: createNodeId('whats-new'),
     title: "What's new",
-    pages: [{ title: 'Overview', url: '/whats-new' }]
-      .concat(formatPosts(recentPosts))
-      .concat(
-        [
-          { title: 'This month', pages: formatPosts(thisMonthsPosts) },
-          { title: 'Last month', pages: formatPosts(lastMonthsPosts) },
-          { title: 'Older', pages: formatPosts(olderPosts) },
-        ].filter(({ pages }) => pages.length)
-      ),
+    pages: [{ title: 'Overview', url: '/whats-new' }].concat(
+      [
+        { title: 'This month', pages: formatPosts(thisMonthsPosts) },
+        { title: 'Last month', pages: formatPosts(lastMonthsPosts) },
+        { title: 'Older', pages: formatPosts(olderPosts) },
+      ].filter(({ pages }) => pages.length)
+    ),
+  };
+};
+
+const createReleaseNotesNav = async ({ createNodeId, nodeModel }) => {
+  const posts = await nodeModel.runQuery({
+    type: 'Mdx',
+    query: {
+      filter: {
+        fileAbsolutePath: {
+          regex: '/src/content/docs/release-notes/',
+        },
+      },
+      sort: {
+        fields: ['frontmatter.releaseDate'],
+        order: ['DESC'],
+      },
+    },
+  });
+
+  const subjects = posts
+    .reduce((acc, curr) => [...new Set([...acc, curr.frontmatter.subject])], [])
+    .filter(Boolean)
+    .sort();
+
+  const formatReleaseNotePosts = (posts) =>
+    posts.map((post) => ({
+      title: `${post.frontmatter.subject} v${post.frontmatter.version}`,
+      url: post.fields.slug,
+      pages: [],
+    }));
+
+  const filterBySubject = (subject, posts) =>
+    posts.filter((post) => post.frontmatter.subject === subject);
+
+  return {
+    id: createNodeId('release-notes'),
+    title: 'Release Notes',
+    pages: [{ title: 'Overview', url: '/docs/release-notes' }].concat(
+      subjects.map((subject) => {
+        return {
+          title: subject,
+          pages: formatReleaseNotePosts(filterBySubject(subject, posts)),
+        };
+      })
+    ),
   };
 };
 
