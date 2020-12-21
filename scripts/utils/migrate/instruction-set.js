@@ -425,14 +425,24 @@ module.exports = [
   },
   {
     type: INSTRUCTIONS.UPDATE,
-    path: ['Mobile monitoring', 'New Relic Mobile Android', 'Android SDK API'],
+    path: [
+      'Full-Stack Observability',
+      'Mobile monitoring',
+      'New Relic Mobile Android',
+      'Android SDK API',
+    ],
     node: {
       path: '/docs/mobile-monitoring/new-relic-mobile-android/android-sdk-api',
     },
   },
   {
     type: INSTRUCTIONS.UPDATE,
-    path: ['Mobile monitoring', 'New Relic Mobile iOS', 'iOS SDK API'],
+    path: [
+      'Full-Stack Observability',
+      'Mobile monitoring',
+      'New Relic Mobile iOS',
+      'iOS SDK API',
+    ],
     node: {
       path: '/docs/mobile-monitoring/new-relic-mobile-ios/ios-sdk-api',
     },
