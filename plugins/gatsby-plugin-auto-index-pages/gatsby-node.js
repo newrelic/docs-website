@@ -49,7 +49,6 @@ exports.createPages = async ({ actions, graphql, reporter }, pluginOptions) => {
             frontmatter {
               title
               contentType
-              shortDescription
             }
             fields {
               slug

@@ -30,21 +30,11 @@ const generateHTML = (dir) => {
       }
 
       const lastChild = last(tree.children);
-      let linkListItem;
-      if (node.data.frontmatter.contentType === 'apiDoc') {
-        linkListItem = h('li', [
-          h('a', { href: node.data.fields.slug }, [
-            node.data.frontmatter.title.trim(),
-          ]),
-          h('p', [node.data.frontmatter.shortDescription.trim()]),
-        ]);
-      } else {
-        linkListItem = h('li', [
-          h('a', { href: node.data.fields.slug }, [
-            node.data.frontmatter.title.trim(),
-          ]),
-        ]);
-      }
+      const linkListItem = h('li', [
+        h('a', { href: node.data.fields.slug }, [
+          node.data.frontmatter.title.trim(),
+        ]),
+      ]);
 
       if (lastChild && isList(lastChild)) {
         lastChild.children.push(linkListItem);
