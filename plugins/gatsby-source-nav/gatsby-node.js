@@ -150,7 +150,7 @@ const createReleaseNotesNav = async ({ createNodeId, nodeModel }) => {
     query: {
       filter: {
         fileAbsolutePath: {
-          regex: '/src/content/docs/release-notes/',
+          regex: '/src/content/docs/release-notes/.*(?<!index).mdx/',
         },
       },
       sort: {
