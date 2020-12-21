@@ -145,20 +145,33 @@ const createWhatsNewNav = async ({ createNodeId, nodeModel }) => {
 };
 
 const createReleaseNotesNav = async ({ createNodeId, nodeModel }) => {
-  const posts = await nodeModel.runQuery({
-    type: 'Mdx',
-    query: {
-      filter: {
-        fileAbsolutePath: {
-          regex: '/src/content/docs/release-notes/.*(?<!index).mdx/',
+  const [posts, landingPages] = await Promise.all([
+    nodeModel.runQuery({
+      type: 'Mdx',
+      query: {
+        filter: {
+          fileAbsolutePath: {
+            regex: '/src/content/docs/release-notes/.*(?<!index).mdx/',
+          },
+        },
+        sort: {
+          fields: ['frontmatter.releaseDate'],
+          order: ['DESC'],
         },
       },
-      sort: {
-        fields: ['frontmatter.releaseDate'],
-        order: ['DESC'],
+    }),
+
+    nodeModel.runQuery({
+      type: 'Mdx',
+      query: {
+        filter: {
+          fileAbsolutePath: {
+            regex: '/src/content/docs/release-notes/.*/index.mdx$/',
+          },
+        },
       },
-    },
-  });
+    }),
+  ]);
 
   const subjects = posts
     .reduce((acc, curr) => [...new Set([...acc, curr.frontmatter.subject])], [])
@@ -180,8 +193,13 @@ const createReleaseNotesNav = async ({ createNodeId, nodeModel }) => {
     title: 'Release Notes',
     pages: [{ title: 'Overview', url: '/docs/release-notes' }].concat(
       subjects.map((subject) => {
+        const landingPage = landingPages.find(
+          (page) => page.frontmatter.subject === subject
+        );
+
         return {
           title: subject,
+          url: landingPage && landingPage.fields.slug,
           pages: formatReleaseNotePosts(filterBySubject(subject, posts)),
         };
       })
