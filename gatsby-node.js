@@ -205,6 +205,8 @@ const getTemplate = (node) => {
   switch (true) {
     case Boolean(node.frontmatter.template):
       return node.frontmatter.template;
+    case /docs\/release-notes\/.*\/index.mdx$/.test(fileRelativePath):
+      return 'releaseNoteLandingPage';
     case fileRelativePath.includes('src/content/docs/release-notes'):
       return 'releaseNote';
     case fileRelativePath.includes('src/content/whats-new'):
