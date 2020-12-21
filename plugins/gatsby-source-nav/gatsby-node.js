@@ -5,8 +5,6 @@ const isAfter = require('date-fns/isAfter');
 const isBefore = require('date-fns/isBefore');
 const isEqual = require('date-fns/isEqual');
 
-const RECENT_POSTS_COUNT = 5;
-
 const isEqualOrAfter = (date, compareDate) =>
   isEqual(date, compareDate) || isAfter(date, compareDate);
 
@@ -115,7 +113,6 @@ const createWhatsNewNav = async ({ createNodeId, nodeModel }) => {
     },
   });
 
-  const recentPosts = posts.slice(0, RECENT_POSTS_COUNT);
   const now = new Date();
   const firstOfMonth = startOfMonth(now);
   const lastMonth = sub(firstOfMonth, { months: 1 });
@@ -137,15 +134,13 @@ const createWhatsNewNav = async ({ createNodeId, nodeModel }) => {
   return {
     id: createNodeId('whats-new'),
     title: "What's new",
-    pages: [{ title: 'Overview', url: '/whats-new' }]
-      .concat(formatPosts(recentPosts))
-      .concat(
-        [
-          { title: 'This month', pages: formatPosts(thisMonthsPosts) },
-          { title: 'Last month', pages: formatPosts(lastMonthsPosts) },
-          { title: 'Older', pages: formatPosts(olderPosts) },
-        ].filter(({ pages }) => pages.length)
-      ),
+    pages: [{ title: 'Overview', url: '/whats-new' }].concat(
+      [
+        { title: 'This month', pages: formatPosts(thisMonthsPosts) },
+        { title: 'Last month', pages: formatPosts(lastMonthsPosts) },
+        { title: 'Older', pages: formatPosts(olderPosts) },
+      ].filter(({ pages }) => pages.length)
+    ),
   };
 };
 
