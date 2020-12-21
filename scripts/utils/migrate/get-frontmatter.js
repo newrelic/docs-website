@@ -50,7 +50,7 @@ const addCustomFrontmatter = {
   [TYPES.API_DOC]: ({ doc, topics }, defaultFrontmatter) => {
     return {
       ...defaultFrontmatter,
-      shortDescription: doc.shortDescription,
+      shortDescription: doc.shortDescription.trim(),
       topics,
     };
   },
