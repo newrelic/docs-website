@@ -1,4 +1,4 @@
-import React, { Fragment, useMemo } from 'react';
+import React, { useMemo } from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/core';
 import SEO from '../components/seo';
@@ -6,8 +6,6 @@ import PageTitle from '../components/PageTitle';
 import { graphql } from 'gatsby';
 import { Layout, Link } from '@newrelic/gatsby-theme-newrelic';
 import Timeline from '../components/Timeline';
-
-const MOBILE_BREAKPOINT = '960px';
 
 const WhatsNew = ({ data }) => {
   const now = useMemo(() => new Date(), []);
