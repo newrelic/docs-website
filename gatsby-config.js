@@ -5,6 +5,7 @@ const indentedCodeBlock = require('./codemods/indentedCodeBlock');
 const siteUrl = 'https://docs.newrelic.com';
 
 const dataDictionaryPath = `${__dirname}/src/data-dictionary`;
+const contentChunksPath = `${__dirname}/src/content-chunks`;
 
 module.exports = {
   flags: {
@@ -108,6 +109,13 @@ module.exports = {
       options: {
         name: 'data-dictionary',
         path: dataDictionaryPath,
+      },
+    },
+    {
+      resolve: 'gatsby-source-filesystem',
+      options: {
+        name: 'content-chunk',
+        path: contentChunksPath,
       },
     },
     {
@@ -283,6 +291,12 @@ module.exports = {
       resolve: 'gatsby-source-data-dictionary',
       options: {
         path: dataDictionaryPath,
+      },
+    },
+    {
+      resolve: 'gatsby-source-content-chunks',
+      options: {
+        path: contentChunksPath,
       },
     },
     'gatsby-source-nav',
