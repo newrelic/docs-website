@@ -20,14 +20,12 @@ const ApiIndexPage = ({ data }) => {
       <PageTitle>{title}</PageTitle>
       <Layout.Content>
         <MDXContainer body={body}>
-          {apiDocPages.map((apiDoc) => {
-            return (
-              <>
-                <Link to={apiDoc.fields.slug}>{apiDoc.frontmatter.title}</Link>
-                <p>{apiDoc.frontmatter.shortDescription}</p>
-              </>
-            );
-          })}
+          {apiDocPages.map((apiDoc) => (
+            <>
+              <Link to={apiDoc.fields.slug}>{apiDoc.frontmatter.title}</Link>
+              <p>{apiDoc.frontmatter.shortDescription}</p>
+            </>
+          ))}
         </MDXContainer>
       </Layout.Content>
     </>
