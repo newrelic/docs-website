@@ -18,6 +18,9 @@ exports.createPages = async ({ actions, graphql, reporter }, pluginOptions) => {
       ) {
         nodes {
           childMdx {
+            frontmatter {
+              contentType
+            }
             fields {
               slug
             }
@@ -110,6 +113,12 @@ exports.createPages = async ({ actions, graphql, reporter }, pluginOptions) => {
   });
 
   tableOfContentsNodes.forEach((node) => {
+    if (
+      !node.childMdx ||
+      node.childMdx.frontmatter.contentType !== 'landingPage'
+    ) {
+      return;
+    }
     const landingPageSlug = getSlug(node);
     const slug = path.join(landingPageSlug, 'table-of-contents');
 
