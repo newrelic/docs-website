@@ -388,13 +388,18 @@ module.exports = [
       icon: 'nr-fso',
     },
   },
-
-  // ----- New Relic only ----- \\
   {
     type: INSTRUCTIONS.UPDATE,
     path: ['New Relic only'],
     node: {
       rootNav: false,
+    },
+  },
+  {
+    type: INSTRUCTIONS.UPDATE,
+    path: ['Agents', 'PHP agent', 'PHP agent API'],
+    node: {
+      path: '/docs/agents/php-agent/php-agent-api',
     },
   },
 ];
