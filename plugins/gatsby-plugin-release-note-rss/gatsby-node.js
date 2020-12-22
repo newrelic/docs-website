@@ -142,6 +142,6 @@ exports.onPostBuild = async ({ graphql, store, reporter }) => {
 
     reporter.info('\tDone!');
   } catch (error) {
-    reporter.panicOnBuild(`Unable to create RSS feed: ${error}`);
+    reporter.panicOnBuild(`Unable to create RSS feed: ${error}`, error);
   }
 };
