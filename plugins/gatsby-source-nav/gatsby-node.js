@@ -5,8 +5,6 @@ const isAfter = require('date-fns/isAfter');
 const isBefore = require('date-fns/isBefore');
 const isEqual = require('date-fns/isEqual');
 
-const RECENT_POSTS_COUNT = 5;
-
 const isEqualOrAfter = (date, compareDate) =>
   isEqual(date, compareDate) || isAfter(date, compareDate);
 
@@ -115,7 +113,6 @@ const createWhatsNewNav = async ({ createNodeId, nodeModel }) => {
     },
   });
 
-  const recentPosts = posts.slice(0, RECENT_POSTS_COUNT);
   const now = new Date();
   const firstOfMonth = startOfMonth(now);
   const lastMonth = sub(firstOfMonth, { months: 1 });
@@ -137,33 +134,44 @@ const createWhatsNewNav = async ({ createNodeId, nodeModel }) => {
   return {
     id: createNodeId('whats-new'),
     title: "What's new",
-    pages: [{ title: 'Overview', url: '/whats-new' }]
-      .concat(formatPosts(recentPosts))
-      .concat(
-        [
-          { title: 'This month', pages: formatPosts(thisMonthsPosts) },
-          { title: 'Last month', pages: formatPosts(lastMonthsPosts) },
-          { title: 'Older', pages: formatPosts(olderPosts) },
-        ].filter(({ pages }) => pages.length)
-      ),
+    pages: [{ title: 'Overview', url: '/whats-new' }].concat(
+      [
+        { title: 'This month', pages: formatPosts(thisMonthsPosts) },
+        { title: 'Last month', pages: formatPosts(lastMonthsPosts) },
+        { title: 'Older', pages: formatPosts(olderPosts) },
+      ].filter(({ pages }) => pages.length)
+    ),
   };
 };
 
 const createReleaseNotesNav = async ({ createNodeId, nodeModel }) => {
-  const posts = await nodeModel.runQuery({
-    type: 'Mdx',
-    query: {
-      filter: {
-        fileAbsolutePath: {
-          regex: '/src/content/docs/release-notes/',
+  const [posts, landingPages] = await Promise.all([
+    nodeModel.runQuery({
+      type: 'Mdx',
+      query: {
+        filter: {
+          fileAbsolutePath: {
+            regex: '/src/content/docs/release-notes/.*(?<!index).mdx/',
+          },
+        },
+        sort: {
+          fields: ['frontmatter.releaseDate'],
+          order: ['DESC'],
         },
       },
-      sort: {
-        fields: ['frontmatter.releaseDate'],
-        order: ['DESC'],
+    }),
+
+    nodeModel.runQuery({
+      type: 'Mdx',
+      query: {
+        filter: {
+          fileAbsolutePath: {
+            regex: '/src/content/docs/release-notes/.*/index.mdx$/',
+          },
+        },
       },
-    },
-  });
+    }),
+  ]);
 
   const subjects = posts
     .reduce((acc, curr) => [...new Set([...acc, curr.frontmatter.subject])], [])
@@ -185,8 +193,13 @@ const createReleaseNotesNav = async ({ createNodeId, nodeModel }) => {
     title: 'Release Notes',
     pages: [{ title: 'Overview', url: '/docs/release-notes' }].concat(
       subjects.map((subject) => {
+        const landingPage = landingPages.find(
+          (page) => page.frontmatter.subject === subject
+        );
+
         return {
           title: subject,
+          url: landingPage && landingPage.fields.slug,
           pages: formatReleaseNotePosts(filterBySubject(subject, posts)),
         };
       })
