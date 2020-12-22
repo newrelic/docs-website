@@ -145,5 +145,3 @@ exports.onPostBuild = async ({ graphql, store, reporter }) => {
     reporter.panicOnBuild(`Unable to create RSS feed: ${error}`);
   }
 };
-
-};
