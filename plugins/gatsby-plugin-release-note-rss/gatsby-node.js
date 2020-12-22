@@ -60,7 +60,7 @@ const getFeedItem = (node, siteMetadata) => {
 
 const generateFeed = (publicDir, siteMetadata, reporter) => async (group) => {
   const title = `${group.fieldValue} release notes`;
-  const feedPath = path.join(path.dirname(group.nodes[0].slug), 'feed');
+  const feedPath = path.join(path.dirname(group.nodes[0].slug), 'feed.xml');
 
   // https://github.com/dylang/node-rss#feedoptions
   const feedOptions = {
@@ -76,7 +76,7 @@ const generateFeed = (publicDir, siteMetadata, reporter) => async (group) => {
     return rss;
   }, new RSS(feedOptions));
 
-  const filepath = path.join(publicDir, `${feedPath}.xml`);
+  const filepath = path.join(publicDir, feedPath);
   const dir = path.dirname(filepath);
 
   if (!fs.existsSync(dir)) {
