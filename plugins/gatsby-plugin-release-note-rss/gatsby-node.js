@@ -69,7 +69,7 @@ const getFeedItem = (node, siteMetadata) => {
   };
 };
 
-const generateFeed = (publicDir, siteMetadata, reporter) => async (group) => {
+const generateFeed = (publicDir, siteMetadata, reporter) => (group) => {
   const title = `${group.fieldValue} release notes`;
   const feedPath = path.join(path.dirname(group.nodes[0].slug), 'feed.xml');
 
@@ -105,9 +105,7 @@ exports.onPostBuild = async ({ graphql, store, reporter }) => {
     reporter.info('Generating XML feeds for RSS');
     const { site, allMdx } = await releaseNotesQuery(graphql);
 
-    await allMdx.group.forEach(
-      generateFeed(publicDir, site.siteMetadata, reporter)
-    );
+    allMdx.group.forEach(generateFeed(publicDir, site.siteMetadata, reporter));
 
     reporter.info('\tDone!');
   } catch (error) {
