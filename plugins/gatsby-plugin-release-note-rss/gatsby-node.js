@@ -21,7 +21,21 @@ const releaseNotesQuery = async (graphql) => {
           siteUrl
         }
       }
-      allMdx(filter: {fileAbsolutePath: {regex: "/docs/release-notes/"}}) {
+      landingPages: allMdx(
+        filter: {
+          fileAbsolutePath: { regex: "/docs/release-notes/.*/index.mdx$/" }
+        }
+      ) {
+        nodes {
+          fields {
+            slug
+          }
+          frontmatter {
+            subject
+          }
+        }
+      }
+      allMdx(filter: { fileAbsolutePath: { regex: "/docs/release-notes/" } }) {
         group(field: frontmatter___subject) {
           nodes {
             frontmatter {
@@ -69,9 +83,22 @@ const getFeedItem = (node, siteMetadata) => {
   };
 };
 
-const generateFeed = (publicDir, siteMetadata, reporter) => (group) => {
+const generateFeed = (publicDir, siteMetadata, reporter, landingPages) => (
+  group
+) => {
   const title = `${group.fieldValue} release notes`;
-  const feedPath = path.join(path.dirname(group.nodes[0].slug), 'feed.xml');
+  const landingPage = landingPages.find(
+    (page) => page.frontmatter.subject === group.fieldValue
+  );
+
+  if (!landingPage) {
+    reporter.info(
+      `\tNo landing page found for '${group.fieldValue}'. Skipping...`
+    );
+    return;
+  }
+
+  const feedPath = path.join(landingPage.fields.slug, 'feed.xml');
 
   // https://github.com/dylang/node-rss#feedoptions
   const feedOptions = {
@@ -103,12 +130,20 @@ exports.onPostBuild = async ({ graphql, store, reporter }) => {
 
   try {
     reporter.info('Generating XML feeds for RSS');
-    const { site, allMdx } = await releaseNotesQuery(graphql);
+    const {
+      site,
+      landingPages: { nodes: landingPages },
+      allMdx,
+    } = await releaseNotesQuery(graphql);
 
-    allMdx.group.forEach(generateFeed(publicDir, site.siteMetadata, reporter));
+    allMdx.group.forEach(
+      generateFeed(publicDir, site.siteMetadata, reporter, landingPages)
+    );
 
     reporter.info('\tDone!');
   } catch (error) {
     reporter.panicOnBuild(`Unable to create RSS feed: ${error}`);
   }
+};
+
 };
