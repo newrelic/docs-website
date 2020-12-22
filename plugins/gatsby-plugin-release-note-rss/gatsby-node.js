@@ -35,7 +35,13 @@ const releaseNotesQuery = async (graphql) => {
           }
         }
       }
-      allMdx(filter: { fileAbsolutePath: { regex: "/docs/release-notes/" } }) {
+      allMdx(
+        filter: {
+          fileAbsolutePath: {
+            regex: "/src/content/docs/release-notes/.*(?<!index).mdx/"
+          }
+        }
+      ) {
         group(field: frontmatter___subject) {
           nodes {
             frontmatter {
