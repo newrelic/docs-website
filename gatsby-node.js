@@ -72,7 +72,7 @@ exports.onCreateNode = ({ node, getNode, actions }) => {
 };
 
 exports.createPages = async ({ actions, graphql, reporter }) => {
-  const { createPage } = actions;
+  const { createPage, createRedirect } = actions;
 
   const { data, errors } = await graphql(`
     query {
@@ -128,7 +128,7 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
         }
       }
 
-      landingPages: allMdx(
+      landingPagesReleaseNotes: allMdx(
         filter: {
           fileAbsolutePath: { regex: "/docs/release-notes/.*/index.mdx$/" }
         }
@@ -150,7 +150,26 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
     return;
   }
 
-  const { allMarkdownRemark, allMdx } = data;
+  const {
+    allMarkdownRemark,
+    allMdx,
+    releaseNotes,
+    landingPagesReleaseNotes,
+  } = data;
+
+  releaseNotes.group.forEach((el) => {
+    const { fieldValue, nodes } = el;
+
+    const landingPage = landingPagesReleaseNotes.nodes.find(
+      (node) => node.frontmatter.subject === fieldValue
+    );
+
+    landingPage &&
+      createRedirect({
+        fromPath: path.join(landingPage.fields.slug, 'current'),
+        toPath: nodes[0].fields.slug,
+      });
+  });
 
   allMdx.edges.concat(allMarkdownRemark.edges).forEach(({ node }) => {
     const {
