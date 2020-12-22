@@ -47,10 +47,13 @@ const addCustomFrontmatter = {
     ...defaultFrontmatter,
     topics,
   }),
-  [TYPES.API_DOC]: ({ topics }, defaultFrontmatter) => ({
-    ...defaultFrontmatter,
-    topics,
-  }),
+  [TYPES.API_DOC]: ({ doc, topics }, defaultFrontmatter) => {
+    return {
+      ...defaultFrontmatter,
+      shortDescription: doc.shortDescription.trim(),
+      topics,
+    };
+  },
   [TYPES.BASIC_PAGE]: ({ doc, topics }, defaultFrontmatter) => {
     let japaneseUrl = '';
     if (doc.japaneseVersionExists === 'yes') {
@@ -88,10 +91,12 @@ const addCustomFrontmatter = {
       );
     }
 
+    const subject = match ? match[1].trim() : doc.title.trim();
+
     return stripNulls({
-      subject: match ? match[1].trim() : doc.title.trim(),
+      subject: normalizeSubject(subject),
       releaseDate: doc.releasedOn.split(' ')[0],
-      version: doc.releaseVersion,
+      version: doc.releaseVersion.replace(/^v/i, ''),
       downloadLink: doc.downloadLink,
       template: file.path.match(/src\/content\/docs\/release-notes/)
         ? null
@@ -122,6 +127,23 @@ const addCustomFrontmatter = {
     type: 'event',
     dataSources: doc.dataSources,
   }),
+};
+
+const normalizeSubject = (subject) => {
+  const replacements = [
+    [/ios/i, 'iOS'],
+    [/(?<=\s)Agent/, 'agent'],
+    [/node(?=\s)/i, 'Node.js'],
+    ['Private Minion', 'private minion'],
+    [/^NET/, '.NET'],
+    [/infrastructure\s(\w+\s)?agent/i, 'infrastructure $1agent'],
+    [/java/, 'Java'],
+  ];
+
+  return replacements.reduce(
+    (str, [regex, replacement]) => str.replace(regex, replacement),
+    subject
+  );
 };
 
 const stripNulls = (obj) =>

@@ -101,6 +101,7 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
             }
             frontmatter {
               template
+              subject
             }
           }
         }
@@ -149,41 +150,38 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
     return;
   }
 
-  const { allMarkdownRemark, allMdx, releaseNotes } = data;
+  const { allMarkdownRemark, allMdx } = data;
 
-  //create redirect from landing page slug / current to latest
+  allMdx.edges.concat(allMarkdownRemark.edges).forEach(({ node }) => {
+    const {
+      fields: { fileRelativePath, slug },
+    } = node;
 
-  releaseNotes.allMdx.edges
-    .concat(allMarkdownRemark.edges)
-    .forEach(({ node }) => {
-      const {
-        fields: { fileRelativePath, slug },
-      } = node;
+    const { template, context = {} } = getTemplate(node);
 
-      const template = getTemplate(node);
-
-      if (process.env.NODE_ENV === 'development' && !template) {
-        createPage({
-          path: slug,
-          component: path.resolve(TEMPLATE_DIR, 'dev/missingTemplate.js'),
-          context: {
-            fileRelativePath,
-            layout: 'basic',
-          },
-        });
-      } else {
-        createPage({
-          path: slug,
-          component: path.resolve(path.join(TEMPLATE_DIR, `${template}.js`)),
-          context: {
-            fileRelativePath,
-            slug,
-          },
-        });
-      }
-    });
-
-  releaseNoteMdx.forEach(({ node }) => {});
+    if (process.env.NODE_ENV === 'development' && !template) {
+      createPage({
+        path: slug,
+        component: path.resolve(TEMPLATE_DIR, 'dev/missingTemplate.js'),
+        context: {
+          ...context,
+          fileRelativePath,
+          layout: 'basic',
+        },
+      });
+    } else {
+      createPage({
+        path: slug,
+        component: path.resolve(path.join(TEMPLATE_DIR, `${template}.js`)),
+        context: {
+          ...context,
+          fileRelativePath,
+          slug,
+          slugRegex: `${slug}/.+/`,
+        },
+      });
+    }
+  });
 };
 
 exports.createSchemaCustomization = ({ actions }) => {
@@ -241,18 +239,28 @@ exports.onCreatePage = ({ page, actions }) => {
 
 const getTemplate = (node) => {
   const {
+    frontmatter,
     fields: { fileRelativePath },
   } = node;
 
   switch (true) {
-    case Boolean(node.frontmatter.template):
-      return node.frontmatter.template;
+    case Boolean(frontmatter.template):
+      return { template: frontmatter.template };
+
+    case /docs\/release-notes\/.*\/index.mdx$/.test(fileRelativePath):
+      return {
+        template: 'releaseNoteLandingPage',
+        context: { subject: frontmatter.subject },
+      };
+
     case fileRelativePath.includes('src/content/docs/release-notes'):
-      return 'releaseNote';
+      return { template: 'releaseNote' };
+
     case fileRelativePath.includes('src/content/whats-new'):
-      return 'whatsNew';
+      return { template: 'whatsNew' };
+
     default:
-      throw new Error(`Unknown template for doc: ${fileRelativePath}`);
+      return { template: null };
   }
 };
 
