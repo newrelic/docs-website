@@ -128,7 +128,7 @@ export const pageQuery = graphql`
 `;
 
 const getBestGuessExcerpt = (mdxAST) => {
-  const textTypes = ['paragraph', 'listItem', 'text', 'root', 'link'];
+  const textTypes = ['paragraph', 'list', 'listItem', 'text', 'root', 'link'];
   const ast = filter(mdxAST, (node) => textTypes.includes(node.type));
 
   return toString(
