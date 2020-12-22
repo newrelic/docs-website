@@ -3,6 +3,11 @@ const path = require('path');
 const RSS = require('rss');
 const format = require('date-fns/format');
 const parseISO = require('date-fns/parseISO');
+const unified = require('unified');
+const toHast = require('mdast-util-to-hast');
+const html = require('rehype-stringify');
+
+const htmlGenerator = unified().use(html);
 
 const releaseNotesQuery = async (graphql) => {
   const query = `
@@ -23,7 +28,7 @@ const releaseNotesQuery = async (graphql) => {
             }
             slug
             id
-            html
+            mdxAST
           }
           fieldValue
         }
@@ -38,8 +43,10 @@ const releaseNotesQuery = async (graphql) => {
 
 // converts graphQL response (node) into a consumable format for RSS
 const getFeedItem = (node, siteMetadata) => {
-  const { frontmatter, slug, id, html } = node;
+  const { frontmatter, slug, id, mdxAST } = node;
   const { releaseDate, subject, version } = frontmatter;
+
+  const html = htmlGenerator.stringify(toHast(mdxAST));
 
   // time is necessary for RSS validity
   const date = parseISO(releaseDate);
