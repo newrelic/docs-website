@@ -6,8 +6,11 @@ const parseISO = require('date-fns/parseISO');
 const unified = require('unified');
 const toHast = require('mdast-util-to-hast');
 const html = require('rehype-stringify');
+const removeImports = require('remark-mdx-remove-imports');
+const removeExports = require('remark-mdx-remove-exports');
 
-const htmlGenerator = unified().use(html);
+// NOTE: remove-imports and remove-exports are now depreciated
+const htmlGenerator = unified().use(removeImports).use(removeExports).use(html);
 
 const releaseNotesQuery = async (graphql) => {
   const query = `
