@@ -57,4 +57,3 @@ Keep in mind when you submit your pull request, you'll need to sign the CLA via 
 - Code, including sample code, contained in the `docs-website` repository is licensed under the [Apache 2.0 license](LICENSE-CODE.md).
 - When using New Relic logos, follow New Relic’s [media assets guidelines](https://newrelic.com/about/media-assets).
 - The `docs-website` project also uses source code from third-party libraries. You can find full details on which libraries are used and the terms under which they are licensed in the third-party notices document.
-
