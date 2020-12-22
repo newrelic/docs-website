@@ -105,6 +105,42 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
           }
         }
       }
+
+      releaseNotes: allMdx(
+        filter: {
+          fileAbsolutePath: {
+            regex: "/src/content/docs/release-notes/.*(?<!index).mdx/"
+          }
+        }
+        sort: { fields: frontmatter___releaseDate, order: DESC }
+      ) {
+        group(limit: 1, field: frontmatter___subject) {
+          fieldValue
+          nodes {
+            frontmatter {
+              releaseDate
+            }
+            fields {
+              slug
+            }
+          }
+        }
+      }
+
+      landingPages: allMdx(
+        filter: {
+          fileAbsolutePath: { regex: "/docs/release-notes/.*/index.mdx$/" }
+        }
+      ) {
+        nodes {
+          fields {
+            slug
+          }
+          frontmatter {
+            subject
+          }
+        }
+      }
     }
   `);
 
@@ -113,35 +149,41 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
     return;
   }
 
-  const { allMarkdownRemark, allMdx } = data;
+  const { allMarkdownRemark, allMdx, releaseNotes } = data;
 
-  allMdx.edges.concat(allMarkdownRemark.edges).forEach(({ node }) => {
-    const {
-      fields: { fileRelativePath, slug },
-    } = node;
+  //create redirect from landing page slug / current to latest
 
-    const template = getTemplate(node);
+  releaseNotes.allMdx.edges
+    .concat(allMarkdownRemark.edges)
+    .forEach(({ node }) => {
+      const {
+        fields: { fileRelativePath, slug },
+      } = node;
 
-    if (process.env.NODE_ENV === 'development' && !template) {
-      createPage({
-        path: slug,
-        component: path.resolve(TEMPLATE_DIR, 'dev/missingTemplate.js'),
-        context: {
-          fileRelativePath,
-          layout: 'basic',
-        },
-      });
-    } else {
-      createPage({
-        path: slug,
-        component: path.resolve(path.join(TEMPLATE_DIR, `${template}.js`)),
-        context: {
-          fileRelativePath,
-          slug,
-        },
-      });
-    }
-  });
+      const template = getTemplate(node);
+
+      if (process.env.NODE_ENV === 'development' && !template) {
+        createPage({
+          path: slug,
+          component: path.resolve(TEMPLATE_DIR, 'dev/missingTemplate.js'),
+          context: {
+            fileRelativePath,
+            layout: 'basic',
+          },
+        });
+      } else {
+        createPage({
+          path: slug,
+          component: path.resolve(path.join(TEMPLATE_DIR, `${template}.js`)),
+          context: {
+            fileRelativePath,
+            slug,
+          },
+        });
+      }
+    });
+
+  releaseNoteMdx.forEach(({ node }) => {});
 };
 
 exports.createSchemaCustomization = ({ actions }) => {
