@@ -1,20 +1,114 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import PropTypes from 'prop-types';
+import { css } from '@emotion/core';
 import { graphql } from 'gatsby';
 import PageTitle from '../components/PageTitle';
 import SEO from '../components/seo';
+import Timeline from '../components/Timeline';
+import { Layout, Link } from '@newrelic/gatsby-theme-newrelic';
+import filter from 'unist-util-filter';
+import toString from 'mdast-util-to-string';
+
+const EXCERPT_LENGTH = 200;
 
 const ReleaseNoteLandingPage = ({ data }) => {
   const {
+    allMdx: { nodes: posts },
     mdx: {
       frontmatter: { subject },
     },
   } = data;
 
+  const now = useMemo(() => new Date(), []);
+  const postsByDate = Array.from(
+    posts
+      .reduce((map, post) => {
+        const { releaseDate } = post.frontmatter;
+        const [monthOnly, year] = releaseDate.split(', ');
+        const key =
+          year === now.getFullYear().toString() ? monthOnly : releaseDate;
+
+        return map.set(key, [...(map.get(key) || []), post]);
+      }, new Map())
+      .entries()
+  );
+
   return (
     <>
       <SEO title={subject} />
-      <PageTitle>{subject}</PageTitle>
+      <PageTitle
+        css={css`
+          margin-bottom: 2rem;
+        `}
+      >
+        {subject}
+      </PageTitle>
+      <Layout.Content>
+        <Timeline>
+          {postsByDate.map(([date, posts], idx) => {
+            const isLast = idx === postsByDate.length - 1;
+
+            return (
+              <Timeline.Item label={date} key={date}>
+                {posts.map((post) => {
+                  const ast = filter(post.mdxAST, (node) =>
+                    [
+                      'paragraph',
+                      'list',
+                      'listItem',
+                      'text',
+                      'root',
+                      'link',
+                    ].includes(node.type)
+                  );
+
+                  const excerpt = toString(
+                    filter(
+                      ast,
+                      (node, idx, parent) =>
+                        node.type === 'root' ||
+                        parent.type !== 'root' ||
+                        idx === 0
+                    )
+                  );
+
+                  return (
+                    <div
+                      key={post.version}
+                      css={css`
+                        margin-bottom: 2rem;
+
+                        &:last-child {
+                          margin-bottom: ${isLast ? 0 : '4rem'};
+                        }
+                      `}
+                    >
+                      <Link
+                        to={post.fields.slug}
+                        css={css`
+                          display: inline-block;
+                          font-size: 1.25rem;
+                          margin-bottom: 0.5rem;
+                        `}
+                      >
+                        {subject} v{post.frontmatter.version}
+                      </Link>
+                      <p
+                        css={css`
+                          margin-bottom: 0;
+                        `}
+                      >
+                        {excerpt.slice(0, EXCERPT_LENGTH)}
+                        {excerpt.length > EXCERPT_LENGTH ? '…' : ''}
+                      </p>
+                    </div>
+                  );
+                })}
+              </Timeline.Item>
+            );
+          })}
+        </Timeline>
+      </Layout.Content>
     </>
   );
 };
@@ -24,7 +118,24 @@ ReleaseNoteLandingPage.propTypes = {
 };
 
 export const pageQuery = graphql`
-  query($slug: String!) {
+  query($slug: String!, $subject: String!) {
+    allMdx(
+      filter: {
+        frontmatter: { subject: { eq: $subject }, releaseDate: { ne: null } }
+      }
+      sort: { fields: [frontmatter___releaseDate], order: [DESC] }
+    ) {
+      nodes {
+        mdxAST
+        fields {
+          slug
+        }
+        frontmatter {
+          version
+          releaseDate(formatString: "MMMM D, YYYY")
+        }
+      }
+    }
     mdx(fields: { slug: { eq: $slug } }) {
       frontmatter {
         subject
