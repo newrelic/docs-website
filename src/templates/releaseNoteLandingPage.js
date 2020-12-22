@@ -51,26 +51,7 @@ const ReleaseNoteLandingPage = ({ data }) => {
             return (
               <Timeline.Item label={date} key={date}>
                 {posts.map((post) => {
-                  const ast = filter(post.mdxAST, (node) =>
-                    [
-                      'paragraph',
-                      'list',
-                      'listItem',
-                      'text',
-                      'root',
-                      'link',
-                    ].includes(node.type)
-                  );
-
-                  const excerpt = toString(
-                    filter(
-                      ast,
-                      (node, idx, parent) =>
-                        node.type === 'root' ||
-                        parent.type !== 'root' ||
-                        idx === 0
-                    )
-                  );
+                  const excerpt = getBestGuessExcerpt(post.mdxAST);
 
                   return (
                     <div
@@ -145,5 +126,18 @@ export const pageQuery = graphql`
     ...MainLayout_query
   }
 `;
+
+const getBestGuessExcerpt = (mdxAST) => {
+  const textTypes = ['paragraph', 'listItem', 'text', 'root', 'link'];
+  const ast = filter(mdxAST, (node) => textTypes.includes(node.type));
+
+  return toString(
+    filter(
+      ast,
+      (node, idx, parent) =>
+        node.type === 'root' || parent.type !== 'root' || idx === 0
+    )
+  );
+};
 
 export default ReleaseNoteLandingPage;
