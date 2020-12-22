@@ -279,6 +279,7 @@ module.exports = {
         nodesPerFeedFile: Infinity,
       },
     },
+    'gatsby-plugin-release-note-rss',
     {
       resolve: 'gatsby-source-data-dictionary',
       options: {
