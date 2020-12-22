@@ -10,7 +10,7 @@ const removeImports = require('remark-mdx-remove-imports');
 const removeExports = require('remark-mdx-remove-exports');
 
 // NOTE: remove-imports and remove-exports are now depreciated
-const htmlGenerator = unified().use(removeImports).use(removeExports).use(html);
+const htmlGenerator = unified().use(html).use(removeImports).use(removeExports);
 
 const releaseNotesQuery = async (graphql) => {
   const query = `
