@@ -82,16 +82,19 @@ const run = async () => {
           const bTopic = last(b.data.topics);
           const getStartedRegex = /^Get(ting)? started/i;
           const troubleshootRegex = /^Troubleshoot(ing)?/i;
-          if (aTopic === bTopic) {
-            return 0;
+
+          switch (true) {
+            case aTopic === bTopic:
+              return 0;
+            case getStartedRegex.test(aTopic):
+            case troubleshootRegex.test(bTopic):
+              return -1;
+            case getStartedRegex.test(bTopic):
+            case troubleshootRegex.test(aTopic):
+              return 1;
+            default:
+              return 0;
           }
-          if (getStartedRegex.test(aTopic) || troubleshootRegex.test(bTopic)) {
-            return -1;
-          }
-          if (getStartedRegex.test(bTopic) || troubleshootRegex.test(aTopic)) {
-            return 1;
-          }
-          return 0;
         })
     );
     await fetchDocCount(
