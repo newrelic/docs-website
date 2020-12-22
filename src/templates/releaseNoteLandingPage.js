@@ -5,13 +5,14 @@ import { graphql } from 'gatsby';
 import PageTitle from '../components/PageTitle';
 import SEO from '../components/seo';
 import Timeline from '../components/Timeline';
-import { Layout, Link } from '@newrelic/gatsby-theme-newrelic';
+import { Icon, Layout, Link } from '@newrelic/gatsby-theme-newrelic';
 import filter from 'unist-util-filter';
 import toString from 'mdast-util-to-string';
 
 const EXCERPT_LENGTH = 200;
 
-const ReleaseNoteLandingPage = ({ data }) => {
+const ReleaseNoteLandingPage = ({ data, pageContext }) => {
+  const { slug } = pageContext;
   const {
     allMdx: { nodes: posts },
     mdx: {
@@ -33,15 +34,44 @@ const ReleaseNoteLandingPage = ({ data }) => {
       .entries()
   );
 
+  const title = `${subject} release notes`;
+
   return (
     <>
-      <SEO title={subject} />
+      <SEO title={title} />
       <PageTitle
         css={css`
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
           margin-bottom: 2rem;
+          gap: 0.5rem;
+
+          @supports not (gap: 0.5rem) {
+            > :first-child {
+              margin-right: 0.5rem;
+            }
+          }
         `}
       >
-        {subject}
+        <span>{title}</span>
+
+        <Link
+          to={`${slug}/feed.xml`}
+          css={css`
+            display: flex;
+            align-items: center;
+            font-size: 0.875rem;
+          `}
+        >
+          RSS
+          <Icon
+            name="fe-rss"
+            css={css`
+              margin-left: 0.25rem;
+            `}
+          />
+        </Link>
       </PageTitle>
       <Layout.Content>
         <Timeline>
