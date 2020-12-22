@@ -45,11 +45,12 @@ const releaseNotesQuery = async (graphql) => {
 };
 
 // converts graphQL response (node) into a consumable format for RSS
-const getFeedItem = (node, siteMetadata) => {
+const getFeedItem = async (node, siteMetadata) => {
   const { frontmatter, slug, id, mdxAST } = node;
   const { releaseDate, subject, version } = frontmatter;
 
-  const html = htmlGenerator.stringify(toHast(mdxAST));
+  const transformedAST = await htmlGenerator.run(mdxAST);
+  const html = htmlGenerator.stringify(toHast(transformedAST));
 
   // time is necessary for RSS validity
   const date = parseISO(releaseDate);
