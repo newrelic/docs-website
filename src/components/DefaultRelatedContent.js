@@ -10,7 +10,7 @@ const DefaultRelatedContent = () => {
           to="#for-more-help"
           className="anchor before"
         >
-          <Icon name="fe-link-2" size="1rem" />
+          <Icon focusable={false} name="fe-link-2" size="1rem" />
         </Link>
         For more help
       </h2>
