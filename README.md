@@ -46,8 +46,7 @@ Reading the style guide is totally optional! Our writers are here to make sure e
 
 ## 🚧 Contributing
 
-We welcome contributions to the New Relic Docs Site. Please review our
-[Contributors Guide](CONTRIBUTING.md) prior to submitting any code.
+We welcome contributions to the New Relic Docs Site. Please review our [Contributors Guide](CONTRIBUTING.md) prior to submitting any code.
 
 Keep in mind when you submit your pull request, you'll need to sign the CLA via the click-through using CLA-Assistant. You only have to sign the CLA one time per project. If you have any questions, or to execute our corporate CLA, required if your contribution is on behalf of a company, please drop us an email at opensource@newrelic.com.
 
