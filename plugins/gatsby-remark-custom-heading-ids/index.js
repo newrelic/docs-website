@@ -1,41 +1,38 @@
 const visit = require('unist-util-visit');
-const toString = require('mdast-util-to-string');
-const { last } = require('lodash');
+const remove = require('unist-util-remove');
+const { last, get, set } = require('lodash');
 
-const patch = (obj, key, value) => {
-  if (!obj[key]) {
-    obj[key] = value;
-  }
+const CUSTOM_ID = /^#[\w-]+$/;
 
-  return obj[key];
+const isHeadingWithCustomId = (node) => {
+  const lastChild = last(node.children);
+
+  return (
+    node.type === 'heading' &&
+    lastChild.type === 'linkReference' &&
+    CUSTOM_ID.test(lastChild.label)
+  );
 };
 
 module.exports = ({ markdownAST }) => {
-  visit(markdownAST, 'heading', (heading) => {
-    if (heading.children.length === 0) {
-      return;
+  visit(markdownAST, isHeadingWithCustomId, (heading) => {
+    const { label: id } = last(heading.children);
+
+    set(heading, 'data.id', id);
+    set(heading, 'data.htmlAttributes.id', id);
+    set(heading, 'data.hProperties.id', id);
+
+    remove(heading, 'linkReference');
+
+    const firstChild = heading.children[0];
+
+    // patch id on link created from gatsby-remark-autolink-headers
+    if (
+      firstChild.type === 'link' &&
+      get(firstChild, 'data.hProperties.class', '').includes('anchor')
+    ) {
+      firstChild.url = id;
     }
-
-    const lastChild = last(heading.children);
-    const match = /^(.*?)\s*\[\[#([\w-]+)\]\]$/.exec(toString(lastChild));
-
-    if (!match) {
-      return;
-    }
-
-    const [, text, id] = match;
-
-    // remove the custom ID from the original text
-    if (text) {
-      lastChild.value = text;
-    } else if (heading.children.length > 1) {
-      heading.children.pop();
-    }
-
-    const data = patch(heading, 'data', {});
-
-    patch(data, 'hProperties', {});
-    patch(data.hProperties, 'id', id);
   });
 
   return markdownAST;

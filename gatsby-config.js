@@ -143,6 +143,7 @@ module.exports = {
             },
           },
           autoLinkHeaders,
+          'gatsby-remark-custom-heading-ids',
         ],
       },
     },
@@ -166,6 +167,11 @@ module.exports = {
             },
           },
           autoLinkHeaders,
+          {
+            resolve: require.resolve(
+              './plugins/gatsby-remark-custom-heading-ids'
+            ),
+          },
         ],
       },
     },
