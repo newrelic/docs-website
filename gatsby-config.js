@@ -143,6 +143,9 @@ module.exports = {
             },
           },
           autoLinkHeaders,
+          // This MUST come after `gatsby-remark-autolink-headers` to ensure the
+          // link created for the icon has the proper id
+          'gatsby-remark-custom-heading-ids',
         ],
       },
     },
@@ -166,6 +169,17 @@ module.exports = {
             },
           },
           autoLinkHeaders,
+          // This MUST come after `gatsby-remark-autolink-headers` to ensure the
+          // link created for the icon has the proper id.
+          //
+          // This also uses the `require.resolve` syntax because
+          // `gatsby-plugin-mdx` is unable to resolve local plugins.
+          // https://github.com/gatsbyjs/gatsby/issues/23194
+          {
+            resolve: require.resolve(
+              './plugins/gatsby-remark-custom-heading-ids'
+            ),
+          },
         ],
       },
     },
