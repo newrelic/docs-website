@@ -1,12 +1,4 @@
 const parseISO = require('date-fns/parseISO');
-const startOfMonth = require('date-fns/startOfMonth');
-const sub = require('date-fns/sub');
-const isAfter = require('date-fns/isAfter');
-const isBefore = require('date-fns/isBefore');
-const isEqual = require('date-fns/isEqual');
-
-const isEqualOrAfter = (date, compareDate) =>
-  isEqual(date, compareDate) || isAfter(date, compareDate);
 
 exports.createSchemaCustomization = ({ actions }) => {
   const { createTypes } = actions;
@@ -113,34 +105,27 @@ const createWhatsNewNav = async ({ createNodeId, nodeModel }) => {
     },
   });
 
-  const now = new Date();
-  const firstOfMonth = startOfMonth(now);
-  const lastMonth = sub(firstOfMonth, { months: 1 });
+  const currentYear = new Date().getFullYear();
+  const postsByYear = groupBy(posts, (post) => parseDate(post).getFullYear());
+  const thisYearsPosts = postsByYear.get(currentYear) || [];
 
-  const thisMonthsPosts = posts.filter((post) =>
-    isEqualOrAfter(parseDate(post), firstOfMonth)
+  const postsByMonth = groupBy(thisYearsPosts, (post) =>
+    parseDate(post).toLocaleString('default', { month: 'long' })
   );
 
-  const lastMonthsPosts = posts.filter(
-    (post) =>
-      isEqualOrAfter(parseDate(post), lastMonth) &&
-      isBefore(parseDate(post), firstOfMonth)
+  const previousYearsPosts = Array.from(postsByYear.entries()).filter(
+    ([year]) => year < currentYear
   );
 
-  const olderPosts = posts.filter((post) =>
-    isBefore(parseDate(post), lastMonth)
-  );
+  const navItems = Array.from(postsByMonth.entries())
+    .concat(previousYearsPosts)
+    .map(([key, posts]) => ({ title: key, pages: formatPosts(posts) }))
+    .filter(({ pages }) => pages.length);
 
   return {
     id: createNodeId('whats-new'),
     title: "What's new",
-    pages: [{ title: 'Overview', url: '/whats-new' }].concat(
-      [
-        { title: 'This month', pages: formatPosts(thisMonthsPosts) },
-        { title: 'Last month', pages: formatPosts(lastMonthsPosts) },
-        { title: 'Older', pages: formatPosts(olderPosts) },
-      ].filter(({ pages }) => pages.length)
-    ),
+    pages: [{ title: 'Overview', url: '/whats-new' }].concat(navItems),
   };
 };
 
@@ -215,6 +200,13 @@ const formatPosts = (posts) =>
     url: post.fields.slug,
     pages: [],
   }));
+
+const groupBy = (arr, fn) =>
+  arr.reduce((map, item) => {
+    const key = fn(item);
+
+    return map.set(key, [...(map.get(key) || []), item]);
+  }, new Map());
 
 const createNav = ({ args, createNodeId, nodeModel }) => {
   const { slug } = args;
