@@ -40,7 +40,10 @@ export const pageQuery = graphql`
         title
       }
     }
-    allMdx(filter: { fields: { slug: { regex: $slugRegex } } }) {
+    allMdx(
+      filter: { fields: { slug: { regex: $slugRegex } } }
+      sort: { fields: frontmatter___title, order: ASC }
+    ) {
       nodes {
         fields {
           slug

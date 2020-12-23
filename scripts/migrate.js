@@ -16,6 +16,7 @@ const createRawHTMLFiles = require('./utils/migrate/create-raw-html-files');
 const migrateNavStructure = require('./utils/migrate/migrate-nav-structure');
 const reporter = require('vfile-reporter');
 const rimraf = require('rimraf');
+const { last } = require('lodash');
 const path = require('path');
 const { prop } = require('./utils/functional');
 const {
@@ -70,7 +71,31 @@ const run = async () => {
     await saveWhatsNewIds(whatsNewFiles);
     const definitionFiles = attributeDefFiles.concat(eventDefFiles);
     const files = await all(docs, toVFile).then((files) =>
-      files.sort((a, b) => a.path.localeCompare(b.path))
+      files
+        .sort(
+          (a, b) =>
+            parseInt(a.data.doc.order || 0, 10) -
+            parseInt(b.data.doc.order || 0, 10)
+        )
+        .sort((a, b) => {
+          const aTopic = last(a.data.topics);
+          const bTopic = last(b.data.topics);
+          const getStartedRegex = /^Get(ting)? started/i;
+          const troubleshootRegex = /^Troubleshoot(ing)?/i;
+
+          switch (true) {
+            case aTopic === bTopic:
+              return 0;
+            case getStartedRegex.test(aTopic):
+            case troubleshootRegex.test(bTopic):
+              return -1;
+            case getStartedRegex.test(bTopic):
+            case troubleshootRegex.test(aTopic):
+              return 1;
+            default:
+              return 0;
+          }
+        })
     );
     await fetchDocCount(
       files.concat(definitionFiles).concat(whatsNewFiles).length
