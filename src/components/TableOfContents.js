@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef } from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/core';
 import { graphql } from 'gatsby';
+import { useMedia } from 'react-use';
 import { Icon, PageTools } from '@newrelic/gatsby-theme-newrelic';
 import useActiveHash from '../hooks/useActiveHash';
 import { usePrevious } from 'react-use';
@@ -32,6 +33,8 @@ const TableOfContents = ({ page }) => {
   const activeHash = useActiveHash(headingIds);
   const previousActiveHash = usePrevious(activeHash);
   const changedActiveHash = activeHash !== previousActiveHash;
+
+  const isMobileScreen = useMedia('(max-width: 1240px)');
 
   useEffect(() => {
     if (!activeRef.current) {
@@ -83,7 +86,7 @@ const TableOfContents = ({ page }) => {
                 <a
                   ref={isActive ? activeRef : null}
                   href={`#${id}`}
-                  className={isActive ? 'active' : null}
+                  className={isActive && !isMobileScreen ? 'active' : null}
                   css={css`
                     display: flex;
                     align-items: center;
@@ -107,7 +110,9 @@ const TableOfContents = ({ page }) => {
                   <Icon
                     name={Icon.TYPE.ARROW_LEFT}
                     css={css`
-                      display: ${isActive ? 'inline-block' : 'none'};
+                      display: ${isActive && !isMobileScreen
+                        ? 'inline-block'
+                        : 'none'};
                       margin-right: 0.5rem;
                     `}
                   />

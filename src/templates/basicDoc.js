@@ -2,6 +2,7 @@ import React from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/core';
 import { graphql } from 'gatsby';
+import { useMedia } from 'react-use';
 import PageTitle from '../components/PageTitle';
 import MDXContainer from '../components/MDXContainer';
 import SEO from '../components/seo';
@@ -27,6 +28,8 @@ const BasicDoc = ({ data }) => {
     (node) => node.type === 'heading' && toString(node) === 'For more help'
   );
 
+  const isMobileScreen = useMedia('(max-width: 1240px)');
+
   return (
     <>
       <SEO title={frontmatter.title} />
@@ -42,7 +45,8 @@ const BasicDoc = ({ data }) => {
           @media screen and (max-width: 1240px) {
             grid-template-areas:
               'page-title'
-              'content';
+              'content'
+              'page-tools';
             grid-template-columns: minmax(0, 1fr);
           }
         `}
@@ -56,11 +60,14 @@ const BasicDoc = ({ data }) => {
         <Layout.PageTools
           css={css`
             @media screen and (max-width: 1240px) {
-              display: none;
+              margin-top: 1rem;
+              position: static;
             }
           `}
         >
-          <ContributingGuidelines fileRelativePath={fileRelativePath} />
+          {!isMobileScreen && (
+            <ContributingGuidelines fileRelativePath={fileRelativePath} />
+          )}
           <TableOfContents page={mdx} />
           <SimpleFeedback
             title={frontmatter.title}
