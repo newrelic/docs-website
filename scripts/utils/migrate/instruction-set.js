@@ -451,4 +451,73 @@ module.exports = [
       path: '/docs/mobile-monitoring/new-relic-mobile-ios/ios-sdk-api',
     },
   },
+  {
+    type: INSTRUCTIONS.ADD,
+    path: ['Agents, .NET agent'],
+    node: {
+      title: 'Latest release',
+      path: '/docs/release-notes/agent-release-notes/net-release-notes/current',
+    },
+  },
+  {
+    type: INSTRUCTIONS.ADD,
+    path: ['Agents, Java agent'],
+    node: {
+      title: 'Latest release',
+      path:
+        '/docs/release-notes/agent-release-notes/java-release-notes/current',
+    },
+  },
+  {
+    type: INSTRUCTIONS.ADD,
+    path: ['Agents, Go agent'],
+    node: {
+      title: 'Latest release',
+      path: '/docs/release-notes/agent-release-notes/go-release-notes/current',
+    },
+  },
+  {
+    type: INSTRUCTIONS.ADD,
+    path: ['Agents, C SDK'],
+    node: {
+      title: 'Latest release',
+      path:
+        '/docs/release-notes/agent-release-notes/c-sdk-release-notes/current',
+    },
+  },
+  {
+    type: INSTRUCTIONS.ADD,
+    path: ['Agents, Ruby agent'],
+    node: {
+      title: 'Latest release',
+      path:
+        '/docs/release-notes/agent-release-notes/ruby-release-notes/current',
+    },
+  },
+  {
+    type: INSTRUCTIONS.ADD,
+    path: ['Agents, Python agent'],
+    node: {
+      title: 'Latest release',
+      path:
+        '/docs/release-notes/agent-release-notes/python-release-notes/current',
+    },
+  },
+  {
+    type: INSTRUCTIONS.ADD,
+    path: ['Agents, PHP agent'],
+    node: {
+      title: 'Latest release',
+      path: '/docs/release-notes/agent-release-notes/php-release-notes/current',
+    },
+  },
+  {
+    type: INSTRUCTIONS.ADD,
+    path: ['Agents, Node.js agent'],
+    node: {
+      title: 'Latest release',
+      path:
+        '/docs/release-notes/agent-release-notes/nodejs-release-notes/current',
+    },
+  },
 ];
