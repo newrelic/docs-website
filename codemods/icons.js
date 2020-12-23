@@ -77,7 +77,7 @@ const FA_TO_FEATHER_ICONS = {
   trash: 'fe-trash-2',
   'trash-o': 'fe-trash-2',
   terminal: 'fe-terminal',
-  user: 'fe-user',
+  'user-o': 'fe-user',
   'user-plus': 'fe-user-plus',
   warning: 'fe-alert-triangle',
   wrench: 'fe-tool',
