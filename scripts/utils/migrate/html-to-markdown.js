@@ -3,6 +3,7 @@ const HTMLtoJSX = require('htmltojsx');
 const fauxHtmlToJSX = require('./faux-html-to-jsx');
 const { extractTags } = require('../node');
 const { TYPES } = require('../constants');
+const slugs = require('github-slugger')();
 
 const SPECIAL_COMPONENTS = [
   { tag: 'div', className: 'callout-tip' },
@@ -59,7 +60,11 @@ const isLandingPageTile = (node) =>
   node.childNodes[0].classList.contains('col-md-3') &&
   node.childNodes[1].classList.contains('col-md-9');
 
+const repeat = (character, count) => Array(count + 1).join(character);
+
 module.exports = (file) => {
+  slugs.reset();
+
   const turndown = new Turndown({
     headingStyle: 'atx',
     codeBlockStyle: 'fenced',
@@ -67,6 +72,18 @@ module.exports = (file) => {
   });
 
   turndown
+    // adapted from Turndown to add custom heading IDs
+    // https://github.com/domchristie/turndown/blob/e7a9351cf2bcd724ef119b4f709755439a10e958/src/commonmark-rules.js#L21-L36
+    .addRule('headings', {
+      filter: ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'],
+      replacement: (content, node) => {
+        const hLevel = Number(node.nodeName.charAt(1));
+        const slug = slugs.slug(node.textContent);
+        const id = node.id && node.id !== slug ? ` [#${node.id}]` : '';
+
+        return `\n\n${repeat('#', hLevel)} ${content}${id}\n\n`;
+      },
+    })
     .addRule('links', {
       filter: (node) => node.nodeName === 'A' && node.getAttribute('href'),
       replacement: (content, node) => {
