@@ -16,7 +16,8 @@ const isHeadingWithCustomId = (node) => {
 
 module.exports = ({ markdownAST }) => {
   visit(markdownAST, isHeadingWithCustomId, (heading) => {
-    const { label: id } = last(heading.children);
+    const { label } = last(heading.children);
+    const id = label.replace(/^#/, '');
 
     set(heading, 'data.id', id);
     set(heading, 'data.htmlAttributes.id', id);
@@ -31,7 +32,7 @@ module.exports = ({ markdownAST }) => {
       firstChild.type === 'link' &&
       get(firstChild, 'data.hProperties.class', '').includes('anchor')
     ) {
-      firstChild.url = id;
+      firstChild.url = `#${id}`;
     }
   });
 
