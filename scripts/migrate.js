@@ -30,15 +30,15 @@ const copyManualEdits = require('./utils/migrate/copy-manual-edits');
 const all = (list, fn) => Promise.all(list.map(fn));
 
 const run = async () => {
-  logger.normal('Starting migration');
+  logger.info('Starting migration');
 
   try {
-    logger.normal('Resetting content');
+    logger.info('Resetting content');
     rimraf.sync(CONTENT_DIR);
     rimraf.sync(NAV_DIR);
     rimraf.sync(DICTIONARY_DIR);
 
-    logger.normal('Fetching JSON');
+    logger.info('Fetching JSON');
     const docs = await fetchDocs();
     const attributeDefs = await fetchAttributeDefinitions();
     const eventDefs = await fetchEventDefinitions();
@@ -97,17 +97,15 @@ const run = async () => {
           }
         })
     );
-    await fetchDocCount(
-      files.concat(definitionFiles).concat(whatsNewFiles).length
-    );
+    await fetchDocCount(files.concat(definitionFiles, whatsNewFiles).length);
 
-    logger.normal('Creating directories');
+    logger.info('Creating directories');
     createDirectories(files.concat(definitionFiles, whatsNewFiles));
 
-    logger.normal('Converting files');
+    logger.info('Converting files');
     await all(files.concat(definitionFiles, whatsNewFiles), convertFile);
 
-    logger.normal('Running codemods on .mdx files');
+    logger.info('Running codemods on .mdx files');
     await all(
       files.filter((file) => file.extname === '.mdx'),
       async (file) => {
@@ -118,7 +116,7 @@ const run = async () => {
         }
       }
     );
-    logger.normal('Running codemods on whats new files');
+    logger.info('Running codemods on whats new files');
     await all(whatsNewFiles, async (file) => {
       try {
         await runCodemod(file, {
@@ -132,15 +130,15 @@ const run = async () => {
       }
     });
 
-    logger.normal('Creating nav structure');
+    logger.info('Creating nav structure');
     const navFiles = migrateNavStructure(createNavStructure(files));
 
-    logger.normal('Saving changes to files');
+    logger.info('Saving changes to files');
     await all(files.concat(navFiles, definitionFiles, whatsNewFiles), (file) =>
       write(file, 'utf-8')
     );
 
-    logger.normal('Copying manual edits');
+    logger.info('Copying manual edits');
     await copyManualEdits();
 
     // Run `DEBUG=true yarn migrate` to also write a `.html` file right next to
@@ -148,7 +146,7 @@ const run = async () => {
     // with the generated markdown to ensure we don't miss edge cases. These
     // files should not be committed.
     if (process.env.DEBUG) {
-      logger.normal('[DEBUG] Creating raw HTML files');
+      logger.info('[DEBUG] Creating raw HTML files');
       createRawHTMLFiles(files.concat(whatsNewFiles));
     }
 
