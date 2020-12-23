@@ -164,7 +164,6 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
       (node) => node.frontmatter.subject === fieldValue
     );
 
-
     landingPage &&
       createRedirect({
         fromPath: path.join(landingPage.fields.slug, 'current'),

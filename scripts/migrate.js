@@ -26,7 +26,7 @@ const {
   WHATS_NEW_DIR,
 } = require('./utils/constants');
 const copyManualEdits = require('./utils/migrate/copy-manual-edits');
-
+const japaneseFile = require('./japanese-file');
 const all = (list, fn) => Promise.all(list.map(fn));
 
 const run = async () => {
@@ -39,7 +39,11 @@ const run = async () => {
     rimraf.sync(DICTIONARY_DIR);
 
     logger.normal('Fetching JSON');
+    const jaDoc = japaneseFile;
+
     const docs = await fetchDocs();
+
+    docs.push(jaDoc);
     const attributeDefs = await fetchAttributeDefinitions();
     const eventDefs = await fetchEventDefinitions();
     const whatsNew = await fetchWhatsNew();
