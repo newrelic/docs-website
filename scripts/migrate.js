@@ -50,9 +50,7 @@ const runTask = async ({
     createDirectories([file]);
     await process(file);
 
-    setTimeout(() => {
-      bar.increment();
-    }, 0);
+    bar.increment();
 
     return file;
   });
@@ -69,7 +67,7 @@ const runTask = async ({
 
 const progressBar = new cliProgress.MultiBar(
   {
-    format: `{label}\t{bar} {percentage}% | {value}/{total} | {step}`.trim(),
+    format: `{label}\t{bar} {percentage}% ({value}/{total})\t| {step}`.trim(),
     clearOnComplete: true,
     hideCursor: true,
     forceRedraw: true,
@@ -142,7 +140,7 @@ const run = async () => {
         onDone: saveWhatsNewIds,
       },
       {
-        label: 'Docs',
+        label: 'Docs\t\t',
         fetch: fetchDocs,
         process: async (file) => {
           convertFile(file);
