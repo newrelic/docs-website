@@ -38,41 +38,46 @@ const runTask = async ({
   process,
   onDone,
 }) => {
-  const bar = progressBar.create(0, 0, { label, step: 'fetching docs' });
-  const data = await fetch();
+  try {
+    const bar = progressBar.create(0, 0, { label, step: 'fetching docs' });
+    const data = await fetch();
 
-  bar.setTotal(data.length);
-  bar.update({ step: 'processing' });
+    bar.setTotal(data.length);
+    bar.update({ step: 'processing' });
 
-  const files = await all(data, async (doc) => {
-    const file = toVFile(doc, vfileOptions || {});
+    const files = await all(data, async (doc) => {
+      const file = toVFile(doc, vfileOptions || {});
 
-    createDirectories([file]);
-    await process(file);
+      createDirectories([file]);
+      await process(file);
 
-    bar.increment();
+      bar.increment();
 
-    return file;
-  });
+      return file;
+    });
 
-  if (onDone) {
-    await onDone(files);
+    if (onDone) {
+      await onDone(files);
+    }
+
+    bar.update({ step: 'done' });
+    bar.stop();
+
+    return files;
+  } catch (e) {
+    logger.error(e);
+    return [];
   }
-
-  bar.update({ step: 'done' });
-  bar.stop();
-
-  return files;
 };
 
 const progressBar = new cliProgress.MultiBar(
   {
-    format: `{label}\t{bar} {percentage}% ({value}/{total})\t| {step}`.trim(),
+    format: `{label}\t{bar} {percentage}% ({value}/{total}) | {step}`.trim(),
     clearOnComplete: true,
     hideCursor: true,
     forceRedraw: true,
     stopOnComplete: true,
-    fps: 30,
+    fps: 60,
     emptyOnZero: true,
   },
   cliProgress.Presets.shades_grey
