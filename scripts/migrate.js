@@ -29,47 +29,58 @@ const {
 const copyManualEdits = require('./utils/migrate/copy-manual-edits');
 const cliProgress = require('cli-progress');
 
-const createProgressBar = ({ label }) => {
-  return new cliProgress.SingleBar(
-    {
-      format: `${label} {bar} {percentage}% | {value}/{total}`.trim(),
-      hideCursor: true,
-    },
-    cliProgress.Presets.shades_grey
-  );
-};
-
 const all = (list, fn) => Promise.all(list.map(fn));
 
-const runPipeline = async (
-  fetchData,
-  { vfile: vfileOptions, process, onDone } = {}
-) => {
-  logger.info('\tfetching data');
-  const data = await fetchData();
-  const bar = createProgressBar({ label: '' });
+const runTask = async ({
+  label,
+  fetch,
+  vfile: vfileOptions,
+  process,
+  onDone,
+}) => {
+  const bar = progressBar.create(0, 0, { label, step: 'fetching docs' });
+  const data = await fetch();
 
-  logger.info('\tprocessing');
-  bar.start(data.length, 0);
+  bar.setTotal(data.length);
+  bar.update({ step: 'processing' });
+
   const files = await all(data, async (doc) => {
     const file = toVFile(doc, vfileOptions || {});
 
     createDirectories([file]);
     await process(file);
 
-    bar.increment();
+    setTimeout(() => {
+      bar.increment();
+    }, 0);
 
     return file;
   });
-
-  bar.stop();
 
   if (onDone) {
     await onDone(files);
   }
 
+  bar.update({ step: 'done' });
+  bar.stop();
+
   return files;
 };
+
+const progressBar = new cliProgress.MultiBar(
+  {
+    format: `{label}\t{bar} {percentage}% | {value}/{total} | {step}`.trim(),
+    clearOnComplete: true,
+    hideCursor: true,
+    forceRedraw: true,
+    stopOnComplete: true,
+    fps: 30,
+    emptyOnZero: true,
+  },
+  cliProgress.Presets.shades_grey
+);
+
+const runPipeline = (tasks) => Promise.all(tasks.map(runTask));
 
 const run = async () => {
   logger.info('Starting migration');
@@ -80,73 +91,80 @@ const run = async () => {
     rimraf.sync(NAV_DIR);
     rimraf.sync(DICTIONARY_DIR);
 
-    logger.info('Migrating attribute definitions');
-    const attributeDefFiles = await runPipeline(fetchAttributeDefinitions, {
-      vfile: {
-        baseDir: DICTIONARY_DIR,
-        filename: prop('title'),
-        dirname: ({ eventTypes }) => `/events/${eventTypes[0]}`,
-      },
-      process: convertFile,
-      label: 'Attribute definitions',
-    });
-
-    logger.info('Migrating event definitions');
-    const eventDefFiles = await runPipeline(fetchEventDefinitions, {
-      vfile: {
-        baseDir: DICTIONARY_DIR,
-        filename: ({ name }) => `${name}.event-definition`,
-        dirname: ({ name }) => `/events/${name}`,
-      },
-      process: convertFile,
-    });
-
-    logger.info('Migrating whats new files');
-    const whatsNewFiles = await runPipeline(fetchWhatsNew, {
-      vfile: {
-        baseDir: WHATS_NEW_DIR,
-        dirname: ({ releaseDateTime }) => {
-          const date = releaseDateTime.split(' ')[0];
-          const [year, month] = date.split('-');
-
-          return path.join(year, month);
+    logger.info('Migrating docs');
+    const fileGroups = await runPipeline([
+      {
+        label: 'Attribute definitions',
+        fetch: fetchAttributeDefinitions,
+        vfile: {
+          baseDir: DICTIONARY_DIR,
+          filename: prop('title'),
+          dirname: ({ eventTypes }) => `/events/${eventTypes[0]}`,
         },
+        process: convertFile,
       },
-      process: async (file) => {
-        try {
+      {
+        label: 'Event definitions',
+        fetch: fetchEventDefinitions,
+        vfile: {
+          baseDir: DICTIONARY_DIR,
+          filename: ({ name }) => `${name}.event-definition`,
+          dirname: ({ name }) => `/events/${name}`,
+        },
+        process: convertFile,
+      },
+      {
+        label: "What's new\t",
+        fetch: fetchWhatsNew,
+        vfile: {
+          baseDir: WHATS_NEW_DIR,
+          dirname: ({ releaseDateTime }) => {
+            const date = releaseDateTime.split(' ')[0];
+            const [year, month] = date.split('-');
+
+            return path.join(year, month);
+          },
+        },
+        process: async (file) => {
+          try {
+            convertFile(file);
+
+            await runCodemod(file, {
+              codemods: [
+                require('../codemods/images'),
+                require('../codemods/markdownVideos'),
+              ],
+            });
+          } catch (e) {
+            // do nothing
+          }
+        },
+        onDone: saveWhatsNewIds,
+      },
+      {
+        label: 'Docs',
+        fetch: fetchDocs,
+        process: async (file) => {
           convertFile(file);
 
-          await runCodemod(file, {
-            codemods: [
-              require('../codemods/images'),
-              require('../codemods/markdownVideos'),
-            ],
-          });
-        } catch (e) {
-          // do nothing
-        }
+          if (file.extname !== '.mdx') {
+            return;
+          }
+
+          try {
+            await runCodemod(file, { codemods });
+          } catch (e) {
+            // do nothing
+          }
+        },
       },
-      onDone: saveWhatsNewIds,
-    });
+    ]);
 
-    logger.info('Migrating docs');
-    const docsFiles = await runPipeline(fetchDocs, {
-      process: async (file) => {
-        convertFile(file);
+    const allDocsFiles = fileGroups.flat();
 
-        if (file.extname !== '.mdx') {
-          return;
-        }
+    progressBar.stop();
 
-        try {
-          await runCodemod(file, { codemods });
-        } catch (e) {
-          // do nothing
-        }
-      },
-    });
-
-    const sortedDocsFiles = docsFiles
+    const sortedDocsFiles = last(fileGroups)
       .sort(
         (a, b) =>
           parseInt(a.data.doc.order || 0, 10) -
@@ -174,12 +192,6 @@ const run = async () => {
 
     logger.info('Creating nav');
     const navFiles = migrateNavStructure(createNavStructure(sortedDocsFiles));
-
-    const allDocsFiles = docsFiles.concat(
-      attributeDefFiles,
-      eventDefFiles,
-      whatsNewFiles
-    );
 
     logger.info('Saving changes to files');
     createDirectories(allDocsFiles);
