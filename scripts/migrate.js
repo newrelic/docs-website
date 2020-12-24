@@ -43,7 +43,7 @@ const all = (list, fn) => Promise.all(list.map(fn));
 
 const runPipeline = async (
   fetchData,
-  { vfile: vfileOptions, process } = {}
+  { vfile: vfileOptions, process, onDone } = {}
 ) => {
   logger.info('\tfetching data');
   const data = await fetchData();
@@ -63,6 +63,10 @@ const runPipeline = async (
   });
 
   bar.stop();
+
+  if (onDone) {
+    await onDone(files);
+  }
 
   return files;
 };
@@ -122,9 +126,8 @@ const run = async () => {
           // do nothing
         }
       },
+      onDone: saveWhatsNewIds,
     });
-
-    await saveWhatsNewIds(whatsNewFiles);
 
     logger.info('Migrating docs');
     const docsFiles = await runPipeline(fetchDocs, {
