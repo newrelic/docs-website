@@ -22,12 +22,15 @@ const watermarks = () => (tree, file) => {
       const frontmatterNode = tree.children.find(
         (node) => node.type === 'yaml'
       );
+
       const frontmatter = yaml.safeLoad(frontmatterNode.value);
 
-      frontmatterNode.value = yaml.safeDump({
-        ...frontmatter,
-        watermark: text.join('\n'),
-      });
+      frontmatterNode.value = yaml
+        .safeDump({
+          ...frontmatter,
+          watermark: text.join('\n'),
+        })
+        .trim();
 
       removeChild(node, parent);
 
