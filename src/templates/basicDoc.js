@@ -13,6 +13,7 @@ import {
 } from '@newrelic/gatsby-theme-newrelic';
 import toString from 'mdast-util-to-string';
 import DefaultRelatedContent from '../components/DefaultRelatedContent';
+import Watermark from '../components/Watermark';
 
 const BasicDoc = ({ data }) => {
   const { mdx } = data;
@@ -49,6 +50,7 @@ const BasicDoc = ({ data }) => {
       >
         <PageTitle>{frontmatter.title}</PageTitle>
         <Layout.Content>
+          {frontmatter.watermark && <Watermark text={frontmatter.watermark} />}
           <MDXContainer body={body}>
             {moreHelpExists ? null : <DefaultRelatedContent />}
           </MDXContainer>
@@ -84,6 +86,7 @@ export const pageQuery = graphql`
       body
       frontmatter {
         title
+        watermark
       }
       fields {
         fileRelativePath
