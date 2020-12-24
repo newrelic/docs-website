@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 const fetchDocs = require('./utils/migrate/fetch-docs');
 const fetchDocCount = require('./utils/migrate/fetch-doc-count');
 const fetchAttributeDefinitions = require('./utils/migrate/fetch-attribute-definitions');
@@ -26,8 +27,45 @@ const {
   WHATS_NEW_DIR,
 } = require('./utils/constants');
 const copyManualEdits = require('./utils/migrate/copy-manual-edits');
+const cliProgress = require('cli-progress');
+
+const createProgressBar = ({ label }) => {
+  return new cliProgress.SingleBar(
+    {
+      format: `${label} {bar} {percentage}% | {value}/{total}`.trim(),
+      hideCursor: true,
+    },
+    cliProgress.Presets.shades_grey
+  );
+};
 
 const all = (list, fn) => Promise.all(list.map(fn));
+
+const runPipeline = async (
+  fetchData,
+  { vfile: vfileOptions, process } = {}
+) => {
+  logger.info('\tfetching data');
+  const data = await fetchData();
+  const bar = createProgressBar({ label: '' });
+
+  logger.info('\tprocessing');
+  bar.start(data.length, 0);
+  const files = await all(data, async (doc) => {
+    const file = toVFile(doc, vfileOptions || {});
+
+    createDirectories([file]);
+    await process(file);
+
+    bar.increment();
+
+    return file;
+  });
+
+  bar.stop();
+
+  return files;
+};
 
 const run = async () => {
   logger.info('Starting migration');
@@ -38,27 +76,30 @@ const run = async () => {
     rimraf.sync(NAV_DIR);
     rimraf.sync(DICTIONARY_DIR);
 
-    logger.info('Fetching JSON');
-    const docs = await fetchDocs();
-    const attributeDefs = await fetchAttributeDefinitions();
-    const eventDefs = await fetchEventDefinitions();
-    const whatsNew = await fetchWhatsNew();
-    const attributeDefFiles = await all(attributeDefs, (doc) =>
-      toVFile(doc, {
+    logger.info('Migrating attribute definitions');
+    const attributeDefFiles = await runPipeline(fetchAttributeDefinitions, {
+      vfile: {
         baseDir: DICTIONARY_DIR,
         filename: prop('title'),
         dirname: ({ eventTypes }) => `/events/${eventTypes[0]}`,
-      })
-    );
-    const eventDefFiles = await all(eventDefs, (doc) =>
-      toVFile(doc, {
+      },
+      process: convertFile,
+      label: 'Attribute definitions',
+    });
+
+    logger.info('Migrating event definitions');
+    const eventDefFiles = await runPipeline(fetchEventDefinitions, {
+      vfile: {
         baseDir: DICTIONARY_DIR,
         filename: ({ name }) => `${name}.event-definition`,
         dirname: ({ name }) => `/events/${name}`,
-      })
-    );
-    const whatsNewFiles = await all(whatsNew, (doc) =>
-      toVFile(doc, {
+      },
+      process: convertFile,
+    });
+
+    logger.info('Migrating whats new files');
+    const whatsNewFiles = await runPipeline(fetchWhatsNew, {
+      vfile: {
         baseDir: WHATS_NEW_DIR,
         dirname: ({ releaseDateTime }) => {
           const date = releaseDateTime.split(' ')[0];
@@ -66,77 +107,81 @@ const run = async () => {
 
           return path.join(year, month);
         },
-      })
-    );
+      },
+      process: async (file) => {
+        try {
+          convertFile(file);
+
+          await runCodemod(file, {
+            codemods: [
+              require('../codemods/images'),
+              require('../codemods/markdownVideos'),
+            ],
+          });
+        } catch (e) {
+          // do nothing
+        }
+      },
+    });
+
     await saveWhatsNewIds(whatsNewFiles);
-    const definitionFiles = attributeDefFiles.concat(eventDefFiles);
-    const files = await all(docs, toVFile).then((files) =>
-      files
-        .sort(
-          (a, b) =>
-            parseInt(a.data.doc.order || 0, 10) -
-            parseInt(b.data.doc.order || 0, 10)
-        )
-        .sort((a, b) => {
-          const aTopic = last(a.data.topics);
-          const bTopic = last(b.data.topics);
-          const getStartedRegex = /^Get(ting)? started/i;
-          const troubleshootRegex = /^Troubleshoot(ing)?/i;
 
-          switch (true) {
-            case aTopic === bTopic:
-              return 0;
-            case getStartedRegex.test(aTopic):
-            case troubleshootRegex.test(bTopic):
-              return -1;
-            case getStartedRegex.test(bTopic):
-            case troubleshootRegex.test(aTopic):
-              return 1;
-            default:
-              return 0;
-          }
-        })
-    );
-    await fetchDocCount(files.concat(definitionFiles, whatsNewFiles).length);
+    logger.info('Migrating docs');
+    const docsFiles = await runPipeline(fetchDocs, {
+      process: async (file) => {
+        convertFile(file);
 
-    logger.info('Creating directories');
-    createDirectories(files.concat(definitionFiles, whatsNewFiles));
+        if (file.extname !== '.mdx') {
+          return;
+        }
 
-    logger.info('Converting files');
-    await all(files.concat(definitionFiles, whatsNewFiles), convertFile);
-
-    logger.info('Running codemods on .mdx files');
-    await all(
-      files.filter((file) => file.extname === '.mdx'),
-      async (file) => {
         try {
           await runCodemod(file, { codemods });
         } catch (e) {
           // do nothing
         }
-      }
-    );
-    logger.info('Running codemods on whats new files');
-    await all(whatsNewFiles, async (file) => {
-      try {
-        await runCodemod(file, {
-          codemods: [
-            require('../codemods/images'),
-            require('../codemods/markdownVideos'),
-          ],
-        });
-      } catch (e) {
-        // do nothing
-      }
+      },
     });
 
-    logger.info('Creating nav structure');
-    const navFiles = migrateNavStructure(createNavStructure(files));
+    const sortedDocsFiles = docsFiles
+      .sort(
+        (a, b) =>
+          parseInt(a.data.doc.order || 0, 10) -
+          parseInt(b.data.doc.order || 0, 10)
+      )
+      .sort((a, b) => {
+        const aTopic = last(a.data.topics);
+        const bTopic = last(b.data.topics);
+        const getStartedRegex = /^Get(ting)? started/i;
+        const troubleshootRegex = /^Troubleshoot(ing)?/i;
+
+        switch (true) {
+          case aTopic === bTopic:
+            return 1;
+          case getStartedRegex.test(aTopic):
+          case troubleshootRegex.test(bTopic):
+            return -1;
+          case getStartedRegex.test(bTopic):
+          case troubleshootRegex.test(aTopic):
+            return 1;
+          default:
+            return 0;
+        }
+      });
+
+    logger.info('Creating nav');
+    const navFiles = migrateNavStructure(createNavStructure(sortedDocsFiles));
+
+    const allDocsFiles = docsFiles.concat(
+      attributeDefFiles,
+      eventDefFiles,
+      whatsNewFiles
+    );
 
     logger.info('Saving changes to files');
-    await all(files.concat(navFiles, definitionFiles, whatsNewFiles), (file) =>
-      write(file, 'utf-8')
-    );
+    createDirectories(allDocsFiles);
+    await fetchDocCount(allDocsFiles.length);
+    await all(allDocsFiles.concat(navFiles), (file) => write(file, 'utf-8'));
 
     logger.info('Copying manual edits');
     await copyManualEdits();
@@ -147,12 +192,10 @@ const run = async () => {
     // files should not be committed.
     if (process.env.DEBUG) {
       logger.info('[DEBUG] Creating raw HTML files');
-      createRawHTMLFiles(files.concat(whatsNewFiles));
+      createRawHTMLFiles(allDocsFiles);
     }
 
-    console.error(
-      reporter(files.concat(navFiles, whatsNewFiles), { quiet: true })
-    );
+    console.error(reporter(allDocsFiles.concat(navFiles), { quiet: true }));
 
     logger.success('Migration complete!');
   } catch (err) {
