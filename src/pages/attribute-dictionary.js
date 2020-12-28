@@ -179,29 +179,45 @@ const EventDefinition = memo(({ event, filteredAttribute }) => {
         }
       `}
     >
-      <h2
-        css={css`
-          position: sticky;
-          top: var(--global-header-height);
-          background: var(--primary-background-color);
-          padding: 1rem 0;
-
-          // cover up the right table border
-          margin-right: -1px;
-
-          @media (max-width: 1240px) {
-            position: static;
-          }
-        `}
-      >
-        <code
+      <Link to={`?event=${event.name}`}>
+        <h2
+          as={Link}
           css={css`
-            background: none !important;
+            position: sticky;
+            top: var(--global-header-height);
+            background: var(--primary-background-color);
+            padding: 1rem 0;
+
+            // cover up the right table border
+            margin-right: -1px;
+
+            &:hover svg {
+              opacity: 1;
+            }
+
+            @media (max-width: 1240px) {
+              position: static;
+            }
           `}
         >
-          {event.name}
-        </code>
-      </h2>
+          <code
+            css={css`
+              background: none !important;
+            `}
+          >
+            {event.name}
+          </code>
+          <Icon
+            name="fe-link-2"
+            focusable={false}
+            css={css`
+              margin-left: 0.5rem;
+              opacity: 0;
+              transition: opacity 0.2s ease-out;
+            `}
+          />
+        </h2>
+      </Link>
       <div
         css={css`
           margin-bottom: 1rem;
@@ -253,7 +269,7 @@ const EventDefinition = memo(({ event, filteredAttribute }) => {
                   `}
                 >
                   <Link
-                    to={`/attribute-dictionary?${params.toString()}`}
+                    to={`?${params.toString()}`}
                     css={css`
                       color: var(--color-text-primary);
 
