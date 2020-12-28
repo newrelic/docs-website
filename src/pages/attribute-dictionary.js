@@ -10,6 +10,7 @@ import {
   Tag,
   TagList,
   useQueryParams,
+  Icon,
 } from '@newrelic/gatsby-theme-newrelic';
 
 import SEO from '../components/seo';
@@ -238,67 +239,95 @@ const EventDefinition = memo(({ event, filteredAttribute }) => {
           </tr>
         </thead>
         <tbody>
-          {filteredAttributes.map((attribute) => (
-            <tr key={attribute.name}>
-              <td
-                css={css`
-                  width: 1px;
-                `}
-              >
-                <code
+          {filteredAttributes.map((attribute) => {
+            const params = new URLSearchParams();
+            params.set('dataSource', event.dataSources[0]);
+            params.set('event', event.name);
+            params.set('attribute', attribute.name);
+
+            return (
+              <tr>
+                <td
                   css={css`
-                    display: block;
-                    background: none !important;
+                    width: 1px;
                   `}
                 >
-                  {attribute.name}
-                </code>
-                {attribute.units && (
-                  <span
+                  <Link
+                    to={`/attribute-dictionary?${params.toString()}`}
                     css={css`
-                      font-size: 0.75rem;
+                      color: var(--color-text-primary);
 
-                      .dark-mode & {
-                        color: var(--color-dark-600);
+                      &:hover svg {
+                        opacity: 1;
                       }
                     `}
                   >
-                    {attribute.units}
-                  </span>
-                )}
-              </td>
-              <td
-                css={css`
-                  p:last-child {
-                    margin-bottom: 0;
-                  }
-                `}
-                dangerouslySetInnerHTML={{
-                  __html: attribute.definition.html,
-                }}
-              />
-              <td
-                css={css`
-                  width: 1px;
-                `}
-              >
-                <ul
+                    <code
+                      css={css`
+                        display: inline-block;
+                        background: none !important;
+                      `}
+                    >
+                      {attribute.name}
+                    </code>
+                    <Icon
+                      name="fe-link-2"
+                      size="1rem"
+                      focusable={false}
+                      css={css`
+                        margin-left: 0.5rem;
+                        opacity: 0;
+                        transition: opacity 0.2s ease-out;
+                      `}
+                    />
+                  </Link>
+                  {attribute.units && (
+                    <div
+                      css={css`
+                        font-size: 0.75rem;
+
+                        .dark-mode & {
+                          color: var(--color-dark-600);
+                        }
+                      `}
+                    >
+                      {attribute.units}
+                    </div>
+                  )}
+                </td>
+                <td
                   css={css`
-                    margin: 0;
-                    list-style: none;
-                    padding-left: 0;
-                    font-size: 0.875rem;
+                    p:last-child {
+                      margin-bottom: 0;
+                    }
+                  `}
+                  dangerouslySetInnerHTML={{
+                    __html: attribute.definition.html,
+                  }}
+                />
+                <td
+                  css={css`
+                    width: 1px;
                   `}
                 >
-                  {attribute.events.map((event) => (
-                    <li key={event.name}>
-                      <Link to={`?event=${event.name}`}>{event.name}</Link>
-                    </li>
-                  ))}
-                </ul>
-              </td>
-            </tr>
-          ))}
+                  <ul
+                    css={css`
+                      margin: 0;
+                      list-style: none;
+                      padding-left: 0;
+                      font-size: 0.875rem;
+                    `}
+                  >
+                    {attribute.events.map((event) => (
+                      <li key={event.name}>
+                        <Link to={`?event=${event.name}`}>{event.name}</Link>
+                      </li>
+                    ))}
+                  </ul>
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </Table>
     </div>
