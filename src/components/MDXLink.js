@@ -21,7 +21,7 @@ const MDXLink = ({ href, ...props }) => {
     href = href.replace(siteUrl, '');
   }
 
-  if (href.startsWith('/')) {
+  if (href.startsWith('/') || href.startsWith('#')) {
     return <Link to={href} {...props} />;
   }
 

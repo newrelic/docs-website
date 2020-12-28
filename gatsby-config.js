@@ -6,6 +6,14 @@ const siteUrl = 'https://docs.newrelic.com';
 
 const dataDictionaryPath = `${__dirname}/src/data-dictionary`;
 
+const autoLinkHeaders = {
+  resolve: 'gatsby-remark-autolink-headers',
+  options: {
+    icon:
+      '<svg xmlns="http://www.w3.org/2000/svg" focusable="false" width="1rem" height="1rem" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 7h3a5 5 0 0 1 5 5 5 5 0 0 1-5 5h-3m-6 0H6a5 5 0 0 1-5-5 5 5 0 0 1 5-5h3"></path><line x1="8" y1="12" x2="16" y2="12"></line></svg>',
+  },
+};
+
 module.exports = {
   flags: {
     DEV_SSR: true,
@@ -134,6 +142,10 @@ module.exports = {
               maxWidth: 850,
             },
           },
+          autoLinkHeaders,
+          // This MUST come after `gatsby-remark-autolink-headers` to ensure the
+          // link created for the icon has the proper id
+          'gatsby-remark-custom-heading-ids',
         ],
       },
     },
@@ -156,12 +168,17 @@ module.exports = {
               linkImagesToOriginal: false,
             },
           },
+          autoLinkHeaders,
+          // This MUST come after `gatsby-remark-autolink-headers` to ensure the
+          // link created for the icon has the proper id.
+          //
+          // This also uses the `require.resolve` syntax because
+          // `gatsby-plugin-mdx` is unable to resolve local plugins.
+          // https://github.com/gatsbyjs/gatsby/issues/23194
           {
-            resolve: `gatsby-remark-autolink-headers`,
-            options: {
-              enableCustomId: true,
-              icon: false,
-            },
+            resolve: require.resolve(
+              './plugins/gatsby-remark-custom-heading-ids'
+            ),
           },
         ],
       },
@@ -279,6 +296,7 @@ module.exports = {
         nodesPerFeedFile: Infinity,
       },
     },
+    'gatsby-plugin-release-note-rss',
     {
       resolve: 'gatsby-source-data-dictionary',
       options: {
