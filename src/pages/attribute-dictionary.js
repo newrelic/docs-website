@@ -265,7 +265,8 @@ const EventDefinition = memo(({ event, filteredAttribute }) => {
               <tr>
                 <td
                   css={css`
-                    width: 1px;
+                    width: 40%;
+                    word-break: break-all;
                   `}
                 >
                   <Link
