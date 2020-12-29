@@ -61,14 +61,6 @@ exports.onCreateNode = ({ node, getNode, actions }) => {
       value: createFilePath({ node, getNode, trailingSlash: false }),
     });
   }
-
-  if (node.internal.type === 'MarkdownRemark') {
-    createNodeField({
-      node,
-      name: 'fileRelativePath',
-      value: getFileRelativePath(node.fileAbsolutePath),
-    });
-  }
 };
 
 exports.createPages = async ({ actions, graphql, reporter }) => {
@@ -163,7 +155,6 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
     const landingPage = landingPagesReleaseNotes.nodes.find(
       (node) => node.frontmatter.subject === fieldValue
     );
-
 
     landingPage &&
       createRedirect({
