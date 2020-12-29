@@ -1,4 +1,4 @@
-import React, { memo, useMemo } from 'react';
+import React, { memo, useMemo, useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/core';
 import { graphql, Link } from 'gatsby';
@@ -22,6 +22,7 @@ import { useMedia } from 'react-use';
 
 const AttributeDictionary = ({ data, pageContext }) => {
   const { allDataDictionaryEvent } = data;
+  const [filteredEvents, setFilteredEvents] = useState([]);
   const { queryParams } = useQueryParams();
 
   const isMobileScreen = useMedia('(max-width: 1240)');
@@ -31,7 +32,7 @@ const AttributeDictionary = ({ data, pageContext }) => {
     [allDataDictionaryEvent]
   );
 
-  const filteredEvents = useMemo(() => {
+  const filterEvents = () => {
     let filteredEvents = events;
 
     if (queryParams.has('dataSource')) {
@@ -46,8 +47,12 @@ const AttributeDictionary = ({ data, pageContext }) => {
       );
     }
 
-    return filteredEvents.map((event) => event.name);
-  }, [events, queryParams]);
+    setFilteredEvents(filteredEvents.map((event) => event.name));
+  };
+
+  useEffect(() => {
+    filterEvents();
+  }, [queryParams, events]);
 
   return (
     <>
