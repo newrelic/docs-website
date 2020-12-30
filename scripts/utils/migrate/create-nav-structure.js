@@ -58,7 +58,11 @@ const updateChild = (parent, idx, updater) => ({
 });
 
 const buildSubnav = (file, parent, topics) => {
-  const title = (topics[0] || file.data.doc.title).trim();
+  const title = (
+    topics[0] ||
+    file.data.doc.shortTitle ||
+    file.data.doc.title
+  ).trim();
   const subtopics = topics.slice(1);
   const { pages = [] } = parent;
   const idx = pages.findIndex((node) => node.title === title);
