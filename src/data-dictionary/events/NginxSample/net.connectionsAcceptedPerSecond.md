@@ -5,6 +5,6 @@ events:
   - NginxSample
 ---
 
-Number of accepted client connections per second.
+Accepted client connections as requests per second.
 
-For NGINX open source systems.
+For NGINX Plus systems.tems.
