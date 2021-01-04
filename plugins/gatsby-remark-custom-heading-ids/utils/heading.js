@@ -1,4 +1,5 @@
 const remove = require('unist-util-remove');
+const toString = require('mdast-util-to-string');
 const { last } = require('lodash');
 
 const CUSTOM_ID = /^#[\w-]+$/;
@@ -30,9 +31,11 @@ const parseHeading = (node) => {
     // make a copy of the node so that removing the linkReference does not
     // mutate the original node object
     const nodeCopy = copy(node);
+    const id = getId(nodeCopy);
+
     remove(nodeCopy, 'linkReference');
 
-    return { id: getId(node), text: toString(nodeCopy) };
+    return { id, text: toString(nodeCopy).trim() };
   }
 
   return { id: null, text: toString(node) };
