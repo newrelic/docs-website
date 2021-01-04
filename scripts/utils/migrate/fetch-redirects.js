@@ -1,14 +1,10 @@
 const fetch = require('node-fetch');
 const logger = require('../logger');
 const { paginate } = require('./docs-api');
-// const { BASE_URL } = require('../constants');
 
 require('dotenv').config();
 
 const fetchRedirects = async (nodeId) => {
-  // const params = new URLSearchParams();
-
-  // TODO: put into constants
   const url = `https://docs-dev.newrelic.com/api/migration/redirects?id=${encodeURIComponent(
     `node/${nodeId}`
   )}`;
