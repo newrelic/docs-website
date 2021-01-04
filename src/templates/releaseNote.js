@@ -6,12 +6,13 @@ import { Icon, Layout, Link } from '@newrelic/gatsby-theme-newrelic';
 import PageTitle from '../components/PageTitle';
 import MDXContainer from '../components/MDXContainer';
 import SEO from '../components/seo';
+import Watermark from '../components/Watermark';
 
 const ReleaseNoteTemplate = ({ data }) => {
   const {
     mdx: {
       body,
-      frontmatter: { downloadLink, subject, version, releaseDate },
+      frontmatter: { downloadLink, subject, version, releaseDate, watermark },
     },
   } = data;
 
@@ -82,6 +83,7 @@ const ReleaseNoteTemplate = ({ data }) => {
           max-width: 850px;
         `}
       >
+        {watermark && <Watermark text={watermark} />}
         <MDXContainer body={body} />
       </Layout.Content>
     </>
@@ -101,6 +103,7 @@ export const pageQuery = graphql`
         version
         releaseDate(formatString: "MMMM D, YYYY")
         downloadLink
+        watermark
       }
     }
     ...MainLayout_query

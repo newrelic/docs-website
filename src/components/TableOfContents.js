@@ -2,11 +2,11 @@ import React, { useEffect, useMemo, useRef } from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/core';
 import { graphql } from 'gatsby';
+import { useMedia, usePrevious } from 'react-use';
 import { Icon, PageTools } from '@newrelic/gatsby-theme-newrelic';
 import useActiveHash from '../hooks/useActiveHash';
-import { usePrevious } from 'react-use';
 import GithubSlugger from 'github-slugger';
-import toString from 'mdast-util-to-string';
+import { parseHeading } from '../../plugins/gatsby-remark-custom-heading-ids/utils/heading';
 
 const prop = (name) => (obj) => obj[name];
 
@@ -19,9 +19,9 @@ const TableOfContents = ({ page }) => {
     return mdxAST.children
       .filter((node) => node.type === 'heading' && node.depth === 2)
       .map((heading) => {
-        const text = toString(heading);
+        const { id, text } = parseHeading(heading);
 
-        return { id: slugs.slug(text), text };
+        return { id: id || slugs.slug(text), text };
       });
   }, [mdxAST]);
 
@@ -32,6 +32,8 @@ const TableOfContents = ({ page }) => {
   const activeHash = useActiveHash(headingIds);
   const previousActiveHash = usePrevious(activeHash);
   const changedActiveHash = activeHash !== previousActiveHash;
+
+  const isMobileScreen = useMedia('(max-width: 1240px)');
 
   useEffect(() => {
     if (!activeRef.current) {
@@ -83,7 +85,7 @@ const TableOfContents = ({ page }) => {
                 <a
                   ref={isActive ? activeRef : null}
                   href={`#${id}`}
-                  className={isActive ? 'active' : null}
+                  className={isActive && !isMobileScreen ? 'active' : null}
                   css={css`
                     display: flex;
                     align-items: center;
@@ -107,7 +109,9 @@ const TableOfContents = ({ page }) => {
                   <Icon
                     name={Icon.TYPE.ARROW_LEFT}
                     css={css`
-                      display: ${isActive ? 'inline-block' : 'none'};
+                      display: ${isActive && !isMobileScreen
+                        ? 'inline-block'
+                        : 'none'};
                       margin-right: 0.5rem;
                     `}
                   />

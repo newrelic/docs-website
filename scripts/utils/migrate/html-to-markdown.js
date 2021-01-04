@@ -14,6 +14,7 @@ const SPECIAL_COMPONENTS = [
   { tag: 'div', className: 'callout-pricing' },
   { tag: 'dl', className: 'clamshell-list' },
   { tag: 'dl', className: 'example-box' },
+  { id: 'watermark' },
 ];
 
 const escapes = [
@@ -133,11 +134,12 @@ module.exports = (file) => {
     })
     .addRule('specialComponents', {
       filter: (node) =>
-        SPECIAL_COMPONENTS.some(
-          ({ tag, className }) =>
-            tag === node.nodeName.toLowerCase() &&
-            node.classList.contains(className)
-        ),
+        SPECIAL_COMPONENTS.some(({ tag, className, id }) => {
+          return id
+            ? node.id === id
+            : tag === node.nodeName.toLowerCase() &&
+                node.classList.contains(className);
+        }),
       replacement: (content, node) => {
         const [openingTag, closingTag] = extractTags(node);
 

@@ -2,6 +2,7 @@ import React from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/core';
 import { graphql } from 'gatsby';
+import { useMedia } from 'react-use';
 import PageTitle from '../components/PageTitle';
 import MDXContainer from '../components/MDXContainer';
 import SEO from '../components/seo';
@@ -13,6 +14,7 @@ import {
 } from '@newrelic/gatsby-theme-newrelic';
 import toString from 'mdast-util-to-string';
 import DefaultRelatedContent from '../components/DefaultRelatedContent';
+import Watermark from '../components/Watermark';
 
 const BasicDoc = ({ data }) => {
   const { mdx } = data;
@@ -26,6 +28,8 @@ const BasicDoc = ({ data }) => {
   const moreHelpExists = mdxAST.children.find(
     (node) => node.type === 'heading' && toString(node) === 'For more help'
   );
+
+  const isMobileScreen = useMedia('(max-width: 1240px)');
 
   return (
     <>
@@ -42,13 +46,15 @@ const BasicDoc = ({ data }) => {
           @media screen and (max-width: 1240px) {
             grid-template-areas:
               'page-title'
-              'content';
+              'content'
+              'page-tools';
             grid-template-columns: minmax(0, 1fr);
           }
         `}
       >
         <PageTitle>{frontmatter.title}</PageTitle>
         <Layout.Content>
+          {frontmatter.watermark && <Watermark text={frontmatter.watermark} />}
           <MDXContainer body={body}>
             {moreHelpExists ? null : <DefaultRelatedContent />}
           </MDXContainer>
@@ -56,11 +62,14 @@ const BasicDoc = ({ data }) => {
         <Layout.PageTools
           css={css`
             @media screen and (max-width: 1240px) {
-              display: none;
+              margin-top: 1rem;
+              position: static;
             }
           `}
         >
-          <ContributingGuidelines fileRelativePath={fileRelativePath} />
+          {!isMobileScreen && (
+            <ContributingGuidelines fileRelativePath={fileRelativePath} />
+          )}
           <TableOfContents page={mdx} />
           <SimpleFeedback
             title={frontmatter.title}
@@ -84,6 +93,7 @@ export const pageQuery = graphql`
       body
       frontmatter {
         title
+        watermark
       }
       fields {
         fileRelativePath
