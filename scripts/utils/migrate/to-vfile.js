@@ -10,8 +10,12 @@ const EXTENSIONS = {
   [TYPES.WHATS_NEW]: '.md',
 };
 
-const toVFile = (doc, { baseDir = CONTENT_DIR, dirname, filename }) => {
+const toVFile = (
+  doc,
+  { baseDir = CONTENT_DIR, redirects, dirname, filename }
+) => {
   const url = new URL(doc.docUrl);
+  redirects = redirects || [];
   const basename = path.basename(url.pathname);
   const extension = EXTENSIONS[doc.type] || DEFAULT_EXTENSION;
   dirname = dirname || path.dirname(url.pathname);
@@ -31,6 +35,7 @@ const toVFile = (doc, { baseDir = CONTENT_DIR, dirname, filename }) => {
     data: {
       doc,
       topics: getTopics(doc),
+      redirects: redirects[`node${doc.docId}`] || [],
     },
   });
 };

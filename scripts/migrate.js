@@ -28,6 +28,7 @@ const {
 } = require('./utils/constants');
 const copyManualEdits = require('./utils/migrate/copy-manual-edits');
 const cliProgress = require('cli-progress');
+const { fetchAllRedirects } = require('./utils/migrate/fetch-redirects');
 
 const all = (list, fn) => Promise.all(list.map(fn));
 
@@ -94,6 +95,22 @@ const run = async () => {
     rimraf.sync(NAV_DIR);
     rimraf.sync(DICTIONARY_DIR);
 
+    logger.info('Fetching redirects');
+
+    const orderedRedirects = (docs) => {
+      return docs.reduce((accum, curr) => {
+        let { to, from } = curr.redirect;
+        to = to.replace(/\//g, '');
+        from = path.join('/', from, '/');
+        if (!accum[to]) {
+          accum[to] = [];
+        }
+        accum[to].push(from);
+        return accum;
+      }, {});
+    };
+    const redirects = orderedRedirects(await fetchAllRedirects());
+
     logger.info('Migrating docs');
     const fileGroups = await runPipeline([
       {
@@ -147,6 +164,9 @@ const run = async () => {
       {
         label: 'Docs\t\t',
         fetch: fetchDocs,
+        vfile: {
+          redirects,
+        },
         process: async (file) => {
           convertFile(file);
 
