@@ -15,6 +15,7 @@ const isHeadingWithCustomId = (node) => {
 
   return (
     node.type === 'heading' &&
+    lastChild &&
     lastChild.type === 'linkReference' &&
     CUSTOM_ID.test(lastChild.label)
   );
