@@ -1,23 +1,11 @@
 const visit = require('unist-util-visit');
 const remove = require('unist-util-remove');
-const { last, get, set } = require('lodash');
-
-const CUSTOM_ID = /^#[\w-]+$/;
-
-const isHeadingWithCustomId = (node) => {
-  const lastChild = last(node.children);
-
-  return (
-    node.type === 'heading' &&
-    lastChild.type === 'linkReference' &&
-    CUSTOM_ID.test(lastChild.label)
-  );
-};
+const { get, set } = require('lodash');
+const { isHeadingWithCustomId, getId } = require('./utils/heading');
 
 module.exports = ({ markdownAST }) => {
   visit(markdownAST, isHeadingWithCustomId, (heading) => {
-    const { label } = last(heading.children);
-    const id = label.replace(/^#/, '');
+    const id = getId(heading);
 
     set(heading, 'data.id', id);
     set(heading, 'data.htmlAttributes.id', id);
