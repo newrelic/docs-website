@@ -25,10 +25,12 @@ const {
   CONTENT_DIR,
   DICTIONARY_DIR,
   WHATS_NEW_DIR,
+  JP_DIR,
 } = require('./utils/constants');
 const copyManualEdits = require('./utils/migrate/copy-manual-edits');
 const cliProgress = require('cli-progress');
 const { fetchAllRedirects } = require('./utils/migrate/fetch-redirects');
+const fetchJpDocs = require('./utils/migrate/fetch-jp-docs');
 
 const all = (list, fn) => Promise.all(list.map(fn));
 
@@ -91,15 +93,16 @@ const run = async () => {
 
   try {
     logger.info('Resetting content');
-    rimraf.sync(CONTENT_DIR);
-    rimraf.sync(NAV_DIR);
-    rimraf.sync(DICTIONARY_DIR);
+    [CONTENT_DIR, NAV_DIR, DICTIONARY_DIR, JP_DIR].forEach((dir) =>
+      rimraf.sync(dir)
+    );
 
     logger.info('Fetching redirects');
 
     const redirects = await fetchAllRedirects();
 
     logger.info('Migrating docs');
+    const docs = await fetchDocs();
     const fileGroups = await runPipeline([
       {
         label: 'Attribute definitions',
@@ -150,8 +153,28 @@ const run = async () => {
         onDone: saveWhatsNewIds,
       },
       {
+        label: 'Japanese Docs\t',
+        fetch: () => fetchJpDocs(docs),
+        vfile: {
+          baseDir: JP_DIR,
+        },
+        process: async (file) => {
+          convertFile(file);
+
+          if (file.extname !== '.mdx') {
+            return;
+          }
+
+          try {
+            await runCodemod(file, { codemods });
+          } catch (e) {
+            // do nothing
+          }
+        },
+      },
+      {
         label: 'Docs\t\t',
-        fetch: fetchDocs,
+        fetch: () => docs,
         vfile: {
           redirects,
         },
@@ -224,8 +247,8 @@ const run = async () => {
     console.error(reporter(allDocsFiles.concat(navFiles), { quiet: true }));
 
     logger.success('Migration complete!');
-  } catch (err) {
-    logger.error(`Error running migration: ${err.stack}`);
+  } catch (e) {
+    logger.error(e);
   }
 };
 
