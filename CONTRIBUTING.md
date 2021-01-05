@@ -3,6 +3,9 @@
 - [Table of Contents](#table-of-contents)
   - [Guidelines for contributing](#guidelines-for-contributing)
   - [Getting started](#getting-started)
+    - [Local development](#local-development)
+    - [Dependencies](#dependencies)
+  - [Unit tests](#unit-tests)
     - [Using multiple versions of Node](#using-multiple-versions-of-node)
     - [Quick edits](#quick-edits)
     - [Cloning vs Forking](#cloning-vs-forking)
@@ -40,6 +43,27 @@ If you'd like to to make code contributions follow the code contribution
 guidelines below.
 
 ## Getting started
+
+### Local development
+
+You can serve this site locally to quickly see your changes and additions before you PR them. To get started, navigate into your new site’s directory and start it up, as follows.
+
+```shell
+cd docs-website/
+yarn
+yarn start
+```
+
+Your site is now running at `http://localhost:8000`!
+
+### Dependencies
+
+Node v12 is used in this project as specified in [.nvmrc](https://github.com/newrelic/developer-website/blob/master/.nvmrc).
+
+## Unit tests
+
+To run the unit tests, run `yarn test` in the terminal. If you would like to
+have the tests automatically re-run, use `yarn run test:watch
 
 ### Using multiple versions of Node
 
