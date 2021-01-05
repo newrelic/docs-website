@@ -75,7 +75,7 @@ const runTask = async ({
 const progressBar = new cliProgress.MultiBar(
   {
     format: `{label}\t{bar} {percentage}% ({value}/{total}) | {step}`.trim(),
-    // clearOnComplete: true,
+    clearOnComplete: true,
     hideCursor: true,
     forceRedraw: true,
     stopOnComplete: true,
@@ -92,9 +92,9 @@ const run = async () => {
 
   try {
     logger.info('Resetting content');
-    rimraf.sync(CONTENT_DIR);
-    rimraf.sync(NAV_DIR);
-    rimraf.sync(DICTIONARY_DIR);
+    [CONTENT_DIR, NAV_DIR, DICTIONARY_DIR, JP_DIR].forEach((dir) =>
+      rimraf.sync(dir)
+    );
 
     logger.info('Migrating docs');
     const docs = await fetchDocs();
@@ -148,7 +148,7 @@ const run = async () => {
         onDone: saveWhatsNewIds,
       },
       {
-        label: 'jpDocs\t\t',
+        label: 'Japanese Docs\t',
         fetch: () => fetchJpDocs(docs),
         vfile: {
           baseDir: JP_DIR,
@@ -239,8 +239,8 @@ const run = async () => {
     console.error(reporter(allDocsFiles.concat(navFiles), { quiet: true }));
 
     logger.success('Migration complete!');
-  } catch (err) {
-    logger.error(`Error running migration: ${err.stack}`);
+  } catch (e) {
+    logger.error(e);
   }
 };
 
