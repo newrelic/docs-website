@@ -91,6 +91,11 @@ const run = async () => {
   logger.info('Starting migration');
 
   try {
+    logger.info('Resetting content');
+    [CONTENT_DIR, NAV_DIR, DICTIONARY_DIR, JP_DIR].forEach((dir) =>
+      rimraf.sync(dir)
+    );
+
     logger.info('Migrating docs');
     const docs = await fetchDocs();
     const fileGroups = await runPipeline([
@@ -143,7 +148,7 @@ const run = async () => {
         onDone: saveWhatsNewIds,
       },
       {
-        label: 'jpDocs\t\t',
+        label: 'Japanese Docs\t',
         fetch: () => fetchJpDocs(docs),
         vfile: {
           baseDir: JP_DIR,
@@ -214,11 +219,6 @@ const run = async () => {
     logger.info('Creating nav');
     const navFiles = migrateNavStructure(createNavStructure(sortedDocsFiles));
 
-    logger.info('Resetting content');
-    [CONTENT_DIR, NAV_DIR, DICTIONARY_DIR, JP_DIR].forEach((dir) =>
-      rimraf.sync(dir)
-    );
-
     logger.info('Saving changes to files');
     createDirectories(allDocsFiles);
     await fetchDocCount(allDocsFiles.length);
@@ -239,8 +239,8 @@ const run = async () => {
     console.error(reporter(allDocsFiles.concat(navFiles), { quiet: true }));
 
     logger.success('Migration complete!');
-  } catch (err) {
-    logger.error(`Error running migration: ${err.stack}`);
+  } catch (e) {
+    logger.error(e);
   }
 };
 
