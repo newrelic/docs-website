@@ -91,11 +91,6 @@ const run = async () => {
   logger.info('Starting migration');
 
   try {
-    logger.info('Resetting content');
-    rimraf.sync(CONTENT_DIR);
-    rimraf.sync(NAV_DIR);
-    rimraf.sync(DICTIONARY_DIR);
-
     logger.info('Migrating docs');
     const docs = await fetchDocs();
     const fileGroups = await runPipeline([
@@ -218,6 +213,11 @@ const run = async () => {
 
     logger.info('Creating nav');
     const navFiles = migrateNavStructure(createNavStructure(sortedDocsFiles));
+
+    logger.info('Resetting content');
+    [CONTENT_DIR, NAV_DIR, DICTIONARY_DIR, JP_DIR].forEach((dir) =>
+      rimraf.sync(dir)
+    );
 
     logger.info('Saving changes to files');
     createDirectories(allDocsFiles);
