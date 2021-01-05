@@ -1,6 +1,7 @@
 const path = require('path');
 const vfileGlob = require('vfile-glob');
 const { read, write } = require('to-vfile');
+const { uniq } = require('lodash');
 
 const { createFilePath } = require('gatsby-source-filesystem');
 
@@ -181,38 +182,31 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
       });
   });
 
-  allMdx.edges
-    .concat(allMarkdownRemark.edges, allI18nMdx.edges)
-    .forEach(({ node }) => {
-      const {
-        fields: { fileRelativePath, slug },
-      } = node;
+  const translatedContentNodes = allI18nMdx.edges.map(({ node }) => node);
 
-      const { template, context = {} } = getTemplate(node);
+  const locales = uniq(
+    translatedContentNodes.map((node) => {
+      const [locale] = node.fields.slug.replace(/^\//, '').split('/');
 
-      if (process.env.NODE_ENV === 'development' && !template) {
-        createPage({
-          path: slug,
-          component: path.resolve(TEMPLATE_DIR, 'dev/missingTemplate.js'),
-          context: {
-            ...context,
-            fileRelativePath,
-            layout: 'basic',
-          },
-        });
-      } else {
-        createPage({
-          path: slug,
-          component: path.resolve(path.join(TEMPLATE_DIR, `${template}.js`)),
-          context: {
-            ...context,
-            fileRelativePath,
-            slug,
-            slugRegex: `${slug}/.+/`,
-          },
-        });
-      }
+      return locale;
+    })
+  );
+
+  allMdx.edges.concat(allMarkdownRemark.edges).forEach(({ node }) => {
+    createPageFromNode(node, { createPage });
+
+    locales.forEach((locale) => {
+      const i18nNode = translatedContentNodes.find(
+        (i18nNode) =>
+          i18nNode.fields.slug.replace(`/${locale}`, '') === node.fields.slug
+      );
+
+      createPageFromNode(i18nNode || node, {
+        prefix: i18nNode ? '' : locale,
+        createPage,
+      });
     });
+  });
 };
 
 exports.createSchemaCustomization = ({ actions }) => {
@@ -265,6 +259,37 @@ exports.onCreatePage = ({ page, actions }) => {
     page.context.fileRelativePath = getFileRelativePath(page.componentPath);
 
     createPage(page);
+  }
+};
+
+const createPageFromNode = (node, { createPage, prefix = '' }) => {
+  const {
+    fields: { fileRelativePath, slug },
+  } = node;
+
+  const { template, context = {} } = getTemplate(node);
+
+  if (process.env.NODE_ENV === 'development' && !template) {
+    createPage({
+      path: path.join(prefix, slug),
+      component: path.resolve(TEMPLATE_DIR, 'dev/missingTemplate.js'),
+      context: {
+        ...context,
+        fileRelativePath,
+        layout: 'basic',
+      },
+    });
+  } else {
+    createPage({
+      path: path.join(prefix, slug),
+      component: path.resolve(path.join(TEMPLATE_DIR, `${template}.js`)),
+      context: {
+        ...context,
+        fileRelativePath,
+        slug,
+        slugRegex: `${slug}/.+/`,
+      },
+    });
   }
 };
 
