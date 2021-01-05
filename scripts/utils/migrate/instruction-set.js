@@ -454,6 +454,7 @@ module.exports = [
   {
     type: INSTRUCTIONS.ADD,
     path: ['Agents', '.NET agent'],
+    index: -2,
     node: {
       title: 'Latest release',
       path: '/docs/release-notes/agent-release-notes/net-release-notes/current',
@@ -462,6 +463,7 @@ module.exports = [
   {
     type: INSTRUCTIONS.ADD,
     path: ['Agents', 'Java agent'],
+    index: -2,
     node: {
       title: 'Latest release',
       path:
@@ -471,6 +473,7 @@ module.exports = [
   {
     type: INSTRUCTIONS.ADD,
     path: ['Agents', 'Go agent'],
+    index: -2,
     node: {
       title: 'Latest release',
       path: '/docs/release-notes/agent-release-notes/go-release-notes/current',
@@ -479,6 +482,7 @@ module.exports = [
   {
     type: INSTRUCTIONS.ADD,
     path: ['Agents', 'C SDK'],
+    index: -2,
     node: {
       title: 'Latest release',
       path:
@@ -488,6 +492,7 @@ module.exports = [
   {
     type: INSTRUCTIONS.ADD,
     path: ['Agents', 'Ruby agent'],
+    index: -2,
     node: {
       title: 'Latest release',
       path:
@@ -497,6 +502,7 @@ module.exports = [
   {
     type: INSTRUCTIONS.ADD,
     path: ['Agents', 'Python agent'],
+    index: -2,
     node: {
       title: 'Latest release',
       path:
@@ -506,6 +512,7 @@ module.exports = [
   {
     type: INSTRUCTIONS.ADD,
     path: ['Agents', 'PHP agent'],
+    index: -2,
     node: {
       title: 'Latest release',
       path: '/docs/release-notes/agent-release-notes/php-release-notes/current',
@@ -514,6 +521,7 @@ module.exports = [
   {
     type: INSTRUCTIONS.ADD,
     path: ['Agents', 'Node.js agent'],
+    index: -2,
     node: {
       title: 'Latest release',
       path:
