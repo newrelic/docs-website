@@ -7,7 +7,7 @@ module.exports = {
   BASE_URL: 'https://docs-dev.newrelic.com',
   WHATS_NEW_DIR: 'src/content/whats-new',
   DATA_DIR: 'src/data',
-  JP_DIR: 'src/i18n/docs/jp',
+  JP_DIR: 'src/i18n/content/jp',
 
   // IDS for page nodes that we want to ensure get migrated
   DIRECT_IDS: [
