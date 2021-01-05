@@ -15,7 +15,7 @@ const groupRedirectsByDocsId = (docs) => {
   return docs.reduce((accum, curr) => {
     let { to, from } = curr.redirect;
     to = to.replace(/\//g, '');
-    from = path.join('/', from, '/');
+    from = path.join('/', from);
     if (!accum[to]) {
       accum[to] = [];
     }
