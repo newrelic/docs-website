@@ -54,30 +54,16 @@ const addCustomFrontmatter = {
       topics,
     };
   },
-  [TYPES.BASIC_PAGE]: ({ doc, topics }, defaultFrontmatter) => {
-    let japaneseUrl = '';
-    if (doc.japaneseVersionExists === 'yes') {
-      const url = new URL(doc.docUrl);
-      url.hostname = 'docs.newrelic.co.jp';
-      japaneseUrl = url.href;
-    }
+  [TYPES.BASIC_PAGE]: ({ topics }, defaultFrontmatter) => {
     return {
       ...defaultFrontmatter,
       topics,
-      japaneseVersion: japaneseUrl,
     };
   },
-  [TYPES.TROUBLESHOOTING]: ({ doc, topics }, defaultFrontmatter) => {
-    let japaneseUrl = '';
-    if (doc.japaneseVersionExists === 'yes') {
-      const url = new URL(doc.docUrl);
-      url.hostname = 'docs.newrelic.co.jp';
-      japaneseUrl = url.href;
-    }
+  [TYPES.TROUBLESHOOTING]: ({ topics }, defaultFrontmatter) => {
     return {
       ...defaultFrontmatter,
       topics,
-      japaneseVersion: japaneseUrl,
     };
   },
   [TYPES.RELEASE_NOTE]: ({ doc }, _, file) => {
