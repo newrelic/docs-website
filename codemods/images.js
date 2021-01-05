@@ -54,9 +54,15 @@ const downloadImage = async (node, file) => {
   }
 };
 
-const download = async (url, dest) =>
+const download = (url, dest) =>
   new Promise((resolve, reject) => {
     fetch(url.href).then((res) => {
+      if (!res.ok) {
+        reject(new Error(`Request failed\nStatus code: ${res.statusCode}`));
+
+        return;
+      }
+
       const extension =
         path.extname(dest) || guessExtension(res.headers.get('content-type'));
 
