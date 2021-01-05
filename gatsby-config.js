@@ -19,6 +19,7 @@ module.exports = {
     DEV_SSR: true,
     LAZY_IMAGES: true,
     QUERY_ON_DEMAND: true,
+    PRESERVE_WEBPACK_CACHE: true,
   },
   siteMetadata: {
     title: 'New Relic Documentation',
@@ -116,6 +117,13 @@ module.exports = {
       options: {
         name: 'data-dictionary',
         path: dataDictionaryPath,
+      },
+    },
+    {
+      resolve: 'gatsby-source-filesystem',
+      options: {
+        name: 'translated-content',
+        path: `${__dirname}/src/i18n/content`,
       },
     },
     {
