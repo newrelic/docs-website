@@ -58,8 +58,10 @@ const addCustomFrontmatter = {
     const frontmatter = {
       ...defaultFrontmatter,
       topics,
-      redirects,
     };
+    if (redirects.length) {
+      frontmatter.redirects = redirects;
+    }
 
     let japaneseUrl = '';
     if (doc.japaneseVersionExists === 'yes') {

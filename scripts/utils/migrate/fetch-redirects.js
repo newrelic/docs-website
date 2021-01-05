@@ -4,11 +4,11 @@ const { paginate } = require('./docs-api');
 require('dotenv').config();
 
 const fetchAllRedirects = async () => {
-  const redirects = paginate('/api/migration/redirects', {
+  const redirects = await paginate('/api/migration/redirects', {
     perPage: 300,
   });
 
-  return groupRedirectsByDocsId(await redirects);
+  return groupRedirectsByDocsId(redirects);
 };
 
 const groupRedirectsByDocsId = (docs) => {
