@@ -97,19 +97,7 @@ const run = async () => {
 
     logger.info('Fetching redirects');
 
-    const orderedRedirects = (docs) => {
-      return docs.reduce((accum, curr) => {
-        let { to, from } = curr.redirect;
-        to = to.replace(/\//g, '');
-        from = path.join('/', from, '/');
-        if (!accum[to]) {
-          accum[to] = [];
-        }
-        accum[to].push(from);
-        return accum;
-      }, {});
-    };
-    const redirects = orderedRedirects(await fetchAllRedirects());
+    const redirects = await fetchAllRedirects();
 
     logger.info('Migrating docs');
     const fileGroups = await runPipeline([

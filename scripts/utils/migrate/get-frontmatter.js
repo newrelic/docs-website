@@ -58,7 +58,7 @@ const addCustomFrontmatter = {
     const frontmatter = {
       ...defaultFrontmatter,
       topics,
-      redirect_from: redirects,
+      redirects,
     };
 
     let japaneseUrl = '';
