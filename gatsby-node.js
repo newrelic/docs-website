@@ -99,6 +99,23 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
         }
       }
 
+      allI18nMdx: allMdx(
+        filter: { fileAbsolutePath: { regex: "/src/i18n/content/" } }
+      ) {
+        edges {
+          node {
+            fields {
+              fileRelativePath
+              slug
+            }
+            frontmatter {
+              template
+              subject
+            }
+          }
+        }
+      }
+
       releaseNotes: allMdx(
         filter: {
           fileAbsolutePath: {
@@ -143,6 +160,7 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
   }
 
   const {
+    allI18nMdx,
     allMarkdownRemark,
     allMdx,
     releaseNotes,
@@ -163,36 +181,38 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
       });
   });
 
-  allMdx.edges.concat(allMarkdownRemark.edges).forEach(({ node }) => {
-    const {
-      fields: { fileRelativePath, slug },
-    } = node;
+  allMdx.edges
+    .concat(allMarkdownRemark.edges, allI18nMdx.edges)
+    .forEach(({ node }) => {
+      const {
+        fields: { fileRelativePath, slug },
+      } = node;
 
-    const { template, context = {} } = getTemplate(node);
+      const { template, context = {} } = getTemplate(node);
 
-    if (process.env.NODE_ENV === 'development' && !template) {
-      createPage({
-        path: slug,
-        component: path.resolve(TEMPLATE_DIR, 'dev/missingTemplate.js'),
-        context: {
-          ...context,
-          fileRelativePath,
-          layout: 'basic',
-        },
-      });
-    } else {
-      createPage({
-        path: slug,
-        component: path.resolve(path.join(TEMPLATE_DIR, `${template}.js`)),
-        context: {
-          ...context,
-          fileRelativePath,
-          slug,
-          slugRegex: `${slug}/.+/`,
-        },
-      });
-    }
-  });
+      if (process.env.NODE_ENV === 'development' && !template) {
+        createPage({
+          path: slug,
+          component: path.resolve(TEMPLATE_DIR, 'dev/missingTemplate.js'),
+          context: {
+            ...context,
+            fileRelativePath,
+            layout: 'basic',
+          },
+        });
+      } else {
+        createPage({
+          path: slug,
+          component: path.resolve(path.join(TEMPLATE_DIR, `${template}.js`)),
+          context: {
+            ...context,
+            fileRelativePath,
+            slug,
+            slugRegex: `${slug}/.+/`,
+          },
+        });
+      }
+    });
 };
 
 exports.createSchemaCustomization = ({ actions }) => {
