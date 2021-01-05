@@ -19,6 +19,7 @@ module.exports = {
     DEV_SSR: true,
     LAZY_IMAGES: true,
     QUERY_ON_DEMAND: true,
+    PRESERVE_WEBPACK_CACHE: true,
   },
   siteMetadata: {
     title: 'New Relic Documentation',
