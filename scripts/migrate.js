@@ -75,7 +75,7 @@ const runTask = async ({
 const progressBar = new cliProgress.MultiBar(
   {
     format: `{label}\t{bar} {percentage}% ({value}/{total}) | {step}`.trim(),
-    // clearOnComplete: true,
+    clearOnComplete: true,
     hideCursor: true,
     forceRedraw: true,
     stopOnComplete: true,
