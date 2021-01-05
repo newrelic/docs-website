@@ -25,9 +25,11 @@ const {
   CONTENT_DIR,
   DICTIONARY_DIR,
   WHATS_NEW_DIR,
+  JP_DIR,
 } = require('./utils/constants');
 const copyManualEdits = require('./utils/migrate/copy-manual-edits');
 const cliProgress = require('cli-progress');
+const fetchJpDocs = require('./utils/migrate/fetch-jp-docs');
 
 const all = (list, fn) => Promise.all(list.map(fn));
 
@@ -73,7 +75,7 @@ const runTask = async ({
 const progressBar = new cliProgress.MultiBar(
   {
     format: `{label}\t{bar} {percentage}% ({value}/{total}) | {step}`.trim(),
-    clearOnComplete: true,
+    // clearOnComplete: true,
     hideCursor: true,
     forceRedraw: true,
     stopOnComplete: true,
@@ -95,6 +97,7 @@ const run = async () => {
     rimraf.sync(DICTIONARY_DIR);
 
     logger.info('Migrating docs');
+    const docs = await fetchDocs();
     const fileGroups = await runPipeline([
       {
         label: 'Attribute definitions',
@@ -145,8 +148,28 @@ const run = async () => {
         onDone: saveWhatsNewIds,
       },
       {
+        label: 'jpDocs\t\t',
+        fetch: () => fetchJpDocs(docs),
+        vfile: {
+          baseDir: JP_DIR,
+        },
+        process: async (file) => {
+          convertFile(file);
+
+          if (file.extname !== '.mdx') {
+            return;
+          }
+
+          try {
+            await runCodemod(file, { codemods });
+          } catch (e) {
+            // do nothing
+          }
+        },
+      },
+      {
         label: 'Docs\t\t',
-        fetch: fetchDocs,
+        fetch: () => docs,
         process: async (file) => {
           convertFile(file);
 
