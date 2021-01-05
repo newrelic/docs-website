@@ -12,15 +12,15 @@ const fetchAllRedirects = async () => {
 };
 
 const groupRedirectsByDocsId = (docs) => {
-  return docs.reduce((accum, curr) => {
+  return docs.reduce((acc, curr) => {
     let { to, from } = curr.redirect;
     to = to.replace(/\//g, '');
     from = path.join('/', from);
-    if (!accum[to]) {
-      accum[to] = [];
+    if (!acc[to]) {
+      acc[to] = [];
     }
-    accum[to].push(from);
-    return accum;
+    acc[to].push(from);
+    return acc;
   }, {});
 };
 
