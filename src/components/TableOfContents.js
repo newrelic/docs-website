@@ -17,7 +17,12 @@ const TableOfContents = ({ page }) => {
     const slugs = new GithubSlugger();
 
     return mdxAST.children
-      .filter((node) => node.type === 'heading' && node.depth === 2)
+      .filter(
+        (node) =>
+          node.type === 'heading' &&
+          node.depth === 2 &&
+          node.children.length > 0
+      )
       .map((heading) => {
         const { id, text } = parseHeading(heading);
 
