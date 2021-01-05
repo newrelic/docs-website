@@ -85,6 +85,15 @@ module.exports = (file) => {
         return `\n\n${repeat('#', hLevel)} ${content}${id}\n\n`;
       },
     })
+    .addRule('lineBreaksInsideHeadings', {
+      filter: (node) =>
+        node.nodeName === 'BR' &&
+        node.parentNode &&
+        ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'].includes(
+          node.parentNode.nodeName.toLowerCase()
+        ),
+      replacement: () => '',
+    })
     .addRule('links', {
       filter: (node) => node.nodeName === 'A' && node.getAttribute('href'),
       replacement: (content, node) => {
