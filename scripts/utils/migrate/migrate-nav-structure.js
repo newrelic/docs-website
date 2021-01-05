@@ -211,7 +211,7 @@ const duplicate = (files, { from, to }) => {
   return child ? add(files, { node: child, path: to }) : files;
 };
 
-const add = (files, { node, path: pathSegments }) => {
+const add = (files, { node, path: pathSegments, index }) => {
   let destinationFile = findFile(
     files,
     isRoot(pathSegments) ? [node.title] : pathSegments
@@ -236,7 +236,8 @@ const add = (files, { node, path: pathSegments }) => {
   const updatedNav = addChild(
     node,
     load(destinationFile),
-    pathSegments.slice(1)
+    pathSegments.slice(1),
+    index
   );
 
   write(destinationFile, updatedNav);
@@ -318,7 +319,7 @@ const updateNodeAtPath = (
   );
 };
 
-const addChild = (node, parent, pathSegments) => {
+const addChild = (node, parent, pathSegments, index) => {
   const [title, ...remainingSegments] = pathSegments;
   const { pages = [] } = parent;
   const idx = pages.findIndex((node) => node.title === title);
@@ -326,7 +327,10 @@ const addChild = (node, parent, pathSegments) => {
   if (pathSegments.length === 0) {
     return {
       ...parent,
-      pages: [...pages, node],
+      pages:
+        index == null
+          ? [...pages, node]
+          : [...pages.slice(0, idx), node, ...pages.slice(idx)],
     };
   }
 
@@ -335,13 +339,13 @@ const addChild = (node, parent, pathSegments) => {
       ...parent,
       pages: [
         ...pages,
-        addChild(node, { title, pages: [] }, remainingSegments),
+        addChild(node, { title, pages: [] }, remainingSegments, index),
       ],
     };
   }
 
   return updateChild(parent, idx, (child) =>
-    addChild(node, child, remainingSegments)
+    addChild(node, child, remainingSegments, index)
   );
 };
 
