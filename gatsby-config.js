@@ -48,6 +48,9 @@ module.exports = {
           contentPadding: '2rem',
           maxWidth: '1600px',
         },
+        i18n: {
+          additionalLocales: [{ name: '日本語', locale: 'jp' }],
+        },
         prism: {
           languages: [
             'xml',
