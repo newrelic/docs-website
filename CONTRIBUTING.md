@@ -5,7 +5,7 @@
   - [Getting started](#getting-started)
     - [Local development](#local-development)
     - [Dependencies](#dependencies)
-  - [Unit tests](#unit-tests)
+    - [Unit tests](#unit-tests)
     - [Using multiple versions of Node](#using-multiple-versions-of-node)
     - [Quick edits](#quick-edits)
     - [Cloning vs Forking](#cloning-vs-forking)
@@ -60,10 +60,10 @@ Your site is now running at `http://localhost:8000`!
 
 Node v12 is used in this project as specified in [.nvmrc](https://github.com/newrelic/developer-website/blob/master/.nvmrc).
 
-## Unit tests
+### Unit tests
 
 To run the unit tests, run `yarn test` in the terminal. If you would like to
-have the tests automatically re-run, use `yarn run test:watch
+have the tests automatically re-run, use `yarn run test:watch`
 
 ### Using multiple versions of Node
 
