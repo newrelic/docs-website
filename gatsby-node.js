@@ -95,6 +95,7 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
             frontmatter {
               template
               subject
+              redirects
             }
           }
         }
@@ -193,6 +194,22 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
   );
 
   allMdx.edges.concat(allMarkdownRemark.edges).forEach(({ node }) => {
+    const {
+      fields: { slug },
+      frontmatter: { redirects },
+    } = node;
+
+    if (redirects) {
+      redirects.forEach((fromPath) => {
+        createRedirect({
+          fromPath,
+          toPath: slug,
+          isPermanent: true,
+          redirectInBrowser: true,
+        });
+      });
+    }
+    
     createPageFromNode(node, { createPage });
 
     locales.forEach((locale) => {
