@@ -49,7 +49,7 @@ module.exports = {
           maxWidth: '1600px',
         },
         i18n: {
-          additionalLocales: [{ name: 'Japanese', locale: 'jp' }],
+          additionalLocales: [{ name: '日本語', locale: 'jp' }],
         },
         prism: {
           languages: [
