@@ -2,6 +2,7 @@ const path = require('path');
 const vfileGlob = require('vfile-glob');
 const { read, write } = require('to-vfile');
 const { uniq } = require('lodash');
+const { prop } = require('./scripts/utils/functional.js');
 
 const { createFilePath } = require('gatsby-source-filesystem');
 
@@ -152,6 +153,13 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
           }
         }
       }
+
+      site {
+        locales {
+          locale
+          isDefault
+        }
+      }
     }
   `);
 
@@ -166,6 +174,7 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
     allMdx,
     releaseNotes,
     landingPagesReleaseNotes,
+    site,
   } = data;
 
   releaseNotes.group.forEach((el) => {
@@ -184,13 +193,12 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
 
   const translatedContentNodes = allI18nMdx.edges.map(({ node }) => node);
 
-  const locales = uniq(
-    translatedContentNodes.map((node) => {
-      const [locale] = node.fields.slug.replace(/^\//, '').split('/');
+  const locales = site.locales
+    .filter((locale) => !locale.isDefault)
+    .map(prop('locale'));
 
-      return locale;
-    })
-  );
+  console.log(locales);
+  debugger;
 
   allMdx.edges.concat(allMarkdownRemark.edges).forEach(({ node }) => {
     createPageFromNode(node, { createPage });
