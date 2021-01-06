@@ -197,9 +197,6 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
     .filter((locale) => !locale.isDefault)
     .map(prop('locale'));
 
-  console.log(locales);
-  debugger;
-
   allMdx.edges.concat(allMarkdownRemark.edges).forEach(({ node }) => {
     createPageFromNode(node, { createPage });
 
