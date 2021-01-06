@@ -199,8 +199,6 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
       frontmatter: { redirects },
     } = node;
 
-    const { template, context = {} } = getTemplate(node);
-
     if (redirects) {
       redirects.forEach((fromPath) => {
         createRedirect({
