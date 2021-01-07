@@ -35,7 +35,7 @@ IndexPage.propTypes = {
 };
 
 export const pageQuery = graphql`
-  query($slug: String!) {
+  query($slug: String!, $locale: String) {
     ...MainLayout_query
   }
 `;

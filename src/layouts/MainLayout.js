@@ -120,7 +120,7 @@ export const query = graphql`
     }
     nav(slug: $slug) {
       id
-      title
+      title(locale: $locale)
       pages {
         ...MainLayout_navPages
         pages {
@@ -140,7 +140,7 @@ export const query = graphql`
   }
 
   fragment MainLayout_navPages on NavItem {
-    title
+    title(locale: $locale)
     url
     icon
   }

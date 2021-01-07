@@ -6,13 +6,13 @@ exports.createSchemaCustomization = ({ actions }) => {
   createTypes(`
     type Nav {
       id: ID!
-      title: String
+      title(locale: String = "en"): String
       pages: [NavItem!]!
     }
 
     type NavItem @dontInfer {
       id: ID!
-      title: String!
+      title(locale: String = "en"): String!
       icon: String
       url: String
       pages: [NavItem!]!
@@ -27,7 +27,6 @@ exports.createResolvers = ({ createResolvers, createNodeId }) => {
         type: 'Nav',
         args: {
           slug: 'String!',
-          locale: 'String!',
         },
         resolve: async (_source, args, context) => {
           const { slug } = args;
@@ -53,7 +52,15 @@ exports.createResolvers = ({ createResolvers, createNodeId }) => {
         },
       },
     },
+    Nav: {
+      title: {
+        resolve: findTranslatedTitle,
+      },
+    },
     NavItem: {
+      title: {
+        resolve: findTranslatedTitle,
+      },
       url: {
         resolve: (source) => source.url || source.path,
       },
@@ -213,15 +220,19 @@ const groupBy = (arr, fn) =>
     return map.set(key, [...(map.get(key) || []), item]);
   }, new Map());
 
-const createNav = ({ args, createNodeId, nodeModel }) => {
-  const { slug, locale } = args;
+const createNav = async ({ args, createNodeId, nodeModel }) => {
+  const { slug } = args;
+  const locales = nodeModel
+    .getAllNodes({ type: 'SiteLocale' })
+    .map(({ locale }) => locale);
+
   const nav = nodeModel.getAllNodes({ type: 'NavYaml' }).find((nav) =>
     // table-of-contents pages should get the same nav as their landing page
     findPage(
       nav,
       slug
         .replace(/\/table-of-contents$/, '')
-        .replace(new RegExp(`^\\/${locale}(?=\\/)`), '')
+        .replace(new RegExp(`^\\/(${locales.join('|')})(?=\\/)`), '')
     )
   );
 
@@ -229,13 +240,26 @@ const createNav = ({ args, createNodeId, nodeModel }) => {
     return null;
   }
 
-  const data = require(`./src/i18n/nav/${locale}.json`);
-
   return {
     id: createNodeId(nav.title),
-    title: data[nav.title] || nav.title,
+    title: nav.title,
     pages: nav.pages,
   };
+};
+
+const findTranslatedTitle = async (source, args, { nodeModel }) => {
+  const item = await nodeModel.runQuery({
+    type: 'TranslatedNavJson',
+    query: {
+      filter: {
+        locale: { eq: args.locale },
+        englishTitle: { eq: source.title },
+      },
+    },
+    firstOnly: true,
+  });
+
+  return item ? item.title : source.title;
 };
 
 const findPage = (page, path) => {

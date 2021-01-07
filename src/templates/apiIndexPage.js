@@ -33,7 +33,7 @@ const ApiIndexPage = ({ data }) => {
 };
 
 export const pageQuery = graphql`
-  query($slug: String!, $slugRegex: String!) {
+  query($slug: String!, $slugRegex: String!, $locale: String) {
     mdx(fields: { slug: { eq: $slug } }) {
       body
       frontmatter {
