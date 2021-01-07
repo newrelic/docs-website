@@ -22,7 +22,7 @@ const buildNav = (jpFiles, { title: enTitle, pages, path }, state = {}) => {
 
   const title = jpFile ? jpFile.data.doc.title : enTitle;
 
-  const newState = { ...state, [enTitle]: title };
+  const newState = enTitle === title ? state : { ...state, [enTitle]: title };
 
   return (pages || []).reduce((acc, page) => {
     return buildNav(jpFiles, page, acc);
