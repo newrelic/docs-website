@@ -29,6 +29,7 @@ const {
 } = require('./utils/constants');
 const copyManualEdits = require('./utils/migrate/copy-manual-edits');
 const cliProgress = require('cli-progress');
+const { fetchAllRedirects } = require('./utils/migrate/fetch-redirects');
 const fetchJpDocs = require('./utils/migrate/fetch-jp-docs');
 const createNavJpStructure = require('./utils/migrate/create-nav-jp-structure');
 
@@ -96,6 +97,10 @@ const run = async () => {
     [CONTENT_DIR, NAV_DIR, DICTIONARY_DIR, JP_DIR].forEach((dir) =>
       rimraf.sync(dir)
     );
+
+    logger.info('Fetching redirects');
+
+    const redirects = await fetchAllRedirects();
 
     logger.info('Migrating docs');
     const docs = await fetchDocs();
@@ -171,6 +176,9 @@ const run = async () => {
       {
         label: 'Docs\t\t',
         fetch: () => docs,
+        vfile: {
+          redirects,
+        },
         process: async (file) => {
           convertFile(file);
 

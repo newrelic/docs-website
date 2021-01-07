@@ -1,22 +1,22 @@
 [![Community Project header](https://github.com/newrelic/opensource-website/raw/master/src/images/categories/Community_Project.png)](https://opensource.newrelic.com/oss-category/#community-project)
 
-# New Relic Docs
+# docs-preview.newrelic.com
 
-This is the repo for the New Relic Docs site: docs.newrelic.com.
+Welcome! 👋 this is the repo for the `NEW` New Relic Docs site.
 
-Right now, it contains the documentation website code and Markdown source files we're using to build our preview Docs site: docs-preview.newrelic.com. When it's ready, all of our docs will live here.
-
-You may also be interested in the New Relic [Developer website](https://github.com/newrelic/developer-website) and [Open Source website](https://github.com/newrelic/opensource-website) repos.
+Currently this repo contains all the Docs website source code and Markdown source files we're using to build our preview Docs site: `docs-preview.newrelic.com`. When it's ready, all of our production documentation will be found in this repo.
 
 Read on to learn more about who we are and how you can contribute to the New Relic Docs site.
+
+## New Relic Developer and Open Source sites
+
+You may also be interested in the New Relic [Developer website](https://github.com/newrelic/developer-website) and [Open Source website](https://github.com/newrelic/opensource-website) repos.
 
 ## We'd like your help
 
 From early on, our Docs site has been managed by a team of writers. We've always welcomed contributions from anyone at New Relic and now we're open sourcing our docs to invite input from anyone at all. We credit our technical accuracy and comprehensive documentation to this openness.
 
-In a sense, it's documentation as conversation. By making our docs open source, we hope to expand this conversation.
-
-Open sourcing our docs seemed like a great way to expand this conversation beyond New Relic.
+In a sense, it's documentation as conversation. By making our docs open source, we hope to expand this conversation. Open sourcing our docs seemed like a great way to expand this conversation beyond New Relic.
 
 We're here working every day to improve our docs and we'd love to hear from you. Come join the conversation.
 
@@ -27,17 +27,13 @@ On each page of our docs, you can [create an issue](https://github.com/newrelic/
 ### Create an issue
 
 Issues are a quick way to give us feedback about our docs. We'll review your issue and follow up with you if we have any questions.
-
 You can create an issue to let us know when you find an error or notice something missing. You can also let us know about things you'd like to see.
-
 Go here to [create an issue](https://github.com/newrelic/docs-website/issues/new/choose).
 
 ### Edit a page
 
 If you'd like to get more directly involved, you can make some changes yourself. On any doc, click the **Edit this page** button to get started making a change.
-
 You can edit a doc directly on the GitHub site. You don't need to actively fork the site or build it locally to help out. This is the easiest way to contribute.
-
 If you'd like to go deeper, see our [Contributors guide](https://github.com/newrelic/docs-website/blob/readme-update/CONTRIBUTING.md) for information on how to fork our site, build it locally, and submit pull requests.
 
 Our [Style guide](https://github.com/newrelic/docs-website/blob/readme-update/STYLE_GUIDE.md) will give you some insight into how we think about writing and documentation, as well as our flavor of Markdown.
@@ -57,4 +53,3 @@ Keep in mind when you submit your pull request, you'll need to sign the CLA via 
 - Code, including sample code, contained in the `docs-website` repository is licensed under the [Apache 2.0 license](LICENSE-CODE.md).
 - When using New Relic logos, follow New Relic’s [media assets guidelines](https://newrelic.com/about/media-assets).
 - The `docs-website` project also uses source code from third-party libraries. You can find full details on which libraries are used and the terms under which they are licensed in the third-party notices document.
-

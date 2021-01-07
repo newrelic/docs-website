@@ -54,11 +54,15 @@ const addCustomFrontmatter = {
       topics,
     };
   },
-  [TYPES.BASIC_PAGE]: ({ topics }, defaultFrontmatter) => {
-    return {
+  [TYPES.BASIC_PAGE]: ({ topics, redirects }, defaultFrontmatter) => {
+    const frontmatter = {
       ...defaultFrontmatter,
       topics,
     };
+    if (redirects.length) {
+      frontmatter.redirects = redirects;
+    }
+    return frontmatter;
   },
   [TYPES.TROUBLESHOOTING]: ({ topics }, defaultFrontmatter) => {
     return {
