@@ -130,6 +130,16 @@ module.exports = {
       },
     },
     {
+      resolve: 'gatsby-source-filesystem',
+      options: {
+        name: 'translated-nav',
+        path: `${__dirname}/src/i18n/nav`,
+      },
+    },
+    {
+      resolve: 'gatsby-transformer-json',
+    },
+    {
       resolve: 'gatsby-transformer-remark',
       options: {
         plugins: [

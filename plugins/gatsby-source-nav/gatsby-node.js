@@ -27,10 +27,15 @@ exports.createResolvers = ({ createResolvers, createNodeId }) => {
         type: 'Nav',
         args: {
           slug: 'String!',
+          locale: 'String!',
         },
         resolve: async (_source, args, context) => {
           const { slug } = args;
-          const utils = { args, nodeModel: context.nodeModel, createNodeId };
+          const utils = {
+            args,
+            nodeModel: context.nodeModel,
+            createNodeId,
+          };
 
           switch (true) {
             case slug === '/':
@@ -209,19 +214,26 @@ const groupBy = (arr, fn) =>
   }, new Map());
 
 const createNav = ({ args, createNodeId, nodeModel }) => {
-  const { slug } = args;
+  const { slug, locale } = args;
   const nav = nodeModel.getAllNodes({ type: 'NavYaml' }).find((nav) =>
     // table-of-contents pages should get the same nav as their landing page
-    findPage(nav, slug.replace(/\/table-of-contents$/, ''))
+    findPage(
+      nav,
+      slug
+        .replace(/\/table-of-contents$/, '')
+        .replace(new RegExp(`^\\/${locale}(?=\\/)`), '')
+    )
   );
 
   if (!nav) {
     return null;
   }
 
+  const data = require(`./src/i18n/nav/${locale}.json`);
+
   return {
     id: createNodeId(nav.title),
-    title: nav.title,
+    title: data[nav.title] || nav.title,
     pages: nav.pages,
   };
 };

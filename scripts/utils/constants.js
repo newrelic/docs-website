@@ -3,7 +3,7 @@ const path = require('path');
 module.exports = {
   CONTENT_DIR: 'src/content',
   NAV_DIR: 'src/nav',
-  NAV_JP_DIR: 'src/i18n/nav_jp',
+  NAV_JP_DIR: 'src/i18n/nav',
   DICTIONARY_DIR: 'src/data-dictionary',
   BASE_URL: 'https://docs-dev.newrelic.com',
   BASE_JP_URL: 'https://docs.newrelic.co.jp',

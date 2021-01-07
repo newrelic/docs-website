@@ -222,12 +222,12 @@ const run = async () => {
     logger.info('Creating nav');
     const navFiles = migrateNavStructure(createNavStructure(sortedDocsFiles));
 
-    const jpNavFiles = createNavJpStructure(navFiles, jpFiles);
+    const jpNavFile = createNavJpStructure(navFiles, jpFiles);
 
     logger.info('Saving changes to files');
     createDirectories(allDocsFiles);
     await fetchDocCount(allDocsFiles.length);
-    await all(allDocsFiles.concat(navFiles).concat(jpNavFiles), (file) =>
+    await all(allDocsFiles.concat(navFiles).concat(jpNavFile), (file) =>
       write(file, 'utf-8')
     );
 
