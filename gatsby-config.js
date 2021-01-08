@@ -49,6 +49,7 @@ module.exports = {
           maxWidth: '1600px',
         },
         i18n: {
+          translationsPath: `${__dirname}/src/i18n/translations`,
           additionalLocales: [{ name: '日本語', locale: 'jp' }],
         },
         prism: {
@@ -143,8 +144,8 @@ module.exports = {
         // consider making this dynamic. See the docs for ways to do this.
         //
         // https://github.com/gatsbyjs/gatsby/tree/master/packages/gatsby-transformer-json
-        typeName: 'TranslatedNavJson'
-      }
+        typeName: 'TranslatedNavJson',
+      },
     },
     {
       resolve: 'gatsby-transformer-remark',
