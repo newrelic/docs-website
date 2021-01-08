@@ -5,4 +5,4 @@ events:
   - OracleDatabaseSample
 ---
 
-Physical reads direct per transaction.
+Physical reads per transaction.action.

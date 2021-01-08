@@ -87,7 +87,7 @@ WhatsNew.propTypes = {
 };
 
 export const pageQuery = graphql`
-  query($slug: String!) {
+  query($slug: String!, $locale: String) {
     allMarkdownRemark(
       sort: {
         fields: [frontmatter___releaseDate, frontmatter___title]
