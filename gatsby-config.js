@@ -49,6 +49,7 @@ module.exports = {
           maxWidth: '1600px',
         },
         i18n: {
+          translationsPath: `${__dirname}/src/i18n/translations`,
           additionalLocales: [{ name: '日本語', locale: 'jp' }],
         },
         prism: {
@@ -127,6 +128,23 @@ module.exports = {
       options: {
         name: 'translated-content',
         path: `${__dirname}/src/i18n/content`,
+      },
+    },
+    {
+      resolve: 'gatsby-source-filesystem',
+      options: {
+        name: 'translated-nav',
+        path: `${__dirname}/src/i18n/nav`,
+      },
+    },
+    {
+      resolve: 'gatsby-transformer-json',
+      options: {
+        // If we need to source json files other than the i18n/nav, we should
+        // consider making this dynamic. See the docs for ways to do this.
+        //
+        // https://github.com/gatsbyjs/gatsby/tree/master/packages/gatsby-transformer-json
+        typeName: 'TranslatedNavJson',
       },
     },
     {

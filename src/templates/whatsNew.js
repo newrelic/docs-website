@@ -81,7 +81,7 @@ WhatsNewTemplate.propTypes = {
 };
 
 export const pageQuery = graphql`
-  query($slug: String!) {
+  query($slug: String!, $locale: String) {
     markdownRemark(fields: { slug: { eq: $slug } }) {
       html
       frontmatter {

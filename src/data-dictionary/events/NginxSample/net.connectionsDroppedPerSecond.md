@@ -5,8 +5,6 @@ events:
   - NginxSample
 ---
 
-Dropped client connections as requests per second.
-
-For NGINX Plus systems.d and hence dropped.
+Number of connections per second that were accepted but could not he handled and hence dropped.
 
 For NGINX open source systems.

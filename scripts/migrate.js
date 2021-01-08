@@ -17,7 +17,7 @@ const createRawHTMLFiles = require('./utils/migrate/create-raw-html-files');
 const migrateNavStructure = require('./utils/migrate/migrate-nav-structure');
 const reporter = require('vfile-reporter');
 const rimraf = require('rimraf');
-const { last } = require('lodash');
+const { last, nth } = require('lodash');
 const path = require('path');
 const { prop } = require('./utils/functional');
 const {
@@ -31,6 +31,7 @@ const copyManualEdits = require('./utils/migrate/copy-manual-edits');
 const cliProgress = require('cli-progress');
 const { fetchAllRedirects } = require('./utils/migrate/fetch-redirects');
 const fetchJpDocs = require('./utils/migrate/fetch-jp-docs');
+const createNavJpStructure = require('./utils/migrate/create-nav-jp-structure');
 
 const all = (list, fn) => Promise.all(list.map(fn));
 
@@ -196,6 +197,8 @@ const run = async () => {
 
     const allDocsFiles = fileGroups.flat();
 
+    const jpFiles = nth(fileGroups, -2);
+
     progressBar.stop();
 
     const sortedDocsFiles = last(fileGroups)
@@ -227,10 +230,14 @@ const run = async () => {
     logger.info('Creating nav');
     const navFiles = migrateNavStructure(createNavStructure(sortedDocsFiles));
 
+    const jpNavFile = createNavJpStructure(navFiles, jpFiles);
+
     logger.info('Saving changes to files');
     createDirectories(allDocsFiles);
     await fetchDocCount(allDocsFiles.length);
-    await all(allDocsFiles.concat(navFiles), (file) => write(file, 'utf-8'));
+    await all(allDocsFiles.concat(navFiles).concat(jpNavFile), (file) =>
+      write(file, 'utf-8')
+    );
 
     logger.info('Copying manual edits');
     await copyManualEdits();

@@ -155,8 +155,8 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
         }
       }
 
-      site {
-        locales {
+      allLocale {
+        nodes {
           locale
           isDefault
         }
@@ -175,7 +175,7 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
     allMdx,
     releaseNotes,
     landingPagesReleaseNotes,
-    site,
+    allLocale,
   } = data;
 
   releaseNotes.group.forEach((el) => {
@@ -194,7 +194,7 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
 
   const translatedContentNodes = allI18nMdx.edges.map(({ node }) => node);
 
-  const locales = site.locales
+  const locales = allLocale.nodes
     .filter((locale) => !locale.isDefault)
     .map(prop('locale'));
 
@@ -214,7 +214,7 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
         });
       });
     }
-    
+
     createPageFromNode(node, { createPage });
 
     locales.forEach((locale) => {
