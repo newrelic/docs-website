@@ -11,6 +11,8 @@ import {
   TagList,
   useQueryParams,
   Icon,
+  useTranslation,
+  Trans,
 } from '@newrelic/gatsby-theme-newrelic';
 
 import SEO from '../components/seo';
@@ -54,6 +56,8 @@ const AttributeDictionary = ({ data, pageContext }) => {
     filterEvents();
   }, [queryParams, events]);
 
+  const { t } = useTranslation();
+
   return (
     <>
       <SEO title="New Relic data dictionary" />
@@ -76,31 +80,34 @@ const AttributeDictionary = ({ data, pageContext }) => {
           }
         `}
       >
-        <PageTitle>New Relic data dictionary</PageTitle>
+        <PageTitle>{t('dataDictionary.title')}</PageTitle>
         <div
           css={css`
             grid-area: 'page-description';
           `}
         >
-          <p
-            css={css`
-              color: var(--secondary-text-color);
-              font-size: 1.125rem;
-            `}
-          >
-            This data dictionary lists and defines the{' '}
-            <Link to="/docs/using-new-relic/welcome-new-relic/getting-started/glossary#attribute">
-              attributes
-            </Link>{' '}
-            attached to New Relic events and other data objects (like Metric and
-            Span data).
-          </p>
-          <Callout variant={Callout.VARIANT.TIP}>
-            This dictionary does not contain data reported by Infrastructure
-            integrations. To learn about that data, see the{' '}
-            <Link to="/docs/integrations">integration documentation</Link>.
-          </Callout>
-
+          <Trans i18nKey="dataDictionary.intro" parent="div">
+            <p
+              css={css`
+                color: var(--secondary-text-color);
+                font-size: 1.125rem;
+              `}
+            >
+              This data dictionary lists and defines the{' '}
+              <Link to="/docs/using-new-relic/welcome-new-relic/getting-started/glossary#attribute">
+                attributes
+              </Link>{' '}
+              attached to New Relic events and other data objects (like Metric
+              and Span data).
+            </p>
+          </Trans>
+          <Trans i18nKey="dataDictionary.callout">
+            <Callout variant={Callout.VARIANT.TIP}>
+              This dictionary does not contain data reported by Infrastructure
+              integrations. To learn about that data, see the{' '}
+              <Link to="/docs/integrations">integration documentation</Link>.
+            </Callout>
+          </Trans>
           <hr />
         </div>
         <Layout.Content>
