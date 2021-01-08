@@ -30,10 +30,17 @@ exports.createResolvers = ({ createResolvers, createNodeId }) => {
         },
         resolve: async (_source, args, context) => {
           const { slug } = args;
+          const { nodeModel } = context;
+
+          const locales = nodeModel
+            .getAllNodes({ type: 'Locale' })
+            .map(({ locale }) => locale);
+
           const utils = {
             args,
-            nodeModel: context.nodeModel,
+            nodeModel,
             createNodeId,
+            locales,
           };
 
           switch (true) {
@@ -220,11 +227,8 @@ const groupBy = (arr, fn) =>
     return map.set(key, [...(map.get(key) || []), item]);
   }, new Map());
 
-const createNav = async ({ args, createNodeId, nodeModel }) => {
+const createNav = async ({ args, createNodeId, nodeModel, locales }) => {
   const { slug } = args;
-  const locales = nodeModel
-    .getAllNodes({ type: 'Locale' })
-    .map(({ locale }) => locale);
 
   const nav = nodeModel.getAllNodes({ type: 'NavYaml' }).find((nav) =>
     // table-of-contents pages should get the same nav as their landing page
