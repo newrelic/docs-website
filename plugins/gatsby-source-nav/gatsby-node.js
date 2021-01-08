@@ -223,7 +223,7 @@ const groupBy = (arr, fn) =>
 const createNav = async ({ args, createNodeId, nodeModel }) => {
   const { slug } = args;
   const locales = nodeModel
-    .getAllNodes({ type: 'SiteLocale' })
+    .getAllNodes({ type: 'Locale' })
     .map(({ locale }) => locale);
 
   const nav = nodeModel.getAllNodes({ type: 'NavYaml' }).find((nav) =>
@@ -248,6 +248,10 @@ const createNav = async ({ args, createNodeId, nodeModel }) => {
 };
 
 const findTranslatedTitle = async (source, args, { nodeModel }) => {
+  if (args.locale === 'en') {
+    return source.title;
+  }
+
   const item = await nodeModel.runQuery({
     type: 'TranslatedNavJson',
     query: {
