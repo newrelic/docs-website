@@ -7,6 +7,7 @@ import {
   Icon,
   Surface,
   useTranslation,
+  Trans,
 } from '@newrelic/gatsby-theme-newrelic';
 import { rgba } from 'polished';
 import IntegrationIcon from '../components/IntegrationIcon';
@@ -18,7 +19,7 @@ const HomePage = ({ data }) => {
     site: { layout },
   } = data;
 
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
 
   return (
     <>
@@ -45,18 +46,17 @@ const HomePage = ({ data }) => {
               }
             `}
           >
-            <p>
-              If you're new, follow these three steps to create an account and
-              get going (it's free!).
-            </p>
-            <p>
+            <p>{t('home.intro.p1')}</p>
+
+            <Trans i18nKey="home.intro.p2" parent="p">
               If you're catching up on the changes in New Relic One, start with{' '}
               <Link to="/docs/new-relic-one/use-new-relic-one/core-concepts/new-relic-one-transition-guide-july-2020">
                 this transition guide
               </Link>{' '}
               or check out <Link to="/whats-new">what's new</Link>.
-            </p>
-            <p>
+            </Trans>
+
+            <Trans i18nKey="home.intro.p3" parent="p">
               Scroll on for more about our Telemetry Data Platform, Full-Stack
               Observability, and Applied Intelligence. Or get a wider view of
               the platform with our{' '}
@@ -64,7 +64,7 @@ const HomePage = ({ data }) => {
                 Intro to New Relic
               </Link>
               .
-            </p>
+            </Trans>
           </div>
           <div
             css={css`
@@ -94,66 +94,91 @@ const HomePage = ({ data }) => {
           >
             <WelcomeTile
               to="https://newrelic.com/signup"
-              title="Create a free account"
-              description="No credit card required."
+              title={t('home.welcome.t1.title')}
+              description={t('home.welcome.t1.description')}
             />
             <WelcomeTile
               to="https://one.newrelic.com/launcher/nr1-core.settings?pane=eyJuZXJkbGV0SWQiOiJ0dWNzb24ucGxnLWluc3RydW1lbnQtZXZlcnl0aGluZyJ9"
-              title="Start collecting data"
-              description="Our UI guides you through setup and install."
+              title={t('home.welcome.t2.title')}
+              description={t('home.welcome.t2.description')}
             />
             <WelcomeTile
               to="/docs/alerts/new-relic-alerts/getting-started/introduction-new-relic-alerts"
-              title="Set up alerts"
-              description="Get notified quickly about changes in your system."
+              title={t('home.welcome.t3.title')}
+              description={t('home.welcome.t3.description')}
             />
           </div>
         </div>
       </Section>
       <Section alternate layout={layout}>
-        <SectionTitle title={tdp.title} icon="nr-tdp" />
-        <SectionDescription>{tdp.description}</SectionDescription>
+        <SectionTitle title={t('home.tdp.title')} icon="nr-tdp" />
+        <SectionDescription>{t('home.tdp.description')}</SectionDescription>
+        <p>{t('home.tdp.t1.title')}</p>
         <DocTileGrid>
           {tdp.tiles.map((guide, idx) => (
-            <DocTile key={idx} guide={guide} />
+            <DocTile
+              key={idx}
+              title={t(`home.tdp.t${idx + 1}.title`)}
+              description={t(`home.tdp.t${idx + 1}.description`)}
+              link={guide.link}
+            />
           ))}
         </DocTileGrid>
       </Section>
       <Section layout={layout}>
-        <SectionTitle title={fso.title} icon="nr-fso" />
-        <SectionDescription>{fso.description}</SectionDescription>
+        <SectionTitle title={t('home.fso.title')} icon="nr-fso" />
+        <SectionDescription>{t('home.fso.description')}</SectionDescription>
+        {/* TODO: remove everything but links from yml? */}
         <DocTileGrid>
           {fso.tiles.map((guide, idx) => (
-            <DocTile key={idx} guide={guide} />
+            <DocTile
+              key={idx}
+              title={t(`home.fso.t${idx + 1}.title`)}
+              description={t(`home.fso.t${idx + 1}.description`)}
+              link={guide.link}
+            />
           ))}
         </DocTileGrid>
       </Section>
       <Section alternate layout={layout}>
-        <SectionTitle title={ai.title} icon="nr-ai" />
-        <SectionDescription>{ai.description}</SectionDescription>
+        <SectionTitle title={t('home.ai.title')} icon="nr-ai" />
+        <SectionDescription>{t('home.ai.description')}</SectionDescription>
         <DocTileGrid>
           {ai.tiles.map((guide, idx) => (
-            <DocTile key={idx} guide={guide} />
+            <DocTile
+              key={idx}
+              title={t(`home.ai.t${idx + 1}.title`)}
+              description={t(`home.ai.t${idx + 1}.description`)}
+              link={guide.link}
+            />
           ))}
         </DocTileGrid>
       </Section>
       <Section layout={layout}>
         <SectionTitle title="New Relic integrations" />
         <SectionDescription>
-          <Link to="/docs/integrations/intro-integrations/get-started/introduction-new-relic-integrations">
-            Integrations
-          </Link>{' '}
-          connect the technologies in your stack to New Relic. Here are a few of
-          our{' '}
-          <a href="https://newrelic.com/integrations" rel="noopener noreferrer">
-            370+ integrations
-          </a>
-          :
+          <Trans i18nKey="home.integrations.description">
+            <Link to="/docs/integrations/intro-integrations/get-started/introduction-new-relic-integrations">
+              Integrations
+            </Link>{' '}
+            connect the technologies in your stack to New Relic. Here are a few
+            of our{' '}
+            <a
+              href="https://newrelic.com/integrations"
+              rel="noopener noreferrer"
+            >
+              370+ integrations
+            </a>
+            :
+          </Trans>
         </SectionDescription>
 
+        {/* TODO: remove title from whatever */}
         {integrations.map(({ title, tiles }, idx) => (
           <Fragment key={idx}>
-            <IntegrationTitle>{title}</IntegrationTitle>
+            <IntegrationTitle>
+              {t(`home.integrations.h${idx + 1}`)}
+            </IntegrationTitle>
             <IntegrationTileGrid>
               {tiles.map(({ name, icon, link }) => (
                 <IntegrationTile key={name} name={name} icon={icon} to={link} />
@@ -178,11 +203,18 @@ const HomePage = ({ data }) => {
         </div>
       </Section>
       <Section layout={layout}>
-        <SectionTitle title={security.title} />
-        <SectionDescription>{security.description}</SectionDescription>
+        <SectionTitle title={t('home.security.title')} />
+        <SectionDescription>
+          {t('home.security.description')}
+        </SectionDescription>
         <DocTileGrid>
           {security.tiles.map((guide, idx) => (
-            <DocTile key={idx} guide={guide} />
+            <DocTile
+              key={idx}
+              title={t(`home.security.t${idx + 1}.title`)}
+              description={t(`home.security.t${idx + 1}.description`)}
+              link={guide.link}
+            />
           ))}
         </DocTileGrid>
       </Section>
@@ -392,7 +424,7 @@ DocTileGrid.propTypes = {
   children: PropTypes.node,
 };
 
-const DocTile = ({ guide: { title, description, link } }) => (
+const DocTile = ({ title, description, link }) => (
   <SurfaceLink
     base={Surface.BASE.SECONDARY}
     to={link}
@@ -423,11 +455,9 @@ const DocTile = ({ guide: { title, description, link } }) => (
 );
 
 DocTile.propTypes = {
-  guide: PropTypes.shape({
-    title: PropTypes.string.isRequired,
-    description: PropTypes.string.isRequired,
-    link: PropTypes.string.isRequired,
-  }).isRequired,
+  title: PropTypes.string.isRequired,
+  description: PropTypes.string.isRequired,
+  link: PropTypes.string.isRequired,
 };
 
 const IntegrationTitle = ({ children }) => (
