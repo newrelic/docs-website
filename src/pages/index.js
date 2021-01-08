@@ -2,7 +2,12 @@ import React, { Fragment } from 'react';
 import PropTypes from 'prop-types';
 import { css, keyframes } from '@emotion/core';
 import { Link, graphql } from 'gatsby';
-import { Button, Icon, Surface } from '@newrelic/gatsby-theme-newrelic';
+import {
+  Button,
+  Icon,
+  Surface,
+  useTranslation,
+} from '@newrelic/gatsby-theme-newrelic';
 import { rgba } from 'polished';
 import IntegrationIcon from '../components/IntegrationIcon';
 import SurfaceLink from '../components/SurfaceLink';
@@ -13,10 +18,12 @@ const HomePage = ({ data }) => {
     site: { layout },
   } = data;
 
+  const { t, i18n } = useTranslation();
+
   return (
     <>
       <Section layout={layout}>
-        <h1>Welcome to New Relic</h1>
+        <h1>{t('home.title')}</h1>
         <div
           css={css`
             display: flex;
