@@ -1,9 +1,10 @@
 import React, { Fragment } from 'react';
 import PropTypes from 'prop-types';
 import { css, keyframes } from '@emotion/core';
-import { Link, graphql } from 'gatsby';
+import { graphql } from 'gatsby';
 import {
   Button,
+  Link,
   Icon,
   Surface,
   useTranslation,
