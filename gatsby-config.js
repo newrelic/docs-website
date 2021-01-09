@@ -47,6 +47,7 @@ module.exports = {
         layout: {
           contentPadding: '2rem',
           maxWidth: '1600px',
+          component: require.resolve('./src/layouts'),
         },
         i18n: {
           translationsPath: `${__dirname}/src/i18n/translations`,
@@ -86,12 +87,6 @@ module.exports = {
             },
           },
         },
-      },
-    },
-    {
-      resolve: 'gatsby-plugin-layout',
-      options: {
-        component: require.resolve('./src/layouts'),
       },
     },
     {
