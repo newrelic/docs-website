@@ -48,9 +48,9 @@ const NotFoundPage = ({ pageContext }) => {
                 line-height: 1;
               `}
             >
-              {t('404.h1')}
+              {t('404.statusCode')}
             </h1>
-            <Trans i18nKey="404.content" parent="p">
+            <Trans i18nKey="404.errorMessage" parent="p">
               The URL you entered may be broken, or the page has been removed.{' '}
               <Link to="/">Go back to the home page</Link>.
             </Trans>

@@ -86,28 +86,30 @@ const AttributeDictionary = ({ data, pageContext }) => {
             grid-area: 'page-description';
           `}
         >
-          <Trans i18nKey="dataDictionary.intro" parent="div">
-            <p
-              css={css`
-                color: var(--secondary-text-color);
-                font-size: 1.125rem;
-              `}
-            >
-              This data dictionary lists and defines the{' '}
-              <Link to="/docs/using-new-relic/welcome-new-relic/getting-started/glossary#attribute">
-                attributes
-              </Link>{' '}
-              attached to New Relic events and other data objects (like Metric
-              and Span data).
-            </p>
+          <Trans
+            i18nKey="dataDictionary.intro"
+            parent="p"
+            css={css`
+              color: var(--secondary-text-color);
+              font-size: 1.125rem;
+            `}
+          >
+            This data dictionary lists and defines the{' '}
+            <Link to="/docs/using-new-relic/welcome-new-relic/getting-started/glossary#attribute">
+              attributes
+            </Link>{' '}
+            attached to New Relic events and other data objects (like Metric and
+            Span data).
           </Trans>
-          <Trans i18nKey="dataDictionary.callout">
-            <Callout variant={Callout.VARIANT.TIP}>
+
+          <Callout variant={Callout.VARIANT.TIP}>
+            <Trans i18nKey="dataDictionary.callout">
               This dictionary does not contain data reported by Infrastructure
               integrations. To learn about that data, see the{' '}
               <Link to="/docs/integrations">integration documentation</Link>.
-            </Callout>
-          </Trans>
+            </Trans>
+          </Callout>
+
           <hr />
         </div>
         <Layout.Content>
