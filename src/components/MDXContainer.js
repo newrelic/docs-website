@@ -6,6 +6,7 @@ import {
   MDXCodeBlock,
   ExternalLink,
   Callout,
+  Link,
   Button,
   Icon,
   Video,
@@ -15,7 +16,6 @@ import Collapser from './Collapser';
 import CollapserGroup from './CollapserGroup';
 import DefaultRelatedContent from './DefaultRelatedContent';
 import Table from './Table';
-import MDXLink from './MDXLink';
 import LandingPageTile from './LandingPageTile';
 import LandingPageTileGrid from './LandingPageTileGrid';
 import MarkdownContainer from './MarkdownContainer';
@@ -27,7 +27,7 @@ InlineCode.propTypes = {
 };
 
 const defaultComponents = {
-  a: MDXLink,
+  a: Link,
   code: MDXCodeBlock,
   pre: (props) => props.children,
   Button,
@@ -41,6 +41,7 @@ const defaultComponents = {
   InlineCode,
   LandingPageTile,
   LandingPageTileGrid,
+  Link,
   Table,
   Video,
   DefaultRelatedContent,
