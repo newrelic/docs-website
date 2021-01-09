@@ -175,7 +175,7 @@ const HomePage = ({ data }) => {
         {integrations.map((integration, idx) => (
           <Fragment key={idx}>
             <IntegrationTitle>
-              {t(`home.integrations.h${idx + 1}`)}
+              {t(`home.integrations.title${idx + 1}`)}
             </IntegrationTitle>
             <IntegrationTileGrid>
               {integration.tiles.map(({ name, icon, link }) => (
