@@ -42,6 +42,7 @@ const defaultComponents = {
   LandingPageTile,
   LandingPageTileGrid,
   Link,
+  table: Table,
   Table,
   Video,
   DefaultRelatedContent,
