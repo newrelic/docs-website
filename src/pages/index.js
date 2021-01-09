@@ -115,12 +115,12 @@ const HomePage = ({ data }) => {
         <SectionDescription>{t('home.tdp.description')}</SectionDescription>
         <p>{t('home.tdp.t1.title')}</p>
         <DocTileGrid>
-          {tdp.tiles.map((guide, idx) => (
+          {tdp.tiles.map((link, idx) => (
             <DocTile
               key={idx}
               title={t(`home.tdp.t${idx + 1}.title`)}
               description={t(`home.tdp.t${idx + 1}.description`)}
-              link={guide.link}
+              link={link}
             />
           ))}
         </DocTileGrid>
@@ -128,14 +128,13 @@ const HomePage = ({ data }) => {
       <Section layout={layout}>
         <SectionTitle title={t('home.fso.title')} icon="nr-fso" />
         <SectionDescription>{t('home.fso.description')}</SectionDescription>
-        {/* TODO: remove everything but links from yml? */}
         <DocTileGrid>
-          {fso.tiles.map((guide, idx) => (
+          {fso.tiles.map((link, idx) => (
             <DocTile
               key={idx}
               title={t(`home.fso.t${idx + 1}.title`)}
               description={t(`home.fso.t${idx + 1}.description`)}
-              link={guide.link}
+              link={link}
             />
           ))}
         </DocTileGrid>
@@ -144,12 +143,12 @@ const HomePage = ({ data }) => {
         <SectionTitle title={t('home.ai.title')} icon="nr-ai" />
         <SectionDescription>{t('home.ai.description')}</SectionDescription>
         <DocTileGrid>
-          {ai.tiles.map((guide, idx) => (
+          {ai.tiles.map((link, idx) => (
             <DocTile
               key={idx}
               title={t(`home.ai.t${idx + 1}.title`)}
               description={t(`home.ai.t${idx + 1}.description`)}
-              link={guide.link}
+              link={link}
             />
           ))}
         </DocTileGrid>
@@ -173,14 +172,13 @@ const HomePage = ({ data }) => {
           </Trans>
         </SectionDescription>
 
-        {/* TODO: remove title from whatever */}
-        {integrations.map(({ title, tiles }, idx) => (
+        {integrations.map((integration, idx) => (
           <Fragment key={idx}>
             <IntegrationTitle>
               {t(`home.integrations.h${idx + 1}`)}
             </IntegrationTitle>
             <IntegrationTileGrid>
-              {tiles.map(({ name, icon, link }) => (
+              {integration.tiles.map(({ name, icon, link }) => (
                 <IntegrationTile key={name} name={name} icon={icon} to={link} />
               ))}
             </IntegrationTileGrid>
@@ -208,12 +206,12 @@ const HomePage = ({ data }) => {
           {t('home.security.description')}
         </SectionDescription>
         <DocTileGrid>
-          {security.tiles.map((guide, idx) => (
+          {security.tiles.map((link, idx) => (
             <DocTile
               key={idx}
               title={t(`home.security.t${idx + 1}.title`)}
               description={t(`home.security.t${idx + 1}.description`)}
-              link={guide.link}
+              link={link}
             />
           ))}
         </DocTileGrid>
