@@ -345,7 +345,9 @@ const EventDefinition = memo(({ location, event, filteredAttribute }) => {
                   >
                     {attribute.events.map((event) => (
                       <li key={event.name}>
-                        <Link to={`?event=${event.name}`}>{event.name}</Link>
+                        <Link to={`${location.pathname}?event=${event.name}`}>
+                          {event.name}
+                        </Link>
                       </li>
                     ))}
                   </ul>
