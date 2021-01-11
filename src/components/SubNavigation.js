@@ -30,7 +30,7 @@ const SubNavigation = ({ nav }) => {
             margin-right: 0.5rem;
           `}
         />
-        {t('subNav.title')}
+        {t('subNav.homeLink')}
       </Link>
       {nav && (
         <>
