@@ -265,7 +265,6 @@ const EventDefinition = memo(({ location, event, filteredAttribute }) => {
         <tbody>
           {filteredAttributes.map((attribute) => {
             const params = new URLSearchParams();
-            params.set('dataSource', event.dataSources[0]);
             params.set('event', event.name);
             params.set('attribute', attribute.name);
 
@@ -280,6 +279,8 @@ const EventDefinition = memo(({ location, event, filteredAttribute }) => {
                   <Link
                     to={`${location.pathname}?${params.toString()}`}
                     css={css`
+                      display: flex;
+                      align-items: center;
                       color: var(--color-text-primary);
 
                       &:hover svg {
