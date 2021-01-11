@@ -154,7 +154,7 @@ const AttributeDictionary = ({ data, pageContext, location }) => {
               fileRelativePath={pageContext.fileRelativePath}
             />
           )}
-          <DataDictionaryFilter events={events} />
+          <DataDictionaryFilter events={events} location={location} />
         </Layout.PageTools>
       </div>
     </>
@@ -164,7 +164,9 @@ const AttributeDictionary = ({ data, pageContext, location }) => {
 AttributeDictionary.propTypes = {
   data: PropTypes.object.isRequired,
   pageContext: PropTypes.object.isRequired,
-  location: PropTypes.object.isRequired,
+  location: PropTypes.shape({
+    pathname: PropTypes.string.isRequired,
+  }).isRequired,
 };
 
 const pluralize = (word, count) => (count === 1 ? word : `${word}s`);
@@ -360,6 +362,9 @@ const EventDefinition = memo(({ location, event, filteredAttribute }) => {
 EventDefinition.propTypes = {
   event: PropTypes.object.isRequired,
   filteredAttribute: PropTypes.string,
+  location: PropTypes.shape({
+    pathname: PropTypes.string.isRequired,
+  }).isRequired,
 };
 
 export const pageQuery = graphql`
