@@ -11,6 +11,8 @@ import {
   TagList,
   useQueryParams,
   Icon,
+  useTranslation,
+  Trans,
 } from '@newrelic/gatsby-theme-newrelic';
 
 import SEO from '../components/seo';
@@ -54,6 +56,8 @@ const AttributeDictionary = ({ data, pageContext }) => {
     filterEvents();
   }, [queryParams, events]);
 
+  const { t } = useTranslation();
+
   return (
     <>
       <SEO title="New Relic data dictionary" />
@@ -76,13 +80,15 @@ const AttributeDictionary = ({ data, pageContext }) => {
           }
         `}
       >
-        <PageTitle>New Relic data dictionary</PageTitle>
+        <PageTitle>{t('dataDictionary.title')}</PageTitle>
         <div
           css={css`
             grid-area: 'page-description';
           `}
         >
-          <p
+          <Trans
+            i18nKey="dataDictionary.intro"
+            parent="p"
             css={css`
               color: var(--secondary-text-color);
               font-size: 1.125rem;
@@ -94,11 +100,14 @@ const AttributeDictionary = ({ data, pageContext }) => {
             </Link>{' '}
             attached to New Relic events and other data objects (like Metric and
             Span data).
-          </p>
+          </Trans>
+
           <Callout variant={Callout.VARIANT.TIP}>
-            This dictionary does not contain data reported by Infrastructure
-            integrations. To learn about that data, see the{' '}
-            <Link to="/docs/integrations">integration documentation</Link>.
+            <Trans i18nKey="dataDictionary.callout">
+              This dictionary does not contain data reported by Infrastructure
+              integrations. To learn about that data, see the{' '}
+              <Link to="/docs/integrations">integration documentation</Link>.
+            </Trans>
           </Callout>
 
           <hr />

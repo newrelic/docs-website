@@ -4,7 +4,7 @@ import { css } from '@emotion/core';
 import SEO from '../components/seo';
 import PageTitle from '../components/PageTitle';
 import { graphql } from 'gatsby';
-import { Layout, Link } from '@newrelic/gatsby-theme-newrelic';
+import { Layout, Link, useTranslation } from '@newrelic/gatsby-theme-newrelic';
 import Timeline from '../components/Timeline';
 
 const WhatsNew = ({ data }) => {
@@ -24,6 +24,8 @@ const WhatsNew = ({ data }) => {
       .entries()
   );
 
+  const { t } = useTranslation();
+
   return (
     <>
       <SEO title="What's new in New Relic" />
@@ -33,7 +35,7 @@ const WhatsNew = ({ data }) => {
             margin-bottom: 2rem;
           `}
         >
-          What's new in New Relic
+          {t('whatsNew.title')}
         </PageTitle>
         <Layout.Content>
           <Timeline>
