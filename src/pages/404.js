@@ -1,9 +1,12 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/core';
-import { Link } from 'gatsby';
 import SkewedContainer from '../components/SkewedContainer';
-import { GlobalHeader, GlobalFooter } from '@newrelic/gatsby-theme-newrelic';
+import {
+  Link,
+  GlobalHeader,
+  GlobalFooter,
+} from '@newrelic/gatsby-theme-newrelic';
 
 const NotFoundPage = ({ pageContext }) => {
   return (

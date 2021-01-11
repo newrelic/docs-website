@@ -3,10 +3,11 @@ import PropTypes from 'prop-types';
 import {
   GlobalHeader,
   Layout,
+  Link,
   Logo,
   useLayout,
 } from '@newrelic/gatsby-theme-newrelic';
-import { Link, graphql } from 'gatsby';
+import { graphql } from 'gatsby';
 import { css } from '@emotion/core';
 import MobileHeader from '../components/MobileHeader';
 import { useMedia } from 'react-use';
