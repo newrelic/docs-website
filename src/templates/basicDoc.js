@@ -11,12 +11,15 @@ import {
   ContributingGuidelines,
   Layout,
   SimpleFeedback,
+  useTranslation,
 } from '@newrelic/gatsby-theme-newrelic';
 import toString from 'mdast-util-to-string';
 import DefaultRelatedContent from '../components/DefaultRelatedContent';
 import Watermark from '../components/Watermark';
+import { parseHeading } from '../../plugins/gatsby-remark-custom-heading-ids/utils/heading';
 
 const BasicDoc = ({ data }) => {
+  const { t } = useTranslation();
   const { mdx } = data;
   const {
     mdxAST,
@@ -25,9 +28,12 @@ const BasicDoc = ({ data }) => {
     fields: { fileRelativePath, slug },
   } = mdx;
 
-  const moreHelpExists = mdxAST.children.find(
-    (node) => node.type === 'heading' && toString(node) === 'For more help'
-  );
+  const moreHelpExists = mdxAST.children
+    .filter((node) => node.type === 'heading')
+    .some((node) => {
+      const { text } = parseHeading(node);
+      return text === t('defaultRelatedContent.title');
+    });
 
   const isMobileScreen = useMedia('(max-width: 1240px)');
 

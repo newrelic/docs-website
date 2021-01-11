@@ -6,9 +6,12 @@ import {
   Link,
   GlobalHeader,
   GlobalFooter,
+  Trans,
+  useTranslation,
 } from '@newrelic/gatsby-theme-newrelic';
 
 const NotFoundPage = ({ pageContext }) => {
+  const { t } = useTranslation();
   return (
     <>
       <GlobalHeader />
@@ -45,12 +48,12 @@ const NotFoundPage = ({ pageContext }) => {
                 line-height: 1;
               `}
             >
-              404
+              {t('404.statusCode')}
             </h1>
-            <p>
+            <Trans i18nKey="404.errorMessage" parent="p">
               The URL you entered may be broken, or the page has been removed.{' '}
               <Link to="/">Go back to the home page</Link>.
-            </p>
+            </Trans>
           </SkewedContainer>
         </div>
         <GlobalFooter fileRelativePath={pageContext.fileRelativePath} />
