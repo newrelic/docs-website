@@ -187,27 +187,36 @@ const EventDefinition = memo(({ location, event, filteredAttribute }) => {
         }
       `}
     >
-      <Link to={`${location.pathname}?event=${event.name}`}>
-        <h2
-          as={Link}
+      <h2
+        css={css`
+          position: sticky;
+          top: var(--global-header-height);
+          background: var(--primary-background-color);
+          padding: 1rem 0;
+
+          // cover up the right table border
+          margin-right: -1px;
+
+          &:hover svg {
+            opacity: 1;
+          }
+
+          @media (max-width: 1240px) {
+            position: relative;
+          }
+        `}
+      >
+        <div
           css={css`
-            position: sticky;
-            top: var(--global-header-height);
-            background: var(--primary-background-color);
-            padding: 1rem 0;
-
-            // cover up the right table border
-            margin-right: -1px;
-
-            &:hover svg {
-              opacity: 1;
-            }
-
-            @media (max-width: 1240px) {
-              position: static;
-            }
+            position: relative;
           `}
         >
+          <Link
+            to={`${location.pathname}?event=${event.name}`}
+            className="anchor before"
+          >
+            <Icon name="fe-link-2" focusable={false} size="1rem" />
+          </Link>
           <code
             css={css`
               background: none !important;
@@ -215,17 +224,8 @@ const EventDefinition = memo(({ location, event, filteredAttribute }) => {
           >
             {event.name}
           </code>
-          <Icon
-            name="fe-link-2"
-            focusable={false}
-            css={css`
-              margin-left: 0.5rem;
-              opacity: 0;
-              transition: opacity 0.2s ease-out;
-            `}
-          />
-        </h2>
-      </Link>
+        </div>
+      </h2>
       <div
         css={css`
           margin-bottom: 1rem;
