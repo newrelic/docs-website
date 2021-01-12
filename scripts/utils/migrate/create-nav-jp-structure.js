@@ -1,6 +1,6 @@
 const vfile = require('vfile');
 const yaml = require('js-yaml');
-const { BASE_URL, NAV_JP_DIR } = require('../constants');
+const { NAV_JP_DIR, TYPES } = require('../constants');
 const path = require('path');
 
 const createNavJpStructure = (navFiles, jpFiles) => {
@@ -14,19 +14,26 @@ const createNavJpStructure = (navFiles, jpFiles) => {
   });
 };
 
-const buildNav = (jpFiles, { title: enTitle, pages, path }, state) => {
-  const jpFile = jpFiles.find(
-    (file) => file.data.doc.docUrl.split(BASE_URL).pop().trim() === path
-  );
+const buildNav = (jpFiles, page, state) => {
+  const jpFile = jpFiles.find((file) => {
+    const { doc } = file.data;
+    const url = new URL(doc.docUrl);
 
-  const title = jpFile ? jpFile.data.doc.title : enTitle;
+    if (doc.type === TYPES.LANDING_PAGE) {
+      url.pathname = path.dirname(url.pathname);
+    }
+
+    return url.pathname === page.path;
+  });
+
+  const title = jpFile ? jpFile.data.doc.title : page.title;
 
   const newState =
-    enTitle === title
+    page.title === title
       ? state
-      : [...state, { title, englishTitle: enTitle, locale: 'jp' }];
+      : [...state, { title, englishTitle: page.title, locale: 'jp' }];
 
-  return (pages || []).reduce((state, page) => {
+  return (page.pages || []).reduce((state, page) => {
     return buildNav(jpFiles, page, state);
   }, newState);
 };
