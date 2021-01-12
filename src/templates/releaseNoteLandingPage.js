@@ -3,15 +3,14 @@ import PropTypes from 'prop-types';
 import { css } from '@emotion/core';
 import { graphql } from 'gatsby';
 import PageTitle from '../components/PageTitle';
-import SEO from '../components/seo';
 import Timeline from '../components/Timeline';
-import { Icon, Layout, Link } from '@newrelic/gatsby-theme-newrelic';
+import { Icon, Layout, Link, SEO } from '@newrelic/gatsby-theme-newrelic';
 import filter from 'unist-util-filter';
 import toString from 'mdast-util-to-string';
 
 const EXCERPT_LENGTH = 200;
 
-const ReleaseNoteLandingPage = ({ data, pageContext }) => {
+const ReleaseNoteLandingPage = ({ data, pageContext, location }) => {
   const { slug } = pageContext;
   const {
     allMdx: { nodes: posts },
@@ -38,7 +37,7 @@ const ReleaseNoteLandingPage = ({ data, pageContext }) => {
 
   return (
     <>
-      <SEO title={title} />
+      <SEO location={location} title={title} />
       <PageTitle
         css={css`
           display: flex;
