@@ -1,5 +1,5 @@
 const frontmatter = require('@github-docs/frontmatter');
-const { TYPES } = require('../constants');
+const { TYPES, JP_DIR } = require('../constants');
 const he = require('he');
 
 const GATSBY_CONTENT_TYPES = {
@@ -37,39 +37,48 @@ const getFrontmatter = (file) => {
 
   const customFrontmatter = addCustomFrontmatter[type]
     ? addCustomFrontmatter[type](data, defaultFrontmatter, file)
-    : defaultFrontmatter;
+    : {
+        ...defaultFrontmatter,
+        translate: doc.japaneseVersionExists === 'yes' ? ['jp'] : null,
+      };
 
-  return frontmatter.stringify('', customFrontmatter);
+  if (file.path.includes(JP_DIR)) {
+    delete customFrontmatter.translate;
+  }
+
+  return frontmatter.stringify('', stripNulls(customFrontmatter));
 };
 
 const addCustomFrontmatter = {
-  [TYPES.LANDING_PAGE]: ({ topics }, defaultFrontmatter) => ({
+  [TYPES.LANDING_PAGE]: ({ doc, topics }, defaultFrontmatter) => ({
     ...defaultFrontmatter,
     topics,
+    translate: doc.japaneseVersionExists === 'yes' ? ['jp'] : null,
   }),
-  [TYPES.API_DOC]: ({ doc, topics }, defaultFrontmatter) => {
-    return {
-      ...defaultFrontmatter,
-      shortDescription: doc.shortDescription.trim(),
-      topics,
-    };
-  },
-  [TYPES.BASIC_PAGE]: ({ topics, redirects }, defaultFrontmatter) => {
+  [TYPES.API_DOC]: ({ doc, topics }, defaultFrontmatter) => ({
+    ...defaultFrontmatter,
+    shortDescription: doc.shortDescription.trim(),
+    topics,
+    translate: doc.japaneseVersionExists === 'yes' ? ['jp'] : null,
+  }),
+  [TYPES.BASIC_PAGE]: ({ doc, topics, redirects }, defaultFrontmatter) => {
     const frontmatter = {
       ...defaultFrontmatter,
       topics,
+      translate: doc.japaneseVersionExists === 'yes' ? ['jp'] : null,
     };
+
     if (redirects.length) {
       frontmatter.redirects = redirects;
     }
+
     return frontmatter;
   },
-  [TYPES.TROUBLESHOOTING]: ({ topics }, defaultFrontmatter) => {
-    return {
-      ...defaultFrontmatter,
-      topics,
-    };
-  },
+  [TYPES.TROUBLESHOOTING]: ({ doc, topics }, defaultFrontmatter) => ({
+    ...defaultFrontmatter,
+    topics,
+    translate: doc.japaneseVersionExists === 'yes' ? ['jp'] : null,
+  }),
   [TYPES.RELEASE_NOTE]: ({ doc }, _, file) => {
     const match = doc.title.match(/^(.*?)v?\d+(\.\d+){0,3}/);
 
@@ -83,7 +92,7 @@ const addCustomFrontmatter = {
 
     const subject = match ? match[1].trim() : doc.title.trim();
 
-    return stripNulls({
+    return {
       subject: normalizeSubject(subject),
       releaseDate: doc.releasedOn.split(' ')[0],
       version: doc.releaseVersion.replace(/^v/i, ''),
@@ -91,31 +100,31 @@ const addCustomFrontmatter = {
       template: file.path.match(/src\/content\/docs\/release-notes/)
         ? null
         : 'releaseNote',
-    });
+      translate: doc.japaneseVersionExists === 'yes' ? ['jp'] : null,
+    };
   },
-  [TYPES.WHATS_NEW]: ({ doc }) => {
-    return stripNulls({
-      title: doc.title,
-      summary: doc.summary ? he.decode(doc.summary).trim() : null,
-      releaseDate: doc.releaseDateTime.split(' ')[0],
-      learnMoreLink: doc.learnMoreLink,
-      getStartedLink: doc.getStartedLink,
-    });
-  },
-  [TYPES.ATTRIBUTE_DEFINITION]: ({ doc }) => {
-    return stripNulls({
-      name: doc.title,
-      type: 'attribute',
-      units: doc.units
-        ? doc.units.replace('<b>Unit of measurement:</b>', '').trim()
-        : null,
-      events: doc.eventTypes,
-    });
-  },
+  [TYPES.WHATS_NEW]: ({ doc }) => ({
+    title: doc.title,
+    summary: doc.summary ? he.decode(doc.summary).trim() : null,
+    releaseDate: doc.releaseDateTime.split(' ')[0],
+    learnMoreLink: doc.learnMoreLink,
+    getStartedLink: doc.getStartedLink,
+    translate: doc.japaneseVersionExists === 'yes' ? ['jp'] : null,
+  }),
+  [TYPES.ATTRIBUTE_DEFINITION]: ({ doc }) => ({
+    name: doc.title,
+    type: 'attribute',
+    units: doc.units
+      ? doc.units.replace('<b>Unit of measurement:</b>', '').trim()
+      : null,
+    events: doc.eventTypes,
+    translate: doc.japaneseVersionExists === 'yes' ? ['jp'] : null,
+  }),
   [TYPES.EVENT_DEFINITION]: ({ doc }) => ({
     name: doc.name,
     type: 'event',
     dataSources: doc.dataSources,
+    translate: doc.japaneseVersionExists === 'yes' ? ['jp'] : null,
   }),
 };
 
