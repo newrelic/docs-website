@@ -1,11 +1,16 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/core';
-import { Link } from 'gatsby';
-import { NavItem, Icon, useTranslation } from '@newrelic/gatsby-theme-newrelic';
+import {
+  Link,
+  NavItem,
+  Icon,
+  useTranslation,
+} from '@newrelic/gatsby-theme-newrelic';
 
 const SubNavigation = ({ nav }) => {
   const { t } = useTranslation();
+
   return (
     <>
       <Link
