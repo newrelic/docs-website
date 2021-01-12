@@ -32,6 +32,11 @@ exports.createPages = async ({ actions, graphql, reporter }, pluginOptions) => {
           }
         }
       }
+      allLocale(filter: { isDefault: { eq: false } }) {
+        nodes {
+          localizedPath
+        }
+      }
       allFile(
         sort: { fields: [relativePath] }
         filter: {
@@ -71,6 +76,7 @@ exports.createPages = async ({ actions, graphql, reporter }, pluginOptions) => {
   }
 
   const {
+    allLocale: { nodes: locales },
     tableOfContents: { nodes: tableOfContentsNodes },
     allFile: { nodes: fileNodes },
   } = data;
@@ -107,6 +113,21 @@ exports.createPages = async ({ actions, graphql, reporter }, pluginOptions) => {
         title: sentenceCase(dir.basename),
         fileRelativePath: null,
       },
+    });
+
+    locales.forEach(({ localizedPath }) => {
+      const localizedSlug = path.join(`/${localizedPath}`, slug);
+
+      createPage({
+        path: localizedSlug,
+        component: path.resolve('src/templates/indexPage.js'),
+        context: {
+          slug: localizedSlug,
+          html: generateHTML(dir),
+          title: sentenceCase(dir.basename),
+          fileRelativePath: null,
+        },
+      });
     });
   });
 
