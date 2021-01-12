@@ -5,19 +5,19 @@ import {
   Layout,
   Link,
   Logo,
+  SEO,
   useLayout,
 } from '@newrelic/gatsby-theme-newrelic';
 import { graphql } from 'gatsby';
 import { css } from '@emotion/core';
 import MobileHeader from '../components/MobileHeader';
 import { useMedia } from 'react-use';
-import Seo from '../components/seo';
 import RootNavigation from '../components/RootNavigation';
 import SubNavigation from '../components/SubNavigation';
 import { animated, useTransition } from 'react-spring';
 import { useLocation } from '@reach/router';
 
-const MainLayout = ({ data = {}, children, pageContext }) => {
+const MainLayout = ({ data = {}, children, pageContext, location }) => {
   const { nav, rootNav } = data;
   const { contentPadding } = useLayout();
   const location = useLocation();
@@ -47,7 +47,7 @@ const MainLayout = ({ data = {}, children, pageContext }) => {
 
   return (
     <>
-      <Seo />
+      <SEO location={location} />
       <GlobalHeader />
       {isSmallScreen && (
         <MobileHeader
