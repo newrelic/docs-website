@@ -17,7 +17,7 @@ import SubNavigation from '../components/SubNavigation';
 import { animated, useTransition } from 'react-spring';
 import { useLocation } from '@reach/router';
 
-const MainLayout = ({ data = {}, children, pageContext, location }) => {
+const MainLayout = ({ data = {}, children, pageContext }) => {
   const { nav, rootNav } = data;
   const { contentPadding } = useLayout();
   const location = useLocation();
