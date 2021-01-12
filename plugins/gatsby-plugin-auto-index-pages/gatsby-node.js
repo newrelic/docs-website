@@ -150,6 +150,20 @@ exports.createPages = async ({ actions, graphql, reporter }, pluginOptions) => {
         landingPageSlug,
       },
     });
+
+    locales.forEach(({ localizedPath }) => {
+      const localizedSlug = path.join(`/${localizedPath}`, slug);
+
+      createPage({
+        path: localizedSlug,
+        component: path.resolve('src/templates/tableOfContents.js'),
+        context: {
+          fileRelativePath: null,
+          slug: localizedSlug,
+          landingPageSlug,
+        },
+      });
+    });
   });
 };
 
