@@ -2,11 +2,18 @@ import React, { useMemo } from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/core';
 import { graphql } from 'gatsby';
-import { Icon, Layout, Link, SEO } from '@newrelic/gatsby-theme-newrelic';
+import {
+  Icon,
+  Layout,
+  Link,
+  SEO,
+  useLocale,
+} from '@newrelic/gatsby-theme-newrelic';
 import PageTitle from '../components/PageTitle';
 import IndexContents from '../components/IndexContents';
 
 const TableOfContentsPage = ({ data, pageContext, location }) => {
+  const { localizedPath } = useLocale();
   const {
     nav,
     mdx: {
@@ -15,10 +22,19 @@ const TableOfContentsPage = ({ data, pageContext, location }) => {
   } = data;
   const { slug } = pageContext;
   const landingPageSlug = slug.replace('/table-of-contents', '');
-  const subnav = useMemo(() => (nav ? findPage(nav, landingPageSlug) : null), [
-    nav,
-    landingPageSlug,
-  ]);
+  const subnav = useMemo(
+    () =>
+      nav
+        ? findPage(
+            nav,
+            landingPageSlug.replace(
+              new RegExp(`^\\/${localizedPath}(?=\\/)`),
+              ''
+            )
+          )
+        : null,
+    [nav, landingPageSlug, localizedPath]
+  );
 
   return (
     <>

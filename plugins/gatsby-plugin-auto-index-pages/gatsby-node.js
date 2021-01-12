@@ -160,7 +160,7 @@ exports.createPages = async ({ actions, graphql, reporter }, pluginOptions) => {
         context: {
           fileRelativePath: null,
           slug: localizedSlug,
-          landingPageSlug,
+          landingPageSlug: path.join(`/${localizedPath}`, landingPageSlug),
         },
       });
     });
