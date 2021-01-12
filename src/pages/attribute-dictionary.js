@@ -10,13 +10,13 @@ import {
   Link,
   Tag,
   TagList,
+  SEO,
   useQueryParams,
   Icon,
   useTranslation,
   Trans,
 } from '@newrelic/gatsby-theme-newrelic';
 
-import SEO from '../components/seo';
 import DataDictionaryFilter from '../components/DataDictionaryFilter';
 import PageTitle from '../components/PageTitle';
 import Table from '../components/Table';
@@ -57,7 +57,7 @@ const AttributeDictionary = ({ data, pageContext, location }) => {
 
   return (
     <>
-      <SEO title="New Relic data dictionary" />
+      <SEO location={location} title="New Relic data dictionary" />
       <div
         css={css`
           display: grid;
