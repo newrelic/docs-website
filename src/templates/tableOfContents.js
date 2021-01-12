@@ -57,6 +57,7 @@ const TableOfContentsPage = ({ data, pageContext, location }) => {
 TableOfContentsPage.propTypes = {
   data: PropTypes.object.isRequired,
   pageContext: PropTypes.object.isRequired,
+  location: PropTypes.object.isRequired,
 };
 
 export const pageQuery = graphql`
