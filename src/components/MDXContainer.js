@@ -11,7 +11,6 @@ import {
   Icon,
   Video,
 } from '@newrelic/gatsby-theme-newrelic';
-import { useStaticQuery, graphql } from 'gatsby';
 import Collapser from './Collapser';
 import CollapserGroup from './CollapserGroup';
 import DefaultRelatedContent from './DefaultRelatedContent';
@@ -50,18 +49,6 @@ const defaultComponents = {
 };
 
 const MDXContainer = ({ body, children, className, components }) => {
-  const {
-    site: { layout },
-  } = useStaticQuery(graphql`
-    query {
-      site {
-        layout {
-          contentPadding
-        }
-      }
-    }
-  `);
-
   return (
     <MarkdownContainer className={className}>
       <MDXProvider components={{ ...defaultComponents, ...components }}>
