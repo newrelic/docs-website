@@ -31,6 +31,7 @@ const defaultComponents = {
   code: MDXCodeBlock,
   pre: (props) => props.children,
   Button,
+  ButtonLink: (props) => <Button {...props} as={Link} />,
   Callout,
   Collapser,
   CollapserGroup,
