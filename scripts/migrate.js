@@ -235,8 +235,11 @@ const run = async () => {
     logger.info('Saving changes to files');
     createDirectories(allDocsFiles);
     await fetchDocCount(allDocsFiles.length);
-    await all(allDocsFiles.concat(navFiles).concat(jpNavFile), (file) =>
-      write(file, 'utf-8')
+    await all(
+      allDocsFiles
+        .filter((file) => !file.data.dummy)
+        .concat(navFiles, jpNavFile),
+      (file) => write(file, 'utf-8')
     );
 
     logger.info('Copying manual edits');

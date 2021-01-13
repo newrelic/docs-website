@@ -39,6 +39,9 @@ const toVFile = (
         ...get(redirects, `/node/${doc.docId}`, []),
         ...get(redirects, url.pathname, []),
       ]),
+      dummy: Boolean(
+        doc.body.trim().match(/^(<[a-z].*>)?redirect(s|ed|ing)?\s/i)
+      ),
     },
   });
 };
