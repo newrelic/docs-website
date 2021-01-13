@@ -1,7 +1,7 @@
 const path = require('path');
 const vfile = require('vfile');
 const { CONTENT_DIR, TYPES } = require('../constants');
-const { get, uniq } = require('lodash');
+const { getRedirectsForDoc } = require('./redirects');
 
 const DEFAULT_EXTENSION = '.mdx';
 
@@ -13,7 +13,7 @@ const EXTENSIONS = {
 
 const toVFile = (
   doc,
-  { baseDir = CONTENT_DIR, redirects = [], dirname, filename }
+  { baseDir = CONTENT_DIR, redirects = [], dirname, filename, data }
 ) => {
   const url = new URL(doc.docUrl);
   const basename = path.basename(url.pathname);
@@ -33,15 +33,10 @@ const toVFile = (
     path: path.join(baseDir, dirname, filename + extension),
     contents: doc.body || '',
     data: {
+      ...data,
       doc,
       topics: getTopics(doc),
-      redirects: uniq([
-        ...get(redirects, `/node/${doc.docId}`, []),
-        ...get(redirects, url.pathname, []),
-      ]),
-      dummy: Boolean(
-        doc.body.trim().match(/^(<[a-z].*>)?redirect(s|ed|ing)?\s/i)
-      ),
+      redirects: getRedirectsForDoc(doc, redirects),
     },
   });
 };
