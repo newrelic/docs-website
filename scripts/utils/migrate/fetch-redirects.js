@@ -12,16 +12,25 @@ const fetchAllRedirects = async () => {
 };
 
 const groupRedirectsByDocsId = (docs) => {
-  return docs.reduce((acc, curr) => {
-    let { to, from } = curr.redirect;
-    to = to.replace(/\//g, '');
-    from = path.join('/', from);
+  return docs.reduce((acc, { redirect }) => {
+    const from = path.join('/', redirect.from);
+    const to = appendLeadingSlash(
+      redirect.to
+        .replace(/^(http)?.+?(?=(docs|taxonomy|node)\/)/, '')
+        .replace(/#[\w-]+$/, '')
+    );
+
     if (!acc[to]) {
       acc[to] = [];
     }
+
     acc[to].push(from);
+
     return acc;
   }, {});
 };
+
+const appendLeadingSlash = (pathname) =>
+  pathname.startsWith('/') ? pathname : `/${pathname}`;
 
 module.exports = { fetchAllRedirects };
