@@ -1,13 +1,9 @@
 ---
 title: Percentiles now available in events-to-metrics service
-summary: >-
-  For the events-to-metrics service, return an attribute's approximate value at
-  a given percentile.
+summary: 'For the events-to-metrics service, return an attribute''s approximate value at a given percentile.'
 releaseDate: '2020-12-01'
-learnMoreLink: >-
-  https://docs.newrelic.com/docs/query-your-data/nrql-new-relic-query-language/get-started/nrql-syntax-clauses-functions#func-percentile
-getStartedLink: >-
-  https://docs.newrelic.com/docs/accounts/accounts/data-management/introduction-events-metrics-service
+learnMoreLink: 'https://docs.newrelic.com/docs/query-your-data/nrql-new-relic-query-language/get-started/nrql-syntax-clauses-functions#func-percentile'
+getStartedLink: 'https://docs.newrelic.com/docs/accounts/accounts/data-management/introduction-events-metrics-service'
 ---
 
 New Relic provides an [events-to-metrics service](/docs/accounts/accounts/data-management/introduction-events-metrics-service) that lets you generate [metric data](/docs/telemetry-data-platform/ingest-manage-data/understand-data/new-relic-data-types#dimensional-metrics) from your [event data](/docs/telemetry-data-platform/ingest-manage-data/understand-data/new-relic-data-types#event-data) and [log data](/docs/telemetry-data-platform/ingest-manage-data/understand-data/new-relic-data-types#log-data). Metrics are aggregates of your event and/or log data and are optimal for analyzing and monitoring trends over long time periods.

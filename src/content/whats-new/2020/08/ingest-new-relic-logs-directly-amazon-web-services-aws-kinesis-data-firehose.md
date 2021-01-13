@@ -1,13 +1,9 @@
 ---
-title: >-
-  Ingest New Relic Logs directly with Amazon Web Services (AWS) Kinesis Data
-  Firehose
+title: Ingest New Relic Logs directly with Amazon Web Services (AWS) Kinesis Data Firehose
 summary: New Relic can ingest data from Amazon's Kinesis Data Firehose.
 releaseDate: '2020-08-16'
-learnMoreLink: >-
-  https://aws.amazon.com/blogs/big-data/new-relic-drinks-straight-from-the-firehose-consuming-amazon-kinesis-data/
-getStartedLink: >-
-  https://docs.newrelic.com/docs/logs/enable-new-relic-logs/1-enable-logs/stream-logs-using-kinesis-data-firehose
+learnMoreLink: 'https://aws.amazon.com/blogs/big-data/new-relic-drinks-straight-from-the-firehose-consuming-amazon-kinesis-data/'
+getStartedLink: 'https://docs.newrelic.com/docs/logs/enable-new-relic-logs/1-enable-logs/stream-logs-using-kinesis-data-firehose'
 ---
 
 New Relic can now ingest data from Amazon Web Services (AWS) Kinesis Data Firehose, making it easier than ever to gain visibility into your cloud stack. The Kinesis Data Firehose is a fully managed service for delivering real-time streaming data to AWS services like Amazon Simple Storage Service (Amazon S3), Amazon Redshift, and a wide array of external destinations.

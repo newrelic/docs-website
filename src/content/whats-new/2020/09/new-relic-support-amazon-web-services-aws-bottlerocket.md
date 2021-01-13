@@ -1,8 +1,6 @@
 ---
 title: 'New Relic Support for Amazon Web Services (AWS) Bottlerocket '
-summary: >-
-  Gain full visibility into your workloads and infrastructure running on AWS
-  Bottlerocket.
+summary: Gain full visibility into your workloads and infrastructure running on AWS Bottlerocket.
 releaseDate: '2020-09-04'
 getStartedLink: 'https://blog.newrelic.com/product-news/aws-bottlerocket/'
 ---

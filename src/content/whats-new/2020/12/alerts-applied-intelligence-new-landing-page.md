@@ -2,8 +2,7 @@
 title: Alerts and Applied Intelligence new landing page
 summary: Surface insights with a new landing page.
 releaseDate: '2020-12-01'
-learnMoreLink: >-
-  https://docs.newrelic.com/docs/alerts-applied-intelligence/new-relic-alerts/get-started/alerts-ai-overview-page
+learnMoreLink: 'https://docs.newrelic.com/docs/alerts-applied-intelligence/new-relic-alerts/get-started/alerts-ai-overview-page'
 ---
 
 Alerts and Applied Intelligence have a new landing page that surfaces and highlights insights and analytics about how your alert configuration is performing. If you're using Incident Intelligence, you'll find the Issue and Incident feeds on the tabs in the **Overview page**.

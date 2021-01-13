@@ -1,11 +1,6 @@
 ---
 title: Three big updates for your native mobile apps
-summary: >-
-  Three big updates: The New Relic iOS and tvOS agents will now be distributed
-  as the New Relic XCFramework Agent 7.0.0. For instrumenting React Native
-  applications, we have an experimental open source React Native Module. Plus,
-  we’ve improved reliability from our Android service and changed the way our
-  service handles Android stack deobfuscation.
+summary: 'Three big updates: The New Relic iOS and tvOS agents will now be distributed as the New Relic XCFramework Agent 7.0.0. For instrumenting React Native applications, we have an experimental open source React Native Module. Plus, we’ve improved reliability from our Android service and changed the way our service handles Android stack deobfuscation.'
 releaseDate: '2020-10-29'
 learnMoreLink: 'https://blog.newrelic.com/product-news/mobile-updates-october-2020/'
 ---

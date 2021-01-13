@@ -1,12 +1,9 @@
 ---
 title: Alert analysis for Applied Intelligence
-summary: >-
-  Alert analysis gives you greater context for your alert violations and
-  notifications.
+summary: Alert analysis gives you greater context for your alert violations and notifications.
 releaseDate: '2020-08-18'
 learnMoreLink: 'https://blog.newrelic.com/product-news/how-to-analyze-alert-violations/'
-getStartedLink: >-
-  https://docs.newrelic.com/docs/alerts-applied-intelligence/applied-intelligence
+getStartedLink: 'https://docs.newrelic.com/docs/alerts-applied-intelligence/applied-intelligence'
 ---
 
 Dig deeper into alerts you receive with automatic alert analysis, which provides context and an explanation about each alert violation. You can also get a structured view and additional information about the entity and what was happening around it when the threshold was crossed to help you troubleshoot even faster. Alert analysis includes:

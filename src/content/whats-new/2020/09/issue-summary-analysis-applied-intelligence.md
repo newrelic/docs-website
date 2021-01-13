@@ -3,8 +3,7 @@ title: Issue summary and analysis in Applied Intelligence
 summary: Rely on the issue summary to help you identify and resolve relevant issues.
 releaseDate: '2020-09-01'
 learnMoreLink: 'https://blog.newrelic.com/product-news/feature-roundup-applied-intelligence/'
-getStartedLink: >-
-  https://docs.newrelic.com/docs/alerts-applied-intelligence/applied-intelligence/incident-intelligence/get-started-incident-intelligence#issue-feed
+getStartedLink: 'https://docs.newrelic.com/docs/alerts-applied-intelligence/applied-intelligence/incident-intelligence/get-started-incident-intelligence#issue-feed'
 ---
 
 When trying to find the root cause of an issue, access to contextual information is crucial. Knowing that, we’ve made it easier to find relevant issue information and analysis.
