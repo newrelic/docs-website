@@ -32,10 +32,7 @@ const fetchFiles = async (url) => {
       return accum;
     }, {});
 
-  fs.writeFileSync(
-    path.join(process.cwd(), 'files-to-translate.json'),
-    fileNames
-  );
+  fs.writeFileSync('/tmp/files-to-translate.json', fileNames);
   process.exit(0);
 };
 
