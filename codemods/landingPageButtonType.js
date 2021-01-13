@@ -6,7 +6,7 @@ const landingPageButtonType = () => (tree, file) => {
     return;
   }
 
-  visit(tree, isMdxBlockElement('Button'), (button) => {
+  visit(tree, isMdxBlockElement('ButtonLink'), (button) => {
     setAttribute('variant', 'normal', button);
   });
 };

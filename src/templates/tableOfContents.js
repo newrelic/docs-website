@@ -2,23 +2,35 @@ import React, { useMemo } from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/core';
 import { graphql } from 'gatsby';
-import { Icon, Layout, Link, SEO } from '@newrelic/gatsby-theme-newrelic';
+import {
+  Icon,
+  Layout,
+  Link,
+  SEO,
+  useLocale,
+} from '@newrelic/gatsby-theme-newrelic';
 import PageTitle from '../components/PageTitle';
 import IndexContents from '../components/IndexContents';
 
 const TableOfContentsPage = ({ data, pageContext, location }) => {
-  const {
-    nav,
-    mdx: {
-      frontmatter: { title },
-    },
-  } = data;
+  const { title } = pageContext;
+  const { localizedPath } = useLocale();
+  const { nav } = data;
   const { slug } = pageContext;
   const landingPageSlug = slug.replace('/table-of-contents', '');
-  const subnav = useMemo(() => (nav ? findPage(nav, landingPageSlug) : null), [
-    nav,
-    landingPageSlug,
-  ]);
+  const subnav = useMemo(
+    () =>
+      nav
+        ? findPage(
+            nav,
+            landingPageSlug.replace(
+              new RegExp(`^\\/${localizedPath}(?=\\/)`),
+              ''
+            )
+          )
+        : null,
+    [nav, landingPageSlug, localizedPath]
+  );
 
   return (
     <>
@@ -57,15 +69,11 @@ const TableOfContentsPage = ({ data, pageContext, location }) => {
 TableOfContentsPage.propTypes = {
   data: PropTypes.object.isRequired,
   pageContext: PropTypes.object.isRequired,
+  location: PropTypes.object.isRequired,
 };
 
 export const pageQuery = graphql`
-  query($slug: String!, $landingPageSlug: String!, $locale: String) {
-    mdx(fields: { slug: { eq: $landingPageSlug } }) {
-      frontmatter {
-        title
-      }
-    }
+  query($slug: String!, $locale: String) {
     ...MainLayout_query
   }
 `;
