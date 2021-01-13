@@ -30,7 +30,7 @@ const groupRedirectsByDocsId = (docs) => {
   }, {});
 };
 
-const appendLeadingSlash = (pathname) =>
-  pathname.startsWith('/') ? pathname : `/${pathname}`;
+const appendLeadingSlash = (url) =>
+  url.startsWith('/') || url.startsWith('http') ? url : `/${url}`;
 
 module.exports = { fetchAllRedirects };
