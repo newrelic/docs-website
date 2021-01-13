@@ -13,7 +13,7 @@ const Wrapper = ({ children }) => {
 
   const viewAllButtonIdx = children.findIndex(
     (element, idx) =>
-      isMdxType(element, 'Button') &&
+      isMdxType(element, 'ButtonLink') &&
       isMdxType(children[idx - 1], 'LandingPageTileGrid')
   );
 
