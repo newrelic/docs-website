@@ -32,6 +32,7 @@ const cliProgress = require('cli-progress');
 const { fetchAllRedirects } = require('./utils/migrate/fetch-redirects');
 const fetchJpDocs = require('./utils/migrate/fetch-jp-docs');
 const createNavJpStructure = require('./utils/migrate/create-nav-jp-structure');
+const writeExternalRedirects = require('./utils/migrate/external-redirects');
 
 const all = (list, fn) => Promise.all(list.map(fn));
 
@@ -231,6 +232,9 @@ const run = async () => {
     const navFiles = migrateNavStructure(createNavStructure(sortedDocsFiles));
 
     const jpNavFile = createNavJpStructure(navFiles, jpFiles);
+
+    logger.info('Writing external redirects');
+    writeExternalRedirects(redirects);
 
     logger.info('Saving changes to files');
     createDirectories(allDocsFiles);
