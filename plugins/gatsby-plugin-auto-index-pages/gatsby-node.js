@@ -19,13 +19,27 @@ exports.createPages = async ({ actions, graphql, reporter }, pluginOptions) => {
         nodes {
           childMdx {
             frontmatter {
+              title
               contentType
             }
             fields {
               slug
             }
           }
-          childMarkdownRemark {
+        }
+      }
+      translatedTableOfContents: allFile(
+        filter: {
+          sourceInstanceName: { eq: "translated-content" }
+          base: { in: ["index.mdx", "index.md"] }
+        }
+      ) {
+        nodes {
+          childMdx {
+            frontmatter {
+              title
+              contentType
+            }
             fields {
               slug
             }
@@ -78,6 +92,7 @@ exports.createPages = async ({ actions, graphql, reporter }, pluginOptions) => {
   const {
     allLocale: { nodes: locales },
     tableOfContents: { nodes: tableOfContentsNodes },
+    translatedTableOfContents: { nodes: translatedTableOfContentsNodes },
     allFile: { nodes: fileNodes },
   } = data;
 
@@ -148,11 +163,21 @@ exports.createPages = async ({ actions, graphql, reporter }, pluginOptions) => {
         fileRelativePath: null,
         slug,
         landingPageSlug,
+        title: getTitle(node),
       },
     });
 
     locales.forEach(({ localizedPath }) => {
       const localizedSlug = path.join(`/${localizedPath}`, slug);
+      const localizedLandingPageSlug = path.join(
+        `/${localizedPath}`,
+        landingPageSlug
+      );
+
+      const translatedNode =
+        translatedTableOfContentsNodes.find(
+          (node) => getSlug(node) === localizedLandingPageSlug
+        ) || node;
 
       createPage({
         path: localizedSlug,
@@ -160,12 +185,21 @@ exports.createPages = async ({ actions, graphql, reporter }, pluginOptions) => {
         context: {
           fileRelativePath: null,
           slug: localizedSlug,
-          landingPageSlug: path.join(`/${localizedPath}`, landingPageSlug),
+          landingPageSlug: localizedLandingPageSlug,
+          title: getTitle(translatedNode),
         },
       });
     });
   });
 };
 
-const getSlug = (node) =>
-  (node.childMdx || node.childMarkdownRemark).fields.slug;
+const getTitle = (node) => getField(node, 'frontmatter.title');
+const getSlug = (node) => getField(node, 'fields.slug');
+
+const getField = (node, field) =>
+  field
+    .split('.')
+    .reduce(
+      (obj, property) => obj && obj[property],
+      node.childMdx || node.childMarkdownRemark
+    );
