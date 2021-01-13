@@ -5,6 +5,7 @@ import { graphql } from 'gatsby';
 import {
   PageTools,
   Button,
+  Link,
   useQueryParams,
 } from '@newrelic/gatsby-theme-newrelic';
 import Select from './Select';
@@ -12,7 +13,7 @@ import { useNavigate } from '@reach/router';
 
 const uniq = (arr) => [...new Set(arr)];
 
-const DataDictionaryFilter = ({ events }) => {
+const DataDictionaryFilter = ({ location, events }) => {
   const navigate = useNavigate();
   const { queryParams } = useQueryParams();
   const [formState, setFormState] = useState(() => ({
@@ -134,6 +135,8 @@ const DataDictionaryFilter = ({ events }) => {
           Apply
         </Button>
         <Button
+          as={Link}
+          to={location.pathname}
           variant={Button.VARIANT.LINK}
           onClick={() => {
             const formState = {
@@ -143,7 +146,6 @@ const DataDictionaryFilter = ({ events }) => {
             };
 
             setFormState(formState);
-            navigateToParams(formState);
           }}
         >
           Reset
@@ -169,6 +171,9 @@ DataDictionaryFilter.propTypes = {
       name: PropTypes.string,
     })
   ).isRequired,
+  location: PropTypes.shape({
+    pathname: PropTypes.string.isRequired,
+  }).isRequired,
 };
 
 const Label = ({ children, htmlFor }) => (

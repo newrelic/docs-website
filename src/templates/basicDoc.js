@@ -5,18 +5,21 @@ import { graphql } from 'gatsby';
 import { useMedia } from 'react-use';
 import PageTitle from '../components/PageTitle';
 import MDXContainer from '../components/MDXContainer';
-import SEO from '../components/seo';
 import TableOfContents from '../components/TableOfContents';
 import {
   ContributingGuidelines,
   Layout,
   SimpleFeedback,
+  SEO,
+  useTranslation,
 } from '@newrelic/gatsby-theme-newrelic';
 import toString from 'mdast-util-to-string';
 import DefaultRelatedContent from '../components/DefaultRelatedContent';
 import Watermark from '../components/Watermark';
+import { parseHeading } from '../../plugins/gatsby-remark-custom-heading-ids/utils/heading';
 
-const BasicDoc = ({ data }) => {
+const BasicDoc = ({ data, location }) => {
+  const { t } = useTranslation();
   const { mdx } = data;
   const {
     mdxAST,
@@ -25,15 +28,18 @@ const BasicDoc = ({ data }) => {
     fields: { fileRelativePath, slug },
   } = mdx;
 
-  const moreHelpExists = mdxAST.children.find(
-    (node) => node.type === 'heading' && toString(node) === 'For more help'
-  );
+  const moreHelpExists = mdxAST.children
+    .filter((node) => node.type === 'heading')
+    .some((node) => {
+      const { text } = parseHeading(node);
+      return text === t('defaultRelatedContent.title');
+    });
 
   const isMobileScreen = useMedia('(max-width: 1240px)');
 
   return (
     <>
-      <SEO title={frontmatter.title} />
+      <SEO location={location} title={frontmatter.title} />
       <div
         css={css`
           display: grid;
@@ -87,7 +93,7 @@ BasicDoc.propTypes = {
 };
 
 export const pageQuery = graphql`
-  query($slug: String!) {
+  query($slug: String!, $locale: String) {
     mdx(fields: { slug: { eq: $slug } }) {
       mdxAST
       body

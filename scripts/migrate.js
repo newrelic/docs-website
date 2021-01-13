@@ -17,7 +17,7 @@ const createRawHTMLFiles = require('./utils/migrate/create-raw-html-files');
 const migrateNavStructure = require('./utils/migrate/migrate-nav-structure');
 const reporter = require('vfile-reporter');
 const rimraf = require('rimraf');
-const { last } = require('lodash');
+const { last, nth } = require('lodash');
 const path = require('path');
 const { prop } = require('./utils/functional');
 const {
@@ -25,9 +25,13 @@ const {
   CONTENT_DIR,
   DICTIONARY_DIR,
   WHATS_NEW_DIR,
+  JP_DIR,
 } = require('./utils/constants');
 const copyManualEdits = require('./utils/migrate/copy-manual-edits');
 const cliProgress = require('cli-progress');
+const { fetchAllRedirects } = require('./utils/migrate/fetch-redirects');
+const fetchJpDocs = require('./utils/migrate/fetch-jp-docs');
+const createNavJpStructure = require('./utils/migrate/create-nav-jp-structure');
 
 const all = (list, fn) => Promise.all(list.map(fn));
 
@@ -90,11 +94,16 @@ const run = async () => {
 
   try {
     logger.info('Resetting content');
-    rimraf.sync(CONTENT_DIR);
-    rimraf.sync(NAV_DIR);
-    rimraf.sync(DICTIONARY_DIR);
+    [CONTENT_DIR, NAV_DIR, DICTIONARY_DIR, JP_DIR].forEach((dir) =>
+      rimraf.sync(dir)
+    );
+
+    logger.info('Fetching redirects');
+
+    const redirects = await fetchAllRedirects();
 
     logger.info('Migrating docs');
+    const docs = await fetchDocs();
     const fileGroups = await runPipeline([
       {
         label: 'Attribute definitions',
@@ -145,8 +154,31 @@ const run = async () => {
         onDone: saveWhatsNewIds,
       },
       {
+        label: 'Japanese Docs\t',
+        fetch: () => fetchJpDocs(docs),
+        vfile: {
+          baseDir: JP_DIR,
+        },
+        process: async (file) => {
+          convertFile(file);
+
+          if (file.extname !== '.mdx') {
+            return;
+          }
+
+          try {
+            await runCodemod(file, { codemods });
+          } catch (e) {
+            // do nothing
+          }
+        },
+      },
+      {
         label: 'Docs\t\t',
-        fetch: fetchDocs,
+        fetch: () => docs,
+        vfile: {
+          redirects,
+        },
         process: async (file) => {
           convertFile(file);
 
@@ -164,6 +196,8 @@ const run = async () => {
     ]);
 
     const allDocsFiles = fileGroups.flat();
+
+    const jpFiles = nth(fileGroups, -2);
 
     progressBar.stop();
 
@@ -196,10 +230,14 @@ const run = async () => {
     logger.info('Creating nav');
     const navFiles = migrateNavStructure(createNavStructure(sortedDocsFiles));
 
+    const jpNavFile = createNavJpStructure(navFiles, jpFiles);
+
     logger.info('Saving changes to files');
     createDirectories(allDocsFiles);
     await fetchDocCount(allDocsFiles.length);
-    await all(allDocsFiles.concat(navFiles), (file) => write(file, 'utf-8'));
+    await all(allDocsFiles.concat(navFiles).concat(jpNavFile), (file) =>
+      write(file, 'utf-8')
+    );
 
     logger.info('Copying manual edits');
     await copyManualEdits();
@@ -216,8 +254,8 @@ const run = async () => {
     console.error(reporter(allDocsFiles.concat(navFiles), { quiet: true }));
 
     logger.success('Migration complete!');
-  } catch (err) {
-    logger.error(`Error running migration: ${err.stack}`);
+  } catch (e) {
+    logger.error(e);
   }
 };
 

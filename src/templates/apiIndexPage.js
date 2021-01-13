@@ -2,11 +2,10 @@ import React from 'react';
 import PropTypes from 'prop-types';
 import { graphql } from 'gatsby';
 import PageTitle from '../components/PageTitle';
-import SEO from '../components/seo';
-import { Layout, Link } from '@newrelic/gatsby-theme-newrelic';
+import { Layout, Link, SEO } from '@newrelic/gatsby-theme-newrelic';
 import MDXContainer from '../components/MDXContainer';
 
-const ApiIndexPage = ({ data }) => {
+const ApiIndexPage = ({ data, location }) => {
   const {
     mdx: {
       body,
@@ -16,7 +15,7 @@ const ApiIndexPage = ({ data }) => {
   } = data;
   return (
     <>
-      <SEO title={title} />
+      <SEO location={location} title={title} />
       <PageTitle>{title}</PageTitle>
       <Layout.Content>
         <MDXContainer body={body}>
@@ -33,7 +32,7 @@ const ApiIndexPage = ({ data }) => {
 };
 
 export const pageQuery = graphql`
-  query($slug: String!, $slugRegex: String!) {
+  query($slug: String!, $slugRegex: String!, $locale: String) {
     mdx(fields: { slug: { eq: $slug } }) {
       body
       frontmatter {

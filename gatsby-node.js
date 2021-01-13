@@ -1,6 +1,8 @@
 const path = require('path');
 const vfileGlob = require('vfile-glob');
 const { read, write } = require('to-vfile');
+const { uniq } = require('lodash');
+const { prop } = require('./scripts/utils/functional.js');
 
 const { createFilePath } = require('gatsby-source-filesystem');
 
@@ -94,6 +96,24 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
             frontmatter {
               template
               subject
+              redirects
+            }
+          }
+        }
+      }
+
+      allI18nMdx: allMdx(
+        filter: { fileAbsolutePath: { regex: "/src/i18n/content/" } }
+      ) {
+        edges {
+          node {
+            fields {
+              fileRelativePath
+              slug
+            }
+            frontmatter {
+              template
+              subject
             }
           }
         }
@@ -134,6 +154,13 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
           }
         }
       }
+
+      allLocale {
+        nodes {
+          locale
+          isDefault
+        }
+      }
     }
   `);
 
@@ -143,10 +170,12 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
   }
 
   const {
+    allI18nMdx,
     allMarkdownRemark,
     allMdx,
     releaseNotes,
     landingPagesReleaseNotes,
+    allLocale,
   } = data;
 
   releaseNotes.group.forEach((el) => {
@@ -163,35 +192,42 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
       });
   });
 
+  const translatedContentNodes = allI18nMdx.edges.map(({ node }) => node);
+
+  const locales = allLocale.nodes
+    .filter((locale) => !locale.isDefault)
+    .map(prop('locale'));
+
   allMdx.edges.concat(allMarkdownRemark.edges).forEach(({ node }) => {
     const {
-      fields: { fileRelativePath, slug },
+      fields: { slug },
+      frontmatter: { redirects },
     } = node;
 
-    const { template, context = {} } = getTemplate(node);
-
-    if (process.env.NODE_ENV === 'development' && !template) {
-      createPage({
-        path: slug,
-        component: path.resolve(TEMPLATE_DIR, 'dev/missingTemplate.js'),
-        context: {
-          ...context,
-          fileRelativePath,
-          layout: 'basic',
-        },
-      });
-    } else {
-      createPage({
-        path: slug,
-        component: path.resolve(path.join(TEMPLATE_DIR, `${template}.js`)),
-        context: {
-          ...context,
-          fileRelativePath,
-          slug,
-          slugRegex: `${slug}/.+/`,
-        },
+    if (redirects) {
+      redirects.forEach((fromPath) => {
+        createRedirect({
+          fromPath,
+          toPath: slug,
+          isPermanent: true,
+          redirectInBrowser: true,
+        });
       });
     }
+
+    createPageFromNode(node, { createPage });
+
+    locales.forEach((locale) => {
+      const i18nNode = translatedContentNodes.find(
+        (i18nNode) =>
+          i18nNode.fields.slug.replace(`/${locale}`, '') === node.fields.slug
+      );
+
+      createPageFromNode(i18nNode || node, {
+        prefix: i18nNode ? '' : locale,
+        createPage,
+      });
+    });
   });
 };
 
@@ -245,6 +281,37 @@ exports.onCreatePage = ({ page, actions }) => {
     page.context.fileRelativePath = getFileRelativePath(page.componentPath);
 
     createPage(page);
+  }
+};
+
+const createPageFromNode = (node, { createPage, prefix = '' }) => {
+  const {
+    fields: { fileRelativePath, slug },
+  } = node;
+
+  const { template, context = {} } = getTemplate(node);
+
+  if (process.env.NODE_ENV === 'development' && !template) {
+    createPage({
+      path: path.join(prefix, slug),
+      component: path.resolve(TEMPLATE_DIR, 'dev/missingTemplate.js'),
+      context: {
+        ...context,
+        fileRelativePath,
+        layout: 'basic',
+      },
+    });
+  } else {
+    createPage({
+      path: path.join(prefix, slug),
+      component: path.resolve(path.join(TEMPLATE_DIR, `${template}.js`)),
+      context: {
+        ...context,
+        fileRelativePath,
+        slug,
+        slugRegex: `${slug}/.+/`,
+      },
+    });
   }
 };
 

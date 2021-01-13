@@ -1,26 +1,29 @@
 import React, { memo, useMemo, useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/core';
-import { graphql, Link } from 'gatsby';
+import { graphql } from 'gatsby';
 import {
   Button,
   Callout,
   ContributingGuidelines,
   Layout,
+  Link,
   Tag,
   TagList,
+  SEO,
   useQueryParams,
   Icon,
+  useTranslation,
+  Trans,
 } from '@newrelic/gatsby-theme-newrelic';
 
-import SEO from '../components/seo';
 import DataDictionaryFilter from '../components/DataDictionaryFilter';
 import PageTitle from '../components/PageTitle';
 import Table from '../components/Table';
 
 import { useMedia } from 'react-use';
 
-const AttributeDictionary = ({ data, pageContext }) => {
+const AttributeDictionary = ({ data, pageContext, location }) => {
   const { allDataDictionaryEvent } = data;
   const [filteredEvents, setFilteredEvents] = useState([]);
   const { queryParams } = useQueryParams();
@@ -32,7 +35,7 @@ const AttributeDictionary = ({ data, pageContext }) => {
     [allDataDictionaryEvent]
   );
 
-  const filterEvents = () => {
+  useEffect(() => {
     let filteredEvents = events;
 
     if (queryParams.has('dataSource')) {
@@ -48,15 +51,13 @@ const AttributeDictionary = ({ data, pageContext }) => {
     }
 
     setFilteredEvents(filteredEvents.map((event) => event.name));
-  };
-
-  useEffect(() => {
-    filterEvents();
   }, [queryParams, events]);
+
+  const { t } = useTranslation();
 
   return (
     <>
-      <SEO title="New Relic data dictionary" />
+      <SEO location={location} title="New Relic data dictionary" />
       <div
         css={css`
           display: grid;
@@ -76,13 +77,15 @@ const AttributeDictionary = ({ data, pageContext }) => {
           }
         `}
       >
-        <PageTitle>New Relic data dictionary</PageTitle>
+        <PageTitle>{t('dataDictionary.title')}</PageTitle>
         <div
           css={css`
             grid-area: 'page-description';
           `}
         >
-          <p
+          <Trans
+            i18nKey="dataDictionary.intro"
+            parent="p"
             css={css`
               color: var(--secondary-text-color);
               font-size: 1.125rem;
@@ -94,11 +97,14 @@ const AttributeDictionary = ({ data, pageContext }) => {
             </Link>{' '}
             attached to New Relic events and other data objects (like Metric and
             Span data).
-          </p>
+          </Trans>
+
           <Callout variant={Callout.VARIANT.TIP}>
-            This dictionary does not contain data reported by Infrastructure
-            integrations. To learn about that data, see the{' '}
-            <Link to="/docs/integrations">integration documentation</Link>.
+            <Trans i18nKey="dataDictionary.callout">
+              This dictionary does not contain data reported by Infrastructure
+              integrations. To learn about that data, see the{' '}
+              <Link to="/docs/integrations">integration documentation</Link>.
+            </Trans>
           </Callout>
 
           <hr />
@@ -116,7 +122,11 @@ const AttributeDictionary = ({ data, pageContext }) => {
           >
             Displaying {filteredEvents.length} of {events.length} results{' '}
             {filteredEvents.length !== events.length && (
-              <Button as={Link} to="?" variant={Button.VARIANT.LINK}>
+              <Button
+                as={Link}
+                to={location.pathname}
+                variant={Button.VARIANT.LINK}
+              >
                 Clear
               </Button>
             )}
@@ -133,6 +143,7 @@ const AttributeDictionary = ({ data, pageContext }) => {
               `}
             >
               <EventDefinition
+                location={location}
                 event={event}
                 filteredAttribute={queryParams.get('attribute')}
               />
@@ -152,7 +163,7 @@ const AttributeDictionary = ({ data, pageContext }) => {
               fileRelativePath={pageContext.fileRelativePath}
             />
           )}
-          <DataDictionaryFilter events={events} />
+          <DataDictionaryFilter events={events} location={location} />
         </Layout.PageTools>
       </div>
     </>
@@ -162,13 +173,14 @@ const AttributeDictionary = ({ data, pageContext }) => {
 AttributeDictionary.propTypes = {
   data: PropTypes.object.isRequired,
   pageContext: PropTypes.object.isRequired,
-  location: PropTypes.object.isRequired,
-  navigate: PropTypes.func.isRequired,
+  location: PropTypes.shape({
+    pathname: PropTypes.string.isRequired,
+  }).isRequired,
 };
 
 const pluralize = (word, count) => (count === 1 ? word : `${word}s`);
 
-const EventDefinition = memo(({ event, filteredAttribute }) => {
+const EventDefinition = memo(({ location, event, filteredAttribute }) => {
   const filteredAttributes = filteredAttribute
     ? event.childrenDataDictionaryAttribute.filter(
         (attribute) => attribute.name === filteredAttribute
@@ -184,27 +196,36 @@ const EventDefinition = memo(({ event, filteredAttribute }) => {
         }
       `}
     >
-      <Link to={`?event=${event.name}`}>
-        <h2
-          as={Link}
+      <h2
+        css={css`
+          position: sticky;
+          top: var(--global-header-height);
+          background: var(--primary-background-color);
+          padding: 1rem 0;
+
+          // cover up the right table border
+          margin-right: -1px;
+
+          &:hover svg {
+            opacity: 1;
+          }
+
+          @media (max-width: 1240px) {
+            position: relative;
+          }
+        `}
+      >
+        <div
           css={css`
-            position: sticky;
-            top: var(--global-header-height);
-            background: var(--primary-background-color);
-            padding: 1rem 0;
-
-            // cover up the right table border
-            margin-right: -1px;
-
-            &:hover svg {
-              opacity: 1;
-            }
-
-            @media (max-width: 1240px) {
-              position: static;
-            }
+            position: relative;
           `}
         >
+          <Link
+            to={`${location.pathname}?event=${event.name}`}
+            className="anchor before"
+          >
+            <Icon name="fe-link-2" focusable={false} size="1rem" />
+          </Link>
           <code
             css={css`
               background: none !important;
@@ -212,17 +233,8 @@ const EventDefinition = memo(({ event, filteredAttribute }) => {
           >
             {event.name}
           </code>
-          <Icon
-            name="fe-link-2"
-            focusable={false}
-            css={css`
-              margin-left: 0.5rem;
-              opacity: 0;
-              transition: opacity 0.2s ease-out;
-            `}
-          />
-        </h2>
-      </Link>
+        </div>
+      </h2>
       <div
         css={css`
           margin-bottom: 1rem;
@@ -262,12 +274,11 @@ const EventDefinition = memo(({ event, filteredAttribute }) => {
         <tbody>
           {filteredAttributes.map((attribute) => {
             const params = new URLSearchParams();
-            params.set('dataSource', event.dataSources[0]);
             params.set('event', event.name);
             params.set('attribute', attribute.name);
 
             return (
-              <tr>
+              <tr key={attribute.name}>
                 <td
                   css={css`
                     width: 40%;
@@ -275,8 +286,10 @@ const EventDefinition = memo(({ event, filteredAttribute }) => {
                   `}
                 >
                   <Link
-                    to={`?${params.toString()}`}
+                    to={`${location.pathname}?${params.toString()}`}
                     css={css`
+                      display: flex;
+                      align-items: center;
                       color: var(--color-text-primary);
 
                       &:hover svg {
@@ -342,7 +355,9 @@ const EventDefinition = memo(({ event, filteredAttribute }) => {
                   >
                     {attribute.events.map((event) => (
                       <li key={event.name}>
-                        <Link to={`?event=${event.name}`}>{event.name}</Link>
+                        <Link to={`${location.pathname}?event=${event.name}`}>
+                          {event.name}
+                        </Link>
                       </li>
                     ))}
                   </ul>
@@ -359,6 +374,9 @@ const EventDefinition = memo(({ event, filteredAttribute }) => {
 EventDefinition.propTypes = {
   event: PropTypes.object.isRequired,
   filteredAttribute: PropTypes.string,
+  location: PropTypes.shape({
+    pathname: PropTypes.string.isRequired,
+  }).isRequired,
 };
 
 export const pageQuery = graphql`

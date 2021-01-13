@@ -19,6 +19,7 @@ module.exports = {
     DEV_SSR: true,
     LAZY_IMAGES: true,
     QUERY_ON_DEMAND: true,
+    PRESERVE_WEBPACK_CACHE: true,
   },
   siteMetadata: {
     title: 'New Relic Documentation',
@@ -46,6 +47,11 @@ module.exports = {
         layout: {
           contentPadding: '2rem',
           maxWidth: '1600px',
+          component: require.resolve('./src/layouts'),
+        },
+        i18n: {
+          translationsPath: `${__dirname}/src/i18n/translations`,
+          additionalLocales: [{ name: '日本語', locale: 'jp' }],
         },
         prism: {
           languages: [
@@ -84,12 +90,6 @@ module.exports = {
       },
     },
     {
-      resolve: 'gatsby-plugin-layout',
-      options: {
-        component: require.resolve('./src/layouts'),
-      },
-    },
-    {
       resolve: 'gatsby-plugin-manifest',
       options: {
         name: 'New Relic Documentation',
@@ -116,6 +116,30 @@ module.exports = {
       options: {
         name: 'data-dictionary',
         path: dataDictionaryPath,
+      },
+    },
+    {
+      resolve: 'gatsby-source-filesystem',
+      options: {
+        name: 'translated-content',
+        path: `${__dirname}/src/i18n/content`,
+      },
+    },
+    {
+      resolve: 'gatsby-source-filesystem',
+      options: {
+        name: 'translated-nav',
+        path: `${__dirname}/src/i18n/nav`,
+      },
+    },
+    {
+      resolve: 'gatsby-transformer-json',
+      options: {
+        // If we need to source json files other than the i18n/nav, we should
+        // consider making this dynamic. See the docs for ways to do this.
+        //
+        // https://github.com/gatsbyjs/gatsby/tree/master/packages/gatsby-transformer-json
+        typeName: 'TranslatedNavJson',
       },
     },
     {
@@ -190,6 +214,7 @@ module.exports = {
         path: `./src/nav/`,
       },
     },
+    'gatsby-plugin-generate-doc-json',
     {
       resolve: 'gatsby-plugin-generate-json',
       options: {

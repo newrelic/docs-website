@@ -2,10 +2,9 @@ import React, { Children } from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/core';
 import { graphql } from 'gatsby';
-import { Layout } from '@newrelic/gatsby-theme-newrelic';
+import { Layout, SEO } from '@newrelic/gatsby-theme-newrelic';
 import PageTitle from '../components/PageTitle';
 import MDXContainer from '../components/MDXContainer';
-import SEO from '../components/seo';
 
 const isMdxType = (element, mdxType) => element.props?.mdxType === mdxType;
 
@@ -42,13 +41,13 @@ const components = {
   wrapper: Wrapper,
 };
 
-const LandingPage = ({ data }) => {
+const LandingPage = ({ data, location }) => {
   const { mdx } = data;
   const { frontmatter, body } = mdx;
 
   return (
     <>
-      <SEO title={frontmatter.title} />
+      <SEO location={location} title={frontmatter.title} />
       <PageTitle>{frontmatter.title}</PageTitle>
       <Layout.Content>
         <MDXContainer components={components} body={body} />
@@ -62,7 +61,7 @@ LandingPage.propTypes = {
 };
 
 export const pageQuery = graphql`
-  query($slug: String!) {
+  query($slug: String!, $locale: String) {
     mdx(fields: { slug: { eq: $slug } }) {
       body
       frontmatter {

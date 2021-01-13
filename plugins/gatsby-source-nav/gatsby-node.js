@@ -6,13 +6,13 @@ exports.createSchemaCustomization = ({ actions }) => {
   createTypes(`
     type Nav {
       id: ID!
-      title: String
+      title(locale: String = "en"): String
       pages: [NavItem!]!
     }
 
     type NavItem @dontInfer {
       id: ID!
-      title: String!
+      title(locale: String = "en"): String!
       icon: String
       url: String
       pages: [NavItem!]!
@@ -30,7 +30,18 @@ exports.createResolvers = ({ createResolvers, createNodeId }) => {
         },
         resolve: async (_source, args, context) => {
           const { slug } = args;
-          const utils = { args, nodeModel: context.nodeModel, createNodeId };
+          const { nodeModel } = context;
+
+          const locales = nodeModel
+            .getAllNodes({ type: 'Locale' })
+            .map(({ locale }) => locale);
+
+          const utils = {
+            args,
+            nodeModel,
+            createNodeId,
+            locales,
+          };
 
           switch (true) {
             case slug === '/':
@@ -48,7 +59,15 @@ exports.createResolvers = ({ createResolvers, createNodeId }) => {
         },
       },
     },
+    Nav: {
+      title: {
+        resolve: findTranslatedTitle,
+      },
+    },
     NavItem: {
+      title: {
+        resolve: findTranslatedTitle,
+      },
       url: {
         resolve: (source) => source.url || source.path,
       },
@@ -208,11 +227,17 @@ const groupBy = (arr, fn) =>
     return map.set(key, [...(map.get(key) || []), item]);
   }, new Map());
 
-const createNav = ({ args, createNodeId, nodeModel }) => {
+const createNav = async ({ args, createNodeId, nodeModel, locales }) => {
   const { slug } = args;
+
   const nav = nodeModel.getAllNodes({ type: 'NavYaml' }).find((nav) =>
     // table-of-contents pages should get the same nav as their landing page
-    findPage(nav, slug.replace(/\/table-of-contents$/, ''))
+    findPage(
+      nav,
+      slug
+        .replace(/\/table-of-contents$/, '')
+        .replace(new RegExp(`^\\/(${locales.join('|')})(?=\\/)`), '')
+    )
   );
 
   if (!nav) {
@@ -224,6 +249,25 @@ const createNav = ({ args, createNodeId, nodeModel }) => {
     title: nav.title,
     pages: nav.pages,
   };
+};
+
+const findTranslatedTitle = async (source, args, { nodeModel }) => {
+  if (args.locale === 'en') {
+    return source.title;
+  }
+
+  const item = await nodeModel.runQuery({
+    type: 'TranslatedNavJson',
+    query: {
+      filter: {
+        locale: { eq: args.locale },
+        englishTitle: { eq: source.title },
+      },
+    },
+    firstOnly: true,
+  });
+
+  return item ? item.title : source.title;
 };
 
 const findPage = (page, path) => {

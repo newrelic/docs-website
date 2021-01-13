@@ -1,13 +1,17 @@
 import React, { useMemo } from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/core';
-import SEO from '../components/seo';
 import PageTitle from '../components/PageTitle';
 import { graphql } from 'gatsby';
-import { Layout, Link } from '@newrelic/gatsby-theme-newrelic';
+import {
+  Layout,
+  Link,
+  SEO,
+  useTranslation,
+} from '@newrelic/gatsby-theme-newrelic';
 import Timeline from '../components/Timeline';
 
-const WhatsNew = ({ data }) => {
+const WhatsNew = ({ data, location }) => {
   const now = useMemo(() => new Date(), []);
   const { allMarkdownRemark } = data;
   const posts = allMarkdownRemark.edges.map(({ node }) => node);
@@ -24,16 +28,18 @@ const WhatsNew = ({ data }) => {
       .entries()
   );
 
+  const { t } = useTranslation();
+
   return (
     <>
-      <SEO title="What's new in New Relic" />
+      <SEO location={location} title="What's new in New Relic" />
       <div>
         <PageTitle
           css={css`
             margin-bottom: 2rem;
           `}
         >
-          What's new in New Relic
+          {t('whatsNew.title')}
         </PageTitle>
         <Layout.Content>
           <Timeline>
@@ -87,7 +93,7 @@ WhatsNew.propTypes = {
 };
 
 export const pageQuery = graphql`
-  query($slug: String!) {
+  query($slug: String!, $locale: String) {
     allMarkdownRemark(
       sort: {
         fields: [frontmatter___releaseDate, frontmatter___title]

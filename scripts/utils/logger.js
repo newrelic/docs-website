@@ -16,5 +16,7 @@ module.exports = {
   info: log('info'),
   success: log('success'),
   warn: log('warn'),
-  error: log('error'),
+  error: (error) => {
+    console.error(`${chalk.red.inverse('error')} ${error.stack}`);
+  },
 };

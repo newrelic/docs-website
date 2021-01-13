@@ -1,7 +1,6 @@
 import React from 'react';
 import PropTypes from 'prop-types';
-import { Link } from 'gatsby';
-import { Surface } from '@newrelic/gatsby-theme-newrelic';
+import { Link, Surface } from '@newrelic/gatsby-theme-newrelic';
 
 const SurfaceLink = ({ to, ...props }) => {
   const isRelativeLink = to.startsWith('/');

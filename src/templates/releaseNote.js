@@ -2,13 +2,12 @@ import React from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/core';
 import { graphql } from 'gatsby';
-import { Icon, Layout, Link } from '@newrelic/gatsby-theme-newrelic';
+import { Icon, Layout, Link, SEO } from '@newrelic/gatsby-theme-newrelic';
 import PageTitle from '../components/PageTitle';
 import MDXContainer from '../components/MDXContainer';
-import SEO from '../components/seo';
 import Watermark from '../components/Watermark';
 
-const ReleaseNoteTemplate = ({ data }) => {
+const ReleaseNoteTemplate = ({ data, location }) => {
   const {
     mdx: {
       body,
@@ -20,7 +19,7 @@ const ReleaseNoteTemplate = ({ data }) => {
 
   return (
     <>
-      <SEO title={title} />
+      <SEO location={location} title={title} />
       <PageTitle
         css={css`
           max-width: 850px;
@@ -95,7 +94,7 @@ ReleaseNoteTemplate.propTypes = {
 };
 
 export const pageQuery = graphql`
-  query($slug: String!) {
+  query($slug: String!, $locale: String) {
     mdx(fields: { slug: { eq: $slug } }) {
       body
       frontmatter {
