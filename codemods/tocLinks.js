@@ -17,7 +17,7 @@ const tocLinks = () => (tree) => {
 
   visit(
     tree,
-    (node) => isMdxElement('Button', node) && hasAttribute('to', node),
+    (node) => isMdxElement('ButtonLink', node) && hasAttribute('to', node),
     (button) => {
       const attr = button.attributes.find((attr) => attr.name === 'to');
 
