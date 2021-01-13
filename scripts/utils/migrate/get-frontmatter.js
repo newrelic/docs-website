@@ -26,6 +26,7 @@ const getFrontmatter = (file) => {
     data: {
       doc,
       doc: { type },
+      redirects,
     },
   } = file;
 
@@ -42,11 +43,17 @@ const getFrontmatter = (file) => {
         translate: doc.japaneseVersionExists === 'yes' ? ['jp'] : null,
       };
 
+  if (redirects.length) {
+    customFrontmatter.redirects = redirects;
+  }
+
   if (file.path.includes(JP_DIR)) {
     delete customFrontmatter.translate;
   }
 
-  return frontmatter.stringify('', stripNulls(customFrontmatter));
+  return frontmatter.stringify('', stripNulls(customFrontmatter), {
+    lineWidth: Infinity,
+  });
 };
 
 const addCustomFrontmatter = {
@@ -61,19 +68,11 @@ const addCustomFrontmatter = {
     topics,
     translate: doc.japaneseVersionExists === 'yes' ? ['jp'] : null,
   }),
-  [TYPES.BASIC_PAGE]: ({ doc, topics, redirects }, defaultFrontmatter) => {
-    const frontmatter = {
-      ...defaultFrontmatter,
-      topics,
-      translate: doc.japaneseVersionExists === 'yes' ? ['jp'] : null,
-    };
-
-    if (redirects.length) {
-      frontmatter.redirects = redirects;
-    }
-
-    return frontmatter;
-  },
+  [TYPES.BASIC_PAGE]: ({ doc, topics }, defaultFrontmatter) => ({
+    ...defaultFrontmatter,
+    topics,
+    translate: doc.japaneseVersionExists === 'yes' ? ['jp'] : null,
+  }),
   [TYPES.TROUBLESHOOTING]: ({ doc, topics }, defaultFrontmatter) => ({
     ...defaultFrontmatter,
     topics,
