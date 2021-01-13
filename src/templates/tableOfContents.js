@@ -13,13 +13,9 @@ import PageTitle from '../components/PageTitle';
 import IndexContents from '../components/IndexContents';
 
 const TableOfContentsPage = ({ data, pageContext, location }) => {
+  const { title } = pageContext;
   const { localizedPath } = useLocale();
-  const {
-    nav,
-    mdx: {
-      frontmatter: { title },
-    },
-  } = data;
+  const { nav } = data;
   const { slug } = pageContext;
   const landingPageSlug = slug.replace('/table-of-contents', '');
   const subnav = useMemo(
@@ -77,12 +73,7 @@ TableOfContentsPage.propTypes = {
 };
 
 export const pageQuery = graphql`
-  query($slug: String!, $landingPageSlug: String!, $locale: String) {
-    mdx(fields: { slug: { eq: $landingPageSlug } }) {
-      frontmatter {
-        title
-      }
-    }
+  query($slug: String!, $locale: String) {
     ...MainLayout_query
   }
 `;
