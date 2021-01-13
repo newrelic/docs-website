@@ -32,7 +32,14 @@ const fetchFiles = async (url) => {
       return accum;
     }, {});
 
-  fs.writeFileSync('/tmp/files-to-translate.json', fileNames);
+  if (!fs.existsSync('/tmp')) {
+    fs.mkdirSync('/tmp');
+  }
+
+  fs.writeFileSync(
+    '/tmp/files-to-translate.json',
+    JSON.stringify(fileNames, null, 2)
+  );
   process.exit(0);
 };
 
