@@ -25,8 +25,11 @@ const checkArgs = () => {
   }
 };
 
-// TODO: name, docs
-// returns a list of strings
+/**
+ * @param {string} url The API url that is used to fetch files.
+ * @param {SlugsByLocale} queue The queue from DynamoDB.
+ * @returns {Promise<SlugsByLocale>} An updated queue.
+ */
 const getUpdatedQueue = async (url, queue) => {
   const resp = await fetch(url);
   const files = await resp.json();
@@ -73,7 +76,7 @@ const getUpdatedQueue = async (url, queue) => {
 };
 
 /**
- * @todo Document or remove this.
+ * @todo Abstract this into a helper function once we need to do this more than once.
  */
 const getQueue = () =>
   new Promise((resolve) => {
