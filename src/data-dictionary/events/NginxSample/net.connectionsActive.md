@@ -5,6 +5,6 @@ events:
   - NginxSample
 ---
 
-Number of connections that are currently active.
+Current number of active client connections.
 
-For NGINX open source systems.
+For NGINX Plus systems.ce systems.

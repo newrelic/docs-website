@@ -58,7 +58,7 @@ module.exports = {
   },
 
   MAX_PAGES_PER_TYPE: {
-    page: 6,
+    page: Infinity,
     landing_page: Infinity,
     api_doc: Infinity,
     release_notes: Infinity,
