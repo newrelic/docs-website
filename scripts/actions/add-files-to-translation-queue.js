@@ -4,14 +4,13 @@ const fetch = require('node-fetch');
 const chalk = require('chalk');
 const frontmatter = require('@github-docs/frontmatter');
 const AWS = require('aws-sdk');
-
 const { prop } = require('../utils/functional');
 
 AWS.config.update({ region: 'us-east-2' });
 
-/** @typedef {Object<string, string[]>} SlugsByLocale */
+const ddbClient = new AWS.DynamoDB.DocumentClient();
 
-const isMdxFile = (filename) => filename.slice(-3) === 'mdx';
+/** @typedef {Object<string, string[]>} SlugsByLocale */
 
 const showError = (text) => console.error(chalk.red(`[!] Error: ${text}`));
 
@@ -26,77 +25,120 @@ const checkArgs = () => {
   }
 };
 
-/**
- * @param {string} url An API url containing a list of files changed in a PR.
- * @returns {Promise<SlugsByLocale>} An object containing arrays of slugs, keyed by locale.
- */
-const getSlugsToTranslate = async (url) => {
-  try {
-    const resp = await fetch(url);
-    const files = await resp.json();
+// TODO: name, docs
+// returns a list of strings
+const getUpdatedQueue = async (url, queue) => {
+  const resp = await fetch(url);
+  const files = await resp.json();
 
-    return files
-      .map(prop('filename'))
-      .filter(isMdxFile)
-      .reduce((slugs, filename) => {
-        const file = fs.readFileSync(path.join(process.cwd(), filename));
-        const { data } = frontmatter(file);
+  const mdxFiles = files
+    .filter((file) => path.extname(file.filename) === '.mdx')
+    .reduce((files, file) => {
+      const contents = fs.readFileSync(path.join(process.cwd(), file.filename));
+      const { data } = frontmatter(contents);
 
-        return data.translate && data.translate.length
-          ? data.translate.reduce(
-              (acc, locale) => ({
-                ...acc,
-                [locale]: [...(acc[locale] || []), filename],
-              }),
-              slugs
-            )
-          : slugs;
-      }, {});
-  } catch (error) {
-    showError(error);
-    showError(`unable to fetch files for url: ${url}`);
-    process.exit(1);
-  }
+      return data.translate && data.translate.length
+        ? [...files, { ...file, locales: data.translate }]
+        : files;
+    }, []);
+
+  const addedMdxFiles = mdxFiles
+    .filter((f) => f.status !== 'removed')
+    .reduce((files, file) => {
+      return file.locales.reduce(
+        (acc, locale) => ({
+          ...acc,
+          [locale]: [...(acc[locale] || []), file.filename],
+        }),
+        files
+      );
+    }, {});
+
+  const removedMdxFileNames = mdxFiles
+    .filter((f) => f.status === 'removed')
+    .map(prop('filename'));
+
+  return Object.entries(queue)
+    .map(([locale, files]) => [
+      locale,
+      files.filter((f) => !removedMdxFileNames.includes(f)),
+    ])
+    .reduce(
+      (acc, [locale, filenames]) => ({
+        ...acc,
+        [locale]: filenames.concat(acc[locale] || []),
+      }),
+      addedMdxFiles
+    );
 };
+
+/**
+ * @todo Document or remove this.
+ */
+const getQueue = () =>
+  new Promise((resolve) => {
+    /** @type AWS.DynamoDB.DocumentClient.GetItemInput */
+    const params = {
+      TableName: 'TranslationQueues',
+      Key: {
+        type: 'to_translate',
+      },
+    };
+
+    ddbClient.get(params, (error, data) => {
+      if (error) {
+        showError(error);
+        showError('unable to get translation queue:');
+        process.exit(1);
+      }
+
+      console.log('[*] Success!');
+      resolve(data);
+    });
+  });
 
 /**
  * @todo Abstract this into a helper function once we need to do this more than once.
  * @param {SlugsByLocale} slugs An object containing arrays of slugs, keyed by locale.
  */
-const saveQueue = async (slugs) => {
-  const ddbClient = new AWS.DynamoDB.DocumentClient();
+const saveQueue = (slugs) =>
+  new Promise((resolve) => {
+    /** @type AWS.DynamoDB.DocumentClient.UpdateItemInput */
+    const params = {
+      TableName: 'TranslationQueues',
+      Key: {
+        type: 'to_translate',
+      },
+      UpdateExpression: 'set locales = :slugs',
+      ExpressionAttributeValues: {
+        ':slugs': slugs,
+      },
+    };
 
-  /** @type AWS.DynamoDB.DocumentClient.UpdateItemInput */
-  const params = {
-    TableName: 'TranslationQueues',
-    Key: {
-      type: 'To translate',
-    },
-    UpdateExpression: 'set locales = :slugs',
-    ExpressionAttributeValues: {
-      ':slugs': slugs,
-    },
-  };
+    ddbClient.update(params, (error) => {
+      if (error) {
+        showError(error);
+        showError('unable to update translation queue:');
+        process.exit(1);
+      }
 
-  ddbClient.update(params, (error, data) => {
-    if (error) {
-      showError(error);
-      showError('unable to update translation queue:');
-      process.exit(1);
-    }
-
-    console.log('[*] Success!', data);
-    process.exit(0);
+      console.log('[*] Success!');
+      resolve();
+    });
   });
-};
 
 /**
  * Script entrypoint.
  */
 const main = async () => {
   checkArgs();
-  const data = await getSlugsToTranslate(process.argv[2]);
+
+  const url = process.argv[2];
+  const queue = await getQueue();
+  const data = await getUpdatedQueue(url, queue);
+
   await saveQueue(data);
+  process.exit(0);
 };
 
 main();
