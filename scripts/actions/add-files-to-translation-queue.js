@@ -77,6 +77,7 @@ const getUpdatedQueue = async (url, queue) => {
 
 /**
  * @todo Abstract this into a helper function once we need to do this more than once.
+ * @returns {Promise<SlugsByLocale>} The current queue in DynamoDB.
  */
 const getQueue = () =>
   new Promise((resolve) => {
@@ -95,7 +96,7 @@ const getQueue = () =>
         process.exit(1);
       }
 
-      console.log('[*] Success!');
+      console.log('[*] getQue: success!');
       resolve(data);
     });
   });
@@ -125,7 +126,7 @@ const saveQueue = (slugs) =>
         process.exit(1);
       }
 
-      console.log('[*] Success!');
+      console.log('[*] saveQueue: success!');
       resolve();
     });
   });
