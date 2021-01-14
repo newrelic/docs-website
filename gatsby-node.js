@@ -1,8 +1,8 @@
 const path = require('path');
 const vfileGlob = require('vfile-glob');
 const { read, write } = require('to-vfile');
-const { uniq } = require('lodash');
 const { prop } = require('./scripts/utils/functional.js');
+const externalRedirects = require('./src/data/external-redirects.json');
 
 const { createFilePath } = require('gatsby-source-filesystem');
 
@@ -178,6 +178,17 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
     allLocale,
   } = data;
 
+  externalRedirects.forEach(({ url, paths }) => {
+    paths.forEach((path) => {
+      createRedirect({
+        fromPath: path,
+        toPath: url,
+        isPermanent: true,
+        redirectInBrowser: true,
+      });
+    });
+  });
+
   releaseNotes.group.forEach((el) => {
     const { fieldValue, nodes } = el;
 
@@ -189,6 +200,8 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
       createRedirect({
         fromPath: path.join(landingPage.fields.slug, 'current'),
         toPath: nodes[0].fields.slug,
+        isPermanent: false,
+        redirectInBrowser: true,
       });
   });
 

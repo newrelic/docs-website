@@ -1,8 +1,6 @@
 ---
 title: 'Kafka Connect: Unlock open source and alternative instrumentation sources'
-summary: >-
-  Build observability pipelines from open source tools and alternative
-  instrumentation sources with the New Relic connector for Kafka Connect.
+summary: Build observability pipelines from open source tools and alternative instrumentation sources with the New Relic connector for Kafka Connect.
 releaseDate: '2020-10-30'
 learnMoreLink: 'https://www.confluent.io/blog/kafka-connect-for-new-relic/'
 getStartedLink: 'https://github.com/newrelic/kafka-connect-newrelic'

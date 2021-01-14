@@ -1,11 +1,8 @@
 ---
 title: Build high-resolution charts using sliding windows
-summary: >-
-  Increase your chart resolution with rolling aggregates, powered by sliding
-  windows.
+summary: 'Increase your chart resolution with rolling aggregates, powered by sliding windows.'
 releaseDate: '2020-10-30'
-learnMoreLink: >-
-  https://docs.newrelic.com/docs/query-your-data/nrql-new-relic-query-language/nrql-query-tutorials/create-smoother-charts-sliding-windows
+learnMoreLink: 'https://docs.newrelic.com/docs/query-your-data/nrql-new-relic-query-language/nrql-query-tutorials/create-smoother-charts-sliding-windows'
 ---
 
 Sliding windows enable you to increase chart resolution without losing the intent of the result by reducing the timeseries aggregate size, as shown below. Highly variable results can also be smoothed out by increasing the aggregate size, without losing resolution.
