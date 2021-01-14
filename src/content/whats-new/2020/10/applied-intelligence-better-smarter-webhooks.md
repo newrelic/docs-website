@@ -2,10 +2,8 @@
 title: 'Applied Intelligence: Better, smarter webhooks'
 summary: Webhooks now automatically deliver anomaly charts.
 releaseDate: '2020-10-15'
-learnMoreLink: >-
-  https://docs.newrelic.com/docs/alerts-applied-intelligence/applied-intelligence/incident-intelligence/get-started-incident-intelligence#3-configure-pathways
-getStartedLink: >-
-  https://docs.newrelic.com/docs/alerts-applied-intelligence/applied-intelligence/proactive-detection/proactive-detection-applied-intelligence#webhook
+learnMoreLink: 'https://docs.newrelic.com/docs/alerts-applied-intelligence/applied-intelligence/incident-intelligence/get-started-incident-intelligence#3-configure-pathways'
+getStartedLink: 'https://docs.newrelic.com/docs/alerts-applied-intelligence/applied-intelligence/proactive-detection/proactive-detection-applied-intelligence#webhook'
 ---
 
 Always getting better and smarter, webhooks set up in Applied Intelligence now automatically deliver anomaly charts and a quick link to the analysis page in any notification tool.

@@ -32,8 +32,13 @@ const cliProgress = require('cli-progress');
 const { fetchAllRedirects } = require('./utils/migrate/fetch-redirects');
 const fetchJpDocs = require('./utils/migrate/fetch-jp-docs');
 const createNavJpStructure = require('./utils/migrate/create-nav-jp-structure');
+const writeExternalRedirects = require('./utils/migrate/external-redirects');
+const { appendDummyRedirects } = require('./utils/migrate/redirects');
 
 const all = (list, fn) => Promise.all(list.map(fn));
+
+const isDummyDoc = (doc) =>
+  Boolean(doc.body.trim().match(/^(<[a-z].*>)?redirect(s|ed|ing)?\s/i));
 
 const runTask = async ({
   label,
@@ -41,16 +46,25 @@ const runTask = async ({
   vfile: vfileOptions,
   process,
   onDone,
+  redirects = {},
 }) => {
   try {
     const bar = progressBar.create(0, 0, { label, step: 'fetching docs' });
-    const data = await fetch();
+    const docs = await fetch();
+    const allRedirects = appendDummyRedirects(
+      redirects,
+      docs.filter(isDummyDoc)
+    );
 
-    bar.setTotal(data.length);
+    bar.setTotal(docs.length);
     bar.update({ step: 'processing' });
 
-    const files = await all(data, async (doc) => {
-      const file = toVFile(doc, vfileOptions || {});
+    const files = await all(docs, async (doc) => {
+      const file = toVFile(doc, {
+        ...(vfileOptions || {}),
+        redirects: allRedirects,
+        data: { dummy: isDummyDoc(doc) },
+      });
 
       createDirectories([file]);
       await process(file);
@@ -176,9 +190,7 @@ const run = async () => {
       {
         label: 'Docs\t\t',
         fetch: () => docs,
-        vfile: {
-          redirects,
-        },
+        redirects,
         process: async (file) => {
           convertFile(file);
 
@@ -232,11 +244,24 @@ const run = async () => {
 
     const jpNavFile = createNavJpStructure(navFiles, jpFiles);
 
+    logger.info('Writing external redirects');
+    writeExternalRedirects(
+      appendDummyRedirects(
+        redirects,
+        allDocsFiles
+          .filter((file) => file.data.dummy)
+          .map((file) => file.data.doc)
+      )
+    );
+
     logger.info('Saving changes to files');
     createDirectories(allDocsFiles);
     await fetchDocCount(allDocsFiles.length);
-    await all(allDocsFiles.concat(navFiles).concat(jpNavFile), (file) =>
-      write(file, 'utf-8')
+    await all(
+      allDocsFiles
+        .filter((file) => !file.data.dummy)
+        .concat(navFiles, jpNavFile),
+      (file) => write(file, 'utf-8')
     );
 
     logger.info('Copying manual edits');
