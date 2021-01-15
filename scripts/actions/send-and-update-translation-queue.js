@@ -1,22 +1,74 @@
 const fs = require('fs');
 const path = require('path');
+const fetch = require('node-fetch');
 
 const loadFromDB = require('./utils/load-from-db');
 const saveToDB = require('./utils/save-to-db');
 
-// TODO
-const getContent = (queue) => {
-  return {};
-};
+// TODO: update this with real URL
+const VENDOR_API_URL = '';
 
-// TODO
+/**
+ * @typedef Content
+ * @property {string} file The filepath for the MDX file.
+ * @property {string} content The text content to be translated.
+ */
+
+/**
+ * @param {Object<string, string[]>} queue The queue of slugs to be translated.
+ * @returns {Object<string, Content[]>} The same queue, but with file contents.
+ */
+const getContent = (queue) =>
+  Object.values(queue).reduce(
+    (content, [locale, slugs]) => ({
+      ...content,
+      [locale]: slugs
+        .map((slug) => {
+          const contents = fs.readFileSync(path.join(process.cwd(), slug));
+          // TODO: transform MDX -> vendor format
+          return {
+            file: slug,
+            contents: contents ? contents : false,
+          };
+        })
+        .filter(Boolean),
+    }),
+    {}
+  );
+
+/**
+ * @param {Object<string, Content[]>} content Content to be translated.
+ * @returns {string[]} A list of UUIDs for the translation jobs.
+ */
 const sendContentToVendor = async (content) => {
-  return [];
+  // TODO: transform this into whatever their API expects
+  const body = content;
+
+  // TODO: add API authentication via env variable
+  const resp = await fetch(VENDOR_API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body,
+  });
+
+  const uuids = await resp.json();
+
+  // TODO: transform uuids into an array of strings
+  return uuids;
 };
 
-// TODO
+/**
+ * @param {string[]} uuids A list of UUIDs to be added to the `being_translated` queue.
+ */
 const addToBeingTranslatedQueue = async (uuids) => {
-  return null;
+  const table = 'TranslationQueues';
+  const key = { type: 'being_translated' };
+
+  const queue = await loadFromDB(table, key);
+
+  await saveToDB(table, key, 'set uuids = :uuids', {
+    ':uuids': [...queue, ...uuids],
+  });
 };
 
 /** Entrypoint. */
