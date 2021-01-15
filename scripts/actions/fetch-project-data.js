@@ -146,7 +146,7 @@ const main = async () => {
   const data = await fetchData(ORG, PROJECT);
   const milestones = getMilestoneData(data);
 
-  console.dir(milestones, { depth: null });
+  console.log(`::set-output name=data::'${JSON.stringify(milestones)}'`);
 };
 
 main();

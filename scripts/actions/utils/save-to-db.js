@@ -33,6 +33,7 @@ const saveToDB = (table, key, updateExpression, values) => {
         console.error(`[!] Unable to save data to ${table}:`);
         console.log(error);
         reject(error);
+        return false;
       }
 
       console.log(`[*] Successfully saved to ${table}`);
