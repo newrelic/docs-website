@@ -1,6 +1,12 @@
 const fs = require('fs');
 const vfileGlob = require('vfile-glob');
 const { write } = require('to-vfile');
+const rimraf = require('rimraf');
+
+
+const deletedFiles = [
+  'src/content/docs/new-relic-only/tech-writer-style-guide/processes-procedures/clear-cache.mdx'
+]
 
 const copyManualEdits = () => {
   return new Promise((resolve) => {
@@ -15,6 +21,7 @@ const copyManualEdits = () => {
         await write(file, 'utf-8');
       },
       complete: () => {
+        deletedFiles.forEach(file => rimraf.sync(file))
         resolve();
       },
     });
