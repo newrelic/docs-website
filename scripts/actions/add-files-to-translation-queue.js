@@ -4,6 +4,8 @@ const fetch = require('node-fetch');
 const chalk = require('chalk');
 const frontmatter = require('@github-docs/frontmatter');
 const AWS = require('aws-sdk');
+
+const checkArgs = require('./utils/check-args');
 const { prop } = require('../utils/functional');
 
 AWS.config.update({ region: 'us-east-2' });
@@ -13,17 +15,6 @@ const ddbClient = new AWS.DynamoDB.DocumentClient();
 /** @typedef {Object<string, string[]>} SlugsByLocale */
 
 const showError = (text) => console.error(chalk.red(`[!] Error: ${text}`));
-
-const checkArgs = () => {
-  const { argv } = process;
-
-  if (argv.length !== 3) {
-    showError('expected 1 argument: API_URL');
-    console.log(`[?] Usage:\n\tnode ${argv[1]} API_URL`);
-
-    process.exit(1);
-  }
-};
 
 /**
  * @param {string} url The API url that is used to fetch files.
@@ -131,11 +122,9 @@ const saveQueue = (slugs) =>
     });
   });
 
-/**
- * Script entrypoint.
- */
+/** Entrypoint. */
 const main = async () => {
-  checkArgs();
+  checkArgs(3);
 
   const url = process.argv[2];
   const queue = await getQueue();
