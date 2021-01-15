@@ -1,26 +1,17 @@
 const fs = require('fs');
 const path = require('path');
 const fetch = require('node-fetch');
-const chalk = require('chalk');
 const frontmatter = require('@github-docs/frontmatter');
-const AWS = require('aws-sdk');
 
 const saveToDB = require('./utils/save-to-db');
+const loadFromDB = require('./utils/load-from-db');
 const checkArgs = require('./utils/check-args');
 const { prop } = require('../utils/functional');
 
-AWS.config.update({ region: 'us-east-2' });
-
-const ddbClient = new AWS.DynamoDB.DocumentClient();
-
-/** @typedef {Object<string, string[]>} SlugsByLocale */
-
-const showError = (text) => console.error(chalk.red(`[!] Error: ${text}`));
-
 /**
  * @param {string} url The API url that is used to fetch files.
- * @param {SlugsByLocale} queue The queue from DynamoDB.
- * @returns {Promise<SlugsByLocale>} An updated queue.
+ * @param {Object<string, string[]>} queue The queue from DynamoDB.
+ * @returns {Promise<Object<string, string[]>>} An updated queue.
  */
 const getUpdatedQueue = async (url, queue) => {
   const resp = await fetch(url);
@@ -67,46 +58,18 @@ const getUpdatedQueue = async (url, queue) => {
     );
 };
 
-/**
- * @todo Abstract this into a helper function once we need to do this more than once.
- * @returns {Promise<SlugsByLocale>} The current queue in DynamoDB.
- */
-const getQueue = () =>
-  new Promise((resolve) => {
-    /** @type AWS.DynamoDB.DocumentClient.GetItemInput */
-    const params = {
-      TableName: 'TranslationQueues',
-      Key: {
-        type: 'to_translate',
-      },
-    };
-
-    ddbClient.get(params, (error, data) => {
-      if (error) {
-        showError(error);
-        showError('unable to get translation queue:');
-        process.exit(1);
-      }
-
-      console.log('[*] getQue: success!');
-      resolve(data);
-    });
-  });
-
 /** Entrypoint. */
 const main = async () => {
   checkArgs(3);
 
   const url = process.argv[2];
-  const queue = await getQueue();
+  const table = 'TranslationQueues';
+  const key = { type: 'to_translate' };
+
+  const queue = await loadFromDB(table, key);
   const data = await getUpdatedQueue(url, queue);
 
-  await saveToDB(
-    'TranslationQueues',
-    { type: 'to_translate' },
-    'set locales = :slugs',
-    { ':slugs': data }
-  );
+  await saveToDB(table, key, 'set locales = :slugs', { ':slugs': data });
 
   process.exit(0);
 };
