@@ -5,22 +5,18 @@ const indentedCodeBlock = () => (tree) => {
     tree,
     (node) => node.type === 'code',
     (codeBlock, index, parent) => {
-      const values = codeBlock.value.split('```').filter((val) => val !== '');
-      values.forEach((val, i) => {
+      const values = codeBlock.value.split('```').filter(Boolean);
+      for (const value of values) {
+        const i = values.indexOf(value);
         if (i === 0) {
-          codeBlock.value = val;
-        } else if (i % 2 !== 0) {
-          parent.children.splice(index + 1, 0, {
-            type: 'text',
-            value: val,
-          });
-        } else {
-          parent.children.splice(index + 1, 0, {
-            type: 'code',
-            value: val,
-          });
+          codeBlock.value = value;
+          continue;
         }
-      });
+        parent.children.splice(index + 1, 0, {
+          type: i % 2 === 0 ? 'code' : 'text',
+          value,
+        });
+      }
     }
   );
 };
