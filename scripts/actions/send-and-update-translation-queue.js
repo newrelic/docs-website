@@ -31,7 +31,7 @@ const getContent = (queue) =>
             contents: contents ? contents : false,
           };
         })
-        .filter(Boolean),
+        .filter((page) => Boolean(page.contents)),
     }),
     {}
   );
