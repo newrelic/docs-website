@@ -7,8 +7,13 @@ const checkArgs = (length) => {
   const { argv } = process;
 
   if (argv.length !== length) {
-    showError('expected 1 argument: API_URL');
-    console.log(`[?] Usage:\n\tnode ${argv[1]} API_URL`);
+    console.error(
+      `[!] Expected ${length - 2} argument(s), recieved ${argv.length - 2}:`
+    );
+
+    for (const arg of argv.slice(2)) {
+      console.log(`\t(${argv.indexOf(arg) - 2}) ${arg}`);
+    }
 
     process.exit(1);
   }

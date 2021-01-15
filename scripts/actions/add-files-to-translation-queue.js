@@ -4,7 +4,9 @@ const fetch = require('node-fetch');
 const chalk = require('chalk');
 const frontmatter = require('@github-docs/frontmatter');
 const AWS = require('aws-sdk');
+
 const checkArgs = require('./utils/check-args');
+const saveToDB = require('./utils/save-to-db');
 const { prop } = require('../utils/functional');
 
 AWS.config.update({ region: 'us-east-2' });
@@ -92,34 +94,18 @@ const getQueue = () =>
   });
 
 /**
- * @todo Abstract this into a helper function once we need to do this more than once.
  * @param {SlugsByLocale} slugs An object containing arrays of slugs, keyed by locale.
  */
-const saveQueue = (slugs) =>
-  new Promise((resolve) => {
-    /** @type AWS.DynamoDB.DocumentClient.UpdateItemInput */
-    const params = {
-      TableName: 'TranslationQueues',
-      Key: {
-        type: 'to_translate',
-      },
-      UpdateExpression: 'set locales = :slugs',
-      ExpressionAttributeValues: {
-        ':slugs': slugs,
-      },
-    };
+const saveQueue = async (slugs) => {
+  const result = await saveToDB(
+    'TranslationQueues',
+    { type: 'to_translate' },
+    'set locales = :slugs',
+    { ':slugs': slugs }
+  );
 
-    ddbClient.update(params, (error) => {
-      if (error) {
-        showError(error);
-        showError('unable to update translation queue:');
-        process.exit(1);
-      }
-
-      console.log('[*] saveQueue: success!');
-      resolve();
-    });
-  });
+  return result;
+};
 
 /**
  * Script entrypoint.
