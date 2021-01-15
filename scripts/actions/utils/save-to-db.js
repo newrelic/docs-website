@@ -11,8 +11,7 @@ const ddbClient = new AWS.DynamoDB.DocumentClient();
  *    'set locales = :slugs',
  *    { ':slugs': slugs }
  * );
- *
- * @param {string} table Table name.
+ * @param {string} table The table name.
  * @param {AWS.DynamoDB.DocumentClient.Key} key Table key(s).
  * @param {string} updateExpression Expression for how to update.
  * @param {AWS.DynamoDB.DocumentClient.ExpressionAttributeValueMap} values Values set using expression.
