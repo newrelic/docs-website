@@ -5,4 +5,4 @@ events:
   - OracleDatabaseSample
 ---
 
-Physical writes per transaction.action.
+Physical writes direct per transaction.

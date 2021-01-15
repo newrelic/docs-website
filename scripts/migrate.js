@@ -28,7 +28,6 @@ const {
   JP_DIR,
 } = require('./utils/constants');
 const copyManualEdits = require('./utils/migrate/copy-manual-edits');
-const cliProgress = require('cli-progress');
 const { fetchAllRedirects } = require('./utils/migrate/fetch-redirects');
 const fetchJpDocs = require('./utils/migrate/fetch-jp-docs');
 const createNavJpStructure = require('./utils/migrate/create-nav-jp-structure');
@@ -49,15 +48,14 @@ const runTask = async ({
   redirects = {},
 }) => {
   try {
-    const bar = progressBar.create(0, 0, { label, step: 'fetching docs' });
+    logger.info(`[${label}] Fetching content`);
     const docs = await fetch();
     const allRedirects = appendDummyRedirects(
       redirects,
       docs.filter(isDummyDoc)
     );
 
-    bar.setTotal(docs.length);
-    bar.update({ step: 'processing' });
+    logger.info(`[${label}] Processing content`);
 
     const files = await all(docs, async (doc) => {
       const file = toVFile(doc, {
@@ -69,8 +67,6 @@ const runTask = async ({
       createDirectories([file]);
       await process(file);
 
-      bar.increment();
-
       return file;
     });
 
@@ -78,28 +74,13 @@ const runTask = async ({
       await onDone(files);
     }
 
-    bar.update({ step: 'done' });
-    bar.stop();
-
+    logger.info(`[${label}] Done`);
     return files;
   } catch (e) {
     logger.error(e);
     return [];
   }
 };
-
-const progressBar = new cliProgress.MultiBar(
-  {
-    format: `{label}\t{bar} {percentage}% ({value}/{total}) | {step}`.trim(),
-    clearOnComplete: true,
-    hideCursor: true,
-    forceRedraw: true,
-    stopOnComplete: true,
-    fps: 60,
-    emptyOnZero: true,
-  },
-  cliProgress.Presets.shades_grey
-);
 
 const runPipeline = (tasks) => Promise.all(tasks.map(runTask));
 
@@ -140,7 +121,7 @@ const run = async () => {
         process: convertFile,
       },
       {
-        label: "What's new\t",
+        label: "What's new",
         fetch: fetchWhatsNew,
         vfile: {
           baseDir: WHATS_NEW_DIR,
@@ -168,7 +149,7 @@ const run = async () => {
         onDone: saveWhatsNewIds,
       },
       {
-        label: 'Japanese Docs\t',
+        label: 'Japanese Docs',
         fetch: () => fetchJpDocs(docs),
         vfile: {
           baseDir: JP_DIR,
@@ -188,7 +169,7 @@ const run = async () => {
         },
       },
       {
-        label: 'Docs\t\t',
+        label: 'Docs',
         fetch: () => docs,
         redirects,
         process: async (file) => {
@@ -210,8 +191,6 @@ const run = async () => {
     const allDocsFiles = fileGroups.flat();
 
     const jpFiles = nth(fileGroups, -2);
-
-    progressBar.stop();
 
     const sortedDocsFiles = last(fileGroups)
       .sort(
