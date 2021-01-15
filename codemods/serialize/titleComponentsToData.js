@@ -1,6 +1,6 @@
 const visit = require('unist-util-visit');
 const { isMdxElement, findAttribute } = require('../utils/mdxast');
-const serializeComponent = require('./utils/serialize-component');
+const serializeComponent = require('./serializeComponent');
 const { set } = require('lodash');
 
 const TITLE_COMPONENTS = ['Collapser', 'Video', 'LandingPageTile'];

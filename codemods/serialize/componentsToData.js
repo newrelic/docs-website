@@ -1,6 +1,6 @@
 const visit = require('unist-util-visit');
 const { isMdxElement } = require('../utils/mdxast');
-const serializeComponent = require('./utils/serialize-component');
+const serializeComponent = require('./serializeComponent');
 
 const COMPONENTS = [
   'Button',
