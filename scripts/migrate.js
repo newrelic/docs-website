@@ -28,12 +28,16 @@ const {
   JP_DIR,
 } = require('./utils/constants');
 const copyManualEdits = require('./utils/migrate/copy-manual-edits');
-const cliProgress = require('cli-progress');
 const { fetchAllRedirects } = require('./utils/migrate/fetch-redirects');
 const fetchJpDocs = require('./utils/migrate/fetch-jp-docs');
 const createNavJpStructure = require('./utils/migrate/create-nav-jp-structure');
+const writeExternalRedirects = require('./utils/migrate/external-redirects');
+const { appendDummyRedirects } = require('./utils/migrate/redirects');
 
 const all = (list, fn) => Promise.all(list.map(fn));
+
+const isDummyDoc = (doc) =>
+  Boolean(doc.body.trim().match(/^(<[a-z].*>)?redirect(s|ed|ing)?\s/i));
 
 const runTask = async ({
   label,
@@ -41,21 +45,27 @@ const runTask = async ({
   vfile: vfileOptions,
   process,
   onDone,
+  redirects = {},
 }) => {
   try {
-    const bar = progressBar.create(0, 0, { label, step: 'fetching docs' });
-    const data = await fetch();
+    logger.info(`[${label}] Fetching content`);
+    const docs = await fetch();
+    const allRedirects = appendDummyRedirects(
+      redirects,
+      docs.filter(isDummyDoc)
+    );
 
-    bar.setTotal(data.length);
-    bar.update({ step: 'processing' });
+    logger.info(`[${label}] Processing content`);
 
-    const files = await all(data, async (doc) => {
-      const file = toVFile(doc, vfileOptions || {});
+    const files = await all(docs, async (doc) => {
+      const file = toVFile(doc, {
+        ...(vfileOptions || {}),
+        redirects: allRedirects,
+        data: { dummy: isDummyDoc(doc) },
+      });
 
       createDirectories([file]);
       await process(file);
-
-      bar.increment();
 
       return file;
     });
@@ -64,28 +74,13 @@ const runTask = async ({
       await onDone(files);
     }
 
-    bar.update({ step: 'done' });
-    bar.stop();
-
+    logger.info(`[${label}] Done`);
     return files;
   } catch (e) {
     logger.error(e);
     return [];
   }
 };
-
-const progressBar = new cliProgress.MultiBar(
-  {
-    format: `{label}\t{bar} {percentage}% ({value}/{total}) | {step}`.trim(),
-    clearOnComplete: true,
-    hideCursor: true,
-    forceRedraw: true,
-    stopOnComplete: true,
-    fps: 60,
-    emptyOnZero: true,
-  },
-  cliProgress.Presets.shades_grey
-);
 
 const runPipeline = (tasks) => Promise.all(tasks.map(runTask));
 
@@ -126,7 +121,7 @@ const run = async () => {
         process: convertFile,
       },
       {
-        label: "What's new\t",
+        label: "What's new",
         fetch: fetchWhatsNew,
         vfile: {
           baseDir: WHATS_NEW_DIR,
@@ -154,7 +149,7 @@ const run = async () => {
         onDone: saveWhatsNewIds,
       },
       {
-        label: 'Japanese Docs\t',
+        label: 'Japanese Docs',
         fetch: () => fetchJpDocs(docs),
         vfile: {
           baseDir: JP_DIR,
@@ -174,11 +169,9 @@ const run = async () => {
         },
       },
       {
-        label: 'Docs\t\t',
+        label: 'Docs',
         fetch: () => docs,
-        vfile: {
-          redirects,
-        },
+        redirects,
         process: async (file) => {
           convertFile(file);
 
@@ -198,8 +191,6 @@ const run = async () => {
     const allDocsFiles = fileGroups.flat();
 
     const jpFiles = nth(fileGroups, -2);
-
-    progressBar.stop();
 
     const sortedDocsFiles = last(fileGroups)
       .sort(
@@ -232,11 +223,24 @@ const run = async () => {
 
     const jpNavFile = createNavJpStructure(navFiles, jpFiles);
 
+    logger.info('Writing external redirects');
+    writeExternalRedirects(
+      appendDummyRedirects(
+        redirects,
+        allDocsFiles
+          .filter((file) => file.data.dummy)
+          .map((file) => file.data.doc)
+      )
+    );
+
     logger.info('Saving changes to files');
     createDirectories(allDocsFiles);
     await fetchDocCount(allDocsFiles.length);
-    await all(allDocsFiles.concat(navFiles).concat(jpNavFile), (file) =>
-      write(file, 'utf-8')
+    await all(
+      allDocsFiles
+        .filter((file) => !file.data.dummy)
+        .concat(navFiles, jpNavFile),
+      (file) => write(file, 'utf-8')
     );
 
     logger.info('Copying manual edits');
