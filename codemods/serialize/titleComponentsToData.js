@@ -15,25 +15,27 @@ const titleComponentsToData = () => (tree) => {
     },
     (component) => {
       serializeComponent(component);
-      set(component, 'children', [
-        {
-          type: 'text',
-          value: '',
-          data: {
-            hName: 'div',
-            hProperties: {
-              'data-prop-text': 'title',
-            },
-            hChildren: [
-              {
-                type: 'text',
-                value: findAttribute('title', component),
+      const title = findAttribute('title', component);
+      title &&
+        set(component, 'children', [
+          {
+            type: 'text',
+            value: '',
+            data: {
+              hName: 'div',
+              hProperties: {
+                'data-prop-text': 'title',
               },
-            ],
+              hChildren: [
+                {
+                  type: 'text',
+                  value: title,
+                },
+              ],
+            },
           },
-        },
-        ...component.children,
-      ]);
+          ...component.children,
+        ]);
     }
   );
 };
