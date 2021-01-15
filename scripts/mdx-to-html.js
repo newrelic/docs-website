@@ -1,6 +1,6 @@
 const componentsToData = require('../codemods/serialize/componentsToData');
 const titleComponentsToData = require('../codemods/serialize/titleComponentsToData');
-const codeBlocksToData = require('../codemods/serialize/codeBlocksToData');
+const linkRefsToData = require('../codemods/serialize/linkRefsToData');
 const indentedCodeBlock = require('../codemods/indentedCodeBlock');
 const unified = require('unified');
 const toMDAST = require('remark-parse');
@@ -10,8 +10,7 @@ const remarkMdxjs = require('remark-mdxjs');
 const remark2rehype = require('remark-rehype');
 const html = require('rehype-stringify');
 const format = require('rehype-format');
-const fs = require('fs');
-const codeblocks = require('remark-code-blocks');
+const vfileGlob = require('vfile-glob');
 
 const createProcessor = ({ codemods = [] } = {}) => {
   const processor = unified()
@@ -19,7 +18,9 @@ const createProcessor = ({ codemods = [] } = {}) => {
     .use(remarkMdx)
     .use(remarkMdxjs)
     .use(frontmatter, ['yaml'])
-    .use(indentedCodeBlock);
+    .use(indentedCodeBlock)
+    .use(toMDAST)
+    .use(remarkMdx);
 
   codemods.forEach((plugin) => {
     Array.isArray(plugin)
@@ -32,23 +33,27 @@ const createProcessor = ({ codemods = [] } = {}) => {
   return processor;
 };
 
-const processor = createProcessor({
-  codemods: [componentsToData, titleComponentsToData, codeBlocksToData],
-});
+const run = async (file) => {
+  const processor = createProcessor({
+    codemods: [componentsToData, titleComponentsToData, linkRefsToData],
+  });
 
-processor
-  .process(
-    fs.readFileSync(
-      'src/content/docs/agents/php-agent/installation/php-agent-installation-aws-linux-redhat-centos.mdx'
-    )
-  )
-  .then(
-    function (file) {
-      console.log(String(file));
-    },
-    function (err) {
-      console.error(String(err));
-    }
-  );
+  try {
+    await processor.process(file).then(
+      function (file) {
+        console.log(String(file));
+      },
+      function (err) {
+        console.error(String(err));
+      }
+    );
+  } catch (e) {
+    file.fail(`${e.message}\n${e.stack}`);
+  }
+};
+
+vfileGlob('./src/content/**/*.mdx').subscribe(async (file) => {
+  await run(file);
+});
 
 module.exports = createProcessor;
