@@ -6,7 +6,9 @@ const rimraf = require('rimraf');
 const deletedFiles = [
   'src/content/docs/new-relic-only/tech-writer-style-guide/processes-procedures/clear-cache.mdx',
   'src/content/docs/new-relic-only/basic-style-guide/style-guide-quick-reference/html-cheat-sheet.mdx',
-  'src/content/docs/new-relic-only/basic-style-guide/style-guide-quick-reference/lists.mdx',
+  'src/content/docs/new-relic-only/tech-writer-style-guide/processes-procedures/checklist-public-beta-or-ga.mdx',
+  'src/content/docs/new-relic-only/tech-writer-style-guide/processes-procedures/hide-or-restrict-content.mdx',
+  'src/content/docs/new-relic-only/tech-writer-style-guide/processes-procedures/translation-process.mdx',
 ];
 
 const copyManualEdits = () => {
