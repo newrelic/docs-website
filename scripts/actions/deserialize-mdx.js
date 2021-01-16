@@ -8,6 +8,8 @@ const remarkMdxjs = require('remark-mdxjs');
 const dataToComponents = require('../../codemods/deserialize/dataToComponents');
 const testComponent = require('../../codemods/deserialize/testComponent');
 const fs = require('fs');
+const { has } = require('lodash');
+const all = require('hast-util-to-mdast/lib/all');
 
 const createProcessor = ({ codemods = [] } = {}) => {
   const processor = unified().use(toHAST);
@@ -19,21 +21,40 @@ const createProcessor = ({ codemods = [] } = {}) => {
   });
 
   processor
-    .use(testComponent)
-    .use(rehype2remark)
-    .use(remarkMdx)
-    .use(remarkMdxjs)
-    .use(frontmatter, ['yaml'])
+    .use(rehype2remark, {
+      handlers: {
+        div: (h, node) => {
+          if (!has(node, 'properties.dataComponent')) {
+            return all(h, node);
+          }
+
+          const name = node.properties.dataComponent;
+          const attributes = JSON.parse(
+            Buffer.from(node.properties.dataProp, 'base64')
+          );
+
+          return h(node, 'mdxBlockElement', { name, attributes }, all(h, node));
+        },
+      },
+    })
     .use(stringify, {
       bullet: '*',
       fences: true,
       listItemIndent: '1',
-    });
+    })
+    .use(testComponent)
+    .use(remarkMdx)
+    .use(remarkMdxjs)
+    .use(frontmatter, ['yaml']);
 
   return processor;
 };
 
-const processor = createProcessor({ codemods: [dataToComponents] });
+const processor = createProcessor({
+  codemods: [
+    /* dataToComponents */
+  ],
+});
 
 processor
   .process(
@@ -43,7 +64,7 @@ processor
   )
   .then(
     function (file) {
-      //console.log(String(file));
+      console.log(file.contents);
     },
     function (err) {
       console.error(String(err));

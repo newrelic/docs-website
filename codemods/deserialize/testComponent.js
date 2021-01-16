@@ -9,7 +9,7 @@ const testComponent = () => (tree) => {
       return node;
     },
     (node) => {
-      console.log(node);
+      // console.log(node);
     }
   );
 };
