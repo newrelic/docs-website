@@ -44,14 +44,7 @@ const run = async (file) => {
   });
 
   try {
-    await processor.process(file).then(
-      function (file) {
-        //console.log(String(file));
-      },
-      function (err) {
-        console.error(String(err));
-      }
-    );
+    await processor.process(file);
   } catch (e) {
     file.fail(`${e.message}\n${e.stack}`);
   }
