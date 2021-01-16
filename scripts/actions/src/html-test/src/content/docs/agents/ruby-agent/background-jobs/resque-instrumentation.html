@@ -1,0 +1,48 @@
+
+<p>In addition to your web application itself, the New Relic Ruby agent can also instrument your Resque jobs.</p>
+<h2>Capturing job arguments [#capturing_job_parameters]</h2>
+<p>Starting with Ruby agent version 3.6.9, you can optionally configure the Ruby agent to capture Resque job arguments in transaction traces and traced errors. This can be especially useful in attempting to reproduce failed jobs. By default this feature is off in case your job arguments contain sensitive information. To enable this feature, edit your <strong>newrelic.yml</strong> as appropriate for your agent version:</p>
+<ul>
+  <li>For newrelic_rpm 3.12.0 or higher: <code>attributes.include: job.resque.args.*</code></li>
+  <li>For newrelic_rpm 3.6.9 to 3.11.X: <code>resque.capture_params: true</code></li>
+</ul>
+<p>This feature is distinct from the generic <code>capture_params</code> top-level setting, which controls whether HTTP request parameters are captured on transaction traces and traced errors for web requests. You can configure these two settings independently.</p>
+<h2>Resque versions 1.23.1 or higher [#resque_1_23_1_plus]</h2>
+<p>If you are running Resque 1.23.1 or higher, you should not need to make any code changes outside of the normal agent installation procedures in order for New Relic's Resque instrumentation to work.</p>
+<p><strong>Exception:</strong> If you have leftover calls to <code>NewRelic::Agent</code> methods from your Resque <code>before_first_fork</code>, <code>before_fork</code>, or <code>after_fork</code> hooks from when you were running an older version of Resque, be sure to <strong>remove</strong> those calls after upgrading to Resque 1.23.1 or higher.</p>
+<h2>Alternate forking modes [#resque_plugins]</h2>
+<p>The <a href="https://github.com/stulentsev/resque-multi-job-forks">resque-multi-job-forks</a> or <a href="https://github.com/samgranieri/resque-jobs-per-fork">resque-jobs-per-fork</a> gems change the forking behavior of Resque so that it will not fork for each individual job, but instead fork once per batch of jobs. Similarly, you can set the <code>FORK_PER_JOB</code> environment variable to <code>false</code> in order to completely disable forking in Resque.</p>
+<p>If you use any of these alternate forking modes in your application, make sure you are running Ruby agent <strong>version 3.9.7 or higher</strong>. Earlier versions of the Ruby agent do not work correctly with these alternate forking modes. If you are upgrading to 3.9.7 or higher, make sure to remove any direct calls to <code>NewRelic::Agent</code> methods such as <code>manual_start</code> or <code>after_fork</code> that you may have previously been using in order to get the agent to work in these environments.</p>
+<h2>Old Resque versions (&#x3C; 1.23.1) [#old_resque]</h2>
+<p>It is possible to use New Relic's Ruby agent with Resque versions older than 1.23.1. However, New Relic recommends that you upgrade to Resque 1.23.1 or higher for best results.</p>
+<p>Many applications use the hooks exposed by Resque (<code>before_fork</code>, <code>after_fork</code>, etc.) in order to inject custom code at critical points during the lifetime of Resque jobs. The New Relic Ruby agent also must use these hooks in order to be able to place its instrumentation.</p>
+<p>Resque versions before 1.23.1 do not allow hooks to be defined multiple times; the last definition will take precedence. If you cannot upgrade to a Resque version >= 1.23.1 (which allows hooks to be defined multiple times without overwriting each other), you can modify your custom Resque hooks by adding the necessary New Relic code. Here is an example.</p>
+<p><strong>Example: Modifying custom Resque hooks</strong></p>
+<p>You may omit definitions for any hooks that you have no custom code for. They will be automatically installed by the agent in this case.</p>
+<pre><code>Resque.before_first_fork do
+      # ... your custom hook code ...
+      NewRelic::Agent.manual_start(:dispatcher   => :resque,
+                                   :sync_startup => true,
+                                   :start_channel_listener => true)
+    end
+    
+    Resque.before_fork do |job|
+      # ... your custom hook code ...
+      NewRelic::Agent.register_report_channel(job.object_id)
+    end
+    
+    Resque.after_fork do |job|
+      # ... your custom hook code ...
+      NewRelic::Agent.after_fork(:report_to_channel => job.object_id,
+                                 :report_instance_busy => false)
+    end
+</code></pre>
+<h2>Deadlocking jobs [#deadlocks]</h2>
+<p>Some customers (particularly those with very high job throughput) have reported intermittent deadlocks in their Resque worker processes with the Ruby agent enabled. These deadlocks are due to a bad interaction between the background thread that the Ruby agent uses to send data to New Relic servers and Resque's forking behavior.</p>
+<p>Use either of these options to resolve these issues:</p>
+<ul>
+  <li>Disable Resque's forking behavior by setting the <code>FORK_PER_JOB</code> environment variable to <code>false</code> when spawning Resque processes.</li>
+  <li>Use the <code>resolv-replace</code> library from Ruby's standard library to replace Ruby's native DNS resolution code with a pure Ruby version.</li>
+</ul>
+<p>The Ruby agent uses a background thread in the Resque master process to send data to the New Relic collector. In some environments, this thread will acquire a native lock during DNS resolution (when resolving the hostnames of New Relic collectors).</p>
+<p>If this native lock is held by the background thread while the main Resque master process's main thread calls fork to create a child process, it will still be marked as held in the forked child process. However, since <code>fork</code> only copies the calling thread, the background thread that was holding the native lock will not exist in the child process, and thus the native lock will never be released. If the child process attempts to do any DNS resolution, it will attempt to acquire the same native lock and deadlock. To avoid this <a href="https://github.com/resque/resque/issues/1101">Github issue</a>, use <code>resolv-replace</code> instead of Ruby's default DNS resolution path.</p>

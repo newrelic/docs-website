@@ -1,0 +1,524 @@
+
+<p>Read on to learn how to configure your <a href="https://docs.newrelic.com/docs/install-containerized-private-minions-cpms">containerized private minion (CPM)</a>.</p>
+<p>You can do the following to customize your CPMs:</p>
+<ul>
+  <li>Set up <a href="#custom-modules">custom modules</a> for <a href="/docs/synthetics/new-relic-synthetics/scripting-monitors/write-scripted-browsers">scripted browsers</a> in New Relic.</li>
+  <li>Preserve launch data with <a href="#preserve-data-volume">permanent data storage</a>.</li>
+  <li>Use <a href="#environment-variables">environment variables</a> in your configuration.</li>
+</ul>
+<p>You may not modify any CPM files and New Relic is not liable for any modifications you make.</p>
+<h2>Guidelines for mounting volumes</h2>
+<p>All directories and files <strong>must</strong> be assigned group ownership as <code>3729</code> with read/write permissions. This ensures that the Runner, which uses <code>uid: 1000</code> and <code>gid: 3729</code>, has access to all the mounted volumes. However, the Minion is able to run as root (<code>uid: 0</code>) or with any <code>uid</code> between the range of <code>[2000, 4000]</code>, inclusive. For more information, see running as <a href="/docs/synthetics/new-relic-synthetics/private-locations/containerized-private-minion-cpm-configuration#kubernetes-env-config">non-root in Kubernetes</a> or <a href="/docs/synthetics/new-relic-synthetics/private-locations/containerized-private-minion-cpm-configuration#docker-env-config">Docker</a>.</p>
+<p><strong>Docker</strong></p>
+<ul>
+  <li>Directories are mounted onto a container as volumes by specifying a <code>-v</code> argument within <code>docker run</code></li>
+  <li>For example, <code>docker run ... -v /path/to/src:/path/to/dest:rw</code></li>
+</ul>
+<p><strong>Kubernetes</strong></p>
+<ul>
+  <li>It is possible to add a directory onto a persistent volume (<strong>PV</strong>) by using <code>kubectl cp</code>. However, alternative approaches are supported as long as the file permissions are set appropriately.</li>
+  <li>For example, <code>kubectl cp /path/to/src &#x3C;POD_NAME>:/path/to/dest</code> will add a directory onto each PV in the specified pod</li>
+  <li>Each PV must have a separate copy of the directories. For example, a cluster with <em>n</em> Minion replicas must have <em>n</em> PVs, each with their own copy of directories</li>
+  <li>The directories and files must be added prior to the Minion boot up, otherwise the Minion must be restarted to detect the updates</li>
+</ul>
+<h2>Custom npm modules [#custom-modules]</h2>
+<p>Custom npm modules are exclusive to the CPM. They allow you to provide an arbitrary set of <a href="https://docs.npmjs.com/about-packages-and-modules">npm modules</a>, and make them available for scripted monitors in Synthetics.</p>
+<p>To set up the modules:</p>
+<ol>
+  <li>
+    <p>Create a directory which contains a <code>package.json</code>, following the <a href="https://docs.npmjs.com/files/package.json">npm official guidelines</a>, in the root of the directory. Anything contained in the <code>dependencies</code> field will be installed by the CPM at start, and made available when running monitors on that private minion.</p>
+    <p>Optionally, you can override the root level <code>package.json</code> with a Node version-specific directory. This allows a script to be updated per monitor runtime if a <a href="https://docs.newrelic.com/docs/synthetics/new-relic-synthetics/scripting-monitors/scripted-monitor-runtime-environment">Node version of a runtime</a> is no longer compatible with your dependencies. See an example of this below.</p>
+    <div data-component="CollapserGroup" data-prop="W3sidHlwZSI6Im1keEF0dHJpYnV0ZSIsIm5hbWUiOiJpZCIsInZhbHVlIjoiY3VzdG9tLW1vZHVsZS1kaXIifV0=">
+      <div data-component="Collapser" data-prop="W3sidHlwZSI6Im1keEF0dHJpYnV0ZSIsIm5hbWUiOiJpZCIsInZhbHVlIjoiZXhhbXBsZS1tb2R1bGUtZGlyZWN0b3J5In0seyJ0eXBlIjoibWR4QXR0cmlidXRlIiwibmFtZSI6InRpdGxlIiwidmFsdWUiOiJDdXN0b20gbW9kdWxlIGRpcmVjdG9yeSJ9XQ==">
+        <div data-prop-text="title">Custom module directory</div>
+        <p>In this example, a custom module directory is used with the following structure:</p>
+        <pre><code>/example-custom-modules-dir/
+      ├── counter
+      │   ├── index.js
+      │   └── package.json
+      └── package.json            ⇦ the only mandatory file
+
+</code></pre>
+        <pre><code>
+{
+      "name": "custom-modules",
+      "version": "1.0.0",           ⇦ optional
+      "description": "example custom modules directory", ⇦ optional
+      "dependencies": {
+        "async": "^2.6.1",          ⇦ npm hosted module
+        "counter": "file:./counter" ⇦ Local module
+      }
+    }
+
+</code></pre>The `package.json` defines `dependencies` as both a local module (i.e. `counter`) and an npm hosted modules (i.e. `async` version `^2.6.1`):
+      </div>
+      <div data-component="Collapser" data-prop="W3sidHlwZSI6Im1keEF0dHJpYnV0ZSIsIm5hbWUiOiJpZCIsInZhbHVlIjoiZXhhbXBsZS1vdmVycmlkZXMifSx7InR5cGUiOiJtZHhBdHRyaWJ1dGUiLCJuYW1lIjoidGl0bGUiLCJ2YWx1ZSI6Ik5vZGUgdmVyc2lvbi1zcGVjaWZpYyBvdmVycmlkZXMifV0=">
+        <div data-prop-text="title">Node version-specific overrides</div>
+        <p>You can declare a <code>package.json</code> per Node version that will override the root level <code>package.json</code>. This allows a monitor script to be updated per monitor runtime in the event that the <a href="https://docs.newrelic.com/docs/synthetics/new-relic-synthetics/scripting-monitors/scripted-monitor-runtime-environment">Node version of a runtime</a> is no longer compatible with your dependencies. As shown in the <a href="#example-module-directory">first example</a>, local modules can still be defined within a version specific directory. If a <code>package.json</code> is not defined for a specific Node version, then the root level <code>package.json</code> will be used to install dependencies.</p>
+        <p>In this example, a custom module directory is used with the following structure:</p>
+        <pre><code>/example-custom-modules-dir/
+      ├── 6.11.2            ⇦ optional Node specific directory
+      │   └── package.json
+      └── 10.15.0           ⇦ optional Node specific directory
+      │   └── package.json
+      ├── counter
+      │   ├── index.js
+      │   └── package.json
+      └── package.json      ⇦ the only mandatory file
+  ​
+
+</code></pre>
+      </div>
+    </div>
+  </li>
+  <li>
+    <p>Once you create the custom modules directory and the <code>package.json</code> you can apply it to your CPM for Docker and Kubernetes.</p>
+    <div data-component="CollapserGroup" data-prop="W3sidHlwZSI6Im1keEF0dHJpYnV0ZSIsIm5hbWUiOiJpZCIsInZhbHVlIjoiYXBwbHktdG8tZG9ja2VyLWt1YmVybmV0ZXMifV0=">
+      <div data-component="Collapser" data-prop="W3sidHlwZSI6Im1keEF0dHJpYnV0ZSIsIm5hbWUiOiJpZCIsInZhbHVlIjoiZG9ja2VyIn0seyJ0eXBlIjoibWR4QXR0cmlidXRlIiwibmFtZSI6InRpdGxlIiwidmFsdWUiOiJEb2NrZXIifV0=">
+        <div data-prop-text="title">Docker</div>
+        <p>For Docker, launch CPM mounting the directory at <code>/var/lib/newrelic/synthetics/modules</code>. For example:</p>
+        <pre><code>docker run ... -v /example-custom-modules-dir:/var/lib/newrelic/synthetics/modules:rw ...
+
+</code></pre>
+      </div>
+      <div data-component="Collapser" data-prop="W3sidHlwZSI6Im1keEF0dHJpYnV0ZSIsIm5hbWUiOiJpZCIsInZhbHVlIjoia3ViZXJuZXRlcyJ9LHsidHlwZSI6Im1keEF0dHJpYnV0ZSIsIm5hbWUiOiJ0aXRsZSIsInZhbHVlIjoiS3ViZXJuZXRlcyJ9XQ==">
+        <div data-prop-text="title">Kubernetes</div>
+        <p>Complete the following:</p>
+        <ol>
+          <li>
+            <p>Launch the CPM, setting a value for the <code>persistence.customModules</code> configuration value either in the command line or in a YAML file during installation. The value should specify the subpath on your Minion's Persistent Volume where your custom modules files exist. For example:</p>
+            <pre><code>helm install ... --set persistence.customModules=&#x3C;custom-modules-subpath> ...
+</code></pre>
+          </li>
+          <li>
+            <p>Make sure that your custom modules directory is available on the Minion Pod. You can use <code>kubectl cp</code> as one method to copy the directory from your host to the Minion. For example:</p>
+            <pre><code>kubectl cp /example-custom-modules-dir &#x3C;namespace>/&#x3C;pod_name>:/var/lib/newrelic/synthetics/
+</code></pre>
+          </li>
+        </ol>
+      </div>
+    </div>
+  </li>
+  <li>
+    <p>Look at the <a href="/docs/synthetics/new-relic-synthetics/private-locations/containerized-private-minion-cpm-maintenance-monitoring#monitor-docker-logs">CPM logs</a> for <code>"... Initialization of Custom Modules ..."</code> to see if the modules were installed properly, or if there were any errors. The npm installation logs will be shown.</p>
+  </li>
+</ol>
+<p>Now you can add <code>"require('async');"</code> into the <a href="/docs/synthetics/new-relic-synthetics/scripting-monitors/write-scripted-browsers">script</a> of monitors you send to this private location.</p>
+<h3>Change <code>package.json</code> for custom modules [#change-package-json]</h3>
+<p>Along with npm modules, you can also use <a href="/docs/synthetics/new-relic-synthetics/scripting-monitors/import-nodejs-modules">Node.js modules</a>. To change the custom modules used by your CPM, modify <code>package.json</code> and reboot the CPM. It will detect the change in configuration during the reboot, and then clean up and re-install.</p>
+<div data-component="Callout" data-prop="W3sidHlwZSI6Im1keEF0dHJpYnV0ZSIsIm5hbWUiOiJ2YXJpYW50IiwidmFsdWUiOiJjYXV0aW9uIn1d">
+  <p>Local modules: While your <code>package.json</code> can include any local module, these modules must reside inside the tree under your custom module directory. If stored outside the tree, the initialization process will fail and you will see an error message in the <a href="/docs/synthetics/new-relic-synthetics/private-locations/containerized-private-minion-cpm-maintenance-monitoring#monitor-docker-logs">docker logs</a> after launching CPM.</p>
+</div>
+<h2>Permanent data storage [#permanent-data-volume]</h2>
+<p>CPM is a stateless application and does not preserve information from prior requests or sessions by default. However, you can preserve data between launches by enabling permanent data storage. For example, you can permanently set how the minion identifies itself (for example, <code>Minion_ID</code>), and use it to associate the data visible in Synthetics and Insights events with the exact minion that produced it.</p>
+<p>To set permanent data storage on Docker:</p>
+<ol>
+  <li>
+    <p>Create a directory.</p>
+  </li>
+  <li>
+    <p>Launch the CPM, mounting the directory at <code>/var/lib/newrelic/synthetics</code>.</p>
+    <p>Example:</p>
+    <pre><code>docker run ... -v /example-permanent-dir:/var/lib/newrelic/synthetics:rw ...
+</code></pre>
+  </li>
+</ol>
+<p>To set permanent data storage on Kubernetes:</p>
+<ol>
+  <li>
+    <p>Launch the CPM, setting a value for the <code>persistence.permanentData</code> configuration value either in the command line or in a YAML file during installation. The value should specify the subpath on your Minion's Persistent Volume where you want the data to be saved.</p>
+    <p>Example:</p>
+    <pre><code>helm install ... --set persistence.permanentData=&#x3C;permanent-data-subpath> ...
+</code></pre>
+  </li>
+</ol>
+<h2>User-defined environment variables for scripted monitors [#vars-scripted-monitors]</h2>
+<p>Containerized private minions let you configure environment variables for use in scripted monitors. These variables are hosted locally on the CPM and can be accessed via <code>$env.USER_DEFINED_VARIABLES</code>. There are two ways to set user-defined variables: by mounting a JSON file or by supplying an environment variable to the CPM on launch. If both are provided, the CPM will use values provided from the environment only.</p>
+<div data-component="CollapserGroup" data-prop="W10=">
+  <div data-component="Collapser" data-prop="W3sidHlwZSI6Im1keEF0dHJpYnV0ZSIsIm5hbWUiOiJpZCIsInZhbHVlIjoidXNlci1maWxlLWV4YW1wbGUifSx7InR5cGUiOiJtZHhBdHRyaWJ1dGUiLCJuYW1lIjoidGl0bGUiLCJ2YWx1ZSI6Ik1vdW50aW5nIEpTT04gZmlsZSJ9XQ==">
+    <div data-prop-text="title">Mounting JSON file</div>
+    <p>The JSON file must have read permissions and contain a JSON formatted map.</p>
+    <p>Example user-defined variable file:</p>
+    <pre><code>{
+"KEY" : "VALUE",
+"User_Name": "MINION",
+"My_Password": "PASSW0RD 1 2 3",
+"my_URL": "https://newrelic.com/",
+"ETC" : "ETC"
+}
+
+</code></pre>
+    <pre><code>
+kubectl cp path/to/user_defined_variables.json &#x3C;namespace>/&#x3C;pod_name>:/var/lib/newrelic/synthetics/variables/user_defined_variables.json
+
+</code></pre>Kubernetes example:
+    When mounting a JSON file to your Minion Pod in Kubernetes, you can either copy the file directly to the Minion Pod or to a Pod that has access to the same Persistent Volume and Persistent Volume Claim that the Minion will use. After successfully loading the file, you may need to restart your Minion Pod for the change to take effect.
+    <pre><code>
+docker run ... -v /example-user-defined-variables.json:/var/lib/newrelic/synthetics/variables/user_defined_variables.json:rw ...
+
+</code></pre>The file must be available or mounted to the path in your container:
+    `/var/lib/newrelic/synthetics/variables/user_defined_variables.json`
+    Docker example:
+  </div>
+  <div data-component="Collapser" data-prop="W3sidHlwZSI6Im1keEF0dHJpYnV0ZSIsIm5hbWUiOiJpZCIsInZhbHVlIjoicGFzc2luZy1lbnYtdmFyIn0seyJ0eXBlIjoibWR4QXR0cmlidXRlIiwibmFtZSI6InRpdGxlIiwidmFsdWUiOiJQYXNzaW5nIGFzIGFuIGVudmlyb25tZW50IHZhcmlhYmxlIn1d">
+    <div data-prop-text="title">Passing as an environment variable</div>
+    <p>Use the <code>-e</code> flag to set up an environment variable named <code>MINION_USER_DEFINED_VARIABLES</code> and give it a value of a JSON formatted map string.</p>
+    <pre><code>docker run ... -e MINION_USER_DEFINED_ENV_VARIABLES='{"KEY":"VALUE","NAME":"MINION","ETC":"ETC"}' ...
+
+</code></pre>&#x3C;Callout variant="tip">
+    The CPM on Kubernetes does not currently support loading user-defined environment variables via environment variable. You will have to configure your Kubernetes CPM by mounting a JSON file.
+    &#x3C;/Callout>
+  </div>
+</div>
+<h3>Accessing user-defined environment variables from scripts [#env-vars-scripts]</h3>
+<p>To reference a configured user-defined environment variable, use the reserved <code>$env.USER_DEFINED_VARIABLES</code> followed by the name of a given variable with dot notation.</p>
+<p>For example, <code>$env.USER_DEFINED_VARIABLES.MY_VARIABLE</code></p>
+<div data-component="Callout" data-prop="W3sidHlwZSI6Im1keEF0dHJpYnV0ZSIsIm5hbWUiOiJ2YXJpYW50IiwidmFsdWUiOiJjYXV0aW9uIn1d">
+  <p>User-defined environment variables are not sanitized from logs. For sensitive information, consider using the <a href="https://docs.newrelic.com/docs/synthetics/new-relic-synthetics/using-monitors/secure-credentials-store-credentials-information-scripted-browsers">secure credentials</a> feature.</p>
+</div>
+<h2>Environment variables</h2>
+<p>Environmental variables allow you to fine-tune the CPM configuration to meet your specific environmental and functional needs.</p>
+<div data-component="CollapserGroup" data-prop="W10=">
+  <div data-component="Collapser" data-prop="W3sidHlwZSI6Im1keEF0dHJpYnV0ZSIsIm5hbWUiOiJpZCIsInZhbHVlIjoiZG9ja2VyLWVudi1jb25maWcifSx7InR5cGUiOiJtZHhBdHRyaWJ1dGUiLCJuYW1lIjoidGl0bGUiLCJ2YWx1ZSI6IkRvY2tlciBlbnZpcm9ubWVudCBjb25maWd1cmF0aW9uIn1d">
+    <div data-prop-text="title">Docker environment configuration</div>
+    <p>The variables are provided at startup using the <code>-e, --env</code> argument.</p>
+    <p>The following table shows all the environment variables that CPM supports. <code>MINION_PRIVATE_LOCATION_KEY</code> is required, and all other variables are optional.</p>
+    <div data-component="Table" data-prop="W10=">
+      <div>
+        <div>
+          <div>
+            <p>Name</p>
+          </div>
+          <div>
+            <p>Description</p>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div>
+          <div>
+            <p><code>MINION_PRIVATE_LOCATION_KEY</code></p>
+          </div>
+          <div>
+            <p><strong>REQUIRED.</strong> UUID of the Private Location, as found on the Private Location Web page.</p>
+          </div>
+        </div>
+        <div>
+          <div>
+            <p><code>DOCKER_API_VERSION</code></p>
+          </div>
+          <div>
+            <p>Format: <code>"vX.Y"</code> API version to be used with the given Docker service.</p>
+            <p>Default: <code>v1.35.</code></p>
+          </div>
+        </div>
+        <div>
+          <div>
+            <p><code>DOCKER_HOST</code></p>
+          </div>
+          <div>
+            <p>Points the minion to a given <code>DOCKER_HOST</code>. If absent, the default value is <code>/var/run/docker.sock.</code></p>
+          </div>
+        </div>
+        <div>
+          <div>
+            <p><code>MINION_API_ENDPOINT</code></p>
+          </div>
+          <div>
+            <p>For US-based accounts, the endpoint is: <code>https://synthetics-horde.nr-data.net.</code></p>
+            <p>For <a href="/docs/using-new-relic/welcome-new-relic/get-started/introduction-eu-region-data-center#partner-hierarchy">EU-based</a> accounts, the endpoint is: <code>https://synthetics-horde.eu01.nr-data.net/</code></p>
+            <p>Ensure your CPM can connect to the appropriate endpoint in order to serve your monitor.</p>
+          </div>
+        </div>
+        <div>
+          <div>
+            <p><code>MINION_DOCKER_RUNNER_REGISTRY_ENDPOINT</code></p>
+          </div>
+          <div>
+            <p>The Docker Registry and Organization where the Minion Runner image is hosted. Use this to override <code>quay.io/newrelic</code> as the default (for example, <code>docker.io/newrelic</code>).</p>
+          </div>
+        </div>
+        <div>
+          <div>
+            <p><code>MINION_API_PROXY</code></p>
+          </div>
+          <div>
+            <p>Format: <code>"host:port"</code>.</p>
+          </div>
+        </div>
+        <div>
+          <div>
+            <p><code>MINION_API_PROXY_AUTH</code></p>
+          </div>
+          <div>
+            <p>Format: <code>"username:password"</code> - Support HTTP Basic Auth + additional authentication protocols supported by Chrome.</p>
+          </div>
+        </div>
+        <div>
+          <div>
+            <p><code>MINION_API_PROXY_SELF_SIGNED_CERT</code></p>
+          </div>
+          <div>
+            <p>Acceptable values: <code>true</code>, <code>1</code>, or <code>yes</code> (any case).</p>
+          </div>
+        </div>
+        <div>
+          <div>
+            <p><code>MINION_CHECK_TIMEOUT</code></p>
+          </div>
+          <div>
+            <p>The maximum amount of seconds that your monitor checks are allowed to run. This value must be an integer between <code>0 seconds (excluded)</code> and <code>900 seconds (included)</code> (for example, from 1 second to 15 minutes).</p>
+            <p>Default: <code>65 seconds</code> for <a href="/docs/synthetics/new-relic-synthetics/getting-started/types-synthetics-monitors#types-monitors">ping monitors</a>, <code>180 seconds</code> for the other <a href="/docs/synthetics/new-relic-synthetics/getting-started/types-synthetics-monitors#types-monitors">monitor</a> types.</p>
+          </div>
+        </div>
+        <div>
+          <div>
+            <p><code>MINION_DOCKER_API_VERSION</code></p>
+          </div>
+          <div>
+            <p>Synonym of <code>DOCKER_API_VERSION</code>.</p>
+          </div>
+        </div>
+        <div>
+          <div>
+            <p><code>MINION_DOCKER_HOST</code></p>
+          </div>
+          <div>
+            <p>Synonym of <code>DOCKER_HOST.</code></p>
+          </div>
+        </div>
+        <div>
+          <div>
+            <p><code>MINION_RUNNER_APPARMOR (CPM version > 3.0.2)</code></p>
+            <p><code>OR</code></p>
+            <p><code>MINION_DOCKER_RUNNER_APPARMOR (CPM version &#x3C;= 3.0.2)</code></p>
+          </div>
+          <div>
+            <p>The AppArmor profile name, if it has been applied to Docker containers running monitor scripts (for example, Docker Runner). The AppArmor profile name must exist and be set up on the machine to work.</p>
+          </div>
+        </div>
+        <div>
+          <div>
+            <p><code>MINION_JVM_MB</code></p>
+          </div>
+          <div>
+            <p>Default: <code>"2560"</code> (2.5GB).</p>
+          </div>
+        </div>
+        <div>
+          <div>
+            <p><code>MINION_JVM_OPTS</code></p>
+          </div>
+          <div>
+            <p>Passes command line options to the internal JVM. See <a href="https://docs.oracle.com/javase/8/docs/technotes/tools/unix/java.html">Oracle's Java documentation</a> for more information.</p>
+            <p>Default: <code>-server.</code></p>
+          </div>
+        </div>
+        <div>
+          <div>
+            <p><code>MINION_LOG_LEVEL</code></p>
+          </div>
+          <div>
+            <p>When contacting New Relic Support, they may ask you to increase this to <code>"DEBUG"</code> or <code>"TRACE"</code>.</p>
+            <p>Default: <code>INFO.</code></p>
+          </div>
+        </div>
+        <div>
+          <div>
+            <p><code>MINION_NETWORK_HEALTHCHECK_DISABLED (CPM version >= 3.0.11)</code></p>
+          </div>
+          <div>
+            <p>The Minion Network Healthcheck disabled state, to manage the CPM check for public internet access. Default is 'false', when set as 'true' the CPM will bypass this healthcheck.</p>
+          </div>
+        </div>
+        <div>
+          <div>
+            <p><code>MINION_USER_DEFINED_ENV_VARIABLES</code></p>
+          </div>
+          <div>
+            <p>Format: <a href="#vars-scripted-monitors">Example</a>.</p>
+            <p>A locally hosted set of user defined key value pairs.</p>
+          </div>
+        </div>
+        <div>
+          <div>
+            <p><code>MINION_HEAVY_WORKERS</code></p>
+          </div>
+          <div>
+            <p>The number of workers the minion will use to run heavy jobs (<code>BROWSER</code>, <code>SCRIPT_BROWSER</code>, <code>SCRIPT_API</code>). If undefined, the minion will use <code>NUM_CPUS</code> where <code>NUM_CPUS</code> is the number of CPUs available to the minion. The maximum allowed value for this variable is <code>50</code>. For more information on monitor types, see <a href="https://docs.newrelic.com/docs/synthetics/new-relic-synthetics/getting-started/types-synthetics-monitors">Types of Synthetics monitors</a>.</p>
+          </div>
+        </div>
+        <div>
+          <div>
+            <p><code>MINION_LIGHTWEIGHT_WORKERS</code></p>
+          </div>
+          <div>
+            <p>The number of workers the minion will use to run lightweight jobs (<code>SIMPLE</code> ping jobs). If undefined, the minion will use <code>25 * NUM_CPUS</code> where <code>NUM_CPUS</code> is the number of CPUs available to the minion. The maximum allowed value for this variable is <code>1250</code>. For more information on monitor types, see <a href="https://docs.newrelic.com/docs/synthetics/new-relic-synthetics/getting-started/types-synthetics-monitors">Types of Synthetics monitors</a>.</p>
+          </div>
+        </div>
+        <div>
+          <div>
+            <p><code>MINION_VSE_PASSPHRASE</code></p>
+          </div>
+          <div>
+            <p>If set, enables <strong>verified script execution</strong> and uses this value as a <strong>passphrase</strong>.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div data-component="Collapser" data-prop="W3sidHlwZSI6Im1keEF0dHJpYnV0ZSIsIm5hbWUiOiJpZCIsInZhbHVlIjoia3ViZXJuZXRlcy1lbnYtY29uZmlnIn0seyJ0eXBlIjoibWR4QXR0cmlidXRlIiwibmFtZSI6InRpdGxlIiwidmFsdWUiOiJLdWJlcm5ldGVzIGVudmlyb25tZW50IGNvbmZpZ3VyYXRpb24ifV0=">
+    <div data-prop-text="title">Kubernetes environment configuration</div>
+    <p>The variables are provided at startup using the <code>--set</code> argument.</p>
+    <p>The following list shows all the environment variables that CPM supports. <code>synthetics.privateLocationKey</code> is required, and all other variables are optional.</p>
+    <div data-component="Table" data-prop="W10=">
+      <div>
+        <div>
+          <div>
+            <p>Name</p>
+          </div>
+          <div>
+            <p>Description</p>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div>
+          <div>
+            <p><code>synthetics.privateLocationKey</code></p>
+          </div>
+          <div>
+            <p><strong>REQUIRED.</strong> UUID of the Private Location, as found on the Private Location Web page.</p>
+          </div>
+        </div>
+        <div>
+          <div>
+            <p><code>replicaCount</code></p>
+          </div>
+          <div>
+            <p>Number of replicas to maintain with your StatefulSet installation</p>
+            <p>Default: <code>1.</code></p>
+          </div>
+        </div>
+        <div>
+          <div>
+            <p><code>synthetics.minionApiEndpoint</code></p>
+          </div>
+          <div>
+            <p>For US-based accounts, the endpoint is: <code>https://synthetics-horde.nr-data.net.</code></p>
+            <p>For <a href="/docs/using-new-relic/welcome-new-relic/get-started/introduction-eu-region-data-center#partner-hierarchy">EU-based</a> accounts, the endpoint is: <code>https://synthetics-horde.eu01.nr-data.net/</code></p>
+            <p>Ensure your CPM can connect to the appropriate endpoint in order to serve your monitor.</p>
+          </div>
+        </div>
+        <div>
+          <div>
+            <p><code>synthetics.minionDockerRunnerRegistryEndpoint</code></p>
+          </div>
+          <div>
+            <p>The Docker Registry and Organization where the Minion Runner image is hosted. Use this to override <code>quay.io/newrelic</code> as the default (for example, <code>docker.io/newrelic</code>)</p>
+          </div>
+        </div>
+        <div>
+          <div>
+            <p><code>synthetics.minionApiProxy</code></p>
+          </div>
+          <div>
+            <p>Format: <code>"host:port"</code>.</p>
+          </div>
+        </div>
+        <div>
+          <div>
+            <p><code>synthetics.minionApiProxyAuth</code></p>
+          </div>
+          <div>
+            <p>Format: <code>"username:password"</code> - Support HTTP Basic Auth + additional authentication protocols supported by Chrome.</p>
+          </div>
+        </div>
+        <div>
+          <div>
+            <p><code>synthetics.minionApiProxySelfSignedCert</code></p>
+          </div>
+          <div>
+            <p>Acceptable values: <code>true</code>, <code>1</code>, or <code>yes</code> (any case).</p>
+          </div>
+        </div>
+        <div>
+          <div>
+            <p><code>synthetics.minionCheckTimeout</code></p>
+          </div>
+          <div>
+            <p>The maximum amount of seconds that your monitor checks are allowed to run. This value must be an integer between <code>0 seconds (excluded)</code> and <code>900 seconds (included)</code> (for example, from 1 second to 15 minutes).</p>
+            <p>Default: <code>65 seconds</code> for <a href="/docs/synthetics/new-relic-synthetics/getting-started/types-synthetics-monitors#types-monitors">ping monitors</a>, <code>180 seconds</code> for the other <a href="/docs/synthetics/new-relic-synthetics/getting-started/types-synthetics-monitors#types-monitors">monitor</a> types.</p>
+          </div>
+        </div>
+        <div>
+          <div>
+            <p><code>synthetics.minionLogLevel</code></p>
+          </div>
+          <div>
+            <p>When contacting New Relic Support, they may ask you to increase this to <code>"DEBUG"</code> or <code>"TRACE"</code>.</p>
+            <p>Default: <code>INFO.</code></p>
+          </div>
+        </div>
+        <div>
+          <div>
+            <p><code>synthetics.minionNetworkHealthCheckDisabled (CPM version >= 3.0.11)</code></p>
+          </div>
+          <div>
+            <p>The Minion Network Healthcheck disabled state, to manage the CPM check for public internet access. Default is 'false', when set as 'true' the CPM will bypass this healthcheck.</p>
+          </div>
+        </div>
+        <div>
+          <div>
+            <p><code>synthetics.minionUserDefinedEnvVariable</code></p>
+          </div>
+          <div>
+            <p>Format: <a href="#vars-scripted-monitors">Example</a>.</p>
+            <p>A locally hosted set of user defined key value pairs.</p>
+          </div>
+        </div>
+        <div>
+          <div>
+            <p><code>synthetics.heavyWorkers</code></p>
+          </div>
+          <div>
+            <p>The number of concurrent workers the minion will use to run heavy jobs (<code>BROWSER</code>, <code>SCRIPT_BROWSER</code>, <code>SCRIPT_API</code>). If undefined, the minion will use the value <code>2</code>. The maximum allowed value for this variable is <code>50</code>. For more information on monitor types, see <a href="https://docs.newrelic.com/docs/synthetics/new-relic-synthetics/getting-started/types-synthetics-monitors">Types of Synthetics monitors</a>.</p>
+          </div>
+        </div>
+        <div>
+          <div>
+            <p><code>synthetics.lightweightWorkers</code></p>
+          </div>
+          <div>
+            <p>The number of workers the minion will use to run lightweight jobs (<code>SIMPLE</code> ping jobs). If undefined, the minion will use <code>25 * synthetics.heavyWorkers</code>. Where <code>synthetics.heavyWorkers</code> is number defined in the previous environment variable. The maximum allowed value for this variable is <code>1250</code>. For more information on monitor types, see <a href="https://docs.newrelic.com/docs/synthetics/new-relic-synthetics/getting-started/types-synthetics-monitors">Types of synthetic monitors</a>.</p>
+          </div>
+        </div>
+        <div>
+          <div>
+            <p><code>synthetics.minionVsePassphrase</code></p>
+          </div>
+          <div>
+            <p>If set, enables <strong>verified script execution</strong> and uses this value as a <strong>passphrase</strong>.</p>
+          </div>
+        </div>
+        <div>
+          <div>
+            <p><code>appArmorProfileName</code></p>
+          </div>
+          <div>
+            <p>The AppArmor profile name that will be applied to the Minion and Runner pods. If set, then the AppArmor profile must exist on the Kubernetes node(s) for this to work.</p>
+          </div>
+        </div>
+        <div>
+          <div>
+            <p>podSecurityContextRunAsUser</p>
+          </div>
+          <div>
+            <p>A UID that can be set to either <code>0 (root)</code> or between <code>[2000, 4000]</code>, inclusive. If set, runs the CPM as the given UID.</p>
+            <p>Default: <code>2379</code></p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

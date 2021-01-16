@@ -1,0 +1,315 @@
+
+<p>In New Relic, the <a href="/docs/introduction-events-metrics-api">events-to-metrics service</a> lets you define rules for creating <a href="/docs/telemetry-data-platform/ingest-manage-data/understand-data/metric-data-type">metrics</a> from your event-type data. This document contains:</p>
+<ul>
+  <li>A <a href="#overview-process">description of the events-to-metrics rule creation process</a></li>
+  <li>Some <a href="#limits-rules">requirements and tips for creating rules</a></li>
+  <li>Some <a href="#find-your-data">tips for querying the resulting metrics</a></li>
+</ul>
+<h2>Create an events-to-metrics rule [#overview-process]</h2>
+<p>Here's an overview of creating an events-to-metrics rule:</p>
+<ol>
+  <li>First, <a href="#create-nrql">construct an events-to-metrics rule using NRQL</a>.</li>
+  <li>Next, <a href="#create-request">construct a NerdGraph (GraphQL format) API request</a> that contains the NRQL rule you've created in Step 1.</li>
+  <li>Finally, <a href="#graphql-api-request">create the metric by making the API request</a>.</li>
+</ol>
+<p>Once a metric is created, you can <a href="#find-your-data">query and chart that metric using NRQL</a>.</p>
+<h2>Step 1. Create NRQL query rule [#create-nrql]</h2>
+<p>The most important part of <a href="#overview-process">creating an events-to-metrics rule</a> is constructing the NRQL query that defines the metric. You can create up to <a href="#multiple-metrics">10 metrics with a single NRQL query</a> by following this procedure:</p>
+<ol>
+  <li>
+    <p><a href="/docs/query-data/nrql-new-relic-query-language/getting-started/introduction-nrql#where">Using a NRQL interface</a>, construct a query for the metric you want to create. For example:</p>
+    <pre><code>FROM ProcessSample SELECT average(ioTotalReadBytes)
+WHERE nr.entityType = 'HOST'
+</code></pre>
+  </li>
+  <li>
+    <p>Edit the query to use one of the three <a href="#">available metric types</a>:</p>
+    <ul>
+      <li><code>summary</code>: Use if the query's function is <code>min</code>, <code>max</code>, <code>sum</code>, <code>count</code>, or <code>average</code>.</li>
+      <li><code>uniqueCount</code>: Use if the query's function is <code>uniqueCount</code>.</li>
+      <li><code>distribution</code>: Use if the query's function is <a href="/docs/query-data/nrql-new-relic-query-language/getting-started/nrql-syntax-clauses-functions#func-percentile"><code>percentile</code></a> or <a href="/docs/query-data/nrql-new-relic-query-language/getting-started/nrql-syntax-clauses-functions#func-histogram"><code>histogram</code></a>.</li>
+    </ul>
+    <p>This example query uses <code>average</code>, so you'd use <code>summary</code>:</p>
+  </li>
+  <li>
+    <pre><code>FROM ProcessSample SELECT summary(ioTotalReadBytes) 
+WHERE nr.entityType = 'HOST'
+</code></pre>
+  </li>
+  <li>
+    <p>Decide on the attributes you want to attach to the metric, following the <a href="#attributes-limit">limits on the cardinality of unique metric-name/attribute-value combinations</a>.</p>
+    <p><strong>Recommendation:</strong> Run a separate query to ensure this count isn't over 50,000 for a 24-hour window. For example:</p>
+    <pre><code>FROM ProcessSample
+SELECT uniqueCount(awsRegion, awsAvailabilityZone, commandName)
+WHERE nr.entityType = 'HOST'
+SINCE 1 DAY AGO
+</code></pre>
+  </li>
+  <li>
+    <p>To be able to aggregate and filter your metrics, add the attributes you want to attach to the metric using the <code>FACET</code> clause. For example:</p>
+    <pre><code>FROM ProcessSample
+SELECT summary(ioTotalReadBytes) WHERE nr.entityType = 'HOST' 
+FACET awsRegion, awsAvailabilityZone, commandName
+</code></pre>
+  </li>
+  <li>
+    <p>Set the <a href="#naming">name of the metric</a> using the <code>AS</code> function. For example:</p>
+    <pre><code>FROM ProcessSample SELECT summary(ioTotalReadBytes) AS 'io.totalread.bytes'
+WHERE nr.entityType = 'HOST' FACET awsRegion, awsAvailabilityZone, commandName
+</code></pre>
+  </li>
+</ol>
+<p>Once your NRQL rule is complete, you'll use it when you <a href="#create-request">create the API request</a>.</p>
+<h2>Step 2. Create API request [#create-request]</h2>
+<p>Once you've built the events-to-metrics NRQL rule, you'll build the API request. You can <a href="/docs/introduction-events-metrics-api#use-graphql-api-tool">use our NerdGraph API tool</a> to explore the data structure and to construct and make your request.</p>
+<p>In the following example NerdGraph API request, we've used the same NRQL rule from step 1. The <code>IO Total Read Bytes Rule</code> creates a metric named <code>io.totalread.bytes</code>. (The rule name can have spaces, which differs from the <a href="#naming">metric naming rules</a>.)</p>
+<pre><code>mutation {
+  eventsToMetricsCreateRule(rules: {
+    name: "io.totalread.bytes for computeSample entities",
+    description:"Created by Zach on March 27, 2019. Used by team Network.",
+    nrql:"FROM ProcessSample SELECT summary(ioTotalReadBytes) AS 'io.totalread.bytes' WHERE nr.entityType = 'ComputeSample' FACET awsRegion, awsAvailabilityZone, commandName",
+    accountId: 123456
+  })
+  {
+    successes {
+      id
+      name
+      nrql
+      enabled
+    }
+    failures {
+      submitted {
+        name
+        nrql
+        accountId        
+      }
+      errors {
+        reason
+        description
+      }
+    }
+  }
+}
+</code></pre>
+<div data-component="Table" data-prop="W10=">
+  <div>
+    <div>
+      <div>
+        <p>Request elements</p>
+      </div>
+      <div>
+        <p>Comments</p>
+      </div>
+    </div>
+  </div>
+  <div>
+    <div>
+      <div>
+        <p><code>mutation</code></p>
+      </div>
+      <div>
+        <p>One of the basic <a href="/docs/apis/graphql-api/getting-started/introduction-new-relic-graphql-api#tutorials">API operation types</a>.</p>
+      </div>
+    </div>
+    <div>
+      <div>
+        <p><code>eventsToMetricsCreateRule</code></p>
+      </div>
+      <div>
+        <p>The method being called to create a rule.</p>
+      </div>
+    </div>
+    <div>
+      <div>
+        <p><code>rules</code></p>
+      </div>
+      <div>
+        <p>Takes four parameters:</p>
+        <ul>
+          <li><code>name</code>: The <a href="#naming">name of the rule</a>.</li>
+          <li><code>description</code>: Optional. The description of the rule. We recommend you include information about who created the metric data and who will be using the data.</li>
+          <li><code>accountId</code>: The <a href="/docs/accounts/install-new-relic/account-setup/account-id">New Relic account ID</a> where the events live and the metrics will be created.</li>
+          <li><code>nrql</code>: The NRQL query that creates the rule. For more on this, see <a href="#create-nrql">Create NRQL query</a>.</li>
+        </ul>
+      </div>
+    </div>
+    <div>
+      <div>
+        <p><code>successes</code> and <code>submitted</code> blocks</p>
+      </div>
+      <div>
+        <p>Here you define the data returned by a successful or failed response. Available parameters for these blocks include:</p>
+        <ul>
+          <li><code>id</code> (<code>ruleId</code> for <code>submitted</code>)</li>
+          <li><code>name</code></li>
+          <li><code>description</code></li>
+          <li><code>nrql</code></li>
+          <li><code>enabled</code> (enabled/disabled status)</li>
+          <li><code>accountId</code></li>
+        </ul>
+      </div>
+    </div>
+    <div>
+      <div>
+        <p><code>ruleId</code> and <code>accountId</code></p>
+      </div>
+      <div>
+        <p>If a failure occurs, then the submitted <code>ruleId</code> and <code>accountId</code> will be returned along with the error reason and error description.</p>
+      </div>
+    </div>
+  </div>
+</div>
+<div data-component="CollapserGroup" data-prop="W10=">
+  <div data-component="Collapser" data-prop="W3sidHlwZSI6Im1keEF0dHJpYnV0ZSIsIm5hbWUiOiJpZCIsInZhbHVlIjoiZXhhbXBsZS1yZXNwb25zZSJ9LHsidHlwZSI6Im1keEF0dHJpYnV0ZSIsIm5hbWUiOiJ0aXRsZSIsInZhbHVlIjoiRXhhbXBsZSByZXNwb25zZSJ9XQ==">
+    <div data-prop-text="title">Example response</div>
+    <p>Here's an example of a returned response:</p>
+    <pre><code>{
+  "data": {
+    "eventsToMetricsCreateRule": {
+      "failures": [],
+      "successes": [
+        {
+          "enabled": true,
+          "id": "46",
+          "name": "io.totalread.bytes for computeSample entities",
+          "nrql": "FROM ProcessSample SELECT summary(ioTotalReadBytes) AS 'io.totalread.bytes' WHERE nr.entityType = 'ComputeSample' FACET awsRegion, awsAvailabilityZone, commandName"
+        }
+      ]
+    }
+  }
+}
+
+</code></pre>
+  </div>
+</div>
+<p>To check that the rule was created correctly, you can <a href="/docs/introduction-events-metrics-api#list-rule-by-rule-id">run a query to return that rule using its ID</a>.</p>
+<p>For tips on querying the metrics you've created, see <a href="#find-your-data">Query and chart your metrics</a>.</p>
+<h2>Step 3. Create an event-to-metrics rule with API request [#graphql-api-request]</h2>
+<p>When your API request is ready, you can use the NerdGraph API to make the request, which will create the metrics. For instructions on using this, see <a href="/docs/introduction-events-metrics-api#use-graphql-api-tool">Use NerdGraph</a>.</p>
+<h2>Query and chart your metrics [#find-your-data]</h2>
+<p>Once you've created an events-to-metrics rule, the new metric data should appear in New Relic in a few minutes. To view your data:</p>
+<ol>
+  <li>
+    <p>Go to <a href="/docs/query-data/nrql-new-relic-query-language/getting-started/introduction-nrql#where">a NRQL query interface</a> and run the following query. This will give you the name of all your metrics.</p>
+    <pre><code>SELECT uniques(metricName) FROM Metric
+</code></pre>
+  </li>
+  <li>
+    <p>Pick the metric of interest and run the following to see the available attributes:</p>
+    <pre><code>SELECT * FROM Metric where metricName = 'yourMetric'
+</code></pre>
+  </li>
+</ol>
+<p>The available <a href="/docs/insights/nrql-new-relic-query-language/nrql-reference/nrql-syntax-components-functions#functions">NRQL aggregator functions</a> available will depend on the <a href="#summary-and-uniquecount">metric type</a> you've created. For example, if you've created a summary metric type, you will be able to use the <code>count</code>, <code>sum</code>, <code>max</code>, <code>min</code>, and <code>average</code> aggregator functions, as shown in the following query:</p>
+<pre><code>SELECT count(appStartResponseTime), sum(appStartResponseTime), max(appStartResponseTime), min(appStartResponseTime),  average(appStartResponseTime) FROM Metric
+</code></pre>
+<p>If you created a <code>uniqueCount</code> metric type, you can only use the <code>uniqueCount</code> function, as shown in the following query:</p>
+<pre><code>SELECT uniqueCount(playbackErrorStreamUniqueCount) * 100 / uniqueCount(streamUniqueCount) AS '% of Streams Impacted' FROM Metric
+</code></pre>
+<p>If you created a <code>distribution</code> metric type, use the <code>percentile</code> or <code>histogram</code> functions, as shown in the following queries:</p>
+<pre><code>SELECT percentile(service.responseTime, 95) FROM Metric
+</code></pre>
+<pre><code>SELECT histogram(service.responseTime, 10, 20) FROM Metric
+</code></pre>
+<p>If you don't see expected data, follow the <a href="#troubleshooting">troubleshooting</a> procedures.</p>
+<h2>Troubleshooting</h2>
+<p>If you receive a message like <code>Cannot parse the unexpected character "\u201C”</code>, verify the quotes in the NerdGraph call are not smart quotes (curly quotes). Our NerdGraph API only accepts straight quotes.</p>
+<h2>Rule-creation requirements and recommendations [#limits-rules]</h2>
+<p>Here are some limits, requirements, and recommendations for events-to-metrics rule creation:</p>
+<div data-component="CollapserGroup" data-prop="W10=">
+  <div data-component="Collapser" data-prop="W3sidHlwZSI6Im1keEF0dHJpYnV0ZSIsIm5hbWUiOiJpZCIsInZhbHVlIjoic3VtbWFyeS1hbmQtdW5pcXVlY291bnQifSx7InR5cGUiOiJtZHhBdHRyaWJ1dGUiLCJuYW1lIjoidGl0bGUiLCJ2YWx1ZSI6IkF2YWlsYWJsZSBtZXRyaWMgdHlwZXM6IHN1bW1hcnksIHVuaXF1ZUNvdW50LCBhbmQgZGlzdHJpYnV0aW9uIn1d">
+    <div data-prop-text="title">Available metric types: summary, uniqueCount, and distribution</div>
+    <p>A NRQL query must use one of the following functions to aggregate metrics:</p>
+    <ul>
+      <li>
+        <p><code>summary</code>: Creates a summary metric data point for each time window (currently 1 minute). Use this if the NRQL query you are creating a metric for uses <a href="/docs/insights/nrql-new-relic-query-language/nrql-reference/nrql-syntax-components-functions#functions">aggregator functions</a> supported by the summary metric type, such as average, sum, min, or max. An example rule-creation query using <code>summary</code>:</p>
+      </li>
+      <li>
+        <pre><code>SELECT summary(duration) AS 'service.responseTime' FROM Transaction 
+WHERE appName = 'Data Points Staging' FACET name, appName, host
+</code></pre>
+      </li>
+      <li>
+        <p><code>uniqueCount</code>: Creates a uniqueCount metric data point for each time window (currently 1 minute). Use this if the NRQL query you're creating a metric for uses the <code>uniqueCount</code> <a href="/docs/insights/nrql-new-relic-query-language/nrql-reference/nrql-syntax-components-functions#functions">aggregator type</a>. Example rule-creation query:</p>
+        <pre><code>FROM Transaction SELECT uniqueCount(request.headers.userAgent) 
+AS 'server.request.header.userAgent.uniqueCount' 
+WHERE appName = 'Browser Monitoring Router' FACET httpResponseCode, name, appName, host
+</code></pre>
+      </li>
+      <li>
+        <p><code>distribution</code>: Creates a distribution metric data point for each time window (currently 1 minute). Use this if the NRQL query you are creating a metric for uses <a href="/docs/insights/nrql-new-relic-query-language/nrql-reference/nrql-syntax-components-functions#functions">aggregator functions</a> such as percentile, histogram, min, max, average, sum, or count. Use only the attribute of interest as argument, and discard the rest of arguments from <code>percentile</code> or <code>histogram</code>. The generated metric supports any argument on <code>percentile</code> or <code>histogram</code>. Example of creating a <code>distribution</code> rule:</p>
+        <pre><code>SELECT distribution(duration) AS 'service.responseTime' FROM Transaction 
+WHERE appName = 'Data Points Staging' FACET name, appName, host
+</code></pre>
+        <p>If you want a metric that's a simple count of the events matching a particular <code>WHERE</code> clause, you can do this by using <code>summary(1)</code> metric. This metric type counts the number of specified events per minute. When querying the created metric, you can use the <code>sum</code> method to see the result. For example, if you wanted to create a metric named <code>foo.count</code> that counts the transactions named <code>foo</code>, the NRQL would look like:</p>
+        <pre><code>FROM Transaction SELECT summary(1) AS 'foo.count' WHERE name = 'foo'
+</code></pre>
+        <p>and you would query it like:</p>
+        <pre><code>FROM Metric SELECT sum(foo.count) SINCE 30 minutes ago
+</code></pre>
+        <p>For more information on metrics, see <a href="/docs/telemetry-data-platform/ingest-manage-data/understand-data/metric-data-type#metric-types">our docs</a>.</p>
+      </li>
+    </ul>
+  </div>
+  <div data-component="Collapser" data-prop="W3sidHlwZSI6Im1keEF0dHJpYnV0ZSIsIm5hbWUiOiJpZCIsInZhbHVlIjoibGltaXRzIn0seyJ0eXBlIjoibWR4QXR0cmlidXRlIiwibmFtZSI6InRpdGxlIiwidmFsdWUiOiJSdWxlLWNyZWF0aW9uIGxpbWl0cyJ9XQ==">
+    <div data-prop-text="title">Rule-creation limits</div>
+    <p>Some limits affecting metrics creation:</p>
+    <ul>
+      <li>An account can have a maximum of 1000 metric-creation rules.</li>
+      <li>A rule can <a href="#multiple-metrics">create a maximum of 10 metrics</a>.</li>
+      <li>A rule can use only one <a href="/docs/using-new-relic/welcome-new-relic/getting-started/glossary#event">event type</a>.</li>
+      <li>A rule can select a maximum of 20 attributes (facets) to include on a metric</li>
+      <li>50K limit on unique metric-name/attribute-value combinations for a single metric in a 24-hour time window. If this limit is exceeded, the rule is disabled and an <a href="/docs/insights/insights-data-sources/custom-data/send-custom-events-event-api#nrIntegration"><code>NrIntegrationError</code> event</a> is created in that account that includes the rule details, a message about having too many facets, and a <code>newRelicFeature</code> of <code>eventToMetric</code>.</li>
+      <li>There is also a limit on total unique metric-name/attribute-value combinations in a 24-hour time window for an account, which is equal to three times the purchased monthly average data points per minute, up to a maximum of 10M.</li>
+    </ul>
+  </div>
+  <div data-component="Collapser" data-prop="W3sidHlwZSI6Im1keEF0dHJpYnV0ZSIsIm5hbWUiOiJpZCIsInZhbHVlIjoiYXR0cmlidXRlcy1saW1pdCJ9LHsidHlwZSI6Im1keEF0dHJpYnV0ZSIsIm5hbWUiOiJ0aXRsZSIsInZhbHVlIjoiQ2FyZGluYWxpdHkgbGltaXRzIGZvciB1bmlxdWUgbWV0cmljLW5hbWUvYXR0cmlidXRlLXZhbHVlIGNvbWJpbmF0aW9ucyJ9XQ==">
+    <div data-prop-text="title">Cardinality limits for unique metric-name/attribute-value combinations</div>
+    <p><a href="#limits">Rule-creation limits</a> include limits on the number of unique combinations of metric name and attribute values. This limit exists because a large number of attributes and/or attribute values can lead to an exponential increase in the size of data reported. Let's look at an example metric creation rule that attaches five attributes:</p>
+    <pre><code>FROM ProcessSample SELECT summary(ioTotalReadBytes) 
+WHERE entityType = 'ComputeSample' 
+FACET awsRegion, awsAvailabilityZone, commandName, entityName, processId
+
+</code></pre>If each of the five attributes reported ten unique values within a one-minute time window, the number of unique metric-name/attribute combinations would theoretically have a maximum of 10x10x10x10x10, or 100,000. Multiple attributes with multiple unique values can lead to a large number of unique metric entries.
+    In practice, this isn't usually the case, because attributes are often related. For example, if one attribute is `hostname` and another is `awsRegion`, when you see hostname A, it will always be in AWS region B; you'd never see hostname A and other AWS region values.
+    This is why it's important, during the [NRQL creation process](#create-nrql), to use the `uniqueCount` function to verify how many unique metric-name/attribute-value combinations your NRQL query is generating.
+  </div>
+  <div data-component="Collapser" data-prop="W3sidHlwZSI6Im1keEF0dHJpYnV0ZSIsIm5hbWUiOiJpZCIsInZhbHVlIjoibXVsdGlwbGUtbWV0cmljcyJ9LHsidHlwZSI6Im1keEF0dHJpYnV0ZSIsIm5hbWUiOiJ0aXRsZSIsInZhbHVlIjoiQ3JlYXRlIG11bHRpcGxlIG1ldHJpY3Mgd2l0aCBvbmUgcnVsZSJ9XQ==">
+    <div data-prop-text="title">Create multiple metrics with one rule</div>
+    <p>An events-to-metrics rule can create up to 10 metrics. There are no functional differences between metrics created one at a time and those created with a single rule. Reasons for creating multiple metrics with a single rule:</p>
+    <ul>
+      <li>
+        <p>Less likely to reach <a href="#limits">rules-per-account limit</a>.</p>
+      </li>
+      <li>
+        <p>Easier to add the same attributes to multiple metrics.</p>
+        <p>Here's an example of creating multiple metrics with a single rule:</p>
+        <pre><code>FROM Transaction SELECT uniqueCount(request.headers.userAgent) AS 'server.request.header.userAgent.uniqueCount', 
+summary(duration) AS 'server.duration', summary(totalTime) AS 'server.totalTime' 
+WHERE appName = 'Browser Monitoring Router' FACET httpResponseCode, name, appName, host
+</code></pre>
+      </li>
+    </ul>
+  </div>
+  <div data-component="Collapser" data-prop="W3sidHlwZSI6Im1keEF0dHJpYnV0ZSIsIm5hbWUiOiJpZCIsInZhbHVlIjoibmFtaW5nIn0seyJ0eXBlIjoibWR4QXR0cmlidXRlIiwibmFtZSI6InRpdGxlIiwidmFsdWUiOiJNZXRyaWMgbmFtaW5nOiBydWxlcyBhbmQgcmVjb21tZW5kYXRpb25zIn1d">
+    <div data-prop-text="title">Metric naming: rules and recommendations</div>
+    <p>A metric is given a name with the <code>AS</code> clause, as part of the <a href="#create-nrql">NRQL rule-creation process</a>. For example, in the following NRQL example, the name of the metric is <code>io.totalread.bytes</code>:</p>
+    <pre><code>FROM ProcessSample SELECT summary(ioTotalReadBytes) AS 'io.totalread.bytes' WHERE entityType = 'ComputeSample' FACET awsRegion, awsAvailabilityZone, commandName
+
+</code></pre>If there is no name assigned with the `AS` clause, the metric name is the name of the queried attribute. In this example, if no name was assigned, the metric name would be `ioTotalReadBytes`.
+    Examples of strong metric names:
+    * `rubyvm.memory.heap_used`
+    * `redis.container.cpu.percent`
+    * `memcached.process_virtual_memory.bytes`
+    Requirements for naming a metric:
+    * Less than or equal to 255 (UTF-16) 16-bit code units. One way to ensure you are under the limit is to keep each string under 127 of whatever is easiest to count.
+    * No spaces.
+    * Start with a letter.
+    Recommendations for naming:
+    * We recommend keeping your keeping your metric name under 40 characters for ideal readability. Longer names can get cut off or overlap with other names.
+    * Decide on a name and structure that makes it easy for others to find, understand, and use this metric. Your metric naming scheme will depend on your business logic. You may have namespaces that you want to prefix your metric name with or your names may need to be more general.
+    * If you do want to create components within your metric name (like the source of metrics and the thing you’re measuring), we recommend going from broad to specific (left to right), using a dot to separate those components in order to be consistent with our New Relic metric names, and using an underscore to separate words within the dots (for example, `application.page_view.duration`).
+    * Avoid putting attributes in your metric name. Attributes are qualities of your metric that you might use to filter or facet your data, like cluster or availability zone. If you included availability zone in your metric name, it would mean, for that metric, you wouldn’t be able to see results across all availability zones.
+    * If you change a metric name, historical data will **not** be updated to that new name and you will need to specify the older metric name in order to query or chart that historical data.
+  </div>
+</div>

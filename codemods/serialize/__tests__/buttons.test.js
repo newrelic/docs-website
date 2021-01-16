@@ -1,5 +1,5 @@
 import buttons from '../buttons';
-import createProcessor from '../../../scripts/mdx-to-html';
+import createProcessor from '../../../scripts/actions/serialize-mdx';
 
 const input = `
 <ButtonLink

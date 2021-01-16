@@ -1,0 +1,113 @@
+
+<p>In order to help you get the most from using the Python agent to monitor your web application, here are some tips and tricks.</p>
+<h2>Contents [#qiklinks]</h2>
+<h2>Decorators and introspection [#decorators_and_introspection]</h2>
+<p>When naming a transaction or a function trace node, the Python agent needs to introspect the name of the function being called. Where the function is a raw function or class method, this all works fine. If however a decorator has been applied to the function or class method, if the decorator hasn't been implemented to preserve the ability to introspect the wrapped function, then the agent will use the name of the decorator wrapper function instead of the wrapped function.</p>
+<p>The typical manner in which a decorator is implemented is to use the pattern:</p>
+<pre><code>def decorator(f):
+    def _decorator():
+        f()
+    return _decorator
+
+@decorator
+def foo():
+    pass
+</code></pre>
+<p>The problem with this implementation is that if we look at the value of <code>foo.__name__</code> it will be <code>_decorator</code> and not <code>foo</code>. If the decorator is contained in a separate module, looking at <code>foo.__module__</code> it will be the name of the module the decorator is declared in and not the name of the module the wrapped function is contained in.</p>
+<p>In order to ensure modules and functions are named correctly, use the <code>wraps()</code> decorator from the standard library <strong>functools</strong> module to wrap the inner decorator function:</p>
+<pre><code>import functools
+
+def decorator(f):
+    @functools.wraps(f)
+    def _decorator():
+        f()
+    return _decorator
+
+@decorator
+def foo():
+    pass
+</code></pre>
+<p>For more information, see the <a href="http://docs.python.org/library/functools.html#functools.wraps">documentation</a> for the <code>wraps()</code> function on the Python website.</p>
+<h2>Identifying a transaction [#identifying_a_transaction]</h2>
+<p>When the Python agent records error details for a transaction or captures a slow transaction trace, there is no unique identifier for it that you could capture to try and use to correlate it with other data you may separately record for the transaction. This makes it difficult to match up information from the UI with your own web application logging, for example.</p>
+<p>If you want to be able to do such cross matching, or simply capture against a transaction some additional detail that may be help in this situation, then you can use the agent API to record custom parameters against the transaction. If an error occurs, or a slow transaction trace is recorded, which is then displayed in the UI, these additional parameters you supply will then be displayed under the <strong>Custom parameters</strong> section of the error or trace details.</p>
+<p>To add such additional details, you can use the <code>add_custom_parameter()</code> function in the <strong>newrelic.agent</strong> module.</p>
+<div data-component="Callout" data-prop="W3sidHlwZSI6Im1keEF0dHJpYnV0ZSIsIm5hbWUiOiJ2YXJpYW50IiwidmFsdWUiOiJpbXBvcnRhbnQifV0=">
+  <p>Do not use brackets <code>[suffix]</code> at the end of your transaction name. the agent automatically strips brackets from the name. Instead, use parentheses <code>(suffix)</code> or other symbols if needed.</p>
+</div>
+<p>Take for example the following code from the polls application in the Django web framework tutorial.</p>
+<pre><code>from django.shortcuts import render_to_response, get_object_or_404
+
+def detail(request, poll_id):
+    p = get_object_or_404(Poll, pk=poll_id)
+    return render_to_response('polls/detail.html', {'poll': p})
+</code></pre>
+<p>If you wanted to record the poll ID against the transaction so available if a problem occurs, you would use:</p>
+<pre><code>import newrelic.agent
+
+def detail(request, poll_id):
+    newrelic.agent.add_custom_parameter('poll_id', poll_id)
+    p = get_object_or_404(Poll, pk=poll_id)
+    return render_to_response('polls/detail.html', {'poll': p})
+</code></pre>
+<p>The value used for a custom parameter can be any value that is able to be serialized by the JSON encoder provided by the <strong>json</strong> module. This includes tuples, lists and dictionaries.</p>
+<p><strong>Recommendation:</strong> Restrict values to integer, float or string values. If you do use any more complex data structures, avoid trying to associate too big a data structure, as it will need to be cached until harvested, packaged up and then sent to the core application.</p>
+<p>Simple values are also preferred, because if the value cannot be serialized to JSON, then the error details or slow transaction may be thrown away.</p>
+<h2>Recording custom metrics [#recording_custom_metrics]</h2>
+<p>We can only instrument publicly available third-party modules for Python that we know about. To extend instrumentation for your own code, use the techniques described in <a href="/docs/agents/python-agent/supported-features/python-custom-instrumentation">adding Python instrumentation</a>. This will give you coverage in performance breakdown data for web transactions and in slow transaction traces.</p>
+<p>You can record arbitrary performance data via an API call (for example: timing or computer resource data). Then use <a href="/docs/query-your-data/explore-query-data/data-explorer/introduction-data-explorer">our data explorer</a> to charts and track that metric. You can use custom metrics to unify your monitoring.</p>
+<p>To record custom metrics, use the <code>record_custom_metric()</code> function in the <strong>newrelic.agent</strong> module. It takes two arguments, being the name of the metric and the value. The value should be an integer or floating point value.</p>
+<pre><code>import newrelic.agent
+
+def create_account(request, ...):
+    ...
+    newrelic.agent.record_custom_metric('Custom/Signups', 1)
+    ...
+    return render_to_response('...', ...)
+</code></pre>
+<p>Start the path of the metric name <code>Custom/</code> to avoid namespace collisions with existing agent metrics (for example, <code>Custom/MyMetric</code>).</p>
+<p>The custom metrics will be aggregated across each <a href="/docs/accounts-partnerships/education/getting-started-new-relic/glossary#harvest-cycle">harvest cycle</a> and then sent to the <a href="/docs/accounts-partnerships/education/getting-started-new-relic/glossary#collector">collector</a>. In this case each <code>1</code> will be added up to record the number of signups in the harvest cycle.</p>
+<p>Although function trace instrumentation would be used to track function calls or time spent in a block of code it does not allow separate custom charting. Custom metrics can still be used to record and chart the time related to how long something takes.</p>
+<p>To make this easier, you can predefine a context manager class for timing and recording of the metric.</p>
+<pre><code>class CustomMetricTimedNode(object):
+
+    def __init__(self, name):
+        self.name = name
+        self.start_time = None
+        self.end_time = None
+
+    def __enter__(self):
+        self.start_time = time.time()
+        return self
+
+    def __exit__(self, exc, value, tb):
+        if not self.start_time:
+            return
+        self.end_time = time.time()
+        duration = self.end_time - self.start_time
+        newrelic.agent.record_custom_metric(self.name, duration)
+</code></pre>
+<p>This can then be used in conjunction with a <code>with</code> statement around a block of code.</p>
+<pre><code>def function():
+    with CustomMetricTimedNode('Custom/TimedNode1'):
+        time.sleep(0.01)
+</code></pre>
+<p>The context manager could be applied to functions by creating a function decorator.</p>
+<pre><code>def custom_metric_timed_node(name):
+    def _decorator(f):
+        @functools.wraps(f)
+        def _wrapper(*args, **kwargs):
+            with CustomMetricTimedNode(name):
+                return f(*args, **kwargs)
+        return _wrapper
+    return _decorator
+</code></pre>
+<p>with it being used as:</p>
+<pre><code>@custom_metric_timed_node('Custom/TimedNode2')
+def function():
+    time.sleep(0.01)
+</code></pre>
+<p>As when adding instrumentation for function tracing, it is recommended that you choose metric names within a finite set and relatively small in length. You should avoid names which are unbounded in value otherwise the volume of them makes it hard to display them in a meaningful way. A large number of unique names can also result in excessive memory being used and the agent forcibly normalizing your names to limit how many unique names there are.</p>
+<div data-component="Callout" data-prop="W3sidHlwZSI6Im1keEF0dHJpYnV0ZSIsIm5hbWUiOiJ2YXJpYW50IiwidmFsdWUiOiJjYXV0aW9uIn1d">
+  <p>Collecting too many metrics can impact the performance of both your application and the agent. To avoid potential data problems, try to keep the total number of unique metrics introduced by custom instrumentation under 2000.</p>
+</div>

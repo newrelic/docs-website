@@ -1,0 +1,20 @@
+---
+subject: Browser agent
+releaseDate: '2017-06-22'
+version: '1039'
+---
+
+### Notes
+
+The Browser Agent, sometimes called the JS agent, has multiple variants: Lite, Pro, and Pro+SPA. Unless noted otherwise, all features/improvements/bug fixes are available in all variants of the agent.
+
+### Bug fixes
+
+* **Do not instrument SPA without a wrappable XHR:** In browsers that don't orchestrate the wrapping of XHR, the SPA agent does not collect event data, only [metric timeslice data](https://docs.newrelic.com/docs/data-analysis/metrics/analyze-your-metrics/data-collection-metric-timeslice-event-data). The agent will still report SPA for browsers that support XHR wrapping. Mobile Safari and a few other browsers didn’t support wrapping the XMLHttpRequest, so they would not produce event data for instrumenting Single Page Apps. They still collect other types of metrics.
+* **Support setTimeout with a string duration:** When you call setTimeout with a string as the duration, browsers will cast this as a number, but the agent did not handle this correctly. We are now handling this case correctly.
+* **Work around mutation observer memory leak in IE 11:** We have discovered that MutationObserver in IE causes a memory leak, so the agent now will prefer setImmediate for IE, and use a resolved promise to schedule the wrapping in Edge (and other browsers that support promises).
+* **Handle short recursive timers:** Some libraries recursively set timers that left our interactions open. The agent now handles this by reducing the max time it will allow to be included in the interaction.
+
+### How to upgrade
+
+To upgrade your agent to the latest version, see [Upgrade the Browser agent](https://docs.newrelic.com/docs/browser/new-relic-browser/installation-configuration/upgrade-browser-agent).

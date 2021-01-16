@@ -1,0 +1,83 @@
+
+<p>There are some messaging frameworks that New Relic doesn’t support by default. If you are interested in instrumenting these frameworks with our API here are some guidelines to follow.</p>
+<h2>Typical messaging [#typical]</h2>
+<p>In the typical case, there is a process that produces a message and a process that consumes the message. Some useful things you could do here are below. Note you must be within a transaction for these to report.</p>
+<h3>Report the producing/consuming as external [#report-ext]</h3>
+<p>You can create MessageProduceParameters and MessageConsumeParameters with relevant data and then call reportAsExternal(Params) to report the calls as externals.</p>
+<p>For example, when producing a message this would look like:</p>
+<pre><code>MessageProduceParameters params = MessageProduceParameters.library("libraryName").destinationType(NAMED_TOPIC).destinationName("topicName").inboundHeaders(null).build();
+NewRelic.getAgent().getTransaction().getTracedMethod().reportAsExternal(params);
+</code></pre>
+<p>A similar solution would work on the consumer side.</p>
+<h3>Add message metrics/custom parameters to current transaction [#add-metrics]</h3>
+<p>If there is useful information you want to add to your current transaction about the message, you can do that easily by calling our addCustomParameter() API. This looks like this:</p>
+<pre><code>NewRelic.addCustomParameter("topic-name", topic);
+</code></pre>
+<h3>Pass a distributed trace payload [#dt-payload]</h3>
+<p>In order to track the work across processes/services, the messaging framework must have a way to pass along metadata with the message, whether it’s via headers or some other mechanism. You can create a distributed trace payload on the producer side that can be attached to the message and read on the consumer side. You must be in a transaction for this to work. To do this you would follow a pattern like this:</p>
+<pre><code>@Trace(dispatcher = true)
+public void sendData(Producer producer){
+    final DistributedTracePayload payload = NewRelic.getAgent().getTransaction().createDistributedTracePayload();
+    headers.add(new RecordHeader("newrelic", payload.text().getBytes(StandardCharsets.UTF_8)));
+    data = new ProducerRecord&#x3C;String, String>("topic", "key", "value", headers);
+    producer.send(data);
+}
+</code></pre>
+<p>And on the consumer side:</p>
+<pre><code>@Trace(dispatcher = true)
+public void processData(ConsumerRecord record){
+    final Iterator&#x3C;Header> nrHeaders = record.headers().headers("newrelic").iterator();
+    if (nrHeaders.hasNext()) {
+        final Header nrHeader = nrHeaders.next();
+        final String payload = new String(nrHeader.value(), StandardCharsets.UTF_8);
+        NewRelic.getAgent().getTransaction().acceptDistributedTracePayload(payload);
+    }
+}
+</code></pre>
+<p>This example uses Kafka, which you can instrument. <a href="/docs/agents/java-agent/instrumentation/use-kafka-message-queues">Instrument Kafka message queues</a> provides information for instrumenting.</p>
+<h2>Edge cases [#edge-case]</h2>
+<p>There are some edge cases that require extra care. Below are suggestions on the best way to tackle them.</p>
+<h3>Create a distributed trace payload and then receive a message [#create-payload]</h3>
+<p>The problem here is that you can’t create a distributed trace payload and then accept a distributed trace payload within the same transaction in that order. This means that there are two attempts of distributed tracing and you have to choose which one you want. If you would like to accept the second payload rather than create the first one, you need to prevent the first payload from getting created. You can remove the custom instrumentation (if that’s what’s creating the payload) or disable instrumentation via our <a href="/docs/agents/java-agent/async-instrumentation/disable-scala-netty-akka-play-2-instrumentation">config</a></p>
+<h3>Batch reading messages [#batch-messages]</h3>
+<p>For batch consumption of messages, there is a problem of which distributed tracing payload you accept. If you are ok with linking just one of the distributed trace payloads then you can accept any one of the payloads in the batch but that will result in the rest of the payloads getting lost. However, if you want to see all of the distributed traces then you’ll need to create a transaction per message. The second solution could incur some overhead so take that into consideration when making a decision. A solution like that would look like:</p>
+<pre><code>public void processMessages(ConsumerRecords&#x3C;String, String> records) {
+    for(ConsumerRecord&#x3C;String, String> record: records) {
+        processRecord(record);
+    }
+}
+
+@Trace(dispatcher = true)
+private void processRecord(ConsumerRecord&#x3C;String, String> record) {
+    final Iterator&#x3C;Header> nrHeaders = record.headers().headers("newrelicDTPayload").iterator();
+    if (nrHeaders.hasNext()) {
+        final Header nrHeader = nrHeaders.next();
+        final String payload = new String(nrHeader.value(), StandardCharsets.UTF_8);
+        NewRelic.getAgent().getTransaction().acceptDistributedTracePayload(payload);
+    }
+}
+</code></pre>
+<p>This will only work if there isn’t a transaction already started on the thread at this time. If there is one then just accepting one payload from the batch is your only solution.</p>
+<h3>Capturing the processing time of the message [#process-time]</h3>
+<p>If you would like to capture the processing time of a message then you will need to move the processing work into a method and then trace that method. For example:</p>
+<pre><code>public void getMessages(){
+    KafkaConsumer consumer = new KafkaConsumer(props);
+    consumer.subscribe(Arrays.asList("topic"));
+    while (true) {
+        ConsumerRecords&#x3C;String, String> recs = consumer.poll(10000);
+        if (recs.count() == 0) {
+        } else {
+            for (ConsumerRecord&#x3C;String, String> rec : recs) {
+                processRec(rec);
+            }
+        }
+    }
+}
+
+@Trace(dispatcher = true)
+private void processRec(ConsumerRecord&#x3C;String, String> rec) {
+    // some processing
+}
+</code></pre>
+<h2>For more help [#more_help]</h2>
+<p>Use the <a href="https://docs.newrelic.com/docs/agents/java-agent/api-guides/guide-using-java-agent-api">Guide to using the Java agent API</a> to learn more about our Java agent API.</p>
