@@ -73,7 +73,7 @@ const getChartData = (dates) => {
     process.exit(1);
   }
 
-  const labels = dates.map((d) => d.date.split('_').slice(-1).join('/'));
+  const labels = dates.map((d) => d.date.split('_').slice(0, -1).join('/'));
 
   return milestones.map((title) => ({
     title,
