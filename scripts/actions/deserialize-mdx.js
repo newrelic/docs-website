@@ -19,8 +19,8 @@ const createProcessor = ({ codemods = [] } = {}) => {
   });
 
   processor
-    .use(rehype2remark)
     .use(testComponent)
+    .use(rehype2remark)
     .use(remarkMdx)
     .use(remarkMdxjs)
     .use(frontmatter, ['yaml'])
