@@ -104,14 +104,16 @@ const saveChartFile = async (data, document) => {
   const html = await generate('bar', options, data);
   document.body.innerHTML = html;
 
-  const svg = document.querySelector('svg').outerHTML;
+  const svg = document.querySelector('svg');
+  svg.setAttribute('viewBox', `0 0 ${options.width} ${options.height}`);
+
   const filename = path.join(
     CHART_DIR,
     `${data.title.replace(/\s/g, '_')}.svg`
   );
 
   console.log(`[*] Generating ${filename}`);
-  fs.writeFileSync(filename, svg, 'utf-8');
+  fs.writeFileSync(filename, svg.outerHTML, 'utf-8');
 };
 
 /** Entrypoint. */
