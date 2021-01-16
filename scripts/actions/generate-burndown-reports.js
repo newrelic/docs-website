@@ -1,10 +1,13 @@
+const fs = require('fs');
 const path = require('path');
 const AWS = require('aws-sdk');
-const Chartist = require('chartist');
+const { JSDOM } = require('jsdom');
+const generate = require('node-chartist');
 
 const CHART_DIR = path.join(process.cwd(), 'charts');
 
-const COLORS = {}; // TODO
+// TODO
+// const COLORS = {};
 
 /**
  * @typedef {Object} Column
@@ -64,7 +67,6 @@ const getChartData = (dates) => {
   const milestones = [
     ...new Set(dates.flatMap((d) => d.milestones.map((m) => m.title))),
   ];
-  console.log('milestones', milestones);
 
   if (!milestones || !milestones.length) {
     console.error('[!] No milestones found!?');
@@ -85,23 +87,47 @@ const getChartData = (dates) => {
   }));
 };
 
-// TODO
-const generateChartContent = (data) => {
-  return '';
-};
+/**
+ * Creates a `.svg` file for the chart data provided.
+ * @param {Chartist.IBarChartOptions} data Chart configuration and data.
+ * @param {Object} document A virtual dom object to interface with chartist.
+ * @returns {Promise}
+ */
+const saveChartFile = async (data, document) => {
+  const options = {
+    width: 400,
+    height: 300,
+    stackedBars: true,
+    legend: false,
+  };
 
-// TODO
-const saveChartFile = (content) => {
-  return null;
+  const html = await generate('bar', options, data);
+  document.body.innerHTML = html;
+
+  const svg = document.querySelector('svg').outerHTML;
+  const filename = path.join(
+    CHART_DIR,
+    `${data.title.replace(/\s/g, '_')}.svg`
+  );
+
+  console.log(`[*] Generating ${filename}`);
+  fs.writeFileSync(filename, svg, 'utf-8');
 };
 
 /** Entrypoint. */
 const main = async () => {
+  const dom = new JSDOM();
   const dates = await getMilestones();
-  const data = getChartData(dates);
-  console.log(data);
 
-  // content.map(saveChartFile);
+  if (!fs.existsSync(CHART_DIR)) {
+    fs.mkdirSync(CHART_DIR, { recursive: true });
+  }
+
+  for (const data of getChartData(dates)) {
+    await saveChartFile(data, dom.window.document);
+  }
+
+  process.exit(0);
 };
 
 main();
