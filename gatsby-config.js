@@ -206,6 +206,12 @@ module.exports = {
           {
             resolve: require.resolve('./plugins/gatsby-remark-mdx-v2-images'),
           },
+          {
+            resolve: require.resolve('./plugins/gatsby-remark-gifs'),
+            options: {
+              maxWidth: 1200,
+            },
+          },
         ],
       },
     },
