@@ -187,7 +187,6 @@ module.exports = {
           {
             resolve: 'gatsby-remark-images',
             options: {
-              maxHeight: 400,
               maxWidth: 1200,
               linkImagesToOriginal: false,
             },
@@ -203,6 +202,9 @@ module.exports = {
             resolve: require.resolve(
               './plugins/gatsby-remark-custom-heading-ids'
             ),
+          },
+          {
+            resolve: require.resolve('./plugins/gatsby-remark-mdx-v2-images'),
           },
         ],
       },
