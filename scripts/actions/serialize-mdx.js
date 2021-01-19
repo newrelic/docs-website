@@ -1,4 +1,4 @@
-const handlers = require('../../codemods/serialize/components-to-html');
+const handlers = require('./utils/handlers');
 const indentedCodeBlock = require('../../codemods/indentedCodeBlock');
 const unified = require('unified');
 const toMDAST = require('remark-parse');
@@ -14,7 +14,7 @@ const mdxToHTML = (h, node) => {
 
   if (!handler || !handler.serialize) {
     throw new Error(
-      `Unable to serialize component: '${node.name}'. You need to specify a serializer in 'codemods/serialize/components-to-html.js'`
+      `Unable to serialize component: '${node.name}'. You need to specify a serializer in 'scripts/actions/utils/handlers.js'`
     );
   }
 
