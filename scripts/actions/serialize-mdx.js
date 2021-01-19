@@ -28,8 +28,6 @@ const processor = unified()
   .use(remarkMdxjs)
   .use(frontmatter, ['yaml'])
   .use(indentedCodeBlock)
-  .use(toMDAST)
-  .use(remarkMdx)
   .use(remark2rehype, {
     handlers: {
       mdxSpanElement: mdxToHTML,
