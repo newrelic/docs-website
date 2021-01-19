@@ -1,22 +1,13 @@
 const visit = require('unist-util-visit');
 
+const INDENTED_CODE_BLOCK = /`{3,}\n?$/;
+
 const indentedCodeBlock = () => (tree) => {
   visit(
     tree,
-    (node) => node.type === 'code',
-    (codeBlock, index, parent) => {
-      const values = codeBlock.value.split('```').filter(Boolean);
-      for (const value of values) {
-        const i = values.indexOf(value);
-        if (i === 0) {
-          codeBlock.value = value;
-          continue;
-        }
-        parent.children.splice(index + 1, 0, {
-          type: i % 2 === 0 ? 'code' : 'text',
-          value,
-        });
-      }
+    (node) => node.type === 'code' && INDENTED_CODE_BLOCK.test(node.value),
+    (codeBlock) => {
+      codeBlock.value = codeBlock.value.replace(INDENTED_CODE_BLOCK, '').trim();
     }
   );
 };
