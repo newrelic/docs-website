@@ -84,7 +84,7 @@ const handlers = {
         ]);
     },
   },
-  LandingPageTitleGrid: {
+  LandingPageTileGrid: {
     serialize: (node) => serializeComponent(node),
   },
   InlineCode: {

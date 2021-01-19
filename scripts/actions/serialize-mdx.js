@@ -1,4 +1,4 @@
-const componentsToData = require('../../codemods/serialize/componentsToData');
+const componentsToHTML = require('../../codemods/serialize/components-to-html');
 const indentedCodeBlock = require('../../codemods/indentedCodeBlock');
 const unified = require('unified');
 const toMDAST = require('remark-parse');
@@ -15,53 +15,45 @@ const path = require('path');
 
 const TEST_DIR = 'src/html-test';
 
-const createProcessor = ({ codemods = [] } = {}) => {
-  const processor = unified()
-    .use(toMDAST)
-    .use(remarkMdx)
-    .use(remarkMdxjs)
-    .use(frontmatter, ['yaml'])
-    .use(indentedCodeBlock)
-    .use(toMDAST)
-    .use(remarkMdx);
+const processor = unified()
+  .use(toMDAST)
+  .use(remarkMdx)
+  .use(remarkMdxjs)
+  .use(frontmatter, ['yaml'])
+  .use(indentedCodeBlock)
+  .use(toMDAST)
+  .use(remarkMdx)
+  .use(componentsToHTML)
+  .use(remark2rehype)
+  .use(format)
+  .use(html);
 
-  codemods.forEach((plugin) => {
-    Array.isArray(plugin)
-      ? processor.use(plugin[0], plugin[1])
-      : processor.use(plugin);
-  });
+// const run = async (file) => {
+//   const processor = createProcessor({
+//     codemods: [componentsToData],
+//   });
 
-  processor.use(remark2rehype).use(format).use(html);
+//   try {
+//     await processor.process(file);
+//   } catch (e) {
+//     file.fail(`${e.message}\n${e.stack}`);
+//   }
+// };
 
-  return processor;
-};
+// vfileGlob('./src/content/**/*.mdx').subscribe(async (file) => {
+//   await run(file);
+//   writeSync(
+//     vfile({
+//       contents: file.contents,
+//       path: path.join(
+//         __dirname,
+//         TEST_DIR,
+//         file.path.split('.').slice(0, -1).join('.')
+//       ),
+//       extname: '.html',
+//     }),
+//     'utf-8'
+//   );
+// });
 
-const run = async (file) => {
-  const processor = createProcessor({
-    codemods: [componentsToData],
-  });
-
-  try {
-    await processor.process(file);
-  } catch (e) {
-    file.fail(`${e.message}\n${e.stack}`);
-  }
-};
-
-vfileGlob('./src/content/**/*.mdx').subscribe(async (file) => {
-  await run(file);
-  writeSync(
-    vfile({
-      contents: file.contents,
-      path: path.join(
-        __dirname,
-        TEST_DIR,
-        file.path.split('.').slice(0, -1).join('.')
-      ),
-      extname: '.html',
-    }),
-    'utf-8'
-  );
-});
-
-module.exports = createProcessor;
+module.exports = processor;
