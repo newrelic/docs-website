@@ -38,18 +38,19 @@ const serializeTextProp = (h, node, propName) => {
   ]);
 };
 
+const serializeJSValue = (value) =>
+  Buffer.from(JSON.stringify(value)).toString('base64');
+
 const serializeProps = (node) => {
   if (node.attributes.length === 0) {
     return null;
   }
 
-  return Buffer.from(
-    JSON.stringify(
-      node.attributes.map((attribute) => {
-        return omit(attribute, ['position']);
-      })
-    )
-  ).toString('base64');
+  return serializeJSValue(
+    node.attributes.map((attribute) => {
+      return omit(attribute, ['position']);
+    })
+  );
 };
 
 const serializeComponent = (
@@ -88,4 +89,9 @@ const getComponentName = (node) =>
 const stripNulls = (obj) =>
   Object.fromEntries(Object.entries(obj).filter(([, value]) => value != null));
 
-module.exports = { serializeComponent, serializeProps, serializeTextProp };
+module.exports = {
+  serializeComponent,
+  serializeProps,
+  serializeTextProp,
+  serializeJSValue,
+};

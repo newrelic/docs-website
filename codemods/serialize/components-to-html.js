@@ -1,6 +1,30 @@
-const { serializeComponent } = require('./utils');
+const { serializeComponent, serializeJSValue } = require('./utils');
+const yaml = require('js-yaml');
+const u = require('unist-builder');
 
 module.exports = {
+  frontmatter: {
+    serialize: (h, node) => {
+      const data = yaml.safeLoad(node.value);
+
+      return h(
+        node,
+        'div',
+        {
+          'data-type': 'frontmatter',
+          'data-value': serializeJSValue(data),
+        },
+        [
+          data.title &&
+            h(node, 'div', { 'data-key': 'title' }, [u('text', data.title)]),
+          data.description &&
+            h(node, 'div', { 'data-key': 'description' }, [
+              u('text', data.description),
+            ]),
+        ].filter(Boolean)
+      );
+    },
+  },
   // React fragment
   [null]: {
     serialize: serializeComponent,
