@@ -1,7 +1,6 @@
-const { serializeComponent, serializeTextProp } = require('./utils');
-const all = require('mdast-util-to-hast/lib/all');
+const { serializeComponent } = require('./utils');
 
-const handlers = {
+module.exports = {
   // React fragment
   [null]: {
     serialize: serializeComponent,
@@ -96,5 +95,3 @@ const handlers = {
       }),
   },
 };
-
-module.exports = handlers;
