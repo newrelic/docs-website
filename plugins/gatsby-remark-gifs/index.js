@@ -1,6 +1,5 @@
 const visit = require('unist-util-visit');
 const path = require('path');
-const { parse } = require('node-html-parser');
 
 // match the default from gatsby-remark-images
 const DEFAULT_MAX_WIDTH = 650;
