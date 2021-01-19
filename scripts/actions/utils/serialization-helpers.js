@@ -33,7 +33,7 @@ const serializeTextProp = (h, node, propName) => {
     return;
   }
 
-  return h(node, 'div', { 'data-prop': propName }, [
+  return h(node, 'div', { 'data-type': 'prop', 'data-prop': propName }, [
     serializeAttributeValue(h, attribute),
   ]);
 };
@@ -77,7 +77,12 @@ const serializeComponent = (
       .map((name) => serializeTextProp(h, node, name))
       .concat(
         wrapChildren && node.children.length
-          ? h(node.position, 'div', { 'data-prop': 'children' }, all(h, node))
+          ? h(
+              node.position,
+              'div',
+              { 'data-type': 'prop', 'data-prop': 'children' },
+              all(h, node)
+            )
           : all(h, node)
       )
       .filter(Boolean)
