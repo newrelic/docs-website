@@ -55,6 +55,46 @@ const handlers = {
       return serializeComponent(h, node, { textAttributes: ['title'] });
     },
   },
+  thead: {
+    serialize: (h, node) =>
+      serializeComponent(h, node, {
+        tagName: 'thead',
+        wrapChildren: false,
+        identifyComponent: false,
+      }),
+  },
+  tbody: {
+    serialize: (h, node) =>
+      serializeComponent(h, node, {
+        tagName: 'tbody',
+        wrapChildren: false,
+        identifyComponent: false,
+      }),
+  },
+  tr: {
+    serialize: (h, node) =>
+      serializeComponent(h, node, {
+        tagName: 'tr',
+        wrapChildren: false,
+        identifyComponent: false,
+      }),
+  },
+  th: {
+    serialize: (h, node) =>
+      serializeComponent(h, node, {
+        tagName: 'th',
+        wrapChildren: false,
+        identifyComponent: false,
+      }),
+  },
+  td: {
+    serialize: (h, node) =>
+      serializeComponent(h, node, {
+        tagName: 'td',
+        wrapChildren: false,
+        identifyComponent: false,
+      }),
+  },
 };
 
 module.exports = handlers;
