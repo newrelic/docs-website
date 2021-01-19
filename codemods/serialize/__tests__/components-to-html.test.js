@@ -1,8 +1,8 @@
-import processor from '../../../scripts/actions/serialize-mdx';
+import serializeMDX from '../../../scripts/actions/serialize-mdx';
 import fs from 'fs';
 
 test('serializes Button to html', async () => {
-  const file = await processor.process(`
+  const html = await serializeMDX(`
 <Button
   variant="normal"
 >
@@ -10,11 +10,11 @@ test('serializes Button to html', async () => {
 </Button>
   `);
 
-  expect(file.contents).toMatchSnapshot();
+  expect(html).toMatchSnapshot();
 });
 
 test('serializes ButtonLink to html', async () => {
-  const file = await processor.process(`
+  const html = await serializeMDX(`
 <ButtonLink
   to="/docs/agents/ruby-sdk"
   variant="normal"
@@ -23,11 +23,11 @@ test('serializes ButtonLink to html', async () => {
 </ButtonLink>
   `);
 
-  expect(file.contents).toMatchSnapshot();
+  expect(html).toMatchSnapshot();
 });
 
 test('serializes Callouts with title to html', async () => {
-  const file = await processor.process(`
+  const html = await serializeMDX(`
 <Callout
   title="Life tips #1"
   variant="tip"
@@ -36,21 +36,21 @@ test('serializes Callouts with title to html', async () => {
 </Callout>
   `);
 
-  expect(file.contents).toMatchSnapshot();
+  expect(html).toMatchSnapshot();
 });
 
 test('serializes Callouts without title to html', async () => {
-  const file = await processor.process(`
+  const html = await serializeMDX(`
 <Callout variant="tip">
   Always tip your waiter
 </Callout>
   `);
 
-  expect(file.contents).toMatchSnapshot();
+  expect(html).toMatchSnapshot();
 });
 
 test('serializes Collapser with plain text title to html', async () => {
-  const file = await processor.process(`
+  const html = await serializeMDX(`
 <Collapser
   title="Collapse me yo"
 >
@@ -58,11 +58,11 @@ test('serializes Collapser with plain text title to html', async () => {
 </Collapser>
   `);
 
-  expect(file.contents).toMatchSnapshot();
+  expect(html).toMatchSnapshot();
 });
 
 test('serializes Collapser with JSX title to html', async () => {
-  const file = await processor.process(`
+  const html = await serializeMDX(`
 <Collapser
   title={<><InlineCode>agent.report_custom_attribute</InlineCode> API</>}
 >
@@ -70,11 +70,11 @@ test('serializes Collapser with JSX title to html', async () => {
 </Collapser>
   `);
 
-  expect(file.contents).toMatchSnapshot();
+  expect(html).toMatchSnapshot();
 });
 
 test('serializes CollapserGroup to html', async () => {
-  const file = await processor.process(`
+  const html = await serializeMDX(`
 <CollapserGroup>
   <Collapser
     title="Easy peasy"
@@ -84,11 +84,11 @@ test('serializes CollapserGroup to html', async () => {
 </CollapserGroup>
   `);
 
-  expect(file.contents).toMatchSnapshot();
+  expect(html).toMatchSnapshot();
 });
 
 test('serializes ExternalLink to html', async () => {
-  const file = await processor.process(`
+  const html = await serializeMDX(`
 <ExternalLink
   href="https://developer.newrelic.com"
 >
@@ -96,11 +96,11 @@ test('serializes ExternalLink to html', async () => {
 </ExternalLink>
   `);
 
-  expect(file.contents).toMatchSnapshot();
+  expect(html).toMatchSnapshot();
 });
 
 test('serializes Link to html', async () => {
-  const file = await processor.process(`
+  const html = await serializeMDX(`
 <Link
   to="/docs/agents/ruby-sdk"
 >
@@ -108,11 +108,11 @@ test('serializes Link to html', async () => {
 </Link>
   `);
 
-  expect(file.contents).toMatchSnapshot();
+  expect(html).toMatchSnapshot();
 });
 
 test('serializes Table to html', async () => {
-  const file = await processor.process(`
+  const html = await serializeMDX(`
 <Table>
   <thead>
     <tr>
@@ -133,11 +133,11 @@ test('serializes Table to html', async () => {
 </Table>
   `);
 
-  expect(file.contents).toMatchSnapshot();
+  expect(html).toMatchSnapshot();
 });
 
 test('serializes LandingPageTile to html', async () => {
-  const file = await processor.process(`
+  const html = await serializeMDX(`
 <LandingPageTile
   title="Get started."
   icon="fe-check-square"
@@ -148,11 +148,11 @@ test('serializes LandingPageTile to html', async () => {
 </LandingPageTile>
 `);
 
-  expect(file.contents).toMatchSnapshot();
+  expect(html).toMatchSnapshot();
 });
 
 test('serializes LandingPageTileGrid to html', async () => {
-  const file = await processor.process(`
+  const html = await serializeMDX(`
 <LandingPageTileGrid>
   <LandingPageTile
     title="Get started."
@@ -165,53 +165,53 @@ test('serializes LandingPageTileGrid to html', async () => {
 </LandingPageTileGrid>
 `);
 
-  expect(file.contents).toMatchSnapshot();
+  expect(html).toMatchSnapshot();
 });
 
 test('serializes InlineCode to html', async () => {
-  const file = await processor.process(`
+  const html = await serializeMDX(`
 <InlineCode>agent.report_custom_event()</InlineCode>
 `);
 
-  expect(file.contents).toMatchSnapshot();
+  expect(html).toMatchSnapshot();
 });
 
 test('serializes Video to html', async () => {
-  const file = await processor.process(`
+  const html = await serializeMDX(`
 <Video id="abcd" type="wistia" />
 `);
 
-  expect(file.contents).toMatchSnapshot();
+  expect(html).toMatchSnapshot();
 });
 
 test('serializes Video with title to html', async () => {
-  const file = await processor.process(`
+  const html = await serializeMDX(`
 <Video id="abcd" type="wistia" title="The video title" />
 `);
 
-  expect(file.contents).toMatchSnapshot();
+  expect(html).toMatchSnapshot();
 });
 
 test('serializes Icon to html', async () => {
-  const file = await processor.process(`
+  const html = await serializeMDX(`
 <Icon name="fe-external-link" size="1rem" />
 `);
 
-  expect(file.contents).toMatchSnapshot();
+  expect(html).toMatchSnapshot();
 });
 
 test('serializes Icon to html', async () => {
-  const file = await processor.process(`
+  const html = await serializeMDX(`
 <Icon name="fe-external-link" size="1rem" />
 `);
 
-  expect(file.contents).toMatchSnapshot();
+  expect(html).toMatchSnapshot();
 });
 
 test('kitchen sink', async () => {
-  const file = await processor.process(
+  const html = await serializeMDX(
     fs.readFileSync(`${__dirname}/kitchen-sink.mdx`, 'utf-8')
   );
 
-  expect(file.contents).toMatchSnapshot();
+  expect(html).toMatchSnapshot();
 });

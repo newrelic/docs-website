@@ -43,32 +43,10 @@ const processor = unified()
   .use(format)
   .use(html);
 
-// const run = async (file) => {
-//   const processor = createProcessor({
-//     codemods: [componentsToData],
-//   });
+const serializeMDX = async (mdx) => {
+  const { contents } = await processor.process(mdx);
 
-//   try {
-//     await processor.process(file);
-//   } catch (e) {
-//     file.fail(`${e.message}\n${e.stack}`);
-//   }
-// };
+  return contents;
+};
 
-// vfileGlob('./src/content/**/*.mdx').subscribe(async (file) => {
-//   await run(file);
-//   writeSync(
-//     vfile({
-//       contents: file.contents,
-//       path: path.join(
-//         __dirname,
-//         TEST_DIR,
-//         file.path.split('.').slice(0, -1).join('.')
-//       ),
-//       extname: '.html',
-//     }),
-//     'utf-8'
-//   );
-// });
-
-module.exports = processor;
+module.exports = serializeMDX;
