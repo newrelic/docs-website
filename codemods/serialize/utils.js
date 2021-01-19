@@ -39,6 +39,10 @@ const serializeTextProp = (h, node, propName) => {
 };
 
 const serializeProps = (node) => {
+  if (node.attributes.length === 0) {
+    return null;
+  }
+
   return Buffer.from(
     JSON.stringify(
       node.attributes.map((attribute) => {
@@ -51,22 +55,37 @@ const serializeProps = (node) => {
 const serializeComponent = (
   h,
   node,
-  { tagName = 'div', textAttributes = [] } = {}
+  {
+    tagName = 'div',
+    textAttributes = [],
+    wrapChildren = true,
+    identifyComponent = true,
+  } = {}
 ) => {
+  node.children = node.children || [];
+
   return h(
     node,
     tagName,
-    {
-      'data-component': node.name === null ? 'React.Fragment' : node.name,
+    stripNulls({
+      'data-component': identifyComponent ? getComponentName(node) : null,
       'data-props': serializeProps(node),
-    },
-    [
-      ...textAttributes.map((name) => serializeTextProp(h, node, name)),
-      node.children &&
-        node.children.length &&
-        h(node.position, 'div', { 'data-prop': 'children' }, all(h, node)),
-    ].filter(Boolean)
+    }),
+    textAttributes
+      .map((name) => serializeTextProp(h, node, name))
+      .concat(
+        wrapChildren
+          ? h(node.position, 'div', { 'data-prop': 'children' }, all(h, node))
+          : all(h, node)
+      )
+      .filter(Boolean)
   );
 };
+
+const getComponentName = (node) =>
+  node.name === null ? 'React.Fragment' : node.name;
+
+const stripNulls = (obj) =>
+  Object.fromEntries(Object.entries(obj).filter(([, value]) => value != null));
 
 module.exports = { serializeComponent, serializeProps, serializeTextProp };
