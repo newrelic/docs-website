@@ -200,14 +200,6 @@ test('serializes Icon to html', async () => {
   expect(file.contents).toMatchSnapshot();
 });
 
-test('kitchen sink', async () => {
-  const file = await processor.process(
-    fs.readFileSync(`${__dirname}/kitchen-sink.mdx`, 'utf-8')
-  );
-
-  expect(file.contents).toMatchSnapshot();
-});
-
 test('serializes Icon to html', async () => {
   const file = await processor.process(`
 <Icon name="fe-external-link" size="1rem" />
