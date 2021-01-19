@@ -1,13 +1,9 @@
 const fs = require('fs');
 const path = require('path');
 const AWS = require('aws-sdk');
-const { JSDOM } = require('jsdom');
-const generate = require('node-chartist');
+const createSvg = require('./utils/create-svg');
 
 const CHART_DIR = path.join(process.cwd(), 'charts');
-
-// TODO
-// const COLORS = {};
 
 /**
  * @typedef {Object} Column
@@ -93,32 +89,17 @@ const getChartData = (dates) => {
  * @param {Object} document A virtual dom object to interface with chartist.
  * @returns {Promise}
  */
-const saveChartFile = async (data, document) => {
-  const options = {
-    width: 400,
-    height: 300,
-    stackedBars: true,
-    legend: false,
-  };
+const saveChartFile = async ({ series, labels, title }) => {
+  const content = createSvg(series, labels);
 
-  const html = await generate('bar', options, data);
-  document.body.innerHTML = html;
-
-  const svg = document.querySelector('svg');
-  svg.setAttribute('viewBox', `0 0 ${options.width} ${options.height}`);
-
-  const filename = path.join(
-    CHART_DIR,
-    `${data.title.replace(/\s/g, '_')}.svg`
-  );
+  const filename = path.join(CHART_DIR, `${title.replace(/\s/g, '_')}.svg`);
 
   console.log(`[*] Generating ${filename}`);
-  fs.writeFileSync(filename, svg.outerHTML, 'utf-8');
+  fs.writeFileSync(filename, content, 'utf-8');
 };
 
 /** Entrypoint. */
 const main = async () => {
-  const dom = new JSDOM();
   const dates = await getMilestones();
 
   if (!fs.existsSync(CHART_DIR)) {
@@ -126,7 +107,7 @@ const main = async () => {
   }
 
   for (const data of getChartData(dates)) {
-    await saveChartFile(data, dom.window.document);
+    await saveChartFile(data);
   }
 
   process.exit(0);

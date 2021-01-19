@@ -7,7 +7,8 @@ const COLORS = {
   bg: '#2E3440',
   fg: '#D8DEE9',
   lines: '#4C566A',
-  segments: ['#BF616A', '#D08770', '#EBCB8B', '#A3BE8C', '#B48EAD'],
+  // TODO: map colors to column names
+  segments: ['#5E81AC', '#81A1C1', '#88C0D0', '#D8DEE9', '#B48EAD', '#A3BE8C'],
 };
 
 const transpose = (arr) => arr[0].map((_, i) => arr.map((row) => row[i]));
@@ -16,12 +17,12 @@ const add = (a, b) => a + b;
 
 const draw = {
   rect: (x, y, w, h, color = 'black') =>
-    `<rect x=${x} y=${y} width=${w} height=${h} fill=${color} />`,
+    `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${color}" />`,
 
   line: (x1, y1, x2, y2, dash, color = COLORS.lines) =>
     [
       '<line',
-      `x1=${x1} y1=${y1} x2=${x2} y2=${y2}`,
+      `x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"`,
       dash ? `stroke-dasharray="${dash}"` : '',
       `stroke="${color}"`,
       '/>',
@@ -29,7 +30,7 @@ const draw = {
 
   text: (x, y, content, color = COLORS.fg) =>
     [
-      `<text x=${x} y=${y} `,
+      `<text x="${x}" y="${y}" `,
       `style="font-family: sans-serif; fill: ${color};">`,
       content,
       '</text>',
@@ -54,7 +55,7 @@ const createChartDetails = (_data, labels) => {
 };
 
 const createColumn = (max) => (data, index) => {
-  const colWidth = (WIDTH - LEFT) / labels.length;
+  const colWidth = (WIDTH - LEFT) / data.length;
   const barWidth = colWidth * 0.6;
 
   const x = colWidth * index + LEFT + (colWidth - barWidth) / 2;
@@ -86,10 +87,10 @@ const createColumn = (max) => (data, index) => {
 const createSvg = (data, labels) => {
   const attributes = [
     `viewbox="0 0 ${WIDTH} ${HEIGHT}"`,
-    `xmlns="https://www.w3.org/2000/svg"`,
+    `xmlns="http://www.w3.org/2000/svg"`,
     `style="background-color: ${COLORS.bg}"`,
-    `width=${WIDTH}`,
-    `height=${HEIGHT}`,
+    `width="${WIDTH}"`,
+    `height="${HEIGHT}"`,
   ];
 
   const columns = transpose(data);
