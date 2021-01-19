@@ -21,6 +21,10 @@ module.exports = {
             h(node, 'div', { 'data-key': 'description' }, [
               u('text', data.description),
             ]),
+          data.shortDescription &&
+            h(node, 'div', { 'data-key': 'shortDescription' }, [
+              u('text', data.shortDescription),
+            ]),
         ].filter(Boolean)
       );
     },

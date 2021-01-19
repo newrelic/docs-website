@@ -69,6 +69,7 @@ const serializeComponent = (
     node,
     tagName,
     stripNulls({
+      'data-type': 'component',
       'data-component': identifyComponent ? getComponentName(node) : null,
       'data-props': serializeProps(node),
     }),
