@@ -1,6 +1,4 @@
 const componentsToData = require('../../codemods/serialize/componentsToData');
-const titleComponentsToData = require('../../codemods/serialize/titleComponentsToData');
-const linkRefsToData = require('../../codemods/serialize/linkRefsToData');
 const indentedCodeBlock = require('../../codemods/indentedCodeBlock');
 const unified = require('unified');
 const toMDAST = require('remark-parse');
@@ -40,7 +38,7 @@ const createProcessor = ({ codemods = [] } = {}) => {
 
 const run = async (file) => {
   const processor = createProcessor({
-    codemods: [componentsToData, titleComponentsToData, linkRefsToData],
+    codemods: [componentsToData],
   });
 
   try {

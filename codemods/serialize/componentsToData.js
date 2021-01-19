@@ -1,6 +1,7 @@
 const visit = require('unist-util-visit');
-const { isMdxElement } = require('../utils/mdxast');
+const { isMdxElement, findAttribute } = require('../utils/mdxast');
 const serializeComponent = require('./serializeComponent');
+const { set } = require('lodash');
 
 const handlers = {
   Button: {
@@ -11,6 +12,32 @@ const handlers = {
   },
   Callout: {
     serialize: (node) => serializeComponent(node),
+  },
+  Collapser: {
+    serialize: (node) => {
+      serializeComponent(node);
+      const title = findAttribute('title', node);
+      title &&
+        set(node, 'children', [
+          {
+            type: 'text',
+            value: '',
+            data: {
+              hName: 'div',
+              hProperties: {
+                'data-prop-text': 'title',
+              },
+              hChildren: [
+                {
+                  type: 'text',
+                  value: title,
+                },
+              ],
+            },
+          },
+          ...node.children,
+        ]);
+    },
   },
   CollapserGroup: {
     serialize: (node) => serializeComponent(node),
@@ -27,14 +54,63 @@ const handlers = {
   Table: {
     serialize: (node) => serializeComponent(node),
   },
-  LandingPageTitle: {
-    serialize: (node) => serializeComponent(node),
+  LandingPageTile: {
+    serialize: (node) => {
+      serializeComponent(node);
+      const title = findAttribute('title', node);
+      title &&
+        set(node, 'children', [
+          {
+            type: 'text',
+            value: '',
+            data: {
+              hName: 'div',
+              hProperties: {
+                'data-prop-text': 'title',
+              },
+              hChildren: [
+                {
+                  type: 'text',
+                  value: title,
+                },
+              ],
+            },
+          },
+          ...node.children,
+        ]);
+    },
   },
   LandingPageTitleGrid: {
     serialize: (node) => serializeComponent(node),
   },
   InlineCode: {
     serialize: (node) => serializeComponent(node),
+  },
+  Video: {
+    serialize: (node) => {
+      serializeComponent(node);
+      const title = findAttribute('title', node);
+      title &&
+        set(node, 'children', [
+          {
+            type: 'text',
+            value: '',
+            data: {
+              hName: 'div',
+              hProperties: {
+                'data-prop-text': 'title',
+              },
+              hChildren: [
+                {
+                  type: 'text',
+                  value: title,
+                },
+              ],
+            },
+          },
+          ...node.children,
+        ]);
+    },
   },
 };
 
