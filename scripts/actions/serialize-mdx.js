@@ -19,7 +19,13 @@ const TEST_DIR = 'src/html-test';
 const mdxToHTML = (h, node) => {
   const handler = handlers[node.name];
 
-  return handler ? handler.serialize(h, node) : all(h, node);
+  if (!handler || !handler.serialize) {
+    throw new Error(
+      `Unable to serialize component: '${node.name}'. You need to specify a serializer in 'codemods/serialize/components-to-html.js'`
+    );
+  }
+
+  return handler.serialize(h, node);
 };
 
 const processor = unified()
