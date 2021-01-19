@@ -10,7 +10,7 @@ const serializeComponent = (node) => {
       })
     )
   ).toString('base64');
-  set(node, 'data.hProperties.data-prop', stringifiedProps);
+  set(node, 'data.hProperties.data-props', stringifiedProps);
 };
 
 module.exports = serializeComponent;

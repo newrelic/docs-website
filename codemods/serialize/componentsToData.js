@@ -52,7 +52,11 @@ const handlers = {
     serialize: (node) => serializeComponent(node),
   },
   Table: {
-    serialize: (node) => serializeComponent(node),
+    serialize: (node) => {
+      node.data = {
+        hName: 'table',
+      };
+    },
   },
   LandingPageTile: {
     serialize: (node) => {
