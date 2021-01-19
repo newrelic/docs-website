@@ -1,4 +1,7 @@
-const { serializeComponent, serializeJSValue } = require('./utils');
+const {
+  serializeComponent,
+  serializeJSValue,
+} = require('./serialization-helpers');
 const yaml = require('js-yaml');
 const u = require('unist-builder');
 
