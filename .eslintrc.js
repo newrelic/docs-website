@@ -22,6 +22,10 @@ module.exports = {
     browser: true,
     es6: true,
   },
+  globals: {
+    test: 'readonly',
+    expect: 'readonly',
+  },
   rules: {
     'no-unused-vars': [
       'error',
