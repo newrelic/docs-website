@@ -14,12 +14,12 @@ const handlers = {
   },
   Callout: {
     serialize: (h, node) => {
-      return serializeComponent(h, node, [serializeTextProp(h, node, 'title')]);
+      return serializeComponent(h, node, { textAttributes: ['title'] });
     },
   },
   Collapser: {
     serialize: (h, node) => {
-      return serializeComponent(h, node, [serializeTextProp(h, node, 'title')]);
+      return serializeComponent(h, node, { textAttributes: ['title'] });
     },
   },
   CollapserGroup: {
@@ -41,7 +41,7 @@ const handlers = {
   },
   LandingPageTile: {
     serialize: (h, node) => {
-      return serializeComponent(h, node, [serializeTextProp(h, node, 'title')]);
+      return serializeComponent(h, node, { textAttributes: ['title'] });
     },
   },
   LandingPageTileGrid: {
@@ -52,7 +52,7 @@ const handlers = {
   },
   Video: {
     serialize: (h, node) => {
-      return serializeComponent(h, node, [serializeTextProp(h, node, 'title')]);
+      return serializeComponent(h, node, { textAttributes: ['title'] });
     },
   },
 };

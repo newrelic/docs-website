@@ -48,16 +48,20 @@ const serializeProps = (node) => {
   ).toString('base64');
 };
 
-const serializeComponent = (h, node, children = []) => {
+const serializeComponent = (
+  h,
+  node,
+  { tagName = 'div', textAttributes = [] } = {}
+) => {
   return h(
     node,
-    'div',
+    tagName,
     {
       'data-component': node.name === null ? 'React.Fragment' : node.name,
       'data-props': serializeProps(node),
     },
     [
-      ...children,
+      ...textAttributes.map((name) => serializeTextProp(h, node, name)),
       node.children &&
         node.children.length &&
         h(node.position, 'div', { 'data-prop': 'children' }, all(h, node)),
