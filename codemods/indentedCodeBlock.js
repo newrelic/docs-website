@@ -1,6 +1,6 @@
 const visit = require('unist-util-visit');
 
-const INDENTED_CODE_BLOCK = /`{3,}\n?$/;
+const INDENTED_CODE_BLOCK = /`{3,}\n*/;
 
 const indentedCodeBlock = () => (tree) => {
   visit(
