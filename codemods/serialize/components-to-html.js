@@ -6,6 +6,9 @@ module.exports = {
   frontmatter: {
     serialize: (h, node) => {
       const data = yaml.safeLoad(node.value);
+      const serializeValue = (name) =>
+        data[name] &&
+        h(node, 'div', { 'data-key': name }, [u('text', data[name])]);
 
       return h(
         node,
@@ -15,16 +18,9 @@ module.exports = {
           'data-value': serializeJSValue(data),
         },
         [
-          data.title &&
-            h(node, 'div', { 'data-key': 'title' }, [u('text', data.title)]),
-          data.description &&
-            h(node, 'div', { 'data-key': 'description' }, [
-              u('text', data.description),
-            ]),
-          data.shortDescription &&
-            h(node, 'div', { 'data-key': 'shortDescription' }, [
-              u('text', data.shortDescription),
-            ]),
+          serializeValue('title'),
+          serializeValue('description'),
+          serializeValue('shortDescription'),
         ].filter(Boolean)
       );
     },
