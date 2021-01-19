@@ -8,13 +8,6 @@ const remarkMdxjs = require('remark-mdxjs');
 const remark2rehype = require('remark-rehype');
 const html = require('rehype-stringify');
 const format = require('rehype-format');
-const vfileGlob = require('vfile-glob');
-const vfile = require('vfile');
-const { writeSync } = require('to-vfile');
-const path = require('path');
-const all = require('mdast-util-to-hast/lib/all');
-
-const TEST_DIR = 'src/html-test';
 
 const mdxToHTML = (h, node) => {
   const handler = handlers[node.name];
