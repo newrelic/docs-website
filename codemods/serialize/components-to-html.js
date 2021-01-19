@@ -48,7 +48,8 @@ const handlers = {
     serialize: serializeComponent,
   },
   InlineCode: {
-    serialize: serializeComponent,
+    serialize: (h, node) =>
+      serializeComponent(h, node, { tagName: 'code', wrapChildren: false }),
   },
   Video: {
     serialize: (h, node) => {

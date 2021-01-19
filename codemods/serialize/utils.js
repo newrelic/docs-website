@@ -74,7 +74,7 @@ const serializeComponent = (
     textAttributes
       .map((name) => serializeTextProp(h, node, name))
       .concat(
-        wrapChildren
+        wrapChildren && node.children.length
           ? h(node.position, 'div', { 'data-prop': 'children' }, all(h, node))
           : all(h, node)
       )
