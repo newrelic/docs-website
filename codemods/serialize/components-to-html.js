@@ -3,6 +3,13 @@ const yaml = require('js-yaml');
 const u = require('unist-builder');
 
 module.exports = {
+  import: {
+    serialize: (h, node) =>
+      h(node, 'div', {
+        'data-type': 'import',
+        'data-value': Buffer.from(node.value).toString('base64'),
+      }),
+  },
   frontmatter: {
     serialize: (h, node) => {
       const data = yaml.safeLoad(node.value);

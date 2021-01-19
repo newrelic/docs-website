@@ -29,6 +29,7 @@ const processor = unified()
   .use(indentedCodeBlock)
   .use(remark2rehype, {
     handlers: {
+      import: handlers.import.serialize,
       yaml: handlers.frontmatter.serialize,
       mdxSpanElement: mdxToHTML,
       mdxBlockElement: mdxToHTML,
