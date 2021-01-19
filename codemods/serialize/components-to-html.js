@@ -2,6 +2,10 @@ const { serializeComponent, serializeTextProp } = require('./utils');
 const all = require('mdast-util-to-hast/lib/all');
 
 const handlers = {
+  // React fragment
+  [null]: {
+    serialize: serializeComponent,
+  },
   Button: {
     serialize: serializeComponent,
   },
