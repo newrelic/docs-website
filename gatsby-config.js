@@ -187,7 +187,6 @@ module.exports = {
           {
             resolve: 'gatsby-remark-images',
             options: {
-              maxHeight: 400,
               maxWidth: 1200,
               linkImagesToOriginal: false,
             },
@@ -203,6 +202,21 @@ module.exports = {
             resolve: require.resolve(
               './plugins/gatsby-remark-custom-heading-ids'
             ),
+          },
+          {
+            resolve: require.resolve('./plugins/gatsby-remark-mdx-v2-images'),
+          },
+          // Gifs are not supported via gatsby-remark-images (https://github.com/gatsbyjs/gatsby/issues/7317).
+          // It is recommended to therefore use this plugin to copy files with a
+          // .gif extension to the public folder.
+          //
+          // Source: https://github.com/gatsbyjs/gatsby/issues/7317#issuecomment-412984851
+          'gatsby-remark-copy-linked-files',
+          {
+            resolve: require.resolve('./plugins/gatsby-remark-gifs'),
+            options: {
+              maxWidth: 1200,
+            },
           },
         ],
       },
