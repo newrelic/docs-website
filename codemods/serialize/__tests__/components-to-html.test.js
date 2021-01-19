@@ -1,5 +1,5 @@
 import processor from '../../../scripts/actions/serialize-mdx';
-import fs from 'fs'
+import fs from 'fs';
 
 test('serializes Button to html', async () => {
   const file = await processor.process(`
@@ -184,6 +184,14 @@ test('serializes Video to html', async () => {
   expect(file.contents).toMatchSnapshot();
 });
 
+test('serializes Video with title to html', async () => {
+  const file = await processor.process(`
+<Video id="abcd" type="wistia" title="The video title" />
+`);
+
+  expect(file.contents).toMatchSnapshot();
+});
+
 test('serializes Icon to html', async () => {
   const file = await processor.process(`
 <Icon name="fe-external-link" size="1rem" />
@@ -193,7 +201,25 @@ test('serializes Icon to html', async () => {
 });
 
 test('kitchen sink', async () => {
-  const file = await processor.process(fs.readFileSync(`${__dirname}/kitchen-sink.mdx`, 'utf-8'));
+  const file = await processor.process(
+    fs.readFileSync(`${__dirname}/kitchen-sink.mdx`, 'utf-8')
+  );
+
+  expect(file.contents).toMatchSnapshot();
+});
+
+test('serializes Icon to html', async () => {
+  const file = await processor.process(`
+<Icon name="fe-external-link" size="1rem" />
+`);
+
+  expect(file.contents).toMatchSnapshot();
+});
+
+test('kitchen sink', async () => {
+  const file = await processor.process(
+    fs.readFileSync(`${__dirname}/kitchen-sink.mdx`, 'utf-8')
+  );
 
   expect(file.contents).toMatchSnapshot();
 });

@@ -1,134 +1,84 @@
-const visit = require('unist-util-visit');
-const { isMdxElement, findAttribute } = require('../utils/mdxast');
-const serializeComponent = require('./serializeComponent');
-const { set } = require('lodash');
+const { findAttribute } = require('../utils/mdxast');
+const { serializeComponent, serializeTextProp } = require('./utils');
+const all = require('mdast-util-to-hast/lib/all');
 
 const handlers = {
   Button: {
-    serialize: (node) => serializeComponent(node),
+    serialize: serializeComponent,
   },
   ButtonLink: {
-    serialize: (node) => serializeComponent(node),
+    serialize: serializeComponent,
   },
   Callout: {
-    serialize: (node) => serializeComponent(node),
+    serialize: (h, node) => {
+      const title = findAttribute('title', node);
+
+      return serializeComponent(h, node, [
+        title &&
+          h(node.position, 'div', { 'data-prop': 'title' }, [
+            serializeTextProp(title),
+          ]),
+      ]);
+    },
   },
   Collapser: {
-    serialize: (node) => {
-      serializeComponent(node);
+    serialize: (h, node) => {
       const title = findAttribute('title', node);
-      title &&
-        set(node, 'children', [
-          {
-            type: 'text',
-            value: '',
-            data: {
-              hName: 'div',
-              hProperties: {
-                'data-prop-text': 'title',
-              },
-              hChildren: [
-                {
-                  type: 'text',
-                  value: title,
-                },
-              ],
-            },
-          },
-          ...node.children,
-        ]);
+
+      return serializeComponent(h, node, [
+        h(node.position, 'div', { 'data-prop': 'title' }, [
+          serializeTextProp(title),
+        ]),
+      ]);
     },
   },
   CollapserGroup: {
-    serialize: (node) => serializeComponent(node),
+    serialize: serializeComponent,
   },
   ExternalLink: {
-    serialize: (node) => serializeComponent(node),
+    serialize: serializeComponent,
   },
   Link: {
-    serialize: (node) => serializeComponent(node),
+    serialize: serializeComponent,
   },
   Icon: {
-    serialize: (node) => serializeComponent(node),
+    serialize: serializeComponent,
   },
   Table: {
-    serialize: (node) => {
-      node.data = {
-        hName: 'table',
-      };
+    serialize: (h, node) => {
+      return h(node, 'table', {}, all(h, node));
     },
   },
   LandingPageTile: {
-    serialize: (node) => {
-      serializeComponent(node);
+    serialize: (h, node) => {
       const title = findAttribute('title', node);
-      title &&
-        set(node, 'children', [
-          {
-            type: 'text',
-            value: '',
-            data: {
-              hName: 'div',
-              hProperties: {
-                'data-prop-text': 'title',
-              },
-              hChildren: [
-                {
-                  type: 'text',
-                  value: title,
-                },
-              ],
-            },
-          },
-          ...node.children,
-        ]);
+
+      return serializeComponent(h, node, [
+        title &&
+          h(node.position, 'div', { 'data-prop': 'title' }, [
+            serializeTextProp(title),
+          ]),
+      ]);
     },
   },
   LandingPageTileGrid: {
-    serialize: (node) => serializeComponent(node),
+    serialize: serializeComponent,
   },
   InlineCode: {
-    serialize: (node) => serializeComponent(node),
+    serialize: serializeComponent,
   },
   Video: {
-    serialize: (node) => {
-      serializeComponent(node);
+    serialize: (h, node) => {
       const title = findAttribute('title', node);
-      title &&
-        set(node, 'children', [
-          {
-            type: 'text',
-            value: '',
-            data: {
-              hName: 'div',
-              hProperties: {
-                'data-prop-text': 'title',
-              },
-              hChildren: [
-                {
-                  type: 'text',
-                  value: title,
-                },
-              ],
-            },
-          },
-          ...node.children,
-        ]);
+
+      return serializeComponent(h, node, [
+        title &&
+          h(node.position, 'div', { 'data-prop': 'title' }, [
+            serializeTextProp(title),
+          ]),
+      ]);
     },
   },
 };
 
-const componentsToData = () => (tree) => {
-  visit(
-    tree,
-    (node) =>
-      Object.keys(handlers).some((componentName) =>
-        isMdxElement(componentName, node)
-      ),
-    (node, ...args) => {
-      handlers[node.name].serialize(node, ...args);
-    }
-  );
-};
-
-module.exports = componentsToData;
+module.exports = handlers;

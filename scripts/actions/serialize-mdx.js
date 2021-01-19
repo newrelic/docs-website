@@ -1,4 +1,4 @@
-const componentsToHTML = require('../../codemods/serialize/components-to-html');
+const handlers = require('../../codemods/serialize/components-to-html');
 const indentedCodeBlock = require('../../codemods/indentedCodeBlock');
 const unified = require('unified');
 const toMDAST = require('remark-parse');
@@ -12,8 +12,15 @@ const vfileGlob = require('vfile-glob');
 const vfile = require('vfile');
 const { writeSync } = require('to-vfile');
 const path = require('path');
+const all = require('mdast-util-to-hast/lib/all');
 
 const TEST_DIR = 'src/html-test';
+
+const mdxToHTML = (h, node) => {
+  const handler = handlers[node.name];
+
+  return handler ? handler.serialize(h, node) : all(h, node);
+};
 
 const processor = unified()
   .use(toMDAST)
@@ -23,8 +30,12 @@ const processor = unified()
   .use(indentedCodeBlock)
   .use(toMDAST)
   .use(remarkMdx)
-  .use(componentsToHTML)
-  .use(remark2rehype)
+  .use(remark2rehype, {
+    handlers: {
+      mdxSpanElement: mdxToHTML,
+      mdxBlockElement: mdxToHTML,
+    },
+  })
   .use(format)
   .use(html);
 
