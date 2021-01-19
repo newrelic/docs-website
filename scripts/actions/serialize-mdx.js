@@ -8,6 +8,7 @@ const remarkMdxjs = require('remark-mdxjs');
 const remark2rehype = require('remark-rehype');
 const html = require('rehype-stringify');
 const format = require('rehype-format');
+const customHeadingIds = require('../../plugins/gatsby-remark-custom-heading-ids/utils/visitor');
 
 const mdxToHTML = (h, node) => {
   const handler = handlers[node.name];
@@ -27,6 +28,7 @@ const processor = unified()
   .use(remarkMdxjs)
   .use(frontmatter, ['yaml'])
   .use(indentedCodeBlock)
+  .use(customHeadingIds)
   .use(remark2rehype, {
     handlers: {
       import: handlers.import.serialize,
