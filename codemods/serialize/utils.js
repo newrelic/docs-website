@@ -1,8 +1,9 @@
+const { findAttribute } = require('../utils/mdxast');
 const { omit } = require('lodash');
 const all = require('mdast-util-to-hast/lib/all');
 const u = require('unist-builder');
 
-const serializeTextProp = (attribute) => {
+const serializeAttributeValue = (attribute) => {
   if (typeof attribute === 'string') {
     return u('text', attribute);
   }
@@ -12,6 +13,18 @@ const serializeTextProp = (attribute) => {
   }
 
   throw new Error('Unable to handle attribute');
+};
+
+const serializeTextProp = (h, node, propName) => {
+  const attribute = findAttribute(propName, node);
+
+  if (!attribute) {
+    return;
+  }
+
+  return h(node, 'div', { 'data-prop': propName }, [
+    serializeAttributeValue(attribute),
+  ]);
 };
 
 const serializeProps = (node) => {

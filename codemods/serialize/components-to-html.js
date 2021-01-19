@@ -1,4 +1,3 @@
-const { findAttribute } = require('../utils/mdxast');
 const { serializeComponent, serializeTextProp } = require('./utils');
 const all = require('mdast-util-to-hast/lib/all');
 
@@ -11,25 +10,12 @@ const handlers = {
   },
   Callout: {
     serialize: (h, node) => {
-      const title = findAttribute('title', node);
-
-      return serializeComponent(h, node, [
-        title &&
-          h(node.position, 'div', { 'data-prop': 'title' }, [
-            serializeTextProp(title),
-          ]),
-      ]);
+      return serializeComponent(h, node, [serializeTextProp(h, node, 'title')]);
     },
   },
   Collapser: {
     serialize: (h, node) => {
-      const title = findAttribute('title', node);
-
-      return serializeComponent(h, node, [
-        h(node.position, 'div', { 'data-prop': 'title' }, [
-          serializeTextProp(title),
-        ]),
-      ]);
+      return serializeComponent(h, node, [serializeTextProp(h, node, 'title')]);
     },
   },
   CollapserGroup: {
@@ -51,14 +37,7 @@ const handlers = {
   },
   LandingPageTile: {
     serialize: (h, node) => {
-      const title = findAttribute('title', node);
-
-      return serializeComponent(h, node, [
-        title &&
-          h(node.position, 'div', { 'data-prop': 'title' }, [
-            serializeTextProp(title),
-          ]),
-      ]);
+      return serializeComponent(h, node, [serializeTextProp(h, node, 'title')]);
     },
   },
   LandingPageTileGrid: {
@@ -69,14 +48,7 @@ const handlers = {
   },
   Video: {
     serialize: (h, node) => {
-      const title = findAttribute('title', node);
-
-      return serializeComponent(h, node, [
-        title &&
-          h(node.position, 'div', { 'data-prop': 'title' }, [
-            serializeTextProp(title),
-          ]),
-      ]);
+      return serializeComponent(h, node, [serializeTextProp(h, node, 'title')]);
     },
   },
 };
