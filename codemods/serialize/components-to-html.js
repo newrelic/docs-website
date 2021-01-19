@@ -13,14 +13,12 @@ const handlers = {
     serialize: serializeComponent,
   },
   Callout: {
-    serialize: (h, node) => {
-      return serializeComponent(h, node, { textAttributes: ['title'] });
-    },
+    serialize: (h, node) =>
+      serializeComponent(h, node, { textAttributes: ['title'] }),
   },
   Collapser: {
-    serialize: (h, node) => {
-      return serializeComponent(h, node, { textAttributes: ['title'] });
-    },
+    serialize: (h, node) =>
+      serializeComponent(h, node, { textAttributes: ['title'] }),
   },
   CollapserGroup: {
     serialize: serializeComponent,
@@ -35,14 +33,16 @@ const handlers = {
     serialize: serializeComponent,
   },
   Table: {
-    serialize: (h, node) => {
-      return h(node, 'table', {}, all(h, node));
-    },
+    serialize: (h, node) =>
+      serializeComponent(h, node, {
+        tagName: 'table',
+        wrapChildren: false,
+        identifyComponent: false,
+      }),
   },
   LandingPageTile: {
-    serialize: (h, node) => {
-      return serializeComponent(h, node, { textAttributes: ['title'] });
-    },
+    serialize: (h, node) =>
+      serializeComponent(h, node, { textAttributes: ['title'] }),
   },
   LandingPageTileGrid: {
     serialize: serializeComponent,
@@ -52,9 +52,8 @@ const handlers = {
       serializeComponent(h, node, { tagName: 'code', wrapChildren: false }),
   },
   Video: {
-    serialize: (h, node) => {
-      return serializeComponent(h, node, { textAttributes: ['title'] });
-    },
+    serialize: (h, node) =>
+      serializeComponent(h, node, { textAttributes: ['title'] }),
   },
   thead: {
     serialize: (h, node) =>
