@@ -43,7 +43,9 @@ const getAccessToken = async () => {
 
 /**
  * Makes a HTTP request to the translation vendor API.
- * @todo response
+ *
+ * @example vendorRequest('POST', '/foobar', { name: "foobar" });
+ *
  * @param {"GET"|"POST"} method The HTTP method used in the request.
  * @param {string} endpoint The API endpoint to request.
  * @param {Object} [body] (Optional) Data to send with the requst.
