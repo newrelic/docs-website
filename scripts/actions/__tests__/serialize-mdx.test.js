@@ -1,4 +1,4 @@
-import serializeMDX from '../../../scripts/actions/serialize-mdx';
+import serializeMDX from '../serialize-mdx';
 import fs from 'fs';
 
 test('serializes Button to html', async () => {
@@ -195,6 +195,14 @@ test('serializes Video with title to html', async () => {
 test('serializes Icon to html', async () => {
   const html = await serializeMDX(`
 <Icon name="fe-external-link" size="1rem" />
+`);
+
+  expect(html).toMatchSnapshot();
+});
+
+test('serialize Icon inline with text to HTML', async () => {
+  const html = await serializeMDX(`
+This is some text with a star <Icon name="fe-star" size="1rem" /> and some more text after it
 `);
 
   expect(html).toMatchSnapshot();

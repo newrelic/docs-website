@@ -6,11 +6,19 @@ const toMDAST = require('remark-parse');
 const remarkMdx = require('remark-mdx');
 const remarkMdxjs = require('remark-mdxjs');
 const unified = require('unified');
+const visit = require('unist-util-visit');
+
+const removeParagraphs = () => (tree) => {
+  visit(tree, 'paragraph', (node, idx, parent) => {
+    parent.children.splice(idx, 1, ...node.children);
+  });
+};
 
 const attributeProcessor = unified()
   .use(toMDAST)
   .use(remarkMdx)
-  .use(remarkMdxjs);
+  .use(remarkMdxjs)
+  .use(removeParagraphs);
 
 const serializeAttributeValue = (h, attribute) => {
   if (typeof attribute === 'string') {
@@ -18,7 +26,8 @@ const serializeAttributeValue = (h, attribute) => {
   }
 
   if (attribute.type === 'mdxValueExpression') {
-    const { children } = attributeProcessor.parse(attribute.value);
+    const root = attributeProcessor.parse(attribute.value);
+    const { children } = attributeProcessor.runSync(root);
 
     return serializeComponent(h, children[0]);
   }
@@ -57,17 +66,19 @@ const serializeComponent = (
   h,
   node,
   {
-    tagName = 'div',
+    tagName,
     textAttributes = [],
     wrapChildren = true,
     identifyComponent = true,
+    children = node.children || [],
   } = {}
 ) => {
-  node.children = node.children || [];
+  node.children = children;
+  const inferredTagName = node.type === 'mdxSpanElement' ? 'span' : 'div';
 
   return h(
     node,
-    tagName,
+    tagName || inferredTagName,
     stripNulls({
       'data-type': 'component',
       'data-component': identifyComponent ? getComponentName(node) : null,
