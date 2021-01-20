@@ -8,6 +8,7 @@ const {
 } = require('./deserialization-helpers');
 const yaml = require('js-yaml');
 const u = require('unist-builder');
+const toString = require('mdast-util-to-string');
 
 module.exports = {
   import: {
@@ -110,8 +111,16 @@ module.exports = {
     serialize: serializeComponent,
   },
   InlineCode: {
-    serialize: (h, node) =>
-      serializeComponent(h, node, { tagName: 'code', wrapChildren: false }),
+    deserialize: (h, node) =>
+      deserializeComponent(h, node, { type: 'mdxSpanElement' }),
+    serialize: (h, node) => {
+      return h(
+        node,
+        'code',
+        { 'data-type': 'component', 'data-component': 'InlineCode' },
+        [u('text', toString(node))]
+      );
+    },
   },
   Video: {
     deserialize: deserializeComponent,

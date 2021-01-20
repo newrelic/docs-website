@@ -52,7 +52,7 @@ test('deserializes components with text props', async () => {
   expect(mdx).toEqual(input.trim());
 });
 
-test.only('deserializes components with text props as JSX expressions', async () => {
+test('deserializes components with text props as JSX expressions', async () => {
   const input = `
 <Collapser title={<><InlineCode>agent.send_custom_event</InlineCode> API</>}>
   All about that API
@@ -67,12 +67,20 @@ test.only('deserializes components with text props as JSX expressions', async ()
 test('deserializes components with children', async () => {
   const input = `
 <CollapserGroup>
-  <Collapser
-    title={<><InlineCode>agent.send_custom_event</InlineCode> API</>}
-  >
+  <Collapser title={<><InlineCode>agent.send_custom_event</InlineCode> API</>}>
     All about that API
   </Collapser>
 </CollapserGroup>
+  `;
+
+  const mdx = await deserializeHTML(await serializeMDX(input));
+
+  expect(mdx).toEqual(input.trim());
+});
+
+test('deserializes InlineCode components', async () => {
+  const input = `
+<InlineCode>agent.send_custom_event</InlineCode>
   `;
 
   const mdx = await deserializeHTML(await serializeMDX(input));

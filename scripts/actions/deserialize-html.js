@@ -11,11 +11,19 @@ const fs = require('fs');
 const { get, has } = require('lodash');
 const all = require('hast-util-to-mdast/lib/all');
 const handlers = require('./utils/handlers');
+const defaultHandlers = require('hast-util-to-mdast/lib/handlers');
 
 const processor = unified()
   .use(parse)
   .use(rehype2remark, {
     handlers: {
+      code: (h, node) => {
+        if (node.properties.dataComponent === 'InlineCode') {
+          return handlers.InlineCode.deserialize(h, node);
+        }
+
+        return defaultHandlers.code(h, node);
+      },
       div: (h, node) => {
         const type = get(node, 'properties.dataType');
         const key =
