@@ -41,8 +41,6 @@ const serializeTextProp = (h, node, propName) => {
 const serializeJSValue = (value) =>
   Buffer.from(JSON.stringify(value)).toString('base64');
 
-const deserializeJSValue = (value) => JSON.parse(Buffer.from(value, 'base64'));
-
 const serializeProps = (node) => {
   if (node.attributes.length === 0) {
     return null;
@@ -98,7 +96,6 @@ const stripNulls = (obj) =>
   Object.fromEntries(Object.entries(obj).filter(([, value]) => value != null));
 
 module.exports = {
-  deserializeJSValue,
   serializeComponent,
   serializeProps,
   serializeTextProp,

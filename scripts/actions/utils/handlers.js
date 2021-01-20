@@ -1,8 +1,11 @@
 const {
-  deserializeJSValue,
   serializeComponent,
   serializeJSValue,
 } = require('./serialization-helpers');
+const {
+  deserializeComponent,
+  deserializeJSValue,
+} = require('./deserialization-helpers');
 const yaml = require('js-yaml');
 const u = require('unist-builder');
 
@@ -55,6 +58,7 @@ module.exports = {
     serialize: serializeComponent,
   },
   Button: {
+    deserialize: deserializeComponent,
     serialize: serializeComponent,
   },
   ButtonLink: {
