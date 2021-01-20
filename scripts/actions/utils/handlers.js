@@ -90,8 +90,18 @@ module.exports = {
     serialize: serializeComponent,
   },
   Icon: {
-    deserialize: deserializeComponent,
-    serialize: serializeComponent,
+    deserialize: (h, node) =>
+      deserializeComponent(h, node, {
+        wrappedChildren: false,
+        ignoreChildren: true,
+      }),
+    serialize: (h, node) =>
+      serializeComponent(h, node, {
+        wrapChildren: false,
+        // ensure rehype-minify-whitespace does not collapse any whitespace on
+        // a text node that follows this node
+        children: [u('text', '\u00A0')],
+      }),
   },
   Table: {
     deserialize: (h, node) =>

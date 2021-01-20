@@ -47,7 +47,7 @@ const deserializeAttributeValue = (h, node) => {
 const deserializeComponent = (
   h,
   node,
-  { type, wrappedChildren = true } = {}
+  { type, ignoreChildren = false, wrappedChildren = true } = {}
 ) => {
   const { dataComponent, dataProps } = node.properties;
   const name = dataComponent || node.tagName;
@@ -56,7 +56,9 @@ const deserializeComponent = (
     node.tagName === 'span' ? 'mdxSpanElement' : 'mdxBlockElement';
 
   const textProps = wrappedChildren
-    ? node.children.filter((child) => child.properties.dataProp !== 'children')
+    ? node.children.filter(
+        (child) => child.properties && child.properties.dataProp !== 'children'
+      )
     : [];
 
   const childrenNode = wrappedChildren
@@ -84,7 +86,7 @@ const deserializeComponent = (
       name: name === 'React.Fragment' ? null : name,
       attributes,
     },
-    childrenNode ? all(h, childrenNode) : []
+    childrenNode && !ignoreChildren ? all(h, childrenNode) : []
   );
 };
 

@@ -200,6 +200,14 @@ test('serializes Icon to html', async () => {
   expect(html).toMatchSnapshot();
 });
 
+test('serialize Icon inline with text to HTML', async () => {
+  const html = await serializeMDX(`
+This is some text with a star <Icon name="fe-star" size="1rem" /> and some more text after it
+`);
+
+  expect(html).toMatchSnapshot();
+});
+
 test('serializes Icon to html', async () => {
   const html = await serializeMDX(`
 <Icon name="fe-external-link" size="1rem" />

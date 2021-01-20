@@ -70,9 +70,10 @@ const serializeComponent = (
     textAttributes = [],
     wrapChildren = true,
     identifyComponent = true,
+    children = node.children || [],
   } = {}
 ) => {
-  node.children = node.children || [];
+  node.children = children;
   const inferredTagName = node.type === 'mdxSpanElement' ? 'span' : 'div';
 
   return h(
