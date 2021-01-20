@@ -13,17 +13,34 @@ const all = require('hast-util-to-mdast/lib/all');
 const handlers = require('./utils/handlers');
 const defaultHandlers = require('hast-util-to-mdast/lib/handlers');
 
+const genericHandler = (h, node) => {
+  if (!node.properties || node.properties.dataType !== 'component') {
+    return defaultHandlers[node.tagName](h, node);
+  }
+
+  const key = node.properties.dataComponent || node.tagName;
+  const handler = handlers[key];
+
+  if (!handler || !handler.deserialize) {
+    throw new Error(
+      `Unable to deserialize node: '${key}'. You need to specify a deserializer in 'scripts/actions/utils/handlers.js'`
+    );
+  }
+
+  return handler.deserialize(h, node);
+};
+
 const processor = unified()
   .use(parse)
   .use(rehype2remark, {
     handlers: {
-      code: (h, node) => {
-        if (node.properties.dataComponent === 'InlineCode') {
-          return handlers.InlineCode.deserialize(h, node);
-        }
-
-        return defaultHandlers.code(h, node);
-      },
+      code: genericHandler,
+      table: genericHandler,
+      thead: genericHandler,
+      tbody: genericHandler,
+      tr: genericHandler,
+      td: genericHandler,
+      th: genericHandler,
       div: (h, node) => {
         const type = get(node, 'properties.dataType');
         const key =

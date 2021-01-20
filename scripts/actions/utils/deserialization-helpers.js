@@ -44,37 +44,45 @@ const deserializeAttributeValue = (h, node) => {
   throw new Error('Unable to deserialize attribute');
 };
 
-const deserializeComponent = (h, node, { type = 'mdxBlockElement' } = {}) => {
+const deserializeComponent = (
+  h,
+  node,
+  { type = 'mdxBlockElement', wrappedChildren = true } = {}
+) => {
   const { dataComponent, dataProps } = node.properties;
+  const name = dataComponent || node.tagName;
   const props = dataProps ? deserializeJSValue(dataProps) : [];
-  const childrenProp = node.children.find(
-    (child) => child.properties.dataProp === 'children'
-  );
 
-  const attributes = node.children
-    .filter((child) => child.properties.dataProp !== 'children')
-    .reduce((attributes, node) => {
-      const { dataProp: name } = node.properties;
-      const value = deserializeAttributeValue(h, node.children[0]);
-      const idx = attributes.findIndex((attr) => attr.name === name);
+  const textProps = wrappedChildren
+    ? node.children.filter((child) => child.properties.dataProp !== 'children')
+    : [];
 
-      return idx === -1
-        ? [...attributes, mdxAttribute(name, value)]
-        : [
-            ...attributes.slice(0, idx),
-            mdxAttribute(name, value),
-            ...attributes.slice(idx + 1),
-          ];
-    }, props);
+  const childrenNode = wrappedChildren
+    ? node.children.find((child) => child.properties.dataProp === 'children')
+    : node;
+
+  const attributes = textProps.reduce((attributes, node) => {
+    const { dataProp: name } = node.properties;
+    const value = deserializeAttributeValue(h, node.children[0]);
+    const idx = attributes.findIndex((attr) => attr.name === name);
+
+    return idx === -1
+      ? [...attributes, mdxAttribute(name, value)]
+      : [
+          ...attributes.slice(0, idx),
+          mdxAttribute(name, value),
+          ...attributes.slice(idx + 1),
+        ];
+  }, props);
 
   return h(
     node,
     type,
     {
-      name: dataComponent === 'React.Fragment' ? null : dataComponent,
+      name: name === 'React.Fragment' ? null : name,
       attributes,
     },
-    childrenProp && all(h, childrenProp)
+    childrenNode && all(h, childrenNode)
   );
 };
 

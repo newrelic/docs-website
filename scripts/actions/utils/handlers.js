@@ -9,6 +9,7 @@ const {
 const yaml = require('js-yaml');
 const u = require('unist-builder');
 const toString = require('mdast-util-to-string');
+const all = require('hast-util-to-mdast/lib/all');
 
 module.exports = {
   import: {
@@ -94,6 +95,8 @@ module.exports = {
     serialize: serializeComponent,
   },
   Table: {
+    deserialize: (h, node) =>
+      deserializeComponent(h, node, { wrappedChildren: false }),
     serialize: (h, node) =>
       serializeComponent(h, node, {
         tagName: 'table',
@@ -127,6 +130,10 @@ module.exports = {
       serializeComponent(h, node, { textAttributes: ['title'] }),
   },
   thead: {
+    deserialize: (h, node) =>
+      deserializeComponent(h, node, {
+        wrappedChildren: false,
+      }),
     serialize: (h, node) =>
       serializeComponent(h, node, {
         tagName: 'thead',
@@ -135,6 +142,10 @@ module.exports = {
       }),
   },
   tbody: {
+    deserialize: (h, node) =>
+      deserializeComponent(h, node, {
+        wrappedChildren: false,
+      }),
     serialize: (h, node) =>
       serializeComponent(h, node, {
         tagName: 'tbody',
@@ -143,6 +154,10 @@ module.exports = {
       }),
   },
   tr: {
+    deserialize: (h, node) =>
+      deserializeComponent(h, node, {
+        wrappedChildren: false,
+      }),
     serialize: (h, node) =>
       serializeComponent(h, node, {
         tagName: 'tr',
@@ -151,6 +166,10 @@ module.exports = {
       }),
   },
   th: {
+    deserialize: (h, node) =>
+      deserializeComponent(h, node, {
+        wrappedChildren: false,
+      }),
     serialize: (h, node) =>
       serializeComponent(h, node, {
         tagName: 'th',
@@ -159,6 +178,10 @@ module.exports = {
       }),
   },
   td: {
+    deserialize: (h, node) =>
+      deserializeComponent(h, node, {
+        wrappedChildren: false,
+      }),
     serialize: (h, node) =>
       serializeComponent(h, node, {
         tagName: 'td',
