@@ -9,11 +9,11 @@ title: The doc
 ---
 
 This is an MDX doc
-  `;
+`;
 
   const mdx = await deserializeHTML(await serializeMDX(input));
 
-  expect(mdx).toEqual(input);
+  expect(mdx).toEqual(input.trim());
 });
 
 test('deserializes mdx with import statements', async () => {
@@ -25,7 +25,7 @@ This is an MDX doc
 
   const mdx = await deserializeHTML(await serializeMDX(input));
 
-  expect(mdx).toEqual(input);
+  expect(mdx).toEqual(input.trim());
 });
 
 test('deserializes simple components', async () => {
@@ -39,7 +39,7 @@ test('deserializes simple components', async () => {
 
   const mdx = await deserializeHTML(await serializeMDX(input));
 
-  expect(mdx).toEqual(input);
+  expect(mdx).toEqual(input.trim());
 });
 
 test('deserializes components with text props', async () => {
@@ -53,7 +53,7 @@ test('deserializes components with text props', async () => {
 
   const mdx = await deserializeHTML(await serializeMDX(input));
 
-  expect(mdx).toEqual(input);
+  expect(mdx).toEqual(input.trim());
 });
 
 test('deserializes components with text props as JSX expressions', async () => {
@@ -67,7 +67,7 @@ test('deserializes components with text props as JSX expressions', async () => {
 
   const mdx = await deserializeHTML(await serializeMDX(input));
 
-  expect(mdx).toEqual(input);
+  expect(mdx).toEqual(input.trim());
 });
 
 test('deserializes components with children', async () => {
@@ -83,7 +83,7 @@ test('deserializes components with children', async () => {
 
   const mdx = await deserializeHTML(await serializeMDX(input));
 
-  expect(mdx).toEqual(input);
+  expect(mdx).toEqual(input.trim());
 });
 
 test('kitchen sink', async () => {
@@ -91,5 +91,5 @@ test('kitchen sink', async () => {
 
   const mdx = await deserializeHTML(await serializeMDX(input));
 
-  expect(mdx).toEqual(input);
+  expect(mdx).toEqual(input.trim());
 });
