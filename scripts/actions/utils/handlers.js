@@ -112,7 +112,7 @@ module.exports = {
   },
   InlineCode: {
     deserialize: (h, node) =>
-      deserializeComponent(h, node, { type: 'mdxSpanElement' }),
+      h(node, 'mdxSpanElement', { name: 'InlineCode' }, node.children),
     serialize: (h, node) => {
       return h(
         node,
