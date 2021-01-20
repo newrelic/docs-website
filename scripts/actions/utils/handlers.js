@@ -1,4 +1,5 @@
 const {
+  deserializeJSValue,
   serializeComponent,
   serializeJSValue,
 } = require('./serialization-helpers');
@@ -7,6 +8,11 @@ const u = require('unist-builder');
 
 module.exports = {
   import: {
+    deserialize: (h, node) => {
+      const value = Buffer.from(node.properties.dataValue, 'base64').toString();
+
+      return h(node, 'import', value);
+    },
     serialize: (h, node) =>
       h(node, 'div', {
         'data-type': 'import',
@@ -14,6 +20,15 @@ module.exports = {
       }),
   },
   frontmatter: {
+    deserialize: (h, node) => {
+      const data = deserializeJSValue(node.properties.dataValue);
+
+      return h(
+        node,
+        'yaml',
+        yaml.safeDump(data, { lineWidth: Infinity }).trim()
+      );
+    },
     serialize: (h, node) => {
       const data = yaml.safeLoad(node.value);
       const serializeValue = (name) =>
