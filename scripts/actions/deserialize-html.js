@@ -42,6 +42,10 @@ const processor = unified()
       td: genericHandler,
       th: genericHandler,
       div: (h, node) => {
+        if (!node.properties || !node.properties.dataType) {
+          return defaultHandlers.div(h, node);
+        }
+
         const type = get(node, 'properties.dataType');
         const key =
           type === 'component'
