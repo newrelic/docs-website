@@ -50,19 +50,24 @@ const HomePage = ({ data }) => {
             <p>{t('home.intro.p1')}</p>
 
             <Trans i18nKey="home.intro.p2" parent="p">
-              If you're catching up on the changes in New Relic One, start with{' '}
+              If you're catching up on the changes in New Relic One, start with
+              this{' '}
               <Link to="/docs/new-relic-one/use-new-relic-one/core-concepts/new-relic-one-transition-guide-july-2020">
-                this transition guide
-              </Link>{' '}
-              or check out <Link to="/whats-new">what's new</Link>.
+                transition guide
+              </Link>
+              , or check out <Link to="/whats-new">what's new</Link>.
             </Trans>
 
             <Trans i18nKey="home.intro.p3" parent="p">
               Scroll on for more about our Telemetry Data Platform, Full-Stack
-              Observability, and Applied Intelligence. Or get a wider view of
-              the platform with our{' '}
+              Observability, and Applied Intelligence. Or, to get a wider view
+              of our platform's capabilities, read the{' '}
               <Link to="/docs/using-new-relic/welcome-new-relic/get-started/introduction-new-relic">
                 Intro to New Relic
+              </Link>
+              , and use our{' '}
+              <Link to="/docs/new-relic-solutions">
+                solutions and best practices guides
               </Link>
               .
             </Trans>
