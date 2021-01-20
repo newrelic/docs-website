@@ -6,6 +6,12 @@ const loadFromDB = require('./utils/load-from-db');
 const saveToDB = require('./utils/save-to-db');
 const vendorRequest = require('./utils/vendor-request');
 
+// NOTE: the vendor requires the locales in a different format
+// We should consider this into the Gatsby config for each locale.
+const LOCALE_IDS = {
+  jp: 'ja-JP',
+};
+
 /**
  * @typedef Content
  * @property {string} file The filepath for the MDX file.
@@ -37,15 +43,33 @@ const getContent = (queue) =>
 
 /**
  * @param {Object<string, Content[]>} content Content to be translated.
- * @returns {string[]} A list of vendor UIDs for the translation jobs.
+ * @returns {Promise<{ jobUid: string, batchUid: string}>} A list of vendor UIDs for the translation jobs.
  */
 const sendContentToVendor = async (content) => {
-  // 1) Create a batch job - save batch ID for storage
-  // 2) Upload each file to the batch job
+  // 1) Create a job for each locale - save the jobUid for storage
+  const jobRequests = Object.keys(content).map((locale) => {
+    const body = {
+      jobName: `Gatsby Translation Queue (${locale}) ${new Date().toLocaleString()}`,
+      targetLocaleIds: [LOCALE_IDS[locale]],
+    };
+    return vendorRequest(
+      'POST',
+      `/jobs-api/v3/projects/${process.env.TRANSLATION_VENDOR_PROJECT}/jobs`,
+      body
+    );
+  });
 
-  // const { jobUid } = await vendorRequest('POST', '/jobs', content);
+  const jobsResponses = await Promise.all(jobRequests);
+  const jobUids = jobsResponses.map((resp) => resp.data.translationJobUid);
 
   return jobUids;
+
+  // 2) Create a batch for the job - save bachUid for storage
+  // 3) Upload each file to the batch job
+  // 4) Check status of job and batch
+
+  // batch status: DRAFT -> ADDING_FILES -> EXECUTING -> COMPLETED
+  // job status: AWAITING_AUTHORIZATION -> IN_PROGRESS (CANCELLED)
 };
 
 /**
@@ -73,6 +97,8 @@ const main = async () => {
   try {
     // TODO: finalize this
     const jobUids = await sendContentToVendor(content);
+    console.log('jobUids', jobUids);
+    process.exit(0);
 
     // clear out `to_translate` queue
     await saveToDB(table, key, 'set locales = :empty', { ':empty': {} });
