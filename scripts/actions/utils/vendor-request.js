@@ -19,6 +19,11 @@ const makeRequest = async (url, options) => {
   }
 };
 
+/**
+ * Get an access token for use in following call.
+ * _NOTE: this token expires after 5 minutes._
+ * @returns {Promise<string>}
+ */
 const getAccessToken = async () => {
   const url = new URL(
     '/auth-api/v2/authenticate',

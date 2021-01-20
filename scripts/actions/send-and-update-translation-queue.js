@@ -4,9 +4,7 @@ const fetch = require('node-fetch');
 
 const loadFromDB = require('./utils/load-from-db');
 const saveToDB = require('./utils/save-to-db');
-
-// TODO: update this with real URL
-const VENDOR_API_URL = '';
+const vendorRequest = require('./utils/vendor-request');
 
 /**
  * @typedef Content
@@ -15,6 +13,7 @@ const VENDOR_API_URL = '';
  */
 
 /**
+ * Serialize all the content based on the slugs provided.
  * @param {Object<string, string[]>} queue The queue of slugs to be translated.
  * @returns {Object<string, Content[]>} The same queue, but with file contents.
  */
@@ -38,36 +37,28 @@ const getContent = (queue) =>
 
 /**
  * @param {Object<string, Content[]>} content Content to be translated.
- * @returns {string[]} A list of UUIDs for the translation jobs.
+ * @returns {string[]} A list of vendor UIDs for the translation jobs.
  */
 const sendContentToVendor = async (content) => {
-  // TODO: transform this into whatever their API expects
-  const body = content;
+  // 1) Create a batch job - save batch ID for storage
+  // 2) Upload each file to the batch job
 
-  // TODO: add API authentication via env variable
-  const resp = await fetch(VENDOR_API_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body,
-  });
+  // const { jobUid } = await vendorRequest('POST', '/jobs', content);
 
-  const uuids = await resp.json();
-
-  // TODO: transform uuids into an array of strings
-  return uuids;
+  return jobUids;
 };
 
 /**
- * @param {string[]} uuids A list of UUIDs to be added to the `being_translated` queue.
+ * @param {string[]} jobUids A list of vendor UIDs to be added to the `being_translated` queue.
  */
-const addToBeingTranslatedQueue = async (uuids) => {
+const addToBeingTranslatedQueue = async (jobUids) => {
   const table = 'TranslationQueues';
   const key = { type: 'being_translated' };
 
   const queue = await loadFromDB(table, key);
 
-  await saveToDB(table, key, 'set uuids = :uuids', {
-    ':uuids': [...queue, ...uuids],
+  await saveToDB(table, key, 'set jobUids = :jobUids', {
+    ':jobUids': [...queue, ...jobUids],
   });
 };
 
@@ -80,13 +71,14 @@ const main = async () => {
   const content = getContent(queue);
 
   try {
-    const uuids = await sendContentToVendor(content);
+    // TODO: finalize this
+    const jobUids = await sendContentToVendor(content);
 
     // clear out `to_translate` queue
     await saveToDB(table, key, 'set locales = :empty', { ':empty': {} });
 
-    // save uuids to `being_translated` queue
-    await addToBeingTranslatedQueue(uuids);
+    // save jobUids to `being_translated` queue
+    await addToBeingTranslatedQueue(jobUids);
 
     console.log(`[*] Successfully sent to vendor`);
   } catch (error) {
