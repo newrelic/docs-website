@@ -24,6 +24,8 @@ module.exports = {
         },
         [h(node, 'code')]
       ),
+    deserialize: (h, node) =>
+      h(node, 'code', deserializeJSValue(node.properties.dataProps)),
   },
   import: {
     deserialize: (h, node) => {
