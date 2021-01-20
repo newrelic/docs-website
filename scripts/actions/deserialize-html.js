@@ -11,7 +11,7 @@ const heading = require('hast-util-to-mdast/lib/handlers/heading');
 const u = require('unist-builder');
 const { last } = require('lodash');
 
-const handleNode = (h, node) => {
+const component = (h, node) => {
   if (!node.properties || !node.properties.dataType) {
     return defaultHandlers[node.tagName](h, node);
   }
@@ -67,15 +67,15 @@ const processor = unified()
   .use(parse)
   .use(rehype2remark, {
     handlers: {
-      code: handleNode,
-      table: handleNode,
-      thead: handleNode,
-      tbody: handleNode,
-      tr: handleNode,
-      td: handleNode,
-      th: handleNode,
-      span: handleNode,
-      div: handleNode,
+      code: component,
+      table: component,
+      thead: component,
+      tbody: component,
+      tr: component,
+      td: component,
+      th: component,
+      span: component,
+      div: component,
       h1: headingWithCustomId,
       h2: headingWithCustomId,
       h3: headingWithCustomId,
