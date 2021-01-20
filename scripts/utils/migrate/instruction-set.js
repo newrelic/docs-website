@@ -379,6 +379,7 @@ module.exports = [
     path: ['Alerts and Applied intelligence'],
     node: {
       icon: 'nr-ai',
+      path: '/docs/alerts-applied-intelligence',
     },
   },
   {
@@ -527,5 +528,18 @@ module.exports = [
       path:
         '/docs/release-notes/agent-release-notes/nodejs-release-notes/current',
     },
+  },
+  {
+    type: INSTRUCTIONS.RENAME,
+    path: [
+      'Alerts and Applied Intelligence',
+      'Alerts and Applied Intelligence',
+    ],
+    title: 'Overview',
+  },
+  {
+    type: INSTRUCTIONS.REORDER,
+    path: ['Alerts and Applied Intelligence', 'Overview'],
+    index: 0,
   },
 ];
