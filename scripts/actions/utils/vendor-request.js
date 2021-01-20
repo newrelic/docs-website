@@ -71,6 +71,4 @@ const vendorRequest = async (method, endpoint, body = {}) => {
   console.log('data', data);
 };
 
-vendorRequest('GET', '/jobs');
-
 module.exports = vendorRequest;
