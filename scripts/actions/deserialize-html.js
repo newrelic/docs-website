@@ -41,6 +41,27 @@ const processor = unified()
       tr: genericHandler,
       td: genericHandler,
       th: genericHandler,
+      span: (h, node) => {
+        if (!node.properties || !node.properties.dataType) {
+          return defaultHandlers.span(h, node);
+        }
+
+        const type = get(node, 'properties.dataType');
+        const key =
+          type === 'component'
+            ? node.properties.dataComponent || node.tagName
+            : type;
+
+        const handler = handlers[key];
+
+        if (!handler || !handler.deserialize) {
+          throw new Error(
+            `Unable to deserialize node: '${key}'. You need to specify a deserializer in 'scripts/actions/utils/handlers.js'`
+          );
+        }
+
+        return handler.deserialize(h, node);
+      },
       div: (h, node) => {
         if (!node.properties || !node.properties.dataType) {
           return defaultHandlers.div(h, node);
