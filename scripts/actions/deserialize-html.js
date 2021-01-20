@@ -5,25 +5,24 @@ const stringify = require('remark-stringify');
 const frontmatter = require('remark-frontmatter');
 const remarkMdx = require('remark-mdx');
 const remarkMdxjs = require('remark-mdxjs');
-const dataToComponents = require('../../codemods/deserialize/dataToComponents');
-const testComponent = require('../../codemods/deserialize/testComponent');
-const fs = require('fs');
-const { get, has } = require('lodash');
-const all = require('hast-util-to-mdast/lib/all');
 const handlers = require('./utils/handlers');
 const defaultHandlers = require('hast-util-to-mdast/lib/handlers');
 
-const genericHandler = (h, node) => {
-  if (!node.properties || node.properties.dataType !== 'component') {
+const handleNode = (h, node) => {
+  if (!node.properties || !node.properties.dataType) {
     return defaultHandlers[node.tagName](h, node);
   }
 
-  const key = node.properties.dataComponent || node.tagName;
+  const { dataType, dataComponent } = node.properties;
+
+  const key =
+    dataType === 'component' ? dataComponent || node.tagName : dataType;
+
   const handler = handlers[key];
 
   if (!handler || !handler.deserialize) {
     throw new Error(
-      `Unable to deserialize node: '${key}'. You need to specify a deserializer in 'scripts/actions/utils/handlers.js'`
+      `Unable to deserialize node: '${key}'. Please specify a deserializer in 'scripts/actions/utils/handlers.js'`
     );
   }
 
@@ -34,55 +33,15 @@ const processor = unified()
   .use(parse)
   .use(rehype2remark, {
     handlers: {
-      code: genericHandler,
-      table: genericHandler,
-      thead: genericHandler,
-      tbody: genericHandler,
-      tr: genericHandler,
-      td: genericHandler,
-      th: genericHandler,
-      span: (h, node) => {
-        if (!node.properties || !node.properties.dataType) {
-          return defaultHandlers.span(h, node);
-        }
-
-        const type = get(node, 'properties.dataType');
-        const key =
-          type === 'component'
-            ? node.properties.dataComponent || node.tagName
-            : type;
-
-        const handler = handlers[key];
-
-        if (!handler || !handler.deserialize) {
-          throw new Error(
-            `Unable to deserialize node: '${key}'. You need to specify a deserializer in 'scripts/actions/utils/handlers.js'`
-          );
-        }
-
-        return handler.deserialize(h, node);
-      },
-      div: (h, node) => {
-        if (!node.properties || !node.properties.dataType) {
-          return defaultHandlers.div(h, node);
-        }
-
-        const type = get(node, 'properties.dataType');
-        const key =
-          type === 'component'
-            ? node.properties.dataComponent || node.tagName
-            : type;
-
-        const handler = handlers[key];
-
-        if (!handler || !handler.deserialize) {
-          throw new Error(
-            `Unable to deserialize node: '${key}'. You need to specify a deserializer in 'scripts/actions/utils/handlers.js'`
-          );
-        }
-
-        return handler.deserialize(h, node);
-      },
+      code: handleNode,
+      table: handleNode,
+      thead: handleNode,
+      tbody: handleNode,
+      tr: handleNode,
+      td: handleNode,
+      th: handleNode,
+      span: handleNode,
+      div: handleNode,
     },
   })
   .use(stringify, {
