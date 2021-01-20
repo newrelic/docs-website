@@ -66,17 +66,18 @@ const serializeComponent = (
   h,
   node,
   {
-    tagName = 'div',
+    tagName,
     textAttributes = [],
     wrapChildren = true,
     identifyComponent = true,
   } = {}
 ) => {
   node.children = node.children || [];
+  const inferredTagName = node.type === 'mdxSpanElement' ? 'span' : 'div';
 
   return h(
     node,
-    tagName,
+    tagName || inferredTagName,
     stripNulls({
       'data-type': 'component',
       'data-component': identifyComponent ? getComponentName(node) : null,
