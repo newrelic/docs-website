@@ -119,7 +119,6 @@ const HomePage = ({ data }) => {
       <Section alternate layout={layout}>
         <SectionTitle title={t('home.tdp.title')} icon="nr-tdp" />
         <SectionDescription>{t('home.tdp.description')}</SectionDescription>
-        <p>{t('home.tdp.t1.title')}</p>
         <DocTileGrid>
           {tdp.tiles.map((link, idx) => (
             <DocTile
