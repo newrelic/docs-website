@@ -91,10 +91,7 @@ module.exports = {
   },
   Icon: {
     deserialize: (h, node) =>
-      deserializeComponent(h, node, {
-        wrappedChildren: false,
-        ignoreChildren: true,
-      }),
+      deserializeComponent(h, node, { ignoreChildren: true }),
     serialize: (h, node) =>
       serializeComponent(h, node, {
         wrapChildren: false,
@@ -104,8 +101,7 @@ module.exports = {
       }),
   },
   Table: {
-    deserialize: (h, node) =>
-      deserializeComponent(h, node, { wrappedChildren: false }),
+    deserialize: deserializeComponent,
     serialize: (h, node) =>
       serializeComponent(h, node, {
         tagName: 'table',
@@ -139,10 +135,7 @@ module.exports = {
       serializeComponent(h, node, { textAttributes: ['title'] }),
   },
   thead: {
-    deserialize: (h, node) =>
-      deserializeComponent(h, node, {
-        wrappedChildren: false,
-      }),
+    deserialize: deserializeComponent,
     serialize: (h, node) =>
       serializeComponent(h, node, {
         tagName: 'thead',
@@ -151,10 +144,7 @@ module.exports = {
       }),
   },
   tbody: {
-    deserialize: (h, node) =>
-      deserializeComponent(h, node, {
-        wrappedChildren: false,
-      }),
+    deserialize: deserializeComponent,
     serialize: (h, node) =>
       serializeComponent(h, node, {
         tagName: 'tbody',
@@ -163,10 +153,7 @@ module.exports = {
       }),
   },
   tr: {
-    deserialize: (h, node) =>
-      deserializeComponent(h, node, {
-        wrappedChildren: false,
-      }),
+    deserialize: deserializeComponent,
     serialize: (h, node) =>
       serializeComponent(h, node, {
         tagName: 'tr',
@@ -175,10 +162,7 @@ module.exports = {
       }),
   },
   th: {
-    deserialize: (h, node) =>
-      deserializeComponent(h, node, {
-        wrappedChildren: false,
-      }),
+    deserialize: deserializeComponent,
     serialize: (h, node) =>
       serializeComponent(h, node, {
         tagName: 'th',
@@ -187,10 +171,7 @@ module.exports = {
       }),
   },
   td: {
-    deserialize: (h, node) =>
-      deserializeComponent(h, node, {
-        wrappedChildren: false,
-      }),
+    deserialize: deserializeComponent,
     serialize: (h, node) =>
       serializeComponent(h, node, {
         tagName: 'td',

@@ -47,13 +47,20 @@ const deserializeAttributeValue = (h, node) => {
 const deserializeComponent = (
   h,
   node,
-  { type, ignoreChildren = false, wrappedChildren = true } = {}
+  { type, ignoreChildren = false } = {}
 ) => {
   const { dataComponent, dataProps } = node.properties;
   const name = dataComponent || node.tagName;
   const props = dataProps ? deserializeJSValue(dataProps) : [];
   const inferredType =
     node.tagName === 'span' ? 'mdxSpanElement' : 'mdxBlockElement';
+
+  const wrappedChildren =
+    node.children && node.children.length > 0
+      ? node.children.some(
+          (node) => node.properties && node.properties.dataProp === 'children'
+        )
+      : false;
 
   const textProps = wrappedChildren
     ? node.children.filter(
