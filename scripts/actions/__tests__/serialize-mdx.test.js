@@ -1,4 +1,4 @@
-import serializeMDX from '../../../scripts/actions/serialize-mdx';
+import serializeMDX from '../serialize-mdx';
 import fs from 'fs';
 
 test('serializes Button to html', async () => {
