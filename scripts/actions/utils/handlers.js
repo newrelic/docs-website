@@ -65,6 +65,7 @@ module.exports = {
     serialize: serializeComponent,
   },
   Callout: {
+    deserialize: deserializeComponent,
     serialize: (h, node) =>
       serializeComponent(h, node, { textAttributes: ['title'] }),
   },

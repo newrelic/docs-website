@@ -42,9 +42,7 @@ test('deserializes simple components', async () => {
 
 test('deserializes components with text props', async () => {
   const input = `
-<Callout
-  title="Life tip #3"
->
+<Callout title="Life tip #3">
   There are 10 types of people in this world. Those that understand binary and those that don't.
 </Callout>
   `;
