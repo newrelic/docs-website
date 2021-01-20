@@ -91,7 +91,8 @@ module.exports = {
     serialize: serializeComponent,
   },
   Icon: {
-    deserialize: deserializeComponent,
+    deserialize: (h, node) =>
+      deserializeComponent(h, node, { type: 'mdxSpanElement' }),
     serialize: serializeComponent,
   },
   Table: {

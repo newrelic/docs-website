@@ -82,7 +82,7 @@ const deserializeComponent = (
       name: name === 'React.Fragment' ? null : name,
       attributes,
     },
-    childrenNode && all(h, childrenNode)
+    childrenNode ? all(h, childrenNode) : []
   );
 };
 
