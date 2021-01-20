@@ -98,7 +98,6 @@ module.exports = {
       serializeComponent(h, node, {
         tagName: 'table',
         wrapChildren: false,
-        identifyComponent: false,
       }),
   },
   LandingPageTile: {
