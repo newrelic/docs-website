@@ -9,8 +9,22 @@ const {
 const yaml = require('js-yaml');
 const u = require('unist-builder');
 const toString = require('mdast-util-to-string');
+const { omit } = require('lodash');
 
 module.exports = {
+  CodeBlock: {
+    serialize: (h, node) =>
+      h(
+        node,
+        'pre',
+        {
+          'data-type': 'component',
+          'data-component': 'CodeBlock',
+          'data-props': serializeJSValue(omit(node, ['type'])),
+        },
+        [h(node, 'code')]
+      ),
+  },
   import: {
     deserialize: (h, node) => {
       const value = Buffer.from(node.properties.dataValue, 'base64').toString();
