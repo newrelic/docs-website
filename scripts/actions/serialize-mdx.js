@@ -10,7 +10,7 @@ const html = require('rehype-stringify');
 const format = require('rehype-format');
 const customHeadingIds = require('../../plugins/gatsby-remark-custom-heading-ids/utils/visitor');
 
-const mdxToHTML = (h, node) => {
+const mdxElement = (h, node) => {
   const handler = handlers[node.name];
 
   if (!handler || !handler.serialize) {
@@ -33,8 +33,9 @@ const processor = unified()
     handlers: {
       import: handlers.import.serialize,
       yaml: handlers.frontmatter.serialize,
-      mdxSpanElement: mdxToHTML,
-      mdxBlockElement: mdxToHTML,
+      mdxSpanElement: mdxElement,
+      mdxBlockElement: mdxElement,
+      code: handlers.CodeBlock.serialize,
     },
   })
   .use(format)
