@@ -20,11 +20,11 @@ const LOCALE_IDS = {
 
 /**
  * Serialize all the content based on the slugs provided.
- * @param {Object<string, string[]>} queue The queue of slugs to be translated.
+ * @param {Object<string, string[]>} locales The queue of slugs to be translated.
  * @returns {Object<string, Content[]>} The same queue, but with file contents.
  */
-const getContent = (queue) =>
-  Object.values(queue).reduce(
+const getContent = (locales) =>
+  Object.values(locales).reduce(
     (content, [locale, slugs]) => ({
       ...content,
       [locale]: slugs
@@ -92,11 +92,13 @@ const main = async () => {
   const key = { type: 'to_translate' };
 
   const queue = await loadFromDB(table, key);
-  const content = getContent(queue);
+  const { locales } = queue.Item;
+  const content = getContent(locales);
 
   try {
-    // TODO: finalize this
+    // TODO: finalize this (return a list of jobUids and batchUids)
     const jobUids = await sendContentToVendor(content);
+    // TODO: remove this and proceed to the next steps below
     console.log('jobUids', jobUids);
     process.exit(0);
 
