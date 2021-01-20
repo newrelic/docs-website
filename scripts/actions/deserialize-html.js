@@ -7,6 +7,9 @@ const remarkMdx = require('remark-mdx');
 const remarkMdxjs = require('remark-mdxjs');
 const handlers = require('./utils/handlers');
 const defaultHandlers = require('hast-util-to-mdast/lib/handlers');
+const heading = require('hast-util-to-mdast/lib/handlers/heading');
+const u = require('unist-builder');
+const { last } = require('lodash');
 
 const handleNode = (h, node) => {
   if (!node.properties || !node.properties.dataType) {
@@ -29,6 +32,37 @@ const handleNode = (h, node) => {
   return handler.deserialize(h, node);
 };
 
+const headingWithCustomId = (h, node) => {
+  const result = heading(h, node);
+  const { id } = node.properties || {};
+
+  if (!id) {
+    return result;
+  }
+
+  const value = `#${id}`;
+  const lastChild = last(result.children);
+  const linkReference = u(
+    'linkReference',
+    {
+      identifier: value,
+      label: value,
+      referenceType: 'shortcut',
+    },
+    [u('text', value)]
+  );
+
+  if (lastChild.type === 'text' && !lastChild.value.match(/\s$/)) {
+    lastChild.value = `${lastChild.value} `;
+  } else {
+    result.children.push(u('text', ' '));
+  }
+
+  result.children.push(linkReference);
+
+  return result;
+};
+
 const processor = unified()
   .use(parse)
   .use(rehype2remark, {
@@ -42,6 +76,12 @@ const processor = unified()
       th: handleNode,
       span: handleNode,
       div: handleNode,
+      h1: headingWithCustomId,
+      h2: headingWithCustomId,
+      h3: headingWithCustomId,
+      h4: headingWithCustomId,
+      h5: headingWithCustomId,
+      h6: headingWithCustomId,
     },
   })
   .use(stringify, {
