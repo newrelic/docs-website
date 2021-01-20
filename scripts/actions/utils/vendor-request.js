@@ -3,11 +3,12 @@ const fetch = require('node-fetch');
 const makeRequest = async (url, options) => {
   try {
     const resp = await fetch(url.href, options);
-    const { response: data } = await resp.json();
+    const { response } = await resp.json();
+    const { code, data } = response;
 
-    if (data.code !== 'SUCCESS') {
-      console.log(data);
-      throw new Error(data.code);
+    if (code !== 'SUCCESS') {
+      console.log(response);
+      throw new Error(code);
     }
 
     return data;
@@ -29,10 +30,10 @@ const getAccessToken = async () => {
     headers: {
       'Content-Type': 'application/json',
     },
-    body: {
+    body: JSON.stringify({
       userIdentifier: process.env.TRANSLATION_VENDOR_USER,
       userSecret: process.env.TRANSLATION_VENDOR_SECRET,
-    },
+    }),
   };
 
   const { accessToken } = await makeRequest(url, options);
@@ -60,8 +61,9 @@ const vendorRequest = async (method, endpoint, body = {}) => {
     method,
     headers: {
       Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
     },
-    ...(method !== 'GET' && body),
+    ...(method !== 'GET' && JSON.stringify(body)),
   };
 
   const data = await makeRequest(url, options);
