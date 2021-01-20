@@ -1,10 +1,44 @@
 const deserializeJSValue = (value) => JSON.parse(Buffer.from(value, 'base64'));
 const all = require('hast-util-to-mdast/lib/all');
-const { mdxAttribute } = require('../../../codemods/utils/mdxast-builder');
+const remarkMdx = require('remark-mdx');
+const remarkMdxjs = require('remark-mdxjs');
+const stringify = require('remark-stringify');
+const unified = require('unified');
+const {
+  mdxAttribute,
+  mdxValueExpression,
+} = require('../../../codemods/utils/mdxast-builder');
+const visit = require('unist-util-visit');
+const u = require('unist-builder');
 
-const deserializeAttributeValue = (node) => {
+const inlineCodeAttribute = () => (tree) => {
+  visit(tree, 'inlineCode', (node) => {
+    node.type = 'mdxSpanElement';
+    node.name = 'InlineCode';
+    node.children = [u('text', node.value)];
+  });
+};
+
+const attributeProcessor = unified()
+  .use(stringify, {
+    bullet: '*',
+    fences: true,
+    listItemIndent: '1',
+  })
+  .use(remarkMdx)
+  .use(remarkMdxjs)
+  .use(inlineCodeAttribute);
+
+const deserializeAttributeValue = (h, node) => {
   if (node.type === 'text') {
     return node.value;
+  }
+
+  if (node.type === 'element') {
+    const tree = deserializeComponent(h, node);
+    const transformedTree = attributeProcessor.runSync(tree);
+
+    return mdxValueExpression(attributeProcessor.stringify(transformedTree));
   }
 
   throw new Error('Unable to deserialize attribute');
@@ -12,7 +46,7 @@ const deserializeAttributeValue = (node) => {
 
 const deserializeComponent = (h, node) => {
   const { dataComponent, dataProps } = node.properties;
-  const props = deserializeJSValue(dataProps);
+  const props = dataProps ? deserializeJSValue(dataProps) : [];
   const childrenProp = node.children.find(
     (child) => child.properties.dataProp === 'children'
   );
@@ -21,7 +55,7 @@ const deserializeComponent = (h, node) => {
     .filter((child) => child.properties.dataProp !== 'children')
     .reduce((attributes, node) => {
       const { dataProp: name } = node.properties;
-      const value = deserializeAttributeValue(node.children[0]);
+      const value = deserializeAttributeValue(h, node.children[0]);
       const idx = attributes.findIndex((attr) => attr.name === name);
 
       return idx === -1
@@ -36,8 +70,11 @@ const deserializeComponent = (h, node) => {
   return h(
     node,
     'mdxBlockElement',
-    { name: dataComponent, attributes },
-    all(h, childrenProp)
+    {
+      name: dataComponent === 'React.Fragment' ? null : dataComponent,
+      attributes,
+    },
+    childrenProp && all(h, childrenProp)
   );
 };
 

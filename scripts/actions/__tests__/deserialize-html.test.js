@@ -52,13 +52,13 @@ test('deserializes components with text props', async () => {
   expect(mdx).toEqual(input.trim());
 });
 
-test('deserializes components with text props as JSX expressions', async () => {
+test.only('deserializes components with text props as JSX expressions', async () => {
   const input = `
 <Collapser
   title={<><InlineCode>agent.send_custom_event</InlineCode> API</>}
 >
   All about that API
-</Callout>
+</Collapser>
   `;
 
   const mdx = await deserializeHTML(await serializeMDX(input));
@@ -73,7 +73,7 @@ test('deserializes components with children', async () => {
     title={<><InlineCode>agent.send_custom_event</InlineCode> API</>}
   >
     All about that API
-  </Callout>
+  </Collapser>
 </CollapserGroup>
   `;
 

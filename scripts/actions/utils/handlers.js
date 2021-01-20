@@ -55,6 +55,7 @@ module.exports = {
   },
   // React fragment
   [null]: {
+    deserialize: deserializeComponent,
     serialize: serializeComponent,
   },
   Button: {
@@ -62,6 +63,7 @@ module.exports = {
     serialize: serializeComponent,
   },
   ButtonLink: {
+    deserialize: deserializeComponent,
     serialize: serializeComponent,
   },
   Callout: {
@@ -70,19 +72,24 @@ module.exports = {
       serializeComponent(h, node, { textAttributes: ['title'] }),
   },
   Collapser: {
+    deserialize: deserializeComponent,
     serialize: (h, node) =>
       serializeComponent(h, node, { textAttributes: ['title'] }),
   },
   CollapserGroup: {
+    deserialize: deserializeComponent,
     serialize: serializeComponent,
   },
   ExternalLink: {
+    deserialize: deserializeComponent,
     serialize: serializeComponent,
   },
   Link: {
+    deserialize: deserializeComponent,
     serialize: serializeComponent,
   },
   Icon: {
+    deserialize: deserializeComponent,
     serialize: serializeComponent,
   },
   Table: {
@@ -94,10 +101,12 @@ module.exports = {
       }),
   },
   LandingPageTile: {
+    deserialize: deserializeComponent,
     serialize: (h, node) =>
       serializeComponent(h, node, { textAttributes: ['title'] }),
   },
   LandingPageTileGrid: {
+    deserialize: deserializeComponent,
     serialize: serializeComponent,
   },
   InlineCode: {
@@ -105,6 +114,7 @@ module.exports = {
       serializeComponent(h, node, { tagName: 'code', wrapChildren: false }),
   },
   Video: {
+    deserialize: deserializeComponent,
     serialize: (h, node) =>
       serializeComponent(h, node, { textAttributes: ['title'] }),
   },
