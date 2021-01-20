@@ -35,7 +35,7 @@ const deserializeAttributeValue = (h, node) => {
   }
 
   if (node.type === 'element') {
-    const tree = deserializeComponent(h, node);
+    const tree = deserializeComponent(h, node, { type: 'mdxSpanElement' });
     const transformedTree = attributeProcessor.runSync(tree);
 
     return mdxValueExpression(attributeProcessor.stringify(transformedTree));
@@ -44,7 +44,7 @@ const deserializeAttributeValue = (h, node) => {
   throw new Error('Unable to deserialize attribute');
 };
 
-const deserializeComponent = (h, node) => {
+const deserializeComponent = (h, node, { type = 'mdxBlockElement' } = {}) => {
   const { dataComponent, dataProps } = node.properties;
   const props = dataProps ? deserializeJSValue(dataProps) : [];
   const childrenProp = node.children.find(
@@ -69,7 +69,7 @@ const deserializeComponent = (h, node) => {
 
   return h(
     node,
-    'mdxBlockElement',
+    type,
     {
       name: dataComponent === 'React.Fragment' ? null : dataComponent,
       attributes,

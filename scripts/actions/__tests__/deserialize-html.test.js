@@ -54,9 +54,7 @@ test('deserializes components with text props', async () => {
 
 test.only('deserializes components with text props as JSX expressions', async () => {
   const input = `
-<Collapser
-  title={<><InlineCode>agent.send_custom_event</InlineCode> API</>}
->
+<Collapser title={<><InlineCode>agent.send_custom_event</InlineCode> API</>}>
   All about that API
 </Collapser>
   `;
