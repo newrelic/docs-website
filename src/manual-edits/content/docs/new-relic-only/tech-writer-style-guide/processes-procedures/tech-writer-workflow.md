@@ -1,3 +1,14 @@
+---
+title: Tech Writer Workflow
+contentType: page
+template: basicDoc
+topics:
+  - New Relic only
+  - Tech writer style guide
+  - Processes and procedures
+watermark: NR ONLY
+---
+
 This document will guide you through the entire workflow for editing the New Relic documentation site.
 
 ## Resources
