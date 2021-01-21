@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const fetch = require('node-fetch');
+const FormData = require('form-data');
 
 const loadFromDB = require('./utils/load-from-db');
 const saveToDB = require('./utils/save-to-db');
@@ -24,7 +25,7 @@ const LOCALE_IDS = {
  * @returns {Object<string, Content[]>} The same queue, but with file contents.
  */
 const getContent = (locales) =>
-  Object.values(locales).reduce(
+  Object.entries(locales).reduce(
     (content, [locale, slugs]) => ({
       ...content,
       [locale]: slugs
@@ -46,6 +47,7 @@ const getContent = (locales) =>
  * @returns {Promise<{ jobUid: string, batchUid: string}>} A list of vendor UIDs for the translation jobs.
  */
 const sendContentToVendor = async (content) => {
+  const projectId = process.env.TRANSLATION_VENDOR_PROJECT;
   // 1) Create a job for each locale - save the jobUid for storage
   const jobRequests = Object.keys(content).map((locale) => {
     const body = {
@@ -54,19 +56,65 @@ const sendContentToVendor = async (content) => {
     };
     return vendorRequest(
       'POST',
-      `/jobs-api/v3/projects/${process.env.TRANSLATION_VENDOR_PROJECT}/jobs`,
+      `/jobs-api/v3/projects/${projectId}/jobs`,
       body
     );
   });
 
   const jobsResponses = await Promise.all(jobRequests);
-  const jobUids = jobsResponses.map((resp) => resp.data.translationJobUid);
-
-  return jobUids;
+  const jobUids = jobsResponses.map((resp) => resp.translationJobUid);
 
   // 2) Create a batch for the job - save bachUid for storage
+
+  const batchRequests = jobUids.map((jobUid, idx) => {
+    const body = {
+      authorize: false,
+      translationJobUid: jobUid,
+      fileUris: Object.values(content)[idx].map(({ file }) => file),
+    };
+
+    return vendorRequest(
+      'POST',
+      `/job-batches-api/v2/projects/${projectId}/batches`,
+      body
+    );
+  });
+
+  const batchResponses = await Promise.all(batchRequests);
+  const batchUids = batchResponses.map((resp) => resp.batchUid);
+
   // 3) Upload each file to the batch job
-  // 4) Check status of job and batch
+
+  const fileRequests = batchUids.flatMap((batchUid, idx) => {
+    const [locale, pages] = Object.entries(content)[idx];
+    return pages.map((page) => {
+      const form = new FormData();
+
+      form.append('fileType', 'html');
+      form.append('localeIdsToAuthorize[]', LOCALE_IDS[locale]);
+      form.append('fileUri', page.file);
+      form.append('file', page.contents, {
+        contentType: 'text/html',
+        name: 'file',
+        filename: page.file,
+      });
+
+      return vendorRequest(
+        'POST',
+        `/job-batches-api/v2/projects/${projectId}/batches/${batchUid}/file`,
+        form,
+        'multipart/form-data'
+      );
+    });
+  });
+
+  const fileResponses = await Promise.all(fileRequests);
+
+  console.log(fileResponses);
+
+  // 4) Upload context for each file
+
+  // 5) Check status of job and batch
 
   // batch status: DRAFT -> ADDING_FILES -> EXECUTING -> COMPLETED
   // job status: AWAITING_AUTHORIZATION -> IN_PROGRESS (CANCELLED)
@@ -97,9 +145,9 @@ const main = async () => {
 
   try {
     // TODO: finalize this (return a list of jobUids and batchUids)
-    const jobUids = await sendContentToVendor(content);
+    const batchUids = await sendContentToVendor(content);
     // TODO: remove this and proceed to the next steps below
-    console.log('jobUids', jobUids);
+    console.log('batchUids', batchUids);
     process.exit(0);
 
     // clear out `to_translate` queue

@@ -2,19 +2,20 @@ const fetch = require('node-fetch');
 
 const makeRequest = async (url, options) => {
   try {
+    console.log(options);
     const resp = await fetch(url.href, options);
     const { response } = await resp.json();
     const { code, data } = response;
 
     if (code !== 'SUCCESS') {
-      console.log(response);
-      throw new Error(code);
+      console.dir(response, { depth: null });
+      throw new Error(response);
     }
 
     return data;
   } catch (error) {
     console.error(`Unable to make a ${options.method} request to ${url.href}.`);
-    console.log(error);
+    console.log(error.code);
     process.exit(1);
   }
 };
@@ -56,26 +57,32 @@ const getAccessToken = async () => {
  * @param {Object} [body] (Optional) Data to send with the requst.
  * @returns {Promise<Object>} The result after making the request.
  */
-const vendorRequest = async (method, endpoint, body = {}) => {
+const vendorRequest = async (
+  method,
+  endpoint,
+  body = {},
+  contentType = 'application/json'
+) => {
   const accessToken = await getAccessToken();
 
-  const url = new URL(
-    `/jobs-api/v3/projects/${process.env.TRANSLATION_VENDOR_PROJECT}${endpoint}`,
-    process.env.TRANSLATION_VENDOR_API_URL
-  );
+  const url = new URL(endpoint, process.env.TRANSLATION_VENDOR_API_URL);
 
   const options = {
     method,
     headers: {
       Authorization: `Bearer ${accessToken}`,
-      'Content-Type': 'application/json',
+      'Content-Type': contentType,
     },
-    ...(method !== 'GET' && JSON.stringify(body)),
   };
+
+  if (method !== 'GET') {
+    options.body =
+      contentType === 'application/json' ? JSON.stringify(body) : body;
+  }
 
   const data = await makeRequest(url, options);
 
-  console.log('data', data);
+  return data;
 };
 
 module.exports = vendorRequest;
