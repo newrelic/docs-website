@@ -24,10 +24,10 @@ You will use the Terminal to build the site locally. This will allow you to prev
 
 ### Build the site
 1. In your Terminal, change your directory `cd` to your cloned repo, **docs-website**. 
-  - `cd ~/Documents/GitHub/docs-website`
+    - `cd ~/Documents/GitHub/docs-website`
 2. Run yarn with the following commands:
-  - `yarn`
-  - `yarn start`
+    - `yarn`
+    - `yarn start`
 3. The site will take a few minutes to build. Once it finishes building, you can access your preview site in your browser by navigating to [http://localhost:8000/](http://localhost:8000/)
 
 ## Work on a branch, not a fork
@@ -76,10 +76,10 @@ To do this, you open a pull request:
 1. On Github Desktop, click the blue **Create Pull Request button**.
 2. This will open Github in your browser, and prompt you to fill in your pull request. If you scroll down, you can review all your commits to ensure they reflect all your changes.
 3. Just like your commit description, your pull request description should be detailed and give the full context of your changes. 
-  - Feel free to add any additional context here (issue or Jira number, SMEs, etc.)
+    - Feel free to add any additional context here (issue or Jira number, SMEs, etc.)
 4. Once you are satisfied with your pull request, click the green **Create pull request button**. 
 5. You can either publish the changes directly by approving the pull request yourself, or you can request for another Tech Writer to peer edit it. 
-  - To request a review from another Tech Writer: in GitHub open the PR, navigate to the conversation **Conversation**, and then select or type in a reviewer name in the **Reviewer** section. 
+    - To request a review from another Tech Writer: in GitHub open the PR, navigate to the conversation **Conversation**, and then select or type in a reviewer name in the **Reviewer** section. 
 6. Once the pull request has been approved by another tech writer or you are confident the changes are ready to be published, click the green **Merge pull request** button. This will merge your branch and commits into the repository and should now be reflected in the docs site. 
 
 ## Editing workflow in GitHub
@@ -92,11 +92,11 @@ For cases where you have questions and suggestions rather than straight copy edi
 
 1. Open the PR that you’re assigned to review.
 2. On the Files changed tab, you can either:
-  - Click Review changes and then select one of the following:
-    - **Comment** - use if you have a comment that doesn’t require follow up.
-    - **Approve** - use if you just want to approve the PR. You can request changes in the Leave a comment area, and select Approve if you want to let the writer make the edits and merge the file without a follow-up review from you.
-    - **Request changes** - use for times when you want to make sure the changes you request are included. You’ll be notified with any updates that the writer makes. 
-  - OR, start making comments on lines or sections of the doc. To do this, click the add comment icon , and leave an edit or comment for that specific line in the page. With this option, you get the choice between adding a single comment or starting a review. If you’re going to make comments throughout a doc, choose **Start a review** so the comments will all be rolled into one commit.
+    - Click Review changes and then select one of the following:
+      - **Comment** - use if you have a comment that doesn’t require follow up.
+      - **Approve** - use if you just want to approve the PR. You can request changes in the Leave a comment area, and select Approve if you want to let the writer make the edits and merge the file without a follow-up review from you.
+      - **Request changes** - use for times when you want to make sure the changes you request are included. You’ll be notified with any updates that the writer makes. 
+    - OR, start making comments on lines or sections of the doc. To do this, click the add comment icon , and leave an edit or comment for that specific line in the page. With this option, you get the choice between adding a single comment or starting a review. If you’re going to make comments throughout a doc, choose **Start a review** so the comments will all be rolled into one commit.
 3. Click **Finish your review** to complete your review. This triggers a notification to the writer alerting them that you’ve made suggestions. 
 
 ### Copy edit workflow
@@ -105,7 +105,7 @@ If you have copy edits for a file rather than comments and suggestions, you can 
 
 1. Edit using the GitHub browser: on the **Files changed** tab, in the diff window, click  and select **Edit file**. When you finish your edits, add a comment at the bottom of the file and choose to either **commit the changes directly**, or **create a branch and start a pull request**. Choose to branch and start a pull request if you expect a writer to review the diff and accept or revise your edits.
 2. Edit locally: check out the branch containing the file you want to edit, make the edits on your local drive, save, and commit your changes to the branch. 
-  - Note that this approach adds your edits to the open pull request. You can now see the changes you added to the file on the **Files changed** tab in the PR.
+    - Note that this approach adds your edits to the open pull request. You can now see the changes you added to the file on the **Files changed** tab in the PR.
 
 These are just a few of many editing options. You’ll find your preferred way, just as you have with the Drupal tools.  
 
