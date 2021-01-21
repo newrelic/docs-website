@@ -1,11 +1,3 @@
-# Table of Contents
-
-- [Table of Contents](#table-of-contents)
-  - [Guidelines for contributing](#guidelines-for-contributing)
-
-
-## Getting started
-
 This document will guide you through the entire workflow for editing the New Relic documentation site.
 
 ## Resources
@@ -42,17 +34,17 @@ You will use the Terminal to build the site locally. This will allow you to prev
 Some teams work on branches, some teams work on forks; the docs team works in branches. As long as a branch has been pushed upstream, this allows us to work collaboratively and ensure that no work is ever lost when someone goes on FTO.
 
 To create a branch on the docs-website repo:
-- Open Github Desktop
-- Click on **Current branch: xxx**
-- Click on **New Branch**
-- You will be prompted to name your new branch. Ensure the name is relevant to the work done. For example, if you are working on What’s New pages, you might name the branch **Whats-new-updates**.
+1. Open Github Desktop
+2. Click on **Current branch: xxx**
+3. Click on **New Branch**
+4. You will be prompted to name your new branch. Ensure the name is relevant to the work done. For example, if you are working on What’s New pages, you might name the branch **Whats-new-updates**.
 
 ## Edit a doc
 
 Once your local environment and branch are set up, you are ready to edit a doc. Check out the docs site style guide for writing guidelines.
 
 1. First, ensure your **Current Branch** in Github Desktop is set to the correct branch, not **Develop**.
-2. Navigate to the doc you want to edit in Finder. If I wanted to edit a Python agent doc, I would navigate to: **~/Documents/Github/docs-website/src/content/docs/agents/python-agent/hosting-services/python-agent-stackato.mdx**
+2. Navigate to the doc you want to edit in Finder. If I wanted to edit a Python agent doc, I would navigate to: `~/Documents/Github/docs-website/src/content/docs/agents/python-agent/hosting-services/python-agent-stackato.mdx`
 3. Edit the doc in your text-editor of choice. You should write docs in markdown language. Reference the style guide for help with formatting markdown
 4. Save the file with your edits, then follow the same process for any other docs you wish to edit.
 
@@ -87,7 +79,7 @@ To do this, you open a pull request:
   - Feel free to add any additional context here (issue or Jira number, SMEs, etc.)
 4. Once you are satisfied with your pull request, click the green **Create pull request button**. 
 5. You can either publish the changes directly by approving the pull request yourself, or you can request for another Tech Writer to peer edit it. 
-  - To request a review from another Tech Writer, in GitHub, open the PR, and on the **Conversation** tab, in the Reviewers section, select or type in a reviewer name. 
+  - To request a review from another Tech Writer: in GitHub open the PR, navigate to the conversation **Conversation**, and then select or type in a reviewer name in the **Reviewer** section. 
 6. Once the pull request has been approved by another tech writer or you are confident the changes are ready to be published, click the green **Merge pull request** button. This will merge your branch and commits into the repository and should now be reflected in the docs site. 
 
 ## Editing workflow in GitHub
@@ -124,7 +116,7 @@ If you’re notified that a reviewer has submitted a review to your file, go to 
 1. Respond to any comments in the file. Either reply with follow up discussion, or click **Resolve conversation**.  
 1. When you’ve resolved all the comments, and all of the automatic checks have passed, you can merge the pull request. Merging the pull request sets in motion the automated build process and your changes will be published shortly. 
 
-**Note**: Note: You will only be able to merge when the **Merge pull request** button is green. If it’s not green, review for any comments you missed, or other messages that indicate why GitHub is blocking you from merging.
+**Note**: You will only be able to merge when the **Merge pull request** button is green. If it’s not green, review for any comments you missed, or other messages that indicate why GitHub is blocking you from merging.
 
 
 
