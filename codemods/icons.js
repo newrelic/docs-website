@@ -11,8 +11,10 @@ const ICON_NAME = /\bfa-((?!\d)[a-z-]+\b)/;
 const ICON_SIZE = /fa-(\d)x/;
 
 const FA_TO_FEATHER_ICONS = {
+  android: 'logo-android',
   'angle-down': 'fe-chevron-down',
   'angle-right': 'fe-chevron-right',
+  apple: 'logo-apple',
   'area-chart': 'fe-bar-chart-2',
   'arrow-right': 'fe-arrow-right',
   arrows: 'fe-move',
