@@ -2,19 +2,22 @@ const fetch = require('node-fetch');
 
 const makeRequest = async (url, options) => {
   try {
+    console.log('-- makeRequest');
+    console.log('options', options);
     const resp = await fetch(url.href, options);
     const { response } = await resp.json();
     const { code, data } = response;
 
     if (code !== 'SUCCESS') {
       console.dir(response, { depth: null });
-      throw new Error(response);
+      throw new Error(code);
     }
 
     return data;
   } catch (error) {
-    console.error(`Unable to make a ${options.method} request to ${url.href}.`);
-    console.log(error.code);
+    console.error(
+      `Unable to make a ${options.method} request to ${url.href}. (${error})`
+    );
     process.exit(1);
   }
 };

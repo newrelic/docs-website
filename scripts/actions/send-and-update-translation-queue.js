@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const https = require('http');
 const fetch = require('node-fetch');
 const FormData = require('form-data');
 
@@ -80,21 +81,63 @@ const sendContentToVendor = async (content) => {
 
   const batchResponses = await Promise.all(batchRequests);
   const batchUids = batchResponses.map((resp) => resp.batchUid);
-  console.log(`[*] Successfully created job batches: ${batchUids.join(', ')}`);
+  console.log(`[*] Successfully created batches: ${batchUids.join(', ')}`);
 
   // 3) Upload files to the batches job
   const fileRequests = batchUids.flatMap((batchUid, idx) => {
     const [locale, localePages] = Object.entries(content)[idx];
     return localePages.map((page) => {
-      const form = new FormData();
+      const endpoint = `/job-batches-api/v2/projects/${projectId}/batches/${batchUid}/file`;
+      const url = new URL(endpoint, process.env.TRANSLATION_VENDOR_API_URL);
+      console.log(url.href);
 
+      const filepath = '/tmp/toTranslate.html';
+      fs.writeFileSync(filepath, page.html, 'utf-8');
+      // const buffer = fs.readFileSync(filepath);
+      // const stream = fs.createReadStream(filepath);
+
+      const form = new FormData();
       form.append('fileType', 'html');
       form.append('localeIdsToAuthorize[]', LOCALE_IDS[locale]);
       form.append('fileUri', page.file);
-      form.append('file', page.contents, {
-        contentType: 'text/html',
-        name: 'file',
-        filename: page.file,
+      form.append('file', fs.createReadStream(filepath));
+
+      // form.append('file', buffer, {
+      // contentType: 'text/html',
+      // name: 'file',
+      // filename: page.file,
+      // });
+
+      // TODO: if this works, abstract it to a util
+      return new Promise((resolve, reject) => {
+        const accessToken =
+          'eyJhbGciOiJSUzI1NiJ9.eyJqdGkiOiI3ZGY0ZDE1Zi0zYThiLTQ0YjktYWVlNy05ZDI3NGY5YzA5OWMiLCJleHAiOjE2MTEyNTcyMjEsIm5iZiI6MCwiaWF0IjoxNjExMjU2NzQxLCJpc3MiOiJodHRwczovL3Nzby5zbWFydGxpbmcuY29tL2F1dGgvcmVhbG1zL1NtYXJ0bGluZyIsImF1ZCI6ImF1dGhlbnRpY2F0aW9uLXNlcnZpY2UiLCJzdWIiOiJhZjgyMzg1Yy03ZmQ3LTQxMTYtOTg2OS01YzFiZTZhMGJmZTEiLCJ0eXAiOiJCZWFyZXIiLCJhenAiOiJhdXRoZW50aWNhdGlvbi1zZXJ2aWNlIiwic2Vzc2lvbl9zdGF0ZSI6ImRmNTA2NDRmLWQ4ZTYtNGVlZS1iY2E3LTgzMjAzZjlmMTkxYiIsImNsaWVudF9zZXNzaW9uIjoiN2E3MTM1YzMtNWQ0NS00MWU0LWEzNzItMDBkY2NhZjJiMGFkIiwiYWxsb3dlZC1vcmlnaW5zIjpbXSwicmVhbG1fYWNjZXNzIjp7InJvbGVzIjpbIlJPTEVfQVBJX1VTRVIiLCJ1c2VyIl19LCJyZXNvdXJjZV9hY2Nlc3MiOnsiYWNjb3VudCI6eyJyb2xlcyI6WyJtYW5hZ2UtYWNjb3VudCIsInZpZXctcHJvZmlsZSJdfX0sInVpZCI6IjBkZDA3YTFiY2E4NSIsIm5hbWUiOiJkb2NzLm5ld3JlbGljLmNvbSAoR2F0c2J5KSAtIFN0YWdpbmciLCJwcmVmZXJyZWRfdXNlcm5hbWUiOiJhcGlVc2VyK3Byb2plY3QrMTY0ZjcwYzFiQHNtYXJ0bGluZy5jb20iLCJnaXZlbl9uYW1lIjoiQVBJIFVzZXIiLCJmYW1pbHlfbmFtZSI6ImRvY3MubmV3cmVsaWMuY29tIChHYXRzYnkpIC0gU3RhZ2luZyIsImVtYWlsIjoiYXBpVXNlcitwcm9qZWN0KzE2NGY3MGMxYkBzbWFydGxpbmcuY29tIn0.NgrideBNNmpbFUeWQ-lwEAHhVWlDDSvBEFTffcowUxBZiAuW26Ck1v3VghQO2ICLXDSz6_E9wpHTjHZ87ma5aUCsEvqDAEA40YxyDvdnDkvHnkWZTRSCNCXpgIEPFGqyTEf1sdiFS6joAVaXf2G2ddSNCpHjnDUn2ZD9bR3Fr5I';
+        const options = {
+          method: 'POST',
+          host: process.env.TRANSLATION_VENDOR_API_URL,
+          path: endpoint,
+          headers: {
+            'Content-Type': 'multipart/form-data',
+            Authorization: `Bearer ${accessToken}`,
+          },
+        };
+
+        const request = https.request(options);
+
+        form.pipe(request);
+
+        request.on('response', (resp) => {
+          return resp.statusCode >= 400 ? reject(resp) : resolve(resp);
+        });
+
+        // console.log('form submit options', options);
+
+        // form.submit(options, (error, resp) => {
+        // console.log('error', error);
+        // console.log('resp', resp);
+
+        // return error ? reject(error) : resolve(resp);
+        // });
       });
 
       return vendorRequest(
