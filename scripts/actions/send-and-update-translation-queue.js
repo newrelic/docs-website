@@ -14,15 +14,9 @@ const LOCALE_IDS = {
 };
 
 /**
- * @typedef Content
- * @property {string} file The filepath for the MDX file.
- * @property {string} content The text content to be translated.
- */
-
-/**
- * Serialize all the content based on the slugs provided.
+ * Take a list of filepaths (grouped by locale) and fetches the HTML content.
  * @param {Object<string, string[]>} locales The queue of slugs to be translated.
- * @returns {Object<string, Content[]>} The same queue, but with file contents.
+ * @returns {Object<string, {file: string, html: string}[]>}
  */
 const getContent = (locales) =>
   Object.entries(locales).reduce(
@@ -34,7 +28,7 @@ const getContent = (locales) =>
           // TODO: transform MDX -> vendor format
           return {
             file: slug,
-            contents: contents ? contents : false,
+            html: contents ? contents : false,
           };
         })
         .filter((page) => Boolean(page.contents)),
@@ -43,8 +37,10 @@ const getContent = (locales) =>
   );
 
 /**
- * @param {Object<string, Content[]>} content Content to be translated.
- * @returns {Promise<{ jobUid: string, batchUid: string}>} A list of vendor UIDs for the translation jobs.
+ * Sends HTML content to the vendor by creating jobs, batches, and uploading
+ * files. On success, this will return the jobUid and batchUid for each locale.
+ * @param {Object<string, {file: string, html: string}[]>} content
+ * @returns {Promise<{ jobUids: string[], batchUids: string[]}>}
  */
 const sendContentToVendor = async (content) => {
   const projectId = process.env.TRANSLATION_VENDOR_PROJECT;
@@ -64,8 +60,7 @@ const sendContentToVendor = async (content) => {
   const jobsResponses = await Promise.all(jobRequests);
   const jobUids = jobsResponses.map((resp) => resp.translationJobUid);
 
-  // 2) Create a batch for the job - save bachUid for storage
-
+  // 2) Create a batch for each job - save bachUid for storage
   const batchRequests = jobUids.map((jobUid, idx) => {
     const body = {
       authorize: false,
@@ -83,8 +78,7 @@ const sendContentToVendor = async (content) => {
   const batchResponses = await Promise.all(batchRequests);
   const batchUids = batchResponses.map((resp) => resp.batchUid);
 
-  // 3) Upload each file to the batch job
-
+  // 3) Upload files to the batches job
   const fileRequests = batchUids.flatMap((batchUid, idx) => {
     const [locale, pages] = Object.entries(content)[idx];
     return pages.map((page) => {
@@ -115,9 +109,10 @@ const sendContentToVendor = async (content) => {
   // 4) Upload context for each file
 
   // 5) Check status of job and batch
-
   // batch status: DRAFT -> ADDING_FILES -> EXECUTING -> COMPLETED
   // job status: AWAITING_AUTHORIZATION -> IN_PROGRESS (CANCELLED)
+
+  return { jobUids, batchUid };
 };
 
 /**
