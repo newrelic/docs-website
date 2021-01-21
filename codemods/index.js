@@ -28,6 +28,7 @@ module.exports = [
   images,
   tables,
   buttons,
+  browserLandingPageBlockquote,
   icons,
   landingPageTileGrid,
   landingPageImagePlacement,
@@ -35,5 +36,4 @@ module.exports = [
   landingPageButtonType,
   tocLinks,
   watermarks,
-  browserLandingPageBlockquote,
 ];
