@@ -24,6 +24,7 @@ const FA_TO_FEATHER_ICONS = {
   'bar-chart': 'fe-bar-chart-2',
   bolt: 'fe-zap',
   book: 'fe-book',
+  caret: 'nr-caret-up',
   'caret-down': 'fe-chevron-down',
   check: 'fe-check',
   'check-square-o': 'fe-check-square',
