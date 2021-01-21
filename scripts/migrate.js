@@ -37,7 +37,9 @@ const { appendDummyRedirects } = require('./utils/migrate/redirects');
 const all = (list, fn) => Promise.all(list.map(fn));
 
 const isDummyDoc = (doc) =>
-  Boolean(doc.body.trim().match(/^(<[a-z].*>)?redirect(s|ed|ing)?\s/i));
+  Boolean(
+    doc.body.trim().match(/^(<[a-z].*>)?(dummy\sdoc|redirect(s|ed|ing)?)\s/i)
+  );
 
 const runTask = async ({
   label,
