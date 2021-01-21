@@ -24,14 +24,14 @@ const getContent = (locales) =>
       ...content,
       [locale]: slugs
         .map((slug) => {
-          const contents = fs.readFileSync(path.join(process.cwd(), slug));
+          const html = fs.readFileSync(path.join(process.cwd(), slug));
           // TODO: transform MDX -> vendor format
           return {
             file: slug,
-            html: contents ? contents : false,
+            html: html ? html : false,
           };
         })
-        .filter((page) => Boolean(page.contents)),
+        .filter((page) => Boolean(page.html)),
     }),
     {}
   );
@@ -44,6 +44,7 @@ const getContent = (locales) =>
  */
 const sendContentToVendor = async (content) => {
   const projectId = process.env.TRANSLATION_VENDOR_PROJECT;
+
   // 1) Create a job for each locale - save the jobUid for storage
   const jobRequests = Object.keys(content).map((locale) => {
     const body = {
@@ -59,13 +60,15 @@ const sendContentToVendor = async (content) => {
 
   const jobsResponses = await Promise.all(jobRequests);
   const jobUids = jobsResponses.map((resp) => resp.translationJobUid);
+  console.log(`[*] Successfully created jobs: ${jobUids.join(', ')}`);
 
   // 2) Create a batch for each job - save bachUid for storage
+  const pages = Object.values(content);
   const batchRequests = jobUids.map((jobUid, idx) => {
     const body = {
       authorize: false,
       translationJobUid: jobUid,
-      fileUris: Object.values(content)[idx].map(({ file }) => file),
+      fileUris: pages[idx].map(({ file }) => file),
     };
 
     return vendorRequest(
@@ -77,11 +80,12 @@ const sendContentToVendor = async (content) => {
 
   const batchResponses = await Promise.all(batchRequests);
   const batchUids = batchResponses.map((resp) => resp.batchUid);
+  console.log(`[*] Successfully created job batches: ${batchUids.join(', ')}`);
 
   // 3) Upload files to the batches job
   const fileRequests = batchUids.flatMap((batchUid, idx) => {
-    const [locale, pages] = Object.entries(content)[idx];
-    return pages.map((page) => {
+    const [locale, localePages] = Object.entries(content)[idx];
+    return localePages.map((page) => {
       const form = new FormData();
 
       form.append('fileType', 'html');
@@ -103,6 +107,7 @@ const sendContentToVendor = async (content) => {
   });
 
   const fileResponses = await Promise.all(fileRequests);
+  console.log(`[*] Successfully uploaded ${fileResponses.length} files`);
 
   console.log(fileResponses);
 
