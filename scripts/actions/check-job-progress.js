@@ -17,10 +17,11 @@ const checkJobStatus = async (batchUid) => {
 const main = async () => {
   //get list of current job batch uids from dyanmoDB, for each one execute checkJobStatus
   try {
-    const isCompleted = checkJobStatus(batchUid);
+    ///const isCompleted = checkJobStatus(batchUid);
+    const isCompleted = true;
 
     if (isCompleted) {
-      await fetchAndDeserialize(batchUid);
+      await fetchAndDeserialize();
       process.exit(0);
     } else {
       process.exit(1);
