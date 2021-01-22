@@ -5,6 +5,7 @@ const fetch = require('node-fetch');
 
 const loadFromDB = require('./utils/load-from-db');
 const saveToDB = require('./utils/save-to-db');
+const serializeMDX = require('./serialize-mdx');
 const { vendorRequest, getAccessToken } = require('./utils/vendor-request');
 
 /**
@@ -30,15 +31,15 @@ const getContent = (locales) =>
   Object.entries(locales).reduce(
     (content, [locale, slugs]) => ({
       ...content,
-      [locale]: slugs
-        .map((slug) => {
-          const html = fs.readFileSync(path.join(process.cwd(), slug));
-          // TODO: transform MDX -> vendor format
+      [locale]: await Promise.all(slugs
+        .map(async (slug) => {
+          const mdx = fs.readFileSync(path.join(process.cwd(), slug));
+          const html = await serializeMDX(mdx);
           return {
             file: slug,
             html: html ? html : false,
           };
-        })
+        }))
         .filter((page) => Boolean(page.html)),
     }),
     {}
@@ -48,7 +49,7 @@ const getContent = (locales) =>
  * @param {string} locale The locale that this file should be translated to.
  * @param {string} batchUid The batch that is expecting this file.
  * @param {string} accessToken
- * @returns {(page: Page) => Promise<void>} A function that turns a page into a request.
+ * @returns {(page: Page) => Promise<string>} A function that turns a page into a request.
  */
 const uploadFile = (locale, batchUid, accessToken) => async (page) => {
   const filepath = path.join(process.cwd(), 'to-translate.html');
@@ -84,6 +85,7 @@ const uploadFile = (locale, batchUid, accessToken) => async (page) => {
     }
 
     console.log(`[*] Successfully uploaded ${page.file}.`);
+    resolve(code);
   } catch (error) {
     console.error(`[!] Unable to upload ${page.file}.`);
     console.error(error);
@@ -137,20 +139,23 @@ const sendContentToVendor = async (content) => {
 
   // 3) Upload files to the batches job
   const accessToken = await getAccessToken();
-  const fileRequests = batchUids.flatMap((batchUid, idx) => {
+  const fileUploadResponses = batchUids.flatMap((batchUid, idx) => {
     const [locale, localePages] = Object.entries(content)[idx];
     return localePages.map(uploadFile(locale, batchUid, accessToken));
   });
 
-  const fileResponses = await Promise.all(fileRequests);
-  console.log('fileResponses', fileResponses);
+  const fileResponses = await Promise.all(fileUploadResponses);
+
+  // if any file didn't upload correctly, show an error
+  if (fileUploadResponses.some((code) => code !== 'ACCEPTED')) {
+    console.error('[!] Incomplete batch file upload!');
+    process.exit(1);
+  }
+
   console.log(`[*] Successfully uploaded ${fileResponses.length} files`);
 
   // 4) Upload context for each file
-
-  // 5) Check status of job and batch
-  // batch status: DRAFT -> ADDING_FILES -> EXECUTING -> COMPLETED
-  // job status: AWAITING_AUTHORIZATION -> IN_PROGRESS (CANCELLED)
+  // TODO
 
   return { jobUids, batchUids };
 };
@@ -179,19 +184,15 @@ const main = async () => {
   const content = getContent(locales);
 
   try {
-    const { jobUids, batchUids } = await sendContentToVendor(content);
-    // TODO: remove this and proceed to the next steps below
-    console.log({ jobUids, batchUids });
-    process.exit(0);
-    return false;
+    const { batchUids } = await sendContentToVendor(content);
 
-    // clear out `to_translate` queue
+    await addToBeingTranslatedQueue(batchUids);
+    console.log('[*] Saved batchUid(s) to the "being translated" queue');
+
     await saveToDB(table, key, 'set locales = :empty', { ':empty': {} });
+    console.log('[*] Cleared out the "to be translated" queue');
 
-    // save jobUids to `being_translated` queue
-    await addToBeingTranslatedQueue(jobUids);
-
-    console.log(`[*] Successfully sent to vendor`);
+    console.log(`[*] Done!`);
   } catch (error) {
     console.error(`[!] Unable to send data to vendor`);
     console.log(error);
