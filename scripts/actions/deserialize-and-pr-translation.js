@@ -14,3 +14,28 @@ const fetchFileURIs = async (batchUid) => {
   );
   return files.map((file) => file.fileUri);
 };
+
+const fetchTranslatedFilesZip = async (fileUris) => {
+  return vendorRequest(
+    'GET',
+    `https://api.smartling.com/files-api/v2/projects/${projectId}/files/zip`,
+    {
+      fileUris,
+      localeIds: ['ja-JP'],
+    }
+  );
+};
+
+const main = async () => {
+  const batchUid = '8pincrzdw0uo';
+  try {
+    const fileUris = await fetchFileURIs(batchUid);
+    const translatedFiles = await unzipper.Open.buffer(
+      await fetchTranslatedFilesZip(fileUris)
+    );
+  } catch (error) {
+    console.error(``);
+  }
+};
+
+main();
