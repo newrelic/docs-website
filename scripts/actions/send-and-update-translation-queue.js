@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
-const https = require('http');
 const FormData = require('form-data');
+const fetch = require('node-fetch');
 
 const loadFromDB = require('./utils/load-from-db');
 const saveToDB = require('./utils/save-to-db');
@@ -47,12 +47,12 @@ const getContent = (locales) =>
 /**
  * @param {string} locale The locale that this file should be translated to.
  * @param {string} batchUid The batch that is expecting this file.
- * @returns {(page: Page) => Promise} A function that turns a page into a request.
+ * @param {string} accessToken
+ * @returns {(page: Page) => Promise<void>} A function that turns a page into a request.
  */
-const uploadFile = async (locale, batchUid) => (page) => {
-  // TODO: do we really need to make a file just to get it as a stream / buffer
-  const filepath = '/tmp/toTranslate.html';
-  fs.writeFileSync(filepath, page.html, 'utf-8');
+const uploadFile = (locale, batchUid, accessToken) => async (page) => {
+  const filepath = path.join(process.cwd(), 'to-translate.html');
+  fs.writeFileSync(filepath, page.html, 'utf8');
 
   const form = new FormData();
   form.append('fileType', 'html');
@@ -60,27 +60,35 @@ const uploadFile = async (locale, batchUid) => (page) => {
   form.append('fileUri', page.file);
   form.append('file', fs.createReadStream(filepath));
 
-  const accessToken = await getAccessToken();
+  const url = new URL(
+    `/job-batches-api/v2/projects/${PROJECT_ID}/batches/${batchUid}/file`,
+    process.env.TRANSLATION_VENDOR_API_URL
+  );
 
   const options = {
     method: 'POST',
-    host: process.env.TRANSLATION_VENDOR_API_URL,
-    path:
-      `/job-batches-api/v2/projects/${PROJECT_ID}/batches/${batchUid}/file`,
     headers: {
-      ...form.getHeaders(),
       Authorization: `Bearer ${accessToken}`,
     },
+    body: form,
   };
 
-  return new Promise((resolve, reject) => {
-    const request = https.request(options);
-    form.pipe(request);
+  try {
+    const resp = await fetch(url.href, options);
+    const { response } = await resp.json();
+    const { code } = response;
 
-    request.on('response', (resp) => {
-      return resp.statusCode >= 400 ? reject(resp) : resolve(resp);
-    });
-  });
+    if (code !== 'ACCEPTED') {
+      console.dir(response, { depth: null });
+      throw new Error(code);
+    }
+
+    console.log(`[*] Successfully uploaded ${page.file}.`);
+  } catch (error) {
+    console.error(`[!] Unable to upload ${page.file}.`);
+    console.error(error);
+    process.exit(1);
+  }
 };
 
 /**
@@ -128,13 +136,14 @@ const sendContentToVendor = async (content) => {
   console.log(`[*] Successfully created batches: ${batchUids.join(', ')}`);
 
   // 3) Upload files to the batches job
+  const accessToken = await getAccessToken();
   const fileRequests = batchUids.flatMap((batchUid, idx) => {
     const [locale, localePages] = Object.entries(content)[idx];
-    return localePages.map(uploadFile(locale, batchUid));
+    return localePages.map(uploadFile(locale, batchUid, accessToken));
   });
 
   const fileResponses = await Promise.all(fileRequests);
-  console.log(fileResponses);
+  console.log('fileResponses', fileResponses);
   console.log(`[*] Successfully uploaded ${fileResponses.length} files`);
 
   // 4) Upload context for each file
@@ -147,16 +156,16 @@ const sendContentToVendor = async (content) => {
 };
 
 /**
- * @param {string[]} jobUids A list of vendor UIDs to be added to the `being_translated` queue.
+ * @param {string[]} batchUids A list of vendor UIDs to be added to the `being_translated` queue.
  */
-const addToBeingTranslatedQueue = async (jobUids) => {
+const addToBeingTranslatedQueue = async (batchUids) => {
   const table = 'TranslationQueues';
   const key = { type: 'being_translated' };
 
   const queue = await loadFromDB(table, key);
 
-  await saveToDB(table, key, 'set jobUids = :jobUids', {
-    ':jobUids': [...queue, ...jobUids],
+  await saveToDB(table, key, 'set batchUids = :batchUids', {
+    ':batchUids': [...queue, ...batchUids],
   });
 };
 
@@ -174,6 +183,7 @@ const main = async () => {
     // TODO: remove this and proceed to the next steps below
     console.log({ jobUids, batchUids });
     process.exit(0);
+    return false;
 
     // clear out `to_translate` queue
     await saveToDB(table, key, 'set locales = :empty', { ':empty': {} });

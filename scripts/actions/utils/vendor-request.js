@@ -2,8 +2,6 @@ const fetch = require('node-fetch');
 
 const makeRequest = async (url, options) => {
   try {
-    console.log('-- makeRequest');
-    console.log('options', options);
     const resp = await fetch(url.href, options);
     const { response } = await resp.json();
     const { code, data } = response;
