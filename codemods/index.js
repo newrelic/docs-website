@@ -15,6 +15,7 @@ const collapseLandingPageTileGrids = require('./collapseLandingPageTileGrids');
 const landingPageButtonType = require('./landingPageButtonType');
 const tocLinks = require('./tocLinks');
 const watermarks = require('./watermarks');
+const browserLandingPageBlockquote = require('./browserLandingPageBlockquote');
 
 module.exports = [
   codeBlocks,
@@ -27,6 +28,7 @@ module.exports = [
   images,
   tables,
   buttons,
+  browserLandingPageBlockquote,
   icons,
   landingPageTileGrid,
   landingPageImagePlacement,
