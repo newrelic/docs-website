@@ -16,6 +16,7 @@ const makeRequest = async (url, options) => {
   } catch (error) {
     console.error(`Unable to make a ${options.method} request to ${url.href}.`);
     console.log(error.code);
+    console.log(error);
     process.exit(1);
   }
 };
@@ -71,9 +72,10 @@ const vendorRequest = async (
     method,
     headers: {
       Authorization: `Bearer ${accessToken}`,
-      'Content-Type': contentType,
     },
   };
+
+  contentType && options.headers['Content-Type'] === contentType;
 
   if (method !== 'GET') {
     options.body =
@@ -85,4 +87,35 @@ const vendorRequest = async (
   return data;
 };
 
-module.exports = vendorRequest;
+const vendorGetRequest = async (endpoint) => {
+  const accessToken = await getAccessToken();
+
+  const url = new URL(endpoint, process.env.TRANSLATION_VENDOR_API_URL);
+
+  const options = {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+  };
+
+  const data = await makeGetRequest(url, options);
+
+  return data;
+};
+
+const makeGetRequest = async (url, options) => {
+  try {
+    console.log(options);
+    const resp = await fetch(url.href, options);
+
+    return resp;
+  } catch (error) {
+    console.error(`Unable to make a ${options.method} request to ${url.href}.`);
+    console.log(error.code);
+    console.log(error);
+    process.exit(1);
+  }
+};
+
+module.exports = { vendorRequest, vendorGetRequest };
