@@ -24,26 +24,27 @@ const PROJECT_ID = process.env.TRANSLATION_VENDOR_PROJECT;
 
 /**
  * Take a list of filepaths (grouped by locale) and fetches the HTML content.
+ * NOTE: async inside of loops is hard.
  * @param {Object<string, string[]>} locales The queue of slugs to be translated.
- * @returns {Object<string, Page[]>}
+ * @returns {Promise<Object<string, Page[]>>}
  */
-const getContent = (locales) =>
-  Object.entries(locales).reduce(
-    (content, [locale, slugs]) => ({
-      ...content,
-      [locale]: await Promise.all(slugs
-        .map(async (slug) => {
+const getContent = async (locales) =>
+  Object.entries(locales).reduce(async (accP, [locale, slugs]) => {
+    const acc = await accP;
+    return {
+      ...acc,
+      [locale]: await Promise.all(
+        slugs.map(async (slug) => {
           const mdx = fs.readFileSync(path.join(process.cwd(), slug));
           const html = await serializeMDX(mdx);
           return {
             file: slug,
             html: html ? html : false,
           };
-        }))
-        .filter((page) => Boolean(page.html)),
-    }),
-    {}
-  );
+        })
+      ),
+    };
+  }, {});
 
 /**
  * @param {string} locale The locale that this file should be translated to.
@@ -85,7 +86,7 @@ const uploadFile = (locale, batchUid, accessToken) => async (page) => {
     }
 
     console.log(`[*] Successfully uploaded ${page.file}.`);
-    resolve(code);
+    return code;
   } catch (error) {
     console.error(`[!] Unable to upload ${page.file}.`);
     console.error(error);
@@ -139,15 +140,15 @@ const sendContentToVendor = async (content) => {
 
   // 3) Upload files to the batches job
   const accessToken = await getAccessToken();
-  const fileUploadResponses = batchUids.flatMap((batchUid, idx) => {
+  const fileRequests = batchUids.flatMap((batchUid, idx) => {
     const [locale, localePages] = Object.entries(content)[idx];
     return localePages.map(uploadFile(locale, batchUid, accessToken));
   });
 
-  const fileResponses = await Promise.all(fileUploadResponses);
+  const fileResponses = await Promise.all(fileRequests);
 
   // if any file didn't upload correctly, show an error
-  if (fileUploadResponses.some((code) => code !== 'ACCEPTED')) {
+  if (fileResponses.some((code) => code !== 'ACCEPTED')) {
     console.error('[!] Incomplete batch file upload!');
     process.exit(1);
   }
@@ -181,7 +182,7 @@ const main = async () => {
 
   const queue = await loadFromDB(table, key);
   const { locales } = queue.Item;
-  const content = getContent(locales);
+  const content = await getContent(locales);
 
   try {
     const { batchUids } = await sendContentToVendor(content);
