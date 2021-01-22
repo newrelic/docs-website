@@ -1,9 +1,9 @@
-//https://api.smartling.com/job-batches-api/v2/projects/{projectId}/batches/{batchUid} gets the fileURIS
-//get all of the fileURIs from the batch, create an array to create the array
-//set environment variables
-
 const { vendorRequest, vendorGetRequest } = require('./utils/vendor-request');
 const AdmZip = require('adm-zip');
+const deserializedHtml = require('./deserialize-html');
+const { write } = require('to-vfile');
+const vfile = require('vfile');
+const createDirectories = require('../utils/migrate/create-directories');
 
 const projectId = process.env.TRANSLATION_VENDOR_PROJECT;
 
@@ -20,42 +20,55 @@ const fetchFileURIs = async (batchUid) => {
 };
 
 const fetchTranslatedFilesZip = async (fileUris) => {
-  const body = {
-    localeIds: ['ja-JP'],
-    fileUris: fileUris,
-  };
   return vendorGetRequest(
     `/files-api/v2/projects/${projectId}/files/zip?localeIds[]=ja-JP&fileUris[]=enable-serverless-monitoring-aws-lambda.html`
   );
 };
 
-const main = async () => {
+const fetchAndDeserialize = async () => {
   const batchUid = '8pincrzdw0uo';
   try {
-    //const fileUris = await fetchFileURIs(batchUid);
-
     const fileUris = ['enable-serverless-monitoring-aws-lambda.html'];
 
     const response = await fetchTranslatedFilesZip(fileUris);
-
     const buffer = await response.buffer();
 
     const zip = new AdmZip(buffer);
-    const zipEntries = zip.getEntries();
 
-    //reduce to [{uri: ..., html:}]
-
-    const translatedHtml = zipEntries.map((entry) => {
+    const translatedHtml = zip.getEntries().map((entry) => {
       return {
-        path: entry.entryName.split('/').pop(), //get the last element from the folder
+        path: entry.entryName.split('/').pop().split('.').slice(0, -1), //get the last element from the folder
         html: zip.readAsText(entry, (encoding = 'utf8')),
       };
     });
 
-    console.log(translatedHtml);
+    const deserializedMdx = Promise.all(
+      translatedHtml.map(async ({ path, html }) => {
+        return {
+          path: `src/i18n/content/jp/docs/${path}`,
+          mdx: await deserializedHtml(html),
+        };
+      })
+    );
+
+    const files = (await deserializedMdx).map(
+      ({ path, mdx }) =>
+        vfile({
+          contents: mdx,
+          path,
+          extname: '.mdx',
+        }),
+      'utf-8'
+    );
+
+    createDirectories(files);
+
+    files.forEach((file) => write(file, 'utf-8'));
   } catch (error) {
     console.error(error);
   }
 };
 
-main();
+fetchAndDeserialize();
+
+module.exports = fetchAndDeserialize;
