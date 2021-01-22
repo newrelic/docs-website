@@ -87,4 +87,7 @@ const vendorRequest = async (
   return data;
 };
 
-module.exports = vendorRequest;
+module.exports = {
+  vendorRequest,
+  getAccessToken,
+};
