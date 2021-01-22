@@ -246,7 +246,7 @@ const EventDefinition = memo(({ location, event, filteredAttribute }) => {
             margin-right: 0.5rem;
           `}
         >
-          Data {(pluralize('source', event.dataSources.length), ':')}
+          Data {pluralize('source', event.dataSources.length)}:
         </span>
         <TagList>
           {event.dataSources.map((dataSource) => (
