@@ -147,12 +147,6 @@ const sendContentToVendor = async (content) => {
 
   const fileResponses = await Promise.all(fileRequests);
 
-  // if any file didn't upload correctly, show an error
-  if (fileResponses.some((code) => code !== 'ACCEPTED')) {
-    console.error('[!] Incomplete batch file upload!');
-    process.exit(1);
-  }
-
   console.log(`[*] Successfully uploaded ${fileResponses.length} files`);
 
   // 4) Upload context for each file
@@ -170,8 +164,13 @@ const addToBeingTranslatedQueue = async (batchUids) => {
 
   const queue = await loadFromDB(table, key);
 
+  // If this field is empty/returns as empty object
+  if (Object.keys(queue).length === 0) {
+    queue.Item.batchUids = [];
+  }
+
   await saveToDB(table, key, 'set batchUids = :batchUids', {
-    ':batchUids': [...queue, ...batchUids],
+    ':batchUids': [...queue.Item.batchUids, ...batchUids],
   });
 };
 
@@ -190,8 +189,9 @@ const main = async () => {
     await addToBeingTranslatedQueue(batchUids);
     console.log('[*] Saved batchUid(s) to the "being translated" queue');
 
-    await saveToDB(table, key, 'set locales = :empty', { ':empty': {} });
-    console.log('[*] Cleared out the "to be translated" queue');
+    // TODO: Uncomment when done testing
+    // await saveToDB(table, key, 'set locales = :empty', { ':empty': {} });
+    // console.log('[*] Cleared out the "to be translated" queue');
 
     console.log(`[*] Done!`);
   } catch (error) {
