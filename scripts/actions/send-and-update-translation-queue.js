@@ -83,7 +83,6 @@ const uploadFile = (locale, batchUid, accessToken) => async (page) => {
     }
 
     console.log(`[*] Successfully uploaded ${page.file}.`);
-    return code;
   } catch (error) {
     console.error(`[!] Unable to upload ${page.file}.`);
     console.error(error);
