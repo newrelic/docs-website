@@ -94,19 +94,21 @@ const uploadFile = (locale, batchUid, accessToken) => async (page) => {
  * Sends HTML content to the vendor by creating jobs, batches, and uploading
  * files. On success, this will return the batchUid for each locale.
  * @param {Object<string, Page[]>} content
+ * @param {string} accessToken
  * @returns {Promise<string[]>} An array of batchUids
  */
-const sendContentToVendor = async (content) => {
+const sendContentToVendor = async (content, accessToken) => {
   // 1) Create a job for each locale - save the jobUid for storage
   const jobRequests = Object.keys(content).map((locale) => {
     const body = {
       jobName: `Gatsby Translation Queue (${locale}) ${new Date().toLocaleString()}`,
       targetLocaleIds: [LOCALE_IDS[locale]],
     };
-    return vendorRequest(
-      'POST',
-      `/jobs-api/v3/projects/${PROJECT_ID}/jobs`,
-      body
+    return vendorRequest({
+      method: 'POST',
+      endpoint: `/jobs-api/v3/projects/${PROJECT_ID}/jobs`,
+      body,
+      accessToken
     );
   });
 
@@ -123,11 +125,12 @@ const sendContentToVendor = async (content) => {
       fileUris: pages[idx].map(({ file }) => file),
     };
 
-    return vendorRequest(
-      'POST',
-      `/job-batches-api/v2/projects/${PROJECT_ID}/batches`,
-      body
-    );
+    return vendorRequest({
+      method: 'POST',
+      endpoint: `/job-batches-api/v2/projects/${PROJECT_ID}/batches`,
+      body,
+      accessToken
+    });
   });
 
   const batchResponses = await Promise.all(batchRequests);
@@ -135,7 +138,6 @@ const sendContentToVendor = async (content) => {
   console.log(`[*] Successfully created batches: ${batchUids.join(', ')}`);
 
   // 3) Upload files to the batches job
-  const accessToken = await getAccessToken();
   const fileRequests = batchUids.flatMap((batchUid, idx) => {
     const [locale, localePages] = Object.entries(content)[idx];
     return localePages.map(uploadFile(locale, batchUid, accessToken));
@@ -177,7 +179,8 @@ const main = async () => {
   const content = await getContent(locales);
 
   try {
-    const batchUids = await sendContentToVendor(content);
+    const accessToken = await getAccessToken();
+    const batchUids = await sendContentToVendor(content, accessToken);
 
     await addToBeingTranslatedQueue(batchUids);
     console.log('[*] Saved batchUid(s) to the "being translated" queue');

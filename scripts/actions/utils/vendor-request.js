@@ -52,19 +52,21 @@ const getAccessToken = async () => {
  *
  * @example vendorRequest('POST', '/foobar', { name: "foobar" });
  *
- * @param {"GET"|"POST"} method The HTTP method used in the request.
- * @param {string} endpoint The API endpoint to request.
- * @param {Object} [body] (Optional) Data to send with the requst.
+ * @param {Object} options
+ * @param {"GET"|"POST"} options.method The HTTP method used in the request.
+ * @param {string} options.endpoint
+ * @param {string} options.accessToken
+ * @param {Object} [options.body]
+ * @param {Object} [options.contentType]
  * @returns {Promise<Object>} The result after making the request.
  */
-const vendorRequest = async (
+const vendorRequest = async ({
   method,
   endpoint,
+  accessToken,
   body = {},
-  contentType = 'application/json'
-) => {
-  const accessToken = await getAccessToken();
-
+  contentType = 'application/json',
+}) => {
   const url = new URL(endpoint, process.env.TRANSLATION_VENDOR_API_URL);
 
   const options = {
