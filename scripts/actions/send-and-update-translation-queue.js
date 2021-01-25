@@ -109,8 +109,8 @@ const sendContentToVendor = async (content, accessToken) => {
       method: 'POST',
       endpoint: `/jobs-api/v3/projects/${PROJECT_ID}/jobs`,
       body,
-      accessToken
-    );
+      accessToken,
+    });
   });
 
   const jobsResponses = await Promise.all(jobRequests);
@@ -130,7 +130,7 @@ const sendContentToVendor = async (content, accessToken) => {
       method: 'POST',
       endpoint: `/job-batches-api/v2/projects/${PROJECT_ID}/batches`,
       body,
-      accessToken
+      accessToken,
     });
   });
 
@@ -147,7 +147,9 @@ const sendContentToVendor = async (content, accessToken) => {
   const fileResponses = await Promise.all(fileRequests);
   const numSuccess = fileResponses.filter((code) => code === 'ACCEPTED');
 
-  console.log(`[*] Successfully uploaded ${numSuccess} / ${fileResponses.length} files`);
+  console.log(
+    `[*] Successfully uploaded ${numSuccess} / ${fileResponses.length} files`
+  );
 
   return batchUids;
 };
