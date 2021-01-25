@@ -27,7 +27,7 @@ const PROJECT_ID = process.env.TRANSLATION_VENDOR_PROJECT;
  * @param {Object<string, string[]>} locales The queue of slugs to be translated.
  * @returns {Object<string, Promise<Page[]>>}
  */
-const getContent = async (locales) =>
+const getContent = (locales) =>
   Object.entries(locales).reduce((acc, [locale, slugs]) => {
     return {
       ...acc,
@@ -202,7 +202,7 @@ const removeFilesBeingTranslated = async (fileResponses) => {
 const main = async () => {
   const queue = await loadFromDB('TranslationQueues', { type: 'to_translate' });
   const { locales } = queue.Item;
-  const content = await getContent(locales);
+  const content = getContent(locales);
 
   try {
     const accessToken = await getAccessToken();
