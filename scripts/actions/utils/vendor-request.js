@@ -1,23 +1,19 @@
 const fetch = require('node-fetch');
 
+/** @throws {Error} Will throw an error if the response "code" is not 'SUCCESS' */
 const makeRequest = async (url, options) => {
-  try {
-    const resp = await fetch(url.href, options);
-    const { response } = await resp.json();
-    const { code, data } = response;
+  const resp = await fetch(url.href, options);
+  const { response } = await resp.json();
+  const { code, data } = response;
 
-    if (code !== 'SUCCESS') {
-      console.dir(response, { depth: null });
-      throw new Error(code);
-    }
-
-    return data;
-  } catch (error) {
+  if (code !== 'SUCCESS') {
     console.error(
       `Unable to make a ${options.method} request to ${url.href}. (${error})`
     );
-    process.exit(1);
+    throw new Error(code);
   }
+
+  return data;
 };
 
 /**

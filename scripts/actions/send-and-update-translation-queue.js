@@ -83,10 +83,11 @@ const uploadFile = (locale, batchUid, accessToken) => async (page) => {
     }
 
     console.log(`[*] Successfully uploaded ${page.file}.`);
-  } catch (error) {
+
+    return code;
+  } catch (code) {
     console.error(`[!] Unable to upload ${page.file}.`);
-    console.error(error);
-    process.exit(1);
+    return code;
   }
 };
 
@@ -144,8 +145,9 @@ const sendContentToVendor = async (content, accessToken) => {
   });
 
   const fileResponses = await Promise.all(fileRequests);
+  const numSuccess = fileResponses.filter((code) => code === 'ACCEPTED');
 
-  console.log(`[*] Successfully uploaded ${fileResponses.length} files`);
+  console.log(`[*] Successfully uploaded ${numSuccess} / ${fileResponses.length} files`);
 
   return batchUids;
 };
