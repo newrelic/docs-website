@@ -80,9 +80,7 @@ const vendorRequest = async (
       contentType === 'application/json' ? JSON.stringify(body) : body;
   }
 
-  const data = await makeRequest(url, options);
-
-  return data;
+  return await makeRequest(url, options);
 };
 
 module.exports = {
