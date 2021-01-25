@@ -133,15 +133,16 @@ const sendContentToVendor = async (content, accessToken) => {
 
   // 3) Upload files to the batches job
   const fileRequests = batchUids.flatMap((batchUid, idx) => {
-    const [locale, localePages] = Object.entries(content)[idx];
-    return localePages.map(uploadFile(locale, batchUid, accessToken));
+    const locale = Object.keys(content)[idx];
+
+    return pages[idx].map(uploadFile(locale, batchUid, accessToken));
   });
 
   const fileResponses = await Promise.all(fileRequests);
   const numSuccess = fileResponses.filter(({ code }) => code === 'ACCEPTED');
 
   console.log(
-    `[*] Successfully uploaded ${numSuccess} / ${fileResponses.length} files`
+    `[*] Successfully uploaded ${numSuccess.length} / ${fileResponses.length} files`
   );
 
   return { batchUids, fileResponses };
