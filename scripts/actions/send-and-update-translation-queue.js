@@ -81,7 +81,6 @@ const uploadFile = (locale, batchUid, accessToken) => async (page) => {
     const { code } = response;
 
     if (code !== 'ACCEPTED') {
-      console.dir(response, { depth: null });
       throw new Error(code);
     }
 
