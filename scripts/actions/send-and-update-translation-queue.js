@@ -47,7 +47,7 @@ const getContent = async (locales) =>
  * @param {string} locale The locale that this file should be translated to.
  * @param {string} batchUid The batch that is expecting this file.
  * @param {string} accessToken
- * @returns {(page: Page) => Promise<string>} A function that turns a page into a request.
+ * @returns {(page: Page) => Promise<{code: string, slug: string, locale: string>}
  */
 const uploadFile = (locale, batchUid, accessToken) => async (page) => {
   const filename = `${Buffer.from(locale + page.file).toString('base64')}.html`;
@@ -83,11 +83,10 @@ const uploadFile = (locale, batchUid, accessToken) => async (page) => {
     }
 
     console.log(`[*] Successfully uploaded ${page.file}.`);
-
-    return code;
+    return { code, locale, slug: page.file };
   } catch (code) {
     console.error(`[!] Unable to upload ${page.file}.`);
-    return code;
+    return { code, locale, slug: page.file };
   }
 };
 
@@ -96,7 +95,7 @@ const uploadFile = (locale, batchUid, accessToken) => async (page) => {
  * files. On success, this will return the batchUid for each locale.
  * @param {Object<string, Page[]>} content
  * @param {string} accessToken
- * @returns {Promise<string[]>} An array of batchUids
+ * @returns {Promise<{batchUids: string[], fileResponses: Object[]>}
  */
 const sendContentToVendor = async (content, accessToken) => {
   // 1) Create a job for each locale - save the jobUid for storage
@@ -145,13 +144,13 @@ const sendContentToVendor = async (content, accessToken) => {
   });
 
   const fileResponses = await Promise.all(fileRequests);
-  const numSuccess = fileResponses.filter((code) => code === 'ACCEPTED');
+  const numSuccess = fileResponses.filter(({ code }) => code === 'ACCEPTED');
 
   console.log(
     `[*] Successfully uploaded ${numSuccess} / ${fileResponses.length} files`
   );
 
-  return batchUids;
+  return { batchUids, fileResponses };
 };
 
 /**
@@ -173,24 +172,55 @@ const addToBeingTranslatedQueue = async (batchUids) => {
   });
 };
 
+/**
+ * Clears out the "to be translated" queue, except for the files that did not upload successfully.
+ * @param {{code: "ACCEPTED" | string, locale: string, slug: string}[]} fileResponses
+ * @returns {Promise}
+ */
+const removeFilesBeingTranslated = async (fileResponses) => {
+  const failedUploads = fileResponses.filter(({ code }) => code !== 'ACCEPTED');
+
+  const updatedLocales = failedUploads.reduce(
+    (acc, page) => ({
+      ...acc,
+      [page.locale]: [...acc[page.locale], page.slug],
+    }),
+    {}
+  );
+
+  await saveToDB(
+    'TranslationQueues',
+    { type: 'to_translate' },
+    'set locales = :locales',
+    { ':locales': updatedLocales }
+  );
+
+  if (failedUploads.length) {
+    console.log(
+      `[*] ${failedUploads.length} pages remaining in "to be translated" queue`
+    );
+  } else {
+    console.log('[*] Cleared out the "to be translated" queue');
+  }
+};
+
 /** Entrypoint. */
 const main = async () => {
-  const table = 'TranslationQueues';
-  const key = { type: 'to_translate' };
-
-  const queue = await loadFromDB(table, key);
+  const queue = await loadFromDB('TranslationQueues', { type: 'to_translate' });
   const { locales } = queue.Item;
   const content = await getContent(locales);
 
   try {
     const accessToken = await getAccessToken();
-    const batchUids = await sendContentToVendor(content, accessToken);
+    const { batchUids, fileResponses } = await sendContentToVendor(
+      content,
+      accessToken
+    );
 
     await addToBeingTranslatedQueue(batchUids);
     console.log('[*] Saved batchUid(s) to the "being translated" queue');
 
-    await saveToDB(table, key, 'set locales = :empty', { ':empty': {} });
-    console.log('[*] Cleared out the "to be translated" queue');
+    await removeFilesBeingTranslated(fileResponses);
 
     console.log(`[*] Done!`);
   } catch (error) {
