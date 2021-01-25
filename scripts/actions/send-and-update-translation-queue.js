@@ -37,10 +37,7 @@ const getContent = async (locales) =>
         slugs.map(async (slug) => {
           const mdx = fs.readFileSync(path.join(process.cwd(), slug));
           const html = await serializeMDX(mdx);
-          return {
-            file: slug,
-            html: html ? html : false,
-          };
+          return { file: slug, html };
         })
       ),
     };
