@@ -167,13 +167,11 @@ const addToBeingTranslatedQueue = async (batchUids) => {
 };
 
 /**
- * Clears out the "to be translated" queue, except for the files that did not upload successfully.
- * @param {{code: "ACCEPTED" | string, locale: string, slug: string}[]} fileResponses
- * @returns {Promise}
+ * Saves any files that failed to upload to the "to be translated" queue.
+ * @param {{code: string, locale: string, slug: string}[]} failedUploads
+ * @returns {Promise<boolean>}
  */
-const removeFilesBeingTranslated = async (fileResponses) => {
-  const failedUploads = fileResponses.filter(({ code }) => code !== 'ACCEPTED');
-
+const saveFailedUploads = async (failedUploads) => {
   const updatedLocales = failedUploads.reduce(
     (acc, page) => ({
       ...acc,
@@ -188,14 +186,6 @@ const removeFilesBeingTranslated = async (fileResponses) => {
     'set locales = :locales',
     { ':locales': updatedLocales }
   );
-
-  if (failedUploads.length) {
-    console.log(
-      `[*] ${failedUploads.length} pages remaining in "to be translated" queue`
-    );
-  } else {
-    console.log('[*] Cleared out the "to be translated" queue');
-  }
 };
 
 /** Entrypoint. */
@@ -214,12 +204,19 @@ const main = async () => {
     await addToBeingTranslatedQueue(batchUids);
     console.log('[*] Saved batchUid(s) to the "being translated" queue');
 
-    await removeFilesBeingTranslated(fileResponses);
+    const failedUploads = fileResponses.filter(
+      ({ code }) => code !== 'ACCEPTED'
+    );
+    console.log(`[*] ${failedUploads.length} pages failed to upload.`);
 
-    console.log(`[*] Done!`);
+    await saveFailedUploads(failedUploads);
+    console.log('[*] Updated "to be translated" queue');
+
+    process.exit(failedUploads.length ? 1 : 0);
   } catch (error) {
     console.error(`[!] Unable to send data to vendor`);
     console.log(error);
+
     process.exit(1);
   }
 };
