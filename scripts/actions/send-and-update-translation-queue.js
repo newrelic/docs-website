@@ -149,9 +149,6 @@ const sendContentToVendor = async (content) => {
 
   console.log(`[*] Successfully uploaded ${fileResponses.length} files`);
 
-  // 4) Upload context for each file
-  // TODO
-
   return { jobUids, batchUids };
 };
 
@@ -189,9 +186,8 @@ const main = async () => {
     await addToBeingTranslatedQueue(batchUids);
     console.log('[*] Saved batchUid(s) to the "being translated" queue');
 
-    // TODO: Uncomment when done testing
-    // await saveToDB(table, key, 'set locales = :empty', { ':empty': {} });
-    // console.log('[*] Cleared out the "to be translated" queue');
+    await saveToDB(table, key, 'set locales = :empty', { ':empty': {} });
+    console.log('[*] Cleared out the "to be translated" queue');
 
     console.log(`[*] Done!`);
   } catch (error) {
