@@ -24,16 +24,14 @@ const PROJECT_ID = process.env.TRANSLATION_VENDOR_PROJECT;
 
 /**
  * Take a list of filepaths (grouped by locale) and fetches the HTML content.
- * NOTE: async inside of loops is hard.
  * @param {Object<string, string[]>} locales The queue of slugs to be translated.
- * @returns {Promise<Object<string, Page[]>>}
+ * @returns {Object<string, Promise<Page[]>>}
  */
 const getContent = async (locales) =>
-  Object.entries(locales).reduce(async (accP, [locale, slugs]) => {
-    const acc = await accP;
+  Object.entries(locales).reduce((acc, [locale, slugs]) => {
     return {
       ...acc,
-      [locale]: await Promise.all(
+      [locale]: Promise.all(
         slugs.map(async (slug) => {
           const mdx = fs.readFileSync(path.join(process.cwd(), slug));
           const html = await serializeMDX(mdx);
@@ -73,21 +71,17 @@ const uploadFile = (locale, batchUid, accessToken) => async (page) => {
     body: form,
   };
 
-  try {
-    const resp = await fetch(url.href, options);
-    const { response } = await resp.json();
-    const { code } = response;
+  const resp = await fetch(url.href, options);
+  const { response } = await resp.json();
+  const { code } = response;
 
-    if (code !== 'ACCEPTED' || !resp.ok) {
-      throw new Error(code);
-    }
-
+  if (code === 'ACCEPTED' && resp.ok) {
     console.log(`[*] Successfully uploaded ${page.file}.`);
-    return { code, locale, slug: page.file };
-  } catch (code) {
+  } else {
     console.error(`[!] Unable to upload ${page.file}.`);
-    return { code, locale, slug: page.file };
   }
+
+  return { code, locale, slug: page.file };
 };
 
 /**
@@ -117,7 +111,7 @@ const sendContentToVendor = async (content, accessToken) => {
   console.log(`[*] Successfully created jobs: ${jobUids.join(', ')}`);
 
   // 2) Create a batch for each job - save bachUid for storage
-  const pages = Object.values(content);
+  const pages = await Promise.all(Object.values(content));
   const batchRequests = jobUids.map((jobUid, idx) => {
     const body = {
       authorize: false,
