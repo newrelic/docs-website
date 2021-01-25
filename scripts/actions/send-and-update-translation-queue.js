@@ -78,7 +78,7 @@ const uploadFile = (locale, batchUid, accessToken) => async (page) => {
     const { response: resp } = await resp.json();
     const { code } = resp;
 
-    if (code !== 'ACCEPTED') {
+    if (code !== 'ACCEPTED' || !resp.ok) {
       throw new Error(code);
     }
 
