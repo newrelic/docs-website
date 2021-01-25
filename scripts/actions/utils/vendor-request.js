@@ -82,7 +82,7 @@ const vendorRequest = async ({
       contentType === 'application/json' ? JSON.stringify(body) : body;
   }
 
-  return await makeRequest(url, options);
+  return makeRequest(url, options);
 };
 
 module.exports = {
