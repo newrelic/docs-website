@@ -4,7 +4,7 @@ const FormData = require('form-data');
 const fetch = require('node-fetch');
 
 const loadFromDB = require('./utils/load-from-db');
-const saveToDB = require('./utils/save-to-db');
+const { saveToTranslationQueue } = require('./utils/save-to-db');
 const serializeMDX = require('./serialize-mdx');
 const { vendorRequest, getAccessToken } = require('./utils/vendor-request');
 
@@ -161,7 +161,7 @@ const addToBeingTranslatedQueue = async (batchUids) => {
     queue.Item.batchUids = [];
   }
 
-  await saveToDB(table, key, 'set batchUids = :batchUids', {
+  await saveToTranslationQueue(key, 'set batchUids = :batchUids', {
     ':batchUids': [...queue.Item.batchUids, ...batchUids],
   });
 };
@@ -180,8 +180,7 @@ const saveFailedUploads = async (failedUploads) => {
     {}
   );
 
-  await saveToDB(
-    'TranslationQueues',
+  await saveToTranslationQueue(
     { type: 'to_translate' },
     'set locales = :locales',
     { ':locales': updatedLocales }
