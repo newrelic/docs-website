@@ -92,9 +92,9 @@ const uploadFile = (locale, batchUid, accessToken) => async (page) => {
 
 /**
  * Sends HTML content to the vendor by creating jobs, batches, and uploading
- * files. On success, this will return the jobUid and batchUid for each locale.
+ * files. On success, this will return the batchUid for each locale.
  * @param {Object<string, Page[]>} content
- * @returns {Promise<{ jobUids: string[], batchUids: string[]}>}
+ * @returns {Promise<string[]>} An array of batchUids
  */
 const sendContentToVendor = async (content) => {
   // 1) Create a job for each locale - save the jobUid for storage
@@ -145,7 +145,7 @@ const sendContentToVendor = async (content) => {
 
   console.log(`[*] Successfully uploaded ${fileResponses.length} files`);
 
-  return { jobUids, batchUids };
+  return batchUids;
 };
 
 /**
@@ -177,7 +177,7 @@ const main = async () => {
   const content = await getContent(locales);
 
   try {
-    const { batchUids } = await sendContentToVendor(content);
+    const batchUids = await sendContentToVendor(content);
 
     await addToBeingTranslatedQueue(batchUids);
     console.log('[*] Saved batchUid(s) to the "being translated" queue');
