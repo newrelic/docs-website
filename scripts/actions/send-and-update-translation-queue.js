@@ -53,7 +53,8 @@ const getContent = async (locales) =>
  * @returns {(page: Page) => Promise<string>} A function that turns a page into a request.
  */
 const uploadFile = (locale, batchUid, accessToken) => async (page) => {
-  const filepath = path.join(process.cwd(), 'to-translate.html');
+  const filename = `${Buffer.from(locale + page.file).toString('base64')}.html`;
+  const filepath = path.join(process.cwd(), filename);
   fs.writeFileSync(filepath, page.html, 'utf8');
 
   const form = new FormData();
