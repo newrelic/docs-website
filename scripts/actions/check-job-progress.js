@@ -5,7 +5,7 @@ const { getAccessToken, vendorRequest } = require('./utils/vendor-request');
 const PROJECT_ID = process.env.TRANSLATION_VENDOR_PROJECT;
 
 /**
- * @typedef {Object} BatchStatus
+ * @typedef {Object} Batch
  * @property {string} batchUid
  * @property {string} locale The vendor-based locale (i.e. "ja-JP")
  * @property {string[]} fileUris The filepath from the root of the project
@@ -14,7 +14,7 @@ const PROJECT_ID = process.env.TRANSLATION_VENDOR_PROJECT;
 
 /**
  * @param {string} accessToken
- * @returns {(batchUid: string) => Promise<BatchStatus>}
+ * @returns {(batchUid: string) => Promise<Batch>}
  */
 const getBatchStatus = (accessToken) => async (batchUid) => {
   const resp = await vendorRequest({
@@ -50,7 +50,9 @@ const main = async () => {
       `[*] ${batchesToDeserialize.length} batches ready to be deserialized`
     );
 
-    await fetchAndDeserialize(batchesToDeserialize, accessToken);
+    await Promise.all(
+      batchesToDeserialize.map(fetchAndDeserialize(accessToken))
+    );
     console.log('[*] Content deserialized');
 
     // TODO: update queue to remove batchUid
