@@ -73,7 +73,6 @@ const main = async () => {
     );
     console.log('[*] Content deserialized');
 
-    // TODO: update queue to remove batchUid
     const remainingBatches = batchStatuses
       .filter((batch) => batch && !batch.done)
       .map((batch) => batch.batchUid);
