@@ -35,6 +35,11 @@ const getBatchStatus = (accessToken) => async (batchUid) => {
   };
 };
 
+/**
+ * Updates the "being translated" queue with the batches that are not done.
+ * @param {string[]} batchUids
+ * @returns {Promise}
+ */
 const saveRemainingBatches = async (batchUids) => {
   await saveToTranslationQueue(
     { type: 'being_translated' },
