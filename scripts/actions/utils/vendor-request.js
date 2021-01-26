@@ -1,24 +1,19 @@
 const fetch = require('node-fetch');
 
+/** @throws {Error} Will throw an error if the response "code" is not 'SUCCESS' */
 const makeRequest = async (url, options) => {
-  try {
-    console.log(options);
-    const resp = await fetch(url.href, options);
-    const { response } = await resp.json();
-    const { code, data } = response;
+  const resp = await fetch(url.href, options);
+  const { response } = await resp.json();
+  const { code, data } = response;
 
-    if (code !== 'SUCCESS') {
-      console.dir(response, { depth: null });
-      throw new Error(response);
-    }
-
-    return data;
-  } catch (error) {
-    console.error(`Unable to make a ${options.method} request to ${url.href}.`);
-    console.log(error.code);
-    console.log(error);
-    process.exit(1);
+  if (code !== 'SUCCESS') {
+    console.error(
+      `Unable to make a ${options.method} request to ${url.href}. (${error})`
+    );
+    throw new Error(code);
   }
+
+  return data;
 };
 
 /**
@@ -53,69 +48,40 @@ const getAccessToken = async () => {
  *
  * @example vendorRequest('POST', '/foobar', { name: "foobar" });
  *
- * @param {"GET"|"POST"} method The HTTP method used in the request.
- * @param {string} endpoint The API endpoint to request.
- * @param {Object} [body] (Optional) Data to send with the requst.
+ * @param {Object} options
+ * @param {"GET"|"POST"} options.method The HTTP method used in the request.
+ * @param {string} options.endpoint
+ * @param {string} options.accessToken
+ * @param {Object} [options.body]
+ * @param {Object} [options.contentType]
  * @returns {Promise<Object>} The result after making the request.
  */
-const vendorRequest = async (
+const vendorRequest = async ({
   method,
   endpoint,
+  accessToken,
   body = {},
-  contentType = 'application/json'
-) => {
-  const accessToken = await getAccessToken();
-
+  contentType = 'application/json',
+}) => {
   const url = new URL(endpoint, process.env.TRANSLATION_VENDOR_API_URL);
 
   const options = {
     method,
     headers: {
       Authorization: `Bearer ${accessToken}`,
+      'Content-Type': contentType,
     },
   };
-
-  contentType && options.headers['Content-Type'] === contentType;
 
   if (method !== 'GET') {
     options.body =
       contentType === 'application/json' ? JSON.stringify(body) : body;
   }
 
-  const data = await makeRequest(url, options);
-
-  return data;
+  return makeRequest(url, options);
 };
 
-const vendorGetRequest = async (endpoint) => {
-  const accessToken = await getAccessToken();
-
-  const url = new URL(endpoint, process.env.TRANSLATION_VENDOR_API_URL);
-
-  const options = {
-    method: 'GET',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-    },
-  };
-
-  const data = await makeGetRequest(url, options);
-
-  return data;
+module.exports = {
+  vendorRequest,
+  getAccessToken,
 };
-
-const makeGetRequest = async (url, options) => {
-  try {
-    console.log(options);
-    const resp = await fetch(url.href, options);
-
-    return resp;
-  } catch (error) {
-    console.error(`Unable to make a ${options.method} request to ${url.href}.`);
-    console.log(error.code);
-    console.log(error);
-    process.exit(1);
-  }
-};
-
-module.exports = { vendorRequest, vendorGetRequest };
