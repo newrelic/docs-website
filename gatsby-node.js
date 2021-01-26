@@ -328,6 +328,13 @@ const createPageFromNode = (node, { createPage, prefix = '' }) => {
   }
 };
 
+const TEMPLATES_BY_TYPE = {
+  landingPage: 'landingPage',
+  apiDoc: 'basicDoc',
+  releaseNote: 'releaseNote',
+  troubleshooting: 'basicDoc',
+};
+
 const getTemplate = (node) => {
   const {
     frontmatter,
@@ -335,8 +342,8 @@ const getTemplate = (node) => {
   } = node;
 
   switch (true) {
-    case Boolean(frontmatter.template):
-      return { template: frontmatter.template };
+    case Boolean(frontmatter.type):
+      return { template: TEMPLATES_BY_TYPE[frontmatter.type] };
 
     case /docs\/release-notes\/.*\/index.mdx$/.test(fileRelativePath):
       return {
@@ -351,7 +358,7 @@ const getTemplate = (node) => {
       return { template: 'whatsNew' };
 
     default:
-      return { template: null };
+      return { template: 'basicDoc' };
   }
 };
 
