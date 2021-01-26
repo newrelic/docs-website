@@ -27,6 +27,10 @@ const fetchTranslatedFilesZip = async (fileUris, locale, accessToken) => {
 };
 
 const fetchAndDeserialize = (accessToken) => async ({ locale, fileUris }) => {
+  // TODO: resolve this issue
+  // | FetchError: invalid json response body at ***/files-api/v2/projects/***/files/zip?localeIds[]=ja-JP&fileUris[]=/src/content/docs/accounts/ac
+  // counts-billing/account-structure/mastersub-account-structure.mdx&fileUris[]=/src/content/docs/accounts/accounts-billing/new-relic-one-pricing-
+  // billing/new-relic-one-pricing-billing.mdx reason: Unexpected token P in JSON at position 0
   const response = await fetchTranslatedFilesZip(fileUris, locale, accessToken);
   const buffer = await response.buffer();
 
