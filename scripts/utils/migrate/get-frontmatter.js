@@ -59,23 +59,23 @@ const getFrontmatter = (file) => {
 const addCustomFrontmatter = {
   [TYPES.LANDING_PAGE]: ({ doc, topics }, defaultFrontmatter) => ({
     ...defaultFrontmatter,
-    topics,
+    tags: listOrNull(topics),
     translate: doc.japaneseVersionExists === 'yes' ? ['jp'] : null,
   }),
   [TYPES.API_DOC]: ({ doc, topics }, defaultFrontmatter) => ({
     ...defaultFrontmatter,
     shortDescription: doc.shortDescription.trim(),
-    topics,
+    tags: listOrNull(topics),
     translate: doc.japaneseVersionExists === 'yes' ? ['jp'] : null,
   }),
   [TYPES.BASIC_PAGE]: ({ doc, topics }, defaultFrontmatter) => ({
     ...defaultFrontmatter,
-    topics,
+    tags: listOrNull(topics),
     translate: doc.japaneseVersionExists === 'yes' ? ['jp'] : null,
   }),
   [TYPES.TROUBLESHOOTING]: ({ doc, topics }, defaultFrontmatter) => ({
     ...defaultFrontmatter,
-    topics,
+    tags: listOrNull(topics),
     translate: doc.japaneseVersionExists === 'yes' ? ['jp'] : null,
   }),
   [TYPES.RELEASE_NOTE]: ({ doc }, _, file) => {
@@ -146,5 +146,7 @@ const normalizeSubject = (subject) => {
 
 const stripNulls = (obj) =>
   Object.fromEntries(Object.entries(obj).filter(([, value]) => value != null));
+
+const listOrNull = (arr) => (arr.length === 0 ? null : arr);
 
 module.exports = getFrontmatter;
