@@ -330,9 +330,9 @@ const createPageFromNode = (node, { createPage, prefix = '' }) => {
 
 const TEMPLATES_BY_TYPE = {
   landingPage: 'landingPage',
-  apiDoc: 'basicDoc',
+  apiDoc: 'docPage',
   releaseNote: 'releaseNote',
-  troubleshooting: 'basicDoc',
+  troubleshooting: 'docPage',
 };
 
 const getTemplate = (node) => {
@@ -358,7 +358,7 @@ const getTemplate = (node) => {
       return { template: 'whatsNew' };
 
     default:
-      return { template: 'basicDoc' };
+      return { template: 'docPage' };
   }
 };
 
