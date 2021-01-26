@@ -1,12 +1,7 @@
 const path = require('path');
 const docsApi = require('./docs-api');
 const { prop } = require('../functional');
-const {
-  TYPES,
-  ITEMS_PER_TYPE,
-  DIRECT_IDS,
-  MAX_PAGES_PER_TYPE,
-} = require('../constants');
+const { TYPES, ITEMS_PER_TYPE, MAX_PAGES_PER_TYPE } = require('../constants');
 
 const IGNORED_TYPES = [
   TYPES.ATTRIBUTE_DEFINITION,
@@ -25,17 +20,9 @@ const fetchDocs = async () => {
     )
     .concat(docsApi.paginate('/api/migration/content/page/nr-only/list'));
 
-  const hardCodedRequests = DIRECT_IDS.map((id) =>
-    docsApi.get(`/api/migration/content/page/${id}`)
-  );
-
   const docs = await Promise.all(requests);
-  const hardCodedDocs = await Promise.all(hardCodedRequests);
 
-  return docs
-    .concat(hardCodedDocs.map(prop('docs')))
-    .flat()
-    .map(prop('doc'));
+  return docs.flat().map(prop('doc'));
 };
 
 module.exports = fetchDocs;
