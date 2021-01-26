@@ -19,14 +19,24 @@ const PROJECT_ID = process.env.TRANSLATION_VENDOR_PROJECT;
  * @returns {(batchUid: string) => Promise<Batch>}
  */
 const getBatchStatus = (accessToken) => async (batchUid) => {
-  const resp = await vendorRequest({
+  const batchData = await vendorRequest({
     method: 'GET',
-    endpoint: `/jobs-api/v3/projects/${PROJECT_ID}/jobs/${batchUid}`,
+    endpoint: `/job-batches-api/v2/projects/${PROJECT_ID}/batches/${batchUid}`,
     accessToken,
   });
 
-  const { status, files } = resp.response.data;
+  const { status, files, translationJobUid } = batchData;
 
+  const jobData = await vendorRequest({
+    method: 'GET',
+    endpoint: `/jobs-api/v3/projects/${PROJECT_ID}/jobs/${translationJobUid}`,
+    accessToken,
+  });
+
+  const { jobStatus } = jobData;
+  console.log(`jobStatus: ${jobStatus}`);
+
+  // TODO: batch status does not equal job status...we need to check if the job is complete
   return {
     batchUid,
     done: status === 'COMPLETED',
@@ -48,6 +58,7 @@ const saveRemainingBatches = async (batchUids) => {
   );
 };
 
+/** Entrypoint. */
 const main = async () => {
   const table = 'TranslationQueues';
   const key = { type: 'being_translated' };
