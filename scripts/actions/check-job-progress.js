@@ -1,6 +1,8 @@
 const loadFromDB = require('./utils/load-from-db');
-const fetchAndDeserialize = require('./fetch-and-deserialize');
+
+const { saveToTranslationQueue } = require('./utils/save-to-db');
 const { getAccessToken, vendorRequest } = require('./utils/vendor-request');
+const fetchAndDeserialize = require('./fetch-and-deserialize');
 
 const PROJECT_ID = process.env.TRANSLATION_VENDOR_PROJECT;
 
@@ -33,6 +35,14 @@ const getBatchStatus = (accessToken) => async (batchUid) => {
   };
 };
 
+const saveRemainingBatches = async (batchUids) => {
+  await saveToTranslationQueue(
+    { type: 'being_translated' },
+    'set batchUids = :batchUids',
+    { ':batchUids': batchUids }
+  );
+};
+
 const main = async () => {
   const table = 'TranslationQueues';
   const key = { type: 'being_translated' };
@@ -43,20 +53,29 @@ const main = async () => {
 
     const accessToken = await getAccessToken();
 
-    const batchesToDeserialize = await Promise.all(
+    const batchStatuses = await Promise.all(
       batchUids.map(getBatchStatus(accessToken))
-    ).filter((batch) => batch && batch.done);
+    );
+
+    const batchesToDeserialize = batchStatuses.filter(
+      (batch) => batch && batch.done
+    );
     console.log(
       `[*] ${batchesToDeserialize.length} batches ready to be deserialized`
     );
-
     await Promise.all(
       batchesToDeserialize.map(fetchAndDeserialize(accessToken))
     );
     console.log('[*] Content deserialized');
 
     // TODO: update queue to remove batchUid
-    console.log('[*] "Being translated" queue updated');
+    const remainingBatches = batchStatuses
+      .filter((batch) => batch && !batch.done)
+      .map((batch) => batch.batchUid);
+    await saveRemainingBatches(remainingBatches);
+    console.log(
+      `[*] "Being translated" queue updated (${remainingBatches.length} remaining)`
+    );
 
     process.exit(0);
   } catch (error) {
