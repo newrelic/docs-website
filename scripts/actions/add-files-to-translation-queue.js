@@ -3,7 +3,7 @@ const path = require('path');
 const fetch = require('node-fetch');
 const frontmatter = require('@github-docs/frontmatter');
 
-const saveToDB = require('./utils/save-to-db');
+const { saveToTranslationQueue } = require('./utils/save-to-db');
 const loadFromDB = require('./utils/load-from-db');
 const checkArgs = require('./utils/check-args');
 const { prop } = require('../utils/functional');
@@ -69,7 +69,7 @@ const main = async () => {
   const queue = await loadFromDB(table, key);
   const data = await getUpdatedQueue(url, queue);
 
-  await saveToDB(table, key, 'set locales = :slugs', { ':slugs': data });
+  await saveToTranslationQueue(key, 'set locales = :slugs', { ':slugs': data });
 
   process.exit(0);
 };

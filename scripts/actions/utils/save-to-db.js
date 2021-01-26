@@ -41,4 +41,10 @@ const saveToDB = (table, key, updateExpression, values) => {
   });
 };
 
-module.exports = saveToDB;
+const saveToTranslationQueue = (...args) =>
+  saveToDB('TranslationQueues', ...args);
+
+module.exports = {
+  saveToDB,
+  saveToTranslationQueue,
+};
