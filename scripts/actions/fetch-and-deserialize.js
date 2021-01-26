@@ -42,6 +42,7 @@ const fetchAndDeserialize = (accessToken) => async ({ locale, fileUris }) => {
 
   const deserializedMdx = Promise.all(
     translatedHtml.map(async ({ path, html }) => {
+      console.log(`[*] Deserializing ${path}`);
       return {
         path: `src/i18n/content/${localesMap[locale]}/docs/${path}`,
         mdx: await deserializedHtml(html),
