@@ -10,7 +10,7 @@ const makeRequest = async (url, options) => {
     console.error(
       `Unable to make a ${options.method} request to ${url.href}. (${code})`
     );
-    throw new Error(response);
+    throw new Error(JSON.stringify(response, null, 2));
   }
 
   return data;
