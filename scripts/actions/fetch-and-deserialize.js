@@ -2,7 +2,8 @@ const AdmZip = require('adm-zip');
 const vfile = require('vfile');
 const { write } = require('to-vfile');
 
-const { vendorRequest } = require('./utils/vendor-request');
+const fetch = require('node-fetch');
+
 const deserializedHtml = require('./deserialize-html');
 const createDirectories = require('../utils/migrate/create-directories');
 
@@ -14,24 +15,25 @@ const projectId = process.env.TRANSLATION_VENDOR_PROJECT;
 
 const fetchTranslatedFilesZip = async (fileUris, locale, accessToken) => {
   const fileUriStr = fileUris.reduce((str, uri) => {
-    return str.concat(`&fileUris[]=${uri}`);
+    return str.concat(`&fileUris[]=${encodeURIComponent(uri)}`);
   }, '');
 
   const localeIdStr = `localeIds[]=${locale}`;
 
-  return vendorRequest({
-    method: 'GET',
-    endpoint: `/files-api/v2/projects/${projectId}/files/zip?${localeIdStr}${fileUriStr}`,
-    accessToken,
-  });
+  return fetch(
+    `https://api.smartling.com/files-api/v2/projects/${projectId}/files/zip?${localeIdStr}${fileUriStr}`,
+    {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    }
+  );
 };
 
 const fetchAndDeserialize = (accessToken) => async ({ locale, fileUris }) => {
-  // TODO: resolve this issue
-  // | FetchError: invalid json response body at ***/files-api/v2/projects/***/files/zip?localeIds[]=ja-JP&fileUris[]=/src/content/docs/accounts/ac
-  // counts-billing/account-structure/mastersub-account-structure.mdx&fileUris[]=/src/content/docs/accounts/accounts-billing/new-relic-one-pricing-
-  // billing/new-relic-one-pricing-billing.mdx reason: Unexpected token P in JSON at position 0
   const response = await fetchTranslatedFilesZip(fileUris, locale, accessToken);
+
   const buffer = await response.buffer();
 
   const zip = new AdmZip(buffer);
@@ -40,7 +42,7 @@ const fetchAndDeserialize = (accessToken) => async ({ locale, fileUris }) => {
   const translatedHtml = zipEntries.map((entry) => {
     return {
       path: entry.entryName.split('/').pop().split('.').slice(0, -1), // get the last element from the folder
-      html: zip.readAsText(entry, (encoding = 'utf8')),
+      html: zip.readAsText(entry, 'utf8'),
     };
   });
 
