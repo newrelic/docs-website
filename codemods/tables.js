@@ -8,7 +8,6 @@ const tables = () => (tree) => {
       return isMdxBlockElement('table', node);
     },
     (table) => {
-      table.name = 'Table';
       removeAttribute('className', table);
     }
   );

@@ -20,7 +20,7 @@ exports.createPages = async ({ actions, graphql, reporter }, pluginOptions) => {
           childMdx {
             frontmatter {
               title
-              contentType
+              type
             }
             fields {
               slug
@@ -38,7 +38,7 @@ exports.createPages = async ({ actions, graphql, reporter }, pluginOptions) => {
           childMdx {
             frontmatter {
               title
-              contentType
+              type
             }
             fields {
               slug
@@ -147,10 +147,7 @@ exports.createPages = async ({ actions, graphql, reporter }, pluginOptions) => {
   });
 
   tableOfContentsNodes.forEach((node) => {
-    if (
-      !node.childMdx ||
-      node.childMdx.frontmatter.contentType !== 'landingPage'
-    ) {
+    if (!node.childMdx || node.childMdx.frontmatter.type !== 'landingPage') {
       return;
     }
     const landingPageSlug = getSlug(node);
