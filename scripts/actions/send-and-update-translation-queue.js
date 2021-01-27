@@ -164,7 +164,7 @@ const addToBeingTranslatedQueue = async (batchUids) => {
       : [];
 
   await saveToTranslationQueue(key, 'set batchUids = :batchUids', {
-    ':batchUids': [...queue.Item.batchUids, ...batchUids],
+    ':batchUids': [...queue, ...batchUids],
   });
 };
 
