@@ -248,10 +248,6 @@ exports.createSchemaCustomization = ({ actions }) => {
   const { createTypes } = actions;
 
   const typeDefs = `
-  type MarkdownRemarkFrontmatter {
-    template: String
-  }
-
   type NavYaml implements Node @dontInfer {
     id: ID!
     title: String!
