@@ -116,12 +116,13 @@ module.exports = {
         children: [u('text', '\u00A0')],
       }),
   },
-  Table: {
+  table: {
     deserialize: deserializeComponent,
     serialize: (h, node) =>
       serializeComponent(h, node, {
         tagName: 'table',
         wrapChildren: false,
+        identifyComponent: false,
       }),
   },
   LandingPageTile: {
