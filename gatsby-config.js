@@ -17,9 +17,8 @@ const autoLinkHeaders = {
 module.exports = {
   flags: {
     DEV_SSR: true,
-    LAZY_IMAGES: true,
-    QUERY_ON_DEMAND: true,
     PRESERVE_WEBPACK_CACHE: true,
+    PRESERVE_FILE_DOWNLOAD_CACHE: true,
   },
   siteMetadata: {
     title: 'New Relic Documentation',
