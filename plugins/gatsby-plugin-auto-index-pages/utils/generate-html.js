@@ -29,6 +29,11 @@ const generateHTML = (dir) => {
         return;
       }
 
+      if (!node.data || !node.data.fields) {
+        console.dir(node, { depth: null });
+        console.dir(dir, { depth: null });
+      }
+
       const lastChild = last(tree.children);
       const linkListItem = h('li', [
         h('a', { href: node.data.fields.slug }, [
