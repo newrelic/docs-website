@@ -34,12 +34,10 @@ const getBatchStatus = (accessToken) => async (batchUid) => {
   });
 
   const { jobStatus } = jobData;
-  console.log(`jobStatus: ${jobStatus}`);
 
-  // TODO: batch status does not equal job status...we need to check if the job is complete
   return {
     batchUid,
-    done: status === 'COMPLETED',
+    done: jobStatus === 'COMPLETED',
     locale: files[0].targetLocales[0].localeId,
     fileUris: files.map((file) => file.fileUri),
   };
