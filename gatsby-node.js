@@ -76,7 +76,7 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
         edges {
           node {
             frontmatter {
-              template
+              type
             }
             fields {
               fileRelativePath
@@ -94,7 +94,7 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
               slug
             }
             frontmatter {
-              template
+              type
               subject
               redirects
             }
@@ -112,7 +112,7 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
               slug
             }
             frontmatter {
-              template
+              type
               subject
             }
           }
