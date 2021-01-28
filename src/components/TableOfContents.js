@@ -112,7 +112,7 @@ const TableOfContents = ({ page }) => {
                   `}
                 >
                   <Icon
-                    name={Icon.TYPE.ARROW_LEFT}
+                    name="fe-arrow-left"
                     css={css`
                       display: ${isActive && !isMobileScreen
                         ? 'inline-block'
