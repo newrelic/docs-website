@@ -8,9 +8,9 @@ const makeRequest = async (url, options) => {
 
   if (code !== 'SUCCESS') {
     console.error(
-      `Unable to make a ${options.method} request to ${url.href}. (${error})`
+      `Unable to make a ${options.method} request to ${url.href}. (${code})`
     );
-    throw new Error(code);
+    throw new Error(JSON.stringify(response, null, 2));
   }
 
   return data;

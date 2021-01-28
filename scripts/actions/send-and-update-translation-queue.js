@@ -155,15 +155,16 @@ const addToBeingTranslatedQueue = async (batchUids) => {
   const table = 'TranslationQueues';
   const key = { type: 'being_translated' };
 
-  const queue = await loadFromDB(table, key);
+  const data = await loadFromDB(table, key);
 
   // If this field is empty/returns as empty object
-  if (Object.keys(queue).length === 0) {
-    queue.Item.batchUids = [];
-  }
+  const queue =
+    data.Item && data.Item.batchUids && data.Item.batchUids.length
+      ? data.Item.batchUids
+      : [];
 
   await saveToTranslationQueue(key, 'set batchUids = :batchUids', {
-    ':batchUids': [...queue.Item.batchUids, ...batchUids],
+    ':batchUids': [...queue, ...batchUids],
   });
 };
 
