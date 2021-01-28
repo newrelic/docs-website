@@ -2,9 +2,13 @@ import React from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/core';
 import { graphql } from 'gatsby';
-import { Icon, Layout, SEO } from '@newrelic/gatsby-theme-newrelic';
+import {
+  Icon,
+  Layout,
+  MarkdownContainer,
+  SEO,
+} from '@newrelic/gatsby-theme-newrelic';
 import PageTitle from '../components/PageTitle';
-import MarkdownContainer from '../components/MarkdownContainer';
 
 const WhatsNewTemplate = ({ data, location }) => {
   const {
