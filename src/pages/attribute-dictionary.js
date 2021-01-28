@@ -14,12 +14,12 @@ import {
   useQueryParams,
   Icon,
   useTranslation,
+  Table,
   Trans,
 } from '@newrelic/gatsby-theme-newrelic';
 
 import DataDictionaryFilter from '../components/DataDictionaryFilter';
 import PageTitle from '../components/PageTitle';
-import Table from '../components/Table';
 
 import { useMedia } from 'react-use';
 
