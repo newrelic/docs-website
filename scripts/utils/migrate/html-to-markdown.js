@@ -193,7 +193,8 @@ module.exports = (file) => {
       filter: (node) => node.nodeName === 'I' && node.classList.contains('fa'),
       replacement: (content, node) =>
         htmlToJSXConverter.convert(node.outerHTML),
-    });
+    })
+    .keep(['var', 'mark']);
 
   return turndown.turndown(file.contents);
 };
