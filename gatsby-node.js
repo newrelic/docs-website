@@ -7,9 +7,13 @@ const externalRedirects = require('./src/data/external-redirects.json');
 const { createFilePath } = require('gatsby-source-filesystem');
 
 const TEMPLATE_DIR = 'src/templates/';
+const TRAILING_SLASH = /\/$/;
 
 const hasOwnProperty = (obj, key) =>
   Object.prototype.hasOwnProperty.call(obj, key);
+
+const hasTrailingSlash = (pathname) =>
+  pathname === '/' ? false : TRAILING_SLASH.test(pathname);
 
 exports.onPreBootstrap = async ({ reporter, store }) => {
   reporter.info("generating what's new post IDs");
@@ -278,7 +282,7 @@ exports.createResolvers = ({ createResolvers }) => {
 };
 
 exports.onCreatePage = ({ page, actions }) => {
-  const { createPage } = actions;
+  const { createPage, deletePage } = actions;
 
   if (page.path.match(/404/)) {
     page.context.layout = 'basic';
@@ -290,6 +294,18 @@ exports.onCreatePage = ({ page, actions }) => {
     page.context.fileRelativePath = getFileRelativePath(page.componentPath);
 
     createPage(page);
+  }
+
+  if (hasTrailingSlash(page.context.slug)) {
+    deletePage(page);
+
+    createPage({
+      ...page,
+      context: {
+        ...page.context,
+        slug: page.context.slug.replace(TRAILING_SLASH, ''),
+      },
+    });
   }
 };
 
