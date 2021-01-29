@@ -59,6 +59,7 @@ export const pageQuery = graphql`
 
 ApiIndexPage.propTypes = {
   data: PropTypes.object.isRequired,
+  location: PropTypes.object.isRequired,
 };
 
 export default ApiIndexPage;

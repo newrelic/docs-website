@@ -125,6 +125,8 @@ const ReleaseNoteLandingPage = ({ data, pageContext, location }) => {
 
 ReleaseNoteLandingPage.propTypes = {
   data: PropTypes.object.isRequired,
+  location: PropTypes.object.isRequired,
+  pageContext: PropTypes.object.isRequired,
 };
 
 export const pageQuery = graphql`

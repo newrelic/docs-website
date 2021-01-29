@@ -91,6 +91,7 @@ const ReleaseNoteTemplate = ({ data, location }) => {
 
 ReleaseNoteTemplate.propTypes = {
   data: PropTypes.object.isRequired,
+  location: PropTypes.object.isRequired,
 };
 
 export const pageQuery = graphql`
