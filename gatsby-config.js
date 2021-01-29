@@ -1,6 +1,5 @@
 const fs = require('fs');
 const path = require('path');
-const indentedCodeBlock = require('./codemods/indentedCodeBlock');
 
 const siteUrl = 'https://docs.newrelic.com';
 
@@ -17,9 +16,8 @@ const autoLinkHeaders = {
 module.exports = {
   flags: {
     DEV_SSR: true,
-    LAZY_IMAGES: true,
-    QUERY_ON_DEMAND: true,
     PRESERVE_WEBPACK_CACHE: true,
+    PRESERVE_FILE_DOWNLOAD_CACHE: true,
   },
   siteMetadata: {
     title: 'New Relic Documentation',
@@ -182,7 +180,7 @@ module.exports = {
         // https://github.com/mdx-js/mdx/issues/1283
         //
         // If this is addressed in MDX v2, we can safely remove this.
-        remarkPlugins: [indentedCodeBlock],
+        remarkPlugins: [],
         gatsbyRemarkPlugins: [
           {
             resolve: 'gatsby-remark-images',
@@ -217,6 +215,11 @@ module.exports = {
             options: {
               maxWidth: 1200,
             },
+          },
+          {
+            resolve: require.resolve(
+              './plugins/gatsby-remark-mdx-v2-fenced-code-blocks'
+            ),
           },
         ],
       },

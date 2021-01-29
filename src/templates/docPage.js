@@ -13,7 +13,6 @@ import {
   SEO,
   useTranslation,
 } from '@newrelic/gatsby-theme-newrelic';
-import toString from 'mdast-util-to-string';
 import DefaultRelatedContent from '../components/DefaultRelatedContent';
 import Watermark from '../components/Watermark';
 import { parseHeading } from '../../plugins/gatsby-remark-custom-heading-ids/utils/heading';
@@ -90,6 +89,7 @@ const BasicDoc = ({ data, location }) => {
 
 BasicDoc.propTypes = {
   data: PropTypes.object.isRequired,
+  location: PropTypes.object.isRequired,
 };
 
 export const pageQuery = graphql`

@@ -3,21 +3,10 @@ const { TYPES, JP_DIR } = require('../constants');
 const he = require('he');
 
 const GATSBY_CONTENT_TYPES = {
-  [TYPES.BASIC_PAGE]: 'page',
   [TYPES.LANDING_PAGE]: 'landingPage',
   [TYPES.API_DOC]: 'apiDoc',
   [TYPES.RELEASE_NOTE]: 'releaseNote',
-  [TYPES.TROUBLESHOOTING]: 'troubleshootingDoc',
-  [TYPES.WHATS_NEW]: 'nr1Announcement',
-};
-
-const GATSBY_TEMPLATE = {
-  [TYPES.BASIC_PAGE]: 'basicDoc',
-  [TYPES.LANDING_PAGE]: 'landingPage',
-  [TYPES.API_DOC]: 'basicDoc',
-  [TYPES.RELEASE_NOTE]: 'releaseNote',
-  [TYPES.TROUBLESHOOTING]: 'basicDoc',
-  [TYPES.WHATS_NEW]: 'whatsNew',
+  [TYPES.TROUBLESHOOTING]: 'troubleshooting',
 };
 
 const getFrontmatter = (file) => {
@@ -32,8 +21,7 @@ const getFrontmatter = (file) => {
 
   const defaultFrontmatter = {
     title: doc.title,
-    contentType: GATSBY_CONTENT_TYPES[type],
-    template: GATSBY_TEMPLATE[type],
+    type: GATSBY_CONTENT_TYPES[type],
   };
 
   const customFrontmatter = addCustomFrontmatter[type]
@@ -59,23 +47,23 @@ const getFrontmatter = (file) => {
 const addCustomFrontmatter = {
   [TYPES.LANDING_PAGE]: ({ doc, topics }, defaultFrontmatter) => ({
     ...defaultFrontmatter,
-    topics,
+    tags: listOrNull(topics),
     translate: doc.japaneseVersionExists === 'yes' ? ['jp'] : null,
   }),
   [TYPES.API_DOC]: ({ doc, topics }, defaultFrontmatter) => ({
     ...defaultFrontmatter,
     shortDescription: doc.shortDescription.trim(),
-    topics,
+    tags: listOrNull(topics),
     translate: doc.japaneseVersionExists === 'yes' ? ['jp'] : null,
   }),
   [TYPES.BASIC_PAGE]: ({ doc, topics }, defaultFrontmatter) => ({
     ...defaultFrontmatter,
-    topics,
+    tags: listOrNull(topics),
     translate: doc.japaneseVersionExists === 'yes' ? ['jp'] : null,
   }),
   [TYPES.TROUBLESHOOTING]: ({ doc, topics }, defaultFrontmatter) => ({
     ...defaultFrontmatter,
-    topics,
+    tags: listOrNull(topics),
     translate: doc.japaneseVersionExists === 'yes' ? ['jp'] : null,
   }),
   [TYPES.RELEASE_NOTE]: ({ doc }, _, file) => {
@@ -96,7 +84,7 @@ const addCustomFrontmatter = {
       releaseDate: doc.releasedOn.split(' ')[0],
       version: doc.releaseVersion.replace(/^v/i, ''),
       downloadLink: doc.downloadLink,
-      template: file.path.match(/src\/content\/docs\/release-notes/)
+      type: file.path.match(/src\/content\/docs\/release-notes/)
         ? null
         : 'releaseNote',
       translate: doc.japaneseVersionExists === 'yes' ? ['jp'] : null,
@@ -146,5 +134,7 @@ const normalizeSubject = (subject) => {
 
 const stripNulls = (obj) =>
   Object.fromEntries(Object.entries(obj).filter(([, value]) => value != null));
+
+const listOrNull = (arr) => (arr.length === 0 ? null : arr);
 
 module.exports = getFrontmatter;
