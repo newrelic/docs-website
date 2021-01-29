@@ -1,13 +1,9 @@
 ---
 title: New Relic One now has a new UI for OpenTelemetry
-contentType: nr1Announcement
-template: whatsNew
 summary: Check out our APM functionality for your OpenTelemetry data.
-id: '40951'
 releaseDate: '2020-10-14'
 learnMoreLink: 'https://blog.newrelic.com/product-news/opentelemetry-user-experience/'
-getStartedLink: >-
-  https://docs.newrelic.com/docs/integrations/open-source-telemetry-integrations/open-source-telemetry-integration-list/new-relics-opentelemetry-integration
+getStartedLink: 'https://docs.newrelic.com/docs/integrations/open-source-telemetry-integrations/open-source-telemetry-integration-list/new-relics-opentelemetry-integration'
 ---
 
 New Relic One now has a UI dedicated to providing full APM functionality for your OpenTelemetry data. With this curated experience, you can find the root cause of incidents quickly, and optimize the performance of your applications and services.

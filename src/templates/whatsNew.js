@@ -2,12 +2,15 @@ import React from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/core';
 import { graphql } from 'gatsby';
-import { Icon, Layout } from '@newrelic/gatsby-theme-newrelic';
+import {
+  Icon,
+  Layout,
+  MarkdownContainer,
+  SEO,
+} from '@newrelic/gatsby-theme-newrelic';
 import PageTitle from '../components/PageTitle';
-import SEO from '../components/seo';
-import MarkdownContainer from '../components/MarkdownContainer';
 
-const WhatsNewTemplate = ({ data }) => {
+const WhatsNewTemplate = ({ data, location }) => {
   const {
     markdownRemark: {
       html,
@@ -17,7 +20,7 @@ const WhatsNewTemplate = ({ data }) => {
 
   return (
     <>
-      <SEO title={title} />
+      <SEO location={location} title={title} />
       <PageTitle
         css={css`
           max-width: 850px;
@@ -78,10 +81,11 @@ const WhatsNewTemplate = ({ data }) => {
 
 WhatsNewTemplate.propTypes = {
   data: PropTypes.object.isRequired,
+  location: PropTypes.object.isRequired,
 };
 
 export const pageQuery = graphql`
-  query($slug: String!) {
+  query($slug: String!, $locale: String) {
     markdownRemark(fields: { slug: { eq: $slug } }) {
       html
       frontmatter {

@@ -379,6 +379,7 @@ module.exports = [
     path: ['Alerts and Applied intelligence'],
     node: {
       icon: 'nr-ai',
+      path: '/docs/alerts-applied-intelligence',
     },
   },
   {
@@ -388,13 +389,157 @@ module.exports = [
       icon: 'nr-fso',
     },
   },
-
-  // ----- New Relic only ----- \\
   {
     type: INSTRUCTIONS.UPDATE,
     path: ['New Relic only'],
     node: {
       rootNav: false,
     },
+  },
+  {
+    type: INSTRUCTIONS.UPDATE,
+    path: ['Agents', 'PHP agent', 'PHP agent API'],
+    node: {
+      path: '/docs/agents/php-agent/php-agent-api',
+    },
+  },
+  {
+    type: INSTRUCTIONS.UPDATE,
+    path: ['Agents', '.NET agent', 'NET agent API'],
+    node: {
+      path: '/docs/agents/net-agent/net-agent-api',
+    },
+  },
+  {
+    type: INSTRUCTIONS.UPDATE,
+    path: ['Agents', 'Python agent', 'Python agent API'],
+    node: {
+      path: '/docs/agents/python-agent/python-agent-api',
+    },
+  },
+  {
+    type: INSTRUCTIONS.UPDATE,
+    path: [
+      'Full-Stack Observability',
+      'Browser monitoring',
+      'Browser agent and SPA API',
+    ],
+    node: {
+      path: '/docs/browser/new-relic-browser/browser-agent-spa-api',
+    },
+  },
+  {
+    type: INSTRUCTIONS.UPDATE,
+    path: [
+      'Full-Stack Observability',
+      'Mobile monitoring',
+      'New Relic Mobile Android',
+      'Android SDK API',
+    ],
+    node: {
+      path: '/docs/mobile-monitoring/new-relic-mobile-android/android-sdk-api',
+    },
+  },
+  {
+    type: INSTRUCTIONS.UPDATE,
+    path: [
+      'Full-Stack Observability',
+      'Mobile monitoring',
+      'New Relic Mobile iOS',
+      'iOS SDK API',
+    ],
+    node: {
+      path: '/docs/mobile-monitoring/new-relic-mobile-ios/ios-sdk-api',
+    },
+  },
+  {
+    type: INSTRUCTIONS.ADD,
+    path: ['Agents', '.NET agent'],
+    index: -2,
+    node: {
+      title: 'Latest release',
+      path: '/docs/release-notes/agent-release-notes/net-release-notes/current',
+    },
+  },
+  {
+    type: INSTRUCTIONS.ADD,
+    path: ['Agents', 'Java agent'],
+    index: -2,
+    node: {
+      title: 'Latest release',
+      path:
+        '/docs/release-notes/agent-release-notes/java-release-notes/current',
+    },
+  },
+  {
+    type: INSTRUCTIONS.ADD,
+    path: ['Agents', 'Go agent'],
+    index: -2,
+    node: {
+      title: 'Latest release',
+      path: '/docs/release-notes/agent-release-notes/go-release-notes/current',
+    },
+  },
+  {
+    type: INSTRUCTIONS.ADD,
+    path: ['Agents', 'C SDK'],
+    index: -2,
+    node: {
+      title: 'Latest release',
+      path:
+        '/docs/release-notes/agent-release-notes/c-sdk-release-notes/current',
+    },
+  },
+  {
+    type: INSTRUCTIONS.ADD,
+    path: ['Agents', 'Ruby agent'],
+    index: -2,
+    node: {
+      title: 'Latest release',
+      path:
+        '/docs/release-notes/agent-release-notes/ruby-release-notes/current',
+    },
+  },
+  {
+    type: INSTRUCTIONS.ADD,
+    path: ['Agents', 'Python agent'],
+    index: -2,
+    node: {
+      title: 'Latest release',
+      path:
+        '/docs/release-notes/agent-release-notes/python-release-notes/current',
+    },
+  },
+  {
+    type: INSTRUCTIONS.ADD,
+    path: ['Agents', 'PHP agent'],
+    index: -2,
+    node: {
+      title: 'Latest release',
+      path: '/docs/release-notes/agent-release-notes/php-release-notes/current',
+    },
+  },
+  {
+    type: INSTRUCTIONS.ADD,
+    path: ['Agents', 'Node.js agent'],
+    index: -2,
+    node: {
+      title: 'Latest release',
+      path:
+        '/docs/release-notes/agent-release-notes/nodejs-release-notes/current',
+    },
+  },
+  {
+    type: INSTRUCTIONS.RENAME,
+    path: [
+      'Alerts and Applied Intelligence',
+      'Alerts and Applied Intelligence',
+    ],
+    title: 'Overview',
+  },
+  {
+    type: INSTRUCTIONS.REORDER,
+    path: ['Alerts and Applied Intelligence', 'Overview'],
+    index: 0,
   },
 ];

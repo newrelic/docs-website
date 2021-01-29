@@ -1,14 +1,29 @@
 import React from 'react';
-import { ExternalLink } from '@newrelic/gatsby-theme-newrelic';
+import {
+  Link,
+  Icon,
+  ExternalLink,
+  useTranslation,
+  Trans,
+} from '@newrelic/gatsby-theme-newrelic';
 
 const DefaultRelatedContent = () => {
+  const { t } = useTranslation();
+
   return (
     <div data-swiftype-index={false}>
-      <h2>For more help</h2>
-      <p>
-        If you need more help, check out these support and learning resources:
-      </p>
-      <ul>
+      <h2 id="for-more-help" style={{ position: 'relative' }}>
+        <Link
+          aria-label="for more help permalink"
+          to="#for-more-help"
+          className="anchor before"
+        >
+          <Icon focusable={false} name="fe-link-2" size="1rem" />
+        </Link>
+        {t('defaultRelatedContent.title')}
+      </h2>
+      <p>{t('defaultRelatedContent.intro')}</p>
+      <Trans i18nKey="defaultRelatedContent.list" parent="ul">
         <li>
           Browse the{' '}
           <ExternalLink href="https://discuss.newrelic.com">
@@ -34,7 +49,7 @@ const DefaultRelatedContent = () => {
           Review New Relic's <a href="/docs/security">data security</a> and{' '}
           <a href="/docs/licenses">licenses</a> documentation.
         </li>
-      </ul>
+      </Trans>
     </div>
   );
 };

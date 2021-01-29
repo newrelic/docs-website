@@ -1,13 +1,9 @@
 ---
 title: New Relic One has dark mode!
-contentType: nr1Announcement
-template: whatsNew
 summary: We now have dark mode!
-id: '40426'
 releaseDate: '2020-09-04'
 learnMoreLink: 'https://blog.newrelic.com/product-news/embrace-the-dark-mode/'
-getStartedLink: >-
-  https://docs.newrelic.com/docs/using-new-relic/welcome-new-relic/get-started/view-our-ui-dark-mode
+getStartedLink: 'https://docs.newrelic.com/docs/using-new-relic/welcome-new-relic/get-started/view-our-ui-dark-mode'
 ---
 
 You wanted it, and we delivered. Dark mode is here! Head to the account dropdown to switch between dark mode and light mode.

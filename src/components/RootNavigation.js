@@ -10,7 +10,7 @@ const RootNavigation = ({ nav }) => {
     (page) => page.title === 'Full-Stack Observability'
   );
   const ai = nav.pages.find(
-    (page) => page.title === 'Alerts and Applied intelligence'
+    (page) => page.title === 'Alerts and Applied Intelligence'
   );
 
   const pages = nav.pages.filter((page) => ![tdp, fso, ai].includes(page));

@@ -1,12 +1,12 @@
-import React, { useEffect, useMemo, useRef } from 'react';
+import React, { useMemo } from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/core';
 import { graphql } from 'gatsby';
+import { useMedia } from 'react-use';
 import { Icon, PageTools } from '@newrelic/gatsby-theme-newrelic';
 import useActiveHash from '../hooks/useActiveHash';
-import { usePrevious } from 'react-use';
 import GithubSlugger from 'github-slugger';
-import toString from 'mdast-util-to-string';
+import { parseHeading } from '../../plugins/gatsby-remark-custom-heading-ids/utils/heading';
 
 const prop = (name) => (obj) => obj[name];
 
@@ -17,52 +17,27 @@ const TableOfContents = ({ page }) => {
     const slugs = new GithubSlugger();
 
     return mdxAST.children
-      .filter((node) => node.type === 'heading' && node.depth === 2)
+      .filter(
+        (node) =>
+          node.type === 'heading' &&
+          node.depth === 2 &&
+          node.children.length > 0
+      )
       .map((heading) => {
-        const text = toString(heading);
+        const { id, text } = parseHeading(heading);
 
-        return { id: slugs.slug(text), text };
+        return { id: id || slugs.slug(text), text };
       });
   }, [mdxAST]);
 
-  const raf = useRef();
-  const navRef = useRef();
-  const activeRef = useRef();
   const headingIds = useMemo(() => headings.map(prop('id')), [headings]);
   const activeHash = useActiveHash(headingIds);
-  const previousActiveHash = usePrevious(activeHash);
-  const changedActiveHash = activeHash !== previousActiveHash;
-
-  useEffect(() => {
-    if (!activeRef.current) {
-      return;
-    }
-
-    const navRect = navRef.current.getBoundingClientRect();
-    const activeElementRect = activeRef.current.getBoundingClientRect();
-
-    const scrollTop = activeElementRect.top - navRect.top;
-    const offset = activeRef.current.offsetTop - navRef.current.offsetTop;
-    const bottom = scrollTop + activeElementRect.height;
-    const isVisible = bottom <= navRect.height && scrollTop > 0;
-
-    if (!isVisible) {
-      cancelAnimationFrame(raf.current);
-
-      raf.current = requestAnimationFrame(() => {
-        navRef.current.scrollTo({
-          top: offset - navRect.height / 2,
-          behavior: 'smooth',
-        });
-      });
-    }
-  }, [changedActiveHash]);
+  const isMobileScreen = useMedia('(max-width: 1240px)');
 
   return headings.length === 0 ? null : (
     <PageTools.Section>
       <PageTools.Title>On this page</PageTools.Title>
       <nav
-        ref={navRef}
         css={css`
           max-height: 60vh;
           overflow-y: auto;
@@ -81,9 +56,8 @@ const TableOfContents = ({ page }) => {
             return (
               <li key={id}>
                 <a
-                  ref={isActive ? activeRef : null}
                   href={`#${id}`}
-                  className={isActive ? 'active' : null}
+                  className={isActive && !isMobileScreen ? 'active' : null}
                   css={css`
                     display: flex;
                     align-items: center;
@@ -105,9 +79,11 @@ const TableOfContents = ({ page }) => {
                   `}
                 >
                   <Icon
-                    name={Icon.TYPE.ARROW_LEFT}
+                    name="fe-arrow-left"
                     css={css`
-                      display: ${isActive ? 'inline-block' : 'none'};
+                      display: ${isActive && !isMobileScreen
+                        ? 'inline-block'
+                        : 'none'};
                       margin-right: 0.5rem;
                     `}
                   />

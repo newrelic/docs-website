@@ -3,24 +3,13 @@ const path = require('path');
 module.exports = {
   CONTENT_DIR: 'src/content',
   NAV_DIR: 'src/nav',
+  NAV_JP_DIR: 'src/i18n/nav',
   DICTIONARY_DIR: 'src/data-dictionary',
   BASE_URL: 'https://docs-dev.newrelic.com',
+  BASE_JP_URL: 'https://docs.newrelic.co.jp',
   WHATS_NEW_DIR: 'src/content/whats-new',
   DATA_DIR: 'src/data',
-
-  // IDS for page nodes that we want to ensure get migrated
-  DIRECT_IDS: [
-    10916,
-    14746,
-    23906,
-    38731,
-    37621,
-    39861,
-    23781,
-    27301,
-    36516,
-    38811,
-  ],
+  JP_DIR: 'src/i18n/content/jp',
 
   INSTRUCTIONS: {
     ADD: 'ADD',
@@ -37,7 +26,6 @@ module.exports = {
     LANDING_PAGE: 'landing_page',
     API_DOC: 'api_doc',
     RELEASE_NOTE: 'release_notes',
-    RELEASE_NOTE_PLATFORM: 'release_notes_platform',
     TROUBLESHOOTING: 'troubleshooting_doc',
     WHATS_NEW: 'nr1_announcement',
     ATTRIBUTE_DEFINITION: 'attribute_definition',
@@ -56,12 +44,11 @@ module.exports = {
   },
 
   MAX_PAGES_PER_TYPE: {
-    page: 1,
-    landing_page: 1,
-    api_doc: 1,
-    release_notes: 1,
-    release_notes_platform: 1,
-    troubleshooting_doc: 1,
+    page: Infinity,
+    landing_page: Infinity,
+    api_doc: Infinity,
+    release_notes: Infinity,
+    troubleshooting_doc: Infinity,
     nr1_announcement: Infinity,
   },
 };

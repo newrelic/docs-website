@@ -1,25 +1,12 @@
 const frontmatter = require('@github-docs/frontmatter');
-const { TYPES } = require('../constants');
+const { TYPES, JP_DIR } = require('../constants');
 const he = require('he');
 
 const GATSBY_CONTENT_TYPES = {
-  [TYPES.BASIC_PAGE]: 'page',
   [TYPES.LANDING_PAGE]: 'landingPage',
   [TYPES.API_DOC]: 'apiDoc',
   [TYPES.RELEASE_NOTE]: 'releaseNote',
-  [TYPES.RELEASE_NOTE_PLATFORM]: 'releaseNotePlatform',
-  [TYPES.TROUBLESHOOTING]: 'troubleshootingDoc',
-  [TYPES.WHATS_NEW]: 'nr1Announcement',
-};
-
-const GATSBY_TEMPLATE = {
-  [TYPES.BASIC_PAGE]: 'basicDoc',
-  [TYPES.LANDING_PAGE]: 'landingPage',
-  [TYPES.API_DOC]: 'basicDoc',
-  [TYPES.RELEASE_NOTE]: 'releaseNote',
-  [TYPES.RELEASE_NOTE_PLATFORM]: 'releaseNotePlatform',
-  [TYPES.TROUBLESHOOTING]: 'basicDoc',
-  [TYPES.WHATS_NEW]: 'whatsNew',
+  [TYPES.TROUBLESHOOTING]: 'troubleshooting',
 };
 
 const getFrontmatter = (file) => {
@@ -28,101 +15,126 @@ const getFrontmatter = (file) => {
     data: {
       doc,
       doc: { type },
+      redirects,
     },
   } = file;
 
   const defaultFrontmatter = {
     title: doc.title,
-    contentType: GATSBY_CONTENT_TYPES[type],
-    template: GATSBY_TEMPLATE[type],
+    type: GATSBY_CONTENT_TYPES[type],
   };
 
   const customFrontmatter = addCustomFrontmatter[type]
-    ? addCustomFrontmatter[type](data, defaultFrontmatter)
-    : defaultFrontmatter;
+    ? addCustomFrontmatter[type](data, defaultFrontmatter, file)
+    : {
+        ...defaultFrontmatter,
+        translate: doc.japaneseVersionExists === 'yes' ? ['jp'] : null,
+      };
 
-  return frontmatter.stringify('', customFrontmatter);
+  if (redirects.length) {
+    customFrontmatter.redirects = redirects;
+  }
+
+  if (file.path.includes(JP_DIR)) {
+    delete customFrontmatter.translate;
+  }
+
+  return frontmatter.stringify('', stripNulls(customFrontmatter), {
+    lineWidth: Infinity,
+  });
 };
 
 const addCustomFrontmatter = {
-  [TYPES.LANDING_PAGE]: ({ topics }, defaultFrontmatter) => ({
+  [TYPES.LANDING_PAGE]: ({ doc, topics }, defaultFrontmatter) => ({
     ...defaultFrontmatter,
-    topics,
+    tags: listOrNull(topics),
+    translate: doc.japaneseVersionExists === 'yes' ? ['jp'] : null,
   }),
-  [TYPES.API_DOC]: ({ topics }, defaultFrontmatter) => ({
+  [TYPES.API_DOC]: ({ doc, topics }, defaultFrontmatter) => ({
     ...defaultFrontmatter,
-    topics,
+    shortDescription: doc.shortDescription.trim(),
+    tags: listOrNull(topics),
+    translate: doc.japaneseVersionExists === 'yes' ? ['jp'] : null,
   }),
-  [TYPES.BASIC_PAGE]: ({ doc, topics }, defaultFrontmatter) => {
-    let japaneseUrl = '';
-    if (doc.japaneseVersionExists === 'yes') {
-      const url = new URL(doc.docUrl);
-      url.hostname = 'docs.newrelic.co.jp';
-      japaneseUrl = url.href;
+  [TYPES.BASIC_PAGE]: ({ doc, topics }, defaultFrontmatter) => ({
+    ...defaultFrontmatter,
+    tags: listOrNull(topics),
+    translate: doc.japaneseVersionExists === 'yes' ? ['jp'] : null,
+  }),
+  [TYPES.TROUBLESHOOTING]: ({ doc, topics }, defaultFrontmatter) => ({
+    ...defaultFrontmatter,
+    tags: listOrNull(topics),
+    translate: doc.japaneseVersionExists === 'yes' ? ['jp'] : null,
+  }),
+  [TYPES.RELEASE_NOTE]: ({ doc }, _, file) => {
+    const match = doc.title.match(/^(.*?)v?\d+(\.\d+){0,3}/);
+
+    if (!match) {
+      file.message(
+        `Unable to extract subject: ${doc.title}`,
+        null,
+        'get-frontmatter'
+      );
     }
+
+    const subject = match ? match[1].trim() : doc.title.trim();
+
     return {
-      ...defaultFrontmatter,
-      topics,
-      japaneseVersion: japaneseUrl,
+      subject: normalizeSubject(subject),
+      releaseDate: doc.releasedOn.split(' ')[0],
+      version: doc.releaseVersion.replace(/^v/i, ''),
+      downloadLink: doc.downloadLink,
+      type: file.path.match(/src\/content\/docs\/release-notes/)
+        ? null
+        : 'releaseNote',
+      translate: doc.japaneseVersionExists === 'yes' ? ['jp'] : null,
     };
   },
-  [TYPES.TROUBLESHOOTING]: ({ doc, topics }, defaultFrontmatter) => {
-    let japaneseUrl = '';
-    if (doc.japaneseVersionExists === 'yes') {
-      const url = new URL(doc.docUrl);
-      url.hostname = 'docs.newrelic.co.jp';
-      japaneseUrl = url.href;
-    }
-    return {
-      ...defaultFrontmatter,
-      topics,
-      japaneseVersion: japaneseUrl,
-    };
-  },
-  [TYPES.RELEASE_NOTE]: ({ doc, topics }, defaultFrontmatter) => {
-    return {
-      ...defaultFrontmatter,
-      topics,
-      releaseDateTime: doc.releasedOn || '',
-      releaseVersion: doc.releaseVersion || '',
-      downloadLink: doc.downloadLink || '',
-    };
-  },
-  [TYPES.RELEASE_NOTE_PLATFORM]: ({ doc, topics }, defaultFrontmatter) => {
-    return {
-      ...defaultFrontmatter,
-      topics,
-      releaseDateTime: doc.releasedOn || '',
-      releaseImpact: doc.releaseImpact || [],
-    };
-  },
-  [TYPES.WHATS_NEW]: ({ doc }, defaultFrontmatter) => {
-    return {
-      ...defaultFrontmatter,
-      summary: he.decode(doc.summary || ''),
-      id: doc.docId,
-      releaseDate: doc.releaseDateTime.split(' ')[0],
-      learnMoreLink: doc.learnMoreLink || '',
-      getStartedLink: doc.getStartedLink || '',
-    };
-  },
-  [TYPES.ATTRIBUTE_DEFINITION]: ({ doc }) => {
-    return Object.fromEntries(
-      Object.entries({
-        name: doc.title,
-        type: 'attribute',
-        units: doc.units
-          ? doc.units.replace('<b>Unit of measurement:</b>', '').trim()
-          : null,
-        events: doc.eventTypes,
-      }).filter(([, value]) => value != null)
-    );
-  },
+  [TYPES.WHATS_NEW]: ({ doc }) => ({
+    title: doc.title,
+    summary: doc.summary ? he.decode(doc.summary).trim() : null,
+    releaseDate: doc.releaseDateTime.split(' ')[0],
+    learnMoreLink: doc.learnMoreLink,
+    getStartedLink: doc.getStartedLink,
+    translate: doc.japaneseVersionExists === 'yes' ? ['jp'] : null,
+  }),
+  [TYPES.ATTRIBUTE_DEFINITION]: ({ doc }) => ({
+    name: doc.title,
+    type: 'attribute',
+    units: doc.units
+      ? doc.units.replace('<b>Unit of measurement:</b>', '').trim()
+      : null,
+    events: doc.eventTypes,
+    translate: doc.japaneseVersionExists === 'yes' ? ['jp'] : null,
+  }),
   [TYPES.EVENT_DEFINITION]: ({ doc }) => ({
     name: doc.name,
     type: 'event',
     dataSources: doc.dataSources,
+    translate: doc.japaneseVersionExists === 'yes' ? ['jp'] : null,
   }),
 };
+
+const normalizeSubject = (subject) => {
+  const replacements = [
+    [/ios/i, 'iOS'],
+    [/(?<=\s)Agent/, 'agent'],
+    [/node(?=\s)/i, 'Node.js'],
+    ['Private Minion', 'private minion'],
+    [/^NET/, '.NET'],
+    [/infrastructure\s(\w+\s)?agent/i, 'infrastructure $1agent'],
+    [/java/, 'Java'],
+  ];
+
+  return replacements.reduce(
+    (str, [regex, replacement]) => str.replace(regex, replacement),
+    subject
+  );
+};
+
+const stripNulls = (obj) =>
+  Object.fromEntries(Object.entries(obj).filter(([, value]) => value != null));
+
+const listOrNull = (arr) => (arr.length === 0 ? null : arr);
 
 module.exports = getFrontmatter;

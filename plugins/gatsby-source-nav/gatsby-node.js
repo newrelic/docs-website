@@ -1,14 +1,4 @@
 const parseISO = require('date-fns/parseISO');
-const startOfMonth = require('date-fns/startOfMonth');
-const sub = require('date-fns/sub');
-const isAfter = require('date-fns/isAfter');
-const isBefore = require('date-fns/isBefore');
-const isEqual = require('date-fns/isEqual');
-
-const RECENT_POSTS_COUNT = 5;
-
-const isEqualOrAfter = (date, compareDate) =>
-  isEqual(date, compareDate) || isAfter(date, compareDate);
 
 exports.createSchemaCustomization = ({ actions }) => {
   const { createTypes } = actions;
@@ -16,13 +6,13 @@ exports.createSchemaCustomization = ({ actions }) => {
   createTypes(`
     type Nav {
       id: ID!
-      title: String
+      title(locale: String = "en"): String
       pages: [NavItem!]!
     }
 
     type NavItem @dontInfer {
       id: ID!
-      title: String!
+      title(locale: String = "en"): String!
       icon: String
       url: String
       pages: [NavItem!]!
@@ -40,7 +30,19 @@ exports.createResolvers = ({ createResolvers, createNodeId }) => {
         },
         resolve: async (_source, args, context) => {
           const { slug } = args;
-          const utils = { args, nodeModel: context.nodeModel, createNodeId };
+          const { nodeModel } = context;
+
+          const locales = nodeModel
+            .getAllNodes({ type: 'Locale' })
+            .filter(({ isDefault }) => !isDefault)
+            .map(({ localizedPath }) => localizedPath);
+
+          const utils = {
+            args,
+            nodeModel,
+            createNodeId,
+            locales,
+          };
 
           switch (true) {
             case slug === '/':
@@ -49,13 +51,24 @@ exports.createResolvers = ({ createResolvers, createNodeId }) => {
             case slug.startsWith('/whats-new'):
               return createWhatsNewNav(utils);
 
+            case slug.startsWith('/docs/release-notes'):
+              return createReleaseNotesNav(utils);
+
             default:
               return createNav(utils);
           }
         },
       },
     },
+    Nav: {
+      title: {
+        resolve: findTranslatedTitle,
+      },
+    },
     NavItem: {
+      title: {
+        resolve: findTranslatedTitle,
+      },
       url: {
         resolve: (source) => source.url || source.path,
       },
@@ -112,37 +125,90 @@ const createWhatsNewNav = async ({ createNodeId, nodeModel }) => {
     },
   });
 
-  const recentPosts = posts.slice(0, RECENT_POSTS_COUNT);
-  const now = new Date();
-  const firstOfMonth = startOfMonth(now);
-  const lastMonth = sub(firstOfMonth, { months: 1 });
+  const currentYear = new Date().getFullYear();
+  const postsByYear = groupBy(posts, (post) => parseDate(post).getFullYear());
+  const thisYearsPosts = postsByYear.get(currentYear) || [];
 
-  const thisMonthsPosts = posts.filter((post) =>
-    isEqualOrAfter(parseDate(post), firstOfMonth)
+  const postsByMonth = groupBy(thisYearsPosts, (post) =>
+    parseDate(post).toLocaleString('default', { month: 'long' })
   );
 
-  const lastMonthsPosts = posts.filter(
-    (post) =>
-      isEqualOrAfter(parseDate(post), lastMonth) &&
-      isBefore(parseDate(post), firstOfMonth)
+  const previousYearsPosts = Array.from(postsByYear.entries()).filter(
+    ([year]) => year < currentYear
   );
 
-  const olderPosts = posts.filter((post) =>
-    isBefore(parseDate(post), lastMonth)
-  );
+  const navItems = Array.from(postsByMonth.entries())
+    .concat(previousYearsPosts)
+    .map(([key, posts]) => ({ title: key, pages: formatPosts(posts) }))
+    .filter(({ pages }) => pages.length);
 
   return {
     id: createNodeId('whats-new'),
     title: "What's new",
-    pages: [{ title: 'Overview', url: '/whats-new' }]
-      .concat(formatPosts(recentPosts))
-      .concat(
-        [
-          { title: 'This month', pages: formatPosts(thisMonthsPosts) },
-          { title: 'Last month', pages: formatPosts(lastMonthsPosts) },
-          { title: 'Older', pages: formatPosts(olderPosts) },
-        ].filter(({ pages }) => pages.length)
-      ),
+    pages: [{ title: 'Overview', url: '/whats-new' }].concat(navItems),
+  };
+};
+
+const createReleaseNotesNav = async ({ createNodeId, nodeModel }) => {
+  const [posts, landingPages] = await Promise.all([
+    nodeModel.runQuery({
+      type: 'Mdx',
+      query: {
+        filter: {
+          fileAbsolutePath: {
+            regex: '/src/content/docs/release-notes/.*(?<!index).mdx/',
+          },
+        },
+        sort: {
+          fields: ['frontmatter.releaseDate'],
+          order: ['DESC'],
+        },
+      },
+    }),
+
+    nodeModel.runQuery({
+      type: 'Mdx',
+      query: {
+        filter: {
+          fileAbsolutePath: {
+            regex: '/src/content/docs/release-notes/.*/index.mdx$/',
+          },
+        },
+      },
+    }),
+  ]);
+
+  const subjects = posts
+    .reduce((acc, curr) => [...new Set([...acc, curr.frontmatter.subject])], [])
+    .filter(Boolean)
+    .sort();
+
+  const formatReleaseNotePosts = (posts) =>
+    posts.map((post) => ({
+      title: `${post.frontmatter.subject} v${post.frontmatter.version}`,
+      url: post.fields.slug,
+      pages: [],
+    }));
+
+  const filterBySubject = (subject, posts) =>
+    posts.filter((post) => post.frontmatter.subject === subject);
+
+  return {
+    id: createNodeId('release-notes'),
+    title: 'Release Notes',
+    pages: [{ title: 'Overview', url: '/docs/release-notes' }].concat(
+      subjects.map((subject) => {
+        const landingPage = landingPages.find(
+          (page) => page.frontmatter.subject === subject
+        );
+
+        return {
+          title: subject,
+          url: landingPage && landingPage.fields.slug,
+          pages: formatReleaseNotePosts(filterBySubject(subject, posts)),
+        };
+      })
+    ),
   };
 };
 
@@ -155,11 +221,24 @@ const formatPosts = (posts) =>
     pages: [],
   }));
 
-const createNav = ({ args, createNodeId, nodeModel }) => {
+const groupBy = (arr, fn) =>
+  arr.reduce((map, item) => {
+    const key = fn(item);
+
+    return map.set(key, [...(map.get(key) || []), item]);
+  }, new Map());
+
+const createNav = async ({ args, createNodeId, nodeModel, locales }) => {
   const { slug } = args;
+
   const nav = nodeModel.getAllNodes({ type: 'NavYaml' }).find((nav) =>
     // table-of-contents pages should get the same nav as their landing page
-    findPage(nav, slug.replace(/\/table-of-contents$/, ''))
+    findPage(
+      nav,
+      slug
+        .replace(/\/table-of-contents$/, '')
+        .replace(new RegExp(`^\\/(${locales.join('|')})(?=\\/)`), '')
+    )
   );
 
   if (!nav) {
@@ -171,6 +250,25 @@ const createNav = ({ args, createNodeId, nodeModel }) => {
     title: nav.title,
     pages: nav.pages,
   };
+};
+
+const findTranslatedTitle = async (source, args, { nodeModel }) => {
+  if (args.locale === 'en') {
+    return source.title;
+  }
+
+  const item = await nodeModel.runQuery({
+    type: 'TranslatedNavJson',
+    query: {
+      filter: {
+        locale: { eq: args.locale },
+        englishTitle: { eq: source.title },
+      },
+    },
+    firstOnly: true,
+  });
+
+  return item ? item.title : source.title;
 };
 
 const findPage = (page, path) => {

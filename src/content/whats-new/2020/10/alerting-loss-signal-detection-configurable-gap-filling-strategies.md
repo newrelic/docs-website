@@ -1,14 +1,9 @@
 ---
 title: 'Alerting: Loss of signal detection and configurable gap-filling strategies'
-contentType: nr1Announcement
-template: whatsNew
 summary: Specify how long the system should wait before a signal is considered lost.
-id: '40961'
 releaseDate: '2020-10-09'
-learnMoreLink: >-
-  https://discuss.newrelic.com/t/announcing-new-relic-one-streaming-alerts-for-nrql-conditions/115361
-getStartedLink: >-
-  https://docs.newrelic.com/docs/alerts-applied-intelligence/new-relic-alerts/alerts-nerdgraph/nerdgraph-api-loss-signal-gap-filling
+learnMoreLink: 'https://discuss.newrelic.com/t/announcing-new-relic-one-streaming-alerts-for-nrql-conditions/115361'
+getStartedLink: 'https://docs.newrelic.com/docs/alerts-applied-intelligence/new-relic-alerts/alerts-nerdgraph/nerdgraph-api-loss-signal-gap-filling'
 ---
 
 At times, for a variety of reasons, an incoming signal can be lost and it’s important to know if this is a delay or if it’s the beginning of a much larger problem. New Relic One now provides official support for loss of signal detection on any NRQL Alert Condition.

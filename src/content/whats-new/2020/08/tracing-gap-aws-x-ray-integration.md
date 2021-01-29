@@ -1,15 +1,9 @@
 ---
 title: 'Tracing the gap: AWS X-Ray integration'
-contentType: nr1Announcement
-template: whatsNew
-summary: >-
-  Use New Relic with AWS X-Ray, a critical distributed tracing tool for getting
-  visibility across your AWS services.
-id: '40461'
+summary: 'Use New Relic with AWS X-Ray, a critical distributed tracing tool for getting visibility across your AWS services.'
 releaseDate: '2020-08-16'
 learnMoreLink: 'https://blog.newrelic.com/product-news/aws-x-ray-integration/'
-getStartedLink: >-
-  https://docs.newrelic.com/docs/integrations/amazon-integrations/aws-integrations-list/aws-x-ray-monitoring-integration
+getStartedLink: 'https://docs.newrelic.com/docs/integrations/amazon-integrations/aws-integrations-list/aws-x-ray-monitoring-integration'
 ---
 
 Whether you’re managing Amazon EC2 instances or writing AWS Lambda functions, AWS X-Ray is a critical distributed tracing tool for getting visibility across your AWS services, but it doesn’t automatically capture all calls outside of AWS.

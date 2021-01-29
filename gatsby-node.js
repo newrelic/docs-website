@@ -1,6 +1,8 @@
 const path = require('path');
 const vfileGlob = require('vfile-glob');
 const { read, write } = require('to-vfile');
+const { prop } = require('./scripts/utils/functional.js');
+const externalRedirects = require('./src/data/external-redirects.json');
 
 const { createFilePath } = require('gatsby-source-filesystem');
 
@@ -48,13 +50,13 @@ exports.onPreBootstrap = async ({ reporter, store }) => {
 };
 
 exports.onCreateNode = ({ node, getNode, actions }) => {
+  const { createNodeField } = actions;
+
   if (
     node.internal.type === 'Mdx' ||
     (node.internal.type === 'MarkdownRemark' &&
       node.fileAbsolutePath.includes('src/content'))
   ) {
-    const { createNodeField } = actions;
-
     createNodeField({
       node,
       name: 'slug',
@@ -64,9 +66,8 @@ exports.onCreateNode = ({ node, getNode, actions }) => {
 };
 
 exports.createPages = async ({ actions, graphql, reporter }) => {
-  const { createPage } = actions;
+  const { createPage, createRedirect } = actions;
 
-  // NOTE: update 1,000 magic number
   const { data, errors } = await graphql(`
     query {
       allMarkdownRemark(
@@ -75,18 +76,34 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
         edges {
           node {
             frontmatter {
-              template
+              type
             }
             fields {
+              fileRelativePath
               slug
             }
           }
         }
       }
 
-      allMdx(
-        limit: 1000
-        filter: { fileAbsolutePath: { regex: "/src/content/" } }
+      allMdx(filter: { fileAbsolutePath: { regex: "/src/content/" } }) {
+        edges {
+          node {
+            fields {
+              fileRelativePath
+              slug
+            }
+            frontmatter {
+              type
+              subject
+              redirects
+            }
+          }
+        }
+      }
+
+      allI18nMdx: allMdx(
+        filter: { fileAbsolutePath: { regex: "/src/i18n/content/" } }
       ) {
         edges {
           node {
@@ -95,9 +112,53 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
               slug
             }
             frontmatter {
-              template
+              type
+              subject
             }
           }
+        }
+      }
+
+      releaseNotes: allMdx(
+        filter: {
+          fileAbsolutePath: {
+            regex: "/src/content/docs/release-notes/.*(?<!index).mdx/"
+          }
+        }
+        sort: { fields: frontmatter___releaseDate, order: DESC }
+      ) {
+        group(limit: 1, field: frontmatter___subject) {
+          fieldValue
+          nodes {
+            frontmatter {
+              releaseDate
+            }
+            fields {
+              slug
+            }
+          }
+        }
+      }
+
+      landingPagesReleaseNotes: allMdx(
+        filter: {
+          fileAbsolutePath: { regex: "/docs/release-notes/.*/index.mdx$/" }
+        }
+      ) {
+        nodes {
+          fields {
+            slug
+          }
+          frontmatter {
+            subject
+          }
+        }
+      }
+
+      allLocale {
+        nodes {
+          locale
+          isDefault
         }
       }
     }
@@ -108,45 +169,77 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
     return;
   }
 
-  const { allMarkdownRemark, allMdx } = data;
+  const {
+    allI18nMdx,
+    allMarkdownRemark,
+    allMdx,
+    releaseNotes,
+    landingPagesReleaseNotes,
+    allLocale,
+  } = data;
 
-  allMdx.edges.forEach(({ node }) => {
-    const { frontmatter, fields } = node;
-    const { fileRelativePath, slug } = fields;
-
-    if (process.env.NODE_ENV === 'development' && !frontmatter.template) {
-      createPage({
-        path: slug,
-        component: path.resolve(TEMPLATE_DIR, 'dev/missingTemplate.js'),
-        context: {
-          fileRelativePath,
-          layout: 'basic',
-        },
+  externalRedirects.forEach(({ url, paths }) => {
+    paths.forEach((path) => {
+      createRedirect({
+        fromPath: path,
+        toPath: url,
+        isPermanent: true,
+        redirectInBrowser: true,
       });
-    } else {
-      createPage({
-        path: slug,
-        component: path.resolve(`${TEMPLATE_DIR}${frontmatter.template}.js`),
-        context: {
-          fileRelativePath,
-          slug,
-        },
-      });
-    }
+    });
   });
 
-  allMarkdownRemark.edges.forEach(({ node }) => {
+  releaseNotes.group.forEach((el) => {
+    const { fieldValue, nodes } = el;
+
+    const landingPage = landingPagesReleaseNotes.nodes.find(
+      (node) => node.frontmatter.subject === fieldValue
+    );
+
+    landingPage &&
+      createRedirect({
+        fromPath: path.join(landingPage.fields.slug, 'current'),
+        toPath: nodes[0].fields.slug,
+        isPermanent: false,
+        redirectInBrowser: true,
+      });
+  });
+
+  const translatedContentNodes = allI18nMdx.edges.map(({ node }) => node);
+
+  const locales = allLocale.nodes
+    .filter((locale) => !locale.isDefault)
+    .map(prop('locale'));
+
+  allMdx.edges.concat(allMarkdownRemark.edges).forEach(({ node }) => {
     const {
-      frontmatter: { template },
       fields: { slug },
+      frontmatter: { redirects },
     } = node;
 
-    createPage({
-      path: slug,
-      component: path.resolve(`${TEMPLATE_DIR}${template}.js`),
-      context: {
-        slug,
-      },
+    if (redirects) {
+      redirects.forEach((fromPath) => {
+        createRedirect({
+          fromPath,
+          toPath: slug,
+          isPermanent: true,
+          redirectInBrowser: true,
+        });
+      });
+    }
+
+    createPageFromNode(node, { createPage });
+
+    locales.forEach((locale) => {
+      const i18nNode = translatedContentNodes.find(
+        (i18nNode) =>
+          i18nNode.fields.slug.replace(`/${locale}`, '') === node.fields.slug
+      );
+
+      createPageFromNode(i18nNode || node, {
+        prefix: i18nNode ? '' : locale,
+        createPage,
+      });
     });
   });
 };
@@ -197,6 +290,72 @@ exports.onCreatePage = ({ page, actions }) => {
     page.context.fileRelativePath = getFileRelativePath(page.componentPath);
 
     createPage(page);
+  }
+};
+
+const createPageFromNode = (node, { createPage, prefix = '' }) => {
+  const {
+    fields: { fileRelativePath, slug },
+  } = node;
+
+  const { template, context = {} } = getTemplate(node);
+
+  if (process.env.NODE_ENV === 'development' && !template) {
+    createPage({
+      path: path.join(prefix, slug),
+      component: path.resolve(TEMPLATE_DIR, 'dev/missingTemplate.js'),
+      context: {
+        ...context,
+        fileRelativePath,
+        layout: 'basic',
+      },
+    });
+  } else {
+    createPage({
+      path: path.join(prefix, slug),
+      component: path.resolve(path.join(TEMPLATE_DIR, `${template}.js`)),
+      context: {
+        ...context,
+        fileRelativePath,
+        slug,
+        slugRegex: `${slug}/.+/`,
+      },
+    });
+  }
+};
+
+const TEMPLATES_BY_TYPE = {
+  landingPage: 'landingPage',
+  apiDoc: 'docPage',
+  releaseNote: 'releaseNote',
+  troubleshooting: 'docPage',
+  apiLandingPage: 'apiLandingPage',
+};
+
+const getTemplate = (node) => {
+  const {
+    frontmatter,
+    fields: { fileRelativePath },
+  } = node;
+
+  switch (true) {
+    case Boolean(frontmatter.type):
+      return { template: TEMPLATES_BY_TYPE[frontmatter.type] };
+
+    case /docs\/release-notes\/.*\/index.mdx$/.test(fileRelativePath):
+      return {
+        template: 'releaseNoteLandingPage',
+        context: { subject: frontmatter.subject },
+      };
+
+    case fileRelativePath.includes('src/content/docs/release-notes'):
+      return { template: 'releaseNote' };
+
+    case fileRelativePath.includes('src/content/whats-new'):
+      return { template: 'whatsNew' };
+
+    default:
+      return { template: 'docPage' };
   }
 };
 

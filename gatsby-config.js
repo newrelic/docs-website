@@ -6,7 +6,20 @@ const siteUrl = 'https://docs.newrelic.com';
 
 const dataDictionaryPath = `${__dirname}/src/data-dictionary`;
 
+const autoLinkHeaders = {
+  resolve: 'gatsby-remark-autolink-headers',
+  options: {
+    icon:
+      '<svg xmlns="http://www.w3.org/2000/svg" focusable="false" width="1rem" height="1rem" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 7h3a5 5 0 0 1 5 5 5 5 0 0 1-5 5h-3m-6 0H6a5 5 0 0 1-5-5 5 5 0 0 1 5-5h3"></path><line x1="8" y1="12" x2="16" y2="12"></line></svg>',
+  },
+};
+
 module.exports = {
+  flags: {
+    DEV_SSR: true,
+    PRESERVE_WEBPACK_CACHE: true,
+    PRESERVE_FILE_DOWNLOAD_CACHE: true,
+  },
   siteMetadata: {
     title: 'New Relic Documentation',
     titleTemplate: '%s | New Relic Documentation',
@@ -33,6 +46,11 @@ module.exports = {
         layout: {
           contentPadding: '2rem',
           maxWidth: '1600px',
+          component: require.resolve('./src/layouts'),
+        },
+        i18n: {
+          translationsPath: `${__dirname}/src/i18n/translations`,
+          additionalLocales: [{ name: '日本語', locale: 'jp' }],
         },
         prism: {
           languages: [
@@ -71,12 +89,6 @@ module.exports = {
       },
     },
     {
-      resolve: 'gatsby-plugin-layout',
-      options: {
-        component: require.resolve('./src/layouts'),
-      },
-    },
-    {
       resolve: 'gatsby-plugin-manifest',
       options: {
         name: 'New Relic Documentation',
@@ -106,13 +118,36 @@ module.exports = {
       },
     },
     {
+      resolve: 'gatsby-source-filesystem',
+      options: {
+        name: 'translated-content',
+        path: `${__dirname}/src/i18n/content`,
+      },
+    },
+    {
+      resolve: 'gatsby-source-filesystem',
+      options: {
+        name: 'translated-nav',
+        path: `${__dirname}/src/i18n/nav`,
+      },
+    },
+    {
+      resolve: 'gatsby-transformer-json',
+      options: {
+        // If we need to source json files other than the i18n/nav, we should
+        // consider making this dynamic. See the docs for ways to do this.
+        //
+        // https://github.com/gatsbyjs/gatsby/tree/master/packages/gatsby-transformer-json
+        typeName: 'TranslatedNavJson',
+      },
+    },
+    {
       resolve: 'gatsby-transformer-remark',
       options: {
         plugins: [
           {
             resolve: 'gatsby-remark-images',
             options: {
-              fit: 'inside',
               maxWidth: 850,
               linkImagesToOriginal: false,
             },
@@ -130,6 +165,10 @@ module.exports = {
               maxWidth: 850,
             },
           },
+          autoLinkHeaders,
+          // This MUST come after `gatsby-remark-autolink-headers` to ensure the
+          // link created for the icon has the proper id
+          'gatsby-remark-custom-heading-ids',
         ],
       },
     },
@@ -147,17 +186,35 @@ module.exports = {
           {
             resolve: 'gatsby-remark-images',
             options: {
-              maxHeight: 400,
               maxWidth: 1200,
-              fit: 'inside',
               linkImagesToOriginal: false,
             },
           },
+          autoLinkHeaders,
+          // This MUST come after `gatsby-remark-autolink-headers` to ensure the
+          // link created for the icon has the proper id.
+          //
+          // This also uses the `require.resolve` syntax because
+          // `gatsby-plugin-mdx` is unable to resolve local plugins.
+          // https://github.com/gatsbyjs/gatsby/issues/23194
           {
-            resolve: `gatsby-remark-autolink-headers`,
+            resolve: require.resolve(
+              './plugins/gatsby-remark-custom-heading-ids'
+            ),
+          },
+          {
+            resolve: require.resolve('./plugins/gatsby-remark-mdx-v2-images'),
+          },
+          // Gifs are not supported via gatsby-remark-images (https://github.com/gatsbyjs/gatsby/issues/7317).
+          // It is recommended to therefore use this plugin to copy files with a
+          // .gif extension to the public folder.
+          //
+          // Source: https://github.com/gatsbyjs/gatsby/issues/7317#issuecomment-412984851
+          'gatsby-remark-copy-linked-files',
+          {
+            resolve: require.resolve('./plugins/gatsby-remark-gifs'),
             options: {
-              enableCustomId: true,
-              icon: false,
+              maxWidth: 1200,
             },
           },
         ],
@@ -170,6 +227,7 @@ module.exports = {
         path: `./src/nav/`,
       },
     },
+    'gatsby-plugin-generate-doc-json',
     {
       resolve: 'gatsby-plugin-generate-json',
       options: {
@@ -276,6 +334,7 @@ module.exports = {
         nodesPerFeedFile: Infinity,
       },
     },
+    'gatsby-plugin-release-note-rss',
     {
       resolve: 'gatsby-source-data-dictionary',
       options: {
@@ -283,6 +342,12 @@ module.exports = {
       },
     },
     'gatsby-source-nav',
-    `gatsby-plugin-meta-redirect`,
+    {
+      resolve: 'gatsby-plugin-auto-index-pages',
+      options: {
+        skippedDirectories: ['', 'whats-new', 'docs/release-notes'],
+      },
+    },
+    'gatsby-plugin-meta-redirect',
   ],
 };

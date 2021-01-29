@@ -1,15 +1,9 @@
 ---
 title: Anomalies visible in the activity stream
-contentType: nr1Announcement
-template: whatsNew
-summary: >-
-  The activity stream shows recent events so you can quickly see what's
-  happening in your system.
-id: '40921'
+summary: The activity stream shows recent events so you can quickly see what's happening in your system.
 releaseDate: '2020-09-11'
 learnMoreLink: 'https://blog.newrelic.com/product-news/new-capabilities-proactive-detection/'
-getStartedLink: >-
-  https://docs.newrelic.com/docs/alerts-applied-intelligence/applied-intelligence/proactive-detection/proactive-detection-applied-intelligence#set-up
+getStartedLink: 'https://docs.newrelic.com/docs/alerts-applied-intelligence/applied-intelligence/proactive-detection/proactive-detection-applied-intelligence#set-up'
 ---
 
 The activity stream, visible from the New Relic One homepage, APM summary page, and APM list page, streams recent events from alerts and deployments and provides a direct view into what has changed in your system so that you can fix outages quickly.

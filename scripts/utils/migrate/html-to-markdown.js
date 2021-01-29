@@ -3,6 +3,7 @@ const HTMLtoJSX = require('htmltojsx');
 const fauxHtmlToJSX = require('./faux-html-to-jsx');
 const { extractTags } = require('../node');
 const { TYPES } = require('../constants');
+const slugs = require('github-slugger')();
 
 const SPECIAL_COMPONENTS = [
   { tag: 'div', className: 'callout-tip' },
@@ -11,9 +12,9 @@ const SPECIAL_COMPONENTS = [
   { tag: 'div', className: 'callout-permissions' },
   { tag: 'div', className: 'callout-note' },
   { tag: 'div', className: 'callout-pricing' },
-  { tag: 'i', className: 'fa' },
   { tag: 'dl', className: 'clamshell-list' },
   { tag: 'dl', className: 'example-box' },
+  { id: 'watermark' },
 ];
 
 const escapes = [
@@ -31,6 +32,7 @@ const escapes = [
   [/^(\d+)\. /g, '$1\\. '],
   [/{/g, '\\{'],
   [/~/g, "{'~'}"],
+  [/\u200b/g, ''],
 
   // Because we are converting to JSX, we need to ensure opening and closing < >
   // are properly escaped to their HTML entities, otherwise it is parsed as the
@@ -50,12 +52,20 @@ Turndown.prototype.escape = (string) => {
 
 const htmlToJSXConverter = new HTMLtoJSX({ createClass: false });
 
+const cleanAttribute = (attribute) => {
+  return attribute ? attribute.replace(/(\n+\s*)+/g, '\n') : '';
+};
+
 const isLandingPageTile = (node) =>
   node.classList.contains('col') &&
   node.childNodes[0].classList.contains('col-md-3') &&
   node.childNodes[1].classList.contains('col-md-9');
 
+const repeat = (character, count) => Array(count + 1).join(character);
+
 module.exports = (file) => {
+  slugs.reset();
+
   const turndown = new Turndown({
     headingStyle: 'atx',
     codeBlockStyle: 'fenced',
@@ -63,6 +73,40 @@ module.exports = (file) => {
   });
 
   turndown
+    // adapted from Turndown to add custom heading IDs
+    // https://github.com/domchristie/turndown/blob/e7a9351cf2bcd724ef119b4f709755439a10e958/src/commonmark-rules.js#L21-L36
+    .addRule('headings', {
+      filter: ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'],
+      replacement: (content, node) => {
+        const hLevel = Number(node.nodeName.charAt(1));
+        const slug = slugs.slug(node.textContent);
+        const id = node.id && node.id !== slug ? ` [#${node.id}]` : '';
+
+        return `\n\n${repeat('#', hLevel)} ${content}${id}\n\n`;
+      },
+    })
+    .addRule('lineBreaksInsideHeadings', {
+      filter: (node) =>
+        node.nodeName === 'BR' &&
+        node.parentNode &&
+        ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'].includes(
+          node.parentNode.nodeName.toLowerCase()
+        ),
+      replacement: () => '',
+    })
+    .addRule('links', {
+      filter: (node) => node.nodeName === 'A' && node.getAttribute('href'),
+      replacement: (content, node) => {
+        const href = node.getAttribute('href').replace(/~/g, '%7E');
+        let title = cleanAttribute(node.getAttribute('title'));
+
+        if (title) {
+          title = ` "${title}"`;
+        }
+
+        return `[${content}](${href}${title})`;
+      },
+    })
     .addRule('inlineCodeBlocks', {
       filter: (node) =>
         node.nodeName === 'CODE' && node.parentNode.nodeName !== 'PRE',
@@ -83,7 +127,7 @@ module.exports = (file) => {
       // that this strips out parsing the language. None of the <pre> tags in
       // the docs site include language information, so we don't need to try and
       // detect it.
-      replacement: (_content, node, options) => {
+      replacement: (_content, node) => {
         const buffer = Buffer.from(node.textContent.trim());
         const language =
           node.firstChild.nodeName === 'CODE'
@@ -99,11 +143,12 @@ module.exports = (file) => {
     })
     .addRule('specialComponents', {
       filter: (node) =>
-        SPECIAL_COMPONENTS.some(
-          ({ tag, className }) =>
-            tag === node.nodeName.toLowerCase() &&
-            node.classList.contains(className)
-        ),
+        SPECIAL_COMPONENTS.some(({ tag, className, id }) => {
+          return id
+            ? node.id === id
+            : tag === node.nodeName.toLowerCase() &&
+                node.classList.contains(className);
+        }),
       replacement: (content, node) => {
         const [openingTag, closingTag] = extractTags(node);
 
@@ -119,7 +164,7 @@ module.exports = (file) => {
     .addRule('customHandled', {
       filter: ['table', 'td', 'th', 'thead', 'tbody', 'tr', 'dd', 'dt'],
       replacement: (content, node) =>
-        `\n${fauxHtmlToJSX(node, content, file)}\n`,
+        `\n\n${fauxHtmlToJSX(node, content, file)}\n`,
     })
     .addRule('videos', {
       filter: 'iframe',
@@ -143,6 +188,12 @@ module.exports = (file) => {
         node.textContent === 'For more help' &&
         !node.nextElementSibling,
       replacement: () => '',
+    })
+    .addRule('icons', {
+      filter: (node) => node.nodeName === 'I' && node.classList.contains('fa'),
+      replacement: (content, node) =>
+        htmlToJSXConverter.convert(node.outerHTML),
     });
+
   return turndown.turndown(file.contents);
 };

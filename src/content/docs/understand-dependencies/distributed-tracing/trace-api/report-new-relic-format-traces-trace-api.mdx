@@ -1,0 +1,632 @@
+---
+title: Report traces via the Trace API (New Relic format)
+tags:
+  - Understand dependencies
+  - Distributed tracing
+  - Trace API
+redirects:
+  - /docs/apm/distributed-tracing/trace-api/report-new-relic-format-traces-trace-api
+  - /node/38246
+  - /docs/understand-dependencies/distributed-tracing/enable-configure/trace-api
+---
+
+You can send traces in the New Relic format to our [Trace API](/docs/apm/distributed-tracing/trace-api/introduction-new-relic-trace-api) without using a New Relic agent or integration. This is useful if you want to integrate with sources that emit tracing data and require a backend for trace storage.
+
+Since distributed systems can generate a lot of trace data, telemetry tools rely on data sampling (filtering) to find the most useful subset of that data. When you send us your trace data, you have two options related to sampling:
+
+* **Use your tool’s native sampling:** This approach sends the telemetry data directly to the Trace API and assumes you are relying on your telemetry tool to sample the data before the integration passes the data to New Relic. Even though your tool may be sampling data before the New Relic integration sends it, our Trace API may randomly sample out traces that exceed your rate limit.
+* **Use Infinite Tracing:** This approach assumes you set sampling to 100% in your telemetry tool so you send all your data to a New Relic trace observer in AWS. The trace observer selects the most important and actionable traces using [tail-based sampling](/docs/understand-dependencies/distributed-tracing/get-started/how-new-relic-distributed-tracing-works#tail-based) and then sends your traces to our Trace API.
+
+<Callout variant="tip">
+  To send Zipkin-formatted data to the Trace API, see our [Zipkin](/docs/apm/distributed-tracing/trace-api/report-zipkin-format-traces-trace-api) instructions.
+</Callout>
+
+We'll look at two examples for sending your telemetry data to New Relic, as well as how to structure your data:
+
+* [Example: Use your tool’s native sampling](#new-relic-quick-start)
+* [Example: Use Infinite Tracing](#infinite-tracing)
+* [Trace API payload](#new-relic-guidelines)
+
+## Example: Use your tool’s native sampling [#new-relic-quick-start]
+
+If you are using a telemetry tool that is sampling your trace data, you can send the data directly to New Relic. The following procedure explains how to send a test payload to the Trace API using the `newrelic` format.
+
+<Callout variant="tip">
+  For details about how to structure your data, see [JSON requirements and recommendations](#new-relic-guidelines).
+</Callout>
+
+1. Get an [Insights insert API key](/docs/insights/insights-data-sources/custom-data/send-custom-events-event-api#): Go to the [API keys UI](https://one.newrelic.com/launcher/api-keys-ui.api-keys-launcher) and select **Insights insert keys**. If you don't already have a key, create a new one by selecting **Insert keys +**.
+2. Insert that key into the following JSON and then send the JSON to our endpoint.
+
+   ```
+   curl -i -H "Content-Type: application/json" \
+       -H "Api-Key: NEW_RELIC_INSERT_KEY" \
+       -H 'Data-Format: newrelic' \
+       -H 'Data-Format-Version: 1' \
+       -X POST \
+       -d '[
+             {
+                 "common": {
+                 "attributes": {
+                     "service.name": "Test Service A",
+                     "host": "host123.test.com"
+                     }
+                 },
+                 "spans": [
+                 {
+                     "trace.id": "123456",
+                     "id": "ABC",
+                     "attributes": {
+                     "duration.ms": 12.53,
+                         "name": "/home"
+                     }
+                 },
+                 {
+                     "trace.id": "123456",
+                     "id": "DEF",
+                     "attributes": {
+                       "service.name": "Test Service A",
+                       "host": "host456.test.com",
+                       "duration.ms": 2.97,
+                       "name": "/auth",
+                       "parent.id": "ABC"
+                     }
+                 }
+                 ]
+             }
+           ]' 'https://trace-api.newrelic.com/trace/v1'
+   ```
+
+   <Callout variant="tip">
+     If you're sending more than one `POST`, change the `trace.id` to a unique value. Sending the same payload or span `id` multiple times for the same `trace.id` may result in fragmented traces in the UI.
+   </Callout>
+3. If your test returned `HTTP/1.1 202 Accepted`, go to [our UI](https://one.newrelic.com/launcher/distributed-tracing-nerdlets.distributed-tracing?launcher=eyJ0aW1lUmFuZ2UiOnsiYmVnaW5fdGltZSI6bnVsbCwiZW5kX3RpbWUiOm51bGwsImR1cmF0aW9uIjoxODAwMDAwfSwiJGlzRmFsbGJhY2tUaW1lUmFuZ2UiOnRydWV9&pane=eyJuZXJkbGV0SWQiOiJkaXN0cmlidXRlZC10cmFjaW5nLW5lcmRsZXRzLmRpc3RyaWJ1dGVkLXRyYWNpbmctbGF1bmNoZXIiLCJzb3J0SW5kZXgiOjAsInNvcnREaXJlY3Rpb24iOiJERVNDIiwicXVlcnkiOnsib3BlcmF0b3IiOiJBTkQiLCJpbmRleFF1ZXJ5Ijp7ImNvbmRpdGlvblR5cGUiOiJJTkRFWCIsIm9wZXJhdG9yIjoiQU5EIiwiY29uZGl0aW9ucyI6W119LCJzcGFuUXVlcnkiOnsib3BlcmF0b3IiOiJBTkQiLCJjb25kaXRpb25TZXRzIjpbeyJjb25kaXRpb25UeXBlIjoiU1BBTiIsIm9wZXJhdG9yIjoiQU5EIiwiY29uZGl0aW9ucyI6W3siYXR0ciI6InNlcnZpY2UubmFtZSIsIm9wZXJhdG9yIjoiRVEiLCJ2YWx1ZSI6IlRlc3QgU2VydmljZSBBIn1dfV19fX0=) to see a query of your test data using the span attribute `service.name = Test Service A`.
+
+   <Callout variant="tip">
+     Traces may take up to one minute to be processed by both the trace observer and the Trace API.
+   </Callout>
+
+## Example: Use Infinite Tracing [#infinite-tracing]
+
+Infinite Tracing requires you to provision a trace observer that receives your spans. The trace observer examines the spans and keeps the actionable ones. You provision a trace observer in a cluster of services in AWS called New Relic Edge.
+
+<Callout variant="tip">
+  If you send your data to a trace observer in one of our EU provider regions, you'll still need a US-based New Relic account because the tail-based sampling data is reported to data centers in the United States. If you have questions, contact your account representative.
+</Callout>
+
+Use our Edge app to set up the trace observer. This app also includes some optional configurations: [trace observer monitoring](/docs/understand-dependencies/distributed-tracing/other-requirements/infinite-tracing-trace-observer-monitoring) and [span attribute trace filter](/docs/understand-dependencies/distributed-tracing/other-requirements/infinite-tracing-span-attribute-filters). If you're not sure whether you want to configure these, you can set them up later.
+
+Complete the following:
+
+<CollapserGroup>
+  <Collapser
+    id="get-endpoints"
+    title="Step A. Set up the trace observer endpoint"
+  >
+    1. Go to [one.newrelic.com](one.newrelic.com).
+    2. In the menu bar, click **Apps**, expand **Your apps**, and then click **New Relic Edge**.
+    3. Select an account in the upper-left dropdown.
+
+       <Callout variant="tip">
+         If you have access to multiple account hierarchies, make sure you're in the hierarchy where you want a trace observer.
+       </Callout>
+    4. If no trace observers are listed, click **New trace observer** to add one, insert a descriptive name, select a region, and then click **Create**.
+    5. For the trace observer you want to use, go to the **Endpoints** dropdown and select **For other integrations**.
+    6. Click the adjacent clipboard icon to copy and hold the endpoint to use later as YOUR_TRACE_OBSERVER_URL in [Step B. Send test data to the trace observer](#test-observer).
+    7. (Optional) If you want to start gathering trace observer metrics, click the toggle for **Trace observer monitoring**. For details, see [trace observer monitoring](/docs/understand-dependencies/distributed-tracing/other-requirements/infinite-tracing-trace-observer-monitoring).
+    8. (Optional) If you want to customize the span attribute trace filter, click the gear icon below **Trace filters** to see the current rules. For details, see [span attribute filter](/docs/understand-dependencies/distributed-tracing/other-requirements/infinite-tracing-span-attribute-filters).
+  </Collapser>
+
+  <Collapser
+    id="test-observer"
+    title="Step B. Send test data to the trace observer"
+  >
+    This test includes a sample payload with one trace and two spans from the same service: `Test Service A`. Follow these steps to send a test request:
+
+    1. Get or generate your [Insights insert key](/docs/apis/get-started/intro-apis/types-new-relic-api-keys#event-insert-key) so you can use it later in the test.
+    2. Copy the following `curl` request into a text editor:
+
+       <CollapserGroup>
+         <Collapser
+           id="curl-test"
+           title={<><InlineCode>curl</InlineCode> request</>}
+         >
+           ```
+           curl -i -H "Content-Type: application/json" \
+               -H "Api-Key: NEW_RELIC_INSERT_KEY" \
+               -H 'Data-Format: newrelic' \
+               -H 'Data-Format-Version: 1' \
+               -X POST \
+               -d '[
+                   	{
+                         "common": {
+                           "attributes": {
+                               "environment": "staging"
+                            }
+                         },
+                         "spans": [
+                           {
+                               "trace.id": "123456",
+                               "id": "ABC",
+                               "timestamp": 1603336834823,
+                               "attributes": {
+                                   "duration.ms": 12.53,
+                                   "host": "host123.test.com",
+                                   "name": "/home",
+                                   "service.name": "Test Service A"
+                               }
+                           },
+                           {
+                               "trace.id": "123456",
+                               "id": "DEF",
+                               "timestamp": 1603336834899,
+                               "attributes": {
+                                   "duration.ms": 2.97,
+                                   "host": "host456.test.com",
+                                   "error.message": "Invalid credentials",
+                                   "name": "/auth",
+                                   "parent.id": "ABC",
+                                   "service.name": "Test Service B"
+                               }
+                           }
+                         ]
+                     }
+                   ]' \
+           'YOUR_TRACE_OBSERVER_URL'
+           ```
+         </Collapser>
+       </CollapserGroup>
+    3. Insert your own values into the `curl` request:
+
+       <table>
+         <thead>
+           <tr>
+             <th>
+               Value
+             </th>
+
+             <th>
+               Description
+             </th>
+           </tr>
+         </thead>
+
+         <tbody>
+           <tr>
+             <td>
+               NEW_RELIC_INSERT_KEY
+             </td>
+
+             <td>
+               Replace this with a New Relic [Insights insert key](/docs/apis/get-started/intro-apis/types-new-relic-api-keys#event-insert-key) (not the same as the user key used for NerdGraph)
+             </td>
+           </tr>
+
+           <tr>
+             <td>
+               YOUR_TRACE_OBSERVER_URL
+             </td>
+
+             <td>
+               Replace this with the value you copied in [Step A. Set up the trace observer endpoint](#get-endpoints).
+             </td>
+           </tr>
+         </tbody>
+       </table>
+    4. Copy the content of the text editor into a terminal, and then execute the request.
+    5. If the test does not return `HTTP/1.1 202 Accepted` indicating success, check the following and try again:
+       * Confirm that you used the Edge app value **For other integrations** as YOUR_TRACE_OBSERVER_URL.
+       * Confirm that you only have single quotes around the value you inserted for YOUR_TRACE_OBSERVER_URL.
+       * Check that you are using the correct key.
+    6. If your test returned `HTTP/1.1 202 Accepted`, go to [New Relic One](https://one.newrelic.com/launcher/distributed-tracing-nerdlets.distributed-tracing?launcher=eyJ0aW1lUmFuZ2UiOnsiYmVnaW5fdGltZSI6bnVsbCwiZW5kX3RpbWUiOm51bGwsImR1cmF0aW9uIjoxODAwMDAwfSwiJGlzRmFsbGJhY2tUaW1lUmFuZ2UiOnRydWV9&pane=eyJuZXJkbGV0SWQiOiJkaXN0cmlidXRlZC10cmFjaW5nLW5lcmRsZXRzLmRpc3RyaWJ1dGVkLXRyYWNpbmctbGF1bmNoZXIiLCJzb3J0SW5kZXgiOjAsInNvcnREaXJlY3Rpb24iOiJERVNDIiwicXVlcnkiOnsib3BlcmF0b3IiOiJBTkQiLCJpbmRleFF1ZXJ5Ijp7ImNvbmRpdGlvblR5cGUiOiJJTkRFWCIsIm9wZXJhdG9yIjoiQU5EIiwiY29uZGl0aW9ucyI6W119LCJzcGFuUXVlcnkiOnsib3BlcmF0b3IiOiJBTkQiLCJjb25kaXRpb25TZXRzIjpbeyJjb25kaXRpb25UeXBlIjoiU1BBTiIsIm9wZXJhdG9yIjoiQU5EIiwiY29uZGl0aW9ucyI6W3siYXR0ciI6InNlcnZpY2UubmFtZSIsIm9wZXJhdG9yIjoiRVEiLCJ2YWx1ZSI6IlRlc3QgU2VydmljZSBBIn1dfV19fX0=) to see a query of your test data using the span attribute `service.name = Test Service A`. Because the sample payload contains an error attribute, the error sampler will mark it for keeping. If you modify the payload to remove the error attributes, the random sampler may not choose to keep this particular trace.
+
+       <Callout variant="tip">
+         Traces may take up to one minute to be processed by both the trace observer and the Trace API.
+       </Callout>
+  </Collapser>
+</CollapserGroup>
+
+## Trace API payload (New Relic format) [#new-relic-guidelines]
+
+The Trace API JSON payload is an array of objects, with each object representing a single trace. Each of these objects requires a `spans` key and may also include a `common` key. `spans` (required) contains an array of objects, with each object representing a span. `common` (optional) shares information across multiple spans.
+
+### The Span object in the `spans` array
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "180px" }}>
+        field
+      </th>
+
+      <th>
+        type
+      </th>
+
+      <th>
+        description
+      </th>
+
+      <th>
+        required
+      </th>
+
+      <th>
+        default
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `id`
+      </td>
+
+      <td>
+        string
+      </td>
+
+      <td>
+        Unique identifier for this span.
+      </td>
+
+      <td>
+        yes
+      </td>
+
+      <td>
+        N/A
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `trace.id`
+      </td>
+
+      <td>
+        _string_
+      </td>
+
+      <td>
+        Unique identifier shared by all spans within a single trace.
+      </td>
+
+      <td>
+        yes
+      </td>
+
+      <td>
+        N/A
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `timestamp`
+      </td>
+
+      <td>
+        long
+      </td>
+
+      <td>
+        Span start time in [Epoch milliseconds](https://currentmillis.com/).
+      </td>
+
+      <td>
+        no
+      </td>
+
+      <td>
+        Current time in UTC timezone
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `attributes`
+      </td>
+
+      <td>
+        object
+      </td>
+
+      <td>
+        Any set of key: value pairs that add more details about a span. `duration.ms`, `name`, and `parent.id` are strongly recommended to add. See the
+      </td>
+
+      <td>
+        no
+      </td>
+
+      <td>
+        N/A
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+Requests without the required keys above will be rejected, and an [`NrIntegrationError`](/docs/apm/distributed-tracing/trace-api/trace-api-general-requirements-limits#response-validation) will be generated.
+
+### The `common` object (optional)
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "180px" }}>
+        field
+      </th>
+
+      <th>
+        type
+      </th>
+
+      <th>
+        description
+      </th>
+
+      <th>
+        required
+      </th>
+
+      <th>
+        default
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `attributes`
+      </td>
+
+      <td>
+        object
+      </td>
+
+      <td>
+        Any set of key: value pairs that add common details about spans in the payload. If a span contains an attribute that has been set in `common`, the key in the span attributes object will take precedence. `duration.ms`, `name`, and `parent.id` are strongly recommended to add.
+      </td>
+
+      <td>
+        no
+      </td>
+
+      <td>
+        N/A
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+### Highly recommended attributes [#recommended-attributes]
+
+While not required, these attributes should be included for the best experience with your data in the `attributes` object for each span.
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "180px" }}>
+        attribute
+      </th>
+
+      <th style={{ width: "120px" }}>
+        default
+      </th>
+
+      <th>
+        description
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `duration.ms`
+
+        _float_
+      </td>
+
+      <td>
+        none
+      </td>
+
+      <td>
+        Duration of this span in milliseconds.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `name`
+
+        _string_
+      </td>
+
+      <td>
+        none
+      </td>
+
+      <td>
+        The name of this span.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `parent.id`
+
+        _string_
+      </td>
+
+      <td>
+        none
+      </td>
+
+      <td>
+        The id of the caller of this span. Value is `null` if this is the [root span](https://docs.newrelic.com/docs/apm/distributed-tracing/ui-data/understand-use-distributed-tracing-data#trace-grouping). Traces without a root span will not be displayed.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `service.name`
+
+        _string_
+      </td>
+
+      <td>
+        none
+      </td>
+
+      <td>
+        The name of the entity that created this span.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+### Reserved attributes
+
+These attributes are currently reserved for internal New Relic usage. While they are not explicitly blocked, we recommend not using them.
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "180px" }}>
+        attribute
+      </th>
+
+      <th style={{ width: "150px" }}>
+        default
+      </th>
+
+      <th>
+        description
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `entity.name`
+
+        _string_
+      </td>
+
+      <td>
+        `service.name`
+      </td>
+
+      <td>
+        This is derived from the `service.name` attribute.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        entity.type  
+        _string_
+      </td>
+
+      <td>
+        `service`
+      </td>
+
+      <td>
+        The entity type is assumed to be a service.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `entity.guid`
+
+        _string_
+      </td>
+
+      <td>
+        None
+      </td>
+
+      <td>
+        The `entity.guid` is a derived value that uniquely identifies the entity in New Relic's backend.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+### Other attributes
+
+You can add any arbitrary attributes you want in the `attributes` object in either `common` or each span object, with the exception of the [restricted attributes](/docs/apm/distributed-tracing/trace-api/trace-api-endpoint-requirements-limits#restricted-attributes). For example, you might want to add attributes like `customer.id` or `user.id` to help you analyze your trace data.
+
+Requirements and guidelines for trace JSON using the `newrelic` format:
+
+* Each JSON payload is an array of objects.
+* Each object should contain a required `spans` key.
+* Each object can contain an optional `common` key. Use this if you want to share information across multiple spans in a object.
+* Any keys on a span have precedence over the same key in the `common` block.
+* The value for a `spans` key is a list of `span` objects.
+* Certain attributes are [required](#required-attributes), and must be included either in the optional `common` block, or in each span.
+* Recommended and custom attributes can be optionally included in a list of key-value pairs under a key named `attributes`, in the optional `common` block and/or in each span.
+
+In the following example `POST`, there are two spans, both of which have the trace.id `12345` and the custom attribute `host: host123.test.com`. The first span has no `parent.id`, so that is the root of the trace; the second span's `parent.id` points to the ID of the first.
+
+```
+[
+  {
+    "common": {
+      "attributes": {
+        "host": "host123.test.com"
+      }
+    },
+    "spans": [
+      {
+        "trace.id": "12345",
+        "id": "abc",
+        "timestamp": 1603336834823,
+        "attributes": {
+          "user.email": "bob@newr.com",
+          "service.name": "my-service",
+          "duration.ms": 750,
+          "name": "my-span"
+        }
+      },
+      {
+        "trace.id": "12345",
+        "id": "def",
+        "timestamp": 1603336834899,
+        "attributes": {
+          "parent.id": "abc",
+          "service.name": "second-service",
+          "duration.ms": 750,
+          "name": "second-span"
+        }
+      }
+    ]
+  }
+]
+```
+
+To learn how to control how spans appear in New Relic (for example, adding errors or setting a span as a datastore span), see [Decorate spans](/docs/apm/distributed-tracing/trace-api/trace-api-decorate-spans-attributes).
+
+## Explore more about distributed tracing: [#additional-help]
+
+* [Learn where Trace API data shows up in the UI](/docs/understand-dependencies/distributed-tracing/ui-data/additional-distributed-tracing-features-new-relic-one#find-data).
+* [Learn how to decorate spans](/docs/apm/distributed-tracing/trace-api/trace-api-decorate-spans-attributes) for a richer, more detailed UI experience. For example, you can have spans show up as datastore spans or display errors.
+* Learn about general [data limits, required metadata, and response validation](/docs/apm/distributed-tracing/trace-api/trace-api-endpoint-requirements-limits).
+* If you don't see your trace data, see [Troubleshooting](/docs/apm/distributed-tracing/trace-api/troubleshooting-missing-trace-api-data).
+
+## For more help [#more_help]
+
+If you need more help, check out these support and learning resources:
+
+* Browse the [Explorers Hub](https://discuss.newrelic.com/ "Link opens in a new window.") to get help from the community and join in discussions.
+* Find [answers on our sites and learn how to use our support portal](https://docs.newrelic.com/docs/using-new-relic/welcome-new-relic/get-started/find-help-use-support-portal).
+* Run [New Relic Diagnostics](https://docs.newrelic.com/docs/using-new-relic/cross-product-functions/troubleshooting/new-relic-diagnostics), our troubleshooting tool for Linux, Windows, and macOS.
+* Review New Relic's [data security](https://docs.newrelic.com/docs/security) and [licenses](https://docs.newrelic.com/docs/licenses) documentation.

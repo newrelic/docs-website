@@ -1,14 +1,9 @@
 ---
 title: Applied Intelligence now features accelerated suggested decisions
-contentType: nr1Announcement
-template: whatsNew
 summary: Reduce alert noise by using our suggested correlation decisions.
-id: '40936'
 releaseDate: '2020-10-01'
-learnMoreLink: >-
-  https://blog.newrelic.com/product-news/how-to-use-decisions-applied-intelligence/
-getStartedLink: >-
-  https://docs.newrelic.com/docs/alerts-applied-intelligence/applied-intelligence/incident-intelligence/change-applied-intelligence-correlation-logic-decisions#suggested-decisions
+learnMoreLink: 'https://blog.newrelic.com/product-news/how-to-use-decisions-applied-intelligence/'
+getStartedLink: 'https://docs.newrelic.com/docs/alerts-applied-intelligence/applied-intelligence/incident-intelligence/change-applied-intelligence-correlation-logic-decisions#suggested-decisions'
 ---
 
 Incident Intelligence continuously analyzes alerts and incident data to find patterns in event sequences and offers suggested correlation decisions that merge incidents to reduce alert noise further.

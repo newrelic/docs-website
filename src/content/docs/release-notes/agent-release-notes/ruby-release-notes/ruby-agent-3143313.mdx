@@ -1,0 +1,18 @@
+---
+subject: Ruby agent
+releaseDate: '2016-02-09'
+version: 3.14.3.313
+downloadLink: 'https://rubygems.org/gems/newrelic_rpm/versions/3.14.3.313'
+---
+
+### Notes
+
+* Don't inadvertently send sensitive information from DataMapper SQLErrors
+
+  `DataObjects::SQLError` captures the SQL query, and when using versions of data_objects prior to 0.10.8, built a URI attribute that contained the database connection password. The `:query` attribute now respects the obfuscation level set for slow SQL traces and splices out any password parameters to the URI when sending up traced errors to New Relic.
+* Improved SQL obfuscation algorithm
+
+  To help standardize SQL obfuscation across New Relic language agents, we've improved the algorithm used and added more test cases.
+* Configurable longer `sql_id` attribute on slow SQL traces
+
+  The `sql_id` attribute on slow SQL traces is used to aggregate normalized queries together. Previously, these IDs would generally be 9-10 digits long, due to a backend restriction. If `slow_sql.use_longer_sql_id` is set to `true`, these IDs will now be 18-19 digits long.

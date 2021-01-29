@@ -1,13 +1,8 @@
 ---
 title: API keys app
-contentType: nr1Announcement
-template: whatsNew
 summary: There's a new app for managing your API keys.
-id: '41391'
 releaseDate: '2020-11-12'
-learnMoreLink: >-
-  https://docs.newrelic.com/docs/apis/get-started/intro-apis/types-new-relic-api-keys
-getStartedLink: ''
+learnMoreLink: 'https://docs.newrelic.com/docs/apis/get-started/intro-apis/types-new-relic-api-keys'
 ---
 
 With the new API keys app you can create, view, and manage your user keys, ingest-license keys, and ingest-browser keys for your accounts. Any existing keys will continue to work as they have in the past.

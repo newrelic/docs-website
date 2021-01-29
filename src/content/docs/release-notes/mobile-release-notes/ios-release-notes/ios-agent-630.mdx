@@ -1,0 +1,20 @@
+---
+subject: iOS agent
+releaseDate: '2018-06-01'
+version: 6.3.0
+downloadLink: 'https://download.newrelic.com/ios_agent/NewRelic_iOS_Agent_6.3.0.zip'
+---
+
+### Improvements
+
+* Agent can now handle region specific application tokens.
+* Moved New Relic specific files out of users' "Documents" directory.
+
+### Fixes
+
+* Fixed inconsistency in `deviceManufacturer` session attribute; it will always be set as "Apple, Inc".
+* `memUsageMb` session attribute will now be stored as a numeric value rather than a string value.
+* Fixed race-condition in gesture instrumentation that could cause a crash on app background.
+* `RequestUrl` and `RequestPath` attributes on `MobileRequest` and `MobileRequestError` events will consistently be not URL-encoded.
+* Crash reports will now be uploaded immediately after processing on subsequent launch.
+* Fixed potential race-condition in `+[NewRelic stopCurrentInteraction:(NSString*)activityIdentifier];` that could result in dead-lock.

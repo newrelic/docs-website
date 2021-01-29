@@ -1,47 +1,55 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/core';
-import { Link } from 'gatsby';
-import { NavItem, Icon } from '@newrelic/gatsby-theme-newrelic';
+import {
+  Link,
+  NavItem,
+  Icon,
+  useTranslation,
+} from '@newrelic/gatsby-theme-newrelic';
 
-const SubNavigation = ({ nav }) => (
-  <>
-    <Link
-      to="/"
-      css={css`
-        color: var(--primary-text-color);
-        display: flex;
-        align-items: center;
-        padding: 0.5rem 0;
-        margin-bottom: 0.5rem;
-        transition: 0.2s ease-out;
+const SubNavigation = ({ nav }) => {
+  const { t } = useTranslation();
 
-        &:hover {
-          color: var(--primary-text-hover-color);
-        }
-      `}
-    >
-      <Icon
-        name="fe-arrow-left-circle"
-        size="1rem"
+  return (
+    <>
+      <Link
+        to="/"
         css={css`
-          margin-right: 0.5rem;
+          color: var(--primary-text-color);
+          display: flex;
+          align-items: center;
+          padding: 0.5rem 0;
+          margin-bottom: 0.5rem;
+          transition: 0.2s ease-out;
+
+          &:hover {
+            color: var(--primary-text-hover-color);
+          }
         `}
-      />
-      Home
-    </Link>
-    {nav && (
-      <>
-        <h2>{nav?.title}</h2>
-        <nav role="navigation" aria-label="SubNavigation">
-          {nav.pages.map((page) => (
-            <NavItem key={page.title} page={page} />
-          ))}
-        </nav>
-      </>
-    )}
-  </>
-);
+      >
+        <Icon
+          name="fe-home"
+          size="1rem"
+          css={css`
+            margin-right: 0.5rem;
+          `}
+        />
+        {t('subNav.homeLink')}
+      </Link>
+      {nav && (
+        <>
+          <h2>{nav.title}</h2>
+          <nav role="navigation" aria-label="SubNavigation">
+            {nav.pages.map((page) => (
+              <NavItem key={page.title} page={page} />
+            ))}
+          </nav>
+        </>
+      )}
+    </>
+  );
+};
 
 SubNavigation.propTypes = {
   nav: PropTypes.object,

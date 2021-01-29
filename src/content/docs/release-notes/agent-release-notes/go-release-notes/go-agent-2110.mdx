@@ -1,0 +1,24 @@
+---
+subject: Go agent
+releaseDate: '2019-08-22'
+version: 2.11.0
+downloadLink: 'https://github.com/newrelic/go-agent/tree/v2.11.0'
+---
+
+### New Features
+
+* Added support for [Micro](https://github.com/micro/go-micro) monitoring with the new [\_integrations/nrmicro](https://godoc.org/github.com/newrelic/go-agent/_integrations/nrmicro) package. This package supports instrumentation for servers, clients, publishers, and subscribers.
+
+  * [Server Example](https://github.com/newrelic/go-agent/blob/master/_integrations/nrmicro/example/server/server.go)
+  * [Client Example](https://github.com/newrelic/go-agent/blob/master/_integrations/nrmicro/example/client/client.go)
+  * [Publisher and Subscriber Example](https://github.com/newrelic/go-agent/blob/master/_integrations/nrmicro/example/pubsub/main.go)
+  * [Full godocs Documentation](https://godoc.org/github.com/newrelic/go-agent/_integrations/nrmicro)
+* Added support for creating static `WebRequest` instances manually via the `NewStaticWebRequest` function. This can be useful when you want to create a web transaction but don't have an `http.Request` object. Here's an example of creating a static `WebRequest` and using it to mark a transaction as a web transaction:
+
+  ```
+  hdrs := http.Headers{}
+  u, _ := url.Parse("http://example.com")
+  webReq := newrelic.NewStaticWebRequest(hdrs, u, "GET", newrelic.TransportHTTP)
+  txn := app.StartTransaction("My-Transaction", nil, nil)
+  txn.SetWebRequest(webReq)
+  ```

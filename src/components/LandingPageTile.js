@@ -1,8 +1,7 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/core';
-import { Link } from 'gatsby';
-import { Icon, Surface } from '@newrelic/gatsby-theme-newrelic';
+import { Link, Icon, Surface } from '@newrelic/gatsby-theme-newrelic';
 
 const LandingPageTile = ({ children, title, icon, href }) => (
   <Surface
