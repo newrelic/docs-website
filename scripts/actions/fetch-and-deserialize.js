@@ -44,10 +44,10 @@ const fetchAndDeserialize = (accessToken) => async ({ locale, fileUris }) => {
     return {
       path: entry.entryName
         .split('/')
-        .slice(1)
+        .slice(2) //get rid of locale and src
         .join('/')
         .split('.')
-        .slice(0, -1),
+        .slice(0, -1), //get rid of .mdx
       html: zip.readAsText(entry, 'utf8'),
     };
   });
