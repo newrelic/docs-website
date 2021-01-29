@@ -40,7 +40,6 @@ const fetchAndDeserialize = (accessToken) => async ({ locale, fileUris }) => {
   const zipEntries = zip.getEntries();
 
   const translatedHtml = zipEntries.map((entry) => {
-    console.log(entry.entryName);
     return {
       path: entry.entryName
         .split('/')
