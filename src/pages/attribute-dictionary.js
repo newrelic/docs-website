@@ -380,7 +380,7 @@ EventDefinition.propTypes = {
 };
 
 export const pageQuery = graphql`
-  query {
+  query($slug: String!, $locale: String!) {
     allDataDictionaryEvent(sort: { fields: [name] }) {
       edges {
         node {
@@ -403,6 +403,8 @@ export const pageQuery = graphql`
         }
       }
     }
+
+    ...MainLayout_query
   }
 `;
 

@@ -14,48 +14,61 @@ const { prop } = require('../utils/functional');
  * @returns {Promise<Object<string, string[]>>} An updated queue.
  */
 const getUpdatedQueue = async (url, queue) => {
-  const resp = await fetch(url);
-  const files = await resp.json();
+  try {
+    const resp = await fetch(url);
+    const files = await resp.json();
 
-  const mdxFiles = files
-    .filter((file) => path.extname(file.filename) === '.mdx')
-    .reduce((files, file) => {
-      const contents = fs.readFileSync(path.join(process.cwd(), file.filename));
-      const { data } = frontmatter(contents);
+    const mdxFiles = files
+      ? files
+          .filter((file) => path.extname(file.filename) === '.mdx')
+          .reduce((files, file) => {
+            const contents = fs.readFileSync(
+              path.join(process.cwd(), file.filename)
+            );
+            const { data } = frontmatter(contents);
 
-      return data.translate && data.translate.length
-        ? [...files, { ...file, locales: data.translate }]
-        : files;
-    }, []);
+            return data.translate && data.translate.length
+              ? [...files, { ...file, locales: data.translate }]
+              : files;
+          }, [])
+      : [];
 
-  const addedMdxFiles = mdxFiles
-    .filter((f) => f.status !== 'removed')
-    .reduce((files, file) => {
-      return file.locales.reduce(
-        (acc, locale) => ({
+    const addedMdxFiles = mdxFiles
+      .filter((f) => f.status !== 'removed')
+      .reduce((files, file) => {
+        return file.locales.reduce(
+          (acc, locale) => ({
+            ...acc,
+            [locale]: [...(acc[locale] || []), file.filename],
+          }),
+          files
+        );
+      }, {});
+
+    const removedMdxFileNames = mdxFiles
+      .filter((f) => f.status === 'removed')
+      .map(prop('filename'));
+
+    const queueFiles =
+      Object.entries(queue).length === 0 ? Object.entries(queue) : [];
+
+    return queueFiles
+      .map(([locale, files]) => [
+        locale,
+        files ? files.filter((f) => !removedMdxFileNames.includes(f)) : [],
+      ])
+      .reduce(
+        (acc, [locale, filenames]) => ({
           ...acc,
-          [locale]: [...(acc[locale] || []), file.filename],
+          [locale]: filenames.concat(acc[locale] || []),
         }),
-        files
+        addedMdxFiles
       );
-    }, {});
-
-  const removedMdxFileNames = mdxFiles
-    .filter((f) => f.status === 'removed')
-    .map(prop('filename'));
-
-  return Object.entries(queue)
-    .map(([locale, files]) => [
-      locale,
-      files.filter((f) => !removedMdxFileNames.includes(f)),
-    ])
-    .reduce(
-      (acc, [locale, filenames]) => ({
-        ...acc,
-        [locale]: filenames.concat(acc[locale] || []),
-      }),
-      addedMdxFiles
-    );
+  } catch (error) {
+    console.log(`[!] Unable to get updated queue`);
+    console.log(error);
+    process.exit(1);
+  }
 };
 
 /** Entrypoint. */
