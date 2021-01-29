@@ -40,8 +40,14 @@ const fetchAndDeserialize = (accessToken) => async ({ locale, fileUris }) => {
   const zipEntries = zip.getEntries();
 
   const translatedHtml = zipEntries.map((entry) => {
+    console.log(entry.entryName);
     return {
-      path: entry.entryName.split('/').pop().split('.').slice(0, -1), // get the last element from the folder
+      path: entry.entryName
+        .split('/')
+        .slice(1)
+        .join('/')
+        .split('.')
+        .slice(0, -1),
       html: zip.readAsText(entry, 'utf8'),
     };
   });
