@@ -31,6 +31,7 @@ const IndexPage = ({ data, pageContext, location }) => {
 IndexPage.propTypes = {
   data: PropTypes.object.isRequired,
   pageContext: PropTypes.object.isRequired,
+  location: PropTypes.object.isRequired,
 };
 
 export const pageQuery = graphql`

@@ -113,7 +113,7 @@ test('serializes Link to html', async () => {
 
 test('serializes Table to html', async () => {
   const html = await serializeMDX(`
-<Table>
+<table>
   <thead>
     <tr>
       <td>Column A</td>
@@ -130,7 +130,7 @@ test('serializes Table to html', async () => {
       <td>Data 2b</td>
     </tr>
   </tbody>
-</Table>
+</table>
   `);
 
   expect(html).toMatchSnapshot();

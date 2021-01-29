@@ -7,9 +7,13 @@ const externalRedirects = require('./src/data/external-redirects.json');
 const { createFilePath } = require('gatsby-source-filesystem');
 
 const TEMPLATE_DIR = 'src/templates/';
+const TRAILING_SLASH = /\/$/;
 
 const hasOwnProperty = (obj, key) =>
   Object.prototype.hasOwnProperty.call(obj, key);
+
+const hasTrailingSlash = (pathname) =>
+  pathname === '/' ? false : TRAILING_SLASH.test(pathname);
 
 exports.onPreBootstrap = async ({ reporter, store }) => {
   reporter.info("generating what's new post IDs");
@@ -76,7 +80,7 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
         edges {
           node {
             frontmatter {
-              template
+              type
             }
             fields {
               fileRelativePath
@@ -94,7 +98,7 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
               slug
             }
             frontmatter {
-              template
+              type
               subject
               redirects
             }
@@ -112,7 +116,7 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
               slug
             }
             frontmatter {
-              template
+              type
               subject
             }
           }
@@ -248,10 +252,6 @@ exports.createSchemaCustomization = ({ actions }) => {
   const { createTypes } = actions;
 
   const typeDefs = `
-  type MarkdownRemarkFrontmatter {
-    template: String
-  }
-
   type NavYaml implements Node @dontInfer {
     id: ID!
     title: String!
@@ -282,7 +282,7 @@ exports.createResolvers = ({ createResolvers }) => {
 };
 
 exports.onCreatePage = ({ page, actions }) => {
-  const { createPage } = actions;
+  const { createPage, deletePage } = actions;
 
   if (page.path.match(/404/)) {
     page.context.layout = 'basic';
@@ -294,6 +294,18 @@ exports.onCreatePage = ({ page, actions }) => {
     page.context.fileRelativePath = getFileRelativePath(page.componentPath);
 
     createPage(page);
+  }
+
+  if (hasTrailingSlash(page.context.slug)) {
+    deletePage(page);
+
+    createPage({
+      ...page,
+      context: {
+        ...page.context,
+        slug: page.context.slug.replace(TRAILING_SLASH, ''),
+      },
+    });
   }
 };
 
@@ -328,6 +340,14 @@ const createPageFromNode = (node, { createPage, prefix = '' }) => {
   }
 };
 
+const TEMPLATES_BY_TYPE = {
+  landingPage: 'landingPage',
+  apiDoc: 'docPage',
+  releaseNote: 'releaseNote',
+  troubleshooting: 'docPage',
+  apiLandingPage: 'apiLandingPage',
+};
+
 const getTemplate = (node) => {
   const {
     frontmatter,
@@ -335,8 +355,8 @@ const getTemplate = (node) => {
   } = node;
 
   switch (true) {
-    case Boolean(frontmatter.template):
-      return { template: frontmatter.template };
+    case Boolean(frontmatter.type):
+      return { template: TEMPLATES_BY_TYPE[frontmatter.type] };
 
     case /docs\/release-notes\/.*\/index.mdx$/.test(fileRelativePath):
       return {
@@ -351,7 +371,7 @@ const getTemplate = (node) => {
       return { template: 'whatsNew' };
 
     default:
-      return { template: null };
+      return { template: 'docPage' };
   }
 };
 

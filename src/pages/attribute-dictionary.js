@@ -14,12 +14,12 @@ import {
   useQueryParams,
   Icon,
   useTranslation,
+  Table,
   Trans,
 } from '@newrelic/gatsby-theme-newrelic';
 
 import DataDictionaryFilter from '../components/DataDictionaryFilter';
 import PageTitle from '../components/PageTitle';
-import Table from '../components/Table';
 
 import { useMedia } from 'react-use';
 
@@ -380,7 +380,7 @@ EventDefinition.propTypes = {
 };
 
 export const pageQuery = graphql`
-  query {
+  query($slug: String!, $locale: String!) {
     allDataDictionaryEvent(sort: { fields: [name] }) {
       edges {
         node {
@@ -403,6 +403,8 @@ export const pageQuery = graphql`
         }
       }
     }
+
+    ...MainLayout_query
   }
 `;
 

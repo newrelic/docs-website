@@ -90,6 +90,7 @@ const WhatsNew = ({ data, location }) => {
 
 WhatsNew.propTypes = {
   data: PropTypes.object.isRequired,
+  location: PropTypes.object.isRequired,
 };
 
 export const pageQuery = graphql`

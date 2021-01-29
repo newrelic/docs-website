@@ -11,20 +11,6 @@ module.exports = {
   DATA_DIR: 'src/data',
   JP_DIR: 'src/i18n/content/jp',
 
-  // IDS for page nodes that we want to ensure get migrated
-  DIRECT_IDS: [
-    10916,
-    14746,
-    23906,
-    38731,
-    37621,
-    39861,
-    23781,
-    27301,
-    36516,
-    38811,
-  ],
-
   INSTRUCTIONS: {
     ADD: 'ADD',
     MOVE: 'MOVE',
