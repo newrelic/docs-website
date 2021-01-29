@@ -1,8 +1,8 @@
-import React, { useEffect, useMemo, useRef } from 'react';
+import React, { useMemo } from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/core';
 import { graphql } from 'gatsby';
-import { useMedia, usePrevious } from 'react-use';
+import { useMedia } from 'react-use';
 import { Icon, PageTools } from '@newrelic/gatsby-theme-newrelic';
 import useActiveHash from '../hooks/useActiveHash';
 import GithubSlugger from 'github-slugger';
