@@ -30,46 +30,14 @@ const TableOfContents = ({ page }) => {
       });
   }, [mdxAST]);
 
-  const raf = useRef();
-  const navRef = useRef();
-  const activeRef = useRef();
   const headingIds = useMemo(() => headings.map(prop('id')), [headings]);
   const activeHash = useActiveHash(headingIds);
-  const previousActiveHash = usePrevious(activeHash);
-  const changedActiveHash = activeHash !== previousActiveHash;
-
   const isMobileScreen = useMedia('(max-width: 1240px)');
-
-  useEffect(() => {
-    if (!activeRef.current) {
-      return;
-    }
-
-    const navRect = navRef.current.getBoundingClientRect();
-    const activeElementRect = activeRef.current.getBoundingClientRect();
-
-    const scrollTop = activeElementRect.top - navRect.top;
-    const offset = activeRef.current.offsetTop - navRef.current.offsetTop;
-    const bottom = scrollTop + activeElementRect.height;
-    const isVisible = bottom <= navRect.height && scrollTop > 0;
-
-    if (!isVisible) {
-      cancelAnimationFrame(raf.current);
-
-      raf.current = requestAnimationFrame(() => {
-        navRef.current.scrollTo({
-          top: offset - navRect.height / 2,
-          behavior: 'smooth',
-        });
-      });
-    }
-  }, [changedActiveHash]);
 
   return headings.length === 0 ? null : (
     <PageTools.Section>
       <PageTools.Title>On this page</PageTools.Title>
       <nav
-        ref={navRef}
         css={css`
           max-height: 60vh;
           overflow-y: auto;
@@ -88,7 +56,6 @@ const TableOfContents = ({ page }) => {
             return (
               <li key={id}>
                 <a
-                  ref={isActive ? activeRef : null}
                   href={`#${id}`}
                   className={isActive && !isMobileScreen ? 'active' : null}
                   css={css`
@@ -112,7 +79,7 @@ const TableOfContents = ({ page }) => {
                   `}
                 >
                   <Icon
-                    name={Icon.TYPE.ARROW_LEFT}
+                    name="fe-arrow-left"
                     css={css`
                       display: ${isActive && !isMobileScreen
                         ? 'inline-block'
