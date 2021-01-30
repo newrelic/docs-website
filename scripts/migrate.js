@@ -237,7 +237,6 @@ const run = async () => {
 
     logger.info('Saving changes to files');
     createDirectories(allDocsFiles);
-    await fetchDocCount(allDocsFiles.length);
     await all(
       allDocsFiles
         .filter((file) => !file.data.dummy)
