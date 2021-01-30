@@ -77,7 +77,7 @@ const uploadFile = (locale, batchUid, accessToken) => async (page) => {
 
   if (code === 'ACCEPTED' && resp.ok) {
     console.log(`[*] Successfully uploaded ${page.file}.`);
-    await sendPageContext(page.file, filename, accessToken);
+    await sendPageContext(page.file, accessToken);
   } else {
     console.error(`[!] Unable to upload ${page.file}.`);
   }
