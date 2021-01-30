@@ -16,11 +16,11 @@ const wrapPageElement = ({ element }) => (
           display: inline-block;
           padding: 0.125rem;
           border-radius: 0.125rem;
+          font-size: 85%;
         }
 
         var {
           font-style: normal;
-          font-size: 85%;
           transition: all 0.15s ease-out;
           color: var(--color-neutrals-900);
           background: var(--color-brand-100);
@@ -32,8 +32,10 @@ const wrapPageElement = ({ element }) => (
         }
 
         mark {
+          background: var(--color-yellow-100);
+
           .dark-mode & {
-            background: var(--color-yellow-100);
+            background: var(--color-yellow-200);
           }
         }
 
@@ -51,7 +53,8 @@ const wrapPageElement = ({ element }) => (
         h4,
         h5,
         h6 {
-          var {
+          var,
+          mark {
             font-size: inherit;
           }
         }
