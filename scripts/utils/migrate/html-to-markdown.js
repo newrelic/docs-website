@@ -194,7 +194,14 @@ module.exports = (file) => {
       replacement: (content, node) =>
         htmlToJSXConverter.convert(node.outerHTML),
     })
-    .keep(['var', 'mark']);
+    .addRule('var/mark', {
+      filter: ['var', 'mark'],
+      replacement: (content, node) => {
+        const tag = node.nodeName.toLowerCase();
+
+        return `<${tag}>${content}</${tag}>`;
+      },
+    });
 
   return turndown.turndown(file.contents);
 };
