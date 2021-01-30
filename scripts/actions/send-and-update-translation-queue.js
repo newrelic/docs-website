@@ -77,11 +77,58 @@ const uploadFile = (locale, batchUid, accessToken) => async (page) => {
 
   if (code === 'ACCEPTED' && resp.ok) {
     console.log(`[*] Successfully uploaded ${page.file}.`);
+    await sendPageContext(page.file, filename, accessToken);
   } else {
     console.error(`[!] Unable to upload ${page.file}.`);
   }
 
   return { code, locale, slug: page.file };
+};
+
+/**
+ * sends the html file as a visual context for each uploaded file
+ * @param {string} fileUri
+ * @param {string} accessToken
+ * @returns {Promise}
+ */
+const sendPageContext = async (fileUri, accessToken) => {
+  const filepath = fileUri.replace(`src/content/`, '');
+  const slug = filepath.replace(`.mdx`, '');
+  const contextUrl = new URL(slug, 'https://docs-preview.newrelic.com'); //need to change this once we migrate to docs-newrelic-com
+
+  const res = await fetch(contextUrl.href);
+  const html = await res.text();
+
+  const form = new FormData();
+  form.append('content', html, {
+    contentType: 'text/html',
+    filename: fileUri,
+  });
+  form.append('name', contextUrl.href);
+
+  const url = new URL(
+    `/context-api/v2/projects/${PROJECT_ID}/contexts/upload-and-match-async`,
+    process.env.TRANSLATION_VENDOR_API_URL
+  );
+
+  const options = {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: form,
+  };
+
+  const resp = await fetch(url.href, options);
+
+  const { response } = await resp.json();
+  const { code } = response;
+
+  if (code === 'SUCCESS' && resp.ok) {
+    console.log(`[*] Successfully uploaded ${fileUri} context.`);
+  } else {
+    console.error(`[!] Unable to upload ${fileUri} context.`);
+  }
 };
 
 /**
