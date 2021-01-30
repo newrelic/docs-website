@@ -1,6 +1,5 @@
 const loadFromDB = require('./utils/load-from-db');
 
-const { saveToTranslationQueue } = require('./utils/save-to-db');
 const { getAccessToken, vendorRequest } = require('./utils/vendor-request');
 const fetchAndDeserialize = require('./fetch-and-deserialize');
 
@@ -43,19 +42,6 @@ const getBatchStatus = (accessToken) => async (batchUid) => {
   };
 };
 
-/**
- * Updates the "being translated" queue with the batches that are not done.
- * @param {string[]} batchUids
- * @returns {Promise}
- */
-const saveRemainingBatches = async (batchUids) => {
-  await saveToTranslationQueue(
-    { type: 'being_translated' },
-    'set batchUids = :batchUids',
-    { ':batchUids': batchUids }
-  );
-};
-
 /** Entrypoint. */
 const main = async () => {
   const table = 'TranslationQueues';
@@ -85,9 +71,9 @@ const main = async () => {
     const remainingBatches = batchStatuses
       .filter((batch) => batch && !batch.done)
       .map((batch) => batch.batchUid);
-    await saveRemainingBatches(remainingBatches);
+
     console.log(
-      `[*] "Being translated" queue updated (${remainingBatches.length} remaining)`
+      `::set-output name=batchUids::${JSON.stringify(remainingBatches)}`
     );
 
     process.exit(0);
