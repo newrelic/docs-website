@@ -194,11 +194,6 @@ const run = async () => {
     const jpFiles = nth(fileGroups, -2);
 
     const sortedDocsFiles = last(fileGroups)
-      .sort(
-        (a, b) =>
-          parseInt(a.data.doc.order || 0, 10) -
-          parseInt(b.data.doc.order || 0, 10)
-      )
       .sort((a, b) => {
         const aTopic = last(a.data.topics);
         const bTopic = last(b.data.topics);
@@ -217,7 +212,12 @@ const run = async () => {
           default:
             return 0;
         }
-      });
+      })
+      .sort(
+        (a, b) =>
+          parseInt(a.data.doc.order || 0, 10) -
+          parseInt(b.data.doc.order || 0, 10)
+      );
 
     logger.info('Creating nav');
     const navFiles = migrateNavStructure(createNavStructure(sortedDocsFiles));
