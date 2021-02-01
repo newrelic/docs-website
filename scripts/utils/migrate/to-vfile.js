@@ -36,7 +36,12 @@ const toVFile = (
       ...data,
       doc,
       topics: getTopics(doc),
-      redirects: getRedirectsForDoc(doc, redirects),
+      redirects: getRedirectsForDoc(doc, redirects).filter(
+        (redirectPath) =>
+          !redirectPath.includes('https:/') &&
+          redirectPath !==
+            path.join('/', dirname, filename === 'index' ? '' : filename)
+      ),
     },
   });
 };

@@ -1,6 +1,5 @@
 /* eslint-disable no-console */
 const fetchDocs = require('./utils/migrate/fetch-docs');
-const fetchDocCount = require('./utils/migrate/fetch-doc-count');
 const fetchAttributeDefinitions = require('./utils/migrate/fetch-attribute-definitions');
 const fetchEventDefinitions = require('./utils/migrate/fetch-event-definitions');
 const fetchWhatsNew = require('./utils/migrate/fetch-whats-new');
@@ -237,7 +236,6 @@ const run = async () => {
 
     logger.info('Saving changes to files');
     createDirectories(allDocsFiles);
-    await fetchDocCount(allDocsFiles.length);
     await all(
       allDocsFiles
         .filter((file) => !file.data.dummy)

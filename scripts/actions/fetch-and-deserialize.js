@@ -3,6 +3,7 @@ const vfile = require('vfile');
 const { write } = require('to-vfile');
 
 const fetch = require('node-fetch');
+const path = require('path');
 
 const deserializedHtml = require('./deserialize-html');
 const createDirectories = require('../utils/migrate/create-directories');
@@ -40,8 +41,9 @@ const fetchAndDeserialize = (accessToken) => async ({ locale, fileUris }) => {
   const zipEntries = zip.getEntries();
 
   const translatedHtml = zipEntries.map((entry) => {
+    const filepath = entry.entryName.replace(`src/${locale}`);
     return {
-      path: entry.entryName.split('/').pop().split('.').slice(0, -1), // get the last element from the folder
+      path: path.basename(filepath, path.extname(filepath)),
       html: zip.readAsText(entry, 'utf8'),
     };
   });
