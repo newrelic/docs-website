@@ -64,6 +64,7 @@ const TRANSFORMERS = {
       transformChildren(node, file)
     );
   },
+  mdxSpanElement: (node) => node,
 };
 
 module.exports = toJSXExpression;
