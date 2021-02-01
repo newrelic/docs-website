@@ -76,6 +76,12 @@ const main = async () => {
       `::set-output name=batchUids::${JSON.stringify(remainingBatches)}`
     );
 
+    console.log(
+      `::set-output name=deserializedBatchUids::${JSON.stringify(
+        batchesToDeserialize
+      )}`
+    );
+
     process.exit(0);
   } catch (error) {
     console.error(`[!] Unable to check job status`);
