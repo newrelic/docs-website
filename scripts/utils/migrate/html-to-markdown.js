@@ -63,6 +63,28 @@ const isLandingPageTile = (node) =>
 
 const repeat = (character, count) => Array(count + 1).join(character);
 
+const MEANINGFUL_TAGS_IN_CODE_BLOCK = ['a', 'var', 'mark'];
+
+const isTextNode = (node) => node.nodeType === 3;
+
+const replaceMeaninglesTagsInCodeBlock = (node) => {
+  node.childNodes.forEach((childNode) => {
+    if (isTextNode(childNode)) {
+      return;
+    }
+
+    if (
+      MEANINGFUL_TAGS_IN_CODE_BLOCK.includes(childNode.nodeName.toLowerCase())
+    ) {
+      return replaceMeaninglesTagsInCodeBlock(childNode);
+    }
+
+    childNode.replaceWith(...childNode.childNodes);
+  });
+
+  return node;
+};
+
 module.exports = (file) => {
   slugs.reset();
 
@@ -140,11 +162,11 @@ module.exports = (file) => {
         // to keep these as their raw text.
         //
         // https://developer.mozilla.org/en-US/docs/Web/API/Element/innerHTML
-        const text = contentNode.innerHTML
-          .replace(/&amp;/g, '&')
+        const text = replaceMeaninglesTagsInCodeBlock(contentNode)
+          .innerHTML.replace(/&amp;/g, '&')
           .replace(/&lt;/g, '<')
           .replace(/&gt;/g, '>')
-          .replace(/&nbsp;/, ' ')
+          .replace(/&nbsp;/g, ' ')
           .trim();
 
         const encoded = Buffer.from(text).toString('base64');
