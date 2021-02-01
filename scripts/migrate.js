@@ -236,7 +236,7 @@ const run = async () => {
     );
 
     logger.info('Writing taxonomy redirects');
-    writeTaxonomyRedirects(redirects);
+    await writeTaxonomyRedirects(redirects);
 
     logger.info('Saving changes to files');
     createDirectories(allDocsFiles);

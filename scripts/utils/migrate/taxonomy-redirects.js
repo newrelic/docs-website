@@ -1,32 +1,41 @@
 const fs = require('fs');
+const get = require('lodash/get');
+const api = require('./docs-api');
 
 const DATA_FILE = 'src/data/taxonomy-redirects.json';
 
 /*
-query for the taxonomy information (new resource in dupal)
-drupal = taxonomy
-  nested
-  SHOULD map to the file system (IA updates might mess with this)
-  Nah, IA should only impact nav
-gatsby = file system
-we will need to add the redirects at build time
-  this is when we create these index pages
-  we will need to know the redirects and the information about each term
-    URL / path
-    what will redirect to it
-we will need to save the information to the file system and check it in
-  this is not the most ergonomic setup for content creators
-  side-effect of making the index pages dynamic
-"/accounts/accounts/account-maintance": [
-    'from-page-1',
-    'from-page-2
- ]
- */
+TODO
+  - [x] Get information about each taxonomy term (filepath)
+  - [ ] Store the index page path (not the taxonomy id) in the JSON
+  - [ ] Figure out how to add redirects at build time
+*/
 
-module.exports = (redirects) => {
-  const taxonomyRedirects = Object.entries(redirects)
-    .filter(([url]) => url.startsWith('/taxonomy'))
-    .map(([url, paths]) => ({ url, paths }));
+/**
+ * Gets the path to a taxonomy term (an index page) given it's ID.
+ * If unable to find the path, the ID is returned.
+ * @param {string} id
+ * @returns {Promise<string>}
+ */
+const getTaxonomyPath = async (id) => {
+  const resp = await api.get(`/api/migration/taxonomy/${id}`);
+  return get(resp, 'terms[0].term.urlPath', id);
+};
+
+/**
+ * Gathers information about each taxonomy term and saves the taxonomy-
+ * related redirects to a JSON file.
+ * @param {{[url: string]: string[]}} redirects
+ */
+module.exports = async (redirects) => {
+  const rawTaxonomyData = Object.entries(redirects)
+    .filter(([uri]) => uri.startsWith('/taxonomy'))
+    .map(async ([uri, paths]) => ({
+      url: await getTaxonomyPath(uri.replace(/.*\//, '')),
+      paths,
+    }));
+
+  const taxonomyRedirects = await Promise.all(rawTaxonomyData);
 
   fs.writeFileSync(
     DATA_FILE,
