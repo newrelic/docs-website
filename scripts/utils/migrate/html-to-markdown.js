@@ -67,7 +67,10 @@ const MEANINGFUL_TAGS_IN_CODE_BLOCK = ['a', 'var', 'mark'];
 
 const isTextNode = (node) => node.nodeType === 3;
 
-const replaceMeaninglessTagsInCodeBlock = (node) => {
+const replaceMeaninglessTagsInCodeBlock = (
+  node,
+  { replaceRoot = false } = {}
+) => {
   node.childNodes.forEach((childNode) => {
     if (isTextNode(childNode)) {
       return;
@@ -75,20 +78,19 @@ const replaceMeaninglessTagsInCodeBlock = (node) => {
 
     if (childNode.style && childNode.style.display === 'none') {
       childNode.remove();
+      return;
     }
 
-    if (
-      MEANINGFUL_TAGS_IN_CODE_BLOCK.includes(childNode.nodeName.toLowerCase())
-    ) {
-      return replaceMeaninglessTagsInCodeBlock(childNode);
-    }
-
-    childNode.replaceWith(
-      ...Array.from(childNode.childNodes).map(replaceMeaninglessTagsInCodeBlock)
-    );
+    replaceMeaninglessTagsInCodeBlock(childNode, {
+      replaceRoot: !MEANINGFUL_TAGS_IN_CODE_BLOCK.includes(
+        childNode.nodeName.toLowerCase()
+      ),
+    });
   });
 
-  return node;
+  if (replaceRoot) {
+    node.replaceWith(...node.childNodes);
+  }
 };
 
 module.exports = (file) => {
@@ -164,12 +166,14 @@ module.exports = (file) => {
         const contentNode =
           hasCodeTag && node.childNodes.length === 1 ? node.firstChild : node;
 
+        replaceMeaninglessTagsInCodeBlock(contentNode);
+
         // `innerHTML` replaces embedded '&', '<', and '>', characters. We want
         // to keep these as their raw text.
         //
         // https://developer.mozilla.org/en-US/docs/Web/API/Element/innerHTML
-        const text = replaceMeaninglessTagsInCodeBlock(contentNode)
-          .innerHTML.replace(/&amp;/g, '&')
+        const text = contentNode.innerHTML
+          .replace(/&amp;/g, '&')
           .replace(/&lt;/g, '<')
           .replace(/&gt;/g, '>')
           .replace(/&nbsp;/g, ' ')
