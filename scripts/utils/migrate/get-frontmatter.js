@@ -40,7 +40,7 @@ const getFrontmatter = (file) => {
   }
 
   return frontmatter.stringify('', stripNulls(customFrontmatter), {
-    lineWidth: Infinity,
+    lineWidth: 9999,
   });
 };
 

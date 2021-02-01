@@ -193,6 +193,14 @@ module.exports = (file) => {
       filter: (node) => node.nodeName === 'I' && node.classList.contains('fa'),
       replacement: (content, node) =>
         htmlToJSXConverter.convert(node.outerHTML),
+    })
+    .addRule('var/mark', {
+      filter: ['var', 'mark'],
+      replacement: (content, node) => {
+        const tag = node.nodeName.toLowerCase();
+
+        return `<${tag}>${content}</${tag}>`;
+      },
     });
 
   return turndown.turndown(file.contents);
