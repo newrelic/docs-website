@@ -73,7 +73,7 @@ const replaceMeaninglessTagsInCodeBlock = (node) => {
       return;
     }
 
-    if (childNode.style.display === 'none') {
+    if (childNode.style && childNode.style.display === 'none') {
       childNode.remove();
     }
 
