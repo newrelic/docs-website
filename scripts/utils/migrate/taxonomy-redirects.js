@@ -7,8 +7,8 @@ const DATA_FILE = 'src/data/taxonomy-redirects.json';
 /*
 TODO
   - [x] Get information about each taxonomy term (filepath)
-  - [ ] Store the index page path (not the taxonomy id) in the JSON
-  - [ ] Figure out how to add redirects at build time
+  - [x] Store the index page path (not the taxonomy id) in the JSON
+  - [x] Figure out how to add redirects at build time
 */
 
 /**
