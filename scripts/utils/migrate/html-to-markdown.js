@@ -133,7 +133,8 @@ module.exports = (file) => {
           ? node.firstChild.getAttribute('type')
           : null;
 
-        const contentNode = hasCodeTag ? node.firstChild : node;
+        const contentNode =
+          hasCodeTag && node.childNodes.length === 1 ? node.firstChild : node;
 
         // `innerHTML` replaces embedded '&', '<', and '>', characters. We want
         // to keep these as their raw text.
@@ -143,6 +144,7 @@ module.exports = (file) => {
           .replace(/&amp;/g, '&')
           .replace(/&lt;/g, '<')
           .replace(/&gt;/g, '>')
+          .replace(/&nbsp;/, ' ')
           .trim();
 
         const encoded = Buffer.from(text).toString('base64');
