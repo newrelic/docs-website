@@ -67,19 +67,25 @@ const MEANINGFUL_TAGS_IN_CODE_BLOCK = ['a', 'var', 'mark'];
 
 const isTextNode = (node) => node.nodeType === 3;
 
-const replaceMeaninglesTagsInCodeBlock = (node) => {
+const replaceMeaninglessTagsInCodeBlock = (node) => {
   node.childNodes.forEach((childNode) => {
     if (isTextNode(childNode)) {
       return;
     }
 
+    if (childNode.style.display === 'none') {
+      childNode.remove();
+    }
+
     if (
       MEANINGFUL_TAGS_IN_CODE_BLOCK.includes(childNode.nodeName.toLowerCase())
     ) {
-      return replaceMeaninglesTagsInCodeBlock(childNode);
+      return replaceMeaninglessTagsInCodeBlock(childNode);
     }
 
-    childNode.replaceWith(...childNode.childNodes);
+    childNode.replaceWith(
+      ...Array.from(childNode.childNodes).map(replaceMeaninglessTagsInCodeBlock)
+    );
   });
 
   return node;
@@ -162,7 +168,7 @@ module.exports = (file) => {
         // to keep these as their raw text.
         //
         // https://developer.mozilla.org/en-US/docs/Web/API/Element/innerHTML
-        const text = replaceMeaninglesTagsInCodeBlock(contentNode)
+        const text = replaceMeaninglessTagsInCodeBlock(contentNode)
           .innerHTML.replace(/&amp;/g, '&')
           .replace(/&lt;/g, '<')
           .replace(/&gt;/g, '>')
