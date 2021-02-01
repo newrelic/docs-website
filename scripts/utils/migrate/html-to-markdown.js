@@ -128,17 +128,28 @@ module.exports = (file) => {
       // the docs site include language information, so we don't need to try and
       // detect it.
       replacement: (_content, node) => {
-        const buffer = Buffer.from(node.textContent.trim());
-        const language =
-          node.firstChild.nodeName === 'CODE'
-            ? node.firstChild.getAttribute('type')
-            : null;
+        const hasCodeTag = node.firstChild.nodeName === 'CODE';
+        const language = hasCodeTag
+          ? node.firstChild.getAttribute('type')
+          : null;
+
+        const contentNode = hasCodeTag ? node.firstChild : node;
+
+        // `innerHTML` replaces embedded '&', '<', and '>', characters. We want
+        // to keep these as their raw text.
+        //
+        // https://developer.mozilla.org/en-US/docs/Web/API/Element/innerHTML
+        const text = contentNode.innerHTML
+          .replace(/&amp;/g, '&')
+          .replace(/&lt;/g, '<')
+          .replace(/&gt;/g, '>')
+          .trim();
+
+        const encoded = Buffer.from(text).toString('base64');
 
         return language
-          ? `\n\n<pre language="${language}">${buffer.toString(
-              'base64'
-            )}</pre>\n\n`
-          : `\n\n<pre>${buffer.toString('base64')}</pre>\n\n`;
+          ? `\n\n<pre language="${language}">{'${encoded}'}</pre>\n\n`
+          : `\n\n<pre>{'${encoded}'}</pre>\n\n`;
       },
     })
     .addRule('specialComponents', {
