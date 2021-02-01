@@ -87,7 +87,7 @@ const uploadFile = (locale, batchUid, accessToken) => async (page) => {
 };
 
 /**
- * sends the html file as a visual context for each uploaded file
+ * Sends the html file as a visual context for each uploaded file
  * @param {string} fileUri
  * @param {string} accessToken
  * @returns {Promise}
