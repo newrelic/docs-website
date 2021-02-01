@@ -33,14 +33,16 @@ const saveRemainingBatches = async () => {
 const removePageContext = async (deserializedBatchUids) => {
   const accessToken = await getAccessToken();
 
-  const fileUris = await deserializedBatchUids.map(async (batchUid) => {
-    const { files } = await vendorRequest({
-      method: 'GET',
-      endpoint: `/job-batches-api/v2/projects/${PROJECT_ID}/batches/${batchUid}`,
-      accessToken,
-    });
-    return files.map((file) => file.fileUri);
-  });
+  const fileUris = Promise.all(
+    deserializedBatchUids.map(async (batchUid) => {
+      const { files } = await vendorRequest({
+        method: 'GET',
+        endpoint: `/job-batches-api/v2/projects/${PROJECT_ID}/batches/${batchUid}`,
+        accessToken,
+      });
+      return files.map((file) => file.fileUri);
+    })
+  );
 
   const { items } = await vendorRequest({
     method: 'GET',

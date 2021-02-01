@@ -21,6 +21,7 @@ const LOCALE_IDS = {
 };
 
 const PROJECT_ID = process.env.TRANSLATION_VENDOR_PROJECT;
+const DOCS_SITE_URL = process.env.DOCS_SITE_URL;
 
 /**
  * Take a list of filepaths (grouped by locale) and fetches the HTML content.
@@ -94,7 +95,7 @@ const uploadFile = (locale, batchUid, accessToken) => async (page) => {
 const sendPageContext = async (fileUri, accessToken) => {
   const filepath = fileUri.replace(`src/content/`, '');
   const slug = filepath.replace(`.mdx`, '');
-  const contextUrl = new URL(slug, 'https://docs-preview.newrelic.com'); //need to change this once we migrate to docs-newrelic-com
+  const contextUrl = new URL(slug, DOCS_SITE_URL); //need to change this once we migrate to docs-newrelic-com
 
   const res = await fetch(contextUrl.href);
   const html = await res.text();
