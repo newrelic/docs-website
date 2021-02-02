@@ -14,9 +14,7 @@ const saveRemainingBatches = async () => {
   checkArgs(4);
 
   const batchUids = JSON.parse(process.argv[2]);
-  const deserializedFileUris = process.argv[3];
-
-  console.log(deserializedFileUris, typeof deserializedFileUris);
+  const deserializedFileUris = process.argv[3].split(',');
 
   await removePageContext(deserializedFileUris);
 

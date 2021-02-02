@@ -86,8 +86,8 @@ const main = async () => {
     );
 
     console.log(
-      `::set-output name=deserializedFileUris::${JSON.stringify(
-        deserializedFileUris
+      `::set-output name=deserializedFileUris::${deserializedFileUris.join(
+        ','
       )}`
     );
 
