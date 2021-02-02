@@ -1,15 +1,9 @@
 const fs = require('fs');
+const fetch = require('node-fetch');
 const get = require('lodash/get');
-const api = require('./docs-api');
+const { BASE_URL } = require('../constants');
 
 const DATA_FILE = 'src/data/taxonomy-redirects.json';
-
-/*
-TODO
-  - [x] Get information about each taxonomy term (filepath)
-  - [x] Store the index page path (not the taxonomy id) in the JSON
-  - [x] Figure out how to add redirects at build time
-*/
 
 /**
  * Gets the path to a taxonomy term (an index page) given it's ID.
@@ -18,8 +12,22 @@ TODO
  * @returns {Promise<string>}
  */
 const getTaxonomyPath = async (id) => {
-  const resp = await api.get(`/api/migration/taxonomy/${id}`);
-  return get(resp, 'terms[0].term.urlPath', id);
+  const url = new URL(`/api/migration/taxonomy/${id}`, BASE_URL);
+  const headers = {
+    'Content-Type': 'application/json',
+    'X-Phpshield-Key-Disable': process.env.ACQUIA_DEV_PHP_SHIELD_KEY,
+  };
+
+  try {
+    const res = await fetch(url, { headers });
+    const json = await res.json();
+
+    return get(json, 'terms[0].term.urlPath', id);
+  } catch (error) {
+    console.log(`Taxonomy ID ${id} does not exist, skipping`);
+
+    return id;
+  }
 };
 
 /**
@@ -35,6 +43,7 @@ module.exports = async (redirects) => {
       paths,
     }));
 
+  // TODO: filter out redirects that don't correspond to a page (key is just the ID)
   const taxonomyRedirects = await Promise.all(rawTaxonomyData);
 
   fs.writeFileSync(
