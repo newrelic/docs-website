@@ -216,6 +216,18 @@ test('serializes Icon to html', async () => {
   expect(html).toMatchSnapshot();
 });
 
+test('serializes var to html', async () => {
+  const html = await serializeMDX(`<var>JAVA_AGENT_VERSION</var>`);
+
+  expect(html).toMatchSnapshot();
+});
+
+test('serializes mark to html', async () => {
+  const html = await serializeMDX(`<mark>PDF</mark>`);
+
+  expect(html).toMatchSnapshot();
+});
+
 test('kitchen sink', async () => {
   const html = await serializeMDX(
     fs.readFileSync(`${__dirname}/kitchen-sink.mdx`, 'utf-8')
