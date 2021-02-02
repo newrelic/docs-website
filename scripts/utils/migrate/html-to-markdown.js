@@ -4,6 +4,10 @@ const fauxHtmlToJSX = require('./faux-html-to-jsx');
 const { extractTags } = require('../node');
 const { TYPES } = require('../constants');
 const slugs = require('github-slugger')();
+const parse = require('rehype-parse');
+const unified = require('unified');
+const html = require('rehype-stringify');
+const visit = require('unist-util-visit');
 
 const SPECIAL_COMPONENTS = [
   { tag: 'div', className: 'callout-tip' },
@@ -65,32 +69,32 @@ const repeat = (character, count) => Array(count + 1).join(character);
 
 const MEANINGFUL_TAGS_IN_CODE_BLOCK = ['a', 'var', 'mark'];
 
-const isTextNode = (node) => node.nodeType === 3;
-
-const replaceMeaninglessTagsInCodeBlock = (
-  node,
-  { replaceRoot = false } = {}
-) => {
-  node.childNodes.forEach((childNode) => {
-    if (isTextNode(childNode)) {
-      return;
-    }
-
-    if (childNode.style && childNode.style.display === 'none') {
-      childNode.remove();
-      return;
-    }
-
-    replaceMeaninglessTagsInCodeBlock(childNode, {
-      replaceRoot: !MEANINGFUL_TAGS_IN_CODE_BLOCK.includes(
-        childNode.nodeName.toLowerCase()
-      ),
+const replaceMeaninglessTagsInCodeBlock = (node) => {
+  const visitor = () => (tree) => {
+    visit(tree, 'element', (node, idx, parent) => {
+      if (!MEANINGFUL_TAGS_IN_CODE_BLOCK.includes(node.tagName)) {
+        parent.children.splice(idx, 1, ...node.children);
+        return idx;
+      }
     });
-  });
+  };
 
-  if (replaceRoot) {
-    node.replaceWith(...node.childNodes);
-  }
+  const { contents } = unified()
+    .use(parse)
+    .use(visitor)
+    .use(html)
+    .processSync(node.innerHTML);
+
+  // `innerHTML` replaces embedded '&', '<', and '>', characters. We want
+  // to keep these as their raw text.
+  //
+  // https://developer.mozilla.org/en-US/docs/Web/API/Element/innerHTML
+  return contents
+    .replace(/(&amp;|&#x26;)/g, '&')
+    .replace(/(&lt;|&#x3C;)/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&nbsp;/g, ' ')
+    .trim();
 };
 
 module.exports = (file) => {
@@ -166,20 +170,8 @@ module.exports = (file) => {
         const contentNode =
           hasCodeTag && node.childNodes.length === 1 ? node.firstChild : node;
 
-        replaceMeaninglessTagsInCodeBlock(contentNode);
-
-        // `innerHTML` replaces embedded '&', '<', and '>', characters. We want
-        // to keep these as their raw text.
-        //
-        // https://developer.mozilla.org/en-US/docs/Web/API/Element/innerHTML
-        const text = contentNode.innerHTML
-          .replace(/&amp;/g, '&')
-          .replace(/&lt;/g, '<')
-          .replace(/&gt;/g, '>')
-          .replace(/&nbsp;/g, ' ')
-          .trim();
-
-        const encoded = Buffer.from(text).toString('base64');
+        const html = replaceMeaninglessTagsInCodeBlock(contentNode);
+        const encoded = Buffer.from(html).toString('base64');
 
         return language
           ? `\n\n<pre language="${language}">{'${encoded}'}</pre>\n\n`
