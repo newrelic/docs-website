@@ -224,15 +224,19 @@ const run = async () => {
       );
 
     logger.info('Creating nav');
-    const navFiles = migrateNavStructure(createNavStructure(sortedDocsFiles));
 
     logger.info('Fetching taxonomy term data');
 
     const taxTermData = await fetchAllTaxTerms();
 
-    const navFilesSorted = sortNavDirs(navFiles, taxTermData);
+    const navFiles = migrateNavStructure(
+      createNavStructure(sortedDocsFiles),
+      taxTermData
+    );
 
-    const jpNavFile = createNavJpStructure(navFilesSorted, jpFiles);
+    // const navFilesSorted = sortNavDirs(navFiles, taxTermData);
+
+    const jpNavFile = createNavJpStructure(navFiles, jpFiles);
 
     logger.info('Writing external redirects');
     writeExternalRedirects(
@@ -249,7 +253,7 @@ const run = async () => {
     await all(
       allDocsFiles
         .filter((file) => !file.data.dummy)
-        .concat(navFilesSorted, jpNavFile),
+        .concat(navFiles, jpNavFile),
       (file) => write(file, 'utf-8')
     );
 
@@ -265,9 +269,7 @@ const run = async () => {
       createRawHTMLFiles(allDocsFiles);
     }
 
-    console.error(
-      reporter(allDocsFiles.concat(navFilesSorted), { quiet: true })
-    );
+    console.error(reporter(allDocsFiles.concat(navFiles), { quiet: true }));
 
     logger.success('Migration complete!');
   } catch (e) {

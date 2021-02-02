@@ -6,12 +6,16 @@ const { NAV_DIR, INSTRUCTIONS } = require('../constants');
 const logger = require('../logger');
 const instructions = require('./instruction-set');
 const { omit } = require('lodash');
+const fs = require('fs');
 
 const hasOwnProperty = (obj, key) =>
   Object.prototype.hasOwnProperty.call(obj, key);
 
-const migrateNavStructure = (files) => {
-  return instructions.reduce((files, instruction) => {
+const migrateNavStructure = (files, taxTermData) => {
+  const combinedInstructions = instructions.concat(
+    createReorderInstructions(taxTermData)
+  );
+  return combinedInstructions.reduce((files, instruction) => {
     switch (instruction.type) {
       case INSTRUCTIONS.ADD:
         return add(files, instruction);
@@ -33,20 +37,28 @@ const migrateNavStructure = (files) => {
   }, files);
 };
 
-const sortNavDirs = (files, taxTermData) => {
+const createReorderInstructions = (taxTermData) => {
   const { terms } = taxTermData;
-  return terms.reduce((files, term) => {
-    const pathSegments = [term.grandParentName, term.parentName].filter(
-      Boolean
-    );
-    if (pathSegments.length) {
-      return reorder(files, {
+  const instructionSet = terms.reduce((acc, { term }) => {
+    const pathSegments = [
+      term.grandParentName,
+      term.parentName,
+      term.name,
+    ].filter(Boolean);
+    const index = parseInt(term.order) >= 0 ? parseInt(term.order) : 0;
+    if (pathSegments.length > 1) {
+      const instruction = {
+        type: INSTRUCTIONS.REORDER,
         path: pathSegments,
-        index: parseInt(term.order),
-      });
+        index,
+      };
+      acc.push(instruction);
     }
-    return files;
-  }, files);
+    return acc;
+  }, []);
+  // TODO: Remove when it works
+  fs.writeFileSync('./sortInstructions.json', JSON.stringify(instructionSet));
+  return instructionSet;
 };
 
 const reorder = (files, { path: pathSegments, index }) => {
