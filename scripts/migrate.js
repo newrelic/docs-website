@@ -36,7 +36,6 @@ const createNavJpStructure = require('./utils/migrate/create-nav-jp-structure');
 const writeExternalRedirects = require('./utils/migrate/external-redirects');
 const { appendDummyRedirects } = require('./utils/migrate/redirects');
 const fetchAllTaxTerms = require('./utils/migrate/fetch-tax-terms');
-const fs = require('fs');
 
 const all = (list, fn) => Promise.all(list.map(fn));
 
