@@ -6,12 +6,13 @@ const { BASE_URL } = require('../constants');
 const DATA_FILE = 'src/data/taxonomy-redirects.json';
 
 /**
- * Gets the path to a taxonomy term (an index page) given it's ID.
+ * Gets the path to a taxonomy term (an index page).
  * If unable to find the path, the ID is returned.
- * @param {string} id
+ * @param {string} uri The taxonomy URI in Drupal
  * @returns {Promise<string>}
  */
-const getTaxonomyPath = async (id) => {
+const getTaxonomyPath = async (uri) => {
+  const id = uri.replace(/.*\//, '');
   const url = new URL(`/api/migration/taxonomy/${id}`, BASE_URL);
   const headers = {
     'Content-Type': 'application/json',
@@ -22,13 +23,36 @@ const getTaxonomyPath = async (id) => {
     const res = await fetch(url, { headers });
     const json = await res.json();
 
-    return get(json, 'terms[0].term.urlPath', id);
+    return get(json, 'terms[0].term.urlPath', uri);
   } catch (error) {
     console.log(`Taxonomy ID ${id} does not exist, skipping`);
 
-    return id;
+    return uri;
   }
 };
+
+/**
+ * Updates redirects from a taxonomy (one of the paths) to another taxonomy.
+ * @param {{uri: string, url: string: paths: string[]}[]} redirects
+ * @returns {{url: string: paths: string[]}[]}
+ */
+const updateRedirectPaths = (redirects) =>
+  redirects.map(({ url, paths }) => {
+    // remove orphaned taxonomy paths and get non-Drupal locations
+    const updatedPaths = paths.reduce((acc, path) => {
+      switch (true) {
+        case path.startsWith('/node'):
+          return acc;
+        case !path.startsWith('/taxonomy'):
+          return [...acc, path];
+        default:
+          const page = redirects.find(({ uri }) => uri === path);
+          return page && page.url ? [...acc, page.url] : acc;
+      }
+    }, []);
+
+    return { url, paths: updatedPaths };
+  });
 
 /**
  * Gathers information about each taxonomy term and saves the taxonomy-
@@ -39,12 +63,20 @@ module.exports = async (redirects) => {
   const rawTaxonomyData = Object.entries(redirects)
     .filter(([uri]) => uri.startsWith('/taxonomy'))
     .map(async ([uri, paths]) => ({
-      url: await getTaxonomyPath(uri.replace(/.*\//, '')),
+      uri,
       paths,
+      url: await getTaxonomyPath(uri),
     }));
 
-  // TODO: filter out redirects that don't correspond to a page (key is just the ID)
-  const taxonomyRedirects = await Promise.all(rawTaxonomyData);
+  // Get redirects (by index page path, not Drupal ID)
+  const taxonomyDetails = await Promise.all(rawTaxonomyData);
+
+  // NOTE: we are filtering out redirects that no longer exist
+  const validTaxonomyRedirects = taxonomyDetails.filter(
+    ({ uri, url }) => uri !== url
+  );
+
+  const taxonomyRedirects = updateRedirectPaths(validTaxonomyRedirects);
 
   fs.writeFileSync(
     DATA_FILE,
