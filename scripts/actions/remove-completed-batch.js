@@ -13,9 +13,9 @@ const saveRemainingBatches = async () => {
   checkArgs(4);
 
   const batchUids = JSON.parse(process.argv[2]);
-  const deserializedBatchUids = JSON.parse(process.argv[3]);
+  const deserializedFileUris = JSON.parse(process.argv[3]);
 
-  await removePageContext(deserializedBatchUids);
+  await removePageContext(deserializedFileUris);
 
   await saveToTranslationQueue(
     { type: 'being_translated' },
@@ -30,19 +30,8 @@ const saveRemainingBatches = async () => {
  * @param {Array} deserializedBatchUids
  * @returns {Promise}
  */
-const removePageContext = async (deserializedBatchUids) => {
+const removePageContext = async (fileUris) => {
   const accessToken = await getAccessToken();
-
-  const fileUris = Promise.all(
-    deserializedBatchUids.map(async (batchUid) => {
-      const { files } = await vendorRequest({
-        method: 'GET',
-        endpoint: `/job-batches-api/v2/projects/${PROJECT_ID}/batches/${batchUid}`,
-        accessToken,
-      });
-      return files.map((file) => file.fileUri);
-    })
-  );
 
   const { items } = await vendorRequest({
     method: 'GET',
