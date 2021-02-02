@@ -69,13 +69,34 @@ const repeat = (character, count) => Array(count + 1).join(character);
 
 const MEANINGFUL_TAGS_IN_CODE_BLOCK = ['a', 'var', 'mark'];
 
+const parseStyleProperty = (styleString) =>
+  styleString
+    .split(/;\s*/)
+    .filter(Boolean)
+    .reduce((memo, rule) => {
+      const [name, value] = rule.split(/:\s*/);
+
+      return { ...memo, [name]: value };
+    }, {});
+
 const replaceMeaninglessTagsInCodeBlock = (node) => {
   const visitor = () => (tree) => {
     visit(tree, 'element', (node, idx, parent) => {
-      if (!MEANINGFUL_TAGS_IN_CODE_BLOCK.includes(node.tagName)) {
-        parent.children.splice(idx, 1, ...node.children);
-        return idx;
+      if (MEANINGFUL_TAGS_IN_CODE_BLOCK.includes(node.tagName)) {
+        return;
       }
+
+      const style = node.properties
+        ? parseStyleProperty(node.properties.style || '')
+        : {};
+
+      parent.children.splice(
+        idx,
+        1,
+        ...(style.display === 'none' ? [] : node.children)
+      );
+
+      return idx;
     });
   };
 
