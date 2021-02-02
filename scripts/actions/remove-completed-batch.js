@@ -4,6 +4,7 @@ const { getAccessToken, vendorRequest } = require('./utils/vendor-request');
 const fetch = require('node-fetch');
 
 const PROJECT_ID = process.env.TRANSLATION_VENDOR_PROJECT;
+const DOCS_SITE_URL = 'https://docs-preview.newrelic.com';
 
 /**
  * Updates the "being translated" queue with the batches that are not done.
@@ -33,6 +34,13 @@ const saveRemainingBatches = async () => {
 const removePageContext = async (fileUris) => {
   const accessToken = await getAccessToken();
 
+  const fileNames = fileUris.map((fileUri) => {
+    const filepath = fileUri.replace(`src/content/`, '');
+    const slug = filepath.replace(`.mdx`, '');
+    const contextUrl = new URL(slug, DOCS_SITE_URL);
+    return contextUrl.href;
+  });
+
   const { items } = await vendorRequest({
     method: 'GET',
     endpoint: `https://api.smartling.com/context-api/v2/projects/${PROJECT_ID}/contexts`,
@@ -40,7 +48,7 @@ const removePageContext = async (fileUris) => {
   });
 
   const contextUids = items
-    .filter((item) => fileUris.includes(item.name))
+    .filter((item) => fileNames.includes(item.name))
     .map((item) => {
       return {
         fileUri: item.name,
