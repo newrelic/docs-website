@@ -33,6 +33,22 @@ const migrateNavStructure = (files) => {
   }, files);
 };
 
+const sortNavDirs = (files, taxTermData) => {
+  const { terms } = taxTermData;
+  return terms.reduce((files, term) => {
+    const pathSegments = [term.grandParentName, term.parentName].filter(
+      Boolean
+    );
+    if (pathSegments.length) {
+      return reorder(files, {
+        path: pathSegments,
+        index: parseInt(term.order),
+      });
+    }
+    return files;
+  }, files);
+};
+
 const reorder = (files, { path: pathSegments, index }) => {
   const file = findFile(files, pathSegments);
 
@@ -401,4 +417,4 @@ const write = (file, contents) => {
 const shouldRemoveNode = (node) =>
   !node.path && (!node.pages || node.pages.length === 0);
 
-module.exports = migrateNavStructure;
+module.exports = { migrateNavStructure, sortNavDirs };

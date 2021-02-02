@@ -13,7 +13,10 @@ const runCodemod = require('./utils/codemod/run');
 const codemods = require('../codemods');
 const { write } = require('to-vfile');
 const createRawHTMLFiles = require('./utils/migrate/create-raw-html-files');
-const migrateNavStructure = require('./utils/migrate/migrate-nav-structure');
+const {
+  migrateNavStructure,
+  sortNavDirs,
+} = require('./utils/migrate/migrate-nav-structure');
 const reporter = require('vfile-reporter');
 const rimraf = require('rimraf');
 const { last, nth } = require('lodash');
@@ -32,6 +35,8 @@ const fetchJpDocs = require('./utils/migrate/fetch-jp-docs');
 const createNavJpStructure = require('./utils/migrate/create-nav-jp-structure');
 const writeExternalRedirects = require('./utils/migrate/external-redirects');
 const { appendDummyRedirects } = require('./utils/migrate/redirects');
+const fetchAllTaxTerms = require('./utils/migrate/fetch-tax-terms');
+const fs = require('fs');
 
 const all = (list, fn) => Promise.all(list.map(fn));
 
@@ -222,7 +227,13 @@ const run = async () => {
     logger.info('Creating nav');
     const navFiles = migrateNavStructure(createNavStructure(sortedDocsFiles));
 
-    const jpNavFile = createNavJpStructure(navFiles, jpFiles);
+    logger.info('Fetching taxonomy term data');
+
+    const taxTermData = await fetchAllTaxTerms();
+
+    const navFilesSorted = sortNavDirs(navFiles, taxTermData);
+
+    const jpNavFile = createNavJpStructure(navFilesSorted, jpFiles);
 
     logger.info('Writing external redirects');
     writeExternalRedirects(
@@ -239,7 +250,7 @@ const run = async () => {
     await all(
       allDocsFiles
         .filter((file) => !file.data.dummy)
-        .concat(navFiles, jpNavFile),
+        .concat(navFilesSorted, jpNavFile),
       (file) => write(file, 'utf-8')
     );
 
@@ -255,7 +266,9 @@ const run = async () => {
       createRawHTMLFiles(allDocsFiles);
     }
 
-    console.error(reporter(allDocsFiles.concat(navFiles), { quiet: true }));
+    console.error(
+      reporter(allDocsFiles.concat(navFilesSorted), { quiet: true })
+    );
 
     logger.success('Migration complete!');
   } catch (e) {
