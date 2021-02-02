@@ -90,6 +90,16 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
         }
       }
 
+      whatsNewPosts: allMarkdownRemark(
+        filter: { fileAbsolutePath: { regex: "/src/content/whats-new/" } }
+      ) {
+        nodes {
+          fields {
+            slug
+          }
+        }
+      }
+
       allMdx(filter: { fileAbsolutePath: { regex: "/src/content/" } }) {
         edges {
           node {
@@ -180,6 +190,7 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
     releaseNotes,
     landingPagesReleaseNotes,
     allLocale,
+    whatsNewPosts,
   } = data;
 
   externalRedirects.forEach(({ url, paths }) => {
@@ -244,6 +255,19 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
         prefix: i18nNode ? '' : locale,
         createPage,
       });
+    });
+  });
+
+  whatsNewPosts.nodes.forEach((node) => {
+    const {
+      fields: { slug },
+    } = node;
+
+    createRedirect({
+      fromPath: slug.replace(/\/\d{4}\/\d{2}/, ''),
+      toPath: slug,
+      isPermanent: true,
+      redirectInBrowser: true,
     });
   });
 };
