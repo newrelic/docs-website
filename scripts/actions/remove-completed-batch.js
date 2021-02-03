@@ -30,9 +30,9 @@ const saveRemainingBatches = async () => {
 };
 
 /**
- * Gets the fileUris from the deserializedBatchUids, takes the fileUris and fetches
+ * Inputs the fileUris and fetches
  * the contextUids, and then the contextUids are deleted for deserialized batches
- * @param {Array} deserializedBatchUids
+ * @param {Array} fileUris
  * @returns {Promise}
  */
 const removePageContext = async (fileUris) => {
@@ -60,9 +60,7 @@ const removePageContext = async (fileUris) => {
       };
     });
 
-  let returnCode = 'SUCCESS';
-
-  for (const { contextUid, fileUri } of contextUids) {
+  return contextUids.reduce((returnCode, {contextUid, fileUri}) => {
     const url = new URL(
       `/context-api/v2/projects/${PROJECT_ID}/contexts/${contextUid}`,
       process.env.TRANSLATION_VENDOR_API_URL
@@ -81,13 +79,13 @@ const removePageContext = async (fileUris) => {
     const { code } = response;
 
     if (code === 'SUCCESS' && resp.ok) {
-      console.log(`[*] Successfully deleted ${fileUri} context.`);
+      console.log(`[*] Successfully deleted ${fileUri} context.`);   
     } else {
       console.error(`[!] Unable to delete ${fileUri} context.`);
-      returnCode = code;
+      return code; 
     }
-  }
-  return returnCode;
+    return returnCode;
+  }, 'SUCESSS')
 };
 
 saveRemainingBatches();
