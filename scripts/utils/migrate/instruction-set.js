@@ -454,8 +454,8 @@ module.exports = [
   },
   {
     type: INSTRUCTIONS.ADD,
-    path: ['Agents', '.NET agent'],
-    index: -2,
+    path: ['Agents', '.NET agent', 'Getting started'],
+    index: 5,
     node: {
       title: 'Latest release',
       path: '/docs/release-notes/agent-release-notes/net-release-notes/current',
@@ -463,8 +463,8 @@ module.exports = [
   },
   {
     type: INSTRUCTIONS.ADD,
-    path: ['Agents', 'Java agent'],
-    index: -2,
+    path: ['Agents', 'Java agent', 'Getting started'],
+    index: 5,
     node: {
       title: 'Latest release',
       path:
@@ -473,8 +473,8 @@ module.exports = [
   },
   {
     type: INSTRUCTIONS.ADD,
-    path: ['Agents', 'Go agent'],
-    index: -2,
+    path: ['Agents', 'Go agent', 'Get started'],
+    index: 5,
     node: {
       title: 'Latest release',
       path: '/docs/release-notes/agent-release-notes/go-release-notes/current',
@@ -482,8 +482,8 @@ module.exports = [
   },
   {
     type: INSTRUCTIONS.ADD,
-    path: ['Agents', 'C SDK'],
-    index: -2,
+    path: ['Agents', 'C SDK', 'Get started'],
+    index: 5,
     node: {
       title: 'Latest release',
       path:
@@ -492,8 +492,8 @@ module.exports = [
   },
   {
     type: INSTRUCTIONS.ADD,
-    path: ['Agents', 'Ruby agent'],
-    index: -2,
+    path: ['Agents', 'Ruby agent', 'Getting started'],
+    index: 6,
     node: {
       title: 'Latest release',
       path:
@@ -502,8 +502,8 @@ module.exports = [
   },
   {
     type: INSTRUCTIONS.ADD,
-    path: ['Agents', 'Python agent'],
-    index: -2,
+    path: ['Agents', 'Python agent', 'Getting started'],
+    index: 6,
     node: {
       title: 'Latest release',
       path:
@@ -512,8 +512,8 @@ module.exports = [
   },
   {
     type: INSTRUCTIONS.ADD,
-    path: ['Agents', 'PHP agent'],
-    index: -2,
+    path: ['Agents', 'PHP agent', 'Getting started'],
+    index: 6,
     node: {
       title: 'Latest release',
       path: '/docs/release-notes/agent-release-notes/php-release-notes/current',
@@ -521,8 +521,8 @@ module.exports = [
   },
   {
     type: INSTRUCTIONS.ADD,
-    path: ['Agents', 'Node.js agent'],
-    index: -2,
+    path: ['Agents', 'Node.js agent', 'Getting started'],
+    index: 5,
     node: {
       title: 'Latest release',
       path:
@@ -541,5 +541,55 @@ module.exports = [
     type: INSTRUCTIONS.REORDER,
     path: ['Alerts and Applied Intelligence', 'Overview'],
     index: 0,
+  },
+  {
+    type: INSTRUCTIONS.REORDER,
+    path: ['Agents', 'Manage APM agents'],
+    index: 0,
+  },
+  {
+    type: INSTRUCTIONS.REORDER,
+    path: ['Agents', 'C SDK'],
+    index: 1,
+  },
+  {
+    type: INSTRUCTIONS.REORDER,
+    path: ['Agents', 'Go agent'],
+    index: 2,
+  },
+  {
+    type: INSTRUCTIONS.REORDER,
+    path: ['Agents', 'Java agent'],
+    index: 3,
+  },
+  {
+    type: INSTRUCTIONS.REORDER,
+    path: ['Agents', '.NET agent'],
+    index: 4,
+  },
+  {
+    type: INSTRUCTIONS.REORDER,
+    path: ['Agents', 'Node.js agent'],
+    index: 5,
+  },
+  {
+    type: INSTRUCTIONS.REORDER,
+    path: ['Agents', 'PHP agent'],
+    index: 6,
+  },
+  {
+    type: INSTRUCTIONS.REORDER,
+    path: ['Agents', 'Python agent'],
+    index: 7,
+  },
+  {
+    type: INSTRUCTIONS.REORDER,
+    path: ['Agents', 'Ruby agent'],
+    index: 8,
+  },
+  {
+    type: INSTRUCTIONS.REORDER,
+    path: ['Agents', 'Open-source licensed agents'],
+    index: 9,
   },
 ];
