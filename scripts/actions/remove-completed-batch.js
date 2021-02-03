@@ -18,7 +18,7 @@ const saveRemainingBatches = async () => {
 
   const code = await removePageContext(deserializedFileUris);
 
-  if (code.join('') !== 'SUCCESS') {
+  if (code !== 'SUCCESS') {
     console.log(`[!] Unable to delete all contexts`);
   }
 
