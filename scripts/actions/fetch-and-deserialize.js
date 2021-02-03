@@ -41,9 +41,10 @@ const fetchAndDeserialize = (accessToken) => async ({ locale, fileUris }) => {
   const zipEntries = zip.getEntries();
 
   const translatedHtml = zipEntries.map((entry) => {
-    const filepath = entry.entryName.replace(`src/${locale}`);
+    const filepath = entry.entryName.replace(`src/content/`, '');
+    const path = filepath.replace(`.mdx`, '');
     return {
-      path: path.basename(filepath, path.extname(filepath)),
+      path: path,
       html: zip.readAsText(entry, 'utf8'),
     };
   });
