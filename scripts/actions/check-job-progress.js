@@ -75,7 +75,7 @@ const main = async () => {
       .map((batch) => batch.batchUid);
 
     const outputBatchUids = remainingBatches.length
-      ? remainingBatches.join(' ')
+      ? remainingBatches.join('[]')
       : JSON.stringify(remainingBatches);
 
     console.log(`::set-output name=batchUids::${outputBatchUids}`);
