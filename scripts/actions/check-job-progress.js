@@ -5,6 +5,8 @@ const fetchAndDeserialize = require('./fetch-and-deserialize');
 
 const PROJECT_ID = process.env.TRANSLATION_VENDOR_PROJECT;
 
+const uniq = (arr) => [...new Set(arr)];
+
 /**
  * @typedef {Object} Batch
  * @property {string} batchUid
@@ -74,6 +76,19 @@ const main = async () => {
 
     console.log(
       `::set-output name=batchUids::${JSON.stringify(remainingBatches)}`
+    );
+
+    const deserializedFileUris = uniq(
+      batchesToDeserialize.reduce(
+        (acc, { fileUris }) => [...fileUris, ...acc],
+        []
+      )
+    );
+
+    console.log(
+      `::set-output name=deserializedFileUris::${deserializedFileUris.join(
+        ','
+      )}`
     );
 
     process.exit(0);
