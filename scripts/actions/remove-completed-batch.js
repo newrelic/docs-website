@@ -60,7 +60,7 @@ const removePageContext = async (fileUris) => {
       };
     });
 
-  return contextUids.reduce((returnCode, {contextUid, fileUri}) => {
+  return contextUids.reduce(async (returnCode, { contextUid, fileUri }) => {
     const url = new URL(
       `/context-api/v2/projects/${PROJECT_ID}/contexts/${contextUid}`,
       process.env.TRANSLATION_VENDOR_API_URL
@@ -79,13 +79,13 @@ const removePageContext = async (fileUris) => {
     const { code } = response;
 
     if (code === 'SUCCESS' && resp.ok) {
-      console.log(`[*] Successfully deleted ${fileUri} context.`);   
+      console.log(`[*] Successfully deleted ${fileUri} context.`);
     } else {
       console.error(`[!] Unable to delete ${fileUri} context.`);
-      return code; 
+      return code;
     }
     return returnCode;
-  }, 'SUCESSS')
+  }, 'SUCESSS');
 };
 
 saveRemainingBatches();
