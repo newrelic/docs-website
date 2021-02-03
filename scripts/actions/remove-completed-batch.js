@@ -13,13 +13,13 @@ const DOCS_SITE_URL = 'https://docs-preview.newrelic.com';
 const saveRemainingBatches = async () => {
   checkArgs(4);
 
-  const batchUids = JSON.parse(process.argv[2]);
-  const deserializedFileUris = process.argv[3].split(',');
+  const batchUids = process.argv[2].split(',').filter(Boolean);
+  const deserializedFileUris = process.argv[3].split(',').filter(Boolean);
 
   const code = await removePageContext(deserializedFileUris);
 
   if (code !== 'SUCCESS') {
-    console.log(`[!] Unable to send all contexts`);
+    console.log(`[!] Unable to delete all contexts`);
   }
 
   await saveToTranslationQueue(
@@ -60,32 +60,38 @@ const removePageContext = async (fileUris) => {
       };
     });
 
-  return contextUids.reduce(async (returnCode, { contextUid, fileUri }) => {
-    const url = new URL(
-      `/context-api/v2/projects/${PROJECT_ID}/contexts/${contextUid}`,
-      process.env.TRANSLATION_VENDOR_API_URL
-    );
+  const results = await Promise.all(
+    contextUids.map(async ({ contextUid, fileUri }) => {
+      const url = new URL(
+        `/context-api/v2/projects/${PROJECT_ID}/contexts/${contextUid}`,
+        process.env.TRANSLATION_VENDOR_API_URL
+      );
 
-    const options = {
-      method: 'DELETE',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
-    };
+      const options = {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      };
 
-    const resp = await fetch(url.href, options);
+      const resp = await fetch(url.href, options);
 
-    const { response } = await resp.json();
-    const { code } = response;
+      const { response } = await resp.json();
+      const { code } = response;
 
-    if (code === 'SUCCESS' && resp.ok) {
+      return { code: code, fileUri: fileUri };
+    })
+  );
+
+  return results.reduce((returnCode, { code, fileUri }) => {
+    if (code === 'SUCCESS') {
       console.log(`[*] Successfully deleted ${fileUri} context.`);
+      return returnCode;
     } else {
       console.error(`[!] Unable to delete ${fileUri} context.`);
       return code;
     }
-    return returnCode;
-  }, 'SUCESSS');
+  }, 'SUCCESS');
 };
 
 saveRemainingBatches();
