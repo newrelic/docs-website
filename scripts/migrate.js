@@ -34,7 +34,6 @@ const fetchJpDocs = require('./utils/migrate/fetch-jp-docs');
 const createNavJpStructure = require('./utils/migrate/create-nav-jp-structure');
 const writeExternalRedirects = require('./utils/migrate/external-redirects');
 const { appendDummyRedirects } = require('./utils/migrate/redirects');
-const fetchAllTaxTerms = require('./utils/migrate/fetch-tax-terms');
 
 const all = (list, fn) => Promise.all(list.map(fn));
 
@@ -197,26 +196,16 @@ const run = async () => {
     const jpFiles = nth(fileGroups, -2);
 
     const sortedDocsFiles = last(fileGroups)
-      // TODO: remove once subdir sort is working
-      // .sort((a, b) => {
-      //   const aTopic = last(a.data.topics);
-      //   const bTopic = last(b.data.topics);
-      //   const getStartedRegex = /^Get(ting)? started/i;
-      //   const troubleshootRegex = /^Troubleshoot(ing)?/i;
-
-      //   switch (true) {
-      //     case aTopic === bTopic:
-      //       return 1;
-      //     case getStartedRegex.test(aTopic):
-      //     case troubleshootRegex.test(bTopic):
-      //       return -1;
-      //     case getStartedRegex.test(bTopic):
-      //     case troubleshootRegex.test(aTopic):
-      //       return 1;
-      //     default:
-      //       return 0;
-      //   }
-      // })
+      .sort(
+        (a, b) =>
+          parseInt(a.data.doc.order_topic_2 || 0, 10) -
+          parseInt(b.data.doc.order_topic_2 || 0, 10)
+      )
+      .sort(
+        (a, b) =>
+          parseInt(a.data.doc.order_topic_3 || 0, 10) -
+          parseInt(b.data.doc.order_topic_3 || 0, 10)
+      )
       .sort(
         (a, b) =>
           parseInt(a.data.doc.order || 0, 10) -
@@ -225,14 +214,7 @@ const run = async () => {
 
     logger.info('Creating nav');
 
-    logger.info('Fetching taxonomy term data');
-
-    const taxTermData = await fetchAllTaxTerms();
-
-    const navFiles = migrateNavStructure(
-      createNavStructure(sortedDocsFiles),
-      taxTermData
-    );
+    const navFiles = migrateNavStructure(createNavStructure(sortedDocsFiles));
 
     const jpNavFile = createNavJpStructure(navFiles, jpFiles);
 

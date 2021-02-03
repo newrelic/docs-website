@@ -6,20 +6,12 @@ const { NAV_DIR, INSTRUCTIONS } = require('../constants');
 const logger = require('../logger');
 const instructions = require('./instruction-set');
 const { omit } = require('lodash');
-const fs = require('fs');
 
 const hasOwnProperty = (obj, key) =>
   Object.prototype.hasOwnProperty.call(obj, key);
 
-const migrateNavStructure = (files, taxTermData) => {
-  const combinedInstructions = createReorderInstructions(taxTermData).concat(
-    instructions
-  );
-  fs.writeFileSync(
-    './combinedInstructions.json',
-    JSON.stringify(combinedInstructions)
-  );
-  return combinedInstructions.reduce((files, instruction) => {
+const migrateNavStructure = (files) => {
+  return instructions.reduce((files, instruction) => {
     switch (instruction.type) {
       case INSTRUCTIONS.ADD:
         return add(files, instruction);
@@ -41,30 +33,6 @@ const migrateNavStructure = (files, taxTermData) => {
   }, files);
 };
 
-const createReorderInstructions = (taxTermData) => {
-  const { terms } = taxTermData;
-  const instructionSet = terms.reduce((acc, { term }) => {
-    const pathSegments = [
-      term.grandParentName,
-      term.parentName,
-      term.name,
-    ].filter(Boolean);
-    const index = parseInt(term.order) >= 0 ? parseInt(term.order) : 0;
-    if (pathSegments.length > 1) {
-      const instruction = {
-        type: INSTRUCTIONS.REORDER,
-        path: pathSegments,
-        index,
-      };
-      acc.push(instruction);
-    }
-    return acc;
-  }, []);
-  // TODO: Remove when it works
-  fs.writeFileSync('./sortInstructions.json', JSON.stringify(instructionSet));
-  return instructionSet;
-};
-
 const reorder = (files, { path: pathSegments, index }) => {
   const file = findFile(files, pathSegments);
 
@@ -74,7 +42,6 @@ const reorder = (files, { path: pathSegments, index }) => {
 
   const nav = load(file);
   const title = last(pathSegments);
-  // or const remainingSegments = pathSegments.slice(1, -1)
   const [, ...remainingSegments] = pathSegments.slice(0, -1);
 
   const reorderChild = (parent) => {
