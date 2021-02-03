@@ -18,7 +18,7 @@ const saveRemainingBatches = async () => {
 
   console.log(deserializedFileUris, typeof deserializedFileUris);
 
-  await removePageContext(deserializedFileUris);
+  removePageContext(deserializedFileUris);
 
   await saveToTranslationQueue(
     { type: 'being_translated' },
@@ -42,8 +42,6 @@ const removePageContext = async (fileUris) => {
     const contextUrl = new URL(slug, DOCS_SITE_URL);
     return contextUrl.href;
   });
-
-  console.log(fileNames);
 
   const { items } = await vendorRequest({
     method: 'GET',
