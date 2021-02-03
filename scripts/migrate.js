@@ -25,6 +25,7 @@ const {
   DICTIONARY_DIR,
   WHATS_NEW_DIR,
   JP_DIR,
+  TYPES,
 } = require('./utils/constants');
 const copyManualEdits = require('./utils/migrate/copy-manual-edits');
 const { fetchAllRedirects } = require('./utils/migrate/fetch-redirects');
@@ -35,15 +36,32 @@ const { appendDummyRedirects } = require('./utils/migrate/redirects');
 const unified = require('unified');
 const rehypeParse = require('rehype-parse');
 const toString = require('hast-util-to-string');
+const remove = require('unist-util-remove');
 
 const processor = unified().use(rehypeParse);
 
 const all = (list, fn) => Promise.all(list.map(fn));
 
-const isDummyDoc = (doc) => {
-  const content = toString(processor.parse(doc.body)).trim();
+const notDummyDocs = ['/docs/new-relic-titanium'];
 
-  return Boolean(content.match(/^(dummy|redirect(s|ed|ing)?)\s/i));
+const isDummyDoc = (doc) => {
+  if (notDummyDocs.some((pathname) => doc.docUrl.includes(pathname))) {
+    return false;
+  }
+
+  const tree = processor.parse(doc.body);
+
+  remove(
+    tree,
+    (node) => node.tagName === 'h2' && toString(node) === 'For more help'
+  );
+
+  const content = toString(tree).trim();
+
+  return (
+    Boolean(content.match(/^(dummy|redirect(s|ed|ing)?)\s/i)) ||
+    (doc.type === TYPES.BASIC_PAGE && content.length < 100)
+  );
 };
 
 const runTask = async ({
