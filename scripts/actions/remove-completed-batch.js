@@ -60,32 +60,34 @@ const removePageContext = async (fileUris) => {
       };
     });
 
-  return contextUids.reduce(async (returnCode, { contextUid, fileUri }) => {
-    const url = new URL(
-      `/context-api/v2/projects/${PROJECT_ID}/contexts/${contextUid}`,
-      process.env.TRANSLATION_VENDOR_API_URL
-    );
+  return Promise.all(
+    contextUids.reduce(async (returnCode, { contextUid, fileUri }) => {
+      const url = new URL(
+        `/context-api/v2/projects/${PROJECT_ID}/contexts/${contextUid}`,
+        process.env.TRANSLATION_VENDOR_API_URL
+      );
 
-    const options = {
-      method: 'DELETE',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
-    };
+      const options = {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      };
 
-    const resp = await fetch(url.href, options);
+      const resp = await fetch(url.href, options);
 
-    const { response } = await resp.json();
-    const { code } = response;
+      const { response } = await resp.json();
+      const { code } = response;
 
-    if (code === 'SUCCESS' && resp.ok) {
-      console.log(`[*] Successfully deleted ${fileUri} context.`);
-    } else {
-      console.error(`[!] Unable to delete ${fileUri} context.`);
-      return code;
-    }
-    return returnCode;
-  }, 'SUCESSS');
+      if (code === 'SUCCESS' && resp.ok) {
+        console.log(`[*] Successfully deleted ${fileUri} context.`);
+      } else {
+        console.error(`[!] Unable to delete ${fileUri} context.`);
+        return code;
+      }
+      return returnCode;
+    }, 'SUCESSS')
+  );
 };
 
 saveRemainingBatches();
