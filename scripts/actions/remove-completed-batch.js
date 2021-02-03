@@ -11,16 +11,10 @@ const DOCS_SITE_URL = 'https://docs-preview.newrelic.com';
  * @returns {Promise}
  */
 const saveRemainingBatches = async () => {
-  //checkArgs(4);
+  checkArgs(4);
 
-  // const batchUids = JSON.parse(process.argv[2]);
-  // const deserializedFileUris = process.argv[3].split(',');
-
-  const batchUids = [''];
-  const deserializedFileUris = [
-    'src/content/docs/accounts/accounts-billing/new-relic-one-pricing-users/new-relic-account-structure.mdx',
-    'src/content/docs/accounts/accounts-billing/general-account-settings/factors-affecting-access-features-data.mdx',
-  ];
+  const batchUids = JSON.parse(process.argv[2]);
+  const deserializedFileUris = process.argv[3].split(',');
 
   const code = await removePageContext(deserializedFileUris);
 
@@ -95,9 +89,5 @@ const removePageContext = async (fileUris) => {
   }
   return returnCode;
 };
-
-// removePageContext([
-//   'src/content/docs/accounts/accounts-billing/new-relic-one-pricing-users/new-relic-account-structure.mdx',
-// ]);
 
 saveRemainingBatches();
