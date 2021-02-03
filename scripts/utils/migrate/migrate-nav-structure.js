@@ -12,8 +12,12 @@ const hasOwnProperty = (obj, key) =>
   Object.prototype.hasOwnProperty.call(obj, key);
 
 const migrateNavStructure = (files, taxTermData) => {
-  const combinedInstructions = instructions.concat(
-    createReorderInstructions(taxTermData)
+  const combinedInstructions = createReorderInstructions(taxTermData).concat(
+    instructions
+  );
+  fs.writeFileSync(
+    './combinedInstructions.json',
+    JSON.stringify(combinedInstructions)
   );
   return combinedInstructions.reduce((files, instruction) => {
     switch (instruction.type) {
@@ -70,10 +74,14 @@ const reorder = (files, { path: pathSegments, index }) => {
 
   const nav = load(file);
   const title = last(pathSegments);
+  // or const remainingSegments = pathSegments.slice(1, -1)
   const [, ...remainingSegments] = pathSegments.slice(0, -1);
 
   const reorderChild = (parent) => {
     const child = parent.pages.find((child) => child.title === title);
+    if (!child) {
+      return parent;
+    }
     const pages = parent.pages.filter((node) => node !== child);
 
     return {
@@ -429,4 +437,4 @@ const write = (file, contents) => {
 const shouldRemoveNode = (node) =>
   !node.path && (!node.pages || node.pages.length === 0);
 
-module.exports = { migrateNavStructure, sortNavDirs };
+module.exports = { migrateNavStructure };

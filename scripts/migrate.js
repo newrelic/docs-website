@@ -15,7 +15,6 @@ const { write } = require('to-vfile');
 const createRawHTMLFiles = require('./utils/migrate/create-raw-html-files');
 const {
   migrateNavStructure,
-  sortNavDirs,
 } = require('./utils/migrate/migrate-nav-structure');
 const reporter = require('vfile-reporter');
 const rimraf = require('rimraf');
@@ -198,25 +197,26 @@ const run = async () => {
     const jpFiles = nth(fileGroups, -2);
 
     const sortedDocsFiles = last(fileGroups)
-      .sort((a, b) => {
-        const aTopic = last(a.data.topics);
-        const bTopic = last(b.data.topics);
-        const getStartedRegex = /^Get(ting)? started/i;
-        const troubleshootRegex = /^Troubleshoot(ing)?/i;
+      // TODO: remove once subdir sort is working
+      // .sort((a, b) => {
+      //   const aTopic = last(a.data.topics);
+      //   const bTopic = last(b.data.topics);
+      //   const getStartedRegex = /^Get(ting)? started/i;
+      //   const troubleshootRegex = /^Troubleshoot(ing)?/i;
 
-        switch (true) {
-          case aTopic === bTopic:
-            return 1;
-          case getStartedRegex.test(aTopic):
-          case troubleshootRegex.test(bTopic):
-            return -1;
-          case getStartedRegex.test(bTopic):
-          case troubleshootRegex.test(aTopic):
-            return 1;
-          default:
-            return 0;
-        }
-      })
+      //   switch (true) {
+      //     case aTopic === bTopic:
+      //       return 1;
+      //     case getStartedRegex.test(aTopic):
+      //     case troubleshootRegex.test(bTopic):
+      //       return -1;
+      //     case getStartedRegex.test(bTopic):
+      //     case troubleshootRegex.test(aTopic):
+      //       return 1;
+      //     default:
+      //       return 0;
+      //   }
+      // })
       .sort(
         (a, b) =>
           parseInt(a.data.doc.order || 0, 10) -
@@ -233,8 +233,6 @@ const run = async () => {
       createNavStructure(sortedDocsFiles),
       taxTermData
     );
-
-    // const navFilesSorted = sortNavDirs(navFiles, taxTermData);
 
     const jpNavFile = createNavJpStructure(navFiles, jpFiles);
 
