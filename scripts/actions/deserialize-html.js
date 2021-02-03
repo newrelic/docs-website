@@ -77,6 +77,8 @@ const processor = unified()
       span: component,
       div: component,
       pre: component,
+      var: component,
+      mark: component,
       h1: headingWithCustomId,
       h2: headingWithCustomId,
       h3: headingWithCustomId,

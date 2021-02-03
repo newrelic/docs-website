@@ -196,4 +196,24 @@ module.exports = {
         identifyComponent: false,
       }),
   },
+  var: {
+    deserialize: (h, node) =>
+      deserializeComponent(h, node, { type: 'mdxSpanElement' }),
+    serialize: (h, node) =>
+      serializeComponent(h, node, {
+        wrapChildren: false,
+        identifyComponent: false,
+        tagName: 'var',
+      }),
+  },
+  mark: {
+    deserialize: (h, node) =>
+      deserializeComponent(h, node, { type: 'mdxSpanElement' }),
+    serialize: (h, node) =>
+      serializeComponent(h, node, {
+        wrapChildren: false,
+        identifyComponent: false,
+        tagName: 'mark',
+      }),
+  },
 };
