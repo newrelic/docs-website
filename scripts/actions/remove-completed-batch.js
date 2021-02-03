@@ -14,7 +14,7 @@ const saveRemainingBatches = async () => {
   checkArgs(4);
 
   const batchUids = process.argv[2].split(',').filter(Boolean);
-  const deserializedFileUris = process.argv[3].split(',');
+  const deserializedFileUris = process.argv[3].split(',').filter(Boolean);
 
   const code = await removePageContext(deserializedFileUris);
 
@@ -79,11 +79,13 @@ const removePageContext = async (fileUris) => {
       const { response } = await resp.json();
       const { code } = response;
 
-      return { code, fileUri };
+      return { code: code, fileUri: fileUri };
     })
   );
 
-  return results.reduce(({ code, fileUri }) => {
+  console.log(results);
+
+  return results.reduce((returnCode, { code, fileUri }) => {
     if (code === 'SUCCESS') {
       console.log(`[*] Successfully deleted ${fileUri} context.`);
     } else {
