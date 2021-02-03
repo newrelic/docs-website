@@ -19,7 +19,7 @@ const saveRemainingBatches = async () => {
   const code = await removePageContext(deserializedFileUris);
 
   if (code !== 'SUCCESS') {
-    console.log(`[!] Unable to send all contexts`);
+    console.log(`[!] Unable to delete all contexts`);
   }
 
   await saveToTranslationQueue(
