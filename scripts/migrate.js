@@ -13,9 +13,7 @@ const runCodemod = require('./utils/codemod/run');
 const codemods = require('../codemods');
 const { write } = require('to-vfile');
 const createRawHTMLFiles = require('./utils/migrate/create-raw-html-files');
-const {
-  migrateNavStructure,
-} = require('./utils/migrate/migrate-nav-structure');
+const migrateNavStructure = require('./utils/migrate/migrate-nav-structure');
 const reporter = require('vfile-reporter');
 const rimraf = require('rimraf');
 const { last, nth } = require('lodash');
