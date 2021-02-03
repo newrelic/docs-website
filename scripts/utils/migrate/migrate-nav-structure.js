@@ -404,4 +404,4 @@ const write = (file, contents) => {
 const shouldRemoveNode = (node) =>
   !node.path && (!node.pages || node.pages.length === 0);
 
-module.exports = { migrateNavStructure };
+module.exports = migrateNavStructure;
