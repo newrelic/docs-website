@@ -83,8 +83,6 @@ const removePageContext = async (fileUris) => {
     })
   );
 
-  console.log(results);
-
   return results.reduce((returnCode, { code, fileUri }) => {
     if (code === 'SUCCESS') {
       console.log(`[*] Successfully deleted ${fileUri} context.`);
