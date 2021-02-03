@@ -13,12 +13,12 @@ const DOCS_SITE_URL = 'https://docs-preview.newrelic.com';
 const saveRemainingBatches = async () => {
   checkArgs(4);
 
-  const batchUids = process.argv[2].split('[]').filter(Boolean);
+  const batchUids = process.argv[2].split(',').filter(Boolean);
   const deserializedFileUris = process.argv[3].split(',');
 
   const code = await removePageContext(deserializedFileUris);
 
-  if (code !== 'SUCCESS') {
+  if (code.join('') !== 'SUCCESS') {
     console.log(`[!] Unable to delete all contexts`);
   }
 
@@ -60,8 +60,8 @@ const removePageContext = async (fileUris) => {
       };
     });
 
-  return await contextUids.reduce(
-    async (returnCode, { contextUid, fileUri }) => {
+  return Promise.all(
+    contextUids.reduce(async (returnCode, { contextUid, fileUri }) => {
       const url = new URL(
         `/context-api/v2/projects/${PROJECT_ID}/contexts/${contextUid}`,
         process.env.TRANSLATION_VENDOR_API_URL
@@ -86,8 +86,7 @@ const removePageContext = async (fileUris) => {
         return code;
       }
       return returnCode;
-    },
-    'SUCCESS'
+    }, 'SUCCESS')
   );
 };
 
