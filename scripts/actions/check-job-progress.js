@@ -74,9 +74,7 @@ const main = async () => {
       .filter((batch) => batch && !batch.done)
       .map((batch) => batch.batchUid);
 
-    console.log(
-      `::set-output name=batchUids::${JSON.stringify(remainingBatches)}`
-    );
+    console.log(`::set-output name=batchUids::${remainingBatches.join(' ')}`);
 
     const deserializedFileUris = uniq(
       batchesToDeserialize.reduce(

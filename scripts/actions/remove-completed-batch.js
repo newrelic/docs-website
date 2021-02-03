@@ -13,7 +13,7 @@ const DOCS_SITE_URL = 'https://docs-preview.newrelic.com';
 const saveRemainingBatches = async () => {
   checkArgs(4);
 
-  const batchUids = JSON.parse(process.argv[2]);
+  const batchUids = process.argv[2].split(' ');
   const deserializedFileUris = process.argv[3].split(',');
 
   const code = await removePageContext(deserializedFileUris);
