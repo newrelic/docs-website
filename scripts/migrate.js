@@ -32,13 +32,19 @@ const fetchJpDocs = require('./utils/migrate/fetch-jp-docs');
 const createNavJpStructure = require('./utils/migrate/create-nav-jp-structure');
 const writeExternalRedirects = require('./utils/migrate/external-redirects');
 const { appendDummyRedirects } = require('./utils/migrate/redirects');
+const unified = require('unified');
+const rehypeParse = require('rehype-parse');
+const toString = require('hast-util-to-string');
+
+const processor = unified().use(rehypeParse);
 
 const all = (list, fn) => Promise.all(list.map(fn));
 
-const isDummyDoc = (doc) =>
-  Boolean(
-    doc.body.trim().match(/^(<[a-z].*>)?(dummy\sdoc|redirect(s|ed|ing)?)\s/i)
-  );
+const isDummyDoc = (doc) => {
+  const content = toString(processor.parse(doc.body)).trim();
+
+  return Boolean(content.match(/^(dummy|redirect(s|ed|ing)?)\s/i));
+};
 
 const runTask = async ({
   label,
