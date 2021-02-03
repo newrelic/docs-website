@@ -11,14 +11,22 @@ const DOCS_SITE_URL = 'https://docs-preview.newrelic.com';
  * @returns {Promise}
  */
 const saveRemainingBatches = async () => {
-  checkArgs(4);
+  //checkArgs(4);
 
-  const batchUids = JSON.parse(process.argv[2]);
-  const deserializedFileUris = process.argv[3].split(',');
+  // const batchUids = JSON.parse(process.argv[2]);
+  // const deserializedFileUris = process.argv[3].split(',');
 
-  console.log(deserializedFileUris, typeof deserializedFileUris);
+  const batchUids = [''];
+  const deserializedFileUris = [
+    'src/content/docs/accounts/accounts-billing/new-relic-one-pricing-users/new-relic-account-structure.mdx',
+    'src/content/docs/accounts/accounts-billing/general-account-settings/factors-affecting-access-features-data.mdx',
+  ];
 
-  removePageContext(deserializedFileUris);
+  const code = await removePageContext(deserializedFileUris);
+
+  if (code !== 'SUCCESS') {
+    console.log(`[!] Unable to send all contexts`);
+  }
 
   await saveToTranslationQueue(
     { type: 'being_translated' },
@@ -58,6 +66,8 @@ const removePageContext = async (fileUris) => {
       };
     });
 
+  let returnCode = 'SUCCESS';
+
   for (const { contextUid, fileUri } of contextUids) {
     const url = new URL(
       `/context-api/v2/projects/${PROJECT_ID}/contexts/${contextUid}`,
@@ -80,8 +90,10 @@ const removePageContext = async (fileUris) => {
       console.log(`[*] Successfully deleted ${fileUri} context.`);
     } else {
       console.error(`[!] Unable to delete ${fileUri} context.`);
+      returnCode = code;
     }
   }
+  return returnCode;
 };
 
 // removePageContext([
