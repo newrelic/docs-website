@@ -16,6 +16,8 @@ const saveRemainingBatches = async () => {
   const batchUids = JSON.parse(process.argv[2]);
   const deserializedFileUris = process.argv[3].split(',');
 
+  console.log(deserializedFileUris, typeof deserializedFileUris);
+
   await removePageContext(deserializedFileUris);
 
   await saveToTranslationQueue(
@@ -40,6 +42,8 @@ const removePageContext = async (fileUris) => {
     const contextUrl = new URL(slug, DOCS_SITE_URL);
     return contextUrl.href;
   });
+
+  console.log(fileNames);
 
   const { items } = await vendorRequest({
     method: 'GET',
@@ -81,5 +85,9 @@ const removePageContext = async (fileUris) => {
     }
   }
 };
+
+// removePageContext([
+//   'src/content/docs/accounts/accounts-billing/new-relic-one-pricing-users/new-relic-account-structure.mdx',
+// ]);
 
 saveRemainingBatches();
