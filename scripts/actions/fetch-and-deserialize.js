@@ -21,6 +21,10 @@ const fetchTranslatedFilesZip = async (fileUris, locale, accessToken) => {
 
   const localeIdStr = `localeIds[]=${locale}`;
 
+  console.log(
+    `https://api.smartling.com/files-api/v2/projects/${projectId}/files/zip?${localeIdStr}${fileUriStr}`
+  );
+
   return fetch(
     `https://api.smartling.com/files-api/v2/projects/${projectId}/files/zip?${localeIdStr}${fileUriStr}`,
     {
@@ -49,7 +53,7 @@ const fetchAndDeserialize = (accessToken) => async ({ locale, fileUris }) => {
     };
   });
 
-  const deserializedMdx = Promise.all(
+  const deserializedMdx = await Promise.all(
     translatedHtml.map(async ({ path, html }) => {
       console.log(`[*] Deserializing ${path}`);
       return {
