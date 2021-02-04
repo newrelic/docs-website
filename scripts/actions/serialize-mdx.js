@@ -1,5 +1,5 @@
 const handlers = require('./utils/handlers');
-const indentedCodeBlock = require('../../codemods/indentedCodeBlock');
+const fencedCodeBlock = require('../../codemods/fencedCodeBlock');
 const unified = require('unified');
 const toMDAST = require('remark-parse');
 const frontmatter = require('remark-frontmatter');
@@ -27,7 +27,7 @@ const processor = unified()
   .use(remarkMdx)
   .use(remarkMdxjs)
   .use(frontmatter, ['yaml'])
-  .use(indentedCodeBlock)
+  .use(fencedCodeBlock)
   .use(customHeadingIds)
   .use(remark2rehype, {
     handlers: {
