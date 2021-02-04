@@ -2,8 +2,9 @@ const fs = require('fs');
 const path = require('path');
 
 const siteUrl = 'https://docs.newrelic.com';
-
 const dataDictionaryPath = `${__dirname}/src/data-dictionary`;
+
+const quote = (str) => `"${str}"`;
 
 const autoLinkHeaders = {
   resolve: 'gatsby-remark-autolink-headers',
@@ -63,6 +64,37 @@ module.exports = {
             'csharp',
             'python',
           ],
+        },
+        relatedResources: {
+          swiftype: {
+            resultsPath: `${__dirname}/src/data/swiftype-resources.json`,
+            engineKey: 'Ad9HfGjDw4GRkcmJjUut',
+            refetch: Boolean(process.env.BUILD_RELATED_CONTENT),
+            filter: ({ slug }) =>
+              slug ===
+              '/docs/integrations/kubernetes-integration/understand-use-data/kubernetes-cluster-explorer',
+            getSlug: ({ node }) => node.fields.slug,
+            getParams: ({ node }) => {
+              const { tags, title } = node.frontmatter;
+
+              return {
+                q: tags ? tags.map(quote).join(' OR ') : title,
+                search_fields: {
+                  page: ['tags^10', 'body^5', 'title^1.5', '*'],
+                },
+                filters: {
+                  page: {
+                    type: ['!blog', '!forum'],
+                    document_type: [
+                      '!views_page_menu',
+                      '!term_page_api_menu',
+                      '!term_page_landing_page',
+                    ],
+                  },
+                },
+              };
+            },
+          },
         },
         // This option is set to disallow to prevent crawling of the site during preview
         // mode
