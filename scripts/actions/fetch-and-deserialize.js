@@ -21,10 +21,6 @@ const fetchTranslatedFilesZip = async (fileUris, locale, accessToken) => {
 
   const localeIdStr = `localeIds[]=${locale}`;
 
-  console.log(
-    `https://api.smartling.com/files-api/v2/projects/${projectId}/files/zip?${localeIdStr}${fileUriStr}`
-  );
-
   return fetch(
     `https://api.smartling.com/files-api/v2/projects/${projectId}/files/zip?${localeIdStr}${fileUriStr}`,
     {
