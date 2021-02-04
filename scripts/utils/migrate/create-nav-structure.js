@@ -21,6 +21,12 @@ const createNavStructure = (files) => {
       const [title, ...subtopics] = topics;
       const idx = nav.findIndex((node) => node.title === title);
 
+      if (idx === -1 && topics[0] === 'Release notes') {
+        return [...nav, { title, path: `/docs/${slugify(title)}` }];
+      } else if (topics[0] === 'Release notes') {
+        return nav;
+      }
+
       return idx === -1
         ? [
             ...nav,
