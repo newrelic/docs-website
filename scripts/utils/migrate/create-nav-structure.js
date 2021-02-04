@@ -14,18 +14,12 @@ const createNavStructure = (files) => {
     .reduce((nav, file) => {
       const { topics } = file.data;
 
-      if (topics.length === 0) {
+      if (topics.length === 0 || topics[0] === 'Release notes') {
         return nav;
       }
 
       const [title, ...subtopics] = topics;
       const idx = nav.findIndex((node) => node.title === title);
-
-      if (idx === -1 && topics[0] === 'Release notes') {
-        return [...nav, { title, path: `/docs/${slugify(title)}` }];
-      } else if (topics[0] === 'Release notes') {
-        return nav;
-      }
 
       return idx === -1
         ? [
