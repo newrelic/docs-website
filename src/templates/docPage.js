@@ -9,6 +9,7 @@ import TableOfContents from '../components/TableOfContents';
 import {
   ContributingGuidelines,
   Layout,
+  RelatedResources,
   SimpleFeedback,
   SEO,
   useTranslation,
@@ -25,6 +26,7 @@ const BasicDoc = ({ data, location }) => {
     frontmatter,
     body,
     fields: { fileRelativePath, slug },
+    relatedResources,
   } = mdx;
 
   const moreHelpExists = mdxAST.children
@@ -76,6 +78,7 @@ const BasicDoc = ({ data, location }) => {
             <ContributingGuidelines fileRelativePath={fileRelativePath} />
           )}
           <TableOfContents page={mdx} />
+          <RelatedResources resources={relatedResources} />
           <SimpleFeedback
             title={frontmatter.title}
             slug={slug}
@@ -104,6 +107,10 @@ export const pageQuery = graphql`
       fields {
         fileRelativePath
         slug
+      }
+      relatedResources(limit: 5) {
+        title
+        url
       }
       ...TableOfContents_page
     }
