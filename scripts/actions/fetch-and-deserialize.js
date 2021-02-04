@@ -1,9 +1,8 @@
 const AdmZip = require('adm-zip');
 const vfile = require('vfile');
-const { write } = require('to-vfile');
+const { writeSync } = require('to-vfile');
 
 const fetch = require('node-fetch');
-const path = require('path');
 
 const deserializedHtml = require('./deserialize-html');
 const createDirectories = require('../utils/migrate/create-directories');
@@ -59,7 +58,7 @@ const fetchAndDeserialize = (accessToken) => async ({ locale, fileUris }) => {
     })
   );
 
-  const files = (await deserializedMdx).map(
+  const files = deserializedMdx.map(
     ({ path, mdx }) =>
       vfile({
         contents: mdx,
@@ -71,7 +70,7 @@ const fetchAndDeserialize = (accessToken) => async ({ locale, fileUris }) => {
 
   createDirectories(files);
 
-  files.forEach((file) => write(file, 'utf-8'));
+  files.forEach((file) => writeSync(file, 'utf-8'));
 };
 
 fetchAndDeserialize();
