@@ -131,12 +131,13 @@ exports.createPages = async ({ actions, graphql, reporter }, pluginOptions) => {
       },
     });
 
-    console.log(`Setup taxonomy redirects for ${slug}`);
-    Object.entries(taxonomyRedirects)
-      .filter(([to]) => to === slug)
-      .map(([_to, from]) => from)
-      .forEach((from) => {
-        console.log(`Redirect from ${from}`);
+    const redirectsFrom = taxonomyRedirects.find(({ url }) => url === slug);
+
+    if (redirectsFrom) {
+      console.log(`Setup taxonomy redirects for ${slug}`);
+
+      redirectsFrom.paths.forEach((from) => {
+        console.log(`\tRedirect from ${from}`);
         createRedirect({
           fromPath: from,
           toPath: slug,
@@ -144,6 +145,7 @@ exports.createPages = async ({ actions, graphql, reporter }, pluginOptions) => {
           redirectInBrowser: true,
         });
       });
+    }
 
     locales.forEach(({ localizedPath }) => {
       const localizedSlug = path.join(`/${localizedPath}`, slug);
