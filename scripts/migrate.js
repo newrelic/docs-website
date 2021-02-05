@@ -32,6 +32,7 @@ const { fetchAllRedirects } = require('./utils/migrate/fetch-redirects');
 const fetchJpDocs = require('./utils/migrate/fetch-jp-docs');
 const createNavJpStructure = require('./utils/migrate/create-nav-jp-structure');
 const writeExternalRedirects = require('./utils/migrate/external-redirects');
+const writeTaxonomyRedirects = require('./utils/migrate/taxonomy-redirects');
 const { appendDummyRedirects } = require('./utils/migrate/redirects');
 const unified = require('unified');
 const rehypeParse = require('rehype-parse');
@@ -119,7 +120,6 @@ const run = async () => {
     );
 
     logger.info('Fetching redirects');
-
     const redirects = await fetchAllRedirects();
 
     logger.info('Migrating docs');
@@ -220,30 +220,22 @@ const run = async () => {
     const sortedDocsFiles = last(fileGroups)
       .sort(
         (a, b) =>
+          parseInt(a.data.doc.order_topic_2 || 0, 10) -
+          parseInt(b.data.doc.order_topic_2 || 0, 10)
+      )
+      .sort(
+        (a, b) =>
+          parseInt(a.data.doc.order_topic_3 || 0, 10) -
+          parseInt(b.data.doc.order_topic_3 || 0, 10)
+      )
+      .sort(
+        (a, b) =>
           parseInt(a.data.doc.order || 0, 10) -
           parseInt(b.data.doc.order || 0, 10)
-      )
-      .sort((a, b) => {
-        const aTopic = last(a.data.topics);
-        const bTopic = last(b.data.topics);
-        const getStartedRegex = /^Get(ting)? started/i;
-        const troubleshootRegex = /^Troubleshoot(ing)?/i;
-
-        switch (true) {
-          case aTopic === bTopic:
-            return 1;
-          case getStartedRegex.test(aTopic):
-          case troubleshootRegex.test(bTopic):
-            return -1;
-          case getStartedRegex.test(bTopic):
-          case troubleshootRegex.test(aTopic):
-            return 1;
-          default:
-            return 0;
-        }
-      });
+      );
 
     logger.info('Creating nav');
+
     const navFiles = migrateNavStructure(createNavStructure(sortedDocsFiles));
 
     const jpNavFile = createNavJpStructure(navFiles, jpFiles);
@@ -257,6 +249,9 @@ const run = async () => {
           .map((file) => file.data.doc)
       )
     );
+
+    logger.info('Writing taxonomy redirects');
+    await writeTaxonomyRedirects(redirects);
 
     logger.info('Saving changes to files');
     createDirectories(allDocsFiles);

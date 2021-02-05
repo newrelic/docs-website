@@ -14,7 +14,7 @@ const createNavStructure = (files) => {
     .reduce((nav, file) => {
       const { topics } = file.data;
 
-      if (topics.length === 0) {
+      if (topics.length === 0 || topics[0] === 'Release notes') {
         return nav;
       }
 

@@ -46,6 +46,9 @@ const reorder = (files, { path: pathSegments, index }) => {
 
   const reorderChild = (parent) => {
     const child = parent.pages.find((child) => child.title === title);
+    if (!child) {
+      return parent;
+    }
     const pages = parent.pages.filter((node) => node !== child);
 
     return {
