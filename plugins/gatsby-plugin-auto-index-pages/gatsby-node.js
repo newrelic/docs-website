@@ -134,10 +134,10 @@ exports.createPages = async ({ actions, graphql, reporter }, pluginOptions) => {
     const redirectsFrom = taxonomyRedirects.find(({ url }) => url === slug);
 
     if (redirectsFrom) {
-      console.log(`Setup taxonomy redirects for ${slug}`);
+      reporter.verbose(`Setup taxonomy redirects for ${slug}`);
 
       redirectsFrom.paths.forEach((from) => {
-        console.log(`\tRedirect from ${from}`);
+        reporter.verbose(`\tRedirect from ${from}`);
         createRedirect({
           fromPath: from,
           toPath: slug,
