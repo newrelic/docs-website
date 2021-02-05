@@ -196,30 +196,22 @@ const run = async () => {
     const sortedDocsFiles = last(fileGroups)
       .sort(
         (a, b) =>
+          parseInt(a.data.doc.order_topic_2 || 0, 10) -
+          parseInt(b.data.doc.order_topic_2 || 0, 10)
+      )
+      .sort(
+        (a, b) =>
+          parseInt(a.data.doc.order_topic_3 || 0, 10) -
+          parseInt(b.data.doc.order_topic_3 || 0, 10)
+      )
+      .sort(
+        (a, b) =>
           parseInt(a.data.doc.order || 0, 10) -
           parseInt(b.data.doc.order || 0, 10)
-      )
-      .sort((a, b) => {
-        const aTopic = last(a.data.topics);
-        const bTopic = last(b.data.topics);
-        const getStartedRegex = /^Get(ting)? started/i;
-        const troubleshootRegex = /^Troubleshoot(ing)?/i;
-
-        switch (true) {
-          case aTopic === bTopic:
-            return 1;
-          case getStartedRegex.test(aTopic):
-          case troubleshootRegex.test(bTopic):
-            return -1;
-          case getStartedRegex.test(bTopic):
-          case troubleshootRegex.test(aTopic):
-            return 1;
-          default:
-            return 0;
-        }
-      });
+      );
 
     logger.info('Creating nav');
+
     const navFiles = migrateNavStructure(createNavStructure(sortedDocsFiles));
 
     const jpNavFile = createNavJpStructure(navFiles, jpFiles);
