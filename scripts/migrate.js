@@ -31,6 +31,7 @@ const { fetchAllRedirects } = require('./utils/migrate/fetch-redirects');
 const fetchJpDocs = require('./utils/migrate/fetch-jp-docs');
 const createNavJpStructure = require('./utils/migrate/create-nav-jp-structure');
 const writeExternalRedirects = require('./utils/migrate/external-redirects');
+const writeTaxonomyRedirects = require('./utils/migrate/taxonomy-redirects');
 const { appendDummyRedirects } = require('./utils/migrate/redirects');
 
 const all = (list, fn) => Promise.all(list.map(fn));
@@ -95,7 +96,6 @@ const run = async () => {
     );
 
     logger.info('Fetching redirects');
-
     const redirects = await fetchAllRedirects();
 
     logger.info('Migrating docs');
@@ -225,6 +225,9 @@ const run = async () => {
           .map((file) => file.data.doc)
       )
     );
+
+    logger.info('Writing taxonomy redirects');
+    await writeTaxonomyRedirects(redirects);
 
     logger.info('Saving changes to files');
     createDirectories(allDocsFiles);
