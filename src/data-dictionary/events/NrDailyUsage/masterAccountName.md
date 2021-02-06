@@ -3,6 +3,8 @@ name: masterAccountName
 type: attribute
 events:
   - NrDailyUsage
+  - NrConsumption
+  - NrUsage
 ---
 
 Name of the master account that is either responsible for stored events, or that is the parent of the consuming account.
