@@ -40,7 +40,7 @@ If you build, deploy, or maintain apps and critical workloads on AWS, you can no
 
 New Relic One now has a UI dedicated to providing full APM functionality for your OpenTelemetry data. Send your OpenTelemetry data to New Relic using one of the [OpenTelemetry exporters](https://docs.newrelic.com/docs/integrations/open-source-telemetry-integrations/open-source-telemetry-integration-list/new-relics-opentelemetry-integration) and quickly discover and analyze your data to optimize the performance of your applications and services using one of seven key pages. [Learn more.](https://blog.newrelic.com/product-news/opentelemetry-user-experience/)
 
-![groups_users.png](./images/groups_users.png "groups_users.png")
+![What's new? OpenTelemetry UI](./images/new-relic-whats-new-OpenTelemetry.png "new-relic-whats-new-OpenTelemetry.png")
 
 New Relic OpenTelemetry UI
 
