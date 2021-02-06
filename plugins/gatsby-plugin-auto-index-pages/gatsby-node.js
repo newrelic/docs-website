@@ -3,10 +3,11 @@ const fromList = require('./utils/unist-fs-util-from-list');
 const visit = require('unist-util-visit');
 const generateHTML = require('./utils/generate-html');
 const { sentenceCase } = require('./utils/string');
+const taxonomyRedirects = require('../../src/data/taxonomy-redirects.json');
 
 exports.createPages = async ({ actions, graphql, reporter }, pluginOptions) => {
   const { skippedDirectories } = pluginOptions;
-  const { createPage } = actions;
+  const { createPage, createRedirect } = actions;
 
   const { data, errors } = await graphql(`
     query MyQuery {
@@ -129,6 +130,22 @@ exports.createPages = async ({ actions, graphql, reporter }, pluginOptions) => {
         fileRelativePath: null,
       },
     });
+
+    const redirectsFrom = taxonomyRedirects.find(({ url }) => url === slug);
+
+    if (redirectsFrom) {
+      reporter.verbose(`Setup taxonomy redirects for ${slug}`);
+
+      redirectsFrom.paths.forEach((from) => {
+        reporter.verbose(`\tRedirect from ${from}`);
+        createRedirect({
+          fromPath: from,
+          toPath: slug,
+          isPermanent: true,
+          redirectInBrowser: true,
+        });
+      });
+    }
 
     locales.forEach(({ localizedPath }) => {
       const localizedSlug = path.join(`/${localizedPath}`, slug);
