@@ -44,6 +44,7 @@ const TableOfContentsPage = ({ data, pageContext, location }) => {
           align-items: center;
           transition: 0.2s ease-out;
           margin-bottom: 2rem;
+          text-decoration: none;
 
           &:hover {
             color: var(--primary-text-hover-color);
