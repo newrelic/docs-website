@@ -22,6 +22,7 @@ const SubNavigation = ({ nav }) => {
           padding: 0.5rem 0;
           margin-bottom: 0.5rem;
           transition: 0.2s ease-out;
+          text-decoration: none;
 
           &:hover {
             color: var(--primary-text-hover-color);
