@@ -31,15 +31,6 @@ const getTaxonomyPath = async (uri) => {
   }
 };
 
-/**
- * Turns object keyed by url into an array of redirect objects with url and
- * paths properties
- * @param {{[url: string]: paths: string[]}} taxonomyRedirects
- * @returns {{url: string: paths: string[]}[]}
- */
-const updateRedirectPaths = (taxonomyRedirects) =>
-  Object.entries(taxonomyRedirects).map(([url, paths]) => ({ url, paths }));
-
 const fetchTaxonomyRedirects = async (redirects) => {
   const taxonomy = await Promise.all(
     Object.entries(redirects)
@@ -66,10 +57,16 @@ const fetchTaxonomyRedirects = async (redirects) => {
  * related redirects to a JSON file.
  * @param {{[url: string]: string[]}} taxonomyRedirects
  */
-const writeTaxonomyRedirects = async (taxonomyRedirects) => {
+const writeTaxonomyRedirects = async (taxonomyRedirects, files) => {
+  const pathnames = files.map((file) => file.data.pathname);
+
+  const filteredRedirects = Object.entries(taxonomyRedirects)
+    .filter(([url]) => !pathnames.includes(url))
+    .map(([url, paths]) => ({ url, paths }));
+
   fs.writeFileSync(
     DATA_FILE,
-    JSON.stringify(updateRedirectPaths(taxonomyRedirects), null, 2),
+    JSON.stringify(filteredRedirects, null, 2),
     'utf-8'
   );
 };
