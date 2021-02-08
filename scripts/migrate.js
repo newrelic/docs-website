@@ -32,12 +32,16 @@ const { fetchAllRedirects } = require('./utils/migrate/fetch-redirects');
 const fetchJpDocs = require('./utils/migrate/fetch-jp-docs');
 const createNavJpStructure = require('./utils/migrate/create-nav-jp-structure');
 const writeExternalRedirects = require('./utils/migrate/external-redirects');
-const writeTaxonomyRedirects = require('./utils/migrate/taxonomy-redirects');
+const {
+  fetchTaxonomyRedirects,
+  writeTaxonomyRedirects,
+} = require('./utils/migrate/taxonomy-redirects');
 const { appendDummyRedirects } = require('./utils/migrate/redirects');
 const unified = require('unified');
 const rehypeParse = require('rehype-parse');
 const toString = require('hast-util-to-string');
 const remove = require('unist-util-remove');
+const { mergeWith } = require('lodash');
 
 const processor = unified().use(rehypeParse);
 
@@ -121,6 +125,18 @@ const run = async () => {
 
     logger.info('Fetching redirects');
     const redirects = await fetchAllRedirects();
+    const taxonomyRedirects = await fetchTaxonomyRedirects(redirects);
+
+    const mergedRedirects = mergeWith(
+      {},
+      redirects,
+      taxonomyRedirects,
+      (value, source) => {
+        if (Array.isArray(value)) {
+          return value.concat(source);
+        }
+      }
+    );
 
     logger.info('Migrating docs');
     const docs = await fetchDocs();
@@ -196,7 +212,7 @@ const run = async () => {
       {
         label: 'Docs',
         fetch: () => docs,
-        redirects,
+        redirects: mergedRedirects,
         process: async (file) => {
           convertFile(file);
 
@@ -251,7 +267,7 @@ const run = async () => {
     );
 
     logger.info('Writing taxonomy redirects');
-    await writeTaxonomyRedirects(redirects);
+    await writeTaxonomyRedirects(taxonomyRedirects);
 
     logger.info('Saving changes to files');
     createDirectories(allDocsFiles);
