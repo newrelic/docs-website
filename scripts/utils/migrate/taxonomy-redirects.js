@@ -47,7 +47,18 @@ const fetchTaxonomyRedirects = async (redirects) => {
       .map(async ([url, paths]) => [await getTaxonomyPath(url), paths])
   );
 
-  return Object.fromEntries(taxonomy.filter(([url]) => Boolean(url)));
+  return taxonomy.reduce((memo, [url, paths]) => {
+    const filteredPaths = paths.filter(
+      (path) =>
+        path !== url &&
+        !path.startsWith('/node') &&
+        !path.startsWith('/taxonomy')
+    );
+
+    return Boolean(url) && filteredPaths.length > 0
+      ? { ...memo, [url]: filteredPaths }
+      : memo;
+  }, {});
 };
 
 /**

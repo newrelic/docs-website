@@ -127,15 +127,14 @@ const run = async () => {
     const redirects = await fetchAllRedirects();
     const taxonomyRedirects = await fetchTaxonomyRedirects(redirects);
 
-    const mergedRedirects = mergeWith(
-      {},
-      redirects,
-      taxonomyRedirects,
-      (value, source) => {
-        if (Array.isArray(value)) {
-          return value.concat(source);
-        }
-      }
+    const mergedRedirects = Object.fromEntries(
+      Object.entries(
+        mergeWith({}, redirects, taxonomyRedirects, (value, source) => {
+          if (Array.isArray(value)) {
+            return value.concat(source);
+          }
+        })
+      ).filter(([url]) => !url.startsWith('/taxonomy'))
     );
 
     logger.info('Migrating docs');
