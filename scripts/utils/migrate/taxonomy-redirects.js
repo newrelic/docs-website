@@ -23,64 +23,52 @@ const getTaxonomyPath = async (uri) => {
     const res = await fetch(url, { headers });
     const json = await res.json();
 
-    return get(json, 'terms[0].term.urlPath', uri);
+    return get(json, 'terms[0].term.urlPath');
   } catch (error) {
     console.log(`Taxonomy ID ${id} does not exist, skipping`);
 
-    return uri;
+    return null;
   }
 };
 
-/**
- * Updates redirects from a taxonomy (one of the paths) to another taxonomy.
- * @param {{uri: string, url: string: paths: string[]}[]} redirects
- * @returns {{url: string: paths: string[]}[]}
- */
-const updateRedirectPaths = (redirects) =>
-  redirects.map(({ url, paths }) => {
-    // remove orphaned taxonomy paths and get non-Drupal locations
-    const updatedPaths = paths.reduce((acc, path) => {
-      switch (true) {
-        case path.startsWith('/node'):
-          return acc;
-        case !path.startsWith('/taxonomy'):
-          return [...acc, path];
-        default:
-          const page = redirects.find(({ uri }) => uri === path);
-          return page && page.url ? [...acc, page.url] : acc;
-      }
-    }, []);
-
-    return { url, paths: updatedPaths };
-  });
-
-/**
- * Gathers information about each taxonomy term and saves the taxonomy-
- * related redirects to a JSON file.
- * @param {{[url: string]: string[]}} redirects
- */
-module.exports = async (redirects) => {
-  const rawTaxonomyData = Object.entries(redirects)
-    .filter(([uri]) => uri.startsWith('/taxonomy'))
-    .map(async ([uri, paths]) => ({
-      uri,
-      paths,
-      url: await getTaxonomyPath(uri),
-    }));
-
-  // Get redirects (by index page path, not Drupal ID)
-  const taxonomyDetails = await Promise.all(rawTaxonomyData);
-
-  // NOTE: we are filtering out redirects that no longer exist
-  const validTaxonomyRedirects = taxonomyDetails.filter(
-    ({ uri, url }) => uri !== url
+const fetchTaxonomyRedirects = async (redirects) => {
+  const taxonomy = await Promise.all(
+    Object.entries(redirects)
+      .filter(([uri]) => uri.startsWith('/taxonomy'))
+      .map(async ([url, paths]) => [await getTaxonomyPath(url), paths])
   );
 
-  const taxonomyRedirects = updateRedirectPaths(validTaxonomyRedirects);
+  return taxonomy.reduce((memo, [url, paths]) => {
+    const filteredPaths = paths.filter(
+      (path) =>
+        path !== url &&
+        !path.startsWith('/node') &&
+        !path.startsWith('/taxonomy')
+    );
+
+    return Boolean(url) && filteredPaths.length > 0
+      ? { ...memo, [url]: filteredPaths }
+      : memo;
+  }, {});
+};
+
+/**
+ * Accepts fetched taxonomy redirects, turns them into an array, then saves
+ * related redirects to a JSON file.
+ * @param {{[url: string]: string[]}} taxonomyRedirects
+ */
+const writeTaxonomyRedirects = async (taxonomyRedirects, files) => {
+  const pathnames = files.map((file) => file.data.pathname);
+
+  const filteredRedirects = Object.entries(taxonomyRedirects)
+    .filter(([url]) => !pathnames.includes(url))
+    .map(([url, paths]) => ({ url, paths }));
 
   fs.writeFileSync(
     DATA_FILE,
-    JSON.stringify(taxonomyRedirects, null, 2),
+    JSON.stringify(filteredRedirects, null, 2),
     'utf-8'
   );
 };
+
+module.exports = { fetchTaxonomyRedirects, writeTaxonomyRedirects };
