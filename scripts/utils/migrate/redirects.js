@@ -1,11 +1,19 @@
+const path = require('path');
 const { get, uniq } = require('lodash');
+const { TYPES } = require('../constants');
 
 const getRedirectsForDoc = (doc, redirects) => {
   const url = new URL(doc.docUrl);
 
   return uniq([
     ...get(redirects, `/node/${doc.docId}`, []),
-    ...get(redirects, url.pathname, []),
+    ...get(
+      redirects,
+      doc.type === TYPES.LANDING_PAGE
+        ? path.dirname(url.pathname)
+        : url.pathname,
+      []
+    ),
   ]);
 };
 
