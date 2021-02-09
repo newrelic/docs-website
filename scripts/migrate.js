@@ -25,21 +25,49 @@ const {
   DICTIONARY_DIR,
   WHATS_NEW_DIR,
   JP_DIR,
+  TYPES,
 } = require('./utils/constants');
 const copyManualEdits = require('./utils/migrate/copy-manual-edits');
 const { fetchAllRedirects } = require('./utils/migrate/fetch-redirects');
 const fetchJpDocs = require('./utils/migrate/fetch-jp-docs');
 const createNavJpStructure = require('./utils/migrate/create-nav-jp-structure');
 const writeExternalRedirects = require('./utils/migrate/external-redirects');
-const writeTaxonomyRedirects = require('./utils/migrate/taxonomy-redirects');
+const {
+  fetchTaxonomyRedirects,
+  writeTaxonomyRedirects,
+} = require('./utils/migrate/taxonomy-redirects');
 const { appendDummyRedirects } = require('./utils/migrate/redirects');
+const unified = require('unified');
+const rehypeParse = require('rehype-parse');
+const toString = require('hast-util-to-string');
+const remove = require('unist-util-remove');
+const { mergeWith } = require('lodash');
+
+const processor = unified().use(rehypeParse);
 
 const all = (list, fn) => Promise.all(list.map(fn));
 
-const isDummyDoc = (doc) =>
-  Boolean(
-    doc.body.trim().match(/^(<[a-z].*>)?(dummy\sdoc|redirect(s|ed|ing)?)\s/i)
+const notDummyDocs = ['/docs/new-relic-titanium'];
+
+const isDummyDoc = (doc) => {
+  if (notDummyDocs.some((pathname) => doc.docUrl.includes(pathname))) {
+    return false;
+  }
+
+  const tree = processor.parse(doc.body);
+
+  remove(
+    tree,
+    (node) => node.tagName === 'h2' && toString(node) === 'For more help'
   );
+
+  const content = toString(tree).trim();
+
+  return (
+    Boolean(content.match(/^(dummy|redirect(s|ed|ing)?)\s/i)) ||
+    (doc.type === TYPES.BASIC_PAGE && content.length < 100)
+  );
+};
 
 const runTask = async ({
   label,
@@ -97,6 +125,17 @@ const run = async () => {
 
     logger.info('Fetching redirects');
     const redirects = await fetchAllRedirects();
+    const taxonomyRedirects = await fetchTaxonomyRedirects(redirects);
+
+    const mergedRedirects = Object.fromEntries(
+      Object.entries(
+        mergeWith({}, redirects, taxonomyRedirects, (value, source) => {
+          if (Array.isArray(value)) {
+            return value.concat(source);
+          }
+        })
+      ).filter(([url]) => !url.startsWith('/taxonomy'))
+    );
 
     logger.info('Migrating docs');
     const docs = await fetchDocs();
@@ -172,7 +211,7 @@ const run = async () => {
       {
         label: 'Docs',
         fetch: () => docs,
-        redirects,
+        redirects: mergedRedirects,
         process: async (file) => {
           convertFile(file);
 
@@ -227,7 +266,7 @@ const run = async () => {
     );
 
     logger.info('Writing taxonomy redirects');
-    await writeTaxonomyRedirects(redirects);
+    await writeTaxonomyRedirects(taxonomyRedirects, allDocsFiles);
 
     logger.info('Saving changes to files');
     createDirectories(allDocsFiles);
