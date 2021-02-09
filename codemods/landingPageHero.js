@@ -16,12 +16,11 @@ const landingPageHero = () => (tree, file) => {
   }
 
   visit(tree, 'root', (root) => {
-    const frontmatterIdx = 0; // frontmatter always comes first
     const gridIdx = root.children.findIndex(
       (node) => node.name === 'LandingPageTileGrid'
     );
 
-    const heroContent = root.children.slice(frontmatterIdx + 1, gridIdx);
+    const heroContent = root.children.slice(1, gridIdx);
     const imageIdx = heroContent.findIndex(containsImage);
 
     const hero = mdxBlockElement(
@@ -35,7 +34,7 @@ const landingPageHero = () => (tree, file) => {
           ]
     );
 
-    root.children.splice(frontmatterIdx + 1, heroContent.length, hero);
+    root.children.splice(1, heroContent.length, hero);
 
     return visit.EXIT;
   });
