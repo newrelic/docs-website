@@ -1,3 +1,4 @@
+/* eslint-disable react/prop-types */
 import React from 'react';
 import PropTypes from 'prop-types';
 import {
@@ -13,6 +14,7 @@ const defaultComponents = {
   ExternalLink: (props) => (
     <ExternalLink {...props} onClick={(e) => e.stopPropagation()} />
   ),
+  HeroContent: ({ children }) => <>{children}</>,
   LandingPageHero,
   LandingPageTile,
   LandingPageTileGrid,
