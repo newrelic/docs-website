@@ -7,14 +7,6 @@ module.exports = [
     title: 'New Relic security',
   },
   {
-    type: INSTRUCTIONS.ADD,
-    path: ['New Relic security'],
-    node: {
-      title: 'Overview',
-      path: '/docs/security',
-    },
-  },
-  {
     type: INSTRUCTIONS.MOVE,
     from: ['New Relic security', 'New Relic security', '*'],
     to: ['New Relic security'],
@@ -22,6 +14,15 @@ module.exports = [
   {
     type: INSTRUCTIONS.REMOVE,
     path: ['New Relic security', 'Security and privacy'],
+  },
+  {
+    type: INSTRUCTIONS.ADD,
+    path: ['New Relic security'],
+    index: 0,
+    node: {
+      title: 'Overview',
+      path: '/docs/security',
+    },
   },
   {
     type: INSTRUCTIONS.MOVE,
@@ -111,6 +112,61 @@ module.exports = [
     title: 'Infrastructure monitoring',
   },
   {
+    type: INSTRUCTIONS.MOVE,
+    from: [
+      'Full-Stack Observability',
+      'Infrastructure monitoring',
+      'Infrastructure monitoring',
+      'Get started',
+    ],
+    to: ['Full-Stack Observability', 'Infrastructure monitoring'],
+  },
+  {
+    type: INSTRUCTIONS.MOVE,
+    from: [
+      'Full-Stack Observability',
+      'Infrastructure monitoring',
+      'Infrastructure monitoring',
+      'Guides',
+      '*',
+    ],
+    to: [
+      'Full-Stack Observability',
+      'Infrastructure monitoring',
+      'Get started',
+    ],
+  },
+  {
+    type: INSTRUCTIONS.MOVE,
+    from: [
+      'Full-Stack Observability',
+      'Infrastructure monitoring',
+      'Infrastructure monitoring',
+      'Infrastructure and security',
+      '*',
+    ],
+    to: [
+      'Full-Stack Observability',
+      'Infrastructure monitoring',
+      'Get started',
+    ],
+  },
+  {
+    type: INSTRUCTIONS.MOVE,
+    from: [
+      'Full-Stack Observability',
+      'Infrastructure monitoring',
+      'Infrastructure monitoring',
+      'Guides',
+      '*',
+    ],
+    to: [
+      'Full-Stack Observability',
+      'Infrastructure monitoring',
+      'Get started',
+    ],
+  },
+  {
     type: INSTRUCTIONS.REMOVE,
     path: [
       'Full-Stack Observability',
@@ -124,17 +180,9 @@ module.exports = [
       'Full-Stack Observability',
       'Infrastructure monitoring',
       'Infrastructure alerts',
-      'Infrastucture alert conditions',
+      '*',
     ],
     to: ['Full-Stack Observability', 'Infrastructure monitoring'],
-  },
-  {
-    type: INSTRUCTIONS.REMOVE,
-    path: [
-      'Full-Stack Observability',
-      'Infrastructure monitoring',
-      'Infrastructure alerts',
-    ],
   },
   {
     type: INSTRUCTIONS.MOVE,
@@ -142,17 +190,9 @@ module.exports = [
       'Full-Stack Observability',
       'Infrastructure monitoring',
       'Infrastructure monitoring UI',
-      'Infrastucture UI',
+      '*',
     ],
     to: ['Full-Stack Observability', 'Infrastructure monitoring'],
-  },
-  {
-    type: INSTRUCTIONS.REMOVE,
-    path: [
-      'Full-Stack Observability',
-      'Infrastructure monitoring',
-      'Infrastucture monitoring UI',
-    ],
   },
   {
     type: INSTRUCTIONS.MOVE,
@@ -615,6 +655,41 @@ module.exports = [
   },
   {
     type: INSTRUCTIONS.REORDER,
+    path: ['Agents', 'Java agent', 'Troubleshooting'],
+    index: 11,
+  },
+  {
+    type: INSTRUCTIONS.REORDER,
+    path: ['Agents', '.NET agent', 'Troubleshooting'],
+    index: 11,
+  },
+  {
+    type: INSTRUCTIONS.REORDER,
+    path: ['Agents', '.NET agent', 'Azure installation'],
+    index: 2,
+  },
+  {
+    type: INSTRUCTIONS.REORDER,
+    path: ['Agents', '.NET agent', 'Configuration'],
+    index: 4,
+  },
+  {
+    type: INSTRUCTIONS.REORDER,
+    path: ['Agents', '.NET agent', 'Other features'],
+    index: 5,
+  },
+  {
+    type: INSTRUCTIONS.REORDER,
+    path: ['Agents', 'Node.js agent', 'Attributes'],
+    index: 3,
+  },
+  {
+    type: INSTRUCTIONS.REORDER,
+    path: ['Agents', 'Ruby agent', 'Troubleshooting'],
+    index: 8,
+  },
+  {
+    type: INSTRUCTIONS.REORDER,
     path: ['New Relic One', 'Use New Relic One', 'Get started'],
     index: 0,
   },
@@ -630,11 +705,37 @@ module.exports = [
   },
   {
     type: INSTRUCTIONS.REORDER,
+    path: ['Integrations', 'Infrastructure integrations'],
+    index: 2,
+  },
+  {
+    type: INSTRUCTIONS.REORDER,
+    path: ['Integrations', 'Kubernetes integration', 'Installation'],
+    index: 1,
+  },
+  {
+    type: INSTRUCTIONS.REORDER,
     path: [
-      'Infrastructure monitoring',
-      'Infrastructure monitoring troubleshooting',
+      'Integrations',
+      'Amazon integrations',
+      'Troubleshooting',
+      'No data appears',
     ],
-    index: 5,
+    index: 0,
+  },
+  {
+    type: INSTRUCTIONS.REORDER,
+    path: ['Integrations', 'Prometheus integrations', 'Troubleshooting'],
+    index: 4,
+  },
+  {
+    type: INSTRUCTIONS.REORDER,
+    path: [
+      'Integrations',
+      'Prometheus integrations',
+      'Install and configure OpenMetrics',
+    ],
+    index: 2,
   },
   {
     type: INSTRUCTIONS.REORDER,
@@ -654,31 +755,29 @@ module.exports = [
   {
     type: INSTRUCTIONS.MOVE,
     from: ['Create integrations', '*'],
-    to: [
-      'Full-Stack Observability',
-      'Infrastructure monitoring',
-      'Create integrations',
-    ],
+    to: ['Full-Stack Observability', 'Infrastructure monitoring'],
   },
   {
     type: INSTRUCTIONS.REMOVE,
     path: ['Create integrations'],
   },
-  // {
-  //   type: INSTRUCTIONS.UPDATE,
-  //   path: ['Full-Stack Observability', 'Infrastructure monitoring', 'Create integrations'],
-  //   node: {
-  //     path: ''
-  //   }
-  // },
   {
     type: INSTRUCTIONS.REORDER,
     path: [
       'Full-Stack Observability',
       'Infrastructure monitoring',
-      'Create integrations',
+      'Get started',
     ],
-    index: 1,
+    index: 0,
+  },
+  {
+    type: INSTRUCTIONS.REORDER,
+    path: [
+      'Full-Stack Observability',
+      'Infrastructure monitoring',
+      'Infrastructure monitoring troubleshooting',
+    ],
+    index: 7,
   },
   {
     type: INSTRUCTIONS.REORDER,
