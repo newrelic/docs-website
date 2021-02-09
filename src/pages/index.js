@@ -12,6 +12,7 @@ import {
 } from '@newrelic/gatsby-theme-newrelic';
 import { rgba } from 'polished';
 import SurfaceLink from '../components/SurfaceLink';
+import TechTile from '../components/TechTile';
 import { tdp, fso, ai, security, integrations } from '../data/homepage.yml';
 
 const HomePage = ({ data }) => {
@@ -183,7 +184,7 @@ const HomePage = ({ data }) => {
             </IntegrationTitle>
             <IntegrationTileGrid>
               {integration.tiles.map(({ name, icon, link }) => (
-                <IntegrationTile key={name} name={name} icon={icon} to={link} />
+                <TechTile key={name} name={name} icon={icon} to={link} />
               ))}
             </IntegrationTileGrid>
           </Fragment>
@@ -491,51 +492,6 @@ const IntegrationTileGrid = ({ children }) => (
 
 IntegrationTileGrid.propTypes = {
   children: PropTypes.node,
-};
-
-const IntegrationTile = ({ name, icon, to }) => (
-  <SurfaceLink
-    to={to}
-    base={Surface.BASE.SECONDARY}
-    css={css`
-      text-align: center;
-      padding: 0.5rem;
-      color: currentColor;
-
-      &:hover {
-        color: currentColor;
-      }
-
-      .light-mode & {
-        border: 1px solid var(--border-color);
-
-        &:hover {
-          border-color: var(--border-hover-color);
-        }
-      }
-    `}
-  >
-    <Icon
-      name={icon}
-      size="2rem"
-      css={css`
-        margin-bottom: 0.5rem;
-      `}
-    />
-    <div
-      css={css`
-        font-size: 0.875rem;
-      `}
-    >
-      {name}
-    </div>
-  </SurfaceLink>
-);
-
-IntegrationTile.propTypes = {
-  name: PropTypes.string.isRequired,
-  icon: PropTypes.string.isRequired,
-  to: PropTypes.string,
 };
 
 export default HomePage;
