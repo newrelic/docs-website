@@ -54,6 +54,11 @@ module.exports = [
     to: ['Telemetry Data Platform'],
   },
   {
+    type: INSTRUCTIONS.REORDER,
+    path: ['Telemetry Data Platform', 'Get started'],
+    index: 0,
+  },
+  {
     type: INSTRUCTIONS.MOVE,
     from: ['Logs'],
     to: ['Full-Stack Observability'],
@@ -187,8 +192,12 @@ module.exports = [
   },
   {
     type: INSTRUCTIONS.MOVE,
-    from: ['Synthetics'],
+    from: ['Synthetics', '*'],
     to: ['Full-Stack Observability'],
+  },
+  {
+    type: INSTRUCTIONS.REMOVE,
+    path: ['Synthetics'],
   },
   {
     type: INSTRUCTIONS.RENAME,
@@ -328,6 +337,18 @@ module.exports = [
     type: INSTRUCTIONS.RENAME,
     path: ['Licenses', 'Licenses'],
     title: 'Overview',
+  },
+  {
+    type: INSTRUCTIONS.REORDER,
+    path: ['Licenses', 'Overview'],
+    index: 0,
+  },
+  {
+    type: INSTRUCTIONS.UPDATE,
+    path: ['Licenses'],
+    node: {
+      rootNav: false,
+    },
   },
 
   // ----- Alerts and Applied Intelligence ----- \\
@@ -591,5 +612,95 @@ module.exports = [
     type: INSTRUCTIONS.REORDER,
     path: ['Agents', 'Open-source licensed agents'],
     index: 9,
+  },
+  {
+    type: INSTRUCTIONS.REORDER,
+    path: ['New Relic One', 'Use New Relic One', 'Get started'],
+    index: 0,
+  },
+  {
+    type: INSTRUCTIONS.REORDER,
+    path: ['Integrations', 'Intro to integrations'],
+    index: 0,
+  },
+  {
+    type: INSTRUCTIONS.REORDER,
+    path: ['Integrations', 'Open source telemetry integrations'],
+    index: 1,
+  },
+  {
+    type: INSTRUCTIONS.REORDER,
+    path: [
+      'Infrastructure monitoring',
+      'Infrastructure monitoring troubleshooting',
+    ],
+    index: 5,
+  },
+  {
+    type: INSTRUCTIONS.REORDER,
+    path: ['Full-Stack Observability', 'APM', 'Getting started'],
+    index: 0,
+  },
+  {
+    type: INSTRUCTIONS.REORDER,
+    path: [
+      'Full-Stack Observability',
+      'Mobile monitoring',
+      'New Relic Mobile Android',
+      'Troubleshoot',
+    ],
+    index: 5,
+  },
+  {
+    type: INSTRUCTIONS.MOVE,
+    from: ['Create integrations', '*'],
+    to: [
+      'Full-Stack Observability',
+      'Infrastructure monitoring',
+      'Create integrations',
+    ],
+  },
+  {
+    type: INSTRUCTIONS.REMOVE,
+    path: ['Create integrations'],
+  },
+  // {
+  //   type: INSTRUCTIONS.UPDATE,
+  //   path: ['Full-Stack Observability', 'Infrastructure monitoring', 'Create integrations'],
+  //   node: {
+  //     path: ''
+  //   }
+  // },
+  {
+    type: INSTRUCTIONS.REORDER,
+    path: [
+      'Full-Stack Observability',
+      'Infrastructure monitoring',
+      'Create integrations',
+    ],
+    index: 1,
+  },
+  {
+    type: INSTRUCTIONS.REORDER,
+    path: ['Full-Stack Observability', 'Synthetic monitoring', 'Guides'],
+    index: 1,
+  },
+  {
+    type: INSTRUCTIONS.REORDER,
+    path: [
+      'Full-Stack Observability',
+      'Synthetic monitoring',
+      'Troubleshooting',
+    ],
+    index: 8,
+  },
+  {
+    type: INSTRUCTIONS.REORDER,
+    path: [
+      'Full-Stack Observability',
+      'Synthetic monitoring',
+      'Scripting monitors',
+    ],
+    index: 3,
   },
 ];
