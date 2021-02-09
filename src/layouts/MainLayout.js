@@ -72,6 +72,7 @@ const MainLayout = ({ data = {}, children, pageContext }) => {
             css={css`
               display: block;
               margin-bottom: 1rem;
+              text-decoration: none;
             `}
           >
             <Logo />
