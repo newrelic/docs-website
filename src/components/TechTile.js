@@ -27,6 +27,9 @@ const TechTile = ({ name, icon, to }) => (
     base={Surface.BASE.SECONDARY}
     interactive={Boolean(to)}
     css={css`
+      display: flex;
+      flex-direction: column;
+      align-items: center;
       text-align: center;
       padding: 0.5rem;
       color: currentColor;
@@ -48,6 +51,7 @@ const TechTile = ({ name, icon, to }) => (
       icon={icon}
       css={css`
         margin-bottom: 0.5rem;
+        flex: 1;
       `}
     />
     <div
