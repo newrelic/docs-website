@@ -32,32 +32,38 @@ module.exports = [
   { type: INSTRUCTIONS.REMOVE, path: ['APIs'] },
   {
     type: INSTRUCTIONS.MOVE,
-    from: ['Telemetry Data Platform', 'Ingest and manage data', 'Get started'],
-    to: ['Telemetry Data Platform'],
-  },
-  {
-    type: INSTRUCTIONS.MOVE,
-    from: [
-      'Telemetry Data Platform',
-      'Ingest and manage data',
-      'Understand data',
-    ],
-    to: ['Telemetry Data Platform'],
-  },
-  {
-    type: INSTRUCTIONS.MOVE,
-    from: ['Telemetry Data Platform', 'Ingest and manage data', 'Manage data'],
-    to: ['Telemetry Data Platform'],
-  },
-  {
-    type: INSTRUCTIONS.MOVE,
-    from: ['Telemetry Data Platform', 'Ingest and manage data', 'Ingest APIs'],
+    from: ['Telemetry Data Platform', 'Ingest and manage data', '*'],
     to: ['Telemetry Data Platform'],
   },
   {
     type: INSTRUCTIONS.REORDER,
     path: ['Telemetry Data Platform', 'Get started'],
     index: 0,
+  },
+  {
+    type: INSTRUCTIONS.REORDER,
+    path: ['Telemetry Data Platform', 'Get started', 'Get to know TDP'],
+    index: 0,
+  },
+  {
+    type: INSTRUCTIONS.REORDER,
+    path: ['Telemetry Data Platform', 'Understand data'],
+    index: 1,
+  },
+  {
+    type: INSTRUCTIONS.REORDER,
+    path: ['Telemetry Data Platform', 'Manage data'],
+    index: 2,
+  },
+  {
+    type: INSTRUCTIONS.REORDER,
+    path: ['Telemetry Data Platform', 'Convert data to metrics'],
+    index: 3,
+  },
+  {
+    type: INSTRUCTIONS.REORDER,
+    path: ['Telemetry Data Platform', 'APIs'],
+    index: 5,
   },
   {
     type: INSTRUCTIONS.MOVE,
