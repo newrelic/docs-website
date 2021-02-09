@@ -65,6 +65,20 @@ const isLandingPageTile = (node) =>
   node.childNodes[0].classList.contains('col-md-3') &&
   node.childNodes[1].classList.contains('col-md-9');
 
+const JS_OPEN = /window\.open\(['"](.+?)['"],.*?\)/;
+
+const isTechTile = (node) => {
+  const onClick = node.getAttribute('onclick');
+
+  return (
+    onClick &&
+    onClick.match(JS_OPEN) &&
+    node.style.display === 'flex' &&
+    node.style.borderWidth === '1px' &&
+    node.style.fontSize === '12px'
+  );
+};
+
 const repeat = (character, count) => Array(count + 1).join(character);
 
 const MEANINGFUL_TAGS_IN_CODE_BLOCK = ['a', 'var', 'mark'];
@@ -263,6 +277,11 @@ module.exports = (file) => {
     .addRule('captions', {
       filter: (node) => node.classList.contains('dnd-legend-wrapper'),
       replacement: (content) => `<figcaption>\n${content}\n</figcaption>`,
+    })
+    .addRule('techTiles', {
+      filter: isTechTile,
+      replacement: (content) =>
+        `<div className='tech-tile'>\n\n${content}\n\n</div>\n\n`,
     });
 
   return turndown.turndown(file.contents);
