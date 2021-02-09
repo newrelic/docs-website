@@ -9,6 +9,8 @@ import {
 import LandingPageHero from './LandingPageHero';
 import LandingPageTile from './LandingPageTile';
 import LandingPageTileGrid from './LandingPageTileGrid';
+import TechTile from './TechTile';
+import TechTileGrid from './TechTileGrid';
 
 const defaultComponents = {
   ExternalLink: (props) => (
@@ -18,6 +20,8 @@ const defaultComponents = {
   LandingPageHero,
   LandingPageTile,
   LandingPageTileGrid,
+  TechTile,
+  TechTileGrid,
 };
 
 const MDXContainer = ({ body, children, components }) => {
