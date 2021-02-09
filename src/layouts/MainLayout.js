@@ -59,7 +59,7 @@ const MainLayout = ({ data = {}, children, pageContext }) => {
           `}
         >
           {nav.id === rootNav.id ? (
-            <RootNavigation nav={rootNav} />
+            <RootNavigation nav={nav} />
           ) : (
             <SubNavigation nav={nav} />
           )}
