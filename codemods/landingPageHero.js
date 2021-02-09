@@ -1,6 +1,14 @@
 const visit = require('unist-util-visit');
 const { mdxBlockElement } = require('./utils/mdxast-builder');
 
+const containsImage = (node) => {
+  if (node.type === 'image') {
+    return true;
+  }
+
+  return node.children && node.children.some(containsImage);
+};
+
 // This codemod assumes it is run after the landing page tile grid has been run
 const landingPageHero = () => (tree, file) => {
   if (file.data.doc.type !== 'landing_page') {
@@ -14,7 +22,18 @@ const landingPageHero = () => (tree, file) => {
     );
 
     const heroContent = root.children.slice(frontmatterIdx + 1, gridIdx);
-    const hero = mdxBlockElement('LandingPageHero', [], heroContent);
+    const imageIdx = heroContent.findIndex(containsImage);
+
+    const hero = mdxBlockElement(
+      'LandingPageHero',
+      [],
+      imageIdx === -1
+        ? heroContent
+        : [
+            mdxBlockElement('HeroContent', [], heroContent.slice(0, imageIdx)),
+            ...heroContent.slice(imageIdx),
+          ]
+    );
 
     root.children.splice(frontmatterIdx + 1, heroContent.length, hero);
 
