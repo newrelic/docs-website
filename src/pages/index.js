@@ -11,7 +11,6 @@ import {
   Trans,
 } from '@newrelic/gatsby-theme-newrelic';
 import { rgba } from 'polished';
-import IntegrationIcon from '../components/IntegrationIcon';
 import SurfaceLink from '../components/SurfaceLink';
 import { tdp, fso, ai, security, integrations } from '../data/homepage.yml';
 
@@ -516,7 +515,7 @@ const IntegrationTile = ({ name, icon, to }) => (
       }
     `}
   >
-    <IntegrationIcon
+    <Icon
       name={icon}
       size="2rem"
       css={css`
@@ -534,8 +533,8 @@ const IntegrationTile = ({ name, icon, to }) => (
 );
 
 IntegrationTile.propTypes = {
-  name: PropTypes.string,
-  icon: IntegrationIcon.propTypes.name,
+  name: PropTypes.string.isRequired,
+  icon: PropTypes.string.isRequired,
   to: PropTypes.string,
 };
 
