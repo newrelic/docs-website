@@ -59,7 +59,7 @@ const MainLayout = ({ data = {}, children, pageContext }) => {
           `}
         >
           {nav.id === rootNav.id ? (
-            <RootNavigation nav={rootNav} />
+            <RootNavigation nav={nav} />
           ) : (
             <SubNavigation nav={nav} />
           )}
@@ -72,6 +72,7 @@ const MainLayout = ({ data = {}, children, pageContext }) => {
             css={css`
               display: block;
               margin-bottom: 1rem;
+              text-decoration: none;
             `}
           >
             <Logo />

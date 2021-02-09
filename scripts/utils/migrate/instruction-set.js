@@ -592,4 +592,30 @@ module.exports = [
     path: ['Agents', 'Open-source licensed agents'],
     index: 9,
   },
+  {
+    type: INSTRUCTIONS.ADD,
+    path: ['Full-Stack Observability'],
+    node: {
+      title: 'Overview',
+      path: '/docs/full-stack-observability',
+    },
+  },
+  {
+    type: INSTRUCTIONS.REORDER,
+    path: ['Full-Stack Observability', 'Overview'],
+    index: 0
+  },
+  {
+    type: INSTRUCTIONS.ADD,
+    path: ['Telemetry Data Platform'],
+    node: {
+      title: 'Overview',
+      path: '/docs/telemetry-data-platform',
+    },
+  },
+  {
+    type: INSTRUCTIONS.REORDER,
+    path: ['Telemetry Data Platform', 'Overview'],
+    index: 0
+  },
 ];

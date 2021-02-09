@@ -1,3 +1,4 @@
+/* eslint-disable react/prop-types */
 import React from 'react';
 import PropTypes from 'prop-types';
 import {
@@ -5,6 +6,7 @@ import {
   MDX,
   ExternalLink,
 } from '@newrelic/gatsby-theme-newrelic';
+import LandingPageHero from './LandingPageHero';
 import LandingPageTile from './LandingPageTile';
 import LandingPageTileGrid from './LandingPageTileGrid';
 
@@ -12,6 +14,8 @@ const defaultComponents = {
   ExternalLink: (props) => (
     <ExternalLink {...props} onClick={(e) => e.stopPropagation()} />
   ),
+  HeroContent: ({ children }) => <>{children}</>,
+  LandingPageHero,
   LandingPageTile,
   LandingPageTileGrid,
 };
