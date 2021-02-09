@@ -13,6 +13,7 @@ import {
 import { rgba } from 'polished';
 import SurfaceLink from '../components/SurfaceLink';
 import TechTile from '../components/TechTile';
+import TechTileGrid from '../components/TechTileGrid';
 import { tdp, fso, ai, security, integrations } from '../data/homepage.yml';
 
 const HomePage = ({ data }) => {
@@ -182,11 +183,11 @@ const HomePage = ({ data }) => {
             <IntegrationTitle>
               {t(`home.integrations.title${idx + 1}`)}
             </IntegrationTitle>
-            <IntegrationTileGrid>
+            <TechTileGrid>
               {integration.tiles.map(({ name, icon, link }) => (
                 <TechTile key={name} name={name} icon={icon} to={link} />
               ))}
-            </IntegrationTileGrid>
+            </TechTileGrid>
           </Fragment>
         ))}
 
@@ -475,22 +476,6 @@ const IntegrationTitle = ({ children }) => (
 );
 
 IntegrationTitle.propTypes = {
-  children: PropTypes.node,
-};
-
-const IntegrationTileGrid = ({ children }) => (
-  <div
-    css={css`
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-      grid-gap: 1rem;
-    `}
-  >
-    {children}
-  </div>
-);
-
-IntegrationTileGrid.propTypes = {
   children: PropTypes.node,
 };
 
