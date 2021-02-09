@@ -55,12 +55,10 @@ const removePageContext = async (fileUris) => {
   // uploaded (fileNames) as well as the "context" created by smartling (fileUris).
   const contextUids = items
     .filter(({ name }) => fileNames.includes(name) || fileUris.includes(name))
-    .map(({ name, contextUid }) => {
-      return {
-        fileUri: name,
-        contextUid: contextUid,
-      };
-    });
+    .map(({ name, contextUid }) => ({
+      fileUri: name,
+      contextUid: contextUid,
+    }));
 
   const results = await Promise.all(
     contextUids.map(async ({ contextUid, fileUri }) => {
