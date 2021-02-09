@@ -54,7 +54,7 @@ const removePageContext = async (fileUris) => {
   // Find the smartling context to be removed. This includes context manually
   // uploaded (fileNames) as well as the "context" created by smartling (fileUris).
   const contextUids = items
-    .filter(({ name }) => fileNames.includes(name) || fileUris.includes(name))
+    .filter(({ name }) => [...fileNames, ...fileUris].includes(name))
     .map(({ name, contextUid }) => ({
       fileUri: name,
       contextUid: contextUid,
