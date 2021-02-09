@@ -2,20 +2,18 @@ import React, { Children } from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/core';
 
-const containsImage = (child) => {
-  if (child.props?.className === 'gatsby-resp-image-wrapper') {
-    return true;
-  }
-
-  return Children.toArray(child.props?.children).some(containsImage);
-};
-
 const LandingPageHero = ({ children }) => {
   children = Children.toArray(children);
 
-  const imgIdx = children.findIndex(containsImage);
-  const leftColumn = children.slice(0, imgIdx);
-  const rightColumn = children.slice(imgIdx);
+  const content = children[0];
+
+  if (content.props.mdxType !== 'HeroContent') {
+    throw new Error(
+      'The first child to `LandingPageHero` must be `HeroContent`'
+    );
+  }
+
+  const rightColumn = children.slice(1);
 
   return (
     <div
@@ -29,7 +27,7 @@ const LandingPageHero = ({ children }) => {
         }
       `}
     >
-      <div>{leftColumn}</div>
+      <div>{content}</div>
       <div>{rightColumn}</div>
     </div>
   );
