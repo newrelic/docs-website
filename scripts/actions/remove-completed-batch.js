@@ -57,7 +57,7 @@ const removePageContext = async (fileUris) => {
     .filter(({ name }) => [...fileNames, ...fileUris].includes(name))
     .map(({ name, contextUid }) => ({
       fileUri: name,
-      contextUid: contextUid,
+      contextUid,
     }));
 
   const results = await Promise.all(
