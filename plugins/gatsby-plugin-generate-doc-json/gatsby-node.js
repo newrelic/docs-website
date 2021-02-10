@@ -1,15 +1,14 @@
 const fs = require('fs');
 const path = require('path');
 const unified = require('unified');
+const toHast = require('mdast-util-to-hast');
 const html = require('rehype-stringify');
 const removeImports = require('remark-mdx-remove-imports');
 const removeExports = require('remark-mdx-remove-exports');
 const fencedCodeBlock = require('../../codemods/fencedCodeBlock');
 const customHeadingIds = require('../gatsby-remark-custom-heading-ids/utils/visitor');
-const toHast = require('mdast-util-to-hast');
 const handlers = require('./utils/handlers');
 const all = require('mdast-util-to-hast/lib/all');
-const format = require('rehype-format');
 
 const mdxElement = (h, node) => {
   const handler = handlers[node.name];
@@ -25,8 +24,7 @@ const htmlGenerator = unified()
   .use(removeExports)
   .use(fencedCodeBlock)
   .use(customHeadingIds)
-  .use(html)
-  .use(format);
+  .use(html);
 
 exports.onPostBuild = async ({ graphql, store }) => {
   const { program } = store.getState();
@@ -43,7 +41,7 @@ exports.onPostBuild = async ({ graphql, store }) => {
   try {
     const { data } = await graphql(query);
 
-    data.allMdx.nodes.forEach(async (node) => {
+    data.allMdx.nodes.forEach((node) => {
       const { slug, mdxAST } = node;
 
       const filepath = path.join(program.directory, 'public', `${slug}.json`);
