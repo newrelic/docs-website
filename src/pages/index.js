@@ -11,8 +11,9 @@ import {
   Trans,
 } from '@newrelic/gatsby-theme-newrelic';
 import { rgba } from 'polished';
-import IntegrationIcon from '../components/IntegrationIcon';
 import SurfaceLink from '../components/SurfaceLink';
+import TechTile from '../components/TechTile';
+import TechTileGrid from '../components/TechTileGrid';
 import { tdp, fso, ai, security, integrations } from '../data/homepage.yml';
 
 const HomePage = ({ data }) => {
@@ -182,11 +183,11 @@ const HomePage = ({ data }) => {
             <IntegrationTitle>
               {t(`home.integrations.title${idx + 1}`)}
             </IntegrationTitle>
-            <IntegrationTileGrid>
+            <TechTileGrid>
               {integration.tiles.map(({ name, icon, link }) => (
-                <IntegrationTile key={name} name={name} icon={icon} to={link} />
+                <TechTile key={name} name={name} icon={icon} to={link} />
               ))}
-            </IntegrationTileGrid>
+            </TechTileGrid>
           </Fragment>
         ))}
 
@@ -476,67 +477,6 @@ const IntegrationTitle = ({ children }) => (
 
 IntegrationTitle.propTypes = {
   children: PropTypes.node,
-};
-
-const IntegrationTileGrid = ({ children }) => (
-  <div
-    css={css`
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-      grid-gap: 1rem;
-    `}
-  >
-    {children}
-  </div>
-);
-
-IntegrationTileGrid.propTypes = {
-  children: PropTypes.node,
-};
-
-const IntegrationTile = ({ name, icon, to }) => (
-  <SurfaceLink
-    to={to}
-    base={Surface.BASE.SECONDARY}
-    css={css`
-      text-align: center;
-      padding: 0.5rem;
-      color: currentColor;
-
-      &:hover {
-        color: currentColor;
-      }
-
-      .light-mode & {
-        border: 1px solid var(--border-color);
-
-        &:hover {
-          border-color: var(--border-hover-color);
-        }
-      }
-    `}
-  >
-    <IntegrationIcon
-      name={icon}
-      size="2rem"
-      css={css`
-        margin-bottom: 0.5rem;
-      `}
-    />
-    <div
-      css={css`
-        font-size: 0.875rem;
-      `}
-    >
-      {name}
-    </div>
-  </SurfaceLink>
-);
-
-IntegrationTile.propTypes = {
-  name: PropTypes.string,
-  icon: IntegrationIcon.propTypes.name,
-  to: PropTypes.string,
 };
 
 export default HomePage;

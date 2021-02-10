@@ -6,6 +6,7 @@ events:
   - NrDailyUsage
   - NrConsumption
   - NrMTDConsumption
+  - NrUsage
 ---
 
 The ID of the master account that is either responsible for stored events or that is the parent of the consuming account.

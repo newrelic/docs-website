@@ -24,6 +24,7 @@ const RootNavigation = ({ nav }) => {
       {pages.map((page) => (
         <NavItem key={page.title} page={page} />
       ))}
+      <NavItem page={{ title: 'Release notes', url: '/docs/release-notes' }} />
       <NavItem page={{ title: "What's new", url: '/whats-new' }} />
     </nav>
   );

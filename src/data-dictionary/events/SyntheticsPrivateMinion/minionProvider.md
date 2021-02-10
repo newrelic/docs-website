@@ -6,4 +6,4 @@ events:
   - SyntheticsPrivateMinion
 ---
 
-The identifier of the minion provider.
+A unique identifier of the minion provider.

@@ -229,6 +229,7 @@ const EventDefinition = memo(({ location, event, filteredAttribute }) => {
           <code
             css={css`
               background: none !important;
+              padding: 0 !important;
             `}
           >
             {event.name}
@@ -291,6 +292,7 @@ const EventDefinition = memo(({ location, event, filteredAttribute }) => {
                       display: flex;
                       align-items: center;
                       color: var(--color-text-primary);
+                      text-decoration: none;
 
                       &:hover svg {
                         opacity: 1;
@@ -301,6 +303,7 @@ const EventDefinition = memo(({ location, event, filteredAttribute }) => {
                       css={css`
                         display: inline-block;
                         background: none !important;
+                        padding: 0 !important;
                       `}
                     >
                       {attribute.name}

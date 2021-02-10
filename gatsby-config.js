@@ -30,7 +30,7 @@ module.exports = {
     branch: 'develop',
   },
   plugins: [
-    `gatsby-plugin-react-helmet`,
+    'gatsby-plugin-react-helmet',
     {
       resolve: `gatsby-source-filesystem`,
       options: {
@@ -251,6 +251,11 @@ module.exports = {
           {
             resolve: require.resolve(
               './plugins/gatsby-remark-mdx-v2-fenced-code-blocks'
+            ),
+          },
+          {
+            resolve: require.resolve(
+              './plugins/gatsby-remark-remove-button-paragraphs'
             ),
           },
         ],

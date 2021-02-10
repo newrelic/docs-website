@@ -54,7 +54,12 @@ const TableOfContents = ({ page }) => {
             const isActive = activeHash === id;
 
             return (
-              <li key={id}>
+              <li
+                key={id}
+                css={css`
+                  margin: 0;
+                `}
+              >
                 <a
                   href={`#${id}`}
                   className={isActive && !isMobileScreen ? 'active' : null}
@@ -66,6 +71,7 @@ const TableOfContents = ({ page }) => {
                     padding: 0.5rem 0;
                     color: var(--primary-text-color);
                     transition: color 0.2s ease-out;
+                    text-decoration: none;
 
                     &.active {
                       background: var(--color-neutrals-100);
