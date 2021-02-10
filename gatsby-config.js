@@ -186,7 +186,7 @@ module.exports = {
         rehypePlugins: [
           [
             require('./rehype-plugins/gatsby-inline-images'),
-            { spacing: '0.5rem' },
+            { spacing: '0.25rem' },
           ],
         ],
         gatsbyRemarkPlugins: [
