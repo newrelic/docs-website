@@ -5,6 +5,9 @@ const yaml = require('js-yaml');
 const { CONTENT_DIR, NAV_DIR } = require('../constants');
 const slugify = require('../slugify');
 
+const decodeTitle = (title) =>
+  title.replace('&#039;', "'").replace('&quot;', '"');
+
 const createNavStructure = (files) => {
   if (!fs.existsSync(NAV_DIR)) {
     fs.mkdirSync(NAV_DIR);
@@ -26,7 +29,11 @@ const createNavStructure = (files) => {
             ...nav,
             buildSubnav(
               file,
-              { title, path: `/docs/${slugify(title)}`, pages: [] },
+              {
+                title: decodeTitle(title),
+                path: `/docs/${slugify(title)}`,
+                pages: [],
+              },
               subtopics
             ),
           ]
@@ -70,7 +77,7 @@ const buildSubnav = (file, parent, topics) => {
   switch (true) {
     case topics.length === 0 && idx >= 0:
       return updateChild(parent, idx, ({ title, ...attrs }) => ({
-        title,
+        title: decodeTitle(title),
         path: toPath(file),
         ...attrs,
       }));
@@ -78,13 +85,20 @@ const buildSubnav = (file, parent, topics) => {
     case topics.length === 0:
       return {
         ...parent,
-        pages: [...pages, { title, path: toPath(file) }],
+        pages: [...pages, { title: decodeTitle(title), path: toPath(file) }],
       };
 
     case idx === -1:
       return {
         ...parent,
-        pages: [...pages, buildSubnav(file, { title, pages: [] }, subtopics)],
+        pages: [
+          ...pages,
+          buildSubnav(
+            file,
+            { title: decodeTitle(title), pages: [] },
+            subtopics
+          ),
+        ],
       };
 
     default:
