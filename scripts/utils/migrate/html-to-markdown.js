@@ -259,6 +259,10 @@ module.exports = (file) => {
 
         return `<${tag}>${content}</${tag}>`;
       },
+    })
+    .addRule('captions', {
+      filter: (node) => node.classList.contains('dnd-legend-wrapper'),
+      replacement: (content) => `<figcaption>\n${content}\n</figcaption>`,
     });
 
   return turndown.turndown(file.contents);

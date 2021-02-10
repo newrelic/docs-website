@@ -221,6 +221,11 @@ module.exports = {
               './plugins/gatsby-remark-mdx-v2-fenced-code-blocks'
             ),
           },
+          {
+            resolve: require.resolve(
+              './plugins/gatsby-remark-remove-button-paragraphs'
+            ),
+          },
         ],
       },
     },
