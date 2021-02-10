@@ -106,7 +106,7 @@ module.exports = {
       node,
       'a',
       {
-        href: `https://docs.newrelic.com${findAttribute('to', node)}`,
+        href: findAttribute('to', node),
       },
       all(h, node)
     ),
