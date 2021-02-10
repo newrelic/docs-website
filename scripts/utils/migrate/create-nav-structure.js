@@ -6,7 +6,7 @@ const { CONTENT_DIR, NAV_DIR } = require('../constants');
 const slugify = require('../slugify');
 
 const decodeTitle = (title) =>
-  title.replace('&#039;', "'").replace('&quot;', '"');
+  title.replace(/\&#039;/g, "'").replace(/\&quot;/g, '"');
 
 const createNavStructure = (files) => {
   if (!fs.existsSync(NAV_DIR)) {
