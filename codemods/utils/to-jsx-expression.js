@@ -54,6 +54,11 @@ const escape = (str) => {
       mdxSpanExpression(`'${str.replace("'", "\\'")}'`);
 };
 
+const containsImport = (tree, node) =>
+  tree.children.some(
+    (child) => child.type === 'import' && child.value === node.value
+  );
+
 const TRANSFORMERS = {
   paragraph: transformChildren,
   inlineCode: (node) => mdxSpanElement('InlineCode', [], [escape(node.value)]),
@@ -75,8 +80,9 @@ const TRANSFORMERS = {
     const importName = camelCase(
       path.basename(node.url, path.extname(node.url))
     );
+    const importNode = mdxImport(importName, node.url);
 
-    if (isRelativeImport) {
+    if (isRelativeImport && !containsImport(tree, importNode)) {
       tree.children.splice(1, 0, mdxImport(importName, node.url));
     }
 
