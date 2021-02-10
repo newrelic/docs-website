@@ -93,6 +93,7 @@ const TRANSFORMERS = {
     );
   },
   mdxSpanElement: (node) => node,
+  mdxBlockElement: (node) => node,
 };
 
 module.exports = toJSXExpression;
