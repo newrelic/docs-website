@@ -40,4 +40,5 @@ module.exports = [
   watermarks,
   landingPageHero,
   techTiles,
+  require('./imageSizing'),
 ];
