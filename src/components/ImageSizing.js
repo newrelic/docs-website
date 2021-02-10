@@ -5,7 +5,7 @@ const ImageSizing = ({ children, width, height, verticalAlign }) => {
   const image = Children.only(children);
   const style = image.props.style || {};
 
-  return cloneElement(children, {
+  return cloneElement(image, {
     style: {
       ...style,
       width: width || style.width,
