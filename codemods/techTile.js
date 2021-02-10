@@ -1,16 +1,27 @@
 const visit = require('unist-util-visit');
+const path = require('path');
 const {
   findAttribute,
   isMdxBlockElement,
   hasClassName,
 } = require('./utils/mdxast');
-const { mdxAttribute, mdxBlockElement } = require('./utils/mdxast-builder');
+const {
+  mdxAttribute,
+  mdxValueExpression,
+  mdxBlockElement,
+  mdxSpanElement,
+} = require('./utils/mdxast-builder');
+const { root } = require('mdast-builder');
+const stringify = require('./utils/mdxast-stringify');
 const toString = require('mdast-util-to-string');
 const { select } = require('unist-util-select');
+const { camelCase } = require('lodash');
 
 const isTechTile = isMdxBlockElement('TechTile');
 
 const techTile = () => (tree) => {
+  const imageImports = [];
+
   visit(
     tree,
     (node) => isMdxBlockElement('a', node) && hasClassName('tech-tile', node),
@@ -21,12 +32,43 @@ const techTile = () => (tree) => {
       const image = select('image', node.children[0]);
       const paragraph = node.children[1];
 
+      const isRelativeImport = Boolean(image.url.match(/^\.\.?\//));
+      const importName = camelCase(
+        path.basename(image.url, path.extname(image.url))
+      );
+
+      if (isRelativeImport) {
+        imageImports.push({ name: importName, path: image.url });
+      }
+
       node.attributes = [
         mdxAttribute('name', toString(paragraph)),
         href && mdxAttribute('to', href),
+        mdxAttribute(
+          'icon',
+          mdxValueExpression(
+            stringify(
+              root([
+                mdxSpanElement(
+                  'img',
+                  [
+                    mdxAttribute(
+                      'src',
+                      isRelativeImport
+                        ? mdxValueExpression(importName)
+                        : image.url
+                    ),
+                    image.title && mdxAttribute('title', image.title),
+                    image.alt && mdxAttribute('alt', image.alt),
+                  ].filter(Boolean)
+                ),
+              ])
+            ).trim()
+          )
+        ),
       ].filter(Boolean);
 
-      node.children = [image];
+      node.children = [];
     }
   );
 
@@ -59,6 +101,13 @@ const techTile = () => (tree) => {
       return idx + 1;
     }
   );
+
+  imageImports.reverse().forEach(({ name, path }) => {
+    tree.children.splice(1, 0, {
+      type: 'import',
+      value: `import ${name} from '${path}'`,
+    });
+  });
 };
 
 module.exports = techTile;
