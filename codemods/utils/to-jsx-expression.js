@@ -92,8 +92,14 @@ const TRANSFORMERS = {
       ].filter(Boolean)
     );
   },
-  mdxSpanElement: (node) => node,
-  mdxBlockElement: (node) => node,
+  mdxSpanElement: (node, ...args) => ({
+    ...node,
+    children: transformChildren(node, ...args),
+  }),
+  mdxBlockElement: (node, ...args) => ({
+    ...node,
+    children: transformChildren(node, ...args),
+  }),
 };
 
 module.exports = toJSXExpression;
