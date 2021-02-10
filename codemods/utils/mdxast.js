@@ -100,8 +100,14 @@ const findChild = (node, test) => {
   return node.children.find((child, idx) => matches(child, idx, node));
 };
 
+const containsImport = (tree, node) =>
+  tree.children.some(
+    (child) => child.type === 'import' && child.value === node.value
+  );
+
 module.exports = {
   addAttribute,
+  containsImport,
   flatten,
   isMdxBlockElement,
   isMdxElement,

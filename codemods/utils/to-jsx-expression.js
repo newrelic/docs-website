@@ -8,7 +8,7 @@ const {
 const { camelCase } = require('lodash');
 const path = require('path');
 
-const { isPlainText } = require('./mdxast');
+const { isPlainText, containsImport } = require('./mdxast');
 const { root, text } = require('mdast-builder');
 const stringify = require('./mdxast-stringify');
 
@@ -53,11 +53,6 @@ const escape = (str) => {
       // https://github.com/mdx-js/mdx/issues/1081
       mdxSpanExpression(`'${str.replace("'", "\\'")}'`);
 };
-
-const containsImport = (tree, node) =>
-  tree.children.some(
-    (child) => child.type === 'import' && child.value === node.value
-  );
 
 const TRANSFORMERS = {
   paragraph: transformChildren,
