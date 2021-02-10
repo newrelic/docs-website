@@ -280,8 +280,11 @@ module.exports = (file) => {
     })
     .addRule('techTiles', {
       filter: isTechTile,
-      replacement: (content) =>
-        `<div className='tech-tile'>\n\n${content}\n\n</div>\n\n`,
+      replacement: (content, node) => {
+        const href = node.getAttribute('onclick').match(JS_OPEN)[1];
+
+        return `<a href="${href}" className="tech-tile">\n\n${content}\n\n</a>\n\n`;
+      },
     });
 
   return turndown.turndown(file.contents);
