@@ -150,6 +150,7 @@ module.exports = {
               maxWidth: 850,
               linkImagesToOriginal: false,
               backgroundColor: 'transparent',
+              disableBgImageOnAlpha: true,
             },
           },
           // Gifs are not supported via gatsby-remark-images (https://github.com/gatsbyjs/gatsby/issues/7317).
@@ -189,6 +190,7 @@ module.exports = {
               maxWidth: 1200,
               linkImagesToOriginal: false,
               backgroundColor: 'transparent',
+              disableBgImageOnAlpha: true,
             },
           },
           autoLinkHeaders,
