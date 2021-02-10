@@ -7,12 +7,15 @@ const {
 const {
   mdxAttribute,
   mdxValueExpression,
+  mdxBlockElement,
   mdxSpanElement,
 } = require('./utils/mdxast-builder');
 const { root } = require('mdast-builder');
 const stringify = require('./utils/mdxast-stringify');
 const toString = require('mdast-util-to-string');
 const { select } = require('unist-util-select');
+
+const isTechTile = isMdxBlockElement('TechTile');
 
 const techTile = () => (tree) => {
   visit(
@@ -48,6 +51,36 @@ const techTile = () => (tree) => {
       ].filter(Boolean);
 
       node.children = [];
+    }
+  );
+
+  visit(
+    tree,
+    (_node, _idx, parent) => parent === tree,
+    (node, idx, parent) => {
+      const previous = idx && parent.children[idx - 1];
+      const isFirstTile =
+        (isTechTile(node) && idx === 0) ||
+        (isTechTile(node) && !isTechTile(previous));
+
+      if (!isFirstTile) {
+        return;
+      }
+
+      const count = parent.children
+        .slice(idx)
+        .findIndex((child, idx, items) => {
+          const previous = items[idx - 1];
+
+          return previous && isTechTile(previous) && !isTechTile(child);
+        });
+
+      const tiles = parent.children.slice(idx, idx + count);
+      const tileGrid = mdxBlockElement('TechTileGrid', [], tiles);
+
+      parent.children.splice(idx, count, tileGrid);
+
+      return idx + 1;
     }
   );
 };
