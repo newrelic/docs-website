@@ -6,6 +6,7 @@ import {
   MDX,
   ExternalLink,
 } from '@newrelic/gatsby-theme-newrelic';
+import ImageSizing from './ImageSizing';
 import LandingPageHero from './LandingPageHero';
 import LandingPageTile from './LandingPageTile';
 import LandingPageTileGrid from './LandingPageTileGrid';
@@ -17,6 +18,7 @@ const defaultComponents = {
     <ExternalLink {...props} onClick={(e) => e.stopPropagation()} />
   ),
   HeroContent: ({ children }) => <>{children}</>,
+  ImageSizing,
   LandingPageHero,
   LandingPageTile,
   LandingPageTileGrid,
