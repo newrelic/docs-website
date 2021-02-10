@@ -208,6 +208,12 @@ module.exports = {
           {
             resolve: require.resolve('./plugins/gatsby-remark-mdx-v2-images'),
           },
+          {
+            resolve: require.resolve('./plugins/gatsby-remark-inline-images'),
+            options: {
+              spacing: '0.5rem',
+            },
+          },
           // Gifs are not supported via gatsby-remark-images (https://github.com/gatsbyjs/gatsby/issues/7317).
           // It is recommended to therefore use this plugin to copy files with a
           // .gif extension to the public folder.
