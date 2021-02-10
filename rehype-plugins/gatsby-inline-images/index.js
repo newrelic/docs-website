@@ -39,7 +39,7 @@ const inlineImages = (options = {}) => (tree) => {
     }
 
     if (hasPreviousPhrasingContent || hasNextPhrasingContent) {
-      style['vertical-align'] = 'text-bottom';
+      style['vertical-align'] = style['vertical-align'] || 'text-bottom';
     }
 
     node.properties.style = compileStyleObject(style);
