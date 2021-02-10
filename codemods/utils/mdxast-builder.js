@@ -11,10 +11,14 @@ const mdxSpanElement = (name, attributes = [], children = []) =>
 const mdxBlockElement = (name, attributes = [], children = []) =>
   u('mdxBlockElement', { attributes, name }, children);
 
+const mdxImport = (expression, path) =>
+  u('import', `import ${expression} from '${path}'`);
+
 module.exports = {
   mdxAttribute,
   mdxBlockElement,
   mdxBlockExpression,
+  mdxImport,
   mdxSpanElement,
   mdxSpanExpression,
   mdxValueExpression,
