@@ -128,6 +128,6 @@ module.exports = {
   tr: (h, node) => h(node, 'tr', {}, all(h, node)),
   th: (h, node) => h(node, 'tr', {}, all(h, node)),
   td: (h, node) => h(node, 'tr', {}, all(h, node)),
-  var: (h, node) => h(node, 'tr', {}, all(h, node)),
-  mark: (h, node) => h(node, 'tr', {}, all(h, node)),
+  var: (h, node) => h(node, 'tr', {}, [u('text', toString(node))]),
+  mark: (h, node) => h(node, 'tr', {}, [u('text', toString(node))]),
 };
