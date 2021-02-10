@@ -26,7 +26,7 @@ const inlineImages = (options = {}) => (tree) => {
     const hasNextPhrasingContent = phrasing(parent.children[idx + 1] || {});
 
     style.display = 'inline-block';
-    style.width = '100%';
+    style.width = style.width || '100%';
     style['margin-left'] = null;
     style['margin-right'] = null;
 
