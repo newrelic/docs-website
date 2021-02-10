@@ -4,14 +4,7 @@ const {
   isMdxBlockElement,
   hasClassName,
 } = require('./utils/mdxast');
-const {
-  mdxAttribute,
-  mdxValueExpression,
-  mdxBlockElement,
-  mdxSpanElement,
-} = require('./utils/mdxast-builder');
-const { root } = require('mdast-builder');
-const stringify = require('./utils/mdxast-stringify');
+const { mdxAttribute, mdxBlockElement } = require('./utils/mdxast-builder');
 const toString = require('mdast-util-to-string');
 const { select } = require('unist-util-select');
 
@@ -31,26 +24,9 @@ const techTile = () => (tree) => {
       node.attributes = [
         mdxAttribute('name', toString(paragraph)),
         href && mdxAttribute('to', href),
-        mdxAttribute(
-          'icon',
-          mdxValueExpression(
-            stringify(
-              root([
-                mdxSpanElement(
-                  'img',
-                  [
-                    mdxAttribute('src', image.url),
-                    image.title && mdxAttribute('title', image.title),
-                    image.alt && mdxAttribute('alt', image.alt),
-                  ].filter(Boolean)
-                ),
-              ])
-            ).trim()
-          )
-        ),
       ].filter(Boolean);
 
-      node.children = [];
+      node.children = [image];
     }
   );
 
