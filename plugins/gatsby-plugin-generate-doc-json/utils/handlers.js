@@ -14,6 +14,24 @@ const getAllAttributes = (node) =>
     : {};
 
 module.exports = {
+  Image: (h, node, imageHashMap, fileRelativePath) => {
+    const srcUrl = fileRelativePath
+      .replace('.mdx', '')
+      .replace('src/content/', '')
+      .split('/')
+      .slice(0, -1)
+      .join('/')
+      .concat(node.url.replace('./', '/'));
+    return h(
+      node,
+      'img',
+      {
+        src: imageHashMap[srcUrl] || node.url,
+        alt: node.alt,
+      },
+      all(h, node)
+    );
+  },
   CodeBlock: (h, node) => {
     const props =
       node.meta &&

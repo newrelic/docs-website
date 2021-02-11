@@ -19,7 +19,12 @@ const MobileHeader = ({ className, children, isOpen, onToggle }) => {
           justify-content: space-between;
         `}
       >
-        <Link to="/">
+        <Link
+          to="/"
+          css={css`
+            text-decoration: none;
+          `}
+        >
           <Logo />
         </Link>
 

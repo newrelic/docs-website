@@ -34,15 +34,43 @@ exports.onPostBuild = async ({ graphql, store }) => {
       nodes {
         mdxAST
         slug
+        fields {
+          fileRelativePath
+        }
+      }
+    }
+    allFile(filter: {childImageSharp: {id: {ne: null}}}) {
+      nodes {
+        childImageSharp {
+          fluid {
+            src
+          }
+        }
+        relativePath
       }
     }
   }`;
 
   try {
     const { data } = await graphql(query);
+    const { allMdx, allFile } = data;
 
-    data.allMdx.nodes.forEach((node) => {
-      const { slug, mdxAST } = node;
+    const imageHashMap = allFile.nodes.reduce(
+      (obj, { childImageSharp, relativePath }) => {
+        return {
+          ...obj,
+          [relativePath]: childImageSharp.fluid.src,
+        };
+      },
+      {}
+    );
+
+    allMdx.nodes.forEach((node) => {
+      const {
+        slug,
+        mdxAST,
+        fields: { fileRelativePath },
+      } = node;
 
       const filepath = path.join(program.directory, 'public', `${slug}.json`);
 
@@ -53,6 +81,8 @@ exports.onPostBuild = async ({ graphql, store }) => {
             mdxSpanElement: mdxElement,
             mdxBlockElement: mdxElement,
             code: handlers.CodeBlock,
+            image: (h, node) =>
+              handlers.Image(h, node, imageHashMap, fileRelativePath),
           },
         })
       );
