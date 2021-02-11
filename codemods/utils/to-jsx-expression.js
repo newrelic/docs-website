@@ -7,10 +7,19 @@ const {
 } = require('./mdxast-builder');
 const { camelCase } = require('lodash');
 const path = require('path');
+const util = require('util');
 
-const { isPlainText, containsImport } = require('./mdxast');
+const {
+  isPlainText,
+  containsImport,
+  findAttribute,
+  addAttribute,
+} = require('./mdxast');
 const { root, text } = require('mdast-builder');
 const stringify = require('./mdxast-stringify');
+
+const stripNulls = (obj) =>
+  Object.fromEntries(Object.entries(obj).filter(([, value]) => value != null));
 
 const toJSXExpression = (node, file, tree) => {
   const children = transformChildren(node, file, tree);
@@ -93,14 +102,33 @@ const TRANSFORMERS = {
       ].filter(Boolean)
     );
   },
-  mdxSpanElement: (node, ...args) => ({
-    ...node,
-    children: transformChildren(node, ...args),
-  }),
-  mdxBlockElement: (node, ...args) => ({
-    ...node,
-    children: transformChildren(node, ...args),
-  }),
+  ImageSizing: (node, ...args) => {
+    const [image] = transformChildren(node, ...args);
+
+    const style = stripNulls({
+      height: findAttribute('height', node),
+      width: findAttribute('width', node),
+      verticalAlign: findAttribute('verticalAlign', node),
+    });
+
+    addAttribute('style', mdxValueExpression(util.inspect(style)), image);
+
+    return image;
+  },
+  mdxSpanElement: (node, ...args) => {
+    const handler = TRANSFORMERS[node.name];
+
+    return handler
+      ? handler(node, ...args)
+      : { ...node, children: transformChildren(node, ...args) };
+  },
+  mdxBlockElement: (node, ...args) => {
+    const handler = TRANSFORMERS[node.name];
+
+    return handler
+      ? handler(node, ...args)
+      : { ...node, children: transformChildren(node, ...args) };
+  },
 };
 
 module.exports = toJSXExpression;
