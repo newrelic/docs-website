@@ -25,8 +25,6 @@ const getTaxonomyPath = async (uri) => {
 
     return get(json, 'terms[0].term.urlPath');
   } catch (error) {
-    console.log(`Taxonomy ID ${id} does not exist, skipping`);
-
     return null;
   }
 };
