@@ -100,10 +100,30 @@ const findChild = (node, test) => {
   return node.children.find((child, idx) => matches(child, idx, node));
 };
 
-const containsImport = (tree, node) =>
-  tree.children.some(
-    (child) => child.type === 'import' && child.value === node.value
-  );
+const parseImport = (node) => {
+  const match = node.value.match(/import (\w+?) from ['"](.*?)['"]/);
+
+  return match ? { expression: match[1], path: match[2] } : null;
+};
+
+const containsImport = (tree, node) => {
+  return tree.children.some((child) => {
+    if (child.type !== 'import') {
+      return false;
+    }
+
+    if (child.value === node.value) {
+      return true;
+    }
+
+    const childImport = parseImport(child);
+    const nodeImport = parseImport(node);
+
+    // Git/macOS are case insensitive so `./images/Debian.png` is the same as
+    // `./images/debian.png.`
+    return childImport.path.toLowerCase() === nodeImport.path.toLowerCase();
+  });
+};
 
 module.exports = {
   addAttribute,
