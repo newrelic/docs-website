@@ -1,5 +1,6 @@
 const { curry } = require('lodash/fp');
 const convert = require('unist-util-is/convert');
+const { mdxAttribute } = require('./mdxast-builder');
 
 const isType = curry((type, node) => node.type === type);
 
@@ -70,11 +71,7 @@ const removeAttribute = curry((attribute, node) => {
 });
 
 const addAttribute = curry((name, value, node) => {
-  node.attributes.push({
-    name,
-    value,
-    type: 'mdxAttribute',
-  });
+  node.attributes.push(mdxAttribute(name, value));
 });
 
 const removeChild = curry((child, parent) => {
