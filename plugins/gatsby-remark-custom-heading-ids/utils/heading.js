@@ -1,8 +1,11 @@
 const remove = require('unist-util-remove');
+const filter = require('unist-util-filter');
 const toString = require('mdast-util-to-string');
+const convert = require('unist-util-is/convert');
 const { cloneDeep, last } = require('lodash');
 
 const CUSTOM_ID = /^#[\w-]+$/;
+const isIgnoredNode = convert(['image']);
 
 const getId = (node) => {
   const { label } = last(node.children);
@@ -25,6 +28,8 @@ const parseHeading = (node) => {
   if (node.type !== 'heading') {
     throw new Error('Node must be a heading');
   }
+
+  node = filter(node, (el) => !isIgnoredNode(el));
 
   if (isHeadingWithCustomId(node)) {
     // make a copy of the node so that removing the linkReference does not
