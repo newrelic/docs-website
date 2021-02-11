@@ -14,7 +14,7 @@ const getAllAttributes = (node) =>
     : {};
 
 module.exports = {
-  Image: (h, node, imageHashMap, fileRelativePath) => {
+  image: (h, node, imageHashMap, fileRelativePath) => {
     const srcUrl = fileRelativePath
       .replace('.mdx', '')
       .replace('src/content/', '')

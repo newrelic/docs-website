@@ -82,7 +82,7 @@ exports.onPostBuild = async ({ graphql, store }) => {
             mdxBlockElement: mdxElement,
             code: handlers.CodeBlock,
             image: (h, node) =>
-              handlers.Image(h, node, imageHashMap, fileRelativePath),
+              handlers.image(h, node, imageHashMap, fileRelativePath),
           },
         })
       );
