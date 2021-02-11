@@ -11,7 +11,6 @@ const ImageSizing = ({ children, width, height, verticalAlign }) => {
       width: width || style.width,
       height: height || style.height,
       verticalAlign: verticalAlign || style.verticalAlign,
-      maxWidth: null,
     },
   });
 };
