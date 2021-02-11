@@ -146,6 +146,15 @@ module.exports = {
       );
     },
   },
+  TechTile: {
+    deserialize: deserializeComponent,
+    serialize: (h, node) =>
+      serializeComponent(h, node, { textAttributes: ['name'] }),
+  },
+  TechTileGrid: {
+    deserialize: deserializeComponent,
+    serialize: serializeComponent,
+  },
   Video: {
     deserialize: deserializeComponent,
     serialize: (h, node) =>
