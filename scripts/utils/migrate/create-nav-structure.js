@@ -7,8 +7,16 @@ const slugify = require('../slugify');
 const he = require('he');
 
 const MANUAL_ADJUSTMENTS = [
-  ["'Agent doesn''t start, no logs'", "Agent doesn't start, no logs"],
+  [`Agent doesn''t start, no logs`, `Agent doesn't start - no logs`],
 ];
+
+const adjustTitle = ({ title, ...node }) => ({
+  title: MANUAL_ADJUSTMENTS.reduce(
+    (str, [from, to]) => str.replace(from, to),
+    title
+  ),
+  ...node,
+});
 
 const createNavStructure = (files) => {
   if (!fs.existsSync(NAV_DIR)) {
@@ -44,10 +52,7 @@ const createNavStructure = (files) => {
     .map((node) =>
       vfile({
         path: path.join(NAV_DIR, `${slugify(node.title)}.yml`),
-        contents: MANUAL_ADJUSTMENTS.reduce(
-          (str, [from, to]) => str.replace(from, to),
-          yaml.safeDump(node, { lineWidth: 99999 })
-        ),
+        contents: yaml.safeDump(adjustTitle(node), { lineWidth: 99999 }),
       })
     );
 };
