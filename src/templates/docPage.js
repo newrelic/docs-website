@@ -106,7 +106,12 @@ const BasicDoc = ({ data, location }) => {
             />
           )}
           <TableOfContents headings={headings} />
-          <RelatedResources resources={relatedResources} />
+          <RelatedResources
+            resources={relatedResources}
+            css={css`
+              border-top: 1px solid var(--divider-color);
+            `}
+          />
         </Layout.PageTools>
       </div>
     </>
