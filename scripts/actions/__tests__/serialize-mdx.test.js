@@ -228,6 +228,20 @@ test('serializes mark to html', async () => {
   expect(html).toMatchSnapshot();
 });
 
+test('serializes TechTileGrid to html', async () => {
+  const html = await serializeMDX(`
+<TechTileGrid>
+  <TechTile
+    name="iOS"
+    icon="logo-apple"
+    to="/agents/ios-agent"
+  />
+</TechTileGrid>
+`);
+
+  expect(html).toMatchSnapshot();
+});
+
 test('kitchen sink', async () => {
   const html = await serializeMDX(
     fs.readFileSync(`${__dirname}/kitchen-sink.mdx`, 'utf-8')

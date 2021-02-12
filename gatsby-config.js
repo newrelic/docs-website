@@ -149,6 +149,8 @@ module.exports = {
             options: {
               maxWidth: 850,
               linkImagesToOriginal: false,
+              backgroundColor: 'transparent',
+              disableBgImageOnAlpha: true,
             },
           },
           // Gifs are not supported via gatsby-remark-images (https://github.com/gatsbyjs/gatsby/issues/7317).
@@ -181,12 +183,20 @@ module.exports = {
         //
         // If this is addressed in MDX v2, we can safely remove this.
         remarkPlugins: [],
+        rehypePlugins: [
+          [
+            require('./rehype-plugins/gatsby-inline-images'),
+            { spacing: '0.25rem' },
+          ],
+        ],
         gatsbyRemarkPlugins: [
           {
             resolve: 'gatsby-remark-images',
             options: {
               maxWidth: 1200,
               linkImagesToOriginal: false,
+              backgroundColor: 'transparent',
+              disableBgImageOnAlpha: true,
             },
           },
           autoLinkHeaders,
