@@ -4,9 +4,11 @@ const vfile = require('vfile');
 const yaml = require('js-yaml');
 const { CONTENT_DIR, NAV_DIR } = require('../constants');
 const slugify = require('../slugify');
+const he = require('he');
 
-const decodeTitle = (title) =>
-  title.replace(/\&#039;/g, "'").replace(/\&quot;/g, '"');
+const MANUAL_ADJUSTMENTS = [
+  ["'Agent doesn''t start, no logs'", "Agent doesn't start, no logs"],
+];
 
 const createNavStructure = (files) => {
   if (!fs.existsSync(NAV_DIR)) {
@@ -30,7 +32,7 @@ const createNavStructure = (files) => {
             buildSubnav(
               file,
               {
-                title: decodeTitle(title),
+                title: he.decode(title),
                 path: `/docs/${slugify(title)}`,
                 pages: [],
               },
@@ -42,7 +44,10 @@ const createNavStructure = (files) => {
     .map((node) =>
       vfile({
         path: path.join(NAV_DIR, `${slugify(node.title)}.yml`),
-        contents: yaml.safeDump(node, { lineWidth: 99999 }),
+        contents: MANUAL_ADJUSTMENTS.reduce(
+          (str, [from, to]) => str.replace(from, to),
+          yaml.safeDump(node, { lineWidth: 99999 })
+        ),
       })
     );
 };
@@ -77,7 +82,7 @@ const buildSubnav = (file, parent, topics) => {
   switch (true) {
     case topics.length === 0 && idx >= 0:
       return updateChild(parent, idx, ({ title, ...attrs }) => ({
-        title: decodeTitle(title),
+        title: he.decode(title),
         path: toPath(file),
         ...attrs,
       }));
@@ -85,7 +90,7 @@ const buildSubnav = (file, parent, topics) => {
     case topics.length === 0:
       return {
         ...parent,
-        pages: [...pages, { title: decodeTitle(title), path: toPath(file) }],
+        pages: [...pages, { title: he.decode(title), path: toPath(file) }],
       };
 
     case idx === -1:
@@ -93,11 +98,7 @@ const buildSubnav = (file, parent, topics) => {
         ...parent,
         pages: [
           ...pages,
-          buildSubnav(
-            file,
-            { title: decodeTitle(title), pages: [] },
-            subtopics
-          ),
+          buildSubnav(file, { title: he.decode(title), pages: [] }, subtopics),
         ],
       };
 
