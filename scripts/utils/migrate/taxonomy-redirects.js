@@ -41,7 +41,6 @@ const getNodePath = async (uri) => {
     const json = await res.json();
     return get(json, 'docs[0].doc.path');
   } catch (error) {
-    fs.writeFileSync('src/data/nodes.txt', url);
     return null;
   }
 };
