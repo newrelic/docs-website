@@ -29,6 +29,23 @@ const getTaxonomyPath = async (uri) => {
   }
 };
 
+const getNodePath = async (uri) => {
+  const id = uri.replace(/.*\/node\//, '');
+  const url = new URL(`/api/migration/content/node/${id}/urlPath`, BASE_URL);
+  const headers = {
+    'Content-Type': 'application/json',
+    'X-Phpshield-Key-Disable': process.env.ACQUIA_DEV_PHP_SHIELD_KEY,
+  };
+  try {
+    const res = await fetch(url, { headers });
+    const json = await res.json();
+    return get(json, 'docs[0].doc.path');
+  } catch (error) {
+    fs.writeFileSync('src/data/nodes.txt', url);
+    return null;
+  }
+};
+
 const fetchTaxonomyRedirects = async (redirects) => {
   const taxonomy = await Promise.all(
     Object.entries(redirects)
@@ -36,17 +53,19 @@ const fetchTaxonomyRedirects = async (redirects) => {
       .map(async ([url, paths]) => [await getTaxonomyPath(url), paths])
   );
 
-  return taxonomy.reduce((memo, [url, paths]) => {
-    const filteredPaths = paths.filter(
-      (path) =>
-        path !== url &&
-        !path.startsWith('/node') &&
-        !path.startsWith('/taxonomy')
+  return await taxonomy.reduce(async (memo, [url, paths]) => {
+    const filteredPaths = await Promise.all(
+      paths
+        .filter((path) => path !== url && !path.startsWith('/taxonomy'))
+        .map(async (path) =>
+          path.startsWith('/node') ? await getNodePath(path) : path
+        )
+        .filter((path) => Boolean(path))
     );
 
-    return Boolean(url) && filteredPaths.length > 0
-      ? { ...memo, [url]: filteredPaths }
-      : memo;
+    return Boolean(url) && (await filteredPaths.length) > 0
+      ? { ...(await memo), [url]: await filteredPaths }
+      : await memo;
   }, {});
 };
 
