@@ -130,7 +130,7 @@ export const pageQuery = graphql`
       fields {
         fileRelativePath
       }
-      relatedResources(limit: 5) {
+      relatedResources(limit: 3) {
         title
         url
       }
