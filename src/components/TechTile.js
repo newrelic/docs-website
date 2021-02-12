@@ -1,15 +1,43 @@
 import React, { isValidElement, cloneElement } from 'react';
 import PropTypes from 'prop-types';
-import { css } from '@emotion/core';
+import { ClassNames, css } from '@emotion/core';
 import { Surface, Icon, Link } from '@newrelic/gatsby-theme-newrelic';
 
 const TileIcon = ({ className, icon }) => {
   if (typeof icon === 'string') {
-    return <Icon name={icon} size="2rem" className={className} />;
+    return (
+      <Icon
+        name={icon}
+        size="2rem"
+        className={className}
+        css={css`
+          flex: 1;
+        `}
+      />
+    );
   }
 
-  if (isValidElement(icon)) {
-    return cloneElement(icon, { className });
+  if (isValidElement(icon) && icon.props?.mdxType === 'img') {
+    return (
+      <span
+        className={className}
+        css={css`
+          flex: 1;
+        `}
+      >
+        <ClassNames>
+          {({ css }) =>
+            cloneElement(icon, {
+              className: css`
+                width: 2rem;
+                height: auto;
+                border-radius: 0.25rem;
+              `,
+            })
+          }
+        </ClassNames>
+      </span>
+    );
   }
 
   return null;
@@ -51,7 +79,6 @@ const TechTile = ({ name, icon, to }) => (
       icon={icon}
       css={css`
         margin-bottom: 0.5rem;
-        flex: 1;
       `}
     />
     <div

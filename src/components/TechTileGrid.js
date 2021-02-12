@@ -2,8 +2,9 @@ import React from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/core';
 
-const TechTileGrid = ({ children }) => (
+const TechTileGrid = ({ className, children }) => (
   <div
+    className={className}
     css={css`
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
@@ -15,6 +16,7 @@ const TechTileGrid = ({ children }) => (
 );
 
 TechTileGrid.propTypes = {
+  className: PropTypes.string,
   children: PropTypes.node,
 };
 

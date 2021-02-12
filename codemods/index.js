@@ -17,6 +17,7 @@ const landingPageButtonType = require('./landingPageButtonType');
 const tocLinks = require('./tocLinks');
 const watermarks = require('./watermarks');
 const browserLandingPageBlockquote = require('./browserLandingPageBlockquote');
+const techTiles = require('./techTile');
 
 module.exports = [
   codeBlocks,
@@ -38,4 +39,5 @@ module.exports = [
   tocLinks,
   watermarks,
   landingPageHero,
+  techTiles,
 ];
