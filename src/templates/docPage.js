@@ -30,6 +30,11 @@ const BasicDoc = ({ data, location }) => {
     relatedResources,
   } = mdx;
 
+  const moreHelpHeading = mdxAST.children
+    .filter((node) => node.type === 'heading')
+    .map((node) => parseHeading(node))
+    .find(({ text }) => text === t('defaultRelatedContent.title'));
+
   const headings = useMemo(() => {
     const slugs = new GithubSlugger();
 
@@ -44,15 +49,16 @@ const BasicDoc = ({ data, location }) => {
         const { id, text } = parseHeading(heading);
 
         return { id: id || slugs.slug(text), text };
-      });
-  }, [mdxAST]);
-
-  const moreHelpExists = mdxAST.children
-    .filter((node) => node.type === 'heading')
-    .some((node) => {
-      const { text } = parseHeading(node);
-      return text === t('defaultRelatedContent.title');
-    });
+      })
+      .concat(
+        moreHelpHeading
+          ? []
+          : {
+              id: 'for-more-help',
+              text: t('defaultRelatedContent.title'),
+            }
+      );
+  }, [mdxAST, moreHelpHeading, t]);
 
   const isMobileScreen = useMedia('(max-width: 1240px)');
 
@@ -81,7 +87,7 @@ const BasicDoc = ({ data, location }) => {
         <Layout.Content>
           {frontmatter.watermark && <Watermark text={frontmatter.watermark} />}
           <MDXContainer body={body}>
-            {moreHelpExists ? null : <DefaultRelatedContent />}
+            {moreHelpHeading ? null : <DefaultRelatedContent />}
           </MDXContainer>
         </Layout.Content>
         <Layout.PageTools
