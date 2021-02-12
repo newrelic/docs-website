@@ -6,22 +6,24 @@ import {
   MDX,
   ExternalLink,
 } from '@newrelic/gatsby-theme-newrelic';
+import ImageSizing from './ImageSizing';
 import LandingPageHero from './LandingPageHero';
 import LandingPageTile from './LandingPageTile';
 import LandingPageTileGrid from './LandingPageTileGrid';
 import TechTile from './TechTile';
-import TechTileGrid from './TechTileGrid';
+import MDXTechTileGrid from './MDXTechTileGrid';
 
 const defaultComponents = {
   ExternalLink: (props) => (
     <ExternalLink {...props} onClick={(e) => e.stopPropagation()} />
   ),
   HeroContent: ({ children }) => <>{children}</>,
+  ImageSizing,
   LandingPageHero,
   LandingPageTile,
   LandingPageTileGrid,
   TechTile,
-  TechTileGrid,
+  TechTileGrid: MDXTechTileGrid,
 };
 
 const MDXContainer = ({ body, children, components }) => {

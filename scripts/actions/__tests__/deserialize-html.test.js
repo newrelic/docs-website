@@ -88,6 +88,22 @@ test('deserializes InlineCode components', async () => {
   expect(mdx).toEqual(input.trim());
 });
 
+test('deserializes TechTileGrid components', async () => {
+  const input = `
+<TechTileGrid>
+  <TechTile
+    name="iOS"
+    icon="logo-apple"
+    to="/agents/ios-agent"
+  />
+</TechTileGrid>
+  `;
+
+  const mdx = await deserializeHTML(await serializeMDX(input));
+
+  expect(mdx).toEqual(input.trim());
+});
+
 test('kitchen sink', async () => {
   const input = fs.readFileSync(`${__dirname}/kitchen-sink.mdx`, 'utf-8');
 
