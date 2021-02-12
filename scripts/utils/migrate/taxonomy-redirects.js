@@ -22,7 +22,6 @@ const getTaxonomyPath = async (uri) => {
   try {
     const res = await fetch(url, { headers });
     const json = await res.json();
-
     return get(json, 'terms[0].term.urlPath');
   } catch (error) {
     return null;
@@ -39,7 +38,9 @@ const getNodePath = async (uri) => {
   try {
     const res = await fetch(url, { headers });
     const json = await res.json();
-    return get(json, 'docs[0].doc.path');
+    const { docs } = json;
+
+    return docs.length ? get(json, 'docs[0].doc.path') : null;
   } catch (error) {
     return null;
   }
@@ -59,11 +60,11 @@ const fetchTaxonomyRedirects = async (redirects) => {
         .map(async (path) =>
           path.startsWith('/node') ? await getNodePath(path) : path
         )
-        .filter((path) => Boolean(path))
     );
+    const finalPaths = filteredPaths.filter((path) => Boolean(path));
 
-    return Boolean(url) && (await filteredPaths.length) > 0
-      ? { ...(await memo), [url]: await filteredPaths }
+    return Boolean(url) && finalPaths.length > 0
+      ? { ...(await memo), [url]: finalPaths }
       : await memo;
   }, {});
 };
