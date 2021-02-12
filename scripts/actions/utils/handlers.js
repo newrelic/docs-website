@@ -107,7 +107,7 @@ module.exports = {
   },
   Icon: {
     deserialize: (h, node) =>
-      deserializeComponent(h, node, { ignoreChildren: true }),
+      deserializeComponent(h, node, { hasChildrenProp: false }),
     serialize: (h, node) =>
       serializeComponent(h, node, {
         wrapChildren: false,
@@ -145,6 +145,16 @@ module.exports = {
         [u('text', toString(node))]
       );
     },
+  },
+  TechTile: {
+    deserialize: (h, node) =>
+      deserializeComponent(h, node, { hasChildrenProp: false }),
+    serialize: (h, node) =>
+      serializeComponent(h, node, { textAttributes: ['name'] }),
+  },
+  TechTileGrid: {
+    deserialize: deserializeComponent,
+    serialize: serializeComponent,
   },
   Video: {
     deserialize: deserializeComponent,
