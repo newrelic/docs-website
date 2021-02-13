@@ -60,6 +60,19 @@ const cleanAttribute = (attribute) => {
   return attribute ? attribute.replace(/(\n+\s*)+/g, '\n') : '';
 };
 
+// This only handles very basic cases (such as string-only prop values). If we
+// need more complex cases, we can add them later.
+const createElementString = (name, props, children) => {
+  const propsString = Object.entries(props || {})
+    .filter(([, value]) => value !== undefined)
+    .map(([key, value]) => `${key}="${value}"`)
+    .join(' ');
+
+  return `<${name}${
+    propsString ? ` ${propsString}` : ''
+  }>${children}</${name}>`;
+};
+
 const isLandingPageTile = (node) =>
   node.classList.contains('col') &&
   node.childNodes[0].classList.contains('col-md-3') &&
@@ -140,6 +153,8 @@ module.exports = (file) => {
     codeBlockStyle: 'fenced',
     fence: '```',
   });
+
+  const defaultRules = turndown.options.rules;
 
   turndown
     // adapted from Turndown to add custom heading IDs
@@ -284,6 +299,24 @@ module.exports = (file) => {
         const href = node.getAttribute('onclick').match(JS_OPEN)[1];
 
         return `<a href="${href}" className="tech-tile">\n\n${content}\n\n</a>\n\n`;
+      },
+    })
+    .addRule('sizedImages', {
+      filter: (node) =>
+        node.nodeName === 'IMG' &&
+        (node.style.width || node.style.height || node.style.verticalAlign),
+      replacement: (content, node) => {
+        const markdown = defaultRules.image.replacement(content, node);
+
+        return createElementString(
+          'ImageSizing',
+          {
+            width: node.style.width || undefined,
+            height: node.style.height || undefined,
+            verticalAlign: node.style.verticalAlign || undefined,
+          },
+          markdown
+        );
       },
     });
 

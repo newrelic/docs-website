@@ -90,7 +90,7 @@ const serializeComponent = (
         wrapChildren && node.children.length
           ? h(
               node.position,
-              'div',
+              inferredTagName,
               { 'data-type': 'prop', 'data-prop': 'children' },
               all(h, node)
             )

@@ -62,13 +62,11 @@ const deserializeComponent = (
         )
       : false;
 
-  const textProps =
-    wrappedChildren || !hasChildrenProp
-      ? node.children.filter(
-          (child) =>
-            child.properties && child.properties.dataProp !== 'children'
-        )
-      : [];
+  const textProps = wrappedChildren
+    ? node.children.filter(
+        (child) => child.properties && child.properties.dataProp !== 'children'
+      )
+    : [];
 
   const childrenNode = wrappedChildren
     ? node.children.find((child) => child.properties.dataProp === 'children')
