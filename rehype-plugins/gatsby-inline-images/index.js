@@ -2,22 +2,7 @@ const visit = require('unist-util-visit');
 const phrasing = require('hast-util-phrasing');
 const is = require('hast-util-is-element');
 const has = require('hast-util-has-property');
-
-const parseStyleString = (string) =>
-  string
-    .split(/;\s*/)
-    .filter(Boolean)
-    .reduce((style, rule) => {
-      const [property, value] = rule.split(/:\s*/);
-
-      return { ...style, [property]: value };
-    }, {});
-
-const compileStyleObject = (styles) =>
-  Object.entries(styles)
-    .filter(([, value]) => Boolean(value))
-    .map((rule) => rule.join(': '))
-    .join('; ');
+const { parseStyleString, compileStyleObject } = require('../utils/styles');
 
 const isGatsbyImageWrapper = (node) =>
   is(node, 'span') &&
@@ -41,7 +26,7 @@ const inlineImages = (options = {}) => (tree) => {
     const hasNextPhrasingContent = phrasing(parent.children[idx + 1] || {});
 
     style.display = 'inline-block';
-    style.width = '100%';
+    style.width = style.width || '100%';
     style['margin-left'] = null;
     style['margin-right'] = null;
 
@@ -54,7 +39,7 @@ const inlineImages = (options = {}) => (tree) => {
     }
 
     if (hasPreviousPhrasingContent || hasNextPhrasingContent) {
-      style['vertical-align'] = 'text-bottom';
+      style['vertical-align'] = style['vertical-align'] || 'text-bottom';
     }
 
     node.properties.style = compileStyleObject(style);

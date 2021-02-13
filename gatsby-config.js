@@ -216,9 +216,10 @@ module.exports = {
         // If this is addressed in MDX v2, we can safely remove this.
         remarkPlugins: [],
         rehypePlugins: [
+          require('./rehype-plugins/image-sizing'),
           [
             require('./rehype-plugins/gatsby-inline-images'),
-            { spacing: '0.25rem' },
+            { spacing: '0.5rem' },
           ],
         ],
         gatsbyRemarkPlugins: [
