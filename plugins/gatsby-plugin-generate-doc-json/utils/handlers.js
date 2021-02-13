@@ -144,8 +144,8 @@ module.exports = {
   thead: (h, node) => h(node, 'thead', {}, all(h, node)),
   tbody: (h, node) => h(node, 'tbody', {}, all(h, node)),
   tr: (h, node) => h(node, 'tr', {}, all(h, node)),
-  th: (h, node) => h(node, 'tr', {}, all(h, node)),
-  td: (h, node) => h(node, 'tr', {}, all(h, node)),
-  var: (h, node) => h(node, 'tr', {}, [u('text', toString(node))]),
-  mark: (h, node) => h(node, 'tr', {}, [u('text', toString(node))]),
+  th: (h, node) => h(node, 'th', {}, all(h, node)),
+  td: (h, node) => h(node, 'td', {}, all(h, node)),
+  var: (h, node) => h(node, 'var', {}, [u('text', toString(node))]),
+  mark: (h, node) => h(node, 'mark', {}, [u('text', toString(node))]),
 };
