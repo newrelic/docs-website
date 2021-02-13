@@ -29,39 +29,40 @@ const htmlGenerator = unified()
 exports.onPostBuild = async ({ graphql, store }) => {
   const { program } = store.getState();
 
-  const query = `query {
-    allMdx(filter: {fileAbsolutePath: {regex: "/src/content/docs/"}}) {
-      nodes {
-        mdxAST
-        slug
-        fields {
-          fileRelativePath
-        }
-      }
-    }
-    allFile(filter: {childImageSharp: {id: {ne: null}}}) {
-      nodes {
-        childImageSharp {
-          fluid {
-            src
+  try {
+    const { data } = await graphql(`
+      query {
+        allMdx(filter: { fileAbsolutePath: { regex: "/src/content/docs/" } }) {
+          nodes {
+            mdxAST
+            slug
+            fields {
+              fileRelativePath
+            }
           }
         }
-        relativePath
+        allImageSharp {
+          nodes {
+            parent {
+              ... on File {
+                relativePath
+              }
+            }
+            fluid {
+              src
+            }
+          }
+        }
       }
-    }
-  }`;
+    `);
 
-  try {
-    const { data } = await graphql(query);
-    const { allMdx, allFile } = data;
+    const { allMdx, allImageSharp } = data;
 
-    const imageHashMap = allFile.nodes.reduce(
-      (obj, { childImageSharp, relativePath }) => {
-        return {
-          ...obj,
-          [relativePath]: childImageSharp.fluid.src,
-        };
-      },
+    const imageHashMap = allImageSharp.nodes.reduce(
+      (memo, { fluid, parent }) => ({
+        ...memo,
+        [parent.relativePath]: fluid.src,
+      }),
       {}
     );
 
