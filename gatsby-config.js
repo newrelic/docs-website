@@ -125,6 +125,9 @@ module.exports = {
           pageView: {
             name: 'pageView',
             category: 'DocPageView',
+            getProperties: ({ env }) => ({
+              env: env === 'production' ? 'prod' : env,
+            }),
           },
         },
       },
