@@ -59,8 +59,8 @@ exports.onPostBuild = async ({ graphql, store }) => {
     const { allMdx, allImageSharp } = data;
 
     const imageHashMap = allImageSharp.nodes.reduce(
-      (memo, { fluid, parent }) => ({
-        ...memo,
+      (acc, { fluid, parent }) => ({
+        ...acc,
         [parent.relativePath]: fluid.src,
       }),
       {}
