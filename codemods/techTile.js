@@ -1,12 +1,14 @@
 const visit = require('unist-util-visit');
 const path = require('path');
 const {
+  containsImport,
   findAttribute,
   isMdxBlockElement,
   hasClassName,
 } = require('./utils/mdxast');
 const {
   mdxAttribute,
+  mdxImport,
   mdxValueExpression,
   mdxBlockElement,
   mdxSpanElement,
@@ -38,7 +40,7 @@ const techTile = () => (tree) => {
       );
 
       if (isRelativeImport) {
-        imageImports.push({ name: importName, path: image.url });
+        imageImports.push(mdxImport(importName, image.url));
       }
 
       node.attributes = [
@@ -102,11 +104,10 @@ const techTile = () => (tree) => {
     }
   );
 
-  imageImports.reverse().forEach(({ name, path }) => {
-    tree.children.splice(1, 0, {
-      type: 'import',
-      value: `import ${name} from '${path}'`,
-    });
+  imageImports.reverse().forEach((node) => {
+    if (!containsImport(tree, node)) {
+      tree.children.splice(1, 0, node);
+    }
   });
 };
 

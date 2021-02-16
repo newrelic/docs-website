@@ -24,10 +24,10 @@ module.exports = [
   inlineCodeBlocks,
   indentedCodeBlock,
   callouts,
-  clamshells,
   exampleBoxes,
   videos,
   images,
+  clamshells,
   tables,
   buttons,
   browserLandingPageBlockquote,
@@ -40,4 +40,5 @@ module.exports = [
   watermarks,
   landingPageHero,
   techTiles,
+  require('./imageSizing'),
 ];

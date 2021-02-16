@@ -32,7 +32,9 @@ const exampleBoxes = () => (tree, file) => {
 
       setAttribute(
         'title',
-        isPlainText(title) ? toString(title) : toJSXExpression(title, file),
+        isPlainText(title)
+          ? toString(title)
+          : toJSXExpression(title, file, tree),
         child
       );
 

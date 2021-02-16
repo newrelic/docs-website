@@ -27,7 +27,7 @@ const clamshells = () => (tree, file) => {
 
           setAttribute(
             'title',
-            isPlainText(dt) ? toString(dt) : toJSXExpression(dt, file),
+            isPlainText(dt) ? toString(dt) : toJSXExpression(dt, file, tree),
             dt
           );
 
