@@ -279,7 +279,7 @@ module.exports = {
         path: `./src/nav/`,
       },
     },
-    // 'gatsby-plugin-generate-doc-json',
+    'gatsby-plugin-generate-doc-json',
     {
       resolve: 'gatsby-plugin-generate-json',
       options: {
