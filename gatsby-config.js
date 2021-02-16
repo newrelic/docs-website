@@ -48,6 +48,7 @@ module.exports = {
           maxWidth: '1600px',
           component: require.resolve('./src/layouts'),
         },
+        gaTrackingId: 'UA-3047412-33',
         i18n: {
           translationsPath: `${__dirname}/src/i18n/translations`,
           additionalLocales: [{ name: '日本語', locale: 'jp' }],
