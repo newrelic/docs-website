@@ -117,6 +117,20 @@ module.exports = {
             },
           },
         },
+        tessen: {
+          product: 'DOC',
+          subproduct: 'TDOC',
+          segmentWriteKey: 'AEfP8c1VSuFxhMdk3jYFQrYQV9sHbUXx',
+          trackPageViews: true,
+          pageView: {
+            name: 'pageView',
+            category: 'DocPageView',
+            getProperties: ({ location, env }) => ({
+              path: location.pathname,
+              env: env === 'production' ? 'prod' : env,
+            }),
+          },
+        },
       },
     },
     {
