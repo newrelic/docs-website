@@ -5,8 +5,8 @@ import { SEO } from '@newrelic/gatsby-theme-newrelic';
 
 const METADATA = [{ name: 'google-site-verification', content: '' }];
 
-const DocsSiteSeo = ({ location }) => (
-  <SEO location={location}>
+const DocsSiteSeo = ({ location, title }) => (
+  <SEO location={location} title={title}>
     {METADATA.map((data) => (
       <meta key={data.name} {...data} />
     ))}
