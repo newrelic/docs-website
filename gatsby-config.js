@@ -73,7 +73,6 @@ module.exports = {
             filter: ({ slug }) =>
               slug ===
               '/docs/integrations/kubernetes-integration/understand-use-data/kubernetes-cluster-explorer',
-            getSlug: ({ node }) => node.fields.slug,
             getParams: ({ node }) => {
               const { tags, title } = node.frontmatter;
 
