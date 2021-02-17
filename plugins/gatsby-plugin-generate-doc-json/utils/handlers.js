@@ -2,6 +2,7 @@ const all = require('mdast-util-to-hast/lib/all');
 const { findAttribute } = require('../../../codemods/utils/mdxast');
 const toString = require('mdast-util-to-string');
 const u = require('unist-builder');
+const { compileStyleObject } = require('../../../rehype-plugins/utils/styles');
 
 const stripNulls = (obj) =>
   Object.fromEntries(Object.entries(obj).filter(([, value]) => value != null));
@@ -22,14 +23,31 @@ module.exports = {
       .slice(0, -1)
       .join('/')
       .concat(node.url.replace('./', '/'));
-    return h(
-      node,
-      'img',
-      {
+
+    const isBlockElement =
+      isMdxElement('paragraph', node.parent) &&
+      node.parent.children.length === 1;
+
+    if (isBlockElement) {
+      return h(node, 'img', {
         src: imageHashMap[srcUrl] || node.url,
         alt: node.alt,
+        className: 'article-image',
+      });
+    }
+
+    return h(
+      node,
+      'div',
+      {
+        className: 'type-image',
       },
-      all(h, node)
+      [
+        h(node, 'img', {
+          src: imageHashMap[srcUrl] || node.url,
+          alt: node.alt,
+        }),
+      ]
     );
   },
   CodeBlock: (h, node) => {
@@ -137,6 +155,27 @@ module.exports = {
         name: findAttribute('name', node),
       },
       [u('text', '\u00A0')]
+    );
+  },
+  ImageSizing: (h, node) => {
+    const style = stripNulls({
+      height: findAttribute('height', node),
+      width: findAttribute('width', node),
+      verticalAlign: findAttribute('verticalAlign', node),
+    });
+    return h(
+      node,
+      'div',
+      {
+        className: 'type-image',
+        style: compileStyleObject(style),
+      },
+      [
+        h(node, 'img', {
+          src: imageHashMap[srcUrl] || node.url,
+          alt: node.alt,
+        }),
+      ]
     );
   },
   InlineCode: (h, node) => h(node, 'code', {}, [u('text', toString(node))]),

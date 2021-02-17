@@ -10,12 +10,17 @@ const customHeadingIds = require('../gatsby-remark-custom-heading-ids/utils/visi
 const handlers = require('./utils/handlers');
 const all = require('mdast-util-to-hast/lib/all');
 
-const mdxElement = (h, node) => {
+const mdxElement = (h, node, imageHashMap) => {
   const handler = handlers[node.name];
 
   if (!handler) {
     return all(h, node);
   }
+
+  if (node.name === 'ImageSizing') {
+    return handler(h, node, imageHashMap);
+  }
+
   return handler(h, node);
 };
 
@@ -79,8 +84,8 @@ exports.onPostBuild = async ({ graphql, store }) => {
       const html = htmlGenerator.stringify(
         toHast(transformedAST, {
           handlers: {
-            mdxSpanElement: mdxElement,
-            mdxBlockElement: mdxElement,
+            mdxSpanElement: (h, node) => mdxElement(h, node, imageHashMap),
+            mdxBlockElement: (h, node) => mdxElement(h, node, imageHashMap),
             code: handlers.CodeBlock,
             image: (h, node) =>
               handlers.image(h, node, imageHashMap, fileRelativePath),
