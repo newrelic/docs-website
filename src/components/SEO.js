@@ -3,11 +3,11 @@ import PropTypes from 'prop-types';
 
 import { SEO } from '@newrelic/gatsby-theme-newrelic';
 
-const metadata = [{ name: 'google-site-verification', content: '' }];
+const METADATA = [{ name: 'google-site-verification', content: '' }];
 
 const DocsSiteSeo = ({ location }) => (
   <SEO location={location}>
-    {metadata.map((data) => (
+    {METADATA.map((data) => (
       <meta key={data.name} {...data} />
     ))}
   </SEO>
