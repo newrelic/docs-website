@@ -2,10 +2,11 @@ import React from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/core';
 import { graphql } from 'gatsby';
-import { Icon, Layout, Link, SEO } from '@newrelic/gatsby-theme-newrelic';
+import { Icon, Layout, Link } from '@newrelic/gatsby-theme-newrelic';
 import PageTitle from '../components/PageTitle';
 import MDXContainer from '../components/MDXContainer';
 import Watermark from '../components/Watermark';
+import SEO from '../components/SEO';
 
 const ReleaseNoteTemplate = ({ data, location }) => {
   const {

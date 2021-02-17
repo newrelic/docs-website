@@ -10,12 +10,12 @@ import {
   Layout,
   RelatedResources,
   SimpleFeedback,
-  SEO,
   TableOfContents,
   useTranslation,
 } from '@newrelic/gatsby-theme-newrelic';
 import DefaultRelatedContent from '../components/DefaultRelatedContent';
 import Watermark from '../components/Watermark';
+import SEO from '../components/SEO';
 import GithubSlugger from 'github-slugger';
 import { parseHeading } from '../../plugins/gatsby-remark-custom-heading-ids/utils/heading';
 

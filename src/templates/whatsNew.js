@@ -7,8 +7,8 @@ import {
   Layout,
   Link,
   MarkdownContainer,
-  SEO,
 } from '@newrelic/gatsby-theme-newrelic';
+import SEO from '../components/SEO';
 import PageTitle from '../components/PageTitle';
 
 const WhatsNewTemplate = ({ data, location }) => {
