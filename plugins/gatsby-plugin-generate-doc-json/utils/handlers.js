@@ -157,12 +157,21 @@ module.exports = {
       [u('text', '\u00A0')]
     );
   },
-  ImageSizing: (h, node) => {
+  ImageSizing: (h, node, imageHashMap, fileRelativePath) => {
     const style = stripNulls({
       height: findAttribute('height', node),
       width: findAttribute('width', node),
       verticalAlign: findAttribute('verticalAlign', node),
     });
+
+    const srcUrl = fileRelativePath
+      .replace('.mdx', '')
+      .replace('src/content/', '')
+      .split('/')
+      .slice(0, -1)
+      .join('/')
+      .concat(node.url.replace('./', '/'));
+
     return h(
       node,
       'div',
