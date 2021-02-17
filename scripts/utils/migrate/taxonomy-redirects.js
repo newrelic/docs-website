@@ -28,6 +28,13 @@ const getTaxonomyPath = async (uri) => {
   }
 };
 
+/**
+ * Gets the URL path for a Drupal node.
+ * If unable to find the path, null is returned.
+ * @param {string} uri The node URI in Drupal
+ * @returns {Promise<string>}
+ */
+
 const getNodePath = async (uri) => {
   const id = uri.replace(/.*\/node\//, '');
   const url = new URL(`/api/migration/content/node/${id}/urlPath`, BASE_URL);
@@ -53,19 +60,20 @@ const fetchTaxonomyRedirects = async (redirects) => {
       .map(async ([url, paths]) => [await getTaxonomyPath(url), paths])
   );
 
-  return await taxonomy.reduce(async (memo, [url, paths]) => {
-    const filteredPaths = await Promise.all(
-      paths
-        .filter((path) => path !== url && !path.startsWith('/taxonomy'))
-        .map(async (path) =>
-          path.startsWith('/node') ? await getNodePath(path) : path
-        )
-    );
-    const finalPaths = filteredPaths.filter((path) => Boolean(path));
+  const filteredPaths = await Promise.all(
+    taxonomy.map(async ([url, paths]) => [
+      url,
+      await Promise.all(
+        paths
+          .filter((path) => path !== url && !path.startsWith('/taxonomy'))
+          .map((path) => (path.startsWith('/node') ? getNodePath(path) : path))
+      ),
+    ])
+  );
 
-    return Boolean(url) && finalPaths.length > 0
-      ? { ...(await memo), [url]: finalPaths }
-      : await memo;
+  return filteredPaths.reduce((memo, [url, paths]) => {
+    paths = paths.filter(Boolean);
+    return Boolean(url) && paths.length > 0 ? { ...memo, [url]: paths } : memo;
   }, {});
 };
 
