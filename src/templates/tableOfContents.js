@@ -2,15 +2,10 @@ import React, { useMemo } from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/core';
 import { graphql } from 'gatsby';
-import {
-  Icon,
-  Layout,
-  Link,
-  SEO,
-  useLocale,
-} from '@newrelic/gatsby-theme-newrelic';
+import { Icon, Layout, Link, useLocale } from '@newrelic/gatsby-theme-newrelic';
 import PageTitle from '../components/PageTitle';
 import IndexContents from '../components/IndexContents';
+import SEO from '../components/SEO';
 
 const TableOfContentsPage = ({ data, pageContext, location }) => {
   const { title } = pageContext;

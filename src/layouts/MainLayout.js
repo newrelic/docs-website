@@ -5,12 +5,12 @@ import {
   Layout,
   Link,
   Logo,
-  SEO,
   useLayout,
 } from '@newrelic/gatsby-theme-newrelic';
 import { graphql } from 'gatsby';
 import { css } from '@emotion/core';
 import MobileHeader from '../components/MobileHeader';
+import SEO from '../components/SEO';
 import { useMedia } from 'react-use';
 import RootNavigation from '../components/RootNavigation';
 import SubNavigation from '../components/SubNavigation';
@@ -47,7 +47,9 @@ const MainLayout = ({ data = {}, children, pageContext }) => {
 
   return (
     <>
-      <SEO location={location} />
+      <SEO location={location}>
+        <meta name="google-site-verification" content="foobar" />
+      </SEO>
       <GlobalHeader />
       {isSmallScreen && (
         <MobileHeader
