@@ -17,7 +17,7 @@ const mdxElement = (h, node, imageHashMap, fileRelativePath) => {
     return all(h, node);
   }
 
-  if (node.name === 'ImageSizing') {
+  if (node.name === 'ImageSizing' || node.name === 'paragraph') {
     return handler(h, node, imageHashMap, fileRelativePath);
   }
 

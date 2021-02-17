@@ -1,7 +1,7 @@
 const all = require('mdast-util-to-hast/lib/all');
 const {
   findAttribute,
-  isMdxElement,
+  hasOnlyChild,
 } = require('../../../codemods/utils/mdxast');
 const toString = require('mdast-util-to-string');
 const u = require('unist-builder');
@@ -17,28 +17,38 @@ const getAllAttributes = (node) =>
       }, {})
     : {};
 
+const getSrcUrl = (fileRelativePath, url) =>
+  fileRelativePath
+    .replace('.mdx', '')
+    .replace('src/content/', '')
+    .split('/')
+    .slice(0, -1)
+    .join('/')
+    .concat(url.replace('./', '/'));
+
 module.exports = {
-  image: (h, node, imageHashMap, fileRelativePath) => {
-    const srcUrl = fileRelativePath
-      .replace('.mdx', '')
-      .replace('src/content/', '')
-      .split('/')
-      .slice(0, -1)
-      .join('/')
-      .concat(node.url.replace('./', '/'));
-
-    const isBlockElement =
-      isMdxElement('paragraph', node.parent) &&
-      node.parent.children.length === 1;
-
-    if (isBlockElement) {
-      return h(node, 'img', {
-        src: imageHashMap[srcUrl] || node.url,
-        alt: node.alt,
-        className: 'article-image',
-      });
+  paragraph: (h, node, imageHashMap, fileRelativePath) => {
+    if (hasOnlyChild('image', node)) {
+      const srcUrl = getSrcUrl(fileRelativePath, node.url);
+      return h(
+        node,
+        'p',
+        {
+          className: 'article-image',
+        },
+        [
+          h(node, 'img', {
+            src: imageHashMap[srcUrl] || node.url,
+            alt: node.alt,
+            className: 'article-image',
+          }),
+        ]
+      );
     }
-
+    return all(h, node);
+  },
+  image: (h, node, imageHashMap, fileRelativePath) => {
+    const srcUrl = getSrcUrl(fileRelativePath, node.url);
     return h(
       node,
       'div',
@@ -167,13 +177,7 @@ module.exports = {
       verticalAlign: findAttribute('verticalAlign', node),
     });
 
-    const srcUrl = fileRelativePath
-      .replace('.mdx', '')
-      .replace('src/content/', '')
-      .split('/')
-      .slice(0, -1)
-      .join('/')
-      .concat(node.url.replace('./', '/'));
+    const srcUrl = getSrcUrl(fileRelativePath, node.url);
 
     return h(
       node,
