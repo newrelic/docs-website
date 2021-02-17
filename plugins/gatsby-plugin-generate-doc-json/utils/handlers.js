@@ -1,5 +1,8 @@
 const all = require('mdast-util-to-hast/lib/all');
-const { findAttribute } = require('../../../codemods/utils/mdxast');
+const {
+  findAttribute,
+  isMdxElement,
+} = require('../../../codemods/utils/mdxast');
 const toString = require('mdast-util-to-string');
 const u = require('unist-builder');
 const { compileStyleObject } = require('../../../rehype-plugins/utils/styles');
