@@ -47,9 +47,7 @@ const MainLayout = ({ data = {}, children, pageContext }) => {
 
   return (
     <>
-      <SEO location={location}>
-        <meta name="google-site-verification" content="foobar" />
-      </SEO>
+      <SEO location={location} />
       <GlobalHeader />
       {isSmallScreen && (
         <MobileHeader
