@@ -2,7 +2,6 @@ const all = require('mdast-util-to-hast/lib/all');
 const one = require('mdast-util-to-hast/lib/one');
 const {
   findAttribute,
-  hasOnlyChild,
   isMdxElement,
 } = require('../../../codemods/utils/mdxast');
 const toString = require('mdast-util-to-string');
