@@ -10,26 +10,16 @@ const METADATA = [
   },
 ];
 
-const DocsSiteSeo = ({ location, title, description }) => {
-  const metadata =
-    description || title
-      ? [
-          ...METADATA,
-          {
-            name: 'description',
-            content: description || title,
-          },
-        ]
-      : METADATA;
+const DocsSiteSeo = ({ location, title, description }) => (
+  <SEO location={location} title={title}>
+    {METADATA.map((data) => (
+      <meta key={data.name} {...data} />
+    ))}
 
-  return (
-    <SEO location={location} title={title}>
-      {metadata.map((data) => (
-        <meta key={data.name} {...data} />
-      ))}
-    </SEO>
-  );
-};
+    {description ||
+      (title && <meta name="description" content={description || title} />)}
+  </SEO>
+);
 
 DocsSiteSeo.propTypes = {
   location: PropTypes.string.isRequired,

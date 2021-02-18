@@ -64,7 +64,11 @@ const BasicDoc = ({ data, location }) => {
 
   return (
     <>
-      <SEO location={location} title={frontmatter.title} />
+      <SEO
+        location={location}
+        title={frontmatter.title}
+        description={frontmatter.shortDescription}
+      />
       <div
         css={css`
           display: grid;
