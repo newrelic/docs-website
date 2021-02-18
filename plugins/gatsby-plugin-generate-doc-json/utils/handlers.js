@@ -1,11 +1,14 @@
 const all = require('mdast-util-to-hast/lib/all');
+const one = require('mdast-util-to-hast/lib/one');
 const {
   findAttribute,
   hasOnlyChild,
+  isMdxElement,
 } = require('../../../codemods/utils/mdxast');
 const toString = require('mdast-util-to-string');
 const u = require('unist-builder');
 const { compileStyleObject } = require('../../../rehype-plugins/utils/styles');
+const { set, get } = require('lodash');
 
 const stripNulls = (obj) =>
   Object.fromEntries(Object.entries(obj).filter(([, value]) => value != null));
@@ -27,39 +30,29 @@ const getSrcUrl = (fileRelativePath, url) =>
     .concat(url.replace('./', '/'));
 
 module.exports = {
-  paragraph: (h, node, imageHashMap, fileRelativePath) => {
-    if (hasOnlyChild('image', node)) {
-      const srcUrl = getSrcUrl(fileRelativePath, node.url);
-      return h(
-        node,
-        'p',
-        {
-          className: 'article-image',
-        },
-        [
-          h(node, 'img', {
-            src: imageHashMap[srcUrl] || node.url,
-            alt: node.alt,
-            className: 'article-image',
-          }),
-        ]
-      );
-    }
-    return all(h, node);
-  },
   image: (h, node, imageHashMap, fileRelativePath) => {
     const srcUrl = getSrcUrl(fileRelativePath, node.url);
+
+    const isBlockImage =
+      isMdxElement('paragraph', node.parent) &&
+      node.parent.children.length === 1;
+
     return h(
       node,
-      'div',
+      isBlockImage ? 'div' : 'span',
       {
-        className: 'type-image',
+        className: isBlockImage ? 'block-image' : 'inline-image',
       },
       [
-        h(node, 'img', {
-          src: imageHashMap[srcUrl] || node.url,
-          alt: node.alt,
-        }),
+        h(
+          node,
+          'img',
+          stripNulls({
+            src: imageHashMap[srcUrl] || node.url,
+            alt: node.alt,
+            style: get(node, 'data.style', null),
+          })
+        ),
       ]
     );
   },
@@ -170,29 +163,17 @@ module.exports = {
       [u('text', '\u00A0')]
     );
   },
-  ImageSizing: (h, node, imageHashMap, fileRelativePath) => {
+  ImageSizing: (h, node) => {
     const style = stripNulls({
       height: findAttribute('height', node),
       width: findAttribute('width', node),
       verticalAlign: findAttribute('verticalAlign', node),
     });
 
-    const srcUrl = getSrcUrl(fileRelativePath, node.url);
+    const [image] = node.children;
+    set(image, 'data.style', compileStyleObject(style));
 
-    return h(
-      node,
-      'div',
-      {
-        className: 'type-image',
-        style: compileStyleObject(style),
-      },
-      [
-        h(node, 'img', {
-          src: imageHashMap[srcUrl] || node.url,
-          alt: node.alt,
-        }),
-      ]
-    );
+    return one(h, image, node);
   },
   InlineCode: (h, node) => h(node, 'code', {}, [u('text', toString(node))]),
   table: (h, node) => h(node, 'table', {}, all(h, node)),
