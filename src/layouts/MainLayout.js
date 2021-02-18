@@ -48,7 +48,7 @@ const MainLayout = ({ data = {}, children, pageContext }) => {
       <SEO location={location} />
       <GlobalHeader />
       <MobileHeader>
-        {nav.id === rootNav.id ? (
+        {nav?.id === rootNav.id ? (
           <RootNavigation nav={nav} />
         ) : (
           <SubNavigation nav={nav} />
