@@ -16,7 +16,6 @@ const mdxElement = (h, node) => {
   if (!handler) {
     return all(h, node);
   }
-
   return handler(h, node);
 };
 
