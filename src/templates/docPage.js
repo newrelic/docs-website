@@ -130,6 +130,7 @@ export const pageQuery = graphql`
       body
       frontmatter {
         title
+        shortDescription
         watermark
       }
       fields {
