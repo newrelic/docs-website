@@ -167,7 +167,7 @@ module.exports = {
     const [image] = node.children;
     set(image, 'data.style', compileStyleObject(style));
 
-    return one(h, image, node);
+    return one(h, image, node.parent);
   },
   InlineCode: (h, node) => h(node, 'code', {}, [u('text', toString(node))]),
   table: (h, node) => h(node, 'table', {}, all(h, node)),
