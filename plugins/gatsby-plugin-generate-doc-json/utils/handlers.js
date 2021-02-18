@@ -21,10 +21,7 @@ const getAllAttributes = (node) =>
     : {};
 
 const getSrcUrl = (fileRelativePath, url) =>
-  path.join(
-    path.dirname(fileRelativePath.replace('src/content', '')),
-    url.replace('./', '')
-  );
+  path.join(path.dirname(fileRelativePath.replace('src/content', '')), url);
 
 module.exports = {
   image: (h, node, imageHashMap, fileRelativePath) => {
@@ -37,9 +34,10 @@ module.exports = {
     return h(
       node,
       isBlockImage ? 'div' : 'span',
-      {
+      stripNulls({
         className: [isBlockImage ? 'block-image' : 'inline-image', 'image'],
-      },
+        style: get(node, 'data.style', null),
+      }),
       [
         h(
           node,
@@ -47,7 +45,6 @@ module.exports = {
           stripNulls({
             src: imageHashMap[srcUrl] || node.url,
             alt: node.alt,
-            style: get(node, 'data.style', null),
           })
         ),
       ]
@@ -80,7 +77,7 @@ module.exports = {
       {
         className: `callout-${findAttribute('variant', node)}`,
       },
-      [u('text', toString(node))]
+      all(h, node)
     );
   },
   Button: (h, node) => {
