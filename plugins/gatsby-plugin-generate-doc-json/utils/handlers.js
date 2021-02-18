@@ -1,7 +1,14 @@
 const all = require('mdast-util-to-hast/lib/all');
-const { findAttribute } = require('../../../codemods/utils/mdxast');
+const one = require('mdast-util-to-hast/lib/one');
+const {
+  findAttribute,
+  isMdxElement,
+} = require('../../../codemods/utils/mdxast');
 const toString = require('mdast-util-to-string');
 const u = require('unist-builder');
+const { compileStyleObject } = require('../../../rehype-plugins/utils/styles');
+const { set, get } = require('lodash');
+const path = require('path');
 
 const stripNulls = (obj) =>
   Object.fromEntries(Object.entries(obj).filter(([, value]) => value != null));
@@ -13,23 +20,34 @@ const getAllAttributes = (node) =>
       }, {})
     : {};
 
+const getSrcUrl = (fileRelativePath, url) =>
+  path.join(path.dirname(fileRelativePath.replace('src/content', '')), url);
+
 module.exports = {
   image: (h, node, imageHashMap, fileRelativePath) => {
-    const srcUrl = fileRelativePath
-      .replace('.mdx', '')
-      .replace('src/content/', '')
-      .split('/')
-      .slice(0, -1)
-      .join('/')
-      .concat(node.url.replace('./', '/'));
+    const srcUrl = getSrcUrl(fileRelativePath, node.url);
+
+    const isBlockImage =
+      isMdxElement('paragraph', node.parent) &&
+      node.parent.children.length === 1;
+
     return h(
       node,
-      'img',
-      {
-        src: imageHashMap[srcUrl] || node.url,
-        alt: node.alt,
-      },
-      all(h, node)
+      isBlockImage ? 'div' : 'span',
+      stripNulls({
+        className: [isBlockImage ? 'block-image' : 'inline-image', 'image'],
+        style: get(node, 'data.style', null),
+      }),
+      [
+        h(
+          node,
+          'img',
+          stripNulls({
+            src: imageHashMap[srcUrl] || node.url,
+            alt: node.alt,
+          })
+        ),
+      ]
     );
   },
   CodeBlock: (h, node) => {
@@ -59,7 +77,7 @@ module.exports = {
       {
         className: `callout-${findAttribute('variant', node)}`,
       },
-      [u('text', toString(node))]
+      all(h, node)
     );
   },
   Button: (h, node) => {
@@ -139,6 +157,18 @@ module.exports = {
       [u('text', '\u00A0')]
     );
   },
+  ImageSizing: (h, node) => {
+    const style = stripNulls({
+      height: findAttribute('height', node),
+      width: findAttribute('width', node),
+      verticalAlign: findAttribute('verticalAlign', node),
+    });
+
+    const [image] = node.children;
+    set(image, 'data.style', compileStyleObject(style));
+
+    return one(h, image, node.parent);
+  },
   InlineCode: (h, node) => h(node, 'code', {}, [u('text', toString(node))]),
   table: (h, node) => h(node, 'table', {}, all(h, node)),
   thead: (h, node) => h(node, 'thead', {}, all(h, node)),
@@ -148,4 +178,6 @@ module.exports = {
   td: (h, node) => h(node, 'td', {}, all(h, node)),
   var: (h, node) => h(node, 'var', {}, [u('text', toString(node))]),
   mark: (h, node) => h(node, 'mark', {}, [u('text', toString(node))]),
+  figcaption: (h, node) =>
+    h(node, 'div', { className: ['meta'] }, all(h, node)),
 };
