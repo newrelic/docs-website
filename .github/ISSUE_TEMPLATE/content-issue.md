@@ -1,6 +1,6 @@
 ---
 name: "Content enhancements and bugs \U0001F4DA"
-about: 'Suggest an enhancement to our docs, or report a bug'
+about: 'Suggest an enhancement to our docs or report a bug in the docs.'
 title: Summarize your content request
 labels: content
 assignees: ''
@@ -9,8 +9,8 @@ assignees: ''
 <!-- Thanks for filing an issue on our docs! Your feedback helps us improve our
 docs for every New Relic user. -->
 
-<!-- **THIS REPO IS PUBLIC. Any information included in this form is accessible 
-on the internet!** -->
+<!-- **THIS REPO IS PUBLIC. Anything you share here is visible to the world,
+so be careful with screenshots and sensitive data.** -->
 
 ### Tell us what you need
 
@@ -21,4 +21,5 @@ on the internet!** -->
 
 ### Anything else you'd like to share?
 
-Add any other context or screenshots about your request here.
+Add other context like screenshots, links to other docs, and information about
+your environment (operating system, application framework, etc.).
