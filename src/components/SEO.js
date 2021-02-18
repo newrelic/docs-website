@@ -16,8 +16,9 @@ const DocsSiteSeo = ({ location, title, description }) => (
       <meta key={data.name} {...data} />
     ))}
 
-    {description ||
-      (title && <meta name="description" content={description || title} />)}
+    {(description || title) && (
+      <meta name="description" content={description || title} />
+    )}
   </SEO>
 );
 
