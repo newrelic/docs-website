@@ -10,12 +10,12 @@ import {
   Layout,
   RelatedResources,
   SimpleFeedback,
-  SEO,
   TableOfContents,
   useTranslation,
 } from '@newrelic/gatsby-theme-newrelic';
 import DefaultRelatedContent from '../components/DefaultRelatedContent';
 import Watermark from '../components/Watermark';
+import SEO from '../components/SEO';
 import GithubSlugger from 'github-slugger';
 import { parseHeading } from '../../plugins/gatsby-remark-custom-heading-ids/utils/heading';
 
@@ -64,7 +64,11 @@ const BasicDoc = ({ data, location }) => {
 
   return (
     <>
-      <SEO location={location} title={frontmatter.title} />
+      <SEO
+        location={location}
+        title={frontmatter.title}
+        description={frontmatter.metaDescription}
+      />
       <div
         css={css`
           display: grid;
@@ -130,6 +134,7 @@ export const pageQuery = graphql`
       body
       frontmatter {
         title
+        metaDescription
         watermark
       }
       fields {

@@ -1,10 +1,11 @@
 import React from 'react';
 import PropTypes from 'prop-types';
-import { Layout, SEO } from '@newrelic/gatsby-theme-newrelic';
+import { Layout } from '@newrelic/gatsby-theme-newrelic';
 import { graphql } from 'gatsby';
 import PageTitle from '../components/PageTitle';
 import IndexContents from '../components/IndexContents';
 import TableOfContentsContainer from '../components/TableOfContentsContainer';
+import SEO from '../components/SEO';
 
 const IndexPage = ({ data, pageContext, location }) => {
   const { nav } = data;

@@ -10,7 +10,6 @@ import {
   Link,
   Tag,
   TagList,
-  SEO,
   useQueryParams,
   Icon,
   useTranslation,
@@ -19,6 +18,7 @@ import {
 } from '@newrelic/gatsby-theme-newrelic';
 
 import DataDictionaryFilter from '../components/DataDictionaryFilter';
+import SEO from '../components/SEO';
 import PageTitle from '../components/PageTitle';
 
 import { useMedia } from 'react-use';

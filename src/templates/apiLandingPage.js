@@ -2,8 +2,9 @@ import React from 'react';
 import PropTypes from 'prop-types';
 import { graphql } from 'gatsby';
 import PageTitle from '../components/PageTitle';
-import { Layout, Link, SEO } from '@newrelic/gatsby-theme-newrelic';
+import { Layout, Link } from '@newrelic/gatsby-theme-newrelic';
 import MDXContainer from '../components/MDXContainer';
+import SEO from '../components/SEO';
 
 const ApiIndexPage = ({ data, location }) => {
   const {

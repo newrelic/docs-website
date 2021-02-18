@@ -22,8 +22,32 @@ const getTaxonomyPath = async (uri) => {
   try {
     const res = await fetch(url, { headers });
     const json = await res.json();
-
     return get(json, 'terms[0].term.urlPath');
+  } catch (error) {
+    return null;
+  }
+};
+
+/**
+ * Gets the URL path for a Drupal node.
+ * If unable to find the path, null is returned.
+ * @param {string} uri The node URI in Drupal
+ * @returns {Promise<string>}
+ */
+
+const getNodePath = async (uri) => {
+  const id = uri.replace(/.*\/node\//, '');
+  const url = new URL(`/api/migration/content/node/${id}/urlPath`, BASE_URL);
+  const headers = {
+    'Content-Type': 'application/json',
+    'X-Phpshield-Key-Disable': process.env.ACQUIA_DEV_PHP_SHIELD_KEY,
+  };
+  try {
+    const res = await fetch(url, { headers });
+    const json = await res.json();
+    const { docs } = json;
+
+    return docs.length ? get(json, 'docs[0].doc.path') : null;
   } catch (error) {
     return null;
   }
@@ -36,17 +60,20 @@ const fetchTaxonomyRedirects = async (redirects) => {
       .map(async ([url, paths]) => [await getTaxonomyPath(url), paths])
   );
 
-  return taxonomy.reduce((memo, [url, paths]) => {
-    const filteredPaths = paths.filter(
-      (path) =>
-        path !== url &&
-        !path.startsWith('/node') &&
-        !path.startsWith('/taxonomy')
-    );
+  const filteredPaths = await Promise.all(
+    taxonomy.map(async ([url, paths]) => [
+      url,
+      await Promise.all(
+        paths
+          .filter((path) => path !== url && !path.startsWith('/taxonomy'))
+          .map((path) => (path.startsWith('/node') ? getNodePath(path) : path))
+      ),
+    ])
+  );
 
-    return Boolean(url) && filteredPaths.length > 0
-      ? { ...memo, [url]: filteredPaths }
-      : memo;
+  return filteredPaths.reduce((memo, [url, paths]) => {
+    paths = paths.filter(Boolean);
+    return Boolean(url) && paths.length > 0 ? { ...memo, [url]: paths } : memo;
   }, {});
 };
 
