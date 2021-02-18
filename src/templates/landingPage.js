@@ -48,7 +48,11 @@ const LandingPage = ({ data, location }) => {
 
   return (
     <>
-      <SEO location={location} title={frontmatter.title} />
+      <SEO
+        location={location}
+        title={frontmatter.title}
+        description={frontmatter.metaDescription}
+      />
       <PageTitle>{frontmatter.title}</PageTitle>
       <Layout.Content>
         <MDXContainer components={components} body={body} />
@@ -68,6 +72,7 @@ export const pageQuery = graphql`
       body
       frontmatter {
         title
+        metaDescription
       }
     }
     ...MainLayout_query

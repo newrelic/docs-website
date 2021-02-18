@@ -64,7 +64,11 @@ const BasicDoc = ({ data, location }) => {
 
   return (
     <>
-      <SEO location={location} title={frontmatter.title} />
+      <SEO
+        location={location}
+        title={frontmatter.title}
+        description={frontmatter.metaDescription}
+      />
       <div
         css={css`
           display: grid;
@@ -130,6 +134,7 @@ export const pageQuery = graphql`
       body
       frontmatter {
         title
+        metaDescription
         watermark
       }
       fields {
