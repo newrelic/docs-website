@@ -1,7 +1,7 @@
 ---
-name: "Content enhancements and bugs \U0001F4DA"
+name: "Feedback on the docs \U0001F4DA"
 about: 'Suggest an enhancement to our docs or report a bug in the docs.'
-title: Summarize your content request
+title: Summarize your docs request
 labels: content
 assignees: ''
 ---
