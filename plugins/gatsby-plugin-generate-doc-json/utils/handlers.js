@@ -178,4 +178,6 @@ module.exports = {
   td: (h, node) => h(node, 'td', {}, all(h, node)),
   var: (h, node) => h(node, 'var', {}, [u('text', toString(node))]),
   mark: (h, node) => h(node, 'mark', {}, [u('text', toString(node))]),
+  figcaption: (h, node) =>
+    h(node, 'div', { className: ['meta'] }, all(h, node)),
 };
