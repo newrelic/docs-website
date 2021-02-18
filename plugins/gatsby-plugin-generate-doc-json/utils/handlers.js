@@ -40,7 +40,7 @@ module.exports = {
       node,
       isBlockImage ? 'div' : 'span',
       {
-        className: isBlockImage ? 'block-image' : 'inline-image',
+        className: [isBlockImage ? 'block-image' : 'inline-image', 'image'],
       },
       [
         h(
