@@ -8,6 +8,7 @@ const toString = require('mdast-util-to-string');
 const u = require('unist-builder');
 const { compileStyleObject } = require('../../../rehype-plugins/utils/styles');
 const { set, get } = require('lodash');
+const path = require('path');
 
 const stripNulls = (obj) =>
   Object.fromEntries(Object.entries(obj).filter(([, value]) => value != null));
@@ -20,13 +21,10 @@ const getAllAttributes = (node) =>
     : {};
 
 const getSrcUrl = (fileRelativePath, url) =>
-  fileRelativePath
-    .replace('.mdx', '')
-    .replace('src/content/', '')
-    .split('/')
-    .slice(0, -1)
-    .join('/')
-    .concat(url.replace('./', '/'));
+  path.join(
+    path.dirname(fileRelativePath.replace('src/content', '')),
+    url.replace('./', '')
+  );
 
 module.exports = {
   image: (h, node, imageHashMap, fileRelativePath) => {
