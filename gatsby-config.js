@@ -115,6 +115,16 @@ module.exports = {
               beacon: 'staging-bam.nr-data.net',
               errorBeacon: 'staging-bam.nr-data.net',
             },
+            production: {
+              instrumentationType: 'proAndSPA',
+              accountId: '10175106',
+              trustKey: '1',
+              agentID: '29883416',
+              licenseKey: '23448da482',
+              applicationID: '29883416',
+              beacon: 'staging-bam-cell.nr-data.net',
+              errorBeacon: 'staging-bam-cell.nr-data.net',
+            },
           },
         },
         tessen: {
