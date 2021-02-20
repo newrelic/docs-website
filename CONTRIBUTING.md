@@ -215,7 +215,7 @@ To add a new post:
 
 ```
 
-### What's new post frontmatter example
+  Here's a What's new post frontmatter example:
 
 ``` md
 ---
@@ -245,7 +245,7 @@ getStartedLink: >-
 
 ## Updating the navigation
 
-Navigation for [docs.newrelic.com](https://docs.newrelic.com) is stored in `YAML` files located in the [src/nav](./src/nav) directory. Each top-level navigation should have it's own configuration file. For example, here is a snippet of the [src/nav/insights.yml](./src/nav/insights.yml) configuration:
+Navigation for [docs.newrelic.com](https://docs.newrelic.com) is stored in `YAML` files located in the [src/nav](./src/nav) directory. Each top-level navigation should have its own configuration file. For example, here is a snippet of the [src/nav/insights.yml](./src/nav/insights.yml) configuration:
 
 ```yml
 title: Insights
@@ -276,7 +276,7 @@ Each "node" in the `.yml` configuration file can have the following properties:
 
 When the user goes to a page, we determine which section of the site they are on and load the appropriate `.yml` file to populate the sidebar navigation. The navigation for the homepage is an aggregate of all the top-level pages.
 
-**NOTE**: Each category has it's own `index.md` page (list of pages for that category). When updating the navigation, you may also want to update these pages to better reflect the new information architecture.
+**NOTE**: Each category has its own `index.md` page (list of pages for that category). When updating the navigation, you may also want to update these pages to better reflect the new information architecture.
 
 ## Adding a new page
 
