@@ -1,4 +1,4 @@
-export default TYPES = {
+export const TYPES = {
   BASIC_PAGE: {
     default: 'page',
     apiDoc: 'api_doc',
