@@ -182,31 +182,35 @@ exports.createPages = async ({ actions, graphql, reporter }, pluginOptions) => {
     locales.forEach(({ localizedPath }) => {
       const localizedSlug = path.join(`/${localizedPath}`, slug);
 
-      const localeDir = dir;
-
-      localeDir.children.forEach((child) => {
-        if (child.type === 'file') {
+      dir.children
+        .filter((child) => child.type === 'file')
+        .forEach((child) => {
+          const localizedFileSlug = path.join(
+            '/',
+            localizedPath,
+            child.data.fields.slug
+          );
           const matchedNode = translatedFileNodes.find(
             ({
               childMdx: {
                 fields: { slug },
               },
-            }) => slug === path.join('/', localizedPath, child.data.fields.slug)
+            }) => slug === localizedFileSlug
           );
           if (matchedNode) {
             child.data.frontmatter.title =
               matchedNode.childMdx.frontmatter.title;
           }
-        }
-      });
+          child.data.fields.slug = localizedFileSlug;
+        });
 
       createPage({
         path: localizedSlug,
         component: path.resolve('src/templates/indexPage.js'),
         context: {
           slug: localizedSlug,
-          html: generateHTML(localeDir),
-          title: sentenceCase(localeDir.basename),
+          html: generateHTML(dir),
+          title: sentenceCase(dir.basename),
           fileRelativePath: null,
         },
       });
