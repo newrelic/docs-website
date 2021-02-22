@@ -1,9 +1,11 @@
 export default TYPES = {
-  BASIC_PAGE: 'page',
+  BASIC_PAGE: {
+    default: 'page',
+    apiDoc: 'api_doc',
+    troubleshooting: 'troubleshooting_doc',
+  },
   LANDING_PAGE: 'term_page_landing_page',
-  API_DOC: 'api_doc',
   RELEASE_NOTE: 'release_notes',
-  TROUBLESHOOTING: 'troubleshooting_doc',
   WHATS_NEW: 'nr1_announcement',
   ATTRIBUTE_DEFINITION: 'attribute_definition',
   EVENT_DEFINITION: 'event_definition',

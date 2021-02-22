@@ -62,15 +62,16 @@ const BasicDoc = ({ data, location }) => {
   }, [mdxAST, moreHelpHeading, t]);
 
   const isMobileScreen = useMedia('(max-width: 1240px)');
+  const { title, metaDescription, type, tags } = frontmatter;
 
   return (
     <>
       <SEO
         location={location}
-        title={frontmatter.title}
-        description={frontmatter.metaDescription}
-        type={frontmatter.type ?? TYPES.BASIC_PAGE}
-        tags={frontmatter.tags}
+        title={title}
+        description={metaDescription}
+        type={type ? TYPES.BASIC_PAGE[type] : TYPES.BASIC_PAGE.default}
+        tags={tags}
       />
       <div
         css={css`
@@ -90,9 +91,9 @@ const BasicDoc = ({ data, location }) => {
           }
         `}
       >
-        <PageTitle>{frontmatter.title}</PageTitle>
+        <PageTitle>{title}</PageTitle>
         <Layout.Content>
-          {frontmatter.watermark && <Watermark text={frontmatter.watermark} />}
+          {watermark && <Watermark text={watermark} />}
           <MDXContainer body={body}>
             {moreHelpHeading ? null : <DefaultRelatedContent />}
           </MDXContainer>
@@ -105,10 +106,10 @@ const BasicDoc = ({ data, location }) => {
             }
           `}
         >
-          <SimpleFeedback title={frontmatter.title} labels={['content']} />
+          <SimpleFeedback title={title} labels={['content']} />
           {!isMobileScreen && (
             <ContributingGuidelines
-              pageTitle={frontmatter.title}
+              pageTitle={title}
               fileRelativePath={fileRelativePath}
             />
           )}
