@@ -83,6 +83,37 @@ exports.createPages = async ({ actions, graphql, reporter }, pluginOptions) => {
           }
         }
       }
+      translatedFiles: allFile(
+        sort: { fields: [relativePath] }
+        filter: {
+          sourceInstanceName: { eq: "translated-content" }
+          base: { nin: ["index.mdx", "index.md"] }
+          children: {
+            elemMatch: { internal: { type: { in: ["MarkdownRemark", "Mdx"] } } }
+          }
+        }
+      ) {
+        nodes {
+          base
+          relativePath
+          childMdx {
+            frontmatter {
+              title
+            }
+            fields {
+              slug
+            }
+          }
+          childMarkdownRemark {
+            frontmatter {
+              title
+            }
+            fields {
+              slug
+            }
+          }
+        }
+      }
     }
   `);
 
@@ -95,6 +126,7 @@ exports.createPages = async ({ actions, graphql, reporter }, pluginOptions) => {
     tableOfContents: { nodes: tableOfContentsNodes },
     translatedTableOfContents: { nodes: translatedTableOfContentsNodes },
     allFile: { nodes: fileNodes },
+    translatedFiles: { nodes: translatedFileNodes },
   } = data;
 
   const existingPaths = tableOfContentsNodes
@@ -150,13 +182,31 @@ exports.createPages = async ({ actions, graphql, reporter }, pluginOptions) => {
     locales.forEach(({ localizedPath }) => {
       const localizedSlug = path.join(`/${localizedPath}`, slug);
 
+      const localeDir = dir;
+
+      localeDir.children.forEach((child) => {
+        if (child.type === 'file') {
+          const matchedNode = translatedFileNodes.find(
+            ({
+              childMdx: {
+                fields: { slug },
+              },
+            }) => slug === path.join('/', localizedPath, child.data.fields.slug)
+          );
+          if (matchedNode) {
+            child.data.frontmatter.title =
+              matchedNode.childMdx.frontmatter.title;
+          }
+        }
+      });
+
       createPage({
         path: localizedSlug,
         component: path.resolve('src/templates/indexPage.js'),
         context: {
           slug: localizedSlug,
-          html: generateHTML(dir),
-          title: sentenceCase(dir.basename),
+          html: generateHTML(localeDir),
+          title: sentenceCase(localeDir.basename),
           fileRelativePath: null,
         },
       });
