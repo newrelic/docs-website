@@ -62,7 +62,7 @@ const BasicDoc = ({ data, location }) => {
   }, [mdxAST, moreHelpHeading, t]);
 
   const isMobileScreen = useMedia('(max-width: 1240px)');
-  const { title, metaDescription, type, tags } = frontmatter;
+  const { title, metaDescription, type, tags, watermark } = frontmatter;
 
   return (
     <>

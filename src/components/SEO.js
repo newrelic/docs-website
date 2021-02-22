@@ -9,14 +9,13 @@ const METADATA = [
     content: 'eT8TSNhvMuDmAtqbtq5jygZKVkhDmz565fYQ3DVop4g',
   },
   {
-    class: 'swiftype',
+    className: 'swiftype',
     name: 'type',
     'data-type': 'enum',
     content: 'docs',
   },
 ];
 
-//<meta class="swiftype" name="type" data-type="enum" content="docs">
 const DocsSiteSeo = ({ location, title, description, type, tags }) => (
   <SEO location={location} title={title}>
     {METADATA.map((data) => (
@@ -27,7 +26,7 @@ const DocsSiteSeo = ({ location, title, description, type, tags }) => (
       <meta
         key={tag}
         name="tags"
-        class="swiftype"
+        className="swiftype"
         data-type="string"
         content={tag}
       />
@@ -35,7 +34,7 @@ const DocsSiteSeo = ({ location, title, description, type, tags }) => (
 
     {type && (
       <meta
-        class="swiftype"
+        className="swiftype"
         name="document_type"
         data-type="enum"
         content={type}
@@ -52,6 +51,8 @@ DocsSiteSeo.propTypes = {
   location: PropTypes.string.isRequired,
   title: PropTypes.string,
   description: PropTypes.string,
+  type: PropTypes.string,
+  tags: PropTypes.array,
 };
 
 export default DocsSiteSeo;
