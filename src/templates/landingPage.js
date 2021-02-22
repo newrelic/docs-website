@@ -53,7 +53,7 @@ const LandingPage = ({ data, location }) => {
         location={location}
         title={frontmatter.title}
         description={frontmatter.metaDescription}
-        type={TYPES.LandingPage}
+        type={TYPES.LANDING_PAGE}
       />
       <PageTitle>{frontmatter.title}</PageTitle>
       <Layout.Content>
