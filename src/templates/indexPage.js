@@ -6,6 +6,7 @@ import PageTitle from '../components/PageTitle';
 import IndexContents from '../components/IndexContents';
 import TableOfContentsContainer from '../components/TableOfContentsContainer';
 import SEO from '../components/SEO';
+import { TYPES } from '../utils/constants';
 
 const IndexPage = ({ data, pageContext, location }) => {
   const { nav } = data;
@@ -14,7 +15,7 @@ const IndexPage = ({ data, pageContext, location }) => {
 
   return (
     <>
-      <SEO location={location} title={title} />
+      <SEO location={location} title={title} type={TYPES.AUTO_INDEX_PAGE} />
       <PageTitle>{title}</PageTitle>
       <Layout.Content>
         {nav ? (

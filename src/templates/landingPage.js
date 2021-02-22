@@ -6,6 +6,7 @@ import { Layout } from '@newrelic/gatsby-theme-newrelic';
 import PageTitle from '../components/PageTitle';
 import MDXContainer from '../components/MDXContainer';
 import SEO from '../components/SEO';
+import { TYPES } from '../utils/constants';
 
 const isMdxType = (element, mdxType) => element.props?.mdxType === mdxType;
 
@@ -52,6 +53,7 @@ const LandingPage = ({ data, location }) => {
         location={location}
         title={frontmatter.title}
         description={frontmatter.metaDescription}
+        type={TYPES.LandingPage}
       />
       <PageTitle>{frontmatter.title}</PageTitle>
       <Layout.Content>

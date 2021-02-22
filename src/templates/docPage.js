@@ -18,6 +18,7 @@ import Watermark from '../components/Watermark';
 import SEO from '../components/SEO';
 import GithubSlugger from 'github-slugger';
 import { parseHeading } from '../../plugins/gatsby-remark-custom-heading-ids/utils/heading';
+import { TYPES } from '../utils/constants';
 
 const BasicDoc = ({ data, location }) => {
   const { t } = useTranslation();
@@ -68,6 +69,8 @@ const BasicDoc = ({ data, location }) => {
         location={location}
         title={frontmatter.title}
         description={frontmatter.metaDescription}
+        type={frontmatter.type ?? TYPES.BASIC_PAGE}
+        tags={frontmatter.tags}
       />
       <div
         css={css`
@@ -136,6 +139,8 @@ export const pageQuery = graphql`
         title
         metaDescription
         watermark
+        type
+        tags
       }
       fields {
         fileRelativePath
