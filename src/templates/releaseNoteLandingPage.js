@@ -8,6 +8,7 @@ import SEO from '../components/SEO';
 import { Icon, Layout, Link } from '@newrelic/gatsby-theme-newrelic';
 import filter from 'unist-util-filter';
 import toString from 'mdast-util-to-string';
+import { TYPES } from '../utils/constants';
 
 const EXCERPT_LENGTH = 200;
 
@@ -38,7 +39,7 @@ const ReleaseNoteLandingPage = ({ data, pageContext, location }) => {
 
   return (
     <>
-      <SEO location={location} title={title} />
+      <SEO location={location} title={title} type={TYPES.LANDING_PAGE} />
       <PageTitle
         css={css`
           display: flex;

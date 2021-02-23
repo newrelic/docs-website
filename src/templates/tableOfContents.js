@@ -6,6 +6,7 @@ import { Icon, Layout, Link, useLocale } from '@newrelic/gatsby-theme-newrelic';
 import PageTitle from '../components/PageTitle';
 import IndexContents from '../components/IndexContents';
 import SEO from '../components/SEO';
+import { TYPES } from '../utils/constants';
 
 const TableOfContentsPage = ({ data, pageContext, location }) => {
   const { title } = pageContext;
@@ -29,7 +30,7 @@ const TableOfContentsPage = ({ data, pageContext, location }) => {
 
   return (
     <>
-      <SEO location={location} title={title} />
+      <SEO location={location} title={title} type={TYPES.TABLE_OF_CONTENTS} />
       <PageTitle>{title}</PageTitle>
       <Link
         to={landingPageSlug}
