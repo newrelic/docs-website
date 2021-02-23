@@ -2,6 +2,7 @@ const path = require('path');
 const fromList = require('./utils/unist-fs-util-from-list');
 const visit = require('unist-util-visit');
 const generateHTML = require('./utils/generate-html');
+const { prop } = require('../../scripts/utils/functional.js');
 const { sentenceCase } = require('./utils/string');
 const taxonomyRedirects = require('../../src/data/taxonomy-redirects.json');
 
@@ -194,31 +195,28 @@ exports.createPages = async ({ actions, graphql, reporter }, pluginOptions) => {
       }
 
       dir.children
-        .filter((child) => child.type === 'directory')
-        .forEach((subDir) => {
-          if (subDir.children) {
-            subDir.children
-              .filter((child) => child.type === 'file')
-              .forEach((child) => {
-                const localizedFileSlug = path.join(
-                  '/',
-                  localizedPath,
-                  child.data.fields.slug
-                );
-                const matchedNode = translatedFileNodes.find(
-                  ({
-                    childMdx: {
-                      fields: { slug },
-                    },
-                  }) => slug === localizedFileSlug
-                );
-                if (matchedNode) {
-                  child.data.frontmatter.title =
-                    matchedNode.childMdx.frontmatter.title;
-                }
-                child.data.fields.slug = localizedFileSlug;
-              });
+        .filter(isDirectory)
+        .filter(hasChildren)
+        .flatMap(prop('children'))
+        .filter(isFile)
+        .forEach((child) => {
+          const localizedFileSlug = path.join(
+            '/',
+            localizedPath,
+            child.data.fields.slug
+          );
+          const matchedNode = translatedFileNodes.find(
+            ({
+              childMdx: {
+                fields: { slug },
+              },
+            }) => slug === localizedFileSlug
+          );
+          if (matchedNode) {
+            child.data.frontmatter.title =
+              matchedNode.childMdx.frontmatter.title;
           }
+          child.data.fields.slug = localizedFileSlug;
         });
 
       createPage({
@@ -288,3 +286,6 @@ const getField = (node, field) =>
       (obj, property) => obj && obj[property],
       node.childMdx || node.childMarkdownRemark
     );
+const isDirectory = ({ type }) => type === 'directory';
+const isFile = ({ type }) => type === 'file';
+const hasChildren = (dir) => dir.children && dir.children.length;
