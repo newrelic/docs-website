@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
 import {
+  CookieConsentDialog,
   GlobalHeader,
   Layout,
   Link,
@@ -94,6 +95,7 @@ const MainLayout = ({ data = {}, children, pageContext }) => {
         </Layout.Main>
         <Layout.Footer fileRelativePath={pageContext.fileRelativePath} />
       </Layout>
+      <CookieConsentDialog />
     </>
   );
 };
