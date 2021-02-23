@@ -178,30 +178,47 @@ exports.createPages = async ({ actions, graphql, reporter }, pluginOptions) => {
         });
       });
     }
+  });
 
-    locales.forEach(({ localizedPath }) => {
+  locales.forEach(({ localizedPath }) => {
+    visit(list, 'directory', (dir) => {
+      const slug = `/${dir.path}`;
       const localizedSlug = path.join(`/${localizedPath}`, slug);
 
+      if (skippedDirectories.includes(dir.path)) {
+        return [visit.SKIP];
+      }
+
+      if (existingPaths.includes(slug)) {
+        return;
+      }
+
       dir.children
-        .filter((child) => child.type === 'file')
-        .forEach((child) => {
-          const localizedFileSlug = path.join(
-            '/',
-            localizedPath,
-            child.data.fields.slug
-          );
-          const matchedNode = translatedFileNodes.find(
-            ({
-              childMdx: {
-                fields: { slug },
-              },
-            }) => slug === localizedFileSlug
-          );
-          if (matchedNode) {
-            child.data.frontmatter.title =
-              matchedNode.childMdx.frontmatter.title;
+        .filter((child) => child.type === 'directory')
+        .forEach((subDir) => {
+          if (subDir.children) {
+            subDir.children
+              .filter((child) => child.type === 'file')
+              .forEach((child) => {
+                const localizedFileSlug = path.join(
+                  '/',
+                  localizedPath,
+                  child.data.fields.slug
+                );
+                const matchedNode = translatedFileNodes.find(
+                  ({
+                    childMdx: {
+                      fields: { slug },
+                    },
+                  }) => slug === localizedFileSlug
+                );
+                if (matchedNode) {
+                  child.data.frontmatter.title =
+                    matchedNode.childMdx.frontmatter.title;
+                }
+                child.data.fields.slug = localizedFileSlug;
+              });
           }
-          child.data.fields.slug = localizedFileSlug;
         });
 
       createPage({
