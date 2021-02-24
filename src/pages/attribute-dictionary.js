@@ -13,9 +13,11 @@ import {
   useQueryParams,
   Icon,
   useTranslation,
+  SimpleFeedback,
   Table,
   Trans,
 } from '@newrelic/gatsby-theme-newrelic';
+import { TYPES } from '../utils/constants';
 
 import DataDictionaryFilter from '../components/DataDictionaryFilter';
 import SEO from '../components/SEO';
@@ -57,7 +59,11 @@ const AttributeDictionary = ({ data, pageContext, location }) => {
 
   return (
     <>
-      <SEO location={location} title="New Relic data dictionary" />
+      <SEO
+        location={location}
+        type={TYPES.ATTRIBUTE_DICTIONARY}
+        title="New Relic data dictionary"
+      />
       <div
         css={css`
           display: grid;
@@ -152,12 +158,12 @@ const AttributeDictionary = ({ data, pageContext, location }) => {
         </Layout.Content>
         <Layout.PageTools
           css={css`
-            background-color: var(--primary-background-color);
             @media (max-width: 1240px) {
               position: static;
             }
           `}
         >
+          <SimpleFeedback title="Attribute dictionary" labels={['content']} />
           {!isMobileScreen && (
             <ContributingGuidelines
               fileRelativePath={pageContext.fileRelativePath}

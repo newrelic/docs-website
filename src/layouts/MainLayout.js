@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
 import {
+  CookieConsentDialog,
   GlobalHeader,
   Layout,
   Link,
@@ -94,6 +95,7 @@ const MainLayout = ({ data = {}, children, pageContext }) => {
         </Layout.Main>
         <Layout.Footer fileRelativePath={pageContext.fileRelativePath} />
       </Layout>
+      <CookieConsentDialog />
     </>
   );
 };
@@ -112,6 +114,7 @@ export const query = graphql`
     nav(slug: $slug) {
       id
       title(locale: $locale)
+      filterable
       pages {
         ...MainLayout_navPages
         pages {

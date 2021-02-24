@@ -9,6 +9,8 @@ const deletedFiles = [
   'src/content/docs/new-relic-only/tech-writer-style-guide/processes-procedures/checklist-public-beta-or-ga.mdx',
   'src/content/docs/new-relic-only/tech-writer-style-guide/processes-procedures/hide-or-restrict-content.mdx',
   'src/content/docs/new-relic-only/tech-writer-style-guide/processes-procedures/translation-process.mdx',
+  'src/content/docs/release-notes/agent-release-notes/agent-sdk-release-notes/agent-sdk-016.mdx',
+  'src/content/docs/release-notes/agent-release-notes/agent-sdk-release-notes/agent-sdk-0161.mdx',
 ];
 
 const copyManualEdits = () => {

@@ -7,6 +7,7 @@ import PageTitle from '../components/PageTitle';
 import MDXContainer from '../components/MDXContainer';
 import Watermark from '../components/Watermark';
 import SEO from '../components/SEO';
+import { TYPES } from '../utils/constants';
 
 const ReleaseNoteTemplate = ({ data, location }) => {
   const {
@@ -27,7 +28,12 @@ const ReleaseNoteTemplate = ({ data, location }) => {
 
   return (
     <>
-      <SEO location={location} title={title} description={metaDescription} />
+      <SEO
+        location={location}
+        title={title}
+        description={metaDescription}
+        type={TYPES.RELEASE_NOTE}
+      />
       <PageTitle
         css={css`
           max-width: 850px;
