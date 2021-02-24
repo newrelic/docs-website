@@ -294,6 +294,7 @@ exports.createSchemaCustomization = ({ actions }) => {
     title: String!
     path: String
     icon: String
+    filterable: Boolean!
     pages: [NavYaml!]!
     rootNav: Boolean!
   }
@@ -309,6 +310,10 @@ exports.createResolvers = ({ createResolvers }) => {
         resolve: (source) => {
           return source.pages || [];
         },
+      },
+      filterable: {
+        resolve: (source) =>
+          hasOwnProperty(source, 'filterable') ? source.filterable : true,
       },
       rootNav: {
         resolve: (source) =>
