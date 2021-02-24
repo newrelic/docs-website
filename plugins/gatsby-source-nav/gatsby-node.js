@@ -7,7 +7,7 @@ exports.createSchemaCustomization = ({ actions }) => {
   const { createTypes } = actions;
 
   createTypes(`
-    type Nav {
+    type Nav @dontInfer {
       id: ID!
       title(locale: String = "en"): String
       filterable: Boolean!
@@ -254,9 +254,8 @@ const createNav = async ({ args, createNodeId, nodeModel, locales }) => {
   }
 
   return {
+    ...nav,
     id: createNodeId(nav.title),
-    title: nav.title,
-    pages: nav.pages,
   };
 };
 
