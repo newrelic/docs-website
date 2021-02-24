@@ -13,6 +13,7 @@ import {
   useQueryParams,
   Icon,
   useTranslation,
+  SimpleFeedback,
   Table,
   Trans,
 } from '@newrelic/gatsby-theme-newrelic';
@@ -157,12 +158,12 @@ const AttributeDictionary = ({ data, pageContext, location }) => {
         </Layout.Content>
         <Layout.PageTools
           css={css`
-            background-color: var(--primary-background-color);
             @media (max-width: 1240px) {
               position: static;
             }
           `}
         >
+          <SimpleFeedback title="Attribute dictionary" labels={['content']} />
           {!isMobileScreen && (
             <ContributingGuidelines
               fileRelativePath={pageContext.fileRelativePath}
