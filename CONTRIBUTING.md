@@ -245,38 +245,7 @@ getStartedLink: >-
 
 ## Updating the navigation
 
-Navigation for [docs.newrelic.com](https://docs.newrelic.com) is stored in `YAML` files located in the [src/nav](./src/nav) directory. Each top-level navigation should have its own configuration file. For example, here is a snippet of the [src/nav/insights.yml](./src/nav/insights.yml) configuration:
-
-```yml
-title: Insights
-children:
-  - title: Use Insights UI
-    children:
-      - title: Getting started
-        children:
-          - title: Introduction to New Relic Insights
-            path: /docs/insights/use-insights-ui/getting-started/introduction-new-relic-insights
-      - title: Manage dashboards
-        children:
-          - title: Chart types
-            path: /docs/insights/use-insights-ui/manage-dashboards/chart-types
-          - title: Filter Insights dashboards
-            path: /docs/insights/use-insights-ui/manage-dashboards/filter-insights-dashboards
-          - title: View, organize, share Insights dashboards
-            path: /docs/insights/use-insights-ui/manage-dashboards/view-organize-share-insights-dashboards
-```
-
-Each "node" in the `.yml` configuration file can have the following properties:
-
-| Key        | Required? | Description                               |
-| ---------- | --------- | ----------------------------------------- |
-| `title`    | yes       | The text that is shown in the navigation. |
-| `path`     | no        | The URL path to the page.                 |
-| `children` | no        | Any sub-navigation "nodes".               |
-
-When the user goes to a page, we determine which section of the site they are on and load the appropriate `.yml` file to populate the sidebar navigation. The navigation for the homepage is an aggregate of all the top-level pages.
-
-**NOTE**: Each category has its own `index.md` page (list of pages for that category). When updating the navigation, you may also want to update these pages to better reflect the new information architecture.
+For the steps to update the left-navigation pane, see [Update left-navigation pane](https://docs.newrelic.com/docs/content/style-guide/processes-and-procedures).
 
 ## Adding a new page
 
