@@ -28,6 +28,7 @@ module.exports = {
     const srcUrl = getSrcUrl(fileRelativePath, node.url);
 
     const isBlockImage =
+      node.parent &&
       isMdxElement('paragraph', node.parent) &&
       node.parent.children.length === 1;
 
