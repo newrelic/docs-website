@@ -3,7 +3,6 @@ const path = require('path');
 
 const siteUrl = 'https://docs.newrelic.com';
 const dataDictionaryPath = `${__dirname}/src/data-dictionary`;
-
 const quote = (str) => `"${str}"`;
 
 const autoLinkHeaders = {
