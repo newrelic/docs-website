@@ -193,7 +193,9 @@ const createReleaseNotesNav = async ({ createNodeId, nodeModel }) => {
 
   const formatReleaseNotePosts = (posts) =>
     posts.map((post) => ({
-      title: `${post.frontmatter.subject} v${post.frontmatter.version}`,
+      title: post.frontmatter.version
+        ? `${post.frontmatter.subject} v${post.frontmatter.version}`
+        : post.frontmatter.subject,
       url: post.fields.slug,
       pages: [],
     }));
