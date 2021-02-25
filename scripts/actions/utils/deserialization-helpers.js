@@ -47,7 +47,7 @@ const deserializeAttributeValue = (h, node) => {
 const deserializeComponent = (
   h,
   node,
-  { type, ignoreChildren = false } = {}
+  { type, hasChildrenProp = true } = {}
 ) => {
   const { dataComponent, dataProps } = node.properties;
   const name = dataComponent || node.tagName;
@@ -93,7 +93,7 @@ const deserializeComponent = (
       name: name === 'React.Fragment' ? null : name,
       attributes,
     },
-    childrenNode && !ignoreChildren ? all(h, childrenNode) : []
+    childrenNode && hasChildrenProp ? all(h, childrenNode) : []
   );
 };
 

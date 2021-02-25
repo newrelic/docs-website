@@ -4,6 +4,7 @@ const vfile = require('vfile');
 const yaml = require('js-yaml');
 const { CONTENT_DIR, NAV_DIR } = require('../constants');
 const slugify = require('../slugify');
+const he = require('he');
 
 const createNavStructure = (files) => {
   if (!fs.existsSync(NAV_DIR)) {
@@ -14,7 +15,7 @@ const createNavStructure = (files) => {
     .reduce((nav, file) => {
       const { topics } = file.data;
 
-      if (topics.length === 0) {
+      if (topics.length === 0 || topics[0] === 'Release notes') {
         return nav;
       }
 
@@ -26,7 +27,11 @@ const createNavStructure = (files) => {
             ...nav,
             buildSubnav(
               file,
-              { title, path: `/docs/${slugify(title)}`, pages: [] },
+              {
+                title: he.decode(title),
+                path: `/docs/${slugify(title)}`,
+                pages: [],
+              },
               subtopics
             ),
           ]
@@ -70,7 +75,7 @@ const buildSubnav = (file, parent, topics) => {
   switch (true) {
     case topics.length === 0 && idx >= 0:
       return updateChild(parent, idx, ({ title, ...attrs }) => ({
-        title,
+        title: he.decode(title),
         path: toPath(file),
         ...attrs,
       }));
@@ -78,13 +83,16 @@ const buildSubnav = (file, parent, topics) => {
     case topics.length === 0:
       return {
         ...parent,
-        pages: [...pages, { title, path: toPath(file) }],
+        pages: [...pages, { title: he.decode(title), path: toPath(file) }],
       };
 
     case idx === -1:
       return {
         ...parent,
-        pages: [...pages, buildSubnav(file, { title, pages: [] }, subtopics)],
+        pages: [
+          ...pages,
+          buildSubnav(file, { title: he.decode(title), pages: [] }, subtopics),
+        ],
       };
 
     default:

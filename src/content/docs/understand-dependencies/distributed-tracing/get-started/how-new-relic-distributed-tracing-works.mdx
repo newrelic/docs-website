@@ -6,6 +6,7 @@ tags:
   - Get started
 translate:
   - jp
+metaDescription: 'How New Relic''s distributed tracing feature works, including explanation of sampling, trace data structure, and trace storage.'
 redirects:
   - /docs/explanation-how-sampling-works-distributed-tracing-data
   - /docs/apm/distributed-tracing/ui-data/explanation-how-sampling-works-distributed-tracing-data
@@ -15,39 +16,40 @@ redirects:
 Here are some technical details about how New Relic [distributed tracing](/docs/understand-dependencies/distributed-tracing/get-started/introduction-distributed-tracing) works:
 
 * [How trace sampling works](#sampling)
-* [How trace data is structured](#trace-structure)
-* [How trace data is stored](#trace-storage)
+* [How we structure trace data](#trace-structure)
+* [How we store trace data](#trace-storage)
 * [How trace context is passed between applications](#headers)
 
 <Callout variant="tip">
   For instructions about setting up distributed tracing, see [Overview: Enable distributed tracing](/docs/understand-dependencies/distributed-tracing/enable-configure/overview-enable-distributed-tracing).
 </Callout>
 
-## How trace sampling works [#sampling]
+## Trace sampling [#sampling]
 
-We offer the following types of sampling:
+How your traces are sampled will depend on your setup and the New Relic tracing tool you're using. For example, you may be using a [third-party telemetry service](/docs/integrations/open-source-telemetry-integrations) (like OpenTelemetry) to implement sampling of traces before your data gets to us or, if you're using [Infinite Tracing](/docs/understand-dependencies/distributed-tracing/infinite-tracing/introduction-infinite-tracing), you'd probably send us all your trace data and use our sampling.
 
-* [Head-based sampling (standard distributed tracing)](#head-based)
-* [Tail-based sampling (Infinite Tracing)](#tail-based)
+We have a few sampling strategies available:
+
+* [Head-based sampling](#head-based) (standard distributed tracing)
+* [Tail-based sampling](#tail-based) (Infinite Tracing)
+* [No sampling](#no-sampling)
 
 ### Head-based sampling (standard distributed tracing) [#head-based]
 
-Distributed tracing requires the reporting and processing of a large amount of data. For this reason, we have limits on data reporting, and we use sampling to capture a representative sample of activity. Ideally, the sampled data represents the characteristics of your larger data set and provides the detail you need for troubleshooting.
+With the exception of our [Infinite Tracing](#tail-based) feature, most of our tracing tools use a head-based sampling approach. This applies filters to individual spans before all spans in a trace arrive, which means decisions about whether to accept spans is made at the beginning (the "head") of the filtering process. We use this sampling strategy to capture a representative sample of activity while avoiding storage and performance issues.
 
-Standard distributed tracing applies filters to individual spans before all spans in a trace arrive. This is called head-based sampling, which means decisions about whether to accept spans is made at the head (beginning) of the filtering process.
-
-Here are some details about the head-based sampling in standard distributed tracing:
+Here are some details about how head-based sampling is implemented in our standard distributed tracing tools:
 
 <CollapserGroup>
   <Collapser
     id="trace-origin-sampling"
-    title="Adaptive sampling process (APM agents)"
+    title="Language agents: adaptive sampling"
   >
-    APM agents use adaptive sampling to capture a representative sample of system activity. The following is an explanation of how adaptive sampling works. (AWS Lambda monitoring uses a [different sampling process](/docs/serverless-function-monitoring/aws-lambda-monitoring/ui-data/understand-lambda-data-structure#data-structure).)
+    Our APM language agents use adaptive sampling to capture a representative sample of system activity. The following is an explanation of how adaptive sampling works.
 
     For the first service in a distributed trace, 10 requests are chosen to be sampled. The throughput to that service is used to adjust how frequently requests are sampled. This is explained in more detail below.
 
-    The first service we monitor in a distributed trace is called the trace origin. The trace origin chooses requests at random to be traced. That decision propagates to the downstream services touched by that request. When the request has completed, all of the spans created by the services touched by that request are available in the UI as a complete end-to-end trace.
+    The first service we monitor in a distributed trace is called the trace origin. The trace origin chooses requests at random to be traced. That decision propagates to the downstream services touched by that request. When the request has completed, all of the spans touched by that request that we've detected are made available in the UI as a complete trace (though [agent limits](#agent-limits-sampling) may result in fragmented traces).
 
     APM agents have a limit on the number of transactions collected per minute (this can vary, depending on agent) and a limit on the number of spans collected per minute (1000 per agent instance). To adhere to these limits, the default number of traces at the trace origin is 10 traces per minute.
 
@@ -58,20 +60,15 @@ Here are some details about the head-based sampling in standard distributed trac
 
   <Collapser
     id="agent-limits-sampling"
-    title="Span limits and sampling (APM agents)"
+    title="Language agents: limits and sampling"
   >
-    An APM agent instance using head-based sampling has a limit of 1000 spans per minute. The agent attempts to keep all spans that are marked to be sampled as part of a distributed trace.
+    An APM language agent instance using head-based sampling has a limit of 1000 spans per minute. The agent attempts to keep all spans that are marked to be sampled as part of a distributed trace.
 
     In many distributed systems, the average microservice may generate 10 to 20 spans per request. In those cases, the agent span limit can accommodate all spans chosen, and that service will have full detail in a trace.
 
     However, some requests to services will generate many spans, and the agent span limit will be reached. As a result, some traces will not have full detail for that service. One solution to this would be to custom instrument an agent to report less activity and therefore report fewer spans.
-  </Collapser>
 
-  <Collapser
-    id="browser-spans"
-    title="Browser span reporting"
-  >
-    Browser monitoring reports all spans, but [APM samples a percentage of spans](#trace-origin-sampling). This means that there will likely be many more browser spans than back-end spans, which can result in browser app spans disconnected from back-end spans. For tips on querying for traces that contain front and back-end spans, see [Find browser span data](/docs/browser/new-relic-browser/browser-pro-features/browser-data-distributed-tracing#find-data).
+    To read about how browser monitoring of trace data may vary from our language agents, see [Browser traces](#browser-spans).
   </Collapser>
 
   <Collapser
@@ -82,13 +79,20 @@ Here are some details about the head-based sampling in standard distributed trac
 
     This process works similarly to [adaptive sampling](#trace-origin-sampling). The total spans received in a minute are totaled. If too many spans are received, fewer spans may be accepted in the following minute, in order to achieve a floating-average throughput rate.
   </Collapser>
+
+  <Collapser
+    id="lambda-sampling"
+    title="Lambda trace sampling"
+  >
+    Our AWS Lambda monitoring uses [its own sampling process](/docs/serverless-function-monitoring/aws-lambda-monitoring/ui-data/understand-lambda-data-structure#data-structure).
+  </Collapser>
 </CollapserGroup>
 
 ### Tail-based sampling (Infinite Tracing) [#tail-based]
 
-Tail-based sampling is available in Infinite Tracing, an additional option available for distributed tracing. Infinite Tracing uses tail-based sampling to accept and analyze 100% of your span data.
+Our [Infinite Tracing](https://newrelic.com/products/edge-infinite-tracing) feature uses a tail-based sampling approach. "Tail-based sampling" means that trace-retention decisions are done at the tail end of processing after all the spans in a trace have arrived.
 
-Tail-based sampling means that filtering decisions are done at the tail end of processing after all the spans in a trace have arrived. Only traces that contain the most actionable data, such as errors or unusual latency, are forwarded for you to view in the UI.
+With Infinite Tracing, you can send us 100% of your trace data from your application or third-party telemetry service, and Infinite Tracing will figure out which trace data is most important. And you can configure the sampling to ensure the traces important to you are retained.
 
 <CollapserGroup>
   <Collapser
@@ -191,6 +195,28 @@ Tail-based sampling means that filtering decisions are done at the tail end of p
   </Collapser>
 </CollapserGroup>
 
+### No sampling
+
+Some of our tools don't use sampling. Sampling details for these tools:
+
+<CollapserGroup>
+  <Collapser
+    id="browser-spans"
+    title="Browser trace reporting"
+  >
+    [Browser monitoring distributed tracing](/docs/browser/new-relic-browser/browser-pro-features/browser-data-distributed-tracing) reports all spans.
+
+    Our APM language agents are often used in conjunction with browser monitoring, and our language agents do [use sampling](#trace-origin-sampling). This means that there will likely be many more browser spans than back-end spans, which can result in browser app spans disconnected from back-end spans. For tips on querying for traces that contain front and back-end spans, see [Find browser span data](/docs/browser/new-relic-browser/browser-pro-features/browser-data-distributed-tracing#find-data).
+  </Collapser>
+
+  <Collapser
+    id="trace-api"
+    title="Trace API"
+  >
+    If you don't have [Infinite Tracing](/docs/understand-dependencies/distributed-tracing/infinite-tracing/introduction-infinite-tracing) enabled, our Trace API does no sampling (unless the default [data limits](/docs/understand-dependencies/distributed-tracing/trace-api/trace-api-general-requirements-limits) are exceeded). It's expected that you set up the Trace API to send us the traces you think are important.
+  </Collapser>
+</CollapserGroup>
+
 ## How trace data is structured [#trace-structure]
 
 Understanding the structure of a distributed trace can help you:
@@ -202,7 +228,9 @@ A distributed trace has a tree-like structure, with "child" spans that refer to 
 
 ![New Relic distributed tracing trace structure diagram](./images/new-relic-distributed-tracing-trace-structure.png "trace-structure-diagram.png")
 
-This diagram shows how spans in a distributed trace relate to each other.
+<figcaption>
+  This diagram shows how spans in a distributed trace relate to each other.
+</figcaption>
 
 This diagram shows several important concepts:
 
@@ -236,7 +264,9 @@ The headers also contain information that helps us link the spans together later
 
 ![Diagram of a failed trace with proprietary headers.](./images/doc-5207_middleware_0.png "middleware.png")
 
-Figure 1
+<figcaption>
+  Figure 1
+</figcaption>
 
 To address the problem of header propagation, we support the W3C Trace Context specification that requires two standardized headers. Our latest W3C New Relic agents send and receive these two required headers, and by default, they also send and receive the header of the prior New Relic agent:
 

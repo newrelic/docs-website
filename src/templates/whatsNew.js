@@ -7,9 +7,10 @@ import {
   Layout,
   Link,
   MarkdownContainer,
-  SEO,
 } from '@newrelic/gatsby-theme-newrelic';
+import SEO from '../components/SEO';
 import PageTitle from '../components/PageTitle';
+import { TYPES } from '../utils/constants';
 
 const WhatsNewTemplate = ({ data, location }) => {
   const {
@@ -30,7 +31,7 @@ const WhatsNewTemplate = ({ data, location }) => {
 
   return (
     <>
-      <SEO location={location} title={title} />
+      <SEO location={location} title={title} type={TYPES.WHATS_NEW} />
       <PageTitle
         css={css`
           max-width: 850px;

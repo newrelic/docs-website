@@ -88,6 +88,47 @@ test('deserializes InlineCode components', async () => {
   expect(mdx).toEqual(input.trim());
 });
 
+test('deserializes TechTileGrid components', async () => {
+  const input = `
+<TechTileGrid>
+  <TechTile
+    name="iOS"
+    icon="logo-apple"
+    to="/agents/ios-agent"
+  />
+</TechTileGrid>
+  `;
+
+  const mdx = await deserializeHTML(await serializeMDX(input));
+
+  expect(mdx).toEqual(input.trim());
+});
+
+test('deserializes block ImageSizing component', async () => {
+  const input = `
+<ImageSizing
+  width="32px"
+  height="32px"
+>
+  ![test.png](./images/test.png)
+</ImageSizing>
+  `;
+
+  const mdx = await deserializeHTML(await serializeMDX(input));
+
+  expect(mdx).toEqual(input.trim());
+});
+
+test.only('deserializes inline ImageSizing component', async () => {
+  const input = `
+This is a test with an <ImageSizing width="32px" height="32px">![test.png](./images/test.png)</ImageSizing> inline image.
+  `;
+
+  const mdx = await deserializeHTML(await serializeMDX(input));
+
+  expect(mdx).toEqual(input.trim());
+});
+
 test('kitchen sink', async () => {
   const input = fs.readFileSync(`${__dirname}/kitchen-sink.mdx`, 'utf-8');
 

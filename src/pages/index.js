@@ -11,8 +11,9 @@ import {
   Trans,
 } from '@newrelic/gatsby-theme-newrelic';
 import { rgba } from 'polished';
-import IntegrationIcon from '../components/IntegrationIcon';
 import SurfaceLink from '../components/SurfaceLink';
+import TechTile from '../components/TechTile';
+import TechTileGrid from '../components/TechTileGrid';
 import { tdp, fso, ai, security, integrations } from '../data/homepage.yml';
 
 const HomePage = ({ data }) => {
@@ -102,6 +103,7 @@ const HomePage = ({ data }) => {
               to="https://newrelic.com/signup"
               title={t('home.welcome.t1.title')}
               description={t('home.welcome.t1.description')}
+              variant="cta"
             />
             <WelcomeTile
               to="https://one.newrelic.com/launcher/nr1-core.settings?pane=eyJuZXJkbGV0SWQiOiJ0dWNzb24ucGxnLWluc3RydW1lbnQtZXZlcnl0aGluZyJ9"
@@ -182,11 +184,11 @@ const HomePage = ({ data }) => {
             <IntegrationTitle>
               {t(`home.integrations.title${idx + 1}`)}
             </IntegrationTitle>
-            <IntegrationTileGrid>
+            <TechTileGrid>
               {integration.tiles.map(({ name, icon, link }) => (
-                <IntegrationTile key={name} name={name} icon={icon} to={link} />
+                <TechTile key={name} name={name} icon={icon} to={link} />
               ))}
-            </IntegrationTileGrid>
+            </TechTileGrid>
           </Fragment>
         ))}
 
@@ -318,7 +320,7 @@ const pulse = keyframes`
 }
 `;
 
-const WelcomeTile = ({ description, title, to }) => (
+const WelcomeTile = ({ description, title, to, variant = 'normal' }) => (
   <SurfaceLink
     base={Surface.BASE.PRIMARY}
     to={to}
@@ -328,6 +330,7 @@ const WelcomeTile = ({ description, title, to }) => (
       color: currentColor;
       position: relative;
       min-height: 200px;
+      border-color: var(--tile-border-color, var(--border-color));
 
       @media screen and (max-width: 1050px) {
         min-height: 175px;
@@ -349,10 +352,6 @@ const WelcomeTile = ({ description, title, to }) => (
         }
       }
 
-      .light-mode & {
-        border: 1px solid var(--border-color);
-      }
-
       &::before {
         content: counter(welcome-tile);
         counter-increment: welcome-tile;
@@ -366,8 +365,9 @@ const WelcomeTile = ({ description, title, to }) => (
         border-radius: 50%;
         height: 2rem;
         width: 2rem;
-        border: 1px solid var(--color-teal-500);
-        background: var(--primary-background-color);
+        color: var(--number-color, currentColor);
+        border: 1px solid var(--number-border-color);
+        background: var(--number-background-color);
         z-index: 1;
       }
 
@@ -380,13 +380,10 @@ const WelcomeTile = ({ description, title, to }) => (
         border-radius: 50%;
         height: 2.75rem;
         width: 2.75rem;
-        border: 1px solid var(--color-dark-100);
+        border: 1px solid
+          var(--outer-ring-border-color, var(--tile-border-color));
         background: var(--primary-background-color);
         transition: border-color 0.15s ease-out;
-
-        .light-mode & {
-          border: 1px solid ${rgba('#008c99', 0.3)};
-        }
       }
 
       &:hover {
@@ -396,6 +393,8 @@ const WelcomeTile = ({ description, title, to }) => (
           animation: ${pulse} 1.5s infinite;
         }
       }
+
+      ${welcomeTileStyles[variant]};
     `}
   >
     <h3>{title}</h3>
@@ -407,6 +406,34 @@ WelcomeTile.propTypes = {
   description: PropTypes.node,
   title: PropTypes.string,
   to: PropTypes.string,
+  variant: PropTypes.oneOf(['normal', 'cta']),
+};
+
+const welcomeTileStyles = {
+  normal: css`
+    --number-background-color: var(--primary-background-color);
+    --number-border-color: var(--color-teal-500);
+    --outer-ring-border-color: var(--border-color);
+  `,
+  cta: css`
+    --tile-border-color: var(--color-teal-400);
+    --number-background-color: var(--color-teal-400);
+    --number-color: white;
+    --outer-ring-border-color: var(--border-color);
+
+    &:hover {
+      border-color: var(--color-teal-300);
+
+      .dark-mode & {
+        border-color: var(--color-teal-500);
+      }
+    }
+
+    .dark-mode & {
+      --tile-border-color: var(--color-teal-600);
+      --number-background-color: var(--color-teal-600);
+    }
+  `,
 };
 
 const DocTileGrid = ({ children }) => {
@@ -476,67 +503,6 @@ const IntegrationTitle = ({ children }) => (
 
 IntegrationTitle.propTypes = {
   children: PropTypes.node,
-};
-
-const IntegrationTileGrid = ({ children }) => (
-  <div
-    css={css`
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-      grid-gap: 1rem;
-    `}
-  >
-    {children}
-  </div>
-);
-
-IntegrationTileGrid.propTypes = {
-  children: PropTypes.node,
-};
-
-const IntegrationTile = ({ name, icon, to }) => (
-  <SurfaceLink
-    to={to}
-    base={Surface.BASE.SECONDARY}
-    css={css`
-      text-align: center;
-      padding: 0.5rem;
-      color: currentColor;
-
-      &:hover {
-        color: currentColor;
-      }
-
-      .light-mode & {
-        border: 1px solid var(--border-color);
-
-        &:hover {
-          border-color: var(--border-hover-color);
-        }
-      }
-    `}
-  >
-    <IntegrationIcon
-      name={icon}
-      size="2rem"
-      css={css`
-        margin-bottom: 0.5rem;
-      `}
-    />
-    <div
-      css={css`
-        font-size: 0.875rem;
-      `}
-    >
-      {name}
-    </div>
-  </SurfaceLink>
-);
-
-IntegrationTile.propTypes = {
-  name: PropTypes.string,
-  icon: IntegrationIcon.propTypes.name,
-  to: PropTypes.string,
 };
 
 export default HomePage;

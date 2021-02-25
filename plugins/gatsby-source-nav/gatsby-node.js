@@ -1,12 +1,16 @@
 const parseISO = require('date-fns/parseISO');
 
+const hasOwnProperty = (obj, key) =>
+  Object.prototype.hasOwnProperty.call(obj, key);
+
 exports.createSchemaCustomization = ({ actions }) => {
   const { createTypes } = actions;
 
   createTypes(`
-    type Nav {
+    type Nav @dontInfer {
       id: ID!
       title(locale: String = "en"): String
+      filterable: Boolean!
       pages: [NavItem!]!
     }
 
@@ -61,6 +65,10 @@ exports.createResolvers = ({ createResolvers, createNodeId }) => {
       },
     },
     Nav: {
+      filterable: {
+        resolve: (source) =>
+          hasOwnProperty(source, 'filterable') ? source.filterable : true,
+      },
       title: {
         resolve: findTranslatedTitle,
       },
@@ -185,7 +193,9 @@ const createReleaseNotesNav = async ({ createNodeId, nodeModel }) => {
 
   const formatReleaseNotePosts = (posts) =>
     posts.map((post) => ({
-      title: `${post.frontmatter.subject} v${post.frontmatter.version}`,
+      title: post.frontmatter.version
+        ? `${post.frontmatter.subject} v${post.frontmatter.version}`
+        : post.frontmatter.subject,
       url: post.fields.slug,
       pages: [],
     }));
@@ -246,9 +256,8 @@ const createNav = async ({ args, createNodeId, nodeModel, locales }) => {
   }
 
   return {
+    ...nav,
     id: createNodeId(nav.title),
-    title: nav.title,
-    pages: nav.pages,
   };
 };
 

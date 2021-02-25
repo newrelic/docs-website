@@ -3,13 +3,9 @@ import PropTypes from 'prop-types';
 import { css } from '@emotion/core';
 import PageTitle from '../components/PageTitle';
 import { graphql } from 'gatsby';
-import {
-  Layout,
-  Link,
-  SEO,
-  useTranslation,
-} from '@newrelic/gatsby-theme-newrelic';
+import { Layout, Link, useTranslation } from '@newrelic/gatsby-theme-newrelic';
 import Timeline from '../components/Timeline';
+import SEO from '../components/SEO';
 
 const WhatsNew = ({ data, location }) => {
   const now = useMemo(() => new Date(), []);

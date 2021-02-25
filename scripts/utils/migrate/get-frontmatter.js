@@ -49,22 +49,26 @@ const addCustomFrontmatter = {
     ...defaultFrontmatter,
     tags: listOrNull(topics),
     translate: doc.japaneseVersionExists === 'yes' ? ['jp'] : null,
+    metaDescription: doc.metaDescription ? doc.metaDescription.trim() : null,
   }),
   [TYPES.API_DOC]: ({ doc, topics }, defaultFrontmatter) => ({
     ...defaultFrontmatter,
     shortDescription: doc.shortDescription.trim(),
     tags: listOrNull(topics),
     translate: doc.japaneseVersionExists === 'yes' ? ['jp'] : null,
+    metaDescription: doc.metaDescription ? doc.metaDescription.trim() : null,
   }),
   [TYPES.BASIC_PAGE]: ({ doc, topics }, defaultFrontmatter) => ({
     ...defaultFrontmatter,
     tags: listOrNull(topics),
     translate: doc.japaneseVersionExists === 'yes' ? ['jp'] : null,
+    metaDescription: doc.metaDescription ? doc.metaDescription.trim() : null,
   }),
   [TYPES.TROUBLESHOOTING]: ({ doc, topics }, defaultFrontmatter) => ({
     ...defaultFrontmatter,
     tags: listOrNull(topics),
     translate: doc.japaneseVersionExists === 'yes' ? ['jp'] : null,
+    metaDescription: doc.metaDescription ? doc.metaDescription.trim() : null,
   }),
   [TYPES.RELEASE_NOTE]: ({ doc }, _, file) => {
     const match = doc.title.match(/^(.*?)v?\d+(\.\d+){0,3}/);
@@ -88,6 +92,7 @@ const addCustomFrontmatter = {
         ? null
         : 'releaseNote',
       translate: doc.japaneseVersionExists === 'yes' ? ['jp'] : null,
+      metaDescription: doc.metaDescription ? doc.metaDescription.trim() : null,
     };
   },
   [TYPES.WHATS_NEW]: ({ doc }) => ({

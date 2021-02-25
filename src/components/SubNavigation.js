@@ -1,14 +1,17 @@
-import React from 'react';
+import React, { useState } from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/core';
 import {
   Link,
+  Navigation,
   NavItem,
   Icon,
+  SearchInput,
   useTranslation,
 } from '@newrelic/gatsby-theme-newrelic';
 
 const SubNavigation = ({ nav }) => {
+  const [searchTerm, setSearchTerm] = useState('');
   const { t } = useTranslation();
 
   return (
@@ -22,6 +25,7 @@ const SubNavigation = ({ nav }) => {
           padding: 0.5rem 0;
           margin-bottom: 0.5rem;
           transition: 0.2s ease-out;
+          text-decoration: none;
 
           &:hover {
             color: var(--primary-text-hover-color);
@@ -40,11 +44,22 @@ const SubNavigation = ({ nav }) => {
       {nav && (
         <>
           <h2>{nav.title}</h2>
-          <nav role="navigation" aria-label="SubNavigation">
+          {nav.filterable && (
+            <SearchInput
+              placeholder="Filter navigation"
+              onClear={() => setSearchTerm('')}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              value={searchTerm}
+              css={css`
+                margin-bottom: 0.5rem;
+              `}
+            />
+          )}
+          <Navigation searchTerm={searchTerm}>
             {nav.pages.map((page) => (
               <NavItem key={page.title} page={page} />
             ))}
-          </nav>
+          </Navigation>
         </>
       )}
     </>

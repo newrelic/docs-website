@@ -1,17 +1,17 @@
 import React, { useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
 import {
+  CookieConsentDialog,
   GlobalHeader,
   Layout,
   Link,
   Logo,
-  SEO,
+  MobileHeader,
   useLayout,
 } from '@newrelic/gatsby-theme-newrelic';
 import { graphql } from 'gatsby';
 import { css } from '@emotion/core';
-import MobileHeader from '../components/MobileHeader';
-import { useMedia } from 'react-use';
+import SEO from '../components/SEO';
 import RootNavigation from '../components/RootNavigation';
 import SubNavigation from '../components/SubNavigation';
 import { animated, useTransition } from 'react-spring';
@@ -22,7 +22,6 @@ const MainLayout = ({ data = {}, children, pageContext }) => {
   const { contentPadding } = useLayout();
   const location = useLocation();
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
-  const isSmallScreen = useMedia('(max-width: 760px)');
 
   const transition = useTransition(nav, {
     key: nav?.id,
@@ -49,22 +48,13 @@ const MainLayout = ({ data = {}, children, pageContext }) => {
     <>
       <SEO location={location} />
       <GlobalHeader />
-      {isSmallScreen && (
-        <MobileHeader
-          isOpen={isMobileNavOpen}
-          onToggle={() => setIsMobileNavOpen((open) => !open)}
-          css={css`
-            padding: ${contentPadding};
-            padding-bottom: 0;
-          `}
-        >
-          {nav.id === rootNav.id ? (
-            <RootNavigation nav={rootNav} />
-          ) : (
-            <SubNavigation nav={nav} />
-          )}
-        </MobileHeader>
-      )}
+      <MobileHeader>
+        {nav?.id === rootNav.id ? (
+          <RootNavigation nav={nav} />
+        ) : (
+          <SubNavigation nav={nav} />
+        )}
+      </MobileHeader>
       <Layout>
         <Layout.Sidebar>
           <Link
@@ -72,6 +62,7 @@ const MainLayout = ({ data = {}, children, pageContext }) => {
             css={css`
               display: block;
               margin-bottom: 1rem;
+              text-decoration: none;
             `}
           >
             <Logo />
@@ -104,6 +95,7 @@ const MainLayout = ({ data = {}, children, pageContext }) => {
         </Layout.Main>
         <Layout.Footer fileRelativePath={pageContext.fileRelativePath} />
       </Layout>
+      <CookieConsentDialog />
     </>
   );
 };
@@ -122,6 +114,7 @@ export const query = graphql`
     nav(slug: $slug) {
       id
       title(locale: $locale)
+      filterable
       pages {
         ...MainLayout_navPages
         pages {

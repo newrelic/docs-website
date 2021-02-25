@@ -6,6 +6,7 @@ events:
   - Transaction
   - TransactionError
   - Span
+  - NrUsage
 ---
 
-The unique numeric identifier assigned by New Relic for the service/application where the transaction was created.
+The unique numeric identifier assigned by New Relic for the service/app that generated the transaction.

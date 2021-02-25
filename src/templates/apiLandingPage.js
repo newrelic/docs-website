@@ -2,8 +2,10 @@ import React from 'react';
 import PropTypes from 'prop-types';
 import { graphql } from 'gatsby';
 import PageTitle from '../components/PageTitle';
-import { Layout, Link, SEO } from '@newrelic/gatsby-theme-newrelic';
+import { Layout, Link } from '@newrelic/gatsby-theme-newrelic';
 import MDXContainer from '../components/MDXContainer';
+import SEO from '../components/SEO';
+import { TYPES } from '../utils/constants';
 
 const ApiIndexPage = ({ data, location }) => {
   const {
@@ -15,7 +17,7 @@ const ApiIndexPage = ({ data, location }) => {
   } = data;
   return (
     <>
-      <SEO location={location} title={title} />
+      <SEO location={location} title={title} type={TYPES.API_LANDING_PAGE} />
       <PageTitle>{title}</PageTitle>
       <Layout.Content>
         <MDXContainer body={body}>

@@ -4,6 +4,10 @@ const fauxHtmlToJSX = require('./faux-html-to-jsx');
 const { extractTags } = require('../node');
 const { TYPES } = require('../constants');
 const slugs = require('github-slugger')();
+const parse = require('rehype-parse');
+const unified = require('unified');
+const html = require('rehype-stringify');
+const visit = require('unist-util-visit');
 
 const SPECIAL_COMPONENTS = [
   { tag: 'div', className: 'callout-tip' },
@@ -56,12 +60,90 @@ const cleanAttribute = (attribute) => {
   return attribute ? attribute.replace(/(\n+\s*)+/g, '\n') : '';
 };
 
+// This only handles very basic cases (such as string-only prop values). If we
+// need more complex cases, we can add them later.
+const createElementString = (name, props, children) => {
+  const propsString = Object.entries(props || {})
+    .filter(([, value]) => value !== undefined)
+    .map(([key, value]) => `${key}="${value}"`)
+    .join(' ');
+
+  return `<${name}${
+    propsString ? ` ${propsString}` : ''
+  }>${children}</${name}>`;
+};
+
 const isLandingPageTile = (node) =>
   node.classList.contains('col') &&
   node.childNodes[0].classList.contains('col-md-3') &&
   node.childNodes[1].classList.contains('col-md-9');
 
+const JS_OPEN = /window\.open\(['"](.+?)['"],.*?\)/;
+
+const isTechTile = (node) => {
+  const onClick = node.getAttribute('onclick');
+
+  return (
+    onClick &&
+    onClick.match(JS_OPEN) &&
+    node.style.display === 'flex' &&
+    node.style.borderWidth === '1px' &&
+    node.style.fontSize === '12px'
+  );
+};
+
 const repeat = (character, count) => Array(count + 1).join(character);
+
+const MEANINGFUL_TAGS_IN_CODE_BLOCK = ['a', 'var', 'mark'];
+
+const parseStyleProperty = (styleString) =>
+  styleString
+    .split(/;\s*/)
+    .filter(Boolean)
+    .reduce((memo, rule) => {
+      const [name, value] = rule.split(/:\s*/);
+
+      return { ...memo, [name]: value };
+    }, {});
+
+const replaceMeaninglessTagsInCodeBlock = (node) => {
+  const visitor = () => (tree) => {
+    visit(tree, 'element', (node, idx, parent) => {
+      if (MEANINGFUL_TAGS_IN_CODE_BLOCK.includes(node.tagName)) {
+        return;
+      }
+
+      const style = node.properties
+        ? parseStyleProperty(node.properties.style || '')
+        : {};
+
+      parent.children.splice(
+        idx,
+        1,
+        ...(style.display === 'none' ? [] : node.children)
+      );
+
+      return idx;
+    });
+  };
+
+  const { contents } = unified()
+    .use(parse)
+    .use(visitor)
+    .use(html)
+    .processSync(node.innerHTML);
+
+  // `innerHTML` replaces embedded '&', '<', and '>', characters. We want
+  // to keep these as their raw text.
+  //
+  // https://developer.mozilla.org/en-US/docs/Web/API/Element/innerHTML
+  return contents
+    .replace(/(&amp;|&#x26;)/g, '&')
+    .replace(/(&lt;|&#x3C;)/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&nbsp;/g, ' ')
+    .trim();
+};
 
 module.exports = (file) => {
   slugs.reset();
@@ -71,6 +153,8 @@ module.exports = (file) => {
     codeBlockStyle: 'fenced',
     fence: '```',
   });
+
+  const defaultRules = turndown.options.rules;
 
   turndown
     // adapted from Turndown to add custom heading IDs
@@ -128,17 +212,20 @@ module.exports = (file) => {
       // the docs site include language information, so we don't need to try and
       // detect it.
       replacement: (_content, node) => {
-        const buffer = Buffer.from(node.textContent.trim());
-        const language =
-          node.firstChild.nodeName === 'CODE'
-            ? node.firstChild.getAttribute('type')
-            : null;
+        const hasCodeTag = node.firstChild.nodeName === 'CODE';
+        const language = hasCodeTag
+          ? node.firstChild.getAttribute('type')
+          : null;
+
+        const contentNode =
+          hasCodeTag && node.childNodes.length === 1 ? node.firstChild : node;
+
+        const html = replaceMeaninglessTagsInCodeBlock(contentNode);
+        const encoded = Buffer.from(html).toString('base64');
 
         return language
-          ? `\n\n<pre language="${language}">${buffer.toString(
-              'base64'
-            )}</pre>\n\n`
-          : `\n\n<pre>${buffer.toString('base64')}</pre>\n\n`;
+          ? `\n\n<pre language="${language}">{'${encoded}'}</pre>\n\n`
+          : `\n\n<pre>{'${encoded}'}</pre>\n\n`;
       },
     })
     .addRule('specialComponents', {
@@ -200,6 +287,36 @@ module.exports = (file) => {
         const tag = node.nodeName.toLowerCase();
 
         return `<${tag}>${content}</${tag}>`;
+      },
+    })
+    .addRule('captions', {
+      filter: (node) => node.classList.contains('dnd-legend-wrapper'),
+      replacement: (content) => `<figcaption>\n${content}\n</figcaption>`,
+    })
+    .addRule('techTiles', {
+      filter: isTechTile,
+      replacement: (content, node) => {
+        const href = node.getAttribute('onclick').match(JS_OPEN)[1];
+
+        return `<a href="${href}" className="tech-tile">\n\n${content}\n\n</a>\n\n`;
+      },
+    })
+    .addRule('sizedImages', {
+      filter: (node) =>
+        node.nodeName === 'IMG' &&
+        (node.style.width || node.style.height || node.style.verticalAlign),
+      replacement: (content, node) => {
+        const markdown = defaultRules.image.replacement(content, node);
+
+        return createElementString(
+          'ImageSizing',
+          {
+            width: node.style.width || undefined,
+            height: node.style.height || undefined,
+            verticalAlign: node.style.verticalAlign || undefined,
+          },
+          markdown
+        );
       },
     });
 

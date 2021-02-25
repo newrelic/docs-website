@@ -165,6 +165,7 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
           }
           frontmatter {
             subject
+            redirects
           }
         }
       }
@@ -211,13 +212,25 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
       (node) => node.frontmatter.subject === fieldValue
     );
 
-    landingPage &&
+    if (landingPage) {
+      const { redirects } = landingPage.frontmatter;
       createRedirect({
         fromPath: path.join(landingPage.fields.slug, 'current'),
         toPath: nodes[0].fields.slug,
         isPermanent: false,
         redirectInBrowser: true,
       });
+      if (redirects) {
+        redirects.forEach((fromPath) => {
+          createRedirect({
+            fromPath,
+            toPath: landingPage.fields.slug,
+            isPermanent: false,
+            redirectInBrowser: true,
+          });
+        });
+      }
+    }
   });
 
   const translatedContentNodes = allI18nMdx.edges.map(({ node }) => node);
@@ -281,6 +294,7 @@ exports.createSchemaCustomization = ({ actions }) => {
     title: String!
     path: String
     icon: String
+    filterable: Boolean!
     pages: [NavYaml!]!
     rootNav: Boolean!
   }
@@ -296,6 +310,10 @@ exports.createResolvers = ({ createResolvers }) => {
         resolve: (source) => {
           return source.pages || [];
         },
+      },
+      filterable: {
+        resolve: (source) =>
+          hasOwnProperty(source, 'filterable') ? source.filterable : true,
       },
       rootNav: {
         resolve: (source) =>
