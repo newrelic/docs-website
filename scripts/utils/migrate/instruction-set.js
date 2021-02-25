@@ -431,6 +431,13 @@ module.exports = [
     to: ['New Relic in practice'],
   },
   {
+    type: INSTRUCTIONS.UPDATE,
+    path: ['New Relic in practice'],
+    node: {
+      path: '/docs/using-new-relic',
+    },
+  },
+  {
     type: INSTRUCTIONS.REMOVE,
     path: ['Plugins'],
   },
