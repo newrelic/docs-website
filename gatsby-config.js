@@ -71,6 +71,10 @@ module.exports = {
             engineKey: 'Ad9HfGjDw4GRkcmJjUut',
             refetch: Boolean(process.env.BUILD_RELATED_CONTENT),
             filter: (node) => {
+              if (node.internal.type !== 'Mdx') {
+                return false;
+              }
+
               const includedTypes = ['apiDoc', 'troubleshooting'];
               const excludedFolders = [
                 'src/content/docs/release-notes',
@@ -81,10 +85,6 @@ module.exports = {
                 frontmatter,
                 fields: { fileRelativePath },
               } = node;
-
-              if (node.internal.type !== 'Mdx') {
-                return false;
-              }
 
               if (
                 excludedFolders.some((path) => fileRelativePath.includes(path))
