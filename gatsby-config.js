@@ -77,12 +77,6 @@ module.exports = {
                 '/docs/agents/ruby-agent/features/ruby-vm-measurements',
               ].includes(slug);
 
-              console.log({
-                slug,
-                fetch: result,
-                env: Boolean(process.env.BUILD_RELATED_CONTENT),
-              });
-
               return result;
             },
             getParams: ({ node }) => {
