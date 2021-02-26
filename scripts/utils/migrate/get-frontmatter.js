@@ -86,7 +86,7 @@ const addCustomFrontmatter = {
     return {
       subject: normalizeSubject(subject),
       releaseDate: doc.releasedOn.split(' ')[0],
-      version: doc.releaseVersion.replace(/^v/i, ''),
+      version: doc.releaseVersion && doc.releaseVersion.replace(/^v/i, ''),
       downloadLink: doc.downloadLink,
       type: file.path.match(/src\/content\/docs\/release-notes/)
         ? null
