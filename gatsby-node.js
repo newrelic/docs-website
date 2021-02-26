@@ -194,6 +194,10 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
     whatsNewPosts,
   } = data;
 
+  const locales = allLocale.nodes
+    .filter((locale) => !locale.isDefault)
+    .map(prop('locale'));
+
   externalRedirects.forEach(({ url, paths }) => {
     paths.forEach((path) => {
       createRedirect({
@@ -214,19 +218,23 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
 
     if (landingPage) {
       const { redirects } = landingPage.frontmatter;
-      createRedirect({
+
+      createLocalizedRedirect({
+        locales,
         fromPath: path.join(landingPage.fields.slug, 'current'),
         toPath: nodes[0].fields.slug,
         isPermanent: false,
-        redirectInBrowser: true,
+        createRedirect,
       });
+
       if (redirects) {
         redirects.forEach((fromPath) => {
-          createRedirect({
+          createLocalizedRedirect({
+            locales,
             fromPath,
             toPath: landingPage.fields.slug,
             isPermanent: false,
-            redirectInBrowser: true,
+            createRedirect,
           });
         });
       }
@@ -234,10 +242,6 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
   });
 
   const translatedContentNodes = allI18nMdx.edges.map(({ node }) => node);
-
-  const locales = allLocale.nodes
-    .filter((locale) => !locale.isDefault)
-    .map(prop('locale'));
 
   allMdx.edges.concat(allMarkdownRemark.edges).forEach(({ node }) => {
     const {
@@ -247,11 +251,11 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
 
     if (redirects) {
       redirects.forEach((fromPath) => {
-        createRedirect({
+        createLocalizedRedirect({
+          locales,
           fromPath,
           toPath: slug,
-          isPermanent: true,
-          redirectInBrowser: true,
+          createRedirect,
         });
       });
     }
@@ -276,11 +280,11 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
       fields: { slug },
     } = node;
 
-    createRedirect({
+    createLocalizedRedirect({
+      locales,
       fromPath: slug.replace(/\/\d{4}\/\d{2}/, ''),
       toPath: slug,
-      isPermanent: true,
-      redirectInBrowser: true,
+      createRedirect,
     });
   });
 };
@@ -349,6 +353,31 @@ exports.onCreatePage = ({ page, actions }) => {
       },
     });
   }
+};
+
+const createLocalizedRedirect = ({
+  fromPath,
+  toPath,
+  locales,
+  redirectInBrowser = true,
+  isPermanent = true,
+  createRedirect,
+}) => {
+  createRedirect({
+    fromPath,
+    toPath,
+    isPermanent,
+    redirectInBrowser,
+  });
+
+  locales.forEach((locale) => {
+    createRedirect({
+      fromPath: path.join(`/${locale}`, fromPath),
+      toPath: path.join(`/${locale}`, toPath),
+      isPermanent,
+      redirectInBrowser,
+    });
+  });
 };
 
 const createPageFromNode = (node, { createPage, prefix = '' }) => {
