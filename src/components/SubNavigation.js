@@ -46,12 +46,12 @@ const SubNavigation = ({ nav }) => {
           <h2>{nav.title}</h2>
           {nav.filterable && (
             <SearchInput
-              placeholder="Filter navigation"
+              placeholder={t('subNav.filter.placeholder')}
               onClear={() => setSearchTerm('')}
               onChange={(e) => setSearchTerm(e.target.value)}
               value={searchTerm}
               css={css`
-                margin-bottom: 0.5rem;
+                margin-bottom: 1rem;
               `}
             />
           )}
