@@ -28,9 +28,13 @@ const getLinksFromNav = (filepath) => {
 
 const getPageResponse = async (path) => {
   const url = new URL(path, BASE_URL);
-  const resp = await fetch(url, { method: 'HEAD' });
+  const { code } = await fetch(url, { method: 'HEAD' });
 
-  return resp.code;
+  if (code !== 200) {
+    console.log(code, path);
+  }
+
+  return code;
 };
 
 const run = async () => {
@@ -41,8 +45,13 @@ const run = async () => {
     ),
   ];
 
-  const codeRequests = links.map(async (path) => {
+  const codeRequests = links.map(async (path, index, list) => {
     const code = await getPageResponse(path);
+
+    const percent = (index % list.length) * 100;
+    if (percent % 5 === 0) {
+      console.log(`${percent}% complete`);
+    }
 
     return { code, path };
   });
