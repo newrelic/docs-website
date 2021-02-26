@@ -11,6 +11,7 @@ exports.createSchemaCustomization = ({ actions }) => {
       id: ID!
       title(locale: String = "en"): String
       filterable: Boolean!
+      url: String
       pages: [NavItem!]!
     }
 
@@ -68,6 +69,9 @@ exports.createResolvers = ({ createResolvers, createNodeId }) => {
       filterable: {
         resolve: (source) =>
           hasOwnProperty(source, 'filterable') ? source.filterable : true,
+      },
+      url: {
+        resolve: (source) => source.url || source.path,
       },
       title: {
         resolve: findTranslatedTitle,
@@ -189,7 +193,12 @@ const createReleaseNotesNav = async ({ createNodeId, nodeModel }) => {
   const subjects = posts
     .reduce((acc, curr) => [...new Set([...acc, curr.frontmatter.subject])], [])
     .filter(Boolean)
-    .sort();
+    .sort((a, b) =>
+      a
+        .toLowerCase()
+        .replace(/\W/, '')
+        .localeCompare(b.toLowerCase().replace(/\W/, ''))
+    );
 
   const formatReleaseNotePosts = (posts) =>
     posts.map((post) => {

@@ -44,7 +44,7 @@ module.exports = {
           node,
           'img',
           stripNulls({
-            src: imageHashMap[srcUrl] || node.url,
+            src: imageHashMap[srcUrl.substr(1)] || node.url,
             alt: node.alt,
           })
         ),
