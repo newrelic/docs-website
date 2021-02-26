@@ -189,7 +189,12 @@ const createReleaseNotesNav = async ({ createNodeId, nodeModel }) => {
   const subjects = posts
     .reduce((acc, curr) => [...new Set([...acc, curr.frontmatter.subject])], [])
     .filter(Boolean)
-    .sort();
+    .sort((a, b) =>
+      a
+        .toLowerCase()
+        .replace(/\W/, '')
+        .localeCompare(b.toLowerCase().replace(/\W/, ''))
+    );
 
   const formatReleaseNotePosts = (posts) =>
     posts.map((post) => {
