@@ -28,13 +28,13 @@ const getLinksFromNav = (filepath) => {
 
 const getPageResponse = async (path) => {
   const url = new URL(path, BASE_URL);
-  const { code } = await fetch(url, { method: 'HEAD' });
+  const { status } = await fetch(url, { method: 'HEAD' });
 
-  if (code !== 200) {
-    console.log(code, path);
+  if (status !== 200) {
+    console.log(status, path);
   }
 
-  return code;
+  return status;
 };
 
 const run = async () => {
