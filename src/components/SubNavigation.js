@@ -44,15 +44,17 @@ const SubNavigation = ({ nav }) => {
       {nav && (
         <>
           <h2>{nav.title}</h2>
-          <SearchInput
-            placeholder="Filter navigation"
-            onClear={() => setSearchTerm('')}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            value={searchTerm}
-            css={css`
-              margin-bottom: 0.5rem;
-            `}
-          />
+          {nav.filterable && (
+            <SearchInput
+              placeholder="Filter navigation"
+              onClear={() => setSearchTerm('')}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              value={searchTerm}
+              css={css`
+                margin-bottom: 0.5rem;
+              `}
+            />
+          )}
           <Navigation searchTerm={searchTerm}>
             {nav.pages.map((page) => (
               <NavItem key={page.title} page={page} />

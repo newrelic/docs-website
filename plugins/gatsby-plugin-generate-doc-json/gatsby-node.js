@@ -29,69 +29,65 @@ const htmlGenerator = unified()
 exports.onPostBuild = async ({ graphql, store }) => {
   const { program } = store.getState();
 
-  try {
-    const { data } = await graphql(`
-      query {
-        allMdx(filter: { fileAbsolutePath: { regex: "/src/content/docs/" } }) {
-          nodes {
-            mdxAST
-            slug
-            fields {
-              fileRelativePath
-            }
-          }
-        }
-        allImageSharp {
-          nodes {
-            parent {
-              ... on File {
-                relativePath
-              }
-            }
-            original {
-              src
-            }
+  const { data } = await graphql(`
+    query {
+      allMdx(filter: { fileAbsolutePath: { regex: "/src/content/docs/" } }) {
+        nodes {
+          mdxAST
+          slug
+          fields {
+            fileRelativePath
           }
         }
       }
-    `);
+      allImageSharp {
+        nodes {
+          parent {
+            ... on File {
+              relativePath
+            }
+          }
+          original {
+            src
+          }
+        }
+      }
+    }
+  `);
 
-    const { allMdx, allImageSharp } = data;
+  const { allMdx, allImageSharp } = data;
 
-    const imageHashMap = allImageSharp.nodes.reduce(
-      (acc, { original, parent }) => ({
-        ...acc,
-        [parent.relativePath]: original.src,
-      }),
-      {}
+  const imageHashMap = allImageSharp.nodes.reduce(
+    (acc, { original, parent }) => ({
+      ...acc,
+      [parent.relativePath]: original.src,
+    }),
+    {}
+  );
+
+  allMdx.nodes.forEach((node) => {
+    const {
+      slug,
+      mdxAST,
+      fields: { fileRelativePath },
+    } = node;
+
+    const filepath = path.join(program.directory, 'public', `${slug}.json`);
+
+    const transformedAST = htmlGenerator.runSync(mdxAST);
+    const html = htmlGenerator.stringify(
+      toHast(transformedAST, {
+        handlers: {
+          mdxSpanElement: mdxElement,
+          mdxBlockElement: mdxElement,
+          code: handlers.CodeBlock,
+          image: (h, node) =>
+            handlers.image(h, node, imageHashMap, fileRelativePath),
+        },
+      })
     );
+    const result = { body: html };
 
-    allMdx.nodes.forEach((node) => {
-      const {
-        slug,
-        mdxAST,
-        fields: { fileRelativePath },
-      } = node;
-
-      const filepath = path.join(program.directory, 'public', `${slug}.json`);
-
-      const transformedAST = htmlGenerator.runSync(mdxAST);
-      const html = htmlGenerator.stringify(
-        toHast(transformedAST, {
-          handlers: {
-            mdxSpanElement: mdxElement,
-            mdxBlockElement: mdxElement,
-            code: handlers.CodeBlock,
-            image: (h, node) =>
-              handlers.image(h, node, imageHashMap, fileRelativePath),
-          },
-        })
-      );
-      const result = { body: html };
-
-      fs.writeFileSync(filepath, JSON.stringify(result));
-    });
-  } catch (error) {
-    console.error(`Unable to fetch data for doc JSON: ${error}`);
-  }
+    fs.writeFileSync(filepath, JSON.stringify(result));
+  });
 };

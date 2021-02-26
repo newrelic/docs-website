@@ -9,22 +9,24 @@ import Watermark from '../components/Watermark';
 import SEO from '../components/SEO';
 import { TYPES } from '../utils/constants';
 
+const getTitle = ({ title, version, subject }) => {
+  if (title) {
+    return title;
+  }
+
+  return version ? `${subject} v${version}` : subject;
+};
+
 const ReleaseNoteTemplate = ({ data, location }) => {
   const {
     mdx: {
       body,
-      frontmatter: {
-        downloadLink,
-        subject,
-        version,
-        releaseDate,
-        watermark,
-        metaDescription,
-      },
+      frontmatter,
+      frontmatter: { downloadLink, releaseDate, watermark, metaDescription },
     },
   } = data;
 
-  const title = `${subject} v${version}`;
+  const title = getTitle(frontmatter);
 
   return (
     <>
@@ -115,6 +117,7 @@ export const pageQuery = graphql`
       frontmatter {
         subject
         version
+        title
         releaseDate(formatString: "MMMM D, YYYY")
         downloadLink
         watermark

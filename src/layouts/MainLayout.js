@@ -114,6 +114,7 @@ export const query = graphql`
     nav(slug: $slug) {
       id
       title(locale: $locale)
+      filterable
       pages {
         ...MainLayout_navPages
         pages {
