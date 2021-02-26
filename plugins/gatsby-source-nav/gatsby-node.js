@@ -192,13 +192,17 @@ const createReleaseNotesNav = async ({ createNodeId, nodeModel }) => {
     .sort();
 
   const formatReleaseNotePosts = (posts) =>
-    posts.map((post) => ({
-      title: post.frontmatter.version
+    posts.map((post) => {
+      const derivedTitle = post.frontmatter.version
         ? `${post.frontmatter.subject} v${post.frontmatter.version}`
-        : post.frontmatter.subject,
-      url: post.fields.slug,
-      pages: [],
-    }));
+        : post.frontmatter.subject;
+
+      return {
+        title: post.frontmatter.title ? post.frontmatter.title : derivedTitle,
+        url: post.fields.slug,
+        pages: [],
+      };
+    });
 
   const filterBySubject = (subject, posts) =>
     posts.filter((post) => post.frontmatter.subject === subject);
