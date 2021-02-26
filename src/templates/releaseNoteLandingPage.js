@@ -103,7 +103,9 @@ const ReleaseNoteLandingPage = ({ data, pageContext, location }) => {
                           margin-bottom: 0.5rem;
                         `}
                       >
-                        {subject} v{post.frontmatter.version}
+                        {post.frontmatter.title
+                          ? post.frontmatter.title
+                          : `${subject} v${post.frontmatter.version}`}
                       </Link>
                       <p
                         css={css`
@@ -145,6 +147,7 @@ export const pageQuery = graphql`
           slug
         }
         frontmatter {
+          title
           version
           releaseDate(formatString: "MMMM D, YYYY")
         }
