@@ -69,7 +69,7 @@ module.exports = {
           swiftype: {
             resultsPath: `${__dirname}/src/data/swiftype-resources.json`,
             engineKey: 'Ad9HfGjDw4GRkcmJjUut',
-            refetch: false, //Boolean(process.env.BUILD_RELATED_CONTENT),
+            refetch: Boolean(process.env.BUILD_RELATED_CONTENT),
             filter: ({ slug }) => {
               const result = [
                 '/docs/apm/new-relic-apm/apdex/change-your-apdex-settings',
