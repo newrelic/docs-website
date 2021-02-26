@@ -263,6 +263,13 @@ export default {
       <line x1="2" y1="12" x2="22" y2="12" />
     </>
   ),
+  'pause-circle': (
+    <>
+      <circle cx="12" cy="12" r="10" />
+      <line x1="10" y1="15" x2="10" y2="9" />
+      <line x1="14" y1="15" x2="14" y2="9" />
+    </>
+  ),
   'pen-tool': (
     <>
       <path d="M12 19l7-7 3 3-7 7-3-3z" />
