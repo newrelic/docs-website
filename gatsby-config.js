@@ -70,9 +70,21 @@ module.exports = {
             resultsPath: `${__dirname}/src/data/swiftype-resources.json`,
             engineKey: 'Ad9HfGjDw4GRkcmJjUut',
             refetch: Boolean(process.env.BUILD_RELATED_CONTENT),
-            filter: ({ slug }) =>
-              slug ===
-              '/docs/integrations/kubernetes-integration/understand-use-data/kubernetes-cluster-explorer',
+            filter: ({ slug }) => {
+              const result = [
+                '/docs/apm/new-relic-apm/apdex/change-your-apdex-settings',
+                '/docs/integrations/kubernetes-integration/understand-use-data/kubernetes-cluster-explorer',
+                '/docs/agents/ruby-agent/features/ruby-vm-measurements',
+              ].includes(slug);
+
+              console.log({
+                slug,
+                fetch: result,
+                env: Boolean(process.env.BUILD_RELATED_CONTENT),
+              });
+
+              return result;
+            },
             getParams: ({ node }) => {
               const { tags, title } = node.frontmatter;
 
