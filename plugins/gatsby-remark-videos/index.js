@@ -20,6 +20,7 @@ module.exports = ({ markdownAST }) => {
     }" class="wistia_embed" frameborder="0" style="position: absolute; top: 0; left: 0; height: 100%; width: 100%;" />
 </div>
     `.trim();
+    console.log(node);
   });
 
   return markdownAST;
