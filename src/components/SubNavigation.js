@@ -51,7 +51,7 @@ const SubNavigation = ({ nav }) => {
               onChange={(e) => setSearchTerm(e.target.value)}
               value={searchTerm}
               css={css`
-                margin-bottom: 0.5rem;
+                margin-bottom: 1rem;
               `}
             />
           )}
