@@ -11,6 +11,7 @@ exports.createSchemaCustomization = ({ actions }) => {
       id: ID!
       title(locale: String = "en"): String
       filterable: Boolean!
+      url: String
       pages: [NavItem!]!
     }
 
@@ -68,6 +69,9 @@ exports.createResolvers = ({ createResolvers, createNodeId }) => {
       filterable: {
         resolve: (source) =>
           hasOwnProperty(source, 'filterable') ? source.filterable : true,
+      },
+      url: {
+        resolve: (source) => source.url || source.path,
       },
       title: {
         resolve: findTranslatedTitle,
