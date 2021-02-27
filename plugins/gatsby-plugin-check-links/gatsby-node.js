@@ -1,5 +1,6 @@
 const visit = require('unist-util-visit');
 const fetch = require('node-fetch');
+const unified = require('unified');
 const { hasAttribute, findAttribute } = require('../../codemods/utils/mdxast');
 
 const BASE_URL = 'https://docs-preview.newrelic.com';
