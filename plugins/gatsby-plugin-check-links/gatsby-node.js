@@ -15,9 +15,9 @@ const isExternal = (to) => to.startsWith('http');
 const isMdxElement = (node) =>
   isType('mdxBlockElement', node) || isType('mdxSpanElement', node);
 
-const linkVisitor = (mdxAST) =>
+const linkVisitor = () => (tree) => {
   visit(
-    mdxAST,
+    tree,
     (node) =>
       node && isMdxElement(node) && node.attributes && hasAttribute('to', node),
     async (node) => {
