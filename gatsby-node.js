@@ -12,8 +12,8 @@ const TRAILING_SLASH = /\/$/;
 const hasOwnProperty = (obj, key) =>
   Object.prototype.hasOwnProperty.call(obj, key);
 
-const hasTrailingSlash = (pathname) =>
-  pathname === '/' ? false : TRAILING_SLASH.test(pathname);
+const omitsTrailingSlash = (pathname) =>
+  pathname === '/' ? false : !TRAILING_SLASH.test(pathname);
 
 exports.onPreBootstrap = async ({ reporter, store }) => {
   reporter.info("generating what's new post IDs");
@@ -329,7 +329,7 @@ exports.createResolvers = ({ createResolvers }) => {
 
 exports.onCreatePage = ({ page, actions }) => {
   const { createPage, deletePage } = actions;
-  const oldPage = Object.assign({}, page);
+  const oldPage = { ...page };
 
   if (page.path.match(/404/)) {
     page.context.layout = 'basic';
@@ -339,8 +339,8 @@ exports.onCreatePage = ({ page, actions }) => {
     page.context.fileRelativePath = getFileRelativePath(page.componentPath);
   }
 
-  if (hasTrailingSlash(page.context.slug)) {
-    page.context.slug = page.context.slug.replace(TRAILING_SLASH, '');
+  if (omitsTrailingSlash(page.context.slug)) {
+    page.context.slug = `${page.context.slug}/`;
   }
 
   deletePage(oldPage);
