@@ -64,7 +64,7 @@ exports.onCreateNode = ({ node, getNode, actions }) => {
     createNodeField({
       node,
       name: 'slug',
-      value: createFilePath({ node, getNode, trailingSlash: false }),
+      value: createFilePath({ node, getNode, trailingSlash: true }),
     });
   }
 };

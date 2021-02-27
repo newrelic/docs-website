@@ -447,6 +447,7 @@ module.exports = {
         skippedDirectories: ['', 'whats-new', 'docs/release-notes'],
       },
     },
+    'gatsby-plugin-force-trailing-slashes',
     'gatsby-plugin-meta-redirect',
   ],
 };
