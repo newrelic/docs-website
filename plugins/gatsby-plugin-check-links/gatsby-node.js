@@ -30,6 +30,7 @@ const linkVisitor = () => (tree) => {
       }
     }
   );
+};
 
 const processor = unified().use(linkVisitor);
 
