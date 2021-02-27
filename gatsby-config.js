@@ -70,7 +70,7 @@ module.exports = {
             resultsPath: `${__dirname}/src/data/swiftype-resources.json`,
             engineKey: 'Ad9HfGjDw4GRkcmJjUut',
             refetch: Boolean(process.env.BUILD_RELATED_CONTENT),
-            filter: (node) => {
+            filter: ({ node }) => {
               if (node.internal.type !== 'Mdx') {
                 return false;
               }
