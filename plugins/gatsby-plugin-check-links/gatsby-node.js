@@ -1,17 +1,25 @@
 const visit = require('unist-util-visit');
 const fetch = require('node-fetch');
 const unified = require('unified');
-const { hasAttribute, findAttribute } = require('../../codemods/utils/mdxast');
+const {
+  hasAttribute,
+  findAttribute,
+  isType,
+} = require('../../codemods/utils/mdxast');
 
 const BASE_URL = 'https://docs-preview.newrelic.com';
 
 const isHash = (to) => to.startsWith('#');
 const isExternal = (to) => to.startsWith('http');
 
+const isMdxElement = (node) =>
+  isType('mdxBlockElement', node) || isType('mdxSpanElement', node);
+
 const linkVisitor = (mdxAST) =>
   visit(
     mdxAST,
-    (node) => node && node.attributes && hasAttribute('to', node),
+    (node) =>
+      node && isMdxElement(node) && node.attributes && hasAttribute('to', node),
     async (node) => {
       const to = findAttribute('to', node);
       if (!isHash(to) && !isExternal(to)) {
