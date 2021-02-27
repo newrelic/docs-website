@@ -7,6 +7,23 @@ const BASE_URL = 'https://docs-preview.newrelic.com';
 const isHash = (to) => to.startsWith('#');
 const isExternal = (to) => to.startsWith('http');
 
+const linkVisitor = (mdxAST) =>
+  visit(
+    mdxAST,
+    (node) => node && node.attributes && hasAttribute('to', node),
+    async (node) => {
+      const to = findAttribute('to', node);
+      if (!isHash(to) && !isExternal(to)) {
+        const code = await getPageResponse(to);
+        if (code !== 200) {
+          console.log('!! INVALID PATH: ', to);
+        }
+      }
+    }
+  );
+
+const processor = unified().use(linkVisitor);
+
 const getPageResponse = async (path) => {
   const url = new URL(path, BASE_URL);
   const { status } = await fetch(url, { method: 'HEAD' });
@@ -31,22 +48,10 @@ exports.onPostBuild = async ({ graphql }) => {
 
   const { allMdx } = data;
 
-  Promise.all(
-    allMdx.nodes.forEach((node) => {
+  await Promise.all(
+    allMdx.nodes.filter(async (node) => {
       const { mdxAST } = node;
-      visit(
-        mdxAST,
-        (node) => node && node.attributes && hasAttribute('to', node),
-        async (node) => {
-          const to = findAttribute('to', node);
-          if (!isHash(to) && !isExternal(to)) {
-            const code = await getPageResponse(to);
-            if (code !== 200) {
-              console.log('INVALID PATH:', to);
-            }
-          }
-        }
-      );
+      await processor.run(mdxAST);
     })
   );
 };
