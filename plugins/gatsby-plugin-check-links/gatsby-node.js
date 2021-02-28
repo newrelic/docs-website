@@ -23,11 +23,15 @@ const linkVisitor = () => (tree) => {
       isType('link', node),
     async (node) => {
       const to = isType('link', node) ? node.url : findAttribute('to', node);
-      if (!isHash(to) && !isExternal(to)) {
-        const code = await getPageResponse(to);
-        if (code !== 200) {
-          console.log('!! INVALID PATH: ', to);
+      try {
+        if (!isHash(to) && !isExternal(to)) {
+          const code = await getPageResponse(to);
+          if (code !== 200) {
+            console.log('!! INVALID PATH: ', to);
+          }
         }
+      } catch (error) {
+        console.log('ERROR:', to);
       }
     }
   );
