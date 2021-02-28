@@ -19,9 +19,10 @@ const linkVisitor = () => (tree) => {
   visit(
     tree,
     (node) =>
-      node && isMdxElement(node) && node.attributes && hasAttribute('to', node),
+      (isMdxElement(node) && node.attributes && hasAttribute('to', node)) ||
+      isType('link', node),
     async (node) => {
-      const to = findAttribute('to', node);
+      const to = isType('link', node) ? node.url : findAttribute('to', node);
       if (!isHash(to) && !isExternal(to)) {
         const code = await getPageResponse(to);
         if (code !== 200) {
