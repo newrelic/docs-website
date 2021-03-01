@@ -9,6 +9,7 @@ import {
 
 const DefaultRelatedContent = () => {
   const { t } = useTranslation();
+  const locale = useLocale();
 
   return (
     <div data-swiftype-index={false}>
@@ -33,21 +34,21 @@ const DefaultRelatedContent = () => {
         </li>
         <li>
           Find{' '}
-          <a href="/docs/using-new-relic/welcome-new-relic/get-started/find-help-use-support-portal">
+          <Link to="/docs/using-new-relic/welcome-new-relic/get-started/find-help-use-support-portal">
             answers on our sites and learn how to use our support portal
-          </a>
+          </Link>
           .
         </li>
         <li>
           Run{' '}
-          <a href="/docs/using-new-relic/cross-product-functions/troubleshooting/new-relic-diagnostics">
+          <Link to="/docs/using-new-relic/cross-product-functions/troubleshooting/new-relic-diagnostics">
             New Relic Diagnostics
-          </a>
+          </Link>
           , our troubleshooting tool for Linux, Windows, and macOS.
         </li>
         <li>
-          Review New Relic's <a href="/docs/security">data security</a> and{' '}
-          <a href="/docs/licenses">licenses</a> documentation.
+          Review New Relic's <Link to="/docs/security">data security</Link> and{' '}
+          <Link to="/docs/licenses">licenses</Link> documentation.
         </li>
       </Trans>
     </div>
