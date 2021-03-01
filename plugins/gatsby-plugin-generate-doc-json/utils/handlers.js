@@ -4,9 +4,6 @@ const {
   findAttribute,
   isMdxElement,
 } = require('../../../codemods/utils/mdxast');
-const {
-  mdxValueExpression,
-} = require('../../../codemods/utils/mdxast-builder');
 const toString = require('mdast-util-to-string');
 const u = require('unist-builder');
 const { compileStyleObject } = require('../../../rehype-plugins/utils/styles');
@@ -35,10 +32,6 @@ const removeParagraphs = () => (tree) => {
   visit(tree, 'paragraph', (node, idx, parent) => {
     parent.children.splice(idx, 1, ...node.children);
   });
-};
-
-const getImportUrl = (node, importObject) => {
-  return importObject[node.url.value];
 };
 
 const attributeProcessor = unified()
