@@ -74,14 +74,6 @@ exports.onPostBuild = async ({ graphql, store }) => {
 
     const filepath = path.join(program.directory, 'public', `${slug}.json`);
 
-    const imports = mdxAST.children.reduce((acc, node) => {
-      if (node.type === 'import') {
-        const importArray = node.value.split(' ');
-        acc[importArray[1]] = importArray[3].slice(1, -1);
-      }
-      return acc;
-    }, {});
-
     const transformedAST = htmlGenerator.runSync(mdxAST);
     const html = htmlGenerator.stringify(
       toHast(transformedAST, {
@@ -90,7 +82,7 @@ exports.onPostBuild = async ({ graphql, store }) => {
           mdxBlockElement: mdxElement,
           code: handlers.CodeBlock,
           image: (h, node) =>
-            handlers.image(h, node, imageHashMap, fileRelativePath, imports),
+            handlers.image(h, node, imageHashMap, fileRelativePath),
         },
       })
     );

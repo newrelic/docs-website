@@ -80,9 +80,6 @@ module.exports = {
       ]
     );
   },
-  CollapserTitle: (h, node) => {
-    return h(node, 'div', { className: 'collapser-title' }, all(h, node));
-  },
   CodeBlock: (h, node) => {
     const props =
       node.meta &&
@@ -157,37 +154,16 @@ module.exports = {
       const parsedChildren =
         children[0].name !== null ? children[0] : children[0].children;
 
-      if (Array.isArray(parsedChildren)) {
-        parsedChildren.forEach((child) => {
-          if (child.name === 'img') {
-            child.name = 'image';
-            const url = findAttribute('src', child);
-            child.url = typeof url === 'string' ? url : mdxValueExpression(url);
-          }
-        });
-      } else {
-        if (parsedChildren.name === 'img') {
-          parsedChildren.name = 'image';
-          const url = findAttribute('src', parsedChildren);
-          parsedChildren.url =
-            typeof url === 'string' ? url : mdxValueExpression(url);
-        }
-      }
+      const titleNode =
+        Array.isArray(parsedChildren) &&
+        parsedChildren.find((child) => child.type === 'text');
 
-      const newMdxElement = {
-        type: 'mdxBlockElement',
-        attributes: [],
-        name: 'CollapserTitle',
-        children:
-          children[0].name !== null ? children[0] : children[0].children,
-      };
-
-      node.children.unshift(newMdxElement);
       return h(
         node,
         'div',
         {
           className: 'collapser',
+          title: titleNode.value.trim() || '',
         },
         all(h, node)
       );
