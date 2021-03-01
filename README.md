@@ -20,7 +20,7 @@ We're here working every day to improve our docs and we'd love to hear from you.
 
 ## Get started
 
-On each page of our docs, you can [create an issue](https://github.com/newrelic/docs-website/issues/new/choose) or [edit a page](https://github.com/newrelic/docs-website/blob/develop/CONTRIBUTING.md).
+On each page of our docs, you can [create an issue](https://github.com/newrelic/docs-website/issues/new/choose) or [edit a page](CONTRIBUTING.md).
 
 ### Create an issue
 
@@ -32,9 +32,9 @@ Go here to [create an issue](https://github.com/newrelic/docs-website/issues/new
 
 If you'd like to get more directly involved, you can make some changes yourself. On any doc, click the **Edit this page** button to get started making a change.
 You can edit a doc directly on the GitHub site. You don't need to actively fork the site or build it locally to help out. This is the easiest way to contribute.
-If you'd like to go deeper, see our [Contributors guide](https://github.com/newrelic/docs-website/blob/readme-update/CONTRIBUTING.md) for information on how to fork our site, build it locally, and submit pull requests.
+If you'd like to go deeper, see our [Contributors guide](CONTRIBUTING.md) for information on how to fork our site, build it locally, and submit pull requests.
 
-Our [Style guide](https://github.com/newrelic/docs-website/blob/readme-update/STYLE_GUIDE.md) will give you some insight into how we think about writing and documentation, as well as our flavor of Markdown.
+Our [Style guide](https://docs.newrelic.com/docs/style-guide) will give you some insight into how we think about writing and documentation, as well as our flavor of Markdown.
 
 Reading the style guide is totally optional! Our writers are here to make sure everything is formatted and worded right. We're looking your technical insight and knowhow. Let us handle the little details for you.
 
