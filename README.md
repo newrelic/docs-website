@@ -34,7 +34,7 @@ If you'd like to get more directly involved, you can make some changes yourself.
 You can edit a doc directly on the GitHub site. You don't need to actively fork the site or build it locally to help out. This is the easiest way to contribute.
 If you'd like to go deeper, see our [Contributors guide](https://github.com/newrelic/docs-website/blob/readme-update/CONTRIBUTING.md) for information on how to fork our site, build it locally, and submit pull requests.
 
-Our [Style guide](https://github.com/newrelic/docs-website/blob/readme-update/STYLE_GUIDE.md) will give you some insight into how we think about writing and documentation, as well as our flavor of Markdown.
+Our [Style guide](https://docs.newrelic.com/docs/style-guide/get-started/introduction-style-guide) will give you some insight into how we think about writing and documentation, as well as our flavor of Markdown.
 
 Reading the style guide is totally optional! Our writers are here to make sure everything is formatted and worded right. We're looking your technical insight and knowhow. Let us handle the little details for you.
 
