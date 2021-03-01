@@ -1,0 +1,12 @@
+---
+subject: Mobile app for Android
+releaseDate: '2021-01-14'
+version: 3.1.0
+downloadLink: 'https://play.google.com/store/apps/details?id=com.newrelic.rpm'
+---
+
+### Notes
+
+* Added "Open in APM" link to Incident anomalies
+* Added ability to hide "Expected Errors" in APM
+* Bug fixes

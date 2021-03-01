@@ -1,0 +1,14 @@
+---
+subject: Mobile app for Android
+releaseDate: '2015-07-30'
+version: 1.9.9
+downloadLink: 'https://play.google.com/store/apps/details?id=com.newrelic.rpm'
+---
+
+### Improvements
+
+* Removed location permission
+
+### Fixes
+
+* Fixed bug causing date on Incident log to be empty sometimes

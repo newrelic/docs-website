@@ -1,0 +1,16 @@
+---
+subject: Mobile app for Android
+releaseDate: '2016-03-17'
+version: 2.2.0
+downloadLink: 'https://play.google.com/store/apps/details?id=com.newrelic.rpm&hl=en'
+---
+
+### New features
+
+* Support for new alerts features (NRQL incidents / notifications)
+* New notification layout to accommodate longer notification messages
+* Menu button for Insights links to Insights
+
+### Fixes
+
+* Small bug fixes

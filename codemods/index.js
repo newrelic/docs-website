@@ -11,25 +11,34 @@ const codeBlocks = require('./codeBlocks');
 const inlineCodeBlocks = require('./inlineCodeBlocks');
 const landingPageTileGrid = require('./landingPageTileGrid');
 const landingPageImagePlacement = require('./landingPageImagePlacement');
+const landingPageHero = require('./landingPageHero');
 const collapseLandingPageTileGrids = require('./collapseLandingPageTileGrids');
 const landingPageButtonType = require('./landingPageButtonType');
 const tocLinks = require('./tocLinks');
+const watermarks = require('./watermarks');
+const browserLandingPageBlockquote = require('./browserLandingPageBlockquote');
+const techTiles = require('./techTile');
 
 module.exports = [
   codeBlocks,
   inlineCodeBlocks,
   indentedCodeBlock,
   callouts,
-  clamshells,
   exampleBoxes,
   videos,
   images,
+  clamshells,
   tables,
   buttons,
+  browserLandingPageBlockquote,
   icons,
   landingPageTileGrid,
   landingPageImagePlacement,
   collapseLandingPageTileGrids,
   landingPageButtonType,
   tocLinks,
+  watermarks,
+  landingPageHero,
+  techTiles,
+  require('./imageSizing'),
 ];

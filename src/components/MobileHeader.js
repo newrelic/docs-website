@@ -1,8 +1,7 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/core';
-import { Link } from 'gatsby';
-import { Logo, HamburgerMenu } from '@newrelic/gatsby-theme-newrelic';
+import { Link, Logo, HamburgerMenu } from '@newrelic/gatsby-theme-newrelic';
 
 const MobileHeader = ({ className, children, isOpen, onToggle }) => {
   return (
@@ -20,7 +19,12 @@ const MobileHeader = ({ className, children, isOpen, onToggle }) => {
           justify-content: space-between;
         `}
       >
-        <Link to="/">
+        <Link
+          to="/"
+          css={css`
+            text-decoration: none;
+          `}
+        >
           <Logo />
         </Link>
 

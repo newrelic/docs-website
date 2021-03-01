@@ -1,8 +1,14 @@
-const htmlToMarkdown = require('../html-to-markdown');
+const Turndown = require('turndown');
 const getFrontmatter = require('../get-frontmatter');
 
 const toMarkdown = (file) => {
-  file.contents = getFrontmatter(file) + htmlToMarkdown(file);
+  const turndown = new Turndown({
+    headingStyle: 'atx',
+    codeBlockStyle: 'fenced',
+    fence: '```',
+  }).keep('iframe');
+
+  file.contents = getFrontmatter(file) + turndown.turndown(file.contents);
 };
 
 module.exports = toMarkdown;

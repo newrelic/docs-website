@@ -1,59 +1,42 @@
 import React, { useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
 import {
+  CookieConsentDialog,
   GlobalHeader,
   Layout,
+  Link,
   Logo,
+  MobileHeader,
   useLayout,
 } from '@newrelic/gatsby-theme-newrelic';
-import { Link, graphql, useStaticQuery } from 'gatsby';
+import { graphql } from 'gatsby';
 import { css } from '@emotion/core';
-import MobileHeader from '../components/MobileHeader';
-import { useMedia, usePrevious } from 'react-use';
-import Seo from '../components/seo';
+import SEO from '../components/SEO';
 import RootNavigation from '../components/RootNavigation';
 import SubNavigation from '../components/SubNavigation';
 import { animated, useTransition } from 'react-spring';
 import { useLocation } from '@reach/router';
 
 const MainLayout = ({ data = {}, children, pageContext }) => {
-  const { subnav, ...rootNav } = data;
+  const { nav, rootNav } = data;
   const { contentPadding } = useLayout();
-
-  const {
-    site: { layout },
-  } = useStaticQuery(graphql`
-    query {
-      site {
-        layout {
-          contentPadding
-          maxWidth
-        }
-      }
-    }
-  `);
-
   const location = useLocation();
-
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
-  // maintain the previous subnav so that exit transitions preserve the nav data
-  const previousSubnav = usePrevious(subnav);
 
-  const isSmallScreen = useMedia('(max-width: 760px)');
-  const isRootPath = location.pathname === '/';
-  const transition = useTransition(isRootPath, {
+  const transition = useTransition(nav, {
+    key: nav?.id,
     config: { mass: 1, friction: 34, tension: 400 },
     initial: { position: 'absolute' },
-    from: (isRoot) => ({
+    from: (nav) => ({
       opacity: 0,
       position: 'absolute',
-      transform: `translateX(${isRoot ? '125px' : '-125px'})`,
+      transform: `translateX(${nav?.id === rootNav.id ? '125px' : '-125px'})`,
     }),
 
     enter: { opacity: 1, transform: 'translateX(0)' },
-    leave: (isRoot) => ({
+    leave: (nav) => ({
       opacity: 0,
-      transform: `translateX(${isRoot ? '125px' : '-125px'})`,
+      transform: `translateX(${nav?.id === rootNav.id ? '125px' : '-125px'})`,
     }),
   });
 
@@ -63,24 +46,15 @@ const MainLayout = ({ data = {}, children, pageContext }) => {
 
   return (
     <>
-      <Seo />
+      <SEO location={location} />
       <GlobalHeader />
-      {isSmallScreen && (
-        <MobileHeader
-          isOpen={isMobileNavOpen}
-          onToggle={() => setIsMobileNavOpen((open) => !open)}
-          css={css`
-            padding: ${contentPadding};
-            padding-bottom: 0;
-          `}
-        >
-          {isRootPath ? (
-            <RootNavigation nav={rootNav} />
-          ) : (
-            <SubNavigation nav={subnav} />
-          )}
-        </MobileHeader>
-      )}
+      <MobileHeader>
+        {nav?.id === rootNav.id ? (
+          <RootNavigation nav={nav} />
+        ) : (
+          <SubNavigation nav={nav} />
+        )}
+      </MobileHeader>
       <Layout>
         <Layout.Sidebar>
           <Link
@@ -88,25 +62,26 @@ const MainLayout = ({ data = {}, children, pageContext }) => {
             css={css`
               display: block;
               margin-bottom: 1rem;
+              text-decoration: none;
             `}
           >
             <Logo />
           </Link>
-          {transition((style, isRoot) => {
+          {transition((style, nav) => {
             const containerStyle = css`
-              left: ${layout.contentPadding};
-              right: ${layout.contentPadding};
-              top: calc(${layout.contentPadding} + 3rem);
-              padding-bottom: ${layout.contentPadding};
+              left: ${contentPadding};
+              right: ${contentPadding};
+              top: calc(${contentPadding} + 3rem);
+              padding-bottom: ${contentPadding};
             `;
 
-            return isRoot ? (
+            return nav?.id === rootNav.id ? (
               <animated.div style={style} css={containerStyle}>
-                <RootNavigation nav={rootNav} />
+                <RootNavigation nav={nav} />
               </animated.div>
             ) : (
               <animated.div style={style} css={containerStyle}>
-                <SubNavigation nav={subnav || previousSubnav} />
+                <SubNavigation nav={nav} />
               </animated.div>
             );
           })}
@@ -120,6 +95,7 @@ const MainLayout = ({ data = {}, children, pageContext }) => {
         </Layout.Main>
         <Layout.Footer fileRelativePath={pageContext.fileRelativePath} />
       </Layout>
+      <CookieConsentDialog />
     </>
   );
 };
@@ -132,31 +108,36 @@ MainLayout.propTypes = {
 
 export const query = graphql`
   fragment MainLayout_query on Query {
-    subnav: navYaml(title: { eq: $nav }) {
-      ...MainLayout_navFields
+    rootNav: nav(slug: "/") {
+      id
+    }
+    nav(slug: $slug) {
+      id
+      title(locale: $locale)
+      url
+      filterable
       pages {
-        ...MainLayout_navFields
+        ...MainLayout_navPages
         pages {
-          ...MainLayout_navFields
+          ...MainLayout_navPages
           pages {
-            ...MainLayout_navFields
+            ...MainLayout_navPages
             pages {
-              ...MainLayout_navFields
+              ...MainLayout_navPages
               pages {
-                ...MainLayout_navFields
+                ...MainLayout_navPages
               }
             }
           }
         }
       }
     }
-
-    ...RootNavigation_pages
   }
 
-  fragment MainLayout_navFields on NavYaml {
-    title
-    path
+  fragment MainLayout_navPages on NavItem {
+    title(locale: $locale)
+    url
+    icon
   }
 `;
 

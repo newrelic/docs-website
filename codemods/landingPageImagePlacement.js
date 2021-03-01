@@ -9,7 +9,7 @@ const landingPageImagePlacement = () => (tree, file) => {
     isMdxBlockElement('LandingPageTileGrid')
   );
 
-  const buttonIdx = tree.children.findIndex(isMdxBlockElement('Button'));
+  const buttonIdx = tree.children.findIndex(isMdxBlockElement('ButtonLink'));
 
   const imageAndCaption = tree.children.slice(tileGridIdx + 1, buttonIdx);
 

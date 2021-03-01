@@ -1,0 +1,10 @@
+---
+subject: Mobile app for Android
+releaseDate: '2015-07-13'
+version: 1.9.8
+downloadLink: 'https://play.google.com/store/apps/details?id=com.newrelic.rpm'
+---
+
+### Fixes
+
+* Fix incident log list headers which were sometimes empty

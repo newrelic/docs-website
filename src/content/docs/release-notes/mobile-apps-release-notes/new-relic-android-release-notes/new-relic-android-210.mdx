@@ -1,0 +1,21 @@
+---
+subject: Mobile app for Android
+releaseDate: '2016-01-05'
+version: 2.1.0
+downloadLink: 'https://play.google.com/store/apps/details?id=com.newrelic.rpm'
+---
+
+### New features
+
+* Universal Links - Clicking on a newrelic.com link in your email, chat, ect... will now open that link in the app.
+
+### Improvements
+
+* V2.1.0 improves the way we are refreshing session tokens which will result in fewer 401 & 403 errors.
+* Time window now available in Mobile Crash List screen
+
+### Fixes
+
+* Mobile crash resolve / re-open button to resolve or re-open mobile crashes
+* Incident acknowledge button
+* Incident acknowledge from notification

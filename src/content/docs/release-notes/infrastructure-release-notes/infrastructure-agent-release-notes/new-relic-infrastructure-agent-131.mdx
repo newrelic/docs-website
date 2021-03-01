@@ -1,0 +1,30 @@
+---
+subject: Infrastructure agent
+releaseDate: '2019-03-25'
+version: 1.3.1
+---
+
+### Notes
+
+A new version of the agent has been released. Follow standard procedures to [update your Infrastructure agent](/docs/infrastructure/new-relic-infrastructure/installation/update-infrastructure-agent).
+
+### Improvements
+
+* Added HTTPS proxy certificate verification. You can enable it with the `proxy_validate_certificates: true` configuration option. When this option is set to `true` and you setup an HTTPS proxy with self-signed certificates, you may need to specify the certificates location with the `ca_bundle_file`or `ca_bundle_dir` configuration options.
+* Added a Proxy Configuration Plugin that submits non-sensitive proxy configuration information as inventory. To disable it, set the `proxy_config_plugin: false` configuration option.
+* Warn on RPM plugin package parsing error.
+
+### Changes
+
+* Increased the intervals of some samplers
+  * Increased ProcessSample default interval from 10 to 20
+  * Increased StorageSample default interval from 5 to 20
+  * Increased NetworkSample default interval from 5 to 10
+* When the configuration option `startup_connection_retries` is set to -1, the Agent, at startup, will keep checking forever the connectivity.
+* The configuration option `startup_connection_retry_time` has been removed and now the Agent uses an exponential backoff algorithm.
+* The Windows Agent does not ignore `A:` and `B:` drives anymore, as they may be mapped to actual Hard Disks. If those drives are reported because they map into a removable drive and you don't want the agent to report them, you can set the `win_removable_drives: false` configuration option.
+
+### Bug fixes
+
+* Fixed a bug that may cause some configuration options to be ignored when settting via environment variables (e.g. `NRIA_IGNORE_RECLAIMABLE` or `NRIA_PROXY_VALIDATE_CERTIFICATES`)
+* Fixed a bug in the Linux agent that prevented the agent from loading the system root certificates when the `ca_bundle_dir` or `ca_bundle_file` options were specified. This bug can't be fixed in the Windows Agent so the user will need to place in the `ca_bundle_dir` a copy of the New Relic certificate.

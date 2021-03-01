@@ -1,0 +1,17 @@
+---
+subject: Mobile app for iOS
+releaseDate: '2017-05-09'
+version: 3.31.1
+downloadLink: 'https://itunes.apple.com/us/app/new-relic/id594038638?mt=8'
+---
+
+### New features
+
+* Adds in a sharing option for Alert Incidents & Violations.
+* Improve the UI in the Errors detail view.
+* RBAC checks for acknowledging alerts & resolving crashes
+
+### Bug fixes
+
+* Fixes a UI coloring issue in the Transaction detail.
+* Fixes a rare crash in the application detail view.

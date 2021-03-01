@@ -1,0 +1,13 @@
+---
+subject: Node.js agent
+releaseDate: '2015-01-30'
+version: 1.15.1
+downloadLink: 'https://www.npmjs.org/package/newrelic'
+metaDescription: Release notes for Node Agent 1.15.1
+---
+
+### Notes
+
+* Preliminary Node.js 0.12 support.
+
+  HTTP proxies are not supported on 0.12 yet. We don't recommend running the Agent on Node.js 0.11.15+ in production, but if you are testing on it, please let us know of any issues you encounter.

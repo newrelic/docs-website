@@ -1,5 +1,6 @@
 const { curry } = require('lodash/fp');
 const convert = require('unist-util-is/convert');
+const { mdxAttribute } = require('./mdxast-builder');
 
 const isType = curry((type, node) => node.type === type);
 
@@ -70,11 +71,7 @@ const removeAttribute = curry((attribute, node) => {
 });
 
 const addAttribute = curry((name, value, node) => {
-  node.attributes.push({
-    name,
-    value,
-    type: 'mdxAttribute',
-  });
+  node.attributes.push(mdxAttribute(name, value));
 });
 
 const removeChild = curry((child, parent) => {
@@ -100,8 +97,34 @@ const findChild = (node, test) => {
   return node.children.find((child, idx) => matches(child, idx, node));
 };
 
+const parseImport = (node) => {
+  const match = node.value.match(/import (\w+?) from ['"](.*?)['"]/);
+
+  return match ? { expression: match[1], path: match[2] } : null;
+};
+
+const containsImport = (tree, node) => {
+  return tree.children.some((child) => {
+    if (child.type !== 'import') {
+      return false;
+    }
+
+    if (child.value === node.value) {
+      return true;
+    }
+
+    const childImport = parseImport(child);
+    const nodeImport = parseImport(node);
+
+    // Git/macOS are case insensitive so `./images/Debian.png` is the same as
+    // `./images/debian.png.`
+    return childImport.path.toLowerCase() === nodeImport.path.toLowerCase();
+  });
+};
+
 module.exports = {
   addAttribute,
+  containsImport,
   flatten,
   isMdxBlockElement,
   isMdxElement,

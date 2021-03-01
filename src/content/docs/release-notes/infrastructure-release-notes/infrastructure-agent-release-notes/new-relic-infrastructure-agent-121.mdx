@@ -1,0 +1,26 @@
+---
+subject: Infrastructure agent
+releaseDate: '2019-01-17'
+version: 1.2.1
+---
+
+### Notes
+
+A new version of the agent has been released. Follow standard procedures to [update your Infrastructure agent](/docs/infrastructure/new-relic-infrastructure/installation/update-infrastructure-agent).
+
+### Features
+
+* Added disable_all_plugins config option that disables all the inventory plugins which don't have their own frequency option specified. [Check out the documentation](/docs/infrastructure/new-relic-infrastructure/troubleshooting/reducing-agent-footprint).
+* Added cpu_profile config option for creating pprof cpu profiles.
+
+### Improvements
+
+* Reduced CPU consumption by 80% on average.
+
+### Changes
+
+* Decreased sysctl sampling frequency.
+
+### Bug fixes
+
+* Fixed an issue that avoids the agent being installed in old Ubuntu versions.

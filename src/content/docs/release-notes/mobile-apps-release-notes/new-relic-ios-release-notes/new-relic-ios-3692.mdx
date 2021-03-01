@@ -1,0 +1,20 @@
+---
+subject: Mobile app for iOS
+releaseDate: '2021-01-27'
+version: 3.69.2
+downloadLink: 'https://itunes.apple.com/WebObjects/MZStore.woa/wa/viewSoftware?id=594038638&mt=8'
+---
+
+### Notes
+
+Adds in a feedback page on phone, that allows you to send us feedback on the mobile app
+
+### New features
+
+* New Feedback page on phone
+* Adds displayName of hosts/instances in the APM overview
+
+### Bug fixes
+
+* Fixes crash when acknowledging an incident in the background
+* Fixes crash when there is a small billboard chart in a Dashboard

@@ -1,14 +1,19 @@
-import React, { Children, Fragment } from 'react';
+import React, { Fragment } from 'react';
 import PropTypes from 'prop-types';
 import { css, keyframes } from '@emotion/core';
-import { Link, graphql } from 'gatsby';
-import { Button, Surface } from '@newrelic/gatsby-theme-newrelic';
+import { graphql } from 'gatsby';
+import {
+  Button,
+  Link,
+  Icon,
+  Surface,
+  useTranslation,
+  Trans,
+} from '@newrelic/gatsby-theme-newrelic';
 import { rgba } from 'polished';
-import AIIcon from '../components/AIIcon';
-import FSOIcon from '../components/FSOIcon';
-import TDPIcon from '../components/TDPIcon';
-import IntegrationIcon from '../components/IntegrationIcon';
 import SurfaceLink from '../components/SurfaceLink';
+import TechTile from '../components/TechTile';
+import TechTileGrid from '../components/TechTileGrid';
 import { tdp, fso, ai, security, integrations } from '../data/homepage.yml';
 
 const HomePage = ({ data }) => {
@@ -16,10 +21,12 @@ const HomePage = ({ data }) => {
     site: { layout },
   } = data;
 
+  const { t } = useTranslation();
+
   return (
     <>
       <Section layout={layout}>
-        <h1>Welcome to New Relic</h1>
+        <h1>{t('home.title')}</h1>
         <div
           css={css`
             display: flex;
@@ -41,26 +48,30 @@ const HomePage = ({ data }) => {
               }
             `}
           >
-            <p>
-              If you're new, follow these three steps to create an account and
-              get going (it's free!).
-            </p>
-            <p>
-              If you're catching up on the changes in New Relic One, start with{' '}
+            <p>{t('home.intro.p1')}</p>
+
+            <Trans i18nKey="home.intro.p2" parent="p">
+              If you're catching up on the changes in New Relic One, start with
+              this{' '}
               <Link to="/docs/new-relic-one/use-new-relic-one/core-concepts/new-relic-one-transition-guide-july-2020">
-                this transition guide
-              </Link>{' '}
-              or check out <Link to="/whats-new">what's new</Link>.
-            </p>
-            <p>
+                transition guide
+              </Link>
+              , or check out <Link to="/whats-new">what's new</Link>.
+            </Trans>
+
+            <Trans i18nKey="home.intro.p3" parent="p">
               Scroll on for more about our Telemetry Data Platform, Full-Stack
-              Observability, and Applied Intelligence. Or get a wider view of
-              the platform with our{' '}
+              Observability, and Applied Intelligence. Or, to get a wider view
+              of our platform's capabilities, read the{' '}
               <Link to="/docs/using-new-relic/welcome-new-relic/get-started/introduction-new-relic">
                 Intro to New Relic
               </Link>
+              , and use our{' '}
+              <Link to="/docs/new-relic-solutions">
+                solutions and best practices guides
+              </Link>
               .
-            </p>
+            </Trans>
           </div>
           <div
             css={css`
@@ -90,71 +101,94 @@ const HomePage = ({ data }) => {
           >
             <WelcomeTile
               to="https://newrelic.com/signup"
-              title="Create a free account"
-              description="No credit card required."
+              title={t('home.welcome.t1.title')}
+              description={t('home.welcome.t1.description')}
+              variant="cta"
             />
             <WelcomeTile
               to="https://one.newrelic.com/launcher/nr1-core.settings?pane=eyJuZXJkbGV0SWQiOiJ0dWNzb24ucGxnLWluc3RydW1lbnQtZXZlcnl0aGluZyJ9"
-              title="Start collecting data"
-              description="Our UI guides you through setup and install."
+              title={t('home.welcome.t2.title')}
+              description={t('home.welcome.t2.description')}
             />
             <WelcomeTile
               to="/docs/alerts/new-relic-alerts/getting-started/introduction-new-relic-alerts"
-              title="Set up alerts"
-              description="Get notified quickly about changes in your system."
+              title={t('home.welcome.t3.title')}
+              description={t('home.welcome.t3.description')}
             />
           </div>
         </div>
       </Section>
       <Section alternate layout={layout}>
-        <SectionTitle title={tdp.title} icon={TDPIcon} />
-        <SectionDescription>{tdp.description}</SectionDescription>
+        <SectionTitle title={t('home.tdp.title')} icon="nr-tdp" />
+        <SectionDescription>{t('home.tdp.description')}</SectionDescription>
         <DocTileGrid>
-          {tdp.tiles.map((guide, idx) => (
-            <DocTile key={idx} guide={guide} />
+          {tdp.tiles.map((link, idx) => (
+            <DocTile
+              key={idx}
+              title={t(`home.tdp.t${idx + 1}.title`)}
+              description={t(`home.tdp.t${idx + 1}.description`)}
+              link={link}
+            />
           ))}
         </DocTileGrid>
       </Section>
       <Section layout={layout}>
-        <SectionTitle title={fso.title} icon={FSOIcon} />
-        <SectionDescription>{fso.description}</SectionDescription>
+        <SectionTitle title={t('home.fso.title')} icon="nr-fso" />
+        <SectionDescription>{t('home.fso.description')}</SectionDescription>
         <DocTileGrid>
-          {fso.tiles.map((guide, idx) => (
-            <DocTile key={idx} guide={guide} />
+          {fso.tiles.map((link, idx) => (
+            <DocTile
+              key={idx}
+              title={t(`home.fso.t${idx + 1}.title`)}
+              description={t(`home.fso.t${idx + 1}.description`)}
+              link={link}
+            />
           ))}
         </DocTileGrid>
       </Section>
       <Section alternate layout={layout}>
-        <SectionTitle title={ai.title} icon={AIIcon} />
-        <SectionDescription>{ai.description}</SectionDescription>
+        <SectionTitle title={t('home.ai.title')} icon="nr-ai" />
+        <SectionDescription>{t('home.ai.description')}</SectionDescription>
         <DocTileGrid>
-          {ai.tiles.map((guide, idx) => (
-            <DocTile key={idx} guide={guide} />
+          {ai.tiles.map((link, idx) => (
+            <DocTile
+              key={idx}
+              title={t(`home.ai.t${idx + 1}.title`)}
+              description={t(`home.ai.t${idx + 1}.description`)}
+              link={link}
+            />
           ))}
         </DocTileGrid>
       </Section>
       <Section layout={layout}>
         <SectionTitle title="New Relic integrations" />
         <SectionDescription>
-          <Link to="/docs/integrations/intro-integrations/get-started/introduction-new-relic-integrations">
-            Integrations
-          </Link>{' '}
-          connect the technologies in your stack to New Relic. Here are a few of
-          our{' '}
-          <a href="https://newrelic.com/integrations" rel="noopener noreferrer">
-            370+ integrations
-          </a>
-          :
+          <Trans i18nKey="home.integrations.description">
+            <Link to="/docs/integrations/intro-integrations/get-started/introduction-new-relic-integrations">
+              Integrations
+            </Link>{' '}
+            connect the technologies in your stack to New Relic. Here are a few
+            of our{' '}
+            <a
+              href="https://newrelic.com/integrations"
+              rel="noopener noreferrer"
+            >
+              370+ integrations
+            </a>
+            :
+          </Trans>
         </SectionDescription>
 
-        {integrations.map(({ title, tiles }, idx) => (
+        {integrations.map((integration, idx) => (
           <Fragment key={idx}>
-            <IntegrationTitle>{title}</IntegrationTitle>
-            <IntegrationTileGrid>
-              {tiles.map(({ name, icon, link }) => (
-                <IntegrationTile key={name} name={name} icon={icon} to={link} />
+            <IntegrationTitle>
+              {t(`home.integrations.title${idx + 1}`)}
+            </IntegrationTitle>
+            <TechTileGrid>
+              {integration.tiles.map(({ name, icon, link }) => (
+                <TechTile key={name} name={name} icon={icon} to={link} />
               ))}
-            </IntegrationTileGrid>
+            </TechTileGrid>
           </Fragment>
         ))}
 
@@ -174,11 +208,18 @@ const HomePage = ({ data }) => {
         </div>
       </Section>
       <Section layout={layout}>
-        <SectionTitle title={security.title} />
-        <SectionDescription>{security.description}</SectionDescription>
+        <SectionTitle title={t('home.security.title')} />
+        <SectionDescription>
+          {t('home.security.description')}
+        </SectionDescription>
         <DocTileGrid>
-          {security.tiles.map((guide, idx) => (
-            <DocTile key={idx} guide={guide} />
+          {security.tiles.map((link, idx) => (
+            <DocTile
+              key={idx}
+              title={t(`home.security.t${idx + 1}.title`)}
+              description={t(`home.security.t${idx + 1}.description`)}
+              link={link}
+            />
           ))}
         </DocTileGrid>
       </Section>
@@ -197,7 +238,7 @@ HomePage.propTypes = {
 };
 
 export const pageQuery = graphql`
-  query($nav: String) {
+  query($slug: String!, $locale: String) {
     site {
       layout {
         contentPadding
@@ -231,15 +272,16 @@ Section.propTypes = {
   }),
 };
 
-const SectionTitle = ({ title, icon: Icon }) => (
+const SectionTitle = ({ title, icon }) => (
   <h2
     css={css`
       display: flex;
       align-items: center;
     `}
   >
-    {Icon && (
+    {icon && (
       <Icon
+        name={icon}
         size="3rem"
         css={css`
           margin-right: 1rem;
@@ -278,7 +320,7 @@ const pulse = keyframes`
 }
 `;
 
-const WelcomeTile = ({ description, title, to }) => (
+const WelcomeTile = ({ description, title, to, variant = 'normal' }) => (
   <SurfaceLink
     base={Surface.BASE.PRIMARY}
     to={to}
@@ -288,6 +330,7 @@ const WelcomeTile = ({ description, title, to }) => (
       color: currentColor;
       position: relative;
       min-height: 200px;
+      border-color: var(--tile-border-color, var(--border-color));
 
       @media screen and (max-width: 1050px) {
         min-height: 175px;
@@ -309,10 +352,6 @@ const WelcomeTile = ({ description, title, to }) => (
         }
       }
 
-      .light-mode & {
-        border: 1px solid var(--border-color);
-      }
-
       &::before {
         content: counter(welcome-tile);
         counter-increment: welcome-tile;
@@ -326,8 +365,9 @@ const WelcomeTile = ({ description, title, to }) => (
         border-radius: 50%;
         height: 2rem;
         width: 2rem;
-        border: 1px solid var(--color-teal-500);
-        background: var(--primary-background-color);
+        color: var(--number-color, currentColor);
+        border: 1px solid var(--number-border-color);
+        background: var(--number-background-color);
         z-index: 1;
       }
 
@@ -340,13 +380,10 @@ const WelcomeTile = ({ description, title, to }) => (
         border-radius: 50%;
         height: 2.75rem;
         width: 2.75rem;
-        border: 1px solid var(--color-dark-100);
+        border: 1px solid
+          var(--outer-ring-border-color, var(--tile-border-color));
         background: var(--primary-background-color);
         transition: border-color 0.15s ease-out;
-
-        .light-mode & {
-          border: 1px solid ${rgba('#008c99', 0.3)};
-        }
       }
 
       &:hover {
@@ -356,6 +393,8 @@ const WelcomeTile = ({ description, title, to }) => (
           animation: ${pulse} 1.5s infinite;
         }
       }
+
+      ${welcomeTileStyles[variant]};
     `}
   >
     <h3>{title}</h3>
@@ -367,6 +406,34 @@ WelcomeTile.propTypes = {
   description: PropTypes.node,
   title: PropTypes.string,
   to: PropTypes.string,
+  variant: PropTypes.oneOf(['normal', 'cta']),
+};
+
+const welcomeTileStyles = {
+  normal: css`
+    --number-background-color: var(--primary-background-color);
+    --number-border-color: var(--color-teal-500);
+    --outer-ring-border-color: var(--border-color);
+  `,
+  cta: css`
+    --tile-border-color: var(--color-teal-400);
+    --number-background-color: var(--color-teal-400);
+    --number-color: white;
+    --outer-ring-border-color: var(--border-color);
+
+    &:hover {
+      border-color: var(--color-teal-300);
+
+      .dark-mode & {
+        border-color: var(--color-teal-500);
+      }
+    }
+
+    .dark-mode & {
+      --tile-border-color: var(--color-teal-600);
+      --number-background-color: var(--color-teal-600);
+    }
+  `,
 };
 
 const DocTileGrid = ({ children }) => {
@@ -387,7 +454,7 @@ DocTileGrid.propTypes = {
   children: PropTypes.node,
 };
 
-const DocTile = ({ guide: { title, description, link } }) => (
+const DocTile = ({ title, description, link }) => (
   <SurfaceLink
     base={Surface.BASE.SECONDARY}
     to={link}
@@ -418,11 +485,9 @@ const DocTile = ({ guide: { title, description, link } }) => (
 );
 
 DocTile.propTypes = {
-  guide: PropTypes.shape({
-    title: PropTypes.string.isRequired,
-    description: PropTypes.string.isRequired,
-    link: PropTypes.string.isRequired,
-  }).isRequired,
+  title: PropTypes.string.isRequired,
+  description: PropTypes.string.isRequired,
+  link: PropTypes.string.isRequired,
 };
 
 const IntegrationTitle = ({ children }) => (
@@ -438,67 +503,6 @@ const IntegrationTitle = ({ children }) => (
 
 IntegrationTitle.propTypes = {
   children: PropTypes.node,
-};
-
-const IntegrationTileGrid = ({ children }) => (
-  <div
-    css={css`
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-      grid-gap: 1rem;
-    `}
-  >
-    {children}
-  </div>
-);
-
-IntegrationTileGrid.propTypes = {
-  children: PropTypes.node,
-};
-
-const IntegrationTile = ({ name, icon, to }) => (
-  <SurfaceLink
-    to={to}
-    base={Surface.BASE.SECONDARY}
-    css={css`
-      text-align: center;
-      padding: 0.5rem;
-      color: currentColor;
-
-      &:hover {
-        color: currentColor;
-      }
-
-      .light-mode & {
-        border: 1px solid var(--border-color);
-
-        &:hover {
-          border-color: var(--border-hover-color);
-        }
-      }
-    `}
-  >
-    <IntegrationIcon
-      name={icon}
-      size="2rem"
-      css={css`
-        margin-bottom: 0.5rem;
-      `}
-    />
-    <div
-      css={css`
-        font-size: 0.875rem;
-      `}
-    >
-      {name}
-    </div>
-  </SurfaceLink>
-);
-
-IntegrationTile.propTypes = {
-  name: PropTypes.string,
-  icon: IntegrationIcon.propTypes.name,
-  to: PropTypes.string,
 };
 
 export default HomePage;

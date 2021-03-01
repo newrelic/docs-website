@@ -7,14 +7,6 @@ module.exports = [
     title: 'New Relic security',
   },
   {
-    type: INSTRUCTIONS.ADD,
-    path: ['New Relic security'],
-    node: {
-      title: 'Overview',
-      path: '/docs/security',
-    },
-  },
-  {
     type: INSTRUCTIONS.MOVE,
     from: ['New Relic security', 'New Relic security', '*'],
     to: ['New Relic security'],
@@ -24,6 +16,15 @@ module.exports = [
     path: ['New Relic security', 'Security and privacy'],
   },
   {
+    type: INSTRUCTIONS.ADD,
+    path: ['New Relic security'],
+    index: 0,
+    node: {
+      title: 'Overview',
+      path: '/docs/security',
+    },
+  },
+  {
     type: INSTRUCTIONS.MOVE,
     from: ['APIs', 'Get started', 'Intro to APIs'],
     to: ['Telemetry Data Platform', 'APIs'],
@@ -31,27 +32,38 @@ module.exports = [
   { type: INSTRUCTIONS.REMOVE, path: ['APIs'] },
   {
     type: INSTRUCTIONS.MOVE,
-    from: ['Telemetry Data Platform', 'Ingest and manage data', 'Get started'],
+    from: ['Telemetry Data Platform', 'Ingest and manage data', '*'],
     to: ['Telemetry Data Platform'],
   },
   {
-    type: INSTRUCTIONS.MOVE,
-    from: [
-      'Telemetry Data Platform',
-      'Ingest and manage data',
-      'Understand data',
-    ],
-    to: ['Telemetry Data Platform'],
+    type: INSTRUCTIONS.REORDER,
+    path: ['Telemetry Data Platform', 'Get started'],
+    index: 0,
   },
   {
-    type: INSTRUCTIONS.MOVE,
-    from: ['Telemetry Data Platform', 'Ingest and manage data', 'Manage data'],
-    to: ['Telemetry Data Platform'],
+    type: INSTRUCTIONS.REORDER,
+    path: ['Telemetry Data Platform', 'Get started', 'Get to know TDP'],
+    index: 0,
   },
   {
-    type: INSTRUCTIONS.MOVE,
-    from: ['Telemetry Data Platform', 'Ingest and manage data', 'Ingest APIs'],
-    to: ['Telemetry Data Platform'],
+    type: INSTRUCTIONS.REORDER,
+    path: ['Telemetry Data Platform', 'Understand data'],
+    index: 1,
+  },
+  {
+    type: INSTRUCTIONS.REORDER,
+    path: ['Telemetry Data Platform', 'Manage data'],
+    index: 2,
+  },
+  {
+    type: INSTRUCTIONS.REORDER,
+    path: ['Telemetry Data Platform', 'Convert data to metrics'],
+    index: 3,
+  },
+  {
+    type: INSTRUCTIONS.REORDER,
+    path: ['Telemetry Data Platform', 'APIs'],
+    index: 5,
   },
   {
     type: INSTRUCTIONS.MOVE,
@@ -106,6 +118,61 @@ module.exports = [
     title: 'Infrastructure monitoring',
   },
   {
+    type: INSTRUCTIONS.MOVE,
+    from: [
+      'Full-Stack Observability',
+      'Infrastructure monitoring',
+      'Infrastructure monitoring',
+      'Get started',
+    ],
+    to: ['Full-Stack Observability', 'Infrastructure monitoring'],
+  },
+  {
+    type: INSTRUCTIONS.MOVE,
+    from: [
+      'Full-Stack Observability',
+      'Infrastructure monitoring',
+      'Infrastructure monitoring',
+      'Guides',
+      '*',
+    ],
+    to: [
+      'Full-Stack Observability',
+      'Infrastructure monitoring',
+      'Get started',
+    ],
+  },
+  {
+    type: INSTRUCTIONS.MOVE,
+    from: [
+      'Full-Stack Observability',
+      'Infrastructure monitoring',
+      'Infrastructure monitoring',
+      'Infrastructure and security',
+      '*',
+    ],
+    to: [
+      'Full-Stack Observability',
+      'Infrastructure monitoring',
+      'Get started',
+    ],
+  },
+  {
+    type: INSTRUCTIONS.MOVE,
+    from: [
+      'Full-Stack Observability',
+      'Infrastructure monitoring',
+      'Infrastructure monitoring',
+      'Guides',
+      '*',
+    ],
+    to: [
+      'Full-Stack Observability',
+      'Infrastructure monitoring',
+      'Get started',
+    ],
+  },
+  {
     type: INSTRUCTIONS.REMOVE,
     path: [
       'Full-Stack Observability',
@@ -119,17 +186,9 @@ module.exports = [
       'Full-Stack Observability',
       'Infrastructure monitoring',
       'Infrastructure alerts',
-      'Infrastucture alert conditions',
+      '*',
     ],
     to: ['Full-Stack Observability', 'Infrastructure monitoring'],
-  },
-  {
-    type: INSTRUCTIONS.REMOVE,
-    path: [
-      'Full-Stack Observability',
-      'Infrastructure monitoring',
-      'Infrastructure alerts',
-    ],
   },
   {
     type: INSTRUCTIONS.MOVE,
@@ -137,17 +196,9 @@ module.exports = [
       'Full-Stack Observability',
       'Infrastructure monitoring',
       'Infrastructure monitoring UI',
-      'Infrastucture UI',
+      '*',
     ],
     to: ['Full-Stack Observability', 'Infrastructure monitoring'],
-  },
-  {
-    type: INSTRUCTIONS.REMOVE,
-    path: [
-      'Full-Stack Observability',
-      'Infrastructure monitoring',
-      'Infrastucture monitoring UI',
-    ],
   },
   {
     type: INSTRUCTIONS.MOVE,
@@ -187,8 +238,12 @@ module.exports = [
   },
   {
     type: INSTRUCTIONS.MOVE,
-    from: ['Synthetics'],
+    from: ['Synthetics', '*'],
     to: ['Full-Stack Observability'],
+  },
+  {
+    type: INSTRUCTIONS.REMOVE,
+    path: ['Synthetics'],
   },
   {
     type: INSTRUCTIONS.RENAME,
@@ -329,6 +384,18 @@ module.exports = [
     path: ['Licenses', 'Licenses'],
     title: 'Overview',
   },
+  {
+    type: INSTRUCTIONS.REORDER,
+    path: ['Licenses', 'Overview'],
+    index: 0,
+  },
+  {
+    type: INSTRUCTIONS.UPDATE,
+    path: ['Licenses'],
+    node: {
+      rootNav: false,
+    },
+  },
 
   // ----- Alerts and Applied Intelligence ----- \\
   {
@@ -364,16 +431,414 @@ module.exports = [
     to: ['New Relic in practice'],
   },
   {
+    type: INSTRUCTIONS.UPDATE,
+    path: ['New Relic in practice'],
+    node: {
+      path: '/docs/using-new-relic',
+    },
+  },
+  {
     type: INSTRUCTIONS.REMOVE,
     path: ['Plugins'],
   },
-
-  // ----- New Relic only ----- \\
+  {
+    type: INSTRUCTIONS.UPDATE,
+    path: ['Telemetry Data Platform'],
+    node: {
+      icon: 'nr-tdp',
+    },
+  },
+  {
+    type: INSTRUCTIONS.UPDATE,
+    path: ['Alerts and Applied intelligence'],
+    node: {
+      icon: 'nr-ai',
+      path: '/docs/alerts-applied-intelligence',
+    },
+  },
+  {
+    type: INSTRUCTIONS.UPDATE,
+    path: ['Full-Stack Observability'],
+    node: {
+      icon: 'nr-fso',
+    },
+  },
   {
     type: INSTRUCTIONS.UPDATE,
     path: ['New Relic only'],
     node: {
       rootNav: false,
     },
+  },
+  {
+    type: INSTRUCTIONS.UPDATE,
+    path: ['Agents', 'PHP agent', 'PHP agent API'],
+    node: {
+      path: '/docs/agents/php-agent/php-agent-api',
+    },
+  },
+  {
+    type: INSTRUCTIONS.UPDATE,
+    path: ['Agents', '.NET agent', 'NET agent API'],
+    node: {
+      path: '/docs/agents/net-agent/net-agent-api',
+    },
+  },
+  {
+    type: INSTRUCTIONS.UPDATE,
+    path: ['Agents', 'Python agent', 'Python agent API'],
+    node: {
+      path: '/docs/agents/python-agent/python-agent-api',
+    },
+  },
+  {
+    type: INSTRUCTIONS.UPDATE,
+    path: [
+      'Full-Stack Observability',
+      'Browser monitoring',
+      'Browser agent and SPA API',
+    ],
+    node: {
+      path: '/docs/browser/new-relic-browser/browser-agent-spa-api',
+    },
+  },
+  {
+    type: INSTRUCTIONS.UPDATE,
+    path: [
+      'Full-Stack Observability',
+      'Mobile monitoring',
+      'New Relic Mobile Android',
+      'Android SDK API',
+    ],
+    node: {
+      path: '/docs/mobile-monitoring/new-relic-mobile-android/android-sdk-api',
+    },
+  },
+  {
+    type: INSTRUCTIONS.UPDATE,
+    path: [
+      'Full-Stack Observability',
+      'Mobile monitoring',
+      'New Relic Mobile iOS',
+      'iOS SDK API',
+    ],
+    node: {
+      path: '/docs/mobile-monitoring/new-relic-mobile-ios/ios-sdk-api',
+    },
+  },
+  {
+    type: INSTRUCTIONS.ADD,
+    path: ['Agents', '.NET agent', 'Getting started'],
+    index: 5,
+    node: {
+      title: 'Latest release',
+      path: '/docs/release-notes/agent-release-notes/net-release-notes/current',
+    },
+  },
+  {
+    type: INSTRUCTIONS.ADD,
+    path: ['Agents', 'Java agent', 'Getting started'],
+    index: 5,
+    node: {
+      title: 'Latest release',
+      path:
+        '/docs/release-notes/agent-release-notes/java-release-notes/current',
+    },
+  },
+  {
+    type: INSTRUCTIONS.ADD,
+    path: ['Agents', 'Go agent', 'Get started'],
+    index: 5,
+    node: {
+      title: 'Latest release',
+      path: '/docs/release-notes/agent-release-notes/go-release-notes/current',
+    },
+  },
+  {
+    type: INSTRUCTIONS.ADD,
+    path: ['Agents', 'C SDK', 'Get started'],
+    index: 5,
+    node: {
+      title: 'Latest release',
+      path:
+        '/docs/release-notes/agent-release-notes/c-sdk-release-notes/current',
+    },
+  },
+  {
+    type: INSTRUCTIONS.ADD,
+    path: ['Agents', 'Ruby agent', 'Getting started'],
+    index: 6,
+    node: {
+      title: 'Latest release',
+      path:
+        '/docs/release-notes/agent-release-notes/ruby-release-notes/current',
+    },
+  },
+  {
+    type: INSTRUCTIONS.ADD,
+    path: ['Agents', 'Python agent', 'Getting started'],
+    index: 6,
+    node: {
+      title: 'Latest release',
+      path:
+        '/docs/release-notes/agent-release-notes/python-release-notes/current',
+    },
+  },
+  {
+    type: INSTRUCTIONS.ADD,
+    path: ['Agents', 'PHP agent', 'Getting started'],
+    index: 6,
+    node: {
+      title: 'Latest release',
+      path: '/docs/release-notes/agent-release-notes/php-release-notes/current',
+    },
+  },
+  {
+    type: INSTRUCTIONS.ADD,
+    path: ['Agents', 'Node.js agent', 'Getting started'],
+    index: 5,
+    node: {
+      title: 'Latest release',
+      path:
+        '/docs/release-notes/agent-release-notes/nodejs-release-notes/current',
+    },
+  },
+  {
+    type: INSTRUCTIONS.RENAME,
+    path: [
+      'Alerts and Applied Intelligence',
+      'Alerts and Applied Intelligence',
+    ],
+    title: 'Overview',
+  },
+  {
+    type: INSTRUCTIONS.REORDER,
+    path: ['Alerts and Applied Intelligence', 'Overview'],
+    index: 0,
+  },
+  {
+    type: INSTRUCTIONS.REORDER,
+    path: ['Agents', 'Manage APM agents'],
+    index: 0,
+  },
+  {
+    type: INSTRUCTIONS.REORDER,
+    path: ['Agents', 'C SDK'],
+    index: 1,
+  },
+  {
+    type: INSTRUCTIONS.REORDER,
+    path: ['Agents', 'Go agent'],
+    index: 2,
+  },
+  {
+    type: INSTRUCTIONS.REORDER,
+    path: ['Agents', 'Java agent'],
+    index: 3,
+  },
+  {
+    type: INSTRUCTIONS.REORDER,
+    path: ['Agents', '.NET agent'],
+    index: 4,
+  },
+  {
+    type: INSTRUCTIONS.REORDER,
+    path: ['Agents', 'Node.js agent'],
+    index: 5,
+  },
+  {
+    type: INSTRUCTIONS.REORDER,
+    path: ['Agents', 'PHP agent'],
+    index: 6,
+  },
+  {
+    type: INSTRUCTIONS.REORDER,
+    path: ['Agents', 'Python agent'],
+    index: 7,
+  },
+  {
+    type: INSTRUCTIONS.REORDER,
+    path: ['Agents', 'Ruby agent'],
+    index: 8,
+  },
+  {
+    type: INSTRUCTIONS.REORDER,
+    path: ['Agents', 'Open-source licensed agents'],
+    index: 9,
+  },
+  {
+    type: INSTRUCTIONS.REORDER,
+    path: ['Agents', 'Java agent', 'Troubleshooting'],
+    index: 11,
+  },
+  {
+    type: INSTRUCTIONS.REORDER,
+    path: ['Agents', '.NET agent', 'Troubleshooting'],
+    index: 11,
+  },
+  {
+    type: INSTRUCTIONS.REORDER,
+    path: ['Agents', '.NET agent', 'Azure installation'],
+    index: 2,
+  },
+  {
+    type: INSTRUCTIONS.REORDER,
+    path: ['Agents', '.NET agent', 'Configuration'],
+    index: 4,
+  },
+  {
+    type: INSTRUCTIONS.REORDER,
+    path: ['Agents', '.NET agent', 'Other features'],
+    index: 5,
+  },
+  {
+    type: INSTRUCTIONS.REORDER,
+    path: ['Agents', 'Node.js agent', 'Attributes'],
+    index: 3,
+  },
+  {
+    type: INSTRUCTIONS.REORDER,
+    path: ['Agents', 'Ruby agent', 'Troubleshooting'],
+    index: 8,
+  },
+  {
+    type: INSTRUCTIONS.REORDER,
+    path: ['New Relic One', 'Use New Relic One', 'Get started'],
+    index: 0,
+  },
+  {
+    type: INSTRUCTIONS.REORDER,
+    path: ['Integrations', 'Intro to integrations'],
+    index: 0,
+  },
+  {
+    type: INSTRUCTIONS.REORDER,
+    path: ['Integrations', 'Open source telemetry integrations'],
+    index: 1,
+  },
+  {
+    type: INSTRUCTIONS.REORDER,
+    path: ['Integrations', 'Infrastructure integrations'],
+    index: 2,
+  },
+  {
+    type: INSTRUCTIONS.REORDER,
+    path: ['Integrations', 'Kubernetes integration', 'Installation'],
+    index: 1,
+  },
+  {
+    type: INSTRUCTIONS.REORDER,
+    path: [
+      'Integrations',
+      'Amazon integrations',
+      'Troubleshooting',
+      'No data appears',
+    ],
+    index: 0,
+  },
+  {
+    type: INSTRUCTIONS.REORDER,
+    path: ['Integrations', 'Prometheus integrations', 'Troubleshooting'],
+    index: 4,
+  },
+  {
+    type: INSTRUCTIONS.REORDER,
+    path: [
+      'Integrations',
+      'Prometheus integrations',
+      'Install and configure OpenMetrics',
+    ],
+    index: 2,
+  },
+  {
+    type: INSTRUCTIONS.REORDER,
+    path: ['Full-Stack Observability', 'APM', 'Getting started'],
+    index: 0,
+  },
+  {
+    type: INSTRUCTIONS.REORDER,
+    path: [
+      'Full-Stack Observability',
+      'Mobile monitoring',
+      'New Relic Mobile Android',
+      'Troubleshoot',
+    ],
+    index: 5,
+  },
+  {
+    type: INSTRUCTIONS.MOVE,
+    from: ['Create integrations', '*'],
+    to: ['Full-Stack Observability', 'Infrastructure monitoring'],
+  },
+  {
+    type: INSTRUCTIONS.REMOVE,
+    path: ['Create integrations'],
+  },
+  {
+    type: INSTRUCTIONS.REORDER,
+    path: [
+      'Full-Stack Observability',
+      'Infrastructure monitoring',
+      'Get started',
+    ],
+    index: 0,
+  },
+  {
+    type: INSTRUCTIONS.REORDER,
+    path: [
+      'Full-Stack Observability',
+      'Infrastructure monitoring',
+      'Infrastructure monitoring troubleshooting',
+    ],
+    index: 7,
+  },
+  {
+    type: INSTRUCTIONS.REORDER,
+    path: ['Full-Stack Observability', 'Synthetic monitoring', 'Guides'],
+    index: 1,
+  },
+  {
+    type: INSTRUCTIONS.REORDER,
+    path: [
+      'Full-Stack Observability',
+      'Synthetic monitoring',
+      'Troubleshooting',
+    ],
+    index: 8,
+  },
+  {
+    type: INSTRUCTIONS.REORDER,
+    path: [
+      'Full-Stack Observability',
+      'Synthetic monitoring',
+      'Scripting monitors',
+    ],
+    index: 3,
+  },
+  {
+    type: INSTRUCTIONS.ADD,
+    path: ['Full-Stack Observability'],
+    node: {
+      title: 'Overview',
+      path: '/docs/full-stack-observability',
+    },
+  },
+  {
+    type: INSTRUCTIONS.REORDER,
+    path: ['Full-Stack Observability', 'Overview'],
+    index: 0,
+  },
+  {
+    type: INSTRUCTIONS.ADD,
+    path: ['Telemetry Data Platform'],
+    node: {
+      title: 'Overview',
+      path: '/docs/telemetry-data-platform',
+    },
+  },
+  {
+    type: INSTRUCTIONS.REORDER,
+    path: ['Telemetry Data Platform', 'Overview'],
+    index: 0,
   },
 ];

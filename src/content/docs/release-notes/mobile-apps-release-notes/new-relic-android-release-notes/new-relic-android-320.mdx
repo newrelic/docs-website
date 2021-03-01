@@ -1,0 +1,12 @@
+---
+subject: Mobile app for Android
+releaseDate: '2021-01-28'
+version: 3.2.0
+downloadLink: 'https://play.google.com/store/apps/details?id=com.newrelic.rpm'
+---
+
+### Notes
+
+* UX updates for long running Incident Acknowledgements
+* Shortcut to related errors for Radar in Context
+* Various bug fixes

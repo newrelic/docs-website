@@ -22,6 +22,10 @@ module.exports = {
     browser: true,
     es6: true,
   },
+  globals: {
+    test: 'readonly',
+    expect: 'readonly',
+  },
   rules: {
     'no-unused-vars': [
       'error',
@@ -33,5 +37,6 @@ module.exports = {
         ignoreRestSiblings: false,
       },
     ],
+    'jsx-a11y/no-onchange': 'off',
   },
 };

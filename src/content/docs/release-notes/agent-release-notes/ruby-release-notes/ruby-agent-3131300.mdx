@@ -1,0 +1,28 @@
+---
+subject: Ruby agent
+releaseDate: '2015-09-21'
+version: 3.13.1.300
+downloadLink: 'https://rubygems.org/gems/newrelic_rpm/versions/3.13.1.300'
+metaDescription: Release notes for Ruby Agent 3.13.1.300.
+---
+
+### Notes
+
+* Don't use a pager when running `git log` command
+
+  This would cause Capistrano deploys to hang when a large number of commits were being deployed. Thanks to John Naegle for reporting and fixing this issue!
+* Official support for JRuby 9.0.0.0
+
+  The Ruby agent is now officially fully tested and supported on JRuby 9.0.0.0.
+* Instrumentation for MongoDB 2.1.x
+
+  Visibility in your MongoDB queries returns when using version 2.1.0 of the Mongo driver or newer. Thanks to Durran Jordan of MongoDB for contributing the Mongo Monitoring instrumentation!
+* Fix for ArgumentError "invalid byte sequence in UTF-8"
+
+  This would come up when trying to parse out the operation from a database query containing characters that would trigger a invalid byte sequence in UTF-8 error. Thanks to Mario Izquierdo for reporting this issue!
+* Improved database metric names for ActiveRecord::Calculations queries
+
+  Aggregate metrics recorded for queries made via the ActiveRecord::Calculations module (#count, #sum, #max, etc.) will now be associated with the correct model name, rather than being counted as generic 'select' operations.
+* Allow at_exit handlers to be installed for Rubinius
+
+  Rubinius can support the at_exit block used by install_exit_handler. Thanks to Aidan Coyle for reporting and fixing this issue!

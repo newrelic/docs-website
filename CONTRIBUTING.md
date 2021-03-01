@@ -3,6 +3,9 @@
 - [Table of Contents](#table-of-contents)
   - [Guidelines for contributing](#guidelines-for-contributing)
   - [Getting started](#getting-started)
+    - [Local development](#local-development)
+    - [Dependencies](#dependencies)
+    - [Unit tests](#unit-tests)
     - [Using multiple versions of Node](#using-multiple-versions-of-node)
     - [Quick edits](#quick-edits)
     - [Cloning vs Forking](#cloning-vs-forking)
@@ -10,16 +13,23 @@
     - [Submitting a PR from a cloned repo](#submitting-a-pr-from-a-cloned-repo)
     - [Using the `develop` branch](#using-the-develop-branch)
     - [Draft PRs](#draft-prs)
+    - [Using Conventional Commits](#using-conventional-commits)
+      - [Use `chore`](#use-chore)
+      - [Use `fix`](#use-fix)
+      - [Use `feat`](#use-feat)
     - [Deploy previews with Amplify](#deploy-previews-with-amplify)
   - [Style guide adherence](#style-guide-adherence)
   - [Reusable components](#reusable-components)
   - [Editing existing pages](#editing-existing-pages)
   - [Creating new pages](#creating-new-pages)
+    - [Adding a what's new post](#adding-a-whats-new-post)
+    - [What's new post frontmatter example](#whats-new-post-frontmatter-example)
   - [Deleting pages](#deleting-pages)
   - [Updating the navigation](#updating-the-navigation)
   - [Adding a new page](#adding-a-new-page)
   - [Moving a page to a new location](#moving-a-page-to-a-new-location)
   - [Private edits](#private-edits)
+    - [Bring your private work back into the public repository](#bring-your-private-work-back-into-the-public-repository)
 
 ## Guidelines for contributing
 
@@ -33,6 +43,27 @@ If you'd like to to make code contributions follow the code contribution
 guidelines below.
 
 ## Getting started
+
+### Local development
+
+You can serve this site locally to quickly see your changes and additions before you PR them. To get started, navigate into your new site’s directory and start it up, as follows.
+
+```shell
+cd docs-website/
+yarn
+yarn start
+```
+
+Your site is now running at `http://localhost:8000`!
+
+### Dependencies
+
+Node v12 is used in this project as specified in [.nvmrc](https://github.com/newrelic/developer-website/blob/master/.nvmrc).
+
+### Unit tests
+
+To run the unit tests, run `yarn test` in the terminal. If you would like to
+have the tests automatically re-run, use `yarn run test:watch`
 
 ### Using multiple versions of Node
 
@@ -101,6 +132,37 @@ To submit a [Draft PR](https://github.blog/2019-02-14-introducing-draft-pull-req
    `PR` you wish to submit.
 3. Once you are ready to have the `PR` reviewed and merge, click the Ready for review button on the `PR`.
 
+### Using Conventional Commits
+
+Please help the maintainers by leveraging the following [conventional commit](https://www.conventionalcommits.org/en/v1.0.0/)
+standards in your pull request title and commit messages.
+
+#### Use `chore`
+
+- for minor changes / additions / corrections to content.
+- for minor changes / additions / corrections to images.
+- for minor non-functional changes / additions to github actions, github templates, package or config updates, etc
+
+```bash
+git commit -m "chore: adjusting config and content"
+```
+
+#### Use `fix`
+
+- for minor functional corrections to code.
+
+```bash
+git commit -m "fix: typo and prop error in the code of conduct"
+```
+
+#### Use `feat`
+
+- for major functional changes or additions to code.
+
+```bash
+git commit -m "feat(media): creating a video landing page"
+```
+
 ### Deploy previews with Amplify
 
 PRs that are opened from a branch in this repo (not forks) will generate preview links on Amplify automatically. Amplify preview links can be found within the PR under the `Checks` Tab.
@@ -138,38 +200,7 @@ when creating documentation. Refer to our [Component Guide](COMPONENT_GUIDE.md) 
 
 ## Updating the navigation
 
-Navigation for [docs.newrelic.com](https://docs.newrelic.com) is stored in `YAML` files located in the [src/nav](./src/nav) directory. Each top-level navigation should have it's own configuration file. For example, here is a snippet of the [src/nav/insights.yml](./src/nav/insights.yml) configuration:
-
-```yml
-title: Insights
-children:
-  - title: Use Insights UI
-    children:
-      - title: Getting started
-        children:
-          - title: Introduction to New Relic Insights
-            path: /docs/insights/use-insights-ui/getting-started/introduction-new-relic-insights
-      - title: Manage dashboards
-        children:
-          - title: Chart types
-            path: /docs/insights/use-insights-ui/manage-dashboards/chart-types
-          - title: Filter Insights dashboards
-            path: /docs/insights/use-insights-ui/manage-dashboards/filter-insights-dashboards
-          - title: View, organize, share Insights dashboards
-            path: /docs/insights/use-insights-ui/manage-dashboards/view-organize-share-insights-dashboards
-```
-
-Each "node" in the `.yml` configuration file can have the following properties:
-
-| Key        | Required? | Description                               |
-| ---------- | --------- | ----------------------------------------- |
-| `title`    | yes       | The text that is shown in the navigation. |
-| `path`     | no        | The URL path to the page.                 |
-| `children` | no        | Any sub-navigation "nodes".               |
-
-When the user goes to a page, we determine which section of the site they are on and load the appropriate `.yml` file to populate the sidebar navigation. The navigation for the homepage is an aggregate of all the top-level pages.
-
-**NOTE**: Each category has it's own `index.md` page (list of pages for that category). When updating the navigation, you may also want to update these pages to better reflect the new information architecture.
+For the steps to update the left-navigation pane, see [Update left-navigation pane](https://docs.newrelic.com/docs/content/style-guide/processes-and-procedures).
 
 ## Adding a new page
 

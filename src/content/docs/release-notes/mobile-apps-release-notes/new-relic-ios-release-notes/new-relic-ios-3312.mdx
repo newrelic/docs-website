@@ -1,0 +1,11 @@
+---
+subject: Mobile app for iOS
+releaseDate: '2017-05-16'
+version: 3.31.2
+downloadLink: 'https://itunes.apple.com/us/app/new-relic/id594038638?mt=8'
+---
+
+### Bug fixes
+
+* Fixes a crash when viewing traced errors without stack traces
+* Fixes a sharing issue when a warning violation does not have an associated incident.

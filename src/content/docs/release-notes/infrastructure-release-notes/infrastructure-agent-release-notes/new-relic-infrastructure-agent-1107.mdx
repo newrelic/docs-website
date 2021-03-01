@@ -1,0 +1,26 @@
+---
+subject: Infrastructure agent
+releaseDate: '2020-02-18'
+version: 1.10.7
+redirects:
+  - /docs/release-notes/infrastructure-release-notes/infrastructure-agent-release-notes/new-relic-infrastructure-agent-1100
+  - /docs/release-notes/infrastructure-release-notes/infrastructure-agent-release-notes/new-relic-infrastructure-agent-1104
+---
+
+### Notes
+
+A new version of the agent has been released. Follow standard procedures to [update your Infrastructure agent](/docs/infrastructure/new-relic-infrastructure/installation/update-infrastructure-agent).
+
+### Added
+
+* All the distributions of the Agent (packages, containers...) are shipped with `nri-flex` and `nri-docker` integrations, so you don't need to install them anymore.
+
+  * Agent [Linux package](https://docs.newrelic.com/docs/infrastructure/install-configure-manage-infrastructure) and [containerized agent](https://hub.docker.com/r/newrelic/infrastructure) both now include [nri-docker](https://github.com/newrelic/nri-docker/). Before, only the package did.
+  * Agent [Linux package](https://docs.newrelic.com/docs/infrastructure/install-configure-manage-infrastructure) and [containerized agent](https://hub.docker.com/r/newrelic/infrastructure) both now include [nri-flex](https://github.com/newrelic/nri-flex/). Before, none did.
+* New containerized agent "bundle" was created from [https://github.com/newrelic/infrastructure-bundle](https://github.com/newrelic/infrastructure-bundle) , and published at (DockerHub)\[[https://github.com/newrelic/infrastructure-bundle\]](https://github.com/newrelic/infrastructure-bundle]). "Bundle" container can now be released and included agent and integration versions could be tracked from the GH repository _tags_ and `versions` file.
+
+### Bug fixes
+
+* _Auto-discovery annotations_ no longer override _integration metrics_.
+  * For example: it avoids [Kubernetes auto-discovery](https://docs.newrelic.com/docs/integrations/kubernetes-integration/link-apps-services/monitor-services-running-kubernetes) overriding the cluster_name attributes if it's already set in the integration configuration.
+* Removed a memory leak that caused a slow but constant increase in memory and CPU consumption (up to 1%cpu & 5MB per week).

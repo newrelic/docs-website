@@ -1,0 +1,17 @@
+---
+subject: Mobile app for iOS
+releaseDate: '2020-06-02'
+version: 3.57.0
+downloadLink: 'https://itunes.apple.com/WebObjects/MZStore.woa/wa/viewSoftware?id=594038638&mt=8'
+---
+
+### Notes
+
+Introducing NRQL editing from within the [iPhone app](https://docs.newrelic.com/docs/mobile-apps/new-relic-mobile-apps/ios-app/introduction-ios-mobile-app)!
+
+### New features
+
+* Adds in NRQL query history to the iPhone (iPad will come later).
+* Adds in the ability to write NRQL queries.
+* Links Alert incidents that target a NRQL query to show the in-app NRQL editor.
+* Includes more detail screens on the iPad for APM, Browser, Mobile, and key transactions.

@@ -1,0 +1,14 @@
+---
+subject: Mobile app for Android
+releaseDate: '2017-08-07'
+version: 2.8.9
+downloadLink: 'https://play.google.com/store/apps/details?id=com.newrelic.rpm&hl=en'
+---
+
+### Notes
+
+This release addresses New Relic's switch to TLS 1.2 protocol by enabling TLS 1.2 on older Android devices.
+
+### Fixes
+
+* Health map layout where indicator dots cover some text for multiple incidents

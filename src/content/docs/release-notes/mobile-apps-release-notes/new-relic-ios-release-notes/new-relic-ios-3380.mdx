@@ -1,0 +1,18 @@
+---
+subject: Mobile app for iOS
+releaseDate: '2018-02-02'
+version: 3.38.0
+downloadLink: 'https://itunes.apple.com/WebObjects/MZStore.woa/wa/viewSoftware?id=594038638&mt=8'
+---
+
+### New features
+
+* Added Infrastructure host health status popup that shows recent violations
+* Added Infrastructure host applications popup with the ability to filter to an application, or view it in APM
+* Added a new UI look, to maintain consistency throughout the app
+
+### Bug fixes
+
+* Fixed a rare crash in Infrastructure events
+* Fixed a crash in the charting library
+* Fixed a crash in the Alerts incidents screen

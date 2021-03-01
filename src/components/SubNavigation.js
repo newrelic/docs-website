@@ -1,44 +1,70 @@
-import React from 'react';
+import React, { useState } from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/core';
-import NavigationItem from './NavigationItem';
-import { Link } from 'gatsby';
-import { Icon } from '@newrelic/gatsby-theme-newrelic';
+import {
+  Link,
+  Navigation,
+  NavItem,
+  Icon,
+  SearchInput,
+  useTranslation,
+} from '@newrelic/gatsby-theme-newrelic';
 
-const SubNavigation = ({ nav }) => (
-  <>
-    <Link
-      to="/"
-      css={css`
-        color: var(--primary-text-color);
-        display: flex;
-        align-items: center;
-        padding: 0.5rem 0;
-        margin-bottom: 0.5rem;
-        transition: 0.2s ease-out;
+const SubNavigation = ({ nav }) => {
+  const [searchTerm, setSearchTerm] = useState('');
+  const { t } = useTranslation();
 
-        &:hover {
-          color: var(--primary-text-hover-color);
-        }
-      `}
-    >
-      <Icon
-        name={Icon.TYPE.ARROW_LEFT_CIRCLE}
-        size="1rem"
+  return (
+    <>
+      <Link
+        to="/"
         css={css`
-          margin-right: 0.5rem;
+          color: var(--primary-text-color);
+          display: flex;
+          align-items: center;
+          padding: 0.5rem 0;
+          margin-bottom: 0.5rem;
+          transition: 0.2s ease-out;
+          text-decoration: none;
+
+          &:hover {
+            color: var(--primary-text-hover-color);
+          }
         `}
-      />
-      Home
-    </Link>
-    <h2>{nav?.title}</h2>
-    <nav role="navigation" aria-label="SubNavigation">
-      {nav?.pages.map((page) => (
-        <NavigationItem key={page.title} page={page} />
-      ))}
-    </nav>
-  </>
-);
+      >
+        <Icon
+          name="fe-home"
+          size="1rem"
+          css={css`
+            margin-right: 0.5rem;
+          `}
+        />
+        {t('subNav.homeLink')}
+      </Link>
+      {nav && (
+        <>
+          <h2>{nav.title}</h2>
+          {nav.filterable && (
+            <SearchInput
+              placeholder={t('subNav.filter.placeholder')}
+              onClear={() => setSearchTerm('')}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              value={searchTerm}
+              css={css`
+                margin-bottom: 1rem;
+              `}
+            />
+          )}
+          <Navigation searchTerm={searchTerm}>
+            {nav.pages.map((page) => (
+              <NavItem key={page.title} page={page} />
+            ))}
+          </Navigation>
+        </>
+      )}
+    </>
+  );
+};
 
 SubNavigation.propTypes = {
   nav: PropTypes.object,

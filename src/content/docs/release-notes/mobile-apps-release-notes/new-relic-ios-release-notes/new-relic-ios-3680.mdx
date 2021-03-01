@@ -1,0 +1,15 @@
+---
+subject: Mobile app for iOS
+releaseDate: '2021-01-12'
+version: 3.68.0
+downloadLink: 'https://itunes.apple.com/WebObjects/MZStore.woa/wa/viewSoftware?id=594038638&mt=8'
+---
+
+### New features
+
+* Added the ability to show and hide expected APM errors.
+* Added the ability to go directly to APM errors from an incident with related errors.
+
+### Bug fixes
+
+* Fixed a crash that could occur when viewing some mobile APM http error stack traces.

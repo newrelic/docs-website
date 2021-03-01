@@ -1,0 +1,20 @@
+---
+subject: Mobile app for iOS
+releaseDate: '2018-09-07'
+version: 3.43.1
+downloadLink: 'https://itunes.apple.com/WebObjects/MZStore.woa/wa/viewSoftware?id=594038638&mt=8'
+---
+
+### Notes
+
+* Support for incident context from New Relic Radar -- a tool for faster orientation during an incident.
+* Incident context provides faster orientation during an incident by detecting unusual behavior in your system and placing it alongside alert information.
+
+### Improvements
+
+* Improved login flow
+* Improved behavior when searching through error trace attributes
+
+### Bug fixes
+
+* Fixed some issues where network failures or server issues would log you out. Now you can retry, instead of being logged out.

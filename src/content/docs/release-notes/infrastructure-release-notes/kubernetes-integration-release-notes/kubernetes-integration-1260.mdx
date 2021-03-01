@@ -1,0 +1,98 @@
+---
+subject: Kubernetes integration
+releaseDate: '2020-08-13'
+version: 1.26.0
+redirects:
+  - /docs/release-notes/platform-release-notes/kubernetes-integration-release-notes/new-relic-integration-kubernetes-1260
+---
+
+## Notes
+
+Follow standard procedures to [install](/docs/integrations/host-integrations/host-integrations-list/kubernetes-monitoring-integration#install) or [update](/docs/integrations/host-integrations/host-integrations-list/kubernetes-monitoring-integration#update) the New Relic integration for Kubernetes.
+
+## Changelog
+
+* **Added:** Support for OpenShift 4.5 and Kubernetes versions 1.18.X
+* **Changed:** Upgraded Docker base image `newrelic/infrastructure-bundle` to `v1.4.2.`  
+  For more information on the release please see the [New Relic Infrastructure Bundle release notes](https://github.com/newrelic/infrastructure-bundle/releases/tag/1.4.2).
+* **Changed:** When querying the summary endpoint from Kubelet to get the Node or Pod network metrics, if the default network interface is not eth0 then summary endpoint for Kubelet doesn't return the metrics as we expect them. We rely on them being a direct member of the "network" object. See rxBytes, txBytes and rxErrors in the following example metrics:
+
+```
+"network": {
+ "time": "2020-06-04T10:01:15Z",
+ "name": "eth0",
+ "rxBytes": 207909096,
+ "rxErrors": 0,
+ "txBytes": 8970981,
+ "txErrors": 0,
+ "interfaces": [
+  {
+   "name": "eth0",
+   "rxBytes": 207909096,
+   "rxErrors": 0,
+   "txBytes": 8970981,
+   "txErrors": 0
+  },
+  {
+   "name": "ip6tnl0",
+   "rxBytes": 0,
+   "rxErrors": 0,
+   "txBytes": 0,
+   "txErrors": 0
+  },
+  {
+   "name": "tunl0",
+   "rxBytes": 0,
+   "rxErrors": 0,
+   "txBytes": 0,
+   "txErrors": 0
+  }
+ ]
+}
+```
+
+This scenario only happens when the default interface is eth0. Kubernetes  
+source code has it hardcoded that eth0 is the default. In the following  
+example you can see that we only have network metrics inside the interfaces  
+list, in this case there is no eth0 on the and the default interface is ens5:
+
+```
+"network": {
+ "time": "2020-06-04T10:01:15Z",
+ "name": "",
+ "interfaces": [
+  {
+   "name": "ens5",
+   "rxBytes": 207909096,
+   "rxErrors": 42,
+   "txBytes": 8970981,
+   "txErrors": 24
+  },
+  {
+   "name": "ip6tnl0",
+   "rxBytes": 0,
+   "rxErrors": 0,
+   "txBytes": 0,
+   "txErrors": 0
+  },
+  {
+   "name": "tunl0",
+   "rxBytes": 0,
+   "rxErrors": 0,
+   "txBytes": 0,
+   "txErrors": 0
+  }
+ ]
+```
+
+In cases like this, the integration will look for the default interface  
+inside the interfaces list and use those values. The default interface name  
+is retrieved from the network route file (default /proc/net/route).
+
+When running the unprivileged version of the integration we don't have access  
+to the route file, the integration won't be able to get the default interface  
+name and won't send network metrics for the unless there's a network  
+interface called eth0.
+
+For Pods, this issue is mainly present when using hostNetwok since they  
+shared the same network interfaces with the Node.
