@@ -3,6 +3,7 @@ const vfileGlob = require('vfile-glob');
 const { read, write } = require('to-vfile');
 const { prop } = require('./scripts/utils/functional.js');
 const externalRedirects = require('./src/data/external-redirects.json');
+const { isEqual } = require('lodash');
 
 const { createFilePath } = require('gatsby-source-filesystem');
 
@@ -343,8 +344,10 @@ exports.onCreatePage = ({ page, actions }) => {
     page.context.slug = `${page.context.slug}/`;
   }
 
-  deletePage(oldPage);
-  createPage(page);
+  if (!isEqual(oldPage, page)) {
+    deletePage(oldPage);
+    createPage(page);
+  }
 };
 
 const createLocalizedRedirect = ({
@@ -355,9 +358,11 @@ const createLocalizedRedirect = ({
   isPermanent = true,
   createRedirect,
 }) => {
+  const postfix = toPath.endsWith('/') ? '' : '/';
+
   createRedirect({
     fromPath,
-    toPath,
+    toPath: toPath + postfix,
     isPermanent,
     redirectInBrowser,
   });
@@ -365,7 +370,7 @@ const createLocalizedRedirect = ({
   locales.forEach((locale) => {
     createRedirect({
       fromPath: path.join(`/${locale}`, fromPath),
-      toPath: path.join(`/${locale}`, toPath),
+      toPath: path.join(`/${locale}`, toPath, postfix),
       isPermanent,
       redirectInBrowser,
     });
@@ -378,10 +383,11 @@ const createPageFromNode = (node, { createPage, prefix = '' }) => {
   } = node;
 
   const { template, context = {} } = getTemplate(node);
+  const postfix = slug.endsWith('/') ? '' : '/';
 
   if (process.env.NODE_ENV === 'development' && !template) {
     createPage({
-      path: path.join(prefix, slug),
+      path: path.join(prefix, slug, postfix),
       component: path.resolve(TEMPLATE_DIR, 'dev/missingTemplate.js'),
       context: {
         ...context,
@@ -391,12 +397,12 @@ const createPageFromNode = (node, { createPage, prefix = '' }) => {
     });
   } else {
     createPage({
-      path: path.join(prefix, slug),
+      path: path.join(prefix, slug, postfix),
       component: path.resolve(path.join(TEMPLATE_DIR, `${template}.js`)),
       context: {
         ...context,
         fileRelativePath,
-        slug,
+        slug: slug + postfix,
         slugRegex: `${slug}/.+/`,
       },
     });
