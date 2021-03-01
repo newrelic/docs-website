@@ -2,9 +2,7 @@
 
 # docs.newrelic.com
 
-Welcome! 👋 this is the repo for the `NEW` New Relic Docs site.
-
-Currently this repo contains all the Docs website source code and Markdown source files we're using to build our preview Docs site: `docs-preview.newrelic.com`. When it's ready, all of our production documentation will be found in this repo.
+Welcome! 👋  This is the repo for the `NEW` New Relic Docs site. This repo contains all the Docs website source code and Markdown source files we use to build our Docs site: `docs.newrelic.com`.
 
 Read on to learn more about who we are and how you can contribute to the New Relic Docs site.
 
