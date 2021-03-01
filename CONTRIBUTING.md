@@ -225,6 +225,7 @@ If you have access to a private version of this repository, you can contribute a
 _NOTE: with all of these steps, if you have SSH Keys set up, you will want to use the SSH URL (not the HTTPS URL)._
 
 ### Bring your private work back into the public repository
+
 1. Click the fork button in the GitHub UI for the [docs-website repository](https://github.com/newrelic/docs-website).
 2. Clone the fork on your computer: `git clone https://github.com/yourname/docs-website`.
 3. Change into the fork repo: `cd docs-website`.
