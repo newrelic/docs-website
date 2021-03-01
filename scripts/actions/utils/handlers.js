@@ -107,7 +107,7 @@ module.exports = {
   },
   Icon: {
     deserialize: (h, node) =>
-      deserializeComponent(h, node, { ignoreChildren: true }),
+      deserializeComponent(h, node, { hasChildrenProp: false }),
     serialize: (h, node) =>
       serializeComponent(h, node, {
         wrapChildren: false,
@@ -116,12 +116,13 @@ module.exports = {
         children: [u('text', '\u00A0')],
       }),
   },
-  Table: {
+  table: {
     deserialize: deserializeComponent,
     serialize: (h, node) =>
       serializeComponent(h, node, {
         tagName: 'table',
         wrapChildren: false,
+        identifyComponent: false,
       }),
   },
   LandingPageTile: {
@@ -144,6 +145,20 @@ module.exports = {
         [u('text', toString(node))]
       );
     },
+  },
+  ImageSizing: {
+    serialize: serializeComponent,
+    deserialize: deserializeComponent,
+  },
+  TechTile: {
+    deserialize: (h, node) =>
+      deserializeComponent(h, node, { hasChildrenProp: false }),
+    serialize: (h, node) =>
+      serializeComponent(h, node, { textAttributes: ['name'] }),
+  },
+  TechTileGrid: {
+    deserialize: deserializeComponent,
+    serialize: serializeComponent,
   },
   Video: {
     deserialize: deserializeComponent,
@@ -193,6 +208,26 @@ module.exports = {
         tagName: 'td',
         wrapChildren: false,
         identifyComponent: false,
+      }),
+  },
+  var: {
+    deserialize: (h, node) =>
+      deserializeComponent(h, node, { type: 'mdxSpanElement' }),
+    serialize: (h, node) =>
+      serializeComponent(h, node, {
+        wrapChildren: false,
+        identifyComponent: false,
+        tagName: 'var',
+      }),
+  },
+  mark: {
+    deserialize: (h, node) =>
+      deserializeComponent(h, node, { type: 'mdxSpanElement' }),
+    serialize: (h, node) =>
+      serializeComponent(h, node, {
+        wrapChildren: false,
+        identifyComponent: false,
+        tagName: 'mark',
       }),
   },
 };

@@ -74,6 +74,10 @@ const Select = ({ disabled, ...props }) => (
 
         .dark-mode & {
           color: var(--color-dark-900);
+
+          option {
+            color: var(--color-dark-050);
+          }
         }
       `}
       {...props}

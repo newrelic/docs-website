@@ -56,27 +56,29 @@ const downloadImage = async (node, file) => {
 
 const download = (url, dest) =>
   new Promise((resolve, reject) => {
-    fetch(url.href).then((res) => {
-      if (!res.ok) {
-        reject(new Error(`Request failed\nStatus code: ${res.statusCode}`));
+    fetch(url.href)
+      .then((res) => {
+        if (!res.ok) {
+          reject(new Error(`Request failed\nStatus code: ${res.statusCode}`));
 
-        return;
-      }
+          return;
+        }
 
-      const extension =
-        path.extname(dest) || guessExtension(res.headers.get('content-type'));
+        const extension =
+          path.extname(dest) || guessExtension(res.headers.get('content-type'));
 
-      const filepath = path.join(
-        path.dirname(dest),
-        path.basename(dest, extension) + extension
-      );
+        const filepath = path.join(
+          path.dirname(dest),
+          path.basename(dest, extension) + extension
+        );
 
-      const fileStream = fs.createWriteStream(filepath);
+        const fileStream = fs.createWriteStream(filepath);
 
-      res.body.pipe(fileStream);
-      res.body.on('error', reject);
-      fileStream.on('finish', () => resolve(filepath));
-    });
+        res.body.pipe(fileStream);
+        res.body.on('error', reject);
+        fileStream.on('finish', () => resolve(filepath));
+      })
+      .catch(reject);
   });
 
 module.exports = images;

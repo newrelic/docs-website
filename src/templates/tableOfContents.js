@@ -2,15 +2,11 @@ import React, { useMemo } from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/core';
 import { graphql } from 'gatsby';
-import {
-  Icon,
-  Layout,
-  Link,
-  SEO,
-  useLocale,
-} from '@newrelic/gatsby-theme-newrelic';
+import { Icon, Layout, Link, useLocale } from '@newrelic/gatsby-theme-newrelic';
 import PageTitle from '../components/PageTitle';
 import IndexContents from '../components/IndexContents';
+import SEO from '../components/SEO';
+import { TYPES } from '../utils/constants';
 
 const TableOfContentsPage = ({ data, pageContext, location }) => {
   const { title } = pageContext;
@@ -34,7 +30,7 @@ const TableOfContentsPage = ({ data, pageContext, location }) => {
 
   return (
     <>
-      <SEO location={location} title={title} />
+      <SEO location={location} title={title} type={TYPES.TABLE_OF_CONTENTS} />
       <PageTitle>{title}</PageTitle>
       <Link
         to={landingPageSlug}
@@ -44,6 +40,7 @@ const TableOfContentsPage = ({ data, pageContext, location }) => {
           align-items: center;
           transition: 0.2s ease-out;
           margin-bottom: 2rem;
+          text-decoration: none;
 
           &:hover {
             color: var(--primary-text-hover-color);

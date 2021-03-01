@@ -4,9 +4,11 @@ import { css } from '@emotion/core';
 import { graphql } from 'gatsby';
 import PageTitle from '../components/PageTitle';
 import Timeline from '../components/Timeline';
-import { Icon, Layout, Link, SEO } from '@newrelic/gatsby-theme-newrelic';
+import SEO from '../components/SEO';
+import { Icon, Layout, Link } from '@newrelic/gatsby-theme-newrelic';
 import filter from 'unist-util-filter';
 import toString from 'mdast-util-to-string';
+import { TYPES } from '../utils/constants';
 
 const EXCERPT_LENGTH = 200;
 
@@ -37,7 +39,7 @@ const ReleaseNoteLandingPage = ({ data, pageContext, location }) => {
 
   return (
     <>
-      <SEO location={location} title={title} />
+      <SEO location={location} title={title} type={TYPES.LANDING_PAGE} />
       <PageTitle
         css={css`
           display: flex;
@@ -101,7 +103,9 @@ const ReleaseNoteLandingPage = ({ data, pageContext, location }) => {
                           margin-bottom: 0.5rem;
                         `}
                       >
-                        {subject} v{post.frontmatter.version}
+                        {post.frontmatter.title
+                          ? post.frontmatter.title
+                          : `${subject} v${post.frontmatter.version}`}
                       </Link>
                       <p
                         css={css`
@@ -125,6 +129,8 @@ const ReleaseNoteLandingPage = ({ data, pageContext, location }) => {
 
 ReleaseNoteLandingPage.propTypes = {
   data: PropTypes.object.isRequired,
+  location: PropTypes.object.isRequired,
+  pageContext: PropTypes.object.isRequired,
 };
 
 export const pageQuery = graphql`
@@ -141,6 +147,7 @@ export const pageQuery = graphql`
           slug
         }
         frontmatter {
+          title
           version
           releaseDate(formatString: "MMMM D, YYYY")
         }

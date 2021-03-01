@@ -1,5 +1,5 @@
 const visit = require('unist-util-visit');
-const { isMdxElement, hasAttribute } = require('./utils/mdxast');
+const { isMdxElement, hasAttribute, setAttribute } = require('./utils/mdxast');
 const is = require('unist-util-is');
 
 const TOC_LINK = /\?toc=true$/;
@@ -23,6 +23,7 @@ const tocLinks = () => (tree) => {
 
       if (TOC_LINK.test(attr.value)) {
         attr.value = replaceToc(attr.value);
+        setAttribute('variant', 'primary', button);
       }
     }
   );

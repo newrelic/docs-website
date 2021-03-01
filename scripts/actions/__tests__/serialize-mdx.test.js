@@ -113,7 +113,7 @@ test('serializes Link to html', async () => {
 
 test('serializes Table to html', async () => {
   const html = await serializeMDX(`
-<Table>
+<table>
   <thead>
     <tr>
       <td>Column A</td>
@@ -130,7 +130,7 @@ test('serializes Table to html', async () => {
       <td>Data 2b</td>
     </tr>
   </tbody>
-</Table>
+</table>
   `);
 
   expect(html).toMatchSnapshot();
@@ -211,6 +211,32 @@ This is some text with a star <Icon name="fe-star" size="1rem" /> and some more 
 test('serializes Icon to html', async () => {
   const html = await serializeMDX(`
 <Icon name="fe-external-link" size="1rem" />
+`);
+
+  expect(html).toMatchSnapshot();
+});
+
+test('serializes var to html', async () => {
+  const html = await serializeMDX(`<var>JAVA_AGENT_VERSION</var>`);
+
+  expect(html).toMatchSnapshot();
+});
+
+test('serializes mark to html', async () => {
+  const html = await serializeMDX(`<mark>PDF</mark>`);
+
+  expect(html).toMatchSnapshot();
+});
+
+test('serializes TechTileGrid to html', async () => {
+  const html = await serializeMDX(`
+<TechTileGrid>
+  <TechTile
+    name="iOS"
+    icon="logo-apple"
+    to="/agents/ios-agent"
+  />
+</TechTileGrid>
 `);
 
   expect(html).toMatchSnapshot();

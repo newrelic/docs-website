@@ -1,0 +1,22 @@
+---
+subject: Mobile app for iOS
+releaseDate: '2021-02-19'
+version: 3.69.4
+downloadLink: 'https://apps.apple.com/app/id594038638'
+---
+
+### Notes
+
+Now supporting multiple queries in Dashboard time series charts
+
+### New features
+
+* Added support to display multi query time series charts in Dashboards
+
+### Improvements
+
+* Improved APM transaction list view
+
+### Bug fixes
+
+* Fixed a crash that could sometimes occur if an incident acknowledge from a notification fails in the background

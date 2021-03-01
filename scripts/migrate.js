@@ -1,6 +1,5 @@
 /* eslint-disable no-console */
 const fetchDocs = require('./utils/migrate/fetch-docs');
-const fetchDocCount = require('./utils/migrate/fetch-doc-count');
 const fetchAttributeDefinitions = require('./utils/migrate/fetch-attribute-definitions');
 const fetchEventDefinitions = require('./utils/migrate/fetch-event-definitions');
 const fetchWhatsNew = require('./utils/migrate/fetch-whats-new');
@@ -26,20 +25,49 @@ const {
   DICTIONARY_DIR,
   WHATS_NEW_DIR,
   JP_DIR,
+  TYPES,
 } = require('./utils/constants');
 const copyManualEdits = require('./utils/migrate/copy-manual-edits');
 const { fetchAllRedirects } = require('./utils/migrate/fetch-redirects');
 const fetchJpDocs = require('./utils/migrate/fetch-jp-docs');
 const createNavJpStructure = require('./utils/migrate/create-nav-jp-structure');
 const writeExternalRedirects = require('./utils/migrate/external-redirects');
+const {
+  fetchTaxonomyRedirects,
+  writeTaxonomyRedirects,
+} = require('./utils/migrate/taxonomy-redirects');
 const { appendDummyRedirects } = require('./utils/migrate/redirects');
+const unified = require('unified');
+const rehypeParse = require('rehype-parse');
+const toString = require('hast-util-to-string');
+const remove = require('unist-util-remove');
+const { mergeWith } = require('lodash');
+
+const processor = unified().use(rehypeParse);
 
 const all = (list, fn) => Promise.all(list.map(fn));
 
-const isDummyDoc = (doc) =>
-  Boolean(
-    doc.body.trim().match(/^(<[a-z].*>)?(dummy\sdoc|redirect(s|ed|ing)?)\s/i)
+const notDummyDocs = ['/docs/new-relic-titanium'];
+
+const isDummyDoc = (doc) => {
+  if (notDummyDocs.some((pathname) => doc.docUrl.includes(pathname))) {
+    return false;
+  }
+
+  const tree = processor.parse(doc.body);
+
+  remove(
+    tree,
+    (node) => node.tagName === 'h2' && toString(node) === 'For more help'
   );
+
+  const content = toString(tree).trim();
+
+  return (
+    Boolean(content.match(/^(dummy|redirect(s|ed|ing)?)\s/i)) ||
+    (doc.type === TYPES.BASIC_PAGE && content.length < 100)
+  );
+};
 
 const runTask = async ({
   label,
@@ -96,8 +124,18 @@ const run = async () => {
     );
 
     logger.info('Fetching redirects');
-
     const redirects = await fetchAllRedirects();
+    const taxonomyRedirects = await fetchTaxonomyRedirects(redirects);
+
+    const mergedRedirects = Object.fromEntries(
+      Object.entries(
+        mergeWith({}, redirects, taxonomyRedirects, (value, source) => {
+          if (Array.isArray(value)) {
+            return value.concat(source);
+          }
+        })
+      ).filter(([url]) => !url.startsWith('/taxonomy'))
+    );
 
     logger.info('Migrating docs');
     const docs = await fetchDocs();
@@ -173,7 +211,7 @@ const run = async () => {
       {
         label: 'Docs',
         fetch: () => docs,
-        redirects,
+        redirects: mergedRedirects,
         process: async (file) => {
           convertFile(file);
 
@@ -197,30 +235,22 @@ const run = async () => {
     const sortedDocsFiles = last(fileGroups)
       .sort(
         (a, b) =>
+          parseInt(a.data.doc.order_topic_2 || 0, 10) -
+          parseInt(b.data.doc.order_topic_2 || 0, 10)
+      )
+      .sort(
+        (a, b) =>
+          parseInt(a.data.doc.order_topic_3 || 0, 10) -
+          parseInt(b.data.doc.order_topic_3 || 0, 10)
+      )
+      .sort(
+        (a, b) =>
           parseInt(a.data.doc.order || 0, 10) -
           parseInt(b.data.doc.order || 0, 10)
-      )
-      .sort((a, b) => {
-        const aTopic = last(a.data.topics);
-        const bTopic = last(b.data.topics);
-        const getStartedRegex = /^Get(ting)? started/i;
-        const troubleshootRegex = /^Troubleshoot(ing)?/i;
-
-        switch (true) {
-          case aTopic === bTopic:
-            return 1;
-          case getStartedRegex.test(aTopic):
-          case troubleshootRegex.test(bTopic):
-            return -1;
-          case getStartedRegex.test(bTopic):
-          case troubleshootRegex.test(aTopic):
-            return 1;
-          default:
-            return 0;
-        }
-      });
+      );
 
     logger.info('Creating nav');
+
     const navFiles = migrateNavStructure(createNavStructure(sortedDocsFiles));
 
     const jpNavFile = createNavJpStructure(navFiles, jpFiles);
@@ -235,9 +265,11 @@ const run = async () => {
       )
     );
 
+    logger.info('Writing taxonomy redirects');
+    await writeTaxonomyRedirects(taxonomyRedirects, allDocsFiles);
+
     logger.info('Saving changes to files');
     createDirectories(allDocsFiles);
-    await fetchDocCount(allDocsFiles.length);
     await all(
       allDocsFiles
         .filter((file) => !file.data.dummy)

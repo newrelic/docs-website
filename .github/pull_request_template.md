@@ -1,47 +1,22 @@
-## Description
+<!-- Thanks for contributing to our docs! Your changes will help thousands of
+New Relic users around the world. -->
 
-Add a short description about the purpose of this PR here.
+<!-- Fill out this template to help us review your changes and route them to the
+best team. See our [README.md](https://github.com/newrelic/docs-website/) for 
+information on how to contribute. -->
 
-## Reviewer Notes
+### Tell us why
 
-If there are links or steps needed to test this work, add them here.
+Explain why you're proposing this change. If there's an existing GitHub issue 
+related to your change, please link to it.
 
-## Related Issue(s) / Ticket(s)
+### Anything else you'd like to share?
 
-If there are any related [GitHub Issues](https://github.com/newrelic/docs-website/issues) or JIRA tickets, add links to them here.
-* [issue]()
+Add any context that will help us review your changes such as testing notes,
+links to related docs, screenshots, etc. 
 
-## Screenshot(s)
+### Are you making a change to site code?
 
-If relevant, add screenshots here.
-
-## Use Conventional Commits
-
-Please help the maintainers by leveraging the following [conventional commit](https://www.conventionalcommits.org/en/v1.0.0/)
-standards in your pull request title and commit messages.
-
-## Use `chore`
-
-* for minor changes / additions / corrections to content.
-* for minor changes / additions / corrections to images.
-* for minor non-functional changes / additions to github actions, github templates, package or config updates, etc
-
-```bash
-git commit -m "chore: adjusting config and content"
-```
-
-## Use `fix`
-
-* for minor functional corrections to code.
-
-```bash
-git commit -m "fix: typo and prop error in the code of conduct"
-```
-
-## Use `feat`
-
-* for major functional changes or additions to code.
-
-```bash
-git commit -m "feat(media): creating a video landing page"
-```
+If you're changing site code (rather than the content of a doc), please follow
+[conventional commit standards](https://www.conventionalcommits.org/en/v1.0.0/) 
+in your commit messages and pull request title.

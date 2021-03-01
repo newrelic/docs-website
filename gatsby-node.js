@@ -7,9 +7,13 @@ const externalRedirects = require('./src/data/external-redirects.json');
 const { createFilePath } = require('gatsby-source-filesystem');
 
 const TEMPLATE_DIR = 'src/templates/';
+const TRAILING_SLASH = /\/$/;
 
 const hasOwnProperty = (obj, key) =>
   Object.prototype.hasOwnProperty.call(obj, key);
+
+const hasTrailingSlash = (pathname) =>
+  pathname === '/' ? false : TRAILING_SLASH.test(pathname);
 
 exports.onPreBootstrap = async ({ reporter, store }) => {
   reporter.info("generating what's new post IDs");
@@ -76,12 +80,22 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
         edges {
           node {
             frontmatter {
-              template
+              type
             }
             fields {
               fileRelativePath
               slug
             }
+          }
+        }
+      }
+
+      whatsNewPosts: allMarkdownRemark(
+        filter: { fileAbsolutePath: { regex: "/src/content/whats-new/" } }
+      ) {
+        nodes {
+          fields {
+            slug
           }
         }
       }
@@ -94,7 +108,7 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
               slug
             }
             frontmatter {
-              template
+              type
               subject
               redirects
             }
@@ -112,7 +126,7 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
               slug
             }
             frontmatter {
-              template
+              type
               subject
             }
           }
@@ -151,6 +165,7 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
           }
           frontmatter {
             subject
+            redirects
           }
         }
       }
@@ -176,7 +191,12 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
     releaseNotes,
     landingPagesReleaseNotes,
     allLocale,
+    whatsNewPosts,
   } = data;
+
+  const locales = allLocale.nodes
+    .filter((locale) => !locale.isDefault)
+    .map(prop('locale'));
 
   externalRedirects.forEach(({ url, paths }) => {
     paths.forEach((path) => {
@@ -196,20 +216,32 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
       (node) => node.frontmatter.subject === fieldValue
     );
 
-    landingPage &&
-      createRedirect({
+    if (landingPage) {
+      const { redirects } = landingPage.frontmatter;
+
+      createLocalizedRedirect({
+        locales,
         fromPath: path.join(landingPage.fields.slug, 'current'),
         toPath: nodes[0].fields.slug,
         isPermanent: false,
-        redirectInBrowser: true,
+        createRedirect,
       });
+
+      if (redirects) {
+        redirects.forEach((fromPath) => {
+          createLocalizedRedirect({
+            locales,
+            fromPath,
+            toPath: landingPage.fields.slug,
+            isPermanent: false,
+            createRedirect,
+          });
+        });
+      }
+    }
   });
 
   const translatedContentNodes = allI18nMdx.edges.map(({ node }) => node);
-
-  const locales = allLocale.nodes
-    .filter((locale) => !locale.isDefault)
-    .map(prop('locale'));
 
   allMdx.edges.concat(allMarkdownRemark.edges).forEach(({ node }) => {
     const {
@@ -219,11 +251,11 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
 
     if (redirects) {
       redirects.forEach((fromPath) => {
-        createRedirect({
+        createLocalizedRedirect({
+          locales,
           fromPath,
           toPath: slug,
-          isPermanent: true,
-          redirectInBrowser: true,
+          createRedirect,
         });
       });
     }
@@ -242,21 +274,31 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
       });
     });
   });
+
+  whatsNewPosts.nodes.forEach((node) => {
+    const {
+      fields: { slug },
+    } = node;
+
+    createLocalizedRedirect({
+      locales,
+      fromPath: slug.replace(/\/\d{4}\/\d{2}/, ''),
+      toPath: slug,
+      createRedirect,
+    });
+  });
 };
 
 exports.createSchemaCustomization = ({ actions }) => {
   const { createTypes } = actions;
 
   const typeDefs = `
-  type MarkdownRemarkFrontmatter {
-    template: String
-  }
-
   type NavYaml implements Node @dontInfer {
     id: ID!
     title: String!
     path: String
     icon: String
+    filterable: Boolean!
     pages: [NavYaml!]!
     rootNav: Boolean!
   }
@@ -273,6 +315,10 @@ exports.createResolvers = ({ createResolvers }) => {
           return source.pages || [];
         },
       },
+      filterable: {
+        resolve: (source) =>
+          hasOwnProperty(source, 'filterable') ? source.filterable : true,
+      },
       rootNav: {
         resolve: (source) =>
           hasOwnProperty(source, 'rootNav') ? source.rootNav : true,
@@ -282,19 +328,48 @@ exports.createResolvers = ({ createResolvers }) => {
 };
 
 exports.onCreatePage = ({ page, actions }) => {
-  const { createPage } = actions;
+  const { createPage, deletePage } = actions;
+  const oldPage = Object.assign({}, page);
 
   if (page.path.match(/404/)) {
     page.context.layout = 'basic';
-
-    createPage(page);
   }
 
   if (!page.context.fileRelativePath) {
     page.context.fileRelativePath = getFileRelativePath(page.componentPath);
-
-    createPage(page);
   }
+
+  if (hasTrailingSlash(page.context.slug)) {
+    page.context.slug = page.context.slug.replace(TRAILING_SLASH, '');
+  }
+
+  deletePage(oldPage);
+  createPage(page);
+};
+
+const createLocalizedRedirect = ({
+  fromPath,
+  toPath,
+  locales,
+  redirectInBrowser = true,
+  isPermanent = true,
+  createRedirect,
+}) => {
+  createRedirect({
+    fromPath,
+    toPath,
+    isPermanent,
+    redirectInBrowser,
+  });
+
+  locales.forEach((locale) => {
+    createRedirect({
+      fromPath: path.join(`/${locale}`, fromPath),
+      toPath: path.join(`/${locale}`, toPath),
+      isPermanent,
+      redirectInBrowser,
+    });
+  });
 };
 
 const createPageFromNode = (node, { createPage, prefix = '' }) => {
@@ -328,6 +403,14 @@ const createPageFromNode = (node, { createPage, prefix = '' }) => {
   }
 };
 
+const TEMPLATES_BY_TYPE = {
+  landingPage: 'landingPage',
+  apiDoc: 'docPage',
+  releaseNote: 'releaseNote',
+  troubleshooting: 'docPage',
+  apiLandingPage: 'apiLandingPage',
+};
+
 const getTemplate = (node) => {
   const {
     frontmatter,
@@ -335,8 +418,8 @@ const getTemplate = (node) => {
   } = node;
 
   switch (true) {
-    case Boolean(frontmatter.template):
-      return { template: frontmatter.template };
+    case Boolean(frontmatter.type):
+      return { template: TEMPLATES_BY_TYPE[frontmatter.type] };
 
     case /docs\/release-notes\/.*\/index.mdx$/.test(fileRelativePath):
       return {
@@ -351,7 +434,7 @@ const getTemplate = (node) => {
       return { template: 'whatsNew' };
 
     default:
-      return { template: null };
+      return { template: 'docPage' };
   }
 };
 

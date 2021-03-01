@@ -1,67 +1,39 @@
+/* eslint-disable react/prop-types */
 import React from 'react';
 import PropTypes from 'prop-types';
-import { MDXRenderer } from 'gatsby-plugin-mdx';
-import { MDXProvider } from '@mdx-js/react';
 import {
-  MDXCodeBlock,
+  MarkdownContainer,
+  MDX,
   ExternalLink,
-  Callout,
-  Link,
-  Button,
-  Icon,
-  Video,
 } from '@newrelic/gatsby-theme-newrelic';
-import Collapser from './Collapser';
-import CollapserGroup from './CollapserGroup';
-import DefaultRelatedContent from './DefaultRelatedContent';
-import Table from './Table';
-import MDXLink from './MDXLink';
+import LandingPageHero from './LandingPageHero';
 import LandingPageTile from './LandingPageTile';
 import LandingPageTileGrid from './LandingPageTileGrid';
-import MarkdownContainer from './MarkdownContainer';
-
-const InlineCode = ({ children }) => <code>{children}</code>;
-
-InlineCode.propTypes = {
-  children: PropTypes.node,
-};
+import TechTile from './TechTile';
+import MDXTechTileGrid from './MDXTechTileGrid';
 
 const defaultComponents = {
-  a: MDXLink,
-  code: MDXCodeBlock,
-  pre: (props) => props.children,
-  Button,
-  ButtonLink: (props) => <Button {...props} as={Link} />,
-  Callout,
-  Collapser,
-  CollapserGroup,
   ExternalLink: (props) => (
     <ExternalLink {...props} onClick={(e) => e.stopPropagation()} />
   ),
-  Icon,
-  InlineCode,
+  HeroContent: ({ children }) => <>{children}</>,
+  LandingPageHero,
   LandingPageTile,
   LandingPageTileGrid,
-  Link,
-  table: Table,
-  Table,
-  Video,
-  DefaultRelatedContent,
+  TechTile,
+  TechTileGrid: MDXTechTileGrid,
 };
 
-const MDXContainer = ({ body, children, className, components }) => {
+const MDXContainer = ({ body, children, components }) => {
   return (
-    <MarkdownContainer className={className}>
-      <MDXProvider components={{ ...defaultComponents, ...components }}>
-        <MDXRenderer>{body}</MDXRenderer>
-      </MDXProvider>
+    <MarkdownContainer>
+      <MDX body={body} components={{ ...defaultComponents, ...components }} />
       {children}
     </MarkdownContainer>
   );
 };
 
 MDXContainer.propTypes = {
-  className: PropTypes.string,
   body: PropTypes.node,
   components: PropTypes.object,
   children: PropTypes.node,

@@ -1,25 +1,39 @@
 const {
   mdxAttribute,
+  mdxImport,
   mdxSpanElement,
   mdxSpanExpression,
   mdxValueExpression,
 } = require('./mdxast-builder');
+const { camelCase } = require('lodash');
+const path = require('path');
+const util = require('util');
 
-const { isPlainText } = require('./mdxast');
+const {
+  isPlainText,
+  containsImport,
+  findAttribute,
+  addAttribute,
+} = require('./mdxast');
 const { root, text } = require('mdast-builder');
 const stringify = require('./mdxast-stringify');
 
-const toJSXExpression = (node, file) => {
-  const children = transformChildren(node, file);
-  const tree = root(
+const stripNulls = (obj) =>
+  Object.fromEntries(Object.entries(obj).filter(([, value]) => value != null));
+
+const toJSXExpression = (node, file, tree) => {
+  const children = transformChildren(node, file, tree);
+  const attributeNode = root(
     children.length === 1 ? children : [mdxSpanElement(null, [], children)]
   );
-  const expression = stringify(tree).trim();
+  const expression = stringify(attributeNode).trim();
 
-  return isPlainText(tree) ? expression : mdxValueExpression(expression);
+  return isPlainText(attributeNode)
+    ? expression
+    : mdxValueExpression(expression);
 };
 
-const transformChildren = (node, file) => {
+const transformChildren = (node, file, tree) => {
   return node.children
     .flatMap((child) => {
       const transformer = TRANSFORMERS[child.type];
@@ -33,7 +47,7 @@ const transformChildren = (node, file) => {
         return;
       }
 
-      return transformer(child, file);
+      return transformer(child, file, tree);
     })
     .filter(Boolean);
 };
@@ -63,6 +77,57 @@ const TRANSFORMERS = {
       [mdxAttribute(isExternal ? 'href' : 'to', node.url)],
       transformChildren(node, file)
     );
+  },
+  break: () => mdxSpanElement('br'),
+  image: (node, _file, tree) => {
+    const isRelativeImport = Boolean(node.url.match(/^\.\.?\//));
+    const importName = camelCase(
+      path.basename(node.url, path.extname(node.url))
+    );
+    const importNode = mdxImport(importName, node.url);
+
+    if (isRelativeImport && !containsImport(tree, importNode)) {
+      tree.children.splice(1, 0, mdxImport(importName, node.url));
+    }
+
+    return mdxSpanElement(
+      'img',
+      [
+        mdxAttribute(
+          'src',
+          isRelativeImport ? mdxValueExpression(importName) : node.url
+        ),
+        node.title && mdxAttribute('title', node.title),
+        node.alt && mdxAttribute('alt', node.alt),
+      ].filter(Boolean)
+    );
+  },
+  ImageSizing: (node, ...args) => {
+    const [image] = transformChildren(node, ...args);
+
+    const style = stripNulls({
+      height: findAttribute('height', node),
+      width: findAttribute('width', node),
+      verticalAlign: findAttribute('verticalAlign', node),
+    });
+
+    addAttribute('style', mdxValueExpression(util.inspect(style)), image);
+
+    return image;
+  },
+  mdxSpanElement: (node, ...args) => {
+    const handler = TRANSFORMERS[node.name];
+
+    return handler
+      ? handler(node, ...args)
+      : { ...node, children: transformChildren(node, ...args) };
+  },
+  mdxBlockElement: (node, ...args) => {
+    const handler = TRANSFORMERS[node.name];
+
+    return handler
+      ? handler(node, ...args)
+      : { ...node, children: transformChildren(node, ...args) };
   },
 };
 

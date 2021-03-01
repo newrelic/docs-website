@@ -1,10 +1,9 @@
 const fs = require('fs');
 const path = require('path');
-const indentedCodeBlock = require('./codemods/indentedCodeBlock');
 
 const siteUrl = 'https://docs.newrelic.com';
-
 const dataDictionaryPath = `${__dirname}/src/data-dictionary`;
+const quote = (str) => `"${str}"`;
 
 const autoLinkHeaders = {
   resolve: 'gatsby-remark-autolink-headers',
@@ -17,9 +16,8 @@ const autoLinkHeaders = {
 module.exports = {
   flags: {
     DEV_SSR: true,
-    LAZY_IMAGES: true,
-    QUERY_ON_DEMAND: true,
     PRESERVE_WEBPACK_CACHE: true,
+    PRESERVE_FILE_DOWNLOAD_CACHE: true,
   },
   siteMetadata: {
     title: 'New Relic Documentation',
@@ -31,7 +29,7 @@ module.exports = {
     branch: 'develop',
   },
   plugins: [
-    `gatsby-plugin-react-helmet`,
+    'gatsby-plugin-react-helmet',
     {
       resolve: `gatsby-source-filesystem`,
       options: {
@@ -48,6 +46,7 @@ module.exports = {
           contentPadding: '2rem',
           maxWidth: '1600px',
           component: require.resolve('./src/layouts'),
+          mobileBreakpoint: '760px',
         },
         i18n: {
           translationsPath: `${__dirname}/src/i18n/translations`,
@@ -65,6 +64,60 @@ module.exports = {
             'csharp',
             'python',
           ],
+        },
+        relatedResources: {
+          swiftype: {
+            resultsPath: `${__dirname}/src/data/swiftype-resources.json`,
+            engineKey: 'Ad9HfGjDw4GRkcmJjUut',
+            refetch: Boolean(process.env.BUILD_RELATED_CONTENT),
+            filter: ({ node }) => {
+              if (node.internal.type !== 'Mdx') {
+                return false;
+              }
+
+              const includedTypes = ['apiDoc', 'troubleshooting'];
+              const excludedFolders = [
+                'src/content/docs/release-notes',
+                'src/content/whats-new',
+              ];
+
+              const {
+                frontmatter,
+                fields: { fileRelativePath },
+              } = node;
+
+              if (
+                excludedFolders.some((path) => fileRelativePath.includes(path))
+              ) {
+                return false;
+              }
+
+              return (
+                frontmatter.type == null ||
+                includedTypes.includes(frontmatter.type)
+              );
+            },
+            getParams: ({ node }) => {
+              const { tags, title } = node.frontmatter;
+
+              return {
+                q: tags ? tags.map(quote).join(' OR ') : title,
+                search_fields: {
+                  page: ['tags^10', 'body^5', 'title^1.5', '*'],
+                },
+                filters: {
+                  page: {
+                    type: ['!blog', '!forum'],
+                    document_type: [
+                      '!views_page_menu',
+                      '!term_page_api_menu',
+                      '!term_page_landing_page',
+                    ],
+                  },
+                },
+              };
+            },
+          },
         },
         // This option is set to disallow to prevent crawling of the site during preview
         // mode
@@ -85,6 +138,30 @@ module.exports = {
               beacon: 'staging-bam.nr-data.net',
               errorBeacon: 'staging-bam.nr-data.net',
             },
+            production: {
+              instrumentationType: 'proAndSPA',
+              accountId: '10175106',
+              trustKey: '1',
+              agentID: '29883416',
+              licenseKey: '23448da482',
+              applicationID: '29883416',
+              beacon: 'staging-bam-cell.nr-data.net',
+              errorBeacon: 'staging-bam-cell.nr-data.net',
+            },
+          },
+        },
+        tessen: {
+          product: 'DOC',
+          subproduct: 'TDOC',
+          segmentWriteKey: 'AEfP8c1VSuFxhMdk3jYFQrYQV9sHbUXx',
+          trackPageViews: true,
+          pageView: {
+            name: 'pageView',
+            category: 'DocPageView',
+            getProperties: ({ location, env }) => ({
+              path: location.pathname,
+              env: env === 'production' ? 'prod' : env,
+            }),
           },
         },
       },
@@ -151,6 +228,8 @@ module.exports = {
             options: {
               maxWidth: 850,
               linkImagesToOriginal: false,
+              backgroundColor: 'transparent',
+              disableBgImageOnAlpha: true,
             },
           },
           // Gifs are not supported via gatsby-remark-images (https://github.com/gatsbyjs/gatsby/issues/7317).
@@ -182,13 +261,22 @@ module.exports = {
         // https://github.com/mdx-js/mdx/issues/1283
         //
         // If this is addressed in MDX v2, we can safely remove this.
-        remarkPlugins: [indentedCodeBlock],
+        remarkPlugins: [],
+        rehypePlugins: [
+          require('./rehype-plugins/image-sizing'),
+          [
+            require('./rehype-plugins/gatsby-inline-images'),
+            { spacing: '0.5rem' },
+          ],
+        ],
         gatsbyRemarkPlugins: [
           {
             resolve: 'gatsby-remark-images',
             options: {
               maxWidth: 1200,
               linkImagesToOriginal: false,
+              backgroundColor: 'transparent',
+              disableBgImageOnAlpha: true,
             },
           },
           autoLinkHeaders,
@@ -217,6 +305,16 @@ module.exports = {
             options: {
               maxWidth: 1200,
             },
+          },
+          {
+            resolve: require.resolve(
+              './plugins/gatsby-remark-mdx-v2-fenced-code-blocks'
+            ),
+          },
+          {
+            resolve: require.resolve(
+              './plugins/gatsby-remark-remove-button-paragraphs'
+            ),
           },
         ],
       },
