@@ -9,7 +9,6 @@ import {
 
 const DefaultRelatedContent = () => {
   const { t } = useTranslation();
-  const locale = useLocale();
 
   return (
     <div data-swiftype-index={false}>
