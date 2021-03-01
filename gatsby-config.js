@@ -119,13 +119,6 @@ module.exports = {
             },
           },
         },
-        // This option is set to disallow to prevent crawling of the site during preview
-        // mode
-        robots: {
-          host: 'https://docs.newrelic.com',
-          sitemap: 'https://docs.newrelic.com/sitemap.xml',
-          policy: [{ userAgent: '*', disallow: '/' }],
-        },
         newrelic: {
           configs: {
             development: {
