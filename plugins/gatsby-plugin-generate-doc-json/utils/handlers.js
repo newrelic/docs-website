@@ -48,13 +48,8 @@ const attributeProcessor = unified()
   .use(removeParagraphs);
 
 module.exports = {
-  image: (h, node, imageHashMap, fileRelativePath, importObject) => {
-    const relPath =
-      node.url.type === 'mdxValueExpression'
-        ? getImportUrl(node, importObject)
-        : '';
-
-    const srcUrl = getSrcUrl(fileRelativePath, relPath);
+  image: (h, node, imageHashMap, fileRelativePath) => {
+    const srcUrl = getSrcUrl(fileRelativePath, node.url);
 
     const isBlockImage =
       node.parent &&
@@ -73,7 +68,7 @@ module.exports = {
           node,
           'img',
           stripNulls({
-            src: imageHashMap[srcUrl.substr(1)] || srcUrl.substr(1),
+            src: imageHashMap[srcUrl.substr(1)] || node.url,
             alt: node.alt,
           })
         ),
