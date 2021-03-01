@@ -7,7 +7,7 @@ const addAbsoluteImagePath = () => (tree) => {
     tree,
     (node) => is(node, 'img'),
     (img) => {
-      img.src = `${DOCS_SITE_URL}${src}`;
+      img.src = `${DOCS_SITE_URL}${img.src}`;
     }
   );
 };
