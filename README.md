@@ -1,6 +1,6 @@
 [![Community Project header](https://github.com/newrelic/opensource-website/raw/master/src/images/categories/Community_Project.png)](https://opensource.newrelic.com/oss-category/#community-project)
 
-# docs-preview.newrelic.com
+# docs.newrelic.com
 
 Welcome! 👋 this is the repo for the `NEW` New Relic Docs site.
 
