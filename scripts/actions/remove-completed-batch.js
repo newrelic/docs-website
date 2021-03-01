@@ -4,7 +4,7 @@ const { getAccessToken, vendorRequest } = require('./utils/vendor-request');
 const fetch = require('node-fetch');
 
 const PROJECT_ID = process.env.TRANSLATION_VENDOR_PROJECT;
-const DOCS_SITE_URL = 'https://docs-preview.newrelic.com';
+const DOCS_SITE_URL = 'https://docs.newrelic.com';
 
 /**
  * Updates the "being translated" queue with the batches that are not done.

@@ -70,14 +70,32 @@ module.exports = {
             resultsPath: `${__dirname}/src/data/swiftype-resources.json`,
             engineKey: 'Ad9HfGjDw4GRkcmJjUut',
             refetch: Boolean(process.env.BUILD_RELATED_CONTENT),
-            filter: ({ slug }) => {
-              const result = [
-                '/docs/apm/new-relic-apm/apdex/change-your-apdex-settings',
-                '/docs/integrations/kubernetes-integration/understand-use-data/kubernetes-cluster-explorer',
-                '/docs/agents/ruby-agent/features/ruby-vm-measurements',
-              ].includes(slug);
+            filter: ({ node }) => {
+              if (node.internal.type !== 'Mdx') {
+                return false;
+              }
 
-              return result;
+              const includedTypes = ['apiDoc', 'troubleshooting'];
+              const excludedFolders = [
+                'src/content/docs/release-notes',
+                'src/content/whats-new',
+              ];
+
+              const {
+                frontmatter,
+                fields: { fileRelativePath },
+              } = node;
+
+              if (
+                excludedFolders.some((path) => fileRelativePath.includes(path))
+              ) {
+                return false;
+              }
+
+              return (
+                frontmatter.type == null ||
+                includedTypes.includes(frontmatter.type)
+              );
             },
             getParams: ({ node }) => {
               const { tags, title } = node.frontmatter;
@@ -100,13 +118,6 @@ module.exports = {
               };
             },
           },
-        },
-        // This option is set to disallow to prevent crawling of the site during preview
-        // mode
-        robots: {
-          host: 'https://docs-preview.newrelic.com',
-          sitemap: 'https://docs-preview.newrelic.com/sitemap.xml',
-          policy: [{ userAgent: '*', disallow: '/' }],
         },
         newrelic: {
           configs: {
