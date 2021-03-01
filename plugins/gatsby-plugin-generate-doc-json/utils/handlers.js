@@ -4,11 +4,19 @@ const {
   findAttribute,
   isMdxElement,
 } = require('../../../codemods/utils/mdxast');
+const {
+  mdxValueExpression,
+} = require('../../../codemods/utils/mdxast-builder');
 const toString = require('mdast-util-to-string');
 const u = require('unist-builder');
 const { compileStyleObject } = require('../../../rehype-plugins/utils/styles');
 const { set, get } = require('lodash');
 const path = require('path');
+const toMDAST = require('remark-parse');
+const remarkMdx = require('remark-mdx');
+const remarkMdxjs = require('remark-mdxjs');
+const unified = require('unified');
+const visit = require('unist-util-visit');
 
 const stripNulls = (obj) =>
   Object.fromEntries(Object.entries(obj).filter(([, value]) => value != null));
@@ -23,9 +31,30 @@ const getAllAttributes = (node) =>
 const getSrcUrl = (fileRelativePath, url) =>
   path.join(path.dirname(fileRelativePath.replace('src/content', '')), url);
 
+const removeParagraphs = () => (tree) => {
+  visit(tree, 'paragraph', (node, idx, parent) => {
+    parent.children.splice(idx, 1, ...node.children);
+  });
+};
+
+const getImportUrl = (node, importObject) => {
+  return importObject[node.url.value];
+};
+
+const attributeProcessor = unified()
+  .use(toMDAST)
+  .use(remarkMdx)
+  .use(remarkMdxjs)
+  .use(removeParagraphs);
+
 module.exports = {
-  image: (h, node, imageHashMap, fileRelativePath) => {
-    const srcUrl = getSrcUrl(fileRelativePath, node.url);
+  image: (h, node, imageHashMap, fileRelativePath, importObject) => {
+    const relPath =
+      node.url.type === 'mdxValueExpression'
+        ? getImportUrl(node, importObject)
+        : '';
+
+    const srcUrl = getSrcUrl(fileRelativePath, relPath);
 
     const isBlockImage =
       node.parent &&
@@ -44,12 +73,15 @@ module.exports = {
           node,
           'img',
           stripNulls({
-            src: imageHashMap[srcUrl.substr(1)] || node.url,
+            src: imageHashMap[srcUrl.substr(1)] || srcUrl.substr(1),
             alt: node.alt,
           })
         ),
       ]
     );
+  },
+  CollapserTitle: (h, node) => {
+    return h(node, 'div', { className: 'collapser-title' }, all(h, node));
   },
   CodeBlock: (h, node) => {
     const props =
@@ -116,6 +148,42 @@ module.exports = {
     );
   },
   Collapser: (h, node) => {
+    const title = findAttribute('title', node);
+
+    if (title.type === 'mdxValueExpression') {
+      const root = attributeProcessor.parse(title.value);
+      const { children } = attributeProcessor.runSync(root);
+
+      const parsedChildren =
+        children[0].name !== null ? children[0] : children[0].children;
+
+      parsedChildren.forEach((child) => {
+        if (child.name === 'img') {
+          child.name = 'image';
+          const url = findAttribute('src', child);
+          child.url = typeof url === 'string' ? url : mdxValueExpression(url);
+        }
+      });
+
+      const newMdxElement = {
+        type: 'mdxBlockElement',
+        attributes: [],
+        name: 'CollapserTitle',
+        children:
+          children[0].name !== null ? children[0] : children[0].children,
+      };
+
+      node.children.unshift(newMdxElement);
+      return h(
+        node,
+        'div',
+        {
+          className: 'collapser',
+        },
+        all(h, node)
+      );
+    }
+
     return h(
       node,
       'div',
