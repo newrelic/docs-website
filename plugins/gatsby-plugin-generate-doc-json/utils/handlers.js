@@ -157,13 +157,22 @@ module.exports = {
       const parsedChildren =
         children[0].name !== null ? children[0] : children[0].children;
 
-      parsedChildren.forEach((child) => {
-        if (child.name === 'img') {
-          child.name = 'image';
-          const url = findAttribute('src', child);
-          child.url = typeof url === 'string' ? url : mdxValueExpression(url);
+      if (Array.isArray(parsedChildren)) {
+        parsedChildren.forEach((child) => {
+          if (child.name === 'img') {
+            child.name = 'image';
+            const url = findAttribute('src', child);
+            child.url = typeof url === 'string' ? url : mdxValueExpression(url);
+          }
+        });
+      } else {
+        if (parsedChildren.name === 'img') {
+          parsedChildren.name = 'image';
+          const url = findAttribute('src', parsedChildren);
+          parsedChildren.url =
+            typeof url === 'string' ? url : mdxValueExpression(url);
         }
-      });
+      }
 
       const newMdxElement = {
         type: 'mdxBlockElement',
