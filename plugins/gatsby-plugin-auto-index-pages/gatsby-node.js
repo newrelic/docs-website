@@ -52,6 +52,7 @@ exports.createPages = async ({ actions, graphql, reporter }, pluginOptions) => {
       allLocale(filter: { isDefault: { eq: false } }) {
         nodes {
           localizedPath
+          locale
         }
       }
       allFile(
@@ -124,12 +125,16 @@ exports.createPages = async ({ actions, graphql, reporter }, pluginOptions) => {
   }
 
   const {
-    allLocale: { nodes: locales },
+    allLocale,
     tableOfContents: { nodes: tableOfContentsNodes },
     translatedTableOfContents: { nodes: translatedTableOfContentsNodes },
     allFile: { nodes: fileNodes },
     translatedFiles: { nodes: translatedFileNodes },
   } = data;
+
+  const allLocales = allLocale.nodes.map(prop('locale'));
+
+  const { nodes: locales } = allLocale;
 
   const existingPaths = tableOfContentsNodes
     .map(getSlug)
@@ -172,10 +177,11 @@ exports.createPages = async ({ actions, graphql, reporter }, pluginOptions) => {
 
       redirectsFrom.paths.forEach((from) => {
         reporter.verbose(`\tRedirect from ${from}`);
+
         createLocalizedRedirect({
           fromPath: from,
           toPath: slug,
-          locales,
+          locales: allLocales,
           isPermanent: true,
           redirectInBrowser: true,
           createRedirect,
