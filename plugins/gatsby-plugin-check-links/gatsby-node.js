@@ -15,7 +15,7 @@ exports.onPostBuild = async ({ graphql }) => {
       }
       allMarkdownRemark {
         nodes {
-          htmlAST
+          htmlAst
           fields {
             fileRelativePath
           }
