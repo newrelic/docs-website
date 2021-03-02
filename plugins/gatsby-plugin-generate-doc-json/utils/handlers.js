@@ -9,6 +9,11 @@ const u = require('unist-builder');
 const { compileStyleObject } = require('../../../rehype-plugins/utils/styles');
 const { set, get } = require('lodash');
 const path = require('path');
+const toMDAST = require('remark-parse');
+const remarkMdx = require('remark-mdx');
+const remarkMdxjs = require('remark-mdxjs');
+const unified = require('unified');
+const visit = require('unist-util-visit');
 
 const stripNulls = (obj) =>
   Object.fromEntries(Object.entries(obj).filter(([, value]) => value != null));
@@ -22,6 +27,18 @@ const getAllAttributes = (node) =>
 
 const getSrcUrl = (fileRelativePath, url) =>
   path.join(path.dirname(fileRelativePath.replace('src/content', '')), url);
+
+const removeParagraphs = () => (tree) => {
+  visit(tree, 'paragraph', (node, idx, parent) => {
+    parent.children.splice(idx, 1, ...node.children);
+  });
+};
+
+const attributeProcessor = unified()
+  .use(toMDAST)
+  .use(remarkMdx)
+  .use(remarkMdxjs)
+  .use(removeParagraphs);
 
 module.exports = {
   image: (h, node, imageHashMap, fileRelativePath) => {
@@ -116,6 +133,30 @@ module.exports = {
     );
   },
   Collapser: (h, node) => {
+    const title = findAttribute('title', node);
+
+    if (title.type === 'mdxValueExpression') {
+      const root = attributeProcessor.parse(title.value);
+      const { children } = attributeProcessor.runSync(root);
+
+      const parsedChildren =
+        children[0].name !== null ? children[0] : children[0].children;
+
+      const titleNode =
+        Array.isArray(parsedChildren) &&
+        parsedChildren.find((child) => child.type === 'text');
+
+      return h(
+        node,
+        'div',
+        {
+          className: 'collapser',
+          title: titleNode && titleNode.value ? titleNode.value.trim() : '',
+        },
+        all(h, node)
+      );
+    }
+
     return h(
       node,
       'div',
