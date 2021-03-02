@@ -265,12 +265,12 @@ include <vips/vips8>
 make: *** [Release/obj.target/sharp/src/common.o] Error 1
 gyp ERR! build error
 gyp ERR! stack Error: `make` failed with exit code: 2
-gyp ERR! stack     at ChildProcess.onExit (/Users/cirne/.nvm/versions/node/v15.4.0/lib/node_modules/npm/node_modules/node-gyp/lib/build.js:194:23)
+gyp ERR! stack     at ChildProcess.onExit (/Users/me/.nvm/versions/node/v15.4.0/lib/node_modules/npm/node_modules/node-gyp/lib/build.js:194:23)
 gyp ERR! stack     at ChildProcess.emit (node:events:376:20)
 gyp ERR! stack     at Process.ChildProcess._handle.onexit (node:internal/child_process:284:12)
 gyp ERR! System Darwin 20.3.0
-gyp ERR! command "/Users/doe/.nvm/versions/node/v15.4.0/bin/node" "/Users/cirne/.nvm/versions/node/v15.4.0/lib/node_modules/npm/node_modules/node-gyp/bin/node-gyp.js" "rebuild"
-gyp ERR! cwd /Users/jcirne/dev/docs-website/node_modules/sharp
+gyp ERR! command "/Users/me/.nvm/versions/node/v15.4.0/bin/node" "/Users/me/.nvm/versions/node/v15.4.0/lib/node_modules/npm/node_modules/node-gyp/bin/node-gyp.js" "rebuild"
+gyp ERR! cwd /Users/me/dev/docs-website/node_modules/sharp
 ```
 
 **Solution**
