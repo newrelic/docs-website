@@ -122,4 +122,4 @@ const jsxImagesToChildren = () => (tree) => {
   );
 };
 
-module.exports = jsxPropsToChildren;
+module.exports = jsxImagesToChildren;
