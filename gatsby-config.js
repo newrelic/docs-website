@@ -1,5 +1,9 @@
 const fs = require('fs');
 const path = require('path');
+const parse = require('rehype-parse');
+const unified = require('unified');
+const addAbsoluteImagePath = require('./rehype-plugins/utils/addAbsoluteImagePath');
+const html = require('rehype-stringify');
 
 const siteUrl = 'https://docs.newrelic.com';
 const dataDictionaryPath = `${__dirname}/src/data-dictionary`;
@@ -348,18 +352,26 @@ module.exports = {
             fs.readFileSync(path.join(__dirname, 'src/data/whats-new-ids.json'))
           );
 
+          const htmlParser = unified()
+            .use(parse)
+            .use(addAbsoluteImagePath)
+            .use(html);
+
           return {
             announcements: data.allMarkdownRemark.nodes.map(
-              ({ frontmatter, html, fields }) => ({
-                docsID: ids[fields.slug],
-                title: frontmatter.title,
-                summary: frontmatter.summary,
-                releaseDateTime: frontmatter.releaseDate,
-                learnMoreLink: frontmatter.learnMoreLink,
-                getStartedLink: frontmatter.getStartedLink,
-                body: html,
-                docUrl: new URL(fields.slug, siteUrl).href,
-              })
+              ({ frontmatter, html, fields }) => {
+                const parsedHtml = htmlParser.runSync(html);
+                return {
+                  docsID: ids[fields.slug],
+                  title: frontmatter.title,
+                  summary: frontmatter.summary,
+                  releaseDateTime: frontmatter.releaseDate,
+                  learnMoreLink: frontmatter.learnMoreLink,
+                  getStartedLink: frontmatter.getStartedLink,
+                  body: htmlParser.stringify(parsedHtml),
+                  docUrl: new URL(fields.slug, siteUrl).href,
+                };
+              }
             ),
           };
         },
