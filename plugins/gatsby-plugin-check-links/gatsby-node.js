@@ -23,7 +23,12 @@ const externalPattern = new RegExp(
 );
 
 const isHash = (to) => to.startsWith('#');
-const isExternal = (to) => externalPattern.test(to);
+const isExternal = (to) => {
+  if (to.startsWith('//')) {
+    return externalPattern.test(to.slice(2));
+  }
+  return externalPattern.test(to);
+};
 
 const isMdxElement = (node) =>
   isType('mdxBlockElement', node) || isType('mdxSpanElement', node);
@@ -65,11 +70,23 @@ const getPageResponse = async (path) => {
 exports.onPostBuild = async ({ graphql }) => {
   const { data } = await graphql(`
     query {
-      allMdx(filter: { fileAbsolutePath: { regex: "/src/" } }) {
+      allMdx {
         nodes {
           mdxAST
           fields {
             fileRelativePath
+          }
+        }
+      }
+      allMarkdownRemark {
+        nodes {
+          htmlAST
+        }
+      }
+      allFile(filter: { absolutePath: { regex: "/src/nav/" } }) {
+        edges {
+          node {
+            relativePath
           }
         }
       }
