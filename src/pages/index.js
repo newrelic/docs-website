@@ -111,7 +111,7 @@ const HomePage = ({ data }) => {
               description={t('home.welcome.t2.description')}
             />
             <WelcomeTile
-              to="/docs/alerts/new-relic-alerts/getting-started/introduction-new-relic-alerts"
+              to="/docs.newrelic.com/docs/new-relic-one/use-new-relic-one/core-concepts/new-relic-explorer-view-performance-across-apps-services-hosts#view-lookout"
               title={t('home.welcome.t3.title')}
               description={t('home.welcome.t3.description')}
             />
