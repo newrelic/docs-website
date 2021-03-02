@@ -341,7 +341,7 @@ module.exports = {
               fields {
                 slug
               }
-              htmlAST
+              htmlAst
             }
           }
         }
@@ -360,7 +360,7 @@ module.exports = {
           return {
             announcements: data.allMarkdownRemark.nodes.map(
               ({ frontmatter, htmlAST, fields }) => {
-                const parsedHtml = htmlParser.runSync(htmlAST);
+                const parsedHtml = htmlParser.runSync(htmlAst);
                 return {
                   docsID: ids[fields.slug],
                   title: frontmatter.title,
