@@ -5,7 +5,7 @@ exports.onPostBuild = async ({ graphql, store }, pluginOptions) => {
   const { program } = store.getState();
   const { query, serialize } = pluginOptions;
 
-  console.log(`Creating JSON for ${filepath}`);
+  console.log(`Creating JSON for ${pluginOptions.path}`);
   const data = query
     ? serialize(await graphql(query))
     : serialize({ data: null });
