@@ -22,14 +22,16 @@
   - [Reusable components](#reusable-components)
   - [Editing existing pages](#editing-existing-pages)
   - [Creating new pages](#creating-new-pages)
-    - [Adding a what's new post](#adding-a-whats-new-post)
-    - [What's new post frontmatter example](#whats-new-post-frontmatter-example)
   - [Deleting pages](#deleting-pages)
   - [Updating the navigation](#updating-the-navigation)
   - [Adding a new page](#adding-a-new-page)
   - [Moving a page to a new location](#moving-a-page-to-a-new-location)
   - [Private edits](#private-edits)
     - [Bring your private work back into the public repository](#bring-your-private-work-back-into-the-public-repository)
+  - [Troubleshooting](#troubleshooting)
+    - [General Install, compile or build issues](#general-install-compile-or-build-issues)
+    - [Build / compile issues on the Apple M1 chipset](#build--compile-issues-on-the-apple-m1-chipset)
+    - [Problems with yarn start](#problems-with-yarn-start)
 
 ## Guidelines for contributing
 
@@ -233,3 +235,55 @@ _NOTE: with all of these steps, if you have SSH Keys set up, you will want to us
 5. Make a new branch: `git checkout -b your_branch_name`.
 6. Pull in content from you private repo: `git pull private main`.
 7. Push your new work up to GitHub: `git push origin your_branch_name`.
+
+## Troubleshooting
+
+This section attempts to capture some of the more common troubleshooting techniques to try
+if you face issues in contributing.
+
+### General Install, compile or build issues
+
+Many of the common errors you'll face can be resolve by the following:
+
+1. Ensure you are using `Yarn` not `NPM`
+2. When in doubt completely delete the `node_module` folder in the root project directory, and re-run `yarn install`
+3. Always run `git pull` whenever you intend to create a new working branch
+4. Always run `Yarn install` whenever you git pull.
+
+### Build / compile issues on the Apple M1 chipset
+
+```bash
+gyp info spawn args [ 'BUILDTYPE=Release', '-C', 'build' ]
+  CC(target) Release/obj.target/nothing/../node-addon-api/nothing.o
+  LIBTOOL-STATIC Release/nothing.a
+warning: /Library/Developer/CommandLineTools/usr/bin/libtool: archive library: Release/nothing.a the table of contents is empty (no object file members in the library define global symbols)
+  TOUCH Release/obj.target/libvips-cpp.stamp
+  CXX(target) Release/obj.target/sharp/src/common.o
+../src/common.cc:23:10: fatal error: 'vips/vips8' file not found
+include <vips/vips8>
+1 error generated.
+make: *** [Release/obj.target/sharp/src/common.o] Error 1
+gyp ERR! build error
+gyp ERR! stack Error: `make` failed with exit code: 2
+gyp ERR! stack     at ChildProcess.onExit (/Users/cirne/.nvm/versions/node/v15.4.0/lib/node_modules/npm/node_modules/node-gyp/lib/build.js:194:23)
+gyp ERR! stack     at ChildProcess.emit (node:events:376:20)
+gyp ERR! stack     at Process.ChildProcess._handle.onexit (node:internal/child_process:284:12)
+gyp ERR! System Darwin 20.3.0
+gyp ERR! command "/Users/doe/.nvm/versions/node/v15.4.0/bin/node" "/Users/cirne/.nvm/versions/node/v15.4.0/lib/node_modules/npm/node_modules/node-gyp/bin/node-gyp.js" "rebuild"
+gyp ERR! cwd /Users/jcirne/dev/docs-website/node_modules/sharp
+```
+
+**Solution**
+
+https://github.com/lovell/sharp/issues/2460#issuecomment-768558230
+
+### Problems with yarn start
+
+```bash
+ ERROR
+[BABEL] Note: The code generator has deoptimised the styling of /Users/jdoe/code/docs-website/src/content/docs/licenses/license-information/other-licenses/services-licenses.mdx as it exceeds the max of 500KB.
+```
+
+**Solution**
+
+ignore it, not a big issue 😉
