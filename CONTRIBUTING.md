@@ -280,6 +280,8 @@ https://github.com/lovell/sharp/issues/2460#issuecomment-768558230
 
 ### Problems with yarn start
 
+When you start up the site via `yarn start`, you may see errors in your terminal like the following:
+
 ```bash
  ERROR
 [BABEL] Note: The code generator has deoptimised the styling of /Users/jdoe/code/docs-website/src/content/docs/licenses/license-information/other-licenses/services-licenses.mdx as it exceeds the max of 500KB.
@@ -287,4 +289,4 @@ https://github.com/lovell/sharp/issues/2460#issuecomment-768558230
 
 **Solution**
 
-ignore it, not a big issue 😉
+You can ignore the error as this is a babel warning when compiling MDX docs. This does not affect the functionality of the site.
