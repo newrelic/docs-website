@@ -329,6 +329,7 @@ const SectionTitle = ({ title, icon, to }) => {
 SectionTitle.propTypes = {
   title: PropTypes.string,
   icon: PropTypes.elementType,
+  to: PropTypes.string,
 };
 
 const SectionDescription = (props) => (
