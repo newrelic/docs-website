@@ -5,6 +5,7 @@ const {
 } = require('../../../codemods/utils/mdxast');
 const is = require('hast-util-is-element');
 const getPageResponse = require('./get-page-response');
+const visit = require('unist-util-visit');
 
 const externalPattern = new RegExp(
   '^((https|http|ftp|rtsp|mms)?://)' +
@@ -30,7 +31,7 @@ const isExternal = (to) => {
 const isMdxElement = (node) =>
   isType('mdxBlockElement', node) || isType('mdxSpanElement', node);
 
-const linkVisitorMdx = ({ fileRelativePath }) => (tree) => {
+const linkVisitorMdx = ({ fileRelativePath }) => async (tree) => {
   const invalidLinks = [];
   visit(
     tree,
@@ -57,13 +58,13 @@ const linkVisitorMdx = ({ fileRelativePath }) => (tree) => {
   }
 };
 
-const linkVisitorHtml = ({ fileRelativePath }) => (tree) => {
+const linkVisitorHtml = ({ fileRelativePath }) => async (tree) => {
   const invalidLinks = [];
   visit(
     tree,
     (node) => is(node, 'a'),
     async (a) => {
-      const to = a.href;
+      const to = a.properties.href;
       try {
         if (!isHash(to) && !isExternal(to)) {
           const code = await getPageResponse(to);
@@ -76,6 +77,7 @@ const linkVisitorHtml = ({ fileRelativePath }) => (tree) => {
       }
     }
   );
+  console.log(invalidLinks);
   if (invalidLinks.length) {
     console.log(`!! Found ${invalidLinks.length} links on ${fileRelativePath}`);
     invalidLinks.forEach((link) => console.log(`- ${link}`));
