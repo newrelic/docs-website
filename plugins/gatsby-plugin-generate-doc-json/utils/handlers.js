@@ -151,7 +151,7 @@ module.exports = {
         'div',
         {
           className: 'collapser',
-          title: titleNode.value ? titleNode.value.trim() : '',
+          title: titleNode && titleNode.value ? titleNode.value.trim() : '',
         },
         all(h, node)
       );
