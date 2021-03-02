@@ -9,13 +9,27 @@ const {
 
 const BASE_URL = 'https://docs-preview.newrelic.com';
 
+const externalPattern = new RegExp(
+  '^((https|http|ftp|rtsp|mms)?://)' +
+    "?(([0-9a-z_!~*'().&=+$%-]+: )?[0-9a-z_!~*'().&=+$%-]+@)?" +
+    '(([0-9]{1,3}.){3}[0-9]{1,3}' +
+    '|' +
+    "([0-9a-z_!~*'()-]+.)*" +
+    '([0-9a-z][0-9a-z-]{0,61})?[0-9a-z].' +
+    '[a-z]{2,6})' +
+    '(:[0-9]{1,4})?' +
+    '((/?)|' +
+    "(/[0-9a-z_!~*'().;?:@&=+$,%#-]+)+/?)$"
+);
+
 const isHash = (to) => to.startsWith('#');
-const isExternal = (to) => to.startsWith('http');
+const isExternal = (to) => externalPattern.test(to);
 
 const isMdxElement = (node) =>
   isType('mdxBlockElement', node) || isType('mdxSpanElement', node);
 
-const linkVisitor = () => (tree) => {
+const linkVisitor = ({ fileRelativePath }) => (tree) => {
+  const invalidLinks = [];
   visit(
     tree,
     (node) =>
@@ -27,7 +41,7 @@ const linkVisitor = () => (tree) => {
         if (!isHash(to) && !isExternal(to)) {
           const code = await getPageResponse(to);
           if (code !== 200) {
-            console.log('!! INVALID PATH: ', to);
+            invalidLinks.push(to);
           }
         }
       } catch (error) {
@@ -35,17 +49,15 @@ const linkVisitor = () => (tree) => {
       }
     }
   );
+  if (invalidLinks.length) {
+    console.log(`!! Found ${invalidLinks.length} links on ${fileRelativePath}`);
+    invalidLinks.forEach((link) => console.log(`- ${link}`));
+  }
 };
-
-const processor = unified().use(linkVisitor);
 
 const getPageResponse = async (path) => {
   const url = new URL(path, BASE_URL);
   const { status } = await fetch(url, { method: 'HEAD' });
-
-  if (status !== 200) {
-    console.log(status, path);
-  }
 
   return status;
 };
@@ -56,6 +68,9 @@ exports.onPostBuild = async ({ graphql }) => {
       allMdx(filter: { fileAbsolutePath: { regex: "/src/" } }) {
         nodes {
           mdxAST
+          fields {
+            fileRelativePath
+          }
         }
       }
     }
@@ -65,7 +80,11 @@ exports.onPostBuild = async ({ graphql }) => {
 
   await Promise.all(
     allMdx.nodes.filter(async (node) => {
-      const { mdxAST } = node;
+      const {
+        mdxAST,
+        fields: { fileRelativePath },
+      } = node;
+      const processor = unified().use(linkVisitor, { fileRelativePath });
       await processor.run(mdxAST);
     })
   );
