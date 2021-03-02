@@ -7,6 +7,7 @@ import {
   Link,
   Icon,
   Surface,
+  useInstrumentedHandler,
   useTranslation,
   Trans,
 } from '@newrelic/gatsby-theme-newrelic';
@@ -119,7 +120,11 @@ const HomePage = ({ data }) => {
         </div>
       </Section>
       <Section alternate layout={layout}>
-        <SectionTitle title={t('home.tdp.title')} icon="nr-tdp" />
+        <SectionTitle
+          title={t('home.tdp.title')}
+          icon="nr-tdp"
+          to="/docs/telemetry-data-platform"
+        />
         <SectionDescription>{t('home.tdp.description')}</SectionDescription>
         <DocTileGrid>
           {tdp.tiles.map((link, idx) => (
@@ -133,7 +138,11 @@ const HomePage = ({ data }) => {
         </DocTileGrid>
       </Section>
       <Section layout={layout}>
-        <SectionTitle title={t('home.fso.title')} icon="nr-fso" />
+        <SectionTitle
+          title={t('home.fso.title')}
+          icon="nr-fso"
+          to="/docs/full-stack-observability"
+        />
         <SectionDescription>{t('home.fso.description')}</SectionDescription>
         <DocTileGrid>
           {fso.tiles.map((link, idx) => (
@@ -147,7 +156,11 @@ const HomePage = ({ data }) => {
         </DocTileGrid>
       </Section>
       <Section alternate layout={layout}>
-        <SectionTitle title={t('home.ai.title')} icon="nr-ai" />
+        <SectionTitle
+          title={t('home.ai.title')}
+          icon="nr-ai"
+          to="/docs/alerts-applied-intelligence"
+        />
         <SectionDescription>{t('home.ai.description')}</SectionDescription>
         <DocTileGrid>
           {ai.tiles.map((link, idx) => (
@@ -272,25 +285,46 @@ Section.propTypes = {
   }),
 };
 
-const SectionTitle = ({ title, icon }) => (
-  <h2
-    css={css`
-      display: flex;
-      align-items: center;
-    `}
-  >
-    {icon && (
-      <Icon
-        name={icon}
-        size="3rem"
+const SectionTitle = ({ title, icon, to }) => {
+  const handleClick = useInstrumentedHandler(null, {
+    actionName: 'sectionTitle_click',
+    title,
+    href: to,
+  });
+
+  const Wrapper = to ? Link : React.Fragment;
+  const props = to
+    ? {
+        to,
+        onClick: handleClick,
+        css: css`
+          display: inline-block;
+        `,
+      }
+    : {};
+
+  return (
+    <Wrapper {...props}>
+      <h2
         css={css`
-          margin-right: 1rem;
+          display: flex;
+          align-items: center;
         `}
-      />
-    )}
-    {title}
-  </h2>
-);
+      >
+        {icon && (
+          <Icon
+            name={icon}
+            size="3rem"
+            css={css`
+              margin-right: 1rem;
+            `}
+          />
+        )}
+        {title}
+      </h2>
+    </Wrapper>
+  );
+};
 
 SectionTitle.propTypes = {
   title: PropTypes.string,
