@@ -2,7 +2,7 @@ const {
   hasAttribute,
   findAttribute,
   isType,
-} = require('../../codemods/utils/mdxast');
+} = require('../../../codemods/utils/mdxast');
 const is = require('hast-util-is-element');
 const getPageResponse = require('./get-page-response');
 
