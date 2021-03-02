@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const parse = require('rehype-parse');
 const unified = require('unified');
-const addAbsoluteImagePath = require('./rehype-plugins/utils/addAbsoluteImagePath.js');
+const addAbsoluteImagePath = require('./rehype-plugins/utils/addAbsoluteImagePath');
 const html = require('rehype-stringify');
 
 const siteUrl = 'https://docs.newrelic.com';
