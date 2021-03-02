@@ -359,7 +359,7 @@ module.exports = {
 
           return {
             announcements: data.allMarkdownRemark.nodes.map(
-              ({ frontmatter, htmlAST, fields }) => {
+              ({ frontmatter, htmlAst, fields }) => {
                 const parsedHtml = htmlParser.runSync(htmlAst);
                 return {
                   docsID: ids[fields.slug],
