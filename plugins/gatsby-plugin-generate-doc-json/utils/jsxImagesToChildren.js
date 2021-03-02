@@ -18,11 +18,11 @@ const removeParagraphs = () => (tree) => {
   });
 };
 
-const findAttributeNode = (attributeName, node) => {
+const findAttributeNode = (attrName, node) => {
   if (!node.attributes) {
     return null;
   }
-  const attribute = node.attributes.find((attr) => attr.name === attributeName);
+  const attribute = node.attributes.find((attr) => attr.name === attrName);
   return attribute;
 };
 
@@ -37,9 +37,11 @@ const capitalize = (s) => {
 };
 
 const jsxPropToElement = (attrName, node) => {
-  const name = findAttributeNode(attrName, node);
+  const {
+    value: { value: jsx },
+  } = findAttributeNode(attrName, node);
 
-  const root = attributeProcessor.parse(name.value.value);
+  const root = attributeProcessor.parse(jsx);
   const { children } = attributeProcessor.runSync(root);
   const element = mdxBlockElement(
     `${node.name}${capitalize(attrName)}`,

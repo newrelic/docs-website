@@ -22,9 +22,9 @@ const mdxElement = (h, node) => {
 
 const htmlGenerator = unified()
   .use(jsxImagesToChildren)
+  .use(fencedCodeBlock)
   .use(removeImports)
   .use(removeExports)
-  .use(fencedCodeBlock)
   .use(customHeadingIds)
   .use(html);
 
