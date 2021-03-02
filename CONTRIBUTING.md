@@ -245,7 +245,7 @@ if you face issues in contributing.
 
 Many of the common errors you'll face can be resolve by the following:
 
-1. Ensure you are using `Yarn` not `NPM`
+1. Ensure you are using `yarn` not `npm`
 2. When in doubt completely delete the `node_module` folder in the root project directory, and re-run `yarn install`
 3. Always run `git pull` whenever you intend to create a new working branch
 4. Always run `Yarn install` whenever you git pull.
