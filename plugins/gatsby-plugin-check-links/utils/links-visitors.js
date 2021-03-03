@@ -8,8 +8,7 @@ const getPageResponse = require('./get-page-response');
 const visit = require('unist-util-visit');
 
 const isHash = (to) => to.startsWith('#');
-const isExternal = (to) =>
-  to.startsWith('https://') || to.startsWith('mailto:');
+const isEmail = (to) => to.startsWith('https://') || to.startsWith('mailto:');
 
 const isMdxElement = (node) =>
   isType('mdxBlockElement', node) || isType('mdxSpanElement', node);
@@ -23,7 +22,7 @@ const linkVisitorMdx = ({ fileRelativePath }) => async (tree) => {
     async (node) => {
       const to = isType('link', node) ? node.url : findAttribute('to', node);
       try {
-        if (!isHash(to) && !isExternal(to)) {
+        if (!isHash(to) && !isEmail(to)) {
           const code = await getPageResponse(to);
           if (code === 404) {
             console.log(`INVALID LINK: ${to} \n > file: ${fileRelativePath}`);
@@ -43,7 +42,7 @@ const linkVisitorHtml = ({ fileRelativePath }) => async (tree) => {
     async (a) => {
       const to = a.properties.href;
       try {
-        if (!isHash(to) && !isExternal(to)) {
+        if (!isHash(to) && !isEmail(to)) {
           const code = await getPageResponse(to);
           if (code === 404) {
             console.log(`INVALID LINK: ${to} \n > file: ${fileRelativePath}`);
