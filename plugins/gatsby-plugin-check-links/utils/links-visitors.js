@@ -25,7 +25,7 @@ const linkVisitorMdx = ({ fileRelativePath }) => async (tree) => {
       try {
         if (!isHash(to) && !isExternal(to)) {
           const code = await getPageResponse(to);
-          if (code !== 200) {
+          if (code === 404) {
             console.log(`INVALID LINK: ${to} \n > file: ${fileRelativePath}`);
           }
         }
@@ -45,7 +45,7 @@ const linkVisitorHtml = ({ fileRelativePath }) => async (tree) => {
       try {
         if (!isHash(to) && !isExternal(to)) {
           const code = await getPageResponse(to);
-          if (code !== 200) {
+          if (code === 404) {
             console.log(`INVALID LINK: ${to} \n > file: ${fileRelativePath}`);
           }
         }
