@@ -462,7 +462,7 @@ module.exports = {
             .map(({ frontmatter, fields }) => ({
               agent:
                 fields.slug !== '/docs/release-notes'
-                  ? fields.slugsplit('release-notes/')[1].replace('-', '')
+                  ? fields.slug.split('release-notes/')[1].replace('-', '')
                   : null,
               date: frontmatter.releaseDate,
               version: frontmatter.version,
