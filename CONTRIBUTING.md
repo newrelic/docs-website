@@ -56,7 +56,7 @@ yarn
 yarn start
 ```
 
-Your site is now running at `http://localhost:8000`!
+Your site is now running at [`http://localhost:8000`](http://localhost:8000)!
 
 ### Dependencies
 
