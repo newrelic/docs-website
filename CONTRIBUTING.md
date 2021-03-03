@@ -22,8 +22,6 @@
   - [Reusable components](#reusable-components)
   - [Editing existing pages](#editing-existing-pages)
   - [Creating new pages](#creating-new-pages)
-    - [Adding a what's new post](#adding-a-whats-new-post)
-    - [What's new post frontmatter example](#whats-new-post-frontmatter-example)
   - [Deleting pages](#deleting-pages)
   - [Updating the navigation](#updating-the-navigation)
   - [Adding a new page](#adding-a-new-page)
