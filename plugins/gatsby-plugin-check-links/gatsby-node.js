@@ -33,27 +33,23 @@ exports.onPostBuild = async ({ graphql }) => {
 
   await checkNavLinks(allFile);
 
-  await Promise.all(
-    allMdx.nodes.forEach(async (node) => {
-      const {
-        mdxAST,
-        fields: { fileRelativePath },
-      } = node;
-      const mdxProcessor = unified().use(linkVisitorMdx, { fileRelativePath });
-      await mdxProcessor.run(mdxAST);
-    })
-  );
+  allMdx.nodes.forEach(async (node) => {
+    const {
+      mdxAST,
+      fields: { fileRelativePath },
+    } = node;
+    const mdxProcessor = unified().use(linkVisitorMdx, { fileRelativePath });
+    await mdxProcessor.run(mdxAST);
+  });
 
-  await Promise.all(
-    allMarkdownRemark.nodes.forEach(async (node) => {
-      const {
-        htmlAST,
-        fields: { fileRelativePath },
-      } = node;
-      const htmlProcessor = unified().use(linkVisitorHtml, {
-        fileRelativePath,
-      });
-      await htmlProcessor.run(htmlAST);
-    })
-  );
+  allMarkdownRemark.nodes.forEach(async (node) => {
+    const {
+      htmlAST,
+      fields: { fileRelativePath },
+    } = node;
+    const htmlProcessor = unified().use(linkVisitorHtml, {
+      fileRelativePath,
+    });
+    await htmlProcessor.run(htmlAST);
+  });
 };

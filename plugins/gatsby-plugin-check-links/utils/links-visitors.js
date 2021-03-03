@@ -7,32 +7,14 @@ const is = require('hast-util-is-element');
 const getPageResponse = require('./get-page-response');
 const visit = require('unist-util-visit');
 
-const externalPattern = new RegExp(
-  '^((https|http|ftp|rtsp|mms)?://)' +
-    "?(([0-9a-z_!~*'().&=+$%-]+: )?[0-9a-z_!~*'().&=+$%-]+@)?" +
-    '(([0-9]{1,3}.){3}[0-9]{1,3}' +
-    '|' +
-    "([0-9a-z_!~*'()-]+.)*" +
-    '([0-9a-z][0-9a-z-]{0,61})?[0-9a-z].' +
-    '[a-z]{2,6})' +
-    '(:[0-9]{1,4})?' +
-    '((/?)|' +
-    "(/[0-9a-z_!~*'().;?:@&=+$,%#-]+)+/?)$"
-);
-
 const isHash = (to) => to.startsWith('#');
-const isExternal = (to) => {
-  if (to.startsWith('//')) {
-    return externalPattern.test(to.slice(2));
-  }
-  return externalPattern.test(to);
-};
+const isExternal = (to) =>
+  to.startsWith('https://') || to.startsWith('mailto:');
 
 const isMdxElement = (node) =>
   isType('mdxBlockElement', node) || isType('mdxSpanElement', node);
 
 const linkVisitorMdx = ({ fileRelativePath }) => async (tree) => {
-  const invalidLinks = [];
   visit(
     tree,
     (node) =>
@@ -44,22 +26,17 @@ const linkVisitorMdx = ({ fileRelativePath }) => async (tree) => {
         if (!isHash(to) && !isExternal(to)) {
           const code = await getPageResponse(to);
           if (code !== 200) {
-            invalidLinks.push(to);
+            console.log(`INVALID LINK: ${to} \n > file: ${fileRelativePath}`);
           }
         }
       } catch (error) {
-        console.log('ERROR:', to);
+        console.error('ERROR:', to);
       }
     }
   );
-  if (invalidLinks.length) {
-    console.log(`!! Found ${invalidLinks.length} links on ${fileRelativePath}`);
-    invalidLinks.forEach((link) => console.log(`- ${link}`));
-  }
 };
 
 const linkVisitorHtml = ({ fileRelativePath }) => async (tree) => {
-  const invalidLinks = [];
   visit(
     tree,
     (node) => is(node, 'a'),
@@ -69,7 +46,7 @@ const linkVisitorHtml = ({ fileRelativePath }) => async (tree) => {
         if (!isHash(to) && !isExternal(to)) {
           const code = await getPageResponse(to);
           if (code !== 200) {
-            invalidLinks.push(to);
+            console.log(`INVALID LINK: ${to} \n > file: ${fileRelativePath}`);
           }
         }
       } catch (error) {
@@ -77,11 +54,6 @@ const linkVisitorHtml = ({ fileRelativePath }) => async (tree) => {
       }
     }
   );
-  console.log(invalidLinks);
-  if (invalidLinks.length) {
-    console.log(`!! Found ${invalidLinks.length} links on ${fileRelativePath}`);
-    invalidLinks.forEach((link) => console.log(`- ${link}`));
-  }
 };
 
 module.exports = { linkVisitorMdx, linkVisitorHtml };

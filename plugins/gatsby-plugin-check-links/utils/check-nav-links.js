@@ -1,5 +1,6 @@
 const fs = require('fs');
 const yaml = require('js-yaml');
+
 const NAV_DIR = 'src/nav';
 const getPageResponse = require('./get-page-response');
 
@@ -18,34 +19,43 @@ const getLinksFromNav = (filepath) => {
     const file = fs.readFileSync(filepath, 'utf8');
     const data = yaml.load(file);
 
-    return [...new Set(extractLinks(data))];
+    return { links: [...new Set(extractLinks(data))], filepath };
   } catch (e) {
     console.error(`Unable to fetch ${filepath}:\n${e}`);
   }
 };
 
-const codeRequests = async (links) =>
-  await Promise.all(
-    links.map(async (path) => {
-      const code = await getPageResponse(path);
+const codeRequests = async (nav) => {
+  return Promise.all(
+    nav.map(async ({ filepath, links }) => {
+      const paths = await Promise.all(
+        links
+          .map(async (path) => {
+            const code = await getPageResponse(path);
 
-      if (code != 200) {
-        return;
-      }
-
-      return path;
+            if (code !== 200) {
+              return path;
+            }
+          })
+          .filter((path) => path === undefined)
+      );
+      return { filepath, paths };
     })
   );
+};
 
 const checkNavLinks = async ({ nodes }) => {
-  const links = nodes
-    .map(({ relativePath }) => relativePath)
-    .flatMap((filename) => getLinksFromNav(`${NAV_DIR}/${filename}`));
+  const nav = nodes.map(({ relativePath }) =>
+    getLinksFromNav(`${NAV_DIR}/${relativePath}`)
+  );
 
-  const invalidLinks = await codeRequests(links);
+  const invalidLinks = await codeRequests(nav);
 
-  console.log(`!! Found ${invalidLinks.length} links in navigation yaml files`);
-  invalidLinks.forEach((link) => console.log(`- ${link}`));
+  invalidLinks.forEach(({ filepath, paths }) =>
+    paths.forEach((path) =>
+      console.log(`INVALID LINK: ${path} \n > ${filepath}`)
+    )
+  );
 };
 
 module.exports = checkNavLinks;
