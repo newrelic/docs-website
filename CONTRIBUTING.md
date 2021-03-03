@@ -88,9 +88,9 @@ you can use the Github `Edit This File` button to submit a change.
 
 ### Cloning vs Forking
 
-To be able to [Clone](https://help.github.com/en/github/creating-cloning-and-archiving-repositories/cloning-a-repository) this repository and contribute you will need to be given write access to the repository. This is reserved for New Relic Employees only. Contact the Developer Experience team (developer-website-content Slack channel) if you need write access.
+To be able to [Clone](https://help.github.com/en/github/creating-cloning-and-archiving-repositories/cloning-a-repository) this repository and contribute you will need to be given write access to the repository. This is reserved for New Relic Doc Writers. Contact the Developer Experience team (developer-website-content Slack channel) if you need write access.
 
-As a non New Relic employee you can [Fork](https://help.github.com/en/github/getting-started-with-github/fork-a-repo) the repository and contribute as needed.
+To contribute without write access, you can [Fork](https://help.github.com/en/github/getting-started-with-github/fork-a-repo) the repository and contribute as needed.
 
 ### Submitting a PR from a forked repo
 
@@ -225,6 +225,7 @@ If you have access to a private version of this repository, you can contribute a
 _NOTE: with all of these steps, if you have SSH Keys set up, you will want to use the SSH URL (not the HTTPS URL)._
 
 ### Bring your private work back into the public repository
+
 1. Click the fork button in the GitHub UI for the [docs-website repository](https://github.com/newrelic/docs-website).
 2. Clone the fork on your computer: `git clone https://github.com/yourname/docs-website`.
 3. Change into the fork repo: `cd docs-website`.

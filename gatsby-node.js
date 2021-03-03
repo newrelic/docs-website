@@ -329,30 +329,22 @@ exports.createResolvers = ({ createResolvers }) => {
 
 exports.onCreatePage = ({ page, actions }) => {
   const { createPage, deletePage } = actions;
+  const oldPage = Object.assign({}, page);
 
   if (page.path.match(/404/)) {
     page.context.layout = 'basic';
-
-    createPage(page);
   }
 
   if (!page.context.fileRelativePath) {
     page.context.fileRelativePath = getFileRelativePath(page.componentPath);
-
-    createPage(page);
   }
 
   if (hasTrailingSlash(page.context.slug)) {
-    deletePage(page);
-
-    createPage({
-      ...page,
-      context: {
-        ...page.context,
-        slug: page.context.slug.replace(TRAILING_SLASH, ''),
-      },
-    });
+    page.context.slug = page.context.slug.replace(TRAILING_SLASH, '');
   }
+
+  deletePage(oldPage);
+  createPage(page);
 };
 
 const createLocalizedRedirect = ({

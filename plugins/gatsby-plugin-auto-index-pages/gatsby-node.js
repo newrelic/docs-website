@@ -5,6 +5,7 @@ const generateHTML = require('./utils/generate-html');
 const { prop } = require('../../scripts/utils/functional.js');
 const { sentenceCase } = require('./utils/string');
 const taxonomyRedirects = require('../../src/data/taxonomy-redirects.json');
+const createLocalizedRedirect = require('../../gatsby/utils/create-localized-redirect');
 
 exports.createPages = async ({ actions, graphql, reporter }, pluginOptions) => {
   const { skippedDirectories } = pluginOptions;
@@ -51,6 +52,7 @@ exports.createPages = async ({ actions, graphql, reporter }, pluginOptions) => {
       allLocale(filter: { isDefault: { eq: false } }) {
         nodes {
           localizedPath
+          locale
         }
       }
       allFile(
@@ -123,12 +125,16 @@ exports.createPages = async ({ actions, graphql, reporter }, pluginOptions) => {
   }
 
   const {
-    allLocale: { nodes: locales },
+    allLocale,
     tableOfContents: { nodes: tableOfContentsNodes },
     translatedTableOfContents: { nodes: translatedTableOfContentsNodes },
     allFile: { nodes: fileNodes },
     translatedFiles: { nodes: translatedFileNodes },
   } = data;
+
+  const allLocales = allLocale.nodes.map(prop('locale'));
+
+  const { nodes: locales } = allLocale;
 
   const existingPaths = tableOfContentsNodes
     .map(getSlug)
@@ -171,11 +177,14 @@ exports.createPages = async ({ actions, graphql, reporter }, pluginOptions) => {
 
       redirectsFrom.paths.forEach((from) => {
         reporter.verbose(`\tRedirect from ${from}`);
-        createRedirect({
+
+        createLocalizedRedirect({
           fromPath: from,
           toPath: slug,
+          locales: allLocales,
           isPermanent: true,
           redirectInBrowser: true,
+          createRedirect,
         });
       });
     }
@@ -218,7 +227,6 @@ exports.createPages = async ({ actions, graphql, reporter }, pluginOptions) => {
           }
           child.data.fields.slug = localizedFileSlug;
         });
-
       createPage({
         path: localizedSlug,
         component: path.resolve('src/templates/indexPage.js'),
