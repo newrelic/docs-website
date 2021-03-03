@@ -21,7 +21,7 @@ const LOCALE_IDS = {
 };
 
 const PROJECT_ID = process.env.TRANSLATION_VENDOR_PROJECT;
-const DOCS_SITE_URL = 'https://docs-preview.newrelic.com';
+const DOCS_SITE_URL = 'https://docs.newrelic.com';
 
 /**
  * Take a list of filepaths (grouped by locale) and fetches the HTML content.

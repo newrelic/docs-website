@@ -1,25 +1,8 @@
 import React from 'react';
-import PropTypes from 'prop-types';
 import { Link, Surface } from '@newrelic/gatsby-theme-newrelic';
 
-const SurfaceLink = ({ to, ...props }) => {
-  const isRelativeLink = to.startsWith('/');
-  const linkProps = isRelativeLink
-    ? { to }
-    : { href: to, rel: 'noopener noreferrer' };
-
-  return (
-    <Surface
-      {...props}
-      {...linkProps}
-      as={isRelativeLink ? Link : 'a'}
-      interactive
-    />
-  );
-};
-
-SurfaceLink.propTypes = {
-  to: PropTypes.string.isRequired,
+const SurfaceLink = (props) => {
+  return <Surface {...props} as={Link} interactive />;
 };
 
 export default SurfaceLink;

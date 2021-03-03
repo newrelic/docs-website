@@ -1,5 +1,9 @@
 const fs = require('fs');
 const path = require('path');
+const parse = require('rehype-parse');
+const unified = require('unified');
+const addAbsoluteImagePath = require('./rehype-plugins/utils/addAbsoluteImagePath');
+const rehypeStringify = require('rehype-stringify');
 
 const siteUrl = 'https://docs.newrelic.com';
 const dataDictionaryPath = `${__dirname}/src/data-dictionary`;
@@ -70,14 +74,32 @@ module.exports = {
             resultsPath: `${__dirname}/src/data/swiftype-resources.json`,
             engineKey: 'Ad9HfGjDw4GRkcmJjUut',
             refetch: Boolean(process.env.BUILD_RELATED_CONTENT),
-            filter: ({ slug }) => {
-              const result = [
-                '/docs/apm/new-relic-apm/apdex/change-your-apdex-settings',
-                '/docs/integrations/kubernetes-integration/understand-use-data/kubernetes-cluster-explorer',
-                '/docs/agents/ruby-agent/features/ruby-vm-measurements',
-              ].includes(slug);
+            filter: ({ node }) => {
+              if (node.internal.type !== 'Mdx') {
+                return false;
+              }
 
-              return result;
+              const includedTypes = ['apiDoc', 'troubleshooting'];
+              const excludedFolders = [
+                'src/content/docs/release-notes',
+                'src/content/whats-new',
+              ];
+
+              const {
+                frontmatter,
+                fields: { fileRelativePath },
+              } = node;
+
+              if (
+                excludedFolders.some((path) => fileRelativePath.includes(path))
+              ) {
+                return false;
+              }
+
+              return (
+                frontmatter.type == null ||
+                includedTypes.includes(frontmatter.type)
+              );
             },
             getParams: ({ node }) => {
               const { tags, title } = node.frontmatter;
@@ -100,13 +122,6 @@ module.exports = {
               };
             },
           },
-        },
-        // This option is set to disallow to prevent crawling of the site during preview
-        // mode
-        robots: {
-          host: 'https://docs-preview.newrelic.com',
-          sitemap: 'https://docs-preview.newrelic.com/sitemap.xml',
-          policy: [{ userAgent: '*', disallow: '/' }],
         },
         newrelic: {
           configs: {
@@ -326,7 +341,7 @@ module.exports = {
               fields {
                 slug
               }
-              html
+              htmlAst
             }
           }
         }
@@ -337,18 +352,26 @@ module.exports = {
             fs.readFileSync(path.join(__dirname, 'src/data/whats-new-ids.json'))
           );
 
+          const htmlParser = unified()
+            .use(parse)
+            .use(addAbsoluteImagePath)
+            .use(rehypeStringify);
+
           return {
             announcements: data.allMarkdownRemark.nodes.map(
-              ({ frontmatter, html, fields }) => ({
-                docsID: ids[fields.slug],
-                title: frontmatter.title,
-                summary: frontmatter.summary,
-                releaseDateTime: frontmatter.releaseDate,
-                learnMoreLink: frontmatter.learnMoreLink,
-                getStartedLink: frontmatter.getStartedLink,
-                body: html,
-                docUrl: new URL(fields.slug, siteUrl).href,
-              })
+              ({ frontmatter, htmlAst, fields }) => {
+                const parsedHtml = htmlParser.runSync(htmlAst);
+                return {
+                  docsID: ids[fields.slug],
+                  title: frontmatter.title,
+                  summary: frontmatter.summary,
+                  releaseDateTime: frontmatter.releaseDate,
+                  learnMoreLink: frontmatter.learnMoreLink,
+                  getStartedLink: frontmatter.getStartedLink,
+                  body: htmlParser.stringify(parsedHtml),
+                  docUrl: new URL(fields.slug, siteUrl).href,
+                };
+              }
             ),
           };
         },
