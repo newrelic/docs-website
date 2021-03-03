@@ -438,6 +438,39 @@ module.exports = {
         nodesPerFeedFile: Infinity,
       },
     },
+    {
+      resolve: `gatsby-plugin-json-output`,
+      options: {
+        siteUrl,
+        graphQLQuery: `
+        {
+          allMdx(filter: {fields: {slug: "/docs/release-notes/"}}) {
+            nodes {
+              frontmatter {
+                releaseDate(fromNow: false)
+                version
+              }
+              fields {
+                slug
+              }
+            }
+          }
+        }
+        `,
+        serializeFeed: ({ data }) =>
+          data.allMdx.nodes
+            .map(({ frontmatter, fields }) => ({
+              agent:
+                fields.slug !== '/docs/release-notes'
+                  ? fields.slugsplit('release-notes/')[1].replace('-', '')
+                  : null,
+              date: frontmatter.releaseDate,
+              version: frontmatter.version,
+            }))
+            .filter(({ date }) => Boolean(date)),
+        feedFilename: 'release-notes',
+      },
+    },
     'gatsby-plugin-release-note-rss',
     {
       resolve: 'gatsby-source-data-dictionary',
