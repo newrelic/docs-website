@@ -444,7 +444,7 @@ module.exports = {
         siteUrl,
         graphQLQuery: `
         {
-          allMdx(filter: {fields: {slug: "/docs/release-notes/"}}) {
+          allMdx(filter: {fields: {slug: {regex: "/docs/release-notes/"}}}) {
             nodes {
               frontmatter {
                 releaseDate(fromNow: false)
