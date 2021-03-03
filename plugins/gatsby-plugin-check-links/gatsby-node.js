@@ -44,12 +44,12 @@ exports.onPostBuild = async ({ graphql }) => {
 
   allMarkdownRemark.nodes.forEach(async (node) => {
     const {
-      htmlAST,
+      htmlAst,
       fields: { fileRelativePath },
     } = node;
     const htmlProcessor = unified().use(linkVisitorHtml, {
       fileRelativePath,
     });
-    await htmlProcessor.run(htmlAST);
+    await htmlProcessor.run(htmlAst);
   });
 };
