@@ -253,6 +253,8 @@ As a last resort, you can completely delete the `node_modules` folder in the roo
 
 ### Build / compile issues on the Apple M1 chipset
 
+If you are working on an M1 Mac, you may run into an error like the following when installing node_modules:
+
 ```bash
 gyp info spawn args [ 'BUILDTYPE=Release', '-C', 'build' ]
   CC(target) Release/obj.target/nothing/../node-addon-api/nothing.o
