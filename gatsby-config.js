@@ -3,7 +3,7 @@ const path = require('path');
 const parse = require('rehype-parse');
 const unified = require('unified');
 const addAbsoluteImagePath = require('./rehype-plugins/utils/addAbsoluteImagePath');
-const html = require('rehype-stringify');
+const rehypeStringify = require('rehype-stringify');
 
 const siteUrl = 'https://docs.newrelic.com';
 const dataDictionaryPath = `${__dirname}/src/data-dictionary`;
@@ -341,7 +341,7 @@ module.exports = {
               fields {
                 slug
               }
-              html
+              htmlAst
             }
           }
         }
@@ -355,12 +355,12 @@ module.exports = {
           const htmlParser = unified()
             .use(parse)
             .use(addAbsoluteImagePath)
-            .use(html);
+            .use(rehypeStringify);
 
           return {
             announcements: data.allMarkdownRemark.nodes.map(
-              ({ frontmatter, html, fields }) => {
-                const parsedHtml = htmlParser.runSync(html);
+              ({ frontmatter, htmlAst, fields }) => {
+                const parsedHtml = htmlParser.runSync(htmlAst);
                 return {
                   docsID: ids[fields.slug],
                   title: frontmatter.title,
