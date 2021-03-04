@@ -106,7 +106,7 @@ const BasicDoc = ({ data, location }) => {
             }
           `}
         >
-          <SimpleFeedback title={title} labels={['content']} />
+          <SimpleFeedback pageTitle={title} labels={['content']} />
           {!isMobileScreen && (
             <ContributingGuidelines
               pageTitle={title}

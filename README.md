@@ -1,16 +1,10 @@
 [![Community Project header](https://github.com/newrelic/opensource-website/raw/master/src/images/categories/Community_Project.png)](https://opensource.newrelic.com/oss-category/#community-project)
 
-# docs-preview.newrelic.com
+# docs.newrelic.com
 
-Welcome! 👋 this is the repo for the `NEW` New Relic Docs site.
-
-Currently this repo contains all the Docs website source code and Markdown source files we're using to build our preview Docs site: `docs-preview.newrelic.com`. When it's ready, all of our production documentation will be found in this repo.
+Welcome! 👋  This is the repo for the `NEW` New Relic Docs site. This repo contains all the Docs website source code and Markdown source files we use to build our Docs site: `docs.newrelic.com`.
 
 Read on to learn more about who we are and how you can contribute to the New Relic Docs site.
-
-## New Relic Developer and Open Source sites
-
-You may also be interested in the New Relic [Developer website](https://github.com/newrelic/developer-website) and [Open Source website](https://github.com/newrelic/opensource-website) repos.
 
 ## We'd like your help
 
@@ -22,7 +16,7 @@ We're here working every day to improve our docs and we'd love to hear from you.
 
 ## Get started
 
-On each page of our docs, you can [create an issue](https://github.com/newrelic/docs-website/issues/new/choose) or [edit a page](https://github.com/newrelic/docs-website/blob/develop/CONTRIBUTING.md).
+On each page of our docs, you can [create an issue](https://github.com/newrelic/docs-website/issues/new/choose) or [edit a page](CONTRIBUTING.md).
 
 ### Create an issue
 
@@ -34,9 +28,9 @@ Go here to [create an issue](https://github.com/newrelic/docs-website/issues/new
 
 If you'd like to get more directly involved, you can make some changes yourself. On any doc, click the **Edit this page** button to get started making a change.
 You can edit a doc directly on the GitHub site. You don't need to actively fork the site or build it locally to help out. This is the easiest way to contribute.
-If you'd like to go deeper, see our [Contributors guide](https://github.com/newrelic/docs-website/blob/readme-update/CONTRIBUTING.md) for information on how to fork our site, build it locally, and submit pull requests.
+If you'd like to go deeper, see our [Contributors guide](CONTRIBUTING.md) for information on how to fork our site, build it locally, and submit pull requests.
 
-Our [Style guide](https://github.com/newrelic/docs-website/blob/readme-update/STYLE_GUIDE.md) will give you some insight into how we think about writing and documentation, as well as our flavor of Markdown.
+Our [Style guide](https://docs.newrelic.com/docs/style-guide) will give you some insight into how we think about writing and documentation, as well as our flavor of Markdown.
 
 Reading the style guide is totally optional! Our writers are here to make sure everything is formatted and worded right. We're looking your technical insight and knowhow. Let us handle the little details for you.
 
@@ -45,6 +39,10 @@ Reading the style guide is totally optional! Our writers are here to make sure e
 We welcome contributions to the New Relic Docs Site. Please review our [Contributors Guide](CONTRIBUTING.md) prior to submitting any code.
 
 Keep in mind when you submit your pull request, you'll need to sign the CLA via the click-through using CLA-Assistant. You only have to sign the CLA one time per project. If you have any questions, or to execute our corporate CLA, required if your contribution is on behalf of a company, please drop us an email at opensource@newrelic.com.
+
+## New Relic Developer and Open Source sites
+
+You may also be interested in the New Relic [Developer website](https://github.com/newrelic/developer-website) and [Open Source website](https://github.com/newrelic/opensource-website) repos.
 
 ## 🏛️ Content and code license
 
