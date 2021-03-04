@@ -467,9 +467,9 @@ module.exports = {
               version: frontmatter.version,
             }))
             .filter(
-              ({ date, subject }) =>
-                Boolean(date && subject) &&
-                subject !== 'Agent release notes template'
+              ({ date, agent }) =>
+                Boolean(date && agent) &&
+                agent !== 'Agent release notes template'
             ),
         feedFilename: 'release-notes',
       },
