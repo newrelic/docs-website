@@ -6,10 +6,6 @@ Welcome! 👋  This is the repo for the `NEW` New Relic Docs site. This repo con
 
 Read on to learn more about who we are and how you can contribute to the New Relic Docs site.
 
-## New Relic Developer and Open Source sites
-
-You may also be interested in the New Relic [Developer website](https://github.com/newrelic/developer-website) and [Open Source website](https://github.com/newrelic/opensource-website) repos.
-
 ## We'd like your help
 
 From early on, our Docs site has been managed by a team of writers. We've always welcomed contributions from anyone at New Relic and now we're open sourcing our docs to invite input from anyone at all. We credit our technical accuracy and comprehensive documentation to this openness.
@@ -43,6 +39,10 @@ Reading the style guide is totally optional! Our writers are here to make sure e
 We welcome contributions to the New Relic Docs Site. Please review our [Contributors Guide](CONTRIBUTING.md) prior to submitting any code.
 
 Keep in mind when you submit your pull request, you'll need to sign the CLA via the click-through using CLA-Assistant. You only have to sign the CLA one time per project. If you have any questions, or to execute our corporate CLA, required if your contribution is on behalf of a company, please drop us an email at opensource@newrelic.com.
+
+## New Relic Developer and Open Source sites
+
+You may also be interested in the New Relic [Developer website](https://github.com/newrelic/developer-website) and [Open Source website](https://github.com/newrelic/opensource-website) repos.
 
 ## 🏛️ Content and code license
 

@@ -88,11 +88,11 @@ you can use the Github `Edit This File` button to submit a change.
 5. Submit a `PR`.
 6. And you are done!
 
-### Cloning vs Forking
+### Cloning vs forking
 
-To be able to [Clone](https://help.github.com/en/github/creating-cloning-and-archiving-repositories/cloning-a-repository) this repository and contribute you will need to be given write access to the repository. This is reserved for New Relic Doc Writers. Contact the Developer Experience team (developer-website-content Slack channel) if you need write access.
+To be able to [clone](https://help.github.com/en/github/creating-cloning-and-archiving-repositories/cloning-a-repository) this repository and contribute you will need to be given write access to the repository. This is reserved for New Relic Doc Writers. Contact the Developer Experience team (developer-website-content Slack channel) if you need write access.
 
-To contribute without write access, you can [Fork](https://help.github.com/en/github/getting-started-with-github/fork-a-repo) the repository and contribute as needed.
+To contribute without write access, you can [fork](https://help.github.com/en/github/getting-started-with-github/fork-a-repo) the repository and contribute as needed. If you're planning to leave a fork open for a long time (for example, you're working on a complex set of changes to many docs), [sync your fork](https://docs.github.com/en/github/collaborating-with-issues-and-pull-requests/syncing-a-fork) occasionally to avoid merge conflicts. 
 
 ### Submitting a PR from a forked repo
 
