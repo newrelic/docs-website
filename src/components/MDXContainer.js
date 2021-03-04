@@ -5,12 +5,14 @@ import {
   MarkdownContainer,
   MDX,
   ExternalLink,
+  Link,
 } from '@newrelic/gatsby-theme-newrelic';
 import LandingPageHero from './LandingPageHero';
 import LandingPageTile from './LandingPageTile';
 import LandingPageTileGrid from './LandingPageTileGrid';
 import TechTile from './TechTile';
 import MDXTechTileGrid from './MDXTechTileGrid';
+import MDXButton from './MDXButton';
 
 const defaultComponents = {
   ExternalLink: (props) => (
@@ -22,6 +24,8 @@ const defaultComponents = {
   LandingPageTileGrid,
   TechTile,
   TechTileGrid: MDXTechTileGrid,
+  Button: MDXButton,
+  ButtonLink: (props) => <MDXButton as={Link} {...props} />,
 };
 
 const MDXContainer = ({ body, children, components }) => {
