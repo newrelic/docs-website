@@ -91,7 +91,7 @@ const ReleaseNoteLandingPage = ({ data, pageContext, location }) => {
                         margin-bottom: 2rem;
 
                         &:last-child {
-                          margin-bottom: ${isLast ? 0 : '3rem'};
+                          margin-bottom: ${isLast ? 0 : '2rem'};
                         }
                       `}
                     >
