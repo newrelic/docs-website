@@ -443,10 +443,9 @@ module.exports = {
       },
     },
     {
-      resolve: `gatsby-plugin-json-output`,
+      resolve: `gatsby-plugin-generate-json`,
       options: {
-        siteUrl,
-        graphQLQuery: `
+        query: `
         {
           allMdx(filter: {fields: {slug: {regex: "/docs/release-notes/"}}}) {
             nodes {
@@ -459,7 +458,7 @@ module.exports = {
           }
         }
         `,
-        serializeFeed: ({ data }) =>
+        serialize: ({ data }) =>
           data.allMdx.nodes
             .map(({ frontmatter }) => ({
               agent: frontmatter.subject,
@@ -471,7 +470,6 @@ module.exports = {
                 Boolean(date && agent) &&
                 agent !== 'Agent release notes template'
             ),
-        feedFilename: 'release-notes',
       },
     },
     'gatsby-plugin-release-note-rss',
