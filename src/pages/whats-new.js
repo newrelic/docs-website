@@ -51,7 +51,7 @@ const WhatsNew = ({ data, location }) => {
                         margin-bottom: 2rem;
 
                         &:last-child {
-                          margin-bottom: ${isLast ? 0 : '4rem'};
+                          margin-bottom: ${isLast ? 0 : '3rem'};
                         }
                       `}
                     >
