@@ -451,11 +451,9 @@ module.exports = {
           allMdx(filter: {fields: {slug: {regex: "/docs/release-notes/"}}}) {
             nodes {
               frontmatter {
+                subject
                 releaseDate(fromNow: false)
                 version
-              }
-              fields {
-                slug
               }
             }
           }
@@ -463,15 +461,16 @@ module.exports = {
         `,
         serializeFeed: ({ data }) =>
           data.allMdx.nodes
-            .map(({ frontmatter, fields }) => ({
-              agent:
-                fields.slug !== '/docs/release-notes'
-                  ? fields.slug.split('release-notes/')[1].replace('-', '')
-                  : null,
+            .map(({ frontmatter }) => ({
+              agent: frontmatter.subject,
               date: frontmatter.releaseDate,
               version: frontmatter.version,
             }))
-            .filter(({ date }) => Boolean(date)),
+            .filter(
+              ({ date, subject }) =>
+                Boolean(date && subject) &&
+                subject !== 'Agent release notes template'
+            ),
         feedFilename: 'release-notes',
       },
     },
