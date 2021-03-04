@@ -4,6 +4,7 @@ const parse = require('rehype-parse');
 const unified = require('unified');
 const addAbsoluteImagePath = require('./rehype-plugins/utils/addAbsoluteImagePath');
 const rehypeStringify = require('rehype-stringify');
+const getAgentName = require('./src/utils/getAgentName');
 
 const siteUrl = 'https://docs.newrelic.com';
 const dataDictionaryPath = `${__dirname}/src/data-dictionary`;
@@ -458,18 +459,15 @@ module.exports = {
           }
         }
         `,
+        path: '/api/agent-release-notes.json',
         serialize: ({ data }) =>
           data.allMdx.nodes
             .map(({ frontmatter }) => ({
-              agent: frontmatter.subject,
+              agent: getAgentName(frontmatter.subject),
               date: frontmatter.releaseDate,
               version: frontmatter.version,
             }))
-            .filter(
-              ({ date, agent }) =>
-                Boolean(date && agent) &&
-                agent !== 'Agent release notes template'
-            ),
+            .filter(({ date, agent }) => Boolean(date && agent)),
       },
     },
     'gatsby-plugin-release-note-rss',
