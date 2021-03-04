@@ -81,43 +81,50 @@ const ReleaseNoteLandingPage = ({ data, pageContext, location }) => {
 
             return (
               <Timeline.Item label={date} key={date}>
-                {posts.map((post) => {
-                  const excerpt = getBestGuessExcerpt(post.mdxAST);
+                {posts
+                  .sort((postA, postB) => {
+                    return (
+                      Number(postB.frontmatter.version.replaceAll('.', '')) -
+                      Number(postA.frontmatter.version.replaceAll('.', ''))
+                    );
+                  })
+                  .map((post) => {
+                    const excerpt = getBestGuessExcerpt(post.mdxAST);
 
-                  return (
-                    <div
-                      key={post.version}
-                      css={css`
-                        margin-bottom: 2rem;
-
-                        &:last-child {
-                          margin-bottom: ${isLast ? 0 : '2rem'};
-                        }
-                      `}
-                    >
-                      <Link
-                        to={post.fields.slug}
+                    return (
+                      <div
+                        key={post.version}
                         css={css`
-                          display: inline-block;
-                          font-size: 1.25rem;
-                          margin-bottom: 0.5rem;
+                          margin-bottom: 2rem;
+
+                          &:last-child {
+                            margin-bottom: ${isLast ? 0 : '2rem'};
+                          }
                         `}
                       >
-                        {post.frontmatter.title
-                          ? post.frontmatter.title
-                          : `${subject} v${post.frontmatter.version}`}
-                      </Link>
-                      <p
-                        css={css`
-                          margin-bottom: 0;
-                        `}
-                      >
-                        {excerpt.slice(0, EXCERPT_LENGTH)}
-                        {excerpt.length > EXCERPT_LENGTH ? '…' : ''}
-                      </p>
-                    </div>
-                  );
-                })}
+                        <Link
+                          to={post.fields.slug}
+                          css={css`
+                            display: inline-block;
+                            font-size: 1.25rem;
+                            margin-bottom: 0.5rem;
+                          `}
+                        >
+                          {post.frontmatter.title
+                            ? post.frontmatter.title
+                            : `${subject} v${post.frontmatter.version}`}
+                        </Link>
+                        <p
+                          css={css`
+                            margin-bottom: 0;
+                          `}
+                        >
+                          {excerpt.slice(0, EXCERPT_LENGTH)}
+                          {excerpt.length > EXCERPT_LENGTH ? '…' : ''}
+                        </p>
+                      </div>
+                    );
+                  })}
               </Timeline.Item>
             );
           })}
