@@ -324,6 +324,10 @@ module.exports = {
       },
     },
     'gatsby-plugin-generate-doc-json',
+    /*
+      Comment in below to run a build that checks links
+      'gatsby-plugin-check-links', 
+    */
     {
       resolve: 'gatsby-plugin-generate-json',
       options: {
