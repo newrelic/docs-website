@@ -83,22 +83,18 @@ const ReleaseNoteLandingPage = ({ data, pageContext, location }) => {
               <Timeline.Item label={date} key={date}>
                 {posts
                   .sort((postA, postB) => {
-                    if (
-                      postB.frontmatter.version &&
+                    const versionA = parseInt(
                       postA.frontmatter.version
-                    ) {
-                      return (
-                        Number(
-                          postB.frontmatter.version
-                            .replace('-beta', '')
-                            .replaceAll('.', '')
-                        ) -
-                        Number(
-                          postA.frontmatter.version
-                            .replace('-beta', '')
-                            .replaceAll('.', '')
-                        )
-                      );
+                        ?.replace('-beta', '')
+                        ?.replaceAll('.', '')
+                    );
+                    const versionB = parseInt(
+                      postB.frontmatter.version
+                        ?.replace('-beta', '')
+                        ?.replaceAll('.', '')
+                    );
+                    if (!(isNaN(versionA) && isNaN(versionB))) {
+                      return versionB - versionA;
                     }
                     return 0;
                   })
