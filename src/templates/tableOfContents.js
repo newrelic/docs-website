@@ -9,7 +9,7 @@ import SEO from '../components/SEO';
 import { TYPES } from '../utils/constants';
 
 const TableOfContentsPage = ({ data, pageContext, location }) => {
-  const { localizedPath } = useLocale();
+  const { locale } = useLocale();
   const { nav } = data;
   const { slug, disableSwiftype, title } = pageContext;
   const landingPageSlug = slug.replace('/table-of-contents', '');
@@ -18,13 +18,10 @@ const TableOfContentsPage = ({ data, pageContext, location }) => {
       nav
         ? findPage(
             nav,
-            landingPageSlug.replace(
-              new RegExp(`^\\/${localizedPath}(?=\\/)`),
-              ''
-            )
+            landingPageSlug.replace(new RegExp(`^\\/${locale}(?=\\/)`), '')
           )
         : null,
-    [nav, landingPageSlug, localizedPath]
+    [nav, landingPageSlug, locale]
   );
 
   return (
