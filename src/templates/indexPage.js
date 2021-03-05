@@ -10,12 +10,17 @@ import { TYPES } from '../utils/constants';
 
 const IndexPage = ({ data, pageContext, location }) => {
   const { nav } = data;
-  const { html } = pageContext;
+  const { html, disableSwiftype } = pageContext;
   const title = nav ? nav.title : pageContext.title;
 
   return (
     <>
-      <SEO location={location} title={title} type={TYPES.AUTO_INDEX_PAGE} />
+      <SEO
+        location={location}
+        title={title}
+        type={TYPES.AUTO_INDEX_PAGE}
+        disableSwiftype={disableSwiftype}
+      />
       <PageTitle>{title}</PageTitle>
       <Layout.Content>
         {nav ? (

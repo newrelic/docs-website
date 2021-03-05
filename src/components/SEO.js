@@ -16,33 +16,46 @@ const METADATA = [
   },
 ];
 
-const DocsSiteSeo = ({ location, title, description, type, tags }) => (
+const DocsSiteSeo = ({
+  location,
+  title,
+  description,
+  type,
+  tags,
+  disableSwiftype,
+}) => (
   <SEO location={location} title={title}>
-    {METADATA.map((data) => (
-      <meta key={data.name} {...data} />
-    ))}
+    {disableSwiftype ? (
+      <>
+        {METADATA.map((data) => (
+          <meta key={data.name} {...data} />
+        ))}
 
-    {(tags || []).map((tag) => (
-      <meta
-        key={tag}
-        name="tags"
-        className="swiftype"
-        data-type="string"
-        content={tag}
-      />
-    ))}
+        {(tags || []).map((tag) => (
+          <meta
+            key={tag}
+            name="tags"
+            className="swiftype"
+            data-type="string"
+            content={tag}
+          />
+        ))}
 
-    {type && (
-      <meta
-        className="swiftype"
-        name="document_type"
-        data-type="enum"
-        content={type}
-      />
-    )}
+        {type && (
+          <meta
+            className="swiftype"
+            name="document_type"
+            data-type="enum"
+            content={type}
+          />
+        )}
 
-    {(description || title) && (
-      <meta name="description" content={description || title} />
+        {(description || title) && (
+          <meta name="description" content={description || title} />
+        )}
+      </>
+    ) : (
+      <meta name="st:robots" content="nofollow, noindex" />
     )}
   </SEO>
 );
@@ -53,6 +66,7 @@ DocsSiteSeo.propTypes = {
   description: PropTypes.string,
   type: PropTypes.string,
   tags: PropTypes.array,
+  disableSwiftype: PropTypes.bool,
 };
 
 export default DocsSiteSeo;

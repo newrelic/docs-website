@@ -43,9 +43,10 @@ const components = {
   wrapper: Wrapper,
 };
 
-const LandingPage = ({ data, location }) => {
+const LandingPage = ({ data, location, pageContext }) => {
   const { mdx } = data;
   const { frontmatter, body } = mdx;
+  const { disableSwiftype } = pageContext;
 
   return (
     <>
@@ -54,6 +55,7 @@ const LandingPage = ({ data, location }) => {
         title={frontmatter.title}
         description={frontmatter.metaDescription}
         type={TYPES.LANDING_PAGE}
+        disableSwiftype={disableSwiftype}
       />
       <PageTitle>{frontmatter.title}</PageTitle>
       <Layout.Content>
@@ -66,6 +68,7 @@ const LandingPage = ({ data, location }) => {
 LandingPage.propTypes = {
   data: PropTypes.object.isRequired,
   location: PropTypes.object.isRequired,
+  pageContext: PropTypes.object.isRequired,
 };
 
 export const pageQuery = graphql`
