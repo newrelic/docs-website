@@ -86,12 +86,12 @@ const ReleaseNoteLandingPage = ({ data, pageContext, location }) => {
                     const versionA = parseInt(
                       postA.frontmatter.version
                         ?.replace('-beta', '')
-                        ?.replaceAll('.', '')
+                        ?.replace(/\./g, '')
                     );
                     const versionB = parseInt(
                       postB.frontmatter.version
                         ?.replace('-beta', '')
-                        ?.replaceAll('.', '')
+                        ?.replace(/\./g, '')
                     );
                     if (!(isNaN(versionA) && isNaN(versionB))) {
                       return versionB - versionA;
