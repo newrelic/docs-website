@@ -86,11 +86,11 @@ resource "newrelic_synthetics_multilocation_alert_condition" "synthetics_failure
   runbook_url = local.runbook_url
 
   warning {
-    threshold = synthetics_warning
+    threshold = var.synthetics_warning
   }
 
   critical {
-    threshold = synthetics_critical
+    threshold = var.synthetics_critical
   }
 }
 
