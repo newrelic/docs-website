@@ -83,10 +83,16 @@ const ReleaseNoteLandingPage = ({ data, pageContext, location }) => {
               <Timeline.Item label={date} key={date}>
                 {posts
                   .sort((postA, postB) => {
-                    return (
-                      Number(postB.frontmatter.version.replaceAll('.', '')) -
-                      Number(postA.frontmatter.version.replaceAll('.', ''))
-                    );
+                    if (
+                      postB.frontmatter.version &&
+                      postA.frontmatter.version
+                    ) {
+                      return (
+                        Number(postB.frontmatter.version.replaceAll('.', '')) -
+                        Number(postA.frontmatter.version.replaceAll('.', ''))
+                      );
+                    }
+                    return 0;
                   })
                   .map((post) => {
                     const excerpt = getBestGuessExcerpt(post.mdxAST);
