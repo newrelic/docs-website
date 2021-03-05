@@ -7,7 +7,7 @@ import MDXContainer from '../components/MDXContainer';
 import SEO from '../components/SEO';
 import { TYPES } from '../utils/constants';
 
-const ApiIndexPage = ({ data, location }) => {
+const ApiIndexPage = ({ data, location, pageContext }) => {
   const {
     mdx: {
       body,
@@ -15,9 +15,15 @@ const ApiIndexPage = ({ data, location }) => {
     },
     allMdx: { nodes: apiDocPages },
   } = data;
+  const { disableSwiftype } = pageContext;
   return (
     <>
-      <SEO location={location} title={title} type={TYPES.API_LANDING_PAGE} />
+      <SEO
+        location={location}
+        title={title}
+        type={TYPES.API_LANDING_PAGE}
+        disableSwiftype={disableSwiftype}
+      />
       <PageTitle>{title}</PageTitle>
       <Layout.Content>
         <MDXContainer body={body}>
@@ -62,6 +68,7 @@ export const pageQuery = graphql`
 ApiIndexPage.propTypes = {
   data: PropTypes.object.isRequired,
   location: PropTypes.object.isRequired,
+  pageContext: PropTypes.object.isRequired,
 };
 
 export default ApiIndexPage;

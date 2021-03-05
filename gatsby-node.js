@@ -271,6 +271,7 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
       createPageFromNode(i18nNode || node, {
         prefix: i18nNode ? '' : locale,
         createPage,
+        disableSwiftype: !i18nNode,
       });
     });
   });
@@ -372,7 +373,10 @@ const createLocalizedRedirect = ({
   });
 };
 
-const createPageFromNode = (node, { createPage, prefix = '' }) => {
+const createPageFromNode = (
+  node,
+  { createPage, prefix = '', disableSwiftype = false }
+) => {
   const {
     fields: { fileRelativePath, slug },
   } = node;
@@ -398,6 +402,7 @@ const createPageFromNode = (node, { createPage, prefix = '' }) => {
         fileRelativePath,
         slug,
         slugRegex: `${slug}/.+/`,
+        disableSwiftype,
       },
     });
   }

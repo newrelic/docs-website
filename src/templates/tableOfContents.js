@@ -9,10 +9,9 @@ import SEO from '../components/SEO';
 import { TYPES } from '../utils/constants';
 
 const TableOfContentsPage = ({ data, pageContext, location }) => {
-  const { title } = pageContext;
   const { localizedPath } = useLocale();
   const { nav } = data;
-  const { slug } = pageContext;
+  const { slug, disableSwiftype, title } = pageContext;
   const landingPageSlug = slug.replace('/table-of-contents', '');
   const subnav = useMemo(
     () =>
@@ -30,7 +29,12 @@ const TableOfContentsPage = ({ data, pageContext, location }) => {
 
   return (
     <>
-      <SEO location={location} title={title} type={TYPES.TABLE_OF_CONTENTS} />
+      <SEO
+        location={location}
+        title={title}
+        type={TYPES.TABLE_OF_CONTENTS}
+        disableSwiftype={disableSwiftype}
+      />
       <PageTitle>{title}</PageTitle>
       <Link
         to={landingPageSlug}

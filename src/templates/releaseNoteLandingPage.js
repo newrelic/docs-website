@@ -27,7 +27,7 @@ const sortByVersion = (
 };
 
 const ReleaseNoteLandingPage = ({ data, pageContext, location }) => {
-  const { slug } = pageContext;
+  const { slug, disableSwiftype } = pageContext;
   const {
     allMdx: { nodes: posts },
     mdx: {
@@ -53,7 +53,12 @@ const ReleaseNoteLandingPage = ({ data, pageContext, location }) => {
 
   return (
     <>
-      <SEO location={location} title={title} type={TYPES.LANDING_PAGE} />
+      <SEO
+        location={location}
+        title={title}
+        type={TYPES.LANDING_PAGE}
+        disableSwiftype={disableSwiftype}
+      />
       <PageTitle
         css={css`
           display: flex;
