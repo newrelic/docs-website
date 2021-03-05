@@ -21,6 +21,7 @@ const AGENTS = [
  * @returns {string}
  */
 const getAgentName = (subject) =>
+  subject &&
   AGENTS.find(
     (agent) =>
       subject.toLowerCase().includes(agent) &&
