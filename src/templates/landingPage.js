@@ -68,6 +68,7 @@ const LandingPage = ({ data, location, pageContext }) => {
 LandingPage.propTypes = {
   data: PropTypes.object.isRequired,
   location: PropTypes.object.isRequired,
+  pageContext: PropTypes.object.isRequired,
 };
 
 export const pageQuery = graphql`

@@ -140,6 +140,7 @@ const WhatsNewTemplate = ({ data, location, pageContext }) => {
 WhatsNewTemplate.propTypes = {
   data: PropTypes.object.isRequired,
   location: PropTypes.object.isRequired,
+  pageContext: PropTypes.object.isRequired,
 };
 
 export const pageQuery = graphql`

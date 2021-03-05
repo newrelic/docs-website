@@ -131,6 +131,7 @@ const BasicDoc = ({ data, location, pageContext }) => {
 BasicDoc.propTypes = {
   data: PropTypes.object.isRequired,
   location: PropTypes.object.isRequired,
+  pageContext: PropTypes.object.isRequired,
 };
 
 export const pageQuery = graphql`
