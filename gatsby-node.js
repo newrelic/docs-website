@@ -330,7 +330,7 @@ exports.createResolvers = ({ createResolvers }) => {
 
 exports.onCreatePage = ({ page, actions }) => {
   const { createPage, deletePage } = actions;
-  const oldPage = { ...page };
+  const oldPage = Object.assign({}, page);
 
   if (page.path.match(/404/)) {
     page.context.layout = 'basic';
