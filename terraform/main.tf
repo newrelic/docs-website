@@ -15,7 +15,7 @@ locals {
 
 provider "newrelic" {
   account_id = local.account_id
-  api_key    = var.api_key # TODO
+  api_key    = var.api_key
   region     = "US"
 }
 
@@ -57,5 +57,5 @@ module "docs_site_alerts" {
   js_errors_warning   = 10 # unique sessions
   js_errors_critical  = 20 # unique sessions
   synthetics_warning  = 1 # failure
-  synthetics_critical = 2 #failures
+  synthetics_critical = 2 # failures
 }
