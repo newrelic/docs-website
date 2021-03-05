@@ -12,6 +12,20 @@ import { TYPES } from '../utils/constants';
 
 const EXCERPT_LENGTH = 200;
 
+const sortByVersion = (
+  { frontmatter: { version: versionA } },
+  { frontmatter: { version: versionB } }
+) => {
+  if (!versionA || !versionB) {
+    return 0;
+  }
+
+  return (
+    parseInt(versionB.replace(/\D/g, ''), 10) -
+    parseInt(versionA.replace(/\D/g, ''), 10)
+  );
+};
+
 const ReleaseNoteLandingPage = ({ data, pageContext, location }) => {
   const { slug } = pageContext;
   const {
@@ -81,60 +95,43 @@ const ReleaseNoteLandingPage = ({ data, pageContext, location }) => {
 
             return (
               <Timeline.Item label={date} key={date}>
-                {posts
-                  .sort((postA, postB) => {
-                    const versionA = parseInt(
-                      postA.frontmatter.version
-                        ?.replace('-beta', '')
-                        ?.replace(/\./g, '')
-                    );
-                    const versionB = parseInt(
-                      postB.frontmatter.version
-                        ?.replace('-beta', '')
-                        ?.replace(/\./g, '')
-                    );
-                    if (!(isNaN(versionA) && isNaN(versionB))) {
-                      return versionB - versionA;
-                    }
-                    return 0;
-                  })
-                  .map((post) => {
-                    const excerpt = getBestGuessExcerpt(post.mdxAST);
+                {posts.sort(sortByVersion).map((post) => {
+                  const excerpt = getBestGuessExcerpt(post.mdxAST);
 
-                    return (
-                      <div
-                        key={post.version}
+                  return (
+                    <div
+                      key={post.version}
+                      css={css`
+                        margin-bottom: 2rem;
+
+                        &:last-child {
+                          margin-bottom: ${isLast ? 0 : '4rem'};
+                        }
+                      `}
+                    >
+                      <Link
+                        to={post.fields.slug}
                         css={css`
-                          margin-bottom: 2rem;
-
-                          &:last-child {
-                            margin-bottom: ${isLast ? 0 : '4rem'};
-                          }
+                          display: inline-block;
+                          font-size: 1.25rem;
+                          margin-bottom: 0.5rem;
                         `}
                       >
-                        <Link
-                          to={post.fields.slug}
-                          css={css`
-                            display: inline-block;
-                            font-size: 1.25rem;
-                            margin-bottom: 0.5rem;
-                          `}
-                        >
-                          {post.frontmatter.title
-                            ? post.frontmatter.title
-                            : `${subject} v${post.frontmatter.version}`}
-                        </Link>
-                        <p
-                          css={css`
-                            margin-bottom: 0;
-                          `}
-                        >
-                          {excerpt.slice(0, EXCERPT_LENGTH)}
-                          {excerpt.length > EXCERPT_LENGTH ? '…' : ''}
-                        </p>
-                      </div>
-                    );
-                  })}
+                        {post.frontmatter.title
+                          ? post.frontmatter.title
+                          : `${subject} v${post.frontmatter.version}`}
+                      </Link>
+                      <p
+                        css={css`
+                          margin-bottom: 0;
+                        `}
+                      >
+                        {excerpt.slice(0, EXCERPT_LENGTH)}
+                        {excerpt.length > EXCERPT_LENGTH ? '…' : ''}
+                      </p>
+                    </div>
+                  );
+                })}
               </Timeline.Item>
             );
           })}
