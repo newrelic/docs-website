@@ -30,11 +30,24 @@ data "newrelic_entity" "browser" {
   }
 }
 
+resource "newrelic_synthetics_monitor" "docs_site_monitor" {
+  name      = "docs.newrelic.com"
+  type      = "SIMPLE"
+  frequency = 5
+  status    = "ENABLED"
+
+  # Portland, London, Hong Kong
+  locations = ["AWS_US_WEST_2", "AWS_EU_WEST_2", "AWS_AP_EAST_1"]
+
+  uri        = "https://docs.newrelic.com"
+  verify_ssl = true
+}
+
 module "docs_site_alerts" {
   source = "./modules/alerts"
 
   application_id = newrelic_entity.browser.application_id
-  synthetics_id  = 0 # TODO
+  synthetics_id  = newrelic_synthetics_monitor.docs_site_monitor.id
 
   # Alert configuration (within the last 5 minutes)
   page_load_warning  = 3 # seconds
