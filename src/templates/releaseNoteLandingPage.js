@@ -88,8 +88,16 @@ const ReleaseNoteLandingPage = ({ data, pageContext, location }) => {
                       postA.frontmatter.version
                     ) {
                       return (
-                        Number(postB.frontmatter.version.replaceAll('.', '')) -
-                        Number(postA.frontmatter.version.replaceAll('.', ''))
+                        Number(
+                          postB.frontmatter.version
+                            .replace('-beta', '')
+                            .replaceAll('.', '')
+                        ) -
+                        Number(
+                          postA.frontmatter.version
+                            .replace('-beta', '')
+                            .replaceAll('.', '')
+                        )
                       );
                     }
                     return 0;
