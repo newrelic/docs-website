@@ -13,6 +13,7 @@ import LandingPageTileGrid from './LandingPageTileGrid';
 import TechTile from './TechTile';
 import MDXTechTileGrid from './MDXTechTileGrid';
 import MDXButton from './MDXButton';
+import MDXButtonGroup from './MDXButtonGroup';
 
 const defaultComponents = {
   ExternalLink: (props) => (
@@ -26,6 +27,7 @@ const defaultComponents = {
   TechTileGrid: MDXTechTileGrid,
   Button: MDXButton,
   ButtonLink: (props) => <MDXButton as={Link} {...props} />,
+  ButtonGroup: MDXButtonGroup,
 };
 
 const MDXContainer = ({ body, children, components }) => {

@@ -27,12 +27,11 @@ const MDXButton = ({ alignment = 'center', ...props }) => {
 
   return (
     <div
+      className="MDXButton"
       css={css`
         display: flex;
-        &:not(:last-child) {
-          margin-bottom: 1rem;
-        }
         ${styles.alignment[alignment]}
+        margin-bottom: 2rem;
       `}
     >
       <Button {...props} />
