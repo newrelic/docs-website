@@ -7,7 +7,7 @@ import MDXContainer from '../components/MDXContainer';
 import SEO from '../components/SEO';
 import { TYPES } from '../utils/constants';
 
-const ApiIndexPage = ({ data, location }) => {
+const ApiIndexPage = ({ data, location, pageContext }) => {
   const {
     mdx: {
       body,
@@ -15,9 +15,15 @@ const ApiIndexPage = ({ data, location }) => {
     },
     allMdx: { nodes: apiDocPages },
   } = data;
+  const { disableSEO } = pageContext;
   return (
     <>
-      <SEO location={location} title={title} type={TYPES.API_LANDING_PAGE} />
+      <SEO
+        location={location}
+        title={title}
+        type={TYPES.API_LANDING_PAGE}
+        disable={disableSEO}
+      />
       <PageTitle>{title}</PageTitle>
       <Layout.Content>
         <MDXContainer body={body}>

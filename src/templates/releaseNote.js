@@ -17,7 +17,7 @@ const getTitle = ({ title, version, subject }) => {
   return version ? `${subject} v${version}` : subject;
 };
 
-const ReleaseNoteTemplate = ({ data, location }) => {
+const ReleaseNoteTemplate = ({ data, location, pageContext }) => {
   const {
     mdx: {
       body,
@@ -25,6 +25,8 @@ const ReleaseNoteTemplate = ({ data, location }) => {
       frontmatter: { downloadLink, releaseDate, watermark, metaDescription },
     },
   } = data;
+
+  const { disableSEO } = pageContext;
 
   const title = getTitle(frontmatter);
 
@@ -35,6 +37,7 @@ const ReleaseNoteTemplate = ({ data, location }) => {
         title={title}
         description={metaDescription}
         type={TYPES.RELEASE_NOTE}
+        disable={disableSEO}
       />
       <PageTitle
         css={css`

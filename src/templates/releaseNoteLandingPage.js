@@ -13,7 +13,7 @@ import { TYPES } from '../utils/constants';
 const EXCERPT_LENGTH = 200;
 
 const ReleaseNoteLandingPage = ({ data, pageContext, location }) => {
-  const { slug } = pageContext;
+  const { slug, disableSEO } = pageContext;
   const {
     allMdx: { nodes: posts },
     mdx: {
@@ -39,7 +39,12 @@ const ReleaseNoteLandingPage = ({ data, pageContext, location }) => {
 
   return (
     <>
-      <SEO location={location} title={title} type={TYPES.LANDING_PAGE} />
+      <SEO
+        location={location}
+        title={title}
+        type={TYPES.LANDING_PAGE}
+        disable={disableSEO}
+      />
       <PageTitle
         css={css`
           display: flex;

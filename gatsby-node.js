@@ -271,6 +271,7 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
       createPageFromNode(i18nNode || node, {
         prefix: i18nNode ? '' : locale,
         createPage,
+        disableSEO: !i18nNode,
       });
     });
   });
@@ -329,7 +330,7 @@ exports.createResolvers = ({ createResolvers }) => {
 
 exports.onCreatePage = ({ page, actions }) => {
   const { createPage, deletePage } = actions;
-  const oldPage = Object.assign({}, page);
+  const oldPage = { ...page };
 
   if (page.path.match(/404/)) {
     page.context.layout = 'basic';
@@ -372,7 +373,10 @@ const createLocalizedRedirect = ({
   });
 };
 
-const createPageFromNode = (node, { createPage, prefix = '' }) => {
+const createPageFromNode = (
+  node,
+  { createPage, prefix = '', disableSEO = false }
+) => {
   const {
     fields: { fileRelativePath, slug },
   } = node;
@@ -398,6 +402,7 @@ const createPageFromNode = (node, { createPage, prefix = '' }) => {
         fileRelativePath,
         slug,
         slugRegex: `${slug}/.+/`,
+        disableSEO,
       },
     });
   }
