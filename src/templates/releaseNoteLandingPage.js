@@ -12,6 +12,20 @@ import { TYPES } from '../utils/constants';
 
 const EXCERPT_LENGTH = 200;
 
+const sortByVersion = (
+  { frontmatter: { version: versionA } },
+  { frontmatter: { version: versionB } }
+) => {
+  if (!versionA || !versionB) {
+    return 0;
+  }
+
+  return (
+    parseInt(versionB.replace(/\D/g, ''), 10) -
+    parseInt(versionA.replace(/\D/g, ''), 10)
+  );
+};
+
 const ReleaseNoteLandingPage = ({ data, pageContext, location }) => {
   const { slug } = pageContext;
   const {
@@ -81,7 +95,7 @@ const ReleaseNoteLandingPage = ({ data, pageContext, location }) => {
 
             return (
               <Timeline.Item label={date} key={date}>
-                {posts.map((post) => {
+                {posts.sort(sortByVersion).map((post) => {
                   const excerpt = getBestGuessExcerpt(post.mdxAST);
 
                   return (
@@ -91,7 +105,7 @@ const ReleaseNoteLandingPage = ({ data, pageContext, location }) => {
                         margin-bottom: 2rem;
 
                         &:last-child {
-                          margin-bottom: ${isLast ? 0 : '2rem'};
+                          margin-bottom: ${isLast ? 0 : '4rem'};
                         }
                       `}
                     >
