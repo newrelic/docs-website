@@ -4,6 +4,7 @@ const parse = require('rehype-parse');
 const unified = require('unified');
 const addAbsoluteImagePath = require('./rehype-plugins/utils/addAbsoluteImagePath');
 const rehypeStringify = require('rehype-stringify');
+const getAgentName = require('./src/utils/getAgentName');
 
 const siteUrl = 'https://docs.newrelic.com';
 const dataDictionaryPath = `${__dirname}/src/data-dictionary`;
@@ -324,10 +325,8 @@ module.exports = {
       },
     },
     'gatsby-plugin-generate-doc-json',
-    /*
-      Comment in below to run a build that checks links
-      'gatsby-plugin-check-links', 
-    */
+    // Comment in below to run a build that checks links
+    // 'gatsby-plugin-check-links',
     {
       resolve: 'gatsby-plugin-generate-json',
       options: {
@@ -440,6 +439,33 @@ module.exports = {
           })),
         feedFilename: 'data-dictionary',
         nodesPerFeedFile: Infinity,
+      },
+    },
+    {
+      resolve: `gatsby-plugin-generate-json`,
+      options: {
+        query: `
+        {
+          allMdx(filter: {fields: {slug: {regex: "/docs/release-notes/"}}}) {
+            nodes {
+              frontmatter {
+                subject
+                releaseDate(fromNow: false)
+                version
+              }
+            }
+          }
+        }
+        `,
+        path: '/api/agent-release-notes.json',
+        serialize: ({ data }) =>
+          data.allMdx.nodes
+            .map(({ frontmatter }) => ({
+              agent: getAgentName(frontmatter.subject),
+              date: frontmatter.releaseDate,
+              version: frontmatter.version,
+            }))
+            .filter(({ date, agent }) => Boolean(date && agent)),
       },
     },
     'gatsby-plugin-release-note-rss',
