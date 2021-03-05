@@ -66,7 +66,7 @@ DocsSiteSeo.propTypes = {
   description: PropTypes.string,
   type: PropTypes.string,
   tags: PropTypes.array,
-  disable: PropTypes.bool,
+  disableSwiftype: PropTypes.bool,
 };
 
 export default DocsSiteSeo;
