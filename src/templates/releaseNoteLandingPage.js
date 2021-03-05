@@ -13,7 +13,7 @@ import { TYPES } from '../utils/constants';
 const EXCERPT_LENGTH = 200;
 
 const ReleaseNoteLandingPage = ({ data, pageContext, location }) => {
-  const { slug, disableSEO } = pageContext;
+  const { slug, disableSwiftype } = pageContext;
   const {
     allMdx: { nodes: posts },
     mdx: {
@@ -43,7 +43,7 @@ const ReleaseNoteLandingPage = ({ data, pageContext, location }) => {
         location={location}
         title={title}
         type={TYPES.LANDING_PAGE}
-        disable={disableSEO}
+        disableSwiftype={disableSwiftype}
       />
       <PageTitle
         css={css`

@@ -46,7 +46,7 @@ const components = {
 const LandingPage = ({ data, location, pageContext }) => {
   const { mdx } = data;
   const { frontmatter, body } = mdx;
-  const { disableSEO } = pageContext;
+  const { disableSwiftype } = pageContext;
 
   return (
     <>
@@ -55,7 +55,7 @@ const LandingPage = ({ data, location, pageContext }) => {
         title={frontmatter.title}
         description={frontmatter.metaDescription}
         type={TYPES.LANDING_PAGE}
-        disable={disableSEO}
+        disableSwiftype={disableSwiftype}
       />
       <PageTitle>{frontmatter.title}</PageTitle>
       <Layout.Content>

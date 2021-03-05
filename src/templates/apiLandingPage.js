@@ -15,14 +15,14 @@ const ApiIndexPage = ({ data, location, pageContext }) => {
     },
     allMdx: { nodes: apiDocPages },
   } = data;
-  const { disableSEO } = pageContext;
+  const { disableSwiftype } = pageContext;
   return (
     <>
       <SEO
         location={location}
         title={title}
         type={TYPES.API_LANDING_PAGE}
-        disable={disableSEO}
+        disableSwiftype={disableSwiftype}
       />
       <PageTitle>{title}</PageTitle>
       <Layout.Content>

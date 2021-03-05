@@ -29,7 +29,7 @@ const WhatsNewTemplate = ({ data, location, pageContext }) => {
     },
   } = data;
 
-  const { disableSEO } = pageContext;
+  const { disableSwiftype } = pageContext;
 
   return (
     <>
@@ -37,7 +37,7 @@ const WhatsNewTemplate = ({ data, location, pageContext }) => {
         location={location}
         title={title}
         type={TYPES.WHATS_NEW}
-        disable={disableSEO}
+        disableSwiftype={disableSwiftype}
       />
       <PageTitle
         css={css`

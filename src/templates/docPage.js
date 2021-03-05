@@ -30,7 +30,7 @@ const BasicDoc = ({ data, location, pageContext }) => {
     fields: { fileRelativePath },
     relatedResources,
   } = mdx;
-  const { disableSEO } = pageContext;
+  const { disableSwiftype } = pageContext;
 
   const moreHelpHeading = mdxAST.children
     .filter((node) => node.type === 'heading')
@@ -73,7 +73,7 @@ const BasicDoc = ({ data, location, pageContext }) => {
         description={metaDescription}
         type={type ? TYPES.BASIC_PAGE[type] : TYPES.BASIC_PAGE.default}
         tags={tags}
-        disable={disableSEO}
+        disableSwiftype={disableSwiftype}
       />
       <div
         css={css`

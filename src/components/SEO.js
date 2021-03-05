@@ -16,9 +16,16 @@ const METADATA = [
   },
 ];
 
-const DocsSiteSeo = ({ location, title, description, type, tags, disable }) => (
+const DocsSiteSeo = ({
+  location,
+  title,
+  description,
+  type,
+  tags,
+  disableSwiftype,
+}) => (
   <SEO location={location} title={title}>
-    {disable ? (
+    {disableSwiftype ? (
       <>
         {METADATA.map((data) => (
           <meta key={data.name} {...data} />

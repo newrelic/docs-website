@@ -26,7 +26,7 @@ const ReleaseNoteTemplate = ({ data, location, pageContext }) => {
     },
   } = data;
 
-  const { disableSEO } = pageContext;
+  const { disableSwiftype } = pageContext;
 
   const title = getTitle(frontmatter);
 
@@ -37,7 +37,7 @@ const ReleaseNoteTemplate = ({ data, location, pageContext }) => {
         title={title}
         description={metaDescription}
         type={TYPES.RELEASE_NOTE}
-        disable={disableSEO}
+        disableSwiftype={disableSwiftype}
       />
       <PageTitle
         css={css`

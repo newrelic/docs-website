@@ -10,7 +10,7 @@ import { TYPES } from '../utils/constants';
 
 const IndexPage = ({ data, pageContext, location }) => {
   const { nav } = data;
-  const { html, disableSEO } = pageContext;
+  const { html, disableSwiftype } = pageContext;
   const title = nav ? nav.title : pageContext.title;
 
   return (
@@ -19,7 +19,7 @@ const IndexPage = ({ data, pageContext, location }) => {
         location={location}
         title={title}
         type={TYPES.AUTO_INDEX_PAGE}
-        disable={disableSEO}
+        disableSwiftype={disableSwiftype}
       />
       <PageTitle>{title}</PageTitle>
       <Layout.Content>

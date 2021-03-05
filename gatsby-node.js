@@ -271,7 +271,7 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
       createPageFromNode(i18nNode || node, {
         prefix: i18nNode ? '' : locale,
         createPage,
-        disableSEO: !i18nNode,
+        disableSwiftype: !i18nNode,
       });
     });
   });
@@ -330,7 +330,7 @@ exports.createResolvers = ({ createResolvers }) => {
 
 exports.onCreatePage = ({ page, actions }) => {
   const { createPage, deletePage } = actions;
-  const oldPage = Object.assign({}, page);
+  const oldPage = { ...page };
 
   if (page.path.match(/404/)) {
     page.context.layout = 'basic';
@@ -375,7 +375,7 @@ const createLocalizedRedirect = ({
 
 const createPageFromNode = (
   node,
-  { createPage, prefix = '', disableSEO = false }
+  { createPage, prefix = '', disableSwiftype = false }
 ) => {
   const {
     fields: { fileRelativePath, slug },
@@ -402,7 +402,7 @@ const createPageFromNode = (
         fileRelativePath,
         slug,
         slugRegex: `${slug}/.+/`,
-        disableSEO,
+        disableSwiftype,
       },
     });
   }

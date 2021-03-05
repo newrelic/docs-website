@@ -11,7 +11,7 @@ import { TYPES } from '../utils/constants';
 const TableOfContentsPage = ({ data, pageContext, location }) => {
   const { localizedPath } = useLocale();
   const { nav } = data;
-  const { slug, disableSEO, title } = pageContext;
+  const { slug, disableSwiftype, title } = pageContext;
   const landingPageSlug = slug.replace('/table-of-contents', '');
   const subnav = useMemo(
     () =>
@@ -33,7 +33,7 @@ const TableOfContentsPage = ({ data, pageContext, location }) => {
         location={location}
         title={title}
         type={TYPES.TABLE_OF_CONTENTS}
-        disable={disableSEO}
+        disableSwiftype={disableSwiftype}
       />
       <PageTitle>{title}</PageTitle>
       <Link
