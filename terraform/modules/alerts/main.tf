@@ -39,7 +39,7 @@ resource "newrelic_alert_condition" "page_load_high" {
     duration      = 5
     operator      = "above"
     priority      = "warning"
-    threshold     = 3 # seconds
+    threshold     = var.page_load_warning
     time_function = "all"
   }
 
@@ -47,7 +47,7 @@ resource "newrelic_alert_condition" "page_load_high" {
     duration      = 5
     operator      = "above"
     priority      = "critical"
-    threshold     = 5 # seconds
+    threshold     = var.page_load_critical
     time_function = "all"
   }
 }
@@ -65,7 +65,7 @@ resource "newrelic_alert_condition" "apdex_low" {
     duration      = 5
     operator      = "below"
     priority      = "warning"
-    threshold     = 0.7
+    threshold     = var.apdex_warning
     time_function = "all"
   }
 
@@ -73,7 +73,35 @@ resource "newrelic_alert_condition" "apdex_low" {
     duration      = 5
     operator      = "below"
     priority      = "critical"
-    threshold     = 0.5
+    threshold     = var.apdex_critical
     time_function = "all"
+  }
+}
+
+resource "newrelic_nrql_alert_condition" "js_errors" {
+  policy_id = newrelic_alert_policy.id
+
+  name           = "JS Errors (High)"
+  type           = "static"
+  value_function = "single_value"
+  runbook_url    = local.runbook_url
+
+  nrql {
+    query             = "SELECT (uniqueCount(JavaScriptError.session) / uniqueCount(PageView.session)) * 100 AS '% Errors' FROM JavaScriptError, PageView WHERE appName = 'docs.newrelic.com' AND errorMessage != 'Unexpected token _ in JSON at position 0'"
+    evaluation_offset = 3
+  }
+
+  warning {
+    operator              = "above"
+    threshold             = var.js_errors_warning
+    threshold_duration    = 300 # 5 minutes
+    threshold_occurrances = "all"
+  }
+
+  critical {
+    operator              = "above"
+    threshold             = var.js_errors_critical
+    threshold_duration    = 300 # 5 minutes
+    threshold_occurrances = "all"
   }
 }
