@@ -148,3 +148,104 @@ deployment framework.
     instrumented Lambda functions deployed using Terraform scripts.
   </Collapser>
 </CollapserGroup>
+
+## Unusual integrations
+
+For most, one of the options above will work really well. There's a chance that you can't use any of these
+solutions though. For guidance on how to customize your integration to fit your needs, read on.
+
+### CloudWatch telemetry [#cloudwatch-telemetry]
+
+As [mentioned previously](/docs/serverless-function-monitoring/aws-lambda-monitoring/get-started/architecture#cloudwatch)
+we used to recommend sending your telemetry through CloudWatch Logs. This path can still work, though it is deprecated.
+
+1. Disable the extension by adding the `NEW_RELIC_LAMBDA_EXTENSION_ENABLED` environment variable to your function,
+with the value `false`.
+2. Create a CloudWatch Logs subscription filter, to invoke the `newrelic-log-ingestion` function with the logs for your
+function.
+   - The CLI can do this for you: `newrelic-lambda subscriptions install --function <var>FUNCTION_NAME</var>`
+   - Alternatively, use the AWS Console to create a subscription filter from your function's CloudWatch Log Group to
+   invoke the `newrelic-log-ingestion` lambda function. See below.
+
+<CollapserGroup>
+  <Collapser
+    id="manual-stream-logs"
+    title="Manual process: Stream CloudWatch logs to New Relic Lambda"
+  >
+    1. Open CloudWatch and select **Logs** in the left-hand menu, and then select the log group for the function you are monitoring.
+    2. Select **Actions** and choose **Stream to AWS Lambda**.
+    3. Under **Lambda function**, select the `newrelic-log-ingestion` function.
+    4. Set the **Log format** to `JSON`.
+    5. Set the **Subscription filter pattern to** `?REPORT ?NR_LAMBDA_MONITORING ?"Task timed out" ?RequestId`. Alternatively, if you are using the `LOGGING_ENABLED` environment variable [stream all your logs](#stream-all-logs) to our Logs, leave this field blank.
+
+    See [notes and caveats about this procedure](#stream-logs).
+
+    <Callout variant="important">
+      Make sure the `newrelic-log-ingestion` Lambda function you select in the method above is in the same AWS region as your Lambda function.
+    </Callout>
+  </Collapser>
+</CollapserGroup>
+
+### Lambda Console UI configuration
+
+While it is more error prone and labor intensive than the approaches above, it's possible to manually alter the
+configuration of a Lambda function to use New Relic from the AWS Lambda Console, for NodeJS and Python.
+
+1. Find the [layer](https://layers.newrelic-external.com/) that matches your runtime and region.
+2. Copy the Amazon Resource Name (ARN) of the most recent version and add it in the AWS Lambda console for your function.
+3. Update your functions handler to point to the newly attached layer in the console for your function:
+   * Python: `newrelic_lambda_wrapper.handler`
+   * Node: `newrelic-lambda-wrapper.handler`
+4. Add these environment variables to your Lambda console:
+   * `NEW_RELIC_ACCOUNT_ID`: Your [account ID](/docs/accounts/install-new-relic/account-setup/account-id)
+   * `NEW_RELIC_LAMBDA_HANDLER`: Path to your initial handler.
+5. Modify the Execution Role to allow access to the New Relic License Key secret
+   1. Find the ARN of the secret named `NEW_RELIC_LICENSE_KEY`
+   2. Add a new inline policy in the function's execution role that looks like this (replacing the
+   <var>SECRET_ARN</var> with the value you found above):
+
+   ```
+        "Statement": [
+          {
+            "Action": [
+              "secretsmanager:GetSecretValue"
+            ],
+            "Resource": "<var>SECRET_ARN</var>",
+            "Effect": "Allow"
+          }
+        ]
+   ```
+
+Note that for Go, Java, and .NET, you must make source code changes to your Lambda function to instrument it.
+Configuration changes are not enough.
+
+### Layer customization
+
+The layer contains several components, depending on your runtime:
+
+1. For all runtimes, the extension executable is packaged in the layer.
+2. For Python and NodeJS, we also include:
+   1. The New Relic Agent
+   2. The AWS SDK instrumentation package for the New Relic Agent
+   3. A handler wrapper, which configures the agent, and intercepts invocations, to start the instrumentation
+   process, then invokes your handler.
+
+If you need a different wrapper, you can build your own layer, based on ours. See our
+[newrelic-lambda-layers GitHub repo](https://github.com/newrelic/newrelic-lambda-layers) for the code contained in
+our wrapper function. By creating [your own layer](https://docs.aws.amazon.com/lambda/latest/dg/configuration-layers.html)
+with a replacement wrapper, and applying it _after_ ours, your wrapper will overwrite the one we supply. Similarly,
+you can include your custom wrapper directly in your function.
+
+Similarly, if you are testing a custom build of the agent, perhaps to address some bug, you could modify our layer
+packaging scripts above to package your agent build, and build your own layer.
+
+We explicitly do not recommend that you package the agent with your Lambda function. While this is possible, it
+makes it difficult for you to upgrade the agent and receive bug fixes. The layer may conflict with your vendored
+agent. Such a configuration should be regarded as unsupported, though it can work.
+
+
+## What's next? [#find-data]
+
+After you complete these steps, here's what you can do next:
+
+* See data reporting in the [Lambda monitoring UI](/docs/lambda-monitoring-ui). If you're having trouble finding your data, see [Lambda enable troubleshooting](/docs/serverless-function-monitoring/aws-lambda-monitoring/troubleshooting/troubleshooting-enabling-new-relic-monitoring-aws-lambda).
