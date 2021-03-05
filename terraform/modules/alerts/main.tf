@@ -78,6 +78,22 @@ resource "newrelic_alert_condition" "apdex_low" {
   }
 }
 
+resource "newrelic_synthetics_multilocation_alert_condition" "synthetics_failures" {
+  policy_id = newrelic_alert_policy.id
+
+  name        = "Synthetics Failures"
+  entities    = [var.synthetics_id]
+  runbook_url = local.runbook_url
+
+  warning {
+    threshold = synthetics_warning
+  }
+
+  critical {
+    threshold = synthetics_critical
+  }
+}
+
 resource "newrelic_nrql_alert_condition" "js_errors" {
   policy_id = newrelic_alert_policy.id
 

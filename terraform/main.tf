@@ -50,10 +50,12 @@ module "docs_site_alerts" {
   synthetics_id  = newrelic_synthetics_monitor.docs_site_monitor.id
 
   # Alert configuration (within the last 5 minutes)
-  page_load_warning  = 3 # seconds
-  page_load_critical = 5 # seconds
-  apdex_warning      = 0.7
-  apdex_critical     = 0.5
-  js_errors_warning  = 10 # unique sessions
-  js_errors_critical = 20 # unique sessions
+  page_load_warning   = 3 # seconds
+  page_load_critical  = 5 # seconds
+  apdex_warning       = 0.7
+  apdex_critical      = 0.5
+  js_errors_warning   = 10 # unique sessions
+  js_errors_critical  = 20 # unique sessions
+  synthetics_warning  = 1 # failure
+  synthetics_critical = 2 #failures
 }
