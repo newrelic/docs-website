@@ -25,37 +25,32 @@ const DocsSiteSeo = ({
   disableSwiftype,
 }) => (
   <SEO location={location} title={title}>
-    {disableSwiftype ? (
-      <>
-        {METADATA.map((data) => (
-          <meta key={data.name} {...data} />
-        ))}
+    {disableSwiftype && <meta name="st:robots" content="nofollow, noindex" />}
+    {METADATA.map((data) => (
+      <meta key={data.name} {...data} />
+    ))}
 
-        {(tags || []).map((tag) => (
-          <meta
-            key={tag}
-            name="tags"
-            className="swiftype"
-            data-type="string"
-            content={tag}
-          />
-        ))}
+    {(tags || []).map((tag) => (
+      <meta
+        key={tag}
+        name="tags"
+        className="swiftype"
+        data-type="string"
+        content={tag}
+      />
+    ))}
 
-        {type && (
-          <meta
-            className="swiftype"
-            name="document_type"
-            data-type="enum"
-            content={type}
-          />
-        )}
+    {type && (
+      <meta
+        className="swiftype"
+        name="document_type"
+        data-type="enum"
+        content={type}
+      />
+    )}
 
-        {(description || title) && (
-          <meta name="description" content={description || title} />
-        )}
-      </>
-    ) : (
-      <meta name="st:robots" content="nofollow, noindex" />
+    {(description || title) && (
+      <meta name="description" content={description || title} />
     )}
   </SEO>
 );
