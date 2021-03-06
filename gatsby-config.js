@@ -47,6 +47,7 @@ module.exports = {
     {
       resolve: '@newrelic/gatsby-theme-newrelic',
       options: {
+        forceTrailingSlashes: true,
         layout: {
           contentPadding: '2rem',
           maxWidth: '1600px',
@@ -55,7 +56,7 @@ module.exports = {
         },
         i18n: {
           translationsPath: `${__dirname}/src/i18n/translations`,
-          additionalLocales: [{ name: '日本語', locale: 'jp' }],
+          additionalLocales: ['jp'],
         },
         prism: {
           languages: [
