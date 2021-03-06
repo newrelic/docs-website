@@ -51,7 +51,6 @@ exports.createPages = async ({ actions, graphql, reporter }, pluginOptions) => {
       }
       allLocale(filter: { isDefault: { eq: false } }) {
         nodes {
-          localizedPath
           locale
         }
       }
@@ -190,10 +189,10 @@ exports.createPages = async ({ actions, graphql, reporter }, pluginOptions) => {
     }
   });
 
-  locales.forEach(({ localizedPath }) => {
+  locales.forEach(({ locale }) => {
     visit(list, 'directory', (dir) => {
       const slug = `/${dir.path}`;
-      const localizedSlug = path.join(`/${localizedPath}`, slug);
+      const localizedSlug = path.join(`/${locale}`, slug);
 
       if (skippedDirectories.includes(dir.path)) {
         return [visit.SKIP];
@@ -210,8 +209,7 @@ exports.createPages = async ({ actions, graphql, reporter }, pluginOptions) => {
         .filter(isFile)
         .forEach((child) => {
           const localizedFileSlug = path.join(
-            '/',
-            localizedPath,
+            `/${locale}`,
             child.data.fields.slug
           );
           const matchedNode = translatedFileNodes.find(
@@ -258,12 +256,9 @@ exports.createPages = async ({ actions, graphql, reporter }, pluginOptions) => {
       },
     });
 
-    locales.forEach(({ localizedPath }) => {
-      const localizedSlug = path.join(`/${localizedPath}`, slug);
-      const localizedLandingPageSlug = path.join(
-        `/${localizedPath}`,
-        landingPageSlug
-      );
+    locales.forEach(({ locale }) => {
+      const localizedSlug = path.join(`/${locale}`, slug);
+      const localizedLandingPageSlug = path.join(`/${locale}`, landingPageSlug);
 
       const translatedNode =
         translatedTableOfContentsNodes.find(
