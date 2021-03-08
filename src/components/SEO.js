@@ -2,6 +2,7 @@ import React from 'react';
 import PropTypes from 'prop-types';
 
 import { SEO } from '@newrelic/gatsby-theme-newrelic';
+import PageTitle from './PageTitle';
 
 const METADATA = [
   {
@@ -46,6 +47,15 @@ const DocsSiteSeo = ({
         name="document_type"
         data-type="enum"
         content={type}
+      />
+    )}
+
+    {title && (
+      <meta
+        className="swiftype"
+        name="title"
+        data-type="text"
+        content={title}
       />
     )}
 
