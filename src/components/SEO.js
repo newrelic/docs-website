@@ -49,6 +49,15 @@ const DocsSiteSeo = ({
       />
     )}
 
+    {title && (
+      <meta
+        className="swiftype"
+        name="title"
+        data-type="text"
+        content={title}
+      />
+    )}
+
     {(description || title) && (
       <meta name="description" content={description || title} />
     )}
