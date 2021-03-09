@@ -1,5 +1,5 @@
 ---
-title: Nerdlog weekly roundup: AIOps and Custom Data Visualizations
+title: 'Nerdlog weekly roundup: AIOps and Custom Data Visualizations'
 summary: 'Smarter incident intelligence with AIOps and custom data visualizations'
 releaseDate: '2021-03-09'
 learnMoreLink: 'https://blog.newrelic.com/product-news/nerdlog-aiops-and-custom-dashboards/'
