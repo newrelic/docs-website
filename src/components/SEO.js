@@ -53,7 +53,7 @@ const DocsSiteSeo = ({
       <meta
         className="swiftype"
         name="title"
-        data-type="text"
+        data-type="string"
         content={title}
       />
     )}
