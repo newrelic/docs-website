@@ -8,6 +8,7 @@ const removeExports = require('remark-mdx-remove-exports');
 const fencedCodeBlock = require('../../codemods/fencedCodeBlock');
 const customHeadingIds = require('../gatsby-remark-custom-heading-ids/utils/visitor');
 const handlers = require('./utils/handlers');
+const jsxImagesToChildren = require('./utils/jsxImagesToChildren');
 const all = require('mdast-util-to-hast/lib/all');
 
 const mdxElement = (h, node) => {
@@ -20,9 +21,10 @@ const mdxElement = (h, node) => {
 };
 
 const htmlGenerator = unified()
+  .use(jsxImagesToChildren)
+  .use(fencedCodeBlock)
   .use(removeImports)
   .use(removeExports)
-  .use(fencedCodeBlock)
   .use(customHeadingIds)
   .use(html);
 
