@@ -108,11 +108,12 @@ const BasicDoc = ({ data, location, pageContext }) => {
             }
           `}
         >
-          <SimpleFeedback pageTitle={title} labels={['content']} />
+          <SimpleFeedback pageTitle={title} />
           {!isMobileScreen && (
             <ContributingGuidelines
               pageTitle={title}
               fileRelativePath={fileRelativePath}
+              issueLabels={['feedback', 'feedback-issue']}
             />
           )}
           <TableOfContents headings={headings} />
