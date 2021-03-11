@@ -257,7 +257,11 @@ const EventDefinition = memo(({ location, event, filteredAttribute }) => {
         </span>
         <TagList>
           {event.dataSources.map((dataSource) => (
-            <Tag as={Link} to={`?dataSource=${dataSource}`} key={dataSource}>
+            <Tag
+              as={Link}
+              to={`${location.pathname}?dataSource=${dataSource}`}
+              key={dataSource}
+            >
               {dataSource}
             </Tag>
           ))}

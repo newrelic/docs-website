@@ -133,37 +133,23 @@ module.exports = {
     );
   },
   Collapser: (h, node) => {
-    const title = findAttribute('title', node);
-
-    if (title.type === 'mdxValueExpression') {
-      const root = attributeProcessor.parse(title.value);
-      const { children } = attributeProcessor.runSync(root);
-
-      const parsedChildren =
-        children[0].name !== null ? children[0] : children[0].children;
-
-      const titleNode =
-        Array.isArray(parsedChildren) &&
-        parsedChildren.find((child) => child.type === 'text');
-
-      return h(
-        node,
-        'div',
-        {
-          className: 'collapser',
-          title: titleNode && titleNode.value ? titleNode.value.trim() : '',
-        },
-        all(h, node)
-      );
-    }
-
     return h(
       node,
       'div',
-      {
+      stripNulls({
         className: 'collapser',
         title: findAttribute('title', node),
-      },
+      }),
+      all(h, node)
+    );
+  },
+  CollapserTitle: (h, node) => {
+    return h(
+      node,
+      'div',
+      stripNulls({
+        className: 'collapser-title',
+      }),
       all(h, node)
     );
   },
@@ -211,6 +197,22 @@ module.exports = {
 
     return one(h, image, node.parent);
   },
+  TechTile: (h, node) => {
+    const attributes = JSON.stringify(getAllAttributes(node));
+    return h(
+      node,
+      'div',
+      {
+        className: 'tech-tile',
+        'data-props': attributes,
+      },
+      all(h, node)
+    );
+  },
+  TechTileGrid: (h, node) =>
+    h(node, 'div', { className: 'tech-tile-grid' }, all(h, node)),
+  TechTileIcon: (h, node) =>
+    h(node, 'div', { className: 'tech-tile-icon' }, all(h, node)),
   InlineCode: (h, node) => h(node, 'code', {}, [u('text', toString(node))]),
   table: (h, node) => h(node, 'table', {}, all(h, node)),
   thead: (h, node) => h(node, 'thead', {}, all(h, node)),

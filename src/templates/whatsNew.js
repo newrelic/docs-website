@@ -12,7 +12,7 @@ import SEO from '../components/SEO';
 import PageTitle from '../components/PageTitle';
 import { TYPES } from '../utils/constants';
 
-const WhatsNewTemplate = ({ data, location }) => {
+const WhatsNewTemplate = ({ data, location, pageContext }) => {
   const {
     site: {
       siteMetadata: { siteUrl },
@@ -29,9 +29,16 @@ const WhatsNewTemplate = ({ data, location }) => {
     },
   } = data;
 
+  const { disableSwiftype } = pageContext;
+
   return (
     <>
-      <SEO location={location} title={title} type={TYPES.WHATS_NEW} />
+      <SEO
+        location={location}
+        title={title}
+        type={TYPES.WHATS_NEW}
+        disableSwiftype={disableSwiftype}
+      />
       <PageTitle
         css={css`
           max-width: 850px;
@@ -133,6 +140,7 @@ const WhatsNewTemplate = ({ data, location }) => {
 WhatsNewTemplate.propTypes = {
   data: PropTypes.object.isRequired,
   location: PropTypes.object.isRequired,
+  pageContext: PropTypes.object.isRequired,
 };
 
 export const pageQuery = graphql`

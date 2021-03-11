@@ -125,6 +125,7 @@ const containsImport = (tree, node) => {
 module.exports = {
   addAttribute,
   containsImport,
+  parseImport,
   flatten,
   isMdxBlockElement,
   isMdxElement,

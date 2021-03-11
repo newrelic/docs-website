@@ -16,8 +16,16 @@ const METADATA = [
   },
 ];
 
-const DocsSiteSeo = ({ location, title, description, type, tags }) => (
+const DocsSiteSeo = ({
+  location,
+  title,
+  description,
+  type,
+  tags,
+  disableSwiftype,
+}) => (
   <SEO location={location} title={title}>
+    {disableSwiftype && <meta name="st:robots" content="nofollow, noindex" />}
     {METADATA.map((data) => (
       <meta key={data.name} {...data} />
     ))}
@@ -41,6 +49,15 @@ const DocsSiteSeo = ({ location, title, description, type, tags }) => (
       />
     )}
 
+    {title && (
+      <meta
+        className="swiftype"
+        name="title"
+        data-type="string"
+        content={title}
+      />
+    )}
+
     {(description || title) && (
       <meta name="description" content={description || title} />
     )}
@@ -53,6 +70,7 @@ DocsSiteSeo.propTypes = {
   description: PropTypes.string,
   type: PropTypes.string,
   tags: PropTypes.array,
+  disableSwiftype: PropTypes.bool,
 };
 
 export default DocsSiteSeo;

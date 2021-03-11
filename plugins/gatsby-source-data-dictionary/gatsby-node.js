@@ -118,6 +118,14 @@ exports.sourceNodes = (
         return id;
       });
 
+    createRedirect({
+      fromPath: `/attribute-dictionary/${event.name.toLowerCase()}`,
+      toPath: `/attribute-dictionary/?event=${event.name}`,
+      isPermanent: true,
+      redirectInBrowser: true,
+      trailingSlash: false,
+    });
+
     createNode({
       ...event,
       id: createNodeId(`DataDictionaryEvent-${event.name}`),

@@ -12,8 +12,22 @@ import { TYPES } from '../utils/constants';
 
 const EXCERPT_LENGTH = 200;
 
+const sortByVersion = (
+  { frontmatter: { version: versionA } },
+  { frontmatter: { version: versionB } }
+) => {
+  if (!versionA || !versionB) {
+    return 0;
+  }
+
+  return (
+    parseInt(versionB.replace(/\D/g, ''), 10) -
+    parseInt(versionA.replace(/\D/g, ''), 10)
+  );
+};
+
 const ReleaseNoteLandingPage = ({ data, pageContext, location }) => {
-  const { slug } = pageContext;
+  const { slug, disableSwiftype } = pageContext;
   const {
     allMdx: { nodes: posts },
     mdx: {
@@ -39,7 +53,12 @@ const ReleaseNoteLandingPage = ({ data, pageContext, location }) => {
 
   return (
     <>
-      <SEO location={location} title={title} type={TYPES.LANDING_PAGE} />
+      <SEO
+        location={location}
+        title={title}
+        type={TYPES.LANDING_PAGE}
+        disableSwiftype={disableSwiftype}
+      />
       <PageTitle
         css={css`
           display: flex;
@@ -81,7 +100,7 @@ const ReleaseNoteLandingPage = ({ data, pageContext, location }) => {
 
             return (
               <Timeline.Item label={date} key={date}>
-                {posts.map((post) => {
+                {posts.sort(sortByVersion).map((post) => {
                   const excerpt = getBestGuessExcerpt(post.mdxAST);
 
                   return (

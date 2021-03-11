@@ -105,6 +105,7 @@ const HomePage = ({ data }) => {
               title={t('home.welcome.t1.title')}
               description={t('home.welcome.t1.description')}
               variant="cta"
+              instrumentation={{ component: 'WelcomeTileCTA' }}
             />
             <WelcomeTile
               to="https://one.newrelic.com/launcher/nr1-core.settings?pane=eyJuZXJkbGV0SWQiOiJ0dWNzb24ucGxnLWluc3RydW1lbnQtZXZlcnl0aGluZyJ9"
@@ -355,10 +356,17 @@ const pulse = keyframes`
 }
 `;
 
-const WelcomeTile = ({ description, title, to, variant = 'normal' }) => (
+const WelcomeTile = ({
+  description,
+  title,
+  to,
+  variant = 'normal',
+  instrumentation,
+}) => (
   <SurfaceLink
     base={Surface.BASE.PRIMARY}
     to={to}
+    instrumentation={instrumentation}
     css={css`
       text-align: center;
       padding: 3.5rem 1rem 1.5rem;
@@ -442,6 +450,7 @@ WelcomeTile.propTypes = {
   title: PropTypes.string,
   to: PropTypes.string,
   variant: PropTypes.oneOf(['normal', 'cta']),
+  instrumentation: PropTypes.object,
 };
 
 const welcomeTileStyles = {

@@ -40,7 +40,7 @@ exports.createResolvers = ({ createResolvers, createNodeId }) => {
           const locales = nodeModel
             .getAllNodes({ type: 'Locale' })
             .filter(({ isDefault }) => !isDefault)
-            .map(({ localizedPath }) => localizedPath);
+            .map(({ locale }) => locale);
 
           const utils = {
             args,
