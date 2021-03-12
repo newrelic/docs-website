@@ -163,10 +163,11 @@ const AttributeDictionary = ({ data, pageContext, location }) => {
             }
           `}
         >
-          <SimpleFeedback title="Attribute dictionary" labels={['content']} />
+          <SimpleFeedback title="Attribute dictionary" />
           {!isMobileScreen && (
             <ContributingGuidelines
               fileRelativePath={pageContext.fileRelativePath}
+              issueLabels={['feedback', 'feedback-issue']}
             />
           )}
           <DataDictionaryFilter events={events} location={location} />
