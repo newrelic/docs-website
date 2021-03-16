@@ -5,11 +5,9 @@ New Relic users around the world. -->
 best team. See our [README.md](https://github.com/newrelic/docs-website/) for
 information on how to contribute. -->
 
-<!-- If you find any problems with our Japanese content pages, you can submit an issue. At this
-time we aren't accepting Pull Requests on our Japanese content pages. -->
-
-<!-- 日本語訳されたドキュメントに問題を見つけた場合は、issueを提出することができます。
-issueをもとにドキュメントの改善に努めています。しかしながら、日本語訳のPRを直接マージする準備はまだできていないためご了承ください。-->
+<!-- For Japanese readers: 日本語訳されたドキュメントに問題を見つけた場合は、
+issueを提出することができます。issueをもとにドキュメントの改善に努めています。
+しかしながら、日本語訳のPRを直接マージする準備はまだできていないためご了承ください。-->
 
 ### Tell us why
 
