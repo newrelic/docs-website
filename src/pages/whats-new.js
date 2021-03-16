@@ -6,6 +6,7 @@ import { graphql } from 'gatsby';
 import { Layout, Link, useTranslation } from '@newrelic/gatsby-theme-newrelic';
 import Timeline from '../components/Timeline';
 import SEO from '../components/SEO';
+import { TYPES } from '../utils/constants';
 
 const WhatsNew = ({ data, location }) => {
   const now = useMemo(() => new Date(), []);
@@ -28,7 +29,11 @@ const WhatsNew = ({ data, location }) => {
 
   return (
     <>
-      <SEO location={location} title="What's new in New Relic" />
+      <SEO
+        location={location}
+        title="What's new in New Relic"
+        type={TYPES.WHATS_NEW}
+      />
       <div>
         <PageTitle
           css={css`
