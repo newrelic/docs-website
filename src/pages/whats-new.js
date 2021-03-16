@@ -32,7 +32,7 @@ const WhatsNew = ({ data, location }) => {
       <SEO
         location={location}
         title="What's new in New Relic"
-        type={TYPES.WHATS_NEW}
+        type={TYPES.WHATS_NEW_PAGE}
       />
       <div>
         <PageTitle
