@@ -13,9 +13,17 @@ In our ongoing commitment to constantly innovate and build more integrations for
 
 1. Download and install the [Heroku CLI](https://devcenter.heroku.com/articles/heroku-cli#download-and-install).
 
-2. Create a syslog drain that will send logs to New Relic and attach it to your app: `heroku drains:add syslog+tls://newrelic.syslog.nr-data.net:6515 -a YOUR_APP_NAME`
+2. Create a syslog drain that will send logs to New Relic and attach it to your app: 
 
-3. Run the following to retrieve the drain token assigned to the drain created in step 2: `$ heroku drains -a YOUR_APP_NAME --json`
+```
+heroku drains:add syslog+tls://newrelic.syslog.nr-data.net:6515 -a YOUR_APP_NAME
+```
+
+3. Run the following to retrieve the drain token assigned to the drain created in step 2: 
+
+```
+$ heroku drains -a YOUR_APP_NAME --json
+```
 
 4. Copy the value from the "token" attribute returned by the command above:
 
