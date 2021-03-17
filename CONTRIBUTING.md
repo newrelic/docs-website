@@ -19,7 +19,7 @@
       - [Use `fix`](#use-fix)
       - [Use `feat`](#use-feat)
     - [Deploy previews with Amplify](#deploy-previews-with-amplify)
-  - [Grammar and style guidelines](#grammar-style-guidelines)
+  - [Grammar and style guidelines](##grammar-and-style-guidelines)
   - [Reusable components](#reusable-components)
   - [Editing existing pages](#editing-existing-pages)
   - [Creating new pages](#creating-new-pages)
@@ -185,7 +185,7 @@ PRs that are opened from a branch in this repo (not forks) will generate preview
 
 ## Grammar and style guidelines
 
-We welcome your contributions! And we don't want you to worry about style. When you edit a file, tech writers on our team review it for style, grammar, and formatting. That said, if you're curious about our style guidelines, you're welcome (but not obligated) [to take a look](https://docs.newrelic.com/docs/content/style-guide/introduction-style-guide). 
+We welcome your contributions! And we don't want you to worry about style. When you edit a file, tech writers on our team review it for style, grammar, and formatting. That said, if you're curious about our style guidelines, you're welcome (but not obligated) [to take a look](https://docs.newrelic.com/docs/style-guide/get-started/introduction-style-guide/). 
 
 ## Reusable components
 
