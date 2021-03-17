@@ -28,7 +28,7 @@ Go here to [create an issue](https://github.com/newrelic/docs-website/issues/new
 
 If you'd like to get more directly involved, you can edit the docs yourself! Here's how:
 
-1. Every doc page on docs.newrelic.com has an **Edit this page** button. Click it to get started making a change. This will take you to GitHub and the source file for that doc page. 
+1. Every doc page on docs.newrelic.com has an **Edit page** button in the right sidebar and the footer. Click it to get started making a change. This will take you to GitHub and the source file for that doc page. 
 2. Edit the file by clicking on the pencil icon. Make your changes, then click **Commit changes**. This will automatically create a fork in your GitHub account with the changes.
 3. Finally, follow the prompts to create a pull request and submit your changes for review. From there our writers will check out your pull request, comment with any feedback, and merge your change.
 
