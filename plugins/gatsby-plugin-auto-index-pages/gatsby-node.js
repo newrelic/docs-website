@@ -1,6 +1,6 @@
 const path = require('path');
-const fromList = require('./utils/unist-fs-util-from-list');
 const visit = require('unist-util-visit');
+const fromList = require('./utils/unist-fs-util-from-list');
 const generateHTML = require('./utils/generate-html');
 const { prop } = require('../../scripts/utils/functional.js');
 const { sentenceCase } = require('./utils/string');
