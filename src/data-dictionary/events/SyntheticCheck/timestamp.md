@@ -7,4 +7,4 @@ events:
   - SyntheticsPrivateLocationStatus
 ---
 
-The start time of the job in epoch milliseconds.
+The start time of the job in Unix time (milliseconds since the Unix epoch).
