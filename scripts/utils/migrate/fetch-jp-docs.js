@@ -8,11 +8,13 @@ const { JSDOM } = jsdom;
 
 const fetchJpDoc = async (doc) => {
   const url = new URL(doc.docUrl);
-  url.hostname = 'docs.newrelic.co.jp';
+  // url.hostname = 'docs.newrelic.co.jp';
+  url.hostname = 'jajp-newrelic-docs.onelink-translations.com';
 
-  if (doc.type === TYPES.LANDING_PAGE) {
-    url.pathname = path.dirname(url.pathname);
-  }
+  // if (doc.type === TYPES.LANDING_PAGE) {
+  // url.pathname = path.dirname(url.pathname);
+  // }
+  console.log('fetching', url.href);
 
   try {
     const res = await fetch(url.href);
