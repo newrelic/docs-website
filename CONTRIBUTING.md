@@ -19,7 +19,7 @@
       - [Use `fix`](#use-fix)
       - [Use `feat`](#use-feat)
     - [Deploy previews with Amplify](#deploy-previews-with-amplify)
-  - [Grammar and style guidelines](#grammar-style-guidelines)
+  - [Grammar and style guidelines](#grammar-and-style-guidelines)
   - [Reusable components](#reusable-components)
   - [Editing existing pages](#editing-existing-pages)
   - [Creating new pages](#creating-new-pages)
