@@ -5,4 +5,4 @@ events:
   - Span
 ---
 
-The error message associated with the iOS NSURL Error code. See networkError.code for more information.
+The error message associated with the iOS NSURL Error code. See `networkError.code` for more information.
