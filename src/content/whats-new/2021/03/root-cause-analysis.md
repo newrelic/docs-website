@@ -27,7 +27,7 @@ Devin and Nate show us how and why New Relic’s root cause analysis helps you s
 
 We want to provide you with the right context so that you can prioritize problems accurately and efficiently. 
 
-Nate closed out the show explaining how fopology (relationship-based) correlation uses multiple systems to discover how anomalies may be connected, and increases the quality of your event correlations and speed at which they are found.
+Nate closed out the show explaining how topology (relationship-based) correlation uses multiple systems to discover how anomalies may be connected, and increases the quality of your event correlations and speed at which they are found.
 
 <iframe width="560" height="315" src="https://www.youtube.com/embed/jiE2NBJvLHw" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
 
