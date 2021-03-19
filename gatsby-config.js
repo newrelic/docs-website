@@ -2,9 +2,9 @@ const fs = require('fs');
 const parse = require('rehype-parse');
 const path = require('path');
 const unified = require('unified');
+const rehypeStringify = require('rehype-stringify');
 const addAbsoluteImagePath = require('./rehype-plugins/utils/addAbsoluteImagePath');
 const getAgentName = require('./src/utils/getAgentName');
-const rehypeStringify = require('rehype-stringify');
 
 const siteUrl = 'https://docs.newrelic.com';
 const dataDictionaryPath = `${__dirname}/src/data-dictionary`;
