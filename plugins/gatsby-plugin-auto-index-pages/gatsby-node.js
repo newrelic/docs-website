@@ -151,7 +151,7 @@ exports.createPages = async ({ actions, graphql, reporter }, pluginOptions) => {
     if (skippedDirectories.includes(dir.path)) {
       return [visit.SKIP];
     }
-    // I think we want to just look at tableofcontents, not all filenodes
+
     if (existingPaths.includes(slug)) {
       return;
     }
