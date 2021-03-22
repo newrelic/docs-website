@@ -135,9 +135,7 @@ exports.createPages = async ({ actions, graphql, reporter }, pluginOptions) => {
 
   const { nodes: locales } = allLocale;
 
-  const existingPaths = tableOfContentsNodes
-    .map(getSlug)
-    .concat(fileNodes.map(getSlug));
+  const existingPaths = tableOfContentsNodes.map(getSlug);
 
   const files = fileNodes.map((node) => ({
     basename: node.base,
@@ -153,7 +151,7 @@ exports.createPages = async ({ actions, graphql, reporter }, pluginOptions) => {
     if (skippedDirectories.includes(dir.path)) {
       return [visit.SKIP];
     }
-
+    // I think we want to just look at tableofcontents, not all filenodes
     if (existingPaths.includes(slug)) {
       return;
     }
