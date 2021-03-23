@@ -8,17 +8,18 @@
     - [Unit tests](#unit-tests)
     - [Using multiple versions of Node](#using-multiple-versions-of-node)
     - [Quick edits](#quick-edits)
-    - [Cloning vs Forking](#cloning-vs-forking)
+    - [Cloning vs forking](#cloning-vs-forking)
     - [Submitting a PR from a forked repo](#submitting-a-pr-from-a-forked-repo)
     - [Submitting a PR from a cloned repo](#submitting-a-pr-from-a-cloned-repo)
     - [Using the `develop` branch](#using-the-develop-branch)
+    - [Shared Working Branches](#shared-working-branches)
     - [Draft PRs](#draft-prs)
     - [Using Conventional Commits](#using-conventional-commits)
       - [Use `chore`](#use-chore)
       - [Use `fix`](#use-fix)
       - [Use `feat`](#use-feat)
     - [Deploy previews with Amplify](#deploy-previews-with-amplify)
-  - [Style guide adherence](#style-guide-adherence)
+  - [Grammar and style guidelines](#grammar-and-style-guidelines)
   - [Reusable components](#reusable-components)
   - [Editing existing pages](#editing-existing-pages)
   - [Creating new pages](#creating-new-pages)
@@ -35,7 +36,7 @@
 
 ## Guidelines for contributing
 
-The Documentation Team and Developer Experience Team at New Relic welcomes contributions to this repository.
+The Documentation Team and Developer Enablement Team at New Relic welcomes contributions to this repository.
 There are several ways you can contribute.
 
 If you wish to make documentation edits or add new
@@ -70,7 +71,7 @@ have the tests automatically re-run, use `yarn run test:watch`
 ### Using multiple versions of Node
 
 If you intend to run multiple versions of Node please be aware that the New Relic
-Developer Site is currently on Node v12. Therefore it's recommended you use Node Version Manager [NVM](https://github.com/nvm-sh/nvm) to manage Node versions.
+Docs Site is currently on Node v12. Therefore it's recommended you use Node Version Manager [NVM](https://github.com/nvm-sh/nvm) to manage Node versions.
 
 Review [this article](https://itnext.io/nvm-the-easiest-way-to-switch-node-js-environments-on-your-machine-in-a-flash-17babb7d5f1b)
 which clearly explains the setup and configuration of NVM.
@@ -88,11 +89,11 @@ you can use the Github `Edit This File` button to submit a change.
 5. Submit a `PR`.
 6. And you are done!
 
-### Cloning vs Forking
+### Cloning vs forking
 
-To be able to [Clone](https://help.github.com/en/github/creating-cloning-and-archiving-repositories/cloning-a-repository) this repository and contribute you will need to be given write access to the repository. This is reserved for New Relic Doc Writers. Contact the Developer Experience team (developer-website-content Slack channel) if you need write access.
+To be able to [clone](https://help.github.com/en/github/creating-cloning-and-archiving-repositories/cloning-a-repository) this repository and contribute you will need to be given write access to the repository. This is reserved for New Relic Doc Writers. Contact the Developer Enablement team (#help-deven-websites Slack channel) if you need write access.
 
-To contribute without write access, you can [Fork](https://help.github.com/en/github/getting-started-with-github/fork-a-repo) the repository and contribute as needed.
+To contribute without write access, you can [fork](https://help.github.com/en/github/getting-started-with-github/fork-a-repo) the repository and contribute as needed. If you're planning to leave a fork open for a long time (for example, you're working on a complex set of changes to many docs), [sync your fork](https://docs.github.com/en/github/collaborating-with-issues-and-pull-requests/syncing-a-fork) occasionally to avoid merge conflicts.
 
 ### Submitting a PR from a forked repo
 
@@ -120,7 +121,20 @@ To contribute without write access, you can [Fork](https://help.github.com/en/gi
 Use the `develop` branch when creating your working branch locally. `develop` will always contain the most
 current source code. The `develop` branch will be merged into the `main` branch by the maintainers when a new release is ready to ship.
 
-All pull requests should be made against the `develop` branch.
+All pull requests should be made against the `develop` branch. When merging to `develop`
+all code should be considered ready to be deployed to production.
+
+### Shared Working Branches
+
+If you plan on coordinating changes across several people, and feel your code isn't "ready to ship"
+use a shared working branch strategy.
+
+1. create a new branch to collaborate with others via GIT and push that branch up to the remote repository. `git checkout -b shared-branch`
+2. share that branch with others you are collaborating with. They'll need to run:  `git pull origin shared-branch`
+3. All contributors should keep that branch up to date by running `git pull origin develop` frequently.
+4. Push all changes to the remote repository: `git push origin shared-branch`
+5. Resolve any merge conflicts.
+6. When your work is complete, merge the shared working branch into `develop` via a PR.
 
 ### Draft PRs
 
@@ -169,11 +183,9 @@ git commit -m "feat(media): creating a video landing page"
 
 PRs that are opened from a branch in this repo (not forks) will generate preview links on Amplify automatically. Amplify preview links can be found within the PR under the `Checks` Tab.
 
-## Style guide adherence
+## Grammar and style guidelines
 
-In order to drive consistency in our documentation New Relic has provided a detailed [Style Guide](STYLE_GUIDE.md)
-for you to follow when making contributions. Refer to this guide prior to contributing.
-When making documentation contributions follow these guidelines.
+We welcome your contributions! And we don't want you to worry about style. When you edit a file, tech writers on our team review it for style, grammar, and formatting. That said, if you're curious about our style guidelines, you're welcome (but not obligated) [to take a look](https://docs.newrelic.com/docs/style-guide/get-started/introduction-style-guide). 
 
 ## Reusable components
 
@@ -198,7 +210,7 @@ when creating documentation. Refer to our [Component Guide](COMPONENT_GUIDE.md) 
 
 1. If you feel a page needs to be deleted file a [Documentation Request](https://github.com/newrelic/docs-website/issues/new/choose).
 2. The Documentation Team will review the request to delete an existing documentation page.
-3. If the deletion is approved, The Developer Experience Team will delete the page.
+3. If the deletion is approved, The Developer Enablement Team will delete the page.
 
 ## Updating the navigation
 

@@ -6,10 +6,6 @@ Welcome! 👋  This is the repo for the `NEW` New Relic Docs site. This repo con
 
 Read on to learn more about who we are and how you can contribute to the New Relic Docs site.
 
-## New Relic Developer and Open Source sites
-
-You may also be interested in the New Relic [Developer website](https://github.com/newrelic/developer-website) and [Open Source website](https://github.com/newrelic/opensource-website) repos.
-
 ## We'd like your help
 
 From early on, our Docs site has been managed by a team of writers. We've always welcomed contributions from anyone at New Relic and now we're open sourcing our docs to invite input from anyone at all. We credit our technical accuracy and comprehensive documentation to this openness.
@@ -30,8 +26,12 @@ Go here to [create an issue](https://github.com/newrelic/docs-website/issues/new
 
 ### Edit a page
 
-If you'd like to get more directly involved, you can make some changes yourself. On any doc, click the **Edit this page** button to get started making a change.
-You can edit a doc directly on the GitHub site. You don't need to actively fork the site or build it locally to help out. This is the easiest way to contribute.
+If you'd like to get more directly involved, you can edit the docs yourself! Here's how:
+
+1. Every doc page on docs.newrelic.com has an **Edit page** button in the right sidebar and the footer. Click it to get started making a change. This will take you to GitHub and the source file for that doc page. 
+2. Edit the file by clicking on the pencil icon. Make your changes, then click **Commit changes**. This will automatically create a fork in your GitHub account with the changes.
+3. Finally, follow the prompts to create a pull request and submit your changes for review. From there our writers will check out your pull request, comment with any feedback, and merge your change.
+
 If you'd like to go deeper, see our [Contributors guide](CONTRIBUTING.md) for information on how to fork our site, build it locally, and submit pull requests.
 
 Our [Style guide](https://docs.newrelic.com/docs/style-guide) will give you some insight into how we think about writing and documentation, as well as our flavor of Markdown.
@@ -43,6 +43,10 @@ Reading the style guide is totally optional! Our writers are here to make sure e
 We welcome contributions to the New Relic Docs Site. Please review our [Contributors Guide](CONTRIBUTING.md) prior to submitting any code.
 
 Keep in mind when you submit your pull request, you'll need to sign the CLA via the click-through using CLA-Assistant. You only have to sign the CLA one time per project. If you have any questions, or to execute our corporate CLA, required if your contribution is on behalf of a company, please drop us an email at opensource@newrelic.com.
+
+## New Relic Developer and Open Source sites
+
+You may also be interested in the New Relic [Developer website](https://github.com/newrelic/developer-website) and [Open Source website](https://github.com/newrelic/opensource-website) repos.
 
 ## 🏛️ Content and code license
 

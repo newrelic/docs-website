@@ -1,9 +1,10 @@
 const fs = require('fs');
-const path = require('path');
 const parse = require('rehype-parse');
+const path = require('path');
 const unified = require('unified');
-const addAbsoluteImagePath = require('./rehype-plugins/utils/addAbsoluteImagePath');
 const rehypeStringify = require('rehype-stringify');
+const addAbsoluteImagePath = require('./rehype-plugins/utils/addAbsoluteImagePath');
+const getAgentName = require('./src/utils/getAgentName');
 
 const siteUrl = 'https://docs.newrelic.com';
 const dataDictionaryPath = `${__dirname}/src/data-dictionary`;
@@ -46,6 +47,7 @@ module.exports = {
     {
       resolve: '@newrelic/gatsby-theme-newrelic',
       options: {
+        forceTrailingSlashes: true,
         layout: {
           contentPadding: '2rem',
           maxWidth: '1600px',
@@ -54,7 +56,7 @@ module.exports = {
         },
         i18n: {
           translationsPath: `${__dirname}/src/i18n/translations`,
-          additionalLocales: [{ name: '日本語', locale: 'jp' }],
+          additionalLocales: ['jp'],
         },
         prism: {
           languages: [
@@ -178,6 +180,7 @@ module.exports = {
     // this (optional) plugin enables Progressive Web App + Offline functionality
     // To learn more, visit: https://gatsby.dev/offline
     // `gatsby-plugin-offline`,
+    //
     {
       resolve: 'gatsby-source-filesystem',
       options: {
@@ -324,6 +327,8 @@ module.exports = {
       },
     },
     'gatsby-plugin-generate-doc-json',
+    // Comment in below to run a build that checks links
+    // 'gatsby-plugin-check-links',
     {
       resolve: 'gatsby-plugin-generate-json',
       options: {
@@ -436,6 +441,33 @@ module.exports = {
           })),
         feedFilename: 'data-dictionary',
         nodesPerFeedFile: Infinity,
+      },
+    },
+    {
+      resolve: `gatsby-plugin-generate-json`,
+      options: {
+        query: `
+        {
+          allMdx(filter: {fields: {slug: {regex: "/docs/release-notes/"}}}) {
+            nodes {
+              frontmatter {
+                subject
+                releaseDate(fromNow: false)
+                version
+              }
+            }
+          }
+        }
+        `,
+        path: '/api/agent-release-notes.json',
+        serialize: ({ data }) =>
+          data.allMdx.nodes
+            .map(({ frontmatter }) => ({
+              agent: getAgentName(frontmatter.subject),
+              date: frontmatter.releaseDate,
+              version: frontmatter.version,
+            }))
+            .filter(({ date, agent }) => Boolean(date && agent)),
       },
     },
     'gatsby-plugin-release-note-rss',

@@ -15,6 +15,9 @@ const hasOwnProperty = (obj, key) =>
 const hasTrailingSlash = (pathname) =>
   pathname === '/' ? false : TRAILING_SLASH.test(pathname);
 
+const appendTrailingSlash = (pathname) =>
+  pathname.endsWith('/') ? pathname : `${pathname}/`;
+
 exports.onPreBootstrap = async ({ reporter, store }) => {
   reporter.info("generating what's new post IDs");
   const { program } = store.getState();
@@ -201,7 +204,7 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
   externalRedirects.forEach(({ url, paths }) => {
     paths.forEach((path) => {
       createRedirect({
-        fromPath: path,
+        fromPath: appendTrailingSlash(path),
         toPath: url,
         isPermanent: true,
         redirectInBrowser: true,
@@ -271,6 +274,7 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
       createPageFromNode(i18nNode || node, {
         prefix: i18nNode ? '' : locale,
         createPage,
+        disableSwiftype: !i18nNode,
       });
     });
   });
@@ -329,14 +333,10 @@ exports.createResolvers = ({ createResolvers }) => {
 
 exports.onCreatePage = ({ page, actions }) => {
   const { createPage, deletePage } = actions;
-  const oldPage = Object.assign({}, page);
+  const oldPage = { ...page };
 
   if (page.path.match(/404/)) {
     page.context.layout = 'basic';
-  }
-
-  if (!page.context.fileRelativePath) {
-    page.context.fileRelativePath = getFileRelativePath(page.componentPath);
   }
 
   if (hasTrailingSlash(page.context.slug)) {
@@ -356,23 +356,26 @@ const createLocalizedRedirect = ({
   createRedirect,
 }) => {
   createRedirect({
-    fromPath,
-    toPath,
+    fromPath: appendTrailingSlash(fromPath),
+    toPath: appendTrailingSlash(toPath),
     isPermanent,
     redirectInBrowser,
   });
 
   locales.forEach((locale) => {
     createRedirect({
-      fromPath: path.join(`/${locale}`, fromPath),
-      toPath: path.join(`/${locale}`, toPath),
+      fromPath: appendTrailingSlash(path.join(`/${locale}`, fromPath)),
+      toPath: appendTrailingSlash(path.join(`/${locale}`, toPath)),
       isPermanent,
       redirectInBrowser,
     });
   });
 };
 
-const createPageFromNode = (node, { createPage, prefix = '' }) => {
+const createPageFromNode = (
+  node,
+  { createPage, prefix = '', disableSwiftype = false }
+) => {
   const {
     fields: { fileRelativePath, slug },
   } = node;
@@ -398,6 +401,7 @@ const createPageFromNode = (node, { createPage, prefix = '' }) => {
         fileRelativePath,
         slug,
         slugRegex: `${slug}/.+/`,
+        disableSwiftype,
       },
     });
   }

@@ -20,7 +20,7 @@ import GithubSlugger from 'github-slugger';
 import { parseHeading } from '../../plugins/gatsby-remark-custom-heading-ids/utils/heading';
 import { TYPES } from '../utils/constants';
 
-const BasicDoc = ({ data, location }) => {
+const BasicDoc = ({ data, location, pageContext }) => {
   const { t } = useTranslation();
   const { mdx } = data;
   const {
@@ -30,6 +30,7 @@ const BasicDoc = ({ data, location }) => {
     fields: { fileRelativePath },
     relatedResources,
   } = mdx;
+  const { disableSwiftype } = pageContext;
 
   const moreHelpHeading = mdxAST.children
     .filter((node) => node.type === 'heading')
@@ -72,6 +73,7 @@ const BasicDoc = ({ data, location }) => {
         description={metaDescription}
         type={type ? TYPES.BASIC_PAGE[type] : TYPES.BASIC_PAGE.default}
         tags={tags}
+        disableSwiftype={disableSwiftype}
       />
       <div
         css={css`
@@ -106,11 +108,12 @@ const BasicDoc = ({ data, location }) => {
             }
           `}
         >
-          <SimpleFeedback pageTitle={title} labels={['content']} />
+          <SimpleFeedback pageTitle={title} />
           {!isMobileScreen && (
             <ContributingGuidelines
               pageTitle={title}
               fileRelativePath={fileRelativePath}
+              issueLabels={['feedback', 'feedback-issue']}
             />
           )}
           <TableOfContents headings={headings} />
@@ -129,6 +132,7 @@ const BasicDoc = ({ data, location }) => {
 BasicDoc.propTypes = {
   data: PropTypes.object.isRequired,
   location: PropTypes.object.isRequired,
+  pageContext: PropTypes.object.isRequired,
 };
 
 export const pageQuery = graphql`
