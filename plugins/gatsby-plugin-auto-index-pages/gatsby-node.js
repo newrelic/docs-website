@@ -135,7 +135,9 @@ exports.createPages = async ({ actions, graphql, reporter }, pluginOptions) => {
 
   const { nodes: locales } = allLocale;
 
-  const existingPaths = tableOfContentsNodes.map(getSlug);
+  const existingPaths = tableOfContentsNodes
+    .map(getSlug)
+    .concat(fileNodes.map(getSlug));
 
   const files = fileNodes.map((node) => ({
     basename: node.base,
