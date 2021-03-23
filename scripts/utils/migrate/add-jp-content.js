@@ -1,6 +1,12 @@
 const fs = require('fs');
 const path = require('path');
 const { JSDOM } = require('jsdom');
+const { write } = require('to-vfile');
+
+const toVFile = require('../../utils/migrate/to-vfile');
+const convertFile = require('../migrate/convert-file');
+const runCodemod = require('../codemod/run');
+const codemods = require('../../../codemods');
 
 /**
  * Given the filepath to a HTML file, this will fetch information about
@@ -9,23 +15,50 @@ const { JSDOM } = require('jsdom');
  * @param {string} filepath
  * @returns {{type: string, title: string, body: string}}
  */
-const getMDX = (filepath) => {
+const getMDX = (dirpath) => async (filepath) => {
   try {
-    const html = fs.readFileSync(filepath, 'utf8');
+    const html = fs.readFileSync(path.join(dirpath, filepath), 'utf8');
     const { document } = new JSDOM(html).window;
 
-    const type = document.querySelector('meta[name="document_type"]').attributes
-      .content.value;
+    const swiftypeType = document.querySelector('meta[name="document_type"]')
+      .attributes.content.value;
+    const type =
+      swiftypeType == 'term_page_landing_page' ? 'landing_page' : 'page';
 
     const titleNode =
-      type == 'term_page_landing_page'
+      swiftypeType == 'term_page_landing_page'
         ? document.querySelector('h1.text-center')
         : document.getElementById('page-title');
 
+    // grab the relevant information from the HTML
     const title = titleNode.textContent;
     const body = document.querySelector('[data-swiftype-name=body]').outerHTML;
 
-    return { type, title, body };
+    // convert the page into a "v-file" to be used by our utils (URL ignored)
+    const doc = {
+      type,
+      title,
+      body,
+      docUrl: 'https://google.com',
+    };
+    const file = toVFile(doc, {
+      baseDir: 'src/i18n/content/jp',
+      data: { dummy: false },
+      dirname: path.dirname(filepath),
+      filename: path.basename(filepath).replace('.html', ''),
+    });
+
+    // convert to MDX
+    // TODO: add redirects and other frontmatter
+    // TODO: figure out how to get images
+    convertFile(file);
+    await runCodemod(file, { codemods });
+
+    await write(file, 'utf-8');
+
+    return file;
+    // save the file
+    // TODO: determine if we need to add the page to the navigation
   } catch (error) {
     console.log(`[!] Unable to fetch & process ${filepath}`);
     console.error(error);
@@ -37,11 +70,11 @@ const getMDX = (filepath) => {
  *
  * @example node scripts/utils/migrate/add-jp-content.js ~/Desktop/jaJP/
  */
-const main = () => {
+const main = async () => {
   const dirpath = process.argv[2];
 
   // NOTE: for testing, please remove next
-  const mdx = getMDX(path.join(dirpath, '/docs/apm.html'));
+  const mdx = await getMDX(dirpath)('/docs/apm.html');
   // const mdx = getMDX(
   // path.join(
   // dirpath,
@@ -49,7 +82,7 @@ const main = () => {
   // )
   // );
 
-  console.log(mdx);
+  // console.log(mdx);
 };
 
 main();
