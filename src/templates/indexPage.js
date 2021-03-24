@@ -11,9 +11,7 @@ import { TYPES } from '../utils/constants';
 const IndexPage = ({ data, pageContext, location }) => {
   const { nav } = data;
 
-  const useIndexHtml = nav?.url !== location.pathname;
-
-  const { html, disableSwiftype, title: contextTitle } = pageContext;
+  const { html, disableSwiftype } = pageContext;
   const title = nav ? nav.title : pageContext.title;
 
   return (
@@ -25,14 +23,13 @@ const IndexPage = ({ data, pageContext, location }) => {
         disableSwiftype={disableSwiftype}
       />
       <PageTitle>{title}</PageTitle>
-      {useIndexHtml && nav && <h2>{contextTitle}</h2>}
       <Layout.Content>
-        {useIndexHtml ? (
+        {nav ? (
+          <IndexContents nav={nav} />
+        ) : (
           <TableOfContentsContainer
             dangerouslySetInnerHTML={{ __html: html }}
           />
-        ) : (
-          <IndexContents nav={nav} />
         )}
       </Layout.Content>
     </>
