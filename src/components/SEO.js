@@ -59,7 +59,7 @@ const DocsSiteSeo = ({
 );
 
 DocsSiteSeo.propTypes = {
-  location: PropTypes.string.isRequired,
+  location: PropTypes.object.isRequired,
   title: PropTypes.string,
   description: PropTypes.string,
   type: PropTypes.string,

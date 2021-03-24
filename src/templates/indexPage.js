@@ -10,6 +10,7 @@ import { TYPES } from '../utils/constants';
 
 const IndexPage = ({ data, pageContext, location }) => {
   const { nav } = data;
+
   const { html, disableSwiftype } = pageContext;
   const title = nav ? nav.title : pageContext.title;
 
