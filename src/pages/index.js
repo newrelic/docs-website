@@ -51,15 +51,6 @@ const HomePage = ({ data }) => {
           >
             <p>{t('home.intro.p1')}</p>
 
-            <Trans i18nKey="home.intro.p2" parent="p">
-              If you're catching up on the changes in New Relic One, start with
-              this{' '}
-              <Link to="/docs/new-relic-one/use-new-relic-one/core-concepts/new-relic-one-transition-guide-july-2020">
-                transition guide
-              </Link>
-              , or check out <Link to="/whats-new">what's new</Link>.
-            </Trans>
-
             <Trans i18nKey="home.intro.p3" parent="p">
               Scroll on for more about our Telemetry Data Platform, Full-Stack
               Observability, and Applied Intelligence. Or, to get a wider view
