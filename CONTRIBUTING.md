@@ -19,7 +19,7 @@
       - [Use `fix`](#use-fix)
       - [Use `feat`](#use-feat)
     - [Deploy previews with Amplify](#deploy-previews-with-amplify)
-  - [Style guide adherence](#style-guide-adherence)
+  - [Grammar and style guidelines](#grammar-and-style-guidelines)
   - [Reusable components](#reusable-components)
   - [Editing existing pages](#editing-existing-pages)
   - [Creating new pages](#creating-new-pages)
@@ -183,11 +183,9 @@ git commit -m "feat(media): creating a video landing page"
 
 PRs that are opened from a branch in this repo (not forks) will generate preview links on Amplify automatically. Amplify preview links can be found within the PR under the `Checks` Tab.
 
-## Style guide adherence
+## Grammar and style guidelines
 
-In order to drive consistency in our documentation New Relic has provided a detailed [Style Guide](STYLE_GUIDE.md)
-for you to follow when making contributions. Refer to this guide prior to contributing.
-When making documentation contributions follow these guidelines.
+We welcome your contributions! And we don't want you to worry about style. When you edit a file, tech writers on our team review it for style, grammar, and formatting. That said, if you're curious about our style guidelines, you're welcome (but not obligated) [to take a look](https://docs.newrelic.com/docs/style-guide/get-started/introduction-style-guide). 
 
 ## Reusable components
 

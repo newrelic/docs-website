@@ -8,12 +8,6 @@ const METADATA = [
     name: 'google-site-verification',
     content: 'eT8TSNhvMuDmAtqbtq5jygZKVkhDmz565fYQ3DVop4g',
   },
-  {
-    className: 'swiftype',
-    name: 'type',
-    'data-type': 'enum',
-    content: 'docs',
-  },
 ];
 
 const DocsSiteSeo = ({
@@ -65,7 +59,7 @@ const DocsSiteSeo = ({
 );
 
 DocsSiteSeo.propTypes = {
-  location: PropTypes.string.isRequired,
+  location: PropTypes.object.isRequired,
   title: PropTypes.string,
   description: PropTypes.string,
   type: PropTypes.string,
