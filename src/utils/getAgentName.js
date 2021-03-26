@@ -24,8 +24,6 @@ const RENAMES = { '.net': 'dotnet', node: 'nodejs' };
  * @returns {string}
  */
 
-const renameKeys = Object.keys(RENAMES);
-
 const getAgentName = (subject) => {
   if (subject) {
     const subjLowercase = subject.toLowerCase();
@@ -34,9 +32,7 @@ const getAgentName = (subject) => {
         subjLowercase.includes(agent) && !subjLowercase.includes('insights')
     );
 
-    return agentName && renameKeys.includes(agentName)
-      ? RENAMES[agentName]
-      : agentName;
+    return RENAMES[agentName] || agentName;
   }
 };
 
