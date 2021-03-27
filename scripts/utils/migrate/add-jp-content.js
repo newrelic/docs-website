@@ -12,12 +12,12 @@ const runCodemod = require('../codemod/run');
 const codemods = require('../../../codemods');
 
 /**
-* Given the filepath to a HTML file, this will fetch information about
-* the document (including the page content).
-*
-* @param {string} filepath
-* @returns {{type: string, title: string, body: string}}
-*/
+ * Given the filepath to a HTML file, this will fetch information about
+ * the document (including the page content).
+ *
+ * @param {string} filepath
+ * @returns {{type: string, title: string, body: string}}
+ */
 const getMDX = (dirpath) => async (filepath) => {
   try {
     const html = fs.readFileSync(path.join(dirpath, filepath), 'utf8');
@@ -39,13 +39,17 @@ const getMDX = (dirpath) => async (filepath) => {
 
     // modify path for landing pages
     const pathParts = filepath.split('.');
-    const pathToUse = (swiftypeType === 'term_page_landing_page')
-      ? path.join(pathParts[0], '/index.' + pathParts[1])
-      : filepath;
+    const pathToUse =
+      swiftypeType === 'term_page_landing_page'
+        ? path.join(pathParts[0], '/index.' + pathParts[1])
+        : filepath;
 
     // Example: /docs/agents/c-sdk.mdx -> /docs/agents/c-sdk/index.mdx
     const englishDirPath = process.cwd() + '/src/content';
-    const englishPath = path.join(englishDirPath, pathToUse.replace('.html', '.mdx'));
+    const englishPath = path.join(
+      englishDirPath,
+      pathToUse.replace('.html', '.mdx')
+    );
     // console.log(englishPath);
 
     // if(fs.existsSync(englishPath)){
@@ -73,7 +77,7 @@ const getMDX = (dirpath) => async (filepath) => {
       body,
       topics: tags,
       docUrl: 'https://google.com',
-      metaDescription
+      metaDescription,
     };
     const file = toVFile(doc, {
       baseDir: 'src/i18n/content/jp',
@@ -118,7 +122,7 @@ const getFilesToTranslate = (directoryPath) => {
   });
 
   return files;
-}
+};
 
 const getPathsFromNavPage = (navPage) => {
   const paths = navPage.path ? [navPage.path] : [];
@@ -129,7 +133,7 @@ const getPathsFromNavPage = (navPage) => {
     paths.push(...getPathsFromNavPage(p));
   }
   return paths;
-}
+};
 
 const checkPathAgainstNav = (filePaths) => {
   // 1. grab all nav docs
@@ -151,22 +155,24 @@ const checkPathAgainstNav = (filePaths) => {
   const pathSet = new Set(paths);
 
   // /docs/accounts/accounts/account-maintenance/change-passwords-user-preferences.mdx
-  const a = filePaths.map((filePath) => ({
-    filePath: filePath,
-    isInNav: pathSet.has(filePath)
-  })).filter(({ isInNav }) => !isInNav);
+  const a = filePaths
+    .map((filePath) => ({
+      filePath: filePath,
+      isInNav: pathSet.has(filePath),
+    }))
+    .filter(({ isInNav }) => !isInNav);
 
   // [ { filePath, isInNav },  ]
 
   return a.map(({ filePath }) => filePath);
-}
+};
 
 /**
-* Given a directory, this will create MDX files for JP pages, given a directory
-* of HTML translated pages.
-*
-* @example node scripts/utils/migrate/add-jp-content.js ~/Desktop/jaJP/
-*/
+ * Given a directory, this will create MDX files for JP pages, given a directory
+ * of HTML translated pages.
+ *
+ * @example node scripts/utils/migrate/add-jp-content.js ~/Desktop/jaJP/
+ */
 const main = async () => {
   /*
     1. Grab all files.
@@ -188,11 +194,10 @@ const main = async () => {
     const swiftypeType = document.querySelector('meta[name="document_type"]')
       .attributes.content.value;
 
-    const html = fs.readFileSync(path.join(dirpath, file), 'utf8');
-    const { document } = new JSDOM(html).window;
-    const swiftypeType = document.querySelector('meta[name="document_type"]').attributes.content.value;
-
-    if (swiftypeType === 'views_page_menu' || swiftypeType === 'terms_page_api_menu') {
+    if (
+      swiftypeType === 'views_page_menu' ||
+      swiftypeType === 'terms_page_api_menu'
+    ) {
       // ignore these files
     } else {
       console.log(`Converting: ${file}`);
@@ -219,7 +224,6 @@ const main = async () => {
   //   });
 
   // console.log(temp);
-
 
   // sdfasdfasf
 
