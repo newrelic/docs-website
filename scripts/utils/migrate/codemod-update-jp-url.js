@@ -11,7 +11,7 @@ const jpLinks = () => (tree) => {
       if (node.url.includes(URL_TO_REMOVE)) {
         const url = new URL(node.url);
 
-        node.url = `https://docs.newrelic.co.jp${url.pathname}${url.hash}`;
+        node.url = `https://docs.newrelic.co.jp${url.pathname}${url.search}${url.hash}`;
       }
     }
   );
