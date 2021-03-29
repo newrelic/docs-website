@@ -14,7 +14,10 @@ const jpLinks = () => (tree) => {
         console.log('NO MATCHES FOR', node.url);
       }
 
-      node.url = matches ? `.${matches[0].split('?')[0]}` : node.url;
+      // NOTE: this is sloppy because it's a one-off script, please delete and don't judge me
+      node.url = matches
+        ? `.${matches[0].split('?')[0].replace('image', 'images')}`
+        : node.url;
     }
   );
 };

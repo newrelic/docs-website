@@ -7,8 +7,12 @@ const jpLinks = () => (tree) => {
   visit(
     tree,
     (node) => is(node, 'link'),
-    (link) => {
-      link.url = link.url.replace(URL_TO_REMOVE, '');
+    (node) => {
+      if (node.url.includes(URL_TO_REMOVE)) {
+        const url = new URL(node.url);
+
+        node.url = `https://docs.newrelic.co.jp${url.pathname}`;
+      }
     }
   );
 };
