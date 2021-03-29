@@ -10,7 +10,8 @@ const toVFile = require('../../utils/migrate/to-vfile');
 const convertFile = require('../migrate/convert-file');
 const runCodemod = require('../codemod/run');
 const codemods = require('../../../codemods');
-const jpCodemod = require('./codemod-update-jp-url');
+const jpLinkCodemod = require('./codemod-update-jp-url');
+const jpImageCodemod = require('./codemod-update-jp-images');
 
 /**
  * Given the filepath to a HTML file, this will fetch information about
@@ -91,7 +92,9 @@ const getMDX = (dirpath) => async (filepath) => {
     // TODO: other frontmatter
     // TODO: figure out how to get images. maybe this is already happening.
     convertFile(file);
-    await runCodemod(file, { codemods: [...codemods, jpCodemod] });
+    await runCodemod(file, {
+      codemods: [...codemods, jpLinkCodemod, jpImageCodemod],
+    });
 
     // // TODO: determine if we should overwrite an existing file.
     // // For the moment, adding in a check to provide insight and skip over prexisting files.
