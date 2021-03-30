@@ -27,8 +27,16 @@ const getMDX = (dirpath) => async (filepath) => {
 
     const swiftypeType = document.querySelector('meta[name="document_type"]')
       .attributes.content.value;
-    const type =
-      swiftypeType == 'term_page_landing_page' ? 'landing_page' : 'page';
+
+    const page_types_map = {
+      'term_page_landing_page' : 'landing_page',
+      'troubleshooting_doc' : 'troubleshooting_doc'
+    }
+
+    // const type =
+    //   swiftypeType == 'term_page_landing_page' ? 'landing_page' : 'page';
+
+    const type = page_types_map[swiftypeType] || 'page';
 
     const titleNode =
       swiftypeType == 'term_page_landing_page'
@@ -40,13 +48,13 @@ const getMDX = (dirpath) => async (filepath) => {
     const body = document.querySelector('[data-swiftype-name=body]').outerHTML;
 
     // modify path for landing pages
+    // Example: /docs/agents/c-sdk.mdx -> /docs/agents/c-sdk/index.mdx
     const pathParts = filepath.split('.');
     const pathToUse =
       swiftypeType === 'term_page_landing_page'
         ? path.join(pathParts[0], '/index.' + pathParts[1])
         : filepath;
 
-    // Example: /docs/agents/c-sdk.mdx -> /docs/agents/c-sdk/index.mdx
     const englishDirPath = process.cwd() + '/src/content';
     const englishPath = path.join(
       englishDirPath,
@@ -69,6 +77,7 @@ const getMDX = (dirpath) => async (filepath) => {
     const fm = frontmatter(fileContent);
     const tags = fm.data['tags'] || [];
     const metaDescription = fm.data['metaDescription'];
+    const fmtype = fm.data['type'];
 
     // console.log(`Updated frontmatter for: ${englishPath}`);
 
@@ -79,7 +88,7 @@ const getMDX = (dirpath) => async (filepath) => {
       body,
       topics: tags,
       docUrl: 'https://google.com',
-      metaDescription,
+      metaDescription
     };
     const file = toVFile(doc, {
       baseDir: 'src/i18n/content/jp',
@@ -204,9 +213,9 @@ const main = async () => {
     ) {
       // ignore these files
     } else {
-      console.log(`Converting: ${file}`);
+      // console.log(`Converting: ${file}`);
       await getMDX(dirpath)(file);
-      console.log(`Finished converting: ${file}`);
+      // console.log(`Finished converting: ${file}`);
       counter += 1;
     }
   }
