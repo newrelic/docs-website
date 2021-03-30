@@ -8,7 +8,7 @@ const Watermark = ({ text }) => (
     css={css`
       position: fixed;
       color: #eeeeee;
-      font-size: 8rem;
+      font-size: 18rem;
       transform: rotate(-15deg);
       z-index: -1;
       top: calc(var(--global-header-height) + 8rem);
