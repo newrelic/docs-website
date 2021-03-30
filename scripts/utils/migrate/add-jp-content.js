@@ -51,7 +51,7 @@ const getMDX = (dirpath) => async (filepath) => {
     // Example: /docs/agents/c-sdk.mdx -> /docs/agents/c-sdk/index.mdx
     const pathParts = filepath.split('.');
     const pathToUse =
-      swiftypeType === 'term_page_landing_page'
+      (swiftypeType === 'term_page_landing_page')
         ? path.join(pathParts[0], '/index.' + pathParts[1])
         : filepath;
 
@@ -73,52 +73,66 @@ const getMDX = (dirpath) => async (filepath) => {
     //   console.log(`English file was not found for: ${englishPath}`)
     // }
 
-    const fileContent = fs.readFileSync(englishPath, 'utf-8');
-    const fm = frontmatter(fileContent);
-    const tags = fm.data['tags'] || [];
-    const metaDescription = fm.data['metaDescription'];
-    const fmtype = fm.data['type'];
+    const tempDirectory = path.join(process.cwd(), 'temp');
+    fs.mkdirSync(tempDirectory, { recursive: true });
+    
+    // if english mdx file exists, proceed as normal
+    if(fs.existsSync(englishPath)){
+      const fileContent = fs.readFileSync(englishPath, 'utf-8');
+      const fm = frontmatter(fileContent);
+      const tags = fm.data['tags'] || [];
+      const metaDescription = fm.data['metaDescription'];
 
-    // console.log(`Updated frontmatter for: ${englishPath}`);
+      // convert the page into a "v-file" to be used by our utils (URL ignored)
+      const doc = {
+        type,
+        title,
+        body,
+        topics: tags,
+        docUrl: 'https://google.com',
+        metaDescription
+      };
+      const file = toVFile(doc, {
+        baseDir: 'src/i18n/content/jp',
+        data: { dummy: false },
+        dirname: path.dirname(pathToUse),
+        filename: path.basename(pathToUse).replace('.html', ''),
+      });
 
-    // convert the page into a "v-file" to be used by our utils (URL ignored)
-    const doc = {
-      type,
-      title,
-      body,
-      topics: tags,
-      docUrl: 'https://google.com',
-      metaDescription
-    };
-    const file = toVFile(doc, {
-      baseDir: 'src/i18n/content/jp',
-      data: { dummy: false },
-      dirname: path.dirname(pathToUse),
-      filename: path.basename(pathToUse).replace('.html', ''),
-    });
+      convertFile(file);
+      await runCodemod(file, {
+        codemods: [...codemods, jpLinkCodemod, jpImageCodemod],
+      });
 
-    // convert to MDX
-    // TODO: other frontmatter
-    // TODO: figure out how to get images. maybe this is already happening.
-    convertFile(file);
-    await runCodemod(file, {
-      codemods: [...codemods, jpLinkCodemod, jpImageCodemod],
-    });
+      await write(file, 'utf-8');
 
-    // // TODO: determine if we should overwrite an existing file.
-    // // For the moment, adding in a check to provide insight and skip over prexisting files.
-    // // always overwrite
-    // if (fs.existsSync(file.path)){
-    //   console.log(`Path already exists: ${file.path}`);
-    // } else {
-    //   console.log(`Writing converted file: ${file.path}`);
-    //   await write(file, 'utf-8');
-    // }
-    await write(file, 'utf-8');
+      return file; 
+    } else { // else, dont get frontmatter. write to temp directory for manual intervention.
+      // convert the page into a "v-file" to be used by our utils (URL ignored)
+      const doc = {
+        type,
+        title,
+        body,
+        topics: [],
+        docUrl: 'https://google.com'
+      };
+      const file = toVFile(doc, {
+        baseDir: 'src/i18n/content/jp',
+        data: { dummy: false },
+        dirname: path.dirname(pathToUse),
+        filename: path.basename(pathToUse).replace('.html', ''),
+      });
 
-    return file;
-    // save the file
-    // TODO: determine if we need to add the page to the navigation. might be no need to do this. double check.
+      convertFile(file);
+      await runCodemod(file, {
+        codemods: [...codemods, jpLinkCodemod, jpImageCodemod],
+      });
+
+      file.path = path.join(tempDirectory, path.basename(englishPath))
+      console.log(`Writing: ${file.path}`);
+      await write(file, 'utf-8');
+      return file; 
+    }
   } catch (error) {
     console.log(`[!] Unable to fetch & process ${filepath}`);
     console.error(error);
@@ -276,7 +290,7 @@ const main = async () => {
   //console.table(counter);
   // // NOTE: for testing, please remove next
   // // const mdx = await getMDX(dirpath)('/docs/apm.html');
-  //const mdx = await getMDX(dirpath)('/docs/agents/c-sdk.html');
+  // const mdx = await getMDX(dirpath)('/docs/apis/nerdgraph/get-started/introduction-new-relic-nerdgraph.html');
   // const mdx = getMDX(dirpath)('/docs/apm/apm-ui-pages/error-analytics/errors-page-find-fix-verify-problems.html');
 
   // // console.log(mdx);
