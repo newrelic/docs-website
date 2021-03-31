@@ -3,10 +3,11 @@ const fs = require('fs');
 const serializeMDX = require('../../actions/serialize-mdx');
 
 const JP_DIR = 'src/i18n/content/jp/docs';
-const OUT_DIR = '~/Desktop';
+const OUT_DIR = 'serializedContent';
 
-const pathJoin = (filepath) => (name) => path.join(filepath, name);
 const replace = (x, sub = '') => (str) => str.replace(x, sub);
+const pathJoin = (base) => (filepath) => path.join(base, filepath);
+const getFullPath = pathJoin(process.cwd());
 
 const isDirectory = (filepath) => fs.statSync(filepath).isDirectory();
 const isFile = (filepath) => fs.statSync(filepath).isFile();
@@ -24,11 +25,26 @@ const getFilesRecursively = (filepath) =>
     .reduce((acc, file) => [...acc, file], getFiles(filepath))
     .filter(isMdx);
 
-const getContent = (filepath) =>
-  fs.readFileSync(path.join(process.cwd(), filepath));
+const getContent = (filepath) => fs.readFileSync(getFullPath(filepath));
 
 const serializeContent = async (filepaths) =>
   Promise.all(filepaths.map(getContent).map(serializeMDX));
+
+const writeFile = (filepaths, locale) => (content, index) => {
+  const mdxFilepath = filepaths[index];
+  const filepath = path
+    .join(
+      OUT_DIR,
+      locale,
+      path.dirname(mdxFilepath),
+      path.basename(mdxFilepath, '.mdx') + '.html'
+    )
+    .replace('src/content/docs/', '')
+    .replace('src/i18n/content/jp/docs/', '');
+
+  fs.mkdirSync(path.dirname(filepath), { recursive: true });
+  fs.writeFileSync(filepath, content);
+};
 
 const main = async () => {
   try {
@@ -38,7 +54,8 @@ const main = async () => {
     const serializedJPContent = await serializeContent(jpFilePaths);
     const serializedEnContent = await serializeContent(enFilePaths);
 
-    // TODO: save
+    serializedJPContent.forEach(writeFile(jpFilePaths, 'jp'));
+    serializedEnContent.forEach(writeFile(enFilePaths, 'en'));
   } catch (e) {
     console.log('[!]', 'Unable to serialize content');
     console.error(e);
