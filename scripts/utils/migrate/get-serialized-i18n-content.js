@@ -25,10 +25,11 @@ const getFilesRecursively = (filepath) =>
     .reduce((acc, file) => [...acc, file], getFiles(filepath))
     .filter(isMdx);
 
-const getContent = (filepath) => fs.readFileSync(getFullPath(filepath));
+const getContent = (filepath) =>
+  fs.existsSync(filepath) ? fs.readFileSync(getFullPath(filepath)) : null;
 
 const serializeContent = async (filepaths) =>
-  Promise.all(filepaths.map(getContent).map(serializeMDX));
+  Promise.all(filepaths.map(getContent).filter(Boolean).map(serializeMDX));
 
 const writeFile = (filepaths, locale) => (content, index) => {
   const mdxFilepath = filepaths[index];
