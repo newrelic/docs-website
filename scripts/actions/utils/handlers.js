@@ -83,6 +83,10 @@ module.exports = {
     deserialize: deserializeComponent,
     serialize: serializeComponent,
   },
+  ButtonGroup: {
+    deserialize: deserializeComponent,
+    serialize: serializeComponent,
+  },
   Callout: {
     deserialize: deserializeComponent,
     serialize: (h, node) =>
@@ -131,6 +135,14 @@ module.exports = {
       serializeComponent(h, node, { textAttributes: ['title'] }),
   },
   LandingPageTileGrid: {
+    deserialize: deserializeComponent,
+    serialize: serializeComponent,
+  },
+  LandingPageHero: {
+    deserialize: deserializeComponent,
+    serialize: serializeComponent,
+  },
+  HeroContent: {
     deserialize: deserializeComponent,
     serialize: serializeComponent,
   },
@@ -229,5 +241,26 @@ module.exports = {
         identifyComponent: false,
         tagName: 'mark',
       }),
+  },
+  figcaption: {
+    deserialize: deserializeComponent,
+    serialize: serializeComponent,
+  },
+  dd: {
+    deserialize: deserializeComponent,
+    serialize: serializeComponent,
+  },
+  dt: {
+    deserialize: deserializeComponent,
+    serialize: serializeComponent,
+  },
+  img: {
+    deserialize: deserializeComponent,
+    serialize: (h, node) =>
+      serializeComponent(h, node, { textAttributes: ['alt'] }),
+  },
+  a: {
+    deserialize: deserializeComponent,
+    serialize: serializeComponent,
   },
 };
