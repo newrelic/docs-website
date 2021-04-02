@@ -4,8 +4,8 @@ const generateHTML = require('./utils/generate-html');
 const fromList = require('./utils/unist-fs-util-from-list');
 const { prop } = require('../../scripts/utils/functional.js');
 const { sentenceCase } = require('./utils/string');
-const taxonomyRedirects = require('../../src/data/taxonomy-redirects.json');
 const createLocalizedRedirect = require('../../gatsby/utils/create-localized-redirect');
+const taxonomyRedirects = require('../../src/data/taxonomy-redirects.json');
 
 exports.createPages = async ({ actions, graphql, reporter }, pluginOptions) => {
   const { skippedDirectories } = pluginOptions;
