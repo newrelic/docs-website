@@ -1,7 +1,7 @@
 ---
 title: 'Guided install for Java and .NET APM agents'
 summary: 'We’ve made it simple to set up APM (Java and .NET) using our recently-launched guided installation flow, so you can instrument your systems and start analyzing your telemetry data in 5 minutes - no instrumentation expertise required.'
-releaseDate: '2021-03-31'
+releaseDate: '2021-04-05'
 getStartedLink: 'https://one.newrelic.com/launcher/nr1-core.home?pane=eyJuZXJkbGV0SWQiOiJucjEtY29yZS5ob21lLXNjcmVlbiJ9&cards[0]=eyJuZXJkbGV0SWQiOiJucjEtaW5zdGFsbC1uZXdyZWxpYy5ucjEtaW5zdGFsbC1uZXdyZWxpYyIsImFjdGlvbkluZGV4IjoxfQ=='
 learnMoreLink: 'https://docs.newrelic.com/docs/new-relic-guided-install-overview'
 ---
