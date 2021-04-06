@@ -1,13 +1,9 @@
 ---
-title: Nerdlog weekly roundup
-summary: 'Everything you need to know about OpenTelemetry, Real User Monitoring, Data Dropping, Logs, and more'
+title: 'Nerdlog Roundup: Ingesting OpenTelemetry Data, RUM, and more'
+summary: 'Ingest OpenTelemery data and logs, drop your data, and monitor your browser performance'
 releaseDate: '2021-02-25'
 learnMoreLink: 'https://blog.newrelic.com/product-news/nerdlog-episode-2/?mkt_tok=eyJpIjoiTVdFNFlXSTVOMkptT0dOaSIsInQiOiJ0Q0JaeWlWTmVLU1FqNGViSVY0WUV2eUJPalI4WUNnZWdNMFlLSDcrUGsxbTh3TXJLcDY2QUt2MmVLNmt2d2l3ZDlVR3ltN3hYaVJXXC9tMDdNbmZ5Vnc9PSJ9'
 ---
-
-Don’t miss New Relic’s Nerdlog LIVE at 12 p.m. PT (8 p.m. UTC) every Thursday on [Twitch](https://www.twitch.tv/new_relic).
-
-Missed last week’s Nerdlog episode? Read the recap below:
 
 ## Ingesting OpenTelemetry data with New Relic One
 
@@ -32,3 +28,5 @@ Learn how to drop dimensional metrics (in addition to Events, Logs, and Traces) 
 Get updates on all things Log management and an overview of Agentless syslog onboarding. Read more about [Agentless Syslog Onboarding](https://blog.newrelic.com/product-news/agentless-syslog-onboarding-new-relic-log-management/). 
 
 <iframe width="560" height="315" src="https://www.youtube.com/embed/t6KFYfeEdjw" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+
+ **Don’t miss the Nerdlog LIVE every Thursday at 12 p.m. PT (8 p.m. UTC) on [Twitch] (https://www.twitch.tv/new_relic) to get the latest product updates from the people who built them.**

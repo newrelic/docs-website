@@ -243,10 +243,10 @@ _NOTE: with all of these steps, if you have SSH Keys set up, you will want to us
 1. Click the fork button in the GitHub UI for the [docs-website repository](https://github.com/newrelic/docs-website).
 2. Clone the fork on your computer: `git clone https://github.com/yourname/docs-website`.
 3. Change into the fork repo: `cd docs-website`.
-4. Connect the private repo: `git remote add private https://github.com/yourname/private-repo.git`.
-5. Make a new branch: `git checkout -b your_branch_name`.
-6. Pull in content from you private repo: `git pull private main`.
-7. Push your new work up to GitHub: `git push origin your_branch_name`.
+4. Connect the public repo: `git remote add upstream https://github.com/newrelic/docs-website.git`.
+5. Pull in content from the public repo: `git pull upstream develop`.
+6. Make a new branch: `git checkout -b your_branch_name`.
+7. Push your branch up to the public repository: `git push upstream your_branch_name`.
 
 ## Troubleshooting
 
