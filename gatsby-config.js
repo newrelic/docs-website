@@ -105,7 +105,7 @@ module.exports = {
                 includedTypes.includes(frontmatter.type)
               );
             },
-            getParams: ({ node }) => {
+            getParams: ({ node, slug }) => {
               const { tags, title } = node.frontmatter;
 
               const locale = slug && slug.split('/')[0];
