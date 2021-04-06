@@ -35,7 +35,7 @@ const toVFile = (
     data: {
       ...data,
       doc,
-      topics: getTopics(doc),
+      topics: doc.topics,
       pathname: path.join('/', dirname, filename === 'index' ? '' : filename),
       redirects: getRedirectsForDoc(doc, redirects).filter(
         (redirectPath) =>
