@@ -8,6 +8,7 @@ const getAgentName = require('./src/utils/getAgentName');
 
 const siteUrl = 'https://docs.newrelic.com';
 const dataDictionaryPath = `${__dirname}/src/data-dictionary`;
+const additionalLocales = ['jp'];
 const quote = (str) => `"${str}"`;
 
 const autoLinkHeaders = {
@@ -56,7 +57,7 @@ module.exports = {
         },
         i18n: {
           translationsPath: `${__dirname}/src/i18n/translations`,
-          additionalLocales: ['jp'],
+          additionalLocales,
         },
         prism: {
           languages: [
@@ -76,6 +77,7 @@ module.exports = {
             resultsPath: `${__dirname}/src/data/swiftype-resources.json`,
             engineKey: 'Ad9HfGjDw4GRkcmJjUut',
             refetch: Boolean(process.env.BUILD_RELATED_CONTENT),
+            limit: 3,
             filter: ({ node }) => {
               if (node.internal.type !== 'Mdx') {
                 return false;
@@ -106,6 +108,11 @@ module.exports = {
             getParams: ({ node }) => {
               const { tags, title } = node.frontmatter;
 
+              const locale = slug && slug.split('/')[0];
+              const postfix = additionalLocales.includes(locale)
+                ? `-${locale}`
+                : '';
+
               return {
                 q: tags ? tags.map(quote).join(' OR ') : title,
                 search_fields: {
@@ -113,7 +120,11 @@ module.exports = {
                 },
                 filters: {
                   page: {
-                    type: ['!blog', '!forum'],
+                    type: [
+                      `docs${postfix}`,
+                      `developer${postfix}`,
+                      `opensource${postfix}`,
+                    ],
                     document_type: [
                       '!views_page_menu',
                       '!term_page_api_menu',
