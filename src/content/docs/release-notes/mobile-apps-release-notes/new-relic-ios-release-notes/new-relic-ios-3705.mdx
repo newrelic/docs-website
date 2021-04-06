@@ -1,0 +1,21 @@
+---
+subject: Mobile app for iOS
+releaseDate: '2021-04-05'
+version: 3.70.5
+downloadLink: 'https://apps.apple.com/app/id594038638'
+---
+
+### Notes
+
+Browser apps now show AJAX performance!
+
+### New features
+
+* View and sort AJAX requests in the browser applications section
+* Filter to a specific AJAX request for more info
+
+### Fixes
+
+* Updated dashboard bar chart ordering to sort by value
+* Fixed an issue for dashboards with a lot of pages: the pages on the bottom of the list were inaccessible
+* Fixed an issue with parsing PHP error traces
