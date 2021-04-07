@@ -159,7 +159,7 @@ exports.createPages = async ({ actions, graphql, reporter }, pluginOptions) => {
     }
 
     createPage({
-      path: slug,
+      path: path.join(slug, '/'),
       component: path.resolve('src/templates/indexPage.js'),
       context: {
         slug,
@@ -226,7 +226,7 @@ exports.createPages = async ({ actions, graphql, reporter }, pluginOptions) => {
           child.data.fields.slug = localizedFileSlug;
         });
       createPage({
-        path: localizedSlug,
+        path: path.join(localizedSlug, '/'),
         component: path.resolve('src/templates/indexPage.js'),
         context: {
           slug: localizedSlug,
@@ -246,7 +246,7 @@ exports.createPages = async ({ actions, graphql, reporter }, pluginOptions) => {
     const slug = path.join(landingPageSlug, 'table-of-contents');
 
     createPage({
-      path: slug,
+      path: path.join(slug, '/'),
       component: path.resolve('src/templates/tableOfContents.js'),
       context: {
         fileRelativePath: null,
@@ -266,7 +266,7 @@ exports.createPages = async ({ actions, graphql, reporter }, pluginOptions) => {
         ) || node;
 
       createPage({
-        path: localizedSlug,
+        path: path.join(localizedSlug, '/'),
         component: path.resolve('src/templates/tableOfContents.js'),
         context: {
           fileRelativePath: null,
