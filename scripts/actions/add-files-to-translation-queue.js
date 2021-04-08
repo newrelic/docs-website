@@ -50,7 +50,7 @@ const getUpdatedQueue = async (url, queue) => {
       .map(prop('filename'));
 
     const queueFiles =
-      Object.entries(queue).length === 0 ? Object.entries(queue) : [];
+      Object.entries(queue).length !== 0 ? Object.entries(queue) : [];
 
     return queueFiles
       .map(([locale, files]) => [
@@ -60,7 +60,7 @@ const getUpdatedQueue = async (url, queue) => {
       .reduce(
         (acc, [locale, filenames]) => ({
           ...acc,
-          [locale]: filenames.concat(acc[locale] || []),
+          [locale]: [...new Set(filenames.concat(acc[locale] || []))],
         }),
         addedMdxFiles
       );
