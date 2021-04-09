@@ -80,7 +80,8 @@ const main = async () => {
   const key = { type: 'to_translate' };
 
   const queue = await loadFromDB(table, key);
-  const data = await getUpdatedQueue(url, queue);
+  const { locales } = queue.Item;
+  const data = await getUpdatedQueue(url, locales);
 
   await saveToTranslationQueue(key, 'set locales = :slugs', { ':slugs': data });
 
