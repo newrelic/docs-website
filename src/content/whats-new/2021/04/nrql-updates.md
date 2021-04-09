@@ -1,5 +1,5 @@
 ---
-title: 'NRQL Updates'
+title: 'NRQL Test'
 summary: 'You can now use Regex within your NRQL queries, and sliding time windows'
 releaseDate: '2021-04-01'
 learnMoreLink: https://www.youtube.com/watch?v=0SzBLDqqx1k
@@ -8,7 +8,7 @@ learnMoreLink: https://www.youtube.com/watch?v=0SzBLDqqx1k
 ​
 # Filter your queries with Regex
 ​
-It’s great how NRQL lets you use `OR` statements to combine multiple results. But this has some natural limitations: trying to match all strings that start with letters rather than numbers would take a lot of `OR` statements.
+Write your changes here. It’s great how NRQL lets you use `OR` statements to combine multiple results. But this has some natural limitations: trying to match all strings that start with letters rather than numbers would take a lot of `OR` statements.
 ​
 But now, you can use `RLIKE` to use a regular expression for filtering. A query like:
 ​
