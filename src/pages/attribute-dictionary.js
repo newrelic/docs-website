@@ -97,21 +97,16 @@ const AttributeDictionary = ({ data, pageContext, location }) => {
               font-size: 1.125rem;
             `}
           >
-            This data dictionary lists and defines the{' '}
-            <Link to="/docs/using-new-relic/welcome-new-relic/getting-started/glossary#attribute">
-              attributes
-            </Link>{' '}
-            attached to New Relic events and other data objects (like Metric and
-            Span data).
-          </Trans>
+This data dictionary defines some of our reported-by-default NRDB-stored data (like <code>Transaction</code>, Metric, and Span) and their attributes. These definitions are also available from our query builder UI by hovering over applicable data type and attribute names.
 
-          <Callout variant={Callout.VARIANT.TIP}>
-            <Trans i18nKey="dataDictionary.callout">
-              This dictionary does not contain data reported by Infrastructure
-              integrations. To learn about that data, see the{' '}
-              <Link to="/docs/integrations">integration documentation</Link>.
+This dictionary does <b>not</b> contain: 
+<ul>
+  <li>Data reported by infrastructure monitoring or associated integrations (for more on that, see relevant docs)</li>
+<li>Custom data</li>
+<li>Detailed integration-specific attributes for <code>Metric data</code></li>
+</ul>
+
             </Trans>
-          </Callout>
 
           <hr />
         </div>
