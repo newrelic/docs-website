@@ -97,13 +97,13 @@ const AttributeDictionary = ({ data, pageContext, location }) => {
               font-size: 1.125rem;
             `}
           >
-This data dictionary defines some of our reported-by-default NRDB-stored data (like <code>Transaction</code>, Metric, and Span) and their attributes. These definitions are also available from our query builder UI by hovering over applicable data type and attribute names.
+This data dictionary defines some of our reported-by-default NRDB-stored data (like Transaction, Metric, and Span) and their attributes. These definitions are also available from our query builder UI by hovering over applicable data type and attribute names.
 
-This dictionary does <b>not</b> contain: 
+This dictionary doesn't contain: 
 <ul>
   <li>Data reported by infrastructure monitoring or associated integrations (for more on that, see relevant docs)</li>
 <li>Custom data</li>
-<li>Detailed integration-specific attributes for <code>Metric data</code></li>
+<li>Detailed integration-specific attributes for Metric data</li>
 </ul>
 
             </Trans>
