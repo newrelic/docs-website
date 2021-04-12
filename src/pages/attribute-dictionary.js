@@ -89,24 +89,21 @@ const AttributeDictionary = ({ data, pageContext, location }) => {
             grid-area: 'page-description';
           `}
         >
-          <Trans
-            i18nKey="dataDictionary.intro"
-            parent="p"
+          <div
             css={css`
               color: var(--secondary-text-color);
               font-size: 1.125rem;
+              margin-bottom: 1rem;
             `}
           >
-This data dictionary defines some of our reported-by-default NRDB-stored data (like Transaction, Metric, and Span) and their attributes. These definitions are also available from our query builder UI by hovering over applicable data type and attribute names.
-
-This dictionary doesn't contain: 
-<ul>
-  <li>Data reported by infrastructure monitoring or associated integrations (for more on that, see relevant docs)</li>
-<li>Custom data</li>
-<li>Detailed integration-specific attributes for Metric data</li>
-</ul>
-
-            </Trans>
+            <p>{t('dataDictionary.intro')}</p>
+            <p>{t('dataDictionary.introNot.0')}</p>
+            <ul>
+              <li>{t('dataDictionary.introNot.1')}</li>
+              <li>{t('dataDictionary.introNot.2')}</li>
+              <li>{t('dataDictionary.introNot.3')}</li>
+            </ul>
+          </div>
 
           <hr />
         </div>
