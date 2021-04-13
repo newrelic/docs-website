@@ -4,7 +4,6 @@ import { css } from '@emotion/core';
 import { graphql } from 'gatsby';
 import {
   Button,
-  Callout,
   ContributingGuidelines,
   Layout,
   Link,
@@ -15,7 +14,6 @@ import {
   useTranslation,
   SimpleFeedback,
   Table,
-  Trans,
 } from '@newrelic/gatsby-theme-newrelic';
 import { TYPES } from '../utils/constants';
 
