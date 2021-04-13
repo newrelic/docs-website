@@ -62,7 +62,7 @@ const DataDictionaryFilter = ({ location, events }) => {
 
   return (
     <PageTools.Section>
-      <PageTools.Title>Filter data types</PageTools.Title>
+      <PageTools.Title>Apply filter</PageTools.Title>
       <FormControl>
         <Label htmlFor="dataSourceFilter">Data source</Label>
         <Select
@@ -87,7 +87,7 @@ const DataDictionaryFilter = ({ location, events }) => {
         </Select>
       </FormControl>
       <FormControl>
-        <Label htmlFor="eventFilter">Event type</Label>
+        <Label htmlFor="eventFilter">Data type</Label>
         <Select
           id="eventFilter"
           value={formState.event || ''}
