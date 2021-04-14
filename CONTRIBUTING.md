@@ -13,6 +13,7 @@
     - [Submitting a PR from a cloned repo](#submitting-a-pr-from-a-cloned-repo)
     - [Using the `develop` branch](#using-the-develop-branch)
     - [Shared Working Branches](#shared-working-branches)
+    - [Branch Protection](#branch-protection)
     - [Draft PRs](#draft-prs)
     - [Using Conventional Commits](#using-conventional-commits)
       - [Use `chore`](#use-chore)
@@ -135,6 +136,10 @@ use a shared working branch strategy.
 4. Push all changes to the remote repository: `git push origin shared-branch`
 5. Resolve any merge conflicts.
 6. When your work is complete, merge the shared working branch into `develop` via a PR.
+
+### Branch Protection
+
+The `develop` and `main` branches have "Branch Protection" enabled in Github. In order to merge a pull request into `develop`, you must have (at least) one approval. Additionally a few of the "PR Checks" are required and must pass before the pull request can be merged in.
 
 ### Draft PRs
 
