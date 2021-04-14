@@ -13,3 +13,11 @@ This updated experience also includes colorization of key messages, a message pr
 ![Screenshot showing the new logs UI](./images/new-logs-ui.png "New logs UI") 
 
 To learn more about how to leverage all of the latest innovations for logs in New Relic and specifically the new UI experience, head to our docs by clicking **Learn More** above, or to check it out for yourself in New Relic One, click **Get Started** above.
+
+## Watch the Nerdlog Segment
+
+Learn more from our product managers and engineers about how our new and improved logs UI can help you examine log details and search through millions of logs data faster.
+
+<iframe width="560" height="315" src="https://www.youtube.com/embed/pTakNUihv6w" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+
+Get the scoop on the latest New Relic features from the people who built them— live at 12 p.m. PT (8 p.m. UTC) every Thursday on [Twitch](https://www.twitch.tv/new_relic). 
