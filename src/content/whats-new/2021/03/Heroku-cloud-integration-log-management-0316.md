@@ -20,7 +20,7 @@ In our ongoing commitment to constantly innovate and build more integrations for
     `$ heroku drains -a YOUR_APP_NAME --json`
 
 
-4. Copy the value from the "token" attribute returned by the command above:
+4. Copy the value from the `token` attribute returned by the command above:
 
 ```
   {
@@ -48,4 +48,4 @@ Learn about sending logs from Heroku to New Relic One directly from our product 
 
 <iframe width="560" height="315" src="https://www.youtube.com/embed/sdmW2VIpXBM" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
 
-You can get the scoop on the latest New Relic features from the people who built them— live at 12 p.m. PT (8 p.m. UTC) every Thursday on [Twitch](https://www.twitch.tv/new_relic).  
+You can get the scoop on the latest New Relic features from the people who built them, live at 12 p.m. PT (8 p.m. UTC) every Thursday on [Twitch](https://www.twitch.tv/new_relic).  
