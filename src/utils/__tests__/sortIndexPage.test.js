@@ -1,21 +1,30 @@
 import sortIndexPage from '../sortIndexPage';
 
-test('should return alphabetized html when no navigation provided', async () => {
+const h2 = (text) => `<h2>${text}</h2>`;
+const li = (text) => `<li><a>${text}</a></li>`;
+const ul = (...lis) => `<ul>${lis.map(li).join('')}</ul>`;
+
+test('should return alphabetized html without nav', async () => {
+  const html = h2('Test') + ul('Foo', 'Bar', 'Baz');
+  const expected = h2('Test') + ul('Bar', 'Baz', 'Foo');
+
+  expect(sortIndexPage(html)).resolves.toEqual(expected);
+});
+
+test('should sort categories alphabetically without nav', async () => {
   const html = [
-    '<h2>Test</h2><ul>',
-    '<li><a>Foo</a></li>',
-    '<li><a>Bar</a></li>',
-    '<li><a>Baz</a><li></ul>',
+    h2('Test'),
+    ul('Foo', 'Bar', 'Baz'),
+    h2('Another Test'),
+    ul('Pumpkin', 'Apples', 'Oranges'),
   ].join('');
 
   const expected = [
-    '<h2>Test</h2><ul>',
-    '<li><a>Bar</a></li>',
-    '<li><a>Baz</a><li>>',
-    '<li><a>Foo</a></li></ul>',
+    h2('Another Test'),
+    ul('Apples', 'Oranges', 'Pumpkin'),
+    h2('Test'),
+    ul('Bar', 'Baz', 'Foo'),
   ].join('');
 
-  const actual = await sortIndexPage(html);
-
-  expect(actual).toEqual(expected);
+  expect(sortIndexPage(html)).resolves.toEqual(expected);
 });
