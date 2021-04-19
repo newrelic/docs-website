@@ -7,12 +7,14 @@
     - [Dependencies](#dependencies)
     - [Unit tests](#unit-tests)
     - [Using multiple versions of Node](#using-multiple-versions-of-node)
-    - [Quick edits](#quick-edits)
     - [Cloning vs forking](#cloning-vs-forking)
     - [Submitting a PR from a forked repo](#submitting-a-pr-from-a-forked-repo)
     - [Submitting a PR from a cloned repo](#submitting-a-pr-from-a-cloned-repo)
     - [Using the `develop` branch](#using-the-develop-branch)
     - [Shared Working Branches](#shared-working-branches)
+    - [Working with docs-website-private](#working-with-docs-website-private)
+      - [General Workflow](#general-workflow)
+      - [Getting a private preview link](#getting-a-private-preview-link)
     - [Branch Protection](#branch-protection)
     - [Draft PRs](#draft-prs)
     - [Using Conventional Commits](#using-conventional-commits)
@@ -20,14 +22,8 @@
       - [Use `fix`](#use-fix)
       - [Use `feat`](#use-feat)
     - [Deploy previews with Amplify](#deploy-previews-with-amplify)
-  - [Grammar and style guidelines](#grammar-and-style-guidelines)
   - [Reusable components](#reusable-components)
   - [Editing existing pages](#editing-existing-pages)
-  - [Creating new pages](#creating-new-pages)
-  - [Deleting pages](#deleting-pages)
-  - [Updating the navigation](#updating-the-navigation)
-  - [Adding a new page](#adding-a-new-page)
-  - [Moving a page to a new location](#moving-a-page-to-a-new-location)
   - [Private edits](#private-edits)
     - [Bring your private work back into the public repository](#bring-your-private-work-back-into-the-public-repository)
   - [Troubleshooting](#troubleshooting)
@@ -122,6 +118,63 @@ use a shared working branch strategy.
 4. Push all changes to the remote repository: `git push origin shared-branch`
 5. Resolve any merge conflicts.
 6. When your work is complete, merge the shared working branch into `develop` via a PR.
+
+### Working with docs-website-private
+
+The [docs-website-private repository](https://github.com/newrelic/docs-website-private) is a private copy of the docs-website repository. It is meant for private colloboration, on work that is not ready for public consumption.
+
+If you need to interact with the public & private repositories, there are three setups that you can use:
+1. cloning docs-website, adding a remote to the private repository.
+2. cloning docs-website-private, adding a remote to the public repository.
+3. doing both of the above.
+
+Our recommendation is setup #1, but you can use #2 or #3 to do the same things.
+
+#### General Workflow
+
+The general workflow is outlined [here](https://docs.google.com/document/d/1Lk16HGkWHlf52icq8AmaAiUp-lzFHEULCP7RAVjJ4aY/edit), and repeated below:
+
+1. Clone `docs-website`.
+   ```sh
+   git clone https://github.com/newrelic/docs-website.git
+   ```
+2. Add `docs-website-private` as a Remote.
+   ```sh
+   cd docs-website
+   git remote add private https://github.com/newrelic/docs-website-private.git # add a new remote called 'private'
+   ```
+3. Work on Private Content. Depending on the nature of the work & interaction of collaborators, using a [shared working branch](#shared-working-branches) may be valuable.
+   ```sh
+   git checkout develop # starting from develop
+   git pull # pull in most recent changes
+   git checkout -b shared_working_branch # cut your branch from develop
+   git push --set-upstream private shared_working_branch # push up the branch to the private repository for others to access
+   ```
+4. Once private work is ready to become public, push it to the public repository.
+   ```sh
+   git push --set-upstream origin shared_working_branch
+   ```
+5. From here, you can PR the branch in the public repository as normal.
+
+**Note**: since this workflow is across two repositories, if you are focused on your work in the private repository, it may be easy to forget that changes are being made on the public repository and that these changes may conflict with changes you are making.
+
+To surface conflicts sooner rather than all at once when you create your PR, you should try to keep your working branch up to date with public develop.
+
+That might look like:
+```sh
+git checkout develop
+git pull # get most recent changes to develop
+git checkout shared_working_branch
+git merge develop # merge develop into your branch.
+  # or
+git rebase develop # rebase your changes on top of develop. be careful with this for already shared branches, as this changes git history.
+```
+
+#### Getting a private preview link
+
+If you have a branch with all your changes made, and you would like to get a password protected link to a demoable version of the site, simply make a PR to the private repository for your branch. You can PR your branch to any other branch, the branch you PR into doesn't matter since this is only needed to generate an Amplify preview.
+
+Once you feel comfortable with your changes, you can delete the PR in the private repo and open a new PR in the public repo.
 
 ### Branch Protection
 
