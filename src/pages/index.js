@@ -64,6 +64,8 @@ const HomePage = ({ data }) => {
               </Link>
               .
             </Trans>
+
+            <p>{t('home.intro.p4')}</p>
           </div>
           <div
             css={css`
