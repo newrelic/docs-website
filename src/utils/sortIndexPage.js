@@ -16,6 +16,7 @@ const getLinkFromLi = getValue('children[0].properties.href');
 const getTextFromH2 = getValue('children[0].value');
 
 const findByPath = (node) => ({ path }) => getLinkFromLi(node) === path;
+const findByTitle = (node) => ({ title }) => getTextFromH2(node) === title;
 
 const sortListAlphabetically = () => (tree) => {
   visit(tree, isTag('ul'), (node) => {
@@ -33,29 +34,40 @@ const sortSectionsAlphabetically = () => (tree) => {
   });
 };
 
-const addIndexFromNav = (nav) => (child) => {
-  const index = findDeepIndex(nav, findByPath(child), 'pages');
-  return { ...child, index };
-};
-
 const sortListByNav = (nav) => () => (tree) => {
   visit(tree, isTag('ul'), (node) => {
     node.children = node.children
-      .map(addIndexFromNav(nav))
+      .map((child) => {
+        const index = findDeepIndex(nav, findByPath(child), 'pages');
+        return { ...child, index };
+      })
       .sort((a, b) => a.index - b.index);
   });
 };
 
-const sortIndexPage = async (html, nav = []) => {
+const sortSectionsByNav = (nav) => () => (tree) => {
+  visit(tree, isRoot, (node) => {
+    node.children = chunk(node.children, 2)
+      .map(([h2, ul]) => {
+        const index = findDeepIndex(nav, findByTitle(h2), 'pages');
+        return [h2, ul, index];
+      })
+      .sort((a, b) => a[2] - b[2])
+      .reduce((acc, [h2, ul]) => [...acc, h2, ul], []);
+  });
+};
+
+const sortIndexPage = async (html, navYaml = []) => {
   if (!html) throw new Error('Missing arguments');
 
-  const navData = { pages: nav.map(yaml.safeLoad) };
+  const nav = { pages: navYaml.map(yaml.safeLoad) };
 
   const processor = unified()
     .use(parse, { fragment: true })
     .use(sortSectionsAlphabetically)
     .use(sortListAlphabetically)
-    .use(sortListByNav(navData))
+    .use(sortListByNav(nav))
+    .use(sortSectionsByNav(nav))
     .use(stringify);
 
   const { contents } = await processor.process(html);

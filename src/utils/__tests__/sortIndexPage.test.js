@@ -13,26 +13,15 @@ const NAV_1 = [
 ].join('\n');
 
 const NAV_2 = [
-  'title: Nav Two',
+  'title: Another Test',
+  'path: /another-test',
   'pages:',
-  '  - title: Test',
-  '    path: /test',
-  '    pages:',
-  '      - title: Baz',
-  '        path: /test/baz',
-  '      - title: Foo',
-  '        path: /test/foo',
-  '      - title: Bar',
-  '        path: /test/bar',
-  '  - title: Another Test',
-  '    path: /another-test',
-  '    pages:',
-  '      - title: Oranges',
-  '        path: /another-test/pranges',
-  '      - title: Apples',
-  '        path: /another-test/apples',
-  '      - title: Pumpkin',
-  '        path: /another-test/pumpkin',
+  '  - title: Oranges',
+  '    path: /another-test/oranges',
+  '  - title: Apples',
+  '    path: /another-test/apples',
+  '  - title: Pumpkin',
+  '    path: /another-test/pumpkin',
 ].join('\n');
 
 const h2 = (text) => `<h2>${text}</h2>`;
@@ -88,12 +77,12 @@ describe('with navigation containing all content', () => {
 
     const expected = [
       h2('Test'),
-      ul('test', 'Bar', 'Baz', 'Foo'),
+      ul('test', 'Baz', 'Foo', 'Bar'),
       h2('Another Test'),
-      ul('another-test', 'Apples', 'Oranges', 'Pumpkin'),
+      ul('another-test', 'Oranges', 'Apples', 'Pumpkin'),
     ].join('');
 
-    const actual = await sortIndexPage(html, [NAV_2]);
+    const actual = await sortIndexPage(html, [NAV_1, NAV_2]);
     expect(actual).toEqual(expected);
   });
 });
@@ -103,11 +92,28 @@ describe('with some content outside of navigation', () => {
     const html = h2('Test') + ul('test', 'Foo', 'Zed', 'Bar', 'Baz');
     const expected = h2('Test') + ul('test', 'Baz', 'Foo', 'Bar', 'Zed');
 
-    const actual = await sortIndexPage(html, [NAV_1]);
+    const actual = await sortIndexPage(html, [NAV_1, NAV_2]);
     expect(actual).toEqual(expected);
   });
 
-  test.todo('should sort categories alphabetically and then by navigation');
+  test('should sort categories alphabetically and then by navigation', async () => {
+    const html = [
+      h2('Another Test'),
+      ul('another-test', 'Pumpkin', 'Zed', 'Apples', 'Oranges'),
+      h2('Test'),
+      ul('test', 'Wow', 'Cool', 'Foo', 'Bar', 'Baz'),
+    ].join('');
+
+    const expected = [
+      h2('Test'),
+      ul('test', 'Baz', 'Foo', 'Bar', 'Cool', 'Wow'),
+      h2('Another Test'),
+      ul('another-test', 'Oranges', 'Apples', 'Pumpkin', 'Zed'),
+    ].join('');
+
+    const actual = await sortIndexPage(html, [NAV_1, NAV_2]);
+    expect(actual).toEqual(expected);
+  });
 });
 
 describe('error handling', () => {
