@@ -13,7 +13,7 @@
     - [Using the `develop` branch](#using-the-develop-branch)
     - [Shared Working Branches](#shared-working-branches)
     - [Working with docs-website-private](#working-with-docs-website-private)
-      - [General Workflow](#general-workflow)
+      - [Private Workflow](#private-workflow)
       - [Getting a private preview link](#getting-a-private-preview-link)
     - [Branch Protection](#branch-protection)
     - [Draft PRs](#draft-prs)
@@ -123,16 +123,9 @@ use a shared working branch strategy.
 
 The [docs-website-private repository](https://github.com/newrelic/docs-website-private) is a private copy of the docs-website repository. It is meant for private colloboration, on work that is not ready for public consumption.
 
-If you need to interact with the public & private repositories, there are three setups that you can use:
-1. cloning docs-website, adding a remote to the private repository.
-2. cloning docs-website-private, adding a remote to the public repository.
-3. doing both of the above.
+#### Private Workflow
 
-Our recommendation is setup #1, but you can use #2 or #3 to do the same things.
-
-#### General Workflow
-
-The general workflow is outlined [here](https://docs.google.com/document/d/1Lk16HGkWHlf52icq8AmaAiUp-lzFHEULCP7RAVjJ4aY/edit), and repeated below:
+The general workflow is:
 
 1. Clone `docs-website`.
    ```sh
@@ -156,18 +149,16 @@ The general workflow is outlined [here](https://docs.google.com/document/d/1Lk16
    ```
 5. From here, you can PR the branch in the public repository as normal.
 
-**Note**: since this workflow is across two repositories, if you are focused on your work in the private repository, it may be easy to forget that changes are being made on the public repository and that these changes may conflict with changes you are making.
+To follow best practice, be sure to keep your branch in sync with public develop. This will surface conflicts sooner rather than all at once when you create your PR.
 
-To surface conflicts sooner rather than all at once when you create your PR, you should try to keep your working branch up to date with public develop.
-
-That might look like:
+For example:
 ```sh
 git checkout develop
 git pull # get most recent changes to develop
 git checkout shared_working_branch
 git merge develop # merge develop into your branch.
   # or
-git rebase develop # rebase your changes on top of develop. be careful with this for already shared branches, as this changes git history.
+git rebase develop # rebase your changes on top of develop. be careful with this for already shared branches, as this may change git history.
 ```
 
 #### Getting a private preview link
