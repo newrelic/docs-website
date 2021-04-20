@@ -13,7 +13,6 @@
     - [Using the `develop` branch](#using-the-develop-branch)
     - [Shared Working Branches](#shared-working-branches)
     - [Working with docs-website-private](#working-with-docs-website-private)
-      - [Private Workflow](#private-workflow)
       - [Getting a private preview link](#getting-a-private-preview-link)
     - [Branch Protection](#branch-protection)
     - [Draft PRs](#draft-prs)
@@ -121,45 +120,7 @@ use a shared working branch strategy.
 
 ### Working with docs-website-private
 
-The [docs-website-private repository](https://github.com/newrelic/docs-website-private) is a private copy of the docs-website repository. It is meant for private colloboration, on work that is not ready for public consumption.
-
-#### Private Workflow
-
-The general workflow is:
-
-1. Clone `docs-website`.
-   ```sh
-   git clone https://github.com/newrelic/docs-website.git
-   ```
-2. Add `docs-website-private` as a Remote.
-   ```sh
-   cd docs-website
-   git remote add private https://github.com/newrelic/docs-website-private.git # add a new remote called 'private'
-   ```
-3. Work on Private Content. Depending on the nature of the work & interaction of collaborators, using a [shared working branch](#shared-working-branches) may be valuable.
-   ```sh
-   git checkout develop # starting from develop
-   git pull # pull in most recent changes
-   git checkout -b shared_working_branch # cut your branch from develop
-   git push --set-upstream private shared_working_branch # push up the branch to the private repository for others to access
-   ```
-4. Once private work is ready to become public, push it to the public repository.
-   ```sh
-   git push --set-upstream origin shared_working_branch
-   ```
-5. From here, you can PR the branch in the public repository as normal.
-
-To follow best practice, be sure to keep your branch in sync with public develop. This will surface conflicts sooner rather than all at once when you create your PR.
-
-For example:
-```sh
-git checkout develop
-git pull # get most recent changes to develop
-git checkout shared_working_branch
-git merge develop # merge develop into your branch.
-  # or
-git rebase develop # rebase your changes on top of develop. be careful with this for already shared branches, as this may change git history.
-```
+For New Relic employees working on pre-release content that needs to remain private, we have a [private docs repo](https://github.com/newrelic/docs-website-private). Before you begin creating content in the private repo, refer to the [private docs wiki](https://github.com/newrelic/docs-website-private/wiki) on to how interact with the repository.
 
 #### Getting a private preview link
 
