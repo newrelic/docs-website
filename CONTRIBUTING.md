@@ -13,7 +13,6 @@
     - [Using the `develop` branch](#using-the-develop-branch)
     - [Shared Working Branches](#shared-working-branches)
     - [Working with docs-website-private](#working-with-docs-website-private)
-      - [Getting a private preview link](#getting-a-private-preview-link)
     - [Branch Protection](#branch-protection)
     - [Draft PRs](#draft-prs)
     - [Using Conventional Commits](#using-conventional-commits)
@@ -121,12 +120,6 @@ use a shared working branch strategy.
 ### Working with docs-website-private
 
 For New Relic employees working on pre-release content that needs to remain private, we have a [private docs repo](https://github.com/newrelic/docs-website-private). Before you begin creating content in the private repo, refer to the [private docs wiki](https://github.com/newrelic/docs-website-private/wiki) on to how interact with the repository.
-
-#### Getting a private preview link
-
-If you have a branch with all your changes made, and you would like to get a password protected link to a demoable version of the site, simply make a PR to the private repository for your branch. You can PR your branch to any other branch, the branch you PR into doesn't matter since this is only needed to generate an Amplify preview.
-
-Once you feel comfortable with your changes, you can delete the PR in the private repo and open a new PR in the public repo.
 
 ### Branch Protection
 
