@@ -1,7 +1,7 @@
 ---
 name: statusValueCode
 type: attribute
-dataSources:
+events:
   - WorkloadStatus
 ---
 
