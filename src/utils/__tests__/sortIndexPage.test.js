@@ -5,11 +5,34 @@ const NAV_1 = [
   'path: /test',
   'pages:',
   '  - title: Baz',
-  '    path: /test/foo',
+  '    path: /test/baz',
   '  - title: Foo',
   '    path: /test/foo',
   '  - title: Bar',
-  '    path: /test/foo',
+  '    path: /test/bar',
+].join('\n');
+
+const NAV_2 = [
+  'title: Nav Two',
+  'pages:',
+  '  - title: Test',
+  '    path: /test',
+  '    pages:',
+  '      - title: Baz',
+  '        path: /test/baz',
+  '      - title: Foo',
+  '        path: /test/foo',
+  '      - title: Bar',
+  '        path: /test/bar',
+  '  - title: Another Test',
+  '    path: /another-test',
+  '    pages:',
+  '      - title: Oranges',
+  '        path: /another-test/pranges',
+  '      - title: Apples',
+  '        path: /another-test/apples',
+  '      - title: Pumpkin',
+  '        path: /another-test/pumpkin',
 ].join('\n');
 
 const h2 = (text) => `<h2>${text}</h2>`;
@@ -55,11 +78,35 @@ describe('with navigation containing all content', () => {
     expect(actual).toEqual(expected);
   });
 
-  test.todo('should sort categories by navigation');
+  test('should sort categories by navigation', async () => {
+    const html = [
+      h2('Another Test'),
+      ul('another-test', 'Pumpkin', 'Apples', 'Oranges'),
+      h2('Test'),
+      ul('test', 'Foo', 'Bar', 'Baz'),
+    ].join('');
+
+    const expected = [
+      h2('Test'),
+      ul('test', 'Bar', 'Baz', 'Foo'),
+      h2('Another Test'),
+      ul('another-test', 'Apples', 'Oranges', 'Pumpkin'),
+    ].join('');
+
+    const actual = await sortIndexPage(html, [NAV_2]);
+    expect(actual).toEqual(expected);
+  });
 });
 
 describe('with some content outside of navigation', () => {
-  test.todo('should sort lists alphabetically and then by navigation');
+  test('should sort lists alphabetically and then by navigation', async () => {
+    const html = h2('Test') + ul('test', 'Foo', 'Zed', 'Bar', 'Baz');
+    const expected = h2('Test') + ul('test', 'Baz', 'Foo', 'Bar', 'Zed');
+
+    const actual = await sortIndexPage(html, [NAV_1]);
+    expect(actual).toEqual(expected);
+  });
+
   test.todo('should sort categories alphabetically and then by navigation');
 });
 
