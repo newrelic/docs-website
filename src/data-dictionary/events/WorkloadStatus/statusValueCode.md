@@ -1,6 +1,7 @@
 ---
 name: statusValueCode
 type: attribute
+units: enum
 events:
   - WorkloadStatus
 ---

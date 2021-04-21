@@ -1,8 +1,9 @@
 ---
 name: workloadGuid
 type: attribute
+units: ID
 events:
   - WorkloadStatus
 ---
 
-Unique ID of the workload.
+The New Relic-assigned GUID for a workload. 
