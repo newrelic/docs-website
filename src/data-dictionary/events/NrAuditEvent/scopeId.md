@@ -1,6 +1,7 @@
 ---
 name: scopeId
 type: attribute
+units: ID
 events:
   - NrAuditEvent
 ---
