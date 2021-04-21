@@ -6,6 +6,6 @@ events:
   - ContainerSample
 ---
 
-The amount of memory the container is using. This memory does not include swap.
+The amount of memory the container is using. This memory doesn't include swap.
 
-**Breaking change**: This metric includes memory + swap on versions <= v1.5.0 of nri-docker
+**Breaking change**: This metric includes memory + swap on versions v1.5.0 or higher of `nri-docker`.

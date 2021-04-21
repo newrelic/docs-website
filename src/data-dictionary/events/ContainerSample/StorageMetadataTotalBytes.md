@@ -6,4 +6,4 @@ events:
   - ContainerSample
 ---
 
-Total Metadata space in the Storage Driver. (Only Device Mapper driver is supported)
+Total Metadata space in the Storage Driver. Only Device Mapper driver is supported.

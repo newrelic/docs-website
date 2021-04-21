@@ -6,4 +6,4 @@ events:
   - ContainerSample
 ---
 
-Number of cpu shares assigned to the container.
+Number of CPU shares assigned to the container.

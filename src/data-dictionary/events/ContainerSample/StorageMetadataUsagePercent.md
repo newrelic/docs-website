@@ -6,4 +6,4 @@ events:
   - ContainerSample
 ---
 
-Percent of Metadata space used in the Storage Driver. (Only Device Mapper driver is supported)
+Percent of Metadata space used in the Storage Driver. Only Device Mapper driver is supported.
