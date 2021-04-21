@@ -6,4 +6,4 @@ events:
   - WorkloadStatus  
 ---
 
-The name of the entity (for example, the name of an app, host, or workload).
+The name of the entity (for example, an app name, host name, or workload name).
