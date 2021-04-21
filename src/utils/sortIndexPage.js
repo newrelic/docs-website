@@ -6,8 +6,8 @@ const yaml = require('js-yaml');
 const { chunk, get } = require('lodash');
 const findDeepIndex = require('./findDeepIndex');
 
-const isRoot = (node) => node.type === 'root';
-const isTag = (tagName) => (node) => node.tagName === tagName;
+const isRoot = (node) => node.type && node.type === 'root';
+const isTag = (tagName) => (node) => node.tagName && node.tagName === tagName;
 
 const getValue = (str, fallback = '') => (node) => get(node, str, fallback);
 
