@@ -5,4 +5,4 @@ events:
   - WorkloadStatus
 ---
 
-Date and time the workload status was evaluated. Used to specify a day or range of dates.
+Date and time the workload status was evaluated. Used to specify a day or range of dates. [Read more](https://docs.newrelic.com/attribute-dictionary/nrauditevent/timestamp).
