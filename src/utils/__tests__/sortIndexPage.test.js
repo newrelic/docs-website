@@ -25,6 +25,7 @@ const NAV_2 = [
 ].join('\n');
 
 const h2 = (text) => `<h2>${text}</h2>`;
+const h3 = (text) => `<h3>${text}</h3>`;
 const li = (parent) => (text) =>
   `<li><a href="/${parent}/${text.toLowerCase()}">${text}</a></li>`;
 const ul = (parent, ...lis) => `<ul>${lis.map(li(parent)).join('')}</ul>`;
@@ -50,6 +51,42 @@ test('[witout nav] should sort categories alphabetically', () => {
     ul('another-test', 'Apples', 'Oranges', 'Pumpkin'),
     h2('Test'),
     ul('test', 'Bar', 'Baz', 'Foo'),
+  ].join('');
+
+  const actual = sortIndexPage(html);
+  expect(actual).toEqual(expected);
+});
+
+/*
+ * Before
+ * <h2>Test</h2>
+ * <h3>Yikes</h3>
+ * <ul />
+ * <h3>Another Test</h3>
+ * <ul />
+ *
+ * After
+ * <h2>Test</h2>
+ * <h3>Another Test</h3>
+ * <ul />
+ * <h3>Yikes</h3>
+ * <ul />
+ */
+test('[witout nav] should sort categories with multiple headings', () => {
+  const html = [
+    h2('Test'),
+    h3('Yikes'),
+    ul('yikes', 'Foo', 'Bar', 'Baz'),
+    h3('Another Test'),
+    ul('another-test', 'Pumpkin', 'Apples', 'Oranges'),
+  ].join('');
+
+  const expected = [
+    h2('Test'),
+    h3('Another Test'),
+    ul('another-test', 'Apples', 'Oranges', 'Pumpkin'),
+    h3('Yikes'),
+    ul('yikes', 'Bar', 'Baz', 'Foo'),
   ].join('');
 
   const actual = sortIndexPage(html);
