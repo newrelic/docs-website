@@ -16,7 +16,7 @@ const TREE = {
   ],
 };
 
-it('should find an index on the top-level', () => {
+test('should find an index on the top-level', () => {
   const byPath = (path) => (child) => child.path === path;
 
   expect(findDeepIndex(TREE, byPath('/foo'))).toEqual(0);
@@ -24,21 +24,21 @@ it('should find an index on the top-level', () => {
   expect(findDeepIndex(TREE, byPath('/baz'))).toEqual(2);
 });
 
-it('should find an index in a nested level', () => {
+test('should find an index in a nested level', () => {
   const byPath = (path) => (child) => child.path === path;
 
   expect(findDeepIndex(TREE, byPath('/baz/apple'))).toEqual(0);
   expect(findDeepIndex(TREE, byPath('/baz/orange'))).toEqual(1);
 });
 
-it('should return `undefined` if a match not found', () => {
+test('should return `undefined` if a match not found', () => {
   const byPath = (path) => (child) => child.path === path;
 
   expect(findDeepIndex(TREE, byPath('/pumpkin'))).toEqual(undefined);
   expect(findDeepIndex(TREE, byPath('/baz/banana'))).toEqual(undefined);
 });
 
-it('should allow for different equality functions', () => {
+test('should allow for different equality functions', () => {
   const byTitle = (title) => (child) => child.title === title;
   const byLength = (length) => (child) => child.title.length === length;
 
@@ -51,7 +51,7 @@ it('should allow for different equality functions', () => {
   expect(findDeepIndex(TREE, byLength(6))).toEqual(1);
 });
 
-it('should allow for different keys for "children"', () => {
+test('should allow for different keys for "children"', () => {
   const tree = {
     name: 'Fruit',
     types: [
