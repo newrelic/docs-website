@@ -1,5 +1,5 @@
-const fs = require('fs');
 const parse = require('rehype-parse');
+const fs = require('fs');
 const path = require('path');
 const unified = require('unified');
 const rehypeStringify = require('rehype-stringify');
