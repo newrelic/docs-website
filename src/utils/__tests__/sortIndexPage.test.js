@@ -29,15 +29,15 @@ const li = (parent) => (text) =>
   `<li><a href="/${parent}/${text.toLowerCase()}">${text}</a></li>`;
 const ul = (parent, ...lis) => `<ul>${lis.map(li(parent)).join('')}</ul>`;
 
-test('[wihtout nav] should sort lists alphabetically', async () => {
+test('[wihtout nav] should sort lists alphabetically', () => {
   const html = h2('Test') + ul('test', 'Foo', 'Bar', 'Baz');
   const expected = h2('Test') + ul('test', 'Bar', 'Baz', 'Foo');
 
-  const { contents: actual } = await sortIndexPage(html).process(html);
+  const actual = sortIndexPage(html);
   expect(actual).toEqual(expected);
 });
 
-test('[witout nav] should sort categories alphabetically', async () => {
+test('[witout nav] should sort categories alphabetically', () => {
   const html = [
     h2('Test'),
     ul('test', 'Foo', 'Bar', 'Baz'),
@@ -52,19 +52,19 @@ test('[witout nav] should sort categories alphabetically', async () => {
     ul('test', 'Bar', 'Baz', 'Foo'),
   ].join('');
 
-  const { contents: actual } = await sortIndexPage(html).process(html);
+  const actual = sortIndexPage(html);
   expect(actual).toEqual(expected);
 });
 
-test('[with nav] should sort lists by navigation', async () => {
+test('[with nav] should sort lists by navigation', () => {
   const html = h2('Test') + ul('test', 'Foo', 'Bar', 'Baz');
   const expected = h2('Test') + ul('test', 'Baz', 'Foo', 'Bar');
 
-  const { contents: actual } = await sortIndexPage(html, [NAV_1]).process(html);
+  const actual = sortIndexPage(html, [NAV_1]);
   expect(actual).toEqual(expected);
 });
 
-test('[with nav] should sort categories by navigation', async () => {
+test('[with nav] should sort categories by navigation', () => {
   const html = [
     h2('Another Test'),
     ul('another-test', 'Pumpkin', 'Apples', 'Oranges'),
@@ -79,25 +79,19 @@ test('[with nav] should sort categories by navigation', async () => {
     ul('another-test', 'Oranges', 'Apples', 'Pumpkin'),
   ].join('');
 
-  const { contents: actual } = await sortIndexPage(html, [
-    NAV_1,
-    NAV_2,
-  ]).process(html);
+  const actual = sortIndexPage(html, [NAV_1, NAV_2]);
   expect(actual).toEqual(expected);
 });
 
-test('[with partial nav] should sort lists alphabetically and then by navigation', async () => {
+test('[with partial nav] should sort lists alphabetically and then by navigation', () => {
   const html = h2('Test') + ul('test', 'Foo', 'Zed', 'Bar', 'Baz');
   const expected = h2('Test') + ul('test', 'Baz', 'Foo', 'Bar', 'Zed');
 
-  const { contents: actual } = await sortIndexPage(html, [
-    NAV_1,
-    NAV_2,
-  ]).process(html);
+  const actual = sortIndexPage(html, [NAV_1, NAV_2]);
   expect(actual).toEqual(expected);
 });
 
-test('[with partial nav] should sort categories alphabetically and then by navigation', async () => {
+test('[with partial nav] should sort categories alphabetically and then by navigation', () => {
   const html = [
     h2('Another Test'),
     ul('another-test', 'Pumpkin', 'Zed', 'Apples', 'Oranges'),
@@ -112,17 +106,13 @@ test('[with partial nav] should sort categories alphabetically and then by navig
     ul('another-test', 'Oranges', 'Apples', 'Pumpkin', 'Zed'),
   ].join('');
 
-  const { contents: actual } = await sortIndexPage(html, [
-    NAV_1,
-    NAV_2,
-  ]).process(html);
+  const actual = sortIndexPage(html, [NAV_1, NAV_2]);
   expect(actual).toEqual(expected);
 });
 
-test('should throw without arguments', async () => {
-  expect.assertions(1);
+test('should throw without arguments', () => {
   try {
-    await sortIndexPage();
+    sortIndexPage();
   } catch (e) {
     expect(e).toEqual(Error('Missing arguments'));
   }

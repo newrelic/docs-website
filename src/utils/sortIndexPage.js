@@ -57,18 +57,32 @@ const sortSectionsByNav = (nav) => () => (tree) => {
   });
 };
 
+/**
+ * Returns a processor that can be used to update the sort order of an
+ * auto-generated index page.
+ *
+ * @example
+ * const { contents } = await sortIndexPage(nav).process(html);
+ *
+ * @param {string} html The input HTML.
+ * @param {string[]} [navYaml] An array of YAML file contents.
+ * @returns {string} The updated HTML.
+ */
 const sortIndexPage = (html, navYaml = []) => {
   if (!html) throw new Error('Missing arguments');
 
   const nav = { pages: navYaml.map(yaml.safeLoad) };
 
-  return unified()
+  const { contents } = unified()
     .use(parse, { fragment: true })
     .use(sortSectionsAlphabetically)
     .use(sortListAlphabetically)
     .use(sortListByNav(nav))
     .use(sortSectionsByNav(nav))
-    .use(stringify);
+    .use(stringify)
+    .processSync(html);
+
+  return contents;
 };
 
 module.exports = sortIndexPage;
