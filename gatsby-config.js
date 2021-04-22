@@ -449,14 +449,17 @@ module.exports = {
                 node.definition && node.definition.rawMarkdownBody.trim(),
               dataSources: node.dataSources,
               attributes: node.childrenDataDictionaryAttribute.map(
-                (attribute) => ({
-                  name: attribute.name,
-                  definition: attribute.definition.rawMarkdownBody.trim(),
-                  definitionHtml: htmlParser.runSync(
+                (attribute) => {
+                  const parsedHtml = htmlParser.runSync(
                     attribute.definition.htmlAst
-                  ),
-                  units: attribute.units,
-                })
+                  );
+                  return {
+                    name: attribute.name,
+                    definition: attribute.definition.rawMarkdownBody.trim(),
+                    definitionHtml: htmlParser.stringify(parsedHtml),
+                    units: attribute.units,
+                  };
+                }
               ),
             };
           }),
