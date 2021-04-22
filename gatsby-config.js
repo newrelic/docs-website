@@ -10,6 +10,10 @@ const siteUrl = 'https://docs.newrelic.com';
 const dataDictionaryPath = `${__dirname}/src/data-dictionary`;
 const additionalLocales = ['jp'];
 const quote = (str) => `"${str}"`;
+const htmlParser = unified()
+  .use(parse)
+  .use(addAbsoluteImagePath)
+  .use(rehypeStringify);
 
 const autoLinkHeaders = {
   resolve: 'gatsby-remark-autolink-headers',
@@ -428,6 +432,7 @@ module.exports = {
                   name
                   definition {
                     rawMarkdownBody
+                    htmlAst
                   }
                   units
                 }
@@ -437,19 +442,24 @@ module.exports = {
         }
       `,
         serializeFeed: ({ data }) =>
-          data.allDataDictionaryEvent.edges.map(({ node }) => ({
-            name: node.name,
-            definition:
-              node.definition && node.definition.rawMarkdownBody.trim(),
-            dataSources: node.dataSources,
-            attributes: node.childrenDataDictionaryAttribute.map(
-              (attribute) => ({
-                name: attribute.name,
-                definition: attribute.definition.rawMarkdownBody.trim(),
-                units: attribute.units,
-              })
-            ),
-          })),
+          data.allDataDictionaryEvent.edges.map(({ node }) => {
+            return {
+              name: node.name,
+              definition:
+                node.definition && node.definition.rawMarkdownBody.trim(),
+              dataSources: node.dataSources,
+              attributes: node.childrenDataDictionaryAttribute.map(
+                (attribute) => ({
+                  name: attribute.name,
+                  definition: attribute.definition.rawMarkdownBody.trim(),
+                  definitionHtml: htmlParser.runSync(
+                    attribute.definition.htmlAst
+                  ),
+                  units: attribute.units,
+                })
+              ),
+            };
+          }),
         feedFilename: 'data-dictionary',
         nodesPerFeedFile: Infinity,
       },
