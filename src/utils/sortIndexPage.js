@@ -26,6 +26,8 @@ const sortListAlphabetically = () => (tree) => {
   });
 };
 
+// NOTE: this assumes <h2><ul>...
+// This would fail with <h2><h3><ul>...
 const sortSectionsAlphabetically = () => (tree) => {
   visit(tree, isRoot, (node) => {
     node.children = chunk(node.children, 2)
@@ -75,10 +77,12 @@ const sortIndexPage = (html, navYaml = []) => {
 
   const { contents } = unified()
     .use(parse, { fragment: true })
-    .use(sortSectionsAlphabetically)
+    // TODO: break into a hierarchy that reflects heading level
+    .use(sortSectionsAlphabetically) // TODO: update this
     .use(sortListAlphabetically)
     .use(sortListByNav(nav))
-    .use(sortSectionsByNav(nav))
+    .use(sortSectionsByNav(nav)) // TODO: update this
+    // TODO: flaten the tree into the format it was at the start
     .use(stringify)
     .processSync(html);
 
