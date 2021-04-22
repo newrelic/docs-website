@@ -156,7 +156,7 @@ exports.createPages = async ({ actions, graphql, reporter }, pluginOptions) => {
     return fs.readFileSync(filepath, 'utf8');
   });
 
-  visit(list, 'directory', async (dir) => {
+  visit(list, 'directory', (dir) => {
     const slug = `/${dir.path}`;
 
     if (skippedDirectories.includes(dir.path)) {
@@ -167,7 +167,7 @@ exports.createPages = async ({ actions, graphql, reporter }, pluginOptions) => {
       return;
     }
 
-    const html = await sortIndexPage(generateHTML(dir), navData);
+    const html = sortIndexPage(generateHTML(dir), navData);
 
     createPage({
       path: path.join(slug, '/'),

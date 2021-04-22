@@ -6,8 +6,8 @@ const yaml = require('js-yaml');
 const { chunk, get } = require('lodash');
 const findDeepIndex = require('./findDeepIndex');
 
-const isRoot = (node) => node.type && node.type === 'root';
-const isTag = (tagName) => (node) => node.tagName && node.tagName === tagName;
+const isRoot = (node) => get(node, 'type', '') === 'root';
+const isTag = (tagName) => (node) => get(node, 'tagName', '') === tagName;
 
 const getValue = (str, fallback = '') => (node) => get(node, str, fallback);
 
@@ -57,22 +57,18 @@ const sortSectionsByNav = (nav) => () => (tree) => {
   });
 };
 
-const sortIndexPage = async (html, navYaml = []) => {
+const sortIndexPage = (html, navYaml = []) => {
   if (!html) throw new Error('Missing arguments');
 
   const nav = { pages: navYaml.map(yaml.safeLoad) };
 
-  const processor = unified()
+  return unified()
     .use(parse, { fragment: true })
     .use(sortSectionsAlphabetically)
     .use(sortListAlphabetically)
     .use(sortListByNav(nav))
     .use(sortSectionsByNav(nav))
     .use(stringify);
-
-  const { contents } = await processor.process(html);
-
-  return contents;
 };
 
 module.exports = sortIndexPage;
