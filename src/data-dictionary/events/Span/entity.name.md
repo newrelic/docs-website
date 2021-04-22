@@ -2,8 +2,7 @@
 name: entity.name
 type: attribute
 events:
-  - Span
-  - WorkloadStatus  
+  - Span 
 ---
 
-The name of the entity (for example, an app name, host name, or workload name).
+The name of the entity (for example, an app name, host name, etc.).
