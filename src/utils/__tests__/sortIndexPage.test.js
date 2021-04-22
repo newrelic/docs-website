@@ -33,7 +33,7 @@ test('[wihtout nav] should sort lists alphabetically', async () => {
   const html = h2('Test') + ul('test', 'Foo', 'Bar', 'Baz');
   const expected = h2('Test') + ul('test', 'Bar', 'Baz', 'Foo');
 
-  const actual = await sortIndexPage(html);
+  const { contents: actual } = await sortIndexPage(html).process(html);
   expect(actual).toEqual(expected);
 });
 
@@ -52,7 +52,7 @@ test('[witout nav] should sort categories alphabetically', async () => {
     ul('test', 'Bar', 'Baz', 'Foo'),
   ].join('');
 
-  const actual = await sortIndexPage(html);
+  const { contents: actual } = await sortIndexPage(html).process(html);
   expect(actual).toEqual(expected);
 });
 
@@ -60,7 +60,7 @@ test('[with nav] should sort lists by navigation', async () => {
   const html = h2('Test') + ul('test', 'Foo', 'Bar', 'Baz');
   const expected = h2('Test') + ul('test', 'Baz', 'Foo', 'Bar');
 
-  const actual = await sortIndexPage(html, [NAV_1]);
+  const { contents: actual } = await sortIndexPage(html, [NAV_1]).process(html);
   expect(actual).toEqual(expected);
 });
 
@@ -79,7 +79,10 @@ test('[with nav] should sort categories by navigation', async () => {
     ul('another-test', 'Oranges', 'Apples', 'Pumpkin'),
   ].join('');
 
-  const actual = await sortIndexPage(html, [NAV_1, NAV_2]);
+  const { contents: actual } = await sortIndexPage(html, [
+    NAV_1,
+    NAV_2,
+  ]).process(html);
   expect(actual).toEqual(expected);
 });
 
@@ -87,7 +90,10 @@ test('[with partial nav] should sort lists alphabetically and then by navigation
   const html = h2('Test') + ul('test', 'Foo', 'Zed', 'Bar', 'Baz');
   const expected = h2('Test') + ul('test', 'Baz', 'Foo', 'Bar', 'Zed');
 
-  const actual = await sortIndexPage(html, [NAV_1, NAV_2]);
+  const { contents: actual } = await sortIndexPage(html, [
+    NAV_1,
+    NAV_2,
+  ]).process(html);
   expect(actual).toEqual(expected);
 });
 
@@ -106,7 +112,10 @@ test('[with partial nav] should sort categories alphabetically and then by navig
     ul('another-test', 'Oranges', 'Apples', 'Pumpkin', 'Zed'),
   ].join('');
 
-  const actual = await sortIndexPage(html, [NAV_1, NAV_2]);
+  const { contents: actual } = await sortIndexPage(html, [
+    NAV_1,
+    NAV_2,
+  ]).process(html);
   expect(actual).toEqual(expected);
 });
 
