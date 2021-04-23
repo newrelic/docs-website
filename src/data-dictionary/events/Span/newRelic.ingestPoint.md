@@ -7,4 +7,4 @@ events:
   - AwsLambdaInvocationError
 ---
 
-Where the data point entered the platform (such as \`browser.spans\`, or \`api.traces\`).
+Where the data point entered the platform (such as `browser.spans`, or `api.traces`).
