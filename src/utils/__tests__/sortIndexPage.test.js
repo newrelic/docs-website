@@ -57,21 +57,6 @@ test('[witout nav] should sort categories alphabetically', () => {
   expect(actual).toEqual(expected);
 });
 
-/*
- * Before
- * <h2>Test</h2>
- * <h3>Yikes</h3>
- * <ul />
- * <h3>Another Test</h3>
- * <ul />
- *
- * After
- * <h2>Test</h2>
- * <h3>Another Test</h3>
- * <ul />
- * <h3>Yikes</h3>
- * <ul />
- */
 test.only('[witout nav] should sort categories with multiple headings', () => {
   const html = [
     h2('Test'),
