@@ -72,7 +72,7 @@ test('[witout nav] should sort categories alphabetically', () => {
  * <h3>Yikes</h3>
  * <ul />
  */
-test('[witout nav] should sort categories with multiple headings', () => {
+test.only('[witout nav] should sort categories with multiple headings', () => {
   const html = [
     h2('Test'),
     h3('Yikes'),

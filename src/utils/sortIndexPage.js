@@ -3,11 +3,11 @@ const visit = require('unist-util-visit');
 const parse = require('rehype-parse');
 const stringify = require('rehype-stringify');
 const yaml = require('js-yaml');
-const { chunk, get } = require('lodash');
+const { chunk, curry, get } = require('lodash');
 const findDeepIndex = require('./findDeepIndex');
 
 const isRoot = (node) => get(node, 'type', '') === 'root';
-const isTag = (tagName) => (node) => get(node, 'tagName', '') === tagName;
+const isTag = curry((tagName, node) => get(node, 'tagName', '') === tagName);
 
 const getValue = (str, fallback = '') => (node) => get(node, str, fallback);
 
@@ -17,6 +17,35 @@ const getTextFromH2 = getValue('children[0].value');
 
 const findByPath = (node) => ({ path }) => getLinkFromLi(node) === path;
 const findByTitle = (node) => ({ title }) => getTextFromH2(node) === title;
+
+/**
+ * Groups sections together. A section is a heading tag (e.g. <h3>) followed
+ * by an unordered list (<ul>). If the input tree is a flat list of nodes (in
+ * the "children" array), this will pair up each list with it's heading in a div.
+ *
+ * @example
+ * input tree (simplified): <h2> <h3> <ul> <h3> <ul>
+ * output tree (simplified): <h2> <div><h3><ul></div> <div><h3><ul></div>
+ */
+const groupBySection = () => (tree) => {
+  visit(tree, isRoot, (node) => {
+    node.children = node.children.reduce((acc, child, index) => {
+      const nextChild = node.children[index + 1];
+
+      // if the next node is a <ul>, let's add the current node the next to a div "container"
+      if (nextChild && isTag('ul', nextChild)) {
+        return [
+          ...acc,
+          { type: 'element', tagName: 'div', children: [child, nextChild] },
+        ];
+      }
+
+      // if this node is a ul, skip it...otherwise this is an orphan heading, add it
+      return isTag('ul', child) ? acc : [...acc, child];
+    }, []);
+    console.dir(node.children);
+  });
+};
 
 const sortListAlphabetically = () => (tree) => {
   visit(tree, isTag('ul'), (node) => {
@@ -77,12 +106,15 @@ const sortIndexPage = (html, navYaml = []) => {
 
   const { contents } = unified()
     .use(parse, { fragment: true })
+    .use(groupBySection)
+    /*
     // TODO: break into a hierarchy that reflects heading level
     .use(sortSectionsAlphabetically) // TODO: update this
     .use(sortListAlphabetically)
     .use(sortListByNav(nav))
     .use(sortSectionsByNav(nav)) // TODO: update this
     // TODO: flaten the tree into the format it was at the start
+    */
     .use(stringify)
     .processSync(html);
 
