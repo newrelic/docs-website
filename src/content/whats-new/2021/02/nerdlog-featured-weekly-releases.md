@@ -22,6 +22,6 @@ Solutions Architect Gary Spencer showcased how teams can visualize and share [k6
 
 <iframe width="560" height="315" src="https://www.youtube.com/embed/aC45-LjDueM" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
 
-**Don’t miss the Nerdlog LIVE every Thursday at 12 p.m. PT (8 p.m. UTC) on [Twitch] (https://www.twitch.tv/new_relic) to get the latest product updates from the people who built them.**
+**Don’t miss the Nerdlog LIVE every Thursday at 12 p.m. PT (8 p.m. UTC) on [Twitch](https://www.twitch.tv/new_relic) to get the latest product updates from the people who built them.**
 
 Get more product news on our [blog](https://blog.newrelic.com/product-news/introducing-the-nerdlog/).

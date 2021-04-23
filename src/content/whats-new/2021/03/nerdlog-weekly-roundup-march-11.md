@@ -13,4 +13,4 @@ In the latest Nerdlog episode, Matthew Demyttenaere, Product Manager for the New
 
 Now when you’re awoken in the middle of the night, the Navigator’s honeycomb view gives you the “traffic light” status for all of your entities at once so that you can quickly explore the health of your environment at a glance. 
 
-**Don’t miss the Nerdlog LIVE every Thursday at 12 p.m. PT (8 p.m. UTC) on [Twitch] (https://www.twitch.tv/new_relic) to get the latest product updates from the people who built them.**
+**Don’t miss the Nerdlog LIVE every Thursday at 12 p.m. PT (8 p.m. UTC) on [Twitch](https://www.twitch.tv/new_relic) to get the latest product updates from the people who built them.**

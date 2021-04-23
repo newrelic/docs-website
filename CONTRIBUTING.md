@@ -7,12 +7,12 @@
     - [Dependencies](#dependencies)
     - [Unit tests](#unit-tests)
     - [Using multiple versions of Node](#using-multiple-versions-of-node)
-    - [Quick edits](#quick-edits)
     - [Cloning vs forking](#cloning-vs-forking)
     - [Submitting a PR from a forked repo](#submitting-a-pr-from-a-forked-repo)
     - [Submitting a PR from a cloned repo](#submitting-a-pr-from-a-cloned-repo)
     - [Using the `develop` branch](#using-the-develop-branch)
     - [Shared Working Branches](#shared-working-branches)
+    - [Working with docs-website-private](#working-with-docs-website-private)
     - [Branch Protection](#branch-protection)
     - [Draft PRs](#draft-prs)
     - [Using Conventional Commits](#using-conventional-commits)
@@ -20,14 +20,8 @@
       - [Use `fix`](#use-fix)
       - [Use `feat`](#use-feat)
     - [Deploy previews with Amplify](#deploy-previews-with-amplify)
-  - [Grammar and style guidelines](#grammar-and-style-guidelines)
   - [Reusable components](#reusable-components)
   - [Editing existing pages](#editing-existing-pages)
-  - [Creating new pages](#creating-new-pages)
-  - [Deleting pages](#deleting-pages)
-  - [Updating the navigation](#updating-the-navigation)
-  - [Adding a new page](#adding-a-new-page)
-  - [Moving a page to a new location](#moving-a-page-to-a-new-location)
   - [Private edits](#private-edits)
     - [Bring your private work back into the public repository](#bring-your-private-work-back-into-the-public-repository)
   - [Troubleshooting](#troubleshooting)
@@ -122,6 +116,10 @@ use a shared working branch strategy.
 4. Push all changes to the remote repository: `git push origin shared-branch`
 5. Resolve any merge conflicts.
 6. When your work is complete, merge the shared working branch into `develop` via a PR.
+
+### Working with docs-website-private
+
+For New Relic employees working on pre-release content that needs to remain private, we have a [private docs repo](https://github.com/newrelic/docs-website-private). Before you begin creating content in the private repo, refer to the [private docs wiki](https://github.com/newrelic/docs-website-private/wiki) on to how interact with the repository.
 
 ### Branch Protection
 

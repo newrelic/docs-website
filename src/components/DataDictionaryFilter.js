@@ -1,6 +1,6 @@
 import React, { memo, useEffect, useMemo, useState } from 'react';
 import PropTypes from 'prop-types';
-import { css } from '@emotion/core';
+import { css } from '@emotion/react';
 import { graphql } from 'gatsby';
 import {
   PageTools,
@@ -9,12 +9,11 @@ import {
   useQueryParams,
 } from '@newrelic/gatsby-theme-newrelic';
 import Select from './Select';
-import { useNavigate } from '@reach/router';
+import { navigate } from '@reach/router';
 
 const uniq = (arr) => [...new Set(arr)];
 
 const DataDictionaryFilter = ({ location, events }) => {
-  const navigate = useNavigate();
   const { queryParams } = useQueryParams();
   const [formState, setFormState] = useState(() => ({
     dataSource: queryParams.get('dataSource'),
