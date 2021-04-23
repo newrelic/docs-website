@@ -9,6 +9,8 @@ const findDeepIndex = require('./findDeepIndex');
 const isRoot = (node) => get(node, 'type', '') === 'root';
 const isTag = curry((tagName, node) => get(node, 'tagName', '') === tagName);
 
+const isRootOrSection = (node) => isRoot(node) || isTag('section', node);
+
 const getValue = (str, fallback = '') => (node) => get(node, str, fallback);
 
 const getTextFromLi = getValue('children[0].children[0].value');
@@ -35,7 +37,7 @@ const groupBySection = () => (tree) => {
   const section = { type: 'element', tagName: 'section', properties: {} };
 
   visit(tree, isRoot, (node) => {
-    node.children = node.children.reduce((acc, child, index) => {
+    const newChildren = node.children.reduce((acc, child, index) => {
       const nextChild = node.children[index + 1];
 
       // if the child is a heading, and the next is a heading, build up a section and add it
@@ -52,7 +54,11 @@ const groupBySection = () => (tree) => {
       // otherwise, just return acc
       return acc;
     }, []);
-    console.log('root children', node.children);
+
+    // if we have sections, set add them - otherwise just return everything
+    if (newChildren.length > 0) {
+      node.children = newChildren;
+    }
   });
 };
 
@@ -65,7 +71,7 @@ const sortListAlphabetically = () => (tree) => {
 };
 
 const sortSectionsAlphabetically = () => (tree) => {
-  visit(tree, isTag('section'), (node) => {
+  visit(tree, isRootOrSection, (node) => {
     node.children = chunk(node.children, 2)
       .sort(([a], [b]) => getTextFromH(a).localeCompare(getTextFromH(b)))
       .reduce((acc, subsection) => [...acc, ...subsection], []);
@@ -84,7 +90,7 @@ const sortListByNav = (nav) => () => (tree) => {
 };
 
 const sortSectionsByNav = (nav) => () => (tree) => {
-  visit(tree, isRoot, (node) => {
+  visit(tree, isRootOrSection, (node) => {
     node.children = chunk(node.children, 2)
       .map(([h2, ul]) => {
         const index = findDeepIndex(nav, findByTitle(h2), 'pages');
@@ -127,7 +133,7 @@ const sortIndexPage = (html, navYaml = []) => {
     .use(sortSectionsAlphabetically)
     .use(sortListAlphabetically)
     .use(sortListByNav(nav))
-    // .use(sortSectionsByNav(nav)) // TODO: update this
+    .use(sortSectionsByNav(nav))
     .use(removeSections)
     .use(stringify)
     .processSync(html);

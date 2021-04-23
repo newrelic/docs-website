@@ -30,7 +30,7 @@ const li = (parent) => (text) =>
   `<li><a href="/${parent}/${text.toLowerCase()}">${text}</a></li>`;
 const ul = (parent, ...lis) => `<ul>${lis.map(li(parent)).join('')}</ul>`;
 
-test('[wihtout nav] should sort lists alphabetically', () => {
+test('[without nav] should sort lists alphabetically', () => {
   const html = h2('Test') + ul('test', 'Foo', 'Bar', 'Baz');
   const expected = h2('Test') + ul('test', 'Bar', 'Baz', 'Foo');
 
@@ -38,7 +38,7 @@ test('[wihtout nav] should sort lists alphabetically', () => {
   expect(actual).toEqual(expected);
 });
 
-test('[witout nav] should sort categories alphabetically', () => {
+test('[without nav] should sort categories alphabetically', () => {
   const html = [
     h2('Test'),
     ul('test', 'Foo', 'Bar', 'Baz'),
@@ -57,7 +57,7 @@ test('[witout nav] should sort categories alphabetically', () => {
   expect(actual).toEqual(expected);
 });
 
-test.only('[witout nav] should sort categories with multiple headings', () => {
+test('[without nav] should sort categories with multiple headings', () => {
   const html = [
     h2('Test'),
     h3('Yikes'),
