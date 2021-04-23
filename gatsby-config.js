@@ -174,6 +174,13 @@ module.exports = {
             }),
           },
         },
+        googleTagManager: {
+          trackingId: 'UA-3047412-33',
+          src: 'https://www.googletagmanager.com/gtag/js',
+          options: {
+            anonymize_ip: true,
+          },
+        },
       },
     },
     {
