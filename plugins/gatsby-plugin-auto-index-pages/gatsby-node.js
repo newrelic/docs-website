@@ -1,11 +1,11 @@
 const path = require('path');
 const visit = require('unist-util-visit');
-const fromList = require('./utils/unist-fs-util-from-list');
 const generateHTML = require('./utils/generate-html');
+const fromList = require('./utils/unist-fs-util-from-list');
 const { prop } = require('../../scripts/utils/functional.js');
 const { sentenceCase } = require('./utils/string');
-const taxonomyRedirects = require('../../src/data/taxonomy-redirects.json');
 const createLocalizedRedirect = require('../../gatsby/utils/create-localized-redirect');
+const taxonomyRedirects = require('../../src/data/taxonomy-redirects.json');
 
 exports.createPages = async ({ actions, graphql, reporter }, pluginOptions) => {
   const { skippedDirectories } = pluginOptions;
@@ -159,7 +159,7 @@ exports.createPages = async ({ actions, graphql, reporter }, pluginOptions) => {
     }
 
     createPage({
-      path: slug,
+      path: path.join(slug, '/'),
       component: path.resolve('src/templates/indexPage.js'),
       context: {
         slug,
@@ -226,7 +226,7 @@ exports.createPages = async ({ actions, graphql, reporter }, pluginOptions) => {
           child.data.fields.slug = localizedFileSlug;
         });
       createPage({
-        path: localizedSlug,
+        path: path.join(localizedSlug, '/'),
         component: path.resolve('src/templates/indexPage.js'),
         context: {
           slug: localizedSlug,
@@ -246,7 +246,7 @@ exports.createPages = async ({ actions, graphql, reporter }, pluginOptions) => {
     const slug = path.join(landingPageSlug, 'table-of-contents');
 
     createPage({
-      path: slug,
+      path: path.join(slug, '/'),
       component: path.resolve('src/templates/tableOfContents.js'),
       context: {
         fileRelativePath: null,
@@ -266,7 +266,7 @@ exports.createPages = async ({ actions, graphql, reporter }, pluginOptions) => {
         ) || node;
 
       createPage({
-        path: localizedSlug,
+        path: path.join(localizedSlug, '/'),
         component: path.resolve('src/templates/tableOfContents.js'),
         context: {
           fileRelativePath: null,

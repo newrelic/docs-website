@@ -66,7 +66,7 @@ const releaseNotesQuery = async (graphql) => {
 
 // converts graphQL response (node) into a consumable format for RSS
 const getFeedItem = (node, siteMetadata) => {
-  const { frontmatter, slug, id, mdxAST } = node;
+  const { frontmatter, slug, mdxAST } = node;
   const { releaseDate, subject, version } = frontmatter;
 
   const transformedAST = htmlGenerator.runSync(mdxAST);
@@ -76,6 +76,7 @@ const getFeedItem = (node, siteMetadata) => {
   const date = parseISO(releaseDate);
   const pubDate = `${format(date, 'EE, dd LLL yyyy')} 00:00:00 +0000`;
   const link = new URL(slug, siteMetadata.siteUrl).href;
+  const id = Buffer.from(`${subject}-${version}`).toString('base64');
 
   return {
     guid: id,

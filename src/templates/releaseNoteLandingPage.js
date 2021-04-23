@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import PropTypes from 'prop-types';
-import { css } from '@emotion/core';
+import { css } from '@emotion/react';
 import { graphql } from 'gatsby';
 import PageTitle from '../components/PageTitle';
 import Timeline from '../components/Timeline';
@@ -183,7 +183,15 @@ export const pageQuery = graphql`
 `;
 
 const getBestGuessExcerpt = (mdxAST) => {
-  const textTypes = ['paragraph', 'list', 'listItem', 'text', 'root', 'link'];
+  const textTypes = [
+    'paragraph',
+    'list',
+    'listItem',
+    'text',
+    'root',
+    'link',
+    'inlineCode',
+  ];
   const ast = filter(mdxAST, (node) => textTypes.includes(node.type));
 
   return toString(

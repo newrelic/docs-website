@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import PropTypes from 'prop-types';
-import { css } from '@emotion/core';
+import { css } from '@emotion/react';
 import PageTitle from '../components/PageTitle';
 import { graphql } from 'gatsby';
 import { Layout, Link, useTranslation } from '@newrelic/gatsby-theme-newrelic';

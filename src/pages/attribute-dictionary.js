@@ -1,10 +1,9 @@
 import React, { memo, useMemo, useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
-import { css } from '@emotion/core';
+import { css } from '@emotion/react';
 import { graphql } from 'gatsby';
 import {
   Button,
-  Callout,
   ContributingGuidelines,
   Layout,
   Link,
@@ -15,7 +14,6 @@ import {
   useTranslation,
   SimpleFeedback,
   Table,
-  Trans,
 } from '@newrelic/gatsby-theme-newrelic';
 import { TYPES } from '../utils/constants';
 
@@ -89,29 +87,21 @@ const AttributeDictionary = ({ data, pageContext, location }) => {
             grid-area: 'page-description';
           `}
         >
-          <Trans
-            i18nKey="dataDictionary.intro"
-            parent="p"
+          <div
             css={css`
               color: var(--secondary-text-color);
               font-size: 1.125rem;
+              margin-bottom: 1rem;
             `}
           >
-            This data dictionary lists and defines the{' '}
-            <Link to="/docs/using-new-relic/welcome-new-relic/getting-started/glossary#attribute">
-              attributes
-            </Link>{' '}
-            attached to New Relic events and other data objects (like Metric and
-            Span data).
-          </Trans>
-
-          <Callout variant={Callout.VARIANT.TIP}>
-            <Trans i18nKey="dataDictionary.callout">
-              This dictionary does not contain data reported by Infrastructure
-              integrations. To learn about that data, see the{' '}
-              <Link to="/docs/integrations">integration documentation</Link>.
-            </Trans>
-          </Callout>
+            <p>{t('dataDictionary.intro')}</p>
+            <p>{t('dataDictionary.introNot.0')}</p>
+            <ul>
+              <li>{t('dataDictionary.introNot.1')}</li>
+              <li>{t('dataDictionary.introNot.2')}</li>
+              <li>{t('dataDictionary.introNot.3')}</li>
+            </ul>
+          </div>
 
           <hr />
         </div>

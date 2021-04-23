@@ -6,4 +6,4 @@ events:
   - Span
 ---
 
-Unix timestamp in milliseconds indicating when the span started.
+Unix timestamp in milliseconds indicating the time it started.

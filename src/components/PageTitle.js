@@ -1,6 +1,6 @@
 /* eslint-disable jsx-a11y/heading-has-content */
 import React from 'react';
-import { css } from '@emotion/core';
+import { css } from '@emotion/react';
 
 const PageTitle = (props) => (
   <h1

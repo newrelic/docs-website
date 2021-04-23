@@ -7,26 +7,21 @@
     - [Dependencies](#dependencies)
     - [Unit tests](#unit-tests)
     - [Using multiple versions of Node](#using-multiple-versions-of-node)
-    - [Quick edits](#quick-edits)
     - [Cloning vs forking](#cloning-vs-forking)
     - [Submitting a PR from a forked repo](#submitting-a-pr-from-a-forked-repo)
     - [Submitting a PR from a cloned repo](#submitting-a-pr-from-a-cloned-repo)
     - [Using the `develop` branch](#using-the-develop-branch)
     - [Shared Working Branches](#shared-working-branches)
+    - [Working with docs-website-private](#working-with-docs-website-private)
+    - [Branch Protection](#branch-protection)
     - [Draft PRs](#draft-prs)
     - [Using Conventional Commits](#using-conventional-commits)
       - [Use `chore`](#use-chore)
       - [Use `fix`](#use-fix)
       - [Use `feat`](#use-feat)
     - [Deploy previews with Amplify](#deploy-previews-with-amplify)
-  - [Grammar and style guidelines](#grammar-and-style-guidelines)
   - [Reusable components](#reusable-components)
   - [Editing existing pages](#editing-existing-pages)
-  - [Creating new pages](#creating-new-pages)
-  - [Deleting pages](#deleting-pages)
-  - [Updating the navigation](#updating-the-navigation)
-  - [Adding a new page](#adding-a-new-page)
-  - [Moving a page to a new location](#moving-a-page-to-a-new-location)
   - [Private edits](#private-edits)
     - [Bring your private work back into the public repository](#bring-your-private-work-back-into-the-public-repository)
   - [Troubleshooting](#troubleshooting)
@@ -37,12 +32,11 @@
 ## Guidelines for contributing
 
 The Documentation Team and Developer Enablement Team at New Relic welcomes contributions to this repository.
-There are several ways you can contribute.
 
-If you wish to make documentation edits or add new
-documentation, follow our documentation contribution guidelines below.
-
-If you'd like to to make code contributions follow the code contribution
+There are several ways you can contribute:
+* If you wish to make documentation edits or add new
+documentation, follow our [documentation contribution guidelines](/docs/style-guide/writing-guidelines/create-edit-content/).
+* If you'd like to to make code contributions follow the code contribution
 guidelines below.
 
 ## Getting started
@@ -75,19 +69,6 @@ Docs Site is currently on Node v12. Therefore it's recommended you use Node Vers
 
 Review [this article](https://itnext.io/nvm-the-easiest-way-to-switch-node-js-environments-on-your-machine-in-a-flash-17babb7d5f1b)
 which clearly explains the setup and configuration of NVM.
-
-### Quick edits
-
-If you see a minor problem in our documentation that you want to quickly fix,
-you can use the Github `Edit This File` button to submit a change.
-
-0. Create a [Github](https://github.com/) account if you don't already have one.
-1. View the file on Github.
-2. In the file click on the pencil icon within the code block.
-3. Provide a clear explanation of the change as a comment.
-4. create a new branch.
-5. Submit a `PR`.
-6. And you are done!
 
 ### Cloning vs forking
 
@@ -136,6 +117,14 @@ use a shared working branch strategy.
 5. Resolve any merge conflicts.
 6. When your work is complete, merge the shared working branch into `develop` via a PR.
 
+### Working with docs-website-private
+
+For New Relic employees working on pre-release content that needs to remain private, we have a [private docs repo](https://github.com/newrelic/docs-website-private). Before you begin creating content in the private repo, refer to the [private docs wiki](https://github.com/newrelic/docs-website-private/wiki) on to how interact with the repository.
+
+### Branch Protection
+
+The `develop` and `main` branches have "Branch Protection" enabled in Github. In order to merge a pull request into `develop`, you must have (at least) one approval. Additionally a few of the "PR Checks" are required and must pass before the pull request can be merged in.
+
 ### Draft PRs
 
 `Draft PRs` are ideal for in progress work or work you need others to contribute to.
@@ -183,10 +172,6 @@ git commit -m "feat(media): creating a video landing page"
 
 PRs that are opened from a branch in this repo (not forks) will generate preview links on Amplify automatically. Amplify preview links can be found within the PR under the `Checks` Tab.
 
-## Grammar and style guidelines
-
-We welcome your contributions! And we don't want you to worry about style. When you edit a file, tech writers on our team review it for style, grammar, and formatting. That said, if you're curious about our style guidelines, you're welcome (but not obligated) [to take a look](https://docs.newrelic.com/docs/style-guide/get-started/introduction-style-guide). 
-
 ## Reusable components
 
 In order to drive simplicity and ease of use New Relic has provided a set of reusable components you can leverage
@@ -197,40 +182,6 @@ when creating documentation. Refer to our [Component Guide](COMPONENT_GUIDE.md) 
 1. To edit an existing page you can view the page's source code by clicking on the `Edit` icon in the upper right corner of the site.
 2. Follow the instructions above to `Fork` or `Clone` the repo and make your edits.
 3. Follow the instructions above to submit a `PR` for your change.
-
-## Creating new pages
-
-1. If you'd like to create an entirely new page of documentation file a [Documentation Request](https://github.com/newrelic/docs-website/issues/new/choose)
-2. The Documentation Team will review the request to add a new documentation page.
-3. If a new page is approved you may be asked to help write the page content.
-4. If you are willing to assist in the process of creating a new page, then follow the instructions above to `Fork` or `Clone` the repo and make your edits.
-5. Follow the instructions above to submit a `PR` for your change.
-
-## Deleting pages
-
-1. If you feel a page needs to be deleted file a [Documentation Request](https://github.com/newrelic/docs-website/issues/new/choose).
-2. The Documentation Team will review the request to delete an existing documentation page.
-3. If the deletion is approved, The Developer Enablement Team will delete the page.
-
-## Updating the navigation
-
-For the steps to update the left-navigation pane, see [Update left-navigation pane](https://docs.newrelic.com/docs/content/style-guide/processes-and-procedures).
-
-## Adding a new page
-
-1. Determine which section of the navigation you would like the page to belong to (i.e. _Full Stack Observability_).
-2. Find the configuration file for that section (i.e. [src/nav/full-stack-observability.yml](./src/nav/full-stack-observability.yml)).
-3. Find the parent page you would like the new page to live under.
-4. Add a "node" for the page under the parent page's `children`.
-
-If you intend on adding an entirely new section to the navigation, create a new file in the [src/nav](./src/nav) directory using the same format as outlined above.
-
-## Moving a page to a new location
-
-1. Determine which section of the navigation the page.
-2. Find the configuration file for that section.
-3. Find the page within the configuration file and delete that entry.
-4. Follow the steps above to add the page to a new location.
 
 ## Private edits
 
@@ -243,10 +194,10 @@ _NOTE: with all of these steps, if you have SSH Keys set up, you will want to us
 1. Click the fork button in the GitHub UI for the [docs-website repository](https://github.com/newrelic/docs-website).
 2. Clone the fork on your computer: `git clone https://github.com/yourname/docs-website`.
 3. Change into the fork repo: `cd docs-website`.
-4. Connect the private repo: `git remote add private https://github.com/yourname/private-repo.git`.
-5. Make a new branch: `git checkout -b your_branch_name`.
-6. Pull in content from you private repo: `git pull private main`.
-7. Push your new work up to GitHub: `git push origin your_branch_name`.
+4. Connect the public repo: `git remote add upstream https://github.com/newrelic/docs-website.git`.
+5. Pull in content from the public repo: `git pull upstream develop`.
+6. Make a new branch: `git checkout -b your_branch_name`.
+7. Push your branch up to the public repository: `git push upstream your_branch_name`.
 
 ## Troubleshooting
 
