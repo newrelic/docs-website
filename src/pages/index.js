@@ -49,7 +49,11 @@ const HomePage = ({ data }) => {
               }
             `}
           >
+            <p>{t('home.intro.p4')}</p>
+            
             <p>{t('home.intro.p1')}</p>
+
+            <p>{t('home.intro.p2')}</p>
 
             <Trans i18nKey="home.intro.p3" parent="p">
               Scroll on for more about our Telemetry Data Platform, Full-Stack
@@ -65,7 +69,7 @@ const HomePage = ({ data }) => {
               .
             </Trans>
 
-            <p>{t('home.intro.p4')}</p>
+            
           </div>
           <div
             css={css`
