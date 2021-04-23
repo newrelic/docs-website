@@ -1,6 +1,6 @@
 import React, { Fragment } from 'react';
 import PropTypes from 'prop-types';
-import { css, keyframes } from '@emotion/core';
+import { css, keyframes } from '@emotion/react';
 import { graphql } from 'gatsby';
 import {
   Button,
