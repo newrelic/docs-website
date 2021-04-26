@@ -6,7 +6,7 @@ events:
   - WorkloadStatus
 ---
 
-Date and time the audit event occurred. Used to specify a day or range of dates. Examples:
+Date and time the event occurred or was evaluated. Used to specify a day or range of dates. Examples:
 
 *   MM-DD-YYYY HH:MM:SS
 *   SINCE 2018-05-28 11:18:45
