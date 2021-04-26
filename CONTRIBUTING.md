@@ -1,33 +1,32 @@
 # Table of Contents
 
-- [Table of Contents](#table-of-contents)
-  - [Guidelines for contributing](#guidelines-for-contributing)
-  - [Getting started](#getting-started)
-    - [Local development](#local-development)
-    - [Dependencies](#dependencies)
-    - [Unit tests](#unit-tests)
-    - [Using multiple versions of Node](#using-multiple-versions-of-node)
-    - [Cloning vs forking](#cloning-vs-forking)
-    - [Submitting a PR from a forked repo](#submitting-a-pr-from-a-forked-repo)
-    - [Submitting a PR from a cloned repo](#submitting-a-pr-from-a-cloned-repo)
-    - [Using the `develop` branch](#using-the-develop-branch)
-    - [Shared Working Branches](#shared-working-branches)
-    - [Working with docs-website-private](#working-with-docs-website-private)
-    - [Branch Protection](#branch-protection)
-    - [Draft PRs](#draft-prs)
-    - [Using Conventional Commits](#using-conventional-commits)
-      - [Use `chore`](#use-chore)
-      - [Use `fix`](#use-fix)
-      - [Use `feat`](#use-feat)
-    - [Deploy previews with Amplify](#deploy-previews-with-amplify)
-  - [Reusable components](#reusable-components)
-  - [Editing existing pages](#editing-existing-pages)
-  - [Private edits](#private-edits)
-    - [Bring your private work back into the public repository](#bring-your-private-work-back-into-the-public-repository)
-  - [Troubleshooting](#troubleshooting)
-    - [General Install, compile or build issues](#general-install-compile-or-build-issues)
-    - [Build / compile issues on the Apple M1 chipset](#build--compile-issues-on-the-apple-m1-chipset)
-    - [Problems with yarn start](#problems-with-yarn-start)
+- [Guidelines for contributing](#guidelines-for-contributing)
+- [Getting started](#getting-started)
+  - [Local development](#local-development)
+  - [Dependencies](#dependencies)
+  - [Unit tests](#unit-tests)
+  - [Using multiple versions of Node](#using-multiple-versions-of-node)
+  - [Cloning vs forking](#cloning-vs-forking)
+  - [Submitting a PR from a forked repo](#submitting-a-pr-from-a-forked-repo)
+  - [Submitting a PR from a cloned repo](#submitting-a-pr-from-a-cloned-repo)
+  - [Using the `develop` branch](#using-the-develop-branch)
+  - [Shared Working Branches](#shared-working-branches)
+  - [Working with docs-website-private](#working-with-docs-website-private)
+  - [Branch Protection](#branch-protection)
+  - [Draft PRs](#draft-prs)
+  - [Using Conventional Commits](#using-conventional-commits)
+    - [Use `chore`](#use-chore)
+    - [Use `fix`](#use-fix)
+    - [Use `feat`](#use-feat)
+  - [Deploy previews with Amplify](#deploy-previews-with-amplify)
+- [Reusable components](#reusable-components)
+- [Editing existing pages](#editing-existing-pages)
+- [Private edits](#private-edits)
+  - [Bring your private work back into the public repository](#bring-your-private-work-back-into-the-public-repository)
+- [Troubleshooting](#troubleshooting)
+  - [General Install, compile or build issues](#general-install-compile-or-build-issues)
+  - [Build / compile issues on the Apple M1 chipset](#build--compile-issues-on-the-apple-m1-chipset)
+  - [Problems with yarn start](#problems-with-yarn-start)
 
 ## Guidelines for contributing
 
@@ -35,7 +34,7 @@ The Documentation Team and Developer Enablement Team at New Relic welcomes contr
 
 There are several ways you can contribute:
 * If you wish to make documentation edits or add new
-documentation, follow our [documentation contribution guidelines](/docs/style-guide/writing-guidelines/create-edit-content/).
+documentation, follow our [documentation contribution guidelines](https://docs.newrelic.com/docs/style-guide/writing-guidelines/create-edit-content/).
 * If you'd like to to make code contributions follow the code contribution
 guidelines below.
 
