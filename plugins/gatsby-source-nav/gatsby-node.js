@@ -274,7 +274,7 @@ const createNav = async ({ args, createNodeId, nodeModel, locales }) => {
     },
   });
 
-  if (fileNode === null || fileNode.length === 0) {
+  if (!fileNode.length) {
     return null;
   }
 
