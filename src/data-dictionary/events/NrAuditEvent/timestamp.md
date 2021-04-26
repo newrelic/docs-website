@@ -6,7 +6,7 @@ events:
   - WorkloadStatus
 ---
 
-Date and time the event occurred or was evaluated. Used to specify a day or range of dates. Examples:
+Time that the event occurred or was evaluated over. Specifies a time or range of time. Examples:
 
 *   MM-DD-YYYY HH:MM:SS
 *   SINCE 2018-05-28 11:18:45
