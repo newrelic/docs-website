@@ -1,3 +1,4 @@
+const fs = require('fs');
 const path = require('path');
 const visit = require('unist-util-visit');
 const generateHTML = require('./utils/generate-html');
@@ -6,6 +7,9 @@ const { prop } = require('../../scripts/utils/functional.js');
 const { sentenceCase } = require('./utils/string');
 const createLocalizedRedirect = require('../../gatsby/utils/create-localized-redirect');
 const taxonomyRedirects = require('../../src/data/taxonomy-redirects.json');
+const sortIndexPage = require('../../src/utils/sortIndexPage');
+
+const NAV_DIR = path.join(process.cwd(), '/src/nav');
 
 exports.createPages = async ({ actions, graphql, reporter }, pluginOptions) => {
   const { skippedDirectories } = pluginOptions;
@@ -147,6 +151,11 @@ exports.createPages = async ({ actions, graphql, reporter }, pluginOptions) => {
 
   const list = fromList(files, ({ contents }) => contents);
 
+  const navData = fs.readdirSync(NAV_DIR).map((filename) => {
+    const filepath = path.join(NAV_DIR, filename);
+    return fs.readFileSync(filepath, 'utf8');
+  });
+
   visit(list, 'directory', (dir) => {
     const slug = `/${dir.path}`;
 
@@ -158,12 +167,14 @@ exports.createPages = async ({ actions, graphql, reporter }, pluginOptions) => {
       return;
     }
 
+    const html = sortIndexPage(generateHTML(dir), navData);
+
     createPage({
       path: path.join(slug, '/'),
       component: path.resolve('src/templates/indexPage.js'),
       context: {
         slug,
-        html: generateHTML(dir),
+        html,
         title: sentenceCase(dir.basename),
         fileRelativePath: null,
       },
