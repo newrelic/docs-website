@@ -6,6 +6,6 @@ events:
   - ContainerSample
 ---
 
-The amount of memory the container is using. This memory doesn't include swap.
+This metric doesn't account for swap usage.
 
-**Breaking change**: This metric includes memory (including swap) on versions v1.5.0 or higher of `nri-docker`.
+**Breaking change**: This metric used to include swap memory in `nri-docker` v1.5.0 and earlier (infrastructure agent `1.16.x` and earlier). The amount of used memory including swap is now reported as `memorySwapUsageBytes`.
