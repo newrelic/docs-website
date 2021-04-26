@@ -6,4 +6,4 @@ events:
   - ContainerSample
 ---
 
-This metric is calculated as the `memorySwapUsageBytes` percentage over `memorySwapLimitBytes`, if the limit exists.
+This metric is calculated as the percentage of `memorySwapUsageBytes` over `memorySwapLimitBytes`, if the limit exists.

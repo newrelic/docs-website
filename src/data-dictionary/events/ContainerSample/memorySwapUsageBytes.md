@@ -6,4 +6,4 @@ events:
   - ContainerSample
 ---
 
-The amount of memory+swap the container is using.
+The amount of memory swap the container is using, including swap.
