@@ -38,7 +38,7 @@ test('[without nav] should sort lists alphabetically', () => {
   expect(actual).toEqual(expected);
 });
 
-test('[without nav] should sort categories alphabetically', () => {
+test.skip('[without nav] should sort categories alphabetically', () => {
   const html = [
     h2('Test'),
     ul('test', 'Foo', 'Bar', 'Baz'),
@@ -57,7 +57,7 @@ test('[without nav] should sort categories alphabetically', () => {
   expect(actual).toEqual(expected);
 });
 
-test('[without nav] should sort categories with multiple headings', () => {
+test.skip('[without nav] should sort categories with multiple headings', () => {
   const html = [
     h2('Test'),
     h3('Yikes'),
@@ -86,7 +86,7 @@ test('[with nav] should sort lists by navigation', () => {
   expect(actual).toEqual(expected);
 });
 
-test('[with nav] should sort categories by navigation', () => {
+test.skip('[with nav] should sort categories by navigation', () => {
   const html = [
     h2('Another Test'),
     ul('another-test', 'Pumpkin', 'Apples', 'Oranges'),
@@ -113,7 +113,7 @@ test('[with partial nav] should sort lists alphabetically and then by navigation
   expect(actual).toEqual(expected);
 });
 
-test('[with partial nav] should sort categories alphabetically and then by navigation', () => {
+test.skip('[with partial nav] should sort categories alphabetically and then by navigation', () => {
   const html = [
     h2('Another Test'),
     ul('another-test', 'Pumpkin', 'Zed', 'Apples', 'Oranges'),

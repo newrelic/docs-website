@@ -3,24 +3,25 @@ const visit = require('unist-util-visit');
 const parse = require('rehype-parse');
 const stringify = require('rehype-stringify');
 const yaml = require('js-yaml');
-const { chunk, curry, get, takeWhile } = require('lodash');
+// const { chunk, curry, get, takeWhile } = require('lodash');
+const { curry, get } = require('lodash');
 const findDeepIndex = require('./findDeepIndex');
 
-const isRoot = (node) => get(node, 'type', '') === 'root';
+// const isRoot = (node) => get(node, 'type', '') === 'root';
 const isTag = curry((tagName, node) => get(node, 'tagName', '') === tagName);
 
-const isRootOrSection = (node) => isRoot(node) || isTag('section', node);
+// const isRootOrSection = (node) => isRoot(node) || isTag('section', node);
 
 const getValue = (str, fallback = '') => (node) => get(node, str, fallback);
 
 const getTextFromLi = getValue('children[0].children[0].value');
 const getLinkFromLi = getValue('children[0].properties.href');
-const getTextFromH = getValue('children[0].value');
+// const getTextFromH = getValue('children[0].value');
 
-const isHeading = (node) => /h[1-9]/.test(get(node, 'tagName', ''));
+// const isHeading = (node) => /h[1-9]/.test(get(node, 'tagName', ''));
 
 const findByPath = (node) => ({ path }) => getLinkFromLi(node) === path;
-const findByTitle = (node) => ({ title }) => getTextFromH(node) === title;
+// const findByTitle = (node) => ({ title }) => getTextFromH(node) === title;
 
 /**
  * Groups sections together. A section is a heading tag (e.g. <h3>) followed
@@ -33,6 +34,7 @@ const findByTitle = (node) => ({ title }) => getTextFromH(node) === title;
  *
  * @note this might not work with deeply nested sections.
  */
+/*
 const groupBySection = () => (tree) => {
   const section = { type: 'element', tagName: 'section', properties: {} };
 
@@ -61,6 +63,7 @@ const groupBySection = () => (tree) => {
     }
   });
 };
+*/
 
 const sortListAlphabetically = () => (tree) => {
   visit(tree, isTag('ul'), (node) => {
@@ -70,6 +73,7 @@ const sortListAlphabetically = () => (tree) => {
   });
 };
 
+/*
 const sortSectionsAlphabetically = () => (tree) => {
   visit(tree, isRootOrSection, (node) => {
     node.children = chunk(node.children, 2)
@@ -77,6 +81,7 @@ const sortSectionsAlphabetically = () => (tree) => {
       .reduce((acc, subsection) => [...acc, ...subsection], []);
   });
 };
+*/
 
 const sortListByNav = (nav) => () => (tree) => {
   visit(tree, isTag('ul'), (node) => {
@@ -89,6 +94,7 @@ const sortListByNav = (nav) => () => (tree) => {
   });
 };
 
+/*
 const sortSectionsByNav = (nav) => () => (tree) => {
   visit(tree, isRootOrSection, (node) => {
     node.children = chunk(node.children, 2)
@@ -110,6 +116,7 @@ const removeSections = () => (tree) => {
     }, []);
   });
 };
+*/
 
 /**
  * Returns a processor that can be used to update the sort order of an
@@ -129,12 +136,12 @@ const sortIndexPage = (html, navYaml = []) => {
 
   const { contents } = unified()
     .use(parse, { fragment: true })
-    .use(groupBySection)
-    .use(sortSectionsAlphabetically)
+    // .use(groupBySection)
+    // .use(sortSectionsAlphabetically)
     .use(sortListAlphabetically)
     .use(sortListByNav(nav))
-    .use(sortSectionsByNav(nav))
-    .use(removeSections)
+    // .use(sortSectionsByNav(nav))
+    // .use(removeSections)
     .use(stringify)
     .processSync(html);
 
