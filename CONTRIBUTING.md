@@ -34,7 +34,7 @@ The Documentation Team and Developer Enablement Team at New Relic welcomes contr
 
 There are several ways you can contribute:
 * If you wish to make documentation edits or add new
-documentation, follow our [documentation contribution guidelines](/src/content/docs/style-guide/writing-guidelines/create-edit-content.mdx).
+documentation, follow our [documentation contribution guidelines](https://docs.newrelic.com/docs/style-guide/writing-guidelines/create-edit-content/).
 * If you'd like to to make code contributions follow the code contribution
 guidelines below.
 
