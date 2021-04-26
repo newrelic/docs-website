@@ -1,6 +1,4 @@
 const path = require('path');
-const vfileGlob = require('vfile-glob');
-const { read, write } = require('to-vfile');
 const { prop } = require('./scripts/utils/functional.js');
 const externalRedirects = require('./src/data/external-redirects.json');
 
@@ -17,44 +15,6 @@ const hasTrailingSlash = (pathname) =>
 
 const appendTrailingSlash = (pathname) =>
   pathname.endsWith('/') ? pathname : `${pathname}/`;
-
-exports.onPreBootstrap = async ({ reporter, store }) => {
-  reporter.info("generating what's new post IDs");
-  const { program } = store.getState();
-  const file = await read(
-    path.join(program.directory, 'src/data/whats-new-ids.json'),
-    'utf-8'
-  );
-
-  const data = JSON.parse(file.contents);
-  let largestID = Object.values(data).reduce(
-    (num, id) => Math.max(parseInt(id, 10), num),
-    0
-  );
-
-  return new Promise((resolve) => {
-    vfileGlob(
-      path.join(program.directory, 'src/content/whats-new/**/*.md')
-    ).subscribe({
-      next: (file) => {
-        const slug = file.path
-          .replace(/.*?src\/content/, '')
-          .replace('.md', '');
-
-        if (!data[slug]) {
-          data[slug] = String(++largestID);
-        }
-      },
-      complete: async () => {
-        file.contents = JSON.stringify(data, null, 2);
-
-        await write(file, 'utf-8');
-
-        resolve();
-      },
-    });
-  });
-};
 
 exports.onCreateNode = ({ node, getNode, actions }) => {
   const { createNodeField } = actions;
@@ -441,5 +401,3 @@ const getTemplate = (node) => {
       return { template: 'docPage' };
   }
 };
-
-const getFileRelativePath = (path) => path.replace(`${process.cwd()}/`, '');
