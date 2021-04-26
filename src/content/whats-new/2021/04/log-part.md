@@ -1,3 +1,4 @@
+---
 title: 'Lightning fast search response with data partitions for log data'
 summary: 'Control how you segment your log data'
 releaseDate: '2021-04-27'
@@ -7,6 +8,8 @@ Although we’ve always provided the ability to segment data across accounts, ou
 
 With log partitions, administrators have complete control over how to segment log data within each account. Partitions empowers end users to optimize queries by searching within a single partition or select multiple partitions to find the detailed log messages they need. 
 
-![Select partitions.png]("Select partitions") - Add photo here - https://drive.google.com/file/d/1W-yu4jBz8jEz47Mv4zlQ1Q51qvZbp1nX/view?usp=sharing
+![Select a partition](./images/select-part.png)
 
 To learn more about how to leverage partitions for log data in your organization view our online documentation [here](https://docs.newrelic.com/docs/logs/log-management/ui-data/data-partitions/).
+
+<iframe width="560" height="315" src="https://www.youtube.com/embed/uH8zRmCxPqo" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe> 
