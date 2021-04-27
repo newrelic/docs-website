@@ -17,3 +17,9 @@ Access to New Relic’s FedRAMP environment is based on the following:
 
 1. Your account must be specifically approved by New Relic.
 2. You must send your data only to New Relic’s FedRAMP-designated endpoints.
+
+Check out the Nerdlog segment below to learn more:
+
+<iframe width="560" height="315" src="https://www.youtube.com/embed/7rS6_Pl2HJM" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+
+Don’t miss the Nerdlog LIVE every Thursday at 12 p.m. PT (8 p.m. UTC) on [Twitch](https://www.twitch.tv/new_relic) to get the latest product updates from the people who built them.
