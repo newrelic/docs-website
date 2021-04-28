@@ -1,5 +1,5 @@
-const fs = require('fs');
 const parse = require('rehype-parse');
+const fs = require('fs');
 const path = require('path');
 const unified = require('unified');
 const rehypeStringify = require('rehype-stringify');
@@ -172,6 +172,13 @@ module.exports = {
               path: location.pathname,
               env: env === 'production' ? 'prod' : env,
             }),
+          },
+        },
+        googleTagManager: {
+          trackingId: 'UA-3047412-33',
+          src: 'https://www.googletagmanager.com/gtag/js',
+          options: {
+            anonymize_ip: true,
           },
         },
       },
