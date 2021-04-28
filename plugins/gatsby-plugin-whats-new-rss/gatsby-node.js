@@ -9,7 +9,6 @@ const addAbsoluteImagePath = require('./rehype-plugins/utils/addAbsoluteImagePat
 const rehypeStringify = require('rehype-stringify');
 const removeImports = require('remark-mdx-remove-imports');
 const removeExports = require('remark-mdx-remove-exports');
-const { siteMetadata } = require('../../gatsby-config');
 
 // NOTE: remove-imports and remove-exports are now depreciated
 const htmlGenerator = unified().use(removeImports).use(removeExports).use(html);
@@ -93,10 +92,11 @@ const generateFeed = (publicDir, siteMetadata, reporter, whatsNewNodes) => {
 
   reporter.info(`\t${feedOptions.feed_url}`);
 
-  const feed = whatsNewNodes.reduce((rss, node) => {
-    rss.item(getFeedItem(node, siteMetadata));
-    return rss;
-  }, new RSS(feedOptions));
+  const feed = new RSS(feedOptions);
+
+  whatsNewQuery.map((node) => {
+    feed.item(getFeedItem(node, siteMetadata));
+  });
 
   const filepath = path.join(publicDir, feedPath);
   const dir = path.dirname(filepath);
