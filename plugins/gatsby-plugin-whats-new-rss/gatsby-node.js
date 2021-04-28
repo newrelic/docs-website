@@ -93,7 +93,7 @@ const generateFeed = (publicDir, siteMetadata, reporter, whatsNewNodes) => {
 
   const feed = new RSS(feedOptions);
 
-  whatsNewQuery.nodes.map((node) => {
+  whatsNewNodes.nodes.map((node) => {
     feed.item(getFeedItem(node, siteMetadata));
   });
 
