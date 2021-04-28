@@ -6,4 +6,4 @@ events:
   - ContainerSample
 ---
 
-The amount of memory that does not correspond to anything on disk: stacks, heaps, and anonymous memory maps.
+The amount of memory that doesn't correspond to anything on disk: stacks, heaps, and anonymous memory maps.
