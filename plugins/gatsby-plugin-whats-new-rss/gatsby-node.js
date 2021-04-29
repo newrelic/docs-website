@@ -63,7 +63,7 @@ const getFeedItem = (node, siteMetadata) => {
   const date = parseISO(releaseDate);
   const pubDate = `${format(date, 'EE, dd LLL yyyy')} 00:00:00 +0000`;
   const link = new URL(slug, siteMetadata.siteUrl).href;
-  const id = Buffer.from(title).toString('base64');
+  const id = Buffer.from(`${releaseDate}-${title}`).toString('base64');
 
   return {
     guid: id,
