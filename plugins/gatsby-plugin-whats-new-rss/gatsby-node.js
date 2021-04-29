@@ -57,7 +57,7 @@ const getFeedItem = (node, siteMetadata) => {
   } = node;
   const { title, releaseDate } = frontmatter;
 
-  const html = htmlParser.runSync(htmlAst);
+  const parsedHtml = htmlParser.runSync(htmlAst);
 
   // time is necessary for RSS validity
   const date = parseISO(releaseDate);
@@ -71,7 +71,7 @@ const getFeedItem = (node, siteMetadata) => {
     custom_elements: [
       { link },
       { pubDate },
-      { 'content:encoded': html },
+      { 'content:encoded': htmlParser.stringify(parsedHtml) },
       { description: `ReleasedOn: ${pubDate}.` },
     ],
   };
