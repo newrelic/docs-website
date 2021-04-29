@@ -19,6 +19,11 @@ const autoLinkHeaders = {
   },
 };
 
+const htmlParser = unified()
+  .use(parse)
+  .use(addAbsoluteImagePath)
+  .use(rehypeStringify);
+
 module.exports = {
   flags: {
     DEV_SSR: true,
@@ -375,11 +380,6 @@ module.exports = {
             fs.readFileSync(path.join(__dirname, 'src/data/whats-new-ids.json'))
           );
 
-          const htmlParser = unified()
-            .use(parse)
-            .use(addAbsoluteImagePath)
-            .use(rehypeStringify);
-
           return {
             announcements: data.allMarkdownRemark.nodes.map(
               ({ frontmatter, htmlAst, fields }) => {
@@ -398,6 +398,63 @@ module.exports = {
             ),
           };
         },
+      },
+    },
+    {
+      resolve: 'gatsby-plugin-feed',
+      options: {
+        feeds: [
+          {
+            serialize: ({ query: { allMarkdownRemark } }) => {
+              return allMarkdownRemark.nodes.map((node) => {
+                const { frontmatter, fields, htmlAst } = node;
+                const {
+                  releaseDate,
+                  getStartedLink,
+                  learnMoreLink,
+                } = frontmatter;
+
+                const guid = Buffer.from(
+                  `${fields.slug} ${frontmatter.releaseDate}`
+                ).toString('base64');
+
+                const parsedHtml = htmlParser.runSync(htmlAst);
+
+                return {
+                  guid,
+                  title: frontmatter.title,
+                  description: frontmatter.summary,
+                  custom_elements: [
+                    { content: htmlParser.stringify(parsedHtml) },
+                    { releaseDate },
+                    { getStartedLink },
+                    { learnMoreLink },
+                  ],
+                };
+              });
+            },
+            query: `
+            {
+              allMarkdownRemark(filter: {fields: {slug: {regex: "/whats-new/"}}}) {
+                nodes {
+                  frontmatter {
+                    title
+                    releaseDate
+                    getStartedLink
+                    learnMoreLink
+                    summary
+                  }
+                  fields {
+                    slug
+                  }
+                  htmlAst
+                }
+              }
+            }`,
+            output: '/whats-new.xml',
+            title: 'Whats new',
+          },
+        ],
       },
     },
     {
