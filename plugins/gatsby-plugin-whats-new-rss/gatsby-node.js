@@ -55,7 +55,7 @@ const getFeedItem = (node, siteMetadata) => {
     fields: { slug },
     htmlAst,
   } = node;
-  const { title, releaseDate } = frontmatter;
+  const { title, releaseDate, summary } = frontmatter;
 
   const parsedHtml = htmlParser.runSync(htmlAst);
 
@@ -72,7 +72,7 @@ const getFeedItem = (node, siteMetadata) => {
       { link },
       { pubDate },
       { 'content:encoded': htmlParser.stringify(parsedHtml) },
-      { description: `ReleasedOn: ${pubDate}.` },
+      { description: summary ? summary : `ReleasedOn: ${pubDate}.` },
     ],
   };
 };
