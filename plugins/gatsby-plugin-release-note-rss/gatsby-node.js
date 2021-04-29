@@ -136,7 +136,7 @@ exports.onPostBuild = async ({ graphql, store, reporter }) => {
   const publicDir = path.join(program.directory, 'public');
 
   try {
-    reporter.info('Generating XML feeds for RSS');
+    reporter.info('Generating XML for release notes RSS feeds');
     const {
       site,
       landingPages: { nodes: landingPages },
@@ -149,6 +149,9 @@ exports.onPostBuild = async ({ graphql, store, reporter }) => {
 
     reporter.info('\tDone!');
   } catch (error) {
-    reporter.panicOnBuild(`Unable to create RSS feed: ${error}`, error);
+    reporter.panicOnBuild(
+      `Unable to create release note RSS feed: ${error}`,
+      error
+    );
   }
 };
