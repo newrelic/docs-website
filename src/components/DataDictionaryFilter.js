@@ -73,6 +73,7 @@ const DataDictionaryFilter = ({ location, events }) => {
             setFormState((state) => ({
               ...state,
               event: null,
+              attribute: null,
               dataSource: value,
             }));
           }}
