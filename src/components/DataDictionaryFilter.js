@@ -93,7 +93,11 @@ const DataDictionaryFilter = ({ location, events }) => {
           onChange={(e) => {
             const { value } = e.target;
 
-            setFormState((state) => ({ ...state, event: value }));
+            setFormState((state) => ({
+              ...state,
+              event: value,
+              attribute: null,
+            }));
           }}
         >
           <option value="">All</option>
