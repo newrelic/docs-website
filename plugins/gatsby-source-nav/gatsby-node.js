@@ -270,10 +270,11 @@ const createNav = async ({ args, createNodeId, nodeModel, locales }) => {
           },
         },
       },
+      firstOnly: true,
     },
   });
 
-  if (fileNode === null) {
+  if (!fileNode.length) {
     return null;
   }
 

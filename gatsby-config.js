@@ -489,6 +489,7 @@ module.exports = {
       },
     },
     'gatsby-plugin-release-note-rss',
+    'gatsby-plugin-whats-new-rss',
     {
       resolve: 'gatsby-source-data-dictionary',
       options: {
