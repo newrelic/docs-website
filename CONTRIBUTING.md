@@ -126,7 +126,7 @@ The `develop` and `main` branches have "Branch Protection" enabled in Github. In
 
 You can review full Branch Protection details [here](https://docs.google.com/document/d/1O1SGS0i3OmPfvPhylpFe1CTMkE20889iAOF_cMFJ344/edit#heading=h.oh6pex9x0dx4), and check out a visual representation of the workflow below:
 
-![](src/images/Docs_site_branch_protection_workflow.png)
+![Branch protection workflow](src/images/Docs_site_branch_protection_workflow.png "branch-protection-workflow")
 
 ### Draft PRs
 
