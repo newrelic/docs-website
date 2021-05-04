@@ -122,7 +122,11 @@ For New Relic employees working on pre-release content that needs to remain priv
 
 ### Branch Protection
 
-The `develop` and `main` branches have "Branch Protection" enabled in Github. In order to merge a pull request into `develop`, you must have (at least) one approval. Additionally a few of the "PR Checks" are required and must pass before the pull request can be merged in.
+The `develop` and `main` branches have "Branch Protection" enabled in Github. In order to merge a pull request into `develop`, you must have (at least) one approval. Additionally a few of the "PR Checks" are required and must pass before the pull request can be merged in. 
+
+You can review full Branch Protection details [here](https://docs.google.com/document/d/1O1SGS0i3OmPfvPhylpFe1CTMkE20889iAOF_cMFJ344/edit#heading=h.oh6pex9x0dx4), and check out a visual representation of the workflow below:
+
+![](src/images/Docs_site_branch_protection_workflow.png)
 
 ### Draft PRs
 
