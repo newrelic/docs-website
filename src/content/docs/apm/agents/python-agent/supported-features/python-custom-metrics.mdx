@@ -1,0 +1,467 @@
+---
+title: Python custom metrics
+tags:
+  - Agents
+  - Python agent
+  - Supported features
+metaDescription: How to record additional custom metrics with the Python agent using the agent API.
+redirects:
+  - /docs/agents/python-agent/supported-features/python-custom-metrics
+  - /docs/python/python-custom-metrics
+  - /docs/agents/python-agent/customization-extension/python-custom-metrics-api
+---
+
+Custom metrics allow you to record arbitrary metrics using APIs provided by the Python agent. These may be used to record metrics related to the business functions implemented by your web application, or may be additional metrics used to evaluate the performance of the web application.
+
+**Recommendation:** To avoid potential data problems, keep the total number of unique metrics introduced by custom metrics under 2000.
+
+<Callout variant="important">
+  Before using custom metrics, you must get the agent initialized and integrated with the target process. For instructions, see [Python agent integration](/docs/agents/python-agent/installation-configuration/python-agent-integration).
+</Callout>
+
+## Charting custom metrics
+
+To view custom metrics, [query your data](/docs/query-your-data/explore-query-data/explore-data/introduction-querying-new-relic-data) to search metrics and create customizable charts.
+
+## Push versus pull interfaces
+
+The Python agent provides two different ways of recording custom metrics. The first is a push-style API where you can decide when to record a custom metric. The second is a pull-style API where you register a custom metric data source, and the agent polls your code for metrics once per [harvest cycle](/docs/accounts-partnerships/education/getting-started-new-relic/glossary#harvest-cycle).
+
+The pull-style API is important where you need to generate rate or utilization metrics over the period of the harvest cycle. This is because you can properly calculate the duration of the harvest cycle and also ensure that only one metric is recorded for the harvest cycle.
+
+## Recording a single metric [#recording-a-custom-metric]
+
+To record a single custom metric, the Python agent provides the function:
+
+```
+newrelic.agent.record_custom_metric(name, value, application=None)
+```
+
+When called without an application object as
+
+```
+newrelic.agent.record_custom_metric('Custom/Value', value)
+```
+
+then it must be called within the context of a transaction that is being monitored by the agent. This is because the current transaction will be looked up and the custom metrics will initially be attached to that transaction.
+
+So long as the transaction is not subsequently marked to be ignored, the custom metrics will then be aggregated with other metrics for the application the transaction is being reported to, when the transaction completes.
+
+If this API function is called outside of the context of a monitored transaction, such as in a background thread (which isn't being tracked as a background task), then the call does nothing and the data is discarded. In order to be able to record custom metrics in such a situation, it is necessary to supply the application object corresponding to the application against which the custom metrics should be recorded.
+
+```
+application = newrelic.agent.register_application()
+
+def report_custom_metrics():
+    while True:
+        newrelic.agent.record_custom_metric('Custom/Value', value(), application)
+        time.sleep(60.0)
+
+thread = threading.Thread(target=report_custom_metrics)
+thread.setDaemon(True)
+thread.start()
+```
+
+In the case of recording custom metrics against the current transaction (by not supplying an application object), no thread locking is required at the time of the API call, as the custom metrics will be attached to the transaction object initially. It is only when the whole transaction is being recorded at completion that a thread lock needs to be acquired. This is the same lock though as needs to be acquired to merge all metrics from the transaction with the metric table for the current harvest cycle. So, no additional locking is required on top of what is already required.
+
+Where the API call is being supplied the application object however, it is necessary to acquire a lock for each call to record a custom metric. Recording metrics one at a time in this way for a large number of metrics may therefore have undue effects due to thread lock contention.
+
+## Recording multiple metrics
+
+If you are recording multiple metrics in one go, to reduce the need for thread locking you can instead use the function:
+
+```
+newrelic.agent.record_custom_metrics(metrics, application=None)
+```
+
+This works the same way as the `record_custom_metric()` call except that an iterable can be provided in place of the name and value arguments. The iterable can be a list, tuple or other iterable object, including a generator function. The iterable must return a tuple consisting of the name and value for the custom metric.
+
+```
+import psutil
+import os
+ 
+def memory_metrics():
+    pid = os.getpid()
+    p = psutil.Process(os.getpid())
+    m = p.get_memory_info()
+
+    yield ('Custom/Memory/Physical', float(m.rss)/(1024*1024))
+    yield ('Custom/Memory/Virtual', float(m.vms)/(1024*1024))
+ 
+application = newrelic.agent.register_application()
+
+def report_custom_metrics():
+    while True:
+        newrelic.agent.record_custom_metrics(memory_metrics(), application)
+        time.sleep(60.0)
+
+thread = threading.Thread(target=report_custom_metrics)
+thread.setDaemon(True)
+thread.start()
+```
+
+When used with an application object, no matter how many custom metrics are being recorded, thread locking will only need to be performed once for each call.
+
+## Naming of custom metrics
+
+All custom metrics reported by the Python agent should start with the prefix `Custom/`. This would typically be followed with a category name and label segment.
+
+For more information, refer to the [naming guidelines](/docs/plugin-developer-resources/metric-naming-reference) for our Plugins API. Keep in mind that, when reporting custom metrics via the Python agent, the prefix must be `Custom/` and not `Component/` as is used by the API.
+
+If the `Custom/` metric is not used, then the custom metrics may not be available for selection in the [Data explorer](/docs/query-your-data/explore-query-data/data-explorer/introduction-data-explorer).
+
+## Pre-aggregated metrics
+
+When recording a set of metrics by passing an iterable over the set of available metrics, the same named metric may appear more than once. In this situation the agent would then aggregate the indvidual values into one sample.
+
+Although possible, if retaining and then later passing all the individual raw samples for a single metric in this way is not practical, then the source of the metrics can instead pre aggregate metrics and provide the resulting aggregrated data sample.
+
+Instead therefore of the value being a numerical value, a dictionary would be passed for the value. The fields within the dictionary would be:
+
+* `count`
+* `total`
+* `min`
+* `max`
+* `sum_of_squares`
+
+These fields have the same meanings as what is described for our Plugins API. The API metric [naming](/docs/plugin-developer-resources/metric-value-reference) and [value](/docs/plugin-dev/metric-value-reference) reference documentation can be used as a general indicator for what can be done with metrics reported. The only requirement is that since metrics are being reported via the APM agent API, the `Custom/` prefix and not the `Component/` prefix must be used for metric names, or else it may not be available for selection in the [Data explorer](/docs/query-your-data/explore-query-data/data-explorer/introduction-data-explorer).
+
+An implementation of a helper class that you could use to perform aggregation for a single metric is:
+
+```
+class Stats(dict):
+
+    def __init__(self, count=0, total=0.0, min=0.0, max=0.0, sum_of_squares=0.0):
+        self.count = count
+        self.total = total
+        self.min = min
+        self.max = max
+        self.sum_of_squares = sum_of_squares
+
+    def __setattr__(self, name, value):
+        self[name] = value
+
+    def __getattr__(self, name):
+        return self[name]
+
+    def merge_stats(self, other):
+        self.total += other.total
+        self.min = self.count and min(self.min, other.min) or other.min
+        self.max = max(self.max, other.max)
+        self.sum_of_squares += other.sum_of_squares
+        self.count += other.count
+
+    def merge_value(self, value):
+        self.total += value
+        self.min = self.count and min(self.min, value) or value
+        self.max = max(self.max, value)
+        self.sum_of_squares += value ** 2
+        self.count += 1
+```
+
+This class is itself a dictionary and so an instance of it can be passed directly as the value.
+
+This might then be used as:
+
+```
+application = newrelic.agent.register_application()
+
+def sample_value():
+    return ...
+
+def report_custom_metrics():
+    count = 0
+    stats = Stats()
+
+    while True:
+        count += 1
+
+        stats.merge_value(sample_value())
+
+        if count % 60 == 0:
+            newrelic.agent.record_custom_metric('Custom/Value', stats, application)
+            stats = Stats()
+
+        time.sleep(1.0)
+
+thread = threading.Thread(target=report_custom_metrics)
+thread.setDaemon(True)
+thread.start()
+```
+
+## Custom metric data sources
+
+The `record_custom_metric()` and `record_custom_metrics()` API calls still require explicit action on your part to push custom metrics to the agent.
+
+Pushing data to the agent, especially if being done from a background thread and done on a 60 second interval, can be problematic though. This is because when the data is pushed it may not sync precisely with when the agent is reporting data back to the data collector.
+
+If a background thread was pre aggregating metrics over a 60 second period and then recording them, if that falls close to the time when the agent is reporting data, it could occur either just before or just after the agent reports the data. This lack of synchronization in time could therefore result in no metrics for that sample being reported in one harvest cycle and two in the next, where as the intent would be that there is one per harvest cycle.
+
+The solution to this is for the agent to pull custom metrics from the producer of the metrics as part of the process of reporting data to ensure they will be reported immediately and synchronised with the harvest cycle.
+
+The source of such metrics in this pull-style API is called a metric data source.
+
+## Registering a data source
+
+The API function for registering a metric data source is:
+
+```
+newrelic.agent.register_data_source(source, application=None, name=None, settings=None, **properties)
+```
+
+Because of varying requirements around how custom metrics may need to be produced, a number of different ways are available of implementing the data source.
+
+The simplest type of data source is one which is providing a gauge metric. That is one where some value at that particular point in time is relevant and what has happened historically doesn't matter.
+
+```
+import psutil
+import os
+
+@newrelic.agent.data_source_generator(name='Memory Usage')
+def memory_metrics():
+    pid = os.getpid()
+    p = psutil.Process(os.getpid())
+    m = p.get_memory_info()
+    yield ('Custom/Memory/Physical', float(m.rss)/(1024*1024))
+    yield ('Custom/Memory/Virtual', float(m.vms)/(1024*1024))
+ 
+newrelic.agent.register_data_source(memory_metrics)
+```
+
+The decorator used here is:
+
+```
+newrelic.agent.data_source_generator(name=None, **properties)
+```
+
+It is specifically for wrapping a generator function, or a function which otherwise returns an iterable when called.
+
+The name when registering a data source is optional. It exists mainly so that when logging errors the message can give a more recognisable name for the data source. If name isn't passed to `register_data_source()`, then any name associated with the actual data source using the decorator will be used instead, or the name of the function if the data source itself is not named.
+
+If an application object is not provided when registering a data source, then the data source will be automatically associated with all applications for which data is being reported by the agent in that process. If an application is provided, the data source will only be associated with that specific application.
+
+Whether a data source is registered against an application explicitly or is applied to all applications, the agent needs to first be registered for that application. This would normally happen if using a data source in an existing web application process which was being monitored. If however you are using a data source in a standalone program to report only custom metrics, you still need to ensure that the API call `register_application()` is used if necessary to force the registration of the agent for an application before any data will be collected.
+
+## Initialization of a data source
+
+Although the decorator provides the ability to name a data source, the more important reason for the decorator is that it hides the complexity of a sequence of setup steps to get a data source running. The sequence of these steps is:
+
+1. The data source is initialized, with a dictionary holding any configuration being passed to it to set it up to run in a particular way.
+2. Upon being initialized, the data source returns a dictionary of properties describing the data source. This includes a reference to a factory function for creating a specific instance of the data source provider.
+3. An instance of the data source provider is then created for a specific consumer (application) by calling the factory. The factory function is passed a dictionary describing the environment in which it is running, including the name of the consumer.
+
+Rewriting the above example so as to not rely on the decorator, we would have:
+
+```
+import os
+import psutil
+ 
+def memory_metrics_data_source(settings):
+    def memory_metrics():
+        pid = os.getpid()
+        p = psutil.Process(os.getpid())
+        m = p.get_memory_info()
+        yield ('Custom/Memory/Physical', float(m.rss)/(1024*1024))
+        yield ('Custom/Memory/Virtual', float(m.vms)/(1024*1024))
+
+    def memory_metrics_factory(environ):
+        return memory_metrics
+ 
+    properties = {}
+    properties['name'] = 'Memory Usage'
+    properties['factory'] = memory_metrics_factory
+ 
+    return properties
+ 
+newrelic.agent.register_data_source(memory_metrics_data_source)
+```
+
+The purpose of the more complex underlying protocol is to provide sufficient hook points to properly initialize data sources and customise them based on that configuration and the specifics of the consumer.
+
+## Instances of a data source
+
+Nothing more needed to be done in the prior example because gauge metrics, which don't care about the last time they were generated, were being returned. Where a metric reflects something happening over time, and therefore needs to retain some state, we need though an ability to be able to create an instance of the data source.
+
+The factory function therefore provides the ability for an instance of a data source to be created for each application against which metrics are being reported.
+
+There is allowance for one instance of the data source per application rather than one per process, because the start and end times for the harvest cycle for different applications may be different. If there was only one per process in this scenario and the metric had a connection to the duration of the harvest cycle, then the resulting metrics wouldn't be correct for each application. The ability is therefore provided for a data source instance to be application specific.
+
+Using nested functions as above, a data source which needs to maintain state could therefore be written as.
+
+```
+import os
+import time
+import multiprocessing
+ 
+@newrelic.agent.data_source_factory(name='CPU Usage')
+def cpu_metrics_data_source(settings, environ):
+    state = {}
+    state['last_timestamp'] = time.time()
+    state['times'] = os.times()
+
+    def cpu_metrics():
+        now = time.time()
+        new_times = os.times()
+        elapsed_time = now - state['last_timestamp']
+        user_time = new_times[0] - state['times'][0]
+        utilization = user_time / (elapsed_time*multiprocessing.cpu_count())
+        state['last_timestamp'] = now
+        state['times'] = new_times
+
+        yield ('Custom/CPU/User Time', user_time)
+        yield ('Custom/CPU/User/Utilization', utilization)
+
+    return cpu_metrics
+ 
+newrelic.agent.register_data_source(cpu_metrics_data_source)
+```
+
+The decorator used here is:
+
+```
+newrelic.agent.data_source_factory(name=None, **properties)
+```
+
+For this case the decorator is wrapping a factory function. Because the decorator is automatically returning the properties for the data source when required, the factory takes both the settings and the description of the environ it is being used in.
+
+Using nested functions is a bit magic and requires the code to use a dictionary on the stack of the outer function to hold the state. The alternative is to implement the data source as an actual class with the decorator applied to the class.
+
+```
+import os
+import time
+import multiprocessing
+ 
+@newrelic.agent.data_source_factory(name='CPU Usage')
+class CPUMetricsDataSource(object):
+
+    def __init__(self, settings, environ):
+        self.last_timestamp = time.time()
+        self.times = os.times()
+
+    def __call__(self):
+        now = time.time()
+        new_times = os.times()
+        elapsed_time = now - self.last_timestamp
+        user_time = new_times[0] - self.times[0]
+        utilization = user_time / (elapsed_time*multiprocessing.cpu_count())
+        self.last_timestamp = now
+        self.times = new_times
+
+        yield ('Custom/CPU/User Time', user_time)
+        yield ('Custom/CPU/User/Utilization', utilization)
+
+newrelic.agent.register_data_source(CPUMetricsDataSource)
+```
+
+## Life cycle of a data source
+
+Although a data source could produce metrics at any time, the agent itself isn't always reporting metrics for an application. Specifically, it will only start collecting metrics and report them once the agent has managed to register itself with the data collector for a specific application.
+
+This distinction is important for data sources which generate metrics based on a time period. It would be required to only have metrics produced by a data source to cover the period back to the point at which registration occurred, or back to the last time that metrics were reported by the agent. If this isn't done, the reported metrics will not align and so it will not be possible to ensure that they correlate properly with metrics from tracking of web transactions or background tasks.
+
+For this reason, the factory for a data source will only be called to create an instance of the data source when registration for the application has completed and metrics collection started. This ensures that any reference timestamp will be correct.
+
+If the agent run for a particular application is terminated, due to a server side forced restart resulting from server side configuration changes, or because of successive failures to report data to the data collector, then the data source will be dropped. A new instance of the data source will then be created when the agent has been able to reregister itself again for the application.
+
+The correct cleanup of a data source in this case will depend on prompt destruction of the data source object when it is dropped. Because of object reference count cycles, this cannot be relied upon. It is also desirable to avoid a data source needing to add a `__del__()` method in order to trigger cleanup actions because of the problems that a `__del__()` method introduces in the way of actually preventing prompt destruction of the object.
+
+For this reason, if a data source needs more control over setup and shutdown, including perhaps being able to stay persistent in memory and not be dropped, yet suspend calculations for metrics, then it can provide `start()` and `stop()` methods when being implemented as a class instance.
+
+```
+import os
+import time
+import multiprocessing
+
+@newrelic.agent.data_source_factory(name='CPU Usage')
+class CPUMetricsDataSource(object):
+
+    def __init__(self, settings, environ):
+        self.last_timestamp = None
+        self.times = None
+ 
+    def start(self):
+        self.last_timestamp = time.time()
+        self.times = os.times()
+ 
+    def stop(self):
+        self.last_timestamp = None
+        self.times = None
+
+    def __call__(self):
+        if self.times is None:
+            return
+
+        now = time.time()
+        new_times = os.times()
+        elapsed_time = now - self.last_timestamp
+        user_time = new_times[0] - self.times[0]
+        utilization = user_time / (elapsed_time*multiprocessing.cpu_count())
+        self.last_timestamp = now
+        self.times = new_times
+
+        yield ('CPU/User Time', user_time)
+        yield ('CPU/User/Utilization', utilization)
+
+newrelic.agent.register_data_source(CPUMetricsDataSource)
+```
+
+With the `start()` and `stop()` methods defined, the instance of the data source will not be destroyed at the termination of the agent run but kept around. The agent at this point is then expecting that the data source will itself deal with the suspension of any aggregation of metrics, dropping any accumulated metrics and ensure that when the agent reregisters the application with the data collector and calls `start()` again, only then would tracking for metrics be resumed.
+
+## Configuring a data source
+
+Data sources may not always be bound to one specific information source. It may be necessary to register a data source against different underlying information sources from which metrics are generated. In this case distinct settings can be passed when registering a data source using the `register_data_source()` function. When using a data factory, these settings will then be available when the data source is being initialized.
+
+```
+@newrelic.agent.data_source_factory()
+class HostMonitorDataSource(object):
+ 
+    def __init__(self, settings, environ):
+        self.hostname = settings['hostname']
+
+    def __call__(self):
+        ...
+ 
+newrelic.agent.register_data_source(HostMonitorDataSource,
+  name='Host Monitor (host-1)', settings=dict(hostname='host-1'))
+newrelic.agent.register_data_source(HostMonitorDataSource,
+  name='Host Monitor (host-2)', settings=dict(hostname='host-2'))
+```
+
+If provision of settings is optional, the data source should only attempt to access settings if the `settings` option is not `None`. Even if supplied a dictionary, it should also cope with missing settings in the dictionary.
+
+## Setup from configuration file
+
+Although the examples here showed the use of the `register_data_source()` API call, this would not be the normal way by which data sources would be registered. This is not the preferred way as it would require modifications to the application to import the module for the data source and register it.
+
+Instead, the primary way for defining and integrating data sources into an existing monitored web application would be to list them in the agent configuration file. This entails adding an additional section in the agent configuration file for each data source with prefix `data-source:`:
+
+```
+[data-source:process-info]
+enabled = true
+function = samplers.process_info:process_info_data_source
+```
+
+If registering a data source from the agent configuration file, there should be no separate registration for the same data source being performed using the `register_data_source()` function occuring in your application code or in the module defining the data source. If there is, then two instances of the data source would end up being registerd.
+
+If needing to provide specific settings for a data source, this can be done by creating a separate section in the agent configuration file and referring to the section name in the `settings` value in the data source configuration.
+
+```
+[data-source:host-monitor]
+enabled = true
+function = samplers.process_info:process_info_data_source
+name = Host Monitor (host-1)
+settings = host-monitor:host-1
+
+[host-monitor:host-1]
+hostname = host-1
+```
+
+As data source settings supplied via the configuration file will always be passed as string values, it is recommended that even when using `register_data_source()` with application code to register a data source and provide settings explicitly, that strings be used for setting values. The data source should then deal with the conversion to a different type such as a numeric value or list of values.
+
+## For more help [#more_help]
+
+Additional documentation resources include:
+
+* [Python custom metrics API](/docs/python/python-custom-metrics-api) (specific information on the functions and decorators in Python agent API related to custom metrics)
+* [Custom dashboards](/docs/dashboards-menu/custom-dashboards) (how to use custom dashboards to chart custom metrics)
+* [Custom metrics](/docs/features/custom-metrics) (general documentation on custom metrics)
