@@ -5,6 +5,7 @@ const format = require('date-fns/format');
 const parseISO = require('date-fns/parseISO');
 const html = require('rehype-stringify');
 const unified = require('unified');
+const toHast = require('mdast-util-to-hast');
 const removeImports = require('remark-mdx-remove-imports');
 const removeExports = require('remark-mdx-remove-exports');
 const addAbsoluteImagePath = require('../../rehype-plugins/utils/addAbsoluteImagePath');
