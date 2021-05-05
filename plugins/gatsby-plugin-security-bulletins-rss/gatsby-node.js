@@ -1,4 +1,5 @@
 const html = require('rehype-stringify');
+const path = require('path');
 const unified = require('unified');
 const removeImports = require('remark-mdx-remove-imports');
 const removeExports = require('remark-mdx-remove-exports');
