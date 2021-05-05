@@ -24,7 +24,7 @@ const securityBulletinsQuery = async (graphql) => {
           siteUrl
         }
       }
-      allMdx(
+      securityBulletinFileNodes: allMdx(
         filter: {fileAbsolutePath: {regex: "/src/content/docs/security/.*/security-bulletins/.*(?<!index).mdx/"}}
       ) {
         nodes {
