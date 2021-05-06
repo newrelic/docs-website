@@ -2,6 +2,7 @@
 title: 'Nerdlog Roundup: New Relic Lookout, Guided Install, and Open Source Docs'
 summary: 'Get real-time visibility into your stack, simplify your instrumentation, and edit our docs'
 releaseDate: '2021-03-25'
+learnMoreLink: 'https://newrelic.com/blog/nerdlog/visualizations-instrumentation-open-source-docs'
 ---
 ## New Relic Lookout: Embrace the purple bubble
 
