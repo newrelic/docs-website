@@ -13,3 +13,7 @@ Now, you can quickly find the patterns and use them to create queries, alerts an
 ![Screenshot showing log patterns UI](./images/log-patterns-WN041221.png "log patterns")
 
 To learn more about how to leverage patterns for logs in New Relic, head to our docs by clicking **Learn More** above, or to check it out for yourself in New Relic One, click **Get Started** above.
+
+Check out the Nerdlog segment to learn more about detecting patterns and outliers in log data:
+
+<iframe width="560" height="315" src="https://www.youtube.com/embed/JtgSrB5J0_w" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>

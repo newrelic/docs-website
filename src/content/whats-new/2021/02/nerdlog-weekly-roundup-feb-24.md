@@ -29,4 +29,4 @@ Get updates on all things Log management and an overview of Agentless syslog onb
 
 <iframe width="560" height="315" src="https://www.youtube.com/embed/t6KFYfeEdjw" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
 
- **Don’t miss the Nerdlog LIVE every Thursday at 12 p.m. PT (8 p.m. UTC) on [Twitch] (https://www.twitch.tv/new_relic) to get the latest product updates from the people who built them.**
+ Don’t miss the Nerdlog LIVE every Thursday at 12 p.m. PT (8 p.m. UTC) on [Twitch](https://www.twitch.tv/new_relic) to get the latest product updates from the people who built them. [Subscribe to our weekly Nerdlog emails](https://developer.newrelic.com/nerdlog) to get product updates like these directly in your inbox.
