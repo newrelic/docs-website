@@ -73,7 +73,8 @@ const generateFeed = (publicDir, siteMetadata, reporter, bulletinNodes) => {
   const title = `New Relic security bulletins`;
   const inferredBulletinsPath = bulletinNodes.nodes[0].slug
     .split('/')
-    .slice(0, -1);
+    .slice(0, -1)
+    .join('/');
 
   const feedPath = path.join(inferredBulletinsPath, 'feed.xml');
 
