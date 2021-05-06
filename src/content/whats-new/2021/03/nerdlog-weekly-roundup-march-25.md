@@ -32,4 +32,4 @@ In a reader survey last year, more than 50% of you said you were interested in [
 
 To get started on our open source docs site, Click the “edit” link on the right panel anywhere on [docs.newrelic.com](https://docs.newrelic.com/) or visit the [GitHub repo](https://github.com/newrelic/docs-website).
 
-Don’t miss the Nerdlog LIVE every Thursday at 12 p.m. PT (8 p.m. UTC) on [Twitch](https://www.twitch.tv/new_relic) to get the latest product updates from the people who built them.
+Don’t miss the Nerdlog LIVE every Thursday at 12 p.m. PT (8 p.m. UTC) on [Twitch](https://www.twitch.tv/new_relic) to get the latest product updates from the people who built them. [Subscribe to our weekly Nerdlog emails](https://developer.newrelic.com/nerdlog) to get product updates like these directly in your inbox.
