@@ -15,4 +15,4 @@ Combine your log messages with the rest of your Telemetry data already living in
 
 Check out the latest Nerdlog episode to learn more about the improvements we've made to the logs user experience: 
 
-<iframe width="560" height="315" src="https://www.youtube.com/embed/pTakNUihv6w" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe
+<iframe width="560" height="315" src="https://www.youtube.com/embed/pTakNUihv6w" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
