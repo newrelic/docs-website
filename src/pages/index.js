@@ -1,6 +1,6 @@
 import React, { Fragment } from 'react';
 import PropTypes from 'prop-types';
-import { css, keyframes } from '@emotion/core';
+import { css, keyframes } from '@emotion/react';
 import { graphql } from 'gatsby';
 import {
   Button,
@@ -15,6 +15,7 @@ import { rgba } from 'polished';
 import SurfaceLink from '../components/SurfaceLink';
 import TechTile from '../components/TechTile';
 import TechTileGrid from '../components/TechTileGrid';
+import FutureStackCTA from '../components/FutureStackCTA';
 import { tdp, fso, ai, security, integrations } from '../data/homepage.yml';
 
 const HomePage = ({ data }) => {
@@ -26,6 +27,7 @@ const HomePage = ({ data }) => {
 
   return (
     <>
+      <FutureStackCTA />
       <Section layout={layout}>
         <h1>{t('home.title')}</h1>
         <div

@@ -1,5 +1,5 @@
-const fs = require('fs');
 const parse = require('rehype-parse');
+const fs = require('fs');
 const path = require('path');
 const unified = require('unified');
 const rehypeStringify = require('rehype-stringify');
@@ -8,6 +8,7 @@ const getAgentName = require('./src/utils/getAgentName');
 
 const siteUrl = 'https://docs.newrelic.com';
 const dataDictionaryPath = `${__dirname}/src/data-dictionary`;
+const additionalLocales = ['jp'];
 const quote = (str) => `"${str}"`;
 
 const autoLinkHeaders = {
@@ -56,7 +57,7 @@ module.exports = {
         },
         i18n: {
           translationsPath: `${__dirname}/src/i18n/translations`,
-          additionalLocales: ['jp'],
+          additionalLocales,
         },
         prism: {
           languages: [
@@ -76,6 +77,7 @@ module.exports = {
             resultsPath: `${__dirname}/src/data/swiftype-resources.json`,
             engineKey: 'Ad9HfGjDw4GRkcmJjUut',
             refetch: Boolean(process.env.BUILD_RELATED_CONTENT),
+            limit: 3,
             filter: ({ node }) => {
               if (node.internal.type !== 'Mdx') {
                 return false;
@@ -103,8 +105,13 @@ module.exports = {
                 includedTypes.includes(frontmatter.type)
               );
             },
-            getParams: ({ node }) => {
+            getParams: ({ node, slug }) => {
               const { tags, title } = node.frontmatter;
+
+              const locale = slug && slug.split('/')[0];
+              const postfix = additionalLocales.includes(locale)
+                ? `-${locale}`
+                : '';
 
               return {
                 q: tags ? tags.map(quote).join(' OR ') : title,
@@ -113,7 +120,11 @@ module.exports = {
                 },
                 filters: {
                   page: {
-                    type: ['!blog', '!forum'],
+                    type: [
+                      `docs${postfix}`,
+                      `developer${postfix}`,
+                      `opensource${postfix}`,
+                    ],
                     document_type: [
                       '!views_page_menu',
                       '!term_page_api_menu',
@@ -161,6 +172,13 @@ module.exports = {
               path: location.pathname,
               env: env === 'production' ? 'prod' : env,
             }),
+          },
+        },
+        googleTagManager: {
+          trackingId: 'UA-3047412-33',
+          src: 'https://www.googletagmanager.com/gtag/js',
+          options: {
+            anonymize_ip: true,
           },
         },
       },
@@ -227,7 +245,7 @@ module.exports = {
             resolve: 'gatsby-remark-images',
             options: {
               maxWidth: 850,
-              linkImagesToOriginal: false,
+              linkImagesToOriginal: true,
               backgroundColor: 'transparent',
               disableBgImageOnAlpha: true,
             },
@@ -274,7 +292,7 @@ module.exports = {
             resolve: 'gatsby-remark-images',
             options: {
               maxWidth: 1200,
-              linkImagesToOriginal: false,
+              linkImagesToOriginal: true,
               backgroundColor: 'transparent',
               disableBgImageOnAlpha: true,
             },
@@ -471,6 +489,7 @@ module.exports = {
       },
     },
     'gatsby-plugin-release-note-rss',
+    'gatsby-plugin-whats-new-rss',
     {
       resolve: 'gatsby-source-data-dictionary',
       options: {
