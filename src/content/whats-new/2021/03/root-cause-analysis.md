@@ -33,4 +33,4 @@ Nate closed out the show explaining how topology (relationship-based) correlatio
 
 Check out the ‘AIOps Made Easy’ posts in What’s New for even more information on the AI ops goodness. 
 
-Don’t miss the Nerdlog **LIVE at 12 p.m. PT (8 p.m. UTC) this Thursday** on [Twitch](https://www.twitch.tv/new_relic) to get the latest product updates from the people who built them.  
+Don’t miss the Nerdlog **LIVE at 12 p.m. PT (8 p.m. UTC) this Thursday** on [Twitch](https://www.twitch.tv/new_relic) to get the latest product updates from the people who built them. [Subscribe to our weekly Nerdlog emails](https://developer.newrelic.com/nerdlog) to get product updates like these directly in your inbox.  
