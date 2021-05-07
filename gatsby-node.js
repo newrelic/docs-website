@@ -4,6 +4,7 @@ const externalRedirects = require('./src/data/external-redirects.json');
 
 const { createFilePath } = require('gatsby-source-filesystem');
 
+const SWIFTYPE_RESOURCES_DIR = 'src/data/swiftype-resources';
 const TEMPLATE_DIR = 'src/templates/';
 const TRAILING_SLASH = /\/$/;
 
@@ -15,6 +16,20 @@ const hasTrailingSlash = (pathname) =>
 
 const appendTrailingSlash = (pathname) =>
   pathname.endsWith('/') ? pathname : `${pathname}/`;
+
+// before we build, combine related resource files into one
+exports.onPreBootstrap = () => {
+  const files = fs.readdirSync(SWIFTYPE_RESOURCES_DIR);
+  const content = files.map((filename) => {
+    return fs.readFileSync(path.join(SWIFTYPE_RESOURCES_DIR, filename));
+  });
+  const json = content.reduce(
+    (acc, fileContent) => ({ ...acc, ...fileContent }),
+    {}
+  );
+
+  fs.writeFileSync('/src/data/swiftype-resources.json', json);
+};
 
 exports.onCreateNode = ({ node, getNode, actions }) => {
   const { createNodeField } = actions;
