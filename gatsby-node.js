@@ -1,3 +1,4 @@
+const fs = require('fs');
 const path = require('path');
 const { prop } = require('./scripts/utils/functional.js');
 const externalRedirects = require('./src/data/external-redirects.json');
@@ -28,7 +29,10 @@ exports.onPreBootstrap = () => {
     {}
   );
 
-  fs.writeFileSync('/src/data/swiftype-resources.json', json);
+  fs.writeFileSync(
+    path.join(process.cwd(), '/src/data/swiftype-resources.json'),
+    json
+  );
 };
 
 exports.onCreateNode = ({ node, getNode, actions }) => {
