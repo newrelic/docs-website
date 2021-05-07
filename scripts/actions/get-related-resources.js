@@ -156,6 +156,11 @@ const getBatchResultsFromSwiftype = (frontMatterArray) => {
 
   removeOldResources();
 
+  // if the SWIFTYPE_RESOURCES_DIR doesn't exist, create it
+  if (!fs.existsSync(SWIFTYPE_RESOURCES_DIR)) {
+    fs.mkdirSync(SWIFTYPE_RESOURCES_DIR);
+  }
+
   queryResults.forEach((result, index) => {
     const filename = `swiftype-resources-${index + 1}.json`;
     const filepath = path.join(SWIFTYPE_RESOURCES_DIR, filename);
