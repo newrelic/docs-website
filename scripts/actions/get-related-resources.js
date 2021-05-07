@@ -64,6 +64,8 @@ const findMdxFiles = (path) => {
 };
 
 const search = ({ query = {}, slug }, { engineKey, limit }) => {
+  const { q, search_fields, filters } = query;
+
   const res = fetch(
     'https://search-api.swiftype.com/api/v1/public/engines/search.json',
     {
@@ -72,9 +74,11 @@ const search = ({ query = {}, slug }, { engineKey, limit }) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        q: query,
+        q,
         engine_key: engineKey,
         per_page: limit,
+        filters,
+        search_fields
       }),
     }
   );
