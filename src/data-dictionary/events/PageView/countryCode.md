@@ -7,7 +7,6 @@ events:
   - BrowserInteraction
   - AjaxRequest
   - BrowserTiming
-  - MobileSession
   - PageViewTiming
   - JavaScriptError
 ---

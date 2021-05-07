@@ -3,6 +3,7 @@ name: lastInteraction
 type: attribute
 events:
   - MobileSession
+  - MobileHandledException
 ---
 
-The last interaction before a crash/harvest event, if one is present, such as App Launch.
+The last interaction before a crash or harvest event, if one is present.
