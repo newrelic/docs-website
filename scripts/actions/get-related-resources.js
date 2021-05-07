@@ -2,42 +2,24 @@ const fs = require('fs');
 const frontmatter = require('@github-docs/frontmatter');
 const _ = require('lodash');
 const fetch = require('sync-fetch');
-const { appendTrailingSlash, stripTrailingSlash } = require('./url');
+const {
+  quote,
+  uniq,
+  getExcludedUrls,
+  normalizeUrl,
+} = require('./utils/related-resources-helpers');
 
 const additionalLocales = ['jp'];
 const engineKey = 'Ad9HfGjDw4GRkcmJjUut';
+const siteUrl = 'https://docs.newrelic.com';
 const limit = 3;
 const frontMatterArray = [];
-
-const quote = (str) => `"${str}"`;
-
-const uniq = (arr) => [...new Set(arr)];
-
-const getExcludedUrls = (frontmatter, siteUrl) => {
-  const resources = frontmatter.resources || [];
-  const redirects = frontmatter.redirects || [];
-
-  return resources
-    .map((resource) => resource.url)
-    .concat(redirects)
-    .map((url) => (url.startsWith('/') ? siteUrl + url : url));
-};
-
-const normalizeUrl = (url) => {
-  const prefix = url.startsWith('!') ? '!' : '';
-  const plainUrl = url.replace(/^!/, '');
-
-  return [
-    prefix + appendTrailingSlash(plainUrl),
-    prefix + stripTrailingSlash(plainUrl),
-  ];
-};
 
 const getFrontMatter = (filepath) => {
   const mdxfile = fs.readFileSync(filepath, 'utf8');
   const { data: frontMatter } = frontmatter(mdxfile);
   const slug = filepath.match(/content(.*?).mdx/)[1];
-  frontMatter.slug = `${slug}/`;
+  frontMatter.slug = slug;
 
   const includedTypes = ['apiDoc', 'troubleshooting'];
   const excludedFolders = ['/docs/release-notes', '/whats-new'];
@@ -92,7 +74,7 @@ const search = ({ query = {}, slug }, { engineKey, limit }) => {
   };
 };
 
-const getQueryParams = (frontmatter, excludedUrls, siteUrl) => {
+const getQueryParams = (frontmatter, excludedUrls) => {
   const { tags, title, slug } = frontmatter;
 
   const locale = slug && slug.split('/')[0];
@@ -127,21 +109,15 @@ const getQueryParams = (frontmatter, excludedUrls, siteUrl) => {
   };
 };
 
-const getBatchResultsFromSwiftype = ({ frontMatterArray, siteUrl }) => {
+const getBatchResultsFromSwiftype = (frontMatterArray) => {
   const queries = frontMatterArray.map((pageFrontMatter) =>
-    getQueryParams(
-      pageFrontMatter,
-      getExcludedUrls(pageFrontMatter, siteUrl),
-      siteUrl
-    )
+    getQueryParams(pageFrontMatter, getExcludedUrls(pageFrontMatter, siteUrl))
   );
   const batchedQueries = _.chunk(queries, 10);
   const queryResults = batchedQueries.map((queryBatch) => {
-    const requests = queryBatch.map((query) =>
+    const results = queryBatch.map((query) =>
       search(query, { engineKey, limit })
     );
-    const results = requests;
-    console.log('remaining:', results[results.length - 1].remainingRequests);
     if (results[results.length - 1].remainingRequests < 150) {
       setTimeout(() => {
         console.log(
@@ -173,9 +149,6 @@ const getBatchResultsFromSwiftype = ({ frontMatterArray, siteUrl }) => {
 
 findMdxFiles('../../src/content/docs');
 
-const testPages = frontMatterArray.slice(0, 600);
+const testPages = frontMatterArray.slice(0, 25);
 
-getBatchResultsFromSwiftype({
-  frontMatterArray: testPages,
-  siteUrl: 'https://docs.newrelic.com',
-});
+getBatchResultsFromSwiftype(frontMatterArray);
