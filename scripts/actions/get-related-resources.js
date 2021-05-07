@@ -1,4 +1,5 @@
 const fs = require('fs');
+const path = require('path');
 const frontmatter = require('@github-docs/frontmatter');
 const _ = require('lodash');
 const fetch = require('sync-fetch');
@@ -8,6 +9,17 @@ const {
   getExcludedUrls,
   normalizeUrl,
 } = require('./utils/related-resources-helpers');
+
+const QUERIES_PER_BATCH = 100;
+const RATE_LIMIT_DEBOUNCE_TIME = 300000; // 5 minutes
+
+// max we can query in an hour without hitting lmit
+const REMAING_LIMIT_TO_PAUSE = 14 * QUERIES_PER_BATCH;
+
+const SWIFTYPE_RESOURCES_DIR = path.join(
+  process.cwd(),
+  '/src/data/swiftype-resources'
+);
 
 const additionalLocales = ['jp'];
 const engineKey = 'Ad9HfGjDw4GRkcmJjUut';
@@ -109,23 +121,32 @@ const getQueryParams = (frontmatter, excludedUrls) => {
   };
 };
 
+const removeOldResources = () => {
+  const files = fs.readdirSync(SWIFTYPE_RESOURCES_DIR);
+  for (const file of files) {
+    fs.unlinkSync(path.join(SWIFTYPE_RESOURCES_DIR, file));
+  }
+};
+
 const getBatchResultsFromSwiftype = (frontMatterArray) => {
   const queries = frontMatterArray.map((pageFrontMatter) =>
     getQueryParams(pageFrontMatter, getExcludedUrls(pageFrontMatter, siteUrl))
   );
-  const batchedQueries = _.chunk(queries, 10);
+  const batchedQueries = _.chunk(queries, QUERIES_PER_BATCH);
   const queryResults = batchedQueries.map((queryBatch) => {
     const results = queryBatch.map((query) =>
       search(query, { engineKey, limit })
     );
-    if (results[results.length - 1].remainingRequests < 150) {
+    if (
+      results[results.length - 1].remainingRequests < REMAING_LIMIT_TO_PAUSE
+    ) {
       setTimeout(() => {
         console.log(
           `waiting for swiftype request limit to reset. remaining requests: ${
             results[results.length - 1].remainingRequests
           }`
         );
-      }, 300000);
+      }, RATE_LIMIT_DEBOUNCE_TIME);
     }
     return results.reduce((acc, result) => {
       acc[result.slug] = result.page;
@@ -133,18 +154,15 @@ const getBatchResultsFromSwiftype = (frontMatterArray) => {
     }, {});
   });
 
-  const flattenedResults = queryResults.reduce((acc, batch) => {
-    acc = {
-      ...acc,
-      ...batch,
-    };
-    return acc;
-  }, {});
+  removeOldResources();
 
-  fs.writeFileSync(
-    './src/data/swiftype-resources.json',
-    JSON.stringify(flattenedResults, null, 2)
-  );
+  queryResults.forEach((result, index) => {
+    const filename = `swiftype-resources-${index + 1}.json`;
+    const filepath = path.join(SWIFTYPE_RESOURCES_DIR, filename);
+    const json = JSON.stringify(result, null, 2);
+
+    fs.writeFileSync(filepath, json);
+  });
 };
 
 findMdxFiles('./src/content/docs');
