@@ -142,13 +142,13 @@ const getBatchResultsFromSwiftype = (frontMatterArray) => {
   }, {});
 
   fs.writeFileSync(
-    '../../src/data/swiftype-resources.json',
+    './src/data/swiftype-resources.json',
     JSON.stringify(flattenedResults, null, 2)
   );
 };
 
-findMdxFiles('../../src/content/docs');
+findMdxFiles('./src/content/docs');
 
 const testPages = frontMatterArray.slice(0, 25);
 
-getBatchResultsFromSwiftype(frontMatterArray);
+getBatchResultsFromSwiftype(testPages);
