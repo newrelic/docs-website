@@ -22,16 +22,19 @@ const appendTrailingSlash = (pathname) =>
 exports.onPreBootstrap = () => {
   const files = fs.readdirSync(SWIFTYPE_RESOURCES_DIR);
   const content = files.map((filename) => {
-    return fs.readFileSync(path.join(SWIFTYPE_RESOURCES_DIR, filename));
+    return fs.readFileSync(path.join(SWIFTYPE_RESOURCES_DIR, filename), {
+      encoding: 'utf8',
+    });
   });
   const json = content.reduce(
-    (acc, fileContent) => ({ ...acc, ...fileContent }),
+    (acc, fileContent) => ({ ...acc, ...JSON.parse(fileContent) }),
     {}
   );
 
   fs.writeFileSync(
     path.join(process.cwd(), '/src/data/swiftype-resources.json'),
-    json
+    JSON.stringify(json, null, 2),
+    'utf8'
   );
 };
 
