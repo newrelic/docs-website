@@ -176,6 +176,4 @@ const getBatchResultsFromSwiftype = (frontMatterArray) => {
 
 findMdxFiles('./src/content/docs');
 
-const testPages = frontMatterArray.slice(0, 25);
-
-getBatchResultsFromSwiftype(testPages);
+getBatchResultsFromSwiftype(frontMatterArray);
