@@ -12,3 +12,7 @@ Log messages are unique in their patterns and length, and we leveraged a new cus
 ![log-display-dashboard.png](./images/log-display-dashboard.png "Logs messages in a dashboard.")
 
 Combine your log messages with the rest of your Telemetry data already living in New Relic One. Want to know how to turn on logs to improve the scope and granularity of insight into your full stack? You can [get started](https://one.nr/037jbG3Z7Qy) right now!
+
+Check out the latest Nerdlog episode to learn more about the improvements we've made to the logs user experience: 
+
+<iframe width="560" height="315" src="https://www.youtube.com/embed/pTakNUihv6w" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>

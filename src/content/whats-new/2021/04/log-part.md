@@ -12,4 +12,6 @@ With log partitions, administrators have complete control over how to segment lo
 
 To learn more about how to leverage partitions for log data in your organization view our online documentation [here](https://docs.newrelic.com/docs/logs/log-management/ui-data/data-partitions/).
 
+Watch the Nerdlog segment segment below to learn more:
+
 <iframe width="560" height="315" src="https://www.youtube.com/embed/uH8zRmCxPqo" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe> 
