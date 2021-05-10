@@ -490,6 +490,7 @@ module.exports = {
     },
     'gatsby-plugin-release-note-rss',
     'gatsby-plugin-whats-new-rss',
+    'gatsby-plugin-security-bulletins-rss',
     {
       resolve: 'gatsby-source-data-dictionary',
       options: {

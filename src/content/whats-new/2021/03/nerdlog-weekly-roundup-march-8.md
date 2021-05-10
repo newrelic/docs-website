@@ -5,7 +5,7 @@ releaseDate: '2021-03-08'
 learnMoreLink: 'https://blog.newrelic.com/product-news/nerdlog-aiops-and-custom-dashboards/'
 ---
 
-##**Finding anomalies with New Relic AIOps**
+## **Finding anomalies with New Relic AIOps**
 
 Sr. Product Manager Devin Cheevers shows how our Anomalies feed can help give you a great overview of any changes or issues within your system. Learn more about anomalies [here](https://docs.newrelic.com/docs/alerts-applied-intelligence/applied-intelligence/proactive-detection/proactive-detection-applied-intelligence/#anomaly-overview) and view your anomalies [here in New Relic One.](https://one.nr/0PoR8ZZPXQG)  
 
@@ -29,4 +29,4 @@ Sr. Software Engineer Jewels Nocera gives us a detailed overview of creating cus
 
 <iframe width="560" height="315" src="https://www.youtube.com/embed/HuR0EdHGz24" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
 
-**Don’t miss the Nerdlog LIVE every Thursday at 12 p.m. PT (8 p.m. UTC) on [Twitch](https://www.twitch.tv/new_relic) to get the latest product updates from the people who built them.**
+Don’t miss the Nerdlog LIVE every Thursday at 12 p.m. PT (8 p.m. UTC) on [Twitch](https://www.twitch.tv/new_relic) to get the latest product updates from the people who built them. [Subscribe to our weekly Nerdlog emails](https://developer.newrelic.com/nerdlog) to get product updates like these directly in your inbox.
