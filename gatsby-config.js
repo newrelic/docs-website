@@ -33,7 +33,7 @@ module.exports = {
     repository: 'https://github.com/newrelic/docs-website',
     siteUrl,
     branch: 'develop',
-  },  
+  },
   plugins: [
     'gatsby-plugin-react-helmet',
     {
