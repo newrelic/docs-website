@@ -63,7 +63,7 @@ const deserializeComponent = (
       )
     : false;
 
-  const textProps = hasChildren
+  const textProps = hasWrappedChildren
     ? node.children.filter(
         (child) => child.properties && child.properties.dataProp !== 'children'
       )
