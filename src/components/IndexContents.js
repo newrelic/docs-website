@@ -1,10 +1,13 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 import TableOfContentsContainer from './TableOfContentsContainer';
-import { Link } from '@newrelic/gatsby-theme-newrelic';
+import { Link, useLocale } from '@newrelic/gatsby-theme-newrelic';
 
 const IndexContents = ({ nav, slug, isLandingPageToc }) => {
   const { pages } = nav;
+  const { locale } = useLocale();
+
+  const showAllNav = isLandingPageToc || nav.url === slug;
 
   const getSubNav = (pages, searchKey, results = []) => {
     const r = results;
@@ -18,13 +21,18 @@ const IndexContents = ({ nav, slug, isLandingPageToc }) => {
     return r;
   };
 
-  const subNav = getSubNav(pages, slug.replace('/table-of-contents', ''));
+  const subNav = getSubNav(
+    pages,
+    slug
+      .replace('/table-of-contents', '')
+      .replace(new RegExp(`^\\/${locale}(?=\\/)`), '')
+  );
 
   return (
     <TableOfContentsContainer>
       {!isLandingPageToc &&
         subNav.map((page) => <TableOfContents key={page.title} root={page} />)}
-      {isLandingPageToc &&
+      {showAllNav &&
         pages.map((page) => <TableOfContents key={page.title} root={page} />)}
     </TableOfContentsContainer>
   );
