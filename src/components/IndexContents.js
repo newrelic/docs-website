@@ -3,7 +3,7 @@ import PropTypes from 'prop-types';
 import TableOfContentsContainer from './TableOfContentsContainer';
 import { Link } from '@newrelic/gatsby-theme-newrelic';
 
-const IndexContents = ({ nav, slug }) => {
+const IndexContents = ({ nav, slug, isLandingPageToc }) => {
   const { pages } = nav;
 
   const getSubNav = (pages, searchKey, results = []) => {
@@ -18,13 +18,14 @@ const IndexContents = ({ nav, slug }) => {
     return r;
   };
 
-  const subNav = getSubNav(pages, slug);
+  const subNav = getSubNav(pages, slug.replace('/table-of-contents', ''));
 
   return (
     <TableOfContentsContainer>
-      {subNav.map((page) => (
-        <TableOfContents key={page.title} root={page} />
-      ))}
+      {!isLandingPageToc &&
+        subNav.map((page) => <TableOfContents key={page.title} root={page} />)}
+      {isLandingPageToc &&
+        pages.map((page) => <TableOfContents key={page.title} root={page} />)}
     </TableOfContentsContainer>
   );
 };
@@ -34,6 +35,11 @@ IndexContents.propTypes = {
     pages: PropTypes.array.isRequired,
   }).isRequired,
   slug: PropTypes.string.isRequired,
+  isLandingPageToc: PropTypes.bool,
+};
+
+IndexContents.defaultProps = {
+  isLandingPageToc: false,
 };
 
 const TableOfContents = ({ root, depth = 2 }) => {
