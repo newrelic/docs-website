@@ -277,20 +277,21 @@ const createNav = async ({ args, createNodeId, nodeModel, locales }) => {
 
   const allNavYamlNodes = nodeModel.getAllNodes({ type: 'NavYaml' });
 
-  const nav = allNavYamlNodes.find((nav) => findPage(nav, slug));
+  let nav = allNavYamlNodes.find((nav) => findPage(nav, slug));
 
   if (!nav) {
     return null;
   }
+
   // if current is link to auto index page && its path does not
   // belong to nav it was first found in, find nav that matches its path
+  let trueNav = null;
+
   if (!fileNode.length && !slug.includes(nav.path)) {
-    const trueNav = allNavYamlNodes.find((nav) => slug.includes(nav.path));
-    return {
-      ...trueNav,
-      id: createNodeId(trueNav.title),
-    };
+    trueNav = allNavYamlNodes.find((nav) => slug.includes(nav.path));
   }
+
+  nav = trueNav ? trueNav : nav;
 
   return {
     ...nav,
