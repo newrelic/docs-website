@@ -52,6 +52,8 @@ yarn start
 
 Your site is now running at [`http://localhost:8000`](http://localhost:8000)!
 
+The first time you build the site locally, it will take upwards of 20 minutes. This is normal, and will take signifigantly less time afterwards.
+
 ### Dependencies
 
 Node v12 is used in this project as specified in [.nvmrc](https://github.com/newrelic/developer-website/blob/master/.nvmrc).
