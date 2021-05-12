@@ -3,12 +3,26 @@ import PropTypes from 'prop-types';
 import TableOfContentsContainer from './TableOfContentsContainer';
 import { Link } from '@newrelic/gatsby-theme-newrelic';
 
-const IndexContents = ({ nav }) => {
+const IndexContents = ({ nav, slug }) => {
   const { pages } = nav;
+
+  const getSubNav = (pages, searchKey, results = []) => {
+    const r = results;
+    pages.forEach((page) => {
+      if (page.url === searchKey) {
+        r.push(page);
+      } else if (page.pages.length > 0) {
+        getSubNav(page.pages, searchKey, r);
+      }
+    });
+    return r;
+  };
+
+  const subNav = getSubNav(pages, slug);
 
   return (
     <TableOfContentsContainer>
-      {pages.map((page) => (
+      {subNav.map((page) => (
         <TableOfContents key={page.title} root={page} />
       ))}
     </TableOfContentsContainer>
@@ -19,6 +33,7 @@ IndexContents.propTypes = {
   nav: PropTypes.shape({
     pages: PropTypes.array.isRequired,
   }).isRequired,
+  slug: PropTypes.string.isRequired,
 };
 
 const TableOfContents = ({ root, depth = 2 }) => {

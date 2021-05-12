@@ -254,30 +254,6 @@ const groupBy = (arr, fn) =>
 const createNav = async ({ args, createNodeId, nodeModel, locales }) => {
   const { slug } = args;
 
-  const fileNode = await nodeModel.runQuery({
-    type: 'File',
-    query: {
-      filter: {
-        sourceInstanceName: { eq: 'markdown-pages' },
-        relativePath: { regex: '/docs/' },
-        childMdx: {
-          fields: {
-            slug: {
-              eq: slug
-                .replace(/\/table-of-contents$/, '')
-                .replace(new RegExp(`^\\/(${locales.join('|')})(?=\\/)`), ''),
-            },
-          },
-        },
-      },
-      firstOnly: true,
-    },
-  });
-
-  if (!fileNode.length) {
-    return null;
-  }
-
   const nav = nodeModel.getAllNodes({ type: 'NavYaml' }).find((nav) =>
     // table-of-contents pages should get the same nav as their landing page
     findPage(
