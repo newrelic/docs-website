@@ -41,6 +41,7 @@ const IndexContents = ({ nav, slug, isLandingPageToc }) => {
 IndexContents.propTypes = {
   nav: PropTypes.shape({
     pages: PropTypes.array.isRequired,
+    url: PropTypes.string.isRequired,
   }).isRequired,
   slug: PropTypes.string.isRequired,
   isLandingPageToc: PropTypes.bool,
