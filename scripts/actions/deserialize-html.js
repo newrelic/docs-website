@@ -18,6 +18,10 @@ const component = (h, node) => {
 
   const { dataType, dataComponent } = node.properties;
 
+  if (dataType === 'prop') {
+    return null;
+  }
+
   const key =
     dataType === 'component' ? dataComponent || node.tagName : dataType;
 
