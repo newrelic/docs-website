@@ -53,6 +53,6 @@ Many of you operate in highly regulated, federal environments, making it critica
 
 <iframe width="560" height="315" src="https://www.youtube.com/embed/7rS6_Pl2HJM" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
 
-## What's Next
+## 
 
 *[Subscribe to our weekly Nerdlog emails](https://developer.newrelic.com/nerdlog) to get updates (like the ones above) about the latest features and releases from the people who built them. Join the Nerdlog discussion every Thursday live at 12 p.m. PT (8 p.m. UTC) on [Twitch](http://twitch.tv/new_relic) or follow along in [What’s New](https://one.nr/0dOQMzrxPwG). And if you haven't already, [sign up for a free New Relic account today!](https://bit.ly/trynew_relic)*
