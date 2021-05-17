@@ -9,18 +9,6 @@ const IndexContents = ({ nav, slug, isLandingPageToc }) => {
 
   const showAllNav = isLandingPageToc || nav.url === slug;
 
-  const getSubNav = (pages, searchKey, results = []) => {
-    const r = results;
-    pages.forEach((page) => {
-      if (page.url === searchKey) {
-        r.push(page);
-      } else if (page.pages.length > 0) {
-        getSubNav(page.pages, searchKey, r);
-      }
-    });
-    return r;
-  };
-
   const subNav = getSubNav(
     pages,
     slug
@@ -81,6 +69,18 @@ const TableOfContents = ({ root, depth = 2 }) => {
 TableOfContents.propTypes = {
   root: PropTypes.object.isRequired,
   depth: PropTypes.number,
+};
+
+const getSubNav = (pages, searchKey, results = []) => {
+  const r = results;
+  pages.forEach((page) => {
+    if (page.url === searchKey) {
+      r.push(page);
+    } else if (page.pages.length > 0) {
+      getSubNav(page.pages, searchKey, r);
+    }
+  });
+  return r;
 };
 
 export default IndexContents;
