@@ -99,7 +99,7 @@ helm upgrade --install newrelic newrelic/nri-bundle \
 
 It is possible to configure different aspects of the automatic injection. By default, the operator will inject the monitoring sidecar to all pods deployed in Fargate nodes which are not part of a Job or a BatchJob.
 
-Using configurations, you can change this behavior. For example, you can define selectors to narrow or widen the selection of pods that are injected, assign resources to the operator, and tune the sidecar. Also, you can add other attributes, labels, and environment variables. Please refer to the chart `README.md` and `values.yaml` for the complete description of each option.
+Using configurations, you can change this behavior. For example, you can define selectors to narrow or widen the selection of pods that are injected, assign resources to the operator, and tune the sidecar. Also, you can add other attributes, labels, and environment variables. Please refer to the chart `README.md` and `values.yaml` in [GitHub](https://github.com/newrelic/newrelic-infra-operator) for the complete description of each option.
 
 <Callout variant="tip">
 Injecting the sidecar into deployments scheduled into EC2 nodes may lead into incorrect or duplicate data, especially if those nodes are already being monitored with the DaemonSet. Take this into account when designing custom selectors for the automatic injection.
@@ -136,7 +136,7 @@ Here are some issues to be aware of when using automatic injection:
 
 1. Currently there is no controller that watches the whole cluster to make sure that secrets that are no longer needed are garbage collected. However, all objects share the same label that can be used in order to remove all resources if needed `newrelic/infra-operator-created: true`.
 
-2. At the moment, it is not possible to use the injected sidecar to monitor services running in the pod. The sidecar will only monitor Kubernetes itself. However, if you are an advanced user, you may want to exclude these pods from automatic injection. You would then manually inject a customized version of the sidecar with on-host integrations enabled by configuring them and mounting their configurations in the proper place. [MISSING LINK].
+2. At the moment, it is not possible to use the injected sidecar to monitor services running in the pod. The sidecar will only monitor Kubernetes itself. However, if you are an advanced user, you may want to exclude these pods from automatic injection. You would then manually inject a customized version of the sidecar with on-host integrations enabled by configuring them and mounting their configurations in the proper place. For help, see this [tutorial](https://docs.newrelic.com/docs/integrations/kubernetes-integration/link-apps-services/tutorial-monitor-redis-running-kubernetes/).
 
 ### Manual injection [#manual]
 If you have  any concerns about the automatic injection, you can inject the sidecar manually directly by modifying the manifests of the workloads scheduled that are going to be scheduled on Fargate nodes Please note that adding the sidecar into deployments scheduled into EC2 nodes may lead into incorrect or duplicate data, especially if those nodes are already being monitored with the DaemonSet.
@@ -148,8 +148,6 @@ The following objects are required for the sidecar to successfully report data:
 * The secret storing the New Relic `licenseKey` in each Fargate namespace 
 * The sidecar container in the spec template of the monitored workload
 
-You can see example manifests for these objects in this [gist](https://gist.github.com/paologallinaharbur/754c13d0541f89d60ae74fdf877e3ce5J).
-
 #### Manual injection installation 
 
 <Callout variant="tip">
@@ -159,52 +157,61 @@ These manual setup steps are for a generic installation. Before completing these
 Complete the following for manual injection:
 
 1. If `ClusterRole` does not exist, create it and grant the permissions required to hit the metrics endpoints. This only needs to be done once, even for monitoring multiple applications in the same cluster.
-2. For each workload you want to monitor, add an additional sidecar container for the `newrelic/infrastructure-k8s` image. Here is an example of an injected sidecar. See the [gist](https://gist.github.com/paologallinaharbur/754c13d0541f89d60ae74fdf877e3ce5J) for the latest.
+
 
     <CollapserGroup>
       <Collapser
-        id="example"
-        title="Example"
+        id="cluster-role"
+        title="clusterRole.yaml"
       >
+      You can use this snippet as it appears below, without any changes:
+
+      ```      
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRole
+      metadata:
+        labels:
+          app: newrelic-infrastructure
+        name: newrelic-newrelic-infrastructure-infra-agent
+      rules:
+      - apiGroups:
+        - ""
+        resources:
+        - nodes
+        - nodes/metrics
+        - nodes/stats
+        - nodes/proxy
+        - pods
+        - services
+        verbs:
+        - get
+        - list
+      - nonResourceURLs:
+        - /metrics
+        verbs:
+        - get
+      ```
+      </Collapser>
+    </CollapserGroup>
+
+2. For each workload you want to monitor, add an additional sidecar container for the `newrelic/infrastructure-k8s` image. Here is an example of an injected sidecar. 
+
+    <CollapserGroup>
+      <Collapser
+        id="container-to-inject"
+        title="containerToInject.yaml"
+      >
+      [PLEASE INSERT INSTRUCTIONS ABOUT HOW TO USE THIS SNIPPET]
+
         ```
         apiVersion: apps/v1
         kind: Deployment
-        metadata:
-          name: ksm-kube-state-metrics
-          namespace: [NAMESPACE_OF_WORKLOAD]
         spec:
-          progressDeadlineSeconds: 600
-          replicas: 1
-          revisionHistoryLimit: 10
-          selector:
-            matchLabels:
-              app.kubernetes.io/instance: ksm
-              app.kubernetes.io/name: kube-state-metrics
-          strategy:
-            rollingUpdate:
-              maxSurge: 25%
-              maxUnavailable: 25%
-            type: RollingUpdate
           template:
-            metadata:
-              labels:
-                app.kubernetes.io/instance: ksm
-                app.kubernetes.io/name: kube-state-metrics
             spec:
-              affinity:
-                podAntiAffinity:
-                  preferredDuringSchedulingIgnoredDuringExecution:
-                  - podAffinityTerm:
-                      labelSelector:
-                        matchLabels:
-                          app.kubernetes.io/instance: ksm
-                          app.kubernetes.io/name: kube-state-metrics
-                      namespaces:
-                      - fargate
-                      topologyKey: kubernetes.io/hostname
-                    weight: 1
               containers:
-              - env:
+              - name: newrelic-infrastructure
+                env:
                 - name: NRIA_LICENSE_KEY
                   valueFrom:
                     secretKeyRef:
@@ -227,12 +234,11 @@ Complete the following for manual injection:
                       apiVersion: v1
                       fieldPath: spec.nodeName
                 - name: NRIA_CUSTOM_ATTRIBUTES
-                  value: '{"clusterName":"$(CLUSTER_NAME)", "computeType":"$(COMPUTE_TYPE)"}'
+                  value: '{"clusterName":"$(CLUSTER_NAME)", "computeType":"$(COMPUTE_TYPE)", "fargateProfile":"[YOUR FARGATE PROFILE]"}'
                 - name: NRIA_PASSTHROUGH_ENVIRONMENT
                   value: KUBERNETES_SERVICE_HOST,KUBERNETES_SERVICE_PORT,CLUSTER_NAME,CADVISOR_PORT,NRK8S_NODE_NAME,KUBE_STATE_METRICS_URL,KUBE_STATE_METRICS_POD_LABEL,TIMEOUT,ETCD_TLS_SECRET_NAME,ETCD_TLS_SECRET_NAMESPACE,API_SERVER_SECURE_PORT,KUBE_STATE_METRICS_SCHEME,KUBE_STATE_METRICS_PORT,SCHEDULER_ENDPOINT_URL,ETCD_ENDPOINT_URL,CONTROLLER_MANAGER_ENDPOINT_URL,API_SERVER_ENDPOINT_URL,DISABLE_KUBE_STATE_METRICS,DISCOVERY_CACHE_TTL
                 image: newrelic/infrastructure-k8s:2.4.0-unprivileged
                 imagePullPolicy: IfNotPresent
-                name: newrelic-infrastructure
                 resources:
                   limits:
                     memory: 300M
@@ -254,89 +260,59 @@ Complete the following for manual injection:
                   name: tmpfs-tmp
                 - mountPath: /var/cache/nr-kubernetes
                   name: tmpfs-cache
-        ### KSM Data
-              - args:
-                - --collectors=certificatesigningrequests
-                - --collectors=configmaps
-                - --collectors=cronjobs
-                - --collectors=daemonsets
-                - --collectors=deployments
-                - --collectors=endpoints
-                - --collectors=horizontalpodautoscalers
-                - --collectors=ingresses
-                - --collectors=jobs
-                - --collectors=limitranges
-                - --collectors=mutatingwebhookconfigurations
-                - --collectors=namespaces
-                - --collectors=networkpolicies
-                - --collectors=nodes
-                - --collectors=persistentvolumeclaims
-                - --collectors=persistentvolumes
-                - --collectors=poddisruptionbudgets
-                - --collectors=pods
-                - --collectors=replicasets
-                - --collectors=replicationcontrollers
-                - --collectors=resourcequotas
-                - --collectors=secrets
-                - --collectors=services
-                - --collectors=statefulsets
-                - --collectors=storageclasses
-                - --collectors=volumeattachments
-                image: docker.io/bitnami/kube-state-metrics:1.9.8-debian-10-r0
-                imagePullPolicy: IfNotPresent
-                livenessProbe:
-                  failureThreshold: 6
-                  httpGet:
-                    path: /healthz
-                    port: http
-                    scheme: HTTP
-                  initialDelaySeconds: 120
-                  periodSeconds: 10
-                  successThreshold: 1
-                  timeoutSeconds: 5
-                name: kube-state-metrics
-                ports:
-                - containerPort: 8080
-                  name: http
-                  protocol: TCP
-                readinessProbe:
-                  failureThreshold: 6
-                  httpGet:
-                    path: /
-                    port: http
-                    scheme: HTTP
-                  initialDelaySeconds: 30
-                  periodSeconds: 10
-                  successThreshold: 1
-                  timeoutSeconds: 5
-                resources: {}
-                terminationMessagePath: /dev/termination-log
-                terminationMessagePolicy: File
-              dnsPolicy: ClusterFirst
-              restartPolicy: Always
-              schedulerName: default-scheduler
-              securityContext:
-                fsGroup: 1001
-                runAsUser: 1001
-              serviceAccount: ksm-kube-state-metrics
-              serviceAccountName: ksm-kube-state-metrics
-              terminationGracePeriodSeconds: 30
-              volumes:
-              - emptyDir: {}
-                name: tmpfs-data
-              - emptyDir: {}
-                name: tmpfs-user-data
-              - emptyDir: {}
-                name: tmpfs-tmp
-              - emptyDir: {}
-                name: tmpfs-cache
+        [...]
         ```
-  
-  </Collapser>
-</CollapserGroup>
+      </Collapser>
+    </CollapserGroup>
 
 3. Create a `ClusterRoleBinding`, or add to a previously created one the `ServiceAccount` of the application that is going to be monitored. All the workloads may share the same `ClusterRoleBinding`, but the `ServiceAccount` of each one must be added to it.
+
+    <CollapserGroup>
+      <Collapser
+        id="cluster-role-binding"
+        title="clusterRoleBinding.yaml"
+      >
+      [PLEASE INSERT INSTRUCTIONS ABOUT HOW TO USE THIS SNIPPET. ALSO, I NOTICED IN THE PRIVATE REPO THAT THE FIRST LETTER OF THE YAML FILE (ClusterRoleBinding.yaml) IS CAPITALIZED, UNLIKE OTHER YAML FILE NAMES. IT LOOKS LIKE THE OBJECTS INSIDE THE FILES START WITH CAPITAL LETTERS WHILE THE YAML FILES DO NOT, RIGHT?]
+
+      ``` 
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRoleBinding
+      metadata:
+        name: newrelic-newrelic-infrastructure-infra-agent
+      roleRef:
+        apiGroup: rbac.authorization.k8s.io
+        kind: ClusterRole
+        name: newrelic-newrelic-infrastructure-infra-agent
+      subjects:
+      - kind: ServiceAccount
+        name: [<var>INSERT_SERVICE_ACCOUNT_NAME_OF_WORKLOAD</var>]
+        namespace: [<var>INSERT_SERVICE_ACCOUNT_NAMESPACE_OF_WORKLOAD</var>]
+      ```
+      </Collapser>
+    </CollapserGroup>
+
+
 4. Create a secret containing the New Relic license key. Each namespace needs its own secret.
+
+    <CollapserGroup>
+      <Collapser
+        id="secret"
+        title="secret.yaml"
+      >
+      [PLEASE INSERT INSTRUCTIONS ABOUT HOW TO USE THIS SNIPPET]
+
+      ```      
+      apiVersion: v1
+      data:
+        license: superSecretLicenseEncodedInBase64===
+      kind: Secret
+      metadata:
+        name: newrelic-newrelic-infrastructure-config
+        namespace: [<var>INSERT_NAMESPACE_OF_WORKLOAD</var>]
+      type: Opaque
+      ```
+      </Collapser>
+    </CollapserGroup>
 
 #### Configuration [#config-manual]
 
@@ -356,8 +332,8 @@ The agent cannot hot load the New Relic license key. After updating the secret, 
 #### Uninstall the Fargate integration
 
 To remove the injected container and the related resources, you just have  to remove the following:
-* The sidecar from the workloads that should be no longer monitored 
-* All the secrets containing the newrelic license 
+* The sidecar from the workloads that should be no longer monitored. 
+* All the secrets containing the newrelic license. 
 * `ClusterRole` and `ClusterRoleBinding` objects.
 
 Notice that removing the sidecar container will cause the pod to be re-created.
@@ -371,10 +347,6 @@ Here are some tips if you have problems:
 If you notice that any Infra DaemonSet replicas are being scheduled on Fargate nodes, it might be because the nodeAffinity rules are not configured properly.
 
 Double-check that the solution was installed with the global.fargate option to true, either through the command line (--set global.fargate=true) or in the `values.yaml` file. If the installation method was not Helm, you’ll need to manually add nodeAffinity rules to exclude fargate nodes.
-
-### Garbage collection
-
-Currently even if the `ClusterRoleBinding` gets updated automatically, there is no controller that watches the whole cluster making sure that the `ClusterRoleBinding` is in sync with the current status. Therefore, if a subject is no longer needed, no automation garbage collects it. If the object is deleted, no automation is in place to recreate it with the needed subjects. **I MOVED THIS OUT OF THE LIMITATIONS SECTION BECAUSE OF A REVIEW COMMENT. IS THIS APPROPRIATE HERE?**
 
 ## View your EKS data [#view-data]
 
