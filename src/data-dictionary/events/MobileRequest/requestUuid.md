@@ -1,9 +1,10 @@
 ---
-name: statusCode
+name: requestUuid
 type: attribute
+units: ID
 events:
   - MobileRequest
   - MobileRequestError
 ---
 
-Optional: The HTTP status code for the HTTP event.
+A unique identifer for the request event.

@@ -2,6 +2,7 @@
 name: sessionCrashed
 type: attribute
 events:
+  - MobileSession
   - MobileCrash
 ---
 
