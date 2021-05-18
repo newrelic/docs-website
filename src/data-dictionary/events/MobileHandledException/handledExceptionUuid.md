@@ -6,4 +6,4 @@ events:
   - MobileHandledException
 ---
 
-The unique ID for the exception event.
+The unique ID of\ the exception event.

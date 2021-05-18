@@ -5,4 +5,4 @@ events:
   - MobileHandledException
 ---
 
-Epoch timestamp of the agent-reported timestamp of the handled exception.
+Agent-reported epoch timestamp of the handled exception.

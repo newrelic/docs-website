@@ -5,4 +5,4 @@ events:
   - MobileCrash
 ---
 
-The mobile application licence token.
+The mobile application license token.

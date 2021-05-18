@@ -5,4 +5,4 @@ events:
   - MobileCrash
 ---
 
-The name of the device.
+The device's name.

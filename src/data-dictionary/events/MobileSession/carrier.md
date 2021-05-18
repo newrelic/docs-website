@@ -9,4 +9,4 @@ events:
   - MobileRequestError
 ---
 
-The mobile network over which the app transferred data, such as wifi, Verizon, or Sprint.
+The network over which the app transferred data, such as Wi-Fi, Verizon, or Sprint.

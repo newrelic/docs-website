@@ -5,4 +5,4 @@ events:
   - MobileHandledException
 ---
 
-The library start address where the exception was generated. XCFramework agent only.
+For XCFramework agent only. The library start address where the exception was generated.

@@ -6,4 +6,4 @@ events:
   - MobileHandledException
 ---
 
-The build uuid for the application binary in which the exception was caught. 
+The build uuid of the application binary in which the exception was caught. 

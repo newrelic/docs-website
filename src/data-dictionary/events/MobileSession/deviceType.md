@@ -8,4 +8,4 @@ events:
   - MobileRequestError
 ---
 
-The specific type of device: iPhone 8, iPad Pro, etc. Duplication of `device`.
+The specific type of device: iPhone 8, iPad Pro, etc. Duplicate of `device`.

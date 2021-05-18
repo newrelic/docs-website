@@ -5,4 +5,4 @@ events:
   - MobileHandledException
 ---
 
-The unsymbolicated expection type.
+The unsymbolicated exception type.

@@ -7,4 +7,4 @@ events:
   - MobileRequestError
 ---
 
-Optional: The time to complete the request measured in fractional seconds.
+Optional: The time to complete the request, measured in fractional seconds.
