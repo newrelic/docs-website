@@ -52,6 +52,8 @@ yarn start
 
 Your site is now running at [`http://localhost:8000`](http://localhost:8000)!
 
+The first time you build the site locally, it will take upwards of 20 minutes. This is normal, and will take signifigantly less time afterwards.
+
 ### Dependencies
 
 Node v12 is used in this project as specified in [.nvmrc](https://github.com/newrelic/developer-website/blob/master/.nvmrc).
@@ -122,7 +124,11 @@ For New Relic employees working on pre-release content that needs to remain priv
 
 ### Branch Protection
 
-The `develop` and `main` branches have "Branch Protection" enabled in Github. In order to merge a pull request into `develop`, you must have (at least) one approval. Additionally a few of the "PR Checks" are required and must pass before the pull request can be merged in.
+The `develop` and `main` branches have "Branch Protection" enabled in Github. In order to merge a pull request into `develop`, you must have (at least) one approval. Additionally a few of the "PR Checks" are required and must pass before the pull request can be merged in. 
+
+You can review full Branch Protection details [here](https://docs.google.com/document/d/1O1SGS0i3OmPfvPhylpFe1CTMkE20889iAOF_cMFJ344/edit#heading=h.oh6pex9x0dx4), and check out a visual representation of the workflow below:
+
+![Branch protection workflow](src/images/Docs_site_branch_protection_workflow.png "branch-protection-workflow")
 
 ### Draft PRs
 

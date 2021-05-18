@@ -23,4 +23,5 @@ Check out the Nerdlog segment below to learn more:
 
 <iframe width="560" height="315" src="https://www.youtube.com/embed/7rS6_Pl2HJM" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
 
-Don’t miss the Nerdlog LIVE every Thursday at 12 p.m. PT (8 p.m. UTC) on [Twitch](https://www.twitch.tv/new_relic) to get the latest product updates from the people who built them.
+Don’t miss the Nerdlog LIVE every Thursday at 12 p.m. PT (8 p.m. UTC) on [Twitch](https://www.twitch.tv/new_relic) to get the latest product updates from the people who built them. [Subscribe to our weekly Nerdlog emails](https://developer.newrelic.com/nerdlog) to get product updates like these directly in your inbox.
+

@@ -25,7 +25,9 @@ import { useMedia } from 'react-use';
 
 const AttributeDictionary = ({ data, pageContext, location }) => {
   const { allDataDictionaryEvent } = data;
+
   const [filteredEvents, setFilteredEvents] = useState([]);
+  const [filteredAttribute, setFilteredAttribute] = useState(null);
   const { queryParams } = useQueryParams();
 
   const isMobileScreen = useMedia('(max-width: 1240)');
@@ -51,6 +53,7 @@ const AttributeDictionary = ({ data, pageContext, location }) => {
     }
 
     setFilteredEvents(filteredEvents.map((event) => event.name));
+    setFilteredAttribute(queryParams.get('attribute'));
   }, [queryParams, events]);
 
   const { t } = useTranslation();
@@ -130,7 +133,7 @@ const AttributeDictionary = ({ data, pageContext, location }) => {
 
           {events.map((event) => (
             <div
-              key={event.name}
+              key={`${event.name}-div`}
               className={filteredEvents.includes(event.name) ? '' : 'hidden'}
               css={css`
                 &.hidden {
@@ -141,7 +144,7 @@ const AttributeDictionary = ({ data, pageContext, location }) => {
               <EventDefinition
                 location={location}
                 event={event}
-                filteredAttribute={queryParams.get('attribute')}
+                filteredAttribute={filteredAttribute}
               />
             </div>
           ))}
@@ -186,7 +189,7 @@ const EventDefinition = memo(({ location, event, filteredAttribute }) => {
 
   return (
     <div
-      key={event.name}
+      key={`${event.name}-section`}
       css={css`
         &:not(:last-child) {
           margin-bottom: 2rem;
@@ -280,7 +283,7 @@ const EventDefinition = memo(({ location, event, filteredAttribute }) => {
             params.set('attribute', attribute.name);
 
             return (
-              <tr key={attribute.name}>
+              <tr key={`${event.name}-${attribute.name}`}>
                 <td
                   css={css`
                     width: 40%;
@@ -335,6 +338,7 @@ const EventDefinition = memo(({ location, event, filteredAttribute }) => {
                   )}
                 </td>
                 <td
+                  key={`${event.name}-${attribute.name}-def}`}
                   css={css`
                     p:last-child {
                       margin-bottom: 0;
@@ -358,7 +362,7 @@ const EventDefinition = memo(({ location, event, filteredAttribute }) => {
                     `}
                   >
                     {attribute.events.map((event) => (
-                      <li key={event.name}>
+                      <li key={`${attribute.name}-${event.name}`}>
                         <Link to={`${location.pathname}?event=${event.name}`}>
                           {event.name}
                         </Link>

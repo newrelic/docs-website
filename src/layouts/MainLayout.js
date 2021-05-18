@@ -126,6 +126,9 @@ export const query = graphql`
               ...MainLayout_navPages
               pages {
                 ...MainLayout_navPages
+                pages {
+                  ...MainLayout_navPages
+                }
               }
             }
           }
