@@ -1,9 +1,11 @@
+const fs = require('fs');
 const path = require('path');
 const { prop } = require('./scripts/utils/functional.js');
 const externalRedirects = require('./src/data/external-redirects.json');
 
 const { createFilePath } = require('gatsby-source-filesystem');
 
+const SWIFTYPE_RESOURCES_DIR = 'src/data/swiftype-resources';
 const TEMPLATE_DIR = 'src/templates/';
 const TRAILING_SLASH = /\/$/;
 
@@ -15,6 +17,26 @@ const hasTrailingSlash = (pathname) =>
 
 const appendTrailingSlash = (pathname) =>
   pathname.endsWith('/') ? pathname : `${pathname}/`;
+
+// before we build, combine related resource files into one
+exports.onPreBootstrap = () => {
+  const files = fs.readdirSync(SWIFTYPE_RESOURCES_DIR);
+  const content = files.map((filename) => {
+    return fs.readFileSync(path.join(SWIFTYPE_RESOURCES_DIR, filename), {
+      encoding: 'utf8',
+    });
+  });
+  const json = content.reduce(
+    (acc, fileContent) => ({ ...acc, ...JSON.parse(fileContent) }),
+    {}
+  );
+
+  fs.writeFileSync(
+    path.join(process.cwd(), '/src/data/swiftype-resources.json'),
+    JSON.stringify(json, null, 2),
+    'utf8'
+  );
+};
 
 exports.onCreateNode = ({ node, getNode, actions }) => {
   const { createNodeField } = actions;
