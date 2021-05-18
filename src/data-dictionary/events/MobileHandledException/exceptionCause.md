@@ -5,4 +5,4 @@ events:
   - MobileHandledException
 ---
 
-The platform-specific cause of the exception.
+The unsymbolicated, platform-specific cause of the exception.

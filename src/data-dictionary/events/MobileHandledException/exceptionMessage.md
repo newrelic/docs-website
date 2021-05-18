@@ -5,4 +5,4 @@ events:
   - MobileHandledException
 ---
 
-Message associated with the exception. For Android, the Throwable message. An exception message comes from the exception. The message can be user-generated or a generic system message such as Null pointer.
+The unsymbolicated message from the exception. It can be user-generated or a generic system message. For Android, this is the Throwable message.
