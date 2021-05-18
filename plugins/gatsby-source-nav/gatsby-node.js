@@ -289,7 +289,7 @@ const createNav = async ({ args, createNodeId, nodeModel, locales }) => {
 
   // if current is link to auto index page && its path does not
   // belong to nav it was first found in, find nav that matches its path
-  if (!fileNode.length && !slug.includes(nav.path) && trueNav) {
+  if (!fileNode.length && trueNav && trueNav !== nav) {
     nav = trueNav;
   }
 
