@@ -5,7 +5,9 @@ export const checkUrlAnchor = () => {
     console.log(hash); // will output CODE_FROM_REDIRECT_ON_SERVERSIDE
     if (typeof Storage !== 'undefined') {
       // Code for localStorage/sessionStorage.
-      window.sessionStorage.hash = hash;
+      if (!window.sessionStorage.hash) {
+        window.sessionStorage.hash = hash;
+      }
       console.log(`STORED ${window.sessionStorage.hash}`);
     }
   }
@@ -14,7 +16,7 @@ export const checkUrlAnchor = () => {
 export const addUrlAnchor = () => {
   console.log(`Pre ${window.location.href}`);
   const { hash } = window.location;
-  
+
   if (!hash) {
     if (typeof Storage !== 'undefined') {
       // Code for localStorage/sessionStorage.
