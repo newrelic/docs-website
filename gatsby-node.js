@@ -331,6 +331,16 @@ exports.createResolvers = ({ createResolvers }) => {
   });
 };
 
+exports.onCreateWebpackConfig = ({ actions }) => {
+  actions.setWebpackConfig({
+    resolve: {
+      fallback: {
+        path: require.resolve('path-browserify'),
+      },
+    },
+  });
+};
+
 exports.onCreatePage = ({ page, actions }) => {
   const { createPage, deletePage } = actions;
   const oldPage = { ...page };
