@@ -331,13 +331,11 @@ exports.createResolvers = ({ createResolvers }) => {
   });
 };
 
-exports.onCreateWebpackConfig = ({ actions }) => {
+const NodePolyfillPlugin = require('node-polyfill-webpack-plugin');
+
+exports.onCreateWebpackConfig = ({ actions, plugins }) => {
   actions.setWebpackConfig({
-    resolve: {
-      fallback: {
-        path: require.resolve('path-browserify'),
-      },
-    },
+    plugins: plugins.concat(new NodePolyfillPlugin()),
   });
 };
 
