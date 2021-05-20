@@ -58,7 +58,7 @@ const TableOfContentsPage = ({ data, pageContext, location }) => {
         Back to overview
       </Link>
       <Layout.Content>
-        {subnav && <IndexContents nav={subnav} />}
+        {subnav && <IndexContents nav={subnav} slug={slug} isLandingPageToc />}
       </Layout.Content>
     </>
   );

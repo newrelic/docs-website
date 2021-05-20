@@ -1,16 +1,27 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 import TableOfContentsContainer from './TableOfContentsContainer';
-import { Link } from '@newrelic/gatsby-theme-newrelic';
+import { Link, useLocale } from '@newrelic/gatsby-theme-newrelic';
 
-const IndexContents = ({ nav }) => {
+const IndexContents = ({ nav, slug, isLandingPageToc }) => {
   const { pages } = nav;
+  const { locale } = useLocale();
+
+  const showAllNav = isLandingPageToc || nav.url === slug;
+
+  const subNav = getSubNav(
+    pages,
+    slug
+      .replace('/table-of-contents', '')
+      .replace(new RegExp(`^\\/${locale}(?=\\/)`), '')
+  );
 
   return (
     <TableOfContentsContainer>
-      {pages.map((page) => (
-        <TableOfContents key={page.title} root={page} />
-      ))}
+      {!isLandingPageToc &&
+        subNav.map((page) => <TableOfContents key={page.title} root={page} />)}
+      {showAllNav &&
+        pages.map((page) => <TableOfContents key={page.title} root={page} />)}
     </TableOfContentsContainer>
   );
 };
@@ -18,7 +29,14 @@ const IndexContents = ({ nav }) => {
 IndexContents.propTypes = {
   nav: PropTypes.shape({
     pages: PropTypes.array.isRequired,
+    url: PropTypes.string.isRequired,
   }).isRequired,
+  slug: PropTypes.string.isRequired,
+  isLandingPageToc: PropTypes.bool,
+};
+
+IndexContents.defaultProps = {
+  isLandingPageToc: false,
 };
 
 const TableOfContents = ({ root, depth = 2 }) => {
@@ -51,6 +69,18 @@ const TableOfContents = ({ root, depth = 2 }) => {
 TableOfContents.propTypes = {
   root: PropTypes.object.isRequired,
   depth: PropTypes.number,
+};
+
+const getSubNav = (pages, searchKey, results = []) => {
+  const r = results;
+  pages.forEach((page) => {
+    if (page.url === searchKey) {
+      r.push(page);
+    } else if (page.pages.length > 0) {
+      getSubNav(page.pages, searchKey, r);
+    }
+  });
+  return r;
 };
 
 export default IndexContents;
