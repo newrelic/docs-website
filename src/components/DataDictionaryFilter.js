@@ -1,6 +1,6 @@
 import React, { memo, useEffect, useMemo, useState } from 'react';
 import PropTypes from 'prop-types';
-import { css } from '@emotion/core';
+import { css } from '@emotion/react';
 import { graphql } from 'gatsby';
 import {
   PageTools,
@@ -9,12 +9,11 @@ import {
   useQueryParams,
 } from '@newrelic/gatsby-theme-newrelic';
 import Select from './Select';
-import { useNavigate } from '@reach/router';
+import { navigate } from '@reach/router';
 
 const uniq = (arr) => [...new Set(arr)];
 
 const DataDictionaryFilter = ({ location, events }) => {
-  const navigate = useNavigate();
   const { queryParams } = useQueryParams();
   const [formState, setFormState] = useState(() => ({
     dataSource: queryParams.get('dataSource'),
@@ -62,7 +61,7 @@ const DataDictionaryFilter = ({ location, events }) => {
 
   return (
     <PageTools.Section>
-      <PageTools.Title>Filter data types</PageTools.Title>
+      <PageTools.Title>Apply filter</PageTools.Title>
       <FormControl>
         <Label htmlFor="dataSourceFilter">Data source</Label>
         <Select
@@ -74,6 +73,7 @@ const DataDictionaryFilter = ({ location, events }) => {
             setFormState((state) => ({
               ...state,
               event: null,
+              attribute: null,
               dataSource: value,
             }));
           }}
@@ -87,14 +87,18 @@ const DataDictionaryFilter = ({ location, events }) => {
         </Select>
       </FormControl>
       <FormControl>
-        <Label htmlFor="eventFilter">Event type</Label>
+        <Label htmlFor="eventFilter">Data type</Label>
         <Select
           id="eventFilter"
           value={formState.event || ''}
           onChange={(e) => {
             const { value } = e.target;
 
-            setFormState((state) => ({ ...state, event: value }));
+            setFormState((state) => ({
+              ...state,
+              event: value,
+              attribute: null,
+            }));
           }}
         >
           <option value="">All</option>

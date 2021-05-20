@@ -29,6 +29,11 @@ const generateHTML = (dir) => {
         return;
       }
 
+      if (!node.data.fields) {
+        // eslint-disable-next-line no-console
+        console.log('Found node with missing fields', JSON.stringify(node));
+      }
+
       const lastChild = last(tree.children);
       const linkListItem = h('li', [
         h('a', { href: node.data.fields.slug }, [

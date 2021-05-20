@@ -8,6 +8,7 @@ const getAgentName = require('./src/utils/getAgentName');
 
 const siteUrl = 'https://docs.newrelic.com';
 const dataDictionaryPath = `${__dirname}/src/data-dictionary`;
+const additionalLocales = ['jp'];
 const quote = (str) => `"${str}"`;
 
 const autoLinkHeaders = {
@@ -32,6 +33,8 @@ module.exports = {
     repository: 'https://github.com/newrelic/docs-website',
     siteUrl,
     branch: 'develop',
+    contributingUrl:
+      'https://docs.newrelic.com/docs/style-guide/writing-guidelines/create-edit-content/',
   },
   plugins: [
     'gatsby-plugin-react-helmet',
@@ -56,7 +59,7 @@ module.exports = {
         },
         i18n: {
           translationsPath: `${__dirname}/src/i18n/translations`,
-          additionalLocales: ['jp'],
+          additionalLocales,
         },
         prism: {
           languages: [
@@ -71,11 +74,25 @@ module.exports = {
             'python',
           ],
         },
+        splitio: {
+          // Mocked features only used when in localhost mode
+          // https://help.split.io/hc/en-us/articles/360020448791-JavaScript-SDK#localhost-mode
+          features: {
+            free_account_button_color: {
+              treatment: 'off',
+            },
+          },
+          core: {
+            authorizationKey: process.env.SPLITIO_AUTH_KEY || 'localhost',
+          },
+          debug: false,
+        },
         relatedResources: {
           swiftype: {
             resultsPath: `${__dirname}/src/data/swiftype-resources.json`,
             engineKey: 'Ad9HfGjDw4GRkcmJjUut',
             refetch: Boolean(process.env.BUILD_RELATED_CONTENT),
+            limit: 3,
             filter: ({ node }) => {
               if (node.internal.type !== 'Mdx') {
                 return false;
@@ -103,8 +120,13 @@ module.exports = {
                 includedTypes.includes(frontmatter.type)
               );
             },
-            getParams: ({ node }) => {
+            getParams: ({ node, slug }) => {
               const { tags, title } = node.frontmatter;
+
+              const locale = slug && slug.split('/')[0];
+              const postfix = additionalLocales.includes(locale)
+                ? `-${locale}`
+                : '';
 
               return {
                 q: tags ? tags.map(quote).join(' OR ') : title,
@@ -113,7 +135,11 @@ module.exports = {
                 },
                 filters: {
                   page: {
-                    type: ['!blog', '!forum'],
+                    type: [
+                      `docs${postfix}`,
+                      `developer${postfix}`,
+                      `opensource${postfix}`,
+                    ],
                     document_type: [
                       '!views_page_menu',
                       '!term_page_api_menu',
@@ -161,6 +187,13 @@ module.exports = {
               path: location.pathname,
               env: env === 'production' ? 'prod' : env,
             }),
+          },
+        },
+        googleTagManager: {
+          trackingId: 'UA-3047412-33',
+          src: 'https://www.googletagmanager.com/gtag/js',
+          options: {
+            anonymize_ip: true,
           },
         },
       },
@@ -227,7 +260,7 @@ module.exports = {
             resolve: 'gatsby-remark-images',
             options: {
               maxWidth: 850,
-              linkImagesToOriginal: false,
+              linkImagesToOriginal: true,
               backgroundColor: 'transparent',
               disableBgImageOnAlpha: true,
             },
@@ -274,7 +307,7 @@ module.exports = {
             resolve: 'gatsby-remark-images',
             options: {
               maxWidth: 1200,
-              linkImagesToOriginal: false,
+              linkImagesToOriginal: true,
               backgroundColor: 'transparent',
               disableBgImageOnAlpha: true,
             },
@@ -471,6 +504,8 @@ module.exports = {
       },
     },
     'gatsby-plugin-release-note-rss',
+    'gatsby-plugin-whats-new-rss',
+    'gatsby-plugin-security-bulletins-rss',
     {
       resolve: 'gatsby-source-data-dictionary',
       options: {
@@ -485,5 +520,6 @@ module.exports = {
       },
     },
     'gatsby-plugin-meta-redirect',
+    'gatsby-plugin-gatsby-cloud',
   ],
 };

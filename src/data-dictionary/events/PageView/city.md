@@ -8,8 +8,9 @@ events:
   - AjaxRequest
   - BrowserTiming
   - MobileSession
+  - MobileHandledException
   - PageViewTiming
   - JavaScriptError
 ---
 
-The city in which the PageView event occurred, such as Portland or Seattle.
+The city in which the event occurred, such as Portland or Seattle.

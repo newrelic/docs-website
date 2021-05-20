@@ -1,11 +1,11 @@
+const fs = require('fs');
 const path = require('path');
-const vfileGlob = require('vfile-glob');
-const { read, write } = require('to-vfile');
 const { prop } = require('./scripts/utils/functional.js');
 const externalRedirects = require('./src/data/external-redirects.json');
 
 const { createFilePath } = require('gatsby-source-filesystem');
 
+const SWIFTYPE_RESOURCES_DIR = 'src/data/swiftype-resources';
 const TEMPLATE_DIR = 'src/templates/';
 const TRAILING_SLASH = /\/$/;
 
@@ -18,42 +18,24 @@ const hasTrailingSlash = (pathname) =>
 const appendTrailingSlash = (pathname) =>
   pathname.endsWith('/') ? pathname : `${pathname}/`;
 
-exports.onPreBootstrap = async ({ reporter, store }) => {
-  reporter.info("generating what's new post IDs");
-  const { program } = store.getState();
-  const file = await read(
-    path.join(program.directory, 'src/data/whats-new-ids.json'),
-    'utf-8'
-  );
-
-  const data = JSON.parse(file.contents);
-  let largestID = Object.values(data).reduce(
-    (num, id) => Math.max(parseInt(id, 10), num),
-    0
-  );
-
-  return new Promise((resolve) => {
-    vfileGlob(
-      path.join(program.directory, 'src/content/whats-new/**/*.md')
-    ).subscribe({
-      next: (file) => {
-        const slug = file.path
-          .replace(/.*?src\/content/, '')
-          .replace('.md', '');
-
-        if (!data[slug]) {
-          data[slug] = String(++largestID);
-        }
-      },
-      complete: async () => {
-        file.contents = JSON.stringify(data, null, 2);
-
-        await write(file, 'utf-8');
-
-        resolve();
-      },
+// before we build, combine related resource files into one
+exports.onPreBootstrap = () => {
+  const files = fs.readdirSync(SWIFTYPE_RESOURCES_DIR);
+  const content = files.map((filename) => {
+    return fs.readFileSync(path.join(SWIFTYPE_RESOURCES_DIR, filename), {
+      encoding: 'utf8',
     });
   });
+  const json = content.reduce(
+    (acc, fileContent) => ({ ...acc, ...JSON.parse(fileContent) }),
+    {}
+  );
+
+  fs.writeFileSync(
+    path.join(process.cwd(), '/src/data/swiftype-resources.json'),
+    JSON.stringify(json, null, 2),
+    'utf8'
+  );
 };
 
 exports.onCreateNode = ({ node, getNode, actions }) => {
@@ -392,7 +374,7 @@ const createPageFromNode = (
 
   if (process.env.NODE_ENV === 'development' && !template) {
     createPage({
-      path: path.join(prefix, slug),
+      path: path.join(prefix, slug, '/'),
       component: path.resolve(TEMPLATE_DIR, 'dev/missingTemplate.js'),
       context: {
         ...context,
@@ -402,7 +384,7 @@ const createPageFromNode = (
     });
   } else {
     createPage({
-      path: path.join(prefix, slug),
+      path: path.join(prefix, slug, '/'),
       component: path.resolve(path.join(TEMPLATE_DIR, `${template}.js`)),
       context: {
         ...context,
@@ -449,5 +431,3 @@ const getTemplate = (node) => {
       return { template: 'docPage' };
   }
 };
-
-const getFileRelativePath = (path) => path.replace(`${process.cwd()}/`, '');
