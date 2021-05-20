@@ -5,4 +5,4 @@ events:
   - MobileHandledException
 ---
 
-Comes from the exception: The file where the exception was generated.
+The class that generated the exception. Only present if symbolication succeeded.
