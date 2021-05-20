@@ -26,6 +26,12 @@ const RootNavigation = ({ nav }) => {
       ))}
       <NavItem page={{ title: 'Release notes', url: '/docs/release-notes' }} />
       <NavItem page={{ title: "What's new", url: '/whats-new' }} />
+      <NavItem
+        page={{
+          title: 'See our 360+ integrations',
+          url: 'https://newrelic.com/integrations',
+        }}
+      />
     </nav>
   );
 };
