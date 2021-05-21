@@ -180,7 +180,7 @@ const HomePage = ({ data }) => {
               href="https://newrelic.com/integrations"
               rel="noopener noreferrer"
             >
-              370+ integrations
+              360+ integrations
             </a>
             :
           </Trans>
@@ -210,7 +210,7 @@ const HomePage = ({ data }) => {
             href="https://newrelic.com/integrations"
             variant={Button.VARIANT.PRIMARY}
           >
-            See all 370+ integrations
+            See all 360+ integrations
           </Button>
         </div>
       </Section>
