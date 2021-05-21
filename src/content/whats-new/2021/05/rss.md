@@ -1,7 +1,7 @@
 ---
 title: "RSS for docs so you can automate all the Slack bots"
 summary: "Keep track of what's new with RSS feeds for What's New (and security bulletins)"
-releaseDate: '2021-05-31'
+releaseDate: '2021-05-21'
 ---
 Have you heard? RSS is back! Our docs have long included RSS feeds for each of our agents. Lately we've seen lots of requests to add RSS for What's New and Security Bulletins, so we've done just that! Now you can subscribe to all the newness New Relic has to offer.
 
