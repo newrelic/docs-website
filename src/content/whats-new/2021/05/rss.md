@@ -8,7 +8,7 @@ Have you heard? RSS is back! And we're on board. We've long had release note fee
 
 ![Java agent RSS feed on the release notes page](./images/agent-rss-feed.png "Each agent has an RSS feed at the top of the release notes page")
 
-Lately, we've seen lots of requests to add RSS for What's New and security bulletins, so we've done just that! Now you can subscribe to all the newness New Relic has to offer.
+Lately, we've seen lots of requests to add RSS for What's New and our security bulletins, so we've done just that! Now you can subscribe to all the newness New Relic has to offer.
 
 You can plug those feeds into your feed reader, of course, but you can also automatically post to a channel with [Slack's built in RSS app](https://slack.com/help/articles/218688467-Add-RSS-feeds-to-Slack) or Microsoft Team's RSS app. Or go crazy with IFTTT or Zapier for all manner of RSS-based automation. (Want to create a Zapier workflow that turns your smart lightbulbs green every time we release a new Node.js agent? Go for it!)
 
