@@ -14,34 +14,30 @@ You can plug those feeds into your feed reader, of course, but you can also auto
 
 ![RSS feed link on the What's New page](./images/whats-new-rss.png "RSS feed is at the top of What's New")
 
-We also release weekly Nerdlog episodes on YouTube (in case you miss our interactive livestream every Thursday at 12 p.m. PT on Twitch) to ensure you know about the latest products and features directly from the product managers and engineers at New Relic who built them, and Nerd Bytes episodes on YouTube for quick tips, tricks, and ideas about New Relic and observability. We've got RSS for those too!
+We also release weekly [Nerdlog](https://developer.newrelic.com/nerdlog/) episodes on [YouTube](https://www.youtube.com/watch?v=Opq3a22xnFw&list=PLmhYj7Jl81JGOEHV7zUVfa_iGNyOfMGNh) (in case you miss our interactive livestream every Thursday at 12 p.m. PT on Twitch) to ensure you know about the latest products and features directly from the product managers and engineers at New Relic who built them, and [Nerd Bytes](https://developer.newrelic.com/nerd-bytes/) episodes on [YouTube](https://www.youtube.com/playlist?list=PLmhYj7Jl81JEV-llIDkCVC05tD7fbOv_b) for quick tips, tricks, and ideas about New Relic and observability. We've got RSS for those too!
 
 ## Get a link to the feeds
 
 * What's New:
-
     ```
     https://docs.newrelic.com/whats-new/feed.xml
     ```
-
     Or find the feed from the **RSS** icon on [What's New](https://docs.newrelic.com/whats-new/).
+    
 * Security bulletins:
-
     ```
     https://docs.newrelic.com/docs/security/new-relic-security/security-bulletins/feed.xml
     ```
-
     Or find the feed from the **RSS** link on the [security bulletins](https://docs.newrelic.com/docs/security/security-privacy/information-security/security-bulletins/) page.
+    
 * Nerdlog:
-
     ```
     https://www.youtube.com/feeds/videos.xml?playlist_id=PLmhYj7Jl81JGOEHV7zUVfa_iGNyOfMGNh
     ```
-* Nerd Bytes:
 
+* Nerd Bytes:
     ```
     https://www.youtube.com/feeds/videos.xml?playlist_id=PLmhYj7Jl81JEV-llIDkCVC05tD7fbOv_b
     ```
 * Agents:
-
     We've got too many agents to list all the links! You can find a link by picking your agent from the [release notes](https://docs.newrelic.com/docs/release-notes/) page and then clicking the **RSS** icon.
