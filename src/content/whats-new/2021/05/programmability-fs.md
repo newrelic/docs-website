@@ -13,7 +13,7 @@ After completing this course, you’ll be able to create a New Relic One applica
 
 Register for free [here](https://learn.newrelic.com/programmability-certification) or click *Get Started* above!
 
-Click *Learn more* to read the blog, or watch the latest Nerdlog episode below for more information:   
+Click **Learn more** to read the blog, or watch the latest Nerdlog episode below for more information:   
 
 <iframe width="560" height="315" src="https://www.youtube.com/embed/Opq3a22xnFw" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
 
