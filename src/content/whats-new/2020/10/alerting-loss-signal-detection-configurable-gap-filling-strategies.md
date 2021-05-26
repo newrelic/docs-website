@@ -12,6 +12,6 @@ To see if it’s simply a delay in signal or something worse, you can now config
 
 We know that not all signals or time series that are being monitored have a consistent flow of data points. Because New Relic evaluates incoming data in specific windows of time, in many cases, the telemetry signals you send to New Relic can have gaps, meaning that some time windows will not have data. You now have the option to implement multiple strategies for how those gaps should be filled–sometimes called extrapolation strategies–including setting a static value, using the previously detected value, or not doing anything.
 
-When editing a NRQL Alert Condition, you can configure loss of signal detection and gap filling under **Condition settings > Advanced signal settings**.
+When editing a NRQL Alert Condition, you can configure loss of signal detection under **Condition settings > Set your condition thresholds** and gap filling under **Condition settings > Fine-tune advanced signal settings**.
 
 ![Animated gif showing condition settings.](./images/whats_up_signal_loss.gif "whats_up_signal_loss.gif")
