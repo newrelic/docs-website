@@ -1,6 +1,6 @@
 ---
 title: "Keep track of What's New, security bulletins, and more with RSS!"
-summary: "Get What's New posts, security bulletins, docs for any agent, and Nerdlog and Nerd Bytes videos with RSS."
+summary: "Get What's New posts, security bulletins, agent release notes, and Nerdlog and Nerd Bytes videos with RSS."
 releaseDate: '2021-05-21'
 ---
 
