@@ -18,34 +18,122 @@ jobs:
       tag: ${{ steps.get-tag.outputs.tag }}
       last: ${{ steps.get-last-tag.outputs.last }}
       notes: ${{ steps.get-release-notes.outputs.notes }}
+      result: ${{ steps.py-get-updates.outputs.result }}
+      mails: ${{ steps.get-user-emails.outputs.mails }}
+      authors: ${{ steps.get-authors.outputs.authors }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v2
         with:
           fetch-depth: '0'
+          
+      - name: Install python
+        uses: actions/setup-python@v2
         
       - name: Get release tag
         id: get-tag
         run: |
           MERGES=$(gh pr list -B main -s merged --search "closed:>2021-02-28" -L 9999 | wc -l | awk '{print $1}')
           echo "::set-output name=tag::release-$MERGES"
-          
+                
       - name: Get last release
         id: get-last-tag
         run: |
           LAST=$(gh release list -L 1 | awk '{print $1}')
           echo "::set-output name=last::$LAST"
           
+      - name: Get User emails
+        id: get-user-emails
+        run: |
+          echo MAILS=$(git log ${{ steps.get-last-tag.outputs.last }}..HEAD --pretty="%ae" --merges) >> $GITHUB_ENV
+          
+      - name: Get Authors
+        id: get-authors
+        run: |
+          AUTHORS=$(git log ${{ steps.get-last-tag.outputs.last }}..HEAD --pretty="%an" --merges)
+          AUTHORS="${AUTHORS//'%'/'%25'}"
+          AUTHORS="${AUTHORS//$'\n'/'%0A'}"
+          AUTHORS="${AUTHORS//$'\r'/'%0D'}"
+          echo "::set-output name=authors::$AUTHORS"
+          
       - name: Get release notes
         id: get-release-notes
         run: |
-          NOTES=$(git log ${{ steps.get-last-tag.outputs.last }}..HEAD --pretty="%an - %b (%s)[%h]" --merges | sed -e 's!Merge pull request !!')
+          NOTES=$(git log ${{ steps.get-last-tag.outputs.last }}..HEAD --pretty=" - %b (%s)[%h]" --merges | sed -e 's!Merge pull request !!')
           NOTES="${NOTES//'%'/'%25'}"
           NOTES="${NOTES//$'\n'/'%0A'}"
           NOTES="${NOTES//$'\r'/'%0D'}"
           echo "::set-output name=notes::$NOTES"
           
-      
+      - name: Install Python dependencies
+        id: install-python
+        run: |
+          python -m pip install --upgrade pip
+          pip install PyGithub
+          pip install invoke
+          
+      - name: Create Updates
+        id: py-get-updates
+        shell: python
+        run: |
+          from github import Github
+          import os
+          import re
+          
+          from invoke import run
+          
+          token = os.getenv('GITHUB_TOKEN', '...')
+          g = Github(token)
+          
+          uniques = {}
+          emails = os.getenv('MAILS', '...')
+          authors = """${{ steps.get-authors.outputs.authors }}"""
+          emails = emails.split()
+          authors = authors.splitlines()
+          result = "## :rocket: What's new?\n\n\n"
+          i = 0
+          
+          notes = """${{ steps.get-release-notes.outputs.notes }}"""
+          notes = notes.splitlines()
+          
+          while i < len(emails):
+            if emails[i] in uniques:
+                result += uniques[emails[i]]
+            else:
+                users = g.search_users(emails[i] + " in:email")
+                try:
+                    uniques[emails[i]] = '@' + users[0].login
+                    result += '@' + users[0].login
+                except:
+                    print(emails[i])
+                    try:
+                        pattern1 = "\+(.*?)\@"
+                        pattern2 = "(.*?)\@"
+                        substring1 = re.search(pattern1, emails[i])
+                        substring2 = re.search(pattern2, emails[i])
+                        if substring1:
+                            isUser = g.get_user(substring1.group(1))
+                            if isUser.login:
+                                uniques[emails[i]] = '@' + substring1.group(1)
+                                result += '@' + substring1.group(1)
+                        elif substring2:
+                            isUser = g.get_user(substring2.group(1))
+                            if isUser.login:
+                                uniques[emails[i]] = '@' + substring2.group(1)
+                                result += '@' + substring2.group(1)
+                    except:
+                        uniques[emails[i]] = authors[i]
+                        result += authors[i]
+                        print("This users email is not public: ", emails[i])
+
+
+            result += ''.join(notes[i])
+            result += '\n'
+            i += 1
+          
+          run('echo "RESULT<<EOF" >> $GITHUB_ENV')
+          run('echo "%s" >> $GITHUB_ENV' % result)
+          run('echo "EOF" >> $GITHUB_ENV')      
 
       - name: Create release
-        run: gh release create ${{ steps.get-tag.outputs.tag }} -t ${{ steps.get-tag.outputs.tag }} -n "${{ steps.get-release-notes.outputs.notes }}"
+        run: gh release create ${{ steps.get-tag.outputs.tag }} -t ${{ steps.get-tag.outputs.tag }} -n "${{ env.RESULT }}"
