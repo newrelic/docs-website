@@ -21,6 +21,7 @@ const getUpdatedQueue = async (url, queue) => {
     const mdxFiles = files
       ? files
           .filter((file) => path.extname(file.filename) === '.mdx')
+          .filter((file) => file.status !== 'removed')
           .reduce((files, file) => {
             const contents = fs.readFileSync(
               path.join(process.cwd(), file.filename)
@@ -33,17 +34,15 @@ const getUpdatedQueue = async (url, queue) => {
           }, [])
       : [];
 
-    const addedMdxFiles = mdxFiles
-      .filter((f) => f.status !== 'removed')
-      .reduce((files, file) => {
-        return file.locales.reduce(
-          (acc, locale) => ({
-            ...acc,
-            [locale]: [...(acc[locale] || []), file.filename],
-          }),
-          files
-        );
-      }, {});
+    const addedMdxFiles = mdxFiles.reduce((files, file) => {
+      return file.locales.reduce(
+        (acc, locale) => ({
+          ...acc,
+          [locale]: [...(acc[locale] || []), file.filename],
+        }),
+        files
+      );
+    }, {});
 
     const removedMdxFileNames = mdxFiles
       .filter((f) => f.status === 'removed')
