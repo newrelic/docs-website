@@ -12,9 +12,9 @@ When creating an alert, we recommend creating a dynamic threshold based alert, w
 
 Below are the instructions to create an alert condition from query builder:
 
-1. From the very top nav of New Relic One, click on “Query your data.”
-2. Choose your query type - Basic, NRQL, or PromQL
-3. Run the query
-4. From the action menu on the chart, choose 'Create Alert Condition'
+1. From the very top nav of New Relic One, click **Query your data**.
+2. Choose your query type: Basic, NRQL, or PromQL.
+3. Run the query.
+4. From the action menu on the chart, choose **Create Alert Condition**.
 
-![query_bilder_editied_1.gif]("query_bilder_editied_1.gif")
+![Annimated gif showing Query builder](./images/query_builder_edited_1.gif "Annimated gif showing Query builder")
