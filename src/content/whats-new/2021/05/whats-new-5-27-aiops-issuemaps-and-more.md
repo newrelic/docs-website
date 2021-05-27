@@ -6,10 +6,10 @@ learnMoreLink: 'https://docs.newrelic.com/docs/alerts-applied-intelligence/appli
 ---
 
 ## Diagnose Issues Faster
-New Relic Applied Intelligence already helps you and your teams diagnose problems faster by reducing alert noise by grouping alerts into one actionable issue and surfacing probable root cause. We’ve added even more functionality - issue maps, incident analysis, and links to relevant dashboards–to help you quickly diagnose the issue.
+New Relic Applied Intelligence already helps you and your teams diagnose problems faster by reducing alert noise by grouping alerts into one actionable issue and surfacing probable root cause. We’ve added even more functionality–issue maps, incident analysis, and links to relevant dashboards–to help you quickly diagnose the issue.
  
 ## Issue Maps
-Helping you better visualize the relationships between impacted entities within issues in Applied Intelligence, issue maps help you assess the scope of an issue and identify any neighboring entities that may be affected. Dig in for more information such as [details] and quickly link to [where we link to] to [why you would do this].
+Helping you better visualize the relationships between impacted entities within issues in Applied Intelligence, issue maps help you assess the scope of an issue and identify any neighboring entities that may be affected. Learn more about dependancies and dig in for more details such as recent activity, tags, metrics, transactions, and related entities so you can quickly diagnose the cause of the issue.
 
 ![Animated gif of Issue Maps](./images/issue-map-2021-05-26.gif "Animated gif of Issue Maps")
 
