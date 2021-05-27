@@ -67,6 +67,11 @@ const main = async () => {
     );
 
     console.log(
+      '[*] batchUids: ',
+      batchesToDeserialize.map(prop('batchUid')).join(', ')
+    );
+
+    console.log(
       `::set-output name=batchesToDeserialize::${batchesToDeserialize.length}`
     );
 
