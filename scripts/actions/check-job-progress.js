@@ -65,6 +65,11 @@ const main = async () => {
     console.log(
       `[*] ${batchesToDeserialize.length} batches ready to be deserialized`
     );
+
+    console.log(
+      `::set-output name=batchesToDeserialize::${batchesToDeserialize.length}`
+    );
+
     await Promise.all(
       batchesToDeserialize.map(fetchAndDeserialize(accessToken))
     );
