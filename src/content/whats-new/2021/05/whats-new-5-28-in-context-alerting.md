@@ -6,7 +6,7 @@ getStartedLink: 'https://one.newrelic.com/launcher/nr1-core.home?packages=nrai@0
 ---
 With the new ability to create an alert condition directly within the query builder, configuring alerts to cover all of your services and entities continues to get easier. 
 
-If you're not comfortable with the New Relic Query Language (NRQL), you can create basic queries using the query builder tool, and then create an alert condition from the chart that you create. The autocomplete functionality of the query builder lets you explore your data and create alerts without the need to know anything about NRQL. 
+If you're not comfortable with the New Relic Query Language (NRQL), you can create basic queries using the query builder tool, and then create an alert condition from the chart that you create. The auto-complete functionality of the query builder lets you explore your data and create alerts without the need to know anything about NRQL. 
 
 Alternatively, you can use the Data Explorer to browse the metrics and event data in your account, click your way to a chart, and create and create an alert condition from there as well. 
 
