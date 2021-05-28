@@ -8,21 +8,23 @@ token = os.getenv('GITHUB_TOKEN', '...')
 g = Github(token)
 
 uniques = {}
+releaseArray = ['merge to main', 'evening', 'morning', 'noon', 'release']
+
 emails = os.getenv('MAILS', '...')
 authors = os.getenv('AUTHORS', '...')
 emails = emails.split()
-print(emails)
 
 authors = authors.split("%0A")
-print(authors)
 result = "## :rocket: What's new?\n\n\n"
 i = 0
 
 notes = os.getenv('NOTES', '...')
 notes = notes.split("%0A")
-print(notes)
 
 while i < len(emails):
+    if any(word in notes[i].lower() for word in releaseArray):
+        i += 1
+        continue
     if emails[i] in uniques:
         result += uniques[emails[i]]
     else:
