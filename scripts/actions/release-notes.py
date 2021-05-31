@@ -1,64 +1,32 @@
 from github import Github
+from invoke import run
 import os
 import re
 
-from invoke import run
-
+# Get token from Workflow environment variable
 token = os.getenv('GITHUB_TOKEN', '...')
+
+# Initialize GitHub with token
 g = Github(token)
 
-uniques = {}
-releaseArray = ['merge to main', 'evening', 'morning', 'noon', 'release']
-
-emails = os.getenv('MAILS', '...')
-authors = os.getenv('AUTHORS', '...')
-emails = emails.split()
-
-authors = authors.split("%0A")
+# Create heading for Release Notes
 result = "## :rocket: What's new?\n\n\n"
-i = 0
 
-notes = os.getenv('NOTES', '...')
-notes = notes.split("%0A")
+# Get the Docs repo
+repo = g.get_repo("newrelic/docs-website")
 
-while i < len(emails):
-    if any(word in notes[i].lower() for word in releaseArray):
-        i += 1
-        continue
-    if emails[i] in uniques:
-        result += uniques[emails[i]]
-    else:
-        users = g.search_users(emails[i] + " in:email")
-        try:
-            print(users[0].login)
-            uniques[emails[i]] = '@' + users[0].login
-            result += '@' + users[0].login
-        except:
-            print(emails[i])
-            try:
-                pattern1 = "\+(.*?)\@"
-                pattern2 = "(.*?)\@"
-                substring1 = re.search(pattern1, emails[i])
-                substring2 = re.search(pattern2, emails[i])
-                if substring1:
-                    isUser = g.get_user(substring1.group(1))
-                    if isUser.login:
-                        uniques[emails[i]] = '@' + substring1.group(1)
-                        result += '@' + substring1.group(1)
-                elif substring2:
-                    isUser = g.get_user(substring2.group(1))
-                    if isUser.login:
-                        uniques[emails[i]] = '@' + substring2.group(1)
-                        result += '@' + substring2.group(1)
-            except:
-                print(emails[i])
-                uniques[emails[i]] = authors[i]
-                result += authors[i]
-                print("This users email is not public: ", emails[i])
-    result += ''.join(notes[i])
-    result += '\n'
-    i += 1
+# Compare diff between main and develop
+diff = repo.compare("main", "develop")
 
+# Loop through commits and add details to result
+for com in diff.commits:
+  line = "@" + com.author.login
+  line += " - " + com.commit.message.splitlines()[0]
+  line += " [->](" + com.html_url + ")"
+  result += line
+  result += "\n"
+
+# Set result as an Env for use in Workflow
 run('echo "RESULT<<EOF" >> $GITHUB_ENV')
 run('echo "%s" >> $GITHUB_ENV' % result)
-run('echo "EOF" >> $GITHUB_ENV')  
+run('echo "EOF" >> $GITHUB_ENV')
