@@ -8,6 +8,15 @@ const PROJECT_ID = process.env.TRANSLATION_VENDOR_PROJECT;
 const uniq = (arr) => [...new Set(arr)];
 const prop = (key) => (x) => x[key];
 
+const log = (message, level = 'log', indent = 0) => {
+  const logIndicators = { log: '[*]', warn: '[!]' };
+  const str = `${logIndicators[level]}${Array(indent)
+    .fill(' ')
+    .join('')}${message}`;
+
+  console.log(str);
+};
+
 /**
  * @typedef {Object} Batch
  * @property {string} batchUid
@@ -21,7 +30,7 @@ const prop = (key) => (x) => x[key];
  * @returns {(batchUid: string) => Promise<Batch>}
  */
 const getBatchStatus = (accessToken) => async (batchUid) => {
-  console.log(`[*] Getting status for batch: ${batchUid}`);
+  log(`Getting status for batch: ${batchUid}`);
   try {
     const batchData = await vendorRequest({
       method: 'GET',
@@ -36,7 +45,7 @@ const getBatchStatus = (accessToken) => async (batchUid) => {
       files[0].targetLocales.length && files[0].targetLocales[0].localeId;
 
     if (!locale) {
-      console.log(`[!] Unable to determine locale for batch ${batchUid}`);
+      log(`Unable to determine locale for batch ${batchUid}`, 'warn');
     }
 
     const jobData = await vendorRequest({
@@ -59,7 +68,7 @@ const getBatchStatus = (accessToken) => async (batchUid) => {
     // if the batch cant be found, return null and process the rest
     if (errors.map(prop('key')).includes('batch.not.found')) {
       for (const { message } of errors) {
-        console.log(`    [!] ${message}`);
+        log(message, 'warn', 4);
       }
 
       return null;
@@ -88,25 +97,18 @@ const main = async () => {
     const batchesToDeserialize = batchStatuses.filter(
       (batch) => batch && batch.done
     );
-    console.log(
-      `[*] ${batchesToDeserialize.length} batches ready to be deserialized`
-    );
 
-    console.log(
-      '[*] batchUids: ',
-      batchesToDeserialize.map(prop('batchUid')).join(', ')
-    );
+    log(`${batchesToDeserialize.length} batches ready to be deserialized`);
+    log(`batchUids: ${batchesToDeserialize.map(prop('batchUid')).join(', ')}`);
 
     console.log(
       `::set-output name=batchesToDeserialize::${batchesToDeserialize.length}`
     );
-    process.exit(0);
-    return false;
 
     await Promise.all(
       batchesToDeserialize.map(fetchAndDeserialize(accessToken))
     );
-    console.log('[*] Content deserialized');
+    log('Content deserialized');
 
     const remainingBatches = batchStatuses
       .filter((batch) => batch && !batch.done)
@@ -133,7 +135,7 @@ const main = async () => {
 
     process.exit(0);
   } catch (error) {
-    console.error(`[!] Unable to check job status`);
+    log(`Unable to check job status`, 'warn');
     console.log(error);
     process.exit(1);
   }
