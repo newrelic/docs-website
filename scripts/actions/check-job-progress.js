@@ -24,34 +24,42 @@ const getBatchStatus = (accessToken) => async (batchUid) => {
   console.log(`[*] Getting status for batch: ${batchUid}`);
   try {
     const batchData = await vendorRequest({
-        method: 'GET',
-        endpoint: `/job-batches-api/v2/projects/${PROJECT_ID}/batches/${batchUid}`,
-        accessToken,
+      method: 'GET',
+      endpoint: `/job-batches-api/v2/projects/${PROJECT_ID}/batches/${batchUid}`,
+      accessToken,
     });
 
-    const { status, files, translationJobUid } = batchData;
+    const { status, translationJobUid } = batchData;
+
+    const files = batchData.files.filter((file) => file.status !== 'CANCELED');
+    const locale =
+      files[0].targetLocales.length && files[0].targetLocales[0].localeId;
+
+    if (!locale) {
+      console.log(`[!] Unable to determine locale for batch ${batchUid}`);
+    }
 
     const jobData = await vendorRequest({
-        method: 'GET',
-        endpoint: `/jobs-api/v3/projects/${PROJECT_ID}/jobs/${translationJobUid}`,
-        accessToken,
+      method: 'GET',
+      endpoint: `/jobs-api/v3/projects/${PROJECT_ID}/jobs/${translationJobUid}`,
+      accessToken,
     });
 
     const { jobStatus } = jobData;
 
     return {
-        batchUid,
-        done: jobStatus === 'COMPLETED',
-        locale: files[0].targetLocales[0].localeId,
-        fileUris: files.map((file) => file.fileUri),
+      batchUid,
+      done: jobStatus === 'COMPLETED',
+      locale,
+      fileUris: files.map((file) => file.fileUri),
     };
-  } catch(error) {
+  } catch (error) {
     const { errors } = JSON.parse(error.message);
 
     // if the batch cant be found, return null and process the rest
     if (errors.map(prop('key')).includes('batch.not.found')) {
       for (const { message } of errors) {
-        console.log(`[!] ${message}`);
+        console.log(`    [!] ${message}`);
       }
 
       return null;
