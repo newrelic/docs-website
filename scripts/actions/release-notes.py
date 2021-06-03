@@ -15,8 +15,14 @@ result = "## :rocket: What's new?\n\n\n"
 # Get the Docs repo
 repo = github.get_repo("newrelic/docs-website")
 
-# Compare diff between main and develop
-diff = repo.compare("main", "develop")
+# Get latest merge number environment variable
+latestMerge = os.getenv('COMPARE', '...')
+
+# Minus 1 to get the previous release to compare updates since then
+compareRelease = int(latestMerge) - 1
+
+# Compare diff between previous release and develop
+diff = repo.compare("release-{compare}".format(compare=compareRelease), "develop")
 
 # Loop through commits and add details to result
 for commit in diff.commits:
