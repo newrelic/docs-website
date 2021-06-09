@@ -29,7 +29,7 @@ for commit in diff.commits:
       message=commit.commit.message.splitlines()[0],
       url=commit.html_url
     )
-  except AssertionError:
+  except AttributeError:
     pass
 
 # Set result as an Env for use in Workflow
