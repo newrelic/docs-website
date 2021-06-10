@@ -60,7 +60,7 @@ const HomePage = ({ data }) => {
               </Link>
               , and use our{' '}
               <Link to="/docs/new-relic-solutions">
-                solutions and best practices guides
+                solutions and best practices guides for testing
               </Link>
               .
             </Trans>
