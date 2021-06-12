@@ -70,21 +70,35 @@ const getUpdatedQueue = async (url, queue) => {
   }
 };
 
-/** Entrypoint. */
-const main = async () => {
-  checkArgs(3);
-
-  const url = process.argv[2];
+/**
+ * Entrypoint.
+ *
+ * @param {string} url
+ */
+const main = async (url) => {
   const table = 'TranslationQueues';
   const key = { type: 'to_translate' };
 
   const queue = await loadFromDB(table, key);
+  console.log('queue', queue); // TODO: remove (this is for testing)
+  /*
   const { locales } = queue.Item;
   const data = await getUpdatedQueue(url, locales);
 
   await saveToTranslationQueue(key, 'set locales = :slugs', { ':slugs': data });
 
   process.exit(0);
+  */
 };
 
-main();
+// Only run this function in a CI environment (when called as a node script)
+if (process.env.CI) {
+  // Ensure that we have 3 arguments (the last being a URL)
+  checkArgs(3);
+
+  // Call the entrypoint function with the URL
+  main(process.argv[2]);
+}
+
+// Export the entrypoint function for testing
+module.exports = main;
