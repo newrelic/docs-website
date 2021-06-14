@@ -19,22 +19,26 @@ const getUpdatedQueue = async (url, queue) => {
     const files = await resp.json();
 
     const mdxFiles = files
-      ? files
-          .filter((file) => path.extname(file.filename) === '.mdx')
-          .filter((file) => file.status !== 'removed')
-          .reduce((files, file) => {
-            const contents = fs.readFileSync(
-              path.join(process.cwd(), file.filename)
-            );
-            const { data } = frontmatter(contents);
-
-            return data.translate && data.translate.length
-              ? [...files, { ...file, locales: data.translate }]
-              : files;
-          }, [])
+      ? files.filter((file) => path.extname(file.filename) === '.mdx')
       : [];
 
-    const addedMdxFiles = mdxFiles.reduce((files, file) => {
+    const mdxFilesToAdd = mdxFiles
+      .filter((file) => file.status !== 'removed')
+      .reduce((files, file) => {
+        const contents = fs.readFileSync(
+          path.join(process.cwd(), file.filename)
+        );
+        const { data } = frontmatter(contents);
+        // if no translate frontmatter or if translate exists and is empty- check that versions of the file don't exist in any locale
+
+        // if translate exists check that versions of the file don't exist in any locale we use but isn't included
+
+        return data.translate && data.translate.length
+          ? [...files, { ...file, locales: data.translate }]
+          : files;
+      }, []);
+
+    const addedMdxFiles = mdxFilesToAdd.reduce((files, file) => {
       return file.locales.reduce(
         (acc, locale) => ({
           ...acc,
@@ -47,6 +51,16 @@ const getUpdatedQueue = async (url, queue) => {
     const removedMdxFileNames = mdxFiles
       .filter((f) => f.status === 'removed')
       .map(prop('filename'));
+
+    // if file was deleted, make sure versions don't exist in any locale
+    removedMdxFileNames.forEach((fileName) =>
+      fs.unlink(path.join(process.cwd(), fileName), (err) => {
+        if (err) {
+          console.log(`failed to delete ${fileName}`, err);
+        }
+        console.log(`${fileName} was deleted`);
+      })
+    );
 
     const queueFiles =
       Object.entries(queue).length !== 0 ? Object.entries(queue) : [];
