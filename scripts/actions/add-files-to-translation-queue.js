@@ -18,6 +18,8 @@ const getUpdatedQueue = async (url, queue) => {
     const resp = await fetch(url);
     const files = await resp.json();
     console.log('files', files);
+    const result = fs.readFileSync('foo.txt', 'foobar');
+    console.log('result?', result);
     return false;
 
     const mdxFiles = files

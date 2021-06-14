@@ -1,3 +1,4 @@
+import fs from 'fs';
 import AWS from 'aws-sdk';
 import fetch from 'node-fetch';
 
@@ -24,20 +25,20 @@ jest.mock('node-fetch');
 
 // Helper function to mock a response from Github
 const mockGithubResponse = (result) => {
-  fetch.mockResolvedValue({
+  fetch.mockResolvedValueOnce({
     json: jest.fn(() => Promise.resolve(result)),
   });
 };
 
-// TODO: jest.mock('fs') readFileSync for file content
+// Mock fs so we don't manipulate local files
+jest.mock('fs');
 
 describe('Action: Add Slugs To Translation Queue', () => {
   afterAll(() => {
     jest.resetAllMocks();
   });
 
-  // NOTE: this isn't an actual test, just used to test the mock setup
-  test('setup', async () => {
+  test('end-to-end', async () => {
     mockDbResponse({
       locales: {
         jp: ['/content/foo.mdx', '/content/bar.mdx'],
@@ -45,6 +46,8 @@ describe('Action: Add Slugs To Translation Queue', () => {
     });
 
     mockGithubResponse({ foo: 'baz' });
+
+    fs.readFileSync.mockReturnValueOnce(42);
 
     await addFilesToTranslationQueue();
 
