@@ -1,6 +1,8 @@
 const AdmZip = require('adm-zip');
 const vfile = require('vfile');
 const { writeSync } = require('to-vfile');
+const path = require('path');
+const fse = require('fs-extra');
 
 const fetch = require('node-fetch');
 
@@ -12,6 +14,46 @@ const localesMap = {
 };
 
 const projectId = process.env.TRANSLATION_VENDOR_PROJECT;
+
+/**
+ * Brief description of the function here.
+ * @param {vfile.VFile[]} vfiles
+ */
+const writeFilesSync = vfiles => {
+  const copiedDirectories = {};
+
+  vfiles.forEach(file => {
+    writeSync(file, 'utf-8');
+
+    // vfile.path will be like -> 'src/i18n/content/jp/docs/...'
+    // english path is: 'src/content/docs/...'
+
+    // get '/docs/...' from the string
+    const imageDirectory = `${path.dirname(
+      file.path.substring(file.path.indexOf('/docs/'))
+    )}/images`;
+
+    /*
+      Check to see:
+        1. have we already copied this image directory for a different file (with the same parent path)?
+        2. does the image directory exist?
+    */
+    if (
+      !(imageDirectory in copiedDirectories) &&
+      fse.existsSync(`src/content/${imageDirectory}`)
+    ) {
+      // sync 'src/content/docs/.../images' to 'src/i18n/content/.../docs/.../images'
+      fse.copySync(
+        `src/content/${imageDirectory}`,
+        `${path.dirname(file.path)}/images`,
+        {
+          overwrite: true,
+        }
+      );
+      copiedDirectories[imageDirectory] = true;
+    }
+  });
+};
 
 const fetchTranslatedFilesZip = async (fileUris, locale, accessToken) => {
   const fileUriStr = fileUris.reduce((str, uri) => {
@@ -31,7 +73,7 @@ const fetchTranslatedFilesZip = async (fileUris, locale, accessToken) => {
   );
 };
 
-const fetchAndDeserialize = (accessToken) => async ({ locale, fileUris }) => {
+const fetchAndDeserialize = accessToken => async ({ locale, fileUris }) => {
   const response = await fetchTranslatedFilesZip(fileUris, locale, accessToken);
 
   const buffer = await response.buffer();
@@ -39,7 +81,7 @@ const fetchAndDeserialize = (accessToken) => async ({ locale, fileUris }) => {
   const zip = new AdmZip(buffer);
   const zipEntries = zip.getEntries();
 
-  const translatedHtml = zipEntries.map((entry) => {
+  const translatedHtml = zipEntries.map(entry => {
     const filepath = entry.entryName.replace(`${locale}/src/content/docs`, '');
     const slug = filepath.replace(`.mdx`, '');
     return {
@@ -69,8 +111,7 @@ const fetchAndDeserialize = (accessToken) => async ({ locale, fileUris }) => {
   );
 
   createDirectories(files);
-
-  files.forEach((file) => writeSync(file, 'utf-8'));
+  writeFilesSync(files);
 };
 
 fetchAndDeserialize();
