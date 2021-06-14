@@ -74,7 +74,9 @@ const stripTranslateFrontmatter = () => {
       const frontmatterObj = yaml.load(tree.children[0].value);
       delete frontmatterObj.translate;
       delete frontmatterObj.redirects;
-      const frontmatterStr = yaml.dump(frontmatterObj).trim();
+      const frontmatterStr = yaml
+        .dump(frontmatterObj, { lineWidth: -1 })
+        .trim();
       tree.children[0].value = frontmatterStr;
       return tree;
     }
