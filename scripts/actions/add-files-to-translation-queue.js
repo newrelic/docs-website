@@ -17,6 +17,8 @@ const getUpdatedQueue = async (url, queue) => {
   try {
     const resp = await fetch(url);
     const files = await resp.json();
+    console.log('files', files);
+    return false;
 
     const mdxFiles = files
       ? files
@@ -81,8 +83,9 @@ const main = async (url) => {
 
   const queue = await loadFromDB(table, key);
   console.log('queue', queue); // TODO: remove (this is for testing)
-  /*
   const { locales } = queue.Item;
+  await getUpdatedQueue(url, locales); // TODO: remove this
+  /*
   const data = await getUpdatedQueue(url, locales);
 
   await saveToTranslationQueue(key, 'set locales = :slugs', { ':slugs': data });
