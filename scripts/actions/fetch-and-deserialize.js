@@ -16,7 +16,7 @@ const localesMap = {
 const projectId = process.env.TRANSLATION_VENDOR_PROJECT;
 
 /**
- * Brief description of the function here.
+ * Method which writes translated content to the 'src/content/i18n' path, and copies images for translated files.
  * @param {vfile.VFile[]} vfiles
  */
 const writeFilesSync = vfiles => {
@@ -25,10 +25,6 @@ const writeFilesSync = vfiles => {
   vfiles.forEach(file => {
     writeSync(file, 'utf-8');
 
-    // vfile.path will be like -> 'src/i18n/content/jp/docs/...'
-    // english path is: 'src/content/docs/...'
-
-    // get '/docs/...' from the string
     const imageDirectory = `${path.dirname(
       file.path.substring(file.path.indexOf('/docs/'))
     )}/images`;
@@ -116,4 +112,4 @@ const fetchAndDeserialize = accessToken => async ({ locale, fileUris }) => {
 
 fetchAndDeserialize();
 
-module.exports = fetchAndDeserialize;
+module.exports = { writeFilesSync, fetchAndDeserialize };
