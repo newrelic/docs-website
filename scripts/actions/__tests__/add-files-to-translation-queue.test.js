@@ -15,6 +15,7 @@ jest.mock('aws-sdk', () => {
 
 // Singleton instance for use in tests & additional mocks
 const mockDocumentClient = new AWS.DynamoDB.DocumentClient();
+const updateFn = jest.spyOn(mockDocumentClient, 'update');
 
 // Helper function to mock a DB response
 const mockDbResponse = (method, result) => {
@@ -49,6 +50,10 @@ This is a test file
   fs.readFileSync.mockReturnValueOnce(mdx);
 };
 
+// Helper function to get the params sent to the last DB mock update
+const getMockUpdateParams = () =>
+  updateFn.mock.calls[updateFn.mock.calls.length - 1][0];
+
 const STATUS = {
   ADDED: 'added',
   MODIFIED: 'modified',
@@ -66,7 +71,7 @@ describe('Action: Add Slugs To Translation Queue', () => {
     jest.resetAllMocks();
   });
 
-  test('should add a new file to an existing list', async () => {
+  test('should add a new file to an existing locale', async () => {
     mockDbResponse('get', {
       locales: {
         jp: ['/content/foo.mdx'],
@@ -83,15 +88,108 @@ describe('Action: Add Slugs To Translation Queue', () => {
     mockReadFileSync(['jp']);
 
     mockDbResponse('update', true);
-    const updateFn = jest.spyOn(mockDocumentClient, 'update');
 
     await addFilesToTranslationQueue();
 
-    expect(updateFn.mock.calls[0][0]).toStrictEqual({
+    expect(getMockUpdateParams()).toStrictEqual({
       ...UPDATE_PARAMS,
       ExpressionAttributeValues: {
         ':slugs': {
           jp: ['/content/foo.mdx', '/content/bar.mdx'],
+        },
+      },
+    });
+  });
+
+  test('should add a new file to a new locale', async () => {
+    mockDbResponse('get', {
+      locales: {
+        jp: ['/content/foo.mdx'],
+      },
+    });
+
+    mockGithubResponse([
+      {
+        filename: '/content/bar.mdx',
+        status: STATUS.ADDED,
+      },
+    ]);
+
+    mockReadFileSync(['ko']);
+
+    mockDbResponse('update', true);
+
+    await addFilesToTranslationQueue();
+
+    expect(getMockUpdateParams()).toStrictEqual({
+      ...UPDATE_PARAMS,
+      ExpressionAttributeValues: {
+        ':slugs': {
+          jp: ['/content/foo.mdx'],
+          ko: ['/content/bar.mdx'],
+        },
+      },
+    });
+  });
+
+  test('should add a existing files to an existing locale', async () => {
+    mockDbResponse('get', {
+      locales: {
+        jp: ['/content/foo.mdx'],
+        ko: ['/content/bar.mdx'],
+      },
+    });
+
+    mockGithubResponse([
+      {
+        filename: '/content/bar.mdx',
+        status: STATUS.ADDED,
+      },
+    ]);
+
+    mockReadFileSync(['jp']);
+
+    mockDbResponse('update', true);
+
+    await addFilesToTranslationQueue();
+
+    expect(getMockUpdateParams()).toStrictEqual({
+      ...UPDATE_PARAMS,
+      ExpressionAttributeValues: {
+        ':slugs': {
+          jp: ['/content/foo.mdx', '/content/bar.mdx'],
+          ko: ['/content/bar.mdx'],
+        },
+      },
+    });
+  });
+
+  test('should add existing files to a new locale', async () => {
+    mockDbResponse('get', {
+      locales: {
+        jp: ['/content/foo.mdx'],
+      },
+    });
+
+    mockGithubResponse([
+      {
+        filename: '/content/foo.mdx',
+        status: STATUS.ADDED,
+      },
+    ]);
+
+    mockReadFileSync(['jp', 'ko']);
+
+    mockDbResponse('update', true);
+
+    await addFilesToTranslationQueue();
+
+    expect(getMockUpdateParams()).toStrictEqual({
+      ...UPDATE_PARAMS,
+      ExpressionAttributeValues: {
+        ':slugs': {
+          jp: ['/content/foo.mdx'],
+          ko: ['/content/foo.mdx'],
         },
       },
     });
