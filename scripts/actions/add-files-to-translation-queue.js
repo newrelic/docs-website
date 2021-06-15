@@ -17,10 +17,6 @@ const getUpdatedQueue = async (url, queue) => {
   try {
     const resp = await fetch(url);
     const files = await resp.json();
-    console.log('files', files);
-    const result = fs.readFileSync('foo.txt', 'foobar');
-    console.log('result?', result);
-    return false;
 
     const mdxFiles = files
       ? files
@@ -84,16 +80,15 @@ const main = async (url) => {
   const key = { type: 'to_translate' };
 
   const queue = await loadFromDB(table, key);
-  console.log('queue', queue); // TODO: remove (this is for testing)
   const { locales } = queue.Item;
-  await getUpdatedQueue(url, locales); // TODO: remove this
-  /*
   const data = await getUpdatedQueue(url, locales);
 
   await saveToTranslationQueue(key, 'set locales = :slugs', { ':slugs': data });
 
-  process.exit(0);
-  */
+  // If we are in a CI environment, return a success code
+  if (process.env.CI) {
+    process.exit(0);
+  }
 };
 
 // Only run this function in a CI environment (when called as a node script)

@@ -13,9 +13,12 @@ jest.mock('aws-sdk', () => {
   return { config, DynamoDB };
 });
 
+// Singleton instance for use in tests & additional mocks
+const mockDocumentClient = new AWS.DynamoDB.DocumentClient();
+
 // Helper function to mock a DB response
-const mockDbResponse = (result) => {
-  new AWS.DynamoDB.DocumentClient().get.mockImplementationOnce((_, callback) =>
+const mockDbResponse = (method, result) => {
+  mockDocumentClient[method].mockImplementationOnce((_, callback) =>
     callback(null, { Item: result })
   );
 };
@@ -33,30 +36,64 @@ const mockGithubResponse = (result) => {
 // Mock fs so we don't manipulate local files
 jest.mock('fs');
 
+// helper function to construct and mock the response from readFileSync
+const mockReadFileSync = (translate = []) => {
+  const mdx = `---
+title: A test file
+${translate.length ? `translate:\n  - ${translate.join('\n  - ')}` : ''}
+---
+
+This is a test file
+`;
+
+  fs.readFileSync.mockReturnValueOnce(mdx);
+};
+
+const STATUS = {
+  ADDED: 'added',
+  MODIFIED: 'modified',
+  REMOVED: 'removed',
+};
+
+const UPDATE_PARAMS = {
+  TableName: 'TranslationQueues',
+  Key: { type: 'to_translate' },
+  UpdateExpression: 'set locales = :slugs',
+};
+
 describe('Action: Add Slugs To Translation Queue', () => {
   afterAll(() => {
     jest.resetAllMocks();
   });
 
-  test('end-to-end', async () => {
-    mockDbResponse({
+  test('should add a new file to an existing list', async () => {
+    mockDbResponse('get', {
       locales: {
-        jp: ['/content/foo.mdx', '/content/bar.mdx'],
+        jp: ['/content/foo.mdx'],
       },
     });
 
-    mockGithubResponse({ foo: 'baz' });
+    mockGithubResponse([
+      {
+        filename: '/content/bar.mdx',
+        status: STATUS.ADDED,
+      },
+    ]);
 
-    fs.readFileSync.mockReturnValueOnce(42);
+    mockReadFileSync(['jp']);
+
+    mockDbResponse('update', true);
+    const updateFn = jest.spyOn(mockDocumentClient, 'update');
 
     await addFilesToTranslationQueue();
 
-    expect(true).toBeTruthy();
+    expect(updateFn.mock.calls[0][0]).toStrictEqual({
+      ...UPDATE_PARAMS,
+      ExpressionAttributeValues: {
+        ':slugs': {
+          jp: ['/content/foo.mdx', '/content/bar.mdx'],
+        },
+      },
+    });
   });
-
-  // TODO: test happy path
-
-  // TODO: test failure states
-
-  // TODO: test edge cases
 });
