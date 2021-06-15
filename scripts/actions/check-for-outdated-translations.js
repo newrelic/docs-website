@@ -2,17 +2,11 @@ const fs = require('fs');
 const path = require('path');
 const fetch = require('node-fetch');
 const frontmatter = require('@github-docs/frontmatter');
+const parseLinkHeader = require('parse-link-header');
 
 const checkArgs = require('./utils/check-args');
 const { prop } = require('../utils/functional');
 const { ADDITIONAL_LOCALES } = require('../utils/constants');
-// console.log(
-// `ACTION NEEDED: Translation without english version found ${filePath.replace(
-// `${process.cwd()}/`,
-// ''
-// )}`
-//
-//
 
 const doI18nFilesExist = (fileName, locales) => {
   const i18nPrefix = path.join(process.cwd(), 'src/i18n/content');
@@ -22,43 +16,41 @@ const doI18nFilesExist = (fileName, locales) => {
     .map((locale) => {
       const filePath = path.join(i18nPrefix, locale, baseFileName);
       const fileExists = fs.existsSync(filePath);
-
       return fileExists ? filePath : null;
     })
     .filter(Boolean);
 };
 
-const fetchFilesFromGH = (url) => {
-  const files = [];
-  let nextLink = url;
+const fetchFilesFromGH = async (url) => {
+  let files = [];
+  let nextPageLink = url;
 
-  while (nextLink) {
-    const resp = await fetch(nextLink);
-    const chunk = await resp.json();
-    files = [...files, ...chunk];
-    nextLink = parseLinkHeader(resp.headers.get('Link'));
+  while (nextPageLink) {
+    const resp = await fetch(nextPageLink, {
+      headers: { authorization: `token ${process.env.GITHUB_TOKEN}` },
+    });
+    const page = await resp.json();
+    nextPageLink = getNextLink(resp.headers.get('Link'));
+    files = [...files, ...page];
   }
-  
+
   return files;
-}
-
-const parseLink = (entry) => {
-
 };
 
-const parseLinkHeader = (linkHeader) => {
-  const links = link.split(',');
-  const links2 = links.map(l => l.split(';'));
-}
+const getNextLink = (linkHeader) => {
+  const parsedLinkHeader = parseLinkHeader(linkHeader);
+  if (parsedLinkHeader && parsedLinkHeader.next) {
+    return parsedLinkHeader.next.url || null;
+  }
+  return null;
+};
+
 /**
  * @param {string} url The API url that is used to fetch files.
  */
 const checkOutdatedTranslations = async (url) => {
   try {
-    // TODO: DEAL WITH PAGINATION
-    const resp = await fetch(url);
-    const files = await resp.json();
-
+    const files = await fetchFilesFromGH(url);
     const mdxFiles = files
       ? files.filter((file) => path.extname(file.filename) === '.mdx')
       : [];
@@ -100,7 +92,12 @@ const checkOutdatedTranslations = async (url) => {
     if (orphanedI18nFiles.length > 0) {
       orphanedI18nFiles.forEach((f) =>
         // TODO: improve output
-        console.log(`${f.replace(`${process.cwd()}/`, '')}`)
+        console.log(
+          `ACTION NEEDED: Translation without english version found-- ${f.replace(
+            `${process.cwd()}/`,
+            ''
+          )}`
+        )
       );
       process.exit(1);
     }
