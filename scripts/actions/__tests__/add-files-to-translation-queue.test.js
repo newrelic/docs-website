@@ -132,7 +132,7 @@ describe('Action: Add Slugs To Translation Queue', () => {
     });
   });
 
-  test('should add a existing files to an existing locale', async () => {
+  test('should add an existing file to an existing locale', async () => {
     mockDbResponse('get', {
       locales: {
         jp: ['/content/foo.mdx'],
@@ -164,7 +164,7 @@ describe('Action: Add Slugs To Translation Queue', () => {
     });
   });
 
-  test('should add existing files to a new locale', async () => {
+  test('should add an existing file to a new locale', async () => {
     mockDbResponse('get', {
       locales: {
         jp: ['/content/foo.mdx'],
@@ -190,6 +190,65 @@ describe('Action: Add Slugs To Translation Queue', () => {
         ':slugs': {
           jp: ['/content/foo.mdx'],
           ko: ['/content/foo.mdx'],
+        },
+      },
+    });
+  });
+
+  test('should not add a new removed file', async () => {
+    mockDbResponse('get', {
+      locales: {
+        jp: ['/content/foo.mdx'],
+      },
+    });
+
+    mockGithubResponse([
+      {
+        filename: '/content/bar.mdx',
+        status: STATUS.REMOVED,
+      },
+    ]);
+
+    mockDbResponse('update', true);
+
+    await addFilesToTranslationQueue();
+
+    expect(getMockUpdateParams()).toStrictEqual({
+      ...UPDATE_PARAMS,
+      ExpressionAttributeValues: {
+        ':slugs': {
+          jp: ['/content/foo.mdx'],
+        },
+      },
+    });
+  });
+
+  // NOTE: this _might_ be a bug in our code?
+  test('should remove a removed existing file', async () => {
+    mockDbResponse('get', {
+      locales: {
+        jp: ['/content/foo.mdx', '/content/bar.mdx'],
+      },
+    });
+
+    mockGithubResponse([
+      {
+        filename: '/content/bar.mdx',
+        status: STATUS.REMOVED,
+      },
+    ]);
+
+    mockReadFileSync(['jp']);
+
+    mockDbResponse('update', true);
+
+    await addFilesToTranslationQueue();
+
+    expect(getMockUpdateParams()).toStrictEqual({
+      ...UPDATE_PARAMS,
+      ExpressionAttributeValues: {
+        ':slugs': {
+          jp: ['/content/foo.mdx'],
         },
       },
     });
