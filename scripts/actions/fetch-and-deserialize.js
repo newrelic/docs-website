@@ -19,10 +19,10 @@ const projectId = process.env.TRANSLATION_VENDOR_PROJECT;
  * Method which writes translated content to the 'src/content/i18n' path, and copies images for translated files.
  * @param {vfile.VFile[]} vfiles
  */
-const writeFilesSync = vfiles => {
+const writeFilesSync = (vfiles) => {
   const copiedDirectories = {};
 
-  vfiles.forEach(file => {
+  vfiles.forEach((file) => {
     writeSync(file, 'utf-8');
 
     const imageDirectory = `${path.dirname(
@@ -69,7 +69,7 @@ const fetchTranslatedFilesZip = async (fileUris, locale, accessToken) => {
   );
 };
 
-const fetchAndDeserialize = accessToken => async ({ locale, fileUris }) => {
+const fetchAndDeserialize = (accessToken) => async ({ locale, fileUris }) => {
   const response = await fetchTranslatedFilesZip(fileUris, locale, accessToken);
 
   const buffer = await response.buffer();
@@ -77,7 +77,7 @@ const fetchAndDeserialize = accessToken => async ({ locale, fileUris }) => {
   const zip = new AdmZip(buffer);
   const zipEntries = zip.getEntries();
 
-  const translatedHtml = zipEntries.map(entry => {
+  const translatedHtml = zipEntries.map((entry) => {
     const filepath = entry.entryName.replace(`${locale}/src/content/docs`, '');
     const slug = filepath.replace(`.mdx`, '');
     return {
