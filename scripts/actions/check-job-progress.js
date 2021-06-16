@@ -1,7 +1,7 @@
 const loadFromDB = require('./utils/load-from-db');
 
 const { getAccessToken, vendorRequest } = require('./utils/vendor-request');
-const fetchAndDeserialize = require('./fetch-and-deserialize');
+const { fetchAndDeserialize } = require('./fetch-and-deserialize');
 
 const PROJECT_ID = process.env.TRANSLATION_VENDOR_PROJECT;
 

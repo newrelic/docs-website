@@ -1,6 +1,8 @@
 const AdmZip = require('adm-zip');
 const vfile = require('vfile');
 const { writeSync } = require('to-vfile');
+const path = require('path');
+const fse = require('fs-extra');
 
 const fetch = require('node-fetch');
 
@@ -12,6 +14,42 @@ const localesMap = {
 };
 
 const projectId = process.env.TRANSLATION_VENDOR_PROJECT;
+
+/**
+ * Method which writes translated content to the 'src/content/i18n' path, and copies images for translated files.
+ * @param {vfile.VFile[]} vfiles
+ */
+const writeFilesSync = (vfiles) => {
+  const copiedDirectories = {};
+
+  vfiles.forEach((file) => {
+    writeSync(file, 'utf-8');
+
+    const imageDirectory = `${path.dirname(
+      file.path.substring(file.path.indexOf('/docs/'))
+    )}/images`;
+
+    /*
+      Check to see:
+        1. have we already copied this image directory for a different file (with the same parent path)?
+        2. does the image directory exist?
+    */
+    if (
+      !(imageDirectory in copiedDirectories) &&
+      fse.existsSync(`src/content/${imageDirectory}`)
+    ) {
+      // sync 'src/content/docs/.../images' to 'src/i18n/content/.../docs/.../images'
+      fse.copySync(
+        `src/content/${imageDirectory}`,
+        `${path.dirname(file.path)}/images`,
+        {
+          overwrite: true,
+        }
+      );
+      copiedDirectories[imageDirectory] = true;
+    }
+  });
+};
 
 const fetchTranslatedFilesZip = async (fileUris, locale, accessToken) => {
   const fileUriStr = fileUris.reduce((str, uri) => {
@@ -69,10 +107,11 @@ const fetchAndDeserialize = (accessToken) => async ({ locale, fileUris }) => {
   );
 
   createDirectories(files);
-
-  files.forEach((file) => writeSync(file, 'utf-8'));
+  writeFilesSync(files);
 };
 
-fetchAndDeserialize();
+if (process.env.CI) {
+  fetchAndDeserialize();
+}
 
-module.exports = fetchAndDeserialize;
+module.exports = { writeFilesSync, fetchAndDeserialize };
