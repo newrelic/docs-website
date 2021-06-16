@@ -110,6 +110,8 @@ const fetchAndDeserialize = (accessToken) => async ({ locale, fileUris }) => {
   writeFilesSync(files);
 };
 
-fetchAndDeserialize();
+if (process.env.CI) {
+  fetchAndDeserialize();
+}
 
 module.exports = { writeFilesSync, fetchAndDeserialize };
