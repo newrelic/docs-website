@@ -29,6 +29,11 @@ const fetchFilesFromGH = async (url) => {
     const resp = await fetch(nextPageLink, {
       headers: { authorization: `token ${process.env.GITHUB_TOKEN}` },
     });
+    if (!resp.ok) {
+      throw new Error(
+        `Github API returned status ${resp.code} - ${resp.message}`
+      );
+    }
     const page = await resp.json();
     nextPageLink = getNextLink(resp.headers.get('Link'));
     files = [...files, ...page];
@@ -85,9 +90,8 @@ const checkOutdatedTranslations = async (url) => {
 
   if (orphanedI18nFiles.length > 0) {
     orphanedI18nFiles.forEach((f) =>
-      // TODO: improve output
       console.log(
-        `ACTION NEEDED: Translation without english version found-- ${f.replace(
+        `ACTION NEEDED: Translation without english version found -> ${f.replace(
           `${process.cwd()}/`,
           ''
         )}`
