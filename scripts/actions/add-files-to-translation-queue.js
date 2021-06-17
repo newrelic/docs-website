@@ -29,9 +29,6 @@ const getUpdatedQueue = async (url, queue) => {
           path.join(process.cwd(), file.filename)
         );
         const { data } = frontmatter(contents);
-        // if no translate frontmatter or if translate exists and is empty- check that versions of the file don't exist in any locale
-
-        // if translate exists check that versions of the file don't exist in any locale we use but isn't included
 
         return data.translate && data.translate.length
           ? [...files, { ...file, locales: data.translate }]
@@ -51,16 +48,6 @@ const getUpdatedQueue = async (url, queue) => {
     const removedMdxFileNames = mdxFiles
       .filter((f) => f.status === 'removed')
       .map(prop('filename'));
-
-    // if file was deleted, make sure versions don't exist in any locale
-    removedMdxFileNames.forEach((fileName) =>
-      fs.unlink(path.join(process.cwd(), fileName), (err) => {
-        if (err) {
-          console.log(`failed to delete ${fileName}`, err);
-        }
-        console.log(`${fileName} was deleted`);
-      })
-    );
 
     const queueFiles =
       Object.entries(queue).length !== 0 ? Object.entries(queue) : [];
