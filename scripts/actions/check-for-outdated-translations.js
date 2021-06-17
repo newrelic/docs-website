@@ -73,31 +73,31 @@ const checkOutdatedTranslations = async (url) => {
 
   // if a locale was removed from the translate frontmatter, we want to remove the translated version of that file.
 
-  const modifiedFiles = mdxFilesContent
-    .map((file) => {
-      const unsetLocales = ADDITIONAL_LOCALES.filter(
-        (l) => !file.locales.includes(l)
-      );
-      return doI18nFilesExist(file.path, unsetLocales);
-    })
-    .flat();
+  const modifiedFiles = mdxFilesContent.flatMap((file) => {
+    const unsetLocales = ADDITIONAL_LOCALES.filter(
+      (l) => !file.locales.includes(l)
+    );
+    return doI18nFilesExist(file.path, unsetLocales);
+  });
 
-  const removedFiles = removedMdxFileNames
-    .map((name) => doI18nFilesExist(name, ADDITIONAL_LOCALES))
-    .flat();
+  const removedFiles = removedMdxFileNames.flatMap((name) =>
+    doI18nFilesExist(name, ADDITIONAL_LOCALES)
+  );
 
   const orphanedI18nFiles = [...modifiedFiles, ...removedFiles];
 
   if (orphanedI18nFiles.length > 0) {
     orphanedI18nFiles.forEach((f) =>
       console.log(
-        `ACTION NEEDED: Translation without english version found -> ${f.replace(
+        `ACTION NEEDED: Delete translation without english version -> ${f.replace(
           `${process.cwd()}/`,
           ''
         )}`
       )
     );
-    throw new Error('Files were found for deletion, see logs for filenames');
+    throw new Error(
+      'Files without matching english counterparts were found, see logs for filenames'
+    );
   }
 };
 
