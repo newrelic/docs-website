@@ -11,6 +11,7 @@ global.process.exit = jest.fn();
 // Helper function to mock a response from Github
 const mockGithubResponse = (result) => {
   fetch.mockResolvedValueOnce({
+    ok: true,
     json: jest.fn(() => Promise.resolve(result)),
     headers: { get: jest.fn() },
   });
