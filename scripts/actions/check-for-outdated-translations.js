@@ -49,73 +49,66 @@ const getNextLink = (linkHeader) => {
  * @param {string} url The API url that is used to fetch files.
  */
 const checkOutdatedTranslations = async (url) => {
-  try {
-    const files = await fetchFilesFromGH(url);
-    const mdxFiles = files
-      ? files.filter((file) => path.extname(file.filename) === '.mdx')
-      : [];
+  const files = await fetchFilesFromGH(url);
+  const mdxFiles = files
+    ? files.filter((file) => path.extname(file.filename) === '.mdx')
+    : [];
 
-    const mdxFilesContent = mdxFiles
-      .filter((file) => file.status !== 'removed')
-      .reduce((files, file) => {
-        const contents = fs.readFileSync(
-          path.join(process.cwd(), file.filename)
-        );
-        const { data } = frontmatter(contents);
-        return [
-          ...files,
-          { path: file.filename, locales: data.translate || [] },
-        ];
-      }, []);
+  const mdxFilesContent = mdxFiles
+    .filter((file) => file.status !== 'removed')
+    .reduce((files, file) => {
+      const contents = fs.readFileSync(path.join(process.cwd(), file.filename));
+      const { data } = frontmatter(contents);
+      return [...files, { path: file.filename, locales: data.translate || [] }];
+    }, []);
 
-    const removedMdxFileNames = mdxFiles
-      .filter((f) => f.status === 'removed')
-      .map(prop('filename'));
+  const removedMdxFileNames = mdxFiles
+    .filter((f) => f.status === 'removed')
+    .map(prop('filename'));
 
-    // if a locale was removed from the translate frontmatter, we want to remove the translated version of that file.
+  // if a locale was removed from the translate frontmatter, we want to remove the translated version of that file.
 
-    const modifiedFiles = mdxFilesContent
-      .map((file) => {
-        const unsetLocales = ADDITIONAL_LOCALES.filter(
-          (l) => !file.locales.includes(l)
-        );
-        return doI18nFilesExist(file.path, unsetLocales);
-      })
-      .flat();
-
-    const removedFiles = removedMdxFileNames
-      .map((name) => doI18nFilesExist(name, ADDITIONAL_LOCALES))
-      .flat();
-
-    const orphanedI18nFiles = [...modifiedFiles, ...removedFiles];
-
-    if (orphanedI18nFiles.length > 0) {
-      orphanedI18nFiles.forEach((f) =>
-        // TODO: improve output
-        console.log(
-          `ACTION NEEDED: Translation without english version found-- ${f.replace(
-            `${process.cwd()}/`,
-            ''
-          )}`
-        )
+  const modifiedFiles = mdxFilesContent
+    .map((file) => {
+      const unsetLocales = ADDITIONAL_LOCALES.filter(
+        (l) => !file.locales.includes(l)
       );
-      process.exit(1);
-    }
-  } catch (error) {
-    console.log(`[!] Unable to check for outdated translated files`);
-    console.log(error);
-    process.exit(1);
+      return doI18nFilesExist(file.path, unsetLocales);
+    })
+    .flat();
+
+  const removedFiles = removedMdxFileNames
+    .map((name) => doI18nFilesExist(name, ADDITIONAL_LOCALES))
+    .flat();
+
+  const orphanedI18nFiles = [...modifiedFiles, ...removedFiles];
+
+  if (orphanedI18nFiles.length > 0) {
+    orphanedI18nFiles.forEach((f) =>
+      // TODO: improve output
+      console.log(
+        `ACTION NEEDED: Translation without english version found-- ${f.replace(
+          `${process.cwd()}/`,
+          ''
+        )}`
+      )
+    );
+    throw new Error('Files were found for deletion, see logs for filenames');
   }
 };
 
 /** Entrypoint. */
 const main = async () => {
-  checkArgs(3);
-  const url = process.argv[2];
+  try {
+    checkArgs(3);
+    const url = process.argv[2];
 
-  await checkOutdatedTranslations(url);
-
-  process.exit(0);
+    await checkOutdatedTranslations(url);
+    process.exit(0);
+  } catch (error) {
+    console.log(error);
+    process.exit(1);
+  }
 };
 
-main();
+module.exports = main;
