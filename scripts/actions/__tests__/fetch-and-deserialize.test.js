@@ -35,6 +35,8 @@ describe('writeFilesSync', () => {
 
   it('should call copySync for each unique directory path', () => {
     expect(fse.copySync).toHaveBeenCalledTimes(2);
+    expect(fse.copySync).toHaveBeenNthCalledWith(1, 'src/content/docs/fake_path_1/images', 'src/i18n/content/jp/docs/fake_path_1/images', { overwrite: true });
+    expect(fse.copySync).toHaveBeenNthCalledWith(2, 'src/content/docs/fake_path_2/images', 'src/i18n/content/jp/docs/fake_path_2/images', { overwrite: true });
   });
 
   it('should not copy directories that dont have images', () => {
