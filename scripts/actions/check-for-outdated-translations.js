@@ -89,7 +89,7 @@ const checkOutdatedTranslations = async (url) => {
   if (orphanedI18nFiles.length > 0) {
     orphanedI18nFiles.forEach((f) =>
       console.log(
-        `ACTION NEEDED: Delete translation without english version -> ${f.replace(
+        `ACTION NEEDED: Unpaired translation found -> ${f.replace(
           `${process.cwd()}/`,
           ''
         )}`
