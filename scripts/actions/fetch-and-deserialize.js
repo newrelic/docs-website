@@ -36,12 +36,12 @@ const writeFilesSync = (vfiles) => {
     */
     if (
       !(imageDirectory in copiedDirectories) &&
-      fse.existsSync(`src/content/${imageDirectory}`)
+      fse.existsSync(path.join('src/content/', imageDirectory))
     ) {
       // sync 'src/content/docs/.../images' to 'src/i18n/content/.../docs/.../images'
       fse.copySync(
-        `src/content/${imageDirectory}`,
-        `${path.dirname(file.path)}/images`,
+        path.join('src/content/', imageDirectory),
+        path.join(path.dirname(file.path), '/images'),
         {
           overwrite: true,
         }
