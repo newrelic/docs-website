@@ -42,11 +42,18 @@ module.exports = {
   frontmatter: {
     deserialize: (h, node) => {
       const data = deserializeJSValue(node.properties.dataValue);
+      const frontMatterAtt = node.children.reduce((acc, child) => {
+        const key = child.properties.dataKey;
+        const value = child.children[0].value;
+        return { ...acc, [key]: value };
+      }, {});
 
       return h(
         node,
         'yaml',
-        yaml.safeDump(data, { lineWidth: Infinity }).trim()
+        yaml
+          .safeDump({ ...data, ...frontMatterAtt }, { lineWidth: Infinity })
+          .trim()
       );
     },
     serialize: (h, node) => {
