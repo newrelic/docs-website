@@ -19,22 +19,23 @@ const getUpdatedQueue = async (url, queue) => {
     const files = await resp.json();
 
     const mdxFiles = files
-      ? files
-          .filter((file) => path.extname(file.filename) === '.mdx')
-          .filter((file) => file.status !== 'removed')
-          .reduce((files, file) => {
-            const contents = fs.readFileSync(
-              path.join(process.cwd(), file.filename)
-            );
-            const { data } = frontmatter(contents);
-
-            return data.translate && data.translate.length
-              ? [...files, { ...file, locales: data.translate }]
-              : files;
-          }, [])
+      ? files.filter((file) => path.extname(file.filename) === '.mdx')
       : [];
 
-    const addedMdxFiles = mdxFiles.reduce((files, file) => {
+    const mdxFilesToAdd = mdxFiles
+      .filter((file) => file.status !== 'removed')
+      .reduce((files, file) => {
+        const contents = fs.readFileSync(
+          path.join(process.cwd(), file.filename)
+        );
+        const { data } = frontmatter(contents);
+
+        return data.translate && data.translate.length
+          ? [...files, { ...file, locales: data.translate }]
+          : files;
+      }, []);
+
+    const addedMdxFiles = mdxFilesToAdd.reduce((files, file) => {
       return file.locales.reduce(
         (acc, locale) => ({
           ...acc,
