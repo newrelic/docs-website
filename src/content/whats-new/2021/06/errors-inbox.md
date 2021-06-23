@@ -3,14 +3,14 @@ title: 'Errors Inbox: Error tracking across your entire stack'
 summary: 'Track and triage your errors from a single screen'
 releaseDate: '2021-06-23'
 learnMoreLink: 'https://www.youtube.com/watch?v=6zRkpPTVjwc'
-getStartedLink:'https://docs.newrelic.com/docs/apm/apm-ui-pages/errors-inbox/errors-inbox/'
+getStartedLink: 'https://docs.newrelic.com/docs/apm/apm-ui-pages/errors-inbox/errors-inbox/'
 ---
 
 Recently, we launched New Relic Errors Inbox, an error tracking solution that provides you a single place to view, triage and resolve errors across your full application stack. This exciting feature now includes Logs in Context and an integration with Slack.
 
 Read more about the latest updates in our [blog post](https://newrelic.com/blog/how-to-relic/error-tracking-with-errors-inbox) and watch a demo in the latest Nerdlog episode [here](https://youtu.be/3LoIG5I75-Y).
 
-![errors_inbox_unassigned_whats_new.png]("errors_inbox_unassigned_whats_new")
+![./images/error.png]("error)
 
 **What’s Included with New Relic Errors Inbox:**
 - **Errors Inbox.** Errors are grouped and displayed on a single screen for visibility and easy triaging. Filter to just the applications and services that you care about.
