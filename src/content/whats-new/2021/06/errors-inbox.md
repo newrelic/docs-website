@@ -26,4 +26,4 @@ New Relic Errors Inbox is available to all New Relic Full-Stack Observability cu
 1. From one.newrelic.com, select **More** in the top right and click Errors Inbox.
 2. If this is your first time accessing Errors Inbox, you will be prompted to select a workload in the top left.
 
-<iframe width="560" height="315" src="https://www.youtube.com/watch?v=6zRkpPTVjwc" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+<iframe width="560" height="315" src="https://www.youtube.com/embed/6zRkpPTVjwc" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
