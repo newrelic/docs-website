@@ -10,6 +10,7 @@ const defaultHandlers = require('hast-util-to-mdast/lib/handlers');
 const heading = require('hast-util-to-mdast/lib/handlers/heading');
 const u = require('unist-builder');
 const { last } = require('lodash');
+const yaml = require('js-yaml');
 
 const component = (h, node) => {
   if (!node.properties || !node.properties.dataType) {
@@ -67,6 +68,23 @@ const headingWithCustomId = (h, node) => {
   return result;
 };
 
+const stripTranslateFrontmatter = () => {
+  const transformer = (tree) => {
+    if (tree?.children[0]?.type === 'yaml') {
+      const frontmatterObj = yaml.load(tree.children[0].value);
+      delete frontmatterObj.translate;
+      delete frontmatterObj.redirects;
+      const frontmatterStr = yaml
+        .dump(frontmatterObj, { lineWidth: -1 })
+        .trim();
+      tree.children[0].value = frontmatterStr;
+      return tree;
+    }
+  };
+
+  return transformer;
+};
+
 const processor = unified()
   .use(parse)
   .use(rehype2remark, {
@@ -98,7 +116,8 @@ const processor = unified()
   })
   .use(remarkMdx)
   .use(remarkMdxjs)
-  .use(frontmatter, ['yaml']);
+  .use(frontmatter, ['yaml'])
+  .use(stripTranslateFrontmatter);
 
 const deserializeHTML = async (html) => {
   const { contents } = await processor.process(html);
