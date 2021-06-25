@@ -115,4 +115,10 @@ const main = async () => {
   }
 };
 
+// `require.main` is equal to `module` when the file is being executed directly
+// if it isn't, the file is being import/required
+if (require.main === module) {
+  main();
+}
+
 module.exports = main;
