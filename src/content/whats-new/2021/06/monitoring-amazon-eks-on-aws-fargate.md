@@ -2,10 +2,9 @@
 title: 'Monitor Amazon EKS on AWS Fargate integration with our public beta'
 summary: 'Receive telemetry from Kube State Metrics, Kubelet, and cAdvisor for full observability for Kubernetes clusters running on EKS in Fargate.'
 releaseDate: '2021-07-01'
-learnMoreLink: '[blog link when ready]'
 getStartedLink: 'https://docs.newrelic.com/docs/integrations/kubernetes-integration/installation/install-fargate-integration/'
+---
 
-For Body:
 We are introducing New Relic's integration for Amazon EKS on AWS Fargate public beta. If you are interested in checking out the beta, please follow the steps found in the [documentation](https://docs.newrelic.com/docs/integrations/kubernetes-integration/installation/install-fargate-integration/).
 
 Our ESK Fargate integration supports any Fargate setup, whether the cluster is only composed of Fargate nodes or if it also coexists with EC2 nodes.
