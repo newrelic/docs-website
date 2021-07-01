@@ -12,7 +12,7 @@ To get started, go to the **Data management hub** and select the **Data ingestio
 
 ![To find your data ingest usage, click the account dropdown, click Manage your data, then click Data ingestion.](./images/ingest_drill_down_1_of_2.png "A screenshot that shows how to find your data ingest consumption.")
 
-<figcaption>To find your data ingest consumption, click **Manage your data**, then click **Data ingestion**.</figcaption>
+<figcaption>To find your data ingest consumption, click Manage your data, then click Data ingestion.</figcaption>
 
 ![Choose a specific data source to drill down into what's contributing the most to your data ingest consumption.](./images/ingest_drill_down_2_of_2.png "A screenshot that shows the data ingest by data source dropdown.")
 
