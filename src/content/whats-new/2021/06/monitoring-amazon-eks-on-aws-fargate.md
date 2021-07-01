@@ -11,8 +11,7 @@ Our EKS Fargate integration supports any Fargate setup, whether the cluster is o
 
 The integration is also compatible with the New Relic One Kubernetes cluster explorer, providing a holistic view of a Kubernetes cluster and rapid troubleshooting.
 
-![Image showing the AWS EKS clusters with Fargate nodes](./images/K8sCE-EKS-Fargate.gif "AWS Fargate Monitoring integration")
-
+![Image showing the AWS EKS clusters with Fargate nodes](./images/fargate_eks.gif "AWS Fargate Monitoring integration")
 
 We've also improved the Kubernetes dashboard to list Fargate nodes and distinguish between standard and Fargate serverless nodes.
 
