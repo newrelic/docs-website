@@ -225,7 +225,7 @@ const saveFailedUploads = async (failedUploads) => {
   const updatedLocales = failedUploads.reduce(
     (acc, page) => ({
       ...acc,
-      [page.locale]: [...acc[page.locale], page.slug],
+      [page.locale]: [...(acc[page.locale] || []), page.slug],
     }),
     {}
   );
