@@ -80,7 +80,7 @@ const uploadFile = (locale, batchUid, accessToken) => async (page) => {
     console.log(`[*] Successfully uploaded ${page.file}.`);
     await sendPageContext(page.file, accessToken);
   } else {
-    console.error(`[!] Unable to upload ${page.file}.`);
+    console.error(`[!] Unable to upload ${page.file}. Code was ${code}. Response status: ${resp.status} -- ${resp.statusText}`);
   }
 
   return { code, locale, slug: page.file };
@@ -225,7 +225,7 @@ const saveFailedUploads = async (failedUploads) => {
   const updatedLocales = failedUploads.reduce(
     (acc, page) => ({
       ...acc,
-      [page.locale]: [...acc[page.locale], page.slug],
+      [page.locale]: [...(acc[page.locale] || []), page.slug],
     }),
     {}
   );
