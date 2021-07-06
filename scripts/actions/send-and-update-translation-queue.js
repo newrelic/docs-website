@@ -28,19 +28,30 @@ const DOCS_SITE_URL = 'https://docs.newrelic.com';
  * @param {Object<string, string[]>} locales The queue of slugs to be translated.
  * @returns {Object<string, Promise<Page[]>>}
  */
-const getContent = (locales) =>
+const getContent = (locales) => {
   Object.entries(locales).reduce((acc, [locale, slugs]) => {
     return {
       ...acc,
       [locale]: Promise.all(
-        slugs.map(async (slug) => {
-          const mdx = fs.readFileSync(path.join(process.cwd(), slug));
-          const html = await serializeMDX(mdx);
-          return { file: slug, html };
-        })
+        slugs
+          .filter((slug) => {
+            /**
+             * if a doc doesn't exist, it must have been renamed or deleted. in
+             * that case, it is safe to ignore. if we skip including a doc in
+             * this step, it won't become a failed upload, and will then be
+             * cleaned up from the queue.
+             */
+            return fs.existsSync(path.join(process.cwd(), slug));
+          })
+          .map(async (slug) => {
+            const mdx = fs.readFileSync(path.join(process.cwd(), slug));
+            const html = await serializeMDX(mdx);
+            return { file: slug, html };
+          })
       ),
     };
   }, {});
+};
 
 /**
  * @param {string} locale The locale that this file should be translated to.
@@ -80,7 +91,9 @@ const uploadFile = (locale, batchUid, accessToken) => async (page) => {
     console.log(`[*] Successfully uploaded ${page.file}.`);
     await sendPageContext(page.file, accessToken);
   } else {
-    console.error(`[!] Unable to upload ${page.file}. Code was ${code}. Response status: ${resp.status} -- ${resp.statusText}`);
+    console.error(
+      `[!] Unable to upload ${page.file}. Code was ${code}. Response status: ${resp.status} -- ${resp.statusText}`
+    );
   }
 
   return { code, locale, slug: page.file };
