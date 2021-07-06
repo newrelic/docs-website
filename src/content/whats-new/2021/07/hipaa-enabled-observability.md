@@ -9,7 +9,7 @@ Today, we’re releasing our HIPAA-enabled observability platform for healthcare
 
 Covered entities including insurance companies, health maintenance organizations, government assistance programs, providers, and clearinghouses can now send application, infrastructure, digital experience, and network monitoring data to the Telemetry Data Platform while maintaining HIPAA compliance.
 
-![HIPAA-enabled accounts are now available on New Relic.](./images/hipaa1.png "A graphic showing New Relic's relationship to HIPAA customers.")
+![HIPAA-enabled accounts are now available on New Relic.](./images/hipaa1.png "An image showing New Relic's relationship to HIPAA customers.")
 
 Our solution supports the following:
 1. **Domains:** Infrastructure, applications, digital experience, and network
