@@ -1,8 +1,8 @@
 const fs = require('fs');
 const path = require('path');
-const fetch = require('node-fetch');
 const frontmatter = require('@github-docs/frontmatter');
 
+const { fetchPaginatedGHResults } = require('./utils/github-api-helpers');
 const { saveToTranslationQueue } = require('./utils/save-to-db');
 const loadFromDB = require('./utils/load-from-db');
 const checkArgs = require('./utils/check-args');
@@ -15,8 +15,7 @@ const { prop } = require('../utils/functional');
  */
 const getUpdatedQueue = async (url, queue) => {
   try {
-    const resp = await fetch(url);
-    const files = await resp.json();
+    const files = await fetchPaginatedGHResults(url, process.env.GITHUB_TOKEN);
 
     const mdxFiles = files
       ? files.filter((file) => path.extname(file.filename) === '.mdx')
