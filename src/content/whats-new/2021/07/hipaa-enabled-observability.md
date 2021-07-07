@@ -14,6 +14,6 @@ Our solution supports the following:
 2. **Data types:** Metrics, events, logs, and traces
 3. **Monitored environments:** On-premises and cloud
 
-![HIPAA-enabled accounts are now available on New Relic.](./images/hipaa1.png "An image showing New Relic's relationship to HIPAA customers.")
-
 Learn more at [HIPAA enablement - what you need to know and do](https://docs.newrelic.com/docs/security/security-privacy/compliance/hipaa-readiness-new-relic/) and reach out to your account representative to get started.
+
+![HIPAA-enabled accounts are now available on New Relic.](./images/hipaa1.png "An image showing New Relic's relationship to HIPAA customers.")
