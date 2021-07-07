@@ -15,7 +15,7 @@ const { prop } = require('../utils/functional');
  */
 const getUpdatedQueue = async (url, queue) => {
   try {
-    const files = await fetchPaginatedGHResults(url);
+    const files = await fetchPaginatedGHResults(url, process.env.GITHUB_TOKEN);
 
     const mdxFiles = files
       ? files.filter((file) => path.extname(file.filename) === '.mdx')
