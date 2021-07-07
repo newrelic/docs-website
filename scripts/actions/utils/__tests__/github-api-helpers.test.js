@@ -15,17 +15,17 @@ describe('Github API Helpers', () => {
   });
 
   describe('getNextLink', () => {
-    test('returns null for malformed header', async () => {
+    test('returns null for malformed header', () => {
       expect(getNextLink('askdflaksjdhf2421dfdfs')).toBe(null);
     });
 
-    test('returns null when `next` is not present', async () => {
+    test('returns null when `next` is not present', () => {
       expect(
         getNextLink('<https://fakesite.com/files?page=1>; rel="last"')
       ).toBe(null);
     });
 
-    test('returns url for next page', async () => {
+    test('returns url for next page', () => {
       expect(
         getNextLink(
           '<https://fakesite.com/files?page=36>; rel="last", <https://fakesite.com/files?page=2>; rel="next"'
