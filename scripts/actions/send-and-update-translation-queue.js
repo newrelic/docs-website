@@ -36,8 +36,8 @@ const getContent = (locales) => {
         slugs
           .filter((slug) => {
             /**
-             * if a doc doesn't exist, it must have been renamed or deleted. in
-             * that case, it is safe to ignore. if we skip including a doc in
+             * If a doc doesn't exist, it must have been renamed or deleted. In
+             * that case, it is safe to ignore. If we skip including a doc in
              * this step, it won't become a failed upload, and will then be
              * cleaned up from the queue.
              */
