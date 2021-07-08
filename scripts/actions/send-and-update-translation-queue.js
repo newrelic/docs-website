@@ -41,6 +41,7 @@ const getContent = (locales) => {
              * this step, it won't become a failed upload, and will then be
              * cleaned up from the queue.
              */
+            console.log(`Skipping over -- ${slug} -- since it no longer exists.`);
             return fs.existsSync(path.join(process.cwd(), slug));
           })
           .map(async (slug) => {
