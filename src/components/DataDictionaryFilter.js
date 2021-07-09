@@ -9,6 +9,7 @@ import {
   useQueryParams,
 } from '@newrelic/gatsby-theme-newrelic';
 import Select from './Select';
+import TextArea from './TextArea';
 import { navigate } from '@reach/router';
 
 const uniq = (arr) => [...new Set(arr)];
@@ -34,6 +35,7 @@ const DataDictionaryFilter = ({ location, events }) => {
       dataSource: queryParams.get('dataSource'),
       event: queryParams.get('event'),
       attribute: queryParams.get('attribute'),
+      freeText: queryParams.get('freeText'),
     });
   }, [queryParams]);
 
@@ -62,6 +64,19 @@ const DataDictionaryFilter = ({ location, events }) => {
   return (
     <PageTools.Section>
       <PageTools.Title>Apply filter</PageTools.Title>
+      <FormControl>
+        <Label>Search a term</Label>
+        <TextArea
+          id="freeTextField"
+          value={formState.freeText || ''}
+          onChange={(e) => {
+            setFormState((state) => ({
+              ...state,
+              freeText: e.target,
+            }));
+          }}
+        />
+      </FormControl>
       <FormControl>
         <Label htmlFor="dataSourceFilter">Data source</Label>
         <Select
