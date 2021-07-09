@@ -1,19 +1,53 @@
+'use strict';
+
 const fetch = require('node-fetch');
 
-/** @throws {Error} Will throw an error if the response "code" is not 'SUCCESS' */
-const makeRequest = async (url, options) => {
-  const resp = await fetch(url.href, options);
-  const { response } = await resp.json();
-  const { code, data } = response;
+const MAX_RETRY = 5;
+const DELAY_TIME = 1500;
+// let nthTry = 1;
+const waitFor = (millSeconds) => {
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      resolve();
+    }, millSeconds);
+  });
+};
 
-  if (code !== 'SUCCESS') {
-    console.error(
-      `[!] Unable to make a ${options.method} request to ${url.href}. (${code})`
+/**
+ * @param {Object} options
+ * @param {String} url
+ * @param {Number} nthTry
+ * @returns {Object} data The result after making the request.
+ * @throws {Error} Will throw an error if the response "code" is not 'SUCCESS' after retrying
+ */
+const makeRequest = async (url, options, nthTry) => {
+  nthTry = nthTry || 1;
+  try {
+    const resp = await fetch(url.href, options);
+    const { response } = await resp.json();
+    const { code, data } = response;
+    if (code !== 'SUCCESS') {
+      throw new Error(JSON.stringify(response, null, 2));
+    }
+    console.log(`Successful response`);
+    return data;
+  } catch (e) {
+    if (nthTry === MAX_RETRY) {
+      console.error(
+        `[!] Unable to make a ${options.method} request to ${url.href} after ${MAX_RETRY} attempts.`
+      );
+      return Promise.reject(e);
+    }
+    ++nthTry;
+    console.warn(
+      `[!] Error making request on attempt ${nthTry}/${MAX_RETRY}. Retrying in ${
+        DELAY_TIME / 1000
+      } seconds`
     );
-    throw new Error(JSON.stringify(response, null, 2));
+    // wait for delayTime amount of time before calling this method again
+    await waitFor(DELAY_TIME);
+    return makeRequest(url, options, nthTry);
   }
-
-  return data;
 };
 
 /**
@@ -84,4 +118,6 @@ const vendorRequest = async ({
 module.exports = {
   vendorRequest,
   getAccessToken,
+  makeRequest,
+  waitFor,
 };
