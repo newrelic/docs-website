@@ -5,6 +5,7 @@ import { graphql } from 'gatsby';
 import {
   PageTools,
   Button,
+  SearchInput,
   Link,
   useQueryParams,
 } from '@newrelic/gatsby-theme-newrelic';
@@ -62,6 +63,20 @@ const DataDictionaryFilter = ({ location, events }) => {
   return (
     <PageTools.Section>
       <PageTools.Title>Apply filter</PageTools.Title>
+      <FormControl>
+        <Label htmlFor="attributeSearch">Search for attribute</Label>
+        <SearchInput
+          onChange={(e) => {
+            const { value } = e.target;
+            const filteredAttributes = events.map((event) => {
+              return event.childrenDataDictionaryAttribute.filter(({ name }) =>
+                name.includes(value)
+              );
+            });
+            console.log(filteredAttributes);
+          }}
+        />
+      </FormControl>
       <FormControl>
         <Label htmlFor="dataSourceFilter">Data source</Label>
         <Select
@@ -129,6 +144,7 @@ const DataDictionaryFilter = ({ location, events }) => {
           ))}
         </Select>
       </FormControl>
+
       <FormControl>
         <Button
           variant={Button.VARIANT.PRIMARY}
