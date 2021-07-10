@@ -28,6 +28,7 @@ const AttributeDictionary = ({ data, pageContext, location }) => {
 
   const [filteredEvents, setFilteredEvents] = useState([]);
   const [filteredAttribute, setFilteredAttribute] = useState(null);
+  const [searchedAttribute, setSearchedAttribute] = useState(null);
   const { queryParams } = useQueryParams();
 
   const isMobileScreen = useMedia('(max-width: 1240)');
@@ -52,7 +53,23 @@ const AttributeDictionary = ({ data, pageContext, location }) => {
       );
     }
 
+    if (queryParams.has('attributeSearch')) {
+      filteredEvents = filteredEvents.reduce((events, currEvent) => {
+        currEvent.childrenDataDictionaryAttribute = currEvent.childrenDataDictionaryAttribute.filter(
+          ({ name }) =>
+            name.toLowerCase().includes(queryParams.get('attributeSearch'))
+        );
+        if (currEvent.childrenDataDictionaryAttribute.length) {
+          events.push(currEvent);
+        }
+        return events;
+      }, []);
+
+      console.log({ filteredEvents });
+    }
+
     setFilteredEvents(filteredEvents.map((event) => event.name));
+    setSearchedAttribute(queryParams.get('attributeSearch'));
     setFilteredAttribute(queryParams.get('attribute'));
   }, [queryParams, events]);
 
@@ -145,6 +162,7 @@ const AttributeDictionary = ({ data, pageContext, location }) => {
                 location={location}
                 event={event}
                 filteredAttribute={filteredAttribute}
+                searchedAttribute={searchedAttribute}
               />
             </div>
           ))}
@@ -180,10 +198,10 @@ AttributeDictionary.propTypes = {
 
 const pluralize = (word, count) => (count === 1 ? word : `${word}s`);
 
-const EventDefinition = memo(({ location, event, filteredAttribute }) => {
-  const filteredAttributes = filteredAttribute
-    ? event.childrenDataDictionaryAttribute.filter(
-        (attribute) => attribute.name === filteredAttribute
+const EventDefinition = memo(({ location, event, searchedAttribute }) => {
+  const filteredAttributes = searchedAttribute
+    ? event.childrenDataDictionaryAttribute.filter(({ name }) =>
+        name.toLowerCase().includes(searchedAttribute)
       )
     : event.childrenDataDictionaryAttribute;
 

@@ -20,6 +20,7 @@ const DataDictionaryFilter = ({ location, events }) => {
     dataSource: queryParams.get('dataSource'),
     event: queryParams.get('event'),
     attribute: queryParams.get('attribute'),
+    attributeSearch: queryParams.get('attributeSearch'),
   }));
 
   const dataSources = useMemo(
@@ -35,6 +36,7 @@ const DataDictionaryFilter = ({ location, events }) => {
       dataSource: queryParams.get('dataSource'),
       event: queryParams.get('event'),
       attribute: queryParams.get('attribute'),
+      attributeSearch: queryParams.get('attributeSearch'),
     });
   }, [queryParams]);
 
