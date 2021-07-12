@@ -69,6 +69,9 @@ const DataDictionaryFilter = ({ location, events }) => {
         <Label htmlFor="attributeSearch">Search for attribute</Label>
         <SearchInput
           value={formState.attributeSearch || ''}
+          onClear={() =>
+            setFormState((state) => ({ ...state, attributeSearch: null }))
+          }
           onChange={(e) => {
             const { value } = e.target;
 
