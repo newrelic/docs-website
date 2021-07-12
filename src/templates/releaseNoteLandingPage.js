@@ -181,20 +181,21 @@ export const pageQuery = graphql`
   }
 `;
 
-// copying in function from mdast-util-to-string so we can add a space
+// copying in function from mdast-util-to-string so we can render list items with periods and spaces between
 function toString(node) {
+  const isList = node.type === 'list';
   return (
     (node &&
       (node.value ||
         node.alt ||
         node.title ||
-        ('children' in node && all(node.children)) ||
-        ('length' in node && all(node)))) ||
+        ('children' in node && all(node.children, isList)) ||
+        ('length' in node && all(node, isList)))) ||
     ''
   );
 }
 
-function all(values) {
+function all(values, isList) {
   const result = [];
   const length = values.length;
   let index = -1;
@@ -202,8 +203,18 @@ function all(values) {
   while (++index < length) {
     result[index] = toString(values[index]);
   }
-
-  return result.join(' ');
+  if (isList) {
+    const strippedPeriodResults = result.map((listItem) => {
+      if (listItem[listItem.length - 1] === '.') {
+        return listItem.slice(0, -1);
+      } else {
+        return listItem;
+      }
+    });
+    return strippedPeriodResults.join('. ');
+  } else {
+    return result.join('');
+  }
 }
 
 const getBestGuessExcerpt = (mdxAST) => {
