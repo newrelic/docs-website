@@ -53,16 +53,15 @@ const AttributeDictionary = ({ data, pageContext, location }) => {
     }
 
     if (queryParams.has('attributeSearch')) {
-      filteredEvents = filteredEvents.reduce((events, currEvent) => {
-        currEvent.childrenDataDictionaryAttribute = currEvent.childrenDataDictionaryAttribute.filter(
-          ({ name }) =>
-            name.toLowerCase().includes(queryParams.get('attributeSearch'))
-        );
-        if (currEvent.childrenDataDictionaryAttribute.length) {
-          events.push(currEvent);
-        }
-        return events;
-      }, []);
+      filteredEvents = filteredEvents.filter((event) =>
+        Boolean(
+          event.childrenDataDictionaryAttribute.find(({ name }) =>
+            name
+              .toLowerCase()
+              .includes(queryParams.get('attributeSearch').toLowerCase())
+          )
+        )
+      );
     }
 
     setFilteredEvents(filteredEvents.map((event) => event.name));
@@ -176,7 +175,7 @@ const pluralize = (word, count) => (count === 1 ? word : `${word}s`);
 const EventDefinition = memo(({ location, event, searchedAttribute }) => {
   const filteredAttributes = searchedAttribute
     ? event.childrenDataDictionaryAttribute.filter(({ name }) =>
-        name.toLowerCase().includes(searchedAttribute)
+        name.toLowerCase().includes(searchedAttribute.toLowerCase())
       )
     : event.childrenDataDictionaryAttribute;
 
