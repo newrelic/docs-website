@@ -7,7 +7,6 @@ import Timeline from '../components/Timeline';
 import SEO from '../components/SEO';
 import { Icon, Layout, Link } from '@newrelic/gatsby-theme-newrelic';
 import filter from 'unist-util-filter';
-import toString from 'mdast-util-to-string';
 import { TYPES } from '../utils/constants';
 
 const EXCERPT_LENGTH = 200;
@@ -181,6 +180,31 @@ export const pageQuery = graphql`
     ...MainLayout_query
   }
 `;
+
+// copying in function from mdast-util-to-string so we can add a space
+function toString(node) {
+  return (
+    (node &&
+      (node.value ||
+        node.alt ||
+        node.title ||
+        ('children' in node && all(node.children)) ||
+        ('length' in node && all(node)))) ||
+    ''
+  );
+}
+
+function all(values) {
+  const result = [];
+  const length = values.length;
+  let index = -1;
+
+  while (++index < length) {
+    result[index] = toString(values[index]);
+  }
+
+  return result.join(' ');
+}
 
 const getBestGuessExcerpt = (mdxAST) => {
   const textTypes = [
