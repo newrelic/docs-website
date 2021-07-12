@@ -68,14 +68,17 @@ const DataDictionaryFilter = ({ location, events }) => {
       <FormControl>
         <Label htmlFor="attributeSearch">Search for attribute</Label>
         <SearchInput
+          value={formState.attributeSearch || ''}
           onChange={(e) => {
             const { value } = e.target;
-            const filteredAttributes = events.map((event) => {
-              return event.childrenDataDictionaryAttribute.filter(({ name }) =>
-                name.includes(value)
-              );
-            });
-            console.log(filteredAttributes);
+
+            setFormState((state) => ({
+              ...state,
+              dataSource: null,
+              event: null,
+              attribute: null,
+              attributeSearch: value,
+            }));
           }}
         />
       </FormControl>
@@ -92,6 +95,7 @@ const DataDictionaryFilter = ({ location, events }) => {
               event: null,
               attribute: null,
               dataSource: value,
+              attributeSearch: null,
             }));
           }}
         >
@@ -115,6 +119,7 @@ const DataDictionaryFilter = ({ location, events }) => {
               ...state,
               event: value,
               attribute: null,
+              attributeSearch: null,
             }));
           }}
         >
@@ -135,7 +140,11 @@ const DataDictionaryFilter = ({ location, events }) => {
           onChange={(e) => {
             const { value } = e.target;
 
-            setFormState((state) => ({ ...state, attribute: value }));
+            setFormState((state) => ({
+              ...state,
+              attribute: value,
+              attributeSearch: null,
+            }));
           }}
         >
           <option value="">All</option>
@@ -165,6 +174,7 @@ const DataDictionaryFilter = ({ location, events }) => {
               event: null,
               dataSource: null,
               attribute: null,
+              attributeSearch: null,
             };
 
             setFormState(formState);

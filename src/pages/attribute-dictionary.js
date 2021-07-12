@@ -3,7 +3,6 @@ import PropTypes from 'prop-types';
 import { css } from '@emotion/react';
 import { graphql } from 'gatsby';
 import {
-  Button,
   ContributingGuidelines,
   Layout,
   Link,
@@ -64,8 +63,6 @@ const AttributeDictionary = ({ data, pageContext, location }) => {
         }
         return events;
       }, []);
-
-      console.log({ filteredEvents });
     }
 
     setFilteredEvents(filteredEvents.map((event) => event.name));
@@ -126,28 +123,6 @@ const AttributeDictionary = ({ data, pageContext, location }) => {
           <hr />
         </div>
         <Layout.Content>
-          <div
-            css={css`
-              display: none;
-              position: sticky;
-              top: var(--global-header-height);
-              font-size: 0.875rem;
-              background: var(--primary-background-color);
-              padding: 2rem 0;
-            `}
-          >
-            Displaying {filteredEvents.length} of {events.length} results{' '}
-            {filteredEvents.length !== events.length && (
-              <Button
-                as={Link}
-                to={location.pathname}
-                variant={Button.VARIANT.LINK}
-              >
-                Clear
-              </Button>
-            )}
-          </div>
-
           {events.map((event) => (
             <div
               key={`${event.name}-div`}
@@ -399,7 +374,7 @@ const EventDefinition = memo(({ location, event, searchedAttribute }) => {
 
 EventDefinition.propTypes = {
   event: PropTypes.object.isRequired,
-  filteredAttribute: PropTypes.string,
+  searchedAttribute: PropTypes.string,
   location: PropTypes.shape({
     pathname: PropTypes.string.isRequired,
   }).isRequired,
