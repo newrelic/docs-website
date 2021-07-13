@@ -62,10 +62,6 @@ const DataDictionaryFilter = ({ location, events }) => {
     [events, formState.dataSource]
   );
 
-  const selectedEvent = formState.event
-    ? events.find((event) => event.name === formState.event)
-    : null;
-
   const navigateToParams = (params) => {
     Object.entries(params).forEach(([key, value]) => {
       value ? queryParams.set(key, value) : queryParams.delete(key);
