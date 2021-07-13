@@ -74,7 +74,7 @@ const DataDictionaryFilter = ({ location, events }) => {
     <PageTools.Section>
       <PageTools.Title>Search and filter</PageTools.Title>
       <FormControl>
-        <Label htmlFor="attributeSearch">Search for attribute</Label>
+        <Label htmlFor="attributeSearch">Attribute name</Label>
         <SearchInput
           value={formState.attributeSearch || ''}
           onClear={() =>
@@ -89,6 +89,7 @@ const DataDictionaryFilter = ({ location, events }) => {
               attributeSearch: value,
             }));
           }}
+          placeholder="Name contains..."
         />
       </FormControl>
       <FormControl>
