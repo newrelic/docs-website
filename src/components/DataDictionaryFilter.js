@@ -40,6 +40,18 @@ const DataDictionaryFilter = ({ location, events }) => {
     });
   }, [queryParams]);
 
+  useEffect(() => {
+    const handler = (e) => {
+      if (e.keyCode === 13) {
+        navigateToParams(formState);
+      }
+    };
+    document.addEventListener('keydown', handler);
+    return () => {
+      document.removeEventListener('keydown', handler);
+    };
+  });
+
   const filteredEvents = useMemo(
     () =>
       formState.dataSource
