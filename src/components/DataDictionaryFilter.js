@@ -142,30 +142,6 @@ const DataDictionaryFilter = ({ location, events }) => {
           ))}
         </Select>
       </FormControl>
-      <FormControl>
-        <Label htmlFor="attributeFilter">Attribute</Label>
-        <Select
-          id="attributeFilter"
-          value={formState.attribute || ''}
-          disabled={!selectedEvent}
-          onChange={(e) => {
-            const { value } = e.target;
-
-            setFormState((state) => ({
-              ...state,
-              attribute: value,
-              attributeSearch: null,
-            }));
-          }}
-        >
-          <option value="">All</option>
-          {selectedEvent?.childrenDataDictionaryAttribute.map((attribute) => (
-            <option key={attribute.name} value={attribute.name}>
-              {attribute.name}
-            </option>
-          ))}
-        </Select>
-      </FormControl>
 
       <FormControl>
         <Button
