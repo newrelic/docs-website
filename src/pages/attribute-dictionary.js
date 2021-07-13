@@ -54,12 +54,10 @@ const AttributeDictionary = ({ data, pageContext, location }) => {
 
     if (queryParams.has('attributeSearch')) {
       filteredEvents = filteredEvents.filter((event) =>
-        Boolean(
-          event.childrenDataDictionaryAttribute.find(({ name }) =>
-            name
-              .toLowerCase()
-              .includes(queryParams.get('attributeSearch').toLowerCase())
-          )
+        event.childrenDataDictionaryAttribute.some(({ name }) =>
+          name
+            .toLowerCase()
+            .includes(queryParams.get('attributeSearch').toLowerCase())
         )
       );
     }
