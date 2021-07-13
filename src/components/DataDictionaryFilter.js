@@ -88,6 +88,7 @@ const DataDictionaryFilter = ({ location, events }) => {
               attribute: null,
               attributeSearch: value,
             }));
+            setTimeout(() => navigateToParams(formState), 1000);
           }}
           placeholder="Name contains..."
         />
