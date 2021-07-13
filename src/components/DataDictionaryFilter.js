@@ -64,7 +64,7 @@ const DataDictionaryFilter = ({ location, events }) => {
 
   return (
     <PageTools.Section>
-      <PageTools.Title>Apply filter</PageTools.Title>
+      <PageTools.Title>Search and filter</PageTools.Title>
       <FormControl>
         <Label htmlFor="attributeSearch">Search for attribute</Label>
         <SearchInput
@@ -162,7 +162,7 @@ const DataDictionaryFilter = ({ location, events }) => {
             navigateToParams(formState);
           }}
         >
-          Apply
+          Search
         </Button>
         <Button
           as={Link}
