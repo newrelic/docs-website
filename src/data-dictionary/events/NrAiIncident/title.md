@@ -1,6 +1,6 @@
 ---
 name: title
-type: event
+type: attribute
 events:
   - NrAiIncident
 ---

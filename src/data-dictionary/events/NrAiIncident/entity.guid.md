@@ -1,6 +1,6 @@
 ---
 name: entity.guid
-type: event
+type: attribute
 events:
   - NrAiIncident
 ---

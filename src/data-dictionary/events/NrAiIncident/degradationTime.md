@@ -1,6 +1,6 @@
 ---
 name: degradationTime
-type: event
+type: attribute
 events:
   - NrAiIncident
 ---

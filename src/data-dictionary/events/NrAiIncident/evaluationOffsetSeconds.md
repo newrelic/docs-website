@@ -1,6 +1,6 @@
 ---
 name: evaluationOffsetSeconds
-type: event
+type: attribute
 events:
   - NrAiIncident
 ---

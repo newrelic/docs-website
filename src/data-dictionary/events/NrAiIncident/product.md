@@ -1,6 +1,6 @@
 ---
 name: product
-type: event
+type: attribute
 events:
   - NrAiIncident
 ---

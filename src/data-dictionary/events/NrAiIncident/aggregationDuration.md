@@ -1,6 +1,6 @@
 ---
 name: aggregationDuration
-type: event
+type: attribute
 events:
   - NrAiIncident
 ---

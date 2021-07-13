@@ -1,6 +1,6 @@
 ---
 name: violationTimeLimitSeconds
-type: event
+type: attribute
 events:
   - NrAiIncident
 ---

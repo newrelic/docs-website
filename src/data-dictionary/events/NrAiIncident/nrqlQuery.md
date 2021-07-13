@@ -1,6 +1,6 @@
 ---
 name: nrqlQuery
-type: event
+type: attribute
 events:
   - NrAiIncident
 ---

@@ -1,6 +1,6 @@
 ---
 name: closeCause
-type: event
+type: attribute
 events:
   - NrAiIncident
 ---

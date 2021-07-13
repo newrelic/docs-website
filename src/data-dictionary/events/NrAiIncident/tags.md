@@ -1,6 +1,6 @@
 ---
 name: tags.*
-type: event
+type: attribute
 events:
   - NrAiIncident
 ---

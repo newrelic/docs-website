@@ -1,6 +1,6 @@
 ---
 name: priority
-type: event
+type: attribute
 events:
   - NrAiIncident
 ---

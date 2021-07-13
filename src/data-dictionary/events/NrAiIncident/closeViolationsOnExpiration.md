@@ -1,6 +1,6 @@
 ---
 name: closeViolationsOnExpiration
-type: event
+type: attribute
 events:
   - NrAiIncident
 ---

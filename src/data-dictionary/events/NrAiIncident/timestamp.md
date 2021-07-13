@@ -1,6 +1,6 @@
 ---
 name: timestamp
-type: event
+type: attribute
 events:
   - NrAiIncident
 ---

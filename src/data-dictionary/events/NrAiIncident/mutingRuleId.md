@@ -1,6 +1,6 @@
 ---
 name: mutingRuleId
-type: event
+type: attribute
 events:
   - NrAiIncident
 ---

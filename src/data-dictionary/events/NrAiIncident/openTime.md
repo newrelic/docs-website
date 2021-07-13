@@ -1,6 +1,6 @@
 ---
 name: openTime
-type: event
+type: attribute
 events:
   - NrAiIncident
 ---

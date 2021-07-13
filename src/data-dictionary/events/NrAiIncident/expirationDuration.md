@@ -1,6 +1,6 @@
 ---
 name: expirationDuration
-type: event
+type: attribute
 events:
   - NrAiIncident
 ---

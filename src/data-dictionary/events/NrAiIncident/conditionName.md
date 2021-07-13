@@ -1,6 +1,6 @@
 ---
 name: conditionName
-type: event
+type: attribute
 events:
   - NrAiIncident
 ---

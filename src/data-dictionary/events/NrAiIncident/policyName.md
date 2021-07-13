@@ -1,6 +1,6 @@
 ---
 name: policyName
-type: event
+type: attribute
 events:
   - NrAiIncident
 ---

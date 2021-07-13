@@ -1,6 +1,6 @@
 ---
 name: entity.type
-type: event
+type: attribute
 events:
   - NrAiIncident
 ---

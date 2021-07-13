@@ -1,6 +1,6 @@
 ---
 name: threshold
-type: event
+type: attribute
 events:
   - NrAiIncident
 ---
