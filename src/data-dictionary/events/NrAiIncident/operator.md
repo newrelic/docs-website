@@ -7,4 +7,4 @@ events:
 
 The violation threshold's operator, such as `=`, `<`, or `>`.
 
-For signal loss violation's, this is an empty string.
+For signal loss violations, this is an empty string.
