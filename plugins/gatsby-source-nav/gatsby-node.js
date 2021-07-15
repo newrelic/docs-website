@@ -277,7 +277,7 @@ const createNav = async ({ args, createNodeId, nodeModel, locales }) => {
 
   const allNavYamlNodes = nodeModel
     .getAllNodes({ type: 'NavYaml' })
-    .sort((a, b) => a.path.localeCompare(b.path));
+    .sort((a, b) => a.title.localeCompare(b.title));
 
   let nav =
     allNavYamlNodes.find((nav) => findPage(nav, slug)) ||
@@ -328,6 +328,3 @@ const findPage = (page, path) => {
   if (page.pages == null || page.pages.length === 0) {
     return null;
   }
-
-  return page.pages.find((child) => findPage(child, path));
-};
