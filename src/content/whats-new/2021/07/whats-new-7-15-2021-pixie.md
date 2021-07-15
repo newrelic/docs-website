@@ -1,4 +1,3 @@
-
 ---
 title: 'Upgrade your Kubernetes monitoring with Pixie'
 summary: 'Get instant, code-level visibility without code changes or redeploying'
@@ -18,6 +17,6 @@ Drill down into your services without modifying source code, and debug with serv
 ## Instant, no-code observability
 Auto-telemetry with Pixie means every service gets monitoring instantly, and because Pixie is language-agnostic, you don’t need instrumentation expertise. Pixie analyzes data on-cluster without sampling, sending high-value data to Telemetry Data Platform for alerting, correlation, and long-term storage.
 
-To learn more, [click here](https://newrelic.com/platform/kubernetes-pixie) or Learn More above.
+To learn more, [click here](https://newrelic.com/platform/kubernetes-pixie) or **Learn More** above.
 
-![Pixie.png]("Pixie.png")
+![Screenshot of Pixie flamegraph](./images/pixie.png "Screenshot of Pixie flamegraph")
