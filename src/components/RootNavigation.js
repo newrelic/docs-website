@@ -28,7 +28,7 @@ const RootNavigation = ({ nav }) => {
       <NavItem page={{ title: "What's new", url: '/whats-new' }} />
       <NavItem
         page={{
-          title: 'See our 360+ integrations',
+          title: 'See our 370+ integrations',
           url: 'https://newrelic.com/integrations',
         }}
       />

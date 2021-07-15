@@ -1,9 +1,8 @@
 const fs = require('fs');
 const path = require('path');
-const fetch = require('node-fetch');
 const frontmatter = require('@github-docs/frontmatter');
-const parseLinkHeader = require('parse-link-header');
 
+const { fetchPaginatedGHResults } = require('./utils/github-api-helpers');
 const checkArgs = require('./utils/check-args');
 const { prop } = require('../utils/functional');
 const { ADDITIONAL_LOCALES } = require('../utils/constants');
@@ -21,40 +20,11 @@ const doI18nFilesExist = (fileName, locales) => {
     .filter(Boolean);
 };
 
-const fetchFilesFromGH = async (url) => {
-  let files = [];
-  let nextPageLink = url;
-
-  while (nextPageLink) {
-    const resp = await fetch(nextPageLink, {
-      headers: { authorization: `token ${process.env.GITHUB_TOKEN}` },
-    });
-    if (!resp.ok) {
-      throw new Error(
-        `Github API returned status ${resp.code} - ${resp.message}`
-      );
-    }
-    const page = await resp.json();
-    nextPageLink = getNextLink(resp.headers.get('Link'));
-    files = [...files, ...page];
-  }
-
-  return files;
-};
-
-const getNextLink = (linkHeader) => {
-  const parsedLinkHeader = parseLinkHeader(linkHeader);
-  if (parsedLinkHeader && parsedLinkHeader.next) {
-    return parsedLinkHeader.next.url || null;
-  }
-  return null;
-};
-
 /**
  * @param {string} url The API url that is used to fetch files.
  */
 const checkOutdatedTranslations = async (url) => {
-  const files = await fetchFilesFromGH(url);
+  const files = await fetchPaginatedGHResults(url, process.env.GITHUB_TOKEN);
   const mdxFiles = files
     ? files.filter((file) => path.extname(file.filename) === '.mdx')
     : [];
