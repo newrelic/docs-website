@@ -328,3 +328,6 @@ const findPage = (page, path) => {
   if (page.pages == null || page.pages.length === 0) {
     return null;
   }
+
+  return page.pages.find((child) => findPage(child, path));
+};
