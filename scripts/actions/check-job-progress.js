@@ -133,6 +133,11 @@ const main = async () => {
       }`
     );
 
+    console.log(
+      `::set-output name=completedBatches::${batchesToDeserialize.length ? batchesToDeserialize.join(',') : ','
+      }`
+    );
+
     // Output a list of new translated files for the next step in the workflow
     // (creating a new PR with the translated content)
     const deserializedFileUris = uniq(
