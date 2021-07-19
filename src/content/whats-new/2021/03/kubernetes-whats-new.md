@@ -17,7 +17,7 @@ This change will be reflected within New Relic One as follows:
     *   Container Memory Usage - % Used vs Limit
     *   Container MBytes of Memory Used
     *   Node Resource Consumption
-*   [Golden metrics definition for containers](https://github.com/newrelic-experimental/entity-synthesis-definitions/blob/main/definitions/infra-container/golden_metrics.yml#L10) will now use `memoryWorkingSetBytes`
+*   [Golden metrics definition for containers](https://github.com/newrelic/entity-definitions/blob/main/definitions/infra-container/golden_metrics.yml#L10) will now use `memoryWorkingSetBytes`
 *   The Kubernetes cluster explorer now shows the container's memory consumption compared to the limit, using the `WorkingSetBytes` metric in the Pod preview
 *   New alerts can now be created based on:
     *   Memory Working Set Bytes
