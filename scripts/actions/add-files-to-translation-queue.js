@@ -19,15 +19,10 @@ const loadFromDB = require('./utils/load-from-db');
 const checkArgs = require('./utils/check-args');
 const { prop } = require('../utils/functional');
 
-const addtranslationtoqueue = (jobid) => (file) =>
-  addtranslation(file).then((tr) => addtranslationsjobsrecord(tr.id, jobid));
+const addTranslationToQueue = (jobid) => (file) =>
+addTranslation(file).then((tr) => addTranslationsJobsRecord(tr.id, jobid));
 
 const getpendingjob = () => getjobs({ status: status.pending });
-
-const addnewtranslation = (jobid) => async (translation) => {
-  const newentry = await addtranslation(translation);
-  await addtranslationsjobsrecord(newentry.id, jobid);
-};
 
 const removetranslation = (jobid) => async (slug) => {};
 
@@ -116,10 +111,25 @@ const getUpdatedQueue = async (url, queue) => {
 };
 
 const getSlugDifference = (pendingItems, prChanges) =>
-  prChanges.filter(
+  prChanges
+  .filter(
     (file) =>
-      !pendingItems.find((pendingFile) => file.filename === pendingFile.slug)
+      !pendingItems.find(
+        (pendingFile) =>
+          file.filename === pendingFile.slug &&
+          file.locale === pendingFile.locale
+      )
   );
+
+const getLocalizedFileData = (prFile) => {
+  const contents = fs.readFileSync(path.join(process.cwd(), prFile.filename));
+  const { data } = frontmatter(contents);
+  return data.translate
+    ? data.translate.map((locale) => ({ ...prFile, locale }))
+    : [];
+};
+
+
 
 const getPendingQueue = () => [
   {
@@ -143,15 +153,15 @@ const getPendingQueue = () => [
     status: STATUS.PENDING,
     locale: 'jp',
     slug:
-      'src/docs/agents/c-sdk/get-started/c-sdk-compatibility-requirements.mdx',
+      'src/content/docs/agents/c-sdk/get-started/c-sdk-compatibility-requirements.mdx',
   },
   {
     id: '4',
     job_id: 'j1',
     status: STATUS.PENDING,
-    locale: 'kr',
+    locale: 'jp',
     slug:
-      'src/docs/agents/c-sdk/install-configure/install-c-sdk-compile-link-your-code.mdx',
+      'src/content/docs/agents/c-sdk/install-configure/install-c-sdk-compile-link-your-code.mdx',
   },
 ];
 
@@ -176,13 +186,15 @@ const getPRChanges = () => [
   {
     sha: 'cb985ca941c8fbb26f903541b8bbc1c75d8ae779',
     filename:
-      'src/docs/agents/c-sdk/install-configure/install-c-sdk-compile-link-your-code.mdx',
+      'src/content/docs/agents/c-sdk/install-configure/install-c-sdk-compile-link-your-code.mdx',
     status: 'modified',
     additions: 32,
     deletions: 9,
     changes: 41,
   },
 ];
+
+const removedFilenames = (prFiles) => prFiles.filter((file)=>file.status === 'removed').map((prop('filename'))
 
 /** Entrypoint. */
 const main = async () => {
@@ -194,9 +206,12 @@ const main = async () => {
   const key = { type: 'to_translate' };
 
   const queue = getPendingQueue();
-  const prChanges = getPRChanges();
-  console.dir(getSlugDifference(queue, prChanges));
-  const translationsToAdd = getSlugDifference(queue, prChanges);
+  const prChanges = getPRChanges().filter((file)=>path.extname(file.filename) === '.mdx').filter((f) => f.status !== 'removed');
+  const translationsToAdd = prChanges.flatMap(getLocalizedFileData);
+  const filesToQueue = getSlugDifference(queue, translationsToAdd);
+
+  filesToQueue.map()
+
   // ADD TO DATABASE
 
   //  const { locales } = queue.Item;
