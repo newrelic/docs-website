@@ -1,4 +1,4 @@
-const loadFromDB = require('./utils/load-from-db');
+const { getJobs } = require('./translation_workflow/database.js');
 
 const { getAccessToken, vendorRequest } = require('./utils/vendor-request');
 const { fetchAndDeserialize } = require('./fetch-and-deserialize');
@@ -48,7 +48,7 @@ const getBatchStatus = (accessToken) => async (batchUid) => {
       accessToken,
     });
 
-    const { status, translationJobUid } = batchData;
+    const { translationJobUid } = batchData;
 
     // filter out any files that have been manually cancelled
     // on the vendor's platform
@@ -94,13 +94,10 @@ const getBatchStatus = (accessToken) => async (batchUid) => {
 
 /** Entrypoint. */
 const main = async () => {
-  const table = 'TranslationQueues';
-  const key = { type: 'being_translated' };
-
   try {
     // load the items that we are being translated
-    const queue = await loadFromDB(table, key);
-    const { batchUids } = queue.Item;
+    const inProgressJobs = await getJobs({ status: 'IN_PROGRESS' });
+    const batchUids = inProgressJobs.map((job) => job.batch_uid);
 
     // get the status for all of the batch translation jobs
     const accessToken = await getAccessToken();
@@ -132,8 +129,7 @@ const main = async () => {
       .map((batch) => batch.batchUid);
 
     console.log(
-      `::set-output name=batchUids::${
-        remainingBatches.length ? remainingBatches.join(',') : ','
+      `::set-output name=batchUids::${remainingBatches.length ? remainingBatches.join(',') : ','
       }`
     );
 
