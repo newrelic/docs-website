@@ -33,6 +33,8 @@ module.exports = {
     repository: 'https://github.com/newrelic/docs-website',
     siteUrl,
     branch: 'develop',
+    contributingUrl:
+      'https://docs.newrelic.com/docs/style-guide/writing-guidelines/create-edit-content/',
   },
   plugins: [
     'gatsby-plugin-react-helmet',
@@ -71,6 +73,19 @@ module.exports = {
             'csharp',
             'python',
           ],
+        },
+        splitio: {
+          // Mocked features only used when in localhost mode
+          // https://help.split.io/hc/en-us/articles/360020448791-JavaScript-SDK#localhost-mode
+          features: {
+            free_account_button_color: {
+              treatment: 'off',
+            },
+          },
+          core: {
+            authorizationKey: process.env.SPLITIO_AUTH_KEY || 'localhost',
+          },
+          debug: false,
         },
         relatedResources: {
           swiftype: {
@@ -174,6 +189,13 @@ module.exports = {
             }),
           },
         },
+        googleTagManager: {
+          trackingId: 'UA-3047412-33',
+          src: 'https://www.googletagmanager.com/gtag/js',
+          options: {
+            anonymize_ip: true,
+          },
+        },
       },
     },
     {
@@ -238,7 +260,7 @@ module.exports = {
             resolve: 'gatsby-remark-images',
             options: {
               maxWidth: 850,
-              linkImagesToOriginal: false,
+              linkImagesToOriginal: true,
               backgroundColor: 'transparent',
               disableBgImageOnAlpha: true,
             },
@@ -285,7 +307,7 @@ module.exports = {
             resolve: 'gatsby-remark-images',
             options: {
               maxWidth: 1200,
-              linkImagesToOriginal: false,
+              linkImagesToOriginal: true,
               backgroundColor: 'transparent',
               disableBgImageOnAlpha: true,
             },
@@ -482,6 +504,8 @@ module.exports = {
       },
     },
     'gatsby-plugin-release-note-rss',
+    'gatsby-plugin-whats-new-rss',
+    'gatsby-plugin-security-bulletins-rss',
     {
       resolve: 'gatsby-source-data-dictionary',
       options: {
@@ -496,5 +520,6 @@ module.exports = {
       },
     },
     'gatsby-plugin-meta-redirect',
+    'gatsby-plugin-gatsby-cloud',
   ],
 };

@@ -28,19 +28,31 @@ const DOCS_SITE_URL = 'https://docs.newrelic.com';
  * @param {Object<string, string[]>} locales The queue of slugs to be translated.
  * @returns {Object<string, Promise<Page[]>>}
  */
-const getContent = (locales) =>
-  Object.entries(locales).reduce((acc, [locale, slugs]) => {
+const getContent = (locales) => {
+  return Object.entries(locales).reduce((acc, [locale, slugs]) => {
     return {
       ...acc,
       [locale]: Promise.all(
-        slugs.map(async (slug) => {
-          const mdx = fs.readFileSync(path.join(process.cwd(), slug));
-          const html = await serializeMDX(mdx);
-          return { file: slug, html };
-        })
+        slugs
+          .filter((slug) => {
+            /**
+             * If a doc doesn't exist, it must have been renamed or deleted. In
+             * that case, it is safe to ignore. If we skip including a doc in
+             * this step, it won't become a failed upload, and will then be
+             * cleaned up from the queue.
+             */
+            console.log(`Skipping over -- ${slug} -- since it no longer exists.`);
+            return fs.existsSync(path.join(process.cwd(), slug));
+          })
+          .map(async (slug) => {
+            const mdx = fs.readFileSync(path.join(process.cwd(), slug));
+            const html = await serializeMDX(mdx);
+            return { file: slug, html };
+          })
       ),
     };
   }, {});
+};
 
 /**
  * @param {string} locale The locale that this file should be translated to.
@@ -80,7 +92,9 @@ const uploadFile = (locale, batchUid, accessToken) => async (page) => {
     console.log(`[*] Successfully uploaded ${page.file}.`);
     await sendPageContext(page.file, accessToken);
   } else {
-    console.error(`[!] Unable to upload ${page.file}.`);
+    console.error(
+      `[!] Unable to upload ${page.file}. Code was ${code}. Response status: ${resp.status} -- ${resp.statusText}`
+    );
   }
 
   return { code, locale, slug: page.file };
@@ -225,7 +239,7 @@ const saveFailedUploads = async (failedUploads) => {
   const updatedLocales = failedUploads.reduce(
     (acc, page) => ({
       ...acc,
-      [page.locale]: [...acc[page.locale], page.slug],
+      [page.locale]: [...(acc[page.locale] || []), page.slug],
     }),
     {}
   );
@@ -270,4 +284,13 @@ const main = async () => {
   }
 };
 
-main();
+/**
+ * This allows us to check if the script was invoked directly from the command line, i.e 'node validate_packs.js', or if it was imported.
+ * This would be true if this was used in one of our GitHub workflows, but false when imported for use in a test.
+ * See here: https://nodejs.org/docs/latest/api/modules.html#modules_accessing_the_main_module
+ */
+if (require.main === module) {
+  main();
+}
+
+module.exports = { main, getContent };

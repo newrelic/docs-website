@@ -11,7 +11,7 @@ import { TYPES } from '../utils/constants';
 const IndexPage = ({ data, pageContext, location }) => {
   const { nav } = data;
 
-  const { html, disableSwiftype } = pageContext;
+  const { html, disableSwiftype, slug } = pageContext;
   const title = nav ? nav.title : pageContext.title;
 
   return (
@@ -25,7 +25,7 @@ const IndexPage = ({ data, pageContext, location }) => {
       <PageTitle>{title}</PageTitle>
       <Layout.Content>
         {nav ? (
-          <IndexContents nav={nav} />
+          <IndexContents nav={nav} slug={slug} />
         ) : (
           <TableOfContentsContainer
             dangerouslySetInnerHTML={{ __html: html }}

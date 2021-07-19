@@ -1,11 +1,12 @@
 const loadFromDB = require('./utils/load-from-db');
 
 const { getAccessToken, vendorRequest } = require('./utils/vendor-request');
-const fetchAndDeserialize = require('./fetch-and-deserialize');
+const { fetchAndDeserialize } = require('./fetch-and-deserialize');
 
 const PROJECT_ID = process.env.TRANSLATION_VENDOR_PROJECT;
 
 const uniq = (arr) => [...new Set(arr)];
+const prop = (key) => (x) => x[key];
 
 /**
  * @typedef {Object} Batch
@@ -16,32 +17,79 @@ const uniq = (arr) => [...new Set(arr)];
  */
 
 /**
+ * @param {string} message
+ * @param {string} [level] - Either "log" or "warn" (defaults to "log")
+ * @param {number} [indent] - Extra padding before indicator (defaults to 0)
+ */
+const log = (message, level = 'log', indent = 0) => {
+  const logIndicators = { log: '[*]', warn: '[!]' };
+
+  const str = [
+    Array(indent).fill(' ').join(''),
+    logIndicators[level],
+    message,
+  ].join('');
+
+  console.log(str);
+};
+
+/**
  * @param {string} accessToken
  * @returns {(batchUid: string) => Promise<Batch>}
  */
 const getBatchStatus = (accessToken) => async (batchUid) => {
-  const batchData = await vendorRequest({
-    method: 'GET',
-    endpoint: `/job-batches-api/v2/projects/${PROJECT_ID}/batches/${batchUid}`,
-    accessToken,
-  });
+  log(`Getting status for batch: ${batchUid}`);
 
-  const { status, files, translationJobUid } = batchData;
+  try {
+    // get the information about this batch request
+    const batchData = await vendorRequest({
+      method: 'GET',
+      endpoint: `/job-batches-api/v2/projects/${PROJECT_ID}/batches/${batchUid}`,
+      accessToken,
+    });
 
-  const jobData = await vendorRequest({
-    method: 'GET',
-    endpoint: `/jobs-api/v3/projects/${PROJECT_ID}/jobs/${translationJobUid}`,
-    accessToken,
-  });
+    const { status, translationJobUid } = batchData;
 
-  const { jobStatus } = jobData;
+    // filter out any files that have been manually cancelled
+    // on the vendor's platform
+    const files = batchData.files.filter((file) => file.status !== 'CANCELED');
+    const locale =
+      files[0].targetLocales.length && files[0].targetLocales[0].localeId;
 
-  return {
-    batchUid,
-    done: jobStatus === 'COMPLETED',
-    locale: files[0].targetLocales[0].localeId,
-    fileUris: files.map((file) => file.fileUri),
-  };
+    if (!locale) {
+      log(`Unable to determine locale for batch ${batchUid}`, 'warn');
+    }
+
+    // get the information about the job this batch is associated with
+    const jobData = await vendorRequest({
+      method: 'GET',
+      endpoint: `/jobs-api/v3/projects/${PROJECT_ID}/jobs/${translationJobUid}`,
+      accessToken,
+    });
+
+    const { jobStatus } = jobData;
+
+    return {
+      batchUid,
+      done: jobStatus === 'COMPLETED',
+      locale,
+      fileUris: files.map((file) => file.fileUri),
+    };
+  } catch (error) {
+    const { errors } = JSON.parse(error.message);
+
+    // if the batch / job cant be found, return null and process the rest
+    if (errors.map(prop('key')).includes('batch.not.found')) {
+      for (const { message } of errors) {
+        log(message, 'warn', 4);
+      }
+
+      return null;
+    }
+
+    // otherwise, something wrong happened, stop the script
+    throw error;
+  }
 };
 
 /** Entrypoint. */
@@ -50,26 +98,35 @@ const main = async () => {
   const key = { type: 'being_translated' };
 
   try {
+    // load the items that we are being translated
     const queue = await loadFromDB(table, key);
     const { batchUids } = queue.Item;
 
+    // get the status for all of the batch translation jobs
     const accessToken = await getAccessToken();
-
     const batchStatuses = await Promise.all(
       batchUids.map(getBatchStatus(accessToken))
     );
 
+    // filter out any jobs that aren't ready to be brought back into the site
     const batchesToDeserialize = batchStatuses.filter(
       (batch) => batch && batch.done
     );
+
+    log(`${batchesToDeserialize.length} batches ready to be deserialized`);
+    log(`batchUids: ${batchesToDeserialize.map(prop('batchUid')).join(', ')}`);
+
     console.log(
-      `[*] ${batchesToDeserialize.length} batches ready to be deserialized`
+      `::set-output name=batchesToDeserialize::${batchesToDeserialize.length}`
     );
+
+    // download the newly translated files and deserialize them (into MDX)
     await Promise.all(
       batchesToDeserialize.map(fetchAndDeserialize(accessToken))
     );
-    console.log('[*] Content deserialized');
+    log('Content deserialized');
 
+    // get a list of batches that we're still waiting on from our vendor
     const remainingBatches = batchStatuses
       .filter((batch) => batch && !batch.done)
       .map((batch) => batch.batchUid);
@@ -80,6 +137,8 @@ const main = async () => {
       }`
     );
 
+    // Output a list of new translated files for the next step in the workflow
+    // (creating a new PR with the translated content)
     const deserializedFileUris = uniq(
       batchesToDeserialize.reduce(
         (acc, { fileUris }) => [...fileUris, ...acc],
@@ -95,7 +154,7 @@ const main = async () => {
 
     process.exit(0);
   } catch (error) {
-    console.error(`[!] Unable to check job status`);
+    log(`Unable to check job status`, 'warn');
     console.log(error);
     process.exit(1);
   }

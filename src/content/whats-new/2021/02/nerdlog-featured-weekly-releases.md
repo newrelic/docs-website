@@ -2,8 +2,8 @@
 title: 'Nerdlog Roundup: K6 Load Testing and the ServiceNow and Snowflake Integrations'
 summary: 'Keep your issues in sync, view your Snowflake and k6 performance data in New Relic One.'
 releaseDate: '2021-02-19'
+learnMoreLink: 'https://newrelic.com/blog/nerdlog/introducing-the-nerdlog'
 ---
-
 ## Use ServiceNow integration to keep correlated issues in sync
 
 Senior Product Manager Shachar Brenner showed us how to keep correlated issues in sync with the ServiceNow integration. [Follow these instructions](https://docs.newrelic.com/docs/alerts-applied-intelligence/applied-intelligence/incident-intelligence/get-started-incident-intelligence#) to configure Incident Intelligence or go directly to [New Relic One](https://one.nr/0e1wZy9L4Q6) to add a destination.
@@ -22,6 +22,4 @@ Solutions Architect Gary Spencer showcased how teams can visualize and share [k6
 
 <iframe width="560" height="315" src="https://www.youtube.com/embed/aC45-LjDueM" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
 
-**Don’t miss the Nerdlog LIVE every Thursday at 12 p.m. PT (8 p.m. UTC) on [Twitch] (https://www.twitch.tv/new_relic) to get the latest product updates from the people who built them.**
-
-Get more product news on our [blog](https://blog.newrelic.com/product-news/introducing-the-nerdlog/).
+Don’t miss the Nerdlog LIVE every Thursday at 12 p.m. PT (8 p.m. UTC) on [Twitch](https://www.twitch.tv/new_relic) to get the latest product updates from the people who built them. [Subscribe to our weekly Nerdlog emails](https://developer.newrelic.com/nerdlog) to get product updates like these directly in your inbox.

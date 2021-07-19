@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import PropTypes from 'prop-types';
-import { css } from '@emotion/core';
+import { css } from '@emotion/react';
 import { graphql } from 'gatsby';
 import { Icon, Layout, Link, useLocale } from '@newrelic/gatsby-theme-newrelic';
 import PageTitle from '../components/PageTitle';
@@ -58,7 +58,7 @@ const TableOfContentsPage = ({ data, pageContext, location }) => {
         Back to overview
       </Link>
       <Layout.Content>
-        {subnav && <IndexContents nav={subnav} />}
+        {subnav && <IndexContents nav={subnav} slug={slug} isLandingPageToc />}
       </Layout.Content>
     </>
   );

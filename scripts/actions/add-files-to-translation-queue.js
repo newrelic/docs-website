@@ -1,8 +1,8 @@
 const fs = require('fs');
 const path = require('path');
-const fetch = require('node-fetch');
 const frontmatter = require('@github-docs/frontmatter');
 
+const { fetchPaginatedGHResults } = require('./utils/github-api-helpers');
 const { saveToTranslationQueue } = require('./utils/save-to-db');
 const loadFromDB = require('./utils/load-from-db');
 const checkArgs = require('./utils/check-args');
@@ -15,42 +15,45 @@ const { prop } = require('../utils/functional');
  */
 const getUpdatedQueue = async (url, queue) => {
   try {
-    const resp = await fetch(url);
-    const files = await resp.json();
+    const files = await fetchPaginatedGHResults(url, process.env.GITHUB_TOKEN);
 
     const mdxFiles = files
-      ? files
-          .filter((file) => path.extname(file.filename) === '.mdx')
-          .reduce((files, file) => {
-            const contents = fs.readFileSync(
-              path.join(process.cwd(), file.filename)
-            );
-            const { data } = frontmatter(contents);
-
-            return data.translate && data.translate.length
-              ? [...files, { ...file, locales: data.translate }]
-              : files;
-          }, [])
+      ? files.filter((file) => path.extname(file.filename) === '.mdx')
       : [];
 
-    const addedMdxFiles = mdxFiles
-      .filter((f) => f.status !== 'removed')
+    const mdxFilesToAdd = mdxFiles
+      .filter((file) => file.status !== 'removed')
       .reduce((files, file) => {
-        return file.locales.reduce(
-          (acc, locale) => ({
-            ...acc,
-            [locale]: [...(acc[locale] || []), file.filename],
-          }),
-          files
+        const contents = fs.readFileSync(
+          path.join(process.cwd(), file.filename)
         );
-      }, {});
+        const { data } = frontmatter(contents);
+
+        return data.translate && data.translate.length
+          ? [...files, { ...file, locales: data.translate }]
+          : files;
+      }, []);
+
+    mdxFilesToAdd.forEach((f) => console.log(` - Added ${f.filename}`));
+
+    const addedMdxFiles = mdxFilesToAdd.reduce((files, file) => {
+      return file.locales.reduce(
+        (acc, locale) => ({
+          ...acc,
+          [locale]: [...(acc[locale] || []), file.filename],
+        }),
+        files
+      );
+    }, {});
 
     const removedMdxFileNames = mdxFiles
       .filter((f) => f.status === 'removed')
       .map(prop('filename'));
 
+    removedMdxFileNames.forEach((f) => console.log(` - Removed ${f}`));
+
     const queueFiles =
-      Object.entries(queue).length === 0 ? Object.entries(queue) : [];
+      Object.entries(queue).length !== 0 ? Object.entries(queue) : [];
 
     return queueFiles
       .map(([locale, files]) => [
@@ -60,7 +63,7 @@ const getUpdatedQueue = async (url, queue) => {
       .reduce(
         (acc, [locale, filenames]) => ({
           ...acc,
-          [locale]: filenames.concat(acc[locale] || []),
+          [locale]: [...new Set(filenames.concat(acc[locale] || []))],
         }),
         addedMdxFiles
       );
@@ -80,7 +83,8 @@ const main = async () => {
   const key = { type: 'to_translate' };
 
   const queue = await loadFromDB(table, key);
-  const data = await getUpdatedQueue(url, queue);
+  const { locales } = queue.Item;
+  const data = await getUpdatedQueue(url, locales);
 
   await saveToTranslationQueue(key, 'set locales = :slugs', { ':slugs': data });
 

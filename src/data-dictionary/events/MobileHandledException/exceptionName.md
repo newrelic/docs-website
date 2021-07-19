@@ -5,4 +5,4 @@ events:
   - MobileHandledException
 ---
 
-The potentially symbolicated or deobfuscated exception type.
+The unsymbolicated exception type.
