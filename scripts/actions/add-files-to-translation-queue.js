@@ -34,6 +34,8 @@ const getUpdatedQueue = async (url, queue) => {
           : files;
       }, []);
 
+    mdxFilesToAdd.forEach((f) => console.log(` - Added ${f.filename}`));
+
     const addedMdxFiles = mdxFilesToAdd.reduce((files, file) => {
       return file.locales.reduce(
         (acc, locale) => ({
@@ -47,6 +49,8 @@ const getUpdatedQueue = async (url, queue) => {
     const removedMdxFileNames = mdxFiles
       .filter((f) => f.status === 'removed')
       .map(prop('filename'));
+
+    removedMdxFileNames.forEach((f) => console.log(` - Removed ${f}`));
 
     const queueFiles =
       Object.entries(queue).length !== 0 ? Object.entries(queue) : [];
