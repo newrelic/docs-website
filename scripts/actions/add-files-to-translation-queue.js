@@ -18,13 +18,19 @@ const { saveToTranslationQueue } = require('./utils/save-to-db');
 const loadFromDB = require('./utils/load-from-db');
 const checkArgs = require('./utils/check-args');
 const { prop } = require('../utils/functional');
+const {
+  deleteTranslation,
+  deleteTranslationsJobsRecords,
+} = require('./translation_workflow/database');
 
-const addTranslationToQueue = (jobid) => (file) =>
-addTranslation(file).then((tr) => addTranslationsJobsRecord(tr.id, jobid));
+const addTranslationToQueue = (jobId) => (file) =>
+  addTranslation(file).then((tr) => addTranslationsJobsRecord(tr.id, jobId));
 
-const getpendingjob = () => getjobs({ status: status.pending });
-
-const removetranslation = (jobid) => async (slug) => {};
+const removeTranslationFromQueue = (jobId) => (translationId) =>
+  Promise.all([
+    deleteTranslation(translationId),
+    deleteTranslationsJobsRecords(jobId), // This seems to delete all entries for a particular job id, we need to update it to also take an optional translation id as well
+  ]);
 
 const STATUS = {
   PENDING: 0,
@@ -110,16 +116,18 @@ const getUpdatedQueue = async (url, queue) => {
   }
 };
 
-const getSlugDifference = (pendingItems, prChanges) =>
-  prChanges
-  .filter(
+const translationDifference = (pendingFiles, prChanges) =>
+  prChanges.filter(
     (file) =>
-      !pendingItems.find(
+      !pendingFiles.find(
         (pendingFile) =>
           file.filename === pendingFile.slug &&
           file.locale === pendingFile.locale
       )
   );
+
+const slugIntersection = (pendingFiles, filesToRemove) =>
+  pendingFiles.filter((file) => filesToRemove.includes(file.slug));
 
 const getLocalizedFileData = (prFile) => {
   const contents = fs.readFileSync(path.join(process.cwd(), prFile.filename));
@@ -128,8 +136,6 @@ const getLocalizedFileData = (prFile) => {
     ? data.translate.map((locale) => ({ ...prFile, locale }))
     : [];
 };
-
-
 
 const getPendingQueue = () => [
   {
@@ -194,7 +200,8 @@ const getPRChanges = () => [
   },
 ];
 
-const removedFilenames = (prFiles) => prFiles.filter((file)=>file.status === 'removed').map((prop('filename'))
+const removedFiles = (prFiles) =>
+  prFiles.filter((file) => file.status === 'removed').map(prop('filename'));
 
 /** Entrypoint. */
 const main = async () => {
@@ -204,13 +211,25 @@ const main = async () => {
     'https://api.github.com/repos/newrelic/docs-website/pulls/3032/files'; // process.argv[2];
   const table = 'TranslationQueues';
   const key = { type: 'to_translate' };
+  const pendingJobId = 1;
 
   const queue = getPendingQueue();
-  const prChanges = getPRChanges().filter((file)=>path.extname(file.filename) === '.mdx').filter((f) => f.status !== 'removed');
-  const translationsToAdd = prChanges.flatMap(getLocalizedFileData);
-  const filesToQueue = getSlugDifference(queue, translationsToAdd);
+  const prChanges = getPRChanges()
+    .filter((file) => path.extname(file.filename) === '.mdx')
+    .filter((f) => f.status !== 'removed');
 
-  filesToQueue.map()
+  const translationsInPR = prChanges.flatMap(getLocalizedFileData);
+  const filesToQueue = translationDifference(queue, translationsInPR);
+  const removedFiles = removedFiles(prChanges);
+  const translationIdsToRemove = slugIntersection(
+    queue,
+    removedFiles(prChanges)
+  ).map(prop('id'));
+
+  await Promise.all(filesToQueue.map(addTranslationToQueue(pendingJobId)));
+  await Promise.all(
+    translationIdsToRemove.map(removeTranslationFromQueue(pendingJobId))
+  );
 
   // ADD TO DATABASE
 
