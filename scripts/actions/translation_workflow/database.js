@@ -158,11 +158,9 @@ const addTranslationsJobsRecord = async (translationId, jobId) => {
  * Method to get records from 'translations_jobs' table.
  * @param {number} jobId - identifier of job
  */
-const getTranslationsJobsRecords = async (jobId) => {
+const getTranslationsJobsRecords = async (filters = {}) => {
   await Models.TranslationsJobs.findAll({
-    where: {
-      job_id: jobId,
-    },
+    where: { ...filters },
   });
 };
 

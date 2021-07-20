@@ -242,7 +242,7 @@ const updateStatus = async (successfulUploads, status) => {
   for (const upload of successfulUploads) {
     const batch_uid = upload.batchUid;
     const job = await getJobs({ batch_uid });
-    const translationId = await getTranslationsJobsRecords(job.id);
+    const translationId = await getTranslationsJobsRecords({ jobId: job.id });
     await updateJob(job.id, { status });
     await updateTranslation(translationId, { status });
   }
