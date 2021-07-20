@@ -3,10 +3,17 @@ const path = require('path');
 const FormData = require('form-data');
 const fetch = require('node-fetch');
 
-const loadFromDB = require('./utils/load-from-db');
-const { saveToTranslationQueue } = require('./utils/save-to-db');
 const serializeMDX = require('./serialize-mdx');
 const { vendorRequest, getAccessToken } = require('./utils/vendor-request');
+const {
+  addJob,
+  updateJob,
+  getJobs,
+  getTranslations,
+  updateTranslation,
+  addTranslationsJobsRecord,
+  getTranslationsJobsRecords,
+} = require('./translation_workflow/database');
 
 /**
  * @typedef {Object} Page
@@ -25,11 +32,11 @@ const DOCS_SITE_URL = 'https://docs.newrelic.com';
 
 /**
  * Take a list of filepaths (grouped by locale) and fetches the HTML content.
- * @param {Object<string, string[]>} locales The queue of slugs to be translated.
+ * @param {Object<string, string[]>} listByLocale The queue of slugs to be translated.
  * @returns {Object<string, Promise<Page[]>>}
  */
-const getContent = (locales) => {
-  return Object.entries(locales).reduce((acc, [locale, slugs]) => {
+const getContent = (listByLocale) => {
+  return Object.entries(listByLocale).reduce((acc, [locale, slugs]) => {
     return {
       ...acc,
       [locale]: Promise.all(
@@ -41,7 +48,9 @@ const getContent = (locales) => {
              * this step, it won't become a failed upload, and will then be
              * cleaned up from the queue.
              */
-            console.log(`Skipping over -- ${slug} -- since it no longer exists.`);
+            console.log(
+              `Skipping over -- ${slug} -- since it no longer exists.`
+            );
             return fs.existsSync(path.join(process.cwd(), slug));
           })
           .map(async (slug) => {
@@ -109,8 +118,7 @@ const uploadFile = (locale, batchUid, accessToken) => async (page) => {
 const sendPageContext = async (fileUri, accessToken) => {
   const filepath = fileUri.replace(`src/content/`, '');
   const slug = filepath.replace(`.mdx`, '');
-  const contextUrl = new URL(slug, DOCS_SITE_URL); //need to change this once we migrate to docs-newrelic-com
-
+  const contextUrl = new URL(slug, DOCS_SITE_URL);
   const res = await fetch(contextUrl.href);
   const html = await res.text();
 
@@ -172,6 +180,14 @@ const sendContentToVendor = async (content, accessToken) => {
   const jobUids = jobsResponses.map((resp) => resp.translationJobUid);
   console.log(`[*] Successfully created jobs: ${jobUids.join(', ')}`);
 
+  const createTranslationJobRecord = jobUids.map((jobUid) =>
+    addTranslationsJobsRecord(jobUid)
+  );
+  console.log(
+    `[*] Successfully created job record: ${JSON.stringify(
+      createTranslationJobRecord
+    )}`
+  );
   // 2) Create a batch for each job - save bachUid for storage
   const pages = await Promise.all(Object.values(content));
   const batchRequests = jobUids.map((jobUid, idx) => {
@@ -190,8 +206,14 @@ const sendContentToVendor = async (content, accessToken) => {
   });
 
   const batchResponses = await Promise.all(batchRequests);
+  const initialStatus = 'PENDING';
+  for (const response of batchResponses) {
+    addJob(response.job_uid, response.batch_uid, initialStatus);
+  }
+  console.log(
+    `[*] Successfully created job/batch records: ${jobRecords.join(', ')}`
+  );
   const batchUids = batchResponses.map((resp) => resp.batchUid);
-  console.log(`[*] Successfully created batches: ${batchUids.join(', ')}`);
 
   // 3) Upload files to the batches job
   const fileRequests = batchUids.flatMap((batchUid, idx) => {
@@ -201,79 +223,60 @@ const sendContentToVendor = async (content, accessToken) => {
   });
 
   const fileResponses = await Promise.all(fileRequests);
-  const numSuccess = fileResponses.filter(({ code }) => code === 'ACCEPTED');
-
+  const successfulUploads = fileResponses.filter(
+    ({ code }) => code === 'ACCEPTED'
+  );
+  await updateStatus(successfulUploads, 'IN_PROGRESS');
   console.log(
-    `[*] Successfully uploaded ${numSuccess.length} / ${fileResponses.length} files`
+    `[*] Successfully uploaded ${successfulUploads.length} / ${fileResponses.length} files`
   );
 
-  return { batchUids, fileResponses };
+  return { fileResponses };
 };
 
 /**
  * @param {string[]} batchUids A list of vendor UIDs to be added to the `being_translated` queue.
+ * @param {string} status Status of a job
  */
-const addToBeingTranslatedQueue = async (batchUids) => {
-  const table = 'TranslationQueues';
-  const key = { type: 'being_translated' };
-
-  const data = await loadFromDB(table, key);
-
-  // If this field is empty/returns as empty object
-  const queue =
-    data.Item && data.Item.batchUids && data.Item.batchUids.length
-      ? data.Item.batchUids
-      : [];
-
-  await saveToTranslationQueue(key, 'set batchUids = :batchUids', {
-    ':batchUids': [...queue, ...batchUids],
-  });
+const updateStatus = async (successfulUploads, status) => {
+  for (const upload of successfulUploads) {
+    const batch_uid = upload.batchUid;
+    const job = await getJobs({ batch_uid });
+    const translationId = await getTranslationsJobsRecords(job.id);
+    await updateJob(job.id, { status });
+    await updateTranslation(translationId, { status });
+  }
 };
 
 /**
- * Saves any files that failed to upload to the "to be translated" queue.
- * @param {{code: string, locale: string, slug: string}[]} failedUploads
- * @returns {Promise<boolean>}
+ * @param {Object[]} failedUploads A list of failed requests to the vendor
  */
-const saveFailedUploads = async (failedUploads) => {
-  const updatedLocales = failedUploads.reduce(
-    (acc, page) => ({
-      ...acc,
-      [page.locale]: [...(acc[page.locale] || []), page.slug],
-    }),
-    {}
-  );
-
-  await saveToTranslationQueue(
-    { type: 'to_translate' },
-    'set locales = :locales',
-    { ':locales': updatedLocales }
-  );
+const outputFailedUploads = async (failedUploads) => {
+  for (const failedUpload of failedUploads) {
+    console.log(`    [!] ${JSON.stringify(failedUpload)}`);
+  }
 };
 
 /** Entrypoint. */
 const main = async () => {
-  const queue = await loadFromDB('TranslationQueues', { type: 'to_translate' });
-  const { locales } = queue.Item;
-  const content = getContent(locales);
-
+  const pendingJobs = await getTranslations({ status: 'PENDING' });
+  const listByLocale = pendingJobs.reduce(
+    (acc, job) => ({
+      ...acc,
+      [job.locale]: [...(acc[job.locale] || []), job.slug],
+    }),
+    []
+  );
+  const content = getContent(listByLocale);
   try {
     const accessToken = await getAccessToken();
-    const { batchUids, fileResponses } = await sendContentToVendor(
-      content,
-      accessToken
-    );
-
-    await addToBeingTranslatedQueue(batchUids);
-    console.log('[*] Saved batchUid(s) to the "being translated" queue');
+    const { fileResponses } = await sendContentToVendor(content, accessToken);
 
     const failedUploads = fileResponses.filter(
       ({ code }) => code !== 'ACCEPTED'
     );
     console.log(`[*] ${failedUploads.length} pages failed to upload.`);
-
-    await saveFailedUploads(failedUploads);
-    console.log('[*] Updated "to be translated" queue');
+    outputFailedUploads(failedUploads);
 
     process.exit(failedUploads.length ? 1 : 0);
   } catch (error) {
