@@ -133,7 +133,7 @@ const getTranslations = async (filters = {}) => {
 
 /**
  * Method to delete a translation.
- * @param {number} translationId - id of record to remove
+ * @param {number} id - id of record to remove
  */
 const deleteTranslation = async (id) => {
   await Models.Translation.destroy({ where: { id } });
