@@ -1,8 +1,15 @@
 const fetch = require('node-fetch');
+import { Policy } from 'cockatiel';
 
 /** @throws {Error} Will throw an error if the response "code" is not 'SUCCESS' */
 const makeRequest = async (url, options) => {
-  const resp = await fetch(url.href, options);
+  const retry = Policy.handleWhenResult((response) => response.status === 429)
+    .retry()
+    .attempts(3)
+    .exponential();
+
+  const resp = await retry.execute(async () => await fetch(url.href, options));
+
   const { response } = await resp.json();
   const { code, data } = response;
 
