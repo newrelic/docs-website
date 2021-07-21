@@ -8,7 +8,7 @@ const Models = require('./models');
  * @param {Object} job
  * @param {string} job.job_uid - identifier of job from translation vendor
  * @param {string} job.batch_uid - identifier of batch from translation vendor
- * @param {number} job.status - numeric value of job status enum
+ * @param {string} job.status - text value of job status enum
  * @returns newly created job
  */
 const addJob = async ({ job_uid, batch_uid, status }) => {
@@ -20,7 +20,7 @@ const addJob = async ({ job_uid, batch_uid, status }) => {
  * Method to update an existing job record.
  * @param {number} jobId - identifier of job
  * @param {Object} updates
- * @param {number} updates.status - numeric value of status enum to update to
+ * @param {string} updates.status - text value of status enum to update to
  * @returns updated job
  */
 const updateJob = async (jobId, { status }) => {
@@ -39,7 +39,7 @@ const updateJob = async (jobId, { status }) => {
  * @example
  * await getJobs({id: 1}) // returns all jobs with id == 1
  * @example
- * await getJobs({ status: 1, job_uid: 'banana' }) // returns all jobs with status == 1, job_uid == 'banana'
+ * await getJobs({ status: 'IN_REVIEW', job_uid: 'banana' }) // returns all jobs with status == 'IN_REVIEW', job_uid == 'banana'
  * @returns matching jobs
  */
 const getJobs = async (filters = {}) => {
@@ -88,8 +88,8 @@ const getStatuses = async (filters = {}) => {
  * Method to add a record to the 'translations' table.
  * @param {Object} translation
  * @param {string} translation.slug - unique filepath
- * @param {number} status - numeric value of status enum
- * @param {locale} locale - numeric value of locale enum
+ * @param {string} status - text value of status enum
+ * @param {locale} locale - text value of locale enum
  * @returns newly created translation
  */
 const addTranslation = async ({ slug, status, locale }) => {
@@ -101,7 +101,7 @@ const addTranslation = async ({ slug, status, locale }) => {
  * Method to update an existing translation record.
  * @param {number} translationId - identifier of translation
  * @param {Object} updates
- * @param {number} updates.status - numeric value of status enum to update to
+ * @param {string} updates.status - text value of status enum to update to
  * @returns updated translation
  */
 const updateTranslation = async (translationId, { status }) => {
@@ -120,7 +120,7 @@ const updateTranslation = async (translationId, { status }) => {
  * @example
  * await getTranslations({id: 1}) // returns all translations with id == 1
  * @example
- * await getTranslations({slug: 'hello_world.txt', locale: 1}) // returns all translations with id == 1 && slug == 'hello_world.txt'
+ * await getTranslations({slug: 'hello_world.txt', locale: 'ja-JP'}) // returns all translations slug == 'hello_world.txt' && locale == 'ja-JP'
  * @returns matching translations
  */
 const getTranslations = async (filters = {}) => {
