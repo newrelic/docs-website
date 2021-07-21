@@ -1,11 +1,11 @@
 'use strict';
 
 const fetch = require('node-fetch');
+const jitterTime = require('jitter-time');
 
 const MAX_RETRY = 5;
-const DELAY_TIME = 1500;
 // let nthTry = 1;
-const waitFor = (millSeconds) => {
+const sleep = (millSeconds) => {
   return new Promise((resolve) => {
     setTimeout(() => {
       resolve();
@@ -20,8 +20,7 @@ const waitFor = (millSeconds) => {
  * @returns {Object} data The result after making the request.
  * @throws {Error} Will throw an error if the response "code" is not 'SUCCESS' after retrying
  */
-const makeRequest = async (url, options, nthTry) => {
-  nthTry = nthTry || 1;
+const makeRequest = async (url, options, retriesRemaining = MAX_RETRY) => {
   try {
     const resp = await fetch(url.href, options);
     const { response } = await resp.json();
@@ -32,21 +31,21 @@ const makeRequest = async (url, options, nthTry) => {
     console.log(`Successful response`);
     return data;
   } catch (e) {
-    if (nthTry === MAX_RETRY) {
+    if (retriesRemaining === 0) {
       console.error(
         `[!] Unable to make a ${options.method} request to ${url.href} after ${MAX_RETRY} attempts.`
       );
       return Promise.reject(e);
     }
-    ++nthTry;
+    const POLL_INTERVAL = jitterTime(0.04, 0.2);
     console.warn(
-      `[!] Error making request on attempt ${nthTry}/${MAX_RETRY}. Retrying in ${
-        DELAY_TIME / 1000
-      } seconds`
+      `[!] Error making request on attempt ${
+        MAX_RETRY - retriesRemaining + 1
+      }/${MAX_RETRY}. Retrying in ${POLL_INTERVAL / 1000} seconds`
     );
     // wait for delayTime amount of time before calling this method again
-    await waitFor(DELAY_TIME);
-    return makeRequest(url, options, nthTry);
+    await sleep(POLL_INTERVAL);
+    return makeRequest(url, options, retriesRemaining - 1);
   }
 };
 
