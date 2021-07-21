@@ -180,9 +180,10 @@ const sendContentToVendor = async (content, accessToken) => {
   const jobUids = jobsResponses.map((resp) => resp.translationJobUid);
   console.log(`[*] Successfully created jobs: ${jobUids.join(', ')}`);
 
-  const createTranslationJobRecord = jobUids.map((jobUid) =>
+  const queueTranslationsJobsRecord = jobUids.map((jobUid) =>
     addTranslationsJobsRecord(jobUid)
   );
+  const createTranslationJobRecord = await Promise.all(queueTranslationsJobsRecord)
   console.log(
     `[*] Successfully created job record: ${JSON.stringify(
       createTranslationJobRecord
@@ -208,7 +209,7 @@ const sendContentToVendor = async (content, accessToken) => {
   const batchResponses = await Promise.all(batchRequests);
   const initialStatus = 'PENDING';
   for (const response of batchResponses) {
-    addJob(response.job_uid, response.batch_uid, initialStatus);
+    await addJob(response.job_uid, response.batch_uid, initialStatus);
   }
   console.log(
     `[*] Successfully created job/batch records: ${jobRecords.join(', ')}`
