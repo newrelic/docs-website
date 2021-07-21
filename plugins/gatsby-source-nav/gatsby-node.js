@@ -275,13 +275,15 @@ const createNav = async ({ args, createNodeId, nodeModel, locales }) => {
     },
   });
 
-  const allNavYamlNodes = nodeModel.getAllNodes({ type: 'NavYaml' });
+  const allNavYamlNodes = nodeModel
+    .getAllNodes({ type: 'NavYaml' })
+    .sort((a, b) => a.title.localeCompare(b.title));
 
   let nav =
     allNavYamlNodes.find((nav) => findPage(nav, slug)) ||
     allNavYamlNodes.find((nav) => slug.includes(nav.path));
 
-  let trueNav = allNavYamlNodes.find((nav) => slug.includes(nav.path));
+  const trueNav = allNavYamlNodes.find((nav) => slug.includes(nav.path));
 
   if (!nav) {
     return null;

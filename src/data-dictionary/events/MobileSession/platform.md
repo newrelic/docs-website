@@ -9,4 +9,4 @@ events:
   - MobileRequestError
 ---
 
-The platform type of the New Relic Mobile agent, such as native or Cordova.
+The platform type of the mobile monitoring agent, such as native or Cordova.
