@@ -1,4 +1,5 @@
 const { saveToTranslationQueue } = require('./utils/save-to-db');
+const { getJobs, updateJob } = require('./translation_workflow/database.js');
 const checkArgs = require('./utils/check-args');
 const { getAccessToken, vendorRequest } = require('./utils/vendor-request');
 const fetch = require('node-fetch');
@@ -10,10 +11,10 @@ const DOCS_SITE_URL = 'https://docs.newrelic.com';
  * Updates the "being translated" queue with the batches that are not done.
  * @returns {Promise}
  */
-const saveRemainingBatches = async () => {
+const setInProgressToDone = async () => {
   checkArgs(4);
 
-  const batchUids = process.argv[2].split(',').filter(Boolean);
+  const completedBatches = process.argv[2].split(',').filter(Boolean);
   const deserializedFileUris = process.argv[3].split(',').filter(Boolean);
 
   const code = await removePageContext(deserializedFileUris);
@@ -22,11 +23,10 @@ const saveRemainingBatches = async () => {
     console.log(`[!] Unable to delete all contexts`);
   }
 
-  await saveToTranslationQueue(
-    { type: 'being_translated' },
-    'set batchUids = :batchUids',
-    { ':batchUids': batchUids }
-  );
+  for (const batch_uid of completedBatches) {
+    const job = await getJobs({ batch_uid });
+    updateJob(job.id, { status: 'IN_REVIEW' });
+  }
 };
 
 /**
@@ -94,4 +94,4 @@ const removePageContext = async (fileUris) => {
   }, 'SUCCESS');
 };
 
-saveRemainingBatches();
+setInProgressToDone();
