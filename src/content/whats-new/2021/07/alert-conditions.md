@@ -13,17 +13,18 @@ We know that creating accurate alert conditions is anything but simple. Knowing 
 Good news: New Relic One now has an alert condition recommendation service that uses AI and machine learning (ML) to recommend specific metrics and signals to monitor for your specific entities. You can use the provided recommendations or modify them to fit your specific needs.
 
 Here’s how you can add recommended alerts to APM entities that do not currently have alert coverage.
-![Alerts - In context alerting blog - Navigator 2021-07-09.png]("Alerts - In context alerting blog - Navigator 2021-07-09.png")
+
+![Alerts in context navigator blog ](alerts-nav.png "Alerts navigator")
  
 ## Using recommended conditions
 Go to **Services - APM** in [New Relic Navigator](https://docs.newrelic.com/docs/new-relic-one/use-new-relic-one/core-concepts/new-relic-explorer-view-performance-across-apps-services-hosts/) and you’ll see a high-density view of the health of your system. With the traffic-light visual, it’s easy to view which entities are healthy, which entities have violations, and which entities do not have any alerts coverage. If an entity does not have alert coverage, its hexagon will be gray. Recommended conditions helps you automatically add alerts to entities that do not have alerts coverage, those gray hexagons.
 
 1. **Select an entity:** Click an uncovered entity (gray hexagon). A new option will appear on the right-hand side of the screen. Click Create alert condition as shown in the image below.
-![Alerts - In context alerting blog - Navigator 2021-07-09.png]("Alerts - In context alerting blog - Navigator 2021-07-09.png")
+![Alerts in context navigator blog ](alerts-nav.png "Alerts navigator")
 
 2. **Choose a number of recommended conditions.** The recommendations will depend on the quality of the tags associated with an entity. The more accurate and informative the tags are, the more precise the recommendations will be. The image below shows a few possible recommendations based on error percentage, Apdex, and response time.
-![Alerts - In context alerting blog - add alert 2021-07-09.png]("Alerts - In context alerting blog - add alert 2021-07-09.png")
 
+![Alerts in context alerting blog](add-alert.png "Add alerts")
 
 Learn more about recent innovations in alerting with our PM Brian Goleno [here!](https://www.youtube.com/watch?v=NV9ueK8JmRo&feature=youtu.be"). 
 
