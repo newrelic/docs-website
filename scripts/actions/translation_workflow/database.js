@@ -155,6 +155,16 @@ const addTranslationsJobsRecord = async (translationId, jobId) => {
 };
 
 /**
+ * Method to get records from 'translations_jobs' table.
+ * @param {number} jobId - identifier of job
+ */
+const getTranslationsJobsRecords = async (filters = {}) => {
+  await Models.TranslationsJobs.findAll({
+    where: { ...filters },
+  });
+};
+
+/**
  * Method to delete translations_jobs records.
  * @param {number} jobId - identifier of job
  */
@@ -178,5 +188,6 @@ module.exports = {
   getTranslations,
   deleteTranslation,
   addTranslationsJobsRecord,
+  getTranslationsJobsRecords,
   deleteTranslationsJobsRecords,
 };
