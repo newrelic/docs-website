@@ -95,7 +95,7 @@ const uploadFile = (locale, batchUid, accessToken) => async (page) => {
 const sendPageContext = async (fileUri, accessToken) => {
   const filepath = fileUri.replace(`src/content/`, '');
   const slug = filepath.replace(`.mdx`, '');
-  const contextUrl = new URL(slug, DOCS_SITE_URL); //need to change this once we migrate to docs-newrelic-com
+  const contextUrl = new URL(slug, DOCS_SITE_URL);
 
   const res = await fetch(contextUrl.href);
   const html = await res.text();
