@@ -5,6 +5,7 @@ import { graphql } from 'gatsby';
 import {
   PageTools,
   Button,
+  SearchInput,
   Link,
   useQueryParams,
 } from '@newrelic/gatsby-theme-newrelic';
@@ -19,6 +20,7 @@ const DataDictionaryFilter = ({ location, events }) => {
     dataSource: queryParams.get('dataSource'),
     event: queryParams.get('event'),
     attribute: queryParams.get('attribute'),
+    attributeSearch: queryParams.get('attributeSearch'),
   }));
 
   const dataSources = useMemo(
@@ -34,8 +36,21 @@ const DataDictionaryFilter = ({ location, events }) => {
       dataSource: queryParams.get('dataSource'),
       event: queryParams.get('event'),
       attribute: queryParams.get('attribute'),
+      attributeSearch: queryParams.get('attributeSearch'),
     });
   }, [queryParams]);
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (e.keyCode === 13) {
+        navigateToParams(formState);
+      }
+    };
+    document.addEventListener('keydown', handler);
+    return () => {
+      document.removeEventListener('keydown', handler);
+    };
+  });
 
   const filteredEvents = useMemo(
     () =>
@@ -47,10 +62,6 @@ const DataDictionaryFilter = ({ location, events }) => {
     [events, formState.dataSource]
   );
 
-  const selectedEvent = formState.event
-    ? events.find((event) => event.name === formState.event)
-    : null;
-
   const navigateToParams = (params) => {
     Object.entries(params).forEach(([key, value]) => {
       value ? queryParams.set(key, value) : queryParams.delete(key);
@@ -61,7 +72,26 @@ const DataDictionaryFilter = ({ location, events }) => {
 
   return (
     <PageTools.Section>
-      <PageTools.Title>Apply filter</PageTools.Title>
+      <PageTools.Title>Search and filter</PageTools.Title>
+      <FormControl>
+        <Label htmlFor="attributeSearch">Attribute name</Label>
+        <SearchInput
+          value={formState.attributeSearch || ''}
+          onClear={() =>
+            setFormState((state) => ({ ...state, attributeSearch: null }))
+          }
+          onChange={(e) => {
+            const { value } = e.target;
+
+            setFormState((state) => ({
+              ...state,
+              attribute: null,
+              attributeSearch: value,
+            }));
+          }}
+          placeholder="Name contains..."
+        />
+      </FormControl>
       <FormControl>
         <Label htmlFor="dataSourceFilter">Data source</Label>
         <Select
@@ -109,26 +139,7 @@ const DataDictionaryFilter = ({ location, events }) => {
           ))}
         </Select>
       </FormControl>
-      <FormControl>
-        <Label htmlFor="attributeFilter">Attribute</Label>
-        <Select
-          id="attributeFilter"
-          value={formState.attribute || ''}
-          disabled={!selectedEvent}
-          onChange={(e) => {
-            const { value } = e.target;
 
-            setFormState((state) => ({ ...state, attribute: value }));
-          }}
-        >
-          <option value="">All</option>
-          {selectedEvent?.childrenDataDictionaryAttribute.map((attribute) => (
-            <option key={attribute.name} value={attribute.name}>
-              {attribute.name}
-            </option>
-          ))}
-        </Select>
-      </FormControl>
       <FormControl>
         <Button
           variant={Button.VARIANT.PRIMARY}
@@ -136,7 +147,7 @@ const DataDictionaryFilter = ({ location, events }) => {
             navigateToParams(formState);
           }}
         >
-          Apply
+          Search
         </Button>
         <Button
           as={Link}
@@ -147,6 +158,7 @@ const DataDictionaryFilter = ({ location, events }) => {
               event: null,
               dataSource: null,
               attribute: null,
+              attributeSearch: null,
             };
 
             setFormState(formState);
