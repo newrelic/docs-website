@@ -8,11 +8,9 @@ const { vendorRequest, getAccessToken } = require('./utils/vendor-request');
 const {
   addJob,
   updateJob,
-  getJobs,
   getTranslations,
   updateTranslation,
   addTranslationsJobsRecord,
-  getTranslationsJobsRecords,
 } = require('./translation_workflow/database');
 
 /**
@@ -29,6 +27,22 @@ const LOCALE_IDS = {
 
 const PROJECT_ID = process.env.TRANSLATION_VENDOR_PROJECT;
 const DOCS_SITE_URL = 'https://docs.newrelic.com';
+
+/**
+ * Gets Translations from the database that have pending status
+ * @param {Object[]} pendingTranslations an array of translation objects
+ * @returns {Object[]} slugs to be translated grouped by locale
+ */
+const groupByLocale = (pendingTranslations) => {
+  const slugsByLocale = pendingTranslations.reduce(
+    (acc, job) => ({
+      ...acc,
+      [job.locale]: [...(acc[job.locale] || []), job.slug],
+    }),
+    []
+  );
+  return slugsByLocale;
+};
 
 /**
  * Take a list of filepaths (grouped by locale) and fetches the HTML content.
@@ -61,6 +75,116 @@ const getContent = (listByLocale) => {
       ),
     };
   }, {});
+};
+
+/**
+ * Gets a new Job Id from the vendor for each locale
+ * @param {string[]} locales an array of locales
+ * @param {string} accessToken
+ * @returns {string[]} jobUids a list of created JobUids
+ */
+const getJobUids = async (locales, accessToken) => {
+  const jobRequests = locales.map((locale) => {
+    const body = {
+      jobName: `Gatsby Translation Queue (${locale}) ${new Date().toLocaleString()}`,
+      targetLocaleIds: [LOCALE_IDS[locale]],
+    };
+    return vendorRequest({
+      method: 'POST',
+      endpoint: `/jobs-api/v3/projects/${PROJECT_ID}/jobs`,
+      body,
+      accessToken,
+    });
+  });
+  const jobResponses = await Promise.all(jobRequests);
+  const jobUids = jobResponses.map((resp) => resp.translationJobUid);
+  console.log(`[*] Successfully created jobs: ${jobUids.join(', ')}`);
+  return jobUids;
+};
+
+/**
+ * @param {string[]} locales a list of locales
+ * @param {string[]} jobUids a list of created JobUids
+ * @returns {Object[]} translation jobs records
+ */
+const createTranslationJobRecords = async (locales, jobUids) => {
+  const queueTranslationsJobsRecords = jobUids.map((uid, index) => {
+    return addTranslationsJobsRecord({
+      locale: locales[index],
+      uid,
+    });
+  });
+  const createTranslationJobRecords = await Promise.all(
+    queueTranslationsJobsRecords
+  );
+  console.log(
+    `[*] Successfully created translation job record: ${JSON.stringify(
+      createTranslationJobRecords
+    )}`
+  );
+  return createTranslationJobRecords;
+};
+
+/**
+ * @param {Array<string[]>} pages an array of page arrays to be translated}
+ * @param {string[]} jobUids a list of created JobUids
+ * @param {string} accessToken
+ * @returns {string[]} batchUids a list of created Batch uids
+ */
+const getBatchUids = async (pages, jobUids, accessToken) => {
+  const batchRequests = jobUids.map((jobUid, idx) => {
+    const body = {
+      authorize: false,
+      translationJobUid: jobUid,
+      fileUris: pages[idx].map(({ file }) => file),
+    };
+
+    return vendorRequest({
+      method: 'POST',
+      endpoint: `/job-batches-api/v2/projects/${PROJECT_ID}/batches`,
+      body,
+      accessToken,
+    });
+  });
+  const batchResponses = await Promise.all(batchRequests);
+  const batchUids = batchResponses.map((resp) => resp.batchUid);
+  return batchUids;
+};
+
+/**
+ * @param {string[]} batchUids a list of created Batch uids
+ * @param {string[]} jobUids a list of created JobUids
+ * @param {string} accessToken
+ */
+const createBatchJobRecords = async (batchUids, jobUids) => {
+  const queueBatchJobsRecords = batchUids.map((batch_uid, index) => {
+    return addJob({ job_uid: jobUids[index], batch_uid, status: 'PENDING' });
+  });
+  const createBatchRecords = await Promise.all(queueBatchJobsRecords);
+
+  console.log(
+    `[*] Successfully created job/batch records: ${createBatchRecords.join(
+      ', '
+    )}`
+  );
+};
+
+/**
+ * @param {string[]} locales a list of locales
+ * @param {string[]} batchUids a list of created Batch uids
+ * @param {string} accessToken
+ * @param {Array<string[]>} pages an array of page arrays to be translated}
+ * @returns {(page: Page) => Promise<{code: string, slug: string, locale: string>}
+ */
+const uploadFiles = async (batchUids, locales, pages, accessToken) => {
+  const uploadRequests = batchUids.flatMap((batchUid, idx) => {
+    const locale = locales[idx];
+
+    return pages[idx].map(uploadFile(locale, batchUid, accessToken));
+  });
+
+  const fileResponses = await Promise.all(uploadRequests);
+  return fileResponses;
 };
 
 /**
@@ -155,130 +279,68 @@ const sendPageContext = async (fileUri, accessToken) => {
 };
 
 /**
- * Sends HTML content to the vendor by creating jobs, batches, and uploading
- * files. On success, this will return the batchUid for each locale.
- * @param {Object<string, Page[]>} content
- * @param {string} accessToken
- * @returns {Promise<{batchUids: string[], fileResponses: Object[]>}
+ * @param {(page: Page) => Promise<{code: string, slug: string, locale: string>}} uploadFileResponses
+ * @param {string[]} jobUids a list of created JobUids
+ * @param {string[]} translationJobs a list of translation ids
  */
-const sendContentToVendor = async (content, accessToken) => {
-  // 1) Create a job for each locale - save the jobUid for storage
-  const jobRequests = Object.keys(content).map((locale) => {
-    const body = {
-      jobName: `Gatsby Translation Queue (${locale}) ${new Date().toLocaleString()}`,
-      targetLocaleIds: [LOCALE_IDS[locale]],
-    };
-    return vendorRequest({
-      method: 'POST',
-      endpoint: `/jobs-api/v3/projects/${PROJECT_ID}/jobs`,
-      body,
-      accessToken,
-    });
-  });
-
-  const jobsResponses = await Promise.all(jobRequests);
-  const jobUids = jobsResponses.map((resp) => resp.translationJobUid);
-  console.log(`[*] Successfully created jobs: ${jobUids.join(', ')}`);
-
-  const queueTranslationsJobsRecord = jobUids.map((jobUid) =>
-    addTranslationsJobsRecord(jobUid)
+const updateSuccessStatus = async (
+  uploadFileResponses,
+  jobUids,
+  translationJobs
+) => {
+  const successfulUploads = uploadFileResponses.reduce(
+    async (acc, file, index) => {
+      const { code } = file;
+      if (code === 'ACCEPTED') {
+        const status = 'IN_PROGRESS';
+        await updateJob(jobUids[index], { status });
+        await updateTranslation(translationJobs[index], { status });
+      }
+      return [...acc, file];
+    },
+    []
   );
-  const createTranslationJobRecord = await Promise.all(queueTranslationsJobsRecord)
   console.log(
-    `[*] Successfully created job record: ${JSON.stringify(
-      createTranslationJobRecord
-    )}`
+    `[*] Successfully uploaded ${successfulUploads.length} / ${uploadFileResponses.length} files`
   );
-  // 2) Create a batch for each job - save bachUid for storage
-  const pages = await Promise.all(Object.values(content));
-  const batchRequests = jobUids.map((jobUid, idx) => {
-    const body = {
-      authorize: false,
-      translationJobUid: jobUid,
-      fileUris: pages[idx].map(({ file }) => file),
-    };
-
-    return vendorRequest({
-      method: 'POST',
-      endpoint: `/job-batches-api/v2/projects/${PROJECT_ID}/batches`,
-      body,
-      accessToken,
-    });
-  });
-
-  const batchResponses = await Promise.all(batchRequests);
-  const initialStatus = 'PENDING';
-  for (const response of batchResponses) {
-    await addJob(response.job_uid, response.batch_uid, initialStatus);
-  }
-  console.log(
-    `[*] Successfully created job/batch records: ${jobRecords.join(', ')}`
-  );
-  const batchUids = batchResponses.map((resp) => resp.batchUid);
-
-  // 3) Upload files to the batches job
-  const fileRequests = batchUids.flatMap((batchUid, idx) => {
-    const locale = Object.keys(content)[idx];
-
-    return pages[idx].map(uploadFile(locale, batchUid, accessToken));
-  });
-
-  const fileResponses = await Promise.all(fileRequests);
-  const successfulUploads = fileResponses.filter(
-    ({ code }) => code === 'ACCEPTED'
-  );
-  await updateStatus(successfulUploads, 'IN_PROGRESS');
-  console.log(
-    `[*] Successfully uploaded ${successfulUploads.length} / ${fileResponses.length} files`
-  );
-
-  return { fileResponses };
 };
 
 /**
- * @param {string[]} batchUids A list of vendor UIDs to be added to the `being_translated` queue.
- * @param {string} status Status of a job
+ * @param {(page: Page) => Promise<{code: string, slug: string, locale: string>}} uploadFileResponses
+ * @returns {string[]} a list of files that failed to upload
  */
-const updateStatus = async (successfulUploads, status) => {
-  for (const upload of successfulUploads) {
-    const batch_uid = upload.batchUid;
-    const job = await getJobs({ batch_uid });
-    const translationId = await getTranslationsJobsRecords({ jobId: job.id });
-    await updateJob(job.id, { status });
-    await updateTranslation(translationId, { status });
-  }
-};
-
-/**
- * @param {Object[]} failedUploads A list of failed requests to the vendor
- */
-const outputFailedUploads = async (failedUploads) => {
+const checkFailedUploads = async (uploadFileResponses) => {
+  const failedUploads = uploadFileResponses.filter(
+    ({ code }) => code !== 'ACCEPTED'
+  );
+  console.log(`[*] ${failedUploads.length} pages failed to upload.`);
   for (const failedUpload of failedUploads) {
     console.log(`    [!] ${JSON.stringify(failedUpload)}`);
   }
+  return failedUploads;
 };
 
 /** Entrypoint. */
 const main = async () => {
-  const pendingJobs = await getTranslations({ status: 'PENDING' });
-  const listByLocale = pendingJobs.reduce(
-    (acc, job) => ({
-      ...acc,
-      [job.locale]: [...(acc[job.locale] || []), job.slug],
-    }),
-    []
-  );
-  const content = getContent(listByLocale);
+  const pendingTranslations = await getTranslations({ status: 'PENDING' });
+  const slugsByLocale = groupByLocale(pendingTranslations);
+  const content = getContent(slugsByLocale);
+  const locales = Object.keys(content);
+  const pages = await Promise.all(Object.values(content));
   try {
     const accessToken = await getAccessToken();
-    const { fileResponses } = await sendContentToVendor(content, accessToken);
-
-    const failedUploads = fileResponses.filter(
-      ({ code }) => code !== 'ACCEPTED'
+    const jobUids = await getJobUids(locales, accessToken);
+    const translationJobs = await createTranslationJobRecords(locales, jobUids);
+    const batchUids = await getBatchUids(pages, jobUids, accessToken);
+    await createBatchJobRecords(batchUids, jobUids);
+    const uploadFileResponses = await uploadFiles(
+      batchUids,
+      locales,
+      pages,
+      accessToken
     );
-    console.log(`[*] ${failedUploads.length} pages failed to upload.`);
-    outputFailedUploads(failedUploads);
-
+    await updateSuccessStatus(uploadFileResponses, jobUids, translationJobs);
+    const failedUploads = await checkFailedUploads(uploadFileResponses);
     process.exit(failedUploads.length ? 1 : 0);
   } catch (error) {
     console.error(`[!] Unable to send data to vendor`);
@@ -297,4 +359,19 @@ if (require.main === module) {
   main();
 }
 
-module.exports = { main, getContent };
+module.exports = {
+  main,
+  getContent,
+  checkFailedUploads,
+  updateSuccessStatus,
+  uploadFiles,
+  getAccessToken,
+  getJobUids,
+  createTranslationJobRecords,
+  getBatchUids,
+  createBatchJobRecords,
+  updateJob,
+  groupByLocale,
+  getTranslations,
+  sendPageContext,
+};
