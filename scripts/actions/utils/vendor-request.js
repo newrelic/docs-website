@@ -1,5 +1,5 @@
 const fetch = require('node-fetch');
-import { Policy } from 'cockatiel';
+const { Policy } = require('cockatiel');
 
 /** @throws {Error} Will throw an error if the response "code" is not 'SUCCESS' */
 const makeRequest = async (url, options) => {
@@ -8,7 +8,7 @@ const makeRequest = async (url, options) => {
     .attempts(3)
     .exponential();
 
-  const resp = await retry.execute(async () => await fetch(url.href, options));
+  const resp = await retry.execute(() => fetch(url.href, options));
 
   const { response } = await resp.json();
   const { code, data } = response;
