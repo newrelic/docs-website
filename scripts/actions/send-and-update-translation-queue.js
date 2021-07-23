@@ -154,9 +154,9 @@ const getReadyToGoTranslationsForEachLocale = async () => {
       );
 
       if (!fileExists) {
-        console.log(
-          `Skipping over -- ${translation.slug} -- since it no longer exists`
-        );
+        // delete row since we dont want to leave it in, and should be safe to delete
+        await Database.deleteTranslation(translation.id);
+        console.log(`Database record for -- ${translation.id} -- deleted`);
       }
 
       return fileExists;
