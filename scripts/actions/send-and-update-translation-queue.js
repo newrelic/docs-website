@@ -139,23 +139,34 @@ const getReadyToGoTranslationsForEachLocale = async () => {
    * 2. There isn't a matching record whose status === 'IN_PROGRESS'. A record matches if there exists another record with the same slug and locale.
    *
    * This is to avoid sending multiple translation requests for {hello_world.txt, ja-JP} as an example, and allows us have to an in progress translation, and one ready to go that is queued up in the database.
+   *
+   * 3. The file (slug) that is associated with the translation record still exists.
    */
-  const readyToGoTranslations = pendingTranslations.filter((t1) =>
-    inProgressTranslations.find(
-      (t2) => t1.slug === t2.slug && t1.locale === t2.locale
+  const readyToGoTranslations = pendingTranslations
+    .filter((t1) =>
+      inProgressTranslations.find(
+        (t2) => t1.slug === t2.slug && t1.locale === t2.locale
+      )
     )
-  );
+    .filter((translation) => {
+      const fileExists = fs.existsSync(
+        path.join(process.cwd(), translation.slug)
+      );
+
+      if (!fileExists) {
+        console.log(
+          `Skipping over -- ${translation.slug} -- since it no longer exists`
+        );
+      }
+
+      return fileExists;
+    });
 
   let translationsPerLocale = {};
   for (const translation of readyToGoTranslations) {
-    // verify file exists before adding it
-    if (fs.existsSync(path.join(process.cwd(), translation.slug))) {
-      translationsPerLocale[translation.locale] = translation;
-    } else {
-      console.log(
-        `Skipping over -- ${translation.slug} -- since it no longer exists`
-      );
-    }
+    translationsPerLocale[translation.locale] = [
+      ...(translationsPerLocale[translation.locale] || [], translation),
+    ];
   }
 
   return translationsPerLocale;
