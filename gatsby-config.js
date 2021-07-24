@@ -25,7 +25,6 @@ module.exports = {
     PRESERVE_WEBPACK_CACHE: true,
     PRESERVE_FILE_DOWNLOAD_CACHE: true,
     LMDB_STORE: true,
-    PARALLEL_QUERY_RUNNING: true,
     PARALLEL_SOURCING: true,
   },
   siteMetadata: {
