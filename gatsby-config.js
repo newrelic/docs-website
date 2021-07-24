@@ -521,6 +521,5 @@ module.exports = {
     },
     'gatsby-plugin-meta-redirect',
     'gatsby-plugin-gatsby-cloud',
-    'gatsby-plugin-newrelic-test',
   ],
 };
