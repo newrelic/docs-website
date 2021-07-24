@@ -24,6 +24,9 @@ module.exports = {
     DEV_SSR: true,
     PRESERVE_WEBPACK_CACHE: true,
     PRESERVE_FILE_DOWNLOAD_CACHE: true,
+    LMDB_STORE: true,
+    PARALLEL_QUERY_RUNNING: true,
+    PARALLEL_SOURCING: true,
   },
   siteMetadata: {
     title: 'New Relic Documentation',
@@ -521,5 +524,6 @@ module.exports = {
     },
     'gatsby-plugin-meta-redirect',
     'gatsby-plugin-gatsby-cloud',
+    'gatsby-plugin-newrelic-test',
   ],
 };
