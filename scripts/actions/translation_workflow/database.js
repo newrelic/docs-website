@@ -20,7 +20,7 @@ const addJob = async ({ job_uid, batch_uid, status }) => {
  * Method to update an existing job record.
  * @param {number} jobId - identifier of job
  * @param {Object} updates
- * @param {number} updates.status - numeric value of status enum to update to
+ * @param {string} updates.status - string value of status enum to update to
  * @returns updated job
  */
 const updateJob = async (jobId, { status }) => {
@@ -101,7 +101,7 @@ const addTranslation = async ({ slug, status, locale }) => {
  * Method to update an existing translation record.
  * @param {number} translationId - identifier of translation
  * @param {Object} updates
- * @param {number} updates.status - numeric value of status enum to update to
+ * @param {string} updates.status - string value of status enum to update to
  * @returns updated translation
  */
 const updateTranslation = async (translationId, { status }) => {
