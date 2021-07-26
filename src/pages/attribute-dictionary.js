@@ -273,7 +273,7 @@ const EventDefinition = memo(
                 Attribute name
               </th>
               <th>Definition</th>
-              <th>Events</th>
+              <th>Data types</th>
             </tr>
           </thead>
           <tbody>
