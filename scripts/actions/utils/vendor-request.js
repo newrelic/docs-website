@@ -1,3 +1,5 @@
+'use strict';
+
 const fetch = require('node-fetch');
 const fs = require('fs');
 const path = require('path');
@@ -14,20 +16,50 @@ const LOCALE_IDS = {
   'ja-JP': 'jp',
 };
 
-/** @throws {Error} Will throw an error if the response "code" is not 'SUCCESS' */
-const makeRequest = async (url, options) => {
-  const resp = await fetch(url.href, options);
-  const { response } = await resp.json();
-  const { code, data } = response;
+const MAX_RETRY = 5;
+const POLL_INTERVAL = 1500;
 
-  if (code !== 'SUCCESS') {
-    console.error(
-      `[!] Unable to make a ${options.method} request to ${url.href}. (${code})`
+const sleep = (millSeconds) => {
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      resolve();
+    }, millSeconds);
+  });
+};
+
+/**
+ * @param {Object} options
+ * @param {String} url
+ * @param {Number} nthTry
+ * @returns {Object} data The result after making the request.
+ * @throws {Error} Will throw an error if the response "code" is not 'SUCCESS' after retrying
+ */
+const makeRequest = async (url, options, nthTry = 1) => {
+  try {
+    const resp = await fetch(url.href, options);
+    const { response } = await resp.json();
+    const { code, data } = response;
+    if (code !== 'SUCCESS') {
+      throw new Error(JSON.stringify(response, null, 2));
+    }
+    console.log(`Successful response`);
+    return data;
+  } catch (e) {
+    if (nthTry === MAX_RETRY) {
+      console.error(
+        `[!] Unable to make a ${options.method} request to ${url.href} after ${MAX_RETRY} attempts.`
+      );
+      return Promise.reject(e);
+    }
+    console.warn(
+      `[!] Error making request on attempt ${nthTry}/${MAX_RETRY}. Retrying in ${
+        POLL_INTERVAL / 1000
+      } seconds`
     );
-    throw new Error(JSON.stringify(response, null, 2));
+    // wait for delayTime amount of time before calling this method again
+    await sleep(POLL_INTERVAL);
+    return makeRequest(url, options, ++nthTry);
   }
-
-  return data;
 };
 
 /**
@@ -203,4 +235,6 @@ module.exports = {
   getAccessToken,
   sendPageContext,
   uploadFile,
+  makeRequest,
+  sleep,
 };
