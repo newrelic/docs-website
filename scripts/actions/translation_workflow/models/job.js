@@ -9,6 +9,7 @@ const {
   Model,
 } = require('sequelize');
 
+const Locale = require('./locale');
 const Status = require('./status');
 
 /**
@@ -33,7 +34,7 @@ module.exports = (sequelize, DataTypes) => {
       },
       batch_uid: {
         type: DataTypes.TEXT,
-        allowNull: false,
+        allowNull: true,
       },
       status: {
         type: DataTypes.TEXT,
@@ -41,6 +42,15 @@ module.exports = (sequelize, DataTypes) => {
         references: {
           model: Status(sequelize, DataTypes),
           key: 'status',
+          deferrable: Deferrable.INITIALLY_IMMEDIATE,
+        },
+      },
+      locale: {
+        type: DataTypes.TEXT,
+        allowNull: false,
+        references: {
+          model: Locale(sequelize, DataTypes),
+          key: 'locale',
           deferrable: Deferrable.INITIALLY_IMMEDIATE,
         },
       },
