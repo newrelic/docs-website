@@ -1,4 +1,3 @@
-const { saveToTranslationQueue } = require('./utils/save-to-db');
 const { getJobs, updateJob } = require('./translation_workflow/database.js');
 const checkArgs = require('./utils/check-args');
 const { getAccessToken, vendorRequest } = require('./utils/vendor-request');
@@ -24,7 +23,8 @@ const setInProgressToDone = async () => {
   }
 
   for (const batch_uid of completedBatches) {
-    const job = await getJobs({ batch_uid });
+    const [job] = await getJobs({ batch_uid });
+
     updateJob(job.id, { status: 'IN_REVIEW' });
   }
 };
