@@ -22,7 +22,6 @@ const {
   uploadFiles,
 } = require('../send-and-update-translation-queue');
 
-console.log = () => {};
 jest.mock('fs');
 jest.mock('../translation_workflow/database');
 jest.mock('../utils/vendor-request');
