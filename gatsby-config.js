@@ -522,6 +522,28 @@ module.exports = {
     },
     'gatsby-plugin-meta-redirect',
     'gatsby-plugin-gatsby-cloud',
-    'gatsby-plugin-newrelic-test',
+    {
+      resolve: 'gatsby-plugin-newrelic-test',
+      options: {
+        NR_KEY: process.env.NEW_RELIC_INSERT_KEY || '',
+        NR_LICENSE: process.env.NEW_RELIC_LICENSE_KEY || '',
+        SITE_NAME: process.env.SITE_NAME || '',
+        traces: {
+          collectTraces: true,
+          tags: {},
+        },
+        logs: {
+          collectLogs: true,
+          tags: {},
+        },
+        metrics: {
+          collectMetrics: true,
+          tags: {},
+        },
+        nrAgent: {
+          collectApm: true,
+        },
+      },
+    },
   ],
 };
