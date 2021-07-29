@@ -52,7 +52,7 @@ const getJobs = async (filters = {}) => {
 
 /**
  * Method to delete a record from 'jobs' table.
- * @param {string} jobId - identifier of job
+ * @param {number} jobId - identifier of job
  */
 const deleteJob = async (jobId) => {
   await Models.Job.destroy({ where: { id: jobId } });
@@ -184,6 +184,14 @@ const deleteTranslationsJobsRecords = async (jobId) => {
   });
 };
 
+const Status = {
+  Pending: 'PENDING',
+  InProgress: 'IN_PROGRESS',
+  InReview: 'IN_REVIEW',
+  Completed: 'COMPLETED',
+  Errored: 'ERRORED',
+};
+
 module.exports = {
   addJob,
   updateJob,
@@ -198,4 +206,5 @@ module.exports = {
   addTranslationsJobsRecord,
   deleteTranslationsJobsRecords,
   getTranslationsJobsRecords,
+  Status,
 };
