@@ -1,4 +1,8 @@
-const { getJobs } = require('./translation_workflow/database.js');
+const {
+  getJobs,
+  updateJob,
+  updateTranslation,
+} = require('./translation_workflow/database.js');
 
 const { getAccessToken, vendorRequest } = require('./utils/vendor-request');
 const { fetchAndDeserialize } = require('./fetch-and-deserialize');
@@ -14,6 +18,7 @@ const prop = (key) => (x) => x[key];
  * @property {string} locale The vendor-based locale (i.e. "ja-JP")
  * @property {string[]} fileUris The filepath from the root of the project
  * @property {boolean} done
+ * @property {number} jobId
  */
 
 /**
@@ -25,7 +30,9 @@ const log = (message, level = 'log', indent = 0) => {
   const logIndicators = { log: '[*]', warn: '[!]' };
 
   const str = [
-    Array(indent).fill(' ').join(''),
+    Array(indent)
+      .fill(' ')
+      .join(''),
     logIndicators[level],
     message,
   ].join('');
@@ -37,7 +44,7 @@ const log = (message, level = 'log', indent = 0) => {
  * @param {string} accessToken
  * @returns {(batchUid: string) => Promise<Batch>}
  */
-const getBatchStatus = (accessToken) => async (batchUid) => {
+const getBatchStatus = (accessToken) => async ({ batchUid, jobId }) => {
   log(`Getting status for batch: ${batchUid}`);
 
   try {
@@ -74,6 +81,7 @@ const getBatchStatus = (accessToken) => async (batchUid) => {
       done: jobStatus === 'COMPLETED',
       locale,
       fileUris: files.map((file) => file.fileUri),
+      jobId,
     };
   } catch (error) {
     const { errors } = JSON.parse(error.message);
@@ -97,7 +105,9 @@ const main = async () => {
   try {
     // load the items that we are being translated
     const inProgressJobs = await getJobs({ status: 'IN_PROGRESS' });
-    const batchUids = inProgressJobs.map((job) => job.batch_uid);
+    const batchUids = inProgressJobs.map((job) => {
+      return { batchUid: job.batch_uid, jobId: job.id };
+    });
 
     // get the status for all of the batch translation jobs
     const accessToken = await getAccessToken();
@@ -109,6 +119,14 @@ const main = async () => {
     const batchesToDeserialize = batchStatuses.filter(
       (batch) => batch && batch.done
     );
+
+    const completedJobs = await Promise.all(
+      batchesToDeserialize.map((batch) => {
+        return updateJob(batch.jobId, { status: 'COMPLETED' });
+      })
+    );
+
+    log(`Jobs completed: ${JSON.stringify(completedJobs)}`);
 
     log(`${batchesToDeserialize.length} batches ready to be deserialized`);
     log(`batchUids: ${batchesToDeserialize.map(prop('batchUid')).join(', ')}`);
@@ -123,18 +141,35 @@ const main = async () => {
     );
     log('Content deserialized');
 
+    for (const batch of batchesToDeserialize) {
+      const records = await getTranslationsJobsRecords({
+        job_id: batch.jobId,
+      });
+
+      await Promise.all(
+        records.map(async (record) => {
+          const update = await updateTranslation(record.translation_id, {
+            status: 'COMPLETED',
+          });
+          return update;
+        })
+      );
+    }
+
     // get a list of batches that we're still waiting on from our vendor
     const remainingBatches = batchStatuses
       .filter((batch) => batch && !batch.done)
       .map((batch) => batch.batchUid);
 
     console.log(
-      `::set-output name=batchUids::${remainingBatches.length ? remainingBatches.join(',') : ','
+      `::set-output name=batchUids::${
+        remainingBatches.length ? remainingBatches.join(',') : ','
       }`
     );
 
     console.log(
-      `::set-output name=completedBatches::${batchesToDeserialize.length ? batchesToDeserialize.join(',') : ','
+      `::set-output name=completedBatches::${
+        batchesToDeserialize.length ? batchesToDeserialize.join(',') : ','
       }`
     );
 
