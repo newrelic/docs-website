@@ -2,6 +2,7 @@ const {
   getJobs,
   updateJob,
   updateTranslation,
+  getTranslationsJobsRecords,
 } = require('./translation_workflow/database.js');
 
 const { getAccessToken, vendorRequest } = require('./utils/vendor-request');
