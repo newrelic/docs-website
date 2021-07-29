@@ -184,14 +184,6 @@ const deleteTranslationsJobsRecords = async (jobId) => {
   });
 };
 
-const Status = {
-  Pending: 'PENDING',
-  InProgress: 'IN_PROGRESS',
-  InReview: 'IN_REVIEW',
-  Completed: 'COMPLETED',
-  Errored: 'ERRORED',
-};
-
 module.exports = {
   addJob,
   updateJob,
@@ -206,5 +198,4 @@ module.exports = {
   addTranslationsJobsRecord,
   deleteTranslationsJobsRecords,
   getTranslationsJobsRecords,
-  Status,
 };
