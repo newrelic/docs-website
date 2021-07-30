@@ -10,28 +10,85 @@ The hope with this script is that it is a decent first attempt at being able to 
 
 Most of the manual work involved is getting everything you need to be able to run the script. You will need to fill out most of the empty values for variables in the script, as well as make edits to a file.
 
-For script variables, you will need to fill out values for these lines:
-```sh
-export DB_CONNECTION_INFO=\$(cat connection_info.json)
-export GITHUB_TOKEN='' # token with no permissions
-export TRANSLATION_VENDOR_PROJECT='' # use machine translation project
-export TRANSLATION_VENDOR_USER='' # MT user
-export TRANSLATION_VENDOR_SECRET='' # MT user secret
-```
+## Fill in script variables
 
-Values for the translation variables can be found through the vendor UI. A GitHub token can be generated through the GitHub UI. 
+You'll need to fill out values for variables in `script.sh`.
 
-Finally, the DB_CONNECTION_INFO secret needs to be populated. The recommendation for this is to spin up a local postgres instance and connect to that, so that you dont need to test against a resource in the cloud.
+1. Provide a github token. A GitHub token can be generated through the GitHub UI. 
 
-If you go this route, you will also need to create the database, tables, etc. You can find the code for that in `creation_and_cleanup.sql`.  
+  ```sh
+  export GITHUB_TOKEN='' # token with no permissions
+  ```
 
+2. Provide translation variables. Values for the translation variables can be found through the vendor UI.
+
+  ```sh
+  export TRANSLATION_VENDOR_PROJECT='' # use machine translation project
+  export TRANSLATION_VENDOR_USER='' # MT user
+  export TRANSLATION_VENDOR_SECRET='' # MT user secret
+  ```
+
+
+3. Finally, the DB_CONNECTION_INFO secret needs to be populated in `connection_info.json`. The recommendation for this is to spin up a local postgres instance and connect to that, so that you dont need to test against a resource in the cloud. See the next section for setting up a local postgres instance on Docker. 
+
+## How to spin up a local postgres instance on Docker
+
+1. Run the following command to start a postgres container, with credentials  `user = root` and `password = root`:
+    ```bash
+    docker run -d --env POSTGRES_USER=root --env POSTGRES_PASSWORD=root --env POSTGRES_DB=translations --name postgres -p 5432:5432 postgres
+    ```
+
+2. Update the contents of `connection_info.json`:
+
+    ```JSON
+    {
+        "username": "root",
+        "password": "root",
+        "host": "localhost",
+        "database": "translations"
+    }
+    ```
+3. Create the database by running `creation_and_cleanup.sql` on your postgres instance. See the next section to do this in pgadmin.
+
+## How to start a pgadmin container to interact with your postgres container (optional)
+
+This step is not a prerequisite for running the script, but may be useful for creating your database (which is required) and debugging. 
+
+1. Run the following to start a pgadmin container:
+    ```bash
+    docker run -d --env PGADMIN_DEFAULT_EMAIL=username@username.com --env PGADMIN_DEFAULT_PASSWORD=password --name pgadmin -p 8080:80 -p 8081:443 dpage/pgadmin4
+    ```
+2. To connect to your postgres container, click on `Create A Server`. On the `Connection` tab, enter the following details: 
+    ```
+    Hostname/address: localhost
+    Port: 5432
+    Maintenance database: postgres
+    Username: root
+    Password: root
+    ```
+    You may also need to go into the `General` and give a name to the server. You can call it `translations` (but it can be called anything).
+
+
+3. To create the database, right-click on your new `translations` database. then click on `Query Tool`. Enter and run the contents of `creation_and_cleanup.sql`.
+
+## Use node 16
+The script requires node.js version 16. The following commands use `nvm` to install and use node 16.
+  ```bash
+  nvm install 16
+  nvm use 16
+  ```
+
+## Make a change to translate
 The last thing you will need to do is make a unique change to the file `src/content/docs/accounts/accounts/account-maintenance/change-passwords-user-preferences.mdx`. The reason being that the PR URL the script uses is for a PR which changes only that file. In order to get the vendor to recognize content for translation, we have to submit unique content everytime. The simplest thing to do here is just delete the existing body of the document, and replace it with something like "bird" or a short phrase, etc.
+
 
 # Run the script
 
+Run script from docs-website (repo root)
+
 Once all the setup is complete, assuming there are no issues that crop up, you should be able to run the script like so:
 ```sh
-./script.sh
+./scripts/actions/translation_workflow/testing/script.sh
 ```
 
 This will execute the script, and only one other step remains. Halfway through the script, after the file has been uploaded for translation, you will need to authorize the job with the vendor. To do that, navigate to the job in the vendor UI, and click `authorize` once you do that, the script should continue and run to completion.
