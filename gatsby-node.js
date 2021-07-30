@@ -186,7 +186,7 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
   externalRedirects.forEach(({ url, paths }) => {
     paths.forEach((path) => {
       createRedirect({
-        fromPath: appendTrailingSlash(path),
+        fromPath: path,
         toPath: url,
         isPermanent: true,
         redirectInBrowser: true,
