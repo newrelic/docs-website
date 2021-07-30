@@ -1,6 +1,9 @@
-const { saveToTranslationQueue } = require('./utils/save-to-db');
-const { getJobs, updateJob } = require('./translation_workflow/database.js');
-const checkArgs = require('./utils/check-args');
+const {
+  getJobs,
+  getTranslations,
+  deleteJob,
+  deleteTranslation,
+} = require('./translation_workflow/database.js');
 const { getAccessToken, vendorRequest } = require('./utils/vendor-request');
 const fetch = require('node-fetch');
 
@@ -12,10 +15,14 @@ const DOCS_SITE_URL = 'https://docs.newrelic.com';
  * @returns {Promise}
  */
 const setInProgressToDone = async () => {
-  checkArgs(4);
+  const [completedJobs, completedTranslations] = await Promise.all([
+    getJobs({ status: 'COMPLETED' }),
+    getTranslations({ status: 'COMPLETED' }),
+  ]);
 
-  const completedBatches = process.argv[2].split(',').filter(Boolean);
-  const deserializedFileUris = process.argv[3].split(',').filter(Boolean);
+  const deserializedFileUris = completedTranslations.map(
+    (translation) => translation.slug
+  );
 
   const code = await removePageContext(deserializedFileUris);
 
@@ -23,10 +30,19 @@ const setInProgressToDone = async () => {
     console.log(`[!] Unable to delete all contexts`);
   }
 
-  for (const batch_uid of completedBatches) {
-    const job = await getJobs({ batch_uid });
-    updateJob(job.id, { status: 'IN_REVIEW' });
-  }
+  console.log(`Deleting jobs: ${JSON.stringify(completedJobs)}`);
+  console.log(
+    `Deleting translations: ${JSON.stringify(completedTranslations)}`
+  );
+
+  await Promise.all(
+    [].concat(
+      completedJobs.map((j) => deleteJob(j.id)),
+      completedTranslations.map((t) => deleteTranslation(t.id))
+    )
+  );
+
+  console.log(`Deleted translations & jobs`);
 };
 
 /**

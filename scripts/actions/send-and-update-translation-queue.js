@@ -199,16 +199,19 @@ const main = async () => {
       process.exit(0);
     }
 
+    console.log(`Records to be sent: ${JSON.stringify(translationsPerLocale)}`);
+
     const createdJobs = await createJobs(accessToken)(
       Object.keys(translationsPerLocale)
     );
-    const createdBatches = await createBatches(
+    const createdBatches = await createBatches(accessToken)(
       createdJobs,
       translationsPerLocale
     );
     await uploadFiles(createdBatches, translationsPerLocale, accessToken);
   } catch (error) {
     console.log(`Error encountered: ${error}`);
+    console.log(error.stack);
     process.exitCode = 1;
   }
 };
