@@ -172,10 +172,6 @@ const uploadFiles = async (batches, translationsPerLocale, accessToken) => {
           });
           await Database.addTranslationsJobsRecord(translation.id, batch.jobId);
           successCount += 1;
-        } else {
-          await Database.updateTranslation(translation.id, {
-            status: 'ERRORED',
-          });
         }
       })
     );
