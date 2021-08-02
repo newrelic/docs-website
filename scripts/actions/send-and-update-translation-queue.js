@@ -158,23 +158,22 @@ const uploadFiles = async (batches, translationsPerLocale, accessToken) => {
   for (const batch of batches) {
     let successCount = 0;
 
-    await Promise.all(
-      translationsPerLocale[batch.locale].map(async (translation) => {
-        const fileUploadResponse = await uploadFile(
-          batch.locale,
-          batch.batchUid,
-          accessToken
-        )(translation);
+    const translations = translationsPerLocale[batch.locale];
+    for (const translation of translations) {
+      const fileUploadResponse = await uploadFile(
+        batch.locale,
+        batch.batchUid,
+        accessToken
+      )(translation);
 
-        if (fileUploadResponse.code === 'ACCEPTED') {
-          await Database.updateTranslation(translation.id, {
-            status: 'IN_PROGRESS',
-          });
-          await Database.addTranslationsJobsRecord(translation.id, batch.jobId);
-          successCount += 1;
-        }
-      })
-    );
+      if (fileUploadResponse.code === 'ACCEPTED') {
+        await Database.updateTranslation(translation.id, {
+          status: 'IN_PROGRESS',
+        });
+        await Database.addTranslationsJobsRecord(translation.id, batch.jobId);
+        successCount += 1;
+      }
+    }
 
     if (successCount > 0) {
       // if at least one file was successfully uploaded, set job to in progress
