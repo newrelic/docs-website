@@ -7,8 +7,8 @@ assignees: ''
 ---
 
 <!-- NOTE: New Relic is on a company-wide vacation the week of August 9 through
-August 12. We'll take a look at your [issue|PR] as soon as we're back on 
-August 16. Or, if your issue is urgent, you can reach out to our support team 
+August 12. We'll take a look at your issue as soon as we're back on August 16. 
+Or, if your issue is urgent, you can reach out to our support team 
 at support.newrelic.com. -->
 
 <!-- Please fill out each section below. This info allows our engineers to 
