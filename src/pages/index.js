@@ -15,7 +15,7 @@ import { rgba } from 'polished';
 import SurfaceLink from '../components/SurfaceLink';
 import TechTile from '../components/TechTile';
 import TechTileGrid from '../components/TechTileGrid';
-import FutureStackCTA from '../components/SummerGamesCTA';
+import SummerGamesCTA from '../components/SummerGamesCTA';
 import { tdp, fso, ai, security, integrations } from '../data/homepage.yml';
 
 const HomePage = ({ data }) => {
