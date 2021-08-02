@@ -27,7 +27,7 @@ const HomePage = ({ data }) => {
 
   return (
     <>
-      <FutureStackCTA />
+      <SummerGamesCTA />
       <Section layout={layout}>
         <h1>{t('home.title')}</h1>
         <div
