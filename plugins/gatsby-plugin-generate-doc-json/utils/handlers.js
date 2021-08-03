@@ -228,13 +228,23 @@ module.exports = {
       youtube: (id) => `//www.youtube.com/embed/${id}?modestbranding=1`,
       wistia: (id) => `//fast.wistia.net/embed/iframe/${id}`,
     };
-    return h(node, 'iframe', {
-      src: videoPlatforms[type](id),
-      allow:
-        'accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture',
-      allowFullScreen: true,
-      width: '100%',
-    });
+
+    return h(
+      node,
+      'div',
+      { style: 'position: relative; padding-top: 56.25%; height: 0;' },
+      [
+        h(node, 'iframe', {
+          src: videoPlatforms[type](id),
+          allow:
+            'accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture',
+          allowFullScreen: true,
+          frameborder: '0',
+          style:
+            'width: 100%; height: 100%; position: absolute; top: 0; left: 0',
+        }),
+      ]
+    );
   },
   mark: (h, node) => h(node, 'mark', {}, [u('text', toString(node))]),
   figcaption: (h, node) =>
