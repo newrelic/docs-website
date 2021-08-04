@@ -31,7 +31,7 @@ const IndexPage = ({ data, pageContext, location }) => {
             dangerouslySetInnerHTML={{ __html: html }}
           />
         )}
-      </Layout.Content>
+      </Layout.Content> 
     </>
   );
 };
