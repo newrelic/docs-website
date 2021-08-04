@@ -1,9 +1,9 @@
 ---
-name: "requestId\t"
+name: "requestId"
 type: attribute
 units: ID
 events:
   - NrIntegrationError
 ---
 
-The UUID returned by the the API for the request that generated an error.
+The UUID returned by the API for the request that generated an error.
