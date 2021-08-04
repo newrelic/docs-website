@@ -337,8 +337,21 @@ const createLocalizedRedirect = ({
   isPermanent = true,
   createRedirect,
 }) => {
+  // Create redirects for paths with and without a trailing slash
+  const pathWithTrailingSlash = hasTrailingSlash(fromPath)
+    ? fromPath
+    : path.join(fromPath, '/');
+  const pathWithoutTrailingSlash = pathWithTrailingSlash.slice(0, -1);
+
   createRedirect({
-    fromPath: fromPath,
+    fromPath: pathWithTrailingSlash,
+    toPath: appendTrailingSlash(toPath),
+    isPermanent,
+    redirectInBrowser,
+  });
+
+  createRedirect({
+    fromPath: pathWithoutTrailingSlash,
     toPath: appendTrailingSlash(toPath),
     isPermanent,
     redirectInBrowser,
@@ -346,7 +359,13 @@ const createLocalizedRedirect = ({
 
   locales.forEach((locale) => {
     createRedirect({
-      fromPath: path.join(`/${locale}`, fromPath),
+      fromPath: path.join(`/${locale}`, pathWithTrailingSlash),
+      toPath: appendTrailingSlash(path.join(`/${locale}`, toPath)),
+      isPermanent,
+      redirectInBrowser,
+    });
+    createRedirect({
+      fromPath: path.join(`/${locale}`, pathWithoutTrailingSlash),
       toPath: appendTrailingSlash(path.join(`/${locale}`, toPath)),
       isPermanent,
       redirectInBrowser,
