@@ -15,9 +15,6 @@ const hasOwnProperty = (obj, key) =>
 const hasTrailingSlash = (pathname) =>
   pathname === '/' ? false : TRAILING_SLASH.test(pathname);
 
-const appendTrailingSlash = (pathname) =>
-  pathname.endsWith('/') ? pathname : `${pathname}/`;
-
 // before we build, combine related resource files into one
 exports.onPreBootstrap = () => {
   const files = fs.readdirSync(SWIFTYPE_RESOURCES_DIR);
@@ -186,7 +183,7 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
   externalRedirects.forEach(({ url, paths }) => {
     paths.forEach((path) => {
       createRedirect({
-        fromPath: appendTrailingSlash(path),
+        fromPath: path,
         toPath: url,
         isPermanent: true,
         redirectInBrowser: true,
@@ -338,16 +335,16 @@ const createLocalizedRedirect = ({
   createRedirect,
 }) => {
   createRedirect({
-    fromPath: appendTrailingSlash(fromPath),
-    toPath: appendTrailingSlash(toPath),
+    fromPath: fromPath,
+    toPath: toPath,
     isPermanent,
     redirectInBrowser,
   });
 
   locales.forEach((locale) => {
     createRedirect({
-      fromPath: appendTrailingSlash(path.join(`/${locale}`, fromPath)),
-      toPath: appendTrailingSlash(path.join(`/${locale}`, toPath)),
+      fromPath: path.join(`/${locale}`, fromPath),
+      toPath: path.join(`/${locale}`, toPath),
       isPermanent,
       redirectInBrowser,
     });
