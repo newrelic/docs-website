@@ -342,10 +342,11 @@ const createLocalizedRedirect = ({
     ? fromPath
     : path.join(fromPath, '/');
   const pathWithoutTrailingSlash = pathWithTrailingSlash.slice(0, -1);
-
+  const parts = fromPath.split('#');
+  const hash = parts.length > 1 ? parts.pop() : '';
   createRedirect({
     fromPath: fromPath,
-    toPath: toPath,
+    toPath: toPath + hash,
     isPermanent,
     redirectInBrowser,
   });
