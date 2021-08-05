@@ -233,6 +233,7 @@ module.exports = {
       node,
       'div',
       {
+        className: 'iframe-wrapper',
         style:
           'position: relative; padding-top: 29%; height: 0; max-width: 85ch',
       },
