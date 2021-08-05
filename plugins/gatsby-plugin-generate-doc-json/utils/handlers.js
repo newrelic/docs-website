@@ -234,8 +234,6 @@ module.exports = {
       'div',
       {
         className: 'iframe-wrapper',
-        style:
-          'position: relative; padding-top: 29%; height: 0; max-width: 85ch',
       },
       [
         h(node, 'iframe', {
@@ -244,8 +242,6 @@ module.exports = {
             'accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture',
           allowFullScreen: true,
           frameborder: '0',
-          style:
-            'width: 100%; height: 100%; position: absolute; top: 0; left: 0',
         }),
       ]
     );
