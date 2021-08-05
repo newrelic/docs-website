@@ -346,7 +346,7 @@ const createLocalizedRedirect = ({
   const hash = parts.length > 1 ? parts.pop() : '';
   createRedirect({
     fromPath: fromPath,
-    toPath: toPath + hash,
+    toPath: path.join(toPath, '#', hash),
     isPermanent,
     redirectInBrowser,
   });
