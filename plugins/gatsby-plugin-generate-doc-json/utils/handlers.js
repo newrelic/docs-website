@@ -232,7 +232,9 @@ module.exports = {
     return h(
       node,
       'div',
-      { style: 'position: relative; padding-top: 56.25%; height: 0;' },
+      {
+        className: 'iframe-wrapper',
+      },
       [
         h(node, 'iframe', {
           src: videoPlatforms[type](id),
@@ -240,8 +242,6 @@ module.exports = {
             'accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture',
           allowFullScreen: true,
           frameborder: '0',
-          style:
-            'width: 100%; height: 100%; position: absolute; top: 0; left: 0',
         }),
       ]
     );
