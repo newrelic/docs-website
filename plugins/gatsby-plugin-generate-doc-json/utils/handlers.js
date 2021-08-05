@@ -232,7 +232,10 @@ module.exports = {
     return h(
       node,
       'div',
-      { style: 'position: relative; padding-top: 56.25%; height: 0;' },
+      {
+        style:
+          'position: relative; padding-top: 29%; height: 0; max-width: 85ch',
+      },
       [
         h(node, 'iframe', {
           src: videoPlatforms[type](id),
