@@ -6,6 +6,8 @@ learnMoreLink: 'https://docs.newrelic.com/docs/query-your-data/nrql-new-relic-qu
 getStartedLink: 'https://newrelic.com/blog/how-to-relic/using-regex-capture'
 ---
 
+**Note:** although the beta programme for this feature is now closed, it is not currently generally available.
+
 We've made it easier than ever to query and extract useful data from strings such as URLs, log messages, and more, using Regex capture. Regular expressions are an extremely powerful tool for finding patterns in strings—and with Regex capture, you can now leverage that power to improve your NRQL queries. 
 
 Regex capture works directly within NRQL using the `capture` function, allowing you to use regular expressions in your queries to extract focused data, such as this:
