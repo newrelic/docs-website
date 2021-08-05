@@ -321,9 +321,9 @@ exports.onCreatePage = ({ page, actions }) => {
     page.context.layout = 'basic';
   }
 
-  if (hasTrailingSlash(page.context.slug)) {
-    page.context.slug = page.context.slug.replace(TRAILING_SLASH, '');
-  }
+  // if (hasTrailingSlash(page.context.slug)) {
+  //   page.context.slug = page.context.slug.replace(TRAILING_SLASH, '');
+  // }
 
   deletePage(oldPage);
   createPage(page);
@@ -344,7 +344,7 @@ const createLocalizedRedirect = ({
   const pathWithoutTrailingSlash = pathWithTrailingSlash.slice(0, -1);
 
   createRedirect({
-    fromPath: pathWithTrailingSlash,
+    fromPath: fromPath,
     toPath: toPath,
     isPermanent,
     redirectInBrowser,
