@@ -3,6 +3,7 @@ from invoke import run
 import os
 import re
 import json
+from shlex import quote
 
 # Get token from Workflow environment variable
 token = os.getenv('GITHUB_TOKEN', '...')
@@ -37,7 +38,6 @@ for commit in diff.commits:
 # result = json.dumps(result)
 # e
 # Set result as an Env for use in Workflow
-run('printf -v escaped "%q\n" {result}'.format(result=result))
 run('echo "RESULT<<EOF" >> $GITHUB_ENV')
-run("echo $escaped >> $GITHUB_ENV")
+run("echo {} >> $GITHUB_ENV".format(quote(result)))
 run('echo "EOF" >> $GITHUB_ENV')
