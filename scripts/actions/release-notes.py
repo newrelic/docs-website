@@ -38,6 +38,6 @@ for commit in diff.commits:
 # e
 # Set result as an Env for use in Workflow
 
-run("echo 'RESULT<<EOF' >> $GITHUB_ENV")
-run("echo '%s' >> $GITHUB_ENV" % result)
-run("echo 'EOF' >> $GITHUB_ENV")
+run('echo "RESULT<<EOF" >> $GITHUB_ENV')
+run("echo %s >> $GITHUB_ENV" % result)
+run('echo "EOF" >> $GITHUB_ENV')
