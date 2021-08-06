@@ -35,8 +35,8 @@ for commit in diff.commits:
     pass
 
 # Encode the string to escape characters
-# result = json.dumps(result)
-# e
+result = result.replace('"','\\"')
+
 # Set result as an Env for use in Workflow
 run('echo "RESULT<<EOF" >> $GITHUB_ENV')
 run("echo {} >> $GITHUB_ENV".format(quote(result)))
