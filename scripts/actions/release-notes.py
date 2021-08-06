@@ -2,6 +2,7 @@ from github import Github
 from invoke import run
 import os
 import re
+import json
 
 # Get token from Workflow environment variable
 token = os.getenv('GITHUB_TOKEN', '...')
@@ -31,6 +32,9 @@ for commit in diff.commits:
     )
   except AttributeError:
     pass
+
+# Encode the string to escape characters
+result = json.dumps(result)
 
 # Set result as an Env for use in Workflow
 run('echo "RESULT<<EOF" >> $GITHUB_ENV')
