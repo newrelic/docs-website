@@ -6,9 +6,17 @@ labels: enhancement, eng
 assignees: ''
 ---
 
-<!-- Please fill out each section below, otherwise, your issue will be closed. This info allows our engineers to diagnose your issue as quickly as possible. **THIS REPO IS PUBLIC. Any information included in this form is accessible on the internet!**
+<!-- NOTE: New Relic is on a company-wide vacation the week of August 9 through
+August 12. We'll take a look at your issue as soon as we're back on August 16. 
+Or, if your issue is urgent, you can reach out to our support team 
+at support.newrelic.com. -->
 
-DISCLAIMER: Not every feature request will be worked on, but hearing about what you want is important. Don't be afraid to add a feature request! -->
+<!-- Please fill out each section below. This info allows our engineers to 
+diagnose your issue as quickly as possible. This repo is public. Anything you 
+share here is visible to the world. -->
+
+<!-- DISCLAIMER: Not every feature request will be worked on, but hearing about 
+what you want is important. Don't be afraid to add a feature request! -->
 
 ### Is your feature request related to a problem? Please describe
 
