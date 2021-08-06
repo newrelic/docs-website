@@ -6,6 +6,11 @@ labels: content
 assignees: ''
 ---
 
+<!-- NOTE: New Relic is on a company-wide vacation the week of August 9 through
+August 12. We'll take a look at your issue as soon as we're back on August 16. 
+Or, if your issue is urgent, you can reach out to our support team 
+at support.newrelic.com. -->
+
 <!-- Thanks for filing an issue on our docs! -->
 
 <!-- This repo is public. Anything you share here is visible to the world. -->
