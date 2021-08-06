@@ -37,7 +37,7 @@ for commit in diff.commits:
 # result = json.dumps(result)
 # e
 # Set result as an Env for use in Workflow
-run('printf -v escaped "%q\n" %s' % result)
+run('printf -v escaped "%q\n" {result}'.format(result=result))
 run('echo "RESULT<<EOF" >> $GITHUB_ENV')
 run("echo $escaped >> $GITHUB_ENV")
 run('echo "EOF" >> $GITHUB_ENV')
