@@ -6,8 +6,7 @@ labels: enhancement, eng
 assignees: ''
 ---
 
-<!-- NOTE: New Relic is on a company-wide vacation the week of August 9 through
-August 12. We'll take a look at your issue as soon as we're back on August 16. 
+<!-- NOTE: New Relic is honoring employees with a Relic Recharge Week. This means many of us are out of the office from August 9th through August 13th. We'll take a look at your issue as soon as we're back on August 16. 
 Or, if your issue is urgent, you can reach out to our support team 
 at support.newrelic.com. -->
 
