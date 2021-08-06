@@ -40,4 +40,4 @@ for commit in diff.commits:
 
 run("echo 'RESULT<<EOF' >> $GITHUB_ENV")
 run("echo '%s' >> $GITHUB_ENV" % result)
-run("echo 'EOF' >> $GITHUB_ENV')
+run("echo 'EOF' >> $GITHUB_ENV")
