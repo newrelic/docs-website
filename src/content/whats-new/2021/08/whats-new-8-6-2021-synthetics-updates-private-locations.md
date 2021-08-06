@@ -13,6 +13,6 @@ Synthetic private locations are now available in the new UI, which means the [Us
 3. **Broken Links Monitor.** Just enter a URL and this monitor will check the entire page for broken links. Now available in private locations.
 4. **Step Monitor updates.** New steps available, including Double-Click Element, Select From Dropdown, Hover Element, Dismiss Modal, and Assert Title 
 
-![Synthetics - New Step Builder Options Highlighted.png]("Synthetics - New Step Builder Options Highlighted")
+![Synthetics - New Step Builder Options Highlighted](./images/synthetics-new-step-builder-options.png "Synthetics - New Step Builder Options Highlighted")
 
 To learn more, [click here](https://docs.newrelic.com/docs/synthetics/synthetic-monitoring/getting-started/types-synthetic-monitors/#types-monitors) or *Learn more* above.
