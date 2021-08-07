@@ -13,7 +13,7 @@ github = Github(token)
 result = "## :rocket: What's new?\n\n\n"
 
 # Get the Docs repo
-repo = github.get_repo("rudouglas/docs-website")
+repo = github.get_repo("newrelic/docs-website")
 
 # Get latest merge number environment variable
 lastRelease = os.getenv('LAST_RELEASE', '...')
@@ -35,11 +35,11 @@ for commit in diff.commits:
   except AttributeError:
     pass
 
-# Limit the characters in the notes to 25000 as per api restrictions
-result = result[0:24999]
-
 # Encode the string to escape characters
 result = result.replace('"','\\"')
+
+# Limit the characters in the notes to 25000 as per api restrictions
+result = result[0:24999]
 
 # Set result as an Env for use in Workflow
 run('gh release create {newTag} -t {newTag} -n "{result}"'.format(newTag=newTag,result=result))
