@@ -19,7 +19,7 @@
       - [Use `chore`](#use-chore)
       - [Use `fix`](#use-fix)
       - [Use `feat`](#use-feat)
-    - [Deploy previews with Amplify](#deploy-previews-with-amplify)
+    - [Deploy previews with Gatsby Cloud](#deploy-previews-with-gatsby-cloud)
   - [Reusable components](#reusable-components)
   - [Editing existing pages](#editing-existing-pages)
   - [Private edits](#private-edits)
@@ -179,9 +179,9 @@ git commit -m "fix: typo and prop error in the code of conduct"
 git commit -m "feat(media): creating a video landing page"
 ```
 
-### Deploy previews with Amplify
+### Deploy previews with Gatsby Cloud
 
-PRs that are opened from a branch in this repo (not forks) will generate preview links on Amplify automatically. Amplify preview links can be found within the PR under the `Checks` Tab.
+PRs that are opened from a branch in this repo (not forks) will generate preview links on Gatsby Cloud automatically. Gatsby Cloud preview links are posted as comments on your pull request when they are done building. You can monitor the progress via the `Gatsby Build Service` job under the `Checks` section.
 
 ## Reusable components
 
