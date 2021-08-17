@@ -5,29 +5,29 @@ const Models = require('./models');
 
 /**
  * Method to create a record in 'jobs' table.
- * @param {Object} job
+ * @param {Job} job
  * @param {string} job.job_uid - identifier of job from translation vendor
- * @param {string} job.batch_uid - identifier of batch from translation vendor
- * @param {number} job.status - numeric value of job status enum
+ * @param {string} job.status - string value of status enum
+ * @param {string} job.locale - locale of job
  * @returns newly created job
  */
-const addJob = async ({ job_uid, batch_uid, status }) => {
-  const job = await Models.Job.create({ job_uid, batch_uid, status });
+const addJob = async ({ job_uid, status, locale }) => {
+  const job = await Models.Job.create({ job_uid, status, locale });
   return job;
 };
 
 /**
  * Method to update an existing job record.
  * @param {number} jobId - identifier of job
- * @param {Object} updates
- * @param {number} updates.status - numeric value of status enum to update to
+ * @param {Partial<Job>} updates - update fields of job
  * @returns updated job
  */
-const updateJob = async (jobId, { status }) => {
-  const [_, [job]] = await Models.Job.update(
-    { status },
-    { where: { id: jobId } }
-  );
+const updateJob = async (jobId, updates) => {
+  const [_, [job]] = await Models.Job.update(updates, {
+    where: { id: jobId },
+    returning: true,
+  });
+
   return job;
 };
 
@@ -39,7 +39,7 @@ const updateJob = async (jobId, { status }) => {
  * @example
  * await getJobs({id: 1}) // returns all jobs with id == 1
  * @example
- * await getJobs({ status: 1, job_uid: 'banana' }) // returns all jobs with status == 1, job_uid == 'banana'
+ * await getJobs({ status: 'PENDING', job_uid: 'banana' }) // returns all jobs with status == 'PENDING', job_uid == 'banana'
  * @returns matching jobs
  */
 const getJobs = async (filters = {}) => {
@@ -52,7 +52,7 @@ const getJobs = async (filters = {}) => {
 
 /**
  * Method to delete a record from 'jobs' table.
- * @param {string} jobId - identifier of job
+ * @param {number} jobId - identifier of job
  */
 const deleteJob = async (jobId) => {
   await Models.Job.destroy({ where: { id: jobId } });
@@ -88,8 +88,8 @@ const getStatuses = async (filters = {}) => {
  * Method to add a record to the 'translations' table.
  * @param {Object} translation
  * @param {string} translation.slug - unique filepath
- * @param {number} status - numeric value of status enum
- * @param {locale} locale - numeric value of locale enum
+ * @param {string} status - string value of status enum
+ * @param {string} locale - string value of locale enum
  * @returns newly created translation
  */
 const addTranslation = async ({ slug, status, locale }) => {
@@ -100,15 +100,14 @@ const addTranslation = async ({ slug, status, locale }) => {
 /**
  * Method to update an existing translation record.
  * @param {number} translationId - identifier of translation
- * @param {Object} updates
- * @param {number} updates.status - numeric value of status enum to update to
+ * @param {Partial<Translation>} - update fields of translation
  * @returns updated translation
  */
-const updateTranslation = async (translationId, { status }) => {
-  const [_, [translation]] = await Models.Translation.update(
-    { status },
-    { where: { id: translationId } }
-  );
+const updateTranslation = async (translationId, updates) => {
+  const [_, [translation]] = await Models.Translation.update(updates, {
+    where: { id: translationId },
+    returning: true,
+  });
   return translation;
 };
 
@@ -133,10 +132,10 @@ const getTranslations = async (filters = {}) => {
 
 /**
  * Method to delete a translation.
- * @param {number} translationId - id of record to remove
+ * @param {number} id - id of record to remove
  */
-const deleteTranslation = async (translationId) => {
-  await Models.Translation.destroy({ where: { translationId } });
+const deleteTranslation = async (id) => {
+  await Models.Translation.destroy({ where: { id } });
 };
 
 /**
@@ -152,6 +151,25 @@ const addTranslationsJobsRecord = async (translationId, jobId) => {
   });
 
   return record;
+};
+
+/**
+ * Method to get records from 'translationsjobs' table.
+ * @param {TranslationsJobs} filters - fields with values to match on
+ * @example
+ * await getTranslationsJobsRecords(); // returns all rows
+ * @example
+ * await getTranslationsJobsRecords({job_id: 1}) // returns all rows where job_id == 1
+ * @example
+ * await getTranslationsJobsRecords({translation_id: 1}) // returns all rows where translation_id == 1
+ * @returns matching translationsjobs records
+ */
+const getTranslationsJobsRecords = async (filters = {}) => {
+  const records = await Models.TranslationsJobs.findAll({
+    where: { ...filters },
+  });
+
+  return records;
 };
 
 /**
@@ -179,4 +197,5 @@ module.exports = {
   deleteTranslation,
   addTranslationsJobsRecord,
   deleteTranslationsJobsRecords,
+  getTranslationsJobsRecords,
 };

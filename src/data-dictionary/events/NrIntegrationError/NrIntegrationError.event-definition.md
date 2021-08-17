@@ -5,4 +5,4 @@ dataSources:
   - Account Usage
 ---
 
-The NrIntegrationError event allows you to query and set alerts on custom data being sent to your New Relic account.
+The NrIntegrationError event captures error messages related to data ingest, such as exceeding limits or malformed data. 

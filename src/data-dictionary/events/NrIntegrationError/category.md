@@ -5,4 +5,4 @@ events:
   - NrIntegrationError
 ---
 
-The category of the error. For custom events, this is EventApiException.
+The category of the error (for example, `EventApiException` for custom events). 

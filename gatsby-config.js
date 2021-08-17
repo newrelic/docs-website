@@ -1,13 +1,13 @@
-const parse = require('rehype-parse');
 const fs = require('fs');
+const parse = require('rehype-parse');
 const path = require('path');
 const unified = require('unified');
 const rehypeStringify = require('rehype-stringify');
 const addAbsoluteImagePath = require('./rehype-plugins/utils/addAbsoluteImagePath');
 const getAgentName = require('./src/utils/getAgentName');
 
-const siteUrl = 'https://docs.newrelic.com';
 const dataDictionaryPath = `${__dirname}/src/data-dictionary`;
+const siteUrl = 'https://docs.newrelic.com';
 const additionalLocales = ['jp'];
 const quote = (str) => `"${str}"`;
 
