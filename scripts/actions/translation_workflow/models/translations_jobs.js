@@ -30,6 +30,7 @@ module.exports = (sequelize, DataTypes) => {
           deferrable: Deferrable.INITIALLY_IMMEDIATE,
         },
         primaryKey: true,
+        onDelete: 'CASCADE',
       },
       job_id: {
         type: DataTypes.INTEGER,
@@ -39,6 +40,7 @@ module.exports = (sequelize, DataTypes) => {
           deferrable: Deferrable.INITIALLY_IMMEDIATE,
         },
         primaryKey: true,
+        onDelete: 'CASCADE',
       },
     },
     {

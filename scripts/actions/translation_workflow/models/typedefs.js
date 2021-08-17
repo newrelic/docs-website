@@ -18,6 +18,7 @@
  * @typedef {Object} Status
  * @property {number} id auto-incrementing identifier
  * @property {string} status status of a job
+ * * possible status values are: {'PENDING', 'IN_PROGRESS', 'IN_REVIEW', 'COMPLETED'}
  */
 
 /**

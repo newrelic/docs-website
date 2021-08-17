@@ -6,9 +6,16 @@ labels: bug, eng
 assignees: ''
 ---
 
-<!-- Please fill out each section below, otherwise, your issue will be closed. This info allows our engineers to diagnose your issue as quickly as possible. **THIS REPO IS PUBLIC. Any information included in this form is accessible on the internet!**
+<!-- NOTE: New Relic is honoring employees with a Relic Recharge Week. This means many of us are out of the office from August 9th through August 13th. We'll take a look at your issue as soon as we're back on August 16. 
+Or, if your issue is urgent, you can reach out to our support team 
+at support.newrelic.com. -->
 
-** Check for existing issues**: Before opening a new issue, please search existing issues: https://github.com/newrelic/docs-website/issues -->
+<!-- Please fill out each section below. This info allows our engineers to 
+diagnose your issue as quickly as possible. This repo is public. Anything you 
+share here is visible to the world. -->
+
+<!-- ** Check for existing issues**: Before opening a new issue, please search 
+existing issues: https://github.com/newrelic/docs-website/issues -->
 
 ### Description
 
