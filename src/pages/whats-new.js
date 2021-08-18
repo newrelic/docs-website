@@ -39,6 +39,7 @@ const WhatsNew = ({ data, location, pageContext }) => {
         location={location}
         title="What's new in New Relic"
         type={TYPES.WHATS_NEW_PAGE}
+        disableSwiftype
       />
       <div>
         <PageTitle
