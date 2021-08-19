@@ -189,7 +189,7 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
         fromPath: path,
         toPath: url,
         isPermanent: true,
-        redirectInBrowser: true,
+        redirectInBrowser: false,
       });
     });
   });
@@ -333,7 +333,7 @@ const createLocalizedRedirect = ({
   fromPath,
   toPath,
   locales,
-  redirectInBrowser = true,
+  redirectInBrowser = false,
   isPermanent = true,
   createRedirect,
 }) => {

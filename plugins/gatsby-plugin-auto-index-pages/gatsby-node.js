@@ -193,7 +193,7 @@ exports.createPages = async ({ actions, graphql, reporter }, pluginOptions) => {
           toPath: slug,
           locales: allLocales,
           isPermanent: true,
-          redirectInBrowser: true,
+          redirectInBrowser: false,
           createRedirect,
         });
       });

@@ -4,7 +4,7 @@ const createLocalizedRedirect = ({
   fromPath,
   toPath,
   locales,
-  redirectInBrowser = true,
+  redirectInBrowser = false,
   isPermanent = true,
   createRedirect,
 }) => {

@@ -110,7 +110,7 @@ exports.sourceNodes = (
             fromPath: `/attribute-dictionary/${event.toLowerCase()}/${frontmatter.name.toLowerCase()}`,
             toPath: `/attribute-dictionary/?event=${event}&attribute=${frontmatter.name}`,
             isPermanent: true,
-            redirectInBrowser: true,
+            redirectInBrowser: false,
             trailingSlash: false,
           });
         });
@@ -122,7 +122,7 @@ exports.sourceNodes = (
       fromPath: `/attribute-dictionary/${event.name.toLowerCase()}`,
       toPath: `/attribute-dictionary/?event=${event.name}`,
       isPermanent: true,
-      redirectInBrowser: true,
+      redirectInBrowser: false,
       trailingSlash: false,
     });
 
