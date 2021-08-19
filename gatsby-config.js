@@ -520,6 +520,11 @@ module.exports = {
       },
     },
     'gatsby-plugin-meta-redirect',
-    'gatsby-plugin-gatsby-cloud',
+    {
+      resolve: 'gatsby-plugin-gatsby-cloud',
+      options: {
+        allPageHeaders: ['Referrer-Policy: strict-origin'],
+      },
+    },
   ],
 };
