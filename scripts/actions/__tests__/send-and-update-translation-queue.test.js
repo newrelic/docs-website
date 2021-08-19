@@ -233,7 +233,7 @@ describe('send-and-update-translation-queue tests', () => {
   });
 
   describe('uploadFiles', () => {
-    test('updates translation state to errored when upload fails', async () => {
+    test('when upload fails, status of translation is left as "PENDING"', async () => {
       uploadFile.mockReturnValueOnce(() => {
         return { code: 'NOT_ACCEPTED' };
       });
@@ -250,12 +250,7 @@ describe('send-and-update-translation-queue tests', () => {
 
       await uploadFiles(batches, translationsPerLocale, 'fake_access_token');
 
-      expect(updateTranslation.mock.calls.length).toBe(1);
-      expect(updateTranslation.mock.calls[0]).toEqual([
-        'fake_translation_id',
-        { status: 'ERRORED' },
-      ]);
-      expect(updateJob.mock.calls.length).toBe(0);
+      expect(updateTranslation.mock.calls.length).toBe(0);
     });
 
     test('adds TranslationsJobs record when upload succeeds', async () => {

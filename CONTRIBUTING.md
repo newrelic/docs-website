@@ -19,7 +19,7 @@
       - [Use `chore`](#use-chore)
       - [Use `fix`](#use-fix)
       - [Use `feat`](#use-feat)
-    - [Deploy previews with Amplify](#deploy-previews-with-amplify)
+    - [Deploy previews with Gatsby Cloud](#deploy-previews-with-gatsby-cloud)
   - [Reusable components](#reusable-components)
   - [Editing existing pages](#editing-existing-pages)
   - [Private edits](#private-edits)
@@ -32,7 +32,6 @@
     - [Step 5](#step-5)
   - [Troubleshooting](#troubleshooting)
     - [General Install, compile or build issues](#general-install-compile-or-build-issues)
-    - [Build / compile issues on the Apple M1 chipset](#build--compile-issues-on-the-apple-m1-chipset)
     - [Problems with yarn start](#problems-with-yarn-start)
 
 ## Guidelines for contributing
@@ -180,9 +179,9 @@ git commit -m "fix: typo and prop error in the code of conduct"
 git commit -m "feat(media): creating a video landing page"
 ```
 
-### Deploy previews with Amplify
+### Deploy previews with Gatsby Cloud
 
-PRs that are opened from a branch in this repo (not forks) will generate preview links on Amplify automatically. Amplify preview links can be found within the PR under the `Checks` Tab.
+PRs that are opened from a branch in this repo (not forks) will generate preview links on Gatsby Cloud automatically. Gatsby Cloud preview links are posted as comments on your pull request when they are done building. You can monitor the progress via the `Gatsby Build Service` job under the `Checks` section.
 
 ## Reusable components
 
@@ -269,35 +268,6 @@ Many of the common errors you'll face can be resolve by the following:
 3. Always run `yarn` whenever you git pull
 
 As a last resort, you can completely delete the `node_modules` folder in the root project directory, and re-run `yarn`
-
-### Build / compile issues on the Apple M1 chipset
-
-If you are working on an M1 Mac, you may run into an error like the following when installing node_modules:
-
-```bash
-gyp info spawn args [ 'BUILDTYPE=Release', '-C', 'build' ]
-  CC(target) Release/obj.target/nothing/../node-addon-api/nothing.o
-  LIBTOOL-STATIC Release/nothing.a
-warning: /Library/Developer/CommandLineTools/usr/bin/libtool: archive library: Release/nothing.a the table of contents is empty (no object file members in the library define global symbols)
-  TOUCH Release/obj.target/libvips-cpp.stamp
-  CXX(target) Release/obj.target/sharp/src/common.o
-../src/common.cc:23:10: fatal error: 'vips/vips8' file not found
-include <vips/vips8>
-1 error generated.
-make: *** [Release/obj.target/sharp/src/common.o] Error 1
-gyp ERR! build error
-gyp ERR! stack Error: `make` failed with exit code: 2
-gyp ERR! stack     at ChildProcess.onExit (/Users/me/.nvm/versions/node/v15.4.0/lib/node_modules/npm/node_modules/node-gyp/lib/build.js:194:23)
-gyp ERR! stack     at ChildProcess.emit (node:events:376:20)
-gyp ERR! stack     at Process.ChildProcess._handle.onexit (node:internal/child_process:284:12)
-gyp ERR! System Darwin 20.3.0
-gyp ERR! command "/Users/me/.nvm/versions/node/v15.4.0/bin/node" "/Users/me/.nvm/versions/node/v15.4.0/lib/node_modules/npm/node_modules/node-gyp/bin/node-gyp.js" "rebuild"
-gyp ERR! cwd /Users/me/dev/docs-website/node_modules/sharp
-```
-
-**Solution**
-
-https://github.com/lovell/sharp/issues/2460#issuecomment-768558230
 
 ### Problems with yarn start
 

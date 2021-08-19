@@ -2,6 +2,7 @@ from github import Github
 from invoke import run
 import os
 import re
+import json
 
 # Get token from Workflow environment variable
 token = os.getenv('GITHUB_TOKEN', '...')
@@ -18,6 +19,9 @@ repo = github.get_repo("newrelic/docs-website")
 # Get latest merge number environment variable
 lastRelease = os.getenv('LAST_RELEASE', '...')
 
+# Get newly created tag environment variable
+newTag = os.getenv('NEW_TAG', '...')
+
 # Compare diff between previous release and develop
 diff = repo.compare(lastRelease, "develop")
 
@@ -32,7 +36,11 @@ for commit in diff.commits:
   except AttributeError:
     pass
 
+# Encode the string to escape characters
+result = result.replace('"','\\"')
+
+# Limit the characters in the notes to 25000 as per api restrictions
+result = result[0:24999]
+
 # Set result as an Env for use in Workflow
-run('echo "RESULT<<EOF" >> $GITHUB_ENV')
-run('echo "%s" >> $GITHUB_ENV' % result)
-run('echo "EOF" >> $GITHUB_ENV')
+run('gh release create {newTag} -t {newTag} -n "{result}"'.format(newTag=newTag,result=result))
