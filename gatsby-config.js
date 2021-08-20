@@ -523,7 +523,7 @@ module.exports = {
     {
       resolve: 'gatsby-plugin-gatsby-cloud',
       options: {
-        allPageHeaders: ['Referrer-Policy: strict-origin'],
+        allPageHeaders: ['Referrer-Policy: no-referrer-when-downgrade'],
       },
     },
   ],
