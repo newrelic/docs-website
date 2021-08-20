@@ -1,6 +1,6 @@
 import React from 'react';
 import { css } from '@emotion/react';
-import fsBanner from '../images/npm_banner.png';
+import fsBanner from '../images/Npm_banner.png';
 
 const NetworkPerformanceMonitoringBannerGA = () => {
   return (
