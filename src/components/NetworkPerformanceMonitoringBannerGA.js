@@ -1,6 +1,6 @@
 import React from 'react';
 import { css } from '@emotion/react';
-import fsBanner from '../images/Npm_banner.png';
+import fsBanner from '../images/NPM_banner.png';
 
 const NetworkPerformanceMonitoringBannerGA = () => {
   return (
@@ -11,7 +11,7 @@ const NetworkPerformanceMonitoringBannerGA = () => {
             width: 100%;
           `}
           src={fsBanner}
-          alt="Get started with network performance monitoring."
+          alt="Get started with Network performance monitoring."
         />
       </a>
     </section>
