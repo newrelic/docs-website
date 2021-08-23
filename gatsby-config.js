@@ -1,5 +1,5 @@
-const parse = require('rehype-parse');
 const fs = require('fs');
+const parse = require('rehype-parse');
 const path = require('path');
 const unified = require('unified');
 const rehypeStringify = require('rehype-stringify');
@@ -520,6 +520,11 @@ module.exports = {
       },
     },
     'gatsby-plugin-meta-redirect',
-    'gatsby-plugin-gatsby-cloud',
+    {
+      resolve: 'gatsby-plugin-gatsby-cloud',
+      options: {
+        allPageHeaders: ['Referrer-Policy: no-referrer-when-downgrade'],
+      },
+    },
   ],
 };
