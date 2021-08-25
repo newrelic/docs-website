@@ -13,7 +13,7 @@ When system performance suffers, you need to know if it’s due to your code, yo
 * **Improve Mean Time to Resolution (MTTR):** Apply the right resources at the right layer faster.
 * **Increase operational efficiency:** Discover network anomalies by default.
 
-![Screenshot showing flow](./images/flow.jpg "Screenshot showing flow")
+![Screenshot showing flow](./images/flow-ui.jpg "Screenshot showing flow")
 
 ## Solution overview
 
