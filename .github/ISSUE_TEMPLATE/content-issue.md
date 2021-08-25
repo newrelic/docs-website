@@ -6,10 +6,6 @@ labels: content
 assignees: ''
 ---
 
-<!-- NOTE: New Relic is honoring employees with a Relic Recharge Week. This means many of us are out of the office from August 9th through August 13th. We'll take a look at your issue as soon as we're back on August 16. 
-Or, if your issue is urgent, you can reach out to our support team 
-at support.newrelic.com. -->
-
 <!-- Thanks for filing an issue on our docs! -->
 
 <!-- This repo is public. Anything you share here is visible to the world. -->

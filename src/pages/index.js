@@ -15,7 +15,7 @@ import { rgba } from 'polished';
 import SurfaceLink from '../components/SurfaceLink';
 import TechTile from '../components/TechTile';
 import TechTileGrid from '../components/TechTileGrid';
-import SummerGamesCTA from '../components/SummerGamesCTA';
+import NetworkPerformanceMonitoringBannerGA from '../components/NetworkPerformanceMonitoringBannerGA';
 import { tdp, fso, ai, security, integrations } from '../data/homepage.yml';
 
 const HomePage = ({ data }) => {
@@ -27,7 +27,7 @@ const HomePage = ({ data }) => {
 
   return (
     <>
-      <SummerGamesCTA />
+      <NetworkPerformanceMonitoringBannerGA />
       <Section layout={layout}>
         <h1>{t('home.title')}</h1>
         <div
