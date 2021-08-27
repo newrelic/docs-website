@@ -23,7 +23,7 @@ const main = async () => {
     );
   }
 
-  const allResults = await Promise.all(filePaths.map((f) => readFile(f)));
+  const allResults = await Promise.all(filePaths.map(readFile));
   const results = allResults.filter(Boolean);
 
   console.log(results);
