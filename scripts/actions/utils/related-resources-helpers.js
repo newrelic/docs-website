@@ -19,6 +19,10 @@ const stripTrailingSlash = (url) => {
 
   return url.endsWith('/') ? url.replace(/\/$/, '') : url;
 };
+const appendLeadingSlash = (url) =>
+  url.startsWith('/') || url.startsWith('!') || url.startsWith('https://')
+    ? url
+    : `/${url}`;
 
 exports.quote = (str) => `"${str}"`;
 
@@ -31,6 +35,7 @@ exports.getExcludedUrls = (frontmatter, siteUrl) => {
   return resources
     .map((resource) => resource.url)
     .concat(redirects)
+    .map((url) => appendLeadingSlash(url))
     .map((url) => (url.startsWith('/') ? siteUrl + url : url));
 };
 
