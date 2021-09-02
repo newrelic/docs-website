@@ -11,11 +11,12 @@ const METADATA = [
 ];
 
 const crazyEgg = (location) => {
-  const homepage = 'https://docs.newrelic.com';
-  const signup =
-    'https://docs.newrelic.com/docs/accounts/accounts-billing/account-setup/create-your-new-relic-account';
+  const { pathname } = location;
+  
+  const homepage = '/';
+  const signup = '/docs/accounts/accounts-billing/account-setup/create-your-new-relic-account/';
 
-  if (location === homepage || signup) {
+  if (pathname === homepage || pathname === signup) {
     return (
       <script
         type="text/javascript"
