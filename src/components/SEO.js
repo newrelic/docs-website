@@ -12,9 +12,9 @@ const METADATA = [
 
 const crazyEgg = (location) => {
   const { pathname } = location;
-  
   const homepage = '/';
-  const signup = '/docs/accounts/accounts-billing/account-setup/create-your-new-relic-account/';
+  const signup =
+    '/docs/accounts/accounts-billing/account-setup/create-your-new-relic-account/';
 
   if (pathname === homepage || pathname === signup) {
     return (
