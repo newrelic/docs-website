@@ -35,7 +35,7 @@ exports.getExcludedUrls = (frontmatter, siteUrl) => {
   return resources
     .map((resource) => resource.url)
     .concat(redirects)
-    .map((url) => appendLeadingSlash(url))
+    .map(appendLeadingSlash)
     .map((url) => (url.startsWith('/') ? siteUrl + url : url));
 };
 
