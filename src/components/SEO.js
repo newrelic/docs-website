@@ -10,6 +10,22 @@ const METADATA = [
   },
 ];
 
+const crazyEgg = (location) => {
+  const homepage = 'https://docs.newrelic.com';
+  const signup =
+    'https://docs.newrelic.com/docs/accounts/accounts-billing/account-setup/create-your-new-relic-account';
+
+  if (location === homepage || signup) {
+    return (
+      <script
+        type="text/javascript"
+        src="//script.crazyegg.com/pages/scripts/0045/9836.js"
+        async="async"
+      />
+    );
+  }
+};
+
 const DocsSiteSeo = ({
   location,
   title,
@@ -55,6 +71,8 @@ const DocsSiteSeo = ({
     {(description || title) && (
       <meta name="description" content={description || title} />
     )}
+
+    {crazyEgg(location)}
   </SEO>
 );
 
