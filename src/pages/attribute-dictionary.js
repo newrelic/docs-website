@@ -1,10 +1,8 @@
 import React, { memo, useMemo, useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
-import { css } from '@emotion/core';
+import { css } from '@emotion/react';
 import { graphql } from 'gatsby';
 import {
-  Button,
-  Callout,
   ContributingGuidelines,
   Layout,
   Link,
@@ -15,7 +13,6 @@ import {
   useTranslation,
   SimpleFeedback,
   Table,
-  Trans,
 } from '@newrelic/gatsby-theme-newrelic';
 import { TYPES } from '../utils/constants';
 
@@ -27,7 +24,10 @@ import { useMedia } from 'react-use';
 
 const AttributeDictionary = ({ data, pageContext, location }) => {
   const { allDataDictionaryEvent } = data;
+
   const [filteredEvents, setFilteredEvents] = useState([]);
+  const [filteredAttribute, setFilteredAttribute] = useState(null);
+  const [searchedAttribute, setSearchedAttribute] = useState(null);
   const { queryParams } = useQueryParams();
 
   const isMobileScreen = useMedia('(max-width: 1240)');
@@ -52,7 +52,19 @@ const AttributeDictionary = ({ data, pageContext, location }) => {
       );
     }
 
+    if (queryParams.has('attributeSearch')) {
+      filteredEvents = filteredEvents.filter((event) =>
+        event.childrenDataDictionaryAttribute.some(({ name }) =>
+          name
+            .toLowerCase()
+            .includes(queryParams.get('attributeSearch').toLowerCase())
+        )
+      );
+    }
+
     setFilteredEvents(filteredEvents.map((event) => event.name));
+    setSearchedAttribute(queryParams.get('attributeSearch'));
+    setFilteredAttribute(queryParams.get('attribute'));
   }, [queryParams, events]);
 
   const { t } = useTranslation();
@@ -89,58 +101,28 @@ const AttributeDictionary = ({ data, pageContext, location }) => {
             grid-area: 'page-description';
           `}
         >
-          <Trans
-            i18nKey="dataDictionary.intro"
-            parent="p"
+          <div
             css={css`
               color: var(--secondary-text-color);
               font-size: 1.125rem;
+              margin-bottom: 1rem;
             `}
           >
-            This data dictionary lists and defines the{' '}
-            <Link to="/docs/using-new-relic/welcome-new-relic/getting-started/glossary#attribute">
-              attributes
-            </Link>{' '}
-            attached to New Relic events and other data objects (like Metric and
-            Span data).
-          </Trans>
-
-          <Callout variant={Callout.VARIANT.TIP}>
-            <Trans i18nKey="dataDictionary.callout">
-              This dictionary does not contain data reported by Infrastructure
-              integrations. To learn about that data, see the{' '}
-              <Link to="/docs/integrations">integration documentation</Link>.
-            </Trans>
-          </Callout>
+            <p>{t('dataDictionary.intro')}</p>
+            <p>{t('dataDictionary.introNot.0')}</p>
+            <ul>
+              <li>{t('dataDictionary.introNot.1')}</li>
+              <li>{t('dataDictionary.introNot.2')}</li>
+              <li>{t('dataDictionary.introNot.3')}</li>
+            </ul>
+          </div>
 
           <hr />
         </div>
         <Layout.Content>
-          <div
-            css={css`
-              display: none;
-              position: sticky;
-              top: var(--global-header-height);
-              font-size: 0.875rem;
-              background: var(--primary-background-color);
-              padding: 2rem 0;
-            `}
-          >
-            Displaying {filteredEvents.length} of {events.length} results{' '}
-            {filteredEvents.length !== events.length && (
-              <Button
-                as={Link}
-                to={location.pathname}
-                variant={Button.VARIANT.LINK}
-              >
-                Clear
-              </Button>
-            )}
-          </div>
-
           {events.map((event) => (
             <div
-              key={event.name}
+              key={`${event.name}-div`}
               className={filteredEvents.includes(event.name) ? '' : 'hidden'}
               css={css`
                 &.hidden {
@@ -151,7 +133,8 @@ const AttributeDictionary = ({ data, pageContext, location }) => {
               <EventDefinition
                 location={location}
                 event={event}
-                filteredAttribute={queryParams.get('attribute')}
+                filteredAttribute={filteredAttribute}
+                searchedAttribute={searchedAttribute}
               />
             </div>
           ))}
@@ -187,206 +170,219 @@ AttributeDictionary.propTypes = {
 
 const pluralize = (word, count) => (count === 1 ? word : `${word}s`);
 
-const EventDefinition = memo(({ location, event, filteredAttribute }) => {
-  const filteredAttributes = filteredAttribute
-    ? event.childrenDataDictionaryAttribute.filter(
-        (attribute) => attribute.name === filteredAttribute
-      )
-    : event.childrenDataDictionaryAttribute;
+const EventDefinition = memo(
+  ({ location, event, searchedAttribute, filteredAttribute }) => {
+    let filteredAttributes = [];
 
-  return (
-    <div
-      key={event.name}
-      css={css`
-        &:not(:last-child) {
-          margin-bottom: 2rem;
-        }
-      `}
-    >
-      <h2
+    if (searchedAttribute) {
+      filteredAttributes = event.childrenDataDictionaryAttribute.filter(
+        ({ name }) =>
+          name.toLowerCase().includes(searchedAttribute.toLowerCase())
+      );
+    } else if (filteredAttribute) {
+      filteredAttributes = event.childrenDataDictionaryAttribute.filter(
+        ({ name }) => name === filteredAttribute
+      );
+    } else {
+      filteredAttributes = event.childrenDataDictionaryAttribute;
+    }
+
+    return (
+      <div
+        key={`${event.name}-section`}
         css={css`
-          position: sticky;
-          top: var(--global-header-height);
-          background: var(--primary-background-color);
-          padding: 1rem 0;
-
-          // cover up the right table border
-          margin-right: -1px;
-
-          &:hover svg {
-            opacity: 1;
-          }
-
-          @media (max-width: 1240px) {
-            position: relative;
+          &:not(:last-child) {
+            margin-bottom: 2rem;
           }
         `}
       >
-        <div
+        <h2
           css={css`
-            position: relative;
+            position: sticky;
+            top: var(--global-header-height);
+            background: var(--primary-background-color);
+            padding: 1rem 0;
+
+            // cover up the right table border
+            margin-right: -1px;
+
+            &:hover svg {
+              opacity: 1;
+            }
+
+            @media (max-width: 1240px) {
+              position: relative;
+            }
           `}
         >
-          <Link
-            to={`${location.pathname}?event=${event.name}`}
-            className="anchor before"
-          >
-            <Icon name="fe-link-2" focusable={false} size="1rem" />
-          </Link>
-          <code
+          <div
             css={css`
-              background: none !important;
-              padding: 0 !important;
+              position: relative;
             `}
           >
-            {event.name}
-          </code>
-        </div>
-      </h2>
-      <div
-        css={css`
-          margin-bottom: 1rem;
-        `}
-      >
-        <span
-          css={css`
-            font-size: 0.75rem;
-            margin-right: 0.5rem;
-          `}
-        >
-          Data {pluralize('source', event.dataSources.length)}:
-        </span>
-        <TagList>
-          {event.dataSources.map((dataSource) => (
-            <Tag
-              as={Link}
-              to={`${location.pathname}?dataSource=${dataSource}`}
-              key={dataSource}
+            <Link
+              to={`${location.pathname}?event=${event.name}`}
+              className="anchor before"
             >
-              {dataSource}
-            </Tag>
-          ))}
-        </TagList>
-      </div>
-      <div dangerouslySetInnerHTML={{ __html: event.definition?.html }} />
-      <Table>
-        <thead>
-          <tr>
-            <th
+              <Icon name="fe-link-2" focusable={false} size="1rem" />
+            </Link>
+            <code
               css={css`
-                white-space: nowrap;
+                background: none !important;
+                padding: 0 !important;
               `}
             >
-              Attribute name
-            </th>
-            <th>Definition</th>
-            <th>Events</th>
-          </tr>
-        </thead>
-        <tbody>
-          {filteredAttributes.map((attribute) => {
-            const params = new URLSearchParams();
-            params.set('event', event.name);
-            params.set('attribute', attribute.name);
+              {event.name}
+            </code>
+          </div>
+        </h2>
+        <div
+          css={css`
+            margin-bottom: 1rem;
+          `}
+        >
+          <span
+            css={css`
+              font-size: 0.75rem;
+              margin-right: 0.5rem;
+            `}
+          >
+            Data {pluralize('source', event.dataSources.length)}:
+          </span>
+          <TagList>
+            {event.dataSources.map((dataSource) => (
+              <Tag
+                as={Link}
+                to={`${location.pathname}?dataSource=${dataSource}`}
+                key={dataSource}
+              >
+                {dataSource}
+              </Tag>
+            ))}
+          </TagList>
+        </div>
+        <div dangerouslySetInnerHTML={{ __html: event.definition?.html }} />
+        <Table>
+          <thead>
+            <tr>
+              <th
+                css={css`
+                  white-space: nowrap;
+                `}
+              >
+                Attribute name
+              </th>
+              <th>Definition</th>
+              <th>Data types</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredAttributes.map((attribute) => {
+              const params = new URLSearchParams();
+              params.set('event', event.name);
+              params.set('attribute', attribute.name);
 
-            return (
-              <tr key={attribute.name}>
-                <td
-                  css={css`
-                    width: 40%;
-                    word-break: break-all;
-                  `}
-                >
-                  <Link
-                    to={`${location.pathname}?${params.toString()}`}
+              return (
+                <tr key={`${event.name}-${attribute.name}`}>
+                  <td
                     css={css`
-                      display: flex;
-                      align-items: center;
-                      color: var(--color-text-primary);
-                      text-decoration: none;
-
-                      &:hover svg {
-                        opacity: 1;
-                      }
+                      width: 40%;
+                      word-break: break-all;
                     `}
                   >
-                    <code
+                    <Link
+                      to={`${location.pathname}?${params.toString()}`}
                       css={css`
-                        display: inline-block;
-                        background: none !important;
-                        padding: 0 !important;
-                      `}
-                    >
-                      {attribute.name}
-                    </code>
-                    <Icon
-                      name="fe-link-2"
-                      size="1rem"
-                      focusable={false}
-                      css={css`
-                        margin-left: 0.5rem;
-                        opacity: 0;
-                        transition: opacity 0.2s ease-out;
-                      `}
-                    />
-                  </Link>
-                  {attribute.units && (
-                    <div
-                      css={css`
-                        font-size: 0.75rem;
+                        display: flex;
+                        align-items: center;
+                        color: var(--color-text-primary);
+                        text-decoration: none;
 
-                        .dark-mode & {
-                          color: var(--color-dark-600);
+                        &:hover svg {
+                          opacity: 1;
                         }
                       `}
                     >
-                      {attribute.units}
-                    </div>
-                  )}
-                </td>
-                <td
-                  css={css`
-                    p:last-child {
-                      margin-bottom: 0;
-                    }
-                  `}
-                  dangerouslySetInnerHTML={{
-                    __html: attribute.definition.html,
-                  }}
-                />
-                <td
-                  css={css`
-                    width: 1px;
-                  `}
-                >
-                  <ul
+                      <code
+                        css={css`
+                          display: inline-block;
+                          background: none !important;
+                          padding: 0 !important;
+                        `}
+                      >
+                        {attribute.name}
+                      </code>
+                      <Icon
+                        name="fe-link-2"
+                        size="1rem"
+                        focusable={false}
+                        css={css`
+                          margin-left: 0.5rem;
+                          opacity: 0;
+                          transition: opacity 0.2s ease-out;
+                        `}
+                      />
+                    </Link>
+                    {attribute.units && (
+                      <div
+                        css={css`
+                          font-size: 0.75rem;
+
+                          .dark-mode & {
+                            color: var(--color-dark-600);
+                          }
+                        `}
+                      >
+                        {attribute.units}
+                      </div>
+                    )}
+                  </td>
+                  <td
+                    key={`${event.name}-${attribute.name}-def}`}
                     css={css`
-                      margin: 0;
-                      list-style: none;
-                      padding-left: 0;
-                      font-size: 0.875rem;
+                      p:last-child {
+                        margin-bottom: 0;
+                      }
+                    `}
+                    dangerouslySetInnerHTML={{
+                      __html: attribute.definition.html,
+                    }}
+                  />
+                  <td
+                    css={css`
+                      width: 1px;
                     `}
                   >
-                    {attribute.events.map((event) => (
-                      <li key={event.name}>
-                        <Link to={`${location.pathname}?event=${event.name}`}>
-                          {event.name}
-                        </Link>
-                      </li>
-                    ))}
-                  </ul>
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </Table>
-    </div>
-  );
-});
+                    <ul
+                      css={css`
+                        margin: 0;
+                        list-style: none;
+                        padding-left: 0;
+                        font-size: 0.875rem;
+                      `}
+                    >
+                      {attribute.events.map((event) => (
+                        <li key={`${attribute.name}-${event.name}`}>
+                          <Link to={`${location.pathname}?event=${event.name}`}>
+                            {event.name}
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </Table>
+      </div>
+    );
+  }
+);
 
 EventDefinition.propTypes = {
   event: PropTypes.object.isRequired,
+  searchedAttribute: PropTypes.string,
   filteredAttribute: PropTypes.string,
   location: PropTypes.shape({
     pathname: PropTypes.string.isRequired,

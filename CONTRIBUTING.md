@@ -7,43 +7,42 @@
     - [Dependencies](#dependencies)
     - [Unit tests](#unit-tests)
     - [Using multiple versions of Node](#using-multiple-versions-of-node)
-    - [Quick edits](#quick-edits)
     - [Cloning vs forking](#cloning-vs-forking)
     - [Submitting a PR from a forked repo](#submitting-a-pr-from-a-forked-repo)
     - [Submitting a PR from a cloned repo](#submitting-a-pr-from-a-cloned-repo)
     - [Using the `develop` branch](#using-the-develop-branch)
     - [Shared Working Branches](#shared-working-branches)
+    - [Working with docs-website-private](#working-with-docs-website-private)
+    - [Branch Protection](#branch-protection)
     - [Draft PRs](#draft-prs)
     - [Using Conventional Commits](#using-conventional-commits)
       - [Use `chore`](#use-chore)
       - [Use `fix`](#use-fix)
       - [Use `feat`](#use-feat)
-    - [Deploy previews with Amplify](#deploy-previews-with-amplify)
-  - [Grammar and style guidelines](#grammar-and-style-guidelines)
+    - [Deploy previews with Gatsby Cloud](#deploy-previews-with-gatsby-cloud)
   - [Reusable components](#reusable-components)
   - [Editing existing pages](#editing-existing-pages)
-  - [Creating new pages](#creating-new-pages)
-  - [Deleting pages](#deleting-pages)
-  - [Updating the navigation](#updating-the-navigation)
-  - [Adding a new page](#adding-a-new-page)
-  - [Moving a page to a new location](#moving-a-page-to-a-new-location)
   - [Private edits](#private-edits)
     - [Bring your private work back into the public repository](#bring-your-private-work-back-into-the-public-repository)
+  - [Split testing and running experiments](#split-testing-and-running-experiments)
+    - [Step 1](#step-1)
+    - [Step 2](#step-2)
+    - [Step 3](#step-3)
+    - [Step 4](#step-4)
+    - [Step 5](#step-5)
   - [Troubleshooting](#troubleshooting)
     - [General Install, compile or build issues](#general-install-compile-or-build-issues)
-    - [Build / compile issues on the Apple M1 chipset](#build--compile-issues-on-the-apple-m1-chipset)
     - [Problems with yarn start](#problems-with-yarn-start)
 
 ## Guidelines for contributing
 
-The Documentation Team and Developer Enablement Team at New Relic welcomes contributions to this repository.
-There are several ways you can contribute.
+The Documentation Team and Developer Enablement Team at New Relic welcome contributions to this repository.
 
-If you wish to make documentation edits or add new
-documentation, follow our documentation contribution guidelines below.
+There are several ways you can contribute:
 
-If you'd like to to make code contributions follow the code contribution
-guidelines below.
+- If you wish to make documentation edits or add new
+documentation, follow our [documentation contribution guidelines](https://docs.newrelic.com/docs/style-guide/writing-guidelines/create-edit-content/#edit-doc).
+- If you'd like to to make code contributions, or make content contributions locally, follow the contribution guidelines below.
 
 ## Getting started
 
@@ -58,6 +57,8 @@ yarn start
 ```
 
 Your site is now running at [`http://localhost:8000`](http://localhost:8000)!
+
+The first time you build the site locally, it will take upwards of 20 minutes. This is normal, and will take signifigantly less time afterwards.
 
 ### Dependencies
 
@@ -75,19 +76,6 @@ Docs Site is currently on Node v12. Therefore it's recommended you use Node Vers
 
 Review [this article](https://itnext.io/nvm-the-easiest-way-to-switch-node-js-environments-on-your-machine-in-a-flash-17babb7d5f1b)
 which clearly explains the setup and configuration of NVM.
-
-### Quick edits
-
-If you see a minor problem in our documentation that you want to quickly fix,
-you can use the Github `Edit This File` button to submit a change.
-
-0. Create a [Github](https://github.com/) account if you don't already have one.
-1. View the file on Github.
-2. In the file click on the pencil icon within the code block.
-3. Provide a clear explanation of the change as a comment.
-4. create a new branch.
-5. Submit a `PR`.
-6. And you are done!
 
 ### Cloning vs forking
 
@@ -136,6 +124,18 @@ use a shared working branch strategy.
 5. Resolve any merge conflicts.
 6. When your work is complete, merge the shared working branch into `develop` via a PR.
 
+### Working with docs-website-private
+
+For New Relic employees working on pre-release content that needs to remain private, we have a [private docs repo](https://github.com/newrelic/docs-website-private). Before you begin creating content in the private repo, refer to the [private docs wiki](https://github.com/newrelic/docs-website-private/wiki) on to how interact with the repository.
+
+### Branch Protection
+
+The `develop` and `main` branches have "Branch Protection" enabled in Github. In order to merge a pull request into `develop`, you must have (at least) one approval. Additionally a few of the "PR Checks" are required and must pass before the pull request can be merged in.
+
+You can review full Branch Protection details [here](https://docs.google.com/document/d/1O1SGS0i3OmPfvPhylpFe1CTMkE20889iAOF_cMFJ344/edit#heading=h.oh6pex9x0dx4), and check out a visual representation of the workflow below:
+
+![Branch protection workflow](src/images/Docs_site_branch_protection_workflow.png "branch-protection-workflow")
+
 ### Draft PRs
 
 `Draft PRs` are ideal for in progress work or work you need others to contribute to.
@@ -179,13 +179,9 @@ git commit -m "fix: typo and prop error in the code of conduct"
 git commit -m "feat(media): creating a video landing page"
 ```
 
-### Deploy previews with Amplify
+### Deploy previews with Gatsby Cloud
 
-PRs that are opened from a branch in this repo (not forks) will generate preview links on Amplify automatically. Amplify preview links can be found within the PR under the `Checks` Tab.
-
-## Grammar and style guidelines
-
-We welcome your contributions! And we don't want you to worry about style. When you edit a file, tech writers on our team review it for style, grammar, and formatting. That said, if you're curious about our style guidelines, you're welcome (but not obligated) [to take a look](https://docs.newrelic.com/docs/style-guide/get-started/introduction-style-guide). 
+PRs that are opened from a branch in this repo (not forks) will generate preview links on Gatsby Cloud automatically. Gatsby Cloud preview links are posted as comments on your pull request when they are done building. You can monitor the progress via the `Gatsby Build Service` job under the `Checks` section.
 
 ## Reusable components
 
@@ -198,40 +194,6 @@ when creating documentation. Refer to our [Component Guide](COMPONENT_GUIDE.md) 
 2. Follow the instructions above to `Fork` or `Clone` the repo and make your edits.
 3. Follow the instructions above to submit a `PR` for your change.
 
-## Creating new pages
-
-1. If you'd like to create an entirely new page of documentation file a [Documentation Request](https://github.com/newrelic/docs-website/issues/new/choose)
-2. The Documentation Team will review the request to add a new documentation page.
-3. If a new page is approved you may be asked to help write the page content.
-4. If you are willing to assist in the process of creating a new page, then follow the instructions above to `Fork` or `Clone` the repo and make your edits.
-5. Follow the instructions above to submit a `PR` for your change.
-
-## Deleting pages
-
-1. If you feel a page needs to be deleted file a [Documentation Request](https://github.com/newrelic/docs-website/issues/new/choose).
-2. The Documentation Team will review the request to delete an existing documentation page.
-3. If the deletion is approved, The Developer Enablement Team will delete the page.
-
-## Updating the navigation
-
-For the steps to update the left-navigation pane, see [Update left-navigation pane](https://docs.newrelic.com/docs/content/style-guide/processes-and-procedures).
-
-## Adding a new page
-
-1. Determine which section of the navigation you would like the page to belong to (i.e. _Full Stack Observability_).
-2. Find the configuration file for that section (i.e. [src/nav/full-stack-observability.yml](./src/nav/full-stack-observability.yml)).
-3. Find the parent page you would like the new page to live under.
-4. Add a "node" for the page under the parent page's `children`.
-
-If you intend on adding an entirely new section to the navigation, create a new file in the [src/nav](./src/nav) directory using the same format as outlined above.
-
-## Moving a page to a new location
-
-1. Determine which section of the navigation the page.
-2. Find the configuration file for that section.
-3. Find the page within the configuration file and delete that entry.
-4. Follow the steps above to add the page to a new location.
-
 ## Private edits
 
 If you have access to a private version of this repository, you can contribute and review content without sharing it publicly.
@@ -243,10 +205,54 @@ _NOTE: with all of these steps, if you have SSH Keys set up, you will want to us
 1. Click the fork button in the GitHub UI for the [docs-website repository](https://github.com/newrelic/docs-website).
 2. Clone the fork on your computer: `git clone https://github.com/yourname/docs-website`.
 3. Change into the fork repo: `cd docs-website`.
-4. Connect the private repo: `git remote add private https://github.com/yourname/private-repo.git`.
-5. Make a new branch: `git checkout -b your_branch_name`.
-6. Pull in content from you private repo: `git pull private main`.
-7. Push your new work up to GitHub: `git push origin your_branch_name`.
+4. Connect the public repo: `git remote add upstream https://github.com/newrelic/docs-website.git`.
+5. Pull in content from the public repo: `git pull upstream develop`.
+6. Make a new branch: `git checkout -b your_branch_name`.
+7. Push your branch up to the public repository: `git push upstream your_branch_name`.
+
+## Split testing and running experiments
+
+If you have access to [Split.io](https://split.io/) as a New Relic employee you can execute a split test
+on the site to measure different scenarios if you are attempting to gather data to make
+a product decision or conduct an experiment.
+
+To execute a split test you'll need to be comfortable with Split.io as well as be able
+to provide the different treatments (in code) of what you wish to test.
+
+To understand how to use Split.io it's recommended to watch this [Introduction video](https://youtu.be/sUFM7dEet8A)
+
+### Step 1
+
+Decide what you want to test, what your hypothesis is and begin to define your
+[experiment](https://youtu.be/BRXpPgedQlE).
+
+- Why are you running the experiment, what is the goal?
+- How will you measure to see if you reached the goal?
+- What is your metrics for success?
+- How long will it take to get to results you want?
+
+### Step 2
+
+Review the [Split.io documentation](https://help.split.io/hc/en-us/articles/360025334851-Step-2-Create-a-split-and-target-users) for creating a split test and targeting users.
+
+### Step 3
+
+Send [event data to Split.io](https://help.split.io/hc/en-us/articles/360025335031-Step-3-Send-event-data)
+
+### Step 4
+
+Measure results by [setting up a metric](https://help.split.io/hc/en-us/articles/360025335091-Step-4-Create-a-metric-monitor-and-measure-the-impact)
+
+A good metric:
+
+- is meaningful
+- is directional
+- has significance
+- is fit for the test you are running
+
+### Step 5
+
+Run the experiment and pick a winner!
 
 ## Troubleshooting
 
@@ -262,35 +268,6 @@ Many of the common errors you'll face can be resolve by the following:
 3. Always run `yarn` whenever you git pull
 
 As a last resort, you can completely delete the `node_modules` folder in the root project directory, and re-run `yarn`
-
-### Build / compile issues on the Apple M1 chipset
-
-If you are working on an M1 Mac, you may run into an error like the following when installing node_modules:
-
-```bash
-gyp info spawn args [ 'BUILDTYPE=Release', '-C', 'build' ]
-  CC(target) Release/obj.target/nothing/../node-addon-api/nothing.o
-  LIBTOOL-STATIC Release/nothing.a
-warning: /Library/Developer/CommandLineTools/usr/bin/libtool: archive library: Release/nothing.a the table of contents is empty (no object file members in the library define global symbols)
-  TOUCH Release/obj.target/libvips-cpp.stamp
-  CXX(target) Release/obj.target/sharp/src/common.o
-../src/common.cc:23:10: fatal error: 'vips/vips8' file not found
-include <vips/vips8>
-1 error generated.
-make: *** [Release/obj.target/sharp/src/common.o] Error 1
-gyp ERR! build error
-gyp ERR! stack Error: `make` failed with exit code: 2
-gyp ERR! stack     at ChildProcess.onExit (/Users/me/.nvm/versions/node/v15.4.0/lib/node_modules/npm/node_modules/node-gyp/lib/build.js:194:23)
-gyp ERR! stack     at ChildProcess.emit (node:events:376:20)
-gyp ERR! stack     at Process.ChildProcess._handle.onexit (node:internal/child_process:284:12)
-gyp ERR! System Darwin 20.3.0
-gyp ERR! command "/Users/me/.nvm/versions/node/v15.4.0/bin/node" "/Users/me/.nvm/versions/node/v15.4.0/lib/node_modules/npm/node_modules/node-gyp/bin/node-gyp.js" "rebuild"
-gyp ERR! cwd /Users/me/dev/docs-website/node_modules/sharp
-```
-
-**Solution**
-
-https://github.com/lovell/sharp/issues/2460#issuecomment-768558230
 
 ### Problems with yarn start
 

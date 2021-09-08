@@ -1,13 +1,12 @@
 import React, { useMemo } from 'react';
 import PropTypes from 'prop-types';
-import { css } from '@emotion/core';
+import { css } from '@emotion/react';
 import { graphql } from 'gatsby';
 import PageTitle from '../components/PageTitle';
 import Timeline from '../components/Timeline';
 import SEO from '../components/SEO';
 import { Icon, Layout, Link } from '@newrelic/gatsby-theme-newrelic';
 import filter from 'unist-util-filter';
-import toString from 'mdast-util-to-string';
 import { TYPES } from '../utils/constants';
 
 const EXCERPT_LENGTH = 200;
@@ -182,8 +181,52 @@ export const pageQuery = graphql`
   }
 `;
 
+// copying in function from mdast-util-to-string so we can render list items with periods and spaces between
+function toString(node) {
+  const isList = node.type === 'list';
+  return (
+    (node &&
+      (node.value ||
+        node.alt ||
+        node.title ||
+        ('children' in node && all(node.children, isList)) ||
+        ('length' in node && all(node, isList)))) ||
+    ''
+  );
+}
+
+function all(values, isList) {
+  const result = [];
+  const length = values.length;
+  let index = -1;
+
+  while (++index < length) {
+    result[index] = toString(values[index]);
+  }
+  if (isList) {
+    const strippedPeriodResults = result.map((listItem) => {
+      if (listItem[listItem.length - 1] === '.') {
+        return listItem.slice(0, -1);
+      } else {
+        return listItem;
+      }
+    });
+    return strippedPeriodResults.join('. ');
+  } else {
+    return result.join('');
+  }
+}
+
 const getBestGuessExcerpt = (mdxAST) => {
-  const textTypes = ['paragraph', 'list', 'listItem', 'text', 'root', 'link'];
+  const textTypes = [
+    'paragraph',
+    'list',
+    'listItem',
+    'text',
+    'root',
+    'link',
+    'inlineCode',
+  ];
   const ast = filter(mdxAST, (node) => textTypes.includes(node.type));
 
   return toString(

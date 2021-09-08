@@ -2,27 +2,25 @@
 
 # docs.newrelic.com
 
-Welcome! 👋  This is the repo for the `NEW` New Relic Docs site. This repo contains all the Docs website source code and Markdown source files we use to build our Docs site: `docs.newrelic.com`.
+Welcome! 👋  This is the repo for [docs.newrelic.com](https://docs.newrelic.com). This repo contains all the source code and Markdown source files we use to build our docs site.
 
 Read on to learn more about who we are and how you can contribute to the New Relic Docs site.
 
 ## We'd like your help
 
-From early on, our Docs site has been managed by a team of writers. We've always welcomed contributions from anyone at New Relic and now we're open sourcing our docs to invite input from anyone at all. We credit our technical accuracy and comprehensive documentation to this openness.
+From the start, we've welcomed contributions from anyone at New Relic, not just writers. Now, we're open sourcing our docs to invite input from anyone at all. We credit our technical accuracy and comprehensive documentation to this openness.
 
-In a sense, it's documentation as conversation. By making our docs open source, we hope to expand this conversation. Open sourcing our docs seemed like a great way to expand this conversation beyond New Relic.
+In a sense, it's documentation as conversation. By making our docs open source, we hope to expand this conversation.
 
 We're here working every day to improve our docs and we'd love to hear from you. Come join the conversation.
 
 ## Get started
 
-On each page of our docs, you can [create an issue](https://github.com/newrelic/docs-website/issues/new/choose) or [edit a page](CONTRIBUTING.md).
+On each page of our docs, you can [create an issue](https://github.com/newrelic/docs-website/issues/new/choose) or [edit a page](https://docs.newrelic.com/docs/style-guide/writing-guidelines/create-edit-content/#edit-doc).
 
 ### Create an issue
 
-Issues are a quick way to give us feedback about our docs. We'll review your issue and follow up with you if we have any questions.
-You can create an issue to let us know when you find an error or notice something missing. You can also let us know about things you'd like to see.
-Go here to [create an issue](https://github.com/newrelic/docs-website/issues/new/choose).
+Issues are a quick way to give us feedback about our docs. We'll review your issue and follow up with you if we have any questions. You can create an issue to let us know when you find an error or notice something missing. You can also let us know about things you'd like to see. Go here to [create an issue](https://github.com/newrelic/docs-website/issues/new/choose).
 
 ### Edit a page
 
@@ -32,11 +30,11 @@ If you'd like to get more directly involved, you can edit the docs yourself! Her
 2. Edit the file by clicking on the pencil icon. Make your changes, then click **Commit changes**. This will automatically create a fork in your GitHub account with the changes.
 3. Finally, follow the prompts to create a pull request and submit your changes for review. From there our writers will check out your pull request, comment with any feedback, and merge your change.
 
-If you'd like to go deeper, see our [Contributors guide](CONTRIBUTING.md) for information on how to fork our site, build it locally, and submit pull requests.
-
-Our [Style guide](https://docs.newrelic.com/docs/style-guide) will give you some insight into how we think about writing and documentation, as well as our flavor of Markdown.
+If you'd like more information on how to edit our docs, see our [content contribution guide](https://docs.newrelic.com/docs/style-guide/writing-guidelines/create-edit-content/). Additionally, our [Style guide](https://docs.newrelic.com/docs/style-guide) will give you some insight into how we think about writing and documentation, as well as our flavor of Markdown.
 
 Reading the style guide is totally optional! Our writers are here to make sure everything is formatted and worded right. We're looking your technical insight and knowhow. Let us handle the little details for you.
+
+If you'd like to go deeper with development, see our [Contributors guide](CONTRIBUTING.md) for information on how to fork our site, build it locally, and submit pull requests.
 
 ## 🚧 Contributing
 

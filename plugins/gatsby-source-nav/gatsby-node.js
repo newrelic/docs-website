@@ -252,7 +252,10 @@ const groupBy = (arr, fn) =>
   }, new Map());
 
 const createNav = async ({ args, createNodeId, nodeModel, locales }) => {
-  const { slug } = args;
+  let { slug } = args;
+  slug = slug
+    .replace(/\/table-of-contents$/, '')
+    .replace(new RegExp(`^\\/(${locales.join('|')})(?=\\/)`), '');
 
   const fileNode = await nodeModel.runQuery({
     type: 'File',
@@ -263,32 +266,33 @@ const createNav = async ({ args, createNodeId, nodeModel, locales }) => {
         childMdx: {
           fields: {
             slug: {
-              eq: slug
-                .replace(/\/table-of-contents$/, '')
-                .replace(new RegExp(`^\\/(${locales.join('|')})(?=\\/)`), ''),
+              eq: slug,
             },
           },
         },
       },
+      firstOnly: true,
     },
   });
 
-  if (fileNode === null) {
-    return null;
-  }
+  const allNavYamlNodes = nodeModel
+    .getAllNodes({ type: 'NavYaml' })
+    .sort((a, b) => a.title.localeCompare(b.title));
 
-  const nav = nodeModel.getAllNodes({ type: 'NavYaml' }).find((nav) =>
-    // table-of-contents pages should get the same nav as their landing page
-    findPage(
-      nav,
-      slug
-        .replace(/\/table-of-contents$/, '')
-        .replace(new RegExp(`^\\/(${locales.join('|')})(?=\\/)`), '')
-    )
-  );
+  let nav =
+    allNavYamlNodes.find((nav) => findPage(nav, slug)) ||
+    allNavYamlNodes.find((nav) => slug.includes(nav.path));
+
+  const trueNav = allNavYamlNodes.find((nav) => slug.includes(nav.path));
 
   if (!nav) {
     return null;
+  }
+
+  // if current is link to auto index page && its path does not
+  // belong to nav it was first found in, find nav that matches its path
+  if (trueNav && trueNav !== nav) {
+    nav = trueNav;
   }
 
   return {

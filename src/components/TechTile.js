@@ -1,6 +1,6 @@
 import React, { isValidElement, cloneElement } from 'react';
 import PropTypes from 'prop-types';
-import { ClassNames, css } from '@emotion/core';
+import { ClassNames, css } from '@emotion/react';
 import { Surface, Icon, Link } from '@newrelic/gatsby-theme-newrelic';
 
 const TileIcon = ({ className, icon }) => {

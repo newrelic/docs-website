@@ -6,9 +6,26 @@ import { SEO } from '@newrelic/gatsby-theme-newrelic';
 const METADATA = [
   {
     name: 'google-site-verification',
-    content: 'eT8TSNhvMuDmAtqbtq5jygZKVkhDmz565fYQ3DVop4g',
+    content: 'He_vizRXYX_mUhwBe3BmyaMxNnVRAZbq_Jtm2A0e4WY',
   },
 ];
+
+const crazyEgg = (location) => {
+  const { pathname } = location;
+  const homepage = '/';
+  const signup =
+    '/docs/accounts/accounts-billing/account-setup/create-your-new-relic-account/';
+
+  if (pathname === homepage || pathname === signup) {
+    return (
+      <script
+        type="text/javascript"
+        src="//script.crazyegg.com/pages/scripts/0045/9836.js"
+        async="async"
+      />
+    );
+  }
+};
 
 const DocsSiteSeo = ({
   location,
@@ -55,6 +72,8 @@ const DocsSiteSeo = ({
     {(description || title) && (
       <meta name="description" content={description || title} />
     )}
+
+    {crazyEgg(location)}
   </SEO>
 );
 

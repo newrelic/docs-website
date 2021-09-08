@@ -1,6 +1,6 @@
 ---
 title: 'NRQL Updates'
-summary: 'We’ve made it simple to set up APM (Java and .NET) using our recently-launched guided installation flow, so you can instrument your systems and start analyzing your telemetry data in 5 minutes - no instrumentation expertise required.'
+summary: 'You can now use Regex within your NRQL queries, and sliding time windows'
 releaseDate: '2021-04-01'
 learnMoreLink: https://www.youtube.com/watch?v=0SzBLDqqx1k
 ---

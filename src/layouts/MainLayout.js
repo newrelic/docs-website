@@ -10,7 +10,7 @@ import {
   useLayout,
 } from '@newrelic/gatsby-theme-newrelic';
 import { graphql } from 'gatsby';
-import { css } from '@emotion/core';
+import { css } from '@emotion/react';
 import SEO from '../components/SEO';
 import RootNavigation from '../components/RootNavigation';
 import SubNavigation from '../components/SubNavigation';
@@ -126,6 +126,9 @@ export const query = graphql`
               ...MainLayout_navPages
               pages {
                 ...MainLayout_navPages
+                pages {
+                  ...MainLayout_navPages
+                }
               }
             }
           }
