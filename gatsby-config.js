@@ -533,5 +533,14 @@ module.exports = {
         allPageHeaders: ['Referrer-Policy: no-referrer-when-downgrade'],
       },
     },
+    {
+      resolve: 'gatsby-plugin-newrelic-test',
+      options: {
+        NR_INGEST_KEY: process.env.NEW_RELIC_INSERT_KEY || '',
+        NR_LICENSE_KEY: process.env.NEW_RELIC_LICENSE_KEY || '',
+        SITE_NAME: 'docs.newrelic.com',
+        staging: true,
+      },
+    },
   ],
 };
