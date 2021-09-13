@@ -495,6 +495,7 @@ module.exports = {
                 releaseDate(fromNow: false)
                 version
               }
+              excerpt(pruneLength: 5000)
             }
           }
         }
@@ -502,10 +503,11 @@ module.exports = {
         path: '/api/agent-release-notes.json',
         serialize: ({ data }) =>
           data.allMdx.nodes
-            .map(({ frontmatter }) => ({
+            .map(({ frontmatter, excerpt }) => ({
               agent: getAgentName(frontmatter.subject),
               date: frontmatter.releaseDate,
               version: frontmatter.version,
+              description: excerpt,
             }))
             .filter(({ date, agent }) => Boolean(date && agent)),
       },
