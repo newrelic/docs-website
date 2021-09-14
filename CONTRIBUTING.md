@@ -19,14 +19,19 @@
       - [Use `chore`](#use-chore)
       - [Use `fix`](#use-fix)
       - [Use `feat`](#use-feat)
-    - [Deploy previews with Amplify](#deploy-previews-with-amplify)
+    - [Deploy previews with Gatsby Cloud](#deploy-previews-with-gatsby-cloud)
   - [Reusable components](#reusable-components)
   - [Editing existing pages](#editing-existing-pages)
   - [Private edits](#private-edits)
     - [Bring your private work back into the public repository](#bring-your-private-work-back-into-the-public-repository)
+  - [Split testing and running experiments](#split-testing-and-running-experiments)
+    - [Step 1](#step-1)
+    - [Step 2](#step-2)
+    - [Step 3](#step-3)
+    - [Step 4](#step-4)
+    - [Step 5](#step-5)
   - [Troubleshooting](#troubleshooting)
     - [General Install, compile or build issues](#general-install-compile-or-build-issues)
-    - [Build / compile issues on the Apple M1 chipset](#build--compile-issues-on-the-apple-m1-chipset)
     - [Problems with yarn start](#problems-with-yarn-start)
 
 ## Guidelines for contributing
@@ -34,9 +39,10 @@
 The Documentation Team and Developer Enablement Team at New Relic welcome contributions to this repository.
 
 There are several ways you can contribute:
-* If you wish to make documentation edits or add new
+
+- If you wish to make documentation edits or add new
 documentation, follow our [documentation contribution guidelines](https://docs.newrelic.com/docs/style-guide/writing-guidelines/create-edit-content/#edit-doc).
-* If you'd like to to make code contributions, or make content contributions locally, follow the contribution guidelines below.
+- If you'd like to to make code contributions, or make content contributions locally, follow the contribution guidelines below.
 
 ## Getting started
 
@@ -124,7 +130,7 @@ For New Relic employees working on pre-release content that needs to remain priv
 
 ### Branch Protection
 
-The `develop` and `main` branches have "Branch Protection" enabled in Github. In order to merge a pull request into `develop`, you must have (at least) one approval. Additionally a few of the "PR Checks" are required and must pass before the pull request can be merged in. 
+The `develop` and `main` branches have "Branch Protection" enabled in Github. In order to merge a pull request into `develop`, you must have (at least) one approval. Additionally a few of the "PR Checks" are required and must pass before the pull request can be merged in.
 
 You can review full Branch Protection details [here](https://docs.google.com/document/d/1O1SGS0i3OmPfvPhylpFe1CTMkE20889iAOF_cMFJ344/edit#heading=h.oh6pex9x0dx4), and check out a visual representation of the workflow below:
 
@@ -173,9 +179,9 @@ git commit -m "fix: typo and prop error in the code of conduct"
 git commit -m "feat(media): creating a video landing page"
 ```
 
-### Deploy previews with Amplify
+### Deploy previews with Gatsby Cloud
 
-PRs that are opened from a branch in this repo (not forks) will generate preview links on Amplify automatically. Amplify preview links can be found within the PR under the `Checks` Tab.
+PRs that are opened from a branch in this repo (not forks) will generate preview links on Gatsby Cloud automatically. Gatsby Cloud preview links are posted as comments on your pull request when they are done building. You can monitor the progress via the `Gatsby Build Service` job under the `Checks` section.
 
 ## Reusable components
 
@@ -204,6 +210,50 @@ _NOTE: with all of these steps, if you have SSH Keys set up, you will want to us
 6. Make a new branch: `git checkout -b your_branch_name`.
 7. Push your branch up to the public repository: `git push upstream your_branch_name`.
 
+## Split testing and running experiments
+
+If you have access to [Split.io](https://split.io/) as a New Relic employee you can execute a split test
+on the site to measure different scenarios if you are attempting to gather data to make
+a product decision or conduct an experiment.
+
+To execute a split test you'll need to be comfortable with Split.io as well as be able
+to provide the different treatments (in code) of what you wish to test.
+
+To understand how to use Split.io it's recommended to watch this [Introduction video](https://youtu.be/sUFM7dEet8A)
+
+### Step 1
+
+Decide what you want to test, what your hypothesis is and begin to define your
+[experiment](https://youtu.be/BRXpPgedQlE).
+
+- Why are you running the experiment, what is the goal?
+- How will you measure to see if you reached the goal?
+- What is your metrics for success?
+- How long will it take to get to results you want?
+
+### Step 2
+
+Review the [Split.io documentation](https://help.split.io/hc/en-us/articles/360025334851-Step-2-Create-a-split-and-target-users) for creating a split test and targeting users.
+
+### Step 3
+
+Send [event data to Split.io](https://help.split.io/hc/en-us/articles/360025335031-Step-3-Send-event-data)
+
+### Step 4
+
+Measure results by [setting up a metric](https://help.split.io/hc/en-us/articles/360025335091-Step-4-Create-a-metric-monitor-and-measure-the-impact)
+
+A good metric:
+
+- is meaningful
+- is directional
+- has significance
+- is fit for the test you are running
+
+### Step 5
+
+Run the experiment and pick a winner!
+
 ## Troubleshooting
 
 This section attempts to capture some of the more common troubleshooting techniques to try
@@ -218,35 +268,6 @@ Many of the common errors you'll face can be resolve by the following:
 3. Always run `yarn` whenever you git pull
 
 As a last resort, you can completely delete the `node_modules` folder in the root project directory, and re-run `yarn`
-
-### Build / compile issues on the Apple M1 chipset
-
-If you are working on an M1 Mac, you may run into an error like the following when installing node_modules:
-
-```bash
-gyp info spawn args [ 'BUILDTYPE=Release', '-C', 'build' ]
-  CC(target) Release/obj.target/nothing/../node-addon-api/nothing.o
-  LIBTOOL-STATIC Release/nothing.a
-warning: /Library/Developer/CommandLineTools/usr/bin/libtool: archive library: Release/nothing.a the table of contents is empty (no object file members in the library define global symbols)
-  TOUCH Release/obj.target/libvips-cpp.stamp
-  CXX(target) Release/obj.target/sharp/src/common.o
-../src/common.cc:23:10: fatal error: 'vips/vips8' file not found
-include <vips/vips8>
-1 error generated.
-make: *** [Release/obj.target/sharp/src/common.o] Error 1
-gyp ERR! build error
-gyp ERR! stack Error: `make` failed with exit code: 2
-gyp ERR! stack     at ChildProcess.onExit (/Users/me/.nvm/versions/node/v15.4.0/lib/node_modules/npm/node_modules/node-gyp/lib/build.js:194:23)
-gyp ERR! stack     at ChildProcess.emit (node:events:376:20)
-gyp ERR! stack     at Process.ChildProcess._handle.onexit (node:internal/child_process:284:12)
-gyp ERR! System Darwin 20.3.0
-gyp ERR! command "/Users/me/.nvm/versions/node/v15.4.0/bin/node" "/Users/me/.nvm/versions/node/v15.4.0/lib/node_modules/npm/node_modules/node-gyp/bin/node-gyp.js" "rebuild"
-gyp ERR! cwd /Users/me/dev/docs-website/node_modules/sharp
-```
-
-**Solution**
-
-https://github.com/lovell/sharp/issues/2460#issuecomment-768558230
 
 ### Problems with yarn start
 

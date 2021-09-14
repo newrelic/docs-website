@@ -1,89 +1,85 @@
 const fs = require('fs');
 const path = require('path');
-const fetch = require('node-fetch');
 const frontmatter = require('@github-docs/frontmatter');
 
-const { saveToTranslationQueue } = require('./utils/save-to-db');
-const loadFromDB = require('./utils/load-from-db');
+const {
+  getTranslations,
+  addTranslation,
+  deleteTranslation,
+} = require('./translation_workflow/database');
+const { fetchPaginatedGHResults } = require('./utils/github-api-helpers');
 const checkArgs = require('./utils/check-args');
 const { prop } = require('../utils/functional');
 
-/**
- * @param {string} url The API url that is used to fetch files.
- * @param {Object<string, string[]>} queue The queue from DynamoDB.
- * @returns {Promise<Object<string, string[]>>} An updated queue.
- */
-const getUpdatedQueue = async (url, queue) => {
-  try {
-    const resp = await fetch(url);
-    const files = await resp.json();
-
-    const mdxFiles = files
-      ? files.filter((file) => path.extname(file.filename) === '.mdx')
-      : [];
-
-    const mdxFilesToAdd = mdxFiles
-      .filter((file) => file.status !== 'removed')
-      .reduce((files, file) => {
-        const contents = fs.readFileSync(
-          path.join(process.cwd(), file.filename)
-        );
-        const { data } = frontmatter(contents);
-
-        return data.translate && data.translate.length
-          ? [...files, { ...file, locales: data.translate }]
-          : files;
-      }, []);
-
-    const addedMdxFiles = mdxFilesToAdd.reduce((files, file) => {
-      return file.locales.reduce(
-        (acc, locale) => ({
-          ...acc,
-          [locale]: [...(acc[locale] || []), file.filename],
-        }),
-        files
-      );
-    }, {});
-
-    const removedMdxFileNames = mdxFiles
-      .filter((f) => f.status === 'removed')
-      .map(prop('filename'));
-
-    const queueFiles =
-      Object.entries(queue).length !== 0 ? Object.entries(queue) : [];
-
-    return queueFiles
-      .map(([locale, files]) => [
-        locale,
-        files ? files.filter((f) => !removedMdxFileNames.includes(f)) : [],
-      ])
-      .reduce(
-        (acc, [locale, filenames]) => ({
-          ...acc,
-          [locale]: [...new Set(filenames.concat(acc[locale] || []))],
-        }),
-        addedMdxFiles
-      );
-  } catch (error) {
-    console.log(`[!] Unable to get updated queue`);
-    console.log(error);
-    process.exit(1);
-  }
+const STATUS = {
+  PENDING: 'PENDING',
 };
+
+const LOCALE_IDS = {
+  jp: 'ja-JP',
+};
+
+const translationDifference = (pendingFiles, prChanges) =>
+  prChanges.filter(
+    (file) =>
+      !pendingFiles.find(
+        (pendingFile) =>
+          file.filename === pendingFile.slug &&
+          file.locale === pendingFile.locale
+      )
+  );
+
+const slugIntersection = (pendingFiles, filesToRemove) =>
+  pendingFiles.filter((file) => filesToRemove.includes(file.slug));
+
+const getLocalizedFileData = (prFile) => {
+  const contents = fs.readFileSync(path.join(process.cwd(), prFile.filename));
+  const { data } = frontmatter(contents);
+  return data.translate
+    ? data.translate.map((locale) => ({
+        ...prFile,
+        locale: LOCALE_IDS[locale],
+      }))
+    : [];
+};
+
+const removedFiles = (prFiles) =>
+  prFiles.filter((file) => file.status === 'removed').map(prop('filename'));
 
 /** Entrypoint. */
 const main = async () => {
   checkArgs(3);
-
   const url = process.argv[2];
-  const table = 'TranslationQueues';
-  const key = { type: 'to_translate' };
 
-  const queue = await loadFromDB(table, key);
-  const { locales } = queue.Item;
-  const data = await getUpdatedQueue(url, locales);
+  const queue = await getTranslations({ status: STATUS.PENDING });
 
-  await saveToTranslationQueue(key, 'set locales = :slugs', { ':slugs': data });
+  const prFileData = await fetchPaginatedGHResults(
+    url,
+    process.env.GITHUB_TOKEN
+  );
+
+  const changedMdxFileData = prFileData
+    .filter((file) => path.extname(file.filename) === '.mdx')
+    .filter((f) => f.status !== 'removed');
+
+  const allLocalizedFileData = changedMdxFileData.flatMap(getLocalizedFileData);
+  const fileDataToAddToQueue = translationDifference(
+    queue,
+    allLocalizedFileData
+  );
+
+  await Promise.all(
+    fileDataToAddToQueue.map(({ filename, locale }) =>
+      addTranslation({ slug: filename, status: STATUS.PENDING, locale })
+    )
+  );
+
+  const translationIdsToRemove = slugIntersection(
+    queue,
+    removedFiles(prFileData)
+  ).map(prop('id'));
+
+  await Promise.all(translationIdsToRemove.map(deleteTranslation));
 
   process.exit(0);
 };

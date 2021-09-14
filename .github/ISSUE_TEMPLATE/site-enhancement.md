@@ -6,9 +6,12 @@ labels: enhancement, eng
 assignees: ''
 ---
 
-<!-- Please fill out each section below, otherwise, your issue will be closed. This info allows our engineers to diagnose your issue as quickly as possible. **THIS REPO IS PUBLIC. Any information included in this form is accessible on the internet!**
+<!-- Please fill out each section below. This info allows our engineers to 
+diagnose your issue as quickly as possible. This repo is public. Anything you 
+share here is visible to the world. -->
 
-DISCLAIMER: Not every feature request will be worked on, but hearing about what you want is important. Don't be afraid to add a feature request! -->
+<!-- DISCLAIMER: Not every feature request will be worked on, but hearing about 
+what you want is important. Don't be afraid to add a feature request! -->
 
 ### Is your feature request related to a problem? Please describe
 
