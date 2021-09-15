@@ -23,6 +23,10 @@ const stripTrailingSlash = (url) => {
 exports.quote = (str) => `"${str}"`;
 
 exports.uniq = (arr) => [...new Set(arr)];
+const appendLeadingSlash = (url) =>
+  url.startsWith('/') || url.startsWith('!') || url.startsWith('https://')
+    ? url
+    : `/${url}`;
 
 exports.getExcludedUrls = (frontmatter, siteUrl) => {
   const resources = frontmatter.resources || [];
@@ -31,6 +35,7 @@ exports.getExcludedUrls = (frontmatter, siteUrl) => {
   return resources
     .map((resource) => resource.url)
     .concat(redirects)
+    .map(appendLeadingSlash)
     .map((url) => (url.startsWith('/') ? siteUrl + url : url));
 };
 
