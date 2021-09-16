@@ -131,7 +131,13 @@ module.exports = {
               return {
                 q: tags ? tags.map(quote).join(' OR ') : title,
                 search_fields: {
-                  page: ['tags^10', 'body^5', 'title^1.5', '*'],
+                  page: [
+                    'tags^10',
+                    'quick_start_name^8',
+                    'body^5',
+                    'title^1.5',
+                    '*',
+                  ],
                 },
                 filters: {
                   page: {
@@ -139,6 +145,7 @@ module.exports = {
                       `docs${postfix}`,
                       `developer${postfix}`,
                       `opensource${postfix}`,
+                      `quick_starts${postfix}`,
                     ],
                     document_type: [
                       '!views_page_menu',
@@ -488,6 +495,7 @@ module.exports = {
                 releaseDate(fromNow: false)
                 version
               }
+              excerpt(pruneLength: 5000)
             }
           }
         }
@@ -495,10 +503,11 @@ module.exports = {
         path: '/api/agent-release-notes.json',
         serialize: ({ data }) =>
           data.allMdx.nodes
-            .map(({ frontmatter }) => ({
+            .map(({ frontmatter, excerpt }) => ({
               agent: getAgentName(frontmatter.subject),
               date: frontmatter.releaseDate,
               version: frontmatter.version,
+              description: excerpt,
             }))
             .filter(({ date, agent }) => Boolean(date && agent)),
       },

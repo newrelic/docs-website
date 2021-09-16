@@ -32,9 +32,9 @@ Our current system, which relies on individual integrations, runs on a polling f
       </td>
 
       <td>
-        All metrics from all AWS services and custom namespaces are available in New Relic at once, without needing a specific integration to be built or updated.
+        **All CloudWatch metrics from all AWS services and custom namespaces are available** in New Relic at once, without needing a specific integration to be built or updated.
         
-        * There are two exceptions: percentiles and a small number of metrics that are made available to CloudWatch with more than 2 hours delay.
+        * There are two exceptions: percentiles and a small number of metrics that are made available to CloudWatch with more than 2 hours delay, and therefore not included in the stream.
 
       </td>
     </tr>
@@ -78,9 +78,9 @@ First, you need to link each of your AWS accounts with your New Relic account. T
 * Go to **[one.newrelic.com](https://one.newrelic.com/) > Infrastructure > AWS**, click on **Add an AWS account**, then on **Use metric streams**, and follow the steps.
 * You may [automate this step with NerdGraph](/docs/apis/nerdgraph/examples/nerdgraph-cloud-integrations-api-tutorial/#link-aws). 
 
-Next, set up the metric stream using the [CloudFormation template](https://console.aws.amazon.com/cloudformation/home?#/stacks/quickcreate?templateURL=https://nr-downloads-main.s3.amazonaws.com/cloud_integrations/aws/cloudformation/MetricStreams_CloudFormation.yml&stackName=NewRelic-Metric-Stream&param_NewRelicDatacenter=US) we provide in the last step of our UI. 
+Next, set up the metric stream using the [CloudFormation template](https://console.aws.amazon.com/cloudformation/home?#/stacks/quickcreate?templateURL=https://nr-downloads-main.s3.amazonaws.com/cloud_integrations/aws/cloudformation/MetricStreams_CloudFormation.yml&stackName=NewRelic-Metric-Stream&param_NewRelicDatacenter=US) we provide in the last step of our UI. This template is provided as a base to setup the integration on a single region, and can be customized and extended based on your requirements.
 
-### Manual setup using AWS Console, API, or calls
+### Manual setup using AWS Console, API, or calls [#manual-setup]
 
 1. **Create a Kinesis Data Firehose Delivery Stream** and configure the following destination parameters:
   * Source: Direct PUT or other sources
@@ -199,13 +199,15 @@ See our documentation on [how to create NRQL alerts](/docs/alerts-applied-intell
 
 ## Tags collection [#tags-collection]
 
-New Relic provides enhanced dimensions from metrics coming from AWS CloudWatch metric streams.  Resource and custom tags are automatically pulled from all services and are used to decorate metrics with additional dimensions. Use the [data explorer](/docs/query-your-data/explore-query-data/explore-data/introduction-data-explorer/) to see which tags are available on each AWS metric. 
+New Relic provides enhanced dimensions from metrics coming from AWS CloudWatch metric streams. Resource and custom tags are automatically pulled from most services and are used to decorate metrics with additional dimensions. Use the [data explorer](/docs/query-your-data/explore-query-data/explore-data/introduction-data-explorer/) to see which tags are available on each AWS metric. 
 
 The following query shows an example of tags being collected and queried as dimensions in metrics:
 
 ```
 SELECT average(`aws.rds.CPUUtilization`) FROM Metric FACET `tags.mycustomtag` SINCE 30 MINUTES AGO TIMESERIES
 ```
+Note that not all metrics have their custom tags as dimensions. Currently, only metrics linked to entities in the [New Relic Explorer](/docs/new-relic-one/use-new-relic-one/core-concepts/new-relic-explorer-view-performance-across-apps-services-hosts/) have their custom tags associated. The AWS CloudWatch metric stream doesn't include tags as part of the stream message, hence, additional processing is required on the New Relic side.
+
 ## Metadata collection [#metadata-collection]
 
 Like with custom tags, New Relic also pulls metadata information from relevant AWS services in order to decorate AWS CloudWatch metrics with enriched metadata collected from AWS Services APIs. This metadata is accessible in New Relic as additional dimensions on the metrics provided by AWS CloudWatch. This is an optional capability that's complementary to the CloudWatch Metric Streams integration. 
@@ -266,13 +268,24 @@ We recommend the following actions to control the data being ingested:
   Metrics sent via AWS Metric Streams count against your Metric API limits for the New Relic account where data will be ingested.
 </Callout>
 
-## Migrating from poll-based AWS integrations [#migrating-from-poll-integrations]
+## Migrating from AWS API polling integrations [#migrating-from-poll-integrations]
 
 When metrics are sent via Metric Streams to New Relic, if the same metrics are being retrieved using the current poll-based integrations, those metrics will be duplicated. For example, alerts and dashboards that use `sum` or `count` will return twice the actual number. This includes alerts and dashboards that use metrics that have a `.Sum` suffix.
 
 We recommend sending the data to a non-production New Relic account where you can safely do tests. If that is not an option, then AWS CloudWatch Metric Stream filters are available to include or exclude certain namespaces that can cause trouble.
 
 Alternatively, you can use filtering on queries to distinguish between metrics that come from Metric Streams and those that come through polling. All metrics coming from Metric Streams are tagged with `collector.name='cloudwatch-metric-streams'`.
+
+### Migration steps [#migration-steps]
+
+On a typical deployment, migrating from API polling to metric stream involves the following steps (we recommend trying this on a dev / staging environment first):
+
+1. Go through the AWS UI in New Relic (or use [NerdGraph APIs](/docs/apis/nerdgraph/examples/nerdgraph-cloud-integrations-api-tutorial/#link-aws-cloudwatch)) to link your AWS account with New Relic. This is currently needed even if your AWS account is already linked with polling integrations.
+2. Make sure you complete the last step in the onboarding, which involves enabling AWS CloudWatch metric stream and the AWS Kinesis Data Firehose to push metrics to New Relic.
+  - Complete this step for any additional AWS region you want to monitor, since AWS CloudWatch requires one stream per region. 
+3. Ensure metrics are received from all connected regions and namespaces. This may take several minutes.
+4. Disable all unnecessary polling integrations in the previous AWS provider account. The following integrations still need to be enabled since they aren't fully replaced by metric streams:
+  - AWS Billing, AWS CloudTrail, AWS Health, AWS Trusted Advisor.
 
 ### Query, dashboard, and alert considerations [#considerations]
 
@@ -286,75 +299,17 @@ Please consider the following when migrating from poll-based integrations:
 * Custom dashboards that use poll-based AWS integration events should work as expected. 
 * Alert conditions that use poll-based AWS events might need to be adapted with dimensional metric format. Use the NRQL source for the alert condition. 
 * Entities in New Relic Explorer might be duplicated for up to 24 hours.
-* The AWS CloudWatch Metric Streams integration only collects metrics. Integrations such as AWS Health, AWS Billing, and AWS CloudTrail collect additional instrumentation that's not available for metric streams. In order to continue collecting that additional data, keep those enabled as polling integrations.
 
-## Troubleshooting [#troubleshooting]
+### Integrations not fully replaced by metric streams [#integrations-not-replaced-streams]
 
-### No metrics or errors appear on New Relic [#no-metrics-appear]
+The AWS CloudWatch Metric Streams integration only collects CloudWatch metrics, resource metadata and custom tags. The following API polling integrations still need to be enabled to get complete visibility from AWS:
+- AWS Billing
+- AWS CloudTrail
+- AWS Health
+- AWS Trusted Advisor
 
-If you are not seeing data in New Relic once the AWS CloudWatch Metric Stream has been connected to AWS Kinesis Data Firehose, then follow the steps below to troubleshoot your configuration: 
-1. Check that the Metric Stream is in a state of Running via the AWS console or API. Please refer to [AWS Troubleshooting docs](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch-metric-streams-troubleshoot.html) for additional details.
-2. Check the Metric Stream metrics under AWS/CloudWatch/MetricStreams namespace. You will see a count of metric updates and errors per Metric Streams. This will indicate that the Metric Stream is successfully emitting data. 
-3. If you see errors, confirm the IAM role specified in the Metric Streams configuration grants the CloudWatch service principal permissions to write to it. 
-4. Check the Monitoring tab of the Kinesis Data Firehose in the Kinesis console to see if the Firehose is successfully receiving data. 
-5. You can enable CloudWatch error logging on your Kinesis Data Firehose to get more detailed information for debugging issues. Refer to Amazon Kinesis Data Firehose official documentation for more details. 
-6. Confirm that you have configured your Kinesis Data Firehose with the correct destination details:
-  * Ensure the New Relic API Key/License Key contains your 40 hexadecimal chars license key.
-  * Ensure the right data center US or EU has been selected for your New Relic account (hint: if the license_key starts with “eu” then you need to select the EU data center).
-7. Check that your Kinesis Data Firehose has permissions to write to the configured destination, for example: the S3 bucket policy allows write.
+## Infrastructure Agent metrics and EC2 metadata decoration [#infra-data-decoration]
 
-### Missing metrics for certain AWS namespaces [#missing-metrics]
+As with the EC2 API polling integration, when the infrastructure agent is installed on a host and the EC2 namespace is active via AWS CloudWatch metric stream integration, then all the infrastructure agent events and metrics are decorated with additional metadata. 
 
-New Relic does not apply any filter on the metrics received from the AWS CloudWatch metric stream. 
-
-If you are expecting certain metrics to be ingested and it’s not the case, please verify the following:
-* Make sure there’s no Inclusion or Exclusion filter in your CloudWatch Metric Stream.
-* Make sure metrics are available in AWS CloudWatch and can be queried in the AWS CloudWatch interface. For some specific AWS services, such as [ECS/ EKS container insights](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/deploy-container-insights.html), enhanced monitoring needs to be explicitly enabled in AWS-sdide before getting access to the metrics. 
-
-<Callout variant="important">
-  AWS CloudWatch doesn't include metrics that are not available in less than 2 hours. For example, [some S3 metrics](https://docs.aws.amazon.com/AmazonS3/latest/userguide/metrics-dimensions.html#s3-cloudwatch-metrics) are aggregated on a daily basis. We plan to make some of these special metrics available in New Relic.
-</Callout>
-
-### Metric values discrepancies between AWS CloudWatch and New Relic [#metric-discrepancies]
-
-Metrics are processed, mapped, and stored as received from AWS CloudWatch metric stream. Some discrepancies might be observed when comparing AWS CloudWatch and New Relic dashboards. On limited scenarios, AWS CloudWatch applies specific functions and logic before rendering the metrics. 
-
-These guidelines should help understand the root cause of the discrepancy:
-* Check that the same function is used on the metrics (for example `average`, `min`, `max`).
-* On the New Relic side, make sure you filter the same timestamp or timeframe (considering the timezone) to show the exact same time as in AWS CloudWatch.
-* When using timeseries, the New Relic user interface might perform some rounding based on intervals.
-
-You can get a list of the raw metric received by time using a query like this one (note that no function is applied to the selected metric):
-
-```
-FROM Metric 
-SELECT aws.outposts.InstanceTypeCapacityUtilization
-WHERE collector.name = 'cloudwatch-metric-streams'
-```
-
-Remember that AWS fixes the maximum resolution for every metric reported in AWS CloudWatch (for example: 1 minute, 5 minutes, etc). 
-
-### AWS Metric Streams Operation [#metric-stream-operation]
-
-You can see the state of the Metric Stream(s) in the Streams tab in the CloudWatch console. In particular, a Metric Stream can be in one of two states: running or stopped.
-* Running: The stream is running correctly. Note that there may not be any metric data been streamed due to the configured filters. Although there is no data corresponding to the configured filters, the status of the Metric Stream can be running still.
-* Stopped: The stream has been explicitly set to the halted state (not because of an error). This state is useful to temporarily stop the streaming of data without deleting the configuration.
-
-### Errors in the Status Dashboard [#errors-status-dashboard]
-
-New Relic relies on the AWS Config service to collect additional metadata from resources in order to enrich metrics received via CloudWatch Metric Stream.
-
-Make sure AWS Config is enabled in your AWS Account, and ensure the linked Role has the following permission or inline policy created:
-
-```
-{
-    "Version": "2012-10-17",
-    "Statement": [
-        {
-            "Effect": "Allow",
-            "Action": "config:BatchGetResourceConfig",
-            "Resource": "*"
-        }
-    ]
-}
-```
+The following attributes will decorate infrastructure samples (some might not be applicable on all environments): `awsAvailabilityZone`, `ec2InstanceId`, `ec2PublicDnsName`, `ec2State`, `ec2EbsOptimized`, `ec2PublicIpAddress`, `ec2PrivateIpAddress`, `ec2VpcId`, `ec2AmiId`, `ec2PrivateDnsName`, `ec2KeyName`, `ec2SubnetId`, `ec2InstanceType`, `ec2Hypervisor`, `ec2Architecture`, `ec2RootDeviceType`, `ec2RootDeviceName`, `ec2VirtualizationType`, `ec2PlacementGroupName`, `ec2PlacementGroupTenancy`.
