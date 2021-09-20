@@ -13,7 +13,7 @@ New Relic Errors Inbox is an error tracking solution that provides a single plac
 
 Now we have added **Errors Inbox to the APM UI**, which makes triaging APM errors a breeze without the need to set up a workload. Read more about the latest updates in our [blog post]( https://newrelic.com/blog/how-to-relic/errors-inbox-with-slack-and-apm).
 
-![APM Screen - 2 - Errors Inbox in APM.png]("APM Screen - 2 - Errors Inbox in APM")
+![APM Screen Errors Inbox](./images/apm-screen-errors-inbox.png "Errors Inbox in APM")
 
 Watch an extended demo in our recent Nerdlog episode below:
 <iframe width="560" height="315" src="https://www.youtube.com/embed/M52jeJsnOfU" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
