@@ -1,11 +1,12 @@
 ---
-title: 'Java agent API: Instrumenting example app for external datastore calls and CAT'
+title: 'Java agent API: Instrumenting example app for external datastore calls and DT'
 tags:
   - Agents
   - Java agent
   - API guides
-metaDescription: 'For New Relic Java agent API, an example of using custom instrumentation in an app to monitor cross application tracing and external datastore calls.'
+metaDescription: 'For New Relic Java agent API, an example of using custom instrumentation in an app to monitor distributed tracing and external datastore calls.'
 redirects:
+  - /docs/apm/agents/java-agent/api-guides/java-agent-api-instrumenting-example-app-external-datastore-calls-cat
   - /docs/agents/java-agent/api-guides/java-agent-api-instrumenting-example-app-external-datastore-calls-cat
   - /docs/agents/java-agent/custom-instrumentation/java-agent-instrumentation-api-example
   - /docs/agents/java-agent/custom-instrumentation/java-agent-instrumentation-cross-application-tracing-api-example
@@ -20,7 +21,7 @@ redirects:
 This document demonstrates using the New Relic [Java agent API](/docs/agents/java-agent/custom-instrumentation/java-agent-api) to instrument a simple client and server application. The instrumentation has these goals:
 
 * To record external HTTP and datastore [transactions](/docs/apm/applications-menu/monitoring/transactions-page).
-* To link external transactions between two applications running New Relic agents (known as [cross application tracing](/docs/apm/transactions/cross-application-traces/cross-application-tracing) or CAT).
+* To link external transactions between two applications running New Relic agents (known as [distributed tracing](/docs/distributed-tracing) or DT).
 
 See the [Java agent API Javadoc](http://newrelic.github.io/java-agent-api/javadoc/index.html?com/newrelic/api/agent/NewRelic.html) for full descriptions of the available API classes and methods.
 
@@ -47,18 +48,23 @@ Here is an example of the client-side code for a simple client-server applicatio
     import java.sql.Connection;
     import java.sql.DriverManager;
     import java.sql.Statement;
+    import java.util.Arrays;
+    import java.util.Collection;
+    import java.util.stream.Collectors;
 
     <a href="#client-import-java">// New Relic API imports</a>
     import com.newrelic.api.agent.ExternalParameters;
     import com.newrelic.api.agent.HeaderType;
+    import com.newrelic.api.agent.Headers;
     import com.newrelic.api.agent.HttpParameters;
-    import com.newrelic.api.agent.InboundHeaders;
     import com.newrelic.api.agent.NewRelic;
-    import com.newrelic.api.agent.OutboundHeaders;
     import com.newrelic.api.agent.Trace;
     import com.newrelic.api.agent.TracedMethod;
+    import com.newrelic.api.agent.Transaction;
 
     import fi.iki.elonen.NanoHTTPD;
+    import org.apache.http.HttpMessage;
+    import org.apache.http.NameValuePair;
     import org.apache.http.client.methods.CloseableHttpResponse;
     import org.apache.http.client.methods.HttpUriRequest;
     import org.apache.http.client.methods.RequestBuilder;
@@ -116,18 +122,18 @@ Here is an example of the client-side code for a simple client-server applicatio
             HttpUriRequest request = RequestBuilder.get().setUri(uri).build();
 
             // Wrap the outbound Request object
-            OutboundWrapper outboundHeaders = new OutboundWrapper(request);
+            Headers outboundHeaders = new HeadersWrapper(request);
 
-            // Obtain a reference to the method currently being traced
-            TracedMethod tracedMethod = NewRelic.getAgent().getTracedMethod();
+            // Obtain a reference to the current transaction
+            Transaction transaction = NewRelic.getAgent().getTransaction();
             // Add headers for outbound external request
-            tracedMethod.addOutboundRequestHeaders(outboundHeaders);
+            transaction.insertDistributedTraceHeaders(outboundHeaders);
 
             CloseableHttpClient connection = HttpClientBuilder.create().build();
             CloseableHttpResponse response = connection.execute(request);
 
             // Wrap the incoming Response object
-            InboundWrapper inboundHeaders = new InboundWrapper(response);
+            Headers inboundHeaders = new HeadersWrapper(response);
 
             // Create an input parameter object for a call to an external HTTP service
             ExternalParameters params = HttpParameters
@@ -137,37 +143,25 @@ Here is an example of the client-side code for a simple client-server applicatio
                 .inboundHeaders(inboundHeaders)
                 .build();
 
+            // Obtain a reference to the method currently being traced
+            TracedMethod tracedMethod = NewRelic.getAgent().getTracedMethod();
             // Report a call to an external HTTP service
             tracedMethod.reportAsExternal(params);
 
             return response.getStatusLine().getStatusCode();
         }
 
-        // Implement OutboundHeaders interface to create a wrapper for the outgoing Request headers
-        <a href="#client-outboundheaders">class OutboundWrapper implements OutboundHeaders {</a>
-            private final HttpUriRequest delegate;
+        // Implement Headers interface to create a wrapper for the outgoing Request/incoming Response headers
+        <a href="#client-outboundheaders">static class HeadersWrapper implements Headers {</a>
+            private final HttpMessage delegate;
 
-            public OutboundWrapper(HttpUriRequest request) {
+            public HeadersWrapper(HttpMessage request) {
                 this.delegate = request;
             }
 
             @Override
             public void setHeader(String name, String value) {
-                delegate.addHeader(name, value);
-            }
-
-            @Override
-            public HeaderType getHeaderType() {
-                return HeaderType.HTTP;
-            }
-        }
-
-        // Implement InboundHeaders interface to create a wrapper for the incoming Response headers
-        <a href="#client-inboundheaders">class InboundWrapper implements InboundHeaders {</a>
-            private final CloseableHttpResponse responseHeaders;
-
-            public InboundWrapper(CloseableHttpResponse requestHeaders) {
-                this.responseHeaders = requestHeaders;
+                delegate.setHeader(name, value);
             }
 
             @Override
@@ -177,7 +171,33 @@ Here is an example of the client-side code for a simple client-server applicatio
 
             @Override
             public String getHeader(String name) {
-                return responseHeaders.getFirstHeader(name).getValue();
+                return delegate.getFirstHeader(name).getValue();
+            }
+
+            @Override
+            public Collection<String> getHeaders(String name) {
+                return Arrays.stream(delegate.getHeaders(name))
+                    .map(NameValuePair::getValue)
+                    .collect(Collectors.toList());
+            }
+
+            @Override
+            public void addHeader(String name, String value) {
+                delegate.addHeader(name, value);
+            }
+
+            @Override
+            public Collection<String> getHeaderNames() {
+                return Arrays.stream(delegate.getAllHeaders())
+                    .map(NameValuePair::getName)
+                    .collect(Collectors.toSet());
+            }
+
+            @Override
+            public boolean containsHeader(String name) {
+                return Arrays.stream(delegate.getAllHeaders())
+                    .map(NameValuePair::getName)
+                    .anyMatch(headerName -> headerName.equals(name));
             }
         }
 
@@ -240,7 +260,7 @@ Here is the same client app code divided into sections that describe how the API
     id="client-import-java"
     title="Import Java agent API classes"
   >
-    This section calls the Java agent API imports used to add cross application tracing to the client application later in the example code.
+    This section calls the Java agent API imports used to add distributed tracing to the client application later in the example code.
 
     ```
     import java.io.IOException;
@@ -249,17 +269,23 @@ Here is the same client app code divided into sections that describe how the API
     import java.sql.Connection;
     import java.sql.DriverManager;
     import java.sql.Statement;
+    import java.util.Arrays;
+    import java.util.Collection;
+    import java.util.stream.Collectors;
 
     // New Relic API imports
     import com.newrelic.api.agent.ExternalParameters;
     import com.newrelic.api.agent.HeaderType;
-    import com.newrelic.api.agent.InboundHeaders;
+    import com.newrelic.api.agent.Headers;
+    import com.newrelic.api.agent.HttpParameters;
     import com.newrelic.api.agent.NewRelic;
-    import com.newrelic.api.agent.OutboundHeaders;
     import com.newrelic.api.agent.Trace;
     import com.newrelic.api.agent.TracedMethod;
+    import com.newrelic.api.agent.Transaction;
 
     import fi.iki.elonen.NanoHTTPD;
+    import org.apache.http.HttpMessage;
+    import org.apache.http.NameValuePair;
     import org.apache.http.client.methods.CloseableHttpResponse;
     import org.apache.http.client.methods.HttpUriRequest;
     import org.apache.http.client.methods.RequestBuilder;
@@ -337,11 +363,13 @@ Here is the same client app code divided into sections that describe how the API
     id="client-external"
     title="Make an external call using the Java agent API"
   >
-    This section contains the code that initiates cross application tracing to the application making the request. The `@Trace` annotation tells the agent to track this method as part of an existing transaction as started by the `serve` method.
+    This section contains the code that initiates distributed tracing to the application making the request. The `@Trace` annotation tells the agent to track this method as part of an existing transaction as started by the `serve` method.
 
-    The request object is wrapped by a class that implements the Java agent API's `OutboundHeaders` interface, which ensures that the proper `HeaderType` is set (in this case `HTTP`). A call to `addOutboundRequestHeaders` adds the headers to the `request` and the request is sent to the server.
+    The request object is wrapped by a class that implements the Java agent API's `Headers` interface, which ensures that the proper `HeaderType` is set (in this case `HTTP`). A call to `insertDistributedTraceHeaders` adds the headers to the `request` and the request is sent to the server.
 
-    When the `response` returns it is wrapped by a class implementing the Java agent API's `InboundHeaders` interface. The `inboundHeaders`, along with the `"library"`, `URI`, and `"procedure"` arguments, are used to build an `HttpParameters` object. The `params` object is then passed as an argument to the `reportAsExternal` method, which reports the `TracedMethod` as an external HTTP call.
+    When the `response` returns it is wrapped by a class implementing the Java agent API's `InboundHeaders` interface. `Headers` is a sub interface of `InboundHeaders` and, in this case, the wrapper class could be reused.
+
+    The `inboundHeaders`, along with the `"library"`, `URI`, and `"procedure"` arguments, are used to build an `HttpParameters` object. The `params` object is then passed as an argument to the `reportAsExternal` method, which reports the `TracedMethod` as an external HTTP call.
 
     ```
     @Trace
@@ -349,18 +377,18 @@ Here is the same client app code divided into sections that describe how the API
             HttpUriRequest request = RequestBuilder.get().setUri(uri).build();
 
             // Wrap the outbound Request object
-            OutboundWrapper outboundHeaders = new OutboundWrapper(request);
+            Headers outboundHeaders = new HeadersWrapper(request);
 
-            // Obtain a reference to the method currently being traced
-            TracedMethod tracedMethod = NewRelic.getAgent().getTracedMethod();
+            // Obtain a reference to the current transaction
+            Transaction transaction = NewRelic.getAgent().getTransaction();
             // Add headers for outbound external request
-            tracedMethod.addOutboundRequestHeaders(outboundHeaders);
+            transaction.insertDistributedTraceHeaders(outboundHeaders);
 
             CloseableHttpClient connection = HttpClientBuilder.create().build();
             CloseableHttpResponse response = connection.execute(request);
 
             // Wrap the incoming Response object
-            InboundWrapper inboundHeaders = new InboundWrapper(response);
+            Headers inboundHeaders = new HeadersWrapper(response);
 
             // Create an input parameter object for a call to an external HTTP service
             ExternalParameters params = HttpParameters
@@ -370,6 +398,8 @@ Here is the same client app code divided into sections that describe how the API
                 .inboundHeaders(inboundHeaders)
                 .build();
 
+            // Obtain a reference to the method currently being traced
+            TracedMethod tracedMethod = NewRelic.getAgent().getTracedMethod();
             // Report a call to an external HTTP service
             tracedMethod.reportAsExternal(params);
 
@@ -381,62 +411,62 @@ Here is the same client app code divided into sections that describe how the API
   <Collapser
     className="freq-link"
     id="client-outboundheaders"
-    title="Implement the Java agent API's OutboundHeaders Interface"
+    title="Implement the Java agent API's Headers Interface"
   >
-    An implementation of the Java agent API's `OutboundHeaders` Interface is used to wrap the request object of the client server, which in this example is of type `HttpUriRequest`. The request is passed into the constructor of the `OutboundWrapper` class and implementations of the `setHeader` and `getHeaderType` methods are provided.
+    An implementation of the Java agent API's `Headers` Interface is used to wrap the request object of the client server, which in this example is of type `HttpUriRequest`. The request is passed into the constructor of the `HeadersWrapper` class and implementations of the necessary methods are provided.
 
     The `getHeaderType` method returns a `HeaderType` enum that can either be `HeaderType.HTTP` or `HeaderType.MESSAGE`, as defined by the Java agent API. In this example the external call protocol is HTTP, so `HeaderType.HTTP` is returned.
 
     ```
-    // Implement OutboundHeaders interface to create a wrapper for the outgoing Request headers
-        class OutboundWrapper implements OutboundHeaders {
-            private final HttpUriRequest delegate;
+    // Implement Headers interface to create a wrapper for the outgoing Request/incoming Response headers
+    <a href="#client-outboundheaders">static class HeadersWrapper implements Headers {</a>
+        private final HttpMessage delegate;
 
-            public OutboundWrapper(HttpUriRequest request) {
-                this.delegate = request;
-            }
-
-            @Override
-            public void setHeader(String name, String value) {
-                delegate.addHeader(name, value);
-            }
-
-            @Override
-            public HeaderType getHeaderType() {
-                return HeaderType.HTTP;
-            }
+        public HeadersWrapper(HttpMessage request) {
+            this.delegate = request;
         }
-    ```
-  </Collapser>
 
-  <Collapser
-    className="freq-link"
-    id="client-inboundheaders"
-    title="Implement the Java agent API's InboundHeaders Interface"
-  >
-    An implementation of the Java agent API's `InboundHeaders` Interface is used to wrap the response object returned to the client server, which in this example is of type `CloseableHttpResponse`. The response is passed into the constructor of the `InboundWrapper` class, where implementations of the `getHeaderType` and `getHeader` methods are provided.
-
-    The `getHeaderType` method returns a `HeaderType` enum that can either be `HeaderType.HTTP` or `HeaderType.MESSAGE`, as defined by the Java agent API. In this example the external call protocol is HTTP so `HeaderType.HTTP` is returned.
-
-    ```
-    // Implement InboundHeaders interface to create a wrapper for the incoming Response headers
-        class InboundWrapper implements InboundHeaders {
-            private final CloseableHttpResponse responseHeaders;
-
-            public InboundWrapper(CloseableHttpResponse requestHeaders) {
-                this.responseHeaders = requestHeaders;
-            }
-
-            @Override
-            public HeaderType getHeaderType() {
-                return HeaderType.HTTP;
-            }
-
-            @Override
-            public String getHeader(String name) {
-                return responseHeaders.getFirstHeader(name).getValue();
-            }
+        @Override
+        public void setHeader(String name, String value) {
+            delegate.setHeader(name, value);
         }
+
+        @Override
+        public HeaderType getHeaderType() {
+            return HeaderType.HTTP;
+        }
+
+        @Override
+        public String getHeader(String name) {
+            return delegate.getFirstHeader(name).getValue();
+        }
+
+        @Override
+        public Collection<String> getHeaders(String name) {
+            return Arrays.stream(delegate.getHeaders(name))
+                .map(NameValuePair::getValue)
+                .collect(Collectors.toList());
+        }
+
+        @Override
+        public void addHeader(String name, String value) {
+            delegate.addHeader(name, value);
+        }
+
+        @Override
+        public Collection<String> getHeaderNames() {
+            return Arrays.stream(delegate.getAllHeaders())
+                .map(NameValuePair::getName)
+                .collect(Collectors.toSet());
+        }
+
+        @Override
+        public boolean containsHeader(String name) {
+            return Arrays.stream(delegate.getAllHeaders())
+                .map(NameValuePair::getName)
+                .anyMatch(headerName -> headerName.equals(name));
+        }
+    }
     ```
   </Collapser>
 
@@ -517,17 +547,18 @@ Here is the server-side code for this example application:
     import java.sql.DriverManager;
     import java.sql.ResultSet;
     import java.sql.Statement;
+    import java.util.Collection;
     import java.util.Collections;
-    import java.util.Enumeration;
 
     <a href="#server-import-java">// New Relic API imports</a>
     import com.newrelic.api.agent.DatastoreParameters;
-    import com.newrelic.api.agent.ExtendedRequest;
     import com.newrelic.api.agent.HeaderType;
+    import com.newrelic.api.agent.Headers;
     import com.newrelic.api.agent.NewRelic;
     import com.newrelic.api.agent.Trace;
     import com.newrelic.api.agent.TracedMethod;
     import com.newrelic.api.agent.Transaction;
+    import com.newrelic.api.agent.TransportType;
 
     import fi.iki.elonen.NanoHTTPD;
 
@@ -564,114 +595,57 @@ Here is the server-side code for this example application:
             NewRelic.setTransactionName("Custom", "ExternalHTTPServer");
 
             // Wrap the Request object
-            ExtendedRequest req = new RequestWrapper(session);
+            Headers req = new HeadersWrapper(session);
 
             // Set the request for the current transaction and convert it into a web transaction
-            tx.setWebRequest(req);
+            tx.acceptDistributedTraceHeaders(TransportType.HTTP, req);
 
             queryDB();
-            Response res = newFixedLengthResponse("<html><body><h1>SuccessfulResponse</h1>\n</body></html>\n");
 
-            // Set the response for the current transaction and convert it into a web transaction
-            tx.setWebResponse(new ResponseWrapper(res));
-
-            // Instruct the transaction to write the outbound response headers
-            tx.addOutboundResponseHeaders();
-
-            // Mark the time when the response left the server
-            tx.markResponseSent();
-
-            return res;
+            return newFixedLengthResponse("<html><body><h1>SuccessfulResponse</h1>\n</body></html>\n");
         }
 
-        // Implement Response interface to create a wrapper for the outgoing Response object
-        <a href="#server-response-interface">public class ResponseWrapper implements com.newrelic.api.agent.Response {</a>
+        // Implement Headers interface to create a wrapper for the outgoing Request/incoming Response headers
+        <a href="#server-extendrequest">static class HeadersWrapper implements Headers {</a>
+            private final IHTTPSession delegate;
 
-            private final Response httpResponse;
-
-            public ResponseWrapper(Response httpResponse) {
-                this.httpResponse = httpResponse;
-            }
-
-            @Override
-            public int getStatus() throws Exception {
-                return 200;
-            }
-
-            @Override
-            public String getStatusMessage() throws Exception {
-                return null;
-            }
-
-            @Override
-            public void setHeader(String name, String value) {
-                httpResponse.addHeader(name, value);
-            }
-
-            @Override
-            public String getContentType() {
-                return "";
+            public HeadersWrapper(IHTTPSession request) {
+                this.delegate = request;
             }
 
             @Override
             public HeaderType getHeaderType() {
                 return HeaderType.HTTP;
-            }
-        }
-
-        // Extend ExtendedRequest class to create a wrapper for the Request object
-        <a href="#server-extendrequest">class RequestWrapper extends ExtendedRequest {</a>
-            private IHTTPSession session;
-
-            public RequestWrapper(IHTTPSession session) {
-                super();
-                this.session = session;
-            }
-
-            @Override
-            public String getRequestURI() {
-                return session.getUri();
             }
 
             @Override
             public String getHeader(String name) {
-                return session.getHeaders().get(name.toLowerCase());
+                return delegate.getHeaders().get(name);
             }
 
             @Override
-            public String getRemoteUser() {
-                return null;
-            }
-
-            @SuppressWarnings("rawtypes")
-            @Override
-            public Enumeration getParameterNames() {
-                return Collections.enumeration(session.getParms().keySet());
+            public Collection<String> getHeaders(String name) {
+                return Collections.singletonList(getHeader(name));
             }
 
             @Override
-            public String[] getParameterValues(String name) {
-                return new String[]{session.getParms().get(name)};
+            public void setHeader(String name, String value) {
+                delegate.getHeaders().put(name, value);
             }
 
             @Override
-            public Object getAttribute(String name) {
-                return null;
+            public void addHeader(String name, String value) {
+                delegate.getHeaders().put(name, value);
             }
 
             @Override
-            public String getCookieValue(String name) {
-                return null;
+            public Collection<String> getHeaderNames() {
+                return delegate.getHeaders().keySet();
             }
 
             @Override
-            public HeaderType getHeaderType() {
-                return HeaderType.HTTP;
-            }
-
-            @Override
-            public String getMethod() {
-                return session.getMethod().toString();
+            public boolean containsHeader(String name) {
+                return delegate.getHeaders().containsKey(name);
             }
         }
 
@@ -733,7 +707,7 @@ Here is the same example server code broken into sections that describe how the 
     id="server-import-java"
     title="Import Java agent API classes"
   >
-    This section shows the relevant Java agent API imports needed to add cross application tracing and reporting of external datastore calls to the server application.
+    This section shows the relevant Java agent API imports needed to add distributed tracing and reporting of external datastore calls to the server application.
 
     ```
     import java.io.IOException;
@@ -742,17 +716,18 @@ Here is the same example server code broken into sections that describe how the 
     import java.sql.DriverManager;
     import java.sql.ResultSet;
     import java.sql.Statement;
+    import java.util.Collection;
     import java.util.Collections;
-    import java.util.Enumeration;
 
     // New Relic API imports
     import com.newrelic.api.agent.DatastoreParameters;
-    import com.newrelic.api.agent.ExtendedRequest;
     import com.newrelic.api.agent.HeaderType;
+    import com.newrelic.api.agent.Headers;
     import com.newrelic.api.agent.NewRelic;
     import com.newrelic.api.agent.Trace;
     import com.newrelic.api.agent.TracedMethod;
     import com.newrelic.api.agent.Transaction;
+    import com.newrelic.api.agent.TransportType;
 
     import fi.iki.elonen.NanoHTTPD;
     ```
@@ -799,13 +774,9 @@ Here is the same example server code broken into sections that describe how the 
 
     A reference to the current `Transaction` is obtained via a call to `getTransaction` and the name of the transaction is set via a call to the `setTransactionName` method.
 
-    The request object, which in this example is of type `IHTTPSession`, is then wrapped using a class extending the Java agent API's `ExtendedRequest` class. The current `Transaction` is then converted to a web transaction via a call to `setWebRequest` which takes the wrapped `ExtendedRequest` as an argument.
+    The request object, which in this example is of type `IHTTPSession`, is then wrapped using a class extending the Java agent API's `Headers` class. The current `Transaction` is then linked to the parent trace via a call to `setWebRequest` which takes the wrapped `ExtendedRequest` as an argument.
 
-    A call to the database is then made and the response object is generated and wrapped by a class implementing the Java agent API's `Response` interface. The wrapped response object is passed as an argument to `setWebResponse` which converts the current `Transaction` into a web transaction.
-
-    Once the web request and response are set, a call to `addOutboundResponseHeaders` adds the headers to the response. This must be called after `setWebRequest` and `setWebResponse`, which together provide the agent with the inbound request headers and a place to record the outbound headers.
-
-    A call to `markResponseSent` marks the time when the last byte of the response left the server as the current timestamp.
+    A call to the database is then made and the response object is returned.
 
     ```
     @Trace(dispatcher = true)
@@ -817,72 +788,14 @@ Here is the same example server code broken into sections that describe how the 
             NewRelic.setTransactionName("Custom", "ExternalHTTPServer");
 
             // Wrap the Request object
-            ExtendedRequest req = new RequestWrapper(session);
-
+            Headers req = new HeadersWrapper(session);
 
             // Set the request for the current transaction and convert it into a web transaction
-            tx.setWebRequest(req);
+            tx.acceptDistributedTraceHeaders(TransportType.HTTP, req);
 
             queryDB();
-            Response res = newFixedLengthResponse("<html><body><h1>SuccessfulResponse</h1>\n</body></html>\n");
 
-            // Set the response for the current transaction and convert it into a web transaction
-            tx.setWebResponse(new ResponseWrapper(res));
-
-            // Instruct the transaction to write the outbound response headers
-            tx.addOutboundResponseHeaders();
-        
-            // Mark the time when the response left the server
-            tx.markResponseSent();
-
-            return res;
-        }
-    ```
-  </Collapser>
-
-  <Collapser
-    className="freq-link"
-    id="server-response-interface"
-    title="Implement the Java agent API's Response Interface"
-  >
-    An implementation of the Java agent API's `Response` Interface is used to wrap the response object of the server, which in this example is of type `fi.iki.elonen.NanoHTTPD.Response`. The response is passed into the constructor of the `ResponseWrapper` class and implementations of the `getStatus`, `getStatusMessage`, `setHeader`, `getContentType` and `getHeaderType` methods are provided.
-
-    The `getHeaderType` method returns a `HeaderType` enum that can either be `HeaderType.HTTP` or `HeaderType.MESSAGE`, as defined by the Java agent API. In this example the external call protocol is HTTP, so `HeaderType.HTTP` is returned.
-
-    ```
-    // Implement Response interface to create a wrapper for the outgoing Response object
-        public class ResponseWrapper implements com.newrelic.api.agent.Response {
-
-            private final Response httpResponse;
-
-            public ResponseWrapper(Response httpResponse) {
-                this.httpResponse = httpResponse;
-            }
-
-            @Override
-            public int getStatus() throws Exception {
-                return 200;
-            }
-
-            @Override
-            public String getStatusMessage() throws Exception {
-                return null;
-            }
-
-            @Override
-            public void setHeader(String name, String value) {
-                httpResponse.addHeader(name, value);
-            }
-
-            @Override
-            public String getContentType() {
-                return "";
-            }
-
-            @Override
-            public HeaderType getHeaderType() {
-                return HeaderType.HTTP;
-            }
+            return newFixedLengthResponse("<html><body><h1>SuccessfulResponse</h1>\n</body></html>\n");
         }
     ```
   </Collapser>
@@ -890,68 +803,56 @@ Here is the same example server code broken into sections that describe how the 
   <Collapser
     className="freq-link"
     id="server-extendrequest"
-    title="Extend the Java agent API's ExtendedRequest class"
+    title="Extend the Java agent API's Headers class"
   >
-    A subclass of the Java agent API's `ExtendedRequest` class is used to wrap the request object of the server, which in this example is of type `IHTTPSession`. The request is passed into the constructor of the `RequestWrapper` class, which provides implementations of the `getRequestURI`, `getHeader`, `getRemoteUser`, `getParameterNames`, `getParameterValues`, `getAttribute`, `getCookieValue`, `getHeaderType`, and `getMethod` methods.
+    Another implementation of the Java agent API's `Headers` class is used to wrap the request object of the server, which in this example is of type `IHTTPSession`. The request is passed into the constructor of the `HeadersWrapper` class, which provides implementations of the `getRequestURI`, `getHeader`, `getRemoteUser`, `getParameterNames`, `getParameterValues`, `getAttribute`, `getCookieValue`, `getHeaderType`, and `getMethod` methods.
 
     The `getHeaderType` method returns a `HeaderType` enum that can either be `HeaderType.HTTP` or `HeaderType.MESSAGE`, as defined by the Java agent API. In this example the external call protocol is HTTP so `HeaderType.HTTP` is returned.
 
     ```
-    // Extend ExtendedRequest class to create a wrapper for the Request object
-        class RequestWrapper extends ExtendedRequest {
-            private IHTTPSession session;
+    // Implement Headers interface to create a wrapper for the outgoing Request/incoming Response headers
+    <a href="#server-extendrequest">static class HeadersWrapper implements Headers {</a>
+        private final IHTTPSession delegate;
 
-            public RequestWrapper(IHTTPSession session) {
-                super();
-                this.session = session;
-            }
-
-            @Override
-            public String getRequestURI() {
-                return session.getUri();
-            }
-
-            @Override
-            public String getHeader(String name) {
-                return session.getHeaders().get(name.toLowerCase());
-            }
-
-            @Override
-            public String getRemoteUser() {
-                return null;
-            }
-
-            @SuppressWarnings("rawtypes")
-            @Override
-            public Enumeration getParameterNames() {
-                return Collections.enumeration(session.getParms().keySet());
-            }
-
-            @Override
-            public String[] getParameterValues(String name) {
-                return new String[]{session.getParms().get(name)};
-            }
-
-            @Override
-            public Object getAttribute(String name) {
-                return null;
-            }
-
-            @Override
-            public String getCookieValue(String name) {
-                return null;
-            }
-
-            @Override
-            public HeaderType getHeaderType() {
-                return HeaderType.HTTP;
-            }
-
-            @Override
-            public String getMethod() {
-                return session.getMethod().toString();
-            }
+        public HeadersWrapper(IHTTPSession request) {
+            this.delegate = request;
         }
+
+        @Override
+        public HeaderType getHeaderType() {
+            return HeaderType.HTTP;
+        }
+
+        @Override
+        public String getHeader(String name) {
+            return delegate.getHeaders().get(name);
+        }
+
+        @Override
+        public Collection<String> getHeaders(String name) {
+            return Collections.singletonList(getHeader(name));
+        }
+
+        @Override
+        public void setHeader(String name, String value) {
+            delegate.getHeaders().put(name, value);
+        }
+
+        @Override
+        public void addHeader(String name, String value) {
+            delegate.getHeaders().put(name, value);
+        }
+
+        @Override
+        public Collection<String> getHeaderNames() {
+            return delegate.getHeaders().keySet();
+        }
+
+        @Override
+        public boolean containsHeader(String name) {
+            return delegate.getHeaders().containsKey(name);
+        }
+    }
     ```
   </Collapser>
 
