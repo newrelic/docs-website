@@ -5,4 +5,4 @@ events:
   - Span
 ---
 
-Entry spans have value 'client'. In-process spans have no value. Exit, datastore, and external spans have value 'exit'.
+Spans that represent a call to another service or to a datastore have the value `client`.
