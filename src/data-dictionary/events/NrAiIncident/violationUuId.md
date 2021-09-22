@@ -5,4 +5,4 @@ events:
   - NrAiIncident
 ---
 
-A unique identifier for each incident.
+Deprecated. Do not use.
