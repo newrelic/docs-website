@@ -64,8 +64,148 @@ These builders create the input parameter object for [`TracedMethod`'s](http://n
   All of the methods of this class have the potential to expose sensitive private information. Use caution when creating the arguments, paying particular attention to URIs and string values.
 </Callout>
 
-## Cross application tracing API [#cat-api]
+## Distributed tracing API [#distributed-tracing]
 
+The [distributed tracing]() API allows the New Relic Java agent to link transactions across applications that are instrumented either by the New Relic Java agent or by another open instrumentation standard tool. It uses a wrapper to allow the agent to read/write headers to requests.
+
+### Headers wrapper
+
+The agent uses the interface `Headers` to read/write headers to a request. Both the client and the server need to implement this interface using the classes from their communications framework. For example:
+
+<CollapserGroup>
+  <Collapser
+    id="headers-example"
+    title="Headers implementation"
+  >
+    ```
+    class HeadersWrapper implements Headers {
+        private final HttpMessage delegate;
+
+        public HeadersWrapper(HttpMessage request) {
+            this.delegate = request;
+        }
+
+        @Override
+        public void setHeader(String name, String value) {
+            delegate.setHeader(name, value);
+        }
+
+        @Override
+        public HeaderType getHeaderType() {
+            return HeaderType.HTTP;
+        }
+
+        @Override
+        public String getHeader(String name) {
+            return delegate.getFirstHeader(name).getValue();
+        }
+
+        @Override
+        public Collection<String> getHeaders(String name) {
+            return Arrays.stream(delegate.getHeaders(name))
+                .map(NameValuePair::getValue)
+                .collect(Collectors.toList());
+        }
+
+        @Override
+        public void addHeader(String name, String value) {
+            delegate.addHeader(name, value);
+        }
+
+        @Override
+        public Collection<String> getHeaderNames() {
+            return Arrays.stream(delegate.getAllHeaders())
+              .map(NameValuePair::getName)
+              .collect(Collectors.toSet());
+        }
+
+        @Override
+        public boolean containsHeader(String name) {
+            return Arrays.stream(delegate.getAllHeaders())
+                .map(NameValuePair::getName)
+                .anyMatch(headerName -> headerName.equals(name));
+        }
+    }
+    ```
+  </Collapser>
+</CollapserGroup>
+
+### DT implementation using wrappers [#dt-implementation]
+
+Using the wrapper object described in the previous section, you can enable the Java agent to do DT on the client and server side. For example:
+
+<CollapserGroup>
+  <Collapser
+    id="dt-client-example"
+    title="Distributed tracing: Client-side"
+  >
+    ```
+    @Trace
+    public int makeExternalCall(URI uri) throws IOException {
+        HttpUriRequest request = RequestBuilder.get().setUri(uri).build();
+
+        // Wrap the outbound Request object
+        Headers outboundHeaders = new HeadersWrapper(request);
+
+        // Obtain a reference to the current transaction
+        Transaction transaction = NewRelic.getAgent().getTransaction();
+        // Add headers for outbound external request
+        transaction.insertDistributedTraceHeaders(outboundHeaders);
+
+        CloseableHttpClient connection = HttpClientBuilder.create().build();
+        CloseableHttpResponse response = connection.execute(request);
+
+        return response.getStatusLine().getStatusCode();
+    }
+
+    ```
+  </Collapser>
+</CollapserGroup>
+
+In this sample code, the agent is configured to report an external call using DT on the client that is initiating the request. These steps can be summarized as follows:
+
+1. Implement `Headers` using framework classes on the client.
+2. Use `insertDistributedTraceHeaders(Headers headers)` to have the agent add appropriate headers to the outbound request.
+
+<CollapserGroup>
+  <Collapser
+    id="dt-server-example"
+    title="Distributed tracing: Server-side"
+  >
+    ```
+    @Trace(dispatcher = true)
+    @Override
+    public Response serve(IHTTPSession request) {
+        // Obtain a reference to the current Transaction
+        Transaction tx = NewRelic.getAgent().getTransaction();
+        // Set the name of the current transaction
+        NewRelic.setTransactionName("Custom", "ExternalHTTPServer");
+
+        // Wrap the Request object
+        Headers req = new HeadersWrapper(request);
+
+        // Set the request for the current transaction and convert it into a web transaction
+        tx.acceptDistributedTraceHeaders(TransportType.HTTP, req);
+
+        queryDB();
+
+        return newFixedLengthResponse("<html><body><h1>SuccessfulResponse</h1>\n</body></html>\n");
+    }
+    ```
+  </Collapser>
+</CollapserGroup>
+
+In this sample code, the agent is configured to read the headers from the request. These steps can be summarized as follows:
+
+1. Implement `Headers` using framework classes on the server.
+2. Use `acceptDistributedTraceHeaders(TransportType transportType, Headers headers)` to link this transaction to the transaction that made the call.
+
+## Cross application tracing API [#cat-api]
+<Callout variant="important">
+  Cross application tracing has been deprecated as of agent version 7.3.0 and will be removed in a future agent version.
+
+  Instead of using cross application tracing, we recommend our [distributed tracing](#distributed-tracing) features. Distributed tracing is an improvement on the cross application tracing feature and is recommended for large, distributed systems.
+</Callout>
 The [cross application tracing](/docs/apm/transactions/cross-application-traces/cross-application-tracing) (CAT) API allows the New Relic Java agent to link transactions across applications monitored by New Relic. The API uses client and server wrappers that allow the agent to read headers from requests, and add headers to responses.
 
 [<ImageSizing width="620px" height="329px">![](./images/CAT_diagram.png)</ImageSizing>](/sites/default/files/thumbnails/image/CAT_diagram.png)
@@ -84,8 +224,8 @@ For the agent to write outbound request headers in the client initiating the req
             private final HttpUriRequest delegate;
 
             // OutboundHeaders is implemented by delegating to the library's request object
-            public OutboundWrapper(HttpUriRequest request) { 
-                this.delegate = request; 
+            public OutboundWrapper(HttpUriRequest request) {
+                this.delegate = request;
             }
 
             // This allows the agent to add the correct headers to the HTTP request
@@ -116,7 +256,7 @@ For the agent to read inbound response headers in the client receiving the respo
             private final CloseableHttpResponse responseHeaders;
             // OutboundHeaders is implemented by delegating to the library's response object
             public InboundWrapper(CloseableHttpResponse responseHeaders) {
-                this.responseHeaders = responseHeaders;        
+                this.responseHeaders = responseHeaders;
             }
 
             // New Relic CAT specifies different header names for HTTP and MESSAGE
@@ -371,7 +511,7 @@ The following example demonstrates how to instrument a fictional JMS library.
          // instrument the method that puts messages on a queue
          @Trace
          public void sendMessageToQueue(Message message) {
-              ExternalParameters messageProduceParameters = 
+              ExternalParameters messageProduceParameters =
                   MessageProduceParameters.library("JMS")
                       .destinationType(DestinationType.NAMED_QUEUE)
                       .destinationName(message.getJMSDestination())
@@ -398,7 +538,7 @@ If the library is capable of transmitting CAT headers, an `OutboundHeaders` obje
     public class MessageConsumer {
         @Trace
         public Message messageReceive() {
-            ExternalParameters messageConsumeParameters = 
+            ExternalParameters messageConsumeParameters =
                 MessageConsumeParameters.library("JMS")
                     .destinationType(DestinationType.NAMED_QUEUE)
                     .destinationName(message.getJMSDestination())
@@ -456,7 +596,7 @@ This API call provides the same behavior as the [Datastore API call](#datastore-
             .operation("select") // the operation being performed, e.g. "SELECT" or "UPDATE" for SQL databases
             .instance("localhost", 8080) // the datastore instance information - generally can be found as part of the connection
             .databaseName("test.db") // may be null, indicating no keyspace for the command
-            .slowQuery(rawQuery,QUERY_CONVERTER) 
+            .slowQuery(rawQuery,QUERY_CONVERTER)
             .build());
 
         private static QueryConverter<String> QUERY_CONVERTER = new QueryConverter<String>() {
@@ -490,8 +630,8 @@ NewRelic.setServerInfo(String dispatcherName, String version)
 // Set the app server port which is reported to APM.
 NewRelic.setAppServerPort(int port)
 
-// Set the instance name in the environment. 
-// A single host:port may support multiple JVM instances. 
+// Set the instance name in the environment.
+// A single host:port may support multiple JVM instances.
 // The instance name is intended to help identify a specific JVM instance.
 NewRelic.setInstanceName(String instanceName)
 ```
