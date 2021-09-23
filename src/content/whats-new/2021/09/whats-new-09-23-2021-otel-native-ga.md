@@ -1,6 +1,6 @@
 ---
 title: 'Announcing general availability of New Relic's native OpenTelemetry support'
-summary: 'New Relic’s native support for OpenTelemetry includes GA support for trace data and early access support for metrics and logs with our OTLP ingest capability. '
+summary: "New Relic’s native support for OpenTelemetry includes GA support for trace data and early access support for metrics and logs with our OTLP ingest capability."
 releaseDate: '2021-09-23'
 getStartedLink: 'https://docs.newrelic.com/docs/integrations/open-source-telemetry-integrations/opentelemetry/opentelemetry-quick-start/'
 ---
