@@ -1,0 +1,15 @@
+---
+subject: Mobile app for Android
+releaseDate: '2021-09-14'
+version: 3.14.7
+downloadLink: 'https://play.google.com/store/apps/details?id=com.newrelic.rpm'
+---
+
+### Notes
+
+* Release 3.14.7 updates all NRQL calls to use the v2/nrql endpoint.
+
+### Fixes
+
+* A crash happening to users who don't have a default account set.
+* A crash happening when a user's connection is unavailable.
