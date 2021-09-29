@@ -50,6 +50,7 @@ module.exports = {
     {
       resolve: '@newrelic/gatsby-theme-newrelic',
       options: {
+        oneTrustID: 'e66f9ef1-3a12-4043-b7c0-1a2ea66f6d41',
         forceTrailingSlashes: true,
         layout: {
           contentPadding: '2rem',
@@ -183,6 +184,7 @@ module.exports = {
           },
         },
         tessen: {
+          tessenVersion: '1.14.0',
           product: 'DOC',
           subproduct: 'TDOC',
           segmentWriteKey: 'AEfP8c1VSuFxhMdk3jYFQrYQV9sHbUXx',
@@ -194,13 +196,6 @@ module.exports = {
               path: location.pathname,
               env: env === 'production' ? 'prod' : env,
             }),
-          },
-        },
-        googleTagManager: {
-          trackingId: 'UA-3047412-33',
-          src: 'https://www.googletagmanager.com/gtag/js',
-          options: {
-            anonymize_ip: true,
           },
         },
       },
