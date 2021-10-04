@@ -1,0 +1,124 @@
+
+---
+title: 'Understand and query high cardinality metrics'
+tags:
+  - Query your data
+  - 'NRQL: New Relic Query Language'
+  - NRQL query tutorials
+metaDescription: 'For New Relic Query Language (NRQL): how to understand high cardinality metrics and successfully query for them using NRQL.'
+---
+
+## What is cardinality and why does it matter?
+
+Cardinality is generally defined as the number of elements in a set. You you can query the cardinality of a metric in New Relic with this NRQL query format:
+
+```
+FROM Metric SELECT cardinality(metric.name) SINCE today RAW
+```
+
+For example, to query the cardinality of the metric `memory.heap` and find out how many individual values are is in the set comprised by this metric, run the following query:
+
+```
+FROM Metric SELECT cardinality(memory.heap) SINCE today RAW
+```
+
+The basics of cardinality are not difficult to understand, but high cardinality can be a little more complicated. Understanding how high cardinality  works is important, though, because it can impact how quickly you reach your data limits. 
+
+### Cardinality limits and enforcement
+
+New Relic enforces limits on your metric cardinality both at the per metric level and at the account level. Cardinality is evaluated over the course of a UTC day, starting at 00:00:00 UTC and ending at 23:59:59 UTC. 
+
+## Cardinality and dimensional metrics 
+
+For dimensional metrics, the set in question is the collection of observed unique combinations of attributes for a given metric in a one-day period. Each group of attributes is a mapping of key-value that's counted as a single element of the set. 
+
+Imagine a network of 4 hosts, each with 2 containers running on them, and each container periodically reports the gauge metric `memory.heap`, with the host name and container id added as attributes. 
+
+![Host and containers combination resulting in high cardinality](./images/high-cardinality-metrics-1.png "Multiple hosts with multiple containers")
+
+When submitted to the Metric API, one of these metrics might look something like this:
+
+```
+
+"metrics":[
+  { 
+"name":"memory.heap", 
+"type":"gauge", 
+"value":5514, 
+"timestamp":1234567890, 
+"attributes":{
+"host":"W",
+"container":"1"
+    }
+  }
+]
+```
+
+This metric has a cardinality of 8, with each container counted as a single element in the set. If a new measurement for this metric with an identical attributes map as one that had previously arrived later, no new cardinality would be counted.
+
+## Cardinality influences
+
+Any changes to the keys or values will represent new cardinality, but predicting how those changes will impact your total cardinality can get a little tricky. 
+
+It's' tempting to assume then that the cardinality of a metric is the product of the number of all possible values for each possible key, but this is rarely the case in practice. This is because the values a given key can have are often dependent on the values of other keys. 
+
+For example, given a `container.id`, the possible value of `host.name` is likely determined assuming those IDs are globally unique. So while you may have 100 containers across 10 hosts, the cardinality is still 100, not 10 * 100 = 1000, which is what  the product method for determining cardinality would yield. Put another way, it's often true that most combinations counted in this way are not possible and therefore never contribute to that metric's cardinality. 
+
+This also means that adding more keys to an attributes map does not imply an increase to total cardinality if the value of the new key is uniquely determined by the values of existing keys. For instance, if you add something like region to your map, it's likely the case that the `container.id` is fixed to a particular region value. 
+
+An important caveat here is that while adding region won't increase the cardinality going forward, it will introduce new cardinality when it is first added. Also, recall that adding keys will make those attributes' maps distinct from any that came before them, temporarily increasing the total cardinality for that day.
+
+## Examples and sample workflows
+
+If you hit one of your cardinality limits, there are a couple of options you can use to remedy the situation. One easy answer is increasing your limits, but if you would prefer not to do that, a good alternative is to explore which dimensions are contributing the most to your cardinality and think about removing them if they do not provide you value. This can save storage and bandwidth costs and potentially prevent you needing to raise your limits.  
+
+### Find cardinality contributors: metrics
+
+Above, you saw how to query for the current cardinality of a particular metric using `cardinality(memory.heap)`. Here's what that looks like again:
+
+```
+FROM Metric SELECT cardinality(memory.heap) SINCE today RAW
+```
+
+For the total account cardinality, you can use the same basic query structure and simply omit the metric name:
+
+```
+FROM Metric SELECT cardinality() SINCE today RAW
+```
+
+Finally, the account cardinality is essentially the sum of each metric's cardinality, so adding in a simple FACET query can help find the highest cardinality metric:
+
+```
+FROM Metric SELECT cardinality() SINCE today RAW FACET metricName
+```
+### Finding cardinality contributors: dimensions
+
+The next step is to determine which dimensions in a given metric contribute the most to its cardinality. You can do this by checking your current dimensions then removing dimensions to check their impact on cardinality. 
+
+First, let's look at ways you can inspect existing dimensions. This query shows the attributes map of each metric that was sent:
+
+```
+FROM Metric SELECT dimensions() WHERE metricName = 'memory.heap' SINCE today RAW
+```
+
+Looking through these could reveal some dimensions containing a unique ID or other highly variable  value that might be worth removing. 
+
+Next, you can look at `keySet()`:
+
+```
+FROM Metric SELECT keySet() WHERE metricName = 'memory.heap' SINCE today RAW
+```
+
+Understanding the dimensions that have the most influence on your cardinality comes down to understanding how each key's values correlate with each other. You can experiment with what your cardinality would be without a dimension simply by adding it to the exclude list:
+
+```
+FROM Metric SELECT cardinality(memory.heap, exclude: {'container.id'}) SINCE today RAW
+```
+
+Likewise, there is an include list if that is more convenient to the query context:
+
+```
+FROM Metric SELECT cardinality(memory.heap, include: {'host.name', 'region'}) SINCE today RAW
+```
+
+To summarize, the more familiar you are with your data, the easier it will be to know which keys to include or exclude comes down to familiarity with your data. Things that look like unique identifiers are a good place to start, but sometimes it's no single key but the combination of two or more keys. 
