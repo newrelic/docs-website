@@ -1,5 +1,5 @@
 ---
-title: 'Distributed Tracing enabled by default with .NET Agent Update: Version 9.0.0.0'
+title: "Distributed Tracing enabled by default with .NET Agent Update: Version 9.0.0.0"
 summary: "See distributed traces immediately upon upgrading .NET Agent."
 releaseDate: '2021-09-16'
 learnMoreLink: 'https://docs.newrelic.com/docs/release-notes/agent-release-notes/net-release-notes/'
