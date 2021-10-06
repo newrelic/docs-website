@@ -26,13 +26,13 @@ Issues are a quick way to give us feedback about our docs. We'll review your iss
 
 If you'd like to get more directly involved, you can edit the docs yourself! Here's how:
 
-1. Every doc page on docs.newrelic.com has an **Edit page** button in the right sidebar and the footer. Click it to get started making a change. This will take you to GitHub and the source file for that doc page. 
+1. Every doc page on docs.newrelic.com has an **Edit page** button in the right sidebar and the footer. Click it to get started making a change. This will take you to GitHub and the source file for that doc page.
 2. Edit the file by clicking on the pencil icon. Make your changes, then click **Commit changes**. This will automatically create a fork in your GitHub account with the changes.
 3. Finally, follow the prompts to create a pull request and submit your changes for review. From there our writers will check out your pull request, comment with any feedback, and merge your change.
 
 If you'd like more information on how to edit our docs, see our [content contribution guide](https://docs.newrelic.com/docs/style-guide/writing-guidelines/create-edit-content/). Additionally, our [Style guide](https://docs.newrelic.com/docs/style-guide) will give you some insight into how we think about writing and documentation, as well as our flavor of Markdown.
 
-Reading the style guide is totally optional! Our writers are here to make sure everything is formatted and worded right. We're looking your technical insight and knowhow. Let us handle the little details for you.
+Reading the style guide is totally optional! Our writers are here to make sure everything is formatted and worded right. We're looking for your technical insight and knowhow. Let us handle the little details for you.
 
 If you'd like to go deeper with development, see our [Contributors guide](CONTRIBUTING.md) for information on how to fork our site, build it locally, and submit pull requests.
 
