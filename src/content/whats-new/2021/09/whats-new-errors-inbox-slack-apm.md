@@ -2,7 +2,7 @@
 title: 'Errors Inbox: Now in APM'
 summary: 'Triage APM errors without setting up a workload'
 releaseDate: '2021-09-20'
-learnMoreLink: ' https://newrelic.com/blog/how-to-relic/errors-inbox-with-slack-and-apm'
+learnMoreLink: 'https://newrelic.com/blog/how-to-relic/errors-inbox-with-slack-and-apm'
 getStartedLink: 'https://docs.newrelic.com/docs/apm/apm-ui-pages/errors-inbox/errors-inbox/'
 ---
 New Relic Errors Inbox is an error tracking solution that provides a single place to view, triage, and resolve errors across the full application stack. Since launch, we have added several major updates:
