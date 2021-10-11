@@ -1,0 +1,146 @@
+---
+title: 'Understand and query high cardinality metrics'
+tags:
+  - Query your data
+  - 'NRQL: New Relic Query Language'
+  - NRQL query tutorials
+metaDescription: 'For New Relic Query Language (NRQL): how to understand high cardinality metrics and successfully query for them using NRQL.'
+---
+Understanding how high cardinality works is important, because it can impact how quickly you reach your data limits. 
+
+## What is cardinality and why does it matter? [#what-why]
+
+Cardinality is generally defined as the number of elements in a set. For dimensional metrics, the set in question is the collection of unique maps of attributes observed for a given metric in a one-day period. You can query the cardinality of a metric in New Relic with the following NRQL format:
+
+```
+FROM Metric SELECT cardinality(metric.name) SINCE today RAW
+```
+
+For example, to query the cardinality of the metric `memory.heap` and find out how many unique key-value pairs exist for this metric, run the following query:
+
+```
+FROM Metric SELECT cardinality(memory.heap) SINCE today RAW
+```
+<Callout variant="tip">
+  We recommend including the `RAW` clause in cardinality queries that use `FROM Metric`. This is because in the event your cardinality has been limited, queries like `SINCE today` will query rollups that are no longer reporting and so need to look at the raw data points to perform the necessary analysis. 
+  
+  Note that because querying the raw data points over long time ranges can be slow, `RAW` queries spanning more than 2 days worth of data are not allowed.
+</Callout>
+
+While the basics of what cardinality means can be simple to state, learning how to address and manage high cardinality can be a little more complicated. 
+
+### Cardinality limits and enforcement
+
+New Relic enforces limits on your metric cardinality both at the per-metric level and at the account level. Cardinality is evaluated over the course of a UTC day, starting at 00:00:00 UTC and ending at 23:59:59 UTC. 
+
+For more information on data limits and related policies, see [New Relic data usage limits and policies](/docs/licenses/license-information/general-usage-licenses/new-relic-data-usage-limits-policies/)
+
+## Cardinality and dimensional metrics [#dimensional-metrics] 
+
+The cardinality of a metric is the size of the set of unique maps of attributes observed for the given metric in a one-day period. If keys or values in that map change over time, they will add new cardinality for that metric. Let's see an example.
+
+Imagine a network of 4 hosts, each with 2 containers running on them, and each container periodically reports the gauge metric `memory.heap`, with the host name and container id added as attributes. 
+
+![Host and containers combination resulting in high cardinality](./images/high-cardinality-metrics-1.png "Multiple hosts with multiple containers")
+
+When submitted to the Metric API, one of these metrics might look something like this:
+
+```
+
+"metrics":[
+  { 
+    "name":"memory.heap", 
+    "type":"gauge", 
+    "value":5514, 
+    "timestamp":1234567890,
+    "attributes":{
+      "host":"W",
+      "container":"1"
+    }
+  }
+]
+```
+
+This metric would then have a cardinality of 8, as that's how many unique mappings of `host` and `container` are possible. If a new measurement for this metric is taken with identical attributes as one that had previously reported, no new cardinality would be counted.
+
+## Cardinality influences [#influences]
+
+As shown above, any changes to the keys or values will represent new cardinality, but predicting how those changes will impact your total cardinality can get a little tricky. It's tempting to assume that the cardinality of a metric is then the product of the number of all possible values for each possible key, but this is rarely the case in practice, as the values a given key often depend on or determine the values of other keys.
+
+Using the previous example, once we had a `container` value of `1`, the value of `host` was fixed to `W`, assuming those container IDs are globally unique. So while there are 8 containers across 4 hosts, the cardinality is still 8, not 4 * 8 = 32, since most combinations counted by the simple multiplication method are not possible and therefore don't contribute to that metric's cardinality. We will never see the combination of `host = 'X', container = 1`, for instance.
+
+This also means that adding more keys to an attributes map does not necessarily imply an increase to total cardinality. If the value of the new key is uniquely determined by the values of existing keys, it will not add new cardinality in the long term. For instance if you add something like `region` to your map in the example, it's likely the case that the `container` value is also fixed to a particular region value, and therefore keeps your cardinality at 8.
+
+An important caveat here is that while adding `region` won't increase the cardinality going forward, it will introduce new cardinality when it is first added. This is because adding keys will make those attribute maps distinct from any that came before them, temporarily increasing the total cardinality for that day.
+
+## Examples and sample workflows [#examples-samples]
+
+If you hit one of your cardinality limits, there are a couple of options you can use to remedy the situation. One easy answer is increasing your limits, but if you would prefer not to do that, a good alternative is to explore which dimensions are contributing the most to your cardinality and think about removing them if they do not provide value. This can save storage and bandwidth costs and potentially prevent you needing to raise your limits.  
+
+### Find cardinality contributors: metrics [#metrics-contributors]
+
+Recall how to get the cardinality of a particular metric:
+
+```
+FROM Metric SELECT cardinality(memory.heap) SINCE today RAW
+```
+
+For the total account cardinality, you can use the same basic query structure and simply omit the metric name:
+
+```
+FROM Metric SELECT cardinality() SINCE today RAW
+```
+
+The account's cardinality is essentially the sum of each metric's cardinality, so adding in a simple FACET query can help find the highest cardinality metrics:
+
+```
+FROM Metric SELECT cardinality() SINCE today RAW FACET metricName
+```
+
+Finally, if you believe you have hit one of your cardinality limits, you can confirm this by checking for a related `NrIntegrationError`:
+
+```
+FROM NrIntegrationError SELECT count(*) where name = 'CardinalityViolationException' and newRelicFeature = 'Metrics' facet cardinalityLimitType, metricName, message since today 
+```
+
+### Finding cardinality contributors: dimensions [#dimensions-contributors]
+
+Once you've determined a metric you want to explore, the next step is to determine which dimensions in a given metric contribute the most to its cardinality. If you are unfamiliar with the values of your dimensions, you can look at them like so:
+
+```
+FROM Metric SELECT dimensions() WHERE metricName = 'memory.heap' SINCE today RAW
+```
+
+The JSON results view will likely be advisable here. Looking through these could reveal some dimensions containing a unique ID or other highly variable value that might be worth removing. 
+
+If you are already familiar with what values your attributes can take on, the `keySet()` results may be easier to scan:
+
+```
+FROM Metric SELECT keySet() WHERE metricName = 'memory.heap' SINCE today RAW
+```
+
+Understanding the dimensions that have the most influence on your total cardinality comes down to understanding how each key's values correlate with one another. You can experiment with what your cardinality would be without a dimension simply by adding it to the exclude list:
+
+```
+FROM Metric SELECT cardinality(memory.heap, exclude: {'container.id'}) SINCE today RAW
+```
+
+Likewise, there is an include list if that is more convenient to the query context:
+
+```
+FROM Metric SELECT cardinality(memory.heap, include: {'host.name', 'region'}) SINCE today RAW
+```
+
+Managing cardinality can be tricky to conceptualize, but the above methods will help you get answers to questions like "What metric is contributing the most cardinality?" and "What impact does a given attribute(s) have to that total cardinality?". 
+
+It's often the case that cardinality tracks with the most unique value, as that value may pin down the possible values other attributes can take on. However, there are plenty of cases where the explosion of possible combinations of a handful of attributes drives the total cardinality. Things that look like unique identifiers are generally a good place to start, but sometimes it's no single key but the combination of two or more keys. The more familiar you are with your data and the systems that generate it, the easier it will be to know which attributes to include or exclude. 
+
+<Callout variant="tip">
+  If you'd like to learn more about limits and troubleshooting  the Metric API, here are two good resources:
+
+  * [Metric API limits and restricted attributes](/docs/telemetry-data-platform/ingest-apis/metric-api/metric-api-limits-restricted-attributes/)
+  * [Troubleshoot Metric API with NRIntegrationError events](/docs/telemetry-data-platform/ingest-apis/metric-api/troubleshoot-nrintegrationerror-events/) are both great resources to explore. 
+</Callout>
+
+
+
