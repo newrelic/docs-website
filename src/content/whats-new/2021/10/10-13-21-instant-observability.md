@@ -7,7 +7,7 @@ getStartedLink: 'https://onenr.io/06vjAmnD3jP'
 ---
 <iframe width="560" height="315" src="https://www.youtube.com/watch?v=c9zprczTXj8" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
 
-We're excited to announce [New Relic Instant Observability (I/0)](https://newrelic.com/instant-observability), the fastest way to instrument, monitor, and analyze your technology stack while avoiding the burden of manual setup. It is a rich open source catalog of 400+ quickstarts—pre-built bundles of observability tools—contributed by experts around the world, reviewed by New Relic, and ready for you to install in a few clicks.
+We're excited to announce [New Relic Instant Observability (I/0)](https://newrelic.com/instant-observability), the fastest way to instrument, monitor, and analyze your technology stack while avoiding the burden of manual setup. It is a rich open source catalog of 400+ quickstarts (pre-built bundles of observability tools) contributed by experts around the world, reviewed by New Relic, and ready for you to install in a few clicks.
 
 # Solution overview
 No matter what technologies and tools you use in your stack, you can get more insights from your telemetry data in minutes. With New Relic I/O, you can:
@@ -19,13 +19,13 @@ No matter what technologies and tools you use in your stack, you can get more in
 Note that only full users will be able to access dashboards deployed from quickstarts. Every new account, including our [Free Forever](https://newrelic.com/pricing) tier, gets one full user absolutely free.
 
 # Demo
-Watch a quick demo and learn how to a quickstart below:
+Watch a quick demo and learn how to do a quickstart below:
 <iframe width="560" height="315" src="https://www.youtube.com/watch?v=sFt1Tx5qPRU" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
 
 # Get started
 - Install a quickstart from [New Relic I/O](https://onenr.io/06vjAmnD3jP).
 - If you don't have a New Relic account yet, browse the [public New Relic I/O catalog](https://newrelic.com/instant-observability).
-- Want to share your monitoring use case or best practices? New Relic Instant Observability is open source, so it’s easy to add to quickstarts or build a brand new one. Help drive the mission to democratize observability—and be featured as a quickstart author.[Contribute a quickstart!](https://github.com/newrelic/newrelic-observability-packs#readme)
+- Want to share your monitoring use case or best practices? New Relic Instant Observability is open source, so it’s easy to add to quickstarts or build a brand new one. Help drive the mission to democratize observability—and be featured as a quickstart author. [Contribute a quickstart!](https://github.com/newrelic/newrelic-observability-packs#readme)
 - Learn more by reading the [blog post](https://newrelic.com/blog/nerdlog/instant-observability-quickstarts).
 
 # Partner quickstarts
