@@ -2,7 +2,7 @@
 title: 'Get a Visual Map of Related Entities with New Relic One Automap'
 summary: 'Find the what and when of an issue to troubleshoot the root cause quickly'
 releaseDate: '2021-10-12'
-learnMoreLink:'https://docs.newrelic.com/docs/new-relic-one/use-new-relic-one/ui-data/automaps/'
+learnMoreLink: 'https://docs.newrelic.com/docs/new-relic-one/use-new-relic-one/ui-data/automaps/'
 ---
 
 To resolve issues affecting a cluster of services in your architecture, you need to identify both where AND when issues originate. Today, with New Relic One Automap, you can. 
