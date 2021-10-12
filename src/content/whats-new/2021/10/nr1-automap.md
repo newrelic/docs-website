@@ -5,7 +5,7 @@ releaseDate: '2021-10-12'
 learnMoreLink:'https://docs.newrelic.com/docs/new-relic-one/use-new-relic-one/ui-data/automaps/'
 ---
 
-To resolve issues affecting a cluster of services in your architecture, you need to identify both **where** AND **when** issues originate. Today, with New Relic One Automap, you can. 
+To resolve issues affecting a cluster of services in your architecture, you need to identify both where AND when issues originate. Today, with New Relic One Automap, you can. 
 
 When selecting a service, you can locate Automap in the 'Related entities' section of the slide-out panel. Click the 'Map view' button. Then, using Automap Timewarp, you can step backward in time and understand how the issue propagated through the architecture and track the issue back to where and when it all started.
 
