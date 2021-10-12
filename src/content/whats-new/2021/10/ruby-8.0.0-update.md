@@ -1,7 +1,7 @@
 ---
 title: 'Distributed Tracing enabled by default with Ruby Agent Update: Version 8.0.0'
 summary: 'See distrbuted traces immediately upon upgrading Ruby Agent'
-releaseDate: '2021-09-22'
+releaseDate: '2021-10-04'
 learnMoreLink: 'https://docs.newrelic.com/docs/release-notes/agent-release-notes/ruby-release-notes/'
 ---
 
@@ -15,4 +15,4 @@ If you do not need this feature, you can turn it off in the Ruby [agent configur
 
 If you need more traces and are experiencing dropped spans, the agent reservoir can be expanded to accommodate more spans. To do so, set the environment variable or config item called [span_events.max_samples_stored](https://docs.newrelic.com/docs/agents/ruby-agent/configuration/ruby-agent-configuration/#span_events-max_samples_stored) to a value greater than 2,000 up to a maximum value of 10,000. Note that increasing this value may impact memory usage. 
 
-With Distributed Tracing on by default, [Cross Application Tracing](https://docs.newrelic.com/docs/apm/transactions/cross-application-traces/introduction-cross-application-traces/) (CAT) will now be deprecated and will be removed in a future version of the agent. If you're on CAT, you'll now see distributed traces instead. If you want to revert back to CAT, you can do so by setting `cross_application_tracer.enabled = true` in the configuration file. We recommend you to keep using distributed tracing, given that CAT will be removed in the future.
+With Distributed Tracing on by default, [Cross Application Tracing](https://docs.newrelic.com/docs/apm/transactions/cross-application-traces/introduction-cross-application-traces/) (CAT) will now be deprecated and will be removed in a future version of the agent. If you're on CAT, you'll now see distributed traces instead. If you want to revert back to CAT, you can do so by setting `cross_application_tracer.enabled = true` in the configuration file. We recommend you to keep using distributed tracing, given that CAT will be removed in the future. 
