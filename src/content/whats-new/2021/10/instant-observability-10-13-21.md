@@ -5,7 +5,7 @@ releaseDate: '2021-10-13'
 learnMoreLink: 'https://newrelic.com/blog/nerdlog/instant-observability-quickstarts'
 getStartedLink: 'https://onenr.io/06vjAmnD3jP'
 ---
-<iframe width="560" height="315" src="https://www.youtube.com/watch?v=c9zprczTXj8" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+<iframe width="560" height="315" src="https://www.youtube.com/embed/c9zprczTXj8" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
 
 We're excited to announce [New Relic Instant Observability (I/0)](https://newrelic.com/instant-observability), the fastest way to instrument, monitor, and analyze your technology stack while avoiding the burden of manual setup. It is a rich open source catalog of 400+ quickstarts (pre-built bundles of observability tools) contributed by experts around the world, reviewed by New Relic, and ready for you to install in a few clicks.
 
@@ -20,7 +20,8 @@ Note that only full users will be able to access dashboards deployed from quicks
 
 # Demo
 Watch a quick demo and learn how to do a quickstart below:
-<iframe width="560" height="315" src="https://www.youtube.com/watch?v=sFt1Tx5qPRU" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+
+<iframe width="560" height="315" src="https://www.youtube.com/embed/sFt1Tx5qPRU" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
 
 # Get started
 - Install a quickstart from [New Relic I/O](https://onenr.io/06vjAmnD3jP).
