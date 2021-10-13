@@ -1,0 +1,104 @@
+---
+title: Prometheus Remote Write Data Shape Changes
+tags:
+  - Telemetry Data Platform
+  - Prometheus Remote Write
+  - 'Sent bytes vs. billed bytes'
+  - Prometheus integration
+metaDescription: "Explanation for the difference in bytes sent vs. bytes stored/biled for Prometheus Remote Write Data."
+---
+
+The purpose of this document is to provide a better understanding for the difference in size of the Prometheus Remote Write billed bytes vs. bytes sent to New Relic.
+
+When Prometheus RW data is sent to New Relic, it is sent [compressed](https://prometheus.io/docs/prometheus/latest/storage/#remote-storage-integrations) (for faster, lossless transmission). When ingested, that data is uncompressed and decorated so that it can be properly used with New Relic features, such as [entity synthesis](/docs/new-relic-one/use-new-relic-one/core-concepts/what-entity-new-relic/#entity-synthesis). Although a difference in compressed to uncompressed byte rate is expected, the potential difference for Prometheus Remote Write data is of note because of New Relic’s [billing model](/docs/accounts/accounts-billing/new-relic-one-pricing-billing/new-relic-one-pricing-billing/#usage-calculation). Customers are billed based on the computational effort needed to ingest their data, as well as the size of the data stored within New Relic. The decompression process and data transformations can result in the final uncompressed bytes stored being around 15x the size of its compressed counterpart:
+
+> ~124 GB/day compressed data sent = ~1.86TB uncompressed data stored¹
+
+Below is a simulation of the byte rate changes as Prometheus RW data moves through our system².
+
+![Byte Rate Estimate Total Comparison](./images/byte-rate-estimate-total-comparison.png "Byte Rate Estimate Total Comparison")
+
+Note how the Prometheus sent byte rate closely matches the RW compressed bytes³ count that we record on our end, just before uncompressing the data point(s).
+
+![Sent vs. Compressed Bytes Comparison](./images/sent-vs-compressed-bytes-comparison.png "Sent vs. Compressed Bytes Comparison")
+
+As the data points are uncompressed, the 5-10x expansion factor is reflected in the difference between the Remote Write compressed data byte rate and the Remote Write uncompressed bytes rate, which are measurements taken right before and after data decompression.
+
+![Uncompressed vs. Compressed Bytes Comparison](./images/uncompressed-vs-compressed-bytes-comparison.png "Uncompressed vs. Compressed Bytes Comparison")
+
+Finally, as the data is transformed and enrichments are performed, the difference between the Remote Write uncompressed bytes and the bytescountestimate() can be seen below. The bytecountestimate() listed is a measure of byte count of the final state of the data before being stored.
+
+![Bytecountestimate() vs. Uncompressed Bytes Comparison](./images/bytecountestimate-vs-uncompressed-bytes-comparison.png "Bytecountestimate() vs. Uncompressed Bytes Comparison")
+
+To give a better understanding of the possible data transformations/additions Prometheus RW data can go through, below is a side by side comparison of the prometheus_remote_storage_bytes_total metric, a measure reported by the prometheus server. On the left is a representation as given by Prometheus and on the right its NRQL query counterpart⁴:
+
+
+*Prometheus Server Representation*
+
+```
+"prometheus_remote_storage_bytes_total" {
+	"instance=""localhost:9090"
+	"job=""prometheus"
+	"remote_name=""5dfb33"
+	"url=""https://staging-metric-api.newrelic.com/prometheus/v1/write?prometheus_server=foobarbaz"
+}
+23051
+
+```
+
+*New Relic Query Representation*
+
+```
+"endTimestamp": 1631305327668,
+"instance:" "localhost:9090",
+"instrumentation.name": "remote-write"
+"instrumentation.provider": "prometheus",
+"instrumentation.source": "foobarbaz",
+"instrumentation.version": "0.0.2",
+"job": "prometheus",
+"metricName": "prometheus_remote_storage_bytes_total",
+"newrelic.source": "prometheusAPI",
+"prometheus_remote_storage_bytes_total",
+"newrelic.source": "prometheusAPI",
+"prometheus_remote_storage_bytes_total": {
+	"type": "count",
+	"count": 23051
+},
+"prometheus_server": "foobarbaz",
+"remote_name": "5dfb33",
+"timestamp": 1631305312668,
+"url": "https://staging-metric-api.newrelic.com/prometheus/v1/write?prometheus_server=foobarbaz"
+}
+```
+
+
+### **References**
+
+[**Prometheus referencing Snappy Compression being used in encoding**](https://prometheus.io/docs/prometheus/latest/storage/#overview)
+
+> *The read and write protocols both use a snappy-compressed protocol buffer encoding over HTTP. The protocols are not considered as stable APIs yet and may change to use gRPC over HTTP/2 in the future, when all hops between Prometheus and the remote storage can safely be assumed to support HTTP/2*
+
+
+[**Prometheus Protobuf Reference**](https://github.com/prometheus/prometheus/blob/main/prompb/types.proto#L58-L64)
+
+
+**NRQL Queries**
+
+
+*Viewing estimated byte count stored at New Relic*
+
+```
+FROM Metric SELECT rate(bytecountestimate(), 1 minute) AS 'bytecountestimate()' WHERE prometheus_server = <prometheus-server-name> SINCE 1 hour ago TIMESERIES AUTO
+```
+
+
+*Prometheus monitoring of bytes sent to New Relic*
+
+```
+FROM Metric SELECT rate(sum(prometheus_remote_storage_samples_bytes_total), 1 minute)  AS 'Prometheus sent bytes rate' WHERE prometheus_server = <prometheus-server-name> SINCE 1 hour ago TIMESERIES  AUTO 
+```
+
+>1: Numbers based on a sampling of time-series’ data gathered when simulating real world traffic
+>2: Metrics generated by ingesting a local prometheus server’s remote write scrape of a local node-exporter
+>3: The increased variance of the RW Compressed Byte Rate can be attributed to the nature of processing the data through our distributed systems
+>4: This is just an example comparison for illustrative purposes, thus lightly decorated. The final view/comparison of other, more densely labelled and/or featured metrics will be different.
