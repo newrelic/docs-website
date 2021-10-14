@@ -410,6 +410,7 @@ module.exports = {
                   getStartedLink: frontmatter.getStartedLink,
                   body: htmlParser.stringify(parsedHtml),
                   docUrl: new URL(fields.slug, siteUrl).href,
+                  isFeatured: frontmatter.isFeatured,
                 };
               }
             ),
