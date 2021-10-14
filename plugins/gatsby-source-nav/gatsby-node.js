@@ -101,23 +101,22 @@ exports.onCreatePage = ({ page, actions }) => {
   }
 };
 
-const createRootNav = async ({ createNodeId, nodeModel }) => {
-  const nav = await nodeModel.runQuery({
-    type: 'NavYaml',
-    query: {
-      filter: {
-        rootNav: { eq: true },
-      },
-      sort: {
-        fields: ['title'],
-        order: ['ASC'],
-      },
-    },
-  });
+const createRootNav = async ({ args, createNodeId, nodeModel }) => {
+  const { slug } = args;
+
+  const rootNavYamlNode = nodeModel
+    .getAllNodes({ type: 'NavYaml' })
+    .filter((node) => node.path === '/');
+
+  const nav = rootNavYamlNode.find((nav) => findPage(nav, slug));
+
+  if (!nav) {
+    return null;
+  }
 
   return {
+    ...nav,
     id: createNodeId('root'),
-    pages: nav.map((item) => ({ ...item, pages: [] })),
   };
 };
 
@@ -257,26 +256,9 @@ const createNav = async ({ args, createNodeId, nodeModel, locales }) => {
     .replace(/\/table-of-contents$/, '')
     .replace(new RegExp(`^\\/(${locales.join('|')})(?=\\/)`), '');
 
-  const fileNode = await nodeModel.runQuery({
-    type: 'File',
-    query: {
-      filter: {
-        sourceInstanceName: { eq: 'markdown-pages' },
-        relativePath: { regex: '/docs/' },
-        childMdx: {
-          fields: {
-            slug: {
-              eq: slug,
-            },
-          },
-        },
-      },
-      firstOnly: true,
-    },
-  });
-
   const allNavYamlNodes = nodeModel
     .getAllNodes({ type: 'NavYaml' })
+    .filter((node) => node.path !== '/')
     .sort((a, b) => a.title.localeCompare(b.title));
 
   let nav =
