@@ -19,7 +19,7 @@ No matter what technologies and tools you use in your stack, you can get more in
 Note that only full users will be able to access dashboards deployed from quickstarts. Every new account, including our [Free Forever](https://newrelic.com/pricing) tier, gets one full user absolutely free.
 
 # Demo
-Watch a quick demo and learn how to do a quickstart below:
+Watch a quick demo and learn how to install a quickstart below:
 
 <iframe width="560" height="315" src="https://www.youtube.com/embed/sFt1Tx5qPRU" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
 
