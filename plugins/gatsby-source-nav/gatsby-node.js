@@ -106,7 +106,7 @@ const createRootNav = async ({ args, createNodeId, nodeModel }) => {
 
   const rootNavYamlNode = nodeModel
     .getAllNodes({ type: 'NavYaml' })
-    .filter((node) => node.path === '/');
+    .filter((node) => node.rootNav);
 
   const nav = rootNavYamlNode.find((nav) => findPage(nav, slug));
 
@@ -258,7 +258,7 @@ const createNav = async ({ args, createNodeId, nodeModel, locales }) => {
 
   const allNavYamlNodes = nodeModel
     .getAllNodes({ type: 'NavYaml' })
-    .filter((node) => node.path !== '/')
+    .filter((node) => node.rootNav)
     .sort((a, b) => a.title.localeCompare(b.title));
 
   let nav =

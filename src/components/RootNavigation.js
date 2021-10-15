@@ -5,7 +5,6 @@ import { NavItem } from '@newrelic/gatsby-theme-newrelic';
 const RootNavigation = ({ nav }) => {
   return (
     <nav role="navigation" aria-label="Navigation">
-      <hr />
       {nav.pages.map((page) => {
         if (page.title === 'section-break') {
           return <hr />;
