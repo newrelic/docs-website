@@ -6,7 +6,7 @@ learnMoreLink: 'https://docs.newrelic.com/docs/integrations/grafana-integrations
 getStartedLink: 'https://blog.newrelic.com/product-news/grafana-dashboards-prometheus-telemetry-data-platform/'
 ---
 
-We’ve teamed up with [Grafana Labs](https://grafana.com) so you can use our platform as a data source for Prometheus metrics and see them in your existing dashboards, seamlessly tapping into the reliability, scale, and security provided by New Relic.
+We’ve teamed up with [Grafana Labs](https://grafana.com/) so you can use our [Telemetry Data Platform](https://newrelic.com/platform/telemetry-data-platform) as a data source for Prometheus metrics and see them in your existing dashboards, seamlessly tapping into the reliability, scale, and security provided by New Relic.
 
 Follow the steps below or [use this more detailed walkthrough](https://blog.newrelic.com/product-news/grafana-dashboards-prometheus-telemetry-data-platform/) to send Prometheus data to New Relic, so that Grafana can populate your existing Prometheus-specific dashboards with that data.
 
