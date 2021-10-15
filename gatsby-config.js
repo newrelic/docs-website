@@ -377,6 +377,7 @@ module.exports = {
                 getStartedLink
                 learnMoreLink
                 summary
+                isFeatured
               }
               fields {
                 slug
