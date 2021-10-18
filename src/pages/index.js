@@ -54,13 +54,11 @@ const HomePage = ({ data }) => {
             <p>{t('home.intro.p1')}</p>
 
             <Trans i18nKey="home.intro.p3" parent="p">
-              Scroll on for more about our Telemetry Data Platform, Full-Stack
-              Observability, and Applied Intelligence. Or, to get a wider view
-              of our platform's capabilities, read the{' '}
+            Keep scrolling to read more about getting data into New Relic, our platform features, our observability solutions, and our alerting tools. Or, to get a wider view of our platform's capabilities, read {' '}
               <Link to="/docs/using-new-relic/welcome-new-relic/get-started/introduction-new-relic">
                 Intro to New Relic
               </Link>
-              , and use our{' '}
+              , or see our{' '}
               <Link to="/docs/new-relic-solutions">
                 solutions and best practices guides
               </Link>
