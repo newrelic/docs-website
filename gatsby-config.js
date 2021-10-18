@@ -1,6 +1,6 @@
 const fs = require('fs');
-const parse = require('rehype-parse');
 const path = require('path');
+const parse = require('rehype-parse');
 const unified = require('unified');
 const rehypeStringify = require('rehype-stringify');
 const addAbsoluteImagePath = require('./rehype-plugins/utils/addAbsoluteImagePath');
