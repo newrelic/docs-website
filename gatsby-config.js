@@ -377,6 +377,7 @@ module.exports = {
                 getStartedLink
                 learnMoreLink
                 summary
+                isFeatured
               }
               fields {
                 slug
@@ -410,6 +411,7 @@ module.exports = {
                   getStartedLink: frontmatter.getStartedLink,
                   body: htmlParser.stringify(parsedHtml),
                   docUrl: new URL(fields.slug, siteUrl).href,
+                  isFeatured: frontmatter.isFeatured,
                 };
               }
             ),
