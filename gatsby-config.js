@@ -163,13 +163,13 @@ module.exports = {
           configs: {
             development: {
               instrumentationType: 'proAndSPA',
-              accountId: '10175106',
+              accountId: '10956800',
               trustKey: '1',
-              agentID: '23865145',
-              licenseKey: '528f970912',
-              applicationID: '23865145',
-              beacon: 'staging-bam.nr-data.net',
-              errorBeacon: 'staging-bam.nr-data.net',
+              agentID: '35094418',
+              licenseKey: 'NRJS-649173eb1a7b28cd6ab',
+              applicationID: '35094418',
+              beacon: 'staging-bam-cell.nr-data.net',
+              errorBeacon: 'staging-bam-cell.nr-data.net',
             },
             production: {
               instrumentationType: 'proAndSPA',
