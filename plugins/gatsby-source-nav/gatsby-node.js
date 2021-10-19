@@ -258,7 +258,6 @@ const createNav = async ({ args, createNodeId, nodeModel, locales }) => {
 
   const allNavYamlNodes = nodeModel
     .getAllNodes({ type: 'NavYaml' })
-    .filter((node) => node.rootNav)
     .sort((a, b) => a.title.localeCompare(b.title));
 
   let nav =
