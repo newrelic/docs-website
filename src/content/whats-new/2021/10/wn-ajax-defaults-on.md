@@ -13,6 +13,6 @@ With the addition of this feature, if you are using the Pro or SPA version of th
 
 **Option 1 (recommended option):** In browser settings on NR1, there is a deny list where you can add URLs where you don’t need AJAX data collection. This will ensure the agent does not collect those AJAX calls. Refer to [this documentation](https://docs.newrelic.com/docs/browser/new-relic-browser/configuration/filter-ajax-request-events/) for more information.
 
-![Browser - AJAX Settings Highlighted.png]("Browser - AJAX Settings Highlighted")
+![Browser with AJAX settings highlighted](./images/browser-ajax-highlighted.png "Browser with AJAX Settings Highlighted")
 
 **Option 2:** Drop data on ingest. Because the AJAX requests are being stored as events, you also have an option to set up rules to drop them on ingest. Refer to [this documentation](https://docs.newrelic.com/docs/browser/new-relic-browser/configuration/filter-ajax-request-events/) for more information.
