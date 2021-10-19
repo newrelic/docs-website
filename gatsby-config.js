@@ -146,7 +146,7 @@ module.exports = {
                       `docs${postfix}`,
                       `developer${postfix}`,
                       `opensource${postfix}`,
-                      `quick_starts${postfix}`,
+                      `quickstarts${postfix}`,
                     ],
                     document_type: [
                       '!views_page_menu',
