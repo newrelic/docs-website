@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/react';
+import { useDebounce } from 'react-use';
 import {
   Link,
   Navigation,
@@ -13,6 +14,19 @@ import {
 const SubNavigation = ({ nav }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const { t } = useTranslation();
+
+  useDebounce(
+    () => {
+      if (typeof window !== 'undefined' && window.newrelic && searchTerm) {
+        window.newrelic.addPageAction('navInteraction', {
+          navInteractionType: 'leftNavSearch',
+          searchTerm,
+        });
+      }
+    },
+    400,
+    [searchTerm]
+  );
 
   return (
     <>
@@ -48,7 +62,9 @@ const SubNavigation = ({ nav }) => {
             <SearchInput
               placeholder={t('subNav.filter.placeholder')}
               onClear={() => setSearchTerm('')}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+              }}
               value={searchTerm}
               css={css`
                 margin-bottom: 1rem;
