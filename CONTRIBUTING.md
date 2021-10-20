@@ -22,6 +22,7 @@
     - [Deploy previews with Gatsby Cloud](#deploy-previews-with-gatsby-cloud)
   - [Reusable components](#reusable-components)
   - [Editing existing pages](#editing-existing-pages)
+  - [Docs issues guide](#docs-issues-guide)
   - [Private edits](#private-edits)
     - [Bring your private work back into the public repository](#bring-your-private-work-back-into-the-public-repository)
   - [Split testing and running experiments](#split-testing-and-running-experiments)
@@ -39,6 +40,7 @@
 The Documentation Team and Developer Enablement Team at New Relic welcome contributions to this repository.
 
 There are several ways you can contribute:
+
 
 - If you wish to make documentation edits or add new
 documentation, follow our [documentation contribution guidelines](https://docs.newrelic.com/docs/style-guide/writing-guidelines/create-edit-content/#edit-doc).
@@ -193,6 +195,17 @@ when creating documentation. Refer to our [Component Guide](COMPONENT_GUIDE.md) 
 1. To edit an existing page you can view the page's source code by clicking on the `Edit` icon in the upper right corner of the site.
 2. Follow the instructions above to `Fork` or `Clone` the repo and make your edits.
 3. Follow the instructions above to submit a `PR` for your change.
+
+## Docs issues guide
+
+These are the general steps to follow if you are on a product team and are assigned an issue through the docs issues program:
+
+1. Navigate to your GM groups project board on the docs repo: https://github.com/newrelic/docs-website/projects
+2. Drag the issue at hand from the **To-do** column into the **In progress** column. Click on the issue and assign it to yourself in the right nav.
+3. Read through the description and figure out what the next steps are. Each issue is unique and will require a a different approach. Some will need quick examples, updates to requirements, small updates to the text. Others will be slightly larger. If you have any questions, feel free to ask the docs team in the #documentation slack channel.
+4. Once you figure out what your next steps are, leave a comment in the issue for the author. We don't use canned respones, but try to thank them for reporting the issue and explain your next steps.
+5. Make any necessary [edits to the docs](https://docs.newrelic.com/docs/style-guide/writing-guidelines/create-edit-content/#edit-doc). 
+6. In the project board, move the issue to **Needs TW review** and ping the hero in #documentation. We will review it, make any copy edits, and then either bring it back to you with questions or go ahead and merge the change in. 
 
 ## Private edits
 
