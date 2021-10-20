@@ -1,6 +1,6 @@
 const fs = require('fs');
-const parse = require('rehype-parse');
 const path = require('path');
+const parse = require('rehype-parse');
 const unified = require('unified');
 const rehypeStringify = require('rehype-stringify');
 const addAbsoluteImagePath = require('./rehype-plugins/utils/addAbsoluteImagePath');
@@ -146,7 +146,7 @@ module.exports = {
                       `docs${postfix}`,
                       `developer${postfix}`,
                       `opensource${postfix}`,
-                      `quick_starts${postfix}`,
+                      `quickstarts${postfix}`,
                     ],
                     document_type: [
                       '!views_page_menu',
@@ -163,13 +163,13 @@ module.exports = {
           configs: {
             development: {
               instrumentationType: 'proAndSPA',
-              accountId: '10175106',
+              accountId: '10956800',
               trustKey: '1',
-              agentID: '23865145',
-              licenseKey: '528f970912',
-              applicationID: '23865145',
-              beacon: 'staging-bam.nr-data.net',
-              errorBeacon: 'staging-bam.nr-data.net',
+              agentID: '35094418',
+              licenseKey: 'NRJS-649173eb1a7b28cd6ab',
+              applicationID: '35094418',
+              beacon: 'staging-bam-cell.nr-data.net',
+              errorBeacon: 'staging-bam-cell.nr-data.net',
             },
             production: {
               instrumentationType: 'proAndSPA',
@@ -377,6 +377,7 @@ module.exports = {
                 getStartedLink
                 learnMoreLink
                 summary
+                isFeatured
               }
               fields {
                 slug
@@ -410,6 +411,7 @@ module.exports = {
                   getStartedLink: frontmatter.getStartedLink,
                   body: htmlParser.stringify(parsedHtml),
                   docUrl: new URL(fields.slug, siteUrl).href,
+                  isFeatured: frontmatter.isFeatured,
                 };
               }
             ),
