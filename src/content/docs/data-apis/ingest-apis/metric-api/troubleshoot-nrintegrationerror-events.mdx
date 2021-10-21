@@ -1,0 +1,184 @@
+---
+title: Troubleshoot Metric API with NRIntegrationError events
+type: troubleshooting
+tags:
+  - Ingest and manage data
+  - Ingest APIs
+metaDescription: Troubleshoot missing data from the Metric API by querying NRIntegrationError data.
+redirects:
+  - /docs/telemetry-data-platform/ingest-apis/metric-api/troubleshoot-nrintegrationerror-events
+  - /docs/receive-nrintegrationerror-error-event
+  - /docs/troubleshoot-nrintegrationerror-error-event
+  - /docs/troubleshoot-nrintegrationerror-event
+  - /docs/troubleshoot-nrintegrationerror-events
+  - /docs/data-ingest-apis/get-data-new-relic/metric-api/troubleshoot-nrintegrationerror-events
+  - /docs/telemetry-data-platform/get-data/apis/troubleshoot-nrintegrationerror-events
+  - /docs/telemetry-data-platform/ingest-apis/troubleshoot-nrintegrationerror-events
+---
+
+## Problem
+
+You sent metric data points to the [Metric API](/docs/introduction-new-relic-metric-api), and are not seeing what you expect when querying the data. Use the following checklist to determine the root cause:
+
+* Make sure you are [querying the data correctly](/docs/introduction-new-relic-metric-api#view-and-query).
+* Check the [HTTP status codes returned by the API](/docs/report-metrics-metric-api#response-validation). Issues like authorization failures can be diagnosed with HTTP status codes.
+* If you are sending data from a Prometheus server via [New Relic's remote_write endpoint](/docs/integrations/prometheus-integrations/get-started/monitor-prometheus-new-relic#remote-write), check your Prometheus server logs for errors or non-2xx HTTP responses from the New Relic endpoint.
+* Query your account for [`NrIntegrationError` events](/docs/telemetry-data-platform/manage-data/nrintegrationerror). New Relic's ingestion endpoints are asynchronous, meaning the endpoint verifies the payload _after_ it returns the HTTP response. If any issues occur while verifying your payload, then an `NrIntegrationError` event will be created in your account. New Relic also uses `NrIntegrationError` events to notify customers when various rate limits have been reached.
+
+## Solution
+
+### View error details [#error-details]
+
+For an introduction to using the `NrIntegrationError` event, see [`NrIntegrationError`](/docs/telemetry-data-platform/manage-data/nrintegrationerror). 
+
+Here's an example NRQL for examining issues with Metric API ingest:
+
+```
+SELECT count(*) FROM NrIntegrationError WHERE newRelicFeature = 'Metrics' facet category, message limit 100 since 24 hours ago
+```
+
+The `category` indicates the type of error and the `message` provides more detailed information about the error. If the `category` is `rateLimit`, then you should also examine the `rateLimitType` field for more information on the type of rate limiting.
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        Category
+      </th>
+
+      <th>
+        rateLimitType
+      </th>
+
+      <th>
+        Description and solution
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `BadRequest`
+      </td>
+
+      <td>
+        (not set)
+      </td>
+
+      <td>
+        There is an issue with the JSON payload. These include JSON syntax errors, attribute names, or values that are too long.
+
+        Check the `message` field to determine the exact issue. Then review the JSON payload, and update it to ensure it meets the proper semantic guidelines.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `RateLimit`
+      </td>
+
+      <td>
+        `DatapointsPerMinute`
+      </td>
+
+      <td>
+        You are sending too many datapoints per minute. If you get this error, you can either send data less frequently, or request changes to your metric rate limits by contacting your New Relic account representative, or visiting our [Support portal](https://support.newrelic.com/).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `RateLimit`
+      </td>
+
+      <td>
+        `UniqueTimeseriesPerDay`
+      </td>
+
+      <td>
+        You have an attribute with a high number of unique values, like `containerId` or `URI`. To resolve this error, review any attributes that may be causing the issue and remove them. If desired, you can use a [data dropping rule](/docs/accounts/accounts/data-management/drop-data-using-nerdgraph) to remove attributes at ingest time.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `RateLimit`
+      </td>
+
+      <td>
+        `UniquePrometheusTimeseries`
+      </td>
+
+      <td>
+        You have Prometheus servers reporting too many unique timeseries via [New Relic's remote_write endpoint](/docs/integrations/prometheus-integrations/get-started/monitor-prometheus-new-relic#remote-write).
+
+        Reduce the number of unique timeseries reported by modifying your [Prometheus server configuration](https://prometheus.io/docs/prometheus/latest/configuration/configuration/) to reduce the number of targets being scraped, or by using [relabel rules](https://prometheus.io/docs/prometheus/latest/configuration/configuration/#relabel_config) in the [remote_write section](https://prometheus.io/docs/prometheus/latest/configuration/configuration/#remote_write) of your server configuration to drop timeseries or highly unique labels.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `RateLimit`
+      </td>
+
+      <td>
+        `RequestsPerMinute`
+      </td>
+
+      <td>
+        Too many requests per minute are being sent. To resolve this, put more datapoints in each request, and send them less frequently.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `RateLimit`
+      </td>
+
+      <td>
+        `ErrorGroupsPerDay`
+      </td>
+
+      <td>
+        You have exceeded your daily error group limit. Incoming error groups will be dropped for the remainder of the day and will continue as normal after UTC midnight.
+        
+        To resolve this, reduce the amount of unique error messages collected by New Relic.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+### Match errors to ingested payloads [#errors-payloads]
+
+When an [`NrIntegrationError` event](/docs/telemetry-data-platform/manage-data/nrintegrationerror) is created as a result of a syntax issue with the HTTP request payload, then the event contains the attributes `apiKeyPrefix` and `requestId`.
+
+* The `apiKeyPrefix` matches the first 6 characters of the API key used to send the data.
+* The `requestId` matches the `requestId` sent in the HTTP response.
+
+To view these fields, run this NRQL query:
+
+```
+SELECT message, apiKeyPrefix, requestId FROM NrIntegrationError limit 100
+```
+
+To verify a specific `requestId`, run this NRQL query:
+
+```
+SELECT * FROM NrIntegrationError where requestId ='<var>REQUEST_ID</var>'
+```
+
+### Programmatically retrieve NrIntegrationError events
+
+To programmatically retrieve these errors:
+
+1. Ensure you have an [Insights query API key](/docs/insights/insights-api/get-data/query-insights-event-data-api) (go to **[insights.newrelic.com](https://insights.newrelic.com) > Manage data > API keys**).
+2. Create an HTTP request as shown below:
+
+   <Callout variant="tip">
+     If your account hosts data in the EU data center, ensure you're using the proper [API endpoints for EU region accounts](/docs/using-new-relic/welcome-new-relic/getting-started/introduction-eu-region-data-center#endpoints).
+   </Callout>
+
+   ```
+   curl -H "Accept: application/json" -H "X-Query-Key:<var>YOUR_API_KEY_HERE</var>" "https://insights-api.newrelic.com/v1/accounts/<var>YOUR_ACCOUNT_HERE</var>/query?nrql=SELECT%20*%20FROM%20NrIntegrationError%20where%20newRelicFeature='Metrics'"
+   ```
