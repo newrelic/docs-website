@@ -1,0 +1,122 @@
+---
+title: Troubleshoot message consumers
+type: troubleshooting
+tags:
+  - Agents
+  - Nodejs agent
+  - Troubleshooting
+metaDescription: Troubleshooting procedures for message consumer services monitored by New Relic's Node.js agent.
+redirects:
+  - /docs/agents/nodejs-agent/troubleshooting/troubleshoot-message-consumers
+  - /node/13131
+---
+
+## Problem
+
+Message consumer services have a few differences to HTTP servers that make monitoring them more difficult. This document discusses those limitations and ways to work around them with the New Relic Node.js agent.
+
+Because a message does not necessarily have a reply, it can be hard to determine the end of a transaction. If New Relic's Node.js agent cannot determine when a message consumer will be done, it will immediately end the transaction. Follow these troubleshooting tips depending on your application.
+
+## Solution
+
+The solution to this issue depends on whether you are using callbacks or promises:
+
+### Callbacks
+
+When using a callback-based messaging API such as `amqplib`'s `callback_api`, there is no easy way to determine when your consumer is done. Here is an example.
+
+<CollapserGroup>
+  <Collapser
+    id="callback-problem"
+    title="Callback problem"
+  >
+    In this example, all the transactions created for this service will be immediately ended and not show any of the work done by `doWorkWithMessage`.
+
+    ```
+    const newrelic = require('newrelic');
+    const amqp = require('amqplib/callback_api');
+
+    // Connect, make a channel, and assert required queues...
+
+    channel.consume('my.queue', (msg) => {
+      doWorkWithMessage(msg, (err) => {
+        if (err) {
+          logger.error(err);
+          channel.reject(msg, true); // Requeue message on failure.
+        }
+      });
+    }, {noAck: true});
+    ```
+
+    In order to properly time the transaction, you need to get the transaction and end it manually, as shown in the following solution.
+  </Collapser>
+
+  <Collapser
+    id="callback-solution"
+    title="Solution"
+  >
+    To properly time the transaction, get the transaction and end it manually. Modify the consumer to this:
+
+    ```
+    channel.consume('my.queue', (msg) => {
+      var transaction = newrelic.getTransaction();
+
+      doWorkWithMessage(msg, (err) => {
+        if (err) {
+          logger.error(err);
+          channel.reject(msg, true); // Requeue message on failure.
+        }
+
+        transaction.end();
+      });
+    }, {noAck: true});
+    ```
+  </Collapser>
+</CollapserGroup>
+
+### Promises
+
+For promise-based servers, the message consumer simply needs to return a promise. When that promise resolves or rejects, the transaction will be ended. Here is an example:
+
+<CollapserGroup>
+  <Collapser
+    id="promise-problem"
+    title="Promise problem"
+  >
+    In this example, `doWorkWithMessage` returns a promise:
+
+    ```
+    const newrelic = require('newrelic');
+    const amqp = require('amqplib');
+
+    // Connect, make a channel, and assert required queues...
+
+    channel.consume('my.queue', (msg) => {
+      doWorkWithMessage(msg).catch((err) => {
+        if (err) {
+          logger.error(err);
+          channel.reject(msg, true); // Requeue message on failure.
+        }
+      });
+    }, {noAck: true});
+    ```
+  </Collapser>
+
+  <Collapser
+    id="promise-solution"
+    title="Solution"
+  >
+    To get correct timing, return the end of the chain by modifying the code to:
+
+    ```
+    channel.consume('my.queue', (msg) => {
+      return doWorkWithMessage(msg).catch((err) => {
+        if (err) {
+          logger.error(err);
+          channel.reject(msg, true); // Requeue message on failure.
+        }
+      });
+    }, {noAck: true});
+    ```
+  </Collapser>
+</CollapserGroup>
