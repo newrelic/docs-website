@@ -1,5 +1,5 @@
 ---
-title: 'Browser Agent Update: Capturing All AJAX Requests'
+title: 'Browser agent update: capturing all AJAX requests'
 summary: 'With agent version 1211, all AJAX requests will be captured as events.'
 releaseDate: '2021-10-12'
 learnMoreLink: 'https://docs.newrelic.com/docs/release-notes/new-relic-browser-release-notes/browser-agent-release-notes/browser-agent-v1211/'
