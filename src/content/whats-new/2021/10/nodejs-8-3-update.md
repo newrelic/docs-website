@@ -15,18 +15,3 @@ If you do not need this feature, it can be turned off in the Node [agent configu
 If you need more traces and are experiencing dropped spans, the agent reservoir can be expanded to accommodate more spans. To do so, set [`environment variable`](https://docs.newrelic.com/docs/agents/nodejs-agent/installation-configuration/nodejs-agent-configuration/#environment) or [`config item`](https://docs.newrelic.com/docs/agents/nodejs-agent/installation-configuration/nodejs-agent-configuration/#config_file) called `span_events.max_samples_stored` to a value greater than 2,000 up to a maximum value of 10,000. Note that increasing this value may impact memory usage. 
 
 With Distributed Tracing on by default, [Cross Application Tracing](https://docs.newrelic.com/docs/apm/transactions/cross-application-traces/introduction-cross-application-traces/) (CAT) will now be deprecated and will be removed in a future version of the agent. Customers on CAT will now see distributed traces instead. Customers who would like to revert back to CAT can do so in the configuration file by setting `cross_application_tracer.enabled = true`. It is however recommended to stay using distributed tracing, given that CAT will be removed in the future.
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
