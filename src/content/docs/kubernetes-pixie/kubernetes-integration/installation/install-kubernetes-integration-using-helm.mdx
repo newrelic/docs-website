@@ -1,0 +1,344 @@
+---
+title: Install the Kubernetes integration manually using Helm
+tags:
+  - Integrations
+  - Kubernetes integration
+  - Installation
+metaDescription: How to install the K8 integration manually using Helm.
+redirects:
+  - /docs/integrations/kubernetes-integration/installation/install-kubernetes-integration-using-helm
+---
+
+[Helm](https://helm.sh/) is a package manager on top of Kubernetes. It facilitates installation, upgrades, or revision tracking, and it manages dependencies for the services that you install in Kubernetes.
+
+To install the integration using Helm, we recommend our Kubernetes automated installer, which will prompt for almost all configuration options and autopopulate secrets and values for you. Additionally, our automated installer also allows to install our integration as plain manifests rather than a Helm release. See [Kubernetes integration: install and configure](docs/integrations/kubernetes-integration/installation/kubernetes-integration-install-configure/) for more details about how to use our automated installer.
+
+<ButtonLink
+    role="button"
+    to="https://one.newrelic.com/launcher/nr1-core.settings?pane=eyJuZXJkbGV0SWQiOiJrOHMtY2x1c3Rlci1leHBsb3Jlci1uZXJkbGV0Lms4cy1zZXR1cCJ9"
+    variant="primary"
+>
+  Start the installer
+</ButtonLink>
+
+This page describes in more depth how to install and configure the New Relic integration without using the automated installer.
+
+## Compatibility and requirements [#compatibility]
+
+Make sure [Helm](https://github.com/helm/helm#install) is installed on your machine. We strongly recommend using Helm 3 to manage the Kubernetes integration. Our charts are also compatible with Helm 2, but support for it might be removed in the future.
+
+To install the Kubernetes integration using Helm, you will need your New Relic account license key and your Kubernetes cluster's name:
+
+1. Find and copy your [New Relic license key](/docs/accounts/install-new-relic/account-setup/license-key).
+2. Find the name of your cluster with this command:
+
+```
+kubectl config current-context
+```
+
+Note this values somewhere safe as you will need them later during the installation process.
+
+## Install Kubernetes integration with Helm [#install-k8-helm]
+
+### Install with Helm 3 and nri-bundle (recommended)
+New Relic has several charts for the different components which offer different features for the platform:
+
+- [`newrelic-infrastructure`](https://github.com/newrelic/helm-charts/tree/master/charts/newrelic-infrastructure): Contains the main Kubernetes integration and the infrastructure agent. This is the core component for the New Relic Kubernetes experience, responsible of reporting most of the data that is surfaced in dashboard and the Kubernetes Cluster Explorer.
+- [`newrelic-logging`](https://github.com/newrelic/helm-charts/tree/master/charts/newrelic-logging): Provides a DaemonSet with New Relic's [Fluent Bit](https://fluentbit.io/) output [plugin](https://github.com/newrelic/newrelic-fluent-bit-output) to easily forward your logs to [New Relic](https://docs.newrelic.com/docs/logs/new-relic-logs/get-started/introduction-new-relic-logs).
+- [`nri-kube-events`](https://github.com/newrelic/helm-charts/tree/master/charts/nri-kube-events): Collects and reports cluster events (such as `kubectl get events`) to New Relic.
+- [`nri-prometheus`](https://github.com/newrelic/helm-charts/tree/master/charts/nri-prometheus): New Relic's Prometheus OpenMetrics Integration, automatically scrapes Prometheus endpoints present in the cluser and [reports metrics to New Relic](https://docs.newrelic.com/docs/integrations/prometheus-integrations/get-started/send-prometheus-metric-data-new-relic#OpenMetrics).
+- [`nri-metadata-injection`](https://github.com/newrelic/helm-charts/tree/master/charts/nri-metadata-injection): Sets up a minimal `MutatingAdmissionWebhook` that injects a couple of environment to containers. These contain metadata about the cluster and New Relic installation and will be later picked up by applications instrumented using APM, allowing to [correlate APM and infrastructure data](/docs/integrations/kubernetes-integration/link-your-applications/link-your-applications-kubernetes/).
+- [`nri-statsd`](https://github.com/newrelic/helm-charts/tree/master/charts/nri-statsd): New Relic StatsD
+integration.
+
+
+Additionally, New Relic provides [`nri-bundle`](https://github.com/newrelic/helm-charts/tree/master/charts/nri-bundle), a chart which pulls a selectable set of the charts mentioned above. `nri-bundle` can also install Kube State Metrics and Pixie for you if needed.
+
+While it is possible to install those charts separately, we strongly recommend using the [`nri-bundle`](https://github.com/newrelic/helm-charts/tree/master/charts/nri-bundle) chart for Kubernetes deployments, as it ensures that values across all the charts are consistent and provides full control over which components are installed, as well as the possibility to configure all of them as [Helm dependencies](https://helm.sh/docs/chart_template_guide/subcharts_and_globals/#overriding-values-from-a-parent-chart). This is the same chart that is used and referenced by our automated installer.
+
+#### Installing and configuring `nri-bundle` with Helm
+
+1. Ensure you are using the appropriate context in the machine where you will run Helm and `kubectl`:
+
+You can check the available contexts with:
+
+```
+kubectl config get-contexts
+```
+
+And switch to the desired context using:
+
+```
+kubectl config use-context <var>CONTEXT_NAME</var>
+```
+
+2. Add the New Relic Helm charts repo:
+
+```
+helm repo add newrelic https://helm-charts.newrelic.com
+```
+
+3. Make sure everything is configured properly in the chart by running the following command. Notice that we are specifying `--dry-run` and `--debug`, so nothing will be installed in this step:
+
+```
+helm upgrade --install <mark>newrelic</mark> newrelic/nri-bundle \
+--dry-run \
+--debug \
+--namespace <mark>newrelic</mark> --create-namespace \
+--set global.licenseKey=<var>YOUR_NEW_RELIC_LICENSE_KEY</var> \
+--set global.cluster=<var>K8S_CLUSTER_NAME</var> \
+--set ksm.enabled=<mark>true</mark> \
+--set newrelic-infrastructure.privileged=<mark>true</mark> \
+--set infrastructure.enabled=true \
+--set prometheus.enabled=true \
+--set webhook.enabled=true \
+--set kubeEvents.enabled=true \
+--set logging.enabled=true
+```
+
+Please notice and adjust the following flags:
+- `global.licenseKey=<var>YOUR_NEW_RELIC_LICENSE_KEY</var>`: Must be set to a valid License Key for your account.
+- `global.cluster=<var>K8S_CLUSTER_NAME</var>`: Is used to identify the cluster in the New Relic UI, so should be a descriptive value not used by any other Kubernetes cluster configured in your New Relic account.
+- `ksm.enabled=<mark>true</mark>`: Setting this to `true` will automatically install Kube State Metrics (KSM) for you, which is required for our integration to run. You can set this to false if KSM is already present in your cluster, even if it is on a different namespace.
+- `newrelic-infrastructure.privileged=<mark>true</mark>`: Can be set to `false` to install a trimmed down version of our integration that does not require extra privileges, such as `hostPath` mounts or running containers as root.
+  - Please note that this will disable detailed process collection from the host.
+  - For performance reasons, our logging solution still requires `hostPath` mounts, regardless of the value of this flag. If this is not allowedin your cluster, you will need to disable the logging solution by specifying `logging.enabled=false`.
+- `prometheus.enabled=true`: Will deploy our Prometheus OpenMetrics integration, which automatically collects data from prometheus endpoints present in the cluster.
+- `webhook.enabled=true`: Will install our minimal webhook, which adds environment variables that, in turn, allows linking applications instrumented with APM with infrastructure data.
+
+Our chart has a comprehensive set of flags and tunables that can be edited to configure our solution to your particular needs. For a full list of all the flags that can be configured, please check [the chart's README](https://github.com/newrelic/helm-charts/tree/master/charts/nri-bundle) and the default [`values.yaml`](https://github.com/newrelic/helm-charts/blob/master/charts/nri-bundle/values.yaml) file.
+
+4. Install the Kubernetes integration by running the customized command without `--debug` and `--dry-run`:
+
+```
+helm upgrade --install <var>newrelic</var> newrelic/nri-bundle \
+--namespace <mark>newrelic</mark> --create-namespace \
+--set global.licenseKey=<var>YOUR_NEW_RELIC_LICENSE_KEY</var> \
+--set global.cluster=<var>K8S_CLUSTER_NAME</var> \
+--set ksm.enabled=<mark>true</mark> \
+--set newrelic-infrastructure.privileged=<mark>true</mark> \
+--set infrastructure.enabled=true \
+--set prometheus.enabled=true \
+--set webhook.enabled=true \
+--set kubeEvents.enabled=true \
+--set logging.enabled=true
+```
+
+5. Wait a few seconds, then check that the `DaemonSet` and pods have been created:
+
+```
+kubectl -n <mark>newrelic</mark> get daemonsets,pods
+```
+
+6. Make sure you see a `DaemonSet`, and one pod per node for `newrelic-infrastructure`, as well as one `Deployment`
+and one pod for any other component that you have enabled.
+
+### Install with Helm 2 and nri-bundle (legacy)
+
+<CollapserGroup>
+  <Collapser
+      className="freq-link"
+      id="install-helm2"
+      title="Installation instructions for Helm 2"
+  >
+    <Callout variant="important">
+      Helm 2 has been deprecated and New Relic does not recommend using it for deployments. Instructions in this section
+      are provided for legacy systems only.
+    </Callout>
+
+    To install using Helm 2:
+
+    1. Ensure that Helm 2, including their cluster-side components (i.e. Tiller) are properly installed and configured.
+    Please check the [official documentation](https://v2.helm.sh/docs/using_helm/) for more details.
+
+    2. Set the cluster where you want to install the agent:
+
+    ```
+    kubectl config set-cluster <var>DESIRED_CLUSTER</var>
+    ```
+
+    To see the available clusters, run `kubectl config get-clusters`
+
+    3. Make sure that `kube-state-metrics` is installed on your machine:
+
+    ```
+    kubectl get deployment --all-namespaces | grep kube-state-metrics
+    ```
+
+    If it's not installed, follow the [instructions in the kube-state-metrics GitHub
+    repo](https://github.com/kubernetes/kube-state-metrics#kubernetes-deployment) to install it.
+
+    4. Add the New Relic Helm charts repo:
+
+    ```
+    helm repo add newrelic https://helm-charts.newrelic.com
+    ```
+
+    5. Make sure everything is configured properly in the chart by running the following command. This step uses the
+    `--dry-run` and `--debug` switches and therefore the agent is not installed.
+
+    ```
+    helm install newrelic/newrelic-infrastructure \
+    --dry-run \
+    --debug \
+    --set licenseKey=<var>YOUR_NEW_RELIC_LICENSE_KEY</var> \
+    --set cluster=<var>K8S_CLUSTER_NAME</var> \
+    --set config.custom_attributes.cluster=<var>K8S_CLUSTER_NAME</var>
+    ```
+
+    6. Install the New Relic Kubernetes integration:
+
+    ```
+    helm install newrelic/newrelic-infrastructure \
+    --set licenseKey=<var>your_new_relic_license_key</var> \
+    --set cluster=<var>K8S_CLUSTER_NAME</var> \
+    --set config.custom_attributes.cluster=<var>K8S_CLUSTER_NAME</var>
+    ```
+
+    <Callout variant="tip">
+      Note that the `--dry-run` and `--debug` switches have been removed.
+    </Callout>
+
+    7. Wait a few seconds, then check that the `DaemonSet` and pods have been created:
+
+    ```
+    kubectl get daemonsets,pods
+    ```
+
+    8. Make sure you see a `DaemonSet`, and one pod per node.
+
+    ### Helm configuration options [#config-options]
+
+    When you install or upgrade the Kubernetes integration with Helm using the command line, you can pass your
+    configuration variables with the `--set` flag.
+
+    ```
+    helm install newrelic/newrelic-infrastructure \
+    --set licenseKey=<var>YOUR_NEW_RELIC_LICENSE_KEY</var> \
+    --set cluster=<var>YOUR_CLUSTER_NAME</var>
+    ```
+
+    A full list of the configuration parameters can be found in the [`newrelic-infrastructure` chart
+    README](https://github.com/newrelic/helm-charts/tree/master/charts/newrelic-infrastructure)
+
+  </Collapser>
+</CollapserGroup>
+
+## Upgrade using Helm [#upgrade]
+
+To update your Kubernetes integration installed via Helm:
+
+1. Update the local chart repository:
+
+```
+helm repo update
+```
+
+2. Update the release by running again the appropriate `helm upgrade --install ...` command in the section above.
+
+## Monitor services running on Kubernetes [#services]
+
+After having installed our Kubernetes integration, you can start instrumenting the services than run in your cluster. To learn more about how to do this, please check our [Monitor services running on Kubernetes](/docs/integrations/kubernetes-integration/link-apps-services/monitor-services-running-kubernetes/#monitor-services-helm) page.
+
+## Use your Kubernetes data
+
+To learn more about how to use your Kubernetes data, please head to our detailed [Find and use your Kubernetes data](/docs/integrations/kubernetes-integration/understand-use-data/) pages.
+
+## Reduce data ingest [#reducedataingest]
+
+Our charts support setting an option to reduce the amount of data ingest at the cost of dropping detailed information. To enable it, set `global.lowDataMode=true` in the `nri-bundle` chart. 
+
+`lowDataMode` affects three specific components of the `nri-bundle` chart outlined below.
+
+### Prometheus OpenMetrics Integration
+
+If `lowDataMode` is enabled, the following metrics are excluded by default as they are already collected and used by the [New Relic Kubernetes Integration](https://docs.newrelic.com/docs/integrations/kubernetes-integration/understand-use-data/find-use-your-kubernetes-data/#event-types).
+
+```
+- kube_
+- container_
+- machine_
+- cadvisor_
+```
+
+### New Relic Logging
+
+If `lowDataMode` is enabled, Labels and Annotations are set to `Off` in the [Filter section](https://github.com/newrelic/helm-charts/blob/master/charts/newrelic-logging/templates/configmap.yaml#L38-L39) of the fluent-bit.conf file.  This means that this detail will be dropped from the container log files which reduces the overall data ingest into New Relic.
+
+The following fields are retained:
+
+```
+Allowlist_key  container_name
+Allowlist_key  namespace_name
+Allowlist_key  pod_name
+Allowlist_key  stream
+Allowlist_key  log
+```
+
+**Low Data Mode Log Example**
+
+Complete Log Record
+```
+[
+  {
+    "cluster_name": "api-test",
+    "kubernetes": {
+      "annotations": {
+        "kubernetes.io/psp": "eks.privileged"
+      },
+      "container_hash": "fryckbos/test@sha256:5b098eaf3c7d5b3585eb10cebee63665b6208bea31ef31a3f0856c5ffdda644b",
+      "container_image": "fryckbos/test:latest",
+      "container_name": "newrelic-logging",
+      "docker_id": "134e1daf63761baa15e035b08b7aea04518a0f0e50af4215131a50c6a379a072",
+      "host": "ip-192-168-17-123.ec2.internal",
+      "labels": {
+        "app": "newrelic-logging",
+        "app.kubernetes.io/name": "newrelic-logging",
+        "controller-revision-hash": "84db95db86",
+        "pod-template-generation": "1",
+        "release": "nri-bundle"
+      },
+      "namespace_name": "nrlogs",
+      "pod_id": "54556e3e-719c-46b5-af69-020b75d69bf1",
+      "pod_name": "nri-bundle-newrelic-logging-jxnbj"
+    },
+    "message": "[2021/09/14 12:30:49] [ info] [engine] started (pid=1)\n",
+    "plugin": {
+      "source": "kubernetes",
+      "type": "fluent-bit",
+      "version": "1.8.1"
+    },
+    "stream": "stderr",
+    "time": "2021-09-14T12:30:49.138824971Z",
+    "timestamp": 1631622649138
+  }
+]
+```
+
+Log Record after enabling `lowDataMode`.
+```
+[
+  {
+    "cluster_name": "api-test",
+    "container_name": "newrelic-logging",
+    "namespace_name": "nrlogs",
+    "pod_name": "nri-bundle-newrelic-logging-jxnbj",
+    "message": "[2021/09/14 12:30:49] [ info] [engine] started (pid=1)\n",
+    "stream": "stderr",
+    "timestamp": 1631622649138
+  }
+]
+```
+
+### New Relic Pixie Integration
+
+If `lowDataMode` is enabled, the `newrelic-pixie` integration performs heavier sampling on Pixie spans and reduces the collection interval from 10 seconds to 15 seconds.
+
+`lowDataMode` settings:
+```
+HTTP_SPAN_LIMIT: 750
+DB_SPAN_LIMIT: 250
+COLLECT_INTERVAL_SEC: 15
+```
+
+The default settings for these parameters and others can be found in the [newrelic-pixie-integration](https://github.com/newrelic/newrelic-pixie-integration) Github repo.
