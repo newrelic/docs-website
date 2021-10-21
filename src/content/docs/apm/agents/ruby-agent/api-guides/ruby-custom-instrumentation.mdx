@@ -1,0 +1,228 @@
+---
+title: Ruby custom instrumentation
+tags:
+  - Agents
+  - Ruby agent
+  - API guides
+translate:
+  - jp
+metaDescription: 'For information about customizing New Relic''s Ruby agent API to collect additional metrics, start here.'
+redirects:
+  - /docs/agents/ruby-agent/api-guides/ruby-custom-instrumentation
+  - /docs/ruby/ruby-custom-instrumentation
+  - /docs/agents/ruby-agent/features/ruby-custom-instrumentation
+  - /docs/agents/ruby-agent/customization/ruby-custom-instrumentation
+  - /docs/agents/ruby-agent/customization
+---
+
+The New Relic Ruby agent automatically collects many metrics. It also includes an API you can use to collect additional metrics about your application. If you see large **Application Code** segments in transaction trace details, custom instrumentation can give a more complete picture of what is going on in your application.
+
+<Callout variant="tip">
+  Collecting too many metrics can impact the performance of your application and New Relic. To avoid data problems, keep the total number of unique metrics introduced by custom instrumentation under 2000.
+</Callout>
+
+## Method tracers [#method_tracers]
+
+The easiest way to capture custom instrumentation is by tracing calls to a particular method. Tracing a method as described below will insert an additional node in your transaction traces for each invocation of that method, providing greater detail about where time is going in your transactions.
+
+Method tracers are software probes you can put on a method of any class. The probes use alias method chaining to insert themselves when the target methods execute and gather custom instrumentation on their performance.
+
+## Tracing in class definitions [#tracing-classes]
+
+Method tracers can be used within normal class definitions, as long as the target method has been defined first:
+
+```
+require 'new_relic/agent/method_tracer'
+class Foo
+  include ::NewRelic::Agent::MethodTracer
+
+  def generate_image
+    ...
+  end
+
+  add_method_tracer :generate_image, 'Custom/generate_image'
+end
+```
+
+To instrument a class method, add the method tracer in the class singleton:
+
+```
+require 'new_relic/agent/method_tracer'
+class Foo
+  def self.generate_image
+     ...
+  end
+
+  class << self
+    include ::NewRelic::Agent::MethodTracer
+
+    add_method_tracer :generate_image, 'Custom/generate_image'
+  end
+end
+```
+
+`add_method_tracer` takes an optional metric name and a hash of options. For more information, see [add_method_tracer in the New Relic RubyDoc](http://rubydoc.info/github/newrelic/newrelic-ruby-agent/NewRelic/Agent/MethodTracer/ClassMethods#add_method_tracer-instance_method) .
+
+## Tracing initializers
+
+For Rails, a common way to add instrumentation is to create an initializer and "monkey patch" the instrumentation directives.
+
+For example, to add a method tracer to `MyCache#get`:
+
+1. Make sure the MyCache class is loaded before adding the method tracer.
+2. Add the following in a file named **config/initializers/rpm_instrumentation.rb**:
+
+```
+require 'new_relic/agent/method_tracer'
+
+MyCache.class_eval do
+  include ::NewRelic::Agent::MethodTracer
+
+  add_method_tracer :get
+end
+```
+
+## Tracing blocks of code [#tracing-blocks]
+
+Sometimes a single method is so complex that tracking overall time doesn't give enough detail. In these cases, you can wrap a block of code with a tracer. Call `trace_execution_scoped` passing the code to trace as a block:
+
+```
+extend ::NewRelic::Agent::MethodTracer
+
+def slow_action
+  self.class.trace_execution_scoped(['Custom/slow_action/beginning_work']) do
+    # do stuff and report execution time with a custom metric name
+  end
+
+  # more stuff, whose time will be "blamed" to slow_action
+end
+```
+
+For more information, see [add_method_tracer in the New Relic RubyDoc](http://www.rubydoc.info/github/newrelic/newrelic-ruby-agent/NewRelic/Agent/MethodTracer#trace_execution_scoped-instance_method) .
+
+## Naming transactions
+
+Instrumented transactions are used to determine the throughput and overall response time for your application. The name of the method and the class will be used for the name of the transaction as reported to New Relic. For more information, see [Viewing transaction traces](/docs/traces/viewing-transaction-traces).
+
+Normally the agent automatically chooses the transaction name. If you want to change the name of a transaction while it is still running, use `NewRelic::Agent.set_transaction_name` and the corresponding `NewRelic::Agent.get_transaction_name`.
+
+<Callout variant="important">
+  Do not use brackets `[suffix]` at the end of your transaction name. New Relic automatically strips brackets from the name. Instead, use parentheses `(suffix)` or other symbols if needed.
+</Callout>
+
+This is useful if you want to segment your transaction based on some criteria. For example, if you wanted to vary the transaction name by response format in Rails:
+
+```
+class UsersController
+  def index
+    @users = User.all
+    respond_to do |format|
+      format.html
+      format.json do 
+        NewRelic::Agent.set_transaction_name('Users/index.json')
+        render :json => @users
+      end
+      format.xml do 
+        NewRelic::Agent.set_transaction_name('Users/index.xml')
+        render :xml => @users
+      end
+    end
+  end
+end
+```
+
+Renaming transactions can also be used to segment your requests around some business criteria. For example, you could segment a transaction into "Big Customer" and "Small Customer" with code like this:
+
+```
+class UsersController
+
+  before_filter :segment_new_relic_by_customer_size
+
+  def segment_new_relic_by_customer_size
+    new_relic_name = NewRelic::Agent.get_transaction_name
+    if current_user.big_customer?
+      NewRelic::Agent.set_transaction_name("#{new_relic_name} - big customer")
+    else
+      NewRelic::Agent.set_transaction_name("#{new_relic_name} - small customer")
+    end
+  end
+
+end
+```
+
+## Tracing transaction entry points [#transaction-tracers]
+
+Ordinarily the agent will be able to identify transactions within your application, but if you're not using a supported framework, or if you'd like to record transactions that the agent is not automatically recording, you can define methods as being transaction entry points:
+
+```
+class Controller
+  include NewRelic::Agent::Instrumentation::ControllerInstrumentation
+
+  def transaction
+    # execute a transaction
+  end
+  add_transaction_tracer :transaction
+end
+```
+
+## Instrumenting non-web transactions [#non-web-transactions]
+
+Along with method-level tracing, you can instrument non-web transactions, such as background tasks, with the same level of transaction and error detail as web transactions. For more information, see [Monitoring Ruby background processes and daemons](/docs/ruby/monitoring-ruby-background-processes-and-daemons).
+
+## Advanced custom instrumentation [#advanced-tracing]
+
+When tracing code not automatically instrumented by the agent, the standard [method tracers](/docs/agents/ruby-agent/api-guides/ruby-custom-instrumentation#method_tracers) will usually be enough.
+
+However, sometimes you need to instrument something more complex than a single method call. For example, you may want to instrument a few lines of code within a method, or you may want to start a transaction in one part of your code and finish it elsewhere.
+
+The Tracer module, introduced in agent version 6.0, provides a flexible API that lets you create transactions and segments as well as interact with the current transaction.
+
+### Instrumenting a section of code [#in-transaction]
+
+To instrument a section of code, wrap the code in a block, then pass the block to the `Tracer.in_transaction` method:
+
+```
+require 'new_relic/agent/tracer'
+
+def long_and_complex_process
+  expensive_setup
+
+  Tracer.in_transaction(partial_name: 'Complex/process',
+                        category:     :task) do
+    code_to_be_instrumented
+  end
+  
+  expensive_teardown
+end
+```
+
+The agent will ensure that a transaction exists, and will create a segment within it for the code inside the block.
+
+### Starting a transaction or segment [#start-transaction-or-segment]
+
+If you need to start a transaction at one location in your code but finish it in another (as can happen with callback-based events), call `Tracer.start_transaction_or_segment`. You **must** call `finish` on the return value of this method:
+
+```
+require 'new_relic/agent/tracer'
+
+class MyEventWatcher
+  def event_started
+    @transaction = Tracer.start_transaction_or_segment(
+      partial_name: 'MyEventWatcher/my_event',
+      category:     :task)
+  end
+  
+  def event_completed
+    @transaction.finish
+  end
+end
+```
+
+For more information, see [Tracer in the New Relic RubyDoc](http://rubydoc.info/github/newrelic/newrelic-ruby-agent/NewRelic/Agent/Tracer/).
+
+## For more help [#more_help]
+
+Additional documentation resources include:
+
+* [Custom instrumentation](/docs/features/custom-instrumentation) (Overview of custom instrumentation)
+* [Ruby custom metrics](/docs/ruby/ruby-custom-metrics) (Use an API call to record arbitrary metrics)
