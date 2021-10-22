@@ -1,0 +1,407 @@
+---
+title: Configure control plane monitoring
+tags:
+  - Integrations
+  - Kubernetes integration
+  - Installation
+metaDescription: How to configure control plane monitoring for your Kubernetes integration with New Relic.
+redirects:
+  - /docs/integrations/kubernetes-integration/installation/configure-control-plane-monitoring
+---
+
+[New Relic](/docs/infrastructure/new-relic-infrastructure/getting-started/introduction-new-relic-infrastructure) provides [Control Plane](http://kubernetes.io/docs/concepts/#kubernetes-control-plane) support for your Kubernetes integration, allowing you to monitor and collect metrics from your cluster's Control Plane components. That data can then be found in New Relic and used to [create queries and charts](/docs/using-new-relic/data/understand-data/query-new-relic-data).
+
+## Features [#control-plane-integration-features]
+
+We monitor and collect [metrics](http://docs.newrelic.com/docs/integrations/kubernetes-integration/understand-use-data/understand-use-data#metrics) from the following control plane components:
+
+* **ETCD**: leader information, resident memory size, number of OS threads, consensus proposals data, etc. For a list of supported metrics, see [ETCD data](/docs/integrations/kubernetes-integration/understand-use-data/understand-use-data#etcd-data).
+* **API server**: rate of `apiserver` requests, breakdown of `apiserver` requests by HTTP method and response code, etc. For the complete list of supported metrics, see [API server data](/docs/integrations/kubernetes-integration/understand-use-data/understand-use-data#api-server-data).
+* **Scheduler**: requested CPU/memory vs available on the node, tolerations to taints, any set affinity or anti-affinity, etc. For the complete list of supported metrics, see [Scheduler data](/docs/integrations/kubernetes-integration/understand-use-data/understand-use-data#scheduler-data).
+* **Controller manager**: resident memory size, number of OS threads created, goroutines currently existing, etc. For the complete list of supported metrics, see [Controller manager data](/docs/integrations/kubernetes-integration/understand-use-data/understand-use-data#controller-manager-data).
+
+## Compatibility and requirements [#compatibility]
+
+* Control plane monitoring requires [Kubernetes integration version 1.11.0 or higher](/docs/release-notes/platform-release-notes/host-integrations-release-notes/new-relic-integration-kubernetes-1110).
+* Control plane monitoring support is not enabled for managed clusters. This is because providers (EKS, GKE, AKS, etc.) abstract away the concept of master nodes and control plane components, so that access to them is limited or non-existent.
+* External control planes are not supported.
+* The [unprivileged version of the Kubernetes integration](/docs/integrations/kubernetes-integration/installation/kubernetes-installation-configuration#unprivileged) does not support control plane monitoring.
+* [OpenShift](http://learn.openshift.com/?extIdCarryOver=true&sc_cid=701f2000001OH7iAAG) 4.x uses control plane component metric endpoints that are different than the default.
+
+## Discovery of master nodes and control plane components [#discover-nodes-components]
+
+The Kubernetes integration relies on the [kubeadm](https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/create-cluster-kubeadm/) labeling conventions to discover the master nodes and the control plane components. This means that master nodes should be labeled with `node-role.kubernetes.io/master=""` or `kubernetes.io/role="master"`.
+
+The control plane components should have either the `k8s-app` or the `tier` and `component` labels. Refer to the following table for accepted label combinations and values:
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "110px" }}>
+        Component
+      </th>
+
+      <th>
+        Label
+      </th>
+
+      <th style={{ width: "200px" }}>
+        Endpoint
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        API server
+      </td>
+
+      <td>
+        **Kubeadm / Kops / ClusterAPI**
+
+        `k8s-app=kube-apiserver`
+
+        `tier=control-plane component=kube-apiserver`
+
+        **OpenShift**
+
+        `app=openshift-kube-apiserver apiserver=true`
+      </td>
+
+      <td>
+        `localhost:443/metrics` by default (can be configured) if the request fails falls back to `localhost:8080/metrics`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        ETCD
+      </td>
+
+      <td>
+        **Kubeadm / Kops / ClusterAPI**
+
+        `k8s-app=etcd-manager-main`
+
+        `tier=control-plane component=etcd`
+
+        **OpenShift**
+
+        `k8s-app=etcd`
+      </td>
+
+      <td>
+        `localhost:4001/metrics`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Scheduler
+      </td>
+
+      <td>
+        **Kubeadm / Kops / ClusterAPI**
+
+        `k8s-app=kube-scheduler`
+
+        `tier=control-plane component=kube-scheduler`
+
+        **OpenShift**
+
+        `app=openshift-kube-scheduler scheduler=true`
+      </td>
+
+      <td>
+        `localhost:10251/metrics`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Controller manager
+      </td>
+
+      <td>
+        **Kubeadm / Kops / ClusterAPI**
+
+        `k8s-app=kube-controller-manager`
+
+        `tier=control-plane component=kube-controller-manager​`
+
+        **OpenShift**
+
+        `app=kube-controller-manager kube-controller-manager=true`
+      </td>
+
+      <td>
+        `localhost:10252/metrics`
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+When the integration detects that it is running inside a master node, it tries to find which components are running on the node by looking for pods that match the labels listed in the table above. For every running component, the integration makes a request to its metrics endpoint.
+
+## Configuration
+
+Control plane monitoring is automatic for agents running inside master nodes. The only component that requires an extra step to run is ETCD, because it uses mutual TLS authentication (mTLS) for client requests. The API Server can also be configured to be queried using the [Secure Port](https://kubernetes.io/docs/reference/access-authn-authz/controlling-access/#api-server-ports-and-ips).
+
+<Callout variant="important">
+  Control plane monitoring for [OpenShift](http://learn.openshift.com/?extIdCarryOver=true&sc_cid=701f2000001OH7iAAG) 4.x requires additional configuration. For more information, see the [OpenShift 4.x Configuration](#openshift-4x-configuration) section.
+</Callout>
+
+### ETCD
+
+In order to set mTLS for querying ETCD, there are two configuration options that need to be set:
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "280px" }}>
+        Option
+      </th>
+
+      <th>
+        Value
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `ETCD_TLS_SECRET_NAME`
+      </td>
+
+      <td>
+        Name of a Kubernetes secret that contains the mTLS configuration.
+
+        The secret should contain the following keys:
+
+        * `cert`: the certificate that identifies the client making the request. It should be signed by an ETCD trusted CA.
+        * `key`: the private key used to generate the client certificate.
+        * `cacert`: the root CA used to identify the ETCD server certificate.
+
+        If the `ETCD_TLS_SECRET_NAME` option is not set, ETCD metrics won't be fetched.
+
+        For step by step instructions on how to create a certificate and sign it with the ETCD client CA, see [Set up mTLS from the ETCD client CA](#mtls-how-to).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `ETCD_TLS_SECRET_NAMESPACE`
+      </td>
+
+      <td>
+        The namespace where the secret specified in the `ETCD_TLS_SECRET_NAME` was created. If not set, the `default` namespace is used.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+### API server
+
+By default, the API server metrics are queried using the `localhost:8080` unsecured endpoint. If this port is disabled, you can also query these metrics over the secure port. To enable this, set the following configuration option in the Kubernetes integration manifest file:
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "250px" }}>
+        Option
+      </th>
+
+      <th>
+        Value
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `API_SERVER_ENDPOINT_URL`
+      </td>
+
+      <td>
+        The (secure) URL to query the metrics. The API server uses `localhost:443` by default
+
+        Ensure that the `ClusterRole` has been updated to the newest version found in the manifest
+
+        Added in version 1.15.0
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<Callout variant="important">
+  Note that the port can be different according to the secure port used by the API server.
+
+  For example, in Minikube the API server secure port is 8443 and therefore `API_SERVER_ENDPOINT_URL` should be set to `https://localhost:8443`
+</Callout>
+
+## OpenShift configuration [#openshift-4x-configuration]
+
+Control plane components on [OpenShift](http://learn.openshift.com/?extIdCarryOver=true&sc_cid=701f2000001OH7iAAG) 4.x use endpoint URLs that require SSL and service account based authentication. Therefore, [the default](/docs/integrations/kubernetes-integration/installation/configure-control-plane-monitoring#discover-nodes-components) endpoint URLs can not be used.
+
+To configure control plane monitoring on OpenShift, uncomment the following environment variables in the [customized manifest](/docs/integrations/kubernetes-integration/installation/kubernetes-integration-install-configure#customized-manifest). URL values are pre-configured to the default base URLs for the control plane monitoring metrics endpoints in [OpenShift](http://learn.openshift.com/?extIdCarryOver=true&sc_cid=701f2000001OH7iAAG) 4.x.
+
+```
+- name: "SCHEDULER_ENDPOINT_URL"
+  value: "https://localhost:10259
+- name: "ETCD_ENDPOINT_URL"
+  value: "https://localhost:9979"
+- name: "CONTROLLER_MANAGER_ENDPOINT_URL"
+  value: "https://localhost:10257"
+- name: "API_SERVER_ENDPOINT_URL"
+  value: "https://localhost:6443"
+```
+
+<Callout variant="important">
+  Even though the custom `ETCD_ENDPOINT_URL` is defined, ETCD requires HTTPS and mTLS authentication to be configured. For more on configuring mTLS for ETCD in OpenShift, see [Set up mTLS for ETCD in OpenShift](#mtls-how-to-openshift).
+</Callout>
+
+<Callout variant="important">
+  When installing through Helm `openshift`, specify the config to automatically include these endpoints. Setting `openshift.enabled=true` and `openshift.version="4.x"` will include the secure endpoints and enable the `/var/run/crio.sock` runtime.
+</Callout>
+
+## Set up mTLS from the ETCD client CA [#mtls-how-to]
+
+The instructions below are based on the Kubernetes documentation. For more information, see [Managing TLS certificates in a cluster](https://kubernetes.io/docs/tasks/tls/managing-tls-in-a-cluster). For OpenShift, see [Set up mTLS for ETCD in OpenShift](#mtls-how-to-openshift).
+
+To set up mTLS from the ETCD client CA:
+
+1. Download and install the tool [cfssl](https://pkg.cfssl.org/), selecting the correct binaries for your OS from the list.
+2. Once installed, execute the following command:
+
+   ```
+   cat <<EOF | cfssl genkey - | cfssljson -bare server
+   {
+       "hosts": [
+           "localhost"
+       ],
+       "CN": "newrelic-infra.pod.cluster.local",
+       "key": {
+           "algo": "ecdsa",
+           "size": 256
+       }
+   }
+   EOF
+   ```
+
+   This command generates two files; `server.csr` containing the PEM encoded pkcs#10 certification request and `server-key.pem` containing the PEM encoded key to the certificate to be created.
+3. Use the generated certificate authority (CA) of ETCD to sign your CSR. Depending on your cluster configuration, you may already have this information. For default install configuration, download the CA certificate and the private key directly from ETCD with the following commands:
+
+   ```
+   kubectl cp $(kubectl get pods -l k8s-app=etcd-manager-main -n kube-system -o jsonpath="{.items[0].metadata.name}"):/etc/kubernetes/pki/etcd-manager/etcd-clients-ca.crt ./cacert -n kube-system
+   kubectl cp $(kubectl get pods -l k8s-app=etcd-manager-main -n kube-system -o jsonpath="{.items[0].metadata.name}"):/etc/kubernetes/pki/etcd-manager/etcd-clients-ca.key ./cacert.key -n kube-system
+   ```
+
+   <Callout variant="tip">
+     This requires that the `etcd-manager-main` pod has the label `k8s-app=etcd-manager-main`, which is a [requirement for control plane monitoring](#compatibility) . If your `etc-manager-main` pod is located in a different namespace, change the `-n kube-system` flags accordingly.
+   </Callout>
+4. With those files downloaded, use the following command to sign your CSRF:
+
+   ```
+   cfssl sign -ca cacert -ca-key cacert.key server.csr | cfssljson -bare cert
+   ```
+5. Create the secret that is used to retrieve the TLS config for making requests to ETC. We recommend renaming the certificate and the private key:
+
+   ```
+   cp cert.pem cert && cp server-key.pem key
+   ```
+
+   ```
+   kubectl -n default create secret generic newrelic-infra-etcd-tls-secret --from-file=./cert --from-file=./key --from-file=./cacert
+   ```
+
+   <CollapserGroup>
+     <Collapser
+       id="future-installations-snippet"
+       title="To ease future installations"
+     >
+       Use the following commands to simultaneously create the CSR, retrieve the CA, generate the certificate by signing the CSR, and create the secret with all the required fields:
+
+       ```
+       cat <<EOF | cfssl genkey - | cfssljson -bare server && \
+           kubectl cp $(kubectl get pods -l k8s-app=etcd-manager-main -n kube-system -o jsonpath="{.items[0].metadata.name}"):/etc/kubernetes/pki/etcd-manager/etcd-clients-ca.crt ./cacert -n kube-system && \
+           kubectl cp $(kubectl get pods -l k8s-app=etcd-manager-main -n kube-system -o jsonpath="{.items[0].metadata.name}"):/etc/kubernetes/pki/etcd-manager/etcd-clients-ca.key ./cacert.key -n kube-system && \
+           cp server-key.pem key && \
+           cfssl sign -ca cacert -ca-key cacert.key server.csr | cfssljson -bare cert && \
+           cp cert.pem cert && \
+           kubectl -n default create secret generic newrelic-infra-etcd-tls-secret --from-file=./cert --from-file=./key --from-file=./cacert
+           {
+               "hosts": [
+               "localhost"
+               ],
+               "CN": "newrelic-infra.pod.cluster.local",
+               "key": {
+                   "algo": "ecdsa",
+                   "size": 256
+               }
+           }
+           EOF
+       ```
+     </Collapser>
+   </CollapserGroup>
+6. The last step is to update the configuration in the manifest and apply it. In the configuration section, there are two options related to ETCD mTLS:
+
+   * `ETCD_TLS_SECRET_NAME` with the name of the secret that we just created.
+   * `ETCD_TLS_SECRET_NAMESPACE` with the namespace that we used to create the secret.
+
+   To complete the installation, add these variables to the container spec of the integration `DaemonSet` and apply the changes:
+
+   ```
+   - name: "ETCD_TLS_SECRET_NAME”
+       value: "newrelic-infra-etcd-tls-secret"
+   - name: "ETCD_TLS_SECRET_NAMESPACE"
+       value: "default"
+   ```
+
+## Set up mTLS for ETCD in OpenShift [#mtls-how-to-openshift]
+
+Follow these instructions to set up mutual TLS authentication for ETCD in [OpenShift](http://learn.openshift.com/?extIdCarryOver=true&sc_cid=701f2000001OH7iAAG) 4.x:
+
+1. Export the ETCD client certificates from the cluster to an opaque secret. In a default managed OpenShift cluster, the secret is named `kube-etcd-client-certs` and it is stored in the `openshift-monitoring` namespace.
+
+   ```
+   kubectl get secret/kube-etcd-client-certs -n openshift-monitoring -o yaml > etcd-secret.yaml
+   ```
+2. Open the secret file and change the keys:
+   * Rename the **certificate authority** to `cacert`.
+   * Rename the **client certificate** to `cert`.
+   * Rename the **client key** to `key`.
+3. Optional: change the secret name and namespace to something meaningful.
+4. Remove these unnecessary keys in the metadata section:
+   * `creationTimestamp`
+   * `resourceVersion`
+   * `selfLink`
+   * `uid`
+5. Install the manifest with its new name and namespace:
+
+   ```
+   kubectl apply -f etcd-secret.yaml
+   ```
+6. Go to [Update manifest configuration](#update-config) (the last step under [Set up MTL from ETCD client](#mtls-how-to)) to configure the required environment variables.
+
+## See your data [#check-integration-works]
+
+If the integration has been been set up correctly, the [Kubernetes cluster explorer](/docs/integrations/kubernetes-integration/cluster-explorer/kubernetes-cluster-explorer) contains all the Control Plane components and their status in a dedicated section, as shown below.
+
+![New Relic One - Kubernetes Cluster Explorer - Control Plane section](./images/new-relic-one-k8s-cluster-explorer-control-plane-parameters.png "new-relic-one-k8s-cluster-explorer-control-plane-parameters.png")
+
+<figcaption>
+  **[one.newrelic.com](https://one.newrelic.com) > Kubernetes Cluster Explorer**: Use the Kubernetes cluster explorer to monitor and collect metrics from your cluster's Control Plane components
+</figcaption>
+
+You can also check for Control Plane data with this [NRQL](/docs/query-data/nrql-new-relic-query-language/getting-started/introduction-nrql) query:
+
+```
+SELECT latest(timestamp) FROM K8sApiServerSample, K8sEtcdSample, K8sSchedulerSample, K8sControllerManagerSample FACET entityName where clusterName = '<var>MY_CLUSTER_NAME</var>'
+```
+
+<Callout variant="tip">
+  If you still can't see Control Plane data, try the solution described in [Kubernetes integration troubleshooting: Not seeing data](/docs/integrations/kubernetes-integration/troubleshooting/kubernetes-integration-troubleshooting-not-seeing-data).
+</Callout>

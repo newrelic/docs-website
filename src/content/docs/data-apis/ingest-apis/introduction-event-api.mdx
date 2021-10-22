@@ -1,0 +1,664 @@
+---
+title: Introduction to the Event API
+tags:
+  - Ingest and manage data
+  - Ingest APIs
+translate:
+  - jp
+metaDescription: "Intro to New Relic's Event API, which lets you send custom event data to your New Relic account."
+redirects:
+  - /docs/telemetry-data-platform/ingest-apis/introduction-event-api
+  - /docs/rubicon/inserting-events
+  - /docs/insights/inserting-events
+  - /docs/insights/new-relic-insights/adding-and-querying-data/inserting-custom-events
+  - /docs/insights/new-relic-insights/adding-querying-data/inserting-custom-events
+  - /docs/insights/new-relic-insights/adding-querying-data/inserting-custom-events-via-insights-api
+  - /docs/insights/new-relic-insights/adding-querying-data/inserting-custom-events-insights-api
+  - /docs/insights/new-relic-insights/adding-querying-data/insert-custom-events-insights-api
+  - /docs/insights/new-relic-insights/custom-events/insert-custom-events-insights-api
+  - /node/13026
+  - /docs/insights/explore-data/custom-events/insert-custom-events-insights-api
+  - /docs/insights/insights-data-sources/custom-events/insert-custom-events-insights-api
+  - /docs/insights/insights-data-sources/custom-data/event-api
+  - /docs/insights/insights-data-sources/custom-data/send-custom-events-insights-event-api
+  - /docs/insights/insights-data-sources/custom-data/insert-custom-events-insights-api
+  - /node/34051
+  - /docs/insights/insights-data-sources/custom-data/send-custom-events-event-api
+  - /docs/insights/insights-data-sources/custom-data/introduction-new-relic-event-api
+  - /docs/insights/insights-data-sources/custom-data/introduction-event-api
+  - /docs/telemetry-data-platform/ingest-manage-data/ingest-apis/use-event-api-report-custom-events
+  - /docs/telemetry-data-platform/ingest-manage-data/ingest-apis/intro-event-api
+  - /docs/insights/insights-api/insert-data/insert-data-insights-api
+  - /docs/insights/event-data-sources/insights-api/insert-data-insights-api
+  - /docs/apis/insights-apis/getting-started/send-insights-events
+  - /docs/telemetry-data-platform/ingest-manage-data/ingest-apis/introduction-event-api
+  - /docs/insights/insights-api
+  - /docs/insights/insights-api/insert-data
+---
+
+The New Relic Event API is one way to report [custom events](/docs/insights/insights-data-sources/custom-data/report-custom-event-data) to New Relic. The Event API lets you send custom [event data](/docs/using-new-relic/data/understand-data/new-relic-data-types#event-data) to your New Relic account with a POST command. These events are then queryable and chartable using [NRQL](/docs/query-data/nrql-new-relic-query-language/getting-started/introduction-nrql).
+
+Want to try out our Event API? [Create a New Relic account](https://newrelic.com/signup) for free! No credit card required.
+
+Related content:
+
+* Learn about [all options for reporting custom events](/docs/insights/insights-data-sources/custom-data/report-custom-event-data).
+* For details about how event data is retained, see [Event data retention](/docs/insights/use-insights-ui/manage-account-data/extend-event-data-retention).
+* For how to add attributes to existing events, see [Add custom attributes](/docs/agents/manage-apm-agents/agent-data/collect-custom-attributes).
+* Check out New Relic University’s tutorial [Adding custom events with the Event API](https://newrelic.wistia.com/medias/d530wfeqyo) (aka the Insights API). Or, go directly to the full online course [Custom data](https://learn.newrelic.com/custom-data-with-insights).
+
+## Requirements
+
+For Event API limits and restricted attributes, see [Limits](#limits).
+
+Ensure outbound connectivity on TCP port 443 is allowed to the [CIDR range](/docs/using-new-relic/cross-product-functions/install-configure/networks/#infrastructure) that matches your [region](/docs/using-new-relic/welcome-new-relic/get-started/our-eu-us-region-data-centers).
+The preferred configuration method is to use the DNS name `insights-collector.newrelic.com` or `insights-collector.eu01.nr-data.net`.
+
+## Basic workflow [#workflow]
+
+The Event API is an asynchronous endpoint. This allows you to send a very large volume of POSTS, reliably, with very low response latency.
+
+<Callout variant="tip">
+  If your account hosts data in the EU data center, ensure you are using the proper [API endpoints for EU region accounts](/docs/using-new-relic/welcome-new-relic/getting-started/introduction-eu-region-data-center#endpoints).
+</Callout>
+
+To send a custom event to a New Relic account:
+
+1. Get a [license key](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key) for the account you want to report data to.
+2. Before creating custom events or attributes, review New Relic's list of [reserved terms used by NRQL](/docs/insights/insights-data-sources/custom-data/insights-custom-data-requirements-limits#reserved-words).
+3. [Generate JSON](#instrument) for the event by instrumenting your application, querying an API, or some other method.
+4. [Submit a compressed JSON payload](#submit-event) (for example, `gzip` or `deflate`) to the HTTPS endpoint using curl in a **POST** request.
+5. **Recommendation:** Set up [NRQL alert conditions](/docs/alerts/new-relic-alerts/defining-conditions/create-alert-conditions-nrql-queries) to notify you when [parsing errors](#errors-parsing) occur.
+
+This method will send the events directly into your account, where they will be accessible from any NRQL interface or with the Query API.
+
+The Event API [limits the size, rate, and characters](#limits) allowed in custom events. Also, like other events available in NRQL, custom events cannot be updated or deleted after they are created. If you have problems with your custom event, follow the [troubleshooting procedures](#verify) or create a new custom event.
+
+## Get the license key [#register]
+
+You'll need a [license key](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key). License keys are associated with an account, not a specific user. This means that anyone in the account with access to that key can use it.
+
+You can submit multiple event types to the same account with the same license key. However, to help ensure security, we recommend that you use different keys for different applications or data sources.
+
+Alternatively, you can use an [Insights insert key](/docs/apis/intro-apis/new-relic-api-keys/#insights-insert-key)for this API, but we recommend using a license key. 
+
+## Format the JSON [#instrument]
+
+The Event API accepts specific formats for attributes included in the payload. Only float or string values are allowed.
+
+<CollapserGroup>
+  <Collapser
+    id="json-guidelines"
+    title="JSON format guidelines"
+  >
+    When defining attributes for your custom events, follow these JSON format guidelines.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            Attributes
+          </th>
+
+          <th>
+            JSON format guidelines
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `eventType`
+          </td>
+
+          <td>
+            **Required:** The event's name.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Float and string values
+          </td>
+
+          <td>
+            Float value format: `"label":value`
+
+            String value format: `"label":"value"`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Data types
+          </td>
+
+          <td>
+            The API only accepts key-value pairs, not map/object or array values. Supported data types for this API are strings and numbers (integers or floats). For more information, see [Data requirements](/docs/insights/insights-data-sources/custom-data/insights-custom-data-requirements-limits).
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Digits in strings
+          </td>
+
+          <td>
+            For performance-related reasons, we do not cast values submitted to the API. For example, we treat `123` as a number and `"123"` as a string.
+
+            The database will only store up to 64 bit numbers. Any numbers larger than 64 bits will be truncated.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Dates
+          </td>
+
+          <td>
+            For attributes that contain date information, use an unformatted Unix timestamp in the Insights [data formatter](/docs/insights/use-insights-ui/manage-account-data/data-formatter-set-default-formats-numeric-values). You can [define the date attribute](#timestamp) either in seconds or in milliseconds, both relative to the Unix epoch.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Time
+          </td>
+
+          <td>
+            Unless otherwise specified, the timestamp for a submitted event is the time it was submitted to New Relic. To specify a different time for the event, use the [`timestamp` attribute](#timestamp).
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    id="json-example"
+    title="JSON example"
+  >
+    Here is an example of a typical JSON data set for sending with the API. This call sends two **Purchase** type events as a JSON array. You can add multiple events in a single HTTP call using a JSON array.
+
+    ```
+    [
+      {
+        "eventType":"Purchase",
+        "account":3,
+        "amount":259.54
+      },
+      {
+        "eventType":"Purchase",
+        "account":5,
+        "amount":12309,
+        "product":"Item"
+      }
+    ]
+    ```
+
+    When generating the JSON, make sure your attributes are [properly formatted](/docs/insights/new-relic-insights/decorating-events/insights-custom-attributes).
+  </Collapser>
+
+  <Collapser
+    id="limits"
+    title="Limits and restricted characters"
+  >
+    The following size and rate limits apply to events sent via the Event API:
+
+    * Max events per API call: 2K
+    * Payload total size: **1MB(10^6 bytes) maximum per POST**. We highly recommend using compression.
+    * The payload must be encoded as **UTF-8**.
+    * Number of attributes per event: 255 maximum
+    * Length of attribute name: 255 characters
+    * Length of attribute value: 4096 maximum character length
+    * There are rate [limits on the number of HTTP requests per minute](#post-limit) sent to the Event API.
+
+    Some specific attributes have additional restrictions:
+
+    * `accountId`: This is a reserved attribute name. If it is included, it will be dropped during ingest.
+    * `entity.guid`, `entity.name`, and `entity.type`: These attributes are used internally to identify entities. Any values submitted with these keys in the attributes section of a metric data point may cause undefined behavior such as missing entities in the UI or telemetry not associating with the expected entities. For more information please refer to [Entity synthesis](/docs/new-relic-one/use-new-relic-one/core-concepts/what-entity-new-relic/#entity-synthesis).
+    * [`appId`](/docs/apis/rest-api-v2/requirements/find-product-id#apm): Value must be an integer. If it is not an integer, the attribute name and value will be dropped during ingest.
+    * `eventType`: Can be a combination of alphanumeric characters, `_` underscores, and `:` colons.
+    * `timestamp`: Must be a Unix epoch timestamp. You can define timestamps either in seconds or in milliseconds.
+  </Collapser>
+</CollapserGroup>
+
+## Submit the custom event [#submit-event]
+
+Data submitted to the Event API uses a compressed JSON format in a simple HTTPS POST request. This example uses `gzip`, but you can also use `deflate`.
+
+<CollapserGroup>
+  <Collapser
+    id="numberone"
+    title="Linux/bash example"
+  >
+    ```
+    gzip -c example_events.json | curl -X POST -H "Content-Type: application/json"
+    -H "Api-Key: <var>YOUR_LICENSE_KEY</var>" -H "Content-Encoding: gzip"
+    https://insights-collector.newrelic.com/v1/accounts/<var>YOUR_ACCOUNT_ID</var>/events --data-binary @-
+    ```
+  </Collapser>
+
+  <Collapser
+    id="numbertwo"
+    title="Windows/PowerShell example"
+  >
+    ```
+    $accountId = "<var>YOUR_ACCOUNT_ID</var>"
+    $insertkey = "<var>YOUR_LICENSE_KEY</var>"
+    # Replace with your custom event for the body
+    $body = '[{"eventType": "powershell", "account": 4, "amount": 123, "fileLocation": "c:\\temp2", "zipped": "true" }]'
+
+    $headers = @{}
+    $headers.Add("Api-Key", "$insertkey")
+    $headers.Add("Content-Encoding", "gzip")
+
+
+    $encoding = [System.Text.Encoding]::UTF8
+    $enc_data = $encoding.GetBytes($body)
+
+    $output = [System.IO.MemoryStream]::new()
+    $gzipStream = New-Object System.IO.Compression.GzipStream $output, ([IO.Compression.CompressionMode]::Compress)
+
+    $gzipStream.Write($enc_data, 0, $enc_data.Length)
+    $gzipStream.Close()
+    $gzipBody = $output.ToArray()
+
+    Invoke-WebRequest -Headers $headers -Method Post -Body $gzipBody  "https://insights-collector.newrelic.com/v1/accounts/$accountId/events"
+    ```
+  </Collapser>
+</CollapserGroup>
+
+<Callout variant="important">
+  Always use compression with every payload. This allows you to send more data, and it saves resources during parsing.
+</Callout>
+
+Before generating your HTTP request, make sure it is [properly formatted](/docs/insights/new-relic-insights/decorating-events/insights-custom-attributes), including:
+
+* The `Api-Key` contains the correct [license key](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key).
+* The `Content-Type` is `application/json`.
+* The request uses POST only. The API does not accept PUT and GET requests.
+
+The API supports [HTTP/1.1 persistent connections](https://www.w3.org/Protocols/rfc2616/rfc2616-sec8.html). This is helpful to manage client-side performance under heavy event loads.
+
+## Verify or troubleshoot request response [#verify]
+
+The Event API follows a two-step process to process requests:
+
+1. The Event API synchronously acknowledges or rejects the request based on validation of the headers and payload size.
+2. The Event API asynchronously parses the payload after a successful HTTP response is provided to the client. This may generate an error due to missing or malformed data. These are classified as submission errors or parsing errors.
+
+All successful submissions receive a `200` response, regardless of any data errors that may exist within the payload. The response includes a `uuid`, which is a unique ID created for each request. The `uuid` also appears in any error events created for the request.
+
+Other potential issues:
+
+* 10-second timeout: API calls exceeding 10 seconds will time out.
+* Large payloads: Payloads exceeding 100 KB may see increased response times.
+
+**Recommendation:** In addition to checking for a success message, create a NRQL query of your data to verify it's available.  
+
+<CollapserGroup>
+  <Collapser
+    id="success"
+    title="Success response code"
+  >
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "150px" }}>
+            Success message
+          </th>
+
+          <th>
+            Comments
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            200
+          </td>
+
+          <td>
+            ```
+            {"success":true,"uuid":"<var>xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx</var>"}
+            ```
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    id="errors-submission"
+    title="Submission errors"
+  >
+    Payloads with submission errors are handled and returned to the sender through an HTTP response code.
+
+    To troubleshoot payload submission errors, refer to these HTTP response codes.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "150px" }}>
+            Submission errors
+          </th>
+
+          <th>
+            Troubleshooting
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            400
+          </td>
+
+          <td>
+            Missing or invalid content length: Unable to process empty request.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            403
+          </td>
+
+          <td>
+            Missing or invalid key: Invalid license key. Register a valid license key.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            408
+          </td>
+
+          <td>
+            Request timed out: Request took too long to process.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            413
+          </td>
+
+          <td>
+            Content too large: Request is too large to process. Refer to the limits and restricted characters to troubleshoot.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            415
+          </td>
+
+          <td>
+            Invalid content type: Must be application/JSON. The Event API accepts any content type except multi-part/related and assumes it can be parsed to JSON.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            429
+          </td>
+
+          <td>
+            Too many requests due to rate limiting.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            503
+          </td>
+
+          <td>
+            Service temporarily unavailable: Retry request
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    id="errors-parsing"
+    title="Parsing errors"
+  >
+    Parsing errors occur if:
+
+    * An event is sent within a payload, but it is either missing data or is exceeding maximum limits. New Relic will drop the individual event from the payload, generate an [`NrIntegrationError` event](/docs/telemetry-data-platform/manage-data/nrintegrationerror), and process the rest.
+    * The JSON payload includes malformed JSON or missing required data.
+
+    Payloads with parsing errors receive a `200` response to indicate a successful submission. To help resolve parsing errors, a new `NrIntegrationError` event type is created. All parsing errors are due to NRQL queries. For error messages related to dropped events, New Relic will include the number of events that were dropped as part of the message.
+
+    To troubleshoot requests with parsing errors, refer to these error messages.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "300px" }}>
+            Parsing errors
+          </th>
+
+          <th>
+            Troubleshooting
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            <var>X</var> event(s) rejected because attribute `appId` was not an integer
+          </td>
+
+          <td>
+            An `appId` attribute has a non-integer value, such as a decimal value or string.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            <var>X</var> event(s) rejected because `eventType` cannot contain the following characters: `[., \]`
+          </td>
+
+          <td>
+            An `eventType` attributed included an invalid character, such as a period or backslash.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            <var>X</var> event(s) rejected because attribute is missing attribute name
+          </td>
+
+          <td>
+            An attribute name was set to null or an empty string.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            <var>X</var> event(s) rejected because attribute name exceeded maximum length
+          </td>
+
+          <td>
+            An attribute name has more than 255 characters.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            <var>X</var> event(s) rejected because attribute value exceeded maximum length
+          </td>
+
+          <td>
+            An attribute value was longer than 4096 characters.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            <var>X</var> event(s) rejected because event exceeded maximum number of attributes
+          </td>
+
+          <td>
+            An event has more than 255 attributes.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            <var>X</var> event(s) rejected because missing required attributes `eventType`
+          </td>
+
+          <td>
+            The `eventType` attribute is required for the custom event.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Error parsing JSON payload
+          </td>
+
+          <td>
+            There was an error parsing the request JSON because of formatting problems or corrupted data.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+</CollapserGroup>
+
+## Query and alert with NrIntegrationError [#nrIntegration]
+
+The [`NrIntegrationError` event](/docs/telemetry-data-platform/manage-data/nrintegrationerror) allows you to query and set alerts on custom data being sent to your New Relic account. **Recommendation:** To get alerts for parsing errors, [create a NRQL alert condition](/docs/alerts/new-relic-alerts/defining-conditions/create-alert-conditions-nrql-queries) for `NrIntegrationError`. Use this example NRQL query:
+
+```
+SELECT message FROM NrIntegrationError WHERE newRelicFeature = 'Event API' AND category = 'EventApiException'
+```
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        NrIntegrationError attributes
+      </th>
+
+      <th>
+        Troubleshooting
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td id="timestamp">
+        `timestamp`
+      </td>
+
+      <td>
+        The timestamp when the request was received. The `timestamp` attribute takes a 64-bit integer Unix timestamp within the last 24 hours. You can define timestamps either in seconds or in milliseconds, both relative to the Unix epoch.
+
+        Do not use a decimal for the timestamp. If a decimal is used, the attribute will default to the timestamp when the custom event was created.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `newRelicFeature`
+      </td>
+
+      <td>
+        The name of the feature experiencing errors. For all custom event parsing errors, this will be `Event API`.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `apiKeyPrefix`
+      </td>
+
+      <td>
+        The first six characters of the [license key](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key) used for the request that generated an error.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `requestId`
+      </td>
+
+      <td>
+        The `uuid` returned by the the API for the request that generated an error.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `Category`
+      </td>
+
+      <td>
+        The category of the error. For custom events, this is `EventApiException`.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `Message`
+      </td>
+
+      <td>
+        Contents of the error message.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `Name`
+      </td>
+
+      <td>
+        The error's name. For custom events, this is always `EventValidationException`.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `eventTypeSample`
+      </td>
+
+      <td>
+        One of the event types that generated the error, when available.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Find your data [#find-data]
+
+To find data sent via the Event API (and from integrations that use this API), you can query it. For example, to query a custom event using [NRQL](/docs/query-data/nrql-new-relic-query-language/getting-started/introduction-nrql), you would run:
+
+```
+SELECT * FROM <var>YOUR_CUSTOM_EVENT</var>
+```
+
+For more on how to query, see [Query data](/docs/using-new-relic/data/understand-data/query-new-relic-data).
+
+## Limit on HTTP requests [#post-limit]
+
+The Event API has a rate limit of 100,000 HTTP requests (POSTs) per minute, per account. (Note that this is **not** a limit on the number of events per minute; only on the number of POSTs per minute.)
+
+This limit helps ensure that large traffic spikes in accounts across our multi-tenant platform do not negatively affect how the service performs for you.
+
+If your API usage exceeds 100k POSTs in a 1-minute window, we will reject subsequent API requests with a 429 response code for the remainder of the 1-minute window. At the end of the 1-minute window, the counter will be reset and allow traffic to resume.
+
+This limit is intended to be an upper threshold that you shouldn't hit under normal scenarios. If you have a high number of 429 responses, consider using the API less. If you are expecting a higher-than-normal activity level in the near future and want to prepare for that, [contact technical support](https://support.newrelic.com/).

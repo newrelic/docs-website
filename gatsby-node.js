@@ -328,7 +328,7 @@ exports.createResolvers = ({ createResolvers }) => {
       },
       rootNav: {
         resolve: (source) =>
-          hasOwnProperty(source, 'rootNav') ? source.rootNav : true,
+          hasOwnProperty(source, 'rootNav') ? source.rootNav : false,
       },
     },
   });
