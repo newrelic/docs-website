@@ -1,5 +1,5 @@
 ---
-title: 'Native support for OpenTelemetry (Early access available now!!)'
+title: 'Native support for OpenTelemetry (early access available now!!)'
 summary: 'Ingest OpenTelemetry data without adding any New Relic software into your services'
 releaseDate: '2021-04-16'
 getStartedLink: 'https://forms.gle/fa2pWcQxgVQYMggEA'

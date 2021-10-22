@@ -1,5 +1,5 @@
 ---
-title: 'Nerdlog Roundup: Muting Rules, Custom Data Visualizations, and more AIOps fun!  '
+title: 'Nerdlog Roundup: Muting rules, custom data visualizations, and more AIOps fun!  '
 summary: 'Smarter incident intelligence and custom data visualizations'
 releaseDate: '2021-03-08'
 learnMoreLink: 'https://blog.newrelic.com/product-news/nerdlog-aiops-and-custom-dashboards/'

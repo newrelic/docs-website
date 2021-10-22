@@ -1,5 +1,5 @@
 ---
-title: 'Distributed Tracing enabled by default with Python Agent Update: Version 7.0.0.166'
+title: 'Distributed Tracing enabled by default with Python agent version 7.0.0.166'
 summary: 'Elimate the need to configure the agent for access to distributed traces'
 releaseDate: '2021-10-06'
 learnMoreLink: 'https://docs.newrelic.com/docs/release-notes/agent-release-notes/python-release-notes/'
