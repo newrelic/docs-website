@@ -1,5 +1,5 @@
 ---
-title: 'Get a Visual Map of Related Entities with New Relic One Automap'
+title: 'Get a visual map of related entities with New Relic One Automap'
 summary: 'Find the what and when of an issue to troubleshoot the root cause quickly'
 releaseDate: '2021-10-12'
 learnMoreLink: 'https://discuss.newrelic.com/t/finding-the-where-and-when-of-an-incident-with-automap/163854'

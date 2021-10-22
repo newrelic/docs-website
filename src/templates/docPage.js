@@ -14,7 +14,6 @@ import {
   useTranslation,
 } from '@newrelic/gatsby-theme-newrelic';
 import DefaultRelatedContent from '../components/DefaultRelatedContent';
-import Watermark from '../components/Watermark';
 import SEO from '../components/SEO';
 import GithubSlugger from 'github-slugger';
 import { parseHeading } from '../../plugins/gatsby-remark-custom-heading-ids/utils/heading';
@@ -63,7 +62,7 @@ const BasicDoc = ({ data, location, pageContext }) => {
   }, [mdxAST, moreHelpHeading, t]);
 
   const isMobileScreen = useMedia('(max-width: 1240px)');
-  const { title, metaDescription, type, tags, watermark } = frontmatter;
+  const { title, metaDescription, type, tags } = frontmatter;
 
   return (
     <>
@@ -95,7 +94,6 @@ const BasicDoc = ({ data, location, pageContext }) => {
       >
         <PageTitle>{title}</PageTitle>
         <Layout.Content>
-          {watermark && <Watermark text={watermark} />}
           <MDXContainer body={body}>
             {moreHelpHeading ? null : <DefaultRelatedContent />}
           </MDXContainer>
@@ -143,7 +141,6 @@ export const pageQuery = graphql`
       frontmatter {
         title
         metaDescription
-        watermark
         type
         tags
       }

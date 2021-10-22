@@ -1,0 +1,197 @@
+---
+title: Java agent API for asynchronous applications
+tags:
+  - Agents
+  - Java agent
+  - Async instrumentation
+metaDescription: How to use the New Relic for Java API to instrument asynchronous application activity.
+redirects:
+  - /docs/agents/java-agent/async-instrumentation/java-agent-api-asynchronous-applications
+  - /docs/agents/java-agent/java-agent-api/java-agent-asynchronous-api-guide
+  - /docs/agents/java-agent/java-agent-api/java-agent-api-asynchronous-applications
+---
+
+[New Relic for Java](/docs/agents/java-agent/getting-started/introduction-new-relic-java) (agent [version 3.37](/docs/release-notes/agent-release-notes/java-release-notes/java-agent-3370) or higher) includes an API to instrument asynchronous activity. For [supported frameworks](/docs/agents/java-agent/getting-started/compatibility-requirements-java-agent), the agent usually instruments async work automatically. However, the async API can still be useful to add detail. This document provides examples of using tokens and segments to instrument your app.
+
+* For more information about how New Relic instruments and displays async work in the APM UI, see [Monitoring considerations for asynchronous applications](/docs/agents/java-agent/instrumentation/asynchronous-applications-monitoring-considerations).
+* For details on the actual classes and methods, see the [Javadoc](http://newrelic.github.io/java-agent-api/javadoc/com/newrelic/api/agent/NewRelic.html).
+* For general information on the Java agent API, see the [Java agent API guide](/docs/agents/java-agent/custom-instrumentation/java-agent-api-guide).
+* For troubleshooting common problems, see [Troubleshooting Java asynchronous applications](/docs/agents/java-agent/java-agent-api/troubleshooting-java-asynchronous-applications).
+
+## Async tracking tools: Tokens and segments [#tokens_segments]
+
+The Java agent API provides two ways to trace asynchronous activity:
+
+* **[Tokens](#tokens)**: Tokens are passed between threads to link asynchronous units of work to a specific transaction. They do not perform any timing directly.
+* **[Segments](#segments)**: Segments are used to measure an arbitrary piece of asynchronous application code, not necessarily associated with a method or thread. Segments are typically used to track external calls that are completed by a callback mechanism.
+
+## Tokens: Connect async threads [#tokens]
+
+Use tokens to link arbitrary units of work that are on separate threads. This section describes how to use the token-related calls together to instrument async work. For detailed information on classes and methods, see the Javadoc.
+
+To use tokens, you first need to create the token, then link another call to the originating transaction. You should link the token as soon as possible within the other call. If you do not link the token immediately, you risk losing any methods that contain an `@Trace` below the call you are trying to link. You can also expire the token in the original call. The Java agent will then link the work in the New Relic UI. These examples illustrate how to use the token-related calls together:
+
+<CollapserGroup>
+  <Collapser
+    id="use-gettoken"
+    title="1. Start a transaction, then create and expire a token"
+  >
+    Consider the method `parallelStream()` in the code snippet below. Because some of the calls to `requestItemAsync()` will occur on a separate thread, a token is created and passed to link that asynchronous work back to the requesting thread.
+
+    ```
+    /**
+    * Example showing multi-threaded implementation of requesting data using a parallel {@link Stream}.
+    */
+    @RequestMapping("parallel_stream")
+    <mark>@Trace(dispatcher = true)</mark> // starts a transaction
+    public ResponseEntity<String> parallelStream(@RequestParam("ids") List<Long> ids) {
+       final Token token = NewRelic.getAgent().getTransaction().<mark>getToken()</mark>;
+       List<item> results = ids
+               .parallelStream()
+               .map(id -> requestItemAsync\(id, token)) // note we're calling a different method than parallelStreamBad
+               .filter(item -> item != null)
+               .collect(Collectors.toList());
+       <mark>token.expire()</mark>;
+       return formattedResponse("parallel_stream", results);
+    }
+    ```
+
+    The agent API calls in this sample are:
+
+    * `@Trace(dispatcher = true)`: Tells the agent to start a transaction. For more on this method, see the [Javadoc](http://newrelic.github.io/java-agent-api/javadoc/com/newrelic/api/agent/Trace.html).
+    * `getToken()`: Creates the token which will link the work together. For more on this method, see the [Javadoc](http://newrelic.github.io/java-agent-api/javadoc/com/newrelic/api/agent/Transaction.html#getToken()).
+    * `token.expire()`: Expires the token. This allows the transaction to end. For more on this method, see the [Javadoc](http://newrelic.github.io/java-agent-api/javadoc/com/newrelic/api/agent/Token.html#expire()).
+  </Collapser>
+
+  <Collapser
+    id="retrive-token"
+    title="2. Mark a transaction as async and link to request thread"
+  >
+    The following code example shows `requestItemAsync`, which might execute on a separate thread from the requesting thread. For this reason, the token that was created in the previous code example is linked to the Transaction in `requestItemAsync`. Note that `requestItemAsync()` has the `@Trace(async=true)` annotation, which tells the agent to trace this method if it's linked to an existing transaction.
+
+    After `parallelStream()` collects all results, the token is expired. This is important because it makes sure the transaction doesn't stay open after `parallelStream()` completes.
+
+    ```
+    <mark>@Trace(async = true)</mark>
+    private Item requestItemAsync(long id, Token token) {
+       <mark>token.link()</mark>;
+       return requestItem(id);
+    }
+    ```
+
+    The agent API calls in this sample are:
+
+    * `@Trace(async = true)`: Starts a transaction. For more on this method, see the [Javadoc](http://newrelic.github.io/java-agent-api/javadoc/com/newrelic/api/agent/Trace.html).
+    * `token.link()`: Links the work being done in `requestItemAsync()` (which is executing on a different thread) to the requesting thread. For more on this method, see the [Javadoc](http://newrelic.github.io/java-agent-api/javadoc/com/newrelic/api/agent/Token.html#link()).
+  </Collapser>
+
+  <Collapser
+    id="token-in-ui"
+    title="3. View your async trace in the New Relic UI"
+  >
+    Here's an example of a transaction trace in the APM UI for this endpoint:
+
+    ![token trace.png](./images/Screen-Shot-2017-03-14-at-4.50.31-PM.png "token trace.png")
+
+    <figcaption>
+      **[one.newrelic.com](https://one.newrelic.com) > APM > (select an app) > Transactions > Transaction trace > Trace details**: All asynchronous method calls linked with a token are indicated with an <Icon name="fe-search"/>
+      **Async** icon.
+    </figcaption>
+
+    All asynchronous method calls linked with a token are indicated with an <Icon name="fe-search"/>
+    **Async** icon in the **Drilldown** column. It's not necessary to link methods that are on the same thread, but doing so will have no negative effect. It's often the case that a single token can be shared, like in the `parallelStream()` example.
+  </Collapser>
+</CollapserGroup>
+
+<Callout variant="tip">
+  By default, a transaction can create a maximum of 3000 tokens and each token has a default timeout of 180s. You can change the former limit with the `token_limit` config option and the latter with the [`token_timeout`](/docs/agents/java-agent/configuration/java-agent-configuration-config-file#cfg-token_timeout) config option. Traces for transactions that exceed the `token_limit` will contain a `token_clamp` attribute. Increasing either config option may increase agent memory usage.
+</Callout>
+
+## Segments: Time arbitrary async activity [#segments]
+
+Segments are used to measure an arbitrary piece of asynchronous application code, not necessarily associated with a method or thread. This is most commonly used to time connections to external services. Use segments if you want to:
+
+* Time code that completes via a callback
+* Time an asynchronous call that spans many methods
+* Measure the time between when work is created and when it executed (for example, in a thread pool)
+
+<CollapserGroup>
+  <Collapser
+    id="segments-part-1"
+    title="1. Create a transaction and call an external service"
+  >
+    The method below makes a call to an external service (in this case a database) using the method `storeItem()`:
+
+    ```
+    /**
+    * Example showing single threaded implementation of inserting data into a datasource.
+    */
+    @RequestMapping("insert")
+    <mark>@Trace(dispatcher = true)</mark> //starts a transaction
+    public ResponseEntity insert(@RequestParam("id") Long id) {
+       if (id != null) {
+           storeItem(id);
+           return new ResponseEntity<>("insert", HttpStatus.OK);
+       } else {
+           return new ResponseEntity<>("insert", HttpStatus.BAD_REQUEST);
+       }
+    }
+    ```
+
+    The goal in this case it to find out how long the `Callable` in the Lambda statement is waiting in the thread pool before executing, rather than determining how long `storeItem()` runs. For this reason, a segment is used instead of a token, and `@Trace(async = true)` is not necessary like it was for a token.
+
+    The agent API call in this sample is:
+
+    * `@Trace(dispatcher = true)`: Starts a transaction. For more on this method, see the [Javadoc](http://newrelic.github.io/java-agent-api/javadoc/com/newrelic/api/agent/Trace.html).
+  </Collapser>
+
+  <Collapser
+    id="segment-reportasexternal"
+    title="2. Start a segment, report externals, and end the segment"
+  >
+    The following code example shows a segment starting in the `storeItem` method to measure how long the Lambda statement is waiting in the thread pool. To stop timing the segment, you must call either `.end()` or `.ignore()`. If you **don't** want to report the segment as part of its parent transaction, call `.ignore()`. Otherwise, to report the segment as part of its parent transaction, call `.end()`.
+
+    ```
+    private void storeItem(long id) {
+       Segment segment = NewRelic.getAgent().getTransaction().<mark>startSegment("storeItem")</mark>;
+
+       segment.<mark>reportAsExternal</mark>(DatastoreParameters
+               .product("H2")
+               .collection(null)
+               .operation("insert")
+               .instance("localhost", 8080)
+               .databaseName("test")
+               .build());
+
+       // fire and forget
+       DB_POOL.submit(() -> {
+           <mark>segment.end();</mark>
+           insertData(id);
+       });
+    }
+    ```
+
+    The agent API calls in this sample are:
+
+    * `startSegment(...)`: Begins the segment that will time the code. For more on this method, see the [Javadoc](http://newrelic.github.io/java-agent-api/javadoc/com/newrelic/api/agent/Segment.html).
+    * `reportAsExternal(DatastoreParameters())`: Associates the time with a datastore external call This will show up in APM with [datastore data](/docs/apm/applications-menu/features/analyze-database-instance-level-performance-issues). For more information, see [reportAsExternal API](http://newrelic.github.io/java-agent-api/javadoc/index.html?com/newrelic/api/agent/TracedMethod.html).
+    * `segment.end()`: Stops timing this segment. For more on this method, see the [Javadoc](http://newrelic.github.io/java-agent-api/javadoc/com/newrelic/api/agent/Segment.html#end()).
+  </Collapser>
+
+  <Collapser
+    id="segment-in-ui"
+    title="3. View your async trace in the New Relic UI"
+  >
+    When the method completes, APM displays a transaction trace with one external call:
+
+    ![segment trace.png](./images/Screen-Shot-2017-03-15-at-4.33.14-PM.png "segment trace.png")
+
+    <figcaption>
+      **[one.newrelic.com](https://one.newrelic.com) > APM > (select an app) > Transactions > Transaction trace > Trace details:** A single asynchronous segment is called out in the **Drilldown** column.
+    </figcaption>
+  </Collapser>
+</CollapserGroup>
+
+<Callout variant="tip">
+  By default, the agent can track a maximum of 1000 segments during a given transaction. You can change this limit with the [`segment_timeout`](/docs/agents/java-agent/configuration/java-agent-configuration-config-file#cfg-segment_timeout) config option. Traces of transactions that exceed this limit will contain a `segment_clamp` attribute. Increasing this limit may increase agent memory usage.
+</Callout>

@@ -1,0 +1,167 @@
+---
+title: 'Java agent: Instrument Kafka message queues'
+tags:
+  - Agents
+  - Java agent
+  - Instrumentation
+metaDescription: 'New Relic for Java includes built-in Kafka monitoring, as well as advanced event and distributed tracing data collection.'
+redirects:
+  - /docs/agents/java-agent/instrumentation/java-agent-instrument-kafka-message-queues
+  - /docs/agents/java-agent/instrumentation/use-kafka-message-queues
+  - /docs/agents/java-agent/instrumentation/instrument-kafka-message-queues
+---
+
+The New Relic Java agent automatically collects data from [Kafka](https://kafka.apache.org/documentation/)'s Java clients library. Because Kafka is a high-performance messaging system that generates a lot of data, you can customize the agent for your app's specific throughput and use cases.
+
+This document explains how to collect and view three types of Kafka data:
+
+* [Kafka metrics](#view-kafka-metrics)
+* [Kafka events](#collect-kafka-events)
+* [Kafka distributed traces](#collect-kafka-distributed-traces)
+
+Kafka instrumentation is available in Java agent versions 4.12.0 or higher. For supported Kafka client versions, see [Java compatibility and requirements](/docs/agents/java-agent/getting-started/compatibility-requirements-java-agent).
+
+<Callout variant="tip">
+  For our Kafka integration, see [Kafka monitoring integration](/docs/integrations/host-integrations/host-integrations-list/kafka-monitoring-integration).
+</Callout>
+
+## View Kafka metrics
+
+After [installation](/docs/agents/java-agent/installation/install-java-agent), the agent automatically reports rich Kafka metrics with information about messaging rates, latency, lag, and more. The Java agent collects all [Kafka consumer and producer metrics](https://kafka.apache.org/documentation/#monitoring) (but not connect or stream metrics).
+
+To view these metrics, create a custom dashboard:
+
+1. Go to the [New Relic metric explorer](/docs/insights/use-insights-ui/explore-data/metric-explorer-search-chart-metrics-sent-new-relic-agents).
+2. Use the metric explorer to locate your metrics. You can find Kafka metrics in this metric folder:
+
+   ```
+   MessageBroker/Kafka/Internal/<var>KafkaMetricName</var>
+   ```
+
+   For example, the `request-rate` metric is located at:
+
+   ```
+   MessageBroker/Kafka/Internal/consumer-metrics/request-rate
+   ```
+
+   <Callout variant="tip">
+     For a full list of Kafka consumer and producer metrics, see the [Kafka documentation](https://kafka.apache.org/documentation/#monitoring).
+   </Callout>
+3. Add the metrics you want to monitor to a dashboard by clicking **Add to dashboard**.
+
+## Enable Kafka event collection [#collect-kafka-events]
+
+You can configure the agent to collect event data instead of metric timeslice data (for the difference between metric timeslice and event data, see [data collection](/docs/using-new-relic/metrics/analyze-your-metrics/data-collection-metric-timeslice-event-data#overview)). This allows you to use [NRQL](/docs/insights/nrql-new-relic-query-language/using-nrql/introduction-nrql) to filter and facet the default Kafka metrics. When enabled, the agent collects one Kafka event every 30 seconds. This event contains all of the the data from [Kafka consumer and produce metrics](https://kafka.apache.org/documentation/#monitoring) captured since the previous event.
+
+<Callout variant="important">
+  The agent records up to 2000 events per [harvest cycle](/docs/using-new-relic/welcome-new-relic/getting-started/glossary#harvest-cycle), though you can change this value with [`max_samples_stored`](/docs/agents/java-agent/configuration/java-agent-configuration-config-file#ae-max_samples_stored). Kafka event data is included in this pool. If you use the `recordCustomEvent()` API call to send [custom events](/docs/insights/insights-data-sources/custom-data/insert-custom-events-new-relic-apm-agents) to New Relic and you send more than 2000 events, the agent will discard some Kafka or custom events.
+</Callout>
+
+To enable Kafka event collection:
+
+1. Add the `kafka.metrics.as_events.enabled` element to your `newrelic.yml` config file:
+
+   ```
+   kafka.metrics.as_events.enabled: true
+   ```
+2. Restart your JVM.
+3. Use the [event explorer](/docs/insights/use-insights-ui/explore-data/event-explorer-query-chart-your-event-data) to view your Kafka events, located in the `KafkaMetrics` event type. Or, use [NRQL](/docs/insights/nrql-new-relic-query-language/using-nrql/introduction-nrql) to query your events directly. For example:
+
+   ```
+   SELECT average('producer-metrics.record-send-rate') from KafkaMetrics SINCE 30 minutes ago timeseries
+   ```
+
+## Enable Kafka distributed traces [#collect-kafka-distributed-traces]
+
+The Java agent can also collect [distributed traces](/docs/apm/distributed-tracing/getting-started/introduction-distributed-tracing) from Kafka clients. Enabling traces doesn't affect the agent's normal operations: it will still report metric or event data from Kafka.
+
+Impacts and requirements to consider before enabling:
+
+* **The instrumentation adds a 150 to 200 byte payload to message headers.** If your Kafka messages are very small, traces can add significant processing and storage overhead. This additional payload size could cause Kafka to drop messages if they exceed your Kafka messaging size limit. For this reason, we recommend testing out Kafka distributed traces in a dev environment before enabling them in production.
+* Distributed tracing is only available for Kafka client versions 0.11.0.0 or higher.
+* If you have **not** enabled distributed tracing for your app before, read the [Transition guide](/docs/apm/distributed-tracing/getting-started/transition-guide-distributed-tracing) before enabling.
+* To propagate W3C trace context via Kafka message headers, see the [distributed tracing API usage guide](/docs/agents/java-agent/api-guides/guide-using-java-agent-api#trace-calls) for details on APIs that were released in Java agent 6.4.0. Note that adding additional headers to Kafka messages will further increase the payload size. To see these APIs in action, see [Using Java agent trace APIs with Kafka](https://github.com/newrelic/newrelic-java-examples/tree/main/newrelic-java-agent/distributed-tracing/kafka-examples).
+
+The complete process of enabling this is below but at a high level it involves these basic steps: 1) enable tracing via the agent config, and 2) calling the [Java agent API](/docs/agents/java-agent/api-guides/guide-using-java-agent-api) to instrument transactions on both the producer and consumer side.
+
+To collect distributed traces from Kafka:
+
+<CollapserGroup>
+  <Collapser
+    id="enable-dt-kafka"
+    title="1. Enable distributed tracing in the config file"
+  >
+    If you have not enabled distributed tracing for your app before, read the [distributed tracing transition guide](/docs/apm/distributed-tracing/getting-started/transition-guide-distributed-tracing) before you enable it.
+
+    To enable Kafka distributed tracings, enable two settings in your [`newrelic.yml` config file](/docs/agents/java-agent/configuration/java-agent-configuration-config-file#Structure):
+
+    * Set the [`distributed_tracing`](/docs/agents/java-agent/configuration/java-agent-configuration-config-file#distributed-tracing) element to `true`:
+
+      ```
+      distributed_tracing:
+        enabled: true
+      ```
+    * Enable the Kafka-specific distributed tracing features by adding the following to your config file:
+
+      ```
+      class_transformer:
+        com.newrelic.instrumentation.kafka-clients-spans-0.11.0.0:
+          enabled: true
+      ```
+  </Collapser>
+
+  <Collapser
+    id="instrument-kafka-producer"
+    title="2. Instrument the Kafka producer"
+  >
+    To instrument your Kafka producer, you'll need to start a transaction before any calls to `Producer.send(ProducerRecord<K, V> record)`. To do this, add the Java agent `@Trace(dispatcher = true)` annotation to the method.
+
+    For example:
+
+    ```
+    @Trace(dispatcher = true)
+    public static void createAndSend(KafkaProducer<String, String> producer){
+        ProducerRecord<String, String> data = new ProducerRecord<String, String>("topic", "key", "value");
+        producer.send(data);
+    }
+    ```
+  </Collapser>
+
+  <Collapser
+    id="instrument-kafka-consumer"
+    title="3. Instrument the Kafka consumer"
+  >
+    To instrument your Kafka consumer, you'll need to start a transaction when the message is being processed. The agent stores the distributed tracing payload header under the `newrelic` key or under the W3C's `traceparent` and `tracestate` keys. Retrieve the header, then call the New Relic transaction API to accept the payload.
+
+    For example:
+    ```
+    @Trace(dispatcher = true)
+    private static void <var>processMessage</var>(ConsumerRecord<String, String> rec) {
+      // create a distributed trace headers map
+      Headers dtHeaders = ConcurrentHashMapHeaders.build(HeaderType.MESSAGE);
+
+      // Iterate through each record header and insert the trace headers into the dtHeaders map
+      for (Header header : rec.headers()) {
+        String headerValue = new String(header.value(), StandardCharsets.UTF_8);
+
+        // using the newrelic key
+        if (header.key().equals("newrelic")) {
+          dtHeaders.addHeader("newrelic", headerValue);
+        }
+
+        // or using the W3C keys
+        if (header.key().equals("traceparent")) {
+          dtHeaders.addHeader("traceparent", headerValue);
+        }
+
+        if (header.key().equals("tracestate")) {
+          dtHeaders.addHeader("tracestate", headerValue);
+        }
+      }
+
+      // Accept distributed tracing headers to link this request to the originating request
+      NewRelic.getAgent().getTransaction().acceptDistributedTraceHeaders(TransportType.Kafka, dtHeaders);
+    }
+    ```
+  </Collapser>
+</CollapserGroup>
