@@ -1,0 +1,148 @@
+---
+title: 'Monitor non-web scripts, worker processes, tasks, and functions'
+tags:
+  - Agents
+  - Python agent
+  - Supported features
+metaDescription: 'New Relic Python agent: How to instrument background tasks and other non-web transactions.'
+redirects:
+  - /docs/agents/python-agent/supported-features/monitor-non-web-scripts-worker-processes-tasks-functions
+  - /docs/site/background-tasks
+  - /docs/agents/python-agent/supported-features/python-background-tasks
+---
+
+The [Python agent](/docs/agents/python-agent/getting-started/introduction-new-relic-python) is mainly designed to monitor web apps and their web requests, and therefore it includes built-in instrumentation for WSGI-based web apps and popular web frameworks.
+
+But you can also monitor arbitrary job-based systems, standalone scripts, worker processes, and non-web transactions using the `background_task` method. These transactions show up as [non-web transactions](/docs/apm/applications-menu/monitoring/transactions-page#tx_types) in the New Relic UI.
+
+The Python agent also has built-in instrumentation for the task-queuing systems [Celery](/docs/agents/python-agent/back-end-services/python-agent-celery) and Gearman.
+
+## Integrate the Python agent [#integrating]
+
+The first requirement is getting the agent initialized and running with the process to be monitored. This is the same process described in [Standard Python install](/docs/agents/python-agent/getting-started/python-agent-quick-start) for a web application.
+
+If the task to be tracked is running in a background thread of an existing monitored web application process, then initialization of the agent would already be performed so you shouldn't need to repeat this step.
+
+If instrumenting an application that is not also handling web traffic, you won't need to wrap the WSGI application entry point.
+
+## Wrap the task to be monitored [#wrapping]
+
+Instead of wrapping the WSGI application entry point, you must wrap any function that performs a background task that you wish to track. For example:
+
+```
+import newrelic.agent
+
+@newrelic.agent.background_task()
+def execute_task():
+     ...
+```
+
+By default the name of the task will be the name of the function the decorator is applied to.
+
+If you wish to override the task name, it can be supplied as a named argument to the decorator. An alternate group can also be specified in place of the default `Function`:
+
+```
+import newrelic.agent
+
+@newrelic.agent.background_task(name='database-update', group='Task')
+def database_update():
+    ...
+```
+
+If the name of the task needs to be set dynamically, then it will be necessary to use a context manager object instead. When using a context manager object, it is first necessary to retrieve the application object corresponding to the application data is to be reported against. Leaving out the name of the application when retrieving the application object will result in that corresponding to the default application named in the agent configuration being used.
+
+```
+import newrelic.agent
+
+def execute_task(task_name):
+    application = newrelic.agent.application()
+    with newrelic.agent.BackgroundTask(application, name=task_name, group='Task'):
+        ...
+```
+
+Note that whatever is wrapped by the background task decorator or context manager object, it must be a task which has finite execution time. You must not wrap the main loop of a process within which the separate tasks are being run. Only the execution of the individual tasks should be wrapped. If you incorrectly wrap the main loop, because the main loop would never return, then although data will be captured, it will never be reported because aggregation and reporting of data only happens after the task actually completes.
+
+So wrap the specific granular task you want to track. Such a task can be executed more than once in the life time of the process and all will be reported.
+
+## Force registration of the Python agent [#registration]
+
+By default the agent will register itself the first time a transaction (either web or non-web) is run. Because data cannot actually be accumulated until the agent registers itself and that will normally happen as a parallel task, then data for the initial transactions will not be captured.
+
+For a long running process this is generally acceptable and is better than delaying startup of a web server, preventing any requests being handled, until registration occurs.
+
+For non-web transactions however, it can often be the case that a script only performs one task and is long running. For this reason, a delay on startup to wait for the agent to register is acceptable, as it ensures that that data is captured.
+
+In this case, one can force registration in one of two ways. The simplest is to specify a startup timeout in the agent configuration. This timeout is how long the agent should wait for registration before proceeding when performing lazy registration of the agent. This represents the maximum time it will wait. If registration takes less time than specified by the timeout it will continue immediately.
+
+If using an agent configuration file, this is done by adding the following entry to the `newrelic` section of the agent configuration file.:
+
+```
+startup_timeout = 10.0
+```
+
+Alternatively, the startup timeout can be specified using the `NEW_RELIC_STARTUP_TIMEOUT` environment variable.
+
+Note that you should be careful about using this startup timeout for a web application, as doing so will cause the web server to stall when handling the initial web requests, delaying how quickly a user will get a response.
+
+If necessary, forcing registration of the agent can also be performed in code within the application code as well.
+
+```
+import newrelic.agent
+
+application = newrelic.agent.register_application(timeout=10.0)
+
+def execute_task(task_name):
+    with newrelic.agent.BackgroundTask(application, name=task_name, group='Task'):
+        ...
+```
+
+The timeout should be a named parameter to the `register_application()` function. If an application name other than that specified by the agent configuration needs to be used, it should be the first argument to the `register_application()` function.
+
+The result when registering the agent for the application, whether it is successful or not within the timeout period, is the corresponding application object. This can be used with the background task context manager.
+
+## Upload data on process shutdown [#data]
+
+The agent is intended to be used in long running processes. Although it can be used in scripts which run one-off tasks, it is necessary to force registration of the agent for the application as explained above. This ensures that data will be captured for the initial task run in the script.
+
+This doesn't mean though that the details of the task are guaranteed to be reported.
+
+This is because data is not reported for a task at the completion of the task. Instead the data is accumulated and would normally be reported once a minute. For a script running a one-off task however, the whole script may not run long enough so that the background data harvest and reporting of data to the data collector can be run.
+
+To cope with data from partial harvest periods, the agent will attempt to upload such partial data on shutdown of the agent when the script exits. It will not try forever to do this and instead will timeout if this process takes to long so as not to delay indefinitely the shutdown of the process.
+
+In this case, there is a default shutdown timeout of 2.5 seconds. The specific value here is chosen because of certain time constraints in place when running an agent in a Python web application under the Apache web server. For the case of Apache the timeout cannot be made longer as Apache will kill off the processes anyway after 3 seconds. The agent therefore exits a bit before that to give other code which needs to run on exit a chance before Apache kills the process.
+
+In practice it could be the case that this timeout isn't sufficiently long enough to report data on script exit, especially if there is a slow network or firewalls between the host where the script is run and our data collector.
+
+In this case it may be necessary to increase the shutdown timeout to ensure that data from a one off task in a script is actually reported.
+
+If using an agent configuration file, this is changed by adding an entry:
+
+```
+shutdown_timeout = 2.5
+```
+
+in the `[newrelic]` section of the agent configuration file.
+
+Alternatively, the shutdown timeout can be specified using the `NEW_RELIC_SHUTDOWN_TIMEOUT` environment variable.
+
+Only modify this shutdown timeout if it is found to be required.
+
+## Monitor Django management commands [#django]
+
+One common use case is the monitoring of Django management commands. Because it is a common scenario we provide builtin support for this. It is however optionally enabled though as it isn't possible to automatically monitor all Django management commands. This is because some of them, such as `runserver` and `run_gunicorn` are infinite loops. Instrumenting those two in particular will also interfere with our regular instrumentation for monitoring those as web applications.
+
+Due to the limitation on what Django management commands can be monitored, you need to add to the agent configuration file a special configuration section `[import-hook:django]`. Under this you need to then provide a space separated list under the setting `instrumentation.scripts.django_admin`:
+
+```
+[import-hook:django] 
+instrumentation.scripts.django_admin = syncdb sqlflush
+```
+
+By default, the startup timeout is automatically specified to be 10.0 seconds when monitoring the Django management commands. If you need to override the startup timeout, you can set the `instrumentation.background_task.startup_timeout` setting within the same `import-hook:django` configuration section.
+
+Once the additional configuration has been specified, you can then run your Django management command wrapped by our `newrelic-admin` wrapper script:
+
+```
+NEW_RELIC_CONFIG_FILE=newrelic.ini newrelic-admin run-python manage.py syncdb
+```
