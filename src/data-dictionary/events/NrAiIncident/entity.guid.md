@@ -6,5 +6,3 @@ events:
 ---
 
 The targeted entity's globally unique identifier, if available.
-
-Available for muting rules.
