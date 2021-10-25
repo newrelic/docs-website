@@ -62,7 +62,7 @@ The first time you build the site locally, it will take upwards of 20 minutes. T
 
 ### Dependencies
 
-Node v12 is used in this project as specified in [.nvmrc](https://github.com/newrelic/developer-website/blob/master/.nvmrc).
+Node v16 is used in this project as specified in [.nvmrc](https://github.com/newrelic/developer-website/blob/master/.nvmrc).
 
 ### Unit tests
 
@@ -72,7 +72,7 @@ have the tests automatically re-run, use `yarn run test:watch`
 ### Using multiple versions of Node
 
 If you intend to run multiple versions of Node please be aware that the New Relic
-Docs Site is currently on Node v12. Therefore it's recommended you use Node Version Manager [NVM](https://github.com/nvm-sh/nvm) to manage Node versions.
+Docs Site is currently on Node v16. Therefore it's recommended you use Node Version Manager [NVM](https://github.com/nvm-sh/nvm) to manage Node versions.
 
 Review [this article](https://itnext.io/nvm-the-easiest-way-to-switch-node-js-environments-on-your-machine-in-a-flash-17babb7d5f1b)
 which clearly explains the setup and configuration of NVM.
