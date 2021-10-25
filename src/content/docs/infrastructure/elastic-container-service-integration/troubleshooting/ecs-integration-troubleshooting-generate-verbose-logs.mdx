@@ -1,0 +1,209 @@
+---
+title: 'ECS integration troubleshooting: Generate verbose logs'
+type: troubleshooting
+tags:
+  - Integrations
+  - Elastic Container Service integration
+  - Troubleshooting
+metaDescription: How to generate verbose logs to troubleshoot New Relic Infrastructure's on-host Amazon ECS integration.
+redirects:
+  - /docs/integrations/elastic-container-service-integration/troubleshooting/ecs-integration-troubleshooting-generate-verbose-logs
+  - /docs/ecs-integration-troubleshooting-generate-verbose-logs
+---
+
+## Problem
+
+When [troubleshooting the on-host ECS integration](/docs/ecs-integration-no-data-appears), you can generate verbose logs for a few minutes to find and investigate errors. This can be useful for conducting your own troubleshooting or when providing information to [New Relic support](https://support.newrelic.com/).
+
+Verbose logging generates a lot of data very quickly. When finished generating logs, be sure to set `verbose: 0` to reduce disk space consumption.
+
+You can automate this process by using the `newrelic-infra-ctl` command. For more information, see [Troubleshooting a running agent](/docs/infrastructure/install-configure-manage-infrastructure/manage-your-agent/troubleshoot-running-agent).
+
+## Solution
+
+Generating verbose log files requires editing your task definition file. For a sample config file that includes all applicable settings, see [Infrastructure configuration settings](/docs/infrastructure/install-configure-manage-infrastructure/configuration/infrastructure-configuration-settings).
+
+You have several options for implementing verbose logs:
+
+* [Change the task definition environment variable and do a task restart](#env-variable)
+* For EC2 launch type: [Retrieve logs via SSH](#retrieve-logs-via-ssh)
+* [Forward to CloudWatch and download with awscli](#forward-logs-cloudwatch)
+* [Run a command from the running container](#running-container)
+
+### Using task definition environment variable [#env-variable]
+
+To enable verbose logs by changing the environment variable and doing a task restart:
+
+1. Edit your task definition. Change the value of `NRIA_VERBOSE` from `0` to:
+
+   * `1` for always-on verbose logs
+   * `2` for smart logging
+   * `3` for sending to New Relic
+
+   Read [more about these options](/docs/infrastructure/install-configure-manage-infrastructure/configuration/infrastructure-configuration-settings#verbose).
+2. Save your task definition.
+3. Update your service to use the newly registered task definition.
+4. If you chose `NRIA_VERBOSE=3` and you're not sending the logs directly to New Relic, you have two options for viewing and downloading the logs:
+   * For EC2 launch type: you can [retrieve the logs via SSH](#retrieve-logs-via-ssh), or
+   * [Forward logs to CloudWatch](#forward-logs-cloudwatch)
+5. Return your settings to default:
+   1. Disable verbose logging by editing your task definition and setting `NRIA_VERBOSE` to `0`.
+   2. Save your task definition.
+   3. Update your service to the latest version of your task.
+6. Examine the log file for errors.
+7. If you need to send your log file to [New Relic support](https://support.newrelic.com/):
+
+   1. Include the line in your log file that contains the ECS integration version:
+
+      ```
+      New Relic ECS integration version <var>X.YY.ZZZ</var>
+      ```
+   2. Attach the log file to your support ticket, along with your task definition .yml file.
+
+### Retrieve logs via SSH (EC2 launch type only) [#retrieve-logs-via-ssh]
+
+To get logs via SSH:
+
+1. Edit your task definition. Change the value of `NRIA_VERBOSE` from `0` to:
+
+   * `1` for always-on verbose logs
+   * `2` for smart logging
+   * `3` for sending to New Relic
+
+   Read [more about these options](/docs/infrastructure/install-configure-manage-infrastructure/configuration/infrastructure-configuration-settings#verbose).
+2. SSH into one of your container instances.
+3. Find the container ID of the New Relic integration container, by running the command `docker ps -a`. The name of the container should be `nri-ecs`.
+4. Save the logs from the container with the command `docker logs NRI_ECS_CONTAINER_ID > logs.txt`. Leave the command running for about three minutes to generate sufficient logging data.
+5. Continue with the instructions in the [enable verbose logs](#env-variable) section.
+
+### Forward logs to CloudWatch and download them with awscli [#forward-logs-cloudwatch]
+
+To get logs via CloudWatch:
+
+1. Edit your task definition. Change the value of `NRIA_VERBOSE` from `0` to:
+
+   * `1` for always-on verbose logs
+   * `2` for smart logging
+   * `3` for sending to New Relic
+
+   Read [more about these options](/docs/infrastructure/install-configure-manage-infrastructure/configuration/infrastructure-configuration-settings#verbose).
+2. We use a CloudWatch log group called `/newrelic-infra/ecs` to forward the logs to. To see if it already exists, run:
+
+   ```
+   aws logs describe-log-groups --log-group-name-prefix /newrelic-infra/ecs
+   ```
+
+   If a log group exists with that prefix, you'll get this output:
+
+   ```
+   {
+     "logGroups": [
+       {
+         "logGroupName": "/newrelic-infra/ecs",
+         "creationTime": 1585828615225,
+         "metricFilterCount": 0,
+         "arn": "arn:aws:logs:<var>YOUR_REGION</var>:<var>YOUR_AWS_ACCOUNT</var>:log-group:/newrelic-infra/ecs:*",
+         "storedBytes": 122539356
+       }
+     ]
+   }
+   ```
+
+   Because this command matches log groups with prefixes, ensure the log group name returned is exactly `/newrelic-infra/ecs`. If the log group doesn't exist, the output will be:
+
+   ```
+   {
+     "logGroups": []
+   }
+   ```
+3. If the log group doesn't exist, create it by running:
+
+   ```
+   aws logs create-log-group --log-group-name /newrelic-infra/ecs
+   ```
+4. Edit your task definition. In the container definition for the `newrelic-infra` container, add the following `logConfiguration`:
+
+   ```
+   "logConfiguration": {
+     "logDriver": "awslogs",
+     "options": {
+       "awslogs-group": "/newrelic-infra/ecs",
+       "awslogs-region": "<var>AWS_REGION_OF_YOUR_CLUSTER</var>",
+       "awslogs-stream-prefix": "verbose"
+     }
+   }
+   ```
+5. Register the new task version and update your service.
+6. Next you'll look for the relevant log stream. If you have multiple instances of the task running, they'll all send their logs to the same log group but each will have its own log stream. Log streams names follow the structure `AWSLOGS_STREAM_PREFIX/TASK_FAMILY_NAME/TASK_ID`. In this case, it will be `verbose/newrelic-infra/TASK_ID`.
+
+   To get all the log streams for a given log group, run this command:
+
+   ```
+   aws logs describe-log-streams --log-group-name /newrelic-infra/ecs
+   ```
+
+   The following is an example output of a log group with two streams:
+
+   ```
+   {
+       "logStreams": [
+           {
+               "logStreamName": "verbose/newrelic-infra/9dfb28114e40415ebc399ec1e53a21b7",
+               "creationTime": 1586166741197,
+               "firstEventTimestamp": 1586166742030,
+               "lastEventTimestamp": 1586173933472,
+               "lastIngestionTime": 1586175101220,
+               "uploadSequenceToken": "49599989655680038369205623273330095416487086853777112338",
+               "arn": "arn:aws:logs:<var>AWS_REGION_OF_YOUR_CLUSTER</var>:<var>YOUR_AWS_ACCOUNT</var>:log-group:/newrelic-infra/ecs:log-stream:verbose/newrelic-infra/9dfb28114e40415ebc399ec1e53a21b7",
+               "storedBytes": 0
+           },
+           {
+               "logStreamName": "verbose/newrelic-infra/f6ce0be416804bc4bfa658da5514eb00",
+               "creationTime": 1586166745643,
+               "firstEventTimestamp": 1586166746491,
+               "lastEventTimestamp": 1586173037927,
+               "lastIngestionTime": 1586175100660,
+               "uploadSequenceToken": "49605664273821671319096446647846424799651902350804230514",
+               "arn": "arn:aws:logs:<var>AWS_REGION_OF_YOUR_CLUSTER</var>:<var>YOUR_AWS_ACCOUNT</var>:log-group:/newrelic-infra/ecs:log-stream:verbose/newrelic-infra/f6ce0be416804bc4bfa658da5514eb00",
+               "storedBytes": 0
+           }
+       ]
+   }
+   ```
+7. From the previous list of log streams, identify the one with the task ID for which you want to retrieve the logs and use the <var>logStreamName</var> in this command:
+
+   ```
+   aws logs get-log-events --log-group-name /newrelic-infra/ecs --log-stream-name "<var>LOG_STREAM_NAME</var>" --output text > logs.txt
+   ```
+8. Continue with the [enable verbose logs](#env-variable) instructions.
+
+### From running container [#running-container]
+
+To enable verbose logs by running a command from the running container:
+
+1. SSH into one of your container instances.
+2. Find the container ID of the New Relic integration container by running the command `docker ps -a`. The name of the container should be `nri-ecs`.
+3. Enable verbose logs for a limited period of time by using `newrelic-infra-ctl`. Run the command:
+
+   ```
+   docker exec <var>INTEGRATION_CONTAINER_ID</var> /usr/bin/newrelic-infra-ctl
+   ```
+
+   For more details, see [Troubleshoot the agent](/docs/infrastructure/install-configure-manage-infrastructure/manage-your-agent/troubleshoot-running-agent).
+4. Save the logs from the container with the command
+
+   ```
+   docker logs <var>INTEGRATION_CONTAINER_ID</var> > logs.txt
+   ```
+
+   Leave the command running for about three minutes to generate sufficient logging data.
+5. Examine the log file for errors.
+
+If you need to send your log file to [New Relic support](https://support.newrelic.com/):
+
+1. Include the line in your log file that contains the ECS integration version:
+
+   ```
+   New Relic ECS integration version <var>X.YY.ZZZ</var>
+   ```
+2. Attach the log file to your support ticket, along with your task definition .yml file.

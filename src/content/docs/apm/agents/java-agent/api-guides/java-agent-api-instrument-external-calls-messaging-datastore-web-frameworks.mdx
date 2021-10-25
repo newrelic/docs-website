@@ -1,0 +1,526 @@
+---
+title: 'Java agent API: Instrument external calls, messaging, datastore, web frameworks'
+tags:
+  - Agents
+  - Java agent
+  - API guides
+metaDescription: 'Use the New Relic Java API to instrument web and non-web transactions: external calls, cross app tracing, messaging, datastore, web frameworks, etc.'
+redirects:
+  - /docs/agents/java-agent/api-guides/java-agent-api-instrument-external-calls-messaging-datastore-web-frameworks
+  - /docs/agents/java-agent/custom-instrumentation/java-agent-instrumentation-api
+  - /docs/agents/java-agent/custom-instrumentation/java-agent-api-synchronous-external-overview-java-agent-3360
+  - /docs/agents/java-agent/custom-instrumentation/java-agent-api-externalmessagingcatdatastoreweb-framework-overview
+  - /docs/agents/java-agent/custom-instrumentation/java-agent-api-external-web-framework-overview
+  - /docs/agents/java-agent/custom-instrumentation/java-agent-api-external-cat-messaging-datastore-web-framework-overview
+  - /docs/agents/java-agent/custom-instrumentation/java-agent-api-overview-custom-instrumentation-external-calls-cat-messaging-datastore-web-frameworks
+  - /docs/agents/java-agent/custom-instrumentation/java-api-overview-instrumenting-external-calls-cat-messaging-datastore-web-frameworks
+---
+
+New Relic's Java agent collects and reports information on [web transactions](/docs/apm/transactions/intro-transactions/transactions-new-relic-apm) and [non-web transactions](/docs/apm/transactions/intro-transactions/monitor-background-processes-other-non-web-transactions), such as background tasks. The agent should instrument supported frameworks automatically, without any need to modify your application code. However, in addition to custom code and frameworks or technology not listed in the [Compatibility and requirements for the Java agent](/docs/agents/java-agent/getting-started/compatibility-requirements-java-agent) documentation, some implementations of supported frameworks may require [custom instrumentation](/docs/agents/java-agent/custom-instrumentation/java-custom-instrumentation).
+
+This document describes how to use the [Java agent API](/docs/agents/java-agent/custom-instrumentation/java-agent-api) to instrument external calls, messaging frameworks, [cross application tracing](/docs/apm/transactions/cross-application-traces/cross-application-tracing) (CAT), datastores, and web frameworks. For best results when using the API, ensure that you have the [latest Java agent release](/docs/release-notes/agent-release-notes/java-release-notes). Several APIs used in the examples require Java agent 3.36.0 or higher.
+
+## External API [#external]
+
+The **External API** enables applications to report external service calls to New Relic. This information appears on the [**External services** page](/docs/apm/applications-menu/monitoring/external-services-page) in APM. To report HTTP external activity, simply create an instance of `ExternalParameters` using the `HttpParameters` builder, and call `reportAsExternal(ExternalParameters parameters)` on the traced method you want to report.
+
+<CollapserGroup>
+  <Collapser
+    id="external-api-example"
+    title="External API"
+  >
+    ```
+    String library = "HttpClient"; // a user-recognizable name for the library that is being used
+    URI uri = request.getURI(); // the URI that is being requested
+    String procedure = "execute"; // these are typically named after the method in the library that's being instrumented
+
+    // construct external parameters
+    ExternalParameters params = HttpParameters
+        .library(library)
+        .uri(uri)
+        .procedure(procedure)
+        .inboundHeaders(inboundHeaders)
+        .build();
+
+    // report the current method as doing external activity
+    NewRelic.getAgent().getTracedMethod().reportAsExternal(params);
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## External parameters builders [#external-parameters]
+
+There are several builders to create `ExternalParameters`:
+
+* `DatastoreParameters`
+* `HttpParameters`
+* `GenericParameters`
+* `MessageConsumeParameters`
+* `MessageProduceParameters`
+
+These builders create the input parameter object for [`TracedMethod`'s](http://newrelic.github.io/java-agent-api/javadoc/com/newrelic/api/agent/TracedMethod.html) `reportAsExternal` API call. These parameter objects are used for things like linking HTTP external calls via cross application tracing, tracing external calls to a datastore, tracing external calls to a datastore with additional slow query processing, as well as tracing calls between message producers and consumers.
+
+<Callout variant="important">
+  All of the methods of this class have the potential to expose sensitive private information. Use caution when creating the arguments, paying particular attention to URIs and string values.
+</Callout>
+
+## Cross application tracing API [#cat-api]
+
+The [cross application tracing](/docs/apm/transactions/cross-application-traces/cross-application-tracing) (CAT) API allows the New Relic Java agent to link transactions across applications monitored by New Relic. The API uses client and server wrappers that allow the agent to read headers from requests, and add headers to responses.
+
+[<ImageSizing width="620px" height="329px">![](./images/CAT_diagram.png)</ImageSizing>](/sites/default/files/thumbnails/image/CAT_diagram.png)
+
+### Client wrappers
+
+For the agent to write outbound request headers in the client initiating the request, use the `OutboundHeaders` interface. For example:
+
+<CollapserGroup>
+  <Collapser
+    id="outbound-header-example"
+    title="OutbounderHeaders implementation"
+  >
+    ```
+    class OutboundWrapper implements OutboundHeaders {
+            private final HttpUriRequest delegate;
+
+            // OutboundHeaders is implemented by delegating to the library's request object
+            public OutboundWrapper(HttpUriRequest request) { 
+                this.delegate = request; 
+            }
+
+            // This allows the agent to add the correct headers to the HTTP request
+            @Override
+            public void setHeader(String name, String value) {
+                delegate.addHeader(name, value);
+            }
+
+            // New Relic CAT specifies different header names for HTTP and MESSAGE
+            @Override
+            public HeaderType getHeaderType() {
+                return HeaderType.HTTP;
+            }
+        }
+    ```
+  </Collapser>
+</CollapserGroup>
+
+For the agent to read inbound response headers in the client receiving the response, implement the `InboundHeaders`. For example:
+
+<CollapserGroup>
+  <Collapser
+    id="inbound-headers-example"
+    title="InboundHeaders implementation"
+  >
+    ```
+    class InboundWrapper implements InboundHeaders {
+            private final CloseableHttpResponse responseHeaders;
+            // OutboundHeaders is implemented by delegating to the library's response object
+            public InboundWrapper(CloseableHttpResponse responseHeaders) {
+                this.responseHeaders = responseHeaders;        
+            }
+
+            // New Relic CAT specifies different header names for HTTP and MESSAGE
+            @Override
+            public HeaderType getHeaderType() {
+                return HeaderType.HTTP;
+            }
+
+            // this allows the agent to read the correct headers from the HTTP response
+           @Override
+           public String getHeader(String name) {
+               return responseHeaders.getFirstHeader(name).getValue();
+           }
+        }
+    ```
+  </Collapser>
+</CollapserGroup>
+
+### Server wrappers
+
+For the agent to get web request headers, you must extend the `ExtendedRequest` class:
+
+<CollapserGroup>
+  <Collapser
+    id="extendedrequest-example"
+    title="Extend ExtendedRequest class"
+  >
+    ```
+    // Extend ExtendedRequest class to create a wrapper for the Request object
+        class RequestWrapper extends ExtendedRequest {
+            private IHTTPSession session;
+
+            public RequestWrapper(IHTTPSession session) {
+                super();
+                this.session = session;
+            }
+
+            @Override
+            public String getRequestURI() {
+                return session.getUri();
+            }
+
+            @Override
+            public String getHeader(String name) {
+                return session.getHeaders().get(name);
+            }
+
+            @Override
+            public String getRemoteUser() {
+                return null;
+            }
+
+            @SuppressWarnings("rawtypes")
+            @Override
+            public Enumeration getParameterNames() {
+                return Collections.enumeration(session.getParms().keySet());
+            }
+
+            @Override
+            public String[] getParameterValues(String name) {
+                return new String[]{session.getParms().get(name)};
+            }
+
+            @Override
+            public Object getAttribute(String name) {
+                return null;
+            }
+
+            @Override
+            public String getCookieValue(String name) {
+                return null;
+            }
+
+            @Override
+            public HeaderType getHeaderType() {
+                return HeaderType.HTTP;
+            }
+
+            @Override
+            public String getMethod() {
+                return session.getMethod().toString();
+            }
+        }
+    ```
+  </Collapser>
+</CollapserGroup>
+
+For the agent to set the web response headers, implement the `Response` interface:
+
+<CollapserGroup>
+  <Collapser
+    id="response-interface-example"
+    title="Response interface implementation"
+  >
+    ```
+    // Implement Response interface to create a wrapper for the outgoing Response object
+        public class ResponseWrapper implements com.newrelic.api.agent.Response {
+
+            private final Response httpResponse;
+
+            public ResponseWrapper(Response httpResponse) {
+                this.httpResponse = httpResponse;
+            }
+
+            @Override
+            public int getStatus() throws Exception {
+                return 200;
+            }
+
+            @Override
+            public String getStatusMessage() throws Exception {
+                return null;
+            }
+
+            @Override
+            public void setHeader(String name, String value) {
+                httpResponse.addHeader(name, value);
+            }
+
+            @Override
+            public String getContentType() {
+                return "";
+            }
+
+            @Override
+            public HeaderType getHeaderType() {
+                return HeaderType.HTTP;
+            }
+        }
+    ```
+  </Collapser>
+</CollapserGroup>
+
+### CAT implementation using wrappers [#cat-implementation]
+
+Using the wrapper objects described in the previous sections, you can enable the Java agent to do cross application tracing (CAT) on the client and server side. For example:
+
+<CollapserGroup>
+  <Collapser
+    id="cat-client-example"
+    title="Cross application tracing: Client-side"
+  >
+    ```
+    @Trace
+         public int makeExternalCall(URI uri) throws IOException {
+             String library = "HTTPClient";
+             String procedure = "Execute";
+             HttpUriRequest request = RequestBuilder.get().setUri(uri).build();
+
+             // Wrap the outbound Request object
+             OutboundWrapper outboundHeaders = new OutboundWrapper(request);
+             // Obtain a reference to the method currently being traced
+             TracedMethod tracedMethod = NewRelic.getAgent().getTracedMethod();
+             // Add headers for outbound external request
+             tracedMethod.addOutboundRequestHeaders(outboundHeaders);
+
+             CloseableHttpClient connection = HttpClientBuilder.create().build();
+             CloseableHttpResponse response = connection.execute(request);
+
+             // Wrap the incoming Response object
+             InboundWrapper inboundHeaders = new InboundWrapper(response);
+             // Create an input parameter object for a call to an external HTTP service
+             ExternalParameters params = HttpParameters
+                 .library(library)
+                 .uri(uri)
+                 .procedure(procedure)
+                 .inboundHeaders(inboundHeaders)
+                 .build();
+
+             // Report a call to an external HTTP service
+             tracedMethod.reportAsExternal(params);
+
+             return response.getStatusLine().getStatusCode();
+        }
+    ```
+  </Collapser>
+</CollapserGroup>
+
+In this sample code, the agent is configured to report an external call using CAT on the client that is initiating the request. These steps can be summarized as follows:
+
+1. Implement `OutboundHeaders` and `InboundHeaders` using framework classes on the client.
+2. Use `addOutboundRequestHeaders(OutboundHeaders outboundHeaders)` to have the agent add appropriate headers to the outbound request.
+3. Create `ExternalParameters` object using `HttpParameters` builder and provide inbound response headers.
+4. Report as an external request using `reportAsExternal(ExternalParameters params)`.
+
+<CollapserGroup>
+  <Collapser
+    id="cat-server-example"
+    title="Cross application tracing: Server-side"
+  >
+    ```
+    @Trace(dispatcher = true)
+        @Override
+        public Response serve(IHTTPSession session) {
+            // Obtain a reference to the current Transaction
+            Transaction tx = NewRelic.getAgent().getTransaction();
+            // Set the name of the current transaction
+            NewRelic.setTransactionName("Custom", "ExternalHTTPServer");
+
+            // Wrap the Request object
+            ExtendedRequest req = new RequestWrapper(session);
+
+            // Set the request for the current transaction and convert it into a web transaction
+            tx.setWebRequest(req);
+
+            queryDB();
+            Response res = newFixedLengthResponse("<html><body><h1>SuccessfulResponse</h1>\n</body></html>\n");
+
+            // Set the response for the current transaction and convert it into a web transaction
+            tx.setWebResponse(new ResponseWrapper(res));
+
+            // Instruct the transaction to write the outbound response headers
+            tx.addOutboundResponseHeaders();
+
+            // Mark the time when the response left the server
+            tx.markResponseSent();
+
+            return res;
+        }
+    ```
+  </Collapser>
+</CollapserGroup>
+
+In this sample code, the agent is configured to report an external call using CAT on the server that is responding to the request. These steps can be summarized as follows:
+
+1. Implement `Response` and extend the `ExtendedRequest` class using framework classes on the server.
+2. Use `setWebRequest(ExtendedRequest request)` and `setWebResponse(Response response)` to convert the transaction into a web transaction and together provide the agent with the inbound request headers and a place to record the outbound headers.
+
+   It's important to use both `setWebRequest(ExtendedRequest request)` and `setWebResponse(Response response)` together, because the transaction name depends on the request object, and the response code depends on the response object.
+3. Use `addOutboundResponseHeaders()` to have the agent add appropriate headers to the outbound response.
+4. Mark the end of the response with a call to `markResponseSent()`.
+
+## Messaging API
+
+The messaging API allows applications to report interactions with message queue brokers. It builds on top of the External API by providing the `MessageConsumerParametersMessage` and `MessageConsumerParameters`.
+
+This API generates the necessary metrics to identify message broker interactions. The UI will use these metrics to display messaging data including segments in transactions with the appropriate action and count (message put, or message take), a dedicated messages tab in transaction traces, and more. Providing inbound and outbound headers to the API also allows the agent to add CAT headers, and record CAT metrics, which enables the UI to draw [service maps](/docs/data-analysis/service-maps/get-started/service-maps-visualize-monitor-your-apps-entire-architecture) that show connections between applications.
+
+<Callout variant="important">
+  The messaging API relies on two-way communication between producers and consumers. If your producer does not receive an acknowledgment from a consumer, like in a fire-and-forget pattern, the messaging API will not accurately reflect the interactions with message queue brokers.
+</Callout>
+
+The following example demonstrates how to instrument a fictional JMS library.
+
+<CollapserGroup>
+  <Collapser
+    id="messaging-example"
+    title="Messaging API implementation"
+  >
+    ```
+    public class MessageProducer {
+         // instrument the method that puts messages on a queue
+         @Trace
+         public void sendMessageToQueue(Message message) {
+              ExternalParameters messageProduceParameters = 
+                  MessageProduceParameters.library("JMS")
+                      .destinationType(DestinationType.NAMED_QUEUE)
+                      .destinationName(message.getJMSDestination())
+                      .outboundHeaders(new OutboundWrapper(message))
+                      .build();
+
+              NewRelic.getAgent().getTracedMethod().reportAsExternal(messageProduceParameters);
+          }
+    }
+    ```
+  </Collapser>
+</CollapserGroup>
+
+To simplify things, the agent assumes that `sendMessageToQueue` always puts a message in a named queue. In reality, a message can be sent to different destination types, including named queues, temporary queues, topics, and temporary topics. The API provides an enum to report messages to different destination types: `NAMED_QUEUE`, `TEMP_QUEUE`, `NAMED_TOPIC`, `TEMP_TOPIC`. It's important to specify the appropriate destination type because the UI will display the names of named queues and named topics and will omit the names of temporary queues and temporary topics.
+
+If the library is capable of transmitting CAT headers, an `OutboundHeaders` object will be provided to the API so that the agent can add CAT headers.
+
+<CollapserGroup>
+  <Collapser
+    id="message-outbound-example"
+    title="Message with CAT headers implementation"
+  >
+    ```
+    public class MessageConsumer {
+        @Trace
+        public Message messageReceive() {
+            ExternalParameters messageConsumeParameters = 
+                MessageConsumeParameters.library("JMS")
+                    .destinationType(DestinationType.NAMED_QUEUE)
+                    .destinationName(message.getJMSDestination())
+                    .inboundHeaders(new InboundWrapper(message))
+                    .build();
+            NewRelic.getAgent().getTracedMethod().reportAsExternal(messageConsumeParameters);
+            return message;
+        }
+    }
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Datastore API
+
+When a traced method is reported as an external datastore call, the call is shown in the APM [Databases](/docs/apm/applications-menu/monitoring/databases-slow-queries-page) page. Because datastores are external to the running application, the method is reported as datastore activity using the `reportAsExternal(ExternalParameters params)` method. The only difference is that a different builder, `DatastoreParameters`, is used to create the appropriate `ExternalParameters` object.
+
+<CollapserGroup>
+  <Collapser
+    id="datstore"
+    title="Datastore API implementation"
+  >
+    ```
+    TracedMethod tracedMethod = NewRelic.getAgent().getTracedMethod();
+        tracedMethod.reportAsExternal(
+            DatastoreParameters
+            .product("sqlite") // the datastore vendor
+            .collection("test.db") // the name of the collection (or table for SQL databases)
+            .operation("select") // the operation being performed, e.g. "SELECT" or "UPDATE" for SQL databases
+            .instance("localhost", 8080) // the datastore instance information - generally can be found as part of the connection
+            .databaseName("test.db") // may be null, indicating no keyspace for the command
+            .build());
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Datastore API: Slow query [#datastore-slow-query]
+
+This API call provides the same behavior as the [Datastore API call](#datastore-api) and extends it to allow [slow query](/docs/apm/applications-menu/monitoring/databases-slow-queries-page) information to be tracked. The same `reportAsExternal(ExternalParameters params)` method and builder are used, but with an additional builder method.
+
+<CollapserGroup>
+  <Collapser
+    id="datastore-slow-query-example"
+    title="Datastore with slow query implementation"
+  >
+    Creating the appropriate `ExternalParameters` object is illustrated below:
+
+    ```
+    //Reporting a method as doing datastore activity
+        TracedMethod tracedMethod = NewRelic.getAgent().getTracedMethod();
+        tracedMethod.reportAsExternal(
+            DatastoreParameters
+            .product("sqlite") // the datastore vendor
+            .collection("test.db") // the name of the collection (or table for SQL databases)
+            .operation("select") // the operation being performed, e.g. "SELECT" or "UPDATE" for SQL databases
+            .instance("localhost", 8080) // the datastore instance information - generally can be found as part of the connection
+            .databaseName("test.db") // may be null, indicating no keyspace for the command
+            .slowQuery(rawQuery,QUERY_CONVERTER) 
+            .build());
+
+        private static QueryConverter<String> QUERY_CONVERTER = new QueryConverter<String>() {
+
+            @Override
+            public String toRawQueryString(String statement) {
+                // Do work to transform raw query object to string
+                return statement;
+            }
+
+            @Override
+            public String toObfuscatedQueryString(String statement) {
+                // Do work to remove any sensitive information here
+                return obfuscateQuery(statement);
+            }
+        };
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## WebFrameworks API
+
+The WebFrameworks API allows the agent to report [additional identifying information about the application.](/docs/agents/java-agent/configuration/hostname-logic-java#unique-identifier)
+
+```
+// Set the dispatcher name and version which is reported to APM.
+// The dispatcherName is intended to represent the type of server that this
+// application is running on such as: Tomcat, Jetty, Netty, etc.
+NewRelic.setServerInfo(String dispatcherName, String version)
+
+// Set the app server port which is reported to APM.
+NewRelic.setAppServerPort(int port)
+
+// Set the instance name in the environment. 
+// A single host:port may support multiple JVM instances. 
+// The instance name is intended to help identify a specific JVM instance.
+NewRelic.setInstanceName(String instanceName)
+```
+
+<Callout variant="tip">
+  These values can be set only once. Subsequent calls will have no effect.
+</Callout>
+
+<CollapserGroup>
+  <Collapser
+    id="webframeworks-example"
+    title="WebFrameworks API implementation"
+  >
+    ```
+    public NewRelicApiClient() throws IOException, URISyntaxException {
+          super(8080);
+
+          // Set Dispatcher name and version.
+          NewRelic.setServerInfo("NanoHttp", "2.3.1");
+
+          // Set Appserver port for jvm identification
+          NewRelic.setAppServerPort(8080);
+
+          // Set JVM instance name
+          NewRelic.setInstanceName("Client:8080");
+
+          start(NanoHTTPD.SOCKET_READ_TIMEOUT, false);
+          System.out.println("\nRunning on http://localhost:8080/ \n");
+      }
+    ```
+  </Collapser>
+</CollapserGroup>
