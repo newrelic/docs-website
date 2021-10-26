@@ -1,5 +1,5 @@
 ---
-title: 'Nerdlog Roundup: Root Cause Analysis, Topology (Relationship-Based) Correlation, and more!'
+title: 'Nerdlog Roundup: Root cause analysis, topology (relationship-based) correlation, and more!'
 summary: 'Reduce your MTTR with free Automatic Proactive Anomaly Detection, find problems fast with root cause analysis, and increase context for issues using topology correlation. '
 releaseDate: '2021-03-18'
 learnMoreLink: 'https://blog.newrelic.com/product-news/nerdlog-aiops-anomaly-detection/'

@@ -1,5 +1,5 @@
 ---
-title: 'Nerdlog Roundup: K6 Load Testing and the ServiceNow and Snowflake Integrations'
+title: 'Nerdlog Roundup: K6 load testing and the ServiceNow and Snowflake integrations'
 summary: 'Keep your issues in sync, view your Snowflake and k6 performance data in New Relic One.'
 releaseDate: '2021-02-19'
 learnMoreLink: 'https://newrelic.com/blog/nerdlog/introducing-the-nerdlog'
