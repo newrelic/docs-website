@@ -1,6 +1,6 @@
 ---
 title: 'NRQL Alert Conditions, with no NRQL required'
-summary: 'Now create alert conditions directly from the Query Builder'
+summary: 'Now create alert conditions directly from the query builder'
 releaseDate: '2021-05-28'
 getStartedLink: 'https://one.newrelic.com/launcher/nr1-core.home?packages=nrai@0.2.417-c55ed87e&platform[timeRange][duration]=259200000&platform[$isFallbackTimeRange]=true&pane=eyJuZXJkbGV0SWQiOiJucjEtY29yZS5ob21lLXNjcmVlbiJ9&overlay=eyJuZXJkbGV0SWQiOiJ3YW5kYS1kYXRhLWV4cGxvcmF0aW9uLmRhdGEtZXhwbG9yZXIiLCJpbml0aWFsQWN0aXZlSW50ZXJmYWNlIjoiY2hhcnRCdWlsZGVyIiwiaW5pdGlhbEFjY291bnRJZCI6MTYwNjg2MiwiaW5pdGlhbExpbWl0IjoxMCwiaW5pdGlhbFRpbWVXaW5kb3ciOnsic3RhcnQiOm51bGwsImVuZCI6Im5vdyIsIm9mZnNldCI6MTgwMDAwMH0sImluaXRpYWxUaW1lV2luZG93T3ZlcnJpZGUiOm51bGwsImluaXRpYWxGaWx0ZXJzIjoiIiwiaW5pdGlhbFBsb3RBZ2dyZWdhdGUiOnsicGxvdCI6bnVsbH0sImluaXRpYWxGYWNldCI6bnVsbCwiaW5pdGlhbENvbXBhcmVXaXRoIjpudWxsfQ=='
 ---

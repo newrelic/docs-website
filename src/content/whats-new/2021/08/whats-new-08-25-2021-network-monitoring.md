@@ -1,5 +1,5 @@
 ---
-title: 'Network Performance Monitoring is Now Available as Part of New Relic One'
+title: 'Network Performance Monitoring is now available as part of New Relic One'
 summary: 'Understand how the network is impacting your overall system performance'
 releaseDate: '2021-08-25'
 learnMoreLink: 'https://newrelic.com/platform/network-observability'

@@ -1,5 +1,5 @@
 ---
-title: 'Real Time Profiling for Java enabled by default with Java Agent v7.1'
+title: 'Real time profiling for Java enabled by default with Java agent v7.1'
 summary: 'Low-overhead, continuous profiling of your Java code in production environments'
 releaseDate: '2021-07-08'
 learnMoreLink: 'https://newrelic.com/blog/nerdlog/real-time-java-profiling'
