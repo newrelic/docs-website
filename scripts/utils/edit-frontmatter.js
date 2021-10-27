@@ -13,10 +13,8 @@ const path = require('path');
  * @param {String} slug - the slug of the filepath
  * @returns {Object} The frontmatter with added redirect
  */
-const addRedirect = (frontmatter, slug) => {
-  frontmatter.redirects.push(slug);
-  return frontmatter;
-};
+const addRedirect = (frontmatter, slug) => 
+  ({ ...frontmatter, redirects: [ ...frontmatter.redirects, slug ]});
 
 /**
  * Removes a redirect from frontmatter
@@ -24,11 +22,9 @@ const addRedirect = (frontmatter, slug) => {
  * @param {String} slug - the slug of the filepath
  * @returns {Object} The frontmatter with redirect removed
  */
-const removeRedirect = (frontmatter, slug) => {
-  const { redirects } = frontmatter;
-  frontmatter.redirects = redirects.filter((path) => path !== slug);
-  return frontmatter;
-};
+const removeRedirect = (frontmatter, slug) => 
+  ({ ...frontmatter, redirects: frontmatter.redirects.filter((path) => path !== slug) });
+ 
 
 /**
  * Gets slug from path, relative to contents folder
