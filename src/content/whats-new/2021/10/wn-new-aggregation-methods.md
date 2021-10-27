@@ -7,9 +7,9 @@ learnMoreLink: 'https://discuss.newrelic.com/t/new-aggregation-methods-for-nrql-
 
 Data latency has caused many users to have inaccurate alert violations. Since data has the potential to come in too late to be evaluated, New Relic has added two new streaming aggregation methods for NRQL alert conditions. With this addition, users have three options to choose from for data aggregation methods:
 
-    * **Event Flow** (the new default aggregation method)
-    * **Event Timer** (the other new aggregation method)
-    * **Cadence** (the classic aggregation method)
+    * Event Flow (the new default aggregation method)
+    * Event Timer (the other new aggregation method)
+    * Cadence (the classic aggregation method)
 
 ## **Event Flow**
 
