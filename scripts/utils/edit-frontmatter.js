@@ -49,7 +49,7 @@ const replaceFrontmatter = (frontmatter, fileTree) => {
   const frontmatterIndex = fileTree.children.findIndex(
     (child) => child.type === 'yaml'
   );
-  fileTree.children[frontmatterIndex].value = frontmatter;
+  fileTree.children[frontmatterIndex].value = frontmatter.trim();
   return fileTree;
 };
 

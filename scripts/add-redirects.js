@@ -25,9 +25,15 @@ const processFiles = async (filepath) => {
   const yamlJson = yamlToJson(yamlContent);
   const frontmatterJson = yamlJson[0];
   const { redirects } = frontmatterJson;
-  if (!redirects || redirects.includes(slug)) {
+
+  if (!redirects) {
+    frontmatterJson.redirects = [];
+  }
+
+  if (redirects.includes(slug)) {
     return { skipped: slug };
   }
+
   const editedFrontMatter = addRedirect(frontmatterJson, slug);
   const updatedYamlFrontmatter = jsonToYaml(editedFrontMatter);
   const updatedContents = replaceFrontmatter(updatedYamlFrontmatter, fileTree);
