@@ -1,0 +1,70 @@
+### Why is this important?
+
+When aggregation is triggered on an aggregation window, all data points currently in that window will be aggregated based on the aggregation you specified in your NRQL query (e.g. `sum`, `average`, `min`, `max`, etc.). Aggregation will turn many data points into a single numeric value, which is then sent to be evaluated against the threshold.
+
+Importantly, **once aggregation happens, no further data points can be added to that window**. This means that it is vital to strike a balance between waiting for more data points to show up and getting the window aggregated and evaluated as quickly as possible (to reduce Mean Time To Detect). You don't want aggregation to trigger too quickly in case more data points show up, but you don't want to wait any longer than necessary, so that you get your alerts faster.
+
+---
+---
+
+The big question you need to ask yourself is: **how often does my data arrive at New Relic?**
+
+---
+---
+
+## Event Flow
+
+./images/Screen Shot 2021-10-13 at 10.35.22 AM.png
+
+
+If your data is coming from a New Relic APM agent or Infrastructure agent, chances are your data arrives at least once per minute, for every entity that you're monitoring. When data arrives frequently and relatively consistently, **Event Flow** is your best bet.
+
+It's also important that your data not have too much "timestamp jitter" -- that means that, at any given moment, New Relic should see data points with timestamps that range over a relatively short time period.
+
+This is because, in order to "ship" any given aggregation window, Event Flow relies on data points coming in to subsequent windows. If the system sees data coming in with timestamps of 12:03 and later, for example, it will "ship" your 12:00-12:01 aggregation window (assuming a 2-minute Delay setting). It makes the assumption that, since we have data showing up for several minutes past the "active" window, then that window must be filled and it's time to aggregate it and send it for evaluation.
+
+The key element to remember here is that _later data coming in is what pushes the system forward_. So if New Relic only sees one data point, but then has to wait an hour for the next data point to show up, the system will not move forward (and that first data point will not get aggregated and evaluated) until an hour later. On the other hand, if the next several data points that New Relic sees are only seconds or a few minutes past the first timestamp, then Event Flow is the right choice.
+
+**Use-cases that are best for Event Flow:**
+* APM agent data
+* Infrastructure agent data
+* Any data coming from a 3rd party that comes in frequently and reliably
+* MOST AWS Cloudwatch METRICS coming from the AWS Metric Stream (NOT polling)
+  * Some AWS Cloudwatch data is very infrequent (like S3 volume data) regardless of whether it's streaming vs polling -- use Event Timer if this is the case
+
+We figure that this is ideal for the most frequent use-cases, which is why we made Event Flow the new default setting.
+
+---
+
+## Event Timer
+
+./images/Screen Shot 2021-10-13 at 10.39.50 AM.png
+
+If your data is coming into New Relic inconsistently, or with large gaps between timestamps, **Event Timer** is your best bet.
+
+With large gaps between timestamps, it is better to simply wait a set period of time for the current aggregation window to finish filling up. This means that the system is not left waiting for subsequent data points (like Event Flow), but instead will wait for the **Timer** to expire on the active aggregation window.
+
+With a query returning a count of errors, for example, many minutes may go by with no count at all, and then suddenly 5 errors will show up in a single minute. Here's an example of what I mean:
+
+```
+FROM Transaction SELECT count(*) WHERE error IS TRUE FACET appName
+```
+
+With Event Timer, the system will not move forward until the timer has expired on any given aggregation window, and that requires data to show up _for that window only_ -- it does not need data to show up for subsequent windows in order to trigger aggregation.
+
+Using a similar example as the one above, if the system is watching for data to come in and fill the 12:00-12:01 aggregation window, the first data point that shows up will start the timer. With a **Timer** setting of 1 minute, the system will wait 1 minute for more data to show up for that window. If more data shows up, the timer will be reset every time another data point arrives. Once the timer reaches 0, the 12:00-12:01 aggregation window is aggregated and evaluated.
+
+**Use-cases that are best for Event Timer:**
+* Usage data produced by New Relic (it is posted with a lot of latency, but when a data point is posted, you know there won't be another one for about another hour)
+* Cloud Integrations data that is being polled (GCP or Azure, or AWS polling method)
+  * We are never certain when we'll receive data for any given window, but when data _does_ arrive, it tends to come in batches of 1-minute increments, with only 1 data point per minute
+  * This works very well with a 1-minute aggregation window and Event Timer using the lowest setting for Timer, 5 seconds (since once the first data point shows up for any given minute, we already know more data points won't be showing up for that minute and we can ship the window immediately)
+* Queries that deliver sparse or infrequent data -- error counts are an excellent example of this
+
+---
+
+## A special note about Loss of Signal
+
+It is important to keep in mind that the Loss of Signal system runs separately from these aggregation methods. If you set up your alert condition to open a new violation when your signal is lost for 10 minutes, then there is a service in place that will watch closely for data points to arrive, and if a new data point fails to show up in 10 minutes, it will cause a violation to open. **This functions completely separately from your Aggregation Window, Delay/Timer, and Aggregation Method settings.**
+
+If you'd like to understand more about when to use Loss of Signal, please see [this article](https://discuss.newrelic.com/t/relic-solution-how-can-i-figure-out-when-to-use-gap-filling-and-loss-of-signal/120401).
