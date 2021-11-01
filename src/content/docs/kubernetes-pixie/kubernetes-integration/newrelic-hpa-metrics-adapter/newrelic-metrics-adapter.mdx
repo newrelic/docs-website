@@ -1,0 +1,185 @@
+---
+title: New Relic Metrics Adapter
+tags:
+  - Integrations
+  - Kubernetes integration
+  - Link apps and services
+metaDescription: New Relic Metrics Adapter
+---
+
+<Callout title="BETA FEATURE">
+This feature is still in development, but we encourage you to try it out!
+</Callout>
+
+You can use metrics from your New Relic account to autoscale applications and services in your Kubernetes cluster by deploying the [New Relic Metrics Adapter](https://github.com/newrelic/newrelic-k8s-metrics-adapter). This adapter fetches the metric values from New Relic and makes them available for the [Horizontal Pod Autoscalers](https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale/).
+
+The [newrelic-k8s-metrics-adapter](https://github.com/newrelic/newrelic-k8s-metrics-adapter) implements the `external.metrics.k8s.io` API to support the use of external metrics based New Relic NRQL queries results. Once deployed, the value for each configured metric is fetched using the [NerdGraph API](https://docs.newrelic.com/docs/apis/nerdgraph/get-started/introduction-new-relic-nerdgraph/) based on the configured [NRQL](https://docs.newrelic.com/docs/query-your-data/nrql-new-relic-query-language/) query.
+
+The metrics adapter exposes the metrics over a secured endpoint with TLS.
+
+![Diagram showing the New Relic metrics adapter in a cluster](./images/adapter-diagram.svg "Diagram showing the newrelic metrics adapter in a cluster")
+
+<figcaption>
+  New Relic metrics adapter in a cluster.
+</figcaption>
+
+## Requirements [#requirements]
+
+- Kubernetes 1.16 or higher.
+- The [New Relic Kubernetes integration](/docs/integrations/kubernetes-integration/installation/kubernetes-integration-install-configure).
+- New Relic's [user API key](/docs/apis/intro-apis/new-relic-api-keys/#user-api-key).
+- No other External Metrics Adapter installed in the cluster.
+
+## Installation [#installation]
+
+To install the New Relic Metrics Adapter, we provide the `newrelic-k8s-metrics-adapter` Helm chart, which is also included in the `nri-bundle` chart used to deploy all New Relic Kubernetes components.
+
+1. If not already installed, [install our Kubernetes integration](/docs/kubernetes-pixie/kubernetes-integration/installation/kubernetes-integration-install-configure/#installer).
+2. Upgrade the installation to include the New Relic Metrics Adapter with the following command:
+
+```
+helm upgrade --install newrelic newrelic/nri-bundle \
+--namespace newrelic --create-namespace --reuse-values \
+<var>--set metrics-adapter.enabled=true</var> \
+<var>--set newrelic-k8s-metrics-adapter.personalAPIKey</var>=<var>YOUR_NEW_RELIC_PERSONAL_API_KEY</var> \
+<var>--set newrelic-k8s-metrics-adapter.config.accountID</var>=<var>YOUR_NEW_RELIC_ACCOUNT_ID</var> \
+<var>--set newrelic-k8s-metrics-adapter.config.externalMetrics</var>.<var>external_metric_name</var>.query=<var>NRQL query</var> 
+```
+
+Please notice and adjust the following flags:
+- `metrics-adapter.enabled`: Must be set to `true` so the metrics adapter chart is installed.
+- `newrelic-k8s-metrics-adapter.personalAPIKey`: Must be set to valid New Relic [Personal API key](https://docs.newrelic.com/docs/apis/intro-apis/new-relic-api-keys/#user-api-key).
+- `newrelic-k8s-metrics-adapter.accountID`: Must be set to valid New Relic account where metrics are going to be fetched from.
+- `newrelic-k8s-metrics-adapter.config.externalMetrics.<var>external_metric_name</var>.<var>query</var>`: Adds a new external metric where:
+  - `<var>external_metric_name</var>`: The metric name.
+  - `<var>query</var>`: The base NRQL query that is used to get the value for the metric.
+
+<Callout variant="tip">
+  Alternatively, you can use a `values.yaml` file that can be passed to the helm command with the `--values` flag.
+  Values files can contain all parameters needed to configure the metrics explained in the [configuration](#configuration) section.
+</Callout>
+
+## Configuration [#configuration]
+
+You can configure multiple metrics in the metrics adapter and change some parameters to modify the behaviour of the metrics cache and filtering. To see the full list and descriptions of all parameters that can be modified, refer to the chart [README.md](https://github.com/newrelic/helm-charts/blob/master/charts/newrelic-k8s-metrics-adapter/README.md) and [values.yaml](https://github.com/newrelic/helm-charts/blob/master/charts/newrelic-k8s-metrics-adapter/values.yaml) files.
+
+## How it works [#how-it-works]
+
+The following example is a Helm values file that enable the metrics adapter on the `nri-bundle` chart installation, and configures the `nginx_average_requests` metric:
+
+```yaml
+metrics-adapter:
+  enabled: true
+newrelic-k8s-metrics-adapter:
+  personalAPIKey: <Personal API Key>
+  config:
+    accountID: <Account ID>
+    externalMetrics:
+      nginx_average_requests:
+        query: "FROM Metric SELECT average(nginx.server.net.requestsPerSecond) SINCE 2 MINUTES AGO"
+```
+
+<Callout variant="caution">
+The default time span for metrics is 1h. Therefore, you should define queries with the `SINCE` clause to adjust the time span according to your environment and needs.
+</Callout>
+
+There is an HPA consuming the external metric as follows:
+
+```yaml
+kind: HorizontalPodAutoscaler
+apiVersion: autoscaling/v2beta2
+metadata:
+  name: nginx-scaler
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: nginx
+  minReplicas: 1
+  maxReplicas: 10
+  metrics:
+    - type: External
+      external:
+        metric:
+          name: nginx_average_requests
+          selector:
+            matchLabels: 
+              k8s.namespaceName: nginx
+        target:
+          type: Value 
+          value: 10000
+```
+
+Based on the HPA definition, the controller manager fetches the metrics from the external metrics API which are served by the New Relic metrics adapter.
+
+The New Relic metrics adapter receives the query including the `nginx_average_requests` metric name and all the selectors, and searches for a matching metric name in the internal memory based on the configured metrics. Then, it adds the selectors to the query to form a final query that is executed using NerdGraph to fetch the value from New Relic. The above example will generate a query like the following:
+
+```sql
+FROM Metric SELECT average(nginx.server.net.requestsPerSecond) WHERE clusterName=<clusterName> AND `k8s.namespaceName`='nginx' SINCE 2 MINUTES AGO
+```
+
+Notice that a `clusterName` filter has been automatically added to the query to exclude metrics from other clusters in the same account. You can remove it by using the `removeClusterFilter` configuration parameter. Also the value is cached for a period of time defined by the `cacheTTLSeconds` configuration parameter, whose deafult is 30 seconds.
+
+## Troubleshooting [#troubleshooting]
+
+<CollapserGroup>
+  <Collapser
+    className="freq-link"
+    id="verbose-helm"
+    title="Get verbose logs"
+  >
+  Most common errors are displayed in the standard (non-verbose) logs. If you're doing a more in-depth investigation on your own or with New Relic Support, you can enable verbose mode.
+
+  To get verbose logging details for an integration using Helm:
+
+    1. Enable verbose logging:
+      ```shell
+      helm upgrade -n <namespace> --reuse-values newrelic-bundle --set newrelic-k8s-metrics-adapter.verboseLog=true newrelic/nri-bundle
+      ```
+    2. Leave on verbose mode for a few minutes, or until enough activity has occurred.
+    3. When you have the information you need, disable verbose logging:
+      ```shell
+      helm upgrade --reuse-values newrelic-bundle --set newrelic-k8s-metrics-adapter.verboseLog=false newrelic/nri-bundle
+      ```
+  <Callout variant="caution">
+    Verbose mode increases significantly the amount of information sent to log files. Enable this mode temporarily, only for troubleshooting purposes, and reset the log level when finished.
+  </Callout>
+
+  </Collapser>
+  <Collapser
+    className="freq-link"
+    id="verbose-helm"
+    title="Get raw metrics"
+  >
+  Sometimes it's useful to get the list of available metrics and also to get the current value of an specific metric.
+
+  To get the list of metrics available, run:
+
+  ```shell
+  kubectl get --raw "/apis/external.metrics.k8s.io/v1beta1/"
+  ```
+
+  To get the value for a specific metric with a selector, run:
+
+  ```shell
+  kubectl get --raw "/apis/external.metrics.k8s.io/v1beta1/namespaces/*/<metric_name>?labelSelector=<selector_key>=<selector_value>"
+  ```
+
+  <Callout variant="tip">
+  You must replace `<metric_name>`, `<selector_key>` and `<selector_value>` with your values.
+  </Callout>
+
+  </Collapser>
+  <Collapser
+    className="freq-link"
+    id="verbose-helm"
+    title="Metrics not working"
+  >
+  There are some usual errors that could cause a metric fail to retrieve the value. These errors are showed in the status of the metrics when you describe the HPA or are printed when you get the raw metrics directly.
+
+  - `executing query: NRQL Syntax Error: Error at line...`: The query that is being run has syntax errors. The same error message gives you the executed query and position of the error. You can try this query inside the New Relic query builder and correct the configuration from the adapter.
+  - `extracting return value: expected first value to be of type "float64", got %!q(<nil>)`: The query doesn't return any value. The same error message gives you the executed query so you can try this query inside the New Relic query builder and correct the configuration from the adapter or the match selectors in the HPA.
+
+
+  </Collapser>
+</CollapserGroup>

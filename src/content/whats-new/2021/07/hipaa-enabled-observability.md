@@ -1,5 +1,5 @@
 ---
-title: 'HIPAA-enabled Observability Platform'
+title: 'HIPAA-enabled observability platform'
 summary: 'The first to support metrics, events, logs, and traces'
 releaseDate: '2021-07-07'
 learnMoreLink: 'https://docs.newrelic.com/docs/security/security-privacy/compliance/hipaa-readiness-new-relic/'

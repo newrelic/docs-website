@@ -288,6 +288,12 @@ exports.createSchemaCustomization = ({ actions }) => {
     pages: [NavYaml!]!
     rootNav: Boolean!
   }
+  type MarkdownRemark implements Node {
+    frontmatter: Frontmatter
+  }
+  type Frontmatter {
+    isFeatured: Boolean
+  }
   `;
 
   createTypes(typeDefs);
@@ -307,7 +313,13 @@ exports.createResolvers = ({ createResolvers }) => {
       },
       rootNav: {
         resolve: (source) =>
-          hasOwnProperty(source, 'rootNav') ? source.rootNav : true,
+          hasOwnProperty(source, 'rootNav') ? source.rootNav : false,
+      },
+    },
+    Frontmatter: {
+      isFeatured: {
+        resolve: (source) =>
+          hasOwnProperty(source, 'isFeatured') ? source.isFeatured : false,
       },
     },
   });

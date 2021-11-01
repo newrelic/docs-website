@@ -15,7 +15,6 @@ const landingPageHero = require('./landingPageHero');
 const collapseLandingPageTileGrids = require('./collapseLandingPageTileGrids');
 const landingPageButtonType = require('./landingPageButtonType');
 const tocLinks = require('./tocLinks');
-const watermarks = require('./watermarks');
 const browserLandingPageBlockquote = require('./browserLandingPageBlockquote');
 const techTiles = require('./techTile');
 
@@ -37,7 +36,6 @@ module.exports = [
   collapseLandingPageTileGrids,
   landingPageButtonType,
   tocLinks,
-  watermarks,
   landingPageHero,
   techTiles,
   require('./imageSizing'),

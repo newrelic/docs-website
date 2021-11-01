@@ -1,5 +1,5 @@
 ---
-title: 'Get Instant Observability with New Relic I/O'
+title: 'Get instant observability with New Relic I/O'
 summary: 'Leverage 400+ open source quickstarts to get started monitoring your stack'
 releaseDate: '2021-10-13'
 learnMoreLink: 'https://newrelic.com/blog/nerdlog/instant-observability-quickstarts'

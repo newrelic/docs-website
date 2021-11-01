@@ -11,17 +11,23 @@ const generateWhatsNewIds = async () => {
   );
 
   return new Promise((resolve) => {
+    const currentWhatsNewPaths = [];
     vfileGlob('./src/content/whats-new/**/*.md').subscribe({
       next: (file) => {
         const slug = file.path
           .replace(/.*?src\/content/, '')
           .replace('.md', '');
-
+        currentWhatsNewPaths.push(slug);
         if (!data[slug]) {
           data[slug] = String(++largestID);
         }
       },
       complete: async () => {
+        Object.entries(data).forEach(([path]) => {
+          if (!currentWhatsNewPaths.includes(path)) {
+            delete data[path];
+          }
+        });
         file.contents = JSON.stringify(data, null, 2);
 
         await write(file, 'utf-8');
