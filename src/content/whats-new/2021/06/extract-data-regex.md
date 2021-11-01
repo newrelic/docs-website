@@ -1,5 +1,5 @@
 ---
-title: 'Extract valuable data with Regex capture'
+title: 'Extract valuable data with regex capture'
 summary: 'Finding patterns in strings easily with this powerful tool'
 releaseDate: '2021-06-24'
 learnMoreLink: 'https://docs.newrelic.com/docs/query-your-data/nrql-new-relic-query-language/get-started/nrql-syntax-clauses-functions'

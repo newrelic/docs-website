@@ -79,9 +79,6 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
         filter: { fileAbsolutePath: { regex: "/src/content/whats-new/" } }
       ) {
         nodes {
-          frontmatter {
-            isFeatured
-          }
           fields {
             slug
           }
@@ -266,13 +263,8 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
 
   whatsNewPosts.nodes.forEach((node) => {
     const {
-      frontmatter: { isFeatured },
       fields: { slug },
     } = node;
-
-    if (!isFeatured) {
-      node.frontmatter.isFeatured = false;
-    }
 
     createLocalizedRedirect({
       locales,
@@ -296,21 +288,14 @@ exports.createSchemaCustomization = ({ actions }) => {
     pages: [NavYaml!]!
     rootNav: Boolean!
   }
+  type MarkdownRemark implements Node {
+    frontmatter: Frontmatter
+  }
+  type Frontmatter {
+    isFeatured: Boolean
+  }
   `;
 
-  createTypes(typeDefs);
-};
-
-exports.createSchemaCustomization = ({ actions }) => {
-  const { createTypes } = actions;
-  const typeDefs = `
-    type MarkdownRemark implements Node {
-      frontmatter: Frontmatter
-    }
-    type Frontmatter {
-      isFeatured: Boolean
-    }
-  `;
   createTypes(typeDefs);
 };
 
@@ -328,7 +313,13 @@ exports.createResolvers = ({ createResolvers }) => {
       },
       rootNav: {
         resolve: (source) =>
-          hasOwnProperty(source, 'rootNav') ? source.rootNav : true,
+          hasOwnProperty(source, 'rootNav') ? source.rootNav : false,
+      },
+    },
+    Frontmatter: {
+      isFeatured: {
+        resolve: (source) =>
+          hasOwnProperty(source, 'isFeatured') ? source.isFeatured : false,
       },
     },
   });
