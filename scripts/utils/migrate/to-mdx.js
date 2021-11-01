@@ -4,7 +4,7 @@ const unified = require('unified');
 
 const toMDX = (tree) =>
   unified()
-    .use(stringify, { bullet: '*', listItemIndent: '1' })
+    .use(stringify, { bullet: '*', listItemIndent: '1', fence: '`' })
     .use(remarkFrontmatter, ['yaml'])
     .stringify(tree);
 

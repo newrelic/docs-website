@@ -24,13 +24,12 @@ const processFiles = async (filepath) => {
   const yamlContent = getYamlFromFrontmatter(frontmatter);
   const yamlJson = yamlToJson(yamlContent);
   const frontmatterJson = yamlJson[0];
-  const { redirects } = frontmatterJson;
 
-  if (!redirects) {
+  if (!frontmatterJson.redirects) {
     frontmatterJson.redirects = [];
   }
 
-  if (redirects.includes(slug)) {
+  if (frontmatterJson.redirects.includes(slug)) {
     return { skipped: slug };
   }
 

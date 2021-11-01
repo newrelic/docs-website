@@ -13,8 +13,10 @@ const path = require('path');
  * @param {String} slug - the slug of the filepath
  * @returns {Object} The frontmatter with added redirect
  */
-const addRedirect = (frontmatter, slug) => 
-  ({ ...frontmatter, redirects: [ ...frontmatter.redirects, slug ]});
+const addRedirect = (frontmatter, slug) => ({
+  ...frontmatter,
+  redirects: [...frontmatter.redirects, slug],
+});
 
 /**
  * Removes a redirect from frontmatter
@@ -22,9 +24,10 @@ const addRedirect = (frontmatter, slug) =>
  * @param {String} slug - the slug of the filepath
  * @returns {Object} The frontmatter with redirect removed
  */
-const removeRedirect = (frontmatter, slug) => 
-  ({ ...frontmatter, redirects: frontmatter.redirects.filter((path) => path !== slug) });
- 
+const removeRedirect = (frontmatter, slug) => ({
+  ...frontmatter,
+  redirects: frontmatter.redirects.filter((path) => path !== slug),
+});
 
 /**
  * Gets slug from path, relative to contents folder
@@ -86,12 +89,6 @@ const getFrontmatter = (fileTree) => {
   const frontmatterContent = fileTree.children?.filter(
     (child) => child.type === 'yaml'
   );
-
-  if (frontmatterContent.length === 0) {
-    console.log(`This file has no frontmatter \\_[~]_/ - `);
-  } else if (frontmatterContent.length > 1) {
-    console.log(`This file has too much frontmatter \\_[~]_/`);
-  }
 
   return frontmatterContent;
 };
