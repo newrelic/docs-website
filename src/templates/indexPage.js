@@ -6,7 +6,7 @@ import PageTitle from '../components/PageTitle';
 import IndexContents from '../components/IndexContents';
 import TableOfContentsContainer from '../components/TableOfContentsContainer';
 import SEO from '../components/SEO';
-import { TYPES } from '../utils/constants';
+import { TYPES, SITE_SEARCH_SCRIPT } from '../utils/constants';
 
 const IndexPage = ({ data, pageContext, location }) => {
   const { nav } = data;
@@ -22,21 +22,7 @@ const IndexPage = ({ data, pageContext, location }) => {
         type={TYPES.AUTO_INDEX_PAGE}
         disableSwiftype={disableSwiftype}
       >
-        <script type="application/ld+json">
-          {`{
-          '@context': 'https://schema.org',
-          '@type': 'WebSite',
-          url: 'https://docs.newrelic.com/',
-          potentialAction: {
-            '@type': 'SearchAction',
-            target: {
-              '@type': 'EntryPoint',
-              urlTemplate: 'https://docs.newrelic.com/?q={search_term_string}',
-            },
-            'query-input': 'required name=search_term_string',
-          },
-        }`}
-        </script>
+        <script type="application/ld+json">{SITE_SEARCH_SCRIPT}</script>
       </SEO>
       <PageTitle>{title}</PageTitle>
       <Layout.Content>
