@@ -21,7 +21,23 @@ const IndexPage = ({ data, pageContext, location }) => {
         title={title}
         type={TYPES.AUTO_INDEX_PAGE}
         disableSwiftype={disableSwiftype}
-      />
+      >
+        <script type="application/ld+json">
+          {`{
+          '@context': 'https://schema.org',
+          '@type': 'WebSite',
+          url: 'https://docs.newrelic.com/',
+          potentialAction: {
+            '@type': 'SearchAction',
+            target: {
+              '@type': 'EntryPoint',
+              urlTemplate: 'https://docs.newrelic.com/?q={search_term_string}',
+            },
+            'query-input': 'required name=search_term_string',
+          },
+        }`}
+        </script>
+      </SEO>
       <PageTitle>{title}</PageTitle>
       <Layout.Content>
         {nav ? (
