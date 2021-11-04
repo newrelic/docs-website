@@ -8,8 +8,12 @@ const fs = require('fs');
  * @returns {String} The directory with slashes added if necessary
  */
 const formatDirectory = (directory) => {
-  !directory.startsWith('/') && (directory = `/${directory}`);
-  !directory.endsWith('/') && (directory = directory.concat('/'));
+  if (!directory.startsWith('/')) {
+    return `/${directory}`;
+  } else if (!directory.endsWith('/')) {
+    return directory.concat('/');
+  }
+
   return directory;
 };
 
@@ -19,7 +23,14 @@ const formatDirectory = (directory) => {
  * @returns {String} The slug of the filepath
  */
 const getSlugFromPath = (filepath) => {
-  return filepath.match(/content(.*?).mdx/)[1];
+  const slug = filepath.match(/content(.*?).mdx/)[1];
+  if (!slug) {
+    console.error(
+      `<!> Could not find slug from path: ${filepath}, please check filepath`
+    );
+    process.exit(1);
+  }
+  return slug;
 };
 
 /**
@@ -27,10 +38,10 @@ const getSlugFromPath = (filepath) => {
  * @param {String} path - The full filepath of the file
  * @returns {Object} Original path, slug from path, content, frontmatter data
  */
-const separateData = async (path) => {
+const separateData = (path) => {
   const file = fs.readFileSync(path, 'utf8');
   const slug = getSlugFromPath(path);
-  const separateData = await frontmatterGH(file);
+  const separateData = frontmatterGH(file);
   const { data: frontmatterData, content } = separateData;
   if (!frontmatterData.redirects) {
     frontmatterData.redirects = [];
@@ -60,9 +71,11 @@ const addRedirect = ({ frontmatterData, slug, ...rest }) => {
   if (frontmatterData.redirects.includes(slug)) {
     return { frontmatterData, ...rest, skipped: slug };
   }
-  frontmatterData.redirects.push(slug);
   return {
-    frontmatterData,
+    frontmatterData: {
+      ...frontmatterData,
+      redirects: [...frontmatterData.redirects, slug],
+    },
     ...rest,
     added: slug,
   };
@@ -99,9 +112,9 @@ const getFilePaths = (directory) => {
   if (directory.length === 0) {
     // if user did not supply paths, default to all
     return glob.sync(`${__dirname}/../../../src/content/docs/**/*.mdx`);
-  } else {
-    return glob.sync(`${__dirname}/../../../src/content${directory}**/*.mdx`);
   }
+
+  return glob.sync(`${__dirname}/../../../src/content${directory}**/*.mdx`);
 };
 
 /**
@@ -110,26 +123,28 @@ const getFilePaths = (directory) => {
  */
 const getUserInputs = () => {
   const userInputs = process.argv.slice(2);
-  const actionIndex = userInputs.findIndex(
-    (arg) => arg === '--add' || arg === '--remove'
+  const actionInput = userInputs.find((input) =>
+    ['--add', '--remove'].includes(input)
   );
-  if (actionIndex === -1) {
+
+  if (!actionInput) {
     console.warn(
       '<!> No action specified, please append `--add` or `--remove` to the command'
     );
     process.exit(0);
   }
-  const action = userInputs[actionIndex].replace('--', '');
-  userInputs.splice(actionIndex, 1);
-  if (!userInputs[0]) {
+
+  const action = actionInput.replace('--', '');
+
+  const directoryInput = userInputs.find((input) => input !== actionInput);
+
+  if (!directoryInput) {
     console.warn(
       '<!> No directory specified, please include the directory you want to apply changes to'
     );
     process.exit(0);
   }
-  const directoryInput = formatDirectory(userInputs[0]);
-
-  return { action, directoryInput };
+  return { action, directory: formatDirectory(directoryInput) };
 };
 
 module.exports = {

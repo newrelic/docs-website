@@ -18,12 +18,12 @@ const processResults = (results) => {
   const removedRedirects = results.filter((file) => file.removed);
 
   if (addedRedirects.length) {
-    console.log('Added Redirects to the following paths:');
+    console.log('(✔️) Added Redirects to the following paths:');
     addedRedirects.forEach((filepath) => console.log(` - ${filepath.added}`));
   }
 
   if (removedRedirects.length) {
-    console.log('Removed Redirects from the following paths:');
+    console.log('(✔️) Removed Redirects from the following paths:');
     removedRedirects.forEach((filepath) =>
       console.log(` - ${filepath.removed}`)
     );
@@ -31,7 +31,7 @@ const processResults = (results) => {
 
   if (skippedRedirects.length) {
     console.log(
-      'The following files either contain no redirects or already contain the slug:'
+      '(✔️) The following files either contain no redirects or already contain the slug:'
     );
     skippedRedirects.forEach((filepath) =>
       console.log(` - ${filepath.skipped}`)
@@ -40,9 +40,15 @@ const processResults = (results) => {
 };
 
 const main = async () => {
-  const { action, directoryInput } = getUserInputs();
-  const filePaths = await getFilePaths(directoryInput);
-  const separatedData = await Promise.all(filePaths.map(separateData));
+  const { action, directory } = getUserInputs();
+  const filePaths = getFilePaths(directory);
+
+  if (!filePaths.length) {
+    console.warn(`<!> No .mdx files found in the directory. Please check: ${directory}`);
+    return;
+  }
+
+  const separatedData = filePaths.map(separateData);
 
   const editedData = separatedData.map((data) => {
     if (action === 'add') {
@@ -51,9 +57,9 @@ const main = async () => {
     return removeRedirect(data);
   });
 
-  const joinedData = await Promise.all(editedData.map(joinData));
+  const joinedData = editedData.map(joinData);
 
-  await joinedData.forEach(({ data, path }) => {
+  joinedData.forEach(({ data, path }) => {
     try {
       fs.writeFileSync(path, String(data));
     } catch (err) {
