@@ -14,17 +14,18 @@ export const TYPES = {
   AUTO_INDEX_PAGE: 'views_page_menu',
   ATTRIBUTE_DICTIONARY: 'views_page_content',
   WHATS_NEW_PAGE: 'views_page_content',
-  SITE_SEARCH_SCRIPT: `{
-    '@context': 'https://schema.org',
-    '@type': 'WebSite',
-    url: 'https://docs.newrelic.com/',
-    potentialAction: {
-      '@type': 'SearchAction',
-      target: {
-        '@type': 'EntryPoint',
-        urlTemplate: 'https://docs.newrelic.com/?q={search_term_string}',
-      },
-      'query-input': 'required name=search_term_string',
-    },
-  }`,
 };
+
+export const SITE_SEARCH_SCRIPT = `{
+  '@context': 'https://schema.org',
+  '@type': 'WebSite',
+  url: 'https://docs.newrelic.com/',
+  potentialAction: {
+    '@type': 'SearchAction',
+    target: {
+      '@type': 'EntryPoint',
+      urlTemplate: 'https://docs.newrelic.com/?q={search_term_string}',
+    },
+    'query-input': 'required name=search_term_string',
+  },
+}`;
