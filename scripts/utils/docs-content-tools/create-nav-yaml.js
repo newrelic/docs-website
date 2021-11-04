@@ -7,8 +7,8 @@ const READ_DIRECTORY = './src/content/docs/';
 
 /**
  * Strip the file extension from the path of the file
- * @param {string} path The path to strip the extension from.
- * @returns {string} The path without the file extension.
+ * @param {String} path The path to strip the extension from.
+ * @returns {String} The path without the file extension.
  */
 const stripPath = (path) =>
   path.endsWith('.mdx') ? path.substring(0, path.lastIndexOf('.')) : path;
