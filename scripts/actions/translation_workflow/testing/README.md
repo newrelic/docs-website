@@ -48,7 +48,10 @@ You'll need to fill out values for variables in `script.sh`.
         "database": "translations"
     }
     ```
-3. Create the database by running `creation_and_cleanup.sql` on your postgres instance. See the next section to do this in pgadmin.
+3. Run the following to get the IP Address of your database container
+  - `docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' postgres`
+
+4. Create the database by running `creation_and_cleanup.sql` on your postgres instance. See the next section to do this in pgadmin.
 
 ## How to start a pgadmin container to interact with your postgres container (optional)
 
@@ -58,9 +61,10 @@ This step is not a prerequisite for running the script, but may be useful for cr
     ```bash
     docker run -d --env PGADMIN_DEFAULT_EMAIL=username@username.com --env PGADMIN_DEFAULT_PASSWORD=password --name pgadmin -p 8080:80 -p 8081:443 dpage/pgadmin4
     ```
+3. Go to http://localhost:8080/ in your Browser
 2. To connect to your postgres container, click on `Create A Server`. On the `Connection` tab, enter the following details: 
     ```
-    Hostname/address: localhost
+    Hostname/address: $IP_ADDRESS
     Port: 5432
     Maintenance database: postgres
     Username: root
