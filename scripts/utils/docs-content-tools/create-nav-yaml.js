@@ -122,7 +122,7 @@ const processResults = (results) => {
     );
 };
 
-const main = async () => {
+const main = () => {
   const tree = dirTree(READ_DIRECTORY, {
     exclude: /images/,
   });
