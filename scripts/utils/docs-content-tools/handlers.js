@@ -123,10 +123,16 @@ const getUserInputs = () => {
     ['--add', '--remove'].includes(input)
   );
 
+  const printExample = () =>
+    console.warn(
+      'Example: yarn add-remove-redirects --add src/content/docs/apm'
+    );
+
   if (!actionInput) {
     console.warn(
       '<!> No action specified, please append `--add` or `--remove` to the command'
     );
+    printExample();
     process.exit(0);
   }
 
@@ -138,9 +144,20 @@ const getUserInputs = () => {
     console.warn(
       '<!> No directory specified, please include the directory you want to apply changes to'
     );
+    printExample();
     process.exit(0);
   }
-  return { action, directory: formatDirectory(directoryInput) };
+
+  const formattedDirectory = formatDirectory(directoryInput);
+  if (!fs.existsSync(`src/content/${formattedDirectory}`)) {
+    console.warn(
+      '<!> The directory does not exist, please check the your path. Remember that you should not include the `src/content` portion of the path.'
+    );
+    printExample();
+    process.exit(0);
+  }
+
+  return { action, directory: formattedDirectory };
 };
 
 module.exports = {
