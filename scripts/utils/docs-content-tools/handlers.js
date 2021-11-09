@@ -109,12 +109,8 @@ const removeRedirect = ({ frontmatterData, slug, ...rest }) => {
  * @returns {String[]} All mdx files in the directory and sub-directories
  */
 const getFilePaths = (directory) => {
-  if (directory.length === 0) {
-    // if user did not supply paths, default to all
-    return glob.sync(`${__dirname}/../../../src/content/docs/**/*.mdx`);
-  }
-
-  return glob.sync(`${__dirname}/../../../src/content${directory}**/*.mdx`);
+  const subDir = directory.length ? directory : '/docs/';
+  return glob.sync(`${__dirname}/../../../src/content${subDir}**/*.mdx`);
 };
 
 /**
