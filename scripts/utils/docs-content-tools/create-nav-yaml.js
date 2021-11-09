@@ -1,6 +1,8 @@
 const fs = require('fs');
 const dirTree = require('directory-tree');
 const yaml = require('js-yaml');
+const frontmatter = require('@github-docs/frontmatter');
+const { SPECIAL_WORDS } = require('./constants');
 
 const WRITE_DIRECTORY = './src/docs-content-nav/';
 const READ_DIRECTORY = './src/content/docs/';
@@ -30,10 +32,30 @@ const getSlug = (path) => {
  */
 const convertToTitle = (name) => {
   const strippedPath = stripPath(name);
-  return strippedPath
-    .split('-')
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(' ');
+  const stringifiedPath = strippedPath.split('-').join(' ');
+  const capitalizedSpecialWords = Object.keys(SPECIAL_WORDS).reduce(
+    (stringifiedPath, word) => {
+      return stringifiedPath.replace(word, SPECIAL_WORDS[word]);
+    },
+    stringifiedPath
+  );
+  return (
+    capitalizedSpecialWords.charAt(0).toUpperCase() +
+    capitalizedSpecialWords.slice(1)
+  );
+};
+
+/**
+ * Get title fromm MDX frontmatter for pages
+ * @param {String} name The filename to convert to a title.
+ * @returns {String} The title.
+ */
+const getTitleFromYaml = (path) => {
+  const mdxfile = fs.readFileSync(path, 'utf8');
+  const {
+    data: { title },
+  } = frontmatter(mdxfile);
+  return title;
 };
 
 /**
@@ -60,11 +82,10 @@ const editEldest = ({ title, path, pages }) => {
  * @param {Object} child The child to edit.
  * @returns {Object} The edited child.
  */
-const editChildren = (child) => {
-  const { name, path, children } = child;
+const editChildren = ({ name, path, children }) => {
   if (!children) {
     return {
-      title: convertToTitle(name),
+      title: getTitleFromYaml(path) || convertToTitle(name),
       path: getSlug(path),
     };
   }
@@ -83,16 +104,17 @@ const editChildren = (child) => {
 const isDirectory = (filepath) => fs.statSync(filepath).isDirectory();
 
 /**
- * Gets a list of the eldest parents in directory structure
- * @param {Object[]} tree The directory tree to get the eldest parents from.
- * @returns {Object[]} The list of eldest parents.
+ * Gets a list of the main parent directories under the READ_DIRECTORY, using the directory structure
+ * Each main directory corresponds to a new Nav Yaml file
+ * @param {Object[]} tree The directory tree to get the main parent directories from.
+ * @returns {Object[]} The list of main parent directories.
  */
 const getMainDirectories = (tree) => {
   return tree.children.map((child) => {
     const { name, path: fullPath, children } = child;
     if (!isDirectory(fullPath)) {
       return {
-        title: name,
+        title: getTitleFromYaml(fullPath),
         path: getSlug(fullPath),
       };
     }
@@ -106,7 +128,7 @@ const getMainDirectories = (tree) => {
 
 /**
  * Process the results of the file writes
- * @param {Object} results The results of the file writes.
+ * @param {Object[]} results The results of the file writes.
  */
 const processResults = (results) => {
   const success = results.filter(({ success }) => success);
@@ -116,10 +138,12 @@ const processResults = (results) => {
     console.log(
       `Successfully created ${success.length} Nav files in ${WRITE_DIRECTORY}`
     );
-  fail.length > 0 &&
+  if (fail.length > 0) {
     console.warn(
-      `Failed creating ${success.length} Nav files in ${WRITE_DIRECTORY}`
+      `Failed creating Nav files in ${WRITE_DIRECTORY} from the following:`
     );
+    fail.forEach(({ fail }) => console.warn(fail));
+  }
 };
 
 const main = () => {
