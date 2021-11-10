@@ -78,8 +78,9 @@ module.exports = {
           // Mocked features only used when in localhost mode
           // https://help.split.io/hc/en-us/articles/360020448791-JavaScript-SDK#localhost-mode
           features: {
-            free_account_button_color: {
-              treatment: 'off',
+            signups: {
+              treatment: 'on',
+              config: 'btns',
             },
           },
           core: {
