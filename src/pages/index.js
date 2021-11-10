@@ -16,7 +16,14 @@ import SurfaceLink from '../components/SurfaceLink';
 import TechTile from '../components/TechTile';
 import TechTileGrid from '../components/TechTileGrid';
 import NetworkPerformanceMonitoringBannerGA from '../components/NetworkPerformanceMonitoringBannerGA';
-import { tdp, fso, ai, security, integrations } from '../data/homepage.yml';
+import {
+  tdp,
+  fso,
+  ai,
+  security,
+  integrations,
+  mobile_apps,
+} from '../data/homepage.yml';
 
 const HomePage = ({ data }) => {
   const {
@@ -214,6 +221,21 @@ const HomePage = ({ data }) => {
             See all 370+ integrations
           </Button>
         </div>
+      </Section>
+      <Section alternate layout={layout}>
+        <SectionTitle
+          title={t('home.mobile_apps.title')}
+          icon="logo-newrelic"
+          to="/docs/mobile-apps/new-relic-mobile-apps"
+        />
+        <SectionDescription>
+          {t('home.mobile_apps.description')}
+        </SectionDescription>
+        <TechTileGrid>
+          {mobile_apps.tiles.map(({ name, icon, link }) => (
+            <TechTile key={name} name={name} icon={icon} to={link} />
+          ))}
+        </TechTileGrid>
       </Section>
       <Section layout={layout}>
         <SectionTitle title={t('home.security.title')} />
