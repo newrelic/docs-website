@@ -1,6 +1,6 @@
 import React, { Fragment } from 'react';
 import PropTypes from 'prop-types';
-import { css, keyframes } from '@emotion/react';
+import { css } from '@emotion/react';
 import { graphql } from 'gatsby';
 import {
   Button,
@@ -11,7 +11,6 @@ import {
   useTranslation,
   Trans,
 } from '@newrelic/gatsby-theme-newrelic';
-import { rgba } from 'polished';
 import SurfaceLink from '../components/SurfaceLink';
 import TechTile from '../components/TechTile';
 import TechTileGrid from '../components/TechTileGrid';
@@ -23,14 +22,24 @@ import {
   security,
   integrations,
   mobile_apps,
+  getting_started,
+  popular_content,
 } from '../data/homepage.yml';
 
 const HomePage = ({ data }) => {
   const {
     site: { layout },
+    allMarkdownRemark: { edges: whatsNewPosts },
   } = data;
 
   const { t } = useTranslation();
+
+  const latestWhatsNewPosts = whatsNewPosts.slice(0, 3).map((edge) => {
+    return {
+      title: edge.node.frontmatter.title,
+      path: edge.node.fields.slug,
+    };
+  });
 
   return (
     <>
@@ -83,7 +92,9 @@ const HomePage = ({ data }) => {
               counter-reset: welcome-tile;
               flex: 2;
               align-self: flex-start;
-
+              background: var(--tertiary-background-color);
+              padding: 1.5rem;
+              border-radius: 0.5rem;
               @media screen and (max-width: 1500px) {
                 align-self: auto;
               }
@@ -102,21 +113,16 @@ const HomePage = ({ data }) => {
             `}
           >
             <WelcomeTile
-              to="https://newrelic.com/signup"
               title={t('home.welcome.t1.title')}
-              description={t('home.welcome.t1.description')}
-              variant="cta"
-              instrumentation={{ component: 'WelcomeTileCTA' }}
+              links={getting_started.links}
             />
             <WelcomeTile
-              to="https://one.newrelic.com/launcher/nr1-core.settings?pane=eyJuZXJkbGV0SWQiOiJ0dWNzb24ucGxnLWluc3RydW1lbnQtZXZlcnl0aGluZyJ9"
+              links={latestWhatsNewPosts}
               title={t('home.welcome.t2.title')}
-              description={t('home.welcome.t2.description')}
             />
             <WelcomeTile
-              to="/docs/alerts/new-relic-alerts/getting-started/introduction-new-relic-alerts"
               title={t('home.welcome.t3.title')}
-              description={t('home.welcome.t3.description')}
+              links={popular_content.links}
             />
           </div>
         </div>
@@ -264,6 +270,19 @@ HomePage.propTypes = {
         contentPadding: PropTypes.string,
       }),
     }),
+    allMarkdownRemark: PropTypes.shape({
+      edges: PropTypes.shape({
+        whatsNewPosts: PropTypes.shape({
+          frontMatter: PropTypes.shape({
+            title: PropTypes.string,
+            releaseDate: PropTypes.string,
+          }),
+          fields: PropTypes.shape({
+            slug: PropTypes.string,
+          }),
+        }),
+      }),
+    }),
   }),
 };
 
@@ -272,6 +291,26 @@ export const pageQuery = graphql`
     site {
       layout {
         contentPadding
+      }
+    }
+    allMarkdownRemark(
+      sort: {
+        fields: [frontmatter___releaseDate, frontmatter___title]
+        order: [DESC, ASC]
+      }
+      filter: { fields: { slug: { regex: "/whats-new/" } } }
+    ) {
+      edges {
+        node {
+          id
+          frontmatter {
+            title
+            releaseDate(formatString: "MMMM D, YYYY")
+          }
+          fields {
+            slug
+          }
+        }
       }
     }
     ...MainLayout_query
@@ -358,38 +397,16 @@ const SectionDescription = (props) => (
   />
 );
 
-const pulse = keyframes`
-0% {
-  box-shadow: 0 0 0 0 ${rgba('#008c99', 0.7)};
-}
-
-70% {
-  box-shadow: 0 0 0 10px ${rgba('#008c99', 0)};
-}
-
-100% {
-  box-shadow: 0 0 0 0 ${rgba('#008c99', 0)};
-}
-`;
-
-const WelcomeTile = ({
-  description,
-  title,
-  to,
-  variant = 'normal',
-  instrumentation,
-}) => (
-  <SurfaceLink
+const WelcomeTile = ({ title, links, variant = 'normal', instrumentation }) => (
+  <Surface
     base={Surface.BASE.PRIMARY}
-    to={to}
     instrumentation={instrumentation}
     css={css`
-      text-align: center;
-      padding: 3.5rem 1rem 1.5rem;
       color: currentColor;
       position: relative;
-      min-height: 200px;
+      min-height: 300px;
       border-color: var(--tile-border-color, var(--border-color));
+      border-radius: 0.5rem;
 
       @media screen and (max-width: 1050px) {
         min-height: 175px;
@@ -411,60 +428,53 @@ const WelcomeTile = ({
         }
       }
 
-      &::before {
-        content: counter(welcome-tile);
-        counter-increment: welcome-tile;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        position: absolute;
-        top: 0;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        border-radius: 50%;
-        height: 2rem;
-        width: 2rem;
-        color: var(--number-color, currentColor);
-        border: 1px solid var(--number-border-color);
-        background: var(--number-background-color);
-        z-index: 1;
-      }
-
-      &::after {
-        content: '';
-        position: absolute;
-        top: 0;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        border-radius: 50%;
-        height: 2.75rem;
-        width: 2.75rem;
-        border: 1px solid
-          var(--outer-ring-border-color, var(--tile-border-color));
-        background: var(--primary-background-color);
-        transition: border-color 0.15s ease-out;
-      }
-
       &:hover {
         color: currentColor;
-
-        &::before {
-          animation: ${pulse} 1.5s infinite;
-        }
       }
 
       ${welcomeTileStyles[variant]};
     `}
   >
-    <h3>{title}</h3>
-    <p>{description}</p>
-  </SurfaceLink>
+    <h2
+      css={css`
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 5.5rem;
+        margin-bottom: 0;
+        border-bottom: solid 2px var(--tertiary-background-color);
+      `}
+    >
+      {title}
+    </h2>
+    <div
+      css={css`
+        display: flex;
+        flex-direction: column;
+        padding: 1.5rem 2rem 2.5rem;
+      `}
+    >
+      {links &&
+        links.map((link, index) => (
+          <Link
+            css={css`
+              &:not(:last-child) {
+                margin-bottom: 1rem;
+              }
+            `}
+            key={index + link.title}
+            to={link.path}
+          >
+            {link.title}
+          </Link>
+        ))}
+    </div>
+  </Surface>
 );
 
 WelcomeTile.propTypes = {
-  description: PropTypes.node,
+  links: PropTypes.array,
   title: PropTypes.string,
-  to: PropTypes.string,
   variant: PropTypes.oneOf(['normal', 'cta']),
   instrumentation: PropTypes.object,
 };
