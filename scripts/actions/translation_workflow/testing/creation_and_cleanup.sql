@@ -25,6 +25,7 @@ CREATE TABLE translations(
   date_created TIMESTAMP NOT NULL,
   date_modified TIMESTAMP NOT NULL,
 	locale TEXT NOT NULL,
+  project_id TEXT,
   PRIMARY KEY(id),
   -- pr number
   CONSTRAINT fk_locale
@@ -43,6 +44,7 @@ CREATE TABLE jobs(
   locale TEXT NOT NULL,
   date_created TIMESTAMP NOT NULL,
   date_modified TIMESTAMP NOT NULL,
+  project_id TEXT,
   PRIMARY KEY(id),
   CONSTRAINT fk_status
     FOREIGN KEY(status)
