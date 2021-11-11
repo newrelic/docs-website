@@ -44,96 +44,57 @@ const HomePage = ({ data }) => {
   return (
     <>
       <NetworkPerformanceMonitoringBannerGA />
-      <Section layout={layout}>
-        <h1>{t('home.title')}</h1>
+      <Section
+        layout={layout}
+        css={css`
+          border: none;
+          background: var(--tertiary-background-color);
+        `}
+      >
         <div
           css={css`
-            display: flex;
-
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            grid-gap: 1rem;
+            counter-reset: welcome-tile;
+            flex: 2;
+            align-self: flex-start;
             @media screen and (max-width: 1500px) {
-              flex-direction: column;
+              align-self: auto;
+            }
+
+            @media screen and (max-width: 1050px) {
+              grid-template-columns: 1fr;
+            }
+
+            @media screen and (max-width: 760px) {
+              grid-template-columns: repeat(3, 1fr);
+            }
+
+            @media screen and (max-width: 650px) {
+              grid-template-columns: 1fr;
             }
           `}
         >
-          <div
-            css={css`
-              flex: 1;
-              margin-right: 2rem;
-
-              @media screen and (max-width: 1500px) {
-                max-width: 550px;
-                margin-right: 0;
-                margin-bottom: 2rem;
-              }
-            `}
-          >
-            <p>{t('home.intro.p1')}</p>
-
-            <Trans i18nKey="home.intro.p3" parent="p">
-              Keep scrolling to read more about getting data into New Relic, our
-              platform features, our observability solutions, and our alerting
-              tools. Or, to get a wider view of our platform's capabilities,
-              read{' '}
-              <Link to="/docs/using-new-relic/welcome-new-relic/get-started/introduction-new-relic">
-                Intro to New Relic
-              </Link>
-              , or see our{' '}
-              <Link to="/docs/new-relic-solutions">
-                guides and best practices
-              </Link>
-              .
-            </Trans>
-          </div>
-          <div
-            css={css`
-              display: grid;
-              grid-template-columns: repeat(3, 1fr);
-              grid-gap: 1rem;
-              counter-reset: welcome-tile;
-              flex: 2;
-              align-self: flex-start;
-              background: var(--tertiary-background-color);
-              padding: 1.5rem;
-              border-radius: 0.5rem;
-              @media screen and (max-width: 1500px) {
-                align-self: auto;
-              }
-
-              @media screen and (max-width: 1050px) {
-                grid-template-columns: 1fr;
-              }
-
-              @media screen and (max-width: 760px) {
-                grid-template-columns: repeat(3, 1fr);
-              }
-
-              @media screen and (max-width: 650px) {
-                grid-template-columns: 1fr;
-              }
-            `}
-          >
-            <WelcomeTile
-              title={t('home.welcome.t1.title')}
-              links={getting_started.links}
-            />
-            <WelcomeTile
-              links={latestWhatsNewPosts}
-              title={t('home.welcome.t2.title')}
-            />
-            <WelcomeTile
-              title={t('home.welcome.t3.title')}
-              links={popular_content.links}
-            />
-          </div>
+          <WelcomeTile
+            title={t('home.welcome.t1.title')}
+            links={getting_started.links}
+          />
+          <WelcomeTile
+            links={latestWhatsNewPosts}
+            title={t('home.welcome.t2.title')}
+          />
+          <WelcomeTile
+            title={t('home.welcome.t3.title')}
+            links={popular_content.links}
+          />
         </div>
       </Section>
-      <Section alternate layout={layout}>
+      <Section layout={layout}>
         <SectionTitle
           title={t('home.tdp.title')}
-          icon="nr-tdp"
           to="/docs/telemetry-data-platform"
         />
-        <SectionDescription>{t('home.tdp.description')}</SectionDescription>
         <DocTileGrid>
           {tdp.tiles.map((link, idx) => (
             <DocTile
@@ -148,10 +109,8 @@ const HomePage = ({ data }) => {
       <Section layout={layout}>
         <SectionTitle
           title={t('home.fso.title')}
-          icon="nr-fso"
           to="/docs/full-stack-observability"
         />
-        <SectionDescription>{t('home.fso.description')}</SectionDescription>
         <DocTileGrid>
           {fso.tiles.map((link, idx) => (
             <DocTile
@@ -163,13 +122,11 @@ const HomePage = ({ data }) => {
           ))}
         </DocTileGrid>
       </Section>
-      <Section alternate layout={layout}>
+      <Section layout={layout}>
         <SectionTitle
           title={t('home.ai.title')}
-          icon="nr-ai"
           to="/docs/alerts-applied-intelligence"
         />
-        <SectionDescription>{t('home.ai.description')}</SectionDescription>
         <DocTileGrid>
           {ai.tiles.map((link, idx) => (
             <DocTile
@@ -228,7 +185,7 @@ const HomePage = ({ data }) => {
           </Button>
         </div>
       </Section>
-      <Section alternate layout={layout}>
+      <Section layout={layout}>
         <SectionTitle
           title={t('home.mobile_apps.title')}
           icon="logo-newrelic"
@@ -317,13 +274,19 @@ export const pageQuery = graphql`
   }
 `;
 
-const Section = ({ alternate, layout, ...props }) => {
+const Section = ({ layout, ...props }) => {
   return (
     <section
       css={css`
-        background: ${alternate && 'var(--secondary-background-color)'};
-        margin: 0 -${layout.contentPadding};
+        margin: 2.5rem 0 0;
         padding: ${layout.contentPadding};
+        border: 1px solid var(--color-neutrals-300);
+        border-radius: 0.5rem;
+
+        .dark-mode & {
+          background: var(--tertiary-background-color);
+          border: 1px solid var(--color-dark-500);
+        }
 
         &:first-child {
           padding-top: 0;
@@ -361,7 +324,7 @@ const SectionTitle = ({ title, icon, to }) => {
 
   return (
     <Wrapper {...props}>
-      <h2
+      <h3
         css={css`
           display: flex;
           align-items: center;
@@ -377,7 +340,7 @@ const SectionTitle = ({ title, icon, to }) => {
           />
         )}
         {title}
-      </h2>
+      </h3>
     </Wrapper>
   );
 };
@@ -404,9 +367,14 @@ const WelcomeTile = ({ title, links, variant = 'normal', instrumentation }) => (
     css={css`
       color: currentColor;
       position: relative;
-      min-height: 300px;
+      height: 300px;
       border-color: var(--tile-border-color, var(--border-color));
       border-radius: 0.5rem;
+
+      .dark-mode & {
+        background: var(--color-dark-300);
+        border: 1px solid var(--color-dark-500);
+      }
 
       @media screen and (max-width: 1050px) {
         min-height: 175px;
@@ -438,11 +406,14 @@ const WelcomeTile = ({ title, links, variant = 'normal', instrumentation }) => (
     <h2
       css={css`
         display: flex;
-        justify-content: center;
+        padding-left: 2rem;
         align-items: center;
         height: 5.5rem;
         margin-bottom: 0;
-        border-bottom: solid 2px var(--tertiary-background-color);
+        border-bottom: solid 1.5px var(--tertiary-background-color);
+        .dark-mode & {
+          border-bottom: 1.5px solid var(--color-dark-500);
+        }
       `}
     >
       {title}
@@ -511,7 +482,7 @@ const DocTileGrid = ({ children }) => {
     <div
       css={css`
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
         grid-gap: 1rem;
       `}
     >
@@ -524,39 +495,62 @@ DocTileGrid.propTypes = {
   children: PropTypes.node,
 };
 
-const DocTile = ({ title, description, link }) => (
+const DocTile = ({ title, link }) => (
   <SurfaceLink
     base={Surface.BASE.SECONDARY}
     to={link}
     css={css`
       color: currentColor;
-      padding: 1rem;
-      min-height: 170px;
+      height: 4.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 1.5rem;
+      border: 1px solid var(--color-neutrals-200);
+      box-shadow: none;
 
       .light-mode & {
-        border: 1px solid var(--border-color);
+        background: var(--color-neutrals-050);
+      }
+
+      .dark-mode & {
+        border: solid 1px var(--color-dark-300);
       }
 
       &:hover {
         color: currentColor;
         border-color: var(--border-hover-color);
+        background: var(--color-brand-100);
+        border: none;
+        .dark-mode & {
+          background: var(--color-dark-300);
+        }
       }
     `}
   >
     <h3
       css={css`
-        font-size: 1rem;
+        font-size: 14px;
+        margin-bottom: 0;
       `}
     >
       {title}
     </h3>
-    <p>{description}</p>
+    <Icon
+      name="fe-arrow-right"
+      size="1.5rem"
+      css={css`
+        color: var(--color-neutrals-600);
+        .dark-mode & {
+          color: var(--accent-text-color);
+        }
+      `}
+    />
   </SurfaceLink>
 );
 
 DocTile.propTypes = {
   title: PropTypes.string.isRequired,
-  description: PropTypes.string.isRequired,
   link: PropTypes.string.isRequired,
 };
 
