@@ -6,4 +6,4 @@ events:
   - SyntheticCheck
 ---
 
-Represents how the minion is deployed (e.g., wrapped as a Kubernetes pod).
+Represents how the minion is deployed (for example, wrapped as a Kubernetes pod).
