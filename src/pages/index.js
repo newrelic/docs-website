@@ -79,22 +79,22 @@ const HomePage = ({ data }) => {
           <WelcomeTile
             title={t('home.welcome.t1.title')}
             links={getting_started.links}
+            icon="fe-help-circle"
           />
           <WelcomeTile
             links={latestWhatsNewPosts}
             title={t('home.welcome.t2.title')}
+            icon="nr-info-announcement"
           />
           <WelcomeTile
             title={t('home.welcome.t3.title')}
             links={popular_content.links}
+            icon="fe-star"
           />
         </div>
       </Section>
       <Section layout={layout}>
-        <SectionTitle
-          title={t('home.tdp.title')}
-          to="/docs/telemetry-data-platform"
-        />
+        <SectionTitle title={t('home.tdp.title')} />
         <DocTileGrid>
           {tdp.tiles.map((link, idx) => (
             <DocTile
@@ -107,10 +107,7 @@ const HomePage = ({ data }) => {
         </DocTileGrid>
       </Section>
       <Section layout={layout}>
-        <SectionTitle
-          title={t('home.fso.title')}
-          to="/docs/full-stack-observability"
-        />
+        <SectionTitle title={t('home.fso.title')} />
         <DocTileGrid>
           {fso.tiles.map((link, idx) => (
             <DocTile
@@ -123,10 +120,7 @@ const HomePage = ({ data }) => {
         </DocTileGrid>
       </Section>
       <Section layout={layout}>
-        <SectionTitle
-          title={t('home.ai.title')}
-          to="/docs/alerts-applied-intelligence"
-        />
+        <SectionTitle title={t('home.ai.title')} />
         <DocTileGrid>
           {ai.tiles.map((link, idx) => (
             <DocTile
@@ -189,7 +183,6 @@ const HomePage = ({ data }) => {
         <SectionTitle
           title={t('home.mobile_apps.title')}
           icon="logo-newrelic"
-          to="/docs/mobile-apps/new-relic-mobile-apps"
         />
         <SectionDescription>
           {t('home.mobile_apps.description')}
@@ -360,7 +353,13 @@ const SectionDescription = (props) => (
   />
 );
 
-const WelcomeTile = ({ title, links, variant = 'normal', instrumentation }) => (
+const WelcomeTile = ({
+  title,
+  links,
+  variant = 'normal',
+  instrumentation,
+  icon,
+}) => (
   <Surface
     base={Surface.BASE.PRIMARY}
     instrumentation={instrumentation}
@@ -391,6 +390,7 @@ const WelcomeTile = ({ title, links, variant = 'normal', instrumentation }) => (
       }
 
       @media screen and (max-width: 650px) {
+        font-size: 14px;
         &:not(:last-child) {
           margin-bottom: 2rem;
         }
@@ -403,21 +403,28 @@ const WelcomeTile = ({ title, links, variant = 'normal', instrumentation }) => (
       ${welcomeTileStyles[variant]};
     `}
   >
-    <h2
+    <div
       css={css`
         display: flex;
         padding-left: 2rem;
         align-items: center;
         height: 5.5rem;
-        margin-bottom: 0;
         border-bottom: solid 1.5px var(--tertiary-background-color);
         .dark-mode & {
           border-bottom: 1.5px solid var(--color-dark-500);
         }
       `}
     >
-      {title}
-    </h2>
+      <Icon name={icon} size="2rem" />
+      <h2
+        css={css`
+          margin-bottom: 0;
+          margin-left: 1rem;
+        `}
+      >
+        {title}
+      </h2>
+    </div>
     <div
       css={css`
         display: flex;
@@ -446,6 +453,7 @@ const WelcomeTile = ({ title, links, variant = 'normal', instrumentation }) => (
 WelcomeTile.propTypes = {
   links: PropTypes.array,
   title: PropTypes.string,
+  icon: PropTypes.string,
   variant: PropTypes.oneOf(['normal', 'cta']),
   instrumentation: PropTypes.object,
 };
@@ -484,6 +492,9 @@ const DocTileGrid = ({ children }) => {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
         grid-gap: 1rem;
+        @media screen and (max-width: 650px) {
+          grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        }
       `}
     >
       {children}
@@ -521,6 +532,8 @@ const DocTile = ({ title, link }) => (
         color: currentColor;
         border-color: var(--border-hover-color);
         background: var(--color-brand-100);
+        box-shadow: none;
+        transition-property: none;
         border: none;
         .dark-mode & {
           background: var(--color-dark-300);
