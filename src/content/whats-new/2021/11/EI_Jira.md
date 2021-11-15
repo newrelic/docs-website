@@ -9,3 +9,5 @@ getStartedLink: 'https://docs.newrelic.com/docs/errors-inbox/errors-inbox/'
 With the Jira integration you can start tracking, managing, and updating tickets from [New Relic errors inbox](/docs/errors-inbox/errors-inbox). Continue to work and collaborate in the tools you're already familiar with without losing context, for faster error resolution.
 
 Start your errors inbox journey today!
+
+![A screenshot showing the New Relic Jira integration](./images/new-relic-jira-integration.png "A screenshot showing the New Relic Jira integration")
