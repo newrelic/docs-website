@@ -353,20 +353,14 @@ const SectionDescription = (props) => (
   />
 );
 
-const WelcomeTile = ({
-  title,
-  links,
-  variant = 'normal',
-  instrumentation,
-  icon,
-}) => (
+const WelcomeTile = ({ title, links, instrumentation, icon }) => (
   <Surface
     base={Surface.BASE.PRIMARY}
     instrumentation={instrumentation}
     css={css`
       color: currentColor;
       position: relative;
-      height: 300px;
+      min-height: 300px;
       border-color: var(--tile-border-color, var(--border-color));
       border-radius: 0.5rem;
 
@@ -399,8 +393,6 @@ const WelcomeTile = ({
       &:hover {
         color: currentColor;
       }
-
-      ${welcomeTileStyles[variant]};
     `}
   >
     <div
@@ -454,35 +446,7 @@ WelcomeTile.propTypes = {
   links: PropTypes.array,
   title: PropTypes.string,
   icon: PropTypes.string,
-  variant: PropTypes.oneOf(['normal', 'cta']),
   instrumentation: PropTypes.object,
-};
-
-const welcomeTileStyles = {
-  normal: css`
-    --number-background-color: var(--primary-background-color);
-    --number-border-color: var(--color-teal-500);
-    --outer-ring-border-color: var(--border-color);
-  `,
-  cta: css`
-    --tile-border-color: var(--color-teal-400);
-    --number-background-color: var(--color-teal-400);
-    --number-color: white;
-    --outer-ring-border-color: var(--border-color);
-
-    &:hover {
-      border-color: var(--color-teal-300);
-
-      .dark-mode & {
-        border-color: var(--color-teal-500);
-      }
-    }
-
-    .dark-mode & {
-      --tile-border-color: var(--color-teal-600);
-      --number-background-color: var(--color-teal-600);
-    }
-  `,
 };
 
 const DocTileGrid = ({ children }) => {
