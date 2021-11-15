@@ -80,7 +80,6 @@ module.exports = {
           features: {
             signups: {
               treatment: 'on',
-              config: 'btns',
             },
           },
           core: {
