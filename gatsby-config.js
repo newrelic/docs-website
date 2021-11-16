@@ -23,6 +23,7 @@ module.exports = {
   flags: {
     DEV_SSR: true,
     PRESERVE_FILE_DOWNLOAD_CACHE: true,
+    PARALLEL_QUERY_RUNNING: true,
   },
   siteMetadata: {
     title: 'New Relic Documentation',
