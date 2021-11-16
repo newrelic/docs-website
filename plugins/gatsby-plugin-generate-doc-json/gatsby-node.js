@@ -62,7 +62,7 @@ exports.onPostBuild = async ({ graphql, store }) => {
   const imageHashMap = allImageSharp.nodes.reduce(
     (acc, { original, parent }) => ({
       ...acc,
-      [parent.relativePath]: original.src,
+      [parent.relativePath]: original?.src || null,
     }),
     {}
   );
