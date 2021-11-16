@@ -14,7 +14,7 @@ import {
 import SurfaceLink from '../components/SurfaceLink';
 import TechTile from '../components/TechTile';
 import TechTileGrid from '../components/TechTileGrid';
-import NetworkPerformanceMonitoringBannerGA from '../components/NetworkPerformanceMonitoringBannerGA';
+import HomepageBanner from '../components/HomepageBanner';
 import {
   tdp,
   fso,
@@ -43,7 +43,7 @@ const HomePage = ({ data }) => {
 
   return (
     <>
-      <NetworkPerformanceMonitoringBannerGA />
+      <HomepageBanner />
       <Section
         layout={layout}
         css={css`
@@ -96,11 +96,11 @@ const HomePage = ({ data }) => {
       <Section layout={layout}>
         <SectionTitle title={t('home.tdp.title')} />
         <DocTileGrid>
-          {tdp.tiles.map((link, idx) => (
+          {tdp.tiles.map(({ link, icon }, idx) => (
             <DocTile
               key={idx}
               title={t(`home.tdp.t${idx + 1}.title`)}
-              description={t(`home.tdp.t${idx + 1}.description`)}
+              icon={icon}
               link={link}
             />
           ))}
@@ -109,12 +109,13 @@ const HomePage = ({ data }) => {
       <Section layout={layout}>
         <SectionTitle title={t('home.fso.title')} />
         <DocTileGrid>
-          {fso.tiles.map((link, idx) => (
+          {fso.tiles.map(({ link, icon }, idx) => (
             <DocTile
               key={idx}
               title={t(`home.fso.t${idx + 1}.title`)}
               description={t(`home.fso.t${idx + 1}.description`)}
               link={link}
+              icon={icon}
             />
           ))}
         </DocTileGrid>
@@ -122,12 +123,13 @@ const HomePage = ({ data }) => {
       <Section layout={layout}>
         <SectionTitle title={t('home.ai.title')} />
         <DocTileGrid>
-          {ai.tiles.map((link, idx) => (
+          {ai.tiles.map(({ link, icon }, idx) => (
             <DocTile
               key={idx}
               title={t(`home.ai.t${idx + 1}.title`)}
               description={t(`home.ai.t${idx + 1}.description`)}
               link={link}
+              icon={icon}
             />
           ))}
         </DocTileGrid>
@@ -199,12 +201,13 @@ const HomePage = ({ data }) => {
           {t('home.security.description')}
         </SectionDescription>
         <DocTileGrid>
-          {security.tiles.map((link, idx) => (
+          {security.tiles.map(({ link, icon }, idx) => (
             <DocTile
               key={idx}
               title={t(`home.security.t${idx + 1}.title`)}
               description={t(`home.security.t${idx + 1}.description`)}
               link={link}
+              icon={icon}
             />
           ))}
         </DocTileGrid>
@@ -470,7 +473,7 @@ DocTileGrid.propTypes = {
   children: PropTypes.node,
 };
 
-const DocTile = ({ title, link }) => (
+const DocTile = ({ title, link, icon }) => (
   <SurfaceLink
     base={Surface.BASE.SECONDARY}
     to={link}
@@ -497,22 +500,39 @@ const DocTile = ({ title, link }) => (
         border-color: var(--border-hover-color);
         background: var(--color-brand-100);
         box-shadow: none;
-        transition-property: none;
         border: none;
+
         .dark-mode & {
           background: var(--color-dark-300);
         }
       }
     `}
   >
-    <h3
+    <div
       css={css`
-        font-size: 14px;
-        margin-bottom: 0;
+        display: flex;
+        align-items: center;
       `}
     >
-      {title}
-    </h3>
+      {icon && (
+        <Icon
+          name={icon}
+          css={css`
+            color: var(--color-brand-400);
+          `}
+          size="1.5rem"
+        />
+      )}
+      <h3
+        css={css`
+          font-size: 14px;
+          margin-bottom: 0;
+          margin-left: 1rem;
+        `}
+      >
+        {title}
+      </h3>
+    </div>
     <Icon
       name="fe-arrow-right"
       size="1.5rem"
@@ -529,6 +549,7 @@ const DocTile = ({ title, link }) => (
 DocTile.propTypes = {
   title: PropTypes.string.isRequired,
   link: PropTypes.string.isRequired,
+  icon: PropTypes.string,
 };
 
 const IntegrationTitle = ({ children }) => (
