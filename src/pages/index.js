@@ -3,25 +3,18 @@ import PropTypes from 'prop-types';
 import { css } from '@emotion/react';
 import { graphql } from 'gatsby';
 import {
-  Button,
   Link,
   Icon,
   Surface,
   useInstrumentedHandler,
   useTranslation,
-  Trans,
 } from '@newrelic/gatsby-theme-newrelic';
 import SurfaceLink from '../components/SurfaceLink';
-import TechTile from '../components/TechTile';
-import TechTileGrid from '../components/TechTileGrid';
 import HomepageBanner from '../components/HomepageBanner';
 import {
   tdp,
   fso,
   ai,
-  security,
-  integrations,
-  mobile_apps,
   getting_started,
   popular_content,
 } from '../data/homepage.yml';
@@ -128,84 +121,6 @@ const HomePage = ({ data }) => {
               key={idx}
               title={t(`home.ai.t${idx + 1}.title`)}
               description={t(`home.ai.t${idx + 1}.description`)}
-              link={link}
-              icon={icon}
-            />
-          ))}
-        </DocTileGrid>
-      </Section>
-      <Section layout={layout}>
-        <SectionTitle title="New Relic integrations" />
-        <SectionDescription>
-          <Trans i18nKey="home.integrations.description">
-            <Link to="/docs/integrations/intro-integrations/get-started/introduction-new-relic-integrations">
-              Integrations
-            </Link>{' '}
-            connect the technologies in your stack to New Relic. Here are a few
-            of our{' '}
-            <a
-              href="https://newrelic.com/integrations"
-              rel="noopener noreferrer"
-            >
-              370+ integrations
-            </a>
-            :
-          </Trans>
-        </SectionDescription>
-
-        {integrations.map((integration, idx) => (
-          <Fragment key={idx}>
-            <IntegrationTitle>
-              {t(`home.integrations.title${idx + 1}`)}
-            </IntegrationTitle>
-            <TechTileGrid>
-              {integration.tiles.map(({ name, icon, link }) => (
-                <TechTile key={name} name={name} icon={icon} to={link} />
-              ))}
-            </TechTileGrid>
-          </Fragment>
-        ))}
-
-        <div
-          css={css`
-            margin-top: 4rem;
-            text-align: center;
-          `}
-        >
-          <Button
-            as="a"
-            href="https://newrelic.com/integrations"
-            variant={Button.VARIANT.PRIMARY}
-          >
-            See all 370+ integrations
-          </Button>
-        </div>
-      </Section>
-      <Section layout={layout}>
-        <SectionTitle
-          title={t('home.mobile_apps.title')}
-          icon="logo-newrelic"
-        />
-        <SectionDescription>
-          {t('home.mobile_apps.description')}
-        </SectionDescription>
-        <TechTileGrid>
-          {mobile_apps.tiles.map(({ name, icon, link }) => (
-            <TechTile key={name} name={name} icon={icon} to={link} />
-          ))}
-        </TechTileGrid>
-      </Section>
-      <Section layout={layout}>
-        <SectionTitle title={t('home.security.title')} />
-        <SectionDescription>
-          {t('home.security.description')}
-        </SectionDescription>
-        <DocTileGrid>
-          {security.tiles.map(({ link, icon }, idx) => (
-            <DocTile
-              key={idx}
-              title={t(`home.security.t${idx + 1}.title`)}
-              description={t(`home.security.t${idx + 1}.description`)}
               link={link}
               icon={icon}
             />
@@ -346,15 +261,6 @@ SectionTitle.propTypes = {
   icon: PropTypes.elementType,
   to: PropTypes.string,
 };
-
-const SectionDescription = (props) => (
-  <p
-    {...props}
-    css={css`
-      font-size: 1.125rem;
-    `}
-  />
-);
 
 const WelcomeTile = ({ title, links, instrumentation, icon }) => (
   <Surface
