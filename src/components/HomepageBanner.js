@@ -2,17 +2,20 @@ import React from 'react';
 import { css } from '@emotion/react';
 import { Button, Link } from '@newrelic/gatsby-theme-newrelic';
 import bannerForeground from '../images/bannerForeground.svg';
+import bannerForegroundMobile from '../images/bannerForegroundMobile.svg';
 import relicsAtWork from '../images/photo-relics-at-work-01.png';
 
 const HomepageBanner = () => {
   return (
     <div
       css={css`
-        max-height: 415px;
+        max-height: 423px;
         position: relative;
         overflow: hidden;
         border-radius: 0.5rem;
-        padding-top: calc(415 / 1252 * 100%);
+        padding-top: calc(423 / 1252 * 100%);
+        background: var(--color-brand-700);
+
         @media screen and (max-width: 900px) {
           padding-top: calc(500 / 380 * 100%);
           max-height: 500px;
@@ -37,24 +40,32 @@ const HomepageBanner = () => {
           }
         `}
       >
-        <img
-          src={bannerForeground}
-          alt="banner foreground"
+        <picture
           css={css`
-            position: relative;
+            width: 100%;
             height: 100%;
-            max-height: 415px;
-            z-index: 1;
-            @media screen and (max-width: 900px) {
-              position: absolute;
-              bottom: 0;
-              right: -14%;
-              max-height: 100%;
-              height: 70%;
-            }
           `}
-        />
-
+        >
+          <source srcSet={bannerForegroundMobile} media="(max-width:900px)" />
+          <img
+            src={bannerForeground}
+            alt="banner foreground"
+            css={css`
+              position: relative;
+              height: 100%;
+              max-height: 423px;
+              z-index: 1;
+              @media screen and (max-width: 900px) {
+                max-height: 100%;
+                margin-top: 50px;
+                width: 100%;
+              }
+              @media screen and (max-width: 700px) {
+                margin-top: 10px;
+              }
+            `}
+          />
+        </picture>
         <img
           src={relicsAtWork}
           alt="relics at work"
