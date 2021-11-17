@@ -1,8 +1,7 @@
 ---
-title: 'Applied Intelligence now free to all full platform users'
-summary: 'Applied Intelligence is now included for all full platform users at no additional cost, and with some enhancements.' 
+title: "Applied Intelligence now free to all full platform users"
+summary: "Applied Intelligence is now included for all full platform users at no additional cost, and with some enhancements." 
 releaseDate: '2021-11-16' 
-learnMoreLink: 'https://example.com' 
 getStartedLink: 'https://onenr.io/0nVjYZ0a3Q0' 
 ---
 
