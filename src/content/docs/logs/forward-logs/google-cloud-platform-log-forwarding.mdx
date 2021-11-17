@@ -5,13 +5,19 @@ tags:
   - Enable log management in New Relic
   - Enable log monitoring in New Relic
   - GCP
-  - Google Cloud Platform
+  - Dataflow
 metaDescription: "Configure a Google Cloud Platform Pub/Sub topic to send logs to New Relic."
 ---
 
-Use these steps to configure a Google Cloud Platform Pub/Sub topic to send logs to New Relic.
+We currently support two different methods to forward logs from a Google Cloud Platform Pub/Sub topic:
+- **Using our headerless API**. This solution is suited for **low log volumes**, since it performs one API call for each log record it sends. This solution does **not incur any extra cost to your GCP subscription**. Nevertheless, if your log volume increases, this solution might hit the quota limits of your New Relic account.
+- **Using a Dataflow job**. This solution is suited for **larger log volumes**, since it groups log records in batches prior to sending them to New Relic. This reduces the number of API calls and allows to reduce your quota usage. Nevertheless, note that this option **might incur extra costs at your GCP subscription**, due to the execution of a Dataflow job in your premises.
 
-## Generate a GCP Pub/Sub ingest URL
+## Forward logs from GCP Pub/Sub using our Headerless API
+
+Use these steps to configure a Google Cloud Platform Pub/Sub topic to send logs to New Relic using our headerless API.
+
+### Generate a GCP Pub/Sub ingest URL
 
 1. Navigate to [New Relic Logs](https://one.newrelic.com/launcher/logger.log-launcher)
 2. Click **Add more data sources**
@@ -19,19 +25,19 @@ Use these steps to configure a Google Cloud Platform Pub/Sub topic to send logs 
 ![Add more data sources](./images/gcp-add-more-data.png "Add more data sources")
 
 3. Click **Google Cloud Platform**, then select the New Relic account you want to forward logs to and click **Continue**.
-4. Optionally, you can configure metadata. Here you can define attribute-value pairs that will be included in every log event sent to the ingest URL you will generate in the next step. 
+4. Optionally, you can configure metadata. Here you can define attribute-value pairs that will be included in every log event sent to the ingest URL you will generate in the next step.
 5. Click **Generate URL**.
 6. Copy your newly generated **ingest URL** and keep it in a safe place, you will need it once you are ready to configure a Pub/Sub topic to send logs to New Relic.
 
-## Create a GCP Pub/Sub Topic [#create-gcp-topic]
+### Create a GCP Pub/Sub Topic [#create-gcp-topic]
 
 1. Navigate to the [GCP Pub/Sub Console](https://console.cloud.google.com/cloudpubsub/topic/list)
-2. Click **Create Topic** 
+2. Click **Create Topic**
 3. Enter a meaningful **Topic ID**, then configure other options as desired and click **Create Topic**.
 
 ![Create GCP topic](./images/gcp-create-topic.png "Create GCP topic")
 
-## Prepare a GCP Pub/Sub Topic to forward logs to New Relic [#configure-gcp-log-forwarding]
+### Prepare a GCP Pub/Sub Topic to forward logs to New Relic [#configure-gcp-log-forwarding]
 
 1. Once you have created your Pub/Sub topic, return to the [GCP Pub/Sub Console](https://console.cloud.google.com/cloudpubsub/topic/list).
 2. Click on the Pub/Sub topic you created in the last section.
@@ -42,10 +48,10 @@ Use these steps to configure a Google Cloud Platform Pub/Sub topic to send logs 
 ![Select GCP Pub/Sub topic subscription type](./images/gcp-create-subscription-type.png "Select GCP Pub/Sub topic subscription type")
 
 4. Enter a **Subscription ID** and select **Push** under **Delivery Type**.
-5. Paste the **ingest URL** you generated in the first section in the **Endpoint URL** field. 
+5. Paste the **ingest URL** you generated in the first section in the **Endpoint URL** field.
 6. Configure remaining settings as desired and click **Create**.
 
-## Forward logs from GCP Cloud Logging to New Relic
+### Forward logs from GCP Cloud Logging to New Relic
 1. Navigate to the [GCP Logs Router Console](https://console.cloud.google.com/logs/router).
 2. Click **Create Sink**.
 3. Provide a **Sink name** and **Sink description**, then click **Next**.
@@ -54,6 +60,320 @@ Use these steps to configure a Google Cloud Platform Pub/Sub topic to send logs 
 ![Create GCP logs router sink](./images/gcp-create-sink.png "Create GCP logs router sink")
 
 5. Configure remaining filters as desired and click **Create sink** to complete setup.
+
+## Forward logs from GCP Pub/Sub using a Dataflow job
+
+Use these steps to configure a Google Cloud Platform Pub/Sub topic to send logs to New Relic using a Dataflow job.
+
+### Requirements
+
+To install our Dataflow template, you will need the following tools to be available on your local computer:
+
+1. A Unix terminal (Linux, MacOS).
+2. [Git](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git).
+3. [Java JDK](https://adoptopenjdk.net/index.html) 8 or greater.
+4. [Apache Maven 3.2 or greater](https://maven.apache.org/). Please note that **earlier versions** have been observed to **fail** during the compilation process.
+5. The [Google Cloud SDK (includes `gcloud` and `gsutil` command-line tools)](https://cloud.google.com/sdk/docs/install).
+
+### Log into your Google Cloud Platform account
+
+Run the following command and follow the prompt instructions to log into GCP and select your cloud project to use:
+
+```
+gcloud init
+```
+
+During the wizard, you will select a cloud project to use, and you will be able to optionally select a default Compute Region and Zone for the resources you create using `gcloud` or `gsutil`. We will not presume a default project, location or region for the following commands
+
+### Clone the DataflowTemplates GitHub repository
+
+Clone the DataflowTemplates GitHub repository using the following command:
+
+```
+git clone https://github.com/newrelic-forks/DataflowTemplates.git
+```
+
+Enter into the created directory to execute the following commands:
+
+```
+cd DataflowTemplates
+```
+
+### Set the required configuration to compile and run the Dataflow forwarder
+
+Run the following commands. You only need to specify the `PROJECT_ID`, the `BUCKET_NAME`, the `NR_LICENSE_KEY` and the `INPUT_SUBSCRIPTION_NAME`; all others can be left with their suggested values:
+
+```bash
+# The Google Cloud Platform project id where your logs are and where the Dataflow log forwarder will run
+PROJECT_ID=<your_project_id>
+# Temporary bucket that will store intermediary files as a result of compiling the Dataflow template. Its name must be unique.
+BUCKET_NAME=<a_nonexisting_gcs_bucket_name>
+# New Relic license key
+NR_LICENSE_KEY=<your_newrelic_license_key>
+# Input PubSub subscription to read logs from
+INPUT_SUBSCRIPTION_NAME=<your_pubsub_input_subscription_name>
+
+# Region where the created resources will be placed
+REGION=us-west1
+# Service account used to execute the Dataflow template
+SERVICE_ACCOUNT_NAME=nr-dataflow-forwarder-sa
+# File name where the service account credentials will be stored
+SERVICE_ACCOUNT_KEY_FILENAME=service-account-key.json
+# The name your Dataflow log forwarder job will have
+JOB_NAME=nr-log-forwarder
+```
+
+### Create a bucket in GCP to hold the generated Dataflow template
+
+Run the following command to create the bucket:
+
+```bash
+gsutil mb -p ${PROJECT_ID} -l ${REGION} gs://${BUCKET_NAME}
+```
+
+### Create a service account
+
+Create the service account:
+```bash
+gcloud iam service-accounts create ${SERVICE_ACCOUNT_NAME}
+```
+
+Grant permissions to the service account:
+```bash
+gcloud projects add-iam-policy-binding ${PROJECT_ID} --member="serviceAccount:${SERVICE_ACCOUNT_NAME}@${PROJECT_ID}.iam.gserviceaccount.com" --role="roles/owner"
+```
+
+Generate the service account key file:
+```bash
+gcloud iam service-accounts keys create ${SERVICE_ACCOUNT_KEY_FILENAME} --iam-account=${SERVICE_ACCOUNT_NAME}@${PROJECT_ID}.iam.gserviceaccount.com
+```
+
+Reference your service account key file using the `GOOGLE_APPLICATION_CREDENTIALS` environment variable, as it will be usec by subsequent commands:
+```bash
+export GOOGLE_APPLICATION_CREDENTIALS=${SERVICE_ACCOUNT_KEY_FILENAME}
+```
+
+### Compile and publish the PubsubToNewRelic template
+
+Execute the following command:
+
+```bash
+mvn compile exec:java \
+    -Dexec.mainClass=com.google.cloud.teleport.templates.PubsubToNewRelic \
+    -Dexec.cleanupDaemonThreads=false \
+    -Dexec.args=" \
+        --project=${PROJECT_ID} \
+        --region=${REGION} \
+        --enableStreamingEngine \
+        --stagingLocation=gs://${BUCKET_NAME}/staging/ \
+        --gcpTempLocation=gs://${BUCKET_NAME}/temp/ \
+        --templateLocation=gs://${BUCKET_NAME}/template/PubsubToNewRelic \
+        --runner=DataflowRunner \
+    "
+```
+
+### Run the template as a Dataflow job
+
+Execute the following command to start shipping logs using a Dataflow job that reads from your Pub/Sub topic:
+
+```bash
+gcloud dataflow jobs run ${JOB_NAME} \
+    --gcs-location=gs://${BUCKET_NAME}/template/PubsubToNewRelic \
+    --region=${REGION} \
+    --parameters "inputSubscription=projects/${PROJECT_ID}/subscriptions/${INPUT_SUBSCRIPTION_NAME},licenseKey=${NR_LICENSE_KEY}"
+```
+
+The previous command only requires you to specify the input PubSub subscription where you want to read log messages from, as well as the New Relic license key to send your logs with. It uses default configuration settings that you can further customize. Please refer to the following section for more details.
+
+### Further tune up your Dataflow log forwarder job
+
+Find below a reference of all the avaialable options to further tune up the execution of your Dataflow log forwarder job:
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "150px" }}>
+        Configuration parameter
+      </th>
+
+      <th>
+        Required?
+      </th>
+
+      <th>
+        Default value
+      </th>
+
+      <th>
+        Description
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        licenseKey
+      </td>
+
+      <td>
+        **YES**
+      </td>
+
+      <td>
+        N/A
+      </td>
+
+      <td>
+        New Relic license key.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        inputSubscription
+      </td>
+
+      <td>
+        **YES**
+      </td>
+
+      <td>
+        N/A
+      </td>
+
+      <td>
+        The Cloud Pub/Sub subscription to consume from. The name should be in the format of `projects/<project-id>/subscriptions/<subscription-name>`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        logsApiUrl
+      </td>
+
+      <td>
+        NO
+      </td>
+
+      <td>
+        https://log-api.newrelic.com/log/v1
+      </td>
+
+      <td>
+        New Relic Logs API url. This should be routable from the VPC in which the Dataflow pipeline runs.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        batchCount
+      </td>
+
+      <td>
+        NO
+      </td>
+
+      <td>
+        100
+      </td>
+
+      <td>
+        Maximum number of log records to aggregate into a batch before sending them to NewRelic in a single HTTP POST request.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        flushDelay
+      </td>
+
+      <td>
+        NO
+      </td>
+
+      <td>
+        2
+      </td>
+
+      <td>
+        Number of seconds to wait for additional logs (up to batchCount) since the reception of the last log record in non-full batch, before flushing them to New Relic Logs."
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        parallelism
+      </td>
+
+      <td>
+        NO
+      </td>
+
+      <td>
+        1
+      </td>
+
+      <td>
+        Maximum number of parallel requests.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        disableCertificateValidation
+      </td>
+
+      <td>
+        NO
+      </td>
+
+      <td>
+        false
+      </td>
+
+      <td>
+        Disable SSL certificate validation.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        useCompression
+      </td>
+
+      <td>
+        NO
+      </td>
+
+      <td>
+        true
+      </td>
+
+      <td>
+        Compress (in GZIP) the payloads sent to the New Relic Logs API.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        tokenKMSEncryptionKey
+      </td>
+
+      <td>
+        NO
+      </td>
+
+      <td>
+        null
+      </td>
+
+      <td>
+        KMS Encryption Key for the token. The Key should be in the format `projects/{gcp_project}/locations/{key_region}/keyRings/{key_ring}/cryptoKeys/{kms_key_name}`
+      </td>
+    </tr>
+  </tbody>
+</table>
 
 ## What's next? [#what-next]
 
