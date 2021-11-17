@@ -10,7 +10,7 @@ New Relic full platform users will have access to modern AIOps capabilities in A
 
 We are also introducing improvements to the incident response experience to help on-call engineers achieve faster time-to-resolution, reduced noise, and increased reliability.
 
-The most obvious change is a new navigation menu on the left side of Alerts & AI that has been redesigned to better match your incident response journey. You will also see new advanced features including:
+The most noticeable change is a new navigation menu on the left side of Alerts & AI that has been redesigned to better match your incident response journey. You will also see new advanced features including:
 
 * **Workflows**: Provides a flexible way to route incidents with specific characteristics to appropriate teams and specific ticketing or notification tools, such as ServiceNow and JIRA. You can also use custom webhooks to integrate other services.
 
