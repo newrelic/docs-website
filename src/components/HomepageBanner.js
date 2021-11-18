@@ -139,7 +139,7 @@ const HomepageBanner = () => {
               @media screen and (max-width: 1200px) {
                 font-size: min(3.5vw, 2.5rem);
               }
-              @media screen and (max-width: 800px) {
+              @media screen and (max-width: 900px) {
                 font-size: min(3vw, 2rem);
               }
               @media screen and (max-width: ${BREAKPOINTS.NO_LEFT_NAV}) {
@@ -208,10 +208,17 @@ const HomepageBanner = () => {
                 font-size: 1rem;
                 margin-top: 1rem;
                 background: var(--color-brand-500);
+                &:hover {
+                  background: var(--color-brand-400);
+                }
 
                 .dark-mode & {
                   background: var(--color-brand-100);
-                  color: var(--color-brand-600);
+                  color: var(--color-brand-700);
+                  &:hover {
+                    background: var(--color-brand-200);
+                    color: var(--color-brand-600);
+                  }
                 }
 
                 @media screen and (max-width: 1150px) {
@@ -249,12 +256,12 @@ const HomepageBanner = () => {
                 border-color: var(--color-brand-500);
                 &:hover {
                   color: var(--color-brand-400);
+                  border-color: white;
                 }
 
                 .dark-mode & {
                   color: var(--color-brand-300);
                   border-color: var(--color-brand-400);
-
                   &:hover {
                     border-color: white;
                   }
