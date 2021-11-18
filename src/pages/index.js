@@ -27,7 +27,7 @@ const HomePage = ({ data }) => {
 
   const { t } = useTranslation();
 
-  const latestWhatsNewPosts = whatsNewPosts.slice(0, 3).map((edge) => {
+  const latestWhatsNewPosts = whatsNewPosts.map((edge) => {
     return {
       title: edge.node.frontmatter.title,
       path: edge.node.fields.slug,
@@ -106,7 +106,6 @@ const HomePage = ({ data }) => {
             <DocTile
               key={idx}
               title={t(`home.fso.t${idx + 1}.title`)}
-              description={t(`home.fso.t${idx + 1}.description`)}
               link={link}
               icon={icon}
             />
@@ -120,7 +119,6 @@ const HomePage = ({ data }) => {
             <DocTile
               key={idx}
               title={t(`home.ai.t${idx + 1}.title`)}
-              description={t(`home.ai.t${idx + 1}.description`)}
               link={link}
               icon={icon}
             />
@@ -143,7 +141,6 @@ HomePage.propTypes = {
         whatsNewPosts: PropTypes.shape({
           frontMatter: PropTypes.shape({
             title: PropTypes.string,
-            releaseDate: PropTypes.string,
           }),
           fields: PropTypes.shape({
             slug: PropTypes.string,
@@ -167,13 +164,13 @@ export const pageQuery = graphql`
         order: [DESC, ASC]
       }
       filter: { fields: { slug: { regex: "/whats-new/" } } }
+      limit: 3
     ) {
       edges {
         node {
           id
           frontmatter {
             title
-            releaseDate(formatString: "MMMM D, YYYY")
           }
           fields {
             slug
