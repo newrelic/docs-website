@@ -139,7 +139,7 @@ const HomepageBanner = () => {
                 font-size: min(3vw, 2rem);
               }
               @media screen and (max-width: ${BREAKPOINTS.NO_LEFT_NAV}) {
-                font-size: 2.5rem;
+                font-size: 2rem;
               }
               @media screen and (max-width: ${BREAKPOINTS.SINGLE_COLUMN}) {
                 font-weight: 600;
@@ -226,7 +226,7 @@ const HomepageBanner = () => {
                 font-size: 0.5rem;
               }
               @media screen and (max-width: ${BREAKPOINTS.NO_LEFT_NAV}) {
-                font-size: 0.875rem;
+                font-size: 0.75rem;
               }
               @media screen and (max-width: ${BREAKPOINTS.SINGLE_COLUMN}) {
                 padding: 0.5rem 1rem;
@@ -272,7 +272,7 @@ const HomepageBanner = () => {
                 font-size: 0.5rem;
               }
               @media screen and (max-width: ${BREAKPOINTS.NO_LEFT_NAV}) {
-                font-size: 0.875rem;
+                font-size: 0.75rem;
               }
               @media screen and (max-width: ${BREAKPOINTS.SINGLE_COLUMN}) {
                 padding: 0.5rem 1rem;
