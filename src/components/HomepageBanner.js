@@ -8,7 +8,8 @@ import relicsAtWorkMobile from '../images/relics-at-work--SM.png';
 
 const BREAKPOINTS = {
   NO_LEFT_NAV: '760px',
-  SINGLE_COLUMN: '500px',
+  SINGLE_COLUMN: '650px',
+  MOBILE: '400px',
 };
 
 const HomepageBanner = () => {
@@ -23,8 +24,17 @@ const HomepageBanner = () => {
         background: var(--color-brand-700);
 
         @media screen and (max-width: ${BREAKPOINTS.SINGLE_COLUMN}) {
-          padding-top: calc(624 / 380 * 100%);
-          max-height: 624px;
+          padding-top: calc(400 / 380 * 100%);
+          max-height: 400px;
+        }
+
+        @media screen and (max-width: ${BREAKPOINTS.MOBILE}) {
+          padding-top: 0;
+          max-height: none;
+          height: 500px;
+        }
+        @media screen and (max-width: 320px) {
+          height: 460px;
         }
       `}
     >
@@ -41,7 +51,7 @@ const HomepageBanner = () => {
           }
         `}
       >
-        <picture css={css``}>
+        <picture>
           <source
             srcSet={bannerForegroundMobile}
             media={`(max-width:${BREAKPOINTS.SINGLE_COLUMN})`}
@@ -57,7 +67,10 @@ const HomepageBanner = () => {
               @media screen and (max-width: ${BREAKPOINTS.SINGLE_COLUMN}) {
                 max-height: 100%;
                 width: 100%;
-                top: 70%;
+                top: 150px;
+              }
+              @media screen and (max-width: ${BREAKPOINTS.MOBILE}) {
+                top: 140px;
               }
             `}
           />
@@ -77,6 +90,10 @@ const HomepageBanner = () => {
               width: 50%;
               @media screen and (max-width: ${BREAKPOINTS.SINGLE_COLUMN}) {
                 width: 100%;
+                top: -10%;
+              }
+              @media screen and (max-width: ${BREAKPOINTS.MOBILE}) {
+                top: 0;
               }
             `}
           />
@@ -88,11 +105,26 @@ const HomepageBanner = () => {
             left: 5%;
             z-index: 2;
             width: 48%;
+
             @media screen and (max-width: ${BREAKPOINTS.SINGLE_COLUMN}) {
-              width: 100%;
-              top: 37%;
+              width: 85%;
+              top: 180px;
               left: 0;
               padding: 0 1rem;
+              height: 40%;
+              display: flex;
+              flex-direction: column;
+              justify-content: space-between;
+              p {
+                display: block;
+                font-size: max(3.5vw, 11px);
+                padding-right: 1rem;
+              }
+            }
+            @media screen and (max-width: ${BREAKPOINTS.MOBILE}) {
+              top: 155px;
+              width: 100%;
+              height: 30%;
             }
           `}
         >
@@ -113,9 +145,9 @@ const HomepageBanner = () => {
                 font-weight: 600;
                 font-size: 5vw;
               }
-              @media screen and (max-width: 700px) {
-                font-weight: 600;
-                font-size: 5vw;
+              @media screen and (max-width: ${BREAKPOINTS.MOBILE}) {
+                line-height: 37px;
+                font-size: 7vw;
               }
             `}
           >
@@ -129,15 +161,12 @@ const HomepageBanner = () => {
               @media screen and (max-width: 1200px) {
                 display: none;
               }
-              @media screen and (max-width: ${BREAKPOINTS.SINGLE_COLUMN}) {
-                display: block;
-                font-size: max(3.5vw, 11px);
-                padding-right: 1rem;
-              }
             `}
           >
             We have tons of content to get you started, feel free to browse
-            around. Don't forget to read our{' '}
+            around.
+            <br />
+            Don't forget to read our{' '}
             <Link
               to="/docs/using-new-relic/"
               css={css`
@@ -163,6 +192,9 @@ const HomepageBanner = () => {
               bottom: 25%;
             }
             @media screen and (max-width: ${BREAKPOINTS.SINGLE_COLUMN}) {
+              bottom: 2rem;
+            }
+            @media screen and (max-width: ${BREAKPOINTS.MOBILE}) {
               flex-direction: column;
               bottom: 1.5rem;
             }
@@ -182,10 +214,10 @@ const HomepageBanner = () => {
                 color: var(--color-brand-600);
               }
 
-              @media screen and (max-width: 1500px) {
+              @media screen and (max-width: 1150px) {
                 font-size: 0.75rem;
               }
-              @media screen and (max-width: 1100px) {
+              @media screen and (max-width: 990px) {
                 font-size: 0.625rem;
                 padding: 0.375rem 0.625rem;
                 border-radius: 0.125rem;
@@ -228,10 +260,10 @@ const HomepageBanner = () => {
                 }
               }
 
-              @media screen and (max-width: 1500px) {
+              @media screen and (max-width: 1150px) {
                 font-size: 0.75rem;
               }
-              @media screen and (max-width: 1100px) {
+              @media screen and (max-width: 990px) {
                 font-size: 0.625rem;
                 padding: 0.375rem 0.625rem;
                 border-radius: 0.125rem;
@@ -243,8 +275,10 @@ const HomepageBanner = () => {
                 font-size: 0.875rem;
               }
               @media screen and (max-width: ${BREAKPOINTS.SINGLE_COLUMN}) {
-                margin-left: 0;
                 padding: 0.5rem 1rem;
+              }
+              @media screen and (max-width: ${BREAKPOINTS.MOBILE}) {
+                margin-left: 0;
               }
             `}
           >
