@@ -4,6 +4,12 @@ import { Button, Link } from '@newrelic/gatsby-theme-newrelic';
 import bannerForeground from '../images/bannerForeground.svg';
 import bannerForegroundMobile from '../images/bannerForegroundMobile.svg';
 import relicsAtWork from '../images/photo-relics-at-work-01.png';
+import relicsAtWorkMobile from '../images/relics-at-work--SM.png';
+
+const BREAKPOINTS = {
+  NO_LEFT_NAV: '760px',
+  SINGLE_COLUMN: '500px',
+};
 
 const HomepageBanner = () => {
   return (
@@ -16,13 +22,8 @@ const HomepageBanner = () => {
         padding-top: calc(423 / 1252 * 100%);
         background: var(--color-brand-700);
 
-        @media screen and (max-width: 900px) {
-          padding-top: calc(500 / 380 * 100%);
-          max-height: 500px;
-        }
-        @media screen and (max-width: 500px) {
+        @media screen and (max-width: ${BREAKPOINTS.SINGLE_COLUMN}) {
           padding-top: calc(624 / 380 * 100%);
-          height: 100%;
           max-height: 624px;
         }
       `}
@@ -34,19 +35,17 @@ const HomepageBanner = () => {
           left: 0;
           width: 100%;
           height: 100%;
-          @media screen and (max-width: 900px) {
+          @media screen and (max-width: ${BREAKPOINTS.SINGLE_COLUMN}) {
             display: flex;
             flex-direction: column;
           }
         `}
       >
-        <picture
-          css={css`
-            width: 100%;
-            height: 100%;
-          `}
-        >
-          <source srcSet={bannerForegroundMobile} media="(max-width:900px)" />
+        <picture css={css``}>
+          <source
+            srcSet={bannerForegroundMobile}
+            media={`(max-width:${BREAKPOINTS.SINGLE_COLUMN})`}
+          />
           <img
             src={bannerForeground}
             alt="banner foreground"
@@ -55,42 +54,45 @@ const HomepageBanner = () => {
               height: 100%;
               max-height: 423px;
               z-index: 1;
-              @media screen and (max-width: 900px) {
+              @media screen and (max-width: ${BREAKPOINTS.SINGLE_COLUMN}) {
                 max-height: 100%;
-                margin-top: 50px;
                 width: 100%;
-              }
-              @media screen and (max-width: 700px) {
-                margin-top: 10px;
+                top: 70%;
               }
             `}
           />
         </picture>
-        <img
-          src={relicsAtWork}
-          alt="relics at work"
-          css={css`
-            position: absolute;
-            top: 0;
-            right: 0;
-            width: 50%;
-            @media screen and (max-width: 900px) {
-              width: auto;
-              height: 60%;
-            }
-          `}
-        />
+        <picture>
+          <source
+            srcSet={relicsAtWorkMobile}
+            media={`(max-width:${BREAKPOINTS.SINGLE_COLUMN})`}
+          />
+          <img
+            src={relicsAtWork}
+            alt="relics at work"
+            css={css`
+              position: absolute;
+              top: 0;
+              right: 0;
+              width: 50%;
+              @media screen and (max-width: ${BREAKPOINTS.SINGLE_COLUMN}) {
+                width: 100%;
+              }
+            `}
+          />
+        </picture>
         <div
           css={css`
-            color: white;
             position: absolute;
             top: 10%;
             left: 5%;
             z-index: 2;
             width: 48%;
-            @media screen and (max-width: 900px) {
-              width: 90%;
+            @media screen and (max-width: ${BREAKPOINTS.SINGLE_COLUMN}) {
+              width: 100%;
               top: 37%;
+              left: 0;
+              padding: 0 1rem;
             }
           `}
         >
@@ -101,10 +103,19 @@ const HomepageBanner = () => {
               @media screen and (max-width: 1200px) {
                 font-size: min(3.5vw, 2.5rem);
               }
-              @media screen and (max-width: 900px) {
-                font-size: 2rem;
+              @media screen and (max-width: 800px) {
+                font-size: min(3vw, 2rem);
+              }
+              @media screen and (max-width: ${BREAKPOINTS.NO_LEFT_NAV}) {
+                font-size: 2.5rem;
+              }
+              @media screen and (max-width: ${BREAKPOINTS.SINGLE_COLUMN}) {
                 font-weight: 600;
-                width: 70%;
+                font-size: 5vw;
+              }
+              @media screen and (max-width: 700px) {
+                font-weight: 600;
+                font-size: 5vw;
               }
             `}
           >
@@ -118,9 +129,10 @@ const HomepageBanner = () => {
               @media screen and (max-width: 1200px) {
                 display: none;
               }
-              @media screen and (max-width: 900px) {
-                display: inline;
-                font-size: 14px;
+              @media screen and (max-width: ${BREAKPOINTS.SINGLE_COLUMN}) {
+                display: block;
+                font-size: max(3.5vw, 11px);
+                padding-right: 1rem;
               }
             `}
           >
@@ -148,43 +160,44 @@ const HomepageBanner = () => {
               bottom: 10%;
             }
             @media screen and (max-width: 1200px) {
-              bottom: 15%;
+              bottom: 25%;
             }
-            @media screen and (max-width: 1000px) {
-              flex-direction: column-reverse;
-              align-items: flex-start;
-              justify-content: space-between;
-              height: 30%;
-            }
-            @media screen and (max-width: 900px) {
-              bottom: 3rem;
-              height: 15%;
+            @media screen and (max-width: ${BREAKPOINTS.SINGLE_COLUMN}) {
+              flex-direction: column;
+              bottom: 1.5rem;
             }
           `}
         >
           <Button
+            variant={Button.VARIANT.PRIMARY}
             as={Link}
             to="https://newrelic.com/signup"
             css={css`
-              height: 40px;
               font-size: 1rem;
-              background: var(--color-brand-100);
-              color: var(--color-brand-600);
-              &:hover {
-                background: var(--color-brand-500);
-                border-color: var(--color-brand-500);
+              margin-top: 1rem;
+              background: var(--color-brand-500);
+
+              .dark-mode & {
+                background: var(--color-brand-100);
+                color: var(--color-brand-600);
               }
+
               @media screen and (max-width: 1500px) {
-                height: 30px;
-                font-size: 0.85rem;
-              }
-              @media screen and (max-width: 1100px) {
-                height: 25px;
                 font-size: 0.75rem;
               }
+              @media screen and (max-width: 1100px) {
+                font-size: 0.625rem;
+                padding: 0.375rem 0.625rem;
+                border-radius: 0.125rem;
+              }
               @media screen and (max-width: 900px) {
-                height: 40px;
-                font-size: 1rem;
+                font-size: 0.5rem;
+              }
+              @media screen and (max-width: ${BREAKPOINTS.NO_LEFT_NAV}) {
+                font-size: 0.875rem;
+              }
+              @media screen and (max-width: ${BREAKPOINTS.SINGLE_COLUMN}) {
+                padding: 0.5rem 1rem;
                 left: 5%;
                 bottom: 100px;
               }
@@ -193,34 +206,45 @@ const HomepageBanner = () => {
             Create a free account
           </Button>
           <Button
+            variant={Button.VARIANT.OUTLINE}
             as={Link}
             to="https://developer.newrelic.com/instant-observability/"
             css={css`
-              height: 40px;
-              font-size: 1rem;
               margin-left: 1rem;
-              background: none;
-              border: 1px solid var(--color-neutrals-600);
-              color: var(--color-neutrals-050);
+              margin-top: 1rem;
+              font-size: 1rem;
+              color: var(--color-brand-400);
+              border-color: var(--color-brand-500);
               &:hover {
-                background: var(--color-brand-500);
-                border-color: var(--color-brand-500);
+                color: var(--color-brand-400);
+              }
+
+              .dark-mode & {
+                color: var(--color-brand-300);
+                border-color: var(--color-brand-400);
+
+                &:hover {
+                  border-color: white;
+                }
               }
 
               @media screen and (max-width: 1500px) {
-                height: 30px;
-                font-size: 0.85rem;
-              }
-              @media screen and (max-width: 1100px) {
-                height: 25px;
                 font-size: 0.75rem;
               }
-              @media screen and (max-width: 1000px) {
-                margin-left: 0;
+              @media screen and (max-width: 1100px) {
+                font-size: 0.625rem;
+                padding: 0.375rem 0.625rem;
+                border-radius: 0.125rem;
               }
               @media screen and (max-width: 900px) {
-                height: 40px;
-                font-size: 1rem;
+                font-size: 0.5rem;
+              }
+              @media screen and (max-width: ${BREAKPOINTS.NO_LEFT_NAV}) {
+                font-size: 0.875rem;
+              }
+              @media screen and (max-width: ${BREAKPOINTS.SINGLE_COLUMN}) {
+                margin-left: 0;
+                padding: 0.5rem 1rem;
               }
             `}
           >
