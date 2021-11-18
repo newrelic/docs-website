@@ -9,7 +9,7 @@ import relicsAtWorkMobile from '../images/relics-at-work--SM.png';
 const BREAKPOINTS = {
   NO_LEFT_NAV: '760px',
   SINGLE_COLUMN: '650px',
-  MOBILE: '400px',
+  MOBILE: '450px',
 };
 
 const HomepageBanner = () => {
@@ -24,8 +24,8 @@ const HomepageBanner = () => {
         background: var(--color-brand-700);
 
         @media screen and (max-width: ${BREAKPOINTS.SINGLE_COLUMN}) {
-          padding-top: calc(400 / 380 * 100%);
-          max-height: 400px;
+          padding-top: calc(450 / 380 * 100%);
+          max-height: 450px;
         }
 
         @media screen and (max-width: ${BREAKPOINTS.MOBILE}) {
@@ -125,6 +125,10 @@ const HomepageBanner = () => {
               top: 155px;
               width: 100%;
               height: 30%;
+              p {
+                padding-right: 1.5rem;
+                margin-bottom: 0;
+              }
             }
           `}
         >
@@ -158,132 +162,129 @@ const HomepageBanner = () => {
             css={css`
               color: white;
               font-size: min(1vw, 1rem);
+              margin-bottom: 1%;
               @media screen and (max-width: 1200px) {
                 display: none;
               }
             `}
           >
-            We have tons of content to get you started, feel free to browse
-            around.
-            <br />
-            Don't forget to read our{' '}
+            We're here to help you monitor, debug, and improve your entire
+            stack. If you're new to New Relic, read our{' '}
             <Link
               to="/docs/using-new-relic/"
               css={css`
                 color: white;
               `}
             >
-              introductory statement
-            </Link>{' '}
-            for a wider view on our platform's capabilities.
+              Introduction to New Relic doc
+            </Link>
+            . Or get started right now by creating an account and installing a
+            quickstart:
           </p>
-        </div>
-        <div
-          css={css`
-            position: absolute;
-            bottom: 15%;
-            left: 5%;
-            z-index: 2;
-            display: flex;
-            @media screen and (max-width: 1500px) {
-              bottom: 10%;
-            }
-            @media screen and (max-width: 1200px) {
-              bottom: 25%;
-            }
-            @media screen and (max-width: ${BREAKPOINTS.SINGLE_COLUMN}) {
-              bottom: 2rem;
-            }
-            @media screen and (max-width: ${BREAKPOINTS.MOBILE}) {
-              flex-direction: column;
-              bottom: 1.5rem;
-            }
-          `}
-        >
-          <Button
-            variant={Button.VARIANT.PRIMARY}
-            as={Link}
-            to="https://newrelic.com/signup"
+
+          <div
             css={css`
-              font-size: 1rem;
-              margin-top: 1rem;
-              background: var(--color-brand-500);
-
-              .dark-mode & {
-                background: var(--color-brand-100);
-                color: var(--color-brand-600);
+              display: flex;
+              @media screen and (max-width: 1500px) {
+                bottom: 10%;
               }
-
-              @media screen and (max-width: 1150px) {
-                font-size: 0.75rem;
-              }
-              @media screen and (max-width: 990px) {
-                font-size: 0.625rem;
-                padding: 0.375rem 0.625rem;
-                border-radius: 0.125rem;
-              }
-              @media screen and (max-width: 900px) {
-                font-size: 0.5rem;
-              }
-              @media screen and (max-width: ${BREAKPOINTS.NO_LEFT_NAV}) {
-                font-size: 0.75rem;
+              @media screen and (max-width: 1200px) {
+                bottom: 25%;
               }
               @media screen and (max-width: ${BREAKPOINTS.SINGLE_COLUMN}) {
-                padding: 0.5rem 1rem;
-                left: 5%;
-                bottom: 100px;
-              }
-            `}
-          >
-            Create a free account
-          </Button>
-          <Button
-            variant={Button.VARIANT.OUTLINE}
-            as={Link}
-            to="https://developer.newrelic.com/instant-observability/"
-            css={css`
-              margin-left: 1rem;
-              margin-top: 1rem;
-              font-size: 1rem;
-              color: var(--color-brand-400);
-              border-color: var(--color-brand-500);
-              &:hover {
-                color: var(--color-brand-400);
-              }
-
-              .dark-mode & {
-                color: var(--color-brand-300);
-                border-color: var(--color-brand-400);
-
-                &:hover {
-                  border-color: white;
-                }
-              }
-
-              @media screen and (max-width: 1150px) {
-                font-size: 0.75rem;
-              }
-              @media screen and (max-width: 990px) {
-                font-size: 0.625rem;
-                padding: 0.375rem 0.625rem;
-                border-radius: 0.125rem;
-              }
-              @media screen and (max-width: 900px) {
-                font-size: 0.5rem;
-              }
-              @media screen and (max-width: ${BREAKPOINTS.NO_LEFT_NAV}) {
-                font-size: 0.75rem;
-              }
-              @media screen and (max-width: ${BREAKPOINTS.SINGLE_COLUMN}) {
-                padding: 0.5rem 1rem;
+                bottom: 2rem;
               }
               @media screen and (max-width: ${BREAKPOINTS.MOBILE}) {
-                margin-left: 0;
+                flex-direction: column;
+                bottom: 1.5rem;
               }
             `}
           >
-            Find your quickstart
-          </Button>
+            <Button
+              variant={Button.VARIANT.PRIMARY}
+              as={Link}
+              to="https://newrelic.com/signup"
+              css={css`
+                font-size: 1rem;
+                margin-top: 1rem;
+                background: var(--color-brand-500);
+
+                .dark-mode & {
+                  background: var(--color-brand-100);
+                  color: var(--color-brand-600);
+                }
+
+                @media screen and (max-width: 1150px) {
+                  font-size: 0.75rem;
+                }
+                @media screen and (max-width: 990px) {
+                  font-size: 0.625rem;
+                  padding: 0.375rem 0.625rem;
+                  border-radius: 0.125rem;
+                }
+                @media screen and (max-width: 900px) {
+                  font-size: 0.5rem;
+                }
+                @media screen and (max-width: ${BREAKPOINTS.NO_LEFT_NAV}) {
+                  font-size: 0.75rem;
+                }
+                @media screen and (max-width: ${BREAKPOINTS.SINGLE_COLUMN}) {
+                  padding: 0.5rem 1rem;
+                  left: 5%;
+                  bottom: 100px;
+                }
+              `}
+            >
+              Create a free account
+            </Button>
+            <Button
+              variant={Button.VARIANT.OUTLINE}
+              as={Link}
+              to="https://developer.newrelic.com/instant-observability/"
+              css={css`
+                margin-left: 1rem;
+                margin-top: 1rem;
+                font-size: 1rem;
+                color: var(--color-brand-400);
+                border-color: var(--color-brand-500);
+                &:hover {
+                  color: var(--color-brand-400);
+                }
+
+                .dark-mode & {
+                  color: var(--color-brand-300);
+                  border-color: var(--color-brand-400);
+
+                  &:hover {
+                    border-color: white;
+                  }
+                }
+
+                @media screen and (max-width: 1150px) {
+                  font-size: 0.75rem;
+                }
+                @media screen and (max-width: 990px) {
+                  font-size: 0.625rem;
+                  padding: 0.375rem 0.625rem;
+                  border-radius: 0.125rem;
+                }
+                @media screen and (max-width: 900px) {
+                  font-size: 0.5rem;
+                }
+                @media screen and (max-width: ${BREAKPOINTS.NO_LEFT_NAV}) {
+                  font-size: 0.75rem;
+                }
+                @media screen and (max-width: ${BREAKPOINTS.SINGLE_COLUMN}) {
+                  padding: 0.5rem 1rem;
+                }
+                @media screen and (max-width: ${BREAKPOINTS.MOBILE}) {
+                  margin-left: 0;
+                }
+              `}
+            >
+              Find your quickstart
+            </Button>
+          </div>
         </div>
       </div>
     </div>
