@@ -54,13 +54,7 @@ const MainLayout = ({ data = {}, children, pageContext }) => {
           <SubNavigation nav={nav} />
         )}
       </MobileHeader>
-      <Layout
-        css={css`
-          .dark-mode & {
-            background: var(--color-dark-050);
-          }
-        `}
-      >
+      <Layout>
         <Layout.Sidebar
           css={css`
             background: var(--secondary-background-color);
