@@ -304,7 +304,7 @@ const WelcomeTile = ({ title, links, instrumentation, icon }) => (
     <div
       css={css`
         display: flex;
-        padding-left: 2rem;
+        padding: 0 2rem;
         align-items: center;
         height: 5.5rem;
         border-bottom: solid 1.5px var(--tertiary-background-color);
