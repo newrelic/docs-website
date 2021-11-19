@@ -2,7 +2,7 @@
 title: 'The Jira integration for errors inbox is now available' 
 summary: 'Track errors, log changes, and update ticket status in errors inbox with the new Jira integration.'
 releaseDate: '2021-11-19' 
-getStartedLink: 'https://docs.newrelic.com/docs/errors-inbox/errors-inbox/#jira-chat' 
+getStartedLink: 'https://docs.newrelic.com/docs/errors-inbox/errors-inbox/#jira' 
 ---
 ## We’re excited to announce the New Relic errors inbox Jira integration. 
 
