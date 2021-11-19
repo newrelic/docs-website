@@ -50,7 +50,7 @@ You'll need to fill out values for variables in `script.sh`.
     ```
 3. Create the database by running `creation_and_cleanup.sql` on your postgres instance. See the next section to do this in pgadmin.
 
-## How to start a pgadmin container to interact with your postgres container (optional)
+## How to start a pgadmin container to interact with your postgres container
 
 This step is not a prerequisite for running the script, but may be useful for creating your database (which is required) and debugging. 
 
@@ -58,9 +58,12 @@ This step is not a prerequisite for running the script, but may be useful for cr
     ```bash
     docker run -d --env PGADMIN_DEFAULT_EMAIL=username@username.com --env PGADMIN_DEFAULT_PASSWORD=password --name pgadmin -p 8080:80 -p 8081:443 dpage/pgadmin4
     ```
-2. To connect to your postgres container, click on `Create A Server`. On the `Connection` tab, enter the following details: 
+2. Run the following command to get the IP address of your DB container, in case `localhost` doesn't work when connecting:
+   1. `docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' postgres`
+  
+3. To connect to your postgres container, click on `Create A Server`. On the `Connection` tab, enter the following details: 
     ```
-    Hostname/address: localhost
+    Hostname/address: localhost/postgresIP
     Port: 5432
     Maintenance database: postgres
     Username: root
@@ -69,7 +72,9 @@ This step is not a prerequisite for running the script, but may be useful for cr
     You may also need to go into the `General` and give a name to the server. You can call it `translations` (but it can be called anything).
 
 
-3. To create the database, right-click on your new `translations` database. then click on `Query Tool`. Enter and run the contents of `creation_and_cleanup.sql`.
+4. To create the database, right-click on your new `translations` database. then click on `Query Tool`. Enter and run the contents of `creation_and_cleanup.sql`.
+
+![](~/scripts/actions/translation_workflow/testing/pgadmin_query.png)
 
 ## Use node 16
 The script requires node.js version 16. The following commands use `nvm` to install and use node 16.
