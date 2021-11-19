@@ -134,7 +134,7 @@ const HomepageBanner = () => {
         >
           <h1
             css={css`
-              font-size: min(4vw, 4rem);
+              font-size: min(4vw, 3rem);
               @media screen and (max-width: 1200px) {
                 font-size: min(3.5vw, 2.5rem);
               }
