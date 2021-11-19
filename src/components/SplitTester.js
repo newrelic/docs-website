@@ -2,26 +2,28 @@ import React from 'react';
 import PropTypes from 'prop-types';
 import { useTreatments, SplitContext } from '@splitsoftware/splitio-react';
 
-const SignupsSplit = ({
+const SplitTester = ({
   testChildren,
   defaultChildren,
-  treatmentWithConfig,
+  testName,
+  testEvent,
 }) => {
   const treatments = useTreatments(['signups']);
-  const { treatment } = treatmentWithConfig;
+  const { treatment, config } = treatments[testName];
   const { isReady } = React.useContext(SplitContext);
 
-  return isReady && treatment !== 'off' && treatments === 'signups' ? (
+  return isReady && treatment !== 'off' && treatment === 'control' ? (
     <>{testChildren}</>
   ) : (
     <>{defaultChildren}</>
   );
 };
 
-SignupsSplit.propTypes = {
+SplitTester.propTypes = {
   testChildren: PropTypes.node,
   defaultChildren: PropTypes.node,
-  treatmentWithConfig: PropTypes.node,
+  testName: PropTypes.node,
+  testEvent: PropTypes.node,
 };
 
-export default SignupsSplit;
+export default SplitTester;
