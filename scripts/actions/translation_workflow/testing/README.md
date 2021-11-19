@@ -74,7 +74,7 @@ This step is not a prerequisite for running the script, but may be useful for cr
 
 4. To create the database, right-click on your new `translations` database. then click on `Query Tool`. Enter and run the contents of `creation_and_cleanup.sql`.
 
-![](~/scripts/actions/translation_workflow/testing/pgadmin_query.png)
+![](https://github.com/newrelic/docs-website/blob/feature/machine-translation/scripts/actions/translation_workflow/testing/pgadmin_query.png)
 
 ## Use node 16
 The script requires node.js version 16. The following commands use `nvm` to install and use node 16.
