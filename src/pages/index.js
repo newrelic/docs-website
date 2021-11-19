@@ -313,7 +313,13 @@ const WelcomeTile = ({ title, links, instrumentation, icon }) => (
         }
       `}
     >
-      <Icon name={icon} size="2rem" />
+      <Icon
+        name={icon}
+        size="2rem"
+        css={css`
+          color: var(--link-color);
+        `}
+      />
       <h2
         css={css`
           margin-bottom: 0;
