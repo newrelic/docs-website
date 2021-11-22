@@ -189,7 +189,7 @@ module.exports = {
           segmentWriteKey: 'AEfP8c1VSuFxhMdk3jYFQrYQV9sHbUXx',
           trackPageViews: true,
           pageView: {
-            name: 'pageView',
+            eventName: 'pageView',
             category: 'DocPageView',
             getProperties: ({ location, env }) => ({
               path: location.pathname,
