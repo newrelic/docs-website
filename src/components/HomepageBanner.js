@@ -170,6 +170,9 @@ const HomepageBanner = () => {
           flex: 1;
           z-index: -1;
           @media screen and (max-width: ${mobileBreakpoint}) {
+            position: absolute;
+            top: 0;
+            left: 0;
             background-image: url(${relicsAtWorkMobile});
             background-position: top;
             border-bottom-right-radius: 0;
