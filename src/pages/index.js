@@ -139,8 +139,8 @@ HomePage.propTypes = {
     allMarkdownRemark: PropTypes.shape({
       edges: PropTypes.arrayOf(
         PropTypes.shape({
-          whatsNewPosts: PropTypes.shape({
-            frontMatter: PropTypes.shape({
+          node: PropTypes.shape({
+            frontmatter: PropTypes.shape({
               title: PropTypes.string,
             }),
             fields: PropTypes.shape({
