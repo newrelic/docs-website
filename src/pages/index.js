@@ -1,4 +1,4 @@
-import React, { Fragment } from 'react';
+import React from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/react';
 import { graphql } from 'gatsby';
@@ -137,16 +137,18 @@ HomePage.propTypes = {
       }),
     }),
     allMarkdownRemark: PropTypes.shape({
-      edges: PropTypes.shape({
-        whatsNewPosts: PropTypes.shape({
-          frontMatter: PropTypes.shape({
-            title: PropTypes.string,
+      edges: PropTypes.arrayOf(
+        PropTypes.shape({
+          whatsNewPosts: PropTypes.shape({
+            frontMatter: PropTypes.shape({
+              title: PropTypes.string,
+            }),
+            fields: PropTypes.shape({
+              slug: PropTypes.string,
+            }),
           }),
-          fields: PropTypes.shape({
-            slug: PropTypes.string,
-          }),
-        }),
-      }),
+        })
+      ),
     }),
   }),
 };
