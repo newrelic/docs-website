@@ -9,16 +9,20 @@ import {
   Icon,
   SearchInput,
   useTranslation,
+  useTessen,
 } from '@newrelic/gatsby-theme-newrelic';
 
 const SubNavigation = ({ nav }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const { t } = useTranslation();
+  const tessen = useTessen();
 
   useDebounce(
     () => {
-      if (typeof window !== 'undefined' && window.newrelic && searchTerm) {
-        window.newrelic.addPageAction('navInteraction', {
+      if (searchTerm) {
+        tessen.track({
+          eventName: 'leftNavSearch',
+          category: 'NavSearch',
           navInteractionType: 'leftNavSearch',
           searchTerm,
         });
