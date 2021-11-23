@@ -92,8 +92,13 @@ const getStatuses = async (filters = {}) => {
  * @param {string} locale - string value of locale enum
  * @returns newly created translation
  */
-const addTranslation = async ({ slug, status, locale }) => {
-  const translation = await Models.Translation.create({ slug, status, locale });
+const addTranslation = async ({ slug, status, locale, project_id }) => {
+  const translation = await Models.Translation.create({
+    slug,
+    status,
+    locale,
+    project_id,
+  });
   return translation;
 };
 
