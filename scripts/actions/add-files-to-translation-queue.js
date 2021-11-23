@@ -71,7 +71,6 @@ const main = async () => {
   const url = process.argv[2];
 
   const queue = await getTranslations({ status: STATUS.PENDING });
-  console.log('queue', queue);
   const prFileData = await fetchPaginatedGHResults(
     url,
     process.env.GITHUB_TOKEN
@@ -82,13 +81,10 @@ const main = async () => {
     .filter((f) => f.status !== 'removed');
 
   const allLocalizedFileData = changedMdxFileData.flatMap(getLocalizedFileData);
-  console.log('allLocalizedFileData', allLocalizedFileData);
   const fileDataToAddToQueue = translationDifference(
     queue,
     allLocalizedFileData
   );
-
-  console.log('File Data To Add To Queue:', fileDataToAddToQueue);
 
   await Promise.all(
     fileDataToAddToQueue.map(({ filename, locale, project_id }) =>
