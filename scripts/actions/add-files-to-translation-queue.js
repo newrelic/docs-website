@@ -17,7 +17,6 @@ const STATUS = {
 
 const LOCALE_IDS = {
   jp: 'ja-JP',
-  kr: 'kr-KR',
 };
 
 const translationDifference = (pendingFiles, prChanges) =>
