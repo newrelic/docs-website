@@ -215,8 +215,9 @@ Section.propTypes = {
 };
 
 const SectionTitle = ({ title, icon, to }) => {
-  const handleClick = useInstrumentedHandler(null, {
-    actionName: 'sectionTitle_click',
+  const handleClick = useInstrumentedHandler({
+    eventName: 'sectionTitleClick',
+    category: 'SectionTitle',
     title,
     href: to,
   });

@@ -270,4 +270,8 @@ module.exports = {
     deserialize: deserializeComponent,
     serialize: serializeComponent,
   },
+  nobr: {
+    deserialize: deserializeComponent,
+    serialize: serializeComponent,
+  },
 };
