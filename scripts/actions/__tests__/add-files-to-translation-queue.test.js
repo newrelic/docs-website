@@ -38,8 +38,8 @@ This is a test file
 };
 
 const EXCLUSIONS = {
-  excludePath: { jp: ['excluded/path'] },
-  excludeType: { jp: ['excludedType'] },
+  excludePath: { 'ja-JP': ['excluded/path'] },
+  excludeType: { 'ja-JP': ['excludedType'] },
 };
 
 const mockReadFileSync = (translate = []) => {
@@ -131,14 +131,14 @@ describe('add-files-to-translation-queue tests', () => {
     });
     test('Doesnt exclude any files', async () => {
       const files = [
-        { filename: 'included/path/content/bar.mdx', locale: 'jp' },
-        { filename: 'included/path/content/foo.mdx', locale: 'jp' },
+        { filename: 'included/path/content/bar.mdx', locale: 'ja-JP' },
+        { filename: 'included/path/content/foo.mdx', locale: 'ja-JP' },
       ];
       const includedFiles = excludeFiles(files, EXCLUSIONS);
 
       expect(includedFiles).toEqual([
-        { filename: 'included/path/content/bar.mdx', locale: 'jp' },
-        { filename: 'included/path/content/foo.mdx', locale: 'jp' },
+        { filename: 'included/path/content/bar.mdx', locale: 'ja-JP' },
+        { filename: 'included/path/content/foo.mdx', locale: 'ja-JP' },
       ]);
     });
     test('Excludes files under a set path', async () => {
@@ -146,12 +146,12 @@ describe('add-files-to-translation-queue tests', () => {
         {
           filename: 'included/path/content/bar.mdx',
           fileType: 'doc',
-          locale: 'jp',
+          locale: 'ja-JP',
         },
         {
           filename: 'excluded/path/content/bar.mdx',
           fileType: 'doc',
-          locale: 'jp',
+          locale: 'ja-JP',
         },
       ];
       const includedFiles = excludeFiles(files, EXCLUSIONS);
@@ -160,7 +160,7 @@ describe('add-files-to-translation-queue tests', () => {
         {
           filename: 'included/path/content/bar.mdx',
           fileType: 'doc',
-          locale: 'jp',
+          locale: 'ja-JP',
         },
       ]);
     });
@@ -170,12 +170,12 @@ describe('add-files-to-translation-queue tests', () => {
         {
           filename: 'included/path/content/bar.mdx',
           fileType: 'excludedType',
-          locale: 'jp',
+          locale: 'ja-JP',
         },
         {
           filename: 'included/path/content/bar.mdx',
           fileType: 'doc',
-          locale: 'jp',
+          locale: 'ja-JP',
         },
       ];
       const includedFiles = excludeFiles(files, EXCLUSIONS);
@@ -184,7 +184,7 @@ describe('add-files-to-translation-queue tests', () => {
         {
           filename: 'included/path/content/bar.mdx',
           fileType: 'doc',
-          locale: 'jp',
+          locale: 'ja-JP',
         },
       ]);
     });
@@ -194,17 +194,17 @@ describe('add-files-to-translation-queue tests', () => {
         {
           filename: 'included/path/content/bar.mdx',
           fileType: 'doc',
-          locale: 'jp',
+          locale: 'ja-JP',
         },
         {
           filename: 'included/path/content/bar.mdx',
           fileType: 'excludedType',
-          locale: 'jp',
+          locale: 'ja-JP',
         },
         {
           filename: 'excluded/path/content/bar.mdx',
           fileType: 'doc',
-          locale: 'jp',
+          locale: 'ja-JP',
         },
       ];
       const includedFiles = excludeFiles(files, EXCLUSIONS);
@@ -213,7 +213,7 @@ describe('add-files-to-translation-queue tests', () => {
         {
           filename: 'included/path/content/bar.mdx',
           fileType: 'doc',
-          locale: 'jp',
+          locale: 'ja-JP',
         },
       ]);
     });
