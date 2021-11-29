@@ -10,7 +10,7 @@ export GITHUB_TOKEN='' # token with no permissions
 
 # # step 1
 URL="https://api.github.com/repos/newrelic/docs-website/pulls/3271/files"
-yarn get-translated-files $URL
+yarn add-files-to-translate $URL
 
 # # step 2
 export TRANSLATION_VENDOR_API_URL=https://api.smartling.com
