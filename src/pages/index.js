@@ -87,19 +87,6 @@ const HomePage = ({ data }) => {
         </div>
       </Section>
       <Section layout={layout}>
-        <SectionTitle title={t('home.tdp.title')} />
-        <DocTileGrid>
-          {tdp.tiles.map(({ link, icon }, idx) => (
-            <DocTile
-              key={idx}
-              title={t(`home.tdp.t${idx + 1}.title`)}
-              icon={icon}
-              link={link}
-            />
-          ))}
-        </DocTileGrid>
-      </Section>
-      <Section layout={layout}>
         <SectionTitle title={t('home.fso.title')} />
         <DocTileGrid>
           {fso.tiles.map(({ link, icon }, idx) => (
@@ -121,6 +108,19 @@ const HomePage = ({ data }) => {
               title={t(`home.ai.t${idx + 1}.title`)}
               link={link}
               icon={icon}
+            />
+          ))}
+        </DocTileGrid>
+      </Section>
+      <Section layout={layout}>
+        <SectionTitle title={t('home.tdp.title')} />
+        <DocTileGrid>
+          {tdp.tiles.map(({ link, icon }, idx) => (
+            <DocTile
+              key={idx}
+              title={t(`home.tdp.t${idx + 1}.title`)}
+              icon={icon}
+              link={link}
             />
           ))}
         </DocTileGrid>
