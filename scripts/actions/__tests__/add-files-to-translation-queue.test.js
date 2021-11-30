@@ -38,8 +38,8 @@ This is a test file
 };
 
 const EXCLUSIONS = {
-  excludePath: { 'ja-JP': ['excluded/path'] },
-  excludeType: { 'ja-JP': ['excludedType'] },
+  excludePath: { jp: ['excluded/path'], kr: ['excluded/path'] },
+  excludeType: { jp: ['excludedType'], kr: ['excludedType'] },
 };
 
 const mockReadFileSync = (translate = []) => {
@@ -123,35 +123,37 @@ describe('add-files-to-translation-queue tests', () => {
       expect(toBeTranslated).toEqual([
         {
           filename: '/content/bar.mdx',
-          fileType: 'landingPage',
+          contentType: 'landingPage',
           locale: 'ja-JP',
           project_id: 'HT_ID',
         },
       ]);
     });
-    test('Doesnt exclude any files', async () => {
+
+    test('Doesnt exclude any files from translation', async () => {
       const files = [
-        { filename: 'included/path/content/bar.mdx', locale: 'ja-JP' },
-        { filename: 'included/path/content/foo.mdx', locale: 'ja-JP' },
+        { filename: 'included/path/content/bar.mdx', locale: 'jp' },
+        { filename: 'included/path/content/foo.mdx', locale: 'jp' },
       ];
       const includedFiles = excludeFiles(files, EXCLUSIONS);
 
       expect(includedFiles).toEqual([
-        { filename: 'included/path/content/bar.mdx', locale: 'ja-JP' },
-        { filename: 'included/path/content/foo.mdx', locale: 'ja-JP' },
+        { filename: 'included/path/content/bar.mdx', locale: 'jp' },
+        { filename: 'included/path/content/foo.mdx', locale: 'jp' },
       ]);
     });
+
     test('Excludes files under a set path', async () => {
       const files = [
         {
           filename: 'included/path/content/bar.mdx',
-          fileType: 'doc',
-          locale: 'ja-JP',
+          contentType: 'doc',
+          locale: 'kr',
         },
         {
           filename: 'excluded/path/content/bar.mdx',
-          fileType: 'doc',
-          locale: 'ja-JP',
+          contentType: 'doc',
+          locale: 'jp',
         },
       ];
       const includedFiles = excludeFiles(files, EXCLUSIONS);
@@ -159,8 +161,8 @@ describe('add-files-to-translation-queue tests', () => {
       expect(includedFiles).toEqual([
         {
           filename: 'included/path/content/bar.mdx',
-          fileType: 'doc',
-          locale: 'ja-JP',
+          contentType: 'doc',
+          locale: 'kr',
         },
       ]);
     });
@@ -169,13 +171,13 @@ describe('add-files-to-translation-queue tests', () => {
       const files = [
         {
           filename: 'included/path/content/bar.mdx',
-          fileType: 'excludedType',
-          locale: 'ja-JP',
+          contentType: 'excludedType',
+          locale: 'kr',
         },
         {
           filename: 'included/path/content/bar.mdx',
-          fileType: 'doc',
-          locale: 'ja-JP',
+          contentType: 'doc',
+          locale: 'jp',
         },
       ];
       const includedFiles = excludeFiles(files, EXCLUSIONS);
@@ -183,8 +185,8 @@ describe('add-files-to-translation-queue tests', () => {
       expect(includedFiles).toEqual([
         {
           filename: 'included/path/content/bar.mdx',
-          fileType: 'doc',
-          locale: 'ja-JP',
+          contentType: 'doc',
+          locale: 'jp',
         },
       ]);
     });
@@ -193,18 +195,18 @@ describe('add-files-to-translation-queue tests', () => {
       const files = [
         {
           filename: 'included/path/content/bar.mdx',
-          fileType: 'doc',
-          locale: 'ja-JP',
+          contentType: 'doc',
+          locale: 'kr',
         },
         {
           filename: 'included/path/content/bar.mdx',
-          fileType: 'excludedType',
-          locale: 'ja-JP',
+          contentType: 'excludedType',
+          locale: 'jp',
         },
         {
           filename: 'excluded/path/content/bar.mdx',
-          fileType: 'doc',
-          locale: 'ja-JP',
+          contentType: 'doc',
+          locale: 'jp',
         },
       ];
       const includedFiles = excludeFiles(files, EXCLUSIONS);
@@ -212,8 +214,8 @@ describe('add-files-to-translation-queue tests', () => {
       expect(includedFiles).toEqual([
         {
           filename: 'included/path/content/bar.mdx',
-          fileType: 'doc',
-          locale: 'ja-JP',
+          contentType: 'doc',
+          locale: 'kr',
         },
       ]);
     });

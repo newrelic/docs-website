@@ -48,13 +48,13 @@ const getExclusions = () => {
  */
 const excludeFiles = (fileData, exclusions) => {
   return fileData.filter(
-    ({ filename, locale, fileType }) =>
-      !exclusions.excludePath[locale]?.some((exclus) =>
-        filename.includes(exclus)
-      ) &&
-      !exclusions.excludeType[locale]?.some((exclus) => fileType === exclus)
+    ({ filename, locale, contentType }) =>
+      !exclusions.excludePath[locale]?.some((path) =>
+        filename.startsWith(path)
+      ) && !exclusions.excludeType[locale]?.some((type) => contentType === type)
   );
 };
+
 /**
  * Determines if a particular locale should be human or machine translated based on the files frontmatter.
  *
@@ -72,11 +72,11 @@ const getLocalizedFileData = (prFile) => {
   const contents = fs.readFileSync(path.join(process.cwd(), prFile.filename));
   const { data } = frontmatter(contents);
   const checkLocale = getProjectId(data.translate);
-  const fileType = data.type;
+  const contentType = data.type;
 
   return Object.keys(LOCALE_IDS).map((locale) => ({
     ...prFile,
-    fileType,
+    contentType,
     locale: LOCALE_IDS[locale],
     project_id: checkLocale(locale),
   }));
