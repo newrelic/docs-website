@@ -50,11 +50,12 @@ const MachineTranslationCallout = ({ englishHref }) => {
           </Trans>
         </div>
         <CreateIssueButton
-          instrumentation={{ component: 'MachineTranslationCallout' }}
           variant="outline"
           css={css`
             border-color: #8a7800;
           `}
+          labels={['i18n']}
+          instrumentation={{ component: 'MachineTranslationCallout' }}
         />
       </div>
     </Callout>
