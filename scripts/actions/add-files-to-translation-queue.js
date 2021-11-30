@@ -47,12 +47,16 @@ const getExclusions = () => {
  * @returns {Object[]} The files that should be included
  */
 const excludeFiles = (fileData, exclusions) => {
-  return fileData.filter(
-    ({ filename, locale, contentType }) =>
-      !exclusions.excludePath[locale]?.some((path) =>
+  return fileData.filter(({ filename, locale, contentType }) => {
+    const localeKey = Object.keys(LOCALE_IDS).find(
+      (localeKey) => LOCALE_IDS[localeKey] === locale
+    );
+    return (
+      !exclusions.excludePath[localeKey]?.some((path) =>
         filename.startsWith(path)
-      ) && !exclusions.excludeType[locale]?.some((type) => contentType === type)
-  );
+      ) && !exclusions.excludeType[localeKey]?.some((type) => contentType === type)
+    );
+  });
 };
 
 /**

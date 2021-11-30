@@ -112,34 +112,23 @@ describe('add-files-to-translation-queue tests', () => {
       ]);
     });
 
-    test('Adds the relevant Project Id when there are multiple locales and only one `translate` in frontmatter', async () => {
-      const file = { filename: '/content/bar.mdx' };
-      mockReadFileSync(['jp']);
-      frontmatter.mockReturnValueOnce({
-        data: { type: 'landingPage', translate: ['jp'] },
-      });
-      const toBeTranslated = getLocalizedFileData(file);
-
-      expect(toBeTranslated).toEqual([
-        {
-          filename: '/content/bar.mdx',
-          contentType: 'landingPage',
-          locale: 'ja-JP',
-          project_id: 'HT_ID',
-        },
-      ]);
-    });
-
     test('Doesnt exclude any files from translation', async () => {
       const files = [
-        { filename: 'included/path/content/bar.mdx', locale: 'jp' },
-        { filename: 'included/path/content/foo.mdx', locale: 'jp' },
+        { filename: 'included/path/content/bar.mdx', locale: 'ja-JP' },
+        { filename: 'included/path/content/foo.mdx', locale: 'ko-KR' },
       ];
+      const originalAdd = jest.requireActual('../utils/constants.js');
+
+      jest.doMock('../utils/constants.js', () => {
+        return { ...originalAdd, LOCALE_IDS: MOCK_CONSTANTS.LOCALE_IDS };
+      });
+
+      const { excludeFiles } = require('../add-files-to-translation-queue');
       const includedFiles = excludeFiles(files, EXCLUSIONS);
 
       expect(includedFiles).toEqual([
-        { filename: 'included/path/content/bar.mdx', locale: 'jp' },
-        { filename: 'included/path/content/foo.mdx', locale: 'jp' },
+        { filename: 'included/path/content/bar.mdx', locale: 'ja-JP' },
+        { filename: 'included/path/content/foo.mdx', locale: 'ko-KR' },
       ]);
     });
 
@@ -148,21 +137,28 @@ describe('add-files-to-translation-queue tests', () => {
         {
           filename: 'included/path/content/bar.mdx',
           contentType: 'doc',
-          locale: 'kr',
+          locale: 'ko-KR',
         },
         {
           filename: 'excluded/path/content/bar.mdx',
           contentType: 'doc',
-          locale: 'jp',
+          locale: 'ja-JP',
         },
       ];
+      const originalAdd = jest.requireActual('../utils/constants.js');
+
+      jest.doMock('../utils/constants.js', () => {
+        return { ...originalAdd, LOCALE_IDS: MOCK_CONSTANTS.LOCALE_IDS };
+      });
+
+      const { excludeFiles } = require('../add-files-to-translation-queue');
       const includedFiles = excludeFiles(files, EXCLUSIONS);
 
       expect(includedFiles).toEqual([
         {
           filename: 'included/path/content/bar.mdx',
           contentType: 'doc',
-          locale: 'kr',
+          locale: 'ko-KR',
         },
       ]);
     });
@@ -172,21 +168,28 @@ describe('add-files-to-translation-queue tests', () => {
         {
           filename: 'included/path/content/bar.mdx',
           contentType: 'excludedType',
-          locale: 'kr',
+          locale: 'ko-KR',
         },
         {
           filename: 'included/path/content/bar.mdx',
           contentType: 'doc',
-          locale: 'jp',
+          locale: 'ja-JP',
         },
       ];
+      const originalAdd = jest.requireActual('../utils/constants.js');
+
+      jest.doMock('../utils/constants.js', () => {
+        return { ...originalAdd, LOCALE_IDS: MOCK_CONSTANTS.LOCALE_IDS };
+      });
+
+      const { excludeFiles } = require('../add-files-to-translation-queue');
       const includedFiles = excludeFiles(files, EXCLUSIONS);
 
       expect(includedFiles).toEqual([
         {
           filename: 'included/path/content/bar.mdx',
           contentType: 'doc',
-          locale: 'jp',
+          locale: 'ja-JP',
         },
       ]);
     });
@@ -196,26 +199,33 @@ describe('add-files-to-translation-queue tests', () => {
         {
           filename: 'included/path/content/bar.mdx',
           contentType: 'doc',
-          locale: 'kr',
+          locale: 'ko-KR',
         },
         {
           filename: 'included/path/content/bar.mdx',
           contentType: 'excludedType',
-          locale: 'jp',
+          locale: 'ja-JP',
         },
         {
           filename: 'excluded/path/content/bar.mdx',
           contentType: 'doc',
-          locale: 'jp',
+          locale: 'ja-JP',
         },
       ];
+      const originalAdd = jest.requireActual('../utils/constants.js');
+
+      jest.doMock('../utils/constants.js', () => {
+        return { ...originalAdd, LOCALE_IDS: MOCK_CONSTANTS.LOCALE_IDS };
+      });
+
+      const { excludeFiles } = require('../add-files-to-translation-queue');
       const includedFiles = excludeFiles(files, EXCLUSIONS);
 
       expect(includedFiles).toEqual([
         {
           filename: 'included/path/content/bar.mdx',
           contentType: 'doc',
-          locale: 'kr',
+          locale: 'ko-KR',
         },
       ]);
     });
