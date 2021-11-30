@@ -18,6 +18,7 @@ const MachineTranslationCallout = ({ englishHref }) => {
       title=" "
       css={css`
         margin: 2em 0;
+        padding: 0.5em;
       `}
     >
       <div
@@ -41,7 +42,7 @@ const MachineTranslationCallout = ({ englishHref }) => {
       >
         <Icon name="globe" size="2rem" />
         <div>
-          <b>{t('machineTranslation.calloutHeading')}</b>
+          <h4>{t('machineTranslation.calloutHeading')}</h4>
           <Trans i18nKey="machineTranslation.calloutBody" parent="p">
             If there's anything unclear, you can try checking the{' '}
             <Link to={englishHref}>English version</Link>. Or tell us how we can

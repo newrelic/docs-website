@@ -79,6 +79,7 @@ const BasicDoc = ({ data, location, pageContext }) => {
         css={css`
           display: grid;
           grid-template-areas:
+            'mt-disclaimer mt-disclaimer'
             'page-title page-title'
             'content page-tools';
           grid-template-columns: minmax(0, 1fr) 320px;
@@ -86,6 +87,7 @@ const BasicDoc = ({ data, location, pageContext }) => {
 
           @media screen and (max-width: 1240px) {
             grid-template-areas:
+              'mt-disclaimer'
               'page-title'
               'content'
               'page-tools';
@@ -93,17 +95,17 @@ const BasicDoc = ({ data, location, pageContext }) => {
           }
         `}
       >
+        {translationType === 'machine' && (
+          <MachineTranslationCallout
+            englishHref={location.pathname.replace(
+              `/${pageContext.locale}`,
+              ''
+            )}
+          />
+        )}
         <PageTitle>{title}</PageTitle>
 
         <Layout.Content>
-          {translationType === 'machine' && (
-            <MachineTranslationCallout
-              englishHref={location.pathname.replace(
-                `/${pageContext.locale}`,
-                ''
-              )}
-            />
-          )}
           <MDXContainer body={body}>
             {moreHelpHeading ? null : <DefaultRelatedContent />}
           </MDXContainer>
