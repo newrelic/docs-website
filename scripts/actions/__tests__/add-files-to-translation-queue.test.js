@@ -1,19 +1,9 @@
 'use strict';
-const {
-  describe,
-  expect,
-  test,
-  beforeEach,
-  afterEach,
-} = require('@jest/globals');
+const { describe, expect, test, beforeEach } = require('@jest/globals');
 
 const fs = require('fs');
-const path = require('path');
 const frontmatter = require('@github-docs/frontmatter');
-const {
-  getLocalizedFileData,
-  excludeFiles,
-} = require('../add-files-to-translation-queue');
+const { getLocalizedFileData } = require('../add-files-to-translation-queue');
 
 const MOCK_CONSTANTS = {
   LOCALE_IDS: {
@@ -37,11 +27,6 @@ This is a test file
 `;
 };
 
-const EXCLUSIONS = {
-  excludePath: { jp: ['excluded/path'], kr: ['excluded/path'] },
-  excludeType: { jp: ['excludedType'], kr: ['excludedType'] },
-};
-
 const mockReadFileSync = (translate = []) => {
   const mdx = mockMdx(translate);
   fs.readFileSync.mockReturnValueOnce(mdx);
@@ -52,6 +37,23 @@ describe('add-files-to-translation-queue tests', () => {
     jest.resetAllMocks();
     jest.resetModules();
   });
+
+  const setup = () => {
+    const EXCLUSIONS = {
+      excludePath: { jp: ['excluded/path'], kr: ['excluded/path'] },
+      excludeType: { jp: ['excludedType'], kr: ['excludedType'] },
+    };
+    const originalAdd = jest.requireActual('../utils/constants.js');
+
+    jest.doMock('../utils/constants.js', () => {
+      return { ...originalAdd, LOCALE_IDS: MOCK_CONSTANTS.LOCALE_IDS };
+    });
+
+    jest.mock('../utils/helpers');
+    const { getExclusions } = require('../utils/helpers');
+
+    getExclusions.mockReturnValue(EXCLUSIONS);
+  };
 
   describe('Queue translations', () => {
     test('Adds the Human Translation Project Id for locale under `translate` in frontmatter', async () => {
@@ -117,14 +119,10 @@ describe('add-files-to-translation-queue tests', () => {
         { filename: 'included/path/content/bar.mdx', locale: 'ja-JP' },
         { filename: 'included/path/content/foo.mdx', locale: 'ko-KR' },
       ];
-      const originalAdd = jest.requireActual('../utils/constants.js');
-
-      jest.doMock('../utils/constants.js', () => {
-        return { ...originalAdd, LOCALE_IDS: MOCK_CONSTANTS.LOCALE_IDS };
-      });
-
+      setup();
       const { excludeFiles } = require('../add-files-to-translation-queue');
-      const includedFiles = excludeFiles(files, EXCLUSIONS);
+
+      const includedFiles = excludeFiles(files);
 
       expect(includedFiles).toEqual([
         { filename: 'included/path/content/bar.mdx', locale: 'ja-JP' },
@@ -145,14 +143,10 @@ describe('add-files-to-translation-queue tests', () => {
           locale: 'ja-JP',
         },
       ];
-      const originalAdd = jest.requireActual('../utils/constants.js');
-
-      jest.doMock('../utils/constants.js', () => {
-        return { ...originalAdd, LOCALE_IDS: MOCK_CONSTANTS.LOCALE_IDS };
-      });
+      setup();
 
       const { excludeFiles } = require('../add-files-to-translation-queue');
-      const includedFiles = excludeFiles(files, EXCLUSIONS);
+      const includedFiles = excludeFiles(files);
 
       expect(includedFiles).toEqual([
         {
@@ -176,14 +170,10 @@ describe('add-files-to-translation-queue tests', () => {
           locale: 'ja-JP',
         },
       ];
-      const originalAdd = jest.requireActual('../utils/constants.js');
-
-      jest.doMock('../utils/constants.js', () => {
-        return { ...originalAdd, LOCALE_IDS: MOCK_CONSTANTS.LOCALE_IDS };
-      });
+      setup();
 
       const { excludeFiles } = require('../add-files-to-translation-queue');
-      const includedFiles = excludeFiles(files, EXCLUSIONS);
+      const includedFiles = excludeFiles(files);
 
       expect(includedFiles).toEqual([
         {
@@ -212,14 +202,10 @@ describe('add-files-to-translation-queue tests', () => {
           locale: 'ja-JP',
         },
       ];
-      const originalAdd = jest.requireActual('../utils/constants.js');
-
-      jest.doMock('../utils/constants.js', () => {
-        return { ...originalAdd, LOCALE_IDS: MOCK_CONSTANTS.LOCALE_IDS };
-      });
+      setup();
 
       const { excludeFiles } = require('../add-files-to-translation-queue');
-      const includedFiles = excludeFiles(files, EXCLUSIONS);
+      const includedFiles = excludeFiles(files);
 
       expect(includedFiles).toEqual([
         {

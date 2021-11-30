@@ -1,6 +1,5 @@
 const fs = require('fs');
 const path = require('path');
-const yaml = require('js-yaml');
 const frontmatter = require('@github-docs/frontmatter');
 const {
   getTranslations,
@@ -10,7 +9,8 @@ const {
 const { fetchPaginatedGHResults } = require('./utils/github-api-helpers');
 const checkArgs = require('./utils/check-args');
 const { prop } = require('../utils/functional');
-const { LOCALE_IDS, EXCLUSIONS_FILE } = require('./utils/constants');
+const { LOCALE_IDS } = require('./utils/constants');
+const { getExclusions } = require('./utils/helpers');
 
 const STATUS = {
   PENDING: 'PENDING',
@@ -33,20 +33,14 @@ const humanTranslatedProjectID = process.env.HUMAN_TRANSLATION_PROJECT_ID;
 const machineTranslatedProjectID = process.env.MACHINE_TRANSLATION_PROJECT_ID;
 
 /**
- * Loads the Exclusions yaml file and converts it to a JSON object.
- * @returns {Object} The Exclusions yaml file as a JSON object.
- */
-const getExclusions = () => {
-  return yaml.load(fs.readFileSync(path.join(process.cwd(), EXCLUSIONS_FILE)));
-};
-
-/**
  * Determines if a file should be included based on data from an exclusions file
  * @param {Object[]} fileData The files to check
  * @param {Object[]} exclusions The exclusions file
  * @returns {Object[]} The files that should be included
  */
-const excludeFiles = (fileData, exclusions) => {
+const excludeFiles = (fileData) => {
+  const exclusions = getExclusions();
+
   return fileData.filter(({ filename, locale, contentType }) => {
     const localeKey = Object.keys(LOCALE_IDS).find(
       (localeKey) => LOCALE_IDS[localeKey] === locale
@@ -54,7 +48,8 @@ const excludeFiles = (fileData, exclusions) => {
     return (
       !exclusions.excludePath[localeKey]?.some((path) =>
         filename.startsWith(path)
-      ) && !exclusions.excludeType[localeKey]?.some((type) => contentType === type)
+      ) &&
+      !exclusions.excludeType[localeKey]?.some((type) => contentType === type)
     );
   });
 };
@@ -105,9 +100,9 @@ const main = async () => {
   const changedMdxFileData = prFileData
     .filter((file) => path.extname(file.filename) === '.mdx')
     .filter((f) => f.status !== 'removed');
-  const exclusions = await getExclusions();
+
   const allLocalizedFileData = changedMdxFileData.flatMap(getLocalizedFileData);
-  const includedFiles = excludeFiles(allLocalizedFileData, exclusions);
+  const includedFiles = excludeFiles(allLocalizedFileData);
 
   const fileDataToAddToQueue = translationDifference(queue, includedFiles);
 
