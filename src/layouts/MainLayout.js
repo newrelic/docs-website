@@ -55,7 +55,20 @@ const MainLayout = ({ data = {}, children, pageContext }) => {
         )}
       </MobileHeader>
       <Layout>
-        <Layout.Sidebar>
+        <Layout.Sidebar
+          css={css`
+            background: var(--secondary-background-color);
+            hr {
+              border-color: var(--color-neutrals-300);
+              .dark-mode & {
+                border-color: var(--color-dark-500);
+              }
+            }
+            .dark-mode & {
+              background: var(--color-dark-100);
+            }
+          `}
+        >
           <Link
             to="/"
             css={css`
