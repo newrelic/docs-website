@@ -57,15 +57,12 @@ const MainLayout = ({ data = {}, children, pageContext }) => {
       <Layout>
         <Layout.Sidebar
           css={css`
-            background: var(--secondary-background-color);
+            background: var(--primary-background-color);
             hr {
               border-color: var(--color-neutrals-300);
               .dark-mode & {
                 border-color: var(--color-dark-500);
               }
-            }
-            .dark-mode & {
-              background: var(--color-dark-100);
             }
           `}
         >
