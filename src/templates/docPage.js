@@ -13,6 +13,7 @@ import {
   TableOfContents,
   useTranslation,
 } from '@newrelic/gatsby-theme-newrelic';
+import MachineTranslationCallout from '../components/MachineTranslationCallout';
 import DefaultRelatedContent from '../components/DefaultRelatedContent';
 import SEO from '../components/SEO';
 import GithubSlugger from 'github-slugger';
@@ -62,7 +63,7 @@ const BasicDoc = ({ data, location, pageContext }) => {
   }, [mdxAST, moreHelpHeading, t]);
 
   const isMobileScreen = useMedia('(max-width: 1240px)');
-  const { title, metaDescription, type, tags } = frontmatter;
+  const { title, metaDescription, type, tags, translationType } = frontmatter;
 
   return (
     <>
@@ -93,7 +94,16 @@ const BasicDoc = ({ data, location, pageContext }) => {
         `}
       >
         <PageTitle>{title}</PageTitle>
+
         <Layout.Content>
+          {translationType === 'machine' && (
+            <MachineTranslationCallout
+              englishHref={location.pathname.replace(
+                `/${pageContext.locale}`,
+                ''
+              )}
+            />
+          )}
           <MDXContainer body={body}>
             {moreHelpHeading ? null : <DefaultRelatedContent />}
           </MDXContainer>
@@ -143,6 +153,7 @@ export const pageQuery = graphql`
         metaDescription
         type
         tags
+        translationType
       }
       fields {
         fileRelativePath
