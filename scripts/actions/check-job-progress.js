@@ -7,8 +7,9 @@ const {
 
 const { getAccessToken, vendorRequest } = require('./utils/vendor-request');
 const { fetchAndDeserialize } = require('./fetch-and-deserialize');
+const { configuration } = require('./configuration');
 
-const PROJECT_ID = process.env.TRANSLATION_VENDOR_PROJECT;
+const PROJECT_ID = configuration.TRANSLATION.VENDOR_PROJECT;
 
 const uniq = (arr) => [...new Set(arr)];
 const prop = (key) => (x) => x[key];
