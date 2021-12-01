@@ -1,6 +1,11 @@
 import React from 'react';
 import { css } from '@emotion/react';
-import { Button, Link } from '@newrelic/gatsby-theme-newrelic';
+import {
+  Button,
+  Link,
+  useTranslation,
+  Trans,
+} from '@newrelic/gatsby-theme-newrelic';
 import bannerForeground from '../images/bannerForeground.png';
 import bannerForegroundMobile from '../images/bannerForegroundMobile.svg';
 import relicsAtWork from '../images/photo-relics-at-work-01.png';
@@ -9,6 +14,7 @@ import relicsAtWorkMobile from '../images/relics-at-work--SM.png';
 const HomepageBanner = () => {
   const bannerHeight = '383px';
   const mobileBreakpoint = '450px';
+  const { t } = useTranslation();
 
   return (
     <section
@@ -55,6 +61,7 @@ const HomepageBanner = () => {
           css={css`
             font-size: 3rem;
             color: var(--color-neutrals-200);
+            white-space: pre-line;
             @media screen and (max-width: 850px) {
               font-size: 2.5rem;
             }
@@ -64,8 +71,7 @@ const HomepageBanner = () => {
             }
           `}
         >
-          Welcome to <br />
-          New Relic docs!
+          {t('home.banner.title')}
         </h1>
         <p
           css={css`
@@ -78,18 +84,20 @@ const HomepageBanner = () => {
             }
           `}
         >
-          We're here to help you monitor, debug, and improve your entire stack.
-          If you're new to New Relic, read our{' '}
-          <Link
-            to="/docs/using-new-relic/"
-            css={css`
-              color: var(--color-neutrals-200);
-            `}
-          >
-            Introduction to New Relic doc
-          </Link>
-          . Or get started right now by creating an account and installing a
-          quickstart:
+          <Trans i18nKey="home.banner.intro.p1">
+            We're here to help you monitor, debug, and improve your entire
+            stack. If you're new to New Relic, read our{' '}
+            <Link
+              to="/docs/using-new-relic/"
+              css={css`
+                color: var(--color-neutrals-200);
+              `}
+            >
+              Introduction to New Relic doc
+            </Link>
+            . Or get started right now by creating an account and installing a
+            quickstart:
+          </Trans>
         </p>
         <div
           css={css`
@@ -127,7 +135,7 @@ const HomepageBanner = () => {
               }
             `}
           >
-            Create a free account
+            {t('home.banner.button1')}
           </Button>
           <Button
             variant={Button.VARIANT.OUTLINE}
@@ -155,7 +163,7 @@ const HomepageBanner = () => {
               }
             `}
           >
-            Find your quickstart
+            {t('home.banner.button2')}
           </Button>
         </div>
       </div>
