@@ -151,32 +151,42 @@ To submit a [Draft PR](https://github.blog/2019-02-14-introducing-draft-pull-req
 ### Using Conventional Commits
 
 Please help the maintainers by leveraging the following [conventional commit](https://www.conventionalcommits.org/en/v1.0.0/)
-standards in your pull request title and commit messages.
+standards in your commit messages. You don't need to apply this format to the pull request title–just to commits.
+
+As a reminder, here's the format for a single-line commit, but you are welcome to add the optional body and footer messages.
+
+```
+<type>(optional scope): <description>
+```
+
+When choosing a type, you can pick from any of the standard types (feat, fix, style, test, or chore) or you can add your own. If you are making document changes, as opposed to code changes, you can skip the `documentation` type and apply one of the other types, depending on what you're changing in the documentation.
+
+As far as scope, we recommend that you include this because it helps us identify relevant commits. For the docs project, the scope might refer to the part of the docs you are editing (for example, APM or errors inbox). If you are suggesting a code change to the docs site, insert the section of the codebase you worked on.
+
+Here are some examples:
 
 #### Use `chore`
 
-- for minor changes / additions / corrections to content.
-- for minor changes / additions / corrections to images.
-- for minor non-functional changes / additions to github actions, github templates, package or config updates, etc
+Chores are best for changes that users don't see directly, such as improving unit tests or reducing technical debt. You might use them for minor non-functional changes/additions to github actions, github templates, package or config updates, etc.
 
 ```bash
-git commit -m "chore: adjusting config and content"
+git commit -m "chore(translation): extend translation unit test coverage"
 ```
 
 #### Use `fix`
 
-- for minor functional corrections to code.
+Fix is used for minor functional corrections to code.
 
 ```bash
-git commit -m "fix: typo and prop error in the code of conduct"
+git commit -m "fix(Log management): repair broken link in introduction"
 ```
 
 #### Use `feat`
 
-- for major functional changes or additions to code.
+Feat is for major functional changes or additions to code.
 
 ```bash
-git commit -m "feat(media): creating a video landing page"
+git commit -m "feat(errors inbox): add new documents"
 ```
 
 ### Deploy previews with Gatsby Cloud
