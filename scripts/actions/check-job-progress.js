@@ -105,7 +105,10 @@ const getBatchStatus = (accessToken) => async ({ batchUid, jobId }) => {
 const main = async () => {
   try {
     // load the items that we are being translated
-    const inProgressJobs = await getJobs({ status: 'IN_PROGRESS' });
+    const inProgressJobs = await getJobs({
+      status: 'IN_PROGRESS',
+      project_id: PROJECT_ID,
+    });
     const batchUids = inProgressJobs.map((job) => {
       return { batchUid: job.batch_uid, jobId: job.id };
     });
