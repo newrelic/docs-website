@@ -10,6 +10,7 @@ const yaml = require('js-yaml');
 const u = require('unist-builder');
 const toString = require('mdast-util-to-string');
 const { omit } = require('lodash');
+const all = require('hast-util-to-mdast/lib/all');
 
 module.exports = {
   CodeBlock: {
@@ -185,8 +186,29 @@ module.exports = {
       serializeComponent(h, node, { textAttributes: ['title'] }),
   },
   DoNotTranslate: {
-    deserialize: 
+    deserialize: (h, node) => {
+      const { dataProps, dataComponent } = node.properties;
+      const children = Buffer.from(dataProps, 'base64').toString();
+      const parsedChildren = JSON.parse(children);
+
+      // console.log('parsedChildren', parsedChildren);
+
+      // const childrenNode = children.find(
+      //   (child) => child.properties.dataProp === 'children'
+      // );
+
+      const newNode = h(
+        node,
+        'mdxBlockElement',
+        { name: dataComponent, attributes: [] },
+        parsedChildren
+      );
+      // console.dir('new node', newNode);
+
+      return newNode;
+    },
     serialize: (h, node) => {
+      console.log('node', node);
       const result = h(node, 'div', {
         'data-type': 'component',
         'data-component': 'DoNotTranslate',

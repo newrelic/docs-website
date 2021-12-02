@@ -2,6 +2,18 @@ import deserializeHTML from '../deserialize-html';
 import serializeMDX from '../serialize-mdx';
 import fs from 'fs';
 
+test('deserializes DoNotTranslate', async () => {
+  const input = `
+  <DoNotTranslate>
+    Not all who wander are lost...
+  </DoNotTranslate>
+`;
+
+  const mdx = await deserializeHTML(await serializeMDX(input));
+
+  expect(mdx).toEqual(input.trim());
+});
+
 test('deserializes mdx with frontmatter', async () => {
   const input = `
 ---
@@ -119,7 +131,7 @@ test('deserializes block ImageSizing component', async () => {
   expect(mdx).toEqual(input.trim());
 });
 
-test.only('deserializes inline ImageSizing component', async () => {
+test('deserializes inline ImageSizing component', async () => {
   const input = `
 This is a test with an <ImageSizing width="32px" height="32px">![test.png](./images/test.png)</ImageSizing> inline image.
   `;
