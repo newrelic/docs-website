@@ -184,6 +184,19 @@ module.exports = {
     serialize: (h, node) =>
       serializeComponent(h, node, { textAttributes: ['title'] }),
   },
+  DoNotTranslate: {
+    deserialize: 
+    serialize: (h, node) => {
+      const result = h(node, 'div', {
+        'data-type': 'component',
+        'data-component': 'DoNotTranslate',
+        'data-props': Buffer.from(JSON.stringify(node.children)).toString(
+          'base64'
+        ),
+      });
+      return result;
+    },
+  },
   thead: {
     deserialize: deserializeComponent,
     serialize: (h, node) =>

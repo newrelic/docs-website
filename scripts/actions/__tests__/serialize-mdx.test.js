@@ -1,10 +1,20 @@
 import serializeMDX from '../serialize-mdx';
 import fs from 'fs';
 
+test.only('test DoNotTranslate', async () => {
+  const html = await serializeMDX(`
+    <DoNotTranslate>
+      Not all who wander are lost...
+    </DoNotTranslate>
+  `);
+
+  expect(html).toMatchSnapshot();
+});
+
 test('serializes Button to html', async () => {
   const html = await serializeMDX(`
 <Button
-  variant="normal"
+  variant="primary"
 >
   View all C SDK docs
 </Button>
