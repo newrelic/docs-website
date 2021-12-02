@@ -31,48 +31,42 @@ You'll need to fill out values for variables in `script.sh`.
 
 3. Finally, the DB_CONNECTION_INFO secret needs to be populated in `connection_info.json`. The recommendation for this is to spin up a local postgres instance and connect to that, so that you dont need to test against a resource in the cloud. See the next section for setting up a local postgres instance on Docker. 
 
-## How to spin up a local postgres instance on Docker
+## Setup local environment
 
-1. Run the following command to start a postgres container, with credentials  `user = root` and `password = root`:
-    ```bash
-    docker run -d --env POSTGRES_USER=root --env POSTGRES_PASSWORD=root --env POSTGRES_DB=translations --name postgres -p 5432:5432 postgres
+This section assumes you are using Docker for the local environment, so be sure to install Docker if you don't have it installed already.
+
+Once you have Docker installed, from the `root` of the repository, run `yarn db:start`. This executes a `docker-compose` command using [this compose file](./docker-compose.yml). Three containers will be spun up: one for postgres, one for pgadmin, and one for executing a migration (using NodeJS sequelize).
+
+The migration takes the longest to execute. Once you see text similar to:
+```
+migration_1 | wait-for-it.sh: timeout occurred after waiting 15 seconds for db:5432
+migration_1 |
+migration_1 | Sequelize CLI [Node: 16.13.1, CLI: 6.3.0, ORM: 6.12.0-alpha.1]
+migration_1 |
+migration_1 | Loaded configuration file "config/config.json".
+migration_1 | Using environment "development".
+migration_1 | == 20211201221649-test: migrating =======
+migration_1 | == 20211201221649-test: migrated (0.124s)
+migration_1 |
+testing_migration_1 exited with code 0
+```
+that will indicate that database is running & set up -- tables exist, and data is populated.
+
+Once the migration is complete, you can run the testing script, or set up pgadmin and connect to the postgres database. This last bit isn't needed, but is useful for debugging and introspecting the database during development.
+
+## How to connect to postgres database in pgadmin
+
+1. To connect to the pgadmin UI, open a browser and navigate to `http://localhost:15432`. Login with username:`admin@pgadmin.com` and password:`password`. The url, username, and password are all defined in [the docker-compose file](./docker-compose.yml) for the pgadmin service.
+2. To connect to your postgres container, click on `Create A Server`. On the `Connection` tab, enter the following details: 
     ```
-
-2. Update the contents of `connection_info.json`:
-
-    ```JSON
-    {
-        "username": "root",
-        "password": "root",
-        "host": "localhost",
-        "database": "translations"
-    }
-    ```
-3. Create the database by running `creation_and_cleanup.sql` on your postgres instance. See the next section to do this in pgadmin.
-
-## How to start a pgadmin container to interact with your postgres container
-
-This step is not a prerequisite for running the script, but may be useful for creating your database (which is required) and debugging. 
-
-1. Run the following to start a pgadmin container:
-    ```bash
-    docker run -d --env PGADMIN_DEFAULT_EMAIL=username@username.com --env PGADMIN_DEFAULT_PASSWORD=password --name pgadmin -p 8080:80 -p 8081:443 dpage/pgadmin4
-    ```
-2. Run the following command to get the IP address of your DB container, in case `localhost` doesn't work when connecting:
-   1. `docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' postgres`
-  
-3. To connect to your postgres container, click on `Create A Server`. On the `Connection` tab, enter the following details: 
-    ```
-    Hostname/address: localhost/postgresIP
+    Hostname/address: postgres
     Port: 5432
     Maintenance database: postgres
     Username: root
     Password: root
     ```
     You may also need to go into the `General` and give a name to the server. You can call it `translations` (but it can be called anything).
-
-
-4. To create the database, right-click on your new `translations` database. then click on `Query Tool`. Enter and run the contents of `creation_and_cleanup.sql`.
+3. To create the database, right-click on your new `translations` database. then click on `Query Tool`. Enter and run the contents of `creation_and_cleanup.sql`.
 
 <img width="200" alt="portfolio_view" src="https://github.com/newrelic/docs-website/blob/feature/machine-translation/scripts/actions/translation_workflow/testing/pgadmin_query.png">
 ## Use node 16
