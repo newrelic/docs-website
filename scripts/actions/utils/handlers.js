@@ -1,6 +1,7 @@
 const {
   serializeComponent,
   serializeJSValue,
+  serializeProps,
 } = require('./serialization-helpers');
 const {
   deserializeComponent,
@@ -187,51 +188,34 @@ module.exports = {
       serializeComponent(h, node, { textAttributes: ['title'] }),
   },
   DoNotTranslate: {
-    deserialize: (h, node) => {
-      // console.log('serialized node', node);
-      const { dataProps, dataComponent } = node.properties;
-      const children = deserializeJSValue(dataProps); // reusing code
-      const parsedChildren = JSON.parse(children);
+    deserialize: (h, node) => deserializeComponent(h, node),
+    // deserialize: (h, node) => {
+    //   const { dataProps, dataComponent } = node.properties;
+    //   const children = deserializeJSValue(dataProps); // reusing code
 
-      // console.log('parsedChildren', parsedChildren);
+    //   const newNode = h(
+    //     node,
+    //     'mdxBlockElement',
+    //     { name: dataComponent, attributes: [] },
+    //     children
+    //   );
+    //   console.log('deserialized node', newNode);
 
-      const newNode = h(
-        node,
-        'mdxBlockElement',
-        { name: dataComponent, attributes: [] },
-        parsedChildren
-      );
-      // console.log('deserialized node', newNode.children);
-
-      return newNode;
-    },
+    //   return newNode;
+    // },
     serialize: (h, node) => {
-      // console.log('preserialized node', node);
-      const result = h(
-        node,
-        'div',
-        {
-          'data-type': 'component',
-          'data-component': 'DoNotTranslate',
-          'data-props': serializeJSValue(node.children), // reusing code
-        },
-
-        // TODO: configure position serialization (maybe?)
-        // line 87 of serialize-helpers.js contains this.
-        // This may be serializing the position, and why it turns
-        // out wierd
-        h(
-          node.position,
-          'div',
-          {
-            'data-type': 'prop',
-            'data-prop': 'children',
-          },
-          all(h, node)
-        )
-      );
-      return result;
+      serializeComponent(h, node);
     },
+    // serialize: (h, node) => {
+    //   console.log('preserialized node', node);
+    //   const result = h(node, 'div', {
+    //     'data-type': 'component',
+    //     'data-component': 'DoNotTranslate',
+    //     'data-props': serializeProps(node),
+    //   });
+    //   console.log('serialized node', result);
+    //   return result;
+    // },
   },
   thead: {
     deserialize: deserializeComponent,

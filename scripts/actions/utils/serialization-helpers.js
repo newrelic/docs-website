@@ -38,20 +38,33 @@ const serializeAttributeValue = (h, attribute) => {
 const serializeTextProp = (h, node, propName) => {
   const attribute = findAttribute(propName, node);
 
+  console.log('serailizeTextProp: ', attribute);
+
   if (!attribute) {
     return;
   }
 
-  return h(node, 'div', { 'data-type': 'prop', 'data-prop': propName }, [
-    serializeAttributeValue(h, attribute),
-  ]);
+  const result = h(
+    node,
+    'div',
+    { 'data-type': 'prop', 'data-prop': propName },
+    [serializeAttributeValue(h, attribute)]
+  );
+
+  console.log('serailizeTextProp Result:', result);
+
+  return result;
 };
 
-const serializeJSValue = (value) =>
-  Buffer.from(JSON.stringify(value)).toString('base64');
+const serializeJSValue = (value) => {
+  console.log('seralizeJSValue', value);
+  return Buffer.from(JSON.stringify(value)).toString('base64');
+};
 
 const serializeProps = (node) => {
+  console.log('serializeProps');
   if (node.attributes.length === 0) {
+    console.log('serializeProps - no attributes');
     return null;
   }
 
@@ -76,7 +89,7 @@ const serializeComponent = (
   node.children = children;
   const inferredTagName = node.type === 'mdxSpanElement' ? 'span' : 'div';
 
-  return h(
+  const result = h(
     node,
     tagName || inferredTagName,
     stripNulls({
@@ -98,10 +111,15 @@ const serializeComponent = (
       )
       .filter(Boolean)
   );
+
+  console.log('serializeComponent result:', result);
+  return result;
 };
 
-const getComponentName = (node) =>
-  node.name === null ? 'React.Fragment' : node.name;
+const getComponentName = (node) => {
+  console.log('getComponent:', node);
+  return node.name === null ? 'React.Fragment' : node.name;
+};
 
 const stripNulls = (obj) =>
   Object.fromEntries(Object.entries(obj).filter(([, value]) => value != null));

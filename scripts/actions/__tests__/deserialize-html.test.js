@@ -2,9 +2,9 @@ import deserializeHTML from '../deserialize-html';
 import serializeMDX from '../serialize-mdx';
 import fs from 'fs';
 
-test('deserializes DoNotTranslate', async () => {
+test.only('deserializes DoNotTranslate', async () => {
   const input = `
-  <DoNotTranslate>
+  <DoNotTranslate className="notranslate">
     Not all who wander are lost...
   </DoNotTranslate>
 `;
@@ -43,7 +43,9 @@ This is an MDX doc
 test('deserializes simple components', async () => {
   const input = `
 <Button to="/docs/agents/ruby-sdk">
-  Go to Ruby docs
+  <Button to="/joe/clark">
+    Go to Ruby docs
+  </Button>
 </Button>
   `;
 

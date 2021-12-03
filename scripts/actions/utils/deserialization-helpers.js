@@ -51,6 +51,7 @@ const deserializeComponent = (
   node,
   { type, hasChildrenProp = true } = {}
 ) => {
+  console.log('top');
   const { dataComponent, dataProps } = node.properties;
   const name = dataComponent || node.tagName;
   const props = dataProps ? deserializeJSValue(dataProps) : [];
@@ -97,6 +98,7 @@ const deserializeComponent = (
     childrenNode && hasChildrenProp ? all(h, childrenNode) : []
   );
 
+  console.log('deserialized node', newNode);
   return newNode;
 };
 
