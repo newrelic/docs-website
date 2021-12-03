@@ -6,11 +6,12 @@ const {
   deserializeComponent,
   deserializeJSValue,
 } = require('./deserialization-helpers');
+const all = require('mdast-util-to-hast/lib/all');
 const yaml = require('js-yaml');
 const u = require('unist-builder');
 const toString = require('mdast-util-to-string');
 const { omit } = require('lodash');
-const all = require('hast-util-to-mdast/lib/all');
+// const all = require('hast-util-to-mdast/lib/all');
 
 module.exports = {
   CodeBlock: {
@@ -187,15 +188,12 @@ module.exports = {
   },
   DoNotTranslate: {
     deserialize: (h, node) => {
+      // console.log('serialized node', node);
       const { dataProps, dataComponent } = node.properties;
-      const children = Buffer.from(dataProps, 'base64').toString();
+      const children = deserializeJSValue(dataProps); // reusing code
       const parsedChildren = JSON.parse(children);
 
       // console.log('parsedChildren', parsedChildren);
-
-      // const childrenNode = children.find(
-      //   (child) => child.properties.dataProp === 'children'
-      // );
 
       const newNode = h(
         node,
@@ -203,19 +201,35 @@ module.exports = {
         { name: dataComponent, attributes: [] },
         parsedChildren
       );
-      // console.dir('new node', newNode);
+      // console.log('deserialized node', newNode.children);
 
       return newNode;
     },
     serialize: (h, node) => {
-      console.log('node', node);
-      const result = h(node, 'div', {
-        'data-type': 'component',
-        'data-component': 'DoNotTranslate',
-        'data-props': Buffer.from(JSON.stringify(node.children)).toString(
-          'base64'
-        ),
-      });
+      // console.log('preserialized node', node);
+      const result = h(
+        node,
+        'div',
+        {
+          'data-type': 'component',
+          'data-component': 'DoNotTranslate',
+          'data-props': serializeJSValue(node.children), // reusing code
+        },
+
+        // TODO: configure position serialization (maybe?)
+        // line 87 of serialize-helpers.js contains this.
+        // This may be serializing the position, and why it turns
+        // out wierd
+        h(
+          node.position,
+          'div',
+          {
+            'data-type': 'prop',
+            'data-prop': 'children',
+          },
+          all(h, node)
+        )
+      );
       return result;
     },
   },
