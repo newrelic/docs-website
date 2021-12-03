@@ -38,8 +38,6 @@ const serializeAttributeValue = (h, attribute) => {
 const serializeTextProp = (h, node, propName) => {
   const attribute = findAttribute(propName, node);
 
-  console.log('serailizeTextProp: ', attribute);
-
   if (!attribute) {
     return;
   }
@@ -51,20 +49,15 @@ const serializeTextProp = (h, node, propName) => {
     [serializeAttributeValue(h, attribute)]
   );
 
-  console.log('serailizeTextProp Result:', result);
-
   return result;
 };
 
 const serializeJSValue = (value) => {
-  console.log('seralizeJSValue', value);
   return Buffer.from(JSON.stringify(value)).toString('base64');
 };
 
 const serializeProps = (node) => {
-  console.log('serializeProps');
   if (node.attributes.length === 0) {
-    console.log('serializeProps - no attributes');
     return null;
   }
 
@@ -112,12 +105,10 @@ const serializeComponent = (
       .filter(Boolean)
   );
 
-  console.log('serializeComponent result:', result);
   return result;
 };
 
 const getComponentName = (node) => {
-  console.log('getComponent:', node);
   return node.name === null ? 'React.Fragment' : node.name;
 };
 

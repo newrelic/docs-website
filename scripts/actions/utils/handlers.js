@@ -1,7 +1,6 @@
 const {
   serializeComponent,
   serializeJSValue,
-  serializeProps,
 } = require('./serialization-helpers');
 const {
   deserializeComponent,
@@ -16,7 +15,8 @@ const { omit } = require('lodash');
 
 module.exports = {
   CodeBlock: {
-    serialize: (h, node) =>
+    serialize: (h, node) => {
+      console.log('start:', node);
       h(
         node,
         'pre',
@@ -26,9 +26,16 @@ module.exports = {
           'data-props': serializeJSValue(omit(node, ['type'])),
         },
         [h(node, 'code')]
-      ),
-    deserialize: (h, node) =>
-      h(node, 'code', deserializeJSValue(node.properties.dataProps)),
+      );
+    },
+    deserialize: (h, node) => {
+      const results = h(
+        node,
+        'code',
+        deserializeJSValue(node.properties.dataProps)
+      );
+      console.log('end:', results);
+    },
   },
   import: {
     deserialize: (h, node) => {
@@ -188,34 +195,31 @@ module.exports = {
       serializeComponent(h, node, { textAttributes: ['title'] }),
   },
   DoNotTranslate: {
-    deserialize: (h, node) => deserializeComponent(h, node),
-    // deserialize: (h, node) => {
-    //   const { dataProps, dataComponent } = node.properties;
-    //   const children = deserializeJSValue(dataProps); // reusing code
-
-    //   const newNode = h(
-    //     node,
-    //     'mdxBlockElement',
-    //     { name: dataComponent, attributes: [] },
-    //     children
-    //   );
-    //   console.log('deserialized node', newNode);
-
-    //   return newNode;
-    // },
     serialize: (h, node) => {
-      serializeComponent(h, node);
+      console.log('mdx node', node);
+      const results = h(
+        node,
+        'div',
+        {
+          'data-type': 'component',
+          'data-component': 'DoNotTranslate',
+          'data-props': serializeJSValue(omit(node, ['type'])),
+        },
+        [h(node, 'div')]
+      );
+      console.log('serialized node', results);
+      return results;
     },
-    // serialize: (h, node) => {
-    //   console.log('preserialized node', node);
-    //   const result = h(node, 'div', {
-    //     'data-type': 'component',
-    //     'data-component': 'DoNotTranslate',
-    //     'data-props': serializeProps(node),
-    //   });
-    //   console.log('serialized node', result);
-    //   return result;
-    // },
+    deserialize: (h, node) => {
+      console.log('serialized node', node);
+      const results = h(
+        node,
+        'div',
+        deserializeJSValue(node.properties.dataProps)
+      );
+      console.log('deserialized results', results);
+      return results;
+    },
   },
   thead: {
     deserialize: deserializeComponent,

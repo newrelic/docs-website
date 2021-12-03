@@ -4,9 +4,11 @@ import fs from 'fs';
 
 test.only('deserializes DoNotTranslate', async () => {
   const input = `
-  <DoNotTranslate className="notranslate">
-    Not all who wander are lost...
-  </DoNotTranslate>
+  <CodeBlock>
+    <div>
+      Not all who wander are lost...
+    </div>
+  </CodeBlock>
 `;
 
   const mdx = await deserializeHTML(await serializeMDX(input));
