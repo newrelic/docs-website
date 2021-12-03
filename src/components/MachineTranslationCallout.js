@@ -40,13 +40,14 @@ const MachineTranslationCallout = ({ englishHref }) => {
           }
         `}
       >
-        <Icon name="globe" size="2rem" />
+        <Icon name="globe" size="2em" />
         <div>
           <h4>{t('machineTranslation.calloutHeading')}</h4>
           <Trans i18nKey="machineTranslation.calloutBody" parent="p">
-            If there's anything unclear, you can try checking the{' '}
-            <Link to={englishHref}>English version</Link>. Or tell us how we can
-            improve it.
+            In the event of any inconsistency between the English version and
+            the translated version, the{' '}
+            <Link to={englishHref}>English version</Link>shall prevail. Please
+            visit <Link to="/">this page</Link> for more information.
           </Trans>
         </div>
         <CreateIssueButton
