@@ -134,31 +134,12 @@ module.exports = {
     serialize: serializeComponent,
   },
   DoNotTranslate: {
-    deserialize: (h, node) => {
-      console.dir('serialized node', node);
-      const results = h(
-        node,
-        'code',
-        deserializeJSValue(node.properties.dataProps)
-      );
-      console.dir('deserialized results', results);
-      return results;
-    },
-    serialize: (h, node) => {
-      console.dir('mdx node', node);
-      const results = h(
-        node,
-        'div',
-        {
-          'data-type': 'component',
-          'data-component': 'DoNotTranslate',
-          'data-props': serializeJSValue(omit(node, ['type'])),
-        },
-        [h(node, 'div')]
-      );
-      console.dir('serialized node', results);
-      return results;
-    },
+    deserialize: deserializeComponent,
+    serialize: (h, node) =>
+      serializeComponent(h, node, {
+        classNames: 'notranslate',
+        wrapChildren: false,
+      }),
   },
   ExternalLink: {
     deserialize: deserializeComponent,
@@ -323,6 +304,10 @@ module.exports = {
     serialize: serializeComponent,
   },
   nobr: {
+    deserialize: deserializeComponent,
+    serialize: serializeComponent,
+  },
+  br: {
     deserialize: deserializeComponent,
     serialize: serializeComponent,
   },
