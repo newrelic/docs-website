@@ -30,7 +30,7 @@ module.exports = {
   // },
   CodeBlock: {
     serialize: (h, node) => {
-      console.log('start:', node);
+      // console.log('start:', node);
       return h(
         node,
         'pre',
@@ -48,7 +48,7 @@ module.exports = {
         'code',
         deserializeJSValue(node.properties.dataProps)
       );
-      console.log('end:', results);
+      // console.log('end:', results);
       return results;
     },
   },
@@ -135,6 +135,23 @@ module.exports = {
   },
   DoNotTranslate: {
     deserialize: deserializeComponent,
+    // deserialize: (h, node) => {
+    //   console.dir(node, { depth: null });
+    //   return h(
+    //     node,
+    //     node.properties.dataTag,
+    //     deserializeJSValue(node.properties.dataProps)
+    //   );
+    // },
+    // serialize: (h, node) => {
+    //   const inferredTagName = node.type === 'mdxSpanElement' ? 'span' : 'div';
+    //   return h(node, inferredTagName, {
+    //     'data-type': 'component',
+    //     'data-component': 'DoNotTranslate',
+    //     'data-tag': inferredTagName,
+    //     'data-props': serializeJSValue(omit(node, ['type'])),
+    //   });
+    // },
     serialize: (h, node) =>
       serializeComponent(h, node, {
         classNames: 'notranslate',
@@ -308,6 +325,10 @@ module.exports = {
     serialize: serializeComponent,
   },
   br: {
+    deserialize: deserializeComponent,
+    serialize: serializeComponent,
+  },
+  span: {
     deserialize: deserializeComponent,
     serialize: serializeComponent,
   },
