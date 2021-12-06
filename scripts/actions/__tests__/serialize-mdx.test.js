@@ -4,9 +4,7 @@ import fs from 'fs';
 test.only('test DoNotTranslate', async () => {
   const html = await serializeMDX(`
     <DoNotTranslate>
-      <div>
-        Not all who wander are lost...
-      </div>
+      Not all who wander are lost...
     </DoNotTranslate>
   `);
 

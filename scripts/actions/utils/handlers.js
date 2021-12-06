@@ -6,7 +6,6 @@ const {
   deserializeComponent,
   deserializeJSValue,
 } = require('./deserialization-helpers');
-const all = require('mdast-util-to-hast/lib/all');
 const yaml = require('js-yaml');
 const u = require('unist-builder');
 const toString = require('mdast-util-to-string');
@@ -14,10 +13,25 @@ const { omit } = require('lodash');
 // const all = require('hast-util-to-mdast/lib/all');
 
 module.exports = {
+  // CodeBlock: {
+  //   serialize: (h, node) =>
+  //     h(
+  //       node,
+  //       'pre',
+  //       {
+  //         'data-type': 'component',
+  //         'data-component': 'CodeBlock',
+  //         'data-props': serializeJSValue(omit(node, ['type'])),
+  //       },
+  //       [h(node, 'code')]
+  //     ),
+  //   deserialize: (h, node) =>
+  //     h(node, 'code', deserializeJSValue(node.properties.dataProps)),
+  // },
   CodeBlock: {
     serialize: (h, node) => {
       console.log('start:', node);
-      h(
+      return h(
         node,
         'pre',
         {
@@ -35,6 +49,7 @@ module.exports = {
         deserializeJSValue(node.properties.dataProps)
       );
       console.log('end:', results);
+      return results;
     },
   },
   import: {
@@ -118,6 +133,33 @@ module.exports = {
     deserialize: deserializeComponent,
     serialize: serializeComponent,
   },
+  DoNotTranslate: {
+    deserialize: (h, node) => {
+      console.dir('serialized node', node);
+      const results = h(
+        node,
+        'code',
+        deserializeJSValue(node.properties.dataProps)
+      );
+      console.dir('deserialized results', results);
+      return results;
+    },
+    serialize: (h, node) => {
+      console.dir('mdx node', node);
+      const results = h(
+        node,
+        'div',
+        {
+          'data-type': 'component',
+          'data-component': 'DoNotTranslate',
+          'data-props': serializeJSValue(omit(node, ['type'])),
+        },
+        [h(node, 'div')]
+      );
+      console.dir('serialized node', results);
+      return results;
+    },
+  },
   ExternalLink: {
     deserialize: deserializeComponent,
     serialize: serializeComponent,
@@ -193,33 +235,6 @@ module.exports = {
     deserialize: deserializeComponent,
     serialize: (h, node) =>
       serializeComponent(h, node, { textAttributes: ['title'] }),
-  },
-  DoNotTranslate: {
-    serialize: (h, node) => {
-      console.log('mdx node', node);
-      const results = h(
-        node,
-        'div',
-        {
-          'data-type': 'component',
-          'data-component': 'DoNotTranslate',
-          'data-props': serializeJSValue(omit(node, ['type'])),
-        },
-        [h(node, 'div')]
-      );
-      console.log('serialized node', results);
-      return results;
-    },
-    deserialize: (h, node) => {
-      console.log('serialized node', node);
-      const results = h(
-        node,
-        'div',
-        deserializeJSValue(node.properties.dataProps)
-      );
-      console.log('deserialized results', results);
-      return results;
-    },
   },
   thead: {
     deserialize: deserializeComponent,
