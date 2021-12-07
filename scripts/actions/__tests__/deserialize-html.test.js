@@ -2,13 +2,11 @@ import deserializeHTML from '../deserialize-html';
 import serializeMDX from '../serialize-mdx';
 import fs from 'fs';
 
-test.only('deserializes DoNotTranslate', async () => {
+test('deserializes mdx with DoNotTranslate', async () => {
   const input = `
-  <DoNotTranslate>
-    <div>
-      Not all who wander are lost...
-    </div>
-  </DoNotTranslate>
+<DoNotTranslate>
+  Not all who wander are lost...
+</DoNotTranslate>
 `;
 
   const mdx = await deserializeHTML(await serializeMDX(input));

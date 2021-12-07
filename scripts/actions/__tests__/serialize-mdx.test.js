@@ -1,11 +1,11 @@
 import serializeMDX from '../serialize-mdx';
 import fs from 'fs';
 
-test.only('test DoNotTranslate', async () => {
+test('serializes DoNotTranslate to html', async () => {
   const html = await serializeMDX(`
-    <DoNotTranslate>
-      Not all who wander are lost...
-    </DoNotTranslate>
+<DoNotTranslate>
+  Not all who wander are lost...
+</DoNotTranslate>
   `);
 
   expect(html).toMatchSnapshot();
