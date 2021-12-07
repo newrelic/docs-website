@@ -3,7 +3,7 @@ title: 'Extend full stack observability to your machine-learning models'
 summary: 'Monitor and visualize data data drift, precision, accuracy and more'
 releaseDate: '2021-12-08'
 learnMoreLink: 'https://newrelic.com/blog/how-to-relic/ml-model-performance-monitoring'
-getStartedLink: 'https://developer.newrelic.com/instant-observability/?category=machine-learning-ops'
+getStartedLink: 'https://docs.newrelic.com/docs/alerts-applied-intelligence/mlops/get-started/intro-mlops'
 ---
 
 ## Now you can monitor your ML models in production with Model Performance Monitoring
