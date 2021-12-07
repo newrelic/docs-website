@@ -10,7 +10,6 @@ const yaml = require('js-yaml');
 const u = require('unist-builder');
 const toString = require('mdast-util-to-string');
 const { omit } = require('lodash');
-// const all = require('hast-util-to-mdast/lib/all');
 
 module.exports = {
   CodeBlock: {
