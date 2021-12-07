@@ -13,44 +13,15 @@ const { omit } = require('lodash');
 // const all = require('hast-util-to-mdast/lib/all');
 
 module.exports = {
-  // CodeBlock: {
-  //   serialize: (h, node) =>
-  //     h(
-  //       node,
-  //       'pre',
-  //       {
-  //         'data-type': 'component',
-  //         'data-component': 'CodeBlock',
-  //         'data-props': serializeJSValue(omit(node, ['type'])),
-  //       },
-  //       [h(node, 'code')]
-  //     ),
-  //   deserialize: (h, node) =>
-  //     h(node, 'code', deserializeJSValue(node.properties.dataProps)),
-  // },
   CodeBlock: {
-    serialize: (h, node) => {
-      // console.log('start:', node);
-      return h(
-        node,
-        'pre',
-        {
-          'data-type': 'component',
-          'data-component': 'CodeBlock',
-          'data-props': serializeJSValue(omit(node, ['type'])),
-        },
-        [h(node, 'code')]
-      );
-    },
-    deserialize: (h, node) => {
-      const results = h(
-        node,
-        'code',
-        deserializeJSValue(node.properties.dataProps)
-      );
-      // console.log('end:', results);
-      return results;
-    },
+    serialize: (h, node) =>
+      h(node, 'pre', {
+        'data-type': 'component',
+        'data-component': 'CodeBlock',
+        'data-props': serializeJSValue(omit(node, ['type'])),
+      }),
+    deserialize: (h, node) =>
+      h(node, 'code', deserializeJSValue(node.properties.dataProps)),
   },
   import: {
     deserialize: (h, node) => {
@@ -135,23 +106,6 @@ module.exports = {
   },
   DoNotTranslate: {
     deserialize: deserializeComponent,
-    // deserialize: (h, node) => {
-    //   console.dir(node, { depth: null });
-    //   return h(
-    //     node,
-    //     node.properties.dataTag,
-    //     deserializeJSValue(node.properties.dataProps)
-    //   );
-    // },
-    // serialize: (h, node) => {
-    //   const inferredTagName = node.type === 'mdxSpanElement' ? 'span' : 'div';
-    //   return h(node, inferredTagName, {
-    //     'data-type': 'component',
-    //     'data-component': 'DoNotTranslate',
-    //     'data-tag': inferredTagName,
-    //     'data-props': serializeJSValue(omit(node, ['type'])),
-    //   });
-    // },
     serialize: (h, node) =>
       serializeComponent(h, node, {
         classNames: 'notranslate',
@@ -325,10 +279,6 @@ module.exports = {
     serialize: serializeComponent,
   },
   br: {
-    deserialize: deserializeComponent,
-    serialize: serializeComponent,
-  },
-  span: {
     deserialize: deserializeComponent,
     serialize: serializeComponent,
   },
