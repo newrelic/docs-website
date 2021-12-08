@@ -46,8 +46,14 @@ const MachineTranslationCallout = ({ englishHref }) => {
           <Trans i18nKey="machineTranslation.calloutBody" parent="p">
             In the event of any inconsistency between the English version and
             the translated version, the{' '}
-            <Link to={englishHref}>English version</Link>shall prevail. Please
-            visit <Link to="/">this page</Link> for more information.
+            <Link to={englishHref} shouldAutoLocalize={false}>
+              English version
+            </Link>
+            shall prevail. Please visit{' '}
+            <Link to="/docs/licenses/translated-documentation/translation-disclaimer/">
+              this page
+            </Link>{' '}
+            for more information.
           </Trans>
         </div>
         <CreateIssueButton
