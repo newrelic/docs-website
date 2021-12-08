@@ -52,9 +52,8 @@ const serializeTextProp = (h, node, propName) => {
   return result;
 };
 
-const serializeJSValue = (value) => {
-  return Buffer.from(JSON.stringify(value)).toString('base64');
-};
+const serializeJSValue = (value) =>
+  Buffer.from(JSON.stringify(value)).toString('base64');
 
 const serializeProps = (node) => {
   if (node.attributes.length === 0) {
@@ -110,9 +109,8 @@ const serializeComponent = (
   return result;
 };
 
-const getComponentName = (node) => {
-  return node.name === null ? 'React.Fragment' : node.name;
-};
+const getComponentName = (node) =>
+  node.name === null ? 'React.Fragment' : node.name;
 
 const stripNulls = (obj) =>
   Object.fromEntries(Object.entries(obj).filter(([, value]) => value != null));
