@@ -43,9 +43,7 @@ This is an MDX doc
 test('deserializes simple components', async () => {
   const input = `
 <Button to="/docs/agents/ruby-sdk">
-  <Button to="/joe/clark">
-    Go to Ruby docs
-  </Button>
+  Go to Ruby docs
 </Button>
   `;
 
