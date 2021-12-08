@@ -159,7 +159,8 @@ As a reminder, here's the format for a single-line commit, but you are welcome t
 <type>(optional scope): <description>
 ```
 
-When choosing a type, you can pick from any of the standard types (feat, fix, style, test, or chore) or you can add your own. If you are making document changes, as opposed to code changes, you can skip the `documentation` type and apply one of the other types, depending on what you're changing in the documentation.
+When choosing a type, you can pick from any of the standard types (feat, fix, style, test, or chore) or you can add your own. 
+**Note**: There is a `documentation` type, but please refrain from using it for general documentation changes since it is intended for changes to the repository's documentation (such as `README.md` and `CONTRIBUTING.md`) 
 
 As far as scope, we recommend that you include this because it helps us identify relevant commits. For the docs project, the scope might refer to the part of the docs you are editing (for example, APM or errors inbox). If you are suggesting a code change to the docs site, insert the section of the codebase you worked on.
 
