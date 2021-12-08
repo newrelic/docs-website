@@ -5,9 +5,25 @@ import fs from 'fs';
 test('deserializes mdx with DoNotTranslate', async () => {
   const input = `
 <DoNotTranslate>
-  Not all who wander are lost...
+  # Not all who wander are lost...
+
+  but some probably are...
 </DoNotTranslate>
-`;
+  `;
+
+  const mdx = await deserializeHTML(await serializeMDX(input));
+
+  expect(mdx).toEqual(input.trim());
+});
+
+test('serializes DoNotTranslate wrapping a Collapser', async () => {
+  const input = `
+<DoNotTranslate>
+  <Collapser title="Collapse me yo">
+    These tests are hard to write docs for
+  </Collapser>
+</DoNotTranslate>
+  `;
 
   const mdx = await deserializeHTML(await serializeMDX(input));
 
