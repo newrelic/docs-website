@@ -1,6 +1,5 @@
 const fs = require('fs');
-import fetch from 'node-fetch';
-
+const fetch = require('node-fetch');
 
 const checkForOutdatedTranslations = require('../check-for-outdated-translations');
 

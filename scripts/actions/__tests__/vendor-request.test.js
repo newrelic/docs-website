@@ -1,7 +1,6 @@
 'use strict';
 const fs = require('fs');
-import fetch from 'node-fetch';
-
+const fetch = require('node-fetch');
 const { makeRequest } = require('../utils/vendor-request');
 
 jest.mock('node-fetch');

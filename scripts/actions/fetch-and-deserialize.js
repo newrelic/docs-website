@@ -4,8 +4,7 @@ const { writeSync } = require('to-vfile');
 const path = require('path');
 const fse = require('fs-extra');
 
-import fetch from 'node-fetch';
-
+const fetch = require('node-fetch');
 
 const deserializedHtml = require('./deserialize-html');
 const createDirectories = require('../utils/migrate/create-directories');

@@ -1,6 +1,5 @@
 const fs = require('fs');
-import fetch from 'node-fetch';
-
+const fetch = require('node-fetch');
 const get = require('lodash/get');
 const { BASE_URL } = require('../constants');
 
