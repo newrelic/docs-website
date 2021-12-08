@@ -1,5 +1,6 @@
 const jsdom = require('jsdom');
-const fetch = require('node-fetch');
+import fetch from 'node-fetch';
+
 const logger = require('../logger');
 const path = require('path');
 const { TYPES } = require('../constants');

@@ -5,7 +5,8 @@ const {
   deleteTranslation,
 } = require('./translation_workflow/database.js');
 const { getAccessToken, vendorRequest } = require('./utils/vendor-request');
-const fetch = require('node-fetch');
+import fetch from 'node-fetch';
+
 
 const PROJECT_ID = process.env.TRANSLATION_VENDOR_PROJECT;
 const DOCS_SITE_URL = 'https://docs.newrelic.com';

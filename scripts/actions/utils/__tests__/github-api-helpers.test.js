@@ -7,7 +7,8 @@ const {
 
 jest.mock('node-fetch');
 
-const fetch = require('node-fetch');
+import fetch from 'node-fetch';
+
 
 describe('Github API Helpers', () => {
   afterEach(() => {

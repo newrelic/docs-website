@@ -1,4 +1,5 @@
-const fetch = require('node-fetch');
+import fetch from 'node-fetch';
+
 
 const BASE_URL = 'https://docs.newrelic.com';
 

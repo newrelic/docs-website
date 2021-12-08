@@ -1,4 +1,5 @@
-const fetch = require('node-fetch');
+import fetch from 'node-fetch';
+
 const logger = require('../logger');
 const { BASE_URL } = require('../constants');
 

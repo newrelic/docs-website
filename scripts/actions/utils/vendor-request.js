@@ -1,6 +1,7 @@
 'use strict';
 
-const fetch = require('node-fetch');
+import fetch from 'node-fetch';
+
 const fs = require('fs');
 const path = require('path');
 const serializeMDX = require('../serialize-mdx');

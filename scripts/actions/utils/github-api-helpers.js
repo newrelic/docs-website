@@ -1,6 +1,7 @@
 'use strict';
 
-const fetch = require('node-fetch');
+import fetch from 'node-fetch';
+
 const parseLinkHeader = require('parse-link-header');
 
 /**
