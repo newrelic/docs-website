@@ -14,7 +14,7 @@ test('serializes DoNotTranslate to html', async () => {
 test('serializes Button to html', async () => {
   const html = await serializeMDX(`
 <Button
-  variant="primary"
+  variant="normal"
 >
   View all C SDK docs
 </Button>

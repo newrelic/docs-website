@@ -42,14 +42,9 @@ const serializeTextProp = (h, node, propName) => {
     return;
   }
 
-  const result = h(
-    node,
-    'div',
-    { 'data-type': 'prop', 'data-prop': propName },
-    [serializeAttributeValue(h, attribute)]
-  );
-
-  return result;
+  return h(node, 'div', { 'data-type': 'prop', 'data-prop': propName }, [
+    serializeAttributeValue(h, attribute),
+  ]);
 };
 
 const serializeJSValue = (value) =>
@@ -82,7 +77,7 @@ const serializeComponent = (
   node.children = children;
   const inferredTagName = node.type === 'mdxSpanElement' ? 'span' : 'div';
 
-  const result = h(
+  return h(
     node,
     tagName || inferredTagName,
     stripNulls({
@@ -105,8 +100,6 @@ const serializeComponent = (
       )
       .filter(Boolean)
   );
-
-  return result;
 };
 
 const getComponentName = (node) =>
