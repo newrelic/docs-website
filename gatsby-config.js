@@ -67,6 +67,7 @@ module.exports = {
             'xml-doc',
             'c',
             'go',
+            'handlebars',
             'java',
             'php',
             'phpdoc',
