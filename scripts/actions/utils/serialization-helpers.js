@@ -67,6 +67,7 @@ const serializeComponent = (
   node,
   {
     tagName,
+    classNames = '',
     textAttributes = [],
     wrapChildren = true,
     identifyComponent = true,
@@ -83,6 +84,7 @@ const serializeComponent = (
       'data-type': 'component',
       'data-component': identifyComponent ? getComponentName(node) : null,
       'data-props': serializeProps(node),
+      class: classNames || null,
     }),
     textAttributes
       .map((name) => serializeTextProp(h, node, name))
