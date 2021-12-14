@@ -1,13 +1,13 @@
 const fs = require('fs');
 const path = require('path');
 const frontmatter = require('@github-docs/frontmatter');
+const { Command } = require('commander');
+const glob = require('glob');
 const {
   getTranslations,
   addTranslation,
-  deleteTranslation,
 } = require('./translation_workflow/database');
 const { fetchPaginatedGHResults } = require('./utils/github-api-helpers');
-const checkArgs = require('./utils/check-args');
 const { prop } = require('../utils/functional');
 const { LOCALE_IDS } = require('./utils/constants');
 const { getExclusions } = require('./utils/helpers');
@@ -15,6 +15,21 @@ const { getExclusions } = require('./utils/helpers');
 const STATUS = {
   PENDING: 'PENDING',
 };
+
+// Sets up commander to use input arguments for this scripts from the CLI or GitHub Actions - CM
+const program = new Command();
+program
+  .option('-u, --url <url>', 'url to PR of file changes')
+  .option(
+    '-d, --directory <directory>',
+    'directory of files to be queued for translation'
+  )
+  .option(
+    '-mt, --machine-translation',
+    'Boolean to only send files needing machine translation'
+  );
+program.parse(process.argv);
+const options = program.opts();
 
 const translationDifference = (pendingFiles, prChanges) =>
   prChanges.filter(
@@ -25,9 +40,6 @@ const translationDifference = (pendingFiles, prChanges) =>
           file.locale === pendingFile.locale
       )
   );
-
-const slugIntersection = (pendingFiles, filesToRemove) =>
-  pendingFiles.filter((file) => filesToRemove.includes(file.slug));
 
 const humanTranslatedProjectID = process.env.HUMAN_TRANSLATION_PROJECT_ID;
 const machineTranslatedProjectID = process.env.MACHINE_TRANSLATION_PROJECT_ID;
@@ -67,43 +79,56 @@ const getProjectId = (translateFM) => (locale) => {
     : machineTranslatedProjectID;
 };
 
-const getLocalizedFileData = (prFile) => {
-  const contents = fs.readFileSync(path.join(process.cwd(), prFile.filename));
+const getLocalizedFileData = (mdxFile) => {
+  const contents = fs.readFileSync(path.join(process.cwd(), mdxFile));
   const { data } = frontmatter(contents);
   const checkLocale = getProjectId(data.translate);
   const contentType = data.type;
 
   return Object.keys(LOCALE_IDS).map((locale) => ({
-    ...prFile,
+    filename: mdxFile,
     contentType,
     locale: LOCALE_IDS[locale],
     project_id: checkLocale(locale),
   }));
 };
 
-const removedFiles = (prFiles) =>
-  prFiles.filter((file) => file.status === 'removed').map(prop('filename'));
-
 /** Entrypoint. */
 const main = async () => {
-  checkArgs(3);
-  const url = process.argv[2];
+  // These come from the CLI input when using the script
+  const url = options.url || null;
+  const directory = options.directory || null;
+  const machineTranslation = options.machineTranslation || false;
 
+  let mdxFileData;
+
+  if (url) {
+    const prFileData = await fetchPaginatedGHResults(
+      url,
+      process.env.GITHUB_TOKEN
+    );
+
+    mdxFileData = prFileData
+      .filter((file) => path.extname(file.filename) === '.mdx')
+      .filter((f) => f.status !== 'removed')
+      .map(prop('filename'));
+  } else if (directory) {
+    const directoryPath = path.join(directory, '/**/*.mdx');
+    mdxFileData = glob.sync(directoryPath);
+  }
+
+  const allLocalizedFileData = mdxFileData.flatMap(getLocalizedFileData);
+
+  const filesToTranslate = machineTranslation
+    ? allLocalizedFileData.filter(
+        ({ project_id }) => project_id === machineTranslatedProjectID
+      )
+    : allLocalizedFileData;
+
+  const includedFiles = excludeFiles(filesToTranslate);
   const queue = await getTranslations({
     status: STATUS.PENDING,
   });
-  const prFileData = await fetchPaginatedGHResults(
-    url,
-    process.env.GITHUB_TOKEN
-  );
-
-  const changedMdxFileData = prFileData
-    .filter((file) => path.extname(file.filename) === '.mdx')
-    .filter((f) => f.status !== 'removed');
-
-  const allLocalizedFileData = changedMdxFileData.flatMap(getLocalizedFileData);
-  const includedFiles = excludeFiles(allLocalizedFileData);
-
   const fileDataToAddToQueue = translationDifference(queue, includedFiles);
 
   await Promise.all(
@@ -116,13 +141,6 @@ const main = async () => {
       })
     )
   );
-
-  const translationIdsToRemove = slugIntersection(
-    queue,
-    removedFiles(prFileData)
-  ).map(prop('id'));
-
-  await Promise.all(translationIdsToRemove.map(deleteTranslation));
 
   process.exit(0);
 };
