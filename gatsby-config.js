@@ -52,7 +52,7 @@ module.exports = {
         oneTrustID: 'e66f9ef1-3a12-4043-b7c0-1a2ea66f6d41',
         forceTrailingSlashes: true,
         layout: {
-          contentPadding: '2rem',
+          contentPadding: '1.5rem',
           maxWidth: '1600px',
           component: require.resolve('./src/layouts'),
           mobileBreakpoint: '760px',
@@ -67,6 +67,7 @@ module.exports = {
             'xml-doc',
             'c',
             'go',
+            'handlebars',
             'java',
             'php',
             'phpdoc',
@@ -189,7 +190,7 @@ module.exports = {
           segmentWriteKey: 'AEfP8c1VSuFxhMdk3jYFQrYQV9sHbUXx',
           trackPageViews: true,
           pageView: {
-            name: 'pageView',
+            eventName: 'pageView',
             category: 'DocPageView',
             getProperties: ({ location, env }) => ({
               path: location.pathname,
