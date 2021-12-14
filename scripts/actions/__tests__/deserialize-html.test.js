@@ -2,6 +2,16 @@ import deserializeHTML from '../deserialize-html';
 import serializeMDX from '../serialize-mdx';
 import fs from 'fs';
 
+const { configuration } = require('../configuration');
+
+jest.mock('../configuration', () => ({
+  configuration: {
+    'TRANSLATION': {
+      'TYPE': 'human'
+    },
+  },
+}));
+
 test('deserializes mdx with DoNotTranslate', async () => {
   const input = `
 <DoNotTranslate>
@@ -34,6 +44,7 @@ test('deserializes mdx with frontmatter', async () => {
   const input = `
 ---
 title: The doc
+translationType: human
 ---
 
 This is an MDX doc
