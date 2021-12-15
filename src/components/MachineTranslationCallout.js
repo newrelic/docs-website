@@ -14,8 +14,8 @@ const MachineTranslationCallout = ({ englishHref }) => {
   const { t } = useTranslation();
   return (
     <Callout
-      variant="important"
-      title=" "
+      variant='important'
+      title=' '
       css={css`
         margin: 2em 0;
         padding: 0.5em;
@@ -40,24 +40,24 @@ const MachineTranslationCallout = ({ englishHref }) => {
           }
         `}
       >
-        <Icon name="globe" size="2em" />
+        <Icon name='globe' size='2em' />
         <div>
           <h4>{t('machineTranslation.calloutHeading')}</h4>
-          <Trans i18nKey="machineTranslation.calloutBody" parent="p">
+          <Trans i18nKey='machineTranslation.calloutBody' parent='p'>
             In the event of any inconsistency between the English version and
             the translated version, the{' '}
             <Link to={englishHref} shouldAutoLocalize={false}>
               English version
             </Link>
-            shall prevail. Please visit{' '}
-            <Link to="/docs/licenses/translated-documentation/translation-disclaimer/">
+            will take priority. Please visit{' '}
+            <Link to='/docs/licenses/translated-documentation/translation-disclaimer/'>
               this page
             </Link>{' '}
             for more information.
           </Trans>
         </div>
         <CreateIssueButton
-          variant="outline"
+          variant='outline'
           css={css`
             border-color: #8a7800;
           `}

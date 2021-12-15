@@ -1,6 +1,4 @@
 'use strict';
-const { describe, expect, test, beforeEach } = require('@jest/globals');
-
 const fs = require('fs');
 const frontmatter = require('@github-docs/frontmatter');
 const { getLocalizedFileData } = require('../add-files-to-translation-queue');
