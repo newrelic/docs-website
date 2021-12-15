@@ -113,7 +113,6 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
             frontmatter {
               type
               subject
-              translationType
             }
           }
         }
@@ -292,12 +291,8 @@ exports.createSchemaCustomization = ({ actions }) => {
   type MarkdownRemark implements Node {
     frontmatter: Frontmatter
   }
-  type Mdx implements Node {
-    frontmatter: Frontmatter
-  }
   type Frontmatter {
     isFeatured: Boolean
-    translationType: String
   }
   `;
 
@@ -325,12 +320,6 @@ exports.createResolvers = ({ createResolvers }) => {
       isFeatured: {
         resolve: (source) =>
           hasOwnProperty(source, 'isFeatured') ? source.isFeatured : false,
-      },
-      translationType: {
-        resolve: (source) =>
-          hasOwnProperty(source, 'translationType')
-            ? source.translationType
-            : null,
       },
     },
   });

@@ -9,11 +9,10 @@ const Models = require('./models');
  * @param {string} job.job_uid - identifier of job from translation vendor
  * @param {string} job.status - string value of status enum
  * @param {string} job.locale - locale of job
- * @param {string} job.project_id -- project id job is associated with (from translation vendor)
  * @returns newly created job
  */
-const addJob = async ({ job_uid, status, locale, project_id }) => {
-  const job = await Models.Job.create({ job_uid, status, locale, project_id });
+const addJob = async ({ job_uid, status, locale }) => {
+  const job = await Models.Job.create({ job_uid, status, locale });
   return job;
 };
 
@@ -93,13 +92,8 @@ const getStatuses = async (filters = {}) => {
  * @param {string} locale - string value of locale enum
  * @returns newly created translation
  */
-const addTranslation = async ({ slug, status, locale, project_id }) => {
-  const translation = await Models.Translation.create({
-    slug,
-    status,
-    locale,
-    project_id,
-  });
+const addTranslation = async ({ slug, status, locale }) => {
+  const translation = await Models.Translation.create({ slug, status, locale });
   return translation;
 };
 

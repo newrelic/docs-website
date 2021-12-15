@@ -6,7 +6,6 @@
  * @property {number} status - numeric value of status enum
  * @property {Date} date_created timestamp indicating when record was created
  * @property {Date} date_modified timestamp indicating when record was last updated
- * @property {string} project_id identifier of project from translation vendor job is associated with
  */
 
 /**
@@ -29,8 +28,7 @@
  * @property {string} status numeric value of status enum
  * @property {number} locale numeric value of locale enum
  * @property {Date} date_created timestamp indicating when record was created
- * @property {Date} date_modified timestamp indicating when record was last updated
- * @property {string} project_id identifier of project from translation vendor translation is associated with
+ * @property {Date} date_modified
  */
 
 /**

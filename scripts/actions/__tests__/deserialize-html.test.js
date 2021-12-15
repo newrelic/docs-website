@@ -2,49 +2,10 @@ import deserializeHTML from '../deserialize-html';
 import serializeMDX from '../serialize-mdx';
 import fs from 'fs';
 
-const { configuration } = require('../configuration');
-
-jest.mock('../configuration', () => ({
-  configuration: {
-    'TRANSLATION': {
-      'TYPE': 'human'
-    },
-  },
-}));
-
-test('deserializes mdx with DoNotTranslate', async () => {
-  const input = `
-<DoNotTranslate>
-  # Not all who wander are lost...
-
-  but some probably are...
-</DoNotTranslate>
-  `;
-
-  const mdx = await deserializeHTML(await serializeMDX(input));
-
-  expect(mdx).toEqual(input.trim());
-});
-
-test('serializes DoNotTranslate wrapping a Collapser', async () => {
-  const input = `
-<DoNotTranslate>
-  <Collapser title="Collapse me yo">
-    These tests are hard to write docs for
-  </Collapser>
-</DoNotTranslate>
-  `;
-
-  const mdx = await deserializeHTML(await serializeMDX(input));
-
-  expect(mdx).toEqual(input.trim());
-});
-
 test('deserializes mdx with frontmatter', async () => {
   const input = `
 ---
 title: The doc
-translationType: human
 ---
 
 This is an MDX doc
@@ -158,7 +119,7 @@ test('deserializes block ImageSizing component', async () => {
   expect(mdx).toEqual(input.trim());
 });
 
-test('deserializes inline ImageSizing component', async () => {
+test.only('deserializes inline ImageSizing component', async () => {
   const input = `
 This is a test with an <ImageSizing width="32px" height="32px">![test.png](./images/test.png)</ImageSizing> inline image.
   `;

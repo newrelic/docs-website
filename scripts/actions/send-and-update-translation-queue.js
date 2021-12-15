@@ -19,8 +19,8 @@ const PROJECT_ID = process.env.TRANSLATION_VENDOR_PROJECT;
  */
 const getReadyToGoTranslationsForEachLocale = async () => {
   const [pendingTranslations, inProgressTranslations] = await Promise.all([
-    Database.getTranslations({ status: 'PENDING', project_id: PROJECT_ID }),
-    Database.getTranslations({ status: 'IN_PROGRESS', project_id: PROJECT_ID }),
+    Database.getTranslations({ status: 'PENDING' }),
+    Database.getTranslations({ status: 'IN_PROGRESS' }),
   ]);
 
   /*
@@ -28,7 +28,7 @@ const getReadyToGoTranslationsForEachLocale = async () => {
    * 1. It's in a pending state.
    * 2. There isn't a matching record whose status === 'IN_PROGRESS'. A record matches if there exists another record with the same slug and locale.
    *
-   * This is to avoid sending multiple translation requests for {hello_world.txt, ja-JP} as an example, and allows us to have an in progress translation, and one ready to go that is queued up in the database.
+   * This is to avoid sending multiple translation requests for {hello_world.txt, ja-JP} as an example, and allows us have to an in progress translation, and one ready to go that is queued up in the database.
    *
    * 3. The file (slug) that is associated with the translation record still exists.
    */
@@ -100,7 +100,6 @@ const createJobs = (accessToken) => async (locales) => {
         job_uid: jobResponse.translationJobUid,
         status: 'PENDING',
         locale: jobResponse.targetLocaleIds[0],
-        project_id: PROJECT_ID,
       });
     })
   );
