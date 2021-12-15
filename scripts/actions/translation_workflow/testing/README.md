@@ -87,6 +87,8 @@ The script requires node.js version 16. The following commands use `nvm` to inst
 ## Make a change to translate
 The last thing you will need to do is make a unique change to the file `src/content/docs/accounts/accounts/account-maintenance/change-passwords-user-preferences.mdx`. The reason being that the PR URL the script uses is for a PR which changes only that file. In order to get the vendor to recognize content for translation, we have to submit unique content everytime. The simplest thing to do here is just delete the existing body of the document, and replace it with something like "bird" or a short phrase, etc.
 
+To move through the entire Machine Translation workflow you will also need to remove the `translate: jp` entry in the frontmatter of the file, otherwise it will think it needs to be Human Translated.
+
 
 # Run the script
 
