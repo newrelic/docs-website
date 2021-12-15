@@ -44,10 +44,6 @@ module.exports = (sequelize, DataTypes) => {
           deferrable: Deferrable.INITIALLY_IMMEDIATE,
         },
       },
-      project_id: {
-        type: DataTypes.TEXT,
-        allowNull: true,
-      },
     },
     {
       createdAt: 'date_created',
