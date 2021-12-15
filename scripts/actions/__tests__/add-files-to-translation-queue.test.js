@@ -38,8 +38,8 @@ describe('add-files-to-translation-queue tests', () => {
 
   const setup = () => {
     const EXCLUSIONS = {
-      excludePath: { jp: ['excluded/path'], kr: ['excluded/path'] },
-      excludeType: { jp: ['excludedType'], kr: ['excludedType'] },
+      excludePath: { 'ja-JP': ['excluded/path'], 'ko-KR': ['excluded/path'] },
+      excludeType: { 'ja-JP': ['excludedType'], 'ko-KR': ['excludedType'] },
     };
     const originalAdd = jest.requireActual('../utils/constants.js');
 
@@ -55,18 +55,17 @@ describe('add-files-to-translation-queue tests', () => {
 
   describe('Queue translations', () => {
     test('Adds the Human Translation Project Id for locale under `translate` in frontmatter', async () => {
-      const file = { filename: '/content/bar.mdx' };
+      const file = '/content/bar.mdx';
       mockReadFileSync(['jp']);
       frontmatter.mockReturnValueOnce({ data: { translate: ['jp'] } });
       const toBeTranslated = getLocalizedFileData(file);
-
       expect(toBeTranslated).toEqual([
         { filename: '/content/bar.mdx', locale: 'ja-JP', project_id: 'HT_ID' },
       ]);
     });
 
     test('Adds the Machine Translation Project Id when there is no `translate` in frontmatter', async () => {
-      const file = { filename: '/content/bar.mdx' };
+      const file = '/content/bar.mdx';
       mockReadFileSync();
       frontmatter.mockReturnValueOnce({ data: {} });
       const toBeTranslated = getLocalizedFileData(file);
@@ -77,7 +76,7 @@ describe('add-files-to-translation-queue tests', () => {
     });
 
     test('Adds the relevant Project Id when there are multiple locales and only one `translate` in frontmatter', async () => {
-      const file = { filename: '/content/bar.mdx' };
+      const file = '/content/bar.mdx';
       const originalAdd = jest.requireActual('../utils/constants.js');
 
       jest.doMock('../utils/constants.js', () => {
