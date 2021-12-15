@@ -27,4 +27,4 @@ With our new infrastructure monitoring experience, we’ve doubled down on provi
 
 Check out our new infrastructure monitoring experience and tell us what you think. New Relic customers can start using it today, without any additional cost. Find it in New Relic One within the main menu under **[Infrastructure > Hosts New](https://onenr.io/08dQepE9Wje)**.
 
-**Note:** the new infrastructure monitoring experience will be available in the EU soon.
+**Note:** as of December 13th, 2021, the new infrastructure monitoring experience is available in the EU.
