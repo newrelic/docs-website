@@ -41,8 +41,8 @@ const translationDifference = (pendingFiles, prChanges) =>
       )
   );
 
-const humanTranslatedProjectID = 'HT_ID';
-const machineTranslatedProjectID = 'MT_ID';
+const humanTranslatedProjectID = process.env.HUMAN_TRANSLATION_PROJECT_ID;
+const machineTranslatedProjectID = process.env.MACHINE_TRANSLATION_PROJECT_ID;
 
 /**
  * Determines if a file should be included based on data from an exclusions file
