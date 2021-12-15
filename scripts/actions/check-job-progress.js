@@ -1,3 +1,4 @@
+'use strict';
 const {
   getJobs,
   updateJob,
@@ -7,8 +8,9 @@ const {
 
 const { getAccessToken, vendorRequest } = require('./utils/vendor-request');
 const { fetchAndDeserialize } = require('./fetch-and-deserialize');
+const { configuration } = require('./configuration');
 
-const PROJECT_ID = process.env.TRANSLATION_VENDOR_PROJECT;
+const PROJECT_ID = configuration.TRANSLATION.VENDOR_PROJECT;
 
 const uniq = (arr) => [...new Set(arr)];
 const prop = (key) => (x) => x[key];
@@ -105,7 +107,10 @@ const getBatchStatus = (accessToken) => async ({ batchUid, jobId }) => {
 const main = async () => {
   try {
     // load the items that we are being translated
-    const inProgressJobs = await getJobs({ status: 'IN_PROGRESS' });
+    const inProgressJobs = await getJobs({
+      status: 'IN_PROGRESS',
+      project_id: PROJECT_ID,
+    });
     const batchUids = inProgressJobs.map((job) => {
       return { batchUid: job.batch_uid, jobId: job.id };
     });
