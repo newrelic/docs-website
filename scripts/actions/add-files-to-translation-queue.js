@@ -1,7 +1,6 @@
 const fs = require('fs');
 const path = require('path');
 const frontmatter = require('@github-docs/frontmatter');
-
 const {
   getTranslations,
   addTranslation,
@@ -10,13 +9,11 @@ const {
 const { fetchPaginatedGHResults } = require('./utils/github-api-helpers');
 const checkArgs = require('./utils/check-args');
 const { prop } = require('../utils/functional');
+const { LOCALE_IDS } = require('./utils/constants');
+const { getExclusions } = require('./utils/helpers');
 
 const STATUS = {
   PENDING: 'PENDING',
-};
-
-const LOCALE_IDS = {
-  jp: 'ja-JP',
 };
 
 const translationDifference = (pendingFiles, prChanges) =>
@@ -32,15 +29,56 @@ const translationDifference = (pendingFiles, prChanges) =>
 const slugIntersection = (pendingFiles, filesToRemove) =>
   pendingFiles.filter((file) => filesToRemove.includes(file.slug));
 
+const humanTranslatedProjectID = process.env.HUMAN_TRANSLATION_PROJECT_ID;
+const machineTranslatedProjectID = process.env.MACHINE_TRANSLATION_PROJECT_ID;
+
+/**
+ * Determines if a file should be included based on data from an exclusions file
+ * @param {Object[]} fileData The files to check
+ * @param {Object[]} exclusions The exclusions file
+ * @returns {Object[]} The files that should be included
+ */
+const excludeFiles = (fileData) => {
+  const exclusions = getExclusions();
+
+  return fileData.filter(({ filename, locale, contentType }) => {
+    const localeKey = Object.keys(LOCALE_IDS).find(
+      (localeKey) => LOCALE_IDS[localeKey] === locale
+    );
+    return (
+      !exclusions.excludePath[localeKey]?.some((path) =>
+        filename.startsWith(path)
+      ) &&
+      !exclusions.excludeType[localeKey]?.some((type) => contentType === type)
+    );
+  });
+};
+
+/**
+ * Determines if a particular locale should be human or machine translated based on the files frontmatter.
+ *
+ * @param {String[]} translateFM
+ * @returns {Function => String} projectId
+ */
+
+const getProjectId = (translateFM) => (locale) => {
+  return Array.isArray(translateFM) && translateFM.includes(locale)
+    ? humanTranslatedProjectID
+    : machineTranslatedProjectID;
+};
+
 const getLocalizedFileData = (prFile) => {
   const contents = fs.readFileSync(path.join(process.cwd(), prFile.filename));
   const { data } = frontmatter(contents);
-  return data.translate
-    ? data.translate.map((locale) => ({
-        ...prFile,
-        locale: LOCALE_IDS[locale],
-      }))
-    : [];
+  const checkLocale = getProjectId(data.translate);
+  const contentType = data.type;
+
+  return Object.keys(LOCALE_IDS).map((locale) => ({
+    ...prFile,
+    contentType,
+    locale: LOCALE_IDS[locale],
+    project_id: checkLocale(locale),
+  }));
 };
 
 const removedFiles = (prFiles) =>
@@ -51,8 +89,9 @@ const main = async () => {
   checkArgs(3);
   const url = process.argv[2];
 
-  const queue = await getTranslations({ status: STATUS.PENDING });
-
+  const queue = await getTranslations({
+    status: STATUS.PENDING,
+  });
   const prFileData = await fetchPaginatedGHResults(
     url,
     process.env.GITHUB_TOKEN
@@ -63,14 +102,18 @@ const main = async () => {
     .filter((f) => f.status !== 'removed');
 
   const allLocalizedFileData = changedMdxFileData.flatMap(getLocalizedFileData);
-  const fileDataToAddToQueue = translationDifference(
-    queue,
-    allLocalizedFileData
-  );
+  const includedFiles = excludeFiles(allLocalizedFileData);
+
+  const fileDataToAddToQueue = translationDifference(queue, includedFiles);
 
   await Promise.all(
-    fileDataToAddToQueue.map(({ filename, locale }) =>
-      addTranslation({ slug: filename, status: STATUS.PENDING, locale })
+    fileDataToAddToQueue.map(({ filename, locale, project_id }) =>
+      addTranslation({
+        slug: filename,
+        status: STATUS.PENDING,
+        locale,
+        project_id,
+      })
     )
   );
 
@@ -84,4 +127,12 @@ const main = async () => {
   process.exit(0);
 };
 
-main();
+if (require.main === module) {
+  main();
+}
+
+module.exports = {
+  getProjectId,
+  excludeFiles,
+  getLocalizedFileData,
+};

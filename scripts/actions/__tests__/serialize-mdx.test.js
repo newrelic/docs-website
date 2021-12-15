@@ -1,6 +1,39 @@
 import serializeMDX from '../serialize-mdx';
 import fs from 'fs';
 
+test('serializes DoNotTranslate wrapping a Collapser', async () => {
+  const html = await serializeMDX(`
+<DoNotTranslate>
+  <Collapser
+    title="Collapse me yo"
+  >
+    These tests are hard to write docs for
+  </Collapser>
+</DoNotTranslate>
+  `);
+
+  expect(html).toMatchSnapshot();
+});
+
+test('serializes DoNotTranslate to html', async () => {
+  const html = await serializeMDX(`
+<DoNotTranslate>
+  # Not all who wander are lost...
+  Testing this line too
+</DoNotTranslate>
+  `);
+
+  expect(html).toMatchSnapshot();
+});
+
+test('serializes DoNotTranslate to html inline', async () => {
+  const html = await serializeMDX(`
+This is an <DoNotTranslate>MDX</DoNotTranslate> file
+  `);
+
+  expect(html).toMatchSnapshot();
+});
+
 test('serializes Button to html', async () => {
   const html = await serializeMDX(`
 <Button
