@@ -29,7 +29,16 @@ You'll need to fill out values for variables in `script.sh`.
   ```
 
 
-3. Finally, the DB_CONNECTION_INFO secret needs to be populated in `connection_info.json`. The recommendation for this is to spin up a local postgres instance and connect to that, so that you dont need to test against a resource in the cloud. See the next section for setting up a local postgres instance on Docker. 
+3. Finally, the DB_CONNECTION_INFO secret needs to be populated in `connection_info.json`. The recommendation for this is to spin up a local postgres instance and connect to that, so that you dont need to test against a resource in the cloud. See the next section for setting up a local postgres instance on Docker. The values for this are currently:
+
+```json
+{
+    "username": "root",
+    "password": "root",
+    "host": "localhost",
+    "database": "translations"
+}
+```
 
 ## Setup local environment
 
@@ -66,7 +75,6 @@ Once the migration is complete, you can run the testing script, or set up pgadmi
     Password: root
     ```
     You may also need to go into the `General` and give a name to the server. You can call it `translations` (but it can be called anything).
-3. To create the database, right-click on your new `translations` database. then click on `Query Tool`. Enter and run the contents of `creation_and_cleanup.sql`.
 
 <img width="200" alt="portfolio_view" src="https://github.com/newrelic/docs-website/blob/feature/machine-translation/scripts/actions/translation_workflow/testing/pgadmin_query.png">
 ## Use node 16
@@ -162,3 +170,7 @@ Deleting jobs: [{"id":3,"job_uid":"f5lauqavyoq9","batch_uid":"glzideuwre8p","sta
 Deleting translations: [{"id":3,"slug":"src/content/docs/accounts/accounts/account-maintenance/change-passwords-user-preferences.mdx","status":"COMPLETED","locale":"ja-JP","date_created":"2021-07-29T15:10:14.534Z","date_modified":"2021-07-29T15:11:23.643Z"}]
 Deleted translations & jobs
 ```
+
+### Errors
+
+If you run into any issues during deployment and need to alter anything related to the Docker containers, you will need to run `yarn db:clean` to remove the cached data, and run `yarn db:start` again once changes are made.
