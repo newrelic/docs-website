@@ -41,8 +41,8 @@ const translationDifference = (pendingFiles, prChanges) =>
       )
   );
 
-const humanTranslatedProjectID = process.env.HUMAN_TRANSLATION_PROJECT_ID;
-const machineTranslatedProjectID = process.env.MACHINE_TRANSLATION_PROJECT_ID;
+const humanTranslatedProjectID = 'HT_ID';
+const machineTranslatedProjectID = 'MT_ID';
 
 /**
  * Determines if a file should be included based on data from an exclusions file
@@ -54,14 +54,10 @@ const excludeFiles = (fileData) => {
   const exclusions = getExclusions();
 
   return fileData.filter(({ filename, locale, contentType }) => {
-    const localeKey = Object.keys(LOCALE_IDS).find(
-      (localeKey) => LOCALE_IDS[localeKey] === locale
-    );
     return (
-      !exclusions.excludePath[localeKey]?.some((path) =>
+      !exclusions.excludePath[locale]?.some((path) =>
         filename.startsWith(path)
-      ) &&
-      !exclusions.excludeType[localeKey]?.some((type) => contentType === type)
+      ) && !exclusions.excludeType[locale]?.some((type) => contentType === type)
     );
   });
 };

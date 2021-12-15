@@ -40,8 +40,8 @@ describe('add-files-to-translation-queue tests', () => {
 
   const setup = () => {
     const EXCLUSIONS = {
-      excludePath: { jp: ['excluded/path'], kr: ['excluded/path'] },
-      excludeType: { jp: ['excludedType'], kr: ['excludedType'] },
+      excludePath: { 'ja-JP': ['excluded/path'], 'ko-KR': ['excluded/path'] },
+      excludeType: { 'ja-JP': ['excludedType'], 'ko-KR': ['excludedType'] },
     };
     const originalAdd = jest.requireActual('../utils/constants.js');
 
