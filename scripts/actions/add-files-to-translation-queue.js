@@ -16,20 +16,22 @@ const STATUS = {
   PENDING: 'PENDING',
 };
 
-// Sets up commander to use input arguments for this scripts from the CLI or GitHub Actions - CM
-const program = new Command();
-program
-  .option('-u, --url <url>', 'url to PR of file changes')
-  .option(
-    '-d, --directory <directory>',
-    'directory of files to be queued for translation'
-  )
-  .option(
-    '-mt, --machine-translation',
-    'Boolean to only send files needing machine translation'
-  );
-program.parse(process.argv);
-const options = program.opts();
+const getCommandLineOptions = () => {
+  // Sets up commander to use input arguments for this scripts from the CLI or GitHub Actions - CM
+  const program = new Command();
+  program
+    .option('-u, --url <url>', 'url to PR of file changes')
+    .option(
+      '-d, --directory <directory>',
+      'directory of files to be queued for translation'
+    )
+    .option(
+      '-mt, --machine-translation',
+      'Boolean to only send files needing machine translation'
+    );
+  program.parse(process.argv);
+  return program.opts();
+};
 
 const translationDifference = (pendingFiles, prChanges) =>
   prChanges.filter(
@@ -92,6 +94,7 @@ const getLocalizedFileData = (mdxFile) => {
 /** Entrypoint. */
 const main = async () => {
   // These come from the CLI input when using the script
+  const options = getCommandLineOptions();
   const url = options.url || null;
   const directory = options.directory || null;
   const machineTranslation = options.machineTranslation || false;
