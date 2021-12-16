@@ -28,6 +28,7 @@ const defaultComponents = {
   Button: MDXButton,
   ButtonLink: (props) => <MDXButton as={Link} {...props} />,
   ButtonGroup: MDXButtonGroup,
+  DoNotTranslate: ({ children }) => <>{children}</>,
 };
 
 const MDXContainer = ({ body, children, components }) => {
