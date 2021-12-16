@@ -176,7 +176,7 @@ test('kitchen sink', async () => {
   expect(mdx).toEqual(input.trim());
 });
 
-test.only('deserialize html with <strong> element', async () => {
+test('deserialize html with <strong> element', async () => {
   const input = `
 The Varnish Cache integration collects both metrics(<strong>M</strong>) and inventory(<strong>I</strong>) information.
 `;
@@ -186,7 +186,7 @@ The Varnish Cache integration collects both metrics(<strong>M</strong>) and inve
   expect(mdx).toEqual(input.trim());
 });
 
-test.only('deserialize html with <b> element', async () => {
+test('deserialize html with <b> element', async () => {
   const input = `
 The Varnish Cache integration collects both metrics(<b>M</b>) and inventory(<b>I</b>) information.
 `;
