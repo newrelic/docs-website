@@ -13,6 +13,7 @@ import {
   TableOfContents,
   useTranslation,
 } from '@newrelic/gatsby-theme-newrelic';
+import MachineTranslationCallout from '../components/MachineTranslationCallout';
 import DefaultRelatedContent from '../components/DefaultRelatedContent';
 import SEO from '../components/SEO';
 import GithubSlugger from 'github-slugger';
@@ -62,7 +63,7 @@ const BasicDoc = ({ data, location, pageContext }) => {
   }, [mdxAST, moreHelpHeading, t]);
 
   const isMobileScreen = useMedia('(max-width: 1240px)');
-  const { title, metaDescription, type, tags } = frontmatter;
+  const { title, metaDescription, type, tags, translationType } = frontmatter;
 
   return (
     <>
@@ -78,6 +79,7 @@ const BasicDoc = ({ data, location, pageContext }) => {
         css={css`
           display: grid;
           grid-template-areas:
+            'mt-disclaimer mt-disclaimer'
             'page-title page-title'
             'content page-tools';
           grid-template-columns: minmax(0, 1fr) 320px;
@@ -85,6 +87,7 @@ const BasicDoc = ({ data, location, pageContext }) => {
 
           @media screen and (max-width: 1240px) {
             grid-template-areas:
+              'mt-disclaimer'
               'page-title'
               'content'
               'page-tools';
@@ -92,7 +95,16 @@ const BasicDoc = ({ data, location, pageContext }) => {
           }
         `}
       >
+        {translationType === 'machine' && (
+          <MachineTranslationCallout
+            englishHref={location.pathname.replace(
+              `/${pageContext.locale}`,
+              ''
+            )}
+          />
+        )}
         <PageTitle>{title}</PageTitle>
+
         <Layout.Content>
           <MDXContainer body={body}>
             {moreHelpHeading ? null : <DefaultRelatedContent />}
@@ -143,6 +155,7 @@ export const pageQuery = graphql`
         metaDescription
         type
         tags
+        translationType
       }
       fields {
         fileRelativePath
