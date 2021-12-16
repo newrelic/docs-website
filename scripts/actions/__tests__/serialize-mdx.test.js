@@ -282,3 +282,23 @@ test('kitchen sink', async () => {
 
   expect(html).toMatchSnapshot();
 });
+
+test('test <strong> element serializes', async () => {
+  const mdx = `
+The Varnish Cache integration collects both metrics(<strong>M</strong>) and inventory(<strong>I</strong>) information.
+`;
+
+  const html = await serializeMDX(mdx);
+
+  expect(html).toMatchSnapshot();
+});
+
+test('test <b> element serializes', async () => {
+  const mdx = `
+The Varnish Cache integration collects both metrics(<b>M</b>) and inventory(<b>I</b>) information.
+`;
+
+  const html = await serializeMDX(mdx);
+
+  expect(html).toMatchSnapshot();
+});
