@@ -5,7 +5,9 @@ const fs = require('fs');
 const path = require('path');
 const serializeMDX = require('../serialize-mdx');
 const FormData = require('form-data');
+const NodeCache = require('node-cache');
 
+const cache = new NodeCache({ stdTTL: 60 * 4, checkperiod: 2 });
 const PROJECT_ID = process.env.TRANSLATION_VENDOR_PROJECT;
 const DOCS_SITE_URL = 'https://docs.newrelic.com';
 
@@ -52,9 +54,8 @@ const makeRequest = async (url, options, nthTry = 1) => {
       return Promise.reject(e);
     }
     console.warn(
-      `[!] Error making request on attempt ${nthTry}/${MAX_RETRY}. Retrying in ${
-        POLL_INTERVAL / 1000
-      } seconds`
+      `[!] Error making request on attempt ${nthTry}/${MAX_RETRY}. Retrying in ${POLL_INTERVAL /
+        1000} seconds`
     );
     // wait for delayTime amount of time before calling this method again
     await sleep(POLL_INTERVAL);
@@ -68,25 +69,35 @@ const makeRequest = async (url, options, nthTry = 1) => {
  * @returns {Promise<string>}
  */
 const getAccessToken = async () => {
-  const url = new URL(
-    '/auth-api/v2/authenticate',
-    process.env.TRANSLATION_VENDOR_API_URL
-  );
+  const cachedToken = cache.get('access_token');
+  if (cachedToken != undefined) {
+    console.log('using cached token');
+    return cachedToken;
+  } else {
+    const url = new URL(
+      '/auth-api/v2/authenticate',
+      process.env.TRANSLATION_VENDOR_API_URL
+    );
 
-  const options = {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      userIdentifier: process.env.TRANSLATION_VENDOR_USER,
-      userSecret: process.env.TRANSLATION_VENDOR_SECRET,
-    }),
-  };
+    const options = {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        userIdentifier: process.env.TRANSLATION_VENDOR_USER,
+        userSecret: process.env.TRANSLATION_VENDOR_SECRET,
+      }),
+    };
 
-  const { accessToken } = await makeRequest(url, options);
+    console.log('grabbing access token');
+    const { accessToken } = await makeRequest(url, options);
 
-  return accessToken;
+    console.log('setting cached token');
+    cache.set('access_token', accessToken, 60 * 4);
+
+    return accessToken;
+  }
 };
 
 /**
