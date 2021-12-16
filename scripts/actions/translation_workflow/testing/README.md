@@ -29,38 +29,46 @@ You'll need to fill out values for variables in `script.sh`.
   ```
 
 
-3. Finally, the DB_CONNECTION_INFO secret needs to be populated in `connection_info.json`. The recommendation for this is to spin up a local postgres instance and connect to that, so that you dont need to test against a resource in the cloud. See the next section for setting up a local postgres instance on Docker. 
+3. Finally, the DB_CONNECTION_INFO secret needs to be populated in `connection_info.json`. The recommendation for this is to spin up a local postgres instance and connect to that, so that you dont need to test against a resource in the cloud. See the next section for setting up a local postgres instance on Docker. The values for this are currently:
 
-## How to spin up a local postgres instance on Docker
+```json
+{
+    "username": "root",
+    "password": "root",
+    "host": "localhost",
+    "database": "translations"
+}
+```
 
-1. Run the following command to start a postgres container, with credentials  `user = root` and `password = root`:
-    ```bash
-    docker run -d --env POSTGRES_USER=root --env POSTGRES_PASSWORD=root --env POSTGRES_DB=translations --name postgres -p 5432:5432 postgres
-    ```
+## Setup local environment
 
-2. Update the contents of `connection_info.json`:
+This section assumes you are using Docker for the local environment, so be sure to install Docker if you don't have it installed already.
 
-    ```JSON
-    {
-        "username": "root",
-        "password": "root",
-        "host": "localhost",
-        "database": "translations"
-    }
-    ```
-3. Create the database by running `creation_and_cleanup.sql` on your postgres instance. See the next section to do this in pgadmin.
+Once you have Docker installed, from the `root` of the repository, run `yarn db:start`. This executes a `docker-compose` command using [this compose file](./docker-compose.yml). Three containers will be spun up: one for postgres, one for pgadmin, and one for executing a migration (using NodeJS sequelize).
 
-## How to start a pgadmin container to interact with your postgres container (optional)
+The migration takes the longest to execute. Once you see text similar to:
+```
+migration_1 | wait-for-it.sh: timeout occurred after waiting 15 seconds for db:5432
+migration_1 |
+migration_1 | Sequelize CLI [Node: 16.13.1, CLI: 6.3.0, ORM: 6.12.0-alpha.1]
+migration_1 |
+migration_1 | Loaded configuration file "config/config.json".
+migration_1 | Using environment "development".
+migration_1 | == 20211201221649-test: migrating =======
+migration_1 | == 20211201221649-test: migrated (0.124s)
+migration_1 |
+testing_migration_1 exited with code 0
+```
+that will indicate that database is running & set up -- tables exist, and data is populated.
 
-This step is not a prerequisite for running the script, but may be useful for creating your database (which is required) and debugging. 
+Once the migration is complete, you can run the testing script, or set up pgadmin and connect to the postgres database. This last bit isn't needed, but is useful for debugging and introspecting the database during development.
 
-1. Run the following to start a pgadmin container:
-    ```bash
-    docker run -d --env PGADMIN_DEFAULT_EMAIL=username@username.com --env PGADMIN_DEFAULT_PASSWORD=password --name pgadmin -p 8080:80 -p 8081:443 dpage/pgadmin4
-    ```
+## How to connect to postgres database in pgadmin
+
+1. To connect to the pgadmin UI, open a browser and navigate to `http://localhost:15432`. Login with username:`admin@pgadmin.com` and password:`password`. The url, username, and password are all defined in [the docker-compose file](./docker-compose.yml) for the pgadmin service.
 2. To connect to your postgres container, click on `Create A Server`. On the `Connection` tab, enter the following details: 
     ```
-    Hostname/address: localhost
+    Hostname/address: postgres
     Port: 5432
     Maintenance database: postgres
     Username: root
@@ -68,9 +76,7 @@ This step is not a prerequisite for running the script, but may be useful for cr
     ```
     You may also need to go into the `General` and give a name to the server. You can call it `translations` (but it can be called anything).
 
-
-3. To create the database, right-click on your new `translations` database. then click on `Query Tool`. Enter and run the contents of `creation_and_cleanup.sql`.
-
+<img width="200" alt="portfolio_view" src="https://github.com/newrelic/docs-website/blob/feature/machine-translation/scripts/actions/translation_workflow/testing/pgadmin_query.png">
 ## Use node 16
 The script requires node.js version 16. The following commands use `nvm` to install and use node 16.
   ```bash
@@ -80,6 +86,8 @@ The script requires node.js version 16. The following commands use `nvm` to inst
 
 ## Make a change to translate
 The last thing you will need to do is make a unique change to the file `src/content/docs/accounts/accounts/account-maintenance/change-passwords-user-preferences.mdx`. The reason being that the PR URL the script uses is for a PR which changes only that file. In order to get the vendor to recognize content for translation, we have to submit unique content everytime. The simplest thing to do here is just delete the existing body of the document, and replace it with something like "bird" or a short phrase, etc.
+
+To move through the entire Machine Translation workflow you will also need to remove the `translate: jp` entry in the frontmatter of the file, otherwise it will think it needs to be Human Translated.
 
 
 # Run the script
@@ -164,3 +172,7 @@ Deleting jobs: [{"id":3,"job_uid":"f5lauqavyoq9","batch_uid":"glzideuwre8p","sta
 Deleting translations: [{"id":3,"slug":"src/content/docs/accounts/accounts/account-maintenance/change-passwords-user-preferences.mdx","status":"COMPLETED","locale":"ja-JP","date_created":"2021-07-29T15:10:14.534Z","date_modified":"2021-07-29T15:11:23.643Z"}]
 Deleted translations & jobs
 ```
+
+### Errors
+
+If you run into any issues during deployment and need to alter anything related to the Docker containers, you will need to run `yarn db:clean` to remove the cached data, and run `yarn db:start` again once changes are made.
