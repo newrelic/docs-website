@@ -281,7 +281,7 @@ exports.createSchemaCustomization = ({ actions }) => {
 
   const typeDefs = `
   type NavYaml implements Node @dontInfer {
-    id: ID!
+    yamlId: ID!
     title: String!
     path: String
     icon: String
