@@ -2,7 +2,6 @@ const fs = require('fs');
 const path = require('path');
 const { prop } = require('./scripts/utils/functional.js');
 const externalRedirects = require('./src/data/external-redirects.json');
-
 const { createFilePath } = require('gatsby-source-filesystem');
 
 const SWIFTYPE_RESOURCES_DIR = 'src/data/swiftype-resources';
@@ -18,8 +17,20 @@ const hasTrailingSlash = (pathname) =>
 const appendTrailingSlash = (pathname) =>
   pathname.endsWith('/') ? pathname : `${pathname}/`;
 
+exports.onCreateWebpackConfig = ({ actions }) => {
+  actions.setWebpackConfig({
+    resolve: {
+      fallback: {
+        http: require.resolve('stream-http'),
+        https: require.resolve('https-browserify'),
+        zlib: require.resolve('browserify-zlib'),
+      },
+    },
+  });
+};
+
 // before we build, combine related resource files into one
-exports.onPluginInit = () => {
+exports.onPreBootstrap = () => {
   const files = fs.readdirSync(SWIFTYPE_RESOURCES_DIR);
   const content = files.map((filename) => {
     return fs.readFileSync(path.join(SWIFTYPE_RESOURCES_DIR, filename), {
