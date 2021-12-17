@@ -52,8 +52,6 @@ const setInProgressToDone = async () => {
  * @returns {Promise}
  */
 const removePageContext = async (fileUris) => {
-  const accessToken = await getAccessToken();
-
   const fileNames = fileUris.map((fileUri) => {
     const filepath = fileUri.replace(`src/content/`, '');
     const slug = filepath.replace(`.mdx`, '');
@@ -64,7 +62,6 @@ const removePageContext = async (fileUris) => {
   const { items } = await vendorRequest({
     method: 'GET',
     endpoint: `https://api.smartling.com/context-api/v2/projects/${PROJECT_ID}/contexts`,
-    accessToken,
   });
 
   // Find the smartling context to be removed. This includes context manually
@@ -86,7 +83,7 @@ const removePageContext = async (fileUris) => {
       const options = {
         method: 'DELETE',
         headers: {
-          Authorization: `Bearer ${accessToken}`,
+          Authorization: `Bearer ${await getAccessToken()}`,
         },
       };
 
