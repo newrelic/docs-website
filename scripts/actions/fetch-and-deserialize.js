@@ -112,8 +112,4 @@ const fetchAndDeserialize = async ({ locale, fileUris }) => {
   writeFilesSync(files);
 };
 
-if (process.env.CI) {
-  fetchAndDeserialize();
-}
-
 module.exports = { writeFilesSync, fetchAndDeserialize };
