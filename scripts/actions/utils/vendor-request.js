@@ -71,33 +71,33 @@ const makeRequest = async (url, options, nthTry = 1) => {
 const getAccessToken = async () => {
   const cachedToken = cache.get('access_token');
   if (cachedToken != undefined) {
-    console.log('using cached token');
+    console.log('using cached access token');
     return cachedToken;
-  } else {
-    const url = new URL(
-      '/auth-api/v2/authenticate',
-      process.env.TRANSLATION_VENDOR_API_URL
-    );
-
-    const options = {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        userIdentifier: process.env.TRANSLATION_VENDOR_USER,
-        userSecret: process.env.TRANSLATION_VENDOR_SECRET,
-      }),
-    };
-
-    console.log('grabbing access token');
-    const { accessToken } = await makeRequest(url, options);
-
-    console.log('setting cached token');
-    cache.set('access_token', accessToken, 60 * 4);
-
-    return accessToken;
   }
+
+  const url = new URL(
+    '/auth-api/v2/authenticate',
+    process.env.TRANSLATION_VENDOR_API_URL
+  );
+
+  const options = {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      userIdentifier: process.env.TRANSLATION_VENDOR_USER,
+      userSecret: process.env.TRANSLATION_VENDOR_SECRET,
+    }),
+  };
+
+  console.log('grabbing access token');
+  const { accessToken } = await makeRequest(url, options);
+
+  console.log('setting cached token');
+  cache.set('access_token', accessToken, 60 * 4);
+
+  return accessToken;
 };
 
 /**
