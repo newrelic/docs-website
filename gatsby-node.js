@@ -19,7 +19,7 @@ const appendTrailingSlash = (pathname) =>
   pathname.endsWith('/') ? pathname : `${pathname}/`;
 
 // before we build, combine related resource files into one
-exports.onPreBootstrap = () => {
+exports.onPluginInit = () => {
   const files = fs.readdirSync(SWIFTYPE_RESOURCES_DIR);
   const content = files.map((filename) => {
     return fs.readFileSync(path.join(SWIFTYPE_RESOURCES_DIR, filename), {
