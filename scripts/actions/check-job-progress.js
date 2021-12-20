@@ -6,7 +6,7 @@ const {
   getTranslationsJobsRecords,
 } = require('./translation_workflow/database.js');
 
-const { getAccessToken, vendorRequest } = require('./utils/vendor-request');
+const { vendorRequest } = require('./utils/vendor-request');
 const { fetchAndDeserialize } = require('./fetch-and-deserialize');
 const { configuration } = require('./configuration');
 
@@ -44,10 +44,9 @@ const log = (message, level = 'log', indent = 0) => {
 };
 
 /**
- * @param {string} accessToken
  * @returns {(batchUid: string) => Promise<Batch>}
  */
-const getBatchStatus = (accessToken) => async ({ batchUid, jobId }) => {
+const getBatchStatus = async ({ batchUid, jobId }) => {
   log(`Getting status for batch: ${batchUid}`);
 
   try {
@@ -55,7 +54,6 @@ const getBatchStatus = (accessToken) => async ({ batchUid, jobId }) => {
     const batchData = await vendorRequest({
       method: 'GET',
       endpoint: `/job-batches-api/v2/projects/${PROJECT_ID}/batches/${batchUid}`,
-      accessToken,
     });
 
     const { translationJobUid } = batchData;
@@ -74,7 +72,6 @@ const getBatchStatus = (accessToken) => async ({ batchUid, jobId }) => {
     const jobData = await vendorRequest({
       method: 'GET',
       endpoint: `/jobs-api/v3/projects/${PROJECT_ID}/jobs/${translationJobUid}`,
-      accessToken,
     });
 
     const { jobStatus } = jobData;
@@ -116,10 +113,7 @@ const main = async () => {
     });
 
     // get the status for all of the batch translation jobs
-    const accessToken = await getAccessToken();
-    const batchStatuses = await Promise.all(
-      batchUids.map(getBatchStatus(accessToken))
-    );
+    const batchStatuses = await Promise.all(batchUids.map(getBatchStatus));
 
     // filter out any jobs that aren't ready to be brought back into the site
     const batchesToDeserialize = batchStatuses.filter(
@@ -142,9 +136,7 @@ const main = async () => {
     );
 
     // download the newly translated files and deserialize them (into MDX)
-    await Promise.all(
-      batchesToDeserialize.map(fetchAndDeserialize(accessToken))
-    );
+    await Promise.all(batchesToDeserialize.map(fetchAndDeserialize));
     log('Content deserialized');
 
     for (const batch of batchesToDeserialize) {

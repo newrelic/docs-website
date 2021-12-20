@@ -5,7 +5,9 @@ const fs = require('fs');
 const path = require('path');
 const serializeMDX = require('../serialize-mdx');
 const FormData = require('form-data');
+const NodeCache = require('node-cache');
 
+const cache = new NodeCache({ stdTTL: 60 * 4, checkperiod: 2 });
 const PROJECT_ID = process.env.TRANSLATION_VENDOR_PROJECT;
 const DOCS_SITE_URL = 'https://docs.newrelic.com';
 
@@ -52,9 +54,8 @@ const makeRequest = async (url, options, nthTry = 1) => {
       return Promise.reject(e);
     }
     console.warn(
-      `[!] Error making request on attempt ${nthTry}/${MAX_RETRY}. Retrying in ${
-        POLL_INTERVAL / 1000
-      } seconds`
+      `[!] Error making request on attempt ${nthTry}/${MAX_RETRY}. Retrying in ${POLL_INTERVAL /
+        1000} seconds`
     );
     // wait for delayTime amount of time before calling this method again
     await sleep(POLL_INTERVAL);
@@ -68,6 +69,12 @@ const makeRequest = async (url, options, nthTry = 1) => {
  * @returns {Promise<string>}
  */
 const getAccessToken = async () => {
+  const cachedToken = cache.get('access_token');
+  if (cachedToken != undefined) {
+    console.log('using cached access token');
+    return cachedToken;
+  }
+
   const url = new URL(
     '/auth-api/v2/authenticate',
     process.env.TRANSLATION_VENDOR_API_URL
@@ -84,7 +91,11 @@ const getAccessToken = async () => {
     }),
   };
 
+  console.log('grabbing access token');
   const { accessToken } = await makeRequest(url, options);
+
+  console.log('setting cached token');
+  cache.set('access_token', accessToken, 60 * 4);
 
   return accessToken;
 };
@@ -97,7 +108,6 @@ const getAccessToken = async () => {
  * @param {Object} options
  * @param {"GET"|"POST"} options.method The HTTP method used in the request.
  * @param {string} options.endpoint
- * @param {string} options.accessToken
  * @param {Object} [options.body]
  * @param {Object} [options.contentType]
  * @returns {Promise<Object>} The result after making the request.
@@ -105,7 +115,6 @@ const getAccessToken = async () => {
 const vendorRequest = async ({
   method,
   endpoint,
-  accessToken,
   body = {},
   contentType = 'application/json',
 }) => {
@@ -114,7 +123,7 @@ const vendorRequest = async ({
   const options = {
     method,
     headers: {
-      Authorization: `Bearer ${accessToken}`,
+      Authorization: `Bearer ${await getAccessToken()}`,
       'Content-Type': contentType,
     },
   };
@@ -177,10 +186,10 @@ const sendPageContext = async (fileUri, accessToken) => {
  *
  * @param {string} locale The locale that this file should be translated to.
  * @param {string} batchUid The batch that is expecting this file.
- * @param {string} accessToken
  * @returns {(translation: Translation) => Promise<{code: string, slug: string, locale: string>}
  */
-const uploadFile = (locale, batchUid, accessToken) => async (translation) => {
+const uploadFile = (locale, batchUid) => async (translation) => {
+  const accessToken = await getAccessToken();
   const mdx = fs.readFileSync(path.join(process.cwd(), translation.slug));
   const html = await serializeMDX(mdx);
 

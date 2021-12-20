@@ -198,7 +198,7 @@ describe('send-and-update-translation-queue tests', () => {
           targetLocaleIds: ['fake_locale_2'],
         });
 
-      await createJobs('fake_access_token')(['fake_locale_1', 'fake_locale_2']);
+      await createJobs(['fake_locale_1', 'fake_locale_2']);
 
       expect(vendorRequest.mock.calls.length).toBe(2);
       expect(addJob.mock.calls.length).toBe(2);
@@ -225,7 +225,7 @@ describe('send-and-update-translation-queue tests', () => {
         ],
       };
 
-      await createBatches('fake_access_token')(jobs, translationsPerLocale);
+      await createBatches(jobs, translationsPerLocale);
 
       expect(vendorRequest.mock.calls.length).toBe(1);
       expect(updateJob.mock.calls.length).toBe(1);
@@ -248,7 +248,7 @@ describe('send-and-update-translation-queue tests', () => {
         ],
       };
 
-      await uploadFiles(batches, translationsPerLocale, 'fake_access_token');
+      await uploadFiles(batches, translationsPerLocale);
 
       expect(updateTranslation.mock.calls.length).toBe(0);
     });
@@ -268,7 +268,7 @@ describe('send-and-update-translation-queue tests', () => {
         ],
       };
 
-      await uploadFiles(batches, translationsPerLocale, 'fake_access_token');
+      await uploadFiles(batches, translationsPerLocale);
 
       expect(addTranslationsJobsRecord.mock.calls.length).toBe(1);
       expect(addTranslationsJobsRecord.mock.calls[0]).toEqual([
@@ -292,7 +292,7 @@ describe('send-and-update-translation-queue tests', () => {
         ],
       };
 
-      await uploadFiles(batches, translationsPerLocale, 'fake_access_token');
+      await uploadFiles(batches, translationsPerLocale);
 
       expect(updateTranslation.mock.calls.length).toBe(1);
       expect(updateTranslation.mock.calls[0]).toEqual([
