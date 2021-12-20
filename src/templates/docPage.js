@@ -11,31 +11,23 @@ import {
   RelatedResources,
   SimpleFeedback,
   TableOfContents,
-  useTranslation,
 } from '@newrelic/gatsby-theme-newrelic';
 import MachineTranslationCallout from '../components/MachineTranslationCallout';
-import DefaultRelatedContent from '../components/DefaultRelatedContent';
 import SEO from '../components/SEO';
 import GithubSlugger from 'github-slugger';
 import { parseHeading } from '../../plugins/gatsby-remark-custom-heading-ids/utils/heading';
 import { TYPES } from '../utils/constants';
 
 const BasicDoc = ({ data, location, pageContext }) => {
-  const { t } = useTranslation();
   const { mdx } = data;
   const {
-    mdxAST,
     frontmatter,
+    mdxAST,
     body,
     fields: { fileRelativePath },
     relatedResources,
   } = mdx;
   const { disableSwiftype } = pageContext;
-
-  const moreHelpHeading = mdxAST.children
-    .filter((node) => node.type === 'heading')
-    .map((node) => parseHeading(node))
-    .find(({ text }) => text === t('defaultRelatedContent.title'));
 
   const headings = useMemo(() => {
     const slugs = new GithubSlugger();
@@ -51,16 +43,8 @@ const BasicDoc = ({ data, location, pageContext }) => {
         const { id, text } = parseHeading(heading);
 
         return { id: id || slugs.slug(text), text };
-      })
-      .concat(
-        moreHelpHeading
-          ? []
-          : {
-              id: 'for-more-help',
-              text: t('defaultRelatedContent.title'),
-            }
-      );
-  }, [mdxAST, moreHelpHeading, t]);
+      });
+  }, [mdxAST]);
 
   const isMobileScreen = useMedia('(max-width: 1240px)');
   const { title, metaDescription, type, tags, translationType } = frontmatter;
@@ -106,9 +90,7 @@ const BasicDoc = ({ data, location, pageContext }) => {
         <PageTitle>{title}</PageTitle>
 
         <Layout.Content>
-          <MDXContainer body={body}>
-            {moreHelpHeading ? null : <DefaultRelatedContent />}
-          </MDXContainer>
+          <MDXContainer body={body} />
         </Layout.Content>
         <Layout.PageTools
           css={css`
