@@ -3,7 +3,6 @@ title: 'Get started with New Relic's service level management'
 summary: 'New Relic provides a solution for you to configure, consume, and iterate on SLIs and SLOs across all apps and infrastructure.'
 releaseDate: '2021-12-01'
 learnMoreLink: 'https://docs.newrelic.com/docs/service-level-management/intro-slm'
-
 ---
 
 ## Public beta for New Relic's service level management
