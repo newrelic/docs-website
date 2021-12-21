@@ -8,8 +8,10 @@ const {
 // Mock node-fetch so we can avoid calling out to GitHub
 jest.mock('node-fetch');
 jest.mock('../utils/github-api-helpers');
+jest.mock('../utils/check-args');
 
 global.process.exit = jest.fn();
+global.process.argv.push('--arg3', 'url');
 jest.spyOn(global.console, 'log').mockImplementation(() => {});
 
 // Helper function to mock a response from Github
