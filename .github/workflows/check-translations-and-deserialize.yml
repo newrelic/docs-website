@@ -8,9 +8,6 @@ on:
 
 env:
   TRANSLATION_VENDOR_API_URL: ${{ secrets.TRANSLATION_VENDOR_API_URL }}
-  TRANSLATION_VENDOR_PROJECT: ${{ secrets.TRANSLATION_VENDOR_PROJECT }}
-  TRANSLATION_VENDOR_USER: ${{ secrets.TRANSLATION_VENDOR_USER }}
-  TRANSLATION_VENDOR_SECRET: ${{ secrets.TRANSLATION_VENDOR_SECRET }}
   DB_CONNECTION_INFO: ${{ secrets.DB_CONNECTION_INFO }}
   BOT_NAME: nr-opensource-bot
   BOT_EMAIL: opensource+bot@newrelic.com
@@ -20,6 +17,11 @@ jobs:
   fetch-content:
     name: Fetch translated content
     runs-on: ubuntu-latest
+    env:
+      TRANSLATION_VENDOR_PROJECT: ${{ secrets.TRANSLATION_VENDOR_PROJECT }}
+      TRANSLATION_VENDOR_USER: ${{ secrets.TRANSLATION_VENDOR_USER }}
+      TRANSLATION_VENDOR_SECRET: ${{ secrets.TRANSLATION_VENDOR_SECRET }}
+      TRANSLATION_TYPE: human
     steps:
       - name: Checkout repository
         uses: actions/checkout@v2
@@ -69,15 +71,36 @@ jobs:
           branch-suffix: short-commit-hash
           base: develop
           delete-branch: true
+          reviewers: jmiraNR
+          team-reviewers: developer-enablement
 
-      - name: Checkout repository
+      - name: Remove Completed Batches From Queue
         if: steps.fetch-deserialize.outputs.batchesToDeserialize != 0
+        id: remove-batches
+        run: |
+          node ./scripts/actions/remove-completed-batch.js
+
+  fetch-machine-translated-content:
+    name: Fetch machine translated content
+    runs-on: ubuntu-latest
+    env:
+      TRANSLATION_VENDOR_PROJECT: ${{ secrets.TRANSLATION_VENDOR_MT_PROJECT }}
+      TRANSLATION_VENDOR_USER: ${{ secrets.TRANSLATION_VENDOR_MT_USER }}
+      TRANSLATION_VENDOR_SECRET: ${{ secrets.TRANSLATION_VENDOR_MT_SECRET }}
+      TRANSLATION_TYPE: machine
+    steps:
+      - name: Checkout repository
         uses: actions/checkout@v2
 
       - name: Setup Node.js
         uses: actions/setup-node@v2
 
+      - name: Get current date
+        id: date
+        run: echo "::set-output name=date::$(date +'%Y-%m-%d')"
+
       - name: Cache dependencies
+        id: yarn-cache
         uses: actions/cache@v2
         with:
           path: '**/node_modules'
@@ -86,6 +109,36 @@ jobs:
       - name: Install dependencies
         if: steps.yarn-cache.outputs.cache-hit != 'true'
         run: yarn install --frozen-lockfile
+
+      - name: Fetches translated content and deserializes
+        id: fetch-deserialize
+        run: |
+          node ./scripts/actions/check-job-progress.js
+
+      - name: Commit changes
+        id: commit-changes
+        if: steps.fetch-deserialize.outputs.batchesToDeserialize != 0
+        run: |
+          git config --local user.email "${{ env.BOT_EMAIL }}"
+          git config --local user.name "${{ env.BOT_NAME }}"
+          git add ./src/i18n/content
+          git commit -m 'chore: add translations'
+          echo "::set-output name=commit::true"
+
+      - name: Create Pull Request
+        if: steps.fetch-deserialize.outputs.batchesToDeserialize != 0
+        uses: peter-evans/create-pull-request@v3
+        with:
+          token: ${{ secrets.OPENSOURCE_BOT_TOKEN }}
+          title: Updated translations - ${{ steps.date.outputs.date }} (machine translation)
+          body: ''
+          labels: translations
+          branch: translations
+          branch-suffix: short-commit-hash
+          base: develop
+          delete-branch: true
+          reviewers: jmiraNR
+          team-reviewers: developer-enablement
 
       - name: Remove Completed Batches From Queue
         if: steps.fetch-deserialize.outputs.batchesToDeserialize != 0

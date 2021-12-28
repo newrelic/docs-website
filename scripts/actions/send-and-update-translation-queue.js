@@ -4,11 +4,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const {
-  vendorRequest,
-  getAccessToken,
-  uploadFile,
-} = require('./utils/vendor-request');
+const { vendorRequest, uploadFile } = require('./utils/vendor-request');
 const Database = require('./translation_workflow/database');
 
 const PROJECT_ID = process.env.TRANSLATION_VENDOR_PROJECT;
@@ -19,8 +15,8 @@ const PROJECT_ID = process.env.TRANSLATION_VENDOR_PROJECT;
  */
 const getReadyToGoTranslationsForEachLocale = async () => {
   const [pendingTranslations, inProgressTranslations] = await Promise.all([
-    Database.getTranslations({ status: 'PENDING' }),
-    Database.getTranslations({ status: 'IN_PROGRESS' }),
+    Database.getTranslations({ status: 'PENDING', project_id: PROJECT_ID }),
+    Database.getTranslations({ status: 'IN_PROGRESS', project_id: PROJECT_ID }),
   ]);
 
   /*
@@ -28,7 +24,7 @@ const getReadyToGoTranslationsForEachLocale = async () => {
    * 1. It's in a pending state.
    * 2. There isn't a matching record whose status === 'IN_PROGRESS'. A record matches if there exists another record with the same slug and locale.
    *
-   * This is to avoid sending multiple translation requests for {hello_world.txt, ja-JP} as an example, and allows us have to an in progress translation, and one ready to go that is queued up in the database.
+   * This is to avoid sending multiple translation requests for {hello_world.txt, ja-JP} as an example, and allows us to have an in progress translation, and one ready to go that is queued up in the database.
    *
    * 3. The file (slug) that is associated with the translation record still exists.
    */
@@ -74,11 +70,10 @@ const getReadyToGoTranslationsForEachLocale = async () => {
 };
 
 /**
- *
- * @param {string} accessToken
- * @returns {(locales: string[]) => Promise<Job[]>} array of created jobs
+ * @param {string[]} locales
+ * @returns {Promise<Job[]>} array of created jobs
  */
-const createJobs = (accessToken) => async (locales) => {
+const createJobs = async (locales) => {
   const jobResponses = await Promise.all(
     locales.map((locale) => {
       const body = {
@@ -89,7 +84,6 @@ const createJobs = (accessToken) => async (locales) => {
         method: 'POST',
         endpoint: `/jobs-api/v3/projects/${PROJECT_ID}/jobs`,
         body,
-        accessToken,
       });
     })
   );
@@ -100,25 +94,23 @@ const createJobs = (accessToken) => async (locales) => {
         job_uid: jobResponse.translationJobUid,
         status: 'PENDING',
         locale: jobResponse.targetLocaleIds[0],
+        project_id: PROJECT_ID,
       });
     })
   );
 };
 
 /**
- *
- * @param {string} accessToken
+ * @param {Job[]} jobRecords
+ * @param {Object.<string, Translation[]>} translationsPerLocale
  * @example
- * await createBatches(accessToken)(
+ * await createBatches(
  *  job: { id: 1, locale: 'ja-JP'},
  *  translationsPerLocale: { 'ja-jP': ['src/content/hello_world.txt']}
  * );
- * @returns {(jobs: Job[], translationsPerLocale: Object.<string, Translation[]>) => Promise<[{ batchUid: string, locale: string, jobId: string }]>}
+ * @returns {Promise<[{ batchUid: string, locale: string, jobId: string }]>}
  */
-const createBatches = (accessToken) => async (
-  jobRecords,
-  translationsPerLocale
-) => {
+const createBatches = async (jobRecords, translationsPerLocale) => {
   const createBatchResponses = await Promise.all(
     // create a batch for each job
     jobRecords.map(async (job) => {
@@ -134,7 +126,6 @@ const createBatches = (accessToken) => async (
         method: 'POST',
         endpoint: `/job-batches-api/v2/projects/${PROJECT_ID}/batches`,
         body,
-        accessToken,
       });
 
       await Database.updateJob(job.id, {
@@ -152,9 +143,8 @@ const createBatches = (accessToken) => async (
  *
  * @param {[{ batchUid: string, locale: string, jobId: string }]} batches
  * @param {Object.<string, Translation[]>} translationsPerLocale
- * @param {string} accessToken
  */
-const uploadFiles = async (batches, translationsPerLocale, accessToken) => {
+const uploadFiles = async (batches, translationsPerLocale) => {
   for (const batch of batches) {
     let successCount = 0;
 
@@ -163,8 +153,7 @@ const uploadFiles = async (batches, translationsPerLocale, accessToken) => {
       try {
         const fileUploadResponse = await uploadFile(
           batch.locale,
-          batch.batchUid,
-          accessToken
+          batch.batchUid
         )(translation);
 
         if (fileUploadResponse.code === 'ACCEPTED') {
@@ -194,7 +183,6 @@ const uploadFiles = async (batches, translationsPerLocale, accessToken) => {
 /** Entrypoint. */
 const main = async () => {
   try {
-    const accessToken = await getAccessToken();
     const translationsPerLocale = await getReadyToGoTranslationsForEachLocale();
 
     // exit early if no translations are ready
@@ -205,14 +193,12 @@ const main = async () => {
 
     console.log(`Records to be sent: ${JSON.stringify(translationsPerLocale)}`);
 
-    const createdJobs = await createJobs(accessToken)(
-      Object.keys(translationsPerLocale)
-    );
-    const createdBatches = await createBatches(accessToken)(
+    const createdJobs = await createJobs(Object.keys(translationsPerLocale));
+    const createdBatches = await createBatches(
       createdJobs,
       translationsPerLocale
     );
-    await uploadFiles(createdBatches, translationsPerLocale, accessToken);
+    await uploadFiles(createdBatches, translationsPerLocale);
   } catch (error) {
     console.log(`Error encountered: ${error}`);
     console.log(error.stack);
