@@ -1,3 +1,4 @@
+'use strict';
 const AdmZip = require('adm-zip');
 const vfile = require('vfile');
 const { writeSync } = require('to-vfile');
@@ -8,6 +9,7 @@ const fetch = require('node-fetch');
 
 const deserializedHtml = require('./deserialize-html');
 const createDirectories = require('../utils/migrate/create-directories');
+const { getAccessToken } = require('./utils/vendor-request');
 
 const localesMap = {
   'ja-JP': 'jp',
@@ -51,7 +53,7 @@ const writeFilesSync = (vfiles) => {
   });
 };
 
-const fetchTranslatedFilesZip = async (fileUris, locale, accessToken) => {
+const fetchTranslatedFilesZip = async (fileUris, locale) => {
   const fileUriStr = fileUris.reduce((str, uri) => {
     return str.concat(`&fileUris[]=${encodeURIComponent(uri)}`);
   }, '');
@@ -63,14 +65,14 @@ const fetchTranslatedFilesZip = async (fileUris, locale, accessToken) => {
     {
       method: 'GET',
       headers: {
-        Authorization: `Bearer ${accessToken}`,
+        Authorization: `Bearer ${await getAccessToken()}`,
       },
     }
   );
 };
 
-const fetchAndDeserialize = (accessToken) => async ({ locale, fileUris }) => {
-  const response = await fetchTranslatedFilesZip(fileUris, locale, accessToken);
+const fetchAndDeserialize = async ({ locale, fileUris }) => {
+  const response = await fetchTranslatedFilesZip(fileUris, locale);
 
   const buffer = await response.buffer();
 
@@ -109,9 +111,5 @@ const fetchAndDeserialize = (accessToken) => async ({ locale, fileUris }) => {
   createDirectories(files);
   writeFilesSync(files);
 };
-
-if (process.env.CI) {
-  fetchAndDeserialize();
-}
 
 module.exports = { writeFilesSync, fetchAndDeserialize };

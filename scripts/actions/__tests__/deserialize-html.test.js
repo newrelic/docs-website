@@ -6,8 +6,8 @@ const { configuration } = require('../configuration');
 
 jest.mock('../configuration', () => ({
   configuration: {
-    'TRANSLATION': {
-      'TYPE': 'human'
+    TRANSLATION: {
+      TYPE: 'human',
     },
   },
 }));
@@ -170,6 +170,26 @@ This is a test with an <ImageSizing width="32px" height="32px">![test.png](./ima
 
 test('kitchen sink', async () => {
   const input = fs.readFileSync(`${__dirname}/kitchen-sink.mdx`, 'utf-8');
+
+  const mdx = await deserializeHTML(await serializeMDX(input));
+
+  expect(mdx).toEqual(input.trim());
+});
+
+test('deserialize html with <strong> element', async () => {
+  const input = `
+The Varnish Cache integration collects both metrics(<strong>M</strong>) and inventory(<strong>I</strong>) information.
+`;
+
+  const mdx = await deserializeHTML(await serializeMDX(input));
+
+  expect(mdx).toEqual(input.trim());
+});
+
+test('deserialize html with <b> element', async () => {
+  const input = `
+The Varnish Cache integration collects both metrics(<b>M</b>) and inventory(<b>I</b>) information.
+`;
 
   const mdx = await deserializeHTML(await serializeMDX(input));
 
