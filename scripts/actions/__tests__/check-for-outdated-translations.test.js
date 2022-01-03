@@ -71,8 +71,7 @@ describe('Action: Check for outdated translations', () => {
     ]);
 
     await checkOutdatedTranslations();
-
-    expect(global.process.exit).toHaveBeenLastCalledWith(0);
+    expect(console.log).toHaveBeenCalledTimes(0);
   });
 
   test('should fail when files are found for deletion', async () => {
