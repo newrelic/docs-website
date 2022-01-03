@@ -83,6 +83,20 @@ To be able to [clone](https://help.github.com/en/github/creating-cloning-and-arc
 
 To contribute without write access, you can [fork](https://help.github.com/en/github/getting-started-with-github/fork-a-repo) the repository and contribute as needed. If you're planning to leave a fork open for a long time (for example, you're working on a complex set of changes to many docs), [sync your fork](https://docs.github.com/en/github/collaborating-with-issues-and-pull-requests/syncing-a-fork) occasionally to avoid merge conflicts.
 
+#### Forks - GitHub Workflows / Actions
+
+This repository contains workflows that are not meant to be run on forks. If they do run, they will fail and generate alerts on every failed run. 
+
+By default, a user should see a prompt like this after cloning the repo when looking at the actions tab: 
+
+![Disabled GitHub Actions](src/images/workflows_disabled_by_default.png 'disabled-workflows-prompt')
+
+If you do see this, then you are good to go. 
+
+If the workflows are enabled and running, you will want to disable them. You can disable workflows by navigating to the settings of the forked repository, clicking on the 'Actions' tab, and selecting the check to 'Disable Actions' as shown below.
+
+![Manually Disabling Actions](src/images/disable_actions_manually.png 'disable-actions-manually')
+
 ### Submitting a PR from a forked repo
 
 0. Create a [Github](https://github.com/) account if you don't already have one.
