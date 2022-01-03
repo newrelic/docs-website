@@ -91,9 +91,9 @@ By default, a user should see a prompt like this after cloning the repo when loo
 
 ![Disabled GitHub Actions](src/images/workflows_disabled_by_default.png 'disabled-workflows-prompt')
 
-If you do see this, then you are good to go. 
+If you do see this, then you are good to go -- DON'T enable the workflows.
 
-If the workflows are enabled and running, you will want to disable them. You can disable workflows by navigating to the settings of the forked repository, clicking on the 'Actions' tab, and selecting the check to 'Disable Actions' as shown below.
+If the workflows are enabled and running, you will want to disable them. You can disable workflows by navigating to the settings of the forked repository, clicking on the `Actions` tab, and selecting the check to `Disable Actions` as shown below.
 
 ![Manually Disabling Actions](src/images/disable_actions_manually.png 'disable-actions-manually')
 
