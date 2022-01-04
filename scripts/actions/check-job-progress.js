@@ -120,14 +120,6 @@ const main = async () => {
       (batch) => batch && batch.done
     );
 
-    const completedJobs = await Promise.all(
-      batchesToDeserialize.map((batch) => {
-        return updateJob(batch.jobId, { status: 'COMPLETED' });
-      })
-    );
-
-    log(`Jobs completed: ${JSON.stringify(completedJobs)}`);
-
     log(`${batchesToDeserialize.length} batches ready to be deserialized`);
     log(`batchUids: ${batchesToDeserialize.map(prop('batchUid')).join(', ')}`);
 
@@ -153,6 +145,14 @@ const main = async () => {
         })
       );
     }
+
+    const completedJobs = await Promise.all(
+      batchesToDeserialize.map((batch) => {
+        return updateJob(batch.jobId, { status: 'COMPLETED' });
+      })
+    );
+
+    log(`Jobs completed: ${JSON.stringify(completedJobs)}`);
 
     // get a list of batches that we're still waiting on from our vendor
     const remainingBatches = batchStatuses
