@@ -2,10 +2,10 @@ const path = require('path');
 const fs = require('fs');
 const yaml = require('js-yaml');
 const vfile = require('vfile');
-const { writeSync } = require('to-vfile');
 
 const NAV_DIR_PATH = path.join(process.cwd(), '/src/nav');
 const JP_NAV_FILE_PATH = path.join(process.cwd(), '/src/i18n/nav/jp.json');
+const EXCLUSIONS = ['style-guide.yml'];
 
 const navData = fs.readdirSync(NAV_DIR_PATH).map((filename) => {
   const filepath = path.join(NAV_DIR_PATH, filename);
@@ -20,14 +20,7 @@ const navData = fs.readdirSync(NAV_DIR_PATH).map((filename) => {
   });
 });
 
-// const newNav = jpNavData.map((item) => ({ ...item, title: item.englishTitle }));
-
-// fs.writeFileSync(
-//   path.join(process.cwd(), 'jp.json'),
-//   JSON.stringify(newNav, null, 2)
-// );
-
-let localizedNavData = [];
+const localizedNavData = [];
 
 const buildNav = (obj) => {
   if (obj.title && !localizedNavData.some((item) => item.title === obj.title)) {
@@ -44,8 +37,10 @@ const buildNav = (obj) => {
 };
 
 navData.forEach((file) => {
-  const data = yaml.safeLoad(file.contents);
-  buildNav(data);
+  if (!EXCLUSIONS.includes(file.basename)) {
+    const data = yaml.safeLoad(file.contents);
+    buildNav(data);
+  }
 });
 
 fs.writeFileSync(
