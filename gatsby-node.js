@@ -8,8 +8,8 @@ const SWIFTYPE_RESOURCES_DIR = 'src/data/swiftype-resources';
 const TEMPLATE_DIR = 'src/templates/';
 const TRAILING_SLASH = /\/$/;
 
-const applyDeferredStaticGeneration = (slug) => {
-  if (slug.includes('docs/release-notes')) {
+const applyDeferredStaticGeneration = (fileRelativePath) => {
+  if (fileRelativePath.includes('src/content/docs/release-notes')) {
     return true;
   }
 
@@ -437,7 +437,7 @@ const createPageFromNode = (
         fileRelativePath,
         layout: 'basic',
       },
-      defer: defer || applyDeferredStaticGeneration(slug),
+      defer: defer || applyDeferredStaticGeneration(fileRelativePath),
     });
   } else {
     createPage({
@@ -450,7 +450,7 @@ const createPageFromNode = (
         slugRegex: `${slug}/.+/`,
         disableSwiftype,
       },
-      defer: applyDeferredStaticGeneration(slug),
+      defer: applyDeferredStaticGeneration(fileRelativePath),
     });
   }
 };
