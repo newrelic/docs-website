@@ -8,6 +8,14 @@ const SWIFTYPE_RESOURCES_DIR = 'src/data/swiftype-resources';
 const TEMPLATE_DIR = 'src/templates/';
 const TRAILING_SLASH = /\/$/;
 
+const applyDeferredStaticGeneration = (slug) => {
+  if (slug.includes('docs/release-notes')) {
+    return true;
+  }
+
+  return false;
+};
+
 const hasOwnProperty = (obj, key) =>
   Object.prototype.hasOwnProperty.call(obj, key);
 
@@ -269,6 +277,7 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
         prefix: i18nNode ? '' : locale,
         createPage,
         disableSwiftype: !i18nNode,
+        defer: !!i18nNode,
       });
     });
   });
@@ -359,6 +368,8 @@ exports.onCreatePage = ({ page, actions }) => {
     page.context.slug = page.context.slug.replace(TRAILING_SLASH, '');
   }
 
+  page.defer = applyDeferredStaticGeneration(page.context.slug);
+
   deletePage(oldPage);
   createPage(page);
 };
@@ -409,7 +420,7 @@ const createLocalizedRedirect = ({
 
 const createPageFromNode = (
   node,
-  { createPage, prefix = '', disableSwiftype = false }
+  { createPage, prefix = '', disableSwiftype = false, defer = false }
 ) => {
   const {
     fields: { fileRelativePath, slug },
@@ -426,6 +437,7 @@ const createPageFromNode = (
         fileRelativePath,
         layout: 'basic',
       },
+      defer: defer || applyDeferredStaticGeneration(slug),
     });
   } else {
     createPage({
@@ -438,6 +450,7 @@ const createPageFromNode = (
         slugRegex: `${slug}/.+/`,
         disableSwiftype,
       },
+      defer: applyDeferredStaticGeneration(slug),
     });
   }
 };
