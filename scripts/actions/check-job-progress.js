@@ -7,7 +7,7 @@ const {
 } = require('./translation_workflow/database.js');
 
 const { vendorRequest } = require('./utils/vendor-request');
-const { fetchAndDeserialize } = require('./fetch-and-deserialize');
+const { batchedFetchAndDeserialize } = require('./fetch-and-deserialize');
 const { configuration } = require('./configuration');
 
 const PROJECT_ID = configuration.TRANSLATION.VENDOR_PROJECT;
@@ -128,31 +128,31 @@ const main = async () => {
     );
 
     // download the newly translated files and deserialize them (into MDX)
-    await Promise.all(batchesToDeserialize.map(fetchAndDeserialize));
+    await Promise.all(batchesToDeserialize.map(batchedFetchAndDeserialize));
     log('Content deserialized');
 
-    for (const batch of batchesToDeserialize) {
-      const records = await getTranslationsJobsRecords({
-        job_id: batch.jobId,
-      });
+    // for (const batch of batchesToDeserialize) {
+    //   const records = await getTranslationsJobsRecords({
+    //     job_id: batch.jobId,
+    //   });
 
-      await Promise.all(
-        records.map(async (record) => {
-          const update = await updateTranslation(record.translation_id, {
-            status: 'COMPLETED',
-          });
-          return update;
-        })
-      );
-    }
+    //   await Promise.all(
+    //     records.map(async (record) => {
+    //       const update = await updateTranslation(record.translation_id, {
+    //         status: 'COMPLETED',
+    //       });
+    //       return update;
+    //     })
+    //   );
+    // }
 
-    const completedJobs = await Promise.all(
-      batchesToDeserialize.map((batch) => {
-        return updateJob(batch.jobId, { status: 'COMPLETED' });
-      })
-    );
+    // const completedJobs = await Promise.all(
+    //   batchesToDeserialize.map((batch) => {
+    //     return updateJob(batch.jobId, { status: 'COMPLETED' });
+    //   })
+    // );
 
-    log(`Jobs completed: ${JSON.stringify(completedJobs)}`);
+    // log(`Jobs completed: ${JSON.stringify(completedJobs)}`);
 
     // get a list of batches that we're still waiting on from our vendor
     const remainingBatches = batchStatuses
@@ -180,11 +180,11 @@ const main = async () => {
       )
     );
 
-    console.log(
-      `::set-output name=deserializedFileUris::${deserializedFileUris.join(
-        ','
-      )}`
-    );
+    // console.log(
+    //   `::set-output name=deserializedFileUris::${deserializedFileUris.join(
+    //     ','
+    //   )}`
+    // );
 
     process.exit(0);
   } catch (error) {
