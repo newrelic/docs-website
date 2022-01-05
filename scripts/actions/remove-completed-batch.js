@@ -6,18 +6,20 @@ const {
 } = require('./translation_workflow/database.js');
 const { getAccessToken, vendorRequest } = require('./utils/vendor-request');
 const fetch = require('node-fetch');
+const { configuration } = require('./configuration');
 
-const PROJECT_ID = process.env.TRANSLATION_VENDOR_PROJECT;
+const PROJECT_ID = configuration.TRANSLATION.VENDOR_PROJECT;
 const DOCS_SITE_URL = 'https://docs.newrelic.com';
 
 /**
  * Updates the "being translated" queue with the batches that are not done.
+ * @param {string} projectId - identifier of project to cleanup associated state
  * @returns {Promise}
  */
-const setInProgressToDone = async () => {
+const setInProgressToDone = async (projectId) => {
   const [completedJobs, completedTranslations] = await Promise.all([
-    getJobs({ status: 'COMPLETED' }),
-    getTranslations({ status: 'COMPLETED' }),
+    getJobs({ status: 'COMPLETED', project_id: projectId }),
+    getTranslations({ status: 'COMPLETED', project_id: projectId }),
   ]);
 
   const deserializedFileUris = completedTranslations.map(
@@ -107,4 +109,4 @@ const removePageContext = async (fileUris) => {
   }, 'SUCCESS');
 };
 
-setInProgressToDone();
+setInProgressToDone(PROJECT_ID);
