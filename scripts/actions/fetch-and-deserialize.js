@@ -74,9 +74,6 @@ const fetchTranslatedFilesZip = async (fileUris, locale) => {
 const fetchAndDeserialize = async ({ locale, fileUris }) => {
   const response = await fetchTranslatedFilesZip(fileUris, locale);
 
-  console.log(response.status);
-  console.log(JSON.stringify(response));
-
   const buffer = await response.buffer();
 
   const zip = new AdmZip(buffer);
@@ -92,28 +89,28 @@ const fetchAndDeserialize = async ({ locale, fileUris }) => {
   });
 
   try {
-    const deserializedMdx = await Promise.all(
+    await Promise.all(
       translatedHtml.map(async ({ path, html }) => {
-        console.log(`[*] Deserializing ${path}`);
-        return {
-          path: `src/i18n/content/${localesMap[locale]}/docs/${path}`,
-          mdx: await deserializedHtml(html),
-        };
+        try {
+          const newPath = `src/i18n/content/${localesMap[locale]}/docs/${path}`;
+          const mdx = await deserializedHtml(html);
+
+          const temp = vfile({
+            contents: mdx,
+            path: newPath,
+            extname: '.mdx',
+          });
+
+          createDirectories([temp]);
+          writeFilesSync([temp]);
+
+          // update database record to complete
+        } catch (ex) {
+          console.log(`Failed to deserialize: ${path}`);
+          console.log(ex);
+        }
       })
     );
-
-    const files = deserializedMdx.map(
-      ({ path, mdx }) =>
-        vfile({
-          contents: mdx,
-          path,
-          extname: '.mdx',
-        }),
-      'utf-8'
-    );
-
-    createDirectories(files);
-    writeFilesSync(files);
   } catch (ex) {
     console.log(ex);
   }
@@ -130,7 +127,10 @@ const batchedFetchAndDeserialize = async ({ locale, fileUris }) => {
       // send the request, reset the count & array
       console.log('Sending full batch');
 
-      await fetchAndDeserialize({ locale, fileUris: batchToSend });
+      await fetchAndDeserialize({
+        locale,
+        fileUris: batchToSend,
+      });
       batchToSend = [];
     }
   }
@@ -138,7 +138,10 @@ const batchedFetchAndDeserialize = async ({ locale, fileUris }) => {
   // cleanup the last batch
   if (batchToSend.length != 0) {
     console.log(`Sending last batch of size ${batchToSend.length}`);
-    await fetchAndDeserialize({ locale, fileUris: batchToSend });
+    await fetchAndDeserialize({
+      locale,
+      fileUris: batchToSend,
+    });
   }
 };
 
