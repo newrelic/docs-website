@@ -74,6 +74,13 @@ const fetchTranslatedFilesZip = async (fileUris, locale) => {
 const fetchAndDeserialize = async ({ locale, fileUris }) => {
   const response = await fetchTranslatedFilesZip(fileUris, locale);
 
+  if (response.status !== 200) {
+    console.log(
+      `Error encountered downloading files from vendor. Response code received: ${response.status}`
+    );
+    return;
+  }
+
   const buffer = await response.buffer();
 
   const zip = new AdmZip(buffer);
@@ -88,32 +95,28 @@ const fetchAndDeserialize = async ({ locale, fileUris }) => {
     };
   });
 
-  try {
-    await Promise.all(
-      translatedHtml.map(async ({ path, html }) => {
-        try {
-          const newPath = `src/i18n/content/${localesMap[locale]}/docs/${path}`;
-          const mdx = await deserializedHtml(html);
+  await Promise.all(
+    translatedHtml.map(async ({ path, html }) => {
+      try {
+        const newPath = `src/i18n/content/${localesMap[locale]}/docs/${path}`;
+        const mdx = await deserializedHtml(html);
 
-          const temp = vfile({
-            contents: mdx,
-            path: newPath,
-            extname: '.mdx',
-          });
+        const temp = vfile({
+          contents: mdx,
+          path: newPath,
+          extname: '.mdx',
+        });
 
-          createDirectories([temp]);
-          writeFilesSync([temp]);
+        createDirectories([temp]);
+        writeFilesSync([temp]);
 
-          // update database record to complete
-        } catch (ex) {
-          console.log(`Failed to deserialize: ${path}`);
-          console.log(ex);
-        }
-      })
-    );
-  } catch (ex) {
-    console.log(ex);
-  }
+        // TODO: update database record to complete
+      } catch (ex) {
+        console.log(`Failed to deserialize: ${path}`);
+        console.log(ex);
+      }
+    })
+  );
 };
 
 const batchedFetchAndDeserialize = async ({ locale, fileUris }) => {
