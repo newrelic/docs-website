@@ -2,7 +2,6 @@ const fs = require('fs');
 const path = require('path');
 const { prop } = require('./scripts/utils/functional.js');
 const externalRedirects = require('./src/data/external-redirects.json');
-
 const { createFilePath } = require('gatsby-source-filesystem');
 
 const SWIFTYPE_RESOURCES_DIR = 'src/data/swiftype-resources';
@@ -17,6 +16,18 @@ const hasTrailingSlash = (pathname) =>
 
 const appendTrailingSlash = (pathname) =>
   pathname.endsWith('/') ? pathname : `${pathname}/`;
+
+exports.onCreateWebpackConfig = ({ actions }) => {
+  actions.setWebpackConfig({
+    resolve: {
+      fallback: {
+        http: false,
+        https: false,
+        zlib: false,
+      },
+    },
+  });
+};
 
 // before we build, combine related resource files into one
 exports.onPreBootstrap = () => {
@@ -113,6 +124,7 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
             frontmatter {
               type
               subject
+              translationType
             }
           }
         }
@@ -291,8 +303,12 @@ exports.createSchemaCustomization = ({ actions }) => {
   type MarkdownRemark implements Node {
     frontmatter: Frontmatter
   }
+  type Mdx implements Node {
+    frontmatter: Frontmatter
+  }
   type Frontmatter {
     isFeatured: Boolean
+    translationType: String
   }
   `;
 
@@ -320,6 +336,12 @@ exports.createResolvers = ({ createResolvers }) => {
       isFeatured: {
         resolve: (source) =>
           hasOwnProperty(source, 'isFeatured') ? source.isFeatured : false,
+      },
+      translationType: {
+        resolve: (source) =>
+          hasOwnProperty(source, 'translationType')
+            ? source.translationType
+            : null,
       },
     },
   });
@@ -425,7 +447,6 @@ const TEMPLATES_BY_TYPE = {
   apiDoc: 'docPage',
   releaseNote: 'releaseNote',
   troubleshooting: 'docPage',
-  apiLandingPage: 'apiLandingPage',
 };
 
 const getTemplate = (node) => {
