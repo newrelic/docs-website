@@ -437,7 +437,7 @@ const createPageFromNode = (
         fileRelativePath,
         layout: 'basic',
       },
-      // defer: defer || applyDeferredStaticGeneration(fileRelativePath),
+      defer: defer || applyDeferredStaticGeneration(fileRelativePath),
     });
   } else {
     createPage({
@@ -450,7 +450,7 @@ const createPageFromNode = (
         slugRegex: `${slug}/.+/`,
         disableSwiftype,
       },
-      // defer: applyDeferredStaticGeneration(fileRelativePath),
+      defer: applyDeferredStaticGeneration(fileRelativePath),
     });
   }
 };
