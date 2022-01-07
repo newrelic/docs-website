@@ -5,4 +5,4 @@ dataSources:
   - Browser agent
 ---
 
-An AjaxRequest event is created automatically when an Ajax request occurs during a BrowserInteraction event. The event attributes track geographic and browser info.
+AjaxRequest events occur for any Ajax request, including during a BrowserInteraction event. The event attribute tracks geographic and browser info. Use browser app settings to block specific requests.
