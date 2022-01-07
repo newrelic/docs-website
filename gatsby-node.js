@@ -368,7 +368,7 @@ exports.onCreatePage = ({ page, actions }) => {
     page.context.slug = page.context.slug.replace(TRAILING_SLASH, '');
   }
 
-  page.defer = applyDeferredStaticGeneration(page.context.slug);
+  // page.defer = applyDeferredStaticGeneration(page.context.slug);
 
   deletePage(oldPage);
   createPage(page);
@@ -437,7 +437,7 @@ const createPageFromNode = (
         fileRelativePath,
         layout: 'basic',
       },
-      defer: defer || applyDeferredStaticGeneration(fileRelativePath),
+      // defer: defer || applyDeferredStaticGeneration(fileRelativePath),
     });
   } else {
     createPage({
@@ -450,7 +450,7 @@ const createPageFromNode = (
         slugRegex: `${slug}/.+/`,
         disableSwiftype,
       },
-      defer: applyDeferredStaticGeneration(fileRelativePath),
+      // defer: applyDeferredStaticGeneration(fileRelativePath),
     });
   }
 };
