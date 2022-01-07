@@ -10,6 +10,7 @@ const fetch = require('node-fetch');
 const deserializedHtml = require('./deserialize-html');
 const createDirectories = require('../utils/migrate/create-directories');
 const { getAccessToken } = require('./utils/vendor-request');
+const { updateTranslations } = require('./translation_workflow/database');
 
 const localesMap = {
   'ja-JP': 'jp',
@@ -110,10 +111,27 @@ const fetchAndDeserialize = async ({ locale, fileUris }) => {
         createDirectories([temp]);
         writeFilesSync([temp]);
 
-        // TODO: update database record to complete
+        // TODO: update current record we are processing to have status='COMPLETED'
+        const translations = await updateTranslations(
+          { slug: `src/content/docs/${path}`, status: 'IN_PROGRESS' },
+          { status: 'COMPLETED' }
+        );
+
+        console.log(
+          `updated translation record ${translations[0].id} to 'COMPLETED'`
+        );
       } catch (ex) {
         console.log(`Failed to deserialize: ${path}`);
         console.log(ex);
+
+        const translations = await updateTranslations(
+          { slug: `src/content/docs/${path}`, status: 'IN_PROGRESS' },
+          { status: 'ERRORED' }
+        );
+
+        console.log(
+          `updated translation record ${translations[0].id} to 'ERRORED'`
+        );
       }
     })
   );
