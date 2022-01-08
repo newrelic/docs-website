@@ -368,7 +368,7 @@ exports.onCreatePage = ({ page, actions }) => {
     page.context.slug = page.context.slug.replace(TRAILING_SLASH, '');
   }
 
-  // page.defer = applyDeferredStaticGeneration(page.context.slug);
+  page.defer = applyDeferredStaticGeneration(page.context.slug);
 
   deletePage(oldPage);
   createPage(page);
