@@ -7,7 +7,7 @@ const {
 } = require('./translation_workflow/database.js');
 
 const { vendorRequest } = require('./utils/vendor-request');
-const { batchedFetchAndDeserialize } = require('./fetch-and-deserialize');
+const { fetchAndDeserializeFiles } = require('./fetch-and-deserialize');
 const { configuration } = require('./configuration');
 
 const PROJECT_ID = configuration.TRANSLATION.VENDOR_PROJECT;
@@ -128,7 +128,9 @@ const main = async () => {
     );
 
     // download the newly translated files and deserialize them (into MDX)
-    await Promise.all(batchesToDeserialize.map(batchedFetchAndDeserialize));
+    const slugStatuses = await Promise.all(
+      batchesToDeserialize.flatMap(fetchAndDeserializeFiles)
+    );
     log('Content deserialized');
 
     // for (const batch of batchesToDeserialize) {
