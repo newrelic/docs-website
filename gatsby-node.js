@@ -273,12 +273,15 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
           i18nNode.fields.slug.replace(`/${locale}`, '') === node.fields.slug
       );
 
-      createPageFromNode(i18nNode || node, {
-        prefix: i18nNode ? '' : locale,
-        createPage,
-        disableSwiftype: !i18nNode,
-        defer: !!i18nNode,
-      });
+      createPageFromNode(
+        i18nNode || node,
+        {
+          prefix: i18nNode ? '' : locale,
+          createPage,
+          disableSwiftype: !i18nNode,
+        },
+        !!i18nNode
+      );
     });
   });
 
@@ -368,10 +371,10 @@ exports.onCreatePage = ({ page, actions }) => {
     page.context.slug = page.context.slug.replace(TRAILING_SLASH, '');
   }
 
-  page.defer = applyDeferredStaticGeneration(page.context.slug);
+  const defer = applyDeferredStaticGeneration(page.context.fileRelativePath);
 
   deletePage(oldPage);
-  createPage(page);
+  createPage(page, defer);
 };
 
 const createLocalizedRedirect = ({
@@ -420,7 +423,8 @@ const createLocalizedRedirect = ({
 
 const createPageFromNode = (
   node,
-  { createPage, prefix = '', disableSwiftype = false, defer = false }
+  { createPage, prefix = '', disableSwiftype = false },
+  defer = false
 ) => {
   const {
     fields: { fileRelativePath, slug },
@@ -437,7 +441,7 @@ const createPageFromNode = (
         fileRelativePath,
         layout: 'basic',
       },
-      defer: defer || applyDeferredStaticGeneration(fileRelativePath),
+      defer: defer,
     });
   } else {
     createPage({
@@ -450,7 +454,7 @@ const createPageFromNode = (
         slugRegex: `${slug}/.+/`,
         disableSwiftype,
       },
-      defer: applyDeferredStaticGeneration(fileRelativePath),
+      defer: defer,
     });
   }
 };
