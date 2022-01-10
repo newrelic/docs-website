@@ -272,7 +272,7 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
           createPage,
           disableSwiftype: !i18nNode,
         },
-        !!i18nNode // defer if localized
+        true
       );
     });
   });
