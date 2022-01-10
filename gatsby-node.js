@@ -8,16 +8,6 @@ const SWIFTYPE_RESOURCES_DIR = 'src/data/swiftype-resources';
 const TEMPLATE_DIR = 'src/templates/';
 const TRAILING_SLASH = /\/$/;
 
-const applyDeferredStaticGeneration = (fileRelativePath) => {
-  if (typeof fileRelativePath !== 'string') return false;
-
-  if (fileRelativePath.includes('src/content/docs/release-notes')) {
-    return true;
-  }
-
-  return false;
-};
-
 const hasOwnProperty = (obj, key) =>
   Object.prototype.hasOwnProperty.call(obj, key);
 
@@ -267,8 +257,7 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
       });
     }
 
-    const defer = applyDeferredStaticGeneration(node.fileRelativePath);
-    createPageFromNode(node, { createPage }, defer);
+    createPageFromNode(node, { createPage });
 
     locales.forEach((locale) => {
       const i18nNode = translatedContentNodes.find(
@@ -283,7 +272,7 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
           createPage,
           disableSwiftype: !i18nNode,
         },
-        !!i18nNode
+        !!i18nNode // defer if localized
       );
     });
   });
@@ -373,8 +362,6 @@ exports.onCreatePage = ({ page, actions }) => {
   if (hasTrailingSlash(page.context.slug)) {
     page.context.slug = page.context.slug.replace(TRAILING_SLASH, '');
   }
-
-  page.defer = applyDeferredStaticGeneration(page.context.fileRelativePath);
 
   deletePage(oldPage);
   createPage(page);
