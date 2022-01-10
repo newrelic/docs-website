@@ -2,8 +2,8 @@
 const {
   getJobs,
   updateJob,
-  updateTranslation,
   getTranslationsJobsRecords,
+  updateTranslations,
 } = require('./translation_workflow/database.js');
 
 const { vendorRequest } = require('./utils/vendor-request');
@@ -100,6 +100,88 @@ const getBatchStatus = async ({ batchUid, jobId }) => {
   }
 };
 
+/**
+ * @param {Object[]} slugStatuses
+ * @param {Boolean} slugStatuses[].ok - Boolean flag signaling if translation deserialized. If it did, we can treat this translation as having completed.
+ * @param {String} slugStatuses[].slug - Slug representing file path translated.
+ * @param {String} slugStatuses[].jobId - Job id translation is associated with.
+ */
+const aggregateStatuses = (slugStatuses) => {
+  let totalFailures = 0;
+  let totalSuccesses = 0;
+  const jobStatuses = {};
+
+  slugStatuses.map(({ ok, jobId }) => {
+    if (!(jobId in jobStatuses)) {
+      jobStatuses[jobId] = { successes: 0, failures: 0 };
+    }
+
+    if (ok) {
+      totalSuccesses += 1;
+      jobStatuses[jobId].successes += 1;
+    } else {
+      totalFailures += 1;
+      jobStatuses[jobId].failures += 1;
+    }
+  });
+
+  return { totalFailures, totalSuccesses, jobStatuses };
+};
+
+/**
+ * @param {Object[]} slugStatuses
+ * @param {Boolean} slugStatuses[].ok - Boolean flag signaling if translation deserialized. If it did, we can treat this translation as having completed.
+ * @param {String} slugStatuses[].slug - Slug representing file path translated.
+ * @param {String} slugStatuses[].jobId - Job id translation is associated with.
+ */
+const updateTranslationRecords = async (slugStatuses) => {
+  // TODO: need to update this when we implement multiple locales. This only works for one locale.
+
+  await Promise.all(
+    slugStatuses.map(async ({ ok, slug }) => {
+      let updateStatus = ok ? 'COMPLETED' : 'ERRORED';
+
+      const record = await updateTranslations(
+        { slug, status: 'IN_PROGRESS' },
+        { status: updateStatus }
+      );
+
+      console.log(`Translation ${record.id} marked as ${updateStatus}`);
+    })
+  );
+};
+
+/**
+ * @param {Object.<string, Object.<string, number>} jobStatuses - object whose top level keys are job ids, and whose values are { succeses: x, failures: y }, which describe failure and success count for that given job.
+ */
+const updateJobRecords = async (jobStatuses) => {
+  await Promise.all(
+    Object.keys(jobStatuses).map(async (jobId) => {
+      const { successes, failures } = jobStatuses[jobId];
+
+      const records = await getTranslationsJobsRecords({
+        job_id: jobId,
+      });
+
+      if (successes + failures === records.length) {
+        if (failures > 0) {
+          await updateJob(jobId, { status: 'ERRORED' });
+          console.log(`Job ${jobId} marked as ERRORED`);
+        } else {
+          await updateJob(jobId, { status: 'COMPLETED' });
+          console.log(`Job ${jobId} marked as COMPLETED`);
+        }
+      } else {
+        console.log(
+          `Mismatched translation counts. Expected ${
+            records.length
+          }, actual ${successes + failures}`
+        );
+      }
+    })
+  );
+};
+
 /** Entrypoint. */
 const main = async () => {
   try {
@@ -127,66 +209,32 @@ const main = async () => {
       `::set-output name=batchesToDeserialize::${batchesToDeserialize.length}`
     );
 
-    // download the newly translated files and deserialize them (into MDX)
-    const slugStatuses = await Promise.all(
-      batchesToDeserialize.flatMap(fetchAndDeserializeFiles)
-    );
-    log('Content deserialized');
-
-    // for (const batch of batchesToDeserialize) {
-    //   const records = await getTranslationsJobsRecords({
-    //     job_id: batch.jobId,
-    //   });
-
-    //   await Promise.all(
-    //     records.map(async (record) => {
-    //       const update = await updateTranslation(record.translation_id, {
-    //         status: 'COMPLETED',
-    //       });
-    //       return update;
-    //     })
-    //   );
-    // }
-
-    // const completedJobs = await Promise.all(
-    //   batchesToDeserialize.map((batch) => {
-    //     return updateJob(batch.jobId, { status: 'COMPLETED' });
-    //   })
-    // );
-
-    // log(`Jobs completed: ${JSON.stringify(completedJobs)}`);
-
-    // get a list of batches that we're still waiting on from our vendor
-    const remainingBatches = batchStatuses
-      .filter((batch) => batch && !batch.done)
-      .map((batch) => batch.batchUid);
-
-    console.log(
-      `::set-output name=batchUids::${
-        remainingBatches.length ? remainingBatches.join(',') : ','
-      }`
-    );
-
-    console.log(
-      `::set-output name=completedBatches::${
-        batchesToDeserialize.length ? batchesToDeserialize.join(',') : ','
-      }`
-    );
-
-    // Output a list of new translated files for the next step in the workflow
-    // (creating a new PR with the translated content)
-    const deserializedFileUris = uniq(
-      batchesToDeserialize.reduce(
-        (acc, { fileUris }) => [...fileUris, ...acc],
-        []
+    // download the newly translated files and deserialize them (into MDX).
+    const slugStatuses = (
+      await Promise.all(
+        batchesToDeserialize.map(async (batch) => {
+          return (await fetchAndDeserializeFiles(batch)).map((status) => {
+            return { ...status, jobId: batch.jobId };
+          });
+        })
       )
+    ).flat();
+
+    await updateTranslationRecords(slugStatuses);
+
+    const results = aggregateStatuses(slugStatuses);
+
+    console.log(
+      `Final results --- ${results.totalSuccesses} files completed, ${results.totalFailures} files errored.`
+    );
+    console.log(
+      `::set-output name=successfulTranslations::${results.totalSuccesses}`
+    );
+    console.log(
+      `::set-output name=failedTranslations::${results.totalFailures}`
     );
 
-    // console.log(
-    //   `::set-output name=deserializedFileUris::${deserializedFileUris.join(
-    //     ','
-    //   )}`
-    // );
+    await updateJobRecords(results.jobStatuses);
 
     process.exit(0);
   } catch (error) {
