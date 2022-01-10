@@ -9,6 +9,8 @@ const TEMPLATE_DIR = 'src/templates/';
 const TRAILING_SLASH = /\/$/;
 
 const applyDeferredStaticGeneration = (fileRelativePath) => {
+  if (typeof fileRelativePath !== 'string') return false;
+
   if (fileRelativePath.includes('src/content/docs/release-notes')) {
     return true;
   }
