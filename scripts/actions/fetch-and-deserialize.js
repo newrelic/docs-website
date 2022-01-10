@@ -183,7 +183,9 @@ const deserializeHtmlToMdx = (locale) => {
 
 /**
  *
- * @param {*} param0
+ * @param {Object} input
+ * @param {String} input.locale - locale associated with fileUris
+ * @param {String[]} input.fileUris - list of file paths used for download & deserialization. This will be the complete singular list prior to batching.
  * @returns
  */
 const fetchAndDeserializeFiles = async ({ locale, fileUris }) => {
