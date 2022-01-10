@@ -265,7 +265,8 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
       });
     }
 
-    createPageFromNode(node, { createPage });
+    const defer = applyDeferredStaticGeneration(node.fileRelativePath);
+    createPageFromNode(node, { createPage }, defer);
 
     locales.forEach((locale) => {
       const i18nNode = translatedContentNodes.find(
@@ -371,10 +372,10 @@ exports.onCreatePage = ({ page, actions }) => {
     page.context.slug = page.context.slug.replace(TRAILING_SLASH, '');
   }
 
-  const defer = applyDeferredStaticGeneration(page.context.fileRelativePath);
+  page.defer = applyDeferredStaticGeneration(page.context.fileRelativePath);
 
   deletePage(oldPage);
-  createPage(page, defer);
+  createPage(page);
 };
 
 const createLocalizedRedirect = ({
