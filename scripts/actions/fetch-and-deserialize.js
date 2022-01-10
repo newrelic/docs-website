@@ -67,8 +67,8 @@ const createFileUriBatches = ({ fileUris }) => {
 
     if (currentBatch.length === batchSizeLimit) {
       // send the request, reset the count & array
-      currentBatch = [];
       batches.push({ fileUris: currentBatch });
+      currentBatch = [];
     }
   }
 
