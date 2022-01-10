@@ -431,7 +431,6 @@ const createPageFromNode = (
         fileRelativePath,
         layout: 'basic',
       },
-      defer: defer,
     });
   } else {
     createPage({
