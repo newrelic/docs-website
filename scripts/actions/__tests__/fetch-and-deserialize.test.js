@@ -80,4 +80,23 @@ describe('createFileUriBatches', () => {
       expect(batches).toHaveLength(numberOfBatches);
     }
   );
+
+  it('splits batches with correct content', () => {
+    /**
+     * This tests that the resulting batches contain all and only the input array elements.
+     * How the batches are split doesn't really matter, just that if we recombined the batches it would equal the original input.
+     */
+
+    const input = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+    const batchSize = 2;
+
+    const batches = createFileUriBatches({ fileUris: input }, batchSize);
+
+    expect(
+      batches
+        .map((b) => b.fileUris)
+        .flat()
+        .sort()
+    ).toEqual(input.sort());
+  });
 });
