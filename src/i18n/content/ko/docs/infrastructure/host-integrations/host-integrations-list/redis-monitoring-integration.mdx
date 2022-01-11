@@ -1,0 +1,1250 @@
+---
+title: Redisモニターインテグレーション
+tags:
+  - Integrations
+  - On-host integrations
+  - On-host integrations list
+metaDescription: 'New Relic''s Redis integration: how to install it, configure it, and understand the data it reports.'
+---
+
+当社のRedisインテグレーションは、ご利用の [Redis](https://redis.io)サーバーから重要なパフォーマンスデータをNew Relic製品にレポートします。この[メトリックデータ](#metrics)と[インベントリデータ](#inventory)に関するプレビルドダッシュボードを閲覧し、アラートポリシーを作成して、カスタムクエリおよびチャートを作成することができます。また、ご利用のアプリケーションにとって重要なキーを指定して、その長さに関する詳細を入手することもできます。
+
+インテグレーションのインストールと、当社がどのようなデータを収集するかについてお読みください。
+
+## 互換性および要件 [#comp-req]
+
+当社のインテグレーションは、Redisバージョン3.0以上と互換性があります。
+
+インテグレーションをインストールする前に、以下の要件を満たしていることを確認してください。
+
+* New Relicアカウント。アカウントをお持ちでない場合[無料サインアップ](https://newrelic.com/signup)クレジットカードは不要です。
+
+* RedisがKubernetesまたはAmazon ECSで実行されて**いない**場合、[Infrastructureエージェントが、Redisを実行しているLinux OSホストにインストールされている](/docs/infrastructure/install-infrastructure-agent/get-started/install-infrastructure-agent-new-relic)必要があります。その他の場合：
+
+  * Kubernetesで実行されている場合は、[これらの要件](/docs/monitor-service-running-kubernetes#requirements)をご覧ください。
+  * ECSで実行されている場合は、[これらの要件](/docs/integrations/host-integrations/host-integrations-list/monitor-services-running-amazon-ecs)をご覧ください。
+
+このインテグレーションは、Redisコマンドを実行することでデータを取得します。
+
+* [`INFO`コマンド](https://redis.io/commands/info)：INFOコマンドによるデータが、メトリックデータと一部のインベントリデータを入力します。
+
+* [`CONFIG GET`コマンド](https://redis.io/commands/config-get)：大半のインベントリデータは、このコマンドによって取得できます。
+
+  * `CONFIG` コマンドの実行許可を持たないマネージドRedisインスタレーション（例:AWS ElastiCache）では、このコマンドの実行を `config_inventory: false` 設定オプションで無効にできます。
+
+* キーの長さの取得：キーの種類によっては、以下のコマンドを使用します
+
+  * `list`タイプに対して[`LLEN`](https://redis.io/commands/llen)
+  * `set`タイプに対して[`SCARD`](https://redis.io/commands/scard)
+  * `zset`タイプに対して[`ZCOUNT`](https://redis.io/commands/zcount)
+  * `hash`タイプに対して[`HLEN`](https://redis.io/commands/hlen)。
+
+キーの長さに関するデータ収集において、エージェントは [パイプライニング](https://redis.io/topics/pipelining)を使用してRedisのパフォーマンスへの影響を最小限に抑えます。ただし、多数のキーの長さを収集している場合は、Redisのパフォーマンスにも影響が出る場合があります。こうした理由から、エージェントにはデフォルトのキー制限が含まれています（ただし、この制限は上書き可能）。
+
+<Callout variant="important">
+  上記のRedisコマンド名を修正した場合、インテグレーションがRedisデータを回収できなくなります。
+</Callout>
+
+## クイックスタート [#quick]
+
+Redisサーバーを迅速に計装し、ガイド付きインストールでテレメトリデータを送信します。ガイド付きインストールは、New Relic CLIおよびインフラストラクチャエージェントをダウンロードおよびインストールする環境用にカスタマイズされたCLIコマンドを作成します。
+
+![ガイド付きインストールCLIのスクリーンショット。](./images/guided-install-cli.png "ガイド付きインストールCLI。")
+
+始める準備はできていますか？ボタンの1つをクリックし、試行してください。
+
+<ButtonGroup>
+  <ButtonLink
+    role="button"
+    to="https://one.newrelic.com/launcher/nr1-core.explorer?pane=eyJuZXJkbGV0SWQiOiJucjEtY29yZS5saXN0aW5nIn0=&cards[0]=eyJuZXJkbGV0SWQiOiJucjEtaW5zdGFsbC1uZXdyZWxpYy5ucjEtaW5zdGFsbC1uZXdyZWxpYyIsInBhdGgiOiJvaGkiLCJyZWNpcGVOYW1lIjoicmVkaXMtb3Blbi1zb3VyY2UtaW50ZWdyYXRpb24iLCJhY3RpdmVDb21wb25lbnQiOiJWVFNPQ29tbWFuZCIsImFjdGl2ZUVudmlyb25tZW50IjoicmVkaXMtb3Blbi1zb3VyY2UtaW50ZWdyYXRpb24ifQ=="
+    variant="primary"
+  >
+    ガイド付きインストール
+  </ButtonLink>
+
+  <ButtonLink
+    role="button"
+    to="https://one.eu.newrelic.com/launcher/nr1-core.explorer?pane=eyJuZXJkbGV0SWQiOiJucjEtY29yZS5saXN0aW5nIn0=&cards[0]=eyJuZXJkbGV0SWQiOiJucjEtaW5zdGFsbC1uZXdyZWxpYy5ucjEtaW5zdGFsbC1uZXdyZWxpYyIsInBhdGgiOiJvaGkiLCJyZWNpcGVOYW1lIjoicmVkaXMtb3Blbi1zb3VyY2UtaW50ZWdyYXRpb24iLCJhY3RpdmVDb21wb25lbnQiOiJWVFNPQ29tbWFuZCIsImFjdGl2ZUVudmlyb25tZW50IjoicmVkaXMtb3Blbi1zb3VyY2UtaW50ZWdyYXRpb24ifQ=="
+    variant="primary"
+  >
+    EUガイド付きインストール
+  </ButtonLink>
+</ButtonGroup>
+
+## インストールと有効化 [#install]
+
+Redisインテグレーションをインストールするには、お使いの環境の指示に従います：
+
+追加の注：
+
+* **アドバンスト：**インテグレーションは[tarball書式](/docs/integrations/host-integrations/installation/install-host-integrations-built-new-relic#tarball)で使用すると、パッケージマネージャ以外にもインストールできます。
+* **オンホストインテグレーションは、自動的にアップデートしません。**最善の結果を得るため、[インテグレーションパッケージの更新](/docs/integrations/host-integrations/installation/update-infrastructure-host-integration-package)と[Infrastructureエージェントの更新](/docs/infrastructure/new-relic-infrastructure/installation/update-infrastructure-agent)を定期的に実施してください。
+
+<CollapserGroup>
+  <Collapser
+    id="ecs-install"
+    title="ECS"
+  >
+    [ECSで実行しているサービスを監視する](/docs/integrations/host-integrations/host-integrations-list/monitor-services-running-amazon-ecs)をご覧ください。
+  </Collapser>
+
+  ' '
+
+  <Collapser
+    id="k8s-install"
+    title="Kubernetes"
+  >
+    [Kubernetesで実行しているサービスを監視する](/docs/monitor-service-running-kubernetes)をご覧ください。
+  </Collapser>
+
+  <Collapser
+    id="linux-install"
+    title="Linux"
+  >
+    1. ファイル名[nri-redis](/docs/install-integrations-package)を使用して、`インテグレーションのインストール`のための手順に従ってください。
+
+    2. ディレクトリをインテグレーションの設定フォルダに変更します。
+
+       ```
+       cd /etc/newrelic-infra/integrations.d
+       ```
+
+    3. サンプルの設定ファイルのコピー：
+
+       ```
+       sudo cp redis-config.yml.sample redis-config.yml
+       ```
+
+    4. Redisサーバーの接続方法に基づいて、`redis-config.yml`設定ファイルを編集します：
+
+       <CollapserGroup>
+         <Collapser
+           id="socket-connect"
+           title="Unix socketで接続する"
+         >
+           Unixソケットを使って接続している場合は、`設定ファイル`で[unix_socket_path](#config)を指定します。Unixソケットを使用しているRedisインスタンスが複数ある場合、`設定ファイル`で`use_unix_socket`を[true](#config)に設定してください。
+
+           必ず、Redisインテグレーションを実行するユーザーが、そのUnix socketへの適切なアクセス権限を持っていることを確認してください。Unixソケットのパーミッションは、Redis設定（`unixsocketperm`の値）に設定されています。
+         </Collapser>
+
+         <Collapser
+           id="tcp-connect"
+           title="TCPで接続する"
+         >
+           TCPを介して接続する場合、[設定ファイル](config)はデフォルトで`localhost`とポート`6379`に設定されます。これは、`hostname`か`port`、またはそれら両方の引数を指定することで変更できます。この方法を使う場合、`unix_socket_path`パラメーターは設定できません。
+         </Collapser>
+       </CollapserGroup>
+
+    5. 必要に応じて、[設定](#config)に書かれている通り、ご利用のRedisのセットアップに基づき、その他の設定ファイルを設定してください。
+
+    6. [Infrastructureエージェントを再起動します](/docs/infrastructure/new-relic-infrastructure/configuration/start-stop-restart-check-infrastructure-agent-status)。
+  </Collapser>
+
+  <Collapser
+    id="windows-install"
+    title="Windows"
+  >
+    1. `nri-redis` .MSIインストーライメージを以下からダウンロードします。
+
+       [http://download.newrelic.com/infrastructure_agent/windows/integrations/nri-redis/nri-redis-amd64.msi](http://download.newrelic.com/infrastructure_agent/windows/integrations/nri-redis/nri-redis-amd64.msi)
+
+    2. インストールするには、Windowsのコマンドプロンプトで次のコマンドを実行します。
+
+       ```
+       msiexec.exe /qn /i <var>PATH\TO\</var>nri-redis-amd64.msi
+       ```
+
+       またはエクスプローラーでファイルをダブルクリックします。
+
+    3. インテグレーションのディレクトリ`C:\Program Files\New Relic\newrelic-infra\integrations.d\`で、以下を実行してサンプル設定ファイルのコピーを作成します。
+
+       ```
+       copy redis-win-config.yml.sample redis-win-config.yml
+       ```
+
+    4. `環境設定`の説明に従って、[redis-win-config.yml](#config)ファイルを編集します。
+
+    5. [Infrastructureエージェントを再起動します](/docs/infrastructure/new-relic-infrastructure/configuration/start-stop-restart-check-infrastructure-agent-status)。
+  </Collapser>
+</CollapserGroup>
+
+## お使いのRedisサーバーのNew Relicユーザーの作成 [#enable-instance]
+
+Redis 6+を使用しており、アクセスコントロールリスト（ACL）を使用してインスタンスへのアクセスを制御する場合は、インテグレーション用の`newrelic`ユーザーを作成することをお勧めします。このコマンドを使用して、必要な権限を作成してユーザーに付与します。
+
+```
+ACL SETUSER newrelic on >'YOUR_SELECTED_PASSWORD' ~* +INFO +CONFIG|GET +SELECT +TYPE +LLEN +SCARD +ZCOUNT +HLEN
+```
+
+## インテグレーションの設定 [#config]
+
+インストールの方法により、インテグレーションの設定方法はいくつかあります。
+
+* Kubernetesで有効化した場合：[Kubernetes上で実行中のサービスの監視](/docs/monitor-service-running-kubernetes)を参照してください。
+* Amazon ECSで有効化した場合：[ECS上で実行中のサービスの監視](/docs/integrations/host-integrations/host-integrations-list/monitor-services-running-amazon-ecs)を参照してください。
+* オンホストにインストールする場合：インテグレーションのYAML設定ファイル`redis-config.yml`で設定を編集します。
+
+YAML設定を使用して、必要なログイン認証情報を配置し、セットアップと設定に応じてデータの収集方法を設定します。
+
+設定ファイルには、`間隔`、`タイムアウト`、`inventory_source`など、すべてのインテグレーションに適用される共通設定があります。これらの共通設定の詳細については、[YAML設定形式](/docs/create-integrations/infrastructure-integrations-sdk/specifications/host-integrations-newer-configuration-format/#configuration-basics)を参照してください。
+
+<Callout variant="important">
+  レガシーの設定/定義ファイルを引き続き使用する場合は、[旧バージョンの標準設定形式](/docs/create-integrations/infrastructure-integrations-sdk/specifications/host-integrations-standard-configuration-format/)を使用してください。
+</Callout>
+
+設定ファイルの`env`セクションを使用して、Redisに関連する特定の設定を定義します。これらの設定は、Redisインスタンスへの接続、およびその他のセキュリティ設定と機能を制御します。
+
+## Redisインスタンス設定 [#instance-settings]
+
+Redisインテグレーションは、メトリクス（**M**）とインベントリ（**I **）の両方の情報を収集します。このテーブルでは、各収集に使用可能な設定に**Applies To**列を使用します。
+
+' ' ' ' ' ' ' ' ' ' ' ' ' ' ' ' ' ' ' ' ' ' ' ' ' ' ' '
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: '150px' }}>
+        設定
+      </th>
+
+      <th>
+        説明
+      </th>
+
+      <th>
+        デフォルト
+      </th>
+
+      <th>
+        適用先
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        **HOSTNAME**
+      </td>
+
+      <td>
+        Redisサーバーのホスト名。
+      </td>
+
+      <td>
+        localhost
+      </td>
+
+      <td style={{ "text-align": "center" }}>
+        M/I
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        **ポート**
+      </td>
+
+      <td>
+        Redisサーバーがリッスンするポート。
+      </td>
+
+      <td>
+        6379
+      </td>
+
+      <td style={{ 'text-align': 'center' }}>
+        M/I
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        **ユーザー名**
+      </td>
+
+      <td>
+        Redisサーバーに接続する際のユーザー名。ACLが有効な場合、Redis 6+でのみ使用します。
+      </td>
+
+      <td>
+        該当なし
+      </td>
+
+      <td style={{ 'text-align': 'center' }}>
+        M/I
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        **パスワード**
+      </td>
+
+      <td>
+        Redisサーバーに接続する際のパスワード。`REQUIREPASS`またはACLが有効な場合、Redisサーバーでのみ使用します。
+      </td>
+
+      <td>
+        該当なし
+      </td>
+
+      <td style={{ 'text-align': 'center' }}>
+        M/I
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        **UNIX_SOCKET_PATH**
+      </td>
+
+      <td>
+        RedisサーバーがリッスンしているUnixソケットファイルへのパス。ホスト名/ポートの代わりにこれを使用。
+      </td>
+
+      <td>
+        該当なし
+      </td>
+
+      <td style={{ 'text-align': 'center' }}>
+        M/I
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        **USE_UNIX_SOCKET**
+      </td>
+
+      <td>
+        `true`に設定すると、Unixソケットを使用するときに監視されるエンティティが一意に識別されます。
+      </td>
+
+      <td>
+        false
+      </td>
+
+      <td style={{ 'text-align': 'center' }}>
+        M/I
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        **USE_TLS**
+      </td>
+
+      <td>
+        Redisサーバーとの通信時にTLSを使用します。
+      </td>
+
+      <td>
+        false
+      </td>
+
+      <td style={{ 'text-align': 'center' }}>
+        M/I
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        **TLS_INSECURE_SKIP_VERIFY**
+      </td>
+
+      <td>
+        TLS経由で接続する場合、サーバー名の検証を無効にします。
+      </td>
+
+      <td>
+        false
+      </td>
+
+      <td style={{ 'text-align': 'center' }}>
+        M/I
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        **キー**
+      </td>
+
+      <td>
+        長さを読みだすキーの一覧。
+      </td>
+
+      <td>
+        該当なし
+      </td>
+
+      <td style={{ 'text-align': 'center' }}>
+        M
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        **KEYS_LIMIT**
+      </td>
+
+      <td>
+        長さを読みだすキーの最大数。
+      </td>
+
+      <td>
+        30
+      </td>
+
+      <td style={{ 'text-align': 'center' }}>
+        M
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        **CONFIG_INVENTORY**
+      </td>
+
+      <td>
+        Redis CONFIGコマンドが許可されていない環境では「false」に設定します（AWSやElastiCacheなど）。
+      </td>
+
+      <td>
+        true
+      </td>
+
+      <td style={{ 'text-align': 'center' }}>
+        I
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        **RENAMED_COMMANDS**
+      </td>
+
+      <td>
+        デフォルトのRedisコマンドを名前変更されたフォームにマッピングします。
+      </td>
+
+      <td>
+        該当なし
+      </td>
+
+      <td style={{ 'text-align': 'center' }}>
+        M/I
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        **[REMOTE_MONITORING](https://docs.newrelic.com/docs/remote-monitoring-host-integrations)**
+      </td>
+
+      <td>
+        マルチテナンシー監視を有効にします。
+      </td>
+
+      <td>
+        true
+      </td>
+
+      <td style={{ 'text-align': 'center' }}>
+        M/I
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        **メトリクス**
+      </td>
+
+      <td>
+        `true`に設定すると、メトリクスのみの収集が有効になります。
+      </td>
+
+      <td>
+        false
+      </td>
+
+      <td style={{ 'text-align': 'center' }}/>
+    </tr>
+
+    <tr>
+      <td>
+        **インベントリ**
+      </td>
+
+      <td>
+        `true`に設定すると、インベントリのみの収集が有効になります。
+      </td>
+
+      <td>
+        false
+      </td>
+
+      <td style={{ 'text-align': 'center' }}/>
+    </tr>
+  </tbody>
+</table>
+
+これらの設定値は、いくつかの方法で定義できます。
+
+* 設定ファイルに直接値を追加します。これは最も一般的な方法です。
+* `{{}}`表記を使用して、環境変数の値を置き換えます。これには、インフラストラクチャエージェント1.14.0以降が必要です。詳細については、[インフラストラクチャエージェントのパススルー環境変数](/docs/infrastructure/install-infrastructure-agent/configuration/configure-infrastructure-agent/#passthrough)を参照してください。
+* 設定ファイルのプレーンテキストで公開されないように、シークレット管理を使用して、パスワードなどの賢明な情報を保護してください。詳細については、[シークレット管理](https://docs.newrelic.com/docs/integrations/host-integrations/installation/secrets-management)を参照してください。
+
+## ラベルとカスタム属性 [#labels]
+
+また、メトリクスをラベルで装飾することもできます。ラベルを使用すると、キー/値のペア属性をメトリクスに追加して、メトリクスをクエリ、フィルター、グループ化できます。
+
+デフォルトのサンプル設定ファイルにはラベルの例が含まれていますが、これらはオプションです。削除、変更、または新しいものを追加することができます。
+
+```
+ labels:
+   env: production
+   role: load_balancer
+```
+
+## 設定の例 [#examples]
+
+<CollapserGroup>
+  <Collapser
+    id="basic-config"
+    title="基本設定"
+  >
+    これは、ローカルホストからメトリクスとインベントリの収集に使用する基本設定です。
+
+    ```
+    integrations:
+      - name: nri-redis
+        env:
+          METRICS: true
+          HOSTNAME: localhost
+          PORT: 6379
+          REMOTE_MONITORING: true
+        interval: 15s
+        labels:
+          environment: production
+
+      - name: nri-redis
+        env:
+          INVENTORY: true
+          HOSTNAME: localhost
+          PORT: 6379
+          REMOTE_MONITORING: true
+        interval: 60s
+        labels:
+          environment: production
+        inventory_source: config/redis
+    ```
+  </Collapser>
+
+  <Collapser
+    id="basic-auth"
+    title="基本認証"
+  >
+    この設定は、基本認証を使用してRedisに接続します。`my_password`をお使いの`REQUIREPASS`パスワードに置き換えます。
+
+    ```
+    integrations:
+      - name: nri-redis
+        env:
+          METRICS: true
+          HOSTNAME: localhost
+          PORT: 6379
+          PASSWORD: my_password
+          REMOTE_MONITORING: true
+        interval: 15s
+        labels:
+          environment: production
+
+      - name: nri-redis
+        env:
+          INVENTORY: true
+          HOSTNAME: localhost
+          PORT: 6379
+          PASSWORD: my_password
+          REMOTE_MONITORING: true
+        interval: 60s
+        labels:
+          environment: production
+        inventory_source: config/redis
+    ```
+  </Collapser>
+
+  <Collapser
+    id="acl-auth"
+    title="REDIS 6+ ACL認証"
+  >
+    Redis 6+では、[アクセスコントロールリスト（ACL）](https://redis.io/topics/acl)でインスタンスを保護できます。ACLの場合、`USERNAME`と`PASSWORD`の値を認証情報に置き換えます。
+
+    ```
+    integrations:
+      - name: nri-redis
+        env:
+          METRICS: true
+          HOSTNAME: localhost
+          PORT: 6379
+          USERNAME: my_user
+          PASSWORD: my_password
+          REMOTE_MONITORING: true
+        interval: 15s
+        labels:
+          environment: production
+
+      - name: nri-redis
+        env:
+          INVENTORY: true
+          HOSTNAME: localhost
+          PORT: 6379
+          USERNAME: my_user
+          PASSWORD: my_password
+          REMOTE_MONITORING: true
+        interval: 60s
+        labels:
+          environment: production
+        inventory_source: config/redis
+    ```
+  </Collapser>
+
+  <Collapser
+    id="metrics-tls-connection"
+    title="TLS接続によるメトリクスのみ"
+  >
+    これを使用して、TLSでRedisに接続します。`TLS_INSECURE_SKIP_VERIFY : true`を追加して、サーバ名の検証を無効にできます。
+
+    ```
+    integrations:
+      - name: nri-redis
+        env:
+          METRICS: true
+          HOSTNAME: localhost
+          PORT: 6379
+          USE_TLS: true
+          REMOTE_MONITORING: true
+        interval: 15s
+        labels:
+          environment: production
+    ```
+  </Collapser>
+
+  <Collapser
+    id="metrics-connect-socket"
+    title="ソケット上のメトリクスのみの接続"
+  >
+    ソケットファイルを使用して、Redisに接続する場合に使用します。これは、TCPホスト名/ポート接続の代替手段です。
+
+    ```
+    integrations:
+      - name: nri-redis
+        env:
+          METRICS: true
+          UNIX_SOCKET_PATH: /var/run/redis/redis.sock
+          USE_UNIX_SOCKET: true
+          REMOTE_MONITORING: true
+        interval: 15s
+        labels:
+          environment: production
+    ```
+  </Collapser>
+
+  <Collapser
+    id="renamed-commands"
+    title="名前を変更したコマンドの使用"
+  >
+    [`rename-command`](https://redis.io/topics/security#disabling-of-specific-commands)コマンドを使ってインスタンスを保護する場合、これを使用してメトリクス/インベントリを収集します。
+
+    ```
+    integrations:
+      - name: nri-redis
+        env:
+          METRICS: true
+          HOSTNAME: localhost
+          PORT: 6379
+          RENAMED_COMMANDS: {"CONFIG":"b840fc9f15f59e41cb7be6c52","LLEN":"c940fc2d15f59e41cb7be6c21"}
+          REMOTE_MONITORING: true
+        interval: 15s
+        labels:
+          environment: production
+
+      - name: nri-redis
+        env:
+          INVENTORY: true
+          HOSTNAME: localhost
+          PORT: 6379
+          RENAMED_COMMANDS: '{"CONFIG":"b840fc9f15f59e41cb7be6c52"}'
+          REMOTE_MONITORING: true
+        interval: 60s
+        labels:
+          environment: production
+        inventory_source: config/redis
+    ```
+  </Collapser>
+
+  <Collapser
+    id="multi-instance-keys-filtering"
+    title="キーフィルタリングによるマルチインスタンス監視"
+  >
+    同じインテグレーションを使用して2つの異なるRedisサーバーからメトリクスを収集する必要がある場合に使用します。
+
+    最初のインスタンスの例は、Redisデータベース0から`KEY_1`と`KEY_2`のみを収集することです。2番目のインスタンスの例は、異なるデータベースから`{"DB":"KEYS"}`を使用して収集する方法を示しています。
+
+    ```
+    integrations:
+      - name: nri-redis
+        env:
+          METRICS: true
+          HOSTNAME: redis_host_1
+          PORT: 6379
+          KEYS: '["KEY_1","KEY_2"]'
+          REMOTE_MONITORING: true
+        interval: 15s
+        labels:
+          environment: production
+
+      - name: nri-redis
+        env:
+          METRICS: true
+          HOSTNAME: redis_host_2
+          PORT: 6379
+          KEYS: '{"0":["KEY_1","KEY_2"],"1":["KEY_3"]}'
+          REMOTE_MONITORING: true
+        interval: 15s
+        labels:
+          environment: production
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## データの検索と使用 [#find-and-use]
+
+このサービスからのデータは、[インテグレーションダッシュボード](/docs/integrations/new-relic-integrations/getting-started/infrastructure-integration-dashboards-charts)にレポートされます。
+
+メトリクスは`RedisSample`および`RedisKeyspaceSample`[イベントタイプ](/docs/using-new-relic/data/understand-data/new-relic-data-types#events-new-relic)に関連付けられます。トラブルシューティング目的で、またはカスタムのチャートとダッシュボードを作成するために、[このデータのクエリ](/docs/using-new-relic/data/understand-data/query-new-relic-data)を行えます。
+
+データの検索・使用方法の詳細については、 [インテグレーションデータを理解する](/docs/infrastructure/integrations/find-use-infrastructure-integration-data)を参照してください。
+
+## メトリックデータ [#metrics]
+
+Redisインテグレーションは、以下のメトリックデータ属性を収集します。
+
+### Redisサンプルメトリックス [#redissample-metrics]
+
+これらの属性は、`RedisSample`イベントタイプに関連付けられます：
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "350px" }}>
+        名前
+      </th>
+
+      <th>
+        説明
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `cluster.connectedSlaves`
+      </td>
+
+      <td>
+        接続したスレーブの数。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.aofLastRewriteTimeInMilliseconds`
+      </td>
+
+      <td>
+        最後に行ったAOFの修正操作の時間（ミリ秒）。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.aofLastBgrewriteStatus`
+      </td>
+
+      <td>
+        最後に行ったAOFのバックグラウンド修正のステータスを示すブール表現。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.aofLastWriteStatus`
+      </td>
+
+      <td>
+        最後に行ったAOF書込み操作のステータスを示すブール表現。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.evictedKeysPerSecond`
+      </td>
+
+      <td>
+        1秒あたりのmaxmemory制限によって却下されたキーの数。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.expiredKeysPerSecond`
+      </td>
+
+      <td>
+        1秒あたりのキーの無効化イベントの数。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.keyspaceHitsPerSecond`
+      </td>
+
+      <td>
+        1秒あたりにメインディクショナリでキー検索が成功した回数。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.keyspaceMissesPerSecond`
+      </td>
+
+      <td>
+        1秒あたりにメインディクショナリでキー検索が失敗した回数。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.latestForkUsecMilliseconds`
+      </td>
+
+      <td>
+        最後に行ったフォーク操作の時間（ミリ秒）。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.rdbBgsaveInProgress`
+      </td>
+
+      <td>
+        ブール値。RDBによる保存が進行中であることを示すフラグ。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.rdbChangesSinceLastSave`
+      </td>
+
+      <td>
+        最後のダンプが行われてからの変更数。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.rdbLastBgsaveStatus`
+      </td>
+
+      <td>
+        最後に行ったRDBの保存操作のステータスを示すブール表現。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.rdbLastBgsaveTimeMilliseconds`
+      </td>
+
+      <td>
+        最後に行ったRDBの保存操作の時間（ミリ秒）。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.rdbLastSaveTime`
+      </td>
+
+      <td>
+        最後に成功したRDB保存のエポックに基づくタイムスタンプ（秒）。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.syncFull`
+      </td>
+
+      <td>
+        スレーブがこのマスターと完全に同期した回数。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.syncPartialErr`
+      </td>
+
+      <td>
+        部分同期の完了が失敗に終わった回数。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.syncPartialOk`
+      </td>
+
+      <td>
+        部分同期が完了した回数。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `net.blockedClients`
+      </td>
+
+      <td>
+        ブロッキングコールで保留中のクライアント数（`BLPOP`、`BRPOP`、`BRPOPLPUSH`）。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `net.clientBiggestInputBufBytes`
+      </td>
+
+      <td>
+        現在のクライアント接続の中で最大の入力バッファ。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `net.clientLongestOutputList`
+      </td>
+
+      <td>
+        現在のクライアント接続の中で最大の出力リスト。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `net.commandsProcessedPerSecond`
+      </td>
+
+      <td>
+        1秒あたりにサーバーが処理するコマンドの数。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `net.connectedClients`
+      </td>
+
+      <td>
+        クライアント接続の数（スレーブ接続を除く）。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `net.connectionsReceivedPerSecond`
+      </td>
+
+      <td>
+        1秒あたりにサーバーによって受け入れられた接続の数。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `net.inputBytesPerSecond`
+      </td>
+
+      <td>
+        1秒あたりの入力バイトの合計数。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `net.outputBytesPerSecond`
+      </td>
+
+      <td>
+        1秒あたりの出力バイトの合計数。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `net.pubsubChannels`
+      </td>
+
+      <td>
+        クライアントサブスクリプションを持つpub/subチャネルのグローバルな数。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `net.pubsubPatterns`
+      </td>
+
+      <td>
+        クライアントサブスクリプションを持つpub/subパターンのグローバルな数。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `net.rejectedConnectionsPerSecond`
+      </td>
+
+      <td>
+        maxclientsによる制限を理由に却下された1秒あたりの接続数。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `software.uptimeMilliseconds`
+      </td>
+
+      <td>
+        Redisサーバーを起動してから経過時間（ミリ秒）。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `system.memFragmentationRatio`
+      </td>
+
+      <td>
+        `used_memory_rss`と`used_memory`の比率。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `system.totalSystemMemoryBytes`
+      </td>
+
+      <td>
+        Redisが稼働中のインスタンスで利用可能なメモリ量（バイト数）。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `system.usedCpuSysMilliseconds`
+      </td>
+
+      <td>
+        Redisサーバーで使用されるシステムのCPU（ミリ秒）。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `system.usedCpuSysChildrenMilliseconds`
+      </td>
+
+      <td>
+        バックグラウンド処理で使用されるシステムのCPU（ミリ秒）。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `system.usedCpuUserMilliseconds`
+      </td>
+
+      <td>
+        Redisサーバーが使用するユーザーのCPU（ミリ秒）。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `system.usedCpuUserChildrenMilliseconds`
+      </td>
+
+      <td>
+        バックグラウンド処理で使用されるユーザーのCPU（ミリ秒）。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `system.usedMemoryBytes`
+      </td>
+
+      <td>
+        Redisがそのアロケーター（標準`libc`、`jemalloc`、または`tcmalloc`などの代替アロケーター）を使用して割り当てた合計バイト数。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `system.usedMemoryLuaBytes`
+      </td>
+
+      <td>
+        Luaエンジンが使用したバイト数。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `system.usedMemoryPeakBytes`
+      </td>
+
+      <td>
+        Redisによるピークメモリ使用量（バイト数）。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `system.usedMemoryRssBytes`
+      </td>
+
+      <td>
+        オペレーティングシステムから分かる、Redisが割り当てたバイト数（別名RSS=resident set size）。これは、`top（1）`や`ps（1）`などのツールによってレポートされる数値です。
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+### キースペースのメトリックス
+
+Redisインテグレーションは、以下のキースペースのメタデータおよびメトリクスを収集します。これらの属性は、`RedisKeyspaceSample`イベントタイプに関連付けられます：
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "270px" }}>
+        名前
+      </th>
+
+      <th>
+        説明
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `db.avgTtl`
+      </td>
+
+      <td>
+        レポートされるデータベース内で有効期限を設定されたキーの平均有効期間（TTL）（ミリ秒）。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.keys`
+      </td>
+
+      <td>
+        レポートされるデータベース内のキーの数。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.keyspace`
+      </td>
+
+      <td>
+        Redisデータベースの整数のインデックスです（通常、`0`と`15`の間の数値）。フォーマット：`db`の後にデータベースのインデックスが続きます。例：`db0`、`db1`、`db2`など
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `db.expires`
+      </td>
+
+      <td>
+        レポートされるデータベース内の有効期間のあるキーの数。
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## インベントリデータ [#inventory]
+
+インベントリデータには、Redisサーバーにパスワードを保管する`requirepass`を除いた、Redis [`CONFIG GET`](https://redis.io/commands/config-get)コマンドによって報告されたデータのすべてが含まれます。インベントリデータの詳細に関しては、 [インベントリデータを理解する](/docs/infrastructure/integrations-getting-started/getting-started/understand-integration-data-data-types#inventory-data)を参照してください。
+
+## その他のシステムデータ [#metadata]
+
+Redisインテグレーションは、Redisサービスに関する以下の追加 [属性](/docs/accounts-partnerships/education/getting-started-new-relic/glossary#attribute) を収集します。
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "180px" }}>
+        名前
+      </th>
+
+      <th>
+        説明
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `software.version`
+      </td>
+
+      <td>
+        Redisサーバーのバージョン。例：`3.2.3`。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `cluster.role`
+      </td>
+
+      <td>
+        監視されているRedisノードの役割に応じて、`master`または`slave`。
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## ソースコードのチェック [#source-code]
+
+このインテグレーションはオープンソースソフトウェアです。つまり、[ソースコードを参照](https://github.com/newrelic/nri-redis "新しいウィンドウにリンクが開きます。")して改善を送信したり、独自のフォークを作成して構築したりできます。

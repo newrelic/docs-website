@@ -1,0 +1,379 @@
+---
+title: Node.jsカスタムインストゥルメンテーション
+tags:
+  - Agents
+  - Nodejs agent
+  - Extend your instrumentation
+metaDescription: 'Expand Node.js instrumentation in New Relic for non-web transactions (frameworks, databases, segments, etc.). Use custom tracers to track async work.'
+---
+
+Node.js用New Relicは、大半の標準的なウェブリクエストを自動的にインストゥルメントしますが、時には拡張インストゥルメンテーションを必要とする場合もあります。エージェントのカスタムインストゥルメンテーションAPIがあれば、通常は未対応の[Webフレームワーク](#web-framework)、[データベース](#datastore)、そして[メッセージサービスクライアント](#message-client)向けにインストゥルメンテーションを作成できます。
+
+Node.jsエージェントのカスタムインストゥルメンテーションAPIでは、以下を行うことができます：
+
+* [ウェブトランザクション](#web-txn)の作成（トランザクションを自動的に作成できないウェブソケットなどで便利）。
+* Web以外の[バックグラウンドトランザクション](#background-txn)の作成（バックグラウンドジョブの記録に便利）。
+* コードの[特定のセクションをターゲットにして](#expanding-instrumentation)さらなる分析を実行。
+
+## エージェントのバージョン要件 [#version]
+
+このドキュメント内のカスタムインストゥルメンテーション方法は、[Node.jsエージェントのバージョン2.0.0](/docs/release-notes/agent-release-notes/nodejs-release-notes)から利用できます。カスタムインストゥルメンテーションAPI v1.xを使用したインストゥルメンテーションの詳細に関しては、[レガシーNode.jsカスタムインストゥルメンテーション](/docs/agents/nodejs-agent/supported-features/nodejs-v1x-custom-instrumentation-legacy)のドキュメントを参照してください。
+
+## 未対応のWebフレームワークをインストゥルメントする [#web-framework]
+
+Node.jsエージェントバージョン2.0.0より、New Relicは追加のウェブフレームワークに対するインストゥルメンテーション拡張のためにAPIを提供しています。チュートリアルを含めた詳細に関しては、[GitHubにおけるNode.jsのWebフレームワークのインストゥルメンテーション](http://newrelic.github.io/node-newrelic/docs/tutorial-Webframework-Simple.html)ドキュメントを参照してください。
+
+## 未対応のメッセージサービスクライアントをインストゥルメントする [#message-client]
+
+Node.jsエージェントバージョン2.0.0より、New Relicは追加のメッセージサービスライブラリに対するインストゥルメンテーション拡張のためにAPIを提供しています。チュートリアルを含めた詳細に関しては、[GitHubにおけるNode.jsのメッセージサービスクライアントのインストゥルメンテーション](http://newrelic.github.io/node-newrelic/docs/tutorial-Messaging-Simple.html)ドキュメントを参照してください。
+
+## 未対応のデータストアをインストゥルメントする [#datastore]
+
+Node.jsエージェントバージョン2.0.0より、New Relicは追加のデータストアライブラリに対するインストゥルメンテーションを拡張するためにAPIを提供しています。チュートリアルを含めた詳細に関しては、[GitHubにおけるNode.jsのデータストアのインストゥルメンテーション](http://newrelic.github.io/node-newrelic/docs/tutorial-Datastore-Simple.html)ドキュメントを参照してください。
+
+## Webトランザクションをインストゥルメントする [#web-txn]
+
+カスタム[ウェブトランザクション](/docs/apm/transactions/intro-transactions/transactions-new-relic-apm)を作成するには、`startWebTransaction`を呼び出してトランザクションを開始します。トランザクションを終了するには、以下のいずれかのオプションを利用してください：
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        **トランザクションを終了する**
+      </th>
+
+      <th>
+        **コメント**
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Promise
+      </td>
+
+      <td>
+        `startWebTransaction`に渡したハンドラーが約束を返した場合、エージェントは返された約束が解決または却下された場合にトランザクションを終了します。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        手動
+      </td>
+
+      <td>
+        新規トランザクションのコンテキストで`getTransaction`を呼び出した場合、トランザクションが手動で処理されることがエージェントに通知されます。
+
+        ハンドラーで`getTransaction`が呼び出された場合、**transaction.end()**を呼び出してトランザクションを`必ず`終了させる必要があります。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        同期
+      </td>
+
+      <td>
+        いずれのオプションも実行されなかった場合、ハンドラーが同期して返された時点でトランザクションは終了します。
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<CollapserGroup>
+  <Collapser
+    id="example-webtx-socket-io"
+    title="カスタムウェブトランザクションの例：socket.ioで3つのトランザクションをインストゥルメントする"
+  >
+    この例では、`/websocket/ping`トランザクション、`/websocket/update`トランザクション、そして`/websocket/new-message`トランザクションを`socket.io`内でインストゥルメントします。`/ping`の例は同期ですが、`/new-message`と`/update`の例は非同期になります。
+
+    ```
+    var nr = require('newrelic')
+    var app = require('http').createServer()
+    var io = require('socket.io')(app)
+
+    io.on('connection', function (socket) {
+      socket.on('ping', function (data) {
+        nr.startWebTransaction('/websocket/ping', function transactionHandler() {
+          // Ended automatically after synchronously returning
+          socket.emit('pong')
+        })
+      })
+      socket.on('update', function (data) {
+        nr.startWebTransaction('/websocket/update', function transactionHandler() {
+          // Using API#getTransaction
+          var transaction = nr.getTransaction()
+          updateChatWindow(data, function transactionHandler() {
+            socket.emit('update-done')
+            transaction.end()
+          })
+        })
+      })
+      socket.on('new-message', function (data) {
+        nr.startWebTransaction('/websocket/new-message', function transactionHandler() {
+          // Returning a promise
+          return new Promise(function (resolve, reject) {
+            addMessageToChat(data, function () {
+              socket.emit('message-received')
+              resolve()
+            })
+          })
+        })
+      })
+    })
+    ```
+
+    この方法で得られるのは、作成したトランザクションに関する基本的なタイミングデータのみとなります。特定のフレームワークに関する、より複雑なタイミングデータとトランザクションの命名を作成するには、[Node.js APIドキュメント](/docs/agents/nodejs-agent/supported-features/nodejs-agent-api#instrumentWebframework)ならびに[GitHubにおける関連のチュートリアル](http://newrelic.github.io/node-newrelic/docs/tutorial-Webframework-Simple.html)を参照してください。
+  </Collapser>
+</CollapserGroup>
+
+## バックグラウンドトランザクションをインストゥルメントする [#background-txn]
+
+カスタムトランザクションを使用して、[Web以外のトランザクション](/docs/apm/transactions/intro-transactions/monitor-background-processes-other-non-web-transactions)（バックグラウンドトランザクション）をインストゥルメントできます。たとえば：
+
+* ご利用のアプリケーションにおける周期的な仕事
+* リクエスト完了後も続く作業
+
+バックグラウンドタスクをインストゥルメントするには、ご利用のハンドラーで[`startBackgroundTransaction`](/docs/agents/nodejs-agent/supported-features/nodejs-agent-api#startBackgroundTransaction)を呼び出してバックグラウンドトランザクションを開始してください。トランザクションを終了するには、以下のいずれかのオプションを利用してください：
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        **トランザクションを終了する**
+      </th>
+
+      <th>
+        **コメント**
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Promise
+      </td>
+
+      <td>
+        `startBackgroundTransaction`に渡したハンドラーが約束を返した場合、エージェントは返されたPromiseが解決または却下された場合にトランザクションを終了します。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        手動
+      </td>
+
+      <td>
+        新規トランザクションのコンテキストで`getTransaction`を呼び出した場合、トランザクションが手動で処理されることがエージェントに通知されます。
+
+        ハンドラーで`getTransaction`が呼び出された場合、**transaction.end()**を呼び出してトランザクションを`必ず`終了させる必要があります。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        同期
+      </td>
+
+      <td>
+        いずれのオプションも実行されなかった場合、ハンドラーが同期して返された時点でトランザクションは終了します。
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<CollapserGroup>
+  <Collapser
+    id="example-instrument-update"
+    title="カスタムバックグラウンドトランザクションの例：setInterval内でインストゥルメントする"
+  >
+    この例では、`setInterval`内で`update:cache`をインストゥルメントします:
+
+    ```
+    var nr = require('newrelic')
+    var redis = require('redis').createClient()
+
+    // Using API#getTransaction to manage ending the transaction
+    setInterval(function () {
+      nr.startBackgroundTransaction('update:cache', function transactionHandler() {
+        var newValue = someDataGenerator()
+        var transaction = nr.getTransaction()
+
+        redis.set('some:cache:key', newValue, function () {
+          transaction.end()
+        })
+      })
+    }, 30000) // Every 30s
+
+    //Using a promise to manage ending the transaction
+    setInterval(function () {
+      nr.startBackgroundTransaction('flush:cache', function transactionHandler() {
+        return new Promise(function(resolve, reject) {
+          flushCache(redis, function afterFlush(err) {
+            if (err) {
+              return reject(err)
+            }
+            resolve()
+          })
+        })
+      })
+    }, 60*60*1000)
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## トランザクション内でインストゥルメンテーションを拡張する [#expanding-instrumentation]
+
+[APIにあるインストゥルメンテーション登録手段](/docs/agents/nodejs-agent/supported-features/nodejs-agent-api#custom-instrumentation-api)を使用して、インストゥルメンテーションを作成できます。　インストゥルメンテーションAPIを使用してインストゥルメンテーションを書いた場合、関連オブジェクト上で「モンキーパッチ」メソッド（置換関数）を用いてメトリクスと命名をより詳細に指定できるようになります。その他のオプションでは、既にインストゥルメントされたWebトランザクションへの可視性を提供するか、自動的にインストゥルメントされないデータベースやその他のトランザクション内作業への洞察を得ることができます。
+
+これを行うには、コールバックをカスタムトレーサーでラップします。カスタムトレーサーは、特定の関数やデータベース呼び出しなど、既存トランザクション内の追加セグメントに関する具体的なメトリクスの作成・収集を行います。
+
+* 個別のコールバックをインストゥルメントするには、コールバック内で`startSegment()`を呼び出し、主なコールバックロジックを`handler`関数に移動します。
+* 非同期関数内で呼び出された関数をインストゥルメントするには、ターゲット関数とその親非同期関数を[`startSegment()`](/docs/agents/nodejs-agent/supported-features/nodejs-agent-api#startSegment)でラップします。
+
+<Callout variant="important">
+  こうした例は、トランザクション内で実行中のコード内に配置する必要があります。トランザクションの作成元がカスタムもしくは自動であるかは、関係がありません。
+</Callout>
+
+<CollapserGroup>
+  <Collapser
+    id="wrap-single-callback"
+    title="例：コールバックをインストゥルメントする"
+  >
+    この例では、単一のコールバックを追跡します：
+
+    ```
+    // Wrap the method in a segment.
+    nr.startSegment('db:createObject', true, function(cb) {
+      // This is recorded as the `db:createObject` segment.
+      db.createObject(cb)
+    }, function(err, result) {
+      // This is recorded as the callback to the `db:createObject` segment.
+      if (util.handleError(err, res)) {
+        return
+      }
+      res.write(JSON.stringify(result.rows[0].id))
+      res.write('\n')
+      res.end()
+    })
+    ```
+  </Collapser>
+
+  <Collapser
+    id="wrap-two-callbacks"
+    title="例：コールバックを使用して非同期関数をインストゥルメントする"
+  >
+    この例では、`pg.connect`と`client.query`の両方を追跡します。これは、`client.query`が非同期親関数（`pg.connect`）によって呼び出されることが原因です。そうでなければ、`client.query`からは一切データを得ることができません。これによって、`startSegment()`はこうした非同期領域全域にわたって有効なトランザクションを伝播できます。
+
+    ```
+    nr.startSegment('pg:connect', true, function(cb) {
+      pg.connect(config.db_string, cb)
+    }, function(err, client, done) {
+      if (util.handleError(err, '500', res)) {
+        return done()
+      }
+
+      nr.startSegment('pg:query', true, function(cb) {
+        client.query('SELECT count(*) FROM test_count'), cb)
+      }, function(err, result) {
+        if (util.handleError(err, '500', res)) {
+          return done()
+        }
+
+        res.write(result.rows[0].count)
+        res.write('\n')
+      })
+    })
+    ```
+  </Collapser>
+
+  <Collapser
+    id="example-wrap-two-callbacks"
+    title="例：Promiseを使用して非同期関数をインストゥルメントする"
+  >
+    この例はコールバックの場合と同じですが、PromiseベースのAPIとのやり取りを扱っています。約束の場合は、単純にPromiseを返してから`startSegment`を行った後で`then`を呼び出し、実行を続けます。
+
+    ```
+    nr.startSegment('pg:connect', true, function() {
+      // This `pg:connect` segment will time until the returned promise
+      // either resolves or rejects.
+      return pg.connect(config.db_string)
+    }).then(function(client) {
+      // The transaction context is propagated into following promises.
+      return nr.startSegment('pg:query', true, function() {
+        return client.query('SELECT count(*) FROM test_count'))
+      }).then(function(result) {
+        res.write(result.rows[0].count)
+        res.write('\n')
+        res.end()
+      }, function(err) {
+        // Error from querying.
+        util.handleError(err, '500', res)
+      }).finally(function() {
+        return client.release()
+      })
+    }, function(err) {
+      // Error from connecting.
+      util.handleError(err, '500', res)
+    })
+    ```
+  </Collapser>
+
+  <Collapser
+    id="example-async-functions"
+    title={<>例：<InlineCode>非同期</InlineCode>関数をインストゥルメントする</>}
+  >
+    この例では、非同期の作業を制御するために`async`/`await`を使用して、コードをインストゥルメントする方法を解説しています。これには、Node 8以降ならびにNode.js用New Relicエージェントv2.3.0以降の使用を必要とします。
+
+    ```
+    try {
+      const client = await nr.startSegment('pg:connect', true, async () => {
+        // Async functions simply return promises, so this example is
+        // very similar to the promise one.
+        return await pg.connect(config.db_string)
+      })
+
+      // The transaction context is propagated into the code following `await`.
+      try {
+        const result = await nr.startSegment('pg:query', true, async () => {
+          return await client.query('SELECT count(*) FROM test_count'))
+        })
+
+        res.write(result.rows[0].count)
+        res.write('\n')
+        res.end()
+      } catch(err) {
+        // Error from querying.
+        util.handleError(err, '500', res)
+      } finally {
+        await client.release()
+      }
+    } catch(err) {
+      // Error from connecting.
+      util.handleError(err, '500', res)
+    }
+    ```
+  </Collapser>
+
+  <Collapser
+    id="wrap-sync-function"
+    title="例：同期関数をインストゥルメントする"
+  >
+    この例では、戻り値を変数に割り当てる非同期関数を記録する際に、`startSegment`を使用する方法を解説します。
+
+    ```
+    var result = nr.startSegment('calculateTotal', true, function() {
+      return calculateTotal(outerVar1, outerVar2)
+    })
+    ```
+
+    <Callout variant="important">
+      `startSegment`関数は、Nodeエージェント3.3.0のリリースで利用できます。
+    </Callout>
+  </Collapser>
+</CollapserGroup>
