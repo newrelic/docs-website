@@ -3,8 +3,8 @@ const path = require('path');
 const { prop } = require('./scripts/utils/functional.js');
 const externalRedirects = require('./src/data/external-redirects.json');
 const { createFilePath } = require('gatsby-source-filesystem');
+const SWIFTYPE_RESOURCES_DIR = require('src/data/swiftype-resources');
 
-const SWIFTYPE_RESOURCES_DIR = 'src/data/swiftype-resources';
 const TEMPLATE_DIR = 'src/templates/';
 const TRAILING_SLASH = /\/$/;
 
