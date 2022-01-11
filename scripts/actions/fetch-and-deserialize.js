@@ -56,16 +56,16 @@ const writeFilesSync = (vfiles) => {
 /**
  * @param {Object} input
  * @param {String[]} input.fileUris
+ * @param {Number} batchSize - maximum batch size
  */
-const createFileUriBatches = ({ fileUris }) => {
-  const batchSizeLimit = 50;
+const createFileUriBatches = ({ fileUris }, batchSize = 50) => {
   let batches = [];
   let currentBatch = [];
 
   for (let i = 0; i < fileUris.length; i++) {
     currentBatch.push(fileUris[i]);
 
-    if (currentBatch.length === batchSizeLimit) {
+    if (currentBatch.length === batchSize) {
       // send the request, reset the count & array
       batches.push({ fileUris: currentBatch });
       currentBatch = [];
@@ -211,6 +211,7 @@ const fetchAndDeserializeFiles = async ({ locale, fileUris }) => {
 };
 
 module.exports = {
+  createFileUriBatches,
   writeFilesSync,
   fetchAndDeserializeFiles,
 };
