@@ -157,26 +157,34 @@ const deserializeHtmlToMdx = (locale) => {
    * @param {String} file.path - path of file w/o 'src/.../content/docs' prefix
    * @param {String} file.html - html content of file
    */
-  return async ({ path, html }) => {
+  return async ({ path: contentPath, html }) => {
+    const completePath = path.join('src/content/docs', contentPath, '.mdx');
+
     try {
-      const newPath = `src/i18n/content/${localesMap[locale]}/docs/${path}`;
+      const localePath = path.join(
+        `src/i18n/content/${localesMap[locale]}/docs/`,
+        contentPath
+      );
       const mdx = await deserializedHtml(html);
 
       const temp = vfile({
         contents: mdx,
-        path: newPath,
+        path: localePath,
         extname: '.mdx',
       });
 
       createDirectories([temp]);
       writeFilesSync([temp]);
 
-      return { ok: true, slug: `src/content/docs/${path}` };
+      return {
+        ok: true,
+        slug: completePath,
+      };
     } catch (ex) {
-      console.log(`Failed to deserialize: ${path}`);
+      console.log(`Failed to deserialize: ${contentPath}`);
       console.log(ex);
 
-      return { ok: false, slug: `src/content/docs/${path}` };
+      return { ok: false, slug: completePath };
     }
   };
 };
