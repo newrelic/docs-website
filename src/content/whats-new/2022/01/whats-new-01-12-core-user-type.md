@@ -2,7 +2,7 @@
 title: 'Introducing our new core user type' 
 summary: 'Unlock telemetry data access for even more developers in your org' 
 releaseDate: '2022-01-12' 
-learnMoreLink: 'https://docs.newrelic.com/docs/accounts/accounts-billing/new-relic-one-pricing-billing/core-users-release' 
+learnMoreLink: 'https://newrelic.com/blog/nerdlog/core-user-usage-pricing' 
 ---
 
 Observability is better together. Our new core user type enables more developers than ever to understand code performance better, collaborate and prioritize work directly from their IDE, and access relevant error details including stack traces, logs, alerts, and more.
