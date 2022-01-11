@@ -30,24 +30,24 @@ exports.onCreateWebpackConfig = ({ actions }) => {
 };
 
 // before we build, combine related resource files into one
-exports.onPreBootstrap = () => {
-  const files = fs.readdirSync(SWIFTYPE_RESOURCES_DIR);
-  const content = files.map((filename) => {
-    return fs.readFileSync(path.join(SWIFTYPE_RESOURCES_DIR, filename), {
-      encoding: 'utf8',
-    });
-  });
-  const json = content.reduce(
-    (acc, fileContent) => ({ ...acc, ...JSON.parse(fileContent) }),
-    {}
-  );
+// exports.onPreBootstrap = () => {
+//   const files = fs.readdirSync(SWIFTYPE_RESOURCES_DIR);
+//   const content = files.map((filename) => {
+//     return fs.readFileSync(path.join(SWIFTYPE_RESOURCES_DIR, filename), {
+//       encoding: 'utf8',
+//     });
+//   });
+//   const json = content.reduce(
+//     (acc, fileContent) => ({ ...acc, ...JSON.parse(fileContent) }),
+//     {}
+//   );
 
-  fs.writeFileSync(
-    path.join(process.cwd(), '/src/data/swiftype-resources.json'),
-    JSON.stringify(json, null, 2),
-    'utf8'
-  );
-};
+//   fs.writeFileSync(
+//     path.join(process.cwd(), '/src/data/swiftype-resources.json'),
+//     JSON.stringify(json, null, 2),
+//     'utf8'
+//   );
+// };
 
 exports.onCreateNode = ({ node, getNode, actions }) => {
   const { createNodeField } = actions;
