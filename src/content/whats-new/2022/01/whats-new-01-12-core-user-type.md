@@ -2,6 +2,7 @@
 title: 'Introducing our new core user type' 
 summary: 'Unlock telemetry data access for even more developers in your org' 
 releaseDate: '2022-01-12' 
+isFeatured: true
 learnMoreLink: 'https://newrelic.com/blog/nerdlog/core-user-usage-pricing' 
 ---
 
