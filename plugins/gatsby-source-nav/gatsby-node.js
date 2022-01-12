@@ -40,12 +40,9 @@ exports.createResolvers = ({ createResolvers, createNodeId }) => {
           const { entries } = nodeModel.findAll({ type: 'Locale' });
 
           // Convert GatsbyIterable to array to use array methods it doesn't support
-          const locales = Array.from(
-            entries
-              .filter(({ isDefault }) => !isDefault)
-              .map(({ locale }) => locale)
-          );
-
+          const locales = Array.from(entries)
+            .filter(({ isDefault }) => !isDefault)
+            .map(({ locale }) => locale);
           const utils = {
             args,
             nodeModel,
