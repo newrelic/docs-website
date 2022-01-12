@@ -121,7 +121,7 @@ const createRootNav = async ({ args, createNodeId, nodeModel }) => {
 };
 
 const createWhatsNewNav = async ({ createNodeId, nodeModel }) => {
-  const posts = await nodeModel.runQuery({
+  const posts = await nodeModel.findAll({
     type: 'MarkdownRemark',
     query: {
       filter: {
@@ -162,7 +162,7 @@ const createWhatsNewNav = async ({ createNodeId, nodeModel }) => {
 
 const createReleaseNotesNav = async ({ createNodeId, nodeModel }) => {
   const [posts, landingPages] = await Promise.all([
-    nodeModel.runQuery({
+    nodeModel.findAll({
       type: 'Mdx',
       query: {
         filter: {
@@ -177,7 +177,7 @@ const createReleaseNotesNav = async ({ createNodeId, nodeModel }) => {
       },
     }),
 
-    nodeModel.runQuery({
+    nodeModel.findAll({
       type: 'Mdx',
       query: {
         filter: {
@@ -288,7 +288,7 @@ const findTranslatedTitle = async (source, args, { nodeModel }) => {
     return source.title;
   }
 
-  const item = await nodeModel.runQuery({
+  const item = await nodeModel.findOne({
     type: 'TranslatedNavJson',
     query: {
       filter: {
@@ -296,7 +296,6 @@ const findTranslatedTitle = async (source, args, { nodeModel }) => {
         englishTitle: { eq: source.title },
       },
     },
-    firstOnly: true,
   });
 
   return item ? item.title : source.title;
