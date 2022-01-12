@@ -30,11 +30,8 @@ All existing basic users currently have free access to core user capabilities th
 
 <iframe width="560" height="315" src="https://www.youtube.com/embed/04JP0ky_hjI" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
 
-## Unlock core users for your account
-To add core users to your account, enable core users with just a couple of clicks from the plan management UI: click the account dropdown in the top right and then click **Manage your plan**. If you can't access that UI, it may be because you don't have the right permissions (for example, not having the [**Billing user role**](/docs/accounts/accounts-billing/new-relic-one-user-management/user-management-concepts/#roles)). 
-
-
-
+## Unlock core users in your account
+To start adding core users, visit the plan management UI (click the top right account dropdown and click **Manage your plan**) and enable core users by accepting the new terms. Note that some accounts may need to talk with their account team to unlock core users. If you can't access that UI, it may be because you don't have the right permissions (for example: users on the New Relic One user model require the [**Billing user role**](/docs/accounts/accounts-billing/new-relic-one-user-management/user-management-concepts/#roles), which is assigned to the **Admin** group). 
 
 
 
