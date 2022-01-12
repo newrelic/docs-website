@@ -37,10 +37,14 @@ exports.createResolvers = ({ createResolvers, createNodeId }) => {
           const { slug } = args;
           const { nodeModel } = context;
 
-          const locales = nodeModel
-            .getAllNodes({ type: 'Locale' })
-            .filter(({ isDefault }) => !isDefault)
-            .map(({ locale }) => locale);
+          const { entries } = nodeModel.findAll({ type: 'Locale' });
+
+          // Convert GatsbyIterable to array to use array methods it doesn't support
+          const locales = Array.from(
+            entries
+              .filter(({ isDefault }) => !isDefault)
+              .map(({ locale }) => locale)
+          );
 
           const utils = {
             args,
@@ -104,10 +108,10 @@ exports.onCreatePage = ({ page, actions }) => {
 const createRootNav = async ({ args, createNodeId, nodeModel }) => {
   const { slug } = args;
 
-  const rootNavYamlNode = nodeModel
-    .getAllNodes({ type: 'NavYaml' })
-    .filter((node) => node.rootNav);
+  const { entries } = await nodeModel.findAll({ type: 'NavYaml' });
 
+  // Convert GatsbyIterable to array to use array methods it doesn't support
+  const rootNavYamlNode = Array.from(entries.filter((node) => node.rootNav));
   const nav = rootNavYamlNode.find((nav) => findPage(nav, slug));
 
   if (!nav) {
@@ -161,7 +165,10 @@ const createWhatsNewNav = async ({ createNodeId, nodeModel }) => {
 };
 
 const createReleaseNotesNav = async ({ createNodeId, nodeModel }) => {
-  const [posts, landingPages] = await Promise.all([
+  const [
+    { entries: releaseNoteEntries },
+    { entries: landingPagesEntries },
+  ] = await Promise.all([
     nodeModel.findAll({
       type: 'Mdx',
       query: {
@@ -188,6 +195,10 @@ const createReleaseNotesNav = async ({ createNodeId, nodeModel }) => {
       },
     }),
   ]);
+
+  // Convert GatsbyIterable to array to use array methods it doesn't support
+  const posts = Array.from(releaseNoteEntries);
+  const landingPages = Array.from(landingPagesEntries);
 
   const subjects = posts
     .reduce((acc, curr) => [...new Set([...acc, curr.frontmatter.subject])], [])
@@ -256,8 +267,9 @@ const createNav = async ({ args, createNodeId, nodeModel, locales }) => {
     .replace(/\/table-of-contents$/, '')
     .replace(new RegExp(`^\\/(${locales.join('|')})(?=\\/)`), '');
 
-  const allNavYamlNodes = nodeModel
-    .getAllNodes({ type: 'NavYaml' })
+  const { entries } = nodeModel.findAll({ type: 'NavYaml' });
+
+  const allNavYamlNodes = Array.from(entries)
     .filter((node) => !node.rootNav)
     .sort((a, b) => a.title.localeCompare(b.title));
 
