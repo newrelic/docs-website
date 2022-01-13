@@ -208,6 +208,19 @@ const deleteTranslationsJobsRecords = async (jobId) => {
   });
 };
 
+/**
+ * Enum containing values from `Status` table.
+ * @example
+ * await updateTranslation(1, { status: StatusEnum.ERRORED }); // update translation with id=1 to have status='ERRORED'
+ */
+const StatusEnum = {
+  PENDING: 'PENDING',
+  IN_PROGRESS: 'IN_PROGRESS',
+  IN_REVIEW: 'IN_REVIEW',
+  COMPLETED: 'COMPLETED',
+  ERRORED: 'ERRORED',
+};
+
 module.exports = {
   addJob,
   updateJob,
@@ -223,4 +236,5 @@ module.exports = {
   addTranslationsJobsRecord,
   deleteTranslationsJobsRecords,
   getTranslationsJobsRecords,
+  StatusEnum,
 };
