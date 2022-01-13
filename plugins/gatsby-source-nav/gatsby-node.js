@@ -122,7 +122,7 @@ const createRootNav = async ({ args, createNodeId, nodeModel }) => {
 };
 
 const createWhatsNewNav = async ({ createNodeId, nodeModel }) => {
-  const posts = await nodeModel.findAll({
+  const { entries } = await nodeModel.findAll({
     type: 'MarkdownRemark',
     query: {
       filter: {
@@ -136,6 +136,8 @@ const createWhatsNewNav = async ({ createNodeId, nodeModel }) => {
       },
     },
   });
+
+  const posts = Array.from(entries);
 
   const currentYear = new Date().getFullYear();
   const postsByYear = groupBy(posts, (post) => parseDate(post).getFullYear());
