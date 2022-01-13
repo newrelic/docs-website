@@ -4,6 +4,7 @@ const {
   updateJob,
   getTranslationsJobsRecords,
   updateTranslations,
+  StatusEnum,
 } = require('./translation_workflow/database.js');
 
 const { vendorRequest } = require('./utils/vendor-request');
@@ -22,6 +23,30 @@ const prop = (key) => (x) => x[key];
  * @property {string[]} fileUris The filepath from the root of the project
  * @property {boolean} done
  * @property {number} jobId
+ */
+
+/**
+ * @typedef {Object} Results
+ * @property {number} successes - count of successes.
+ * @property {number} failures - count of failures.
+ */
+
+/**
+ * @typedef {Object<string, Results>} JobStatuses - Object whose top level keys are job ids, and whose values are Results.
+ */
+
+/**
+ * @typedef {Object} AggregateResults
+ * @property {JobStatuses} jobStatuses
+ * @property {number} totalSuccesses - Sum of successes across all jobs
+ * @property {number} totalFailures - Sum of failures across all jobs
+ */
+
+/**
+ * @typedef {Object} SlugStatus
+ * @property {boolean} SlugStatus[].ok - Boolean flag signaling if translation deserialized. If it did, we can treat this translation as having completed.
+ * @property {string} SlugStatus[].slug - Slug representing file path translated.
+ * @property {string} SlugStatus[].jobId - Job id translation is associated with.
  */
 
 /**
@@ -101,17 +126,15 @@ const getBatchStatus = async ({ batchUid, jobId }) => {
 };
 
 /**
- * @param {Object[]} slugStatuses
- * @param {Boolean} slugStatuses[].ok - Boolean flag signaling if translation deserialized. If it did, we can treat this translation as having completed.
- * @param {String} slugStatuses[].slug - Slug representing file path translated.
- * @param {String} slugStatuses[].jobId - Job id translation is associated with.
+ * @param {SlugStatus[]} slugStatuses
+ * @returns {AggregateResults}
  */
 const aggregateStatuses = (slugStatuses) => {
   let totalFailures = 0;
   let totalSuccesses = 0;
   const jobStatuses = {};
 
-  slugStatuses.map(({ ok, jobId }) => {
+  slugStatuses.forEach(({ ok, jobId }) => {
     if (!(jobId in jobStatuses)) {
       jobStatuses[jobId] = { successes: 0, failures: 0 };
     }
@@ -129,20 +152,18 @@ const aggregateStatuses = (slugStatuses) => {
 };
 
 /**
- * @param {Object[]} slugStatuses
- * @param {Boolean} slugStatuses[].ok - Boolean flag signaling if translation deserialized. If it did, we can treat this translation as having completed.
- * @param {String} slugStatuses[].slug - Slug representing file path translated.
- * @param {String} slugStatuses[].jobId - Job id translation is associated with.
+ * @param {SlugStatus[]} slugStatuses
+ * @returns {void}
  */
 const updateTranslationRecords = async (slugStatuses) => {
   // TODO: need to update this when we implement multiple locales. This only works for one locale.
 
   await Promise.all(
     slugStatuses.map(async ({ ok, slug }) => {
-      let updateStatus = ok ? 'COMPLETED' : 'ERRORED';
+      const updateStatus = ok ? StatusEnum.COMPLETED : StatusEnum.ERRORED;
 
       const record = await updateTranslations(
-        { slug, status: 'IN_PROGRESS' },
+        { slug, status: StatusEnum.IN_PROGRESS },
         { status: updateStatus }
       );
 
@@ -152,25 +173,25 @@ const updateTranslationRecords = async (slugStatuses) => {
 };
 
 /**
- * @param {Object.<string, Object.<string, number>} jobStatuses - object whose top level keys are job ids, and whose values are { succeses: x, failures: y }, which describe failure and success count for that given job.
+ * @param {JobStatuses} jobStatuses
+ * @returns {void}
  */
 const updateJobRecords = async (jobStatuses) => {
   await Promise.all(
-    Object.keys(jobStatuses).map(async (jobId) => {
-      const { successes, failures } = jobStatuses[jobId];
+    Object.keys(jobStatuses).map(async (job_id) => {
+      const { successes, failures } = jobStatuses[job_id];
 
       const records = await getTranslationsJobsRecords({
-        job_id: jobId,
+        job_id,
       });
 
       if (successes + failures === records.length) {
-        if (failures > 0) {
-          await updateJob(jobId, { status: 'ERRORED' });
-          console.log(`Job ${jobId} marked as ERRORED`);
-        } else {
-          await updateJob(jobId, { status: 'COMPLETED' });
-          console.log(`Job ${jobId} marked as COMPLETED`);
-        }
+        const updateStatus =
+          failures > 0 ? StatusEnum.ERRORED : StatusEnum.COMPLETED;
+
+        await updateJob(job_id, { status: updateStatus });
+
+        console.log(`Job ${job_id} marked as ${updateStatus}`);
       } else {
         console.log(
           `Mismatched translation counts. Expected ${
