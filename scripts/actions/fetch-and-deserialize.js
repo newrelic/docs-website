@@ -18,6 +18,23 @@ const localesMap = {
 const projectId = process.env.TRANSLATION_VENDOR_PROJECT;
 
 /**
+ * @typedef {Object[]} FileUriBatches
+ * @property {String[]} fileUris
+ */
+
+/**
+ * @typedef HtmlFile
+ * @property {string} path - Source path of file w/o `src/.../content/docs` prefix, or extension.
+ * @property {string} html - (HTML) Content of the file as a string.
+ */
+
+/**
+ * @typedef SlugStatus
+ * @property {boolean} ok - Boolean flag indicating whether the translated file whether file was successfully deserialized or not.
+ * @property {string} slug - Complete source path of the translated file
+ */
+
+/**
  * Method which writes translated content to the 'src/content/i18n' path, and copies images for translated files.
  * @param {vfile.VFile[]} vfiles
  */
@@ -57,6 +74,7 @@ const writeFilesSync = (vfiles) => {
  * @param {Object} input
  * @param {String[]} input.fileUris
  * @param {Number} batchSize - maximum batch size
+ * @returns {FileUriBatches}
  */
 const createFileUriBatches = ({ fileUris }, batchSize = 50) => {
   let batches = [];
@@ -77,7 +95,7 @@ const createFileUriBatches = ({ fileUris }, batchSize = 50) => {
     batches.push({ fileUris: currentBatch });
   }
 
-  return batches; // [ [{ locale: ja-JP, fileUris: ['hello_world.txt']}], [...], ... ]
+  return batches;
 };
 
 /**
@@ -87,6 +105,7 @@ const fetchTranslatedFilesZip = (locale) => {
   /**
    * @param {Object} input
    * @param {String[]} input.fileUris
+   * @returns {AdmZip|null}
    */
   return async ({ fileUris }) => {
     const fileUriStr = fileUris.reduce((str, uri) => {
@@ -132,6 +151,7 @@ const fetchTranslatedFilesZip = (locale) => {
 const extractFiles = (locale) => {
   /**
    * @param {AdmZip} zip - the downloaded zip containing batch of files.
+   * @returns {HtmlFile[]}
    */
   return async (zip) => {
     return zip.getEntries().map((entry) => {
@@ -153,9 +173,8 @@ const extractFiles = (locale) => {
  */
 const deserializeHtmlToMdx = (locale) => {
   /**
-   * @param {object} file
-   * @param {String} file.path - path of file w/o 'src/.../content/docs' prefix
-   * @param {String} file.html - html content of file
+   * @param {HtmlFile} file
+   * @returns {SlugStatus}
    */
   return async ({ path: contentPath, html }) => {
     const completePath = path.join('src/content/docs', contentPath, '.mdx');
@@ -194,7 +213,7 @@ const deserializeHtmlToMdx = (locale) => {
  * @param {Object} input
  * @param {String} input.locale - locale associated with fileUris
  * @param {String[]} input.fileUris - list of file paths used for download & deserialization. This will be the complete singular list prior to batching.
- * @returns
+ * @returns {SlugStatus[]}
  */
 const fetchAndDeserializeFiles = async ({ locale, fileUris }) => {
   const batches = createFileUriBatches({ fileUris });
