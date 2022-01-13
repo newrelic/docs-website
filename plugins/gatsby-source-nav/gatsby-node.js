@@ -37,7 +37,7 @@ exports.createResolvers = ({ createResolvers, createNodeId }) => {
           const { slug } = args;
           const { nodeModel } = context;
 
-          const { entries } = nodeModel.findAll({ type: 'Locale' });
+          const { entries } = await nodeModel.findAll({ type: 'Locale' });
 
           // Convert GatsbyIterable to array to use array methods it doesn't support
           const locales = Array.from(entries)
@@ -264,7 +264,7 @@ const createNav = async ({ args, createNodeId, nodeModel, locales }) => {
     .replace(/\/table-of-contents$/, '')
     .replace(new RegExp(`^\\/(${locales.join('|')})(?=\\/)`), '');
 
-  const { entries } = nodeModel.findAll({ type: 'NavYaml' });
+  const { entries } = await nodeModel.findAll({ type: 'NavYaml' });
 
   const allNavYamlNodes = Array.from(entries)
     .filter((node) => !node.rootNav)
