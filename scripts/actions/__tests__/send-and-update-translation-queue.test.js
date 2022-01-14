@@ -51,6 +51,15 @@ describe('send-and-update-translation-queue tests', () => {
             locale: 'ja-JP',
             status: 'IN_PROGRESS',
           },
+        ])
+        .calledWith({ status: 'ERRORED' })
+        .mockReturnValue([
+          {
+            id: 3,
+            slug: 'hello_world3.txt',
+            locale: 'ja-JP',
+            status: 'ERRORED',
+          },
         ]);
       fs.existsSync.mockReturnValue(true);
 
@@ -93,7 +102,53 @@ describe('send-and-update-translation-queue tests', () => {
             locale: 'ja-JP',
             status: 'IN_PROGRESS',
           },
-        ]);
+        ])
+        .calledWith({ status: 'ERRORED' })
+        .mockReturnValue([]);
+      fs.existsSync.mockReturnValue(true);
+
+      const translations = await getReadyToGoTranslationsForEachLocale();
+
+      expect(translations).toEqual({
+        'ja-JP': [
+          {
+            id: 3,
+            slug: 'hello_world2.txt',
+            locale: 'ja-JP',
+            status: 'PENDING',
+          },
+        ],
+      });
+    });
+
+    test('only returns pending translation if there is no matching errored translation', async () => {
+      when(getTranslations)
+        .calledWith({ status: 'PENDING' })
+        .mockReturnValue([
+          {
+            id: 1,
+            slug: 'hello_world.txt',
+            locale: 'ja-JP',
+            status: 'PENDING',
+          },
+          {
+            id: 3,
+            slug: 'hello_world2.txt',
+            locale: 'ja-JP',
+            status: 'PENDING',
+          },
+        ])
+        .calledWith({ status: 'ERRORED' })
+        .mockReturnValue([
+          {
+            id: 2,
+            slug: 'hello_world.txt',
+            locale: 'ja-JP',
+            status: 'ERRORED',
+          },
+        ])
+        .calledWith({ status: 'IN_PROGRESS' })
+        .mockReturnValue([]);
       fs.existsSync.mockReturnValue(true);
 
       const translations = await getReadyToGoTranslationsForEachLocale();
@@ -128,6 +183,8 @@ describe('send-and-update-translation-queue tests', () => {
           },
         ])
         .calledWith({ status: 'IN_PROGRESS' })
+        .mockReturnValue([])
+        .calledWith({ status: 'ERRORED' })
         .mockReturnValue([]);
 
       when(fs.existsSync)
@@ -175,7 +232,9 @@ describe('send-and-update-translation-queue tests', () => {
             locale: 'ja-JP',
             status: 'IN_PROGRESS',
           },
-        ]);
+        ])
+        .calledWith({ status: 'ERRORED' })
+        .mockReturnValue([]);
       fs.existsSync.mockReturnValue(false);
 
       await getReadyToGoTranslationsForEachLocale();
