@@ -1,0 +1,149 @@
+---
+title: Windows用Kubernetesインテグレーションのインストール
+tags:
+  - Integrations
+  - Kubernetes integration
+  - Installation
+metaDescription: How to install the K8 integration for Windows.
+translationType: machine
+---
+
+<Callout title="限定発売">
+  この特集は限定公開です。
+</Callout>
+
+Windows用のKubernetesのインストールを実行するには、以下の手順に従ってください。
+
+* [互換性と要件を確認する](#k8-windows-req).
+* [マニフェスト](#k8-windows-install) のファイルを更新します。
+* 統合の [制限](#k8-windows-limitations) についてご紹介します。
+
+## 互換性および要件 [#k8-windows-req]
+
+[New Relic の Kubernetes 統合](/docs/integrations/kubernetes-integration/get-started/introduction-kubernetes-integration) をインストールする前に、 [互換性と要件](/docs/integrations/kubernetes-integration/get-started/kubernetes-integration-compatibility-requirements) を確認してください。
+
+<Callout variant="important">
+  Windowsでコンテナを使用する場合、コンテナホストのバージョンとコンテナイメージのバージョンが同じである必要があります。当社のKubernetesインテグレーションは、Windowsのバージョン1809と1909をサポートしています。
+</Callout>
+
+Windowsのバージョンを確認するには
+
+1. コマンドウィンドウを開きます。
+
+2. 次のコマンドを実行してください。
+
+   ```
+   Reg Query "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion" /v 
+   ReleaseIdcmd.exe
+   ```
+
+### 例BusyBoxコンテナからKubernetes for Windowsを取得する。
+
+```
+$ kubectl exec -it busybox1-766bb4d6cc-rmsnj -- Reg Query 
+    "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion" /v ReleaseId
+```
+
+```
+HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion
+	ReleaseId	REG_SZ	1809
+```
+
+## インストール [#k8-windows-install]
+
+Windows用のKubernetesインテグレーションは、Helmを使ってインストールできます。Windowsの異なるビルドバージョン（1809と2004）を持つノードを持つクラスタに統合をインストールする方法の例を参照してください。
+
+1. [kube-state-metrics](https://github.com/kubernetes/kube-state-metrics#kubernetes-deployment "新しいウィンドウにリンクが開きます。") をインストールして、このスニペットを使ってクラスタで実行します。
+
+   ```
+   curl -L -o kube-state-metrics-1.9.5.zip 
+   https://github.com/kubernetes/kube-state-metrics/archive/v1.9.5.zip && 
+   unzip kube-state-metrics-1.9.5.zip && kubectl apply -f 
+   kube-state-metrics-1.9.5/examples/standard
+   ```
+
+2. `values.yml` ファイルを作成し、Helmが使用する以下のデータを記述します。
+
+   ```
+   global:
+     licenseKey: <YOUR_LICENSE_KEY> 
+     cluster: <YOUR_CLUSTER_NAME>
+
+   enableLinux: false
+   enableWindows: true
+   windowsOsList:
+     - version: 1809
+       imageTag: 2.2.0-windows-1809-alpha
+       buildNumber: 10.0.17763
+     - version: 2004
+       imageTag: 2.2.0-windows-2004-alpha
+       buildNumber: 10.0.19041
+   ```
+
+3. で統合をインストールします。
+
+   ```
+   helm install <YOUR_INSTALL_NAME> newrelic/newrelic-infrastructure -f values.yml
+   ```
+
+4. このコマンドの出力結果で、`newrelic-infra`を見つけて、`DaemonSet`が正常に作成されたことを確認します。
+
+   ```
+   kubectl get daemonsets
+   ```
+
+Helmチャートは、リストにあるWindowsの各バージョンごとに1つのDeamonSetを作成し、NodeSelectorを使用してNodeごとに対応するPodをデプロイします。
+
+## 制限 [#k8-windows-limitations]
+
+Windows用のKubernetesインテグレーションには、以下のような制限があります。
+
+* Windowsエージェントは、 [Kubernetesのサンプル](/docs/integrations/kubernetes-integration/understand-use-data/understand-use-data#event-types) (`K8sNodeSample`, `K8sPodSample`, etc.) のみを送信します。
+
+  * `SystemSample`, `StorageSample`, `NetworkSample`, `ProcessSample` は生成されません。
+
+* いくつかの [Kubernetes metrics](/docs/integrations/kubernetes-integration/understand-use-data/understand-use-data#metrics) は、Windows kubelet が持っていないため、欠落しています。
+
+  * ノードです。
+
+    * `fsInodes`: not sent.
+    * `fsInodesFree`: not sent.
+    * `fsInodesUsed`: not sent.
+    * `memoryMajorPageFaultsPerSecond`: 常に値としてゼロを返す。
+    * `memoryPageFaults`: 常に値としてゼロを返す。
+    * `memoryRssBytes`: 常に値としてゼロを返す。
+    * `runtimeInodes`: not sent
+    * `runtimeInodesFree`: not sent
+    * `runtimeInodesUsed`: not sent
+
+  * Pod:
+
+    * `net.errorsPerSecond`: not sent
+    * `net.rxBytesPerSecond`: not sent.
+    * `net.txBytesPerSecond`: not sent.
+
+  * コンテナです。
+
+    * `containerID`: not sent
+    * `containerImageID`: not sent
+    * `memoryUsedBytes`: UIでは、ポッドをクリックすると表示されるポッドカードに表示されますが、データは表示されません。近日中に、 `memoryWorkingSetBytes` を代わりに使用するようにチャートを更新して、この問題を解決する予定です。
+
+  * 巻です。
+
+    * `fsUsedBytes`: zero, so `fsUsedPercent` is zero.
+
+## Windows Kubeletの既知の問題 [#k8-windows-limitations]
+
+Windows版のKubeletにはいくつかの問題があり、統合機能がデータを取得できないことがあります。
+
+* [問題 90554:](https://github.com/kubernetes/kubernetes/pull/90554) この問題は、インテグレーションが `/stats/summary` エンドポイントにリクエストを行うと、Kubelet が 500 エラーを返すというものです。この問題は、Kubernetes 1.19 リリースに含まれる予定で、リリース 1.16.11、1.17.7、1.18.4 にバックポートされています。この問題に対する統合側の解決策はありませんので、できるだけ早くいずれかのパッチバージョンにアップデートすることをお勧めします。この問題の影響を受けているかどうかは、 [verbose logs](/docs/integrations/kubernetes-integration/troubleshooting/get-logs-version#verbose) を有効にして、以下のタイプのメッセージを探すことで確認できます。
+
+  ```
+  error querying Kubelet. Get "https://<var><KUBELET_IP></var>/stats/summary": error calling kubelet endpoint. Got status code: 500
+  ```
+
+* [問題番号87730：](https://github.com/kubernetes/kubernetes/pull/87730) この問題では、最小負荷での実行時に Kubelet メトリクスが非常に遅くなります。これにより、統合がタイムアウトエラーで失敗します。この問題に対するパッチが Kubernetes 1.18 に追加され、1.15.12、1.16.9、および 1.17.5 にバックポートされました。できるだけ早くパッチを適用することをお勧めします。この問題を軽減するには、 [`TIMEOUT` 設定オプション](/docs/integrations/kubernetes-integration/installation/kubernetes-integration-install-configure#kube-state-metrics-timeout-change) で統合のタイムアウトを増やすことができます。この問題の影響を受けているかどうかは、 [verbose logs](/docs/integrations/kubernetes-integration/troubleshooting/get-logs-version#verbose) を有効にして、以下のようなメッセージを探すことで確認できます。
+
+  ```
+  error querying Kubelet. Get "https://<var><KUBELET_IP></var>/stats/summary": context deadline exceeded (Client.Timeout exceeded while awaiting headers)
+  ```
