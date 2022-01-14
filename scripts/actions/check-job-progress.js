@@ -167,7 +167,7 @@ const updateTranslationRecords = async (slugStatuses) => {
         { status: updateStatus }
       );
 
-      console.log(`Translation ${record.id} marked as ${updateStatus}`);
+      console.log(`Translation ${record[0].id} marked as ${updateStatus}`);
     })
   );
 };

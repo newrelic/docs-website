@@ -153,7 +153,7 @@ const extractFiles = (locale) => {
    * @param {AdmZip} zip - the downloaded zip containing batch of files.
    * @returns {HtmlFile[]}
    */
-  return async (zip) => {
+  return (zip) => {
     return zip.getEntries().map((entry) => {
       const filepath = entry.entryName.replace(
         `${locale}/src/content/docs`,
@@ -226,7 +226,7 @@ const fetchAndDeserializeFiles = async ({ locale, fileUris }) => {
 
   console.log(`Downloaded ${zips.length} zips`);
 
-  const files = (await Promise.all(zips.map(extractFiles(locale)))).flat();
+  const files = zips.flatMap(extractFiles(locale));
 
   console.log(`Unzipped ${files.length} total files.`);
 
