@@ -162,12 +162,12 @@ const updateTranslationRecords = async (slugStatuses) => {
     slugStatuses.map(async ({ ok, slug }) => {
       const updateStatus = ok ? StatusEnum.COMPLETED : StatusEnum.ERRORED;
 
-      const record = await updateTranslations(
+      const records = await updateTranslations(
         { slug, status: StatusEnum.IN_PROGRESS },
         { status: updateStatus }
       );
 
-      console.log(`Translation ${record.id} marked as ${updateStatus}`);
+      console.log(`Translation ${records[0].id} marked as ${updateStatus}`);
     })
   );
 };
