@@ -6,7 +6,8 @@ learnMoreLink: 'https://docs.newrelic.com/docs/network-performance-monitoring/se
 getStartedLink: 'https://developer.newrelic.com/instant-observability/network-syslog/478be4d3-134a-4738-995a-7bbe020edcad/'
 ---
 
-# Understand how your network impacts your infrastructure and application layers by correlating Syslog messages with the rest of your observability data.
+# Understand how your network impacts your infrastructure and application layers.
+## Correlate Syslog messages with the rest of your observability data.
 
 * Analyze Syslog messages alongside SNMP and Network flow logs across all network equipment with other network, infrastructure, and application telemetry.
 * Automatically detect Syslog-based anomalies (using Lookout) before they cause problems.
