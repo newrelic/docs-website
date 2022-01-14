@@ -2,12 +2,13 @@
 const {
   getJobs,
   updateJob,
-  updateTranslation,
   getTranslationsJobsRecords,
+  updateTranslations,
+  StatusEnum,
 } = require('./translation_workflow/database.js');
 
 const { vendorRequest } = require('./utils/vendor-request');
-const { fetchAndDeserialize } = require('./fetch-and-deserialize');
+const { fetchAndDeserializeFiles } = require('./fetch-and-deserialize');
 const { configuration } = require('./configuration');
 
 const PROJECT_ID = configuration.TRANSLATION.VENDOR_PROJECT;
@@ -22,6 +23,30 @@ const prop = (key) => (x) => x[key];
  * @property {string[]} fileUris The filepath from the root of the project
  * @property {boolean} done
  * @property {number} jobId
+ */
+
+/**
+ * @typedef {Object} Results
+ * @property {number} successes - count of successes.
+ * @property {number} failures - count of failures.
+ */
+
+/**
+ * @typedef {Object<string, Results>} JobStatuses - Object whose top level keys are job ids, and whose values are Results.
+ */
+
+/**
+ * @typedef {Object} AggregateResults
+ * @property {JobStatuses} jobStatuses
+ * @property {number} totalSuccesses - Sum of successes across all jobs
+ * @property {number} totalFailures - Sum of failures across all jobs
+ */
+
+/**
+ * @typedef {Object} SlugStatus
+ * @property {boolean} SlugStatus[].ok - Boolean flag signaling if translation deserialized. If it did, we can treat this translation as having completed.
+ * @property {string} SlugStatus[].slug - Slug representing file path translated.
+ * @property {string} SlugStatus[].jobId - Job id translation is associated with.
  */
 
 /**
@@ -100,6 +125,84 @@ const getBatchStatus = async ({ batchUid, jobId }) => {
   }
 };
 
+/**
+ * @param {SlugStatus[]} slugStatuses
+ * @returns {AggregateResults}
+ */
+const aggregateStatuses = (slugStatuses) => {
+  let totalFailures = 0;
+  let totalSuccesses = 0;
+  const jobStatuses = {};
+
+  slugStatuses.forEach(({ ok, jobId }) => {
+    if (!(jobId in jobStatuses)) {
+      jobStatuses[jobId] = { successes: 0, failures: 0 };
+    }
+
+    if (ok) {
+      totalSuccesses += 1;
+      jobStatuses[jobId].successes += 1;
+    } else {
+      totalFailures += 1;
+      jobStatuses[jobId].failures += 1;
+    }
+  });
+
+  return { totalFailures, totalSuccesses, jobStatuses };
+};
+
+/**
+ * @param {SlugStatus[]} slugStatuses
+ * @returns {void}
+ */
+const updateTranslationRecords = async (slugStatuses) => {
+  // TODO: need to update this when we implement multiple locales. This only works for one locale.
+
+  await Promise.all(
+    slugStatuses.map(async ({ ok, slug }) => {
+      const updateStatus = ok ? StatusEnum.COMPLETED : StatusEnum.ERRORED;
+
+      const record = await updateTranslations(
+        { slug, status: StatusEnum.IN_PROGRESS },
+        { status: updateStatus }
+      );
+
+      console.log(`Translation ${record.id} marked as ${updateStatus}`);
+    })
+  );
+};
+
+/**
+ * @param {JobStatuses} jobStatuses
+ * @returns {void}
+ */
+const updateJobRecords = async (jobStatuses) => {
+  await Promise.all(
+    Object.keys(jobStatuses).map(async (job_id) => {
+      const { successes, failures } = jobStatuses[job_id];
+
+      const records = await getTranslationsJobsRecords({
+        job_id,
+      });
+
+      if (successes + failures === records.length) {
+        const updateStatus =
+          failures > 0 ? StatusEnum.ERRORED : StatusEnum.COMPLETED;
+
+        await updateJob(job_id, { status: updateStatus });
+
+        console.log(`Job ${job_id} marked as ${updateStatus}`);
+      } else {
+        console.log(
+          `Mismatched translation counts. Expected ${
+            records.length
+          }, actual ${successes + failures}`
+        );
+      }
+    })
+  );
+};
+
 /** Entrypoint. */
 const main = async () => {
   try {
@@ -127,64 +230,32 @@ const main = async () => {
       `::set-output name=batchesToDeserialize::${batchesToDeserialize.length}`
     );
 
-    // download the newly translated files and deserialize them (into MDX)
-    await Promise.all(batchesToDeserialize.map(fetchAndDeserialize));
-    log('Content deserialized');
-
-    for (const batch of batchesToDeserialize) {
-      const records = await getTranslationsJobsRecords({
-        job_id: batch.jobId,
-      });
-
+    // download the newly translated files and deserialize them (into MDX).
+    const slugStatuses = (
       await Promise.all(
-        records.map(async (record) => {
-          const update = await updateTranslation(record.translation_id, {
-            status: 'COMPLETED',
+        batchesToDeserialize.map(async (batch) => {
+          return (await fetchAndDeserializeFiles(batch)).map((status) => {
+            return { ...status, jobId: batch.jobId };
           });
-          return update;
         })
-      );
-    }
-
-    const completedJobs = await Promise.all(
-      batchesToDeserialize.map((batch) => {
-        return updateJob(batch.jobId, { status: 'COMPLETED' });
-      })
-    );
-
-    log(`Jobs completed: ${JSON.stringify(completedJobs)}`);
-
-    // get a list of batches that we're still waiting on from our vendor
-    const remainingBatches = batchStatuses
-      .filter((batch) => batch && !batch.done)
-      .map((batch) => batch.batchUid);
-
-    console.log(
-      `::set-output name=batchUids::${
-        remainingBatches.length ? remainingBatches.join(',') : ','
-      }`
-    );
-
-    console.log(
-      `::set-output name=completedBatches::${
-        batchesToDeserialize.length ? batchesToDeserialize.join(',') : ','
-      }`
-    );
-
-    // Output a list of new translated files for the next step in the workflow
-    // (creating a new PR with the translated content)
-    const deserializedFileUris = uniq(
-      batchesToDeserialize.reduce(
-        (acc, { fileUris }) => [...fileUris, ...acc],
-        []
       )
-    );
+    ).flat();
+
+    await updateTranslationRecords(slugStatuses);
+
+    const results = aggregateStatuses(slugStatuses);
 
     console.log(
-      `::set-output name=deserializedFileUris::${deserializedFileUris.join(
-        ','
-      )}`
+      `Final results --- ${results.totalSuccesses} files completed, ${results.totalFailures} files errored.`
     );
+    console.log(
+      `::set-output name=successfulTranslations::${results.totalSuccesses}`
+    );
+    console.log(
+      `::set-output name=failedTranslations::${results.totalFailures}`
+    );
+
+    await updateJobRecords(results.jobStatuses);
 
     process.exit(0);
   } catch (error) {
