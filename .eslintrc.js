@@ -50,5 +50,10 @@ module.exports = {
     'jsx-a11y/no-onchange': 'off',
     '@typescript-eslint/no-var-requires': 'off',
     '@typescript-eslint/no-empty-function': 'off',
+    '@typescript-eslint/no-use-before-define': 'off',
+
+    // As typescript continuously gets added, we should
+    // turn this back on.
+    '@typescript-eslint/camelcase': 'off',
   },
 };
