@@ -2,11 +2,11 @@ module.exports = {
   extends: [
     'plugin:@newrelic/eslint-plugin-newrelic/react',
     'plugin:@newrelic/eslint-plugin-newrelic/prettier',
-    'plugin:@typescript=eslint/recommended',
+    'plugin:@typescript-eslint/recommended',
     'plugin:jsx-a11y/recommended',
     'plugin:react-hooks/recommended',
   ],
-  plugins: ['react', 'jsx-a11y'],
+  plugins: ['react', 'jsx-a11y', '@typescript-eslint'],
   settings: {
     react: {
       version: 'detect',
