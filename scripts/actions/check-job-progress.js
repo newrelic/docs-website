@@ -153,7 +153,7 @@ const aggregateStatuses = (slugStatuses) => {
 
 /**
  * @param {SlugStatus[]} slugStatuses
- * @returns {void}
+ * @returns {Promise<void>}
  */
 const updateTranslationRecords = async (slugStatuses) => {
   // TODO: need to update this when we implement multiple locales. This only works for one locale.
@@ -174,7 +174,7 @@ const updateTranslationRecords = async (slugStatuses) => {
 
 /**
  * @param {JobStatuses} jobStatuses
- * @returns {void}
+ * @returns {Promise<void>}
  */
 const updateJobRecords = async (jobStatuses) => {
   await Promise.all(
