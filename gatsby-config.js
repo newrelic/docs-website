@@ -36,6 +36,7 @@ module.exports = {
       'https://docs.newrelic.com/docs/style-guide/writing-guidelines/create-edit-content/',
   },
   plugins: [
+    `gatsby-plugin-typegen`,
     'gatsby-plugin-react-helmet',
     {
       resolve: `gatsby-source-filesystem`,

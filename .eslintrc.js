@@ -2,6 +2,7 @@ module.exports = {
   extends: [
     'plugin:@newrelic/eslint-plugin-newrelic/react',
     'plugin:@newrelic/eslint-plugin-newrelic/prettier',
+    'plugin:@typescript=eslint/recommended',
     'plugin:jsx-a11y/recommended',
     'plugin:react-hooks/recommended',
   ],
@@ -11,6 +12,14 @@ module.exports = {
       version: 'detect',
     },
   },
+  overrides: [
+    {
+      files: ['*.ts', '*.tsx'],
+      parserOptions: {
+        project: ['./tsconfig.json'],
+      },
+    },
+  ],
   parserOptions: {
     ecmaFeatures: {
       jsx: true,
@@ -26,6 +35,7 @@ module.exports = {
     test: 'readonly',
     expect: 'readonly',
   },
+  ignorePatterns: ['**/__tests__/**/*'],
   rules: {
     'no-unused-vars': [
       'error',
@@ -38,5 +48,7 @@ module.exports = {
       },
     ],
     'jsx-a11y/no-onchange': 'off',
+    '@typescript-eslint/no-var-requires': 'off',
+    '@typescript-eslint/no-empty-function': 'off',
   },
 };
