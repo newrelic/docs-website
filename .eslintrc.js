@@ -48,6 +48,7 @@ module.exports = {
       },
     ],
     'jsx-a11y/no-onchange': 'off',
+    'react/react-in-jsx-scope': 'off',
     '@typescript-eslint/no-var-requires': 'off',
     '@typescript-eslint/no-empty-function': 'off',
     '@typescript-eslint/no-use-before-define': 'off',
