@@ -6,7 +6,6 @@ module.exports = {
     'plugin:jsx-a11y/recommended',
     'plugin:react-hooks/recommended',
   ],
-
   plugins: ['react', 'jsx-a11y', '@typescript-eslint'],
   settings: {
     react: {
@@ -54,6 +53,7 @@ module.exports = {
     '@typescript-eslint/no-var-requires': 'off',
     '@typescript-eslint/no-empty-function': 'off',
     '@typescript-eslint/no-use-before-define': 'off',
+    '@typescript-eslint/no-explicit-any': 1,
 
     // As typescript continuously gets added, we should
     // turn this back on.
