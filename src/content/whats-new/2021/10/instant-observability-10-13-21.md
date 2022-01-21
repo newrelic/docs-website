@@ -16,7 +16,7 @@ No matter what technologies and tools you use in your stack, you can get more in
 - **Leverage best practices** from domain experts and technology partners
 
 **Quickstarts** can contain any combination of instrumentation, integrations, dashboards, and alerts. 
-Note that only full users will be able to access dashboards deployed from quickstarts. Every new account, including our [Free Forever](https://newrelic.com/pricing) tier, gets one full user absolutely free.
+Note that the ability to access quickstart-linked dashboards requires a [user type](/docs/accounts/accounts-billing/new-relic-one-user-management/user-type) of core user or full platform user. When you sign up for New Relic, you get one full platform user for free.
 
 # Demo
 Watch a quick demo and learn how to install a quickstart below:

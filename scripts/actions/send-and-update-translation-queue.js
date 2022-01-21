@@ -14,15 +14,21 @@ const PROJECT_ID = process.env.TRANSLATION_VENDOR_PROJECT;
  * @returns {Promise<Object.<string, Translation[]>>} object whose keys are locales, whose values are an array of translation requests for that locale
  */
 const getReadyToGoTranslationsForEachLocale = async () => {
-  const [pendingTranslations, inProgressTranslations] = await Promise.all([
+  const [
+    pendingTranslations,
+    inProgressTranslations,
+    erroredTranslations,
+  ] = await Promise.all([
     Database.getTranslations({ status: 'PENDING', project_id: PROJECT_ID }),
     Database.getTranslations({ status: 'IN_PROGRESS', project_id: PROJECT_ID }),
+    Database.getTranslations({ status: 'ERRORED', project_id: PROJECT_ID }),
   ]);
 
   /*
    * We only want to send a translation if:
    * 1. It's in a pending state.
    * 2. There isn't a matching record whose status === 'IN_PROGRESS'. A record matches if there exists another record with the same slug and locale.
+   * 3. There isn't a matching record whose status === 'ERRORED'. A record matches if there exists another record with the same slug and locale.
    *
    * This is to avoid sending multiple translation requests for {hello_world.txt, ja-JP} as an example, and allows us to have an in progress translation, and one ready to go that is queued up in the database.
    *
@@ -32,10 +38,22 @@ const getReadyToGoTranslationsForEachLocale = async () => {
 
   const readyToGoTranslations = pendingTranslations
     .filter(
-      (t1) =>
+      (pendingTranslation) =>
         !Boolean(
           inProgressTranslations.find(
-            (t2) => t1.slug === t2.slug && t1.locale === t2.locale
+            (inProgressTranslation) =>
+              pendingTranslation.slug === inProgressTranslation.slug &&
+              pendingTranslation.locale === inProgressTranslation.locale
+          )
+        )
+    )
+    .filter(
+      (pendingTranslation) =>
+        !Boolean(
+          erroredTranslations.find(
+            (erroredTranslation) =>
+              pendingTranslation.slug === erroredTranslation.slug &&
+              pendingTranslation.locale === erroredTranslation.locale
           )
         )
     )

@@ -18,6 +18,23 @@ const localesMap = {
 const projectId = process.env.TRANSLATION_VENDOR_PROJECT;
 
 /**
+ * @typedef {Object[]} FileUriBatches
+ * @property {String[]} fileUris
+ */
+
+/**
+ * @typedef HtmlFile
+ * @property {string} path - Source path of file w/o `src/.../content/docs` prefix, or extension.
+ * @property {string} html - (HTML) Content of the file as a string.
+ */
+
+/**
+ * @typedef SlugStatus
+ * @property {boolean} ok - Boolean flag indicating whether the translated file whether file was successfully deserialized or not.
+ * @property {string} slug - Complete source path of the translated file
+ */
+
+/**
  * Method which writes translated content to the 'src/content/i18n' path, and copies images for translated files.
  * @param {vfile.VFile[]} vfiles
  */
@@ -53,63 +70,175 @@ const writeFilesSync = (vfiles) => {
   });
 };
 
-const fetchTranslatedFilesZip = async (fileUris, locale) => {
-  const fileUriStr = fileUris.reduce((str, uri) => {
-    return str.concat(`&fileUris[]=${encodeURIComponent(uri)}`);
-  }, '');
+/**
+ * @param {Object} input
+ * @param {String[]} input.fileUris
+ * @param {Number} batchSize - maximum batch size
+ * @returns {FileUriBatches}
+ */
+const createFileUriBatches = ({ fileUris }, batchSize = 50) => {
+  let batches = [];
+  let currentBatch = [];
 
-  const localeIdStr = `localeIds[]=${locale}`;
+  for (let i = 0; i < fileUris.length; i++) {
+    currentBatch.push(fileUris[i]);
 
-  return fetch(
-    `https://api.smartling.com/files-api/v2/projects/${projectId}/files/zip?${localeIdStr}${fileUriStr}`,
-    {
-      method: 'GET',
-      headers: {
-        Authorization: `Bearer ${await getAccessToken()}`,
-      },
+    if (currentBatch.length === batchSize) {
+      // send the request, reset the count & array
+      batches.push({ fileUris: currentBatch });
+      currentBatch = [];
     }
-  );
+  }
+
+  // cleanup the last batch
+  if (currentBatch.length != 0) {
+    batches.push({ fileUris: currentBatch });
+  }
+
+  return batches;
 };
 
-const fetchAndDeserialize = async ({ locale, fileUris }) => {
-  const response = await fetchTranslatedFilesZip(fileUris, locale);
+/**
+ * @param {String} locale
+ */
+const fetchTranslatedFilesZip = (locale) => {
+  /**
+   * @param {Object} input
+   * @param {String[]} input.fileUris
+   * @returns {AdmZip|null}
+   */
+  return async ({ fileUris }) => {
+    const fileUriStr = fileUris.reduce((str, uri) => {
+      return str.concat(`&fileUris[]=${encodeURIComponent(uri)}`);
+    }, '');
 
-  const buffer = await response.buffer();
+    const localeIdStr = `localeIds[]=${locale}`;
 
-  const zip = new AdmZip(buffer);
-  const zipEntries = zip.getEntries();
+    const response = await fetch(
+      `https://api.smartling.com/files-api/v2/projects/${projectId}/files/zip?${localeIdStr}${fileUriStr}`,
+      {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${await getAccessToken()}`,
+        },
+      }
+    );
 
-  const translatedHtml = zipEntries.map((entry) => {
-    const filepath = entry.entryName.replace(`${locale}/src/content/docs`, '');
-    const slug = filepath.replace(`.mdx`, '');
-    return {
-      path: slug,
-      html: zip.readAsText(entry, 'utf8'),
-    };
-  });
+    if (response.status !== 200) {
+      console.log(
+        `Error encountered downloading files from vendor. Response code received: ${response.status}`
+      );
+      console.log(
+        `The following files were not downloaded for ${locale}: ${JSON.stringify(
+          fileUris,
+          null,
+          4
+        )}`
+      );
+      return null;
+    }
 
-  const deserializedMdx = await Promise.all(
-    translatedHtml.map(async ({ path, html }) => {
-      console.log(`[*] Deserializing ${path}`);
+    const buffer = await response.buffer();
+    const zip = new AdmZip(buffer);
+
+    return zip;
+  };
+};
+
+/**
+ * @param {String} locale
+ */
+const extractFiles = (locale) => {
+  /**
+   * @param {AdmZip} zip - the downloaded zip containing batch of files.
+   * @returns {HtmlFile[]}
+   */
+  return (zip) => {
+    return zip.getEntries().map((entry) => {
+      const filepath = entry.entryName.replace(
+        `${locale}/src/content/docs`,
+        ''
+      );
+      const slug = filepath.replace(`.mdx`, '');
       return {
-        path: `src/i18n/content/${localesMap[locale]}/docs/${path}`,
-        mdx: await deserializedHtml(html),
+        path: slug,
+        html: zip.readAsText(entry, 'utf8'),
       };
-    })
-  );
-
-  const files = deserializedMdx.map(
-    ({ path, mdx }) =>
-      vfile({
-        contents: mdx,
-        path,
-        extname: '.mdx',
-      }),
-    'utf-8'
-  );
-
-  createDirectories(files);
-  writeFilesSync(files);
+    });
+  };
 };
 
-module.exports = { writeFilesSync, fetchAndDeserialize };
+/**
+ * @param {String} locale
+ */
+const deserializeHtmlToMdx = (locale) => {
+  /**
+   * @param {HtmlFile} file
+   * @returns {SlugStatus}
+   */
+  return async ({ path: contentPath, html }) => {
+    const completePath = path.join('src/content/docs', contentPath, '.mdx');
+
+    try {
+      const localePath = path.join(
+        `src/i18n/content/${localesMap[locale]}/docs/`,
+        contentPath
+      );
+      const mdx = await deserializedHtml(html);
+
+      const temp = vfile({
+        contents: mdx,
+        path: localePath,
+        extname: '.mdx',
+      });
+
+      createDirectories([temp]);
+      writeFilesSync([temp]);
+
+      return {
+        ok: true,
+        slug: completePath,
+      };
+    } catch (ex) {
+      console.log(`Failed to deserialize: ${contentPath}`);
+      console.log(ex);
+
+      return { ok: false, slug: completePath };
+    }
+  };
+};
+
+/**
+ *
+ * @param {Object} input
+ * @param {String} input.locale - locale associated with fileUris
+ * @param {String[]} input.fileUris - list of file paths used for download & deserialization. This will be the complete singular list prior to batching.
+ * @returns {SlugStatus[]}
+ */
+const fetchAndDeserializeFiles = async ({ locale, fileUris }) => {
+  const batches = createFileUriBatches({ fileUris });
+
+  console.log(`Created ${batches.length} batches of files.`);
+
+  const zips = (
+    await Promise.all(batches.map(fetchTranslatedFilesZip(locale)))
+  ).filter(Boolean);
+
+  console.log(`Downloaded ${zips.length} zips`);
+
+  const files = zips.flatMap(extractFiles(locale));
+
+  console.log(`Unzipped ${files.length} total files.`);
+
+  const slugStatuses = await Promise.all(
+    files.map(deserializeHtmlToMdx(locale))
+  );
+
+  return slugStatuses;
+};
+
+module.exports = {
+  createFileUriBatches,
+  writeFilesSync,
+  fetchAndDeserializeFiles,
+};

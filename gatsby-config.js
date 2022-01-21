@@ -50,7 +50,6 @@ module.exports = {
       resolve: '@newrelic/gatsby-theme-newrelic',
       options: {
         oneTrustID: 'e66f9ef1-3a12-4043-b7c0-1a2ea66f6d41',
-        forceTrailingSlashes: true,
         layout: {
           contentPadding: '1.5rem',
           maxWidth: '1600px',
@@ -87,77 +86,6 @@ module.exports = {
             authorizationKey: process.env.SPLITIO_AUTH_KEY || 'localhost',
           },
           debug: false,
-        },
-        relatedResources: {
-          swiftype: {
-            resultsPath: `${__dirname}/src/data/swiftype-resources.json`,
-            engineKey: 'Ad9HfGjDw4GRkcmJjUut',
-            refetch: Boolean(process.env.BUILD_RELATED_CONTENT),
-            limit: 3,
-            filter: ({ node }) => {
-              if (node.internal.type !== 'Mdx') {
-                return false;
-              }
-
-              const includedTypes = ['apiDoc', 'troubleshooting'];
-              const excludedFolders = [
-                'src/content/docs/release-notes',
-                'src/content/whats-new',
-              ];
-
-              const {
-                frontmatter,
-                fields: { fileRelativePath },
-              } = node;
-
-              if (
-                excludedFolders.some((path) => fileRelativePath.includes(path))
-              ) {
-                return false;
-              }
-
-              return (
-                frontmatter.type == null ||
-                includedTypes.includes(frontmatter.type)
-              );
-            },
-            getParams: ({ node, slug }) => {
-              const { tags, title } = node.frontmatter;
-
-              const locale = slug && slug.split('/')[0];
-              const postfix = additionalLocales.includes(locale)
-                ? `-${locale}`
-                : '';
-
-              return {
-                q: tags ? tags.map(quote).join(' OR ') : title,
-                search_fields: {
-                  page: [
-                    'tags^10',
-                    'quick_start_name^8',
-                    'body^5',
-                    'title^1.5',
-                    '*',
-                  ],
-                },
-                filters: {
-                  page: {
-                    type: [
-                      `docs${postfix}`,
-                      `developer${postfix}`,
-                      `opensource${postfix}`,
-                      `quickstarts${postfix}`,
-                    ],
-                    document_type: [
-                      '!views_page_menu',
-                      '!term_page_api_menu',
-                      '!term_page_landing_page',
-                    ],
-                  },
-                },
-              };
-            },
-          },
         },
         newrelic: {
           configs: {
