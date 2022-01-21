@@ -8,67 +8,72 @@ metaDescription: How to install New Relic's kubernetes integration.
 ---
 
 <Callout title="v3 BETA">
-    Kubernetes integration v3 is currently in a last stage beta, and we expect to make it Generally Available during Winter 2022. We encourage you to give it a try and let us know what you think!
-</Callout>---
+  Kubernetes integration v3 is currently in a last stage beta, and we expect to make it generally available during Winter 2022. We encourage you to give it a try and let us know what you think!
+</Callout>
 
 ## Overview [#overview]
 
 <Callout title="v3 BETA">
-  Please note that data reported by the Kubernetes Integration version 3 has not changed with respect to version 2. For this major release we have focused instead in configurability, stability, and user experience.
-</Callout>---
+  Data reported by the Kubernetes Integration version 3 has not changed with respect to version 2. For this major release, we focused in configurability, stability, and user experience.
+</Callout>
 
-From version 3 onwards, our Kubernetes solution features a new architecture which aims to be more modular and configurable, giving users more power to choose how the solution is deployed and making it compatible with more environments.
+From version 3 onwards, New Relic's Kubernetes solution features a new architecture which aims to be more modular and configurable, giving you more power to choose how the solution is deployed and making it compatible with more environments.
 
 ### Architectural changes [#architecture]
 
-In this new version, the main component of our integration, the `newrelic-infrastructure` DaemonSet, is now divided in three different components: `nrk8s-ksm`, `nrk8s-kubelet` and `nrk8s-controlplane`, with the first being a Deployment and the next two being DaemonSets. This allows as to make smarter decisions at scheduling and deployment time, rather than runtime. Moreover, we also changed the lifecycle of the scraping process: We went from a one-shot, short lived process, to a long-lived one, allowing it to leverage higher-level Kubernetes APIs like the Kubernetes informers, that provide built-in caching and watching of cluster objects. For this reason, each of the components will now have two containers: One for the integration, responsible of collecting metrics, and a second one with the New Relic Infrastructure Agent, which is used to send the metrics to the New Relic Platform.
+In this new version, the main component of the integration, the `newrelic-infrastructure` DaemonSet, is divided in three different components: `nrk8s-ksm`, `nrk8s-kubelet`, and `nrk8s-controlplane`, with the first being a deployment and the next two being DaemonSets. This makes it easier to make decisions at scheduling and deployment time, rather than runtime.
+
+Moreover, we also changed the lifecycle of the scraping process. We went from a one-shot, short-lived process, to a long-lived one, allowing it to leverage higher-level Kubernetes APIs like the Kubernetes informers, that provide built-in caching and watching of cluster objects. For this reason, each of the components has two containers: 
+
+1. A container for the integration, responsible of collecting metrics.
+2. A container with the New Relic Infrastructure Agent, which is used to send the metrics to the New Relic Platform.
 
 ### Kube-state-metrics component [#nrk8s-ksm]
 
-We build our cluster state metrics on top of the great OSS project Kube-State-Metrics, which is housed under the Kubernetes organization itself. Previously, as our solution was comprised by just one DaemonSet, an election process was made to decide which pod was going to be in charge of scraping the metrics. This process was based merely on locality: The pod in charge would be the one that shares a node with the KSM deployment.
+We build our cluster state metrics on top of the OSS project `Kube-State-Metrics`, which is housed under the Kubernetes organization itself. Previously, as our solution was comprised by just one DaemonSet, an election process was made to decide which pod was going to be in charge of scraping the metrics. This process was based merely on locality. The pod in charge would be the one that shares a node with the KSM deployment.
 
-As the KSM output contains data for the whole cluster, parsing this output requires a substantial amount of resources. While this is something that big cluster operators can assume, the fact that it is one arbitrary instance of the DaemonSet the one that will need this big amount of resources forces cluster operators to allow such consumption to the whole DaemonSet, where only one actually needed them.
+As the KSM output contains data for the whole cluster, parsing this output requires a substantial amount of resources. While this is something that big cluster operators can assume, the fact that it's one arbitrary instance of the DaemonSet the one that will need this big amount of resources forces cluster operators to allow such consumption to the whole DaemonSet, where only one actually needed them.
 
-Another problem with KSM scraping was figuring out in which node the KSM pod lived. To do this, we need to contact the API Server and filter pods by some labels, but given the short-lived nature of the integration, caches and watchers were not being used effectively by it. This caused that, on large clusters, all instances of the DaemonSet to flood the control plane with non-namespaced pod list requests as an attempt to figure out whether the KSM pod was living next to them.
+Another problem with KSM scraping was figuring out in which node the KSM pod lived. To do this, we need to contact the API Server and filter pods by some labels, but given the short-lived nature of the integration, caches and watchers were not being used effectively by it. This caused that, on large clusters, all instances of the DaemonSet flooded the control plane with non-namespaced pod list requests as an attempt to figure out whether the KSM pod was living next to them.
 
 We decided to tackle this problem by making two big changes to how KSM is scraped:
 
 1. Split the responsibility of scraping KSM out of the DaemonSet pods to a different, single instance deployment.
 2. Refactor the code and make it long-running, so we can leverage client-go informers which provide built-in caching and watching mechanisms.
 
-Thus, a specific Deployment `nrk8s-ksm` now takes care of finding KSM and scraping it. With this pod now being long-lived and single, it can safely use an Endpoints informer to locate the IP of the KSM pod and scrape it. The informer will automatically cache the list of informers in the cluster locally and watch for new ones, avoiding storming the API Server with requests to figure out where the pod was located.
+Thus, a specific Deployment `nrk8s-ksm` now takes care of finding KSM and scraping it. With this pod now being long-lived and single, it can safely use an endpoints informer to locate the IP of the KSM pod and scrape it. The informer will automatically cache the list of informers in the cluster locally and watch for new ones, avoiding storming the API Server with requests to figure out where the pod was located.
 
 While a sharded KSM setup is not supported yet, this new code was built with this future improvement in mind.
 
 ### Kubelet component [#nrk8s-kubelet]
 
-The Kubelet is the “Kubernetes agent”, a service that runs on every Kubernetes node and is responsible of creating the containers as instructed by the Control Plane. Since it's the Kubelet who partners closely with the Container Runtime, it is the main source of infrastructure metrics for our integration, such as use of CPU, memory, disk, network, etc. The Kubelet exposes an undocumented an unspec'd API that is, however, a de-facto standard and many tools rely upon it.
+The Kubelet is the “Kubernetes agent”, a service that runs on every Kubernetes node and is responsible of creating the containers as instructed by the Control Plane. Since it's the Kubelet who partners closely with the Container Runtime, it's the main source of infrastructure metrics for our integration, such as use of CPU, memory, disk, network, etc. The Kubelet exposes an undocumented an unspec'd API that is, however, a de-facto standard and many tools rely upon it.
 
 Scraping the Kubelet is typically a low-resource operation. Given this, and our intent to minimize inter-node traffic whenever possible, `nrk8s-kubelet` is run as a DaemonSet where each instance gathers metric from the Kubelet running in the same node as it is.
 
-Unlike before, `nrk8s-kubelet` does not require `hostNetwork` to run properly, and it will instead connect to the Kubelet using the Node IP. If this process fails, `nrk8s-kubelet` will fall back to reach the node through the API Server proxy.
+`nrk8s-kubelet` does not require `hostNetwork` to run properly, and instead it connects to the Kubelet using the Node IP. If this process fails, `nrk8s-kubelet` will fall back to reach the node through the API Server proxy.
 
 ### Control plane component [#nrk8s-controlplane]
 
-Enabling the integration to successfully find and connect to CP components was probably one of the hardest parts of this effort. The main reason for this is the amount of ways in which CP components can be configured: In or outside the cluster, with one or many replicas, with or without dedicated nodes, etc. Moreover, different CP components might be configured directly.
+Enabling the integration to successfully find and connect to CP components was probably one of the hardest parts of this effort. The main reason for this is the amount of ways in which CP components can be configured: inside or outside the cluster, with one or many replicas, with or without dedicated nodes, etc. Moreover, different CP components might be configured directly.
 
-We built the current approach with the following use cases in mind:
+We built the current approach with the following scenarios in mind:
 
-1. CP monitoring should work out of the box for those environments in which the CP is reachable out of the box (e.g. Kubeadm or even Minikube)
+1. CP monitoring should work out of the box for those environments in which the CP is reachable out of the box, e.g. Kubeadm or even Minikube.
 
-2. For setups where the CP cannot be autodiscovered, for example if it lives out of the cluster, we should provide a way for the user to specify their own endpoints
+2. For setups where the CP can't be autodiscovered. For example, if it lives out of the cluster, we should provide a way for the user to specify their own endpoints.
 
-3. Failure to autodiscover should not cause the deployment to fail, but failure to hit a manually defined endpoint should
+3. Failure to autodiscover shouldn't cause the deployment to fail, but failure to hit a manually defined endpoint should.
 
 As major Kubernetes distributions such as Kubeadm deploy CP components configured to listen only in localhost on the host's network namespace, we chose to deploy `nrk8s-controlplane` as a DaemonSet with `hostNetwork: true`.
 
-In the event the solution is deployed in unprivileged mode (`privileged: false`), `nrk8s-controlplane` will not be deployed, as it required `hostNetwork: true`. However, it is possible to override this behavior and have the Control Plane deployed with `hostNetwork: true` even if `privileged` is set to `false` by setting a flag in the Helm Chart.
+In the event the solution is deployed in unprivileged mode (`privileged: false`), `nrk8s-controlplane` will not be deployed, as it required `hostNetwork: true`. However, you can override this behavior and have the Control Plane deployed with `hostNetwork: true`, even if `privileged` is set to `false` by setting a flag in the Helm Chart.
 
-We structured the configuration to support autodiscover and static endpoints. In an attempt to be compatible with a wide range of distributions out of the box, we now provide a wide range of known defaults as config entries. Doing this in the configuration instead of the code allows users to tweak autodiscovery to their own needs.
+We structured the configuration to support autodiscover and static endpoints. To be compatible with a wide range of distributions out of the box, we provide a wide range of known defaults as configuration entries. Doing this in the configuration instead of the code allows you to tweak autodiscovery to your needs.
 
-Another improvement was adding the possibility of having multiple endpoints per selectors and adding a probe mechanism which automatically detects the correct one. This allows us to try different configurations (ports, protocols, etc.) using the same selector.
+Another improvement was adding the possibility of having multiple endpoints per selector and adding a probe mechanism which automatically detects the correct one. This allows you to try different configurations such as ports or protocols by using the same selector.
 
-Scraping configuration for the ETCD CP component looks like the following where the same structure and features applies for all the components.
+Scraping configuration for the ETCD CP component looks like the following where the same structure and features applies for all components:
 
 ```yaml
 config:
@@ -90,34 +95,32 @@ config:
       auth: {}
 ```
 
-If staticEndpoint is set the the component will try to scrape it and if fail the integration will fail so there is not silent errors when manual endpoints are configured. 
+If `staticEndpoint` is set, the component will try to scrape it. If it fails, the integration will fail so there are no silent errors when manual endpoints are configured. 
 
-In the case staticEndpoint is not set, the component will iterate over the autodiscover entries looking for the first pod that matches the `selector` in the specified `namespace` and optionally is running in the same node of the DaemonSet (`matchNode`). After a pod is discovered the component probes, issuing an http `HEAD` request, the listed endpoints in order and scrapes the first success probed one using the authorization type selected.
+If `staticEndpoint` is not set, the component will iterate over the autodiscover entries looking for the first pod that matches the `selector` in the specified `namespace`, and optionally is running in the same node of the DaemonSet in `matchNode`. After a pod is discovered, the component probes, issuing an http `HEAD` request, the listed endpoints in order and scrapes the first successful probed one using the authorization type selected.
 
-While above we show a config excerpt for `etcd`, the scraping logic is the same for other components.
+While above we show a config excerpt for the `etcd` component, the scraping logic is the same for other components.
 
-For more detailed instructions on how to configure control plane monitoring, please head to [Control Plane Monitoring](#).
+For more detailed instructions on how to configure control plane monitoring, head to [Control Plane Monitoring](#).
 
 ### Helm Charts [#helm-charts]
 
-Helm is the primary means we offer to deploy our solution into their clusters. For this reason, we have built a new chart from the ground up for our solution. Chart complexity was also significantly increased from the previous version, where it only had to manage one DaemonSet, to this one, where it has to manage one Deployment and two DaemonSets with slightly different configurations each. However, we believe that this will give users more flexibilty to adapt the solution to their needs, whithout the need to apply manual patches on top of the chart and/or the generated manifests.
+Helm is the primary means we offer to deploy our solution into your clusters. Chart complexity was also significantly increased from the previous version, where it only had to manage one DaemonSet. Now, it has to manage one deployment and two DaemonSets where each has slightly different configurations. This will give you more flexibilty to adapt the solution to your needs, whithout the need to apply manual patches on top of the chart and the generated manifests.
 
-Some of the new features that our new Chart exposes are:
+Some of the new features that our new Helm chart exposes are:
 
-* Full control of the `securityContext` for all pods
-* Full control of pod `labels` and `annotations` for all pods
-* Ability to add extra environment variables, `volumes`, and `volumeMounts`
-* Full control on the integration configuration, including which endpoints are reached, autodiscovery behavior, and scraping intervals
-* Better alignment with Helm idioms and standards
+* Full control of the `securityContext` for all pods.
+* Full control of pod `labels` and `annotations` for all pods.
+* Ability to add extra environment variables, `volumes`, and `volumeMounts`.
+* Full control on the integration configuration, including which endpoints are reached, autodiscovery behavior, and scraping intervals.
+* Better alignment with Helm idioms and standards.
 
-Full details on all the switches that can be flipped can be found in the [Chart's `README.md`](https://github.com/newrelic/helm-charts/blob/master/charts/newrelic-infrastructure-v3/README.md)
+You can check full details on all the switches that can be flipped in the [Chart's `README.md`](https://github.com/newrelic/helm-charts/blob/master/charts/newrelic-infrastructure-v3/README.md).
 
 ## Migration Guide [#migration-guide]
 
 > TBD
 
-In order to make migration from the old chart as easy as possible, we have developed a compatibility layer that will translate most of the options that were possible to specify in the old newrelic-infrastructure chart (v2.x).
+In order to make migration from the old chart as easy as possible, we developed a compatibility layer that will translate most of the options that were possible to specify in the old newrelic-infrastructure chart (v2.x).
 
-This compatibility layer produces an “overlay” containing the old values of the chart refactored to be applicable on top of the new ones, essentially overriding the defaults.
-
-To make this layer possible, we had to make one tradeoff: The new chart needed to be called the same as the old one. Otherwise, Helm will not propagate the old values to the new one. While both versions coexist, the new chart is aliased as the old one. After the transition period passes, the alias will be removed and the old chart will get replaced with the new one, consolidating the breaking change. After some more time, the compatibility layer will be removed.
+This compatibility layer produces an overlay containing the old values of the chart refactored to be applicable on top of the new ones, essentially overriding the defaults. To make this possible, we had to name the new Helm chart with the old Helm chart's name. Otherwise, Helm wouldn't propagate the old values to the new Helm chart. While both versions coexist, the new chart is aliased as the old one. After the transition period, the alias will be removed and the old chart will get replaced with the new one, consolidating the breaking change. After some more time, the compatibility layer will be removed.
