@@ -5,7 +5,7 @@ const Actions = require('./actions');
 const listOrphans = new Command('list-orphans');
 listOrphans
   .description('list orphaned files')
-  .action(Actions.listOrphanedFiles);
+  .action(Actions.printOrphanedFiles);
 
 const deleteOrphans = new Command('delete-orphans');
 deleteOrphans
