@@ -15,6 +15,7 @@ module.exports = {
 
   parser: '@typescript-eslint/parser',
   parserOptions: {
+    files: ['*.ts', '*.tsx', '*.js', '*.jsx'],
     ecmaFeatures: {
       jsx: true,
     },
