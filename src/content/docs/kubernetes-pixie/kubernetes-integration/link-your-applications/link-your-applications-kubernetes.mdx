@@ -42,13 +42,19 @@ Before linking Kubernetes metadata to your APM agents, make sure you meet the fo
 
 ### Kubernetes requirements [#kubernetes-req]
 
-To link your applications and Kubernetes, your cluster must have the `MutatingAdmissionWebhook` controller enabled, which requires **Kubernetes 1.9 or higher**.
+To link your applications and Kubernetes, you must be running **Kubernetes 1.16 or higher** and be able to deploy `MutatingWebhookConfiguration`.
 
 To verify that your cluster is compatible, run the following command:
 
+```shell
+kubectl auth can-i create mutatingwebhookconfigurations.admissionregistration.k8s.io
 ```
-kubectl api-versions | grep admissionregistration.k8s.io/v1beta1
-admissionregistration.k8s.io/v1beta1
+
+The output for the command above should be something similar to:
+
+```
+Warning: resource 'mutatingwebhookconfigurations' is not namespace scoped in group 'admissionregistration.k8s.io'
+<mark>yes</mark>
 ```
 
 If you see a different result, follow the Kubernetes documentation to [enable admission control in your cluster](https://kubernetes.io/docs/reference/access-authn-authz/admission-controllers/#how-do-i-turn-on-an-admission-controller).
@@ -58,10 +64,6 @@ If you see a different result, follow the Kubernetes documentation to [enable ad
 For Kubernetes to speak to our `MutatingAdmissionWebhook`, the master node (or the API server container, depending on how the cluster is set up) should be allowed egress for HTTPS traffic on port 443 to pods in all of the other nodes in the cluster.
 
 This might require specific configuration depending on how the infrastructure is set up (on-premises, AWS, Google Cloud, etc).
-
-<Callout variant="tip">
-  Until Kubernetes v1.14, users were only allowed to register admission webhooks on port 443. Since v1.15 it's possible to register them on different ports. To ensure backward compatibility, the webhook is registered by default on port 443 in the YAML config file we distribute.
-</Callout>
 
 ### APM agent compatibility [#agent-compatibility]
 
@@ -116,98 +118,63 @@ To link Openshift and Kubernetes you must enable mutating admission webhooks, wh
    ```
 4. Restart the Openshift services in the master node.
 
-## Configure the injection of metadata [#configure-injection]
+## Set up the injection of metadata [#configure-injection]
+
+Injection of metadata is included when you [install our integration using Helm](/docs/kubernetes-pixie/kubernetes-integration/installation/install-kubernetes-integration-using-helm). Just be sure that, when you are configuring the chart, the webhook that inject the metadata is enabled:
+
+```yaml
+webhook:
+  enabled: true
+```
 
 By default, all the pods you create that include APM agents have the correct environment variables set and the metadata injection applies to the entire cluster. To check that the environment variables have been set, any container that is running must be stopped, and a new instance started (see [Validate the injection of metadata](/docs/integrations/kubernetes-integration/link-your-applications/link-your-applications-kubernetes/#validate-injection)).
 
 This default configuration also uses the [Kubernetes certificates API](https://kubernetes.io/docs/tasks/inject-data-application/distribute-credentials-secure/) to automatically manage the certificates required for the injection. If needed, you can limit the injection of metadata to specific namespaces in your cluster or self-manage your certificates.
 
-### Default configuration [#default-configuration]
+## Custom configuration [#custom-configuration]
 
-We offer [instructions for deploying our integration using Helm](/docs/kubernetes-pixie/kubernetes-integration/installation/install-kubernetes-integration-using-helm).
-
-Just be sure that, when you are configuring the chart, the webhook that inject the metadata is enabled. Notice that we are specifying `--dry-run` and `--debug`, so nothing will be installed in this step:
-
-```
-helm upgrade --install newrelic newrelic/nri-bundle \
---dry-run \
---debug \
---namespace newrelic --create-namespace \
---set global.licenseKey=<var>YOUR_NEW_RELIC_LICENSE_KEY</var> \
---set global.cluster=<var>K8S_CLUSTER_NAME</var> \
---set ksm.enabled=true \
---set newrelic-infrastructure.privileged=true \
---set infrastructure.enabled=true \
---set prometheus.enabled=true \
---set webhook.enabled=<mark>true</mark> \
---set kubeEvents.enabled=true \
---set logging.enabled=true
-```
-
-### Custom configuration [#custom-configuration]
+### Limit namespaces subject to injection
 
 You can limit the injection of metadata only to specific namespaces by using labels.
 
-To enable this feature, edit nri-bundle Helm `values.yaml` file:
+To enable this feature, add the following to `values-newrelic.yaml` file:
 
-```
+```yaml
 nri-metadata-injection:
   injectOnlyLabeledNamespaces: true
 ```
 
-Or add a `--set` when installing or upgrading your Helm release:
-
-```
-helm upgrade --install newrelic newrelic/nri-bundle \
---dry-run \
---debug \
---namespace newrelic --create-namespace \
---set global.licenseKey=<var>YOUR_NEW_RELIC_LICENSE_KEY</var> \
---set global.cluster=<var>K8S_CLUSTER_NAME</var> \
---set ksm.enabled=true \
---set newrelic-infrastructure.privileged=true \
---set infrastructure.enabled=true \
---set prometheus.enabled=true \
---set webhook.enabled=<mark>true</mark> \
---set <mark>nri-metadata-injection.injectOnlyLabeledNamespaces=true</mark> \
---set kubeEvents.enabled=true \
---set logging.enabled=true
-```
-
 With this option, injection is only applied to those namespaces that have the `newrelic-metadata-injection` label set to `enabled`:
 
-```
+```shell
 kubectl label namespace <var>YOUR_NAMESPACE</var> newrelic-metadata-injection=enabled
 ```
 
-## Manage custom certificates [#option-activation]
+### Use cert-manager to generate certs
+
+By default, our chart uses [kube-webhook-certgen](https://github.com/kubernetes/ingress-nginx/tree/main/images/kube-webhook-certgen) to automatically generate the required certificates for the webhook to run.
+
+However, if you have [cert-manager](https://cert-manager.io/) installed, you can configure our chart to use cert-manager instead, which can significantly simplify the deployment process:
+
+```yaml
+nri-metadata-injection:
+  certManager:
+    enabled: true
+```
+
+### Manage custom certificates [#option-activation]
+
+<Callout variant="tip">
+  Manually managing webhook certificates is recommended for advanced users only. New Relic support team might not be able to help troubleshooting this configuration.
+</Callout>
 
 To use custom certificates you need to disable the automatic installation of certificates when you are installing using Helm.
 
 To disable the installation for certificates just modify nri-bundle Helm `values.yaml` like this:
 
-```
+```yaml
 nri-metadata-injection:
   customTLSCertificate: true
-```
-
-Or add a `--set` when installing or upgrading your Helm release:
-
-```
-helm upgrade --install newrelic newrelic/nri-bundle \
---dry-run \
---debug \
---namespace newrelic --create-namespace \
---set global.licenseKey=<var>YOUR_NEW_RELIC_LICENSE_KEY</var> \
---set global.cluster=<var>K8S_CLUSTER_NAME</var> \
---set ksm.enabled=true \
---set newrelic-infrastructure.privileged=true \
---set infrastructure.enabled=true \
---set prometheus.enabled=true \
---set webhook.enabled=<mark>true</mark> \
---set <mark>nri-metadata-injection.customTLSCertificate=true</mark> \
---set kubeEvents.enabled=true \
---set logging.enabled=true
 ```
 
 Now you can proceed with the custom certificate management option.
@@ -216,16 +183,16 @@ You need your certificate, server key, and Certification Authority (CA) bundle e
 
 * If you have them in the standard certificate format (X.509), install `openssl`, and run the following:
 
-  ```
-  openssl x509 -in <var>CERTIFICATE_FILENAME</var> -outform PEM -out <var>CERTIFICATE_FILENAME.pem</var>
-  openssl x509 -in <var>SERVER_KEY_FILENAME</var> -outform PEM -out <var>SERVER_KEY_FILENAME.pem</var>
-  openssl x509 -in <var>CA_BUNDLE_FILENAME</var> -outform PEM -out <var>BUNDLE_FILENAME.pem</var>
-  ```
+```shell
+openssl x509 -in <var>CERTIFICATE_FILENAME</var> -outform PEM -out <var>CERTIFICATE_FILENAME.pem</var>
+openssl x509 -in <var>SERVER_KEY_FILENAME</var> -outform PEM -out <var>SERVER_KEY_FILENAME.pem</var>
+openssl x509 -in <var>CA_BUNDLE_FILENAME</var> -outform PEM -out <var>BUNDLE_FILENAME.pem</var>
+```
 * If your certificate/key pair are in another format, see the [Digicert knowledgebase](https://knowledge.digicert.com/solution/SO26449.html) for more help.
 
 Create the TLS secret with the signed certificate/key pair, and patch the mutating webhook configuration with the CA using the following commands:
 
-```
+```shell
 kubectl create secret tls <mark>newrelic-metadata-injection-admission</mark> \
 --key=<var>PEM_ENCODED_SERVER_KEY</var> \
 --cert=<var>PEM_ENCODED_CERTIFICATE</var> \
@@ -246,35 +213,36 @@ In order to validate that the webhook (responsible for injecting the metadata) w
 
 1. Create a dummy pod containing Busybox by running:
 
-   ```
-   kubectl create -f https://git.io/vPieo
-   ```
+```shell
+kubectl run test-nginx --image nginx -n <var>newrelic</var>
+```
+
 2. Check if New Relic environment variables were injected:
 
-   ```
-   kubectl exec busybox0 -- env | grep NEW_RELIC_METADATA_KUBERNETES
+```shell
+kubectl exec -n <var>newrelic</var> test-nginx -- env | grep NEW_RELIC_METADATA_KUBERNETES
+```
 
-   NEW_RELIC_METADATA_KUBERNETES_CLUSTER_NAME=fsi
-   NEW_RELIC_METADATA_KUBERNETES_NODE_NAME=nodea
-   NEW_RELIC_METADATA_KUBERNETES_NAMESPACE_NAME=default
-   NEW_RELIC_METADATA_KUBERNETES_POD_NAME=busybox0
-   NEW_RELIC_METADATA_KUBERNETES_CONTAINER_NAME=busybox
-   ```
+The expected output would be something like the following:
+
+```
+NEW_RELIC_METADATA_KUBERNETES_CLUSTER_NAME=<var>cluster-name</var>
+NEW_RELIC_METADATA_KUBERNETES_NODE_NAME=nodea
+NEW_RELIC_METADATA_KUBERNETES_NAMESPACE_NAME=newrelic
+NEW_RELIC_METADATA_KUBERNETES_POD_NAME=test-nginx
+NEW_RELIC_METADATA_KUBERNETES_CONTAINER_NAME=nginx
+```
 
 ## Disable the injection of metadata [#uninstall]
 
-To disable/uninstall the injection of metadata, use the following commands:
+To disable/uninstall the injection of metadata, change your `values-newrelic.yaml` file as follows:
 
-1. Delete the Kubernetes objects using the `yaml` file:
+```yaml
+webhook:
+  enabled: false
+```
 
-   ```
-   kubectl delete -f k8s-metadata-injection-latest.yaml
-   ```
-2. Delete the `TLS secret` containing the certificate/key pair:
-
-   ```
-   kubectl delete secret/newrelic-metadata-injection-secret
-   ```
+And re-run the [installation command](/docs/kubernetes-pixie/kubernetes-integration/installation/install-kubernetes-integration-using-helm#install-k8-helm).
 
 ## Troubleshooting [#metadata-troubleshooting]
 
