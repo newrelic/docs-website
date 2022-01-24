@@ -6,7 +6,7 @@ module.exports = {
     'plugin:jsx-a11y/recommended',
     'plugin:react-hooks/recommended',
   ],
-  plugins: ['react', 'jsx-a11y', '@typescript-eslint'],
+  plugins: ['react', 'jsx-a11y', '@typescript-eslint', 'graphql'],
   settings: {
     react: {
       version: 'detect',
@@ -30,7 +30,7 @@ module.exports = {
     test: 'readonly',
     expect: 'readonly',
   },
-  ignorePatterns: ['**/__tests__/**/*'],
+  ignorePatterns: ['**/__tests__/**/*', '**/__generated__/**/*'],
   rules: {
     'no-unused-vars': [
       'error',
