@@ -1,5 +1,5 @@
 ---
-title: ‘Analyze Syslog messages to improve network performance (support for FedRAMP)'
+title: Analyze Syslog messages to improve network performance (support for FedRAMP)
 summary: 'Detect anomalies automatically before they cause problems'
 releaseDate: '2022-01-19'
 learnMoreLink: 'https://docs.newrelic.com/docs/network-performance-monitoring/setup-performance-monitoring/network-syslog-monitoring/' 
