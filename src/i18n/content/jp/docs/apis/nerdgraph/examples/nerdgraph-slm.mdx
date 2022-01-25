@@ -1,0 +1,152 @@
+---
+title: NerdGraph APIによるサービスレベルの設定
+tags:
+  - Full-Stack Observability
+  - Observe everything
+  - Service Level Management
+  - SLI/SLO
+  - Configure
+  - Consume
+  - NerdGraph
+metaDescription: Our new offer to create and consume SLI/SLOs using the NerdGraph API.
+translationType: machine
+---
+
+<Callout title="ベータ版機能">
+  この機能は現在 [ベータ版](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy/) です。
+</Callout>
+
+New Relic を使用すると、アプリケーションに対して [サービスレベル](https://docs-preview.newrelic.com/docs/service-level-management/create-slm) を実装し、 [計画セッションやインシデント対応の際に UI から簡単に](https://docs-preview.newrelic.com/docs/service-level-management/consume-slm) 結果を消費し、目的を望ましいユーザーエクスペリエンスに調整するために構成を段階的に反復することができます。
+
+UI以外にも、 [NerdGraph API Explorer](/docs/apis/nerdgraph/get-started/introduction-new-relic-nerdgraph/) を使用して、SLIとそのSLOの作成・編集を行うことができます。また、 [Terraform Service Level resource](https://registry.terraform.io/providers/newrelic/newrelic/latest/docs/resources/service_level) を使用して、この設定を自動化することもできます。
+
+<Callout variant="important">
+  サービスレベルを作成するためには、APIキーに [、](/docs/accounts/original-accounts-billing/original-users-roles/users-roles-original-user-model) 、 [メトリックルール](/docs/data-apis/convert-to-metrics/analyze-monitor-data-trends-metrics/) を修正・削除する権限を持つロールが必要です。
+</Callout>
+
+## SLOでSLIを作る [#create-sli-slo]
+
+SLIとSLOの作成と編集 [SLIとSLOの設定における基本的な概念（SLIが関連するエンティティなど）については、](https://docs-preview.newrelic.com/docs/service-level-management/create-slm#sli-entity) を参照してください。また、APMサービスやブラウザアプリケーションの最も一般的な指標の例については、そのドキュメントを参照してください。
+
+以下は、 `serviceLevelCreate` mutation query を使用して SLI を作成する NerdGraph コールの例です。
+
+```
+mutation { 
+  serviceLevelCreate(
+    entityGuid: "entityGuid", 
+    indicator: {
+      name: "Latency below 0.25 seconds",
+      description: "The proportion of valid requests that were served faster than 0.25s, which is considered to correspond to a good experience.", 
+      events: {
+        validEvents: {
+          from: "Transaction", 
+          where: "entityGuid = 'entityGuid'"
+        }, 
+        goodEvents: {
+          from: "Transaction", 
+          where: "entityGuid = 'entityGuid' and duration < 0.25"
+        }, 
+        accountId: accountId}, 
+        objectives: {
+          target: 99.5, 
+          timeWindow: {
+            rolling: {
+              count: 7, 
+              unit: DAY
+       }}}}) 
+  {
+    id
+    description
+  }
+}
+```
+
+これらのフィールドを含んでいます。
+
+* **`entityGuid`** : このSLIを関連付ける [エンティティ](https://docs-preview.newrelic.com/docs/service-level-management/create-slm#sli-entity) （例えば、APMサービス、ブラウザアプリケーションなど）のGUID。UIでは、エンティティページの **See metadata and manage tags** で、このGUIDを見つけることができます。
+
+* **`説明`** : 良いイベントを決定する選択された閾値を含む詳細な説明を使用します。
+
+  * 例えば、可用性のSLIの場合、"The proportion of valid requests that were served without errors "のような内容を含める。
+  * また、レイテンシーSLIの場合は、「良い体験に相当すると考えられる0.25秒よりも速く提供された有効なリクエストの割合」などの説明を記載します。
+
+* **`accountId`** : SLI/SLO計算のためのNRDBデータを含む、APMサービスまたはブラウザアプリケーションが属するアカウントのIDです。
+
+* **`badEvents.from`** , **`badEvents.where`**
+
+  * バッドイベントを定義する NRQL クエリ `SELECT count(*) FROM badEvents.from WHERE badEvents.where` には、これらの `FROM` と `WHERE` の句が必要です。
+  * 有効なイベントと悪いイベントからSLIを定義した場合、 `goodEvents` オブジェクトを空にします。
+
+* **`goodEvents.from`** , **`goodEvents.where`**
+
+  * グッド・イベントを定義する NRQL クエリ `SELECT count(*) FROM goodEvents.from WHERE goodEvents.where` には、これらの `FROM` と `WHERE` の句が必要です。
+  * 有効なイベントと良いイベントからSLIを定義した場合は、 `badEvents` オブジェクトを空にします。
+
+* **`validEvents.from`** , **`validEvents.where`**
+
+  * これらは、有効なイベントを定義するNRQLクエリの `FROM` と `WHERE` 節で、 `SELECT count(*) FROM validEvents.from WHERE validEvents.where` となります。
+
+* **`名前`** : サービスレベルの内容を理解するための、SLIの短いカテゴリー名です。SLIの定義に関わる特定のパラメーターやフィルターを含めることをお勧めします。例
+
+  * 入手方法
+  * 4秒以下のレイテンシー
+  * 0.1以下のデスクトップ用CLS
+
+* **`目的`** : SLIの目的（SLO）の配列です。
+
+  * `目標`: SLO の目標値で、最大 100.00 です。フィールドは5桁までの小数をサポートしています。
+
+    * ユーザーが現在のエクスペリエンスに満足している場合は、SLOのパーセンテージを現在のベースラインに合わせて設定してください。例えば、SLIの良い出来事を判断するために使われるパーセンタイルです。
+
+  * `timeWindow.rolling.count`: SLOを計算する際に考慮する期間の長さ。サポートされている値は、 `1`, `7`, `14`, `28`, `30` です。
+
+  * `timeWindow.rolling.unit`: `DAY`はサポートされている値です。
+
+## APMサービスのSLIの構成を取得する [#retrieve-config]
+
+このクエリを使用して、SLI のコンフィギュレーションを取得します。このコンフィギュレーションには、 `id` が含まれます。
+
+```
+{
+  actor {
+    entity(guid: "entityGuid") {
+      guid
+      name
+      serviceLevel {
+        indicators {
+          createdAt
+          createdBy {
+            email }
+          description
+          entityGuid
+          id
+          name
+          objectives {
+            target
+            timeWindow {
+              rolling {
+                count
+                unit } } }
+          } } } } }
+```
+
+## SLIのSLOの更新 [#update-slo]
+
+`serviceLevelUpdate` mutation を使用して、SLI のそれぞれに 1 つ以上の SLO を定義します。SLI の `id` を取得するには、上記のクエリを使用します。
+
+```
+mutation {
+  serviceLevelUpdate(
+    id: "indicators.id", 
+    indicator: {
+      objectives: {
+        target: 99.00, 
+        timeWindow: {
+          rolling: {
+            count: 7, 
+            unit: DAY }}}}) 
+  {
+    id
+  }
+}
+```
