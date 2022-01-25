@@ -4,9 +4,13 @@ const { program } = require('commander');
 
 const Commands = require('./commands');
 
-program.addCommand(Commands.listOrphans).addCommand(Commands.deleteOrphans);
+program
+  .addCommand(Commands.listOrphans)
+  .addCommand(Commands.deleteOrphans)
+  .addCommand(Commands.listRenames)
+  .addCommand(Commands.makeRenames);
 
-program.parse();
+program.parseAsync();
 
 /**
  * @example node cli.js list-orphans

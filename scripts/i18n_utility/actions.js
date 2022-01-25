@@ -1,6 +1,7 @@
 'use strict';
 const glob = require('glob');
 const fs = require('fs');
+const path = require('path');
 
 const simpleGit = require('simple-git');
 const git = simpleGit();
@@ -30,16 +31,31 @@ const getOrphanedFiles = () => {
   return orphanedFiles;
 };
 
-const printOrphanedFiles = (orphanedFiles = getOrphanedFiles()) => {
+const printOrphanedFiles = (orphanedFiles) => {
   console.log(`Found ${orphanedFiles.length} orphaned files.`);
   console.log(JSON.stringify(orphanedFiles, null, 4));
 };
 
-const deleteOrphanedFiles = (orphanedFiles = getOrphanedFiles()) => {
+const deleteOrphanedFiles = (orphanedFiles) => {
   orphanedFiles.forEach((file) => {
     console.log(`Deleting: ${file}`);
     fs.unlinkSync(file);
   });
+};
+
+const parseRenameSummary = (renameSummary) => {
+  const textWithinBrackets = new RegExp(/{(.*)}/);
+  const [pathChange] = renameSummary.match(textWithinBrackets);
+  const [fromPathSegment, toPathSegment] = pathChange
+    .replace('{', '')
+    .replace('}', '')
+    .split(' => ');
+  const [from, to] = [
+    renameSummary.replace(textWithinBrackets, fromPathSegment),
+    renameSummary.replace(textWithinBrackets, toPathSegment),
+  ];
+
+  return { from, to };
 };
 
 const getRenamedFiles = async () => {
@@ -52,7 +68,7 @@ const getRenamedFiles = async () => {
     insertions: 0,
     files: [
       {
-        file: 'README.md => README2.md',
+        "file": "src/content/docs/accounts/accounts/{account-maintenance => billing}/change-passwords-user-preferences.mdx",
         changes: 0,
         insertions: 0,
         deletions: 0,
@@ -70,23 +86,24 @@ const getRenamedFiles = async () => {
   ]);
 
   const renamedFiles = renamedFileSummaries.files.map((summary) => {
-    const [renamedFrom, renamedTo] = summary.file.split(' => ');
-    return { renamedFrom, renamedTo };
+    const { from, to } = parseRenameSummary(summary.file);
+    return { from, to };
   });
 
   return renamedFiles;
 };
 
-const getRenameChanges = async (renamedFiles = getRenamedFiles()) => {
+const getRenameChanges = (renamedFiles) => {
   const i18nRenames = [];
 
   renamedFiles.forEach((f) => {
-    ['ja', 'ko'].forEach((locale) => {
-      const localeFromPath = f.renamedFrom.replace(
+    // TODO: rather than hardcode, we should refer to some central locale code.
+    ['jp', 'ko'].forEach((locale) => {
+      const localeFromPath = f.from.replace(
         'src/content/docs',
         `src/i18n/content/${locale}/docs`
       );
-      const localeToPath = f.renamedTo.replace(
+      const localeToPath = f.to.replace(
         'src/content/docs',
         `src/i18n/content/${locale}/docs`
       );
@@ -101,9 +118,21 @@ const getRenameChanges = async (renamedFiles = getRenamedFiles()) => {
   return i18nRenames;
 };
 
-const printRenameChanges = async (renameChanges = getRenameChanges()) => {
+const printRenameChanges = (renameChanges) => {
   console.log(`${renameChanges.length} files will be moved.`);
-  console.log(JSON.stringify(renameChanges));
+  console.log(JSON.stringify(renameChanges, null, 4));
+};
+
+/**
+ *
+ * @param {Object[]} renameChanges
+ */
+const makeRenameChanges = (renameChanges) => {
+  renameChanges.forEach(async (rename) => {
+    fs.mkdirSync(path.dirname(rename.to), { recursive: true });
+    console.log(`Moving ${rename.from} to ${rename.to}`);
+    await git.mv(rename.from, rename.to);
+  });
 };
 
 module.exports = {
@@ -113,4 +142,5 @@ module.exports = {
   getRenamedFiles,
   getRenameChanges,
   printRenameChanges,
+  makeRenameChanges,
 };
