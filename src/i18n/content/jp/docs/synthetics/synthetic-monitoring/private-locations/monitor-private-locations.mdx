@@ -1,0 +1,1173 @@
+---
+title: プライベートロケーションの監視
+tags:
+  - Synthetics
+  - Synthetic monitoring
+  - Private locations
+metaDescription: 'Use New Relic''s synthetic private locations with New Relic''s alerts to be notified if a location is under-provisioned, mis-configured, or generally misbehaving.'
+translationType: machine
+---
+
+シンセティック・モニタリングの [プライベート・ロケーション](/docs/synthetics/new-relic-synthetics/private-locations/private-locations-overview-monitor-internal-sites-add-new-locations) と New Relic のアラートを併用すると、ロケーションのプロビジョニング不足や設定ミス、あるいは一般的な誤動作があった場合に通知を受けることができます。
+
+このガイドでは、 [New Relic ダッシュボード](/docs/insights) と [NRQL アラート](/docs/alerts/new-relic-alerts/defining-conditions/create-alert-conditions-nrql-queries) を使用して、プライベートロケーションヘルスに関する以下の基本的な質問に答えることができます。
+
+* [私のプライベートミニオンはオンラインですか？](#are_my_minions_online)
+* [私のプライベート・ロケーションにはもっとミニオンが必要ですか？](#create_an_alerts_policy)
+* [特定のミニオンの状態を直接確認することはできますか？](#minion-status)
+
+## 前提条件
+
+このガイドの指示に従う前に、以下のことを確認してください。
+
+* [合成されたプライベートな場所](/docs/synthetics/new-relic-synthetics/private-locations/private-locations-overview-monitor-internal-sites-add-new-locations)
+* その場所に少なくとも1つの [プライベートミニオン](/docs/synthetics/new-relic-synthetics/private-locations/install-containerized-private-minions-cpms#install-update) がインストールされていること。
+* その場所で実行が予定されているチェック
+* プライベートな場所のための [アラートポリシー](/docs/alerts/new-relic-alerts/configuring-alert-policies) 、違反が発生したときにチームに通知するために設定された [通知チャネル](/docs/alerts/new-relic-alerts/managing-notification-channels/notification-channels-control-where-send-alerts#slack) があります。
+
+以下のPrivate Minionダッシュボードの例のJSONは、使用してアカウントにインポートすることができます。
+
+* [Import a dashboard ボタン](/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards/#dashboards-import)
+* [Dashboard API](/docs/insights/insights-api/manage-dashboards/insights-dashboard-api)
+
+<CollapserGroup>
+  <Collapser
+    id=""
+    title="プライベートミニオンダッシュボードのJSON"
+  >
+    ```
+    {
+      "name": "Synthetics Private Minions",
+      "description": "Details on events from SyntheticPrivateLocationStatus, SyntheticsPrivateMinion, SyntheticCheck, SyntheticRequest, NrAuditEvent, plus a page for Performance Analysis.",
+      "permissions": "PUBLIC_READ_WRITE",
+      "pages": [
+        {
+          "name": "SyntheticPrivateLocationStatus",
+          "description": "Details on the private location queue.",
+          "widgets": [
+            {
+              "visualization": {
+                "id": "viz.bar"
+              },
+              "layout": {
+                "column": 1,
+                "row": 1,
+                "height": 8,
+                "width": 3
+              },
+              "title": "pending checks by location",
+              "rawConfiguration": {
+                "facet": {
+                  "showOtherSeries": false
+                },
+                "nrqlQueries": [
+                  {
+                    "accountId": 1,
+                    "query": "SELECT latest(checksPending) FROM SyntheticsPrivateLocationStatus FACET name"
+                  }
+                ]
+              },
+              "linkedEntityGuids": null
+            },
+            {
+              "visualization": {
+                "id": "viz.line"
+              },
+              "layout": {
+                "column": 4,
+                "row": 1,
+                "height": 4,
+                "width": 9
+              },
+              "title": "private location queue",
+              "rawConfiguration": {
+                "facet": {
+                  "showOtherSeries": false
+                },
+                "legend": {
+                  "enabled": true
+                },
+                "nrqlQueries": [
+                  {
+                    "accountId": 1,
+                    "query": "SELECT average(checksPending) FROM SyntheticsPrivateLocationStatus FACET name TIMESERIES max SINCE 2 weeks ago"
+                  }
+                ],
+                "yAxisLeft": {
+                  "zero": true
+                }
+              },
+              "linkedEntityGuids": null
+            },
+            {
+              "visualization": {
+                "id": "viz.line"
+              },
+              "layout": {
+                "column": 4,
+                "row": 5,
+                "height": 4,
+                "width": 9
+              },
+              "title": "rate of queue growth",
+              "rawConfiguration": {
+                "facet": {
+                  "showOtherSeries": false
+                },
+                "legend": {
+                  "enabled": true
+                },
+                "nrqlQueries": [
+                  {
+                    "accountId": 1,
+                    "query": "SELECT clamp_min(derivative(checksPending,1 minute),0) as 'queue growth rate' FROM SyntheticsPrivateLocationStatus FACET name TIMESERIES MAX SINCE 2 weeks ago"
+                  }
+                ],
+                "yAxisLeft": {
+                  "zero": true
+                }
+              },
+              "linkedEntityGuids": null
+            },
+            {
+              "visualization": {
+                "id": "viz.table"
+              },
+              "layout": {
+                "column": 1,
+                "row": 9,
+                "height": 4,
+                "width": 12
+              },
+              "title": "audit events for private locations",
+              "rawConfiguration": {
+                "dataFormatters": [],
+                "facet": {
+                  "showOtherSeries": false
+                },
+                "nrqlQueries": [
+                  {
+                    "accountId": 1,
+                    "query": "SELECT * from NrAuditEvent WHERE targetType = 'PRIVATE_LOCATION' SINCE 2 days ago LIMIT MAX"
+                  }
+                ]
+              },
+              "linkedEntityGuids": null
+            }
+          ]
+        },
+        {
+          "name": "SyntheticsPrivateMinion",
+          "description": "Details on the minion instances.",
+          "widgets": [
+            {
+              "visualization": {
+                "id": "viz.table"
+              },
+              "layout": {
+                "column": 1,
+                "row": 1,
+                "height": 3,
+                "width": 3
+              },
+              "title": "private locations",
+              "rawConfiguration": {
+                "dataFormatters": [],
+                "facet": {
+                  "showOtherSeries": false
+                },
+                "nrqlQueries": [
+                  {
+                    "accountId": 1,
+                    "query": "SELECT latest(timestamp),uniqueCount(minionId) - 1 as 'restarts' from SyntheticsPrivateMinion since 2 days ago FACET minionLocation"
+                  }
+                ]
+              },
+              "linkedEntityGuids": null
+            },
+            {
+              "visualization": {
+                "id": "viz.table"
+              },
+              "layout": {
+                "column": 4,
+                "row": 1,
+                "height": 3,
+                "width": 7
+              },
+              "title": "minion details",
+              "rawConfiguration": {
+                "dataFormatters": [],
+                "facet": {
+                  "showOtherSeries": false
+                },
+                "nrqlQueries": [
+                  {
+                    "accountId": 1,
+                    "query": "SELECT latest(minionId),latest(timestamp) as 'last seen',latest(minionStartTimestamp) as 'started',uniqueCount(minionId) - 1 as 'restarts',latest(minionIpv4),latest(minionJobsQueued),latest(minionJobsFinished),100*latest(minionJobsFailed)/latest(minionJobsQueued) as 'job failure rate',latest(minionJobsRunning),latest(minionJobsTimedout),latest(minionJobsSkipped),latest(minionJobsInternalEngineError),latest(minionWorkers),latest(minionProcessors),latest(minionPhysicalMemoryUsedBytes/(1024*1024*1024)) as 'used memory (GiB)',latest(minionPhysicalMemoryTotalBytes/(1024*1024*1024)) as 'total memory (GiB)',latest(minionPhysicalMemoryTotalBytes/(1024*1024*1024))/latest(minionWorkers) as 'memory (GiB) per heavy worker' FROM SyntheticsPrivateMinion FACET minionBuildNumber,minionLocation,minionOsVersion,minionContainerSystemVersion,minionHostname LIMIT 100 SINCE 2 days ago"
+                  }
+                ]
+              },
+              "linkedEntityGuids": null
+            },
+            {
+              "visualization": {
+                "id": "viz.area"
+              },
+              "layout": {
+                "column": 11,
+                "row": 1,
+                "height": 3,
+                "width": 2
+              },
+              "title": "minion instances over time",
+              "rawConfiguration": {
+                "facet": {
+                  "showOtherSeries": false
+                },
+                "legend": {
+                  "enabled": false
+                },
+                "nrqlQueries": [
+                  {
+                    "accountId": 1,
+                    "query": "SELECT uniqueCount(minionId) as 'minions' from SyntheticsPrivateMinion since 2 days ago TIMESERIES MAX "
+                  }
+                ],
+                "yAxisLeft": {
+                  "zero": true
+                }
+              },
+              "linkedEntityGuids": null
+            },
+            {
+              "visualization": {
+                "id": "viz.line"
+              },
+              "layout": {
+                "column": 1,
+                "row": 4,
+                "height": 3,
+                "width": 4
+              },
+              "title": "CPU utilization (%)",
+              "rawConfiguration": {
+                "facet": {
+                  "showOtherSeries": false
+                },
+                "legend": {
+                  "enabled": false
+                },
+                "nrqlQueries": [
+                  {
+                    "accountId": 1,
+                    "query": "SELECT max(minionProcessorsUsagePercentage) AS 'CPU load %' FROM SyntheticsPrivateMinion TIMESERIES AUTO"
+                  }
+                ],
+                "yAxisLeft": {
+                  "zero": true
+                }
+              },
+              "linkedEntityGuids": null
+            },
+            {
+              "visualization": {
+                "id": "viz.line"
+              },
+              "layout": {
+                "column": 5,
+                "row": 4,
+                "height": 3,
+                "width": 4
+              },
+              "title": "memory utilization (%)",
+              "rawConfiguration": {
+                "facet": {
+                  "showOtherSeries": false
+                },
+                "legend": {
+                  "enabled": false
+                },
+                "nrqlQueries": [
+                  {
+                    "accountId": 1,
+                    "query": "SELECT max(minionPhysicalMemoryUsedPercentage) AS 'used memory %' FROM SyntheticsPrivateMinion TIMESERIES AUTO"
+                  }
+                ],
+                "yAxisLeft": {
+                  "zero": true
+                }
+              },
+              "linkedEntityGuids": null
+            },
+            {
+              "visualization": {
+                "id": "viz.line"
+              },
+              "layout": {
+                "column": 9,
+                "row": 4,
+                "height": 3,
+                "width": 4
+              },
+              "title": "free memory (GiB)",
+              "rawConfiguration": {
+                "facet": {
+                  "showOtherSeries": false
+                },
+                "legend": {
+                  "enabled": false
+                },
+                "nrqlQueries": [
+                  {
+                    "accountId": 1,
+                    "query": "SELECT max(minionPhysicalMemoryFreeBytes / (1024*1024*1024)) AS 'free (GiB)' FROM SyntheticsPrivateMinion TIMESERIES AUTO"
+                  }
+                ],
+                "yAxisLeft": {
+                  "zero": true
+                }
+              },
+              "linkedEntityGuids": null
+            },
+            {
+              "visualization": {
+                "id": "viz.line"
+              },
+              "layout": {
+                "column": 1,
+                "row": 7,
+                "height": 3,
+                "width": 2
+              },
+              "title": "jobs per minute",
+              "rawConfiguration": {
+                "facet": {
+                  "showOtherSeries": false
+                },
+                "legend": {
+                  "enabled": true
+                },
+                "nrqlQueries": [
+                  {
+                    "accountId": 1,
+                    "query": "SELECT clamp_min(derivative(minionJobsFinished,1 minute),0) FROM SyntheticsPrivateMinion FACET minionLocation TIMESERIES MAX SINCE 2 weeks ago"
+                  }
+                ],
+                "yAxisLeft": {
+                  "zero": true
+                }
+              },
+              "linkedEntityGuids": null
+            },
+            {
+              "visualization": {
+                "id": "viz.line"
+              },
+              "layout": {
+                "column": 3,
+                "row": 7,
+                "height": 3,
+                "width": 2
+              },
+              "title": "skipped jobs",
+              "rawConfiguration": {
+                "facet": {
+                  "showOtherSeries": false
+                },
+                "legend": {
+                  "enabled": true
+                },
+                "nrqlQueries": [
+                  {
+                    "accountId": 1,
+                    "query": "SELECT average(minionJobsSkipped) as 'skipped jobs' FROM SyntheticsPrivateMinion FACET minionLocation SINCE 2 weeks ago TIMESERIES MAX"
+                  }
+                ],
+                "yAxisLeft": {
+                  "zero": false
+                }
+              },
+              "linkedEntityGuids": null
+            },
+            {
+              "visualization": {
+                "id": "viz.line"
+              },
+              "layout": {
+                "column": 5,
+                "row": 7,
+                "height": 3,
+                "width": 4
+              },
+              "title": "count of Internal Engine Errors (IEE) vs failed jobs",
+              "rawConfiguration": {
+                "legend": {
+                  "enabled": true
+                },
+                "nrqlQueries": [
+                  {
+                    "accountId": 1,
+                    "query": "SELECT average(minionJobsInternalEngineError) as 'IEE',average(minionJobsFailed) as 'failed jobs' FROM SyntheticsPrivateMinion TIMESERIES MAX SINCE 2 weeks ago"
+                  }
+                ],
+                "yAxisLeft": {
+                  "zero": false
+                }
+              },
+              "linkedEntityGuids": null
+            },
+            {
+              "visualization": {
+                "id": "viz.stacked-bar"
+              },
+              "layout": {
+                "column": 9,
+                "row": 7,
+                "height": 3,
+                "width": 4
+              },
+              "title": "rate of Internal Engine Errors (IEE) vs failed jobs",
+              "rawConfiguration": {
+                "facet": {
+                  "showOtherSeries": false
+                },
+                "legend": {
+                  "enabled": true
+                },
+                "nrqlQueries": [
+                  {
+                    "accountId": 1,
+                    "query": "SELECT 100*average(minionJobsInternalEngineError)/average(minionJobsFailed) as 'IEE',100*(average(minionJobsFailed)-average(minionJobsInternalEngineError))/average(minionJobsFailed) as 'failed jobs' FROM SyntheticsPrivateMinion TIMESERIES AUTO SINCE 2 weeks ago"
+                  }
+                ]
+              },
+              "linkedEntityGuids": null
+            }
+          ]
+        },
+        {
+          "name": "SyntheticCheck",
+          "description": "Details on job results.",
+          "widgets": [
+            {
+              "visualization": {
+                "id": "viz.table"
+              },
+              "layout": {
+                "column": 1,
+                "row": 1,
+                "height": 3,
+                "width": 6
+              },
+              "title": "non-ping monitor details by location",
+              "rawConfiguration": {
+                "dataFormatters": [],
+                "facet": {
+                  "showOtherSeries": false
+                },
+                "nrqlQueries": [
+                  {
+                    "accountId": 1,
+                    "query": "SELECT uniqueCount(monitorId) as 'monitors with results',uniqueCount(monitorId)/rate(uniqueCount(id), 1 minute) as 'avg job frequency (m)',average(nr.internalQueueDuration+nr.executionDuration)/1e3 as 'avg duration (s)' FROM SyntheticCheck WHERE type != 'SIMPLE' AND location NOT LIKE 'AWS%' FACET location "
+                  }
+                ]
+              },
+              "linkedEntityGuids": null
+            },
+            {
+              "visualization": {
+                "id": "viz.table"
+              },
+              "layout": {
+                "column": 7,
+                "row": 1,
+                "height": 3,
+                "width": 6
+              },
+              "title": "top 5 non-ping errors",
+              "rawConfiguration": {
+                "dataFormatters": [],
+                "facet": {
+                  "showOtherSeries": false
+                },
+                "nrqlQueries": [
+                  {
+                    "accountId": 1,
+                    "query": "SELECT count(error) as 'count',latest(monitorName),average((nr.internalQueueDuration+nr.executionDuration)/1e3) as 'avg job duration (s)',max(timestamp) as 'last occurrence' FROM SyntheticCheck WHERE type != 'SIMPLE' AND result = 'FAILED' AND location NOT LIKE 'AWS%' FACET error LIMIT 5"
+                  }
+                ]
+              },
+              "linkedEntityGuids": null
+            },
+            {
+              "visualization": {
+                "id": "viz.table"
+              },
+              "layout": {
+                "column": 1,
+                "row": 4,
+                "height": 3,
+                "width": 6
+              },
+              "title": "ping monitor details by location",
+              "rawConfiguration": {
+                "dataFormatters": [],
+                "facet": {
+                  "showOtherSeries": false
+                },
+                "nrqlQueries": [
+                  {
+                    "accountId": 1,
+                    "query": "SELECT uniqueCount(monitorId) as 'monitors with results',uniqueCount(monitorId)/rate(uniqueCount(id), 1 minute) as 'avg job frequency (m)',average(nr.internalQueueDuration+nr.executionDuration)/1e3 as 'avg duration (s)' FROM SyntheticCheck WHERE type = 'SIMPLE' AND location NOT LIKE 'AWS%' FACET location "
+                  }
+                ]
+              },
+              "linkedEntityGuids": null
+            },
+            {
+              "visualization": {
+                "id": "viz.table"
+              },
+              "layout": {
+                "column": 7,
+                "row": 4,
+                "height": 3,
+                "width": 6
+              },
+              "title": "top 5 ping errors",
+              "rawConfiguration": {
+                "dataFormatters": [],
+                "facet": {
+                  "showOtherSeries": false
+                },
+                "nrqlQueries": [
+                  {
+                    "accountId": 1,
+                    "query": "SELECT count(error) as 'count',latest(monitorName),average((nr.internalQueueDuration+nr.executionDuration)/1e3) as 'avg job duration (s)',max(timestamp) as 'last occurrence' FROM SyntheticCheck WHERE type = 'SIMPLE' AND result = 'FAILED' AND location NOT LIKE 'AWS%' FACET error LIMIT 5"
+                  }
+                ]
+              },
+              "linkedEntityGuids": null
+            },
+            {
+              "visualization": {
+                "id": "viz.table"
+              },
+              "layout": {
+                "column": 1,
+                "row": 7,
+                "height": 6,
+                "width": 6
+              },
+              "title": "monitor details",
+              "rawConfiguration": {
+                "dataFormatters": [],
+                "facet": {
+                  "showOtherSeries": false
+                },
+                "nrqlQueries": [
+                  {
+                    "accountId": 1,
+                    "query": "SELECT uniqueCount(id) as 'results',uniqueCount(location)/rate(uniqueCount(id), 1 minute) as 'avg job frequency (m)',average(nr.internalQueueDuration+nr.executionDuration)/1e3 as 'avg duration (s)' FROM SyntheticCheck WHERE location NOT LIKE 'AWS%' FACET monitorName,monitorId,type LIMIT MAX"
+                  }
+                ]
+              },
+              "linkedEntityGuids": null
+            },
+            {
+              "visualization": {
+                "id": "viz.area"
+              },
+              "layout": {
+                "column": 7,
+                "row": 7,
+                "height": 3,
+                "width": 6
+              },
+              "title": "top 5 errors by monitor type",
+              "rawConfiguration": {
+                "facet": {
+                  "showOtherSeries": false
+                },
+                "legend": {
+                  "enabled": true
+                },
+                "nrqlQueries": [
+                  {
+                    "accountId": 1,
+                    "query": "SELECT count(*) FROM SyntheticCheck WHERE error IS NOT NULL AND location NOT LIKE 'AWS%' FACET error,type TIMESERIES AUTO SINCE 2 weeks ago LIMIT 5"
+                  }
+                ]
+              },
+              "linkedEntityGuids": null
+            },
+            {
+              "visualization": {
+                "id": "viz.line"
+              },
+              "layout": {
+                "column": 7,
+                "row": 10,
+                "height": 3,
+                "width": 6
+              },
+              "title": "non-ping duration with monitor count",
+              "rawConfiguration": {
+                "facet": {
+                  "showOtherSeries": false
+                },
+                "legend": {
+                  "enabled": true
+                },
+                "nrqlQueries": [
+                  {
+                    "accountId": 1,
+                    "query": "SELECT average(nr.internalQueueDuration+nr.executionDuration/1e3) as 'avg job duration (s)',uniqueCount(monitorId) as 'monitor count' FROM SyntheticCheck WHERE type != 'SIMPLE' AND location NOT LIKE 'AWS%' TIMESERIES AUTO"
+                  }
+                ],
+                "yAxisLeft": {
+                  "zero": true
+                }
+              },
+              "linkedEntityGuids": null
+            },
+            {
+              "visualization": {
+                "id": "viz.line"
+              },
+              "layout": {
+                "column": 1,
+                "row": 13,
+                "height": 3,
+                "width": 2
+              },
+              "title": "job results",
+              "rawConfiguration": {
+                "facet": {
+                  "showOtherSeries": false
+                },
+                "legend": {
+                  "enabled": true
+                },
+                "nrqlQueries": [
+                  {
+                    "accountId": 1,
+                    "query": "SELECT count(*) FROM SyntheticCheck WHERE location NOT LIKE 'AWS%' FACET result TIMESERIES AUTO"
+                  }
+                ],
+                "yAxisLeft": {
+                  "zero": true
+                }
+              },
+              "linkedEntityGuids": null
+            },
+            {
+              "visualization": {
+                "id": "viz.line"
+              },
+              "layout": {
+                "column": 3,
+                "row": 13,
+                "height": 3,
+                "width": 2
+              },
+              "title": "duration by result",
+              "rawConfiguration": {
+                "facet": {
+                  "showOtherSeries": false
+                },
+                "legend": {
+                  "enabled": true
+                },
+                "nrqlQueries": [
+                  {
+                    "accountId": 1,
+                    "query": "SELECT average(nr.internalQueueDuration+nr.executionDuration/1e3) as 'avg job duration (s)' FROM SyntheticCheck WHERE location NOT LIKE 'AWS%' FACET result TIMESERIES AUTO"
+                  }
+                ],
+                "yAxisLeft": {
+                  "zero": true
+                }
+              },
+              "linkedEntityGuids": null
+            },
+            {
+              "visualization": {
+                "id": "viz.line"
+              },
+              "layout": {
+                "column": 5,
+                "row": 13,
+                "height": 3,
+                "width": 2
+              },
+              "title": "job rate by result",
+              "rawConfiguration": {
+                "facet": {
+                  "showOtherSeries": false
+                },
+                "legend": {
+                  "enabled": true
+                },
+                "nrqlQueries": [
+                  {
+                    "accountId": 1,
+                    "query": "SELECT rate(uniqueCount(id), 1 minute) as 'job rate' FROM SyntheticCheck WHERE location NOT LIKE 'AWS%' FACET result TIMESERIES AUTO"
+                  }
+                ],
+                "yAxisLeft": {
+                  "zero": true
+                }
+              },
+              "linkedEntityGuids": null
+            },
+            {
+              "visualization": {
+                "id": "viz.line"
+              },
+              "layout": {
+                "column": 7,
+                "row": 13,
+                "height": 3,
+                "width": 2
+              },
+              "title": "duration by type",
+              "rawConfiguration": {
+                "facet": {
+                  "showOtherSeries": false
+                },
+                "legend": {
+                  "enabled": true
+                },
+                "nrqlQueries": [
+                  {
+                    "accountId": 1,
+                    "query": "SELECT average(nr.internalQueueDuration+nr.executionDuration/1e3) as 'avg job duration (s)' FROM SyntheticCheck WHERE location NOT LIKE 'AWS%' FACET type TIMESERIES AUTO"
+                  }
+                ],
+                "yAxisLeft": {
+                  "zero": true
+                }
+              },
+              "linkedEntityGuids": null
+            },
+            {
+              "visualization": {
+                "id": "viz.line"
+              },
+              "layout": {
+                "column": 9,
+                "row": 13,
+                "height": 3,
+                "width": 2
+              },
+              "title": "job rate by type",
+              "rawConfiguration": {
+                "facet": {
+                  "showOtherSeries": false
+                },
+                "legend": {
+                  "enabled": true
+                },
+                "nrqlQueries": [
+                  {
+                    "accountId": 1,
+                    "query": "SELECT rate(uniqueCount(id), 1 minute) as 'job rate' FROM SyntheticCheck WHERE location NOT LIKE 'AWS%' FACET cases(WHERE type = 'SIMPLE' as 'ping',WHERE type != 'SIMPLE' as 'non-ping') TIMESERIES AUTO"
+                  }
+                ],
+                "yAxisLeft": {
+                  "zero": true
+                }
+              },
+              "linkedEntityGuids": null
+            },
+            {
+              "visualization": {
+                "id": "viz.line"
+              },
+              "layout": {
+                "column": 11,
+                "row": 13,
+                "height": 3,
+                "width": 2
+              },
+              "title": "duration by type, result",
+              "rawConfiguration": {
+                "facet": {
+                  "showOtherSeries": false
+                },
+                "legend": {
+                  "enabled": true
+                },
+                "nrqlQueries": [
+                  {
+                    "accountId": 1,
+                    "query": "SELECT average(nr.internalQueueDuration+nr.executionDuration/1e3) as 'avg job duration (s)' FROM SyntheticCheck WHERE location NOT LIKE 'AWS%' FACET cases(WHERE type != 'SIMPLE' as 'non-ping',WHERE type = 'SIMPLE' as 'ping'),result TIMESERIES AUTO"
+                  }
+                ],
+                "yAxisLeft": {
+                  "zero": true
+                }
+              },
+              "linkedEntityGuids": null
+            }
+          ]
+        },
+        {
+          "name": "SyntheticRequest",
+          "description": "Details on responses.",
+          "widgets": [
+            {
+              "visualization": {
+                "id": "viz.table"
+              },
+              "layout": {
+                "column": 1,
+                "row": 1,
+                "height": 6,
+                "width": 5
+              },
+              "title": "jobs per minion",
+              "rawConfiguration": {
+                "dataFormatters": [],
+                "facet": {
+                  "showOtherSeries": false
+                },
+                "nrqlQueries": [
+                  {
+                    "accountId": 1,
+                    "query": "SELECT uniqueCount(jobId) as 'jobs' FROM SyntheticRequest WHERE location NOT LIKE 'AWS%' FACET location,minion,minionId"
+                  }
+                ]
+              },
+              "linkedEntityGuids": null
+            },
+            {
+              "visualization": {
+                "id": "viz.area"
+              },
+              "layout": {
+                "column": 6,
+                "row": 1,
+                "height": 6,
+                "width": 4
+              },
+              "title": "top 5 error response codes",
+              "rawConfiguration": {
+                "dataFormatters": [],
+                "facet": {
+                  "showOtherSeries": false
+                },
+                "legend": {
+                  "enabled": true
+                },
+                "nrqlQueries": [
+                  {
+                    "accountId": 1,
+                    "query": "SELECT count(responseCode) as 'responses' FROM SyntheticRequest WHERE responseCode NOT IN (200,201,202,203,204,300,301,302,303,304) AND responseCode IS NOT NULL AND location NOT LIKE 'AWS%' FACET responseCode,responseStatus TIMESERIES AUTO LIMIT 5"
+                  }
+                ]
+              },
+              "linkedEntityGuids": null
+            },
+            {
+              "visualization": {
+                "id": "viz.line"
+              },
+              "layout": {
+                "column": 10,
+                "row": 1,
+                "height": 6,
+                "width": 3
+              },
+              "title": "job rate",
+              "rawConfiguration": {
+                "dataFormatters": [],
+                "facet": {
+                  "showOtherSeries": false
+                },
+                "legend": {
+                  "enabled": false
+                },
+                "nrqlQueries": [
+                  {
+                    "accountId": 1,
+                    "query": "SELECT rate(uniqueCount(jobId), 1 minute) as 'job rate' FROM SyntheticRequest WHERE location NOT LIKE 'AWS%' TIMESERIES AUTO"
+                  }
+                ],
+                "yAxisLeft": {
+                  "zero": true
+                }
+              },
+              "linkedEntityGuids": null
+            },
+            {
+              "visualization": {
+                "id": "viz.table"
+              },
+              "layout": {
+                "column": 1,
+                "row": 7,
+                "height": 4,
+                "width": 12
+              },
+              "title": "audit events for monitors",
+              "rawConfiguration": {
+                "dataFormatters": [],
+                "facet": {
+                  "showOtherSeries": false
+                },
+                "nrqlQueries": [
+                  {
+                    "accountId": 1,
+                    "query": "SELECT * from NrAuditEvent WHERE targetType = 'MONITOR' SINCE 2 days ago LIMIT MAX"
+                  }
+                ]
+              },
+              "linkedEntityGuids": null
+            }
+          ]
+        },
+        {
+          "name": "Performance Analysis",
+          "description": "Determine if there are enough heavy worker threads.",
+          "widgets": [
+            {
+              "visualization": {
+                "id": "viz.bar"
+              },
+              "layout": {
+                "column": 1,
+                "row": 1,
+                "height": 3,
+                "width": 4
+              },
+              "title": "minions (hosts) by location",
+              "rawConfiguration": {
+                "facet": {
+                  "showOtherSeries": false
+                },
+                "nrqlQueries": [
+                  {
+                    "accountId": 1,
+                    "query": "SELECT uniqueCount(minionId) as 'minions' FROM SyntheticsPrivateMinion FACET minionLocation SINCE 5 minutes ago"
+                  }
+                ]
+              },
+              "linkedEntityGuids": null
+            },
+            {
+              "visualization": {
+                "id": "viz.table"
+              },
+              "layout": {
+                "column": 5,
+                "row": 1,
+                "height": 3,
+                "width": 6
+              },
+              "title": "count of heavy worker threads and cpu cores",
+              "rawConfiguration": {
+                "dataFormatters": [],
+                "facet": {
+                  "showOtherSeries": false
+                },
+                "nrqlQueries": [
+                  {
+                    "accountId": 1,
+                    "query": "SELECT latest(minionWorkers),latest(minionProcessors) FROM SyntheticsPrivateMinion FACET minionHostname,minionLocation SINCE 5 minutes ago"
+                  }
+                ]
+              },
+              "linkedEntityGuids": null
+            },
+            {
+              "visualization": {
+                "id": "viz.markdown"
+              },
+              "layout": {
+                "column": 11,
+                "row": 1,
+                "height": 3,
+                "width": 2
+              },
+              "title": "",
+              "rawConfiguration": {
+                "text": "See [this Google sheet](https://docs.google.com/spreadsheets/d/1k2Aw11r6-S8pIpXQUINQZ0T5qlxS8iSwSo9t9GKDvzc/edit?usp=sharing) to assist in calculating how many workers will be needed based on the values on this page. This will help you to assess the required size of each host (scaling up) and how many hosts you need (scaling out).\n\nFor more info:  \nhttps://discuss.newrelic.com/t/relic-solution-scaling-and-rightsizing-for-the-cpm/123999"
+              },
+              "linkedEntityGuids": null
+            },
+            {
+              "visualization": {
+                "id": "viz.bar"
+              },
+              "layout": {
+                "column": 1,
+                "row": 4,
+                "height": 3,
+                "width": 4
+              },
+              "title": "non-ping monitors",
+              "rawConfiguration": {
+                "dataFormatters": [],
+                "facet": {
+                  "showOtherSeries": false
+                },
+                "nrqlQueries": [
+                  {
+                    "accountId": 1,
+                    "query": "SELECT uniqueCount(monitorId) as 'non-ping monitors' FROM SyntheticCheck WHERE type != 'SIMPLE' AND location NOT LIKE 'AWS%' FACET location SINCE 2 days ago"
+                  }
+                ]
+              },
+              "linkedEntityGuids": null
+            },
+            {
+              "visualization": {
+                "id": "viz.line"
+              },
+              "layout": {
+                "column": 5,
+                "row": 4,
+                "height": 3,
+                "width": 6
+              },
+              "title": "non-ping avg job duration and timeout",
+              "rawConfiguration": {
+                "facet": {
+                  "showOtherSeries": false
+                },
+                "legend": {
+                  "enabled": true
+                },
+                "nrqlQueries": [
+                  {
+                    "accountId": 1,
+                    "query": "SELECT average((nr.internalQueueDuration+nr.executionDuration)/1e3) FROM SyntheticCheck WHERE type != 'SIMPLE' AND location NOT LIKE 'AWS%' FACET location,cases(WHERE error NOT LIKE '%timeout%' as 'job duration (s)', WHERE error LIKE '%timeout%' as 'job timeout (s)') SINCE 2 days ago TIMESERIES AUTO"
+                  }
+                ],
+                "yAxisLeft": {
+                  "zero": true
+                }
+              },
+              "linkedEntityGuids": null
+            },
+            {
+              "visualization": {
+                "id": "viz.bar"
+              },
+              "layout": {
+                "column": 1,
+                "row": 7,
+                "height": 3,
+                "width": 4
+              },
+              "title": "non-ping jobs per minute",
+              "rawConfiguration": {
+                "facet": {
+                  "showOtherSeries": false
+                },
+                "nrqlQueries": [
+                  {
+                    "accountId": 1,
+                    "query": "SELECT rate(uniqueCount(id), 1 minute) as 'job rate' FROM SyntheticCheck WHERE type != 'SIMPLE' AND location NOT LIKE 'AWS%' FACET location SINCE 2 days ago"
+                  }
+                ]
+              },
+              "linkedEntityGuids": null
+            },
+            {
+              "visualization": {
+                "id": "viz.line"
+              },
+              "layout": {
+                "column": 5,
+                "row": 7,
+                "height": 3,
+                "width": 6
+              },
+              "title": "job timeout rate by location",
+              "rawConfiguration": {
+                "facet": {
+                  "showOtherSeries": false
+                },
+                "legend": {
+                  "enabled": true
+                },
+                "nrqlQueries": [
+                  {
+                    "accountId": 1,
+                    "query": "SELECT 100*latest(minionJobsTimedout)/latest(minionJobsReceived) as 'job timeout rate' FROM SyntheticsPrivateMinion FACET minionLocation TIMESERIES AUTO SINCE 2 days ago"
+                  }
+                ],
+                "yAxisLeft": {
+                  "zero": true
+                }
+              },
+              "linkedEntityGuids": null
+            }
+          ]
+        }
+      ]
+    }
+    ```
+  </Collapser>
+</CollapserGroup>
+
+輸入までの流れ
+
+1. ダッシュボードのJSONをコピーして、テキストエディターに貼り付けます。
+2. `" accountId": 1,` を、JSON コードの各出現箇所の New Relic アカウント ID に置き換えてください。
+3. テキストエディターからDashboardのJSONをコピーし、上記のいずれかの方法でインポートします。
+4. [facet filtering](/docs/query-your-data/explore-query-data/dashboards/filter-new-relic-one-dashboards-facets/) を使用したいチャートを編集します。
+
+<Callout variant="tip">
+  プライベート・ロケーションが親アカウントにあり、Synthetics のモニターがサブアカウントにある場合、 `SyntheticPrivateLocationStatus` および `SyntheticsPrivateMinion` を使用する NRQL クエリには親アカウント ID を、 `SyntheticCheck` および `SyntheticRequest` を使用するクエリにはサブアカウント ID を挿入してください。
+</Callout>
+
+## 私のプライベートミニオンはオンラインですか？ [#are_my_minions_online]
+
+この質問に答えるには、 `SyntheticsPrivateMinion`イベントの属性に頼ることができます。プライベートミニオンは、30秒ごとにこのイベントをNew Relicに送信します。ミニオンがオンラインであるかどうかを確認する簡単な方法は、ミニオンIDのユニークカウントと、オンラインであると予想されるミニオンの数を比較することです。
+
+報告されているミニオンの数を把握するために、次の例を実行します。 [NRQL クエリ](/docs/query-data/nrql-new-relic-query-language/query-tools/chart-builder-create-query-visualizations):
+
+```
+SELECT uniqueCount(minionId)
+  FROM SyntheticsPrivateMinion
+  WHERE minionLocation = '<var>1-acme_okc_dc-309</var>'
+```
+
+このクエリを使用して、ミニオンの報告数が予想よりも少ない場合にチームに通知するアラート条件を作成することができます。この条件は、 `2台` という静的なしきい値で構成されており、ミニオンのいずれかがオフラインになった場合にアラートを受け取ることになります。
+
+ミニオンの1つを手動で停止させることで、アラートポリシーが期待通りに動作することを確認できます。その後、アラート違反が発生すると、設定されているあらゆる通知チャネルによって通知されます。ミニオンが再起動され、オンラインに戻ると、アラートは回復します。
+
+ミニオンが正常に機能しているかどうかを確認するためには、より強固な方法がありますが、このクエリと条件は、マシンが故障したり、誤って廃止されたり、ミニオンのプロセスがクラッシュした場合に、シンプルかつうまく対処します。また、ミニオンが New Relic と通信できることも確認しています。
+
+## 私のプライベート・ロケーションにはもっとミニオンが必要ですか？ [#more-minions]
+
+この質問に答えるには、 `SyntheticsPrivateLocationStatus` イベントの `checksPending` 属性を使用することができます。 `checksPending` 属性は、予定されている（または"queued" ）が、指定された場所でミニオンがまだ受け入れていないモニターチェックの数を反映しています。スケジュールされたチェックがあり、ミニオンがいない場所では、このグラフは上から右に向かって直線的に伸びていきます。
+
+このメトリックは、 `uniqueCount(minionId)` よりも監視が複雑です。なぜなら、値が高いからといって必ずしもその場所が悪い状態にあるとは限らないからです。メトリクスが右肩上がりに直線的に成長していない限り（そしてチェックがスケジュール通りに実行されている限り）、その場所は良い状態にあります。
+
+この使用例は、 [ベースライン NRQL アラート条件](/docs/alerts/new-relic-alerts/defining-conditions/create-baseline-alert-conditions) に最適です。この条件では、指標の静的な値ではなく、その偏差を監視することができます。例えば
+
+```
+SELECT average(checksPending)
+  FROM SyntheticsPrivateLocationStatus
+  WHERE name = '<var>1-acme_tokyo_dc-512</var>'
+```
+
+このアラート条件をテストするには、1分間のブラウザベースのモニターを、あなたの所在地から実行するようスケジュールします。ブラウザベースのジョブはPingジョブよりも多くのリソースを消費するため、負荷シミュレーションに適しています。New Relic は、保留中のチェックの数が増えてきたことをすぐに通知します。
+
+負荷を処理するためにミニオンの数を2倍にすると、アラートは回復します。たとえば、 **Synthetics プライベートロケーション** ダッシュボードの例を使用して、インシデントとリカバリーの過程で保留中のチェックが増えたり減ったりしていることに気づきます。NRQL 条件を使用することで、ロケーションがより多くのミニオンの容量を必要とする場合には、New Relic が通知します。
+
+## 特定のミニオンの状態を直接確認することはできますか？ [#minion-status]
+
+ミニオンがどのように動作しているかは、ミニオンに直接連絡して確認することもできます。ミニオンが公開している一連のHTTPエンドポイントを使用して、アプリケーションが何をしているかを判断することができます。これらのエンドポイントにアクセスするには、ポート `8080` と `8180` をホスト上のポートにバインドします。例えば、Dockerの場合は、 `docker run -p 80:8080 -p 81:8180 ...`) を使用します。
+
+* `:8080/status/check`: ミニオンが行う内部ヘルスチェックの詳細。HTTP 200は、"が健全であることを意味します。"
+* `:8080/status`: ミニオンのステータスに関する詳細。同じデータが [Insights に `SyntheticsPrivateMinion` event](/docs/insights/insights-data-sources/default-events-attributes/synthetics-default-events-attributes-insights#syntheticprivateminion-table) として公開されます。
+* `:8180/`: JVMアプリケーションの管理エンドポイント。ミニオンの内部状態を高度に表示します。
+
+このアプローチは、 [`checksPending` 例](#more-minions) のような自動化や柔軟性はありません。しかし、完全なネットワーク接続障害が発生した場合、この手動のアプローチは状況のトラブルシューティングに役立ちます。

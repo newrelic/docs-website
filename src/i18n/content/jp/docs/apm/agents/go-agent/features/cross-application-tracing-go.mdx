@@ -1,0 +1,128 @@
+---
+title: Goによるクロスアプリケーショントレーシング
+tags:
+  - Agents
+  - Go agent
+  - Features
+metaDescription: How to implement cross application tracing with the Go agent in order to connect transactions across APM-monitored apps.
+translationType: machine
+---
+
+Goエージェントは、 [クロスアプリケーショントレース（CAT）をサポートしています](/docs/apm/transactions/cross-application-traces/introduction-cross-application-traces) 。クロスアプリケーショントレースは、APMが監視するアプリ間のトランザクションをリンクするもので、サービス指向アーキテクチャやマイクロサービスアーキテクチャを実装するアプリケーションには不可欠です。
+
+<Callout variant="important">
+  [Distributed tracing](/docs/apm/distributed-tracing/getting-started/introduction-distributed-tracing) を公開しました。Distributed Tracingはクロスアプリケーショントレースを改良したもので、大規模な分散システムにお勧めです。
+</Callout>
+
+## Goでクロスアプリケーショントレースを有効にする [#enable]
+
+Goエージェントでクロスアプリケーショントレースを有効または無効にするには、 [`CrossApplicationTracer.Enabled`](/docs/agents/go-agent/instrumentation/go-agent-configuration#cross-tracer-enabled) 設定フラグを使用します。
+
+## GoによるトランザクションとHTTPリクエストのガイドライン [#guidelines]
+
+クロスアプリケーショントレースを有効にしても、アプリケーションがHTTP(s)リクエストに応答したり、独自のHTTP(s)リクエストを作成したり、 [独自のトランザクションを作成したりする際には、いくつかの簡単な規則に従っていることを確認する必要があります](/docs/agents/go-agent/get-started/instrument-go-transactions) 。
+
+<CollapserGroup>
+  <Collapser
+    id="create-transactions"
+    title="http.ServeMuxによるトランザクションの作成"
+  >
+    Goの [`http.ServeMux`](https://golang.org/pkg/net/http/#ServeMux) を使用していて、CATをサポートしたい場合は、エージェントの `WrapHandle` と `WrapHandleFunc` のラッパーを使用する必要があります。これらのラッパーは、リクエスト・ライターとレスポンス・ライターとの間で自動的にトランザクションを開始・終了し、「 [」は正しいCATヘッダーを自動的に追加します。「](/docs/apm/transactions/cross-application-traces/introduction-cross-application-traces#security) 」。あなたのコードは以下のようになるはずです。
+
+    ```
+    http.HandleFunc("/users", usersHandler)
+        http.HandleFunc(newrelic.WrapHandleFunc(app, "/users", usersHandler))
+    ```
+
+    これらのラッパーについては、 [Instrument Go transactions](/docs/agents/go-agent/get-started/instrument-go-transactions#http-handler-txns) で詳しく説明されています。
+  </Collapser>
+
+  <Collapser
+    id="create-manually"
+    title="ウェブトランザクションの手動作成"
+  >
+    `app.StartTransaction` で独自のトランザクションを作成する際には、 `Transaction.SetWebRequest` と `Transaction.SetWebResponse` も必ず呼び出してください。例えば、以下のコードで開始したトランザクションでは、CATが有効になります。
+
+    ```
+    txn := app.StartTransaction("<var>transactionName</var>")
+    // req is a *http.Request, this marks the transaction as a web transaction
+    txn.SetWebRequestHTTP(req)
+
+    // writer is a http.ResponseWriter, use the returned writer in place of the original
+    writer = txn.SetWebResponse(writer)
+    writer.WriteHeader(500)
+
+    defer txn.End()
+    ```
+
+    ただし、 `Transaction.SetWebRequest` および `Transaction.SetWebResponse` **の呼び出しを行わずに開始したトランザクションでは、** CATは有効になりません。
+
+    ```
+    // Cross application tracing not enabled
+    txn := app.StartTransaction("<var>transactionName</var>")
+    defer txn.End()
+    ```
+
+    また、HTTP レスポンスコードを設定する場合は、標準ライブラリの [`http.ResponseWriter.WriteHeader`](https://golang.org/pkg/net/http/#ResponseWriter) メソッドではなく、Go エージェントの `txn.WriteHeader` メソッドを使用してください。
+
+    ```
+    // old code
+    // writer.WriteHeader(http.StatusInternalServerError)
+
+    // replace with this
+    txn := app.StartTransaction("<var>transactionName</var>")
+    txn.SetWebRequest(req)
+    writer = txn.SetWebResponse(writer)
+    writer.WriteHeader(http.StatusInternalServerError)
+    ```
+  </Collapser>
+
+  <Collapser
+    id="make-http-requests"
+    title="HTTPリクエストの作成"
+  >
+    アウトバウンドのHTTP(s)リクエストをCATの対象とするためには、 [外部セグメントを作成する必要があります](/docs/agents/go-agent/get-started/instrument-go-segments#go-external-segments) 。
+
+    送信用HTTP(s)リクエストの外部セグメントを作成する最も簡単な方法は、 `newrelic.NewRoundTripper` メソッドを使用することです。例えば、このコードは、 `http://api.example.com/` に、送信用の CAT ヘッダを含むリクエストを作成します。
+
+    ```
+    func useNewRoundTripper(txn *newrelic.Transaction) (*http.Response, error) {
+        client := &http.Client{}
+        client.Transport = newrelic.NewRoundTripper(client.Transport)
+        req, _ := http.NewRequest("GET", "<var>http://api.example.com/</var>", nil)
+        req = newrelic.RequestWithTransactionContext(req, txn)
+        return client.Do(req)
+    }
+    ```
+
+    Go標準ライブラリの `http.Request` を使用するような複雑なリクエストの場合は、 `newrelic.StartExternalSegment` メソッドを使用して、アウトバウンドリクエストがCATの対象になるようにする必要があります。
+
+    ```
+    func external(txn *newrelic.Transaction, req *http.Request) (*http.Response, error) {
+        s := newrelic.StartExternalSegment(txn, req)
+        response, err := http.DefaultClient.Do(req)
+        s.Response = response
+        s.End()
+        return response, err
+    }
+    ```
+
+    構造体リテラルを介して `ExternalSegment` を作成することも可能ですが、このセグメント **は** CAT の対象にはなりません。このため、New Relic では [`newrelic.NewRoundTripper` または `newrelic.ExternalSegment`](/docs/agents/go-agent/get-started/instrument-go-segments#go-external-segments) を使用することをお勧めします。
+
+    ```
+    func noGoodForCat(txn *newrelic.Transaction, url string) (*http.Response, error) {
+        // CAT headers not inserted
+        defer newrelic.ExternalSegment{
+            StartTime: txn.StartSegmentNow(),
+            URL:       url,
+        }.End()
+
+        return http.Get(url)
+    }
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## 分散型トレーシングの取得 [#distributed-tracing]
+
+New Relic では、 [分散型トレース](/docs/apm/distributed-tracing/getting-started/introduction-distributed-tracing) も提供しています。ディストリビュートトレーシングは、クロスアプリケーショントレースを改良したもので、大規模な分散システムにお勧めです。
