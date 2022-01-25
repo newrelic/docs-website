@@ -9,4 +9,5 @@ New Relic Errors Inbox is an error tracking solution that provides a single plac
 Now we have added Errors Inbox to the Browser and Mobile UIs, which makes triaging Browser and Mobile errors a breeze without the need to set up a workload.
 
 Watch an extended demo in our recent Nerdlog episode below to learn more about how errors inbox can help you track your errors intelligently:
-<Video id="M52jeJsnOfU" type="youtube" />
+
+<iframe width="560" height="315" src="https://www.youtube.com/embed/M52jeJsnOfU" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
