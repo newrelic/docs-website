@@ -1,12 +1,18 @@
 'use strict';
-const glob = require('glob');
-const fs = require('fs');
-const path = require('path');
 
-const simpleGit = require('simple-git');
+import * as glob from 'glob';
+import * as fs from 'fs';
+import * as path from 'path';
+
+import simpleGit from 'simple-git';
 const git = simpleGit();
 
-const getOrphanedFiles = () => {
+interface FileRename {
+  from: string;
+  to: string;
+}
+
+const getOrphanedFiles = (): string[] => {
   const englishContent = glob.sync(
     `${__dirname}/../../src/content/docs/**/*.*`
   );
@@ -31,19 +37,19 @@ const getOrphanedFiles = () => {
   return orphanedFiles;
 };
 
-const printOrphanedFiles = (orphanedFiles) => {
-  console.log(`Found ${orphanedFiles.length} orphaned files.`);
-  console.log(JSON.stringify(orphanedFiles, null, 4));
+const printOrphanedFiles = (orphanedFilePaths: string[]): void => {
+  console.log(`Found ${orphanedFilePaths.length} orphaned files.`);
+  console.log(JSON.stringify(orphanedFilePaths, null, 4));
 };
 
-const deleteOrphanedFiles = (orphanedFiles) => {
-  orphanedFiles.forEach((file) => {
+const deleteOrphanedFiles = (orphanedFilePaths: string[]): void => {
+  orphanedFilePaths.forEach((file) => {
     console.log(`Deleting: ${file}`);
     fs.unlinkSync(file);
   });
 };
 
-const parseRenameSummary = (renameSummary) => {
+const parseRenameSummary = (renameSummary: string): FileRename => {
   const textWithinBrackets = new RegExp(/{(.*)}/);
   const [pathChange] = renameSummary.match(textWithinBrackets);
   const [fromPathSegment, toPathSegment] = pathChange
@@ -58,7 +64,7 @@ const parseRenameSummary = (renameSummary) => {
   return { from, to };
 };
 
-const getRenamedFiles = async () => {
+const getRenamedFiles = async (): Promise<FileRename[]> => {
   /*
   A single renamed file summary.
 
@@ -93,12 +99,12 @@ const getRenamedFiles = async () => {
   return renamedFiles;
 };
 
-const getRenameChanges = (renamedFiles) => {
-  const i18nRenames = [];
+const getRenameChanges = (renamedFiles: FileRename[]): FileRename[] => {
+  const i18nRenames: FileRename[] = [];
 
   renamedFiles.forEach((f) => {
     // TODO: rather than hardcode, we should refer to some central locale code.
-    ['jp', 'ko'].forEach((locale) => {
+    ['jp', 'kr'].forEach((locale) => {
       const localeFromPath = f.from.replace(
         'src/content/docs',
         `src/i18n/content/${locale}/docs`
@@ -118,16 +124,12 @@ const getRenameChanges = (renamedFiles) => {
   return i18nRenames;
 };
 
-const printRenameChanges = (renameChanges) => {
+const printRenameChanges = (renameChanges: FileRename[]): void => {
   console.log(`${renameChanges.length} files will be moved.`);
   console.log(JSON.stringify(renameChanges, null, 4));
 };
 
-/**
- *
- * @param {Object[]} renameChanges
- */
-const makeRenameChanges = (renameChanges) => {
+const makeRenameChanges = (renameChanges: FileRename[]): void => {
   renameChanges.forEach(async (rename) => {
     fs.mkdirSync(path.dirname(rename.to), { recursive: true });
     console.log(`Moving ${rename.from} to ${rename.to}`);
@@ -135,7 +137,7 @@ const makeRenameChanges = (renameChanges) => {
   });
 };
 
-module.exports = {
+export {
   getOrphanedFiles,
   printOrphanedFiles,
   deleteOrphanedFiles,
@@ -144,3 +146,7 @@ module.exports = {
   printRenameChanges,
   makeRenameChanges,
 };
+
+export type {
+  FileRename
+}
