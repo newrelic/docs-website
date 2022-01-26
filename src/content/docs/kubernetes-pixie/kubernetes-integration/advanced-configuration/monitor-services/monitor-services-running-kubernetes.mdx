@@ -48,7 +48,7 @@ We support the following services running on Kubernetes:
 * [Redis](/docs/integrations/host-integrations/host-integrations-list/redis-monitoring-integration)
 * [SNMP](/docs/integrations/host-integrations/host-integrations-list/snmp-monitoring-integration)
 
-## Enable monitoring of services [#enable]
+## Enable monitoring of services using the Helm Chart [#enable]
 
 Monitoring services in Kubernetes works by leveraging our standard On-Host integrations and an autodiscovery mechanism to point them to pods with a specified selector.
 
@@ -160,6 +160,42 @@ Integrations targeting other pods should have their own section next to `redis-s
 
 Integrations are standalone binaries, and are executed by the infrastructure agent that is included in the `newrelic-nrk8s-kubelet-xxxxx` pods. Config files are deployed to all pods of the `nrk8s-kubelet` DaemonSet, but discovery ensures that each pod will only target service pods that are scheduled in the same node as that particular `nrk8s-kubelet` pod. If an instance of the `nrk8s-kubelet` DaemonSet does not have any pods matching the specified labels, the integration will not be executed by that instance.
 
+#### (Legacy v2) Add the configuration to `values.yaml` [#configure-values-v2]
+
+<CollapserGroup>
+  <Collapser
+    id="example-config-map"
+    title="Example configuration for v2"
+  >
+    <Callout variant="tip">
+      This format applies to the legacy Kubernetes integration v2. For newer versions, check the section [above](#configure-values).
+    </Callout>
+
+    This example shows the YAML config for the Redis integration added to the `values.yml` file of the `nri-bundle` chart.
+
+    ```yaml
+    newrelic-infrastructure:
+    integrations_config:
+    - name: nri-redis.yaml
+    data:
+    discovery:
+    command:
+    # Run NRI Discovery for Kubernetes
+    # https://github.com/newrelic/nri-discovery-kubernetes
+    exec: /var/db/newrelic-infra/nri-discovery-kubernetes --tls --port 10250
+    match:
+    label.app: redis
+    integrations:
+    - name: nri-redis
+    env:
+    # using the discovered IP as the hostname address
+    HOSTNAME: ${discovery.ip}
+    PORT: 6379
+    labels:
+    env: test
+    ```
+  </Collapser>
+</CollapserGroup>
 
 #### Verify the integration is working
 
@@ -177,44 +213,6 @@ Make sure to select the particular pod of the `nrk8s-kubelet` DaemonSet that is 
 kubectl get pods -n newrelic -o wide -l app.kubernetes.io/component=kubelet
 ```
 
-#### (Legacy v2) Add the configuration to `values.yaml` [#configure-values-v2]
-
-<CollapserGroup>
-  <Collapser
-    id="example-config-map"
-    title="Example configuration for v2"
-  >
-    <Callout variant="tip">
-      This format applies to the legacy Kubernetes integration v2. For newer versions, check the section [above](#configure-values).
-    </Callout>
-
-    This example shows the YAML config for the Redis integration added to the `values.yml` file of the `nri-bundle` chart.
-
-    ```yaml
-    newrelic-infrastructure:
-      integrations_config:
-        - name: nri-redis.yaml
-          data:
-            discovery:
-              command:
-                # Run NRI Discovery for Kubernetes
-                # https://github.com/newrelic/nri-discovery-kubernetes
-                exec: /var/db/newrelic-infra/nri-discovery-kubernetes --tls --port 10250
-                match:
-                  label.app: redis
-            integrations:
-              - name: nri-redis
-                env:
-                  # using the discovered IP as the hostname address
-                  HOSTNAME: ${discovery.ip}
-                  PORT: 6379
-                labels:
-                  env: test
-    ```
-  </Collapser>
-</CollapserGroup>
-
-
 ### Additional notes about enabling services [#additional-notes]
 
 * Enabling multiple services may use more resources than what is set in the resource limits of the Kubernetes integration config file. If this becomes an issue, raise the limit in the `resources` section.
@@ -228,10 +226,11 @@ More resources for learning about configuration:
 * Learn how to [configure monitoring of multiple services with the same config file](#add-service).
 * See a [step-by-step tutorial showing how to monitor a Redis service on Kubernetes](/docs/monitor-service-running-kubernetes-tutorial).
 
-## Manually configure service monitoring [#config-details]
+
+## Enable monitoring of services using manifests [#config-details]
 
 <Callout variant="tip">
-  We strongly encourage you to configure integrations through the `values-newrelic.yaml` file and our Helm Chart, as doing so manually is substantially more difficult and offers no advantages whatsoever.
+  We strongly encourage you to configure integrations through the `values-newrelic.yaml` file and our Helm Chart, as explained in the [section above](#enable). Configuring service monitoring on top of the manifest installation is substantially more difficult and offers no advantages whatsoever.
 </Callout>
 
 For each service you wish to monitor, you must add a configuration file for that integration to our Kubernetes integration's configuration. This document will cover these subjects:
@@ -250,9 +249,50 @@ The Kubernetes integration image comes with an [auto-discovery feature](https://
 
 Each integration has its own [specific configuration YAML](#integration-config-links). Our NGINX integration default config file looks like this:
 
+```yaml
+discovery:
+  command:
+    # Use the following <mark>optional arguments</mark>:
+    # --namespaces: Comma separated list of namespaces to discover pods on
+    # --port: Port used to connect to the kubelet. Default is 10255
+    # --tls: Use secure (TLS) connection
+    # Custom Example:
+    # exec: /var/db/newrelic-infra/nri-discovery-kubernetes --namespaces namespace1,namespace2 --port 10250 --tls
+    # Default
+    exec: /var/db/newrelic-infra/nri-discovery-kubernetes --tls --port 10250
+    match:
+      label.app: nginx
+integrations:
+  - name: nri-nginx
+    env:
+      STATUS_URL: http://${discovery.ip}/status
+      STATUS_MODULE: discover
+      METRICS: 1
 ```
-nginx-config.yml: |
-    ---
+
+The above config enables the following:
+
+* Runs `nri-discovery-kubernetes` to query the data for the node we are currently on.
+* Parses the data that comes back and looks for any Kubernetes pod that has a Kubernetes container with an `app=` label with value `nginx`.
+* For any matches, it attempts to run the NGINX integration. The status URL is built from:
+  * The pod's IP address
+  * The status page is pulled from the label on K8s pod called `status_url`
+
+This automatic discovery works the same as the [container auto-discovery](/docs/integrations/host-integrations/installation/container-auto-discovery) used by the infrastructure agent. For more advanced options, see [Container auto-discovery](/docs/integrations/host-integrations/installation/container-auto-discovery).
+
+### Add a service YAML to the Kubernetes integration config [#configmap]
+
+In order for the snippet above to be recognized by the integration, it must be placed inside the designated ConfigMap. If you are using our Kubernetes Integration v3, a ConfigMap should already be generated, with a name ending in `-integrations-cfg`. Locate the config map and add the modified snippet to it, so it ends up looking like this:
+
+```yaml
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: newrelic-infrastructure-integrations-cfg
+  namespace: newrelic
+data:
+  nginx-config.yml: |
     discovery:
       command:
         # Use the following <mark>optional arguments</mark>:
@@ -273,124 +313,30 @@ nginx-config.yml: |
           METRICS: 1
 ```
 
-The above config enables the following:
+If you are using our Kubernetes Integration v3, this ConfigMap will already be mounted in the required container.
 
-* Runs `nri-discovery-kubernetes` to query the data for the node we are currently on.
-* Parses the data that comes back and looks for any Kubernetes pod that has a Kubernetes container with an `app=` label with value `nginx`.
-* For any matches, it attempts to run the NGINX integration. The status URL is built from:
-  * The pod's IP address
-  * The status page is pulled from the label on K8s pod called `status_url`
+<Callout variant="important">
+  For the Kubernetes Integration v2, you will need to add an entry for this ConfigMap in the `volumes` and `volumeMounts` section of the DaemonSet's `spec`, to ensure all the files in the ConfigMap are mounted in `/etc/newrelic-infra/integrations.d/`.
+</Callout>
 
-This automatic discovery works the same as the [container auto-discovery](/docs/integrations/host-integrations/installation/container-auto-discovery) used by the infrastructure agent. For more advanced options, see [Container auto-discovery](/docs/integrations/host-integrations/installation/container-auto-discovery).
+Please note that the same ConfigMap can hold multiple config files, which is recommended to keep modifications to the manifests at a minimum.
 
-### Add a service YAML to the Kubernetes integration config [#configmap]
-
-It's best practice to configure enabled integrations alongside the Kubernetes integration configuration. This is easier than maintaining configuration files for every single service/integration instance.
-
-Below is an example of a Kubernetes integration's ConfigMap. The highlighted section shows where an integration configuration YAML (in this case, NGINX) is placed.
-
-For more information on `discovery:`, see [Container auto-discovery for on-host integrations](/docs/integrations/host-integrations/installation/container-auto-discovery).
-
-```
+```yaml
 ---
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: nri-integration-cfg
-  namespace: default
-data:
-<mark>  nginx-config.yml: |
-    ---
-    # Run auto discovery to find pods with label "app=nginx"
-    # https://docs.newrelic.com/docs/integrations/host-integrations/installation/container-auto-discovery
-    discovery:
-      command:
-        # Use the following <mark>optional arguments</mark>:
-        # --namespaces: Comma separated list of namespaces to discover pods on
-        # --tls: Use secure (TLS) connection
-        # --port: Port used to connect to the kubelet. Default is 10255
-        exec: /var/db/newrelic-infra/nri-discovery-kubernetes <mark>--port <var>PORT</var> --tls</mark>
-        match:
-          label.app: nginx
-    integrations:
-      - name: nri-nginx
-        env:
-          # If you're using ngx_http_api_module be certain to use the full path up to and including the version number
-          # Use the discovered IP as the host address
-          STATUS_URL: http://${discovery.ip}/status
-          # Comma separated list of ngx_http_api_module, NON PARAMETERIZED, Endpoints
-          # endpoints: /nginx,/processes,/connections,/ssl,/slabs,/http,/http/requests,/http/server_zones,/http/caches,/http/upstreams,/http/keyvals,/stream,/stream/server_zones,/stream/upstreams,/stream/keyvals,/stream/zone_sync
-          # Name of Nginx status module OHI is to query against. discover | ngx_http_stub_status_module | ngx_http_status_module | ngx_http_api_module
-          STATUS_MODULE: discover
-          METRICS: 1
-</mark>
-```
-
-This configuration map can then be referenced in the DaemonSet, the same as the one that was generated via the command line.
-
-Make sure the `namespace` used is the same one used by the Kubernetes integration manifest. If you haven't changed it in the downloaded manifest file, the value is `default`.
-
-### Add multiple services to the same config [#add-service]
-
-You can monitor several services using the same Kubernetes integration config file. To do this, add another integration [configuration YAML](#integration-config-links) to the same Kubernetes integration config file. Below is the Kubernetes config created in the last section, with a new section for the Cassandra integration's config (highlighted).
-
-```
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: nri-integration-cfg
-  namespace: default
+  name: newrelic-infrastructure-integrations-cfg
+  namespace: newrelic
 data:
   nginx-config.yml: |
-    ---
-    # Run auto discovery to find pods with label "app=nginx"
-    # https://docs.newrelic.com/docs/integrations/host-integrations/installation/container-auto-discovery
-    discovery:
-      command:
-        # Run discovery for Kubernetes. Use the following <mark>optional arguments</mark>:
-        # --namespaces: Comma separated list of namespaces to discover pods on
-        # --tls: Use secure (TLS) connection
-        # --port: Port used to connect to the kubelet. Default is 10255
-        exec: /var/db/newrelic-infra/nri-discovery-kubernetes <mark>--port <var>PORT</var> --tls</mark>
-        match:
-          label.app: nginx
+    discovery: # ...
     integrations:
       - name: nri-nginx
-        env:
-          # If you're using ngx_http_api_module be certain to use the full path up to and including the version number
-          # Use the discovered IP as the host address
-          STATUS_URL: http://${discovery.ip}/status
-          # Comma separated list of ngx_http_api_module, NON PARAMETERIZED, Endpoints
-          # endpoints: /nginx,/processes,/connections,/ssl,/slabs,/http,/http/requests,/http/server_zones,/http/caches,/http/upstreams,/http/keyvals,/stream,/stream/server_zones,/stream/upstreams,/stream/keyvals,/stream/zone_sync
-          # Name of Nginx status module OHI is to query against. discover | ngx_http_stub_status_module | ngx_http_status_module | ngx_http_api_module
-          STATUS_MODULE: discover
-          METRICS: 1
-  <mark>cassandra-configuration.yml: |
-    ---
-    # Run auto discovery to find pods with label "app=cassandra"
-    # https://docs.newrelic.com/docs/integrations/host-integrations/installation/container-auto-discovery
-    discovery:
-      command:
-        # Run discovery for Kubernetes. Use the following <mark>optional arguments</mark>:
-        # --namespaces: Comma separated list of namespaces to discover pods on
-        # --tls: Use secure (TLS) connection
-        # --port: Port used to connect to the kubelet. Default is 10255
-        exec: /var/db/newrelic-infra/nri-discovery-kubernetes <mark>--port <var>PORT</var> --tls
-        match:
-          label.app: cassandra
+        # ...
+  redis-config.yml: |
+    discovery: # ...
     integrations:
-      - name: nri-cassandra
-        env:
-          # Use the discovered IP as the host address
-          HOSTNAME: ${discovery.ip}
-          PORT: 7199
-          USERNAME: cassandra
-          PASSWORD: cassandra
-          METRICS: 1/mark</mark>
-</mark>
+      - name: nri-redis
+        # ...
 ```
-
-The Kubernetes integration config is now set up to monitor these two services. Additionally, depending on your environment, there may be some additional [service-specific configuration](#integration-config-links) you must do.
-
-When you've completed configuration, our infrastructure agent looks for any pod with a label `cassandra` and runs the integration against it.
