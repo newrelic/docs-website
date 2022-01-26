@@ -11,6 +11,8 @@ const {
 const visit = require('unist-util-visit');
 const u = require('unist-builder');
 
+const hasChildren = (node) => node.children && node.children.length;
+
 const inlineCodeAttribute = () => (tree) => {
   visit(tree, 'inlineCode', (node) => {
     node.type = 'mdxSpanElement';
@@ -55,20 +57,19 @@ const deserializeComponent = (
   const inferredType =
     node.tagName === 'span' ? 'mdxSpanElement' : 'mdxBlockElement';
 
-  const wrappedChildren =
-    node.children && node.children.length > 0
-      ? node.children.some(
-          (node) => node.properties && node.properties.dataProp === 'children'
-        )
-      : false;
+  const hasWrappedChildren = hasChildren(node)
+    ? node.children.some(
+        (node) => node.properties && node.properties.dataProp === 'children'
+      )
+    : false;
 
-  const textProps = wrappedChildren
+  const textProps = hasWrappedChildren
     ? node.children.filter(
         (child) => child.properties && child.properties.dataProp !== 'children'
       )
     : [];
 
-  const childrenNode = wrappedChildren
+  const childrenNode = hasWrappedChildren
     ? node.children.find((child) => child.properties.dataProp === 'children')
     : node;
 
@@ -86,7 +87,7 @@ const deserializeComponent = (
         ];
   }, props);
 
-  return h(
+  const newNode = h(
     node,
     type || inferredType,
     {
@@ -95,6 +96,8 @@ const deserializeComponent = (
     },
     childrenNode && hasChildrenProp ? all(h, childrenNode) : []
   );
+
+  return newNode;
 };
 
 module.exports = { deserializeComponent, deserializeJSValue };

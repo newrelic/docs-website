@@ -1,6 +1,6 @@
 import React from 'react';
 import TechTileGrid from './TechTileGrid';
-import { css } from '@emotion/core';
+import { css } from '@emotion/react';
 
 const MDXTechTileGrid = (props) => (
   <TechTileGrid

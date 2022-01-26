@@ -1,6 +1,6 @@
 import React from 'react';
 import PropTypes from 'prop-types';
-import { css } from '@emotion/core';
+import { css } from '@emotion/react';
 import SVG from '@newrelic/gatsby-theme-newrelic/src/components/SVG';
 
 const CaretUpIcon = (props) => (

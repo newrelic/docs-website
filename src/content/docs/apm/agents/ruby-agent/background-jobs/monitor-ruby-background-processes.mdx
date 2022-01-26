@@ -1,0 +1,182 @@
+---
+title: Monitor Ruby background processes
+tags:
+  - Agents
+  - Ruby agent
+  - Background jobs
+metaDescription: How to configure New Relic's Ruby agent to instrument background jobs.
+redirects:
+  - /docs/agents/ruby-agent/background-jobs/monitor-ruby-background-processes
+  - /docs/ruby/monitoring-ruby-background-processes-and-daemons
+  - /docs/agents/ruby-agent/background-jobs/monitoring-ruby-background-processes-daemons
+---
+
+Our Ruby agent automatically instruments several common background job frameworks. You can also customize it to trace any background tasks. Data from background jobs appears in the [**Transactions** page](/docs/apm/applications-menu/monitoring/transactions-page) in APM as **Non-web transactions**.
+
+## Supported frameworks [#supported_frameworks]
+
+The following background job frameworks are supported by default in recent versions of the Ruby agent:
+
+* [Resque instrumentation](/docs/agents/ruby-agent/background-jobs/resque-instrumentation) (Ruby agent 3.4.0)
+* [Sidekiq instrumentation](/docs/agents/ruby-agent/background-jobs/sidekiq-instrumentation) (Ruby agent 3.6.0)
+* [Delayed::Job instrumentation](/docs/agents/ruby-agent/background-jobs/delayedjob) (Ruby agent 2.10)
+
+<Callout variant="important">
+  [JRuby](/docs/agents/ruby-agent/miscellaneous/new-relic-jruby) users may see issues with CPU metrics.
+</Callout>
+
+If you are using these frameworks, monitoring background jobs typically doesn't require additional configuration.
+
+## Monitor custom background jobs [#custom_background_jobs]
+
+You can instrument custom background jobs to appear in the APM [**Transactions** page](/docs/apm/applications-menu/monitoring/transactions-page) as **Non-web transactions**. To monitor **Non-web transactions** while using an unsupported framework, you must add custom instrumentation.
+
+As an example, a background job periodically runs a task called `SalesOrganization#find_new_leads`.
+
+1. Add the `ControllerInstrumentation` module.
+2. Use the `add_transaction_tracer` directive **below** the method definition
+3. Add `:category => :task` to tell the agent this trace is a **Non-web transaction**.
+
+   ```
+   require 'newrelic_rpm'
+
+   class SalesOrganization
+     include
+   ::NewRelic::Agent::Instrumentation::ControllerInstrumentation
+     def find_new_leads
+       <var>...</var>
+     end
+     add_transaction_tracer :find_new_leads, :category => :task
+   end
+   ```
+
+   You can pass a string to the `:category`, but values will only appear on the APM **Transactions** page if the string begins with `OtherTransaction/`.
+
+## Monitor custom background methods [#custom_methods]
+
+Using the Ruby agent API, you can designate specific methods to trace the **Non-web transactions**. This gathers traces for slow running jobs and associates captured errors to transactions.
+
+To instrument a class method, use the class `singleton`.
+
+As an example, a background job periodically runs a task called `SalesOrganization#find_new_leads`.
+
+1. Add the `ControllerInstrumentation` module **below** the method definition.
+2. Use the `add_transaction_tracer` directive
+3. Add `:category => :task` to tell the agent this trace is a **Non-web transaction**.
+
+   ```
+   require 'newrelic_rpm'
+
+   class SalesOrganization
+     def self.find_new_leads
+       <var>...</var>
+     end
+     class << self
+         include
+   ::NewRelic::Agent::Instrumentation::ControllerInstrumentation
+       add_transaction_tracer :find_new_leads, :category => :task
+     end
+   end
+   ```
+
+   For more information, see [Ruby custom metrics](/docs/agents/ruby-agent/features/ruby-custom-metrics).
+
+## Monitor short-lived processes [#short]
+
+Make sure the process isn't running before the agent connects to the back-end servers. To do so, make the Ruby agent synchronously connect to New Relic, rather than the default asynchronous behavior.
+
+Use [`manual_start`](https://www.rubydoc.info/github/newrelic/newrelic-ruby-agent/NewRelic%2FAgent%3Amanual_start) and pass in the `:sync_startup => true` option:
+
+```
+require 'new_relic/agent'
+NewRelic::Agent.manual_start(:sync_startup => true)
+```
+
+Using `require 'new_relic/agent'` will require the agent's code, and it will make sure the agent doesn't run until you manually start it.
+
+If the process is shorter than the agent [harvest cycle](/docs/using-new-relic/welcome-new-relic/get-started/glossary#harvest-cycle), you need to manually shut down the agent with [`::NewRelic::Agents.shutdown`](https://www.rubydoc.info/github/newrelic/newrelic-ruby-agent/NewRelic/Agent:shutdown) to ensure all queued data is sent.
+
+## Configure newrelic.yml for background processes [#config_file]
+
+Configuring your **newrelic.yml** depends on the context of the background application.
+
+<CollapserGroup>
+  <Collapser
+    id="non_rails"
+    title="Non-Rails background application"
+  >
+    If your background app is non-Rails application already running the Ruby agent, copy your **newrelic.yml** file to the directory where you launch the background job or in the **config** subdirectory. Make sure it includes your [license key](/docs/accounts-partnerships/accounts/account-setup/your-license-key).
+
+    Background jobs that do not run in a Rails context will examine the `NEW_RELIC_ENV` environment variable to determine which section of the configuration file to read, falling back to the `RUBY_ENV`, `RAILS_ENV`, and `RACK_ENV` environment variables in sequence, and finally defaulting to `development` if none of these environment variables are set.
+  </Collapser>
+
+  <Collapser
+    id="existing_rails_app"
+    title="Background job environment monitored by New Relic"
+  >
+    If your background job runs in the context of an existing web application that is already monitored with New Relic, the Ruby agent will automatically pick up your existing **newrelic.yml** file. Background jobs that boot your application's Rails environment will use the `RAILS_ENV` environment variable in order to determine which section of the **newrelic.yml** file to read.
+  </Collapser>
+</CollapserGroup>
+
+## Report to an alternate application name [#reporting_to_an_alternate_application_name]
+
+You can make jobs that run in the context of an existing New Relic web application appear under a [different application name](/docs/apm/new-relic-apm/installation-configuration/naming-your-application) in the APM UI.
+
+1. Begin **before** `newrelic_rpm` gets required by your worker code.
+2. Set the `NEW_RELIC_APP_NAME` environment variable to the application name to use for your background jobs when starting your background worker processes. This will override the `app_name` setting in your **newrelic.yml**.
+
+   ```
+   $ NEW_RELIC_APP_NAME="My Background Jobs"
+   ./bin/my_background_worker.rb
+   ```
+
+## Ensure the agent starts [#start_agent]
+
+The Ruby agent will automatically start in most cases as soon as you `require 'newrelic_rpm'`, unless the agent detects a blacklisted executable name, rake task name, or constant. This prevents it from starting during common rake tasks and interactive console sessions.
+
+<CollapserGroup>
+  <Collapser
+    id="non_rails_standalone"
+    title="Non-Rails standalone script"
+  >
+    Standalone scripts running without Rails generally will start the agent as soon as they `require 'newrelic_rpm'`. If you have a script that forks or daemonizes before it begins its main work, you may want to defer this `require` call until after the initial setup finishes.
+  </Collapser>
+
+  <Collapser
+    id="existin_rails_app"
+    title="Background tasks with daemons gem"
+  >
+    If you use the [daemons gem](https://rubygems.org/gems/daemons) to start background tasks, the Ruby agent may fail to start and also not emit any logging. This happens because the daemons gem changes the working directory to `/` before executing your background code. The agent then attempts to resolve the paths to its configuration file and log file relative to the current working directory of the host process.
+
+    To allow the agent to start in this situation, set environment variables with the locations of the agent configuration file and log file; for example:
+
+    ```
+    ENV['NRCONFIG'] ||= File.dirname(__FILE__) +
+        '/../../config/newrelic.yml'
+        ENV['NEW_RELIC_LOG'] ||= File.dirname(__FILE__) +
+        '/../../log/newrelic_agent.log'
+    ```
+  </Collapser>
+</CollapserGroup>
+
+For more information, see the documentation about [controlling agent startup](/docs/agents/ruby-agent/troubleshooting/controlling-when-ruby-agent-starts)
+
+## Monitor scripts [#monitoring_scripts]
+
+The [agent startup instructions](#start_agent) apply when running background jobs in a daemon. If a script executes a single background task and exits, manually shut down the agent with `::NewRelic::Agents.shutdown` when the script finishes. This ensures the New Relic collector receives the data. For example:
+
+```
+require 'newrelic_rpm'
+
+class SalesOrganization
+  include
+::NewRelic::Agent::Instrumentation::ControllerInstrumentation
+  def find_new_leads
+    <var>...</var>
+  end
+  add_transaction_tracer :find_new_leads, :category => :task
+end
+
+SalesOrganization.new.find_new_leads
+::NewRelic::Agent.shutdown
+```

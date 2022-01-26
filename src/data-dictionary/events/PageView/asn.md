@@ -6,6 +6,9 @@ events:
   - PageAction
   - BrowserInteraction
   - MobileSession
+  - MobileHandledException
+  - MobileRequest
+  - MobileRequestError
   - AjaxRequest
   - BrowserTiming
   - Span

@@ -1,15 +1,21 @@
 import React, { useMemo } from 'react';
 import PropTypes from 'prop-types';
-import { css } from '@emotion/core';
+import { css } from '@emotion/react';
 import PageTitle from '../components/PageTitle';
 import { graphql } from 'gatsby';
-import { Layout, Link, useTranslation } from '@newrelic/gatsby-theme-newrelic';
+import {
+  Layout,
+  Icon,
+  Link,
+  useTranslation,
+} from '@newrelic/gatsby-theme-newrelic';
 import Timeline from '../components/Timeline';
 import SEO from '../components/SEO';
 import { TYPES } from '../utils/constants';
 
-const WhatsNew = ({ data, location }) => {
+const WhatsNew = ({ data, location, pageContext }) => {
   const now = useMemo(() => new Date(), []);
+  const { slug } = pageContext;
   const { allMarkdownRemark } = data;
   const posts = allMarkdownRemark.edges.map(({ node }) => node);
   const postsByDate = Array.from(
@@ -33,14 +39,41 @@ const WhatsNew = ({ data, location }) => {
         location={location}
         title="What's new in New Relic"
         type={TYPES.WHATS_NEW_PAGE}
+        disableSwiftype
       />
       <div>
         <PageTitle
           css={css`
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
             margin-bottom: 2rem;
+            gap: 0.5rem;
+
+            @supports not (gap: 0.5rem) {
+              > :first-child {
+                margin-right: 0.5rem;
+              }
+            }
           `}
         >
-          {t('whatsNew.title')}
+          <span>{t('whatsNew.title')}</span>
+          <Link
+            to={`${slug}/feed.xml`}
+            css={css`
+              display: flex;
+              align-items: center;
+              font-size: 0.875rem;
+            `}
+          >
+            RSS
+            <Icon
+              name="fe-rss"
+              css={css`
+                margin-left: 0.25rem;
+              `}
+            />
+          </Link>
         </PageTitle>
         <Layout.Content>
           <Timeline>
@@ -92,6 +125,7 @@ const WhatsNew = ({ data, location }) => {
 WhatsNew.propTypes = {
   data: PropTypes.object.isRequired,
   location: PropTypes.object.isRequired,
+  pageContext: PropTypes.object.isRequired,
 };
 
 export const pageQuery = graphql`

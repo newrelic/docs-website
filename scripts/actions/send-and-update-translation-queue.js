@@ -1,273 +1,243 @@
+/// <reference path="./translation_workflow/models/typedefs.js" />
+'use strict';
+
 const fs = require('fs');
 const path = require('path');
-const FormData = require('form-data');
-const fetch = require('node-fetch');
 
-const loadFromDB = require('./utils/load-from-db');
-const { saveToTranslationQueue } = require('./utils/save-to-db');
-const serializeMDX = require('./serialize-mdx');
-const { vendorRequest, getAccessToken } = require('./utils/vendor-request');
-
-/**
- * @typedef {Object} Page
- * @property {string} file The filepath for the page (from the project root).
- * @property {string} html The HTML serialized content for the page.
- */
-
-// NOTE: the vendor requires the locales in a different format
-// We should consider this into the Gatsby config for each locale.
-const LOCALE_IDS = {
-  jp: 'ja-JP',
-};
+const { vendorRequest, uploadFile } = require('./utils/vendor-request');
+const Database = require('./translation_workflow/database');
 
 const PROJECT_ID = process.env.TRANSLATION_VENDOR_PROJECT;
-const DOCS_SITE_URL = 'https://docs.newrelic.com';
 
 /**
- * Take a list of filepaths (grouped by locale) and fetches the HTML content.
- * @param {Object<string, string[]>} locales The queue of slugs to be translated.
- * @returns {Object<string, Promise<Page[]>>}
+ *
+ * @returns {Promise<Object.<string, Translation[]>>} object whose keys are locales, whose values are an array of translation requests for that locale
  */
-const getContent = (locales) =>
-  Object.entries(locales).reduce((acc, [locale, slugs]) => {
-    return {
-      ...acc,
-      [locale]: Promise.all(
-        slugs.map(async (slug) => {
-          const mdx = fs.readFileSync(path.join(process.cwd(), slug));
-          const html = await serializeMDX(mdx);
-          return { file: slug, html };
-        })
-      ),
-    };
-  }, {});
+const getReadyToGoTranslationsForEachLocale = async () => {
+  const [
+    pendingTranslations,
+    inProgressTranslations,
+    erroredTranslations,
+  ] = await Promise.all([
+    Database.getTranslations({ status: 'PENDING', project_id: PROJECT_ID }),
+    Database.getTranslations({ status: 'IN_PROGRESS', project_id: PROJECT_ID }),
+    Database.getTranslations({ status: 'ERRORED', project_id: PROJECT_ID }),
+  ]);
 
-/**
- * @param {string} locale The locale that this file should be translated to.
- * @param {string} batchUid The batch that is expecting this file.
- * @param {string} accessToken
- * @returns {(page: Page) => Promise<{code: string, slug: string, locale: string>}
- */
-const uploadFile = (locale, batchUid, accessToken) => async (page) => {
-  const filename = `${Buffer.from(locale + page.file).toString('base64')}.html`;
-  const filepath = path.join(process.cwd(), filename);
-  fs.writeFileSync(filepath, page.html, 'utf8');
+  /*
+   * We only want to send a translation if:
+   * 1. It's in a pending state.
+   * 2. There isn't a matching record whose status === 'IN_PROGRESS'. A record matches if there exists another record with the same slug and locale.
+   * 3. There isn't a matching record whose status === 'ERRORED'. A record matches if there exists another record with the same slug and locale.
+   *
+   * This is to avoid sending multiple translation requests for {hello_world.txt, ja-JP} as an example, and allows us to have an in progress translation, and one ready to go that is queued up in the database.
+   *
+   * 3. The file (slug) that is associated with the translation record still exists.
+   */
+  const translationsToDelete = [];
 
-  const form = new FormData();
-  form.append('fileType', 'html');
-  form.append('localeIdsToAuthorize[]', LOCALE_IDS[locale]);
-  form.append('fileUri', page.file);
-  form.append('file', fs.createReadStream(filepath));
+  const readyToGoTranslations = pendingTranslations
+    .filter(
+      (pendingTranslation) =>
+        !Boolean(
+          inProgressTranslations.find(
+            (inProgressTranslation) =>
+              pendingTranslation.slug === inProgressTranslation.slug &&
+              pendingTranslation.locale === inProgressTranslation.locale
+          )
+        )
+    )
+    .filter(
+      (pendingTranslation) =>
+        !Boolean(
+          erroredTranslations.find(
+            (erroredTranslation) =>
+              pendingTranslation.slug === erroredTranslation.slug &&
+              pendingTranslation.locale === erroredTranslation.locale
+          )
+        )
+    )
+    .filter((translation) => {
+      const fileExists = fs.existsSync(
+        path.join(process.cwd(), translation.slug)
+      );
+      if (fileExists === false) {
+        // delete row since we dont want to leave it in, and should be safe to delete
+        translationsToDelete.push(translation);
+      }
+      return fileExists;
+    });
 
-  const url = new URL(
-    `/job-batches-api/v2/projects/${PROJECT_ID}/batches/${batchUid}/file`,
-    process.env.TRANSLATION_VENDOR_API_URL
+  // delete all translations identified for deletion above
+  await Promise.all(
+    translationsToDelete.map(async (translation) => {
+      await Database.deleteTranslation(translation.id);
+      console.log(`Database record for -- ${translation.id} -- deleted`);
+    })
   );
 
-  const options = {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-    },
-    body: form,
-  };
-
-  const resp = await fetch(url.href, options);
-  const { response } = await resp.json();
-  const { code } = response;
-
-  if (code === 'ACCEPTED' && resp.ok) {
-    console.log(`[*] Successfully uploaded ${page.file}.`);
-    await sendPageContext(page.file, accessToken);
-  } else {
-    console.error(`[!] Unable to upload ${page.file}.`);
+  let translationsPerLocale = {};
+  for (const translation of readyToGoTranslations) {
+    translationsPerLocale[translation.locale] = [
+      ...(translationsPerLocale[translation.locale] || []),
+      translation,
+    ];
   }
 
-  return { code, locale, slug: page.file };
+  return translationsPerLocale;
 };
 
 /**
- * Sends the html file as a visual context for each uploaded file
- * @param {string} fileUri
- * @param {string} accessToken
- * @returns {Promise}
+ * @param {string[]} locales
+ * @returns {Promise<Job[]>} array of created jobs
  */
-const sendPageContext = async (fileUri, accessToken) => {
-  const filepath = fileUri.replace(`src/content/`, '');
-  const slug = filepath.replace(`.mdx`, '');
-  const contextUrl = new URL(slug, DOCS_SITE_URL); //need to change this once we migrate to docs-newrelic-com
-
-  const res = await fetch(contextUrl.href);
-  const html = await res.text();
-
-  const form = new FormData();
-  form.append('content', html, {
-    contentType: 'text/html',
-    filename: fileUri,
-  });
-  form.append('name', contextUrl.href);
-
-  const url = new URL(
-    `/context-api/v2/projects/${PROJECT_ID}/contexts/upload-and-match-async`,
-    process.env.TRANSLATION_VENDOR_API_URL
+const createJobs = async (locales) => {
+  const jobResponses = await Promise.all(
+    locales.map((locale) => {
+      const body = {
+        jobName: `Gatsby Translation Queue (${locale}) ${new Date().toLocaleString()}`,
+        targetLocaleIds: [locale],
+      };
+      return vendorRequest({
+        method: 'POST',
+        endpoint: `/jobs-api/v3/projects/${PROJECT_ID}/jobs`,
+        body,
+      });
+    })
   );
 
-  const options = {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-    },
-    body: form,
-  };
+  return await Promise.all(
+    jobResponses.map(async (jobResponse) => {
+      return await Database.addJob({
+        job_uid: jobResponse.translationJobUid,
+        status: 'PENDING',
+        locale: jobResponse.targetLocaleIds[0],
+        project_id: PROJECT_ID,
+      });
+    })
+  );
+};
 
-  const resp = await fetch(url.href, options);
+/**
+ * @param {Job[]} jobRecords
+ * @param {Object.<string, Translation[]>} translationsPerLocale
+ * @example
+ * await createBatches(
+ *  job: { id: 1, locale: 'ja-JP'},
+ *  translationsPerLocale: { 'ja-jP': ['src/content/hello_world.txt']}
+ * );
+ * @returns {Promise<[{ batchUid: string, locale: string, jobId: string }]>}
+ */
+const createBatches = async (jobRecords, translationsPerLocale) => {
+  const createBatchResponses = await Promise.all(
+    // create a batch for each job
+    jobRecords.map(async (job) => {
+      const body = {
+        authorize: false,
+        translationJobUid: job.job_uid,
+        fileUris: translationsPerLocale[job.locale].map(
+          (translation) => translation.slug
+        ), // for the job's locale, grab slugs corresponding to that locale
+      };
 
-  const { response } = await resp.json();
-  const { code } = response;
+      var createBatchResponse = await vendorRequest({
+        method: 'POST',
+        endpoint: `/job-batches-api/v2/projects/${PROJECT_ID}/batches`,
+        body,
+      });
 
-  if (code === 'SUCCESS' && resp.ok) {
-    console.log(`[*] Successfully uploaded ${fileUri} context.`);
-  } else {
-    console.error(`[!] Unable to upload ${fileUri} context.`);
+      await Database.updateJob(job.id, {
+        batch_uid: createBatchResponse.batchUid,
+      });
+
+      return { ...createBatchResponse, locale: job.locale, jobId: job.id };
+    })
+  );
+
+  return createBatchResponses;
+};
+
+/**
+ *
+ * @param {[{ batchUid: string, locale: string, jobId: string }]} batches
+ * @param {Object.<string, Translation[]>} translationsPerLocale
+ */
+const uploadFiles = async (batches, translationsPerLocale) => {
+  for (const batch of batches) {
+    let successCount = 0;
+
+    const translations = translationsPerLocale[batch.locale];
+    for (const translation of translations) {
+      try {
+        const fileUploadResponse = await uploadFile(
+          batch.locale,
+          batch.batchUid
+        )(translation);
+
+        if (fileUploadResponse.code === 'ACCEPTED') {
+          await Database.updateTranslation(translation.id, {
+            status: 'IN_PROGRESS',
+          });
+          await Database.addTranslationsJobsRecord(translation.id, batch.jobId);
+          successCount += 1;
+        }
+      } catch (error) {
+        console.log(
+          `Error occured during upload process for: ${translation.slug}`
+        );
+        console.log(`Error: ${error}`);
+        console.log(error.stack);
+        process.exitCode = 1;
+      }
+    }
+
+    if (successCount > 0) {
+      // if at least one file was successfully uploaded, set job to in progress
+      await Database.updateJob(batch.jobId, { status: 'IN_PROGRESS' });
+    }
   }
-};
-
-/**
- * Sends HTML content to the vendor by creating jobs, batches, and uploading
- * files. On success, this will return the batchUid for each locale.
- * @param {Object<string, Page[]>} content
- * @param {string} accessToken
- * @returns {Promise<{batchUids: string[], fileResponses: Object[]>}
- */
-const sendContentToVendor = async (content, accessToken) => {
-  // 1) Create a job for each locale - save the jobUid for storage
-  const jobRequests = Object.keys(content).map((locale) => {
-    const body = {
-      jobName: `Gatsby Translation Queue (${locale}) ${new Date().toLocaleString()}`,
-      targetLocaleIds: [LOCALE_IDS[locale]],
-    };
-    return vendorRequest({
-      method: 'POST',
-      endpoint: `/jobs-api/v3/projects/${PROJECT_ID}/jobs`,
-      body,
-      accessToken,
-    });
-  });
-
-  const jobsResponses = await Promise.all(jobRequests);
-  const jobUids = jobsResponses.map((resp) => resp.translationJobUid);
-  console.log(`[*] Successfully created jobs: ${jobUids.join(', ')}`);
-
-  // 2) Create a batch for each job - save bachUid for storage
-  const pages = await Promise.all(Object.values(content));
-  const batchRequests = jobUids.map((jobUid, idx) => {
-    const body = {
-      authorize: false,
-      translationJobUid: jobUid,
-      fileUris: pages[idx].map(({ file }) => file),
-    };
-
-    return vendorRequest({
-      method: 'POST',
-      endpoint: `/job-batches-api/v2/projects/${PROJECT_ID}/batches`,
-      body,
-      accessToken,
-    });
-  });
-
-  const batchResponses = await Promise.all(batchRequests);
-  const batchUids = batchResponses.map((resp) => resp.batchUid);
-  console.log(`[*] Successfully created batches: ${batchUids.join(', ')}`);
-
-  // 3) Upload files to the batches job
-  const fileRequests = batchUids.flatMap((batchUid, idx) => {
-    const locale = Object.keys(content)[idx];
-
-    return pages[idx].map(uploadFile(locale, batchUid, accessToken));
-  });
-
-  const fileResponses = await Promise.all(fileRequests);
-  const numSuccess = fileResponses.filter(({ code }) => code === 'ACCEPTED');
-
-  console.log(
-    `[*] Successfully uploaded ${numSuccess.length} / ${fileResponses.length} files`
-  );
-
-  return { batchUids, fileResponses };
-};
-
-/**
- * @param {string[]} batchUids A list of vendor UIDs to be added to the `being_translated` queue.
- */
-const addToBeingTranslatedQueue = async (batchUids) => {
-  const table = 'TranslationQueues';
-  const key = { type: 'being_translated' };
-
-  const data = await loadFromDB(table, key);
-
-  // If this field is empty/returns as empty object
-  const queue =
-    data.Item && data.Item.batchUids && data.Item.batchUids.length
-      ? data.Item.batchUids
-      : [];
-
-  await saveToTranslationQueue(key, 'set batchUids = :batchUids', {
-    ':batchUids': [...queue, ...batchUids],
-  });
-};
-
-/**
- * Saves any files that failed to upload to the "to be translated" queue.
- * @param {{code: string, locale: string, slug: string}[]} failedUploads
- * @returns {Promise<boolean>}
- */
-const saveFailedUploads = async (failedUploads) => {
-  const updatedLocales = failedUploads.reduce(
-    (acc, page) => ({
-      ...acc,
-      [page.locale]: [...acc[page.locale], page.slug],
-    }),
-    {}
-  );
-
-  await saveToTranslationQueue(
-    { type: 'to_translate' },
-    'set locales = :locales',
-    { ':locales': updatedLocales }
-  );
 };
 
 /** Entrypoint. */
 const main = async () => {
-  const queue = await loadFromDB('TranslationQueues', { type: 'to_translate' });
-  const { locales } = queue.Item;
-  const content = getContent(locales);
-
   try {
-    const accessToken = await getAccessToken();
-    const { batchUids, fileResponses } = await sendContentToVendor(
-      content,
-      accessToken
+    const translationsPerLocale = await getReadyToGoTranslationsForEachLocale();
+
+    // exit early if no translations are ready
+    if (Object.keys(translationsPerLocale).length === 0) {
+      console.log('No ready to go translations. Exiting early.');
+      process.exit(0);
+    }
+
+    console.log(`Records to be sent: ${JSON.stringify(translationsPerLocale)}`);
+
+    const createdJobs = await createJobs(Object.keys(translationsPerLocale));
+    const createdBatches = await createBatches(
+      createdJobs,
+      translationsPerLocale
     );
-
-    await addToBeingTranslatedQueue(batchUids);
-    console.log('[*] Saved batchUid(s) to the "being translated" queue');
-
-    const failedUploads = fileResponses.filter(
-      ({ code }) => code !== 'ACCEPTED'
-    );
-    console.log(`[*] ${failedUploads.length} pages failed to upload.`);
-
-    await saveFailedUploads(failedUploads);
-    console.log('[*] Updated "to be translated" queue');
-
-    process.exit(failedUploads.length ? 1 : 0);
+    await uploadFiles(createdBatches, translationsPerLocale);
   } catch (error) {
-    console.error(`[!] Unable to send data to vendor`);
-    console.log(error);
-
-    process.exit(1);
+    console.log(`Error encountered: ${error}`);
+    console.log(error.stack);
+    process.exitCode = 1;
   }
 };
 
-main();
+/**
+ * This allows us to check if the script was invoked directly from the command line, i.e 'node validate_packs.js', or if it was imported.
+ * This would be true if this was used in one of our GitHub workflows, but false when imported for use in a test.
+ * See here: https://nodejs.org/docs/latest/api/modules.html#modules_accessing_the_main_module
+ */
+if (require.main === module) {
+  main();
+}
+
+module.exports = {
+  main,
+  getReadyToGoTranslationsForEachLocale,
+  createJobs,
+  createBatches,
+  uploadFile,
+  uploadFiles,
+};

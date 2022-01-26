@@ -1,0 +1,374 @@
+---
+title: Set up AWS VPC flow log monitoring
+tags:
+  - Integrations
+  - Network performance monitoring
+  - Installation
+  - Setup
+  - NPM
+metaDescription: Set up AWS VPC flow log monitoring.
+---
+
+<Callout title="BETA FEATURE">
+This feature is currently in open beta and still in development, but we encourage you to try it out!
+</Callout>
+
+Set up your AWS VPC flow logs to send them to New Relic One.
+
+## Prerequisites [#prerequisites]
+
+### New Relic One account prerequisites [#prerequisites-NR]
+
+- A New Relic account. Don't have one? [Sign up for free!](https://newrelic.com/signup) No credit card required.
+- A New Relic [account ID](/docs/accounts/accounts-billing/account-setup/account-id).
+- A New Relic [license key](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key).
+
+### AWS prerequisites [#prerequisites-aws]
+
+- [AWS VPC Flow Export configured to existing S3 bucket](https://docs.aws.amazon.com/vpc/latest/userguide/flow-logs-s3.html).
+- Permissions to [build and publish images to Amazon ECR](https://docs.aws.amazon.com/AmazonECR/latest/userguide/get-set-up-for-amazon-ecr.html).
+- Permissions to [create a Lambda function](https://docs.aws.amazon.com/lambda/latest/dg/gettingstarted-images.html#gettingstarted-images-function).
+- [AWS CLI (v 1.9.15+) installed](https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2.html).
+- [Docker installed](https://docs.docker.com/engine/installation/#installation).
+
+## Required fields from VPC flow logs [#required-fields-from-vpc-flow-logs]
+
+<Callout variant="important">
+  The [default format](https://docs.aws.amazon.com/vpc/latest/userguide/flow-logs.html#flow-logs-default) for flow logs does not include all of the required fields that are required for `ktranslate` to work properly. You must ensure that the below fields are added or the data you'll receive in New Relic One will be incomplete.
+</Callout>
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>Flow Record Field</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>version</td>
+      <td>The VPC Flow Logs version.</td>
+    </tr>
+    <tr>
+      <td>srcaddr</td>
+      <td>The source address for incoming traffic, or the IPv4 or IPv6 address of the network interface for outgoing traffic. For a network interface, the IPv4 address is always its private IPv4 address.</td>
+    </tr>
+    <tr>
+      <td>dstaddr</td>
+      <td>The destination address for outgoing traffic, or the IPv4 or IPv6 address of the network interface for incoming traffic. For a network interface, the IPv4 address is always its private IPv4 address.</td>
+    </tr>
+    <tr>
+      <td>srcport</td>
+      <td>The source port of the traffic.</td>
+    </tr>
+    <tr>
+      <td>dstport</td>
+      <td>The destination port of the traffic.</td>
+    </tr>
+    <tr>
+      <td>protocol</td>
+      <td>The IANA protocol number of the traffic.</td>
+    </tr>
+    <tr>
+      <td>packets</td>
+      <td>The number of packets transferred during the flow.</td>
+    </tr>
+    <tr>
+      <td>bytes</td>
+      <td>The number of bytes transferred during the flow.</td>
+    </tr>
+    <tr>
+      <td>vpc-id</td>
+      <td>The ID of the VPC that contains the network interface for which the traffic is recorded.</td>
+    </tr>
+    <tr>
+      <td>flow-direction</td>
+      <td>The direction of the flow with respect to the interface where traffic is captured. The possible values are `ingress` and `egress`.</td>
+    </tr>
+  </tbody>
+</table>
+
+## Set up AWS VPC flow logs monitoring in New Relic One [#setup-aws-vpc-flow-logs-monitoring]
+
+To send your VPC flow logs to New Relic One, follow these steps:
+
+1. [Create a private ECR registry and upload the ktranslate image](#create-ecr-registry) 
+2. [Create a Lambda function from the ECR image](#create-lambda-function)
+3. [Validate your settings](#validate-your-settings)
+
+### 1. Create a private ECR registry and upload the ktranslate image [#create-ecr-registry]
+
+1. [Authenticate to your registry](https://docs.aws.amazon.com/AmazonECR/latest/userguide/getting-started-cli.html#cli-authenticate-registry) by running:
+  ```bash
+  aws ecr get-login-password --region $AWS_ACCOUNT_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_ACCOUNT_REGION.amazonaws.com
+  ```
+
+2. [Create a repository](https://docs.aws.amazon.com/AmazonECR/latest/userguide/getting-started-cli.html#cli-create-repository) to hold the `ktranslate` image by running:
+  ```bash
+  aws ecr create-repository --repository-name ktranslate --image-scanning-configuration scanOnPush=true --region $AWS_ACCOUNT_REGION
+  ```
+
+2. Pull the `ktranslate` image from Docker Hub by running:
+  ```bash
+  docker pull kentik/ktranslate:v2
+  ```
+
+3. Tag the image to push to your docker repository by running:
+  ```bash
+  docker tag kentik/ktranslate:v2 $AWS_ACCOUNT_ID.dkr.ecr.$AWS_ACCOUNT_REGION.amazonaws.com/ktranslate:v2
+  ```
+
+4. Push the image to your docker repository by running:
+  ```bash
+  docker push $AWS_ACCOUNT_ID.dkr.ecr.$AWS_ACCOUNT_REGION.amazonaws.com/ktranslate:v2
+  ```
+
+After running these steps, you should see an output similar to the following:
+```bash
+The push refers to repository [$AWS_ACCOUNT_ID.dkr.ecr.$AWS_ACCOUNT_REGION.amazonaws.com/ktranslate]
+870d899ac0b0: Pushed 
+0a4768abd477: Pushed 
+b206b92a2843: Pushed 
+22abafd3e6c9: Pushed 
+1335c3725252: Pushed 
+7188c9350e77: Pushed 
+2b75f71baacd: Pushed 
+ba50c5652654: Pushed 
+80bbd31930ea: Pushed 
+c3d2a28a326e: Pushed 
+1a058d5342cc: Pushed 
+v2: digest: sha256:4cfe36919ae954063203a80f69ca1795280117c44947a09d678b4842bb8e4dd2 size: 2624
+```
+
+### 2. Create a Lambda function from the ECR image [#create-lambda-function]
+
+The Lambda function you create must reside in the same AWS Region as the S3 bucket where you store your VPC flow logs. To [create a Lambda function defined as a container image](https://docs.aws.amazon.com/lambda/latest/dg/gettingstarted-images.html#gettingstarted-images-function), follow the following steps:
+
+1. Navigate to the Lambda service in your AWS console and select **Create function**.
+2. Select the **Container image** tile at the top of the screen, and:
+  * Name your function.
+  * Click **Browse Images** and choose the **ktranslate** image with the `v2` tag you pushed to ECR.
+  * Keep the architecture on **x86_64**, accept the default permissions, and click **Create function**.
+3. On the landing page for your new function, select the **Configuration** tab, and:
+* In **General configuration**, change the timeout value to `0 min 20 sec`.
+* In the **Permissions** section, click **Execution role** for your function, which will open a new tab for IAM.
+  * On the **Permissions** tab, select **Attach policies** and add the `AmazonS3ReadOnlyAccess` to grant your function access to the S3 bucket your VPC flow logs are in.
+4. Back on your function's landing page, in the **Environment variables** section, click **Edit** and add the [Lambda environment variables](#lambda-env-variables).
+5. On the **Triggers** section, click **Add trigger**, and:
+  * Select the **S3** type.
+  * Select the bucket where you store your VPC Flow Logs.
+  * Choose the **All object create events** event type.
+  * Optionally, if your bucket has a custom folder in the root directory outside the `AWSLogs` directory, you can add it in the **Prefix** section.
+  * Accept the **Recursive Invocation** warning and click **Add**.
+
+At this point, your Lambda function is deployed and listening for new events on your S3 bucket.
+
+### 3. Validate your settings [#validate-your-settings]
+
+<Callout variant="tip">
+  It can take several minutes for data to first appear in your account as the export of VPC flow logs to S3 usually runs on a 5-minute cycle.
+</Callout>
+
+To confirm your Lambda function is working as expected, do one of the following:
+
+* Go to **[one.newrelic.com](https://one.newrelic.com)** > **Explorer** and you will begin to see `VPC Network` entities. You can click them and investigate the various metrics each one is sending.
+* Go to **[one.newrelic.com](https://one.newrelic.com)** > **Query your data** and to get a quick summary of the recent VPCs that you have flow logs from, run the following NRQL query: 
+  ```sql
+  FROM KFlow SELECT count(*) FACET device_name WHERE provider = 'kentik-vpc'
+  ```
+* In your AWS Console, click the **Monitor** tab in your function's landing page, where you can track important metrics like invocation, error count, and success rate. You can also investigate the error logs from recent invocations.
+
+<Callout variant="tip">
+  We recommend you to add [serverless monitoring](/docs/serverless-function-monitoring/aws-lambda-monitoring/get-started/introduction-new-relic-monitoring-aws-lambda) from New Relic One to your new Lambda function. This way, you'll proactively monitor the health of the function and get alerts in case of problems.
+</Callout>
+
+## Find and use your metrics [#find-your-metrics]
+
+All VPC flow logs exported from the `ktranslate` Lambda function use the `KFlow` namespace, via the [New Relic Event API](/docs/telemetry-data-platform/ingest-apis/introduction-event-api). Currently, these are the fields populated from this integration:
+
+<table>
+  <thead>
+    <tr>
+      <th>Attribute</th>
+      <th>Type</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>application</td>
+      <td>String</td>
+      <td>The class of program generating the traffic in this flow record. This is derived from the lowest numeric value from `l4_dst_port` and `l4_src_port`. Common examples include `http`, `ssh`, and `ftp`.</td>
+    </tr>
+    <tr>
+      <td>dest_vpc</td>
+      <td>String</td>
+      <td>The name of the VPC the traffic in this flow record is targeting, if known.</td>
+    </tr>
+    <tr>
+      <td>device_name</td>
+      <td>String</td>
+      <td>The name of the VPC this flow record was exported from.</td>
+    </tr>
+    <tr>
+      <td>dst_addr</td>
+      <td>String</td>
+      <td>The target IPv4 address for this flow record.</td>
+    </tr>
+    <tr>
+      <td>dst_as</td>
+      <td>Numeric</td>
+      <td>The target [Autonomous System Number](https://www.iana.org/assignments/as-numbers/as-numbers.xhtml) for this flow record.</td>
+    </tr>
+    <tr>
+      <td>dst_as_name</td>
+      <td>String</td>
+      <td>The target [Autonomous System Name](https://www.iana.org/assignments/as-numbers/as-numbers.xhtml) for this flow record.</td>
+    </tr>
+    <tr>
+      <td>dst_endpoint</td>
+      <td>String</td>
+      <td>The target `IP:Port` tuple for this flow record. This is a combination of `dst_addr` and `l4_dst_port`.</td>
+    </tr>
+    <tr>
+      <td>dst_geo</td>
+      <td>String</td>
+      <td>The target country for this flow record, if known.</td>
+    </tr>
+    <tr>
+      <td>flow_direction</td>
+      <td>String</td>
+      <td>The direction of flow for this record, from the point of view of the interface where the traffic was captured. Valid options are `ingress | egress`.</td>
+    </tr>
+    <tr>
+      <td>in_bytes</td>
+      <td>Numeric</td>
+      <td>The number of bytes transferred for ingress flow records.</td>
+    </tr>
+    <tr>
+      <td>in_pkts</td>
+      <td>Numeric</td>
+      <td>The number of packets transferred for ingress flow records.</td>
+    </tr>
+    <tr>
+      <td>l4_dst_port</td>
+      <td>Numeric</td>
+      <td>The target port for this flow record.</td>
+    </tr>
+    <tr>
+      <td>l4_src_port</td>
+      <td>Numeric</td>
+      <td>The source port for this flow record.</td>
+    </tr>
+    <tr>
+      <td>out_bytes</td>
+      <td>Numeric</td>
+      <td>The number of bytes transferred for egress flow records.</td>
+    </tr>
+    <tr>
+      <td>out_pkts</td>
+      <td>Numeric</td>
+      <td>The number of packets transferred for egress flow records.</td>
+    </tr>
+    <tr>
+      <td>protocol</td>
+      <td>String</td>
+      <td>The display name of the protocol used in this flow record, derived from the [numeric IANA protocol number](https://www.iana.org/assignments/protocol-numbers/protocol-numbers.xhtml)</td>
+    </tr>
+    <tr>
+      <td>provider</td>
+      <td>String</td>
+      <td>This attribute is used to uniquely identify various sources of data from `ktranslate`. VPC flow logs will always have the value of `kentik-vpc`.</td>
+    </tr>
+    <tr>
+      <td>sample_rate</td>
+      <td>Numeric</td>
+      <td>The rate at which `ktranslate` samples from the various files in the S3 bucket for flow exports. (Default: 1000) This can be configured with the `KENTIK_SAMPLE_RATE` environment variable.</td>
+    </tr>
+    <tr>
+      <td>source_vpc</td>
+      <td>String</td>
+      <td>The name of the VPC the traffic in this flow record originated from, if known.</td>
+    </tr>
+    <tr>
+      <td>src_addr</td>
+      <td>String</td>
+      <td>The source IPv4 address for this flow record.</td>
+    </tr>
+    <tr>
+      <td>src_as</td>
+      <td>Numeric</td>
+      <td>The source [Autonomous System Number](https://www.iana.org/assignments/as-numbers/as-numbers.xhtml) for this flow record.</td>
+    </tr>
+    <tr>
+      <td>src_as_name</td>
+      <td>String</td>
+      <td>The source [Autonomous System Name](https://www.iana.org/assignments/as-numbers/as-numbers.xhtml) for this flow record.</td>
+    </tr>
+    <tr>
+      <td>src_endpoint</td>
+      <td>String</td>
+      <td>The source `IP:Port` tuple for this flow record. This is a combination of `src_addr` and `l4_src_port`.</td>
+    </tr>
+    <tr>
+      <td>src_geo</td>
+      <td>String</td>
+      <td>The source country for this flow record, if known.</td>
+    </tr>
+    <tr>
+      <td>start_time</td>
+      <td>Numeric</td>
+      <td>The time, in Unix seconds, when the first packet of the flow was received within the aggregation interval. This might be up to 60 seconds after the packet was transmitted or received on the network interface.</td>
+    </tr>
+    <tr>
+      <td>timestamp</td>
+      <td>Numeric</td>
+      <td>The time, in Unix seconds, when this flow record was received by the New Relic Event API.</td>
+    </tr>
+  </tbody>
+</table>
+
+## Environment variables for AWS Lambda functions [#lambda-env-variables] 
+
+When you're configuring your AWS Lambda function, you need to set up the following environment variables:
+
+<table>
+  <thead>
+    <tr>
+      <th>Key</th>
+      <th>Value</th>
+      <th>Required</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>KENTIK_MODE</td>
+      <td>`nr1.vpc.lambda`</td>
+      <td style={{ textAlign: "center" }}>√</td>
+    </tr>
+    <tr>
+      <td>NEW_RELIC_API_KEY</td>
+      <td>The New Relic license key for your account</td>
+      <td style={{ textAlign: "center" }}>√</td>
+    </tr>
+    <tr>
+      <td>NR_ACCOUNT_ID</td>
+      <td>Your New Relic account ID</td>
+      <td style={{ textAlign: "center" }}>√</td>
+    </tr>
+    <tr>
+      <td>NR_REGION</td>
+      <td>The New Relic datacenter region for your account. The possible values are `US` and `EU`, and by default it's set to `US`.</td>
+      <td></td>
+    </tr>
+    <tr>
+      <td>KENTIK_SAMPLE_RATE</td>
+      <td>The rate of randomized sampling `ktranslate` applies to the flow export objects in S3. By default, it's set to `1000`. Setting this to `1` disables all sampling and `ktranslate` ships all flow records to New Relic One.</td>
+      <td></td>
+    </tr>
+  </tbody>
+</table>
+
+<Callout variant="tip">
+  For S3 objects with less than 100 flow records, `ktranslate` will revert to a sample rate of `1` and process every record. For S3 objects with more than 100 flow records, `ktranslate` will use the configured value of `KENTIK_SAMPLE_RATE`, which has a default of `1000`. Meaning that every record in the object has a 1:1000 change of being sampled.
+</Callout>

@@ -1,0 +1,155 @@
+---
+title: Dockerコンテナに.NETエージェントをインストールする
+tags:
+  - Agents
+  - NET agent
+  - Other installation
+metaDescription: 'APM for .NET: how to install the .NET agent on a Docker container.'
+translationType: human
+---
+
+この文書は、`Dockerfile`を設定して[New Relic .NETエージェント](/docs/dotnet/new-relic-for-net)をインストールする方法例を提供します。例は、[Windows](#windows)と[Linux](#linux)コンテナの両方に含まれます。
+
+Dockerコンテナでの.NETエージェントのインストールは、[Windows](/docs/agents/net-agent/installation/install-net-agent-windows)または[Linux](/docs/agents/net-agent/installation/install-net-agent-linux)のいずれかの標準.NETエージェントのインストールとして、同じ手順を使用して実行できます。それは、手順を実行する`Dockerfile`の単なる設定の問題です。
+
+## Dockerへの.NETエージェントインストール概要 [#overview]
+
+要件は、以下のとおりです。
+
+* エージェントは、監視するコンテナにインストールする必要があります。
+* いずれかの標準インストール手順に従ってエージェントをインストールします。
+* [必要な環境変数](/docs/agents/net-agent/configuration/net-agent-configuration#environment-variables)を設定し（該当する場合）、エージェントを有効化します。
+* .NETエージェントは実行時にインストールし、有効化する必要があります。
+
+## Linux Dockerコンテナへのインストール [#linux]
+
+### Linux Dockerfileの例
+
+```
+# Use the correct tagged version for your application's targeted runtime.  See https://hub.docker.com/_/microsoft-dotnet-aspnet/ 
+FROM mcr.microsoft.com/dotnet/aspnet:6.0
+
+# Publish your application.
+COPY <var>your app to be published</var> /app
+
+# Install the agent
+RUN apt-get update && apt-get install -y wget ca-certificates gnupg \
+&& echo 'deb http://apt.newrelic.com/debian/ newrelic non-free' | tee /etc/apt/sources.list.d/newrelic.list \
+&& wget https://download.newrelic.com/548C16BF.gpg \
+&& apt-key add 548C16BF.gpg \
+&& apt-get update \
+&& apt-get install -y newrelic-netcore20-agent \
+&& rm -rf /var/lib/apt/lists/*
+
+# Enable the agent
+ENV CORECLR_ENABLE_PROFILING=1 \
+CORECLR_PROFILER={36032161-FFC0-4B61-B559-F6C5D41BAE5A} \
+CORECLR_NEWRELIC_HOME=/usr/local/newrelic-netcore20-agent \
+CORECLR_PROFILER_PATH=/usr/local/newrelic-netcore20-agent/libNewRelicProfiler.so \
+NEW_RELIC_LICENSE_KEY=<var>YOUR_LICENSE_KEY</var> \
+NEW_RELIC_APP_NAME=<var>YOUR_APP_NAME</var>
+
+WORKDIR /app
+
+ENTRYPOINT ["dotnet", "./<var>YOUR_APP_NAME</var>.dll"]
+```
+
+### LinuxマルチステージDockerfileの例
+
+```
+# This example uses .NET 6.0.  For other versions, see https://hub.docker.com/_/microsoft-dotnet-sdk/
+FROM mcr.microsoft.com/dotnet/sdk:6.0 AS base
+
+# Build your application
+WORKDIR /src
+RUN dotnet new mvc -o <var>YOUR_APP_NAME</var>
+RUN dotnet publish -c Release -o /app ./<var>YOUR_APP_NAME</var>
+
+# The runtime tag version should match the SDK tag version
+FROM mcr.microsoft.com/dotnet/aspnet:6.0 AS final
+
+# Install the agent
+RUN apt-get update && apt-get install -y wget ca-certificates gnupg \
+&& echo 'deb http://apt.newrelic.com/debian/ newrelic non-free' | tee /etc/apt/sources.list.d/newrelic.list \
+&& wget https://download.newrelic.com/548C16BF.gpg \
+&& apt-key add 548C16BF.gpg \
+&& apt-get update \
+&& apt-get install -y newrelic-netcore20-agent
+
+# Enable the agent
+ENV CORECLR_ENABLE_PROFILING=1 \
+CORECLR_PROFILER={36032161-FFC0-4B61-B559-F6C5D41BAE5A} \
+CORECLR_NEWRELIC_HOME=/usr/local/newrelic-netcore20-agent \
+CORECLR_PROFILER_PATH=/usr/local/newrelic-netcore20-agent/libNewRelicProfiler.so \
+NEW_RELIC_LICENSE_KEY=<var>YOUR_LICENSE_KEY</var> \
+NEW_RELIC_APP_NAME=<var>YOUR_APP_NAME</var>
+
+WORKDIR /app
+COPY --from=base /app .
+
+ENTRYPOINT ["dotnet", "./<var>YOUR_APP_NAME</var>.dll"]
+```
+
+## Windows Dockerコンテナへのインストール [#windows]
+
+<Callout variant="important">
+  Windows Nano Serverのイメージはサポートされていません。
+</Callout>
+
+### .NET FrameworkアプリケーションへのWindows Dockerfileの例 [#example-windows-dockerfile-framework]
+
+```
+FROM mcr.microsoft.com/dotnet/framework/aspnet
+
+# Publish your application.
+COPY <var>your app to be published</var> /inetpub/wwwroot
+
+# Download the New Relic .NET agent installer
+RUN [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12;\
+ Invoke-WebRequest "https://download.newrelic.com/dot_net_agent/latest_release/NewRelicDotNetAgent_x64.msi"\
+ -UseBasicParsing -OutFile "NewRelicDotNetAgent_x64.msi"
+
+# Install the New Relic .NET agent
+RUN Start-Process -Wait -FilePath msiexec -ArgumentList /i, "NewRelicDotNetAgent_x64.msi", /qn,\
+ NR_LICENSE_KEY=<var>YOUR_LICENSE_KEY</var>
+
+# Remove the New Relic .NET agent installer
+RUN Remove-Item "NewRelicDotNetAgent_x64.msi"
+
+# Set your application name
+ENV NEW_RELIC_APP_NAME=<var>YOUR_APP_NAME</var>
+```
+
+### .NET CoreアプリケーションへのWindows Dockerfileの例 [#example-windows-dockerfile-net-core]
+
+```
+FROM mcr.microsoft.com/windows/servercore:ltsc2019
+
+# Publish your application.
+COPY <var>your app to be published</var> /app
+
+# Download the New Relic .NET agent installer
+RUN powershell.exe [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12;\
+ Invoke-WebRequest "https://download.newrelic.com/dot_net_agent/latest_release/NewRelicDotNetAgent_x64.msi"\
+ -UseBasicParsing -OutFile "NewRelicDotNetAgent_x64.msi"
+
+# Install the New Relic .NET agent
+RUN powershell.exe Start-Process -Wait -FilePath msiexec -ArgumentList /i, "NewRelicDotNetAgent_x64.msi", /qn,\
+ NR_LICENSE_KEY=<var>YOUR_LICENSE_KEY</var>
+
+# Remove the New Relic .NET agent installer
+RUN powershell.exe Remove-Item "NewRelicDotNetAgent_x64.msi"
+
+# Enable the agent
+ENV CORECLR_ENABLE_PROFILING=1
+
+# Set your application name
+ENV NEW_RELIC_APP_NAME=<var>YOUR_APP_NAME</var>
+
+# windows/servercore images may not include the .NET Core SDK or runtime
+RUN <var>dotnet sdk/runtime installer</var>
+
+WORKDIR /app
+
+ENTRYPOINT ["dotnet", ".\\<var>YOUR_APP_NAME.dll</var>"]
+```

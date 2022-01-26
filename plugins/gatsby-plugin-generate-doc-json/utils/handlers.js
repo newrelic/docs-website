@@ -221,6 +221,31 @@ module.exports = {
   th: (h, node) => h(node, 'th', {}, all(h, node)),
   td: (h, node) => h(node, 'td', {}, all(h, node)),
   var: (h, node) => h(node, 'var', {}, [u('text', toString(node))]),
+  Video: (h, node) => {
+    const id = findAttribute('id', node);
+    const type = findAttribute('type', node);
+    const videoPlatforms = {
+      youtube: (id) => `//www.youtube.com/embed/${id}?modestbranding=1`,
+      wistia: (id) => `//fast.wistia.net/embed/iframe/${id}`,
+    };
+
+    return h(
+      node,
+      'div',
+      {
+        className: 'iframe-wrapper',
+      },
+      [
+        h(node, 'iframe', {
+          src: videoPlatforms[type](id),
+          allow:
+            'accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture',
+          allowFullScreen: true,
+          frameborder: '0',
+        }),
+      ]
+    );
+  },
   mark: (h, node) => h(node, 'mark', {}, [u('text', toString(node))]),
   figcaption: (h, node) =>
     h(node, 'div', { className: ['meta'] }, all(h, node)),

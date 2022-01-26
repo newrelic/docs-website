@@ -1,0 +1,600 @@
+---
+title: Parsing log data
+tags:
+  - Logs
+  - Log management
+  - UI and data
+metaDescription: How New Relic uses parsing and how to send customized log data.
+redirects:
+  - /docs/logs/new-relic-logs/ui-data/customizing-log-data
+  - /docs/logs/new-relic-logs/ui-data/customize-logs-using-parsing
+  - /docs/logs/log-management/ui-data/parsing
+---
+
+Parsing is the process of splitting unstructured log data into attributes (key/value pairs). You can use these attributes to facet or filter logs in useful ways. This in turn helps you build better charts and alerts.
+
+To get started with parsing, you may want to watch the following video tutorial on YouTube (approx. 4-1/2 minutes).
+
+<Video id="PD7zGXqS0P0" type="youtube" width="560px" />
+
+New Relic parses log data according to rules. This document describes how logs parsing works, how to use built-in rules, and how to create custom rules.
+
+You can also create, query, and manage your log parsing rules by using NerdGraph, our GraphQL API, at [api.newrelic.com/graphiql](https://api.newrelic.com/graphiql). For more information, see our [NerdGraph tutorial for parsing](/docs/apis/nerdgraph/examples/nerdgraph-log-parsing-rules-tutorial/).
+
+## Parsing example [#parsing-defined]
+
+A good example is a default NGINX access log containing unstructured text. It is useful for searching but not much else. Here's an example of a typical line:
+
+```
+127.180.71.3 - - [10/May/1997:08:05:32 +0000] "GET /downloads/product_1 HTTP/1.1" 304 0 "-" "Debian APT-HTTP/1.3 (0.8.16~exp12ubuntu10.21)"
+```
+
+In an unparsed format, you would need to do a full text search to answer most questions. After parsing, the log is organized into attributes, like `response code` and `request URL`:
+
+```
+{
+   "remote_addr":"93.180.71.3",
+   "time":"1586514731",
+   "method":"GET",
+   "path":"/downloads/product_1",
+   "version":"HTTP/1.1",
+   "response":"304",
+   "bytesSent": 0,
+   "user_agent": "Debian APT-HTTP/1.3 (0.8.16~exp12ubuntu10.21)"
+}
+```
+
+Parsing makes it easier to create [custom queries](/docs/using-new-relic/data/understand-data/query-new-relic-data) that facet on those values. This helps you understand the distribution of response codes per request URL and quickly find problematic pages.
+
+## How log parsing works [#how-it-works]
+
+Here's an overview of how New Relic implements parsing of logs:
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "100px" }}>
+        Log parsing
+      </th>
+
+      <th>
+        How it works
+      </th>
+    </tr>
+
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        What
+      </td>
+
+      <td>
+        * All parsing takes place against the `message` field; no other fields can be parsed.
+        * Each parsing rule is created with matching criteria that determines which logs the rule will attempt to parse.
+        * To simplify the matching process, we recommend adding a [`logtype`](#logtype) attribute to your logs. However, you are not limited to using `logtype`; any attribute can be used as matching criteria.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        When
+      </td>
+
+      <td>
+        * Parsing will only be applied once to each log message. If multiple parsing rules match the log, only the first that succeeds will be applied.
+        * Parsing takes place during log ingestion, before data is written to NRDB. Once data has been written to storage, it can no longer be parsed.
+        * Parsing occurs in the pipeline **before** data enrichments take place. Be careful when defining the matching criteria for a parsing rule. If the criteria is based on an attribute that doesn't exist untail after parsing or enrichment take place, that data won't be present in the logs when matching occurs. As a result, no parsing will happen.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        How
+      </td>
+
+      <td>
+        * Rules can be written in [Grok](https://grokdebug.herokuapp.com/patterns#), regex, or a mixture of the two. Grok is a collection of patterns that abstract away complicated regular expressions.
+        * If the content of the message field is JSON, it will be parsed automatically.
+      </td>
+    </tr>
+
+  </tbody>
+</table>
+
+## Parse attributes using Grok [#grok]
+
+Parsing patterns are specified using Grok, an industry standard for parsing log messages. 
+
+Grok is a superset of regular expressions that adds built-in named patterns to be used in place of literal complex regular expressions. For instance, instead of having to remember that an integer can be matched with the regular expression `(?:[+-]?(?:[0-9]+))`, you can just write `%{INT}` to use the Grok pattern `INT`, which represents the same regular expression. You can always use a mix of regular expressions and Grok pattern names in your matching string.
+
+Grok patterns have the syntax:
+
+`%{PATTERN_NAME[:OPTIONAL_EXTRACTED_ATTRIBUTE_NAME[:OPTIONAL_TYPE]]}`
+
+Where:
+- `PATTERN_NAME` is one of the [Grok patterns](https://grokdebug.herokuapp.com/patterns). Click `grok-patterns` to see the most commonly-used patterns. The pattern name is just a user-friendly name representing a regular expression. They are exactly equal to the corresponding regular expression.
+- `OPTIONAL_EXTRACTED_ATTRIBUTE_NAME`, if provided, is the name of the attribute that will be added to your log message with the value matched by the pattern name. It's equivalent to using a named capture group using regular expressions. If this is not provided, then the parsing rule will just match a region of your string, but not extract an attribute with its value.
+- `OPTIONAL_TYPE` specifies the type of attribute value to extract. If omitted, values are extracted as strings. For instance, to extract the value `123` from `"File Size: 123"` as a number into attribute `file_size`, use `value: %{INT:file_size:int}`. 
+
+Supported types are:
+
+<table>  
+  <thead>
+    <tr>
+      <th style={{ width: "400px" }}>
+        Type specified in Grok
+      </th>
+      <th>
+        Type stored in the New Relic database
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `boolean`
+      </td>
+      <td>
+        `boolean`
+      </td>
+    </tr>
+    <tr>
+      <td>
+        `byte`
+        `short`
+        `int`
+        `integer`
+      </td>
+      <td>
+        `integer`
+      </td>
+    </tr>
+    <tr>
+      <td>
+        `long`
+      </td>
+      <td>
+        `long`
+      </td>
+    </tr>
+    <tr>
+      <td>
+        `float`
+      </td>
+      <td>
+        `float`
+      </td>
+    </tr>
+    <tr>
+      <td>
+        `double`
+      </td>
+      <td>
+        `double`
+      </td>
+    </tr>
+    <tr>
+      <td>
+        `string` (default)
+        `text`
+      </td>
+      <td>
+        `string`
+      </td>
+    </tr>
+    <tr>
+      <td>
+        `date`
+        `datetime`
+      </td>
+      <td>
+        ISO 8601 time as a `long`
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+See [our blog post](https://newrelic.com/blog/how-to-relic/how-to-use-grok-log-parsing) for more details.
+
+## Organizing by logtype [#logtype]
+
+New Relic's log ingestion pipeline can parse data by matching a log event to a rule that describes how the log should be parsed. There are two ways log events can be parsed:
+
+- Use a [built-in rule](#built-in-rules).
+- Define a [custom rule](#custom-parsing).
+
+Rules are a combination of matching logic and parsing logic. Matching is done by defining a query match on an attribute of the logs. Rules are not applied retroactively. Logs collected before a rule is created are not parsed by that rule.
+
+The simplest way to organize your logs and how they are parsed is to include the `logtype` field in your log event. This tells New Relic what built-in rule to apply to the logs.
+
+<Callout variant="important">
+  Once a parsing rule is active, data parsed by the rule is permanently changed.
+  This cannot be reverted.
+</Callout>
+
+![Log parsing rules UI](./images/log-parsing-rule-ui.png 'New Relic Logs parsing rules UI')
+
+<figcaption>
+  From the left nav in the Logs UI, select **Parsing**, then create your own
+  custom parsing rule with an attribute, value, and Grok pattern.
+</figcaption>
+
+## Limits [#limits]
+
+Parsing is computationally expensive, which introduces risk. Parsing is done for custom rules defined in an account and for matching patterns to a log. A large number of patterns or poorly defined custom rules will consume a huge amount of memory and CPU resources while also taking a very long time to complete.
+
+In order to prevent problems, we apply two parsing limits: per-message-per-rule and per-account.
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        Limit
+      </th>
+
+      <th>
+        Description
+      </th>
+    </tr>
+
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Per-message-per-rule
+      </td>
+
+      <td>
+        The per-message-per-rule limit prevents the time spent parsing any single message from being greater than 100 ms. If that limit is reached, the system will cease attempting to parse the log message with that rule.
+
+        The ingestion pipeline will attempt to run any other applicable on that message, and the message will still be passed through the ingestion pipeline and stored in NRDB. The log message will be in its original, unparsed format.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Per-account
+      </td>
+
+      <td>
+        The per-account limit exists to prevent accounts from using more than their fair share of resources. The limit considers the total time spent processing **all** log messages for an account per-minute.
+
+        The limit is not a fixed value; it scales up or down proportionally to the volume of data stored daily by the account and the environment size that is subsequently allocated to support that customer.
+      </td>
+    </tr>
+
+  </tbody>
+</table>
+
+<Callout variant="tip">
+  To easily check if your rate limits have been reached, go to your [system
+  **Limits**
+  page](/docs/telemetry-data-platform/ingest-manage-data/manage-data/view-system-limits#limits-ui)
+  in the New Relic UI.
+</Callout>
+
+## Built-in parsing rules [#built-in-rules]
+
+Common log formats have well-established parsing rules already created for them. To get the benefit of built-in parsing rules, add the `logtype` attribute when forwarding logs. Set the value to something listed in the following table, and the rules for that type of log will be applied automatically.
+
+### List of built-in rules [#rulesets]
+
+The following `logtype` attribute values map to a predefined parsing rule. For example, to query the Application Load Balancer:
+
+- From the New Relic UI, use the format `logtype: alb`.
+- From [NerdGraph](/docs/apis/nerdgraph/examples/nerdgraph-log-parsing-rules-tutorial/), use the format `logtype = 'alb'`.
+
+To learn what fields are parsed for each rule, see our documentation about [built-in parsing rules](/docs/logs/ui-data/built-log-parsing-rules).
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        `logtype`
+      </th>
+
+      <th>
+        Example matching query
+      </th>
+    </tr>
+
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        [`alb`](/docs/logs/ui-data/built-log-parsing-rules#application-load-balancer)
+      </td>
+
+      <td>
+        AWS Application Load Balancer
+
+        `logtype:alb`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [`apache`](/docs/logs/ui-data/built-log-parsing-rules#apache)
+      </td>
+
+      <td>
+        Apache Access
+
+        `logtype:apache`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [`cloudfront-web`](/docs/logs/ui-data/built-log-parsing-rules#cloudfront)
+      </td>
+
+      <td>
+        CloudFront Web
+
+        `logtype:cloudfront-web`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [`elb`](/docs/logs/ui-data/built-log-parsing-rules#elastic-load-balancer)
+      </td>
+
+      <td>
+        Amazon Elastic Load Balancer
+
+        `logtype:elb`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [`iis_w3c`](/docs/logs/ui-data/built-log-parsing-rules/#iis)
+      </td>
+
+      <td>
+        Microsoft IIS server logs - W3C format
+
+        `logtype:iis_w3c`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [`monit`](/docs/logs/ui-data/built-log-parsing-rules#monit)
+      </td>
+
+      <td>
+        Monit logs
+
+        `logtype:monit`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [`mysql-error`](/docs/logs/ui-data/built-log-parsing-rules#mysql-error)
+      </td>
+
+      <td>
+        MySQL Error
+
+        `logtype:mysql-error`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [`nginx`](/docs/logs/ui-data/built-log-parsing-rules#nginx)
+      </td>
+
+      <td>
+        NGINX access logs
+
+        `logtype:nginx`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [`nginx-error`](/docs/logs/ui-data/built-log-parsing-rules#nginx-error)
+      </td>
+
+      <td>
+        NGINX error logs
+
+        `logtype:nginx-error`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [`route-53`](/docs/logs/ui-data/built-log-parsing-rules#route53)
+      </td>
+
+      <td>
+        Amazon Route 53 logs
+
+        `logtype:route-53`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [`syslog-rfc5424`](/docs/logs/ui-data/built-log-parsing-rules/#syslog-rfc5424)
+      </td>
+
+      <td>
+        Syslog
+
+        `logtype:syslog-rfc5424`
+      </td>
+    </tr>
+
+  </tbody>
+</table>
+
+### Add the `logtype` attribute [#logtype]
+
+When aggregating logs, it's important to provide metadata that makes it easy to organize, search, and parse those logs. One simple way of doing this is to add the attribute `logtype` to the log messages when they are shipped. [Built-in parsing rules](#built-in-rules) are applied by default to certain `logtype` values.
+
+Here are some examples of how to add `logtype` to logs sent by some of our [supported shipping methods](/docs/logs/enable-new-relic-logs).
+
+<CollapserGroup>
+  <Collapser
+    className="freq-link"
+    id="infrastructure-log-forwarder-example"
+    title="New Relic infrastructure agent example"
+  >
+    Add `logtype` as an [`attribute`](/docs/logs/forward-logs/forward-your-logs-using-infrastructure-agent#attributes). You must set the logtype for each named source.
+    
+    ```
+    logs:
+      - name: file-simple
+        file: /path/to/file
+        attributes:
+          logtype: fileRaw  
+      - name: nginx-example
+        file: /var/log/nginx.log
+        attributes:
+          logtype: nginx
+    ```
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="fluentd-example"
+    title="Fluentd example"
+  >
+    Add a filter block to the `.conf file`, which uses a `record_transformer` to add a new field. In this example we use a `logtype` of `nginx` to trigger the build-in NGINX parsing rule. Check out other [Fluentd examples](https://github.com/newrelic/fluentd-examples).
+
+    ```
+    <filter containers>
+      @type record_transformer
+      enable_ruby true
+      <record>
+        #Add logtype to trigger a built-in parsing rule for nginx access logs
+        logtype nginx
+        #Set timestamp from the value contained in the field "time"
+        timestamp record["time"]
+        #Add hostname and tag fields to all records
+        hostname "#{Socket.gethostname}"
+        tag ${tag}
+      </record>
+    </filter>
+    ```
+
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="fluentbit-example"
+    title="Fluent Bit example"
+  >
+    Add a filter block to the `.conf` file that uses a `record_modifier` to add a new field. In this example we use a `logtype` of `nginx` to trigger the build-in NGINX parsing rule. Check out other [Fluent Bit examples](https://github.com/newrelic/fluentbit-examples).
+
+    ```
+    [FILTER]
+        Name record_modifier
+        Match *
+        Record logtype nginx
+        Record hostname ${HOSTNAME}
+        Record service_name Sample-App-Name
+    ```
+
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="logstash-example"
+    title="Logstash example"
+  >
+    Add a filter block to the Logstash configuration which uses an `add_field` mutate filter to add a new field. In this example we use a `logtype` of `nginx` to trigger the build-in NGINX parsing rule. Check out other [Logstash examples](https://github.com/newrelic/logstash-examples).
+
+    ```
+    filter {
+      mutate {
+        add_field => {
+          "logtype" => "nginx"
+          "service_name" => "myservicename"
+          "hostname" => "%{host}"
+        }
+      }
+    }
+    ```
+
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="api-example"
+    title="Logs API example"
+  >
+    You can add attributes to the JSON request sent to New Relic. In this example we add a `logtype` attribute of value `nginx` to trigger the built-in NGINX parsing rule. Learn more about using the [Logs API](/docs/logs/new-relic-logs/log-api/introduction-log-api).
+
+    ```
+    POST /log/v1 HTTP/1.1
+    Host: log-api.newrelic.com
+    Content-Type: application/json
+    X-License-Key: <var>YOUR_LICENSE_KEY</var>
+    Accept: */*
+    Content-Length: 133
+    {
+      "timestamp": <var>TIMESTAMP_IN_UNIX_EPOCH</var>,
+      "message": "User '<var>xyz</var>' logged in",
+      "logtype": "accesslogs",
+      "service": "login-service",
+      "hostname": "<var>login.example.com</var>"
+    }
+    ```
+
+  </Collapser>
+</CollapserGroup>
+
+## Create custom parsing rules [#custom-parsing]
+
+Many logs are formatted or structured in a unique way. In order to parse them, custom logic must be built and applied.
+
+![Log parsing rules](./images/log-parsing-rules.png 'Create new log parsing rule')
+
+<figcaption>
+  From the left nav in the Logs UI, select **Parsing**, then create your own
+  custom parsing rule with an attribute, value, and Grok pattern.
+</figcaption>
+
+To create and manage your own, custom parsing rules:
+
+1. Go to **[one.newrelic.com](https://one.newrelic.com) > Logs**.
+2. From **Manage Data** on the left nav of the Logs UI, click **Parsing**, then click **Create parsing rule**.
+3. Enter the parsing rule's name.
+4. Choose an attribute and value to match on.
+5. Write your Grok pattern and test the rule. To learn about Grok and custom parsing rules, read our blog post about [how to parse logs with Grok patterns](https://blog.newrelic.com/product-news/how-to-use-grok-log-parsing/).
+6. Enable and save the custom parsing rule.
+
+![Log parsing rules](./images/log-parsing-rules-list.png 'Log parsing rules')
+
+<figcaption>
+  To view the list of custom parsing rules: From **Manage Data** on the left nav
+  of the Logs UI, click **Parsing**.
+</figcaption>
+
+To view existing parsing rules:
+
+1. Go to **[one.newrelic.com](https://one.newrelic.com) > Logs**.
+2. From **Manage Data** on the left nav of the Logs UI, click **Parsing**.
+
+## Troubleshooting [#troubleshooting]
+
+If parsing is not working the way you intended, it may be due to:
+
+- **Logic:** The parsing rule matching logic does not match the logs you want.
+- **Timing:** If your parsing matching rule targets a value that doesn't exist yet, it will fail. This can occur if the value is added later in the pipeline as part of the enrichment process.
+- **Limits:** There is a fixed amount of time available every minute to process logs via parsing, patterns, drop filters, etc. If the maximum amount of time has been spent, parsing will be skipped for additional log event records.
+
+To resolve these problems, create or adjust your [custom parsing rules](#custom-parsing).

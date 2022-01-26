@@ -1,0 +1,84 @@
+---
+title: チュートリアルKubernetes上で動作するRedisの監視
+tags:
+  - Integrations
+  - Kubernetes integration
+  - Link apps and services
+metaDescription: An example of how to set up monitoring of a service running on Kubernetes.
+translationType: machine
+---
+
+[Kubernetes上で動作しているサービスがあり、それが当社がサポートしている](/docs/monitor-service-running-kubernetes#integration-configs) のサービスである場合、Kubernetesインテグレーションのconfigにそのインテグレーション用の設定セクションを追加することで、そのサービスのモニタリングを有効にすることができます。
+
+このチュートリアルでは、KubernetesのPHP Guestbook上で動作するRedisサービスのモニタリングを有効にする方法を紹介します。一般的な手順については、 [Monitor a Kubernetes-running service](/docs/monitor-service-running-kubernetes) を参照してください。
+
+## 必要なこと [#requirements]
+
+* この機能の [一般的な要件](/docs/monitor-service-running-kubernetes#requirements) 、サポートされているサービスなどを参照してください。
+* `kubectl` コマンドラインツールが、クラスタと通信するように設定されている必要があります。クラスタがない場合は、 [Minikube](https://kubernetes.io/docs/setup/minikube) を使用してクラスタを作成できます。
+
+## ステップ1：Redisアプリケーションの例を設定する [#set-up-redis]
+
+このチュートリアルは、Kubernetesのチュートリアル [Deploying a PHP Guestbook application with Redis](https://kubernetes.io/docs/tutorials/stateless-application/guestbook/) をベースにしています。Kubernetesのチュートリアルを飛ばして、以下のコマンドを実行して、チュートリアルに必要なアプリケーションを設定します。
+
+```
+kubectl create -f https://raw.githubusercontent.com/kubernetes/examples/master/guestbook/all-in-one/guestbook-all-in-one.yaml
+```
+
+もし、最初に [Kubernetes チュートリアル](https://kubernetes.io/docs/tutorials/stateless-application/guestbook/) を完了したい場合は、そのチュートリアルの指示に従いますが、 ****は **Cleaning up** セクションの指示には従いません。
+
+## ステップ2：Redisインスタンスの監視を有効にする [#monitor-redis]
+
+PHP Guestbookアプリケーションは、3つのRedisインスタンス（1つのマスターと2つのスレーブ）を持っています。それぞれのインスタンスには、 `app=redis` というラベルが付けられています。この例では、私たちの [Redis monitoring integration](/docs/integrations/host-integrations/host-integrations-list/redis-monitoring-integration) を使用しています。これはRedisのマスターとスレーブの両方を監視できるので、区別する必要はありません。
+
+1. KubernetesインテグレーションのYAML設定ファイル(`newrelic-infrastructure-k8s-latest.yaml`)の中で、 `nri-integration-cfg` のセクションを更新する必要があります。 [the list of integration configs](/docs/monitor-service-running-kubernetes#integration-configs) から、RedisインテグレーションのYAMLを取得し、Kubernetesのconfigに追加します。RedisのYAMLは以下のようにハイライトされています。
+
+   ```
+   ---
+   apiVersion: v1
+   kind: ConfigMap
+   metadata:
+     name: nri-integration-cfg
+     namespace: default
+   data:
+     <mark>redis-config.yml: |
+       ---
+       # Run auto discovery to find pods with label "app=redis"
+       # https://docs.newrelic.com/docs/integrations/host-integrations/installation/container-auto-discovery
+       discovery:
+         command:
+           # Run discovery for Kubernetes. Use the following <mark>optional arguments</mark>:
+           # --namespaces: Comma separated list of namespaces to discover pods on
+           # --tls: Use secure (TLS) connection
+           # --port: Port used to connect to the kubelet. Default is 10255
+           exec: /var/db/newrelic-infra/nri-discovery-kubernetes <mark>--port <var>PORT</var> --tls
+   </mark>        match:
+             label.app: redis
+       integrations:
+         - name: nri-redis
+           env:
+             # using the discovered IP as the hostname address
+             HOSTNAME: ${discovery.ip}
+             PORT: 6379
+             KEYS: '{"0":["<KEY_1>"],"1":["<KEY_2>"]}'
+             REMOTE_MONITORING: true
+           labels:
+             env: production</mark>
+   ```
+
+2. 更新したサービスをデプロイする。
+
+   ```
+   kubectl create -f newrelic-infrastructure-k8s-latest.yaml
+   ```
+
+   ポッド `newrelic-infra` のログに次のように表示されているはずです。
+
+   ```
+   time="2019-12-23T17:37:07Z" level=info msg="Integration health check starting" instance=redis-metrics integration=com.newrelic.redis prefix=integration/com.newrelic.redis working-dir=/var/db/newrelic-infra/newrelic-integrations
+   time="2019-12-23T17:37:07Z" level=info msg="Integration health check finished with success" instance=redis-metrics integration=com.newrelic.redis prefix=integration/com.newrelic.redis working-dir=/var/db/newrelic-infra/newrelic-integrations
+   ```
+
+エラーがなければ、Infrastructure UIにRedisのデータが表示されるはずです。Redisのダッシュボードを見つけるには、 [**one.newrelic.com**](http://one.newrelic.com) **> Infrastructure> Third party services** にアクセスし、 **Redis** ダッシュボードを選択してください。
+
+Kubernetes上で動作するサービスを監視する一般的な手順については、設定方法の詳細を含め、 [Monitor a Kubernetes-running service](/docs/monitor-service-running-kubernetes) を参照してください。

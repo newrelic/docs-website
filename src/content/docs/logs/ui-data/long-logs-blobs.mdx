@@ -1,0 +1,113 @@
+---
+title: 'Find data in long logs (blobs)'
+tags:
+  - Logs
+  - Log management
+  - UI and data
+metaDescription: How to find extensive log data stored in blobs in New Relic.
+redirects:
+  - /docs/logs/log-management/ui-data/long-logs-blobs
+---
+
+Extensive log data can help you troubleshoot issues. But what if an attribute in your log contains thousands of characters? How much of this data can New Relic store? And how can you find useful information in all this data? 
+
+## How blobs work [#blob-example]
+
+For lengthy string values that are longer than can be stored in NRDB (4,094 characters), we store the long string in three pieces:
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        Long log sections
+      </th>
+      <th>
+        Description
+      </th>
+    </tr>
+  </thead>
+    <tbody>
+    <tr>
+      <td>
+        First 4,094 characters
+      </td>
+      <td>
+        The first 4,094 characters are stored in a `Log` event field with the same name. So a long `message` value would have its first 4,094 characters stored in a `message` field.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Next 128,000 UTF-8 bytes
+      </td>
+      <td>
+        The next 128,000 UTF-8 bytes of the string are stored in a `blob` field with the name with `newrelic.ext.` prepended. So a long `message` value would have characters past the first 4,094 characters stored in a `newrelic.ext.message` field as a `blob`.
+
+        The actual number of characters stored depends on the UTF-8 representation of the characters. UTF-8 represents Unicode characters as one to four bytes, so we will store anywhere between 32,000 and 128,000 characters past the first 4,094 characters.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Remaining characters
+      </td>
+      <td>
+        Any characters past 4,094 characters plus 128,000 bytes are dropped and not stored.
+      </td>
+    </tr>
+    </tbody>
+</table>
+
+So the long `message` field would be stored as:
+
+```
+message: <first 4,094 characters as a string>
+newrelic.ext.message: <next 128,000 bytes as a 'blob'>
+```
+
+<Callout variant="tip">
+You can search the first 4,094 characters of a string attribute. You can also create alerts for the first 4,094 characters. However, since 'blob' storage is not searchable, text beyond the first 4,094 characters is not searchable or alertable.
+</Callout>
+
+## Query your data for blobs [#query-blob]
+
+To query for any log data in New Relic, run the following query:
+
+```
+SELECT * FROM Log
+```
+
+To expand the blob data, run the following query, using `message` or any other attribute. Be sure to enclose the blob's attribute with backticks. For example:
+
+```
+SELECT message, <var>another-attribute</var>, blob(`newrelic.ext.message`), blob(`newrelic.ext.<var>another-attribute</var>) FROM Log
+```
+
+![Query log extended data (blobs)](./images/log-blob-query.png "Query log extended data (blobs)")
+
+<figcaption>
+  To query extended blob data in your logs, be sure to include backticks in your attribute's blob syntax.
+</figcaption>
+
+This expands the data in the blob so you can see (but not search) it. For example, New Relic returns:
+
+```
+{
+  "message": <first 4,094 characters>
+  "newrelic.ext.message": <the next 128,000 bytes as Base64> 
+  "another-attribute": <first 4,094 characters>
+  "newrelic.ext.another-attribute": <the next 128,000 bytes as Base64>
+}
+```
+
+The Logs UI automatically stitches the original value back together when looking at the Log Detail View. When querying using NRQL directly, you need to manually stitch the information together by:
+
+- Decoding the Base64 of the `newrelic.ext.` attribute value
+- Converting the resulting UTF-8 into a string
+- Appending that string to the first 4,094 characters in the "main" attribute
+
+## Data retention for long logs [#data-retention]
+
+NRDB retains your blob records for a month. If you have existing long log messages stored as `LogExtendedRecord`, that data will also continue to be available for a month in NRDB.
+
+After a month passes, no more new `LogExtendedRecord` attributes will be created. They will all be stored in NRDB as blobs.

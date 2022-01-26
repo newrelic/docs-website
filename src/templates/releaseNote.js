@@ -1,11 +1,10 @@
 import React from 'react';
 import PropTypes from 'prop-types';
-import { css } from '@emotion/core';
+import { css } from '@emotion/react';
 import { graphql } from 'gatsby';
 import { Icon, Layout, Link } from '@newrelic/gatsby-theme-newrelic';
 import PageTitle from '../components/PageTitle';
 import MDXContainer from '../components/MDXContainer';
-import Watermark from '../components/Watermark';
 import SEO from '../components/SEO';
 import { TYPES } from '../utils/constants';
 
@@ -22,7 +21,7 @@ const ReleaseNoteTemplate = ({ data, location, pageContext }) => {
     mdx: {
       body,
       frontmatter,
-      frontmatter: { downloadLink, releaseDate, watermark, metaDescription },
+      frontmatter: { downloadLink, releaseDate, metaDescription },
     },
   } = data;
 
@@ -101,7 +100,6 @@ const ReleaseNoteTemplate = ({ data, location, pageContext }) => {
           max-width: 850px;
         `}
       >
-        {watermark && <Watermark text={watermark} />}
         <MDXContainer body={body} />
       </Layout.Content>
     </>
@@ -124,7 +122,6 @@ export const pageQuery = graphql`
         title
         releaseDate(formatString: "MMMM D, YYYY")
         downloadLink
-        watermark
         metaDescription
       }
     }

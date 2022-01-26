@@ -14,16 +14,11 @@ const { omit } = require('lodash');
 module.exports = {
   CodeBlock: {
     serialize: (h, node) =>
-      h(
-        node,
-        'pre',
-        {
-          'data-type': 'component',
-          'data-component': 'CodeBlock',
-          'data-props': serializeJSValue(omit(node, ['type'])),
-        },
-        [h(node, 'code')]
-      ),
+      h(node, 'pre', {
+        'data-type': 'component',
+        'data-component': 'CodeBlock',
+        'data-props': serializeJSValue(omit(node, ['type'])),
+      }),
     deserialize: (h, node) =>
       h(node, 'code', deserializeJSValue(node.properties.dataProps)),
   },
@@ -42,11 +37,18 @@ module.exports = {
   frontmatter: {
     deserialize: (h, node) => {
       const data = deserializeJSValue(node.properties.dataValue);
+      const frontMatterAtt = node.children.reduce((acc, child) => {
+        const key = child.properties.dataKey;
+        const value = child.children[0].value;
+        return { ...acc, [key]: value };
+      }, {});
 
       return h(
         node,
         'yaml',
-        yaml.safeDump(data, { lineWidth: Infinity }).trim()
+        yaml
+          .safeDump({ ...data, ...frontMatterAtt }, { lineWidth: Infinity })
+          .trim()
       );
     },
     serialize: (h, node) => {
@@ -83,6 +85,10 @@ module.exports = {
     deserialize: deserializeComponent,
     serialize: serializeComponent,
   },
+  ButtonGroup: {
+    deserialize: deserializeComponent,
+    serialize: serializeComponent,
+  },
   Callout: {
     deserialize: deserializeComponent,
     serialize: (h, node) =>
@@ -96,6 +102,14 @@ module.exports = {
   CollapserGroup: {
     deserialize: deserializeComponent,
     serialize: serializeComponent,
+  },
+  DoNotTranslate: {
+    deserialize: deserializeComponent,
+    serialize: (h, node) =>
+      serializeComponent(h, node, {
+        classNames: 'notranslate',
+        wrapChildren: false,
+      }),
   },
   ExternalLink: {
     deserialize: deserializeComponent,
@@ -131,6 +145,14 @@ module.exports = {
       serializeComponent(h, node, { textAttributes: ['title'] }),
   },
   LandingPageTileGrid: {
+    deserialize: deserializeComponent,
+    serialize: serializeComponent,
+  },
+  LandingPageHero: {
+    deserialize: deserializeComponent,
+    serialize: serializeComponent,
+  },
+  HeroContent: {
     deserialize: deserializeComponent,
     serialize: serializeComponent,
   },
@@ -229,5 +251,42 @@ module.exports = {
         identifyComponent: false,
         tagName: 'mark',
       }),
+  },
+  figcaption: {
+    deserialize: deserializeComponent,
+    serialize: serializeComponent,
+  },
+  dd: {
+    deserialize: deserializeComponent,
+    serialize: serializeComponent,
+  },
+  dt: {
+    deserialize: deserializeComponent,
+    serialize: serializeComponent,
+  },
+  img: {
+    deserialize: deserializeComponent,
+    serialize: (h, node) =>
+      serializeComponent(h, node, { textAttributes: ['alt'] }),
+  },
+  a: {
+    deserialize: deserializeComponent,
+    serialize: serializeComponent,
+  },
+  nobr: {
+    deserialize: deserializeComponent,
+    serialize: serializeComponent,
+  },
+  br: {
+    deserialize: deserializeComponent,
+    serialize: serializeComponent,
+  },
+  strong: {
+    deserialize: deserializeComponent,
+    serialize: serializeComponent,
+  },
+  b: {
+    deserialize: deserializeComponent,
+    serialize: serializeComponent,
   },
 };

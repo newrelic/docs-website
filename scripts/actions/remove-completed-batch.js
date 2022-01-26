@@ -1,20 +1,30 @@
-const { saveToTranslationQueue } = require('./utils/save-to-db');
-const checkArgs = require('./utils/check-args');
+const {
+  getJobs,
+  getTranslations,
+  deleteJob,
+  deleteTranslation,
+} = require('./translation_workflow/database.js');
 const { getAccessToken, vendorRequest } = require('./utils/vendor-request');
 const fetch = require('node-fetch');
+const { configuration } = require('./configuration');
 
-const PROJECT_ID = process.env.TRANSLATION_VENDOR_PROJECT;
+const PROJECT_ID = configuration.TRANSLATION.VENDOR_PROJECT;
 const DOCS_SITE_URL = 'https://docs.newrelic.com';
 
 /**
  * Updates the "being translated" queue with the batches that are not done.
+ * @param {string} projectId - identifier of project to cleanup associated state
  * @returns {Promise}
  */
-const saveRemainingBatches = async () => {
-  checkArgs(4);
+const setInProgressToDone = async (projectId) => {
+  const [completedJobs, completedTranslations] = await Promise.all([
+    getJobs({ status: 'COMPLETED', project_id: projectId }),
+    getTranslations({ status: 'COMPLETED', project_id: projectId }),
+  ]);
 
-  const batchUids = process.argv[2].split(',').filter(Boolean);
-  const deserializedFileUris = process.argv[3].split(',').filter(Boolean);
+  const deserializedFileUris = completedTranslations.map(
+    (translation) => translation.slug
+  );
 
   const code = await removePageContext(deserializedFileUris);
 
@@ -22,11 +32,19 @@ const saveRemainingBatches = async () => {
     console.log(`[!] Unable to delete all contexts`);
   }
 
-  await saveToTranslationQueue(
-    { type: 'being_translated' },
-    'set batchUids = :batchUids',
-    { ':batchUids': batchUids }
+  console.log(`Deleting jobs: ${JSON.stringify(completedJobs)}`);
+  console.log(
+    `Deleting translations: ${JSON.stringify(completedTranslations)}`
   );
+
+  await Promise.all(
+    [].concat(
+      completedJobs.map((j) => deleteJob(j.id)),
+      completedTranslations.map((t) => deleteTranslation(t.id))
+    )
+  );
+
+  console.log(`Deleted translations & jobs`);
 };
 
 /**
@@ -36,8 +54,6 @@ const saveRemainingBatches = async () => {
  * @returns {Promise}
  */
 const removePageContext = async (fileUris) => {
-  const accessToken = await getAccessToken();
-
   const fileNames = fileUris.map((fileUri) => {
     const filepath = fileUri.replace(`src/content/`, '');
     const slug = filepath.replace(`.mdx`, '');
@@ -48,7 +64,6 @@ const removePageContext = async (fileUris) => {
   const { items } = await vendorRequest({
     method: 'GET',
     endpoint: `https://api.smartling.com/context-api/v2/projects/${PROJECT_ID}/contexts`,
-    accessToken,
   });
 
   // Find the smartling context to be removed. This includes context manually
@@ -70,7 +85,7 @@ const removePageContext = async (fileUris) => {
       const options = {
         method: 'DELETE',
         headers: {
-          Authorization: `Bearer ${accessToken}`,
+          Authorization: `Bearer ${await getAccessToken()}`,
         },
       };
 
@@ -94,4 +109,4 @@ const removePageContext = async (fileUris) => {
   }, 'SUCCESS');
 };
 
-saveRemainingBatches();
+setInProgressToDone(PROJECT_ID);

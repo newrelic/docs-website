@@ -1,0 +1,155 @@
+---
+title: Rubyエージェント6.xから7.xへの移行ガイド
+tags:
+  - Agents
+  - Ruby agent
+  - Getting started
+translationType: machine
+---
+
+## 概要 [#summary]
+
+このガイドでは、Rubyエージェントの6.xシリーズと7.xシリーズの主な変更点、アップグレード時に発生する可能性のある問題、およびバージョン7.xへの移行を成功させる方法について説明します。
+
+主な変更点は以下の通りです。
+
+* [Ruby 2.0および2.1のサポートを終了しました。](#ruby-2-dropped)
+* [SSL Certificate Bundleの削除](#ssl-cert-removed)
+* [様々な6.xリリースで非推奨となっていたいくつかのAPIが削除されました。](#deprecated-apis)
+* [オートインストルメントでは、メソッドチェイニングよりもプリペンドがデフォルトとなる](#prepend-instrumentation)
+* [オートインストルメントで一貫した設定属性を取得](#modernized-auto-instrumentation)
+
+詳細は、7.0ターゲットリリースのマイルストーン（ [）をご参照ください。](https://github.com/newrelic/newrelic-ruby-agent/pulls?q=is%3Apr+label%3Aversion%3A7.0.0+)
+
+## [Ruby 2.0および2.1のサポートを終了しました。 [#ruby-2-dropped]](https://github.com/newrelic/newrelic-ruby-agent/pulls?q=is%3Apr+label%3Aversion%3A7.0.0+)
+
+[Ruby 2.0 および 2.1 は 2016 年 2 月に ](https://github.com/newrelic/newrelic-ruby-agent/pulls?q=is%3Apr+label%3Aversion%3A7.0.0+)[EOL に達しており](https://www.ruby-lang.org/en/news/2016/02/24/support-plan-of-ruby-2-0-0-and-2-1/) 、New Relic もそれに倣って 7.0 リリースでこれらのバージョンのサポートを停止します。これらのバージョンが本質的に機能し続けることを妨げるような既知の変更はありませんが、今後もRubyエージェントが問題なく機能し続けることを保証するものではありません。Ruby 2.0 または 2.1 が必要な場合は、これらの Ruby バージョンをサポートする最後のリリースである 6.15.0 を引き続きご利用ください。
+
+## インストルメンテーションの設定を前もって行う [#prepend-instrumentation]
+
+Relevant pull request: [Prepend instrumentation #565](https://github.com/newrelic/newrelic-ruby-agent/pull/565).
+
+**潜在的な問題：** エージェントが初期化されず、データの報告を開始できません。ログにスタックレベルが深すぎるというエラーメッセージが報告されます。
+
+**解決策:** 私たちの設定と依存性検出メカニズムは、設定によって制御できるようになりました。デフォルトでは、自動検出されたすべてのgem/ライブラリはprepend戦略で有効になります。設定ファイルに何も設定がない場合、これらのライブラリのデフォルトの構成設定は、 `auto` で、これが最適な戦略を選択します。プリペンドストラテジーとのコンフリクトが確認された場合は、 `auto` で、エージェントがメソッド・チェインにフォールバックするように指示します。以下では、sidekiqを例に、自動計測のための設定セクションへの変更について完全に説明します。
+
+```
+instrumentation:
+
+    sidekiq: chain
+```
+
+<Callout variant="tip">
+  使用例としては、未知のgemがコンフリクトしていることが判明した場合です。エージェントがコンフリクトを自動検出して処理するように更新されるまで、ユーザーはコンフリクトを処理するためにメソッド・チェインに戻すことができます。
+</Callout>
+
+インストゥルメンテーションを完全に無効にするには
+
+```
+instrumentation:
+
+    sidekiq: disable
+```
+
+場合によっては、特定のジェムがprependと競合することがあります。このような場合には、自動的にchainにデグレードする自動設定オプションをデフォルトで提供しています。
+
+ほとんどの場合、初期設定はこのようになっています。
+
+```
+instrumentation:
+
+    sidekiq: auto
+```
+
+設定ファイルでprepend戦略を指定することで、強制的にprepend戦略を使用することができます。
+
+```
+instrumentation:
+
+    sidekiq: prepend
+```
+
+<Callout variant="tip">
+  この使用例は、競合するgemの新しいバージョンがリリースされ、prepend戦略との競合がなくなったことがわかっている場合です。
+</Callout>
+
+stack level too deepのエラーが発生した場合は、 [トラブルシューティングガイド](/docs/agents/ruby-agent/troubleshooting/systemstackerror-stack-level-too-deep/) を参照してください。このトラブルシューティング・ガイドをお読みになった後、前置詞の競合が発生した場合は、この [GitHub issue](https://github.com/newrelic/newrelic-ruby-agent/issues/731) にコメントしてお知らせください。このようなシナリオでは、自動的にメソッド・チェインにフォールバックすることができますので、皆様のフィードバックをお待ちしています。
+
+## オートインストルメント戦略の近代化 [#modernized-auto-instrumentation]
+
+Rubyでは、2013年にリリースされたRuby 2.0において、メソッド定義をメソッド解決スタックの前段に挿入する手段としてprependが導入されました。これは、オリジナルのgemライブラリの実装にtrace/observabilityロジックを適用する際に、prependによってメソッドチェインを行う必要がなくなることを意図したものです。
+
+prependとmethod-chainを混在させると（method_alias monkey patching）、 [のブログ記事](https://blog.newrelic.com/engineering/ruby-agent-module-prepend-alias-method-chains/) で説明されているように、スタックレベルが深すぎるという既知のシナリオに陥る可能性があります。
+
+New Relic はこれまでに、多くの自動インストルメントライブラリを prepend 戦略を使用するようにアップデートしてきました。7.0のリリースでは、スタックレベルが深すぎるというエラーを引き起こす可能性がある既知のシナリオを除いて、メソッドチェインではなくプリペンドをデフォルトのストラテジーとして自動計測を行うようになりました。このシナリオにつながる矛盾した外部ジェムを特定するための最善の努力がなされましたが、私たちが特定していない他のものも存在するはずです。
+
+これまでは、ほとんどのGemを自動インストルメント化する方法は、メソッド・チェイニングしかありませんでした。7.0のリリースでは、ほとんどのGemをmethod-chainまたはprependのいずれかを使用してインストゥルメントすることができ、自動インストゥルメントされたすべてのGemの設定がこれを反映して更新されました。
+
+自動計測機能の近代化に伴い、依存性検出メカニズムにも新しい機能を導入しました。これにより、競合する外部ジェムを特定し、プリペンド戦略からメソッド・チェイニングへと自動的に切り替えることができます。これにより、他のgemのメンテナが、それらのgemと一緒にRubyエージェントを使いやすくするために、gemライブラリに変更を加えることに依存する必要がなくなりました。しかし、このような競合はユーザーから報告されるまでわかりません。そのため、これらの競合を自動検出してメソッド・チェイニング戦略に自動的に切り替えることができるのは、自動計測されたライブラリのうちのいくつかに限られます。このようなシナリオを聞き、将来のRubyエージェントのリリースに自動検出機能を追加するためには、皆様のご協力が必要です。
+
+## SSL証明書のバンドルが削除される [#ssl-cert-removed]
+
+初期のRuby（1.8、1.9など）では、OpenSSLとの統合やHTTPS接続の実現がうまくいっていませんでした。お客様がNew RelicのCollectorサーバーに一貫してHTTPS接続できるようにするために、SSL CA証明書の一部をRubyエージェントにバンドルして配布していました。時が経つにつれ、Ruby のエコシステムは安定し、現在ではシステムにインストールされた CA 証明書を標準的な方法でサポートしているため、証明書をバンドルして配布する必要性はほとんどなくなっている。バンドルされている証明書の大部分は有効期限が切れているか、期限切れが近いため、エージェントからこの依存関係を取り除くことにしました。CA 証明書がインストールされていないコンテナやサーバーに Ruby アプリケーションとエージェントをデプロイする場合は、New Relic サーバーへの HTTPS 接続を成功させるために、エージェントの 7.0+ リリースでは証明書がインストールされていることを確認する必要があります。
+
+詳しくは、 [Remove cert bundle #478](https://github.com/newrelic/newrelic-ruby-agent/issues/478) をご覧ください。
+
+**潜在的な問題:** OpenSSL およびシステム CA 証明書がインストールされていないホストにデプロイする場合、New Relic サーバーへの接続に問題が発生し、APM データの損失が発生する可能性があります。
+
+**解決策:** New Relic のサーバーは HTTPS を必要とし、正常な接続を開始するために CA 証明書を使用します。CA証明書は、お使いのホストに応じて様々な方法でインストールされます。以下は、お使いのホストの準備状況をテストし、CA 証明書をインストールする際に役立つリンクです。
+
+* [SSL証明書エラーのトラブルシューティング](https://bundler.io/v2.0/guides/rubygems_tls_ssl_troubleshooting_guide.html#troubleshooting-certificate-errors)
+* [自動SSLチェック](https://bundler.io/v2.0/guides/rubygems_tls_ssl_troubleshooting_guide.html#automated-ssl-check)
+* [CA証明書のインストール](https://superuser.com/questions/437330/how-do-you-add-a-certificate-authority-ca-to-ubuntu/719047#719047)
+* [Dockerでの証明書の取り扱いについて](https://serverfault.com/questions/975775/how-to-handle-certificates-in-dockerfile)
+
+必要に応じて，CA バンドルファイルのパスをコンフィグレーションで指定することにより，任意の CA バンドルを使用するようにエージェントを設定することができます： `:ca\_bundle_path`.詳しくは、 [Custom SSL certificate for Ruby](/docs/agents/ruby-agent/configuration/custom-ssl-certificates-ruby/) をご覧ください。
+
+## 非推奨のAPIと設定属性 [#deprecated-apis]
+
+すべての廃止されたAPIには、廃止されたAPIの範囲を拡大したり、堅牢性を向上させたりする代替APIがあります。
+
+関連するプルリクエストは
+
+* [コードベース#479の `whitelist` と `blacklist` への参照を削除。](https://github.com/newrelic/newrelic-ruby-agent/issues/479)
+* [非推奨のActiveRecord設定オプションの削除 #480](https://github.com/newrelic/newrelic-ruby-agent/issues/480)
+* [httpResponseCode属性の削除 #481](https://github.com/newrelic/newrelic-ruby-agent/issues/481)
+* [notice_error APIからdeprecatedオプションを削除 #597](https://github.com/newrelic/newrelic-ruby-agent/issues/597)
+* [非推奨の分散トレースAPIメソッドの削除 #598](https://github.com/newrelic/newrelic-ruby-agent/issues/598)
+
+### 拒否リストと許可リストの有効化 [#lists-enabled]
+
+**潜在的な問題：** Black/White のリストの属性が機能しなくなった。
+
+**解決策** : コンフィグレーションや環境変数の設定で、 `黒` を `拒否` に、 `白` を `拒否` に変更してください。
+
+* :autostart.blacklisted_constants =>:[autostart.denylisted_constants](/docs/agents/ruby-agent/configuration/ruby-agent-configuration/#autostart-denylisted_constants)
+* :autostart.blacklisted_executables =>:[autostart.denylisted_executables](/docs/agents/ruby-agent/configuration/ruby-agent-configuration/#autostart-denylisted_executables)
+* :autostart.blacklisted_rake_tasks =>:[autostart.denylisted_rake_tasks](/docs/agents/ruby-agent/configuration/ruby-agent-configuration/#autostart-denylisted_rake_tasks)
+* :strip_exception_messages.whitelist =>:[strip_exception_messages.allowed_classes](/docs/agents/ruby-agent/configuration/ruby-agent-configuration/#strip_exception_messages-allowed_classes)
+
+### アクティブレコード [#active-record]
+
+**潜在的な問題：** 古いActive Recordのバージョンを無効にしても機能しなくなりました。
+
+**解決策：** 以下の構成設定を変更します。
+
+* :disable_active_record_4 =>:[disable_active_record_notifications](/docs/agents/ruby-agent/configuration/ruby-agent-configuration/#disable_active_record_notifications)
+* :disable_active_record_5 =>:[disable_active_record_notifications](/docs/agents/ruby-agent/configuration/ruby-agent-configuration/#disable_active_record_notifications)
+
+### httpResponseCode [#http-response-code]
+
+**潜在的な問題：** 属性 `httpResponseCode` 報告されたトレースのUIに表示されなくなりました。
+
+**解決策：** `httpResponseCode` を [`http.statusCode`](/docs/agents/ruby-agent/attributes/ruby-agent-attributes/#attributes) に置き換えました。
+
+### 通知エラー（trace_only） [#notice-error]
+
+**潜在的な問題：** `:trace\_only` オプションを `NewRelic::Agent.notice\_error` に渡すと動作しなくなります。
+
+**解決策：** `:trace\_only` を [`:expected`](/docs/agents/ruby-agent/api-guides/sending-handled-errors-new-relic/) 属性に置き換えます。
+
+### 分散型トレーシングAPI [#distributed-tracing-apis]
+
+**潜在的な問題：** アプリケーションコードで、apiメソッド `create_distributed_trace_payload` と `accept_distributed_trace_payload` の呼び出し時にエラーが発生します。
+
+**解決策：** 代わりに、 [insert_distributed_trace_headers](https://rubydoc.info/github/newrelic/newrelic-ruby-agent/NewRelic/Agent/DistributedTracing#insert_distributed_trace_headers-instance_method) と [accept_distributed_trace_headers](https://rubydoc.info/github/newrelic/newrelic-ruby-agent/NewRelic/Agent/DistributedTracing#accept_distributed_trace_headers-instance_method) をそれぞれご覧ください。

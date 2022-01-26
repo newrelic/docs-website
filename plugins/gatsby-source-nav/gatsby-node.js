@@ -37,11 +37,12 @@ exports.createResolvers = ({ createResolvers, createNodeId }) => {
           const { slug } = args;
           const { nodeModel } = context;
 
-          const locales = nodeModel
-            .getAllNodes({ type: 'Locale' })
+          const { entries } = await nodeModel.findAll({ type: 'Locale' });
+
+          // Convert GatsbyIterable to array to use array methods it doesn't support
+          const locales = Array.from(entries)
             .filter(({ isDefault }) => !isDefault)
             .map(({ locale }) => locale);
-
           const utils = {
             args,
             nodeModel,
@@ -101,28 +102,27 @@ exports.onCreatePage = ({ page, actions }) => {
   }
 };
 
-const createRootNav = async ({ createNodeId, nodeModel }) => {
-  const nav = await nodeModel.runQuery({
-    type: 'NavYaml',
-    query: {
-      filter: {
-        rootNav: { eq: true },
-      },
-      sort: {
-        fields: ['title'],
-        order: ['ASC'],
-      },
-    },
-  });
+const createRootNav = async ({ args, createNodeId, nodeModel }) => {
+  const { slug } = args;
+
+  const { entries } = await nodeModel.findAll({ type: 'NavYaml' });
+
+  // Convert GatsbyIterable to array to use array methods it doesn't support
+  const rootNavYamlNode = Array.from(entries.filter((node) => node.rootNav));
+  const nav = rootNavYamlNode.find((nav) => findPage(nav, slug));
+
+  if (!nav) {
+    return null;
+  }
 
   return {
+    ...nav,
     id: createNodeId('root'),
-    pages: nav.map((item) => ({ ...item, pages: [] })),
   };
 };
 
 const createWhatsNewNav = async ({ createNodeId, nodeModel }) => {
-  const posts = await nodeModel.runQuery({
+  const { entries } = await nodeModel.findAll({
     type: 'MarkdownRemark',
     query: {
       filter: {
@@ -136,6 +136,8 @@ const createWhatsNewNav = async ({ createNodeId, nodeModel }) => {
       },
     },
   });
+
+  const posts = Array.from(entries);
 
   const currentYear = new Date().getFullYear();
   const postsByYear = groupBy(posts, (post) => parseDate(post).getFullYear());
@@ -162,8 +164,11 @@ const createWhatsNewNav = async ({ createNodeId, nodeModel }) => {
 };
 
 const createReleaseNotesNav = async ({ createNodeId, nodeModel }) => {
-  const [posts, landingPages] = await Promise.all([
-    nodeModel.runQuery({
+  const [
+    { entries: releaseNoteEntries },
+    { entries: landingPagesEntries },
+  ] = await Promise.all([
+    nodeModel.findAll({
       type: 'Mdx',
       query: {
         filter: {
@@ -178,7 +183,7 @@ const createReleaseNotesNav = async ({ createNodeId, nodeModel }) => {
       },
     }),
 
-    nodeModel.runQuery({
+    nodeModel.findAll({
       type: 'Mdx',
       query: {
         filter: {
@@ -189,6 +194,10 @@ const createReleaseNotesNav = async ({ createNodeId, nodeModel }) => {
       },
     }),
   ]);
+
+  // Convert GatsbyIterable to array to use array methods it doesn't support
+  const posts = Array.from(releaseNoteEntries);
+  const landingPages = Array.from(landingPagesEntries);
 
   const subjects = posts
     .reduce((acc, curr) => [...new Set([...acc, curr.frontmatter.subject])], [])
@@ -252,20 +261,31 @@ const groupBy = (arr, fn) =>
   }, new Map());
 
 const createNav = async ({ args, createNodeId, nodeModel, locales }) => {
-  const { slug } = args;
+  let { slug } = args;
+  slug = slug
+    .replace(/\/table-of-contents$/, '')
+    .replace(new RegExp(`^\\/(${locales.join('|')})(?=\\/)`), '');
 
-  const nav = nodeModel.getAllNodes({ type: 'NavYaml' }).find((nav) =>
-    // table-of-contents pages should get the same nav as their landing page
-    findPage(
-      nav,
-      slug
-        .replace(/\/table-of-contents$/, '')
-        .replace(new RegExp(`^\\/(${locales.join('|')})(?=\\/)`), '')
-    )
-  );
+  const { entries } = await nodeModel.findAll({ type: 'NavYaml' });
+
+  const allNavYamlNodes = Array.from(entries)
+    .filter((node) => !node.rootNav)
+    .sort((a, b) => a.title.localeCompare(b.title));
+
+  let nav =
+    allNavYamlNodes.find((nav) => findPage(nav, slug)) ||
+    allNavYamlNodes.find((nav) => slug.includes(nav.path));
+
+  const trueNav = allNavYamlNodes.find((nav) => slug.includes(nav.path));
 
   if (!nav) {
     return null;
+  }
+
+  // if current is link to auto index page && its path does not
+  // belong to nav it was first found in, find nav that matches its path
+  if (trueNav && trueNav !== nav) {
+    nav = trueNav;
   }
 
   return {
@@ -279,7 +299,7 @@ const findTranslatedTitle = async (source, args, { nodeModel }) => {
     return source.title;
   }
 
-  const item = await nodeModel.runQuery({
+  const item = await nodeModel.findOne({
     type: 'TranslatedNavJson',
     query: {
       filter: {
@@ -287,7 +307,6 @@ const findTranslatedTitle = async (source, args, { nodeModel }) => {
         englishTitle: { eq: source.title },
       },
     },
-    firstOnly: true,
   });
 
   return item ? item.title : source.title;

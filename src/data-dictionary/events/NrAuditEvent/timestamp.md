@@ -3,13 +3,12 @@ name: timestamp
 type: attribute
 events:
   - NrAuditEvent
+  - WorkloadStatus
 ---
 
-Date and time the audit event occurred. Used to specify a day or range of dates.
+Time that the event occurred or was evaluated over. Specifies a time or range of time. Examples:
 
-Examples:
-
-*   MM-DD-YYYY HH:MM:SS
-*   SINCE 2018-05-28 11:18:45
-*   UNTIL 30 minutes ago
-*   SINCE '2018-06-20' UNTIL today
+* MM-DD-YYYY HH:MM:SS
+* SINCE 2018-05-28 11:18:45
+* UNTIL 30 minutes ago
+* SINCE '2018-06-20' UNTIL today

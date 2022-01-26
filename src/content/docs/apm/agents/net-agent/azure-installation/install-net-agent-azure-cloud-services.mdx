@@ -1,0 +1,141 @@
+---
+title: Install the .NET agent on Azure Cloud Services
+tags:
+  - Agents
+  - NET agent
+  - Azure installation
+metaDescription: How to install the APM .NET agent on Azure Cloud Services.
+redirects:
+  - /docs/agents/net-agent/azure-installation/install-net-agent-azure-cloud-services
+  - /docs/agents/net-agent/azure-installation/install-app-azure-cloud-services
+  - /docs/apm/agents/net-agent/azure-installation
+---
+
+This document explains how to install APM's .NET agent on Microsoft's Azure Cloud Services platform. This is not the same as installing the [Infrastructure integrations for Microsoft Azure](/docs/integrations/microsoft-azure-integrations/getting-started/introduction-azure-monitoring-integrations). To make sure you are using the most relevant instructions, first see the [.NET agent install overview](/docs/agents/net-agent/installation/install-enable-new-relic-net-agent).
+
+<Callout variant="important">
+  Before installing the NuGet package into a multi-project Visual Studio solution, make sure you have selected the correct project for your New Relic .NET application (for example, a specific website project).
+</Callout>
+
+## Check Web or Worker role's location [#web-worker-role]
+
+If **Service** files are nested within a **Solution** folder, the NuGet installer cannot locate or update the necessary files. This will cause issues with the .NET agent setup, which will in turn prevent the agent from reporting metrics on your Cloud Service.
+
+**Recommendation:** Place the `Web` or `Worker` role at the **root** of the solution before installing the NuGet package. Once the New Relic .NET agent is installed, you can move the Cloud role back into the **Solution** folder.
+
+## Install the NuGet package for Cloud Services [#install_cloud_nuget]
+
+<Callout variant="important">
+  The NuGet packages in this procedure support only the old `packages.config`. They do not support the new `PackageReference` format. For more information see [Microsoft's package reference documentation](https://docs.microsoft.com/en-us/nuget/consume-packages/package-references-in-project-files)
+</Callout>
+
+For multi-project solutions, make sure you have selected the correct project (for example, a specific website project) before installing the NuGet package.
+
+1. Open your Visual Studio solution, or create a new one by selecting **File > New > Project**. For multi-project solutions, make sure you have selected the correct project (for example, a specific website project).
+2. If you do not already have an Azure Cloud Service project in your solution, add one by right-clicking your app in the **Solution Explorer** and selecting **Add Windows Azure Cloud Service Project**.
+3. Open the **Package Manager** console by selecting **Tools > Library Package Manager > Package Manager Console**. Set your project as the default project.
+4. From the **Package Manager** command prompt, type `Install-Package NewRelicWindowsAzure` and press **Enter**.
+5. Follow the prompts to enter your [New Relic license key](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key) and your [application name](/docs/agents/net-agent/installation-configuration/name-your-net-application) as you want it to appear in the New Relic UI. Or, use your solution name as the default app name.
+6. From the **Solution Explorer**, right-click your Azure Cloud Service project, and select **Publish**.
+7. If this is your first time deploying this app to Azure, enter your Azure credentials.
+8. If applicable, instrument methods for `Worker` roles.
+
+## Instrument Worker role [#requirements]
+
+A `Worker` role is a non-web process run as an Azure Cloud Service. To instrument a `Worker` role, you must create [custom transactions](/docs/agents/net-agent/instrumentation/net-custom-transactions).
+
+The .NET agent automatically instruments external calls and database calls, but it does not instrument default methods for transactions. Creating custom transactions solves this. After the `Worker` role starts up and the method executes, transaction data will appear in the APM **Summary** and **Transactions** pages under the [**Non-web** category](/docs/apm/transactions/intro-transactions/monitor-background-processes-other-non-web-transactions).
+
+The NuGet installer automatically adds the `NewRelic.AppName` parameter to the application config. This appears as `<YOUR_WORKER_ROLE_NAME>.dll.config` in `E:\approot`.
+
+The .NET agent also automatically instruments `WaWorkerHost.exe`. This is the name of the actual `Worker` role process.
+
+<CollapserGroup>
+  <Collapser
+    id="custom-transactions"
+    title="Custom instrumentation example for Worker role"
+  >
+    This is a custom instrumentation example for a `Worker` role. It creates a custom transaction named `ProcessMessage`. The transaction begins when the `ProcessMessage` method is entered, and it ends when the method returns.
+
+    The following example uses `MyWorkerRole` as the `namespace`. If you do not specify a name, it will default to the Solution name.
+
+    ```
+    namespace MyWorkerRole
+    {
+        public class NotificationQueue
+        {
+            public bool ProcessMessage(Message message) {
+                // code to process message
+            }
+        }
+    }
+    ```
+
+    Here is the custom instrumentation file for the code:
+
+    ```
+    <?xml version="1.0" encoding="utf-8"?>
+    <extension xmlns="urn:newrelic-extension">
+      <instrumentation>
+        <tracerfactory name="NewRelic.Agent.Core.Tracer.Factories.BackgroundThreadTracerFactory" metricName="Custom/ProcessMessage">
+          <match assemblyname="MyWorkerRole" classname="MyWorkerRole.NotificationQueue">
+            <exactmethodmatcher methodName="ProcessMessage" />
+          </match>
+        </tracerfactory>
+      </instrumentation>
+    </extension>
+    ```
+
+    On a local installation, place this instrumentation file in `C:\ProgramData\New Relic\.NET Agent\Extensions`.
+  </Collapser>
+
+  <Collapser
+    id="send-file"
+    title="Custom instrumentation file deployment"
+  >
+    Optional: To send the custom instrumentation file up with an Azure Cloud Service deployment:
+
+    1. In your Azure Cloud project, add the instrumentation file to your `Worker` role inside the **Roles** folder.
+    2. After installing the New Relic .NET agent NuGet package, locate `newrelic.cmd` in your Worker Role project.
+    3. Find the statement `IF %ERRORLEVEL% EQU 0` within the `:INSTALL_NEWRELIC_AGENT` block, and add the following statement to the conditional:
+
+       ```
+       IF %ERRORLEVEL% EQU 0 (
+             copy /Y "%RoleRoot%\approot\MyInstrumentation.xml" "%NR_HOME%\extensions" >> %RoleRoot%\nr.log
+           ) ELSE (
+       ```
+
+    In this example, the `newrelic.cmd` batch file copies the custom instrumentation file to the **Extensions** folder in `D:\ProgramData\New Relic\.NET Agent\`, or `%NR_HOME%`. This example uses `MyInstrumentation.xml`, but any name will work as long as the file name and copy command match, and the file is valid XML.
+  </Collapser>
+</CollapserGroup>
+
+## Optional: Create custom config file [#custom_config_file]
+
+You can create a custom configuration file in Visual Studio. This allows you to make changes to `newrelic.config` inside Visual Studio, without having to remote into your Azure Role instance every time you make a change. Whenever you publish your app, the config file in Visual Studio is automatically uploaded to the remote host.
+
+The choices you make with the installation wizard do not matter. Installing locally does not affect your Azure development environment.
+
+1. In Visual Studio, select the **Solution Explorer**, then open `NewRelicAgent_x64_XYZ.msi`.
+2. Follow the steps to install the agent locally.
+3. Import `newrelic.config` into your project: In **Solution Explorer > Cloud Project**, right-click the **Web Role**, then select **Add > Existing Item**. Navigate to **C:\\ProgramData\\New Relic\\.NET Agent** and select `newrelic.config`.
+4. From **C:\\ProgramData\\New Relic\\.NET Agent**, edit `newrelic.cmd`.
+5. In the `:INSTALL_NEWRELIC_AGENT` section, find this statement:
+
+   ```
+   IF $ERRORLEVEL% EQU 0 (
+   ```
+6. Add the following code as another statement inside the `IF` block, then save the file:
+
+   ```
+   copy /Y "%RoleRoot%\approot\newrelic.config" "%NR_HOME%" >> %RoleRoot%\nr.log
+   ```
+
+You can now edit the `newrelic.config` hosted in Visual Studio. Whenever you publish your app, the `copy` command will upload the config file to the remote host.
+
+## View your app's performance [#checking-application-performance]
+
+Your application must receive traffic in order for you to view its performance in New Relic. You may need to wait a few minutes for data to start appearing. If no data appears, see the [troubleshooting procedures](/docs/agents/net-agent/azure-troubleshooting/azure-cloud-services-no-data-appears) for Azure Cloud Services.
+
+To view your app's performance in APM: Go to **[one.newrelic.com](https://one.newrelic.com) > APM > (select an app)**. The [APM **Summary** page](/docs/apm/applications-menu/monitoring/apm-overview-page) automatically appears. You can also view detailed information about [errors](/docs/apm/applications-menu/error-analytics/introduction-error-analytics), [database and instance performance issues](/docs/apm/applications-menu/features/analyze-database-instance-level-performance-issues), and [more](/docs/apm/new-relic-apm/getting-started/introduction-new-relic-apm).
+
+If you created your New Relic app prior to October 2017, you can use the Azure Portal to select the New Relic account blade. You will be automatically logged in with [SAML Single Sign-on (SSO)](/docs/accounts-partnerships/accounts/saml-single-sign/new-relic-partners-saml-sso) to APM. You can also view your application's error rate and throughput data in the Azure Portal by going to **New Relic Accounts > choose your application**.

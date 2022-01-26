@@ -1,0 +1,143 @@
+---
+title: クロスアプリケーショントレーシング
+tags:
+  - Agents
+  - Python agent
+  - Supported features
+metaDescription: Our Python agent supports cross-app tracing through built in instrumentation and the use of APIs for custom instrumentation.
+translationType: machine
+---
+
+<Callout variant="important">
+  [分散型トレース](/docs/apm/distributed-tracing/getting-started/introduction-distributed-tracing) の機能が利用可能になりました。ディストリビュートトレースは、クロスアプリケーショントレースを改善し、複雑な分散システムのアクティビティを監視するために推奨されます。
+</Callout>
+
+[クロスアプリケーショントレース](/docs/apm/transactions/cross-application-traces/introduction-cross-application-traces) は、Pythonエージェントに組み込まれたインスツルメンテーションと、カスタムインスツルメンテーションのためのAPIの使用によってサポートされています。
+
+アプリケーション間の通信に使用されるプロトコルでは、リクエストとレスポンスにメタデータを添付します。メタデータは各アプリケーションで処理され、その結果としてのデータがエージェントから報告されます。
+
+## 要件
+
+[Pythonエージェントのバージョン2.92.0.78](/docs/release-notes/agent-release-notes/python-release-notes/python-agent-292078) 以上が必要です。
+
+## カスタムクライアント（HTTP）
+
+![クライアント\_http_transport.png](./images/client_http_transport.png "クライアント_http_transport.png")
+
+これらのAPIは、内蔵されたインスツルメンテーションの一部としてインスツルメンテーションされていないカスタムHTTP通信ライブラリに使用されます。
+
+HTTPクロスアプリケーショントレーシングは、HTTPヘッダーを使用して、アプリケーション間でトランザクションのメタデータを転送します。アウトバウンドのクロスアプリケーショントレーシングヘッダーを生成するには、 `ExternalTrace` クラスの `generate_request_headers` API を使用します。インバウンドのクロスアプリケーショントレーシングヘッダーを処理するには、 `ExternalTrace` クラスの `process_response_headers` API を使用します。
+
+<CollapserGroup>
+  <Collapser
+    id="custom-client-http-outgoing"
+    title="発信するリクエスト"
+  >
+    ```
+    import newrelic.agent
+
+    transaction = newrelic.agent.current_transaction()
+    # returns a list of tuples in the form (header_name, header_value)
+    outgoing_headers = newrelic.agent.ExternalTrace.generate_request_headers(transaction)
+    for header_name, header_value in outgoing_headers:
+        ...request.putheader(header_name, header_value) # code to be instrumented
+    ...make_request(request) # code to be instrumented
+    ```
+  </Collapser>
+
+  <Collapser
+    id="custom-client-http-incoming"
+    title="着信応答"
+  >
+    ```
+    import newrelic.agent
+
+    transaction = newrelic.agent.current_transaction()
+    trace = newrelic.agent.ExternalTrace(transaction, 'library', 'http://example.com', 'get')
+    with trace:
+        response = fetch_example_dot_com() # code to be instrumented
+        trace.process_response_headers(...response.headers)
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## カスタムクライアント（非HTTP）
+
+![client_custom_transport.png](./images/client_custom_transport.png "client_custom_transport.png")
+
+これらのAPIは、HTTPトランスポートを使用せず（したがって、メタデータ・トランスポートとしてヘッダーを使用できない可能性がある）、組み込みのインスツルメンテーションの一部としてインスツルメンテーションされていないライブラリをインスツルメンテーションするために使用されます。
+
+### 計装例
+
+<CollapserGroup>
+  <Collapser
+    id="custom-client-non-http-outgoing"
+    title="発信するリクエスト"
+  >
+    ```
+    import newrelic.agent
+
+    transaction = newrelic.agent.current_transaction()
+    # returns a string value
+    outgoing_metadata = newrelic.agent.ExternalTrace.get_request_metadata(transaction)
+    ...request.add_metadata(outgoing_metadata) # code to be instrumented
+    ...make_request(request) # code to be instrumented
+    ```
+  </Collapser>
+
+  <Collapser
+    id="custom-client-non-http-incoming"
+    title="着信応答"
+  >
+    ```
+    import newrelic.agent
+
+    transaction = newrelic.agent.current_transaction()
+    trace = newrelic.agent.ExternalTrace(transaction, 'library', 'myproto://service', 'fetch')
+    with trace:
+        ...response = fetch_from_service() # code to be instrumented
+        # extract the metadata string sent from the service
+        metadata_value = response.metadata # code to be instrumented
+        trace.process_response_metadata(metadata_value)
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## WSGIサーバー [#wsgi]
+
+<Callout variant="tip">
+  このエージェントは、すべてのWSGIサーバのクロスアプリケーショントレースメタデータの処理と応答の送信を自動的に行います。
+</Callout>
+
+WSGIサーバーのインスツルメンテーションについては、 [wsgi_application API documentation](/docs/agents/python-agent/python-agent-api/wsgi_application) を参照してください。
+
+## カスタム非HTTPサーバー
+
+![server_nonhttp_transport.png](./images/server_nonhttp_transport.png "server_nonhttp_transport.png")
+
+WSGIベースではない、またはHTTPをトランスポートとして使用しないカスタムサーバーは、受信したクロスアプリケーショントレースのメタデータを処理し、クロスアプリケーショントレースのレスポンスを生成する必要があります。
+
+以下のAPIは、HTTP以外のリクエストで送信されたクロスアプリケーショントレースのメタデータを処理し、呼び出し元に送り返すレスポンスメタデータを生成することができます。
+
+<CollapserGroup>
+  <Collapser
+    id="custom-non-http-server-example"
+    title="計器の例"
+  >
+    ```
+    import newrelic.agent
+
+    def handle_incoming_request(request):
+        transaction = newrelic.agent.current_transaction()
+        if transaction:
+        	transaction.process_request_metadata(...request.metadata)
+
+        response = generate_response() # code to be instrumented
+
+        if transaction:
+        	# get_response_metadata returns a string
+            ...response.metadata = transaction.get_response_metadata()
+        return response
+    ```
+  </Collapser>
+</CollapserGroup>

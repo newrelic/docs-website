@@ -15,4 +15,4 @@ Every Thursday at 12 p.m. PT (8 p.m. UTC) live on Twitch, you can:
 * **Get some knowledge and a little inspiration:** Walk away with tons of resources, projects with step-by-step instructions, and all your questions answered.
 * **Connect with other engineers:** Engage directly with New Relic product managers and engineers. Share your experiences with other New Relic users and have fun as you learn about observability.
 
-If you miss any episodes, you can find the recordings [here](https://www.twitch.tv/new_relic/videos) and you can always come back to [What's new?](https://docs.newrelic.com/whats-new) to see anything you missed.
+If you miss any episodes, you can always check back here or head to the [What's new docs site](https://docs.newrelic.com/whats-new), or you can check out the [Nerdlog YouTube playlist](https://www.youtube.com/playlist?list=PLmhYj7Jl81JGOEHV7zUVfa_iGNyOfMGNh) and [subscribe to our weekly Nerdlog emails](https://developer.newrelic.com/nerdlog) to get product updates directly in your inbox.

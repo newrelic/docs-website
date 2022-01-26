@@ -12,6 +12,10 @@ The `actionIdentifier` attribute describes the action that was taken. Some `acti
 Some examples of `actionIdentifier` values:
 
 *   account.update\_owner
+*   alerts.condition.create
+*   alerts.condition.update
+*   alerts.condition.delete
+*   alerts.condition.unarchive
 *   role.create
 *   user.add\_roles
 *   user.add\_to\_account

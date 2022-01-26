@@ -6,4 +6,4 @@ events:
   - TransactionError
 ---
 
-The start time of the job in epoch milliseconds.
+The start time of the job in milliseconds since the Unix epoch.

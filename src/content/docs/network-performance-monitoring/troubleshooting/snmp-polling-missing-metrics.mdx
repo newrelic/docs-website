@@ -1,0 +1,147 @@
+---
+title: SNMP monitoring results have metrics missing
+tags:
+  - Integrations
+  - Network performance monitoring
+  - Troubleshooting
+metaDescription: SNMP monitoring is working, but expected metrics are missing.
+---
+
+## Problem [#problem]
+
+During SNMP monitoring, you don't see all of the expected metrics for your device.
+
+## Solutions [#solutions]
+
+Identify what metrics exist in New Relic One by running the following NRQL query:
+
+```sql
+FROM Metric SELECT 
+uniques(metricName) 
+WHERE instrumentation.provider = 'kentik' 
+AND device_name = '$DEVICE_NAME'
+SINCE 1 HOUR AGO LIMIT MAX
+```
+
+<Callout variant="important">
+Replace `$DEVICE_NAME` with the name of your device.
+</Callout>
+
+This query will give you a list of every dimensional metric being collected on your device in the last hour. If the metric is not listed, you should try:
+
+- [Verify the device responds to target OID](#verify-device-response)
+- [Verify the device is matched to the correct profile](#verify-device-matches)
+- [Verify ktranslate is polling the device as expected](#verify-ktranslate-polling)
+- [Verify the OID is listed in the device profile](#verify-listed-profile)
+
+### Verify the device responds to target OID [#verify-device-response]
+
+Using the [snmpwalk utility](/docs/network-performance-monitoring/troubleshooting/snmp-walk), gather the metrics from the Docker host using the SNMP credentials you configured in the `snmp-base.yaml` configuration file.
+
+If the test fails, the device most likely does not support the OID you want to collect. This is a limitation of the device itself, as controlled by the vendor.
+
+<Callout variant="tip">
+If you are using SNMPv3, validate the configuration of the v3 user on the device. In most situations, device administrators need to explicitly grant access to MIBs for a v3 user account.
+</Callout>
+
+### Verify the device is matched to the correct profile [#verify-device-matches]
+
+If the previous test passes, verify that the configured value for `mib_profile` in your `snmp-base.yaml` file matches the correct profile file name. For example:
+
+```yaml
+devices:
+  deviceOne:
+    ...
+    mib_profile: cisco-catalyst.yml
+    ...
+```
+
+You can check this in New Relic One with the following NRQL query:
+
+```sql
+FROM Metric SELECT 
+latest(instrumentation.name) 
+WHERE instrumentation.provider = 'kentik' 
+AND device_name = '$DEVICE_NAME'
+```
+
+<Callout variant="important">
+Replace `$DEVICE_NAME` with the name of your device.
+</Callout>
+
+The library of SNMP profiles is constantly being updated, and sometimes the container image you're using doesn't have the profile settings you're seeking. If the `mib_profile` doesn't match the expected profile, you can either manually update your configuration file, or run a new discovery.
+
+You should always pull the latest image for your container before making changes by running `docker pull kentik/ktranslate:v2`.
+
+### Verify ktranslate is polling the device as expected [#verify-ktranslate-polling]
+
+If the previous test passes, you should run a single SNMP poll against your device to see exactly what **ktranslate** receives from the request, using the supplied configuration.
+
+To do this, you can run **ktranslate** as a short-lived container, utilizing the `-snmp_poll_now` flag to target your device based on its name in the `snmp-base.yaml` configuration file. For example:
+
+```shell
+docker run -d --name ktranslate-poll_now --rm --net=host \
+-v `pwd`/snmp-base.yaml:/snmp-base.yaml \
+-e NEW_RELIC_API_KEY=$YOUR_NR_LICENSE_KEY  \
+kentik/ktranslate:v2 \
+  -snmp /snmp-base.yaml \
+  -nr_account_id=$YOUR_NR_ACCOUNT_ID \
+  -tee_logs=true \
+  -service_name=poll_now \
+  -snmp_poll_now=$TARGET_DEVICE_NAME \
+  -format=new_relic_metric
+```
+
+The results of this polling can be seen in the container logs using `docker logs --follow ktranslate-poll_now`
+
+Device metadata polling example of success:
+
+```
+2022-01-03T23:08:50.583 ktranslate/poll_now [Info] KTranslate SNMP Device Metadata: Data received: {SysName:router123 SysObjectID:.1.3.6.1.4.1.9.1.46 SysDescr:Cisco Internetwork Operating System Software ...}
+2022-01-03T23:08:50.585 ktranslate/poll_now [Info] nrmFormat New Metadata for router123
+```
+
+Device statistics polling example of success:
+
+```
+[{"metrics":[{"name":"kentik.snmp.ifInErrors","type":"count","value":0,"attributes":{"if_Speed":2,"mib-name":"IF-MIB","poll_duration_sec":60,"if_Type":"proppointtopointserial","if_AdminStatus":"up","objectIdentifier":".1.3.6.1.2.1.2.2.1.14","mib-table":"if","if_OperStatus":"up","device_name":"router123","provider":"kentik-router","if_interface_name":"Se11/0/0:16","instrumentation.name":"cisco-asr","if_Index":"63","if_Address":"10.201.0.65","eventType":"KSnmpInterfaceMetric","if_Netmask":"255.255.255.252","if_Alias":"pkt.ds1"}}]...}]
+```
+
+Looking at the *"prettified"* JSON, you can see here that polling is working as expected for this device:
+
+```json
+[
+  {
+    "metrics": [
+      {
+        "name": "kentik.snmp.ifInErrors",
+        "type": "count",
+        "value": 0,
+        "attributes": {
+          "if_Speed": 2,
+          "mib-name": "IF-MIB",
+          "poll_duration_sec": 60,
+          "if_Type": "proppointtopointserial",
+          "if_AdminStatus": "up",
+          "objectIdentifier": ".1.3.6.1.2.1.2.2.1.14",
+          "mib-table": "if",
+          "if_OperStatus": "up",
+          "device_name": "router123",
+          "provider": "kentik-router",
+          "if_interface_name": "Se11/0/0:16",
+          "instrumentation.name": "cisco-asr",
+          "if_Index": "63",
+          "if_Address": "10.201.0.65",
+          "eventType": "KSnmpInterfaceMetric",
+          "if_Netmask": "255.255.255.252",
+          "if_Alias": "pkt.ds1"
+        }
+      }
+    ]
+  }
+]
+```
+
+### Verify the OID is listed in the device profile [#verify-listed-profile]
+
+If all the previous tests pass, check whether the OID exists in the device profile itself. Whether the OID is listed and not working as expected, or the OID needs to be added to the profile, [open a GitHub issue](https://github.com/kentik/snmp-profiles/issues/new/choose) to contact the repository maintainers so they work towards a resolution.

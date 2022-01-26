@@ -66,7 +66,7 @@ const releaseNotesQuery = async (graphql) => {
 
 // converts graphQL response (node) into a consumable format for RSS
 const getFeedItem = (node, siteMetadata) => {
-  const { frontmatter, slug, id, mdxAST } = node;
+  const { frontmatter, slug, mdxAST } = node;
   const { releaseDate, subject, version } = frontmatter;
 
   const transformedAST = htmlGenerator.runSync(mdxAST);
@@ -76,6 +76,7 @@ const getFeedItem = (node, siteMetadata) => {
   const date = parseISO(releaseDate);
   const pubDate = `${format(date, 'EE, dd LLL yyyy')} 00:00:00 +0000`;
   const link = new URL(slug, siteMetadata.siteUrl).href;
+  const id = Buffer.from(`${subject}-${version}`).toString('base64');
 
   return {
     guid: id,
@@ -135,7 +136,7 @@ exports.onPostBuild = async ({ graphql, store, reporter }) => {
   const publicDir = path.join(program.directory, 'public');
 
   try {
-    reporter.info('Generating XML feeds for RSS');
+    reporter.info('Generating XML for release notes RSS feeds');
     const {
       site,
       landingPages: { nodes: landingPages },
@@ -148,6 +149,9 @@ exports.onPostBuild = async ({ graphql, store, reporter }) => {
 
     reporter.info('\tDone!');
   } catch (error) {
-    reporter.panicOnBuild(`Unable to create RSS feed: ${error}`, error);
+    reporter.panicOnBuild(
+      `Unable to create release note RSS feed: ${error}`,
+      error
+    );
   }
 };

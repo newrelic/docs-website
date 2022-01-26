@@ -1,9 +1,9 @@
 ---
 name: timestamp
 type: attribute
-units: milliseconds (ms)
 events:
   - Span
+  - NrIntegrationError  
 ---
 
-Unix timestamp in milliseconds indicating when the span started.
+Unix timestamp indicating the time it started.

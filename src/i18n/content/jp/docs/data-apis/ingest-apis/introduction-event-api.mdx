@@ -1,0 +1,644 @@
+---
+title: Event APIの説明
+tags:
+  - Ingest and manage data
+  - Ingest APIs
+metaDescription: 'Intro to New Relic''s Event API, which lets you send custom event data to your New Relic account.'
+---
+
+New RelicのイベントAPIは、 [カスタムイベント](/docs/insights/insights-data-sources/custom-data/report-custom-event-data)をNew Relicにレポートする1つの方法です。イベントAPIでは、POSTコマンドを使用してカスタム[イベントデータ](/docs/using-new-relic/data/understand-data/new-relic-data-types#event-data)をNew Relicアカウントに送信できます。これらのイベントはその後、[NRQL](/docs/query-data/nrql-new-relic-query-language/getting-started/introduction-nrql)を使用してクエリとチャート化できます。
+
+当社のイベントAPIをお試しになりますか？[New Relicアカウントの作成](https://newrelic.com/signup)は無料です。クレジットカードは不要です。
+
+関連コンテンツ：
+
+* [カスタムイベントのレポートについてのすべてのオプション](/docs/insights/insights-data-sources/custom-data/report-custom-event-data)の詳細を調べます。
+* イベントデータの保持方法の詳細については、[イベントデータの保持期間](/docs/insights/use-insights-ui/manage-account-data/extend-event-data-retention)を参照してください。
+* 既存イベントに属性を追加する方法については、[カスタムアトリビュートを追加する](/docs/agents/manage-apm-agents/agent-data/collect-custom-attributes)を参照してください。
+* New Relic Universityの[イベントAPIでカスタムイベントの追加](https://newrelic.wistia.com/medias/d530wfeqyo)(別名：Insights API）チュートリアルを参照してください。または、完全なオンラインコースの[カスタムデータ](https://learn.newrelic.com/custom-data-with-insights)に直接アクセスしてください。
+
+## 要件
+
+イベントAPIの限界および制限された属性については、[制限](#limits)を参照してください。
+
+TCPポート443のアウトバウンド接続が、[地域](/docs/using-new-relic/cross-product-functions/install-configure/networks/#infrastructure)に一致する[CIDR範囲](/docs/using-new-relic/welcome-new-relic/get-started/our-eu-us-region-data-centers)に使用できることを確認します。優先設定方法は、DNS名`insights-collector.newrelic.com`または`insights-collector.eu01.nr-data.net`を使用することです。
+
+## 基本ワークフロー [#workflow]
+
+イベントAPIは、非同期のエンドポイントです。このため、大容量のPOSTを、非常に低いレスポンスレイテンシで確実に送信できます。
+
+<Callout variant="tip">
+  アカウントがEUデータセンターでデータをホストする場合は、適切な[EUリージョンアカウント向けAPIエンドポイント](/docs/using-new-relic/welcome-new-relic/getting-started/introduction-eu-region-data-center#endpoints)を使用していることを確認してください。
+</Callout>
+
+New Relicアカウントにカスタムイベントを送信する場合は、以下の手順に従います。
+
+1. データをレポートするアカウントの[ライセンスキー](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key)を取得します。
+2. カスタムイベントまたは属性を作成する前に、New Relicの[NRQLが使用する予約語](/docs/insights/insights-data-sources/custom-data/insights-custom-data-requirements-limits#reserved-words)のリストを確認します。
+3. アプリケーションのインストゥルメンテーション、APIの照会、またはその他の方法でイベントの[JSONを生成します](#instrument)。
+4. [POST](#submit-event)リクエストでcurlを使用し、`圧縮されたJSONペイロード`（例：`gzip`または**deflate**）をHTTPSエンドポイントに送信します。
+5. **推奨:** [NRQLアラート条件](/docs/alerts/new-relic-alerts/defining-conditions/create-alert-conditions-nrql-queries)を設定し、[構文解析エラー](#errors-parsing)発生時に通知します。
+
+このメソッドでは、イベントがアカウントに直接送信され、任意のNRQLインタフェースから、またはクエリAPIによってアクセスできるようになります。
+
+イベントAPIでは、カスタムイベントで使用できる[サイズ、速度、文字を制限](#limits)しています。NRQLにおいて使用な他のイベント同様、作成後のカスタムイベントの更新や削除はできません。カスタムイベントに問題がある場合は、[トラブルシューティング手順](#verify)に従うか、または新規カスタムイベントを作成します。
+
+## ライセンスキーの取得 [#register]
+
+[ライセンスキー](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key)が必要です。ライセンスキーは、特定のユーザーではなく、アカウントに関連付けられています。これは、そのキーにアクセスできるアカウント内の誰もがそのキーを使用できることを意味します。
+
+同じライセンスキーを使用して、複数のイベントタイプを同じアカウントに送信することができます。ただし、安全性を確保するため、異なるアプリケーションやデータソースには別々のキーを使用してください。
+
+または、このAPI用の[Insights挿入キー](/docs/apis/intro-apis/new-relic-api-keys/#insights-insert-key)を使用することもできますが、ライセンスキーを使用することをお勧めします。
+
+## JSONのフォーマット化 [#instrument]
+
+イベントAPIは、ペイロードに含まれる属性に対する特定の形式を受け入れます。浮動小数点または文字列値のみが許容されます。
+
+<CollapserGroup>
+  <Collapser
+    id="json-guidelines"
+    title="JSON書式のガイドライン"
+  >
+    カスタムイベント向け属性を定義する際は、以下のJSON形式ガイドラインに従います。
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            属性
+          </th>
+
+          <th>
+            JSON書式のガイドライン
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `eventType`
+          </td>
+
+          <td>
+            **必須:** イベント名。
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            浮動小数点および文字列値。
+          </td>
+
+          <td>
+            浮動小数点値形式: `"label":value`
+
+            文字列値形式: `"label":"value"`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            データ型
+          </td>
+
+          <td>
+            APIは、キー/値ペアのみを受け付けており、マップ/オブジェクトまたは配列値には対応していません。このAPIは、文字列と数値（整数または浮動小数点数）のデータ型に対応しています。詳細については、 [データ要件](/docs/insights/insights-data-sources/custom-data/insights-custom-data-requirements-limits)を参照してください。
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            文字列中の数字
+          </td>
+
+          <td>
+            パフォーマンス上の理由から、APIに送信された値をキャストしません。たとえば、`123`を数値として、`「123」`を文字列として扱います。
+
+            データベースが保存できるのは、最大で64ビットまでです。64ビットを超える数値は、切り捨てられます。
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            日付
+          </td>
+
+          <td>
+            日付情報を含む属性には、Insightsの[データフォーマッター](/docs/insights/use-insights-ui/manage-account-data/data-formatter-set-default-formats-numeric-values)の書式化されていないUnixタイムスタンプを使用します。Unixエポックからの相対的な秒数かミリ秒数で[日付属性を定義](#timestamp)できます。
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            時刻
+          </td>
+
+          <td>
+            特に指定がない限り、送信されたイベントのタイムスタンプはそのイベントがNew Relicに送信された時刻となります。イベントに異なる時間を指定するには、[`timestamp`属性](#timestamp)を使用します。
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    id="json-example"
+    title="JSONの例"
+  >
+    APIとともに送信するための一般的なJSONデータセットの例を以下に示します。このコールは、2つの **購買**タイプのイベントをJSON配列として送信します。JSON配列を使用することで、単一のHTTPコールで複数のイベントを追加できます。
+
+    ```
+    [
+      {
+        "eventType":"Purchase",
+        "account":3,
+        "amount":259.54
+      },
+      {
+        "eventType":"Purchase",
+        "account":5,
+        "amount":12309,
+        "product":"Item"
+      }
+    ]
+    ```
+
+    JSONを生成する際は、各属性が[適切に書式化されている](/docs/insights/new-relic-insights/decorating-events/insights-custom-attributes)ことを確認してください。
+  </Collapser>
+
+  <Collapser
+    id="limits"
+    title="上限値および文字の制限"
+  >
+    イベントAPIを介して送信されるイベントには、以下のサイズと速度の制限が適用されます。
+
+    * APIコールあたりの最大イベント数：
+
+    * ペイロード合計サイズ: **POSTあたり最大1MB(10^6バイト)**。圧縮の使用を強く推奨します。
+
+    * ペイロードは** UTF-8 **としてエンコードする必要があります。
+
+    * イベントあたりの属性数：最大255
+
+    * 属性名の長さ: 255文字
+
+    * 属性値の長さ: 最大4096文字長
+
+    * イベントAPIに送信される[1分あたりのHTTPリクエスト数には、速度制限](#post-limit)があります。
+
+      特定の属性には、追加の制限があります。
+
+    * `accountId`: これは予約した属性名です。この名前が含まれている場合は、取り込み中に破棄されます。
+
+    * `entity.guid`、`entity.name`、および`entity.type`：これらの属性は、エンティティを識別するために内部で使用されます。メトリックデータポイントの属性セクションでこれらのキーとともに送信される値によって、UIのエンティティが見つからない、またはテレメトリが予期されるエンティティと関連していないなどの未定義の動作が発生する場合があります。詳細については、[エンティティの合成](/docs/new-relic-one/use-new-relic-one/core-concepts/what-entity-new-relic/#entity-synthesis)を参照してください。
+
+    * [`appId`](/docs/apis/rest-api-v2/requirements/find-product-id#apm): 値は整数である必要があります。整数ではない場合、属性名と値は取り込み中に破棄されます。
+
+    * `eventType`：英数字、`_`アンダースコア、`:`コロンの組み合わせを使用できます。
+
+    * `timestamp`: Unixエポックのタイムスタンプである必要があります。タイムスタンプは、秒数かミリ秒数で定義できます。
+  </Collapser>
+</CollapserGroup>
+
+## カスタムイベントの送信 [#submit-event]
+
+イベントAPIに送信されるデータは、圧縮されたJSON形式をシンプルなHTTPS POSTリクエストで使用するものです。この例では`gzip`を使用していますが、`deflate`でも可能です。
+
+<CollapserGroup>
+  <Collapser
+    id="numberone"
+    title="Linux/bashの例"
+  >
+    ```
+    gzip -c example_events.json | curl -X POST -H "Content-Type: application/json"
+    -H "Api-Key: <var>YOUR_LICENSE_KEY</var>" -H "Content-Encoding: gzip"
+    https://insights-collector.newrelic.com/v1/accounts/<var>YOUR_ACCOUNT_ID</var>/events --data-binary @-
+    ```
+  </Collapser>
+
+  <Collapser
+    id="numbertwo"
+    title="Windows/PowerShellの例"
+  >
+    ```
+    $accountId = "<var>YOUR_ACCOUNT_ID</var>"
+    $insertkey = "<var>YOUR_LICENSE_KEY</var>"
+    # Replace with your custom event for the body
+    $body = '[{"eventType": "powershell", "account": 4, "amount": 123, "fileLocation": "c:\\temp2", "zipped": "true" }]'
+
+    $headers = @{}
+    $headers.Add("Api-Key", "$insertkey")
+    $headers.Add("Content-Encoding", "gzip")
+
+
+    $encoding = [System.Text.Encoding]::UTF8
+    $enc_data = $encoding.GetBytes($body)
+
+    $output = [System.IO.MemoryStream]::new()
+    $gzipStream = New-Object System.IO.Compression.GzipStream $output, ([IO.Compression.CompressionMode]::Compress)
+
+    $gzipStream.Write($enc_data, 0, $enc_data.Length)
+    $gzipStream.Close()
+    $gzipBody = $output.ToArray()
+
+    Invoke-WebRequest -Headers $headers -Method Post -Body $gzipBody  "https://insights-collector.newrelic.com/v1/accounts/$accountId/events"
+    ```
+  </Collapser>
+</CollapserGroup>
+
+<Callout variant="important">
+  常に、すべてのペイロードを圧縮します。こうすることで、送信できるデータの容量が増え、構文解析中のリソース節約になります。
+</Callout>
+
+HTTPリクエストを生成する前に、リクエストが[適切に書式化されている](/docs/insights/new-relic-insights/decorating-events/insights-custom-attributes)ことを確認してください。これには、以下が含まれます。
+
+* `Api-Key`には正しい[ライセンスキー](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key)が含まれています。
+* `Content-Type`が`application/json`である。
+* リクエストはPOSTのみを使用している。APIは、PUTおよびGETリクエストを受け入れません。
+
+APIは[HTTP/1.1の持続的接続](https://www.w3.org/Protocols/rfc2616/rfc2616-sec8.html)に対応しています。これは、イベントの負荷が非常に高い場合にクライアント側のパフォーマンスを管理する上で役立ちます。
+
+## リクエストとレスポンスの確認またはトラブルシューティング [#verify]
+
+イベントAPIは、リクエストを処理するにあたって2段階のプロセスを踏みます。
+
+1. イベントAPIは、ヘッダーおよびペイロードのサイズの妥当性に基づき、リクエストを同期的に応答または拒否します。
+2. イベントAPIは、成功したHTTPレスポンスがクライアントに提供された後で、非同期的にペイロードを構文解析します。これは、データの欠損もしくは不正な形式のデータによるエラーを生成する場合があります。これらは、送信エラーまたは構文解析エラーとして分類されます。
+
+送信に成功すると、ペイロード内に存在しうるデータエラーに関わらず、すべてのレスポンスは`200`となります。このレスポンスに含まれる`uuid`は、各リクエスト向けに作成されるユニークIDになります。`uuid` は、リクエストに関して作成されたエラーイベントにも表示されます。
+
+その他の予想される問題：
+
+* 10秒を超えるAPIコールはタイムアウトします。
+* 100 KBを超えるペイロードではレスポンスタイムが長くなる可能性があります。
+
+**推奨：**成功メッセージの確認に加えて、データのNRQLクエリを作成して、データが利用可能であることを確認します。
+
+<CollapserGroup>
+  <Collapser
+    id="success"
+    title="成功レスポンスコード"
+  >
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "150px" }}>
+            成功メッセージ
+          </th>
+
+          <th>
+            コメント
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            200
+          </td>
+
+          <td>
+            ```
+            {"success":true,"uuid":"<var>xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx</var>"}
+            ```
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    id="errors-submission"
+    title="送信エラー"
+  >
+    送信エラーのあるペイロードは処理された後で、HTTPレスポンスコードで送信者に返されます。
+
+    ペイロード送信エラーのトラブルシューティングについては、以下のHTTPレスポンスコードを参照してください。
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "150px" }}>
+            送信エラー
+          </th>
+
+          <th>
+            トラブルシューティング
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            400
+          </td>
+
+          <td>
+            欠落または無効のコンテンツ長: 処理できない空のリクエスト。
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            403
+          </td>
+
+          <td>
+            キーがないか、無効です：ライセンスキーが無効です。有効なライセンスキーを登録します。
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            408
+          </td>
+
+          <td>
+            リクエストタイムアウト: 処理に時間がかかり過ぎたリクエスト。
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            413
+          </td>
+
+          <td>
+            大き過ぎるコンテンツ: 大き過ぎて処理できないリクエスト。トラブルシューティングの際は、 上限値および文字制限を参照します。
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            415
+          </td>
+
+          <td>
+            無効なコンテンツタイプ: Content-Typeはapplication/jsonにする必要があります。イベントAPIは、multipart/related以外のすべてのコンテンツタイプを受け付けており、それをJSONに構文解析できることを想定しています。
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            429
+          </td>
+
+          <td>
+            レート制限により、リクエストが多すぎます。
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            503
+          </td>
+
+          <td>
+            サービスが一時的に使用不可: リクエストを再試行
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    id="errors-parsing"
+    title="構文解析エラー"
+  >
+    構文解析エラーは、以下の場合に発生します。
+
+    * ペイロード内でイベントが送信されたものの、データが不足しているか上限を超えています。New Relicは、ペイロードから個別のイベントをドロップし、[`NrIntegrationError`イベント](/docs/telemetry-data-platform/manage-data/nrintegrationerror)を生成して、残りを処理します。
+
+    * JSONペイロードには、不正な形式または必須データ不足のJSONが含まれます。
+
+      構文解析エラーのあるペイロードは、送信が成功したことを示す`200`レスポンスを受信します。構文解析エラーを解決するため、`NrIntegrationError`イベントタイプが作成されます。すべての構文解析エラーはNRQLクエリが原因となります。New Relicでは、ドロップイベント関連のエラーメッセージに、メッセージの一環としてドロップされたイベント数が含まれます。
+
+      構文解析エラーのリクエストをトラブルシューティングするには、これらのエラーメッセージを参照してください。
+
+      <table>
+        <thead>
+          <tr>
+            <th style={{ width: "300px" }}>
+              構文解析エラー
+            </th>
+
+            <th>
+              トラブルシューティング
+            </th>
+          </tr>
+        </thead>
+
+        <tbody>
+          <tr>
+            <td>
+              属性<var>appId</var>が整数でなかったため、`X`イベントを拒否
+            </td>
+
+            <td>
+              `appId`属性は、十進数もしくは文字列などの非整数値。
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              `eventType`は`[., \]`を含むことができないため、<var>X</var>イベントを拒否
+            </td>
+
+            <td>
+              `eventType`属性に、ピリオドまたはバックスラッシュなどの無効な文字が含まれている。
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              属性に属性名がないため、<var>X</var>イベントを拒否
+            </td>
+
+            <td>
+              属性名がNULLまたは空の文字列に設定されていた。
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              属性名が最大長を超えたため、<var>X</var>イベントを拒否
+            </td>
+
+            <td>
+              属性名が255文字を超えている。
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              属性名が最大長を超えたため、<var>X</var>イベントを拒否
+            </td>
+
+            <td>
+              属性値が4096文字を超えました。
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              イベントが属性数の上限を超えたため、<var>X</var>イベントを拒否
+            </td>
+
+            <td>
+              イベントの属性が255を超えている。
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              必須属性<var>eventType</var>が不足しているため、`X`イベントを拒否
+            </td>
+
+            <td>
+              カスタムイベントには `eventType`属性が必須。
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              JSONペイロードの構文解析エラー
+            </td>
+
+            <td>
+              形式上の問題または破損したデータのため、JSONリクエストの構文解析エラーが発生しました。
+            </td>
+          </tr>
+        </tbody>
+      </table>
+  </Collapser>
+</CollapserGroup>
+
+## NrIntegrationErrorによるクエリとアラート [#nrIntegration]
+
+[`NrIntegrationError`イベント](/docs/telemetry-data-platform/manage-data/nrintegrationerror)では、New Relicアカウントに送信されるカスタムデータをクエリしてアラートを設定できます。**推奨：**New Relic Alertsから構文解析エラーに関する通知を受け取るには、`NrIntegrationError`に[NRQLアラート条件を作成](/docs/alerts/new-relic-alerts/defining-conditions/create-alert-conditions-nrql-queries)します。以下のNRQLクエリ例を使用します。
+
+```
+SELECT message FROM NrIntegrationError WHERE newRelicFeature = 'Event API' AND category = 'EventApiException'
+```
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        NrIntegrationError属性
+      </th>
+
+      <th>
+        トラブルシューティング
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td id="timestamp">
+        `タイムスタンプ`
+      </td>
+
+      <td>
+        リクエストを受け取った際のタイムスタンプ。`timestamp`属性を使用すると、過去24時間以内で64ビット整数のUnixタイムスタンプを取得します。Unixエポックからの相対的な秒数かミリ秒数でタイムスタンプを定義できます。
+
+        タイムスタンプには小数点を使用しないでください。小数点を使用する場合、カスタムイベント作成時の属性がタイムスタンプのデフォルトになります。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `newRelicFeature`
+      </td>
+
+      <td>
+        エラーが発生している機能の名前。すべてのカスタムイベントの構文解析エラーには、これは`イベントAPI`になります。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `apiKeyPrefix`
+      </td>
+
+      <td>
+        エラーを生成したリクエストで使用した、[ライセンスキー](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key)の最初の6文字。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `requestId`
+      </td>
+
+      <td>
+        エラーを生成したリクエストのAPIが返した`uuid`。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `カテゴリー`
+      </td>
+
+      <td>
+        エラーのカテゴリー。カスタムイベントの場合、これは`EventApiException`です。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `メッセージ`
+      </td>
+
+      <td>
+        エラーメッセージの内容。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `名前`
+      </td>
+
+      <td>
+        エラーの名前。カスタムイベントの場合、これは常に`EventValidationException`です。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `eventTypeSample`
+      </td>
+
+      <td>
+        使用可能な場合、エラーを生成したイベントタイプの1つ。
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## データを検索する [#find-data]
+
+イベントAPIを通じて（またこのAPIを使用するインテグレーションから）送信されたデータを検索するには、データのクエリを行えます。たとえば、[NRQL](/docs/query-data/nrql-new-relic-query-language/getting-started/introduction-nrql)を使用してカスタムイベントのクエリを行うには、次を実行します。
+
+```
+SELECT * FROM <var>YOUR_CUSTOM_EVENT</var>
+```
+
+クエリ方法の詳細については、[クエリデータ](/docs/using-new-relic/data/understand-data/query-new-relic-data)を参照してください。
+
+## HTTPリクエストの制限 [#post-limit]
+
+イベントAPIのレート制限は、アカウントあたり毎分HTTPリクエスト100,000件（POST）です。（これは1分あたりのイベント数制限**ではなく**、1分あたりのPOST数のみとなる点に注意してください。）
+
+こうした制限があることで、当社のマルチテナントプラットフォーム全体のアカウントにおける大量のトラフィック急増が、サービスのパフォーマンスにネガティブに作用しないようにできます。
+
+1分間の時間枠においてAPI使用状況が100k POSTを超えた場合、残りの1分間の時間枠における以後のAPIリクエストは、429のレスポンスコードによって拒否されます。1分間の時間枠の最後には、カウンターがリセットされてトラフィックが再開されます。
+
+この制限は、通常の状況では達するべきでない上限閾値を示すものです。レスポンス数が429よりも多い場合、APIの使用頻度を減らすことを検討します。近い将来、通常よりも高いアクティビティレベルが予想されており、それに備えたい場合は、[テクニカルサポートに問い合わせてください](https://support.newrelic.com/)。

@@ -5,4 +5,4 @@ events:
   - NrIntegrationError
 ---
 
-The error's name. For custom events, this is always EventValidationException.
+The error's name (for example, `EventValidationException` for custom events). 

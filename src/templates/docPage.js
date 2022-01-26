@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import PropTypes from 'prop-types';
-import { css } from '@emotion/core';
+import { css } from '@emotion/react';
 import { graphql } from 'gatsby';
 import { useMedia } from 'react-use';
 import PageTitle from '../components/PageTitle';
@@ -11,31 +11,23 @@ import {
   RelatedResources,
   SimpleFeedback,
   TableOfContents,
-  useTranslation,
 } from '@newrelic/gatsby-theme-newrelic';
-import DefaultRelatedContent from '../components/DefaultRelatedContent';
-import Watermark from '../components/Watermark';
+import MachineTranslationCallout from '../components/MachineTranslationCallout';
 import SEO from '../components/SEO';
 import GithubSlugger from 'github-slugger';
 import { parseHeading } from '../../plugins/gatsby-remark-custom-heading-ids/utils/heading';
 import { TYPES } from '../utils/constants';
 
 const BasicDoc = ({ data, location, pageContext }) => {
-  const { t } = useTranslation();
   const { mdx } = data;
   const {
-    mdxAST,
     frontmatter,
+    mdxAST,
     body,
     fields: { fileRelativePath },
     relatedResources,
   } = mdx;
   const { disableSwiftype } = pageContext;
-
-  const moreHelpHeading = mdxAST.children
-    .filter((node) => node.type === 'heading')
-    .map((node) => parseHeading(node))
-    .find(({ text }) => text === t('defaultRelatedContent.title'));
 
   const headings = useMemo(() => {
     const slugs = new GithubSlugger();
@@ -51,19 +43,11 @@ const BasicDoc = ({ data, location, pageContext }) => {
         const { id, text } = parseHeading(heading);
 
         return { id: id || slugs.slug(text), text };
-      })
-      .concat(
-        moreHelpHeading
-          ? []
-          : {
-              id: 'for-more-help',
-              text: t('defaultRelatedContent.title'),
-            }
-      );
-  }, [mdxAST, moreHelpHeading, t]);
+      });
+  }, [mdxAST]);
 
   const isMobileScreen = useMedia('(max-width: 1240px)');
-  const { title, metaDescription, type, tags, watermark } = frontmatter;
+  const { title, metaDescription, type, tags, translationType } = frontmatter;
 
   return (
     <>
@@ -79,6 +63,7 @@ const BasicDoc = ({ data, location, pageContext }) => {
         css={css`
           display: grid;
           grid-template-areas:
+            'mt-disclaimer mt-disclaimer'
             'page-title page-title'
             'content page-tools';
           grid-template-columns: minmax(0, 1fr) 320px;
@@ -86,6 +71,7 @@ const BasicDoc = ({ data, location, pageContext }) => {
 
           @media screen and (max-width: 1240px) {
             grid-template-areas:
+              'mt-disclaimer'
               'page-title'
               'content'
               'page-tools';
@@ -93,12 +79,18 @@ const BasicDoc = ({ data, location, pageContext }) => {
           }
         `}
       >
+        {translationType === 'machine' && (
+          <MachineTranslationCallout
+            englishHref={location.pathname.replace(
+              `/${pageContext.locale}`,
+              ''
+            )}
+          />
+        )}
         <PageTitle>{title}</PageTitle>
+
         <Layout.Content>
-          {watermark && <Watermark text={watermark} />}
-          <MDXContainer body={body}>
-            {moreHelpHeading ? null : <DefaultRelatedContent />}
-          </MDXContainer>
+          <MDXContainer body={body} />
         </Layout.Content>
         <Layout.PageTools
           css={css`
@@ -143,9 +135,9 @@ export const pageQuery = graphql`
       frontmatter {
         title
         metaDescription
-        watermark
         type
         tags
+        translationType
       }
       fields {
         fileRelativePath

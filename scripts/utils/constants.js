@@ -1,5 +1,3 @@
-const path = require('path');
-
 module.exports = {
   CONTENT_DIR: 'src/content',
   NAV_DIR: 'src/nav',

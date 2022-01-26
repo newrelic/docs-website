@@ -1,0 +1,328 @@
+---
+title: Third party instrumentation
+tags:
+  - Agents
+  - Ruby agent
+  - API guides
+metaDescription: This document provides guidance for instrumenting unsupported third party gems or libraries you have authored yourself with the Ruby agent.
+redirects:
+  - /docs/agents/ruby-agent/api-guides/third-party-instrumentation
+  - /docs/agents/ruby-agent/frameworks/third-party-instrumentation
+  - /docs/agents/ruby-agent/customization/third-party-instrumentation
+---
+
+This document details how to instrument third-party gems with the Ruby agent, as well as some best practices for interacting with the agent. This is useful if you are using a gem that the Ruby agent does not instrument by default, or if you are a gem author who wants to add instrumentation for your library.
+
+## Contents [#qiklinks]
+
+## Finding third-party extensions
+
+Anyone can write a gem that builds on top of the Ruby agent. New Relic maintains a repository called [extends_newrelic_rpm](https://github.com/newrelic/extends_newrelic_rpm) to track these extensions and to provide links to other gems that build the Ruby agent.
+
+These extensions are **not** supported by New Relic. New Relic gathers these links as a service to our customers. Issues with those gems should be reported to the respective projects on GitHub.
+
+## Extensions as gems
+
+New Relic encourages third-party extensions to be maintained as gems, with one gem per instrumented library. For example, `newrelic-redis` provides instrumentation for the `redis` gem.
+
+## Starting transactions
+
+If your library provides code which should be represented as a full transaction in New Relic (for example: a web request or background job that isn't instrumented by the Ruby agent), then use one of these mechanisms for starting a transaction.
+
+<CollapserGroup>
+  <Collapser
+    id="add_transaction_tracer"
+    title="add_transaction_tracer"
+  >
+    The simplest way to get a transaction started is to call `add_transaction_tracer` on the method. This assumes that `NewRelic::Agent::Instrumentation::ControllerInstrumentation` is included in your class.
+
+    ```ruby
+    class CustomBackgroundJob
+      include NewRelic::Agent::Instrumentation::ControllerInstrumentation
+
+      def transaction
+        # execute a transaction
+      end
+
+      add_transaction_tracer :transaction
+    end
+    ```
+  </Collapser>
+
+  <Collapser
+    id="perform_action_with_newrelic_trace"
+    title="perform_action_with_newrelic_trace"
+  >
+    Sometimes you need slightly more control over the transaction that New Relic generates. When that happens, you can use `perform_action_with_newrelic_trace`. Some of the parameters you can override include the transaction name and category (whether it's a web transaction or a background transaction).
+
+    ```ruby
+    class CustomBackgroundJob
+      include NewRelic::Agent::Instrumentation::ControllerInstrumentation
+
+      def transaction
+       perform_action_with_newrelic_trace(:name    => "custom_name",
+                                         :category => :task) do
+         # your work here...
+       end
+      end
+
+    end
+    ```
+
+    See the [full documentation of perform_action_with_newrelic_trace](https://www.rubydoc.info/github/newrelic/newrelic-ruby-agent/NewRelic/Agent/Instrumentation/ControllerInstrumentation#perform_action_with_newrelic_trace-instance_method) for further information on parameters and usage.
+  </Collapser>
+</CollapserGroup>
+
+## Nodes in transaction traces [#nodes-transaction-traces]
+
+You may want to add timing information to New Relic about calls to a method, but it does not represent a full transaction. New Relic recommends adding a method tracer to accomplish this.
+
+<CollapserGroup>
+  <Collapser
+    id="add_method_tracer"
+    title="add_method_tracer"
+  >
+    ```ruby
+    require 'new_relic/agent/method_tracer'
+    class Foo
+      include ::NewRelic::Agent::MethodTracer
+
+      def generate_image
+        # ...
+      end
+
+      add_method_tracer :generate_image, 'Custom/generate_image'
+    end
+    ```
+
+    The above example results in metrics being recorded for the name `'Custom/generate_image'`, as well as an entry in transaction traces that includes the method call.
+  </Collapser>
+</CollapserGroup>
+
+## Custom Datastores
+
+The Ruby agent provides special functionality for recording calls to Datastores. These are intended to support both SQL and NoSQL databases, and provide a consistent interface for use by third-party gems.
+
+Metrics recorded via the `NewRelic::Agent::Datastores` module functions will show up in the [Databases UI in New Relic](/docs/apm/applications-menu/monitoring/databases-slow-queries-dashboard).
+
+<CollapserGroup>
+  <Collapser
+    id="trace"
+    title="NewRelic::Agent::Datastores.trace"
+  >
+    `trace` is the simplest way to record Datastore for a method.
+
+    ```ruby
+    class FauxDB
+
+     def find
+       # FauxDB lookup
+     end
+
+     NewRelic::Agent::Datastores.trace self, :find, "FauxDB"
+
+    end
+    ```
+
+    The first parameter is the class to instrument, the second the method to find, the third the datastore product name. An optional operation name can be included as the final parameter, otherwise the method name is used to represent the operation in metrics.
+
+    Note that Datastore metrics recorded with this interface do not allow for adding a collection/table name. For that, see the `wrap` method below.
+  </Collapser>
+
+  <Collapser
+    id="wrap"
+    title="NewRelic::Agent::Datastores.wrap"
+  >
+    `wrap` allows for recording Datastore metrics with additional collection/table information in the metric names. It also provides a callback for operations such as noticing slow statements.
+
+    ```ruby
+    class FauxDB
+
+      def find(table)
+        NewRelic::Agent::Datastores.wrap("FauxDB", "find", table) do
+        # FauxDB lookup
+        end
+      end
+
+    end
+    ```
+
+    If you want to record additional information about your datastore call, you can use the optional callback parameter on `wrap`:
+
+    ```ruby
+    class FauxDB
+
+     def find(query)
+       callback = Proc.new do |result, scoped_metric, elapsed|
+         NewRelic::Agent::Datastores.notice_sql(query, scoped_metric, elapsed)
+       end
+
+       NewRelic::Agent::Datastores.wrap("FauxDB", "find", "items", callback) do
+         # execute query
+       end
+     end
+
+    end
+    ```
+  </Collapser>
+
+  <Collapser
+    id="notice_sql"
+    title="NewRelic::Agent::Datastores.notice_sql"
+  >
+    This helper method records slow SQL queries for presentation in transaction traces and slow SQL pages. SQL is filtered and obfuscated based on the user's settings.
+
+    ```ruby
+    NewRelic::Agent::Datastores.notice_sql(query, scoped_metric, elapsed)
+    ```
+
+    Non-SQL queries should never be sent through `notice_sql`.Use `notice_statement` instead.
+
+    <Callout variant="caution">
+      New Relic's Transaction Tracing and Slow SQL features will attempt to apply obfuscation to the passed queries, but it is possible for a query format to be unsupported and result in exposing user information embedded within captured queries.
+    </Callout>
+  </Collapser>
+
+  <Collapser
+    id="notice_statement"
+    title="NewRelic::Agent::Datastores.notice_statement"
+  >
+    This helper method records statements for slow datastore calls to transaction traces. These are **not** obfuscated.
+
+    ```ruby
+    NewRelic::Agent::Datastores.notice_statement(statement, elapsed)
+    ```
+
+    SQL queries should never be sent through `notice_statement`. Use `notice_sql` instead.
+
+    <Callout variant="caution">
+      This method will properly ignore statements when the user has turned off capturing queries, but it is not able to obfuscate arbitrary data! Ensure all data passed to this method is safe to transmit to New Relic in order to prevent exposing user information embedded in captured queries.
+    </Callout>
+  </Collapser>
+</CollapserGroup>
+
+## Testing your extension
+
+You can write automated tests when you author a gem that extends New Relic. The test helpers used by the agent itself are available to simplify some common testing tasks.
+
+<CollapserGroup>
+  <Collapser
+    id="require_test_helper"
+    title="NewRelic::Agent.require_test_helper"
+  >
+    The test methods documented in this section can be accessed by calling this from your test code (most commonly a `test_helper.rb` file)
+
+    ```ruby
+    NewRelic::Agent.require_test_helper
+    ```
+  </Collapser>
+
+  <Collapser
+    id="assert_metrics_recorded"
+    title="assert_metrics_recorded"
+  >
+    This method is the primary way to ensure your expected metrics are recorded by the Ruby agent. `refute_metrics_recorded` is also available.
+
+    In the simplest form, `assert_metrics_recorded` can be called like this:
+
+    ```ruby
+    assert_metrics_recorded(["MetricA", "MetricB"])
+    ```
+
+    Metrics with specific values can be asserted via this syntax:
+
+    ```ruby
+    assert_metrics_recorded('MetricA' => {
+                             :call_count => 1,
+                             :total_call_time => 1.0 })
+    ```
+  </Collapser>
+
+  <Collapser
+    id="in_web_transaction"
+    title="in_web_transaction/in_background_transaction"
+  >
+    These methods simulate running in web or background transaction.
+
+    ```ruby
+    in_web_transaction do
+      # Perform work to test behavior in transaction
+    end
+    ```
+  </Collapser>
+
+  <Collapser
+    id="with_config"
+    title="with_config"
+  >
+    Configuration of the agent can be changed for testing via `with_config`. It takes a hash which is applied to the other configuration values in agent.
+
+    ```ruby
+    with_config(:enabled => false) do
+      # Check what happens when agent's disabled
+    end
+    ```
+
+    <Callout variant="tip">
+      This method doesn't help for testing installation of instrumentation, as those config values are typically checked when instrumentation happens on `require`, and isn't influenced by the setting change in a test.
+    </Callout>
+  </Collapser>
+
+  <Collapser
+    id="multiverse"
+    title="Multiverse: Test against multiple gem versions"
+  >
+    If you need to test your extension against multiple gem versions, you can use Multiverse, a part of the Ruby agent's own testing code. For examples of Multiverse testing, see the [suites directory in the agent files](https://github.com/newrelic/newrelic-ruby-agent/tree/master/test/multiverse/suites).
+
+    To configure Multiverse for your own gem:
+
+    1. **Require `tasks/multiverse` in Rakefile**. To enable the `rake test:multiverse` command, add the following to your Rakefile:
+
+       ```
+       require "tasks/multiverse"
+       ```
+    2. **Create the Multiverse test directory**. Multiverse tests require a specific file layout. Create a directory named `test/multiverse/YOUR_PROJECT` with the following file locations:
+
+       ```
+       test/multiverse/<var>YOUR_PROJECT</var>
+       test/multiverse/<var>YOUR_PROJECT</var>/Envfile
+       test/multiverse/<var>YOUR_PROJECT</var>/config/newrelic.yml
+       test/multiverse/<var>YOUR_PROJECT</var>/<var>FILE_WITH_A_TEST</var>.rb
+       ```
+    3. **Configure your Envfile**. Use the **Envfile** to declare sets of gem dependencies for your Multiverse tests. For example, your **Envfile** might look like this:
+
+       ```
+       gemfile <-RB
+         gem '<var>your-project</var>', '~> <var>1.0.0</var>'
+         gem 'rack'
+         gem 'newrelic_rpm'
+         gem 'newrelic_<var>your-project</var>', path: '<var>../../..</var>'
+       RB
+
+       gemfile <-RB
+         gem '<var>your-project</var>', '~> <var>2.1.0</var>'
+         gem 'rack'
+         gem 'newrelic_rpm'
+         gem 'newrelic_<var>your-project</var>', path: '<var>../../..</var>'
+       RB
+       ```
+
+       <Callout variant="tip">
+         Include the `gem` lines for `newrelic_rpm` and `rack` to ensure your Multiverse tests work.
+       </Callout>
+    4. **Detect dependencies**. If necessary, ensure your extension's instrumentation is loaded by running an additional dependency detection from your Multiverse tests:
+
+       ```
+       require 'newrelic/<var>your-project</var>'
+
+       DependencyDetection.detect!
+
+       class <var>YourProjectTest</var> > Minitest::Test
+       end
+       ```
+
+    To run your Multiverse tests against the gem dependencies in your **Envfile**:
+
+    * After setting up Multiverse for your gem, run `rake test:multiverse` to execute the tests in your directory.
+  </Collapser>
+</CollapserGroup>

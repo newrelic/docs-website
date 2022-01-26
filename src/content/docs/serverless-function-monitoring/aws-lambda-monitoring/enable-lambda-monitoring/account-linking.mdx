@@ -1,0 +1,342 @@
+---
+title: "Step 1: Link your AWS and New Relic accounts"
+metaDescription: Step 1 of enabling New Relic AWS Lambda Monitoring.
+redirects:
+  - /docs/serverless-function-monitoring/aws-lambda-monitoring/get-started/enable-serverless-monitoring-using-lambda-layer
+  - /docs/serverless-function-monitoring/aws-lambda-monitoring/enable-lambda-monitoring/enable-serverless-monitoring-using-lambda-layer
+---
+
+This is one step of [enabling New Relic's AWS Lambda monitoring](/docs/serverless-function-monitoring/aws-lambda-monitoring/enable-lambda-monitoring/enable-aws-lambda-monitoring). 
+
+When you link your AWS account to New Relic, you're granting permission to New Relic to create an inventory of your AWS account, and gather CloudWatch metrics for your Lambda functions. Resources in your AWS account then show up as entities in the [explorer](/docs/new-relic-one/use-new-relic-one/ui-data/new-relic-one-entity-explorer-view-performance-across-apps-services-hosts), decorated with config information.
+
+<CollapserGroup>
+  <Collapser
+    id="aws-permissions"
+    title="AWS permissions details"
+  >
+    To create this inventory, we need an IAM role that grants these IAM permissions, at a minimum:
+
+    ```
+    Resource: "*"
+    Action:
+      "cloudwatch:GetMetricStatistics"
+      "cloudwatch:ListMetrics"
+      "cloudwatch:GetMetricData"
+      "lambda:GetAccountSettings"
+      "lambda:ListFunctions"
+      "lambda:ListAliases"
+      "lambda:ListTags"
+      "lambda:ListEventSourceMappings"
+    ```
+
+    By default, we use the AWS Managed Policy `ReadOnlyAccess`. This allows the Infrastructure integration to see
+    all the resources in your account, rather than just your Lambda functions and CloudWatch metrics. New Relic
+    recommends this default, but we understand that some organizations have a very conservative security posture for
+    third party integrations. A role with the permissions above is sufficient to allow Lambda telemetry collection,
+    though traces that interact with other services may not work well.
+  </Collapser>
+</CollapserGroup>
+
+In this integration step, we'll also store your New Relic License Key in the AWS Secrets Manager service, so that we
+can send your telemetry to your New Relic account.
+
+## Recommended method: The `newrelic-lambda` CLI [#rec]
+
+### Requirements [#requirements]
+
+To enable serverless monitoring using our Lambda layer, you need the following:
+
+* [AWS CLI v2](https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2.html) installed and configured using `aws configure`.
+* [Python](https://www.python.org/downloads/) version 3.3 or higher installed.
+* [newrelic-lambda CLI](https://github.com/newrelic/newrelic-lambda-cli#installation),
+  which you can install by running `pip3 install newrelic-lambda-cli`.
+* A New Relic account. You must have an admin role or have the **Infrastructure manager** [add-on role](/docs/accounts/original-accounts-billing/original-users-roles/users-roles-original-user-model#add-on).
+* A [user key](/docs/apis/get-started/intro-apis/types-new-relic-api-keys#personal-api-key).
+* An AWS account with permissions for creating IAM resources, managed secrets, and Lambdas. You also need permissions for creating CloudFormation stacks and S3 buckets.
+
+<CollapserGroup>
+  <Collapser
+    id="cli-aws-permissions"
+    title="CLI user AWS permissions details"
+  >
+  The CLI uses the AWS SDK to interact with AWS. The SDK will act using the same default profile as the AWS CLI.
+  This profile needs, at a minimum, the following AWS permissions to run the CLI.
+
+    ```
+    {
+        "Version": "2012-10-17",
+        "Statement": [
+            {
+                "Sid": "CLIAccessPolicy",
+                "Action": [
+                    "cloudformation:CreateChangeSet",
+                    "cloudformation:CreateStack",
+                    "cloudformation:DescribeStacks",
+                    "cloudformation:ExecuteChangeSets",
+                    "iam:AttachRolePolicy",
+                    "iam:CreateRole",
+                    "iam:GetRole",
+                    "iam:PassRole",
+                    "lambda:AddPermission",
+                    "lambda:CreateFunction",
+                    "lambda:GetFunction",
+                    "logs:DeleteSubscriptionFilter",
+                    "logs:DescribeSubscriptionFilters",
+                    "logs:PutSubscriptionFilter",
+                    "s3:GetObject",
+                    "serverlessrepo:CreateCloudFormationChangeSet",
+                    "secretsmanager:CreateSecret"
+                ],
+                "Effect": "Allow",
+                "Resource": "*"
+            },
+            {
+                "Sid": "NRLogAccessPolicy",
+                "Effect": "Allow",
+                "Action": [
+                    "serverlessrepo:CreateCloudFormationTemplate",
+                    "serverlessrepo:GetCloudFormationTemplate"
+                ],
+                "Resource": "arn:aws:serverlessrepo:us-east-1:463657938898:applications/NewRelic-log-ingestion"
+            }
+        ]
+    }
+    ```
+  </Collapser>
+</CollapserGroup>
+
+### Integrate with CLI [#cli]
+
+When all the [requirements](#requirements) are in place, link your AWS account with your New Relic account by running the following command using your [user key](/docs/apis/get-started/intro-apis/types-new-relic-api-keys#personal-api-key) (replace all the <var>highlighted</var> values):
+
+<CollapserGroup>
+  <Collapser
+    id="aws-env-variables"
+    title="AWS regions and profiles"
+  >
+    **Setting the region**
+    To configure your region, use this [environment variable](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-envvars.html) to override the default region:
+
+    ```
+    export AWS_DEFAULT_REGION=<var>MY_REGION</var> # us-west-2, for example
+    ```
+
+    The CLI tool also allows passing this per-command using `--aws-region`.
+
+    **Setting profiles**
+
+    If you have multiple AWS profiles and don't want to use the default, use `AWS_PROFILE` [environment variable](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-envvars.html) to set another profile name. Ensure the profile is properly configured (including the default region). Example:
+
+    ```
+    export AWS_PROFILE=<var>MY_PROFILE</var>
+    ```
+  </Collapser>
+</CollapserGroup>
+
+```
+newrelic-lambda integrations install --nr-account-id <var><a href="/docs/accounts/accounts-billing/account-setup/account-id">YOUR_NR_ACCOUNT_ID</a></var> \
+    --nr-api-key <var><a href="https://docs.newrelic.com/docs/apis/get-started/intro-apis/types-new-relic-api-keys#user-api-key">YOUR_NEW_RELIC_USER_KEY</a></var>
+```
+
+The `newrelic-lambda` CLI adds your New Relic license key as a secret in [AWS Secret Manager](https://aws.amazon.com/secrets-manager/) for greater security.
+
+<Callout variant="tip">
+  **Storing the New Relic license key in the AWS Secrets Manager**
+
+  Your [New Relic license key](/docs/accounts/accounts-billing/account-setup/new-relic-license-key) identifies and authenticates you to New Relic, allowing us to associate your telemetry with your New Relic account. Each function that sends telemetry needs access to this value, and it needs to be managed securely. The AWS Secrets Manager solves these problems.
+
+  If your organization prevents you from using AWS Secrets Manager or if you need to store more than one secret per region, see below for an alternative method to set your license key.
+</Callout>
+
+## Alternative method [#alt]
+
+<CollapserGroup>
+  <Collapser
+    id="manual-linking"
+    title="Linking accounts manually"
+  >
+
+    ### The infrastructure monitoring UI
+
+    The CLI is the least complicated way to link your accounts. Current CLI behavior limits the setup of one managed secret per region. If you need more control or need to integrate more than one New Relic account per region, you can go through
+    the [linking process](/docs/integrations/amazon-integrations/get-started/connect-aws-new-relic-infrastructure-monitoring)
+    manually. Be sure to enable Lambda when selecting services to be monitored.
+
+    Don't forget to configure the license key secret manually, as described next.
+
+    ### Manually configure the license key secret
+
+    In addition to linking your accounts, you need to configure the license key secret.
+
+    1. Download this CloudFormation Template: [license-key-secret.yaml](https://github.com/newrelic/newrelic-lambda-cli/blob/master/newrelic_lambda_cli/templates/license-key-secret.yaml)
+    2. Using the AWS CLI, or the AWS CloudFormation Console, install the template, supplying the `LicenseKey` parameter.
+    You can find your New Relic license key [here](https://one.newrelic.com/launcher/api-keys-ui.api-keys-launcher). It
+    will be labeled "INGEST - LICENSE". Be sure to use the license key for the account you configured with the Infrastructure UI above.
+
+    AWS CLI example:
+
+    Be sure to replace `YOUR_LICENSE_KEY` and `YOUR_ACCOUNT_ID` with the license key and account ID you found above.
+
+    ```
+      aws cloudformation create-stack --stack-name NewRelicLicenseKeySecret 
+        --template-body file://license-key-secret.yaml 
+        --parameters 'ParameterKey=LicenseKey,ParameterValue=YOUR_LICENSE_KEY' 
+        'ParameterKey=NrAccountId,ParameterValue=YOUR_ACCOUNT_ID'
+    ```
+  
+    See also our [legacy docs on how to manually instrument your account](/docs/serverless-function-monitoring/aws-lambda-monitoring/enable-lambda-monitoring/enable-serverless-monitoring-aws-lambda-legacy/). 
+
+  </Collapser>
+
+  <Collapser
+    id="env-var"
+    title="Lambda environment variables"
+  >
+    
+    For reference, these are the available environment variables for configuring and controlling the module behavior. 
+
+    **Required**:
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "350px" }}>
+            Environment variable
+          </th>
+
+          <th>
+            Description
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+
+        <tr>
+          <td>
+            `NEW_RELIC_ACCOUNT_ID`
+          </td>
+
+          <td>
+            Required for distributed tracing.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `NEW_RELIC_LAMBDA_HANDLER`
+          </td>
+
+          <td>
+            Required for Node, Python, and Java. 
+          </td>
+        </tr>
+        
+        <tr>
+          <td>
+            `NEW_RELIC_TRUSTED_ACCOUNT_KEY`
+          </td>
+
+          <td>
+            Required for distributed tracing. This is your account's ID. If your account is a child account, this is the account ID for the root/parent account.
+          </td>
+        </tr>
+
+      </tbody>
+    </table>
+
+    **Optional**:
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "350px" }}>
+            Environment variable
+          </th>
+
+          <th>
+            Description
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+
+        <tr>
+          <td>
+            `NEW_RELIC_DISTRIBUTED_TRACING_ENABLED`
+          </td>
+
+          <td>
+            Used in [legacy set-ups](/docs/serverless-function-monitoring/aws-lambda-monitoring/enable-lambda-monitoring/enable-serverless-monitoring-aws-lambda-legacy/). `TRUE` by default for most agents.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `NEW_RELIC_EXTENSION_LOG_LEVEL`
+          </td>
+
+          <td>
+            Set to `DEBUG` to enable debug logging.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `NEW_RELIC_EXTENSION_SEND_FUNCTION_LOGS`
+          </td>
+
+          <td>
+            `FALSE` by default. Set to `TRUE`to send function logs to New Relic directly, bypassing CloudWatch and the `newrelic-log-ingestion` Lambda.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `NEW_RELIC_LAMBDA_EXTENSION_ENABLED`
+          </td>
+
+          <td>
+            Set to FALSE to disable the extension, and use the CloudWatch telemetry path.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `NEW_RELIC_LICENSE_KEY` / `NEW_RELIC_LICENSE_KEY_SECRET`
+          </td>
+
+          <td>
+            The license key is associated to your New Relic account, while the secret is the name of the AWS Managed Secret containing the license key. If `NEW_RELIC_LICENSE_KEY` is not set, we look for the key in `NEW_RELIC_LICENSE_KEY_SECRET`. To ensure the contents of the keys are formatted correctly, we recommend to use the [CLI](#rec) to enable lambda monitoring.
+            
+            Learn more about the [license key](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key).
+          </td>
+        </tr>
+
+      </tbody>
+    </table>
+
+  </Collapser>
+</CollapserGroup>
+
+## Troubleshooting [#troubleshooting]
+
+### Cannot use AWS secrets manager [#cannot-use-secrets]
+
+If your organization does not allow the use of AWS Secrets Manager, the New Relic Lambda Extension will accept a `NEW_RELIC_LICENSE_KEY` environment variable. Add the `--disable-license-key-secret` flag from the `newrelic-lambda integrations install` command. Then set this environment variable to your [New Relic license key](/docs/accounts/accounts-billing/account-setup/new-relic-license-key) in your Lambda function configuration.
+
+### Multiple AWS regions and accounts [#multiple-regions-accounts]
+
+The `newrelic-lambda` CLI should be run once per region, with the `--aws-region` parameter. Use the same linked account name, and the tool will detect that the account link has been created already. The license key secret needs to be created in each region.
+
+Similarly, several AWS accounts can be linked to a New Relic account. Give each account a different linked account name. The `--aws-profile` argument to the CLI tool will select the named profile. The tool uses the same configuration as the AWS CLI.
+
+### Failure to retrieve license key `AccessDeniedException` [#fail-retrieve-license]
+
+Your lambda code requires the execution role which has permission to read AWS Secrets Manager. If you find a log like the following, add the appropriate permission to the policy of the execution role. In our examples, check out the `template.yaml` file to see an easy way to grant this permission.
+
+```
+Failed to retrieve license key AccessDeniedException: User: <ARN> is not authorized to perform: secretsmanager:GetSecretValue on resource: <ARN>
+```

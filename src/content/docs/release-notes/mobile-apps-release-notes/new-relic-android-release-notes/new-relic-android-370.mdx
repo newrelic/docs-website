@@ -1,0 +1,14 @@
+---
+subject: Mobile app for Android
+releaseDate: '2021-04-15'
+version: 3.7.0
+downloadLink: 'https://play.google.com/store/apps/details?id=com.newrelic.rpm'
+---
+
+### Notes
+
+* APM now includes databases.
+
+### Fixes
+
+* Fixes faceted NRQL bug for table views in dashboards.

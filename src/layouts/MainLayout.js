@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
 import {
-  CookieConsentDialog,
   GlobalHeader,
   Layout,
   Link,
@@ -10,7 +9,7 @@ import {
   useLayout,
 } from '@newrelic/gatsby-theme-newrelic';
 import { graphql } from 'gatsby';
-import { css } from '@emotion/core';
+import { css } from '@emotion/react';
 import SEO from '../components/SEO';
 import RootNavigation from '../components/RootNavigation';
 import SubNavigation from '../components/SubNavigation';
@@ -56,7 +55,17 @@ const MainLayout = ({ data = {}, children, pageContext }) => {
         )}
       </MobileHeader>
       <Layout>
-        <Layout.Sidebar>
+        <Layout.Sidebar
+          css={css`
+            background: var(--primary-background-color);
+            hr {
+              border-color: var(--color-neutrals-300);
+              .dark-mode & {
+                border-color: var(--color-dark-500);
+              }
+            }
+          `}
+        >
           <Link
             to="/"
             css={css`
@@ -95,7 +104,6 @@ const MainLayout = ({ data = {}, children, pageContext }) => {
         </Layout.Main>
         <Layout.Footer fileRelativePath={pageContext.fileRelativePath} />
       </Layout>
-      <CookieConsentDialog />
     </>
   );
 };
@@ -126,6 +134,9 @@ export const query = graphql`
               ...MainLayout_navPages
               pages {
                 ...MainLayout_navPages
+                pages {
+                  ...MainLayout_navPages
+                }
               }
             }
           }

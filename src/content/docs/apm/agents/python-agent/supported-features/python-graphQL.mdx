@@ -1,0 +1,310 @@
+---
+title: Python and GraphQL
+tags:
+  - Agents
+  - Python agent
+redirects:
+  - /docs/agents/python-agent/supported-features/python-graphQL
+---
+
+## Transactions
+
+Transactions are captured as web transactions which are named based on the GraphQL operations executed. The following details are used to group unique query representations: operation type, operation name, and the deepest unique path.
+
+The raw representation of a transaction looks like the following: `{operation_type}/{operation_name}/{deepest_unique_path}`
+
+Using this query example:
+
+```
+query {
+  libraries {
+    books {
+      title
+      author {
+        name
+      }
+    }
+  }
+}
+```
+
+The transaction on New Relic One will ultimately display similar to this: `query/<anonymous>/libraries.books`
+
+### Details
+
+#### Operation type
+
+Indicates if the operation was a query or a mutation.
+
+#### Operation name
+
+The operation name when provided, or `<anonymous>`.
+
+`query { libraries }` would have a blank operation name because a name was not provided.
+
+A query with a name such as `query GetLibraries { libraries }` would use the operation name `'GetLibraries'`.
+
+#### Deepest unique path
+
+The deepest path included in the selection set of a query where only one field was selected at each level. Since operation names may be reused, this helps further determine uniqueness of a given operation.
+
+We use the deepest unique path (instead of deepest path like prior) to avoid making arbitrary decisions in naming, which may imply or hide details of what could cause slowness for an application.
+
+For the query:
+
+```
+query {
+  libraries {
+    branch
+    booksInStock {
+      isbn,
+      title,
+      author
+    }
+    magazinesInStock {
+      issue,
+      title
+    }
+  }
+}
+```
+
+We will select a deepest unique path of 'libraries' as we select multiple fields beyond that point. Any resolver executed beyond that point may contribute to the performance characteristics of the transaction.
+
+If the query were to only select one field per resolver, we select the full path as each selection set is unique.
+
+The query:
+
+```
+query {
+  libraries {
+    booksInStock {
+      title
+    }
+  }
+}
+```
+
+Will result in the deepest unique path: `'libraries.booksInStock.title'`.
+
+`id` and `__typename` fields are automatically excluded from the naming decision.
+
+For example, a sub graph query:
+
+```
+query {
+  libraries {
+    branch
+    __typename
+    id
+  }
+}
+```
+
+Would result in the deepest unique path of: `libraries.branch`.
+
+### Union types and inline fragments
+
+For Union types which utilize Inline Fragments, the transaction name will use `< ... >` brackets to indicate the underlying selected field for the Union query if only one result is specified in the query.
+
+For the following schema:
+
+```
+union SearchResult = Book | Author
+
+type Book {
+  title: String!
+}
+
+type Author {
+  name: String!
+}
+
+type Query {
+  search(contains: String): [SearchResult!]
+}
+```
+
+and the following query:
+
+```
+query example {
+  search(contains: "author") {
+    __typename
+    ... on Author {
+      name
+    }
+  }
+}
+```
+
+Would result in the following transaction name:
+
+`query/example/search<Author>.name`
+
+However, if the query is returning both Book and Author:
+
+```
+query example {
+  search(contains: "author") {
+    __typename
+    ... on Author {
+      name
+    }
+    ... on Book {
+      title
+    }
+  }
+}
+```
+
+The resulting transaction name would be `query/example/search`
+
+### Naming on error
+
+Errors validating or parsing a GraphQL request can impact transaction naming.
+
+#### Exceptions
+
+If an error is encountered in either the middleware or the resolver, the transaction name will simply be the name of the middleware or resolver in which the failure occured.
+
+#### Validation errors
+
+If a requested operation was able to parse but not able to validate, the following will be generated as the transaction name:
+
+In GraphQL2: `graphql.validation.validation:validate`
+In GraphQL3: `graphql.validation.validate.validate`
+
+#### Parsing errors
+
+If a requested operation cannot be parsed, the following will be generated as the transaction name:
+
+`graphql.language.parser:parse`
+
+## Metrics
+
+The Python agent reports GraphQL field resolver and operation metrics to allow you to understand and analyze long term trends.
+
+### Operation metrics
+
+Operation metrics are reported using the following format:
+`GraphQL/operation/GraphQL/{operation_type}/{operation_name}/{deepest_unique_path}`
+
+Operation Type: Specifies the type of operation to be executed. This will either be `query`, `mutation`, or `<unknown>` if the operation type cannot be determined.
+
+Operation Name: The name of the operation if provided or `<anonymous>`.
+
+[Deepest Unique Path](#deepest-unique-path): The deepest path included in the selection set of a query where only one field is selected at each level. This helps further determine uniqueness of a given operation since operation names can be reused.
+
+### Field resolver metrics
+
+Field resolver metrics are reported using the following format:
+`GraphQL/resolve/GraphQL/{field_name}`
+
+Resolver metrics capture the duration spent resolving a particular piece of requested GraphQL data. These can be used to find specific resolvers that may contribute to slowing down incoming queries.
+
+## Spans and attributes
+
+Spans are captured for GraphQL operations, field resolutions, and additional work that occurs as part of a field resolution such as making a query to a database.
+
+Operation spans include the operation type, operation name, and deepest unique path. These represent the individual duration and attributes of a specific invocation within a transaction or trace.
+
+`GraphQL/operation/GraphQL/{operation_type}/{operation_name}/{deepest_unique_path}`
+
+**Operation span attributes**
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        **Name**
+      </th>
+      <th>
+        **Description**
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `graphql.operation.type`
+      </td>
+      <td>
+        Query or mutation
+      </td>
+    </tr>
+    <tr>
+      <td>
+        `graphql.operation.name`
+      </td>
+      <td>
+        Name given to the operation or `< anonymous >`
+      </td>
+    </tr>
+    <tr>
+      <td>
+        `graphql.operation.query`
+      </td>
+      <td>
+        Name given to the query or `< anonymous >`
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+### Field resolver spans
+
+Resolver spans leverage the resolution path of the individual field to best differentiate within a given trace or transaction. For example, `libraries.books` might be used instead of just books. These represent the individual duration and attributes of a specific field being resolved as a part of the GraphQL operation.
+
+`GraphQL/resolve/GraphQL/{path}`
+
+**Resolver span attributes**
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        **Name**
+      </th>
+      <th>
+        **Description**
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `graphql.field.name`
+      </td>
+      <td>
+        Name of the resolved field
+      </td>
+    </tr>
+    <tr>
+      <td>
+        `graphql.field.returnType`
+      </td>
+      <td>
+        Return type of the resolved field (for example, `Book!`, `[String]`)
+      </td>
+    </tr>
+    <tr>
+      <td>
+        `graphql.field.parentType`
+      </td>
+      <td>
+        Type of the parent of this field (for example, `[Book]`)
+      </td>
+    </tr>
+    <tr>
+      <td>
+        `graphql.field.path`
+      </td>
+      <td>
+        Full resolver path of the field (for example, `libraries.books`)
+      </td>
+    </tr>
+  </tbody>
+</table>

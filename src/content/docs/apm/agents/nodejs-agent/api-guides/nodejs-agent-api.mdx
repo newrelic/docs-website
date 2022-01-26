@@ -1,0 +1,1090 @@
+---
+title: Node.js agent API
+tags:
+  - Agents
+  - Nodejs agent
+  - API guides
+metaDescription: 'How to use the Node.js API to name, rename, and ignore requests, and to read router names with New Relic''s Node.js agent.'
+redirects:
+  - /docs/agents/nodejs-agent/api-guides/nodejs-agent-api
+  - /docs/nodejs/nodejs-transaction-naming-api
+  - /docs/nodejs/nodejs-agent-api
+  - /docs/agents/nodejs-agent/supported-features/nodejs-agent-api
+---
+
+New Relic offers several tools to help obtain the information needed to provide useful metrics about your Node.js application. These include:
+
+* Reading the route names (if used) from the Express and Restify routers
+* Using the API to name the current request, either with simple names or groups of controllers with actions
+* Support rules that are stored in your agent's configuration that can mark requests to be renamed or ignored based on regular expressions matched against the request's raw URLs (also available as API calls)
+
+The number of names that New Relic tracks needs to be small enough so that the user experience is robust. It also needs to be large enough to provide the right amount of information (without overwhelming you with data) so that you can identify problem spots in your applications more easily.
+
+For more information, see the [Node.js agent configuration](/docs/agents/nodejs-agent/installation-configuration/nodejs-agent-configuration) documentation and the [Node.js agent API documentation on Github](https://newrelic.github.io/node-newrelic/docs).
+
+## Request names
+
+The Node.js agent captures the HTTP method along with a potentially parameterized path (such as `/user/:id`) or a regular expression (such as `/^/user/([-0-9a-f]+)$/`). These pieces of information become part of the request name.
+
+If you have support for slow transaction traces and have enabled [`capture_params`](/docs/agents/nodejs-agent/installation-configuration/nodejs-agent-configuration#params) in your config file, the transaction trace will also have the request's parameters and their values attached to it. If you are dissatisfied with the request names that the Node.js agent uses, you can use API calls to create more descriptive names.
+
+<Callout variant="tip">
+  If grouping your requests under the generic name, then `/*` is sufficient, and you do not need to customize your configuration file or API calls.
+</Callout>
+
+## Requirements
+
+New Relic uses request names to group requests for many charts and tables. The value of these visualizations will drop as the number of different request names increases.
+
+For example, do not include potentially dynamic data like GUIDs, numerical IDs, or timestamps in the request names you create. If your request is slow enough to generate a transaction trace, that trace will contain the original URL. If you enable parameter capture, the parameters will also be attached to the trace.
+
+<Callout variant="tip">
+  Avoid having more than 50 different transaction names. For example, if you have more than a couple hundred different request names, rethink your naming strategy.
+</Callout>
+
+## Avoid metric grouping issues [#metric-grouping]
+
+The request naming API helps New Relic avoid problems with trying to handle too many metrics, which sometimes is referred to as "metric explosion." New Relic has several strategies to deal with these issues; the most severe is simply to add offending applications to your deny list.
+
+The main reason for you to be careful in using these request-naming tools is to prevent that from happening to your applications. For more information, see [Metric grouping issues](/docs/apm/other-features/metrics/metric-grouping-issues).
+
+## Guidelines [#rules]
+
+Define your configuration rules from the most specific to the most general. The first rules listed in your config file or added with the [Node.js transaction naming API](/docs/nodejs/nodejs-transaction-naming-api) will be applied first and should be narrowly targeted. More general "fall-through" rules should be added toward the end of the list, because they will be evaluated in the order they were configured or added using the Node.js transaction naming API.
+
+<Collapser
+  id="retailer-example"
+  title="URL pattern matching"
+>
+  An online retailer has a URL pattern like this:
+
+  ```
+  /user/customers/all/prospects
+  /user/customers/all/current
+  /user/customers/all/returning
+  /user/customers/John
+  /user/customers/Jane
+  ```
+
+  The retailer could create rules like this:
+
+  ```
+  // newrelic.js
+  exports.config={
+    //other configuration
+    rules:{
+      name:[
+        { pattern: "/user/customers/all/prospects/", name: "/user/customers/all/prospects" },
+        { pattern: "/user/customers/all/.*", name: "/user/customers/all" },
+        { pattern: "/user/customers/.*", name: "/user/customers/:customer" }
+      ]
+    }
+  }
+  ```
+
+  With these rules, the retailer would create three transaction names:
+
+  * `/user/customers/:customer`
+  * `/user/customers/all`
+  * `/user/customers/all/prospects`
+
+  If the retailer reversed the order, the rules would catch `all` transactions in `:customer`, which would not be as useful.
+</Collapser>
+
+## Load the request naming API [#loading]
+
+Make sure that loading the New Relic module is the first thing your application does, as it needs to bootstrap itself before the rest of your application loads:
+
+```
+var newrelic = require('newrelic');
+```
+
+This returns the request naming API. You can safely require the module from multiple modules in your application, as it only initializes itself once.
+
+## Request API calls [#request-api]
+
+Here is a summary of the Request API calls for New Relic's Node.js agent.
+
+<CollapserGroup>
+  <Collapser
+    id="transaction"
+    title={<InlineCode>newrelic.setTransactionName(name)</InlineCode>}
+  >
+    ```
+    newrelic.setTransactionName(name)
+    ```
+
+    Name the current request, following the [request naming requirements](#requirements). You can call this function anywhere within the context of an HTTP request handler, at any time after handling of the request has started, but before the request has finished. In general, if the request and response objects are in scope, you can set the name.
+
+    Explicitly calling `newrelic.setTransactionName()` will override any names set by Express or Restify routes. Also, calls to `newrelic.setTransactionName()` and `newrelic.setControllerName()` will overwrite each other. The last one to run before the request ends wins.
+  </Collapser>
+
+  <Collapser
+    id="controller"
+    title={<InlineCode>newrelic.setControllerName(name, [action])</InlineCode>}
+  >
+```    
+newrelic.setControllerName(name, [action])
+```
+
+    Name the current request using a controller-style pattern, optionally including the current controller action. If the action is omitted, New Relic will include the HTTP method (GET, POST, etc.) as the action. The rules for when you can call `newrelic.setControllerName()` are the same as they are for `newrelic.setTransactionName()`, including the [request naming requirements](#requirements).
+
+    Explicitly calling `newrelic.setControllerName()` will override any names set by Express or Restify routes. Also, calls to `newrelic.setTransactionName()` and `newrelic.setControllerName()` will overwrite each other. The last one to run before the request ends wins.
+  </Collapser>
+</CollapserGroup>
+
+## Custom instrumentation API calls [#custom-instrumentation-api]
+
+Use these API calls to [expand your instrumentation with custom instrumentation](/docs/agents/nodejs-agent/supported-features/nodejs-custom-instrumentation).
+
+<CollapserGroup>
+  <Collapser
+    id="instrument"
+    title={<InlineCode>newrelic.instrument(moduleName, onRequire [, onError])</InlineCode>}
+  >
+    ```
+    newrelic.instrument(moduleName, onRequire [, onError])
+    ```
+
+    Sets an instrumentation callback for a specific module.
+
+    The provided `onRequire` callback will be fired when the given module is loaded with `require`. The `moduleName` parameter should be the string that will be passed to `require`; for example, `'express'` or `'amqplib/callback_api'`. The optional `onError` callback is called if the `onRequire` parameters throws an error. This is useful for debugging your instrumentation.
+
+    Use this method to:
+
+    * Add instrumentation for modules not currently instrumented by New Relic.
+    * Instrument your own code.
+    * Replace the Node.js agent's built-in instrumentation with your own.
+
+    For more information, see New Relic's [Node.js instrumentation tutorial on Github](https://newrelic.github.io/node-newrelic/docs/tutorial-Instrumentation-Basics.html).
+  </Collapser>
+
+  <Collapser
+    id="instrumentDatastore"
+    title={<InlineCode>newrelic.instrumentDatastore(moduleName, onRequire [, onError])</InlineCode>}
+  >
+    ```
+    newrelic.instrumentDatastore(moduleName, onRequire [, onError])
+    ```
+
+    Sets an instrumentation callback for a datastore module.
+
+    This method is just like [`newrelic.instrument()`](#instrument), except it provides a [datastore-specialized shim](https://newrelic.github.io/node-newrelic/docs/DatastoreShim.html). For more information, see New Relic's [Node.js datastore instrumentation tutorial on Github](https://newrelic.github.io/node-newrelic/docs/tutorial-Datastore-Simple.html).
+  </Collapser>
+
+  <Collapser
+    id="instrumentLoadedModule"
+    title={<InlineCode>newrelic.instrumentLoadedModule(moduleName, moduleInstance)</InlineCode>}
+  >
+    ```
+    newrelic.instrumentLoadedModule(moduleName, moduleInstance)
+    ```
+
+    The `instrumentLoadedModule` method allows you to add stock instrumentation to specific modules in situations where it's impossible to have `require('newrelic');` as the first line of your app's main module.
+
+    ```
+    // load the agent
+    const newrelic = require('newrelic')
+
+    // module loaded before newrelic 
+    const expressModule = require('express')
+
+    // instrument express _after_ the agent has been loaded
+    newrelic.instrumentLoadedModule(
+    'express', // the module's name, as a string
+    expressModule // the module instance
+    );
+    ```
+
+    <Callout variant="important">
+      This method cannot instrument any arbitrary module. Its purpose is to add modules that were missed because the agent was not loaded as the first thing in your program. The `instrumentLoadedModule` method can only instrument modules the agent would normally instrument. You can see a list of these modules in the agent's [lib/instrumentations module](https://github.com/newrelic/node-newrelic/blob/0113eb5f0e707dc662a17d262a841503bab88841/lib/instrumentations.js#L6#L6).
+    </Callout>
+  </Collapser>
+
+  <Collapser
+    id="instrumentMessages"
+    title={<InlineCode>newrelic.instrumentMessages(moduleName, onRequire \[, onError])</InlineCode>}
+  >
+    ```
+    newrelic.instrumentMessages(moduleName, onRequire [, onError])
+    ```
+
+    Sets an instrumentation callback for a message service client module.
+
+    This method is just like [`newrelic.instrument()`](#instrument), except it provides a [message-service-specialized shim](https://newrelic.github.io/node-newrelic/docs/MessageShim.html). For more information, see New Relic's [Node.js message service instrumentation tutorial on Github](https://newrelic.github.io/node-newrelic/docs/tutorial-Messaging-Simple.html).
+  </Collapser>
+
+  <Collapser
+    id="instrumentWebframework"
+    title={<InlineCode>newrelic.instrumentWebframework(moduleName, onRequire [, onError])</InlineCode>}
+  >
+    ```
+    newrelic.instrumentWebframework(moduleName, onRequire [, onError])
+    ```
+
+    Sets an instrumentation callback for a web framework module.
+
+    This method is just like [`newrelic.instrument()`](#instrument), except it provides a [web-framework-specialized shim](https://newrelic.github.io/node-newrelic/docs/WebFrameworkShim.html). For more information, see New Relic's [Node.js web framework instrumentation tutorial on Github](https://newrelic.github.io/node-newrelic/docs/tutorial-Webframework-Simple.html).
+  </Collapser>
+
+  <Collapser
+    id="startWebTransaction"
+    title={<InlineCode>newrelic.startWebTransaction(url, handle)</InlineCode>}
+  >
+    ```
+    newrelic.startWebTransaction(url, handle)
+    ```
+
+    Instrument the specified web transaction. Using this API call, you can instrument transactions that New Relic [does not automatically detect](/docs/agents/nodejs-agent/supported-features/nodejs-custom-instrumentation#web-txn).
+
+    * The `url` defines the transaction name and needs to be static. Do not include variable data such as user ID.
+    * The `handle` defines the function you want to instrument.
+
+    New Relic will capture any metrics that would be captured by auto-instrumentation, as well as manual instrumentation via [`startSegment()`](#startSegment).
+
+    You **must** handle custom transactions manually by calling `newrelic.getTransaction()` at the start of your transaction, and then call `transaction.end()` when you are finished. New Relic begins timing the transaction when `newrelic.startWebTransaction()` is called and ends the transaction when `transaction.end()` is called.
+
+    You can also return a promise to indicate the end of the transaction. Please note that if this promise rejects, it does not automatically hook into New Relic's error tracking. This needs to be done manually with [`noticeError()`](#noticeError).
+  </Collapser>
+
+  <Collapser
+    id="startBackgroundTransaction"
+    title={<InlineCode>newrelic.startBackgroundTransaction(name, [group], handle)</InlineCode>}
+  >
+    ```
+    newrelic.startBackgroundTransaction(name, [group], handle)
+    ```
+
+    Instrument the specified background transaction. Using this API call, you can expand New Relic's instrumentation to [capture data from background transactions](/docs/agents/nodejs-agent/supported-features/nodejs-custom-instrumentation#background-txn).
+
+    * The `name` defines the transaction name and needs to be static. Do not include variable data such as user ID.
+    * The `group` is optional, and it allows you to group similar jobs together via the [**transaction type** in the user interface](/docs/apm/applications-menu/monitoring/transactions-dashboard#txn-type-dropdown). Like `name`, the `group` needs to be static.
+    * The `handle` defines a function that includes the entire background job you want to instrument.
+
+    New Relic will capture any metrics that would be captured by auto-instrumentation, as well as manual instrumentation via [`startSegment()`](#startSegment).
+
+    You **must** handle custom transactions manually by calling `newrelic.getTransaction()` at the start of your transaction, and then call `transaction.end()` when you are finished. New Relic begins timing the transaction when `newrelic.startBackgroundTransaction()` is called and ends the transaction when `transaction.end()` is called.
+
+    You can also return a promise to indicate the end of the transaction. Please note that if this promise rejects, it does not automatically hook into New Relic’s error tracking. This needs to be done manually with [`noticeError()`](#noticeError).
+  </Collapser>
+
+  <Collapser
+    id="getTransaction"
+    title={<InlineCode>newrelic.getTransaction()</InlineCode>}
+  >
+    ```
+    newrelic.getTransaction()
+    ```
+
+    Returns a handle on the currently executing transaction. This handle can then be used to interact with a given transaction safely from any context. It is best used with `newrelic.startWebTransaction()` and `newrelic.startBackgroundTransaction()`.
+
+    [Please refer to the transaction handle section for more details.](#transaction-handle-methods)
+  </Collapser>
+
+  <Collapser
+    id="endTransaction"
+    title={<InlineCode>newrelic.endTransaction()</InlineCode>}
+  >
+    ```
+    newrelic.endTransaction()
+    ```
+
+    End the current [web](#createWebTransaction) or [background](#createBackgroundTransaction) custom transaction. This method requires being in the correct transaction context when called. This API call takes no arguments.
+  </Collapser>
+
+  <Collapser
+    id="startSegment"
+    title={<InlineCode>newrelic.startSegment(name, record, handler, callback)</InlineCode>}
+  >
+    ```
+    newrelic.startSegment(name, record, handler, callback)
+    ```
+
+    Instrument a particular method to [improve visibility into a transaction](/docs/agents/nodejs-agent/supported-features/nodejs-custom-instrumentation#expanding-instrumentation), or optionally turn it into a metric.
+
+    * The `name` defines a name for the segment. This name will be visible in transaction traces and as a new metric in the New Relic UI.
+    * The `record` flag defines whether the segment should be recorded as a metric.
+    * The `handler` is the function you want to track as a segment.
+    * The optional `callback` is a function passed to the handler to fire after its work is done.
+
+    The agent begins timing the segment when `startSegment` is called. The segment is ended when either the `handler` finishes executing, or `callback` is fired, if it is provided.
+  </Collapser>
+</CollapserGroup>
+
+## Custom metrics API calls [#custom-metric-api]
+
+Use these API calls to [record additional arbitrary metrics](/docs/agents/nodejs-agent/supported-features/nodejs-custom-metrics):
+
+<CollapserGroup>
+  <Collapser
+    id="record_metric"
+    title={<InlineCode>newrelic.recordMetric(name, value)</InlineCode>}
+  >
+    ```
+    newrelic.recordMetric(name, value)
+    ```
+
+    Use `recordMetric` to record an event-based metric, usually associated with a particular duration. The `name` must be a string following standard metric naming rules. The `value` will usually be a number, but it can also be an object.
+
+    * When `value` is a numeric value, it should represent the magnitude of a measurement associated with an event; for example, the duration for a particular method call.
+    * When `value` is an object, it must contain `count`, `total`, `min`, `max`, and `sumOfSquares` keys, all with number values. This form is useful to aggregate metrics on your own and report them periodically; for example, from a `setInterval`. These values will be aggregated with any previously collected values for the same metric. The names of these keys match the names of the keys used by the platform API.
+  </Collapser>
+
+  <Collapser
+    id="increment_metric"
+    title={<InlineCode>newrelic.incrementMetric(name, [amount])</InlineCode>}
+  >
+    ```
+    newrelic.incrementMetric(name, [amount])
+    ```
+
+    Use `incrementMetric` to update a metric that acts as a simple counter. The count of the selected metric will be incremented by the specified amount, defaulting to 1.
+  </Collapser>
+</CollapserGroup>
+
+## Custom events API calls [#custom-events-api]
+
+Use these API calls to record additional events:
+
+<CollapserGroup>
+  <Collapser
+    id="record_custom_event"
+    title={<InlineCode>newrelic.recordCustomEvent(eventType, attributes)</InlineCode>}
+  >
+    ```
+    newrelic.recordCustomEvent(eventType, attributes)
+    ```
+
+    Use `recordCustomEvent` to record an event-based metric, usually associated with a particular duration.
+
+    * The `eventType` must be an alphanumeric string less than 255 characters.
+    * The `attributes` must be an object of key and value pairs. The keys must be shorter than 255 characters, and the values must be string, number, or boolean.
+
+    <CollapserGroup>
+      <Collapser
+        id="example-link-bg-txn"
+        title="Recording a custom event"
+      >
+        The following example demonstrates recording a custom event with multiple attributes.
+
+        ```
+        const attributes = {
+          attribute1: 'value1',
+          attribute2: 2
+        }
+
+        newrelic.recordCustomEvent('MessagingEvent', attributes)
+        ```
+      </Collapser>
+    </CollapserGroup>
+  </Collapser>
+</CollapserGroup>
+
+## Transaction handle methods
+
+This section details the methods provided by the `TransactionHandle` class instance that can be obtained through `newrelic.getTransaction()`.
+
+Use these methods to interact directly with the current transaction:
+
+<CollapserGroup>
+  <Collapser
+    id="transaction-handle-end"
+    title={<InlineCode>transactionHandle.end([callback])</InlineCode>}
+  >
+    ```
+    transactionHandle.end([callback])
+    ```
+
+    Use `transactionHandle.end` to end the transaction referenced by the handle instance.
+
+    The `callback` is invoked when the transaction has fully ended. The finished transaction passed to the callback as the first argument.
+  </Collapser>
+
+  <Collapser
+    id="transaction-handle-ignore"
+    title={<InlineCode>transactionHandle.ignore()</InlineCode>}
+  >
+    ```
+    transactionHandle.ignore()
+    ```
+
+    Use `transactionHandle.ignore` to ignore the transaction referenced by the handle instance.
+  </Collapser>
+
+  <Collapser
+    id="transaction-handle-insertDistributedTraceHeaders"
+    title={<InlineCode>transactionHandle.insertDistributedTraceHeaders(headers)</InlineCode>}
+  >
+    ```
+    transactionHandle.insertDistributedTraceHeaders(headers)
+    ```
+
+    <Callout variant="important">
+      This API requires [distributed tracing to be enabled](/docs/enable-distributed-tracing).
+    </Callout>
+
+    For context on how to use this call and its partner call `acceptDistributedTraceHeaders`, first read [Enable distributed tracing with agent APIs](/docs/enable-distributed-tracing#agent-apis).
+
+    `transactionHandle.insertDistributedTraceHeaders` is used to implement distributed tracing. It modifies the `headers` map that is passed in by adding W3C Trace Context headers and New Relic Distributed Trace headers. The New Relic headers can be disabled with `distributed_tracing.exclude_newrelic_header: true` in the config. This method replaces the deprecated [`createDistributedTracePayload`](#transaction-handle-createDistributedTracePayload) method, which only creates New Relic Distributed Trace payloads.
+
+    <CollapserGroup>
+      <Collapser
+        id="example-link-bg-txn"
+        title="Generating distributed trace headers"
+      >
+        In the following example, by calling insertDistributedTraceHeaders with an empty object, the appropriate Distributed Trace headers and W3C Trace Context headers will be generated for the transaction.
+
+        ```
+        // Call newrelic.getTransaction to retrieve a handle on the current transaction.
+        const transactionHandle = newrelic.getTransaction()
+
+        // This could be a header object from an incoming request as well
+        const headersObject = {}
+        newrelic.startBackgroundTransaction('background task', function executeTransaction() {
+          const transaction = newrelic.getTransaction()
+          // generate the headers
+          transaction.insertDistributedTraceHeaders(headersObject)
+        })
+        ```
+      </Collapser>
+    </CollapserGroup>
+  </Collapser>
+
+  <Collapser
+    id="transaction-handle-acceptDistributedTraceHeaders"
+    title={<InlineCode>transactionHandle.acceptDistributedTraceHeaders(transportType, headers)</InlineCode>}
+  >
+    ```
+    transactionHandle.acceptDistributedTraceHeaders(transportType, headers)
+    ```
+
+    <Callout variant="important">
+      This API requires [distributed tracing to be enabled](/docs/enable-distributed-tracing).
+    </Callout>
+
+    For context on how to use this call and its partner call `insertDistributedTraceHeaders`, first read [Enable distributed tracing with agent APIs](/docs/enable-distributed-tracing#agent-apis).
+
+    `transactionHandle.acceptDistributedTraceHeaders` is used to instrument the called service for inclusion in a distributed trace. It links the spans in a trace by accepting a payload generated by [`insertDistributedTraceHeaders`](#transaction-handle-insertDistributedTraceHeaders) or generated by some other W3C Trace Context compliant tracer. This method accepts the headers of an incoming request, looks for W3C Trace Context headers, and if not found, falls back to New Relic distributed trace headers. This method replaces the deprecated (and now removed as of version 7.0.0) [`acceptDistributedTracePayload`](#transaction-handle-acceptDistributedTracePayload) method, which only handles New Relic distributed trace payloads.
+
+    `transportType` should be one of the following strings:
+
+    * AMQP
+    * HTTP
+    * HTTPS
+    * IronMQ
+    * JMS
+    * Kafka
+    * Other
+    * Queue
+    * Unknown
+
+    `headers` should be an object containing all the headers in the incoming request. The keys must be lowercase.
+
+    <CollapserGroup>
+      <Collapser
+        id="example-link-bg-txn"
+        title="Accept incoming distributed trace headers"
+      >
+        The following example demonstrates adding distributed trace headers retrieved from a Kafka message. In this example, we assume that the incoming Kafka message has Distributed Trace headers inserted.
+
+        ```
+        // incoming Kafka message headers
+        const headersObject = message.headers
+
+        // Call newrelic.getTransaction to retrieve a handle on the current transaction.
+        const transactionHandle = newrelic.getTransaction()
+
+        newrelic.startBackgroundTransaction('background task', function executeTransaction() {
+          const transaction = newrelic.getTransaction()
+
+          // accept the headers
+          transaction.acceptDistributedTraceHeaders('Kafka', headersObject)
+        })
+        ```
+      </Collapser>
+    </CollapserGroup>
+  </Collapser>
+
+  <Collapser
+    id="transaction-handle-createDistributedTracePayload"
+    title={<InlineCode>transactionHandle.createDistributedTracePayload()</InlineCode>}
+  >
+    ```
+    transactionHandle.createDistributedTracePayload()
+    ```
+
+    <Callout variant="caution">
+      This method is deprecated and was removed in version 7.0.0! Please use `insertDistributedTraceHeaders.`
+    </Callout>
+
+    <Callout variant="important">
+      This API requires [distributed tracing to be enabled](/docs/enable-distributed-tracing).
+    </Callout>
+
+    For instructions on how to use this call, along with its partner call [`acceptDistributedTracePayload`](#transaction-handle-acceptDistributedTracePayload), see [Enable distributed tracing with agent APIs](/docs/enable-distributed-tracing#agent-apis).
+
+    This call is used to implement distributed tracing. It generates a payload that is read by the receiving application with [`acceptDistributedTracePayload`](#transaction-handle-acceptDistributedTracePayload).
+
+    <Callout variant="important">
+      Note: In order to maintain proper ordering of spans in a trace, you must generate the payload in the context of the span that sends it.
+    </Callout>
+
+    The `DistributedTracePayload` object has two available methods used for generating the payload in different formats:
+
+    * `DistributedTracePayload#text`: returns a JSON representation of the payload.
+
+      <CollapserGroup>
+        <Collapser
+          id="example-link-bg-txn"
+          title="Link a nested background transaction"
+        >
+          ```
+          // Call newrelic.getTransaction to retrieve a handle on the current transaction.
+          var transactionHandle = newrelic.getTransaction()
+          var payload = transactionHandle.createDistributedTracePayload()
+          var jsonPayload = payload.text()
+          newrelic.startBackgroundTransaction('background task', function executeTransaction() {
+            var backgroundHandle = newrelic.getTransaction()
+            // Link the nested transaction by accepting the payload with the background transaction's handle
+            backgroundHandle.acceptDistributedTracePayload(jsonPayload)
+          })
+          ```
+        </Collapser>
+      </CollapserGroup>
+    * `DistributedTracePayload#httpSafe`: returns a base64 encoded JSON representation of the payload.
+
+      <CollapserGroup>
+        <Collapser
+          id="example-payload-outgoing-request"
+          title="Place payload on an outgoing request"
+        >
+          ```
+          // Call newrelic.getTransaction to retrieve a handle on the current transaction.
+          var transactionHandle = newrelic.getTransaction()
+          var payload = transactionHandle.createDistributedTracePayload()
+          // Place the base64 encoded value on an outbound request header.
+          req.headers[myTracingHeader] = payload.httpSafe()
+          ```
+        </Collapser>
+      </CollapserGroup>
+  </Collapser>
+
+  <Collapser
+    id="transaction-handle-acceptDistributedTracePayload"
+    title={<InlineCode>transactionHandle.acceptDistributedTracePayload(payload)</InlineCode>}
+  >
+    ```
+    transactionHandle.acceptDistributedTracePayload(payload)
+    ```
+
+    <Callout variant="caution">
+      This method is deprecated and was removed in version 7.0.0! Please use `acceptDistributedTraceHeaders.`
+    </Callout>
+
+    <Callout variant="important">
+      This API requires [distributed tracing to be enabled](/docs/enable-distributed-tracing).
+    </Callout>
+
+    For context on how to use this call and its partner call `createDistributedTracePayload`, first read [Enable distributed tracing with agent APIs](/docs/enable-distributed-tracing#agent-apis).
+
+    `transactionHandle.acceptDistributedTracePayload` is used to instrument the called service for inclusion in a distributed trace. It links the spans in a trace by accepting the payload generated by [`createDistributedTracePayload`](#transaction-handle-createDistributedTracePayload).
+  </Collapser>
+
+  <Collapser
+    id="transaction-handle-isSampled"
+    title={<InlineCode>transactionHandle.isSampled()</InlineCode>}
+  >
+    ```
+    transactionHandle.isSampled()
+    ```
+
+    Returns whether this trace is being sampled.
+  </Collapser>
+</CollapserGroup>
+
+## Other API calls [#other-api]
+
+New Relic's Node.js agent includes additional API calls.
+
+<CollapserGroup>
+  <Collapser
+    id="add-custom-attribute"
+    title={<InlineCode>newrelic.addCustomAttribute(name, value)</InlineCode>}
+  >
+    ```
+    newrelic.addCustomAttribute(name, value)
+    ```
+
+    Set a custom attribute value to be displayed along with the transaction trace in the New Relic UI. This must be called within the context of a transaction so it has a place to set the custom attributes. Custom attributes will appear in APM's transaction trace detail view and in errors for the transaction.
+
+    <CollapserGroup>
+      <Collapser
+        id="example-link-bg-txn"
+        title="Add custom attribute"
+      >
+        ```
+        newrelic.addCustomAttribute('attribute1', 'value1')
+        ```
+      </Collapser>
+    </CollapserGroup>
+
+    <Callout variant="caution">
+      If you want to use your custom attributes, avoid using any of the [reserved terms used by NRQL](/docs/insights/event-data-sources/custom-events/data-requirements-limits-custom-event-data/#reserved-words) when naming them.
+    </Callout>
+  </Collapser>
+
+  <Collapser
+    id="add-custom-attributes"
+    title={<InlineCode>newrelic.addCustomAttributes(attributes)</InlineCode>}
+  >
+    ```
+    newrelic.addCustomAttributes(attributes)
+    ```
+
+    Set multiple custom attribute values to be displayed along with the transaction trace in the New Relic UI. The attributes should be passed as a single object. This must be called within the context of a transaction so it has a place to set the custom attributes. Custom attributes will appear in the transaction trace detail view and in errors for the transaction.
+
+    <CollapserGroup>
+      <Collapser
+        id="example-link-bg-txn"
+        title="Adding custom attributes"
+      >
+        ```
+        const attributes = {
+          attribute1: 'value1',
+          attribute2: 2
+        }
+
+        newrelic.addCustomAttributes(attributes)
+        ```
+      </Collapser>
+    </CollapserGroup>
+
+    <Callout variant="caution">
+      If you want to use your custom attributes, avoid using any of the [reserved terms used by NRQL](/docs/insights/event-data-sources/custom-events/data-requirements-limits-custom-event-data/#reserved-words) when naming them.
+    </Callout>
+  </Collapser>
+
+  <Collapser title={<InlineCode>newrelic.addCustomSpanAttribute(name, value)</InlineCode>}>
+    ```
+    newrelic.addCustomSpanAttribute(name, value)
+    ```
+
+    Set a custom span attribute value to be displayed along with a transaction trace span in the New Relic UI. This must be called within the context of an active segment/span so it has a place to set the custom span attributes. Custom span attributes will appear in the Attributes section of the span detail view.
+
+    <CollapserGroup>
+      <Collapser
+        id="example-link-bg-txn"
+        title="Add custom span attribute"
+      >
+        ```
+        newrelic.addCustomSpanAttribute('attribute1', 'value')
+        ```
+      </Collapser>
+    </CollapserGroup>
+
+    <Callout variant="important">
+      This API requires [distributed tracing](/docs/enable-distributed-tracing) and [span events](/docs/agents/nodejs-agent/installation-configuration/nodejs-agent-configuration#span-events) to be enabled.
+    </Callout>
+
+    <Callout variant="caution">
+      If you want to use your custom span attributes, avoid using any of the [reserved terms used by NRQL](/docs/insights/event-data-sources/custom-events/data-requirements-limits-custom-event-data/#reserved-words) when naming them.
+    </Callout>
+  </Collapser>
+
+  <Collapser title={<InlineCode>newrelic.addCustomSpanAttributes(attributes)</InlineCode>}>
+    ```
+    newrelic.addCustomSpanAttributes(attributes)
+    ```
+
+    Set multiple custom span attribute values to be displayed along with the transaction trace spans in the New Relic UI. The attributes should be passed as a single object. This must be called within the context of an active segment/span so it has a place to set the custom span attributes. Custom span attributes will appear in the Attributes section of the span detail view.
+
+    <CollapserGroup>
+      <Collapser
+        id="example-link-bg-txn"
+        title="Add custom span attributes"
+      >
+        ```
+        const attributes = {
+          attribute1: 'value1',
+          attribute2: 'value2'
+        }
+
+        newrelic.addCustomSpanAttributes(attributes)
+        ```
+      </Collapser>
+    </CollapserGroup>
+
+    <Callout variant="important">
+      This API requires [distributed tracing](/docs/enable-distributed-tracing) and [span events](/docs/agents/nodejs-agent/installation-configuration/nodejs-agent-configuration#span-events) to be enabled.
+    </Callout>
+
+    <Callout variant="caution">
+      If you want to use your custom span attributes, avoid using any of the [reserved terms used by NRQL](/docs/insights/event-data-sources/custom-events/data-requirements-limits-custom-event-data/#reserved-words) when naming them.
+    </Callout>
+  </Collapser>
+
+  <Collapser
+    id="browserTimingHeader"
+    title={<InlineCode>newrelic.getBrowserTimingHeader()</InlineCode>}
+  >
+    ```
+    newrelic.getBrowserTimingHeader()
+    ```
+
+    Returns the HTML snippet to be inserted into the header of HTML pages to enable [browser monitoring](/docs/agents/nodejs-agent/supported-features/page-load-timing-nodejs). The HTML will instruct the browser to fetch a small JavaScript file and start the page timer.
+  </Collapser>
+
+  <Collapser
+    id="ignore"
+    title={<InlineCode>newrelic.setIgnoreTransaction(ignored)</InlineCode>}
+  >
+    ```
+    newrelic.setIgnoreTransaction(ignored)
+    ```
+
+    Tell the module whether or not to ignore a given request. This allows you to explicitly filter long-polling, irrelevant routes or requests you know will be time-consuming. This also allows you to gather metrics for requests that otherwise would be ignored.
+
+    * To ignore the transaction, set the parameter to `true` will ignore the transaction.
+    * To prevent a transaction from being ignored with this function, pass the parameter `false`.
+    * Passing `null` or `undefined` will not change whether the transaction is ignored.
+
+    <Callout variant="caution">
+      This method is deprecated and was removed in version 7.0.0. Please use [transactionHandle.ignore()](#transaction-handle-ignore)
+    </Callout>
+  </Collapser>
+
+  <Collapser
+    id="noticeError"
+    title={<InlineCode>newrelic.noticeError(error, [customParameters])</InlineCode>}
+  >
+    ```
+    newrelic.noticeError(error, [customParameters])
+    ```
+
+    Use this call if your app is doing its own error handling with domains or try/catch clauses, but you want all of the information about how many errors are coming out of the app to be centrally managed. Unlike other Node.js calls, this can be used outside of route handlers, but it will have additional context if called from within transaction scope.
+
+    <Callout variant="caution">
+      Errors recorded using this method do not obey the [ignore_status_codes](/docs/agents/nodejs-agent/installation-configuration/nodejs-agent-configuration#error_ignore) configuration value.
+    </Callout>
+  </Collapser>
+
+  <Collapser
+    id="shutdown"
+    title={<InlineCode>newrelic.shutdown([options], callback)</InlineCode>}
+  >
+    ```
+    newrelic.shutdown([options], callback)
+    ```
+
+    Use this method to gracefully shut down the agent.
+
+    <table>
+      <tr>
+        <th style={{ width: "180px" }}>Option name</th>
+        <th style={{ width: "100px" }}>Type</th>
+        <th style={{ width: "100px" }}>Attributes</th>
+        <th style={{ width: "50px" }}>Default</th>
+        <th style={{ width: "200px" }}>Description</th>
+      </tr>
+      <tr>
+        <td>`collectPendingData`</td>
+        <td>`boolean`</td>
+        <td>Optional</td>
+        <td>`false`</td>
+        <td>Tell the agent whether to send any pending data to the New Relic collector before shutting down.</td>
+      </tr>
+      <tr>
+        <td>`timeout`</td>
+        <td>`number`</td>
+        <td>Optional</td>
+        <td>`0`</td>
+        <td>The default time before forcing a shutdown. When `collectPendingData` is true, the agent will wait for a connection before shutting down. This timeout is useful for short lived processes, like AWS Lambda, in order to keep the process from staying open too long, while trying to connect.</td>
+      </tr>
+      <tr>
+        <td>`waitForIdle`</td>
+        <td>`boolean`</td>
+        <td>Optional</td>
+        <td>`false`</td>
+        <td>If true, the agent will not shut down until there are no active transactions.</td>
+      </tr>
+    </table>
+    
+    **Example:**
+
+    ```
+    newrelic.shutdown({collectPendingData: true, timeout: 10000}, (error) => {
+        process.exit()
+      })
+    ```
+  </Collapser>
+
+  <Collapser
+    id="getLinkingMetadata"
+    title={<InlineCode>newrelic.getLinkingMetadata()</InlineCode>}
+  >
+    ```
+    newrelic.getLinkingMetadata()
+    ```
+
+    Returns key/value pairs which can be used to link traces or entities.
+
+    It will only contain items with meaningful values. For instance, if distributed tracing is disabled, `trace.id` will not be included.
+  </Collapser>
+
+  <Collapser
+    id="getTraceMetadata"
+    title={<InlineCode>newrelic.getTraceMetadata()</InlineCode>}
+  >
+    ```
+    newrelic.getTraceMetadata()
+    ```
+
+    Returns and object containing the current trace ID and span ID.
+
+    <Callout variant="important">
+      This API requires [distributed tracing to be enabled](/docs/enable-distributed-tracing) or an empty object will be returned.
+    </Callout>
+  </Collapser>
+</CollapserGroup>
+
+## Rules for naming and ignoring requests [#ignoring]
+
+If you do not want to put calls to the New Relic module directly into your application code, you can use pattern-based rules to name requests. There are two sets of rules: one for renaming requests, and one to mark requests to be ignored by New Relic's instrumentation.
+
+Here is the structure for rules in New Relic's Node.js agent.
+
+<CollapserGroup>
+  <Collapser
+    id="rules-name"
+    title={<InlineCode>rules.name</InlineCode>}
+  >
+
+    A list of rules of the format `{pattern : "pattern", name : "name"}` for matching incoming request URLs to `pattern` and naming the matching New Relic transaction's `name`. This acts as a regex replace, where you can set the pattern either as a string, or as a JavaScript regular expression literal, and both pattern and name are required.
+
+    When passing a regex as a string, escape backslashes, as the agent does not keep them when given as a string in a pattern. Define your configuration rules from the most specific to the most general, as the patterns will be evaluated in order and are terminal in nature. For more information, see the [naming guidelines](/docs/agents/nodejs-agent/installation-configuration/configuring-nodejs#rules).
+
+    This can also be set with the environment variable `NEW_RELIC_NAMING_RULES`, with multiple rules passed in as a list of comma-delimited JSON object literals:
+
+    ```
+    NEW_RELIC_NAMING_RULES='{"pattern":"^t","name":"u"},{"pattern":"^u","name":"t"}'
+    ```
+
+    ### Optional rules attributes
+
+    Additional optional attributes are available:
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            **Optional rules attributes**
+          </th>
+
+          <th>
+            **Description**
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `terminate_chain`
+          </td>
+
+          <td>
+            Default: `true`
+
+            When set to `true` (default), no further rules will be evaluated if this rule is a match. Setting this to false is useful when multiple rules should be used together. For example, one rule could be replacing a common pattern in many different URLs, while subsequent rule(s) would be more specific.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `replace_all`
+          </td>
+
+          <td>
+            Default: `false`
+
+            When set to `true`, all matches of the pattern will be replaced. Otherwise, only the first match will be replaced. Using the `g` flag with regular expression literal will have the same effect. For example:
+
+            ```
+            pattern: '[0-9]+',
+            replace_all: true
+            ```
+
+            This has the same effect as `pattern: /[0-9]+/g`.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `precedence`
+          </td>
+
+          <td>
+            By default the rules are evaluated in order, from first to last. If you prefer to have complete control over the order, you can give each rule a `precedence` attribute. The precedence is an integer number, and rules are evaluated in ascending order. If `precedence` is not explicitly defined, it will be set to 500 by default.
+
+            Additional attributes are ignored.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    ### Testing your naming rules
+
+    The Node.js agent comes with a command-line tool for testing naming rules. For more information, run the following command in terminal window in a directory where your app is installed:
+
+    ```
+    node node_modules/.bin/newrelic-naming-rules
+    ```
+
+    ### Naming rule examples [#examples-rules]
+
+    Here are some examples of naming rules and the results.
+
+    <CollapserGroup>
+      <Collapser
+        id="naming-full-url"
+        title="Match full URL"
+      >
+        ```
+        pattern: "^/items/[0-9]+$",
+        name: "/items/:id"
+        ```
+
+        will result in:
+
+        ```
+        /items/123  =>  /items/:id
+        /orders/123  =>  /orders/123   (not replaced since the rule is a full match)
+        ```
+      </Collapser>
+
+      <Collapser
+        id="first-match-url"
+        title="Replace first match in URL"
+      >
+        ```
+        pattern: "[0-9]+",
+        name: ":id"
+        ```
+
+        will result in:
+
+        ```
+        /orders/123  =>  /orders/:id
+        /items/123  =>  /items/:id
+        /orders/123/items/123  =>  /orders/:id/items/123
+        ```
+      </Collapser>
+
+      <Collapser
+        id="replace-urls"
+        title="Replace all matches in any URL"
+      >
+        ```
+        pattern: "[0-9]+",
+        name: ":id",
+        replace_all: true
+        ```
+
+        will result in:
+
+        ```
+        /orders/123/items/123  =>  /orders/:id/items/:id
+        ```
+      </Collapser>
+
+      <Collapser
+        id="regular-match-group"
+        title="Match group references"
+      >
+        Using regular expression match group references:
+
+        ```
+        pattern: '^/(items|orders)/[0-9]+$',
+        name: '/\\1/:id'
+        ```
+
+        will result in:
+
+        ```
+        /orders/123  =>  /orders/:id
+        /items/123  =>  /items/:id
+        ```
+      </Collapser>
+    </CollapserGroup>
+  </Collapser>
+
+  <Collapser
+    id="rules-ignore"
+    title={<InlineCode>rules.ignore</InlineCode>}
+  >
+    This can also be set via the environment variable `NEW_RELIC_IGNORING_RULES`, with multiple rules passed in as a list of comma-delimited patterns. Currently there is no way to escape commas in patterns.
+
+    ```
+    NEW_RELIC_IGNORING_RULES='^/socket\.io/\*/xhr-polling,ignore_me'
+    ```
+  </Collapser>
+</CollapserGroup>
+
+Here are full examples of how rules are included in the configuration file:
+
+<CollapserGroup>
+  <Collapser
+    id="example-naming-rule"
+    title="Naming rule example"
+  >
+    ```
+    // newrelic.js
+      exports.config = {
+        // other configuration
+        rules : {
+          name : [
+            { pattern: "/tables/name-here", name: "/name-hererule1" }
+          ]
+        }
+    ```
+  </Collapser>
+
+  <Collapser
+    id="example-ignoring-rule"
+    title="Ignoring rule example"
+  >
+    If you are using **socket.io**, you will have a use case for ignoring rules right out of the box. To keep socket.io long-polling from dominating your response-time metrics and affecting the Apdex metrics for your application, add a rule such as:
+
+    ```
+    // newrelic.js
+      exports.config = {
+        // other configuration
+        rules : {
+          ignore : [
+            '^\/socket\.io\/.*\/xhr-polling'
+          ]
+        }
+      };
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## API calls for rules [#api-calls-rules]
+
+Here are the API calls for naming and ignoring rules with New Relic's Node.js agent.
+
+<CollapserGroup>
+  <Collapser
+    id="addnamingrule"
+    title={<InlineCode>newrelic.addNamingRule(pattern, name)</InlineCode>}
+  >
+    Programmatic version of **rules.name**. Once naming rules are added, they cannot be removed until the Node process is restarted. They can also be added via the Node.js agent's configuration. Both parameters are required.
+  </Collapser>
+
+  <Collapser
+    id="addignoringrule"
+    title={<InlineCode>newrelic.addIgnoringRule(pattern)</InlineCode>}
+  >
+    Programmatic version of **rules.ignore**. Once ignoring rules are added, they cannot be removed until the Node process is restarted. They can also be added via the Node.js agent's configuration. This parameter is required.
+  </Collapser>
+</CollapserGroup>

@@ -1,13 +1,14 @@
 const fs = require('fs');
-const parse = require('rehype-parse');
 const path = require('path');
+const parse = require('rehype-parse');
 const unified = require('unified');
-const addAbsoluteImagePath = require('./rehype-plugins/utils/addAbsoluteImagePath');
 const rehypeStringify = require('rehype-stringify');
+const addAbsoluteImagePath = require('./rehype-plugins/utils/addAbsoluteImagePath');
 const getAgentName = require('./src/utils/getAgentName');
 
-const siteUrl = 'https://docs.newrelic.com';
 const dataDictionaryPath = `${__dirname}/src/data-dictionary`;
+const siteUrl = 'https://docs.newrelic.com';
+const additionalLocales = ['jp'];
 const quote = (str) => `"${str}"`;
 
 const autoLinkHeaders = {
@@ -21,7 +22,6 @@ const autoLinkHeaders = {
 module.exports = {
   flags: {
     DEV_SSR: true,
-    PRESERVE_WEBPACK_CACHE: true,
     PRESERVE_FILE_DOWNLOAD_CACHE: true,
   },
   siteMetadata: {
@@ -32,6 +32,8 @@ module.exports = {
     repository: 'https://github.com/newrelic/docs-website',
     siteUrl,
     branch: 'develop',
+    contributingUrl:
+      'https://docs.newrelic.com/docs/style-guide/writing-guidelines/create-edit-content/',
   },
   plugins: [
     'gatsby-plugin-react-helmet',
@@ -47,16 +49,16 @@ module.exports = {
     {
       resolve: '@newrelic/gatsby-theme-newrelic',
       options: {
-        forceTrailingSlashes: true,
+        oneTrustID: 'e66f9ef1-3a12-4043-b7c0-1a2ea66f6d41',
         layout: {
-          contentPadding: '2rem',
+          contentPadding: '1.5rem',
           maxWidth: '1600px',
           component: require.resolve('./src/layouts'),
           mobileBreakpoint: '760px',
         },
         i18n: {
           translationsPath: `${__dirname}/src/i18n/translations`,
-          additionalLocales: ['jp'],
+          additionalLocales,
         },
         prism: {
           languages: [
@@ -64,6 +66,7 @@ module.exports = {
             'xml-doc',
             'c',
             'go',
+            'handlebars',
             'java',
             'php',
             'phpdoc',
@@ -71,71 +74,30 @@ module.exports = {
             'python',
           ],
         },
-        relatedResources: {
-          swiftype: {
-            resultsPath: `${__dirname}/src/data/swiftype-resources.json`,
-            engineKey: 'Ad9HfGjDw4GRkcmJjUut',
-            refetch: Boolean(process.env.BUILD_RELATED_CONTENT),
-            filter: ({ node }) => {
-              if (node.internal.type !== 'Mdx') {
-                return false;
-              }
-
-              const includedTypes = ['apiDoc', 'troubleshooting'];
-              const excludedFolders = [
-                'src/content/docs/release-notes',
-                'src/content/whats-new',
-              ];
-
-              const {
-                frontmatter,
-                fields: { fileRelativePath },
-              } = node;
-
-              if (
-                excludedFolders.some((path) => fileRelativePath.includes(path))
-              ) {
-                return false;
-              }
-
-              return (
-                frontmatter.type == null ||
-                includedTypes.includes(frontmatter.type)
-              );
-            },
-            getParams: ({ node }) => {
-              const { tags, title } = node.frontmatter;
-
-              return {
-                q: tags ? tags.map(quote).join(' OR ') : title,
-                search_fields: {
-                  page: ['tags^10', 'body^5', 'title^1.5', '*'],
-                },
-                filters: {
-                  page: {
-                    type: ['!blog', '!forum'],
-                    document_type: [
-                      '!views_page_menu',
-                      '!term_page_api_menu',
-                      '!term_page_landing_page',
-                    ],
-                  },
-                },
-              };
+        splitio: {
+          // Mocked features only used when in localhost mode
+          // https://help.split.io/hc/en-us/articles/360020448791-JavaScript-SDK#localhost-mode
+          features: {
+            free_account_button_color: {
+              treatment: 'off',
             },
           },
+          core: {
+            authorizationKey: process.env.SPLITIO_AUTH_KEY || 'localhost',
+          },
+          debug: false,
         },
         newrelic: {
           configs: {
             development: {
               instrumentationType: 'proAndSPA',
-              accountId: '10175106',
+              accountId: '10956800',
               trustKey: '1',
-              agentID: '23865145',
-              licenseKey: '528f970912',
-              applicationID: '23865145',
-              beacon: 'staging-bam.nr-data.net',
-              errorBeacon: 'staging-bam.nr-data.net',
+              agentID: '35094418',
+              licenseKey: 'NRJS-649173eb1a7b28cd6ab',
+              applicationID: '35094418',
+              beacon: 'staging-bam-cell.nr-data.net',
+              errorBeacon: 'staging-bam-cell.nr-data.net',
             },
             production: {
               instrumentationType: 'proAndSPA',
@@ -150,12 +112,13 @@ module.exports = {
           },
         },
         tessen: {
+          tessenVersion: '1.14.0',
           product: 'DOC',
           subproduct: 'TDOC',
           segmentWriteKey: 'AEfP8c1VSuFxhMdk3jYFQrYQV9sHbUXx',
           trackPageViews: true,
           pageView: {
-            name: 'pageView',
+            eventName: 'pageView',
             category: 'DocPageView',
             getProperties: ({ location, env }) => ({
               path: location.pathname,
@@ -227,7 +190,7 @@ module.exports = {
             resolve: 'gatsby-remark-images',
             options: {
               maxWidth: 850,
-              linkImagesToOriginal: false,
+              linkImagesToOriginal: true,
               backgroundColor: 'transparent',
               disableBgImageOnAlpha: true,
             },
@@ -274,7 +237,7 @@ module.exports = {
             resolve: 'gatsby-remark-images',
             options: {
               maxWidth: 1200,
-              linkImagesToOriginal: false,
+              linkImagesToOriginal: true,
               backgroundColor: 'transparent',
               disableBgImageOnAlpha: true,
             },
@@ -342,6 +305,7 @@ module.exports = {
                 getStartedLink
                 learnMoreLink
                 summary
+                isFeatured
               }
               fields {
                 slug
@@ -375,6 +339,7 @@ module.exports = {
                   getStartedLink: frontmatter.getStartedLink,
                   body: htmlParser.stringify(parsedHtml),
                   docUrl: new URL(fields.slug, siteUrl).href,
+                  isFeatured: frontmatter.isFeatured,
                 };
               }
             ),
@@ -455,6 +420,7 @@ module.exports = {
                 releaseDate(fromNow: false)
                 version
               }
+              excerpt(pruneLength: 5000)
             }
           }
         }
@@ -462,15 +428,18 @@ module.exports = {
         path: '/api/agent-release-notes.json',
         serialize: ({ data }) =>
           data.allMdx.nodes
-            .map(({ frontmatter }) => ({
+            .map(({ frontmatter, excerpt }) => ({
               agent: getAgentName(frontmatter.subject),
               date: frontmatter.releaseDate,
               version: frontmatter.version,
+              description: excerpt,
             }))
             .filter(({ date, agent }) => Boolean(date && agent)),
       },
     },
     'gatsby-plugin-release-note-rss',
+    'gatsby-plugin-whats-new-rss',
+    'gatsby-plugin-security-bulletins-rss',
     {
       resolve: 'gatsby-source-data-dictionary',
       options: {
@@ -478,12 +447,30 @@ module.exports = {
       },
     },
     'gatsby-source-nav',
+    'gatsby-plugin-meta-redirect',
     {
-      resolve: 'gatsby-plugin-auto-index-pages',
+      resolve: 'gatsby-plugin-gatsby-cloud',
       options: {
-        skippedDirectories: ['', 'whats-new', 'docs/release-notes'],
+        allPageHeaders: ['Referrer-Policy: no-referrer-when-downgrade'],
       },
     },
-    'gatsby-plugin-meta-redirect',
+    // https://www.gatsbyjs.com/plugins/gatsby-plugin-typegen/
+    {
+      resolve: 'gatsby-plugin-typegen',
+      options: {
+        outputPath: 'src/__generated__/gatsby-types.d.ts',
+        emitSchema: {
+          'src/__generated__/gatsby-schema.graphql': true,
+        },
+      },
+    },
+    {
+      resolve: `gatsby-plugin-typescript`,
+      options: {
+        isTSX: true, // defaults to false
+        jsxPragma: `jsx`, // defaults to "React"
+        allExtensions: true, // defaults to false
+      },
+    },
   ],
 };
