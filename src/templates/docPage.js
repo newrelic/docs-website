@@ -8,6 +8,7 @@ import MDXContainer from '../components/MDXContainer';
 import {
   ContributingGuidelines,
   Layout,
+  RelatedResources,
   SimpleFeedback,
   TableOfContents,
 } from '@newrelic/gatsby-theme-newrelic';
@@ -24,6 +25,7 @@ const BasicDoc = ({ data, location, pageContext }) => {
     mdxAST,
     body,
     fields: { fileRelativePath },
+    relatedResources,
   } = mdx;
   const { disableSwiftype } = pageContext;
 
@@ -107,6 +109,12 @@ const BasicDoc = ({ data, location, pageContext }) => {
             />
           )}
           <TableOfContents headings={headings} />
+          <RelatedResources
+            resources={relatedResources}
+            css={css`
+              border-top: 1px solid var(--divider-color);
+            `}
+          />
         </Layout.PageTools>
       </div>
     </>
@@ -133,6 +141,10 @@ export const pageQuery = graphql`
       }
       fields {
         fileRelativePath
+      }
+      relatedResources(limit: 3) {
+        title
+        url
       }
       ...TableOfContents_page
     }
