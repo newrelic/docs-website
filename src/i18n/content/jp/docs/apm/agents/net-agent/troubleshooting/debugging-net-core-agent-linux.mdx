@@ -1,0 +1,80 @@
+---
+title: Linuxでの.NET Core Agentのデバッグ
+type: troubleshooting
+tags:
+  - Agents
+  - NET agent
+  - Troubleshooting
+metaDescription: Troubleshooting tips to determine if Windows Working Set memory usage is a concern after you install New Relic's .NET agent for your app.
+translationType: machine
+---
+
+## 問題
+
+New Relic の .NET エージェントを Linux にインストールした後、データが表示されない、データが欠落していることに気づく、ログが表示されないなどの問題が発生します。
+
+## 解決策
+
+<Callout variant="important">
+  * 続行するためには、ホストの管理者権限が必要です。
+  * インストールと実行の手順が守られていることを確認する ([インストールガイド](/docs/agents/net-agent/installation/install-net-agent-linux))
+</Callout>
+
+## ステップ1：アプリケーションのエージェントログの確認 [#step-one]
+
+<Callout variant="tip">
+  * .NET Core エージェントをインストールした場合、または `NewRelic.Agent` NuGet パッケージでいずれかのエージェントをインストールした場合、システム上のエージェントが解凍されたディレクトリに `logs` フォルダがあります。
+  * linuxのインストール方法によっては、デフォルトで `/usr/local/newrelic-netcore20-agent となっています。`
+</Callout>
+
+1. 現在のデータを見ているかどうかを確認します。logsディレクトリ内の既存のファイルを削除または移動して、生成されるログがシステムの現在の状態を反映していることを確認してください。
+2. アプリケーションを再起動します。
+3. New Relic アカウントに表示されることが予想されるトラフィックを生成する方法で、アプリケーションを少なくとも 1 分間実行します。
+4. アプリケーションが実行されているプロセスID（PID）をメモしておけば、そのプロセスのためにログが作成されているかどうかを確認できます。 `pidof dotnet` または `pidof the_process_name` コマンドラインで次のいずれかのコマンドを使用すると、PID を見つけることができます。
+5. エージェントのログディレクトリに戻り、アプリケーションのプロセスIDを含む名前のログファイルを探します。例えば、 `NewRelic.Profiler.［PID］.log`.
+6. `プロファイラーログ` ファイルがlogsディレクトリにある場合は、対応するエージェントログがあるかどうかも確認してください。
+7. `newrelic_agent` というプレフィックスを持つ別のファイルを探してください。ホスト上で複数の .NET アプリケーションを実行している場合は、これらのファイルが複数存在する可能性があります。1つまたは複数のファイルがある場合は、監視しようとしているアプリケーションに対応するファイルを特定する必要があります。
+8. エージェントログで、 `(pid [あなたのPID])` という文字列を検索します。例えば、 `(pid 1573)` とします。ログファイルの中にこの文字列が見つかれば、それがアプリケーションに関連するエージェントログであることがわかります。
+
+## ステップ2：.NET Coreのエージェントプロファイラがアプリケーションのプロセスにロードされているかどうかを確認する [#step-two]
+
+コンソールで次のように実行し、 `pid` を自分のプロセスIDに置き換えます。
+
+```
+sudo cat /proc/<var>PID</var>/maps | grep "libNewRelicProfiler.so"
+```
+
+出力結果に基づいて、あなたがすべきことは以下の通りです。
+
+* そのコマンドで結果が得られない場合は、次のステップに進みます。
+* 結果が出た場合は、 [ステップ4](#step-four) （許可）に読み飛ばしてください。
+
+## Step 3: 必要な環境変数を確認します。 [#step-three]
+
+`PID` を自分のプロセスIDに置き換えて以下を実行します。
+
+```
+args --null --max-args=1 < /proc/<var>PID</var>/environ | grep "CORECLR_"
+```
+
+出力結果に基づいて、あなたがすべきことは以下の通りです。
+
+* 結果が出ない場合は、 [環境変数](https://discuss.newrelic.com/t/relic-solution-net-core-agent-required-environment-variables/68972) を設定し、アプリケーションを再起動してから、ステップ1に戻ってください。
+
+* 結果が出た場合は、4つの必須変数がすべて設定され、有効な値を持っていることを確認してください。
+
+  * `CORECLR_ENABLE_PROFILING` ：常に1に設定する必要があります。
+  * `CORECLR_PROFILER`: 常に&#x7B;36032161-FFC0-4B61-B559-F6C5D41BAE5A}に設定する必要があります。
+  * `CORECLR_NEWRELIC_HOME`: .NET Coreエージェントのディレクトリ（ `newrelic.config`, `libNewRelicProfiler.so`, extensionsディレクトリが存在するディレクトリ）への完全修飾パスを設定する必要があります。
+  * `CORECLR_PROFILER_PATH` ：ファイルの完全修飾パスを設定する必要があります `libNewRelicProfiler.so` 。これはほとんどの場合、 `CORECLR_NEWRELIC_HOME + /libNewRelicProfiler.so` と同じです。
+
+* 環境変数に変更を加えた場合は、アプリを再起動し、 [Step 1](#step-one) に戻ってください。
+
+## ステップ4：パーミッションの確認 [#step-four]
+
+以下のパーミッションタスクを確認してください。
+
+* アプリケーションプロセスが実行されているユーザーが、システム上で.NET Coreエージェントが展開されたディレクトリ(`CORECLR_NEWRELIC_HOME`)およびそのサブディレクトリすべてに対して、読み取り/書き込み/実行のパーミッションを持っていることを確認してください。
+* 変更があった場合は、アプリを再起動して、 [ステップ1](#step-one) に戻ってください。
+
+上記の手順で問題が解決しなかった場合は、 [Explorers Hub](https://discuss.newrelic.com/) の ask for help でサポートに連絡することをお勧めします。

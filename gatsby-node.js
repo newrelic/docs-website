@@ -421,7 +421,7 @@ const createPageFromNode = (
         slugRegex: `${slug}/.+/`,
         disableSwiftype,
       },
-      defer: defer,
+      defer,
     });
   }
 };

@@ -1,0 +1,117 @@
+---
+title: 'SystemStackError: stack level too deep'
+type: troubleshooting
+tags:
+  - Agents
+  - Ruby agent
+  - Troubleshooting
+metaDescription: 'Find out what to do if you receive the error message SystemStackError: stack level too deep on the Error details page in your APM UI.'
+translationType: machine
+---
+
+## 問題
+
+`stack level too deep (SystemStackError)` アプリケーションに `newrelic_rpm` gem を追加した後、またはバージョン 7.0.0 以降にアップグレードした後に、エラーが発生しています。
+
+## 解決策
+
+ほとんどの場合、Ruby のエージェントは根本的な問題ではありません。問題は、メソッドチェイニング(alias_method)とModule#prependが特定の状況下でのみ連動することです。適切に使用されないと、終了しない再帰を引き起こす可能性があります。Rubyエージェントでは、お客様が柔軟に対応できるように、Module#prependとmethod chaining gem instrumentationの両方を提供しています。メソッドチェイニングと Module#prepend の非互換性については、 [Resolving `Module#prepend` and `alias_method` Conflicts Involving the New Relic Ruby Agent をご覧ください。](https://newrelic.com/blog/best-practices/ruby-agent-module-prepend-alias-method-chains)
+
+### 1.フルスタックトレースの取得
+
+まず最初に必要なのは、表示されているエラーのフルスタックトレースを取得することです。フルスタックトレースでなければならない理由は、スタックトレースの中で再帰を示すセクションを見つけて、衝突している2つの場所を見つける必要があるからです。RailsのログやPassengerのログなどでは、スタックトレースが長いために切り捨てられることが多いので、切り捨てられていない完全なスタックトレースを取得できる環境でエラーを再現する必要があります。そのためには、 `stack level too deep` 例外に対して Exception#backtraceを呼び出して、フルスタックトレースを返すという方法があります。
+
+### 2.スタックトレースから矛盾するコードを見つける
+
+フルスタックトレースを入手したら、あるgemと `newrelic_rpm` gemの間に繰り返しがあるセクションを探します。これがコンフリクトを起こしているgemの可能性があります。以下はスタックトレースの例で、Module#prependとメソッドチェイニングが衝突している場所を示しています。
+
+```
+/Users/user/.rvm/gems/ruby-2.6.5/gems/airbrake-11.0.1/lib/airbrake/rails/net_http.rb:11:in `block in request'
+/Users/user/.rvm/gems/ruby-2.6.5/gems/airbrake-11.0.1/lib/airbrake/rack.rb:25:in `capture_timing'
+/Users/user/.rvm/gems/ruby-2.6.5/gems/airbrake-11.0.1/lib/airbrake/rails/net_http.rb:10:in `request'
+/Users/user/.rvm/gems/ruby-2.6.5/gems/newrelic_rpm-7.0.0/lib/new_relic/agent/instrumentation/net_http/chain.rb:16:in `block in request_with_newrelic_trace'
+/Users/user/.rvm/gems/ruby-2.6.5/gems/newrelic_rpm-7.0.0/lib/new_relic/agent/instrumentation/net_http/instrumentation.rb:26:in `block (2 levels) in request_with_tracing'
+/Users/user/.rvm/gems/ruby-2.6.5/gems/newrelic_rpm-7.0.0/lib/new_relic/agent/tracer.rb:371:in `capture_segment_error'
+/Users/user/.rvm/gems/ruby-2.6.5/gems/newrelic_rpm-7.0.0/lib/new_relic/agent/instrumentation/net_http/instrumentation.rb:25:in `block in request_with_tracing'
+/Users/user/.rvm/gems/ruby-2.6.5/gems/newrelic_rpm-7.0.0/lib/new_relic/agent.rb:501:in `disable_all_tracing'
+/Users/user/.rvm/gems/ruby-2.6.5/gems/newrelic_rpm-7.0.0/lib/new_relic/agent/instrumentation/net_http/instrumentation.rb:24:in `request_with_tracing'
+/Users/user/.rvm/gems/ruby-2.6.5/gems/newrelic_rpm-7.0.0/lib/new_relic/agent/instrumentation/net_http/chain.rb:16:in `request_with_newrelic_trace'
+/Users/user/.rvm/gems/ruby-2.6.5/gems/airbrake-11.0.1/lib/airbrake/rails/net_http.rb:11:in `block in request'
+/Users/user/.rvm/gems/ruby-2.6.5/gems/airbrake-11.0.1/lib/airbrake/rack.rb:25:in `capture_timing'
+/Users/user/.rvm/gems/ruby-2.6.5/gems/airbrake-11.0.1/lib/airbrake/rails/net_http.rb:10:in `request'
+/Users/user/.rvm/gems/ruby-2.6.5/gems/newrelic_rpm-7.0.0/lib/new_relic/agent/instrumentation/net_http/chain.rb:16:in `block in request_with_newrelic_trace'
+/Users/user/.rvm/gems/ruby-2.6.5/gems/newrelic_rpm-7.0.0/lib/new_relic/agent/instrumentation/net_http/instrumentation.rb:26:in `block (2 levels) in request_with_tracing'
+/Users/user/.rvm/gems/ruby-2.6.5/gems/newrelic_rpm-7.0.0/lib/new_relic/agent/tracer.rb:371:in `capture_segment_error'
+/Users/user/.rvm/gems/ruby-2.6.5/gems/newrelic_rpm-7.0.0/lib/new_relic/agent/instrumentation/net_http/instrumentation.rb:25:in `block in request_with_tracing'
+/Users/user/.rvm/gems/ruby-2.6.5/gems/newrelic_rpm-7.0.0/lib/new_relic/agent.rb:501:in `disable_all_tracing'
+/Users/user/.rvm/gems/ruby-2.6.5/gems/newrelic_rpm-7.0.0/lib/new_relic/agent/instrumentation/net_http/instrumentation.rb:24:in `request_with_tracing'
+/Users/user/.rvm/gems/ruby-2.6.5/gems/newrelic_rpm-7.0.0/lib/new_relic/agent/instrumentation/net_http/chain.rb:16:in `request_with_newrelic_trace'
+/Users/user/.rvm/gems/ruby-2.6.5/gems/airbrake-11.0.1/lib/airbrake/rails/net_http.rb:11:in `block in request'
+/Users/user/.rvm/gems/ruby-2.6.5/gems/airbrake-11.0.1/lib/airbrake/rack.rb:25:in `capture_timing'
+/Users/user/.rvm/gems/ruby-2.6.5/gems/airbrake-11.0.1/lib/airbrake/rails/net_http.rb:10:in `request'
+```
+
+どのファイルが衝突の原因になっているか、行番号も含めて確認できます。これにより、どのgem instrumentationがこのエラーの一部であるかを知ることができます。上の例を使うと、再帰を引き起こしているのは2箇所。
+
+```
+/Users/user/.rvm/gems/ruby-2.6.5/gems/newrelic_rpm-7.0.0/lib/new_relic/agent/instrumentation/net_http/chain.rb:16:in `request_with_newrelic_trace'
+```
+
+```
+/Users/user/.rvm/gems/ruby-2.6.5/gems/airbrake-11.0.1/lib/airbrake/rails/net_http.rb:11:in `block in request'
+```
+
+この2箇所のコードを見てみると、一方はprependを使い、もう一方はmethod chainingを使っていることがわかります。この例では、エージェントはmethod chainingを使用し、AirbrakeはModule#prependを使用しています。エージェントはmethod chainingとModule#prependの両方を提供しているので、競合するgemと互換性のある戦略を使用するようにエージェントを設定することができます。
+
+### 3.設定ファイルの更新
+
+スタックトレースのエージェントからの行をよく見てみると、パス名の中にどのようなgem instrumentationを設定する必要があるかがわかります。
+
+```
+new_relic/agent/instrumentation/net_http/chain.rb:16
+```
+
+gem名は、 `new_relic/agent/instrumentation/` に続くファイル・パスになります。この例では、Net::HTTPインストルメンテーションであることがわかります。したがって、このインストルメンテーションを制御するには、設定ファイルで `net_http` を使用します。また、ファイル名を見ると、メソッド・チェイニング・インストゥルメンテーションを使用していることがわかります。メソッドチェイニングのファイル名は `/chain.rb` で、Module#prepend の場合は `/prepend.rb` となります。
+
+`newrelic.yml` に、コンフリクトの原因となっているgem instrumentationを使って、configオプションを追加します。この例では、メソッド・チェイニング・インストゥルメンテーションが競合しているためにエラーが発生しています。これを解決するために、Net::HTTP インストルメンテーションが Module#prepend を使用するように設定します。
+
+```
+instrumentation:
+  net_http: prepend
+```
+
+もし、スタックトレースで `prepend.rb` ファイルが参照されていたら、代わりにこの設定オプションを `chain` に設定します。
+
+エージェントの利用可能な設定オプションの詳細については、当社の [設定資料](/docs/agents/ruby-agent/configuration/ruby-agent-configuration/#instrumentation) の instrumentation セクションを参照してください。
+
+### 4.まだエラーが出ますか？
+
+上記の手順を実行してもスタックレベルが深すぎるというエラーが表示される場合は、同じコンフリクトとスタックトレースであるか、あるいは先ほど修正したコンフリクトとは別のコンフリクトであるかを確認してください。
+
+別のスタックトレースで別のコンフリクトが発生した場合は、新しいスタックトレースで上記の手順を繰り返します。これにより、新たに浮上したコンフリクトが解消されるはずです。
+
+スタックトレースが最初のものと同じであれば、エージェントが設定ファイルをロードできるかどうかを確認します。エージェントが設定ファイルの場所や読み込みに問題がある場合、その問題を解決することで、エージェントが必要なgem instrumentationを使用できるようになるはずです。詳細については、 [設定ドキュメント](/docs/agents/ruby-agent/configuration/ruby-agent-configuration/) を参照してください。
+
+## 原因
+
+アプリケーションのある場所（またはアプリケーションで使用されているgem）がModule#prependを使用し、そのメソッドに別の場所（またはgem）が後からalias_methodを使用した場合、終了しない再帰が作成され、 `SystemStackError: stack level too deep error` が投げられます。
+
+Ruby エージェントの 7.0 リリースでは、これまでメソッドチェイニングのみを使用していたすべての gem のインストゥルメンテーションに Module#prepend インストゥルメンテーションが追加されました。また、ほとんどの場合、Module#prepend がデフォルトで使用されます。エージェントでは、gem インスツルメンテーションにメソッドチェイニングを使用することができます。この動作は、 [エージェント設定](/docs/agents/ruby-agent/configuration/ruby-agent-configuration/#instrumentation) で制御されます。
+
+エージェントがgem instrumentationの設定にデフォルト値を使用すると、Module#prependとの一般的な既知のコンフリクトについて環境をチェックします。この衝突の原因となるgemが検出された場合、エージェントは代わりにメソッド・チェイニング・インストゥルメンテーションをインストールします。
+
+しかし、考えられるすべてのコンフリクトを把握しているわけではありません。どんなgemやアプリケーションでも、任意のメソッドにメソッド・チェイニングを追加することができます。これが、どのタイプのインスツルメンテーションを使用するかを設定するオプションを提供している理由です。
+
+以下は、エージェントがチェックし、互換性のあるgem計測器をインストールする既知のコンフリクトの例です。
+
+**Net::HTTP Instrumentation**
+
+Airbrake&lt; 10.0.2 が使用されている場合、Net::HTTP メソッドでメソッドチェーンを使用します。Airbrake 10.0.2+ では、Net::HTTP で Module#prepend を使用するように更新されたため、そのバージョン以上が検出されると、エージェントは prepend instrumentation をインストールします。
+
+**Resque Instrumentation**
+
+Airbrake&lt; 11.0.3 が使用されている場合、Reque メソッドでメソッドチェーンを使用します。Airbrake 11.0.3+では、ResqueでModule#prependを使用するように更新されたため、そのバージョン以上が検出されると、エージェントはprepend instrumentationをインストールします。
+
+**Redisのインストゥルメンテーション**
+
+PrometheusExporterが検出されたときにメソッド・チェイニングを使用します。このgemはredisメソッドにメソッド・チェイニングを使用するからです。

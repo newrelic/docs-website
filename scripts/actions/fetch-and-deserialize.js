@@ -105,7 +105,7 @@ const fetchTranslatedFilesZip = (locale) => {
   /**
    * @param {Object} input
    * @param {String[]} input.fileUris
-   * @returns {AdmZip|null}
+   * @returns {Promise<AdmZip|null>}
    */
   return async ({ fileUris }) => {
     const fileUriStr = fileUris.reduce((str, uri) => {
@@ -174,7 +174,7 @@ const extractFiles = (locale) => {
 const deserializeHtmlToMdx = (locale) => {
   /**
    * @param {HtmlFile} file
-   * @returns {SlugStatus}
+   * @returns {Promise<SlugStatus>}
    */
   return async ({ path: contentPath, html }) => {
     const completePath = path.join('src/content/docs', contentPath, '.mdx');
@@ -213,7 +213,7 @@ const deserializeHtmlToMdx = (locale) => {
  * @param {Object} input
  * @param {String} input.locale - locale associated with fileUris
  * @param {String[]} input.fileUris - list of file paths used for download & deserialization. This will be the complete singular list prior to batching.
- * @returns {SlugStatus[]}
+ * @returns {Promise<SlugStatus[]>}
  */
 const fetchAndDeserializeFiles = async ({ locale, fileUris }) => {
   const batches = createFileUriBatches({ fileUris });

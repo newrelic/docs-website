@@ -153,7 +153,7 @@ const aggregateStatuses = (slugStatuses) => {
 
 /**
  * @param {SlugStatus[]} slugStatuses
- * @returns {void}
+ * @returns {Promise<void>}
  */
 const updateTranslationRecords = async (slugStatuses) => {
   // TODO: need to update this when we implement multiple locales. This only works for one locale.
@@ -174,7 +174,7 @@ const updateTranslationRecords = async (slugStatuses) => {
 
 /**
  * @param {JobStatuses} jobStatuses
- * @returns {void}
+ * @returns {Promise<void>}
  */
 const updateJobRecords = async (jobStatuses) => {
   await Promise.all(
@@ -265,4 +265,18 @@ const main = async () => {
   }
 };
 
-main();
+/**
+ * This allows us to check if the script was invoked directly from the command line, i.e 'node validate_packs.js', or if it was imported.
+ * This would be true if this was used in one of our GitHub workflows, but false when imported for use in a test.
+ * See here: https://nodejs.org/docs/latest/api/modules.html#modules_accessing_the_main_module
+ */
+if (require.main === module) {
+  main();
+}
+
+module.exports = {
+  getBatchStatus,
+  aggregateStatuses,
+  updateTranslationRecords,
+  updateJobRecords,
+};

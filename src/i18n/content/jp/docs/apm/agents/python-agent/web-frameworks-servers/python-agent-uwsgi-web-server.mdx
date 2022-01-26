@@ -1,0 +1,165 @@
+---
+title: PythonエージェントとuWSGIウェブサーバー
+tags:
+  - Agents
+  - Python agent
+  - Web frameworks and servers
+metaDescription: Set command line options when using uWSGI to install the Python agent.
+translationType: machine
+---
+
+このドキュメントでは、uWSGIとPythonエージェントを統合するための特定の要件とヒントについて説明します。一般的なインストール手順に戻るには、 [Pythonエージェントのインストール](/docs/agents/python-agent/installation-configuration/python-agent-installation) を参照してください。
+
+Pythonエージェントは、 [uWSGI](http://projects.unbit.it/uwsgi/) バージョン1.2.6以上で使用できます（1.2.6未満のバージョンでは、uWSGIがWSGI仕様を実装する方法にバグがあり、Pythonエージェントが報告するデータに著しい不正確さが生じる可能性があります）。
+
+## 必須のオプション
+
+uWSGIを使用する際には、 **uwsgi** の実行ファイルに特定のコマンドライン・オプションを指定する必要があります。使用しなければならない追加オプションは以下の通りです。
+
+<table>
+  <thead>
+    <tr>
+      <th width={150}>
+        オプション
+      </th>
+
+      <th>
+        目的
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `--enable-threads`
+      </td>
+
+      <td>
+        デフォルトではuWSGIはPythonインタープリタコア内のスレッドサポートを有効にしません。つまり、Pythonコードからバックグラウンドスレッドを作成することはできません。Pythonエージェントはバックグラウンドスレッドを作成できることに依存しているため、このオプションが必要です。このオプションは、uWSGIが--threadsオプションを使ってマルチスレッドに設定されている場合、自動的に適用されます。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `--single-interpreter`
+      </td>
+
+      <td>
+        デフォルトではuWSGIはPythonが最初に初期化された時に作成されたメインのPythonインタープリタではなく、プロセスのサブインタープリタ内でPythonコードを実行します。これは、複数の独立したPythonウェブアプリケーションを1つのプロセス内で実行することができるようにするためですが、お互いに干渉しないように十分に分離されています。しかし、古いバージョンのuWSGIでは、スレッド化されたサブインタプリタを使用すると失敗することがあります。そのため、このオプションを使用して、プロセスごとに1つのWebアプリケーションに制限することが最も安全です。uWSGIを使用して各プロセスで1つのWebアプリケーションを実行することは通常の使用例ですので、この制限が問題になることはほとんどありません。
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Adminスクリプトのインテグレーションメソッド [#wrapper-script]
+
+これらのアドミン・スクリプトの統合手順は、 [Python エージェントのインストール](/docs/agents/python-agent/installation-configuration/python-agent-installation#integration) の一般的なインストールとアドミン・スクリプトの手順と重複しています。
+
+uWSGIでWSGIアプリケーションを起動する場合、以下のような形式のコマンドを使用します。
+
+```
+uwsgi --socket /tmp/uwsgi.sock wsgi.py
+```
+
+代わりに、走る。
+
+```
+NEW_RELIC_CONFIG_FILE=newrelic.ini newrelic-admin run-program uwsgi --socket /tmp/uwsgi.sock --single-interpreter --enable-threads wsgi.py
+```
+
+その際、環境変数 `NEW_RELIC_CONFIG_FILE` をコマンドの実行と同じ行で定義するのではなく、別途エクスポートして、コマンドを実行する前にプロセス環境に設定することができます。
+
+```
+NEW_RELIC_CONFIG_FILE=newrelic.ini
+export NEW_RELIC_CONFIG_FILE
+
+newrelic-admin run-program uwsgi --socket /tmp/uwsgi.sock --single-interpreter --enable-threads wsgi.py
+```
+
+`newrelic.ini` というパスは、実際のPythonエージェント設定ファイルの場所への適切な絶対パスまたは相対パスに置き換える必要があります。
+
+PythonエージェントがWSGIアプリケーションのエントリーポイントを自動的にラップしないフレームワークを使用している場合、 `newrelic-admin` を使用することはできますが、少なくとも手動でWSGIアプリケーションのエントリーポイントをラップする必要があります。
+
+## エージェントの初期化
+
+`newrelic-admin` スクリプトをuWSGIで使用した場合、ウェブアプリケーションの起動時にエージェントが自動的に初期化されます。Webアプリケーションにコードの変更を加える必要はありません。
+
+`newrelic-admin` スクリプトを使用できない、または使用したくない場合は、ウェブアプリケーションの起動時にエージェントAPIを初期化するためのコールを手動で追加することができます。
+
+[とPythonアプリケーションとの統合](/docs/agents/python-agent/installation-and-configuration/python-agent-integration) の指示に従って、モジュールのインポートパスが設定された後、個別のアプリケーションモジュールや使用しているフレームワークのモジュールをインポートする前に、Webアプリケーションの最初のステップとして行う必要があります。
+
+## 構成スタイル
+
+コマンドラインオプションによるuWSGIの設定に加え、環境変数、XML、ini、json、yamlファイル、ldap、データベースなどの代替設定メカニズムもサポートしています。
+
+このような仕組みを利用する場合でも、上記の必須追加オプションを含める必要があります。これらのオプションは、適切な設定ファイルまたはデータベースに含まれています。
+
+例えば、ini設定ファイルを使用する場合、次のようになります。
+
+```
+[uwsgi]
+socket = /tmp/uwsgi.sock
+enable-threads = true
+single-interpreter = true
+file = wsgi.py
+```
+
+と走ります。
+
+```
+NEW_RELIC_CONFIG_FILE=newrelic.ini newrelic-admin run-program uwsgi --ini uwsgi.ini
+```
+
+## アプリケーション実装
+
+uWSGIが提供するWSGIアプリケーションを指定する際に、Python WSGIスクリプトファイルへのパスを指定することも、モジュールと含まれるアプリケーションへの直接参照を指定することも可能です。例えば、Djangoを使用している場合は、後者の設定になります。
+
+```
+[uwsgi]
+socket = /tmp/uwsgi.sock
+enable-threads = true
+single-interpreter = true
+chdir = /var/www/myapp
+pythonpath = /var/www
+env = DJANGO_SETTINGS_MODULE=myapp.settings
+module = django.core.handlers.wsgi:WSGIHandler()
+```
+
+ただし、使用しているフレームワークが、エージェントによって自動的に計測され、WSGIアプリケーションのエントリポイントをラップするものである場合に限ります。カスタムWSGIフレームワークやサポートされていないフレームワークを使用している場合は、コード内でWSGIアプリケーションエントリを [手動でラップ](/docs/agents/python-agent/installation-and-configuration/python-agent-integration) する必要があります。
+
+あるいは、WSGIアプリケーションのエントリーポイントを構築するために、設定内の小さなコードを評価するuWSGIの機能を利用することもできます。
+
+```
+[uwsgi]
+socket = /tmp/uwsgi.sock
+enable-threads = true
+single-interpreter = true
+eval = import newrelic.agent, wsgi; application = newrelic.agent.wsgi_application()(wsgi.application)
+```
+
+## マスタープロセス
+
+uWSGIのプロセス管理機能の一環として、マスタープロセスを有効にしてワーカープロセスをより良く管理することができます。この機能を有効にすると、WSGIのスクリプトファイルやモジュールは、親となるマスタープロセスにプリロードされます。そして、ワーカープロセスは、このマスタープロセスからフォークされます。
+
+これは、WSGIスクリプトやモジュールがロードされたときに、各ワーカープロセスで実行されるはずのバックグラウンドスレッドを作成した場合に、ワーカープロセスがフォークされたときにそのバックグラウンドスレッドが殺されてしまうという問題を引き起こす可能性があります。
+
+Pythonエージェントは、バックグラウンドスレッドを使用して、定期的にデータコレクタにデータを報告します。通常の状況では、このスレッドは最初の Web リクエストを受信したときにのみ作成されます。これは通常ワーカープロセスで行われるため、マスタープロセスを使用しても問題はありません。
+
+しかし、バックグラウンドタスクとして特定の関数の呼び出しを追跡する計測機能を追加し、WSGIスクリプトファイルやモジュールの読み込み時にそれらの関数が呼び出された場合、エージェントのバックグラウンドスレッドがマスターの親プロセスで開始されます。その後、ワーカープロセスがフォークされる際にバックグラウンドスレッドが殺されるため、実際のウェブアプリケーションではデータが報告されません。
+
+マスタープロセスを使用していて、ワーカープロセスで実行されているウェブアプリケーションのデータが報告されない場合は、レイジーローディングモードも使用する必要があります。
+
+```
+[uwsgi]
+socket = /tmp/uwsgi.sock
+enable-threads = true
+single-interpreter = true
+master = true
+lazy-apps = true
+file = wsgi.py
+```
+
+または、 `uwsgi.post_fork_hook()` を使用して、エージェントのバックグラウンドスレッドを起動する副作用のある起動関数を登録し、ワーカープロセスがフォークされた後に確実に呼び出されるようにします。
+
+エンペラーモードを使用する場合、レイジーローディングのオプションは、個々の家臣団の設定ファイルに記述する必要があることに注意してください。emperorモードを有効にした時点では、家臣団に継承されないため、同時に指定することはできません。

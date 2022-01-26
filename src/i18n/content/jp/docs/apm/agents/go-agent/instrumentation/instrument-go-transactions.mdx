@@ -1,0 +1,214 @@
+---
+title: インストルメント Go トランザクション
+tags:
+  - Agents
+  - Go agent
+  - Instrumentation
+metaDescription: Learn how to set up New Relic monitoring of  web and non-web transactions in your Golang application or microservice.
+translationType: machine
+---
+
+[New Relic for Go](/docs/agents/go-agent/get-started/new-relic-go) アプリケーションやマイクロサービスを監視するには、HTTP レスポンスやバックグラウンドタスクなど、特定のアプリサーバーのアクティビティに関連する [トランザクション](/docs/apm/transactions/intro-transactions/transactions-new-relic-apm) を作成する必要があります。その後、New Relic でアプリのパフォーマンスを確認することができます。 [APM **Transactions** ページ](/docs/apm/applications-menu/monitoring/transactions-page) を含みます。
+
+## Webトランザクションと非Webトランザクションの識別 [#go-monitoring]
+
+他の多くの言語とは異なり、Goアプリケーションはコンパイルされたネイティブのバイナリファイルから実行されます。このため、GolangアプリケーションにNew Relicを設定するには、ソースコードにNew Relicのメソッドを手動で追加する必要があります。
+
+APMでは、トランザクションは、 [ウェブトランザクション](/docs/apm/transactions/intro-transactions/transactions-new-relic-apm) または [非ウェブトランザクション](/docs/apm/transactions/intro-transactions/monitor-background-processes-other-non-web-transactions) として識別されます。
+
+* HTTP リクエストとレスポンスのライターを持つトランザクションをインストゥルメントまたはラップすると、New Relic はそのトランザクションを Web トランザクションとして扱います。
+* HTTP データを持たないトランザクションをインストゥルメントまたはラップすると、New Relic はそのトランザクションを非ウェブトランザクションとして扱います。
+
+セグメントとは、トランザクションを構成する関数やコールのことです。New Relic for Go を使用して、 [トランザクションにセグメントレベルの詳細を追加することもできます](/docs/agents/go-agent/get-started/instrument-go-segments) 。
+
+## トランザクションの監視 [#go-txn]
+
+<Callout variant="important">
+  トランザクション名の末尾に角括弧`[suffix]`を使わないでください。New Relicは名前から自動的に角括弧を除去します。代わりに、必要に応じて丸括弧`(suffix)`、またはその他の記号を使ってください。
+</Callout>
+
+トランザクションをモニターするには監視したい機能の開始直後に以下のコードを配置します。たとえば、次のようになります。
+
+```
+txn := app.StartTransaction("<var>transaction_name</var>")
+defer txn.End()
+```
+
+このコード例では
+
+* `アプリ` は、New Relic の設定プロセスで割り当てられた変数を指します。詳細については、 [Go エージェントのインストール手順](/docs/agents/go-agent/installation/install-new-relic-go) を参照してください。
+* [`defer`](https://gobyexample.com/defer) 文は、関数が終了するまでセグメントの終了を延期します。
+
+Web トランザクションを監視するには、 `Transaction.SetWebRequest` と、任意で `Transaction.SetWebResponse` の API を呼び出します。
+
+```
+txn := app.StartTransaction("<var>transaction_name</var>")
+defer txn.End()
+
+// req is a *http.Request, this marks the transaction as a web transaction
+txn.SetWebRequestHTTP(req)
+
+// writer is a http.ResponseWriter, use the returned writer in place of the original
+writer = txn.SetWebResponse(writer)
+writer.WriteHeader(500)
+```
+
+<CollapserGroup>
+  <Collapser
+    id="transaction-example"
+    title="トランザクションの例"
+  >
+    ここでは、 `checkout_transaction` というトランザクションを作成するための簡単なビフォーアフターの例を示します。
+
+    **前です。**
+
+    ```
+    func checkout() {
+        // function code here
+    }
+    ```
+
+    **後です。**
+
+    ```
+    func checkout() {
+        txn := app.StartTransaction("checkout_transaction")
+        defer txn.End()
+        // function code here
+    }
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## 複数のゴルーチンを持つトランザクションの監視 [#goroutines]
+
+複数のゴルーチンにわたってトランザクションを監視するには、 `Transaction.NewGoroutine()` を使用します。 `NewGoroutine` メソッドは、セグメントを作成する各goroutineが必要とするTransactionへの新しい参照を返します。 `NewGoroutine` を呼び出すのが、他のゴルーチンの開始の前でも後でも問題ありません。
+
+すべての `Transaction` メソッドは、任意の `Transaction` 参照で使用できます。 `Transaction`は、任意のゴルーチンで `End()` が呼び出されると終了します。
+
+<CollapserGroup>
+  <Collapser
+    id="multie-example"
+    title="複数のゴロチンの例"
+  >
+    以下の例では、新しい `Transaction` の参照を別のゴルーチンに直接渡しています。
+
+    ```
+    go func(txn *newrelic.Transaction) {
+        defer txn.StartSegment("async").End()
+        time.Sleep(100 * time.Millisecond)
+    }(txn.NewGoroutine())
+    ```
+
+    以下の例では、チャンネル上の新しい `Transaction` 参照を別のゴルーチンに渡しています。
+
+    ```
+    ch := make(chan *newrelic.Transaction)
+    go func() {
+        txn := <-ch
+        defer txn.StartSegment("async").End()
+        time.Sleep(100 * time.Millisecond)
+    }()
+    ch <- txn.NewGoroutine()
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## HTTPハンドラをラップしてトランザクションを監視 [#http-handler-txns]
+
+標準のHTTPライブラリパッケージを使用している場合、 [関数のコードをインストルメントする代わりに、HTTPリクエストをラップしてトランザクションを作成することができます](/docs/agents/go-agent/get-started/new-relic-go-monitor-transactions#go-txn) 。
+
+ここでは、HTTPハンドラをラップする前と後の例を示します。
+
+**前です。**
+
+```
+http.HandleFunc("/users", usersHandler)
+```
+
+**後です。**
+
+これにより、リクエストライターとレスポンスライターとの間で、自動的にトランザクションが開始・終了します。
+
+```
+http.HandleFunc(newrelic.WrapHandleFunc(app, "/users", usersHandler))
+```
+
+ハンドラでトランザクションにアクセスするには、 `newrelic.FromContext` APIを使用します。これは、Goのバージョン1.7以降でのみ動作することに注意してください。例えば、以下のようになります。
+
+```
+func myHandler(w http.ResponseWriter, r *http.Request) {
+    txn := newrelic.FromContext(r.Context())
+    txn.NoticeError(errors.New("my error message"))
+}​
+```
+
+## モニターエラー [#go-error-methods]
+
+New Relic for Goでは、3つの異なる方法でエラーを把握しています。
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "350px" }}>
+        以下を行う場合...
+      </th>
+
+      <th>
+        これを使用
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        エラーを追跡し、メッセージ、クラス、属性のあらゆる組み合わせを報告する
+      </td>
+
+      <td>
+        [`Transaction.NoticeError()`](https://github.com/newrelic/go-agent/blob/master/GUIDE.md#noticeerror)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        パニックを報告する
+      </td>
+
+      <td>
+        `defer で終了したトランザクションは、` 自動的にパニックを記録します。 [詳細は New Relic for Go の GitHub ドキュメントを参照してください。](https://github.com/newrelic/go-agent/blob/master/GUIDE.md#panics).バージョン 3.0.0 以降、この機能は `Config.ErrorCollector.RecordPanics` 設定を `true` にして、特別に有効にする必要があります。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        エラーレスポンスコードの報告
+      </td>
+
+      <td>
+        トランザクションは、400を超えるエラーと100を下回るエラーを自動的に記録します。 [詳細はNew Relic for Go GitHubのドキュメントを参照してください。](https://github.com/newrelic/go-agent/blob/master/GUIDE.md#error-response-codes).
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## APMおよびインフラストラクチャデータのログを表示 [#logs-context]
+
+また、ログとアプリケーションのデータを統合して、トラブルシューティングをより簡単かつ迅速にできます。[コンテキストのログ](/docs/logs/logs-context/configure-logs-context-go/)では、エラーとトレースに関連するログメッセージをアプリケーションのUIで直接表示できます。
+
+1. **Errors** ページから、トレースをクリックして [**Error details** ページ](/docs/apm/apm-ui-pages/error-analytics/errors-page-find-fix-verify-problems) に移動します。
+2. エラー詳細ページで、**See logs**をクリックします。
+3. 各ログメッセージに関連する詳細を表示するには、メッセージを直接クリックしてください。
+
+![APMエラー詳細のコンテキストのログ](./images/logs-in-context-errors.png "APMエラー詳細のコンテキストのログ")
+
+<figcaption>
+  ログ・イン・コンテキストでは、エラーやトレースの詳細の中でログデータを直接調べることができます。
+</figcaption>
+
+また、Kubernetesクラスタなど、[インフラストラクチャデータ](/docs/logs/forward-logs/forward-your-logs-using-infrastructure-agent/)のコンテキストでログを表示することもできます。New Relic Oneで別のUIページに切り替える必要はありません。
+
+## 取引方法の追加 [#go-transactions-methods]
+
+`トランザクション` オブジェクトには、 `NoticeError` 、 `AddAttribute` 、 `Ignore` など、トランザクションの動作を制御するために使用できるいくつかのオプションメソッドがあります。トランザクションメソッドの一覧については、 [New Relic for Go transaction methods on Godoc](https://godoc.org/github.com/newrelic/go-agent/v3/newrelic#Transaction) を参照してください。

@@ -1,0 +1,354 @@
+---
+title: Helmを使ってKubernetesインテグレーションを手動でインストールする
+tags:
+  - Integrations
+  - Kubernetes integration
+  - Installation
+metaDescription: How to install the K8 integration manually using Helm.
+translationType: machine
+---
+
+[Helm](https://helm.sh/) は、Kubernetes 上のパッケージマネージャです。インストール、アップグレード、リビジョンの追跡を容易にし、Kubernetesにインストールするサービスの依存関係を管理します。
+
+Helmを使用して統合をインストールするには、当社のKubernetes自動化インストーラーをお勧めします。このインストーラーは、ほとんどすべての構成オプションを求め、秘密と値を自動的に入力します。さらに、自動インストーラでは、Helmリリースではなくプレーンマニフェストとして統合をインストールすることもできます。自動インストーラの使用方法の詳細については、 [Kubernetes integration: install and configure](docs/integrations/kubernetes-integration/installation/kubernetes-integration-install-configure/) を参照してください。
+
+<ButtonLink
+  role="button"
+  to="https://one.newrelic.com/launcher/nr1-core.settings?pane=eyJuZXJkbGV0SWQiOiJrOHMtY2x1c3Rlci1leHBsb3Jlci1uZXJkbGV0Lms4cy1zZXR1cCJ9"
+  variant="primary"
+>
+  インストーラの起動
+</ButtonLink>
+
+このページでは、自動インストーラを使わずにNew Relicインテグレーションをインストールして設定する方法をより詳しく説明します。
+
+## 互換性および要件 [#compatibility]
+
+お使いのマシンに [Helm](https://github.com/helm/helm#install) がインストールされていることを確認してください。Kubernetesの統合を管理するために、Helm 3を使用することを強くお勧めします。私たちのチャートはHelm 2にも対応していますが、将来的にサポートがなくなるかもしれません。
+
+Helmを使ってKubernetesインテグレーションをインストールするには、New Relicアカウントのライセンスキーと、Kubernetesクラスタの名前が必要です。
+
+1. [New Relic のライセンスキー](/docs/accounts/install-new-relic/account-setup/license-key) を見つけてコピーしてください。
+2. このコマンドでクラスタの名前を見つけてください。
+
+```
+kubectl config current-context
+```
+
+これらの値は後でインストール時に必要になるので、安全な場所にメモしておいてください。
+
+## HelmによるKubernetesインテグレーションのインストール [#install-k8-helm]
+
+### Helm 3とnri-bundleによるインストール（推奨）
+
+New Relicには、プラットフォームの異なる機能を提供するさまざまなコンポーネントのためのいくつかのチャートがあります。
+
+* [`newrelic-infrastructure`](https://github.com/newrelic/helm-charts/tree/master/charts/newrelic-infrastructure) : メインのKubernetesインテグレーションとインフラストラクチャエージェントが含まれています。New Relic Kubernetes体験の中核となるコンポーネントで、ダッシュボードやKubernetes Cluster Explorerで表示されるデータのほとんどを報告する役割を担っています。
+* [`newrelic-logging`](https://github.com/newrelic/helm-charts/tree/master/charts/newrelic-logging) : New Relic の [Fluent Bit](https://fluentbit.io/) output [plugin](https://github.com/newrelic/newrelic-fluent-bit-output) を使って、ログを簡単に [New Relic](https://docs.newrelic.com/docs/logs/new-relic-logs/get-started/introduction-new-relic-logs) に転送する DaemonSet を提供します。
+* [`nri-kube-events`](https://github.com/newrelic/helm-charts/tree/master/charts/nri-kube-events) : クラスタのイベント(例えば `kubectl get events`)を収集し、New Relic に報告します。
+* [`nri-prometheus`](https://github.com/newrelic/helm-charts/tree/master/charts/nri-prometheus) : New Relic の Prometheus OpenMetrics Integration は、クラウザーに存在する Prometheus のエンドポイントを自動的にスクレイピングし、 [メトリクスを New Relic に報告します。](https://docs.newrelic.com/docs/integrations/prometheus-integrations/get-started/send-prometheus-metric-data-new-relic#OpenMetrics).
+* [`nri-metadata-injection`](https://github.com/newrelic/helm-charts/tree/master/charts/nri-metadata-injection) : 最小限の `MutatingAdmissionWebhook` をセットアップし、コンテナにいくつかの環境を注入します。これらには、クラスターと New Relic のインストールに関するメタデータが含まれており、APM を使用してインスツルメンテーションされたアプリケーションによって後にピックアップされ、 [APM とインフラストラクチャのデータを相関させることができます。](/docs/integrations/kubernetes-integration/link-your-applications/link-your-applications-kubernetes/)
+* [`nri-statsd`](https://github.com/newrelic/helm-charts/tree/master/charts/nri-statsd) : New Relic StatsD の統合。
+
+さらに、New Relic は [`nri-bundle`](https://github.com/newrelic/helm-charts/tree/master/charts/nri-bundle) 、上記のチャートの中から選択可能なセットを引き出すチャートを提供しています。 `nri-bundle` は、必要に応じて Kube State Metrics と Pixie をインストールすることもできます。
+
+これらのチャートを個別にインストールすることも可能ですが、Kubernetesのデプロイメントには、 [`nri-bundle`](https://github.com/newrelic/helm-charts/tree/master/charts/nri-bundle) チャートを使用することを強くお勧めします。これは、すべてのチャートの値が一貫していることを保証し、どのコンポーネントをインストールするかを完全に制御できるだけでなく、すべてのコンポーネントを [Helm dependencies](https://helm.sh/docs/chart_template_guide/subcharts_and_globals/#overriding-values-from-a-parent-chart) として設定することができるからです。これは、当社の自動インストーラが使用し、参照するチャートと同じです。
+
+### `nri-bundle` を Helm でインストール、設定する。
+
+1. Helm を実行するマシンで適切なコンテキストを使用していることを確認し、 `kubectl`:
+
+で利用可能なコンテキストを確認することができます。
+
+```
+kubectl config get-contexts
+```
+
+で、目的のコンテキストに切り替えます。
+
+```
+kubectl config use-context <var>CONTEXT_NAME</var>
+```
+
+2. New Relic Helm chartのリポジトリを追加します。
+
+```
+helm repo add newrelic https://helm-charts.newrelic.com
+```
+
+3. 次のコマンドを実行して、すべてがチャートに正しく設定されていることを確認してください。 `--dry-run` と `--debug` を指定しているので、このステップでは何もインストールされないことに注意してください。
+
+```
+helm upgrade --install <mark>newrelic</mark> newrelic/nri-bundle \
+--dry-run \
+--debug \
+--namespace <mark>newrelic</mark> --create-namespace \
+--set global.licenseKey=<var>YOUR_NEW_RELIC_LICENSE_KEY</var> \
+--set global.cluster=<var>K8S_CLUSTER_NAME</var> \
+--set ksm.enabled=<mark>true</mark> \
+--set newrelic-infrastructure.privileged=<mark>true</mark> \
+--set infrastructure.enabled=true \
+--set prometheus.enabled=true \
+--set webhook.enabled=true \
+--set kubeEvents.enabled=true \
+--set logging.enabled=true
+```
+
+以下のフラグに注意して調整してください。
+
+* `global.licenseKey=YOUR_NEW_RELIC_LICENSE_KEY`: お客様のアカウントの有効なライセンスキーを設定する必要があります。
+
+* `global.cluster=K8S_CLUSTER_NAME`: New RelicのUIでクラスタを識別するために使用されるため、New Relicアカウントで設定された他のKubernetesクラスタでは使用されていない記述的な値を指定します。
+
+* `ksm.enabled=true`: これを `true` に設定すると、Kube State Metrics (KSM) が自動的にインストールされます。これは、当社の統合を実行するために必要です。KSMがすでにクラスタ内に存在する場合は、別の名前空間であっても、これをfalseに設定することができます。
+
+* `newrelic-infrastructure.privileged=true`: `false` に設定することで、 `hostPath` mounts や root でのコンテナ実行など、余分な権限を必要としない、切り詰めたバージョンの統合をインストールすることができます。
+
+  * これにより、ホストからの詳細なプロセス収集ができなくなりますのでご注意ください。
+  * パフォーマンス上の理由から、弊社のロギングソリューションは、このフラグの値に関わらず、 `hostPath` のマウントを必要とします。クラスタ内でこれが許可されていない場合は、 `logging.enabled=false` を指定して、ロギングソリューションを無効にする必要があります。
+
+* `prometheus.enabled=true`: 当社のPrometheus OpenMetricsインテグレーションが展開され、クラスタ内に存在するPrometheusエンドポイントから自動的にデータを収集します。
+
+* `webhook.enabled=true`: 最小限のwebhookがインストールされます。このwebhookは環境変数を追加し、APMでインスツルメントされたアプリケーションとインフラストラクチャデータをリンクすることができます。
+
+チャートには、お客様のニーズに合わせてソリューションを設定するために編集可能な、包括的なフラグと調整項目が用意されています。設定可能なすべてのフラグのリストについては、 [チャートのREADME](https://github.com/newrelic/helm-charts/tree/master/charts/nri-bundle) と、デフォルトの [`values.yaml`](https://github.com/newrelic/helm-charts/blob/master/charts/nri-bundle/values.yaml) ファイルをご確認ください。
+
+4. `--debug` と `--dry-run` を除いてカスタマイズしたコマンドを実行して、Kubernetesインテグレーションをインストールします。
+
+```
+helm upgrade --install <var>newrelic</var> newrelic/nri-bundle \
+--namespace <mark>newrelic</mark> --create-namespace \
+--set global.licenseKey=<var>YOUR_NEW_RELIC_LICENSE_KEY</var> \
+--set global.cluster=<var>K8S_CLUSTER_NAME</var> \
+--set ksm.enabled=<mark>true</mark> \
+--set newrelic-infrastructure.privileged=<mark>true</mark> \
+--set infrastructure.enabled=true \
+--set prometheus.enabled=true \
+--set webhook.enabled=true \
+--set kubeEvents.enabled=true \
+--set logging.enabled=true
+```
+
+5. 数秒待ってから、 `DaemonSet` とポッドが作成されたことを確認します。
+
+```
+kubectl -n <mark>newrelic</mark> get daemonsets,pods
+```
+
+6. `DaemonSet` 、 `newrelic-infrastructure` の各ノードに 1 つのポッド、 `Deployment` の各ノードに 1 つのポッド、および有効にしたその他のコンポーネントに 1 つのポッドが表示されていることを確認します。
+
+### Helm 2とnri-bundle（レガシー）でのインストール
+
+<CollapserGroup>
+  <Collapser
+    className="freq-link"
+    id="install-helm2"
+    title="Helm 2のインストール手順"
+  >
+    <Callout variant="important">
+      Helm 2 は非推奨となっており、New Relic ではデプロイメントに使用することを推奨していません。このセクションの説明は、レガシーシステムのみを対象としています。
+    </Callout>
+
+    Helm 2でインストールする場合
+
+    1. Helm 2とそのクラスタ側のコンポーネント（Tillerなど）が正しくインストールされ、設定されていることを確認します。 [詳細は、公式ドキュメント](https://v2.helm.sh/docs/using_helm/) をご確認ください。
+
+    2. エージェントをインストールするクラスタを設定します。
+
+       ```
+       kubectl config set-cluster <var>DESIRED_CLUSTER</var>
+       ```
+
+       利用可能なクラスターを確認するには、 `kubectl config get-clusters を実行します。`
+
+    3. お使いのマシンに `kube-state-metrics` がインストールされていることを確認してください。
+
+       ```
+       kubectl get deployment --all-namespaces | grep kube-state-metrics
+       ```
+
+       [インストールされていない場合は、kube-state-metrics GitHub repo](https://github.com/kubernetes/kube-state-metrics#kubernetes-deployment) の指示に従ってインストールしてください。
+
+    4. New Relic Helm chartのリポジトリを追加します。
+
+       ```
+       helm repo add newrelic https://helm-charts.newrelic.com
+       ```
+
+    5. 次のコマンドを実行して、すべてがチャートに正しく設定されていることを確認します。この手順では、 `--dry-run` と `--debug` のスイッチを使用しているため、エージェントはインストールされません。
+
+       ```
+       helm install newrelic/newrelic-infrastructure \
+       --dry-run \
+       --debug \
+       --set licenseKey=<var>YOUR_NEW_RELIC_LICENSE_KEY</var> \
+       --set cluster=<var>K8S_CLUSTER_NAME</var> \
+       --set config.custom_attributes.cluster=<var>K8S_CLUSTER_NAME</var>
+       ```
+
+    6. New Relic Kubernetesインテグレーションをインストールします。
+
+       ```
+       helm install newrelic/newrelic-infrastructure \
+       --set licenseKey=<var>your_new_relic_license_key</var> \
+       --set cluster=<var>K8S_CLUSTER_NAME</var> \
+       --set config.custom_attributes.cluster=<var>K8S_CLUSTER_NAME</var>
+       ```
+
+       <Callout variant="tip">
+         なお、 `--dry-run` と `--debug` のスイッチは削除されています。
+       </Callout>
+
+    7. 数秒待ってから、 `DaemonSet` とポッドが作成されたことを確認します。
+
+       ```
+       kubectl get daemonsets,pods
+       ```
+
+    8. `DaemonSet` 、ノードごとに1つのポッドが表示されていることを確認してください。
+
+       ### Helmの設定オプション [#config-options]
+
+       HelmによるKubernetesインテグレーションをコマンドラインでインストールまたはアップグレードする際に、 `--set` フラグで設定変数を渡すことができます。
+
+       ```
+       helm install newrelic/newrelic-infrastructure \
+       --set licenseKey=<var>YOUR_NEW_RELIC_LICENSE_KEY</var> \
+       --set cluster=<var>YOUR_CLUSTER_NAME</var>
+       ```
+
+       設定パラメータの全リストは [`newrelic-infrastructure` chart README にあります。](https://github.com/newrelic/helm-charts/tree/master/charts/newrelic-infrastructure)
+  </Collapser>
+</CollapserGroup>
+
+## Helmによるアップグレード [#upgrade]
+
+Helm経由でインストールしたKubernetesインテグレーションをアップデートするには
+
+1. ローカルチャートのリポジトリを更新します。
+
+```
+helm repo update
+```
+
+2. 上記のセクションで適切な `helm upgrade --install ...` コマンドを再度実行して、リリースを更新します。
+
+## Kubernetesで実行しているサービスを監視する [#services]
+
+Kubernetesインテグレーションをインストールした後は、クラスタ内で動作するサービスのインスツルメンテーションを開始できます。この方法の詳細については、 [Kubernetes上で動作するサービスの監視](/docs/integrations/kubernetes-integration/link-apps-services/monitor-services-running-kubernetes/#monitor-services-helm) ページをご覧ください。
+
+## Kubernetesデータの使用
+
+Kubernetesデータの使用方法の詳細については、[Kubernetesデータページの詳細検索](/docs/integrations/kubernetes-integration/understand-use-data/)を参照してください。
+
+## データ取り込みを減らす [#reducedataingest]
+
+当社のチャートでは、詳細情報を落とす代わりにデータ取り込み量を減らすオプションの設定がサポートされています。これを有効にするには、 `global.lowDataMode=true` `nri-bundle` チャートで設定します。
+
+`lowDataMode` は、 `nri-bundle` チャートのうち、以下の3つの特定のコンポーネントに影響を与えます。
+
+### Prometheus OpenMetricsの統合
+
+`lowDataMode` が有効な場合、以下のメトリクスは [New Relic Kubernetes Integration](https://docs.newrelic.com/docs/integrations/kubernetes-integration/understand-use-data/find-use-your-kubernetes-data/#event-types) によってすでに収集され使用されているため、デフォルトで除外されます。
+
+```
+- kube_
+- container_
+- machine_
+- cadvisor_
+```
+
+### New Relic のロギング
+
+`lowDataMode` が有効な場合、fluent-bit.conf ファイルの [Filter セクション](https://github.com/newrelic/helm-charts/blob/master/charts/newrelic-logging/templates/configmap.yaml#L38-L39) で Labels and Annotations が `Off` に設定されます。これは、この詳細がコンテナのログファイルから削除されることを意味し、New Relicへのデータ取り込み全体が減少します。
+
+以下のフィールドが保持されます。
+
+```
+Allowlist_key  container_name
+Allowlist_key  namespace_name
+Allowlist_key  pod_name
+Allowlist_key  stream
+Allowlist_key  log
+```
+
+**ローデータモードのログ例**
+
+完全なログ記録
+
+```
+[
+  {
+    "cluster_name": "api-test",
+    "kubernetes": {
+      "annotations": {
+        "kubernetes.io/psp": "eks.privileged"
+      },
+      "container_hash": "fryckbos/test@sha256:5b098eaf3c7d5b3585eb10cebee63665b6208bea31ef31a3f0856c5ffdda644b",
+      "container_image": "fryckbos/test:latest",
+      "container_name": "newrelic-logging",
+      "docker_id": "134e1daf63761baa15e035b08b7aea04518a0f0e50af4215131a50c6a379a072",
+      "host": "ip-192-168-17-123.ec2.internal",
+      "labels": {
+        "app": "newrelic-logging",
+        "app.kubernetes.io/name": "newrelic-logging",
+        "controller-revision-hash": "84db95db86",
+        "pod-template-generation": "1",
+        "release": "nri-bundle"
+      },
+      "namespace_name": "nrlogs",
+      "pod_id": "54556e3e-719c-46b5-af69-020b75d69bf1",
+      "pod_name": "nri-bundle-newrelic-logging-jxnbj"
+    },
+    "message": "[2021/09/14 12:30:49] [ info] [engine] started (pid=1)\n",
+    "plugin": {
+      "source": "kubernetes",
+      "type": "fluent-bit",
+      "version": "1.8.1"
+    },
+    "stream": "stderr",
+    "time": "2021-09-14T12:30:49.138824971Z",
+    "timestamp": 1631622649138
+  }
+]
+```
+
+`lowDataMode を有効にした後のログレコード`.
+
+```
+[
+  {
+    "cluster_name": "api-test",
+    "container_name": "newrelic-logging",
+    "namespace_name": "nrlogs",
+    "pod_name": "nri-bundle-newrelic-logging-jxnbj",
+    "message": "[2021/09/14 12:30:49] [ info] [engine] started (pid=1)\n",
+    "stream": "stderr",
+    "timestamp": 1631622649138
+  }
+]
+```
+
+### New Relic Pixieの統合
+
+`lowDataMode` が有効な場合、 `newrelic-pixie` の統合により、Pixie のスパンでより重いサンプリングを行い、収集間隔を 10 秒から 15 秒に短縮します。
+
+`lowDataMode` 設定。
+
+```
+HTTP_SPAN_LIMIT: 750
+DB_SPAN_LIMIT: 250
+COLLECT_INTERVAL_SEC: 15
+```
+
+これらのパラメータやその他のパラメータのデフォルト設定は、 [newrelic-pixie-integration](https://github.com/newrelic/newrelic-pixie-integration) Github repoにあります。
+
+## Kubernetesインテグレーションのアンインストール [#uninstall]
+
+Helmを使ってKubernetesインテグレーションをアンインストールするには、以下のコマンドを実行します。 `some-manifest-file.yml` をあなたの特定のファイル名に置き換えてください。
+
+```
+helm --uninstall newrelic newrelic/nri-bundle
+if kubectl then :
+kubectl delete -f some-manifest-file.yml
+```

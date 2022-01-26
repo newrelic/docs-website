@@ -1,0 +1,323 @@
+---
+title: 'ステップ1: AWSとNew Relicのアカウントをリンクする'
+metaDescription: Step 1 of enabling New Relic AWS Lambda Monitoring.
+translationType: machine
+---
+
+これは、New RelicのAWS Lambdaモニタリング [を有効にするための1つのステップです。](/docs/serverless-function-monitoring/aws-lambda-monitoring/enable-lambda-monitoring/enable-aws-lambda-monitoring)
+
+[](/docs/serverless-function-monitoring/aws-lambda-monitoring/enable-lambda-monitoring/enable-aws-lambda-monitoring)
+
+[AWS アカウントを New Relic にリンクさせると、New Relic に AWS アカウントのインベントリを作成したり、Lambda 関数の CloudWatch メトリクスを収集したりする権限が与えられます。AWSアカウントのリソースは、 ](/docs/serverless-function-monitoring/aws-lambda-monitoring/enable-lambda-monitoring/enable-aws-lambda-monitoring)[エクスプローラー](/docs/new-relic-one/use-new-relic-one/ui-data/new-relic-one-entity-explorer-view-performance-across-apps-services-hosts) にエンティティとして表示され、設定情報が表示されます。
+
+<CollapserGroup>
+  <Collapser
+    id="aws-permissions"
+    title="AWSのパーミッションの詳細"
+  >
+    このインベントリを作成するには、少なくともこれらのIAM権限を付与するIAMロールが必要です。
+
+    ```
+    Resource: "*"
+    Action:
+      "cloudwatch:GetMetricStatistics"
+      "cloudwatch:ListMetrics"
+      "cloudwatch:GetMetricData"
+      "lambda:GetAccountSettings"
+      "lambda:ListFunctions"
+      "lambda:ListAliases"
+      "lambda:ListTags"
+      "lambda:ListEventSourceMappings"
+    ```
+
+    デフォルトでは、AWS Managed Policy `ReadOnlyAccess` を使用しています。これにより、Infrastructure integrationは、Lambda関数やCloudWatchメトリクスだけでなく、アカウント内のすべてのリソースを見ることができます。New Relicではこのデフォルトを推奨していますが、サードパーティの統合に対して非常に保守的なセキュリティ態勢をとっている組織があることも理解しています。上記のパーミッションを持つロールは、Lambdaの遠隔測定の収集を許可するのに十分ですが、他のサービスと相互作用するトレースはうまく動作しない可能性があります。
+  </Collapser>
+</CollapserGroup>
+
+また、この統合ステップでは、New Relic のライセンスキーを AWS Secrets Manager サービスに保存し、遠隔測定結果を New Relic アカウントに送信できるようにします。
+
+## 推奨される方法です。 `newrelic-lambda` CLI [#rec]
+
+### 要件 [#requirements]
+
+当社のLambdaレイヤーを使ってサーバーレス監視を実現するには、以下のものが必要です。
+
+* [AWS CLI v2](https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2.html) をインストールし、 `aws configure` を使って設定しました。
+* [Python](https://www.python.org/downloads/) バージョン3.3以上がインストールされていること。
+* [newrelic-lambda CLI](https://github.com/newrelic/newrelic-lambda-cli#installation) を実行するとインストールできます。 `pip3 install newrelic-lambda-cli` を実行するとインストールできます。
+* New Relic のアカウントです。admin ロールを持っているか、 **Infrastructure manager** [アドオンロール](/docs/accounts/original-accounts-billing/original-users-roles/users-roles-original-user-model#add-on) を持っている必要があります。
+* A [ユーザーキー](/docs/apis/get-started/intro-apis/types-new-relic-api-keys#personal-api-key).
+* IAMリソース、マネージドシークレット、Lambdasを作成するパーミッションを持つAWSアカウント。また、CloudFormationスタックやS3バケットを作成するための権限も必要です。
+
+<CollapserGroup>
+  <Collapser
+    id="cli-aws-permissions"
+    title="CLIユーザーのAWSパーミッションの詳細"
+  >
+    CLIはAWS SDKを使用してAWSと対話します。このSDKは、AWS CLIと同じデフォルト・プロファイルを使用して動作します。このプロファイルは、CLIを実行するために、少なくとも以下のAWSパーミッションが必要です。
+
+    ```
+    {
+        "Version": "2012-10-17",
+        "Statement": [
+            {
+                "Sid": "CLIAccessPolicy",
+                "Action": [
+                    "cloudformation:CreateChangeSet",
+                    "cloudformation:CreateStack",
+                    "cloudformation:DescribeStacks",
+                    "cloudformation:ExecuteChangeSets",
+                    "iam:AttachRolePolicy",
+                    "iam:CreateRole",
+                    "iam:GetRole",
+                    "iam:PassRole",
+                    "lambda:AddPermission",
+                    "lambda:CreateFunction",
+                    "lambda:GetFunction",
+                    "logs:DeleteSubscriptionFilter",
+                    "logs:DescribeSubscriptionFilters",
+                    "logs:PutSubscriptionFilter",
+                    "s3:GetObject",
+                    "serverlessrepo:CreateCloudFormationChangeSet",
+                    "secretsmanager:CreateSecret"
+                ],
+                "Effect": "Allow",
+                "Resource": "*"
+            },
+            {
+                "Sid": "NRLogAccessPolicy",
+                "Effect": "Allow",
+                "Action": [
+                    "serverlessrepo:CreateCloudFormationTemplate",
+                    "serverlessrepo:GetCloudFormationTemplate"
+                ],
+                "Resource": "arn:aws:serverlessrepo:us-east-1:463657938898:applications/NewRelic-log-ingestion"
+            }
+        ]
+    }
+    ```
+  </Collapser>
+</CollapserGroup>
+
+### CLIとの統合 [#cli]
+
+[要件](#requirements) がすべて揃ったら、 [ユーザーキー](/docs/apis/get-started/intro-apis/types-new-relic-api-keys#personal-api-key) を使って以下のコマンドを実行し、AWS アカウントと New Relic アカウントをリンクさせます（ <var>ハイライトされた</var> の値はすべて置き換えてください）。
+
+<CollapserGroup>
+  <Collapser
+    id="aws-env-variables"
+    title="AWSのリージョンとプロファイル"
+  >
+    **地域の設定** 地域を設定するには、この [環境変数](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-envvars.html) を使って、デフォルトの地域を上書きします。
+
+    ```
+    export AWS_DEFAULT_REGION=<var>MY_REGION</var> # us-west-2, for example
+    ```
+
+    CLIツールでは、 `--aws-region` を使って、コマンドごとにこの設定を渡すこともできます。
+
+    **プロファイルの設定**
+
+    複数のAWSプロファイルがあり、デフォルトを使用したくない場合は、 `AWS_PROFILE` [環境変数](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-envvars.html) を使用して、別のプロファイル名を設定します。プロファイルが適切に設定されていることを確認します（デフォルトのリージョンを含む）。例
+
+    ```
+    export AWS_PROFILE=<var>MY_PROFILE</var>
+    ```
+  </Collapser>
+</CollapserGroup>
+
+```
+newrelic-lambda integrations install --nr-account-id <var><a href="/docs/accounts/accounts-billing/account-setup/account-id">YOUR_NR_ACCOUNT_ID</a></var> \
+    --nr-api-key <var><a href="https://docs.newrelic.com/docs/apis/get-started/intro-apis/types-new-relic-api-keys#user-api-key">YOUR_NEW_RELIC_USER_KEY</a></var>
+```
+
+`newrelic-lambda` CLIは、New Relicのライセンスキーを [AWS Secret Manager](https://aws.amazon.com/secrets-manager/) のシークレットとして追加し、セキュリティを強化します。
+
+<Callout variant="tip">
+  **AWS Secrets ManagerにNew Relicのライセンスキーを保存する**
+
+  [New Relic ライセンスキー](/docs/accounts/accounts-billing/account-setup/new-relic-license-key) は、お客様を識別し、New Relic を認証するもので、お客様の遠隔測定をお客様の New Relic アカウントと関連付けることができます。遠隔測定を送信する各機能は、この値にアクセスする必要があり、安全に管理する必要があります。これらの問題を解決するのが AWS Secrets Manager です。
+
+  組織の都合でAWS Secrets Managerを使用できない場合や、リージョンごとに複数のシークレットを保存する必要がある場合は、ライセンスキーを設定する別の方法として、以下を参照してください。
+</Callout>
+
+## 代替方法 [#alt]
+
+<CollapserGroup>
+  <Collapser
+    id="manual-linking"
+    title="アカウントを手動でリンクする"
+  >
+    ### インフラのUI
+
+    CLIは、アカウントをリンクするための最も複雑でない方法です。現在のCLIの動作では、リージョンごとに1つのマネージドシークレットのセットアップが制限されています。より多くの制御が必要な場合や、リージョンごとに複数の New Relic アカウントを統合する必要がある場合は、 [リンクプロセス](docs/integrations/amazon-integrations/get-started/connect-aws-new-relic-infrastructure-monitoring) を手動で行うことができます。監視対象のサービスを選択する際には、必ずLambdaを有効にしてください。
+
+    次に説明するように、ライセンスキーの秘密を手動で設定することを忘れないでください。
+
+    ### ライセンス・キー・シークレットを手動で設定する
+
+    アカウントのリンクに加えて、ライセンスキーのシークレットを設定する必要があります。
+
+    1. このCloudFormationテンプレートのダウンロード： [license-key-secret.yaml](https://github.com/newrelic/newrelic-lambda-cli/blob/master/newrelic_lambda_cli/templates/license-key-secret.yaml)
+
+    2. AWS CLI、または AWS CloudFormation コンソールを使用して、 `LicenseKey` パラメータを供給しながら、テンプレートをインストールします。New Relic のライセンスキー [は、ここ](https://one.newrelic.com/launcher/api-keys-ui.api-keys-launcher) で見つけることができます。"INGEST - LICENSE" と表示されています。ライセンスキーは、必ず上記のInfrastructure UIで設定したアカウントのものを使用してください。
+
+       AWS CLIの例です。
+
+       `YOUR_LICENSE_KEY` を上記で見つけたライセンスキーに置き換えてください。
+
+       ```
+         aws cloudformation create-stack --stack-name NewRelicLicenseKeySecret 
+           --template-body file://license-key-secret.yaml 
+           --parameters 'ParameterKey=LicenseKey,ParameterValue=LICENSE_KEY' 
+           'ParameterKey=NrAccountId,ParameterValue=ACCOUNT_ID'
+       ```
+
+       アカウントを手動でインストルメントする方法については、 [レガシードキュメントもご覧ください](/docs/serverless-function-monitoring/aws-lambda-monitoring/enable-lambda-monitoring/enable-serverless-monitoring-aws-lambda-legacy/) 。
+  </Collapser>
+
+  <Collapser
+    id="env-var"
+    title="ラムダの環境変数"
+  >
+    参考までに、これらはモジュールの動作を設定・制御するために利用可能な環境変数です。
+
+    **必須**:
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "350px" }}>
+            環境変数
+          </th>
+
+          <th>
+            説明
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `new_relic_account_id`
+          </td>
+
+          <td>
+            分散型トレーシングに必要です。
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `new_relic_lambda_handler`
+          </td>
+
+          <td>
+            Node、Python、Javaは必須。
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `new_relic_trusted_account_key`
+          </td>
+
+          <td>
+            分散型トレーシングに必要です。これは、あなたのアカウントのIDです。あなたのアカウントが子アカウントの場合、これはルート/親アカウントのアカウントIDです。
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    **任意の**:
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "350px" }}>
+            環境変数
+          </th>
+
+          <th>
+            説明
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `NEW_RELIC_DISTRIBUTED_TRACING_ENABLED`
+          </td>
+
+          <td>
+            [レガシーなセットアップで使用されます](/docs/serverless-function-monitoring/aws-lambda-monitoring/enable-lambda-monitoring/enable-serverless-monitoring-aws-lambda-legacy/). `TRUE` ほとんどのエージェントでデフォルトで使用されます。
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `ニューレリック・エクステンション・ログ・レベル`
+          </td>
+
+          <td>
+            `DEBUG` に設定すると、デバッグログが有効になります。
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `new_relic_extension_send_function_logs`
+          </td>
+
+          <td>
+            `FALSE` をデフォルトで設定します。 `TRUE`に設定すると、CloudWatch や `newrelic-log-ingestion` Lambda をバイパスして、関数のログを直接 New Relic に送信します。
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `ニューレリック・ラムダ・エクステンション・イネーブルド（new_relic_lambda_extension_enabled`
+          </td>
+
+          <td>
+            FALSEに設定すると、拡張機能が無効になり、CloudWatchのテレメトリーパスが使用されます。
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `new_relic_license_key` / `new_relic_license_key_secret`
+          </td>
+
+          <td>
+            ライセンスキーはNew Relicアカウントに関連付けられており、シークレットはライセンスキーを含むAWS Managed Secretの名前です。 `NEW_RELIC_LICENSE_KEY` が設定されていない場合は、 `NEW_RELIC_LICENSE_KEY_SECRET` の中からキーを探します。キーの内容が正しくフォーマットされていることを確認するために、 [CLI](#rec) を使用してラムダ・モニタリングを有効にすることをお勧めします。
+
+            詳細はこちら [ライセンスキー](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key) 。
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+</CollapserGroup>
+
+## トラブルシューティング [#troubleshooting]
+
+### AWSのシークレットマネージャーが使えない [#cannot-use-secrets]
+
+組織が AWS Secrets Manager の使用を許可していない場合、New Relic Lambda Extension は、 `NEW_RELIC_LICENSE_KEY` 環境変数を受け入れます。 `--disable-license-key-secret` フラグを `newrelic-lambda integrations install` コマンドから追加します。そして、この環境変数に、Lambda 関数の設定で [New Relic のライセンスキー](/docs/accounts/accounts-billing/account-setup/new-relic-license-key) を設定します。
+
+### 複数のAWSリージョンとアカウント [#multiple-regions-accounts]
+
+`newrelic-lambda` CLIは、 `--aws-region` パラメータを使用して、リージョンごとに1回実行する必要があります。同じリンク・アカウント名を使用すれば、ツールはアカウント・リンクがすでに作成されていることを検出します。ライセンス・キー・シークレットは各地域で作成する必要があります。
+
+同様に、複数のAWSアカウントを1つのNew Relicアカウントにリンクすることができます。それぞれのアカウントに、異なるリンクアカウント名をつけます。CLI ツールの `--aws-profile` 引数は、名前の付いたプロファイルを選択します。このツールは、AWS CLI と同じ設定を使用します。
+
+### Failure to retrieve license key `AccessDeniedException` [#fail-retrieve-license]
+
+あなたのラムダコードは、AWS Secrets Managerを読む権限を持つ実行ロールを必要とします。以下のようなログが出た場合、実行ロールのポリシーに適切なパーミッションを追加します。私たちの例では、 `template.yaml` ファイルで、このパーミッションを付与する簡単な方法を確認してください。
+
+```
+Failed to retrieve license key AccessDeniedException: User: <ARN> is not authorized to perform: secretsmanager:GetSecretValue on resource: <ARN>
+```
