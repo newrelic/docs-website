@@ -100,6 +100,7 @@ describe('actions tests', () => {
         to: 'src/content/docs/change-passwords-user-preference.mdx',
       },
     },
+    // src/content/docs/newaccounts/accounts/newaccount-maintenance/change-passwords-user-preference.mdx
     {
       input:
         'src/content/docs/{ => using-new-relic/data/understand-data}/instrumentation-editor-instrument-net-ui.mdx',
@@ -107,6 +108,29 @@ describe('actions tests', () => {
         from: 'src/content/docs/instrumentation-editor-instrument-net-ui.mdx',
         to:
           'src/content/docs/using-new-relic/data/understand-data/instrumentation-editor-instrument-net-ui.mdx',
+      },
+    },
+    {
+      // Tests non-adjacent directories: Checking that there is only 1 set of brackets
+      input:
+        'src/content/docs/{accounts/accounts/account-maintenance => newaccounts/accounts/newaccount-maintenance}/change-passwords-user-preferences.mdx',
+      result: {
+        from:
+          'src/content/docs/accounts/accounts/account-maintenance/change-passwords-user-preferences.mdx',
+        to:
+          'src/content/docs/newaccounts/accounts/newaccount-maintenance/change-passwords-user-preferences.mdx',
+      },
+    },
+
+    // Tests change of directories including filename
+    {
+      input:
+        'src/content/docs/{accounts/accounts/account-maintenance/change-passwords-user-preferences.mdx => newaccounts/accounts/newaccount-maintenance/new-name.mdx}',
+      result: {
+        from:
+          'src/content/docs/accounts/accounts/account-maintenance/change-passwords-user-preferences.mdx',
+        to:
+          'src/content/docs/newaccounts/accounts/newaccount-maintenance/new-name.mdx',
       },
     },
   ];
