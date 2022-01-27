@@ -12,6 +12,11 @@ interface FileRename {
   to: string;
 }
 
+/**
+ * Method which identifies and returns all orphaned content in the src/i18n docs directories. The return includes files across all locales and contains ancillary content like images or other referenced files, in addition to the mdx content.
+ *
+ * Orphaned refers to a locale specific file not having an english equivalent.
+ */
 const getOrphanedFiles = (): string[] => {
   const englishContent = glob.sync(
     `${__dirname}/../../src/content/docs/**/*.*`
@@ -37,11 +42,17 @@ const getOrphanedFiles = (): string[] => {
   return orphanedFiles;
 };
 
+/**
+ * Method to print orphaned files.
+ */
 const printOrphanedFiles = (orphanedFilePaths: string[]): void => {
   console.log(`Found ${orphanedFilePaths.length} orphaned files.`);
   console.log(JSON.stringify(orphanedFilePaths, null, 4));
 };
 
+/**
+ * Method to delete orphaned files.
+ */
 const deleteOrphanedFiles = (orphanedFilePaths: string[]): void => {
   orphanedFilePaths.forEach((file) => {
     console.log(`Deleting: ${file}`);
@@ -49,6 +60,17 @@ const deleteOrphanedFiles = (orphanedFilePaths: string[]): void => {
   });
 };
 
+/**
+ * Method which parses the rename summary produced by simple-git.
+ * The return is an object detailing the original file path, and the new file path.
+ *
+ * @example rename summary example
+ * // input is
+ *"src/content/docs/accounts/accounts/{account-maintenance => billing}/change-passwords-user-preferences.mdx"
+ *
+ * // return is
+ * {from: 'src/content/docs/accounts/accounts/account-maintenance/change-passwords-user-preference.mdx', to: 'src/content/docs/accounts/accounts/billing/change-passwords-user-preference.mdx'}
+ */
 const parseRenameSummary = (renameSummary: string): FileRename => {
   const textWithinBrackets = new RegExp(/{(.*)}/);
   const [pathChange] = renameSummary.match(textWithinBrackets);
@@ -64,9 +86,15 @@ const parseRenameSummary = (renameSummary: string): FileRename => {
   return { from, to };
 };
 
+/**
+ * Method which returns simple-git produced summaries (just the name change) for files that have been renamed locally.
+ *
+ * Renamed refers to explicit renames -- the files that git detects as having been renamed.
+ * It may be the case you have functionally renamed a file, but git sees that as an addition & deletion instead. In this instance, you would not see that change listed when you call this method.
+ */
 const getRenamedFiles = async (): Promise<FileRename[]> => {
   /*
-  A single renamed file summary.
+  A single "renamed" file summary.
 
   DiffSummary {
     changed: 1,
@@ -99,6 +127,9 @@ const getRenamedFiles = async (): Promise<FileRename[]> => {
   return renamedFiles;
 };
 
+/**
+ *
+ */
 const getRenameChanges = (renamedFiles: FileRename[]): FileRename[] => {
   const i18nRenames: FileRename[] = [];
 
@@ -141,12 +172,11 @@ export {
   getOrphanedFiles,
   printOrphanedFiles,
   deleteOrphanedFiles,
+  parseRenameSummary,
   getRenamedFiles,
   getRenameChanges,
   printRenameChanges,
   makeRenameChanges,
 };
 
-export type {
-  FileRename
-}
+export { FileRename };
