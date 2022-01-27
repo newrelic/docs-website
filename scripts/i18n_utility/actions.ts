@@ -79,8 +79,10 @@ const parseRenameSummary = (renameSummary: string): FileRename => {
     .replace('}', '')
     .split(' => ');
   const [from, to] = [
-    renameSummary.replace(textWithinBrackets, fromPathSegment),
-    renameSummary.replace(textWithinBrackets, toPathSegment),
+    renameSummary
+      .replace(textWithinBrackets, fromPathSegment)
+      .replace('//', '/'),
+    renameSummary.replace(textWithinBrackets, toPathSegment).replace('//', '/'),
   ];
 
   return { from, to };

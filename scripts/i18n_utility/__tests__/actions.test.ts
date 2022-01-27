@@ -100,9 +100,20 @@ describe('actions tests', () => {
         to: 'src/content/docs/change-passwords-user-preference.mdx',
       },
     },
+    {
+      input:
+        'src/content/docs/{ => using-new-relic/data/understand-data}/instrumentation-editor-instrument-net-ui.mdx',
+      result: {
+        from: 'src/content/docs/instrumentation-editor-instrument-net-ui.mdx',
+        to:
+          'src/content/docs/using-new-relic/data/understand-data/instrumentation-editor-instrument-net-ui.mdx',
+      },
+    },
   ];
 
-  test.each(parseRenameTestCases)(
+  test.each(
+    parseRenameTestCases
+  )(
     'parseRenameSummary correctly parses $input into $result',
     ({ input, result }) =>
       expect(Actions.parseRenameSummary(input)).toStrictEqual(result)
