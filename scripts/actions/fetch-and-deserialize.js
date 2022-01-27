@@ -177,7 +177,7 @@ const deserializeHtmlToMdx = (locale) => {
    * @returns {Promise<SlugStatus>}
    */
   return async ({ path: contentPath, html }) => {
-    const completePath = path.join('src/content/docs', contentPath, '.mdx');
+    const completePath = `${path.join('src/content/docs', contentPath)}.mdx`;
 
     try {
       const localePath = path.join(
