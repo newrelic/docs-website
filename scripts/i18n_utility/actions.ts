@@ -114,7 +114,7 @@ const getRenamedFiles = async (): Promise<FileRename[]> => {
   }
   */
   const renamedFileSummaries = await git.diffSummary([
-    'develop',
+    'origin/develop',
     '--diff-filter',
     'R',
     '--',
