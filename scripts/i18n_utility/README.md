@@ -6,7 +6,7 @@ This is a CLI utility for:
 * identifying rename changes to make for translation related files
 * making rename changes for translation related files
 
-Orphaned files refer to files that exist underneath `i18n/content/docs` that do not have an english equivalent and are therefore unused and safe to delete.
+Orphaned files are files in `i18n/content/docs` that don't have an English equivalent. They're unused and safe to delete.
 
 For the rename changes, this refers to when you move an english document and don't move an existing translated version of that doc. So if we have a doc `hello/world.txt` and we rename it to `hello/goodbye.txt` we also want to rename the translated versions of that document (if they exist). The last two commands will print out subsequent rename changes that need to be made (based on what has been renamed already in the english content directory) and make those changes for you.
 
