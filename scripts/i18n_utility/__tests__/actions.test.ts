@@ -1,7 +1,7 @@
 import { mock } from 'jest-mock-extended';
 import { mocked } from 'jest-mock';
 import { SimpleGit } from 'simple-git';
-import type { DiffResult } from 'simple-git';
+import { DiffResult } from 'simple-git';
 
 const mockGit = mock<SimpleGit>();
 
@@ -132,6 +132,73 @@ describe('actions tests', () => {
     ]);
   });
 
+  test('getRenameChanges', () => {
+    const input: FileRename[] = [
+      {
+        from:
+          'src/content/docs/accounts/accounts-billing/account-setup/choose-your-data-center.mdx',
+        to: 'src/content/docs/choose-your-data-center.mdx',
+      },
+      {
+        from:
+          'src/content/docs/apm/agents/c-sdk/get-started/images/c-apm-summary.png',
+        to: 'src/content/docs/apm/agents/c-sdk/images/c-apm-summary.png',
+      },
+      {
+        from:
+          'src/content/docs/data-apis/convert-to-metrics/analyze-monitor-data-trends-metrics.mdx',
+        to:
+          'src/content/docs/data-apis/convert-to-metrics/data/analyze-monitor-data-trends-metrics.mdx',
+      },
+      {
+        from: 'src/content/docs/apm/errors-inbox/errors-inbox-ui.mdx',
+        to: 'src/content/docs/apm/errors-inbox-ui.mdx',
+      },
+    ];
+
+    /**
+     * Each two values represents inclusion of the [jp, kr] locale path in the result.
+     * This will result in:
+     *  doc[0]: jp included, kr included
+     *  doc[1]: jp included, kr excluded
+     *  doc[2]: jp excluded, kr included
+     *  doc[3]: jp excluded, kr excluded
+     */
+    [true, true, true, false, false, true, false, false].forEach(
+      (returnValue) => {
+        mockFs.existsSync.mockReturnValueOnce(returnValue);
+      }
+    );
+
+    const result = Actions.getRenameChanges(input);
+
+    expect(result.length).toBe(4);
+    expect(result).toStrictEqual([
+      {
+        from:
+          'src/i18n/content/jp/docs/accounts/accounts-billing/account-setup/choose-your-data-center.mdx',
+        to: 'src/i18n/content/jp/docs/choose-your-data-center.mdx',
+      },
+      {
+        from:
+          'src/i18n/content/kr/docs/accounts/accounts-billing/account-setup/choose-your-data-center.mdx',
+        to: 'src/i18n/content/kr/docs/choose-your-data-center.mdx',
+      },
+      {
+        from:
+          'src/i18n/content/jp/docs/apm/agents/c-sdk/get-started/images/c-apm-summary.png',
+        to:
+          'src/i18n/content/jp/docs/apm/agents/c-sdk/images/c-apm-summary.png',
+      },
+      {
+        from:
+          'src/i18n/content/kr/docs/data-apis/convert-to-metrics/analyze-monitor-data-trends-metrics.mdx',
+        to:
+          'src/i18n/content/kr/docs/data-apis/convert-to-metrics/data/analyze-monitor-data-trends-metrics.mdx',
+      },
+    ]);
+  });
+
   test('printOrphanedFiles calls console.log', () => {
     const orphanedFilePaths = ['(ﾉ◕ヮ◕)ﾉ*:･ﾟ✧', '╰(◕ᗜ◕)╯', '(✿☯‿☯✿)', '(◕‿◕✿)'];
 
@@ -153,19 +220,6 @@ describe('actions tests', () => {
 
     expect(mockFs.unlinkSync).toBeCalledTimes(orphanedFilePaths.length);
     expect(mockFs.unlinkSync.mock.calls[2][0]).toBe(orphanedFilePaths[2]);
-  });
-
-  test('parseRenameSummary correctly parses', () => {
-    const result = Actions.parseRenameSummary(
-      'src/content/docs/accounts/accounts/{account-maintenance => billing}/change-passwords-user-preference.mdx'
-    );
-
-    expect(result).toStrictEqual({
-      from:
-        'src/content/docs/accounts/accounts/account-maintenance/change-passwords-user-preference.mdx',
-      to:
-        'src/content/docs/accounts/accounts/billing/change-passwords-user-preference.mdx',
-    });
   });
 
   test('printRenameChanges calls console.log', () => {
