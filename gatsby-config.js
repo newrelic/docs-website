@@ -68,6 +68,7 @@ module.exports = {
             'go',
             'handlebars',
             'java',
+            'md',
             'php',
             'phpdoc',
             'csharp',
