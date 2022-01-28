@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 'use strict';
 
 import * as glob from 'glob';
@@ -174,7 +175,6 @@ export {
   getOrphanedFiles,
   printOrphanedFiles,
   deleteOrphanedFiles,
-  parseRenameSummary,
   getRenamedFiles,
   getRenameChanges,
   printRenameChanges,

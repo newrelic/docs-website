@@ -1,6 +1,7 @@
 import { mock } from 'jest-mock-extended';
 import { mocked } from 'jest-mock';
 import { SimpleGit } from 'simple-git';
+import type { DiffResult } from 'simple-git';
 
 const mockGit = mock<SimpleGit>();
 
@@ -57,6 +58,80 @@ describe('actions tests', () => {
     ]);
   });
 
+  test('getRenamedFiles correctly identifies renamed files', async () => {
+    const diffSummaries: DiffResult = {
+      files: [
+        {
+          file:
+            'src/content/docs/accounts/accounts/{account-maintenance => billing}/change-passwords-user-preferences.mdx',
+
+          // properties are here to maintain shape of DiffResult
+          changes: 0,
+          insertions: 0,
+          deletions: 0,
+          binary: false,
+        },
+        {
+          file:
+            'src/content/docs/{accounts/accounts/account-maintenance => }/change-passwords-user-preference.mdx',
+          changes: 0,
+          insertions: 0,
+          deletions: 0,
+          binary: false,
+        },
+        {
+          file:
+            'src/content/docs/{ => using-new-relic/data/understand-data}/instrumentation-editor-instrument-net-ui.mdx',
+          changes: 0,
+          insertions: 0,
+          deletions: 0,
+          binary: false,
+        },
+        {
+          file:
+            'src/content/docs/{accounts/accounts/account-maintenance => newaccounts/accounts/newaccount-maintenance}/change-passwords-user-preferences.mdx',
+          changes: 0,
+          insertions: 0,
+          deletions: 0,
+          binary: false,
+        },
+      ],
+      changed: 4,
+      insertions: 0,
+      deletions: 0,
+    };
+
+    mockGit.diffSummary.mockResolvedValueOnce(diffSummaries);
+
+    const renamedFiles = await Actions.getRenamedFiles();
+
+    expect(renamedFiles.length).toBe(diffSummaries.files.length);
+    expect(renamedFiles).toStrictEqual([
+      {
+        from:
+          'src/content/docs/accounts/accounts/account-maintenance/change-passwords-user-preferences.mdx',
+        to:
+          'src/content/docs/accounts/accounts/billing/change-passwords-user-preferences.mdx',
+      },
+      {
+        from:
+          'src/content/docs/accounts/accounts/account-maintenance/change-passwords-user-preference.mdx',
+        to: 'src/content/docs/change-passwords-user-preference.mdx',
+      },
+      {
+        from: 'src/content/docs/instrumentation-editor-instrument-net-ui.mdx',
+        to:
+          'src/content/docs/using-new-relic/data/understand-data/instrumentation-editor-instrument-net-ui.mdx',
+      },
+      {
+        from:
+          'src/content/docs/accounts/accounts/account-maintenance/change-passwords-user-preferences.mdx',
+        to:
+          'src/content/docs/newaccounts/accounts/newaccount-maintenance/change-passwords-user-preferences.mdx',
+      },
+    ]);
+  });
+
   test('printOrphanedFiles calls console.log', () => {
     const orphanedFilePaths = ['(ﾉ◕ヮ◕)ﾉ*:･ﾟ✧', '╰(◕ᗜ◕)╯', '(✿☯‿☯✿)', '(◕‿◕✿)'];
 
@@ -79,69 +154,6 @@ describe('actions tests', () => {
     expect(mockFs.unlinkSync).toBeCalledTimes(orphanedFilePaths.length);
     expect(mockFs.unlinkSync.mock.calls[2][0]).toBe(orphanedFilePaths[2]);
   });
-
-  const parseRenameTestCases = [
-    {
-      input:
-        'src/content/docs/accounts/accounts/{account-maintenance => billing}/change-passwords-user-preference.mdx',
-      result: {
-        from:
-          'src/content/docs/accounts/accounts/account-maintenance/change-passwords-user-preference.mdx',
-        to:
-          'src/content/docs/accounts/accounts/billing/change-passwords-user-preference.mdx',
-      },
-    },
-    {
-      input:
-        'src/content/docs/{accounts/accounts/account-maintenance => }/change-passwords-user-preference.mdx',
-      result: {
-        from:
-          'src/content/docs/accounts/accounts/account-maintenance/change-passwords-user-preference.mdx',
-        to: 'src/content/docs/change-passwords-user-preference.mdx',
-      },
-    },
-    // src/content/docs/newaccounts/accounts/newaccount-maintenance/change-passwords-user-preference.mdx
-    {
-      input:
-        'src/content/docs/{ => using-new-relic/data/understand-data}/instrumentation-editor-instrument-net-ui.mdx',
-      result: {
-        from: 'src/content/docs/instrumentation-editor-instrument-net-ui.mdx',
-        to:
-          'src/content/docs/using-new-relic/data/understand-data/instrumentation-editor-instrument-net-ui.mdx',
-      },
-    },
-    {
-      // Tests non-adjacent directories: Checking that there is only 1 set of brackets
-      input:
-        'src/content/docs/{accounts/accounts/account-maintenance => newaccounts/accounts/newaccount-maintenance}/change-passwords-user-preferences.mdx',
-      result: {
-        from:
-          'src/content/docs/accounts/accounts/account-maintenance/change-passwords-user-preferences.mdx',
-        to:
-          'src/content/docs/newaccounts/accounts/newaccount-maintenance/change-passwords-user-preferences.mdx',
-      },
-    },
-
-    // Tests change of directories including filename
-    {
-      input:
-        'src/content/docs/{accounts/accounts/account-maintenance/change-passwords-user-preferences.mdx => newaccounts/accounts/newaccount-maintenance/new-name.mdx}',
-      result: {
-        from:
-          'src/content/docs/accounts/accounts/account-maintenance/change-passwords-user-preferences.mdx',
-        to:
-          'src/content/docs/newaccounts/accounts/newaccount-maintenance/new-name.mdx',
-      },
-    },
-  ];
-
-  test.each(
-    parseRenameTestCases
-  )(
-    'parseRenameSummary correctly parses $input into $result',
-    ({ input, result }) =>
-      expect(Actions.parseRenameSummary(input)).toStrictEqual(result)
-  );
 
   test('parseRenameSummary correctly parses', () => {
     const result = Actions.parseRenameSummary(
