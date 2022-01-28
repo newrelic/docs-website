@@ -131,7 +131,23 @@ const getRenamedFiles = async (): Promise<FileRename[]> => {
 };
 
 /**
+ * Method that given a list of renamed files, will produce subsequent rename changes to make. For each file which has been renamed, it will check against all locales for locale specific copies of that file. If a copy exist, it will be included in the result set.
  *
+ * @example
+ *
+ * // input
+ * [{
+ *  from: 'src/content/docs/hello_world.txt',
+ *  to: 'src/content/docs/hello_earth.txt'
+ * }]
+ *
+ * // output
+ * [{
+ *  from: 'src/i18n/content/[locale]/docs/hello_world.txt',
+ *  to: 'src/i18n/content/[locale]/docs/hello_earth.txt'
+ * }]
+ *
+ * for each locale which includes that file.
  */
 const getRenameChanges = (renamedFiles: FileRename[]): FileRename[] => {
   const i18nRenames: FileRename[] = [];
@@ -158,11 +174,17 @@ const getRenameChanges = (renamedFiles: FileRename[]): FileRename[] => {
   return i18nRenames;
 };
 
+/**
+ * Method to print rename changes to make.
+ */
 const printRenameChanges = (renameChanges: FileRename[]): void => {
   console.log(`${renameChanges.length} files will be moved.`);
   console.log(JSON.stringify(renameChanges, null, 4));
 };
 
+/**
+ * Method to make renames changes. printRenameChanges will display the changes that will be made.
+ */
 const makeRenameChanges = (renameChanges: FileRename[]): void => {
   renameChanges.forEach(async (rename) => {
     fs.mkdirSync(path.dirname(rename.to), { recursive: true });
