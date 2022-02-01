@@ -1,16 +1,16 @@
 ---
-title: 'Instant observability for CI/CD, Kubernetes, and Machine Learning - new partner integrations' 
-summary: 'Nine quickstarts that help you start monitoring CI/CD, ML Ops, and load testing even faster' 
+title: 'New Instant observability partner integrations for CI/CD, Kubernetes, and Machine Learning' 
+summary: 'Nine new quickstarts for monitoring CI/CD, ML Ops, and load testing' 
 releaseDate: '2022-01-31' 
 learnMoreLink: 'https://newrelic.com/blog/nerdlog/quickstarts-machine-learning-kubernetes-cicd' 
 getStartedLink: 'https://developer.newrelic.com/instant-observability/'
 ---
-In case you missed it, [New Relic I/O](https://docs.newrelic.com/whats-new/2021/10/instant-observability-10-13-21) helps you instrument, monitor, and analyze your stack in minutes. The secret ingredient: [400+ free expert-built quickstarts](https://developer.newrelic.com/instant-observability/) that bundle the integrations, guides, dashboards, and alerts for the technologies you rely on. 
+In case you missed it, [New Relic I/O](https://docs.newrelic.com/whats-new/2021/10/instant-observability-10-13-21) helps you instrument, monitor, and analyze your stack in minutes. The secret ingredient is [400+ free expert-built quickstarts](https://developer.newrelic.com/instant-observability/) that bundle the integrations, guides, dashboards, and alerts for the technologies you rely on. 
 
 ## New integrations for instant observability
 ![Partners contributing quickstarts to Instant Observability](https://newrelic.com/sites/default/files/styles/1920w/public/2021-12/instant-observability-quickstarts-partners-december-2021_0.webp?itok=QoA7ugp0 "Partners contributing quickstarts to Instant Observability")
 
-The latest cohort of partners contributing to making observability a daily habit for engineers span across CI/CD, Kubernetes testing, and leading machine learning operations (MLOps) platforms. These partners include:
+The latest cohort of partners contributing to make observability a daily habit for engineers span across CI/CD, Kubernetes testing, and leading machine learning operations (MLOps) platforms. These partners include:
 
 **CI/CD**: Rapidly identify and reprosude issues to reduce MTTR and downtime
 * [Delphix](https://developer.newrelic.com/instant-observability/delphix/98f77308-4ac3-4c55-bc56-eb9d12f52ab7/)
