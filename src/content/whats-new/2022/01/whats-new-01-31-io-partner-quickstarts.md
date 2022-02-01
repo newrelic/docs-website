@@ -8,9 +8,9 @@ getStartedLink: 'https://developer.newrelic.com/instant-observability/'
 In case you missed it, [New Relic I/O](https://docs.newrelic.com/whats-new/2021/10/instant-observability-10-13-21) helps you instrument, monitor, and analyze your stack in minutes. The secret ingredient is [400+ free expert-built quickstarts](https://developer.newrelic.com/instant-observability/) that bundle the integrations, guides, dashboards, and alerts for the technologies you rely on. 
 
 ## New integrations for instant observability
-![Partners contributing quickstarts to Instant Observability](https://newrelic.com/sites/default/files/styles/1920w/public/2021-12/instant-observability-quickstarts-partners-december-2021_0.webp?itok=QoA7ugp0 "Partners contributing quickstarts to Instant Observability")
+<img src="https://newrelic.com/sites/default/files/styles/1920w/public/2021-12/instant-observability-quickstarts-partners-december-2021_0.webp?itok=QoA7ugp0" alt-text="Partners contributing quickstarts to Instant Observability" title="Partners contributing quickstarts to Instant Observability" width="1000px"/>
 
-The latest cohort of partners contributing to make observability a daily habit for engineers span across CI/CD, Kubernetes testing, and leading machine learning operations (MLOps) platforms. These partners include:
+The latest cohort of partners contributing to make observability a daily habit for engineers spans across CI/CD, Kubernetes testing, and leading machine learning operations (MLOps) platforms. These partners include:
 
 **CI/CD:** Rapidly identify and reproduce issues to reduce MTTR and downtime
 * [Delphix](https://developer.newrelic.com/instant-observability/delphix/98f77308-4ac3-4c55-bc56-eb9d12f52ab7/)
@@ -28,9 +28,8 @@ The latest cohort of partners contributing to make observability a daily habit f
 * [Superwise.ai](https://developer.newrelic.com/instant-observability/superwise-mlops/6c61cb57-c966-4435-b46c-f96b568d9873/)
 * [TruEra](https://developer.newrelic.com/instant-observability/truera/81402789-9ae9-4cbd-8686-4d2d4de8951f/)
 
-![Dashboard with model performance metrics](https://newrelic.com/sites/default/files/2021-12/new-relic-one-machine-learning-dashboard-example.png "Dashboard with model performance metrics")
+<img src="https://newrelic.com/sites/default/files/2021-12/new-relic-one-machine-learning-dashboard-example.png" alt-text="Dashboard with model performance metrics" title="Dashboard with model performance metrics" width="1000px"/>
 
 ## Visualize and monitor all your data in one platform
 
 Learn more about how each of these partner-built quickstarts can help you quickly expand your observability game by reading this [blog post](https://newrelic.com/blog/nerdlog/quickstarts-machine-learning-kubernetes-cicd). 
-
