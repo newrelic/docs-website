@@ -1,6 +1,6 @@
 ---
-title: 'New Instant observability partner integrations for CI/CD, Kubernetes, and Machine Learning' 
-summary: 'Nine new quickstarts for monitoring CI/CD, ML Ops, and load testing' 
+title: 'New Instant observability partner integrations for CI/CD, Kubernetes, and machine learning' 
+summary: 'Nine new quickstarts for monitoring CI/CD, MLOps, and load testing' 
 releaseDate: '2022-01-31' 
 learnMoreLink: 'https://newrelic.com/blog/nerdlog/quickstarts-machine-learning-kubernetes-cicd' 
 getStartedLink: 'https://developer.newrelic.com/instant-observability/'
@@ -12,13 +12,13 @@ In case you missed it, [New Relic I/O](https://docs.newrelic.com/whats-new/2021/
 
 The latest cohort of partners contributing to make observability a daily habit for engineers span across CI/CD, Kubernetes testing, and leading machine learning operations (MLOps) platforms. These partners include:
 
-**CI/CD**: Rapidly identify and reprosude issues to reduce MTTR and downtime
+**CI/CD:** Rapidly identify and reproduce issues to reduce MTTR and downtime
 * [Delphix](https://developer.newrelic.com/instant-observability/delphix/98f77308-4ac3-4c55-bc56-eb9d12f52ab7/)
 
-**Kubernetes testing**: Discover API issues earlier in your release cycles
+**Kubernetes testing:** Discover API issues earlier in your release cycles
 * [Speedscale](https://developer.newrelic.com/instant-observability/speedscale/c4512294-8f81-4efa-8f28-6c1db28d288c/) | [demo](https://newrelic.com/blog/how-to-relic/speedscale-load-testing-observability#toc-speedscale-quickstart-demo)
 
-**AI/ML model monitoring**: Proactively monitor ML model issues
+**AI/ML model monitoring:** Proactively monitor ML model issues
 * [Amazon SageMaker](https://developer.newrelic.com/instant-observability/mlops-sagemaker/cee03961-f9e3-46e1-89fd-70a626cfe8ce/)
 * [Algorithmia](https://developer.newrelic.com/instant-observability/mlops-algorithmia/d0e829a6-ede4-4933-9065-9f0c56f8aa7e/)
 * [Aporia](https://developer.newrelic.com/instant-observability/mlops-aporia/879a5e0d-eda0-4af9-aa73-08e49a8a46c8/)
@@ -31,5 +31,6 @@ The latest cohort of partners contributing to make observability a daily habit f
 ![Dashboard with model performance metrics](https://newrelic.com/sites/default/files/2021-12/new-relic-one-machine-learning-dashboard-example.png "Dashboard with model performance metrics")
 
 ## Visualize and monitor all your data in one platform
-* Learn more about how each of these partner-built quickstarts can help you quickly expand your observability game by reading this [blog post](https://newrelic.com/blog/nerdlog/quickstarts-machine-learning-kubernetes-cicd). 
+
+Learn more about how each of these partner-built quickstarts can help you quickly expand your observability game by reading this [blog post](https://newrelic.com/blog/nerdlog/quickstarts-machine-learning-kubernetes-cicd). 
 
