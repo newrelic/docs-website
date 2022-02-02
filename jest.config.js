@@ -18,5 +18,5 @@ module.exports = {
   setupFiles: ['<rootDir>/loadershim.js'],
   setupFilesAfterEnv: ['<rootDir>/setup-test-env.js'],
   testRegex: '(/__tests__/.*|\\.(test|spec))\\.(ts|tsx|js)$',
-  moduleFileExtensions: ['js', 'ts', 'tsx'],
+  moduleFileExtensions: ['js', 'ts', 'tsx', 'json'],
 };
