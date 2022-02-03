@@ -1,6 +1,17 @@
+/*
+  `hast-util-from-dom` have different export depending on CJS or ESM
+  context - requiring CJS (regular build) will return a function directly,
+  requiring ESM (what is currently being bundled for rendering engines
+  which are used by DSG) will return object with `default` field which is
+  a function. `preferDefault` helper will just use `.default` if available,
+  but will fallback to entire export if not available
+*/
+const preferDefault = m => (m && m.default) || m
+
 const visit = require('unist-util-visit');
 const { JSDOM } = require('jsdom');
-const fromDom = require('hast-util-from-dom');
+const fromDom = preferDefault(require('hast-util-from-dom'));
+
 
 module.exports = ({ markdownAST }) => {
   visit(markdownAST, 'html', (node) => {
