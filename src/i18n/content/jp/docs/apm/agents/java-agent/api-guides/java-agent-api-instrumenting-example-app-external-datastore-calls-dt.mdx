@@ -1,0 +1,906 @@
+---
+title: JavaエージェントAPI。外部データストアの呼び出しとDTのためのサンプルアプリのインストゥルメント化
+tags:
+  - Agents
+  - Java agent
+  - API guides
+metaDescription: 'For New Relic Java agent API, an example of using custom instrumentation in an app to monitor distributed tracing and external datastore calls.'
+translationType: machine
+---
+
+このドキュメントでは、New Relic [Java エージェント API](/docs/agents/java-agent/custom-instrumentation/java-agent-api) を使用して、シンプルなクライアントとサーバーのアプリケーションをインストルメントする方法を紹介します。インスツルメンテーションには次のような目的があります。
+
+* 外部のHTTPとデータストアを記録するために [トランザクション](/docs/apm/applications-menu/monitoring/transactions-page).
+* New Relic エージェントを実行している 2 つのアプリケーション間の外部トランザクションをリンクさせること（ [distributed tracing](/docs/distributed-tracing) または DT として知られている）。
+
+利用可能なAPIクラスとメソッドの完全な説明については、 [JavaエージェントAPI Javadoc](http://newrelic.github.io/java-agent-api/javadoc/index.html?com/newrelic/api/agent/NewRelic.html) を参照してください。
+
+<Callout variant="important">
+  APIを使用する際に最良の結果を得るためには、 [最新のJavaエージェント・リリース](/docs/release-notes/agent-release-notes/java-release-notes) を持っていることを確認してください。例題で使用しているいくつかのAPIには、Java agent 3.36.0以降が必要です。
+</Callout>
+
+## クライアントサイドの例 [#complete-client]
+
+ここでは、簡単なクライアント・サーバー・アプリケーションのクライアント側のコードの例を示します。
+
+<CollapserGroup>
+  <Collapser
+    className="freq-link"
+    id="complete-client"
+    title="完全なクライアントのサンプルコード"
+  >
+    ```
+    package com.newrelic.example;
+
+    import java.io.IOException;
+    import java.net.URI;
+    import java.net.URISyntaxException;
+    import java.sql.Connection;
+    import java.sql.DriverManager;
+    import java.sql.Statement;
+    import java.util.Arrays;
+    import java.util.Collection;
+    import java.util.stream.Collectors;
+
+    <a href="#client-import-java">// New Relic API imports</a>
+    import com.newrelic.api.agent.ExternalParameters;
+    import com.newrelic.api.agent.HeaderType;
+    import com.newrelic.api.agent.Headers;
+    import com.newrelic.api.agent.HttpParameters;
+    import com.newrelic.api.agent.NewRelic;
+    import com.newrelic.api.agent.Trace;
+    import com.newrelic.api.agent.TracedMethod;
+    import com.newrelic.api.agent.Transaction;
+
+    import fi.iki.elonen.NanoHTTPD;
+    import org.apache.http.HttpMessage;
+    import org.apache.http.NameValuePair;
+    import org.apache.http.client.methods.CloseableHttpResponse;
+    import org.apache.http.client.methods.HttpUriRequest;
+    import org.apache.http.client.methods.RequestBuilder;
+    import org.apache.http.impl.client.CloseableHttpClient;
+    import org.apache.http.impl.client.HttpClientBuilder;
+
+    public class NewRelicApiExample extends NanoHTTPD {
+
+        <a href="#client-env-details">public NewRelicApiExample() throws IOException, URISyntaxException {</a>
+            super(8080);
+
+            // Set Dispatcher name and version
+            NewRelic.setServerInfo("NanoHttp", "2.3.1");
+            // Set Appserver port for JVM identification
+            NewRelic.setAppServerPort(8080);
+            // Set JVM instance name
+            NewRelic.setInstanceName("Client");
+
+            start(NanoHTTPD.SOCKET_READ_TIMEOUT, false);
+            System.out.println("Running at: http://localhost:8080/");
+        }
+
+        public static void main(String[] args) throws URISyntaxException {
+            try {
+                new NewRelicApiExample();
+            } catch (IOException ioe) {
+                System.err.println("Unable to start the server:\n" + ioe);
+            }
+        }
+
+        @Trace(dispatcher = true)
+        @Override
+        <a href="#client-trace">public Response serve(IHTTPSession session) {</a>
+            URI uri = null;
+            int status = 0;
+
+            try {
+                createDB();
+                Thread.sleep(1000);
+                uri = new URI("http://localhost:8081");
+                status = makeExternalCall(uri);
+            } catch (URISyntaxException | InterruptedException | IOException e) {
+                e.printStackTrace();
+            }
+
+            if (status == 200) {
+                return newFixedLengthResponse("<html><body><h1>Successful Response</h1>\n</body></html>\n");
+            } else {
+                return newFixedLengthResponse("<html><body><h1>Error\n" + status + "</h1>\n</body></html>\n");
+            }
+        }
+
+        @Trace
+        <a href="#client-external">public int makeExternalCall(URI uri) throws IOException {</a>
+            HttpUriRequest request = RequestBuilder.get().setUri(uri).build();
+
+            // Wrap the outbound Request object
+            Headers outboundHeaders = new HeadersWrapper(request);
+
+            // Obtain a reference to the current transaction
+            Transaction transaction = NewRelic.getAgent().getTransaction();
+            // Add headers for outbound external request
+            transaction.insertDistributedTraceHeaders(outboundHeaders);
+
+            CloseableHttpClient connection = HttpClientBuilder.create().build();
+            CloseableHttpResponse response = connection.execute(request);
+
+            // Wrap the incoming Response object
+            Headers inboundHeaders = new HeadersWrapper(response);
+
+            // Create an input parameter object for a call to an external HTTP service
+            ExternalParameters params = HttpParameters
+                .library("HttpClient")
+                .uri(uri)
+                .procedure("execute")
+                .inboundHeaders(inboundHeaders)
+                .build();
+
+            // Obtain a reference to the method currently being traced
+            TracedMethod tracedMethod = NewRelic.getAgent().getTracedMethod();
+            // Report a call to an external HTTP service
+            tracedMethod.reportAsExternal(params);
+
+            return response.getStatusLine().getStatusCode();
+        }
+
+        // Implement Headers interface to create a wrapper for the outgoing Request/incoming Response headers
+        <a href="#client-outboundheaders">static class HeadersWrapper implements Headers {</a>
+            private final HttpMessage delegate;
+
+            public HeadersWrapper(HttpMessage request) {
+                this.delegate = request;
+            }
+
+            @Override
+            public void setHeader(String name, String value) {
+                delegate.setHeader(name, value);
+            }
+
+            @Override
+            public HeaderType getHeaderType() {
+                return HeaderType.HTTP;
+            }
+
+            @Override
+            public String getHeader(String name) {
+                return delegate.getFirstHeader(name).getValue();
+            }
+
+            @Override
+            public Collection<String> getHeaders(String name) {
+                return Arrays.stream(delegate.getHeaders(name))
+                    .map(NameValuePair::getValue)
+                    .collect(Collectors.toList());
+            }
+
+            @Override
+            public void addHeader(String name, String value) {
+                delegate.addHeader(name, value);
+            }
+
+            @Override
+            public Collection<String> getHeaderNames() {
+                return Arrays.stream(delegate.getAllHeaders())
+                    .map(NameValuePair::getName)
+                    .collect(Collectors.toSet());
+            }
+
+            @Override
+            public boolean containsHeader(String name) {
+                return Arrays.stream(delegate.getAllHeaders())
+                    .map(NameValuePair::getName)
+                    .anyMatch(headerName -> headerName.equals(name));
+            }
+        }
+
+        @Trace
+        <a href="#client-database">public void createDB() {</a>
+            Connection c = null;
+            Statement stmt = null;
+
+            try {
+                Class.forName("org.sqlite.JDBC");
+                c = DriverManager.getConnection("jdbc:sqlite:/tmp/test.db");
+                System.out.println("Opened database successfully");
+
+                stmt = c.createStatement();
+
+                String dropSql = "DROP TABLE IF EXISTS COMPANY;";
+                stmt.executeUpdate(dropSql);
+
+                String sql = "CREATE TABLE COMPANY " +
+                        "(ID INT PRIMARY KEY     NOT NULL," +
+                        " NAME           TEXT    NOT NULL, " +
+                        " AGE            INT     NOT NULL, " +
+                        " ADDRESS        CHAR(50), " +
+                        " SALARY         REAL)";
+                stmt.executeUpdate(sql);
+
+                sql = "INSERT INTO COMPANY (ID,NAME,AGE,ADDRESS,SALARY) " +
+                       "VALUES (1, 'Paul', 32, 'California', 20000.00 );";
+                stmt.executeUpdate(sql);
+
+                sql = "INSERT INTO COMPANY (ID,NAME,AGE,ADDRESS,SALARY) " +
+                        "VALUES (2, 'Allen', 25, 'Texas', 15000.00 );";
+                stmt.executeUpdate(sql);
+
+                sql = "INSERT INTO COMPANY (ID,NAME,AGE,ADDRESS,SALARY) " +
+                "VALUES (3, 'Teddy', 23, 'Norway', 20000.00 );";
+                stmt.executeUpdate(sql);
+
+                sql = "INSERT INTO COMPANY (ID,NAME,AGE,ADDRESS,SALARY) " +
+                        "VALUES (4, 'Mark', 25, 'Rich-Mond ', 65000.00 );";
+                stmt.executeUpdate(sql);
+
+                stmt.close();
+                c.close();
+            } catch (Exception e) {
+                System.err.println(e.getClass().getName() + ": " + e.getMessage());
+                System.exit(0);
+            }
+        }
+    }
+    ```
+  </Collapser>
+</CollapserGroup>
+
+ここでは、同じクライアントアプリのコードを、APIの使用方法を説明するセクションに分けています。
+
+<CollapserGroup>
+  <Collapser
+    className="freq-link"
+    id="client-import-java"
+    title="JavaエージェントAPIクラスのインポート"
+  >
+    このセクションでは、サンプルコードの後半で、クライアントアプリケーションに分散型トレースを追加するために使用するJavaエージェントAPIインポートを呼び出します。
+
+    ```
+    import java.io.IOException;
+    import java.net.URI;
+    import java.net.URISyntaxException;
+    import java.sql.Connection;
+    import java.sql.DriverManager;
+    import java.sql.Statement;
+    import java.util.Arrays;
+    import java.util.Collection;
+    import java.util.stream.Collectors;
+
+    // New Relic API imports
+    import com.newrelic.api.agent.ExternalParameters;
+    import com.newrelic.api.agent.HeaderType;
+    import com.newrelic.api.agent.Headers;
+    import com.newrelic.api.agent.HttpParameters;
+    import com.newrelic.api.agent.NewRelic;
+    import com.newrelic.api.agent.Trace;
+    import com.newrelic.api.agent.TracedMethod;
+    import com.newrelic.api.agent.Transaction;
+
+    import fi.iki.elonen.NanoHTTPD;
+    import org.apache.http.HttpMessage;
+    import org.apache.http.NameValuePair;
+    import org.apache.http.client.methods.CloseableHttpResponse;
+    import org.apache.http.client.methods.HttpUriRequest;
+    import org.apache.http.client.methods.RequestBuilder;
+    import org.apache.http.impl.client.CloseableHttpClient;
+    import org.apache.http.impl.client.HttpClientBuilder;
+    ```
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="client-env-details"
+    title="クライアントを起動し、UIに表示される環境の詳細を設定する"
+  >
+    このセクションでは、ポート 8080 でクライアントサーバーを起動し、API から `NewRelic` クラスを使用して、 `setServerInfo` 、 `setAppServerPort` 、 `setInstanceName` のメソッドを呼び出します。これらの API 呼び出しは、New Relic の UI で表示される内容に影響します。
+
+    ```
+    public NewRelicApiExample() throws IOException, URISyntaxException {
+            super(8080);
+
+            // Set Dispatcher name and version
+            NewRelic.setServerInfo("NanoHttp", "2.3.1");
+            // Set Appserver port for jvm identification
+            NewRelic.setAppServerPort(8080);
+            // Set JVM instance name
+            NewRelic.setInstanceName("Client");
+
+            start(NanoHTTPD.SOCKET_READ_TIMEOUT, false);
+            System.out.println("Running at: http://localhost:8080/");
+        }
+
+        public static void main(String[] args) throws URISyntaxException {
+            try {
+                new NewRelicApiExample();
+            } catch (IOException ioe) {
+                System.err.println("Unable to start the server:\n" + ioe);
+            }
+        }
+    ```
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="client-trace"
+    title="Javaエージェントで@Traceアノテーションを使用してトランザクションのトレースを開始する。"
+  >
+    このメソッドは、サンプルデータベースを作成し、スレッドをスリープさせ、ポート 8081 で待ち受けているサーバーアプリへの外部呼び出しを行います。 `@Trace(dispatcher = true)` アノテーションは、 `serve` メソッドが呼び出されたときに、それが既存のトランザクションの一部として呼び出されていない場合（この場合はそうではありません）、新しいトランザクションを開始するようにエージェントに指示します。既存のトランザクションの一部として呼び出された場合、新しいトランザクションを開始するのではなく、単にそのトランザクションの一部として含まれることになります。
+
+    ```
+    @Trace(dispatcher = true)
+        @Override
+        public Response serve(IHTTPSession session) {
+            URI uri = null;
+            int status = 0;
+
+            try {
+                createDB();
+                Thread.sleep(1000);
+                uri = new URI("http://localhost:8081");
+                status = makeExternalCall(uri);
+            } catch (URISyntaxException | InterruptedException | IOException e) {
+                e.printStackTrace();
+            }
+
+            if (status == 200) {
+                return newFixedLengthResponse("<html><body><h1>Successful Response</h1>\n</body></html>\n");
+            } else {
+                return newFixedLengthResponse("<html><body><h1>Error\n" + status + "</h1>\n</body></html>\n");
+            }
+        }
+    ```
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="client-external"
+    title="JavaのエージェントAPIを使って外部に電話をかける"
+  >
+    このセクションには、リクエストを行うアプリケーションへの分散型トレースを開始するコードが含まれています。 `@Trace` アノテーションは、 `serve` メソッドによって開始された既存のトランザクションの一部としてこのメソッドを追跡するようエージェントに指示します。
+
+    リクエストオブジェクトは、Java エージェント API の `Headers` インターフェースを実装したクラスによってラップされ、適切な `HeaderType` が設定されていることを確認します（この場合は `HTTP` ）。 `insertDistributedTraceHeaders` の呼び出しにより、 `リクエスト` にヘッダが追加され、リクエストがサーバに送信されます。
+
+    `レスポンス` が戻ると、Java エージェント API の `InboundHeaders` インターフェースを実装したクラスによってラップされます。 `Headers` は `InboundHeaders` のサブインターフェースであり、この場合、ラッパークラスを再利用することができます。
+
+    `inboundHeaders` は、 `" library"` , `URI`, `" procedure"` の引数とともに、 `HttpParameters` オブジェクトを構築するために使用されます。 `params` オブジェクトは、次に `reportAsExternal` メソッドの引数として渡されます。このメソッドは、 `TracedMethod` を外部の HTTP 呼び出しとして報告します。
+
+    ```
+    @Trace
+        public int makeExternalCall(URI uri) throws IOException {
+            HttpUriRequest request = RequestBuilder.get().setUri(uri).build();
+
+            // Wrap the outbound Request object
+            Headers outboundHeaders = new HeadersWrapper(request);
+
+            // Obtain a reference to the current transaction
+            Transaction transaction = NewRelic.getAgent().getTransaction();
+            // Add headers for outbound external request
+            transaction.insertDistributedTraceHeaders(outboundHeaders);
+
+            CloseableHttpClient connection = HttpClientBuilder.create().build();
+            CloseableHttpResponse response = connection.execute(request);
+
+            // Wrap the incoming Response object
+            Headers inboundHeaders = new HeadersWrapper(response);
+
+            // Create an input parameter object for a call to an external HTTP service
+            ExternalParameters params = HttpParameters
+                .library("HttpClient")
+                .uri(uri)
+                .procedure("execute")
+                .inboundHeaders(inboundHeaders)
+                .build();
+
+            // Obtain a reference to the method currently being traced
+            TracedMethod tracedMethod = NewRelic.getAgent().getTracedMethod();
+            // Report a call to an external HTTP service
+            tracedMethod.reportAsExternal(params);
+
+            return response.getStatusLine().getStatusCode();
+        }
+    ```
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="client-outboundheaders"
+    title="JavaエージェントAPIのHeadersインターフェースの実装"
+  >
+    Java エージェント API の `Headers` Interface の実装は、クライアント・サーバのリクエスト・オブジェクトをラップするために使用され、この例では `HttpUriRequest` のタイプとなっています。このリクエストは、 `HeadersWrapper` クラスのコンストラクタに渡され、必要なメソッドの実装が提供されます。
+
+    `getHeaderType` メソッドは、 `HeaderType` enumを返します。このenumは、 `HeaderType.HTTP` または `HeaderType.MESSAGE` のいずれかで、JavaエージェントAPIで定義されています。この例では、外部呼び出しプロトコルは HTTP であるため、 `HeaderType.HTTP` が返されます。
+
+    ```
+    // Implement Headers interface to create a wrapper for the outgoing Request/incoming Response headers
+    <a href="#client-outboundheaders">static class HeadersWrapper implements Headers {</a>
+        private final HttpMessage delegate;
+
+        public HeadersWrapper(HttpMessage request) {
+            this.delegate = request;
+        }
+
+        @Override
+        public void setHeader(String name, String value) {
+            delegate.setHeader(name, value);
+        }
+
+        @Override
+        public HeaderType getHeaderType() {
+            return HeaderType.HTTP;
+        }
+
+        @Override
+        public String getHeader(String name) {
+            return delegate.getFirstHeader(name).getValue();
+        }
+
+        @Override
+        public Collection<String> getHeaders(String name) {
+            return Arrays.stream(delegate.getHeaders(name))
+                .map(NameValuePair::getValue)
+                .collect(Collectors.toList());
+        }
+
+        @Override
+        public void addHeader(String name, String value) {
+            delegate.addHeader(name, value);
+        }
+
+        @Override
+        public Collection<String> getHeaderNames() {
+            return Arrays.stream(delegate.getAllHeaders())
+                .map(NameValuePair::getName)
+                .collect(Collectors.toSet());
+        }
+
+        @Override
+        public boolean containsHeader(String name) {
+            return Arrays.stream(delegate.getAllHeaders())
+                .map(NameValuePair::getName)
+                .anyMatch(headerName -> headerName.equals(name));
+        }
+    }
+    ```
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="client-database"
+    title="簡単なデータベースの作成"
+  >
+    このメソッドは、単にサンプルの SQLite データベースを作成します。 `@Trace` アノテーションは、 `serve` メソッドによって開始された既存のトランザクションの一部としてこのメソッドを追跡するようエージェントに指示します。
+
+    ```
+    @Trace
+        public void createDB() {
+            Connection c = null;
+            Statement stmt = null;
+
+            try {
+                Class.forName("org.sqlite.JDBC");
+                c = DriverManager.getConnection("jdbc:sqlite:/tmp/test.db");
+                System.out.println("Opened database successfully");
+
+                stmt = c.createStatement();
+
+                String dropSql = "DROP TABLE IF EXISTS COMPANY;";
+                stmt.executeUpdate(dropSql);
+
+                String sql = "CREATE TABLE COMPANY " +
+                        "(ID INT PRIMARY KEY     NOT NULL," +
+                        " NAME           TEXT    NOT NULL, " +
+                        " AGE            INT     NOT NULL, " +
+                        " ADDRESS        CHAR(50), " +
+                        " SALARY         REAL)";
+                stmt.executeUpdate(sql);
+
+                sql = "INSERT INTO COMPANY (ID,NAME,AGE,ADDRESS,SALARY) " +
+                       "VALUES (1, 'Paul', 32, 'California', 20000.00 );";
+                stmt.executeUpdate(sql);
+
+                sql = "INSERT INTO COMPANY (ID,NAME,AGE,ADDRESS,SALARY) " +
+                        "VALUES (2, 'Allen', 25, 'Texas', 15000.00 );";
+                stmt.executeUpdate(sql);
+
+                sql = "INSERT INTO COMPANY (ID,NAME,AGE,ADDRESS,SALARY) " +
+                "VALUES (3, 'Teddy', 23, 'Norway', 20000.00 );";
+                stmt.executeUpdate(sql);
+
+                sql = "INSERT INTO COMPANY (ID,NAME,AGE,ADDRESS,SALARY) " +
+                        "VALUES (4, 'Mark', 25, 'Rich-Mond ', 65000.00 );";
+                stmt.executeUpdate(sql);
+
+                stmt.close();
+                c.close();
+            } catch (Exception e) {
+                System.err.println(e.getClass().getName() + ": " + e.getMessage());
+                System.exit(0);
+            }
+        }
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## サーバーサイドの例 [#complete-server]
+
+以下は、このアプリケーション例のサーバー側のコードです。
+
+<CollapserGroup>
+  <Collapser
+    className="freq-link"
+    id="server-complete"
+    title="完全なサーバーのサンプルコード"
+  >
+    ```
+    package com.newrelic.example;
+
+    import java.io.IOException;
+    import java.net.URISyntaxException;
+    import java.sql.Connection;
+    import java.sql.DriverManager;
+    import java.sql.ResultSet;
+    import java.sql.Statement;
+    import java.util.Collection;
+    import java.util.Collections;
+
+    <a href="#server-import-java">// New Relic API imports</a>
+    import com.newrelic.api.agent.DatastoreParameters;
+    import com.newrelic.api.agent.HeaderType;
+    import com.newrelic.api.agent.Headers;
+    import com.newrelic.api.agent.NewRelic;
+    import com.newrelic.api.agent.Trace;
+    import com.newrelic.api.agent.TracedMethod;
+    import com.newrelic.api.agent.Transaction;
+    import com.newrelic.api.agent.TransportType;
+
+    import fi.iki.elonen.NanoHTTPD;
+
+    public class NewRelicApiServer extends NanoHTTPD {
+
+        <a href="#server-env-details">public NewRelicApiServer() throws IOException, URISyntaxException {</a>
+            super(8081);
+
+            // Set Dispatcher name and version
+            NewRelic.setServerInfo("NanoHttp", "2.3.1");
+            // Set Appserver port for jvm identification
+            NewRelic.setAppServerPort(8081);
+            // Set JVM instance name
+            NewRelic.setInstanceName("Server");
+
+            start(NanoHTTPD.SOCKET_READ_TIMEOUT, false);
+            System.out.println("\nRunning on http://localhost:8081/ \n");
+        }
+
+        public static void main(String[] args) throws URISyntaxException {
+            try {
+                new NewRelicApiServer();
+            } catch (IOException ioe) {
+                System.err.println("Unable to start the server:\n" + ioe);
+            }
+        }
+
+        @Trace(dispatcher = true)
+        @Override
+        <a href="#server-trace">public Response serve(IHTTPSession session) {</a>
+            // Obtain a reference to the current Transaction
+            Transaction tx = NewRelic.getAgent().getTransaction();
+            // Set the name of the current transaction
+            NewRelic.setTransactionName("Custom", "ExternalHTTPServer");
+
+            // Wrap the Request object
+            Headers req = new HeadersWrapper(session);
+
+            // Set the request for the current transaction and convert it into a web transaction
+            tx.acceptDistributedTraceHeaders(TransportType.HTTP, req);
+
+            queryDB();
+
+            return newFixedLengthResponse("<html><body><h1>SuccessfulResponse</h1>\n</body></html>\n");
+        }
+
+        // Implement Headers interface to create a wrapper for the outgoing Request/incoming Response headers
+        <a href="#server-extendrequest">static class HeadersWrapper implements Headers {</a>
+            private final IHTTPSession delegate;
+
+            public HeadersWrapper(IHTTPSession request) {
+                this.delegate = request;
+            }
+
+            @Override
+            public HeaderType getHeaderType() {
+                return HeaderType.HTTP;
+            }
+
+            @Override
+            public String getHeader(String name) {
+                return delegate.getHeaders().get(name);
+            }
+
+            @Override
+            public Collection<String> getHeaders(String name) {
+                return Collections.singletonList(getHeader(name));
+            }
+
+            @Override
+            public void setHeader(String name, String value) {
+                delegate.getHeaders().put(name, value);
+            }
+
+            @Override
+            public void addHeader(String name, String value) {
+                delegate.getHeaders().put(name, value);
+            }
+
+            @Override
+            public Collection<String> getHeaderNames() {
+                return delegate.getHeaders().keySet();
+            }
+
+            @Override
+            public boolean containsHeader(String name) {
+                return delegate.getHeaders().containsKey(name);
+            }
+        }
+
+        @Trace
+        <a href="#server-external-call">public void queryDB() {</a>
+            Connection c = null;
+            Statement stmt = null;
+            try {
+                Class.forName("org.sqlite.JDBC");
+                c = DriverManager.getConnection("jdbc:sqlite:/tmp/test.db");
+                c.setAutoCommit(false);
+                System.out.println("Opened database successfully");
+
+                stmt = c.createStatement();
+                ResultSet rs = stmt.executeQuery("SELECT * FROM COMPANY;");
+                while (rs.next()) {
+                    int id = rs.getInt("id");
+                    String name = rs.getString("name");
+                    int age = rs.getInt("age");
+                    String address = rs.getString("address");
+                    float salary = rs.getFloat("salary");
+                    System.out.println("ID = " + id);
+                    System.out.println("NAME = " + name);
+                    System.out.println("AGE = " + age);
+                    System.out.println("ADDRESS = " + address);
+                    System.out.println("SALARY = " + salary);
+                    System.out.println();
+                }
+                rs.close();
+                stmt.close();
+                c.close();
+            } catch (Exception e) {
+                System.err.println(e.getClass().getName() + ": " + e.getMessage());
+                System.exit(0);
+            }
+            // Obtain a reference to the method currently being traced
+            TracedMethod method = NewRelic.getAgent().getTracedMethod();
+
+            // Create a DatastoreParameters object and report a call to an external datastore service
+            method.reportAsExternal(
+                    DatastoreParameters
+                            .product("sqlite")
+                            .collection("test.db")
+                            .operation("select")
+                            .instance("localhost", 8080)
+                            .databaseName("test.db")
+                            .build());
+        }
+    }
+    ```
+  </Collapser>
+</CollapserGroup>
+
+ここでは、同じサーバーコードの例を、APIがどのように使用されるかを説明するセクションに分けています。
+
+<CollapserGroup>
+  <Collapser
+    className="freq-link"
+    id="server-import-java"
+    title="JavaエージェントAPIクラスのインポート"
+  >
+    このセクションでは、外部データストア呼び出しの分散型トレースとレポートをサーバーアプリケーションに追加するために必要な、関連するJavaエージェントAPIのインポートを示します。
+
+    ```
+    import java.io.IOException;
+    import java.net.URISyntaxException;
+    import java.sql.Connection;
+    import java.sql.DriverManager;
+    import java.sql.ResultSet;
+    import java.sql.Statement;
+    import java.util.Collection;
+    import java.util.Collections;
+
+    // New Relic API imports
+    import com.newrelic.api.agent.DatastoreParameters;
+    import com.newrelic.api.agent.HeaderType;
+    import com.newrelic.api.agent.Headers;
+    import com.newrelic.api.agent.NewRelic;
+    import com.newrelic.api.agent.Trace;
+    import com.newrelic.api.agent.TracedMethod;
+    import com.newrelic.api.agent.Transaction;
+    import com.newrelic.api.agent.TransportType;
+
+    import fi.iki.elonen.NanoHTTPD;
+    ```
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="server-env-details"
+    title="サーバーを起動し、UIに表示される情報を設定する"
+  >
+    このセクションでは、ポート 8081 でサーバーを起動し、API から `NewRelic` クラスを使用して、 `setServerInfo`, `setAppServerPort`, `setInstanceName` のメソッドを呼び出します。これらの API 呼び出しは、APM の UI に表示される内容に影響します。
+
+    ```
+    public NewRelicApiServer() throws IOException, URISyntaxException {
+            super(8081);
+
+            // Set Dispatcher name and version
+            NewRelic.setServerInfo("NanoHttp", "2.3.1");
+            // Set Appserver port for jvm identification
+            NewRelic.setAppServerPort(8081);
+            // Set JVM instance name
+            NewRelic.setInstanceName("Server");
+
+            start(NanoHTTPD.SOCKET_READ_TIMEOUT, false);
+            System.out.println("\nRunning on http://localhost:8081/ \n");
+        }
+
+        public static void main(String[] args) throws URISyntaxException {
+            try {
+                new NewRelicApiServer();
+            } catch (IOException ioe) {
+                System.err.println("Unable to start the server:\n" + ioe);
+            }
+        }
+    ```
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="server-trace"
+    title="トランザクションのトレース開始とアウトバウンドResponseヘッダーの追加"
+  >
+    `@Trace(dispatcher = true)` アノテーションは、 `serve` メソッドが既存のトランザクションの一部として呼び出されていない場合（この場合は呼び出されていません）、呼び出されたときに新しいトランザクションを開始するようエージェントに指示します。もし、既存のトランザクションの一部として呼び出された場合は、新しいトランザクションを開始するのではなく、単にそのトランザクションの一部として含まれます。
+
+    現在の `Transaction` への参照は、 `getTransaction` への呼び出しによって取得され、トランザクションの名前は `setTransactionName` メソッドへの呼び出しによって設定されます。
+
+    この例では、 `IHTTPSession` のタイプであるリクエストオブジェクトは、Java エージェント API の `Headers` クラスを拡張したクラスを使用してラップされます。現在の `トランザクション` は、ラップされた `ExtendedRequest` を引数として取る `setWebRequest` の呼び出しを介して親トレースにリンクされます。
+
+    その後、データベースへの呼び出しが行われ、レスポンスオブジェクトが返されます。
+
+    ```
+    @Trace(dispatcher = true)
+        @Override
+        public Response serve(IHTTPSession session) {
+            // Obtain a reference to the current Transaction
+            Transaction tx = NewRelic.getAgent().getTransaction();
+            // Set the name of the current transaction
+            NewRelic.setTransactionName("Custom", "ExternalHTTPServer");
+
+            // Wrap the Request object
+            Headers req = new HeadersWrapper(session);
+
+            // Set the request for the current transaction and convert it into a web transaction
+            tx.acceptDistributedTraceHeaders(TransportType.HTTP, req);
+
+            queryDB();
+
+            return newFixedLengthResponse("<html><body><h1>SuccessfulResponse</h1>\n</body></html>\n");
+        }
+    ```
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="server-extendrequest"
+    title="JavaエージェントAPIのHeadersクラスの拡張"
+  >
+    Java エージェント API の `Headers` クラスの別の実装が、サーバのリクエストオブジェクトをラップするために使用されます。この例では、 `IHTTPSession` のタイプです。リクエストは、 `HeadersWrapper` クラスのコンストラクタに渡され、 `getRequestURI`, `getHeader`, `getRemoteUser`, `getParameterNames`, `getParameterValues`, `getAttribute`, `getCookieValue`, `getHeaderType`, `getMethod` のメソッドの実装を提供します。
+
+    `getHeaderType` メソッドは、 `HeaderType` 列挙型を返します。この列挙型は、 `HeaderType.HTTP` または `HeaderType.MESSAGE` のいずれかで、Java エージェント API で定義されています。この例では、外部呼び出しプロトコルがHTTPであるため、 `HeaderType.HTTP` が返されます。
+
+    ```
+    // Implement Headers interface to create a wrapper for the outgoing Request/incoming Response headers
+    <a href="#server-extendrequest">static class HeadersWrapper implements Headers {</a>
+        private final IHTTPSession delegate;
+
+        public HeadersWrapper(IHTTPSession request) {
+            this.delegate = request;
+        }
+
+        @Override
+        public HeaderType getHeaderType() {
+            return HeaderType.HTTP;
+        }
+
+        @Override
+        public String getHeader(String name) {
+            return delegate.getHeaders().get(name);
+        }
+
+        @Override
+        public Collection<String> getHeaders(String name) {
+            return Collections.singletonList(getHeader(name));
+        }
+
+        @Override
+        public void setHeader(String name, String value) {
+            delegate.getHeaders().put(name, value);
+        }
+
+        @Override
+        public void addHeader(String name, String value) {
+            delegate.getHeaders().put(name, value);
+        }
+
+        @Override
+        public Collection<String> getHeaderNames() {
+            return delegate.getHeaders().keySet();
+        }
+
+        @Override
+        public boolean containsHeader(String name) {
+            return delegate.getHeaders().containsKey(name);
+        }
+    }
+    ```
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="server-external-call"
+    title="データストアへの外部呼び出しを計測する"
+  >
+    このメソッドは、クライアントによって作成された SQLite データベースへの外部呼び出しを行います。 `@Trace` アノテーションは、 `serve` メソッドによって開始された既存のトランザクションの一部としてこのメソッドを追跡するようエージェントに指示します。
+
+    現在の `TracedMethod` への参照は、 `getTracedMethod` への呼び出しによって得られます。その後、 `DatastoreParameters` オブジェクトがビルダー・パターンを使用して作成されます。 `ExternalParameters` オブジェクトは、 `reportAsExternal` メソッドの引数として渡されます。これは、 `TracedMethod` を外部データストアの呼び出しとして報告する効果があります。
+
+    ```
+    @Trace
+        public void queryDB() {
+            Connection c = null;
+            Statement stmt = null;
+            try {
+                Class.forName("org.sqlite.JDBC");
+                c = DriverManager.getConnection("jdbc:sqlite:/tmp/test.db");
+                c.setAutoCommit(false);
+                System.out.println("Opened database successfully");
+
+                stmt = c.createStatement();
+                ResultSet rs = stmt.executeQuery("SELECT * FROM COMPANY;");
+                while (rs.next()) {
+                    int id = rs.getInt("id");
+                    String name = rs.getString("name");
+                    int age = rs.getInt("age");
+                    String address = rs.getString("address");
+                    float salary = rs.getFloat("salary");
+                    System.out.println("ID = " + id);
+                    System.out.println("NAME = " + name);
+                    System.out.println("AGE = " + age);
+                    System.out.println("ADDRESS = " + address);
+                    System.out.println("SALARY = " + salary);
+                    System.out.println();
+                }
+                rs.close();
+                stmt.close();
+                c.close();
+            } catch (Exception e) {
+                System.err.println(e.getClass().getName() + ": " + e.getMessage());
+                System.exit(0);
+            }
+            // Obtain a reference to the method currently being traced
+            TracedMethod method = NewRelic.getAgent().getTracedMethod();
+
+            // Create a DatastoreParameters object and report a call to an external datastore service
+            method.reportAsExternal(
+                    DatastoreParameters
+                            .product("sqlite")
+                            .collection("test.db")
+                            .operation("select")
+                            .instance("localhost", 8080)
+                            .databaseName("test.db")
+                            .build());
+        }
+    ```
+  </Collapser>
+</CollapserGroup>

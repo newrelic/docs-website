@@ -1,13 +1,13 @@
 ---
-title: 'Network Performance Monitoring is now available as part of New Relic One'
+title: 'Network performance monitoring is now available as part of New Relic One'
 summary: 'Understand how the network is impacting your overall system performance'
 releaseDate: '2021-08-25'
 learnMoreLink: 'https://newrelic.com/platform/network-observability'
 getStartedLink: 'https://onenr.io/0YBR6MYYzwO'
 ---
-We’re excited to announce the GA release of Network Performance Monitoring (at no additional cost), so you can answer the question, “_Is it the network?_” faster!
+We’re excited to announce the GA release of network performance monitoring (at no additional cost), so you can answer the question, “_Is it the network?_” faster!
 
-When system performance suffers, you need to know if it’s due to your code, your infrastructure, or the underlying network. And you need to know fast, so you can focus your efforts at the right layer with the right team. With Network Performance Monitoring, you can correlate and analyze app, infra, digital experience, and network data all in one place, and understand how network performance and overall system performance impact each other.
+When system performance suffers, you need to know if it’s due to your code, your infrastructure, or the underlying network. And you need to know fast, so you can focus your efforts at the right layer with the right team. With network performance monitoring, you can correlate and analyze app, infra, digital experience, and network data all in one place, and understand how network performance and overall system performance impact each other.
 
 * **Streamline detection:** Rule out or rule in the network without paging your network team.
 * **Improve Mean Time to Resolution (MTTR):** Apply the right resources at the right layer faster.

@@ -1,4 +1,3 @@
-/* eslint-disable react/prop-types */
 import React from 'react';
 import PropTypes from 'prop-types';
 import {
@@ -28,6 +27,7 @@ const defaultComponents = {
   Button: MDXButton,
   ButtonLink: (props) => <MDXButton as={Link} {...props} />,
   ButtonGroup: MDXButtonGroup,
+  DoNotTranslate: ({ children }) => <>{children}</>,
 };
 
 const MDXContainer = ({ body, children, components }) => {

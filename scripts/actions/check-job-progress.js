@@ -1,14 +1,17 @@
+'use strict';
 const {
   getJobs,
   updateJob,
-  updateTranslation,
   getTranslationsJobsRecords,
+  updateTranslations,
+  StatusEnum,
 } = require('./translation_workflow/database.js');
 
-const { getAccessToken, vendorRequest } = require('./utils/vendor-request');
-const { fetchAndDeserialize } = require('./fetch-and-deserialize');
+const { vendorRequest } = require('./utils/vendor-request');
+const { fetchAndDeserializeFiles } = require('./fetch-and-deserialize');
+const { configuration } = require('./configuration');
 
-const PROJECT_ID = process.env.TRANSLATION_VENDOR_PROJECT;
+const PROJECT_ID = configuration.TRANSLATION.VENDOR_PROJECT;
 
 const uniq = (arr) => [...new Set(arr)];
 const prop = (key) => (x) => x[key];
@@ -20,6 +23,30 @@ const prop = (key) => (x) => x[key];
  * @property {string[]} fileUris The filepath from the root of the project
  * @property {boolean} done
  * @property {number} jobId
+ */
+
+/**
+ * @typedef {Object} Results
+ * @property {number} successes - count of successes.
+ * @property {number} failures - count of failures.
+ */
+
+/**
+ * @typedef {Object<string, Results>} JobStatuses - Object whose top level keys are job ids, and whose values are Results.
+ */
+
+/**
+ * @typedef {Object} AggregateResults
+ * @property {JobStatuses} jobStatuses
+ * @property {number} totalSuccesses - Sum of successes across all jobs
+ * @property {number} totalFailures - Sum of failures across all jobs
+ */
+
+/**
+ * @typedef {Object} SlugStatus
+ * @property {boolean} SlugStatus[].ok - Boolean flag signaling if translation deserialized. If it did, we can treat this translation as having completed.
+ * @property {string} SlugStatus[].slug - Slug representing file path translated.
+ * @property {string} SlugStatus[].jobId - Job id translation is associated with.
  */
 
 /**
@@ -42,10 +69,9 @@ const log = (message, level = 'log', indent = 0) => {
 };
 
 /**
- * @param {string} accessToken
  * @returns {(batchUid: string) => Promise<Batch>}
  */
-const getBatchStatus = (accessToken) => async ({ batchUid, jobId }) => {
+const getBatchStatus = async ({ batchUid, jobId }) => {
   log(`Getting status for batch: ${batchUid}`);
 
   try {
@@ -53,7 +79,6 @@ const getBatchStatus = (accessToken) => async ({ batchUid, jobId }) => {
     const batchData = await vendorRequest({
       method: 'GET',
       endpoint: `/job-batches-api/v2/projects/${PROJECT_ID}/batches/${batchUid}`,
-      accessToken,
     });
 
     const { translationJobUid } = batchData;
@@ -72,7 +97,6 @@ const getBatchStatus = (accessToken) => async ({ batchUid, jobId }) => {
     const jobData = await vendorRequest({
       method: 'GET',
       endpoint: `/jobs-api/v3/projects/${PROJECT_ID}/jobs/${translationJobUid}`,
-      accessToken,
     });
 
     const { jobStatus } = jobData;
@@ -101,33 +125,103 @@ const getBatchStatus = (accessToken) => async ({ batchUid, jobId }) => {
   }
 };
 
+/**
+ * @param {SlugStatus[]} slugStatuses
+ * @returns {AggregateResults}
+ */
+const aggregateStatuses = (slugStatuses) => {
+  let totalFailures = 0;
+  let totalSuccesses = 0;
+  const jobStatuses = {};
+
+  slugStatuses.forEach(({ ok, jobId }) => {
+    if (!(jobId in jobStatuses)) {
+      jobStatuses[jobId] = { successes: 0, failures: 0 };
+    }
+
+    if (ok) {
+      totalSuccesses += 1;
+      jobStatuses[jobId].successes += 1;
+    } else {
+      totalFailures += 1;
+      jobStatuses[jobId].failures += 1;
+    }
+  });
+
+  return { totalFailures, totalSuccesses, jobStatuses };
+};
+
+/**
+ * @param {SlugStatus[]} slugStatuses
+ * @returns {Promise<void>}
+ */
+const updateTranslationRecords = async (slugStatuses) => {
+  // TODO: need to update this when we implement multiple locales. This only works for one locale.
+
+  await Promise.all(
+    slugStatuses.map(async ({ ok, slug }) => {
+      const updateStatus = ok ? StatusEnum.COMPLETED : StatusEnum.ERRORED;
+
+      const records = await updateTranslations(
+        { slug, status: StatusEnum.IN_PROGRESS },
+        { status: updateStatus }
+      );
+
+      console.log(`Translation ${records[0].id} marked as ${updateStatus}`);
+    })
+  );
+};
+
+/**
+ * @param {JobStatuses} jobStatuses
+ * @returns {Promise<void>}
+ */
+const updateJobRecords = async (jobStatuses) => {
+  await Promise.all(
+    Object.keys(jobStatuses).map(async (job_id) => {
+      const { successes, failures } = jobStatuses[job_id];
+
+      const records = await getTranslationsJobsRecords({
+        job_id,
+      });
+
+      if (successes + failures === records.length) {
+        const updateStatus =
+          failures > 0 ? StatusEnum.ERRORED : StatusEnum.COMPLETED;
+
+        await updateJob(job_id, { status: updateStatus });
+
+        console.log(`Job ${job_id} marked as ${updateStatus}`);
+      } else {
+        console.log(
+          `Mismatched translation counts. Expected ${
+            records.length
+          }, actual ${successes + failures}`
+        );
+      }
+    })
+  );
+};
+
 /** Entrypoint. */
 const main = async () => {
   try {
     // load the items that we are being translated
-    const inProgressJobs = await getJobs({ status: 'IN_PROGRESS' });
+    const inProgressJobs = await getJobs({
+      status: 'IN_PROGRESS',
+      project_id: PROJECT_ID,
+    });
     const batchUids = inProgressJobs.map((job) => {
       return { batchUid: job.batch_uid, jobId: job.id };
     });
 
     // get the status for all of the batch translation jobs
-    const accessToken = await getAccessToken();
-    const batchStatuses = await Promise.all(
-      batchUids.map(getBatchStatus(accessToken))
-    );
+    const batchStatuses = await Promise.all(batchUids.map(getBatchStatus));
 
     // filter out any jobs that aren't ready to be brought back into the site
     const batchesToDeserialize = batchStatuses.filter(
       (batch) => batch && batch.done
     );
-
-    const completedJobs = await Promise.all(
-      batchesToDeserialize.map((batch) => {
-        return updateJob(batch.jobId, { status: 'COMPLETED' });
-      })
-    );
-
-    log(`Jobs completed: ${JSON.stringify(completedJobs)}`);
 
     log(`${batchesToDeserialize.length} batches ready to be deserialized`);
     log(`batchUids: ${batchesToDeserialize.map(prop('batchUid')).join(', ')}`);
@@ -136,58 +230,32 @@ const main = async () => {
       `::set-output name=batchesToDeserialize::${batchesToDeserialize.length}`
     );
 
-    // download the newly translated files and deserialize them (into MDX)
-    await Promise.all(
-      batchesToDeserialize.map(fetchAndDeserialize(accessToken))
-    );
-    log('Content deserialized');
-
-    for (const batch of batchesToDeserialize) {
-      const records = await getTranslationsJobsRecords({
-        job_id: batch.jobId,
-      });
-
+    // download the newly translated files and deserialize them (into MDX).
+    const slugStatuses = (
       await Promise.all(
-        records.map(async (record) => {
-          const update = await updateTranslation(record.translation_id, {
-            status: 'COMPLETED',
+        batchesToDeserialize.map(async (batch) => {
+          return (await fetchAndDeserializeFiles(batch)).map((status) => {
+            return { ...status, jobId: batch.jobId };
           });
-          return update;
         })
-      );
-    }
-
-    // get a list of batches that we're still waiting on from our vendor
-    const remainingBatches = batchStatuses
-      .filter((batch) => batch && !batch.done)
-      .map((batch) => batch.batchUid);
-
-    console.log(
-      `::set-output name=batchUids::${
-        remainingBatches.length ? remainingBatches.join(',') : ','
-      }`
-    );
-
-    console.log(
-      `::set-output name=completedBatches::${
-        batchesToDeserialize.length ? batchesToDeserialize.join(',') : ','
-      }`
-    );
-
-    // Output a list of new translated files for the next step in the workflow
-    // (creating a new PR with the translated content)
-    const deserializedFileUris = uniq(
-      batchesToDeserialize.reduce(
-        (acc, { fileUris }) => [...fileUris, ...acc],
-        []
       )
-    );
+    ).flat();
+
+    await updateTranslationRecords(slugStatuses);
+
+    const results = aggregateStatuses(slugStatuses);
 
     console.log(
-      `::set-output name=deserializedFileUris::${deserializedFileUris.join(
-        ','
-      )}`
+      `Final results --- ${results.totalSuccesses} files completed, ${results.totalFailures} files errored.`
     );
+    console.log(
+      `::set-output name=successfulTranslations::${results.totalSuccesses}`
+    );
+    console.log(
+      `::set-output name=failedTranslations::${results.totalFailures}`
+    );
+
+    await updateJobRecords(results.jobStatuses);
 
     process.exit(0);
   } catch (error) {
@@ -197,4 +265,18 @@ const main = async () => {
   }
 };
 
-main();
+/**
+ * This allows us to check if the script was invoked directly from the command line, i.e 'node validate_packs.js', or if it was imported.
+ * This would be true if this was used in one of our GitHub workflows, but false when imported for use in a test.
+ * See here: https://nodejs.org/docs/latest/api/modules.html#modules_accessing_the_main_module
+ */
+if (require.main === module) {
+  main();
+}
+
+module.exports = {
+  getBatchStatus,
+  aggregateStatuses,
+  updateTranslationRecords,
+  updateJobRecords,
+};

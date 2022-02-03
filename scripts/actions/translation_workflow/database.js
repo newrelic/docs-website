@@ -9,10 +9,11 @@ const Models = require('./models');
  * @param {string} job.job_uid - identifier of job from translation vendor
  * @param {string} job.status - string value of status enum
  * @param {string} job.locale - locale of job
+ * @param {string} job.project_id -- project id job is associated with (from translation vendor)
  * @returns newly created job
  */
-const addJob = async ({ job_uid, status, locale }) => {
-  const job = await Models.Job.create({ job_uid, status, locale });
+const addJob = async ({ job_uid, status, locale, project_id }) => {
+  const job = await Models.Job.create({ job_uid, status, locale, project_id });
   return job;
 };
 
@@ -92,8 +93,13 @@ const getStatuses = async (filters = {}) => {
  * @param {string} locale - string value of locale enum
  * @returns newly created translation
  */
-const addTranslation = async ({ slug, status, locale }) => {
-  const translation = await Models.Translation.create({ slug, status, locale });
+const addTranslation = async ({ slug, status, locale, project_id }) => {
+  const translation = await Models.Translation.create({
+    slug,
+    status,
+    locale,
+    project_id,
+  });
   return translation;
 };
 
@@ -109,6 +115,24 @@ const updateTranslation = async (translationId, updates) => {
     returning: true,
   });
   return translation;
+};
+
+/**
+ * Method to update existing translation record(s) matching `filter` criteria.
+ * @param {Partial<Translation>} filters - fields which filter translation(s) you want to be updated
+ * @param {Partial<Translation>} updates - fields to update and their updated values
+ * @example
+ * await updateTranslations({ id: 1 }, { status: 'IN_PROGRESS' }); // update record with id=1 to have a status='IN_PROGRESS'
+ * await updateTranslations({ slug: 'hello_world.txt', status: 'COMPLETED' }); // update all records where slug='hello_world.txt' to have status='COMPLETED'
+ * await updateTranslations({ slug: 'hello_world.txt', status: 'IN_PROGRESS' }, { status:'ERRORED' }); // update all records where slug='hello_world.txt' AND status='IN_PROGRESS' to have status='ERRORED'
+ * @returns updated translations
+ */
+const updateTranslations = async (filters, updates) => {
+  const [_, translations] = await Models.Translation.update(updates, {
+    where: { ...filters },
+    returning: true,
+  });
+  return translations;
 };
 
 /**
@@ -184,6 +208,19 @@ const deleteTranslationsJobsRecords = async (jobId) => {
   });
 };
 
+/**
+ * Enum containing values from `Status` table.
+ * @example
+ * await updateTranslation(1, { status: StatusEnum.ERRORED }); // update translation with id=1 to have status='ERRORED'
+ */
+const StatusEnum = {
+  PENDING: 'PENDING',
+  IN_PROGRESS: 'IN_PROGRESS',
+  IN_REVIEW: 'IN_REVIEW',
+  COMPLETED: 'COMPLETED',
+  ERRORED: 'ERRORED',
+};
+
 module.exports = {
   addJob,
   updateJob,
@@ -193,9 +230,11 @@ module.exports = {
   getStatuses,
   addTranslation,
   updateTranslation,
+  updateTranslations,
   getTranslations,
   deleteTranslation,
   addTranslationsJobsRecord,
   deleteTranslationsJobsRecords,
   getTranslationsJobsRecords,
+  StatusEnum,
 };
