@@ -1,0 +1,238 @@
+---
+title: "Kubernetes integration: what's changed in v3"
+tags:
+  - Integrations
+  - Kubernetes integration
+  - Changelog
+metaDescription: Changes introduced in Kubernetes Integration version 3
+---
+
+<Callout title="v3 BETA">
+  Kubernetes integration v3 is currently in a late stage beta, and we expect to make it generally available during Spring 2022. We encourage you to give it a try and let us know what you think!
+</Callout>
+
+<Callout title="Integration version and Chart version">
+  The Kubernetes integration v3 (`appVersion`) is included on the `nri-bundle` chart `version` 4.
+</Callout>
+
+## Overview [#overview]
+
+<Callout title="v3 BETA">
+  Data reported by the Kubernetes Integration version 3 has not changed with respect to version 2. For this major release, we focused in configurability, stability, and user experience.
+</Callout>
+
+From version 3 onwards, New Relic's Kubernetes solution features a new architecture which aims to be more modular and configurable, giving you more power to choose how the solution is deployed and making it compatible with more environments.
+
+### Architectural changes [#architecture]
+
+In this new version, the main component of the integration, the `newrelic-infrastructure` DaemonSet, is divided in three different components: `nrk8s-ksm`, `nrk8s-kubelet`, and `nrk8s-controlplane`, with the first being a deployment and the next two being DaemonSets. This makes it easier to make decisions at scheduling and deployment time, rather than runtime.
+
+Moreover, we also changed the lifecycle of the scraping process. We went from a one-shot, short-lived process, to a long-lived one, allowing it to leverage higher-level Kubernetes APIs like the Kubernetes informers, that provide built-in caching and watching of cluster objects. For this reason, each of the components has two containers:
+
+1. A container for the integration, responsible for collecting metrics.
+2. A container with the New Relic Infrastructure Agent, which is used to send the metrics to the New Relic Platform.
+
+### Kube-state-metrics component [#nrk8s-ksm]
+
+We build our cluster state metrics on top of the OSS project [`kube-state-metrics`](https://github.com/kubernetes/kube-state-metrics), which is housed under the Kubernetes organization itself. Previously, as our solution was comprised by just one DaemonSet, an election process was made to decide which pod was going to be in charge of scraping the metrics. This process was based merely on locality. The pod in charge would be the one that shares a node with the KSM deployment.
+
+As the KSM output contains data for the whole cluster, parsing this output requires a substantial amount of resources. While this is something that big cluster operators can assume, the fact that it's one arbitrary instance of the DaemonSet the one that will need this big amount of resources forces cluster operators to allow such consumption to the whole DaemonSet, where only one actually needed them.
+
+Another problem with KSM scraping was figuring out in which node the KSM pod lived. To do this, we need to contact the API Server and filter pods by some labels, but given the short-lived nature of the integration, caches and watchers were not being used effectively by it. This caused that, on large clusters, all instances of the DaemonSet flooded the control plane with non-namespaced pod list requests as an attempt to figure out whether the KSM pod was living next to them.
+
+We decided to tackle this problem by making two big changes to how KSM is scraped:
+
+1. Split the responsibility of scraping KSM out of the DaemonSet pods to a different, single instance Deployment.
+2. Refactor the code and make it long-running, so we can leverage Kubernetes informers which provide built-in caching and watching mechanisms.
+
+Thus, a specific Deployment `nrk8s-ksm` now takes care of finding KSM and scraping it. With this pod now being long-lived and single, it can safely use an endpoints informer to locate the IP of the KSM pod and scrape it. The informer will automatically cache the list of informers in the cluster locally and watch for new ones, avoiding storming the API Server with requests to figure out where the pod was located.
+
+While a sharded KSM setup is not supported yet, this new code was built with this future improvement in mind.
+
+### Kubelet component [#nrk8s-kubelet]
+
+The Kubelet is the “Kubernetes agent”, a service that runs on every Kubernetes node and is responsible for creating the containers as instructed by the control plane. Since it's the Kubelet who partners closely with the Container Runtime, it's the main source of infrastructure metrics for our integration, such as use of CPU, memory, disk, network, etc. Although not thoroughly documented, the Kubelet API is the de-facto standard source for most Kubernetes metrics.
+
+Scraping the Kubelet is typically a low-resource operation. Given this, and our intent to minimize internode traffic whenever possible, `nrk8s-kubelet` is run as a DaemonSet where each instance gathers metric from the Kubelet running in the same node as it is.
+
+`nrk8s-kubelet` no longer requires `hostNetwork` to run properly, and instead it connects to the Kubelet using the Node IP. If this process fails, `nrk8s-kubelet` will fall back to reach the node through the API Server proxy. This fallback mechanism is not new, but we do encourage you to mind this if you have very large clusters, as proxying many kubelets might increase the load in the API server. You can check if the API Server is being used as a proxy by looking for a message like this in the logs:
+
+```
+Trying to connect to kubelet through API proxy
+```
+
+### Control plane component [#nrk8s-controlplane]
+
+Enabling the integration to successfully find and connect to CP components was probably one of the hardest parts of this effort. The main reason for this is the amount of ways in which CP components can be configured: inside or outside the cluster, with one or many replicas, with or without dedicated nodes, etc. Moreover, different CP components might be configured directly.
+
+We built the current approach with the following scenarios in mind:
+
+1. CP monitoring should work out of the box for those environments in which the CP is reachable out of the box, e.g. Kubeadm or even Minikube.
+2. For setups where the CP cannot be autodiscovered. For example, if it lives out of the cluster, we should provide a way for the user to specify their own endpoints.
+3. Failure to autodiscover shouldn't cause the deployment to fail, but failure to hit a manually defined endpoint should.
+
+As major Kubernetes distributions such as Kubeadm deploy CP components configured to listen only in localhost on the host's network namespace, we chose to deploy `nrk8s-controlplane` as a DaemonSet with `hostNetwork: true`.
+
+We structured the configuration to support autodiscover and static endpoints. To be compatible with a wide range of distributions out of the box, we provide a wide range of known defaults as configuration entries. Doing this in the configuration instead of the code allows you to tweak autodiscovery to your needs.
+
+Another improvement was adding the possibility of having multiple endpoints per selector and adding a probe mechanism which automatically detects the correct one. This allows you to try different configurations such as ports or protocols by using the same selector.
+
+Scraping configuration for the etcd CP component looks like the following where the same structure and features applies for all components:
+
+```yaml
+config:
+  etcd:
+    enabled: true
+    autodiscover:
+      - selector: "tier=control-plane,component=etcd"
+        namespace: kube-system
+        matchNode: true
+        endpoints:
+          - url: https://localhost:4001
+            insecureSkipVerify: true
+            auth:
+              type: bearer
+          - url: http://localhost:2381
+    staticEndpoint:
+      url: https://url:port
+      insecureSkipVerify: true
+      auth: {}
+```
+
+If `staticEndpoint` is set, the component will try to scrape it. If it can't hit the endpoint, the integration will fail so there are no silent errors when manual endpoints are configured.
+
+If `staticEndpoint` is not set, the component will iterate over the autodiscover entries looking for the first pod that matches the `selector` in the specified `namespace`, and optionally is running in the same node of the DaemonSet (if `matchNode` is set to `true`). After a pod is discovered, the component probes, issuing an http `HEAD` request, the listed endpoints in order and scrapes the first successful probed one using the authorization type selected.
+
+While above we show a config excerpt for the `etcd` component, the scraping logic is the same for other components.
+
+For more detailed instructions on how to configure control plane monitoring, please check the [control plane monitoring](/docs/kubernetes-pixie/kubernetes-integration/advanced-configuration/configure-control-plane-monitoring) page.
+
+### Helm Charts [#helm-charts]
+
+Helm is the primary means we offer to deploy our solution into your clusters. Chart complexity was also significantly increased from the previous version, where it only had to manage one DaemonSet. Now, it has to manage one deployment and two DaemonSets where each has slightly different configurations. This will give you more flexibilty to adapt the solution to your needs, whithout the need to apply manual patches on top of the chart and the generated manifests.
+
+Some of the new features that our new Helm chart exposes are:
+
+* Full control of the `securityContext` for all pods
+* Full control of pod `labels` and `annotations` for all pods
+* Ability to add extra environment variables, `volumes`, and `volumeMounts`
+* Full control on the integration configuration, including which endpoints are reached, autodiscovery behavior, and scraping intervals
+* Better alignment with Helm idioms and standards
+
+You can check full details on all the switches that can be flipped in the [Chart's `README.md`](https://github.com/newrelic/helm-charts/blob/master/charts/newrelic-infrastructure-v3/README.md).
+
+## Migration Guide [#migration-guide]
+
+In order to make migration from earlier versions as easy as possible, we developed a compatibility layer that will translate most of the options that were possible to specify in the old newrelic-infrastructure chart to their new counterparts. This compatibility layer is temporary and will be removed in the future, so we encourage you to read carefully this guide and migrate the configuration with human supervision.
+
+### KSM configuration [#ksm-config]
+
+<Callout variant="tip">
+  KSM monitoring works out of the box for most configurations, most users will not need to change this config.
+</Callout>
+
+* `disableKubeStateMetrics` has been replaced by `ksm.enabled`. The default is still the same (KSM scraping enabled).
+* `kubeStateMetricsScheme`, `kubeStateMetricsPort`, `kubeStateMetricsUrl`, `kubeStateMetricsPodLabel`, and `kubeStateMetricsNamespace` have been replaced by the more comprehensive and flexible `ksm.config`.
+
+The `ksm.config` object has the following structure:
+
+```yaml
+ksm:
+  config:
+   # When autodiscovering KSM, force the following scheme. By default, `http` is used.
+   scheme: "http"
+   # Label selector to find kube-state-metrics endpoints. Defaults to `app.kubernetes.io/name=kube-state-metrics`.
+   selector: "app.kubernetes.io/name=kube-state-metrics"
+   # Restrict KSM discovery to this particular namespace. Defaults to all namespaces.
+   namespace: ""
+   # When autodiscovering, only consider endpoints that use this port. By default, all ports from the discovered `endpoint` are probed.
+   #port: 8080
+   # Override autodiscovery mechanism completely and specify the KSM url directly instead
+   #staticUrl: "http://test.io:8080/metrics"
+```
+
+### Control plane configuration [#controlplane-configuration]
+
+Control plane configuration has changed substantially. If you previously had control plane monitoring enabled, we encourage you to take a look at the [Configure control plane monitoring](/docs/kubernetes-pixie/kubernetes-integration/advanced-configuration/configure-control-plane-monitoring) dedicated page.
+
+The following options have been replaced by more comprehensive configuration, covered in the section linked above:
+
+* `apiServerSecurePort`
+* `etcdTlsSecretName`
+* `etcdTlsSecretNamespace`
+* `controllerManagerEndpointUrl`, `etcdEndpointUrl`, `apiServerEndpointUrl`, and `schedulerEndpointUrl`
+
+### Agent configuration [#agent-configuration]
+
+Agent config file, previously specified in `config` has been moved to `common.agentConfig`. Format of the file has not changed, and the full range of options that can be configured can be found [here](/docs/infrastructure/install-infrastructure-agent/configuration/infrastructure-agent-configuration-settings/).
+
+The following agent options were previously "aliased" in the root of the `values.yml` file, and are no longer available:
+
+* `logFile` has been replaced by `common.agentConfig.log_file`.
+* `eventQueueDepth` has been replaced by `common.agentConfig.event_queue_depth`.
+* `customAttributes` has changed in format to a yaml object. The previous format, a manually json-encoded string e.g. `{"team": "devops"}`, is still accepted although discouraged.
+* Previously, `customAttributes` had a default `clusterName` entry which might have unwanted consequences if removed. This is no longer the case, users may now safely override `customAttributes` on its entirety.
+* `discoveryCacheTTL` has been completely removed, as the discovery is not performed using kubernetes informers.
+### Integrations configuration [#integrations-configuration]
+
+Integrations were previously configured under `integrations_config`, using an array format:
+
+```yaml
+integrations_config:
+  - name: nri-redis.yaml
+    data:
+      discovery:  # ...
+      integrations:  # ...
+```
+
+The mechanism remains the same, but we have changed the format to be more user-friendly:
+
+```yaml
+integrations:
+  nri-redis-sampleapp:
+    discovery:  # ...
+    integrations:  # ...
+```
+
+Moreover, it is now mandatory to use the `--port` and `--tls` flags on the discovery command. Before, the following would work:
+
+```yaml
+integrations:
+  nri-redis-sampleapp:
+    discovery:
+      command:
+        exec: /var/db/newrelic-infra/nri-discovery-kubernetes
+```
+
+From v3 onwards, you must specify `--port` and `--tls`:
+
+```yaml
+integrations:
+  nri-redis-sampleapp:
+    discovery:
+      command:
+        exec: /var/db/newrelic-infra/nri-discovery-kubernetes --tls --port 10250
+```
+
+This change is required because in v2 and below, the `nrk8s-kubelet` component (or its equivalent) ran with `hostNetwork: true`, so `nri-discovery-kubernetes` could connect to the kubelet using `localhost` and plain http. For security reasons, this is no longer the case, hence the need to specify both flags from now on.
+
+For more details on how to configure on-host integrations in Kubernetes please check the [Monitor services in Kubernetes](/docs/kubernetes-pixie/kubernetes-integration/link-apps-services/monitor-services-running-kubernetes) page.
+
+### Miscellaneous chart values [#misc-chart-values]
+
+While not related to the integration configuration, the following miscellaneous options for the helm chart have also changed:
+
+* `runAsUser` has been replaced by `securityContext`, which is templated directly into the pods and more configurable.
+* `resources` has been removed, as now we deploy three different workloads. Resources for each one can be configured individually under:
+ * `ksm.resources`
+ * `kubelet.resources`
+ * `controlPlane.resources`
+* Similarly, `tolerations` has been split into three and the previous one is no longer valid:
+ * `ksm.tolerations`
+ * `kubelet.tolerations`
+ * `controlPlane.tolerations`
+ - All three default to tolerate any value for `NoSchedule` and `NoExecute`
+* `image` and all its subkeys have been replaced by individual sections for each of the three images that are now deployed:
+ * `images.forwarder.*` to configure the infrastructure-agent forwarder.
+ * `images.agent.*` to configure the image bundling the infrastructure-agent and on-host integrations.
+ * `images.integration.*` to configure the image in charge of scraping k8s data.
