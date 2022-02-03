@@ -6,12 +6,10 @@
   a function. `preferDefault` helper will just use `.default` if available,
   but will fallback to entire export if not available
 */
-const preferDefault = m => (m && m.default) || m
-
+const preferDefault = (m) => (m && m.default) || m;
 const visit = require('unist-util-visit');
 const { JSDOM } = require('jsdom');
 const fromDom = preferDefault(require('hast-util-from-dom'));
-
 
 module.exports = ({ markdownAST }) => {
   visit(markdownAST, 'html', (node) => {

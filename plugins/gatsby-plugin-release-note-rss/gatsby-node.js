@@ -1,13 +1,14 @@
+const preferDefault = (m) => (m && m.default) || m;
 const fs = require('fs');
 const path = require('path');
 const RSS = require('rss');
 const format = require('date-fns/format');
-const parseISO = require('date-fns/parseISO');
 const unified = require('unified');
 const toHast = require('mdast-util-to-hast');
 const html = require('rehype-stringify');
 const removeImports = require('remark-mdx-remove-imports');
 const removeExports = require('remark-mdx-remove-exports');
+const parseISO = preferDefault(require('date-fns/parseISO'));
 
 // NOTE: remove-imports and remove-exports are now depreciated
 const htmlGenerator = unified().use(removeImports).use(removeExports).use(html);
