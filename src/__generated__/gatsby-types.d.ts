@@ -271,9 +271,10 @@ type Directory_ctimeArgs = {
 type Site = Node & {
   readonly buildTime: Maybe<Scalars['Date']>;
   readonly siteMetadata: Maybe<SiteSiteMetadata>;
-  readonly port: Maybe<Scalars['Int']>;
-  readonly host: Maybe<Scalars['String']>;
   readonly flags: Maybe<SiteFlags>;
+  readonly polyfill: Maybe<Scalars['Boolean']>;
+  readonly pathPrefix: Maybe<Scalars['String']>;
+  readonly jsxRuntime: Maybe<Scalars['String']>;
   readonly id: Scalars['ID'];
   readonly parent: Maybe<Node>;
   readonly children: ReadonlyArray<Node>;
@@ -901,31 +902,31 @@ type Frontmatter = {
   readonly isFeatured: Maybe<Scalars['Boolean']>;
   readonly translationType: Maybe<Scalars['String']>;
   readonly title: Maybe<Scalars['String']>;
+  readonly tags: Maybe<ReadonlyArray<Maybe<Scalars['String']>>>;
+  readonly translate: Maybe<ReadonlyArray<Maybe<Scalars['String']>>>;
+  readonly metaDescription: Maybe<Scalars['String']>;
+  readonly redirects: Maybe<ReadonlyArray<Maybe<Scalars['String']>>>;
   readonly subject: Maybe<Scalars['String']>;
   readonly releaseDate: Maybe<Scalars['Date']>;
   readonly version: Maybe<Scalars['String']>;
   readonly downloadLink: Maybe<Scalars['String']>;
-  readonly redirects: Maybe<ReadonlyArray<Maybe<Scalars['String']>>>;
-  readonly tags: Maybe<ReadonlyArray<Maybe<Scalars['String']>>>;
-  readonly metaDescription: Maybe<Scalars['String']>;
   readonly type: Maybe<Scalars['String']>;
-  readonly translate: Maybe<ReadonlyArray<Maybe<Scalars['String']>>>;
   readonly shortDescription: Maybe<Scalars['String']>;
-  readonly template: Maybe<Scalars['String']>;
-  readonly topics: Maybe<ReadonlyArray<Maybe<Scalars['String']>>>;
-  readonly contentType: Maybe<Scalars['String']>;
-  readonly s_Google_Cloud_Spanner_integration: Maybe<Scalars['String']>;
-  readonly description: Maybe<Scalars['String']>;
-  readonly s_legacy_SNMP_integration: Maybe<Scalars['String']>;
   readonly startDate: Maybe<Scalars['Date']>;
   readonly endDate: Maybe<Scalars['Date']>;
+  readonly description: Maybe<Scalars['String']>;
+  readonly contentType: Maybe<Scalars['String']>;
+  readonly template: Maybe<Scalars['String']>;
+  readonly topics: Maybe<ReadonlyArray<Maybe<Scalars['String']>>>;
+  readonly s_Google_Cloud_Spanner_integration: Maybe<Scalars['String']>;
+  readonly s_legacy_SNMP_integration: Maybe<Scalars['String']>;
   readonly name: Maybe<Scalars['String']>;
-  readonly events: Maybe<ReadonlyArray<Maybe<Scalars['String']>>>;
   readonly units: Maybe<Scalars['String']>;
+  readonly events: Maybe<ReadonlyArray<Maybe<Scalars['String']>>>;
   readonly summary: Maybe<Scalars['String']>;
   readonly learnMoreLink: Maybe<Scalars['String']>;
-  readonly dataSources: Maybe<ReadonlyArray<Maybe<Scalars['String']>>>;
   readonly getStartedLink: Maybe<Scalars['String']>;
+  readonly dataSources: Maybe<ReadonlyArray<Maybe<Scalars['String']>>>;
 };
 
 
@@ -1111,9 +1112,10 @@ type Query_allDirectoryArgs = {
 type Query_siteArgs = {
   buildTime: Maybe<DateQueryOperatorInput>;
   siteMetadata: Maybe<SiteSiteMetadataFilterInput>;
-  port: Maybe<IntQueryOperatorInput>;
-  host: Maybe<StringQueryOperatorInput>;
   flags: Maybe<SiteFlagsFilterInput>;
+  polyfill: Maybe<BooleanQueryOperatorInput>;
+  pathPrefix: Maybe<StringQueryOperatorInput>;
+  jsxRuntime: Maybe<StringQueryOperatorInput>;
   id: Maybe<StringQueryOperatorInput>;
   parent: Maybe<NodeFilterInput>;
   children: Maybe<NodeFilterListInput>;
@@ -1609,31 +1611,31 @@ type FrontmatterFilterInput = {
   readonly isFeatured: Maybe<BooleanQueryOperatorInput>;
   readonly translationType: Maybe<StringQueryOperatorInput>;
   readonly title: Maybe<StringQueryOperatorInput>;
+  readonly tags: Maybe<StringQueryOperatorInput>;
+  readonly translate: Maybe<StringQueryOperatorInput>;
+  readonly metaDescription: Maybe<StringQueryOperatorInput>;
+  readonly redirects: Maybe<StringQueryOperatorInput>;
   readonly subject: Maybe<StringQueryOperatorInput>;
   readonly releaseDate: Maybe<DateQueryOperatorInput>;
   readonly version: Maybe<StringQueryOperatorInput>;
   readonly downloadLink: Maybe<StringQueryOperatorInput>;
-  readonly redirects: Maybe<StringQueryOperatorInput>;
-  readonly tags: Maybe<StringQueryOperatorInput>;
-  readonly metaDescription: Maybe<StringQueryOperatorInput>;
   readonly type: Maybe<StringQueryOperatorInput>;
-  readonly translate: Maybe<StringQueryOperatorInput>;
   readonly shortDescription: Maybe<StringQueryOperatorInput>;
-  readonly template: Maybe<StringQueryOperatorInput>;
-  readonly topics: Maybe<StringQueryOperatorInput>;
-  readonly contentType: Maybe<StringQueryOperatorInput>;
-  readonly s_Google_Cloud_Spanner_integration: Maybe<StringQueryOperatorInput>;
-  readonly description: Maybe<StringQueryOperatorInput>;
-  readonly s_legacy_SNMP_integration: Maybe<StringQueryOperatorInput>;
   readonly startDate: Maybe<DateQueryOperatorInput>;
   readonly endDate: Maybe<DateQueryOperatorInput>;
+  readonly description: Maybe<StringQueryOperatorInput>;
+  readonly contentType: Maybe<StringQueryOperatorInput>;
+  readonly template: Maybe<StringQueryOperatorInput>;
+  readonly topics: Maybe<StringQueryOperatorInput>;
+  readonly s_Google_Cloud_Spanner_integration: Maybe<StringQueryOperatorInput>;
+  readonly s_legacy_SNMP_integration: Maybe<StringQueryOperatorInput>;
   readonly name: Maybe<StringQueryOperatorInput>;
-  readonly events: Maybe<StringQueryOperatorInput>;
   readonly units: Maybe<StringQueryOperatorInput>;
+  readonly events: Maybe<StringQueryOperatorInput>;
   readonly summary: Maybe<StringQueryOperatorInput>;
   readonly learnMoreLink: Maybe<StringQueryOperatorInput>;
-  readonly dataSources: Maybe<StringQueryOperatorInput>;
   readonly getStartedLink: Maybe<StringQueryOperatorInput>;
+  readonly dataSources: Maybe<StringQueryOperatorInput>;
 };
 
 type MarkdownRemarkFieldsFilterInput = {
@@ -1968,31 +1970,31 @@ type FileFieldsEnum =
   | 'childrenMarkdownRemark.frontmatter.isFeatured'
   | 'childrenMarkdownRemark.frontmatter.translationType'
   | 'childrenMarkdownRemark.frontmatter.title'
+  | 'childrenMarkdownRemark.frontmatter.tags'
+  | 'childrenMarkdownRemark.frontmatter.translate'
+  | 'childrenMarkdownRemark.frontmatter.metaDescription'
+  | 'childrenMarkdownRemark.frontmatter.redirects'
   | 'childrenMarkdownRemark.frontmatter.subject'
   | 'childrenMarkdownRemark.frontmatter.releaseDate'
   | 'childrenMarkdownRemark.frontmatter.version'
   | 'childrenMarkdownRemark.frontmatter.downloadLink'
-  | 'childrenMarkdownRemark.frontmatter.redirects'
-  | 'childrenMarkdownRemark.frontmatter.tags'
-  | 'childrenMarkdownRemark.frontmatter.metaDescription'
   | 'childrenMarkdownRemark.frontmatter.type'
-  | 'childrenMarkdownRemark.frontmatter.translate'
   | 'childrenMarkdownRemark.frontmatter.shortDescription'
-  | 'childrenMarkdownRemark.frontmatter.template'
-  | 'childrenMarkdownRemark.frontmatter.topics'
-  | 'childrenMarkdownRemark.frontmatter.contentType'
-  | 'childrenMarkdownRemark.frontmatter.s_Google_Cloud_Spanner_integration'
-  | 'childrenMarkdownRemark.frontmatter.description'
-  | 'childrenMarkdownRemark.frontmatter.s_legacy_SNMP_integration'
   | 'childrenMarkdownRemark.frontmatter.startDate'
   | 'childrenMarkdownRemark.frontmatter.endDate'
+  | 'childrenMarkdownRemark.frontmatter.description'
+  | 'childrenMarkdownRemark.frontmatter.contentType'
+  | 'childrenMarkdownRemark.frontmatter.template'
+  | 'childrenMarkdownRemark.frontmatter.topics'
+  | 'childrenMarkdownRemark.frontmatter.s_Google_Cloud_Spanner_integration'
+  | 'childrenMarkdownRemark.frontmatter.s_legacy_SNMP_integration'
   | 'childrenMarkdownRemark.frontmatter.name'
-  | 'childrenMarkdownRemark.frontmatter.events'
   | 'childrenMarkdownRemark.frontmatter.units'
+  | 'childrenMarkdownRemark.frontmatter.events'
   | 'childrenMarkdownRemark.frontmatter.summary'
   | 'childrenMarkdownRemark.frontmatter.learnMoreLink'
-  | 'childrenMarkdownRemark.frontmatter.dataSources'
   | 'childrenMarkdownRemark.frontmatter.getStartedLink'
+  | 'childrenMarkdownRemark.frontmatter.dataSources'
   | 'childrenMarkdownRemark.excerpt'
   | 'childrenMarkdownRemark.rawMarkdownBody'
   | 'childrenMarkdownRemark.fileAbsolutePath'
@@ -2051,31 +2053,31 @@ type FileFieldsEnum =
   | 'childMarkdownRemark.frontmatter.isFeatured'
   | 'childMarkdownRemark.frontmatter.translationType'
   | 'childMarkdownRemark.frontmatter.title'
+  | 'childMarkdownRemark.frontmatter.tags'
+  | 'childMarkdownRemark.frontmatter.translate'
+  | 'childMarkdownRemark.frontmatter.metaDescription'
+  | 'childMarkdownRemark.frontmatter.redirects'
   | 'childMarkdownRemark.frontmatter.subject'
   | 'childMarkdownRemark.frontmatter.releaseDate'
   | 'childMarkdownRemark.frontmatter.version'
   | 'childMarkdownRemark.frontmatter.downloadLink'
-  | 'childMarkdownRemark.frontmatter.redirects'
-  | 'childMarkdownRemark.frontmatter.tags'
-  | 'childMarkdownRemark.frontmatter.metaDescription'
   | 'childMarkdownRemark.frontmatter.type'
-  | 'childMarkdownRemark.frontmatter.translate'
   | 'childMarkdownRemark.frontmatter.shortDescription'
-  | 'childMarkdownRemark.frontmatter.template'
-  | 'childMarkdownRemark.frontmatter.topics'
-  | 'childMarkdownRemark.frontmatter.contentType'
-  | 'childMarkdownRemark.frontmatter.s_Google_Cloud_Spanner_integration'
-  | 'childMarkdownRemark.frontmatter.description'
-  | 'childMarkdownRemark.frontmatter.s_legacy_SNMP_integration'
   | 'childMarkdownRemark.frontmatter.startDate'
   | 'childMarkdownRemark.frontmatter.endDate'
+  | 'childMarkdownRemark.frontmatter.description'
+  | 'childMarkdownRemark.frontmatter.contentType'
+  | 'childMarkdownRemark.frontmatter.template'
+  | 'childMarkdownRemark.frontmatter.topics'
+  | 'childMarkdownRemark.frontmatter.s_Google_Cloud_Spanner_integration'
+  | 'childMarkdownRemark.frontmatter.s_legacy_SNMP_integration'
   | 'childMarkdownRemark.frontmatter.name'
-  | 'childMarkdownRemark.frontmatter.events'
   | 'childMarkdownRemark.frontmatter.units'
+  | 'childMarkdownRemark.frontmatter.events'
   | 'childMarkdownRemark.frontmatter.summary'
   | 'childMarkdownRemark.frontmatter.learnMoreLink'
-  | 'childMarkdownRemark.frontmatter.dataSources'
   | 'childMarkdownRemark.frontmatter.getStartedLink'
+  | 'childMarkdownRemark.frontmatter.dataSources'
   | 'childMarkdownRemark.excerpt'
   | 'childMarkdownRemark.rawMarkdownBody'
   | 'childMarkdownRemark.fileAbsolutePath'
@@ -2136,31 +2138,31 @@ type FileFieldsEnum =
   | 'childrenMdx.frontmatter.isFeatured'
   | 'childrenMdx.frontmatter.translationType'
   | 'childrenMdx.frontmatter.title'
+  | 'childrenMdx.frontmatter.tags'
+  | 'childrenMdx.frontmatter.translate'
+  | 'childrenMdx.frontmatter.metaDescription'
+  | 'childrenMdx.frontmatter.redirects'
   | 'childrenMdx.frontmatter.subject'
   | 'childrenMdx.frontmatter.releaseDate'
   | 'childrenMdx.frontmatter.version'
   | 'childrenMdx.frontmatter.downloadLink'
-  | 'childrenMdx.frontmatter.redirects'
-  | 'childrenMdx.frontmatter.tags'
-  | 'childrenMdx.frontmatter.metaDescription'
   | 'childrenMdx.frontmatter.type'
-  | 'childrenMdx.frontmatter.translate'
   | 'childrenMdx.frontmatter.shortDescription'
-  | 'childrenMdx.frontmatter.template'
-  | 'childrenMdx.frontmatter.topics'
-  | 'childrenMdx.frontmatter.contentType'
-  | 'childrenMdx.frontmatter.s_Google_Cloud_Spanner_integration'
-  | 'childrenMdx.frontmatter.description'
-  | 'childrenMdx.frontmatter.s_legacy_SNMP_integration'
   | 'childrenMdx.frontmatter.startDate'
   | 'childrenMdx.frontmatter.endDate'
+  | 'childrenMdx.frontmatter.description'
+  | 'childrenMdx.frontmatter.contentType'
+  | 'childrenMdx.frontmatter.template'
+  | 'childrenMdx.frontmatter.topics'
+  | 'childrenMdx.frontmatter.s_Google_Cloud_Spanner_integration'
+  | 'childrenMdx.frontmatter.s_legacy_SNMP_integration'
   | 'childrenMdx.frontmatter.name'
-  | 'childrenMdx.frontmatter.events'
   | 'childrenMdx.frontmatter.units'
+  | 'childrenMdx.frontmatter.events'
   | 'childrenMdx.frontmatter.summary'
   | 'childrenMdx.frontmatter.learnMoreLink'
-  | 'childrenMdx.frontmatter.dataSources'
   | 'childrenMdx.frontmatter.getStartedLink'
+  | 'childrenMdx.frontmatter.dataSources'
   | 'childrenMdx.slug'
   | 'childrenMdx.body'
   | 'childrenMdx.excerpt'
@@ -2219,31 +2221,31 @@ type FileFieldsEnum =
   | 'childMdx.frontmatter.isFeatured'
   | 'childMdx.frontmatter.translationType'
   | 'childMdx.frontmatter.title'
+  | 'childMdx.frontmatter.tags'
+  | 'childMdx.frontmatter.translate'
+  | 'childMdx.frontmatter.metaDescription'
+  | 'childMdx.frontmatter.redirects'
   | 'childMdx.frontmatter.subject'
   | 'childMdx.frontmatter.releaseDate'
   | 'childMdx.frontmatter.version'
   | 'childMdx.frontmatter.downloadLink'
-  | 'childMdx.frontmatter.redirects'
-  | 'childMdx.frontmatter.tags'
-  | 'childMdx.frontmatter.metaDescription'
   | 'childMdx.frontmatter.type'
-  | 'childMdx.frontmatter.translate'
   | 'childMdx.frontmatter.shortDescription'
-  | 'childMdx.frontmatter.template'
-  | 'childMdx.frontmatter.topics'
-  | 'childMdx.frontmatter.contentType'
-  | 'childMdx.frontmatter.s_Google_Cloud_Spanner_integration'
-  | 'childMdx.frontmatter.description'
-  | 'childMdx.frontmatter.s_legacy_SNMP_integration'
   | 'childMdx.frontmatter.startDate'
   | 'childMdx.frontmatter.endDate'
+  | 'childMdx.frontmatter.description'
+  | 'childMdx.frontmatter.contentType'
+  | 'childMdx.frontmatter.template'
+  | 'childMdx.frontmatter.topics'
+  | 'childMdx.frontmatter.s_Google_Cloud_Spanner_integration'
+  | 'childMdx.frontmatter.s_legacy_SNMP_integration'
   | 'childMdx.frontmatter.name'
-  | 'childMdx.frontmatter.events'
   | 'childMdx.frontmatter.units'
+  | 'childMdx.frontmatter.events'
   | 'childMdx.frontmatter.summary'
   | 'childMdx.frontmatter.learnMoreLink'
-  | 'childMdx.frontmatter.dataSources'
   | 'childMdx.frontmatter.getStartedLink'
+  | 'childMdx.frontmatter.dataSources'
   | 'childMdx.slug'
   | 'childMdx.body'
   | 'childMdx.excerpt'
@@ -3032,10 +3034,11 @@ type SiteFieldsEnum =
   | 'siteMetadata.titleTemplate'
   | 'siteMetadata.author'
   | 'siteMetadata.siteUrl'
-  | 'port'
-  | 'host'
   | 'flags.DEV_SSR'
   | 'flags.PRESERVE_FILE_DOWNLOAD_CACHE'
+  | 'polyfill'
+  | 'pathPrefix'
+  | 'jsxRuntime'
   | 'id'
   | 'parent.id'
   | 'parent.parent.id'
@@ -3167,9 +3170,10 @@ type SiteGroupConnection_groupArgs = {
 type SiteFilterInput = {
   readonly buildTime: Maybe<DateQueryOperatorInput>;
   readonly siteMetadata: Maybe<SiteSiteMetadataFilterInput>;
-  readonly port: Maybe<IntQueryOperatorInput>;
-  readonly host: Maybe<StringQueryOperatorInput>;
   readonly flags: Maybe<SiteFlagsFilterInput>;
+  readonly polyfill: Maybe<BooleanQueryOperatorInput>;
+  readonly pathPrefix: Maybe<StringQueryOperatorInput>;
+  readonly jsxRuntime: Maybe<StringQueryOperatorInput>;
   readonly id: Maybe<StringQueryOperatorInput>;
   readonly parent: Maybe<NodeFilterInput>;
   readonly children: Maybe<NodeFilterListInput>;
@@ -4879,31 +4883,31 @@ type MarkdownRemarkFieldsEnum =
   | 'frontmatter.isFeatured'
   | 'frontmatter.translationType'
   | 'frontmatter.title'
+  | 'frontmatter.tags'
+  | 'frontmatter.translate'
+  | 'frontmatter.metaDescription'
+  | 'frontmatter.redirects'
   | 'frontmatter.subject'
   | 'frontmatter.releaseDate'
   | 'frontmatter.version'
   | 'frontmatter.downloadLink'
-  | 'frontmatter.redirects'
-  | 'frontmatter.tags'
-  | 'frontmatter.metaDescription'
   | 'frontmatter.type'
-  | 'frontmatter.translate'
   | 'frontmatter.shortDescription'
-  | 'frontmatter.template'
-  | 'frontmatter.topics'
-  | 'frontmatter.contentType'
-  | 'frontmatter.s_Google_Cloud_Spanner_integration'
-  | 'frontmatter.description'
-  | 'frontmatter.s_legacy_SNMP_integration'
   | 'frontmatter.startDate'
   | 'frontmatter.endDate'
+  | 'frontmatter.description'
+  | 'frontmatter.contentType'
+  | 'frontmatter.template'
+  | 'frontmatter.topics'
+  | 'frontmatter.s_Google_Cloud_Spanner_integration'
+  | 'frontmatter.s_legacy_SNMP_integration'
   | 'frontmatter.name'
-  | 'frontmatter.events'
   | 'frontmatter.units'
+  | 'frontmatter.events'
   | 'frontmatter.summary'
   | 'frontmatter.learnMoreLink'
-  | 'frontmatter.dataSources'
   | 'frontmatter.getStartedLink'
+  | 'frontmatter.dataSources'
   | 'excerpt'
   | 'rawMarkdownBody'
   | 'fileAbsolutePath'
@@ -5104,31 +5108,31 @@ type MdxFieldsEnum =
   | 'frontmatter.isFeatured'
   | 'frontmatter.translationType'
   | 'frontmatter.title'
+  | 'frontmatter.tags'
+  | 'frontmatter.translate'
+  | 'frontmatter.metaDescription'
+  | 'frontmatter.redirects'
   | 'frontmatter.subject'
   | 'frontmatter.releaseDate'
   | 'frontmatter.version'
   | 'frontmatter.downloadLink'
-  | 'frontmatter.redirects'
-  | 'frontmatter.tags'
-  | 'frontmatter.metaDescription'
   | 'frontmatter.type'
-  | 'frontmatter.translate'
   | 'frontmatter.shortDescription'
-  | 'frontmatter.template'
-  | 'frontmatter.topics'
-  | 'frontmatter.contentType'
-  | 'frontmatter.s_Google_Cloud_Spanner_integration'
-  | 'frontmatter.description'
-  | 'frontmatter.s_legacy_SNMP_integration'
   | 'frontmatter.startDate'
   | 'frontmatter.endDate'
+  | 'frontmatter.description'
+  | 'frontmatter.contentType'
+  | 'frontmatter.template'
+  | 'frontmatter.topics'
+  | 'frontmatter.s_Google_Cloud_Spanner_integration'
+  | 'frontmatter.s_legacy_SNMP_integration'
   | 'frontmatter.name'
-  | 'frontmatter.events'
   | 'frontmatter.units'
+  | 'frontmatter.events'
   | 'frontmatter.summary'
   | 'frontmatter.learnMoreLink'
-  | 'frontmatter.dataSources'
   | 'frontmatter.getStartedLink'
+  | 'frontmatter.dataSources'
   | 'slug'
   | 'body'
   | 'excerpt'
@@ -5363,31 +5367,31 @@ type DataDictionaryEventFieldsEnum =
   | 'definition.frontmatter.isFeatured'
   | 'definition.frontmatter.translationType'
   | 'definition.frontmatter.title'
+  | 'definition.frontmatter.tags'
+  | 'definition.frontmatter.translate'
+  | 'definition.frontmatter.metaDescription'
+  | 'definition.frontmatter.redirects'
   | 'definition.frontmatter.subject'
   | 'definition.frontmatter.releaseDate'
   | 'definition.frontmatter.version'
   | 'definition.frontmatter.downloadLink'
-  | 'definition.frontmatter.redirects'
-  | 'definition.frontmatter.tags'
-  | 'definition.frontmatter.metaDescription'
   | 'definition.frontmatter.type'
-  | 'definition.frontmatter.translate'
   | 'definition.frontmatter.shortDescription'
-  | 'definition.frontmatter.template'
-  | 'definition.frontmatter.topics'
-  | 'definition.frontmatter.contentType'
-  | 'definition.frontmatter.s_Google_Cloud_Spanner_integration'
-  | 'definition.frontmatter.description'
-  | 'definition.frontmatter.s_legacy_SNMP_integration'
   | 'definition.frontmatter.startDate'
   | 'definition.frontmatter.endDate'
+  | 'definition.frontmatter.description'
+  | 'definition.frontmatter.contentType'
+  | 'definition.frontmatter.template'
+  | 'definition.frontmatter.topics'
+  | 'definition.frontmatter.s_Google_Cloud_Spanner_integration'
+  | 'definition.frontmatter.s_legacy_SNMP_integration'
   | 'definition.frontmatter.name'
-  | 'definition.frontmatter.events'
   | 'definition.frontmatter.units'
+  | 'definition.frontmatter.events'
   | 'definition.frontmatter.summary'
   | 'definition.frontmatter.learnMoreLink'
-  | 'definition.frontmatter.dataSources'
   | 'definition.frontmatter.getStartedLink'
+  | 'definition.frontmatter.dataSources'
   | 'definition.excerpt'
   | 'definition.rawMarkdownBody'
   | 'definition.fileAbsolutePath'
@@ -5451,31 +5455,31 @@ type DataDictionaryEventFieldsEnum =
   | 'childrenDataDictionaryAttribute.definition.frontmatter.isFeatured'
   | 'childrenDataDictionaryAttribute.definition.frontmatter.translationType'
   | 'childrenDataDictionaryAttribute.definition.frontmatter.title'
+  | 'childrenDataDictionaryAttribute.definition.frontmatter.tags'
+  | 'childrenDataDictionaryAttribute.definition.frontmatter.translate'
+  | 'childrenDataDictionaryAttribute.definition.frontmatter.metaDescription'
+  | 'childrenDataDictionaryAttribute.definition.frontmatter.redirects'
   | 'childrenDataDictionaryAttribute.definition.frontmatter.subject'
   | 'childrenDataDictionaryAttribute.definition.frontmatter.releaseDate'
   | 'childrenDataDictionaryAttribute.definition.frontmatter.version'
   | 'childrenDataDictionaryAttribute.definition.frontmatter.downloadLink'
-  | 'childrenDataDictionaryAttribute.definition.frontmatter.redirects'
-  | 'childrenDataDictionaryAttribute.definition.frontmatter.tags'
-  | 'childrenDataDictionaryAttribute.definition.frontmatter.metaDescription'
   | 'childrenDataDictionaryAttribute.definition.frontmatter.type'
-  | 'childrenDataDictionaryAttribute.definition.frontmatter.translate'
   | 'childrenDataDictionaryAttribute.definition.frontmatter.shortDescription'
-  | 'childrenDataDictionaryAttribute.definition.frontmatter.template'
-  | 'childrenDataDictionaryAttribute.definition.frontmatter.topics'
-  | 'childrenDataDictionaryAttribute.definition.frontmatter.contentType'
-  | 'childrenDataDictionaryAttribute.definition.frontmatter.s_Google_Cloud_Spanner_integration'
-  | 'childrenDataDictionaryAttribute.definition.frontmatter.description'
-  | 'childrenDataDictionaryAttribute.definition.frontmatter.s_legacy_SNMP_integration'
   | 'childrenDataDictionaryAttribute.definition.frontmatter.startDate'
   | 'childrenDataDictionaryAttribute.definition.frontmatter.endDate'
+  | 'childrenDataDictionaryAttribute.definition.frontmatter.description'
+  | 'childrenDataDictionaryAttribute.definition.frontmatter.contentType'
+  | 'childrenDataDictionaryAttribute.definition.frontmatter.template'
+  | 'childrenDataDictionaryAttribute.definition.frontmatter.topics'
+  | 'childrenDataDictionaryAttribute.definition.frontmatter.s_Google_Cloud_Spanner_integration'
+  | 'childrenDataDictionaryAttribute.definition.frontmatter.s_legacy_SNMP_integration'
   | 'childrenDataDictionaryAttribute.definition.frontmatter.name'
-  | 'childrenDataDictionaryAttribute.definition.frontmatter.events'
   | 'childrenDataDictionaryAttribute.definition.frontmatter.units'
+  | 'childrenDataDictionaryAttribute.definition.frontmatter.events'
   | 'childrenDataDictionaryAttribute.definition.frontmatter.summary'
   | 'childrenDataDictionaryAttribute.definition.frontmatter.learnMoreLink'
-  | 'childrenDataDictionaryAttribute.definition.frontmatter.dataSources'
   | 'childrenDataDictionaryAttribute.definition.frontmatter.getStartedLink'
+  | 'childrenDataDictionaryAttribute.definition.frontmatter.dataSources'
   | 'childrenDataDictionaryAttribute.definition.excerpt'
   | 'childrenDataDictionaryAttribute.definition.rawMarkdownBody'
   | 'childrenDataDictionaryAttribute.definition.fileAbsolutePath'
@@ -5597,31 +5601,31 @@ type DataDictionaryEventFieldsEnum =
   | 'childDataDictionaryAttribute.definition.frontmatter.isFeatured'
   | 'childDataDictionaryAttribute.definition.frontmatter.translationType'
   | 'childDataDictionaryAttribute.definition.frontmatter.title'
+  | 'childDataDictionaryAttribute.definition.frontmatter.tags'
+  | 'childDataDictionaryAttribute.definition.frontmatter.translate'
+  | 'childDataDictionaryAttribute.definition.frontmatter.metaDescription'
+  | 'childDataDictionaryAttribute.definition.frontmatter.redirects'
   | 'childDataDictionaryAttribute.definition.frontmatter.subject'
   | 'childDataDictionaryAttribute.definition.frontmatter.releaseDate'
   | 'childDataDictionaryAttribute.definition.frontmatter.version'
   | 'childDataDictionaryAttribute.definition.frontmatter.downloadLink'
-  | 'childDataDictionaryAttribute.definition.frontmatter.redirects'
-  | 'childDataDictionaryAttribute.definition.frontmatter.tags'
-  | 'childDataDictionaryAttribute.definition.frontmatter.metaDescription'
   | 'childDataDictionaryAttribute.definition.frontmatter.type'
-  | 'childDataDictionaryAttribute.definition.frontmatter.translate'
   | 'childDataDictionaryAttribute.definition.frontmatter.shortDescription'
-  | 'childDataDictionaryAttribute.definition.frontmatter.template'
-  | 'childDataDictionaryAttribute.definition.frontmatter.topics'
-  | 'childDataDictionaryAttribute.definition.frontmatter.contentType'
-  | 'childDataDictionaryAttribute.definition.frontmatter.s_Google_Cloud_Spanner_integration'
-  | 'childDataDictionaryAttribute.definition.frontmatter.description'
-  | 'childDataDictionaryAttribute.definition.frontmatter.s_legacy_SNMP_integration'
   | 'childDataDictionaryAttribute.definition.frontmatter.startDate'
   | 'childDataDictionaryAttribute.definition.frontmatter.endDate'
+  | 'childDataDictionaryAttribute.definition.frontmatter.description'
+  | 'childDataDictionaryAttribute.definition.frontmatter.contentType'
+  | 'childDataDictionaryAttribute.definition.frontmatter.template'
+  | 'childDataDictionaryAttribute.definition.frontmatter.topics'
+  | 'childDataDictionaryAttribute.definition.frontmatter.s_Google_Cloud_Spanner_integration'
+  | 'childDataDictionaryAttribute.definition.frontmatter.s_legacy_SNMP_integration'
   | 'childDataDictionaryAttribute.definition.frontmatter.name'
-  | 'childDataDictionaryAttribute.definition.frontmatter.events'
   | 'childDataDictionaryAttribute.definition.frontmatter.units'
+  | 'childDataDictionaryAttribute.definition.frontmatter.events'
   | 'childDataDictionaryAttribute.definition.frontmatter.summary'
   | 'childDataDictionaryAttribute.definition.frontmatter.learnMoreLink'
-  | 'childDataDictionaryAttribute.definition.frontmatter.dataSources'
   | 'childDataDictionaryAttribute.definition.frontmatter.getStartedLink'
+  | 'childDataDictionaryAttribute.definition.frontmatter.dataSources'
   | 'childDataDictionaryAttribute.definition.excerpt'
   | 'childDataDictionaryAttribute.definition.rawMarkdownBody'
   | 'childDataDictionaryAttribute.definition.fileAbsolutePath'
@@ -5922,31 +5926,31 @@ type DataDictionaryAttributeFieldsEnum =
   | 'definition.frontmatter.isFeatured'
   | 'definition.frontmatter.translationType'
   | 'definition.frontmatter.title'
+  | 'definition.frontmatter.tags'
+  | 'definition.frontmatter.translate'
+  | 'definition.frontmatter.metaDescription'
+  | 'definition.frontmatter.redirects'
   | 'definition.frontmatter.subject'
   | 'definition.frontmatter.releaseDate'
   | 'definition.frontmatter.version'
   | 'definition.frontmatter.downloadLink'
-  | 'definition.frontmatter.redirects'
-  | 'definition.frontmatter.tags'
-  | 'definition.frontmatter.metaDescription'
   | 'definition.frontmatter.type'
-  | 'definition.frontmatter.translate'
   | 'definition.frontmatter.shortDescription'
-  | 'definition.frontmatter.template'
-  | 'definition.frontmatter.topics'
-  | 'definition.frontmatter.contentType'
-  | 'definition.frontmatter.s_Google_Cloud_Spanner_integration'
-  | 'definition.frontmatter.description'
-  | 'definition.frontmatter.s_legacy_SNMP_integration'
   | 'definition.frontmatter.startDate'
   | 'definition.frontmatter.endDate'
+  | 'definition.frontmatter.description'
+  | 'definition.frontmatter.contentType'
+  | 'definition.frontmatter.template'
+  | 'definition.frontmatter.topics'
+  | 'definition.frontmatter.s_Google_Cloud_Spanner_integration'
+  | 'definition.frontmatter.s_legacy_SNMP_integration'
   | 'definition.frontmatter.name'
-  | 'definition.frontmatter.events'
   | 'definition.frontmatter.units'
+  | 'definition.frontmatter.events'
   | 'definition.frontmatter.summary'
   | 'definition.frontmatter.learnMoreLink'
-  | 'definition.frontmatter.dataSources'
   | 'definition.frontmatter.getStartedLink'
+  | 'definition.frontmatter.dataSources'
   | 'definition.excerpt'
   | 'definition.rawMarkdownBody'
   | 'definition.fileAbsolutePath'
@@ -6007,31 +6011,31 @@ type DataDictionaryAttributeFieldsEnum =
   | 'events.definition.frontmatter.isFeatured'
   | 'events.definition.frontmatter.translationType'
   | 'events.definition.frontmatter.title'
+  | 'events.definition.frontmatter.tags'
+  | 'events.definition.frontmatter.translate'
+  | 'events.definition.frontmatter.metaDescription'
+  | 'events.definition.frontmatter.redirects'
   | 'events.definition.frontmatter.subject'
   | 'events.definition.frontmatter.releaseDate'
   | 'events.definition.frontmatter.version'
   | 'events.definition.frontmatter.downloadLink'
-  | 'events.definition.frontmatter.redirects'
-  | 'events.definition.frontmatter.tags'
-  | 'events.definition.frontmatter.metaDescription'
   | 'events.definition.frontmatter.type'
-  | 'events.definition.frontmatter.translate'
   | 'events.definition.frontmatter.shortDescription'
-  | 'events.definition.frontmatter.template'
-  | 'events.definition.frontmatter.topics'
-  | 'events.definition.frontmatter.contentType'
-  | 'events.definition.frontmatter.s_Google_Cloud_Spanner_integration'
-  | 'events.definition.frontmatter.description'
-  | 'events.definition.frontmatter.s_legacy_SNMP_integration'
   | 'events.definition.frontmatter.startDate'
   | 'events.definition.frontmatter.endDate'
+  | 'events.definition.frontmatter.description'
+  | 'events.definition.frontmatter.contentType'
+  | 'events.definition.frontmatter.template'
+  | 'events.definition.frontmatter.topics'
+  | 'events.definition.frontmatter.s_Google_Cloud_Spanner_integration'
+  | 'events.definition.frontmatter.s_legacy_SNMP_integration'
   | 'events.definition.frontmatter.name'
-  | 'events.definition.frontmatter.events'
   | 'events.definition.frontmatter.units'
+  | 'events.definition.frontmatter.events'
   | 'events.definition.frontmatter.summary'
   | 'events.definition.frontmatter.learnMoreLink'
-  | 'events.definition.frontmatter.dataSources'
   | 'events.definition.frontmatter.getStartedLink'
+  | 'events.definition.frontmatter.dataSources'
   | 'events.definition.excerpt'
   | 'events.definition.rawMarkdownBody'
   | 'events.definition.fileAbsolutePath'
@@ -6755,6 +6759,11 @@ type TranslatedNavJsonSortInput = {
 
 type TableOfContents_pageFragment = Pick<Mdx, 'mdxAST'>;
 
+type Unnamed_1_QueryVariables = Exact<{ [key: string]: never; }>;
+
+
+type Unnamed_1_Query = { readonly site: Maybe<{ readonly layout: Maybe<Pick<SiteLayout, 'mobileBreakpoint'>> }> };
+
 type MainLayout_queryFragment = { readonly rootNav: Maybe<Pick<Nav, 'id'>>, readonly nav: Maybe<(
     Pick<Nav, 'id' | 'title' | 'url' | 'filterable'>
     & { readonly pages: ReadonlyArray<(
@@ -6777,95 +6786,18 @@ type MainLayout_queryFragment = { readonly rootNav: Maybe<Pick<Nav, 'id'>>, read
 
 type MainLayout_navPagesFragment = Pick<NavItem, 'title' | 'url' | 'icon'>;
 
-type pageUsersskilburnDocumentsGitHubdocsWebsitesrctemplatesdocPageJs235296388QueryVariables = Exact<{
-  slug: Scalars['String'];
-  locale: Maybe<Scalars['String']>;
-}>;
-
-
-type pageUsersskilburnDocumentsGitHubdocsWebsitesrctemplatesdocPageJs235296388Query = (
-  { readonly mdx: Maybe<(
-    Pick<Mdx, 'mdxAST' | 'body'>
-    & { readonly frontmatter: Maybe<Pick<Frontmatter, 'title' | 'metaDescription' | 'type' | 'tags' | 'translationType'>>, readonly fields: Maybe<Pick<MdxFields, 'fileRelativePath'>>, readonly relatedResources: Maybe<ReadonlyArray<Pick<RelatedResource, 'title' | 'url'>>> }
-    & TableOfContents_pageFragment
-  )> }
-  & MainLayout_queryFragment
-);
-
-type pageUsersskilburnDocumentsGitHubdocsWebsitesrctemplatesreleaseNoteJs359174647QueryVariables = Exact<{
-  slug: Scalars['String'];
-  locale: Maybe<Scalars['String']>;
-}>;
-
-
-type pageUsersskilburnDocumentsGitHubdocsWebsitesrctemplatesreleaseNoteJs359174647Query = (
-  { readonly mdx: Maybe<(
-    Pick<Mdx, 'body'>
-    & { readonly frontmatter: Maybe<Pick<Frontmatter, 'subject' | 'version' | 'title' | 'releaseDate' | 'downloadLink' | 'metaDescription'>> }
-  )> }
-  & MainLayout_queryFragment
-);
-
-type pageUsersskilburnDocumentsGitHubdocsWebsitesrctemplateslandingPageJs441368778QueryVariables = Exact<{
-  slug: Scalars['String'];
-  locale: Maybe<Scalars['String']>;
-}>;
-
-
-type pageUsersskilburnDocumentsGitHubdocsWebsitesrctemplateslandingPageJs441368778Query = (
-  { readonly mdx: Maybe<(
-    Pick<Mdx, 'body'>
-    & { readonly frontmatter: Maybe<Pick<Frontmatter, 'title' | 'metaDescription'>> }
-  )> }
-  & MainLayout_queryFragment
-);
-
-type pageUsersskilburnDocumentsGitHubdocsWebsitesrctemplatesreleaseNoteLandingPageJs1059589230QueryVariables = Exact<{
-  slug: Scalars['String'];
-  subject: Scalars['String'];
-  locale: Maybe<Scalars['String']>;
-}>;
-
-
-type pageUsersskilburnDocumentsGitHubdocsWebsitesrctemplatesreleaseNoteLandingPageJs1059589230Query = (
-  { readonly allMdx: { readonly nodes: ReadonlyArray<(
-      Pick<Mdx, 'mdxAST'>
-      & { readonly fields: Maybe<Pick<MdxFields, 'slug'>>, readonly frontmatter: Maybe<Pick<Frontmatter, 'title' | 'version' | 'releaseDate'>> }
-    )> }, readonly mdx: Maybe<{ readonly frontmatter: Maybe<Pick<Frontmatter, 'subject'>> }> }
-  & MainLayout_queryFragment
-);
-
-type pageUsersskilburnDocumentsGitHubdocsWebsitesrctemplateswhatsNewJs3466386670QueryVariables = Exact<{
-  slug: Scalars['String'];
-  locale: Maybe<Scalars['String']>;
-}>;
-
-
-type pageUsersskilburnDocumentsGitHubdocsWebsitesrctemplateswhatsNewJs3466386670Query = (
-  { readonly site: Maybe<{ readonly siteMetadata: Maybe<Pick<SiteSiteMetadata, 'siteUrl'>> }>, readonly markdownRemark: Maybe<(
-    Pick<MarkdownRemark, 'html'>
-    & { readonly frontmatter: Maybe<Pick<Frontmatter, 'title' | 'releaseDate' | 'summary' | 'learnMoreLink' | 'getStartedLink'>> }
-  )> }
-  & MainLayout_queryFragment
-);
-
-type PagesQueryQueryVariables = Exact<{ [key: string]: never; }>;
-
-
-type PagesQueryQuery = { readonly allSiteFunction: { readonly nodes: ReadonlyArray<Pick<SiteFunction, 'functionRoute'>> }, readonly allSitePage: { readonly nodes: ReadonlyArray<Pick<SitePage, 'path'>> } };
-
 type DataDictionaryFilter_eventsFragment = (
   Pick<DataDictionaryEvent, 'name' | 'dataSources'>
   & { readonly childrenDataDictionaryAttribute: Maybe<ReadonlyArray<Maybe<Pick<DataDictionaryAttribute, 'name'>>>> }
 );
 
-type pageUsersskilburnDocumentsGitHubdocsWebsitesrcpagesattributeDictionaryJs1100610524QueryVariables = Exact<{
+type Unnamed_2_QueryVariables = Exact<{
   slug: Scalars['String'];
   locale: Scalars['String'];
 }>;
 
 
-type pageUsersskilburnDocumentsGitHubdocsWebsitesrcpagesattributeDictionaryJs1100610524Query = (
+type Unnamed_2_Query = (
   { readonly allDataDictionaryEvent: { readonly edges: ReadonlyArray<{ readonly node: (
         Pick<DataDictionaryEvent, 'name' | 'dataSources'>
         & { readonly definition: Maybe<Pick<MarkdownRemark, 'html'>>, readonly childrenDataDictionaryAttribute: Maybe<ReadonlyArray<Maybe<(
@@ -6877,13 +6809,13 @@ type pageUsersskilburnDocumentsGitHubdocsWebsitesrcpagesattributeDictionaryJs110
   & MainLayout_queryFragment
 );
 
-type pageUsersskilburnDocumentsGitHubdocsWebsitesrcpagesindexJs1430918721QueryVariables = Exact<{
+type Unnamed_3_QueryVariables = Exact<{
   slug: Scalars['String'];
   locale: Maybe<Scalars['String']>;
 }>;
 
 
-type pageUsersskilburnDocumentsGitHubdocsWebsitesrcpagesindexJs1430918721Query = (
+type Unnamed_3_Query = (
   { readonly site: Maybe<{ readonly layout: Maybe<Pick<SiteLayout, 'contentPadding'>> }>, readonly allMarkdownRemark: { readonly edges: ReadonlyArray<{ readonly node: (
         Pick<MarkdownRemark, 'id'>
         & { readonly frontmatter: Maybe<Pick<Frontmatter, 'title'>>, readonly fields: Maybe<Pick<MarkdownRemarkFields, 'slug'>> }
@@ -6891,13 +6823,41 @@ type pageUsersskilburnDocumentsGitHubdocsWebsitesrcpagesindexJs1430918721Query =
   & MainLayout_queryFragment
 );
 
-type pageUsersskilburnDocumentsGitHubdocsWebsitesrcpageswhatsNewJs2141301087QueryVariables = Exact<{
+type Unnamed_4_QueryVariables = Exact<{
   slug: Scalars['String'];
   locale: Maybe<Scalars['String']>;
 }>;
 
 
-type pageUsersskilburnDocumentsGitHubdocsWebsitesrcpageswhatsNewJs2141301087Query = (
+type Unnamed_4_Query = (
+  { readonly mdx: Maybe<(
+    Pick<Mdx, 'body'>
+    & { readonly frontmatter: Maybe<Pick<Frontmatter, 'title' | 'metaDescription'>> }
+  )> }
+  & MainLayout_queryFragment
+);
+
+type Unnamed_5_QueryVariables = Exact<{
+  slug: Scalars['String'];
+  locale: Maybe<Scalars['String']>;
+}>;
+
+
+type Unnamed_5_Query = (
+  { readonly site: Maybe<{ readonly siteMetadata: Maybe<Pick<SiteSiteMetadata, 'siteUrl'>> }>, readonly markdownRemark: Maybe<(
+    Pick<MarkdownRemark, 'html'>
+    & { readonly frontmatter: Maybe<Pick<Frontmatter, 'title' | 'releaseDate' | 'summary' | 'learnMoreLink' | 'getStartedLink'>> }
+  )> }
+  & MainLayout_queryFragment
+);
+
+type Unnamed_6_QueryVariables = Exact<{
+  slug: Scalars['String'];
+  locale: Maybe<Scalars['String']>;
+}>;
+
+
+type Unnamed_6_Query = (
   { readonly allMarkdownRemark: { readonly edges: ReadonlyArray<{ readonly node: (
         Pick<MarkdownRemark, 'id'>
         & { readonly frontmatter: Maybe<Pick<Frontmatter, 'title' | 'summary' | 'releaseDate'>>, readonly fields: Maybe<Pick<MarkdownRemarkFields, 'slug'>> }
@@ -6905,86 +6865,20 @@ type pageUsersskilburnDocumentsGitHubdocsWebsitesrcpageswhatsNewJs2141301087Quer
   & MainLayout_queryFragment
 );
 
-type Unnamed_1_QueryVariables = Exact<{ [key: string]: never; }>;
+type Unnamed_7_QueryVariables = Exact<{
+  slug: Scalars['String'];
+  locale: Maybe<Scalars['String']>;
+}>;
 
 
-type Unnamed_1_Query = { readonly site: Maybe<{ readonly layout: Maybe<Pick<SiteLayout, 'mobileBreakpoint'>> }> };
-
-type Unnamed_2_QueryVariables = Exact<{ [key: string]: never; }>;
-
-
-type Unnamed_2_Query = { readonly allMdx: { readonly nodes: ReadonlyArray<(
-      Pick<Mdx, 'slug' | 'body'>
-      & { readonly frontmatter: Maybe<Pick<Frontmatter, 'startDate' | 'endDate'>> }
-    )> } };
-
-type Unnamed_3_QueryVariables = Exact<{ [key: string]: never; }>;
-
-
-type Unnamed_3_Query = { readonly site: Maybe<{ readonly siteMetadata: Maybe<Pick<SiteSiteMetadata, 'contributingUrl'>> }> };
-
-type Unnamed_4_QueryVariables = Exact<{ [key: string]: never; }>;
-
-
-type Unnamed_4_Query = { readonly site: Maybe<{ readonly siteMetadata: Maybe<Pick<SiteSiteMetadata, 'repository' | 'branch'>> }> };
-
-type Unnamed_5_QueryVariables = Exact<{ [key: string]: never; }>;
-
-
-type Unnamed_5_Query = { readonly site: Maybe<{ readonly siteMetadata: Maybe<Pick<SiteSiteMetadata, 'siteUrl' | 'repository'>> }> };
-
-type FooterQueryQueryVariables = Exact<{ [key: string]: never; }>;
-
-
-type FooterQueryQuery = { readonly site: Maybe<{ readonly siteMetadata: Maybe<Pick<SiteSiteMetadata, 'siteUrl' | 'repository'>> }>, readonly sitePage: Maybe<Pick<SitePage, 'id'>> };
-
-type GlobalHeaderQueryQueryVariables = Exact<{ [key: string]: never; }>;
-
-
-type GlobalHeaderQueryQuery = { readonly allLocale: { readonly nodes: ReadonlyArray<Pick<Locale, 'locale' | 'localName' | 'isDefault'>> } };
-
-type GlobalNavLinkQueryQueryVariables = Exact<{ [key: string]: never; }>;
-
-
-type GlobalNavLinkQueryQuery = { readonly site: Maybe<{ readonly siteMetadata: Maybe<Pick<SiteSiteMetadata, 'siteUrl'>> }> };
-
-type Unnamed_6_QueryVariables = Exact<{ [key: string]: never; }>;
-
-
-type Unnamed_6_Query = { readonly site: Maybe<{ readonly siteMetadata: Maybe<Pick<SiteSiteMetadata, 'siteUrl'>> }> };
-
-type Unnamed_7_QueryVariables = Exact<{ [key: string]: never; }>;
-
-
-type Unnamed_7_Query = { readonly allLocale: { readonly nodes: ReadonlyArray<Pick<Locale, 'name' | 'locale' | 'localName' | 'hrefLang' | 'isDefault'>> } };
-
-type Unnamed_8_QueryVariables = Exact<{ [key: string]: never; }>;
-
-
-type Unnamed_8_Query = { readonly site: Maybe<{ readonly layout: Maybe<Pick<SiteLayout, 'mobileBreakpoint'>> }> };
-
-type Unnamed_9_QueryVariables = Exact<{ [key: string]: never; }>;
-
-
-type Unnamed_9_Query = { readonly site: Maybe<{ readonly layout: Maybe<Pick<SiteLayout, 'mobileBreakpoint'>> }> };
-
-type Unnamed_10_QueryVariables = Exact<{ [key: string]: never; }>;
-
-
-type Unnamed_10_Query = { readonly site: Maybe<{ readonly siteMetadata: Maybe<Pick<SiteSiteMetadata, 'siteUrl'>> }>, readonly newRelicThemeConfig: Maybe<{ readonly relatedResources: { readonly labels: ReadonlyArray<Pick<RelatedResourceLabel, 'baseUrl' | 'label'>> } }> };
-
-type Unnamed_11_QueryVariables = Exact<{ [key: string]: never; }>;
-
-
-type Unnamed_11_Query = { readonly site: Maybe<{ readonly siteMetadata: Maybe<(
-      Pick<SiteSiteMetadata, 'titleTemplate' | 'siteUrl'>
-      & { defaultTitle: SiteSiteMetadata['title'] }
-    )> }>, readonly allLocale: { readonly nodes: ReadonlyArray<Pick<Locale, 'locale' | 'hrefLang' | 'isDefault'>> } };
-
-type Unnamed_12_QueryVariables = Exact<{ [key: string]: never; }>;
-
-
-type Unnamed_12_Query = { readonly newRelicThemeConfig: Maybe<{ readonly tessen: Maybe<Pick<NewRelicThemeTessenConfig, 'product' | 'subproduct'>> }> };
+type Unnamed_7_Query = (
+  { readonly mdx: Maybe<(
+    Pick<Mdx, 'mdxAST' | 'body'>
+    & { readonly frontmatter: Maybe<Pick<Frontmatter, 'title' | 'metaDescription' | 'type' | 'tags' | 'translationType'>>, readonly fields: Maybe<Pick<MdxFields, 'fileRelativePath'>>, readonly relatedResources: Maybe<ReadonlyArray<Pick<RelatedResource, 'title' | 'url'>>> }
+    & TableOfContents_pageFragment
+  )> }
+  & MainLayout_queryFragment
+);
 
 type GatsbyImageSharpFixedFragment = Pick<ImageSharpFixed, 'base64' | 'width' | 'height' | 'src' | 'srcSet'>;
 
@@ -7011,5 +6905,115 @@ type GatsbyImageSharpFluid_withWebp_tracedSVGFragment = Pick<ImageSharpFluid, 't
 type GatsbyImageSharpFluid_noBase64Fragment = Pick<ImageSharpFluid, 'aspectRatio' | 'src' | 'srcSet' | 'sizes'>;
 
 type GatsbyImageSharpFluid_withWebp_noBase64Fragment = Pick<ImageSharpFluid, 'aspectRatio' | 'src' | 'srcSet' | 'srcWebp' | 'srcSetWebp' | 'sizes'>;
+
+type Unnamed_8_QueryVariables = Exact<{
+  slug: Scalars['String'];
+  locale: Maybe<Scalars['String']>;
+}>;
+
+
+type Unnamed_8_Query = (
+  { readonly mdx: Maybe<(
+    Pick<Mdx, 'body'>
+    & { readonly frontmatter: Maybe<Pick<Frontmatter, 'subject' | 'version' | 'title' | 'releaseDate' | 'downloadLink' | 'metaDescription'>> }
+  )> }
+  & MainLayout_queryFragment
+);
+
+type Unnamed_9_QueryVariables = Exact<{
+  slug: Scalars['String'];
+  subject: Scalars['String'];
+  locale: Maybe<Scalars['String']>;
+}>;
+
+
+type Unnamed_9_Query = (
+  { readonly allMdx: { readonly nodes: ReadonlyArray<(
+      Pick<Mdx, 'mdxAST'>
+      & { readonly fields: Maybe<Pick<MdxFields, 'slug'>>, readonly frontmatter: Maybe<Pick<Frontmatter, 'title' | 'version' | 'releaseDate'>> }
+    )> }, readonly mdx: Maybe<{ readonly frontmatter: Maybe<Pick<Frontmatter, 'subject'>> }> }
+  & MainLayout_queryFragment
+);
+
+type Unnamed_10_QueryVariables = Exact<{ [key: string]: never; }>;
+
+
+type Unnamed_10_Query = { readonly allMdx: { readonly nodes: ReadonlyArray<(
+      Pick<Mdx, 'slug' | 'body'>
+      & { readonly frontmatter: Maybe<Pick<Frontmatter, 'startDate' | 'endDate'>> }
+    )> } };
+
+type Unnamed_11_QueryVariables = Exact<{ [key: string]: never; }>;
+
+
+type Unnamed_11_Query = { readonly site: Maybe<{ readonly siteMetadata: Maybe<Pick<SiteSiteMetadata, 'repository' | 'branch'>> }> };
+
+type Unnamed_12_QueryVariables = Exact<{ [key: string]: never; }>;
+
+
+type Unnamed_12_Query = { readonly site: Maybe<{ readonly siteMetadata: Maybe<Pick<SiteSiteMetadata, 'contributingUrl'>> }> };
+
+type GlobalNavLinkQueryQueryVariables = Exact<{ [key: string]: never; }>;
+
+
+type GlobalNavLinkQueryQuery = { readonly site: Maybe<{ readonly siteMetadata: Maybe<Pick<SiteSiteMetadata, 'siteUrl'>> }> };
+
+type Unnamed_13_QueryVariables = Exact<{ [key: string]: never; }>;
+
+
+type Unnamed_13_Query = { readonly site: Maybe<{ readonly siteMetadata: Maybe<Pick<SiteSiteMetadata, 'siteUrl' | 'repository'>> }> };
+
+type GlobalHeaderQueryQueryVariables = Exact<{ [key: string]: never; }>;
+
+
+type GlobalHeaderQueryQuery = { readonly allLocale: { readonly nodes: ReadonlyArray<Pick<Locale, 'locale' | 'localName' | 'isDefault'>> } };
+
+type Unnamed_14_QueryVariables = Exact<{ [key: string]: never; }>;
+
+
+type Unnamed_14_Query = { readonly allLocale: { readonly nodes: ReadonlyArray<Pick<Locale, 'name' | 'locale' | 'localName' | 'hrefLang' | 'isDefault'>> } };
+
+type FooterQueryQueryVariables = Exact<{ [key: string]: never; }>;
+
+
+type FooterQueryQuery = { readonly site: Maybe<{ readonly siteMetadata: Maybe<Pick<SiteSiteMetadata, 'siteUrl' | 'repository'>> }>, readonly sitePage: Maybe<Pick<SitePage, 'id'>> };
+
+type Unnamed_15_QueryVariables = Exact<{ [key: string]: never; }>;
+
+
+type Unnamed_15_Query = { readonly site: Maybe<{ readonly layout: Maybe<Pick<SiteLayout, 'mobileBreakpoint'>> }> };
+
+type Unnamed_16_QueryVariables = Exact<{ [key: string]: never; }>;
+
+
+type Unnamed_16_Query = { readonly site: Maybe<{ readonly layout: Maybe<Pick<SiteLayout, 'mobileBreakpoint'>> }> };
+
+type Unnamed_17_QueryVariables = Exact<{ [key: string]: never; }>;
+
+
+type Unnamed_17_Query = { readonly site: Maybe<{ readonly siteMetadata: Maybe<Pick<SiteSiteMetadata, 'siteUrl'>> }>, readonly newRelicThemeConfig: Maybe<{ readonly relatedResources: { readonly labels: ReadonlyArray<Pick<RelatedResourceLabel, 'baseUrl' | 'label'>> } }> };
+
+type Unnamed_18_QueryVariables = Exact<{ [key: string]: never; }>;
+
+
+type Unnamed_18_Query = { readonly site: Maybe<{ readonly siteMetadata: Maybe<Pick<SiteSiteMetadata, 'siteUrl'>> }> };
+
+type Unnamed_19_QueryVariables = Exact<{ [key: string]: never; }>;
+
+
+type Unnamed_19_Query = { readonly site: Maybe<{ readonly siteMetadata: Maybe<(
+      Pick<SiteSiteMetadata, 'titleTemplate' | 'siteUrl'>
+      & { defaultTitle: SiteSiteMetadata['title'] }
+    )> }>, readonly allLocale: { readonly nodes: ReadonlyArray<Pick<Locale, 'locale' | 'hrefLang' | 'isDefault'>> } };
+
+type Unnamed_20_QueryVariables = Exact<{ [key: string]: never; }>;
+
+
+type Unnamed_20_Query = { readonly site: Maybe<{ readonly siteMetadata: Maybe<Pick<SiteSiteMetadata, 'siteUrl'>> }> };
+
+type Unnamed_21_QueryVariables = Exact<{ [key: string]: never; }>;
+
+
+type Unnamed_21_Query = { readonly newRelicThemeConfig: Maybe<{ readonly tessen: Maybe<Pick<NewRelicThemeTessenConfig, 'product' | 'subproduct'>> }> };
 
 }
