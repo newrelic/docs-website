@@ -454,5 +454,23 @@ module.exports = {
         allPageHeaders: ['Referrer-Policy: no-referrer-when-downgrade'],
       },
     },
+    // https://www.gatsbyjs.com/plugins/gatsby-plugin-typegen/
+    {
+      resolve: 'gatsby-plugin-typegen',
+      options: {
+        outputPath: 'src/__generated__/gatsby-types.d.ts',
+        emitSchema: {
+          'src/__generated__/gatsby-schema.graphql': true,
+        },
+      },
+    },
+    {
+      resolve: `gatsby-plugin-typescript`,
+      options: {
+        isTSX: true, // defaults to false
+        jsxPragma: `jsx`, // defaults to "React"
+        allExtensions: true, // defaults to false
+      },
+    },
   ],
 };

@@ -1,0 +1,389 @@
+---
+title: SLIとSLOの作成と編集
+tags:
+  - Full-Stack Observability
+  - Observe everything
+  - Service Level Management
+  - SLI/SLO
+  - Configure
+metaDescription: Our new offer to create and consume SLI/SLOs.
+translationType: machine
+---
+
+<Callout title="ベータ版機能">
+  この機能は現在 [ベータ版](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy/) です。
+</Callout>
+
+SLI および SLO の作成は、 [New Relic UI](https://one.newrelic.com/) を使って手動で行うことができます。また、 [NerdGraph API](/docs/apis/nerdgraph/examples/nerdgraph-slm/) や [Terraform Service Level リソース](https://registry.terraform.io/providers/newrelic/newrelic/latest/docs/resources/service_level) を使ってプロセスを自動化することもできます。
+
+<Callout variant="important">
+  [サービスレベルを作成するためには、](/docs/accounts/original-accounts-billing/original-users-roles/users-roles-original-user-model/) ～ **メトリックルールの変更と削除の権限を持つ** ロールが必要です。
+</Callout>
+
+## SLIとSLOを作るためのキーコンセプト
+
+SLIとSLOを定義する際には、これらの概念に留意してください。
+
+### SLI本体 [#sli-entity]
+
+New Relic のエコシステムでは、SLI と SLO は [エンティティにリンクされています。](/docs/new-relic-one/use-new-relic-one/core-concepts/what-entity-new-relic/) エンティティとは、お客様のスタック内で当社にデータを報告する、または当社がアクセスできるデータを生成するすべての要素のことです。SLIが関連するエンティティによって、SLI/SLOの結果が表示される場所が決まります。また、エンティティのタグは、サービスレベル表示でSLIの結果を絞り込むのに役立ちます。
+
+![New Relic OneのSLM](./images/slm2_1.png "New Relic OneにおけるSLM.png")
+
+SLI は、New Relic に報告される NRDB イベントであればどのようなものでも定義できるため、カスタムイベントをベースにすることもできます。ほとんどのカスタムイベントは、単一の New Relic エンティティに関連するものではなく、より高度なビジネスやユーザーエクスペリエンスのインサイトを提供するものです。この場合でも、SLIを特定のエンティティやワークロードに関連付けることができます。
+
+### SLIクエリ [#sli-queries]
+
+SLIは、有効なリクエストの総数のうち、良いレスポンスの割合として定義されます。ほとんどの場合、有効な作品と良い作品を定義することでSLIを設定します。
+
+* **有効なリクエスト** は、SLIにとって意味のあるものとしてカウントしたいあらゆるリクエストです（例えば、ヘルスチェックによって開始されたものではないエンドポイントに関連するすべてのトランザクションなど）。
+* **良好なレスポンス** は、エンドユーザーやクライアントサービスに良好な出力を提供していると考えられるあらゆるレスポンスです（例えば、サービスが2秒以内に応答し、エンドユーザーに良好なナビゲーション体験を提供した場合など）。
+
+代わりに、悪い反応と思われるものを定義することもできます。
+
+* **悪い応答** とは、悪い出力を提供していると考えられる応答のことです（例えば、サービスがサーバーエラーで応答したため、クライアントのフローが失敗したなど）。New Relic では、良い応答のカウントを `valid - bad` として自動的に導き出します。
+
+リクエストベースのSLOは、総リクエスト数に対する優良なリクエスト数の割合として定義されるSLIに基づいています。リクエストベースのSLOは、その比率が遵守期間中の目標を満たすか、または上回った場合に達成されます。
+
+## 推奨されるSLI [#suggested-sli]
+
+このセクションでは、サービスやブラウザアプリケーションのパフォーマンスを測定するために一般的に使用されるいくつかのSLIを紹介します。
+
+### New Relic エージェントを搭載した APM サービスの SLI [#sli-apm]
+
+`Transaction` イベントに基づいて、これらのSLIは、リクエスト駆動型のサービスで最も一般的なものです。
+
+<CollapserGroup>
+  <Collapser
+    className="freq-link"
+    id="service-availability"
+    title="サービスの可用性"
+  >
+    サービスアベイラビリティは、すべてのリクエスト数に対する成功したレスポンスの数の比率です。これは事実上のエラー率ですが、予想されるエラーを削除するなど、フィルタリングすることができます。
+
+    **有効なイベントフィールド**
+
+    ```
+    FROM: Transaction
+    WHERE: entityGuid = '{entityGuid}'
+    ```
+
+    ここで `{entityGuid}。` は、サービスのGUIDです。
+
+    **悪いイベントフィールド**
+
+    ```
+    FROM: TransactionError
+    WHERE: entityGuid = '{entityGuid}' AND error.expected IS FALSE
+    ```
+
+    ここで `{entityGuid}。` は、サービスのGUIDです。
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="service-latency"
+    title="サービスの待ち時間"
+  >
+    レイテンシーSLIは、有効なリクエストのうち、良好なエクスペリエンスとして設定された閾値よりも速く処理された割合を測定するものです。
+
+    継続時間のしきい値を決めるためには、過去数週間のサービスのパフォーマンスを確認し、その結果を現実的で達成可能なベースラインとして使用します。その後、SLIのしきい値を繰り返し検討し、より意欲的なパフォーマンスに合わせていくことができます。
+
+    継続時間の条件に適切な値を選択するために、1 つの典型的な方法は、過去 7 日間または 15 日間の回答の 95 パーセンタイルの継続時間を選択することです。 [クエリビルダー](/docs/query-your-data/explore-query-data/query-builder/introduction-query-builder/) を使用してこの継続時間のしきい値を見つけ、それを使用して SLI にとって良いイベントと思われるものを決定します。
+
+    `select percentile(duration, 95) from Transaction where entityGuid = '{entityGuid}' since 7 days ago limit max`
+
+    **有効なイベントフィールド**
+
+    ```
+    FROM: Transaction
+    WHERE: entityGuid = '{entityGuid}' AND transactionType = 'Web'
+    ```
+
+    ここで `{entityGuid}。` は、サービスのGUIDです。
+
+    **良いイベントフィールド**
+
+    ```
+    FROM: Transaction
+    WHERE: entityGuid = '{entityGuid}' AND transactionType = 'Web' AND duration < {duration}
+    ```
+
+    * ここで `{entityGuid}。` は、サービスのGUIDです。
+    * ここで `{duration}。` は、クライアントサービスやエンドユーザーに良い体験を提供すると考えられるレスポンスタイムを秒単位で表したものです。
+  </Collapser>
+</CollapserGroup>
+
+### OpenTelemetryで計測されたAPMサービスのSLI [#sli-otel]
+
+OpenTelemetryのスパンに基づくと、これらのSLIはリクエストドリブンのサービスで最も一般的なものです。
+
+<CollapserGroup>
+  <Collapser
+    className="freq-link"
+    id="service-availability"
+    title="サービスの可用性"
+  >
+    サービスアベイラビリティは、すべてのリクエスト数に対する成功したレスポンスの数の比率です。これは事実上のエラー率ですが、予想されるエラーを削除するなど、フィルタリングすることができます。
+
+    **有効なイベントフィールド**
+
+    ```
+    FROM: Span
+    WHERE: entity.guid = '{entityGuid}' AND (span.kind IN ('server', 'consumer') OR kind IN ('server', 'consumer'))
+    ```
+
+    ここで `{entityGuid}。` は、サービスのGUIDです。
+
+    **悪いイベントフィールド**
+
+    ```
+    FROM: Span
+    WHERE: entity.guid = '{entityGuid}' AND (span.kind IN ('server', 'consumer') OR kind IN ('server', 'consumer')) AND otel.status_code = 'ERROR'
+    ```
+
+    ここで `{entityGuid}。` は、サービスのGUIDです。
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="service-latency"
+    title="サービスの待ち時間"
+  >
+    レイテンシーSLIは、有効なリクエストのうち、良好なエクスペリエンスとして設定された閾値よりも速く処理された割合を測定するものです。
+
+    継続時間のしきい値を決めるためには、過去数週間のサービスのパフォーマンスを確認し、その結果を現実的で達成可能なベースラインとして使用します。その後、SLIのしきい値を繰り返し検討し、より意欲的なパフォーマンスに合わせていくことができます。
+
+    継続時間の条件に適切な値を選択するために、1 つの典型的な方法は、過去 7 日間または 15 日間の回答の 95 パーセンタイルの継続時間を選択することです。 [クエリビルダー](/docs/query-your-data/explore-query-data/query-builder/introduction-query-builder/) を使用してこの継続時間のしきい値を見つけ、それを使用して SLI にとって良いイベントと思われるものを決定します。
+
+    `select percentile(duration.ms, 95) from Span where entityGuid = '{entityGuid}'AND (span.kind IN ('server', 'consumer') OR kind IN ('server', 'consumer')) since 7 days ago limit max`
+
+    **有効なイベントフィールド**
+
+    ```
+    FROM: Span
+    WHERE: entity.guid = '{entityGuid}' AND (span.kind IN ('server', 'consumer') OR kind IN ('server', 'consumer'))
+    ```
+
+    ここで `{entityGuid}。` は、サービスのGUIDです。
+
+    **良いイベントフィールド**
+
+    ```
+    FROM: Span
+    WHERE: entity.guid = '{entityGuid}' AND (span.kind IN ('server', 'consumer') OR kind IN ('server', 'consumer')) AND duration.ms < {duration}
+    ```
+
+    * ここで `{entityGuid}。` は、サービスのGUIDです。
+    * ここで `{duration}。` は、クライアントサービスやエンドユーザーに良い体験を提供すると考えられるレスポンスタイムを秒単位で表したものです。
+  </Collapser>
+</CollapserGroup>
+
+### ブラウザアプリケーション用SLI [#sli-browser]
+
+以下のSLIは、GoogleのBrowser Core Web Vitalsに基づいています。
+
+<CollapserGroup>
+  <Collapser
+    className="freq-link"
+    id="browser-availability"
+    title="ブラウザアプリの有無"
+  >
+    ページビューのうち、エラーなく提供された割合です。
+
+    **有効なイベントフィールド**
+
+    ```
+    FROM: PageView
+    WHERE: entityGuid = '{entityGuid}'
+    ```
+
+    ここで `{entityGuid}。` は、サービスのGUIDです。
+
+    **悪いイベントフィールド**
+
+    ```
+    FROM: JavaScriptError
+    WHERE: entityGuid = '{entityGuid}'
+    ```
+
+    ここで `{entityGuid}。` は、ブラウザアプリのGUIDです。
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="browser-contentful-paint"
+    title="ブラウザアプリ最大のcontentful paint"
+  >
+    これは、有効なページビューのうち、ビューポートに表示される最大のコンテンツ要素が、良好なエクスペリエンスに対応すると考えられる閾値よりも速くレンダリングされた割合です。
+
+    **有効なイベントフィールド**
+
+    ```
+    FROM: PageViewTiming
+    WHERE: entityGuid = '{entityGuid}' AND largestContentfulPaint IS NOT NULL
+    ```
+
+    ここで `{entityGuid}。` は、サービスのGUIDです。
+
+    **良いイベントフィールド**
+
+    ```
+    FROM: PageViewTiming
+    WHERE: entityGuid = '{entityGuid}' AND largestContentfulPaint < '{largestContentfulPaint}'
+    ```
+
+    * ここで `{entityGuid}。` は、ブラウザアプリのGUIDです。
+
+    * ここで `{largestContentfulPaint}。` は、エンドユーザーに良い体験を提供すると考えられる、ビューポートに表示される最大のコンテンツ要素をレンダリングするのにかかる時間（ミリ秒）です。一般的な基準は4000ミリ秒です。
+
+      `{largestContentfulPaint}に使用する現実的な数値を決定するために。` に使用する現実的な数値を決定するために、1 つの典型的な方法は、過去 7 日間または 15 日間の回答の 95 パーセンタイルの持続時間を選択することです。クエリビルダーを使用して見つけてください。
+
+      `SELECT percentile(largestContentfulPaint, 95) FROM PageViewTiming WHERE entityGuid = '{entityGuid}' since 7 days ago limit max`
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="browser-first-delay"
+    title="ブラウザアプリの初回入力遅延"
+  >
+    これは、ユーザーが最初にページにアクセスしてから、そのアクセスに対してブラウザが応答するまでの時間が、一定の閾値以下であるページビューの割合です。
+
+    **有効なイベントフィールド**
+
+    ```
+    FROM: PageViewTiming
+    WHERE: entityGuid = '{entityGuid}' AND firstInputDelay IS NOT NULL
+    ```
+
+    ここで `{entityGuid}。` は、サービスのGUIDです。
+
+    **良いイベントフィールド**
+
+    ```
+    FROM: PageViewTiming
+    WHERE: entityGuid = '{entityGuid}' AND firstInputDelay < {firstInputDelay}
+    ```
+
+    * ここで `{entityGuid}。` は、ブラウザアプリのGUIDです。
+
+    * ここで `{firstInputDelay}。` は、エンドユーザーに良い体験を提供するために、ブラウザが応答するまでの時間（ミリ秒単位）です。一般的な基準は300ミリ秒です。
+
+      `{firstInputDelay}に使用する現実的な数値を決定するために。` に使用する現実的な数値を決定するために、1 つの典型的な方法は、過去 7 日間または 15 日間の回答の 95 パーセンタイルの持続時間を選択することです。クエリビルダを使って見つけてください。
+
+      `SELECT percentile(firstInputDelay, 95) FROM PageViewTiming WHERE entityGuid = '{entityGuid}' since 7 days ago limit max facet deviceType`
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="browser-cumulative-shift"
+    title="ブラウザアプリの累積レイアウト変更"
+  >
+    累積レイアウトシフト（CLS）が良好なページビューの割合です。CLSは、ページの寿命期間中に発生した予期せぬレイアウトシフトについて、個々のレイアウトシフトスコアの総和と表現されます。レイアウトシフトは、レンダリングされたフレームから次のフレームへと可視要素の位置が変わるときに発生します。
+
+    **有効なイベントフィールド**
+
+    ```
+    FROM: PageViewTiming 
+    WHERE: entityGuid = '{entityGuid}' AND cumulativeLayoutShift IS NOT NULL
+    ```
+
+    ここで `{entityGuid}。` は、サービスのGUIDです。
+
+    デスクトップとモバイルデバイスのCLSを別々に追跡するために、別々のSLIを作成したい場合は、フィールドの最後にこれらの条項のいずれかを追加してください。
+
+    * `and deviceType = 'Mobile'`
+    * `and deviceType = 'Desktop'`
+
+    **良いイベントフィールド**
+
+    ```
+    FROM: PageViewTiming
+    WHERE: entityGuid = '{entityGuid}' AND cumulativeLayoutShift < {cumulativeLayoutShift}
+    ```
+
+    * ここで `{entityGuid}。` は、ブラウザアプリのGUIDです。
+
+    * ここで `{cumulativeLayoutShift}。` はあらかじめ設定された値です。良いユーザーエクスペリエンスを提供するために、サイトはCLSスコアが0.1以下になるように努力する必要があります。CLSスコアが0.25以上の場合は、ユーザーエクスペリエンスが低いと考えられます。
+
+      valid eventsクエリを定義した際に、デスクトップとモバイルデバイスのCLSを別々に追跡するために、別々のSLIを作成することにした場合は、フィールドの最後にこの句を追加します。
+
+      * `and deviceType = 'Mobile'`
+      * `and deviceType = 'Desktop'`
+
+      `{cumulativeLayoutShift}に選択する現実的な数値を決定するために。` を選択するための現実的な数値を決定するには、モバイルデバイスとデスクトップデバイスに分けて、過去 7 日間または 15 日間のページロードの 75 パーセンタイルを選択するのが一般的な方法です。クエリビルダを使って検索してみましょう。
+
+      `SELECT percentile(cumulativeLayoutShift, 95) FROM PageViewTiming WHERE entityGuid = '{entityGuid}' since 7 days ago limit max facet deviceType`
+  </Collapser>
+</CollapserGroup>
+
+## サービスレベルの作成と編集 [#create-edit]
+
+SLI と SLO は、 [New Relic One](https://one.newrelic.com/) のいくつかの場所から作成できます。
+
+* トップメニューの **サービスレベル** ビューから。SLIをアカウント全体の任意のエンティティと関連付けることができます。
+* 任意のAPMサービスの **Service levels** ページから。SLI は、その特定の APM サービスに関連付けられます。この出発点を使用した場合、New Relic は最新の利用可能なデータに基づいて、このエンティティタイプの最も一般的なサービスレベル指標を自動的に作成します。
+* 任意のワークロードの **サービスレベル** タブから。SLI をワークロード内の任意のエンティティ、またはワークロード自体に関連付けることができます。
+
+以下の手順に従ってください。
+
+<CollapserGroup>
+  <Collapser
+    className="freq-link"
+    id="select-sli-source"
+    title="SLIデータソースの選択"
+  >
+    新しいSLIを定義するために、以下の2つのオプションのいずれかを選択します。
+
+    * **エンティティデータ**: New Relic One エージェントから送られてくる標準的なデータをベースに SLI を作成します。これは最も一般的なオプションです。これを選択する場合は、使用するエンティティ(例えば、APM サービス)を選択します。
+    * **カスタムデータ**: 別の方法として、カスタムNRDBイベントに基づいてSLIを作成することもできます。このオプションは、サービスレベルデータを特定のエンティティに関連付けることができない場合や、サービスレベルをワークロードに直接関連付ける場合に使用します。
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="configure-queries"
+    title="クエリの設定"
+  >
+    このステップでは、どのイベントが有効なのか、良いのか、悪いのかを判断するSLIカウントクエリを設定します。
+
+    SLIをAPMサービスやブラウザアプリと関連付けると、New Relicはいくつかの典型的なSLIとそのクエリを提案します。最新のデータをサービスレベル目標のベースラインとして使用し、後からSLIとSLOを編集できるようにしておきます。
+
+    ![推奨されるサービスレベル](./images/suggested_sli.png "推奨されるサービスレベル")
+
+    異なるタイプのエンティティを使用している場合や、New Relic が提供するベースライン値をカスタマイズしたい場合は、SLI をニーズに合わせてカスタマイズすることができます。たとえば、 `WHERE` 句を使ってヘルスチェックをフィルタリングすることができます。
+
+    ![カスタムサービスレベル](./images/custom_sli.png "カスタムサービスレベル")
+
+    データが収集されたアカウントは、SLIが参照しているエンティティのアカウントと一致します。各フィールドの内容については、上記のセクションを参照してください。
+
+    右側には最終的なクエリが表示され、下部には直近の有効なイベントや良い/悪いイベントのカウントのプレビューが表示されます。
+
+    <Callout variant="important">
+      SLIのクエリは、NRDBのイベントとスパンをサポートしていますが、次元メトリクスはまだサポートしていません。
+    </Callout>
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="set-slo"
+    title="SLOのタイムウィンドウとターゲットの設定"
+  >
+    このステップでは、SLIの値のプレビューが表示されます。このSLIには、1つまたは複数のSLOを追加することができます。タイムウィンドウの長さとパーセンテージの目標値を選択するだけです。左のチャートを見れば、設定した目標が実現可能なのか、それともよく失敗するのかを予想することができます。
+
+    ローリングタイムウィンドウのSLOがサポートされています。ローリングタイムウィンドウでは、SLOの準拠には過去N日間のデータが考慮されます。毎分、最も古いデータが現在の計算から抜け落ち、新しいデータがそれに取って代わります。
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="define-sli"
+    title="SLIの定義"
+  >
+    SLIが何を測定しているかを認識しやすいように、SLIの短い名前を選択します。必要に応じて、説明文を追加することもできます。
+  </Collapser>
+</CollapserGroup>
+
+### SLIの編集 [#edit-sli]
+
+SLIを作成した後、UIにアクセスして、 **...** メニューをクリックして編集します。
+
+![SLIの編集](./images/slm_edit_menu.png "SLI.pngの編集")
