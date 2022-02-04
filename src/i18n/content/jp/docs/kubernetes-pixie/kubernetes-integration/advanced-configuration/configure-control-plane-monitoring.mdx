@@ -1,0 +1,519 @@
+---
+title: コントロールプレーンモニタリングの設定
+tags:
+  - Integrations
+  - Kubernetes integration
+  - Installation
+metaDescription: How to configure control plane monitoring for your Kubernetes integration with New Relic.
+translationType: machine
+---
+
+[New Relic](/docs/infrastructure/new-relic-infrastructure/getting-started/introduction-new-relic-infrastructure) は、Kubernetes 統合のために [コントロールプレーン](https://kubernetes.io/docs/concepts/overview/components/#control-plane-components) をサポートしており、クラスタのコントロールプレーンコンポーネントからメトリクスを監視・収集することができます。これらのデータは、New Relic で、 [クエリやチャートの作成に使用することができます](/docs/using-new-relic/data/understand-data/query-new-relic-data) 。
+
+<Callout variant="tip">
+  このページでは、特に指定のない限り、 [Kubernetes integration v3](/docs/kubernetes-pixie/kubernetes-integration/get-started/changes-since-v3) を参照しています。v2のコントロールプレーン監視の設定方法の詳細は、以下の特定のセクションに記載されています。
+</Callout>
+
+## 機能 [#control-plane-integration-features]
+
+以下のコントロールプレーンコンポーネントから、 [メトリクス](http://docs.newrelic.com/docs/integrations/kubernetes-integration/understand-use-data/understand-use-data#metrics) を監視・収集しています。
+
+* **etcd**: リーダー情報、常駐メモリサイズ、OSスレッド数、コンセンサスプロポーザルデータ、など。サポートされているメトリクスの一覧については、 [etcd data](/docs/integrations/kubernetes-integration/understand-use-data/understand-use-data#etcd-data) を参照してください。
+* **APIサーバー**: `apiserver` リクエストの割合、 `apiserver` リクエストのHTTPメソッドとレスポンスコードの内訳など。サポートされているメトリクスの全リストについては、 [APIサーバーデータ](/docs/integrations/kubernetes-integration/understand-use-data/understand-use-data#api-server-data) を参照してください。
+* **スケジューラ**: 要求されたCPU/メモリ対ノードで利用可能なCPU/メモリ、汚染に対する耐性、任意のセットのアフィニティまたはアンチアフィニティなど。サポートされているメトリクスの完全なリストについては、 [Scheduler data](/docs/integrations/kubernetes-integration/understand-use-data/understand-use-data#scheduler-data) を参照してください。
+* **コントローラーマネージャー** ：常駐メモリサイズ、作成されたOSスレッド数、現在存在するゴルーチンなど。サポートされるメトリクスの完全なリストについては、 [Controller Manager data](/docs/integrations/kubernetes-integration/understand-use-data/understand-use-data#controller-manager-data) を参照してください。
+
+## 互換性および要件 [#compatibility]
+
+* コントロールプレーンモニタリングのサポートは、マネージドクラスターに限定されています。これは、ほとんどのクラウド・プロバイダーがコントロール・プレーンのコンポーネントのメトリクス・エンドポイントを公開していないため、New Relic がアクセスできないためです。
+* [非特権モード](/docs/integrations/kubernetes-integration/installation/kubernetes-installation-configuration#unprivileged) でソリューションを展開する場合、コントロールプレーンのセットアップには [追加の手順が必要となり、](#hostnetwork-privileged) いくつかの注意点が適用されます。
+* [OpenShift](http://learn.openshift.com/?extIdCarryOver=true&sc_cid=701f2000001OH7iAAG) 4.xでは、コントロールプレーンコンポーネントのメトリックエンドポイントがデフォルトとは異なるものを使用しています。
+
+## コントロールプレーンコンポーネント [#component]
+
+Kubernetesのコントロールプレーンを監視するタスクは、 `nrk8s-controlplane` コンポーネントの責務であり、デフォルトではDaemonSetとしてデプロイされます。このコンポーネントは、 `nodeSelectorTerms` のデフォルトリストを使用して、マスターノードに自動的にデプロイされます。このリストには、 `node-role.kubernetes.io/control-plane` や `node-role.kubernetes.io/master` など、マスターノードを識別するためによく使用されるラベルが含まれています。いずれにしても、このセレクタは `values.yml` ファイルで公開されているため、他の環境に合わせて再設定することができます。
+
+これらのセレクタに一致するノードを持たないクラスターは、どのポッドもスケジュールされません。したがって、リソースを無駄にすることはなく、機能的には、Helm Chartで `controlPlane.enabled` を `false` に設定して、コントロールプレーン監視を完全に無効にすることと同じです。
+
+コントロールプレーンの各コンポーネントには専用のセクションが設けられており、個別に対応することができます。
+
+* そのコンポーネントのモニタリングを有効または無効にする
+* そのコンポーネントを発見するための特定のセレクタと名前空間を定義します。
+* そのコンポーネントのメトリクスを取得するために使用されるエンドポイントとパスの定義
+* そのコンポーネントのメトリクスを取得するために使用する必要のある認証メカニズムの定義
+* オートディスカバリーを完全にスキップするエンドポイントを手動で指定します。
+
+### オートディスカバリーとデフォルト設定 [#autodiscovery-default]
+
+デフォルトでは、弊社の [Helm Chart](/docs/kubernetes-pixie/kubernetes-integration/installation/install-kubernetes-integration-using-helm) には、 `Kubeadm` や `minikube` のような、クラスタ内でコントロールプレーンを実行するオンプレミス型ディストリビューションのコントロールプレーンコンポーネントの一部について、すぐに動作するような設定が同梱されています。
+
+#### `hostNetwork` and `privileged` [#hostnetwork-privileged]
+
+ほとんどのユーザーやKubernetesディストリビューションでは、コントロールプレーンのメトリクスエンドポイントがループバックインターフェースでのみリッスンするように設定されています。すなわち、 `localhost` 。このため、コントロールプレーンコンポーネントは、 `hostNetwork: true` `privileged` `true` (デフォルト)に設定された状態でデプロイされます。
+
+`privileged: false` を使用して統合を展開すると、コントロールプレーンコンポーネントの `hostNetwork` の設定も `false` に設定されます。このようにしたのは、そうしないと、ユーザーが `privileged: false` を設定したときの意図を尊重していないことになるからです。残念ながら、 `hostNetwork` なしでデプロイすると、ほとんどの環境でコントロールプレーンのスクレイピングが失敗し、メトリクスが欠落したり、 `nrk8s-controlplane` ポッドが `CrashLoopBackoff` 状態に陥ったりすることになります。これはKubernetes自体の制限であり、コンポーネントが手動で設定されていない限り、コントロールプレーンは `hostNetwork` なしでは監視できません。
+
+統合を非特権モード（`privileged: false` ）で展開することは一般的な設定ですが、それでも `hostNetwork` でコントロールプレーンポッドを実行することは許容できると考えられます。これは、 `controlPlane.unprivilegedHostNetwork` を `true` に設定することで実現できます。これにより、上位の `privileged` フラグの値にもかかわらず、 `hostNetwork: true` でコントロールプレーンコンポーネントを展開するよう、チャートに指示します。
+
+`hostNetwork` でポッドを実行することが、クラスターまたはその他のポリシーのために受け入れられない場合、コントロールプレーンの監視はできないので、 `controlPlane.enabled` を `false` に設定して無効にする必要があります。
+
+#### カスタムオートディスカバリー [#autodiscovery-default]
+
+オートディスカバリーに使用されるセレクタは、 `values.yaml` ファイルの構成エントリとして完全に公開されます。つまり、コントロールプレーンがクラスターの一部として実行されているほとんどすべての環境に合わせて、微調整したり置き換えたりすることができます。
+
+オートディスカバリーのセクションは以下のようになります。
+
+```yaml
+autodiscover:
+  - selector: "tier=control-plane,component=etcd"
+    namespace: kube-system
+    # Set to true to consider only pods sharing the node with the scraper pod.
+    # This should be set to `true` if Kind is Daemonset, `false` otherwise.
+    matchNode: true
+    # Try to reach etcd using the following endpoints.
+    endpoints:
+      - url: https://localhost:4001
+        insecureSkipVerify: true
+        auth:
+          type: bearer
+      - url: http://localhost:2381
+  - selector: "k8s-app=etcd-manager-main"
+    namespace: kube-system
+    matchNode: true
+    endpoints:
+      - url: https://localhost:4001
+        insecureSkipVerify: true
+        auth:
+          type: bearer
+```
+
+`autodiscover` セクションには、オートディスカバリーエントリーのリストが含まれています。各エントリーには
+
+* `selector`: ポッドを探すのに使用される、文字列エンコードされたラベルセレクタです。
+* `matchNode`: trueに設定すると、ディスカバリーを実行しているDaemonSetの特定のインスタンスと同じノードで実行されているポッドにディスカバリーを追加で制限します。
+* `endpoints`: 指定したセレクタに対応するポッドが見つかった場合に試行するエンドポイントのリストです。
+
+さらに、各 `エンドポイント` 。
+
+* `url`: スキームを含むターゲットのURL。 `http` または `https` とすることができます。
+* `insecureSkipVerify`: true に設定すると、 `https` の URL に対して証明書のチェックを行いません。
+* `auth.type`: リクエストを認証するためにどのメカニズムを使用するか。現在、以下の方法がサポートされています。
+* None： `auth` が指定されていない場合、リクエストには何の認証も含まれていません。
+* `bearer`: Kubernetes APIに対する認証に使用されたものと同じbearer tokenがこのリクエストに送信されます。
+* `mtls`: mTLSを使用してリクエストを行います。
+
+##### mTLS [#mtls]
+
+`mtls` タイプの場合、以下を指定する必要があります。
+
+```yaml
+endpoints:
+  - url: https://localhost:4001
+    auth:
+      type: mtls
+      mtls:
+        secretName: secret-name
+        secretNamespace: secret-namespace
+```
+
+ここで、 `secret-name` は、 `secret-namespace` に存在するKubernetes TLS Secretの名前であり、その特定のエンドポイントへの接続に必要な証明書、鍵、およびCAを含んでいます。
+
+この統合では、このシークレットをマウントするのではなく、ランタイムにフェッチします。つまり、このシークレットへのアクセスを許可するRBACロールが必要になります。私たちのHelm Chartは、レンダリング時に `auth.mtls` エントリを自動的に検出し、 `rbac.create` が false に設定されていない限り、これらの特定のシークレットと名前空間のエントリを自動的に作成します。
+
+私たちの統合は、以下のキーを持つ秘密を受け入れます。
+
+* `cert`: etcd に提示される PEM エンコードされた証明書です。
+* `key`: 上記証明書に対応するPEMエンコードされた秘密鍵
+
+これらの証明書は、etcdが動作に使用しているのと同じCAによって署名されている必要があります。
+
+これらの証明書を生成する方法は、Kubernetesのディストリビューションごとに大きく異なるため、このドキュメントの範囲外です。必要なetcdピア証明書を取得する方法については、各ディストリビューションのドキュメントを参照してください。例えば、Kubeadmでは、 `/etc/kubernetes/pki/etcd/peer.{crt,key}にあります。` マスターノードの中にあります。
+
+etcdのピア証明書を見つけたり生成したりしたら、シークレットに含まれると思われるキーに合わせてファイル名を変更し、クラスタにシークレットを作成します。
+
+```shell
+mv peer.crt cert
+mv peer.key key
+mv ca.crt cacert
+
+kubectl -n newrelic create secret generic newrelic-etcd-tls-secret --from-file=./cert --from-file=./key --from-file=./cacert
+```
+
+最後に、このセクションの冒頭で示したコンフィグスニペットに、シークレット名(`newrelic-etcd-tls-secret`)とネームスペース(`newrelic`)を入力します。Helm Chartは、この設定を自動的に解析して、 `nrk8s-controlplane` コンポーネントのこの特定の秘密と名前空間へのアクセスを許可するRBACロールを作成します。
+
+### 静的エンドポイント [#static-endpoints]
+
+オートディスカバリーは、コントロールプレーンがKubernetesクラスター内に存在する場合をカバーする必要がありますが、ディストリビューションや洗練されたKubernetes環境の中には、可用性やリソースの分離など様々な理由から、コントロールプレーンを別の場所で実行するものもあります。
+
+このような場合には、ノード内にコントロール・プレーンのラベルを持つポッドがあるかどうかにかかわらず、任意の固定URLをスクレイプするように統合を構成することができます。これは、 `staticEndpoint` エントリを指定することで行います。例えば、外部の etcd インスタンス用のものは次のようになります。
+
+```yaml
+controlPlane:
+  etcd:
+    staticEndpoint:
+      url: https://url:port
+      insecureSkipVerify: true
+      auth: {}
+```
+
+`staticEndpoint` は、 `endpoints` in the `autodiscover` entry と同じタイプのエントリで、そのフィールドは上述のとおりです。ここでは、認証メカニズムとスキーマがサポートされています。
+
+`staticEndpoint` が設定されている場合、 `autodiscover` のセクションはすべて無視されますので、ご注意ください。
+
+#### 制限 [#static-endpoints-limitations]
+
+<Callout variant="important">
+  `staticEndpoint` がノード外の（つまり `localhost` 以外の）エンドポイントを指している場合、 `controlPlane.kind` を `DaemonSet` から `Deployment` に変更する必要があります。
+</Callout>
+
+`staticEndpoint` を使用すると、すべての `nrk8s-controlplane` ポッドが当該エンドポイントへの到達とスクレイピングを試みます。これは、 `nrk8s-controlplane` が DaemonSet（デフォルト）の場合、その DaemonSet のすべてのインスタンスがこのエンドポイントをスクレイプすることを意味します。 `localhost` を指定している場合は問題ありませんが、エンドポイントがノードにローカルでない場合は、メトリクスの重複や使用料金の増加を招く可能性があります。 `staticEndpoint` を使用して、ローカルではない URL に向けている場合は、 `controlPlane.kind` を Deployment.Korea に変更してください。
+
+上記と同様の理由により、現在のところ、あるコントロールプレーンコンポーネントにオートディスカバリーを使用し、他のコンポーネントにスタティックエンドポイントを使用することはできません。これは既知の制限事項であり、将来のバージョンでの対応を検討しています。
+
+最後に、 `staticEndpoint` では、コンポーネントごとに1つのエンドポイントしか定義できません。つまり、異なるホストに複数のコントロールプレーンシャードがある場合、それらを別々にポイントすることは現在のところできません。これは既知の制限事項であり、将来のバージョンでの対応を検討しています。当面は、別の場所で異なるシャードのメトリクスを集約し、集約された出力に `staticEndpoint` URLを指定することで回避することができます。
+
+#### マネージド環境やクラウド環境のためのコントロールプレーン監視 [#cloud-control-plane]
+
+EKSやGKEのような一部のクラウド環境では、Kubernetes API Serverからメトリクスを取得することができます。これは静的なエンドポイントとして簡単に設定できます。
+
+```yaml
+controlPlane:
+  affinity:
+    nodeAffinity: false  # https://github.com/helm/helm/issues/9136
+  kind: Deployment
+  config:
+    etcd:
+      enabled: false
+    scheduler:
+      enabled: false
+    controllerManager:
+      enabled: false
+    apiServer:
+     staticEndpoint:
+       url: "https://kubernetes.default:443"
+       insecureSkipVerify: true
+       auth:
+         type: bearer
+```
+
+なお、この機能はAPIサーバーにのみ適用され、クラウド環境ではetcd、スケジューラー、コントローラーマネージャーにはアクセスできませんのでご注意ください。
+
+## 統合されたコントロールプレーンの監視 バージョン2 [#monitoring-control-plane]
+
+ここでは、バージョン2以前のインテグレーションでコントロールプレーンモニタリングを設定する方法について説明します。
+
+これらのバージョンでは、オートディスカバリーオプションの柔軟性が低く、外部エンドポイントをサポートしていないことにご注意ください。お早めに [バージョン3](/docs/kubernetes-pixie/kubernetes-integration/get-started/changes-since-v3) にアップデートされることを強くお勧めします。 [変更点をご覧ください](/docs/kubernetes-pixie/kubernetes-integration/get-started/changes-since-v3) Kubernetesとの統合の。
+
+<CollapserGroup>
+  <Collapser
+    className="freq-link"
+    id="controlplane-v2"
+    title="統合バージョン2のコントロールプレーン監視"
+  >
+    ## マスターノードとコントロールプレーンコンポーネントの発見 [#discover-nodes-components]
+
+    Kubernetesの統合では、 [kubeadm](https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/create-cluster-kubeadm/) のラベル付け規則に依存して、マスターノードとコントロールプレーンコンポーネントを検出します。つまり、マスターノードは `node-role.kubernetes.io/master="" `または `kubernetes.io/role="master"` とラベル付けされなければなりません。
+
+    コントロールプレーンコンポーネントには、 `k8s-app` または `tier` and `component` のいずれかのラベルが必要です。使用可能なラベルの組み合わせと値については、次の表を参照してください。
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "110px" }}>
+            コンポーネント
+          </th>
+
+          <th>
+            ラベル
+          </th>
+
+          <th style={{ width: "200px" }}>
+            エンドポイント
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            APIサーバー
+          </td>
+
+          <td>
+            **Kubeadm / Kops / ClusterAPI**
+
+            `k8s-app=kube-apiserver`
+
+            `tier=control-plane component=kube-apiserver`
+
+            **OpenShift**
+
+            `app=openshift-kube-apiserver apiserver=true`
+          </td>
+
+          <td>
+            `localhost:443/metrics` デフォルト（設定可能） リクエストに失敗した場合は `localhost:8080/metrics にフォールバックします。`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            etcd
+          </td>
+
+          <td>
+            **Kubeadm / Kops / ClusterAPI**
+
+            `k8s-app=etcd-manager-main`
+
+            `tier=コントロール・プレーン component=etcd`
+
+            **OpenShift**
+
+            `k8s-app=etcd`
+          </td>
+
+          <td>
+            `localhost:4001/metrics`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            スケジューラー
+          </td>
+
+          <td>
+            **Kubeadm / Kops / ClusterAPI**
+
+            `k8s-app=kube-scheduler`
+
+            `tier=control-plane component=kube-scheduler`
+
+            **OpenShift**
+
+            `app=openshift-kube-scheduler scheduler=true`
+          </td>
+
+          <td>
+            `localhost:10251/metrics`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            コントローラーマネージャー
+          </td>
+
+          <td>
+            **Kubeadm / Kops / ClusterAPI**
+
+            `k8s-app=kube-controller-manager`
+
+            `tier=control-plane component=kube-controller-manager`
+
+            **OpenShift**
+
+            `app=kube-controller-manager kube-controller-manager=true`
+          </td>
+
+          <td>
+            `localhost:10252/metrics`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    統合は、マスター・ノード内で実行されていることを検出すると、上の表に記載されているラベルに一致するポッドを探して、ノード上でどのコンポーネントが実行されているかを確認しようとします。実行中のコンポーネントごとに、統合はそのメトリクス・エンドポイントにリクエストを行います。
+
+    ### 設定
+
+    マスターノード内で動作するエージェントは、コントロールプレーンの監視が自動的に行われます。クライアントのリクエストに相互TLS認証（mTLS）を使用しているため、実行に余分な手順が必要なコンポーネントはetdのみです。APIサーバーは、 [Secure Port](https://kubernetes.io/docs/reference/access-authn-authz/controlling-access/#api-server-ports-and-ips) を使って問い合わせを行うように設定することもできます。
+
+    <Callout variant="important">
+      [OpenShift](http://learn.openshift.com/?extIdCarryOver=true&sc_cid=701f2000001OH7iAAG) 4.x のコントロールプレーン監視には、追加の設定が必要です。詳細については、 [OpenShift 4.x Configuration](#openshift-4x-configuration) のセクションを参照してください。
+    </Callout>
+
+    #### etcd
+
+    etcdへの問い合わせにmTLSを設定するには、2つの設定オプションを設定する必要があります。
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "280px" }}>
+            オプション
+          </th>
+
+          <th>
+            値
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `etcd_tls_secret_name`
+          </td>
+
+          <td>
+            mTLSの設定を含むKubernetesのシークレットの名前。
+
+            シークレットには以下のキーを入れてください。
+
+            * `cert`: リクエストを行うクライアントを識別するための証明書です。etcd が信頼する CA によって署名されている必要があります。
+
+            * `キー`: クライアント証明書を生成するために使用されるプライベートキーです。
+
+            * `cacert`: etcd サーバーの証明書を識別するために使用されるルート CA です。
+
+              `ETCD_TLS_SECRET_NAME` オプションが設定されていない場合、etcdのメトリクスはフェッチされません。
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `etcd_tls_secret_namespace`
+          </td>
+
+          <td>
+            `ETCD_TLS_SECRET_NAME` で指定されたシークレットが作成された名前空間です。設定されていない場合は、 `デフォルトの` 名前空間が使用されます。
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    #### APIサーバー
+
+    デフォルトでは、APIサーバーのメトリクスは、 `localhost:8080` 非セキュアなエンドポイントを使用してクエリを実行します。このポートを無効にすると、安全なポートを使ってこれらのメトリクスを照会することもできます。これを有効にするには、Kubernetesインテグレーションのマニフェストファイルに以下の構成オプションを設定します。
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "250px" }}>
+            オプション
+          </th>
+
+          <th>
+            値
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `api_server_endpoint_url`
+          </td>
+
+          <td>
+            メトリクスを照会するための（安全な）URLです。API サーバーは、デフォルトで `localhost:443` を使用します。
+
+            `ClusterRole` がマニフェストに記載されている最新バージョンに更新されていることを確認してください。
+
+            バージョン1.15.0で追加
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <Callout variant="important">
+      なお、このポートは、APIサーバーが使用するセキュアポートに応じて異なる場合があります。
+
+      例えば、Minikube では、API サーバーのセキュアポートは 8443 であるため、 `API_SERVER_ENDPOINT_URL` は、 `https://localhost:8443`
+    </Callout>
+  </Collapser>
+</CollapserGroup>
+
+## OpenShiftの設定 [#openshift-4x-configuration]
+
+Kubernetes Integrationのバージョン3には、OpenShiftクラスタ内のコントロールプレーンコンポーネントを自動検出するデフォルト設定が含まれているため、etdを除くすべてのコンポーネントですぐに動作するはずです。
+
+OpenShift 環境ではメトリクスのエンドポイントが mTLS 認証を必要とするように構成されているため、Etcd はすぐにはサポートされません。当社の統合は、この構成でetcdのメトリクスを取得するためのmTLS認証をサポートしていますが、必要なmTLS証明書を手動で作成する必要があります。これは、ユーザーからの明示的な承認なしに当社の統合に広範な権限を与えることを避けるために必要です。
+
+mTLSシークレットを作成するには、 [以下の本セクションの手順に従ってください。](#mtls-how-to-openshift) その後、 [mtlsセクション](#mtls) で説明されているように、新しく作成されたシークレットを使用するように統合を構成してください。
+
+<CollapserGroup>
+  <Collapser
+    className="freq-link"
+    id="openshift-v2"
+    title="統合バージョン2でのOpenShiftの設定"
+  >
+    <Callout variant="important">
+      `openshift` を Helm 経由でインストールする際に、これらのエンドポイントを自動的に含めるように設定を指定します。 `openshift.enabled=true` および `openshift.version="4.x"` を設定すると、安全なエンドポイントが含まれ、 `/var/run/crio.sock` のランタイムが有効になります。
+    </Callout>
+
+    [OpenShift](http://learn.openshift.com/?extIdCarryOver=true&sc_cid=701f2000001OH7iAAG) 4.x のコントロールプレーンコンポーネントは、SSL およびサービスアカウントベースの認証を必要とするエンドポイント URL を使用します。そのため、 [デフォルトの](/docs/integrations/kubernetes-integration/installation/configure-control-plane-monitoring#discover-nodes-components) エンドポイントURLは使用できません。
+
+    OpenShift でコントロールプレーンモニタリングを構成するには、 [カスタマイズマニフェスト](/docs/integrations/kubernetes-integration/installation/kubernetes-integration-install-configure#customized-manifest) で以下の環境変数のコメントを解除します。URL 値は、 [OpenShift](http://learn.openshift.com/?extIdCarryOver=true&sc_cid=701f2000001OH7iAAG) 4.x のコントロールプレーン監視メトリクスエンドポイントのデフォルトベース URL にあらかじめ設定されています。
+
+    ```
+    - name: "SCHEDULER_ENDPOINT_URL"
+      value: "https://localhost:10259
+    - name: "ETCD_ENDPOINT_URL"
+      value: "https://localhost:9979"
+    - name: "CONTROLLER_MANAGER_ENDPOINT_URL"
+      value: "https://localhost:10257"
+    - name: "API_SERVER_ENDPOINT_URL"
+      value: "https://localhost:6443"
+    ```
+
+    <Callout variant="important">
+      カスタム `ETCD_ENDPOINT_URL` が定義されていても、etcd は HTTPS と mTLS 認証を設定する必要があります。OpenShift での etcd 用 mTLS の設定については、 [Set up mTLS for etcd in OpenShift](#mtls-how-to-openshift) を参照してください。
+    </Callout>
+  </Collapser>
+</CollapserGroup>
+
+### OpenShift での etcd 用 mTLS の設定 [#mtls-how-to-openshift]
+
+以下の手順で、 [OpenShift](http://learn.openshift.com/?extIdCarryOver=true&sc_cid=701f2000001OH7iAAG) 4.xでetcdの相互TLS認証を設定してください。
+
+1. クラスタから etcd クライアント証明書を不透明なシークレットにエクスポートします。デフォルトで管理されている OpenShift クラスタでは、シークレットは `kube-etcd-client-certs` という名前で、 `openshift-monitoring` 名前空間に格納されています。
+
+   ```shell
+   kubectl get secret kube-etcd-client-certs -n openshift-monitoring -o yaml > etcd-secret.yaml
+   ```
+
+2. シークレットファイルを開き、キーを変更します。
+
+   * **認証局** の名前を `cacert` に変更します。
+   * **クライアント証明書** の名前を `cert` に変更します。
+   * **クライアントキー** の名前を `キー` に変更します。
+
+3. オプションで、秘密の名前と名前空間を意味のあるものに変更します。
+
+4. メタデータ部のこれらの不要なキーを削除します。
+
+   * `作成時のタイムスタンプ`
+   * `リソースバージョン`
+   * `セルフリンク`
+   * `uid`
+
+5. マニフェストを新しい名前と名前空間でインストールします。
+
+   ```shell
+   kubectl apply -n newrelic -f etcd-secret.yaml
+   ```
+
+6. [mtlsのセクション](#mtls) で説明しているように、新しく作成したシークレットを使用するように統合を構成します。
+
+## 自分のデータを見る [#check-integration-works]
+
+統合が正しく設定されていれば、 [Kubernetes cluster explorer](/docs/integrations/kubernetes-integration/cluster-explorer/kubernetes-cluster-explorer) には、以下のように、すべてのコントロールプレーンコンポーネントとそのステータスが専用のセクションに表示されます。
+
+![New Relic One - Kubernetes Cluster Explorer - コントロールプレーンセクション](./images/new-relic-one-k8s-cluster-explorer-control-plane-parameters.png "new-relic-one-k8s-cluster-explorer-control-plan-parameters.png")
+
+<figcaption>
+  **[one.newrelic.com](https://one.newrelic.com) > Kubernetes Cluster Explorer**: Kubernetesのクラスタエクスプローラを使用して、クラスタのコントロールプレーンコンポーネントからメトリクスを監視・収集します。
+</figcaption>
+
+また、この [NRQL](/docs/query-data/nrql-new-relic-query-language/getting-started/introduction-nrql) クエリでコントロールプレーンデータを確認することもできます。
+
+```SQL
+SELECT latest(timestamp) FROM K8sApiServerSample, K8sEtcdSample, K8sSchedulerSample, K8sControllerManagerSample FACET entityName where clusterName = '_MY_CLUSTER_NAME_'
+```
+
+<Callout variant="tip">
+  それでもコントロールプレーンのデータが表示されない場合は、 [Kubernetesインテグレーションのトラブルシューティングで説明している解決方法を試してみてください。データが見えない](/docs/integrations/kubernetes-integration/troubleshooting/kubernetes-integration-troubleshooting-not-seeing-data) 。
+</Callout>
