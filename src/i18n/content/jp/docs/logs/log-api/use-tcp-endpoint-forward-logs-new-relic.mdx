@@ -1,0 +1,217 @@
+---
+title: TCPエンドポイントを使用してログをNew Relicに転送する
+tags:
+  - Logs
+  - Log management
+  - Log API
+metaDescription: How to forward your logs to New Relic using syslog clients such as rsyslog and syslog-ng for Debian or RHEL operating systems.
+translationType: machine
+---
+
+[ログデータをNew Relic](/docs/logs/forward-logs/) に取り込むための様々なソリューションを提供しています。しかし、ログフォワーダーがないその他の状況(CDN、ハードウェアデバイス、マネージドサービスなど)では、TCPエンドポイント経由でsyslogプロトコルを使用することができます。 [`rsyslog`](https://www.rsyslog.com/) and [`syslog-ng`](https://www.syslog-ng.com/) のような syslog クライアントを使って、ログを New Relic に転送することができます。
+
+## 互換性および要件 [#compatibility-requirements]
+
+syslogクライアントを使ってログをNew Relicに転送するには、以下が必要です。
+
+* ログを送信したいアカウントの有効な [New Relic ライセンスキー](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key)
+* このドキュメントで説明されているように、syslogクライアントの設定にいくつかのマイナーな変更があります。
+
+## rsyslogの設定 [#rsyslog]
+
+ログをNew Relicに転送するには、 `rsyslog`:
+
+1. `rsyslog` が TLS 暗号化を使用してログを送信できるようにするために必要なパッケージをインストールします。
+
+   ```
+   sudo yum install rsyslog-gnutls ca-certificates
+   ```
+
+2. オプションです。 `rsyslog` ログファイルを尾行し、その内容をNew Relicに転送するように設定します。 `/etc/rsyslog.conf` ファイルに以下を追加して、テキストファイル入力モジュールを有効にする。
+
+   ```
+   module(load="imfile"
+          PollingInterval="10"
+          statefile.directory="/var/spool/rsyslog"
+   )
+   ```
+
+3. `/etc/rsyslog.d/` ディレクトリに、 `newrelic.conf` という名前のテキストファイルを作成します。
+
+4. 新たに作成した `newrelic.conf` を `/etc/rsyslog.d/` ファイルに明示的にインクルードする。
+
+   ```
+   include(file="/etc/rsyslog.conf.d/newrelic.conf")
+   ```
+
+5. `newrelic.conf` に以下を追加し、 `YOUR_LICENSE_KEY` を [New Relic のライセンスキーに置き換えます](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key) 。
+
+   ```
+   ## Specify each of the files to be tailed in case step 1 is done
+
+   input(type="imfile" ruleset="infiles" Tag="<YOUR_FILE_TAG>" File="<PATH_TO_FILE>" StateFile="<UNIQUE_STATEFILE_NAME >")
+
+   ## Template expected by the New Relic Syslog endpoint
+
+   template(name="newrelic-rfc5424"
+            type="string"
+            string="<YOUR_LICENSE_KEY> <%pri%>%protocol-version% %timestamp:::date-rfc3339% %hostname% %app-name% %procid% %msgid% %structured-data% %msg%\n"
+   )
+
+   ## Configure TLS and log forwarding
+
+   global(DefaultNetstreamDriver="gtls"
+          DefaultNetstreamDriverCAFile="/etc/ssl/certs/ca-certificates.crt"
+   )
+
+   action(type="omfwd"
+          Target="newrelic.syslog.nr-data.net"
+          Port="6514"
+          Protocol="tcp"
+          Template="newrelic-rfc5424"
+          ResendLastMSGOnReconnect="on"
+          StreamDriver="gtls"
+          StreamDriverAuthMode="x509/name"
+          StreamDriverPermittedPeers="*.syslog.nr-data.net"
+          StreamDriverMode="1"
+   )
+   ```
+
+6. `rsyslog` サービスを実行して再起動する。
+
+   ```
+   sudo systemctl restart rsyslog
+   ```
+
+7. [New Relic アカウント](/docs/logs/log-management/ui-data/explore-your-data-log-analytics) のログを確認してください。
+
+## rsyslog 7以前のレガシー設定ファイル [#legacy-rsyslog]
+
+rsyslogバージョン7以下を使用している場合は、設定ファイルを廃止されたレガシーフォーマットに合わせる必要があります。この形式はレトロな互換性のためにのみ残されています。 [rsyslog documentation](https://www.rsyslog.com/doc/master/configuration/conf_formats.html) で述べられているように、使用しないことを強くお勧めします。
+
+1. `rsyslog` が TLS 暗号化を使用してログを送信できるようにするために必要なパッケージをインストールします。
+
+   ```
+   sudo yum install rsyslog-gnutls ca-certificates
+   ```
+
+2. オプションです。 `rsyslog` ログファイルを尾行し、その内容をNew Relicに転送するように設定します。 `/etc/rsyslog.conf` ファイルに以下を追加して、テキストファイル入力モジュールを有効にする。
+
+   ```
+   $ModLoad imfile 
+   $InputFilePollInterval 10 
+   $PrivDropToGroup adm 
+   $WorkDirectory /var/spool/rsyslog
+   ```
+
+3. `/etc/rsyslog.d/` ディレクトリに、 `newrelic.conf` という名前のテキストファイルを作成します。
+
+4. 新たに作成した `newrelic.conf` を `/etc/rsyslog.d/` ファイルに明示的にインクルードする。
+
+   ```
+   $IncludeConfig /etc/rsyslog.conf.d/newrelic.conf
+   ```
+
+5. `newrelic.conf` に以下を追加します。\`YOUR_LICENSE_KEY を [New Relic のライセンスキーに置き換えます。](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key) 。
+
+   ```
+   ## Template expected by the New Relic Syslog endpoint 
+
+   $template NRLogFormat,"YOUR_LICENSE_KEY <%pri%>%protocol-version% %timestamp:::date-rfc3339% %hostname% %app-name% %procid% %msgid% %structured-data% %msg%\n" 
+
+   ## Specify each of the files to be tailed in case step 1 is done 
+
+   $InputFileName /path/to/file 
+   $InputFileTag <YOUR_FILE_TAG> 
+   $InputFileStateFile <UNIQUE_STATEFILE_NAME> 
+   $InputFileSeverity info 
+   $InputRunFileMonitor 
+
+   ## Configure TLS and log forwarding 
+
+   $DefaultNetstreamDriverCAFile /etc/ssl/certs/ca-certificates.crt 
+   $ActionSendStreamDriver gtls  
+   $ActionSendStreamDriverMode 1
+   $ActionSendStreamDriverAuthMode x509/name 
+   $ActionSendStreamDriverPermittedPeer *.syslog.nr-data.net
+    
+   *.* @@newrelic.syslog.nr-data.net:6514;NRLogFormat
+   ```
+
+6. `rsyslog` サービスを実行して再起動する。
+
+   ```
+   sudo systemctl restart rsyslog
+   ```
+
+7. [New Relic アカウント](/docs/logs/ui-data/use-logs-ui) のログを確認してください。
+
+## syslog-ngの設定 [#syslog-ng]
+
+`syslog-ng でログを New Relic に転送する場合`:
+
+1. `ca-certificates` `syslog-ng` が TLS 暗号化を使用してログを送信するために必要なものをインストールします。
+
+   ```
+   sudo yum install ca-certificates
+   ```
+
+2. `syslog-ng` 設定ファイル(`/etc/syslog-ng/syslog-ng.conf`)をテキストエディターで開きます。
+
+3. を追加してモニターするソースを定義します。
+
+   ```
+   source s_src {
+          internal();
+   };
+   ```
+
+4. オプションです。 `syslog-ng` をテールファイルに設定するには、 `Sources` 設定ブロックに以下を追加します。
+
+   ```
+   source s_files {
+   file("<PATH_TO_FILE>");
+   };
+   ```
+
+5. New Relic `syslog` フォーマットを定義し、 [New Relic のライセンスキー](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key) を追加します。
+
+   ```
+   template NRFormat { template("<var>YOUR_LICENSE_KEY</var> <${PRI}>1 ${ISODATE} ${HOST:--} ${PROGRAM:--} ${PID:--} ${MSGID:--} ${SDATA:--} $MSG\n");
+     template_escape(no);
+   };
+   ```
+
+6. New Relic Syslogのエンドポイントを追加します。
+
+   ```
+   destination d_newrelic {
+   network("newrelic.syslog.nr-data.net" port(6514)
+   transport("tls")
+   tls(peer-verify(no))
+   template(NRFormat)
+   );
+   };
+   ```
+
+7. ログパス設定ブロックに以下の出力を追加します。
+
+   ```
+   log {
+     source(s_src);
+     source(s_files);  ## in case step 4 is implemented. 
+     destination(d_newrelic);
+   };
+   ```
+
+8. `syslog-ng` を実行して再起動する。
+
+   ```
+   sudo service syslog-ng restart
+   ```
+
+9. [New Relic アカウント](/docs/logs/ui-data/use-logs-ui) のログを確認してください。
+
+<Callout variant="tip">
+  もしDockerコンテナからsyslog-ngを実行していて問題がある場合は、 [balait/syslog image documentation](https://hub.docker.com/r/balabit/syslog-ng/) を確認してください。
+</Callout>
