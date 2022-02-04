@@ -7,4 +7,4 @@ events:
   - NrMTDConsumption
 ---
 
-The number of Incident Intelligence events correlated by New Relic AI.
+The number of incident intelligence events.

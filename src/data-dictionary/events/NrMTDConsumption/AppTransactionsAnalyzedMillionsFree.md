@@ -6,4 +6,4 @@ events:
   - NrMTDConsumption
 ---
 
-The number of APM app transactions analyzed by New Relic AI that are within the free limit, in millions.
+The number of APM app transactions analyzed by applied intelligence that are within the free limit, in millions.

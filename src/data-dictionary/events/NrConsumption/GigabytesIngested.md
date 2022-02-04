@@ -7,4 +7,4 @@ events:
   - NrMTDConsumption
 ---
 
-The number of gigabytes ingested by the consuming account via either an agent, a custom event API, or another integration.
+The amount of data ingested by the consuming account.

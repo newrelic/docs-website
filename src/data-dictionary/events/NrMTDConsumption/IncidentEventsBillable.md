@@ -6,4 +6,4 @@ events:
   - NrMTDConsumption
 ---
 
-The number of billable Incident Intelligence events correlated by New Relic AI.
+The number of billable incident intelligence events correlated by applied intelligence.

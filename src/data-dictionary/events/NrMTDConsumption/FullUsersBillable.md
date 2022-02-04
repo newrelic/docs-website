@@ -6,4 +6,4 @@ events:
   - NrMTDConsumption
 ---
 
-The number of Full-Stack Observability users provisioned that are billable.
+The number of full platform users that are billable.

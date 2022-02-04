@@ -7,4 +7,4 @@ events:
   - NrMTDConsumption
 ---
 
-The number of APM app transactions, in millions, analyzed by New Relic AI.
+The number of APM app transactions, in millions, analyzed by applied intelligence.
