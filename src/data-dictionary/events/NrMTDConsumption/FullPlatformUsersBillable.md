@@ -6,4 +6,4 @@ events:
   - NrMTDConsumption
 ---
 
-The number of full platform users that are billable.
+The number of billable full platform users.

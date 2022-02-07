@@ -6,4 +6,4 @@ events:
   - NrMTDConsumption
 ---
 
-The number of full platform users that are within the free limit (if available).
+The number of full platform users within the free limit (if available).
