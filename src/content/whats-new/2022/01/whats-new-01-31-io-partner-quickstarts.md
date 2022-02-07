@@ -1,5 +1,5 @@
 ---
-title: 'New Instant observability partner integrations for CI/CD, Kubernetes, and machine learning' 
+title: 'New Instant Observability partner integrations for CI/CD, Kubernetes, and machine learning' 
 summary: 'Nine new quickstarts for monitoring CI/CD, MLOps, and load testing' 
 releaseDate: '2022-01-31' 
 learnMoreLink: 'https://newrelic.com/blog/nerdlog/quickstarts-machine-learning-kubernetes-cicd' 
@@ -7,7 +7,7 @@ getStartedLink: 'https://developer.newrelic.com/instant-observability/'
 ---
 In case you missed it, [New Relic I/O](https://docs.newrelic.com/whats-new/2021/10/instant-observability-10-13-21) helps you instrument, monitor, and analyze your stack in minutes. The secret ingredient is [400+ free expert-built quickstarts](https://developer.newrelic.com/instant-observability/) that bundle the integrations, guides, dashboards, and alerts for the technologies you rely on. 
 
-## New integrations for instant observability
+## New integrations for Instant Observability
 
 ![Partners contributing quickstarts to Instant Observability](./images/io-partner-quickstarts.png "Partners contributing quickstarts to Instant Observability")
 

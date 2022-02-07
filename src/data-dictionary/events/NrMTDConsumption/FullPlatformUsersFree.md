@@ -1,5 +1,5 @@
 ---
-name: FullUsersFree
+name: FullPlatformUsersFree
 type: attribute
 units: count
 events:

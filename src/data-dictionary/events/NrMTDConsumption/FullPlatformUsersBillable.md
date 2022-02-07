@@ -1,5 +1,5 @@
 ---
-name: FullUsersBillable
+name: FullPlatformUsersBillable
 type: attribute
 units: count
 events:
