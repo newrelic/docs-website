@@ -479,8 +479,10 @@ module.exports = {
         NR_ACCOUNT_ID: process.env.NEW_RELIC_ACCOUNT_ID,
         SITE_NAME: 'docs.newrelic.com',
         staging: true,
+        collectLogs: false,
         customTags: {
           featureFlag: process.env.FEATURE_FLAG,
+          test: 'build-plugin',
         },
       },
     },
