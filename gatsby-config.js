@@ -480,6 +480,7 @@ module.exports = {
         SITE_NAME: 'docs.newrelic.com',
         staging: true,
         collectLogs: false,
+        collectTraces: false,
         customTags: {
           featureFlag: process.env.FEATURE_FLAG,
           test: 'build-plugin',
