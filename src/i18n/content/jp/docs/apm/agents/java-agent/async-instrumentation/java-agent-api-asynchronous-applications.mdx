@@ -1,0 +1,192 @@
+---
+title: 非同期アプリケーションのためのJavaエージェントAPI
+tags:
+  - Agents
+  - Java agent
+  - Async instrumentation
+metaDescription: How to use the New Relic for Java API to instrument asynchronous application activity.
+translationType: machine
+---
+
+[New Relic for Java](/docs/agents/java-agent/getting-started/introduction-new-relic-java) (エージェント [バージョン 3.37](/docs/release-notes/agent-release-notes/java-release-notes/java-agent-3370) 以上) には、非同期アクティビティを計測するための API が含まれています。 [サポートされているフレームワーク](/docs/agents/java-agent/getting-started/compatibility-requirements-java-agent) では、エージェントは通常、非同期作業を自動的に計測します。しかし、非同期APIは、詳細を追加するのに便利です。このドキュメントでは、トークンとセグメントを使ってアプリを計測する例を紹介します。
+
+* New Relic が非同期作業をどのように計測し、APM UI で表示するかについては、 [Monitoring considerations for asynchronous applications](/docs/agents/java-agent/instrumentation/asynchronous-applications-monitoring-considerations) を参照してください。
+* 実際のクラスやメソッドの詳細については、 [Javadoc](http://newrelic.github.io/java-agent-api/javadoc/com/newrelic/api/agent/NewRelic.html) をご覧ください。
+* JavaエージェントAPIの一般的な情報については、 [JavaエージェントAPIガイド](/docs/agents/java-agent/custom-instrumentation/java-agent-api-guide) を参照してください。
+* 一般的な問題のトラブルシューティングについては、 [Troubleshooting Java asynchronous applications](/docs/agents/java-agent/java-agent-api/troubleshooting-java-asynchronous-applications) を参照してください。
+
+## 非同期のトラッキングツール。トークンとセグメント [#tokens_segments]
+
+JavaエージェントAPIは、非同期アクティビティをトレースする2つの方法を提供しています。
+
+* **[トークン](#tokens)** : トークンは、非同期の作業単位を特定のトランザクションに結びつけるために、スレッド間で渡されます。トークンは直接タイミングを取ることはありません。
+* **[セグメント](#segments)** : セグメントは、非同期アプリケーションコードの任意の部分を測定するために使用されますが、必ずしもメソッドやスレッドに関連付けられているわけではありません。セグメントは通常、コールバック・メカニズムによって完了する外部呼び出しを追跡するために使用されます。
+
+## トークン。非同期スレッドの接続 [#tokens]
+
+トークンを使用して、別々のスレッド上にある任意の作業単位をリンクします。このセクションでは、トークン関連のコールをまとめて使用し、非同期作業をインストルメント化する方法を説明します。クラスやメソッドの詳細については、Javadocを参照してください。
+
+トークンを使用するには、まずトークンを作成し、次に別のコールを元のトランザクションにリンクさせる必要があります。トークンのリンクは、他のコールの中でできるだけ早く行う必要があります。トークンをすぐにリンクしないと、リンクしようとしているコールの下にある `@Trace` を含むすべてのメソッドが失われる危険性があります。元の呼び出しでトークンを失効させることもできます。この場合、Java エージェントは New Relic UI で作業をリンクします。これらの例は、トークン関連のコールを一緒に使用する方法を示しています。
+
+<CollapserGroup>
+  <Collapser
+    id="use-gettoken"
+    title="1.トランザクションを開始してから、トークンを作成して期限切れにする"
+  >
+    以下のコードスニペットで `parallelStream()` というメソッドを考えてみましょう。 `requestItemAsync()` の呼び出しの一部は別のスレッドで行われるため、その非同期作業を要求元のスレッドに戻すためにトークンを作成して渡しています。
+
+    ```
+    /**
+    * Example showing multi-threaded implementation of requesting data using a parallel {@link Stream}.
+    */
+    @RequestMapping("parallel_stream")
+    <mark>@Trace(dispatcher = true)</mark> // starts a transaction
+    public ResponseEntity<String> parallelStream(@RequestParam("ids") List<Long> ids) {
+       final Token token = NewRelic.getAgent().getTransaction().<mark>getToken()</mark>;
+       List<item> results = ids
+               .parallelStream()
+               .map(id -> requestItemAsync\(id, token)) // note we're calling a different method than parallelStreamBad
+               .filter(item -> item != null)
+               .collect(Collectors.toList());
+       <mark>token.expire()</mark>;
+       return formattedResponse("parallel_stream", results);
+    }
+    ```
+
+    本サンプルでのエージェントAPIコールは
+
+    * `@Trace(dispatcher = true)`: エージェントにトランザクションの開始を指示します。このメソッドの詳細については、 [Javadoc](http://newrelic.github.io/java-agent-api/javadoc/com/newrelic/api/agent/Trace.html) をご覧ください。
+    * `getToken()`: 作品をリンクさせるトークンを作成します。このメソッドの詳細については、 [Javadoc](http://newrelic.github.io/java-agent-api/javadoc/com/newrelic/api/agent/Transaction.html#getToken()) を参照してください。
+    * `token.expire()`: トークンを期限切れにします。これにより、トランザクションの終了が可能になります。このメソッドの詳細については、 [Javadoc](http://newrelic.github.io/java-agent-api/javadoc/com/newrelic/api/agent/Token.html#expire()) を参照してください。
+  </Collapser>
+
+  <Collapser
+    id="retrive-token"
+    title="2.トランザクションを非同期としてマークし、リクエストスレッドにリンクする"
+  >
+    次のコード例では、 `requestItemAsync` が、リクエストするスレッドとは別のスレッドで実行される可能性があります。このため、前のコード例で作成されたトークンは、 `requestItemAsync` の Transaction にリンクされています。 `requestItemAsync()` には `@Trace(async=true)` アノテーションが付いていることに注意してください。このアノテーションは、既存のトランザクションにリンクされている場合に、このメソッドをトレースするようにエージェントに指示します。
+
+    `parallelStream()` がすべての結果を収集した後、トークンは失効します。これは、 `parallelStream()` が完了した後も、トランザクションが開いたままにならないようにするために重要です。
+
+    ```
+    <mark>@Trace(async = true)</mark>
+    private Item requestItemAsync(long id, Token token) {
+       <mark>token.link()</mark>;
+       return requestItem(id);
+    }
+    ```
+
+    本サンプルでのエージェントAPIコールは
+
+    * `@Trace(async = true)`: トランザクションを開始します。このメソッドの詳細については、 [Javadoc](http://newrelic.github.io/java-agent-api/javadoc/com/newrelic/api/agent/Trace.html) を参照してください。
+    * `token.link()`: `requestItemAsync()` で行われている作業（別のスレッドで実行されている）を要求元のスレッドにリンクします。このメソッドの詳細については、 [Javadoc](http://newrelic.github.io/java-agent-api/javadoc/com/newrelic/api/agent/Token.html#link()) を参照してください。
+  </Collapser>
+
+  <Collapser
+    id="token-in-ui"
+    title="3.New RelicのUIで非同期トレースを表示する"
+  >
+    以下は、このエンドポイントのAPM UIでのトランザクショントレースの例です。
+
+    ![トークントレース.png](./images/Screen-Shot-2017-03-14-at-4.50.31-PM.png "トークントレース.png")
+
+    <figcaption>
+      **[one.newrelic.com APM （アプリを選択） トランザクション トランザクショントレース トレース詳細 : トークンでリンクされたすべての非同期メソッドコールは、 Async のアイコンで示されます。](https://one.newrelic.com) > > > > >**<Icon name="fe-search"/>
+    </figcaption>
+
+    トークンでリンクされたすべての非同期メソッドコールは、 <Icon name="fe-search"/>**Async** アイコンが **Drilldown** カラムに表示されます。同じスレッド上にあるメソッドをリンクする必要はありませんが、リンクしても悪影響はありません。 `parallelStream()` の例のように、1つのトークンを共有することができる場合もよくあります。
+  </Collapser>
+</CollapserGroup>
+
+<Callout variant="tip">
+  デフォルトでは、1つのトランザクションで作成できるトークンの数は最大3000個で、各トークンのタイムアウトはデフォルトで180秒となっています。前者は `token_limit` 設定オプションで変更でき、後者は [`token_timeout`](/docs/agents/java-agent/configuration/java-agent-configuration-config-file#cfg-token_timeout) 設定オプションで変更できます。 `token_limit` を超えたトランザクションのトレースには、 `token_clamp` 属性が含まれます。いずれかの設定オプションを増やすと、エージェントのメモリ使用量が増える可能性があります。
+</Callout>
+
+## セグメンテーションです。任意の時間の非同期アクティビティ [#segments]
+
+セグメントは、非同期アプリケーションコードの任意の部分を計測するために使用され、必ずしもメソッドやスレッドに関連付けられている必要はありません。これは、外部サービスへの接続時間を計測するために最もよく使われます。必要に応じてセグメントを使用してください。
+
+* コールバックで完了するタイムコード
+* 多くのメソッドにまたがる非同期呼び出しの時間
+* ワークが作成されてから実行されるまでの時間を計測する（例：スレッドプールの場合）
+
+<CollapserGroup>
+  <Collapser
+    id="segments-part-1"
+    title="1.トランザクションの作成と外部サービスの呼び出し"
+  >
+    以下のメソッドは、 `storeItem()` を使用して、外部サービス（ここではデータベース）を呼び出します。
+
+    ```
+    /**
+    * Example showing single threaded implementation of inserting data into a datasource.
+    */
+    @RequestMapping("insert")
+    <mark>@Trace(dispatcher = true)</mark> //starts a transaction
+    public ResponseEntity insert(@RequestParam("id") Long id) {
+       if (id != null) {
+           storeItem(id);
+           return new ResponseEntity<>("insert", HttpStatus.OK);
+       } else {
+           return new ResponseEntity<>("insert", HttpStatus.BAD_REQUEST);
+       }
+    }
+    ```
+
+    この場合の目的は、 `storeItem()` の実行時間を調べるのではなく、Lambda文の中の `Callable` が実行前にスレッドプールでどれだけ待っているかを調べることです。このため、トークンの代わりにセグメントが使用され、 `@Trace(async = true)` は、トークンの時のように必要ありません。
+
+    このサンプルでのエージェントのAPIコールは
+
+    * `@Trace(dispatcher = true)`: トランザクションを開始します。このメソッドの詳細については、 [Javadoc](http://newrelic.github.io/java-agent-api/javadoc/com/newrelic/api/agent/Trace.html) を参照してください。
+  </Collapser>
+
+  <Collapser
+    id="segment-reportasexternal"
+    title="2.セグメントの開始、外部からの報告、セグメントの終了"
+  >
+    以下のコード例では、 `storeItem` メソッドから始まるセグメントで、Lambda文がスレッドプールで待機している時間を計測しています。セグメントの計測を停止するには、 `.end()` または `.ignore()` のいずれかを呼び出す必要があります。 ****セグメントを親トランザクションの一部として報告したくない場合は、 `.ignore()` を呼び出してください。そうでない場合は、セグメントをその親トランザクションの一部として報告するために、 `.end()` を呼び出します。
+
+    ```
+    private void storeItem(long id) {
+       Segment segment = NewRelic.getAgent().getTransaction().<mark>startSegment("storeItem")</mark>;
+
+       segment.<mark>reportAsExternal</mark>(DatastoreParameters
+               .product("H2")
+               .collection(null)
+               .operation("insert")
+               .instance("localhost", 8080)
+               .databaseName("test")
+               .build());
+
+       // fire and forget
+       DB_POOL.submit(() -> {
+           <mark>segment.end();</mark>
+           insertData(id);
+       });
+    }
+    ```
+
+    本サンプルでのエージェントAPIコールは
+
+    * `startSegment(...)`: コードをタイムアウトさせるセグメントを開始します。このメソッドの詳細については、 [Javadoc](http://newrelic.github.io/java-agent-api/javadoc/com/newrelic/api/agent/Segment.html) を参照してください。
+    * `reportAsExternal(DatastoreParameters())`: データストアの外部呼び出しに時刻を関連付ける これは、APMで [データストアのデータと一緒に表示されます](/docs/apm/applications-menu/features/analyze-database-instance-level-performance-issues) 。詳細については、 [reportAsExternal API](http://newrelic.github.io/java-agent-api/javadoc/index.html?com/newrelic/api/agent/TracedMethod.html) を参照してください。
+    * `segment.end()`: このセグメントの計時を停止します。このメソッドの詳細については、 [Javadoc](http://newrelic.github.io/java-agent-api/javadoc/com/newrelic/api/agent/Segment.html#end()) を参照してください。
+  </Collapser>
+
+  <Collapser
+    id="segment-in-ui"
+    title="3.New RelicのUIで非同期トレースを表示する"
+  >
+    メソッドが完了すると、APMは1つの外部呼び出しを含むトランザクショントレースを表示します。
+
+    ![セグメントトレース.png](./images/Screen-Shot-2017-03-15-at-4.33.14-PM.png "セグメントトレース.png")
+
+    <figcaption>
+      **[one.newrelic.com](https://one.newrelic.com) > APM> (select an app)> Transactions> Transaction trace> Trace details:** A single asynchronous segment is called out in **Drilldown** column.
+    </figcaption>
+  </Collapser>
+</CollapserGroup>
+
+<Callout variant="tip">
+  デフォルトでは、エージェントは 1 つのトランザクションで最大 1000 個のセグメントを追跡できます。この制限を変更するには、 [`segment_timeout`](/docs/agents/java-agent/configuration/java-agent-configuration-config-file#cfg-segment_timeout) 設定オプションを使用します。この制限を超えたトランザクションのトレースには、 `segment_clamp` 属性が含まれます。この制限を増やすと、エージェントのメモリ使用量が増える可能性があります。
+</Callout>

@@ -1,0 +1,320 @@
+---
+title: PythonとGraphQL
+tags:
+  - Agents
+  - Python agent
+translationType: machine
+---
+
+## トランザクション
+
+トランザクションは、実行されたGraphQLオペレーションに基づいて命名されたWebトランザクションとして取得されます。固有のクエリ表現をグループ化するために、次の詳細情報が使用されます：操作タイプ、操作名、最も深い固有パス。
+
+トランザクションの生の表現は以下のようになります。 `{operation_type}/{operation_name}/{deepest_unique_path} のようになります。`
+
+このクエリの例を使って
+
+```
+query {
+  libraries {
+    books {
+      title
+      author {
+        name
+      }
+    }
+  }
+}
+```
+
+New Relic One のトランザクションは最終的に次のように表示されます。 `query/<anonymous>/libraries.books`
+
+### 詳細
+
+#### 操作タイプ
+
+操作がクエリかミューテーションかを示す。
+
+#### 操作名
+
+提供された場合の操作名、または `< 匿名>` .
+
+`問い合わせ {ライブラリ }。` は、名前が提供されていないため、操作名が空白になります。
+
+`query GetLibraries { libraries } のような名前のクエリは、 という操作名を使用します。` は、操作名 `'GetLibraries'` を使用します。
+
+#### 最も深いユニークなパス
+
+各レベルで1つのフィールドのみが選択されたクエリの選択セットに含まれる最も深いパス。操作名は再利用される可能性があるため、操作の一意性をさらに判断するのに役立ちます。
+
+また、アプリケーションの速度低下の原因となる詳細を暗示したり隠したりする可能性のあるネーミングを恣意的に決定することを避けるため、（従来のような最深部のパスではなく）最深部のユニークパスを使用しています。
+
+問い合わせに対して
+
+```
+query {
+  libraries {
+    branch
+    booksInStock {
+      isbn,
+      title,
+      author
+    }
+    magazinesInStock {
+      issue,
+      title
+    }
+  }
+}
+```
+
+そのポイントを超えて複数のフィールドを選択するので、「ライブラリ」の最も深いユニークなパスを選択します。その点を超えて実行されるリゾルバは、トランザクションのパフォーマンス特性に寄与する可能性があります。
+
+クエリがリゾルバごとに1つのフィールドのみを選択する場合、各選択セットが一意であるため、フルパスを選択します。
+
+クエリです。
+
+```
+query {
+  libraries {
+    booksInStock {
+      title
+    }
+  }
+}
+```
+
+最も深いユニークパスになります： `'libraries.booksInStock.title'`.
+
+`id` と `__typename` フィールドは、自動的に命名の決定から除外されます。
+
+例えば、サブグラフのクエリです。
+
+```
+query {
+  libraries {
+    branch
+    __typename
+    id
+  }
+}
+```
+
+その結果、最も深いユニークパスは次のようになります： `libraries.branch`.
+
+### ユニオン型とインラインフラグメント
+
+Inline Fragmentsを使用するUnionタイプの場合、トランザクション名には、 `< ...>` の括弧が使用され、Unionクエリで1つの結果しか指定されていない場合には、基礎となる選択されたフィールドを示します。
+
+次のようなスキーマの場合
+
+```
+union SearchResult = Book | Author
+
+type Book {
+  title: String!
+}
+
+type Author {
+  name: String!
+}
+
+type Query {
+  search(contains: String): [SearchResult!]
+}
+```
+
+と、次のようなクエリがあります。
+
+```
+query example {
+  search(contains: "author") {
+    __typename
+    ... on Author {
+      name
+    }
+  }
+}
+```
+
+以下のようなトランザクション名になります。
+
+`query/example/search<Author>.name`
+
+しかし、クエリがBookとAuthorの両方を返している場合。
+
+```
+query example {
+  search(contains: "author") {
+    __typename
+    ... on Author {
+      name
+    }
+    ... on Book {
+      title
+    }
+  }
+}
+```
+
+結果として、トランザクション名は `query/example/search となります。`
+
+### エラー時のネーミング
+
+GraphQLリクエストの検証や解析でエラーが発生すると、トランザクションの名前に影響を与えることがあります。
+
+#### 例外
+
+ミドルウェアまたはリゾルバのいずれかでエラーが発生した場合、トランザクション名は単に失敗が発生したミドルウェアまたはリゾルバの名前になります。
+
+#### バリデーションエラー
+
+リクエストされた操作を解析できたが検証できなかった場合、トランザクション名として以下が生成されます。
+
+GraphQL2の場合： `graphql.validation.validate:validate` GraphQL3の場合： `graphql.validation.validate.validate`
+
+#### 構文解析エラー
+
+要求された操作が解析できない場合は、トランザクション名として以下のものが生成されます。
+
+`graphql.language.percer:parse`
+
+## メトリクス
+
+Pythonエージェントは、GraphQLフィールドリゾルバとオペレーションのメトリクスをレポートし、長期的なトレンドの把握と分析を可能にします。
+
+### 運用指標
+
+オペレーションのメトリクスは、以下のフォーマットで報告されます。 `GraphQL/operation/GraphQL/{operation_type}/{operation_name}/{deepest_unique_path}。`
+
+オペレーションタイプ。実行する操作のタイプを指定します。これは、 `query` 、 `mutation` 、または `< unknown>` のいずれかになります（操作タイプが決定できない場合）。
+
+操作名。提供されている場合はオペレーションの名前、または `< 匿名>` .
+
+[Deepest Unique Path](#deepest-unique-path): 各レベルで1つのフィールドのみが選択されるクエリの選択セットに含まれる最も深いパス。これは、操作名が再利用される可能性があるため、特定の操作の一意性をさらに判断するのに役立ちます。
+
+### フィールドリゾルバのメトリクス
+
+フィールドリゾルバのメトリクスは、以下のフォーマットで報告されます。 `GraphQL/resolve/GraphQL/{field_name}。`
+
+リゾルバメトリクスは、リクエストされた特定のGraphQLデータの解決にかかった時間を記録します。これにより、受信したクエリの処理速度を低下させている可能性のある特定のリゾルバを見つけることができます。
+
+## スパンと属性
+
+スパンは、GraphQL操作、フィールド解決、およびデータベースへの問い合わせなどのフィールド解決の一部として発生する追加作業のために取得されます。
+
+オペレーションスパンには、オペレーションタイプ、オペレーション名、最深部のユニークパスが含まれる。これらは、トランザクションやトレース内の特定の呼び出しの個々の期間や属性を表します。
+
+`GraphQL/operation/GraphQL/{operation_type}/{operation_name}/{deepest_unique_path}/{deepest_unique_path}。`
+
+**操作スパン属性**
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        **名前**
+      </th>
+
+      <th>
+        **説明**
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `graphql.operation.type`
+      </td>
+
+      <td>
+        クエリーまたはミューテーション
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `graphql.operation.name`
+      </td>
+
+      <td>
+        操作に与えられた名前または `< 匿名>`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `graphql.operation.query`
+      </td>
+
+      <td>
+        クエリに与えられた名前または `< 匿名>`
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+### フィールドリゾルバのスパン
+
+リゾルバースパンは、個々のフィールドの解決パスを利用して、与えられたトレースやトランザクション内で最もよく区別されます。たとえば、単なるbooksではなく、 `libraries.books` といった具合です。これらは、GraphQL操作の一部として解決される特定のフィールドの個々の期間と属性を表しています。
+
+`GraphQL/resolve/GraphQL/{path}。`
+
+**リゾルバのスパン属性**
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        **名前**
+      </th>
+
+      <th>
+        **説明**
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `graphql.field.name`
+      </td>
+
+      <td>
+        解決したフィールドの名前
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `graphql.field.returnType`
+      </td>
+
+      <td>
+        解決されたフィールドのリターンタイプ（例： `Book!`, `[String]`)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `graphql.field.parentType`
+      </td>
+
+      <td>
+        このフィールドの親のタイプ（例： `[本]`)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `graphql.field.path`
+      </td>
+
+      <td>
+        フィールドのフルリゾルバパス（例： `libraries.books`)
+      </td>
+    </tr>
+  </tbody>
+</table>

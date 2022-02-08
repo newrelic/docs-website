@@ -1,0 +1,77 @@
+---
+title: リスケのインストルメント
+tags:
+  - Agents
+  - Ruby agent
+  - Background jobs
+metaDescription: Additional information about configuring the New Relic Ruby instrumentation of Resque jobs.
+translationType: machine
+---
+
+New Relic の Ruby エージェントは、Web アプリケーション自体に加えて、Resque のジョブをインストルメントすることができます。
+
+## 職務上の主張を汲み取る [#capturing_job_parameters]
+
+Rubyエージェント・バージョン3.6.9以降では、トランザクション・トレースやトレースされたエラーの中にResqueのジョブ引数を取り込むように設定することができます。これは、失敗したジョブの再現を試みる際に特に有用です。デフォルトでは、ジョブ引数に機密情報が含まれている場合、この機能はオフになっています。この機能を有効にするには、お使いのエージェントのバージョンに合わせて、 **newrelic.yml** を編集してください。
+
+* newrelic_rpm 3.12.0以降の場合： `attributes.include: job.resque.args.*.`
+* newrelic_rpm 3.6.9～3.11.Xの場合： `resque.capture_params: true`
+
+この機能は、一般的な `capture_params` トップレベルの設定とは異なります。この設定では、HTTPリクエストパラメータをWebリクエストのトランザクショントレースやトレースエラーに取り込むかどうかを制御します。この2つの設定は個別に設定できます。
+
+## Resqueバージョン1.23.1以上 [#resque_1_23_1_plus]
+
+Resque 1.23.1以降を使用している場合、New RelicのResqueインスツルメンテーションを動作させるために、通常のエージェントのインストール手順以外にコードを変更する必要はありません。
+
+**例外：** 古いバージョンのResqueを使用していたときに、 `before_first_fork` 、 `before_fork` 、 `after_fork` フックから `NewRelic::Agent` メソッドの呼び出しが残っている場合は、Resque 1.23.1以降にアップグレードした後に、 ****これらの呼び出しを必ず削除してください。
+
+## 代替フォーキングモード [#resque_plugins]
+
+[resque-multi-job-forks](https://github.com/stulentsev/resque-multi-job-forks) または [resque-jobs-per-fork](https://github.com/samgranieri/resque-jobs-per-fork) ジェムは、Resqueのフォーキングの動作を変更し、個々のジョブごとにフォーキングせず、ジョブのバッチごとに1回フォーキングするようにします。同様に、 `FORK_PER_JOB` 環境変数を `false` に設定することで、Resqueでのフォークを完全に無効にすることができます。
+
+これらの代替分岐モードを使用する場合は、Ruby エージェント **バージョン 3.9.7 以降を使用するようにしてください** 。それ以前のバージョンの Ruby エージェントは、これらの代替フォーキング・モードでは正しく動作しません。3.9.7 以降にアップグレードする場合は、これらの環境でエージェントを動作させるために、 `NewRelic::Agent` のメソッドを直接呼び出す `manual_start` や `after_fork` などを必ず削除してください。
+
+## 旧Resqueバージョン(&lt; 1.23.1) [#old_resque]
+
+New Relic の Ruby エージェントは、Resque のバージョンが 1.23.1 よりも古い場合でも使用することができます。ただし、New Relic では、最良の結果を得るために Resque 1.23.1 以上にアップグレードすることを推奨しています。
+
+多くのアプリケーションは、Resque が公開しているフック(`before_fork`, `after_fork` など)を使用して、Resque ジョブのライフタイム中の重要なポイントにカスタムコードを注入しています。New Relic Ruby エージェントも、インスツルメンテーションを行うためには、これらのフックを使用する必要があります。
+
+Resque 1.23.1以前のバージョンでは、フックを複数回定義することができず、最後に定義されたものが優先されます。Resque のバージョン>= 1.23.1 (フックを複数回定義しても互いに上書きされない) にアップグレードできない場合は、必要な New Relic コードを追加することで、カスタムの Resque フックを修正することができます。以下はその例です。
+
+**例Resqueのカスタムフックの変更**
+
+カスタムコードを持たないフックについては、定義を省略することができます。この場合は、エージェントによって自動的にインストールされます。
+
+```ruby
+Resque.before_first_fork do
+  # ... your custom hook code ...
+  NewRelic::Agent.manual_start(:dispatcher => :resque,
+                               :sync_startup => true,
+                               :start_channel_listener => true)
+end
+    
+Resque.before_fork do |job|
+  # ... your custom hook code ...
+  NewRelic::Agent.register_report_channel(job.object_id)
+end
+    
+Resque.after_fork do |job|
+  # ... your custom hook code ...
+  NewRelic::Agent.after_fork(:report_to_channel => job.object_id,
+                             :report_instance_busy => false)
+end
+```
+
+## デッドロック・ジョブ [#deadlocks]
+
+一部のお客様（特にジョブのスループットが非常に高いお客様）から、Rubyエージェントを有効にしたResqueのワーカープロセスで断続的なデッドロックが報告されています。このようなデッドロックは、RubyエージェントがNew Relicサーバーにデータを送信するために使用するバックグラウンドスレッドと、Resqueのフォーク動作との間の相互作用がうまくいかないことが原因です。
+
+これらの問題を解決するには、以下のいずれかのオプションを使用します。
+
+* Resqueのプロセスを起動する際に、 `FORK_PER_JOB` 環境変数を `false` に設定することで、Resqueのフォーク動作を無効にします。
+* Ruby の標準ライブラリから `resolv-replace` ライブラリを使用して、Ruby のネイティブな DNS 解決コードを純粋な Ruby バージョンに置き換えます。
+
+Ruby エージェントは、Resque マスタープロセス内のバックグラウンドスレッドを使用して、New Relic コレクターにデータを送信します。環境によっては、このスレッドが DNS 解決時 (New Relic コレクターのホスト名を解決するとき) にネイティブロックを取得します。
+
+Resqueマスタープロセスのメインスレッドが子プロセスを作成するためにforkを呼び出している間に、このネイティブロックがバックグラウンドスレッドによって保持されていた場合、フォークされた子プロセスで保持されているとマークされたままになります。しかし、 `fork` は呼び出したスレッドをコピーするだけなので、ネイティブ・ロックを保持していたバックグラウンド・スレッドは子プロセスには存在せず、したがってネイティブ・ロックは決して解放されません。子プロセスが何らかのDNS解決を行おうとすると、同じネイティブロックを取得しようとし、デッドロックが発生します。このような事態を避けるために [Github issue](https://github.com/resque/resque/issues/1101) 、RubyのデフォルトのDNS解決パスの代わりに `resolv-replace` を使用してください。

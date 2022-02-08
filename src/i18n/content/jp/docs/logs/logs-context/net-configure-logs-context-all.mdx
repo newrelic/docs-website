@@ -1,0 +1,441 @@
+---
+title: .NETではコンテキストでのログの設定
+tags:
+  - Logs
+  - Enable log management in New Relic
+  - Configure logs in context
+metaDescription: 'For apps monitored by .NET, learn how to link log data with related data across the rest of the New Relic platform.'
+translationType: machine
+---
+
+.NETエージェント用のLogs in contextは、New RelicのログとAPMのデータをつなぎます。これらのデータをひとつのツールにまとめることで、問題の根本的な原因に素早くたどり着き、問題を特定して解決するために必要なログラインを見つけることができます。
+
+## .NETアプリケーションのセットアップ [#enable-logs-net]
+
+.NETで監視するAPMアプリのコンテキストでのログを有効にするには、以下の手順に従います。
+
+1. New Relic の [ロギングの設定がすでに完了していることを確認してください。これには、アプリケーションのログを収集し、New Relic に転送されるメタデータを拡張する、サポートされているログフォワーダーの設定が含まれます。](/docs/logs/enable-log-management-new-relic/enable-log-monitoring-new-relic/enable-log-management-new-relic/)
+2. をインストールするか、 [](/docs/agents/net-agent/installation/update-net-agent)を最新の .NET エージェントバージョンに更新し、 [分散型トレーシングを有効にする](/docs/distributed-tracing/enable-configure/quick-start/) 。 [.NET エージェントのバージョン 8.21 以上](/docs/release-notes/agent-release-notes/net-release-notes/) と [New Relic .NET エージェント API のバージョン 8.21 以上](/docs/agents/net-agent/net-agent-api) を使用して、コンテキスト内のログを取得します。
+3. Microsoft [.NET Framework 4.5 以上](https://dotnet.microsoft.com/download/dotnet-framework) または [.NET Core 2.0 以上](https://dotnet.microsoft.com/download/dotnet-core) へのインストールまたはアップデートを行ってください。
+4. 以下のようなロギングエクステンションをインストールして設定することで、ログデータを充実させることができます。
+
+* [ログフォーネット](#log4net)
+* [NLog](#nlog)
+* [セリロッグ](#serilog)
+
+5. [New Relic UI](#view-test) 
+
+でログデータを確認します。
+
+### log4netエクステンションの設定 [#log4net]
+
+[Apache log4net version 2.0.8 or higher](https://logging.apache.org/log4net/) エクステンションを使って、ログデータをNew Relicプラットフォームの他の部分の関連データとリンクさせることができます。
+
+<CollapserGroup>
+  <Collapser
+    id="example-log4net"
+    title="log4netのワークフロー図"
+  >
+    次の図は、New Relic log4net エクステンションの特定のコンポーネントを強調して、Apache log4net を介したログメッセージの流れを示しています。多くのログフォワーダーが利用できます。この例では、 [Fluentd](https://www.fluentd.org/) を使用しています。
+
+    ![ログ・イン・コンテキスト - Log4Net](./images/LogsInContext-Log4Net.png "New Relic の .NET エージェントを使ったログのコンテキスト用 log4net 拡張機能")
+
+    **Appender:** `NewRelicAppender`は、アプリケーションが生成するログイベントに、.NET エージェントから（API を使用して）コンテキスト情報を追加します。このコンテキスト情報はリンクメタデータと呼ばれ、New Relic がログメッセージを作成元のトランザクションやスパンにリンクさせるために使用します。このアペンダーは、エンリッチされたログイベントを下流のアペンダーに渡して処理を進めます。
+
+    `NewRelicAppender` は `ForwardingAppender` タイプなので、チェーンの最初のアペンダーである必要があります。また、動作させるためには、実際の出力先に書き込むことができる別のアペンダーを子として必要とします。
+
+    **Layout:** NewRelicLayout `NewRelicLayout` は、エンリッチされたログイベントを New Relic が期待する JSON 形式にフォーマットします。このレイアウトが割り当てられているアペンダーは、ログフォワーダーが期待する場所にあるファイルに JSON を出力するよう log4net に指示します。
+
+    **ログフォワーダー**: ログフォワーダーは、出力フォルダを監視し、適切にフォーマットされ、エンリッチされたログ情報をNew Relicのロギングエンドポイントに段階的に送信します。
+  </Collapser>
+
+  <Collapser
+    id="config-log4net"
+    title="log4net 2.0.8以上の設定"
+  >
+    Log4net は `appender` と `layout` を使用して、ログメッセージの保存とフォーマットを行います。 [`NewRelicAppender`](https://github.com/newrelic/newrelic-logenricher-dotnet/tree/master/src/Log4Net) は、アプリケーションに New Relic .NET エージェントが接続されている場合、そのエージェントからのコンテキスト情報をログメッセージに反映させます。アペンダーはエンリッチされたログメッセージを下流のアペンダーに渡し、ログメッセージの特定のユースケースを処理します。
+
+    log4netでのロギングの詳細については、Apache log4net [Getting started](https://logging.apache.org/log4net/) のドキュメントを参照してください。
+
+    log4netエクステンションのコンテキストでログを設定するには、次のようにします。
+
+    1. Visual Studio [NuGet Package Manager](https://docs.microsoft.com/en-us/nuget/consume-packages/install-use-packages-visual-studio) を使用して、 [`NewRelic.LogEnrichers.Log4Net`](https://www.nuget.org/packages/NewRelic.LogEnrichers.Log4Net/) パッケージを探してインストールします。
+
+    2. log4net の設定ファイルでは、 `NewRelicAppender` を第一レベルのアペンダーとして使用し、既存のアペンダーをその子として参照するように、ロギング設定を更新します。また、ログメッセージを出力先に書き込むアペンダーのレイアウトを、 `NewRelicLayout` に置き換えてください。
+
+       以下のlog4netの設定例では、ログイベントにNew Relicのリンクメタデータを付加しています。既存のログファイルに加えて、特定の JSON フォーマットの新しいログファイルを `C:lls\log4netExample.log.json` に出力し、ログフォワーダーで消費されます。
+
+       ```
+       <log4net>
+         <root>
+           <level value="ALL" />
+           <appender-ref ref="NewRelicAppender" />
+         </root>
+
+         <appender name="NewRelicAppender" type="NewRelic.LogEnrichers.Log4Net.NewRelicAppender, NewRelic.LogEnrichers.Log4Net" >
+           <threshold value="ALL"/>
+           <appender-ref ref="FileAppender" />
+         </appender>
+
+         <appender name="FileAppender" type="log4net.Appender.FileAppender">
+           <file value="C:\logs\log4netExample.log.json" />
+           <param name="AppendToFile" value="true" />
+           <layout type="NewRelic.LogEnrichers.Log4Net.NewRelicLayout, NewRelic.LogEnrichers.Log4Net">
+           </layout>
+         </appender>
+       </log4net>
+       ```
+
+       log4net 拡張機能を設定し、ロギングファイルを更新したら、New Relic にデータを送信するように拡張機能を設定します。ここでは、New Relic Logs の Fluentd プラグインを使った設定例を紹介します。
+
+       ```
+       <!--NewRelicLoggingExample.conf-->
+       <source>
+           @type tail 
+           path C:\logs\log4netExample.log.json
+           pos_file C:\logs\log4netExample.log.json.pos
+           tag logfile.*
+         <parse> 
+           @type json
+         </parse>
+       </source>
+         <match **> 
+           @type newrelic
+           license_key <YOUR NEW_RELIC_LICENSE_KEY>
+           base_uri https://log-api.newrelic.com/log/v1
+         </match>
+       ```
+  </Collapser>
+</CollapserGroup>
+
+### NLog拡張機能の設定 [#nlog]
+
+当社の [NLog 4.5 以上](https://nlog-project.org/) エクステンションを使用すると、ログデータを New Relic プラットフォームの他の部分の関連データとリンクさせることができます。
+
+<CollapserGroup>
+  <Collapser
+    id="example-nlog"
+    title="Nlogのワークフロー図"
+  >
+    [New Relic NLog extension](https://github.com/newrelic/newrelic-logenricher-dotnet) は、 `NewRelicJsonLayout` を提供し、New Relic のロギングエンドポイントが要求する方法でログイベントをフォーマットします。次に、アプリケーションにアタッチされたときに、.NET エージェントからのコンテキスト情報を追加します。次に、ロギングデータを出力フォルダに書き込むようにターゲットを設定することができます。ログフォワーダーは、このフォルダを監視し、ログ情報をNew Relicに逐次送信することができる。
+
+    次の図は、New Relic NLog エクステンションの特定のコンポーネントを強調して、NLog を介したログメッセージの流れを示しています。
+
+    ![コンテクストの中のログ - NLog](./images/LogsInContext-NLog.png "New Relic の .NET エージェントと連携してログを取得するための NLog 拡張機能")
+
+    **New Relic JSON Layout**: `NewRelicJsonLayout` は、アプリケーションが生成したログイベントに、.NET エージェントから (API を使用して) コンテキスト情報を追加し、New Relic が期待する JSON 形式でログメッセージを出力します。このコンテキスト情報は、リンクメタデータと呼ばれ、New Relic がログメッセージを作成されたトランザクションやスパンにリンクさせるために使用します。
+
+    `NewRelicAppender` は `ForwardingAppender` タイプなので、チェーンの最初のアペンダーである必要があります。また、動作させるためには、実際の出力先に書き込むことができる別のアペンダーを子として必要とします。
+
+    **File Target**: `FileTarget` は、ログメッセージが書き込まれるディスク上のファイルを定義するものである。このターゲットに `NewRelicJsonLayout` を追加することで、New Relic に転送するための出力を正しくフォーマットすることができます。
+
+    **ログフォワーダー**: ログフォワーダーは、 `FileTarget` の出力から、適切にフォーマットされ、エンリッチされたログデータを New Relic のロギングエンドポイントに送るように設定されています。
+
+    NLogでのロギングの詳細については、 [nlog-project.org documentation](https://nlog-project.org/download/) を参照してください。
+  </Collapser>
+
+  <Collapser
+    id="config-nlog"
+    title="Nlog 4.5以上の構成"
+  >
+    [NLog 4.5 以上の](https://nlog-project.org/) エクステンションを使用して、ログデータを New Relic プラットフォームの他の部分の関連データとリンクさせます。
+
+    1. Visual Studio [NuGet Package Manager](https://docs.microsoft.com/en-us/nuget/consume-packages/install-use-packages-visual-studio) を使って、 [`NewRelic.LogEnrichers.NLog`](https://www.nuget.org/packages/NewRelic.LogEnrichers.NLog/) パッケージを探してインストールします。
+
+    2. アプリケーションコードで、ロギング構成を更新して `NewRelicJsonLayout` を追加し、MappedDiagnosticsContext (**MDC**) または MappedDiagnosticsLogicalContext (**MDLC**) データを収集するかどうかを決定します。
+
+       以下の設定例では、新しいJSONファイルがディスクに書き込まれます。 [これらの設定オプション](https://github.com/nlog/NLog/wiki/File-target) の中には、使用するディスク容量やターゲットのパフォーマンスを管理するのに役立つものもあります。
+
+    * `アーカイブアボイサイズ`
+    * `maxArchiveFiles`
+    * `バッファサイズ`
+    * `enableArchiveFileCompression`
+    * `オートフラッシュ`
+    * `concurrentWrites`
+
+      [NLog AsyncWrapper Target](https://github.com/nlog/NLog/wiki/AsyncWrapper-target) は必須ではありませんが、ログファイルのフォーマットや出力を別のスレッドで行うことで、パフォーマンスの向上に役立つ場合があります。
+
+      **MDCおよびMDLCのデータを収集しない（デフォルト）。**
+
+      以下のコード例では、ログイベントにNew Relicのリンクメタデータを付加していますが、MDCやMDLCのデータは付加していません。既存のログファイルに加えて、ログフォワーダーが消費するために、特定の JSON フォーマットの新しいログファイルを `C:llgs\NLogExample.log.json` に出力します。
+
+      ```
+      var loggerConfig = new LoggingConfiguration();
+      var newRelicFileTarget = new FileTarget("NewRelicFileTarget");
+      newRelicFileTarget.Layout = new NewRelicJsonLayout();
+      newRelicFileTarget.FileName = "C:\logs\NLogExample.json";
+      loggerConfig.AddTarget(newRelicFileTarget);
+      loggerConfig.AddRuleForAllLevels("NewRelicFileTarget");
+      LogManager.Configuration = loggerConfig;
+      var logger = LogManager.GetLogger("Example");
+      ```
+
+      **MDCまたはMDLCのデータを収集する。**
+
+      アプリケーションがMDCまたはMDLCを使用している場合、これらのコレクションのアイテムを含めるために、 `NewRelicJsonLayout` を構成することができます。次のコード例では、MDC および MDLC データの収集を可能にするための追加の構成を追加しています。前の例と同様に、ログフォワーダが消費するために、特定のJSON形式で新しいログファイルを `C:\\NLogExample.log.json` に出力します。
+
+      ```
+      var loggerConfig = new LoggingConfiguration();
+      var newRelicFileTarget = new FileTarget("NewRelicFileTarget");
+      var newRelicLayout = new NewRelicJsonLayout
+      {
+        IncludeMdc = `true,`
+        IncludeMdlc = `true`
+      };
+
+      newRelicFileTarget.Layout = newRelicLayout;
+      newRelicFileTarget.FileName = "C:\logs\NLogExample.json";
+      loggerConfig.AddTarget(newRelicFileTarget);
+      loggerConfig.AddRuleForAllLevels("NewRelicFileTarget");
+      LogManager.Configuration = loggerConfig;
+      var logger = LogManager.GetLogger("Example");
+      ```
+
+      NLog 拡張機能の設定とログファイルの更新が完了したら、New Relic にデータを送信するように拡張機能を設定します。ここでは、Fluentd プラグインを使ってログを New Relic に転送する設定例を紹介します。
+
+      ```
+      <!--NewRelicLoggingExample.conf-->
+      <source>
+        @type tail
+        path C:\logs\NLogExample.log.json
+        pos_file C:\logs\NLogExample.log.json.pos 
+        tag logfile.*
+        <parse>
+          @type json
+        </parse>
+      </source>
+      <match **>
+        @type newrelic
+        license_key <YOUR NEW_RELIC_LICENSE_KEY>
+        base_uri https://log-api.newrelic.com/log/v1
+      </match>
+      ```
+  </Collapser>
+
+  <Collapser
+    id="nlog-file"
+    title="Nlogファイルによる設定"
+  >
+    New Relic NLog エクステンションは、ファイルベースの設定プロバイダを使って設定することもできます。以下のサンプルコードでは、 `App.config` ファイルに含まれる設定に基づいて、ロガーを作成しています。
+
+    **`.config` ファイルを使った Logger のインスタンス化**
+
+    ```
+    var logger = LogManager.GetLogger("NewRelicLog");
+    logger.Info("Hello, New Relic!");
+    ```
+
+    **サンプル `App.config` ファイル**
+
+    ```
+    <?xml version="1.0" encoding="utf-8" ?>
+    <configuration>
+      <configSections>
+        <section name="nlog" type="NLog.Config.ConfigSectionHandler, NLog"/>
+      </configSections>
+      <startup>
+        <supportedRuntime version="v4.0" sku=".NETFramework,Version=v4.5" />
+      </startup>
+      <nlog xmlns="http://www.nlog-project.org/schemas/NLog.xsd"
+          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+        <extensions>
+          <add assembly="NewRelic.LogEnrichers.NLog" />
+        </extensions>
+        <targets>
+          <target name="NewRelicLogFile" xsi:type="File" fileName="C:/path/to/NewRelicLog.json">
+            <layout xsi:type="newrelic-jsonlayout">
+            </layout>
+          </target>
+        </targets>
+        <rules>
+          <logger name="NewRelicLog" minlevel="Info" writeTo="newRelicLogFile" />
+        </rules>
+      </nlog>
+    </configuration>
+    ```
+  </Collapser>
+</CollapserGroup>
+
+### Serilog 2.5以上の拡張機能の設定 [#serilog]
+
+当社の [Serilog](https://serilog.net/) エクステンションを使用すると、ログデータをNew Relicプラットフォームの他の部分の関連データとリンクさせることができます。これには
+
+* [Serilog 2.5以上](https://serilog.net/)
+* [Serilog File Sinks v4.0以上](https://www.nuget.org/packages/Serilog.Sinks.File/)
+
+<CollapserGroup>
+  <Collapser
+    id="example-serilog"
+    title="Serilogのワークフロー図"
+  >
+    Serilogは構造化されたログフレームワークで、アプリケーションからのログメッセージを記録し、 `LogEvent` を作成してメッセージデータを保存します。 [Enrichers](https://github.com/serilog/serilog/wiki/Enrichment) を使用すると、ログイベントに追加情報を追加することができます。 [Sinks](https://github.com/serilog/serilog/wiki/Provided-Sinks) と [Formatters](https://github.com/serilog/serilog/wiki/Formatting-Output) を使用すると、下流での消費や表示のために、これらのログイベントをフォーマットして出力することができます。
+
+    次の図は、New Relic Serilog エクステンションの特定のコンポーネントを強調して、Serilog を介したログメッセージの流れを示しています。多くのログフォワーダーが利用できます。この例では、 [Fluentd](https://www.fluentd.org/) を使用しています。
+
+    ![ログインコンテクストSerilog](./images/LogsInContext-Serilog.png "New Relic の .NET エージェントを使用したコンテキストでのログ用 Serilog 拡張機能")
+
+    **New Relic Enricher**: `NewRelicEnricher` は、アプリケーションが生成したログイベントに、.NET エージェントから (API を使用して) コンテキスト情報を追加します。このコンテキスト情報は、リンクメタデータと呼ばれ、New Relic がログメッセージをそのメッセージが作成されたトランザクションやスパンにリンクさせるために使用します。
+
+    **New Relic Formatter**: `NewRelicFormatter` は、エンリッチされたログイベントを、New Relic が期待する JSON 形式に変換します。シンクは、ログフォワーダーが期待する場所にあるファイルに JSON を出力するよう Serilog に指示します。
+
+    **New Relic Log Forwarder**: ログフォワーダーは、 `FileTarget` の出力から、適切にフォーマットされ、エンリッチされたログデータを New Relic のロギングエンドポイントに送るように設定されています。
+
+    Serilogのログイベントについては、GitHubのSerilogドキュメント（ [）を参照してください。](https://github.com/serilog/serilog/wiki/Getting-Started) 。
+  </Collapser>
+
+  <Collapser
+    id="config-serilog"
+    title="Serilog 2.5以上の構成"
+  >
+    Serilog拡張機能のコンテキストでログを設定するには
+
+    1. Visual Studio [NuGet Package Manager](https://docs.microsoft.com/en-us/nuget/consume-packages/install-use-packages-visual-studio) を使って、 [`NewRelic.LogEnrichers.Serilog`](https://www.nuget.org/packages/NewRelic.LogEnrichers.Serilog) パッケージを探してインストールします。
+
+    2. アプリケーションコードで、ロギング設定を更新し、 `NewRelicEnricher` と `NewRelicFormatter` を追加します。
+
+       以下のコード例では、ログイベントに New Relic のリンクメタデータを付加しています。既存のログファイルに加えて、特定の JSON フォーマットの新しいログファイルを `C:llgs\SerilogExample.log.json` に出力し、ログフォワーダーが消費するようにします。
+
+       ```
+       var loggerConfig = new LoggerConfiguration()
+            
+         loggerConfig
+            .Enrich.WithThreadName()
+            .Enrich.WithThreadId()    
+            .Enrich.WithNewRelicLogsInContext()
+            .WriteTo.File( path: @"C:\logs\ExistingLoggingOutput.txt")
+            .WriteTo.File(
+                formatter: new NewRelicFormatter(), 
+                path: @"C:\logs\SerilogExample.log.json");
+
+       var log = loggerConfig.CreateLogger();
+       ```
+
+       この設定により、新しいJSONファイルがディスクに書き込まれます。これらの [設定オプション](https://github.com/serilog/serilog-sinks-file) の中には、使用するディスク容量やシンクのパフォーマンスを管理するのに役立つものもあります。
+
+    * `restrictedToMinimumLevel`
+    * `バッファード`
+    * `ローリングインターバル`
+    * `rollOnFileSizeLimit`
+    * `retainedFileCountLimit`
+
+      必須ではありませんが、 [Serilog Asynchronous Sink Wrapper](https://www.nuget.org/packages/Serilog.Sinks.Async) を使用すると、ログファイルのフォーマットや出力を別のスレッドで行うことができ、パフォーマンスの向上に役立ちます。
+
+    3. Serilog エクステンションの設定とログファイルの更新が完了したら、New Relic にデータを送信するようにエクステンションを設定します。
+
+       ここでは、Fluentdプラグインを使ってログをNew Relicに転送する設定例を紹介します。
+
+       ```
+        <!--NewRelicLoggingExample.conf-->
+        <source> 
+            @type tail 
+            path C:\logs\SerilogExample.log.json
+            pos_file C:\logs\SerilogExample.log.json.pos 
+            tag logfile.*
+         <parse> 
+            @type json 
+        </parse>
+        </source>
+        <match **> 
+            @type newrelic 
+            license_key <YOUR NEW_RELIC_LICENSE_KEY>
+            base_uri https://log-api.newrelic.com/log/v1
+        </match>
+       ```
+  </Collapser>
+
+  <Collapser
+    id="serilog-file"
+    title="Serilogファイルベースのコンフィギュレーション"
+  >
+    また、New Relic Serilog エクステンションをファイルベースの設定プロバイダで設定することもできます。以下の追加 NuGet パッケージが必要です。
+
+    * [Microsoft.Extensions.Configuration](https://www.nuget.org/packages/Microsoft.Extensions.Configuration/)
+    * [Serilog.Settings.Configuration](https://www.nuget.org/packages/Serilog.Settings.Configuration)
+
+      次のコード例では、 `appSettings.json` ファイルに含まれる設定に基づいてロガーを作成しています。
+
+      **`appsettings.json を使用した logger のインスタンス化`**
+
+      ```
+      var builder = new ConfigurationBuilder()
+              .AddJsonFile("appsettings.json");
+      
+      var configuration = builder.Build();
+
+      var logger = new LoggerConfiguration()
+              .ReadFrom.Configuration(configuration)
+              .CreateLogger();
+      ```
+
+      **サンプル `appsettings.json` ファイル**
+
+      ```
+      {
+        "Serilog": {
+          "Using": [ 
+                "Serilog.Sinks.Console",
+                "Serilog.Sinks.File",
+                "NewRelic.LogEnrichers.Serilog" 
+          ],
+          "MinimumLevel": "Debug",
+          "Enrich": [ "WithNewRelicLogsInContext" ],
+          "WriteTo": [
+            {
+              "Name": "File",
+              "Args": {
+                "path": "C:\\Logs\\SerilogExample.log.json",
+                "formatter": "NewRelic.LogEnrichers.Serilog.NewRelicFormatter, NewRelic.LogEnrichers.Serilog"
+                }
+            }
+          ],
+
+          "Properties": {
+            "Application": "NewRelic Logging Serilog Example"
+          }
+        }
+      }
+      ```
+
+      次のサンプルコードは、 `web.config` ファイルに含まれる設定に基づいてロガーを作成します。 [Serilog.Settings.AppSettings](https://www.nuget.org/packages/Serilog.Settings.AppSettings) NuGet パッケージが必要です。
+
+      **`.config` ファイルを使ったロガーのインスタンス化**
+
+      ```
+      var logger = new LoggerConfiguration()
+          .ReadFrom.AppSettings()
+          .CreateLogger();
+      ```
+
+      **サンプル `web.config` ファイル**
+
+      ```
+      <?xml version="1.0" encoding="utf-8"?>
+      <configuration>
+        <appSettings>
+          <add key="serilog:using:NewRelic" value="NewRelic.LogEnrichers.Serilog" />
+          <add key="serilog:using:File" value="Serilog.Sinks.File" />
+          <!--Add other enrichers here-->
+          <add key="serilog:enrich:WithNewRelicLogsInContext" />
+          <add key="serilog:write-to:File.path" value="C:\logs\SerilogExample.log.json" />
+          <add key="serilog:write-to:File.formatter" value="NewRelic.LogEnrichers.Serilog.NewRelicFormatter, NewRelic.LogEnrichers.Serilog" />
+        </appSettings>
+
+      ```
+  </Collapser>
+</CollapserGroup>
+
+## UIでのログ表示 [#view-test]
+
+ログアペンダーが正しく設定されていることを確認するためには、アプリケーションを実行した後、New Relic One で、クエリ演算子 `has:span.id has:trace.id` を使って [のログデータを確認してください。](/docs/logs/log-management/ui-data/use-logs-ui/)
+
+すべての設定が正しく行われ、データがエンリッチされたメタデータとともにNew Relicに転送されていれば、ログはJSONとして出力され、 `trace.id` と `span.id` フィールドが含まれているはずです。UI にログデータが表示されない場合は、[トラブルシューティングの手順](/docs/logs/log-management/troubleshooting/no-log-data-appears-ui) に従ってください。
+
+## 次のステップ [#what-next]
+
+APMのログを文脈に合わせて設定した後は、ログデータを最大限に活用しましょう。
+
+* [Logs UI](/docs/logs/log-management/ui-data/use-logs-ui/) を使って、プラットフォーム全体のロギングデータを調べてみましょう。
+* [APM UI](/docs/logs/log-management/ui-data/use-logs-ui/#links) で、アプリケーションのパフォーマンスのコンテキストでログを確認できます。 [エラーのトラブルシューティング](/docs/apm/apm-ui-pages/error-analytics/errors-page-find-fix-verify-problems/) [分散型トレース](/docs/apm/distributed-tracing/ui-data/understand-use-distributed-tracing-data) 、スタックトレース、アプリケーションログなどを使用します。
+* [インフラストラクチャ監視エージェント](/docs/logs/enable-log-management-new-relic/enable-log-monitoring-new-relic/forward-your-logs-using-infrastructure-agent/) でログを転送することで、アプリケーションとプラットフォームの両方のパフォーマンスデータをより深く把握することができます。 [インフラストラクチャーのログ](/docs/logs/log-management/ui-data/use-logs-ui/#links) をUIで確認することができます。
+* [アラートの設定](/docs/alerts-applied-intelligence/new-relic-alerts/alert-conditions/create-alert-conditions/).
+* [データのクエリ](/docs/query-your-data/explore-query-data/get-started/introduction-querying-new-relic-data/) と [ダッシュボードの作成](/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards/).

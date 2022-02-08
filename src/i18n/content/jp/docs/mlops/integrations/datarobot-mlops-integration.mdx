@@ -1,0 +1,273 @@
+---
+title: Datarobot MLOpsの統合
+tags:
+  - Integrations
+  - MLOps integrations
+  - Datarobot integrations
+metaDescription: Send your machine learning model data from Datarobot to New Relic to understand your model's performance.
+translationType: machine
+---
+
+Datarobotは、機械学習モデルを本番環境に展開するためのツールを提供します。DatarobotをNew Relicと統合することで、システム全体のマシンラーニングのパフォーマンスを計測、分析、トラブルシューティング、最適化することができるようになります。性能を厳密に観察することで、モデルの入力や出力、そして両者の関係性の変化に素早く対応できるようになります。
+
+Datarobot InsightsからモデルのパフォーマンスメトリクスをNew Relicに送信することで、アルゴリズムのリアルタイムモニタリングが可能になります。メトリクスデータを使いやすいチャートで表示し、アルゴリズムの状態を一目で把握することで、トラブルシューティングを迅速かつ効率的に行うことができます。
+
+## DatarobotとNew Relicの統合 [#integrate-algorithmia]
+
+まず、DatarobotはKafkaトピックを使用して、機械学習アルゴリズムのパフォーマンスメトリクスからInsightsをストリーミングします。次に、New Relic コネクタ (別のアルゴリズム) が、Kafka トピックを特定の New Relic アカウント用のメトリクス データ ペイロードに変換します。
+
+![DatarobotからNew Relicへのデータの移動を示すフローチャートです。](./images/algorithmia-flow.png "DatarobotからNew Relicへのデータフロー")
+
+<figcaption>
+  DatarobotはKafkaとEvent Flowsを使ってNew Relicにデータを送ります。
+</figcaption>
+
+[Datarobot の Event Flows](https://algorithmia.com/developers/integrations/message-broker) では、Kafka のトピックに新しいメッセージが設定されると、設定した New Relic のコネクターアルゴリズムが呼び出されます。コネクターはメトリクスを変換して、New Relic アカウントに送信します。
+
+## DatarobotのデータをNew Relicに接続します。 [#connect]
+
+インシデント・インテリジェンスをDatarobotの機械学習モデルと統合することで、機械学習モデルのパフォーマンスを監視することができます。
+
+New RelicでDatarobotのイベントフローのモニタリングを始めましょう。
+
+1. **APIキーの取得：** From [one.newrelic.com](https://one.newrelic.com) アカウントメニューから **APIキー** をクリックして、意味のある名前でアカウントのユーザーキーを作成します。この名前は後々のためにメモしておきましょう。APIキーの詳細については、 [ドキュメント](/docs/apis/get-started/intro-apis/new-relic-api-keys/) をご覧ください。
+2. **ダッシュボードの作成：** From [one.newrelic.com](https://one.newrelic.com) **Dashboards** にアクセスし、 **Import dashboards** ボタンをクリックします。JSONコードをコピーして、 **Paste your JSON field code** に貼り付けます。
+
+YOUR_ACCOUNT_IDの値をお客様のアカウントIDに更新してください。
+
+```json
+{
+"name": "Datarobot Dashboard for Default Metrics",
+"description": null,
+"permissions": "PUBLIC_READ_WRITE",
+"pages": [
+{
+"name": "Datarobot Dashboard for Default Metrics",
+"description": null,
+"widgets": [
+{
+  "visualization": {
+    "id": "viz.line"
+  },
+  "layout": {
+    "column": 1,
+    "row": 1,
+    "height": 3,
+    "width": 4
+  },
+  "title": "Runtime Duration by Algorithm",
+  "rawConfiguration": {
+    "legend": {
+      "enabled": true
+    },
+    "nrqlQueries": [
+      {
+        "accountId": <var>YOUR_ACCOUNT_ID</var>,
+        "query": "SELECT average(algorithmia.duration_milliseconds) FROM Metric TIMESERIES FACET `algorithm_name` LIMIT 10 SINCE 1800 seconds ago"
+      }
+    ],
+    "yAxisLeft": {
+      "zero": true
+    }
+  },
+  "linkedEntityGuids": null
+},
+{
+  "visualization": {
+    "id": "viz.line"
+  },
+  "layout": {
+    "column": 5,
+    "row": 1,
+    "height": 3,
+    "width": 4
+  },
+  "title": "Throughput by Algorithm",
+  "rawConfiguration": {
+    "legend": {
+      "enabled": true
+    },
+    "nrqlQueries": [
+      {
+        "accountId": <var>YOUR_ACCOUNT_ID</var>,
+        "query": "SELECT count(algorithmia.duration_milliseconds) FROM Metric TIMESERIES FACET `algorithm_name` LIMIT 10 SINCE 1800 seconds ago"
+      }
+    ],
+    "yAxisLeft": {
+      "zero": true
+    }
+  },
+  "linkedEntityGuids": null
+}
+]
+}
+]
+}
+```
+
+3. **Datarobot Insights を New Relic 用に設定する：** Datarobot を New Relic 用に設定する方法については、 [Datarobot のドキュメント](https://algorithmia.com/developers/algorithmia-enterprise/algorithmia-insights) をご利用ください。
+4. **New Relic のコネクタアルゴリズムを作成する:** Python 3.8 を使用してコネクタアルゴリズムを作成します。アルゴリズムを生成するコードを書くのが初めての方は、 [Datarobot の入門ガイド](https://algorithmia.com/developers/algorithm-development/your-first-algo) をご覧ください。
+
+```python
+import Datarobot
+import json
+from datetime import datetime
+from newrelic_telemetry_sdk import GaugeMetric, MetricClient
+
+client = Datarobot.client()
+metric_client = MetricClient(os.environ["newrelic_api_key"])
+
+
+def convert_str_timestamp_to_epoch(str_time):
+obj_time = datetime.strptime(str_time, "%Y-%m-%dT%H:%M:%S.%f")
+return int(obj_time.timestamp() * 1000)
+
+def get_operational_metrics(payload):
+ALGORITHM_TAGS = {
+"algorithm_version",
+"request_id",
+"time",
+"algorithm_name",
+"session_id",
+"algorithm_owner"
+}
+inference_metrics = {
+key: payload[key] for key in payload.keys() ^ ALGORITHM_TAGS
+}
+return inference_metrics
+
+def send_to_newrelic(inference_metrics, insights_payload):
+newrelic_metrics = []
+for key, value in inference_metrics.items():
+name = "algorithmia." + key
+epoch_time = convert_str_timestamp_to_epoch(insights_payload["time"])
+tags = {
+    "algorithm_name": insights_payload["algorithm_name"],
+    "algorithm_version": insights_payload["algorithm_version"],
+    "algorithm_owner": insights_payload["algorithm_owner"],
+    "request_id": insights_payload["request_id"],
+    "session_id": insights_payload["session_id"],
+}
+
+newrelic_metrics.append(GaugeMetric(
+    name=name, value=value, tags=tags, end_time_ms=epoch_time
+))
+
+response = metric_client.send_batch(newrelic_metrics)
+response.raise_for_status()
+
+
+def apply(input):
+insights_payload = input
+inference_metrics = get_operational_metrics(insights_payload)
+send_to_newrelic(inference_metrics, insights_payload)
+return None
+```
+
+これらの依存関係を含める。
+
+```python
+algorithmia>=1.0.0,<2.0
+newrelic_telemetry_sdk==0.4.2
+```
+
+アルゴリズムの構築が完了したら、このサンプルペイロードでテストを行い、正常に動作することを確認してください。出力は次のようになります。
+
+```
+{
+"risk_score": 0.2,
+"duration_milliseconds": 8,
+"algorithm_version": "1.0.6",
+"session_id": "rses-f28bb94a-5556-4aeb-a6d2-89493626bf4f",
+"time": "2021-02-20T00:21:54.867231",
+"algorithm_name": "credit_card_approval",
+"request_id": "req-9f5345b4-a1cd-431c-a43a-bd2a06f4a6f4",
+"algorithm_owner": "asli"
+}
+```
+
+5. **API キーを使って設定する:** New Relic API キーを [Datarobot のシークレットストアに追加する](https://algorithmia.com/developers/platform/algorithm-secrets).
+6. **DatarobotのイベントフローをNew Relicで設定する：** Datarobotのドキュメント [イベントベースの機械学習フローをNew Relicに送信するためのコネクタアルゴリズムの設定については、](https://algorithmia.com/developers/integrations/message-broker) を参照してください。
+
+## 機械学習モデルのモニタリング [#monitor]
+
+以下の手順で、マシンラーニングのデータをNew Relicで観察することができます。
+
+1. **APIキーの取得：** From [one.newrelic.com](https://one.newrelic.com) アカウントメニューから **APIキー** をクリックして、意味のある名前でアカウントのユーザーキーを作成します。この名前は後々のためにメモしておきましょう。APIキーの詳細については、 [ドキュメント](/docs/apis/get-started/intro-apis/new-relic-api-keys/) をご覧ください。
+2. **ダッシュボードの作成：** From [one.newrelic.com](https://one.newrelic.com) **Dashboards** にアクセスし、 **Import dashboards** ボタンをクリックします。JSONコードをコピーして、 **Paste your JSON field code** に貼り付けます。
+
+YOUR_ACCOUNT_IDの値をお客様のアカウントIDに更新してください。
+
+```json
+{
+"name": "Datarobot Dashboard for Default Metrics",
+"description": null,
+"permissions": "PUBLIC_READ_WRITE",
+"pages": [
+{
+"name": "Datarobot Dashboard for Default Metrics",
+"description": null,
+"widgets": [
+{
+  "visualization": {
+    "id": "viz.line"
+  },
+  "layout": {
+    "column": 1,
+    "row": 1,
+    "height": 3,
+    "width": 4
+  },
+  "title": "Runtime Duration by Algorithm",
+  "rawConfiguration": {
+    "legend": {
+      "enabled": true
+    },
+    "nrqlQueries": [
+      {
+        "accountId": <var>YOUR_ACCOUNT_ID</var>,
+        "query": "SELECT average(algorithmia.duration_milliseconds) FROM Metric TIMESERIES FACET `algorithm_name` LIMIT 10 SINCE 1800 seconds ago"
+      }
+    ],
+    "yAxisLeft": {
+      "zero": true
+    }
+  },
+  "linkedEntityGuids": null
+},
+{
+  "visualization": {
+    "id": "viz.line"
+  },
+  "layout": {
+    "column": 5,
+    "row": 1,
+    "height": 3,
+    "width": 4
+  },
+  "title": "Throughput by Algorithm",
+  "rawConfiguration": {
+    "legend": {
+      "enabled": true
+    },
+    "nrqlQueries": [
+      {
+        "accountId": <var>YOUR_ACCOUNT_ID</var>,
+        "query": "SELECT count(algorithmia.duration_milliseconds) FROM Metric TIMESERIES FACET `algorithm_name` LIMIT 10 SINCE 1800 seconds ago"
+      }
+    ],
+    "yAxisLeft": {
+      "zero": true
+    }
+  },
+  "linkedEntityGuids": null
+}
+]
+}
+]
+}
+```
+
+3. **アラート通知の設定：** ダッシュボードをいくつか作成したら、データにアラートを出すことができます。チャートから NRQL アラート条件を作成するには、チャートメニュー <Icon name="fe-more-horizontal"/>をクリックし、次に **アラート条件の作成** をクリックします。条件に名前を付けてカスタマイズしたら、それを既存のポリシーに追加したり、新しいポリシーを作成することができます。
+4. **Get notified:** アラート条件を作成したら、どのように通知するかを選択できます。通知チャンネルの設定方法については、 [のドキュメントを参照してください](/docs/alerts-applied-intelligence/new-relic-alerts/alert-notifications/notification-channels-control-where-send-alerts/) 。
+5. **インシデントを相関させる：** 通知に加えて、Incident Intelligenceを使用してインシデントを相関させることができます。 [決定事項を使用してインシデントを相関させる方法については、ドキュメントを参照してください](/docs/alerts-applied-intelligence/applied-intelligence/incident-intelligence/change-applied-intelligence-correlation-logic-decisions/) 。

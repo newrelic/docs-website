@@ -1,0 +1,352 @@
+---
+title: インフラ監視用Dockerコンテナ
+tags:
+  - Infrastructure
+  - Install the infrastructure agent
+  - Linux installation
+metaDescription: 'You can run a containerized version of our infrastructure agent, which can monitor metrics for the container itself, as well as the underlying host.'
+translationType: machine
+---
+
+Linux用インフラストラクチャ監視エージェント [は、デフォルトでDocker環境](/docs/infrastructure/install-infrastructure-agent/linux-installation/docker-instrumentation-infrastructure) をサポートしています。コンテナOSを使用している場合、またはエージェントをコンテナとしてデプロイする必要があるという制限がある場合、インフラストラクチャ・モニタリング・エージェントのコンテナ版を実行することができます。これにより、基礎となるホストだけでなく、コンテナ自体のメトリクスを監視することができます。
+
+[カスタム（推奨）](#custom-setup) または [基本セットアップ](#simple-setup) を使用すると、インフラストラクチャエージェントをコンテナ環境内で実行することができます。ホストは、コンテナ化されたエージェントであれ、コンテナ化されていないバージョンであれ、一度に1つのエージェントのインスタンスしか実行できません。
+
+Linux 用のインフラ監視エージェントを試してみませんか？ [New Relic アカウントを作成](https://newrelic.com/signup) 無料でご利用いただけます。クレジットカードは必要ありません。
+
+## 必要なこと [#requirements]
+
+インフラストラクチャエージェントのコンテナ版には、Docker 1.12以上が必要です。コンテナは、当社のエージェントがサポートする [Linux ディストリビューションおよびバージョン](/docs/infrastructure/install-infrastructure-agent/get-started/compatibility-requirements-infrastructure-agent#operating-systems) のいずれかを実行する必要があります。コンテナイメージは、AMD64およびARM64アーキテクチャで利用・サポートされています。
+
+ログフォワーダーは、コンテナ化されたエージェントには含まれていません。すべての機能を提供する基盤となるホストにエージェントをインストールすることをお勧めします。
+
+## カスタムセットアップ（推奨） [#custom-setup]
+
+以下は、LinuxでカスタムDockerイメージを作成するための基本的な手順です。これにより、インフラストラクチャエージェントを、基盤となるホストを監視できるコンテナとして展開することができます。
+
+**推奨：** [`newrelic/infrastructure` イメージ](https://hub.docker.com/r/newrelic/infrastructure/) を拡張し、独自の `newrelic-infra.yml` エージェント [設定ファイル](/docs/infrastructure/new-relic-infrastructure/configuration/configure-infrastructure-agent) を使用してください。イメージが構築されると、起動時の設定を追加することなく、簡単にコンテナをスピンアップすることができます。Dockerでは環境変数を使ってシークレットを提供しないでください。
+
+### Docker CLI
+
+1. `newrelic-infra.yml` エージェント [設定ファイル](/docs/infrastructure/new-relic-infrastructure/configuration/configure-infrastructure-agent) New Relic [ライセンスキー](/docs/accounts/install-new-relic/account-setup/license-key) を作成します。config オプションの説明については、 [configuration settings](/docs/infrastructure/install-configure-infrastructure/configuration/infrastructure-configuration-settings) を参照してください。
+
+   ```
+   license_key: <var>YOUR_LICENSE_KEY</var>
+   ```
+
+2. `Dockerfileを作成` extending the `newrelic/infrastructure` image, and add your config to `/etc/newrelic-infra.yml`:
+
+   ```
+   FROM newrelic/infrastructure:latest
+   ADD newrelic-infra.yml /etc/newrelic-infra.yml
+   ```
+
+3. イメージの構築とタグ付け
+
+   ```
+   docker build -t <var>YOUR_IMAGE_NAME</var> .
+   ```
+
+4. 構築したイメージから、必要な [必要な run フラグ](#required-privileges) でコンテナを実行します。
+
+   ```
+   docker run \
+       -d \
+       --name newrelic-infra \
+       --network=host \
+       --cap-add=SYS_PTRACE \
+       --privileged \
+       --pid=host \
+       -v "/:/host:ro" \
+       -v "/var/run/docker.sock:/var/run/docker.sock" \
+       <var>YOUR_IMAGE_NAME</var>
+   ```
+
+5. UIでデータを確認する方法など、次のステップの可能性については、 [What's next?](/docs/infrastructure/install-infrastructure-agent/linux-installation/install-infrastructure-monitoring-agent-linux#what-next)
+
+### Docker Compose
+
+1. 設定ファイルを保存するフォルダを作成します。
+
+   ```
+   mkdir ~/newrelic-infra-setup
+   ```
+
+2. ディレクトリを先ほど作成したものに変更します。
+
+   ```
+   cd ~/newrelic-infra-setup
+   ```
+
+3. `newrelic-infra.yml` エージェント [設定ファイル](/docs/infrastructure/new-relic-infrastructure/configuration/configure-infrastructure-agent) New Relic [ライセンスキー](/docs/accounts/install-new-relic/account-setup/license-key) を作成します。config オプションの説明については、 [configuration settings](/docs/infrastructure/install-configure-infrastructure/configuration/infrastructure-configuration-settings) を参照してください。
+
+   ```
+   echo "license_key: <var>YOUR_LICENSE_KEY</var>" > newrelic-infra.yml
+   ```
+
+4. `newrelic-infra.dockerfile` を `newrelic/infrastructure` イメージを拡張して作成し、 `/etc/newrelic-infra.yml` に設定を追加します。
+
+   ```
+   touch newrelic-infra.dockerfile
+   ```
+
+   ```
+   vim newrelic-infra.dockerfile #you can use any text editor
+   ```
+
+5. 以下の内容をファイルに記述してください。
+
+   ```
+   FROM newrelic/infrastructure:latest
+   ADD newrelic-infra.yml /etc/newrelic-infra.yml
+   ```
+
+6. 作成 `docker-compose.yaml`:
+
+   ```
+   touch docker-compose.yaml
+   ```
+
+   ```
+   vim docker-compose.yaml #you can use any text editor
+   ```
+
+   以下の内容をファイルに記述してください。
+
+   ```
+   version: '3'
+
+   services:
+     agent:
+       container_name: newrelic-infra
+       build:
+         context: .
+         dockerfile: newrelic-infra.dockerfile
+       cap_add:
+         - SYS_PTRACE
+       network_mode: host
+       pid: host
+       privileged: true
+       volumes:
+         - "/:/host:ro"
+         - "/var/run/docker.sock:/var/run/docker.sock"
+       restart: unless-stopped
+   ```
+
+7. Build and start `docker-compose`:
+
+   ```
+   docker-compose -f docker-compose.yaml up -d
+   ```
+
+8. UIでデータを確認する方法など、次のステップの可能性については、 [What's next?](/docs/infrastructure/install-infrastructure-agent/linux-installation/install-infrastructure-monitoring-agent-linux#what-next)
+
+## 基本設定 [#simple-setup]
+
+基本的なセットアップをベースのNew Relicインフラストラクチャイメージで使用するには
+
+### Docker CLI [#basic-cli]
+
+1. [required run flags](#required-privileges) でコンテナを実行します。
+
+   ```
+   docker run \
+      -d \
+      --name newrelic-infra \
+      --network=host \
+      --cap-add=SYS_PTRACE \
+      --privileged \
+      --pid=host \
+      -v "/:/host:ro" \
+      -v "/var/run/docker.sock:/var/run/docker.sock" \
+      -e NRIA_LICENSE_KEY=<var>YOUR_LICENSE_KEY</var> \
+      newrelic/infrastructure:latest
+   ```
+
+2. UIでデータを確認する方法など、次のステップの可能性については、 [What's next?](/docs/infrastructure/install-infrastructure-agent/linux-installation/install-infrastructure-monitoring-agent-linux#what-next)
+
+### Docker Compose [#basic-compose]
+
+1. 作成 `docker-compose.yaml`:
+
+   ```
+   touch docker-compose.yaml
+   ```
+
+   ```
+   vim docker-compose.yaml #you can use any text editor
+   ```
+
+   以下の内容をファイルに記述してください。
+
+   ```
+   version: '3'
+
+   services:
+     agent:
+       container_name: newrelic-infra
+       image: newrelic/infrastructure:latest
+       cap_add:
+         - SYS_PTRACE
+       network_mode: host
+       pid: host
+       privileged: true
+       volumes:
+         - "/:/host:ro"
+         - "/var/run/docker.sock:/var/run/docker.sock"
+       environment:
+         NRIA_LICENSE_KEY: "<var>YOUR_LICENSE_KEY</var>"
+       restart: unless-stopped
+   ```
+
+2. Build and start `docker-compose`:
+
+   ```
+   docker-compose -f docker-compose.yaml up -d
+   ```
+
+3. UIでデータを確認する方法など、次のステップの可能性については、 [What's next?](/docs/infrastructure/install-infrastructure-agent/linux-installation/install-infrastructure-monitoring-agent-linux#what-next)
+
+## 必要なコンテナ権限 [#required-privileges]
+
+Linux の名前空間を介してホストや他のコンテナからリソースが隔離されているため、コンテナはデフォルトで、基盤となるホストのリソースを非常に限定的に表示および制御することができます。これらの特別な権限がないと、インフラストラクチャエージェントはホストとそのコンテナを監視することができません。
+
+インフラストラクチャエージェントは、システムファイルとシステムコールを使用して、そのホストに関するデータを収集します。インフラストラクチャエージェントがデータを収集する方法の詳細については、 [インフラストラクチャの監視とセキュリティに関するドキュメント](/docs/infrastructure/new-relic-infrastructure/getting-started/infrastructure-security) を参照してください。必要な権限は以下の通りです。
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "460px" }}>
+        プリビレッジ
+      </th>
+
+      <th>
+        説明
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `--network=host`
+      </td>
+
+      <td>
+        コンテナのネットワーク名前空間をホストのネットワーク名前空間に設定します。これにより、エージェントはホストに関するネットワークメトリクスを収集することができます。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-v"/:/host:ro"`
+      </td>
+
+      <td>
+        Bind は、ホストのルートボリュームをコンテナにマウントします。このホストのルートへの読み取り専用のアクセスにより、エージェントはホストからプロセスやストレージのメトリクス、およびインベントリデータを収集することができます。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `--cap-add=SYS_PTRACE`
+      </td>
+
+      <td>
+        システムプロセスをトレースするLinux機能を追加します。これにより、エージェントはホスト上で実行されているプロセスに関するデータを収集することができます。詳しくはこちら [](https://docs.docker.com/engine/reference/run/#runtime-privilege-and-linux-capabilities).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `--privileged`
+      </td>
+
+      <td/>
+    </tr>
+
+    <tr>
+      <td>
+        `--pid=host`
+      </td>
+
+      <td/>
+    </tr>
+
+    <tr>
+      <td>
+        `-v"/var/run/docker.sock:/var/run/docker.sock"`
+      </td>
+
+      <td>
+        バインドは、ホストの Docker daemon ソケットをコンテナにマウントします。これにより、エージェントはDocker daemonソケットを介してEngine APIに接続し、ホストのコンテナデータを収集することができます。
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## インストール後の手順 [#next-steps]
+
+インストール完了後の次のステップについては、 [What's next?](/docs/infrastructure/install-infrastructure-agent/linux-installation/install-infrastructure-monitoring-agent-linux#what-next)
+
+## 回収した在庫 [#inventory]
+
+[インベントリ](/docs/infrastructure/new-relic-infrastructure/infrastructure-ui-pages/infrastructure-inventory-page-search-your-entire-infrastructure) は、インフラストラクチャ・エージェントの内蔵データ・コレクターから収集されます。インフラストラクチャエージェントは、コンテナで動作するLinuxシステムのこのデータを収集します。
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "150px" }}>
+        **カテゴリー**
+      </th>
+
+      <th style={{ width: "200px" }}>
+        **ソース**
+      </th>
+
+      <th>
+        **使用して収集したデータ**
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td rowSpan={2}>
+        `メタデータ`
+      </td>
+
+      <td>
+        `agent_config`
+      </td>
+
+      <td>
+        エージェントの完全な設定ファイル
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `システム`
+      </td>
+
+      <td>
+        `uptime -s, /etc/redhat-release, /proc/cpuinfo, /etc/os-release, /proc/sys/kernel/random/boot_id, /proc/sys/kernel/osrelease, /sys/class/dmi/id/product_uuid, /sys/devices/virtual/dmi/id/sys_vendor, /sys/devices/virtual/dmi/id/product_name`
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## コンテナデータ [#view]
+
+インフラストラクチャエージェントがDockerコンテナ内で実行されると、インフラストラクチャエージェントがホスト上でネイティブに実行されているときに収集できるのと同じ [ホストコンピュートデータ](/docs/infrastructure/new-relic-infrastructure/infrastructure-ui-pages/infrastructure-compute-page-measure-resource-usage) と [イベントデータ](/docs/infrastructure/new-relic-infrastructure/infrastructure-ui-pages/infrastructure-events-page-live-feed-every-config-change) を収集することができます。詳しくは、 [あなたのDockerコンテナのデータを見る方法についてのドキュメント](/docs/infrastructure/install-infrastructure-agent/linux-installation/docker-instrumentation-infrastructure#find-data) をご覧ください。
+
+## コンテナ化されたエージェントイメージ [#view]
+
+コンテナ化されたエージェントイメージは、アルパインのベースイメージから構築されます。
+
+アルパインはバージョン0.0.55からベースイメージとして使用されています。これは、 `latest` タグで指定されているものです。それ以前のバージョンでは、CentOS 7がベースイメージとして使われていました。
+
+## ソースコードのチェック [#source-code]
+
+この統合は、オープンソース・ソフトウェアです。 [そのソースコードを閲覧することができます。](https://github.com/newrelic/infrastructure-bundle "新しいウィンドウにリンクが開きます。") 改良点を送ることもできますし、自分でフォークを作ってビルドすることもできます。

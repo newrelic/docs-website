@@ -1,0 +1,94 @@
+---
+title: アプリケーション警告の有効化(Python)
+type: troubleshooting
+tags:
+  - Agents
+  - Python agent
+  - Troubleshooting
+metaDescription: 'If your New Relic Python application doesn''t report data and you see an activation warning message, try these troubleshooting steps.'
+translationType: machine
+---
+
+## 問題
+
+[最新のPythonエージェント](/docs/release-notes/agent-release-notes/python-release-notes) を使用していて、次のような警告メッセージのログエントリが表示されています。
+
+```
+Attempt to activate application in a process different to where the agent harvest thread was started.
+```
+
+または
+
+```
+Attempt to reactivate application or record transactions in a process different to where the agent was already registered.
+```
+
+アプリケーションは New Relic UI でレポートしているように表示されますが、データは New Relic に報告されません。
+
+## 解決策
+
+この問題をあなたのアプリで解決するために
+
+1. [`newrelic.agent.register_application`](/docs/agents/python-agent/python-agent-api/register_application) or [`newrelic.agent.application`](/docs/agents/python-agent/python-agent-api/application) 内部の関数の中に移動させます。 `__name__ == __main__` チェックします。
+
+2. [`newrelic.agent.register_application`](/docs/agents/python-agent/python-agent-api/register_application) や `newrelic.agent.application` の呼び出しがどこで発生しているのかわからない場合は、 [エージェントデバッグログ](/docs/agents/python-agent/troubleshooting/python-agent-logging) を使って、以下の内容を含むエントリを検索してください。
+
+   ```
+   newrelic.core.agent DEBUG - Application was activated from:
+   ```
+
+3. エージェントを起動したコールのエントリーのトレースバックを使用します。正常と考えられる以下のフレームを参照してください。
+
+   ```
+   File "newrelic/api/transaction.py", line x, in __init__
+       application.activate()
+   ```
+
+   ```
+   File "newrelic/hooks/application_celery.py", line x, in process_initializer
+       application_instance().activate()
+   ```
+
+4. 別の場所でアクティベーションが発生している場合は、以下の例を参考にして修正してください。
+
+   **前です。**
+
+   ```
+   import newrelic.agent
+
+   # This will cause the agent to activate whenever custom_event is imported
+   app = newrelic.agent.application()
+
+   def custom_event():
+       newrelic.agent.record_custom_event('CustomEvent', {}, application=app)
+   ```
+
+   **後**:
+
+   ```
+   import newrelic.agent
+
+   def custom_event():
+       app = newrelic.agent.application()
+       newrelic.agent.record_custom_event('CustomEvent', {}, application=app)
+   ```
+
+データが表示されない場合のその他のヒントについては、 [Pythonのトラブルシューティング・ドキュメント](/docs/agents/python-agent/troubleshooting/no-data-appears-python) を参照してください。
+
+## 原因
+
+これは通常、 [`newrelic.agent.register_application`](/docs/agents/python-agent/python-agent-api/register_application) または [`newrelic.agent.application`](/docs/agents/python-agent/python-agent-api/application) の呼び出しがインポート時に発生したことが原因です。
+
+**例**:
+
+```
+import newrelic.agent
+
+# This will cause the agent to activate whenever custom_event is imported
+app = newrelic.agent.application()
+
+def custom_event():
+    newrelic.agent.record_custom_event('CustomEvent', {}, application=app)
+```
+
+コードは通常、Celeryやマルチプロセッシングなどのフレームワークでフォークが発生する前にロードされます。その結果、コードは子プロセスではなく親プロセスにインポートされ、エージェントを起動します。エージェントは親プロセスで起動されるため、子プロセスではデータが収集されません。

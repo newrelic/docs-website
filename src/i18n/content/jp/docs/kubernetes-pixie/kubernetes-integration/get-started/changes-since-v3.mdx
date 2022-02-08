@@ -1,0 +1,244 @@
+---
+title: Kubernetesの統合：v3での変更点
+tags:
+  - Integrations
+  - Kubernetes integration
+  - Changelog
+metaDescription: Changes introduced in Kubernetes Integration version 3
+translationType: machine
+---
+
+<Callout title="v3 BETA">
+  Kubernetes integration v3は、現在レイトステージのベータ版で、2022年春の間に一般提供を開始する予定です。是非、お試しいただき、ご意見をお聞かせください。
+</Callout>
+
+<Callout title="統合版とチャート版">
+  Kubernetesインテグレーションv3(`appVersion`)は、 `nri-bundle` chart `version` 4に含まれています。
+</Callout>
+
+## 概要 [#overview]
+
+<Callout title="v3 BETA">
+  Kubernetes Integrationのバージョン3で報告されたデータは、バージョン2に関して変更はありません。今回のメジャーリリースでは、設定のしやすさ、安定性、ユーザーエクスペリエンスに重点を置きました。
+</Callout>
+
+バージョン3以降のNew RelicのKubernetesソリューションは、よりモジュール化された構成を目指した新しいアーキテクチャを採用しており、ソリューションの導入方法をより自由に選択できるようになり、より多くの環境に対応できるようになっています。
+
+### アーキテクチャの変更 [#architecture]
+
+今回の新バージョンでは、統合のメインコンポーネントである `newrelic-infrastructure` DaemonSet を、 `nrk8s-ksm` 、 `nrk8s-kubelet` 、 `nrk8s-controlplane` の 3 つの異なるコンポーネントに分割し、最初のコンポーネントをデプロイメント、次の 2 つを DaemonSets としました。これにより、ランタイムではなく、スケジューリングやデプロイメント時に決定することが容易になります。
+
+さらに、スクレイピングプロセスのライフサイクルも変更しました。これにより、Kubernetes informersのような高レベルのKubernetes APIを活用できるようになりました。Kubernetes informersは、クラスター・オブジェクトのビルトイン・キャッシュと監視を提供します。このため、各コンポーネントには2つのコンテナが用意されています。
+
+1. インテグレーションのコンテナで、メトリクスの収集を担当します。
+2. New Relic Infrastructure Agent を搭載したコンテナで、メトリクスを New Relic Platform に送信するために使用します。
+
+### Kub-State-Metricsコンポーネント [#nrk8s-ksm]
+
+私たちは、Kubernetesの組織の下にあるOSSプロジェクト [`kube-state-metrics`](https://github.com/kubernetes/kube-state-metrics) に基づいて、クラスタ状態のメトリクスを構築しています。以前は、私たちのソリューションは1つのDaemonSetで構成されていたため、どのポッドがメトリクスのスクレイピングを担当するかを決めるために、選挙プロセスが行われていました。このプロセスは、単にローカリティに基づいていました。担当するポッドは、KSMのデプロイメントとノードを共有するポッドになります。
+
+KSM出力にはクラスタ全体のデータが含まれているため、この出力を解析するにはかなりの量のリソースが必要になります。これは大規模なクラスター運営者が想定できることですが、この大量のリソースを必要とするのはDaemonSetの任意の1つのインスタンスであるという事実から、クラスター運営者は、実際には1つしか必要としないDaemonSet全体にそのような消費を許可しなければなりません。
+
+KSMスクレイピングのもう一つの問題は、KSMポッドがどのノードに住んでいるのかを把握することでした。これを行うためには、APIサーバーに連絡して、いくつかのラベルでポッドをフィルタリングする必要がありますが、統合が短命であることから、キャッシュとウォッチャーはAPIサーバーによって効果的に使用されていませんでした。このため、大規模なクラスタでは、DaemonSetのすべてのインスタンスが、KSMポッドが隣に住んでいるかどうかを把握しようとして、名前のないポッドリスト要求でコントロールプレーンに殺到するという問題が発生していました。
+
+この問題に対処するため、KSMのスクレイピング方法に2つの大きな変更を加えることにしました。
+
+1. DaemonSet ポッドから KSM をスクレイピングする責任を、別の単一インスタンスの Deployment に分割しました。
+2. コードをリファクタリングして長時間稼働させることで、キャッシュと監視の仕組みが組み込まれたKubernetesのインフォーマーを活用できるようにしました。
+
+したがって、特定の Deployment `nrk8s-ksm` が KSM を見つけてスクレイピングすることになります。このポッドは長命で単一であるため、エンドポイントインフォーマーを使用して KSM ポッドの IP を見つけ、スクレイピングすることができます。インフォーマーは、クラスタ内のインフォーマーのリストを自動的にローカルにキャッシュし、新しいインフォーマーを監視することで、ポッドがどこにあるかを知るためのリクエストでAPIサーバーを荒らさないようにします。
+
+シャード化されたKSMのセットアップはまだサポートされていませんが、この新しいコードはこの将来の改善を念頭に置いて作られています。
+
+### Kubeletコンポーネント [#nrk8s-kubelet]
+
+Kubeletは "Kubernetesエージェント "と呼ばれ、すべてのKubernetesノード上で動作するサービスで、コントロールプレーンからの指示に従ってコンテナを作成する役割を担っています。Kubeletはコンテナランタイムと密接に連携しているため、CPU、メモリ、ディスク、ネットワークの使用状況など、我々の統合のためのインフラメトリクスの主な情報源となっています。徹底的にドキュメント化されているわけではありませんが、Kubelet APIはほとんどのKubernetesメトリクスのデファクトスタンダードなソースです。
+
+Kubeletのスクレイピングは、一般的に低リソースの操作です。このことと、可能な限りインターノードのトラフィックを最小限にしたいという意図から、 `nrk8s-kubelet` は DaemonSet として実行され、各インスタンスは自分と同じノードで実行されている Kubelet からメトリックを収集します。
+
+`nrk8s-kubelet` は、正常に動作するために `hostNetwork` を必要としなくなり、代わりに Node IP を使用して Kubelet に接続します。このプロセスが失敗した場合、 `nrk8s-kubelet` はフォールバックして、APIサーバーのプロキシを介してノードに到達します。このフォールバックの仕組みは新しいものではありませんが、多くのKubletをプロキシするとAPIサーバの負荷が増大する可能性があるため、非常に大規模なクラスタをお持ちの場合は、この点に留意されることをお勧めします。APIサーバーがプロキシとして使用されているかどうかは、ログに以下のようなメッセージが表示されるかどうかで確認できます。
+
+```
+Trying to connect to kubelet through API proxy
+```
+
+### コントロールプレーンコンポーネント [#nrk8s-controlplane]
+
+CPコンポーネントを検索して接続できるようにすることは、今回の作業の中でも最も困難な作業の一つでした。その主な理由は、CPコンポーネントの構成方法が多岐にわたっているからである。さらに、異なるCPコンポーネントを直接構成することも可能である。
+
+以下のようなシナリオを想定して、現在のアプローチを構築しました。
+
+1. CPモニタリングは、KubeadmやMinikubeなどのように、CPが箱から出しても到達可能な環境では、すぐに機能するはずです。
+2. CPを自動検出できない設定の場合。例えば、クラスターの外に住んでいる場合は、ユーザーが自分でエンドポイントを指定する方法を提供する必要があります。
+3. 自動検出に失敗してもデプロイメントが失敗することはありませんが、手動で定義されたエンドポイントにヒットしない場合は失敗します。
+
+Kubeadmなどの主要なKubernetesディストリビューションでは、ホストのネットワーク名前空間上のlocalhostのみをリッスンするように構成されたCPコンポーネントが展開されているため、 `nrk8s-controlplane` を、 `hostNetwork: true` を持つDaemonSetとして展開することにしました。
+
+オートディスカバーと静的エンドポイントをサポートするように構成しました。様々なディストリビューションにすぐに対応できるように、設定項目として幅広い既知のデフォルトを提供しています。これをコードではなく設定で行うことで、オートディスカバリーを必要に応じて微調整することができます。
+
+また、セレクターごとに複数のエンドポイントを設定できるようにし、正しいエンドポイントを自動的に検出するプローブ機構を追加しました。これにより、同じセレクターを使って、ポートやプロトコルなど、さまざまな設定を試すことができます。
+
+etcd CPコンポーネントのスクレイピング構成は以下のようになっており、すべてのコンポーネントに同じ構造と機能が適用されています。
+
+```yaml
+config:
+  etcd:
+    enabled: true
+    autodiscover:
+      - selector: "tier=control-plane,component=etcd"
+        namespace: kube-system
+        matchNode: true
+        endpoints:
+          - url: https://localhost:4001
+            insecureSkipVerify: true
+            auth:
+              type: bearer
+          - url: http://localhost:2381
+    staticEndpoint:
+      url: https://url:port
+      insecureSkipVerify: true
+      auth: {}
+```
+
+`staticEndpoint` が設定されている場合、コンポーネントはスクレイプを試みます。エンドポイントにヒットしない場合、統合は失敗します。そのため、手動でエンドポイントを設定したときにサイレントエラーが発生することはありません。
+
+`staticEndpoint` が設定されていない場合、コンポーネントは autodiscover エントリを繰り返し検索し、指定された `名前空間` で `セレクタ` にマッチし、オプションとして DaemonSet の同じノードで実行されている最初のポッドを探します（ `matchNode` が `true` に設定されている場合）。ポッドが発見されると、コンポーネントは、http `HEAD` リクエストを発行して、リストアップされたエンドポイントを順にプローブし、最初にプローブに成功したものを、選択された認証タイプを使用してスクレイプします。
+
+上記では、 `etcd` コンポーネントの設定の抜粋を示しましたが、スクレイピングのロジックは他のコンポーネントでも同じです。
+
+コントロールプレーンモニタリングの設定方法の詳細については、 [コントロールプレーンモニタリング](/docs/kubernetes-pixie/kubernetes-integration/advanced-configuration/configure-control-plane-monitoring) のページをご確認ください。
+
+### ヘルムチャート [#helm-charts]
+
+Helmは、当社のソリューションをお客様のクラスターに展開するために提供する主要な手段です。チャートの複雑さも、1つのデーモンセットだけを管理しなければならなかった前バージョンから大幅に増加しました。現在は、1つのデプロイメントと2つのデーモンセットを管理しなければならず、それぞれの設定が若干異なります。これにより、チャートや生成されたマニフェストの上に手動でパッチを適用する必要がなくなり、ソリューションをニーズに合わせて柔軟に適応させることができるようになりました。
+
+新しいHelmチャートが公開する新機能の一部をご紹介します。
+
+* `securityContext` をすべてのポッドで完全にコントロールすることができます。
+* ポッドの完全な制御 `ラベル` と `アノテーション` すべてのポッドに対して
+* 追加の環境変数、 `ボリューム` 、 `volumeMounts を追加する機能。`
+* どのエンドポイントに到達するか、オートディスカバリーの動作、スクレイピングの間隔など、統合の設定を完全にコントロールすることが可能
+* Helmのイディオムやスタンダードとの連携強化
+
+切り替えられるすべてのスイッチの詳細は、 [チャートの `README.md`](https://github.com/newrelic/helm-charts/blob/master/charts/newrelic-infrastructure-v3/README.md) で確認できます。
+
+## マイグレーションガイド [#migration-guide]
+
+以前のバージョンからの移行をできるだけ簡単にするために、古いnewrelic-infrastructureチャートで指定可能だったオプションのほとんどを、新しいものに変換する互換性レイヤーを開発しました。この互換性レイヤーは一時的なもので、将来的には削除される予定ですので、このガイドをよく読んで、人の目を気にしながら設定を移行することをお勧めします。
+
+### KSMの構成 [#ksm-config]
+
+<Callout variant="tip">
+  KSMのモニタリングは、ほとんどの構成ですぐに機能するので、ほとんどのユーザーはこの設定を変更する必要はありません。
+</Callout>
+
+* `disableKubeStateMetrics` は、 `ksm.enabled` に置き換えられました。デフォルトは同じです（KSMスクレイピングが有効）。
+* `kubeStateMetricsScheme`, `kubeStateMetricsPort`, `kubeStateMetricsUrl`, `kubeStateMetricsPodLabel`, `kubeStateMetricsNamespace` は、より包括的で柔軟な `ksm.config` で置き換えられました。
+
+`ksm.config` オブジェクトは以下のような構造になっています。
+
+```yaml
+ksm:
+  config:
+   # When autodiscovering KSM, force the following scheme. By default, `http` is used.
+   scheme: "http"
+   # Label selector to find kube-state-metrics endpoints. Defaults to `app.kubernetes.io/name=kube-state-metrics`.
+   selector: "app.kubernetes.io/name=kube-state-metrics"
+   # Restrict KSM discovery to this particular namespace. Defaults to all namespaces.
+   namespace: ""
+   # When autodiscovering, only consider endpoints that use this port. By default, all ports from the discovered `endpoint` are probed.
+   #port: 8080
+   # Override autodiscovery mechanism completely and specify the KSM url directly instead
+   #staticUrl: "http://test.io:8080/metrics"
+```
+
+### コントロールプレーンの構成 [#controlplane-configuration]
+
+コントロールプレーンの設定が大幅に変更されました。これまでコントロールプレーン監視を有効にしていた方は、 [Configure control plane monitoring](/docs/kubernetes-pixie/kubernetes-integration/advanced-configuration/configure-control-plane-monitoring) の専用ページをご覧になることをお勧めします。
+
+以下のオプションは、上記のリンク先のセクションで説明されている、より包括的な設定に置き換えられています。
+
+* `apiServerSecurePort`
+* `etcdTlsSecretName`
+* `etcdTlsSecretNamespace`
+* `controllerManagerEndpointUrl`, `etcdEndpointUrl`, `apiServerEndpointUrl`, `schedulerEndpointUrl`
+
+### エージェントの構成 [#agent-configuration]
+
+これまで `config` で指定されていたエージェント設定ファイルは、 `common.agentConfig` に移動しました。ファイルのフォーマットは変更されておらず、設定可能なオプションの全範囲は、 [ここ](/docs/infrastructure/install-infrastructure-agent/configuration/infrastructure-agent-configuration-settings/) で確認できます。
+
+以下のエージェントオプションは、以前は"エイリアス" `values.yml` ファイルのルートにあったもので、現在は使用できません。
+
+* `logFile` は、 `common.agentConfig.log_file` で置き換えられました。
+* `eventQueueDepth` は、 `common.agentConfig.event_queue_depth` で置き換えられました。
+* `customAttributes` の形式が yaml オブジェクトに変更されました。以前のフォーマットは、手動でJsonエンコードされた文字列、例えば `{"team":"devops"} でした。` 、推奨はしませんが、まだ受け入れられます。
+* 以前は、 `customAttributes` には、デフォルトの `clusterName` エントリがあり、これを削除すると望ましくない結果になる可能性がありました。今後は、 `customAttributes` を全体的に安全に上書きできるようになりました。
+* `discoveryCacheTTL` は、kubernetes のインフォーマーを使ったディスカバリーが行われていないため、完全に削除されています。
+
+### インテグレーションの設定 [#integrations-configuration]
+
+インテグレーションの設定は、以前は `integrations_config` で、配列形式で行われていました。
+
+```yaml
+integrations_config:
+  - name: nri-redis.yaml
+    data:
+      discovery:  # ...
+      integrations:  # ...
+```
+
+仕組みは変わりませんが、より使いやすいようにフォーマットを変更しました。
+
+```yaml
+integrations:
+  nri-redis-sampleapp:
+    discovery:  # ...
+    integrations:  # ...
+```
+
+さらに、discoveryコマンドに `--port` と `--tls` のフラグを使用することが必須となりました。以前は以下のように動作していました。
+
+```yaml
+integrations:
+  nri-redis-sampleapp:
+    discovery:
+      command:
+        exec: /var/db/newrelic-infra/nri-discovery-kubernetes
+```
+
+v3以降では、 `--port` と `--tls` を指定する必要があります。
+
+```yaml
+integrations:
+  nri-redis-sampleapp:
+    discovery:
+      command:
+        exec: /var/db/newrelic-infra/nri-discovery-kubernetes --tls --port 10250
+```
+
+この変更が必要なのは、v2以下では、 `nrk8s-kubelet` コンポーネント（またはそれに相当するもの）が `hostNetwork: true` で実行されていたため、 `nri-discovery-kubernetes` は `localhost` と plain http を使って kubelet に接続できたからです。セキュリティ上の理由から、これはもう使えないので、今後は両方のフラグを指定する必要があります。
+
+Kubernetesにおけるオンホスト統合の設定方法の詳細については、 [Monitor services in Kubernetes](/docs/kubernetes-pixie/kubernetes-integration/link-apps-services/monitor-services-running-kubernetes) ページをご確認ください。
+
+### その他のチャート値 [#misc-chart-values]
+
+統合設定とは関係ありませんが、ヘルムチャートの以下の雑多なオプションも変更されています。
+
+* `runAsUser` は、 `securityContext` に置き換えられました。これはポッドに直接テンプレート化されており、より多くの設定が可能です。
+* `リソース` は、現在3つの異なるワークロードを展開しているため、削除しました。それぞれのリソースは、以下で個別に設定できます。
+* `ksm.resources`
+* `kubelet.resources`
+* `controlPlane.resources`
+* 同様に、 `許容範囲` は3つに分割され、以前のものは有効ではなくなりました。
+* `ksm.tolerations`
+* `kubelet.tolerations`
+* `controlPlane.tolerations`
+
+
+* この3つのデフォルトは、 `NoSchedule` と `NoExecute の任意の値を許容することです。`
+
+
+* `イメージ` とそのサブキーのすべてが、現在展開されている3つのイメージそれぞれの個別のセクションに置き換えられました。
+* `images.forwarder.*` infrastructure-agentのフォワーダーを設定します。
+* `images.agent.*` インフラストラクチャー・エージェントとオンホスト・インテグレーションをバンドルしたイメージを設定します。
+* `images.integration.*` k8sデータのスクレイピングを担当するイメージを設定します。

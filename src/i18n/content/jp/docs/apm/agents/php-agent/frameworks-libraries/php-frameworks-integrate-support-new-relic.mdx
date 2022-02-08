@@ -1,0 +1,196 @@
+---
+title: PHPフレームワーク。New Relic のサポートを統合しました。
+tags:
+  - Agents
+  - PHP agent
+  - Frameworks and libraries
+metaDescription: An overview of what New Relic is and what developers or maintainers of PHP frameworks need to do in order to integrate support for New Relic.
+translationType: machine
+---
+
+このドキュメントは、PHP フレームワークの開発者やメンテナを対象としています。New Relic のサポートを追加してフレームワークを拡張する方法を提案します。
+
+PHPエージェントは、フレームワークをサポートするために、 フレームワークのコードのどこにWebトランザクションが適切な名前を つけられるかを把握し、クラスや関数の呼び出しなどの情報に基づいて Webトランザクションを命名します。このソリューションは脆弱で、開発者がコードを変更した場合に影響を受けます。New Relic は、フレームワークの開発者に対して、自分が保守しているフレームワークのアウトオブボックスのユーザーエクスペリエンスを向上させるために必要ないくつかのコールを行うことを推奨しています。
+
+## ユーザーのために [#frameworks]
+
+New Relic は、New Relic のブラウザモニタリングのために、ウェブトランザクション名と、JavaScript のヘッダーとフッターを挿入する場所を特定することができます。しかし、エンドユーザーの体験を向上させ、パフォーマンスを向上させ、コードのメンテナンスを容易にするためには、フレームワークの開発者が自らこの作業を行うべきである。
+
+New Relic のネイティブサポートを追加してユーザーを支援するかどうかは、さまざまなフレームワークの開発者に委ねられています。ほとんどの場合、New Relicのサポートを追加するには、フレームワークのコードのどこかに3つのAPIコールを挿入する必要があります。
+
+## 用語解説
+
+New Relic のサポートを追加する最善の方法を理解するためには、相互作用の重要なポイントを理解することが役立ちます。
+
+<table>
+  <thead>
+    <tr>
+      <th width={150}>
+        **用語**
+      </th>
+
+      <th>
+        **定義**
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        **Webトランザクション**
+      </td>
+
+      <td>
+        **ウェブトランザクション** は、あなたのサイトへのアセットリクエスト（またはユーザーヒット）です。フレームワークでは、MVCのディスパッチ機構で処理されることが多いです。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        **メトリクス**
+      </td>
+
+      <td>
+        **メトリクス** は、タイミング情報を報告する名前付きのエンティティです。New Relic はこれらのメトリクスを使用して、 [APM **Summary** page](/docs/apm/applications-menu/monitoring/apm-overview-page) などのチャートやページを生成します。例えば、New Relic は MySQL への呼び出しを計測し、ユーザーがデータを選択または更新するたびに `Database/select` または `Database/update` というメトリクスを生成します。
+
+        メトリクスにはタイミングデータしか含まれていません。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        **トランザクショントレース**
+      </td>
+
+      <td>
+        毎回の収穫期に、New Relic はユーザーが定義した閾値を下回った最も遅いウェブトランザクションを記録します。これは、 **トランザクショントレース** 。
+
+        単純なメトリクスよりも詳細な情報が得られます。有効にすると、どの関数が呼び出され、どのくらいの時間がかかったかを正確に示す詳細なコールグラフが含まれます。低速のクエリ文については、呼び出し中のすべてのデータを難読化します。
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## 名義変更 [#dev]
+
+ウェブ取引にどのように名前を付けるかは、ユーザー体験の質に影響します。
+
+<Callout variant="important">
+  トランザクション名の末尾に角括弧`[suffix]`を使わないでください。New Relicは名前から自動的に角括弧を除去します。代わりに、必要に応じて丸括弧`(suffix)`、またはその他の記号を使ってください。
+</Callout>
+
+**例：**
+
+ブログ形式のフレームワークであれば、ユーザーの活動に応じて様々なトランザクションに名前を付けます。 `display`, `edit`, `login`, etc.
+
+MVCアーキテクチャを使用している場合、適切な命名規則は `controller/action` です。 ****トランザクション名にリクエスト固有のデータを含めないでください。例えば、実際のリクエストURLを使用すると、 [メトリックグループの問題](/docs/features/metric-grouping-issues) につながります。
+
+<table>
+  <thead>
+    <tr>
+      <th width={150}>
+        **プラットフォーム**
+      </th>
+
+      <th>
+        **トランザクションのネーミング例**
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        **Drupal 7**
+      </td>
+
+      <td>
+        ディスパッチは `menu_execute_active_handler()` で行われます。これは `call_user_func_array()` を呼び出し、第一引数にアクションの名前を指定します。これは、Web トランザクション名として設定するものです。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        **CakePHP 1.3**
+      </td>
+
+      <td>
+        CakePHPには、 `Dispatcher` クラスがあり、 `_invoke` メソッドがあります。これは、指定されたアクションで適切なコントローラクラスを呼び出すもので、トランザクションは `controller/action` という名前で、 `controller` はコントローラクラスの名前です。
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+コードを特定のコントローラとアクション（MVCを使用している場合）、またはアクション（MVCを使用していない場合）にルーティングしたいポイントで、以下のようなコードを挿入します。
+
+**コントローラーとアクション** （MVCを使用している場合）。
+
+```
+if (extension_loaded ('newrelic')) {
+  newrelic_name_transaction ($controller . '/' . $action);
+}
+```
+
+**アクションのみ** （MVCを使用していない）。
+
+```
+if (extension_loaded ('newrelic')) {
+  newrelic_name_transaction ($action);
+}
+```
+
+## JavaScriptのヘッダーとフッターの挿入 [#page-load-timing]
+
+ページのロードタイミング（リアルユーザーモニタリング（RUM）と呼ばれることもあります）については、JavaScriptのヘッダとフッタを挿入します。これにより、生成されたページに対するエンドユーザーの体験をモニターすることができます。
+
+* **推奨：** フレームワークにすべてのページのヘッダーとフッターを生成する中央機能がある場合は、ここにJavaScriptのコードをインストールします。
+* テンプレート駆動型のフレームワークでは、ヘッダーやフッターのテンプレートに挿入します。
+
+<CollapserGroup>
+  <Collapser
+    id="page-generator"
+    title="ページジェネレータ機能への挿入"
+  >
+    ヘッダー ****は、生成されたページのできるだけ上部に挿入しなければなりません。 `< meta http-equiv.... の直後です。>` タグの直後が理想的な場所です。 ****JavaScript、CSSスタイルシート、その他のリンクされた、または埋め込まれたコンテンツの前でなければなりません。
+
+    ```
+    if (extension_loaded ('newrelic')) {
+      echo newrelic_get_browser_timing_header();
+    }
+    ```
+
+    `newrelic_get_browser_timing_header()` は、オプションで `bool` 引数を取り、デフォルトは **true** です。これは、返される文字列をスクリプトタグで囲むべきかどうかを示す。
+
+    **推奨：** `< /body>` page close タグの直前に、生成されたページの一番最後にフッターを挿入します。
+
+    ```
+    if (extension_loaded ('newrelic')) {
+        echo newrelic_get_browser_timing_footer();
+    }
+    ```
+
+    `newrelic_get_browser_timing_footer()` は、オプションで `bool` を取ります。デフォルトは、 **true** です。これは、返される文字列をスクリプトタグで囲むべきかどうかを示します。
+  </Collapser>
+
+  <Collapser
+    id="template"
+    title="テンプレートへの挿入"
+  >
+    このヘッダーテンプレートを例に挙げてみましょう。
+
+    ```
+    <?php if (extension_loaded ('newrelic')) {
+      echo newrelic_get_browser_timing_header();
+    } ?>
+    ```
+
+    このフッターテンプレートを参考にしてください。
+
+    ```
+    <?php if (extension_loaded ('newrelic')) {
+      echo newrelic_get_browser_timing_footer();
+    } ?>
+    ```
+  </Collapser>
+</CollapserGroup>
