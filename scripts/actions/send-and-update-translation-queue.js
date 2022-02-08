@@ -34,7 +34,7 @@ const getReadyToGoTranslationsForEachLocale = async () => {
    *
    * 3. The file (slug) that is associated with the translation record still exists.
    */
-  const translationsToDelete = [];
+  const translationsToDelete = [...erroredTranslations];
 
   const readyToGoTranslations = pendingTranslations
     .filter(
@@ -76,7 +76,7 @@ const getReadyToGoTranslationsForEachLocale = async () => {
     })
   );
 
-  let translationsPerLocale = {};
+  const translationsPerLocale = {};
   for (const translation of readyToGoTranslations) {
     translationsPerLocale[translation.locale] = [
       ...(translationsPerLocale[translation.locale] || []),
