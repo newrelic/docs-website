@@ -23,9 +23,6 @@ exports.onCreateWebpackConfig = ({ actions }) => {
         https: false,
         zlib: false,
       },
-      alias: {
-        images: path.resolve(__dirname, 'src/images'),
-      },
     },
   });
 };

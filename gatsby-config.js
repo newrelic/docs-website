@@ -473,5 +473,13 @@ module.exports = {
         allExtensions: true, // defaults to false
       },
     },
+    {
+      resolve: `gatsby-alias-imports`,
+      options: {
+        aliases: {
+          images: path.resolve(__dirname, 'src/images/'),
+        },
+      },
+    },
   ],
 };
