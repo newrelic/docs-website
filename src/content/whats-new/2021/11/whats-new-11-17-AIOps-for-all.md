@@ -14,12 +14,12 @@ The most noticeable change is a new navigation menu on the left side of Alerts &
 
 * **Workflows**: Provides a flexible way to route incidents with specific characteristics to appropriate teams and specific ticketing or notification tools, such as ServiceNow and JIRA. You can also use custom webhooks to integrate other services.
 
-![Animated gif showing workflow](./images/workflow-example.gif "Animated gif showing workflow")
+![Animated gif showing workflow](src/images/workflow-example.gif "Animated gif showing workflow")
 
 * **Enrichment**: Allows you to query data in NRDB, collect pertinent related information, and use predefined parameters so that you can automatically add additional context to your alerts before they are sent to first responders. 
 
  * **Destinations**: New bi-directional integrations for JIRA and Service Now accommodate for customizable fields and additional transactional security. Future integrations under development include email, PagerDuty, AWS EventBridge, and Microsoft Teams.
 
-![Animated gif showing destinations](./images/destination-example.gif "Animated gif showing destinations")
+![Animated gif showing destinations](src/images/destination-example.gif "Animated gif showing destinations")
 
 To get started reducing alert noise and quickly finding the root cause of incidents, visit the [**Alerts & AI**](https://onenr.io/0nVjYZ0a3Q0) tab in the upper navigation banner. 

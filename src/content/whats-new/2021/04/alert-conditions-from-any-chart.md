@@ -13,8 +13,8 @@ Now you can create an alert condition from just about anywhere in New Relic!  We
 2. Within the condition creation form, you can select an existing policy, or create a new one.
 3. Then, get right back to your investigation.
 
-![Animated GIF showing in-context demo](./images/in-context-demo.gif "In-context demo")
+![Animated GIF showing in-context demo](src/images/in-context-demo.gif "In-context demo")
 Creating an APM alert condition
 
-![Animated gif showing in-context-logs](./images/in-context-logs.gif "In-context logs demo")
+![Animated gif showing in-context-logs](src/images/in-context-logs.gif "In-context logs demo")
 Improved alert condition creation from logs and serverless experiences 

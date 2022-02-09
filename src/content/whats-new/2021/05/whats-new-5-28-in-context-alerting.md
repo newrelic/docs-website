@@ -19,4 +19,4 @@ Below are the instructions to create an alert condition from the query builder:
 3. Run the query.
 4. From the action menu on the chart, choose **Create Alert Condition**.
 
-![Annimated gif showing Query builder](./images/query_builder_edited_1.gif "Annimated gif showing Query builder")
+![Annimated gif showing Query builder](src/images/query_builder_edited_1.gif "Annimated gif showing Query builder")
