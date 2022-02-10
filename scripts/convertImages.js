@@ -6,6 +6,7 @@ const remarkMdx = require('remark-mdx');
 const remarkMdxjs = require('remark-mdxjs');
 const visit = require('unist-util-visit');
 const u = require('unist-builder');
+const camelCase = require('camelcase');
 // const compile = require('@mdx-js/mdx');
 // const rehypeParse = require('rehype-parse');
 // const remark2rehype = require('remark-rehype');
@@ -27,7 +28,6 @@ const images = () => {
     visit(tree, 'image', (node, index, parent) => {
       // Maybe reference https://github.com/remcohaszing/remark-mdx-images
       // for hints on what we need to do
-      // log(node);
 
       let { alt = null, title, url } = node;
 
@@ -36,7 +36,9 @@ const images = () => {
       }
 
       if (relativePathPattern.test(url)) {
-        // node.url = node.url.replace('./', '');
+        const importName = camelCase(
+          node.url.replace('./images/', '').replace(/\.(png|jpg)/i, '')
+        );
         node = u(
           'mdxBlockElement',
           {
@@ -47,7 +49,7 @@ const images = () => {
                 name: 'src',
                 value: {
                   type: 'mdxValueExpression',
-                  value: 'migratePage1',
+                  value: importName,
                 },
               },
             ],
