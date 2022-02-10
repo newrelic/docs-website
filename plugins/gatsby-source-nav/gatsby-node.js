@@ -1,4 +1,5 @@
-const parseISO = require('date-fns/parseISO');
+const preferDefault = (m) => (m && m.default) || m;
+const parseISO = preferDefault(require('date-fns/parseISO'));
 
 const hasOwnProperty = (obj, key) =>
   Object.prototype.hasOwnProperty.call(obj, key);
