@@ -55,7 +55,8 @@ const images = () => {
           },
           []
         );
-        return node;
+
+        parent.children.splice(index, 1, node);
       }
     });
     // visit(tree, 'mdxBlockElement', (node) => {
@@ -74,7 +75,6 @@ const mdxFile = fs.readFileSync(path.join(filePath));
 
 const processor = unified()
   .use(remarkParse)
-  .use(images)
   .use(remarkStringify, {
     bullet: '*',
     fences: true,
@@ -82,6 +82,7 @@ const processor = unified()
   })
   .use(remarkMdx)
   .use(remarkMdxjs)
+  .use(images)
   .use(frontmatter, ['yaml']);
 const main = async () => {
   const { contents } = await processor.process(mdxFile);
