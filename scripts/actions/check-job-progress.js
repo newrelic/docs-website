@@ -174,18 +174,15 @@ const updateTranslationRecords = async (slugStatuses) => {
   // TODO: need to update this when we implement multiple locales. This only works for one locale.
 
   await Promise.all(
-    slugStatuses.map(async ({ ok, slug }) => {
-      if (!ok) {
-        return;
-      }
-      const updateStatus = StatusEnum.COMPLETED;
-
+    slugStatuses.map(async ({ slug }) => {
       const records = await updateTranslations(
         { slug, status: StatusEnum.IN_PROGRESS },
-        { status: updateStatus }
+        { status: StatusEnum.COMPLETED }
       );
 
-      console.log(`Translation ${records[0].id} marked as ${updateStatus}`);
+      console.log(
+        `Translation ${records[0].id} marked as ${StatusEnum.COMPLETED}`
+      );
     })
   );
 };
@@ -260,10 +257,9 @@ const main = async () => {
     ).flat();
 
     const erroredStatuses = slugStatuses.filter(({ ok }) => !ok);
-    const okStatuses = slugStatuses.filter(({ ok }) => ok);
 
     logErroredStatuses(erroredStatuses);
-    await updateTranslationRecords(okStatuses);
+    await updateTranslationRecords(slugStatuses);
 
     const results = aggregateStatuses(slugStatuses);
 

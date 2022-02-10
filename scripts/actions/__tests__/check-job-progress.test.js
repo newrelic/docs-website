@@ -84,14 +84,21 @@ describe('check-jobs-progress tests', () => {
   });
 
   describe('updateTranslationRecords', () => {
-    test('does not update translation record for failed slug', async () => {
+    test('updates translation record to COMPLETED for failed slug', async () => {
       updateTranslations.mockReturnValue([{ id: 0 }]);
 
       const slugStatus = { ok: false, slug: 'failure.txt' };
 
       await updateTranslationRecords([slugStatus]);
 
-      expect(updateTranslations.mock.calls.length).toBe(0);
+      expect(updateTranslations.mock.calls.length).toBe(1);
+      expect(updateTranslations.mock.calls[0][0]).toStrictEqual({
+        slug: 'failure.txt',
+        status: 'IN_PROGRESS',
+      });
+      expect(updateTranslations.mock.calls[0][1]).toStrictEqual({
+        status: 'COMPLETED',
+      });
     });
 
     test('updates translation record to COMPLETED for successful slug', async () => {
@@ -115,7 +122,7 @@ describe('check-jobs-progress tests', () => {
       updateTranslations.mockReturnValue([{ id: 0 }]);
       const slugStatuses = [
         { ok: true, slug: 'fake_slug.txt' },
-        { ok: true, slug: 'fake_slug_2.txt' },
+        { ok: false, slug: 'fake_slug_2.txt' },
         { ok: true, slug: 'fake_slug_3.txt' },
       ];
 
@@ -127,9 +134,7 @@ describe('check-jobs-progress tests', () => {
     test('logs errored translations to the console', async () => {
       console.log = jest.fn();
       const erroredStatuses = [{ ok: false, slug: 'fake_slug.txt' }];
-
       logErroredStatuses(erroredStatuses);
-
       expect(console.log).toHaveBeenCalledWith(
         '    [!]Translation errored: fake_slug.txt'
       );
@@ -142,9 +147,7 @@ describe('check-jobs-progress tests', () => {
         { ok: false, slug: 'fake_slug_2.txt' },
         { ok: false, slug: 'fake_slug_3.txt' },
       ];
-
       logErroredStatuses(erroredStatuses);
-
       expect(console.log).toHaveBeenCalledWith(
         '    [!]Translation errored: fake_slug.txt'
       );
@@ -162,9 +165,7 @@ describe('check-jobs-progress tests', () => {
         { ok: false, slug: 'fake_slug.txt' },
         { ok: true, slug: 'fake_slug_2.txt' },
       ];
-
       logErroredStatuses(erroredStatuses);
-
       expect(console.log).toHaveBeenCalledWith(
         '    [!]Translation errored: fake_slug.txt'
       );

@@ -243,45 +243,6 @@ describe('send-and-update-translation-queue tests', () => {
       expect(deleteTranslation.mock.calls[0][0]).toBe(1);
       expect(deleteTranslation.mock.calls[1][0]).toBe(3);
     });
-
-    test('deletes translations with an ERRORED status', async () => {
-      console.log = jest.fn();
-      when(getTranslations)
-        .calledWith({ status: 'PENDING' })
-        .mockReturnValue([
-          {
-            id: 1,
-            slug: 'hello_world.txt',
-            locale: 'ja-JP',
-            status: 'PENDING',
-          },
-          {
-            id: 3,
-            slug: 'hello_world2.txt',
-            locale: 'ja-JP',
-            status: 'PENDING',
-          },
-        ])
-        .calledWith({ status: 'IN_PROGRESS' })
-        .mockReturnValue([])
-        .calledWith({ status: 'ERRORED' })
-        .mockReturnValue([
-          {
-            id: 2,
-            slug: 'hello_world3.txt',
-            locale: 'ja-JP',
-            status: 'ERRORED',
-          },
-        ]);
-      fs.existsSync.mockReturnValue(true);
-
-      await getReadyToGoTranslationsForEachLocale();
-      expect(console.log).toHaveBeenCalledWith(
-        'Database record for -- 2 -- deleted'
-      );
-      expect(deleteTranslation.mock.calls.length).toBe(1);
-      expect(deleteTranslation.mock.calls[0][0]).toBe(2);
-    });
   });
 
   describe('createJobs', () => {
