@@ -8,6 +8,7 @@ const {
   aggregateStatuses,
   updateTranslationRecords,
   updateJobRecords,
+  logErroredStatuses,
 } = require('../check-job-progress');
 
 jest.mock('../translation_workflow/database');
@@ -83,7 +84,7 @@ describe('check-jobs-progress tests', () => {
   });
 
   describe('updateTranslationRecords', () => {
-    test('updates translation record to ERRORED for failed slug', async () => {
+    test('updates translation record to COMPLETED for failed slug', async () => {
       updateTranslations.mockReturnValue([{ id: 0 }]);
 
       const slugStatus = { ok: false, slug: 'failure.txt' };
@@ -96,7 +97,7 @@ describe('check-jobs-progress tests', () => {
         status: 'IN_PROGRESS',
       });
       expect(updateTranslations.mock.calls[0][1]).toStrictEqual({
-        status: 'ERRORED',
+        status: 'COMPLETED',
       });
     });
 
@@ -128,6 +129,49 @@ describe('check-jobs-progress tests', () => {
       await updateTranslationRecords(slugStatuses);
 
       expect(updateTranslations.mock.calls.length).toBe(3);
+    });
+
+    test('logs errored translations to the console', async () => {
+      console.log = jest.fn();
+      const erroredStatuses = [{ ok: false, slug: 'fake_slug.txt' }];
+      logErroredStatuses(erroredStatuses);
+      expect(console.log).toHaveBeenCalledWith(
+        '    [!]Translation errored: fake_slug.txt'
+      );
+    });
+
+    test('logs multiple errored translations', async () => {
+      console.log = jest.fn();
+      const erroredStatuses = [
+        { ok: false, slug: 'fake_slug.txt' },
+        { ok: false, slug: 'fake_slug_2.txt' },
+        { ok: false, slug: 'fake_slug_3.txt' },
+      ];
+      logErroredStatuses(erroredStatuses);
+      expect(console.log).toHaveBeenCalledWith(
+        '    [!]Translation errored: fake_slug.txt'
+      );
+      expect(console.log).toHaveBeenCalledWith(
+        '    [!]Translation errored: fake_slug_2.txt'
+      );
+      expect(console.log).toHaveBeenCalledWith(
+        '    [!]Translation errored: fake_slug_3.txt'
+      );
+    });
+
+    test('logs when an ok translation is passed in errored array', async () => {
+      console.log = jest.fn();
+      const erroredStatuses = [
+        { ok: false, slug: 'fake_slug.txt' },
+        { ok: true, slug: 'fake_slug_2.txt' },
+      ];
+      logErroredStatuses(erroredStatuses);
+      expect(console.log).toHaveBeenCalledWith(
+        '    [!]Translation errored: fake_slug.txt'
+      );
+      expect(console.log).toHaveBeenCalledWith(
+        '    [!]The translation fake_slug_2.txt is ok and should be set to COMPLETED'
+      );
     });
   });
 

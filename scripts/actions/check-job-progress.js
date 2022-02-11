@@ -58,9 +58,7 @@ const log = (message, level = 'log', indent = 0) => {
   const logIndicators = { log: '[*]', warn: '[!]' };
 
   const str = [
-    Array(indent)
-      .fill(' ')
-      .join(''),
+    Array(indent).fill(' ').join(''),
     logIndicators[level],
     message,
   ].join('');
@@ -126,6 +124,23 @@ const getBatchStatus = async ({ batchUid, jobId }) => {
 };
 
 /**
+ * @param {SlugStatus[]} erroredStatuses
+ * @returns void
+ */
+const logErroredStatuses = (erroredStatuses) => {
+  erroredStatuses.forEach(({ ok, slug }) => {
+    if (!ok) {
+      return log(`Translation errored: ${slug}`, 'warn', 4);
+    }
+    return log(
+      `The translation ${slug} is ok and should be set to COMPLETED`,
+      'warn',
+      4
+    );
+  });
+};
+
+/**
  * @param {SlugStatus[]} slugStatuses
  * @returns {AggregateResults}
  */
@@ -159,15 +174,15 @@ const updateTranslationRecords = async (slugStatuses) => {
   // TODO: need to update this when we implement multiple locales. This only works for one locale.
 
   await Promise.all(
-    slugStatuses.map(async ({ ok, slug }) => {
-      const updateStatus = ok ? StatusEnum.COMPLETED : StatusEnum.ERRORED;
-
+    slugStatuses.map(async ({ slug }) => {
       const records = await updateTranslations(
         { slug, status: StatusEnum.IN_PROGRESS },
-        { status: updateStatus }
+        { status: StatusEnum.COMPLETED }
       );
 
-      console.log(`Translation ${records[0].id} marked as ${updateStatus}`);
+      console.log(
+        `Translation ${records[0].id} marked as ${StatusEnum.COMPLETED}`
+      );
     })
   );
 };
@@ -194,9 +209,9 @@ const updateJobRecords = async (jobStatuses) => {
         console.log(`Job ${job_id} marked as ${updateStatus}`);
       } else {
         console.log(
-          `Mismatched translation counts. Expected ${
-            records.length
-          }, actual ${successes + failures}`
+          `Mismatched translation counts. Expected ${records.length}, actual ${
+            successes + failures
+          }`
         );
       }
     })
@@ -241,6 +256,9 @@ const main = async () => {
       )
     ).flat();
 
+    const erroredStatuses = slugStatuses.filter(({ ok }) => !ok);
+
+    logErroredStatuses(erroredStatuses);
     await updateTranslationRecords(slugStatuses);
 
     const results = aggregateStatuses(slugStatuses);
@@ -279,4 +297,5 @@ module.exports = {
   aggregateStatuses,
   updateTranslationRecords,
   updateJobRecords,
+  logErroredStatuses,
 };
