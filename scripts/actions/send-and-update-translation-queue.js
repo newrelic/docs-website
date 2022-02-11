@@ -76,7 +76,7 @@ const getReadyToGoTranslationsForEachLocale = async () => {
     })
   );
 
-  let translationsPerLocale = {};
+  const translationsPerLocale = {};
   for (const translation of readyToGoTranslations) {
     translationsPerLocale[translation.locale] = [
       ...(translationsPerLocale[translation.locale] || []),
