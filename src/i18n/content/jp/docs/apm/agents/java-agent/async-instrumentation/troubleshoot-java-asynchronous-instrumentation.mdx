@@ -1,0 +1,123 @@
+---
+title: Java非同期インスツルメンテーションのトラブルシューティング
+tags:
+  - Agents
+  - Java agent
+  - Async instrumentation
+metaDescription: 'Log your Java async work, and troubleshoot common issues with Java async instrumentation.'
+translationType: machine
+---
+
+[Java agent API for async token and segments](/docs/agents/java-agent/java-agent-api/java-agent-api-asynchronous-applications) の使用に問題がある場合は、以下のテクニックを使って答えを見つけ、問題を解決してください。
+
+## インストルメンテーションの確認 [#verify-instrumentation]
+
+APIには、誤ったAPIの使用による問題を防ぐための安全機構が数多く組み込まれていますが、これらの技術を使って、アプリケーションのインスツルメンテーションが正しいかどうかを確認することができます。
+
+* コードをインストルメント化した後、同数のトークンが作成され、期限切れになったことをログが示していることを確認します。どのようなログメッセージを見るべきかの詳細については、 [Use logs to troubleshoot](#log-async) を参照してください。
+* APMの [**JVMの** ページ](/docs/agents/java-agent/features/jvm-metrics-page) でガベージコレクションの統計を確認し、変更によってガベージコレクションのパターンが大きく変わったかどうかを判断します。
+* [トランザクションのトレース](/docs/apm/transactions/transaction-traces/introduction-transaction-traces) に `timed_out` 属性があるかどうかを確認して、セグメントやトークンがタイムアウトしていないかどうかを確認します。もしそうであれば、 [`token_timeout`](/docs/agents/java-agent/configuration/java-agent-configuration-config-file#cfg-token_timeout) and [`segment_timeout`](/docs/agents/java-agent/configuration/java-agent-configuration-config-file#cfg-segment_timeout) で制限を変更することができます。
+
+## ログを使ったトラブルシューティング [#log-async]
+
+Javaエージェントのログをカスタマイズするには、 [Generating logs](/docs/agents/java-agent/troubleshooting/generating-logs-troubleshooting-java) を参照してください。次に、これらの一般的なメッセージについてログを調べることができます。
+
+* 作成されたトークンを確認するには、 `FINEST` のログを確認してください。
+
+  ```
+  Transaction com.newrelic.agent.Transaction@5a7cc8e: created active token com.newrelic.agent.TokenImpl@7db8d0e8
+  ```
+
+* 期限切れのトークンとその時間を確認するには、 `FINEST` のログを確認してください。
+
+  ```
+  Transaction com.newrelic.agent.Transaction@5a7cc8e: expired token com.newrelic.agent.TokenImpl@7db8d0e8
+  ```
+
+* 作成されたセグメントを表示するには、 `FINEST` のログを確認してください。
+
+  ```
+  Transaction com.newrelic.agent.Transaction@486b7f04: startSegment(): com.newrelic.agent.Segment@2b7fdad3 created and started with tracer com.newrelic.agent.tracers.OtherRootTracer@4df4a953
+  ```
+
+* 終了したセグメントと終了した時間を見るには、 `FINEST` のログを確認してください。
+
+  ```
+  com.newrelic.agent.Transaction@486b7f04--finish segment(): com.newrelic.agent.Segment@2b7fdad3 async finish with tracer com.newrelic.agent.tracers.OtherRootTracer@4df4a953
+  ```
+
+## 問題：トランザクション時間が長すぎる [#problem-long-txns]
+
+そうしないと、トランザクションが New Relic に報告されるまでに時間がかかる可能性がありますので、トークンは必ず失効させ、セグメントは終了または無視してください。Java エージェントには、トークンやセグメントが正しく終了しなかった場合のタイムアウト機構があります。詳細については、 [`token_timeout`](/docs/agents/java-agent/configuration/java-agent-configuration-config-file#cfg-token_timeout) および [`segment_timeout`](/docs/agents/java-agent/configuration/java-agent-configuration-config-file#cfg-segment_timeout) を参照してください。
+
+## 問題：トランザクション・トレース・データがない [#problem-no-traces]
+
+トランザクショントレースを検査して、期待される非同期作業が報告されていることを確認します。トランザクショントレースが表示されない場合は、トランザクションの継続時間が [`transaction_threshold`](/docs/agents/java-agent/configuration/java-agent-configuration-config-file#tt-transaction_threshold) で設定したトランザクショントレースのしきい値を超えていることを確認してください。
+
+## 問題：非同期呼び出しが少なすぎる [#problem-too-few-calls]
+
+あまりにも少ないコールが報告されている場合
+
+<CollapserGroup>
+  <Collapser
+    id="ensure-appropriate-link"
+    title="モニタリングする各活動が適切にリンクされていること"
+  >
+    以下の欠陥のある例では、パラレルストリームが使用されています。これは、 `map()` の呼び出しでラムダ内部で行われる作業が、リクエストを処理するスレッドとは別のスレッドでスケジュールされる可能性があることを意味しています。 [これらの作業をすべてリンクさせるために](/docs/agents/java-agent/java-agent-api/java-agent-api-asynchronous-applications#tokens) トークンを作成しないと、トランザクション内の別のスレッドでスケジュールされた作業を見ることはできません。
+
+    ```
+    @RequestMapping("parallel_stream_bad")
+    @Trace(dispatcher = true)
+    public ResponseEntity parallelStreamBad(@RequestParam("ids") List<long> ids) {
+       List<item> results = ids
+               .parallelStream()
+               .map(i -> requestItem(i))
+               .filter(item -> item != null)
+               .collect(Collectors.toList());
+       return formattedResponse("parallel_stream_bad", results);  
+    }
+    ```
+  </Collapser>
+
+  <Collapser
+    id="check-annotations"
+    title="必要なアノテーションが不足していないか"
+  >
+    以下の例では、 `requestItem()` への呼び出しのサブセットのみがレポートされます。これは、 `@Trace(async=true)` を、 `map()` への呼び出しの中の匿名作業のブロックの周りに置くことができないためです。代わりに、トークンを `requestItem()` に渡してリンクさせてから、 `@Trace(async=true)` をその周りに追加する必要があります。あるいは、 `requestItemAsync()` のようなヘルパー関数を使えば、既存のメソッドを変更せずにこれを行うことができます。
+
+    ```
+    @RequestMapping("parallel_stream_bad2")
+    @Trace(dispatcher = true)
+    public ResponseEntity parallelStreamBad2(@RequestParam("ids") List<long> ids) {
+        final Token token = NewRelic.getAgent().getTransaction().getToken();
+        List<item> results = ids
+                .parallelStream()
+                .map(id -> {
+                    token.link();
+                    return requestItem(id);
+                })
+                .filter(item -> item != null)
+                .collect(Collectors.toList());
+        return formattedResponse("parallel_stream_bad2", results);
+    }
+    ```
+
+    これを以下の正しい例と比較すると、ラムダ式はラッパークラス `InstrumentedCallable` によってラップされています。このクラスは、トークンとラムダを受け取り、非同期作業を `@Trace(async = true)` でラップし、トークンを使用して作業をリクエストスレッドにリンクします。
+
+    ```
+    @RequestMapping("parallel_stream_wrap")
+    @Trace(dispatcher = true)
+    public ResponseEntity parallelStreamWrap(@RequestParam("ids") List<long> ids) {
+        final Token token = NewRelic.getAgent().getTransaction().getToken();
+        List<item> results = ids
+                .parallelStream()
+                .map(id -> InstrumentedCallable.instrumentCallable(token, () -> requestItem(id)))
+                .map(c -> c.call())
+                .filter(item -> item != null)
+                .collect(Collectors.toList());
+        token.expire();
+        return formattedResponse("parallel_stream_wrap", results);
+    }
+    ```
+  </Collapser>
+</CollapserGroup>

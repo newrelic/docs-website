@@ -1,0 +1,295 @@
+---
+title: Metricデータタイプの問い合わせ
+metaDescription: 'How to query New Relic''s Metric data type, which is reported by our Metric API and the integrations that use it.'
+translationType: machine
+---
+
+[Metric API](/docs/data-ingest-apis/get-data-new-relic/metric-api/introduction-metric-api) を介して New Relic にメトリクスが報告された場合 (この API を使用するインテグレーションからの報告も含む)、そのデータは [`Metric` データタイプ](/docs/using-new-relic/data/understand-data/new-relic-data-types#dimensional-metrics) として報告され、問い合わせが可能になります。
+
+このドキュメントには
+
+* [メトリクスの表示と問い合わせ方法](#view-and-query)
+* [メトリック・クエリの例](#example-metric-queries)
+* [ワイルドカードを使って複数のメトリクスを照会する方法](#query-multiple-metrics-wildcards)
+* [メトリクスデータの調べ方](#explore-metric-data)
+
+## APMメトリクスのタイムスライスデータの照会 [#metric-timeslice]
+
+APMでは、メトリックタイムスライスデータと呼ばれる特定のタイプのデータを報告しています。このデータを照会する方法については、 [Query metric timeslice data](/docs/query-data/nrql-new-relic-query-language/nrql-query-tutorials/query-metric-timeslice-data-nrql) を参照してください。
+
+他のタイプのメトリクスについては、 [Metric data types](/docs/using-new-relic/data/understand-data/new-relic-data-types#metrics-new-relic) を参照してください。
+
+## メトリクスの表示と照会 [#view-and-query]
+
+[NRQL](/docs/query-data/nrql-new-relic-query-language/getting-started/introduction-nrql) を使用して、 [New Relic One クエリビルダー](/docs/chart-builder/use-chart-builder/get-started/introduction-chart-builder) または、 [NerdGraph API](/docs/apis/nerdgraph/get-started/introduction-new-relic-nerdgraph) を使用して、メトリックデータを照会することができます。
+
+メトリクスを照会するには、以下の照会フォーマットを使用します。
+
+```
+FROM <mark>Metric</mark> SELECT <var>function</var>(<var>metric_name</var>) WHERE <var>attribute</var>=<var>value</var> FACET <var>attribute</var> TIMESERIES
+```
+
+以下は、 [メトリックタイプごとにサポートされている機能です。](/docs/report-metrics-metric-api#payload-metrics) 。
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "150px" }}>
+        メトリックタイプ
+      </th>
+
+      <th>
+        対応機能
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `概要`
+      </td>
+
+      <td>
+        count、sum、min、max、average
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `Count`
+      </td>
+
+      <td>
+        sum
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `ゲージ`
+      </td>
+
+      <td>
+        count, sum, min, max, average, and latest
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+`SELECT` 節に、グラフ化したいメトリクスの名前を適切な値の関数とともに追加します。 `WHERE` および `FACET` 節は、属性値で使用できます。データをグラフ化したい場合は、キーワード `TIMESERIES` を忘れずに入れてください。
+
+この例では、クラスタ `foo` の CPU 使用率を秒単位でグラフ化する方法を示しています。このクエリは、 `count` metric named `container_cpu_usage_seconds_total` に、 `containerName` と `clusterName` という属性を与えて、コンテナごとの CPU 使用率を分析します。
+
+```
+FROM Metric select sum(container_cpu_usage_seconds_total) 
+  WHERE clusterName = 'foo' 
+  FACET containerName 
+  TIMESERIES
+```
+
+1分ごとのCPU使用率（変化率）を知りたい場合は、上記のクエリにrate関数を追加します。
+
+```
+FROM Metric select rate(sum(container_cpu_usage_seconds_total), 1 minute) 
+  WHERE clusterName = 'foo' 
+  FACET containerName 
+  TIMESERIES
+```
+
+## メトリクスクエリの例を見る [#example-metric-queries]
+
+前述の例では、メトリック・クエリの基本的な形式を示しましたが、NRQLはメトリック・データのチャート化、探索、分析にも使用できます。
+
+<CollapserGroup>
+  <Collapser
+    id="example-multiple-metrics"
+    title="複数の指標を表示"
+  >
+    `SELECT` 句にメトリクスのコンマ区切りリストを指定することで、1つのクエリを使って複数のメトリクスをグラフ化することができます。たとえば、コンテナのメモリ使用量とメモリ制限メトリクスをグラフ化するには、次のようなクエリを使用します。
+
+    ```
+    FROM Metric 
+      SELECT latest(container_memory_usage_bytes), latest(container_spec_memory_limit_bytes) 
+      WHERE containerName = 'inventory' 
+      TIMESERIES
+    ```
+
+    以下に説明するように、 [ワイルドカード](#query-multiple-metrics-wildcards) を使って行うこともできます。
+  </Collapser>
+
+  <Collapser
+    id="example-math"
+    title="メートル法のデータを使った数学的演算"
+  >
+    1つまたは複数のメトリクスに対して数学的な演算を行い、新しい派生メトリクスを計算します。利用可能なメモリを監視するには、前述の例で使用した2つのメトリクスから利用可能なメモリの割合を計算します。
+
+    ```
+    FROM Metric 
+      SELECT (latest(container_spec_memory_limit_bytes) - latest(container_memory_usage_bytes)) 
+        / latest(container_spec_memory_limit_bytes) 
+        * 100 
+        AS '% Memory Available' 
+      WHERE containerName = 'inventory' 
+      TIMESERIES
+    ```
+
+    以下に説明するように、 [ワイルドカード](#query-multiple-metrics-wildcards) を使って行うこともできます。
+  </Collapser>
+
+  <Collapser
+    id="example-filters-timeseries"
+    title="フィルターを使って特定の時系列を選択"
+  >
+    `SELECT` のすべてに適用される `WHERE` 節を使用することに加えて、NRQL は `filter` と呼ばれる別の集約関数を提供しており、これを使用することで、グラフ化したり操作したりする特定の時系列を選択することができます。
+
+    次の例では、 `" Total (k8s)"` というラベルの付いたメモリ使用量メトリックを図示しています。このメトリックは、ポッド内の2つの特定のコンテナのメモリ使用量を加算して計算されます。
+
+    ```
+    FROM Metric 
+      SELECT filter(
+        latest(
+          container_memory_usage_bytes), 
+        WHERE containerName = 'discovery') 
+      + filter(
+        latest(
+          container_memory_usage_bytes), 
+        WHERE containerName = 'my-proxy') 
+      AS 'Total (k8s)' 
+      WHERE clusterName = 'my-cluster' AND podName LIKE 'my-pilot-%' 
+      TIMESERIES
+    ```
+  </Collapser>
+
+  <Collapser
+    id="example-view-raw-datapoints"
+    title="メトリックの生データポイントを表示"
+  >
+    `FROM Metric` を使ってメトリックデータをクエリーする際、New Relic はクエリーウィンドウの長さと `TIMESERIES` キーワードの引数として指定されたバケットサイズに応じて、クエリーで使用する特定のアグリゲートを自動的に選択します。これにより、効率的なクエリとチャートの解決が可能になります。この動作を無効にして生のメトリックデータポイントを表示または操作したい場合は、オプションの `RAW` キーワードをクエリで使用してください。
+
+    これらの生のメトリックデータポイントにクエリを実行する場合、クエリのタイムウィンドウは48時間に制限されています。48時間を超える生のメトリックデータにアクセスしようとするクエリは、クエリエラーになります。
+
+    この例では、特定のメトリックについて受信した直近の20個のデータポイントをリストアップする方法を示します。
+
+    ```
+    FROM Metric SELECT * WHERE metricName = 'container_fs_usage_bytes' LIMIT 20 <mark>RAW</mark>
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## ワイルドカードを使って複数のメトリクスを検索 [#query-multiple-metrics-wildcards]
+
+ワイルドカードは、NRQL では `%` という文字で表されます。標準的な命名規則を使用している複数のメトリックを照会したい場合、ワイルドカード機能を使用すれば、各メトリック名を個別に指定することなく、すべてのメトリックの結果を返すことができます。
+
+ワイルドカードがあなたをサポートします。
+
+* 指標を集約し、結果をグラフ化する
+* `FACET` メトリック名での検索結果をチャートで表示します。
+* 指定された命名規則に合致するすべてのメトリクスを検索し、チャート化する。
+
+ワイルドカードは、既存の命名規則に一致する新しいメトリクスを後から追加する場合に特に役立ちます。 `%` を使用して、クエリ内の各メトリック名を書き出す代わりに、新しいメトリックを追加するときにクエリを書き直す必要はありません。
+
+同様のタスクを実行する複数のアルゴリズムがあるとします。次のようなメトリクスを定義して、異なるアルゴリズムの持続時間を表示することができます。
+
+* `myNeatProcess.algorithm1.duration`
+* `myNeatProcess.algorithm2.duration`
+* `myNeatProcess.algorithm3.duration`
+
+クエリで `myNeatProcess.%.duration` を使用すると、上記の3つのアルゴリズムすべての結果が返されます。その後、 `algorithm4`, `algorithm5`, `algorithm6` という名前の新しいアルゴリズムを作成すると、同じクエリで6つのアルゴリズムすべての結果が返されます。
+
+<CollapserGroup>
+  <Collapser
+    id="example-multiple-metrics-wildcard"
+    title="ワイルドカードで複数の指標を表示"
+  >
+    `SELECT` 句にワイルドカード（`%` ）を使用すれば、1つのクエリで複数のメトリクスをグラフ化することができます。たとえば、上記の例ですべてのアルゴリズムを照会し、各アルゴリズムの平均継続時間をチャートに線でプロットするには、次のようなクエリを使用します。
+
+    ```
+    FROM Metric 
+    	SELECT average(myNeatProcess.%.duration) 
+    	FACET metricName TIMESERIES
+    ```
+  </Collapser>
+
+  <Collapser
+    id="example-math"
+    title="ワイルドカードを使用したメートル法データの算術演算"
+  >
+    また、ワイルドカードを使って、複数のメトリクスに対して演算を行い、新しいメトリクスを計算することもできます。上の例で挙げたすべてのアルゴリズムの平均継続時間を計算することができます。
+
+    ```
+    FROM Metric 
+    	SELECT average(myNeatProcess.%.duration) TIMESERIES
+    ```
+
+    一つのアルゴリズムが全体のランタイムに占める割合を計算することができます。
+
+    ```
+    FROM Metric 
+    	SELECT myNeatProcess.algorithm1.duration / sum(myNeatProcess.%.duration) TIMESERIES
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## `getField()を使って個々のフィールドの結果を返す。` [#use-getField]
+
+メトリクスには複数のフィールドが関連付けられており、各フィールドには固有の値が含まれています。クエリを使ってこれらの値の1つを抽出したい場合は、 `getField()` で行うことができます。
+
+たとえば、 `WHERE` 節で比較を行うためにメトリック内の単一の値を使用したい場合、 `getField(metricName, field)` または `metricName[field]` を使用することができます。
+
+<CollapserGroup>
+  <Collapser
+    id="example-list-gauge-metrics"
+    title="ゲージメトリクスの一覧"
+  >
+    この例のクエリは、ゲージメトリクスのリストを返します。
+
+    ```
+    FROM Metric SELECT uniques(metricName) WHERE %[type] = 'gauge'
+    ```
+  </Collapser>
+
+  <Collapser
+    id="example-list-names-host"
+    title="特定のホストに対するすべてのメトリック名をリストアップ"
+  >
+    メトリックの平均値は、 `total` over `count` として計算されるため、次のクエリは、 `average()` value 関数の結果が 2 より大きいメトリックデータを返します。
+
+    ```
+    FROM Metric SELECT average(apm.service.transaction.duration) WHERE appName = 'MyApp' AND apm.service.transaction.duration[total] / apm.service.transaction.duration[count] > 2
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## メトリクスデータを見る [#explore-metric-data]
+
+NRQL `keyset` and `uniques` 関数は、 `metricName` 属性（すべてのメトリックで利用可能）と一緒に使用することで、アカウント内の利用可能なメトリックをすべてリストアップしたり、特定のメトリックで利用可能な属性を発見したりするタスクを実行できます。
+
+<CollapserGroup>
+  <Collapser
+    id="example-list-names-account"
+    title="アカウント内のすべてのメトリック名を一覧表示"
+  >
+    ```
+    FROM Metric SELECT uniques(metricName)
+    ```
+  </Collapser>
+
+  <Collapser
+    id="example-list-names-host"
+    title="特定のホストに対するすべてのメトリック名をリストアップ"
+  >
+    ```
+    FROM Metric SELECT uniques(metricName) WHERE hostname = 'host1.mycompany.com'
+    ```
+  </Collapser>
+
+  <Collapser
+    id="example-show-keys-metric"
+    title="特定のメトリックの属性キーを表示する"
+  >
+    ```
+    FROM Metric SELECT keyset() WHERE metricName = <var>METRIC_NAME</var>
+    ```
+  </Collapser>
+</CollapserGroup>

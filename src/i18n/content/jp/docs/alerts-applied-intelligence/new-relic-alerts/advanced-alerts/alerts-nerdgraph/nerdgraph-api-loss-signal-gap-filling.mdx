@@ -1,0 +1,179 @@
+---
+title: NerdGraphチュートリアル。信号の消失とギャップフィリング
+tags:
+  - Alerts and Applied Intelligence
+  - New Relic Alerts
+  - Alerts and Nerdgraph
+metaDescription: Customize how New Relic detects loss of signal and what values it should use for filling gaps in the data.
+translationType: machine
+---
+
+信号の損失は、New Relicがデータの受信をしばらく停止すると発生します。技術的には、データが時系列で最後に受信されてからかなりの時間が経過した後に、信号の損失を検出します。信号の損失は、違反をトリガーまたは解決するために使用でき、これを使用してアラートを設定できます。
+
+ギャップフィリングは、データポイントが失われたことによる問題を解決するのに役立ちます。有効なデータポイントの間にギャップが検出されると、最後に確認された値や静的な値などの代替値で自動的にギャップを埋めます。ギャップフィリングを行うことで、必要のないアラートの発生や解決を防ぐことができます。
+
+<Callout variant="tip">
+  アラートシステムは、アクティブに報告された信号のギャップを埋めます。この信号の履歴は、2時間操作が行われないと失われます。ギャップを埋めるために、この非アクティブ期間の後に受信されたデータポイントは新しい信号として扱われます。
+
+  信号損失、ギャップの充填、アクセスをリクエストする方法の詳細については、[このExplorers Hubの記事](https://discuss.newrelic.com/t/announcing-new-relic-one-streaming-alerts-for-nrql-conditions/115361)を参照してください。
+</Callout>
+
+[NerdGraph](/docs/apis/nerdgraph/get-started/introduction-new-relic-nerdgraph) を使用して、信号喪失の検出とギャップフィリングをカスタマイズすることができます。例えば、信号が失われたと判断するまでの待ち時間や、時系列のギャップを埋めるために使用する値などを設定できます。以下は、 [NerdGraph API explorer](https://api.newrelic.com/graphiql) で使用できるいくつかのクエリと例です。
+
+このガイドでは、以下のことを説明しています。
+
+* [カスタマイズによる信号検知の消失](#loss-of-signal)
+* [隙間を埋めるカスタマイズ](#customize)
+
+## 電波障害検出のカスタマイズ [#loss-of-signal]
+
+信号損失の検出は、一定の時間が経過してもデータが受信されない場合に、違反を開いたり閉じたりします。例えば、有効期限の期間を60秒に設定し、ある統合が1分以上データを送信しないようであれば、シグナル喪失の違反がトリガーされます。
+
+NerdGraphのこの3つのフィールドを使って、信号損失の持続時間や違反を開くか閉じるかを設定できます。
+
+* `expiration.expirationDuration`: シグナルが失われたと考える前に、最後のデータポイントが当社のプラットフォームで受信されてから待つ時間を秒単位で指定します。この値は、データのタイムスタンプではなく、プラットフォームにデータが到着した時間に基づいています。デフォルトではこの値は無効になっており、シグナル消失の検出はできません。
+* `expiration.openViolationOnExpiration`: `true` の場合、信号が失われたときに新しい違反が開かれます。デフォルトは `false` です。このフィールドを使用するには、期間を指定する必要があります。
+* `expiration.closeViolationsOnExpiration`: `true` の場合、シグナルに関連する未解決の違反が期限切れでクローズされます。デフォルトは `false` です。このフィールドを使用するには、期間を指定する必要があります。
+
+### 既存の状態の信号損失設定を見る
+
+既存の NRQL 条件には、信号喪失の設定がすでに設定されている場合があります。既存の条件設定を表示するには、 `nrqlCondition` > `expiration` の下のフィールドを選択します。
+
+```
+{
+  actor {
+    account(id: <var>YOUR_ACCOUNT_ID</var>) {
+      alerts {
+        nrqlCondition(id: <var>NRQL_CONDITION_ID</var>) {
+          ... on AlertsNrqlStaticCondition {
+            id
+            name
+            nrql {
+              query
+            }
+            expiration {
+              <mark>closeViolationsOnExpiration</mark>
+              <mark>expirationDuration</mark>
+              <mark>openViolationOnExpiration</mark>
+            }
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+このような結果が表示されるはずです。
+
+```
+{
+  "data": {
+    "actor": {
+      "account": {
+        "alerts": {
+          "nrqlCondition": {
+            "expiration": {
+              "<mark>closeViolationsOnExpiration</mark>": false,
+              "<mark>expirationDuration</mark>": 300,
+              "<mark>openViolationOnExpiration</mark>": true
+            },
+            "id": "<var>YOUR_ACCOUNT_ID</var>",
+            "name": "Any less than - Extrapolation",
+            "nrql": {
+              "query": "SELECT average(value) FROM AlertsSmokeTestSignals WHERE wave_type IN ('min-max', 'single-gap') FACET wave_type"
+            }
+          }
+        }
+      }
+    }
+  }, ...
+```
+
+### 信号の消失を設定して新たな状態を作る
+
+例えば、 [2分間データが受信されなかった場合に信号の喪失違反をトリガーするNRQLの静的条件](/docs/alerts/alerts-nerdgraph/nerdgraph-examples/nerdgraph-api-nrql-condition-alerts#static-condition) を新たに作成するとします。以下の例のように、 `expirationDuration` を 120 秒に設定し、 `openViolationOnExpiration` を `true` に設定します。
+
+```
+mutation {
+  alertsNrqlConditionStaticCreate(
+    accountId: <var>YOUR_ACCOUNT_ID</var>
+    policyId: <var>YOUR_POLICY_ID</var>
+    condition: {
+      name: "Low Host Count - Catastrophic"
+      enabled: true
+      nrql: {
+        query: "SELECT uniqueCount(host) from Transaction where appName='my-app-name'"
+      }
+      signal {
+        aggregationWindow: 60
+        aggregationMethod: EVENT_FLOW
+        aggregationDelay: 120
+      }
+      terms: [{
+        threshold: 2
+        thresholdOccurrences: AT_LEAST_ONCE
+        thresholdDuration: 600
+        operator: BELOW
+        priority: CRITICAL
+      }]
+      valueFunction: SINGLE_VALUE
+      violationTimeLimitSeconds: 86400
+      <mark>expiration</mark>: {
+        <mark>expirationDuration</mark>: 120
+        <mark>openViolationOnExpiration</mark>: <var>true</var>
+      }
+    }
+  ) {
+    id
+    name
+  }
+}
+```
+
+### 条件の信号消失設定の更新
+
+警告条件の信号消失パラメータを更新したい場合は？以下の変異により、 [NRQLの静的条件](/docs/alerts/alerts-nerdgraph/nerdgraph-examples/nerdgraph-api-nrql-condition-alerts#static-condition) を新しい `expiration` の値で更新することができます。
+
+```
+mutation {
+  alertsNrqlConditionStaticUpdate(
+    accountId: <var>YOUR_ACCOUNT_ID</var>
+    id: <var>YOUR_STATIC_CONDITION_ID</var>
+    condition: {
+      expiration: {
+        <mark>closeViolationsOnExpiration</mark>: <var>BOOLEAN</var>
+        <mark>expirationDuration</mark>: <var>DURATION_IN_SECONDS</var>
+        <mark>openViolationOnExpiration</mark>: <var>BOOLEAN</var>
+      }
+    }
+  ) {
+    id
+    expiration {
+      closeViolationsOnExpiration
+      expirationDuration
+      openViolationOnExpiration
+    }
+  }
+}
+```
+
+## 隙間を埋めるカスタマイズ [#customize]
+
+ギャップフィリングでは、時系列のギャップ値を、最後に見つかった値か、任意の静的な値で置き換えます。ギャップフィリングを行うのは、信号のギャップの後に別のデータポイントが受信されてから（データ受信が回復してから）です。
+
+タイプがスタティックに設定されている場合、フィリングのタイプと値の両方を設定できます。
+
+* `signal.fillOption`: 失われたデータポイントの代替値のタイプ。値は次のようになります。
+
+  * `NONE`: ギャップフィリングは無効です。
+  * `LAST_VALUE` ：時系列で見た最後の値。
+  * `STATIC`: `で定義された任意の値 fillValue`.
+
+* ``signal.fillValue : fillOption が STATIC に設定されているときに、失われたデータポイントを置き換えるために使用する値。````
+
+* ``
+
+`ギャップフィリングは、 expiration.expirationDuration にも影響されます。ギャップが満了期間より長くなると、その信号は失効したとみなされ、ギャップは埋められなくなります。
+
+例えば、ギャップフィリングを設定した静的なNRQL条件を作成する方法は以下の通りです。`

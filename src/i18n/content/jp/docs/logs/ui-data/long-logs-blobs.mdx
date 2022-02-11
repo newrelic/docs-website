@@ -1,0 +1,117 @@
+---
+title: 長いログ（blob）の中からデータを探す
+tags:
+  - Logs
+  - Log management
+  - UI and data
+metaDescription: How to find extensive log data stored in blobs in New Relic.
+translationType: machine
+---
+
+膨大なログデータは、問題のトラブルシューティングに役立ちます。しかし、ログの属性に何千文字もの文字が含まれていたらどうでしょう？New Relic はこのようなデータをどれだけ保存できるのでしょうか？また、これらのデータの中から有益な情報を見つけるにはどうすればよいでしょうか？
+
+## blobの仕組み [#blob-example]
+
+NRDBに格納できる文字数（4,094文字）よりも長い文字列の値については、長い文字列を3つに分けて格納します。
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        ロングログセクション
+      </th>
+
+      <th>
+        説明
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        最初の4,094文字
+      </td>
+
+      <td>
+        最初の4,094文字は、同じ名前の `Log` イベントフィールドに格納されます。つまり、長い `メッセージ` の値は、その最初の 4,094 文字が `メッセージ` フィールドに格納されます。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        次の128,000バイトのUTF-8
+      </td>
+
+      <td>
+        文字列の次の128,000のUTF-8バイトは、 `blob` フィールドに、 `newrelic.ext.` が前に付いた名前で保存されます。したがって、長い `message` の値は、最初の 4,094 文字以降の文字が `newrelic.ext.message` フィールドに `blob` として格納されます。
+
+        実際に保存される文字数は、文字のUTF-8表現に依存します。UTF-8はUnicodeの文字を1〜4バイトで表現するので、最初の4,094文字を過ぎれば32,000〜128,000文字が格納されることになります。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        残りのキャラクター
+      </td>
+
+      <td>
+        4,094文字＋128,000バイトを超えた文字はドロップされ、保存されません。
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+そのため、長い `メッセージ` フィールドは次のように格納されます。
+
+```
+message: <first 4,094 characters as a string>
+newrelic.ext.message: <next 128,000 bytes as a 'blob'>
+```
+
+<Callout variant="tip">
+  文字列属性の最初の4,094文字を検索することができます。また、最初の4,094文字に対するアラートを作成することもできます。ただし、「blob」ストレージは検索できないため、最初の4094文字を超えるテキストは検索も警告もできません。
+</Callout>
+
+## ブロブに関するデータの検索 [#query-blob]
+
+New Relic の任意のログデータを照会するには、以下のクエリを実行します。
+
+```
+SELECT * FROM Log
+```
+
+blobデータを展開するには、 `メッセージ` またはその他の属性を使用して、次のクエリを実行します。blobの属性は必ずバックスティックで囲んでください。例えば、以下のようになります。
+
+```
+SELECT message, <var>another-attribute</var>, blob(`newrelic.ext.message`), blob(`newrelic.ext.<var>another-attribute</var>) FROM Log
+```
+
+![クエリログの拡張データ（blob）](./images/log-blob-query.png "クエリログの拡張データ（blob）")
+
+<figcaption>
+  拡張されたblobデータをログで照会するには、属性のblob構文にバックスティックを含めるようにしてください。
+</figcaption>
+
+これにより、blob内のデータが拡張され、見ることができるようになります（検索はできません）。例えば、New Relicは次のように返します。
+
+```
+{
+  "message": <first 4,094 characters>
+  "newrelic.ext.message": <the next 128,000 bytes as Base64> 
+  "another-attribute": <first 4,094 characters>
+  "newrelic.ext.another-attribute": <the next 128,000 bytes as Base64>
+}
+```
+
+Logs UI は、Log Detail View を見る際に、元の値を自動的につなぎ合わせます。NRQL を直接使用してクエリを行う場合は、以下の方法で手動で情報をつなぎ合わせる必要があります。
+
+* `newrelic.ext.` 属性値のBase64をデコードする。
+* 結果のUTF-8を文字列に変換する
+* その文字列を"main" 属性の最初の 4,094 文字に付加する。
+
+## ロングログのデータ保持 [#data-retention]
+
+NRDB は、blob レコードを 1 ヶ月保持します。既存の長いログメッセージが `LogExtendedRecord` として保存されている場合、そのデータもNRDBで1ヶ月間利用可能になります。
+
+1ヶ月が経過すると、それ以上新しい `LogExtendedRecord` 属性は作成されません。これらはすべて、NRDBにblobとして格納されます。

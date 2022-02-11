@@ -1,0 +1,538 @@
+---
+title: NerdGraphチュートリアルNRQLコンディションアラート
+tags:
+  - Alerts and Applied Intelligence
+  - New Relic Alerts
+  - Alerts and Nerdgraph
+metaDescription: 'Examples of how to use the NerdGraph API explorer to create alert conditions, queries, and mutations.'
+translationType: machine
+---
+
+アラート条件は、GraphQL NerdGraph APIを使って管理できます。ここでは、 [NerdGraph API エクスプローラー](https://api.newrelic.com/graphiql) で開発できる条件クエリとミューテーションをご紹介します。
+
+<Callout variant="tip">
+  NerdGraph API explorerの使用方法については、 [NerdGraph introduction](/docs/apis/nerdgraph/get-started/introduction-new-relic-nerdgraph) を参照してください。
+</Callout>
+
+本ドキュメントでは、以下の内容をカバーしています。
+
+* [NRQLの条件を作成する手順](#steps)
+* [NRQLの静的条件](#static-condition)
+* [NRQLベースライン条件](#baseline-condition)
+* [NRQL異常値条件](#outlier-condition)
+* [条件の更新](#update-condition)
+* [変異点の更新](#update-mutations)
+* [NRQL条件のリストアップとフィルタリング](#filtering)
+* [単数形のNRQL条件検索](#singular-condition)
+* [説明を作成する](#description)
+* [条件の削除](#delete-conditions)
+
+## NRQLの条件を作成する手順 [#steps]
+
+以下の手順に従ってください。
+
+1. 作成する条件タイプを決定します（ [NRQL 条件しきい値タイプ](/docs/alerts/new-relic-alerts/defining-conditions/create-alert-conditions-nrql-queries#threshold-types) を参照）。
+
+2. 以下のいずれかの方法で、関連する `policyID` を見つけてください。
+
+   * [NerdGraphポリシーAPIを使用する](/docs/alerts/alerts-nerdgraph/nerdgraph-examples/nerdgraph-api-alerts-policies).
+   * **[one.newrelic.com](https://one.newrelic.com/ "新しいウィンドウにリンクが開きます。")** にアクセスし、トップナビで **Alerts& AI** をクリックし、次に **Policies** をクリックします。ポリシーを選択します。ポリシー名の下に ID があります。
+
+3. NRQL の条件タイプに適したミューテーションと関連する値を提供してください。
+
+<Callout variant="tip">
+  NerdGraph GraphiQLエクスプローラは、NerdGraph NRQL Conditions APIのフィールドごとの仕様に関する最新のドキュメントを探すのに最適な場所です。たとえば、"What does the `valueFunction` field accept?" のような質問には、インラインのNerdGraphドキュメントで答えるのが一番です。
+</Callout>
+
+## NRQLの静的条件 [#static-condition]
+
+ここでは、静的な条件を作成する例を紹介します。
+
+```
+mutation {
+  alertsNrqlConditionStaticCreate(accountId: <var>YOUR_ACCOUNT_ID</var>, policyId: <var>YOUR_POLICY_ID</var>, condition: {
+    name: "Low Host Count - Catastrophic"
+    enabled: true
+    nrql: {
+      query: "SELECT uniqueCount(host) FROM Transaction WHERE appName='my-app-name'"
+    }
+    signal: {
+      aggregationWindow: 60
+      aggregationMethod: EVENT_FLOW
+      aggregationDelay: 120
+    }
+    terms: {
+      threshold: 2
+      thresholdOccurrences: AT_LEAST_ONCE
+      thresholdDuration: 600
+      operator: BELOW
+      priority: CRITICAL
+    }
+    valueFunction: SINGLE_VALUE
+    violationTimeLimitSeconds: 86400
+  }) {
+    id
+    name
+  }
+}
+```
+
+## NRQLベースライン条件 [#baseline-condition]
+
+ここでは、ベースラインの状態を作成する例を紹介します。
+
+```
+mutation {
+  alertsNrqlConditionBaselineCreate(accountId: <var>YOUR_ACCOUNT_ID</var>, policyId: <var>YOUR_POLICY_ID</var>, condition: {
+    name: "Baseline Condition"
+    enabled: true
+    baselineDirection: UPPER_ONLY
+    nrql: {
+      query: "SELECT average(duration) FROM Transaction"
+    }
+    signal: {
+      aggregationWindow: 60
+      aggregationMethod: EVENT_FLOW
+      aggregationDelay: 120
+    }
+    terms: {
+      threshold: 13
+      thresholdDuration: 180
+      thresholdOccurrences: ALL
+      operator: ABOVE
+      priority: CRITICAL
+    }
+    violationTimeLimitSeconds: 86400
+  }) {
+    id
+    name
+    baselineDirection
+  }
+}
+```
+
+## NRQL異常値条件 [#outlier-condition]
+
+ここでは、異常値の条件を作成する例を紹介します。
+
+```
+mutation {
+  alertsNrqlConditionOutlierCreate(accountId: <var>YOUR_ACCOUNT_ID</var>, policyId: <var>YOUR_POLICY_ID</var>, condition: {
+    name: "Outlier Condition"
+    enabled: true
+    expectedGroups: 4
+    openViolationOnGroupOverlap: false
+    nrql: {
+      query: "SELECT average(duration) FROM Transaction FACET httpResponseCode"
+    }
+    signal: {
+      aggregationWindow: 60
+      aggregationMethod: EVENT_FLOW
+      aggregationDelay: 120
+    }
+    terms: {
+      threshold: 1
+      thresholdDuration: 300
+      thresholdOccurrences: ALL
+      operator: ABOVE
+      priority: CRITICAL
+    }
+    violationTimeLimitSeconds: 86400
+  }) {
+    id
+    name
+    expectedGroups
+    openViolationOnGroupOverlap
+  }
+}
+```
+
+## 条件の更新 [#update-condition]
+
+次の項目を完了します。
+
+1. 次のような `nrqlConditionsSearch` クエリで type フィールドを要求して、既存の条件のタイプを決定します。
+
+   ```
+   {
+     actor {
+       account(id: <var>YOUR_ACCOUNT_ID</var>) {
+         alerts {
+           nrqlConditionsSearch {
+             nrqlConditions {
+               id
+               type
+             }
+           }
+         }
+       }
+     }
+   }
+   ```
+
+   <Callout variant="tip">
+     `返されたタイプ` は、アップデートのミューテーションに使用するものです。例えば、返されたタイプが `STATIC` の場合、 `alertsNrqlConditionStaticUpdate` を使用します。返されたタイプが `BASELINE` の場合、 `alertsNrqlConditionBaselineUpdate` を使用します。返されたタイプが `OUTLIER` の場合、 `alertsNrqlConditionOutlierUpdate` を使用します。
+   </Callout>
+
+2. 条件の `id` を、関連する条件タイプのミューテーションに提供してください。なお、更新できるのは、関連するタイプの条件のみです。
+
+更新したいフィールドの更新変異のみを提供します。アップデートに提供していないフィールドはタッチされません。
+
+## 変異点の更新
+
+アップデートで提供したフィールドのみが変更されます。次の例では、 `baselineDirection` は変更されずに戻りますが、 `name` は更新されます。
+
+```
+mutation {
+  alertsNrqlConditionBaselineUpdate(id: <var>YOUR_CONDITION_ID</var>, accountId: <var>YOUR_ACCOUNT_ID</var>, condition: {
+    name: "Your updated name"
+  }) {
+    id
+    name
+    baselineDirection
+  }
+}
+```
+
+## NRQL条件のリストアップとフィルタリング [#filtering]
+
+NRQL の条件をリストアップしたりフィルタリングしたりするには、NerdGraph の `nrqlConditionsSearch` クエリをご利用ください。
+
+<CollapserGroup>
+  <Collapser
+    id="pagination"
+    title="カーソルページネーションの使用"
+  >
+    NRQL条件の基本的なリスト機能では、NRQL条件をページングしたり、アカウントごとの条件の合計数を要求したりすることができます。
+
+    `nrqlConditionsSearch` クエリは、リソースをページングするためにカーソルページングを利用しています。カーソル・ページネーションの考え方は、クライアントがプログラム・ループでカーソルを要求し、カーソルが空になるまで繰り返すというものです。
+
+    初期のリスト対応は以下のようになります。
+
+    ```
+    {
+      actor {
+        account(id: <var>YOUR_ACCOUNT_ID</var>) {
+          alerts {
+            nrqlConditionsSearch {
+              nextCursor
+              nrqlConditions {
+                id
+                name
+                type
+              }
+              totalCount
+            }
+          }
+        }
+      }
+    }
+    ```
+
+    この例では、次のようなJSONレスポンスを返します。
+
+    ```
+    {
+      "data": {
+        "actor": {
+          "account": {
+            "alerts": {
+              "nrqlConditionsSearch": {
+              "nextCursor": "WOwfJ4+TWm9QTFeKMGyg+w==:QqkI8S4+Wwnpno6z+uk8kQ==",
+              "nrqlConditions": [
+                {
+                  "id": "4432",
+                  "name": "Baseline Condition",
+                  "type": "BASELINE"
+                },
+                {
+                  "id": "443",
+                  "name": "A static condition",
+                  "type": "STATIC"
+                },
+                // more conditions here in reality
+              ],
+              "totalCount": 435
+              }
+            }
+          }
+        }
+      }
+    }
+    ```
+
+    レスポンス内の条件をページングするために、クライアントは、 `nextCursor` がレスポンスから `null` を返すまで、カーソルを返すように要求します。
+
+    ```
+    {
+      actor {
+        account(id: <var>YOUR_ACCOUNT_ID</var>) {
+          alerts {
+            nrqlConditionsSearch(cursor: "WOwfJ4+TWm9QTFeKMGyg+w==:QqkI8S4+Wwnpno6z+uk8kQ==",
+            ) {
+              nextCursor
+              nrqlConditions {
+                id
+                name
+                type
+              }
+              totalCount
+            }
+          }
+        }
+      }
+    }
+    ```
+  </Collapser>
+
+  <Collapser
+    id="specific-fields"
+    title="リクエストタイプ固有のフィールド"
+  >
+    特定のフィールドは、特定のNRQL条件タイプでしか利用できません。異なる条件タイプの間で変異が分割されている主な理由は、受け入れられるフィールドの間に細かい違いがあるからです。
+
+    例えば、 `valueFunction` は静的な NRQL 条件にのみ関連し、 `baselineDirection` はベースラインの NRQL 条件にのみ関連します。
+
+    しかし、これらのフィールドが特定の条件タイプでしか利用できない場合、すべての条件タイプのリストでそれらを返すにはどうすればよいのでしょうか？その答えは、インライン・フラグメントと呼ばれるGraphQLの慣習です。インライン・フラグメントでは、特定のタイプのNRQL条件のデータにアクセスすることができます。
+
+    ```
+    {
+      actor {
+        account(id: <var>YOUR_ACCOUNT_ID</var>) {
+          alerts {
+            nrqlConditionsSearch {
+              nrqlConditions {
+                id
+                name
+                type
+                ...on AlertsNrqlStaticCondition {
+                  valueFunction
+                }
+                ...on AlertsNrqlBaselineCondition {
+                  baselineDirection
+                }
+                ...on AlertsNrqlOutlierCondition {
+                  expectedGroups
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    ```
+
+    前述のクエリ例では、どのNRQL条件が正しいタイプなのかを判断するために、GraphQLにハードワークを依頼しています。
+
+    つまり、返されたタイプが静的条件の場合は、オブジェクト内の `valueFunction` を返します。返されたタイプがベースライン条件のときは、代わりに `baselineDirection` を返し、タイプが外れ値条件のときは、 `expectedGroups` を返します。以下にレスポンスの例を示します。
+
+    ```
+    {
+      "data": {
+        "actor": {
+          "account": {
+            "alerts": {
+              "nrqlConditionsSearch": {
+                "nrqlConditions": [
+                  {
+                    "baselineDirection": "UPPER_ONLY",
+                    "id": "342",
+                    "name": "My baseline condition",
+                    "type": "BASELINE"
+                  },
+                  {
+                    "id": "553",
+                    "name": "My static condition",
+                    "type": "STATIC",
+                    "valueFunction": "SINGLE_VALUE"
+                  },
+                  {
+                    "expectedGroups": 4,
+                    "id": "802",
+                    "name": "My outlier condition",
+                    "type": "OUTLIER"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+    ```
+  </Collapser>
+
+  <Collapser
+    id="nrql-conditions"
+    title="フィルターNRQL条件"
+  >
+    `searchCriteria` `nrqlConditionsSearch` クエリの引数でNRQL条件をフィルタリングできます。
+
+    ここでは、名前によるマッチングでNRQL条件をフィルタリングする例を紹介します。このクエリは、指定された名前にマッチする NRQL 条件を返します。このマッチは大文字と小文字を区別しないことに注意してください。
+
+    ```
+    {
+      actor {
+        account(id: <var>YOUR_ACCOUNT_ID</var>) {
+          alerts {
+            nrqlConditionsSearch(searchCriteria: {
+              name: "Baseline Condition"
+            }) {
+              nrqlConditions {
+                id
+                name
+                type
+              }
+            }
+          }
+        }
+      }
+    }
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## 単数形のNRQL条件検索 [#singular-condition]
+
+NRQL 条件 API を使用して、単数の条件を照会できます。 `nrqlCondition` クエリを alerts ネームスペースで実行します。
+
+`nrqlConditionSearch` クエリのタイプ指定フィールドと同様に、これらのインライン・フラグメントを使用して、NRQL 条件タイプに限定されたフィールドを要求することもできます。
+
+```
+{
+  actor {
+    account(id: <var>YOUR_ACCOUNT_ID</var>) {
+      alerts {
+        nrqlCondition(id: <var>YOUR_CONDITION_ID</var>) {
+          id
+          name
+          ...on AlertsNrqlStaticCondition {
+            valueFunction
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+## 説明文の更新 [#description]
+
+ここでは、NRQLのアラート条件に [説明文](/docs/alerts/new-relic-alerts/defining-conditions/alert-condition-descriptions) を作成する手順を説明します。
+
+1. 保険契約の条件をすべて把握する。
+
+```
+{
+  actor {
+    account(id: <var>YOUR_ACCOUNT_ID</var>) {
+      alerts {
+        nrqlConditions(policyId: <var>YOUR_POLICY_ID</var>) {
+          nextCursor
+          results {
+            id
+            name
+            description
+            enabled
+            nrql {
+              query
+            }
+            signal {
+              aggregationWindow
+              aggregationMethod
+              aggregationDelay
+              aggregationTimer
+            }
+            policyId
+            runbookUrl
+            terms {
+              duration
+              operator
+              priority
+              timeFunction
+              threshold
+            }
+            type
+            violationTimeLimitSeconds
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+2. 1つの条件の詳細を取得します。
+
+```
+{
+  actor {
+    account(id: <var>YOUR_ACCOUNT_ID</var>) {
+      alerts {
+        nrqlCondition(id: "<var>YOUR_CONDITION_ID</var>") {
+          description
+          id
+          enabled
+          name
+          nrql {
+            query
+          }
+          signal {
+            aggregationWindow
+            aggregationMethod
+            aggregationDelay
+            aggregationTimer
+          }
+          policyId
+          runbookUrl
+          terms {
+            operator
+            priority
+            threshold
+            thresholdDuration
+            thresholdOccurrences
+          }
+          type
+          violationTimeLimitSeconds
+        }
+      }
+    }
+  }
+}
+```
+
+3. 説明文で変異を作成します。
+
+ここには空の変異テンプレートがあります。
+
+```
+mutation {
+  alertsNrqlConditionStaticUpdate(accountId: <var>YOUR_ACCOUNT_ID</var>, id: "<var>YOUR_CONDITION_ID</var>", condition: {description: ""}) {
+    description
+  }
+}
+```
+
+ここでは、記述例を含む変異の例を紹介します。
+
+```
+mutation {
+  alertsNrqlConditionStaticUpdate(accountId: 123456, id: "123456", condition: {
+    description: "timestamp : {{timestamp}} \n accountId : {{accountId}} \n type : {{type}} \n event : {{event}} \n description : {{description}} \n policyId : {{policyId}} \n policyName: {{policyName}} \n conditionName : {{conditionName}} \n conditionId : {{conditionId}} \n product : {{product}} \n conditionType : {{conditionType}} \n RunbookUrl : {{runbookUrl}} \n nrqlQuery : {{nrqlQuery}} \n nrqlEventType : {{nrqlEventType}} \n targetID : {{targetId}} \n targetName : {{targetName}} \n commandLine : {{tag.commandLine}} \n entityGuid : {{tag.entityGuid}} \n entityName : {{tag.entityName}} \n fullHostname : {{tag.fullHostname}} \n instanceType : {{tag.instanceType}} \n processDisplayName : {{tag.processDisplayName}}"}
+  ) {
+    description
+  }
+}
+```
+
+## 条件の削除
+
+`alertsConditionDelete` 変異を使って、あらゆるタイプの条件を削除することができます。delete変異では、 `id` フィールドのみを要求することができます。
+
+```
+mutation {
+  alertsConditionDelete(accountId: <var>YOUR_ACCOUNT_ID</var>, id: <var>YOUR_CONDITION_ID</var>) {
+    id
+  }
+}
+```

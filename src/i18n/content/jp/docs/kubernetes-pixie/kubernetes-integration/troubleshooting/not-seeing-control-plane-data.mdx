@@ -1,0 +1,173 @@
+---
+title: コントロールプレーンデータが見えない
+type: troubleshooting
+tags:
+  - Integrations
+  - Kubernetes integration
+  - Troubleshooting
+metaDescription: Some troubleshooting tips if you are not seeing data control plane data for your New Relic's Kubernetes integration.
+translationType: machine
+---
+
+## 問題
+
+New Relic の Kubernetes 統合のための [のインストール手順](/docs/kubernetes-monitoring-integration#install) が完了し、New Relic アカウントに Kubernetes のデータが表示されているが、どのコントロールプレーンコンポーネントからもデータが表示されていない。
+
+## 解決策
+
+<CollapserGroup>
+  <Collapser
+    id="invalid-license"
+    title="マスターノードのラベルが正しいかどうか"
+  >
+    以下のコマンドを実行して、手動でマスターノードを探します。
+
+    ```
+    kubectl get nodes -l node-role.kubernetes.io/master=""
+    ```
+
+    ```
+    kubectl get nodes -l kubernetes.io/role="master"
+    ```
+
+    マスターノードが、 [discovery of master nodes and control plane components documentation section](/docs/integrations/kubernetes-integration/installation/configure-control-plane-monitoring#discover-nodes-components) で定義されているラベリング規則に従っている場合、以下のような出力が得られるはずです。
+
+    ```
+    NAME                         STATUS  ROLES   AGE   VERSION
+    ip-10-42-24-4.ec2.internal   Ready   master  42d   v1.14.8
+    ```
+
+    ノードが見つからない場合、2つのシナリオがあります。
+
+    マスターノードにマスターであることを示すラベルがない場合、マスターノードに両方のラベルを追加する必要があります。
+
+    マネージドクラスターの中で、プロバイダーがマスターノードを処理している場合です。この場合、プロバイダーがこれらのノードへのアクセスを制限しているので、あなたにできることはありません。
+  </Collapser>
+
+  <Collapser
+    id="unable-connect"
+    title="マスターノードで統合が実行されていることを確認する"
+  >
+    次のコマンドのプレースホルダーを、前のステップで返されたノード名のいずれかに置き換えて、マスターノードで実行されている統合ポッドを取得します。
+
+    ```
+    kubectl get pods --field-selector spec.nodeName=<var>NODE_NAME</var> -l name=newrelic-infra --all-namespaces
+    ```
+
+    次のコマンドも同じで、ノードを選択してくれるというだけです。
+
+    ```
+    kubectl get pods --field-selector spec.nodeName=$(kubectl get nodes -l node-role.kubernetes.io/master="" -o jsonpath="{.items[0].metadata.name}") -l name=newrelic-infra --all-namespaces
+    ```
+
+    すべてが正しく行われていれば、次のような出力が得られるはずです。
+
+    ```
+    NAME                   READY   STATUS    RESTARTS   AGE
+    newrelic-infra-whvzt   1/1     Running   0          6d20h
+    ```
+
+    マスターノードで統合が実行されていない場合は、デーモンセットに必要なインスタンスがすべて実行され、準備ができていることを確認してください。
+
+    ```
+    kubectl get daemonsets -l app=newrelic-infra --all-namespaces
+    ```
+  </Collapser>
+
+  <Collapser
+    id="indicators"
+    title="コントロール・プレーンのコンポーネントに必要なラベルが貼られていることを確認する"
+  >
+    [discovery of master nodes and control plane components documentation section](/docs/integrations/kubernetes-integration/installation/configure-control-plane-monitoring#discover-nodes-components) を参照し、インテグレーションがコンポーネントの検出に使用しているラベルを探します。次に、以下のコマンドを実行して、このようなラベルを持つポッドがあるかどうか、またそれらが実行されているノードを確認します。
+
+    ```
+    kubectl get pods -l k8s-app=kube-apiserver --all-namespaces
+    ```
+
+    与えられたラベルを持つコンポーネントがあれば、次のような表示になります。
+
+    ```
+    NAMESPACE    NAME                                        READY  STATUS   RESTARTS  AGE
+    kube-system  kube-apiserver-ip-10-42-24-42.ec2.internal  1/1    Running  3         49d
+    ```
+
+    残りの部品も同様にしてください。
+
+    ```
+    kubectl get pods -l k8s-app=etcd-manager-main --all-namespaces
+    ```
+
+    ```
+    kubectl get pods -l k8s-app=kube-scheduler --all-namespaces
+    ```
+
+    ```
+    kubectl get pods -l k8s-app=kube-kube-controller-manager --all-namespaces
+    ```
+  </Collapser>
+
+  <Collapser
+    id="cannot-list-pods-for-cluster"
+    title="マスターノードで実行されている統合の1つの冗長ログを取得し、コントロールプレーンコンポーネントのジョブをチェックする"
+  >
+    ログを取得するには、 [get logs from pod running on a master node](/docs/integrations/kubernetes-integration/troubleshooting/get-logs-version) の手順に従ってください。各コンポーネントの統合ログには、以下のメッセージが表示されます。 _"Running job: <var>COMPONENT_NAME</var>"_.Ex:
+
+    ```
+    Running job: scheduler
+    ```
+
+    ```
+    Running job: etcd
+    ```
+
+    ```
+    Running job: controller-manager
+    ```
+
+    ```
+    Running job: api-server
+    ```
+
+    `ETCD_TLS_SECRET_NAME` 設定オプションを指定しなかった場合、ログに次のようなメッセージが表示されます。
+
+    ```
+    Skipping job creation for component etcd: etcd requires TLS configuration, none given
+    ```
+
+    いずれかのコンポーネントのメトリクスを照会中にエラーが発生した場合は、 `Running job` メッセージの後に記録されます。
+  </Collapser>
+
+  <Collapser
+    id="cannot-list-pods-for-cluster"
+    title="コンポーネントのメトリクスを手動で照会"
+  >
+    [discovery of master nodes and control plane components documentation section](/docs/integrations/kubernetes-integration/installation/configure-control-plane-monitoring#discover-nodes-components) を参照して、クエリを実行するコントロールプレーンコンポーネントのエンドポイントを取得します。このエンドポイントを使用して、クエリを実行するコンポーネントと同じノードで実行されている統合ポッドを使用することができます。以下は、Kubernetesのスケジューラーを照会する例です。
+
+    ```
+    kubectl exec -ti <var>POD_NAME</var> -- wget -O - localhost:10251/metrics
+    ```
+
+    次のコマンドは、同じことを行いますが、ポッドを選んでくれます。
+
+    ```
+    kubectl exec -ti $(kubectl get pods --all-namespaces --field-selector spec.nodeName=$(kubectl get nodes -l node-role.kubernetes.io/master="" -o jsonpath="{.items[0].metadata.name}") -l name=newrelic-infra -o jsonpath="{.items[0].metadata.name}") -- wget -O - localhost:10251/metrics
+    ```
+
+    すべてが正しく行われていれば、Prometheusフォーマットのメトリクスが表示されるはずです。
+
+    ```
+    Connecting to localhost:10251 (127.0.0.1:10251)
+    # HELP apiserver_audit_event_total Counter of audit events generated and sent to the audit backend.
+    # TYPE apiserver_audit_event_total counter
+    apiserver_audit_event_total 0
+    # HELP apiserver_audit_requests_rejected_total Counter of apiserver requests rejected due to an error in audit logging backend.
+    # TYPE apiserver_audit_requests_rejected_total counter
+    apiserver_audit_requests_rejected_total 0
+    # HELP apiserver_client_certificate_expiration_seconds Distribution of the remaining lifetime on the certificate used to authenticate a request.
+    # TYPE apiserver_client_certificate_expiration_seconds histogram
+    apiserver_client_certificate_expiration_seconds_bucket{le="0"} 0
+    apiserver_client_certificate_expiration_seconds_bucket{le="1800"} 0
+    apiserver_client_certificate_expiration_seconds_bucket{le="3600"} 0
+    ```
+  </Collapser>
+</CollapserGroup>

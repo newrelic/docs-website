@@ -1,0 +1,172 @@
+---
+title: SNMPモニタリングの結果、メトリクスが見つからない
+tags:
+  - Integrations
+  - Network performance monitoring
+  - Troubleshooting
+metaDescription: 'SNMP monitoring is working, but expected metrics are missing.'
+translationType: machine
+---
+
+## 問題 [#problem]
+
+SNMPモニタリングでは、デバイスに期待されるメトリクスがすべて表示されるわけではありません。
+
+## ソリューション [#solutions]
+
+以下のNRQLクエリを実行して、New Relic Oneにどのようなメトリクスが存在するかを確認します。
+
+```sql
+FROM Metric SELECT 
+uniques(metricName) 
+WHERE instrumentation.provider = 'kentik' 
+AND device_name = '$DEVICE_NAME'
+SINCE 1 HOUR AGO LIMIT MAX
+```
+
+<Callout variant="important">
+  `$DEVICE_NAME` をお使いのデバイスの名前に置き換えてください。
+</Callout>
+
+このクエリは、過去1時間にあなたのデバイスで収集されているすべての次元メトリックのリストを提供します。メトリックがリストアップされていない場合は、試してみてください。
+
+* [デバイスがターゲットOIDに応答することを確認する](#verify-device-response)
+* [デバイスが正しいプロファイルにマッチしていることを確認する](#verify-device-matches)
+* [Verify ktranslate is polling into device as expected](#verify-ktranslate-polling)
+* [デバイスプロファイルにOIDが記載されていることを確認する](#verify-listed-profile)
+
+### デバイスがターゲットOIDに応答することを確認する [#verify-device-response]
+
+[snmpwalk ユーティリティ](/docs/network-performance-monitoring/troubleshooting/snmp-walk) を使用して、 `snmp-base.yaml` 設定ファイルで設定した SNMP 認証情報を使用して、Docker ホストからメトリクスを収集します。
+
+テストが失敗した場合、そのデバイスは収集したいOIDをサポートしていない可能性が高い。これは、ベンダーが管理しているデバイス自体の制限です。
+
+<Callout variant="tip">
+  SNMPv3を使用している場合は、機器のv3ユーザーの設定を確認してください。ほとんどの場合、デバイス管理者はv3ユーザーアカウントのMIBへのアクセスを明示的に許可する必要があります。
+</Callout>
+
+### デバイスが正しいプロファイルにマッチしていることを確認する [#verify-device-matches]
+
+前のテストに合格した場合、 `snmp-base.yaml` ファイルの `mib_profile` の設定値が正しいプロファイルファイル名と一致していることを確認します。例えば、以下のようになります。
+
+```yaml
+devices:
+  deviceOne:
+    ...
+    mib_profile: cisco-catalyst.yml
+    ...
+```
+
+これは、New Relic Oneで以下のNRQLクエリで確認できます。
+
+```sql
+FROM Metric SELECT 
+latest(instrumentation.name) 
+WHERE instrumentation.provider = 'kentik' 
+AND device_name = '$DEVICE_NAME'
+```
+
+<Callout variant="important">
+  `$DEVICE_NAME` をお使いのデバイスの名前に置き換えてください。
+</Callout>
+
+SNMPプロファイルのライブラリは常に更新されており、使用しているコンテナイメージに求めているプロファイル設定がない場合があります。 `mib_profile` が期待するプロファイルと一致しない場合は、手動で設定ファイルを更新するか、新しいディスカバリーを実行してください。
+
+`docker pull kentik/ktranslate:v2` を実行して、変更を加える前に常にコンテナの最新イメージをプルしておく必要があります。
+
+### Verify ktranslate is polling into device as expected [#verify-ktranslate-polling]
+
+前のテストが合格した場合、あなたは、 `Warn`-severity errors that signify **ktranslate** having having issues collect certain metrics from your device.のためにアカウントをチェックする必要があります。
+
+Logs UIです。
+
+```shell
+collector.name:"ktranslate" message:"*OID failed to return results*"
+```
+
+NRQL。
+
+```sql
+FROM Log SELECT * WHERE `collector.name` = 'ktranslate' AND `message` LIKE '%OID failed to return results%'
+```
+
+期待される成果
+
+```
+KTranslate>cisco-7513 OID failed to return results, Metric Name: ipIfStatsHCInOctets, Profile: cisco-asr
+```
+
+<Callout variant="tip">
+  この例では、対象デバイスである `cisco-7513` が、 `ipIfStatsHCInOctets` OID（ `cisco-asr` SNMP プロファイルに含まれる）のメトリクスを返していないことがわかります。
+</Callout>
+
+次に、お使いのデバイスに対して単一のSNMPポールを実行し、供給された設定を使用して、リクエストから **ktranslate** が受け取るものを正確に確認する必要があります。
+
+そのためには、 **ktranslate** を短命のコンテナとして実行し、 `-snmp_poll_now` フラグを利用して、 `snmp-base.yaml` 設定ファイルに記載されている名前に基づいてデバイスをターゲットにすることができます。例えば、以下のようになります。
+
+```shell
+docker run -d --name ktranslate-poll_now --rm --net=host \
+-v `pwd`/snmp-base.yaml:/snmp-base.yaml \
+-e NEW_RELIC_API_KEY=$YOUR_NR_LICENSE_KEY  \
+kentik/ktranslate:v2 \
+  -snmp /snmp-base.yaml \
+  -nr_account_id=$YOUR_NR_ACCOUNT_ID \
+  -tee_logs=true \
+  -service_name=poll_now \
+  -snmp_poll_now=$TARGET_DEVICE_NAME \
+  -format=new_relic_metric
+```
+
+このポーリングの結果は、 `docker logs --follow ktranslate-poll_now を使って、コンテナのログで見ることができます。`
+
+デバイス・メタデータ・ポーリングの成功例
+
+```
+2022-01-03T23:08:50.583 ktranslate/poll_now [Info] KTranslate SNMP Device Metadata: Data received: {SysName:router123 SysObjectID:.1.3.6.1.4.1.9.1.46 SysDescr:Cisco Internetwork Operating System Software ...}
+2022-01-03T23:08:50.585 ktranslate/poll_now [Info] nrmFormat New Metadata for router123
+```
+
+デバイスの統計情報のポーリングが成功した例。
+
+```
+[{"metrics":[{"name":"kentik.snmp.ifInErrors","type":"count","value":0,"attributes":{"if_Speed":2,"mib-name":"IF-MIB","poll_duration_sec":60,"if_Type":"proppointtopointserial","if_AdminStatus":"up","objectIdentifier":".1.3.6.1.2.1.2.2.1.14","mib-table":"if","if_OperStatus":"up","device_name":"router123","provider":"kentik-router","if_interface_name":"Se11/0/0:16","instrumentation.name":"cisco-asr","if_Index":"63","if_Address":"10.201.0.65","eventType":"KSnmpInterfaceMetric","if_Netmask":"255.255.255.252","if_Alias":"pkt.ds1"}}]...}]
+```
+
+_" prettified"_ JSONを見ると、このデバイスではポーリングが期待通りに機能していることがわかります。
+
+```json
+[
+  {
+    "metrics": [
+      {
+        "name": "kentik.snmp.ifInErrors",
+        "type": "count",
+        "value": 0,
+        "attributes": {
+          "if_Speed": 2,
+          "mib-name": "IF-MIB",
+          "poll_duration_sec": 60,
+          "if_Type": "proppointtopointserial",
+          "if_AdminStatus": "up",
+          "objectIdentifier": ".1.3.6.1.2.1.2.2.1.14",
+          "mib-table": "if",
+          "if_OperStatus": "up",
+          "device_name": "router123",
+          "provider": "kentik-router",
+          "if_interface_name": "Se11/0/0:16",
+          "instrumentation.name": "cisco-asr",
+          "if_Index": "63",
+          "if_Address": "10.201.0.65",
+          "eventType": "KSnmpInterfaceMetric",
+          "if_Netmask": "255.255.255.252",
+          "if_Alias": "pkt.ds1"
+        }
+      }
+    ]
+  }
+]
+```
+
+### デバイスプロファイルにOIDが記載されていることを確認する [#verify-listed-profile]
+
+これまでのテストにすべて合格した場合、デバイスプロファイル自体にOIDが存在するかどうかを確認します。OIDが記載されていても期待通りに動作しない場合や、OIDをプロファイルに追加する必要がある場合は、 [GitHub issue](https://github.com/kentik/snmp-profiles/issues/new/choose) を開いてリポジトリのメンテナに連絡し、解決に向けて動いてもらいます。

@@ -1,0 +1,180 @@
+---
+title: Rubyのバックグラウンドプロセスの監視
+tags:
+  - Agents
+  - Ruby agent
+  - Background jobs
+metaDescription: How to configure New Relic's Ruby agent to instrument background jobs.
+translationType: machine
+---
+
+当社のRubyエージェントは、いくつかの一般的なバックグラウンド・ジョブ・フレームワークを自動的に計測します。また、任意のバックグラウンドタスクをトレースするようにカスタマイズすることもできます。バックグラウンドジョブからのデータは、 [**トランザクション** ページ](/docs/apm/applications-menu/monitoring/transactions-page) APMでは、 **非ウェブトランザクション** として表示されます。
+
+## 対応フレームワーク [#supported_frameworks]
+
+最近のRubyエージェントでは、以下のバックグラウンド・ジョブ・フレームワークがデフォルトでサポートされています。
+
+* [Resque instrumentation](/docs/agents/ruby-agent/background-jobs/resque-instrumentation) (Ruby agent 3.4.0)
+* [Sidekiq instrumentation](/docs/agents/ruby-agent/background-jobs/sidekiq-instrumentation) (Ruby agent 3.6.0)
+* [Delayed::Job instrumentation](/docs/agents/ruby-agent/background-jobs/delayedjob) (Ruby agent 2.10)
+
+<Callout variant="important">
+  [JRuby](/docs/agents/ruby-agent/miscellaneous/new-relic-jruby) ユーザーは、CPU メトリクスに問題があるかもしれません。
+</Callout>
+
+これらのフレームワークを使用している場合、バックグラウンドジョブの監視には通常、追加の設定は必要ありません。
+
+## カスタムバックグラウンドジョブの監視 [#custom_background_jobs]
+
+カスタムバックグラウンドジョブをインスツルメンテーションして、APM [**Transactions** page](/docs/apm/applications-menu/monitoring/transactions-page) as **Non-web transactions** に表示することができます。 **Non-web transactions** を、サポートされていないフレームワークを使用しながら監視するには、カスタムインスツルメンテーションを追加する必要があります。
+
+例えば、バックグラウンド・ジョブで `SalesOrganization#find_new_leads` というタスクが定期的に実行されているとします。
+
+1. `ControllerInstrumentation` モジュールの追加。
+
+2. `add_transaction_tracer` 指令 **以下の** メソッドの定義を使用します。
+
+3. `:category =>:task` を追加して、このトレースが **Non-web transaction** であることをエージェントに伝えます。
+
+   ```
+   require 'newrelic_rpm'
+
+   class SalesOrganization
+     include
+   ::NewRelic::Agent::Instrumentation::ControllerInstrumentation
+     def find_new_leads
+       <var>...</var>
+     end
+     add_transaction_tracer :find_new_leads, :category => :task
+   end
+   ```
+
+   `:category` に文字列を渡すことができますが、APM **Transactions** ページに値が表示されるのは、その文字列が `OtherTransaction/` で始まる場合のみです。
+
+## カスタムバックグラウンドメソッドの監視 [#custom_methods]
+
+Ruby エージェント API を使用すると、特定のメソッドを指定して、 **非ウェブ・トランザクション** をトレースすることができます。これにより、実行速度の遅いジョブのトレースを収集し、キャプチャしたエラーをトランザクションに関連付けることができます。
+
+クラスメソッドをインストゥルメントするには、クラス `シングルトン` を使用します。
+
+例えば、バックグラウンド・ジョブで `SalesOrganization#find_new_leads` というタスクが定期的に実行されているとします。
+
+1. `ControllerInstrumentation` モジュール **を** メソッド定義の下に追加します。
+
+2. `add_transaction_tracer` ディレクティブを使用します。
+
+3. `:category =>:task` を追加して、このトレースが **Non-web transaction** であることをエージェントに伝えます。
+
+   ```
+   require 'newrelic_rpm'
+
+   class SalesOrganization
+     def self.find_new_leads
+       <var>...</var>
+     end
+     class << self
+         include
+   ::NewRelic::Agent::Instrumentation::ControllerInstrumentation
+       add_transaction_tracer :find_new_leads, :category => :task
+     end
+   end
+   ```
+
+   詳しくは、 [Ruby custom metrics](/docs/agents/ruby-agent/features/ruby-custom-metrics) をご覧ください。
+
+## 短期間のプロセスを監視する [#short]
+
+エージェントがバックエンドサーバーに接続する前に、プロセスが実行されていないことを確認します。そのためには、Ruby エージェントが New Relic に接続する際に、デフォルトの非同期の動作ではなく、同期的に接続するようにします。
+
+[`manual_start`](https://www.rubydoc.info/github/newrelic/newrelic-ruby-agent/NewRelic%2FAgent%3Amanual_start) を使用し、 `:sync_startup => true` オプションを渡します。
+
+```
+require 'new_relic/agent'
+NewRelic::Agent.manual_start(:sync_startup => true)
+```
+
+`require 'new_relic/agent'` を使用すると、エージェントのコードを要求し、手動で起動するまでエージェントが実行されないようにします。
+
+プロセスがエージェント [収穫サイクル](/docs/using-new-relic/welcome-new-relic/get-started/glossary#harvest-cycle) よりも短い場合は、キューに入っているデータがすべて送信されるように、 [`::NewRelic::Agents.shutdown`](https://www.rubydoc.info/github/newrelic/newrelic-ruby-agent/NewRelic/Agent:shutdown) でエージェントを手動でシャットダウンする必要があります。
+
+## バックグラウンドプロセスのためのnewrelic.ymlの設定 [#config_file]
+
+**newrelic.yml** の設定は、バックグラウンドアプリケーションのコンテキストに依存します。
+
+<CollapserGroup>
+  <Collapser
+    id="non_rails"
+    title="非Railsのバックグラウンドアプリケーション"
+  >
+    バックグラウンドアプリケーションが、すでにRubyエージェントを実行している非Railsアプリケーションの場合、 **newrelic.yml** ファイルを、バックグラウンドジョブを起動したディレクトリ、または **config** サブディレクトリにコピーしてください。 [ライセンスキーが含まれていることを確認してください](/docs/accounts-partnerships/accounts/account-setup/your-license-key) 。
+
+    Railsコンテキストで実行されないバックグラウンドジョブは、 `NEW_RELIC_ENV` 環境変数を調べて、設定ファイルのどのセクションを読むかを決定し、 `RUBY_ENV` 、 `RAILS_ENV` 、 `RACK_ENV` 環境変数に順にフォールバックし、これらの環境変数が設定されていない場合は最終的に `開発` をデフォルトとします。
+  </Collapser>
+
+  <Collapser
+    id="existing_rails_app"
+    title="New Relicが監視するバックグラウンドジョブ環境"
+  >
+    バックグラウンドジョブが、New Relic ですでに監視されている既存のウェブアプリケーションのコンテキストで実行される場合、Ruby エージェントは自動的に既存の **newrelic.yml** ファイルをピックアップします。アプリケーションのRails環境を起動するバックグラウンドジョブは、 `RAILS_ENV` 環境変数を使用して、 **newrelic.yml** ファイルのどのセクションを読み込むかを決定します。
+  </Collapser>
+</CollapserGroup>
+
+## 別のアプリケーション名で報告する [#reporting_to_an_alternate_application_name]
+
+既存の New Relic Web アプリケーションのコンテキストで実行されるジョブを、APM UI において [異なるアプリケーション名](/docs/apm/new-relic-apm/installation-configuration/naming-your-application) で表示させることができます。
+
+1. `newrelic_rpm` がワーカーコードで要求される前に **を開始します。**
+
+2. `NEW_RELIC_APP_NAME` 環境変数に、バックグラウンドワーカープロセスの起動時に、バックグラウンドジョブに使用するアプリケーション名を設定します。これは、 `app_name` **newrelic.yml** の設定を上書きします。
+
+     ```
+     $ NEW_RELIC_APP_NAME="My Background Jobs"
+     ./bin/my_background_worker.rb
+     ```
+
+## エージェントの起動を確認する [#start_agent]
+
+Ruby エージェントは、ブラックリストに登録された実行ファイル名や rake タスク名、定数を検出しない限り、 `require 'newrelic_rpm'` と同時に、ほとんどの場合、自動的に起動します。これにより、一般的な rake タスクやインタラクティブなコンソールセッション中に起動することはありません。
+
+<CollapserGroup>
+  <Collapser
+    id="non_rails_standalone"
+    title="非Railsのスタンドアロン・スクリプト"
+  >
+    通常、Railsなしで動作するスタンドアロンのスクリプトは、 `require 'newrelic_rpm'` を実行するとすぐにエージェントを起動します。主な作業を開始する前にフォークやデーモン化を行うスクリプトがある場合は、この `require` の呼び出しを初期設定が終わるまで延期するとよいでしょう。
+  </Collapser>
+
+  <Collapser
+    id="existin_rails_app"
+    title="デーモンによるバックグラウンドタスク gem"
+  >
+    [daemons gem](https://rubygems.org/gems/daemons) を使用してバックグラウンド・タスクを開始すると、Ruby エージェントの起動に失敗したり、ログが出力されないことがあります。これは、バックグラウンド・コードを実行する前に、daemons gem が作業ディレクトリを `/` に変更するために起こります。エージェントは、ホスト・プロセスの現在の作業ディレクトリに相対して、設定ファイルとログ・ファイルへのパスを解決しようとします。
+
+    このような状況でもエージェントを起動できるようにするには、環境変数にエージェントの設定ファイルとログファイルの場所を設定します。
+
+    ```
+    ENV['NRCONFIG'] ||= File.dirname(__FILE__) +
+        '/../../config/newrelic.yml'
+        ENV['NEW_RELIC_LOG'] ||= File.dirname(__FILE__) +
+        '/../../log/newrelic_agent.log'
+    ```
+  </Collapser>
+</CollapserGroup>
+
+詳しくは、 [controlling agent startupに関するドキュメントをご覧ください。](/docs/agents/ruby-agent/troubleshooting/controlling-when-ruby-agent-starts)## モニタースクリプト [#monitoring_scripts][エージェント起動手順](#start_agent) は、デーモンでバックグラウンドジョブを実行する場合に適用されます。スクリプトが単一のバックグラウンドタスクを実行して終了する場合は、スクリプトの終了時に `::NewRelic::Agents.shutdown` でエージェントを手動でシャットダウンしてください。これにより、New Relic のコレクターがデータを確実に受け取ることができます。例えば、以下のようになります。
+
+```
+require 'newrelic_rpm'
+
+class SalesOrganization
+  include
+::NewRelic::Agent::Instrumentation::ControllerInstrumentation
+  def find_new_leads
+    <var>...</var>
+  end
+  add_transaction_tracer :find_new_leads, :category => :task
+end
+
+SalesOrganization.new.find_new_leads
+::NewRelic::Agent.shutdown
+```

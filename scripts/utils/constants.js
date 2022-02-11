@@ -9,8 +9,6 @@ module.exports = {
   DATA_DIR: 'src/data',
   JP_DIR: 'src/i18n/content/jp',
 
-  ADDITIONAL_LOCALES: ['jp'],
-
   INSTRUCTIONS: {
     ADD: 'ADD',
     MOVE: 'MOVE',

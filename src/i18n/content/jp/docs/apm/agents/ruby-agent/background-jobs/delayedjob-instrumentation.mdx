@@ -1,0 +1,64 @@
+---
+title: 'Delayed::Job Instrumentation'
+tags:
+  - Agents
+  - Ruby agent
+  - Background jobs
+metaDescription: 'If jobs do not appear to be monitored in New Relic''s Delayed:Job library, review your Ruby agent''s log file.'
+translationType: machine
+---
+
+Ruby エージェントには、 `Delayed::Job` ライブラリーに対するインスツルメンテーションが組み込まれています。追加のインスツルメンテーションは必要ありません。
+
+## バックグラウンドタスクの表示 [#viewing]
+
+`Delayed::Job` ワーカーが起動する前に、New Relic Ruby エージェントの gem またはプラグインがロードされていれば、すべてのタスクがコントローラのアクションと同じレベルの詳細さで監視されます。アクションそのものを見るには
+
+1. **[one.newrelic.com](https://one.newrelic.com) > APM >（アプリの選択）> Monitor > Transactions**の順に移動します。
+2. [APM **Transactions** ページから](/docs/apm/applications-menu/monitoring/transactions-page) 、 **Other transactions** を選択します。
+
+## カスタム属性の追加 [#custom-attributes]
+
+`Delayed::Job` トランザクションにカスタム属性を追加したい場合は、ライフサイクルフックを介して `Delayed::Job` プラグインを書き、実行されたジョブごとにそれらの属性をトランザクションに追加することができます。
+
+1. 以下のような構造のプラグインを作成します。
+
+```ruby
+module NewRelicInstrumenter
+  class DelayedJobPlugin < Delayed::Plugin
+    callbacks do |lifecycle|
+      lifecycle.around(:invoke_job) do |job, *args, &block|
+        # Forward the call to the next callback in the callback chain
+        ::NewRelic::Agent.add_custom_attributes(
+          {
+            # Any custom attributes go here -- from here you can access info
+            # about the job like run_at, created_at, etc
+            my_custom_attribute: "my_custom_attribute_value"
+          }
+        )
+        block.call(job, *args)
+      end
+    end
+  end
+end
+```
+
+2. `Delayed::Job` `config/initializers/delayed_job.rb` ファイル内のイニシャライザにプラグインを追加します。
+
+```ruby
+require "new_relic_instrumenter"
+
+Delayed::Worker.plugins << NewRelicInstrumenter::DelayedJobPlugin
+```
+
+## トラブルシューティング [#troubleshooting]
+
+Ruby エージェントは、インスツルメンテーションを正しく設定するために、 `Delayed::Job` で実行されていることを識別できるかどうかに依存しています。これを行うために、スクリプト名（Ruby の `$0` 変数）を調べて、それが `delayed_job` で終わっているかどうかを確認します。
+
+`delayed_job` ワーカーの起動に使用するスクリプトを別の名前に変更した場合、または別の名前のカスタムスクリプトを使用している場合は、 `Delayed::Job` ワーカーの起動時に `NEW_RELIC_DISPATCHER` 環境変数を `delayed_job` に設定することで、 `Delayed::Job` を使用していることをエージェントに明示的に伝える必要があります。例えば、以下のようになります。
+
+```
+NEW_RELIC_DISPATCHER=delayed_job bundle exec ./script/my_custom_script
+```
+
+ジョブが監視されていないように見える場合は、ワーカーの起動時に生成される **newrelic_agent.log** ファイルを確認してください。このファイルには、エージェントが `Delayed` を検出し、サーバーと通信しているかどうかが示されているはずです。ログが見つからない場合や、ジョブが表示されない原因が特定できない場合は、 [support.newrelic.com](https://support.newrelic.com "新しいウィンドウで開くリンク") でサポートを受けてください。
