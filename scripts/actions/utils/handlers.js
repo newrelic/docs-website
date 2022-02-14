@@ -289,4 +289,8 @@ module.exports = {
     deserialize: deserializeComponent,
     serialize: serializeComponent,
   },
+  sup: {
+    deserialize: deserializeComponent,
+    serialize: serializeComponent,
+  },
 };
