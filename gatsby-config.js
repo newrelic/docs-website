@@ -72,6 +72,7 @@ module.exports = {
             'php',
             'phpdoc',
             'csharp',
+            'shell',
             'python',
           ],
         },
