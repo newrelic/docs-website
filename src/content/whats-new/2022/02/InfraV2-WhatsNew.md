@@ -6,7 +6,6 @@ learnMoreLink: 'https://newrelic.com/blog/nerdlog/infrastructure-monitoring-in-p
 getStartedLink: 'https://onenr.io/08dQepE9Wje'
 ---
 
-For Body:
 ## New infrastructure monitoring is generally available today
 Today, New Relic is making the new [infrastructure monitoring](https://newrelic.com/products/infrastructure) experience generally available to help DevOps, SRE, and IT Operations teams proactively identify and resolve issues in their public, private, and hybrid cloud infrastructure. 
 
