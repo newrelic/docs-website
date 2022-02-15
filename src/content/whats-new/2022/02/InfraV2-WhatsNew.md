@@ -1,13 +1,13 @@
 ---
-title: 'New Infrastructure Monitoring Experience is now Generally Available'
+title: 'Pinpoint potential infrastructure issues and quantify blast radius with a new infrastructure monitoring experience'
 summary: 'New time-travel and troubleshooting workflows for DevOps, SRE, and IT Ops teams make it possible to quickly pinpoint, isolate, and compare offending on-premises, cloud, or hybrid infrastructure components, determine incident blast radius, and identify root cause.'
 releaseDate: '2022-02-16'
 learnMoreLink: 'https://newrelic.com/blog/nerdlog/infrastructure-monitoring-in-preview'
-getStartedLink: 'http://one.newrelic.com/'
+getStartedLink: 'https://onenr.io/08dQepE9Wje'
 ---
 
 For Body:
-## New Infrastructure Monitoring is Aenerally Available Today
+## New infrastructure monitoring is generally available today
 Today, New Relic is making the new [infrastructure monitoring](https://newrelic.com/products/infrastructure) experience generally available to help DevOps, SRE, and IT Operations teams proactively identify and resolve issues in their public, private, and hybrid cloud infrastructure. 
 
 ![./images/RelatedEntitiesGA.png]("New infrastructure monitoring user interface")
