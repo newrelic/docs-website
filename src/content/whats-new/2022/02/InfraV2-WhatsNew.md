@@ -9,7 +9,7 @@ getStartedLink: 'https://onenr.io/08dQepE9Wje'
 ## New infrastructure monitoring is generally available today
 Today, New Relic is making the new [infrastructure monitoring](https://newrelic.com/products/infrastructure) experience generally available to help DevOps, SRE, and IT Operations teams proactively identify and resolve issues in their public, private, and hybrid cloud infrastructure.
 
-<iframe width="560" height="315" src="https://youtu.be/Ro0DCRHxyU8" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+<iframe width="560" height="315" src="https://youtube.com/embed/Ro0DCRHxyU8" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
 
 New infrastructure monitoring interface makes it easy to find and compare possible infrastructure components.
 
