@@ -7,11 +7,13 @@ getStartedLink: 'https://onenr.io/08dQepE9Wje'
 ---
 
 ## New infrastructure monitoring is generally available today
-Today, New Relic is making the new [infrastructure monitoring](https://newrelic.com/products/infrastructure) experience generally available to help DevOps, SRE, and IT Operations teams proactively identify and resolve issues in their public, private, and hybrid cloud infrastructure. 
+Today, New Relic is making the new [infrastructure monitoring](https://newrelic.com/products/infrastructure) experience generally available to help DevOps, SRE, and IT Operations teams proactively identify and resolve issues in their public, private, and hybrid cloud infrastructure.
 
-![New infrastructure monitoring user interface](./images/netlify_dashboard_2022-02-09.png  "New infrastructure monitoring user interface")
+<iframe width="560" height="315" src="https://youtu.be/Ro0DCRHxyU8" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
 
 New infrastructure monitoring interface makes it easy to find and compare possible infrastructure components.
+
+![New infrastructure monitoring user interface](./images/RelatedEntitiesGA.png  "New infrastructure monitoring user interface")
 
 **Highlights**
 1. Pinpoint bottlenecks instantly using New Relic Lookout to know where to focus your attention.
@@ -26,3 +28,6 @@ New infrastructure monitoring interface makes it easy to find and compare possib
 With our new infrastructure monitoring experience, we’ve doubled down on providing real-time troubleshooting workflows while incorporating broader platform context and unique topology visualizations into our user experience.
 
 Check out our new infrastructure monitoring experience and tell us what you think. New Relic full platform access users across all regions can start using it today without any additional cost. Find it in New Relic One within the main menu under **[Infrastructure > Hosts New](https://onenr.io/08dQepE9Wje)**. You can also [read the new infrastructure UI docs](https://docs.newrelic.com/docs/infrastructure/infrastructure-ui-pages/infrastructure-ui-entities/).
+
+**One last item**
+With this release of infrastructure monitoring we've upgraded your **filter sets** into **saved views**. These saved views are now available for use in the Explorer. To modify or add saved views go to Explorer.
