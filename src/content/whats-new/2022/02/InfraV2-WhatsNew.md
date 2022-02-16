@@ -30,4 +30,4 @@ With our new infrastructure monitoring experience, we’ve doubled down on provi
 Check out our new infrastructure monitoring experience and tell us what you think. New Relic full platform access users across all regions can start using it today without any additional cost. Find it in New Relic One within the main menu under **[Infrastructure > Hosts New](https://onenr.io/08dQepE9Wje)**. You can also [read the new infrastructure UI docs](https://docs.newrelic.com/docs/infrastructure/infrastructure-ui-pages/infrastructure-ui-entities/).
 
 **One last item**
-With this release of infrastructure monitoring we've upgraded your **filter sets** into **saved views**. These saved views are now available for use in the Entity Explorer. To modify or add saves views go to Entity Explorer.
+With this release of infrastructure monitoring we've upgraded your **filter sets** into **saved views**. These saved views are now available for use in the Explorer. To modify or add saved views go to Explorer.
