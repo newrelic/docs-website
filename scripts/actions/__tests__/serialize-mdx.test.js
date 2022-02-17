@@ -303,7 +303,7 @@ The Varnish Cache integration collects both metrics(<b>M</b>) and inventory(<b>I
   expect(html).toMatchSnapshot();
 });
 
-test.only("test <InlineCode> element serializes and adds 'notranslate' class to element", async () => {
+test("test <InlineCode> element serializes and adds 'notranslate' class to element", async () => {
   const mdx = `
 <InlineCode>This is a test</InlineCode>
 `;
