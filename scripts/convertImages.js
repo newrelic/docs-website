@@ -25,6 +25,7 @@ const images = () => {
 
   // return transformer;
   return (tree, file) => {
+    const imports = [];
     visit(tree, 'image', (node, index, parent) => {
       // Maybe reference https://github.com/remcohaszing/remark-mdx-images
       // for hints on what we need to do
@@ -39,6 +40,11 @@ const images = () => {
         const importName = camelCase(
           node.url.replace('./images/', '').replace(/\.(png|jpg)/i, '')
         );
+        const importString = `import ${importName} from '${node.url.replace(
+          './',
+          ''
+        )}'`;
+        imports.push(importString);
         node = u(
           'mdxBlockElement',
           {
@@ -61,19 +67,29 @@ const images = () => {
         parent.children.splice(index, 1, node);
       }
     });
-    // visit(tree, 'mdxBlockElement', (node) => {
-    //   // Maybe reference https://github.com/remcohaszing/remark-mdx-images
-    //   // for hints on what we need to do
-    //   log(node);
-
-    //   node.url = 'images/stuff';
-
-    //   return node;
-    // });
+    visit(tree, 'root', (node) => {
+      const [head, ...tail] = node.children;
+      const importNode = u('paragraph', {
+        type: 'text',
+        value: imports.join('\n\n'),
+      });
+      node.children = [head, importNode, ...tail];
+    });
   };
 };
 
 const mdxFile = fs.readFileSync(path.join(filePath));
+
+// const mdxAst = unified()
+//   .use(remarkParse)
+//   .use(frontmatter, ['yaml'])
+//   .parse(mdxFile);
+
+// fs.writeFileSync(
+//   path.join(process.cwd(), 'mdxAst.json'),
+//   JSON.stringify(mdxAst, null, 2),
+//   'utf-8'
+// );
 
 const processor = unified()
   .use(remarkParse)
@@ -84,11 +100,10 @@ const processor = unified()
   })
   .use(remarkMdx)
   .use(remarkMdxjs)
-  .use(images)
-  .use(frontmatter, ['yaml']);
+  .use(frontmatter, ['yaml'])
+  .use(images);
 const main = async () => {
   const { contents } = await processor.process(mdxFile);
-
   fs.writeFileSync(path.join(process.cwd(), 'newMdx.mdx'), contents, 'utf-8');
 };
 
