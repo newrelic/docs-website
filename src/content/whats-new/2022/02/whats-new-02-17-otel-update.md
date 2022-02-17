@@ -1,6 +1,6 @@
 ---
 title: "New Relic's native OTLP endpoint now supports HTTP/1.1 and Infinite Tracing with gRPC"
-summary: "New Relic enhances it support for OpenTelemetry with OTLP support for HTTP/1.1, infinite tracing and curated user experiences to analyze the data"
+summary: "New Relic enhances our support for OpenTelemetry with OTLP support for HTTP/1.1, Infinite Tracing, and curated user experiences to analyze the data"
 releaseDate: '2022-02-17' 
 learnMoreLink: 'https://newrelic.com/blog/how-to-relic/opentelemetry-user-experience' 
 getStartedLink: 'https://docs.newrelic.com/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/opentelemetry-quick-start/'
