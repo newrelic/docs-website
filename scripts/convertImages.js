@@ -108,7 +108,7 @@ const processor = unified()
 
 const main = async () => {
   const { contents } = await processor.process(mdxFile);
-  fs.writeFileSync(path.join(process.cwd(), 'newMdx.mdx'), contents, 'utf-8');
+  fs.writeFileSync(filePath, contents, 'utf-8');
 };
 
 main();
