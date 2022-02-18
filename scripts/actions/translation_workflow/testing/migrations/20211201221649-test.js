@@ -150,6 +150,9 @@ module.exports = {
       {
         locale: 'ja-JP',
       },
+      {
+        locale: 'ko-KR',
+      },
     ]);
   },
 

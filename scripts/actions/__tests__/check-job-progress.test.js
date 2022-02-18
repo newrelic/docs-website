@@ -91,12 +91,21 @@ describe('check-jobs-progress tests', () => {
 
       await updateTranslationRecords([slugStatus]);
 
-      expect(updateTranslations.mock.calls.length).toBe(1);
+      expect(updateTranslations.mock.calls.length).toBe(2);
       expect(updateTranslations.mock.calls[0][0]).toStrictEqual({
         slug: 'failure.txt',
         status: 'IN_PROGRESS',
+        locale: 'ja-JP',
       });
       expect(updateTranslations.mock.calls[0][1]).toStrictEqual({
+        status: 'COMPLETED',
+      });
+      expect(updateTranslations.mock.calls[1][0]).toStrictEqual({
+        slug: 'failure.txt',
+        status: 'IN_PROGRESS',
+        locale: 'ko-KR',
+      });
+      expect(updateTranslations.mock.calls[1][1]).toStrictEqual({
         status: 'COMPLETED',
       });
     });
@@ -108,12 +117,21 @@ describe('check-jobs-progress tests', () => {
 
       await updateTranslationRecords([slugStatus]);
 
-      expect(updateTranslations.mock.calls.length).toBe(1);
+      expect(updateTranslations.mock.calls.length).toBe(2);
       expect(updateTranslations.mock.calls[0][0]).toStrictEqual({
         slug: 'success.txt',
         status: 'IN_PROGRESS',
+        locale: 'ja-JP',
       });
       expect(updateTranslations.mock.calls[0][1]).toStrictEqual({
+        status: 'COMPLETED',
+      });
+      expect(updateTranslations.mock.calls[1][0]).toStrictEqual({
+        slug: 'success.txt',
+        status: 'IN_PROGRESS',
+        locale: 'ko-KR',
+      });
+      expect(updateTranslations.mock.calls[1][1]).toStrictEqual({
         status: 'COMPLETED',
       });
     });
@@ -128,7 +146,7 @@ describe('check-jobs-progress tests', () => {
 
       await updateTranslationRecords(slugStatuses);
 
-      expect(updateTranslations.mock.calls.length).toBe(3);
+      expect(updateTranslations.mock.calls.length).toBe(6);
     });
 
     test('logs errored translations to the console', async () => {

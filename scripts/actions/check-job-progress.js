@@ -10,6 +10,7 @@ const {
 const { vendorRequest } = require('./utils/vendor-request');
 const { fetchAndDeserializeFiles } = require('./fetch-and-deserialize');
 const { configuration } = require('./configuration');
+const { LOCALE_IDS } = require('./utils/constants.js');
 
 const PROJECT_ID = configuration.TRANSLATION.VENDOR_PROJECT;
 
@@ -175,14 +176,15 @@ const updateTranslationRecords = async (slugStatuses) => {
 
   await Promise.all(
     slugStatuses.map(async ({ slug }) => {
-      const records = await updateTranslations(
-        { slug, status: StatusEnum.IN_PROGRESS },
-        { status: StatusEnum.COMPLETED }
-      );
-
-      console.log(
-        `Translation ${records[0].id} marked as ${StatusEnum.COMPLETED}`
-      );
+      Object.values(LOCALE_IDS).forEach(async (localeId) => {
+        const records = await updateTranslations(
+          { slug, status: StatusEnum.IN_PROGRESS, locale: localeId },
+          { status: StatusEnum.COMPLETED }
+        );
+        console.log(
+          `Translation ${records[0].id} for ${localeId} marked as ${StatusEnum.COMPLETED}`
+        );
+      });
     })
   );
 };
