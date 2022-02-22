@@ -6,7 +6,7 @@ const { getLocalizedFileData } = require('../add-files-to-translation-queue');
 const MOCK_CONSTANTS = {
   LOCALE_IDS: {
     jp: 'ja-JP',
-    ko: 'ko-KR',
+    kr: 'ko-KR',
   },
 };
 

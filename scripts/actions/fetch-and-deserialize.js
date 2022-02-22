@@ -198,12 +198,13 @@ const deserializeHtmlToMdx = (locale) => {
       return {
         ok: true,
         slug: completePath,
+        locale,
       };
     } catch (ex) {
       console.log(`Failed to deserialize: ${contentPath}`);
       console.log(ex);
 
-      return { ok: false, slug: completePath };
+      return { ok: false, slug: completePath, locale };
     }
   };
 };

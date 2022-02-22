@@ -10,7 +10,6 @@ const {
 const { vendorRequest } = require('./utils/vendor-request');
 const { fetchAndDeserializeFiles } = require('./fetch-and-deserialize');
 const { configuration } = require('./configuration');
-const { LOCALE_IDS } = require('./utils/constants.js');
 
 const PROJECT_ID = configuration.TRANSLATION.VENDOR_PROJECT;
 
@@ -48,6 +47,7 @@ const prop = (key) => (x) => x[key];
  * @property {boolean} SlugStatus[].ok - Boolean flag signaling if translation deserialized. If it did, we can treat this translation as having completed.
  * @property {string} SlugStatus[].slug - Slug representing file path translated.
  * @property {string} SlugStatus[].jobId - Job id translation is associated with.
+ * @property {string} SlugStatus[].locale - Locale ID translation is translated to.
  */
 
 /**
@@ -175,16 +175,15 @@ const updateTranslationRecords = async (slugStatuses) => {
   // TODO: need to update this when we implement multiple locales. This only works for one locale.
 
   await Promise.all(
-    slugStatuses.map(async ({ slug }) => {
-      Object.values(LOCALE_IDS).forEach(async (localeId) => {
-        const records = await updateTranslations(
-          { slug, status: StatusEnum.IN_PROGRESS, locale: localeId },
-          { status: StatusEnum.COMPLETED }
-        );
-        console.log(
-          `Translation ${records[0].id} for ${localeId} marked as ${StatusEnum.COMPLETED}`
-        );
-      });
+    slugStatuses.map(async ({ locale, slug }) => {
+      const records = await updateTranslations(
+        { slug, status: StatusEnum.IN_PROGRESS, locale },
+        { status: StatusEnum.COMPLETED }
+      );
+
+      console.log(
+        `Translation ${records[0].id} marked as ${StatusEnum.COMPLETED}`
+      );
     })
   );
 };

@@ -87,25 +87,17 @@ describe('check-jobs-progress tests', () => {
     test('updates translation record to COMPLETED for failed slug', async () => {
       updateTranslations.mockReturnValue([{ id: 0 }]);
 
-      const slugStatus = { ok: false, slug: 'failure.txt' };
+      const slugStatus = { ok: false, slug: 'failure.txt', locale: 'ja-JP' };
 
       await updateTranslationRecords([slugStatus]);
 
-      expect(updateTranslations.mock.calls.length).toBe(2);
+      expect(updateTranslations.mock.calls.length).toBe(1);
       expect(updateTranslations.mock.calls[0][0]).toStrictEqual({
         slug: 'failure.txt',
         status: 'IN_PROGRESS',
         locale: 'ja-JP',
       });
       expect(updateTranslations.mock.calls[0][1]).toStrictEqual({
-        status: 'COMPLETED',
-      });
-      expect(updateTranslations.mock.calls[1][0]).toStrictEqual({
-        slug: 'failure.txt',
-        status: 'IN_PROGRESS',
-        locale: 'ko-KR',
-      });
-      expect(updateTranslations.mock.calls[1][1]).toStrictEqual({
         status: 'COMPLETED',
       });
     });
@@ -113,11 +105,11 @@ describe('check-jobs-progress tests', () => {
     test('updates translation record to COMPLETED for successful slug', async () => {
       updateTranslations.mockReturnValue([{ id: 0 }]);
 
-      const slugStatus = { ok: true, slug: 'success.txt' };
+      const slugStatus = { ok: true, slug: 'success.txt', locale: 'ja-JP' };
 
       await updateTranslationRecords([slugStatus]);
 
-      expect(updateTranslations.mock.calls.length).toBe(2);
+      expect(updateTranslations.mock.calls.length).toBe(1);
       expect(updateTranslations.mock.calls[0][0]).toStrictEqual({
         slug: 'success.txt',
         status: 'IN_PROGRESS',
@@ -126,27 +118,43 @@ describe('check-jobs-progress tests', () => {
       expect(updateTranslations.mock.calls[0][1]).toStrictEqual({
         status: 'COMPLETED',
       });
+    });
+
+    test('updates multiple records', async () => {
+      updateTranslations.mockReturnValue([{ id: 0 }]);
+      const slugStatuses = [
+        { ok: true, slug: 'fake_slug.txt', locale: 'ja-JP' },
+        { ok: false, slug: 'fake_slug_2.txt', locale: 'ko-KR' },
+        { ok: true, slug: 'fake_slug_3.txt', locale: 'ko-KR' },
+      ];
+
+      await updateTranslationRecords(slugStatuses);
+
+      expect(updateTranslations.mock.calls.length).toBe(3);
+      expect(updateTranslations.mock.calls[0][0]).toStrictEqual({
+        slug: 'fake_slug.txt',
+        status: 'IN_PROGRESS',
+        locale: 'ja-JP',
+      });
+      expect(updateTranslations.mock.calls[0][1]).toStrictEqual({
+        status: 'COMPLETED',
+      });
       expect(updateTranslations.mock.calls[1][0]).toStrictEqual({
-        slug: 'success.txt',
+        slug: 'fake_slug_2.txt',
         status: 'IN_PROGRESS',
         locale: 'ko-KR',
       });
       expect(updateTranslations.mock.calls[1][1]).toStrictEqual({
         status: 'COMPLETED',
       });
-    });
-
-    test('updates multiple records', async () => {
-      updateTranslations.mockReturnValue([{ id: 0 }]);
-      const slugStatuses = [
-        { ok: true, slug: 'fake_slug.txt' },
-        { ok: false, slug: 'fake_slug_2.txt' },
-        { ok: true, slug: 'fake_slug_3.txt' },
-      ];
-
-      await updateTranslationRecords(slugStatuses);
-
-      expect(updateTranslations.mock.calls.length).toBe(6);
+      expect(updateTranslations.mock.calls[2][0]).toStrictEqual({
+        slug: 'fake_slug_3.txt',
+        status: 'IN_PROGRESS',
+        locale: 'ko-KR',
+      });
+      expect(updateTranslations.mock.calls[2][1]).toStrictEqual({
+        status: 'COMPLETED',
+      });
     });
 
     test('logs errored translations to the console', async () => {
