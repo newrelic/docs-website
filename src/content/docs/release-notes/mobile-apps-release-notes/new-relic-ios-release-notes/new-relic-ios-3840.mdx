@@ -1,0 +1,22 @@
+---
+subject: Mobile app for iOS
+releaseDate: '2022-02-16'
+version: 3.84.0
+downloadLink: 'https://apps.apple.com/app/id594038638'
+---
+
+### Notes
+
+Now featuring applied intelligence incidents, along with the ability to acknowledge and manually close issues.
+
+### New features
+
+* Added in AI incident list
+
+### Improvements
+
+* Improved charts to support multi query
+* Improved issue feed detail to support acknowledge, un-acknowledge and close
+* Fixed a crash that was occurring when tapping on a chart, and then tapping on a legend item
+* Converted key transactions, k8s container & node charts to new chart library
+* Converted vm pages over to new chart library
