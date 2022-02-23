@@ -120,7 +120,7 @@ const convertImages = () => {
     });
   };
 };
-
+// Use to look through AST
 // const filePath = path.join(
 //   process.cwd(),
 //   'src/content/docs/apm/agents/c-sdk/get-started/introduction-c-sdk.mdx'
