@@ -10,7 +10,7 @@ A timing that captures when customers begin to engage with a website, such as cl
 
 First interaction is a timing that captures when customers begin to engage with a website, such as clicking a button or typing in a box. The first interaction timing is rounded down to the nearest second. This attribute only occurs when the value of the `timingName` attribute is `firstInteraction`.
 
-Events are handled at the document level with `addEventListener()`. (Clicking an empty page will cause an interaction to fire.) Valid event `type` values include:
+Events are handled at the document level with `addEventListener()`. Clicking an empty page will cause an interaction to fire. Valid event `type` values include:
 
 *   `pointerdown`
 *   `mousedown`

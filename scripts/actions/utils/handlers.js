@@ -163,7 +163,11 @@ module.exports = {
       return h(
         node,
         'code',
-        { 'data-type': 'component', 'data-component': 'InlineCode' },
+        {
+          'data-type': 'component',
+          'data-component': 'InlineCode',
+          class: 'notranslate',
+        },
         [u('text', toString(node))]
       );
     },
@@ -286,6 +290,10 @@ module.exports = {
     serialize: serializeComponent,
   },
   b: {
+    deserialize: deserializeComponent,
+    serialize: serializeComponent,
+  },
+  sup: {
     deserialize: deserializeComponent,
     serialize: serializeComponent,
   },
