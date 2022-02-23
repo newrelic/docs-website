@@ -1,0 +1,125 @@
+---
+title: プライベートロケーションのトラブルシューティング
+tags:
+  - Synthetics
+  - Synthetic monitoring
+  - Private locations
+metaDescription: Troubleshooting tips if you encounter problems with private locations or private minions with synthetic monitoring in New Relic.
+translationType: machine
+---
+
+New Relic のシンセティックモニタリング用に [プライベートロケーション](/docs/synthetics/new-relic-synthetics/private-locations/private-locations-overview-monitor-internal-sites-add-new-locations) を設定中に問題が発生した場合は、ミニオンの一般的な問題を特定するためのトラブルシューティングのヒントをお試しください。
+
+## 仕事の需要と消費 [#job-demand]
+
+現在のスループットを確認し、CPMがジョブロードに追いついているかどうかを評価します。
+
+* ジョブズは1分あたりのスループットを要求する。
+
+  ```
+  SELECT rate(uniqueCount(jobId), 1 minute) FROM SyntheticRequest WHERE type != 'SIMPLE' FACET location SINCE 2 days ago
+  ```
+
+* 1分あたりのジョブ数の推移
+
+  ```
+  SELECT rate(uniqueCount(jobId), 1 minute) FROM SyntheticRequest WHERE type != 'SIMPLE' FACET location SINCE 2 weeks ago TIMESERIES
+  ```
+
+* キューの伸びを把握する。
+
+  ```
+  SELECT derivative(checksPending, 1 minute) as 'queue growth rate (per minute)' FROM SyntheticsPrivateLocationStatus where name = 'YOUR_PRIVATE_LOCATION' SINCE 2 days ago TIMESERIES
+  ```
+
+* 消費率。
+
+  ```
+  SELECT rate(uniqueCount(jobId), 1 minute) FROM SyntheticRequest WHERE type != 'SIMPLE' FACET location SINCE 2 weeks ago TIMESERIES
+  ```
+
+* リソースを消費している障害のあるモニターをクリーンアップします。
+
+  ```
+  SELECT 100*latest(minionJobsFailed)/latest(minionJobsReceived) as 'job failure rate (%)' from SyntheticsPrivateMinion FACET minionLocation SINCE 2 weeks ago TIMESERIES MAX
+  ```
+
+## メモリ使用量のトラブルシューティング [#memory]
+
+CPMあたりの推奨メモリ配分
+
+* Docker：Docker CPMではcpuコアあたり2.5Gi
+
+* KubernetesのCPMです。
+
+  * 3 Gi per CPM heavy worker
+  * 3 Gi per healthcheck pod
+  * ミニオンポッドの1.6Gi
+
+* 目標60%の最大メモリ使用率
+
+現在の使用状況を確認するのに便利なクエリ。
+
+* ロケーションごとのメモリ使用量。
+
+  ```
+  SELECT latest(minionPhysicalMemoryUsedPercentage) from SyntheticsPrivateMinion FACET minionLocation SINCE 2 weeks ago TIMESERIES Max
+  ```
+
+* ホスト名ごとのメモリ使用量。
+
+  ```
+  SELECT latest(minionPhysicalMemoryUsedPercentage) FROM SyntheticsPrivateMinion WHERE minionLocation = 'YOUR_PRIVATE_LOCATION' FACET minionHostname SINCE 2 weeks ago TIMESERIES Max
+  ```
+
+## CPU使用率のトラブルシューティング [#cpu-usage]
+
+CPUの需要が高くなる可能性のある期間を特定する。
+
+* 全体のCPU使用率
+
+  ```
+  SELECT latest(minionProcessorsUsagePercentage) FROM SyntheticsPrivateMinion FACET minionLocation SINCE 2 weeks ago TIMESERIES Max
+  ```
+
+* 指定した場所のCPU使用率。
+
+  ```
+  SELECT latest(minionProcessorsUsagePercentage) FROM SyntheticsPrivateMinion WHERE minionLocation = 'YOUR_PRIVATE_LOCATION' FACET minionHostname SINCE 2 weeks ago TIMESERIES Max
+  ```
+
+## ネットワークトラブルシューティング [#network]
+
+**ネットワークアクセスは赤。**
+
+プライベートミニオンは、パブリックネットワークアクセスを確認するために New Relic へのチェックを行います。パブリックネットワークアクセスが利用できない場合、 [プライベートミニオンの **Overview** page](/docs/synthetics/new-relic-synthetics/pages/synthetics-overview-page-view-monitors-performance) の **Network Access** アイコンが赤くなりますが、それ以外はプライベートミニオンは完全に機能しています。これが期待される動作であれば、このエラーを無視しても問題ありません。
+
+また、以下のようなログエントリが表示されることがあります。
+
+```
+2016-01-21 21:47:09,401 [dw-22 - GET /private-location/status] c.n.s.m.util.PrivateMinionUtils WARN Unable to detect Public Network Access trying to fetch https://newrelic.com/synthetics: java.net.ConnectException: Connection refused
+```
+
+**New Relicのアクセスは赤。**
+
+プライベートミニオンが、実行するジョブのリストを取得し、New Relic のユーザーインターフェースで表示できる結果を公開するためには、 `https://synthetics-horde.nr-data.net` へのアクセスが必要です。ファイアウォールのルールで直接アクセスが許可されていない場合は、 [プロキシアクセスを設定する必要があります](/docs/synthetics/new-relic-synthetics/private-locations/install-configure-private-minions) 。必要に応じて、DNS エンドポイントを許可リストに追加します。
+
+**ネットワークIOPS。**
+
+ネットワークIOPSは、CPMにクラウドプロバイダーを使用している場合、トラブルシューティングに適した場所でもあります。DockerとKubernetesのCPMは、どちらも適切な量の書き込みスループットを必要とします。平均IOPSを分析し、1秒あたりのディスク操作に必要な適切なボリュームサイズを決定します。
+
+## その他予期せぬトラブル [#other]
+
+その他の異常な状況に遭遇した場合は、アプリケーションをリサイクルしてください。プライベート・ミニオンはステートレスな仮想アプライアンスなので、プライベート・ロケーションへの影響を最小限に抑えながら、いつでも安全にリサイクルやリブートを行うことができます。すべてのミニオンが同時にオフラインになった場合でも、シンセティック・モニタリングは保留中のチェックを単にキューに入れ、ミニオンがオンラインに戻った時点で再実行します。
+
+ミニオンをリサイクルするには、コンソールにログインして以下のコマンドを実行します。
+
+```
+sudo restart synthetics-minion
+```
+
+ミニオンをリサイクルしても問題が解決しない場合は、コンソールにログインしてミニオンを再起動してください。
+
+```
+sudo reboot now
+```

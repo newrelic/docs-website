@@ -1,0 +1,450 @@
+---
+title: Pythonカスタムメトリクス
+tags:
+  - Agents
+  - Python agent
+  - Supported features
+metaDescription: How to record additional custom metrics with the Python agent using the agent API.
+translationType: machine
+---
+
+カスタムメトリクスとは、Pythonエージェントが提供するAPIを利用して、任意のメトリクスを記録することができます。これらは、Web アプリケーションが実装するビジネス機能に関連するメトリクスを記録するために使用されるかもしれませんし、Web アプリケーションのパフォーマンスを評価するために使用される追加のメトリクスかもしれません。
+
+**推奨：** 潜在的なデータ問題を回避するために、カスタムメトリクスによって導入されるユニークなメトリクスの総数を2000以下にしてください。
+
+<Callout variant="important">
+  カスタムメトリクスを使用する前に、エージェントを初期化してターゲットプロセスと統合する必要があります。手順については、 [Pythonエージェントの統合](/docs/agents/python-agent/installation-configuration/python-agent-integration) を参照してください。
+</Callout>
+
+## カスタムメトリクスのグラフ化
+
+カスタムメトリクスを表示するには、 [データを照会して](/docs/query-your-data/explore-query-data/explore-data/introduction-querying-new-relic-data) メトリクスを検索し、カスタマイズ可能なチャートを作成します。
+
+## プッシュ型とプル型のインターフェース
+
+Pythonエージェントは、カスタムメトリクスを記録する2つの異なる方法を提供します。1つ目はプッシュ型のAPIで、カスタムメトリクスを記録するタイミングを決めることができます。2つ目は、カスタムメトリクスのデータソースを登録し、エージェントが [収穫サイクルごとに1回、メトリクスのためにコードをポーリングするプルスタイルのAPIです](/docs/accounts-partnerships/education/getting-started-new-relic/glossary#harvest-cycle) 。
+
+プル型APIは、ハーベストサイクルの期間中にレートや利用率のメトリクスを生成する必要がある場合に重要です。これは、ハーベストサイクルの期間を適切に計算することができ、また、ハーベストサイクルに対して1つのメトリックのみが記録されるようにすることができるからです。
+
+## 単一のメトリックを記録する [#recording-a-custom-metric]
+
+1つのカスタムメトリックを記録するために、Pythonエージェントは関数を提供します。
+
+```
+newrelic.agent.record_custom_metric(name, value, application=None)
+```
+
+として、アプリケーションオブジェクトなしで呼び出された場合
+
+```
+newrelic.agent.record_custom_metric('Custom/Value', value)
+```
+
+の場合は、エージェントが監視しているトランザクションのコンテキスト内で呼び出す必要があります。これは、現在のトランザクションが検索され、カスタムメトリクスがそのトランザクションに最初に添付されるためです。
+
+トランザクションがその後無視されるようにマークされていない限り、カスタムメトリクスは、トランザクションが完了したときに、そのトランザクションが報告されているアプリケーションの他のメトリクスと集約されます。
+
+このAPI関数が、監視対象のトランザクションのコンテキスト外、例えばバックグラウンド・スレッド（バックグラウンド・タスクとして追跡されていない）で呼び出された場合、この呼び出しは何もせず、データは破棄されます。このような状況でカスタム・メトリクスを記録するためには、カスタム・メトリクスを記録すべきアプリケーションに対応するアプリケーション・オブジェクトを指定する必要があります。
+
+```
+application = newrelic.agent.register_application()
+
+def report_custom_metrics():
+    while True:
+        newrelic.agent.record_custom_metric('Custom/Value', value(), application)
+        time.sleep(60.0)
+
+thread = threading.Thread(target=report_custom_metrics)
+thread.setDaemon(True)
+thread.start()
+```
+
+現在のトランザクションに対してカスタム・メトリクスを記録する場合（アプリケーション・オブジェクトを提供しない場合）、カスタム・メトリクスは最初にトランザクション・オブジェクトに添付されるため、API呼び出し時にスレッド・ロックは必要ありません。スレッドロックを取得する必要があるのは、トランザクション全体が完了時に記録されているときだけです。これは、トランザクションからのすべてのメトリクスを現在の収穫サイクルのメトリクス・テーブルにマージするために取得する必要があるロックと同じものです。そのため、すでに必要とされているものに加えて、追加のロックは必要ありません。
+
+しかし、APIコールがアプリケーション・オブジェクトに提供されている場合、カスタム・メトリックを記録するためには、コールごとにロックを取得する必要があります。そのため、多数のメトリクスを一度に記録すると、スレッドロックの競合により、過度な影響を受ける可能性があります。
+
+## 複数のメトリクスを記録
+
+一度に複数の測定値を記録する場合は、スレッドロックの必要性を減らすために、代わりにこの関数を使用することができます。
+
+```
+newrelic.agent.record_custom_metrics(metrics, application=None)
+```
+
+これは、 `record_custom_metric()` 呼び出しと同じように動作しますが、nameとvalueの引数の代わりにイテレート可能なオブジェクトを指定できる点が異なります。イテレート可能なオブジェクトは、リスト、タプル、その他のイテレート可能なオブジェクト（ジェネレータ関数を含む）です。イテレート可能なオブジェクトは、カスタム・メトリックの名前と値からなるタプルを返さなければなりません。
+
+```
+import psutil
+import os
+ 
+def memory_metrics():
+    pid = os.getpid()
+    p = psutil.Process(os.getpid())
+    m = p.get_memory_info()
+
+    yield ('Custom/Memory/Physical', float(m.rss)/(1024*1024))
+    yield ('Custom/Memory/Virtual', float(m.vms)/(1024*1024))
+ 
+application = newrelic.agent.register_application()
+
+def report_custom_metrics():
+    while True:
+        newrelic.agent.record_custom_metrics(memory_metrics(), application)
+        time.sleep(60.0)
+
+thread = threading.Thread(target=report_custom_metrics)
+thread.setDaemon(True)
+thread.start()
+```
+
+アプリケーション・オブジェクトで使用すると、カスタム・メトリクスをどれだけ多く記録しても、スレッド・ロックは呼び出しごとに1回だけ実行する必要があります。
+
+## カスタムメトリクスのネーミング
+
+Python エージェントが報告するすべてのカスタムメトリクスは、 `Custom/` というプレフィックスで始まります。これには通常、カテゴリ名とラベルセグメントが続きます。 `Custom/` メトリクスが使用されない場合、カスタムメトリクスは [Data explorer](/docs/query-your-data/explore-query-data/data-explorer/introduction-data-explorer) で選択することができないかもしれません。
+
+## 事前に集計されたメトリクス
+
+利用可能なメトリクスのセットに反復可能なものを渡してメトリクスのセットを記録する場合、同じ名前のメトリクスが複数回現れることがあります。このような場合、エージェントは個別の値を1つのサンプルに集約します。
+
+可能ではあるが、このようにして単一のメトリクスのために個々の生のサンプルを保持し、後に渡すことが現実的でない場合、メトリクスのソースは代わりにメトリクスを事前に集約し、結果として集約されたデータサンプルを提供することができる。
+
+そのため、値は数値ではなく、ディクショナリーを渡すことになります。辞書内のフィールドは以下の通りです。
+
+* `count`
+* `トータル`
+* `min`
+* `max`
+* `二乗の和`
+
+単一のメトリックに対するアグリゲーションを実行するために使用できるヘルパークラスの実装は次のとおりです。
+
+```
+class Stats(dict):
+
+    def __init__(self, count=0, total=0.0, min=0.0, max=0.0, sum_of_squares=0.0):
+        self.count = count
+        self.total = total
+        self.min = min
+        self.max = max
+        self.sum_of_squares = sum_of_squares
+
+    def __setattr__(self, name, value):
+        self[name] = value
+
+    def __getattr__(self, name):
+        return self[name]
+
+    def merge_stats(self, other):
+        self.total += other.total
+        self.min = self.count and min(self.min, other.min) or other.min
+        self.max = max(self.max, other.max)
+        self.sum_of_squares += other.sum_of_squares
+        self.count += other.count
+
+    def merge_value(self, value):
+        self.total += value
+        self.min = self.count and min(self.min, value) or value
+        self.max = max(self.max, value)
+        self.sum_of_squares += value ** 2
+        self.count += 1
+```
+
+このクラスは、それ自体が辞書であるため、そのインスタンスを直接値として渡すことができます。
+
+これは、次のように使うことができます。
+
+```
+application = newrelic.agent.register_application()
+
+def sample_value():
+    return ...
+
+def report_custom_metrics():
+    count = 0
+    stats = Stats()
+
+    while True:
+        count += 1
+
+        stats.merge_value(sample_value())
+
+        if count % 60 == 0:
+            newrelic.agent.record_custom_metric('Custom/Value', stats, application)
+            stats = Stats()
+
+        time.sleep(1.0)
+
+thread = threading.Thread(target=report_custom_metrics)
+thread.setDaemon(True)
+thread.start()
+```
+
+## カスタムメトリックデータソース
+
+`record_custom_metric()` および `record_custom_metrics()` のAPIコールでは、カスタムメトリクスをエージェントにプッシュするために、お客様による明示的な操作が必要です。
+
+エージェントへのデータのプッシュは、特にバックグラウンドのスレッドから60秒間隔で行われる場合には、問題が生じることがあります。これは、データのプッシュが、エージェントがデータコレクタにデータを報告するタイミングと正確に同期しない可能性があるためです。
+
+バックグラウンド・スレッドが60秒間にわたってメトリクスを事前に集計し、それを記録していた場合、それがエージェントがデータを報告する時間に近い場合、エージェントがデータを報告する直前または直後に発生する可能性があります。このように時間的な同期が取れていないと、ある収穫サイクルではそのサンプルのメトリクスが報告されず、次の収穫サイクルでは2つ報告されることになります。
+
+この問題を解決するには、エージェントがデータを報告するプロセスの一部として、カスタムメトリクスのプロデューサーからカスタムメトリクスを引き出して、直ちに報告されるようにし、収穫サイクルと同期させることです。
+
+このようなプル型APIにおけるメトリックのソースをメトリックデータソースと呼ぶ。
+
+## データソースの登録
+
+メトリックデータソースを登録するためのAPI関数は
+
+```
+newrelic.agent.register_data_source(source, application=None, name=None, settings=None, **properties)
+```
+
+カスタムメトリクスの作成方法にはさまざまな要件があるため、データソースの実装にはさまざまな方法があります。
+
+最もシンプルなタイプのデータソースは、ゲージメトリックを提供するものです。つまり、ある特定の時点での値が重要であり、過去に起こったことは重要ではないというものです。
+
+```
+import psutil
+import os
+
+@newrelic.agent.data_source_generator(name='Memory Usage')
+def memory_metrics():
+    pid = os.getpid()
+    p = psutil.Process(os.getpid())
+    m = p.get_memory_info()
+    yield ('Custom/Memory/Physical', float(m.rss)/(1024*1024))
+    yield ('Custom/Memory/Virtual', float(m.vms)/(1024*1024))
+ 
+newrelic.agent.register_data_source(memory_metrics)
+```
+
+ここで使われているデコレーターは
+
+```
+newrelic.agent.data_source_generator(name=None, **properties)
+```
+
+これは特に、ジェネレータ関数や、呼び出されたときに反復可能な値を返す関数をラップするためのものです。
+
+データソースの登録時の名前は任意です。これは主に、エラーをログに記録する際に、メッセージにデータソースのよりわかりやすい名前を与えるために存在します。 `register_data_source()` に name が渡されない場合は、デコレータを使用して実際のデータソースに関連付けられた名前が代わりに使用され、データソース自体に名前が付いていない場合は関数の名前が使用されます。
+
+データソースの登録時にアプリケーション・オブジェクトが提供されない場合、データソースは、そのプロセスでエージェントがデータを報告するすべてのアプリケーションに自動的に関連付けられます。アプリケーションが提供された場合、データソースはその特定のアプリケーションにのみ関連付けられます。
+
+データソースがアプリケーションに対して明示的に登録されているか、あるいはすべてのアプリケーションに適用されているかに関わらず、エージェントはまずそのアプリケーションに対して登録される必要があります。これは通常、監視対象である既存のWebアプリケーション・プロセスでデータ・ソースを使用する場合に起こります。しかし、カスタムメトリクスのみを報告するためにスタンドアロンプログラムでデータソースを使用している場合は、必要に応じてAPIコール `register_application()` を使用して、データが収集される前にアプリケーションに対するエージェントの登録を強制する必要があります。
+
+## データソースの初期化
+
+デコレーターはデータ・ソースに名前を付ける機能を提供しますが、デコレーターのより重要な理由は、データ・ソースを実行するための一連の設定手順の複雑さを隠すことができるからです。これらのステップの順序は
+
+1. データソースは初期化され、特定の方法で実行するように設定するために渡される構成を保持する辞書があります。
+2. 初期化されると、データソースは、データソースを説明するプロパティの辞書を返します。これには、データソースプロバイダの特定のインスタンスを作成するためのファクトリ関数への参照が含まれます。
+3. データソースプロバイダーのインスタンスは、ファクトリーを呼び出すことで、特定のコンシューマー（アプリケーション）用に作成されます。ファクトリー関数には、コンシューマーの名前を含む、実行中の環境を記述したディクショナリーが渡されます。
+
+上の例をデコレーターに頼らないように書き換えると、次のようになります。
+
+```
+import os
+import psutil
+ 
+def memory_metrics_data_source(settings):
+    def memory_metrics():
+        pid = os.getpid()
+        p = psutil.Process(os.getpid())
+        m = p.get_memory_info()
+        yield ('Custom/Memory/Physical', float(m.rss)/(1024*1024))
+        yield ('Custom/Memory/Virtual', float(m.vms)/(1024*1024))
+
+    def memory_metrics_factory(environ):
+        return memory_metrics
+ 
+    properties = {}
+    properties['name'] = 'Memory Usage'
+    properties['factory'] = memory_metrics_factory
+ 
+    return properties
+ 
+newrelic.agent.register_data_source(memory_metrics_data_source)
+```
+
+より複雑な基本プロトコルの目的は、データソースを適切に初期化し、その構成と消費者の仕様に基づいてカスタマイズするための十分なフックポイントを提供することです。
+
+## データソースのインスタンス
+
+前述の例では、最後に生成されたことを気にしないゲージメトリクスが返されていたため、これ以上何もする必要がありませんでした。メトリクスが時間の経過とともに起こる何かを反映しており、そのために何らかの状態を保持する必要がある場合、データソースのインスタンスを作成できる機能が必要になります。
+
+そのため、ファクトリー機能では、メトリクスが報告されるアプリケーションごとにデータソースのインスタンスを作成することができます。
+
+アプリケーションごとに収穫サイクルの開始時間と終了時間が異なる可能性があるため、プロセスごとではなく、アプリケーションごとにデータソースのインスタンスを1つ用意しています。このシナリオでは、プロセスごとに1つしかなく、メトリックが収穫サイクルの持続時間と関連していた場合、結果として得られるメトリックは各アプリケーションに対して正しくないだろう。そのため、データソースインスタンスには、アプリケーション固有の機能が用意されています。
+
+上記のようにネストされた関数を使用して、状態を維持する必要のあるデータソースは次のように書くことができます。
+
+```
+import os
+import time
+import multiprocessing
+ 
+@newrelic.agent.data_source_factory(name='CPU Usage')
+def cpu_metrics_data_source(settings, environ):
+    state = {}
+    state['last_timestamp'] = time.time()
+    state['times'] = os.times()
+
+    def cpu_metrics():
+        now = time.time()
+        new_times = os.times()
+        elapsed_time = now - state['last_timestamp']
+        user_time = new_times[0] - state['times'][0]
+        utilization = user_time / (elapsed_time*multiprocessing.cpu_count())
+        state['last_timestamp'] = now
+        state['times'] = new_times
+
+        yield ('Custom/CPU/User Time', user_time)
+        yield ('Custom/CPU/User/Utilization', utilization)
+
+    return cpu_metrics
+ 
+newrelic.agent.register_data_source(cpu_metrics_data_source)
+```
+
+ここで使われているデコレーターは
+
+```
+newrelic.agent.data_source_factory(name=None, **properties)
+```
+
+このケースでは、デコレーターはファクトリー関数をラップしています。デコレーターは必要に応じてデータソースのプロパティを自動的に返すので、ファクトリーは設定と使用される環境の説明の両方を受け取ります。
+
+入れ子になった関数を使用するのはちょっとしたマジックで、外側の関数のスタックにある辞書を使って状態を保持するコードが必要になります。もうひとつの方法は、データソースを実際のクラスとして実装し、デコレータをそのクラスに適用することです。
+
+```
+import os
+import time
+import multiprocessing
+ 
+@newrelic.agent.data_source_factory(name='CPU Usage')
+class CPUMetricsDataSource(object):
+
+    def __init__(self, settings, environ):
+        self.last_timestamp = time.time()
+        self.times = os.times()
+
+    def __call__(self):
+        now = time.time()
+        new_times = os.times()
+        elapsed_time = now - self.last_timestamp
+        user_time = new_times[0] - self.times[0]
+        utilization = user_time / (elapsed_time*multiprocessing.cpu_count())
+        self.last_timestamp = now
+        self.times = new_times
+
+        yield ('Custom/CPU/User Time', user_time)
+        yield ('Custom/CPU/User/Utilization', utilization)
+
+newrelic.agent.register_data_source(CPUMetricsDataSource)
+```
+
+## データソースのライフサイクル
+
+データソースはいつでもメトリクスを生成できますが、エージェント自体は常にアプリケーションのメトリクスを報告しているわけではありません。具体的には、エージェントが特定のアプリケーションのデータコレクタに自分自身を登録することができた場合にのみ、メトリクスの収集を開始し、報告することになります。
+
+この違いは、期間に基づいてメトリクスを生成するデータソースにとって重要である。データソースによって生成されるメトリクスは、登録が発生した時点までの期間、またはエージェントによってメトリクスが報告された最後の時点までの期間をカバーするようにすることが必要です。これが行われない場合、報告されたメトリクスは整合しないため、Webトランザクションやバックグラウンドタスクの追跡によるメトリクスと適切に相関することを保証することはできません。
+
+このため、データソースのファクトリーは、アプリケーションの登録が完了し、メトリクスの収集が開始されたときにのみ、データソースのインスタンスを作成するために呼び出されます。これにより、参照するタイムスタンプが正しいものになります。
+
+サーバー側の設定変更によるサーバー側の強制再起動や、データコレクタへのデータ報告が連続して失敗したことなどにより、特定のアプリケーションに対するエージェントの実行が終了すると、データソースは削除されます。データソースの新しいインスタンスは、エージェントがアプリケーションのために再び自分自身を再登録することができたときに作成されます。
+
+この場合、データソースを正しくクリーンアップするには、データソースオブジェクトがドロップされたときに速やかに破棄されるかどうかが重要になります。オブジェクトの参照カウントのサイクルがあるので、これは当てになりません。また、 `__del__()` メソッドを追加すると、オブジェクトの迅速な破壊を実際に防ぐことができなくなるという問題があるため、データソースがクリーンアップアクションを起こすために `__del__()` メソッドを追加する必要がないようにすることが望ましいです。
+
+このような理由から、データソースがセットアップとシャットダウンをより細かく制御する必要がある場合、例えば、メモリ内で永続的に維持してドロップされないようにしたり、メトリクスの計算を一時停止したりすることができます。その場合、クラスインスタンスとして実装されるときに、 `start()` と `stop()` メソッドを提供することができます。
+
+```
+import os
+import time
+import multiprocessing
+
+@newrelic.agent.data_source_factory(name='CPU Usage')
+class CPUMetricsDataSource(object):
+
+    def __init__(self, settings, environ):
+        self.last_timestamp = None
+        self.times = None
+ 
+    def start(self):
+        self.last_timestamp = time.time()
+        self.times = os.times()
+ 
+    def stop(self):
+        self.last_timestamp = None
+        self.times = None
+
+    def __call__(self):
+        if self.times is None:
+            return
+
+        now = time.time()
+        new_times = os.times()
+        elapsed_time = now - self.last_timestamp
+        user_time = new_times[0] - self.times[0]
+        utilization = user_time / (elapsed_time*multiprocessing.cpu_count())
+        self.last_timestamp = now
+        self.times = new_times
+
+        yield ('CPU/User Time', user_time)
+        yield ('CPU/User/Utilization', utilization)
+
+newrelic.agent.register_data_source(CPUMetricsDataSource)
+```
+
+`start()` および `stop()` メソッドが定義されているため、データソースのインスタンスはエージェントの実行終了時に破壊されずに維持されます。この時点でエージェントは、データソース自身がメトリクスの集約の中断に対処し、蓄積されたメトリクスを削除し、エージェントがアプリケーションをデータコレクタに再登録して `start()` を再び呼び出したときに、初めてメトリクスの追跡が再開されることを期待しています。
+
+## データソースの設定
+
+データソースは、必ずしも1つの特定の情報ソースにバインドされるとは限りません。メトリクスの生成元となる異なる基本的な情報ソースに対してデータ・ソースを登録する必要がある場合もあります。このような場合、 `register_data_source()` 関数を使用してデータソースを登録する際に、個別の設定を渡すことができます。データ・ファクトリを使用する場合、データ・ソースが初期化されるときにこれらの設定が利用可能になります。
+
+```
+@newrelic.agent.data_source_factory()
+class HostMonitorDataSource(object):
+ 
+    def __init__(self, settings, environ):
+        self.hostname = settings['hostname']
+
+    def __call__(self):
+        ...
+ 
+newrelic.agent.register_data_source(HostMonitorDataSource,
+  name='Host Monitor (host-1)', settings=dict(hostname='host-1'))
+newrelic.agent.register_data_source(HostMonitorDataSource,
+  name='Host Monitor (host-2)', settings=dict(hostname='host-2'))
+```
+
+設定の提供がオプションの場合、データ・ソースは、 `settings` オプションが `None` でない場合にのみ、設定へのアクセスを試みるべきです。辞書が提供されている場合でも、辞書にない設定に対処する必要があります。
+
+## 設定ファイルからのセットアップ
+
+今回の例では、 `register_data_source()` APIコールを使用していますが、これはデータソースを登録するための通常の方法ではありません。これは、データソースのモジュールをインポートして登録するために、アプリケーションを変更する必要があるため、好ましい方法ではありません。
+
+代わりに、データソースを定義して既存の監視対象ウェブアプリケーションに統合する主な方法は、エージェント設定ファイルにデータソースをリストアップすることです。この方法では、エージェント設定ファイルに、 `data-source:` というプレフィックスを持つ各データソースのセクションを追加します。
+
+```
+[data-source:process-info]
+enabled = true
+function = samplers.process_info:process_info_data_source
+```
+
+エージェント設定ファイルからデータ・ソースを登録する場合、アプリケーション・コードやデータ・ソースを定義するモジュールで、 `register_data_source()` 関数を使用して実行される同じデータ・ソースの別の登録があってはなりません。その場合、データソースの2つのインスタンスが登録されることになります。
+
+データソースに対して特定の設定を行う必要がある場合は、エージェント設定ファイルに個別のセクションを作成し、データソース設定の `settings` の値でセクション名を参照することで行うことができます。
+
+```
+[data-source:host-monitor]
+enabled = true
+function = samplers.process_info:process_info_data_source
+name = Host Monitor (host-1)
+settings = host-monitor:host-1
+
+[host-monitor:host-1]
+hostname = host-1
+```
+
+アプリケーション・コードで `register_data_source()` を使用してデータ・ソースを登録し、設定を明示的に提供する場合でも、値の設定には文字列を使用することをお勧めします。データ・ソースは、数値や値のリストなど、異なるタイプへの変換に対応する必要があります。

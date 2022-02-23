@@ -1,0 +1,220 @@
+---
+title: ネットワークsyslog監視の設定
+tags:
+  - Integrations
+  - Network Performance Monitoring
+  - Installation
+  - Setup
+  - NPM
+metaDescription: Set up network syslog monitoring.
+translationType: machine
+---
+
+ネットワーク機器がNew Relic Oneにsyslogデータを送信するように設定します。
+
+## 前提条件 [#prerequisites]
+
+### New Relic One アカウントの前提条件 [#prerequisites-NR]
+
+* New Relicアカウント。アカウントをお持ちでない場合[無料サインアップ](https://newrelic.com/signup)クレジットカードは不要です。
+* New Relic のアカウント ID です。 [自分のアカウントIDを見つける方法について](/docs/accounts/accounts-billing/account-setup/account-id/).
+* New Relic のライセンスキーです。 [新しいライセンスキーを生成する方法についてはこちら](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key).
+
+### Linuxホストの前提条件 [#prerequisites-host]
+
+* [Docker](https://docs.docker.com/engine/install/) をLinuxホストにインストールした状態。
+* DockerホストにSSHでアクセスし、新しいコンテナを起動することができます。
+
+### ネットワークsyslogデバイスの前提条件 [#devices-prerequisites]
+
+* **ktranslate** dockerコンテナを実行しているホストにsyslogを送信するネットワークデバイスを設定しました。ここでは、いくつかのデバイスでネットワークフローのデータ収集を設定する方法を紹介します。
+
+  * [チェックポイント - セキュリティゲートウェイ](https://sc1.checkpoint.com/documents/R80.40/WebAdminGuides/EN/CP_R80.40_LoggingAndMonitoring_AdminGuide/opics-LMG/Working-with-Syslog-Servers.htm)
+  * [Cisco - ASA](https://www.cisco.com/c/en/us/support/docs/security/pix-500-series-security-appliances/63884-config-asa-00.html)
+  * [シスコ - IOS](https://community.cisco.com/t5/networking-documents/how-to-configure-logging-in-cisco-ios/ta-p/3132434)
+  * [シスコ - メラキ](https://documentation.meraki.com/General_Administration/Monitoring_and_Reporting/Syslog_Server_Overview_and_Configuration)
+  * [シスコ - NX-OS](https://www.cisco.com/c/en/us/td/docs/switches/datacenter/nexus9000/sw/6-x/system_management/configuration/guide/_Cisco_Nexus_9000_Series_NX-OS_System_Management_Configuration_Guide/sm_5syslog.html)
+  * [F5 - BIG-IP](https://support.f5.com/csp/article/K13080)
+  * [Fortinet Fortigate](https://help.fortinet.com/fadc/4-5-1/olh/Content/FortiADC/handbook/log_remote.htm)
+  * [ジュニパー - Junos](https://www.juniper.net/documentation/us/en/software/junos/network-mgmt/topics/ref/statement/syslog-edit-system.html)
+  * [パロアルト - PAN-OS](https://docs.paloaltonetworks.com/pan-os/10-1/pan-os-admin/monitoring/use-syslog-for-monitoring/onfigure-syslog-monitoring.html)
+
+### ネットワークセキュリティの前提条件 [#prerequisites-network]
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: '100px' }}>
+        方向性
+      </th>
+
+      <th>
+        ソース
+      </th>
+
+      <th>
+        目的地
+      </th>
+
+      <th>
+        ポート
+      </th>
+
+      <th>
+        プロトコル
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        アウトバウンド
+      </td>
+
+      <td>
+        ドッカーホスト
+      </td>
+
+      <td>
+        [Docker Hubのktranslateイメージ](https://hub.docker.com/r/kentik/ktranslate)
+      </td>
+
+      <td>
+        443
+      </td>
+
+      <td>
+        TCP
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        アウトバウンド
+      </td>
+
+      <td>
+        ドッカーホスト
+      </td>
+
+      <td>
+        [New Relic Log API エンドポイント](/docs/logs/log-management/log-api/introduction-log-api/#endpoint):
+
+        * USエンドポイント。
+
+          ```
+          https://log-api.newrelic.com
+          ```
+
+        * EUエンドポイント
+
+          ```
+          https://log-api.eu.newrelic.com
+          ```
+      </td>
+
+      <td>
+        443
+      </td>
+
+      <td>
+        TCP
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        インバウンド
+      </td>
+
+      <td>
+        syslogデータのソースデバイス
+      </td>
+
+      <td>
+        ドッカーホスト
+      </td>
+
+      <td>
+        5143（デフォルト）
+      </td>
+
+      <td>
+        UDP
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<Callout variant="tip">
+  **ktranslate** のデフォルトのリスニングポートは `5143 (TCP/UDP)` です。デフォルトのsyslogポートである `514` （またはその他のポート）を使用する必要がある場合は、Dockerランタイム中に新しいリスニングエンドポイントを提供することで可能です。例： `-syslog="0.0.0.0:514`.
+</Callout>
+
+## New Relic Oneでのネットワークsyslog監視の設定 [#setup-network-syslog-monitoring]
+
+1. DockerがインストールされたLinuxホストから、 **ktranslate** イメージを [dockerhub](https://hub.docker.com/) からダウンロードします。
+
+   ```shell
+   docker pull kentik/ktranslate:v2
+   ```
+
+2. `snmp-base.yaml` ファイルを、Dockerユーザーのローカル `$HOME` ディレクトリにコピーし、以下を実行してコンテナを破棄します。
+
+   ```shell
+   cd .
+   id=$(docker create kentik/ktranslate:v2)
+   docker cp $id:/etc/ktranslate/snmp-base.yaml .
+   docker rm -v $id
+   ```
+
+3. `snmp-base.yaml` ファイルの中で、 `devices` キーの中にネットワークの syslog デバイスを以下の構造で追加します。
+
+   ```yaml
+   devices:
+     syslogDevice:
+       device_name: edge-router
+       device_ip: 10.10.1.254
+       ping_only: true
+       # Optional user tags
+       user_tags:
+         owning_team: net_eng
+         environment: production
+   ```
+
+<Callout variant="tip">
+  ネットワークsyslogを送信するSNMPデータデバイスをすでに監視している場合は、 `snmp-base.yaml` ファイルに2回目の追加をする必要はありません。設定ファイルで使用されている `ping_only` 属性は、オプションとして `flow_only` に置き換えることで、応答時間の監視を取り除き、ホストからのsyslogメッセージのみを収集することができます。
+</Callout>
+
+4. `ktranslate` を実行することで、ネットワークの syslog をリッスンします。
+
+   ```shell
+     docker run -d --name ktranslate-syslog --restart unless-stopped --net=host \
+     -v `pwd`/snmp-base.yaml:/snmp-base.yaml \
+     -e NEW_RELIC_API_KEY=$YOUR_NR_LICENSE_KEY \
+     kentik/ktranslate:v2 \
+       -snmp /snmp-base.yaml \
+       -nr_account_id=$YOUR_NR_ACCOUNT_ID \
+       ## If your account is located in Europe, add the following option:
+       ## -nr_region=EU \
+       -metrics=jchf \
+       -tee_logs=true \
+       -service_name=syslog \
+       ## Optional: To override the default listening port of "0.0.0.0:5143":
+       ## -syslog="<ip_address>:<port>"
+       nr1.syslog
+   ```
+
+<Callout variant="tip">
+  `ktranslate` 以下の形式のsyslogを扱います。 [RFC3164](https://datatracker.ietf.org/doc/html/rfc3164), [RFC5424](https://datatracker.ietf.org/doc/html/rfc5424), and [RFC6587](https://datatracker.ietf.org/doc/html/rfc6587) 。
+</Callout>
+
+5. New Relic One [logs UI](/docs/logs/ui-data/use-logs-ui) 、以下のクエリを使用して、デバイスの syslog メッセージを調査します。
+
+   ```sql
+   "plugin.type":"ktranslate-syslog"
+   ```
+
+6. ネットワーク機器のパフォーマンスをよりよく把握するために、 [SNMPデータモニタリングを設定する](/docs/network-performance-monitoring/setup-performance-monitoring/snmp-performance-monitoring) 。
+
+7. ネットワークがどのように使用されているかをよりよく把握するために、 [ネットワークフローデータのモニタリングを設定します](/docs/network-performance-monitoring/setup-performance-monitoring/network-flow-monitoring) 。

@@ -1,0 +1,170 @@
+---
+title: Pythonのヒントとコツ
+tags:
+  - Agents
+  - Python agent
+  - Supported features
+metaDescription: 'How to use decorators and introspection, identify a transaction, or record custom metrics with the Python agent.'
+translationType: machine
+---
+
+Webアプリケーションの監視にPythonエージェントを最大限に活用するために、いくつかのヒントをご紹介します。
+
+## コンテンツ [#qiklinks]
+
+## デコレーターと内観 [#decorators_and_introspection]
+
+トランザクションや関数のトレースノードに名前を付けるとき、Pythonエージェントは呼び出される関数の名前を調べる必要があります。関数が生の関数やクラスメソッドである場合、これはすべてうまくいきます。しかし、関数やクラスメソッドにデコレーターが適用されている場合、もしデコレーターがラップされた関数のイントロスペクト機能を維持するように実装されていなければ、エージェントはラップされた関数の代わりにデコレーターのラッパー関数の名前を使用します。
+
+デコレーターの典型的な実装方法は、パターンを使用することです。
+
+```
+def decorator(f):
+    def _decorator():
+        f()
+    return _decorator
+
+@decorator
+def foo():
+    pass
+```
+
+この実装の問題点は、 `foo.__name__` の値を見ると、 `_decorator` となり、 `foo` とはならないことです。デコレータが別のモジュールに含まれている場合は、 `foo.__module__` を見ると、デコレータが宣言されているモジュールの名前になり、 ラップされた関数が含まれているモジュールの名前にはなりません。
+
+モジュールや関数の名前が正しく付けられるように、標準ライブラリの `wraps()` デコレータ **functools** モジュールを使って、内側のデコレータ関数をラップします。
+
+```
+import functools
+
+def decorator(f):
+    @functools.wraps(f)
+    def _decorator():
+        f()
+    return _decorator
+
+@decorator
+def foo():
+    pass
+```
+
+詳細については、Pythonウェブサイトの [documentation](http://docs.python.org/library/functools.html#functools.wraps) for the `wraps()` function を参照してください。
+
+## トランザクションの識別 [#identifying_a_transaction]
+
+Python エージェントがトランザクションのエラーの詳細を記録したり、スローなトランザクションのトレースをキャプチャしたりするとき、そのトランザクションに対して個別に記録した他のデータと関連付けるために使用できる固有の識別子がありません。これは、例えば、UIからの情報と自分のウェブアプリケーションのログを一致させることを困難にしています。
+
+このようなクロスマッチングを行いたい場合、または単にトランザクションに対して、このような状況で役立つ可能性のある追加の詳細をキャプチャしたい場合、エージェントAPIを使用して、トランザクションに対してカスタムパラメータを記録することができます。エラーが発生したり、遅いトランザクションのトレースが記録され、それがUIに表示された場合、あなたが提供したこれらの追加パラメータは、エラーまたはトレースの詳細の **Custom parameters** セクションの下に表示されます。
+
+このような追加の詳細を追加するには、 `add_custom_parameter()` 関数を **newrelic.agent** モジュールで使用することができます。
+
+<Callout variant="important">
+  トランザクション名の最後に括弧 `[suffix]` を使用しないでください。エージェントは自動的に名前から括弧を取り除きます。代わりに、必要に応じて括弧 `(suffix)` または他の記号を使用してください。
+</Callout>
+
+例えば、Django web framework チュートリアルの polls アプリケーションのコードを見てみましょう。
+
+```
+from django.shortcuts import render_to_response, get_object_or_404
+
+def detail(request, poll_id):
+    p = get_object_or_404(Poll, pk=poll_id)
+    return render_to_response('polls/detail.html', {'poll': p})
+```
+
+もし、問題が発生したときに利用できるように、トランザクションに対してポールIDを記録したい場合は、次のようにします。
+
+```
+import newrelic.agent
+
+def detail(request, poll_id):
+    newrelic.agent.add_custom_parameter('poll_id', poll_id)
+    p = get_object_or_404(Poll, pk=poll_id)
+    return render_to_response('polls/detail.html', {'poll': p})
+```
+
+カスタムパラメーターに使用する値は、 **json** モジュールが提供する JSON エンコーダーでシリアライズできるものであれば、どのようなものでも使用できます。これにはタプル、リスト、ディクショナリーが含まれます。
+
+**推奨：** 値を整数、浮動小数点、文字列に制限します。より複雑なデータ構造を使用する場合は、あまり大きなデータ構造を関連付けないようにしてください。収穫されるまでキャッシュし、パッケージ化してコアアプリケーションに送信する必要があるからです。
+
+また、値がJSONにシリアライズできない場合、エラーの詳細や遅いトランザクションが捨てられてしまう可能性があるため、シンプルな値が望ましいです。
+
+## カスタムメトリクスの記録 [#recording_custom_metrics]
+
+我々は、我々が知っている公的に利用可能なPythonのサードパーティモジュールのみをインスツルメンテーションすることができます。あなた自身のコードのためにインストルメンテーションを拡張するには、 [adding Python instrumentation](/docs/agents/python-agent/supported-features/python-custom-instrumentation) で説明されているテクニックを使用してください。これにより、ウェブトランザクションのパフォーマンスブレークダウンデータや低速トランザクションのトレースをカバーすることができます。
+
+APIコールを介して任意のパフォーマンスデータを記録することができます（例えば、タイミングやコンピュータリソースのデータなど）。その後、 [データエクスプローラー](/docs/query-your-data/explore-query-data/data-explorer/introduction-data-explorer) を使用して、そのメトリックをグラフ化し、追跡することができます。カスタムメトリクスを使用して、モニタリングを統一することができます。
+
+カスタムメトリクスを記録するには、 `record_custom_metric()` 関数を使用します。 **newrelic.agent** モジュールにあります。この関数は2つの引数を取り、メトリクスの名前と値を指定します。値は、整数または浮動小数点値でなければなりません。
+
+```
+import newrelic.agent
+
+def create_account(request, ...):
+    ...
+    newrelic.agent.record_custom_metric('Custom/Signups', 1)
+    ...
+    return render_to_response('...', ...)
+```
+
+既存のエージェントメトリクスとの名前空間の衝突を避けるために、メトリクス名 `Custom/` のパスを開始します（例： `Custom/ MyMetric` ）。
+
+カスタムメトリクスは、各 [ハーベストサイクル](/docs/accounts-partnerships/education/getting-started-new-relic/glossary#harvest-cycle) に渡って集約され、その後 [コレクター](/docs/accounts-partnerships/education/getting-started-new-relic/glossary#collector) に送られます。この場合、各 `1` が加算され、ハーベストサイクルにおけるサインアップの数が記録されます。
+
+関数トレース機能は、関数呼び出しやコードブロック内の時間を追跡するために使用されますが、個別のカスタムチャートを作成することはできません。カスタムメトリクスを使用して、何かにかかった時間を記録し、チャートにすることはできます。
+
+これを容易にするために、メトリックのタイミングと記録のためのコンテキスト・マネージャー・クラスを事前に定義することができます。
+
+```
+class CustomMetricTimedNode(object):
+
+    def __init__(self, name):
+        self.name = name
+        self.start_time = None
+        self.end_time = None
+
+    def __enter__(self):
+        self.start_time = time.time()
+        return self
+
+    def __exit__(self, exc, value, tb):
+        if not self.start_time:
+            return
+        self.end_time = time.time()
+        duration = self.end_time - self.start_time
+        newrelic.agent.record_custom_metric(self.name, duration)
+```
+
+これは、コードのブロックの周りに `with` ステートメントと組み合わせて使用することができます。
+
+```
+def function():
+    with CustomMetricTimedNode('Custom/TimedNode1'):
+        time.sleep(0.01)
+```
+
+このコンテキストマネージャーを関数に適用するには、関数デコレーターを作成します。
+
+```
+def custom_metric_timed_node(name):
+    def _decorator(f):
+        @functools.wraps(f)
+        def _wrapper(*args, **kwargs):
+            with CustomMetricTimedNode(name):
+                return f(*args, **kwargs)
+        return _wrapper
+    return _decorator
+```
+
+として使用されていると。
+
+```
+@custom_metric_timed_node('Custom/TimedNode2')
+def function():
+    time.sleep(0.01)
+```
+
+関数トレースのためにインスツルメンテーションを追加する場合と同様に、メトリック名は有限のセット内で、比較的小さな長さのものを選ぶことをお勧めします。値に制限のない名前は避けるべきです。そうしないと、大量の名前を意味のある形で表示することが難しくなります。また、ユニークな名前が多いと、メモリが過剰に使用され、エージェントが名前を強制的に正規化して、ユニークな名前の数を制限することになります。
+
+<Callout variant="caution">
+  あまりにも多くのメトリクスを収集すると、アプリケーションとエージェントの両方のパフォーマンスに影響を与える可能性があります。潜在的なデータの問題を回避するために、カスタムインスツルメンテーションによって導入されるユニークなメトリクスの総数を2000以下に抑えるようにしてください。
+</Callout>

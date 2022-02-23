@@ -1,0 +1,111 @@
+---
+title: register_application (PythonエージェントAPI)
+type: apiDoc
+shortDescription: Pythonエージェントを直ちに登録します。エージェントを手動で初期化する場合に使用します。
+tags:
+  - Agents
+  - Python agent
+  - Python agent API
+metaDescription: 'Python agent API: Registers the Python agent immediately, instead of allowing it to be done more passively.'
+translationType: machine
+---
+
+## 構文
+
+```
+newrelic.agent.register_application(name=None, timeout=None)
+```
+
+Pythonエージェントを直ちに登録します。エージェントを手動で初期化する場合に使用します。
+
+## 説明
+
+[`initialize`](/docs/agents/python-agent/python-agent-api/initialize) が呼ばれたとき、Pythonのエージェントをセットアップしますが、エージェントを [コレクター](/docs/accounts-partnerships/education/getting-started-new-relic/glossary#collector) に登録しません。この呼び出しでは、エージェントをコレクターに登録します。
+
+これは主に、ウェブ以外の [バックグラウンド・トランザクション](/docs/agents/python-agent/python-agent-api/background_task) APIを使用してインスツルメンテーションされたものに使用されます。ウェブ以外のトランザクションで使用する場合は、 `register_application` を、 `initialize` の呼び出し後、できるだけ早く呼び出してください。
+
+Webトランザクションの場合、エージェントは通常、最初のWebリクエストまたはバックグラウンドタスクが発生したときに自動的に登録されます。エージェントは、コレクターから [サーバー側の設定](/docs/agents/manage-apm-agents/configuration/configure-agent#ssc) を受け取ります。登録には1秒ほどかかるため、通常、最初のトランザクションから詳細が失われます。 `register_application` で強制的に登録することで、これらのデータをすべて収集することができますが、そうすると、アプリケーションは登録が完了するのを待ってから Web リクエストを処理したり、バックグラウンドタスクを実行したりすることになります。
+
+スクリプト自体がWSGIサーバを実行する場合は、メインスクリプトファイルのメインプログラムスレッドから `register_application` を呼び出します。Apache/mod_wsgiまたはuWSGIを使用している場合は、WSGIスクリプトファイルから呼び出しを行い、 `initialize`** の直後に呼び出しを配置してください。**
+
+このコールは、 [`アプリケーション`](/docs/agents/python-agent/python-agent-api/application) と同じように、アプリケーションオブジェクトを返します。アプリケーションオブジェクトは、現在のエージェントが監視しているアプリケーションへの参照を取得するために使用され、いくつかのPythonエージェントAPIコールで使用されます。
+
+### グローバルインポートロック中の呼び出しを避ける [#globl-lock]
+
+`register_application` を、Python のグローバルインポートロックが保持されているときにゼロ以外のタイムアウトで呼び出さないでください。言い換えれば、モジュールがインポートされている間、グローバルスコープのモジュールファイル内で呼び出さないでください。これを行うと、この呼び出しによって生成されたバックグラウンドスレッドとの間で一時的なデッドロックが発生する可能性があります(デッドロックはタイムアウトが切れるまで解消されません)。
+
+多くのWSGIサーバは、標準的なPythonモジュールインポートメカニズムを介してWSGIアプリケーションを含むモジュールをインポートすることに注意してください。そのような場合、グローバルなインポートロックが保持され、上述のデッドロック問題が発生する可能性があります。
+
+Gunicornの場合。先ほど説明したデッドロックの問題は、Gunicornを使用している場合にも発生します。この問題は、WSGIモジュールから `register_application` をトリガーすることは、親プロセスにモジュールをプリロードすることになるので安全ではありません。 `register_application` をGunicornで使用するには（タイムアウトの有無にかかわらず）、 `post_fork()` コールバックから呼び出してください。これはApache/mod_wsgiでは問題ありません。これらのツールはこのようなことをしないように設計されていますので、WSGIアプリケーションがロードされたときにバックグラウンドスレッドを作成しても安全です。
+
+### ワーカープロセスのフォーク後の呼び出し [#worker-processes]
+
+子ワーカープロセスでトランザクションを記録している場合、子ワーカープロセスがフォークされる前に親プロセスで `register_application` を呼び出さないでください。フォークする前に `register_application` を呼び出すと、プロセスがフォークされたときにバックグラウンドのエージェントスレッドが殺されてしまいます。親スレッドがデータをコレクタに報告しているため、エージェントは子ワーカープロセスからデータを報告することができません。
+
+## パラメータ
+
+<table>
+  <thead>
+    <tr>
+      <th width="25%">
+        パラメーター
+      </th>
+
+      <th>
+        説明
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `name`
+
+        _文字列_
+      </td>
+
+      <td>
+        オプションです。アプリケーション名を指定します。設定されている場合は、Pythonエージェントの構成で設定されたアプリケーション名よりも優先されます。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `タイムアウト`
+
+        _int_ or _float_
+      </td>
+
+      <td>
+        任意ですが、強く推奨します。アプリが登録を試みてから、あきらめて応答を送信するまでの秒数です。 `0` の値は、アプリケーションが登録を待たずにリクエストを処理することを意味します。デフォルトは `0` です。
+
+        この値は、発呼側がブロックされてから制御が戻り、発呼側が先に進むことができるようになるまでの最大秒数を示します。値がない場合、呼はグローバルに設定された [`startup_timeout`](/docs/agents/python-agent/installation-configuration/python-agent-configuration#startup-timeout) エージェント構成の設定を使用します。デフォルトでは `0.0` です。
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## 戻り値
+
+他のPythonエージェントAPIコールで使用可能なアプリケーションオブジェクトを返します。
+
+## 例
+
+### バックグラウンドタスクの登録 [#register-example]
+
+この例では、ウェブ以外のバックグラウンドタスクを長いタイムアウトで登録しています。通常、ウェブアプリケーションでは、非常に短いタイムアウト（デフォルトは0）を設定しますが、頻度の低い非ウェブタスクでは、初期化と登録が確実に行われるように、より長いタイムアウトを設定することがあります。
+
+```
+import newrelic.agent
+
+newrelic.agent.initialize('newrelic.ini')
+newrelic.agent.register_application(timeout=10.0)
+
+@newrelic.agent.background_task()
+def main():
+    pass
+
+if __name__ == '__main__':
+    main()
+```

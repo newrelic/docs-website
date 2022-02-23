@@ -1,0 +1,252 @@
+---
+title: Scalaのインストルメント
+tags:
+  - Agents
+  - Java agent
+  - Custom instrumentation
+metaDescription: Supplemental directions for instrumenting the New Relic Java agent with Scala applications.
+translationType: machine
+---
+
+New Relic Java エージェントは [Scala と互換性があり](/docs/agents/java-agent/getting-started/compatibility-requirements-java-agent#other) 、New Relic API コール、アノテーション、 [カスタムインスツルメンテーションをサポートしています](/docs/java/custom-instrumentation-with-the-java-agent) 。以下の情報はすべて、New Relic の [Java エージェントのインストール方法](/docs/java/java-agent-manual-installation) を補足するものです。
+
+<Callout variant="tip">
+  Herokuについては、 [Java agent with Scala on Heroku](/docs/agents/java-agent/heroku/java-agent-scala-heroku) を参照してください。
+</Callout>
+
+## Scalaのフレームワーク [#frameworks]
+
+[フレームワーク](/docs/agents/java-agent/getting-started/compatibility-requirements-java-agent#frameworks) がNew Relicにネイティブに対応していない場合や、追加のモニタリングを設定したい場合は、 [カスタムインスツルメンテーション](/docs/agents/java-agent/custom-instrumentation/java-custom-instrumentation) を利用すると、アプリケーションをより深く掘り下げることができます。
+
+## Scala APIでScalaを動かす [#using-the-scala-api]
+
+New Relic Scala エージェント API では、慣用的な Scala コードを使用して、APM Java エージェントの機能を制御、カスタマイズ、拡張することができます。 [New Relic Java API](/docs/agents/java-agent/api-guides/guide-using-java-agent-api/) と並行して使用することができ、ユーザーは以下のことが可能になります。
+
+* 同期および非同期の匿名関数のためのセグメントの作成
+* 同期および非同期コードブロックのためのセグメントの作成
+* トランザクションが開始されていない場合は、トランザクションを作成します。
+
+<Callout variant="important">
+  API を使用する際に最良の結果を得るためには、最新の Java エージェントのリリースがあることを確認してください。New Relic Scala API には、Java agent 7.1.0 以降が必要です。
+</Callout>
+
+### ScalaのAPIを使う
+
+APIクラスにアクセスするには、Scalaの設定ファイルに以下の情報を追加してください。
+
+<CollapserGroup>
+  <Collapser
+    id="build-scala"
+    title={<><strong>project/build.scalaを使った設定</strong> ファイル</>}
+  >
+    アプリケーションの `project/build.scala` ファイルの appDependencies メソッドに次の行を追加します（ <var>S.V</var> を Scala のバージョンに、 <var>X.Y.Z</var> を使用している [Java エージェントのバージョン](/docs/agents/java-agent/installation/update-java-agent#procedures) に置き換えます）。
+
+    ```
+    "com.newrelic.agent.java" % "newrelic-scala-api_<var>S.V</var>" % "<var>X.Y.Z</var>"
+    ```
+  </Collapser>
+
+  <Collapser
+    id="build.sbt"
+    title={<><strong>project/build.sbt を使った設定</strong> ファイル</>}
+  >
+    アプリケーションの `project/build.sbt` ファイルに次の行を追加します（ <var>S.V</var> を Scala バージョンに、 <var>X.Y.Z</var> を使用する[Java エージェントバージョン](/docs/agents/java-agent/installation/update-java-agent#procedures) に置き換えてください）。
+
+    ```
+    libraryDependencies += "com.newrelic.agent.java" % "newrelic-scala-api_<var>S.V</var>" % "<var>X.Y.Z</var>"
+    ```
+  </Collapser>
+</CollapserGroup>
+
+対応するScalaのバージョンは2.10、2.11、2.12、2.13です。Scala 3.0 のユーザーは、2.13 の jar を使用できます。この jar は Maven Central にデプロイされ、New Relic Java エージェントのインストール zip ファイルにも含まれています。Java エージェントが実行されていないときでも、API を呼び出すことができます。基本となる API メソッドは単なるスタブであり、実装は Java エージェントが実行されているときに追加されます。
+
+### セグメント
+
+同期コードブロックのセグメントを作成するには、 `TraceOps.trace` を使用します。例えば、以下のようになります。
+
+```
+import com.newrelic.scala.api.TraceOps.trace
+
+trace("statement segment") {
+    val i = 1
+    val j = 2
+    println(i + j)
+}
+// trace can also be used as an expression
+val x: Int = trace("expression segment") {
+    val i = 1
+    val j = 2
+    i + j
+}
+println(x) // 2
+```
+
+`トレース` はScalaでも使用できます 内包の場合
+
+```
+import scala.concurrent.{ExecutionContext, Future}
+import com.newrelic.scala.api.TraceOps.trace
+
+// implicit execution
+implicit val ec: ExecutionContext = ???
+
+ val x: Option[Int] = for {
+    one <- trace("segment one")(Option(1))
+    two <- trace("segment two")(Option(one + 1))
+    three <- trace("segment three")(Option(two + 1))
+  } yield three
+
+println(x) // Some(3)
+```
+
+ScalaのFutureを含む非同期コードブロックのセグメントを作成したい場合は、 `TraceOps.asyncTrace` を使用してください。これにより、セグメントのタイミングに、Futureが完了するまでの時間が含まれるようになります。
+
+以下の例では、ラッピングされたFutureで遅延が発生するため、セグメントタイムは5秒以上になります。
+
+```
+import scala.concurrent.{ExecutionContext, Future}
+import com.newrelic.scala.api.TraceOps.asyncTrace
+// implicit execution
+implicit val ec: ExecutionContext = ???
+
+val x: Future[Int] = asyncTrace("segment name")(Future {
+  Thread.sleep(5000)
+  1
+})
+x.foreach(println) // prints 1 on completion of Future
+```
+
+`asyncTrace` はScalaでも使用可能 内包の場合
+
+```
+import scala.concurrent.{ExecutionContext, Future}
+import com.newrelic.scala.api.TraceOps.asyncTrace
+// implicit execution
+implicit val ec: ExecutionContext = ???
+
+ val x: Future[Int] = for {
+    one <- asyncTrace("segment one")(Future(1))
+    two <- asyncTrace("segment two")(Future(one + 1))
+    three <- asyncTrace("segment three")(Future(two + 1))
+  } yield three
+
+x.foreach(println) // prints 3 on completion of Future
+```
+
+同期無名関数のセグメントを作成したい場合は、 `TraceOps.traceFun` を使用してください。例えば、以下のようになります。
+
+```
+import com.newrelic.scala.api.TraceOps.traceFun
+
+val x: Option[Int] = Option(1)
+            .map(traceFun("statement segment")(i => i + 1))
+println(x) //Some(2)
+```
+
+ScalaのFutureを返す非同期関数のセグメントを作成したい場合は、 `TraceOps.asyncTrace` を使用してください。これにより、セグメントのタイミングに、関数が完了するまでの時間が含まれるようになります。
+
+以下の例では、ラッピングされたFutureで遅延が発生するため、セグメントタイムは5秒以上になります。
+
+```
+import scala.concurrent.{ExecutionContext, Future}
+import com.newrelic.scala.api.TraceOps.asyncTraceFun
+// implicit execution
+implicit val ec: ExecutionContext = ???
+
+val x: Future[Int] = Future(1)
+            .flatMap(asyncTraceFun("statement segment")(i => Future(i + 1)))
+
+x.foreach(println) // prints 2 on completion of Future
+```
+
+### トランザクション
+
+トランザクションは、 `TraceOps.txn` メソッドを使って作成できます。例えば、以下のようになります。
+
+```
+import com.newrelic.scala.api.TraceOps.txn
+txn {
+    val i = 1
+    val j = 2
+    println(i + j)
+}
+```
+
+`txn` は、ステートメントとして（上記のように）、または式として使用できます。
+
+```
+import com.newrelic.scala.api.TraceOps.txn
+val i: Int = txn(1 + 2) //transaction created
+println(i) // 3
+```
+
+`txn` は、 `TraceOp` のいずれかのメソッドと組み合わせて使用することで、セグメントを作成することができます。以下の例では、3 つのセグメントを持つトランザクションを作成しています。
+
+```
+import scala.concurrent.{ExecutionContext, Future}
+import com.newrelic.scala.api.TraceOps.{txn, asyncTrace}
+// implicit execution
+implicit val ec: ExecutionContext = ???
+
+ val x: Future[Int] = txn(
+     for {
+        one <- asyncTrace("segment one")(Future(1))
+        two <- asyncTrace("segment two")(Future(one + 1))
+        three <- asyncTrace("segment three")(Future(two + 1))
+    } yield three
+ )
+
+x.foreach(println) // prints 3 on completion of Future
+```
+
+## Java agent APIでScalaをインストゥルメントする [#using-the-java-api]
+
+New Relic API クラスまたは [アノテーションを使用するために Scala をインスツルメントする](/docs/agents/java-agent/java-agent-api/java-agent-api-instrument-using-annotation).
+
+1. Scalaの設定ファイルに以下の情報を追加してください。
+
+   <CollapserGroup>
+     <Collapser
+       id="build-scala"
+       title={<><strong>project/build.scalaを使った設定</strong> ファイル</>}
+     >
+       アプリケーションの `project/build.scala` ファイルの appDependencies メソッドに次の行を追加します（ <var>X.Y.Z</var> を使用する [Java エージェントのバージョン](/docs/agents/java-agent/installation/update-java-agent#procedures) に置き換えます）。
+
+       ```
+       "com.newrelic.agent.java" % "newrelic-api" % "<var>X.Y.Z</var>"
+       ```
+     </Collapser>
+
+     <Collapser
+       id="build.sbt"
+       title={<><strong>project/build.sbt を使った設定</strong> ファイル</>}
+     >
+       アプリケーションの `project/build.sbt` ファイルに次の行を追加します（ <var>X.Y.Z</var> を、使用する [Java エージェントのバージョン](/docs/agents/java-agent/installation/update-java-agent#procedures) に置き換えます）。
+
+       ```
+       libraryDependencies += "com.newrelic.agent.java" % "newrelic-api" % "<var>X.Y.Z</var>"
+       ```
+     </Collapser>
+   </CollapserGroup>
+
+2. NewRelicクラスをインポートして、アプリケーションで使用します。
+
+   ```
+   import com.newrelic.api.agent.NewRelic
+   ...
+   NewRelic.setTransactionName(null, "<var>/myTransaction</var>");
+   ```
+
+### 追加API機能 [#other-api]
+
+JavaエージェントAPIとその機能の詳細については、[JavaエージェントAPI入門](/docs/agents/java-agent/custom-instrumentation/java-agent-api)を参照してください。
+
+## XMLインストゥルメンテーションによるScalaのインストゥルメント
+
+XMLインスツルメンテーションは、Javaエージェントで動作するすべてのScalaアプリケーションで利用できます。これにより、コードに変更を加えることなくインスツルメンテーションを追加することができます。
+
+詳しくは、 [Java instrumentation by XML](/docs/java/custom-instrumentation-by-xml/) をご覧ください。
+
+## 追加のインストゥルメンテーション
+
+Kamonをお使いの方は、New Relic [Kamon reporter](/docs/integrations/open-source-telemetry-integrations/open-source-telemetry-integration-list/kamon-reporter) をご覧ください。

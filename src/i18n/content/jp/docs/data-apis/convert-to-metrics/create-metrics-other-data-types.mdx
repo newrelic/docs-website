@@ -1,0 +1,329 @@
+---
+title: 他のデータタイプからメトリクスを作成
+tags:
+  - Ingest and manage data
+  - Convert data to metrics
+metaDescription: 'How to create a rule in New Relic to turn data for events, logs, or spans into metric data.'
+translationType: machine
+---
+
+New Relic の [メトリクス API サービス](/docs/introduction-events-metrics-api) を使用して、イベント、ログ、スパンなどの他のタイプのデータから [メトリクス](/docs/telemetry-data-platform/ingest-manage-data/understand-data/metric-data-type) を作成するためのルールを定義します。 **推奨:** 開始する前に、 [の要件とルール作成のヒント](/docs/telemetry-data-platform/ingest-manage-data/convert-data-metrics/creating-metric-rules-requirements-tips) を確認してください。
+
+## メトリクス・ルールの作成 [#overview-process]
+
+イベント、ログ、またはスパンからメトリクスを作成するルールを作成するには、以下の手順に従います。
+
+1. [NRQLを使ってメトリクス・ルールを構築する](#create-nrql).
+2. [NRQLルールを含むNerdGraph（GraphQLフォーマット）のAPIリクエスト](#create-request) を構築します。
+3. [APIリクエストを行ってメトリックを作成する](#graphql-api-request).
+
+メトリクスが作成されると、NRQL を使用して [クエリやチャートを作成することができます。](#find-your-data)
+
+## [ステップ 1.NRQLクエリアルールの作成 [#create-nrql]](#find-your-data)
+
+[](#find-your-data)[メトリクス・ルールの作成](#overview-process) で最も重要なのは、イベント、ログ、またはスパンからのデータのメトリクスを定義する NRQL クエリを構築することです。以下の手順で、1 つの NRQL クエリ で最大 [10 個のメトリックを作成できます。](#multiple-metrics)
+
+[](#multiple-metrics)
+
+1. [](#multiple-metrics)
+
+2. [](#multiple-metrics)
+
+   [](#multiple-metrics)[New Relic の NRQL インターフェイスを使用して](/docs/query-data/nrql-new-relic-query-language/getting-started/introduction-nrql#where) 、作成したいメトリックのクエリを構築します。例えば、以下のようになります。
+
+   ```
+   FROM ProcessSample SELECT average(ioTotalReadBytes)
+   WHERE nr.entityType = 'HOST'
+   ```
+
+3. 使用可能な3つのメトリックタイプのうちの1つを使用するようにクエリを編集します。
+
+   * `summary`: クエリの関数が `min`, `max`, `sum`, `count`, または `average` である場合に使用します。
+
+   * `uniqueCount`: クエリの機能が `uniqueCount` の場合に使用します。
+
+   * `distribution`: クエリの機能が [`percentile`](/docs/query-data/nrql-new-relic-query-language/getting-started/nrql-syntax-clauses-functions#func-percentile) または [`histogram`](/docs/query-data/nrql-new-relic-query-language/getting-started/nrql-syntax-clauses-functions#func-histogram) である場合に使用します。
+
+     この例のクエリは、 `平均` を使用していますので、使用 `要約` 。
+
+     ```
+     FROM ProcessSample SELECT <mark>summary</mark>(ioTotalReadBytes) 
+     WHERE nr.entityType = 'HOST'
+     ```
+
+     この例のクエリでは、 `カウント` を非数値フィールドで使用しています。
+
+     ```
+     FROM ProcessSample SELECT count(hostname) 
+     WHERE hostname LIKE '%prod%'
+     ```
+
+     数字以外のフィールドで `summary` を使用するには、 `summary(1)` を使用します。
+
+     ```
+     FROM ProcessSample SELECT <mark>summary(1)</mark> 
+     WHERE hostname LIKE '%prod%'
+     ```
+
+     <Callout variant="tip">
+       これらのメトリックタイプをルールで使用するための詳細な情報は、 [Creating metric rules: requirements and tips](/docs/telemetry-data-platform/ingest-manage-data/convert-data-metrics/creating-metric-rules-requirements-tips) を参照してください。
+     </Callout>
+
+4. [Limited on unique metric-name/attribute-value combinations](#attributes-limit) に従って、メトリックに添付する属性を決定します。
+
+   **推奨：** このカウントが24時間以内に50,000を超えないように、別のクエリを実行してください。例えば、以下のようになります。
+
+   ```
+   FROM ProcessSample
+   SELECT uniqueCount(awsRegion, awsAvailabilityZone, commandName)
+   WHERE nr.entityType = 'HOST'
+   SINCE 1 DAY AGO
+   ```
+
+5. メトリクスを集約してフィルタリングできるようにするには、 `FACET` 句を使って、メトリクスに付けたい属性を追加します。例えば、以下のようになります。
+
+   ```
+   FROM ProcessSample
+   SELECT summary(ioTotalReadBytes) WHERE nr.entityType = 'HOST' 
+   <mark>FACET awsRegion, awsAvailabilityZone, commandName</mark>
+   ```
+
+6. `AS` 機能を使用して、メトリック の [名前を設定します。例えば、以下のようになります。](#naming)
+
+   ```
+   FROM ProcessSample SELECT summary(ioTotalReadBytes) AS 'io.totalread.bytes'
+   WHERE nr.entityType = 'HOST' FACET awsRegion, awsAvailabilityZone, commandName
+   ```
+
+7. [](#naming)
+
+[](#naming)
+
+[NRQL ルールが完成したら、それを使って ](#naming)[API リクエストを作成します](#create-request) 。
+
+## ステップ2.APIリクエストの作成 [#create-request]
+
+イベント、ログ、またはスパンからのデータをメトリクスに変換するNRQLルールを構築した後、APIリクエストの構築を続けます。 [NerdGraph APIツール](/docs/introduction-events-metrics-api#use-graphql-api-tool) を使用して、データ構造を調べたり、リクエストを作成したりすることができます。
+
+ルールが正しく作成されたことを確認するには、 [クエリを実行して、そのIDを使ってそのルールを返すことができます](/docs/introduction-events-metrics-api#list-rule-by-rule-id) 。作成したメトリクスのクエリに関するヒントは、 [Query and chart your metrics](#find-your-data) を参照してください。
+
+<CollapserGroup>
+  <Collapser
+    id="api-examoke"
+    title="NerdGraph APIリクエストの例"
+  >
+    次の NerdGraph API リクエストの例では、手順 1 の同じ NRQL ルールを使用しています。 `IO Total Read Bytes ルール` は、 `io.totalread.bytes という名前のメトリックを作成します` 。（ルール名にはスペースを含めることができますが、これは [メトリックの命名ルール](#naming) とは異なります）。
+
+    ```
+    mutation {
+      eventsToMetricsCreateRule(rules: {
+        name: "io.totalread.bytes for computeSample entities",
+        description:"Created by Zach on March 27, 2019. Used by team Network.",
+        nrql:"FROM ProcessSample SELECT summary(ioTotalReadBytes) AS 'io.totalread.bytes' WHERE nr.entityType = 'ComputeSample' FACET awsRegion, awsAvailabilityZone, commandName",
+        accountId: 123456
+      })
+      {
+        successes {
+          id
+          name
+          nrql
+          enabled
+        }
+        failures {
+          submitted {
+            name
+            nrql
+            accountId        
+          }
+          errors {
+            reason
+            description
+          }
+        }
+      }
+    }
+    ```
+
+    このリクエストで
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            リクエスト要素
+          </th>
+
+          <th>
+            説明
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `突然変異`
+          </td>
+
+          <td>
+            [APIの基本的な操作タイプの一つ](/docs/apis/graphql-api/getting-started/introduction-new-relic-graphql-api#tutorials) 。
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `eventsToMetricsCreateRule`
+          </td>
+
+          <td>
+            ルールを作成するために呼び出されるメソッドです。
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `ルール`
+          </td>
+
+          <td>
+            4つのパラメータを受け取ります。
+
+            * `名前`: ルールの [名前](#naming).
+            * `説明`: オプション。ルールの説明です。メトリックデータを作成した人やデータを使用する人に関する情報を含めることをお勧めします。
+            * `accountId`: イベント、ログ、またはスパンが保存され、メトリクスが作成される [New Relic アカウント ID](/docs/accounts/install-new-relic/account-setup/account-id) 。
+            * `nrql`: ルールを作成する NRQL クエリです。これについては、 [Create NRQL query](#create-nrql) を参照してください。
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `成功した` と `提出した` ブロック
+          </td>
+
+          <td>
+            ここでは、成功または失敗した応答によって返されるデータを定義します。これらのブロックで利用可能なパラメータは以下の通りです。
+
+            * `id` (`ruleId` for `submitted`)
+            * `name`
+            * `説明`
+            * `nrql`
+            * `enabled` (有効/無効の状態)
+            * `accountId`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `ruleId` and `accountId`
+          </td>
+
+          <td>
+            失敗した場合は、提出された `ruleId` と `accountId` が、エラー理由とエラー説明とともに返されます。
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    id="example-response"
+    title="NerdGraph APIレスポンスの例"
+  >
+    返されたレスポンスの例を示します。
+
+    ```
+    {
+      "data": {
+        "eventsToMetricsCreateRule": {
+          "failures": [],
+          "successes": [
+            {
+              "enabled": true,
+              "id": "46",
+              "name": "io.totalread.bytes for computeSample entities",
+              "nrql": "FROM ProcessSample SELECT summary(ioTotalReadBytes) AS 'io.totalread.bytes' WHERE nr.entityType = 'ComputeSample' FACET awsRegion, awsAvailabilityZone, commandName"
+            }
+          ]
+        }
+      }
+    }
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Step 3.APIリクエストによるメトリクス・ルールの作成 [#graphql-api-request]
+
+APIリクエストの準備ができたら、 [NerdGraph API](/docs/introduction-events-metrics-api#use-graphql-api-tool) を使ってリクエストを行うと、メトリクスが作成されます。
+
+## 指標の照会とグラフ化 [#find-your-data]
+
+メトリクス ルールを作成してイベント、ログ、またはスパンのデータを変換すると、New Relic UI で新しいメトリクス データを表示することができます。データを表示するには
+
+1. [New Relic の NRQL クエリインターフェイス](/docs/query-data/nrql-new-relic-query-language/getting-started/introduction-nrql#where) に移動します。
+
+2. 次のクエリを実行すると、すべてのメトリクスの名前が表示されます。
+
+   ```
+   SELECT uniques(metricName) FROM Metric
+   ```
+
+3. 興味のあるメトリックを選び、次のクエリを実行して利用可能な属性を確認します。
+
+   ```
+   SELECT * FROM Metric where metricName = '<var>yourMetric</var>'
+   ```
+
+4. 期待通りのデータが表示されない場合は、 [トラブルシューティング](#troubleshooting) の手順に従ってください。
+
+利用可能な [NRQL アグリゲータ関数](/docs/insights/nrql-new-relic-query-language/nrql-reference/nrql-syntax-components-functions#functions) は、作成した [メトリックタイプ](#summary-and-uniquecount) によって異なります。以下に例を示します。
+
+<CollapserGroup>
+  <Collapser
+    id="summary"
+    title="サマリーメトリックの例"
+  >
+    サマリーメトリックタイプを作成した場合、次のクエリに示すように、 `count`, `sum`, `max`, `min`, `average` のアグリゲータ関数を使用することができます。
+
+    ```
+    SELECT count(appStartResponseTime), sum(appStartResponseTime), max(appStartResponseTime), min(appStartResponseTime),  average(appStartResponseTime) FROM Metric
+    ```
+  </Collapser>
+
+  <Collapser
+    id="uniqueCount"
+    title="カウントメトリックの例"
+  >
+    `uniqueCount` メトリック タイプを作成した場合、次のクエリに示すように、 `uniqueCount` 関数のみ使用できます。
+
+    ```
+    SELECT uniqueCount(playbackErrorStreamUniqueCount) * 100 / uniqueCount(streamUniqueCount) AS '% of Streams Impacted' FROM Metric
+    ```
+  </Collapser>
+
+  <Collapser
+    id="distribution"
+    title="ディストリビューション・メトリックの例"
+  >
+    `distribution` メトリックタイプを作成した場合は、次のクエリに示すように、 `percentile` または `histogram` 関数を使用します。
+
+    ```
+    SELECT percentile(service.responseTime, 95) FROM Metric
+    ```
+
+    または
+
+    ```
+    SELECT histogram(service.responseTime, 10, 20) FROM Metric
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## トラブルシューティング
+
+NerdGraphの呼び出しが正しく構築されていない場合、以下のようなメッセージが表示されることがあります。
+
+```
+Cannot parse the unexpected character "\u201C”
+```
+
+NerdGraphコール内の引用符がスマートクォート（カーリークォート）でないことを確認してください。NerdGraph APIはストレートな引用符しか受け付けません。
