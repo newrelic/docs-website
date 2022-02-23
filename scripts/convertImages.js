@@ -12,6 +12,18 @@ const frontmatter = require('remark-frontmatter');
 const remarkStringify = require('remark-stringify');
 const fencedCodeBlock = require('../codemods/fencedCodeBlock');
 
+const renameFile = async (imagePath, newImagePath, curr) => {
+  const { error } = fs.rename(
+    imagePath,
+    `${__dirname}/../src/${newImagePath.replace('./images/', 'images/')}`
+  );
+
+  if (error) {
+    console.log(`Error renaming file ${imagePath} to ${newImagePath}`);
+  }
+  curr.value.value = newImagePath.replace('./images/', 'images/');
+};
+
 const convertImages = () => {
   const absoluteUrlPattern = /^(https?:)?\//;
   const relativePathPattern = /\.\.?\/images/;
@@ -36,7 +48,7 @@ const convertImages = () => {
             )
           );
           if (shouldUpdate) {
-            node.attributes.reduce((accum, curr) => {
+            node.attributes.reduce(async (accum, curr) => {
               if (curr.name === 'src') {
                 curr.value.value = curr.value.value.replace(
                   './images/',
@@ -59,6 +71,7 @@ const convertImages = () => {
               node.url
                 .replace('./images/', '')
                 .replace(/\.(png|jpg|jpeg|svg|gif)/i, '')
+                .replace('%', '_')
             );
             if (startsWithNumberPattern.test(importName)) {
               importName = camelCase(alt);
