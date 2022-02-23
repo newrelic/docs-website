@@ -20,7 +20,7 @@ const defaultComponents = {
       <img
         width={props.width ? props.width : '100%'}
         src={props.src}
-        alt={props.alt}
+        alt={props.alt ? props.alt : 'Docs site'}
         title={props.title}
       />
     </a>
