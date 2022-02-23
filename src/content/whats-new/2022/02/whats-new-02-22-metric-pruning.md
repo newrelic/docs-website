@@ -1,6 +1,6 @@
 ---
 title: 'Manage cardinality with metric aggregate pruning'
-summary: 'Avoid cardinality limits so you can query important data without delay'
+summary: 'Avoid cardinality limits so you can view important longer-term trends'
 releaseDate: '2022-02-22'
 learnMoreLink: 'https://newrelic.com/blog/nerdlog/metric-aggregate-pruning'
 getStartedLink: 'https://docs.newrelic.com/docs/data-apis/manage-data/drop-data-using-nerdgraph/#drop-attributes-on-dimensional-metric-rollups'
