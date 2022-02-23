@@ -18,6 +18,6 @@ This update brings rich trace data for AWS-managed services so you can get insig
 
 If you’re an existing New Relic user and you’ve already [connected your AWS account](https://docs.newrelic.com/docs/integrations/amazon-integrations/get-started/connect-aws-infrastructure), go to your [New Relic Infrastructure AWS settings](https://infrastructure.newrelic.com) and activate X-Ray (see below).
 
-![Infrastructure_integrations_AWS_x-ray.png](src/images/Infrastructure_integrations_AWS_x-ray.png "Infrastructure_integrations_AWS_x-ray.png")
+![Infrastructure_integrations_AWS_x-ray.png](./images/Infrastructure_integrations_AWS_x-ray.png "Infrastructure_integrations_AWS_x-ray.png")
 
 After you enable the X-Ray integration, AWS X-Ray trace data will automatically display in any distributed tracing view throughout New Relic One.

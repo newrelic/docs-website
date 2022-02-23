@@ -13,6 +13,6 @@ New Relic now integrates with [Snowflake](https://github.com/newrelic/newrelic-s
 * Detect potential security issues and failed logins.
 * Monitor and alert on custom Snowflake data.
 
-![screenshot_snowflake_integration_chart.png](src/images/screenshot_snowflake_integration_chart.png "screenshot_snowflake_integration_chart.png")
+![screenshot_snowflake_integration_chart.png](./images/screenshot_snowflake_integration_chart.png "screenshot_snowflake_integration_chart.png")
 
 An example Snowflake integration chart.

@@ -15,7 +15,7 @@ When using webhooks as a destination in Incident Intelligence, you can further r
 * Creating a new configuration? Good news: you don’t need to do anything! The necessary fields are there by default.
 * Have an existing webhook? If you’re using a default payload, you’ll receive this by default. If you’re using a custom webhook, you can update it by visiting your relevant configuration and updating the payload to include the new image and analyze attributes.
 
-  ![Screenshot showing anomaly chart.](src/images/whats_new_webhook_1.png "whats_new_webhook_1.png")
+  ![Screenshot showing anomaly chart.](./images/whats_new_webhook_1.png "whats_new_webhook_1.png")
 
 ### Reduce the noise and only receive correlated notifications
 
@@ -28,4 +28,4 @@ The two attributes below, used when naming your pathway, allow you to do this:
 * `is_correlated` which is a binary value that can be set to true or false
 * `incidents_count` which requires an operator and numerical value
 
-![Animated GIF showing how to build a query for data you want to send.](src/images/whats_new_webhook_2.gif "whats_new_webhook_2.gif")
+![Animated GIF showing how to build a query for data you want to send.](./images/whats_new_webhook_2.gif "whats_new_webhook_2.gif")
