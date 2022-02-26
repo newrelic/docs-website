@@ -11,21 +11,29 @@ const camelCase = require('camelcase');
 const frontmatter = require('remark-frontmatter');
 const remarkStringify = require('remark-stringify');
 const fencedCodeBlock = require('../codemods/fencedCodeBlock');
+const slugify = require('./utils/slugify');
+const { mdxBlockElement } = require('../codemods/utils/mdxast-builder');
 
 const convertImages = () => {
   const absoluteUrlPattern = /^(https?:)?\//;
   const relativePathPattern = /\.\.?\/images/;
   const startsWithNumberPattern = /^\d/;
+  const startsWithNonAlpha = /^[^A-Z, ^a-z]/;
 
   // return transformer;
   return (tree, file) => {
-    const imports = [];
+    const imports = new Set();
+    const existingImports = new Set();
     visit(
       tree,
       (node) => ['image', 'import', 'mdxBlockElement'].includes(node.type),
       (node, index, parent) => {
         if (node.type === 'import') {
           node.value = node.value.replace('./images/', 'images/');
+          const nodeValueUrl = node.value.split(' ');
+          existingImports.add(
+            nodeValueUrl[nodeValueUrl.length - 1].normalize()
+          );
         }
         if (node.type === 'mdxBlockElement' && node.name === 'img') {
           const shouldUpdate = Boolean(
@@ -50,26 +58,46 @@ const convertImages = () => {
         if (node.type === 'image') {
           const { url, alt } = node;
 
+          // early return if absolute path
           if (absoluteUrlPattern.test(url)) {
             return;
           }
 
           if (relativePathPattern.test(url)) {
             let importName = camelCase(
-              node.url
+              url
                 .replace('./images/', '')
-                .replace('%', '_')
                 .replace(/\.(png|jpg|jpeg|svg|gif)/i, '')
+                .replaceAll('%', 'img')
             );
-            if (startsWithNumberPattern.test(importName)) {
-              importName = camelCase(alt);
+
+            // use alt text if importname starts with numbers
+            // or non-alphabetical characters
+            if (
+              startsWithNumberPattern.test(importName) ||
+              startsWithNonAlpha.test(importName)
+            ) {
+              importName = startsWithNonAlpha.test(alt)
+                ? camelCase(
+                    slugify(
+                      `img-${imports.size + existingImports.size}`.concat(alt)
+                    )
+                  )
+                : camelCase(slugify(alt));
             }
 
-            const nodeUrl = node.url.replace('./', '').replace('%', '_');
+            const nodeUrl = url.replace('./images/', 'images/');
 
-            const importString = `import ${importName} from '${nodeUrl}'`;
-
-            imports.push(importString);
+            if (
+              !existingImports.has(`'${nodeUrl}'`.normalize()) &&
+              !existingImports.has(`'${nodeUrl}';`.normalize())
+            ) {
+              const importString = `import ${importName} from '${nodeUrl.replaceAll(
+                '%',
+                '_'
+              )}'`;
+              imports.add(importString);
+            }
 
             const restOfAttributes = Object.entries(node).reduce(
               (accum, [key, value]) => {
@@ -96,7 +124,9 @@ const convertImages = () => {
               },
             };
             node = u(
-              'mdxBlockElement',
+              parent.name === 'ImageSizing' || parent.type === 'heading'
+                ? 'mdxSpanElement'
+                : 'mdxBlockElement',
               {
                 name: 'img',
                 attributes: [updatedSrcNode, ...restOfAttributes],
@@ -111,11 +141,11 @@ const convertImages = () => {
       }
     );
     visit(tree, 'root', (node) => {
-      if (imports.length > 0) {
+      if (imports.size > 0) {
         const [head, ...tail] = node.children;
         const importNode = u('paragraph', {
           type: 'text',
-          value: imports.join('\n\n'),
+          value: [...imports].join('\n\n'),
         });
         node.children = [head, importNode, ...tail];
       }
@@ -169,7 +199,9 @@ const main = async () => {
   }
 
   if (filePaths.length === 0) {
-    filePaths = glob.sync(`${__dirname}/../src/content/**/*.mdx`);
+    filePaths = glob.sync(
+      `${__dirname}/../src{/content/**/*.mdx,/i18n/content/**/*.mdx}`
+    );
   }
 
   const allResults = await Promise.all(
