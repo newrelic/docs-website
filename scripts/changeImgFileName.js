@@ -9,7 +9,7 @@ const main = () => {
     const filename = path.basename(urlPath);
     const dir = path.dirname(urlPath);
     const newFileName = filename;
-    const newPath = path.join(dir, newFileName).replace('%', '_');
+    const newPath = path.join(dir, newFileName).replace('%', '');
 
     fs.rename(urlPath, newPath, (err) => console.log(err));
   });
