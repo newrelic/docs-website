@@ -26,8 +26,35 @@ const convertImages = () => {
     const existingImports = new Set();
     visit(
       tree,
-      (node) => ['image', 'import', 'mdxBlockElement'].includes(node.type),
+      (node) =>
+        ['image', 'import', 'mdxBlockElement', 'mdxSpanElement'].includes(
+          node.type
+        ),
       (node, index, parent) => {
+        if (node.name === 'ImageSizing') {
+          const styleAttributeNode = {
+            type: 'mdxAttribute',
+            name: 'style',
+            value: {
+              type: 'mdxValueExpression',
+              value: null,
+            },
+          };
+
+          // If we're inside an ImageSizing component, get style props off it,
+          // add them to img tag, and replace ImageSizing parent with img element
+          const style = {};
+          node.attributes.forEach(function iterateAttriutes({ name, value }) {
+            style[name] = value;
+          });
+
+          styleAttributeNode.value.value = JSON.stringify(style);
+          node.children[0].attributes = [];
+          node.children[0].attributes.push(styleAttributeNode);
+
+          parent.children.splice(index, 1, ...node.children);
+          return;
+        }
         if (node.type === 'import') {
           node.value = node.value.replace('./images/', 'images/');
           const nodeValueUrl = node.value.split(' ');
@@ -123,6 +150,8 @@ const convertImages = () => {
                 value: importName,
               },
             };
+
+            // const newAttributes = ;
             node = u(
               parent.name === 'ImageSizing' || parent.type === 'heading'
                 ? 'mdxSpanElement'
@@ -134,7 +163,6 @@ const convertImages = () => {
               },
               []
             );
-
             parent.children.splice(index, 1, node);
           }
         }
@@ -155,7 +183,7 @@ const convertImages = () => {
 // Use to look through AST
 // const filePath = path.join(
 //   process.cwd(),
-//   'src/content/docs/apm/agents/c-sdk/get-started/introduction-c-sdk.mdx'
+//   'src/content/docs/infrastructure/install-infrastructure-agent/get-started/install-infrastructure-agent.mdx'
 // );
 
 // const mdxFile = fs.readFileSync(path.join(filePath));
