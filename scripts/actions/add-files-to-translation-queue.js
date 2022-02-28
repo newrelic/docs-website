@@ -28,6 +28,10 @@ const getCommandLineOptions = () => {
     .option(
       '-mt, --machine-translation',
       'Boolean to only send files needing machine translation'
+    )
+    .option(
+      '-l, --locale <locale>',
+      'Specifiy specific language to be sent to smartling for translation'
     );
   program.parse(process.argv);
   return program.opts();
@@ -98,6 +102,7 @@ const main = async () => {
   const url = options.url || null;
   const directory = options.directory || null;
   const machineTranslation = options.machineTranslation || false;
+  const localeOption = options.locale || null;
 
   let mdxFileData;
 
@@ -128,7 +133,17 @@ const main = async () => {
   const queue = await getTranslations({
     status: STATUS.PENDING,
   });
-  const fileDataToAddToQueue = translationDifference(queue, includedFiles);
+
+  const filterByLocaleOption = (file) => {
+    if (localeOption) {
+      return file.locale === localeOption;
+    } else return;
+  };
+
+  const fileDataToAddToQueue = translationDifference(
+    queue,
+    includedFiles
+  ).filter(filterByLocaleOption);
 
   await Promise.all(
     fileDataToAddToQueue.map(({ filename, locale, project_id }) =>
