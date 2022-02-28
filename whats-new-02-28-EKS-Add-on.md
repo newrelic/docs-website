@@ -1,7 +1,7 @@
 ---
 title: 'Automate Kubernetes observability on your EKS clusters with code'
 summary: 'Deploy observability faster and easier than ever!'
-releaseDate: '2022-02-28'
+releaseDate: '2022-03-02'
 learnMoreLink: 'https://newrelic.com/blog/nerdlog/eks-ssp-kubernetes-observability' 
 getStartedLink: 'https://www.npmjs.com/package/@newrelic/newrelic-ssp-addon'
 
