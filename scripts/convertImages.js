@@ -108,24 +108,28 @@ const convertImages = () => {
               imports.add(importString);
             }
 
-            const styleAttributeNode = {
-              type: 'mdxAttribute',
-              name: 'style',
-              value: {
-                type: 'mdxValueExpression',
-                value: null,
-              },
-            };
+            const attributes = [];
 
             // If we're inside an ImageSizing component, get style props off it,
             // add them to img tag, and replace ImageSizing parent with img element
             if (parent.name === 'ImageSizing') {
+              const styleAttributeNode = {
+                type: 'mdxAttribute',
+                name: 'style',
+                value: {
+                  type: 'mdxValueExpression',
+                  value: null,
+                },
+              };
+
               const style = {};
+
               parent.attributes.forEach(({ name, value }) => {
                 style[name] = value;
               });
 
               styleAttributeNode.value.value = generateStyleObjectString(style);
+              attributes.push(styleAttributeNode);
             }
 
             const restOfAttributes = Object.entries(node).reduce(
@@ -144,6 +148,8 @@ const convertImages = () => {
               },
               []
             );
+            attributes.push(...restOfAttributes);
+
             const updatedSrcNode = {
               type: 'mdxAttribute',
               name: 'src',
@@ -152,19 +158,15 @@ const convertImages = () => {
                 value: importName,
               },
             };
+            attributes.push(updatedSrcNode);
 
-            // const newAttributes = ;
             node = u(
               parent.name === 'ImageSizing' || parent.type === 'heading'
                 ? 'mdxSpanElement'
                 : 'mdxBlockElement',
               {
                 name: 'img',
-                attributes: [
-                  updatedSrcNode,
-                  styleAttributeNode,
-                  ...restOfAttributes,
-                ],
+                attributes: attributes,
                 position: node.position,
               },
               []
