@@ -18,7 +18,7 @@ exports.createSchemaCustomization = ({ actions }) => {
 
     type NavItem @dontInfer {
       id: ID!
-      title(locale: String = "en"): String
+      title(locale: String = "en"): String!
       icon: String
       url: String
       pages: [NavItem!]!
