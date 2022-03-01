@@ -15,7 +15,7 @@ const slugify = require('./utils/slugify');
 
 const generateStyleObjectString = (obj) => {
   return `{${Object.entries(obj)
-    .map((item) => `${item[0]}: '${item[1]}'`)
+    .map((item) => ` ${item[0]}: '${item[1]}'`)
     .join(',')}}`;
 };
 
