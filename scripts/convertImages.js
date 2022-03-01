@@ -13,10 +13,36 @@ const remarkStringify = require('remark-stringify');
 const fencedCodeBlock = require('../codemods/fencedCodeBlock');
 const slugify = require('./utils/slugify');
 
+const addImportToSet = (imports, importName, nodeUrl) => {
+  const importString = `import ${importName} from '${nodeUrl}'`;
+  imports.add(importString);
+};
+
 const generateStyleObjectString = (obj) => {
   return `{${Object.entries(obj)
     .map((item) => ` ${item[0]}: '${item[1]}'`)
     .join(',')}}`;
+};
+
+const generateRestOfAttributes = (node) => {
+  const restOfAttributes = Object.entries(node).reduce(
+    (accum, [key, value]) => {
+      let attributeNodeObj = {};
+      if (['title', 'alt'].includes(key) && value) {
+        attributeNodeObj = {
+          type: 'mdxAttribute',
+          name: key,
+          value,
+        };
+      }
+      return Object.keys(attributeNodeObj).length > 0
+        ? [...accum, attributeNodeObj]
+        : [...accum];
+    },
+    []
+  );
+
+  return restOfAttributes;
 };
 
 const convertImages = () => {
@@ -36,6 +62,9 @@ const convertImages = () => {
           node.type
         ),
       (node, index, parent) => {
+        // if a node an import type, we want to replace the relative
+        // URL to an absolute URL. Then, add that nodeURL to existing
+        // imports that already exist in the .mdx file.
         if (node.type === 'import') {
           node.value = node.value.replace('./images/', 'images/');
           const nodeValueUrl = node.value.split(' ');
@@ -43,6 +72,9 @@ const convertImages = () => {
             nodeValueUrl[nodeValueUrl.length - 1].normalize()
           );
         }
+
+        // If we are looking at an img node, we want to check
+        // weather the src attribute contains a relative path.
         if (node.type === 'mdxBlockElement' && node.name === 'img') {
           const shouldUpdate = Boolean(
             node.attributes.find(
@@ -51,6 +83,8 @@ const convertImages = () => {
                 relativePathPattern.test(child.value.value)
             )
           );
+
+          // Update the relative path URL to an absolute path
           if (shouldUpdate) {
             node.attributes.reduce(async (accum, curr) => {
               if (curr.name === 'src') {
@@ -72,6 +106,7 @@ const convertImages = () => {
             return;
           }
 
+          // grab the import name
           if (relativePathPattern.test(url)) {
             let importName = camelCase(
               url
@@ -80,7 +115,7 @@ const convertImages = () => {
                 .replaceAll('%', 'img')
             );
 
-            // use alt text if importname starts with numbers
+            // use alt text if importName starts with numbers
             // or non-alphabetical characters
             if (
               startsWithNumberPattern.test(importName) ||
@@ -97,15 +132,13 @@ const convertImages = () => {
 
             const nodeUrl = url.replace('./images/', 'images/');
 
+            // This ensures we do not add duplicate imports at the top of
+            // the mdx file
             if (
               !existingImports.has(`'${nodeUrl}'`.normalize()) &&
               !existingImports.has(`'${nodeUrl}';`.normalize())
             ) {
-              const importString = `import ${importName} from '${nodeUrl.replaceAll(
-                '%',
-                '_'
-              )}'`;
-              imports.add(importString);
+              addImportToSet(imports, importName, nodeUrl.replaceAll('%', '_'));
             }
 
             const attributes = [];
@@ -132,22 +165,8 @@ const convertImages = () => {
               attributes.push(styleAttributeNode);
             }
 
-            const restOfAttributes = Object.entries(node).reduce(
-              (accum, [key, value]) => {
-                let attributeNodeObj = {};
-                if (['title', 'alt'].includes(key) && value) {
-                  attributeNodeObj = {
-                    type: 'mdxAttribute',
-                    name: key,
-                    value,
-                  };
-                }
-                return Object.keys(attributeNodeObj).length > 0
-                  ? [...accum, attributeNodeObj]
-                  : [...accum];
-              },
-              []
-            );
+            const restOfAttributes = generateRestOfAttributes(node);
+
             attributes.push(...restOfAttributes);
 
             const updatedSrcNode = {
