@@ -31,29 +31,6 @@ const convertImages = () => {
           node.type
         ),
       (node, index, parent) => {
-        // if (node.name === 'ImageSizing') {
-        //   const styleAttributeNode = {
-        //     type: 'mdxAttribute',
-        //     name: 'style',
-        //     value: {
-        //       type: 'mdxValueExpression',
-        //       value: null,
-        //     },
-        //   };
-
-        //   // If we're inside an ImageSizing component, get style props off it,
-        //   // add them to img tag, and replace ImageSizing parent with img element
-        //   const style = {};
-        //   node.attributes.forEach(function iterateAttriutes({ name, value }) {
-        //     style[name] = value;
-        //   });
-
-        //   styleAttributeNode.value.value = JSON.stringify(style);
-        //   node.children[0].attributes = [];
-        //   node.children[0].attributes.push(styleAttributeNode);
-
-        //   parent.children.splice(index, 1, ...node.children);
-        // }
         if (node.type === 'import') {
           node.value = node.value.replace('./images/', 'images/');
           const nodeValueUrl = node.value.split(' ');
