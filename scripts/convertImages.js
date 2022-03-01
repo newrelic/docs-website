@@ -14,8 +14,9 @@ const fencedCodeBlock = require('../codemods/fencedCodeBlock');
 const slugify = require('./utils/slugify');
 
 const generateStyleObjectString = (obj) => {
-  const objStr = Object.entries(obj).map((item) => `${item[0]}: '${item[1]}'`);
-  return `{${objStr.join(', ')}}`;
+  return `{${Object.entries(obj)
+    .map((item) => `${item[0]}: '${item[1]}'`)
+    .join(',')}}`;
 };
 
 const convertImages = () => {
