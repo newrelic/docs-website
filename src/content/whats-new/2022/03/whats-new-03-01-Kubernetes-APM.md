@@ -13,10 +13,12 @@ Use our new UI that shows how cluster performance impacts your applications.
 * Correlate performance anomalies with one-click logs and side-by-side (selectable) metrics.
 
 ## How to get started
-Go to **[one.newrelic.com](http://one.newrelic.com) > Explorer > Services - APM > (select an app) > Kubernetes**. To see Kubernetes performance data in New Relic One, do the following:
+Kubernetes information in APM is available in **[one.newrelic.com](http://one.newrelic.com) > Explorer > Services - APM > (select an app) > Kubernetes**.
+
+To make sure your Kubernetes performance data appears in New Relic One:
 
 * Install the New Relic [infrastructure integration](https://docs.newrelic.com/docs/kubernetes-pixie/kubernetes-integration/installation/install-kubernetes-integration-using-helm/).
-* See our documentation about [New Relic APM](https://docs.newrelic.com/docs/apm/new-relic-apm/getting-started/introduction-apm/), as well as information about the [Kubernetes summary page](https://docs.newrelic.com/docs/apm/apm-ui-pages/monitoring/kubernetes-summary-page).
+* See our general [APM](https://docs.newrelic.com/docs/apm/new-relic-apm/getting-started/introduction-apm/) documentation, as well as information about the [Kubernetes summary page](https://docs.newrelic.com/docs/apm/apm-ui-pages/monitoring/kubernetes-summary-page).
 * Ensure users have [**Full user** licenses](https://newrelic.com/pricing).
 
 ![Screenshot showing Kubernetes in APM](./images/apm-k8s-2.png "Screenshot showing Kubernetes in APM")
