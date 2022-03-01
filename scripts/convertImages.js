@@ -74,7 +74,7 @@ const convertImages = () => {
         }
 
         // If we are looking at an img node, we want to check
-        // weather the src attribute contains a relative path.
+        // whether the src attribute contains a relative path.
         if (node.type === 'mdxBlockElement' && node.name === 'img') {
           const shouldUpdate = Boolean(
             node.attributes.find(
