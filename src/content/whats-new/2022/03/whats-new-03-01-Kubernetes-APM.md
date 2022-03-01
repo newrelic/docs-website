@@ -1,7 +1,7 @@
 ---
 title: 'Minimize Kubernetes complexity to build performant applications'
 summary: 'Analyze application and Kubernetes observability data in one place'
-releaseDate: '2022-03-01'
+releaseDate: '2022-03-02'
 learnMoreLink: 'https://newrelic.com/blog/nerdlog/kubernetes-experience-in-APM'
 ---
 ## See Kubernetes details in APM
