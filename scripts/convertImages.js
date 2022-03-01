@@ -12,7 +12,11 @@ const frontmatter = require('remark-frontmatter');
 const remarkStringify = require('remark-stringify');
 const fencedCodeBlock = require('../codemods/fencedCodeBlock');
 const slugify = require('./utils/slugify');
-const { mdxBlockElement } = require('../codemods/utils/mdxast-builder');
+
+const generateStyleObjectString = (obj) => {
+  const objStr = Object.entries(obj).map((item) => `${item[0]}: '${item[1]}'`);
+  return `{${objStr.join(', ')}}`;
+};
 
 const convertImages = () => {
   const absoluteUrlPattern = /^(https?:)?\//;
@@ -120,7 +124,7 @@ const convertImages = () => {
                 style[name] = value;
               });
 
-              styleAttributeNode.value.value = JSON.stringify(style);
+              styleAttributeNode.value.value = generateStyleObjectString(style);
             }
 
             const restOfAttributes = Object.entries(node).reduce(
