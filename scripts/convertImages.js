@@ -53,8 +53,11 @@ const convertImages = () => {
 
   // return transformer;
   return (tree, file) => {
+    // Set<string>
     const imports = new Set();
-    const existingImports = new Set();
+
+    // Set<string, string>
+    const existingImports = new Map();
     visit(
       tree,
       (node) =>
@@ -68,8 +71,11 @@ const convertImages = () => {
         if (node.type === 'import') {
           node.value = node.value.replace('./images/', 'images/');
           const nodeValueUrl = node.value.split(' ');
-          existingImports.add(
-            nodeValueUrl[nodeValueUrl.length - 1].normalize()
+
+          // adds mapping from imageURL -> imageName
+          existingImports.set(
+            nodeValueUrl[nodeValueUrl.length - 1].normalize(),
+            nodeValueUrl[1]
           );
         }
 
@@ -121,13 +127,11 @@ const convertImages = () => {
               startsWithNumberPattern.test(importName) ||
               startsWithNonAlpha.test(importName)
             ) {
-              importName = startsWithNonAlpha.test(alt)
-                ? camelCase(
-                    slugify(
-                      `img-${imports.size + existingImports.size}`.concat(alt)
-                    )
-                  )
-                : camelCase(slugify(alt));
+              importName = camelCase(
+                slugify(
+                  `img-${imports.size + existingImports.size}`.concat(alt)
+                )
+              );
             }
 
             const nodeUrl = url.replace('./images/', 'images/');
@@ -139,6 +143,14 @@ const convertImages = () => {
               !existingImports.has(`'${nodeUrl}';`.normalize())
             ) {
               addImportToSet(imports, importName, nodeUrl.replaceAll('%', '_'));
+            }
+
+            // If existingImports has an image URL mapped to an imageName,
+            // we can reuse that as the import name to help miss-naming imports
+            else {
+              importName =
+                existingImports.get(`'${nodeUrl}'`.normalize()) ||
+                existingImports.get(`'${nodeUrl}';`.normalize());
             }
 
             const attributes = [];
