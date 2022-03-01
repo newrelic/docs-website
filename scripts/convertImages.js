@@ -31,30 +31,29 @@ const convertImages = () => {
           node.type
         ),
       (node, index, parent) => {
-        if (node.name === 'ImageSizing') {
-          const styleAttributeNode = {
-            type: 'mdxAttribute',
-            name: 'style',
-            value: {
-              type: 'mdxValueExpression',
-              value: null,
-            },
-          };
+        // if (node.name === 'ImageSizing') {
+        //   const styleAttributeNode = {
+        //     type: 'mdxAttribute',
+        //     name: 'style',
+        //     value: {
+        //       type: 'mdxValueExpression',
+        //       value: null,
+        //     },
+        //   };
 
-          // If we're inside an ImageSizing component, get style props off it,
-          // add them to img tag, and replace ImageSizing parent with img element
-          const style = {};
-          node.attributes.forEach(function iterateAttriutes({ name, value }) {
-            style[name] = value;
-          });
+        //   // If we're inside an ImageSizing component, get style props off it,
+        //   // add them to img tag, and replace ImageSizing parent with img element
+        //   const style = {};
+        //   node.attributes.forEach(function iterateAttriutes({ name, value }) {
+        //     style[name] = value;
+        //   });
 
-          styleAttributeNode.value.value = JSON.stringify(style);
-          node.children[0].attributes = [];
-          node.children[0].attributes.push(styleAttributeNode);
+        //   styleAttributeNode.value.value = JSON.stringify(style);
+        //   node.children[0].attributes = [];
+        //   node.children[0].attributes.push(styleAttributeNode);
 
-          parent.children.splice(index, 1, ...node.children);
-          return;
-        }
+        //   parent.children.splice(index, 1, ...node.children);
+        // }
         if (node.type === 'import') {
           node.value = node.value.replace('./images/', 'images/');
           const nodeValueUrl = node.value.split(' ');
@@ -82,6 +81,7 @@ const convertImages = () => {
             }, []);
           }
         }
+        // markdown images
         if (node.type === 'image') {
           const { url, alt } = node;
 
@@ -126,6 +126,26 @@ const convertImages = () => {
               imports.add(importString);
             }
 
+            const styleAttributeNode = {
+              type: 'mdxAttribute',
+              name: 'style',
+              value: {
+                type: 'mdxValueExpression',
+                value: null,
+              },
+            };
+
+            // If we're inside an ImageSizing component, get style props off it,
+            // add them to img tag, and replace ImageSizing parent with img element
+            if (parent.name === 'ImageSizing') {
+              const style = {};
+              parent.attributes.forEach(({ name, value }) => {
+                style[name] = value;
+              });
+
+              styleAttributeNode.value.value = JSON.stringify(style);
+            }
+
             const restOfAttributes = Object.entries(node).reduce(
               (accum, [key, value]) => {
                 let attributeNodeObj = {};
@@ -158,7 +178,11 @@ const convertImages = () => {
                 : 'mdxBlockElement',
               {
                 name: 'img',
-                attributes: [updatedSrcNode, ...restOfAttributes],
+                attributes: [
+                  updatedSrcNode,
+                  styleAttributeNode,
+                  ...restOfAttributes,
+                ],
                 position: node.position,
               },
               []
@@ -178,6 +202,13 @@ const convertImages = () => {
         node.children = [head, importNode, ...tail];
       }
     });
+    visit(
+      tree,
+      (node) => node.name === 'ImageSizing',
+      (node, index, parent) => {
+        parent.children.splice(index, 1, ...node.children);
+      }
+    );
   };
 };
 // Use to look through AST
