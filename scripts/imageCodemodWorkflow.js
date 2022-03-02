@@ -11,13 +11,14 @@ const getAbsolutePaths = (pathname) => {
   const paths = glob.sync(path.join(__dirname, pathname));
 
   const promises = paths.map(async (urlPath, _, promiseArray) => {
-    const files = await fs.promises.readdir(urlPath);
+    const readDirResults = await fs.promises.readdir(urlPath);
 
-    const nestedImages = files.filter(
+    const nestedImages = readDirResults.filter(
       (fileName) => !fileExtension.test(fileName)
     );
 
-    const fileNames = files
+    console.log(nestedImages);
+    const fileNames = readDirResults
       .filter((fileName) => fileExtension.test(fileName))
       .map(async (file, _, pushFiles) => {
         try {
@@ -63,17 +64,21 @@ const changeFileNames = () => {
   });
 };
 
-const main = async () => {
-  // changeFileNames();
+// const main = async () => {
+//   // changeFileNames();
 
-  const nativePaths = '../src/content/**/images/';
-  // const i18nPaths = '../src/i18n/content';
+//   const nativePaths = '../src/content/**/images/';
+//   // const i18nPaths = '../src/i18n/content';
 
-  const fileNames = await getAbsolutePaths(nativePaths);
-  console.log(fileNames.length);
-  // mvFiles(i18nPaths);
+//   const fileNames = await getAbsolutePaths(nativePaths);
+//   console.log(fileNames.length);
+//   // mvFiles(i18nPaths);
 
-  // changeFileNames();
+//   // changeFileNames();
+// };
+
+const main = () => {
+  changeFileNames();
 };
 
 main();
