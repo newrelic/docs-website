@@ -7,9 +7,6 @@ i18npaths=`find $i18root -name images -and -type d -print`
 workflow=$1
 content=$([ "$2" == "i18n" ] && echo $i18npaths || echo $paths)
 
-cd ..
-
-echo "Running $workflow on $2 images"
 if [ $workflow == "cp" ]; then
 for path in $content
   do
