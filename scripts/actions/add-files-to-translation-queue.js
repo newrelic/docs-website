@@ -102,7 +102,6 @@ const main = async () => {
   const url = options.url || null;
   const directory = options.directory || null;
   const machineTranslation = options.machineTranslation || false;
-  const localeOption = options.locale || null;
 
   let mdxFileData;
 
@@ -135,9 +134,9 @@ const main = async () => {
   });
 
   const filterByLocaleOption = (file) => {
-    if (localeOption) {
-      return file.locale === localeOption;
-    } else return;
+    if (options.locale) {
+      return file.locale === options.locale;
+    } else return true;
   };
 
   const fileDataToAddToQueue = translationDifference(
