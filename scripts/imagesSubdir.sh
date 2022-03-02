@@ -9,10 +9,10 @@ content=$([ "$2" == "i18n" ] && echo $i18npaths || echo $paths)
 echo $content
 
 for path in $content
-do 
+do
   echo -e "$path\n"
 done
-  
+
 
 if [ $workflow == "cp" ]; then
 for path in $content
@@ -20,16 +20,13 @@ for path in $content
     if [ -d "$path/images"  ]; then
       for file in $path/images/*
       do
-        newFileName = echo "$file" | tr % _
         mv $file "$imgroot/$newFileName"
       done
       echo -e "copied files\n\tFROM: $path/images/\n\tTO: $imgroot"
-    else 
+    else
       cp $path/* $imgroot
     for file in $path/*
     do
-      newFileName = echo "$file" | tr % _ 
-      newFileName = echo "$file" | tr % _
       mv $file "$imgroot/$newFileName"
     done
       echo -e "copied files\n\tFROM: $path/\n\tTO: $imgroot"
@@ -37,13 +34,13 @@ for path in $content
   done
 fi
 
-if [ $workflow == "rm" ]; then 
+if [ $workflow == "rm" ]; then
   for path in $content
   do
     if [ -d "$path/images"  ]; then
       rm -rf $path/images
       echo -e "removed path $path/images from directory"
-    else 
+    else
       rm -rf $path
       echo -e "removed path $path from directory"
     fi
