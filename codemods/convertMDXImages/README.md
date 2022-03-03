@@ -104,4 +104,11 @@ This will run each script one by one.
 5) Run the image codemod on every MDX file
 
 
+### Cleaning up branch
+
+Inside `src/codemods/convertMDXImages/`, there is a `cleanup.sh` bash file which restores any changed content back to the branch's original state in git.
+
+> If there is issues running the bash script, try `chmod` on the file to giver user run access.
+
+
 
