@@ -27,7 +27,7 @@ const addImportToSet = (imports, importName, nodeUrl) => {
 /**
  * Helper function to create a style object string for rehype plugins.
  * @param {Object} obj - Object that contains styling props from parent node
- * @returns string - stringified object to allow MDX rehype plugins to parse
+ * @returns {String} stringified object to allow MDX rehype plugins to parse
  */
 const generateStyleObjectString = (obj) => {
   return `{${Object.entries(obj)
@@ -310,7 +310,7 @@ const processor = unified()
  * Main function to run convertImages. Can accept command line argument
  * that has the path to an mdx file. Otherwise, convertImages gets ran
  * on every mdx file.
- * @returns allResults - Promise results
+ * @returns {Array} - Resolved results from Promise
  */
 const runConvertImages = async () => {
   let filePaths = process.argv.slice(2);
