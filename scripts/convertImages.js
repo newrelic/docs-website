@@ -266,7 +266,7 @@ const processor = unified()
   .use(fencedCodeBlock)
   .use(convertImages);
 
-const main = async () => {
+const runConvertImages = async () => {
   let filePaths = process.argv.slice(2);
   if (filePaths.length === 1) {
     filePaths = glob.sync(path.join(process.cwd(), filePaths[0], '**/*.mdx'));
@@ -286,10 +286,7 @@ const main = async () => {
     })
   );
 
-  const results = allResults.filter(Boolean);
-
-  console.log(results);
-  console.log(`Failed file count: ${results.length}`);
+  return allResults;
 };
 
-main();
+module.exports = { runConvertImages };
