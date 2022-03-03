@@ -10,20 +10,36 @@ const u = require('unist-builder');
 const camelCase = require('camelcase');
 const frontmatter = require('remark-frontmatter');
 const remarkStringify = require('remark-stringify');
-const fencedCodeBlock = require('../codemods/fencedCodeBlock');
-const slugify = require('./utils/slugify');
+const fencedCodeBlock = require('../fencedCodeBlock');
+const slugify = require('../../scripts/utils/slugify');
 
+/**
+ * Helper function that creates the import statement to add to AST.
+ * @param {Set<string>} imports - set used to dynamically add imports to top of mdx files
+ * @param {*} importName - import name for mdx img tags to reference in src
+ * @param {*} nodeUrl - aliased image url that points to image file.
+ */
 const addImportToSet = (imports, importName, nodeUrl) => {
   const importString = `import ${importName} from '${nodeUrl}'`;
   imports.add(importString);
 };
 
+/**
+ * Helper function to create a style object string for rehype plugins.
+ * @param {Object} obj - Object that contains styling props from parent node
+ * @returns string - stringified object to allow MDX rehype plugins to parse
+ */
 const generateStyleObjectString = (obj) => {
   return `{${Object.entries(obj)
     .map((item) => ` ${item[0]}: '${item[1]}'`)
     .join(',')}}`;
 };
 
+/**
+ * Helper function that creates an array of attributes for AST Node
+ * @param {Data<Node>} node - AST Node
+ * @returns restOfAttributes - array of attributes for AST Node
+ */
 const generateRestOfAttributes = (node) => {
   const restOfAttributes = Object.entries(node).reduce(
     (accum, [key, value]) => {
@@ -45,6 +61,19 @@ const generateRestOfAttributes = (node) => {
   return restOfAttributes;
 };
 
+/**
+ * Function handles:
+ * 1) Replacing existing import statements with aliased images path
+ * 2) Converts MDX Image URLs to img tags, along with adding necessary
+ *    imports added to the top of the mdx file, below the yaml. If an
+ *    image already exists at the top of the file, the converted img tag
+ *    will reuse existing import.
+ * 3) When a new image tag is created, it handles making it inline if the parent
+ *    of the img tag is a header, or similar inline components.
+ * 4) If an image tag contains parent "ImageSizing", we transfer the properties from
+ *    ImageSizing and add it to the image tag, then removing the parent.
+ * @returns
+ */
 const convertImages = () => {
   const absoluteUrlPattern = /^(https?:)?\//;
   const relativePathPattern = /\.\.?\/images/;
@@ -207,6 +236,8 @@ const convertImages = () => {
         }
       }
     );
+
+    // visit the tree and add image imports to top of the file.
     visit(tree, 'root', (node) => {
       if (imports.size > 0) {
         const [head, ...tail] = node.children;
@@ -217,6 +248,9 @@ const convertImages = () => {
         node.children = [head, importNode, ...tail];
       }
     });
+
+    // Once imports are added and MDX Images have been converted,
+    // remove the parent of the new img tag as it is not needed.
     visit(
       tree,
       (node) => node.name === 'ImageSizing',
@@ -226,32 +260,38 @@ const convertImages = () => {
     );
   };
 };
-// Use to look through AST
-// const filePath = path.join(
-//   process.cwd(),
-//   'src/content/docs/infrastructure/install-infrastructure-agent/get-started/install-infrastructure-agent.mdx'
-// );
 
-// const mdxFile = fs.readFileSync(path.join(filePath));
+/**
+ * Function constructs an AST from a given path that points to an mdx file.
+ * Outputs a json file at the root of directory named 'mdxAst.json'
+ */
+const createAST = () => {
+  const filePath = path.join(
+    process.cwd(),
+    'src/content/docs/infrastructure/install-infrastructure-agent/get-started/install-infrastructure-agent.mdx'
+  );
 
-// const mdxAst = unified()
-//   .use(remarkParse)
-//   .use(remarkStringify, {
-//     bullet: '*',
-//     fences: true,
-//     listItemIndent: '1',
-//   })
-//   .use(remarkMdx)
-//   .use(remarkMdxjs)
-//   .use(frontmatter, ['yaml'])
-//   .use(convertImages)
-//   .parse(mdxFile);
+  const mdxFile = fs.readFileSync(path.join(filePath));
 
-// fs.writeFileSync(
-//   path.join(process.cwd(), 'mdxAst.json'),
-//   JSON.stringify(mdxAst, null, 2),
-//   'utf-8'
-// );
+  const mdxAst = unified()
+    .use(remarkParse)
+    .use(remarkStringify, {
+      bullet: '*',
+      fences: true,
+      listItemIndent: '1',
+    })
+    .use(remarkMdx)
+    .use(remarkMdxjs)
+    .use(frontmatter, ['yaml'])
+    .use(convertImages)
+    .parse(mdxFile);
+
+  fs.writeFileSync(
+    path.join(process.cwd(), 'mdxAst.json'),
+    JSON.stringify(mdxAst, null, 2),
+    'utf-8'
+  );
+};
 
 const processor = unified()
   .use(remarkParse)
@@ -266,6 +306,12 @@ const processor = unified()
   .use(fencedCodeBlock)
   .use(convertImages);
 
+/**
+ * Main function to run convertImages. Can accept command line argument
+ * that has the path to an mdx file. Otherwise, convertImages gets ran
+ * on every mdx file.
+ * @returns allResults - Promise results
+ */
 const runConvertImages = async () => {
   let filePaths = process.argv.slice(2);
   if (filePaths.length === 1) {
