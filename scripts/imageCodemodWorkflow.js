@@ -95,7 +95,7 @@ const main = async () => {
   );
 
   const i18nPathName = glob.sync(
-    path.join(__dirname, '../src/i18n/content/docs/**/images/')
+    path.join(__dirname, '../src/i18n/content/**/images/')
   );
 
   console.info('Fetching image paths from src/content');
