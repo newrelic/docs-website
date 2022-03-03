@@ -293,19 +293,6 @@ const createAST = () => {
   );
 };
 
-const processor = unified()
-  .use(remarkParse)
-  .use(remarkStringify, {
-    bullet: '*',
-    fences: true,
-    listItemIndent: '1',
-  })
-  .use(remarkMdx)
-  .use(remarkMdxjs)
-  .use(frontmatter, ['yaml'])
-  .use(fencedCodeBlock)
-  .use(convertImages);
-
 /**
  * Main function to run convertImages. Can accept command line argument
  * that has the path to an mdx file. Otherwise, convertImages gets ran
@@ -313,6 +300,19 @@ const processor = unified()
  * @returns {Array} - Resolved results from Promise
  */
 const runConvertImages = async () => {
+  const processor = unified()
+    .use(remarkParse)
+    .use(remarkStringify, {
+      bullet: '*',
+      fences: true,
+      listItemIndent: '1',
+    })
+    .use(remarkMdx)
+    .use(remarkMdxjs)
+    .use(frontmatter, ['yaml'])
+    .use(fencedCodeBlock)
+    .use(convertImages);
+
   let filePaths = process.argv.slice(2);
   if (filePaths.length === 1) {
     filePaths = glob.sync(path.join(process.cwd(), filePaths[0], '**/*.mdx'));
@@ -320,7 +320,10 @@ const runConvertImages = async () => {
 
   if (filePaths.length === 0) {
     filePaths = glob.sync(
-      `${__dirname}/../src{/content/**/*.mdx,/i18n/content/**/*.mdx}`
+      path.join(
+        __dirname,
+        '../../src{/content/**/*.mdx,/i18n/content/**/*.mdx}'
+      )
     );
   }
 

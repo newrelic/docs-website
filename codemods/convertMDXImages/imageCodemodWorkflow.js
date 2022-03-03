@@ -11,11 +11,11 @@ const {
 const main = async () => {
   // step 1: Grab all the paths that lead to an image
   const pathName = glob.sync(
-    path.join(__dirname, '../src/content/docs/**/images/')
+    path.join(__dirname, '../../src/content/docs/**/images/')
   );
 
   const i18nPathName = glob.sync(
-    path.join(__dirname, '../src/i18n/content/**/images/')
+    path.join(__dirname, '../../src/i18n/content/**/images/')
   );
 
   console.info('Fetching image paths from src/content');
@@ -29,7 +29,7 @@ const main = async () => {
 
   // step 2: Move all those files from their relative path to absolute path
   console.info('Moving all files to src/images');
-  const imagePath = path.join(__dirname, '../src/images/');
+  const imagePath = path.join(__dirname, '../../src/images/');
   const mvResults = await moveFiles(imagePath, allFilePaths);
   console.info(
     `Number of failed image moves: ${mvResults.filter(Boolean).length}`
