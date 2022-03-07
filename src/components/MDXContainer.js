@@ -15,16 +15,26 @@ import MDXButton from './MDXButton';
 import MDXButtonGroup from './MDXButtonGroup';
 
 const defaultComponents = {
-  img: (props) => (
-    <a href={props.src} target="_blank" rel="noreferrer">
+  img: (props) =>
+    props.style ? (
       <img
         width={props.width ? props.width : '100%'}
         src={props.src}
         alt={props.alt ? props.alt : 'Docs site'}
         title={props.title}
+        style={props.style ? props.style : {}}
       />
-    </a>
-  ),
+    ) : (
+      <a href={props.src} target="_blank" rel="noreferrer">
+        <img
+          width={props.width ? props.width : '100%'}
+          src={props.src}
+          alt={props.alt ? props.alt : 'Docs site'}
+          title={props.title}
+          style={props.style ? props.style : {}}
+        />
+      </a>
+    ),
   ExternalLink: (props) => (
     <ExternalLink {...props} onClick={(e) => e.stopPropagation()} />
   ),
