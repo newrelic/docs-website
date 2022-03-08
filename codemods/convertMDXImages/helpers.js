@@ -48,6 +48,11 @@ const generateRestOfAttributes = (node) => {
   return restOfAttributes;
 };
 
+/**
+ *
+ * @param {String} url - path to image file
+ * @returns Formatted filename to work as import name in MDX files
+ */
 const createImportName = (url) => {
   return camelCase(
     url
@@ -57,6 +62,11 @@ const createImportName = (url) => {
   );
 };
 
+/**
+ *
+ * @param {Node} parent - parent node from AST
+ * @returns Object containing MDX attribute information for AST node.
+ */
 const createStylingAttribute = (parent) => {
   const styleAttributeNode = {
     type: 'mdxAttribute',
@@ -77,6 +87,10 @@ const createStylingAttribute = (parent) => {
   return styleAttributeNode;
 };
 
+/**
+ *
+ * @returns Attribute for class attribute for HTML image tag.
+ */
 const createClassAttribute = () => {
   return {
     type: 'text',
@@ -85,6 +99,11 @@ const createClassAttribute = () => {
   };
 };
 
+/**
+ *
+ * @param {String} importName - name for src attribute on image tag
+ * @returns
+ */
 const createUpdatedSrcNode = (importName) => {
   return {
     type: 'mdxAttribute',
