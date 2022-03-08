@@ -23,24 +23,37 @@ const isBlockImage = (parent, node) => {
   const className = get(node, 'data.className', null);
   const imgNodeIndex = parent.children.findIndex((item) => item === node);
 
-  if (className && className === 'inline') {
-    isBlock.push(false);
+  if (className) {
+    isBlock.push(className !== 'inline');
   }
 
-  if (parent.children[imgNodeIndex - 1] && parent.children[imgNodeIndex + 1]) {
-    parent.children[imgNodeIndex - 1].position.start.line ===
-      node.position.start.line &&
-    parent.children[imgNodeIndex + 1].position.start.line ===
-      node.position.start.line
-      ? isBlock.push(false)
-      : isBlock.push(true);
+  const hasSiblings =
+    parent.children[imgNodeIndex - 1] && parent.children[imgNodeIndex + 1];
+
+  if (hasSiblings) {
+    // in parent children array, check if left hand sibling
+    // is on the same line
+    const isSameLineLHS =
+      parent.children[imgNodeIndex - 1].position.start.line ===
+      node.position.start.line;
+
+    // in parent children array, check if right hand sibling
+    // is on the same line
+    const isSameLineRHS =
+      parent.children[imgNodeIndex + 1].position.start.line ===
+      node.position.start.line;
+
+    isSameLineLHS && isSameLineRHS ? isBlock.push(false) : isBlock.push(true);
   }
-  if (
-    !parent.children[imgNodeIndex - 1] &&
-    parent.children[imgNodeIndex + 1] &&
+
+  const hasOnlyRHS =
+    !parent.children[imgNodeIndex - 1] && parent.children[imgNodeIndex + 1];
+
+  const isSameLineRHS =
     parent.children[imgNodeIndex + 1].position.start.line ===
-      node.position.start.line
-  ) {
+    node.position.start.line;
+
+  if (hasOnlyRHS && isSameLineRHS) {
     isBlock.push(false);
   }
 
