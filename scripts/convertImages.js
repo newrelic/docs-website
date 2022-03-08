@@ -175,6 +175,13 @@ const convertImages = () => {
 
               styleAttributeNode.value.value = generateStyleObjectString(style);
               attributes.push(styleAttributeNode);
+
+              const classAttributeNode = {
+                type: 'text',
+                name: 'class',
+                value: 'inline',
+              };
+              attributes.push(classAttributeNode);
             }
 
             const restOfAttributes = generateRestOfAttributes(node);
