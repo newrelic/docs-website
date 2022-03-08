@@ -74,7 +74,7 @@ const writeFilesSync = (vfiles) => {
  * @returns {FileUriBatches}
  */
 const createFileUriBatches = ({ fileUris }, batchSize = 50) => {
-  let batches = [];
+  const batches = [];
   let currentBatch = [];
 
   for (let i = 0; i < fileUris.length; i++) {
@@ -193,7 +193,6 @@ const deserializeHtmlToMdx = (locale) => {
       });
 
       createDirectories([temp]);
-      writeFilesSync([temp]);
 
       return {
         ok: true,
