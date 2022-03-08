@@ -1,11 +1,11 @@
 ---
-title: 'New integrations: CircleCI, Netlify, ReleaseIQ, MuleESB, Databricks, and Jira' 
-summary: 'Six partner quickstarts that help you start monitoring CI/CD, data analytics, and more even faster' 
-releaseDate: '2022-03-08' 
-learnMoreLink: 'https://newrelic.com/blog/nerdlog/integrations-for-ci-cd-analytics' 
+title: 'New integrations: CircleCI, Netlify, ReleaseIQ, MuleESB, Databricks, and Jira'
+summary: 'Six partner quickstarts that help you start monitoring CI/CD, data analytics, and more, even faster'
+releaseDate: '2022-03-08'
+learnMoreLink: 'https://newrelic.com/blog/nerdlog/integrations-for-ci-cd-analytics'
 getStartedLink: 'https://newrelic.com/instant-observability/'
 ---
-In case you missed it, [New Relic I/O](https://docs.newrelic.com/whats-new/2021/10/instant-observability-10-13-21) helps you instrument, monitor, and analyze your stack in minutes. The secret ingredient: [450+ free expert-built quickstarts](https://developer.newrelic.com/instant-observability/) that bundle the integrations, guides, dashboards, and alerts for the technologies you rely on. 
+In case you missed it, [New Relic I/O](https://docs.newrelic.com/whats-new/2021/10/instant-observability-10-13-21) helps you instrument, monitor, and analyze your stack in minutes. The secret ingredient: [450+ free expert-built quickstarts](https://developer.newrelic.com/instant-observability/) that bundle the integrations, guides, dashboards, and alerts for the technologies you rely on.
 ![Partners contributing quickstarts to Instant Observability](./images/new_io_partners2.png "Partners contributing quickstarts to Instant Observability")
 ## New integrations for instant observability
 
@@ -17,7 +17,7 @@ The latest cohort of partners contributing to making observability a daily habit
 * [ReleaseIQ](https://newrelic.com/instant-observability/releaseiq/88dee43d-f259-4423-9a14-d8553d8ac7a8)
 
 **Integration platforms**: Monitor Mule ESB with New Relic's Java agent
-* [Mule ESB](https://newrelic.com/instant-observability/mule-esb/fb550b47-c33b-48a8-be4f-5cf469d34b59) 
+* [Mule ESB](https://newrelic.com/instant-observability/mule-esb/fb550b47-c33b-48a8-be4f-5cf469d34b59)
 
 **Data analytics**: Track cluster health and fine tune Apache Spark jobs
 * [Databricks](https://newrelic.com/instant-observability/databricks/533cdd19-8232-42cb-b134-e7d17bfff581)
