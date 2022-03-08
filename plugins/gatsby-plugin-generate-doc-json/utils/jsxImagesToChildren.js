@@ -114,8 +114,17 @@ const jsxImagesToChildren = () => (tree) => {
         set(
           node,
           'data.style',
-          style.value.replace(/[{}]/g, '').split(',').join('').trim('')
+          style.value
+            .replace(/[{}]/g, '')
+            .replaceAll(`'`, '')
+            .replaceAll(`"`, '')
+            .replaceAll(',', ';')
+            .trim('')
         );
+
+      const className = findAttribute('class', node);
+
+      className && set(node, 'data.className', className);
 
       delete node.name;
       delete node.attributes;
