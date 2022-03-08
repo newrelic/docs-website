@@ -274,9 +274,6 @@ type Site = Node & {
   readonly port: Maybe<Scalars['Int']>;
   readonly host: Maybe<Scalars['String']>;
   readonly flags: Maybe<SiteFlags>;
-  readonly polyfill: Maybe<Scalars['Boolean']>;
-  readonly pathPrefix: Maybe<Scalars['String']>;
-  readonly jsxRuntime: Maybe<Scalars['String']>;
   readonly id: Scalars['ID'];
   readonly parent: Maybe<Node>;
   readonly children: ReadonlyArray<Node>;
@@ -923,8 +920,8 @@ type Frontmatter = {
   readonly endDate: Maybe<Scalars['Date']>;
   readonly s_Google_Cloud_Spanner_integration: Maybe<Scalars['String']>;
   readonly name: Maybe<Scalars['String']>;
-  readonly units: Maybe<Scalars['String']>;
   readonly events: Maybe<ReadonlyArray<Maybe<Scalars['String']>>>;
+  readonly units: Maybe<Scalars['String']>;
   readonly dataSources: Maybe<ReadonlyArray<Maybe<Scalars['String']>>>;
   readonly summary: Maybe<Scalars['String']>;
   readonly learnMoreLink: Maybe<Scalars['String']>;
@@ -1117,9 +1114,6 @@ type Query_siteArgs = {
   port: Maybe<IntQueryOperatorInput>;
   host: Maybe<StringQueryOperatorInput>;
   flags: Maybe<SiteFlagsFilterInput>;
-  polyfill: Maybe<BooleanQueryOperatorInput>;
-  pathPrefix: Maybe<StringQueryOperatorInput>;
-  jsxRuntime: Maybe<StringQueryOperatorInput>;
   id: Maybe<StringQueryOperatorInput>;
   parent: Maybe<NodeFilterInput>;
   children: Maybe<NodeFilterListInput>;
@@ -1634,8 +1628,8 @@ type FrontmatterFilterInput = {
   readonly endDate: Maybe<DateQueryOperatorInput>;
   readonly s_Google_Cloud_Spanner_integration: Maybe<StringQueryOperatorInput>;
   readonly name: Maybe<StringQueryOperatorInput>;
-  readonly units: Maybe<StringQueryOperatorInput>;
   readonly events: Maybe<StringQueryOperatorInput>;
+  readonly units: Maybe<StringQueryOperatorInput>;
   readonly dataSources: Maybe<StringQueryOperatorInput>;
   readonly summary: Maybe<StringQueryOperatorInput>;
   readonly learnMoreLink: Maybe<StringQueryOperatorInput>;
@@ -1993,8 +1987,8 @@ type FileFieldsEnum =
   | 'childrenMarkdownRemark.frontmatter.endDate'
   | 'childrenMarkdownRemark.frontmatter.s_Google_Cloud_Spanner_integration'
   | 'childrenMarkdownRemark.frontmatter.name'
-  | 'childrenMarkdownRemark.frontmatter.units'
   | 'childrenMarkdownRemark.frontmatter.events'
+  | 'childrenMarkdownRemark.frontmatter.units'
   | 'childrenMarkdownRemark.frontmatter.dataSources'
   | 'childrenMarkdownRemark.frontmatter.summary'
   | 'childrenMarkdownRemark.frontmatter.learnMoreLink'
@@ -2076,8 +2070,8 @@ type FileFieldsEnum =
   | 'childMarkdownRemark.frontmatter.endDate'
   | 'childMarkdownRemark.frontmatter.s_Google_Cloud_Spanner_integration'
   | 'childMarkdownRemark.frontmatter.name'
-  | 'childMarkdownRemark.frontmatter.units'
   | 'childMarkdownRemark.frontmatter.events'
+  | 'childMarkdownRemark.frontmatter.units'
   | 'childMarkdownRemark.frontmatter.dataSources'
   | 'childMarkdownRemark.frontmatter.summary'
   | 'childMarkdownRemark.frontmatter.learnMoreLink'
@@ -2161,8 +2155,8 @@ type FileFieldsEnum =
   | 'childrenMdx.frontmatter.endDate'
   | 'childrenMdx.frontmatter.s_Google_Cloud_Spanner_integration'
   | 'childrenMdx.frontmatter.name'
-  | 'childrenMdx.frontmatter.units'
   | 'childrenMdx.frontmatter.events'
+  | 'childrenMdx.frontmatter.units'
   | 'childrenMdx.frontmatter.dataSources'
   | 'childrenMdx.frontmatter.summary'
   | 'childrenMdx.frontmatter.learnMoreLink'
@@ -2244,8 +2238,8 @@ type FileFieldsEnum =
   | 'childMdx.frontmatter.endDate'
   | 'childMdx.frontmatter.s_Google_Cloud_Spanner_integration'
   | 'childMdx.frontmatter.name'
-  | 'childMdx.frontmatter.units'
   | 'childMdx.frontmatter.events'
+  | 'childMdx.frontmatter.units'
   | 'childMdx.frontmatter.dataSources'
   | 'childMdx.frontmatter.summary'
   | 'childMdx.frontmatter.learnMoreLink'
@@ -3042,9 +3036,6 @@ type SiteFieldsEnum =
   | 'host'
   | 'flags.DEV_SSR'
   | 'flags.PRESERVE_FILE_DOWNLOAD_CACHE'
-  | 'polyfill'
-  | 'pathPrefix'
-  | 'jsxRuntime'
   | 'id'
   | 'parent.id'
   | 'parent.parent.id'
@@ -3179,9 +3170,6 @@ type SiteFilterInput = {
   readonly port: Maybe<IntQueryOperatorInput>;
   readonly host: Maybe<StringQueryOperatorInput>;
   readonly flags: Maybe<SiteFlagsFilterInput>;
-  readonly polyfill: Maybe<BooleanQueryOperatorInput>;
-  readonly pathPrefix: Maybe<StringQueryOperatorInput>;
-  readonly jsxRuntime: Maybe<StringQueryOperatorInput>;
   readonly id: Maybe<StringQueryOperatorInput>;
   readonly parent: Maybe<NodeFilterInput>;
   readonly children: Maybe<NodeFilterListInput>;
@@ -4910,8 +4898,8 @@ type MarkdownRemarkFieldsEnum =
   | 'frontmatter.endDate'
   | 'frontmatter.s_Google_Cloud_Spanner_integration'
   | 'frontmatter.name'
-  | 'frontmatter.units'
   | 'frontmatter.events'
+  | 'frontmatter.units'
   | 'frontmatter.dataSources'
   | 'frontmatter.summary'
   | 'frontmatter.learnMoreLink'
@@ -5135,8 +5123,8 @@ type MdxFieldsEnum =
   | 'frontmatter.endDate'
   | 'frontmatter.s_Google_Cloud_Spanner_integration'
   | 'frontmatter.name'
-  | 'frontmatter.units'
   | 'frontmatter.events'
+  | 'frontmatter.units'
   | 'frontmatter.dataSources'
   | 'frontmatter.summary'
   | 'frontmatter.learnMoreLink'
@@ -5394,8 +5382,8 @@ type DataDictionaryEventFieldsEnum =
   | 'definition.frontmatter.endDate'
   | 'definition.frontmatter.s_Google_Cloud_Spanner_integration'
   | 'definition.frontmatter.name'
-  | 'definition.frontmatter.units'
   | 'definition.frontmatter.events'
+  | 'definition.frontmatter.units'
   | 'definition.frontmatter.dataSources'
   | 'definition.frontmatter.summary'
   | 'definition.frontmatter.learnMoreLink'
@@ -5482,8 +5470,8 @@ type DataDictionaryEventFieldsEnum =
   | 'childrenDataDictionaryAttribute.definition.frontmatter.endDate'
   | 'childrenDataDictionaryAttribute.definition.frontmatter.s_Google_Cloud_Spanner_integration'
   | 'childrenDataDictionaryAttribute.definition.frontmatter.name'
-  | 'childrenDataDictionaryAttribute.definition.frontmatter.units'
   | 'childrenDataDictionaryAttribute.definition.frontmatter.events'
+  | 'childrenDataDictionaryAttribute.definition.frontmatter.units'
   | 'childrenDataDictionaryAttribute.definition.frontmatter.dataSources'
   | 'childrenDataDictionaryAttribute.definition.frontmatter.summary'
   | 'childrenDataDictionaryAttribute.definition.frontmatter.learnMoreLink'
@@ -5628,8 +5616,8 @@ type DataDictionaryEventFieldsEnum =
   | 'childDataDictionaryAttribute.definition.frontmatter.endDate'
   | 'childDataDictionaryAttribute.definition.frontmatter.s_Google_Cloud_Spanner_integration'
   | 'childDataDictionaryAttribute.definition.frontmatter.name'
-  | 'childDataDictionaryAttribute.definition.frontmatter.units'
   | 'childDataDictionaryAttribute.definition.frontmatter.events'
+  | 'childDataDictionaryAttribute.definition.frontmatter.units'
   | 'childDataDictionaryAttribute.definition.frontmatter.dataSources'
   | 'childDataDictionaryAttribute.definition.frontmatter.summary'
   | 'childDataDictionaryAttribute.definition.frontmatter.learnMoreLink'
@@ -5953,8 +5941,8 @@ type DataDictionaryAttributeFieldsEnum =
   | 'definition.frontmatter.endDate'
   | 'definition.frontmatter.s_Google_Cloud_Spanner_integration'
   | 'definition.frontmatter.name'
-  | 'definition.frontmatter.units'
   | 'definition.frontmatter.events'
+  | 'definition.frontmatter.units'
   | 'definition.frontmatter.dataSources'
   | 'definition.frontmatter.summary'
   | 'definition.frontmatter.learnMoreLink'
@@ -6038,8 +6026,8 @@ type DataDictionaryAttributeFieldsEnum =
   | 'events.definition.frontmatter.endDate'
   | 'events.definition.frontmatter.s_Google_Cloud_Spanner_integration'
   | 'events.definition.frontmatter.name'
-  | 'events.definition.frontmatter.units'
   | 'events.definition.frontmatter.events'
+  | 'events.definition.frontmatter.units'
   | 'events.definition.frontmatter.dataSources'
   | 'events.definition.frontmatter.summary'
   | 'events.definition.frontmatter.learnMoreLink'
