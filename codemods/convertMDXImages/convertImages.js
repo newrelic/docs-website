@@ -61,6 +61,53 @@ const generateRestOfAttributes = (node) => {
   return restOfAttributes;
 };
 
+const createImportName = (url) =>
+  camelCase(
+    url
+      .replace('./images/', '')
+      .replace(/\.(png|jpg|jpeg|svg|gif)/i, '')
+      .replaceAll('%', 'img')
+  );
+
+const createStylingAttribute = (parent) => {
+  const styleAttributeNode = {
+    type: 'mdxAttribute',
+    name: 'style',
+    value: {
+      type: 'mdxValueExpression',
+      value: null,
+    },
+  };
+
+  const style = {};
+
+  parent.attributes.forEach(({ name, value }) => {
+    style[name] = value;
+  });
+
+  styleAttributeNode.value.value = generateStyleObjectString(style);
+  return styleAttributeNode;
+};
+
+const createClassAttribute = () => {
+  return {
+    type: 'text',
+    name: 'class',
+    value: 'inline',
+  };
+};
+
+const createUpdatedSrcNode = (importName) => {
+  return {
+    type: 'mdxAttribute',
+    name: 'src',
+    value: {
+      type: 'mdxValueExpression',
+      value: importName,
+    },
+  };
+};
+
 /**
  * Function handles:
  * 1) Replacing existing import statements with aliased images path
@@ -143,12 +190,7 @@ const convertImages = () => {
 
           // grab the import name
           if (relativePathPattern.test(url)) {
-            let importName = camelCase(
-              url
-                .replace('./images/', '')
-                .replace(/\.(png|jpg|jpeg|svg|gif)/i, '')
-                .replaceAll('%', 'img')
-            );
+            let importName = createImportName(url);
 
             // use alt text if importName starts with numbers
             // or non-alphabetical characters
@@ -187,43 +229,26 @@ const convertImages = () => {
             // If we're inside an ImageSizing component, get style props off it,
             // add them to img tag, and replace ImageSizing parent with img element
             if (parent.name === 'ImageSizing') {
-              const styleAttributeNode = {
-                type: 'mdxAttribute',
-                name: 'style',
-                value: {
-                  type: 'mdxValueExpression',
-                  value: null,
-                },
-              };
-
-              const style = {};
-
-              parent.attributes.forEach(({ name, value }) => {
-                style[name] = value;
-              });
-
-              styleAttributeNode.value.value = generateStyleObjectString(style);
+              const styleAttributeNode = createStylingAttribute(parent);
+              const classAttributeNode = createClassAttribute();
               attributes.push(styleAttributeNode);
+              attributes.push(classAttributeNode);
             }
 
             const restOfAttributes = generateRestOfAttributes(node);
 
             attributes.push(...restOfAttributes);
 
-            const updatedSrcNode = {
-              type: 'mdxAttribute',
-              name: 'src',
-              value: {
-                type: 'mdxValueExpression',
-                value: importName,
-              },
-            };
+            const updatedSrcNode = createUpdatedSrcNode(importName);
             attributes.push(updatedSrcNode);
 
-            node = u(
+            const mdxElement =
               parent.name === 'ImageSizing' || parent.type === 'heading'
                 ? 'mdxSpanElement'
-                : 'mdxBlockElement',
+                : 'mdxBlockElement';
+
+            node = u(
+              mdxElement,
               {
                 name: 'img',
                 attributes: attributes,
