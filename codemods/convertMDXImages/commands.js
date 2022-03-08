@@ -53,7 +53,7 @@ const getAbsolutePaths = (paths, regex = /\.(png|jpg|jpeg|svg|gif)/i) => {
  *
  * @example
  * // input
- * const newPath = 'Users/.../src/dir'
+ * const newPath = 'path/to/dir'
  * const filePaths = ['filename.png|path/to/dir/filename.png', ...]
  *
  * @returns {Promise<Array<String>>}
