@@ -25,15 +25,33 @@ const defaultComponents = {
         style={props.style ? props.style : {}}
       />
     ) : (
-      <a href={props.src} target="_blank" rel="noreferrer">
-        <img
-          width={props.width ? props.width : '100%'}
-          src={props.src}
-          alt={props.alt ? props.alt : 'Docs site'}
-          title={props.title}
-          style={props.style ? props.style : {}}
-        />
-      </a>
+      <span
+        style={{
+          position: 'relative',
+          display: 'block',
+          textAlign: 'center',
+          margin: '1em 0',
+        }}
+      >
+        <a
+          href={props.src}
+          target="_blank"
+          rel="noreferrer"
+          style={{ display: 'inline-block' }}
+        >
+          <img
+            width={props.width ? props.width : 'auto'}
+            src={props.src}
+            alt={props.alt ? props.alt : 'Docs site'}
+            title={props.title}
+            style={
+              props.style
+                ? { ...props.style, borderRadius: '0.25rem', maxWidth: '100%' }
+                : { borderRadius: '0.25rem', maxWidth: '100%' }
+            }
+          />
+        </a>
+      </span>
     ),
   ExternalLink: (props) => (
     <ExternalLink {...props} onClick={(e) => e.stopPropagation()} />
