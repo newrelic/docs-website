@@ -53,7 +53,7 @@ const convertImages = () => {
           node.type
         ),
       (node, index, parent) => {
-        // if a node an import type, we want to replace the relative
+        // if a node is an import type, we want to replace the relative
         // URL to an absolute URL. Then, add that nodeURL to existing
         // imports that already exist in the .mdx file.
         if (node.type === 'import') {
