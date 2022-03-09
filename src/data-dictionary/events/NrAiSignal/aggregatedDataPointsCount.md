@@ -1,6 +1,6 @@
 ---
 name: aggregatedDataPointsCount
-type: numeric
+type: attribute
 events:
   - NrAiSignal
 ---
