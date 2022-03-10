@@ -5,7 +5,6 @@ const toString = require('mdast-util-to-string');
 const u = require('unist-builder');
 const { compileStyleObject } = require('../../rehype-plugins/utils/styles');
 const { set, get } = require('lodash');
-const { url } = require('inspector');
 
 const stripNulls = (obj) =>
   Object.fromEntries(Object.entries(obj).filter(([, value]) => value != null));
@@ -22,6 +21,11 @@ const getSrcUrl = (url) => url.replace('images/', '');
 const isBlockImage = (parent, node) => {
   const isBlock = [];
   const className = get(node, 'data.className', null);
+
+  if (!parent.children) {
+    return className && className !== 'inline';
+  }
+
   const imgNodeIndex = parent.children.findIndex((item) => item === node);
 
   if (className && className === 'inline') {
