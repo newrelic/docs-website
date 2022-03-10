@@ -10,10 +10,7 @@ const fetch = require('node-fetch');
 const deserializedHtml = require('./deserialize-html');
 const createDirectories = require('../utils/migrate/create-directories');
 const { getAccessToken } = require('./utils/vendor-request');
-
-const localesMap = {
-  'ja-JP': 'jp',
-};
+const { LOCALE_IDS } = require('./utils/constants');
 
 const projectId = process.env.TRANSLATION_VENDOR_PROJECT;
 
@@ -178,10 +175,13 @@ const deserializeHtmlToMdx = (locale) => {
    */
   return async ({ path: contentPath, html }) => {
     const completePath = `${path.join('src/content/docs', contentPath)}.mdx`;
+    const localeKey = Object.keys(LOCALE_IDS).find(
+      (key) => LOCALE_IDS[key] === locale
+    );
 
     try {
       const localePath = path.join(
-        `src/i18n/content/${localesMap[locale]}/docs/`,
+        `src/i18n/content/${localeKey}/docs/`,
         contentPath
       );
       const mdx = await deserializedHtml(html);
@@ -198,12 +198,13 @@ const deserializeHtmlToMdx = (locale) => {
       return {
         ok: true,
         slug: completePath,
+        locale,
       };
     } catch (ex) {
       console.log(`Failed to deserialize: ${contentPath}`);
       console.log(ex);
 
-      return { ok: false, slug: completePath };
+      return { ok: false, slug: completePath, locale };
     }
   };
 };
