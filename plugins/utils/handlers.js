@@ -22,7 +22,7 @@ const isBlockImage = (parent, node) => {
   const isBlock = [];
   const className = get(node, 'data.className', null);
 
-  if (!parent.children) {
+  if (!parent || !parent.children) {
     return className && className !== 'inline';
   }
 
