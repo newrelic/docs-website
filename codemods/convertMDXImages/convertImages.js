@@ -40,7 +40,7 @@ const convertImages = () => {
   const startsWithNonAlpha = /^[^A-Z, ^a-z]/;
 
   // return transformer;
-  return (tree, file) => {
+  return (tree, _) => {
     // Set<string>
     const imports = new Set();
 
@@ -202,6 +202,7 @@ const convertImages = () => {
  * Function constructs an AST from a given path that points to an mdx file.
  * Outputs a json file at the root of directory named 'mdxAst.json'
  */
+// eslint-disable-next-line no-unused-vars
 const createAST = () => {
   const filePath = path.join(
     process.cwd(),
