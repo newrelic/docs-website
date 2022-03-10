@@ -1,18 +1,19 @@
-import React from 'react';
-import PropTypes from 'prop-types';
 import {
-  MarkdownContainer,
-  MDX,
   ExternalLink,
   Link,
+  MDX,
+  MarkdownContainer,
 } from '@newrelic/gatsby-theme-newrelic';
+
 import LandingPageHero from './LandingPageHero';
 import LandingPageTile from './LandingPageTile';
 import LandingPageTileGrid from './LandingPageTileGrid';
-import TechTile from './TechTile';
-import MDXTechTileGrid from './MDXTechTileGrid';
 import MDXButton from './MDXButton';
 import MDXButtonGroup from './MDXButtonGroup';
+import MDXTechTileGrid from './MDXTechTileGrid';
+import PropTypes from 'prop-types';
+import React from 'react';
+import TechTile from './TechTile';
 
 const defaultComponents = {
   img: (props) =>
@@ -22,7 +23,11 @@ const defaultComponents = {
         src={props.src}
         alt={props.alt ? props.alt : 'Docs site'}
         title={props.title}
-        style={props.style ? props.style : {}}
+        style={
+          props.style
+            ? { ...props.style, margin: '0 0.25rem' }
+            : { margin: '0 0.25rem' }
+        }
       />
     ) : (
       <span
@@ -46,9 +51,19 @@ const defaultComponents = {
             title={props.title}
             style={
               props.style
-                ? { ...props.style, borderRadius: '0.25rem', maxWidth: '100%' }
-                : { borderRadius: '0.25rem', maxWidth: '100%' }
+                ? {
+                    ...props.style,
+                    borderRadius: '0.25rem',
+                    maxWidth: '100%',
+                    margin: '0 0.25rem',
+                  }
+                : {
+                    borderRadius: '0.25rem',
+                    maxWidth: '100%',
+                    margin: '0 0.25rem',
+                  }
             }
+            loading="lazy"
           />
         </a>
       </span>
