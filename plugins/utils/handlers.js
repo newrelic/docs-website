@@ -1,10 +1,11 @@
 const all = require('mdast-util-to-hast/lib/all');
 const one = require('mdast-util-to-hast/lib/one');
-const { findAttribute } = require('../../../codemods/utils/mdxast');
+const { findAttribute } = require('../../codemods/utils/mdxast');
 const toString = require('mdast-util-to-string');
 const u = require('unist-builder');
-const { compileStyleObject } = require('../../../rehype-plugins/utils/styles');
+const { compileStyleObject } = require('../../rehype-plugins/utils/styles');
 const { set, get } = require('lodash');
+const { url } = require('inspector');
 
 const stripNulls = (obj) =>
   Object.fromEntries(Object.entries(obj).filter(([, value]) => value != null));
@@ -23,14 +24,25 @@ const isBlockImage = (parent, node) => {
   const className = get(node, 'data.className', null);
   const imgNodeIndex = parent.children.findIndex((item) => item === node);
 
-  if (className) {
-    isBlock.push(className !== 'inline');
+  if (className && className === 'inline') {
+    return false;
   }
 
-  const hasSiblings =
-    parent.children[imgNodeIndex - 1] && parent.children[imgNodeIndex + 1];
+  // [n - 1, n, n + 1]
+  const hasBothSiblings =
+    !!parent.children[imgNodeIndex - 1] && !!parent.children[imgNodeIndex + 1];
 
-  if (hasSiblings) {
+  // [n, n + 1]
+  const hasOnlyRHS =
+    !parent.children[imgNodeIndex - 1] && !!parent.children[imgNodeIndex + 1];
+
+  // [n - 1, n]
+  const hasOnlyLHS =
+    !!parent.children[imgNodeIndex - 1] && !parent.children[imgNodeIndex + 1];
+
+  // [n] else
+
+  if (hasBothSiblings) {
     // in parent children array, check if left hand sibling
     // is on the same line
     const isSameLineLHS =
@@ -43,18 +55,23 @@ const isBlockImage = (parent, node) => {
       parent.children[imgNodeIndex + 1].position.start.line ===
       node.position.start.line;
 
-    isSameLineLHS && isSameLineRHS ? isBlock.push(false) : isBlock.push(true);
-  }
+    isSameLineLHS || isSameLineRHS ? isBlock.push(false) : isBlock.push(true);
+  } else if (hasOnlyRHS) {
+    const isSameLineRHS =
+      parent.children[imgNodeIndex + 1].position.start.line ===
+      node.position.start.line;
 
-  const hasOnlyRHS =
-    !parent.children[imgNodeIndex - 1] && parent.children[imgNodeIndex + 1];
+    isSameLineRHS ? isBlock.push(false) : isBlock.push(true);
+  } else if (hasOnlyLHS) {
+    const isSameLineLHS =
+      parent.children[imgNodeIndex - 1].position.start.line ===
+      node.position.start.line;
 
-  const isSameLineRHS =
-    parent.children[imgNodeIndex + 1].position.start.line ===
-    node.position.start.line;
+    isSameLineLHS ? isBlock.push(false) : isBlock.push(true);
 
-  if (hasOnlyRHS && isSameLineRHS) {
-    isBlock.push(false);
+    // node has no siblings
+  } else {
+    isBlock.push(true);
   }
 
   return !isBlock.includes(false);
@@ -62,7 +79,12 @@ const isBlockImage = (parent, node) => {
 
 module.exports = {
   image: (h, node, parent, imageHashMap) => {
+    const domain = 'https://docs.newrelic.com';
     const srcUrl = getSrcUrl(node.url);
+
+    const src = imageHashMap[srcUrl]
+      ? new URL(imageHashMap[srcUrl], domain).href
+      : node.url;
 
     return h(
       node,
@@ -76,7 +98,7 @@ module.exports = {
           node,
           'img',
           stripNulls({
-            src: imageHashMap[srcUrl] || node.url,
+            src,
             alt: node.alt,
           })
         ),
