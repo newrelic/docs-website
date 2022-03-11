@@ -6,7 +6,7 @@
 
 src/content/docs/apm/agents/c-sdk/get-started
 
-The english version of the site contains subdirectors of images at each leaf of a docs directory. For example, `src/content/docs/apm/agents/c-sdk/get-started` may contain an `images/` subdirectories that, when translated, are duplicated into `src/i18n/content/{locale}/docs/apm/agents/c-sdk/get-started`. Not only may the images become duplicated, the same exact image may be referenced in multiple different content directories. This can lead to one single file being multiplied `X` amount of times referenced by `Y` amount of times duplicated. The purpose of this codemod is to alias all images inside `.mdx` files to an absolute path that lives at `src/images`, where all english and translated content can be referenced to this one source of truth.
+The english version of the site contains subdirectories of images at each leaf of a docs directory. For example, `src/content/docs/apm/agents/c-sdk/get-started` may contain an `images/` subdirectories that, when translated, are duplicated into `src/i18n/content/{locale}/docs/apm/agents/c-sdk/get-started`. The site has duplicate images and image subdirectories inside content directories. The purpose of this codemod is to alias all images inside `.mdx` files to an absolute path that lives at `src/images`, where all english and translated content can be referenced to this one source of truth.
 
 ### MDX URL Images and img tags
 
