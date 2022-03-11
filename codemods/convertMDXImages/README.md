@@ -4,7 +4,9 @@
 
 ### Context
 
-The english version of the site contains subdirectors of images at each leaf of a docs directory. For example, `src/content/docs/apm` may contain an `images/` subdirectory that, when translated, are duplicated into `src/i18n/content/{locale}/docs/apm`. Not only may the images become duplicated, the same exact image may be referenced in multiple different content directories. This can lead to one single file being multiplied `X` amount of times referenced by `Y` amount of times duplicated. The purpose of this codemod is to alias all images inside `.mdx` files to an absolute path that lives at `src/images`, where all english and translated content can be referenced to this one source of truth.
+src/content/docs/apm/agents/c-sdk/get-started
+
+The english version of the site contains subdirectors of images at each leaf of a docs directory. For example, `src/content/docs/apm/agents/c-sdk/get-started` may contain an `images/` subdirectories that, when translated, are duplicated into `src/i18n/content/{locale}/docs/apm/agents/c-sdk/get-started`. Not only may the images become duplicated, the same exact image may be referenced in multiple different content directories. This can lead to one single file being multiplied `X` amount of times referenced by `Y` amount of times duplicated. The purpose of this codemod is to alias all images inside `.mdx` files to an absolute path that lives at `src/images`, where all english and translated content can be referenced to this one source of truth.
 
 ### MDX URL Images and img tags
 
@@ -108,7 +110,7 @@ This will run each script one by one.
 
 Inside `src/codemods/convertMDXImages/`, there is a `cleanup.sh` bash file which restores any changed content back to the branch's original state in git.
 
-> If there is issues running the bash script, try `chmod` on the file to giver user run access.
+> If there is issues running the bash script, try `chmod +x` on the file to giver user run access.
 
 
 
