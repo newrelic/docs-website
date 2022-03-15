@@ -1,5 +1,9 @@
 ---
 title: 'Control data ingest costs with ingest drill-down'
+tags:
+  - Data governance
+  - Drop rules
+  - Data ingest cost
 summary: 'Analyze the data that you send to New Relic'
 releaseDate: '2021-06-30'
 learnMoreLink: 'https://docs.newrelic.com/docs/telemetry-data-platform/manage-data/manage-data-coming-new-relic/#facet-data-ingest'
