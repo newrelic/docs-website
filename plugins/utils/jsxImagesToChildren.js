@@ -4,8 +4,8 @@ const {
   parseImport,
   findAttribute,
   removeAttribute,
-} = require('../../../codemods/utils/mdxast');
-const { mdxBlockElement } = require('../../../codemods/utils/mdxast-builder');
+} = require('../../codemods/utils/mdxast');
+const { mdxBlockElement } = require('../../codemods/utils/mdxast-builder');
 const toMDAST = require('remark-parse');
 const remarkMdx = require('remark-mdx');
 const remarkMdxjs = require('remark-mdxjs');
@@ -114,8 +114,17 @@ const jsxImagesToChildren = () => (tree) => {
         set(
           node,
           'data.style',
-          style.value.replace(/[{}]/g, '').split(',').join('').trim('')
+          style.value
+            .replace(/[{}]/g, '')
+            .replaceAll(`'`, '')
+            .replaceAll(`"`, '')
+            .replaceAll(',', ';')
+            .trim('')
         );
+
+      const className = findAttribute('class', node);
+
+      className && set(node, 'data.className', className);
 
       delete node.name;
       delete node.attributes;

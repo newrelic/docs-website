@@ -1,19 +1,10 @@
 const all = require('mdast-util-to-hast/lib/all');
 const one = require('mdast-util-to-hast/lib/one');
-const {
-  findAttribute,
-  isMdxElement,
-} = require('../../../codemods/utils/mdxast');
+const { findAttribute } = require('../../codemods/utils/mdxast');
 const toString = require('mdast-util-to-string');
 const u = require('unist-builder');
-const { compileStyleObject } = require('../../../rehype-plugins/utils/styles');
+const { compileStyleObject } = require('../../rehype-plugins/utils/styles');
 const { set, get } = require('lodash');
-const path = require('path');
-const toMDAST = require('remark-parse');
-const remarkMdx = require('remark-mdx');
-const remarkMdxjs = require('remark-mdxjs');
-const unified = require('unified');
-const visit = require('unist-util-visit');
 
 const stripNulls = (obj) =>
   Object.fromEntries(Object.entries(obj).filter(([, value]) => value != null));
@@ -25,33 +16,83 @@ const getAllAttributes = (node) =>
       }, {})
     : {};
 
-const getSrcUrl = (fileRelativePath, url) =>
-  path.join(path.dirname(fileRelativePath.replace('src/content', '')), url);
+const getSrcUrl = (url) => url.replace('images/', '');
 
-const removeParagraphs = () => (tree) => {
-  visit(tree, 'paragraph', (node, idx, parent) => {
-    parent.children.splice(idx, 1, ...node.children);
-  });
+const isBlockImage = (parent, node) => {
+  const isBlock = [];
+  const className = get(node, 'data.className', null);
+
+  if (!parent || !parent.children) {
+    return className && className !== 'inline';
+  }
+
+  const imgNodeIndex = parent.children.findIndex((item) => item === node);
+
+  if (className && className === 'inline') {
+    return false;
+  }
+
+  // [n - 1, n, n + 1]
+  const hasBothSiblings =
+    !!parent.children[imgNodeIndex - 1] && !!parent.children[imgNodeIndex + 1];
+
+  // [n, n + 1]
+  const hasOnlyRHS =
+    !parent.children[imgNodeIndex - 1] && !!parent.children[imgNodeIndex + 1];
+
+  // [n - 1, n]
+  const hasOnlyLHS =
+    !!parent.children[imgNodeIndex - 1] && !parent.children[imgNodeIndex + 1];
+
+  // [n] else
+
+  if (hasBothSiblings) {
+    // in parent children array, check if left hand sibling
+    // is on the same line
+    const isSameLineLHS =
+      parent.children[imgNodeIndex - 1].position.start.line ===
+      node.position.start.line;
+
+    // in parent children array, check if right hand sibling
+    // is on the same line
+    const isSameLineRHS =
+      parent.children[imgNodeIndex + 1].position.start.line ===
+      node.position.start.line;
+
+    isSameLineLHS || isSameLineRHS ? isBlock.push(false) : isBlock.push(true);
+  } else if (hasOnlyRHS) {
+    const isSameLineRHS =
+      parent.children[imgNodeIndex + 1].position.start.line ===
+      node.position.start.line;
+
+    isSameLineRHS ? isBlock.push(false) : isBlock.push(true);
+  } else if (hasOnlyLHS) {
+    const isSameLineLHS =
+      parent.children[imgNodeIndex - 1].position.start.line ===
+      node.position.start.line;
+
+    isSameLineLHS ? isBlock.push(false) : isBlock.push(true);
+
+    // node has no siblings
+  } else {
+    isBlock.push(true);
+  }
+
+  return !isBlock.includes(false);
 };
 
-const attributeProcessor = unified()
-  .use(toMDAST)
-  .use(remarkMdx)
-  .use(remarkMdxjs)
-  .use(removeParagraphs);
-
 module.exports = {
-  image: (h, node, imageHashMap, fileRelativePath) => {
-    const srcUrl = getSrcUrl(fileRelativePath, node.url);
+  image: (h, node, parent, imageHashMap) => {
+    const domain = 'https://docs.newrelic.com';
+    const srcUrl = getSrcUrl(node.url);
 
-    const isBlockImage =
-      node.parent &&
-      isMdxElement('paragraph', node.parent) &&
-      node.parent.children.length === 1;
+    const src = imageHashMap[srcUrl]
+      ? new URL(imageHashMap[srcUrl], domain).href
+      : node.url;
 
     return h(
       node,
-      isBlockImage ? 'div' : 'span',
+      isBlockImage(parent, node) ? 'div' : 'span',
       stripNulls({
         className: [isBlockImage ? 'block-image' : 'inline-image', 'image'],
         style: get(node, 'data.style', null),
@@ -61,7 +102,7 @@ module.exports = {
           node,
           'img',
           stripNulls({
-            src: imageHashMap[srcUrl.substr(1)] || node.url,
+            src,
             alt: node.alt,
           })
         ),
