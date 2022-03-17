@@ -274,6 +274,9 @@ type Site = Node & {
   readonly port: Maybe<Scalars['Int']>;
   readonly host: Maybe<Scalars['String']>;
   readonly flags: Maybe<SiteFlags>;
+  readonly polyfill: Maybe<Scalars['Boolean']>;
+  readonly pathPrefix: Maybe<Scalars['String']>;
+  readonly jsxRuntime: Maybe<Scalars['String']>;
   readonly id: Scalars['ID'];
   readonly parent: Maybe<Node>;
   readonly children: ReadonlyArray<Node>;
@@ -905,27 +908,27 @@ type Frontmatter = {
   readonly releaseDate: Maybe<Scalars['Date']>;
   readonly version: Maybe<Scalars['String']>;
   readonly downloadLink: Maybe<Scalars['String']>;
-  readonly metaDescription: Maybe<Scalars['String']>;
   readonly tags: Maybe<ReadonlyArray<Maybe<Scalars['String']>>>;
+  readonly metaDescription: Maybe<Scalars['String']>;
   readonly redirects: Maybe<ReadonlyArray<Maybe<Scalars['String']>>>;
   readonly type: Maybe<Scalars['String']>;
   readonly shortDescription: Maybe<Scalars['String']>;
+  readonly translate: Maybe<ReadonlyArray<Maybe<Scalars['String']>>>;
+  readonly s_Google_Cloud_Spanner_integration: Maybe<Scalars['String']>;
+  readonly description: Maybe<Scalars['String']>;
+  readonly contentType: Maybe<Scalars['String']>;
   readonly template: Maybe<Scalars['String']>;
   readonly topics: Maybe<ReadonlyArray<Maybe<Scalars['String']>>>;
-  readonly translate: Maybe<ReadonlyArray<Maybe<Scalars['String']>>>;
-  readonly contentType: Maybe<Scalars['String']>;
-  readonly description: Maybe<Scalars['String']>;
-  readonly s_legacy_SNMP_integration: Maybe<Scalars['String']>;
   readonly startDate: Maybe<Scalars['Date']>;
   readonly endDate: Maybe<Scalars['Date']>;
-  readonly s_Google_Cloud_Spanner_integration: Maybe<Scalars['String']>;
+  readonly s_legacy_SNMP_integration: Maybe<Scalars['String']>;
   readonly name: Maybe<Scalars['String']>;
-  readonly events: Maybe<ReadonlyArray<Maybe<Scalars['String']>>>;
   readonly units: Maybe<Scalars['String']>;
-  readonly dataSources: Maybe<ReadonlyArray<Maybe<Scalars['String']>>>;
+  readonly events: Maybe<ReadonlyArray<Maybe<Scalars['String']>>>;
   readonly summary: Maybe<Scalars['String']>;
-  readonly learnMoreLink: Maybe<Scalars['String']>;
   readonly getStartedLink: Maybe<Scalars['String']>;
+  readonly learnMoreLink: Maybe<Scalars['String']>;
+  readonly dataSources: Maybe<ReadonlyArray<Maybe<Scalars['String']>>>;
 };
 
 
@@ -1114,6 +1117,9 @@ type Query_siteArgs = {
   port: Maybe<IntQueryOperatorInput>;
   host: Maybe<StringQueryOperatorInput>;
   flags: Maybe<SiteFlagsFilterInput>;
+  polyfill: Maybe<BooleanQueryOperatorInput>;
+  pathPrefix: Maybe<StringQueryOperatorInput>;
+  jsxRuntime: Maybe<StringQueryOperatorInput>;
   id: Maybe<StringQueryOperatorInput>;
   parent: Maybe<NodeFilterInput>;
   children: Maybe<NodeFilterListInput>;
@@ -1613,27 +1619,27 @@ type FrontmatterFilterInput = {
   readonly releaseDate: Maybe<DateQueryOperatorInput>;
   readonly version: Maybe<StringQueryOperatorInput>;
   readonly downloadLink: Maybe<StringQueryOperatorInput>;
-  readonly metaDescription: Maybe<StringQueryOperatorInput>;
   readonly tags: Maybe<StringQueryOperatorInput>;
+  readonly metaDescription: Maybe<StringQueryOperatorInput>;
   readonly redirects: Maybe<StringQueryOperatorInput>;
   readonly type: Maybe<StringQueryOperatorInput>;
   readonly shortDescription: Maybe<StringQueryOperatorInput>;
+  readonly translate: Maybe<StringQueryOperatorInput>;
+  readonly s_Google_Cloud_Spanner_integration: Maybe<StringQueryOperatorInput>;
+  readonly description: Maybe<StringQueryOperatorInput>;
+  readonly contentType: Maybe<StringQueryOperatorInput>;
   readonly template: Maybe<StringQueryOperatorInput>;
   readonly topics: Maybe<StringQueryOperatorInput>;
-  readonly translate: Maybe<StringQueryOperatorInput>;
-  readonly contentType: Maybe<StringQueryOperatorInput>;
-  readonly description: Maybe<StringQueryOperatorInput>;
-  readonly s_legacy_SNMP_integration: Maybe<StringQueryOperatorInput>;
   readonly startDate: Maybe<DateQueryOperatorInput>;
   readonly endDate: Maybe<DateQueryOperatorInput>;
-  readonly s_Google_Cloud_Spanner_integration: Maybe<StringQueryOperatorInput>;
+  readonly s_legacy_SNMP_integration: Maybe<StringQueryOperatorInput>;
   readonly name: Maybe<StringQueryOperatorInput>;
-  readonly events: Maybe<StringQueryOperatorInput>;
   readonly units: Maybe<StringQueryOperatorInput>;
-  readonly dataSources: Maybe<StringQueryOperatorInput>;
+  readonly events: Maybe<StringQueryOperatorInput>;
   readonly summary: Maybe<StringQueryOperatorInput>;
-  readonly learnMoreLink: Maybe<StringQueryOperatorInput>;
   readonly getStartedLink: Maybe<StringQueryOperatorInput>;
+  readonly learnMoreLink: Maybe<StringQueryOperatorInput>;
+  readonly dataSources: Maybe<StringQueryOperatorInput>;
 };
 
 type MarkdownRemarkFieldsFilterInput = {
@@ -1972,27 +1978,27 @@ type FileFieldsEnum =
   | 'childrenMarkdownRemark.frontmatter.releaseDate'
   | 'childrenMarkdownRemark.frontmatter.version'
   | 'childrenMarkdownRemark.frontmatter.downloadLink'
-  | 'childrenMarkdownRemark.frontmatter.metaDescription'
   | 'childrenMarkdownRemark.frontmatter.tags'
+  | 'childrenMarkdownRemark.frontmatter.metaDescription'
   | 'childrenMarkdownRemark.frontmatter.redirects'
   | 'childrenMarkdownRemark.frontmatter.type'
   | 'childrenMarkdownRemark.frontmatter.shortDescription'
+  | 'childrenMarkdownRemark.frontmatter.translate'
+  | 'childrenMarkdownRemark.frontmatter.s_Google_Cloud_Spanner_integration'
+  | 'childrenMarkdownRemark.frontmatter.description'
+  | 'childrenMarkdownRemark.frontmatter.contentType'
   | 'childrenMarkdownRemark.frontmatter.template'
   | 'childrenMarkdownRemark.frontmatter.topics'
-  | 'childrenMarkdownRemark.frontmatter.translate'
-  | 'childrenMarkdownRemark.frontmatter.contentType'
-  | 'childrenMarkdownRemark.frontmatter.description'
-  | 'childrenMarkdownRemark.frontmatter.s_legacy_SNMP_integration'
   | 'childrenMarkdownRemark.frontmatter.startDate'
   | 'childrenMarkdownRemark.frontmatter.endDate'
-  | 'childrenMarkdownRemark.frontmatter.s_Google_Cloud_Spanner_integration'
+  | 'childrenMarkdownRemark.frontmatter.s_legacy_SNMP_integration'
   | 'childrenMarkdownRemark.frontmatter.name'
-  | 'childrenMarkdownRemark.frontmatter.events'
   | 'childrenMarkdownRemark.frontmatter.units'
-  | 'childrenMarkdownRemark.frontmatter.dataSources'
+  | 'childrenMarkdownRemark.frontmatter.events'
   | 'childrenMarkdownRemark.frontmatter.summary'
-  | 'childrenMarkdownRemark.frontmatter.learnMoreLink'
   | 'childrenMarkdownRemark.frontmatter.getStartedLink'
+  | 'childrenMarkdownRemark.frontmatter.learnMoreLink'
+  | 'childrenMarkdownRemark.frontmatter.dataSources'
   | 'childrenMarkdownRemark.excerpt'
   | 'childrenMarkdownRemark.rawMarkdownBody'
   | 'childrenMarkdownRemark.fileAbsolutePath'
@@ -2055,27 +2061,27 @@ type FileFieldsEnum =
   | 'childMarkdownRemark.frontmatter.releaseDate'
   | 'childMarkdownRemark.frontmatter.version'
   | 'childMarkdownRemark.frontmatter.downloadLink'
-  | 'childMarkdownRemark.frontmatter.metaDescription'
   | 'childMarkdownRemark.frontmatter.tags'
+  | 'childMarkdownRemark.frontmatter.metaDescription'
   | 'childMarkdownRemark.frontmatter.redirects'
   | 'childMarkdownRemark.frontmatter.type'
   | 'childMarkdownRemark.frontmatter.shortDescription'
+  | 'childMarkdownRemark.frontmatter.translate'
+  | 'childMarkdownRemark.frontmatter.s_Google_Cloud_Spanner_integration'
+  | 'childMarkdownRemark.frontmatter.description'
+  | 'childMarkdownRemark.frontmatter.contentType'
   | 'childMarkdownRemark.frontmatter.template'
   | 'childMarkdownRemark.frontmatter.topics'
-  | 'childMarkdownRemark.frontmatter.translate'
-  | 'childMarkdownRemark.frontmatter.contentType'
-  | 'childMarkdownRemark.frontmatter.description'
-  | 'childMarkdownRemark.frontmatter.s_legacy_SNMP_integration'
   | 'childMarkdownRemark.frontmatter.startDate'
   | 'childMarkdownRemark.frontmatter.endDate'
-  | 'childMarkdownRemark.frontmatter.s_Google_Cloud_Spanner_integration'
+  | 'childMarkdownRemark.frontmatter.s_legacy_SNMP_integration'
   | 'childMarkdownRemark.frontmatter.name'
-  | 'childMarkdownRemark.frontmatter.events'
   | 'childMarkdownRemark.frontmatter.units'
-  | 'childMarkdownRemark.frontmatter.dataSources'
+  | 'childMarkdownRemark.frontmatter.events'
   | 'childMarkdownRemark.frontmatter.summary'
-  | 'childMarkdownRemark.frontmatter.learnMoreLink'
   | 'childMarkdownRemark.frontmatter.getStartedLink'
+  | 'childMarkdownRemark.frontmatter.learnMoreLink'
+  | 'childMarkdownRemark.frontmatter.dataSources'
   | 'childMarkdownRemark.excerpt'
   | 'childMarkdownRemark.rawMarkdownBody'
   | 'childMarkdownRemark.fileAbsolutePath'
@@ -2140,27 +2146,27 @@ type FileFieldsEnum =
   | 'childrenMdx.frontmatter.releaseDate'
   | 'childrenMdx.frontmatter.version'
   | 'childrenMdx.frontmatter.downloadLink'
-  | 'childrenMdx.frontmatter.metaDescription'
   | 'childrenMdx.frontmatter.tags'
+  | 'childrenMdx.frontmatter.metaDescription'
   | 'childrenMdx.frontmatter.redirects'
   | 'childrenMdx.frontmatter.type'
   | 'childrenMdx.frontmatter.shortDescription'
+  | 'childrenMdx.frontmatter.translate'
+  | 'childrenMdx.frontmatter.s_Google_Cloud_Spanner_integration'
+  | 'childrenMdx.frontmatter.description'
+  | 'childrenMdx.frontmatter.contentType'
   | 'childrenMdx.frontmatter.template'
   | 'childrenMdx.frontmatter.topics'
-  | 'childrenMdx.frontmatter.translate'
-  | 'childrenMdx.frontmatter.contentType'
-  | 'childrenMdx.frontmatter.description'
-  | 'childrenMdx.frontmatter.s_legacy_SNMP_integration'
   | 'childrenMdx.frontmatter.startDate'
   | 'childrenMdx.frontmatter.endDate'
-  | 'childrenMdx.frontmatter.s_Google_Cloud_Spanner_integration'
+  | 'childrenMdx.frontmatter.s_legacy_SNMP_integration'
   | 'childrenMdx.frontmatter.name'
-  | 'childrenMdx.frontmatter.events'
   | 'childrenMdx.frontmatter.units'
-  | 'childrenMdx.frontmatter.dataSources'
+  | 'childrenMdx.frontmatter.events'
   | 'childrenMdx.frontmatter.summary'
-  | 'childrenMdx.frontmatter.learnMoreLink'
   | 'childrenMdx.frontmatter.getStartedLink'
+  | 'childrenMdx.frontmatter.learnMoreLink'
+  | 'childrenMdx.frontmatter.dataSources'
   | 'childrenMdx.slug'
   | 'childrenMdx.body'
   | 'childrenMdx.excerpt'
@@ -2223,27 +2229,27 @@ type FileFieldsEnum =
   | 'childMdx.frontmatter.releaseDate'
   | 'childMdx.frontmatter.version'
   | 'childMdx.frontmatter.downloadLink'
-  | 'childMdx.frontmatter.metaDescription'
   | 'childMdx.frontmatter.tags'
+  | 'childMdx.frontmatter.metaDescription'
   | 'childMdx.frontmatter.redirects'
   | 'childMdx.frontmatter.type'
   | 'childMdx.frontmatter.shortDescription'
+  | 'childMdx.frontmatter.translate'
+  | 'childMdx.frontmatter.s_Google_Cloud_Spanner_integration'
+  | 'childMdx.frontmatter.description'
+  | 'childMdx.frontmatter.contentType'
   | 'childMdx.frontmatter.template'
   | 'childMdx.frontmatter.topics'
-  | 'childMdx.frontmatter.translate'
-  | 'childMdx.frontmatter.contentType'
-  | 'childMdx.frontmatter.description'
-  | 'childMdx.frontmatter.s_legacy_SNMP_integration'
   | 'childMdx.frontmatter.startDate'
   | 'childMdx.frontmatter.endDate'
-  | 'childMdx.frontmatter.s_Google_Cloud_Spanner_integration'
+  | 'childMdx.frontmatter.s_legacy_SNMP_integration'
   | 'childMdx.frontmatter.name'
-  | 'childMdx.frontmatter.events'
   | 'childMdx.frontmatter.units'
-  | 'childMdx.frontmatter.dataSources'
+  | 'childMdx.frontmatter.events'
   | 'childMdx.frontmatter.summary'
-  | 'childMdx.frontmatter.learnMoreLink'
   | 'childMdx.frontmatter.getStartedLink'
+  | 'childMdx.frontmatter.learnMoreLink'
+  | 'childMdx.frontmatter.dataSources'
   | 'childMdx.slug'
   | 'childMdx.body'
   | 'childMdx.excerpt'
@@ -3036,6 +3042,9 @@ type SiteFieldsEnum =
   | 'host'
   | 'flags.DEV_SSR'
   | 'flags.PRESERVE_FILE_DOWNLOAD_CACHE'
+  | 'polyfill'
+  | 'pathPrefix'
+  | 'jsxRuntime'
   | 'id'
   | 'parent.id'
   | 'parent.parent.id'
@@ -3170,6 +3179,9 @@ type SiteFilterInput = {
   readonly port: Maybe<IntQueryOperatorInput>;
   readonly host: Maybe<StringQueryOperatorInput>;
   readonly flags: Maybe<SiteFlagsFilterInput>;
+  readonly polyfill: Maybe<BooleanQueryOperatorInput>;
+  readonly pathPrefix: Maybe<StringQueryOperatorInput>;
+  readonly jsxRuntime: Maybe<StringQueryOperatorInput>;
   readonly id: Maybe<StringQueryOperatorInput>;
   readonly parent: Maybe<NodeFilterInput>;
   readonly children: Maybe<NodeFilterListInput>;
@@ -4883,27 +4895,27 @@ type MarkdownRemarkFieldsEnum =
   | 'frontmatter.releaseDate'
   | 'frontmatter.version'
   | 'frontmatter.downloadLink'
-  | 'frontmatter.metaDescription'
   | 'frontmatter.tags'
+  | 'frontmatter.metaDescription'
   | 'frontmatter.redirects'
   | 'frontmatter.type'
   | 'frontmatter.shortDescription'
+  | 'frontmatter.translate'
+  | 'frontmatter.s_Google_Cloud_Spanner_integration'
+  | 'frontmatter.description'
+  | 'frontmatter.contentType'
   | 'frontmatter.template'
   | 'frontmatter.topics'
-  | 'frontmatter.translate'
-  | 'frontmatter.contentType'
-  | 'frontmatter.description'
-  | 'frontmatter.s_legacy_SNMP_integration'
   | 'frontmatter.startDate'
   | 'frontmatter.endDate'
-  | 'frontmatter.s_Google_Cloud_Spanner_integration'
+  | 'frontmatter.s_legacy_SNMP_integration'
   | 'frontmatter.name'
-  | 'frontmatter.events'
   | 'frontmatter.units'
-  | 'frontmatter.dataSources'
+  | 'frontmatter.events'
   | 'frontmatter.summary'
-  | 'frontmatter.learnMoreLink'
   | 'frontmatter.getStartedLink'
+  | 'frontmatter.learnMoreLink'
+  | 'frontmatter.dataSources'
   | 'excerpt'
   | 'rawMarkdownBody'
   | 'fileAbsolutePath'
@@ -5108,27 +5120,27 @@ type MdxFieldsEnum =
   | 'frontmatter.releaseDate'
   | 'frontmatter.version'
   | 'frontmatter.downloadLink'
-  | 'frontmatter.metaDescription'
   | 'frontmatter.tags'
+  | 'frontmatter.metaDescription'
   | 'frontmatter.redirects'
   | 'frontmatter.type'
   | 'frontmatter.shortDescription'
+  | 'frontmatter.translate'
+  | 'frontmatter.s_Google_Cloud_Spanner_integration'
+  | 'frontmatter.description'
+  | 'frontmatter.contentType'
   | 'frontmatter.template'
   | 'frontmatter.topics'
-  | 'frontmatter.translate'
-  | 'frontmatter.contentType'
-  | 'frontmatter.description'
-  | 'frontmatter.s_legacy_SNMP_integration'
   | 'frontmatter.startDate'
   | 'frontmatter.endDate'
-  | 'frontmatter.s_Google_Cloud_Spanner_integration'
+  | 'frontmatter.s_legacy_SNMP_integration'
   | 'frontmatter.name'
-  | 'frontmatter.events'
   | 'frontmatter.units'
-  | 'frontmatter.dataSources'
+  | 'frontmatter.events'
   | 'frontmatter.summary'
-  | 'frontmatter.learnMoreLink'
   | 'frontmatter.getStartedLink'
+  | 'frontmatter.learnMoreLink'
+  | 'frontmatter.dataSources'
   | 'slug'
   | 'body'
   | 'excerpt'
@@ -5367,27 +5379,27 @@ type DataDictionaryEventFieldsEnum =
   | 'definition.frontmatter.releaseDate'
   | 'definition.frontmatter.version'
   | 'definition.frontmatter.downloadLink'
-  | 'definition.frontmatter.metaDescription'
   | 'definition.frontmatter.tags'
+  | 'definition.frontmatter.metaDescription'
   | 'definition.frontmatter.redirects'
   | 'definition.frontmatter.type'
   | 'definition.frontmatter.shortDescription'
+  | 'definition.frontmatter.translate'
+  | 'definition.frontmatter.s_Google_Cloud_Spanner_integration'
+  | 'definition.frontmatter.description'
+  | 'definition.frontmatter.contentType'
   | 'definition.frontmatter.template'
   | 'definition.frontmatter.topics'
-  | 'definition.frontmatter.translate'
-  | 'definition.frontmatter.contentType'
-  | 'definition.frontmatter.description'
-  | 'definition.frontmatter.s_legacy_SNMP_integration'
   | 'definition.frontmatter.startDate'
   | 'definition.frontmatter.endDate'
-  | 'definition.frontmatter.s_Google_Cloud_Spanner_integration'
+  | 'definition.frontmatter.s_legacy_SNMP_integration'
   | 'definition.frontmatter.name'
-  | 'definition.frontmatter.events'
   | 'definition.frontmatter.units'
-  | 'definition.frontmatter.dataSources'
+  | 'definition.frontmatter.events'
   | 'definition.frontmatter.summary'
-  | 'definition.frontmatter.learnMoreLink'
   | 'definition.frontmatter.getStartedLink'
+  | 'definition.frontmatter.learnMoreLink'
+  | 'definition.frontmatter.dataSources'
   | 'definition.excerpt'
   | 'definition.rawMarkdownBody'
   | 'definition.fileAbsolutePath'
@@ -5455,27 +5467,27 @@ type DataDictionaryEventFieldsEnum =
   | 'childrenDataDictionaryAttribute.definition.frontmatter.releaseDate'
   | 'childrenDataDictionaryAttribute.definition.frontmatter.version'
   | 'childrenDataDictionaryAttribute.definition.frontmatter.downloadLink'
-  | 'childrenDataDictionaryAttribute.definition.frontmatter.metaDescription'
   | 'childrenDataDictionaryAttribute.definition.frontmatter.tags'
+  | 'childrenDataDictionaryAttribute.definition.frontmatter.metaDescription'
   | 'childrenDataDictionaryAttribute.definition.frontmatter.redirects'
   | 'childrenDataDictionaryAttribute.definition.frontmatter.type'
   | 'childrenDataDictionaryAttribute.definition.frontmatter.shortDescription'
+  | 'childrenDataDictionaryAttribute.definition.frontmatter.translate'
+  | 'childrenDataDictionaryAttribute.definition.frontmatter.s_Google_Cloud_Spanner_integration'
+  | 'childrenDataDictionaryAttribute.definition.frontmatter.description'
+  | 'childrenDataDictionaryAttribute.definition.frontmatter.contentType'
   | 'childrenDataDictionaryAttribute.definition.frontmatter.template'
   | 'childrenDataDictionaryAttribute.definition.frontmatter.topics'
-  | 'childrenDataDictionaryAttribute.definition.frontmatter.translate'
-  | 'childrenDataDictionaryAttribute.definition.frontmatter.contentType'
-  | 'childrenDataDictionaryAttribute.definition.frontmatter.description'
-  | 'childrenDataDictionaryAttribute.definition.frontmatter.s_legacy_SNMP_integration'
   | 'childrenDataDictionaryAttribute.definition.frontmatter.startDate'
   | 'childrenDataDictionaryAttribute.definition.frontmatter.endDate'
-  | 'childrenDataDictionaryAttribute.definition.frontmatter.s_Google_Cloud_Spanner_integration'
+  | 'childrenDataDictionaryAttribute.definition.frontmatter.s_legacy_SNMP_integration'
   | 'childrenDataDictionaryAttribute.definition.frontmatter.name'
-  | 'childrenDataDictionaryAttribute.definition.frontmatter.events'
   | 'childrenDataDictionaryAttribute.definition.frontmatter.units'
-  | 'childrenDataDictionaryAttribute.definition.frontmatter.dataSources'
+  | 'childrenDataDictionaryAttribute.definition.frontmatter.events'
   | 'childrenDataDictionaryAttribute.definition.frontmatter.summary'
-  | 'childrenDataDictionaryAttribute.definition.frontmatter.learnMoreLink'
   | 'childrenDataDictionaryAttribute.definition.frontmatter.getStartedLink'
+  | 'childrenDataDictionaryAttribute.definition.frontmatter.learnMoreLink'
+  | 'childrenDataDictionaryAttribute.definition.frontmatter.dataSources'
   | 'childrenDataDictionaryAttribute.definition.excerpt'
   | 'childrenDataDictionaryAttribute.definition.rawMarkdownBody'
   | 'childrenDataDictionaryAttribute.definition.fileAbsolutePath'
@@ -5601,27 +5613,27 @@ type DataDictionaryEventFieldsEnum =
   | 'childDataDictionaryAttribute.definition.frontmatter.releaseDate'
   | 'childDataDictionaryAttribute.definition.frontmatter.version'
   | 'childDataDictionaryAttribute.definition.frontmatter.downloadLink'
-  | 'childDataDictionaryAttribute.definition.frontmatter.metaDescription'
   | 'childDataDictionaryAttribute.definition.frontmatter.tags'
+  | 'childDataDictionaryAttribute.definition.frontmatter.metaDescription'
   | 'childDataDictionaryAttribute.definition.frontmatter.redirects'
   | 'childDataDictionaryAttribute.definition.frontmatter.type'
   | 'childDataDictionaryAttribute.definition.frontmatter.shortDescription'
+  | 'childDataDictionaryAttribute.definition.frontmatter.translate'
+  | 'childDataDictionaryAttribute.definition.frontmatter.s_Google_Cloud_Spanner_integration'
+  | 'childDataDictionaryAttribute.definition.frontmatter.description'
+  | 'childDataDictionaryAttribute.definition.frontmatter.contentType'
   | 'childDataDictionaryAttribute.definition.frontmatter.template'
   | 'childDataDictionaryAttribute.definition.frontmatter.topics'
-  | 'childDataDictionaryAttribute.definition.frontmatter.translate'
-  | 'childDataDictionaryAttribute.definition.frontmatter.contentType'
-  | 'childDataDictionaryAttribute.definition.frontmatter.description'
-  | 'childDataDictionaryAttribute.definition.frontmatter.s_legacy_SNMP_integration'
   | 'childDataDictionaryAttribute.definition.frontmatter.startDate'
   | 'childDataDictionaryAttribute.definition.frontmatter.endDate'
-  | 'childDataDictionaryAttribute.definition.frontmatter.s_Google_Cloud_Spanner_integration'
+  | 'childDataDictionaryAttribute.definition.frontmatter.s_legacy_SNMP_integration'
   | 'childDataDictionaryAttribute.definition.frontmatter.name'
-  | 'childDataDictionaryAttribute.definition.frontmatter.events'
   | 'childDataDictionaryAttribute.definition.frontmatter.units'
-  | 'childDataDictionaryAttribute.definition.frontmatter.dataSources'
+  | 'childDataDictionaryAttribute.definition.frontmatter.events'
   | 'childDataDictionaryAttribute.definition.frontmatter.summary'
-  | 'childDataDictionaryAttribute.definition.frontmatter.learnMoreLink'
   | 'childDataDictionaryAttribute.definition.frontmatter.getStartedLink'
+  | 'childDataDictionaryAttribute.definition.frontmatter.learnMoreLink'
+  | 'childDataDictionaryAttribute.definition.frontmatter.dataSources'
   | 'childDataDictionaryAttribute.definition.excerpt'
   | 'childDataDictionaryAttribute.definition.rawMarkdownBody'
   | 'childDataDictionaryAttribute.definition.fileAbsolutePath'
@@ -5926,27 +5938,27 @@ type DataDictionaryAttributeFieldsEnum =
   | 'definition.frontmatter.releaseDate'
   | 'definition.frontmatter.version'
   | 'definition.frontmatter.downloadLink'
-  | 'definition.frontmatter.metaDescription'
   | 'definition.frontmatter.tags'
+  | 'definition.frontmatter.metaDescription'
   | 'definition.frontmatter.redirects'
   | 'definition.frontmatter.type'
   | 'definition.frontmatter.shortDescription'
+  | 'definition.frontmatter.translate'
+  | 'definition.frontmatter.s_Google_Cloud_Spanner_integration'
+  | 'definition.frontmatter.description'
+  | 'definition.frontmatter.contentType'
   | 'definition.frontmatter.template'
   | 'definition.frontmatter.topics'
-  | 'definition.frontmatter.translate'
-  | 'definition.frontmatter.contentType'
-  | 'definition.frontmatter.description'
-  | 'definition.frontmatter.s_legacy_SNMP_integration'
   | 'definition.frontmatter.startDate'
   | 'definition.frontmatter.endDate'
-  | 'definition.frontmatter.s_Google_Cloud_Spanner_integration'
+  | 'definition.frontmatter.s_legacy_SNMP_integration'
   | 'definition.frontmatter.name'
-  | 'definition.frontmatter.events'
   | 'definition.frontmatter.units'
-  | 'definition.frontmatter.dataSources'
+  | 'definition.frontmatter.events'
   | 'definition.frontmatter.summary'
-  | 'definition.frontmatter.learnMoreLink'
   | 'definition.frontmatter.getStartedLink'
+  | 'definition.frontmatter.learnMoreLink'
+  | 'definition.frontmatter.dataSources'
   | 'definition.excerpt'
   | 'definition.rawMarkdownBody'
   | 'definition.fileAbsolutePath'
@@ -6011,27 +6023,27 @@ type DataDictionaryAttributeFieldsEnum =
   | 'events.definition.frontmatter.releaseDate'
   | 'events.definition.frontmatter.version'
   | 'events.definition.frontmatter.downloadLink'
-  | 'events.definition.frontmatter.metaDescription'
   | 'events.definition.frontmatter.tags'
+  | 'events.definition.frontmatter.metaDescription'
   | 'events.definition.frontmatter.redirects'
   | 'events.definition.frontmatter.type'
   | 'events.definition.frontmatter.shortDescription'
+  | 'events.definition.frontmatter.translate'
+  | 'events.definition.frontmatter.s_Google_Cloud_Spanner_integration'
+  | 'events.definition.frontmatter.description'
+  | 'events.definition.frontmatter.contentType'
   | 'events.definition.frontmatter.template'
   | 'events.definition.frontmatter.topics'
-  | 'events.definition.frontmatter.translate'
-  | 'events.definition.frontmatter.contentType'
-  | 'events.definition.frontmatter.description'
-  | 'events.definition.frontmatter.s_legacy_SNMP_integration'
   | 'events.definition.frontmatter.startDate'
   | 'events.definition.frontmatter.endDate'
-  | 'events.definition.frontmatter.s_Google_Cloud_Spanner_integration'
+  | 'events.definition.frontmatter.s_legacy_SNMP_integration'
   | 'events.definition.frontmatter.name'
-  | 'events.definition.frontmatter.events'
   | 'events.definition.frontmatter.units'
-  | 'events.definition.frontmatter.dataSources'
+  | 'events.definition.frontmatter.events'
   | 'events.definition.frontmatter.summary'
-  | 'events.definition.frontmatter.learnMoreLink'
   | 'events.definition.frontmatter.getStartedLink'
+  | 'events.definition.frontmatter.learnMoreLink'
+  | 'events.definition.frontmatter.dataSources'
   | 'events.definition.excerpt'
   | 'events.definition.rawMarkdownBody'
   | 'events.definition.fileAbsolutePath'
@@ -6777,13 +6789,13 @@ type MainLayout_queryFragment = { readonly rootNav: Maybe<Pick<Nav, 'id'>>, read
 
 type MainLayout_navPagesFragment = Pick<NavItem, 'title' | 'url' | 'icon'>;
 
-type pageUsersaisaacsonDocumentsGitHubdocsWebsitesrctemplatesdocPageJs235296388QueryVariables = Exact<{
+type pageUsersbarbDocumentsGitHubdocsWebsitesrctemplatesdocPageJs235296388QueryVariables = Exact<{
   slug: Scalars['String'];
   locale: Maybe<Scalars['String']>;
 }>;
 
 
-type pageUsersaisaacsonDocumentsGitHubdocsWebsitesrctemplatesdocPageJs235296388Query = (
+type pageUsersbarbDocumentsGitHubdocsWebsitesrctemplatesdocPageJs235296388Query = (
   { readonly mdx: Maybe<(
     Pick<Mdx, 'mdxAST' | 'body'>
     & { readonly frontmatter: Maybe<Pick<Frontmatter, 'title' | 'metaDescription' | 'type' | 'tags' | 'translationType'>>, readonly fields: Maybe<Pick<MdxFields, 'fileRelativePath'>>, readonly relatedResources: Maybe<ReadonlyArray<Pick<RelatedResource, 'title' | 'url'>>> }
@@ -6792,13 +6804,13 @@ type pageUsersaisaacsonDocumentsGitHubdocsWebsitesrctemplatesdocPageJs235296388Q
   & MainLayout_queryFragment
 );
 
-type pageUsersaisaacsonDocumentsGitHubdocsWebsitesrctemplatesreleaseNoteJs359174647QueryVariables = Exact<{
+type pageUsersbarbDocumentsGitHubdocsWebsitesrctemplatesreleaseNoteJs359174647QueryVariables = Exact<{
   slug: Scalars['String'];
   locale: Maybe<Scalars['String']>;
 }>;
 
 
-type pageUsersaisaacsonDocumentsGitHubdocsWebsitesrctemplatesreleaseNoteJs359174647Query = (
+type pageUsersbarbDocumentsGitHubdocsWebsitesrctemplatesreleaseNoteJs359174647Query = (
   { readonly mdx: Maybe<(
     Pick<Mdx, 'body'>
     & { readonly frontmatter: Maybe<Pick<Frontmatter, 'subject' | 'version' | 'title' | 'releaseDate' | 'downloadLink' | 'metaDescription'>> }
@@ -6806,13 +6818,13 @@ type pageUsersaisaacsonDocumentsGitHubdocsWebsitesrctemplatesreleaseNoteJs359174
   & MainLayout_queryFragment
 );
 
-type pageUsersaisaacsonDocumentsGitHubdocsWebsitesrctemplateslandingPageJs441368778QueryVariables = Exact<{
+type pageUsersbarbDocumentsGitHubdocsWebsitesrctemplateslandingPageJs441368778QueryVariables = Exact<{
   slug: Scalars['String'];
   locale: Maybe<Scalars['String']>;
 }>;
 
 
-type pageUsersaisaacsonDocumentsGitHubdocsWebsitesrctemplateslandingPageJs441368778Query = (
+type pageUsersbarbDocumentsGitHubdocsWebsitesrctemplateslandingPageJs441368778Query = (
   { readonly mdx: Maybe<(
     Pick<Mdx, 'body'>
     & { readonly frontmatter: Maybe<Pick<Frontmatter, 'title' | 'metaDescription'>> }
@@ -6820,14 +6832,14 @@ type pageUsersaisaacsonDocumentsGitHubdocsWebsitesrctemplateslandingPageJs441368
   & MainLayout_queryFragment
 );
 
-type pageUsersaisaacsonDocumentsGitHubdocsWebsitesrctemplatesreleaseNoteLandingPageJs1059589230QueryVariables = Exact<{
+type pageUsersbarbDocumentsGitHubdocsWebsitesrctemplatesreleaseNoteLandingPageJs1059589230QueryVariables = Exact<{
   slug: Scalars['String'];
   subject: Scalars['String'];
   locale: Maybe<Scalars['String']>;
 }>;
 
 
-type pageUsersaisaacsonDocumentsGitHubdocsWebsitesrctemplatesreleaseNoteLandingPageJs1059589230Query = (
+type pageUsersbarbDocumentsGitHubdocsWebsitesrctemplatesreleaseNoteLandingPageJs1059589230Query = (
   { readonly allMdx: { readonly nodes: ReadonlyArray<(
       Pick<Mdx, 'mdxAST'>
       & { readonly fields: Maybe<Pick<MdxFields, 'slug'>>, readonly frontmatter: Maybe<Pick<Frontmatter, 'title' | 'version' | 'releaseDate'>> }
@@ -6835,13 +6847,13 @@ type pageUsersaisaacsonDocumentsGitHubdocsWebsitesrctemplatesreleaseNoteLandingP
   & MainLayout_queryFragment
 );
 
-type pageUsersaisaacsonDocumentsGitHubdocsWebsitesrctemplateswhatsNewJs3466386670QueryVariables = Exact<{
+type pageUsersbarbDocumentsGitHubdocsWebsitesrctemplateswhatsNewJs3466386670QueryVariables = Exact<{
   slug: Scalars['String'];
   locale: Maybe<Scalars['String']>;
 }>;
 
 
-type pageUsersaisaacsonDocumentsGitHubdocsWebsitesrctemplateswhatsNewJs3466386670Query = (
+type pageUsersbarbDocumentsGitHubdocsWebsitesrctemplateswhatsNewJs3466386670Query = (
   { readonly site: Maybe<{ readonly siteMetadata: Maybe<Pick<SiteSiteMetadata, 'siteUrl'>> }>, readonly markdownRemark: Maybe<(
     Pick<MarkdownRemark, 'html'>
     & { readonly frontmatter: Maybe<Pick<Frontmatter, 'title' | 'releaseDate' | 'summary' | 'learnMoreLink' | 'getStartedLink'>> }
@@ -6859,13 +6871,13 @@ type DataDictionaryFilter_eventsFragment = (
   & { readonly childrenDataDictionaryAttribute: Maybe<ReadonlyArray<Maybe<Pick<DataDictionaryAttribute, 'name'>>>> }
 );
 
-type pageUsersaisaacsonDocumentsGitHubdocsWebsitesrcpagesattributeDictionaryJs1100610524QueryVariables = Exact<{
+type pageUsersbarbDocumentsGitHubdocsWebsitesrcpagesattributeDictionaryJs1100610524QueryVariables = Exact<{
   slug: Scalars['String'];
   locale: Scalars['String'];
 }>;
 
 
-type pageUsersaisaacsonDocumentsGitHubdocsWebsitesrcpagesattributeDictionaryJs1100610524Query = (
+type pageUsersbarbDocumentsGitHubdocsWebsitesrcpagesattributeDictionaryJs1100610524Query = (
   { readonly allDataDictionaryEvent: { readonly edges: ReadonlyArray<{ readonly node: (
         Pick<DataDictionaryEvent, 'name' | 'dataSources'>
         & { readonly definition: Maybe<Pick<MarkdownRemark, 'html'>>, readonly childrenDataDictionaryAttribute: Maybe<ReadonlyArray<Maybe<(
@@ -6877,13 +6889,13 @@ type pageUsersaisaacsonDocumentsGitHubdocsWebsitesrcpagesattributeDictionaryJs11
   & MainLayout_queryFragment
 );
 
-type pageUsersaisaacsonDocumentsGitHubdocsWebsitesrcpagesindexJs1430918721QueryVariables = Exact<{
+type pageUsersbarbDocumentsGitHubdocsWebsitesrcpagesindexJs1430918721QueryVariables = Exact<{
   slug: Scalars['String'];
   locale: Maybe<Scalars['String']>;
 }>;
 
 
-type pageUsersaisaacsonDocumentsGitHubdocsWebsitesrcpagesindexJs1430918721Query = (
+type pageUsersbarbDocumentsGitHubdocsWebsitesrcpagesindexJs1430918721Query = (
   { readonly site: Maybe<{ readonly layout: Maybe<Pick<SiteLayout, 'contentPadding'>> }>, readonly allMarkdownRemark: { readonly edges: ReadonlyArray<{ readonly node: (
         Pick<MarkdownRemark, 'id'>
         & { readonly frontmatter: Maybe<Pick<Frontmatter, 'title'>>, readonly fields: Maybe<Pick<MarkdownRemarkFields, 'slug'>> }
@@ -6891,13 +6903,13 @@ type pageUsersaisaacsonDocumentsGitHubdocsWebsitesrcpagesindexJs1430918721Query 
   & MainLayout_queryFragment
 );
 
-type pageUsersaisaacsonDocumentsGitHubdocsWebsitesrcpageswhatsNewJs2141301087QueryVariables = Exact<{
+type pageUsersbarbDocumentsGitHubdocsWebsitesrcpageswhatsNewJs2141301087QueryVariables = Exact<{
   slug: Scalars['String'];
   locale: Maybe<Scalars['String']>;
 }>;
 
 
-type pageUsersaisaacsonDocumentsGitHubdocsWebsitesrcpageswhatsNewJs2141301087Query = (
+type pageUsersbarbDocumentsGitHubdocsWebsitesrcpageswhatsNewJs2141301087Query = (
   { readonly allMarkdownRemark: { readonly edges: ReadonlyArray<{ readonly node: (
         Pick<MarkdownRemark, 'id'>
         & { readonly frontmatter: Maybe<Pick<Frontmatter, 'title' | 'summary' | 'releaseDate'>>, readonly fields: Maybe<Pick<MarkdownRemarkFields, 'slug'>> }
@@ -6938,15 +6950,15 @@ type FooterQueryQueryVariables = Exact<{ [key: string]: never; }>;
 
 type FooterQueryQuery = { readonly site: Maybe<{ readonly siteMetadata: Maybe<Pick<SiteSiteMetadata, 'siteUrl' | 'repository'>> }>, readonly sitePage: Maybe<Pick<SitePage, 'id'>> };
 
-type GlobalNavLinkQueryQueryVariables = Exact<{ [key: string]: never; }>;
-
-
-type GlobalNavLinkQueryQuery = { readonly site: Maybe<{ readonly siteMetadata: Maybe<Pick<SiteSiteMetadata, 'siteUrl'>> }> };
-
 type GlobalHeaderQueryQueryVariables = Exact<{ [key: string]: never; }>;
 
 
 type GlobalHeaderQueryQuery = { readonly allLocale: { readonly nodes: ReadonlyArray<Pick<Locale, 'locale' | 'localName' | 'isDefault'>> } };
+
+type GlobalNavLinkQueryQueryVariables = Exact<{ [key: string]: never; }>;
+
+
+type GlobalNavLinkQueryQuery = { readonly site: Maybe<{ readonly siteMetadata: Maybe<Pick<SiteSiteMetadata, 'siteUrl'>> }> };
 
 type Unnamed_6_QueryVariables = Exact<{ [key: string]: never; }>;
 
