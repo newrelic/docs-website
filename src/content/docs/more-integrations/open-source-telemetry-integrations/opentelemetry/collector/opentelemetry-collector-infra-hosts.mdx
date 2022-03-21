@@ -1,0 +1,302 @@
+---
+title: Collector with New Relic (Infrastructure hosts)
+tags:
+  - Integrations
+  - Open source telemetry integrations
+  - OpenTelemetry
+metaDescription: The OpenTelemetry collector is a central tool to collect, process, and export your telemetry.
+---
+
+You can collect metrics about your infrastructure hosts with OpenTelemetry if you set up a collector. The collector is a component of OpenTelemetry that collects, processes, and exports telemetry data to New Relic (or any observability back-end). 
+
+
+If you're looking for help with other collector use cases, see the [newrelic-opentelemetry-examples](https://github.com/newrelic/newrelic-opentelemetry-examples) repository.
+
+## Install the OpenTelemetry collector [#install-generic]
+
+To do a basic installation for single hosts in the cloud or on-premises, see [OpenTelemetry's instructions](https://opentelemetry.io/docs/collector/getting-started/#linux-packaging) for up-to-date installation steps from the community. Instructions are available for the following:
+
+* Linux: Debian systems
+* Linux: Red Hat
+* Windows
+* Docker, Kubernetes, and other options
+
+Your deployment experience might vary depending on which vendor-specific distributions you use. For example, installation via a package manager might be available for Linux hosts.
+
+<Callout variant="important">
+To set up infrastructure monitoring, you need to install and configuring components that are included in the `collector-contrib` release. For example, the host receiver is required to collect basic host metrics such as CPU, memory, disk and network stats and is only available in the [OpenTelemetry collector-contrib](https://github.com/open-telemetry/opentelemetry-collector-contrib) release.
+</Callout>
+
+## Configure the OpenTelemetry collector for New Relic [#configure]
+
+The configuration examples are meant to serve as a starting point from which you can extend, customize, and validate before using these in production.
+
+### Host monitoring using the host receiver [#host-receiver]
+
+The `collector-contrib` release provides a `hostreceiver` that generates metrics about the system scraped from various sources. It is intended to be used when the collector is deployed as an agent.
+
+When using the host receiver as part of the collector configuration, New Relic will automatically detect host metrics as part of a `Host` entity and will synthesize its golden metrics providing the same experience as with the New Relic infrastructure agent. The following are the configuration requirements to enable the `Host` entity experience in New Relic UI:
+
+  * `host.id` attribute is present in host metrics.
+  * `service.name` and `container.id` attributes are not present in host metrics.
+
+Learn more about available metrics and advanced configurations from the [OpenTelemetry documentation](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/receiver/hostmetricsreceiver).
+
+Adapt the `config.yaml` with these recommended parameters:
+
+<Callout variant="important">
+CPU, load, memory and disk utilization metrics require otelcol-contri release `v47` or greater.
+</Callout>
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "275px" }}>
+        Configuration
+      </th>
+      <th>
+        Description
+      </th>
+    </tr>
+  </thead>
+    <tbody>
+    <tr>
+      <td>
+        `receivers::hostmetrics`
+      </td>
+      <td>
+        Enable host metrics, 20 seconds interval is recommended (same default as the Infrastructure Agent), it should not be greater than 60 seconds to avoid issues with “host not responding” alerts. Process instrumentation is optional.
+      </td>
+    </tr>
+    <tr>
+      <td>
+        `processors::resourcedetection`
+      </td>
+      <td>
+        * `env`: Reads resource information from the `OTEL_RESOURCE_ATTRIBUTES` environment variable.
+        * `system`: Adds `host.name` and `os.type`.
+        * For cloud environments, a specific resource detection processor needs to be configured so that metrics are decorated with `host.id` (required to identify the Host entity in New Relic One). Common cloud detectors are `gce` for GCP machines, `ec2` for AWS EC2 and `azure` for Azure VMs. Additional processors are available for orchestrated environments.
+        * For on-premises systems (or unsupported cloud environments), a `host.id` attribute is required. The `resource` processor can be used to copy the `host.name` value (from `system`) as a new `host.id` attribute. Note this value should be unique across all instrumented hosts:
+        ```
+        resource:
+            attributes:
+              - key: host.id
+                from_attribute: host.name
+                action: upsert
+        ```
+
+      </td>
+    </tr>
+    <tr>
+      <td>
+        `processors::batch`
+      </td>
+      <td>
+        The [batch processor](https://github.com/open-telemetry/opentelemetry-collector/blob/main/processor/batchprocessor/README.md) accepts spans, metrics, or logs and places them into batches. Batching helps better compress the data and reduce the number of outgoing connections required to transmit the data. This processor supports both size and time based batching.
+      </td>
+    </tr>
+    <tr>
+      <td>
+        `processors::memory_limited`
+      </td>
+      <td>
+        The [memory limiter](https://github.com/open-telemetry/opentelemetry-collector/tree/main/processor/memorylimiterprocessor) processor is used to prevent out of memory situations on the collector. Given that the amount and type of data the collector processes is environment specific and resource utilization of the collector is also dependent on the configured processors, it is important to put checks in place regarding memory usage.
+      </td>
+    </tr>
+    <tr>
+      <td>
+        `processors::cumulative_delta`
+      </td>
+      <td>
+        The [cumulative delta](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor/cumulativetodeltaprocessor) processor converts cumulative sum metrics to cumulative delta which is recommended in order to query system metric rates more easily in New Relic One.
+      </td>
+    </tr>
+    <tr>
+      <td>
+        `service::pipelines::metrics`
+      </td>
+      <td>
+        Make sure `hostreceiver` and `resourcedetection` are included.
+      </td>
+    </tr>
+    </tbody>
+</table>
+
+Here is a sample configuration yaml file:
+
+```
+extensions:
+  health_check:
+
+receivers:
+  hostmetrics:
+    collection_interval: 20s
+    scrapers:
+      cpu:
+        metrics:
+          system.cpu.utilization:
+            enabled: true
+      load:
+      memory:
+        metrics:
+          system.memory.utilization:
+            enabled: true
+      disk:
+      filesystem:
+        metrics:
+          system.filesystem.utilization:
+            enabled: true
+      network:
+      paging:
+        metrics:
+          system.paging.utilization:
+            enabled: true
+      processes:
+      process:
+
+processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 1000
+    spike_limit_mib: 200
+  batch:
+  cumulativetodelta:
+    metrics:
+      - system.network.io
+      - system.disk.operations
+      - system.network.dropped
+      - system.network.packets
+      - process.cpu.time
+  resource:
+    attributes:
+      - key: host.id
+        from_attribute: host.name
+        action: upsert
+  resourcedetection:
+    detectors: [ env, system]
+
+exporters: 
+  otlp:
+    endpoint: otlp.nr-data.net:4317
+    headers:
+      api-key: *****INGEST_LICENSE_KEY*****
+
+service:
+  pipelines:
+    metrics:
+      receivers: [hostmetrics]
+      processors: [batch, resourcedetection, resource, cumulativetodelta]
+      exporters: [otlp]
+
+  extensions: [health_check]
+```
+
+## Browsing host data in infrastructure UI [#using-ui]
+
+Using the recommended configuration for the host receiver enables all the standard capabilities of the [Infrastructure UI](/docs/infrastructure/infrastructure-ui-pages/infrastructure-ui-entities#access-new-ui) (New Host UI) experience.
+
+## Query host metrics [#query-host-metrics]
+
+Once metrics are successfully ingested in New Relic, they are available in data explorer and query builder.
+
+The following NRQL queries show examples to help you explore the metrics you received:
+
+  * Listing number of metric updates ingested by metric name
+
+    ```
+    SELECT count(*) FROM Metric WHERE metricName LIKE 'system.%' FACET metricName LIMIT max
+    ```
+
+  * Querying specific metrics faceted by host
+
+    ```
+    SELECT average(system.disk.operations) FROM Metric FACET host.name TIMESERIES
+    ```
+
+  * Listing dimensions available for a given metric
+
+    ```
+    SELECT keyset() FROM Metric WHERE metricName = 'system.disk.operations' 
+    ```
+
+Learn more about [querying the metric data type](/docs/data-apis/understand-data/metric-data/query-metric-data-type).
+
+## Additional settings [#additional-settings]
+
+A variety of other settings are available for your configuration.
+
+### Health Check [#health-check]
+
+The health check is an extension to the primary functionality of the collector and ensures the collector is working.
+
+For setup details, see [health_check (GitHub)](https://github.com/open-telemetry/opentelemetry-collector/blob/main/docs/troubleshooting.md#health-check)
+
+When enabled, the local endpoint using localhost:13133 returns the following response:
+
+```
+{
+  "status": "Server available",
+  "upSince": "2015-10-21T12:00:00.6847174Z",
+  "uptime": "50.0123456s"
+}
+```
+
+### Environment variables [#env-variables]
+
+The collector configuration supports the use and expansion of environment variables. For example:
+
+```
+processors:
+  attributes/example:
+    actions:
+      - key: "${DB_KEY}"
+        action: "${OPERATION}"
+```
+
+### Proxy support [#proxy-support]
+
+Exporters that leverage the net/http package respect the following proxy environment variables:
+
+  * HTTP_PROXY
+  * HTTPS_PROXY
+  * NO_PROXY
+
+If these environment variables are set when the collector starts, then exporters, regardless of protocol, will or will not proxy traffic.
+
+### Authentication [#authentication]
+
+Most `receivers` exposing an HTTP or gRPC port can be protected using the collector’s [authentication mechanism](https://opentelemetry.io/docs/collector/configuration/#authentication), and most `exporters` using HTTP or gRPC clients can add authentication data to the outgoing requests.
+
+For a list of known authenticators, use the [Registry](https://opentelemetry.io/registry/?s=authenticator&component=extension&language=) available in the OpenTelemetry website.
+
+## Troubleshooting the OpenTelemetry collector [#troubleshooting-collector]
+
+The best place for troubleshooting tips and monitoring practices is the up-to-date guidelines in the OpenTelemetry community.
+
+### Collector logs [#collector-logs]
+
+Set the log level in the config `service::telemetry::logs`. The default level is `INFO`. Supported levels are: `DEBUG`, `INFO`, `WARN`, `ERROR`, `DPANIC`, `PANIC`, `FATAL`.
+
+For troubleshooting tips, see [logs troubleshooting (GitHub)](https://github.com/open-telemetry/opentelemetry-collector/blob/main/docs/troubleshooting.md#logs).
+
+### Collector metrics [#collector-metrics]
+
+The following NRQL query shows all the available metrics from the collector itself in New Relic:
+
+```
+FROM Metric SELECT uniques(metricName) WHERE metricName like ‘otelcol_%’ LIMIT MAX
+```
+
+For troubleshooting tips, see [metric troubleshooting (GitHub)](https://github.com/open-telemetry/opentelemetry-collector/blob/main/docs/troubleshooting.md#metrics) and [monitoring collector metrics (GitHub)](https://github.com/open-telemetry/opentelemetry-collector/blob/main/docs/monitoring.md).
+
+### Collector traces [#collector-traces]
+
+For troubleshooting tips, see [zPages (Github)](https://github.com/open-telemetry/opentelemetry-collector/blob/main/docs/troubleshooting.md#zpages).
+
+
+
+
+
+
+
+
