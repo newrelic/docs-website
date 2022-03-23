@@ -8,7 +8,7 @@ const getAgentName = require('./src/utils/getAgentName');
 
 const dataDictionaryPath = `${__dirname}/src/data-dictionary`;
 const siteUrl = 'https://docs.newrelic.com';
-const additionalLocales = ['jp'];
+const additionalLocales = ['jp', 'kr'];
 
 const autoLinkHeaders = {
   resolve: 'gatsby-remark-autolink-headers',
