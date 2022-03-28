@@ -32,7 +32,7 @@ Our peer-led sessions feature industry leaders, including:
 * **Carl Chesser** - Cerner 
 * **Sheldon Lessard** - Maricopa County Clerk of the Superior Court
 
-**Drop in and code-on at the 24-hour FutureHack.**
+**Drop in and code on, at the 24-hour FutureHack.**
 Put your skills to the test by using a data-driven approach to hack your way through the toughest observability challenges using New Relic. The FutureHack champions will win bragging rights and great prizes. 
 
 **Get excited, get inspired and get registered for the software engineering event of the year.** 
