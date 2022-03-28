@@ -11,15 +11,14 @@ learnMoreLink: 'https://www.futurestack.com/anqQXE?RefId=WHATSNEW'
 
 **Join us for FutureStack May 17-19 at the Cosmopolitan of Las Vegas**
 
-Reconnect face-to-face and node-to-node—and find out what your most innovative peers 
-are doing.
+Reconnect face-to-face and node-to-node—and find out what your most innovative peers are doing.
 
 [Register Now](https://www.futurestack.com/anqQXE?RefId=WHATSNEW)
 
 Explore observability with inspiring keynotes, peer-led deep dives, and exclusive technical breakouts you won’t find online.
 
 **FutureStack is back, bigger and bolder than ever.** 
-It’s time to log off from virtual events, dust off your suitcase, and  join your peers to rub elbows and swap cheat codes in a way that’s only possible in live, in-person interactive sessions. 
+It’s time to log off from virtual events, dust off your suitcase, and join your peers to rub elbows and swap cheat codes in a way that’s only possible in live, in-person interactive sessions. 
 
 **Reasons all the data points to Las Vegas.**
 * **1:1 expert guidance** for a deep dive on observability
