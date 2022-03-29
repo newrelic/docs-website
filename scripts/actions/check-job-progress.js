@@ -181,6 +181,11 @@ const updateTranslationRecords = async (slugStatuses) => {
         { status: StatusEnum.COMPLETED }
       );
 
+      if (!records || records.length === 0) {
+        console.log('No Translation Records');
+        return;
+      }
+
       console.log(
         `Translation ${records[0].id} marked as ${StatusEnum.COMPLETED}`
       );
