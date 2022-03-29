@@ -209,6 +209,7 @@ module.exports = {
               maxWidth: 850,
             },
           },
+          'gatsby-remark-custom-heading-ids',
         ],
       },
     },
