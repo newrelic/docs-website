@@ -7,6 +7,8 @@
 Please follow [conventional commit standards](https://www.conventionalcommits.org/en/v1.0.0/)
 in your commit messages and pull request title.
 
+If you find a problem in the document's translation (Japanese, or Korean), let us know in a GitHub issue instead of a PR.
+
 ## Give us some context
 
 * What problems does this PR solve?
