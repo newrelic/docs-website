@@ -8,8 +8,7 @@ const getAgentName = require('./src/utils/getAgentName');
 
 const dataDictionaryPath = `${__dirname}/src/data-dictionary`;
 const siteUrl = 'https://docs.newrelic.com';
-const additionalLocales = ['jp'];
-const quote = (str) => `"${str}"`;
+const additionalLocales = ['jp', 'kr'];
 
 const autoLinkHeaders = {
   resolve: 'gatsby-remark-autolink-headers',
@@ -103,11 +102,11 @@ module.exports = {
             },
             production: {
               instrumentationType: 'proAndSPA',
-              accountId: '10175106',
+              accountId: '10956800',
               trustKey: '1',
-              agentID: '29883416',
-              licenseKey: '23448da482',
-              applicationID: '29883416',
+              agentID: '35094662',
+              licenseKey: 'NRJS-649173eb1a7b28cd6ab',
+              applicationID: '35094662',
               beacon: 'staging-bam-cell.nr-data.net',
               errorBeacon: 'staging-bam-cell.nr-data.net',
             },
