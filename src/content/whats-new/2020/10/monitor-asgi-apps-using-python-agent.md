@@ -2,7 +2,7 @@
 title: Monitor ASGI apps using the Python agent
 summary: 'The Python agent now supports monitoring Uvicorn, Starlette, and FastAPI ASGI applications.'
 releaseDate: '2020-10-27'
-learnMoreLink: 'https://docs.newrelic.com/docs/agents/python-agent/async-instrumentation'
+learnMoreLink: 'https://docs.newrelic.com/docs/apm/agents/python-agent/web-frameworks-servers/uvicorn'
 ---
 
 The Python agent now provides out-of-the-box monitoring support for Uvicorn, Starlette, and FastAPI ASGI applications.
