@@ -71,15 +71,15 @@ module.exports = {
           deferrable: Deferrable.INITIALLY_IMMEDIATE,
         },
       },
-      project_id: {
-        type: DataTypes.TEXT,
-        allowNull: true,
-      },
       date_created: {
         type: DataTypes.DATE,
       },
       date_modified: {
         type: DataTypes.DATE,
+      },
+      project_id: {
+        type: DataTypes.TEXT,
+        allowNull: true,
       },
     });
     await queryInterface.createTable('translations', {
