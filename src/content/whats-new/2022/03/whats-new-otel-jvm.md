@@ -1,7 +1,7 @@
 ---
 title: 'Compare JVM performance for OpenTelemetry services'
 summary: 'New OpenTelemetry JVMs page'
-releaseDate: '2022-03-21'
+releaseDate: '2022-03-31'
 learnMoreLink: 'https://docs.newrelic.com/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/view-your-opentelemetry-data-new-relic/#jvms'
 ---
 An updated JVMs page for services instrumented with OpenTelemetry allows you to identify which service instances have unusual or unhealthy performance patterns. You can compare the key service health and Java Virtual Machine (JVM) metrics, across any number of instances.
