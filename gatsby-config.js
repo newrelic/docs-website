@@ -69,6 +69,7 @@ module.exports = {
             'java',
             'md',
             'php',
+            'graphql',
             'phpdoc',
             'csharp',
             'shell',
