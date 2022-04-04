@@ -7,8 +7,8 @@ const removeImports = require('remark-mdx-remove-imports');
 const removeExports = require('remark-mdx-remove-exports');
 const fencedCodeBlock = require('../../codemods/fencedCodeBlock');
 const customHeadingIds = require('../gatsby-remark-custom-heading-ids/utils/visitor');
-const handlers = require('./utils/handlers');
-const jsxImagesToChildren = require('./utils/jsxImagesToChildren');
+const handlers = require('../utils/handlers');
+const jsxImagesToChildren = require('../utils/jsxImagesToChildren');
 const all = require('mdast-util-to-hast/lib/all');
 
 const mdxElement = (h, node) => {
@@ -37,9 +37,6 @@ exports.onPostBuild = async ({ graphql, store }) => {
         nodes {
           mdxAST
           slug
-          fields {
-            fileRelativePath
-          }
         }
       }
       allImageSharp {
@@ -68,23 +65,20 @@ exports.onPostBuild = async ({ graphql, store }) => {
   );
 
   allMdx.nodes.forEach((node) => {
-    const {
-      slug,
-      mdxAST,
-      fields: { fileRelativePath },
-    } = node;
+    const { slug, mdxAST } = node;
 
     const filepath = path.join(program.directory, 'public', `${slug}.json`);
 
     const transformedAST = htmlGenerator.runSync(mdxAST);
+
     const html = htmlGenerator.stringify(
       toHast(transformedAST, {
         handlers: {
           mdxSpanElement: mdxElement,
           mdxBlockElement: mdxElement,
           code: handlers.CodeBlock,
-          image: (h, node) =>
-            handlers.image(h, node, imageHashMap, fileRelativePath),
+          image: (h, node, parent) =>
+            handlers.image(h, node, parent, imageHashMap),
         },
       })
     );
