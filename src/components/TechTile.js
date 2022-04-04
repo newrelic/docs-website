@@ -17,7 +17,7 @@ const TileIcon = ({ className, icon }) => {
     );
   }
 
-  if (isValidElement(icon) && icon.props?.mdxType === 'image') {
+  if (isValidElement(icon) && icon.props?.mdxType === 'img') {
     return (
       <span
         className={className}
@@ -31,7 +31,6 @@ const TileIcon = ({ className, icon }) => {
               className: css`
                 width: 2rem;
                 height: auto;
-                border-radius: 0.25rem;
               `,
             })
           }
@@ -79,6 +78,7 @@ const TechTile = ({ name, icon, to }) => (
       icon={icon}
       css={css`
         margin-bottom: 0.5rem;
+        width: 2rem;
       `}
     />
     <div
