@@ -8,6 +8,8 @@ learnMoreLink: "https://docs.newrelic.com/docs/service-level-management/intro-sl
 
 ## Service Level Management is now generally available in New Relic One
 
+!["A screenshot of the Service Level Management UI"](./images/slm_ui.png "Service Level Management UI")
+
 Today, we're excited to announce that New Relic service level management is now generally available!
 
 New Relic One's new service level management capabilities help teams operationalize SRE best practices for maintaining system uptime and reliability. The new experience includes a one-click Service Level Indicator (SLI) and Service Level Objective (SLO) setup, powerful recommendations to get started, metrics customization, unified health reports, and alerting for SLO compliance, error budget tracking, and more.
