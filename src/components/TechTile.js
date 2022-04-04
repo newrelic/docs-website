@@ -17,7 +17,7 @@ const TileIcon = ({ className, icon }) => {
     );
   }
 
-  if (isValidElement(icon) && icon.props?.mdxType === 'img') {
+  if (isValidElement(icon) && icon.props?.mdxType === 'image') {
     return (
       <span
         className={className}
