@@ -3,8 +3,6 @@ const AdmZip = require('adm-zip');
 const vfile = require('vfile');
 const { writeSync } = require('to-vfile');
 const path = require('path');
-const fse = require('fs-extra');
-
 const fetch = require('node-fetch');
 
 const deserializedHtml = require('./deserialize-html');
@@ -32,38 +30,12 @@ const projectId = process.env.TRANSLATION_VENDOR_PROJECT;
  */
 
 /**
- * Method which writes translated content to the 'src/content/i18n' path, and copies images for translated files.
+ * Method which writes translated content to the 'src/content/i18n' path.
  * @param {vfile.VFile[]} vfiles
  */
 const writeFilesSync = (vfiles) => {
-  const copiedDirectories = {};
-
   vfiles.forEach((file) => {
     writeSync(file, 'utf-8');
-
-    const imageDirectory = `${path.dirname(
-      file.path.substring(file.path.indexOf('/docs/'))
-    )}/images`;
-
-    /*
-      Check to see:
-        1. have we already copied this image directory for a different file (with the same parent path)?
-        2. does the image directory exist?
-    */
-    if (
-      !(imageDirectory in copiedDirectories) &&
-      fse.existsSync(path.join('src/content/', imageDirectory))
-    ) {
-      // sync 'src/content/docs/.../images' to 'src/i18n/content/.../docs/.../images'
-      fse.copySync(
-        path.join('src/content/', imageDirectory),
-        path.join(path.dirname(file.path), '/images'),
-        {
-          overwrite: true,
-        }
-      );
-      copiedDirectories[imageDirectory] = true;
-    }
   });
 };
 
@@ -74,7 +46,7 @@ const writeFilesSync = (vfiles) => {
  * @returns {FileUriBatches}
  */
 const createFileUriBatches = ({ fileUris }, batchSize = 50) => {
-  let batches = [];
+  const batches = [];
   let currentBatch = [];
 
   for (let i = 0; i < fileUris.length; i++) {
