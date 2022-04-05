@@ -25,8 +25,8 @@ const defaultComponents = {
         title={props.title}
         style={
           props.style
-            ? { ...props.style, margin: '0 0.25rem', maxWidth: '100%' }
-            : { margin: '0 0.25rem', maxWidth: '100%' }
+            ? { ...props.style, margin: '0 0.25rem' }
+            : { margin: '0 0.25rem' }
         }
       />
     ) : (
