@@ -19,14 +19,14 @@ const defaultComponents = {
   img: (props) =>
     props.style ? (
       <img
-        width={props.width ? props.width : '100%'}
+        width={props.width ? props.width : 'inherit'}
         src={props.src}
         alt={props.alt ? props.alt : 'Docs site'}
         title={props.title}
         style={
           props.style
-            ? { ...props.style, margin: '0 0.25rem' }
-            : { margin: '0 0.25rem' }
+            ? { ...props.style, margin: '0 0.25rem', maxWidth: '100%' }
+            : { margin: '0 0.25rem', maxWidth: '100%' }
         }
       />
     ) : (
