@@ -31,6 +31,7 @@ const TileIcon = ({ className, icon }) => {
               className: css`
                 width: 2rem;
                 height: auto;
+                border-radius: 0.25rem;
               `,
             })
           }
