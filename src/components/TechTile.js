@@ -77,8 +77,10 @@ const TechTile = ({ name, icon, to }) => (
     <TileIcon
       icon={icon}
       css={css`
-        margin-bottom: 0.5rem;
-        width: 2rem;
+        margin-bottom: 0;
+        img {
+          width: 2rem;
+        }
       `}
     />
     <div
