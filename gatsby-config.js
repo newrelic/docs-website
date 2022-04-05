@@ -209,9 +209,6 @@ module.exports = {
               maxWidth: 850,
             },
           },
-          autoLinkHeaders,
-          // This MUST come after `gatsby-remark-autolink-headers` to ensure the
-          // link created for the icon has the proper id
           'gatsby-remark-custom-heading-ids',
         ],
       },
