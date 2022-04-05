@@ -313,7 +313,7 @@ test("test <InlineCode> element serializes and adds 'notranslate' class to eleme
   expect(html).toMatchSnapshot();
 });
 
-test.only("test <code> element serializes and adds 'notranslate' class to element", async () => {
+test("test <code> element serializes and adds 'notranslate' class to element", async () => {
   const mdx = `
 <code>agent.report_custom_element</code>
 `;
