@@ -319,6 +319,16 @@ test("test <code> element serializes and adds 'notranslate' class to element", a
 `;
 
   const html = await serializeMDX(mdx);
-  console.log(html);
+  console.log('code -', html);
+  expect(html).toMatchSnapshot();
+});
+
+test("test <code> element serializes and adds 'notranslate' class to element as backticks in MDX", async () => {
+  const mdx = `
+\`agent.report_custom_element\`
+`;
+
+  const html = await serializeMDX(mdx);
+  console.log('backticks -', html);
   expect(html).toMatchSnapshot();
 });
