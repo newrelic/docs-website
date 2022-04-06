@@ -17,9 +17,9 @@ import TechTile from './TechTile';
 
 const defaultComponents = {
   img: (props) =>
-    props.style ? (
+    props.style || props.variant === 'TechTile' ? (
       <img
-        width={props.width ? props.width : '100%'}
+        width={props.width ? props.width : 'inherit'}
         src={props.src}
         alt={props.alt ? props.alt : 'Docs site'}
         title={props.title}
