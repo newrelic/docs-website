@@ -11,7 +11,7 @@ We’ve partnered with [Postman](https://postman.com) to make it easier to monit
 ## A quickstart to API Observability
 Get instant observability into critical metrics such as latency, request counts, and error rates in context of all their telemetry data. Start monitoring your API performance for free by installing the Postman quickstart at [New Relic I/O](https://newrelic.com/instant-observability). It gives you a pre-built dashboard in minutes. See how it works in the video below:
 
-<iframe width="560" height="315" src="https://www.youtube.com/watch?v=c9GPsYc7mKY" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+<iframe width="560" height="315" src="https://www.youtube.com/embed/c9GPsYc7mKY" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
 
 ## Benefits
 - **Unified visibility:** View API metrics (response time, errors, failed test, etc.) alongside application and infrastructure metrics in one unified and customizable dashboard.
