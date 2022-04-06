@@ -6,7 +6,7 @@ learnMoreLink: 'https://newrelic.com/blog/nerdlog/postman-integration'
 getStartedLink: ‘https://newrelic.com/instant-observability/postman/d465bf08-b737-4bc5-b5ad-dd5be272967b’
 ---
 ## Introducing API Monitoring with the Postman integration
-We’ve partnered with [Postman](https://postman.com) to make it easier to monitor the functionality and performance of your APIs. Postman monitors alongside the rest of your observability data. Now, you can get deeper pre-production API metrics down to the individual endpoint level. You can also use the two-way integration to receive contextual data about deployments from New Relic One in the Postman API platform.
+We’ve partnered with [Postman](https://postman.com) to make it easier to monitor the functionality and performance of your APIs and Postman monitors alongside the rest of your observability data. Now, you can get deeper pre-production API metrics down to the individual endpoint level. You can also use the two-way integration to receive contextual data about deployments from New Relic One in the Postman API platform.
 
 ## A quickstart to API Observability
 Get instant observability into critical metrics such as latency, request counts, and error rates in context of all their telemetry data. Start monitoring your API performance for free by installing the Postman quickstart at [New Relic I/O](https://newrelic.com/instant-observability). It gives you a pre-built dashboard in minutes. See how it works in the video below:
