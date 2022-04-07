@@ -7,7 +7,7 @@ const onPreRenderHtml = ({
   console.log('test');
 
   replacePostBodyComponents([
-    ...getPostBodyComponents,
+    ...getPostBodyComponents(),
     <script>
       !function(e,t,n,s,u,a)
       {e.twq ||
