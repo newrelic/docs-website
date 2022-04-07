@@ -10,6 +10,7 @@ const remarkParse = require('remark-parse');
 const remarkMdx = require('remark-mdx');
 const remarkMdxjs = require('remark-mdxjs');
 const remarkStringify = require('remark-stringify');
+const fencedCodeBlock = require('../../../codemods/fencedCodeBlock');
 
 const TRAILING_SLASH = /\/$/;
 const hasTrailingSlash = (pathname) =>
@@ -96,6 +97,11 @@ const writeIdsToDocs = async () => {
           if (tree?.children[0]?.type === 'yaml') {
             const frontmatterObj = yaml.load(tree.children[0].value);
             frontmatterObj.dataSource = id;
+            const frontmatterStr = yaml
+              .dump(frontmatterObj, { lineWidth: -1 })
+              .trim();
+            tree.children[0].value = frontmatterStr;
+
             return tree;
           }
         };
@@ -113,6 +119,7 @@ const writeIdsToDocs = async () => {
         .use(remarkMdx)
         .use(remarkMdxjs)
         .use(frontmatter, ['yaml'])
+        .use(fencedCodeBlock)
         .use(updateFrontMatter);
       const { contents } = await processor.process(fileData);
       fs.writeFileSync(filePath, contents, 'utf-8');
