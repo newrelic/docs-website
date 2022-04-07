@@ -92,6 +92,7 @@ const main = async () => {
       process.exit(1);
     }
   }
+  process.exit(0);
 };
 
 main();
