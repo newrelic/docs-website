@@ -313,22 +313,12 @@ test("test <InlineCode> element serializes and adds 'notranslate' class to eleme
   expect(html).toMatchSnapshot();
 });
 
-test("test <code> element serializes and adds 'notranslate' class to element", async () => {
-  const mdx = `
-<code>agent.report_custom_element</code>
-`;
-
-  const html = await serializeMDX(mdx);
-  console.log('code -', html);
-  expect(html).toMatchSnapshot();
-});
-
 test("test <code> element serializes and adds 'notranslate' class to element as backticks in MDX", async () => {
   const mdx = `
 \`agent.report_custom_element\`
 `;
 
   const html = await serializeMDX(mdx);
-  console.log('backticks -', html);
+
   expect(html).toMatchSnapshot();
 });

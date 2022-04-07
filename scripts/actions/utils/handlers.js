@@ -297,12 +297,4 @@ module.exports = {
     deserialize: deserializeComponent,
     serialize: serializeComponent,
   },
-  code: {
-    deserialize: deserializeComponent,
-    serialize: (h, node) =>
-      serializeComponent(h, node, {
-        classNames: 'notranslate',
-        wrapChildren: false,
-      }),
-  },
 };
