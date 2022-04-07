@@ -11,4 +11,4 @@ Today, you’ll be able to do all of this and more with New Relic CodeStream. We
 
 With a better understanding and prioritization of errors and issues from within your code, technical teams can reduce technical debt every sprint and efficiently respond to critical errors before end-users are affected.
 
-<iframe width="560" height="315" src="https://www.youtube.com/embed?v=LfH7p76Cvro" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+<iframe width="560" height="315" src="https://www.youtube.com/embed/LfH7p76Cvro" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
