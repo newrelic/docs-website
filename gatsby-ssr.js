@@ -5,3 +5,4 @@
  */
 
 export { default as wrapPageElement } from './gatsby/wrap-page-element';
+export { default as onPreRenderHtml } from './gatsby/on-pre-render-html';
