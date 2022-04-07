@@ -7,6 +7,7 @@ const path = require('path');
 const frontmatter = require('@github-docs/frontmatter');
 const { Command } = require('commander');
 const { prop } = require('../utils/functional');
+const { get } = require('lodash');
 
 const DOCS_URL_REGEXP = /^(?=\${DOCS})(.*)'/g;
 
@@ -60,14 +61,6 @@ const getCommandLineOptions = () => {
   return program.opts();
 };
 
-const validateId = async (dataSourceId) => {
-  const { data } = await fetchNRGraphqlResults({
-    queryString: DATASOURCE_ID_QUERY,
-  });
-  const ids = data.actor?.nr1Catalog?.search?.results.map(({ id }) => id);
-  return ids.some((id) => dataSourceId === id);
-};
-
 // const writeIdsToDocs = async () => {
 //   const { data } = await fetchNRGraphqlResults({
 //     queryString: DATASOURCE_DOCS_URL_QUERY,
@@ -105,7 +98,7 @@ const getFileFrontmatter = (mdxFile) => {
   const contents = fs.readFileSync(path.join(process.cwd(), mdxFile));
   const { data } = frontmatter(contents);
 
-  return { dataSource: data?.dataSource };
+  return data;
 };
 
 const main = async () => {
@@ -125,12 +118,35 @@ const main = async () => {
       .map(prop('filename'));
 
     const mdxFileFrontmatter = mdxFileData.map(getFileFrontmatter);
-
-    const idMismatches = await Promise.all(
-      mdxFileFrontmatter.map(async ({ dataSource }) => validateId(dataSource))
+    const mdxFilesWithDatasources = mdxFileFrontmatter.filter(
+      ({ dataSource }) => dataSource !== undefined
     );
 
-    console.log(idMismatches);
+    if (mdxFilesWithDatasources.length === 0) {
+      return console.log('No files with data sources updated');
+    }
+
+    const { data } = await fetchNRGraphqlResults({
+      queryString: DATASOURCE_ID_QUERY,
+    });
+    const ids = get(data, 'actor.nr1Catalog.search.results')?.map(
+      ({ id }) => id
+    );
+
+    const invalidIds = mdxFilesWithDatasources.filter(({ dataSource }) => {
+      const includesId = ids.includes(dataSource);
+
+      return !includesId;
+    });
+
+    if (invalidIds.length === 0) {
+      return console.log(`All ids match existing data sources`);
+    }
+    if (invalidIds.length > 0) {
+      console.error(`ERROR: Found matching ids`);
+      console.error(`id should be one of existing unique dataSource ids`);
+      process.exit(1);
+    }
   }
 };
 
