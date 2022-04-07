@@ -6,9 +6,9 @@ const { parse } = require('node-html-parser');
 const frontmatter = require('remark-frontmatter');
 const yaml = require('js-yaml');
 const unified = require('unified');
-const remarkParse = require('remark-parse');
 const remarkMdx = require('remark-mdx');
 const remarkMdxjs = require('remark-mdxjs');
+const remarkParse = require('remark-parse');
 const remarkStringify = require('remark-stringify');
 const fencedCodeBlock = require('../../../codemods/fencedCodeBlock');
 
@@ -121,6 +121,7 @@ const writeIdsToDocs = async () => {
         .use(frontmatter, ['yaml'])
         .use(fencedCodeBlock)
         .use(updateFrontMatter);
+
       const { contents } = await processor.process(fileData);
       fs.writeFileSync(filePath, contents, 'utf-8');
     }
