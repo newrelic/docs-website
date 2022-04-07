@@ -47,7 +47,14 @@ const BasicDoc = ({ data, location, pageContext }) => {
   }, [mdxAST]);
 
   const isMobileScreen = useMedia('(max-width: 1240px)');
-  const { title, metaDescription, type, tags, translationType } = frontmatter;
+  const {
+    title,
+    metaDescription,
+    type,
+    tags,
+    translationType,
+    dataSource,
+  } = frontmatter;
 
   return (
     <>
@@ -57,6 +64,7 @@ const BasicDoc = ({ data, location, pageContext }) => {
         description={metaDescription}
         type={type ? TYPES.BASIC_PAGE[type] : TYPES.BASIC_PAGE.default}
         tags={tags}
+        dataSource={dataSource}
         disableSwiftype={disableSwiftype}
       />
       <div
@@ -138,6 +146,7 @@ export const pageQuery = graphql`
         type
         tags
         translationType
+        dataSource
       }
       fields {
         fileRelativePath
