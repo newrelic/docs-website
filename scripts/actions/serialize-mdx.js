@@ -6,6 +6,7 @@ const frontmatter = require('remark-frontmatter');
 const remarkMdx = require('remark-mdx');
 const remarkMdxjs = require('remark-mdxjs');
 const remark2rehype = require('remark-rehype');
+const addClasses = require('rehype-add-classes');
 const html = require('rehype-stringify');
 const format = require('rehype-format');
 const customHeadingIds = require('../../plugins/gatsby-remark-custom-heading-ids/utils/visitor');
@@ -39,7 +40,11 @@ const processor = unified()
     },
   })
   .use(format)
-  .use(html);
+  .use(html)
+  .use(addClasses, {
+    // adds notranslate class to <code> elements
+    code: 'notranslate',
+  });
 
 const serializeMDX = async (mdx) => {
   const { contents } = await processor.process(mdx);
