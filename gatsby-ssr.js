@@ -3,7 +3,7 @@
  *
  * See: https://www.gatsbyjs.org/   docs/ssr-apis/
  */
-import React from 'react';
+const React = require("react")
 
 const addTwitterTag = [
     <script>
@@ -24,11 +24,10 @@ const addTwitterTag = [
     </script>
 ]
   
-exports.onRenderBody = ({
+export default onRenderBody = ({
     setPostBodyComponents
 }) => {
     setPostBodyComponents(addTwitterTag)
     }
 
-//export { default as wrapPageElement } from './gatsby/wrap-page-element';
-//export { default as setPostBody } from './gatsby/on-render-body-html';
+export { default as wrapPageElement } from './gatsby/wrap-page-element';
