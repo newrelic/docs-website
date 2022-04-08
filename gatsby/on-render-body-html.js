@@ -1,19 +1,12 @@
 import React from 'react';
 
-const onPreRenderHtml = ({
-  getPostBodyComponents,
-  replacePostBodyComponents,
-}) => {
-  console.log('test');
-
-  replacePostBodyComponents([
-    ...getPostBodyComponents(),
-    <script>
-      !function(e,t,n,s,u,a)
-      {e.twq ||
-        ((s = e.twq = function () {
-          s.exe ? s.exe.apply(s, arguments) : s.queue.push(arguments);
-        }),
+const setPostBody = [
+  <script>
+    !function(e,t,n,s,u,a)
+    {e.twq ||
+      ((s = e.twq = function () {
+        s.exe ? s.exe.apply(s, arguments) : s.queue.push(arguments);
+      }),
         (s.version = '1.1'),
         (s.queue = []),
         (u = t.createElement(n)),
@@ -23,8 +16,11 @@ const onPreRenderHtml = ({
         a.parentNode.insertBefore(u, a))}
       (window,document,'script'); // Insert Twitter Pixel ID and Standard Event
       data below twq('init','o73vi'); twq('track','PageView');
-    </script>,
-  ]);
-};
+    </script>
+]
 
-export default onPreRenderHtml;
+exports.onRenderBody = ({
+  setPostBody
+}) => {
+  setPostBodyComponents(setPostBody)
+}
