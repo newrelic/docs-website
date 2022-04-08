@@ -1,13 +1,13 @@
 ---
-name: device
+name: city
 type: attribute
 events:
   - Mobile
   - MobileSession
   - MobileHandledException
+  - MobileCrash
   - MobileRequest
   - MobileRequestError
-  - MobileCrash
 ---
 
-The specific type of the device: iPhone 8, iPad Pro, etc. Duplicate of `deviceType`.
+The city in which the event occurred, such as Portland or Seattle.

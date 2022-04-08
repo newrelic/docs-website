@@ -2,7 +2,12 @@
 name: deviceName
 type: attribute
 events:
-  - MobileCrash
+    - Mobile
+    - MobileSession
+    - MobileHandledException
+    - MobileCrash
+    - MobileRequest
+    - MobileRequestError
 ---
 
 The device's name.
