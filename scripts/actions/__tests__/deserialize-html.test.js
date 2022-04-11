@@ -195,3 +195,13 @@ The Varnish Cache integration collects both metrics(<b>M</b>) and inventory(<b>I
 
   expect(mdx).toEqual(input.trim());
 });
+
+test('deserialize html with backticks as <code>', async () => {
+  const input = `
+\`test\`
+`;
+
+  const mdx = await deserializeHTML(await serializeMDX(input));
+
+  expect(mdx).toEqual(input.trim());
+});
