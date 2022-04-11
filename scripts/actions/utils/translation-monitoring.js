@@ -1,0 +1,85 @@
+'use strict';
+
+const fetch = require('node-fetch');
+
+const NEW_RELIC_ACCOUNT_ID = process.env.NEW_RELIC_ACCOUNT_ID;
+const NEW_RELIC_LICENSE_KEY = process.env.NEW_RELIC_LICENSE_KEY;
+
+const CUSTOM_EVENT = {
+  TRANSLATION_FILE_EVENT: 'TranslationFile',
+  TRANSLATION_JOB_EVENT: 'TranslationJob',
+};
+
+/**
+ * Helper function to make an API request to the Events API.
+ *
+ * @param {string} key New Relic license key for the account
+ * @param {string} accountId The New Relic account to send the request to
+ * @param {Object} data The data to be sent
+ * @returns {Promise<boolean>} Whether or not the request was (eventually) successful
+ */
+const apiRequest = async (key, accountId, data) => {
+  const url = `https://staging-insights-collector.newrelic.com/v1/accounts/${accountId}/events`;
+
+  if (!NEW_RELIC_LICENSE_KEY) {
+    console.error('NEW_RELIC_LICENSE_KEY is not set');
+    return false;
+  }
+
+  try {
+    await fetch(url, {
+      method: 'POST',
+      body: JSON.stringify(data),
+      headers: {
+        'Content-Type': 'application/json',
+        'Api-Key': key,
+      },
+    });
+
+    return true;
+  } catch (e) {
+    /* eslint-disable-next-line no-console */
+    console.error('Unable to track custom event:', data, e);
+
+    return false;
+  }
+};
+
+const trackTranslationFileEvent = async ({
+  projectId,
+  workflow,
+  slug,
+  jobId,
+  ...metadata
+}) => {
+  return apiRequest(NEW_RELIC_LICENSE_KEY, NEW_RELIC_ACCOUNT_ID, {
+    eventType: CUSTOM_EVENT.TRANSLATION_FAILURE,
+    account: NEW_RELIC_ACCOUNT_ID,
+    projectId,
+    workflow,
+    slug,
+    jobId,
+    ...metadata,
+  });
+};
+
+const trackTranslationJobEvent = async ({
+  projectId,
+  workflow,
+  jobId,
+  ...metadata
+}) => {
+  return apiRequest(NEW_RELIC_LICENSE_KEY, NEW_RELIC_ACCOUNT_ID, {
+    eventType: CUSTOM_EVENT.TRANSLATION_FAILURE,
+    account: NEW_RELIC_ACCOUNT_ID,
+    projectId,
+    workflow,
+    jobId,
+    ...metadata,
+  });
+};
+
+module.exports = {
+  trackTranslationJobEvent,
+  trackTranslationFileEvent,
+};
