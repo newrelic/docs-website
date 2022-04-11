@@ -8,4 +8,4 @@ events:
   - NrIntegrationError
 ---
 
-The HTTP response code associated with the transaction. For some agents, this has been replaced with `http.statusCode`. 
+The HTTP response code associated with the transaction. Some agents use `http.statusCode`, which is equivalent.
