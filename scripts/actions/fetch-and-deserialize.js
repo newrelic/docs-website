@@ -9,8 +9,13 @@ const deserializedHtml = require('./deserialize-html');
 const createDirectories = require('../utils/migrate/create-directories');
 const { getAccessToken } = require('./utils/vendor-request');
 const { LOCALE_IDS } = require('./utils/constants');
+const { trackTranslationError } = require('./utils/translation-monitoring');
 
 const projectId = process.env.TRANSLATION_VENDOR_PROJECT;
+const defaultTrackingMetadata = {
+  projectId,
+  workflow: 'checkTranslationsAndDeserialize',
+};
 
 /**
  * @typedef {Object[]} FileUriBatches
@@ -104,6 +109,7 @@ const fetchTranslatedFilesZip = (locale) => {
           4
         )}`
       );
+
       return null;
     }
 
@@ -173,6 +179,13 @@ const deserializeHtmlToMdx = (locale) => {
         locale,
       };
     } catch (ex) {
+      trackTranslationError({
+        ...defaultTrackingMetadata,
+        slug: completePath,
+        locale,
+        error: ex,
+        errorMessage: `Failed to deserialize: ${contentPath}`,
+      });
       console.log(`Failed to deserialize: ${contentPath}`);
       console.log(ex);
 

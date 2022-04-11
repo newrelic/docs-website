@@ -6,8 +6,8 @@ const NEW_RELIC_ACCOUNT_ID = process.env.NEW_RELIC_ACCOUNT_ID;
 const NEW_RELIC_LICENSE_KEY = process.env.NEW_RELIC_LICENSE_KEY;
 
 const CUSTOM_EVENT = {
-  TRANSLATION_FILE_EVENT: 'TranslationFile',
-  TRANSLATION_JOB_EVENT: 'TranslationJob',
+  TRANSLATION: 'TranslationWorkflow',
+  TRANSLATION_ERROR: 'TranslationWorkflowError',
 };
 
 /**
@@ -45,41 +45,39 @@ const apiRequest = async (key, accountId, data) => {
   }
 };
 
-const trackTranslationFileEvent = async ({
+const trackTranslationEvent = async ({
   projectId,
   workflow,
-  slug,
-  jobId,
+  target,
   ...metadata
 }) => {
   return apiRequest(NEW_RELIC_LICENSE_KEY, NEW_RELIC_ACCOUNT_ID, {
-    eventType: CUSTOM_EVENT.TRANSLATION_FAILURE,
+    eventType: CUSTOM_EVENT.TRANSLATION,
     account: NEW_RELIC_ACCOUNT_ID,
     projectId,
     workflow,
-    slug,
-    jobId,
+    target,
     ...metadata,
   });
 };
 
-const trackTranslationJobEvent = async ({
+const trackTranslationError = async ({
   projectId,
   workflow,
-  jobId,
+  target,
   ...metadata
 }) => {
   return apiRequest(NEW_RELIC_LICENSE_KEY, NEW_RELIC_ACCOUNT_ID, {
-    eventType: CUSTOM_EVENT.TRANSLATION_FAILURE,
+    eventType: CUSTOM_EVENT.TRANSLATION_ERROR,
     account: NEW_RELIC_ACCOUNT_ID,
     projectId,
     workflow,
-    jobId,
+    target,
     ...metadata,
   });
 };
 
 module.exports = {
-  trackTranslationJobEvent,
-  trackTranslationFileEvent,
+  trackTranslationEvent,
+  trackTranslationError,
 };

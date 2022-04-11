@@ -1,4 +1,4 @@
-/// <reference path="./translation_workflow/models/typedefs.js" />
+// / <reference path="./translation_workflow/models/typedefs.js" />
 'use strict';
 
 const fs = require('fs');
@@ -6,8 +6,17 @@ const path = require('path');
 
 const { vendorRequest, uploadFile } = require('./utils/vendor-request');
 const Database = require('./translation_workflow/database');
+const {
+  trackTranslationError,
+  trackTranslationEvent,
+} = require('./utils/translation-monitoring');
 
 const PROJECT_ID = process.env.TRANSLATION_VENDOR_PROJECT;
+
+const defaultTrackingMetadata = {
+  projectId: PROJECT_ID,
+  workflow: 'sendAndUpdateTranslationQueue',
+};
 
 /**
  *
@@ -39,22 +48,18 @@ const getReadyToGoTranslationsForEachLocale = async () => {
   const readyToGoTranslations = pendingTranslations
     .filter(
       (pendingTranslation) =>
-        !Boolean(
-          inProgressTranslations.find(
-            (inProgressTranslation) =>
-              pendingTranslation.slug === inProgressTranslation.slug &&
-              pendingTranslation.locale === inProgressTranslation.locale
-          )
+        !inProgressTranslations.find(
+          (inProgressTranslation) =>
+            pendingTranslation.slug === inProgressTranslation.slug &&
+            pendingTranslation.locale === inProgressTranslation.locale
         )
     )
     .filter(
       (pendingTranslation) =>
-        !Boolean(
-          erroredTranslations.find(
-            (erroredTranslation) =>
-              pendingTranslation.slug === erroredTranslation.slug &&
-              pendingTranslation.locale === erroredTranslation.locale
-          )
+        !erroredTranslations.find(
+          (erroredTranslation) =>
+            pendingTranslation.slug === erroredTranslation.slug &&
+            pendingTranslation.locale === erroredTranslation.locale
         )
     )
     .filter((translation) => {
@@ -140,7 +145,7 @@ const createBatches = async (jobRecords, translationsPerLocale) => {
         ), // for the job's locale, grab slugs corresponding to that locale
       };
 
-      var createBatchResponse = await vendorRequest({
+      const createBatchResponse = await vendorRequest({
         method: 'POST',
         endpoint: `/job-batches-api/v2/projects/${PROJECT_ID}/batches`,
         body,
@@ -182,6 +187,16 @@ const uploadFiles = async (batches, translationsPerLocale) => {
           successCount += 1;
         }
       } catch (error) {
+        trackTranslationError({
+          target: 'file',
+          slug: translation.slug,
+          locale: batch.locale,
+          jobId: batch.jobId,
+          error,
+          errorMessage: `Error occured during upload process for: ${translation.slug}`,
+          stackTrace: error.stack,
+          ...defaultTrackingMetadata,
+        });
         console.log(
           `Error occured during upload process for: ${translation.slug}`
         );
@@ -194,6 +209,15 @@ const uploadFiles = async (batches, translationsPerLocale) => {
     if (successCount > 0) {
       // if at least one file was successfully uploaded, set job to in progress
       await Database.updateJob(batch.jobId, { status: 'IN_PROGRESS' });
+
+      trackTranslationEvent({
+        target: 'job',
+        jobStatus: 'IN_PROGRESS',
+        jobId: batch.jobId,
+        locale: batch.locale,
+        successCount,
+        ...defaultTrackingMetadata,
+      });
     }
   }
 };
@@ -217,7 +241,20 @@ const main = async () => {
       translationsPerLocale
     );
     await uploadFiles(createdBatches, translationsPerLocale);
+
+    trackTranslationEvent({
+      target: 'workflow',
+      createdJobsCount: createdJobs.length,
+      createdBatchesCount: createdBatches.length,
+      ...defaultTrackingMetadata,
+    });
   } catch (error) {
+    trackTranslationError({
+      target: 'workflow',
+      error,
+      stackTrace: error.stack,
+      ...defaultTrackingMetadata,
+    });
     console.log(`Error encountered: ${error}`);
     console.log(error.stack);
     process.exitCode = 1;

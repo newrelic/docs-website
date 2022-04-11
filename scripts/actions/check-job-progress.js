@@ -10,8 +10,17 @@ const {
 const { vendorRequest } = require('./utils/vendor-request');
 const { fetchAndDeserializeFiles } = require('./fetch-and-deserialize');
 const { configuration } = require('./configuration');
+const {
+  trackTranslationError,
+  trackTranslationEvent,
+} = require('./utils/translation-monitoring.js');
 
 const PROJECT_ID = configuration.TRANSLATION.VENDOR_PROJECT;
+
+const defaultTrackingMetadata = {
+  projectId: PROJECT_ID,
+  workflow: 'checkAndDeserialize',
+};
 
 const uniq = (arr) => [...new Set(arr)];
 const prop = (key) => (x) => x[key];
@@ -90,6 +99,12 @@ const getBatchStatus = async ({ batchUid, jobId }) => {
 
     if (!locale) {
       log(`Unable to determine locale for batch ${batchUid}`, 'warn');
+      await trackTranslationError({
+        ...defaultTrackingMetadata,
+        target: 'job',
+        jobId,
+        errorMessage: `Unable to determine locale for batch ${batchUid}`,
+      });
     }
 
     // get the information about the job this batch is associated with
@@ -109,6 +124,12 @@ const getBatchStatus = async ({ batchUid, jobId }) => {
     };
   } catch (error) {
     const { errors } = JSON.parse(error.message);
+    await trackTranslationError({
+      ...defaultTrackingMetadata,
+      target: 'job',
+      error,
+      jobId,
+    });
 
     // if the batch / job cant be found, return null and process the rest
     if (errors.map(prop('key')).includes('batch.not.found')) {
@@ -128,17 +149,24 @@ const getBatchStatus = async ({ batchUid, jobId }) => {
  * @param {SlugStatus[]} erroredStatuses
  * @returns void
  */
-const logErroredStatuses = (erroredStatuses) => {
-  erroredStatuses.forEach(({ ok, slug }) => {
-    if (!ok) {
-      return log(`Translation errored: ${slug}`, 'warn', 4);
-    }
-    return log(
-      `The translation ${slug} is ok and should be set to COMPLETED`,
-      'warn',
-      4
-    );
-  });
+const logErroredStatuses = async (erroredStatuses) => {
+  return Promise.all(
+    erroredStatuses.map(async ({ ok, slug, jobId, locale }) => {
+      const errorMessage = ok
+        ? `The translation ${slug} is ok and should be set to COMPLETED`
+        : `Translation errored: ${slug}`;
+
+      await trackTranslationError({
+        errorMessage,
+        ...defaultTrackingMetadata,
+        slug,
+        jobId,
+        locale,
+        target: 'file',
+      });
+      return log(errorMessage, 'warn', 4);
+    })
+  );
 };
 
 /**
@@ -259,7 +287,7 @@ const main = async () => {
 
     const erroredStatuses = slugStatuses.filter(({ ok }) => !ok);
 
-    logErroredStatuses(erroredStatuses);
+    await logErroredStatuses(erroredStatuses);
     await updateTranslationRecords(slugStatuses);
 
     const results = aggregateStatuses(slugStatuses);
@@ -274,10 +302,23 @@ const main = async () => {
       `::set-output name=failedTranslations::${results.totalFailures}`
     );
 
+    trackTranslationEvent({
+      target: 'workflow',
+      ...results,
+      ...defaultTrackingMetadata,
+    });
+
     await updateJobRecords(results.jobStatuses);
 
     process.exit(0);
   } catch (error) {
+    trackTranslationError({
+      target: 'workflow',
+      error,
+      errorMessage: `Unable to check job status`,
+      ...defaultTrackingMetadata,
+    });
+
     log(`Unable to check job status`, 'warn');
     console.log(error);
     process.exit(1);
