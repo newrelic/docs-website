@@ -10,6 +10,13 @@ const CUSTOM_EVENT = {
   TRANSLATION_ERROR: 'TranslationWorkflowError',
 };
 
+// file to describe tar
+const TRACKING_TARGET = {
+  FILE: 'file',
+  JOB: 'job',
+  WORKFLOW: 'workflow',
+};
+
 /**
  * Helper function to make an API request to the Events API.
  *
@@ -80,4 +87,5 @@ const trackTranslationError = async ({
 module.exports = {
   trackTranslationEvent,
   trackTranslationError,
+  TRACKING_TARGET,
 };

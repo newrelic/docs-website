@@ -9,7 +9,10 @@ const deserializedHtml = require('./deserialize-html');
 const createDirectories = require('../utils/migrate/create-directories');
 const { getAccessToken } = require('./utils/vendor-request');
 const { LOCALE_IDS } = require('./utils/constants');
-const { trackTranslationError } = require('./utils/translation-monitoring');
+const {
+  trackTranslationError,
+  TRACKING_TARGET,
+} = require('./utils/translation-monitoring');
 
 const projectId = process.env.TRANSLATION_VENDOR_PROJECT;
 const defaultTrackingMetadata = {
@@ -179,8 +182,9 @@ const deserializeHtmlToMdx = (locale) => {
         locale,
       };
     } catch (ex) {
-      trackTranslationError({
+      await trackTranslationError({
         ...defaultTrackingMetadata,
+        target: TRACKING_TARGET.FILE,
         slug: completePath,
         locale,
         error: ex,

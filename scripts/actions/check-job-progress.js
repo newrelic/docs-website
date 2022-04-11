@@ -13,6 +13,7 @@ const { configuration } = require('./configuration');
 const {
   trackTranslationError,
   trackTranslationEvent,
+  TRACKING_TARGET,
 } = require('./utils/translation-monitoring.js');
 
 const PROJECT_ID = configuration.TRANSLATION.VENDOR_PROJECT;
@@ -101,7 +102,7 @@ const getBatchStatus = async ({ batchUid, jobId }) => {
       log(`Unable to determine locale for batch ${batchUid}`, 'warn');
       await trackTranslationError({
         ...defaultTrackingMetadata,
-        target: 'job',
+        target: TRACKING_TARGET.JOB,
         jobId,
         errorMessage: `Unable to determine locale for batch ${batchUid}`,
       });
@@ -124,10 +125,12 @@ const getBatchStatus = async ({ batchUid, jobId }) => {
     };
   } catch (error) {
     const { errors } = JSON.parse(error.message);
+
     await trackTranslationError({
       ...defaultTrackingMetadata,
-      target: 'job',
+      target: TRACKING_TARGET.JOB,
       error,
+      errorMessage: `Unable to get batch status`,
       jobId,
     });
 
@@ -157,12 +160,12 @@ const logErroredStatuses = async (erroredStatuses) => {
         : `Translation errored: ${slug}`;
 
       await trackTranslationError({
-        errorMessage,
         ...defaultTrackingMetadata,
+        errorMessage,
         slug,
         jobId,
         locale,
-        target: 'file',
+        target: TRACKING_TARGET.FILE,
       });
       return log(errorMessage, 'warn', 4);
     })
@@ -302,21 +305,21 @@ const main = async () => {
       `::set-output name=failedTranslations::${results.totalFailures}`
     );
 
-    trackTranslationEvent({
-      target: 'workflow',
-      ...results,
+    await trackTranslationEvent({
       ...defaultTrackingMetadata,
+      target: TRACKING_TARGET.WORKFLOW,
+      ...results,
     });
 
     await updateJobRecords(results.jobStatuses);
 
     process.exit(0);
   } catch (error) {
-    trackTranslationError({
-      target: 'workflow',
+    await trackTranslationError({
+      ...defaultTrackingMetadata,
+      target: TRACKING_TARGET.WORKFLOW,
       error,
       errorMessage: `Unable to check job status`,
-      ...defaultTrackingMetadata,
     });
 
     log(`Unable to check job status`, 'warn');

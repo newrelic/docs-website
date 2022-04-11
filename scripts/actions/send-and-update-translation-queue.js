@@ -9,6 +9,7 @@ const Database = require('./translation_workflow/database');
 const {
   trackTranslationError,
   trackTranslationEvent,
+  TRACKING_TARGET,
 } = require('./utils/translation-monitoring');
 
 const PROJECT_ID = process.env.TRANSLATION_VENDOR_PROJECT;
@@ -187,15 +188,14 @@ const uploadFiles = async (batches, translationsPerLocale) => {
           successCount += 1;
         }
       } catch (error) {
-        trackTranslationError({
-          target: 'file',
+        await trackTranslationError({
+          ...defaultTrackingMetadata,
+          target: TRACKING_TARGET.FILE,
           slug: translation.slug,
           locale: batch.locale,
           jobId: batch.jobId,
           error,
           errorMessage: `Error occured during upload process for: ${translation.slug}`,
-          stackTrace: error.stack,
-          ...defaultTrackingMetadata,
         });
         console.log(
           `Error occured during upload process for: ${translation.slug}`
@@ -210,9 +210,9 @@ const uploadFiles = async (batches, translationsPerLocale) => {
       // if at least one file was successfully uploaded, set job to in progress
       await Database.updateJob(batch.jobId, { status: 'IN_PROGRESS' });
 
-      trackTranslationEvent({
-        target: 'job',
-        jobStatus: 'IN_PROGRESS',
+      await trackTranslationEvent({
+        target: TRACKING_TARGET.JOB,
+        status: 'IN_PROGRESS',
         jobId: batch.jobId,
         locale: batch.locale,
         successCount,
@@ -242,18 +242,18 @@ const main = async () => {
     );
     await uploadFiles(createdBatches, translationsPerLocale);
 
-    trackTranslationEvent({
-      target: 'workflow',
+    await trackTranslationEvent({
+      ...defaultTrackingMetadata,
+      target: TRACKING_TARGET.WORKFLOW,
       createdJobsCount: createdJobs.length,
       createdBatchesCount: createdBatches.length,
-      ...defaultTrackingMetadata,
     });
   } catch (error) {
-    trackTranslationError({
-      target: 'workflow',
-      error,
-      stackTrace: error.stack,
+    await trackTranslationError({
       ...defaultTrackingMetadata,
+      target: TRACKING_TARGET.WORKFLOW,
+      error,
+      errorMessage: `Unable to send and update translation queue to vendor`,
     });
     console.log(`Error encountered: ${error}`);
     console.log(error.stack);
