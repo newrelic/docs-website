@@ -237,7 +237,8 @@ const createAST = () => {
  * on every mdx file.
  * @returns {Array} - Resolved results from Promise
  */
-const runConvertImages = async () => {
+const runConvertImages = async (paths = []) => {
+  let filePaths = [];
   const processor = unified()
     .use(remarkParse)
     .use(remarkStringify, {
@@ -251,12 +252,11 @@ const runConvertImages = async () => {
     .use(fencedCodeBlock)
     .use(convertImages);
 
-  let filePaths = process.argv.slice(2);
-  if (filePaths.length === 1) {
-    filePaths = glob.sync(path.join(process.cwd(), filePaths[0], '**/*.mdx'));
+  if (paths.length === 1) {
+    filePaths = glob.sync(path.join(process.cwd(), paths[0]));
   }
 
-  if (filePaths.length === 0) {
+  if (paths.length === 0) {
     filePaths = glob.sync(
       path.join(
         __dirname,
@@ -264,6 +264,8 @@ const runConvertImages = async () => {
       )
     );
   }
+
+  console.info('Applying codemod to the following files:', filePaths);
 
   const allResults = await Promise.all(
     filePaths.map(async (filePath) => {
@@ -275,5 +277,19 @@ const runConvertImages = async () => {
 
   return allResults;
 };
+
+// const main = async (paths) => {
+//   try {
+//     console.info('Running codemod...');
+//     await runConvertImages(paths);
+//     console.info('Completed');
+//   } catch (error) {
+//     console.warn(error);
+//   }
+// };
+
+// main([
+//   '/Users/clang/Sites/docs-website/src/i18n/content/jp/docs/accounts/accounts-billing/new-relic-one-user-management/user-management-ui-and-tasks.mdx',
+// ]);
 
 module.exports = { runConvertImages };
