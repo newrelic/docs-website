@@ -1,6 +1,4 @@
-const {
-  fetchNRGraphqlResults,
-} = require('../utils/datasource-ids/nr-graphql-helpers');
+const { fetchNRGraphqlResults } = require('../utils/nr-graphql-helpers');
 const { fetchPaginatedGHResults } = require('./utils/github-api-helpers');
 const fs = require('fs');
 const path = require('path');
