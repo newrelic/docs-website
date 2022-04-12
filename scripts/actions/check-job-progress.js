@@ -152,25 +152,17 @@ const getBatchStatus = async ({ batchUid, jobId }) => {
  * @param {SlugStatus[]} erroredStatuses
  * @returns void
  */
-const logErroredStatuses = async (erroredStatuses) => {
-  return Promise.all(
-    erroredStatuses.map(async ({ ok, slug, jobId, locale }) => {
-      const errorMessage = ok
-        ? `The translation ${slug} is ok and should be set to COMPLETED`
-        : `Translation errored: ${slug}`;
-
-      await trackTranslationError({
-        ...defaultTrackingMetadata,
-        errorMessage,
-        slug,
-        jobId,
-        locale,
-        target: TRACKING_TARGET.FILE,
-      });
-      return log(errorMessage, 'warn', 4);
-    })
-  );
-};
+ const logErroredStatuses = (erroredStatuses) => {
+  erroredStatuses.forEach(({ ok, slug }) => {
+    if (!ok) {
+      return log(`Translation errored: ${slug}`, 'warn', 4);
+    }
+    return log(
+      `The translation ${slug} is ok and should be set to COMPLETED`,
+      'warn',
+      4
+    );
+  });
 
 /**
  * @param {SlugStatus[]} slugStatuses
@@ -290,7 +282,7 @@ const main = async () => {
 
     const erroredStatuses = slugStatuses.filter(({ ok }) => !ok);
 
-    await logErroredStatuses(erroredStatuses);
+    logErroredStatuses(erroredStatuses);
     await updateTranslationRecords(slugStatuses);
 
     const results = aggregateStatuses(slugStatuses);
