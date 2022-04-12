@@ -1,26 +1,15 @@
-const React = require('react');
+const unified = require('unified');
+const rehypeParse = require('rehype-parse');
+const rehypeStringify = require('rehype-stringify');
 
-const onRenderBody = ({ setPostBodyComponents }) => {
-  const addTwitterTag = (
-    <script>
-      !function(e,t,n,s,u,a)
-      {e.twq ||
-        ((s = e.twq = function () {
-          s.exe ? s.exe.apply(s, arguments) : s.queue.push(arguments);
-        }),
-        (s.version = '1.1'),
-        (s.queue = []),
-        (u = t.createElement(n)),
-        (u.async = !0),
-        (u.src = '//static.ads-twitter.com/uwt.js'),
-        (a = t.getElementsByTagName(n)[0]),
-        a.parentNode.insertBefore(u, a))}
-      (window,document,'script'); // Insert Twitter Pixel ID and Standard Event
-      data below twq('init','o73vi'); twq('track','PageView');
-    </script>
+const onRenderBody = async ({ setPostBodyComponents }) => {
+  const addTwitterTag = "<script async>console.log('test')</script>";
+
+  const testTag = String(
+    await unified().use(rehypeParse).use(rehypeStringify).process(addTwitterTag)
   );
 
-  setPostBodyComponents([addTwitterTag]);
+  setPostBodyComponents([testTag]);
 };
 
 export default onRenderBody;
