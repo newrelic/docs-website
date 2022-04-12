@@ -7,4 +7,4 @@ events:
   - MobileCrash
 ---
 
-The type of data, session, crash or interaction.
+The type of data: session, crash, or interaction.
