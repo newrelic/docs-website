@@ -152,7 +152,7 @@ const getBatchStatus = async ({ batchUid, jobId }) => {
  * @param {SlugStatus[]} erroredStatuses
  * @returns void
  */
- const logErroredStatuses = (erroredStatuses) => {
+const logErroredStatuses = (erroredStatuses) => {
   erroredStatuses.forEach(({ ok, slug }) => {
     if (!ok) {
       return log(`Translation errored: ${slug}`, 'warn', 4);
@@ -163,6 +163,7 @@ const getBatchStatus = async ({ batchUid, jobId }) => {
       4
     );
   });
+};
 
 /**
  * @param {SlugStatus[]} slugStatuses
