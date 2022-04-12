@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 'use strict';
 const {
   getJobs,
@@ -23,7 +24,6 @@ const defaultTrackingMetadata = {
   workflow: 'checkAndDeserialize',
 };
 
-const uniq = (arr) => [...new Set(arr)];
 const prop = (key) => (x) => x[key];
 
 /**

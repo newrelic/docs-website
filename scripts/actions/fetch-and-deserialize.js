@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 'use strict';
 const AdmZip = require('adm-zip');
 const vfile = require('vfile');
@@ -68,7 +69,7 @@ const createFileUriBatches = ({ fileUris }, batchSize = 50) => {
   }
 
   // cleanup the last batch
-  if (currentBatch.length != 0) {
+  if (currentBatch.length !== 0) {
     batches.push({ fileUris: currentBatch });
   }
 

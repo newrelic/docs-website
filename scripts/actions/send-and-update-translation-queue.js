@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 // / <reference path="./translation_workflow/models/typedefs.js" />
 'use strict';
 
@@ -112,9 +113,9 @@ const createJobs = async (locales) => {
     })
   );
 
-  return await Promise.all(
+  return Promise.all(
     jobResponses.map(async (jobResponse) => {
-      return await Database.addJob({
+      return Database.addJob({
         job_uid: jobResponse.translationJobUid,
         status: 'PENDING',
         locale: jobResponse.targetLocaleIds[0],
@@ -257,6 +258,7 @@ const main = async () => {
     });
     console.log(`Error encountered: ${error}`);
     console.log(error.stack);
+    // eslint-disable-next-line require-atomic-updates
     process.exitCode = 1;
   }
 };

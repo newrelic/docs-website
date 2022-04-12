@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 'use strict';
 
 const fetch = require('node-fetch');
@@ -30,6 +31,7 @@ const apiRequest = async (key, accountId, data) => {
 
   if (!NEW_RELIC_LICENSE_KEY) {
     console.error('NEW_RELIC_LICENSE_KEY is not set');
+
     return false;
   }
 
@@ -45,7 +47,6 @@ const apiRequest = async (key, accountId, data) => {
 
     return true;
   } catch (e) {
-    /* eslint-disable-next-line no-console */
     console.error('Unable to track custom event:', data, e);
 
     return false;

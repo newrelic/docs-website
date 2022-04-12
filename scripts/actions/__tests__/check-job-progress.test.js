@@ -15,6 +15,7 @@ jest.mock('../translation_workflow/database');
 jest.mock('../utils/vendor-request');
 jest.mock('../fetch-and-deserialize');
 jest.mock('../configuration');
+jest.mock('../utils/translation-monitoring');
 
 describe('check-jobs-progress tests', () => {
   beforeEach(() => {
@@ -160,7 +161,7 @@ describe('check-jobs-progress tests', () => {
     test('logs errored translations to the console', async () => {
       console.log = jest.fn();
       const erroredStatuses = [{ ok: false, slug: 'fake_slug.txt' }];
-      logErroredStatuses(erroredStatuses);
+      await logErroredStatuses(erroredStatuses);
       expect(console.log).toHaveBeenCalledWith(
         '    [!]Translation errored: fake_slug.txt'
       );
@@ -173,7 +174,7 @@ describe('check-jobs-progress tests', () => {
         { ok: false, slug: 'fake_slug_2.txt' },
         { ok: false, slug: 'fake_slug_3.txt' },
       ];
-      logErroredStatuses(erroredStatuses);
+      await logErroredStatuses(erroredStatuses);
       expect(console.log).toHaveBeenCalledWith(
         '    [!]Translation errored: fake_slug.txt'
       );
@@ -191,7 +192,7 @@ describe('check-jobs-progress tests', () => {
         { ok: false, slug: 'fake_slug.txt' },
         { ok: true, slug: 'fake_slug_2.txt' },
       ];
-      logErroredStatuses(erroredStatuses);
+      await logErroredStatuses(erroredStatuses);
       expect(console.log).toHaveBeenCalledWith(
         '    [!]Translation errored: fake_slug.txt'
       );
