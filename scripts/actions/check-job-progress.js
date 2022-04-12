@@ -301,7 +301,8 @@ const main = async () => {
     await trackTranslationEvent({
       ...defaultTrackingMetadata,
       target: TRACKING_TARGET.WORKFLOW,
-      ...results,
+      totalSuccesses: results.totalSuccesses,
+      totalFailures: results.totalFailures,
     });
 
     await updateJobRecords(results.jobStatuses);
