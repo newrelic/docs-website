@@ -265,7 +265,7 @@ const runConvertImages = async (paths = []) => {
     );
   }
 
-  console.info('Applying codemod to the following files:', filePaths);
+  console.log('Applying codemod to the following files:', filePaths);
 
   const allResults = await Promise.all(
     filePaths.map(async (filePath) => {
@@ -277,19 +277,5 @@ const runConvertImages = async (paths = []) => {
 
   return allResults;
 };
-
-// const main = async (paths) => {
-//   try {
-//     console.info('Running codemod...');
-//     await runConvertImages(paths);
-//     console.info('Completed');
-//   } catch (error) {
-//     console.warn(error);
-//   }
-// };
-
-// main([
-//   '/Users/clang/Sites/docs-website/src/i18n/content/jp/docs/accounts/accounts-billing/new-relic-one-user-management/user-management-ui-and-tasks.mdx',
-// ]);
 
 module.exports = { runConvertImages };
