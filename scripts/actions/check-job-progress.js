@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 'use strict';
 const {
   getJobs,
@@ -10,10 +11,19 @@ const {
 const { vendorRequest } = require('./utils/vendor-request');
 const { fetchAndDeserializeFiles } = require('./fetch-and-deserialize');
 const { configuration } = require('./configuration');
+const {
+  trackTranslationError,
+  trackTranslationEvent,
+  TRACKING_TARGET,
+} = require('./utils/translation-monitoring.js');
 
 const PROJECT_ID = configuration.TRANSLATION.VENDOR_PROJECT;
 
-const uniq = (arr) => [...new Set(arr)];
+const defaultTrackingMetadata = {
+  projectId: PROJECT_ID,
+  workflow: 'checkAndDeserialize',
+};
+
 const prop = (key) => (x) => x[key];
 
 /**
@@ -90,6 +100,12 @@ const getBatchStatus = async ({ batchUid, jobId }) => {
 
     if (!locale) {
       log(`Unable to determine locale for batch ${batchUid}`, 'warn');
+      await trackTranslationError({
+        ...defaultTrackingMetadata,
+        target: TRACKING_TARGET.JOB,
+        jobId,
+        errorMessage: `Unable to determine locale for batch ${batchUid}`,
+      });
     }
 
     // get the information about the job this batch is associated with
@@ -109,6 +125,14 @@ const getBatchStatus = async ({ batchUid, jobId }) => {
     };
   } catch (error) {
     const { errors } = JSON.parse(error.message);
+
+    await trackTranslationError({
+      ...defaultTrackingMetadata,
+      target: TRACKING_TARGET.JOB,
+      error,
+      errorMessage: `Unable to get batch status`,
+      jobId,
+    });
 
     // if the batch / job cant be found, return null and process the rest
     if (errors.map(prop('key')).includes('batch.not.found')) {
@@ -274,10 +298,24 @@ const main = async () => {
       `::set-output name=failedTranslations::${results.totalFailures}`
     );
 
+    await trackTranslationEvent({
+      ...defaultTrackingMetadata,
+      target: TRACKING_TARGET.WORKFLOW,
+      totalSuccesses: results.totalSuccesses,
+      totalFailures: results.totalFailures,
+    });
+
     await updateJobRecords(results.jobStatuses);
 
     process.exit(0);
   } catch (error) {
+    await trackTranslationError({
+      ...defaultTrackingMetadata,
+      target: TRACKING_TARGET.WORKFLOW,
+      error,
+      errorMessage: `Unable to check job status`,
+    });
+
     log(`Unable to check job status`, 'warn');
     console.log(error);
     process.exit(1);
