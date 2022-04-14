@@ -32,7 +32,7 @@ In our ongoing commitment to constantly innovate and build more integrations for
     "url": "syslog://logs.example.com"
   }
 ```  
-5. Launch [New Relic Logs](https://one.newrelic.com/launcher/logger.log-launcher) and click **Add more data sources**.
+5. Launch [**Logs** in **one.newrelic.com**](https://one.newrelic.com/launcher/logger.log-launcher), and click **Add more data sources**.
 
 ![add-more-data-sources-button.png](./images/add-more-data-sources-button.png "Add more data sources button")
 

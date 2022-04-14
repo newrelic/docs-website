@@ -1,20 +1,73 @@
-import React from 'react';
-import PropTypes from 'prop-types';
 import {
-  MarkdownContainer,
-  MDX,
   ExternalLink,
   Link,
+  MDX,
+  MarkdownContainer,
 } from '@newrelic/gatsby-theme-newrelic';
+
 import LandingPageHero from './LandingPageHero';
 import LandingPageTile from './LandingPageTile';
 import LandingPageTileGrid from './LandingPageTileGrid';
-import TechTile from './TechTile';
-import MDXTechTileGrid from './MDXTechTileGrid';
 import MDXButton from './MDXButton';
 import MDXButtonGroup from './MDXButtonGroup';
+import MDXTechTileGrid from './MDXTechTileGrid';
+import PropTypes from 'prop-types';
+import React from 'react';
+import TechTile from './TechTile';
 
 const defaultComponents = {
+  img: (props) =>
+    props.style || props.variant === 'TechTile' ? (
+      <img
+        width={props.width ? props.width : 'inherit'}
+        src={props.src}
+        alt={props.alt ? props.alt : 'Docs site'}
+        title={props.title}
+        style={
+          props.style
+            ? { ...props.style, margin: '0 0.25rem' }
+            : { margin: '0 0.25rem' }
+        }
+      />
+    ) : (
+      <span
+        style={{
+          position: 'relative',
+          display: 'block',
+          textAlign: 'center',
+          margin: '1em 0',
+        }}
+      >
+        <a
+          href={props.src}
+          target="_blank"
+          rel="noreferrer"
+          style={{ display: 'inline-block' }}
+        >
+          <img
+            width={props.width ? props.width : 'auto'}
+            src={props.src}
+            alt={props.alt ? props.alt : 'Docs site'}
+            title={props.title}
+            style={
+              props.style
+                ? {
+                    ...props.style,
+                    borderRadius: '0.25rem',
+                    maxWidth: '100%',
+                    margin: '0 0.25rem',
+                  }
+                : {
+                    borderRadius: '0.25rem',
+                    maxWidth: '100%',
+                    margin: '0 0.25rem',
+                  }
+            }
+            loading="lazy"
+          />
+        </a>
+      </span>
+    ),
   ExternalLink: (props) => (
     <ExternalLink {...props} onClick={(e) => e.stopPropagation()} />
   ),

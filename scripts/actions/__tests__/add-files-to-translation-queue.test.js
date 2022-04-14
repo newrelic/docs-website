@@ -61,6 +61,7 @@ describe('add-files-to-translation-queue tests', () => {
       const toBeTranslated = getLocalizedFileData(file);
       expect(toBeTranslated).toEqual([
         { filename: '/content/bar.mdx', locale: 'ja-JP', project_id: 'HT_ID' },
+        { filename: '/content/bar.mdx', locale: 'ko-KR', project_id: 'MT_ID' },
       ]);
     });
 
@@ -72,6 +73,7 @@ describe('add-files-to-translation-queue tests', () => {
 
       expect(toBeTranslated).toEqual([
         { filename: '/content/bar.mdx', locale: 'ja-JP', project_id: 'MT_ID' },
+        { filename: '/content/bar.mdx', locale: 'ko-KR', project_id: 'MT_ID' },
       ]);
     });
 

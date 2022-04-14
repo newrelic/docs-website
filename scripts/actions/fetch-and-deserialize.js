@@ -1,21 +1,25 @@
+/* eslint-disable no-console */
 'use strict';
 const AdmZip = require('adm-zip');
 const vfile = require('vfile');
 const { writeSync } = require('to-vfile');
 const path = require('path');
-const fse = require('fs-extra');
-
 const fetch = require('node-fetch');
 
 const deserializedHtml = require('./deserialize-html');
 const createDirectories = require('../utils/migrate/create-directories');
 const { getAccessToken } = require('./utils/vendor-request');
-
-const localesMap = {
-  'ja-JP': 'jp',
-};
+const { LOCALE_IDS } = require('./utils/constants');
+const {
+  trackTranslationError,
+  TRACKING_TARGET,
+} = require('./utils/translation-monitoring');
 
 const projectId = process.env.TRANSLATION_VENDOR_PROJECT;
+const defaultTrackingMetadata = {
+  projectId,
+  workflow: 'checkTranslationsAndDeserialize',
+};
 
 /**
  * @typedef {Object[]} FileUriBatches
@@ -35,38 +39,12 @@ const projectId = process.env.TRANSLATION_VENDOR_PROJECT;
  */
 
 /**
- * Method which writes translated content to the 'src/content/i18n' path, and copies images for translated files.
+ * Method which writes translated content to the 'src/content/i18n' path.
  * @param {vfile.VFile[]} vfiles
  */
 const writeFilesSync = (vfiles) => {
-  const copiedDirectories = {};
-
   vfiles.forEach((file) => {
     writeSync(file, 'utf-8');
-
-    const imageDirectory = `${path.dirname(
-      file.path.substring(file.path.indexOf('/docs/'))
-    )}/images`;
-
-    /*
-      Check to see:
-        1. have we already copied this image directory for a different file (with the same parent path)?
-        2. does the image directory exist?
-    */
-    if (
-      !(imageDirectory in copiedDirectories) &&
-      fse.existsSync(path.join('src/content/', imageDirectory))
-    ) {
-      // sync 'src/content/docs/.../images' to 'src/i18n/content/.../docs/.../images'
-      fse.copySync(
-        path.join('src/content/', imageDirectory),
-        path.join(path.dirname(file.path), '/images'),
-        {
-          overwrite: true,
-        }
-      );
-      copiedDirectories[imageDirectory] = true;
-    }
   });
 };
 
@@ -77,7 +55,7 @@ const writeFilesSync = (vfiles) => {
  * @returns {FileUriBatches}
  */
 const createFileUriBatches = ({ fileUris }, batchSize = 50) => {
-  let batches = [];
+  const batches = [];
   let currentBatch = [];
 
   for (let i = 0; i < fileUris.length; i++) {
@@ -91,7 +69,7 @@ const createFileUriBatches = ({ fileUris }, batchSize = 50) => {
   }
 
   // cleanup the last batch
-  if (currentBatch.length != 0) {
+  if (currentBatch.length !== 0) {
     batches.push({ fileUris: currentBatch });
   }
 
@@ -135,6 +113,7 @@ const fetchTranslatedFilesZip = (locale) => {
           4
         )}`
       );
+
       return null;
     }
 
@@ -178,10 +157,13 @@ const deserializeHtmlToMdx = (locale) => {
    */
   return async ({ path: contentPath, html }) => {
     const completePath = `${path.join('src/content/docs', contentPath)}.mdx`;
+    const localeKey = Object.keys(LOCALE_IDS).find(
+      (key) => LOCALE_IDS[key] === locale
+    );
 
     try {
       const localePath = path.join(
-        `src/i18n/content/${localesMap[locale]}/docs/`,
+        `src/i18n/content/${localeKey}/docs/`,
         contentPath
       );
       const mdx = await deserializedHtml(html);
@@ -198,12 +180,21 @@ const deserializeHtmlToMdx = (locale) => {
       return {
         ok: true,
         slug: completePath,
+        locale,
       };
     } catch (ex) {
+      await trackTranslationError({
+        ...defaultTrackingMetadata,
+        target: TRACKING_TARGET.FILE,
+        slug: completePath,
+        locale,
+        error: ex,
+        errorMessage: `Failed to deserialize: ${contentPath}`,
+      });
       console.log(`Failed to deserialize: ${contentPath}`);
       console.log(ex);
 
-      return { ok: false, slug: completePath };
+      return { ok: false, slug: completePath, locale };
     }
   };
 };
