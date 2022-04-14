@@ -1,12 +1,12 @@
 ---
-title: Synthetics next-generation runtime 
-summary: Reduce monitor complexity and maintain the availability and efficiency of synthetics tests with the new synthetics runtime.  
+title: Unlock simplified synthetic testing with our next-generation runtime
+summary: Reduce monitor complexity and maintain the availability and efficiency of synthetics tests with the new synthetics runtime.
 releaseDate: '2022-04-14'
 learnMoreLink: 'https://newrelic.com/blog/nerdlog/next-gen-synthetics-runtime' 
 getStartedLink: 'https://newrelic.com/lp/synthetic-monitoring'
 ---
 
-  There is no bigger headache to an organization than when end-users express frustration over the user experience! Good thing it's an avoidable problem.
+  There's no bigger headache to an organization than when end-users express frustration over the user experience! Good thing it's an avoidable problem.
 
  Synthetic monitoring allows you to proactively test flows through your application so you can identify and resolve performance issues quickly, before they negatively impact your end users’ experience. Today, we announce the release of next-generation runtime for synthetic monitoring, which includes updated functionalities to easily test user flows in your production environment and catch potential issues.
 
