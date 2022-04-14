@@ -48,8 +48,9 @@ const makeRequest = async (url, options, nthTry = 1) => {
       return Promise.reject(e);
     }
     console.warn(
-      `[!] Error making request on attempt ${nthTry}/${MAX_RETRY}. Retrying in ${POLL_INTERVAL /
-        1000} seconds`
+      `[!] Error making request on attempt ${nthTry}/${MAX_RETRY}. Retrying in ${
+        POLL_INTERVAL / 1000
+      } seconds`
     );
     // wait for delayTime amount of time before calling this method again
     await sleep(POLL_INTERVAL);
