@@ -4,7 +4,7 @@ summary: 'Coming soon: a new Data Plus pricing option with more benefits, and a 
 releaseDate: '2022-04-14'
 ---
 
-Starting June 1, 2022, customers on our [New Relic One pricing model](https://docs.newrelic.com/docs/accounts/original-accounts-billing/original-product-based-pricing/overview-pricing-models) will be able to choose between the existing data pricing ($0.30/GB) and the new Data Plus offering listed at $0.50/GB to avoid ballooning data costs when scaling your observability practice. 
+Starting June 1, 2022, customers on our [New Relic One pricing model](https://docs.newrelic.com/docs/accounts/original-accounts-billing/original-product-based-pricing/overview-pricing-models) will be able to choose between the existing data offering and a new “Data Plus” offering listed at $0.50/GB to avoid ballooning data costs when scaling your observability practice. 
 
 Data Plus combines at-scale performance and governance capabilities in one simple, predictable, and affordable price per gigabyte which is 56%+ more cost effective than paying for each capability individually. The Data Plus offering includes: 
 
