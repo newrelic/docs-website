@@ -22,7 +22,7 @@ We're increasing the price so that we can continue to deliver more value for eve
 
 * **More data sources:** We have included 450+ I/O integrations at no additional cost for every plan. We plan to deliver even more innovations bundled with our data ingest price this year.
 * **Better querying and visualizations:** We have invested to significantly improve the way users synthesize and correlate all of their data in seconds through query and dashboard enhancements, which are included for free with every account.
-* **More efficient data processing:** We are committed to do the right thing and filter less useful data as shown by our recent reduction in infrastructure agent costs. We plan to continue to drive down inefficiencies to make every GB count.
+* **More efficient data processing:** We are committed to do the right thing and filter less useful data as shown by our recent reduction in [infrastructure agent costs](https://docs.newrelic.com/whats-new/2021/12/whats-new-12-15-InfraEC2LowerCosts). We plan to continue to drive down inefficiencies to make every GB count.
 
 With this update, we are looking forward to accelerating our investments to deliver more value to you.
 
