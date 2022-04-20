@@ -2,7 +2,7 @@
 title: Refresh your browser monitoring solution with more integrated user metrics
 summary: Enjoy a streamlined web monitoring experience with our latest enhancements to Browser. Users now have the ability to analyze web traffic by browser and device type, filter user data by geography, and display Core Web Vitals front and center. 
 releaseDate: '2022-04-21'
-learnMoreLink: '' 
+learnMoreLink: 'https://blog.newrelic.com/blog/nerdlog/browser-monitoring-refreshed' 
 getStartedLink: 'https://newrelic.com/products/browser-monitoring'
 ---
 
