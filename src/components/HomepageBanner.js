@@ -140,7 +140,7 @@ const HomepageBanner = () => {
           <Button
             variant={Button.VARIANT.OUTLINE}
             as={Link}
-            to="https://newrelic.com/instant-observability/"
+            to="https://one.newrelic.com/nr1-core?state=cab9400b-31f1-fab7-cd28-db21bd312951"
             css={css`
               color: var(--color-brand-400);
               border-color: var(--color-brand-500);
