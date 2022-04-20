@@ -18,7 +18,7 @@ Data Plus combines at-scale performance and governance capabilities in one simpl
 
 ## Data ingest list price update 
 
-Starting June 1, 2022, for organizations on the New Relic One pricing model, we’re increasing our listed data ingest price from $0.25/GB to $0.30/GB per month. 
+Starting June 1, 2022, we’re increasing our existing listed data ingest price from $0.25/GB to  $0.30/GB per month. This does not apply to existing New Relic customer contracts and only applies to customers when they renew or modify their contracts. 
 
 We're increasing the price so that we can continue to deliver more value for every GB you send to New Relic. Over the past two years, we have increased our engineering investments to deliver new capabilities included in your per GB price:
 
@@ -38,7 +38,7 @@ The list price will be effective June 1 for all new customers. All customers wil
 
 * Existing customers will continue their current data ingest billing rate until their next renewal, after which they will see an increase based on their contractual terms.  
 * Free customers will see no change to their plan. If customers would like to ingest more than 100GB per month, they can upgrade to a paid plan, which will include the new $0.30 per GB per month price.
-* Existing paid self-serve customers will not see an immediate ingest price increase on June 1, 2022, unless they cancel and restart their account. These customers are expected to start being billed at the new list price in Fall 2023. 
+* Existing paid self-serve customers will not see an immediate ingest price increase on June 1, 2022, unless they cancel and restart their account. These customers are expected to start being billed at the new list price after they renew their current contract. 
 
 **Q: How do the two offerings compare?**
 
