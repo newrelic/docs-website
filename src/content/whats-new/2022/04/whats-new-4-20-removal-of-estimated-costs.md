@@ -1,5 +1,5 @@
 ---
-title: Simplified usage and cost tracking
+title: Simplified usage and cost tracking (coming soon)
 summary: We're simplifying your end-of-month costs.
 releaseDate: '2022-04-22'
 ----
