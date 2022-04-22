@@ -1,9 +1,10 @@
 ---
-name: CoreUsersBillable
+name: CoreUsers
 type: attribute
 units: count
 events:
+  - NrConsumption
   - NrMTDConsumption
 ---
 
-The number of billable core users.
+The number of core users.
