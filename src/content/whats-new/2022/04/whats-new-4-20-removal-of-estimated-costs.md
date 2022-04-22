@@ -3,6 +3,7 @@ title: Simplified usage and cost tracking (coming soon)
 summary: We're simplifying your end-of-month costs.
 releaseDate: '2022-04-22'
 ----
+
 ## Changes to the usage and cost breakdowns in your account administration area
 
 In our efforts to improve the accuracy and clarity of data for customers on our usage-based New Relic One pricing model, we're updating your [Usage and cost overview](https://one.newrelic.com/usage-and-cost) to no longer include monthly estimated costs, effective May 9, 2022. We're making this change to avoid confusion in scenarios where estimated costs may differ from actual month-to-date costs, which can happen for a variety of reasons. Your usage and cost data will continue to display user count and gigabytes ingested for the current month. Your monthly invoice provides an accurate single source of truth for monthly costs.
