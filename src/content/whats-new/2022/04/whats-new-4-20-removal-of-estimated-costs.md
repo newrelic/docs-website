@@ -11,6 +11,6 @@ In our efforts to improve the accuracy and clarity of data for customers on our 
 ## How to view your costs
 If you didn't purchase New Relic through a third party and you're authorized to manage billing, you can access your most recent invoices by navigating to [Manage your plan](https://one.newrelic.com/nr1-core/plan-management/home) under the account administration dropdown. This is your source of truth for billing information. 
 
-For an overview about this change, see [our docs](https://docs.newrelic.com/docs/accounts/accounts-billing/new-relic-one-pricing-billing/new-relic-one-pricing-billing/#estimated-cost-removal). 
+To read more about this change, see [our docs](https://docs.newrelic.com/docs/accounts/accounts-billing/new-relic-one-pricing-billing/new-relic-one-pricing-billing/#estimated-cost-removal). 
 
 Note that you can still calculate and view your estimated month-to-date costs via NRQL queries. For more information, reference our [usage query docs](https://docs.newrelic.com/docs/accounts/accounts-billing/new-relic-one-pricing-billing/usage-queries-alerts#estimated-cost).
