@@ -1,5 +1,5 @@
 ---
-name: CoreUsersBillable
+name: coreUsersBillable
 type: attribute
 units: count
 events:
