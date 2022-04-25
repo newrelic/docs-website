@@ -94,7 +94,10 @@ module.exports = {
       node,
       isBlockImage(parent, node) ? 'div' : 'span',
       stripNulls({
-        className: [isBlockImage ? 'block-image' : 'inline-image', 'image'],
+        className: [
+          isBlockImage(parent, node) ? 'block-image' : 'inline-image',
+          'image',
+        ],
         style: get(node, 'data.style', null),
       }),
       [
