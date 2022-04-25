@@ -41,13 +41,11 @@ exports.sourceNodes = (
   { actions, createNodeId, createContentDigest, getNodesByType },
   pluginOptions
 ) => {
-  const { createNode, createRedirect, touchNode } = actions;
+  const { createNode, createRedirect } = actions;
 
   const dataDictionaryNodes = getNodesByType('MarkdownRemark').filter((node) =>
     node.fileAbsolutePath.includes(pluginOptions.path)
   );
-
-  dataDictionaryNodes.forEach((node) => touchNode(node));
 
   const attributeEvents = uniq(
     dataDictionaryNodes
