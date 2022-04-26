@@ -2,7 +2,8 @@
 title: Simplified usage and cost tracking (coming soon)
 summary: We're simplifying your end-of-month costs.
 releaseDate: '2022-04-22'
-----
+learnMoreLink: 'https://docs.newrelic.com/docs/accounts/accounts-billing/new-relic-one-pricing-billing/new-relic-one-pricing-billing/#estimated-cost-removal' 
+---
 
 ## Changes to the usage and cost breakdowns in your account administration area
 
