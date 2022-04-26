@@ -4,6 +4,7 @@ type: attribute
 events:
   - Mobile
   - MobileSession
+  - MobileCrash
 ---
 
-The type of data, either session or interaction.
+The type of data: session, crash, or interaction.

@@ -237,6 +237,7 @@ const EventDefinition = memo(
           </div>
         </h2>
         <div
+          data-swiftype-index="false"
           css={css`
             margin-bottom: 1rem;
           `}
@@ -261,7 +262,10 @@ const EventDefinition = memo(
             ))}
           </TagList>
         </div>
-        <div dangerouslySetInnerHTML={{ __html: event.definition?.html }} />
+        <div
+          data-swiftype-index="false"
+          dangerouslySetInnerHTML={{ __html: event.definition?.html }}
+        />
         <Table>
           <thead>
             <tr>
@@ -338,6 +342,7 @@ const EventDefinition = memo(
                     )}
                   </td>
                   <td
+                    data-swiftype-index="false"
                     key={`${event.name}-${attribute.name}-def}`}
                     css={css`
                       p:last-child {
@@ -349,6 +354,7 @@ const EventDefinition = memo(
                     }}
                   />
                   <td
+                    data-swiftype-index="false"
                     css={css`
                       width: 1px;
                     `}
