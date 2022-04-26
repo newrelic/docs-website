@@ -3,7 +3,6 @@ import PropTypes from 'prop-types';
 import { css } from '@emotion/react';
 import {
   Link,
-  Navigation,
   NavItem,
   Icon,
   useTranslation,
@@ -42,11 +41,11 @@ const SubNavigation = ({ nav }) => {
       {nav && (
         <>
           <h2>{nav.title}</h2>
-          <Navigation>
+          <nav>
             {nav.pages.map((page) => (
               <NavItem key={page.title} page={page} />
             ))}
-          </Navigation>
+          </nav>
         </>
       )}
     </>
