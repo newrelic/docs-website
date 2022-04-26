@@ -73,7 +73,7 @@ const AttributeDictionary = ({ data, pageContext, location }) => {
     <>
       <SEO
         location={location}
-        type={TYPES.ATTRIBUTE_DICTIONARY}
+        type={TYPES.BASIC_PAGE.default}
         title="New Relic data dictionary"
       />
       <div
