@@ -1,36 +1,16 @@
-import React, { useState } from 'react';
+import React from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/react';
-import { useDebounce } from 'react-use';
 import {
   Link,
   Navigation,
   NavItem,
   Icon,
-  SearchInput,
   useTranslation,
-  useTessen,
 } from '@newrelic/gatsby-theme-newrelic';
 
 const SubNavigation = ({ nav }) => {
-  const [searchTerm, setSearchTerm] = useState('');
   const { t } = useTranslation();
-  const tessen = useTessen();
-
-  useDebounce(
-    () => {
-      if (searchTerm) {
-        tessen.track({
-          eventName: 'leftNavSearch',
-          category: 'NavSearch',
-          navInteractionType: 'leftNavSearch',
-          searchTerm,
-        });
-      }
-    },
-    400,
-    [searchTerm]
-  );
 
   return (
     <>
@@ -62,20 +42,7 @@ const SubNavigation = ({ nav }) => {
       {nav && (
         <>
           <h2>{nav.title}</h2>
-          {nav.filterable && (
-            <SearchInput
-              placeholder={t('subNav.filter.placeholder')}
-              onClear={() => setSearchTerm('')}
-              onChange={(e) => {
-                setSearchTerm(e.target.value);
-              }}
-              value={searchTerm}
-              css={css`
-                margin-bottom: 1rem;
-              `}
-            />
-          )}
-          <Navigation searchTerm={searchTerm}>
+          <Navigation>
             {nav.pages.map((page) => (
               <NavItem key={page.title} page={page} />
             ))}
