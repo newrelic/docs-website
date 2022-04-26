@@ -266,7 +266,7 @@ const EventDefinition = memo(
           data-swiftype-index="false"
           dangerouslySetInnerHTML={{ __html: event.definition?.html }}
         />
-        <Table>
+        <Table data-swiftype-index="false">
           <thead>
             <tr>
               <th
@@ -342,7 +342,6 @@ const EventDefinition = memo(
                     )}
                   </td>
                   <td
-                    data-swiftype-index="false"
                     key={`${event.name}-${attribute.name}-def}`}
                     css={css`
                       p:last-child {
@@ -354,7 +353,6 @@ const EventDefinition = memo(
                     }}
                   />
                   <td
-                    data-swiftype-index="false"
                     css={css`
                       width: 1px;
                     `}
