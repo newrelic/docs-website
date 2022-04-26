@@ -37,6 +37,7 @@ exports.onPostBuild = async ({ graphql, store }) => {
         nodes {
           mdxAST
           slug
+          rawBody
         }
       }
       allImageSharp {
@@ -65,7 +66,7 @@ exports.onPostBuild = async ({ graphql, store }) => {
   );
 
   allMdx.nodes.forEach((node) => {
-    const { slug, mdxAST } = node;
+    const { rawBody: mdxBody, slug, mdxAST } = node;
 
     const filepath = path.join(program.directory, 'public', `${slug}.json`);
 
@@ -82,7 +83,9 @@ exports.onPostBuild = async ({ graphql, store }) => {
         },
       })
     );
-    const result = { body: html };
+
+    const mdx = JSON.stringify(mdxBody);
+    const result = { body: html, mdx };
 
     fs.writeFileSync(filepath, JSON.stringify(result));
   });
