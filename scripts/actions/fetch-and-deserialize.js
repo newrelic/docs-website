@@ -7,6 +7,7 @@ const path = require('path');
 const fetch = require('node-fetch');
 
 const deserializedHtml = require('./deserialize-html');
+const deserializedHtmlMd = require('./deserialize-html-md');
 const createDirectories = require('../utils/migrate/create-directories');
 const { getAccessToken } = require('./utils/vendor-request');
 const { LOCALE_IDS } = require('./utils/constants');
@@ -133,17 +134,33 @@ const extractFiles = (locale) => {
    * @returns {HtmlFile[]}
    */
   return (zip) => {
-    return zip.getEntries().map((entry) => {
-      const filepath = entry.entryName.replace(
-        `${locale}/src/content/docs`,
-        ''
-      );
-      const slug = filepath.replace(`.mdx`, '');
-      return {
-        path: slug,
-        html: zip.readAsText(entry, 'utf8'),
-      };
-    });
+    return zip.getEntries().reduce(
+      (acc, entry) => {
+        if (entry.entryName.endsWith('mdx')) {
+          const filepath = entry.entryName.replace(
+            `${locale}/src/content/docs`,
+            ''
+          );
+          const slug = filepath.replace(`.mdx`, '');
+          acc.mdx.push({
+            path: slug,
+            html: zip.readAsText(entry, 'utf8'),
+          });
+        } else if (entry.entryName.endsWith('md')) {
+          const filepath = entry.entryName.replace(
+            `${locale}/src/content/whats-new`,
+            ''
+          );
+          const slug = filepath.replace(`.md`, '');
+          acc.md.push({
+            path: slug,
+            html: zip.readAsText(entry, 'utf8'),
+          });
+        }
+        return acc;
+      },
+      { md: [], mdx: [] }
+    );
   };
 };
 
@@ -200,6 +217,61 @@ const deserializeHtmlToMdx = (locale) => {
 };
 
 /**
+ * @param {String} locale
+ */
+const deserializeHtmlToMd = (locale) => {
+  /**
+   * @param {HtmlFile} file
+   * @returns {Promise<SlugStatus>}
+   */
+  return async ({ path: contentPath, html }) => {
+    const completePath = `${path.join(
+      'src/content/whats-new',
+      contentPath
+    )}.md`;
+    const localeKey = Object.keys(LOCALE_IDS).find(
+      (key) => LOCALE_IDS[key] === locale
+    );
+
+    try {
+      const localePath = path.join(
+        `src/i18n/content/${localeKey}/whats-new/`,
+        contentPath
+      );
+      const md = await deserializedHtmlMd(html);
+
+      const temp = vfile({
+        contents: md,
+        path: localePath,
+        extname: '.md',
+      });
+
+      createDirectories([temp]);
+      writeFilesSync([temp]);
+
+      return {
+        ok: true,
+        slug: completePath,
+        locale,
+      };
+    } catch (ex) {
+      await trackTranslationError({
+        ...defaultTrackingMetadata,
+        target: TRACKING_TARGET.FILE,
+        slug: completePath,
+        locale,
+        error: ex,
+        errorMessage: `Failed to deserialize: ${contentPath}`,
+      });
+      console.log(`Failed to deserialize: ${contentPath}`);
+      console.log(ex);
+
+      return { ok: false, slug: completePath, locale };
+    }
+  };
+};
+
+/**
  *
  * @param {Object} input
  * @param {String} input.locale - locale associated with fileUris
@@ -217,15 +289,28 @@ const fetchAndDeserializeFiles = async ({ locale, fileUris }) => {
 
   console.log(`Downloaded ${zips.length} zips`);
 
-  const files = zips.flatMap(extractFiles(locale));
-
-  console.log(`Unzipped ${files.length} total files.`);
-
-  const slugStatuses = await Promise.all(
-    files.map(deserializeHtmlToMdx(locale))
+  const files = zips.reduce(
+    (acc, zip) => {
+      const zipFiles = extractFiles(locale)(zip);
+      return (acc = {
+        ...acc,
+        md: [...acc.md, ...zipFiles.md],
+        mdx: [...acc.mdx, ...zipFiles.mdx],
+      });
+    },
+    { md: [], mdx: [] }
   );
 
-  return slugStatuses;
+  console.log(`Unzipped ${files.md.length + files.mdx.length} total files.`);
+
+  const slugStatusesMdx = await Promise.all(
+    files.mdx.map(deserializeHtmlToMdx(locale))
+  );
+  const slugStatusesMd = await Promise.all(
+    files.md.map(deserializeHtmlToMd(locale))
+  );
+
+  return slugStatusesMdx.concat(slugStatusesMd);
 };
 
 module.exports = {

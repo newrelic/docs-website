@@ -140,7 +140,7 @@ const main = async () => {
   const url = options.url || null;
   const directory = options.directory || null;
 
-  let mdxFileData;
+  let fileData;
 
   if (url) {
     const prFileData = await fetchPaginatedGHResults(
@@ -148,16 +148,27 @@ const main = async () => {
       process.env.GITHUB_TOKEN
     );
 
-    mdxFileData = prFileData
-      .filter((file) => path.extname(file.filename) === '.mdx')
+    fileData = prFileData
+      .filter(
+        (file) =>
+          path.extname(file.filename) === '.mdx' ||
+          path.extname(file.filename) === '.md'
+      )
       .filter((f) => f.status !== 'removed')
       .map(prop('filename'));
   } else if (directory) {
-    const directoryPath = path.join(directory, '/**/*.mdx');
-    mdxFileData = glob.sync(directoryPath);
+    const directoryPathMdx = path.join(directory, '/**/*.mdx');
+    const directoryPathMd = path.join(directory, '/**/*.md');
+    const mdxFileData = glob.sync(directoryPathMdx);
+    const mdFileData = glob.sync(directoryPathMd);
+    if (mdxFileData) {
+      fileData = mdxFileData;
+    } else {
+      fileData = mdFileData;
+    }
   }
 
-  await addFilesToTranslationQueue(mdxFileData, options);
+  await addFilesToTranslationQueue(fileData, options);
 
   process.exit(0);
 };
