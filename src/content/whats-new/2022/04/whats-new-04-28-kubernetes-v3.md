@@ -14,7 +14,7 @@ We've re-architected our Kubernetes integration, making it modular and configura
 **Adjust scraping intervals**: Dial-up or dial-down data ingest to suit your needs.
 
 # How to get started
-To learn more, check out our [blog](https://newrelic.com/blog/nerdlog/k8s-integration-v3) or go straight to the [docs](https://docs.newrelic.com/docs/kubernetes-pixie/kubernetes-integration/get-started/changes-since-v3/#migration-guide) to get started.
+To learn more, check out [our blog](https://newrelic.com/blog/nerdlog/k8s-integration-v3) or go straight to the [docs](https://docs.newrelic.com/docs/kubernetes-pixie/kubernetes-integration/get-started/changes-since-v3/#migration-guide) to get started.
 
 ![./images/K8s_V3.png]
 
