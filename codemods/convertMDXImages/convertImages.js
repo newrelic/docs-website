@@ -265,7 +265,7 @@ const runConvertImages = async (paths = []) => {
     );
   }
 
-  console.log('Applying codemod to the following files:', filePaths);
+  // console.log('Applying codemod to the following files:', filePaths);
 
   const allResults = await Promise.all(
     filePaths.map(async (filePath) => {
