@@ -15,6 +15,7 @@ const HomepageBanner = () => {
   const bannerHeight = '383px';
   const mobileBreakpoint = '450px';
   const { t } = useTranslation();
+  // Testing the GH workflow
 
   return (
     <section
