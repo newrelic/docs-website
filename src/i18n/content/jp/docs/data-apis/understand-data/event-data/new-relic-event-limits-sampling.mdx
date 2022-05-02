@@ -1,0 +1,69 @@
+---
+title: APMおよびモバイルモニタリングのイベントリミットとサンプリング
+tags:
+  - APM
+  - Troubleshooting
+metaDescription: How APM and mobile agents limit the reporting of events and perform sampling when those limits are exceeded.
+translationType: machine
+---
+
+当社のAPMエージェントやモバイルエージェントでは、報告できるイベントの数に制限があります。本資料ではそれを説明します。
+
+* イベント報告書の制限が必要な理由
+* サンプリングの仕組み
+* サンプリングされたデータの扱い方、理解の仕方
+
+## イベントとメトリクスの違い [#events-metrics]
+
+このドキュメントでは、イベントデータの制限と、その制限がどのようにサンプリングにつながるかについて説明します。まず、この2つのタイプのデータの違いを理解するのに役立つかもしれません。
+
+* **メトリクス**: 時間の経過とともに集約された測定値。例：1分間の平均応答時間、時間経過によるスループット、時間経過によるCPU使用率。
+* **イベント**: 特定の瞬間に発生する離散的なイベント。例：ログやエラーの報告、構成の変更など。イベントの中には、時間の経過とともに集約され、メトリクスを形成するものもあります（例：時間の経過とともに発生するエラーの数）。
+
+メトリクスはシステムの長期的なパターンを認識するのに役立ち、イベントはそのパターンの原因を詳細に調べるのに役立ちます。メトリクスは時間的に集約されているため、システムの動作の傾向や変化を見極めるのに役立ちます。イベントの集計値を表すメトリクス（HTTPレスポンスタイムのメトリクスなど）では、個々のイベントによって何が起こったのかを詳細に知ることができ、カーディナリティの高い属性（アカウントやユーザーIDなど）によってファセットすることができます。
+
+## イベントのサンプリングが必要な理由 [#sampling]
+
+当社のAPMエージェントとモバイルエージェントは、 [収穫サイクルごとに報告できるイベントの数に制限を設けています](/docs/using-new-relic/welcome-new-relic/getting-started/glossary#harvest-cycle) 。これは、もし制限がない場合、非常に多くのイベントが送信されると、お客様のアプリケーションやNew Relicのパフォーマンスに影響を与える可能性があるためです。制限に達すると、エージェントはイベントのサンプリングを開始します。エージェントによって制限値は異なりますが、目標はハーベストサイクル全体から代表的なサンプルを得ることです。
+
+また、New Relic に接続できない場合、エージェントがサンプリングすることがあります。エージェントがNew Relicに接続できない場合、エージェントはローカルにデータを保存し続けます。しかし、最終的に送信されるペイロードのサイズを制限しなければなりません。このため、切断期間中にイベントをサンプリングします。接続されていない期間が長ければ長いほど、より多くのイベントをサンプリングします。
+
+## サンプリングの影響 [#impact]
+
+サンプリングの一つの結果として、 [未サンプリングのメトリックデータ](/docs/using-new-relic/metrics/analyze-your-metrics/data-collection-metric-timeslice-event-data#overview) とサンプリングされたイベントデータの間に不一致が生じることがあります。その例を挙げます。
+
+* サンプリングされていないメトリックデータを表示する APM チャートは、サンプリングされたイベントデータの同等の NRQL クエリよりも高いスループットを示す場合があります。メトリックのタイムスライスデータとイベントデータの違いについては、 [データタイプ](/docs/using-new-relic/metrics/analyze-your-metrics/data-collection-metric-timeslice-event-data) を参照してください。
+* New Relic 以外のモニタリングサービスでは、New Relic とは異なる結果が表示されることがあります。
+
+キャップされ、サンプリングの対象となるイベントは以下の通りです。
+
+* `トランザクション`
+* `TransactionError`
+* `スパン` (参照 [分散型トレースサンプリング](/docs/apm/distributed-tracing/getting-started/how-new-relic-distributed-tracing-works#sampling))
+* エージェントAPIを介して報告されるカスタムイベント（例：.NETエージェントの [RecordCustomEvent](/docs/agents/net-agent/net-agent-api/record-custom-event) ）。
+* `モバイル`
+* `MobileRequest`
+* `MobileCrash`
+* `MobileHandledException`
+
+<Callout variant="important">
+  APMでは、データを照会する際に、 [サンプリングを補正することができます](#compensate) 。
+</Callout>
+
+## サンプリング方法の変更 [#change]
+
+サンプリングの方法を変更する前に、以下の注意点と推奨事項をお読みください。
+
+* より多くのイベントを報告すると、エージェントはより多くのメモリを使用することになります。
+* 通常、エージェントのイベント報告の上限を上げることなく、必要なデータを取得する方法があります。
+* ペイロードサイズの制限は1MB（10^6バイト）（圧縮）であるため、イベント数は依然としてその制限の影響を受ける可能性があります。イベントがドロップされているかどうかを確認するには、エージェントログの413 HTTPステータスメッセージを参照してください。
+
+サンプリングに影響を与える方法をご紹介します。
+
+* ほとんどのエージェントには、サンプルされたトランザクションの制限を変更するための設定オプションがあります（例： [Javaエージェントの `max_samples_stored`](/docs/agents/java-agent/configuration/java-agent-configuration-config-file#ae-max_samples_stored) または [Androidモバイルエージェントの `setMaxEventPoolSize`](/docs/mobile-monitoring/new-relic-mobile-android/android-sdk-api/set-max-event-pool-size) ）。
+* 特定のアプリのアクティビティをサンプリングしないことが重要な場合は、 [Event API](/docs/insights/insights-data-sources/custom-data/send-custom-events-event-api) を使用することができます。
+* アプリケーションをより多くのインスタンスに展開することができます。制限はエージェントごとに行われるため、エージェントの数が多ければイベントの蓄積量も多くなります。
+
+## APM。サンプリングの補填 [#compensate]
+
+APMで報告されたイベントを照会する場合、 [`EXTRAPOLATE`](/docs/insights/nrql-new-relic-query-language/nrql-reference/nrql-syntax-components-functions#extrapolate) を使用することで、サンプリングを補正することができます。これにより、サンプリングされていないデータがどのように見えるかの近似値が得られます。

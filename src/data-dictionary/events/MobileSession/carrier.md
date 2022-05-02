@@ -2,6 +2,7 @@
 name: carrier
 type: attribute
 events:
+  - Mobile
   - MobileSession
   - MobileHandledException
   - MobileCrash

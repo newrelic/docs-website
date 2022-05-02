@@ -73,7 +73,7 @@ const AttributeDictionary = ({ data, pageContext, location }) => {
     <>
       <SEO
         location={location}
-        type={TYPES.ATTRIBUTE_DICTIONARY}
+        type={TYPES.BASIC_PAGE.default}
         title="New Relic data dictionary"
       />
       <div
@@ -237,6 +237,7 @@ const EventDefinition = memo(
           </div>
         </h2>
         <div
+          data-swiftype-index="false"
           css={css`
             margin-bottom: 1rem;
           `}
@@ -261,8 +262,11 @@ const EventDefinition = memo(
             ))}
           </TagList>
         </div>
-        <div dangerouslySetInnerHTML={{ __html: event.definition?.html }} />
-        <Table>
+        <div
+          data-swiftype-index="false"
+          dangerouslySetInnerHTML={{ __html: event.definition?.html }}
+        />
+        <Table data-swiftype-index="false">
           <thead>
             <tr>
               <th

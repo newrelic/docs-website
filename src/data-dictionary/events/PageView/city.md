@@ -7,8 +7,12 @@ events:
   - BrowserInteraction
   - AjaxRequest
   - BrowserTiming
+  - Mobile
   - MobileSession
   - MobileHandledException
+  - MobileCrash
+  - MobileRequest
+  - MobileRequestError
   - PageViewTiming
   - JavaScriptError
 ---
