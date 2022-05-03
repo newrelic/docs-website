@@ -1,10 +1,10 @@
---
+---
 title: 'New Instant Observability integrations for monitoring API, network, application, and streaming performance'
 summary: 'Partner integrations from Cloudflare, Netlify Postman, Glassbox, and Datazoom'
 releaseDate: '2022-04-27'
 learnMoreLink: 'https://newrelic.com/blog/nerdlog/integrations-api-network-streaming-apm'
 getStartedLink: 'https://one.newrelic.com/nr1-core?state=f67884e5-349b-b770-a832-0ec79bcf05d7'
---
+---
 
 # New Instant Observability integrations for monitoring API, network, application, and streaming performance
 
