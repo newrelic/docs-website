@@ -6,4 +6,4 @@ events:
   - AwsLambdaInvocationError
 ---
 
-The New Relic event type. Example values: Transaction, Span.
+The New Relic event type. Example values: `Transaction`, `Span`.
