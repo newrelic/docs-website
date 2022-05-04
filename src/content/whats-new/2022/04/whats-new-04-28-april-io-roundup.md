@@ -69,6 +69,6 @@ The [Glassbox quickstart](https://newrelic.com/instant-observability/glassbox/bd
 
 ## Next steps
 
-* Read our [full blog post about these partner integration](https://newrelic.com/blog/nerdlog/integrations-api-network-streaming-apm).
+* Read our [blog post about these integrations](https://newrelic.com/blog/nerdlog/integrations-api-network-streaming-apm).
 * To learn how to install your first quickstart, see this [Explorers Hub post](https://discuss.newrelic.com/t/how-to-install-your-first-quickstart-to-get-instant-observability-in-new-relic-i-o/164280) or watch the [walk-through video](https://www.youtube.com/watch?v=sFt1Tx5qPRU).
 * Explore all the integrations in [New Relic I/O](https://newrelic.com/instant-observability/).
