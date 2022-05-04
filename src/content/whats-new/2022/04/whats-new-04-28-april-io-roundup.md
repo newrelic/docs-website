@@ -6,7 +6,7 @@ learnMoreLink: 'https://newrelic.com/blog/nerdlog/integrations-api-network-strea
 getStartedLink: 'https://one.newrelic.com/nr1-core?state=f67884e5-349b-b770-a832-0ec79bcf05d7'
 ---
 
-[New Relic Instant Observability (I/O)](https://newrelic.com/instant-observability/) is an open ecosystem of more than 450 free, prebuilt quickstarts that help you start monitoring your system in minutes. These quickstarts bundle necessary building blocks for instrumenting, monitoring, and acting on signals from your telemetry data, wherever it comes from.
+[New Relic Instant Observability (I/O)](https://newrelic.com/instant-observability/) is an open ecosystem of more than 450 free, prebuilt quickstarts that help you start monitoring your system in minutes. These quickstarts bundle necessary building blocks for instrumenting, monitoring, and acting on signals from your telemetry data, wherever it comes from. 
 
 We are pleased to announce new integrations and quickstarts with **[Cloudflare](https://newrelic.com/instant-observability/cloudflare/fc2bb0ac-6622-43c6-8c1f-6a4c26ab5434)**, **[Netlify](https://newrelic.com/instant-observability/netlify-logs/63f08781-18ad-4a89-ae63-49718deee041)**, **[Postman](https://newrelic.com/instant-observability/postman/d465bf08-b737-4bc5-b5ad-dd5be272967b)**, **[Datazoom](https://newrelic.com/instant-observability/datazoom/2ffed926-6ee2-43b2-a942-344192fdf418)**, and **[Glassbox](https://newrelic.com/instant-observability/glassbox/bdb952f3-28db-4ee7-89c6-b00244b0bb73)**. Read on for a summary, or read [the full blog post about these integrations](https://newrelic.com/blog/nerdlog/integrations-api-network-streaming-apm).
 
