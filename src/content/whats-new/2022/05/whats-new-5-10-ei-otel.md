@@ -1,6 +1,6 @@
 ---
 title: 'View your OpenTelemetry data in errors inbox'
-summary: 'Track, prioritize and resolve OTel errors faster'
+summary: 'Track, prioritize, and resolve OTel errors faster'
 releaseDate: '2022-05-10'
 learnMoreLink: 'https://newrelic.com/blog/nerdlog/errors-inbox-and-opentelemetry'
 getStartedLink: 'https://docs.newrelic.com/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/opentelemetry-view-your-data/#explorer'
