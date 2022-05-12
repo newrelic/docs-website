@@ -1,5 +1,5 @@
 ---
-title: 'Onboard K8s and Prometheus data into New Relic easily with new Quickstarts' 
+title: 'Onboard K8s and Prometheus data easily with new Quickstarts' 
 summary: 'Quickstarts for Istio, ArgoCD, CoreDNS, NGINX, Redis, Node Exporter are now available.' 
 releaseDate: '2022-05-13'
 ---
