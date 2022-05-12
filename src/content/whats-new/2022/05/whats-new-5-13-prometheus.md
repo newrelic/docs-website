@@ -1,16 +1,13 @@
 ---
-title: 'New quickstarts for Kubernetes and Prometheus' 
+title: 'Onboard K8s and Prometheus data into New Relic easily with new Quickstarts' 
 summary: 'Quickstarts for Istio, ArgoCD, CoreDNS, NGINX, Redis, Node Exporter are now available.' 
-releaseDate: '2022-05-13' 
-getStartedLink: 'https://newrelic.com/instant-observability/'
+releaseDate: '2022-05-13'
 ---
 
 [New Relic I/O](https://newrelic.com/blog/nerdlog/instant-observability-quickstarts) helps you instrument, monitor, and analyze your stack in minutes.
 If your tech stack includes Kubernetes or Prometheus you can benefit from a new set of curated dashboards and alerts for Istio, ArgoCD, CoreDNS, NGINX, Redis and the Prometheus Node Exporter.
 
 ![New dashboards available](./images/quickstarts-k8s-prometheus.png "New dashboards available")
-
-## New quickstarts for Kubernetes and Prometheus
 
 The following quickstarts are now available:
 * [Istio Service](https://onenr.io/08jqW5pmOwl): get a dashboard view of services running in your Kubernetes cluster using an Istio Service Mesh. Learn how to [monitor service mesh performance](https://newrelic.com/blog/how-to-relic/monitoring-istio-service-mesh) from our blog.
@@ -19,7 +16,5 @@ The following quickstarts are now available:
 * [NGINX Ingress Controller](https://onenr.io/0Zw0ZmVlejv): monitor performance and alert on potential configuration errors. 
 * [Redis](https://onenr.io/0ERz3W2Xpjr): discover all critical performance and health metrics relevant to your Redis system monitored by Prometheus.
 * [Prometheus Node Exporter](https://onenr.io/0bRmDEd1Bwy): dashboard view for host metrics gathered through Node Exporter.
-
-Go to [Instant Observability](https://onenr.io/0Bj3BBAdbRX) to install these in your New Relic account with just a few clicks.
 
 Learn more about integrating [Kubernetes](https://docs.newrelic.com/docs/kubernetes-pixie/kubernetes-integration/installation/kubernetes-integration-install-configure/) and [Prometheus](https://docs.newrelic.com/docs/infrastructure/prometheus-integrations/get-started/send-prometheus-metric-data-new-relic/) with New Relic.
