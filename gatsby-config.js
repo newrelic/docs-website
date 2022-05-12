@@ -106,7 +106,7 @@ module.exports = {
             'promql',
             'protobuf',
             'puppet',
-            'jsx'
+            'jsx',
             'regex',
             'ruby',
             'sass',
