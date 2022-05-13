@@ -94,7 +94,7 @@ module.exports = {
             'regex',
             'ruby',
             'scala',
-            'shell,'
+            'shell',
             'swift',
             'systemd',
             'toml',
