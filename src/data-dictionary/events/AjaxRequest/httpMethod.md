@@ -6,4 +6,4 @@ events:
   - AjaxRequest
 ---
 
-The HTTP method of the AJAX request. Example: POST.
+The HTTP method of the AJAX request. Example: `POST`.
