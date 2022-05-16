@@ -1,6 +1,6 @@
 ---
 title: 'Big News—New Relic unveils our bold new brand' 
-summary: 'Just announced at FutureStack, New Relic reveals its new brand, delivering Data for Engineers to help better plan, build, deploy, and run amazing software.' 
+summary: 'New Relic reveals its new brand, delivering Data for Engineers to help better plan, build, deploy, and run amazing software.' 
 releaseDate: '2022-05-17' 
 learnMoreLink: 'https://newrelic.com/blog/nerd-life/new-brand-announcement'
 ---
