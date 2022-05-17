@@ -54,7 +54,6 @@ const ReleaseNoteTemplate = ({ data, location, pageContext }) => {
           justify-content: space-between;
           align-items: center;
           font-size: 0.75rem;
-          color: var(--color-dark-600);
           display: flex;
           align-items: baseline;
           max-width: 850px;
