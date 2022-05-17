@@ -5,19 +5,16 @@ import { graphql } from 'gatsby';
 import {
   Link,
   Icon,
+  SearchInput,
   Surface,
   useInstrumentedHandler,
+  useQueryParams,
   useTranslation,
+  Tag,
 } from '@newrelic/gatsby-theme-newrelic';
 import SurfaceLink from '../components/SurfaceLink';
 import HomepageBanner from '../components/HomepageBanner';
-import {
-  tdp,
-  fso,
-  ai,
-  getting_started,
-  popular_content,
-} from '../data/homepage.yml';
+import FindYourQuickStart from '../components/FindYourQuickstart';
 
 const HomePage = ({ data }) => {
   const {
@@ -26,16 +23,72 @@ const HomePage = ({ data }) => {
   } = data;
 
   const { t } = useTranslation();
+  const { setQueryParam } = useQueryParams();
+
+  const mobileBreakpoint = '450px';
 
   const latestWhatsNewPosts = whatsNewPosts.map((edge) => {
     return {
       title: edge.node.frontmatter.title,
+      releaseDate: edge.node.frontmatter.releaseDate,
       path: edge.node.fields.slug,
     };
   });
 
   return (
     <>
+      <h1
+        css={css`
+          font-size: 3.5rem;
+          font-weight: 500;
+          @media screen and (max-width: ${mobileBreakpoint}) {
+            font-size: 1.5rem;
+          }
+        `}
+      >
+        Welcome to New Relic docs!
+      </h1>
+      <SearchInput
+        placeholder="What are you looking for?"
+        size={SearchInput.SIZE.LARGE}
+        onFocus={() => {
+          setQueryParam('q', '');
+        }}
+        css={css`
+          svg {
+            display: none;
+          }
+          input {
+            padding-left: 1rem;
+          }
+          @media screen and (max-width: ${mobileBreakpoint}) {
+            margin-bottom: 1rem;
+          }
+        `}
+      />
+      <div
+        css={css`
+          margin-top: 1rem;
+          width: 40%;
+          display: flex;
+          width: 100%;
+          margin-bottom: 1rem;
+          flex-wrap: wrap;
+          a {
+            margin-left: 0.75rem;
+          }
+          @media screen and (max-width: ${mobileBreakpoint}) {
+            display: none;
+          }
+        `}
+      >
+        <p>Popular searches: </p>
+        <Link to="?q=nrql">NRQL</Link>
+        <Link to="?q=logs">logs</Link>
+        <Link to="?q=alert">alert</Link>
+        <Link to="?q=best practices">best practices</Link>
+        <Link to="?q=kubernetes">Kubernetes</Link>
+      </div>
       <HomepageBanner />
       <Section
         layout={layout}
@@ -44,6 +97,7 @@ const HomePage = ({ data }) => {
           background: var(--tertiary-background-color);
         `}
       >
+        <SectionTitle title={t('home.popularDocs.title')} />
         <div
           css={css`
             display: grid;
@@ -69,61 +123,62 @@ const HomePage = ({ data }) => {
             }
           `}
         >
-          <WelcomeTile
-            title={t('home.welcome.t1.title')}
-            links={getting_started.links}
-            icon="fe-help-circle"
+          <DocTile
+            title={t('home.popularDocs.t1.title')}
+            label={{ text: 'Queries', color: '#F4CBE7' }}
+            path="/docs/query-your-data/nrql-new-relic-query-language/get-started/nrql-syntax-clauses-functions/"
           />
-          <WelcomeTile
-            links={latestWhatsNewPosts}
-            title={t('home.welcome.t2.title')}
-            icon="nr-info-announcement"
+          <DocTile
+            label={{ text: 'Events', color: '#AFE2E3' }}
+            title={t('home.popularDocs.t2.title')}
+            path="/attribute-dictionary/"
           />
-          <WelcomeTile
-            title={t('home.welcome.t3.title')}
-            links={popular_content.links}
-            icon="fe-star"
+          <DocTile
+            title={t('home.popularDocs.t3.title')}
+            label={{ text: 'Log management', color: '#FCD672' }}
+            path="/docs/logs/get-started/get-started-log-management/"
           />
         </div>
       </Section>
       <Section layout={layout}>
-        <SectionTitle title={t('home.fso.title')} />
-        <DocTileGrid>
-          {fso.tiles.map(({ link, icon }, idx) => (
+        <SectionTitle title={t('home.whatsNew.title')} />
+        <div
+          css={css`
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            grid-gap: 1rem;
+            counter-reset: welcome-tile;
+            flex: 2;
+            align-self: flex-start;
+            @media screen and (max-width: 1500px) {
+              align-self: auto;
+            }
+
+            @media screen and (max-width: 1050px) {
+              grid-template-columns: 1fr;
+            }
+
+            @media screen and (max-width: 760px) {
+              grid-template-columns: repeat(3, 1fr);
+            }
+
+            @media screen and (max-width: 650px) {
+              grid-template-columns: 1fr;
+            }
+          `}
+        >
+          {latestWhatsNewPosts.map((post) => (
             <DocTile
-              key={idx}
-              title={t(`home.fso.t${idx + 1}.title`)}
-              link={link}
-              icon={icon}
+              key={post.title}
+              title={post.title}
+              date={post.releaseDate}
+              path={post.path}
             />
           ))}
-        </DocTileGrid>
+        </div>
       </Section>
       <Section layout={layout}>
-        <SectionTitle title={t('home.ai.title')} />
-        <DocTileGrid>
-          {ai.tiles.map(({ link, icon }, idx) => (
-            <DocTile
-              key={idx}
-              title={t(`home.ai.t${idx + 1}.title`)}
-              link={link}
-              icon={icon}
-            />
-          ))}
-        </DocTileGrid>
-      </Section>
-      <Section layout={layout}>
-        <SectionTitle title={t('home.tdp.title')} />
-        <DocTileGrid>
-          {tdp.tiles.map(({ link, icon }, idx) => (
-            <DocTile
-              key={idx}
-              title={t(`home.tdp.t${idx + 1}.title`)}
-              icon={icon}
-              link={link}
-            />
-          ))}
-        </DocTileGrid>
+        <FindYourQuickStart />
       </Section>
     </>
   );
@@ -173,6 +228,7 @@ export const pageQuery = graphql`
           id
           frontmatter {
             title
+            releaseDate(formatString: "MMMM DD, YYYY")
           }
           fields {
             slug
@@ -184,18 +240,14 @@ export const pageQuery = graphql`
   }
 `;
 
-const Section = ({ layout, ...props }) => {
+const Section = ({ ...props }) => {
   return (
     <section
       css={css`
-        margin: 2.5rem 0 0;
-        padding: ${layout.contentPadding};
-        border: 1px solid var(--color-neutrals-300);
-        border-radius: 0.5rem;
+        padding-top: 2.5rem;
 
         .dark-mode & {
           background: var(--tertiary-background-color);
-          border: 1px solid var(--color-dark-500);
         }
 
         &:first-child {
@@ -239,6 +291,8 @@ const SectionTitle = ({ title, icon, to }) => {
         css={css`
           display: flex;
           align-items: center;
+          font-size: 2rem;
+          font-weight: 400;
         `}
       >
         {icon && (
@@ -262,25 +316,22 @@ SectionTitle.propTypes = {
   to: PropTypes.string,
 };
 
-const WelcomeTile = ({ title, links, instrumentation, icon }) => (
-  <Surface
-    base={Surface.BASE.PRIMARY}
+const DocTile = ({ title, path, instrumentation, label, date }) => (
+  <SurfaceLink
+    base={Surface.BASE.SECONDARY}
+    to={path}
+    interactive
     instrumentation={instrumentation}
     css={css`
-      color: currentColor;
-      position: relative;
-      min-height: 300px;
-      border-color: var(--tile-border-color, var(--border-color));
-      border-radius: 0.5rem;
+      min-height: 130px;
+      border-radius: 4px;
+      background: var(--secondary-background-color);
 
       .dark-mode & {
-        background: var(--color-dark-300);
-        border: 1px solid var(--color-dark-500);
+        background: var(--secondary-background-color);
       }
 
       @media screen and (max-width: 1050px) {
-        min-height: 175px;
-
         &:not(:last-child) {
           margin-bottom: 2rem;
         }
@@ -298,185 +349,77 @@ const WelcomeTile = ({ title, links, instrumentation, icon }) => (
           margin-bottom: 2rem;
         }
       }
-
-      &:hover {
-        color: currentColor;
-      }
     `}
   >
-    <div
-      css={css`
-        display: flex;
-        padding: 0 2rem;
-        align-items: center;
-        height: 5.5rem;
-        border-bottom: solid 1.5px var(--tertiary-background-color);
-        .dark-mode & {
-          border-bottom: 1.5px solid var(--color-dark-500);
-        }
-      `}
-    >
-      <Icon
-        name={icon}
-        size="2rem"
-        css={css`
-          color: var(--link-color);
-        `}
-      />
-      <h2
-        css={css`
-          margin-bottom: 0;
-          margin-left: 1rem;
-        `}
-      >
-        {title}
-      </h2>
-    </div>
     <div
       css={css`
         display: flex;
         flex-direction: column;
-        padding: 1.5rem 2rem 2.5rem;
-      `}
-    >
-      {links &&
-        links.map((link, index) => (
-          <Link
-            css={css`
-              &:not(:last-child) {
-                margin-bottom: 1rem;
-              }
-            `}
-            key={index + link.title}
-            to={link.path}
-          >
-            {link.title}
-          </Link>
-        ))}
-    </div>
-  </Surface>
-);
+        height: 100%;
+        justify-content: space-between;
+        align-items: space-between;
+        padding: 2rem;
 
-WelcomeTile.propTypes = {
-  links: PropTypes.array,
-  title: PropTypes.string,
-  icon: PropTypes.string,
-  instrumentation: PropTypes.object,
-};
-
-const DocTileGrid = ({ children }) => {
-  return (
-    <div
-      css={css`
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-        grid-gap: 1rem;
         @media screen and (max-width: 650px) {
-          grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+          padding: 1.5rem;
         }
       `}
     >
-      {children}
-    </div>
-  );
-};
-
-DocTileGrid.propTypes = {
-  children: PropTypes.node,
-};
-
-const DocTile = ({ title, link, icon }) => (
-  <SurfaceLink
-    base={Surface.BASE.SECONDARY}
-    to={link}
-    css={css`
-      color: currentColor;
-      height: 4.5rem;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 0 1.5rem;
-      border: 1px solid var(--color-neutrals-200);
-      box-shadow: none;
-
-      .light-mode & {
-        background: var(--color-neutrals-050);
-      }
-
-      .dark-mode & {
-        border: solid 1px var(--color-dark-300);
-      }
-
-      &:hover {
-        color: currentColor;
-        border-color: var(--border-hover-color);
-        background: var(--color-brand-100);
-        box-shadow: none;
-        border: none;
-
-        .dark-mode & {
-          background: var(--color-dark-300);
-        }
-      }
-    `}
-  >
-    <div
-      css={css`
-        display: flex;
-        align-items: center;
-      `}
-    >
-      {icon && (
-        <Icon
-          name={icon}
-          css={css`
-            color: var(--color-brand-400);
-          `}
-          size="1.5rem"
-        />
-      )}
-      <h3
+      <h4
         css={css`
-          font-size: 14px;
-          margin-bottom: 0;
-          margin-left: 1rem;
+          margin-bottom: 1rem;
+          font-weight: 400;
+          font-size: 20px;
         `}
       >
         {title}
-      </h3>
+      </h4>
+      <div
+        css={css`
+          display: flex;
+          justify-content: space-between;
+        `}
+      >
+        {label && (
+          <Tag
+            css={css`
+              background: ${label.color};
+              color: var(--system-text-primary-light);
+
+              .dark-mode & {
+                background: ${label.color};
+                color: var(--system-text-primary-light);
+              }
+            `}
+          >
+            {label.text}
+          </Tag>
+        )}
+        {date && (
+          <Tag
+            css={css`
+              color: var(--primary-text-color);
+            `}
+          >
+            {date}
+          </Tag>
+        )}
+        <Icon
+          name="fe-arrow-right"
+          css={css`
+            color: var(--primary-text-color);
+          `}
+        />
+      </div>
     </div>
-    <Icon
-      name="fe-arrow-right"
-      size="1.5rem"
-      css={css`
-        color: var(--color-neutrals-600);
-        .dark-mode & {
-          color: var(--accent-text-color);
-        }
-      `}
-    />
   </SurfaceLink>
 );
 
 DocTile.propTypes = {
-  title: PropTypes.string.isRequired,
-  link: PropTypes.string.isRequired,
-  icon: PropTypes.string,
-};
-
-const IntegrationTitle = ({ children }) => (
-  <h3
-    css={css`
-      margin-top: 2rem;
-      margin-bottom: 1rem;
-    `}
-  >
-    {children}
-  </h3>
-);
-
-IntegrationTitle.propTypes = {
-  children: PropTypes.node,
+  label: PropTypes.array,
+  title: PropTypes.string,
+  date: PropTypes.string,
+  instrumentation: PropTypes.object,
 };
 
 export default HomePage;
