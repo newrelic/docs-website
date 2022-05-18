@@ -46,7 +46,10 @@ const MainLayout = ({ data = {}, children, pageContext }) => {
   return (
     <>
       <SEO location={location} />
-      <GlobalHeader />
+      <GlobalHeader
+        hideSearch={nav?.id === rootNav.id && true}
+        customStyles={{ navLeftMargin: '150px', searchRightMargin: '30px' }}
+      />
       <MobileHeader>
         {nav?.id === rootNav.id ? (
           <RootNavigation nav={nav} />
@@ -54,15 +57,16 @@ const MainLayout = ({ data = {}, children, pageContext }) => {
           <SubNavigation nav={nav} />
         )}
       </MobileHeader>
-      <Layout>
+      <Layout
+        css={css`
+          margin-top: 1rem;
+        `}
+      >
         <Layout.Sidebar
           css={css`
             background: var(--primary-background-color);
             hr {
-              border-color: var(--color-neutrals-300);
-              .dark-mode & {
-                border-color: var(--color-dark-500);
-              }
+              border-color: var(--border-color);
             }
           `}
         >
