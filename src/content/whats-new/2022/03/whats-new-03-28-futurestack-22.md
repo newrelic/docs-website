@@ -3,7 +3,6 @@ title: 'FutureStack is back in-person at the Cosmopolitan of Las Vegas'
 summary: 'Join us May 17-19 for inspiring keynotes, hands-on labs, technical breakouts, 
 and amazing entertainment, Vegas style.' 
 releaseDate: '2022-03-28' 
-isFeatured: true
 learnMoreLink: 'https://www.futurestack.com/anqQXE?RefId=WHATSNEW' 
 ---
 
