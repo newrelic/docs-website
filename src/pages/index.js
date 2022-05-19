@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import PropTypes from 'prop-types';
+import { navigate } from '@reach/router';
 import { css } from '@emotion/react';
 import { graphql } from 'gatsby';
 import {
@@ -8,7 +9,6 @@ import {
   SearchInput,
   Surface,
   useInstrumentedHandler,
-  useQueryParams,
   useTranslation,
   Tag,
 } from '@newrelic/gatsby-theme-newrelic';
@@ -23,7 +23,6 @@ const HomePage = ({ data }) => {
   } = data;
 
   const { t } = useTranslation();
-  const { setQueryParam } = useQueryParams();
 
   const mobileBreakpoint = '450px';
 
@@ -34,6 +33,8 @@ const HomePage = ({ data }) => {
       path: edge.node.fields.slug,
     };
   });
+
+  const searchInputRef = useRef();
 
   return (
     <>
@@ -51,9 +52,8 @@ const HomePage = ({ data }) => {
       <SearchInput
         placeholder="What are you looking for?"
         size={SearchInput.SIZE.LARGE}
-        onFocus={() => {
-          setQueryParam('q', '');
-        }}
+        ref={searchInputRef}
+        onSubmit={() => navigate(`?q=${searchInputRef.current.value}`)}
         css={css`
           svg {
             display: none;
