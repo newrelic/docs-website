@@ -85,7 +85,6 @@ module.exports = {
             'json5',
             'jsdoc',
             'mustache',
-            'gradle',
             'powershell',
             'promql',
             'protobuf',
