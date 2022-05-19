@@ -44,7 +44,7 @@ You'll need to fill out values for variables in `script.sh`.
 
 This section assumes you are using Docker for the local environment, so be sure to install Docker if you don't have it installed already.
 
-Once you have Docker installed, from the `root` of the repository, run `yarn db:start`. This executes a `docker-compose` command using [this compose file](./docker-compose.yml). Three containers will be spun up: one for postgres, one for pgadmin, and one for executing a migration (using NodeJS sequelize).
+Once you have Docker installed, from the `root` of the repository, run `yarn db:start`. This executes a `docker-compose` command using [this compose file](./docker-compose.yml). Three containers will be spun up: one for postgres, one for pgadmin, and one for executing a migration (using Node.js sequelize).
 
 The migration takes the longest to execute. Once you see text similar to:
 ```

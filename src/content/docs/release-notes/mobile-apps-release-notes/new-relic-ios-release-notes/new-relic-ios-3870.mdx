@@ -1,0 +1,21 @@
+---
+subject: Mobile app for iOS
+releaseDate: '2022-05-19'
+version: 3.87.0
+downloadLink: 'https://apps.apple.com/app/id594038638'
+---
+
+### Notes
+
+New sections in the Explorer tab, favorite, last viewed and all entities!
+
+### New features
+
+* Added in new sections to easily find your favorites, last viewed on the web, or search across all entities
+* Added in support for baseline charts to AI issues and incidents
+
+### Improvements
+
+* Updated today widget to fix cross account issues
+* Fixed being able to acknowledge issues
+* Fixed cross account issues with NRQL status widget visualization
