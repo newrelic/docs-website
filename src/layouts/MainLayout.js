@@ -60,6 +60,8 @@ const MainLayout = ({ data = {}, children, pageContext }) => {
       <Layout
         css={css`
           margin-top: 1rem;
+          -webkit-font-smoothing: antialiased;
+          font-size: 18px;
         `}
       >
         <Layout.Sidebar
