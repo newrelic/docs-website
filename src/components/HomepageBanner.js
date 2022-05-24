@@ -121,7 +121,7 @@ const HomepageBanner = () => {
           <Button
             variant={Button.VARIANT.OUTLINE}
             as={Link}
-            to="https://one.newrelic.com/nr1-core?state=cab9400b-31f1-fab7-cd28-db21bd312951"
+            to="https://one.newrelic.com/marketplace?state=7ca7c800-845d-8b31-4677-d21bcc061961"
             css={css`
               height: 50px;
               margin-left: 1rem;

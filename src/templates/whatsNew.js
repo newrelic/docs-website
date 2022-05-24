@@ -7,6 +7,7 @@ import {
   Layout,
   Link,
   MarkdownContainer,
+  ContributingGuidelines,
 } from '@newrelic/gatsby-theme-newrelic';
 import SEO from '../components/SEO';
 import PageTitle from '../components/PageTitle';
@@ -26,6 +27,7 @@ const WhatsNewTemplate = ({ data, location, pageContext }) => {
         learnMoreLink,
         getStartedLink,
       },
+      fields: { fileRelativePath },
     },
   } = data;
 
@@ -131,6 +133,18 @@ const WhatsNewTemplate = ({ data, location, pageContext }) => {
         `}
       >
         <MarkdownContainer dangerouslySetInnerHTML={{ __html: html }} />
+        <ContributingGuidelines
+          css={css`
+            margin-top: 1rem;
+            padding-left: 0;
+            > * {
+              justify-content: flex-start;
+              text-align: left;
+            }
+          `}
+          fileRelativePath={fileRelativePath}
+          issueLabels={['feedback', 'feedback-issue']}
+        />
       </Layout.Content>
     </>
   );
@@ -157,6 +171,9 @@ export const pageQuery = graphql`
         summary
         learnMoreLink
         getStartedLink
+      }
+      fields {
+        fileRelativePath
       }
     }
 
