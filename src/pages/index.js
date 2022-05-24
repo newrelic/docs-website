@@ -53,14 +53,11 @@ const HomePage = ({ data }) => {
         placeholder="What are you looking for?"
         size={SearchInput.SIZE.LARGE}
         ref={searchInputRef}
+        iconName={SearchInput.ICONS.SEARCH}
+        isIconClickable
+        alignIcon={SearchInput.ICON_ALIGNMENT.RIGHT}
         onSubmit={() => navigate(`?q=${searchInputRef.current.value}`)}
         css={css`
-          svg {
-            display: none;
-          }
-          input {
-            padding-left: 1rem;
-          }
           @media screen and (max-width: ${mobileBreakpoint}) {
             margin-bottom: 1rem;
           }
