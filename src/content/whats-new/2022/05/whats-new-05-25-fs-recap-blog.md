@@ -6,7 +6,8 @@ learnMoreLink: 'https://newrelic.com/blog/nerdlog/futurestack-2022-recap'
 ---
 ![FutureStack 2022 blog graphic, green logo](./images/FS_Blog_Graphic_520x250.png "FutureStack 2022 blog graphic, green logo")
 
-At FutureStack 2022, we announced more than 30 capabilities that make it even easier for your teams to monitor, debug, and improve your entire stack—and embed observability practices and telemetry data throughout the entire software development lifecycle. The line-up included: 
+At FutureStack 2022, we announced more than 30 capabilities that make it even easier for your teams to monitor, debug, and improve your entire stack—and embed observability practices and telemetry data throughout the entire software development lifecycle. The lineup included:
+
 * Logs in context
 * Vulnerability management
 * Azure multi-cloud support
