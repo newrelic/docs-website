@@ -1,9 +1,11 @@
 ---
 title: 'Read the FutureStack recap' 
-summary: 'Learn about the product announcements unveiled at FutureStack 2022, our ultimate customer conference for software engineers and developers.' 
-releaseDate: '05-25-2022' 
+summary: 'Learn about the product announcements unveiled at FutureStack 2022, our ultimate customer conference for software engineers and developers.'
+releaseDate: '05-25-2022'
+isFeatured: true
 learnMoreLink: 'https://newrelic.com/blog/nerdlog/futurestack-2022-recap' 
 ---
+
 ![FutureStack 2022 blog graphic, green logo](./images/FS_Blog_Graphic_520x250.png "FutureStack 2022 blog graphic, green logo")
 
 At FutureStack 2022, we announced more than 30 capabilities that make it even easier for your teams to monitor, debug, and improve your entire stack—and embed observability practices and telemetry data throughout the entire software development lifecycle. The lineup included:
@@ -17,3 +19,4 @@ At FutureStack 2022, we announced more than 30 capabilities that make it even ea
 ...and more.
 
 Our comprehensive recap covers everything we announced at this year's event, and how you can get started with each New Relic enhancement and feature. [Read the recap blog now](https://newrelic.com/blog/nerdlog/futurestack-2022-recap).
+
