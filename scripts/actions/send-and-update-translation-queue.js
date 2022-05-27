@@ -36,9 +36,9 @@ const getReadyToGoTranslationsForEachLocale = async () => {
   ]);
 
   console.log({
-    pendingTranslations,
-    inProgressTranslations,
-    erroredTranslations,
+    pendingTranslations: pendingTranslations.length,
+    inProgressTranslations: inProgressTranslations.length,
+    erroredTranslations: erroredTranslations.length,
   });
 
   /*
