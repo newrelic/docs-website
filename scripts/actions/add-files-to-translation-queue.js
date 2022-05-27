@@ -110,6 +110,8 @@ const addFilesToTranslationQueue = async (fileNames, options) => {
     status: STATUS.PENDING,
   });
 
+  console.log({ includedFiles, queue });
+
   const filterByLocaleOption = (file) => {
     if (options.locale) {
       return file.locale === options.locale;
@@ -139,6 +141,8 @@ const main = async () => {
   const options = getCommandLineOptions();
   const url = options.url || null;
   const directory = options.directory || null;
+
+  console.log('Options:', { options });
 
   let mdxFileData;
 
