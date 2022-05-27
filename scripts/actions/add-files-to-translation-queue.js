@@ -110,7 +110,7 @@ const addFilesToTranslationQueue = async (fileNames, options) => {
     status: STATUS.PENDING,
   });
 
-  console.log({ includedFiles, queue });
+  console.log({ includedFiles: includedFiles.length, queue: queue.length });
 
   const filterByLocaleOption = (file) => {
     if (options.locale) {
@@ -122,6 +122,8 @@ const addFilesToTranslationQueue = async (fileNames, options) => {
     queue,
     includedFiles
   ).filter(filterByLocaleOption);
+
+  console.log(fileDataToAddToQueue);
 
   await Promise.all(
     fileDataToAddToQueue.map(({ filename, locale, project_id }) =>
