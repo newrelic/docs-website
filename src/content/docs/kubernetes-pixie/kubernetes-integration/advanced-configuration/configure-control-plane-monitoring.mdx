@@ -52,13 +52,13 @@ By default, our [Helm Chart](/docs/kubernetes-pixie/kubernetes-integration/insta
 
 #### `hostNetwork` and `privileged` [#hostnetwork-privileged]
 
-Most users and Kubernetes distributions configure the control plane metrics endpoints to listen only in the loopback interface, i.e. `localhost`. For this reason, the control plane component is deployed with `hostNetwork: true` by default when `privileged` is set to `true` (the default).
+In versions lower than v3, when the integration is deployed using `privileged: false`, the `hostNetwork` setting for the control plane component will be also be set to `false`.
 
-When the integration is deployed using `privileged: false`, the `hostNetwork` setting for the control plane component will be also be set to `false`. We chose to do it this way because otherwise, we would not be honoring the intent users have when they set `privileged: false`. Unfortunately, deploying without `hostNetwork` will cause control plane scraping to fail in most environments, which will result in missing metrics or the `nrk8s-controlplane` pods getting stuck into a `CrashLoopBackoff` state. This is a limitation of Kubernetes itself, as control plane cannot be monitored without `hostNetwork` unless components are manually configured to do so.
-
-As it is a common setting to deploy the integration in unprivileged mode (`privileged: false`), but still consider acceptable running the control plane pods with `hostNetwork`. This can be achieved by setting `controlPlane.unprivilegedHostNetwork` to `true`: This will tell the chart to deploy the control plane component with `hostNetwork: true`, despite the value of the higher-level `privileged` flag.
+In versions 3 and above, the `privileged` flag affects only the `securityContext` objects, that is, whether containers are run as root with access to host metrics or not. All the integration components default now to `hostNetwork: false`, except the pods that get metrics from the control plane that have `hostNetwork: true` as it is required to reach the control plane endpoints in most distributions. The `hostNetwork` value for all components can be changed, individually or globally, using [the `hostNetwork` toggle in your `values.yaml`](https://github.com/newrelic/helm-charts/tree/master/library/common-library#values-managed-globally).
 
 If running pods with `hostNetwork` is not acceptable whatsoever, due to cluster or other policies, control plane monitoring is not possible and should be disabled by setting `controlPlane.enabled` to `false`.
+
+If you have some advanced configuration that includes [custom autodiscovery](#autodiscovery-default) or [static endpoint](#static-endpoints) that can be used to monitor the control plane without `hostNetwork` check [project's README](https://github.com/newrelic/nri-kubernetes/blob/main/charts/newrelic-infrastructure/README.md) and look for `controlPlane.hostNetwork` toogle in the [`values.yaml`](https://github.com/newrelic/nri-kubernetes/blob/main/charts/newrelic-infrastructure/values.yaml).
 
 #### Custom autodiscovery [#autodiscovery-default]
 
@@ -132,8 +132,6 @@ These certificates should be signed by the same CA etcd is using to operate.
 
 How to generate these certificates is out of the scope of this documentation, as it will vary greatly between different Kubernetes distribution. Please refer to your distribution's documentation to see how to fetch the required etcd peer certificates. In Kubeadm, for example, they can be found in `/etc/kubernetes/pki/etcd/peer.{crt,key}` in the master node.
 
-[//]: # "TODO: This should be a TLS secret when https://github.com/newrelic/nri-kubernetes/issues/342 is fixed."
-
 Once you have located or generated the etcd peer certificates, you should rename the files to match the keys we expect to be present in the secret, and create the secret in the cluster
 
 ```shell
@@ -141,7 +139,7 @@ mv peer.crt cert
 mv peer.key key
 mv ca.crt cacert
 
-kubectl -n newrelic create secret generic newrelic-etcd-tls-secret --from-file=./cert --from-file=./key --from-file=./cacert
+kubectl -n newrelic create secret tls newrelic-etcd-tls-secret --cert=./cert --key=./key --certificate-authority=./cacert
 ```
 
 Finally, you can input the secret name (`newrelic-etcd-tls-secret`) and namespace (`newrelic`) in the config snippet shown at the beginning of this section. Remember that the Helm Chart will automatically parse this config and create an RBAC role to grant access to this specific secret and namespace for the `nrk8s-controlplane` component, so there's no manual action needed in that regard.
@@ -202,6 +200,50 @@ controlPlane:
 ```
 
 Please note that this only applies to the API Server and that etcd, the scheduler, and the controller manager remain inaccessible in cloud environments.
+
+#### Control plane monitoring for Rancher RKE1 [#rancher]
+
+Clusters deployed leveraging Rancher Kubernetes Engine (RKE1) run control plane components as Docker containers, and not as Pods managed by the Kubelet. 
+That's why the integration can't autodiscover those containers, and every endpoint needs to be manually specified in the `staticEndpoint` section of the integration configuration.
+
+The integration needs to be able to reach the different endpoints either by connecting directly, with the available authentication methods 
+(service account token, custom mTLS certificates, or none), or through a proxy.
+
+For example, in order to make the Scheduler and the Controller Manager metrics reachable, you might need to add the `--authorization-always-allow-paths` [flag](https://kubernetes.io/docs/reference/command-line-tools-reference/kube-scheduler/), allowing `/metrics` or `--authentication-kubeconfig` and `--authorization-kubeconfig` to enable token authentication.
+
+Assuming that every component is reachable at the specified port, the following configuration will monitor the API Server, the Scheduler and the Controller Manager: 
+
+```yaml
+  scraper:
+    enabled: true
+    kind: DaemonSet
+    config:
+      scheduler:
+        enabled: true
+        staticEndpoint:
+          url: https://localhost:10259
+          insecureSkipVerify: true
+          auth:
+            type: bearer
+      controllerManager:
+        enabled: true
+        staticEndpoint:
+          url: https://localhost:10257
+          insecureSkipVerify: true
+          auth:
+            type: bearer
+      apiServer:
+        enabled: true
+        staticEndpoint:
+          url: https://localhost:6443
+          insecureSkipVerify: true
+          auth:
+            type: bearer
+```
+
+In this example, the integration needs to run on the same node of each control plane component that has the `hostNetwork` option set to true, since it's connecting locally to each `staticEndpoint`. Therefore, `controlPlane.kind` has to be kept as `DaemonSet`. Also, the DaemonSet needs affinity rules, nodeSelector, and tolerations configured so that all instances are running on all control plane nodes you want to monitor.
+
+You can recognize the control plane nodes by checking the `node-role.kubernetes.io/controlplane` label. This label is already taken into account by the integration default affinity rules.
 
 ## Monitoring control plane with integration version 2 [#monitoring-control-plane]
 
@@ -435,8 +477,6 @@ Version 3 of the Kubernetes Integration includes default settings that will auto
 
 Etcd is not supported out of the box as the metrics endpoint is configured to require mTLS authentication in OpenShift environments. Our integration supports mTLS authentication to fetch etcd metrics in this configuration, however you will need to create the required mTLS certificate manually. This is necessary to avoid granting wide permissions to our integration without the explicit approval from the user.
 
-[//]: # "TODO: When https://github.com/newrelic/nri-kubernetes/issues/342 is merged, we might be able to point our integration to the secret OpenShift provides directly, greatly simplifying this section."
-
 To create an mTLS secret, please follow the steps in [this section below](#mtls-how-to-openshift), and then configure the integration to use the newly created secret as described in [the mtls section](#mtls).
 
 <CollapserGroup>
@@ -472,8 +512,6 @@ To create an mTLS secret, please follow the steps in [this section below](#mtls-
 
 ### Set up mTLS for etcd in OpenShift [#mtls-how-to-openshift]
 
-[//]: # "TODO: When https://github.com/newrelic/nri-kubernetes/issues/342 is merged, we might be able to point our integration to the secret OpenShift provides directly, greatly simplifying this section."
-
 Follow these instructions to set up mutual TLS authentication for etcd in [OpenShift](http://learn.openshift.com/?extIdCarryOver=true&sc_cid=701f2000001OH7iAAG) 4.x:
 
 1. Export the etcd client certificates from the cluster to an opaque secret. In a default managed OpenShift cluster, the secret is named `kube-etcd-client-certs` and it is stored in the `openshift-monitoring` namespace.
@@ -482,26 +520,21 @@ Follow these instructions to set up mutual TLS authentication for etcd in [OpenS
    kubectl get secret kube-etcd-client-certs -n openshift-monitoring -o yaml > etcd-secret.yaml
    ```
 
-2. Open the secret file and change the keys:
-   * Rename the **certificate authority** to `cacert`.
-   * Rename the **client certificate** to `cert`.
-   * Rename the **client key** to `key`.
+2. Optionally, change the secret name and namespace to something meaningful.
 
-3. Optionally, change the secret name and namespace to something meaningful.
-
-4. Remove these unnecessary keys in the metadata section:
+3. Remove these unnecessary keys in the metadata section:
    * `creationTimestamp`
    * `resourceVersion`
    * `selfLink`
    * `uid`
 
-5. Install the manifest with its new name and namespace:
+4. Install the manifest with its new name and namespace:
 
    ```shell
    kubectl apply -n newrelic -f etcd-secret.yaml
    ```
 
-6. Configure the integration to use the newly created secret as described in [the mtls section](#mtls).
+5. Configure the integration to use the newly created secret as described in [the mtls section](#mtls).
 
 ## See your data [#check-integration-works]
 
@@ -509,7 +542,7 @@ If the integration has been been set up correctly, the [Kubernetes cluster explo
 
 <img
   title="new-relic-one-k8s-cluster-explorer-control-plane-parameters.png"
-  alt="New Relic One - Kubernetes Cluster Explorer - Control Plane section"
+  alt="New Relic - Kubernetes Cluster Explorer - Control Plane section"
   src={newRelicOneK8SClusterExplorerControlPlaneParameters}
 />
 

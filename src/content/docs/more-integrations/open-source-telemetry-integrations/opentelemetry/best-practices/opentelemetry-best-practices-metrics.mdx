@@ -1,0 +1,187 @@
+---
+title: 'OpenTelemetry metrics: Best practices'
+tags:
+  - Integrations
+  - Open source telemetry integrations
+  - OpenTelemetry
+metaDescription: Here are some tips for working with OpenTelemetry metrics and New Relic.
+---
+
+import queryCumulativeSums from 'images/query-cumulative-sums.png'
+
+import sumDerivativeFunction from 'images/sum-derivative-function.png'
+
+import histogram1 from 'images/histogram-1.png'
+
+import histogram2 from 'images/histogram-2.png'
+
+OpenTelemetry metrics are largely compatible with New Relic dimensional metrics. We support OpenTelemetry metrics v0.10. All of the supported metric types include an independent set of associated attributes (name-value pairs) which map directly to dimensions you can use to facet or filter metric data at query time. OpenTelemetry metrics are accompanied by a set of [resource](https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/resource/sdk.md#resource-sdk) attributes that identify the originating entity that produced them and map to dimensions for faceting and filtering.
+
+The OpenTelemetry [data model](https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/metrics/datamodel.md#metric-points) for metrics defines a number of different metric types: sum, gauge, histogram, and summary.
+
+<Callout variant="important">
+As the OpenTelemetry Protocol matures and more components are declared [stable](https://github.com/open-telemetry/opentelemetry-proto#maturity-level), we intend to move the version supported by our OTLP endpoints from v0.10.0 to a more recent release, at least v0.16.0, before September 2022.
+
+Additional communication will be forthcoming regarding the EOL timeline for v0.10.0 support and actions you can take to minimize disruption as the community moves toward a more stable release of OTLP.
+</Callout>
+
+### Sum metrics [#sums]
+
+OpenTelemetry sums are a scalar metric that is the sum of all data points over a given time window. Sums have a notion of [temporality](https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/metrics/datamodel.md#temporality) indicating whether reported values incorporate previous measurements (cumulative temporality) or not (delta temporality).
+
+In addition, sums can either be monotonic (only go up or only go down) or non-monotonic (go up and down).
+
+#### Delta sums [#delta]
+
+In New Relic, delta metrics are handled differently depending on whether they are monotonic or non-monotonic:
+
+* Monotonic delta sums are mapped to the count metric type.
+* Non-monotonic delta sums are not supported. Things measured in this fashion do not generate meaningful data as they are most likely summed to be used. See [this community pull request](https://github.com/open-telemetry/opentelemetry-specification/pull/2314#pullrequestreview-877408961) and our documentation on [Gauges versus counters](https://docs.newrelic.com/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/opentelemetry-view-your-data/#jvms-and-metric-types) for more discussion.
+
+#### Cumulative sums [#cumulative]
+
+Monotonic and non-monotonic cumulative sums are mapped to the New Relic gauge metric type.
+
+#### Sum configuration examples [#config-sums]
+
+To understand how to configure aggregation temporality, see these examples using the [Java](https://github.com/newrelic/newrelic-opentelemetry-examples/tree/main/java/sdk-nr-config) and [Go](https://github.com/newrelic/newrelic-opentelemetry-examples/tree/main/go) OpenTelemetry SDKs.
+
+### Gauge metrics [#gauge]
+
+OpenTelemetry gauge metric data points represent a sampled value at a given time. These values are converted to the New Relic gauge metric type. OpenTelemetry gauges do not have an aggregation temporality, but the sampled values can be aggregated at query time.
+
+### Histogram metrics [#otel-histogram]
+
+OpenTelemetry [histograms](https://github.com/open-telemetry/opentelemetry-specification/blob/87a5ed7f0d4c403e2b336f275ce3e7fd66a8041b/specification/metrics/datamodel.md#histogram) compactly represent a population of recorded values along with a total count and sum. Optionally, histograms may include a series of buckets with explicit bounds and a count value for that bucket's population.
+
+<Callout variant="caution">
+  New Relic doesn't currently support cumulative histograms. Instead, convert your cumulative histograms to delta temporality.
+
+  Before configuring your SDK to use delta temporality, see the [specification for the OTLP metric exporter](https://github.com/open-telemetry/opentelemetry-specification/blob/ce50e4634efcba8da445cc23523243cb893905cb/specification/metrics/sdk_exporters/otlp.md#opentelemetry-metrics-exporter---otlp).
+
+  You can use this account query to determine if metrics are being dropped due to unsupported temporality:
+
+  ```sql
+  FROM NrIntegrationError SELECT * WHERE message = 'One or more OTLP metric data point(s) were dropped due to unsupported AggregationTemporality.'
+  ```
+</Callout>
+
+OpenTelemetry histograms are converted to New Relic’s [distribution](https://docs.newrelic.com/docs/telemetry-data-platform/understand-data/metric-data/metric-data-type/#metric-types) metric type, which is backed by a scaled exponential base 2 histogram (see [NrSketch](https://github.com/newrelic-experimental/newrelic-sketch-java#new-relic-sketch) for a more thorough explanation).
+
+Counts from OpenTelemetry histogram buckets are assigned to New Relic’s distribution metric buckets using linear interpolation. Also, OpenTelemetry has negative and positive infinity bound buckets which we represent in New Relic as zero-width buckets. We do this because we do not have a representation for negative and positive infinity. For example, an OpenTelemetry bucket with bounds `\[-∞, 10)` will be represented by a `\[10,10)` zero width New Relic bucket. You may see exaggerated bucket counts at the endpoints of your distribution due to this translation.
+
+### Summary metrics [#summary-metric]
+
+OpenTelemetry summary metric data points are used to represent quantile summaries (for example, P99 latency). These map directly to the New Relic summary metric type.
+
+Summary metric data points include count, sum, and quantile values, with 0.0 as min and 1.0 as max. OpenTelemetry provides summary metrics for compatibility with other formats.
+
+### Start time [#start-time]
+
+The `startTimeUnixNano` field is optional according to the OpenTelemetry [specification](https://github.com/open-telemetry/opentelemetry-specification/blob/87a5ed7f0d4c403e2b336f275ce3e7fd66a8041b/specification/metrics/datamodel.md#temporality). When this field is provided, it is used for the timestamp on the resulting New Relic metric, and the `duration` is calculated as `timeUnixNano - startTimeUnixNano`. The `duration` field is used to calculate the queryable `endTimeStamp` attribute on the New Relic metric, but it serves no other semantic purpose.
+
+If `startTimeUnixNano` is not provided, then `timeUnixNano` is used for the timestamp field on the resulting New Relic metric, and the duration field is set to zero.
+
+### Array values for attributes [#array-values]
+
+OpenTelemetry metrics and other signals may include attributes that consist of a homogenous array of primitive types. New Relic supports non-nested homogeneous arrays with less than 65 elements.
+
+### Exemplars [#exemplars]
+
+OpenTelemetry defines exemplar values that allow other signals, like traces, to be connected to a metric event and provide context. Exemplars are not supported by New Relic.
+
+### How to query metrics [#query]
+
+Consider these tips for building metric NRQL queries in New Relic.
+
+#### Query cumulative sums stored as gauges [#sums-as-gauges]
+
+Since cumulative sums are converted to gauges, here are some ways to query your data:
+
+<CollapserGroup>
+  <Collapser
+    className="freq-link"
+    id="raw-gauge"
+    title="Example: Raw gauge value for cumulative sums"
+  >
+    To view the raw gauge value for cumulative sums, you can use the [`latest()`](/docs/query-your-data/nrql-new-relic-query-language/get-started/nrql-syntax-clauses-functions/#latest) NRQL function:
+
+    ```sql
+    SELECT latest(totalApiBytesSent) FROM Metric TIMESERIES FACET description, statusCode
+    ```
+
+    <img
+      title="Screen shot showing how to query a cumulative sum as a gauge"
+      alt="Screen shot showing how to query a cumulative sum as a gauge"
+      src={queryCumulativeSums}
+    />
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="derivative-function"
+    title="Example: Rate of change with cumulative sums as gauges"
+  >
+    To see the rate of change over a given time interval for a cumulative sum stored as a gauge, you can use the [`derivative()`](/docs/query-your-data/nrql-new-relic-query-language/get-started/nrql-syntax-clauses-functions/#derivative) NRQL function:
+
+    ```sql
+    SELECT derivative(totalApiBytesSent, 1 second) FROM Metric TIMESERIES 5 MINUTES SLIDE BY 1 MINUTE FACET description, statusCode
+    ```
+
+    <img
+      title="Screenshot showing rate of change over a given time interval for a cumulative sum"
+      alt="Screenshot showing rate of change over a given time interval for a cumulative sum"
+      src={sumDerivativeFunction}
+    />
+
+    New Relic does not currently support either reporting on [resets and gaps](https://github.com/open-telemetry/opentelemetry-specification/blob/87a5ed7f0d4c403e2b336f275ce3e7fd66a8041b/specification/metrics/datamodel.md#resets-and-gaps) or accounting for them with cumulative counters.
+  </Collapser>
+</CollapserGroup>
+
+#### Query gauge metrics [#query-gauges]
+
+When New Relic converts cumulative sums to gauges, you can query them using either the [`latest()`](/docs/query-your-data/nrql-new-relic-query-language/get-started/nrql-syntax-clauses-functions/#latest) or [`derivative()`](/docs/query-your-data/nrql-new-relic-query-language/get-started/nrql-syntax-clauses-functions/#derivative) NRQL functions. The function you choose depends on whether you want to see the raw value or compute the rate of change.
+
+#### Query histogram metrics [#query-histograms]
+
+New Relic histograms translated from OpenTelemetry metrics have the same query semantics as other New Relic histograms. Namely, the [`histogram()`](/docs/query-your-data/nrql-new-relic-query-language/get-started/nrql-syntax-clauses-functions/#func-histogram) NRQL function can be used to represent the histogram with a configurable number of buckets and bucket width. Note that you may see larger bucket counts at the endpoint buckets. This is because we are adding negative and positive infinity bound OpenTelemetry buckets into a zero width New Relic bucket.
+
+<CollapserGroup>
+  <Collapser
+    className="freq-link"
+    id="normal-distribution"
+    title="Example: Normal distribution"
+  >
+    ```sql
+    FROM Metric SELECT histogram(test.histogram, buckets: 100, width: 1000) WHERE distributionType = 'Normal Distribution' SINCE 1 day ago
+    ```
+
+    <img
+      title="Screenshot showing a histogram query"
+      alt="Screenshot showing a histogram query"
+      src={histogram1}
+    />
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="histogram-heat-map"
+    title="Example: Heat map"
+  >
+    The FACET keyword is also available to create heat map charts.
+
+    ```sql
+    FROM Metric SELECT histogram(test.histogram, buckets: 100, width: 1000) FACET distributionType SINCE 1 day ago
+    ```
+
+    <img
+      title="Screenshot showing a heat map"
+      alt="Screenshot showing a heat map"
+      src={histogram2}
+    />
+  </Collapser>
+</CollapserGroup>
+
+<Callout variant="important">
+  The `TIMESERIES` keyword is not supported for New Relic histograms.
+</Callout>
