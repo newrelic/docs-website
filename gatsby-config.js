@@ -106,6 +106,7 @@ module.exports = {
             'csharp',
             'md',
             'java',
+            'razor',
           ],
         },
         splitio: {
