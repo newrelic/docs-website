@@ -20,8 +20,6 @@ import DataDictionaryFilter from '../components/DataDictionaryFilter';
 import SEO from '../components/SEO';
 import PageTitle from '../components/PageTitle';
 
-import { useMedia } from 'react-use';
-
 const AttributeDictionary = ({ data, pageContext, location }) => {
   const { allDataDictionaryEvent } = data;
 
@@ -29,8 +27,6 @@ const AttributeDictionary = ({ data, pageContext, location }) => {
   const [filteredAttribute, setFilteredAttribute] = useState(null);
   const [searchedAttribute, setSearchedAttribute] = useState(null);
   const { queryParams } = useQueryParams();
-
-  const isMobileScreen = useMedia('(max-width: 1240)');
 
   const events = useMemo(
     () => allDataDictionaryEvent.edges.map((edge) => edge.node),
@@ -73,7 +69,7 @@ const AttributeDictionary = ({ data, pageContext, location }) => {
     <>
       <SEO
         location={location}
-        type={TYPES.ATTRIBUTE_DICTIONARY}
+        type={TYPES.BASIC_PAGE.default}
         title="New Relic data dictionary"
       />
       <div
@@ -147,12 +143,10 @@ const AttributeDictionary = ({ data, pageContext, location }) => {
           `}
         >
           <SimpleFeedback title="Attribute dictionary" />
-          {!isMobileScreen && (
-            <ContributingGuidelines
-              fileRelativePath={pageContext.fileRelativePath}
-              issueLabels={['feedback', 'feedback-issue']}
-            />
-          )}
+          <ContributingGuidelines
+            fileRelativePath={pageContext.fileRelativePath}
+            issueLabels={['feedback', 'feedback-issue']}
+          />
           <DataDictionaryFilter events={events} location={location} />
         </Layout.PageTools>
       </div>
@@ -266,7 +260,7 @@ const EventDefinition = memo(
           data-swiftype-index="false"
           dangerouslySetInnerHTML={{ __html: event.definition?.html }}
         />
-        <Table>
+        <Table data-swiftype-index="false">
           <thead>
             <tr>
               <th
@@ -299,7 +293,7 @@ const EventDefinition = memo(
                       css={css`
                         display: flex;
                         align-items: center;
-                        color: var(--color-text-primary);
+                        color: var(--link-color);
                         text-decoration: none;
 
                         &:hover svg {
@@ -333,7 +327,7 @@ const EventDefinition = memo(
                           font-size: 0.75rem;
 
                           .dark-mode & {
-                            color: var(--color-dark-600);
+                            color: var(--secondary-text-color);
                           }
                         `}
                       >
@@ -342,7 +336,6 @@ const EventDefinition = memo(
                     )}
                   </td>
                   <td
-                    data-swiftype-index="false"
                     key={`${event.name}-${attribute.name}-def}`}
                     css={css`
                       p:last-child {
@@ -354,7 +347,6 @@ const EventDefinition = memo(
                     }}
                   />
                   <td
-                    data-swiftype-index="false"
                     css={css`
                       width: 1px;
                     `}
