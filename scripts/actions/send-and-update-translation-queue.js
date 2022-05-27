@@ -35,6 +35,12 @@ const getReadyToGoTranslationsForEachLocale = async () => {
     Database.getTranslations({ status: 'ERRORED', project_id: PROJECT_ID }),
   ]);
 
+  console.log({
+    pendingTranslations,
+    inProgressTranslations,
+    erroredTranslations,
+  });
+
   /*
    * We only want to send a translation if:
    * 1. It's in a pending state.
