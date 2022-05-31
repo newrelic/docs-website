@@ -1,22 +1,19 @@
 ---
-title: 'Data Plus pricing now available for observability at scale
-' 
-summary: 'Extended retention, logs obfuscation, FedRAMP, and more included for 56% bundled savings' 
-releaseDate: '2022-06-01' 
-
-
+title: 'Data Plus pricing now available for observability at scale'
+summary: 'Extended retention, logs obfuscation, FedRAMP, and more included for 56% bundled savings'
+releaseDate: '2022-06-01'
 ---
 ## Data Plus pricing now available for observability at scale
 Today, we launched our new Data Plus option to help teams of all sizes scale their observability practices with advanced data capabilities, such as extended retention, logs obfuscation, increased query limits, FedRAMP/HIPAA compliance options, and more
 
 New Relic customers can now choose between the [existing data option](https://docs.newrelic.com/docs/data-apis/manage-data/manage-data-coming-new-relic/) ($0.30/GB) and the new [Data Plus](https://newrelic.com/blog/nerdlog/data-plus-pricing) option listed at the promotional price of $0.50/GB ingested, a 56% bundled discount compared to using each capability individually.
 
-Data Plus from New Relic includes: 
+Data Plus from New Relic includes:
 
 * **Up to 90 days of data retention:** Instead of paying individual premiums for data indexing and retention of each data source, customers will be able to choose which data they want stored longer in New Relic without increasing their monthly costs.
 
 
-* **Up to 3x the max query limits and 2x the max query duration:** Engineers can inspect up to one trillion data points per 30 minutes and 150 billion data points per one minute, compared to 300 billion data points per 30 minutes and 50 billion data points per one minute. In addition, Data Plus customers get a max query duration of up to 2 minutes, versus 60 seconds in the existing data plan. 
+* **Up to 3x the max query limits and 2x the max query duration:** Engineers can inspect up to one trillion data points per 30 minutes and 150 billion data points per one minute, compared to 300 billion data points per 30 minutes and 50 billion data points per one minute. In addition, Data Plus customers get a max query duration of up to 2 minutes, versus 60 seconds in the existing data plan.
 
 * **FedRAMP and HIPAA compliance:** New Relic Data Plus provides options for customers in highly regulated sectors to enable security configurations required for FedRAMP and HIPAA compliance. (Requires Enterprise edition.)
 
@@ -60,4 +57,4 @@ Existing paid self-serve customers will not see an immediate ingest price increa
 
 **Q: Where can I see my current data usage?**
 
-To view and analyze your current data usage, see the [data management UI.](https://docs.newrelic.com/docs/data-apis/manage-data/manage-your-data/)
+To view and analyze your current data usage, see the [data management UI.](https://docs.newrelic.com/docs/data-apis/manage-data/manage-your-data/).
