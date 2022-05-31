@@ -1,6 +1,6 @@
 --- 
 title: 'New obfuscation features now available in log management'
-summary: 'The new functionality makes it easy to keep sensitive data out of logs'
+summary: 'The new functionality makes it easy to keep sensitive data out of logs' 
 releaseDate: '2022-06-01'
 learnMoreLink: 'https://docs.newrelic.com/docs/logs/ui-data/obfuscation-ui/'
 getStartedLink: 'https://one.newrelic.com/launcher/logger.log-launcher'
