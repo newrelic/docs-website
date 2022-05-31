@@ -6,7 +6,7 @@ learnMoreLink: 'https://docs.newrelic.com/docs/logs/ui-data/obfuscation-ui/'
 getStartedLink: 'https://one.newrelic.com/launcher/logger.log-launcher'
 ---
 
-New Relic makes it easy for you to ensure data privacy and follow your organization's logs security guidelines with new obfuscation options now available in our log management. 
+New Relic makes it easy for you to ensure data privacy and follow your organization's logs security guidelines with new obfuscation options now available for our [log management feature](https://docs.newrelic.com/docs/logs/get-started/get-started-log-management). 
 
 Log obfuscation requires that your organization be on our newer pricing model and have the [Data Plus option](https://docs.newrelic.com/docs/data-apis/manage-data/manage-data-coming-new-relic#data-prices).  
 
