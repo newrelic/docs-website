@@ -41,6 +41,10 @@ The list price will be effective June 1 for all new customers. All customers wil
 * Free customers will see no change to their plan. If customers would like to ingest more than 100GB per month, they can upgrade to a paid plan, which will include the new $0.30 per GB per month price.
 * Existing paid self-serve customers will not see an immediate ingest price increase on June 1, 2022, unless they cancel and restart their account. These customers are expected to start being billed at the new list price after they renew their current contract. 
 
+**Q: How do the two offerings compare?**
+
+!["A comparison of Data Plus and original data option"](./images/data-plus-comparison.png "A comparison of Data Plus and original data option")
+
 **Q: Where can I see my current data usage?**
 
 To view and analyze your current data usage, see the [data management UI](https://docs.newrelic.com/docs/data-apis/manage-data/manage-your-data).
