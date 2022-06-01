@@ -47,7 +47,7 @@ const HomePage = ({ data }) => {
           }
         `}
       >
-        Welcome to New Relic docs!
+        {t('home.pageTitle')}
       </h1>
       <SearchInput
         placeholder="What are you looking for?"
