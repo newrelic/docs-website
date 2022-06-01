@@ -6,9 +6,9 @@ releaseDate: '2022-04-14'
 
 ## Introducing Data Plus (New!) 
 
-Starting June 1, 2022, customers on our [New Relic One pricing model](https://docs.newrelic.com/docs/accounts/original-accounts-billing/original-product-based-pricing/overview-pricing-models) will be able to choose between the existing data offering and a new "Data Plus" offering, listed at the promotional price of $0.50/GB ingested (includes $1.15/GB of value), to avoid ballooning data costs when scaling your observability practice. 
+Starting June 1, 2022, customers on our [New Relic One pricing model](https://docs.newrelic.com/docs/accounts/original-accounts-billing/original-product-based-pricing/overview-pricing-models) will be able to choose between the existing data offering and a new "Data Plus" option, listed at the promotional price of $0.50/GB ingested (includes $1.15/GB of value), to avoid ballooning data costs when scaling your observability practice. 
 
-Data Plus combines at-scale performance and governance capabilities in one simple, predictable, and affordable price per gigabyte which is 56%+ more cost effective than paying for each capability individually. The Data Plus offering includes: 
+Data Plus combines at-scale performance and governance capabilities in one simple, predictable, and affordable price per gigabyte which is 56%+ more cost effective than paying for each capability individually. Data Plus includes: 
 
 * **Up to 90 days of data retention:** Instead of paying individual premiums for data indexing and retention of each data source, customers will be able to choose which data they want stored longer in New Relic without increasing their monthly costs.
 * **Up to 3x the max query limits and 2x the max query duration:** Engineers can inspect up to one trillion data points per 30 minutes and 150 billion data points per one minute, compared to 300 billion data points per 30 minutes and 50 billion data points per one minute. In addition, Data Plus customers get a max query duration of up to 2 minutes, versus 60 seconds in the existing data plan.
