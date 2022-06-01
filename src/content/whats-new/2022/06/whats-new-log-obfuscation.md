@@ -2,7 +2,7 @@
 title: 'New obfuscation features now available in log management'
 summary: 'The new functionality makes it easy to keep sensitive data out of logs' 
 releaseDate: '2022-06-01'
-learnMoreLink: 'https://docs.newrelic.com/docs/logs/ui-data/obfuscation-ui/'
+learnMoreLink: 'https://docs.newrelic.com/docs/logs/ui-data/obfuscation-ui'
 getStartedLink: 'https://one.newrelic.com/launcher/logger.log-launcher'
 ---
 
@@ -17,8 +17,6 @@ Try it out:
 1. Go to [**Logs**](https://one.newrelic.com/launcher/logger.log-launcher) in New Relic and from the left nav, select **Obfuscation**.
 2. Select **Create expression** or **Create obfuscation rule** to get started.
 
-!["Logs obfuscation UI"](./images/obfuscation_ui.png "Logs obfuscation UI")
-
 New Relic's log management already helps you troubleshoot issues faster with simplified navigation, dashboard visualizations, the best logs in context, and now, a simple way to control what log data you may be required to protect.
 
-To know more, see our [docs on log management security and privacy](https://docs.newrelic.com/docs/logs/get-started/new-relics-log-management-security-privacy).
+To know more, see our [docs on log management security and privacy](https://docs.newrelic.com/docs/logs/get-started/new-relics-log-management-security-privacy) and our [docs about the Data Plus option](https://docs.newrelic.com/docs/data-apis/manage-data/manage-data-coming-new-relic#data-prices).
