@@ -96,7 +96,7 @@ const FindYourQuickStart = () => (
       }
     `}
   >
-    <h3>Monitor everything in your stack with 400+ integrations.</h3>
+    <h3>Monitor everything in your stack with 470+ integrations.</h3>
     <div
       css={css`
         display: flex;

@@ -10,15 +10,16 @@ Starting June 1, 2022, customers on our [New Relic One pricing model](https://do
 
 Data Plus combines at-scale performance and governance capabilities in one simple, predictable, and affordable price per gigabyte which is 56%+ more cost effective than paying for each capability individually. Data Plus includes: 
 
-* **90 days extended retention over current defaults:** Instead of paying individual premiums for data indexing and retention of each data source, customers will be able to choose which data they want stored longer in New Relic without increasing their monthly costs. 
-* **3x the max query limit and 10x the max duration per query:** Engineers can analyze large data volumes faster, with the ability to inspect up to one trillion data points per 30 minutes and 100 billion data points per minute, compared to 300 billion data points per 30 minutes and 10 billion data points per minute for our current data option. In addition, New Relic Data Plus customers benefit from an increased max query duration of up to two minutes, versus one minute for our current data option.
+* **Up to 90 days of data retention:** Instead of paying individual premiums for data indexing and retention of each data source, customers will be able to choose which data they want stored longer in New Relic without increasing their monthly costs.
+* **Up to 3x the max query limits and 2x the max query duration:** Engineers can inspect up to one trillion data points per 30 minutes and 150 billion data points per one minute, compared to 300 billion data points per 30 minutes and 50 billion data points per one minute. In addition, Data Plus customers get a max query duration of up to 2 minutes, versus 60 seconds in the existing data plan.
 * **FedRAMP and HIPAA compliance:** New Relic Data Plus provides options for customers in highly regulated sectors to enable security configurations required for FedRAMP and HIPAA compliance. (Requires Enterprise edition.)
 * **Logs obfuscation:** Engineers can track logs obfuscation rules directly in the log management UI and create anonymous identifiers for sensitive log data such as personally identifiable information (PII), access tokens, and other private or regulated data.
-* **Enhanced streaming and historical data export** (coming soon): Ability to export New Relic data to external destinations for historical analysis and modeling, long-term storage, and integration with other data analytics platforms.
+* **Cloud provider choice (coming soon):** Flexibility to run observability workloads on the cloud provider of your choice, AWS or Microsoft Azure, to align your telemetry storage with your engineering deployment model and cloud preference. 
+* **Enhanced streaming and historical data export (coming soon):** Ability to export New Relic data to external destinations for historical analysis and modeling, long-term storage, and integration with other data analytics platforms.
 
 ## Data ingest list price update 
 
-Starting June 1, 2022, we’re increasing our existing listed data ingest price from $0.25/GB to  $0.30/GB per month. This does not apply to existing New Relic customer contracts and only applies to customers when they renew or modify their contracts. 
+Starting June 1, 2022, we’re increasing our existing listed data ingest price from $0.25/GB to $0.30/GB per month. This does not apply to existing New Relic customer contracts and only applies to customers when they renew or modify their contracts. 
 
 We're increasing the price so that we can continue to deliver more value for every GB you send to New Relic. Over the past two years, we have increased our engineering investments to deliver new capabilities included in your per GB price:
 

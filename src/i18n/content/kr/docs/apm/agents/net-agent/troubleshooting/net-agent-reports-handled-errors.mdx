@@ -1,0 +1,135 @@
+---
+title: .NET 에이전트가 처리된 오류를 보고합니다.
+type: troubleshooting
+tags:
+  - Agents
+  - NET agent
+  - Troubleshooting
+metaDescription: How to prevent New Relic's .NET agent from reporting handled errors as though they are standard errors.
+translationType: machine
+---
+
+## 문제
+
+New Relic의 .NET 에이전트는 처리된 오류를 표준 오류인 것처럼 보고합니다. 이는 Azure 작업자 역할, 콘솔 앱, 비동기 작업 및 유사한 작업에서 가장 일반적입니다.
+
+## 해결책
+
+잘못된 오류 보고를 방지하려면 예외 처리기를 직접 또는 간접적으로 포함하는 메서드를 계측하십시오. 다음 예제와 같이 사용자 [지정 계측](/docs/agents/net-agent/custom-instrumentation/introduction-net-custom-instrumentation) 파일을 정의하거나 메서드를 [사용자 지정 트랜잭션](/docs/agents/net-agent/custom-instrumentation/create-transactions-xml-net) 으로 래핑하여 대상 메서드를 계측합니다.
+
+<CollapserGroup>
+  <Collapser
+    id="get-response-block"
+    title="GetResponse()에서 오류가 발생합니다."
+  >
+    이 예에서 New Relic은 `Foo()` 메서드가 계측 **되지 않는 한** `GetResponse()` 의 오류를 보고합니다. `Foo` 이(가) 계측되면 New Relic은 `Foo` 이(가) 호출될 때 트랜잭션을 시작하고 `Foo` 가 종료될 때 트랜잭션을 종료합니다.
+
+    오류는 `Foo` 이 끝나기 전에 처리되기 때문에 New Relic은 오류를 보고하지 않습니다. 또한 `GetResponse()` 은 `Foo` 트랜잭션의 세그먼트가 됩니다.
+
+    ```cs
+    using System;
+    using System.Collections.Generic;
+    using System.Threading;
+    using System.Threading.Tasks;
+    using System.Net;
+    using System.IO;
+
+    namespace ErrorTester
+    {
+        class Program
+        {
+            static void Main(string[] args)
+            {
+                var i = 0;
+                while (true)
+                {
+                    Foo(++i);
+                }
+            }
+
+            static void Foo(int i)
+            {
+                try
+                {
+                    GetNotFound();
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine("Got it " + i + "!");
+                    Thread.Sleep(1000);
+                }
+            }
+
+            static string GetNotFound()
+            {
+                string uri = "http://localhost/Test/this/is/not/a/real/page";
+                var request = (HttpWebRequest)WebRequest.Create(uri);
+                var response = request.GetResponse();
+                var data = new StreamReader(response.GetResponseStream()).ReadToEnd();
+                response.Close();
+                return data;
+            }
+        }
+    }
+    ```
+  </Collapser>
+
+  <Collapser
+    id="custom-instrumentation"
+    title="사용자 정의 계측 파일 정의"
+  >
+    `Foo` 을(를) 계측하려면:
+
+    1. [사용자 정의 계측 파일](/docs/agents/net-agent/custom-instrumentation/introduction-net-custom-instrumentation) 정의 ; 예: `CustomInstrumentation.xml` :
+
+       ```xml
+       <?xml version="1.0" encoding="utf-8"?>
+       <!-- © 2008-2014 New Relic, Inc. All rights reserved. -->
+       <!--
+           When you edit this file, please use an XML aware editor (such as Visual Studio),
+           and pair with the companion file extension.xsd to minimize the
+           chance of introducing typos that may confuse the agent when it is run.
+       -->
+       <extension xmlns="urn:newrelic-extension">
+         <instrumentation>
+           <tracerFactory >
+             <match assemblyName="ErrorTester" className="ErrorTester.Program">
+               <exactMethodMatcher methodName="Foo" /> 
+             </match>
+           </tracerFactory>
+         </instrumentation>
+       </extension>
+       ```
+
+    2. `CustomInstrumenation.xml` 을 `CoreInstrumentation.xml` 옆에 있는 New Relic 확장 폴더에 배치하고 애플리케이션을 다시 시작합니다.
+  </Collapser>
+
+  <Collapser
+    id="custom-transaction"
+    title="사용자 지정 트랜잭션에서 메서드 래핑"
+  >
+    `Foo` 을(를) 계측하려면 [사용자 지정 트랜잭션](/docs/agents/net-agent/custom-instrumentation/create-transactions-xml-net) 으로 래핑합니다.
+
+    ```xml
+    <extension xmlns="urn:newrelic-extension">
+      <instrumentation>
+         <tracerFactory name="NewRelic.Agent.Core.Tracer.Factories.BackgroundThreadTracerFactory" metricName="Background/Task">
+           <match assemblyName="ErrorTester" className="ErrorTester.Program">
+             <exactMethodMatcher methodName="Foo" />
+           </match>
+        </tracerFactory>
+      </instrumentation>
+    </extension>
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## 원인
+
+New Relic의 .NET 에이전트가 보고하는 유일한 오류는 트랜잭션을 종료하는 처리되지 않은 오류입니다. 앱이 트랜잭션이 종료되기 전에 예외 처리기를 호출하면 New Relic은 오류를 보고하지 않습니다.
+
+그러나 New Relic은 웹 트랜잭션, WCF 트랜잭션 또는 사용자 지정 트랜잭션 외부에서 오류가 발생할 때 항상 예외 처리기를 감지하지 않습니다. 이는 에이전트가 트랜잭션과 연결되지 않은 계측 방법에 대해 "미니 트랜잭션"을 생성하기 때문입니다.
+
+계측된 메서드가 종료되면 미니 트랜잭션이 종료됩니다. 미니 트랜잭션에서 오류가 발생하고 계측된 메서드가 이를 처리하지 않으면 New Relic이 오류를 보고합니다.
+
+[예](#get-response-block) 와 같이 `GetResponse()` 를 호출하는 콘솔 앱에서 이를 확인할 수 있습니다. `GetResponse` 에서 오류가 발생하면 `GetResponse()` 가 try/catch 블록 내에서 호출되더라도 New Relic이 이를 보고합니다. 에이전트는 `GetResponse()` "미니 트랜잭션"이 종료되었고 트랜잭션 종료 시 오류가 여전히 처리되지 않았기 때문에 오류를 보고합니다.

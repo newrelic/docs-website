@@ -1,0 +1,88 @@
+---
+title: '튜토리얼: Kubernetes에서 실행되는 Redis 모니터링'
+tags:
+  - Integrations
+  - Kubernetes integration
+  - Link apps and services
+metaDescription: An example of how to set up monitoring of a service running on Kubernetes.
+translationType: machine
+---
+
+<Callout variant="tip">
+  이 튜토리얼은 [Helm을 사용하여 설치된](/docs/kubernetes-pixie/kubernetes-integration/installation/install-kubernetes-integration-using-helm) [Kubernetes 통합 v3](/docs/kubernetes-pixie/kubernetes-integration/get-started/changes-since-v3) 에 적용됩니다. helm을 사용하여 v2에서 이 작업을 수행하는 방법에 대한 지침은 [이 섹션](/docs/kubernetes-pixie/kubernetes-integration/advanced-configuration/monitor-services/monitor-services-running-kubernetes#config-details#configure-values-v2) 을 확인하십시오. 일반 매니페스트 위에 서비스를 구성하는 방법을 확인하려면 [이 다른 페이지](/docs/kubernetes-pixie/kubernetes-integration/advanced-configuration/monitor-services/monitor-services-running-kubernetes#config-details) 를 확인하세요.
+</Callout>
+
+Kubernetes에서 실행 중인 [서비스가 있고 우리가 지원](/docs/monitor-service-running-kubernetes#integration-configs) 하는 서비스인 경우 Kubernetes 통합의 구성에 해당 통합에 대한 구성 섹션을 추가하여 해당 서비스의 모니터링을 활성화할 수 있습니다.
+
+이 튜토리얼은 Kubernetes PHP 방명록에서 실행되는 Redis 서비스에 대한 모니터링을 활성화하는 방법을 보여줍니다. 일반 절차 [는 Kubernetes 실행 서비스 모니터링](/docs/monitor-service-running-kubernetes) 을 참조하십시오.
+
+## 필요한 것 [#requirements]
+
+* 지원되는 서비스를 포함하여 [이 기능에 대한 일반 요구 사항을](/docs/monitor-service-running-kubernetes#requirements) 참조하세요.
+* `kubectl` 명령줄 도구는 클러스터와 통신하도록 구성되어야 합니다. 클러스터가 없으면 [Minikube](https://kubernetes.io/docs/setup/minikube) 를 사용하여 클러스터를 만들 수 있습니다.
+
+## 1단계: 예제 Redis 애플리케이션 설정 [#set-up-redis]
+
+이 자습서 [는 Redis를 사용하여 PHP 방명록 애플리케이션 배포](https://kubernetes.io/docs/tutorials/stateless-application/guestbook/) Kubernetes 자습서를 기반으로 합니다. Kubernetes 자습서를 건너뛰고 다음 명령을 실행하여 자습서에 필요한 애플리케이션을 설정합니다.
+
+```shell
+kubectl create -f https://raw.githubusercontent.com/kubernetes/examples/master/guestbook/all-in-one/guestbook-all-in-one.yaml
+```
+
+먼저 [Kubernetes 자습서](https://kubernetes.io/docs/tutorials/stateless-application/guestbook/) 를 완료하려면 해당 자습서 지침을 따르되 **정리** 섹션의 지침은 따르지 **마십시오** .
+
+## 2단계: Redis 인스턴스 모니터링 활성화 [#monitor-redis]
+
+PHP 방명록 애플리케이션에는 3개의 Redis 인스턴스(마스터 인스턴스 1개와 복제본 인스턴스 2개)가 있습니다. 각 인스턴스는 `app=redis` 인 레이블로 태그가 지정됩니다. 이 예에서는 [Redis 모니터링 통합](/docs/integrations/host-integrations/host-integrations-list/redis-monitoring-integration) 을 사용하고 있습니다. Redis의 마스터 인스턴스와 레플리카 인스턴스를 모두 모니터링할 수 있으므로 구분할 필요가 없습니다.
+
+1. [helm 차트](/docs/kubernetes-pixie/kubernetes-integration/installation/install-kubernetes-integration-using-helm) 의 `values-newrelic.yaml` YAML 파일에서 `newrelic-infrastructure.integrations` 섹션을 업데이트해야 합니다. [통합 구성 목록](/docs/monitor-service-running-kubernetes#integration-configs) 에서 Redis 통합 YAML을 가져와 Kubernetes 구성에 추가합니다. Redis 관련 구성은 `redis-config.yml:` 키 아래에 포함됩니다.
+
+   ```yaml
+   newrelic-infrastructure:
+     integrations:
+       redis-config.yml:
+         # Run auto discovery to find pods with label "app=redis"
+         # https://docs.newrelic.com/docs/integrations/host-integrations/installation/container-auto-discovery
+         discovery:
+           command:
+             # Run discovery for Kubernetes. Use the following optional arguments:
+             # --namespaces: Comma separated list of namespaces to discover pods on
+             # --tls: Use secure (TLS) connection
+             # --port: Port used to connect to the kubelet. Default is 10255
+             exec: /var/db/newrelic-infra/nri-discovery-kubernetes --tls --port 10250
+             match:
+               label.app: redis
+         integrations:
+           - name: nri-redis
+             env:
+               # using the discovered IP as the hostname address
+               HOSTNAME: ${discovery.ip}
+               PORT: 6379
+               KEYS: '{"0":["<KEY_1>"],"1":["<KEY_2>"]}'
+               labels:
+                 env: production
+   ```
+
+2. 업데이트된 서비스를 배포합니다.
+
+   ```shell
+   helm upgrade --install newrelic newrelic/nri-bundle \
+   --namespace newrelic --create-namespace \
+   -f values-newrelic.yaml \
+   --devel
+   ```
+
+   모니터링하려는 서비스와 동일한 노드에서 예약된 `nrk8s-kubelet` 포드에 대한 로그에서 다음을 볼 수 있어야 합니다.
+
+   ```shell
+   kubectl logs -n newrelic newrelic-nrk8s-kubelet-xxxxx agent
+   ```
+
+   ```
+   time="2019-12-23T17:37:07Z" level=info msg="Integration health check starting" instance=redis-metrics integration=com.newrelic.redis prefix=integration/com.newrelic.redis working-dir=/var/db/newrelic-infra/newrelic-integrations
+   time="2019-12-23T17:37:07Z" level=info msg="Integration health check finished with success" instance=redis-metrics integration=com.newrelic.redis prefix=integration/com.newrelic.redis working-dir=/var/db/newrelic-infra/newrelic-integrations
+   ```
+
+오류가 없으면 인프라 UI에 Redis 데이터가 표시되어야 합니다. Redis 대시보드를 찾으려면 [**one.newrelic.com**](http://one.newrelic.com) **> Infrastructure > Third party services** 로 이동하여 **Redis** 대시보드를 선택합니다.
+
+구성 작동 방식에 대한 자세한 내용을 포함하여 Kubernetes에서 실행되는 서비스를 모니터링하는 방법에 대한 일반적인 절차는 [Kubernetes 실행 서비스 모니터링](/docs/monitor-service-running-kubernetes) 을 참조하세요.
