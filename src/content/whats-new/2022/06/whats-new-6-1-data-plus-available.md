@@ -26,7 +26,7 @@ Today, we’ve increasing our existing listed data ingest price from $0.25/GB to
 
 We're increasing the price so that we can continue to deliver more value for every GB you send to New Relic. Over the past two years, we have increased our engineering investments to deliver new capabilities included in your per-GB price:
 
-* **More data sources:** We have included [450+ I/O integrations](https://newrelic.com/instant-observability) at no additional cost for every plan. We plan to deliver even more innovations bundled with our data ingest price this year.
+* **More data sources:** We've included [450+ I/O integrations](https://newrelic.com/instant-observability) at no additional cost for every plan. We plan to deliver even more innovations bundled with our data ingest price this year.
 * **Better querying and visualizations:** We have invested to significantly improve the way users synthesize and correlate all of their data in seconds through query and dashboard enhancements, which are included for free with every account.
 * **More efficient data processing:** We're committed to do the right thing and filter out less useful data, as shown by our recent reduction in infrastructure agent costs. We plan to continue to drive down inefficiencies to make every GB count.
 
@@ -46,6 +46,10 @@ Customers on the free tier will see no change to their plan. If customers would 
 
 Existing paid self-serve customers will not see an immediate ingest price increase on June 1, 2022, unless they cancel and restart their account. These customers are expected to start being billed at the new list price after they renew their current contract.
 
+**Q: How do the two offerings compare?**
+
+!["A comparison of Data Plus and original data option"](./images/data-plus-comparison.png "A comparison of Data Plus and original data option")
+
 **Q: Where can I see my current data usage?**
 
-To view and analyze your current data usage, go to the [data management UI.](https://docs.newrelic.com/docs/data-apis/manage-data/manage-your-data).
+To view and analyze your current data usage, go to the [data management UI](https://docs.newrelic.com/docs/data-apis/manage-data/manage-your-data).
