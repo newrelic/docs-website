@@ -12,7 +12,7 @@ New Relic customers can now choose between the [existing data option](https://do
 Data Plus from New Relic includes:
 
 * **Up to 90 days of data retention:** Instead of paying individual premiums for data indexing and retention of each data source, customers will be able to choose which data they want stored longer in New Relic without increasing their monthly costs.
-* **Up to 3x the max query limits and 2x the max query duration:** Engineers can inspect up to one trillion data points per 30 minutes and 150 billion data points per one minute (compared to 300 billion data points per 30 minutes and 50 billion data points per one minute). In addition, Data Plus customers get a max query duration of up to 2 minutes (compared to 60 seconds for the existing data option).
+* **Up to 3x the max query limits and 2x the max query duration:** Engineers can inspect up to one trillion data points per 30 minutes and 100 billion data points per minute (compared to 300 billion data points per 30 minutes and 10 billion data points per minute for the original data option). In addition, Data Plus customers get a max query duration of up to 2 minutes (compared to 60 seconds for the existing data option).
 * **FedRAMP and HIPAA compliance:** Data Plus provides options for customers in highly regulated sectors to enable security configurations required for FedRAMP and HIPAA compliance. (Requires Enterprise edition.)
 * **Logs obfuscation:** Engineers can track logs obfuscation rules directly in the log management UI and create anonymous identifiers for sensitive log data, such as personally identifiable information (PII), access tokens, and other private or regulated data.
 * **Cloud provider choice (coming soon):** Flexibility to run observability workloads on the cloud provider of your choice, AWS or Microsoft Azure, to align your telemetry storage with your engineering deployment model and cloud preference. 
@@ -45,10 +45,6 @@ Existing customers will continue their current data ingest billing rate until th
 Customers on the free tier will see no change to their plan. If customers would like to ingest more than 100GB per month, they can upgrade to a paid plan, which will include the new $0.30 per GB per month price.
 
 Existing paid self-serve customers will not see an immediate ingest price increase on June 1, 2022, unless they cancel and restart their account. These customers are expected to start being billed at the new list price after they renew their current contract.
-
-**Q: How do the two offerings compare?**
-
-!["A comparison of Data Plus and original data option"](./images/data_plus_comparison.png "A comparison of Data Plus and original data option")
 
 **Q: Where can I see my current data usage?**
 
