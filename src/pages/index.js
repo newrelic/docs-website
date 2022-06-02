@@ -80,11 +80,13 @@ const HomePage = ({ data }) => {
         `}
       >
         <p>{t('home.search.popularSearches.title')}: </p>
-        <Link to="?q=nrql">NRQL</Link>
-        <Link to="?q=logs">logs</Link>
-        <Link to="?q=alert">alert</Link>
-        <Link to="?q=best practices">best practices</Link>
-        <Link to="?q=kubernetes">Kubernetes</Link>
+        <Link to="?q=nrql">{t('home.search.popularSearches.options.0')}</Link>
+        <Link to="?q=logs">{t('home.search.popularSearches.options.1')}</Link>
+        <Link to="?q=alert">{t('home.search.popularSearches.options.2')}</Link>
+        <Link to="?q=best practices">
+          {t('home.search.popularSearches.options.3')}
+        </Link>
+        <Link to="?q=kubernetes">{t('home.search.popularSearches.4')}</Link>
       </div>
       <HomepageBanner />
       <Section
