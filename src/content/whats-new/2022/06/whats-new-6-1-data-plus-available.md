@@ -17,6 +17,7 @@ Data Plus from New Relic includes:
 * **Logs obfuscation:** Engineers can track logs obfuscation rules directly in the log management UI and create anonymous identifiers for sensitive log data, such as personally identifiable information (PII), access tokens, and other private or regulated data.
 * **Cloud provider choice (coming soon):** Flexibility to run observability workloads on the cloud provider of your choice, AWS or Microsoft Azure, to align your telemetry storage with your engineering deployment model and cloud preference. 
 * **Enhanced streaming and historical data export (coming soon):** Ability to export New Relic data to external destinations for historical analysis and modeling, long-term storage, and integration with other data analytics platforms.
+*  **Vulnerability management (coming soon):** Easily aggregate existing security data from third-party tools alongside vulnerabilities detected by New Relic to understand security signals and address vulnerabilities across your entire stack.  
 
 For more information, read [the full announcement here](https://newrelic.com/blog/nerdlog/data-plus-pricing) or see [the Data Plus docs](https://docs.newrelic.com/docs/accounts/accounts-billing/new-relic-one-pricing-billing/data-ingest-billing#data-prices). To enable Data Plus, talk to your account representative.
 
