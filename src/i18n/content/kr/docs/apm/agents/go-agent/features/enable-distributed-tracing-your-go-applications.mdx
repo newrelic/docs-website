@@ -1,0 +1,167 @@
+---
+title: Go 애플리케이션에 대한 분산 추적 활성화
+tags:
+  - Agents
+  - Go agent
+  - Features
+metaDescription: 'For the New Relic Go agent: how to implement distributed tracing across your Go language applications and services.'
+translationType: machine
+---
+
+New Relic의 Go 에이전트에 대한 [분산 추적](/docs/apm/distributed-tracing/getting-started/introduction-distributed-tracing) 을 활성화하고 설정하는 방법을 알아보려면 계속 읽으십시오.
+
+## 분산 추적 사용 [#enable]
+
+Go 애플리케이션에 대한 분산 추적을 활성화하려면:
+
+1. 원하는 분산 추적 유형에 대해 [Go 에이전트 구성 설정](/docs/agents/go-agent/configuration/go-agent-configuration#distributed-tracing) 을 사용합니다.
+
+   * 표준 분산 추적
+   * 무한 추적
+
+2. 아래의 [거래 및 요청 계측 지침을](#guidelines) 계속 읽으십시오.
+
+<Callout variant="tip">
+  다양한 유형의 에이전트 분산 추적을 이해하는 데 도움이 필요하면 [분산 추적 작동 방식](/docs/understand-dependencies/distributed-tracing/get-started/how-new-relic-distributed-tracing-works) 을 참조하세요.
+</Callout>
+
+## 거래 및 HTTP 요청 계측 [#guidelines]
+
+분산 추적이 최적으로 작동하려면 Go 애플리케이션이 다음 시나리오에 대한 지침을 준수해야 합니다.
+
+<CollapserGroup>
+  <Collapser
+    id="create-transactions"
+    title="거래 계측(ServMux를 사용하는 경우)"
+  >
+    Go의 [`http.ServeMux`](https://golang.org/pkg/net/http/#ServeMux) 를 사용 중이고 New Relic의 분산 추적을 활성화하려면 Go 애플리케이션이 New Relic의 `WrapHandle` 및 `WrapHandleFunc` 래퍼로 계측되어야 합니다. 이러한 래퍼는 자동으로 올바른 분산 추적 헤더를 추가하는 요청 및 응답 작성기로 트랜잭션을 시작하고 종료합니다. 헤더 전파 작동 방식에 대한 자세한 내용은 [분산 추적 작동 방식](/docs/apm/distributed-tracing/getting-started/how-new-relic-distributed-tracing-works) 을 참조하세요.
+
+    <CollapserGroup>
+      <Collapser
+        id="example-go-instrumentation"
+        title="전과 후의 예"
+      >
+        다음은 계측 전 코드의 예입니다.
+
+        ```
+        http.HandleFunc("/users", usersHandler)
+        ```
+
+        다음은 계측 후 동일한 코드의 예입니다.
+
+        ```
+        http.HandleFunc(newrelic.WrapHandleFunc(app, "/users", usersHandler))
+        ```
+      </Collapser>
+    </CollapserGroup>
+
+    [Instrument Go 트랜잭션](/docs/agents/go-agent/get-started/instrument-go-transactions#http-handler-txns) 에서 이러한 래퍼를 사용하는 방법에 대해 자세히 읽어보십시오.
+  </Collapser>
+
+  <Collapser
+    id="make-http-requests"
+    title="아웃바운드 HTTP 요청을 외부 세그먼트로 계측"
+  >
+    아웃바운드 HTTP 요청이 분산 추적에 적합하도록 [하려면 외부 세그먼트를 만드](/docs/agents/go-agent/get-started/instrument-go-segments#go-external-segments) 십시오.
+
+    아웃바운드 HTTP 요청에 대한 외부 세그먼트를 만드는 가장 쉬운 방법은 `newrelic.NewRoundTripper` 메서드를 사용하는 것입니다. 다음은 발신 분산 추적 헤더를 포함하는 `http://api.example.com` 에 대한 요청의 예입니다.
+
+    ```
+    func useNewRoundTripper(txn *newrelic.Transaction) (*http.Response, error) {
+        client := &http.Client{}
+        client.Transport = newrelic.NewRoundTripper(client.Transport)
+        request, _ := http.NewRequest("GET", "http://example.com", nil)
+        request = newrelic.RequestWithTransactionContext(request, txn)
+        return client.Do(request)
+    }
+    ```
+
+    Go 표준 라이브러리의 `http.Request` 를 사용하는 더 복잡한 요청이 있는 경우 `newrelic.StartExternalSegment` 메서드를 사용하여 아웃바운드 요청이 분산 추적에 적합한지 확인합니다.
+
+    ```
+    func external(txn *newrelic.Transaction, req *http.Request) (*http.Response, error) { 
+        s := newrelic.StartExternalSegment(txn, req) 
+        response, err := http.DefaultClient.Do(req) 
+        s.Response = response 
+        s.End() 
+        return response, err
+    }
+    ```
+
+    구조체 리터럴로 생성된 `ExternalSegment` 는 분산 추적에 사용할 수 없습니다. 이 때문에 New Relic은 [`newrelic.NewRoundTripper` 또는 `newrelic.StartExternalSegment`](/docs/agents/go-agent/get-started/instrument-go-segments#go-external-segments) 사용을 권장합니다.
+
+    ```
+    func noGoodForDt(txn *newrelic.Transaction, url string) (*http.Response, error) {
+        // Distributed tracing headers are not added to the outgoing request.
+        // Use newrelic.NewRoundTripper or newrelicc.StartExternalSegment instead.
+        defer newrelic.ExternalSegment{
+            StartTime: txn.StartSegmentNow(),
+            URL:       url,
+        }.End()
+
+        return http.Get(url)
+    }
+    ```
+  </Collapser>
+
+  <Collapser
+    id="create-manually"
+    title="수동으로 분산 추적 페이로드 생성 및 수락"
+  >
+    분산 추적 페이로드에는 New Relic이 여러 서비스에서 발생하는 트랜잭션을 완전한 트랜잭션 추적으로 결합할 수 있도록 하는 정보가 포함되어 있습니다. New Relic이 모니터링하는 서비스가 서로에게 추적 컨텍스트를 보내지 않으면 불완전한 추적 세부 정보가 생성됩니다.
+
+    아래 API 호출을 사용하여 분산 추적을 구현하는 방법에 대한 일반적인 지침은 먼저 [분산 추적 API 사용](/docs/enable-distributed-tracing#agent-apis) 을 참조하세요.
+
+    <table>
+      <thead>
+        <tr>
+          <th>
+            원하는 경우...
+          </th>
+
+          <th>
+            이것을 사용
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            호출된 서비스에 보낼 페이로드를 만듭니다.
+          </td>
+
+          <td>
+            ```
+            <a href="https://godoc.org/github.com/newrelic/go-agent/v3/newrelic#Transaction.InsertDistributedTraceHeaders">InsertDistributedTraceHeaders(h http.Header)</a>
+            ```
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            첫 번째 서비스에서 보낸 페이로드를 수락합니다. 이것은 추적에서 이러한 서비스를 함께 연결합니다.
+          </td>
+
+          <td>
+            ```
+            <a href="https://godoc.org/github.com/newrelic/go-agent/v3/newrelic#Transaction.AcceptDistributedTraceHeaders">AcceptDistributedTraceHeaders(h http.Header)</a>
+            ```
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+</CollapserGroup>
+
+이를 사용하는 방법에 대한 자세한 내용은 [Go 에이전트 GitHub 리포지토리](https://github.com/newrelic/go-agent/blob/master/GUIDE.md#distributed-tracing) 를 참조하세요.
+
+## 추적 세부정보에 대한 로그 검사 [#logs-context]
+
+로그와 애플리케이션의 데이터를 함께 가져와 문제 해결을 더 쉽고 빠르게 할 수 있습니다. [컨텍스트의 로그를](/docs/logs/logs-context/configure-logs-context-go/) 사용하면 앱의 UI에서 직접 오류 및 추적과 관련된 로그 메시지를 볼 수 있습니다.
+
+1. **거래** 페이지에서 추적을 클릭하면 [**추적 세부정보** 페이지](/docs/apm/transactions/transaction-traces/transaction-traces-trace-details-page) 로 이동합니다.
+2. 추적 세부정보 페이지에서 **로그 보기** 를 클릭합니다.
+3. 개별 로그 메시지와 관련된 세부 정보를 보려면 메시지를 직접 클릭하십시오.
+
+Kubernetes 클러스터와 같은 [인프라 데이터](/docs/logs/forward-logs/forward-your-logs-using-infrastructure-agent/) 컨텍스트에서 로그를 볼 수도 있습니다. 다른 UI 페이지로 전환할 필요가 없습니다.

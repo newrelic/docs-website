@@ -166,7 +166,6 @@ module.exports = {
         {
           'data-type': 'component',
           'data-component': 'InlineCode',
-          class: 'notranslate',
         },
         [u('text', toString(node))]
       );

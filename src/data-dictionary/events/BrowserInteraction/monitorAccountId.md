@@ -6,4 +6,4 @@ events:
   - JavaScriptError
 ---
 
-The Synthetics account from which you are running the monitor.
+The synthetics account from which you are running the monitor.

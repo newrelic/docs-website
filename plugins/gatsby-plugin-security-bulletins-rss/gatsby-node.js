@@ -7,12 +7,13 @@ const unified = require('unified');
 const toHast = require('mdast-util-to-hast');
 const removeImports = require('remark-mdx-remove-imports');
 const removeExports = require('remark-mdx-remove-exports');
-const addAbsoluteImagePath = require('../../rehype-plugins/utils/addAbsoluteImagePath');
+const jsxImagesToChildren = require('../utils/jsxImagesToChildren');
+const handlers = require('../utils/handlers');
 
 const htmlGenerator = unified()
+  .use(jsxImagesToChildren)
   .use(removeImports)
   .use(removeExports)
-  .use(addAbsoluteImagePath)
   .use(html);
 
 const securityBulletinsQuery = async (graphql) => {
@@ -36,6 +37,18 @@ const securityBulletinsQuery = async (graphql) => {
           mdxAST
         }
       }
+      allImageSharp {
+        nodes {
+          parent {
+            ... on File {
+              relativePath
+            }
+          }
+          original {
+            src
+          }
+        }
+      }
     }
     `;
 
@@ -44,12 +57,19 @@ const securityBulletinsQuery = async (graphql) => {
   return data;
 };
 
-const getFeedItem = (node, siteMetadata) => {
+const getFeedItem = (node, siteMetadata, imageHashMap) => {
   const { frontmatter, slug, mdxAST } = node;
   const { title, metaDescription } = frontmatter;
 
   const transformedAST = htmlGenerator.runSync(mdxAST);
-  const html = htmlGenerator.stringify(toHast(transformedAST));
+  const html = htmlGenerator.stringify(
+    toHast(transformedAST, {
+      handlers: {
+        image: (h, node, parent) =>
+          handlers.image(h, node, parent, imageHashMap),
+      },
+    })
+  );
 
   // time is necessary for RSS validity
   const date = new Date();
@@ -69,7 +89,13 @@ const getFeedItem = (node, siteMetadata) => {
   };
 };
 
-const generateFeed = (publicDir, siteMetadata, reporter, bulletinNodes) => {
+const generateFeed = (
+  publicDir,
+  siteMetadata,
+  reporter,
+  bulletinNodes,
+  imageHashMap
+) => {
   const title = `New Relic security bulletins`;
   const inferredBulletinsPath = bulletinNodes.nodes[0].slug
     .split('/')
@@ -90,7 +116,7 @@ const generateFeed = (publicDir, siteMetadata, reporter, bulletinNodes) => {
   const feed = new RSS(feedOptions);
 
   bulletinNodes.nodes.map((node) => {
-    feed.item(getFeedItem(node, siteMetadata));
+    feed.item(getFeedItem(node, siteMetadata, imageHashMap));
   });
 
   const filepath = path.join(publicDir, feedPath);
@@ -109,15 +135,26 @@ exports.onPostBuild = async ({ graphql, store, reporter }) => {
 
   try {
     reporter.info(`Generating XML for security bulletins RSS feed`);
-    const { site, securityBulletinFileNodes } = await securityBulletinsQuery(
-      graphql
+    const {
+      site,
+      securityBulletinFileNodes,
+      allImageSharp,
+    } = await securityBulletinsQuery(graphql);
+
+    const imageHashMap = allImageSharp.nodes.reduce(
+      (acc, { original, parent }) => ({
+        ...acc,
+        [parent.relativePath]: original?.src || null,
+      }),
+      {}
     );
 
     generateFeed(
       publicDir,
       site.siteMetadata,
       reporter,
-      securityBulletinFileNodes
+      securityBulletinFileNodes,
+      imageHashMap
     );
 
     reporter.info('\tDone!');

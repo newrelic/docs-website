@@ -44,7 +44,9 @@ const main = async () => {
   const filePaths = getFilePaths(directory);
 
   if (!filePaths.length) {
-    console.warn(`<!> No .mdx files found in the directory. Please check: ${directory}`);
+    console.warn(
+      `<!> No .mdx files found in the directory. Please check: ${directory}`
+    );
     return;
   }
 
