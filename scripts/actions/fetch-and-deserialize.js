@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 'use strict';
 const AdmZip = require('adm-zip');
 const vfile = require('vfile');
@@ -9,8 +10,16 @@ const deserializedHtml = require('./deserialize-html');
 const createDirectories = require('../utils/migrate/create-directories');
 const { getAccessToken } = require('./utils/vendor-request');
 const { LOCALE_IDS } = require('./utils/constants');
+const {
+  trackTranslationError,
+  TRACKING_TARGET,
+} = require('./utils/translation-monitoring');
 
 const projectId = process.env.TRANSLATION_VENDOR_PROJECT;
+const defaultTrackingMetadata = {
+  projectId,
+  workflow: 'checkTranslationsAndDeserialize',
+};
 
 /**
  * @typedef {Object[]} FileUriBatches
@@ -60,7 +69,7 @@ const createFileUriBatches = ({ fileUris }, batchSize = 50) => {
   }
 
   // cleanup the last batch
-  if (currentBatch.length != 0) {
+  if (currentBatch.length !== 0) {
     batches.push({ fileUris: currentBatch });
   }
 
@@ -104,6 +113,7 @@ const fetchTranslatedFilesZip = (locale) => {
           4
         )}`
       );
+
       return null;
     }
 
@@ -173,6 +183,14 @@ const deserializeHtmlToMdx = (locale) => {
         locale,
       };
     } catch (ex) {
+      await trackTranslationError({
+        ...defaultTrackingMetadata,
+        target: TRACKING_TARGET.FILE,
+        slug: completePath,
+        locale,
+        error: ex,
+        errorMessage: `Failed to deserialize: ${contentPath}`,
+      });
       console.log(`Failed to deserialize: ${contentPath}`);
       console.log(ex);
 

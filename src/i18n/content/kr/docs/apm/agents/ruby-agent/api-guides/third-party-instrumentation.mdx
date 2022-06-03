@@ -1,0 +1,328 @@
+---
+title: 타사 계측
+tags:
+  - Agents
+  - Ruby agent
+  - API guides
+metaDescription: This document provides guidance for instrumenting unsupported third party gems or libraries you have authored yourself with the Ruby agent.
+translationType: machine
+---
+
+이 문서에서는 Ruby 에이전트로 타사 gem을 계측하는 방법과 에이전트와 상호 작용하기 위한 몇 가지 모범 사례에 대해 자세히 설명합니다. 이것은 Ruby 에이전트가 기본적으로 계측하지 않는 gem을 사용하거나 라이브러리에 계측을 추가하려는 gem 작성자에게 유용합니다.
+
+## 내용물 [#qiklinks]
+
+## 타사 확장 찾기
+
+누구나 Ruby 에이전트 위에 빌드되는 gem을 작성할 수 있습니다. New Relic은 이러한 확장을 추적하고 Ruby 에이전트를 빌드하는 다른 gem에 대한 링크를 제공하기 위해 [extends_newrelic_rpm](https://github.com/newrelic/extends_newrelic_rpm) 이라는 저장소를 유지 관리합니다.
+
+이러한 확장은 New Relic에서 지원 **되지 않습니다** . New Relic은 이러한 링크를 고객에 대한 서비스로 수집합니다. 이러한 gem과 관련된 문제는 GitHub의 해당 프로젝트에 보고해야 합니다.
+
+## 보석으로서의 확장
+
+New Relic은 계측 라이브러리당 하나의 gem으로 타사 확장을 gem으로 유지하도록 권장합니다. 예를 들어, `newrelic-redis` 은 `redis` gem에 대한 계측을 제공합니다.
+
+## 거래 시작
+
+라이브러리가 New Relic에서 전체 트랜잭션으로 표시되어야 하는 코드를 제공하는 경우(예: Ruby 에이전트에 의해 계측되지 않는 웹 요청 또는 백그라운드 작업) 트랜잭션을 시작하기 위해 이러한 메커니즘 중 하나를 사용하십시오.
+
+<CollapserGroup>
+  <Collapser
+    id="add_transaction_tracer"
+    title="add_transaction_tracer"
+  >
+    트랜잭션을 시작하는 가장 간단한 방법은 메서드에서 `add_transaction_tracer` 를 호출하는 것입니다. 이것은 `NewRelic::Agent::Instrumentation::ControllerInstrumentation` 이(가) 클래스에 포함되어 있다고 가정합니다.
+
+    ```ruby
+    class CustomBackgroundJob
+      include NewRelic::Agent::Instrumentation::ControllerInstrumentation
+
+      def transaction
+        # execute a transaction
+      end
+
+      add_transaction_tracer :transaction
+    end
+    ```
+  </Collapser>
+
+  <Collapser
+    id="perform_action_with_newrelic_trace"
+    title="perform_action_with_newrelic_trace"
+  >
+    때때로 New Relic이 생성하는 트랜잭션을 약간 더 제어해야 합니다. 이 경우 `perform_action_with_newrelic_trace` 을 사용할 수 있습니다. 재정의할 수 있는 일부 매개변수에는 트랜잭션 이름 및 범주(웹 트랜잭션이든 백그라운드 트랜잭션이든)가 포함됩니다.
+
+    ```ruby
+    class CustomBackgroundJob
+      include NewRelic::Agent::Instrumentation::ControllerInstrumentation
+
+      def transaction
+       perform_action_with_newrelic_trace(:name    => "custom_name",
+                                         :category => :task) do
+         # your work here...
+       end
+      end
+
+    end
+    ```
+
+    매개변수 및 사용법에 대한 추가 정보 [는 perform_action_with_newrelic_trace의 전체 문서를](https://www.rubydoc.info/github/newrelic/newrelic-ruby-agent/NewRelic/Agent/Instrumentation/ControllerInstrumentation#perform_action_with_newrelic_trace-instance_method) 참조하십시오.
+  </Collapser>
+</CollapserGroup>
+
+## 트랜잭션 추적의 노드 [#nodes-transaction-traces]
+
+메서드 호출에 대한 타이밍 정보를 New Relic에 추가할 수 있지만 전체 트랜잭션을 나타내지는 않습니다. New Relic은 이를 수행하기 위해 메서드 추적 프로그램을 추가할 것을 권장합니다.
+
+<CollapserGroup>
+  <Collapser
+    id="add_method_tracer"
+    title="add_method_tracer"
+  >
+    ```ruby
+    require 'new_relic/agent/method_tracer'
+    class Foo
+      include ::NewRelic::Agent::MethodTracer
+
+      def generate_image
+        # ...
+      end
+
+      add_method_tracer :generate_image, 'Custom/generate_image'
+    end
+    ```
+
+    위의 예에서는 `'Custom/generate_image'` 이름에 대한 측정항목이 기록되고 메서드 호출이 포함된 트랜잭션 추적 항목이 기록됩니다.
+  </Collapser>
+</CollapserGroup>
+
+## 커스텀 데이터스토어
+
+Ruby 에이전트는 데이터 저장소에 대한 호출을 녹음하기 위한 특수 기능을 제공합니다. 이는 SQL 및 NoSQL 데이터베이스를 모두 지원하고 타사 gem에서 사용할 수 있는 일관된 인터페이스를 제공하기 위한 것입니다.
+
+`NewRelic::Agent::Datastores` 모듈 함수를 통해 기록된 측정 [항목은 New Relic의 Databases UI에](/docs/apm/applications-menu/monitoring/databases-slow-queries-dashboard) 표시됩니다.
+
+<CollapserGroup>
+  <Collapser
+    id="trace"
+    title="NewRelic::Agent::Datastores.trace"
+  >
+    `trace` 메소드에 대한 Datastore를 기록하는 가장 간단한 방법입니다.
+
+    ```ruby
+    class FauxDB
+
+     def find
+       # FauxDB lookup
+     end
+
+     NewRelic::Agent::Datastores.trace self, :find, "FauxDB"
+
+    end
+    ```
+
+    첫 번째 매개변수는 계측할 클래스, 두 번째 매개변수는 찾을 메서드, 세 번째 매개변수는 데이터 저장소 제품 이름입니다. 선택적 작업 이름이 최종 매개변수로 포함될 수 있습니다. 그렇지 않으면 메서드 이름이 메트릭에서 작업을 나타내는 데 사용됩니다.
+
+    이 인터페이스로 기록된 Datastore 측정항목은 컬렉션/테이블 이름 추가를 허용하지 않습니다. 이를 위해 아래의 `wrap` 메서드를 참조하세요.
+  </Collapser>
+
+  <Collapser
+    id="wrap"
+    title="NewRelic::Agent::Datastores.wrap"
+  >
+    `wrap` 측정항목 이름에 추가 컬렉션/테이블 정보가 포함된 Datastore 측정항목을 기록할 수 있습니다. 또한 느린 문을 알아차리는 것과 같은 작업에 대한 콜백을 제공합니다.
+
+    ```ruby
+    class FauxDB
+
+      def find(table)
+        NewRelic::Agent::Datastores.wrap("FauxDB", "find", table) do
+        # FauxDB lookup
+        end
+      end
+
+    end
+    ```
+
+    데이터 저장소 호출에 대한 추가 정보를 기록하려면 `wrap` 에서 선택적 콜백 매개변수를 사용할 수 있습니다.
+
+    ```ruby
+    class FauxDB
+
+     def find(query)
+       callback = Proc.new do |result, scoped_metric, elapsed|
+         NewRelic::Agent::Datastores.notice_sql(query, scoped_metric, elapsed)
+       end
+
+       NewRelic::Agent::Datastores.wrap("FauxDB", "find", "items", callback) do
+         # execute query
+       end
+     end
+
+    end
+    ```
+  </Collapser>
+
+  <Collapser
+    id="notice_sql"
+    title="NewRelic::Agent::Datastores.notice_sql"
+  >
+    이 도우미 메서드는 트랜잭션 추적 및 느린 SQL 페이지에 표시하기 위해 느린 SQL 쿼리를 기록합니다. SQL은 사용자 설정에 따라 필터링되고 난독화됩니다.
+
+    ```ruby
+    NewRelic::Agent::Datastores.notice_sql(query, scoped_metric, elapsed)
+    ```
+
+    비 SQL 쿼리는 `notice_sql` 를 통해 보내지 않아야 합니다. 대신 `notice_statement` 를 사용하세요.
+
+    <Callout variant="caution">
+      New Relic의 트랜잭션 추적 및 느린 SQL 기능은 전달된 쿼리에 난독화를 적용하려고 시도하지만 쿼리 형식이 지원되지 않아 캡처된 쿼리에 포함된 사용자 정보가 노출될 수 있습니다.
+    </Callout>
+  </Collapser>
+
+  <Collapser
+    id="notice_statement"
+    title="NewRelic::Agent::Datastores.notice_statement"
+  >
+    이 도우미 메서드는 트랜잭션 추적에 대한 느린 데이터 저장소 호출에 대한 문을 기록합니다. 이것들은 난독화 **되지 않습니다** .
+
+    ```ruby
+    NewRelic::Agent::Datastores.notice_statement(statement, elapsed)
+    ```
+
+    SQL 쿼리는 `notice_statement` 를 통해 전송되어서는 안 됩니다. 대신 `notice_sql` 을(를) 사용하십시오.
+
+    <Callout variant="caution">
+      이 방법은 사용자가 쿼리 캡처를 껐을 때 명령문을 적절하게 무시하지만 임의의 데이터를 난독화할 수는 없습니다! 캡처된 쿼리에 포함된 사용자 정보가 노출되는 것을 방지하기 위해 이 메서드에 전달된 모든 데이터가 New Relic으로 전송하기에 안전한지 확인합니다.
+    </Callout>
+  </Collapser>
+</CollapserGroup>
+
+## 확장 테스트
+
+New Relic을 확장하는 gem을 작성할 때 자동화된 테스트를 작성할 수 있습니다. 에이전트 자체에서 사용하는 테스트 도우미는 몇 가지 일반적인 테스트 작업을 단순화하는 데 사용할 수 있습니다.
+
+<CollapserGroup>
+  <Collapser
+    id="require_test_helper"
+    title="NewRelic::Agent.require_test_helper"
+  >
+    이 섹션에 설명된 테스트 메서드는 테스트 코드(가장 일반적으로 `test_helper.rb` 파일)에서 이를 호출하여 액세스할 수 있습니다.
+
+    ```ruby
+    NewRelic::Agent.require_test_helper
+    ```
+  </Collapser>
+
+  <Collapser
+    id="assert_metrics_recorded"
+    title="assert_metrics_recorded"
+  >
+    이 방법은 예상 메트릭이 Ruby 에이전트에 의해 기록되도록 하는 기본 방법입니다. `refute_metrics_recorded` 도 사용할 수 있습니다.
+
+    가장 간단한 형태로 `assert_metrics_recorded` 은 다음과 같이 호출할 수 있습니다.
+
+    ```ruby
+    assert_metrics_recorded(["MetricA", "MetricB"])
+    ```
+
+    특정 값이 있는 메트릭은 다음 구문을 통해 어설션될 수 있습니다.
+
+    ```ruby
+    assert_metrics_recorded('MetricA' => {
+                             :call_count => 1,
+                             :total_call_time => 1.0 })
+    ```
+  </Collapser>
+
+  <Collapser
+    id="in_web_transaction"
+    title="in_web_transaction/in_background_transaction"
+  >
+    이러한 메서드는 웹 또는 백그라운드 트랜잭션에서 실행을 시뮬레이션합니다.
+
+    ```ruby
+    in_web_transaction do
+      # Perform work to test behavior in transaction
+    end
+    ```
+  </Collapser>
+
+  <Collapser
+    id="with_config"
+    title="with_config"
+  >
+    `with_config` 을(를) 통해 테스트를 위해 에이전트 구성을 변경할 수 있습니다. 에이전트의 다른 구성 값에 적용되는 해시를 취합니다.
+
+    ```ruby
+    with_config(:enabled => false) do
+      # Check what happens when agent's disabled
+    end
+    ```
+
+    <Callout variant="tip">
+      이 방법은 계측 설치를 테스트하는 데 도움이 되지 않습니다. 이러한 구성 값은 일반적으로 `require` 에서 계측이 발생할 때 확인되고 테스트의 설정 변경에 영향을 받지 않기 때문입니다.
+    </Callout>
+  </Collapser>
+
+  <Collapser
+    id="multiverse"
+    title="Multiverse: 여러 gem 버전에 대한 테스트"
+  >
+    여러 gem 버전에 대해 확장을 테스트해야 하는 경우 Ruby 에이전트 자체 테스트 코드의 일부인 Multiverse를 사용할 수 있습니다. 다중 우주 테스트의 예 [는 에이전트 파일의 suites 디렉토리를](https://github.com/newrelic/newrelic-ruby-agent/tree/master/test/multiverse/suites) 참조하십시오.
+
+    자신의 gem에 대해 Multiverse를 구성하려면:
+
+    1. **Rakefile에 `tasks/multiverse` 이 필요** 합니다. `rake test:multiverse` 명령을 활성화하려면 Rakefile에 다음을 추가합니다.
+
+       ```
+       require "tasks/multiverse"
+       ```
+
+    2. **Multiverse 테스트 디렉토리를 만듭니다** . 다중우주 테스트에는 특정 파일 레이아웃이 필요합니다. 다음 파일 위치로 이름이 `test/multiverse/YOUR_PROJECT` 인 디렉토리를 만듭니다.
+
+       ```
+       test/multiverse/<var>YOUR_PROJECT</var>
+       test/multiverse/<var>YOUR_PROJECT</var>/Envfile
+       test/multiverse/<var>YOUR_PROJECT</var>/config/newrelic.yml
+       test/multiverse/<var>YOUR_PROJECT</var>/<var>FILE_WITH_A_TEST</var>.rb
+       ```
+
+    3. **Envfile을 구성하십시오** . **Envfile** 을 사용하여 Multiverse 테스트에 대한 gem 종속성 세트를 선언하십시오. 예를 들어 **Envfile** 은 다음과 같을 수 있습니다.
+
+       ```
+       gemfile <-RB
+         gem '<var>your-project</var>', '~> <var>1.0.0</var>'
+         gem 'rack'
+         gem 'newrelic_rpm'
+         gem 'newrelic_<var>your-project</var>', path: '<var>../../..</var>'
+       RB
+
+       gemfile <-RB
+         gem '<var>your-project</var>', '~> <var>2.1.0</var>'
+         gem 'rack'
+         gem 'newrelic_rpm'
+         gem 'newrelic_<var>your-project</var>', path: '<var>../../..</var>'
+       RB
+       ```
+
+       <Callout variant="tip">
+         Multiverse 테스트가 작동하는지 확인하려면 `newrelic_rpm` 및 `rack` 에 대해 `gem` 줄을 포함합니다.
+       </Callout>
+
+    4. **종속성 감지** . 필요한 경우 Multiverse 테스트에서 추가 종속성 감지를 실행하여 확장의 계측이 로드되었는지 확인합니다.
+
+       ```
+       require 'newrelic/<var>your-project</var>'
+
+       DependencyDetection.detect!
+
+       class <var>YourProjectTest</var> > Minitest::Test
+       end
+       ```
+
+       **Envfile** 의 gem 종속성에 대해 Multiverse 테스트를 실행하려면:
+
+    * Gem에 대해 Multiverse를 설정한 후 `rake test:multiverse` 을 실행하여 디렉터리에서 테스트를 실행합니다.
+  </Collapser>
+</CollapserGroup>

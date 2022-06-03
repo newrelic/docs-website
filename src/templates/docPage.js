@@ -2,7 +2,6 @@ import React, { useMemo } from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/react';
 import { graphql } from 'gatsby';
-import { useMedia } from 'react-use';
 import PageTitle from '../components/PageTitle';
 import MDXContainer from '../components/MDXContainer';
 import {
@@ -46,7 +45,6 @@ const BasicDoc = ({ data, location, pageContext }) => {
       });
   }, [mdxAST]);
 
-  const isMobileScreen = useMedia('(max-width: 1240px)');
   const {
     title,
     metaDescription,
@@ -109,13 +107,11 @@ const BasicDoc = ({ data, location, pageContext }) => {
           `}
         >
           <SimpleFeedback pageTitle={title} />
-          {!isMobileScreen && (
-            <ContributingGuidelines
-              pageTitle={title}
-              fileRelativePath={fileRelativePath}
-              issueLabels={['feedback', 'feedback-issue']}
-            />
-          )}
+          <ContributingGuidelines
+            pageTitle={title}
+            fileRelativePath={fileRelativePath}
+            issueLabels={['feedback', 'feedback-issue']}
+          />
           <TableOfContents headings={headings} />
           <RelatedResources
             resources={relatedResources}
