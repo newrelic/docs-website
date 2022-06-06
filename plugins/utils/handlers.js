@@ -90,11 +90,16 @@ module.exports = {
       ? new URL(imageHashMap[srcUrl], domain).href
       : node.url;
 
+    const applyBlockImageAttributes = isBlockImage(parent, node);
+
     return h(
       node,
-      isBlockImage(parent, node) ? 'div' : 'span',
+      applyBlockImageAttributes ? 'div' : 'span',
       stripNulls({
-        className: [isBlockImage ? 'block-image' : 'inline-image', 'image'],
+        className: [
+          applyBlockImageAttributes ? 'block-image' : 'inline-image',
+          'image',
+        ],
         style: get(node, 'data.style', null),
       }),
       [

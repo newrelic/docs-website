@@ -7,4 +7,4 @@ events:
   - BrowserTiming
 ---
 
-The name of the interaction. This is either the targetGroupedUrl or the custom name set via the API.
+The name of the interaction. This is either the `targetGroupedUrl` or the custom name set via the API.

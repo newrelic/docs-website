@@ -1,0 +1,152 @@
+---
+title: 높은 카디널리티 메트릭 이해 및 쿼리
+tags:
+  - Query your data
+  - 'NRQL: New Relic Query Language'
+  - NRQL query tutorials
+metaDescription: 'For New Relic Query Language (NRQL): how to understand high cardinality metrics and successfully query for them using NRQL.'
+translationType: machine
+---
+
+import highCardinalityMetrics1 from 'images/high-cardinality-metrics-1.png'
+
+높은 카디널리티가 작동하는 방식을 이해하는 것이 중요합니다. 데이터 제한에 도달하는 속도에 영향을 줄 수 있기 때문입니다.
+
+## 카디널리티란 무엇이며 왜 중요한가요? [#what-why]
+
+카디널리티는 일반적으로 집합의 요소 수로 정의됩니다. 차원 메트릭의 경우 문제의 세트는 하루 동안 주어진 메트릭에 대해 관찰된 고유한 속성 맵의 모음입니다. 다음 NRQL 형식을 사용하여 New Relic에서 메트릭의 카디널리티를 쿼리할 수 있습니다.
+
+```
+FROM Metric SELECT cardinality(metric.name) SINCE today RAW
+```
+
+예를 들어, 측정항목 `memory.heap` 의 카디널리티를 쿼리하고 이 측정항목에 대해 몇 개의 고유 키-값 쌍이 존재하는지 알아보려면 다음 쿼리를 실행합니다.
+
+```
+FROM Metric SELECT cardinality(memory.heap) SINCE today RAW
+```
+
+<Callout variant="tip">
+  `FROM Metric` 을 사용하는 카디널리티 쿼리에 `RAW` 절을 포함하는 것이 좋습니다. 이는 카디널리티가 제한된 경우 `SINCE today` 와 같은 쿼리가 더 이상 보고하지 않는 롤업을 쿼리하므로 필요한 분석을 수행하기 위해 원시 데이터 포인트를 살펴봐야 하기 때문입니다.
+
+  장기간에 걸쳐 원시 데이터 포인트를 쿼리하는 것은 느릴 수 있으므로 2일 이상의 데이터에 걸쳐 있는 `RAW` 쿼리는 허용되지 않습니다.
+</Callout>
+
+카디널리티가 의미하는 바에 대한 기본 사항은 간단하게 설명할 수 있지만 높은 카디널리티를 처리하고 관리하는 방법을 배우는 것은 조금 더 복잡할 수 있습니다.
+
+### 카디널리티 제한 및 시행
+
+New Relic은 메트릭 수준과 계정 수준 모두에서 메트릭 카디널리티에 대한 제한을 적용합니다. 카디널리티는 00:00:00 UTC에 시작하여 23:59:59 UTC에 끝나는 UTC 하루 동안 평가됩니다.
+
+데이터 제한 및 관련 정책에 대한 자세한 내용은 [New Relic 데이터 사용 제한 및 정책](/docs/licenses/license-information/general-usage-licenses/new-relic-data-usage-limits-policies/) 을 참조하세요.
+
+## 카디널리티 및 차원 메트릭 [#dimensional-metrics]
+
+메트릭의 카디널리티는 하루 동안 주어진 메트릭에 대해 관찰된 고유한 특성 맵 집합의 크기입니다. 해당 맵의 키 또는 값이 시간이 지남에 따라 변경되면 해당 메트릭에 대한 새 카디널리티가 추가됩니다. 예를 들어 보겠습니다.
+
+각각 2개의 컨테이너가 실행되는 4개의 호스트로 구성된 네트워크를 상상해 보십시오. 각 컨테이너는 속성으로 추가된 호스트 이름과 컨테이너 ID와 함께 게이지 메트릭 `memory.heap` 을 주기적으로 보고합니다.
+
+<img
+  title="Multiple hosts with multiple containers"
+  alt="Host and containers combination resulting in high cardinality"
+  src={highCardinalityMetrics1}
+/>
+
+Metric API에 제출하면 이러한 메트릭 중 하나가 다음과 같이 보일 수 있습니다.
+
+```
+
+"metrics":[
+  { 
+    "name":"memory.heap", 
+    "type":"gauge", 
+    "value":5514, 
+    "timestamp":1234567890,
+    "attributes":{
+      "host":"W",
+      "container":"1"
+    }
+  }
+]
+```
+
+그러면 이 측정항목의 카디널리티는 8이 됩니다. 바로 이것이 `host` 및 `container` 의 고유한 매핑이 가능한 수이기 때문입니다. 이전에 보고된 것과 동일한 속성을 사용하여 이 메트릭에 대한 새 측정을 수행하면 새 카디널리티가 계산되지 않습니다.
+
+## 카디널리티 영향 [#influences]
+
+위에 표시된 것처럼 키 또는 값에 대한 모든 변경은 새로운 카디널리티를 나타내지만 이러한 변경이 전체 카디널리티에 어떤 영향을 미칠지 예측하는 것은 약간 까다로울 수 있습니다. 메트릭의 카디널리티가 각 가능한 키에 대한 모든 가능한 값의 곱이라고 가정하고 싶은 생각이 들지만 실제로는 주어진 키 값이 다른 키에 의존하거나 다른 값을 결정하기 때문에 실제로는 드뭅니다. 키.
+
+이전 예를 사용하여 `container` 값이 `1` 이면 해당 컨테이너 ID가 전역적으로 고유하다고 가정하면 `host` `W` 고정됩니다. 따라서 4개의 호스트에 8개의 컨테이너가 있지만 단순 곱셈 방법으로 계산되는 대부분의 조합은 불가능하므로 해당 메트릭의 카디널리티에 기여하지 않기 때문에 카디널리티는 4 \* 8 = 32가 아니라 여전히 8입니다. 예를 들어 `host = 'X', container = 1` 의 조합은 절대 볼 수 없습니다.
+
+이것은 또한 속성 맵에 더 많은 키를 추가한다고 해서 반드시 전체 카디널리티가 증가하는 것은 아님을 의미합니다. 새 키의 값이 기존 키의 값에 의해 고유하게 결정되면 장기적으로 새 카디널리티를 추가하지 않습니다. 예를 들어 예에서 지도에 `region` 과 같은 것을 추가하면 `container` 값도 특정 지역 값으로 고정되어 카디널리티를 8로 유지하는 경우일 수 있습니다.
+
+여기서 중요한 주의 사항은 `region` 을 추가해도 앞으로 카디널리티가 증가하지 않지만 처음 추가될 때 새로운 카디널리티가 도입된다는 것입니다. 키를 추가하면 해당 속성 맵이 이전의 속성 맵과 구별되어 해당 날짜의 총 카디널리티가 일시적으로 증가하기 때문입니다.
+
+## 예제 및 샘플 워크플로 [#examples-samples]
+
+카디널리티 제한 중 하나에 도달하면 상황을 해결하는 데 사용할 수 있는 몇 가지 옵션이 있습니다. 한 가지 쉬운 대답은 한계를 늘리는 것이지만 그렇게 하지 않으려는 경우 좋은 대안은 카디널리티에 가장 많이 기여하는 차원을 탐색하고 가치를 제공하지 않는 차원을 제거하는 것에 대해 생각하는 것입니다. 이렇게 하면 스토리지 및 대역폭 비용을 절약할 수 있고 잠재적으로 한도를 높일 필요가 없습니다.
+
+### 카디널리티 기여자 찾기: 메트릭 [#metrics-contributors]
+
+특정 메트릭의 카디널리티를 얻는 방법을 기억하십시오.
+
+```
+FROM Metric SELECT cardinality(memory.heap) SINCE today RAW
+```
+
+총 계정 카디널리티의 경우 동일한 기본 쿼리 구조를 사용하고 메트릭 이름을 생략하면 됩니다.
+
+```
+FROM Metric SELECT cardinality() SINCE today RAW
+```
+
+계정의 카디널리티는 기본적으로 각 메트릭 카디널리티의 합계이므로 간단한 FACET 쿼리를 추가하면 가장 높은 카디널리티 메트릭을 찾는 데 도움이 될 수 있습니다.
+
+```
+FROM Metric SELECT cardinality() SINCE today RAW FACET metricName
+```
+
+마지막으로, 카디널리티 제한 중 하나에 도달했다고 생각되면 관련 `NrIntegrationError` 를 확인하여 이를 확인할 수 있습니다.
+
+```
+FROM NrIntegrationError SELECT count(*) where name = 'CardinalityViolationException' and newRelicFeature = 'Metrics' facet cardinalityLimitType, metricName, message since today 
+```
+
+### 카디널리티 기여자 찾기: 차원 [#dimensions-contributors]
+
+탐색하려는 메트릭을 결정했으면 다음 단계는 지정된 메트릭에서 카디널리티에 가장 많이 기여하는 차원을 결정하는 것입니다. 치수 값에 익숙하지 않은 경우 다음과 같이 볼 수 있습니다.
+
+```
+FROM Metric SELECT dimensions() WHERE metricName = 'memory.heap' SINCE today RAW
+```
+
+여기에서는 JSON 결과 보기를 사용하는 것이 좋습니다. 이를 살펴보면 고유 ID 또는 제거할 가치가 있을 수 있는 기타 고도로 가변적인 값을 포함하는 일부 차원이 나타날 수 있습니다.
+
+속성이 취할 수 있는 값에 대해 이미 알고 있는 경우 `keySet()` 결과를 더 쉽게 검색할 수 있습니다.
+
+```
+FROM Metric SELECT keySet() WHERE metricName = 'memory.heap' SINCE today RAW
+```
+
+전체 카디널리티에 가장 큰 영향을 미치는 차원을 이해하는 것은 각 키의 값이 서로 어떻게 상관되는지 이해하는 것으로 귀결됩니다. 제외 목록에 추가하기만 하면 차원이 없는 카디널리티를 실험할 수 있습니다.
+
+```
+FROM Metric SELECT cardinality(memory.heap, exclude: {'container.id'}) SINCE today RAW
+```
+
+마찬가지로 쿼리 컨텍스트에 더 편리한 경우 포함 목록이 있습니다.
+
+```
+FROM Metric SELECT cardinality(memory.heap, include: {'host.name', 'region'}) SINCE today RAW
+```
+
+카디널리티 관리는 개념화하기 까다로울 수 있지만 위의 방법은 "가장 많은 카디널리티에 기여하는 측정항목은 무엇입니까?"와 같은 질문에 대한 답을 얻는 데 도움이 됩니다. 및 "주어진 속성이 전체 카디널리티에 어떤 영향을 미칩니까?".
+
+카디널리티는 가장 고유한 값으로 추적하는 경우가 많습니다. 그 값은 다른 속성이 취할 수 있는 가능한 값을 고정할 수 있기 때문입니다. 그러나 몇 가지 속성의 가능한 조합이 폭발적으로 증가하여 전체 카디널리티를 유도하는 경우가 많이 있습니다. 고유 식별자처럼 보이는 것이 일반적으로 시작하기에 좋은 위치이지만 때로는 단일 키가 아니라 두 개 이상의 키 조합입니다. 데이터와 데이터를 생성하는 시스템에 더 익숙할수록 포함하거나 제외할 속성을 더 쉽게 알 수 있습니다.
+
+<Callout variant="tip">
+  제한 사항 및 Metric API 문제 해결에 대해 자세히 알아보려면 다음 두 가지 유용한 리소스를 참조하세요.
+
+  * [메트릭 API 제한 및 제한된 속성](/docs/telemetry-data-platform/ingest-apis/metric-api/metric-api-limits-restricted-attributes/)
+  * [NRIntegrationError 이벤트로 Metric API 문제 해결](/docs/telemetry-data-platform/ingest-apis/metric-api/troubleshoot-nrintegrationerror-events/) 은 모두 탐색할 수 있는 훌륭한 리소스입니다.
+</Callout>
