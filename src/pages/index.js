@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import PropTypes from 'prop-types';
+import { navigate } from '@reach/router';
 import { css } from '@emotion/react';
 import { graphql } from 'gatsby';
 import {
@@ -8,7 +9,6 @@ import {
   SearchInput,
   Surface,
   useInstrumentedHandler,
-  useQueryParams,
   useTranslation,
   Tag,
 } from '@newrelic/gatsby-theme-newrelic';
@@ -23,7 +23,6 @@ const HomePage = ({ data }) => {
   } = data;
 
   const { t } = useTranslation();
-  const { setQueryParam } = useQueryParams();
 
   const mobileBreakpoint = '450px';
 
@@ -34,6 +33,8 @@ const HomePage = ({ data }) => {
       path: edge.node.fields.slug,
     };
   });
+
+  const searchInputRef = useRef();
 
   return (
     <>
@@ -46,21 +47,17 @@ const HomePage = ({ data }) => {
           }
         `}
       >
-        Welcome to New Relic docs!
+        {t('home.pageTitle')}
       </h1>
       <SearchInput
-        placeholder="What are you looking for?"
+        placeholder={t('home.search.placeholder')}
         size={SearchInput.SIZE.LARGE}
-        onFocus={() => {
-          setQueryParam('q', '');
-        }}
+        ref={searchInputRef}
+        iconName={SearchInput.ICONS.SEARCH}
+        isIconClickable
+        alignIcon={SearchInput.ICON_ALIGNMENT.RIGHT}
+        onSubmit={() => navigate(`?q=${searchInputRef.current.value}`)}
         css={css`
-          svg {
-            display: none;
-          }
-          input {
-            padding-left: 1rem;
-          }
           @media screen and (max-width: ${mobileBreakpoint}) {
             margin-bottom: 1rem;
           }
@@ -82,7 +79,7 @@ const HomePage = ({ data }) => {
           }
         `}
       >
-        <p>Popular searches: </p>
+        <p>{t('home.search.popularSearches.title')}: </p>
         <Link to="?q=nrql">NRQL</Link>
         <Link to="?q=logs">logs</Link>
         <Link to="?q=alert">alert</Link>

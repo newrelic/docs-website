@@ -1,0 +1,96 @@
+---
+title: Prometheus 원격 쓰기를 사용하여 데이터 삭제
+tags:
+  - Integrations
+  - Prometheus integrations
+  - Install and configure remote write
+translationType: machine
+---
+
+YAML 구성 파일의 `remote_write` 섹션을 변경하여 보관하지 않으려는 데이터를 삭제할 수 있습니다.
+
+<Callout variant="tip">
+  NerdGraph를 사용하여 원격 쓰기 데이터를 삭제할 수도 있습니다. 자세한 내용은 [NerdGraph를 사용하여 데이터 삭제를](/docs/accounts/accounts/data-management/drop-data-using-nerdgraph/) 참조하세요.
+</Callout>
+
+## 원격 쓰기 통합에서 전체 메트릭 데이터 포인트 삭제 [#drop-entire]
+
+대상이 New Relic으로 보내고 싶지 않은 노이즈가 많은 메트릭을 보내는 경우 New Relic이 해당 데이터를 삭제하도록 지정할 수 있습니다.
+
+### 예시
+
+`localhost:9100` 에서 실행 중인 인스턴스에서 측정항목 `node_memory_active_bytes` 에 대한 데이터를 수신하고 싶지 않다고 가정해 보겠습니다. 아래 표시된 `write_relabel_config` 항목을 사용하면 인스턴스 이름과 함께 `__name__` 레이블을 사용하여 측정항목 이름을 타겟팅할 수 있습니다.
+
+```
+remote_write:
+- url: https://metric-api.newrelic.com/prometheus/v1/write?prometheus_server=macbook-server-cluster
+  bearer_token: <redacted>
+  write_relabel_configs:
+    - source_labels: ['__name__', 'instance']
+      regex: 'node_memory_active_bytes;localhost:9100'
+      action: 'drop'
+```
+
+이렇게 하면 이러한 레이블이 있는 메트릭에 대해 몇 가지 작업을 수행하고 싶다고 Prometheus에 알립니다. 이러한 레이블이 있는 측정항목을 제한하려면 regex에 대한 일부 값을 포함해야 합니다. 기본적으로 이 값은 `.*` 으로 설정되며 모든 측정항목을 포함합니다. 이 경우 원격 쓰기를 통해 Prometheus에서 나오는 모든 메트릭 데이터 포인트를 삭제합니다.
+
+## 데이터 포인트에서 특정 레이블 또는 속성 삭제 [#drop-specific]
+
+대상이 수신에 관심이 없는 특정 레이블 또는 속성을 보내는 경우 수신한 측정항목에서 이러한 항목을 삭제할 수 있습니다.
+
+### 예시
+
+대상 중 하나가 수신에 관심이 없는 추가 속성을 많이 보내고 있다고 가정해 보겠습니다. 여기에는 고유한 시스템 식별자, JVM ID 등과 같은 높은 카디널리티 속성과 같은 항목이 포함될 수 있습니다. 이 경우 YAML 파일의 `remote_write` 및 `scrape_configs` 섹션을 모두 변경해야 합니다.
+
+결과는 다음과 같습니다.
+
+```
+remote_write:
+- url: https://metric-api.newrelic.com/prometheus/v1/write?prometheus_server=macbook-server-cluster
+  bearer_token: <redacted>
+  write_relabel_configs:
+    - regex: 'extraLabelToRemove.*'
+      action: 'labeldrop'
+...
+scrape_configs:
+  # The job name is added as a label `job=<job_name>` to any timeseries scraped from this config.
+  - job_name: 'node'
+    # Override the global default and scrape targets from this job every 5 seconds.
+    scrape_interval: 5s
+    static_configs:
+      - targets: ['localhost:9100']
+        labels:
+          group: 'production'
+          keepLabelName1: 'please-keep-me'
+          extraLabelToRemove: 'please-remove-me'
+          extraLabelToRemove1: 'please-remove-me'
+          extraLabelToRemove2: 'please-remove-me'
+          extraLabelToRemove4: 'please-remove-me'
+          extraLabelToRemove3: 'please-remove-me'
+          extraLabelToRemove5: 'please-remove-me'
+```
+
+## 프로메테우스 또는 NerdGraph? [#prometheus-vs-nerdgraph]
+
+이 페이지에 설명된 방법을 사용하여 데이터를 삭제하는 것과 NerdGraph를 사용하는 것 모두에 이점이 있습니다. 이 섹션은 특정 요구 사항과 기본 설정에 더 나은 방법을 파악하는 데 도움을 주기 위한 것입니다.
+
+### Prometheus 구성 파일 방법에 대한 고려 사항
+
+이 방법을 사용하면 삭제된 데이터가 연결된 Prometheus 인스턴스를 떠나지 않습니다. 전송된 바이트가 앱 호스팅 측의 비용 고려 사항인 경우 이는 유용한 기능입니다.
+
+그러나 이 방법은 다음 고려 사항으로 인해 [NerdGraph](/docs/accounts/accounts/data-management/drop-data-using-nerdgraph/) 옵션보다 덜 매력적일 수 있습니다.
+
+* 각 Prometheus 인스턴스에 로드해야 하는 구성 yaml 파일을 통해(또는 공유 스토리지 메커니즘을 통해) 유지 관리
+* 다음 중 하나를 의미하는 Prometheus 서버에 대한 액세스가 필요합니다.
+* * 서버를 다시 시작해야 합니다.
+* * 서비스는 경로가 `/-/reload` 인 포트에서 액세스해야 합니다(Prometheus [구성](https://prometheus.io/docs/prometheus/latest/configuration/configuration/#configuration) 문서에 설명된 대로 서버에 수명 주기 관리가 활성화되어 있다고 가정합니다.
+
+### 고려 사항 NerdGraph 방법
+
+NerdGraph는 한 곳에서 떨어지는 모든 데이터를 관리하려는 경우 훌륭한 옵션입니다. 또한 API를 통해 쉽게 업데이트할 수 있으며 다시 시작하거나 Prometheus와 상호 작용할 필요가 없습니다. 그러나 이 방법은 들어오는 모든 데이터 요소에 규칙을 적용합니다. 즉, `WHERE` 필터링을 사용하여 신중하게 고려하여 규칙을 설정해야 합니다.
+
+자세한 내용은 [NerdGraph를 사용하여 데이터 삭제를](/docs/accounts/accounts/data-management/drop-data-using-nerdgraph/) 참조하세요.
+
+## 더 알아보기 [#learn-more]
+
+* [Prometheus 메트릭 데이터를 New Relic으로 보내기](/docs/integrations/prometheus-integrations/get-started/send-prometheus-metric-data-new-relic/)
+* [Prometheus 고가용성(HA)](/docs/integrations/prometheus-integrations/install-configure/prometheus-high-availability-ha/)
