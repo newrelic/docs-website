@@ -47,10 +47,10 @@ const HomePage = ({ data }) => {
           }
         `}
       >
-        Welcome to New Relic docs!
+        {t('home.pageTitle')}
       </h1>
       <SearchInput
-        placeholder="What are you looking for?"
+        placeholder={t('home.search.placeholder')}
         size={SearchInput.SIZE.LARGE}
         ref={searchInputRef}
         iconName={SearchInput.ICONS.SEARCH}
@@ -79,7 +79,7 @@ const HomePage = ({ data }) => {
           }
         `}
       >
-        <p>Popular searches: </p>
+        <p>{t('home.search.popularSearches.title')}: </p>
         <Link to="?q=nrql">NRQL</Link>
         <Link to="?q=logs">logs</Link>
         <Link to="?q=alert">alert</Link>
