@@ -46,7 +46,6 @@ const MainLayout = ({ data = {}, children, pageContext }) => {
   return (
     <>
       <SEO location={location} />
-      <meta name="theme-color" content="#293338" />
       <GlobalHeader
         hideSearch={nav?.id === rootNav.id && true}
         customStyles={{ navLeftMargin: '150px', searchRightMargin: '30px' }}
