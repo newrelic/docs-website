@@ -95,32 +95,9 @@ const getLocalizedFileData = (mdxFile) => {
   }));
 };
 
-/** Entrypoint. */
-const main = async () => {
-  // These come from the CLI input when using the script
-  const options = getCommandLineOptions();
-  const url = options.url || null;
-  const directory = options.directory || null;
+const addFilesToTranslationQueue = async (fileNames, options) => {
   const machineTranslation = options.machineTranslation || false;
-
-  let mdxFileData;
-
-  if (url) {
-    const prFileData = await fetchPaginatedGHResults(
-      url,
-      process.env.GITHUB_TOKEN
-    );
-
-    mdxFileData = prFileData
-      .filter((file) => path.extname(file.filename) === '.mdx')
-      .filter((f) => f.status !== 'removed')
-      .map(prop('filename'));
-  } else if (directory) {
-    const directoryPath = path.join(directory, '/**/*.mdx');
-    mdxFileData = glob.sync(directoryPath);
-  }
-
-  const allLocalizedFileData = mdxFileData.flatMap(getLocalizedFileData);
+  const allLocalizedFileData = fileNames.flatMap(getLocalizedFileData);
 
   const filesToTranslate = machineTranslation
     ? allLocalizedFileData.filter(
@@ -154,6 +131,33 @@ const main = async () => {
       })
     )
   );
+};
+
+/** Entrypoint. */
+const main = async () => {
+  // These come from the CLI input when using the script
+  const options = getCommandLineOptions();
+  const url = options.url || null;
+  const directory = options.directory || null;
+
+  let mdxFileData;
+
+  if (url) {
+    const prFileData = await fetchPaginatedGHResults(
+      url,
+      process.env.GITHUB_TOKEN
+    );
+
+    mdxFileData = prFileData
+      .filter((file) => path.extname(file.filename) === '.mdx')
+      .filter((f) => f.status !== 'removed')
+      .map(prop('filename'));
+  } else if (directory) {
+    const directoryPath = path.join(directory, '/**/*.mdx');
+    mdxFileData = glob.sync(directoryPath);
+  }
+
+  await addFilesToTranslationQueue(mdxFileData, options);
 
   process.exit(0);
 };
@@ -166,4 +170,5 @@ module.exports = {
   getProjectId,
   excludeFiles,
   getLocalizedFileData,
+  addFilesToTranslationQueue,
 };
