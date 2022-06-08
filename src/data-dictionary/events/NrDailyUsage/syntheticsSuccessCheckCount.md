@@ -6,6 +6,6 @@ events:
   - NrDailyUsage
 ---
 
-Number of successful checks that ran on the given day for the given Synthetics monitor and location.
+Number of successful checks that ran on the given day for the given synthetic monitor and location.
 
 Only checks with syntheticsType not equal to SIMPLE count toward billable subscription usage.
