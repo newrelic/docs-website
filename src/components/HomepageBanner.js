@@ -25,7 +25,7 @@ const HomepageBanner = () => {
         background-size: cover;
         display: flex;
         align-items: center;
-        height: ${bannerHeight};
+        min-height: ${bannerHeight};
 
         .dark-mode & {
           background-color: var(--system-background-floating-dark);
@@ -34,7 +34,6 @@ const HomepageBanner = () => {
         @media screen and (max-width: ${mobileBreakpoint}) {
           flex-direction: column-reverse;
           background-position: 0 150px;
-          height: 320px;
         }
       `}
     >
@@ -127,6 +126,9 @@ const HomepageBanner = () => {
               margin-left: 1rem;
               color: var(--system-text-primary-dark);
               border-color: var(--system-text-primary-dark);
+              &:hover {
+                color: var(--system-text-primary-dark);
+              }
 
               @media screen and (max-width: ${mobileBreakpoint}) {
                 margin-left: 0;
