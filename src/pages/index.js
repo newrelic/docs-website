@@ -86,7 +86,9 @@ const HomePage = ({ data }) => {
         <Link to="?q=best practices">
           {t('home.search.popularSearches.options.3')}
         </Link>
-        <Link to="?q=kubernetes">{t('home.search.popularSearches.4')}</Link>
+        <Link to="?q=kubernetes">
+          {t('home.search.popularSearches.options.4')}
+        </Link>
       </div>
       <HomepageBanner />
       <Section
