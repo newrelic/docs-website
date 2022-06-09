@@ -1,6 +1,6 @@
 ---
 title: 'Distributed tracing enabled by default with Go agent update: version 3.16.0'
-summary: 'Get started easier with distributed tracing' 
+summary: 'Get started easier with distributed tracing'  
 releaseDate: '2022-06-09'
 learnMoreLink: 'https://docs.newrelic.com/docs/release-notes/agent-release-notes/go-release-notes/go-agent-3-16-0'
 getStartedLink: 'https://docs.newrelic.com/docs/release-notes/agent-release-notes/go-release-notes/go-agent-3-16-0'
