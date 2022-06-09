@@ -127,6 +127,9 @@ const HomepageBanner = () => {
               margin-left: 1rem;
               color: var(--system-text-primary-dark);
               border-color: var(--system-text-primary-dark);
+              &:hover {
+                color: var(--system-text-primary-dark);
+              }
 
               @media screen and (max-width: ${mobileBreakpoint}) {
                 margin-left: 0;
