@@ -58,7 +58,7 @@ const getFlatNav = () => {
 
 const filterUniqueTitles = () => {
   const uniqueTitles = [];
-  const flatNav = getFlatNav(locale);
+  const flatNav = getFlatNav();
   const titleList = flatNav.filter((navItem) => {
     if (
       uniqueTitles.includes(navItem.title) ||
