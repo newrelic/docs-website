@@ -16,6 +16,6 @@ In April of 2022, we re-architected our Kubernetes integration, making it modula
 
 ## How to get started
 
-To learn more, check out our [blog](https://newrelic.com/blog/nerdlog/k8s-integration-v3) or go straight to the[docs](https://docs.newrelic.com/docs/kubernetes-pixie/kubernetes-integration/get-started/changes-since-v3/#migration-guide) to get started.
+To learn more, check out our [blog](https://newrelic.com/blog/nerdlog/k8s-integration-v3) or go straight to the [docs](https://docs.newrelic.com/docs/kubernetes-pixie/kubernetes-integration/get-started/changes-since-v3/#migration-guide) to get started.
 
 ![Diagram of Kubernetes integration architecture](./images/K8s_V3.png "Diagram of Kubernetes integration architecture")
