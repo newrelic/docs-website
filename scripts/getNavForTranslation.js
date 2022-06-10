@@ -8,7 +8,7 @@ const skippedTitles = ['Style guide', 'root'];
 const locale = process.argv.slice(2)[0];
 
 const printExample = () => console.warn('Example: yarn generate-nav-titles jp');
-console.log(locale);
+
 if (!locale) {
   console.warn('<!> No locale specified, please append to the command');
   printExample();
@@ -60,14 +60,27 @@ const filterUniqueTitles = () => {
   const uniqueTitles = [];
   const flatNav = getFlatNav(locale);
   const titleList = flatNav.filter((navItem) => {
-    if (uniqueTitles.includes(navItem.title)) {
+    if (
+      uniqueTitles.includes(navItem.title) ||
+      navItem.title === 'section-break'
+    ) {
       return false;
     } else {
       uniqueTitles.push(navItem.title);
       return true;
     }
   });
-  fs.writeFileSync(`${locale}.json`, JSON.stringify(titleList));
+  const translationReadyFile = {
+    smartling: {
+      translate_paths: [
+        {
+          path: '/strings/title',
+        },
+      ],
+    },
+    strings: titleList,
+  };
+  fs.writeFileSync(`${locale}.json`, JSON.stringify(translationReadyFile));
 };
 
 filterUniqueTitles();
