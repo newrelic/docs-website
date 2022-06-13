@@ -1,0 +1,238 @@
+---
+title: '4단계: 자체 Lambda 함수 계측'
+metaDescription: Step 4 of enabling New Relic AWS Lambda monitoring.
+translationType: machine
+---
+
+이것은 [New Relic의 AWS Lambda 모니터링을 활성화하는](/docs/serverless-function-monitoring/aws-lambda-monitoring/enable-lambda-monitoring/enable-aws-lambda-monitoring) 한 단계입니다.
+
+<Callout variant="important">
+  통합에는 여러 단계가 있으므로 고유한 코드를 계측하기 전에 [예제](/docs/serverless-function-monitoring/aws-lambda-monitoring/enable-lambda-monitoring/instrument-example/) 함수를 배포하고 테스트하여 계정 링크를 테스트하는 것이 중요합니다.
+</Callout>
+
+## 배포 전략 [#strats]
+
+Lambda 함수에는 다양한 배포 전략이 있습니다. New Relic은 몇 가지에 대한 직접적인 지원을 제공하지만 모든 옵션을 다룰 수는 없습니다. 핵심적으로 New Relic Lambda 계측은 특정 배포 전략이나 도구가 아니라 Lambda 서비스 자체에 의존하므로 귀하의 사용 사례에서 작동할 수 있다고 확신합니다.
+
+### `newrelic-lambda` CLI 빠른 시작 [#quickstarts]
+
+계정 링크 설정에 권장하는 CLI 도구는 또한 New Relic을 사용하도록 Lambda 함수를 재구성할 수 있습니다.
+
+New Relic 계측 계층을 설치하거나 업그레이드하려면 다음을 실행하십시오.
+
+```
+newrelic-lambda layers install --nr-account-id <var><a href="/docs/accounts/accounts-billing/account-setup/account-id">YOUR_NR_ACCOUNT_ID</a></var> --function my-function --upgrade
+```
+
+이 명령은 Lambda의 리전 및 런타임에 대해 사용 가능한 최신 계층을 자동으로 찾습니다.
+
+이는 계측을 빠르게 시작하는 좋은 방법이며 이 도구는 기존 CI/CD 프로세스에 쉽게 통합할 수 있습니다. 그러나 기존 Lambda 함수 리소스를 수정하기 때문에 코드 업데이트를 함수에 배포할 때 실수로 New Relic 계측을 제거할 수 있습니다. 업데이트할 때마다 위의 명령을 다시 실행하거나 계층 및 관련 구성을 기존 배포 프로세스와 통합하는 것이 더 좋습니다.
+
+CLI는 일괄 처리로 많은 기능에서 작동할 수 있습니다. `--function all` , `--function installed` 또는 `--function not-installed` 를 사용하여 지역의 모든 기능에서 작동하거나 기존 New Relic 계측이 있거나 없는 기능에서만 작동합니다.
+
+### 지속적인 배포 [#cont]
+
+장기적으로 보면 New Relic을 기존의 지속적인 배포 프로세스에 통합하는 것이 일반적으로 덜 수 있습니다. 기능을 업데이트한 후 CLI를 실행하는 대신 New Relic을 지속적 배포 프레임워크에 통합할 수 있습니다.
+
+<CollapserGroup>
+  <Collapser
+    id="cloudformation"
+    title="CloudFormation / SAM 템플릿"
+  >
+    AWS의 서버리스 애플리케이션 모델(SAM)은 의존하는 리소스와 기능을 단순화하고 전체 애플리케이션의 수명 주기를 관리하는 CloudFormation 템플릿의 변형입니다. 우리는 대부분의 Lambda 예제 함수에 SAM 및 CloudFormation을 사용하고, 다른 많은 도구는 CloudFormation 템플릿 위에 구축되어 추가 추상화 계층을 제공합니다.
+
+    CloudFormation의 핵심은 YAML 또는 JSON을 사용하여 AWS 리소스(예: Lambda 함수)의 대상 상태를 표현하는 방법이며, 해당 목표를 달성하기 위해 다른 서비스(예: AWS Lambda)에 API를 호출하는 실행 서비스입니다. 상태.
+
+    다음은 Node.js Lambda 함수에 대한 간단한 CloudFormation 템플릿의 예입니다.
+
+    ```yaml
+    AWSTemplateFormatVersion: '2010-09-09'
+    Transform: AWS::Serverless-2016-10-31
+    Description: And example of a simple instrumented Node.js Lambda
+
+    Resources:
+      NewRelicExample:
+        Type: AWS::Serverless::Function
+        Properties:
+          # In this example, we're using the SAM CLI to package and deploy our lambda. SAM will transform this value during the publish step.
+          CodeUri: newrelic-example-node/
+          # The handler for your function needs to be the one provided by the instrumentation layer, below.
+          Handler: newrelic-lambda-wrapper.handler
+          Runtime: nodejs12.x
+          Environment:
+            Variables:
+              # For the instrumentation handler to invoke your real handler, we need this value
+              NEW_RELIC_LAMBDA_HANDLER: app.lambdaHandler
+              # Distributed tracing needs your account ID, and your trusted account ID
+              NEW_RELIC_ACCOUNT_ID: YOUR_ACCOUNT_ID_HERE
+              # If your New Relic account has a parent account, this value should be that account ID. Otherwise, just
+              # your account id.
+              NEW_RELIC_TRUSTED_ACCOUNT_KEY: YOUR_PARENT_ACCOUNT_ID_HERE
+          Layers:
+            # This layer includes the New Relic Lambda Extension, a sidecar process that sends telemetry,
+            # as well as the New Relic Agent for Node.js, and a handler wrapper that makes integration easy.
+            - !Sub arn:${AWS::Partition}:lambda:${AWS::Region}:451483290750:layer:NewRelicNodeJS12X:34
+          Policies:
+            # This policy allows the lambda to know the value of the New Relic licence key. We need this so
+            # that we can send telemetry back to New Relic
+            - AWSSecretsManagerGetSecretValuePolicy:
+                SecretArn: !ImportValue NewRelicLicenseKeySecret-NewRelic-LicenseKeySecretARN
+    ```
+
+    일반적으로 함수와 해당 리소스를 설명하는 `template.yaml` 이라는 파일이 있습니다.
+  </Collapser>
+
+  <Collapser
+    id="serverless"
+    title="서버리스 프레임워크"
+  >
+    서버리스 프레임워크는 서버리스 애플리케이션을 위한 인기 있는 개발 및 배포 도구입니다. Node.js로 작성되었으며 AWS의 경우 대부분 CloudFormation 템플릿 위에서 더 높은 수준의 추상화 역할을 합니다. Node, Python 및 Java 기능에 잘 작동합니다.
+
+    New Relic은 Serverless Framework 애플리케이션의 계측을 단순화하기 위해 [Serverless Framework 플러그인](https://github.com/newrelic/serverless-newrelic-lambda-layers) 을 제공합니다.
+
+    #### 플러그인 설치 [#install]
+
+    첫 번째,
+
+    ```
+    npm install --save-dev serverless-newrelic-lambda-layers
+    ```
+
+    또는,
+
+    ```
+    yarn add --dev serverless-newrelic-lambda-layers
+    ```
+
+    [New Relic 계정 ID](/docs/accounts/install-new-relic/account-setup/account-id) , [New Relic 개인 API 키](/docs/apis/get-started/intro-apis/types-new-relic-api-keys#personal-api-key) 찾기
+
+    그런 다음 `serverless.yaml` 파일에 다음을 추가합니다.
+
+    ```yaml
+    plugins:
+      - serverless-newrelic-lambda-layers
+    custom:
+      newRelic:
+        accountId: your-new-relic-account-id-here
+        apiKey: your-new-relic-personal-api-key-here
+        linkedAccount: your-new-relic-integration-account-name-here
+    ```
+  </Collapser>
+
+  <Collapser
+    id="terraform"
+    title="테라폼"
+  >
+    Terraform은 널리 사용되는 범용 인프라 코드 도구입니다. AWS 리소스 및 기타 여러 가지를 관리하는 데 사용할 수 있습니다. Terraform 스크립트를 사용하여 배포된 New Relic 계측 Lambda 함수의 [몇 가지 예](https://github.com/newrelic/newrelic-lambda-extension/tree/main/examples/terraform) 를 제공합니다.
+  </Collapser>
+</CollapserGroup>
+
+## 비정상적인 통합 [#edge]
+
+대부분의 경우 위의 옵션 중 하나가 잘 작동합니다. 그러나 이러한 솔루션을 사용할 수 없을 수도 있습니다. 요구 사항에 맞게 통합을 사용자 지정하는 방법에 대한 지침은 계속 읽으십시오.
+
+### CloudWatch 원격 분석 [#cloudwatch-telemetry]
+
+[이전에 언급했듯이](/docs/serverless-function-monitoring/aws-lambda-monitoring/get-started/architecture#cloudwatch) CloudWatch Logs를 통해 원격 측정을 보내는 것이 좋습니다. 이 경로는 더 이상 사용되지 않지만 여전히 작동할 수 있습니다.
+
+1. `false` 값을 사용하여 함수에 `NEW_RELIC_LAMBDA_EXTENSION_ENABLED` 환경 변수를 추가하여 확장을 비활성화합니다.
+
+2. CloudWatch Logs 구독 필터를 만들어 함수의 로그로 `newrelic-log-ingestion` 함수를 호출합니다.
+
+   * CLI는 다음을 수행할 수 있습니다. `newrelic-lambda subscriptions install --function <var>FUNCTION_NAME</var>`
+   * 또는 AWS 콘솔을 사용하여 함수의 CloudWatch 로그 그룹에서 구독 필터를 생성하여 `newrelic-log-ingestion` 람다 함수를 호출합니다. 아래를 참조하십시오.
+
+<CollapserGroup>
+  <Collapser
+    id="manual-stream-logs"
+    title="수동 프로세스: CloudWatch 로그를 New Relic Lambda로 스트리밍"
+  >
+    1. CloudWatch를 열고 왼쪽 메뉴에서 **로그** 를 선택한 다음 모니터링 중인 기능에 대한 로그 그룹을 선택합니다.
+
+    2. **Actions** > **Subscription filters** > **Create Lambda subscription filter** 을 선택합니다.
+
+    3. **Lambda 함수** 에서 `newrelic-log-ingestion` 함수를 선택합니다.
+
+    4. **로그 형식** 을 `JSON` 으로 설정합니다.
+
+    5. **구독 필터 패턴을** `?REPORT ?NR_LAMBDA_MONITORING ?"Task timed out" ?RequestId` 으로 설정합니다. 또는 `LOGGING_ENABLED` 환경 변수를 사용하는 경우 [모든 로그를 로그로 스트리밍하는](#stream-all-logs) 경우 이 필드를 비워 둡니다.
+
+       [이 절차에 대한 참고 사항 및 주의 사항을](#stream-logs) 참조하십시오.
+
+       <Callout variant="important">
+         위의 방법에서 선택한 `newrelic-log-ingestion` Lambda 함수가 Lambda 함수와 동일한 AWS 리전에 있는지 확인합니다.
+       </Callout>
+  </Collapser>
+</CollapserGroup>
+
+### Lambda 콘솔 UI 구성 [#console]
+
+위의 접근 방식보다 오류가 발생하기 쉽고 노동 집약적이지만 Node.js, Python 및 Java에 대해 AWS Lambda 콘솔에서 New Relic을 사용하도록 Lambda 함수의 구성을 수동으로 변경할 수 있습니다.
+
+1. 런타임 및 지역과 일치하는 [계층](https://layers.newrelic-external.com/) 을 찾으십시오.
+
+2. 가장 최근 버전의 Amazon 리소스 이름(ARN)을 복사하여 함수의 AWS Lambda 콘솔에 추가합니다.
+
+3. 함수의 콘솔에서 새로 연결된 레이어를 가리키도록 함수의 핸들러를 업데이트합니다.
+
+   * Python: `newrelic_lambda_wrapper.handler` (밑줄)
+
+   * 노드: `newrelic-lambda-wrapper.handler` (하이픈)
+
+   * 자바:
+
+     * RequestHandler 구현: `com.newrelic.java.HandlerWrapper::handleRequest`
+     * RequestStreamHandlerWrapper 구현: `com.newrelic.java.HandlerWrapper::handleStreamsRequest`
+
+4. 다음 환경 변수를 Lambda 콘솔에 추가합니다.
+
+   * `NEW_RELIC_ACCOUNT_ID`: 귀하의 [계정 ID](/docs/accounts/install-new-relic/account-setup/account-id)
+   * `NEW_RELIC_LAMBDA_HANDLER`: 초기 핸들러의 경로입니다.
+
+5. New Relic License Key 비밀에 대한 액세스를 허용하도록 실행 역할 수정
+
+   1. 이름이 지정된 암호의 ARN 찾기 `NEW_RELIC_LICENSE_KEY`
+
+   2. 다음과 같은 함수의 실행 역할에 새 인라인 정책을 추가합니다(
+
+      <var>SECRET_ARN</var>
+
+      을 위에서 찾은 값으로 대체).
+
+   ```
+        "Statement": [
+          {
+            "Action": [
+              "secretsmanager:GetSecretValue"
+            ],
+            "Resource": "<var>SECRET_ARN</var>",
+            "Effect": "Allow"
+          }
+        ]
+   ```
+
+Go 및 .NET의 경우 Lambda 함수를 계측하려면 소스 코드를 변경해야 합니다. 구성 변경만으로는 충분하지 않습니다.
+
+### 레이어 커스터마이징 [#cust]
+
+레이어에는 런타임에 따라 여러 구성 요소가 포함되어 있습니다.
+
+1. 모든 런타임에 대해 확장 실행 파일은 계층에 패키징됩니다.
+
+2. Python, Node.js 및 Java의 경우 다음도 포함됩니다.
+
+   1. New Relic 에이전트
+   2. New Relic Agent용 AWS SDK 계측 패키지
+   3. 에이전트를 구성하고 호출을 가로채서 계측 프로세스를 시작하는 핸들러 래퍼는 핸들러를 호출합니다.
+
+다른 래퍼가 필요한 경우 우리를 기반으로 고유한 레이어를 만들 수 있습니다. 래퍼 기능에 포함된 코드는 [newrelic-lambda-layers GitHub 리포지토리를](https://github.com/newrelic/newrelic-lambda-layers) 참조하세요. 교체 래퍼로 [자신의 레이어](https://docs.aws.amazon.com/lambda/latest/dg/configuration-layers.html) 를 만들고 우리 다음에 적용하면 래퍼 _가_ 우리가 제공하는 레이어를 덮어씁니다. 마찬가지로 사용자 정의 래퍼를 함수에 직접 포함할 수 있습니다.
+
+마찬가지로, 에이전트의 사용자 지정 빌드를 테스트하는 경우 버그를 해결하기 위해 위의 레이어 패키징 스크립트를 수정하여 에이전트 빌드를 패키징하고 고유한 레이어를 빌드할 수 있습니다.
+
+에이전트를 Lambda 함수로 패키징하는 것은 명시적으로 권장하지 않습니다. 이것이 가능하지만 에이전트를 업그레이드하고 버그 수정을 받기가 어렵습니다. 레이어가 공급업체 에이전트와 충돌할 수 있습니다. 이러한 구성은 작동할 수 있지만 지원되지 않는 것으로 간주해야 합니다.
+
+## 다음은 뭐지? [#find-data]
+
+이 단계를 완료한 후 수행할 수 있는 작업은 다음과 같습니다.
+
+* [Lambda 모니터링 UI](/docs/lambda-monitoring-ui) 에서 데이터 보고를 참조하십시오. 데이터를 찾는 데 문제가 있는 경우 [Lambda 활성화 문제 해결](/docs/serverless-function-monitoring/aws-lambda-monitoring/troubleshooting/troubleshooting-enabling-new-relic-monitoring-aws-lambda) 을 참조하십시오.

@@ -51,13 +51,13 @@ Kubernetesコントロールプレーンを監視するタスクは、デフォ�
 
 #### `hostNetwork` および `privileged` [#hostnetwork-privileged]
 
-ほとんどのユーザーとKubernetesディストリビューションは、ループバックインターフェイス（つまり`localhost` ）でのみリッスンするようにコントロールプレーンメトリックエンドポイントを構成します。このため、 `privileged`が`true` （デフォルト）に設定されている場合、コントロールプレーンコンポーネントはデフォルトで`hostNetwork: true`を使用して展開されます。
+v3より前のバージョンでは、統合が`privileged: false`を使用してデプロイされると、コントロールプレーンコンポーネントの`hostNetwork`設定も`false`に設定されます。
 
-統合が`privileged: false`を使用して展開される場合、コントロールプレーンコンポーネントの`hostNetwork`設定も`false`に設定されます。この方法を選択したのは、そうしないと、ユーザーが`privileged: false`を設定したときの意図を尊重できないためです。残念ながら、 `hostNetwork`なしでデプロイすると、ほとんどの環境でコントロールプレーンのスクレイピングが失敗し、メトリックが欠落したり、 `nrk8s-controlplane`ポッドが`CrashLoopBackoff`状態のままになる可能性があります。コンポーネントが手動で設定されていない限り、 `hostNetwork`がないとコントロールプレーンを監視できないため、これはKubernetes自体の制限です。
-
-非特権モード（ `privileged: false` ）で統合を展開することは一般的な設定ですが、それでも`hostNetwork`を使用してコントロールプレーンポッドを実行することは許容できると考えてください。これは、 `controlPlane.unprivilegedHostNetwork`を`true`に設定することで実現できます。これにより、上位レベルの`privileged`フラグの値に関係なく、 `hostNetwork: true`を使用してコントロールプレーンコンポーネントを展開するようにチャートに指示されます。
+バージョン3以降では、 `privileged`フラグは`securityContext`オブジェクトにのみ影響します。つまり、コンテナがホストメトリックにアクセスできるルートとして実行されているかどうかに影響します。ほとんどのディストリビューションでコントロールプレーンのエンドポイントに到達するために必要な`hostNetwork: true`を持つコントロールプレーンからメトリックを取得するポッドを除いて、すべての統合コンポーネントはデフォルトで`hostNetwork: false`になりました。すべてのコンポーネントの`hostNetwork`値は[、 `values.yaml`の`hostNetwork`トグル](https://github.com/newrelic/helm-charts/tree/master/library/common-library#values-managed-globally)を使用して、個別にまたはグローバルに変更できます。
 
 クラスタまたはその他のポリシーのために、 `hostNetwork`でポッドを実行することがまったく受け入れられない場合、コントロールプレーンの監視は不可能であり、 `controlPlane.enabled`を`false`に設定して無効にする必要があります。
+
+[カスタム自動検出](#autodiscovery-default)または[静的エンドポイント](#static-endpoints)を含む高度な構成がある場合は、 `hostNetwork`なしでコントロールプレーンを監視するために使用できます。 [プロジェクトのREADME](https://github.com/newrelic/nri-kubernetes/blob/main/charts/newrelic-infrastructure/README.md)を確認し、 [`values.yaml`](https://github.com/newrelic/nri-kubernetes/blob/main/charts/newrelic-infrastructure/values.yaml)で`controlPlane.hostNetwork`トゥーグルを探します。
 
 #### カスタムオートディスカバリー [#autodiscovery-default]
 
@@ -138,7 +138,7 @@ mv peer.crt cert
 mv peer.key key
 mv ca.crt cacert
 
-kubectl -n newrelic create secret generic newrelic-etcd-tls-secret --from-file=./cert --from-file=./key --from-file=./cacert
+kubectl -n newrelic create secret tls newrelic-etcd-tls-secret --cert=./cert --key=./key --certificate-authority=./cacert
 ```
 
 最後に、このセクションの冒頭に示されている構成スニペットにシークレット名（ `newrelic-etcd-tls-secret` ）と名前空間（ `newrelic` ）を入力できます。 Helm Chartはこの構成を自動的に解析し、RBACロールを作成して、 `nrk8s-controlplane`コンポーネントのこの特定のシークレットと名前空間へのアクセスを許可するため、その点で手動のアクションは必要ありません。
@@ -180,8 +180,7 @@ EKSやGKEのような一部のクラウド環境では、Kubernetes API Server�
 
 ```yaml
 controlPlane:
-  affinity:
-    nodeAffinity: false  # https://github.com/helm/helm/issues/9136
+  affinity: false  # https://github.com/helm/helm/issues/9136
   kind: Deployment
   config:
     etcd:
@@ -519,28 +518,22 @@ mTLSシークレットを作成するには、 [以下の本セクションの�
    kubectl get secret kube-etcd-client-certs -n openshift-monitoring -o yaml > etcd-secret.yaml
    ```
 
-2. シークレットファイルを開き、キーを変更します。
+2. オプションで、秘密の名前と名前空間を意味のあるものに変更します。
 
-   * **認証局**の名前を`cacert`に変更します。
-   * **クライアント証明書**の名前を`cert`に変更します。
-   * **クライアントキー**の名前を`key`に変更します。
-
-3. オプションで、秘密の名前と名前空間を意味のあるものに変更します。
-
-4. メタデータ部のこれらの不要なキーを削除します。
+3. メタデータ部のこれらの不要なキーを削除します。
 
    * `creationTimestamp`
    * `resourceVersion`
    * `selfLink`
    * `uid`
 
-5. マニフェストを新しい名前と名前空間でインストールします。
+4. マニフェストを新しい名前と名前空間でインストールします。
 
    ```shell
    kubectl apply -n newrelic -f etcd-secret.yaml
    ```
 
-6. [mtlsのセクション](#mtls) で説明しているように、新しく作成したシークレットを使用するように統合を構成します。
+5. [mtlsのセクション](#mtls) で説明しているように、新しく作成したシークレットを使用するように統合を構成します。
 
 ## 自分のデータを見る [#check-integration-works]
 
@@ -548,7 +541,7 @@ mTLSシークレットを作成するには、 [以下の本セクションの�
 
 <img
   title="new-relic-one-k8s-cluster-explorer-control-plane-parameters.png"
-  alt="New Relic One - Kubernetes Cluster Explorer - Control Plane section"
+  alt="New Relic - Kubernetes Cluster Explorer - Control Plane section"
   src={newRelicOneK8SClusterExplorerControlPlaneParameters}
 />
 
