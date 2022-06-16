@@ -37,24 +37,84 @@ redirects:
   - /docs/data-apis/ingest-apis/introduction-event-api
 ---
 
-The New Relic Event API is one way to report [custom events](/docs/insights/insights-data-sources/custom-data/report-custom-event-data) to New Relic. The Event API lets you send custom [event data](/docs/using-new-relic/data/understand-data/new-relic-data-types#event-data) to your New Relic account with a POST command. These events are then queryable and chartable using [NRQL](/docs/query-data/nrql-new-relic-query-language/getting-started/introduction-nrql).
+The Event API lets you send custom [event data](/docs/using-new-relic/data/understand-data/new-relic-data-types#event-data) to New Relic. These events can then be queried and charted. 
 
 Want to try out our Event API? [Create a New Relic account](https://newrelic.com/signup) for free! No credit card required.
 
 Related content:
 
 * Learn about [all options for reporting custom events](/docs/insights/insights-data-sources/custom-data/report-custom-event-data).
-* For details about how event data is retained, see [Event data retention](/docs/insights/use-insights-ui/manage-account-data/extend-event-data-retention).
 * For how to add attributes to existing events, see [Add custom attributes](/docs/agents/manage-apm-agents/agent-data/collect-custom-attributes).
 
-## Requirements
+## Why use the Event API? [#overview]
+
+Our Event API is one option for reporting custom data. Another option is reporting custom attributes. For an overview of why you'd use the Event API versus other options, see [Custom events and attributes](/docs/data-apis/custom-data/custom-events/report-custom-event-data#using-custom-events).
+
+## Requirements [#requirements]
 
 For Event API limits and restricted attributes, see [Limits](#limits).
 
-Ensure outbound connectivity on TCP port 443 is allowed to the [CIDR range](/docs/using-new-relic/cross-product-functions/install-configure/networks/#infrastructure) that matches your [region](/docs/using-new-relic/welcome-new-relic/get-started/our-eu-us-region-data-centers).
-The preferred configuration method is to use the DNS name `insights-collector.newrelic.com` or `insights-collector.eu01.nr-data.net`.
+Ensure outbound connectivity on TCP port 443 is allowed to the [CIDR range](/docs/using-new-relic/cross-product-functions/install-configure/networks/#infrastructure) that matches your [region](/docs/using-new-relic/welcome-new-relic/get-started/our-eu-us-region-data-centers). The preferred configuration method is to use the DNS name `insights-collector.newrelic.com` or `insights-collector.eu01.nr-data.net`.
 
-## Basic workflow [#workflow]
+## Example of submitting and querying a custom event [#example-use-case]
+
+Here's an example of the Event API in action: 
+
+<CollapserGroup>
+  <Collapser
+    id="ruby-example"
+    title="Calling the Event API from a Ruby app"
+  >
+
+Custom events can be inserted through the [agent APIs](/docs/data-apis/custom-data/custom-events/report-custom-event-data#ways) or directly via the Event API. The following example shows how to send a custom event type `CLIRun`, which tracks when a command line tool written in Ruby has its process exit due to an exception.
+
+```ruby
+# Hook into the runtime 'at_exit' event
+at_exit do
+  # Name the custom event
+  payload = { 'eventType' => 'CLIRun' }
+
+  # Check to see if the process is exiting due to an error
+  if $!.nil? || $!.is_a?(SystemExit) && $!.success?
+    payload[:status] = 0
+  else
+    # Gather any known errors
+    errors = ""
+    (Thread.current[:errors] ||= []).each do |err|
+      errors += "#{err}\n"
+    end
+    payload[:errors] = errors
+  end
+
+  # Send the errors to New Relic as a custom event
+  insights_url = URI.parse("https://insights-collector.newrelic.com/v1/accounts/YOUR_ACCOUNT_ID/events")
+  headers = { "Api-Key" => "YOUR_LICENSE_KEY", "content-type" => "application/json" }
+
+  http = Net::HTTP.new(insights_url.host, insights_url.port)
+  http.use_ssl = true
+  request = Net::HTTP::Post.new(insights_url.request_uri, headers)
+  request.body = payload.to_json
+
+  puts "Sending run summary to New Relic: #{payload.to_json}"
+  begin
+    response = http.request(request)
+    puts "Response from New Relic: #{response.body}"
+  rescue Exception => e
+    puts "There was an error posting to New Relic. Error: #{e.inspect}"
+  end
+end
+```
+
+Then you could run a NRQL query to get more detail about that custom event, like: 
+
+```sql
+SELECT count(*) FROM CLIRun FACET errors SINCE 1 week ago
+```
+
+</Collapser>
+</CollapserGroup>
+
+## How to use the Event API [#workflow]
 
 The Event API is an asynchronous endpoint. This allows you to send a very large volume of POSTS, reliably, with very low response latency.
 
@@ -70,15 +130,7 @@ To send a custom event to a New Relic account:
 4. [Submit a compressed JSON payload](#submit-event) (for example, `gzip` or `deflate`) to the HTTPS endpoint using curl in a **POST** request.
 5. **Recommendation:** Set up [NRQL alert conditions](/docs/alerts/new-relic-alerts/defining-conditions/create-alert-conditions-nrql-queries) to notify you when [parsing errors](#errors-parsing) occur.
 
-This method will send the events directly into your account, where they will be accessible from any NRQL interface or with the Query API.
-
-The Event API [limits the size, rate, and characters](#limits) allowed in custom events. Also, like other events available in NRQL, custom events cannot be updated or deleted after they are created. If you have problems with your custom event, follow the [troubleshooting procedures](#verify) or create a new custom event.
-
-## Get the license key [#register]
-
-You'll need a [license key](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key). License keys are associated with an account, not a specific user. This means that anyone in the account with access to that key can use it.
-
-You can submit multiple event types to the same account with the same license key. However, to help ensure security, we recommend that you use different keys for different applications or data sources.
+The Event API [limits the size, rate, and characters](#limits) allowed in custom events. Also, like other data available in NRQL, custom events cannot be updated or deleted after they're created. If you have problems with your custom event, follow the [troubleshooting procedures](#verify) or create a new custom event.
 
 ## Format the JSON [#instrument]
 
