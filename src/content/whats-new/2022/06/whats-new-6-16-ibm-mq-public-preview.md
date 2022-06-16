@@ -1,18 +1,19 @@
 ---
 title: 'IBM MQ integration public preview' 
-summary: 'The IBM MQ integration enables performance monitoring for your IBM MQ infrastructure.
+summary: 'Performance monitoring for your IBM MQ infrastructure.
 ' 
 releaseDate: '2022-06-16' 
 learnMoreLink: 'https://docs.newrelic.com/docs/infrastructure/host-integrations/host-integrations-list/ibmmq-monitoring-integration/' 
 getStartedLink: 'https://newrelic.com/instant-observability/ibmmq/924fd4b3-a6d1-4a6e-9e2c-b598f197f713'
 ---
-## We want you to get the message!
-Introducing the public preview for our IBM MQ integration to monitor the performance of MQ objects like channels and queues. Analyze metrics over time to scale accordingly and keep your messages flowing.
+Introducing the public preview for our IBM MQ integration to monitor the performance of MQ objects like connections, channels, and queues. Analyze metrics over time to scale accordingly and keep your infrastructure messages and data flowing throughout your stack.
+
+IBM MQ enables decoupled applications and services to communicate and exchange data in a reliable and scalable way, whether you're trying to integrate applications running in different frameworks, languages, platforms, clouds, or locations. 
 
 ![Tab one: New Relic quickstart dashboard for the IBM MQ integration](./images/IBMMQLightDashboard.png "Tab one: New Relic quickstart dashboard for the IBM MQ integration")
 
 ## Instant Observability
-Install the public preview to instrument your IBM MQ infrastructure. It comes with a pre-built dashboard visualization:
+Install the public preview to instrument your IBM MQ infrastructure. It comes with a pre-built dashboard visualization providing key insights into the following metrics:
 * Total of Connections
 * Connections by Queue Manager
 * Total of Errors
