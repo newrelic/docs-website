@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const { IMAGE_ALLOWLIST } = require('./utils/constants');
 
 const isFile = (filepath) => fs.statSync(filepath).isFile();
 const isDirectory = (filepath) => fs.statSync(filepath).isDirectory();
@@ -16,17 +17,44 @@ const getFilesRecursively = (filepath) =>
     .flatMap(getFilesRecursively)
     .reduce((acc, file) => [...acc, file], getFiles(filepath));
 
-const getAllDocsFiles = () => {
-  const files = getFilesRecursively('src/content/docs/synthetics');
-  const regex = new RegExp('^import.+', 'gm');
-  const filteredFiles = files
+const getAllImageImports = (path) => {
+  const files = getFilesRecursively(path);
+  const regex = new RegExp(`^import.+("|'|';|";)[ ]*$`, 'gm');
+  // imported images begin with 'import' and can end in ' or " with or without ; and any number of spaces after
+  const importStatements = files
     .flatMap((file) => {
       const textfile = fs.readFileSync(file, 'utf-8');
-      return textfile.match(regex)?.split('/')?.[1];
+      return textfile.match(regex);
     })
     .filter(Boolean);
-
-  console.log(filteredFiles);
+  const imageTitles = importStatements.map((importStatement) => {
+    return importStatement.split(`'`)[1].split(`/`)[1].replace(/\\/g, '');
+    // using replace here as the matched strings have escaped underscores
+    // and we need to remove the backslashes
+  });
+  return imageTitles;
 };
 
-getAllDocsFiles();
+const getAllImages = () => {
+  const imagesPaths = getFiles('src/images');
+  return imagesPaths.map((imagePath) => imagePath.split(`/`)[2]);
+};
+
+const deleteUnusedImages = () => {
+  const englishImportedImages = getAllImageImports('src/content/docs');
+  const i18nImportedImages = getAllImageImports('src/i18n/content');
+
+  const importedImages = englishImportedImages.concat(i18nImportedImages);
+  const inRepoImages = getAllImages();
+
+  const imagesNotBeingUsed = inRepoImages.filter(
+    (image) =>
+      !importedImages.includes(image) && !IMAGE_ALLOWLIST.includes(image)
+  );
+  console.log(
+    `Deleting ${imagesNotBeingUsed.length} image/s not being imported in any file`
+  );
+  imagesNotBeingUsed.forEach((image) => fs.unlinkSync(`src/images/${image}`));
+};
+
+deleteUnusedImages();
