@@ -62,6 +62,7 @@ module.exports = {
         prism: {
           languages: [
             'aspnet',
+            'bash',
             'c',
             'cmake',
             'coffeescript',
@@ -82,7 +83,9 @@ module.exports = {
             'go',
             'gradle',
             'graphql',
+            'groovy',
             'handlebars',
+            'jade',
             'java',
             'javascript',
             'jinja2',
@@ -108,8 +111,10 @@ module.exports = {
             'php',
             'phpdoc',
             'powershell',
+            'prolog',
             'promql',
             'protobuf',
+            'pug'
             'puppet',
             'python',
             'razor',
