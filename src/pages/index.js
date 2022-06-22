@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useState } from 'react';
 import PropTypes from 'prop-types';
 import { navigate } from '@reach/router';
 import { css } from '@emotion/react';
@@ -22,6 +22,8 @@ const HomePage = ({ data }) => {
     allMarkdownRemark: { edges: whatsNewPosts },
   } = data;
 
+  const [searchTerm, setSearchTerm] = useState('');
+
   const { t } = useTranslation();
 
   const mobileBreakpoint = '450px';
@@ -33,8 +35,6 @@ const HomePage = ({ data }) => {
       path: edge.node.fields.slug,
     };
   });
-
-  const searchInputRef = useRef();
 
   return (
     <>
@@ -52,11 +52,12 @@ const HomePage = ({ data }) => {
       <SearchInput
         placeholder={t('home.search.placeholder')}
         size={SearchInput.SIZE.LARGE}
-        ref={searchInputRef}
+        value={searchTerm || ''}
         iconName={SearchInput.ICONS.SEARCH}
         isIconClickable
         alignIcon={SearchInput.ICON_ALIGNMENT.RIGHT}
-        onSubmit={() => navigate(`?q=${searchInputRef.current.value}`)}
+        onChange={(e) => setSearchTerm(e.target.value)}
+        onSubmit={() => navigate(`?q=${searchTerm || ''}`)}
         css={css`
           @media screen and (max-width: ${mobileBreakpoint}) {
             margin-bottom: 1rem;

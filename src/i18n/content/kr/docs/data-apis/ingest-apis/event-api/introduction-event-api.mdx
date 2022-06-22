@@ -7,23 +7,82 @@ metaDescription: 'Intro to New Relic''s Event API, which lets you send custom ev
 translationType: machine
 ---
 
-New Relic Event API는 [사용자 지정 이벤트](/docs/insights/insights-data-sources/custom-data/report-custom-event-data) 를 New Relic에 보고하는 한 가지 방법입니다. 이벤트 API를 사용하면 POST 명령으로 사용자 지정 [이벤트 데이터](/docs/using-new-relic/data/understand-data/new-relic-data-types#event-data) 를 New Relic 계정으로 보낼 수 있습니다. 그런 다음 이러한 이벤트는 [NRQL](/docs/query-data/nrql-new-relic-query-language/getting-started/introduction-nrql) 을 사용하여 쿼리하고 차트로 작성할 수 있습니다.
+Event API를 사용하면 사용자 지정 [이벤트 데이터](/docs/using-new-relic/data/understand-data/new-relic-data-types#event-data) 를 New Relic에 보낼 수 있습니다. 그런 다음 이러한 이벤트를 쿼리하고 차트로 작성할 수 있습니다.
 
 이벤트 API를 사용해 보고 싶으십니까? 무료 [로 New Relic 계정을 만드](https://newrelic.com/signup) 십시오! 신용 카드가 필요하지 않습니다.
 
 관련된 컨텐츠:
 
 * [맞춤 이벤트 보고를 위한 모든 옵션에](/docs/insights/insights-data-sources/custom-data/report-custom-event-data) 대해 알아보세요.
-* 이벤트 데이터 보존 방법에 대한 자세한 내용은 [이벤트 데이터 보존](/docs/insights/use-insights-ui/manage-account-data/extend-event-data-retention) 을 참조하십시오.
 * 기존 이벤트에 속성을 추가하는 방법은 [사용자 정의 속성 추가](/docs/agents/manage-apm-agents/agent-data/collect-custom-attributes) 를 참조하십시오.
 
-## 요구 사항
+## 이벤트 API를 사용하는 이유는 무엇입니까? [#overview]
+
+이벤트 API는 사용자 지정 데이터를 보고하기 위한 한 가지 옵션입니다. 또 다른 옵션은 사용자 정의 속성을 보고하는 것입니다. Event API와 다른 옵션을 사용하는 이유에 대한 개요는 [사용자 지정 이벤트 및 속성](/docs/data-apis/custom-data/custom-events/report-custom-event-data#using-custom-events) 을 참조하세요.
+
+## 요구 사항 [#requirements]
 
 이벤트 API 제한 및 제한된 속성은 [제한](#limits) 을 참조하십시오.
 
 [지역](/docs/using-new-relic/welcome-new-relic/get-started/our-eu-us-region-data-centers) 과 일치하는 [CIDR 범위](/docs/using-new-relic/cross-product-functions/install-configure/networks/#infrastructure) 에 대해 TCP 포트 443의 아웃바운드 연결이 허용되는지 확인합니다. 기본 구성 방법은 DNS 이름 `insights-collector.newrelic.com` 또는 `insights-collector.eu01.nr-data.net` 을 사용하는 것입니다.
 
-## 기본 워크플로 [#workflow]
+## 사용자 지정 이벤트 제출 및 쿼리의 예 [#example-use-case]
+
+다음은 작동 중인 Event API의 예입니다.
+
+<CollapserGroup>
+  <Collapser
+    id="ruby-example"
+    title="Ruby 앱에서 이벤트 API 호출"
+  >
+    사용자 정의 이벤트는 [에이전트 API](/docs/data-apis/custom-data/custom-events/report-custom-event-data#ways) 를 통해 또는 이벤트 API를 통해 직접 삽입할 수 있습니다. 다음 예는 Ruby로 작성된 명령줄 도구가 예외로 인해 프로세스가 종료되는 시기를 추적하는 맞춤 이벤트 유형 `CLIRun` 을 보내는 방법을 보여줍니다.
+
+    ```ruby
+    # Hook into the runtime 'at_exit' event
+    at_exit do
+      # Name the custom event
+      payload = { 'eventType' => 'CLIRun' }
+
+      # Check to see if the process is exiting due to an error
+      if $!.nil? || $!.is_a?(SystemExit) && $!.success?
+        payload[:status] = 0
+      else
+        # Gather any known errors
+        errors = ""
+        (Thread.current[:errors] ||= []).each do |err|
+          errors += "#{err}\n"
+        end
+        payload[:errors] = errors
+      end
+
+      # Send the errors to New Relic as a custom event
+      insights_url = URI.parse("https://insights-collector.newrelic.com/v1/accounts/YOUR_ACCOUNT_ID/events")
+      headers = { "Api-Key" => "YOUR_LICENSE_KEY", "content-type" => "application/json" }
+
+      http = Net::HTTP.new(insights_url.host, insights_url.port)
+      http.use_ssl = true
+      request = Net::HTTP::Post.new(insights_url.request_uri, headers)
+      request.body = payload.to_json
+
+      puts "Sending run summary to New Relic: #{payload.to_json}"
+      begin
+        response = http.request(request)
+        puts "Response from New Relic: #{response.body}"
+      rescue Exception => e
+        puts "There was an error posting to New Relic. Error: #{e.inspect}"
+      end
+    end
+    ```
+
+    그런 다음 NRQL 쿼리를 실행하여 다음과 같은 사용자 지정 이벤트에 대한 자세한 정보를 얻을 수 있습니다.
+
+    ```sql
+    SELECT count(*) FROM CLIRun FACET errors SINCE 1 week ago
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## 이벤트 API 사용 방법 [#workflow]
 
 이벤트 API는 비동기 엔드포인트입니다. 이를 통해 매우 낮은 응답 대기 시간으로 매우 많은 양의 POSTS를 안정적으로 보낼 수 있습니다.
 
@@ -39,15 +98,7 @@ New Relic 계정에 맞춤 이벤트를 보내려면:
 4. **POST** 요청에서 curl을 사용하여 [압축된 JSON 페이로드](#submit-event) (예: `gzip` 또는 `deflate` )를 HTTPS 엔드포인트에 제출합니다.
 5. **권장 사항:** [구문 분석 오류가](#errors-parsing) 발생할 때 알리도록 [NRQL 경고 조건](/docs/alerts/new-relic-alerts/defining-conditions/create-alert-conditions-nrql-queries) 을 설정합니다.
 
-이 방법은 NRQL 인터페이스나 쿼리 API에서 액세스할 수 있는 계정으로 이벤트를 직접 보냅니다.
-
-이벤트 API는 사용자 정의 이벤트에 허용되는 [크기, 비율 및 문자를 제한](#limits) 합니다. 또한 NRQL에서 사용할 수 있는 다른 이벤트와 마찬가지로 사용자 지정 이벤트는 생성된 후에 업데이트하거나 삭제할 수 없습니다. 사용자 지정 이벤트에 문제가 있는 경우 [문제 해결 절차](#verify) 를 따르거나 새 사용자 지정 이벤트를 만드십시오.
-
-## 라이센스 키 받기 [#register]
-
-[라이센스 키](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key) 가 필요합니다. 라이선스 키는 특정 사용자가 아닌 계정과 연결됩니다. 즉, 해당 키에 대한 액세스 권한이 있는 계정의 모든 사용자가 키를 사용할 수 있습니다.
-
-동일한 라이센스 키를 사용하여 동일한 계정에 여러 이벤트 유형을 제출할 수 있습니다. 그러나 보안을 보장하기 위해 서로 다른 애플리케이션 또는 데이터 소스에 대해 서로 다른 키를 사용하는 것이 좋습니다.
+이벤트 API는 사용자 정의 이벤트에 허용되는 [크기, 비율 및 문자를 제한](#limits) 합니다. 또한 NRQL에서 사용할 수 있는 다른 데이터와 마찬가지로 사용자 지정 이벤트는 생성된 후에 업데이트하거나 삭제할 수 없습니다. 사용자 지정 이벤트에 문제가 있는 경우 [문제 해결 절차](#verify) 를 따르거나 새 사용자 지정 이벤트를 만드십시오.
 
 ## JSON 형식 지정 [#instrument]
 
