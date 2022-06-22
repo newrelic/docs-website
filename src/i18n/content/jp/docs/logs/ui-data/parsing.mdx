@@ -1,0 +1,727 @@
+---
+title: ログデータの解析
+tags:
+  - Logs
+  - Log management
+  - UI and data
+metaDescription: How New Relic uses parsing and how to send customized log data.
+translationType: machine
+---
+
+import LogParsing from 'images/log-parsing041422.png'
+
+解析は、非構造化ログデータを属性（キーと値のペア）に分割するプロセスです。これらの属性を使用して、便利な方法でログをファセットまたはフィルタリングできます。これにより、より優れたチャートとアラートを作成できます。
+
+解析を開始するには、YouTubeで次のビデオチュートリアルをご覧ください（約4分半）。
+
+<Video
+  id="PD7zGXqS0P0"
+  type="youtube"
+  width="560px"
+/>
+
+New Relicは、ルールに従ってログデータを解析します。このドキュメントでは、ログの解析のしくみ、組み込みのルールの使用方法、およびカスタムルールの作成方法について説明します。
+
+api.newrelic.com/graphiqlにあるGraphQLAPIである[NerdGraph](https://api.newrelic.com/graphiql)を使用して、ログ解析ルールを作成、クエリ、および管理することもできます。詳細については[、解析に関するNerdGraphチュートリアルを](/docs/apis/nerdgraph/examples/nerdgraph-log-parsing-rules-tutorial/)参照してください。
+
+## 構文解析の例 [#parsing-defined]
+
+良い例は、非構造化テキストを含むデフォルトのNGINXアクセスログです。検索には便利ですが、それ以外はあまり役に立ちません。典型的な行の例を次に示します。
+
+```
+127.180.71.3 - - [10/May/1997:08:05:32 +0000] "GET /downloads/product_1 HTTP/1.1" 304 0 "-" "Debian APT-HTTP/1.3 (0.8.16~exp12ubuntu10.21)"
+```
+
+解析されていない形式では、ほとんどの質問に答えるために全文検索を行う必要があります。解析後、ログは`response code`や`request URL`などの属性に整理されます。
+
+```
+{
+  "remote_addr":"93.180.71.3",
+  "time":"1586514731",
+  "method":"GET",
+  "path":"/downloads/product_1",
+  "version":"HTTP/1.1",
+  "response":"304",
+  "bytesSent": 0,
+  "user_agent": "Debian APT-HTTP/1.3 (0.8.16~exp12ubuntu10.21)"
+}
+```
+
+解析により、これらの値をファセットする[カスタムクエリ](/docs/using-new-relic/data/understand-data/query-new-relic-data)を簡単に作成できます。これは、リクエストURLごとの応答コードの分布を理解し、問題のあるページをすばやく見つけるのに役立ちます。
+
+## ログ解析のしくみ [#how-it-works]
+
+NewRelicがログの解析を実装する方法の概要は次のとおりです。
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "100px" }}>
+        ログの解析
+      </th>
+
+      <th>
+        使い方
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        何
+      </td>
+
+      <td>
+        * すべての解析は`message`フィールドに対して行われます。他のフィールドは解析できません。
+        * 各解析ルールは、ルールが解析を試みるログを決定する一致基準を使用して作成されます。
+        * 照合プロセスを簡素化するために、ログに[`logtype`](#logtype)属性を追加することをお勧めします。ただし、 `logtype`の使用に限定されません。任意の属性を一致基準として使用できます。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        いつ
+      </td>
+
+      <td>
+        * 解析は、各ログメッセージに1回だけ適用されます。複数の解析ルールがログに一致する場合、成功した最初のルールのみが適用されます。
+        * 解析は、データがNRDBに書き込まれる前に、ログの取り込み中に行われます。データがストレージに書き込まれると、それを解析することはできなくなります。
+        * 解析は、データの強化が行わ**れる前**にパイプラインで行われます。解析ルールの一致基準を定義するときは注意してください。条件が、解析またはエンリッチメントが行われた後にアンテールに存在しない属性に基づいている場合、一致が発生したときにそのデータはログに存在しません。その結果、解析は行われません。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        どのように
+      </td>
+
+      <td>
+        * ルールは、 [Grok](https://grokdebug.herokuapp.com/patterns#) 、正規表現、またはその2つの混合で記述できます。 Grokは、複雑な正規表現を抽象化するパターンのコレクションです。
+        * メッセージフィールドのコンテンツがJSONの場合、自動的に解析されます。
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Grokを使用して属性を解析する [#grok]
+
+解析パターンは、ログメッセージを解析するための業界標準であるGrokを使用して指定されます。 `logtype`フィールドの着信ログは、[組み込みパターン](#built-in-rules)と照合され、可能であれば、関連付けられたGrokパターンがログに適用されます。
+
+Grokは正規表現のスーパーセットであり、リテラルの複雑な正規表現の代わりに使用される組み込みの名前付きパターンを追加します。たとえば、整数を正規表現`(?:[+-]?(?:[0-9]+))`と一致させることができることを覚えておく代わりに、 `%{INT}`と書くだけで、同じ正規表現を表すGrokパターン`INT`を使用できます。
+
+一致する文字列では、いつでも正規表現とGrokパターン名を組み合わせて使用できます。詳細については、 [Grok構文とサポートされているタイプ](#grok-syntax)のリストを参照してください。
+
+Grok解析ルールパターンを作成するときにGrokデバッガーを使用する方法については、YouTubeビデオ（約6分）をご覧ください。
+
+<Video
+  id="0vV9iVltJck"
+  type="youtube"
+  width="560px"
+/>
+
+<CollapserGroup>
+  <Collapser
+    id="grok-example"
+    title="Grokの例：ログから有用なデータを取得する"
+  >
+    ログレコードは次のようになります。
+
+    ```
+    {
+      "message": "54.3.120.2 2048 0"
+    }
+    ```
+
+    この情報は正確ですが、それが何を意味するのか正確には直感的ではありません。 Grokパターンは、必要なテレメトリデータを抽出して理解するのに役立ちます。たとえば、次のようなログレコードははるかに使いやすいです。
+
+    ```
+    {
+      "host_ip": "43.3.120.2",
+      "bytes_received": 2048,
+      "bytes_sent": 0
+    }
+    ```
+
+    これを行うには、これら3つのフィールドを抽出するGrokパターンを作成します。例えば：
+
+    ```
+    "%{IP:host_ip} %{INT:bytes_received} %{INT:bytes_sent}"
+    ```
+
+    処理後、ログレコードにはフィールド`host_ip` 、 `bytes_received` 、および`bytes_sent`が含まれます。 New Relicでこれらのフィールドを使用して、ログデータのフィルタリング、ファセット、統計操作を実行できるようになりました。 New RelicでGrokパターンを使用してログを解析する方法の詳細については[、ブログ投稿を参照して](https://newrelic.com/blog/how-to-relic/how-to-use-grok-log-parsing)ください。
+  </Collapser>
+
+  <Collapser
+    id="grok-ui"
+    title="UIの例：Grok解析ルールの作成"
+  >
+    適切な権限がある場合は、UIで解析ルールを作成して、Grok解析を作成、テスト、および有効にすることができます。たとえば、Inventory Servicesと呼ばれるマイクロサービスの1つについて特定の種類のエラーメッセージを取得するには、特定のエラーメッセージと製品を検索するGrok解析ルールを作成します。これをする：
+
+    1. ルールに名前を付けます。たとえば、 `Inventory Services error parsing` 。
+
+    2. 受信ログのプレフィルターとして機能する属性/値のペアを特定します。たとえば、 `entity.name`と値`Inventory Service` 。このプレフィルターは、ルールで処理する必要のあるログの数を絞り込み、不要な処理を削除します。
+
+    3. Grok解析ルールを追加します。例えば：
+
+       ```
+       Inventory error: %{DATA:error_message} for product %{INT:product_id}
+       ```
+
+       どこ：
+
+    * `Inventory error`：解析ルールの名前
+    * `error_message`：選択したいエラーメッセージ
+    * `product_id`：在庫サービスの製品ID
+
+    4. Grokパターンをテストして、受信ログが一致するかどうかを確認します。
+
+    5. 解析ルールを有効にして保存します。
+
+       すぐに、InventoryServiceログが2つの新しいフィールド`error_message`と`product_id`で強化されていることがわかります。ここから、これらのフィールドのクエリ、チャートやダッシュボードの作成、アラートの設定などを行うことができます。
+
+       詳細について[は、UIにカスタム解析ルールを追加する](#custom-parsing)ためのドキュメントを参照してください。
+  </Collapser>
+
+  <Collapser
+    id="grok-syntax"
+    title="Grok構文とサポートされているタイプ"
+  >
+    Grokパターンの構文は次のとおりです。
+
+    ```
+    %{PATTERN_NAME[:OPTIONAL_EXTRACTED_ATTRIBUTE_NAME[:OPTIONAL_TYPE]]}
+    ```
+
+    どこ：
+
+    * `PATTERN_NAME` [Grokパターン](https://grokdebug.herokuapp.com/patterns)の1つです。 `grok-patterns`をクリックして、最も一般的に使用されるパターンを表示します。パターン名は、正規表現を表すわかりやすい名前です。これらは、対応する正規表現とまったく同じです。
+
+    * `OPTIONAL_EXTRACTED_ATTRIBUTE_NAME`、指定されている場合は、パターン名と一致する値でログメッセージに追加される属性の名前です。これは、正規表現を使用して名前付きキャプチャグループを使用するのと同じです。これが指定されていない場合、解析ルールは文字列の領域に一致するだけで、その値で属性を抽出しません。
+
+    * `OPTIONAL_TYPE` 抽出する属性値のタイプを指定します。省略した場合、値は文字列として抽出されます。たとえば、 `"File Size: 123"` }から値`123`を数値として属性`file_size`に抽出するには、 `value: %{INT:file_size:int}`を使用します。
+
+      サポートされているタイプは次のとおりです。
+
+      <table>
+        <thead>
+          <tr>
+            <th>
+              Grokで指定されたタイプ
+            </th>
+
+            <th>
+              NewRelicデータベースに保存されているタイプ
+            </th>
+          </tr>
+        </thead>
+
+        <tbody>
+          <tr>
+            <td>
+              `boolean`
+            </td>
+
+            <td>
+              `boolean`
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              `byte` `short` `int` `integer`
+            </td>
+
+            <td>
+              `integer`
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              `long`
+            </td>
+
+            <td>
+              `long`
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              `float`
+            </td>
+
+            <td>
+              `float`
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              `double`
+            </td>
+
+            <td>
+              `double`
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              `string` （デフォルト） `text`
+            </td>
+
+            <td>
+              `string`
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              `date` `datetime`
+            </td>
+
+            <td>
+              ISO8601時間として `long`
+            </td>
+          </tr>
+        </tbody>
+      </table>
+  </Collapser>
+</CollapserGroup>
+
+## ログタイプによる整理 [#logtype]
+
+New Relicのログ取り込みパイプラインは、ログイベントをログの解析方法を説明するルールと照合することでデータを解析できます。ログイベントを解析する方法は2つあります。
+
+* [組み込みのルール](#built-in-rules)を使用します。
+* [カスタムルール](#custom-parsing)を定義します。
+
+ルールは、マッチングロジックと解析ロジックの組み合わせです。照合は、ログの属性に対してクエリ照合を定義することによって行われます。ルールはさかのぼって適用されません。ルールが作成される前に収集されたログは、そのルールによって解析されません。
+
+ログとその解析方法を整理する最も簡単な方法は、ログイベントに`logtype`フィールドを含めることです。これにより、NewRelicにログに適用する組み込みルールが通知されます。
+
+<Callout variant="important">
+  解析ルールがアクティブになると、ルールによって解析されたデータは永続的に変更されます。これを元に戻すことはできません。
+</Callout>
+
+## 制限 [#limits]
+
+解析は計算コストが高く、リスクが伴います。解析は、アカウントで定義されたカスタムルールと、パターンをログに一致させるために行われます。多数のパターンまたは不十分に定義されたカスタムルールは、完了するのに非常に長い時間がかかる一方で、大量のメモリとCPUリソースを消費します。
+
+問題を防ぐために、ルールごととアカウントごとの2つの解析制限を適用します。
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        制限
+      </th>
+
+      <th>
+        説明
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        ルールごとのメッセージごと
+      </td>
+
+      <td>
+        ルールごとのメッセージごとの制限により、単一のメッセージの解析に費やされる時間が100ミリ秒を超えることはありません。その制限に達すると、システムはそのルールでログメッセージを解析しようとするのをやめます。
+
+        取り込みパイプラインは、そのメッセージに該当する他のメッセージを実行しようとしますが、メッセージは引き続き取り込みパイプラインを通過してNRDBに保存されます。ログメッセージは、元の未解析の形式になります。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        アカウントごと
+      </td>
+
+      <td>
+        アカウントごとの制限は、アカウントがリソースの公平なシェアを超えて使用することを防ぐために存在します。制限では、1分あたりのアカウントの**すべての**ログメッセージの処理に費やされた合計時間が考慮されます。
+
+        制限は固定値ではありません。アカウントによって毎日保存されるデータの量と、その顧客をサポートするために後で割り当てられる環境サイズに比例してスケールアップまたはスケールダウンします。
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<Callout variant="tip">
+  レート制限に達しているかどうかを簡単に確認するには、NewRelicUIの[システム**制限**ページ](/docs/telemetry-data-platform/ingest-manage-data/manage-data/view-system-limits#limits-ui)に移動します。
+</Callout>
+
+## 組み込みの解析ルール [#built-in-rules]
+
+一般的なログ形式には、確立された解析ルールがすでに作成されています。組み込みの解析ルールを利用するには、ログを転送するときに`logtype`属性を追加します。次の表にリストされている値に値を設定すると、そのタイプのログのルールが自動的に適用されます。
+
+### 組み込みルールのリスト [#rulesets]
+
+次の`logtype`属性値は、事前定義された解析ルールにマップされます。たとえば、アプリケーションロードバランサーをクエリするには、次のようにします。
+
+* New Relic UIから、形式`logtype:"alb"`を使用します。
+* [NerdGraph](/docs/apis/nerdgraph/examples/nerdgraph-log-parsing-rules-tutorial/)から、形式`logtype = 'alb'`を使用します。
+
+各ルールで解析されるフィールドについては、[組み込みの解析ルールに関する](/docs/logs/ui-data/built-log-parsing-rules)ドキュメントを参照してください。
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        `logtype`
+      </th>
+
+      <th>
+        ログソース
+      </th>
+
+      <th>
+        マッチングクエリの例
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        [`apache`](/docs/logs/ui-data/built-log-parsing-rules#apache)
+      </td>
+
+      <td>
+        Apacheアクセスログ
+      </td>
+
+      <td>
+        `logtype:"apache"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [`alb`](/docs/logs/ui-data/built-log-parsing-rules#application-load-balancer)
+      </td>
+
+      <td>
+        アプリケーションロードバランサーのログ
+      </td>
+
+      <td>
+        `logtype:"alb"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [`cloudfront-web`](/docs/logs/ui-data/built-log-parsing-rules#cloudfront)
+      </td>
+
+      <td>
+        CloudFrontWebログ
+      </td>
+
+      <td>
+        `logtype:"cloudfront-web"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [`elb`](/docs/logs/ui-data/built-log-parsing-rules#elastic-load-balancer)
+      </td>
+
+      <td>
+        ElasticLoadBalancerログ
+      </td>
+
+      <td>
+        `logtype:"elb"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [`haproxy_http`](/docs/logs/ui-data/built-log-parsing-rules#haproxy)
+      </td>
+
+      <td>
+        HAProxyログ
+      </td>
+
+      <td>
+        `logtype:"haproxy_http"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [`ktranslate-health`](/docs/logs/ui-data/built-log-parsing-rules#ktranslate-health)
+      </td>
+
+      <td>
+        KTranslateコンテナヘルスログ
+      </td>
+
+      <td>
+        `logtype:"ktranslate-health"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [`iis_w3c`](/docs/logs/ui-data/built-log-parsing-rules/#iis)
+      </td>
+
+      <td>
+        MicrosoftIISサーバーログ-W3C形式
+      </td>
+
+      <td>
+        `logtype:"iis_w3c"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [`monit`](/docs/logs/ui-data/built-log-parsing-rules#monit)
+      </td>
+
+      <td>
+        Monitログ
+      </td>
+
+      <td>
+        `logtype:"monit"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [`mysql-error`](/docs/logs/ui-data/built-log-parsing-rules#mysql-error)
+      </td>
+
+      <td>
+        MySQLエラーログ
+      </td>
+
+      <td>
+        `logtype:"mysql-error"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [`nginx`](/docs/logs/ui-data/built-log-parsing-rules#nginx)
+      </td>
+
+      <td>
+        NGINXアクセスログ
+      </td>
+
+      <td>
+        `logtype:"nginx"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [`nginx-error`](/docs/logs/ui-data/built-log-parsing-rules#nginx-error)
+      </td>
+
+      <td>
+        NGINXエラーログ
+      </td>
+
+      <td>
+        `logtype:"nginx-error"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [`route-53`](/docs/logs/ui-data/built-log-parsing-rules#route53)
+      </td>
+
+      <td>
+        Route53ログ
+      </td>
+
+      <td>
+        `logtype:"route-53"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [`syslog-rfc5424`](/docs/logs/ui-data/built-log-parsing-rules/#syslog-rfc5424)
+      </td>
+
+      <td>
+        RFC5424形式のSyslog
+      </td>
+
+      <td>
+        `logtype:"syslog-rfc5424"`
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+### `logtype`属性を追加します [#logtype]
+
+ログを集約するときは、それらのログの整理、検索、および解析を容易にするメタデータを提供することが重要です。これを行う簡単な方法の1つは、出荷時に属性`logtype`をログメッセージに追加することです。[組み込みの解析ルール](#built-in-rules)は、デフォルトで特定の`logtype`値に適用されます。
+
+<Callout variant="tip">
+  フィールド`logType` 、 `logtype` 、および`LOGTYPE`はすべて、組み込みルールでサポートされています。検索を容易にするために、組織内の単一の構文に合わせるようにすることをお勧めします。
+</Callout>
+
+[サポートされている配送方法](/docs/logs/enable-new-relic-logs)のいくつかによって送信されたログに`logtype`を追加する方法の例を次に示します。
+
+<CollapserGroup>
+  <Collapser
+    className="freq-link"
+    id="infrastructure-log-forwarder-example"
+    title="NewRelicインフラストラクチャエージェントの例"
+  >
+    `logtype`を[`attribute`](/docs/logs/forward-logs/forward-your-logs-using-infrastructure-agent#attributes) }として追加します。名前付きソースごとにログタイプを設定する必要があります。
+
+    ```
+    logs:
+      - name: file-simple
+        file: /path/to/file
+        attributes:
+          logtype: fileRaw  
+      - name: nginx-example
+        file: /var/log/nginx.log
+        attributes:
+          logtype: nginx
+    ```
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="fluentd-example"
+    title="流暢な例"
+  >
+    フィルタブロックを`.conf file`に追加します。これは、 `record_transformer`を使用して新しいフィールドを追加します。この例では、 `nginx`の`logtype`を使用して、組み込みのNGINX解析ルールをトリガーします。他の[Fluentdの例](https://github.com/newrelic/fluentd-examples)を確認してください。
+
+    ```
+    <filter containers>
+      @type record_transformer
+      enable_ruby true
+      <record>
+        #Add logtype to trigger a built-in parsing rule for nginx access logs
+        logtype nginx
+        #Set timestamp from the value contained in the field "time"
+        timestamp record["time"]
+        #Add hostname and tag fields to all records
+        hostname "#{Socket.gethostname}"
+        tag ${tag}
+      </record>
+    </filter>
+    ```
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="fluentbit-example"
+    title="流暢なビットの例"
+  >
+    `record_modifier`を使用して新しいフィールドを追加するフィルターブロックを`.conf`ファイルに追加します。この例では、 `nginx`の`logtype`を使用して、組み込みのNGINX解析ルールをトリガーします。他の[FluentBitの例](https://github.com/newrelic/fluentbit-examples)を確認してください。
+
+    ```
+    [FILTER]
+        Name record_modifier
+        Match *
+        Record logtype nginx
+        Record hostname ${HOSTNAME}
+        Record service_name Sample-App-Name
+    ```
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="logstash-example"
+    title="Logstashの例"
+  >
+    `add_field`変異フィルターを使用して新しいフィールドを追加するLogstash構成にフィルターブロックを追加します。この例では、 `logtype`の`nginx`を使用して、組み込みのNGINX解析ルールをトリガーします。他の[Logstashの例](https://github.com/newrelic/logstash-examples)を確認してください。
+
+    ```
+    filter {
+      mutate {
+        add_field => {
+          "logtype" => "nginx"
+          "service_name" => "myservicename"
+          "hostname" => "%{host}"
+        }
+      }
+    }
+    ```
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="api-example"
+    title="LogsAPIの例"
+  >
+    NewRelicに送信されるJSONリクエストに属性を追加できます。この例では、値`nginx`の`logtype`属性を追加して、組み込みのNGINX解析ルールをトリガーします。 [LogsAPI](/docs/logs/new-relic-logs/log-api/introduction-log-api)の使用の詳細をご覧ください。
+
+    ```
+    POST /log/v1 HTTP/1.1
+    Host: log-api.newrelic.com
+    Content-Type: application/json
+    X-License-Key: <var>YOUR_LICENSE_KEY</var>
+    Accept: */*
+    Content-Length: 133
+    {
+      "timestamp": <var>TIMESTAMP_IN_UNIX_EPOCH</var>,
+      "message": "User '<var>xyz</var>' logged in",
+      "logtype": "accesslogs",
+      "service": "login-service",
+      "hostname": "<var>login.example.com</var>"
+    }
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## カスタム解析ルールを作成して表示する [#custom-parsing]
+
+多くのログは、独自の方法でフォーマットまたは構造化されています。それらを解析するには、カスタムロジックを構築して適用する必要があります。
+
+<img
+  title="Log parsing rules"
+  alt="Screenshot of Log parsing in UI"
+  src={LogParsing}
+/>
+
+<figcaption>
+  Logs UI の左のナビから **Parsing** を選択し、属性、値、Grok パターンで独自のカスタム解析ルールを作成します。
+</figcaption>
+
+独自のカスタム解析ルールを作成および管理するには、次のようにします。
+
+1. **[one.newrelic.com](https://one.newrelic.com) >Logs**に移動します。
+2. ログUIの左側のナビゲーションにある**\[データの管理**]から、\[**解析**]をクリックし、\[**解析ルールの作成**]をクリックします。
+3. 解析ルールの名前を入力します。
+4. 一致させる属性と値を選択します。
+5. Grokパターンを作成し、ルールをテストします。 Grokとカスタム解析ルールについて[は、Grokパターンを使用してログを解析する方法](https://blog.newrelic.com/product-news/how-to-use-grok-log-parsing/)に関するブログ投稿をご覧ください。
+6. カスタム解析ルールを有効にして保存します。
+
+既存の解析ルールを表示するには：
+
+1. **[one.newrelic.com](https://one.newrelic.com) >Logs**に移動します。
+2. ログUIの左側のナビゲーションにある**\[データの管理**]から、\[**解析**]をクリックします。
+
+## トラブルシューティング [#troubleshooting]
+
+解析が意図したとおりに機能しない場合は、次の原因が考えられます。
+
+* **ロジック：**解析ルールの一致ロジックが、必要なログと一致しません。
+* **タイミング：**解析一致ルールがまだ存在しない値を対象としている場合、失敗します。これは、濃縮プロセスの一部としてパイプラインの後半で値が追加された場合に発生する可能性があります。
+* **制限：**解析、パターン、ドロップフィルターなどを介してログを処理するために、毎分一定の時間があります。最大時間が費やされた場合、追加のログイベントレコードのために解析がスキップされます。
+
+これらの問題を解決するには、[カスタム解析ルール](#custom-parsing)を作成または調整します。

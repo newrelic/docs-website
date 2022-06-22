@@ -2,6 +2,7 @@
 name: osBuild
 type: attribute
 events:
+  - Mobile
   - MobileCrash
   - MobileHandledException
 ---
