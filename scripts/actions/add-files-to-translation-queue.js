@@ -143,29 +143,45 @@ const main = async () => {
   let fileData;
 
   if (url) {
-    const prFileData = await fetchPaginatedGHResults(
-      url,
-      process.env.GITHUB_TOKEN
-    );
+    // const prFileData = await fetchPaginatedGHResults(
+    //   url,
+    //   process.env.GITHUB_TOKEN
+    // );
+    const prFileData = [
+      {
+        sha: 'bbcd538c8e72b8c175046e27cc8f907076331401',
+        filename: 'file1.txt',
+        status: 'added',
+        additions: 103,
+        deletions: 21,
+        changes: 124,
+        blob_url:
+          'https://github.com/octocat/Hello-World/blob/6dcb09b5b57875f334f61aebed695e2e4193db5e/file1.txt',
+        raw_url:
+          'https://github.com/octocat/Hello-World/raw/6dcb09b5b57875f334f61aebed695e2e4193db5e/file1.txt',
+        contents_url:
+          'https://api.github.com/repos/octocat/Hello-World/contents/file1.txt?ref=6dcb09b5b57875f334f61aebed695e2e4193db5e',
+        patch:
+          '@@ -132,7 +132,7 @@ module Test @@ -1000,7 +1000,7 @@ module Test',
+      },
+    ];
 
     fileData = prFileData
       .filter(
         (file) =>
           path.extname(file.filename) === '.mdx' ||
-          path.extname(file.filename) === '.md'
+          (path.extname(file.filename) === '.md' &&
+            file.raw_url.includes('whats-new'))
       )
       .filter((f) => f.status !== 'removed')
       .map(prop('filename'));
   } else if (directory) {
     const directoryPathMdx = path.join(directory, '/**/*.mdx');
-    const directoryPathMd = path.join(directory, '/**/*.md');
+    const directoryPathMd = path.join(directory, '/**/whats-new/**/*.md');
     const mdxFileData = glob.sync(directoryPathMdx);
     const mdFileData = glob.sync(directoryPathMd);
-    if (mdxFileData) {
-      fileData = mdxFileData;
-    } else {
-      fileData = mdFileData;
-    }
+
+    fileData = mdxFileData.concat(mdFileData);
   }
 
   await addFilesToTranslationQueue(fileData, options);
