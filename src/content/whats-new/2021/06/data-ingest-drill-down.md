@@ -1,7 +1,6 @@
 ---
 title: 'Control data ingest costs with ingest drill-down'
 tags:
-  - Data governance
   - Drop rules
   - Data ingest cost
 summary: 'Analyze the data that you send to New Relic'
