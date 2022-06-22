@@ -161,15 +161,6 @@ module.exports = {
             }),
           },
         },
-        signup: {
-          environment: process.env.ENVIRONMENT || 'staging',
-          signupUrl:
-            process.env.SIGNUP_URL ||
-            'https://signup-receiver.staging-service.newrelic.com',
-          reCaptchaToken:
-            process.env.RECAPTCHA_TOKEN ||
-            '6LdZ0xcgAAAAAPxQTpvn9B4qzTRhRM8llwvt41dX',
-        },
       },
     },
     {
