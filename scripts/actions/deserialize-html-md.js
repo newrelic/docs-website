@@ -8,13 +8,6 @@ const frontmatter = require('remark-frontmatter');
 const yaml = require('js-yaml');
 const { configuration } = require('./configuration');
 
-const testHtml = `
-<div data-type="frontmatter" data-value="eyJ0aXRsZSI6IkFQTSBzZWN1cml0eTogQyBTREsiLCJ0YWdzIjpbIkFnZW50cyIsIkMgU0RLIiwiR2V0IHN0YXJ0ZWQiXSwibWV0YURlc2NyaXB0aW9uIjoiSG93IHRoZSBDIFNESyBlbnN1cmVzIHRoYXQgdGhlIGRhdGEgc2VudCBmcm9tIHlvdXIgYXBwbGljYXRpb24gdG8gYmUgbW9uaXRvcmVkIGJ5IE5ldyBSZWxpYyBpcyBzZWN1cmUuIiwicmVkaXJlY3RzIjpbIi9kb2NzL2FnZW50cy9jLXNkay9nZXQtc3RhcnRlZC9hcG0tc2VjdXJpdHktYy1zZGsiLCIvZG9jcy9hcG0tYWdlbnQtc2VjdXJpdHktYyIsIi9kb2NzL2FwbS1zZWN1cml0eS1jLXNkayJdfQ==">
-  <div data-key="title">APMのセキュリティC SDK</div>
-</div>
-<strong>HELLO</strong>
-<a href='boop'>link</a>
-`;
 const component = (h, node) => {
   if (!node.properties || !node.properties.dataType) {
     return defaultHandlers[node.tagName](h, node);
@@ -76,7 +69,5 @@ const deserializeHTMLMd = async (html) => {
   const { contents } = await processor.process(html);
   return contents.trim();
 };
-
-deserializeHTMLMd();
 
 module.exports = deserializeHTMLMd;
