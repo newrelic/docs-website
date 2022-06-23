@@ -19,6 +19,14 @@ module.exports = {
     REORDER: 'REORDER',
   },
 
+  IMAGE_ALLOWLIST: [
+    'quickstartTiles.svg',
+    'quickstartArrow.svg',
+    'favicon.png',
+    'bannerBackground.svg',
+    'bannerBackgroundDark.svg',
+  ],
+
   TYPES: {
     BASIC_PAGE: 'page',
     LANDING_PAGE: 'landing_page',

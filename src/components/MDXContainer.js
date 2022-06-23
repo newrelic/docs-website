@@ -1,6 +1,7 @@
 import {
   ExternalLink,
   Link,
+  Lightbox,
   MDX,
   MarkdownContainer,
 } from '@newrelic/gatsby-theme-newrelic';
@@ -30,43 +31,29 @@ const defaultComponents = {
         }
       />
     ) : (
-      <span
-        style={{
-          position: 'relative',
-          display: 'block',
-          textAlign: 'center',
-          margin: '1em 0',
-        }}
-      >
-        <a
-          href={props.src}
-          target="_blank"
-          rel="noreferrer"
-          style={{ display: 'inline-block' }}
-        >
-          <img
-            width={props.width ? props.width : 'auto'}
-            src={props.src}
-            alt={props.alt ? props.alt : 'Docs site'}
-            title={props.title}
-            style={
-              props.style
-                ? {
-                    ...props.style,
-                    borderRadius: '0.25rem',
-                    maxWidth: '100%',
-                    margin: '0 0.25rem',
-                  }
-                : {
-                    borderRadius: '0.25rem',
-                    maxWidth: '100%',
-                    margin: '0 0.25rem',
-                  }
-            }
-            loading="lazy"
-          />
-        </a>
-      </span>
+      <Lightbox>
+        <img
+          width={props.width ? props.width : 'auto'}
+          src={props.src}
+          alt={props.alt ? props.alt : 'Docs site'}
+          title={props.title}
+          style={
+            props.style
+              ? {
+                  ...props.style,
+                  borderRadius: '0.25rem',
+                  maxWidth: '100%',
+                  margin: '0 0.25rem',
+                }
+              : {
+                  borderRadius: '0.25rem',
+                  maxWidth: '100%',
+                  margin: '0 0.25rem',
+                }
+          }
+          loading="lazy"
+        />
+      </Lightbox>
     ),
   ExternalLink: (props) => (
     <ExternalLink {...props} onClick={(e) => e.stopPropagation()} />
