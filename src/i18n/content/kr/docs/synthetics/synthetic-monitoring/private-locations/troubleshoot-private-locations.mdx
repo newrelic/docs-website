@@ -1,0 +1,125 @@
+---
+title: 비공개 위치 문제 해결
+tags:
+  - Synthetics
+  - Synthetic monitoring
+  - Private locations
+metaDescription: Troubleshooting tips if you encounter problems with private locations or private minions with synthetic monitoring in New Relic.
+translationType: machine
+---
+
+New Relic의 종합 모니터링을 위한 [개인 위치](/docs/synthetics/new-relic-synthetics/private-locations/private-locations-overview-monitor-internal-sites-add-new-locations) 를 설정하는 동안 문제가 발생하면 다음 문제 해결 팁을 시도하여 일반적인 미니언 문제를 식별하십시오.
+
+## 일자리 수요와 소비 [#job-demand]
+
+현재 처리량을 식별하고 CPM이 작업 로드를 따라갈 수 있는지 평가하십시오.
+
+* 작업은 분당 처리량을 요구합니다.
+
+  ```
+  SELECT rate(uniqueCount(jobId), 1 minute) FROM SyntheticRequest WHERE type != 'SIMPLE' FACET location SINCE 2 days ago
+  ```
+
+* 시간 경과에 따른 분당 작업:
+
+  ```
+  SELECT rate(uniqueCount(jobId), 1 minute) FROM SyntheticRequest WHERE type != 'SIMPLE' FACET location SINCE 2 weeks ago TIMESERIES
+  ```
+
+* 대기열 증가 식별:
+
+  ```
+  SELECT derivative(checksPending, 1 minute) as 'queue growth rate (per minute)' FROM SyntheticsPrivateLocationStatus where name = 'YOUR_PRIVATE_LOCATION' SINCE 2 days ago TIMESERIES
+  ```
+
+* 소비율:
+
+  ```
+  SELECT rate(uniqueCount(jobId), 1 minute) FROM SyntheticRequest WHERE type != 'SIMPLE' FACET location SINCE 2 weeks ago TIMESERIES
+  ```
+
+* 리소스를 소비하는 실패한 모니터를 정리합니다.
+
+  ```
+  SELECT 100*latest(minionJobsFailed)/latest(minionJobsReceived) as 'job failure rate (%)' from SyntheticsPrivateMinion FACET minionLocation SINCE 2 weeks ago TIMESERIES MAX
+  ```
+
+## 메모리 사용 문제 해결 [#memory]
+
+CPM당 권장 메모리 할당
+
+* Docker: Docker CPM의 경우 CPU 코어당 2.5Gi
+
+* 쿠버네티스 CPM:
+
+  * CPM 중량 작업자당 3Gi
+  * 상태 확인 포드당 3Gi
+  * 미니언 포드용 1.6Gi
+
+* 최대 메모리 사용률 60% 목표
+
+현재 사용을 식별하는 유용한 쿼리:
+
+* 위치당 메모리 사용량:
+
+  ```
+  SELECT latest(minionPhysicalMemoryUsedPercentage) from SyntheticsPrivateMinion FACET minionLocation SINCE 2 weeks ago TIMESERIES Max
+  ```
+
+* 호스트 이름당 메모리 사용량:
+
+  ```
+  SELECT latest(minionPhysicalMemoryUsedPercentage) FROM SyntheticsPrivateMinion WHERE minionLocation = 'YOUR_PRIVATE_LOCATION' FACET minionHostname SINCE 2 weeks ago TIMESERIES Max
+  ```
+
+## CPU 사용 문제 해결 [#cpu-usage]
+
+CPU 수요가 높은 잠재적 기간 식별:
+
+* 전체 CPU 사용량:
+
+  ```
+  SELECT latest(minionProcessorsUsagePercentage) FROM SyntheticsPrivateMinion FACET minionLocation SINCE 2 weeks ago TIMESERIES Max
+  ```
+
+* 지정된 위치의 CPU 사용량:
+
+  ```
+  SELECT latest(minionProcessorsUsagePercentage) FROM SyntheticsPrivateMinion WHERE minionLocation = 'YOUR_PRIVATE_LOCATION' FACET minionHostname SINCE 2 weeks ago TIMESERIES Max
+  ```
+
+## 네트워크 문제 해결 [#network]
+
+**네트워크 액세스는 빨간색입니다.**
+
+개인 미니언은 공용 네트워크 액세스를 확인하기 위해 New Relic을 확인합니다. 공개 네트워크 액세스를 사용할 수 없는 경우 [개인 미니언의 **개요** 페이지](/docs/synthetics/new-relic-synthetics/pages/synthetics-overview-page-view-monitors-performance) 에 있는 **네트워크 액세스** 아이콘이 빨간색으로 바뀌지만 비공개 미니언은 완전히 작동합니다. 이것이 예상된 동작이면 이 오류를 무시해도 됩니다.
+
+다음과 같은 로그 항목을 볼 수도 있습니다.
+
+```
+2016-01-21 21:47:09,401 [dw-22 - GET /private-location/status] c.n.s.m.util.PrivateMinionUtils WARN Unable to detect Public Network Access trying to fetch https://newrelic.com/synthetics: java.net.ConnectException: Connection refused
+```
+
+**New Relic 액세스는 빨간색입니다.**
+
+비공개 미니언은 실행할 작업 목록을 검색하고 New Relic 사용자 인터페이스에서 볼 수 있는 결과를 게시하려면 `https://synthetics-horde.nr-data.net` 에 대한 액세스 권한이 있어야 합니다. 방화벽 규칙이 직접 액세스를 허용하지 않는[경우 프록시 액세스를 구성](/docs/synthetics/new-relic-synthetics/private-locations/install-configure-private-minions) 해야 합니다. 필요한 경우 허용 목록에 DNS 엔드포인트를 추가합니다.
+
+**네트워크 IOPS:**
+
+네트워크 IOPS는 CPM에 클라우드 공급자를 사용하는 경우 문제를 해결할 수 있는 좋은 장소가 될 수도 있습니다. Docker와 Kubernetes CPM 모두 상당한 양의 쓰기 처리량이 필요합니다. 평균 IOPS를 분석하고 초당 디스크 작업에 필요한 적절한 볼륨 크기를 결정합니다.
+
+## 기타 예상치 못한 문제 [#other]
+
+다른 비정상적인 상황이 발생하면 응용 프로그램을 재활용하십시오. 개인 미니언은 상태 비저장 가상 어플라이언스이므로 개인 위치에 미치는 영향을 최소화하면서 언제든지 안전하게 재활용하거나 재부팅할 수 있습니다. 모든 미니언이 동시에 오프라인 상태인 경우에도 종합 모니터링은 보류 중인 검사를 대기열에 넣고 미니언이 다시 온라인 상태가 되면 다시 실행합니다.
+
+미니언을 재활용하려면 콘솔에 로그인하고 다음 명령을 실행하십시오.
+
+```
+sudo restart synthetics-minion
+```
+
+미니언을 재활용해도 문제가 해결되지 않으면 콘솔에 로그인하고 미니언을 다시 시작하세요.
+
+```
+sudo reboot now
+```
