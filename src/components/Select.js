@@ -58,6 +58,11 @@ const Select = ({ disabled, ...props }) => (
         outline: none;
         color: var(--primary-text-color);
 
+        option {
+          font: -moz-pull-down-menu;
+          color: var(--system-text-primary-light);
+        }
+
         &:focus + .focus-ring {
           position: absolute;
           top: -1px;
