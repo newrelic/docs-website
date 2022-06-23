@@ -2,6 +2,7 @@
 'use strict';
 const AdmZip = require('adm-zip');
 const vfile = require('vfile');
+const fse = require('fs-extra');
 const { writeSync } = require('to-vfile');
 const path = require('path');
 const fetch = require('node-fetch');
@@ -44,8 +45,32 @@ const defaultTrackingMetadata = {
  * @param {vfile.VFile[]} vfiles
  */
 const writeFilesSync = (vfiles) => {
+  const copiedDirectories = {};
   vfiles.forEach((file) => {
     writeSync(file, 'utf-8');
+    const imageDirectory = `${path.dirname(
+      file.path.substring(file.path.indexOf('/whats-new/'))
+    )}/images`;
+
+    /*
+      Check to see:
+        1. have we already copied this image directory for a different file (with the same parent path)?
+        2. does the image directory exist?
+    */
+    if (
+      !(imageDirectory in copiedDirectories) &&
+      fse.existsSync(path.join('src/content/', imageDirectory))
+    ) {
+      // sync 'src/content/whats-new/.../images' to 'src/i18n/content/.../whats-new/.../images'
+      fse.copySync(
+        path.join('src/content/', imageDirectory),
+        path.join(path.dirname(file.path), '/images'),
+        {
+          overwrite: true,
+        }
+      );
+      copiedDirectories[imageDirectory] = true;
+    }
   });
 };
 
