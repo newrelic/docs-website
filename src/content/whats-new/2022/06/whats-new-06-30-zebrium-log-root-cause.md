@@ -1,12 +1,12 @@
 ---
 title: ‘AI-powered root cause analysis with the Zebrium integration’
 summary: 'Troubleshoot incidents faster and avoid manually digging through logs with the Zebrium quickstart'
-releaseDate: '2022-06-30’
-learnMoreLink: 'http://newrelic.com/blog/nerdlog/zebrium-integration' 
+releaseDate: '2022-06-30'
 getStartedLink: 'https://newrelic.com/instant-observability/zebrium/2135562c-bdf4-41bd-bca4-f11bcdee72ca'
+learnMoreLink: 'https://newrelic.com/blog/nerdlog/zebrium-integration' 
 ---
 
-We've partnered with [Zebrium](https://zebrium.com/newrelic) to help you automate process of finding the root cause of issues in logs. When a software or infrastructure problem occurs, Zebrium Root Cause as a Service will quickly and accurately find the root cause indicators so your teams don't need to manually search through all their logs. With this integration, you can also see details of the root cause on any New Relic dashboard page alongside your telemetry data.
+We've partnered with [Zebrium](https://zebrium.com/newrelic) to help you automate the process of finding the root cause of issues in logs. When a software or infrastructure problem occurs, Zebrium Root Cause as a Service will quickly and accurately find the root cause indicators so your teams don't need to manually search through all their logs. With this integration, you can also see details of the root cause on any New Relic dashboard page alongside your telemetry data.
 
 ## Identify root causes at a glance with the Zebrium quickstart
 
@@ -23,6 +23,6 @@ Get instant visibility into detections, log anomalies, and root cause reports. I
 
 ## Get started
 
--   [Read the blog](http://newrelic.com/blog/nerdlog/zebrium-integration) to learn more
--   Review the [integration documentation](https://docs.zebrium.com/docs/monitoring/newrelic_autodetect/) and [Nerd Byte instructional video](https://youtu.be/s5OJtz2xH2Q).
+- [Read the blog](http://newrelic.com/blog/nerdlog/zebrium-integration) to learn more.
+- Review the [integration documentation](https://docs.zebrium.com/docs/monitoring/newrelic_autodetect/) and [Nerd Byte instructional video](https://youtu.be/s5OJtz2xH2Q).
 - Get instant observability. Check out [New Relic I/O](https://newrelic.com/instant-observability/) for more quickstarts that bundle everything you need to start monitoring your tools and technologies like a pro.
