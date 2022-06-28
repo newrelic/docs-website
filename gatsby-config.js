@@ -197,7 +197,7 @@ module.exports = {
       resolve: 'gatsby-source-filesystem',
       options: {
         name: 'translated-content',
-        path: `${__dirname}/src/i18n/content`,
+        path: `${__dirname}/src/i18n/content/jp/docs/mlops/get-started`,
       },
     },
     {
