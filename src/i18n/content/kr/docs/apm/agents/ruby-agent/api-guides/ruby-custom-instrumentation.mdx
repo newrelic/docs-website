@@ -1,0 +1,239 @@
+---
+title: Ruby 사용자 정의 계측
+tags:
+  - Agents
+  - Ruby agent
+  - API guides
+metaDescription: 'For information about customizing New Relic''s Ruby agent API to collect additional metrics, start here.'
+translationType: machine
+---
+
+New Relic Ruby 에이전트는 많은 메트릭을 자동으로 수집합니다. 여기에는 애플리케이션에 대한 추가 측정항목을 수집하는 데 사용할 수 있는 API도 포함되어 있습니다. 트랜잭션 추적 세부 정보에 큰 **응용 프로그램 코드** 세그먼트가 있는 경우 사용자 지정 계측을 통해 응용 프로그램에서 진행 중인 작업을 보다 완벽하게 파악할 수 있습니다. 사용 가능한 모든 API 메서드에 대한 자세한 내용은 [Ruby 에이전트 API 설명서](https://www.rubydoc.info/gems/newrelic_rpm) 를 참조하세요.
+
+<Callout variant="tip">
+  너무 많은 메트릭을 수집하면 애플리케이션과 New Relic의 성능에 영향을 줄 수 있습니다. 데이터 문제를 방지하려면 사용자 정의 계측에 의해 도입된 고유 메트릭의 총 수를 2000 미만으로 유지하십시오.
+</Callout>
+
+## 메소드 추적자 [#method_tracers]
+
+사용자 지정 계측을 캡처하는 가장 쉬운 방법은 특정 메서드에 대한 호출을 추적하는 것입니다. 아래에 설명된 대로 메서드를 추적하면 해당 메서드를 호출할 때마다 트랜잭션 추적에 추가 노드가 삽입되어 트랜잭션에서 시간이 어디로 가는지에 대한 자세한 정보를 제공합니다.
+
+이것은 트랜잭션이 이미 존재한다고 확신할 때 가장 잘 사용됩니다. 메서드 추적기는 에이전트가 이미 계측한 컨텍스트 내에서 추가 수준의 세분성을 제공합니다. 트랜잭션이 있는지 확실하지 않은 경우 [트랜잭션 진입점 추적](#transaction-tracers) 을 참조하십시오.
+
+메소드 추적기는 모든 클래스의 메소드에 넣을 수 있는 소프트웨어 프로브입니다. 프로브는 대상 메서드가 실행되고 성능에 대한 사용자 지정 계측을 수집할 때 자신을 삽입하기 위해 모듈 앞에 추가합니다.
+
+## 클래스 정의에서 추적 [#tracing-classes]
+
+메서드 추적자는 대상 메서드가 먼저 정의되어 있는 한 일반 클래스 정의 내에서 사용할 수 있습니다.
+
+```
+require 'new_relic/agent/method_tracer'
+class Foo
+  include ::NewRelic::Agent::MethodTracer
+
+  def generate_image
+    ...
+  end
+
+  add_method_tracer :generate_image, 'Custom/generate_image'
+end
+```
+
+클래스 메서드를 계측하려면 클래스 싱글톤에 메서드 추적기를 추가합니다.
+
+```
+require 'new_relic/agent/method_tracer'
+class Foo
+  def self.generate_image
+     ...
+  end
+
+  class << self
+    include ::NewRelic::Agent::MethodTracer
+
+    add_method_tracer :generate_image, 'Custom/generate_image'
+  end
+end
+```
+
+`add_method_tracer` 메서드는 선택적 측정항목 이름과 옵션 해시를 사용합니다. 자세한 내용 [은 New Relic RubyDoc의 add_method_tracer를](https://www.rubydoc.info/gems/newrelic_rpm/NewRelic/Agent/MethodTracer/ClassMethods#add_method_tracer-instance_method) 참조하십시오.
+
+## 이니셜라이저 추적
+
+<Callout variant="important">
+  이 절차는 Rails 버전 7 이상에서는 작동하지 않습니다.
+</Callout>
+
+Rails의 경우 계측을 추가하는 일반적인 방법은 이니셜라이저를 만들고 계측 지시문을 "원숭이 패치"하는 것입니다.
+
+예를 들어 `MyCache#get` 에 메서드 추적 프로그램을 추가하려면 다음을 수행합니다.
+
+1. 메서드 추적 프로그램을 추가하기 전에 MyCache 클래스가 로드되었는지 확인하십시오.
+2. **config/initializers/rpm_instrumentation.rb** 파일에 다음을 추가합니다.
+
+```
+require 'new_relic/agent/method_tracer'
+
+MyCache.class_eval do
+  include ::NewRelic::Agent::MethodTracer
+
+  add_method_tracer :get
+end
+```
+
+## 코드 블록 추적 [#tracing-blocks]
+
+때로는 단일 방법이 너무 복잡하여 전체 시간을 추적해도 충분한 세부 정보를 제공하지 못할 수 있습니다. 이러한 경우 추적 프로그램으로 코드 블록을 래핑할 수 있습니다. 블록으로 추적할 코드를 전달하여 `trace_execution_scoped` 를 호출합니다.
+
+```
+extend ::NewRelic::Agent::MethodTracer
+
+def slow_action
+  self.class.trace_execution_scoped(['Custom/slow_action/beginning_work']) do
+    # do stuff and report execution time with a custom metric name
+  end
+
+  # more stuff, whose time will be "blamed" to slow_action
+end
+```
+
+자세한 내용 [은 New Relic RubyDoc의 add_method_tracer를](https://www.rubydoc.info/gems/newrelic_rpm/NewRelic/Agent/MethodTracer#trace_execution_scoped-instance_method) 참조하십시오.
+
+## 트랜잭션 이름 지정
+
+계측된 트랜잭션은 애플리케이션의 처리량과 전체 응답 시간을 결정하는 데 사용됩니다. 메서드 이름과 클래스는 New Relic에 보고된 트랜잭션 이름으로 사용됩니다. 자세한 내용은 [트랜잭션 추적 보기](/docs/traces/viewing-transaction-traces) 를 참조하십시오.
+
+일반적으로 에이전트는 트랜잭션 이름을 자동으로 선택합니다. 실행 중인 트랜잭션의 이름을 변경하려면 `NewRelic::Agent.set_transaction_name` 및 해당 `NewRelic::Agent.get_transaction_name` 를 사용합니다.
+
+<Callout variant="important">
+  거래 이름 끝에 대괄호 `[suffix]` 를 사용하지 마십시오. New Relic은 자동으로 이름에서 괄호를 제거합니다. 대신 필요한 경우 괄호 `(suffix)` 또는 기타 기호를 사용하십시오.
+</Callout>
+
+이는 몇 가지 기준에 따라 거래를 분할하려는 경우에 유용합니다. 예를 들어 Rails에서 응답 형식에 따라 트랜잭션 이름을 변경하려는 경우:
+
+```
+class UsersController
+  def index
+    @users = User.all
+    respond_to do |format|
+      format.html
+      format.json do
+        NewRelic::Agent.set_transaction_name('Users/index.json')
+        render :json => @users
+      end
+      format.xml do
+        NewRelic::Agent.set_transaction_name('Users/index.xml')
+        render :xml => @users
+      end
+    end
+  end
+end
+```
+
+트랜잭션 이름 바꾸기를 사용하여 일부 비즈니스 기준에 따라 요청을 분류할 수도 있습니다. 예를 들어 다음과 같은 코드를 사용하여 트랜잭션을 "큰 고객"과 "소규모 고객"으로 분류할 수 있습니다.
+
+```
+class UsersController
+
+  before_filter :segment_new_relic_by_customer_size
+
+  def segment_new_relic_by_customer_size
+    new_relic_name = NewRelic::Agent.get_transaction_name
+    if current_user.big_customer?
+      NewRelic::Agent.set_transaction_name("#{new_relic_name} - big customer")
+    else
+      NewRelic::Agent.set_transaction_name("#{new_relic_name} - small customer")
+    end
+  end
+
+end
+```
+
+## 트랜잭션 진입점 추적 [#transaction-tracers]
+
+일반적으로 에이전트는 애플리케이션 내에서 트랜잭션을 식별할 수 있지만 지원되는 프레임워크를 사용하지 않거나 에이전트가 자동으로 기록하지 않는 트랜잭션을 기록하려는 경우 메서드를 트랜잭션 진입점으로 정의할 수 있습니다. :
+
+```
+class Controller
+  include NewRelic::Agent::Instrumentation::ControllerInstrumentation
+
+  def transaction
+    # execute a transaction
+  end
+  add_transaction_tracer :transaction
+end
+```
+
+클래스 메서드를 계측하려면 클래스 싱글톤에 메서드 추적기를 추가합니다.
+
+```
+class Controller
+  include NewRelic::Agent::Instrumentation::ControllerInstrumentation
+  
+  class << self 
+    def transaction
+      # execute a transaction
+    end
+    add_transaction_tracer :transaction
+  end
+end
+```
+
+## 웹이 아닌 트랜잭션 계측 [#non-web-transactions]
+
+메서드 수준 추적과 함께 웹 트랜잭션과 동일한 수준의 트랜잭션 및 오류 세부 정보를 사용하여 백그라운드 작업과 같은 웹이 아닌 트랜잭션을 계측할 수 있습니다. 자세한 내용은 [Ruby 백그라운드 프로세스 및 데몬 모니터링](/docs/ruby/monitoring-ruby-background-processes-and-daemons) 을 참조하십시오.
+
+## 고급 맞춤형 계측 [#advanced-tracing]
+
+에이전트에 의해 자동으로 계측되지 않는 추적 코드의 경우 일반적으로 표준 [메서드 추적기](/docs/agents/ruby-agent/api-guides/ruby-custom-instrumentation#method_tracers) 로 충분합니다.
+
+그러나 때로는 단일 메서드 호출보다 더 복잡한 것을 계측해야 합니다. 예를 들어 메서드 내에서 몇 줄의 코드를 계측하거나 코드의 한 부분에서 트랜잭션을 시작하고 다른 곳에서 완료할 수 있습니다.
+
+에이전트 버전 6.0에 도입된 Tracer 모듈은 트랜잭션 및 세그먼트를 생성하고 현재 트랜잭션과 상호 작용할 수 있는 유연한 API를 제공합니다.
+
+### 코드 섹션 계측 [#in-transaction]
+
+코드 섹션을 계측하려면 코드를 블록으로 래핑한 다음 블록을 `Tracer.in_transaction` 메서드에 전달합니다.
+
+```
+require 'new_relic/agent/tracer'
+
+def long_and_complex_process
+  expensive_setup
+
+  Tracer.in_transaction(partial_name: 'Complex/process',
+                        category:     :task) do
+    code_to_be_instrumented
+  end
+
+  expensive_teardown
+end
+```
+
+에이전트는 트랜잭션이 존재하는지 확인하고 블록 내부의 코드에 대해 트랜잭션 내에 세그먼트를 생성합니다.
+
+### 트랜잭션 또는 세그먼트 시작 [#start-transaction-or-segment]
+
+코드의 한 위치에서 트랜잭션을 시작해야 하지만 다른 위치에서 완료해야 하는 경우(콜백 기반 이벤트에서 발생할 수 있는 것처럼) `NewRelic::Agent::Tracer.start_transaction_or_segment` 을 호출합니다. 이 메서드의 반환 값에 대해 `finish` 을 호출 **해야 합니다** .
+
+```
+class MyEventWatcher
+  def event_started
+    @transaction = NewRelic::Agent::Tracer.start_transaction_or_segment(
+      partial_name: 'MyEventWatcher/my_event',
+      category:     :task)
+  end
+
+  def event_completed
+    @transaction.finish
+  end
+end
+```
+
+자세한 내용 [은 New Relic RubyDoc의 Tracer#start_transaction_or_segment를](https://www.rubydoc.info/gems/newrelic_rpm/NewRelic/Agent/Tracer#start_transaction_or_segment-class_method) 참조하세요.
+
+### 스레드 계측
+
+8.7.0 이상에서는 애플리케이션에서 `NewRelic::TracedThread` 클래스를 사용하여 New Relic에 의해 계측되는 스레드를 생성합니다.
+
+이 클래스를 기본 `Thread` 클래스의 대체품으로 사용하십시오. 자세한 내용은 [TracedThread API 설명서](https://www.rubydoc.info/gems/newrelic_rpm/NewRelic/TracedThread) 를 참조하세요.

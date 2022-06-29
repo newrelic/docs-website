@@ -5,5 +5,4 @@ events:
   - BrowserInteraction
   - JavaScriptError
 ---
-
-The synthetics account from which you are running the monitor.
+The synthetic monitoring account from which you are running the monitor.

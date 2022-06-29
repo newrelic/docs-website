@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useState } from 'react';
 import PropTypes from 'prop-types';
 import { navigate } from '@reach/router';
 import { css } from '@emotion/react';
@@ -22,6 +22,8 @@ const HomePage = ({ data }) => {
     allMarkdownRemark: { edges: whatsNewPosts },
   } = data;
 
+  const [searchTerm, setSearchTerm] = useState('');
+
   const { t } = useTranslation();
 
   const mobileBreakpoint = '450px';
@@ -34,8 +36,6 @@ const HomePage = ({ data }) => {
     };
   });
 
-  const searchInputRef = useRef();
-
   return (
     <>
       <h1
@@ -47,16 +47,17 @@ const HomePage = ({ data }) => {
           }
         `}
       >
-        Welcome to New Relic docs!
+        {t('home.pageTitle')}
       </h1>
       <SearchInput
-        placeholder="What are you looking for?"
+        placeholder={t('home.search.placeholder')}
         size={SearchInput.SIZE.LARGE}
-        ref={searchInputRef}
+        value={searchTerm || ''}
         iconName={SearchInput.ICONS.SEARCH}
         isIconClickable
         alignIcon={SearchInput.ICON_ALIGNMENT.RIGHT}
-        onSubmit={() => navigate(`?q=${searchInputRef.current.value}`)}
+        onChange={(e) => setSearchTerm(e.target.value)}
+        onSubmit={() => navigate(`?q=${searchTerm || ''}`)}
         css={css`
           @media screen and (max-width: ${mobileBreakpoint}) {
             margin-bottom: 1rem;
@@ -79,12 +80,16 @@ const HomePage = ({ data }) => {
           }
         `}
       >
-        <p>Popular searches: </p>
-        <Link to="?q=nrql">NRQL</Link>
-        <Link to="?q=logs">logs</Link>
-        <Link to="?q=alert">alert</Link>
-        <Link to="?q=best practices">best practices</Link>
-        <Link to="?q=kubernetes">Kubernetes</Link>
+        <p>{t('home.search.popularSearches.title')}: </p>
+        <Link to="?q=nrql">{t('home.search.popularSearches.options.0')}</Link>
+        <Link to="?q=logs">{t('home.search.popularSearches.options.1')}</Link>
+        <Link to="?q=alert">{t('home.search.popularSearches.options.2')}</Link>
+        <Link to="?q=best practices">
+          {t('home.search.popularSearches.options.3')}
+        </Link>
+        <Link to="?q=kubernetes">
+          {t('home.search.popularSearches.options.4')}
+        </Link>
       </div>
       <HomepageBanner />
       <Section
