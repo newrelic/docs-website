@@ -11,6 +11,10 @@ redirects:
 
 import newRelicOneK8SClusterExplorerControlPlaneParameters from 'images/new-relic-one-k8s-cluster-explorer-control-plane-parameters.png'
 
+import kubernetesIntegrationCP from 'images/kubernetes-integration-cp.png'
+
+import kubernetesIntegrationCPExternal from 'images/kubernetes-integration-cp-external.png'
+
 [New Relic](/docs/infrastructure/new-relic-infrastructure/getting-started/introduction-new-relic-infrastructure) provides [control plane](https://kubernetes.io/docs/concepts/overview/components/#control-plane-components) support for your Kubernetes integration, allowing you to monitor and collect metrics from your cluster's control plane components. That data can then be found in New Relic and used to [create queries and charts](/docs/using-new-relic/data/understand-data/query-new-relic-data).
 
 <Callout variant="tip">
@@ -28,7 +32,7 @@ We monitor and collect [metrics](http://docs.newrelic.com/docs/integrations/kube
 
 ## Compatibility and requirements [#compatibility]
 
-* Control plane monitoring support is limited for managed clusters. This is because most cloud providers do not expose the metrics endpoints for the control plane components, so New Relic cannot access them.
+* Most managed clusters, including AKS, EKS and GKE, don't allow outside access to their control plane components. That's why on managed clusters, New Relic can only obtain control plane metrics for the API server, and not for etcd, the scheduler, or the controller manager.
 * When deploying the solution in [unprivileged mode](/docs/integrations/kubernetes-integration/installation/kubernetes-installation-configuration#unprivileged), control plane setup will require [extra steps](#hostnetwork-privileged) and some caveats might apply.
 * [OpenShift](http://learn.openshift.com/?extIdCarryOver=true&sc_cid=701f2000001OH7iAAG) 4.x uses control plane component metric endpoints that are different than the default.
 
@@ -46,9 +50,30 @@ Each component of the control plane has a dedicated section, which allows to ind
 * Define the authentication mechanisms that need to be used to get metrics for that component
 * Manually specify endpoints that skip autodiscovery completely
 
+<img
+  title="Diagram showing a possible configuration scraping etcd with mTLS and API server with bearer Token."
+  alt="Diagram showing a possible configuration scraping etcd with mTLS and API server with bearer Token. The monitoring is a DaemonSet deployed on master nodes only."
+  src={kubernetesIntegrationCP}
+/>
+
+You can check all configuration options available in the [values.yaml](https://github.com/newrelic/nri-kubernetes/blob/main/charts/newrelic-infrastructure/values.yaml) of the nri-kubernetes chart under the `controlPlane` key.
+
+If you are installing the integration thorught the `nri-bundle` chart you need to [pass the values to the corresponding subchart](https://helm.sh/docs/chart_template_guide/subcharts_and_globals/). For example to disable the `etcd` monitoring in the `controlPlane` component you can do the following:
+
+```yaml
+newrelic-infrastructure:
+  controlPlane:
+    config:
+      etcd:
+        enabled: false
+```
+
 ### Autodiscovery and default configuration [#autodiscovery-default]
 
 By default, our [Helm Chart](/docs/kubernetes-pixie/kubernetes-integration/installation/install-kubernetes-integration-using-helm) ships a configuration that should work out of the box for some control plane components for on-premise distributions that run the control plane inside the cluster, such as `Kubeadm` or `minikube`.
+
+Notice that since autodiscovery relies on pod labels as a discovery mechanism, it does not work in cloud environments or whenever the control plane compoenents are not running inside the cluster.
+However, [static endpoint](#static-endpoints) can be leveraged in these scenarios if control plane components are reachable.
 
 #### `hostNetwork` and `privileged` [#hostnetwork-privileged]
 
@@ -159,6 +184,12 @@ controlPlane:
       auth: {}
 ```
 
+<img
+  title="Diagram showing a possible configuration scraping an external API server with bearer Token."
+  alt="Diagram showing a possible configuration scraping an external API server with bearer Token. The monitoring is a Deployment with a single replica."
+  src={kubernetesIntegrationCPExternal}
+/>
+
 `staticEndpoint` is the same type of entry as `endpoints` in the `autodiscover` entry, whose fields are described above. The authentication mechanisms and schemas are supported here.
 
 Please keep in mind that if `staticEndpoint` is set, the `autodiscover` section will be ignored in its entirety.
@@ -181,8 +212,7 @@ Some cloud environments, like EKS or GKE, allow retrieving metrics from the Kube
 
 ```yaml
 controlPlane:
-  affinity:
-    nodeAffinity: false  # https://github.com/helm/helm/issues/9136
+  affinity: false  # https://github.com/helm/helm/issues/9136
   kind: Deployment
   config:
     etcd:
@@ -201,6 +231,8 @@ controlPlane:
 
 Please note that this only applies to the API Server and that etcd, the scheduler, and the controller manager remain inaccessible in cloud environments.
 
+Moreover, be aware that, depending on the specific managed or cloud environment, the Kubernetes service could be loadbalancing the traffic among different instances of the API Server. In this case, the metrics that depends on the specific instance being selected by the loadbalancer are not reliable.
+
 #### Control plane monitoring for Rancher RKE1 [#rancher]
 
 Clusters deployed leveraging Rancher Kubernetes Engine (RKE1) run control plane components as Docker containers, and not as Pods managed by the Kubelet. 
@@ -214,31 +246,30 @@ For example, in order to make the Scheduler and the Controller Manager metrics r
 Assuming that every component is reachable at the specified port, the following configuration will monitor the API Server, the Scheduler and the Controller Manager: 
 
 ```yaml
-  scraper:
-    enabled: true
-    kind: DaemonSet
-    config:
-      scheduler:
-        enabled: true
-        staticEndpoint:
-          url: https://localhost:10259
-          insecureSkipVerify: true
-          auth:
-            type: bearer
-      controllerManager:
-        enabled: true
-        staticEndpoint:
-          url: https://localhost:10257
-          insecureSkipVerify: true
-          auth:
-            type: bearer
-      apiServer:
-        enabled: true
-        staticEndpoint:
-          url: https://localhost:6443
-          insecureSkipVerify: true
-          auth:
-            type: bearer
+controlPlane:
+  kind: DaemonSet
+  config:
+    scheduler:
+      enabled: true
+      staticEndpoint:
+        url: https://localhost:10259
+        insecureSkipVerify: true
+        auth:
+          type: bearer
+    controllerManager:
+      enabled: true
+      staticEndpoint:
+        url: https://localhost:10257
+        insecureSkipVerify: true
+        auth:
+          type: bearer
+    apiServer:
+      enabled: true
+      staticEndpoint:
+        url: https://localhost:6443
+        insecureSkipVerify: true
+        auth:
+          type: bearer
 ```
 
 In this example, the integration needs to run on the same node of each control plane component that has the `hostNetwork` option set to true, since it's connecting locally to each `staticEndpoint`. Therefore, `controlPlane.kind` has to be kept as `DaemonSet`. Also, the DaemonSet needs affinity rules, nodeSelector, and tolerations configured so that all instances are running on all control plane nodes you want to monitor.

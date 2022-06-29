@@ -1,0 +1,693 @@
+---
+title: 이벤트 API 소개
+tags:
+  - Ingest and manage data
+  - Ingest APIs
+metaDescription: 'Intro to New Relic''s Event API, which lets you send custom event data to your New Relic account.'
+translationType: machine
+---
+
+Event API를 사용하면 사용자 지정 [이벤트 데이터](/docs/using-new-relic/data/understand-data/new-relic-data-types#event-data) 를 New Relic에 보낼 수 있습니다. 그런 다음 이러한 이벤트를 쿼리하고 차트로 작성할 수 있습니다.
+
+이벤트 API를 사용해 보고 싶으십니까? 무료 [로 New Relic 계정을 만드](https://newrelic.com/signup) 십시오! 신용 카드가 필요하지 않습니다.
+
+관련된 컨텐츠:
+
+* [맞춤 이벤트 보고를 위한 모든 옵션에](/docs/insights/insights-data-sources/custom-data/report-custom-event-data) 대해 알아보세요.
+* 기존 이벤트에 속성을 추가하는 방법은 [사용자 정의 속성 추가](/docs/agents/manage-apm-agents/agent-data/collect-custom-attributes) 를 참조하십시오.
+
+## 이벤트 API를 사용하는 이유는 무엇입니까? [#overview]
+
+이벤트 API는 사용자 지정 데이터를 보고하기 위한 한 가지 옵션입니다. 또 다른 옵션은 사용자 정의 속성을 보고하는 것입니다. Event API와 다른 옵션을 사용하는 이유에 대한 개요는 [사용자 지정 이벤트 및 속성](/docs/data-apis/custom-data/custom-events/report-custom-event-data#using-custom-events) 을 참조하세요.
+
+## 요구 사항 [#requirements]
+
+이벤트 API 제한 및 제한된 속성은 [제한](#limits) 을 참조하십시오.
+
+[지역](/docs/using-new-relic/welcome-new-relic/get-started/our-eu-us-region-data-centers) 과 일치하는 [CIDR 범위](/docs/using-new-relic/cross-product-functions/install-configure/networks/#infrastructure) 에 대해 TCP 포트 443의 아웃바운드 연결이 허용되는지 확인합니다. 기본 구성 방법은 DNS 이름 `insights-collector.newrelic.com` 또는 `insights-collector.eu01.nr-data.net` 을 사용하는 것입니다.
+
+## 사용자 지정 이벤트 제출 및 쿼리의 예 [#example-use-case]
+
+다음은 작동 중인 Event API의 예입니다.
+
+<CollapserGroup>
+  <Collapser
+    id="ruby-example"
+    title="Ruby 앱에서 이벤트 API 호출"
+  >
+    사용자 정의 이벤트는 [에이전트 API](/docs/data-apis/custom-data/custom-events/report-custom-event-data#ways) 를 통해 또는 이벤트 API를 통해 직접 삽입할 수 있습니다. 다음 예는 Ruby로 작성된 명령줄 도구가 예외로 인해 프로세스가 종료되는 시기를 추적하는 맞춤 이벤트 유형 `CLIRun` 을 보내는 방법을 보여줍니다.
+
+    ```ruby
+    # Hook into the runtime 'at_exit' event
+    at_exit do
+      # Name the custom event
+      payload = { 'eventType' => 'CLIRun' }
+
+      # Check to see if the process is exiting due to an error
+      if $!.nil? || $!.is_a?(SystemExit) && $!.success?
+        payload[:status] = 0
+      else
+        # Gather any known errors
+        errors = ""
+        (Thread.current[:errors] ||= []).each do |err|
+          errors += "#{err}\n"
+        end
+        payload[:errors] = errors
+      end
+
+      # Send the errors to New Relic as a custom event
+      insights_url = URI.parse("https://insights-collector.newrelic.com/v1/accounts/YOUR_ACCOUNT_ID/events")
+      headers = { "Api-Key" => "YOUR_LICENSE_KEY", "content-type" => "application/json" }
+
+      http = Net::HTTP.new(insights_url.host, insights_url.port)
+      http.use_ssl = true
+      request = Net::HTTP::Post.new(insights_url.request_uri, headers)
+      request.body = payload.to_json
+
+      puts "Sending run summary to New Relic: #{payload.to_json}"
+      begin
+        response = http.request(request)
+        puts "Response from New Relic: #{response.body}"
+      rescue Exception => e
+        puts "There was an error posting to New Relic. Error: #{e.inspect}"
+      end
+    end
+    ```
+
+    그런 다음 NRQL 쿼리를 실행하여 다음과 같은 사용자 지정 이벤트에 대한 자세한 정보를 얻을 수 있습니다.
+
+    ```sql
+    SELECT count(*) FROM CLIRun FACET errors SINCE 1 week ago
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## 이벤트 API 사용 방법 [#workflow]
+
+이벤트 API는 비동기 엔드포인트입니다. 이를 통해 매우 낮은 응답 대기 시간으로 매우 많은 양의 POSTS를 안정적으로 보낼 수 있습니다.
+
+<Callout variant="tip">
+  계정이 EU 데이터 센터의 데이터를 호스팅하는 경우 [EU 지역 계정에 적절한 API 엔드포인트를](/docs/using-new-relic/welcome-new-relic/getting-started/introduction-eu-region-data-center#endpoints) 사용하고 있는지 확인하십시오.
+</Callout>
+
+New Relic 계정에 맞춤 이벤트를 보내려면:
+
+1. 데이터를 보고할 계정에 대한 [라이센스 키](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key) 를 가져옵니다.
+2. 사용자 정의 이벤트 또는 속성을 생성하기 전에 [NRQL에서 사용하는 New Relic의 예약 용어](/docs/insights/insights-data-sources/custom-data/insights-custom-data-requirements-limits#reserved-words) 목록을 검토하십시오.
+3. 애플리케이션을 계측하거나 API를 쿼리하거나 다른 방법을 사용하여 이벤트에 대한 [JSON을 생성](#instrument) 합니다.
+4. **POST** 요청에서 curl을 사용하여 [압축된 JSON 페이로드](#submit-event) (예: `gzip` 또는 `deflate` )를 HTTPS 엔드포인트에 제출합니다.
+5. **권장 사항:** [구문 분석 오류가](#errors-parsing) 발생할 때 알리도록 [NRQL 경고 조건](/docs/alerts/new-relic-alerts/defining-conditions/create-alert-conditions-nrql-queries) 을 설정합니다.
+
+이벤트 API는 사용자 정의 이벤트에 허용되는 [크기, 비율 및 문자를 제한](#limits) 합니다. 또한 NRQL에서 사용할 수 있는 다른 데이터와 마찬가지로 사용자 지정 이벤트는 생성된 후에 업데이트하거나 삭제할 수 없습니다. 사용자 지정 이벤트에 문제가 있는 경우 [문제 해결 절차](#verify) 를 따르거나 새 사용자 지정 이벤트를 만드십시오.
+
+## JSON 형식 지정 [#instrument]
+
+이벤트 API는 페이로드에 포함된 속성에 대한 특정 형식을 허용합니다. float 또는 string 값만 허용됩니다.
+
+<CollapserGroup>
+  <Collapser
+    id="json-guidelines"
+    title="JSON 형식 지침"
+  >
+    사용자 정의 이벤트에 대한 속성을 정의할 때 다음 JSON 형식 지침을 따르십시오.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            속성
+          </th>
+
+          <th>
+            JSON 형식 지침
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `eventType`
+          </td>
+
+          <td>
+            **필수:** 이벤트의 이름입니다.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            부동 소수점 및 문자열 값
+          </td>
+
+          <td>
+            부동 소수점 값 형식: `"label":value`
+
+            문자열 값 형식: `"label":"value"`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            데이터 유형
+          </td>
+
+          <td>
+            API는 맵/객체 또는 배열 값이 아닌 키-값 쌍만 허용합니다. 이 API에 지원되는 데이터 유형은 문자열과 숫자(정수 또는 부동 소수점)입니다. 자세한 내용은[데이터 요구 사항](/docs/insights/insights-data-sources/custom-data/insights-custom-data-requirements-limits) 을 참조하십시오.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            문자열의 숫자
+          </td>
+
+          <td>
+            성능 관련 이유로 API에 제출된 값은 캐스팅하지 않습니다. 예를 들어, `123` 은 숫자로, `"123"` 은 문자열로 취급합니다.
+
+            데이터베이스는 최대 64비트 숫자만 저장합니다. 64비트보다 큰 숫자는 잘립니다.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            날짜
+          </td>
+
+          <td>
+            날짜 정보가 포함된 속성의 경우 [데이터 포맷터](/docs/insights/use-insights-ui/manage-account-data/data-formatter-set-default-formats-numeric-values) 에서 형식이 지정되지 않은 Unix 타임스탬프를 사용합니다. [날짜 속성은 Unix 시대를 기준으로 초 또는 밀리초 단위로 정의할](#timestamp) 수 있습니다.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            시간
+          </td>
+
+          <td>
+            달리 지정하지 않는 한 제출된 이벤트의 타임스탬프는 New Relic에 제출된 시간입니다. 이벤트에 다른 시간을 지정하려면 [`timestamp` 속성](#timestamp) 을 사용합니다.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    id="json-example"
+    title="JSON 예시"
+  >
+    다음은 API로 전송하기 위한 일반적인 JSON 데이터 세트의 예입니다. 이 호출은 두 개의 **구매** 유형 이벤트를 JSON 배열로 보냅니다. JSON 배열을 사용하여 단일 HTTP 호출에 여러 이벤트를 추가할 수 있습니다.
+
+    ```
+    [
+      {
+        "eventType":"Purchase",
+        "account":3,
+        "amount":259.54
+      },
+      {
+        "eventType":"Purchase",
+        "account":5,
+        "amount":12309,
+        "product":"Item"
+      }
+    ]
+    ```
+
+    JSON을 생성할 때 속성의 [형식](/docs/insights/new-relic-insights/decorating-events/insights-custom-attributes) 이 올바른지 확인하십시오.
+  </Collapser>
+
+  <Collapser
+    id="limits"
+    title="제한 및 제한된 문자"
+  >
+    이벤트 API를 통해 전송된 이벤트에는 다음 크기 및 속도 제한이 적용됩니다.
+
+    * API 호출당 최대 이벤트: 2K
+
+    * 페이로드 총 크기: **POST당 최대 1MB(10^6바이트)** . 압축을 사용하는 것이 좋습니다.
+
+    * 페이로드는 **UTF-8** 로 인코딩되어야 합니다.
+
+    * 이벤트당 최대 속성 수: 255
+
+    * 속성 이름의 최대 길이: 255자
+
+    * 속성 값의 최대 길이: 4096자
+
+    * Event API로 전송되는 [분당 HTTP 요청 수에는 속도 제한](#post-limit) 이 있습니다.
+
+      일부 특정 속성에는 추가 제한 사항이 있습니다.
+
+    * `accountId`: 예약된 속성 이름입니다. 포함되어 있으면 수집 중에 삭제됩니다.
+
+    * `entity.guid`, `entity.name` 및 `entity.type` : 이러한 속성은 내부적으로 항목을 식별하는 데 사용됩니다. 메트릭 데이터 포인트의 속성 섹션에서 이러한 키로 제출된 모든 값은 UI의 누락된 엔터티 또는 예상 엔터티와 연결되지 않은 원격 분석과 같은 정의되지 않은 동작을 유발할 수 있습니다. 자세한 내용은 [엔터티 합성](/docs/new-relic-one/use-new-relic-one/core-concepts/what-entity-new-relic/#entity-synthesis) 을 참조하십시오.
+
+    * [`appId`](/docs/apis/rest-api-v2/requirements/find-product-id#apm) : 값은 정수여야 합니다. 정수가 아니면 속성 이름과 값이 수집 중에 삭제됩니다.
+
+    * `eventType`: 영숫자, `_` 밑줄 및 `:` 콜론을 조합할 수 있습니다.
+
+    * `timestamp`: Unix epoch 타임스탬프여야 합니다. 타임스탬프는 초 또는 밀리초 단위로 정의할 수 있습니다.
+  </Collapser>
+</CollapserGroup>
+
+## 맞춤 이벤트 제출 [#submit-event]
+
+이벤트 API에 제출된 데이터는 간단한 HTTPS POST 요청에서 압축된 JSON 형식을 사용합니다. 이 예에서는 `gzip` 을 사용하지만 `deflate` 도 사용할 수 있습니다.
+
+<CollapserGroup>
+  <Collapser
+    id="numberone"
+    title="Linux/bash 예제"
+  >
+    ```
+    gzip -c example_events.json | curl -X POST -H "Content-Type: application/json"
+    -H "Api-Key: <var>YOUR_LICENSE_KEY</var>" -H "Content-Encoding: gzip"
+    https://insights-collector.newrelic.com/v1/accounts/<var>YOUR_ACCOUNT_ID</var>/events --data-binary @-
+    ```
+  </Collapser>
+
+  <Collapser
+    id="numbertwo"
+    title="Windows/PowerShell 예제"
+  >
+    ```
+    $accountId = "<var>YOUR_ACCOUNT_ID</var>"
+    $insertkey = "<var>YOUR_LICENSE_KEY</var>"
+    # Replace with your custom event for the body
+    $body = '[{"eventType": "powershell", "account": 4, "amount": 123, "fileLocation": "c:\\temp2", "zipped": "true" }]'
+
+    $headers = @{}
+    $headers.Add("Api-Key", "$insertkey")
+    $headers.Add("Content-Encoding", "gzip")
+
+
+    $encoding = [System.Text.Encoding]::UTF8
+    $enc_data = $encoding.GetBytes($body)
+
+    $output = [System.IO.MemoryStream]::new()
+    $gzipStream = New-Object System.IO.Compression.GzipStream $output, ([IO.Compression.CompressionMode]::Compress)
+
+    $gzipStream.Write($enc_data, 0, $enc_data.Length)
+    $gzipStream.Close()
+    $gzipBody = $output.ToArray()
+
+    Invoke-WebRequest -Headers $headers -Method Post -Body $gzipBody  "https://insights-collector.newrelic.com/v1/accounts/$accountId/events"
+    ```
+  </Collapser>
+</CollapserGroup>
+
+<Callout variant="important">
+  모든 페이로드에 항상 압축을 사용하십시오. 이렇게 하면 더 많은 데이터를 보낼 수 있으며 구문 분석 중에 리소스를 절약할 수 있습니다.
+</Callout>
+
+HTTP 요청을 생성하기 전에 다음을 포함하여 [형식](/docs/insights/new-relic-insights/decorating-events/insights-custom-attributes) 이 올바른지 확인하십시오.
+
+* `Api-Key` 에는 올바른 [라이센스 키](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key) 가 포함되어 있습니다.
+* `Content-Type` 은(는) `application/json` 입니다.
+* 요청은 POST만 사용합니다. API는 PUT 및 GET 요청을 허용하지 않습니다.
+
+API는 [HTTP/1.1 영구 연결](https://www.w3.org/Protocols/rfc2616/rfc2616-sec8.html) 을 지원합니다. 이는 이벤트 로드가 많은 경우 클라이언트 측 성능을 관리하는 데 유용합니다.
+
+## 요청 응답 확인 또는 문제 해결 [#verify]
+
+이벤트 API는 요청을 처리하기 위해 2단계 프로세스를 따릅니다.
+
+1. 이벤트 API는 헤더 및 페이로드 크기의 유효성 검사를 기반으로 요청을 동기적으로 승인하거나 거부합니다.
+2. Event API는 성공적인 HTTP 응답이 클라이언트에 제공된 후 페이로드를 비동기식으로 구문 분석합니다. 데이터가 누락되거나 형식이 잘못되어 오류가 발생할 수 있습니다. 제출 오류 또는 구문 분석 오류로 분류됩니다.
+
+모든 성공적인 제출은 페이로드 내에 존재할 수 있는 데이터 오류에 관계없이 `200` 응답을 받습니다. 응답에는 각 요청에 대해 생성된 고유 ID인 `uuid` 이 포함됩니다. `uuid` 는 요청에 대해 생성된 모든 오류 이벤트에도 나타납니다.
+
+기타 잠재적인 문제:
+
+* 10초 시간 초과: 10초를 초과하는 API 호출은 시간 초과됩니다.
+* 대용량 페이로드: 100KB를 초과하는 페이로드는 응답 시간이 증가할 수 있습니다.
+
+**권장 사항:** 성공 메시지를 확인하는 것 외에도 데이터의 NRQL 쿼리를 만들어 사용 가능한지 확인합니다.
+
+<CollapserGroup>
+  <Collapser
+    id="success"
+    title="성공 응답 코드"
+  >
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "150px" }}>
+            성공 메시지
+          </th>
+
+          <th>
+            코멘트
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            200
+          </td>
+
+          <td>
+            ```
+            {"success":true,"uuid":"<var>xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx</var>"}
+            ```
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    id="errors-submission"
+    title="제출 오류"
+  >
+    제출 오류가 있는 페이로드는 HTTP 응답 코드를 통해 처리되고 발신자에게 반환됩니다.
+
+    페이로드 제출 오류를 해결하려면 다음 HTTP 응답 코드를 참조하십시오.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "150px" }}>
+            제출 오류
+          </th>
+
+          <th>
+            문제점 해결
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            400
+          </td>
+
+          <td>
+            누락되거나 잘못된 콘텐츠 길이: 빈 요청을 처리할 수 없습니다.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            403
+          </td>
+
+          <td>
+            키 누락 또는 유효하지 않음: 유효하지 않은 라이센스 키입니다. 유효한 라이센스 키를 등록하십시오.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            408
+          </td>
+
+          <td>
+            요청 시간 초과: 요청을 처리하는 데 너무 오래 걸렸습니다.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            413
+          </td>
+
+          <td>
+            콘텐츠가 너무 큼: 요청이 너무 커서 처리할 수 없습니다. 문제를 해결하려면 제한 및 제한된 문자를 참조하십시오.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            415
+          </td>
+
+          <td>
+            잘못된 콘텐츠 유형: 애플리케이션/JSON이어야 합니다. Event API는 multi-part/related를 제외한 모든 콘텐츠 유형을 허용하고 JSON으로 구문 분석할 수 있다고 가정합니다.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            429
+          </td>
+
+          <td>
+            속도 제한으로 인해 요청이 너무 많습니다.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            503
+          </td>
+
+          <td>
+            서비스를 일시적으로 사용할 수 없음: 재시도 요청
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    id="errors-parsing"
+    title="구문 분석 오류"
+  >
+    다음과 같은 경우 구문 분석 오류가 발생합니다.
+
+    * 이벤트가 페이로드 내에서 전송되지만 데이터가 누락되었거나 최대 한도를 초과했습니다. New Relic은 페이로드에서 개별 이벤트를 삭제하고 [`NrIntegrationError` 이벤트](/docs/telemetry-data-platform/manage-data/nrintegrationerror) 를 생성하고 나머지를 처리합니다.
+
+    * JSON 페이로드에 형식이 잘못된 JSON 또는 누락된 필수 데이터가 포함되어 있습니다.
+
+      구문 분석 오류가 있는 페이로드는 성공적인 제출을 나타내는 `200` 응답을 수신합니다. 구문 분석 오류를 해결하기 위해 새 `NrIntegrationError` 이벤트 유형이 생성됩니다. 모든 구문 분석 오류는 NRQL 쿼리로 인한 것입니다. 삭제된 이벤트와 관련된 오류 메시지의 경우 New Relic에는 메시지의 일부로 삭제된 이벤트 수가 포함됩니다.
+
+      구문 분석 오류가 있는 요청 문제를 해결하려면 다음 오류 메시지를 참조하십시오.
+
+      <table>
+        <thead>
+          <tr>
+            <th style={{ width: "300px" }}>
+              구문 분석 오류
+            </th>
+
+            <th>
+              문제점 해결
+            </th>
+          </tr>
+        </thead>
+
+        <tbody>
+          <tr>
+            <td>
+              속성 `appId` 이(가) 정수가 아니어서 <var>X</var> 이벤트가 거부되었습니다.
+            </td>
+
+            <td>
+              `appId` 속성에는 10진수 값이나 문자열과 같은 정수가 아닌 값이 있습니다.
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              `eventType` 은(는) 다음 문자를 포함할 수 없기 때문에 <var>X</var> 이벤트가 거부되었습니다. `[., \]`
+            </td>
+
+            <td>
+              `eventType` 속성에 마침표나 백슬래시와 같은 잘못된 문자가 포함되어 있습니다.
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              속성에 속성 이름이 없기 때문에 <var>X</var> 이벤트가 거부되었습니다.
+            </td>
+
+            <td>
+              속성 이름이 null 또는 빈 문자열로 설정되었습니다.
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              속성 이름이 최대 길이를 초과했기 때문에 <var>X</var> 이벤트가 거부되었습니다.
+            </td>
+
+            <td>
+              속성 이름은 255자를 초과합니다.
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              속성 값이 최대 길이를 초과했기 때문에 <var>X</var> 이벤트가 거부되었습니다.
+            </td>
+
+            <td>
+              속성 값이 4096자를 초과했습니다.
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              이벤트가 최대 속성 수를 초과했기 때문에 <var>X</var> 이벤트가 거부되었습니다.
+            </td>
+
+            <td>
+              이벤트에는 255개 이상의 속성이 있습니다.
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              필수 속성이 누락되어 <var>X</var> 이벤트가 거부되었습니다. `eventType`
+            </td>
+
+            <td>
+              맞춤 이벤트에는 `eventType` 속성이 필요합니다.
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              JSON 페이로드 구문 분석 오류
+            </td>
+
+            <td>
+              형식 문제 또는 손상된 데이터로 인해 요청 JSON을 구문 분석하는 동안 오류가 발생했습니다.
+            </td>
+          </tr>
+        </tbody>
+      </table>
+  </Collapser>
+</CollapserGroup>
+
+## NrIntegrationError를 사용한 쿼리 및 경고 [#nrIntegration]
+
+[`NrIntegrationError` 이벤트](/docs/telemetry-data-platform/manage-data/nrintegrationerror) 를 사용하면 New Relic 계정으로 전송되는 맞춤 데이터를 쿼리하고 알림을 설정할 수 있습니다. **권장 사항:** 구문 분석 오류에 대한 경고를 받으려면 `NrIntegrationError` 에 대한 [NRQL 경고 조건을 생성하십시오](/docs/alerts/new-relic-alerts/defining-conditions/create-alert-conditions-nrql-queries) . 다음 예제 NRQL 쿼리를 사용하십시오.
+
+```
+SELECT message FROM NrIntegrationError WHERE newRelicFeature = 'Event API' AND category = 'EventApiException'
+```
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        NrIntegrationError 속성
+      </th>
+
+      <th>
+        문제점 해결
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td id="timestamp">
+        `timestamp`
+      </td>
+
+      <td>
+        요청이 수신된 타임스탬프입니다. `timestamp` 속성은 지난 24시간 동안의 64비트 정수 Unix 타임스탬프를 사용합니다. Unix 에포크를 기준으로 타임스탬프를 초 또는 밀리초 단위로 정의할 수 있습니다.
+
+        타임스탬프에 소수점을 사용하지 마십시오. 10진수를 사용하는 경우 속성은 기본적으로 사용자 정의 이벤트가 생성된 타임스탬프로 설정됩니다.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `newRelicFeature`
+      </td>
+
+      <td>
+        오류가 발생한 기능의 이름입니다. 모든 맞춤 이벤트 구문 분석 오류의 경우 이는 `Event API` 입니다.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `apiKeyPrefix`
+      </td>
+
+      <td>
+        오류를 생성한 요청에 사용된 [라이센스 키](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key) 의 처음 6자.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `requestId`
+      </td>
+
+      <td>
+        오류를 생성한 요청에 대해 API에서 반환된 `uuid` 입니다.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `Category`
+      </td>
+
+      <td>
+        오류의 범주입니다. 맞춤 이벤트의 경우 `EventApiException` 입니다.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `Message`
+      </td>
+
+      <td>
+        오류 메시지의 내용입니다.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `Name`
+      </td>
+
+      <td>
+        오류의 이름입니다. 맞춤 이벤트의 경우 항상 `EventValidationException` 입니다.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `eventTypeSample`
+      </td>
+
+      <td>
+        사용 가능한 경우 오류를 생성한 이벤트 유형 중 하나입니다.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## 데이터 찾기 [#find-data]
+
+Event API(및 이 API를 사용하는 통합)를 통해 전송된 데이터를 찾으려면 쿼리할 수 있습니다. 예를 들어 [NRQL](/docs/query-data/nrql-new-relic-query-language/getting-started/introduction-nrql) 을 사용하여 사용자 지정 이벤트를 쿼리하려면 다음을 실행합니다.
+
+```
+SELECT * FROM <var>YOUR_CUSTOM_EVENT</var>
+```
+
+쿼리 방법에 대한 자세한 내용은 [데이터](/docs/using-new-relic/data/understand-data/query-new-relic-data) 쿼리를 참조하세요.
+
+## HTTP 요청 제한 [#post-limit]
+
+이벤트 API의 속도 제한은 계정당 분당 100,000개의 HTTP 요청(POST)입니다. (이것은 분당 이벤트 수에 대한 제한이 **아니라** 분당 POST 수에 대한 제한이라는 점에 유의하십시오.)
+
+이 제한은 다중 테넌트 플랫폼에서 계정의 대규모 트래픽 급증이 서비스 수행 방식에 부정적인 영향을 미치지 않도록 하는 데 도움이 됩니다.
+
+API 사용량이 1분 창에서 100k POST를 초과하는 경우 나머지 1분 창에서 429 응답 코드와 함께 후속 API 요청을 거부합니다. 1분이 지나면 카운터가 재설정되고 트래픽이 재개됩니다.
+
+이 제한은 일반적인 시나리오에서 도달해서는 안 되는 상한 임계값을 위한 것입니다. 429개의 응답이 많은 경우 API를 덜 사용하는 것이 좋습니다. 가까운 장래에 정상보다 높은 활동 수준이 예상되고 이에 대비하려면 [기술 지원에 문의](https://support.newrelic.com/) 하십시오.
