@@ -1,0 +1,335 @@
+---
+title: NerdGraph：履歴データのエクスポートを使用してより大きなNRQL応答を返す
+tags:
+  - APIs
+  - NerdGraph
+  - Examples
+metaDescription: The New Relic historical data export feature lets you use NerdGraph API to return large NRQL responses with no query timeout.
+translationType: machine
+---
+
+[NRQLクエリ](/docs/query-your-data/nrql-new-relic-query-language/get-started/introduction-nrql-new-relics-query-language)を実行する場合、応答で返されるデータポイントの数の制限やクエリのタイムアウトなど、 [さまざまな](/docs/query-your-data/nrql-new-relic-query-language/get-started/rate-limits-nrql-queries)制限によって制限されます。履歴データのエクスポート機能を使用して、応答で200,000,000データポイントを返し（通常の[制限である2000](/docs/query-your-data/nrql-new-relic-query-language/get-started/nrql-syntax-clauses-functions/#sel-limit)ではなく）、クエリのタイムアウトがないNRQLクエリを実行できます。結果は1つ以上のJSONファイルとして返されます。
+
+## 要件 [#requirements]
+
+この機能は現在、一部のProおよびEnterpriseエディションの組織で限定的に利用できます。この機能に興味がある場合は、アカウント担当者にご相談ください。
+
+この機能が一般に利用可能になると、 [DataPlus](/docs/accounts/accounts-billing/new-relic-one-pricing-billing/data-ingest-billing#data-prices)が必要になります。
+
+この機能を使用するには、 [NerdGraphAPI](/docs/apis/nerdgraph/get-started/introduction-new-relic-nerdgraph)を使用する必要があります。
+
+## 制限と制限 [#limits-restrictions]
+
+この機能に関するいくつかの制限と制限は次のとおりです。
+
+### 使用制限 [#usage-limits]
+
+エクスポートのデフォルトの使用制限は次のとおりです。
+
+* エクスポートは、2億未満のイベントを返すと見積もられる必要があります
+* アカウントごとに2つ以下の同時エクスポート
+
+より高い制限が必要な場合は、アカウント担当者にご相談ください。
+
+### データ型の制限 [#data-type-restrictions]
+
+一部の[データ型](/docs/data-apis/understand-data/new-relic-data-types)はエクスポートでき**ませ**ん。
+
+* メートルのタイムスライスデータ
+* ディメンション指標（ `Metric`データ型）
+* インフラストラクチャイベント`SystemSample` 、 `ProcessSample` 、 `StorageSample` 、 `NetworkSample` 、 `ContainerSample`
+
+### 時間範囲の制限 [#time-range-restrictions]
+
+履歴データのエクスポート機能は、ライブデータまたは過去12時間のデータのクエリをサポートしていません。時間範囲は、少なくとも12時間前に終了する必要があります。
+
+### クエリ構文の要件 [#syntax-requirements]
+
+この機能は、特定の属性名とワイルドカード（ `SELECT *` ）の選択をサポートします。たとえば、次のようなクエリをサポートしています。
+
+```
+SELECT * FROM MobileRequest SINCE 3 days ago until 2 days ago
+```
+
+```FROM Transaction SELECT duration, appId
+  WHERE appName = 'interesting-application' SINCE '2022-06-11 11:05:00-0600' 
+  UNTIL '2022-06-11 11:10:00-0600'
+```
+
+次の[NRQLコンポーネント](/docs/query-your-data/nrql-new-relic-query-language/get-started/nrql-syntax-clauses-functions)は使用**できませ**ん。
+
+* 集計関数（ `sum` 、 `count` 、 `average` 、 `max` ）
+* 評価可能な関数（ `numeric` 、 `log` 、 `concat` ）
+* `FACET`
+* `TIMESERIES`
+* `COMPARE WITH`
+* ネストされた集計
+
+## エンドポイントの詳細 [#endpoints]
+
+履歴データのエクスポート機能は、NerdGraph APIを使用し、次の3つのエンドポイントを利用します。
+
+* エンドポイントの**作成**により、ユーザーは、エクスポートとして実行するアカウントIDとNRQLを指定できます。
+* **エクスポートエンドポイントの詳細を取得**すると、ユーザーはアカウントIDとエクスポートID（作成エンドポイントからの応答本文にあります）を指定し、それを使用してエクスポートのステータスを取得できます。エクスポートが完了すると、1つ以上のダウンロードURLの形式で、このエンドポイントの応答に結果が表示されます。
+* **アカウントエクスポートエンドポイントの詳細の取得**により、ユーザーはアカウントIDを指定し、そのアカウントのすべてのアクティブで有効期限が切れていないエクスポートの詳細を取得できます。
+
+## クエリの例 [#example-queries]
+
+### エクスポートを作成する [#create-export]
+
+NerdGraphを使用する1つの方法は、 [NerdGraphエクスプローラー](/docs/apis/nerdgraph/get-started/nerdgraph-explorer)を使用することです。このセクションの手順では、エクスプローラーの使用に焦点を当てます。独自のスクリプトの実行に興味がある場合は、[スクリプト](#scripts)を参照してください。
+
+NerdGraphスキーマでは、 `historicalDataExportCreateExport`エンドポイントは`mutation > historicalDataExport`の下にあります。次のようなクエリを使用して、エクスポートを実行します。
+
+応答本文にはIDを選択することをお勧めします。これは、エクスポートの詳細を取得し、結果を取得するために使用されるためです。
+
+```
+mutation {
+  historicalDataExportCreateExport(accountId: <var>YOUR_ACCOUNT_ID</var>, nrql: "<var>FROM Transaction SELECT duration, appId WHERE appName = 'interesting-application' SINCE '2022-06-11 11:05:00-0600' UNTIL '2022-06-11 11:10:00-0600'</var>") {
+    percentComplete
+    nrql
+    status
+    id
+    message
+  }
+}
+
+#### Example response [#create-export-response]
+
+Here's an example response for creating an export: 
+{
+  "data": {
+    "historicalDataExportCreateExport": {
+      "id": "609b6916-8ca9-417c-bbf8-02e4cdc3afd2",
+      "message": null,
+      "nrql": "FROM Transaction SELECT duration, appId WHERE appName = 'interesting-application' SINCE '2022-06-11 11:05:00-0600' UNTIL '2022-06-11 11:10:00-0600'",
+      "percentComplete": 5,
+      "status": "WAITING"
+    }
+  }
+}
+```
+
+### 特定のエクスポートの詳細を取得する [#details-for-export]
+
+以下に示すように、作成エンドポイントからの応答で見つかったエクスポートIDを使用して、エクスポートの詳細を照会します。このエンドポイントは、NerdGraphの`query > actor > account > historicalDataExport > export`の下にあります。
+
+```
+{
+  actor {
+    account(id: <var>YOUR_ACCOUNT_ID</var>) {
+      historicalDataExport {
+        export(id: "<var>YOUR_EXPORT_ID</var>") {
+          availableUntil
+          eventCount
+          eventTypes
+          id
+          message
+          nrql
+          percentComplete
+          results
+          status
+        }
+      }
+    }
+  }
+}
+```
+
+#### 応答例 [#get-export-details-response]
+
+特定のエクスポートの詳細を取得するための応答は次のとおりです。
+
+```
+{
+  "data": {
+    "actor": {
+      "account": {
+        "historicalDataExport": {
+          "export": {
+            "availableUntil": 1655499642845,
+            "eventCount": 1291,
+            "eventTypes": [
+              "MobileRequest"
+            ],
+            "id": "4776677a-1e0f-4ad5-a790-cdbe40a1f348",
+            "message": null,
+            "nrql": "SELECT * FROM MobileRequest SINCE 3 days ago UNTIL 2 days ago",
+            "percentComplete": 100,
+            "results": [
+              "downloadLink1",
+              "downloadLink2"
+            ],
+            "status": "COMPLETE_SUCCESS"
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+### アカウントのエクスポートの詳細を取得する [#get-details-account]
+
+以下に示すように、アカウントIDを使用して、そのアカウントからのすべてのエクスポートの詳細を取得できます。エンドポイントは、NerdGraphスキーマの`query > actor > account > historicalDataExport > exports`の下にあります。
+
+```
+{
+  actor {
+    account(id: <var>YOUR_ACCOUNT_ID</var>) {
+      historicalDataExport {
+        exports {
+          availableUntil
+          eventCount
+          eventTypes
+          id
+          message
+          nrql
+          percentComplete
+          results
+          status
+        }
+      }
+    }
+  }
+}
+```
+
+#### 応答例 [#get-details-account-response]
+
+アカウントのエクスポートの詳細を取得するための応答例は次のとおりです。
+
+```
+{
+  "data": {
+    "actor": {
+      "account": {
+        "historicalDataExport": {
+          "exports": [
+            {
+              "availableUntil": 1655499642845,
+              "eventCount": 1291,
+              "eventTypes": [
+                "MobileRequest"
+              ],
+              "id": "4776677a-1e0f-4ad5-a790-cdbe40a1f348",
+              "message": null,
+              "nrql": "SELECT * FROM MobileRequest SINCE 3 days ago UNTIL 2 days ago",
+              "percentComplete": 100,
+              "results": [
+                "downloadLink1",
+                "downloadLink2"
+              ],
+              "status": "COMPLETE_SUCCESS"
+            }
+          ]
+        }
+      }
+    }
+  }
+}
+```
+
+## スクリプトを使用する [#scripts]
+
+スクリプトからプログラムで履歴データのエクスポートを照会すると便利な場合があります。次のcurlコマンドは、開始するのに役立つ場合があります。応答の例については、「クエリの例」セクションの応答を参照してください。
+
+### エクスポートを作成する [#create-export-script]
+
+```
+curl --location --request POST 'https://api.newrelic.com/graphql' \
+--header 'Content-Type: application/json' \
+--header 'API-Key: <var>YOUR_USER_KEY</var> \
+--data-raw '{"query":"mutation {\n  historicalDataExportCreateExport(accountId: <var>YOUR_ACCOUNT_ID</var>, nrql: "<var>FROM Transaction SELECT duration, appId WHERE appName = 'interesting-application' SINCE '2022-06-11 11:05:00-0600' UNTIL '2022-06-11 11:10:00-0600'</var>") {\n    percentComplete\n    nrql\n    status\n    message\n    id\n }","variables":{}}'
+```
+
+### エクスポートの詳細を取得する [#export-details-script]
+
+```
+curl --location --request POST 'https://api.newrelic.com/graphql' \
+--header 'Content-Type: application/json' \
+--header 'API-Key: <var>YOUR_USER_KEY</var>' \
+--data-raw '{"query":"{\n  actor {\n    account(id: <var>YOUR_ACCOUNT_ID</var>) {\n      historicalDataExport {\n        export(id: \"<var>YOUR_EXPORT_ID</var>\") {\n          availableUntil\n          eventCount\n          eventTypes\n          id\n          message\n          nrql\n          percentComplete\n          results\n          status\n        }\n      }\n    }\n  }\n}","variables":{}}'
+```
+
+### アカウントのエクスポートの詳細を取得する [#export-details-account-script]
+
+```
+curl --location --request POST 'https://api.newrelic.com/graphql' \
+--header 'Content-Type: application/json' \
+--header 'API-Key: <var>YOUR_USER_KEY</var>' \
+--data-raw '{"query":"{\n  actor {\n    account(id: <var>YOUR_ACCOUNT_ID</var>) {\n      historicalDataExport {\n        exports {\n          availableUntil\n          eventCount\n          eventTypes\n          id\n          message\n          nrql\n          percentComplete\n          results\n          status\n        }\n      }\n    }\n  }\n}\n","variables":{}}'
+```
+
+## 結果の形式をエクスポート [#export-results-format]
+
+クエリの結果は、2つの`get details`エンドポイントのいずれかからの結果フィールドにあります。それらは1つ以上のダウンロードリンクの形式です。結果ファイル自体は、エクスポートが実行されてから1週間有効であり、約100MB以下のGZIP圧縮JSONが含まれています。各リンクは、2分間有効になるように事前に署名されています。リンクの有効期限が切れた場合は、NerdGraphのエクスポート詳細オブジェクトを再クエリして結果を取得することで、新しいリンクを取得できます。
+
+解凍された結果ファイルの例を以下に示します。
+
+```
+[
+  {
+    "attributes": {
+      "duration": 36,
+      "eventType": "Transaction",
+      "account": ACCOUNTID,
+      "timestamp": 1655174793213
+    }
+  },
+  {
+    "attributes": {
+      "duration": 3,
+      "eventType": "MobileRequest",
+      "account": ACCOUNTID,
+      "timestamp": 1655174793215
+    }
+  }
+]
+```
+
+## エクスポート関連のイベントに関するクエリとアラート [#query-alert]
+
+この機能は、エクスポートが実行されたNewRelicアカウントでカスタムイベントを生成します。アカウントで実行されたエクスポートに関する情報を取得するには、これらのイベントに関するアラートをクエリまたは作成すると便利な場合があります。
+
+`HistoricalDataExport`イベントタイプには、エクスポートのステータス（ `Created` 、 `Completed` 、 `Failed` 、 `Canceled` ）、エクスポートID、エクスポートの生成元のNRQL文字列などの情報が含まれます。
+
+[クエリビルダー](/docs/query-your-data/explore-query-data/query-builder/introduction-query-builder)で実行したり、ダッシュボードに追加したりできる次のクエリは、先週作成されたすべてのエクスポートと、正常に完了してエラーが発生しなかったエクスポートの数を返します。
+
+```
+FROM HistoricalDataExport SELECT * WHERE status = 'Created' SINCE 1 WEEK AGO
+```
+
+```
+FROM HistoricalDataExport SELECT count(*) WHERE status != 'Completed' FACET status SINCE 1 WEEK AGO
+```
+
+## トラブルシューティング [#troubleshooting]
+
+### アカウントはまだ有効になっていません [#account-not-yet-enabled]
+
+エクスポートを作成しようとすると、次のようなエラーメッセージが表示される場合があります。
+
+```
+Cannot query field \"historicalDataExportCreateExport\" on type \"RootMutationType\".
+```
+
+これを取得している場合は、エクスポート元のアカウントで履歴データのエクスポート機能がまだ有効になっていない可能性があります。質問がある場合は、要件を確認し、アカウント担当者に相談してアクセスについて質問してください。
+
+### 結果リンクの有効期限が切れました [#results-link-expired]
+
+事前に署名されたURLを使用して結果をダウンロードしようとすると、次のようなエラーが表示される場合があります。
+
+```
+<Error>
+<Code>AccessDenied</Code>
+<Message>Request has expired</Message>
+<X-Amz-Expires>120</X-Amz-Expires>
+<Expires>2022-06-24T15:16:45Z</Expires>
+<ServerTime>2022-06-24T17:56:40Z</ServerTime>
+<RequestId>1234567890ABC</RequestId>
+<HostId>ABCD1234HOST-ID098765-XYZ</HostId>
+</Error>
+```
+
+このようなエラーは、結果のURLの有効期限が切れていることを示しており、新しい結果のURLを取得するためにエクスポートオブジェクトを再クエリする必要があります。エクスポートを再実行する必要はありません。結果の新しいURLセットを取得するだけです。
