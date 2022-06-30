@@ -2,7 +2,6 @@
 title: 'Read the FutureStack recap' 
 summary: 'Learn about the product announcements unveiled at FutureStack 2022, our ultimate customer conference for software engineers and developers.'
 releaseDate: '2022-05-25'
-isFeatured: true
 learnMoreLink: 'https://newrelic.com/blog/nerdlog/futurestack-2022-recap' 
 ---
 
