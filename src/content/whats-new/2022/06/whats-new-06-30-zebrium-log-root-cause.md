@@ -1,5 +1,5 @@
 ---
-title: ‘AI-powered root cause analysis with the Zebrium integration’
+title: 'AI-powered root cause analysis with the Zebrium integration'
 summary: 'Troubleshoot incidents faster and avoid manually digging through logs with the Zebrium quickstart'
 releaseDate: '2022-06-30'
 getStartedLink: 'https://newrelic.com/instant-observability/zebrium/2135562c-bdf4-41bd-bca4-f11bcdee72ca'
