@@ -1,5 +1,5 @@
 ---
-title: ‘AI-powered root cause analysis with the Zebrium integration’
+title: 'AI-powered root cause analysis with the Zebrium integration'
 summary: 'Troubleshoot incidents faster and avoid manually digging through logs with the Zebrium quickstart'
 releaseDate: '2022-06-30'
 getStartedLink: 'https://newrelic.com/instant-observability/zebrium/2135562c-bdf4-41bd-bca4-f11bcdee72ca'
@@ -10,9 +10,9 @@ We've partnered with [Zebrium](https://zebrium.com/newrelic) to help you automat
 
 ## Identify root causes at a glance with the Zebrium quickstart
 
-Get instant visibility into detections, log anomalies, and root cause reports. Install the Zebrium Root Cause as a Service quickstart in [New Relic I/O](https://newrelic.com/instant-observability) to get a pre-built dashboard to get started for free in minutes. See how it works in the video below:
+Get instant visibility into detections, log anomalies, and root cause reports. Install the Zebrium Root Cause as a Service quickstart in [New Relic I/O](https://newrelic.com/instant-observability) to get a pre-built dashboard to get started for free in minutes. See how it works in the following video:
 
-<iframe width="560" height="315" src="https://www.youtube.com/watch?v=s5OJtz2xH2Q“ frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+<iframe width="560" height="315" src="https://www.youtube.com/embed/YHlTlN_0K8Q" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
 
 ## Benefits
 
