@@ -15,6 +15,7 @@ import MDXTechTileGrid from './MDXTechTileGrid';
 import PropTypes from 'prop-types';
 import React from 'react';
 import TechTile from './TechTile';
+import HideWhenEmbedded from './HideWhenEmbedded';
 
 const defaultComponents = {
   img: (props) =>
@@ -68,6 +69,7 @@ const defaultComponents = {
   ButtonLink: (props) => <MDXButton as={Link} {...props} />,
   ButtonGroup: MDXButtonGroup,
   DoNotTranslate: ({ children }) => <>{children}</>,
+  HideWhenEmbedded,
 };
 
 const MDXContainer = ({ body, children, components }) => {
