@@ -13,6 +13,7 @@ import { css } from '@emotion/react';
 import SEO from '../components/SEO';
 import RootNavigation from '../components/RootNavigation';
 import SubNavigation from '../components/SubNavigation';
+import EmbedLayout from './EmbedLayout';
 import { animated, useTransition } from 'react-spring';
 import { useLocation } from '@reach/router';
 
@@ -29,13 +30,13 @@ const MainLayout = ({ data = {}, children, pageContext }) => {
     from: (nav) => ({
       opacity: 0,
       position: 'absolute',
-      transform: `translateX(${nav?.id === rootNav?.id ? '125px' : '-125px'})`,
+      transform: `translateX(${nav?.id === rootNav.id ? '125px' : '-125px'})`,
     }),
 
     enter: { opacity: 1, transform: 'translateX(0)' },
     leave: (nav) => ({
       opacity: 0,
-      transform: `translateX(${nav?.id === rootNav?.id ? '125px' : '-125px'})`,
+      transform: `translateX(${nav?.id === rootNav.id ? '125px' : '-125px'})`,
     }),
   });
 
@@ -43,15 +44,23 @@ const MainLayout = ({ data = {}, children, pageContext }) => {
     setIsMobileNavOpen(false);
   }, [location.pathname]);
 
+  const isEmbed = pageContext.layout && pageContext.layout === 'EmbedLayout';
+  if (pageContext.fileRelativePath.match(/404/)) {
+    return children;
+  }
+  if (isEmbed) {
+    return <EmbedLayout>{children}</EmbedLayout>;
+  }
+
   return (
     <>
       <SEO location={location} />
       <GlobalHeader
-        hideSearch={nav?.id === rootNav?.id && true}
+        hideSearch={nav?.id === rootNav.id && true}
         customStyles={{ navLeftMargin: '150px', searchRightMargin: '30px' }}
       />
       <MobileHeader>
-        {nav?.id === rootNav?.id ? (
+        {nav?.id === rootNav.id ? (
           <RootNavigation nav={nav} />
         ) : (
           <SubNavigation nav={nav} />
@@ -90,7 +99,7 @@ const MainLayout = ({ data = {}, children, pageContext }) => {
               padding-bottom: ${contentPadding};
             `;
 
-            return nav?.id === rootNav?.id ? (
+            return nav?.id === rootNav.id ? (
               <animated.div style={style} css={containerStyle}>
                 <RootNavigation nav={nav} />
               </animated.div>
