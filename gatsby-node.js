@@ -224,6 +224,14 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
       frontmatter: { redirects },
       fields: { fileRelativePath, slug },
     } = node;
+
+    if (
+      fileRelativePath.includes('src/content/docs/release-notes') ||
+      fileRelativePath.includes('src/content/whats-new')
+    ) {
+      return;
+    }
+
     const pagePath = path.join(slug, 'embed', '/');
 
     createPage({
