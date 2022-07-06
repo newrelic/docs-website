@@ -231,7 +231,7 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
       return;
     }
 
-    const pagePath = path.join(slug, 'embed', '/');
+    const pagePath = path.join(slug, 'embed');
 
     createPage({
       path: pagePath,
