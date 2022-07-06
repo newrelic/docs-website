@@ -14,10 +14,16 @@ A subquery is simply a NRQL query which is embedded inside of another query. Eac
 Here are two examples. For more details on how to use subqueries, see the [examples in the docs](https://docs.newrelic.com/docs/query-your-data/nrql-new-relic-query-language/get-started/subqueries-in-nrql/#subquery-examples).
 
 ### Example #1
+
+This query finds the number of transactions whose duration is above average:
+
 ```
 SELECT count(*) FROM Transaction WHERE duration > (SELECT average(duration) FROM Transaction)
 ```
 ### Example #2
+
+This query leverages multiple nested subqueries to find the unique accounts responsible for transactions whose duration was greater than the 99th percentile:
+
 ```
 FROM Transaction SELECT uniques(accountId) WHERE guid IN
   (FROM Transaction SELECT uniques(guid) WHERE duration >
