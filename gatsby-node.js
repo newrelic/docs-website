@@ -221,7 +221,6 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
 
   const createEmbed = (node) => {
     const {
-      frontmatter: { redirects },
       fields: { fileRelativePath, slug },
     } = node;
 
@@ -243,24 +242,6 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
         layout: 'EmbedLayout',
       },
     });
-
-    if (redirects) {
-      redirects.forEach((fromPath) => {
-        reporter.info(
-          `Creating redirect for embed page: ${path.join(
-            fromPath,
-            'embed',
-            '/'
-          )}`
-        );
-        createRedirect({
-          fromPath: path.join(fromPath, 'embed', '/'),
-          toPath: pagePath,
-          isPermanent: true,
-          redirectInBrowser: true,
-        });
-      });
-    }
   };
 
   const translatedContentNodes = allI18nMdx.edges.map(({ node }) => node);
