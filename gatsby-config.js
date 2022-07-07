@@ -10,6 +10,21 @@ const dataDictionaryPath = `${__dirname}/src/data-dictionary`;
 const siteUrl = 'https://docs.newrelic.com';
 const additionalLocales = ['jp', 'kr'];
 
+const allFolders = fs
+  .readdirSync(`${__dirname}/src/content/docs`)
+  .filter((folder) => !folder.startsWith('.'));
+const doNotIgnoreFolders =
+  process.env.BUILD_FOLDERS && process.env.BUILD_FOLDERS.split(',');
+const ignoreFolders = process.env.BUILD_FOLDERS
+  ? allFolders
+      .filter(
+        (folder) =>
+          !doNotIgnoreFolders.includes(folder) && folder !== 'release-notes'
+      )
+      .map((folder) => `${__dirname}/src/content/docs/${folder}/*`)
+      .concat(`${__dirname}/src/content/whats-new/*`)
+  : [];
+
 const autoLinkHeaders = {
   resolve: 'gatsby-remark-autolink-headers',
   options: {
@@ -193,6 +208,7 @@ module.exports = {
       options: {
         name: 'markdown-pages',
         path: `${__dirname}/src/content`,
+        ignore: ignoreFolders,
       },
     },
     {
@@ -207,6 +223,10 @@ module.exports = {
       options: {
         name: 'translated-content',
         path: `${__dirname}/src/i18n/content`,
+        ignore:
+          process.env.BUILD_I18N === 'false'
+            ? [`${__dirname}/src/i18n/content/*`]
+            : [],
       },
     },
     {
@@ -214,6 +234,10 @@ module.exports = {
       options: {
         name: 'translated-nav',
         path: `${__dirname}/src/i18n/nav`,
+        ignore:
+          process.env.BUILD_I18N === 'false'
+            ? [`${__dirname}/src/i18n/nav/*`]
+            : [],
       },
     },
     {
