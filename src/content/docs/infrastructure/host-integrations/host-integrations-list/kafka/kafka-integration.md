@@ -238,12 +238,6 @@ The integration has two modes of operation on each instance, which are mutually 
   These modes are are mutually exclusive because consumer offset collection takes a long time to run and has high performance requirements, in order to collect both groups of Samples, set two instances, one with each mode.
 </Callout>
 
-When setting `CONSUMER_OFFSET = true`, by default, only the metrics from consumer groups with active consumers (and consumer metrics) will be collected.
-To also collect the metrics from consumer groups with inactive consumers you must set `INACTIVE_CONSUMER_GROUP_OFFSET` to `true`.
-
-When a consumer group is monitoring more than one topic, it's valuable to have consumer group metrics separated by topics, specially if one of the topics have inactive consumers, because then it's possible to spot in which topic the consumer group is having lag and if there are active consumers for that consumer group and topic.
-To get consumer group metrics separated by topic, you must set `CONSUMER_GROUP_OFFSET_BY_TOPIC` to `true` (it defaults to `false`)
-
 The values for these settings can be defined in several ways:
 
 - Adding the value directly in the config file. This is the most common way.
@@ -253,6 +247,16 @@ The values for these settings can be defined in several ways:
 </Callout>
 
 - Using secrets management. Use this to protect sensitive information, such as passwords that would be exposed in plain text on the configuration file. For more information, see [secrets management](/docs/integrations/host-integrations/installation/secrets-management).
+
+### Offset monitoring
+
+When setting `CONSUMER_OFFSET = true`, by default, only the metrics from consumer groups with active consumers (and consumer metrics) will be collected.
+To also collect the metrics from consumer groups with inactive consumers you must set `INACTIVE_CONSUMER_GROUP_OFFSET` to `true`.
+
+When a consumer group is monitoring more than one topic, it's valuable to have consumer group metrics separated by topics, specially if one of the topics have inactive consumers, because then it's possible to spot in which topic the consumer group is having lag and if there are active consumers for that consumer group and topic.
+To get consumer group metrics separated by topic, you must set `CONSUMER_GROUP_OFFSET_BY_TOPIC` to `true` (it defaults to `false`)
+
+For more on how to set up offset monitoring, see [Configure KafkaOffsetSample collection](/docs/infrastructure/host-integrations/host-integrations-list/kafka/kafka-config/#KafkaOffsetSample-collection).
 
 ## kafka-config.yml sample files [#examples]
 
