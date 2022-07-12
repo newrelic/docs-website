@@ -231,7 +231,7 @@ Specific settings related to Kafka are defined using the `env` section of each i
 
 The integration has two modes of operation on each instance, which are mutually exclusive, that you can set up with the `CONSUMER_OFFSET` parameter:
 
-* Consumer offset collection: set `CONSUMER_OFFSET = true` to collect [KafkaOffsetSample](/docs/infrastructure/host-integrations/host-integrations-list/kafka/kafka-config/#KafkaOffsetSample-collectionn).
+* Consumer offset collection: set `CONSUMER_OFFSET = true` to collect [KafkaOffsetSample](/docs/infrastructure/host-integrations/host-integrations-list/kafka/kafka-config/#KafkaOffsetSample-collection).
 * Core collection mode: set `CONSUMER_OFFSET = false` to collect the rest of the samples: [KafkaBrokerSample, KafkaTopicSample](/docs/infrastructure/host-integrations/host-integrations-list/kafka/kafka-config/#broker-collection), [KafkaProducerSample, KafkaConsumerSample](/docs/infrastructure/host-integrations/host-integrations-list/kafka/kafka-config/#KafkaConsumerSample-collection).
 
 <Callout variant="important">
