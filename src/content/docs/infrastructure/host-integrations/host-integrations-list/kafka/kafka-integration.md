@@ -127,7 +127,7 @@ Kafka is a complex piece of software that is built as a distributed system. For 
     id="consumer-offset"
     title="Consumer offset"
   >
-    The offset of the consumer and consumer groups of the topics as well as the lag, can be retrieved as a [KafkaOffsetSample](#KafkaOffsetSample-collection) with the `CONSUMER_OFFSET=true` flag but should be in a separate instance because when this flag is activated the instance will not collect other Samples.
+    The offset of the consumer and consumer groups of the topics as well as the lag, can be retrieved as a [KafkaOffsetSample](/docs/infrastructure/host-integrations/host-integrations-list/kafka/kafka-config/#KafkaOffsetSample-collection) with the `CONSUMER_OFFSET=true` flag but should be in a separate instance because when this flag is activated the instance will not collect other Samples.
   </Collapser>
 
   <Collapser
@@ -226,13 +226,13 @@ There are several ways to configure the integration, depending on how it was ins
   If you are still using our Legacy configuration and definition files, refer to this [document](/docs/create-integrations/infrastructure-integrations-sdk/specifications/host-integrations-standard-configuration-format/) for help.
 </Callout>
 
-As with other integrations, one `kafka-config.yml` configuration file can have many instances of the integration collecting different brokers, consumers and producers metrics.
+As with other integrations, one `kafka-config.yml` configuration file can have many instances of the integration collecting different brokers, consumers and producers metrics. You can see config examples with one or multiple instances in the [`kafka-config.yml` sample files](#examples)
 Specific settings related to Kafka are defined using the `env` section of each instance in the `kafka-config.yml` configuration file. These settings control the connection to your Brokers, Zookeeper, and JMX as well as other security settings and features. The list of valid settings is described in [Kafka's configuration settings](/docs/infrastructure/host-integrations/host-integrations-list/kafka/kafka-config).
 
 The integration has two modes of operation on each instance, which are mutually exclusive, that you can set up with the `CONSUMER_OFFSET` parameter:
 
-* Consumer offset collection: set `CONSUMER_OFFSET = true` to collect [KafkaOffsetSample](#KafkaOffsetSample-collection).
-* Core collection mode: set `CONSUMER_OFFSET = false` to collect the rest of the samples: [KafkaBrokerSample, KafkaTopicSample](#broker-collection), [KafkaProducerSample, KafkaConsumerSample](#KafkaConsumerSample-collection).
+* Consumer offset collection: set `CONSUMER_OFFSET = true` to collect [KafkaOffsetSample](/docs/infrastructure/host-integrations/host-integrations-list/kafka/kafka-config/#KafkaOffsetSample-collectionn).
+* Core collection mode: set `CONSUMER_OFFSET = false` to collect the rest of the samples: [KafkaBrokerSample, KafkaTopicSample](/docs/infrastructure/host-integrations/host-integrations-list/kafka/kafka-config/#broker-collection), [KafkaProducerSample, KafkaConsumerSample](/docs/infrastructure/host-integrations/host-integrations-list/kafka/kafka-config/#KafkaConsumerSample-collection).
 
 <Callout variant="important">
   These modes are are mutually exclusive because consumer offset collection takes a long time to run and has high performance requirements, in order to collect both groups of Samples, set two instances, one with each mode.
