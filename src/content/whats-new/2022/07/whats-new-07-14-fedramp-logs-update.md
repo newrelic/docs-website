@@ -9,5 +9,5 @@ On August 12th, 2022, accounts approved under the Federal Risk and Authorization
 
 Collecting application logs means that more data will be ingested into the platform, at your standard ingest rate. You always have direct control over which data you send to New Relic by [configuring your agent](https://docs.newrelic.com/docs/apm/new-relic-apm/getting-started/get-started-logs-context/#agents).
 
-See our documentation about [disabling automatic logging](https://docs.newrelic.com/docs/logs/logs-context/disable-automatic-logging/) or [New Relic's data management hub](https://docs.newrelic.com/docs/logs/logs-context/disable-automatic-logging/#disable-ui) for more information on how to adjust your default settings.
+See our documentation about [disabling automatic logging](https://docs.newrelic.com/docs/logs/logs-context/disable-automatic-logging/) or [New Relic's data management hub](https://docs.newrelic.com/docs/data-apis/manage-data/manage-your-data/) for more information on how to adjust your default settings.
 
