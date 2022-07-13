@@ -23,6 +23,21 @@ const ignoreFolders = process.env.BUILD_FOLDERS
       .map((folder) => `${__dirname}/src/content/docs/${folder}/*`)
   : [];
 
+const allFolders = fs
+  .readdirSync(`${__dirname}/src/content/docs`)
+  .filter((folder) => !folder.startsWith('.'));
+const doNotIgnoreFolders =
+  process.env.BUILD_FOLDERS && process.env.BUILD_FOLDERS.split(',');
+const ignoreFolders = process.env.BUILD_FOLDERS
+  ? allFolders
+      .filter(
+        (folder) =>
+          !doNotIgnoreFolders.includes(folder) && folder !== 'release-notes'
+      )
+      .map((folder) => `${__dirname}/src/content/docs/${folder}/*`)
+      .concat(`${__dirname}/src/content/whats-new/*`)
+  : [];
+
 const autoLinkHeaders = {
   resolve: 'gatsby-remark-autolink-headers',
   options: {
