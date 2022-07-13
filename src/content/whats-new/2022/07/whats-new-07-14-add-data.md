@@ -8,10 +8,10 @@ learnMoreLink: 'https://www.youtube.com/watch?v=SwH1uJiPAfo'
 ## Get started faster
 Telemetry data is powerful to help you gain observability into your applications, network, infrastructure, and more. But instrumenting it all can be a pain with countless proprietary agents and integrations to manually install.
 
-That's why we've designed the data onboarding experience in New Relic to make it easier, more flexible, and more connected to the right observability platform experiences&#8212;to help you get more value from your data.
+That's why we've designed the data onboarding experience in New Relic to make it easier, more flexible, and more connected to the right observability platform experiences&mdash;to help you get more value from your data.
 
 ## Demo
-The best part is that it only takes a few minutes to get started&#8212;no need for specialized instrumentation expertise. See a demo in the video below:
+The best part is that it only takes a few minutes to get started&mdash;no need for specialized instrumentation expertise. See a demo in the video below:
 
 <iframe width="560" height="315" src="https://www.youtube.com/embed/SwH1uJiPAfo" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
 
