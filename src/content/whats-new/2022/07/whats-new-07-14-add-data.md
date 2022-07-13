@@ -23,4 +23,4 @@ The best part is that it only takes a few minutes to get started&mdash;no need f
 
 ![Add data view in New Relic](./images/add_data_darkmode.png "A screenshot that shows the add data view in New Relic.")
 
-<figcaption>Choose from hundreds of data sources, pre-built dashboards, and more in the new **Add data** catalog. Select one to install your resources in minutes.</figcaption>
+<figcaption>Choose from hundreds of data sources, pre-built dashboards, and more in the new <b>Add data</b> catalog. Select one to install your resources in minutes.</figcaption>
