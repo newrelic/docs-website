@@ -1,17 +1,26 @@
 import React from 'react';
 import { Layout } from '@newrelic/gatsby-theme-newrelic';
 import PropTypes from 'prop-types';
-import { css } from '@emotion/react';
+import { css, Global } from '@emotion/react';
 
 const EmbedLayout = ({ children }) => {
   return (
-    <Layout.Main
-      css={css`
-        min-height: 100vh;
-      `}
-    >
-      {children}
-    </Layout.Main>
+    <>
+      <Global
+        styles={css`
+          body {
+            background-color: var(--secondary-background-color);
+          }
+        `}
+      />
+      <Layout.Main
+        css={css`
+          min-height: 100vh;
+        `}
+      >
+        {children}
+      </Layout.Main>
+    </>
   );
 };
 
