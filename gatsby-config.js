@@ -22,7 +22,7 @@ const ignoreFolders = process.env.BUILD_FOLDERS
       )
       .map((folder) => `${__dirname}/src/content/docs/${folder}/*`)
   : [];
-  
+
 const autoLinkHeaders = {
   resolve: 'gatsby-remark-autolink-headers',
   options: {
