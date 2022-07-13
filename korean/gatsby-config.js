@@ -3,12 +3,12 @@ const path = require('path');
 const parse = require('rehype-parse');
 const unified = require('unified');
 const rehypeStringify = require('rehype-stringify');
-const addAbsoluteImagePath = require('./rehype-plugins/utils/addAbsoluteImagePath');
-const getAgentName = require('./src/utils/getAgentName');
+const addAbsoluteImagePath = require('../rehype-plugins/utils/addAbsoluteImagePath');
+const getAgentName = require('../src/utils/getAgentName');
 
-const dataDictionaryPath = `${__dirname}/src/data-dictionary`;
-const siteUrl = 'https://docs.newrelic.com';
-const additionalLocales = ['jp', 'kr'];
+const dataDictionaryPath = `${__dirname}/../src/data-dictionary`;
+const siteUrl = 'https://docs.newrelic.com/kr';
+const additionalLocales = ['kr'];
 
 const autoLinkHeaders = {
   resolve: 'gatsby-remark-autolink-headers',
@@ -40,7 +40,7 @@ module.exports = {
       resolve: `gatsby-source-filesystem`,
       options: {
         name: `images`,
-        path: `${__dirname}/src/images`,
+        path: `${__dirname}/../src/images`,
       },
     },
     `gatsby-transformer-sharp`,
@@ -52,11 +52,11 @@ module.exports = {
         layout: {
           contentPadding: '1.5rem',
           maxWidth: '1600px',
-          component: require.resolve('./src/layouts'),
+          component: require.resolve('../src/layouts'),
           mobileBreakpoint: '760px',
         },
         i18n: {
-          translationsPath: `${__dirname}/src/i18n/translations`,
+          translationsPath: `${__dirname}/i18n/translations`,
           additionalLocales,
         },
         prism: {
@@ -181,7 +181,7 @@ module.exports = {
         background_color: '#663399',
         theme_color: '#663399',
         display: 'minimal-ui',
-        icon: 'src/images/favicon.png', // This path is relative to the root of the site.
+        icon: '../src/images/favicon.png', // This path is relative to the root of the site.
       },
     },
     // this (optional) plugin enables Progressive Web App + Offline functionality
@@ -192,7 +192,7 @@ module.exports = {
       resolve: 'gatsby-source-filesystem',
       options: {
         name: 'markdown-pages',
-        path: `${__dirname}/src/content`,
+        path: `${__dirname}/../src/content`,
       },
     },
     {
@@ -206,14 +206,14 @@ module.exports = {
       resolve: 'gatsby-source-filesystem',
       options: {
         name: 'translated-content',
-        path: `${__dirname}/src/i18n/content`,
+        path: `${__dirname}/i18n/content`,
       },
     },
     {
       resolve: 'gatsby-source-filesystem',
       options: {
         name: 'translated-nav',
-        path: `${__dirname}/src/i18n/nav`,
+        path: `${__dirname}/i18n/nav`,
       },
     },
     {
@@ -267,9 +267,9 @@ module.exports = {
         // If this is addressed in MDX v2, we can safely remove this.
         remarkPlugins: [],
         rehypePlugins: [
-          require('./rehype-plugins/image-sizing'),
+          require('../rehype-plugins/image-sizing'),
           [
-            require('./rehype-plugins/gatsby-inline-images'),
+            require('../rehype-plugins/gatsby-inline-images'),
             { spacing: '0.5rem' },
           ],
         ],
@@ -292,11 +292,11 @@ module.exports = {
           // https://github.com/gatsbyjs/gatsby/issues/23194
           {
             resolve: require.resolve(
-              './plugins/gatsby-remark-custom-heading-ids'
+              '../plugins/gatsby-remark-custom-heading-ids'
             ),
           },
           {
-            resolve: require.resolve('./plugins/gatsby-remark-mdx-v2-images'),
+            resolve: require.resolve('../plugins/gatsby-remark-mdx-v2-images'),
           },
           // Gifs are not supported via gatsby-remark-images (https://github.com/gatsbyjs/gatsby/issues/7317).
           // It is recommended to therefore use this plugin to copy files with a
@@ -305,19 +305,19 @@ module.exports = {
           // Source: https://github.com/gatsbyjs/gatsby/issues/7317#issuecomment-412984851
           'gatsby-remark-copy-linked-files',
           {
-            resolve: require.resolve('./plugins/gatsby-remark-gifs'),
+            resolve: require.resolve('../plugins/gatsby-remark-gifs'),
             options: {
               maxWidth: 1200,
             },
           },
           {
             resolve: require.resolve(
-              './plugins/gatsby-remark-mdx-v2-fenced-code-blocks'
+              '../plugins/gatsby-remark-mdx-v2-fenced-code-blocks'
             ),
           },
           {
             resolve: require.resolve(
-              './plugins/gatsby-remark-remove-button-paragraphs'
+              '../plugins/gatsby-remark-remove-button-paragraphs'
             ),
           },
         ],
@@ -327,7 +327,7 @@ module.exports = {
     {
       resolve: `gatsby-source-filesystem`,
       options: {
-        path: `./src/nav/`,
+        path: `../src/nav/`,
       },
     },
     'gatsby-plugin-generate-doc-json',
@@ -359,7 +359,9 @@ module.exports = {
         path: '/api/nr1/content/nr1-announcements.json',
         serialize: ({ data }) => {
           const ids = JSON.parse(
-            fs.readFileSync(path.join(__dirname, 'src/data/whats-new-ids.json'))
+            fs.readFileSync(
+              path.join(__dirname, '../src/data/whats-new-ids.json')
+            )
           );
 
           const htmlParser = unified()
@@ -394,7 +396,9 @@ module.exports = {
         path: '/api/nr1/content/nr1-announcements/ids.json',
         serialize: () => {
           const ids = JSON.parse(
-            fs.readFileSync(path.join(__dirname, 'src/data/whats-new-ids.json'))
+            fs.readFileSync(
+              path.join(__dirname, '../src/data/whats-new-ids.json')
+            )
           );
 
           return {
@@ -502,9 +506,9 @@ module.exports = {
     {
       resolve: 'gatsby-plugin-typegen',
       options: {
-        outputPath: 'src/__generated__/gatsby-types.d.ts',
+        outputPath: '../src/__generated__/gatsby-types.d.ts',
         emitSchema: {
-          'src/__generated__/gatsby-schema.graphql': true,
+          '../src/__generated__/gatsby-schema.graphql': true,
         },
       },
     },
