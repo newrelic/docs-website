@@ -225,7 +225,8 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
     } = node;
 
     if (
-      fileRelativePath.includes('src/content/docs/release-notes') ||
+      // TODO: eventually exclude release notes from embeds / nr1-help-xp
+      // fileRelativePath.includes('src/content/docs/release-notes') ||
       fileRelativePath.includes('src/content/whats-new')
     ) {
       return;
