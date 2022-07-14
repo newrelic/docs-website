@@ -1,0 +1,354 @@
+---
+title: New Relic Java agent for Dockerのインストール
+tags:
+  - Agents
+  - Java agent
+  - Additional installation
+metaDescription: How to install New Relic's Java agent for APM on a Docker container.
+translationType: machine
+---
+
+このドキュメントでは、Javaアプリケーション用のAPMエージェントをDockerコンテナにインストールする基本的な方法を説明します。必要な構成について説明するとともに、以下のようなオプションの構成についても検討しています。
+
+* コンテナが使用される環境に関わらず、各コンテナに同一のNew Relic設定ファイルを使用する方法
+* すべての環境のすべてのエージェントが微妙に異なる設定データを必要とする場合に、Dockerレイヤーをどのように使用するか
+* ある環境ではNew Relicエージェントを無効にし、別の環境では有効にする方法
+
+ここでは高度なオプションについては説明しませんが、JavaエージェントをDockerボリュームにインストールして、Swarm、ECS、AKS、EKS、OpenShift、Kubernetesなどの他のソフトウェアでDockerコンテナイメージを使用することができます。私たちのDockerの例ではTomcatを参照していますので、他のアプリケーションサーバーを使用している場合は、ベンダーのドキュメントを参照してください。
+
+## Javaエージェントの取得 [#download-agent]
+
+`curl`、`Invoke-WebRequest` (PowerShell)、またはNew Relic UIを使用して`newrelic-java.zip`をダウンロードします。
+
+<CollapserGroup>
+  <Collapser
+    id="download-from-curl"
+    title={<>を使用してダウンロード <InlineCode>curl</InlineCode></>}
+  >
+    次の項目を完了します。
+
+    1. コマンドラインセッションを開始します。
+
+    2. zipファイルをダウンロードできる一時ディレクトリに変更します。
+
+    3. この`curl`コマンドを実行します。
+
+       ```
+       curl -O https://download.newrelic.com/newrelic/java-agent/newrelic-agent/current/newrelic-java.zip
+       ```
+
+    4. 必要に応じて `newrelic-java.zip`
+  </Collapser>
+
+  <Collapser
+    id="download-from-powershell"
+    title={<><InlineCode>Invoke-WebRequest</InlineCode>を使用してダウンロード（PowerShell）</>}
+  >
+    次の項目を完了します。
+
+    1. PowerShellセッションを開始します。
+
+    2. zipファイルをダウンロードできる一時ディレクトリに変更します。
+
+    3. 以下の、PowerShellコマンドを実行します。
+
+       ```
+       Invoke-WebRequest -Uri https://download.newrelic.com/newrelic/java-agent/newrelic-agent/current/newrelic-java.zip -OutFile newrelic-java.zip
+       ```
+
+    4. `newrelic-java.zip`を解凍します。
+
+       ```
+       Expand-Archive -Path newrelic-java.zip -DestinationPath <var>DESTINATION_PATH</var>
+       ```
+  </Collapser>
+
+  <Collapser
+    id="download-from-UI"
+    title="New Relic UIからダウンロード"
+  >
+    1. [one.newrelic.comから](https://one.newrelic.com), クリック **Add more data** and then search for"Java".
+    2. Javaアプリの監視オプションを選択し、プロセスを完了します。
+  </Collapser>
+</CollapserGroup>
+
+## インストールディレクトリの設定 [#install-directory]
+
+`newrelic-java.zip`ファイルは都合のよい場所ならどこでも解凍できます。以降のセクションでは、現在の作業ディレクトリに抽出したと仮定します。これにより、必要なファイルが`./newrelic`に配置されます。
+
+## スタートアップスクリプトの変更 [#start-up-scripts]
+
+アプリケーションサーバーを起動するコマンドを含む起動スクリプトには、Javaの組み込み引数`-javaagent`が含まれている必要があります。この引数は、 `JAVA_OPTS`環境変数を使用して設定することをお勧めします。その引数の値には、 `ADD`エージェントのjarファイルをイメージに追加する場所が含まれている必要があります。
+
+たとえば、Tomcatでは、 `Dockerfile`で次のようなコマンドを使用します。
+
+```
+RUN mkdir -p /usr/local/tomcat/newrelic
+ADD ./newrelic/newrelic.jar /usr/local/tomcat/newrelic/newrelic.jar
+ENV JAVA_OPTS="$JAVA_OPTS -javaagent:/usr/local/tomcat/newrelic/newrelic.jar"
+```
+
+## エージェントの設定 [#agent-configs]
+
+デフォルトでは、エージェントの動作は`newrelic.yml`の構成エントリによって制御されます。これは通常、エージェントと同じディレクトリにあります。このセクションでは、 `Dockerfile`の環境変数またはJavaシステムプロパティを使用して、これらの`newrelic.yml`構成をオーバーライドする方法について説明します。
+
+特定の構成を確認する前に、 `Dockerfile`を使用して`newrelic.yml`をロードする方法を次に示します。
+
+```
+ADD ./newrelic/newrelic.yml /usr/local/tomcat/newrelic/newrelic.yml
+```
+
+基本的なDockerのインストールでは、以下の設定を行います。
+
+* [アプリケーション名](#app-name)
+* [ライセンスキー](#license-key)
+* [ログ](#logs)
+* [環境](#environment) （オプション）
+* [エージェントが有効](#agent-enabled)（オプション）
+
+### アプリケーション名 [#app-name]
+
+アプリケーション名は、New Relicでアプリケーションを識別するために設定する設定です。
+
+<Callout variant="tip">
+  同じ役割を果たす複数のアプリにアプリケーション名を再利用することで、それらのアプリからのすべてのデータがNew Relicの同じ論理的なアプリケーションにロールアップされます。追加のグループ化オプションの詳細については、 [Use multiple names for an app](/docs/agents/manage-apm-agents/app-naming/use-multiple-names-app) を参照してください。
+</Callout>
+
+次のいずれかの`Dockerfile`コマンドで、 <var>MY_APP_NAME</var>をアプリケーション名に置き換えます。
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "125px" }}>
+        オプション
+      </th>
+
+      <th>
+        コマンド
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        環境  
+        変数
+      </td>
+
+      <td>
+        ```
+        ENV NEW_RELIC_APP_NAME="MY_APP_NAME"
+        ```
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Javaシステム  
+        プロパティ
+      </td>
+
+      <td>
+        ```
+        ENV JAVA_OPTS="$JAVA_OPTS -Dnewrelic.config.app_name='MY_APP_NAME'"
+        ```
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+コンテナを起動すると、New Relicにアプリケーション名が表示されます。
+
+### ライセンスキー
+
+この設定は、New Relic アカウントにデータを報告するために必要です。
+
+ライセンスキーをコピーするには
+
+1. [API keys UI](/docs/apis/intro-apis/new-relic-api-keys) にアクセスし、ライセンスキーを取得してください。
+
+2. これらの`Dockerfile`コマンドの1つで、 <var>MY_LICENSE_KEY</var>をライセンスキーに置き換えます。
+
+   <table>
+     <thead>
+       <tr>
+         <th style={{ width: "125px" }}>
+           オプション
+         </th>
+
+         <th>
+           コマンド
+         </th>
+       </tr>
+     </thead>
+
+     <tbody>
+       <tr>
+         <td>
+           環境  
+           変数
+         </td>
+
+         <td>
+           ```
+           ENV NEW_RELIC_LICENSE_KEY="MY_LICENSE_KEY"
+           ```
+         </td>
+       </tr>
+
+       <tr>
+         <td>
+           Javaシステム  
+           プロパティ
+         </td>
+
+         <td>
+           ```
+           ENV JAVA_OPTS="$JAVA_OPTS -Dnewrelic.config.license_key='MY_LICENSE_KEY'"
+           ```
+         </td>
+       </tr>
+     </tbody>
+   </table>
+
+### ログ
+
+デフォルトでは、ログは`newrelic.jar`の場所を基準にしてlogsディレクトリに書き込まれます。アプリケーションサーバーを起動するユーザーアカウントにも、次のようなタスクを実行する権限があることを確認してください。
+
+* logsディレクトリの作成。
+* そのディレクトリ内のログファイルを作成し、追記する。
+
+Dockerfileの例を次に示します。 `tomcat`はTomcatを起動するユーザーです。
+
+```
+RUN mkdir -p /usr/local/tomcat/newrelic/logs
+RUN chown -R tomcat:tomcat /usr/local/tomcat/newrelic/logs
+```
+
+Dockerfileに次のいずれかを追加して、ログを`STDOUT`に送信することもできます。
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "125px" }}>
+        オプション
+      </th>
+
+      <th>
+        コマンド
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        環境  
+        変数
+      </td>
+
+      <td>
+        ```
+        ENV NEW_RELIC_LOG_FILE_NAME=STDOUT
+        ```
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Javaシステム  
+        プロパティ
+      </td>
+
+      <td>
+        ```
+        ENV JAVA_OPTS=-Dnewrelic.config.log_file_name=STDOUT
+        ```
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+### 環境（オプション） [#environment]
+
+Javaプロパティまたは環境変数のいずれかを渡して、エージェントが`newrelic.yml`で使用する環境固有のスタンザを判別できます。 Dockerを介してすべての構成を渡すのではなく、 `newrelic.yml`ファイルで環境固有の構成を制御したい場合は、このアプローチを使用してください。
+
+これは、Dockerを介して`newrelic.environment` Javaシステムプロパティを渡して、 `newrelic.yml`の環境スタンザでカスタム値`dev`を使用する`Dockerfile`の例です。
+
+1. CMD命令のシェル形式を使用して、選択した新しい環境変数への参照を含めます（たとえば、 `ENV` ）。
+
+   ```
+   CMD java -Dnewrelic.environment=$ENV -jar myjar.jar
+   ```
+
+2. `docker run`コマンドラインに、コンテナに環境変数を設定するための引数を含めます。
+
+   ```
+   docker run -it -e "ENV=dev" myDockerImage
+   ```
+
+<Callout variant="important">
+  `newrelic.environment`の値を指定しない場合、エージェントは実稼働環境で実行されていると見なし、構成ファイルの本体の値を使用します。
+</Callout>
+
+### エージェントが有効（オプション） [#agent-enabled]
+
+この設定は、エージェントを有効にするかどうかを制御します。例えば、すべてのインストールに同じDockerイメージを使用したいとします。しかし、エンジニアがテストアプリを起動するたびにNew Relicエージェントを実行するのは、インスタンス数を増やしたくないからです。
+
+この問題は、 `newrelic.environment` Javaシステムプロパティを使用して解決できます。
+
+1. `newrelic.yml`の本体で、 `agent_enabled: false`を設定してJavaエージェントを無効にします。
+2. `newrelic.yml`の特定の環境スタンザでは、 `agent_enabled: true`を設定します。
+
+そして、実行時に環境を指定することで、特定のエージェントを実行することができます。
+
+## 追加のTomcat Dockerfileの例 [#code-samples]
+
+<CollapserGroup>
+  <Collapser
+    id="both-env-and-props"
+    title="Tomcatの環境設定とJavaシステムのプロパティ"
+  >
+    ```
+    FROM tomcat:9
+    # Add the newrelic.jar and -javaagent parameters
+    RUN mkdir -p /usr/local/tomcat/newrelic
+    ADD ./newrelic/newrelic.jar /usr/local/tomcat/newrelic/
+    ENV JAVA_OPTS="$JAVA_OPTS -javaagent:/usr/local/tomcat/newrelic/newrelic.jar"
+    # Add the configuration file
+    ADD ./newrelic/newrelic.yml /usr/local/tomcat/newrelic/
+    # An example of setting a system property config
+    ENV JAVA_OPTS="$JAVA_OPTS -Dnewrelic.config.app_name='My Application'"
+    # An example of setting an Environment variable config
+    ENV NEW_RELIC_LICENSE_KEY="license_key"
+    # Config to include the agent logs in Docker's stdout logging
+    ENV JAVA_OPTS="$JAVA_OPTS -Dnewrelic.config.log_file_name=STDOUT"
+    EXPOSE 8080
+    CMD ["catalina.sh", "run"]
+    ```
+  </Collapser>
+
+  <Collapser
+    id="start-up"
+    title="Javaエージェントでアプリケーションを起動する方法"
+  >
+    ```
+    FROM openjdk:8
+    ADD my-application.jar /app
+    ADD newrelic.jar  /app
+    ADD newrelic.yml  /app 
+    ENV NEW_RELIC_APP_NAME="My Application"
+    ENV NEW_RELIC_LICENSE_KEY="license_key"
+    ENV NEW_RELIC_LOG_FILE_NAME="STDOUT"
+    ENTRYPOINT ["java","-javaagent:/app/newrelic.jar","-jar","/app/my-application.jar"]
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## 次のステップ [#what-is-next]
+
+これで、Dockerでの基本的なエージェントのインストールが完了しましたが、ここでは追加の手順をご紹介します。
+
+* 他の [設定を確認する](/docs/agents/java-agent/configuration/java-agent-configuration-config-file) エージェントのために。
+* DockerとNew Relicに関する詳細な [Explorers Hubのポスト](https://discuss.newrelic.com/t/relic-solution-what-you-need-to-know-about-new-relic-when-deploying-with-docker/52492) をお読みください。

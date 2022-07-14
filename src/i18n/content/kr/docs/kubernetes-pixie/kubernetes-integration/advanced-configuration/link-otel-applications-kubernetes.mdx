@@ -1,0 +1,259 @@
+---
+title: OpenTelemetry 계측 애플리케이션을 Kubernetes에 연결
+tags:
+  - Integrations
+  - Kubernetes integration
+  - OpenTelemetry
+  - Link apps and services
+metaDescription: Connect New Relic's Kubernetes monitoring with applications monitored with OpenTelemetry.
+translationType: machine
+---
+
+import k8sOtelValidation from 'images/k8s-otel-validation.png'
+
+Kubernetes에서 앱을 실행하는 개발자인 경우 New Relic을 사용하여 Kubernetes 인프라가 OpenTelemetry 계측 애플리케이션에 미치는 영향을 이해할 수 있습니다.
+
+아래 단계를 완료한 후 New Relic UI를 사용하여 OpenTelemetry의 애플리케이션 수준 메트릭을 Kubernetes 인프라 메트릭과 상호 연관시킬 수 있습니다. 이렇게 하면 원격 측정 데이터의 전체 환경을 보고 팀 간에 작업하여 Kubernetes 환경의 문제에 대한 MTTR(평균 해결 시간)을 더 빠르게 얻을 수 있습니다.
+
+## 개요: 데이터의 상관 관계를 파악하는 방법 [#correlate]
+
+이 가이드의 단계를 통해 애플리케이션에서 인프라 관련 메타데이터를 원격 분석 데이터에 삽입할 수 있습니다. 그 결과 New Relic UI가 실행 가능한 정보로 채워집니다. 이 작업을 수행하기 위해 수행할 단계는 다음과 같습니다.
+
+* 각 애플리케이션 컨테이너에서 환경 변수를 정의하여 원격 측정 데이터를 수집기에 보냅니다.
+* OpenTelemetry 수집기를 `resourcedetection` , `resource` , `batch` 및 `k8sattributes` 프로세서를 사용하여 [에이전트 모드](https://opentelemetry.io/docs/collector/getting-started/#agent) 에서 `DaemonSet` 으로 배포하여 관련 메타데이터(클러스터, 배포 및 네임스페이스 이름)를 삽입합니다.
+
+## 전제 조건 [#prereqs]
+
+아래 단계를 성공적으로 수행하려면 OpenTelemetry 및 Kubernetes에 이미 익숙하고 다음을 수행해야 합니다.
+
+* 다음 환경 변수를 생성했습니다.
+
+  * `OTEL_EXPORTER_OTLP_ENDPOINT` ( [귀하의 지역 또는 목적을 위한 New Relic 엔드포인트](/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/opentelemetry-setup/#review-settings) )
+  * `NEW_RELIC_API_KEY` ( [라이센스 키 입수](/docs/apis/intro-apis/new-relic-api-keys/#overview-keys) )
+
+* 클러스터에 [New Relic Kubernetes 통합](/docs/kubernetes-pixie/kubernetes-integration/installation/kubernetes-integration-install-configure) 을 설치했습니다.
+
+* [OpenTelemetry](/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/opentelemetry-setup/) 로 애플리케이션을 계측하고 OTLP(OpenTelemetry Protocol)를 통해 New Relic에 데이터를 성공적으로 보냈습니다.
+
+New Relic과 함께 수집기를 사용하는 방법에 대한 일반적인 질문이 있는 경우 New Relic [과 함께 OpenTelemetry Collector 소개를](/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/collector/opentelemetry-collector-intro) 참조하세요.
+
+## 원격 분석 데이터를 OpenTelemetry 수집기에 보내도록 애플리케이션 구성 [#instrument]
+
+이를 설정하려면 Kubernetes YAML 파일의 `env` 스탠자에 사용자 정의 스니펫을 추가해야 합니다. 샘플 프런트 엔드 마이크로서비스( `Frontend.yaml` )에 대한 스니펫을 보여주는 예가 아래에 있습니다. 스니펫에는 다음을 수행하는 두 개의 섹션이 포함되어 있습니다.
+
+* **섹션 1:** 원격 측정 데이터가 수집기로 전송되는지 확인합니다. 그러면 호스트 IP로 환경 변수 `OTEL_EXPORTER_OTLP_ENDPOINT` 가 설정됩니다. 호스트 IP를 가져오기 위해 하향 API를 호출하여 이를 수행합니다.
+* **섹션 2:** 인프라 관련 메타데이터를 첨부합니다. 이를 위해 하향 API를 사용하여 `metadata.uid` 을 캡처하고 OTEL_RESOURCE_ATTRIBUTES 환경 변수에 추가합니다. 이 환경 변수는 원격 분석 데이터에 인프라 관련 컨텍스트를 추가하기 위해 OpenTelemetry 수집기의 `resourcedetection` 및 `k8sattributes` 프로세서에서 사용됩니다.
+
+OpenTelemetry로 계측된 각 마이크로서비스에 대해 아래 강조 표시된 줄을 매니페스트의 `env` 스탠자에 추가합니다.
+
+```yaml
+# Frontend.yaml
+apiVersion: apps/v1
+kind: Deployment
+...
+spec:
+  containers:
+  - name: yourfrontendservice
+    image: yourfrontendservice-beta
+  env:
+<var>  # Section 1: Ensure that telemetry data is sent to the collector
+  - name: HOST_IP
+        valueFrom:
+          fieldRef:
+            fieldPath: status.hostIP
+      # This is picked up by the opentelemetry sdks
+      - name: OTEL_EXPORTER_OTLP_ENDPOINT
+        value: "http://$(HOST_IP):55680"
+  # Section 2: Attach infrastructure-specific metadata
+     # Get pod ip so that k8sattributes can tag resources
+- name: POD_NAME
+valueFrom:
+fieldRef:
+fieldPath: metadata.name
+- name: POD_UID
+valueFrom:
+fieldRef:
+fieldPath: metadata.uid
+      # This is picked up by the resource detector
+    - name: OTEL_RESOURCE_ATTRIBUTES
+      value: service.instance.id=$(POD_NAME),k8s.pod.uid=$(POD_UID)”</var>
+```
+
+## OpenTelemetry 수집기를 에이전트로 구성 및 배포 [#agent]
+
+Kubernetes 클러스터 내의 모든 노드에서 [수집기를 에이전트로](https://opentelemetry.io/docs/collector/getting-started/#agent) 배포하는 것이 좋습니다. 에이전트는 원격 분석 데이터를 수신하고 메타데이터로 원격 분석 데이터를 보강할 수 있습니다. 예를 들어, 수집기는 프로세서를 통해 사용자 정의 속성 또는 인프라 정보를 추가할 수 있을 뿐만 아니라 클라이언트 계측 수준에서 덜 효율적으로 처리되는 일괄 처리, 재시도, 압축 및 기타 고급 기능을 처리할 수 있습니다.
+
+수집기 구성에 대한 도움말은 이러한 옵션 설정에 대한 섹션과 함께 아래의 샘플 수집기 구성 파일을 참조하십시오.
+
+* [OTLP 수출업체](#otlp-exporter)
+* [배치 프로세서](#batch)
+* [리소스 감지 프로세서](#resource-detection)
+* [k8속성 프로세서: 일반](#attributes-general)
+* [k8속성 프로세서: RBAC](#rbac)
+* [k8속성 프로세서: 필터](#discovery-filter)
+
+```yaml
+receivers:
+  otlp:
+    protocols:
+      grpc:
+
+processors:
+  batch:
+  resource:
+    attributes:
+      - key: host.id
+        from_attribute: host.name
+        action: upsert
+  resourcedetection:
+    detectors: [ gke, gce ]
+  k8sattributes:
+    auth_type: "serviceAccount"
+    passthrough: false
+    filter:
+      node_from_env_var: KUBE_NODE_NAME
+    extract:
+      metadata:
+        - k8s.pod.name
+        - k8s.pod.uid
+        - k8s.deployment.name
+        - k8s.cluster.name
+        - k8s.namespace.name
+        - k8s.node.name
+        - k8s.pod.start_time
+    pod_association:
+      - from: resource_attribute
+        name: k8s.pod.uid
+
+exporters:
+  otlp:
+    endpoint: $OTEL_EXPORTER_OTLP_ENDPOINT
+    headers:
+      api-key: $NEW_RELIC_API_KEY
+  logging:
+    logLevel: DEBUG
+
+service:
+  pipelines:
+    metrics:
+      receivers: [ otlp ]
+      processors: [ resourcedetection, k8sattributes, resource, cumulativetodelta, batch ]
+      exporters: [ otlp ]
+    traces:
+      receivers: [ otlp ]
+      processors: [ resourcedetection, k8sattributes, resource, batch ]
+      exporters: [ otlp ]
+    logs:
+      receivers: [ otlp ]
+      processors: [ resourcedetection, k8sattributes, resource, batch ]
+      exporters: [ otlp ]
+```
+
+### 1단계: OTLP 내보내기 구성 [#otlp-exporter]
+
+먼저 New Relic API 키(라이센스 수집 키)와 함께 [OpenTelemetry 수집기 구성 YAML 파일](https://opentelemetry.io/docs/collector/configuration/) 에 OTLP 내보내기를 헤더로 추가하여 구성합니다.
+
+```yaml
+exporters:
+  otlp:
+    endpoint: $OTEL_EXPORTER_OTLP_ENDPOINT
+  headers: api-key: $NEW_RELIC_API_KEY
+```
+
+### 2단계: 배치 프로세서 구성 [#batch]
+
+일괄 처리 프로세서는 범위, 메트릭 또는 로그를 수락하고 일괄 처리에 배치하여 데이터를 더 쉽게 압축하고 수집기에서 나가는 요청 수를 줄입니다.
+
+```
+processors:
+  batch:
+```
+
+### 3단계: 리소스 감지 프로세서 구성 [#resource-detection]
+
+`resourcedetection` 프로세서는 수집기를 통해 처리되는 원격 분석 데이터에 컨텍스트를 추가하기 위해 호스트별 정보를 가져옵니다. 이 예시에서는 Google Kubernetes Engine(GKE) 및 Google Compute Engine(GCE)을 사용하여 다음을 포함한 Google Cloud 관련 메타데이터를 가져옵니다.
+
+* cloud.provider("gcp")
+* cloud.platform("gcp_compute_engine")
+* cloud.account.id
+* 클라우드 지역
+* cloud.availability_zone
+* 호스트 아이디
+* host.image.id
+* 호스트 유형
+
+```yaml
+processors:
+  resourcedetection:
+Detectors: [ gke, gce ]
+```
+
+### 4단계: Kubernetes 속성 프로세서 구성(일반) [#attributes-general]
+
+에이전트로 실행되는 OpenTelemetry 수집기의 일부로 `k8sattributes` 프로세서를 실행하면 원격 측정 데이터를 OpenTelemetry 수집기 에이전트로 보내는 포드의 IP 주소를 감지하고 이를 사용하여 포드 메타데이터를 추출합니다. 다음은 프로세서 섹션만 있는 기본 Kubernetes 매니페스트 예입니다. OpenTelemetry 수집기를 `DaemonSet` 로 배포하려면 이 [포괄적인 매니페스트 예](https://github.com/newrelic-forks/microservices-demo/tree/main/src/otel-collector-agent) 를 읽어보세요.
+
+```yaml
+processors:
+  k8sattributes:
+    auth_type: "serviceAccount"
+    passthrough: false
+    filter:
+      node_from_env_var: KUBE_NODE_NAME
+    extract:
+      metadata:
+        - k8s.pod.name
+        - k8s.pod.uid
+        - k8s.deployment.name
+        - k8s.cluster.name
+        - k8s.namespace.name
+        - k8s.node.name
+        - k8s.pod.start_time
+    pod_association:
+      - from: resource_attribute
+        name: k8s.pod.uid
+```
+
+### 5단계: Kubernetes 속성 프로세서(RBAC) 구성 [#rbac]
+
+RBAC(역할 기반 액세스 제어)에 대한 구성을 추가해야 합니다. `k8sattributes` 프로세서에는 구성된 필터에 포함된 포드 및 네임스페이스 리소스에 대한 `get` , `watch` 및 `list` 권한이 필요합니다. 클러스터의 모든 포드 및 네임스페이스에 필요한 권한을 `ServiceAccount` 에 부여하도록 `ClusterRole` 에 대한 역할 기반 액세스 제어(RBAC)를 구성하는 방법에 대한 이 [예시](https://github.com/newrelic-forks/microservices-demo/blob/main/otel-kubernetes-manifests/otel-collector-agent.yaml#L43-L69) 를 참조하세요.
+
+### 6단계: Kubernetes 속성 프로세서 구성(검색 필터) [#discovery-filter]
+
+수집기를 에이전트로 실행할 때 프로세서가 실행 중인 동일한 호스트의 포드만 검색하도록 검색 필터를 적용해야 합니다. 필터를 사용하지 않으면 특히 매우 큰 클러스터에서 리소스 사용량이 불필요하게 높을 수 있습니다. 필터가 적용되면 각 프로세서는 자체 노드에서 실행되는 포드에 대해서만 Kubernetes API를 쿼리합니다.
+
+필터를 설정하려면 하향 API를 사용하여 OpenTelemetry 수집기 에이전트 구성 YAML 파일의 pod `env` 섹션에 노드 이름을 환경 변수로 삽입합니다(예는 [GitHub](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/examples/kubernetes/otel-collector-config.yml) 참조). 그러면 OpenTelemetry 수집기 에이전트의 컨테이너에 새 환경 변수가 삽입됩니다. 값은 포드가 실행되도록 예약된 노드의 이름이 됩니다.
+
+```yaml
+spec:
+  containers:
+  - env:
+    - name: KUBE_NODE_NAME
+      valueFrom:
+        fieldRef:
+          apiVersion: v1
+          fieldPath: spec.nodeName
+```
+
+그런 다음 `k8sattributes` 을 사용하여 노드별로 필터링할 수 있습니다.
+
+```yaml
+  k8sattributes:
+    filter:
+      node_from_env_var: KUBE_NODE_NAME
+```
+
+## 구성이 작동하는지 확인 [#validate]
+
+OpenTelemetry 데이터를 Kubernetes 데이터와 성공적으로 연결했다면 분산 추적 UI 내의 범위에서 `k8s.cluster.name` 및 `k8s.deployment.name` 과 같은 Kubernetes 속성을 볼 수 있어야 합니다.
+
+이미지를 확대하려면 클릭하십시오:
+
+<img
+  src={k8sOtelValidation}
+  title="Screenshot showing K8s metadata in the New Relic UI"
+  alt="Screenshot showing K8s metadata in the New Relic UI"
+/>
+
+## 다음은 뭐지? [#next]
+
+이제 OpenTelemetry 계측 앱을 Kubernetes와 연결했으므로 [모범 사례](/docs/integrations/open-source-telemetry-integrations/opentelemetry/opentelemetry-concepts/) 가이드에서 OpenTelemetry 및 New Relic 사용을 개선하기 위한 팁을 확인하세요.

@@ -1,0 +1,727 @@
+---
+title: 로그 데이터 파싱
+tags:
+  - Logs
+  - Log management
+  - UI and data
+metaDescription: How New Relic uses parsing and how to send customized log data.
+translationType: machine
+---
+
+import LogParsing from 'images/log-parsing041422.png'
+
+구문 분석은 구조화되지 않은 로그 데이터를 속성(키/값 쌍)으로 분할하는 프로세스입니다. 이러한 속성을 사용하여 유용한 방식으로 로그를 패싯하거나 필터링할 수 있습니다. 이는 차례로 더 나은 차트와 경고를 작성하는 데 도움이 됩니다.
+
+구문 분석을 시작하려면 YouTube에서 다음 비디오 자습서를 시청하십시오(약 4-1/2분).
+
+<Video
+  id="PD7zGXqS0P0"
+  type="youtube"
+  width="560px"
+/>
+
+New Relic은 규칙에 따라 로그 데이터를 구문 분석합니다. 이 문서에서는 로그 구문 분석이 작동하는 방식, 기본 제공 규칙을 사용하는 방법 및 사용자 지정 규칙을 만드는 방법에 대해 설명합니다.
+
+api.newrelic.com/graphiql에서 [GraphQL](https://api.newrelic.com/graphiql) API인 NerdGraph를 사용하여 로그 구문 분석 규칙을 생성, 쿼리 및 관리할 수도 있습니다. 자세한 내용 [은 구문 분석에 대한 NerdGraph 자습서를](/docs/apis/nerdgraph/examples/nerdgraph-log-parsing-rules-tutorial/) 참조하세요.
+
+## 파싱 예시 [#parsing-defined]
+
+좋은 예는 구조화되지 않은 텍스트를 포함하는 기본 NGINX 액세스 로그입니다. 그것은 검색에 유용하지만 그다지 많지는 않습니다. 다음은 일반적인 라인의 예입니다.
+
+```
+127.180.71.3 - - [10/May/1997:08:05:32 +0000] "GET /downloads/product_1 HTTP/1.1" 304 0 "-" "Debian APT-HTTP/1.3 (0.8.16~exp12ubuntu10.21)"
+```
+
+구문 분석되지 않은 형식에서는 대부분의 질문에 답하기 위해 전체 텍스트 검색을 수행해야 합니다. 구문 분석 후 로그는 `response code` 및 `request URL` 과 같은 속성으로 구성됩니다.
+
+```
+{
+  "remote_addr":"93.180.71.3",
+  "time":"1586514731",
+  "method":"GET",
+  "path":"/downloads/product_1",
+  "version":"HTTP/1.1",
+  "response":"304",
+  "bytesSent": 0,
+  "user_agent": "Debian APT-HTTP/1.3 (0.8.16~exp12ubuntu10.21)"
+}
+```
+
+구문 분석을 사용하면 해당 값에 대해 패싯하는 [사용자 지정 쿼리](/docs/using-new-relic/data/understand-data/query-new-relic-data) 를 더 쉽게 만들 수 있습니다. 이를 통해 요청 URL당 응답 코드 분포를 이해하고 문제가 있는 페이지를 빠르게 찾을 수 있습니다.
+
+## 로그 구문 분석 작동 방식 [#how-it-works]
+
+다음은 New Relic이 로그 구문 분석을 구현하는 방법에 대한 개요입니다.
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "100px" }}>
+        로그 파싱
+      </th>
+
+      <th>
+        작동 원리
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        뭐
+      </td>
+
+      <td>
+        * 모든 구문 분석은 `message` 필드에 대해 수행됩니다. 다른 필드는 구문 분석할 수 없습니다.
+        * 각 구문 분석 규칙은 규칙이 구문 분석을 시도할 로그를 결정하는 일치 기준으로 생성됩니다.
+        * 일치 프로세스를 단순화하려면 로그에 [`logtype`](#logtype) 속성을 추가하는 것이 좋습니다. 그러나 `logtype` 사용으로 제한되지 않습니다. 모든 속성을 일치 기준으로 사용할 수 있습니다.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        언제
+      </td>
+
+      <td>
+        * 구문 분석은 각 로그 메시지에 한 번만 적용됩니다. 여러 구문 분석 규칙이 로그와 일치하는 경우 성공한 첫 번째 규칙만 적용됩니다.
+        * 구문 분석은 데이터가 NRDB에 기록되기 전에 로그 수집 중에 발생합니다. 데이터가 저장소에 기록되면 더 이상 구문 분석할 수 없습니다.
+        * 데이터 보강이 발생 **하기 전에** 파이프라인에서 구문 분석이 발생합니다.구문 분석 규칙에 대한 일치 기준을 정의할 때 주의하십시오.기준이 구문 분석 또는 보강이 수행될 때까지 존재하지 않는 속성을 기반으로 하는 경우 일치가 발생할 때 해당 데이터가 로그에 표시되지 않습니다.결과적으로 구문 분석이 발생하지 않습니다.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        어떻게
+      </td>
+
+      <td>
+        * 규칙은 [Grok](https://grokdebug.herokuapp.com/patterns#) , regex 또는 이 둘을 혼합하여 작성할 수 있습니다. Grok은 복잡한 정규 표현식을 추상화하는 패턴 모음입니다.
+        * 메시지 필드의 내용이 JSON인 경우 자동으로 구문 분석됩니다.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Grok을 사용하여 속성 구문 분석 [#grok]
+
+구문 분석 패턴은 로그 메시지 구문 분석을 위한 업계 표준인 Grok를 사용하여 지정됩니다. `logtype` 필드가 있는 수신 로그는 [기본 제공 패턴](#built-in-rules) 과 비교하여 확인되며 가능한 경우 연결된 Grok 패턴이 로그에 적용됩니다.
+
+Grok은 리터럴 복합 정규식 대신 사용할 내장 명명된 패턴을 추가하는 정규식의 상위 집합입니다. 예를 들어 정수가 정규식 `(?:[+-]?(?:[0-9]+))` 과 일치할 수 있다는 것을 기억할 필요 없이 동일한 정규식을 나타내는 Grok 패턴 `INT` 을 사용하도록 `%{INT}` 을 작성할 수 있습니다.
+
+일치하는 문자열에서 항상 정규식과 Grok 패턴 이름을 혼합하여 사용할 수 있습니다. 자세한 내용은 [Grok 구문 및 지원되는 유형](#grok-syntax) 목록을 참조하십시오.
+
+Grok 구문 분석 규칙 패턴을 생성할 때 Grok 디버거를 사용하는 방법을 배우려면 YouTube 비디오(약 6분)를 시청하십시오.
+
+<Video
+  id="0vV9iVltJck"
+  type="youtube"
+  width="560px"
+/>
+
+<CollapserGroup>
+  <Collapser
+    id="grok-example"
+    title="Grok 예: 로그에서 유용한 데이터 가져오기"
+  >
+    로그 레코드는 다음과 같을 수 있습니다.
+
+    ```
+    {
+      "message": "54.3.120.2 2048 0"
+    }
+    ```
+
+    이 정보는 정확하지만 그것이 의미하는 바가 정확히 직관적이지 않습니다. Grok 패턴은 원하는 원격 측정 데이터를 추출하고 이해하는 데 도움이 됩니다. 예를 들어 다음과 같은 로그 레코드는 사용하기가 훨씬 쉽습니다.
+
+    ```
+    {
+      "host_ip": "43.3.120.2",
+      "bytes_received": 2048,
+      "bytes_sent": 0
+    }
+    ```
+
+    이렇게 하려면 이 세 필드를 추출하는 Grok 패턴을 만듭니다. 예를 들어:
+
+    ```
+    "%{IP:host_ip} %{INT:bytes_received} %{INT:bytes_sent}"
+    ```
+
+    처리 후 로그 레코드에는 `host_ip` , `bytes_received` 및 `bytes_sent` 필드가 포함됩니다. 이제 New Relic에서 이러한 필드를 사용하여 로그 데이터를 필터링, 패싯 및 통계 작업을 수행할 수 있습니다. New Relic에서 Grok 패턴으로 로그를 구문 분석하는 방법에 대한 자세한 내용은 [블로그 게시물](https://newrelic.com/blog/how-to-relic/how-to-use-grok-log-parsing) 을 참조하십시오.
+  </Collapser>
+
+  <Collapser
+    id="grok-ui"
+    title="UI 예제: Grok 구문 분석 규칙 만들기"
+  >
+    올바른 권한이 있는 경우 UI에서 구문 분석 규칙을 만들어 Grok 구문 분석을 생성, 테스트 및 활성화할 수 있습니다. 예를 들어 Inventory Services라는 마이크로 서비스 중 하나에 대한 특정 유형의 오류 메시지를 얻으려면 특정 오류 메시지 및 제품을 찾는 Grok 구문 분석 규칙을 생성합니다. 이것을하기 위해:
+
+    1. 규칙에 이름을 지정합니다. 예: `Inventory Services error parsing` .
+
+    2. 들어오는 로그에 대한 사전 필터 역할을 하는 속성/값 쌍을 식별합니다. 예를 들어, `entity.name` 및 값 `Inventory Service` . 이 사전 필터는 규칙에서 처리해야 하는 로그 수를 줄여 불필요한 처리를 제거합니다.
+
+    3. Grok 구문 분석 규칙을 추가합니다. 예를 들어:
+
+       ```
+       Inventory error: %{DATA:error_message} for product %{INT:product_id}
+       ```
+
+       어디에:
+
+    * `Inventory error`: 파싱 규칙의 이름
+    * `error_message`: 선택하려는 오류 메시지
+    * `product_id`: Inventory Service의 제품 ID
+
+    4. Grok 패턴을 테스트하여 수신 로그가 일치하는지 확인하십시오.
+
+    5. 구문 분석 규칙을 활성화하고 저장합니다.
+
+       곧 Inventory Service 로그가 `error_message` 및 `product_id` 2개의 새로운 필드로 강화된 것을 볼 수 있습니다. 여기에서 이러한 필드에 대해 쿼리하고, 차트 및 대시보드를 만들고, 경고를 설정하는 등의 작업을 수행할 수 있습니다.
+
+       자세한 내용은 설명서를 참조 [하여 UI에 사용자 정의 구문 분석 규칙을 추가](#custom-parsing) 하세요.
+  </Collapser>
+
+  <Collapser
+    id="grok-syntax"
+    title="Grok 구문 및 지원되는 유형"
+  >
+    Grok 패턴의 구문은 다음과 같습니다.
+
+    ```
+    %{PATTERN_NAME[:OPTIONAL_EXTRACTED_ATTRIBUTE_NAME[:OPTIONAL_TYPE]]}
+    ```
+
+    어디에:
+
+    * `PATTERN_NAME` [Grok 패턴](https://grokdebug.herokuapp.com/patterns) 중 하나입니다. `grok-patterns` 을(를) 클릭하면 가장 일반적으로 사용되는 패턴을 볼 수 있습니다. 패턴 이름은 정규식을 나타내는 사용자 친화적인 이름입니다. 해당 정규식과 정확히 동일합니다.
+
+    * `OPTIONAL_EXTRACTED_ATTRIBUTE_NAME`, 제공되는 경우 패턴 이름과 일치하는 값으로 로그 메시지에 추가될 속성의 이름입니다. 정규식을 사용하여 명명된 캡처 그룹을 사용하는 것과 같습니다. 이것이 제공되지 않으면 구문 분석 규칙은 문자열의 영역과 일치하지만 해당 값으로 속성을 추출하지는 않습니다.
+
+    * `OPTIONAL_TYPE` 추출할 속성 값의 유형을 지정합니다. 생략하면 값이 문자열로 추출됩니다. 예를 들어, `"File Size: 123"` }에서 `123` 값을 숫자로 `file_size` 속성으로 추출하려면 `value: %{INT:file_size:int}` 을 사용합니다.
+
+      지원되는 유형은 다음과 같습니다.
+
+      <table>
+        <thead>
+          <tr>
+            <th>
+              Grok에 지정된 유형
+            </th>
+
+            <th>
+              New Relic 데이터베이스에 저장된 유형
+            </th>
+          </tr>
+        </thead>
+
+        <tbody>
+          <tr>
+            <td>
+              `boolean`
+            </td>
+
+            <td>
+              `boolean`
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              `byte` `short` `int` `integer`
+            </td>
+
+            <td>
+              `integer`
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              `long`
+            </td>
+
+            <td>
+              `long`
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              `float`
+            </td>
+
+            <td>
+              `float`
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              `double`
+            </td>
+
+            <td>
+              `double`
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              `string` (기본) `text`
+            </td>
+
+            <td>
+              `string`
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              `date` `datetime`
+            </td>
+
+            <td>
+              ISO 8601 시간으로 `long`
+            </td>
+          </tr>
+        </tbody>
+      </table>
+  </Collapser>
+</CollapserGroup>
+
+## 로그 유형별 정리 [#logtype]
+
+New Relic의 로그 수집 파이프라인은 로그를 구문 분석하는 방법을 설명하는 규칙에 로그 이벤트를 일치시켜 데이터를 구문 분석할 수 있습니다. 다음 두 가지 방법으로 로그 이벤트를 구문 분석할 수 있습니다.
+
+* [기본 제공 규칙을](#built-in-rules) 사용합니다.
+* [사용자 정의 규칙](#custom-parsing) 을 정의하십시오.
+
+규칙은 일치 논리와 구문 분석 논리의 조합입니다. 일치는 로그 속성에 대한 쿼리 일치를 정의하여 수행됩니다. 규칙은 소급 적용되지 않습니다. 규칙이 생성되기 전에 수집된 로그는 해당 규칙에 의해 구문 분석되지 않습니다.
+
+로그를 구성하고 구문 분석하는 가장 간단한 방법은 로그 이벤트에 `logtype` 필드를 포함하는 것입니다. 이것은 로그에 적용할 기본 제공 규칙을 New Relic에 알려줍니다.
+
+<Callout variant="important">
+  구문 분석 규칙이 활성화되면 규칙에 의해 구문 분석된 데이터가 영구적으로 변경됩니다. 이것은 되돌릴 수 없습니다.
+</Callout>
+
+## 제한 [#limits]
+
+구문 분석은 계산 비용이 많이 들고 위험이 따릅니다. 계정에 정의된 사용자 정의 규칙과 패턴을 로그에 일치시키기 위해 구문 분석이 수행됩니다. 많은 수의 패턴이나 잘못 정의된 사용자 정의 규칙은 엄청난 양의 메모리와 CPU 리소스를 소비하는 동시에 완료하는 데 매우 오랜 시간이 걸립니다.
+
+문제를 방지하기 위해 규칙당 메시지 및 계정당 두 가지 구문 분석 제한을 적용합니다.
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        한계
+      </th>
+
+      <th>
+        설명
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        규칙당 메시지당
+      </td>
+
+      <td>
+        규칙당 메시지당 제한은 단일 메시지를 구문 분석하는 데 소요되는 시간이 100ms를 초과하는 것을 방지합니다. 해당 제한에 도달하면 시스템은 해당 규칙으로 로그 메시지 구문 분석 시도를 중단합니다.
+
+        수집 파이프라인은 해당 메시지에 적용 가능한 다른 모든 항목을 실행하려고 시도하며 메시지는 여전히 수집 파이프라인을 통해 전달되고 NRDB에 저장됩니다. 로그 메시지는 구문 분석되지 않은 원래 형식입니다.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        계정당
+      </td>
+
+      <td>
+        계정당 제한은 계정이 리소스의 공정한 공유 이상을 사용하는 것을 방지하기 위해 존재합니다. 이 제한은 분당 계정에 대한 **모든** 로그 메시지를 처리하는 데 소요된 총 시간을 고려합니다.
+
+        한도는 고정된 값이 아닙니다. 계정이 매일 저장하는 데이터의 양과 이후에 해당 고객을 지원하기 위해 할당되는 환경 크기에 비례하여 확장 또는 축소됩니다.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<Callout variant="tip">
+  속도 제한에 도달했는지 쉽게 확인하려면 New Relic UI의[시스템 **제한** 페이지](/docs/telemetry-data-platform/ingest-manage-data/manage-data/view-system-limits#limits-ui) 로 이동하십시오.
+</Callout>
+
+## 기본 제공 구문 분석 규칙 [#built-in-rules]
+
+공통 로그 형식에는 이미 생성된 잘 정립된 구문 분석 규칙이 있습니다. 기본 제공 구문 분석 규칙의 이점을 얻으려면 로그를 전달할 때 `logtype` 속성을 추가하세요. 값을 다음 표에 나열된 값으로 설정하면 해당 유형의 로그에 대한 규칙이 자동으로 적용됩니다.
+
+### 기본 제공 규칙 목록 [#rulesets]
+
+다음 `logtype` 속성 값은 사전 정의된 구문 분석 규칙에 매핑됩니다. 예를 들어, Application Load Balancer를 쿼리하려면:
+
+* New Relic UI에서 `logtype:"alb"` 형식을 사용합니다.
+* [NerdGraph](/docs/apis/nerdgraph/examples/nerdgraph-log-parsing-rules-tutorial/) 에서 `logtype = 'alb'` 형식을 사용합니다.
+
+각 규칙에 대해 구문 분석되는 필드를 알아보려면 [기본 제공 구문 분석 규칙에](/docs/logs/ui-data/built-log-parsing-rules) 대한 설명서를 참조하세요.
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        `logtype`
+      </th>
+
+      <th>
+        로그 소스
+      </th>
+
+      <th>
+        일치 쿼리의 예
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        [`apache`](/docs/logs/ui-data/built-log-parsing-rules#apache)
+      </td>
+
+      <td>
+        Apache 액세스 로그
+      </td>
+
+      <td>
+        `logtype:"apache"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [`alb`](/docs/logs/ui-data/built-log-parsing-rules#application-load-balancer)
+      </td>
+
+      <td>
+        Application Load Balancer 로그
+      </td>
+
+      <td>
+        `logtype:"alb"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [`cloudfront-web`](/docs/logs/ui-data/built-log-parsing-rules#cloudfront)
+      </td>
+
+      <td>
+        CloudFront 웹 로그
+      </td>
+
+      <td>
+        `logtype:"cloudfront-web"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [`elb`](/docs/logs/ui-data/built-log-parsing-rules#elastic-load-balancer)
+      </td>
+
+      <td>
+        Elastic Load Balancer 로그
+      </td>
+
+      <td>
+        `logtype:"elb"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [`haproxy_http`](/docs/logs/ui-data/built-log-parsing-rules#haproxy)
+      </td>
+
+      <td>
+        HAProxy 로그
+      </td>
+
+      <td>
+        `logtype:"haproxy_http"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [`ktranslate-health`](/docs/logs/ui-data/built-log-parsing-rules#ktranslate-health)
+      </td>
+
+      <td>
+        KTranslate 컨테이너 상태 로그
+      </td>
+
+      <td>
+        `logtype:"ktranslate-health"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [`iis_w3c`](/docs/logs/ui-data/built-log-parsing-rules/#iis)
+      </td>
+
+      <td>
+        Microsoft IIS 서버 로그 - W3C 형식
+      </td>
+
+      <td>
+        `logtype:"iis_w3c"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [`monit`](/docs/logs/ui-data/built-log-parsing-rules#monit)
+      </td>
+
+      <td>
+        모니터링 로그
+      </td>
+
+      <td>
+        `logtype:"monit"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [`mysql-error`](/docs/logs/ui-data/built-log-parsing-rules#mysql-error)
+      </td>
+
+      <td>
+        MySQL 오류 로그
+      </td>
+
+      <td>
+        `logtype:"mysql-error"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [`nginx`](/docs/logs/ui-data/built-log-parsing-rules#nginx)
+      </td>
+
+      <td>
+        NGINX 액세스 로그
+      </td>
+
+      <td>
+        `logtype:"nginx"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [`nginx-error`](/docs/logs/ui-data/built-log-parsing-rules#nginx-error)
+      </td>
+
+      <td>
+        NGINX 오류 로그
+      </td>
+
+      <td>
+        `logtype:"nginx-error"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [`route-53`](/docs/logs/ui-data/built-log-parsing-rules#route53)
+      </td>
+
+      <td>
+        Route 53 로그
+      </td>
+
+      <td>
+        `logtype:"route-53"`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [`syslog-rfc5424`](/docs/logs/ui-data/built-log-parsing-rules/#syslog-rfc5424)
+      </td>
+
+      <td>
+        RFC5424 형식의 Syslog
+      </td>
+
+      <td>
+        `logtype:"syslog-rfc5424"`
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+### `logtype` 속성 추가 [#logtype]
+
+로그를 집계할 때 해당 로그를 쉽게 구성, 검색 및 구문 분석할 수 있는 메타데이터를 제공하는 것이 중요합니다. 이를 수행하는 한 가지 간단한 방법은 배송될 때 로그 메시지에 속성 `logtype` 을 추가하는 것입니다. 기본 제공 [구문 분석 규칙](#built-in-rules) 은 특정 `logtype` 값에 기본적으로 적용됩니다.
+
+<Callout variant="tip">
+  `logType` , `logtype` 및 `LOGTYPE` 필드는 모두 기본 제공 규칙에 대해 지원됩니다. 검색을 쉽게 하려면 조직의 단일 구문에 맞추는 것이 좋습니다.
+</Callout>
+
+다음은 [지원되는 배송 방법](/docs/logs/enable-new-relic-logs) 중 일부에서 보낸 로그에 `logtype` 을(를) 추가하는 방법의 몇 가지 예입니다.
+
+<CollapserGroup>
+  <Collapser
+    className="freq-link"
+    id="infrastructure-log-forwarder-example"
+    title="New Relic 인프라 에이전트 예시"
+  >
+    `logtype` 을 [`attribute`](/docs/logs/forward-logs/forward-your-logs-using-infrastructure-agent#attributes) 로 추가합니다. 명명된 각 소스에 대해 로그 유형을 설정해야 합니다.
+
+    ```
+    logs:
+      - name: file-simple
+        file: /path/to/file
+        attributes:
+          logtype: fileRaw  
+      - name: nginx-example
+        file: /var/log/nginx.log
+        attributes:
+          logtype: nginx
+    ```
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="fluentd-example"
+    title="유창한 예"
+  >
+    `record_transformer` 를 사용하여 새 필드를 추가하는 필터 블록을 `.conf file` 에 추가합니다. 이 예에서는 `nginx` 의 `logtype` 를 사용하여 내장 NGINX 구문 분석 규칙을 트리거합니다. 다른 [Fluentd 예제](https://github.com/newrelic/fluentd-examples) 를 확인하십시오.
+
+    ```
+    <filter containers>
+      @type record_transformer
+      enable_ruby true
+      <record>
+        #Add logtype to trigger a built-in parsing rule for nginx access logs
+        logtype nginx
+        #Set timestamp from the value contained in the field "time"
+        timestamp record["time"]
+        #Add hostname and tag fields to all records
+        hostname "#{Socket.gethostname}"
+        tag ${tag}
+      </record>
+    </filter>
+    ```
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="fluentbit-example"
+    title="Fluent Bit 예제"
+  >
+    `record_modifier` 을 사용하여 새 필드를 추가하는 필터 블록을 `.conf` 파일에 추가합니다. 이 예에서는 `nginx` 의 `logtype` 를 사용하여 기본 제공 NGINX 구문 분석 규칙을 트리거합니다. 다른 [Fluent Bit 예제](https://github.com/newrelic/fluentbit-examples) 를 확인하십시오.
+
+    ```
+    [FILTER]
+        Name record_modifier
+        Match *
+        Record logtype nginx
+        Record hostname ${HOSTNAME}
+        Record service_name Sample-App-Name
+    ```
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="logstash-example"
+    title="로그스태시 예시"
+  >
+    `add_field` mutate 필터를 사용하여 새 필드를 추가하는 필터 블록을 Logstash 구성에 추가합니다. 이 예에서는 `nginx` 의 `logtype` 을 사용하여 기본 제공 NGINX 구문 분석 규칙을 트리거합니다. 다른 [Logstash 예제](https://github.com/newrelic/logstash-examples) 를 확인하십시오.
+
+    ```
+    filter {
+      mutate {
+        add_field => {
+          "logtype" => "nginx"
+          "service_name" => "myservicename"
+          "hostname" => "%{host}"
+        }
+      }
+    }
+    ```
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="api-example"
+    title="로그 API 예시"
+  >
+    New Relic으로 전송된 JSON 요청에 속성을 추가할 수 있습니다. 이 예에서는 값이 `nginx` 인 `logtype` 속성을 추가하여 기본 제공 NGINX 구문 분석 규칙을 트리거합니다. [Logs API](/docs/logs/new-relic-logs/log-api/introduction-log-api) 사용에 대해 자세히 알아보세요.
+
+    ```
+    POST /log/v1 HTTP/1.1
+    Host: log-api.newrelic.com
+    Content-Type: application/json
+    X-License-Key: <var>YOUR_LICENSE_KEY</var>
+    Accept: */*
+    Content-Length: 133
+    {
+      "timestamp": <var>TIMESTAMP_IN_UNIX_EPOCH</var>,
+      "message": "User '<var>xyz</var>' logged in",
+      "logtype": "accesslogs",
+      "service": "login-service",
+      "hostname": "<var>login.example.com</var>"
+    }
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## 사용자 정의 구문 분석 규칙 생성 및 보기 [#custom-parsing]
+
+많은 로그가 고유한 방식으로 형식이 지정되거나 구조화됩니다. 이를 구문 분석하려면 사용자 정의 논리를 빌드하고 적용해야 합니다.
+
+<img
+  title="Log parsing rules"
+  alt="Screenshot of Log parsing in UI"
+  src={LogParsing}
+/>
+
+<figcaption>
+  Logs UI의 왼쪽 탐색 메뉴에서 **Parsing** 을 선택한 다음 속성, 값 및 Grok 패턴을 사용하여 사용자 지정 구문 분석 규칙을 만듭니다.
+</figcaption>
+
+고유한 사용자 정의 구문 분석 규칙을 만들고 관리하려면:
+
+1. **[one.newrelic.com](https://one.newrelic.com) > 로그** 로 이동합니다.
+2. 로그 UI의 왼쪽 탐색 메뉴에 있는 **데이터 관리** 에서 **구문 분석** 을 클릭한 **다음 구문 분석 규칙 만들기** 를 클릭합니다.
+3. 구문 분석 규칙의 이름을 입력합니다.
+4. 일치시킬 속성과 값을 선택하십시오.
+5. Grok 패턴을 작성하고 규칙을 테스트하십시오. Grok 및 사용자 지정 구문 분석 규칙에 대해 알아보려면 [Grok 패턴으로 로그를 구문 분석하는 방법에](https://blog.newrelic.com/product-news/how-to-use-grok-log-parsing/) 대한 블로그 게시물을 읽어보세요.
+6. 사용자 정의 구문 분석 규칙을 활성화하고 저장합니다.
+
+기존 구문 분석 규칙을 보려면:
+
+1. **[one.newrelic.com](https://one.newrelic.com) > 로그** 로 이동합니다.
+2. 로그 UI의 왼쪽 탐색 메뉴에 있는 **데이터 관리** 에서 **구문 분석** 을 클릭합니다.
+
+## 문제점 해결 [#troubleshooting]
+
+구문 분석이 의도한 대로 작동하지 않는 경우 다음과 같은 이유 때문일 수 있습니다.
+
+* **논리:** 구문 분석 규칙 일치 논리가 원하는 로그와 일치하지 않습니다.
+* **타이밍:** 구문 분석 일치 규칙이 아직 존재하지 않는 값을 대상으로 하는 경우 실패합니다. 이는 나중에 보강 프로세스의 일부로 파이프라인에서 값을 추가하는 경우 발생할 수 있습니다.
+* **제한:** 구문 분석, 패턴, 삭제 필터 등을 통해 로그를 처리하는 데 사용할 수 있는 시간은 분마다 고정되어 있습니다. 최대 시간을 소비한 경우 추가 로그 이벤트 기록을 위해 구문 분석을 건너뜁니다.
+
+이러한 문제를 해결하려면 [사용자 정의 구문 분석 규칙](#custom-parsing) 을 만들거나 조정하십시오.

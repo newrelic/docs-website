@@ -1,0 +1,368 @@
+---
+title: オンホスト統合のためのコンテナ自動発見機能
+tags:
+  - Integrations
+  - On-host integrations
+  - Installation
+metaDescription: Use discovery to automatically configure a New Relic infrastructure integration to monitor services that may run in multiple containers.
+translationType: machine
+---
+
+コンテナ自動検出機能では、複数のコンテナで実行されるサービスを自動的に監視するように統合を構成することができます。統合の構成ファイルで、コンテナのマッチング基準を設定すると、エージェントは基準に合致する各ローカルコンテナに対して統合を実行します。
+
+統合は、ディスカバリー要素を見つけた回数だけ実行されます。ディスカバリーでコンテナが見つからなかった場合、統合は実行されません。
+
+<Callout variant="tip">
+  現在、 [インフラストラクチャエージェント](/docs/infrastructure/install-configure-manage-infrastructure) は、ローカルのDockerコンテナを発見することができます。
+</Callout>
+
+## 設定にプレースホルダーを追加 [#example]
+
+統合設定では、 `${discovery.<property>} を作成する必要があります。` プレースホルダーを作成する必要があります。その後、これらは自動的に特定のコンテナ情報に置き換えられます。
+
+これらの例（Dockerのみの環境用とKubernetes用）は、 [NGINXインテグレーション](/docs/integrations/host-integrations/host-integrations-list/apache-monitoring-integration) を設定して、 `nginx` を含むイメージ名を持ち、 `env=production` とラベル付けされているすべてのローカルコンテナを監視する方法を示しています。それぞれのサービスは、異なるIPとポートで利用できるため、変数を設定する必要があります。
+
+<CollapserGroup>
+  <Collapser
+    id="docker-example"
+    title="Dockerの例（オーケストレーションなし）"
+  >
+    この設定は、Kubernetesやその他のオーケストレーション環境なしでDockerを使用する、非オーケストレーションのシナリオに適用されます。
+
+    ```
+    discovery:
+      docker:
+        match:
+          image: /nginx/
+          label.env: production
+    integrations:
+      - name: nginx-server-metrics
+        command: metrics
+        env:
+    # use discovery.private.ip if container doesn't have attached public ip address
+          STATUS_URL: http://${discovery.ip}:${discovery.port}/status
+          STATUS_MODULE: discover
+          REMOTE_MONITORING: true
+        labels:
+          env: ${discovery.label.env}
+          role: ${discovery.label.role}
+    ```
+  </Collapser>
+
+  <Collapser
+    id="kubernetes-example"
+    title="Kubernetesの例"
+  >
+    Kubernetesと当社の [Kubernetesインテグレーション](/docs/integrations/kubernetes-integration/get-started/introduction-kubernetes-integration) を使用している場合、インテグレーションのConfigMapは次のようになります。 `nri-discovery-kubernetes` が自動的に構成を検出することに注意してください。しかし、何らかのカスタマイズが必要な場合は、このツールはいくつかのオプションの引数を受け付けます。
+
+    * `--namespaces`: 名前空間のコンマ区切りリスト
+
+    * `--tls`: 安全な（TLS）接続を使用します。
+
+    * `--port`: kubelet に接続する際に使用するポートです。
+
+    * `--host`: kubelet への接続に使用されるホストです。
+
+      ```
+      ---
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: nri-integration-cfg
+        namespace: default
+      data:
+        nginx-config.yaml: |
+          ---
+          discovery:
+            command:
+              # Run discovery for Kubernetes. Use the following <mark>optional arguments</mark>:
+              # --namespaces: Comma separated list of namespaces to discover pods on
+              # --tls: Use secure (TLS) connection
+              # --port: Port used to connect to the kubelet.
+              # --host: Host used to connect to the kubelet.
+              exec: /var/db/newrelic-infra/nri-discovery-kubernetes
+              match:
+                image: /nginx/
+                label.env: production
+          integrations:
+            - name: nri-nginx
+              env:
+                # Use the discovered IP as the host address
+                STATUS_URL: http://${discovery.ip}/server-status?auto
+                METRICS: 1
+      ```
+  </Collapser>
+</CollapserGroup>
+
+## ディスカバリー・プロパティの追加 [#define-discover]
+
+ディスカバリーを設定するには、統合設定のYAMLに、以下のプロパティを使って `discovery` エントリを設定します。 **すべての** プロパティが定義された値と一致した場合に、コンテナがマッチします。
+
+<Callout variant="tip">
+  プロパティの値は、 **正確な文字列** で照合されます。ただし、照合する値が `/.../` の間に設定されている場合は除きます。スラッシュの中の内容は、 [正規表現](https://en.wikipedia.org/wiki/Regular_expression) として照合されます。
+</Callout>
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "250px" }}>
+        発見キー名
+      </th>
+
+      <th>
+        説明
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `ttl`
+
+        タイプ文字列
+      </td>
+
+      <td>
+        キャッシュされたディスカバリーの結果のTime-To-Liveは、ディスカバリープロセスの数を最小化するために使用されます。数字の後に時間単位をつけて定義します（`s`, `m` or `h` ）。
+
+        例： `30s`, `10m`, `1h`, `0`
+
+        デフォルト：1m
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `docker`
+
+        タイプYAMLプロパティ
+      </td>
+
+      <td>
+        Dockerコンテナのマッチング定義。これは、 `match` プロパティに含まれるマップで構成されています。
+
+        * 各キーは以下のプロパティのいずれかです。
+
+        * 値は、返されたコンテナに対する与えられたプロパティの期待値です。
+
+        * コンテナは、すべてのプロパティが一致した場合にマッチします（AND演算）。
+
+          利用可能なYAMLキーは以下の通りです。
+
+        * `ip`: コンテナの外部IPアドレス（ある場合）。
+
+        * `private.ip`: コンテナのプライベートIPアドレス
+
+        * `ポート`: コンテナ外部ポート番号
+
+        * `private.port`: コンテナのプライベートポート番号
+
+        * `画像` ：画像名
+
+        * `名前`: コンテナ名
+
+        * `ラベルです。<ラベル名>` : 任意のコンテナラベルで、その名前でアクセスできます。
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+### 発見例 [#example]
+
+次の例では、イメージが `httpd:` （正規表現で指定）で始まり、 `scrapable=yes` と表示されているすべてのDockerコンテナにマッチします。結果はTime-To-Liveを5分に設定してキャッシュされます。
+
+```
+discovery:
+  ttl: 5m
+  docker:
+    match:
+      image: /^httpd:/
+      label.scrapable: yes
+```
+
+## 利用可能なコンテナ情報 [#container-information]
+
+ディスカバリー機能は現在、以下の変数を発信しており、これらは統合の設定に使用できます。インフラストラクチャエージェントは、これらの変数を、検出されたコンテナの対応する値に置き換えます。
+
+<Callout variant="important">
+  必ず、 `discovery.` のプレフィックスを付けてください。
+</Callout>
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "350px" }}>
+        変数
+      </th>
+
+      <th>
+        説明
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `${discovery.ip}となります。`
+      </td>
+
+      <td>
+        コンテナのパブリックIPアドレス（ある場合
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `${discovery.private.ip}となります。`
+      </td>
+
+      <td>
+        コンテナのプライベートIPアドレス
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `${discovery.port}の`
+      </td>
+
+      <td>
+        コンテナのパブリックポート番号
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `${discovery.private.port}を使用しています。`
+      </td>
+
+      <td>
+        コンテナのプライベートポート番号
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `${discovery.image}。`
+      </td>
+
+      <td>
+        画像名
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `${discovery.name}の`
+      </td>
+
+      <td>
+        コンテナ名
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `${discovery.label.<ラベル名>}。`
+      </td>
+
+      <td>
+        任意の容器のラベル、その名前でアクセス可能
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+### 複数のポートのマッピング
+
+コンテナが多くのプライベートポートやパブリックポートを公開している場合、それらのポートには `discovery.private.ports.` または `discovery.ports.` の後に 0 から始まるインデックスを付けてアクセスすることができます。ポートは、プライベートポートの値が低いものから高いものへとインデックスされます。
+
+例えば、80番と443番のプライベートポートを、それぞれ2345番と1111番のパブリックポートを介して公開するコンテナでは、以下の変数にそれぞれの値を指定します。
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "350px" }}>
+        変数
+      </th>
+
+      <th>
+        値
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `${discovery.private.ports.0}になります。`
+      </td>
+
+      <td>
+        `80` (最も低いプライベートポート)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `${discovery.private.ports.1}になります。`
+      </td>
+
+      <td>
+        `443` (最高のプライベートポート)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `${discovery.ports.0}になります。`
+      </td>
+
+      <td>
+        `2345` （プライベートポート0にマッピングされているパブリックポート）
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `${discovery.ports.1}になります。`
+      </td>
+
+      <td>
+        `1111` （プライベートポート1へのパブリックポートのマッピング）
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `${discovery.private.port}を使用しています。`
+      </td>
+
+      <td>
+        `80` ( `${discovery.private.ports.0}と同じ)`)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `${discovery.port}の`
+      </td>
+
+      <td>
+        `2345` ( `${discovery.ports.0}と同じ)`)
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<Callout variant="important">
+  `port` の単語は、インデックスのない変数では単数形で、インデックスのある変数では複数形であることに注意してください。
+</Callout>
+
+### プロトコル名によるポートのマッピング
+
+前節の索引に加えて、ポートはプロトコル名でも参照できます（例えば、 `tcp`, `udp`, など）。例えば、 `${discovery.ports.tcp}。` または `${discovery.ports.udp}。` 。
+
+複数のポートが同じプロトコルにマッチする場合、前節のルールでインデックスを作成することもできます： `${discovery.ports.tcp.0} 。`, `${discovery.ports.tcp.1} となります。` 、などです。

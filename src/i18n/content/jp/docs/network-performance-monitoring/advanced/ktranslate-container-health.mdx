@@ -1,0 +1,469 @@
+---
+title: ktranslate Docker コンテナヘルスモニタリング
+tags:
+  - Integrations
+  - Network monitoring
+metaDescription: Monitoring and troubleshooting the health of your ktranslate container.
+translationType: machine
+---
+
+NewRelicネットワーク監視用に**ktranslateDocker**コンテナを実行しているときに、コンテナの状態を監視して、潜在的な問題をプロアクティブに検出できます。
+
+**ktranslate**コンテナイメージには、実行時に利用可能な`-tee_logs=true`と`-metrics=jchf`の設定があり、ヘルスメトリックをNewRelicに直接送信できます。 New Relicガイド付きインストールを介してネットワーク監視をインストールする場合、これらはデフォルトで有効になっています。ネットワーク監視を手動でインストールする場合は、これらを設定することをお勧めします。
+
+## ktranslateからのログ [#logs]
+
+<Callout variant="tip">
+  Dockerホストからローカルでログを確認する場合は、 `docker logs $CONTAINER_NAME`を実行します。たとえば、 `docker logs ktranslate-snmp` 。
+</Callout>
+
+`-tee_logs=true`オプションは、デバイスをポーリングするときにログをNewRelicに送信します。それらを表示するには、次の手順を実行します。
+
+1. [one.newrelic.com](https://one.newrelic.com/) > **Logs** に移動します。
+2. \[**ログの検索場所**]に`collector.name:"ktranslate"`と入力し、\[**ログのクエリ**]をクリックします。
+
+### 一般的なログ検索 [#common-log-searches]
+
+以下は、トラブルシューティングの際に、サポートのためのデータ収集に使用できる一般的な検索方法です。
+
+<CollapserGroup>
+  <Collapser
+    id="container-version"
+    title="私が実行しているktranslateのバージョンは何ですか？"
+  >
+    Logs UIです。
+
+    ```shell
+    collector.name:"ktranslate" message:"*KTranslate Running -- Version*"
+    ```
+
+    NRQL。
+
+    ```sql
+    FROM Log SELECT * WHERE `collector.name` = 'ktranslate' AND `message` LIKE '%KTranslate Running -- Version%'
+    ```
+
+    期待される成果
+
+    ```shell
+    KTranslate Running -- Version kt-2021-12-06-1546870234; Build Mon Dec  6 22:22:56 UTC 2021
+    ```
+  </Collapser>
+
+  <Collapser
+    id="docker-arguments"
+    title="実行時にDockerに渡された引数は？"
+  >
+    Logs UIです。
+
+    ```shell
+    collector.name:"ktranslate" message:"*KTranslate CLI:*"
+    ```
+
+    NRQL。
+
+    ```sql
+    FROM Log SELECT * WHERE `collector.name` = 'ktranslate' AND `message` LIKE '%KTranslate CLI:%'
+    ```
+
+    期待される成果
+
+    ```shell
+    KTranslate CLI: [ktranslate -listen off -mapping /etc/ktranslate/config.json -geo /etc/ktranslate/GeoLite2-Country.mmdb -udrs /etc/ktranslate/udr.csv -api_devices /etc/ktranslate/devices.json -asn /etc/ktranslate/GeoLite2-ASN.mmdb -log_level info -snmp /snmp-base.yaml -nr_account_id=2583772 -log_level=info -metrics=jchf -tee_logs=true -service_name=snmp nr1.snmp]
+    ```
+  </Collapser>
+
+  <Collapser
+    id="container-errors"
+    title="どのようなエラーが発生していますか？"
+  >
+    * ログに解析ルールが適用されていない場合
+
+      Logs UIです。
+
+      ```shell
+      collector.name:"ktranslate" message:-*\[Info\]*
+      ```
+
+      NRQL。
+
+      ```sql
+      FROM Log SELECT * WHERE `collector.name` = 'ktranslate' AND `message` NOT LIKE '%[Info]%'
+      ```
+
+    * ログに解析ルールを適用した場合
+
+      Logs UIです。
+
+      ```shell
+      collector.name:"ktranslate" severity:-"Info"
+      ```
+
+      NRQL。
+
+      ```sql
+      FROM Log SELECT * WHERE `collector.name` = 'ktranslate' AND `severity` != 'Info'
+      ```
+
+      期待される成果
+
+      ```shell
+      KTranslate>cisco-7513 There was an SNMP polling error with the CustomDeviceMetrics walking OID .1.3.6.1.2.1.4.31.1.1.21 after 0 retries: request timeout (after 0 retries).
+      ```
+  </Collapser>
+
+  <Collapser
+    id="match_attributes"
+    title="私のデバイスでは、match_attributesフィルターは機能していますか？"
+  >
+    Logs UIです。
+
+    ```shell
+    collector.name:"ktranslate" message:"*Match Attribute*"
+    ```
+
+    NRQL。
+
+    ```sql
+    FROM Log SELECT * WHERE `collector.name` = 'ktranslate' AND `message` LIKE '%Match Attribute%'
+    ```
+
+    期待される成果
+
+    ```shell
+    KTranslate>cisco-7513 Added 1 Match Attribute(s)
+    ```
+
+    すべてのデバイスには、デフォルトの`monitor_admin_shut: true`構成から継承された少なくとも1つの一致属性が必要です。単一の一致属性を追加したデバイスには、 `2`の値が表示されることを期待する必要があります。
+
+    <Callout variant="tip">
+      クエリにデバイス名を追加することで、これらの結果をさらにフィルタリングできます： `collector.name:"ktranslate" message:"*$DEVICE_NAME*Match Attribute*"` 。
+    </Callout>
+  </Collapser>
+</CollapserGroup>
+
+## ktranslateからの測定値 [#metrics]
+
+`-metrics`オプションは、デバイスをポーリングするときに次のパフォーマンスメトリックをキャプチャします。
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "400px" }}>
+        メトリック
+      </th>
+
+      <th>
+        グラニュラリティ
+      </th>
+
+      <th>
+        説明
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `baseserver_healthcheck_execution_total`
+      </td>
+
+      <td>
+        トップレベル
+      </td>
+
+      <td>
+        内部ヘルスチェックの割合。ほとんどの場合、物事がデッドロックしていないことを示しており、常に0より大きくなければなりません。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `inputq`
+      </td>
+
+      <td>
+        トップレベル
+      </td>
+
+      <td>
+        すべてのSNMP、Flow、VPCの入力を合わせて、過去60秒間に受信した1秒あたりのメッセージ数（msg/sec）。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `jchfq`
+      </td>
+
+      <td>
+        トップレベル
+      </td>
+
+      <td>
+        事前に割り当てられた利用可能なバッファの数でレートを測定します。約8,000のはずです。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `delivery_metrics_nr`
+      </td>
+
+      <td>
+        NewRelicへの配信
+      </td>
+
+      <td>
+        New Relicへのすべてのメトリックについて、過去60秒間に送信された1秒あたりのバッチ数（バッチ/秒）。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `delivery_logs_nr`
+      </td>
+
+      <td>
+        NewRelicへの配信
+      </td>
+
+      <td>
+        New Relicへのすべてのログについて、過去60秒間に送信された1秒あたりのログ数（logs / sec）。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `delivery_wins_nr`
+      </td>
+
+      <td>
+        NewRelicへの配信
+      </td>
+
+      <td>
+        メトリックとイベントをNewRelicに送信してから過去60秒間に受信した200のHTTPコードの1秒あたりの勝ち数（wins / sec）。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `device_metrics`
+      </td>
+
+      <td>
+        SNMP
+      </td>
+
+      <td>
+        デバイスレベルのメトリクスに対する過去60秒間のSNMPポーリングのPolls per Second（polls/sec）。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `interface_metrics`
+      </td>
+
+      <td>
+        SNMP
+      </td>
+
+      <td>
+        インターフェースレベルのメトリクスに対する過去60秒間のSNMPポーリングの1秒あたりのポール数（polls/sec）。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `snmp_fail`
+      </td>
+
+      <td>
+        SNMP
+      </td>
+
+      <td>
+        SNMPポーリングが`device_name`によってファセットされて機能しているかどうかを監視するゲージ。ここで、1は良いことを意味し、2は失敗することを意味します。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `netflow.flows`
+      </td>
+
+      <td>
+        ネットフロー
+      </td>
+
+      <td>
+        すべてのデバイスのフローデータについて、過去60秒間に受信した1秒あたりのフロー（fps）。IPFIX、NetFlow、sFlowのいずれか。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `syslog_queue`
+      </td>
+
+      <td>
+        Syslog
+      </td>
+
+      <td>
+        処理されるのを待っているsyslogメッセージのゲージ。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `syslog_errors`
+      </td>
+
+      <td>
+        Syslog
+      </td>
+
+      <td>
+        syslogメッセージを処理している間の、過去60秒間の1秒あたりのエラー数（errors/sec）。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `syslog_messages`
+      </td>
+
+      <td>
+        Syslog
+      </td>
+
+      <td>
+        全syslogデータの過去60秒間に受信した1秒あたりのメッセージ数（msg/sec）。
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+### 一般的な測定基準の検索 [#common-metric-searches]
+
+New Relicでこれらの指標を確認するには：
+
+1. [one.newrelic.com](https://one.newrelic.com/) にアクセスし、 **Query your data** をクリックします。
+2. 以下のNRQLクエリのいずれかを入力してください。
+
+<CollapserGroup>
+  <Collapser
+    id="ktranslate-versions"
+    title="私のktranslateアプリケーションの現在のバージョンは何ですか？"
+  >
+    ```sql
+    FROM Metric
+    SELECT
+    latest(ver) AS 'image_version'
+    FACET host AS 'docker_host', svc AS 'container_service'
+    WHERE provider = 'kentik-agent'
+    AND instrumentation.name = 'heartbeat'
+    ```
+  </Collapser>
+
+  <Collapser
+    id="top-level-health"
+    title="私のktranslateアプリケーションの健康状態はどうですか？"
+  >
+    ```sql
+    FROM Metric
+    SELECT
+    latest(kentik.ktranslate.chf.kkc.baseserver_healthcheck_execution_total) AS 'healthcheck_total',
+    latest(kentik.ktranslate.chf.kkc.inputq) AS 'input_per_second',
+    latest(kentik.ktranslate.chf.kkc.jchfq) AS 'buffer'
+    FACET host AS 'docker_host', svc AS 'container_service'
+    WHERE provider = 'kentik-agent'
+    AND instrumentation.name = 'heartbeat'
+    ```
+  </Collapser>
+
+  <Collapser
+    id="delivery-health"
+    title="New Relicへの配信の状態はどうですか？"
+  >
+    ```sql
+    FROM Metric
+    SELECT
+    latest(kentik.ktranslate.chf.kkc.delivery_metrics_nr) AS 'delivery_metric_batches_per_second',
+    latest(kentik.ktranslate.chf.kkc.delivery_logs_nr) AS 'delivery_logs_per_second',
+    latest(kentik.ktranslate.chf.kkc.delivery_wins_nr) AS 'delivery_wins_per_second'
+    FACET host AS 'docker_host', svc AS 'container_service'
+    WHERE provider = 'kentik-agent'
+    AND instrumentation.name = 'heartbeat'
+    ```
+  </Collapser>
+
+  <Collapser
+    id="snmp-health"
+    title="SNMPコレクション全体の状態はどうですか？"
+  >
+    ```sql
+    FROM Metric
+    SELECT
+    latest(kentik.ktranslate.chf.kkc.device_metrics) AS 'device_polls_per_second',
+    latest(kentik.ktranslate.chf.kkc.interface_metrics) AS 'interface_polls_per_second'
+    FACET host AS 'docker_host', svc AS 'container_service'
+    WHERE provider = 'kentik-agent'
+    AND instrumentation.name = 'heartbeat'
+    ```
+  </Collapser>
+
+  <Collapser
+    id="snmp-failing-devices"
+    title="SNMPの収集に失敗している機器は？"
+  >
+    ```sql
+    SELECT
+    max(snmp_fail)
+    FROM (
+      FROM Metric
+      SELECT
+      latest(kentik.ktranslate.chf.kkc.snmp_fail) AS 'snmp_fail'
+      FACET host AS 'docker_host', svc AS 'container_service', device_name AS 'snmp_device'
+      WHERE provider = 'kentik-agent'
+      AND instrumentation.name = 'heartbeat'
+    )
+    FACET docker_host, container_service, snmp_device
+    WHERE snmp_fail = 2
+    ```
+  </Collapser>
+
+  <Collapser
+    id="netflow-health"
+    title="私のフローデータ収集の健康状態はどうですか？"
+  >
+    ```sql
+    FROM Metric
+    SELECT
+    max(kentik.ktranslate.chf.kkc.netflow) AS 'flows_per_second'
+    FACET host AS 'docker_host', svc AS 'container_service', device_name AS 'flow_device'
+    WHERE provider = 'kentik-agent'
+    AND instrumentation.name = 'heartbeat'
+    ```
+  </Collapser>
+
+  <Collapser
+    id="syslog-health"
+    title="私のsyslogコレクションの健康状態はどうですか？"
+  >
+    ```sql
+    FROM Metric
+    SELECT
+    latest(kentik.ktranslate.chf.kkc.syslog_queue) AS 'syslog_queue_total',
+    latest(kentik.ktranslate.chf.kkc.syslog_errors) AS 'syslog_errors_per_second',
+    latest(kentik.ktranslate.chf.kkc.syslog_messages) AS 'syslog_messages_per_second'
+    FACET host AS 'docker_host', svc AS 'container_service'
+    WHERE provider = 'kentik-agent'
+    AND instrumentation.name = 'heartbeat'
+    ```
+  </Collapser>
+</CollapserGroup>

@@ -1,0 +1,184 @@
+---
+title: Prometheusの属性の追加、名前の変更、コピー
+tags:
+  - Integrations
+  - Prometheus integrations
+  - Install and configure OpenMetrics
+metaDescription: How to rename or copy Prometheus metrics for your Docker and Kubernetes integration before sending them to New Relic.
+translationType: machine
+---
+
+New Relic Prometheus OpenMetricsインテグレーションは、DockerとKubernetesのPrometheusメトリクスをNew Relicに送信する前に変換するコントロールを提供します。統合の設定ファイルで変換を定義すると、すべてのエンドポイントに対して変換が実行されます。
+
+## ヒエラルキー
+
+[`nri-prometheus-latest.yaml`](https://download.newrelic.com/infrastructure_agent/integrations/kubernetes/nri-prometheus-latest.yaml) マニフェストファイルには、 `nri-prometheus-cfg` 構成例を示すコンフィグマップが含まれています。変形は以下の順序で実行されます。
+
+1. 指標を無視する。
+2. アトリビュートの追加やインクルード
+3. アトリビュートの名称変更
+4. 属性をコピーします。
+
+<Callout variant="important">
+  モニタリングのニーズに関係のないPrometheus OpenMetricsインテグレーションのデータを送らないようにしましょう。代わりに、フィルターを使って特定のメトリクスを無視したり、含めたりします。これにより、New Relic に送信するデータの量と種類をコントロールすることができます。また、追加の請求を回避することもできます。詳細については、 [Ignore or include Prometheus metrics](/docs/integrations/prometheus-integrations/install-configure/ignore-or-include-prometheus-metrics) を参照してください。
+</Callout>
+
+## 構成例 [#transformation-configuration]
+
+これらのオプションを使用するには、スクレーパーコンテナの設定ファイル(`config.yaml` カレントディレクトリ内)を設定します。
+
+```
+docker run -d --restart unless-stopped \
+    --name nri-prometheus \
+    -e CLUSTER_NAME="<var>YOUR_CLUSTER_NAME</var>"
+    -e LICENSE_KEY="<var>YOUR_LICENSE_KEY</var>" \
+    -v "$(pwd)/config.yaml:/config.yaml" \
+    newrelic/nri-prometheus:latest --configfile=/config.yaml
+```
+
+これらの例をすべて含む設定ファイルの例を示します。
+
+```
+transformations:
+ - description: "Transformation for MySQL exporter"
+   add_attributes:
+     - metric_prefix: "mysql_"
+       attributes:
+         owningTeam: "database-team"
+   rename_attributes:
+     - metric_prefix: "mysql_"
+       attributes:
+         table: "tableName"
+         under_score: "CamelCase"
+   copy_attributes:
+     - from_metric: "mysql_version_info"
+       to_metrics:
+         - "mysql_"
+       attributes:
+         - "innodb_version"
+         - "version"
+   ignore_metrics:
+     - prefixes:
+       - "go_"
+       - "process_"
+```
+
+## 属性の追加
+
+この変換では、静的に定義された属性のセットを、対象となるメトリクスのセットに含めることができます。
+
+<CollapserGroup>
+  <Collapser
+    id="example-copy"
+    title="属性の追加"
+  >
+    **構成。**
+
+    `owningTeam` 属性を `で始まるすべてのメトリクスに含めるために mysql_`:
+
+    ```
+    add_attributes:
+      - prefix: "mysql_"
+        attributes: 
+          owningTeam: "database-team"
+    ```
+
+    `datacenter` 属性をすべてのメトリクスに含めること。
+
+    ```
+    add_attributes:
+      - prefix: ""
+        attributes: 
+          datacenter: "europe"
+    ```
+
+    **入力します。**
+
+    ```
+    mysql_info_schema_table_rows{schema="sys",table="host_summary"} 123 another_metric{table="first"} 800
+    ```
+
+    **出力します。**
+
+    ```
+    mysql_info_schema_table_rows{schema="sys",table="host_summary","owningTeam":"database-team","datacenter":"europe"} 123 another_metric{table="first","datacenter":"europe"} 800
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## アトリビュートの名称変更
+
+すべてのPrometheusエンドポイントが一貫したネーミングを持っているわけではありません。必要に応じて属性名を変更することができます。
+
+<CollapserGroup>
+  <Collapser
+    id="example-rename"
+    title="アトリビュートの名称変更"
+  >
+    **構成。**
+
+    `テーブルの名前を変更するには` 属性を `tableName` `で始まるメトリクスの場合 mysql_`:
+
+    ```
+    rename_attributes:
+      - metric_prefix: "mysql_" 
+        attributes:
+          table: "tableName"
+    ```
+
+    **入力します。**
+
+    ```
+    mysql_info_schema_table_rows{schema="sys",table="host_summary"} 123 another_metric{table="first"} 800
+    ```
+
+    **出力します。**
+
+    ```
+    mysql_info_schema_table_rows{schema="sys",tableName="host_summary"} 123 another_metric{table="first"} 800
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## コピーの属性
+
+一部のPrometheusエンドポイントは、バージョンなどのサービスに関するメタデータを含む `_info` または `_static` メトリクスを提供しています。そのサービスのすべてのメトリックにこの属性があると便利な場合があります。この変換により、ソース・メトリックからターゲット・メトリックのセットに属性をコピーすることができます。
+
+<Callout variant="important">
+  属性のコピーは、同じエンドポイント内のメトリクス間でのみ可能です。
+</Callout>
+
+<CollapserGroup>
+  <Collapser
+    id="example-copy"
+    title="コピーの属性"
+  >
+    **構成。**
+
+    `innodb_version` と `version` 属性を `mysql_version_info` メトリクスから `mysql_` で始まるすべてのメトリクスにコピーする。
+
+    ```
+    copy_attributes:
+      - from_metric: "mysql_version_info"
+        to_metrics:
+          - "mysql_" 
+        attributes: 
+          - "innodb_version"
+          - "version"
+    ```
+
+    **入力します。**
+
+    ```
+    # HELP mysql_version_info MySQL version and distribution. mysql_version_info{innodb_version="5.7.14",version="5.7.14",version_comment="MySQL Community Server (GPL)"} 1
+
+    # HELP mysql_global_variables_slave_transaction_retries Generic gauge metric from SHOW GLOBAL VARIABLES. mysql_global_variables_slave_transaction_retries 10
+    ```
+
+    **出力します。**
+
+    ```
+    mysql_global_variables_slave_transaction_retries{innodb_version="5.7.14",version="5.7.14"} 10
+    ```
+  </Collapser>
+</CollapserGroup>

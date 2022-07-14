@@ -1,0 +1,123 @@
+---
+title: 긴 로그(BLOB)에서 데이터 찾기
+tags:
+  - Logs
+  - Log management
+  - UI and data
+metaDescription: How to find extensive log data stored in blobs in New Relic.
+translationType: machine
+---
+
+import LogBlobQuery from 'images/log-blob-query.png'
+
+광범위한 로그 데이터는 문제를 해결하는 데 도움이 될 수 있습니다. 그러나 로그의 속성에 수천 개의 문자가 포함되어 있으면 어떻게 될까요? New Relic은 이 데이터를 얼마나 저장할 수 있습니까? 그리고 이 모든 데이터에서 유용한 정보를 어떻게 찾을 수 있습니까?
+
+## 얼룩이 작동하는 방식 [#blob-example]
+
+NRDB에 저장할 수 있는 것보다 긴 긴 문자열 값(4,094자)의 경우 긴 문자열을 세 부분으로 저장합니다.
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        긴 로그 섹션
+      </th>
+
+      <th>
+        설명
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        처음 4,094자
+      </td>
+
+      <td>
+        처음 4,094자는 같은 이름의 `Log` 이벤트 필드에 저장됩니다. 따라서 긴 `message` 값은 처음 4,094자를 `message` 필드에 저장합니다.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        다음 128,000 UTF-8 바이트
+      </td>
+
+      <td>
+        문자열의 다음 128,000 UTF-8 바이트는 이름 앞에 `newrelic.ext.` 이 추가된 `blob` 필드에 저장됩니다. 따라서 긴 `message` 값은 `newrelic.ext.message` 필드에 `blob` 로 저장된 처음 4,094자를 초과하는 문자를 갖습니다.
+
+        저장된 실제 문자 수는 문자의 UTF-8 표현에 따라 다릅니다. UTF-8은 유니코드 문자를 1-4바이트로 나타내므로 처음 4,094자를 지나 32,000-128,000자를 저장합니다.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        남은 문자
+      </td>
+
+      <td>
+        4,094자 및 128,000바이트를 초과하는 모든 문자는 삭제되고 저장되지 않습니다.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+따라서 긴 `message` 필드는 다음과 같이 저장됩니다.
+
+```
+message: <first 4,094 characters as a string>
+newrelic.ext.message: <next 128,000 bytes as a 'blob'>
+```
+
+<Callout variant="tip">
+  문자열 속성의 처음 4,094자를 검색할 수 있습니다. 처음 4,094자에 대한 알림을 생성할 수도 있습니다. 그러나 `blob` 저장소는 검색할 수 없으므로 처음 4,094자를 초과하는 텍스트는 검색하거나 경고할 수 없습니다.
+</Callout>
+
+## Blob에 대한 데이터 쿼리 [#query-blob]
+
+<img
+  title="Query log extended data (blobs)"
+  alt="Screenshot of Log blobs query in UI"
+  src={LogBlobQuery}
+/>
+
+<figcaption>
+  **[one.newrelic.com](https://one.newrelic.com) > 로그** : 로그에서 확장 Blob 데이터를 쿼리하려면 특성의 Blob 구문에 백틱을 포함해야 합니다.
+</figcaption>
+
+New Relic에서 로그 데이터를 쿼리하려면 다음 쿼리를 실행합니다.
+
+```
+SELECT * FROM Log
+```
+
+Blob 데이터를 확장하려면 `message` 또는 다른 속성을 사용하여 다음 쿼리를 실행합니다. blob의 속성을 백틱으로 묶어야 합니다. 예를 들어:
+
+```
+SELECT message, <var>another-attribute</var>, blob(`newrelic.ext.message`), blob(`newrelic.ext.<var>another-attribute</var>) FROM Log
+```
+
+이렇게 하면 Blob의 데이터가 확장되어 볼 수 있지만 검색할 수는 없습니다. 예를 들어 New Relic은 다음을 반환합니다.
+
+```
+{
+  "message": <first 4,094 characters>
+  "newrelic.ext.message": <the next 128,000 bytes as Base64> 
+  "another-attribute": <first 4,094 characters>
+  "newrelic.ext.another-attribute": <the next 128,000 bytes as Base64>
+}
+```
+
+Logs UI는 Log Detail View를 볼 때 자동으로 원래 값을 다시 연결합니다. NRQL을 직접 사용하여 쿼리할 때 다음을 통해 정보를 수동으로 연결해야 합니다.
+
+* `newrelic.ext.` 속성 값의 Base64 디코딩
+* 결과 UTF-8을 문자열로 변환
+* "main" 속성의 처음 4,094자에 해당 문자열 추가
+
+## 긴 로그에 대한 데이터 보존 [#data-retention]
+
+NRDB는 한 달 동안 Blob 레코드를 유지합니다. 기존의 긴 로그 메시지가 `LogExtendedRecord` 으로 저장된 경우 해당 데이터는 NRDB에서 한 달 동안 계속 사용할 수 있습니다.
+
+한 달이 지나면 더 이상 새로운 `LogExtendedRecord` 속성이 생성되지 않습니다. 그것들은 모두 NRDB에 blob으로 저장됩니다.

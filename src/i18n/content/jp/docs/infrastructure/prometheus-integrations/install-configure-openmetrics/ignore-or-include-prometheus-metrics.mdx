@@ -1,0 +1,113 @@
+---
+title: プロメテウス・メトリクスを無視するか、含めるか
+tags:
+  - Integrations
+  - Prometheus integrations
+  - Install and configure OpenMetrics
+metaDescription: Avoid exceeding New Relic's platform limits and increasing your billing charges by using the Prometheus OpenMetrics integration's filtering capabilities.
+translationType: machine
+---
+
+モニタリングのニーズに関係のないPrometheus OpenMetricsインテグレーションのデータを送らないようにしましょう。代わりに、フィルターを使って特定のメトリクスを無視したり、含めたりします。これにより、New Relic に送信するデータの量と種類をコントロールすることができます。また、このドキュメントで説明されているように、追加の請求を回避するのにも役立ちます。
+
+## 請求額の増加を防ぐ [#rate-limits]
+
+私たちは、Prometheus `discovery` と `scrape` のアノテーションを使用しています。Prometheus OpenMetrics インテグレーションで、 **利用可能なすべての** ターゲットをスクレイプし、それらのターゲットから公開されているすべてのデータを送信するように設定すると、New Relic のプラットフォームの制限を超え、請求額が増加する可能性があります。このような事態を防ぐために、統合機能のフィルタリング機能をご利用ください。
+
+詳細については、 [Docker](/docs/integrations/prometheus-integrations/get-started/monitor-prometheus-new-relic#OpenMetrics) および [Kubernetes](/docs/integrations/prometheus-integrations/get-started/monitor-prometheus-new-relic#OpenMetrics) のPrometheus OpenMetrics統合要件を参照してください。また、 `NrIntegrationError` イベント の [トラブルシューティング手順もご覧ください。](/docs/integrations/prometheus-integrations/troubleshooting/rate-limit-errors-prometheus-integration)
+
+## [無視すべき、あるいは含めるべきメトリクスを特定する [#ignore-metrics]](/docs/integrations/prometheus-integrations/troubleshooting/rate-limit-errors-prometheus-integration)
+
+[どのデータを含めるか、または除外するかを決めるために、New Relic の ](/docs/integrations/prometheus-integrations/troubleshooting/rate-limit-errors-prometheus-integration)[Metric API](/docs/data-ingest-apis/get-data-new-relic/metric-api/view-query-you-metric-data#explore-metric-data) を使用して、メトリックデータを調査します。その後、フィルターを絞り込み、関連するターゲットのみをスクレイプし、有用なメトリクスを送信します。
+
+* ターゲットから不要なメトリクスをフィルタリングするには、 `ignore_metrics` 設定オプションを使用します。
+* メトリクスではなくターゲットをフィルタリングするには、 `scrape_enabled_label` 設定オプションを使用します。
+
+<Callout variant="caution">
+  [histogram](https://prometheus.io/docs/concepts/metric_types/#histogram) と [summary](https://prometheus.io/docs/concepts/metric_types/#summary) メトリクスタイプのフィルタリングは、 `base name` に適用されます。そのメトリックの `_bucket` 、 `_sum` 、 `_count` のタイムスケールではフィルタリングできません。
+</Callout>
+
+[`nri-prometheus-latest.yaml`](https://download.newrelic.com/infrastructure_agent/integrations/kubernetes/nri-prometheus-latest.yaml) マニフェストファイルには、 `nri-prometheus-cfg` [構成例を示すconfigマップ](/docs/integrations/prometheus-integrations/configure/configure-prometheus-openmetrics-integration) が含まれています。統合は、 [属性の追加、名前の変更、またはコピーを行う他の関数を実行する前に、メトリクスを無視または包含します](/docs/integrations/prometheus-integrations/view-query-data/add-rename-copy-prometheus-attributes) 。
+
+<CollapserGroup>
+  <Collapser
+    id="example-ignore"
+    title="不要なメトリクスを除外する（無視する）"
+  >
+    不要なメトリクスを無視するには、次のような変換を行います。
+
+    **構成例**
+
+    `go_` または `process_` で始まるすべてのメトリクスを削除する。
+
+    ```
+    transformations:
+      - description: "General processing rules"
+        ignore_metrics:
+          - prefixes:
+            - "go_"
+            - "process_"
+    ```
+
+    **Prometheusの生のメトリクスの例**
+
+    ```
+    go_goroutines 13
+    process_virtual_memory_bytes 2.062336e+07
+    mysql_global_status_commands_total{command="ha_close"} 0
+    mysql_global_status_commands_total{command="ha_open"} 0
+    ```
+
+    これは、MySQL エクスポーターから取得したものです。MySQL のメトリクスの他に、興味のないかもしれないエクスポーターに関するメトリクスも公開されています。
+
+    **出力例**
+
+    フィルタリングが適用された後、 `go_` と `process_` のメトリクスはドロップされ、 `mysql_` のメトリクスは New Relic に出荷されます。
+
+    ```
+    mysql_global_status_commands_total{command="ha_close"} 0 
+    mysql_global_status_commands_total{command="ha_open"} 0
+    ```
+  </Collapser>
+
+  <Collapser
+    id="include-metrics"
+    title="特定のメトリクスのみを含める（除く）"
+  >
+    特定のメトリクスだけを対象としたい場合は、 `ignore_metrics` セクションの下にある `except` リストを使うことができます。これは、その名の通り、指定された接頭辞を持つものを除くすべてのメトリクスを無視します。
+
+    **構成例**
+
+    `以外のすべてのメトリクスを削除するには kube_hpa_`:
+
+    ```
+    transformations:
+      - description: "General processing rules"
+        ignore_metrics:
+          - except:
+            - kube_hpa_
+    ```
+  </Collapser>
+
+  <Collapser
+    id="include-exclude"
+    title="includeとexcludeの組み合わせ（exceptとignore）"
+  >
+    `プレフィックス` と `の両方を組み合わせて、 ignore_metrics セクションの下の` を除いて、より複雑なフィルタリングを行うことができます。
+
+    **構成例**
+
+    `coredns_` メトリクスのうち、 `coredns_dns_request_count_total` と `coredns_dns_responses_total` を除くすべてのメトリクスを削除する。
+
+    ```
+    transformations:
+      - description: "CoreDNS Example Metrics"
+        ignore_metrics:
+          - prefixes:
+            - coredns_
+            except:
+            - coredns_dns_request_count_total
+            - coredns_dns_responses_total
+    ```
+  </Collapser>
+</CollapserGroup>

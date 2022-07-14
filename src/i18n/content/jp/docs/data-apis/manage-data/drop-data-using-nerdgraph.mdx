@@ -1,0 +1,380 @@
+---
+title: NerdGraphでデータを落とす
+tags:
+  - Drop rules
+  - Data ingest cost
+metaDescription: 'Using the New Relic NerdGraph API, you can drop some specific types of data that meet the criteria you set.'
+translationType: machine
+---
+
+[データインジェスト](/docs/data-apis/manage-data/manage-data-coming-new-relic) を管理する一つの方法は、データドロップのルールを設定することです。データドロップをサポートしている [データに対して](#requirements) 、以下のことができます。
+
+* 重要ではない価値の低いデータを除外する
+* 機密性の高いデータを除外
+
+## 概要 [#overview]
+
+データドロップのルールを設定すると、その時点以降のデータのみが影響を受けます。すでに取り込まれている既存のデータ [は、編集や削除ができません](/docs/telemetry-data-platform/ingest-manage-data/manage-data/manage-data-retention#data-deletion) 。詳しくは、NerdBytesのビデオ（7分9秒）をご覧ください。
+
+<Video
+  id="ww0mim4c5jk"
+  type="youtube"
+/>
+
+NerdGraphを使用する以外にも、データをドロップする方法は以下の通りです。
+
+* Prometheus remote write を使用している場合は、 [Drop Prometheus remote write data](/docs/integrations/prometheus-integrations/install-configure/remote-write-drop-data/) を参照してください。
+* ログを報告している場合は、UI [ログデータをドロップすることができます](/docs/logs/ui-data/drop-data-drop-filter-rules) 。
+* APM メトリックのタイムスライスデータを削除したい場合は、 [メトリックの正規化ルール](/docs/new-relic-one/use-new-relic-one/ui-data/metric-normalization-rules) を使用することができます。
+
+## 要件 [#requirements]
+
+ドロップフィルターのルールを作成・編集できるかどうかは、どのユーザーモデルを使っているかによって異なります。
+
+* 新しいユーザーモデル：「NRQLドロップルール」[機能を備え](/docs/accounts/accounts-billing/new-relic-one-user-management/user-capabilities)たロールを割り当てる必要があります。
+* オリジナルのユーザーモデル： [Adminロールを持っている必要があります](/docs/accounts/original-accounts-billing/original-users-roles/users-roles-original-user-model/#roles) 。
+
+次のデータ型は、データドロップの対象になります。
+
+* APMで報告されたイベント
+
+* ブラウザで報告されるイベント
+
+* モバイルで報告されたイベント
+
+* シンセティック・レポート・イベント
+
+* カスタムイベント（ [APMエージェントAPI](/docs/insights/insights-data-sources/custom-data/insert-custom-events-new-relic-apm-agents) や [Event API](/docs/insights/insights-data-sources/custom-data/introduction-event-api) で生成されるようなもの）。
+
+* ログデータ（UIを使ってデータをドロップすることも可能です [)](/docs/logs/ui-data/drop-data-drop-filter-rules)
+
+* [* トレーススパンの分散](/docs/logs/ui-data/drop-data-drop-filter-rules)
+
+* [](/docs/logs/ui-data/drop-data-drop-filter-rules)[デフォルトのインフラ監視イベント](/docs/infrastructure/manage-your-data/data-instrumentation/default-infrastructure-monitoring-data) および [インフラ統合](/docs/integrations/infrastructure-integrations/get-started/introduction-infrastructure-integrations) イベント、ただしこの例外を除く。
+
+  * ダウンサンプリングされた`SystemSample` 、 `ProcessSample` 、 `NetworkSample` 、および`StorageSample`で、時間枠が59分を超える場合はドロップできません。このデータは、データの取り込みにはカウントされません。
+
+* [Dimensional metrics](/docs/telemetry-data-platform/ingest-manage-data/understand-data/new-relic-data-types#dimensional-metrics) 、以下のような注意点があります。
+
+  * 請求への影響： [使用量ベースの料金](/docs/accounts/accounts-billing/new-relic-one-pricing-billing/new-relic-one-pricing-billing)では、ドロップされたデータは請求されません。[元の料金モデル](/docs/accounts/original-accounts-billing/product-pricing/product-based-pricing)の場合、ドロップされたデータは請求可能です。
+  * [events-to-metricsサービスによって生成されたメトリクスについて](/docs/data-ingest-apis/get-data-new-relic/metric-api/events-metrics-service-create-metrics): ドロップルールは機能しませんが、events-to-metricルールを無効にするか再設定することで、これらのメトリクスを停止したり、属性を刈り込んだりすることができます。
+
+将来的にはさらに多くのタイプに対応する予定です。
+
+## ドロップデータルールの作成 [#how-to]
+
+<Callout variant="caution">
+  データをドロップするかどうかは慎重に判断してください。ドロップしたデータは復元できません。この機能を使用する前に、以下の [注意情報を確認してください。](#caution)
+</Callout>
+
+データをドロップするには、 [NerdGraph](/docs/apis/nerdgraph/get-started/introduction-new-relic-nerdgraph)-format drop rule を作成します。
+
+* [NRQL](/docs/query-data/nrql-new-relic-query-language/getting-started/introduction-nrql) ドロップするデータタイプを指定する文字列
+* NRQL 文字列の適用方法を指定する **アクション** タイプ
+
+[NerdGraph explorer](https://api.newrelic.com/graphiql) で形成し、呼び出しを行うことができます。
+
+nrqlクエリの長さの制限は4096文字です。長さを超えると、nerdGraphはエラー`INVALID_NRQL_TOO_LONG`をスローします。
+
+データを落とすには2つの方法があります。
+
+* **データ型全体またはデータサブセット**（オプションのフィルターを使用）を削除します。これは`DROP_DATA`**アクション**タイプを使用し、次の形式のNRQLを使用します。
+
+  ```
+  SELECT * FROM <var>DATA_TYPE_1</var>, <var>DATA_TYPE_2</var> (WHERE <var>OPTIONAL_FILTER</var>)
+  ```
+
+  このタイプのドロップルールでは、 `SELECT`句で`*`以外のものを使用することはできません。
+
+* **データ型から属性を削除します**（オプションのフィルターを使用）。これは`DROP_ATTRIBUTES`**アクション**タイプを使用し、次の形式のNRQLを使用します。
+
+  ```
+  SELECT <var>dropAttr1</var>, <var>dropAttr2</var> FROM <var>DATA_TYPE</var> (WHERE <var>OPTIONAL_FILTER</var>)
+  ```
+
+  このタイプのドロップルールでは、生の属性名の空でないリストを渡す必要があります。
+
+## NRQL制限 [#restrictions]
+
+すべてのNRQL句がドロップルールの生成に意味があるわけではありません。 [`WHERE`](/docs/query-data/nrql-new-relic-query-language/getting-started/nrql-syntax-clauses-functions#sel-where)句を指定して、特定の属性を持つデータを選択できます。 `LIMIT` 、 `TIMESERIES` 、 `COMPARE WITH` 、 `FACET` 、およびその他の句などの他の機能は使用できません。
+
+`SINCE` および`UNTIL`はドロップルールではサポートされていません。時間固有のルールがある場合（たとえば、将来のある時点まですべてを削除する）、 `WHERE timestamp < (epoch milliseconds in the future)`を使用します。また、 `SINCE`を使用して履歴データをドロップすることはできません。NRQLドロップルールは、ドロップルールの作成後に報告されたデータにのみ適用されます。すでに報告されているデータを削除する必要がある場合は、NewRelicの担当者にお問い合わせください。
+
+2つのアクションタイプにはこれらの制限があります。
+
+* `DROP_DATA` 使用できるのは`SELECT *`のみです。
+* `DROP_ATTRIBUTES` 「raw」属性（ [アグリゲーター関数](/docs/query-data/nrql-new-relic-query-language/getting-started/nrql-syntax-clauses-functions#functions)が適用されていない属性）を持つ`SELECT`を使用する必要があります。これは、 `SELECT *`を使用できないことも意味します。さらに、データ型に不可欠で**あり、削除できない**属性がいくつかあります（イベントデータの`timestamp`など）。それらを含めると、登録は失敗します。
+
+## ドロップルールの例 [#example-rules]
+
+以下にドロップルールの例を示します。
+
+<CollapserGroup>
+  <Collapser
+    id="drop-events"
+    title="2つのイベントタイプをドロップ"
+  >
+    例えば、自分にとって重要でないイベントタイプがNew Relicに送信されていることに気づいたとします。また、それらのイベントタイプの送信元をすぐに止めることは現実的ではなく、エージェントやAPIインスツルメンテーションの変更が必要になります。ドロップルールを使用すれば、同じ目的を達成するためのより簡単な方法です。
+
+    これは、 `Event1`と`Event2`の2つのイベントタイプをドロップするNerdGraph呼び出しの例です。
+
+    ```
+    mutation {
+        nrqlDropRulesCreate(accountId: <a href="/docs/accounts/install-new-relic/account-setup/account-id"><var>YOUR_ACCOUNT_ID</var></a>, rules: [
+            {
+                action: DROP_DATA
+                nrql: "SELECT * FROM Event1, Event2"
+                description: "Drops all data for Event1 and Event2."
+            }
+        ])
+        {
+            successes { id }
+            failures {
+                submitted { nrql }
+                error { reason description }
+            }
+        }
+    }
+    ```
+  </Collapser>
+
+  <Collapser
+    id="drop-specific-events"
+    title="特定の条件を満たすイベントをドロップ"
+  >
+    例えば、複数のソースから届く大量のカスタムイベントタイプがあるとします。そのデータのすべてが重要でないと判断した場合、ドロップルールを使用することができます。以下は、特定の条件に基づいてイベントをフィルタリングするドロップルールの例です。
+
+    ```
+    mutation {
+        nrqlDropRulesCreate(accountId: <a href="/docs/accounts/install-new-relic/account-setup/account-id"><var>YOUR_ACCOUNT_ID</var></a>, rules: [
+            {
+                action: DROP_DATA
+                nrql: "SELECT * FROM MyCustomEvent WHERE appName='LoadGeneratingApp' AND environment='development'"
+                description: "Drops all data for MyCustomEvent that comes from the LoadGeneratingApp in the dev environment, because there is too much and we don’t look at it."
+            }
+        ])
+        {
+            successes { id }
+            failures {
+                submitted { nrql }
+                error { reason description }
+            }
+        }
+    }
+    ```
+  </Collapser>
+
+  <Collapser
+    id="drop-sensitive-data"
+    title="残りのデータを維持したまま、機密性の高い属性を削除"
+  >
+    イベントに個人情報（PII）を含む属性があることに気付いたとしましょう。データの送信を停止するようにサービスを更新しようとしていますが、それまでは、NewRelicへのPIIの保存を停止する必要があります。 `DROP_DATA`ルールを使用してドアに入ってくるすべてのデータを削除することもできますが、残りのデータは依然として価値を提供します。したがって、ドロップルールを登録して、問題のあるPIIのみをデータから削除できます。
+
+    ```
+    mutation {
+        nrqlDropRulesCreate(accountId: <a href="/docs/accounts/install-new-relic/account-setup/account-id"><var>YOUR_ACCOUNT_ID</var></a>, rules: [
+            {
+                action: DROP_ATTRIBUTES
+                nrql: "SELECT userEmail, userName FROM MyCustomEvent"
+                description: "Removes the user name and email fields from MyCustomEvent"
+            }
+        ])
+        {
+            successes { id }
+            failures {
+                submitted { nrql }
+                error { reason description }
+            }
+        }
+    }
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## ドロップルールの動作確認 [#verify]
+
+ドロップルールを作成したら、期待どおりに機能していることを確認します。登録が成功するとすぐにルールが有効になるため、登録したクエリの`TIMESERIES`バージョンを実行して、データが削除されることを確認してください。
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        ドロップルールタイプ
+      </th>
+
+      <th>
+        NRQL
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `DROP_DATA`
+      </td>
+
+      <td>
+        **ドロップルールNRQL。**
+
+        ```
+        SELECT * FROM MyEvent WHERE foo = bar
+        ```
+
+        **バリデーションNRQL。**
+
+        ```
+        SELECT count(*) FROM MyEvent WHERE foo = bar TIMESERIES
+        ```
+
+        これは0に低下するはずです。他に影響がないことを確認するには、 `WHERE`句を逆にします。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `DROP_ATTRIBUTES`
+      </td>
+
+      <td>
+        **ドロップルールNRQL。**
+
+        ```
+        SELECT dropAttr1, dropAttr2 FROM MyEvent WHERE foo = bar
+        ```
+
+        **バリデーションNRQL。**
+
+        ```
+        SELECT count(dropAttr1), count(dropAttr2) FROM MyEvent WHERE foo = bar TIMESERIES
+        ```
+
+        両方の行が0にドロップする必要があります。これらの属性を含むイベントに影響がなく、それでも影響がないことを確認するには、 `WHERE`句を逆にします。
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## ルールを見る [#view]
+
+以下は、アカウントに設定されているドロップルールを返すNerdGraphコールの例です。
+
+```
+{
+    actor {
+        account(id: <a href="/docs/accounts/install-new-relic/account-setup/account-id"><var>YOUR_ACCOUNT_ID</var></a>) {
+            nrqlDropRules {
+                list {
+                    rules {
+                        id
+                        nrql
+                        accountId
+                        action
+                        createdBy
+                        createdAt
+                        description
+                    }
+                    error { reason description } 
+                }
+            }
+        }
+    }
+}
+```
+
+## ドロップルールの削除 [#delete]
+
+以下は、特定の2つのドロップルールを削除するNerdGraphコールの例です。
+
+```
+mutation {
+    nrqlDropRulesDelete(accountId: <a href="/docs/accounts/install-new-relic/account-setup/account-id"><var>YOUR_ACCOUNT_ID</var></a>, ruleIds: ["48", "98"]) {
+	successes {
+	    id
+	    nrql
+	    accountId
+	    action
+	    description
+	}
+	failures {
+	    error { reason description }
+	    submitted { ruleId accountId }
+        }
+    }
+}
+```
+
+## ドロップルール履歴の監査 [#history]
+
+ドロップルールの作成者と削除者を確認するには、 [アカウントの監査ログ](/docs/insights/use-insights-ui/manage-account-data/query-account-audit-logs-nrauditevent) を照会してください。 [リストエンドポイント](#list) には、ルールを作成した人のユーザーIDも含まれています。
+
+## データを落とす際の注意点 [#caution]
+
+ドロップルールを作成する際には、ルールが設定した条件を満たすデータを正確に識別し、廃棄することに責任を負います。また、ルールの監視だけでなく、New Relic に開示したデータの監視にも責任があります。
+
+New Relic は、この機能によってお客様が抱えるデータ開示の懸念を完全に解決できることを保証するものではありません。New Relic は、お客様が作成したルールがどれだけ効果的であるかをレビューまたは監視しません。
+
+センシティブなデータに関するルールを作成すると、どのような種類のデータを保持しているのか、データやシステムの形式（例えば、電子メールアドレスや特定のクレジットカード番号を参照することなど）などの情報が漏れてしまいます。作成したルールは、そのルールに含まれるすべての情報を含めて、関連するロールベースのアクセス制御権限を持つすべてのユーザーが表示および編集できます。
+
+ドロップされるのは新規データのみです。既存のデータ [の編集や削除はできません](/docs/telemetry-data-platform/ingest-manage-data/manage-data/manage-data-retention#data-deletion) 。
+
+## ディメンション・メトリック・ロールアップでの属性の削除
+
+[Dimensional metrics](/docs/data-apis/understand-data/new-relic-data-types/#metrics-conceptual) メトリクスをロールアップに集約して長期保存し、長期的なクエリを最適化する方法として [メトリクスのカーディナリティ制限](/docs/data-apis/ingest-apis/metric-api/metric-api-limits-restricted-attributes) がこのデータに適用されます。
+
+この機能を利用して、長期間の保存や問い合わせには必要ないが、リアルタイムの問い合わせのために維持しておきたい属性を決めることができます。
+
+たとえば、属性として`containerId`を追加すると、ライブトラブルシューティングや最近の分析に役立ちますが、より大きな傾向を長期間にわたってクエリする場合は必要ない場合があります。 `containerId`のようなユニークなものがどれほどユニークであるかにより、それはあなたを[メトリックカーディナリティの限界](/docs/data-apis/ingest-apis/metric-api/metric-api-limits-restricted-attributes)に向かって素早く駆り立てることができ、ヒットするとそのUTC日の残りのロールアップの合成を停止します。
+
+また、この機能により、カーディナリティの高い [の属性を生データに残し、ロールアップから削除することができ、カーディナリティの限界に近づくスピードをよりコントロールすることができます。](/docs/data-apis/ingest-apis/metric-api/NRQL-high-cardinality-metrics/)
+
+### [使用方法](/docs/data-apis/ingest-apis/metric-api/NRQL-high-cardinality-metrics/)
+
+[**ディメンション指標のロールアップから属性を削除**します（オプションのフィルターを使用）。これは`DROP_ATTRIBUTES_FROM_METRIC_AGGREGATES`**アクション**タイプを使用し、次の形式のNRQLを使用します。](/docs/data-apis/ingest-apis/metric-api/NRQL-high-cardinality-metrics/)
+
+```
+SELECT <var>dropAttr1</var>, <var>dropAttr2</var> FROM Metric (WHERE <var>OPTIONAL_FILTER</var>)
+```
+
+[NerdGraphのリクエスト例をご紹介します。](/docs/data-apis/ingest-apis/metric-api/NRQL-high-cardinality-metrics/)
+
+```
+mutation {
+    nrqlDropRulesCreate(accountId: <a href="/docs/accounts/install-new-relic/account-setup/account-id"><var>YOUR_ACCOUNT_ID</var></a>, rules: [
+        {
+            action: DROP_ATTRIBUTES_FROM_METRIC_AGGREGATES
+            nrql: "SELECT containerId FROM Metric WHERE metricName = 'some.metric'"
+            description: "Removes the containerId from long term querys."
+        }
+    ])
+    {
+        successes { id }
+        failures {
+            submitted { nrql }
+            error { reason description }
+        }
+    }
+}
+```
+
+[動作を確認するには、ルールがピックアップされ、集計データが生成されるまで3～5分待ちます。次に、上記のNRQLの例があなたのドロップルールであると仮定して、以下のクエリを実行します。](/docs/data-apis/ingest-apis/metric-api/NRQL-high-cardinality-metrics/)
+
+```
+SELECT count(containerId) FROM Metric WHERE metricName = 'some.metric' TIMESERIES SINCE 2 hours ago
+SELECT count(containerId) FROM Metric WHERE metricName = 'some.metric' TIMESERIES SINCE 2 hours ago RAW
+```
+
+[最初のクエリはメトリックロールアップを取得し、新しいドロップルールに従って`containerId`がドロップされたため、0にドロップする必要があります。 2番目のクエリは、 `RAW`キーワードを使用してメトリックrawを取得します。これは、rawデータが新しいドロップルールの影響を受けないため、引き続き安定している必要があります。これがカーディナリティに与える影響を確認する方法の詳細については、カーディナリティの](/docs/data-apis/ingest-apis/metric-api/NRQL-high-cardinality-metrics/)[高いメトリックを理解してクエリするを](/docs/data-apis/ingest-apis/metric-api/NRQL-high-cardinality-metrics)確認してください。
+
+### 制限
+
+`DROP_ATTRIBUTES`に適用されるすべての制限は`DROP_ATTRIBUTES_FROM_METRIC_AGGREGATES`に適用されますが、 `Metric`データ型のみをターゲットにできるという追加の制限があります。また[、メトリクスルールへのイベント](/docs/data-ingest-apis/get-data-new-relic/metric-api/events-metrics-service-create-metrics)によって作成されたデータを対象とする`Metric`クエリ、または[タイムスライスデータ](/docs/data-apis/understand-data/metric-data/query-apm-metric-timeslice-data-nrql)を対象とする`Metric`クエリでは機能しません。
+
+## もっと詳しく知る
+
+もっと知りたい方へのおすすめ情報
+
+* [NerdGraphの基礎知識と用語集](/docs/apis/nerdgraph/get-started/introduction-new-relic-nerdgraph#terminology)
+* [NRQLの基礎知識](/docs/query-data/nrql-new-relic-query-language/getting-started/introduction-nrql)
+* [Explorers Hub](https://discuss.newrelic.com/c/telemetry-data-platform/dashboards) NRQLドロップルールに関するコミュニティの議論を参照してください。
+* 複雑な組織のデータ取り込みの管理の詳細については、 [データ取り込みガバナンス](/docs/new-relic-solutions/observability-maturity/operational-efficiency/intro-data-governance)を参照してください。

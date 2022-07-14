@@ -1,0 +1,289 @@
+---
+title: Kubernetesのログ
+tags:
+  - Integrations
+  - Kubernetes integration
+  - Troubleshooting
+metaDescription: 'Kubernetes integration: How to install and activate the integration, and what data is reported.'
+translationType: machine
+---
+
+import kubernetesV3Integration from 'images/kubernetes-v3-integration.png'
+
+冗長なログを生成したり、バージョンや設定情報を取得するには、以下の手順に従ってください。
+
+<CollapserGroup>
+  <Collapser
+    id="verbose-logging"
+    title="詳細なロギングを有効にする"
+  >
+    Kubernetes統合の場合、デバッグレベルのログは生成されません。自分で、またはNew Relic Supportを使用してより詳細な調査を行う場合は、冗長モードを有効にできます。
+
+    <Callout variant="caution">
+      Verboseモードでは、ログファイルに送信される情報量が大幅に増加します。トラブルシューティングのためだけに一時的にこのモードを有効にし、終了したらログレベルをリセットしてください。
+    </Callout>
+
+    * Helmと`nri-bundle`チャートを使用して詳細なログを取得するには、values.yaml `newrelic-infrastructure.verboseLog`に追加するだけで十分です。すべてのサブチャート設定`global.verboseLog`でそれらを有効にできることに注意してください。
+
+      ```yaml
+      # To enable verboseLog for newrelic-infrastructure only
+      # newrelic-infrastructure:
+      #   verboseLog: true
+
+      # To enable verboseLog for all sub-charts
+      # global:
+      #   verboseLog: true
+      ```
+
+      ファイルを編集したら、次のコマンドを使用してソリューションをアップグレードします。
+
+      ```shell
+      helm upgrade <RELEASE_NAME> newrelic/nri-bundle \
+      --namespace <NEWRELIC_NAMESPACE> \
+      -f values-newrelic.yaml \
+      [--version fixed-chart-version]
+      ```
+
+      次に、しばらく待ってログを収集し、 `values.yaml`ファイルの変更を元に戻して、再度アップグレードします。
+
+    * マニフェストファイルを使用して統合の詳細なログを手動で取得するには、2つの異なる環境変数を設定する必要があります。
+
+      1. `NRIA_VERBOSE="1"` すべての`agent`および`forwarder`コンテナ用。たとえば、 `NRIA_LICENSE_KEY`環境変数の下。この環境変数は、エージェントの詳細ログを有効にします。
+      2. 統合のすべてのコンポーネントに`NRI_KUBERNETES_VERBOSE=true"`を設定します。この環境変数は、統合の詳細なログを有効にします。
+
+      マニフェストを編集したら、次のコマンドを使用してソリューションをアップグレードします。次に、しばらく待ってログを収集し、マニフェストの変更を元に戻して、マニフェストを再度適用します。
+
+      ```shell
+      kubectl apply -f your_newrelic_k8s.yaml -n <NEWRELIC_NAMESPACE>
+      ```
+  </Collapser>
+
+  <Collapser
+    id="retrieve-logs-v3"
+    title="統合コンポーネントのいずれかからログを取得します"
+  >
+    統合には、 `ksm` 、 `controlplane` 、および`kubelet`のスクレイピングを担当する3つの異なるコンポーネントがあります。いずれの場合も、2つのコンテナーが実行されており、1つはデータをスクレイピングし、もう1つはデータを転送します。kubeletコンポーネントのエージェントは、ノードデータのスクレイプと統合の実行も担当します。
+
+    <img
+      title="Diagram showing the integration installed in a 3 nodes cluster"
+      alt="Diagram showing the integration installed in a 3 nodes cluster"
+      src={kubernetesV3Integration}
+    />
+
+    ログを取得するには、ログを取得するポッドの名前を取得します。
+
+    ```shell
+    kubectl get pods -n <NEWRELIC_NAMESPACE>
+    ```
+
+    ログを取得します。
+
+    ```shell
+    kubectl logs <POD_NAME> --all-containers --prefix
+    ```
+
+    前回の実行のログに関心がある場合は、 `--previous`フラグを追加してください。コンテナの1つだけのログに関心がある場合は、 `--all-containers --prefix`フラグを回避し、 `--container`オプションを使用してコンテナを指定できます。
+  </Collapser>
+
+  <Collapser
+    id="infra-version"
+    title="インフラストラクチャエージェントのバージョンを取得する"
+  >
+    <Callout variant="important">
+      Kubernetes統合を最大限に活用するには、統合の最後のバージョンを使用することをお勧めします。[バージョン3で導入された変更を確認して](/docs/kubernetes-pixie/kubernetes-integration/get-started/changes-since-v3)ください。
+    </Callout>
+
+    Kubernetesインテグレーションの場合、インフラストラクチャエージェントは、インフラストラクチャエージェントとKubernetesインテグレーションを含むDockerイメージとして配布されます。Dockerイメージにはバージョンがタグ付けされており、インフラストラクチャエージェントにもバージョンがあります。
+
+    エージェントがNew Relicに正常に情報を送信している場合、以下のNRQLクエリを使用して、クラスタで実行しているKubernetes用のインフラストラクチャエージェント（Dockerイメージ）のバージョンを取得することができます。
+
+    ```sql
+    FROM K8sContainerSample SELECT uniqueCount(entityId) WHERE containerName LIKE 'agent' FACET clusterName, containerImage
+    ```
+
+    エージェントがデータを報告していない場合：
+
+    `kubectl`を使用して、クラスターで実行しているKubernetesのNewRelic統合のバージョンを取得します。
+
+    ```shell
+    kubectl get pods --all-namespaces -l app.kubernetes.io/name=newrelic-infrastructure -o jsonpath="{.items..spec..containers..image}"
+    ```
+  </Collapser>
+
+  <Collapser
+    id="kube-state-metrics-version"
+    title="kube-state-metricsのバージョンを取得"
+  >
+    クラスタで稼働しているkube-state-metricsのバージョンを取得するには、以下のNRQLクエリを実行します。
+
+    ```sql
+    FROM K8sContainerSample SELECT uniqueCount(entityId) WHERE containerName LIKE '%kube-state-metrics%' facet clusterName, containerImage
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## 統合バージョン2固有のコマンド [#version2-commands]
+
+<CollapserGroup>
+  <Collapser
+    id="verbose-with-manifest"
+    title="マニフェストファイルを使用したインストールの詳細なログの取得"
+  >
+    Kubernetesの統合では、インフラストラクチャエージェントは、エラーが発生した場合にのみログエントリを追加します。ほとんどの一般的なエラーは、標準（非冗長）ログに表示されます。ご自身で、またはNew Relic Supportでより詳細な調査を行う場合は、verboseモードを有効にすることができます。
+
+    <Callout variant="caution">
+      Verboseモードでは、ログファイルに送信される情報量が大幅に増加します。トラブルシューティングのためだけに一時的にこのモードを有効にし、終了したらログレベルをリセットしてください。
+    </Callout>
+
+    マニフェストファイルを使用する統合の詳細なログ情報を取得するには
+
+    1. `verbose`ログを有効にする：デプロイメントファイルで、 `NRIA_VERBOSE`の値を`1`に設定します。
+
+    2. 変更したコンフィグレーションを実行して適用する。
+
+       ```shell
+       kubectl apply -f <var>your_newrelic_k8s</var>.yaml
+       ```
+
+    3. 数分間、あるいは十分なアクティビティが発生したと感じられるまで、冗長モードのままにしておきます。
+
+    4. 詳細モードを無効にする： `NRIA_VERBOSE`の値を`0`に戻します。
+
+    5. 復元したコンフィグレーションを実行して適用します。
+
+       ```shell
+       kubectl apply -f <var>your_newrelic_k8s</var>.yaml
+       ```
+
+    6. 環境内のノードのリストを取得します。
+
+       ```shell
+       kubectl get nodes --all-namespaces
+       ```
+
+    7. infrastructureおよびkube-state-metricsポッドのリストを取得します。
+
+       ```shell
+       kubectl get pods --all-namespaces -o wide | egrep 'newrelic|kube-state-metrics'
+       ```
+
+    8. [kube-state-metricsに接続しているポッドからログを取得](#logs-pod-kubestatemetrics).
+
+    9. [kube-state-metricサービスの設定を取得](#kube-state-metrics-version).
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="verbose-helm"
+    title="Helmを使用したインストールの詳細なログの取得"
+  >
+    Kubernetesの統合では、インフラストラクチャエージェントは、エラーが発生した場合にのみログエントリを追加します。ほとんどの一般的なエラーは、標準の（冗長でない）ログに表示されます。ご自身で、またはNew Relic Supportでより詳細な調査を行う場合は、verboseモードを有効にすることができます。
+
+    <Callout variant="caution">
+      Verboseモードでは、ログファイルに送信される情報量が大幅に増加します。トラブルシューティングのためだけに一時的にこのモードを有効にし、終了したらログレベルをリセットしてください。
+    </Callout>
+
+    Helmを使用して統合の詳細なログを取得するには、以下の手順に従います。
+
+    1. 冗長なログを有効にする。
+
+       ```shell
+       helm upgrade -n <namespace> --reuse-values newrelic-bundle --set newrelic-infrastructure.verboseLog=true newrelic/nri-bundle
+       ```
+
+    2. 数分間、あるいは十分なアクティビティが発生するまで、冗長モードのままにしておきます。
+
+    3. 必要な情報が得られたら、詳細なログを無効にします。
+
+       ```shell
+       helm upgrade --reuse-values newrelic-bundle --set newrelic-infrastructure.verboseLog=false newrelic/nri-bundle
+       ```
+
+    4. [マニフェストファイルを使用したインストールで冗長なログを取得する](#verbose-with-manifest) のセクションのステップ5から構成を復元する手順に従ってください。
+  </Collapser>
+
+  <Collapser
+    id="logs-pod-kubestatemetrics"
+    title="kube-state-metricsに接続しているポッドのログを取得する。"
+  >
+    kube-state-metricsに接続しているポッドのログを取得する。
+
+    1. kube-state-metricsが動作しているノードを取得します。
+
+       ```shell
+       kubectl get pods --all-namespaces -o wide | grep kube-state-metrics
+       ```
+
+       このような出力を探してください。
+
+       ```shell
+       kube-system   kube-state-metrics-5c6f5cb9b5-pclhh     2/2
+       Running   4          4d        172.17.0.3   minikube
+       ```
+
+    2. kube-state-metricsと同じノードで稼働しているNew Relicポッドを取得します。
+
+       ```shell
+       kubectl describe node minikube | grep newrelic-infra
+       ```
+
+       このような出力を探してください。
+
+       ```shell
+       default                    newrelic-infra-5wcv6                     100m (5%)
+       0 (0%)      100Mi (5%)       100Mi (5%)
+       ```
+
+    3. を実行して、ノードのログを取得します。
+
+       ```shell
+       kubectl logs newrelic-infra-5wcv6
+       ```
+  </Collapser>
+
+  <Collapser
+    id="logs-pod-kubestatemetrics"
+    title="マスターノードで動作するポッドからのログ取得"
+  >
+    マスターノードで動作しているポッドのログを取得するには
+
+    1. マスターと表示されているノードを取得します。
+
+       ```shell
+       kubectl get nodes -l node-role.kubernetes.io/master=""
+       ```
+
+       あるいは。
+
+       ```shell
+       kubectl get nodes -l kubernetes.io/role="master"
+       ```
+
+       このような出力を探してください。
+
+       ```shell
+       NAME                         STATUS  ROLES   AGE   VERSION
+       ip-10-42-24-4.ec2.internal   Ready   master  42d   v1.14.8
+       ```
+
+    2. 前のステップで返されたノードのいずれかで稼働しているNew Relicポッドを取得します。
+
+       ```shell
+       kubectl get pods --field-selector spec.nodeName=ip-10-42-24-4.ec2.internal -l name=newrelic-infra --all-namespaces
+       ```
+
+       このような出力を探してください。
+
+       ```shell
+       newrelic-infra-whvzt
+       ```
+
+    3. を実行して、ノードのログを取得します。
+
+       ```shell
+       kubectl logs newrelic-infra-whvzt
+       ```
+  </Collapser>
+</CollapserGroup>
+
+トラブルシューティングのヘルプについては、 [データが表示されない](/docs/integrations/host-integrations/troubleshooting/kubernetes-integration-troubleshooting-not-seeing-data) または [エラーメッセージ](/docs/integrations/host-integrations/troubleshooting/kubernetes-integration-troubleshooting-error-messages) を参照してください。
