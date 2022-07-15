@@ -9,7 +9,6 @@ const getAgentName = require('./src/utils/getAgentName');
 const dataDictionaryPath = `${__dirname}/src/data-dictionary`;
 const siteUrl = 'https://docs.newrelic.com';
 const additionalLocales = ['jp', 'kr'];
-
 const allFolders = fs
   .readdirSync(`${__dirname}/src/content/docs`)
   .filter((folder) => !folder.startsWith('.'));
@@ -22,7 +21,6 @@ const ignoreFolders = process.env.BUILD_FOLDERS
           !doNotIgnoreFolders.includes(folder) && folder !== 'release-notes'
       )
       .map((folder) => `${__dirname}/src/content/docs/${folder}/*`)
-      .concat(`${__dirname}/src/content/whats-new/*`)
   : [];
 
 const autoLinkHeaders = {
