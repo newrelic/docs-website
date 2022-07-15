@@ -287,17 +287,8 @@ module.exports = {
           // This MUST come after `gatsby-remark-autolink-headers` to ensure the
           // link created for the icon has the proper id.
           //
-          // This also uses the `require.resolve` syntax because
-          // `gatsby-plugin-mdx` is unable to resolve local plugins.
-          // https://github.com/gatsbyjs/gatsby/issues/23194
-          {
-            resolve: require.resolve(
-              '../plugins/gatsby-remark-custom-heading-ids/'
-            ),
-          },
-          {
-            resolve: require.resolve('../plugins/gatsby-remark-mdx-v2-images/'),
-          },
+          'gatsby-remark-custom-heading-ids',
+          'gatsby-remark-mdx-v2-images',
           // Gifs are not supported via gatsby-remark-images (https://github.com/gatsbyjs/gatsby/issues/7317).
           // It is recommended to therefore use this plugin to copy files with a
           // .gif extension to the public folder.
@@ -305,38 +296,37 @@ module.exports = {
           // Source: https://github.com/gatsbyjs/gatsby/issues/7317#issuecomment-412984851
           'gatsby-remark-copy-linked-files',
           {
-            resolve: require.resolve('../plugins/gatsby-remark-gifs/'),
+            resolve: require.resolve('gatsby-remark-gifs'),
             options: {
               maxWidth: 1200,
             },
           },
           {
-            resolve: require.resolve(
-              '../plugins/gatsby-remark-mdx-v2-fenced-code-blocks/'
-            ),
+            resolve: require.resolve('gatsby-remark-mdx-v2-fenced-code-blocks'),
           },
           {
-            resolve: require.resolve(
-              '../plugins/gatsby-remark-remove-button-paragraphs/'
-            ),
+            resolve: require.resolve('gatsby-remark-remove-button-paragraphs'),
           },
         ],
       },
     },
     `gatsby-transformer-yaml`,
+    'gatsby-plugin-generate-doc-json',
+    'gatsby-plugin-release-note-rss',
+    'gatsby-plugin-whats-new-rss',
+    'gatsby-plugin-security-bulletins-rss',
+    'gatsby-source-nav',
+    'gatsby-plugin-meta-redirect',
     {
       resolve: `gatsby-source-filesystem`,
       options: {
         path: `../src/nav/`,
       },
     },
-    {
-      resolve: require.resolve('../plugins/gatsby-plugin-generate-doc-json/'),
-    },
     // Comment in below to run a build that checks links
     // 'gatsby-plugin-check-links',
     {
-      resolve: require.resolve('../plugins/gatsby-plugin-generate-json/'),
+      resolve: 'gatsby-plugin-generate-json',
       options: {
         query: `
         {
@@ -456,7 +446,7 @@ module.exports = {
       },
     },
     {
-      resolve: require.resolve('../plugins/gatsby-plugin-generate-json/'),
+      resolve: 'gatsby-plugin-generate-json',
       options: {
         query: `
         {
@@ -485,26 +475,11 @@ module.exports = {
       },
     },
     {
-      resolve: require.resolve('../plugins/gatsby-plugin-release-note-rss/'),
-    },
-    {
-      resolve: require.resolve('../plugins/gatsby-plugin-whats-new-rss/'),
-    },
-    {
-      resolve: require.resolve(
-        '../plugins/gatsby-plugin-security-bulletins-rss/'
-      ),
-    },
-    {
-      resolve: require.resolve('../plugins/gatsby-source-data-dictionary/'),
+      resolve: 'gatsby-source-data-dictionary',
       options: {
         path: dataDictionaryPath,
       },
     },
-    {
-      resolve: require.resolve('../plugins/gatsby-source-nav/'),
-    },
-    'gatsby-plugin-meta-redirect',
     {
       resolve: 'gatsby-plugin-gatsby-cloud',
       options: {
