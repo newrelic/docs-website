@@ -55,7 +55,7 @@ exports.createResolvers = ({ createResolvers, createNodeId }) => {
             case slug === '/':
               return createRootNav(utils);
 
-            case slug.startsWith('/whats-new'):
+            case slug.includes('/whats-new'):
               return createWhatsNewNav(utils);
 
             case slug.startsWith('/docs/release-notes'):
