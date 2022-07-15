@@ -36,7 +36,9 @@ exports.onCreateNode = ({ node, getNode, actions }) => {
   if (
     node.internal.type === 'Mdx' ||
     (node.internal.type === 'MarkdownRemark' &&
-      node.fileAbsolutePath.includes('src/content'))
+      node.fileAbsolutePath.includes('src/content')) ||
+    (node.internal.type === 'MarkdownRemark' &&
+      node.fileAbsolutePath.includes('src/i18n/content'))
   ) {
     createNodeField({
       node,
@@ -72,6 +74,19 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
       ) {
         nodes {
           fields {
+            slug
+          }
+        }
+      }
+
+      i18nWhatsNewPosts: allMarkdownRemark(
+        filter: {
+          fileAbsolutePath: { regex: "/src/i18n/content/.*/whats-new/" }
+        }
+      ) {
+        nodes {
+          fields {
+            fileRelativePath
             slug
           }
         }
@@ -170,6 +185,7 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
     landingPagesReleaseNotes,
     allLocale,
     whatsNewPosts,
+    i18nWhatsNewPosts,
   } = data;
 
   const locales = allLocale.nodes
@@ -219,7 +235,9 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
     }
   });
 
-  const translatedContentNodes = allI18nMdx.edges.map(({ node }) => node);
+  const translatedContentNodes = allI18nMdx.edges
+    .map(({ node }) => node)
+    .concat(i18nWhatsNewPosts.nodes);
 
   allMdx.edges.concat(allMarkdownRemark.edges).forEach(({ node }) => {
     const {
@@ -443,7 +461,7 @@ const getTemplate = (node) => {
   } = node;
 
   switch (true) {
-    case Boolean(frontmatter.type):
+    case Boolean(frontmatter?.type):
       return { template: TEMPLATES_BY_TYPE[frontmatter.type] };
 
     case /docs\/release-notes\/.*\/index.mdx$/.test(fileRelativePath):
@@ -452,10 +470,10 @@ const getTemplate = (node) => {
         context: { subject: frontmatter.subject },
       };
 
-    case fileRelativePath.includes('src/content/docs/release-notes'):
+    case fileRelativePath?.includes('src/content/docs/release-notes'):
       return { template: 'releaseNote' };
 
-    case fileRelativePath.includes('src/content/whats-new'):
+    case /.*\/content\/.*?whats-new\/.*/.test(fileRelativePath):
       return { template: 'whatsNew' };
 
     default:
