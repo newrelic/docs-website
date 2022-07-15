@@ -263,11 +263,11 @@ module.exports = {
           // https://github.com/gatsbyjs/gatsby/issues/23194
           {
             resolve: require.resolve(
-              '../plugins/gatsby-remark-custom-heading-ids'
+              '../plugins/gatsby-remark-custom-heading-ids/'
             ),
           },
           {
-            resolve: require.resolve('../plugins/gatsby-remark-mdx-v2-images'),
+            resolve: require.resolve('../plugins/gatsby-remark-mdx-v2-images/'),
           },
           // Gifs are not supported via gatsby-remark-images (https://github.com/gatsbyjs/gatsby/issues/7317).
           // It is recommended to therefore use this plugin to copy files with a
@@ -276,19 +276,19 @@ module.exports = {
           // Source: https://github.com/gatsbyjs/gatsby/issues/7317#issuecomment-412984851
           'gatsby-remark-copy-linked-files',
           {
-            resolve: require.resolve('../plugins/gatsby-remark-gifs'),
+            resolve: require.resolve('../plugins/gatsby-remark-gifs/'),
             options: {
               maxWidth: 1200,
             },
           },
           {
             resolve: require.resolve(
-              '../plugins/gatsby-remark-mdx-v2-fenced-code-blocks'
+              '../plugins/gatsby-remark-mdx-v2-fenced-code-blocks/'
             ),
           },
           {
             resolve: require.resolve(
-              '../plugins/gatsby-remark-remove-button-paragraphs'
+              '../plugins/gatsby-remark-remove-button-paragraphs/'
             ),
           },
         ],
@@ -301,11 +301,13 @@ module.exports = {
         path: `../src/nav/`,
       },
     },
-    'gatsby-plugin-generate-doc-json',
+    {
+      resolve: require.resolve('../plugins/gatsby-plugin-generate-doc-json/'),
+    },
     // Comment in below to run a build that checks links
     // 'gatsby-plugin-check-links',
     {
-      resolve: 'gatsby-plugin-generate-json',
+      resolve: require.resolve('../plugins/gatsby-plugin-generate-json/'),
       options: {
         query: `
         {
@@ -425,7 +427,7 @@ module.exports = {
       },
     },
     {
-      resolve: `gatsby-plugin-generate-json`,
+      resolve: require.resolve('../plugins/gatsby-plugin-generate-json/'),
       options: {
         query: `
         {
@@ -453,16 +455,26 @@ module.exports = {
             .filter(({ date, agent }) => Boolean(date && agent)),
       },
     },
-    'gatsby-plugin-release-note-rss',
-    'gatsby-plugin-whats-new-rss',
-    'gatsby-plugin-security-bulletins-rss',
     {
-      resolve: 'gatsby-source-data-dictionary',
+      resolve: require.resolve('../plugins/gatsby-plugin-release-note-rss/'),
+    },
+    {
+      resolve: require.resolve('../plugins/gatsby-plugin-whats-new-rss/'),
+    },
+    {
+      resolve: require.resolve(
+        '../plugins/gatsby-plugin-security-bulletins-rss/'
+      ),
+    },
+    {
+      resolve: require.resolve('../plugins/gatsby-source-data-dictionary/'),
       options: {
         path: dataDictionaryPath,
       },
     },
-    'gatsby-source-nav',
+    {
+      resolve: require.resolve('../plugins/gatsby-source-nav/'),
+    },
     'gatsby-plugin-meta-redirect',
     {
       resolve: 'gatsby-plugin-gatsby-cloud',
