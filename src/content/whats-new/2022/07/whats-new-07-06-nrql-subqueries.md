@@ -39,3 +39,4 @@ See how it works in the following video:
 ## Get started
 - Review the [documentation](https://docs.newrelic.com/docs/query-your-data/nrql-new-relic-query-language/get-started/subqueries-in-nrql) and then try out your own queries!
 - [Read the blog](https://newrelic.com/blog/how-to-relic/nrql-subqueries) for tips on using subqueries and see a few subquery examples.
+- Share your feedback, post your own subqueries, and see even more examples in the [Explorers Hub discussion post.](https://discuss.newrelic.com/t/introducing-subqueries-in-nrql/188082)
