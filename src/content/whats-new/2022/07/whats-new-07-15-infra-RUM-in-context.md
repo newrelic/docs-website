@@ -1,7 +1,7 @@
 ---
 title: 'Infrastructure and real user monitoring (RUM) data in APM'
 summary: 'New data in context to help troubleshoot and optimize performance faster' 
-releaseDate: '2022-07-15'
+releaseDate: '2022-07-15' 
 learnMoreLink: 'https://discuss.newrelic.com/t/new-apm-feature-infrastructure-and-real-user-monitoring-data-in-context/188330'
 ---
 
