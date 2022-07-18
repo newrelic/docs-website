@@ -222,7 +222,7 @@ export const pageQuery = graphql`
         fields: [frontmatter___releaseDate, frontmatter___title]
         order: [DESC, ASC]
       }
-      filter: { fields: { slug: { regex: "/whats-new/" } } }
+      filter: { fields: { slug: { regex: "/^/whats-new/" } } }
       limit: 3
     ) {
       edges {
