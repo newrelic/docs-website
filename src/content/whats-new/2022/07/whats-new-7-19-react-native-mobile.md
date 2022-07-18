@@ -1,7 +1,7 @@
 ---
 title: 'React Native support for mobile monitoring'
 summary: 'Cross-platform support with React Native for mobile monitoring'
-releaseDate: '2022-19-2022'
+releaseDate: '2022-07-19'
 learnMoreLink: 'https://docs.newrelic.com/docs/mobile-monitoring/new-relic-monitoring-react-native/monitor-your-react-native-application'
 getStartedLink: 'https://one.newrelic.com/-/0gbRKzygzwE'
 ---
