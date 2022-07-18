@@ -1,7 +1,8 @@
+const { createFilePath } = require('gatsby-source-filesystem');
 const path = require('path');
+
 const { prop } = require('../scripts/utils/functional.js');
 const externalRedirects = require('../src/data/external-redirects.json');
-const { createFilePath } = require('gatsby-source-filesystem');
 
 const TEMPLATE_DIR = '../src/templates/';
 const TRAILING_SLASH = /\/$/;
@@ -36,7 +37,7 @@ exports.onCreateNode = ({ node, getNode, actions }) => {
   if (
     node.internal.type === 'Mdx' ||
     (node.internal.type === 'MarkdownRemark' &&
-      node.fileAbsolutePath.includes('../src/content'))
+      node.fileAbsolutePath.includes('src/content'))
   ) {
     createNodeField({
       node,
@@ -52,7 +53,7 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
   const { data, errors } = await graphql(`
     query {
       allMarkdownRemark(
-        filter: { fileAbsolutePath: { regex: "/../src/content/" } }
+        filter: { fileAbsolutePath: { regex: "/src/content/" } }
       ) {
         edges {
           node {
@@ -68,7 +69,7 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
       }
 
       whatsNewPosts: allMarkdownRemark(
-        filter: { fileAbsolutePath: { regex: "/../src/content/whats-new/" } }
+        filter: { fileAbsolutePath: { regex: "/src/content/whats-new/" } }
       ) {
         nodes {
           fields {
@@ -77,7 +78,7 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
         }
       }
 
-      allMdx(filter: { fileAbsolutePath: { regex: "/../src/content/" } }) {
+      allMdx(filter: { fileAbsolutePath: { regex: "/src/content/" } }) {
         edges {
           node {
             fields {
@@ -94,7 +95,7 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
       }
 
       allI18nMdx: allMdx(
-        filter: { fileAbsolutePath: { regex: "/i18n/content/" } }
+        filter: { fileAbsolutePath: { regex: "/src/i18n/content/" } }
       ) {
         edges {
           node {
@@ -114,7 +115,7 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
       releaseNotes: allMdx(
         filter: {
           fileAbsolutePath: {
-            regex: "/../src/content/docs/release-notes/.*(?<!index).mdx/"
+            regex: "/src/content/docs/release-notes/.*(?<!index).mdx/"
           }
         }
         sort: { fields: frontmatter___releaseDate, order: DESC }
@@ -452,10 +453,10 @@ const getTemplate = (node) => {
         context: { subject: frontmatter.subject },
       };
 
-    case fileRelativePath.includes('../src/content/docs/release-notes'):
+    case fileRelativePath.includes('src/content/docs/release-notes'):
       return { template: 'releaseNote' };
 
-    case fileRelativePath.includes('../src/content/whats-new'):
+    case fileRelativePath.includes('src/content/whats-new'):
       return { template: 'whatsNew' };
 
     default:

@@ -1,11 +1,3 @@
-const fs = require('fs');
-const path = require('path');
-const parse = require('rehype-parse');
-const unified = require('unified');
-const rehypeStringify = require('rehype-stringify');
-const addAbsoluteImagePath = require('../rehype-plugins/utils/addAbsoluteImagePath');
-const getAgentName = require('../src/utils/getAgentName');
-
 const dataDictionaryPath = `${__dirname}/../src/data-dictionary`;
 const siteUrl = 'https://docs.newrelic.com/kr';
 const additionalLocales = ['kr'];
@@ -56,7 +48,7 @@ module.exports = {
           mobileBreakpoint: '760px',
         },
         i18n: {
-          translationsPath: `${__dirname}/i18n/translations`,
+          translationsPath: `${__dirname}/src/i18n/translations`,
           additionalLocales,
         },
         prism: {
@@ -206,14 +198,14 @@ module.exports = {
       resolve: 'gatsby-source-filesystem',
       options: {
         name: 'translated-content',
-        path: `${__dirname}/i18n/content`,
+        path: `${__dirname}/src/i18n/content`,
       },
     },
     {
       resolve: 'gatsby-source-filesystem',
       options: {
         name: 'translated-nav',
-        path: `${__dirname}/i18n/nav`,
+        path: `${__dirname}/src/i18n/nav`,
       },
     },
     {
@@ -312,9 +304,6 @@ module.exports = {
     },
     `gatsby-transformer-yaml`,
     'gatsby-plugin-generate-doc-json',
-    'gatsby-plugin-release-note-rss',
-    'gatsby-plugin-whats-new-rss',
-    'gatsby-plugin-security-bulletins-rss',
     'gatsby-source-nav',
     'gatsby-plugin-meta-redirect',
     {
@@ -325,155 +314,6 @@ module.exports = {
     },
     // Comment in below to run a build that checks links
     // 'gatsby-plugin-check-links',
-    {
-      resolve: 'gatsby-plugin-generate-json',
-      options: {
-        query: `
-        {
-          allMarkdownRemark(filter: {fields: {slug: {regex: "/whats-new/"}}}) {
-            nodes {
-              frontmatter {
-                title
-                releaseDate
-                getStartedLink
-                learnMoreLink
-                summary
-                isFeatured
-              }
-              fields {
-                slug
-              }
-              htmlAst
-            }
-          }
-        }
-        `,
-        path: '/api/nr1/content/nr1-announcements.json',
-        serialize: ({ data }) => {
-          const ids = JSON.parse(
-            fs.readFileSync(
-              path.join(__dirname, '../src/data/whats-new-ids.json')
-            )
-          );
-
-          const htmlParser = unified()
-            .use(parse)
-            .use(addAbsoluteImagePath)
-            .use(rehypeStringify);
-
-          return {
-            announcements: data.allMarkdownRemark.nodes.map(
-              ({ frontmatter, htmlAst, fields }) => {
-                const parsedHtml = htmlParser.runSync(htmlAst);
-                return {
-                  docsID: ids[fields.slug],
-                  title: frontmatter.title,
-                  summary: frontmatter.summary,
-                  releaseDateTime: frontmatter.releaseDate,
-                  learnMoreLink: frontmatter.learnMoreLink,
-                  getStartedLink: frontmatter.getStartedLink,
-                  body: htmlParser.stringify(parsedHtml),
-                  docUrl: new URL(fields.slug, siteUrl).href,
-                  isFeatured: frontmatter.isFeatured,
-                };
-              }
-            ),
-          };
-        },
-      },
-    },
-    {
-      resolve: 'gatsby-plugin-generate-json',
-      options: {
-        path: '/api/nr1/content/nr1-announcements/ids.json',
-        serialize: () => {
-          const ids = JSON.parse(
-            fs.readFileSync(
-              path.join(__dirname, '../src/data/whats-new-ids.json')
-            )
-          );
-
-          return {
-            announcements: Object.values(ids).map((id) => ({
-              docsID: id,
-            })),
-          };
-        },
-      },
-    },
-    {
-      resolve: `gatsby-plugin-json-output`,
-      options: {
-        siteUrl,
-        graphQLQuery: `
-        {
-          allDataDictionaryEvent {
-            edges {
-              node {
-                name
-                definition {
-                  rawMarkdownBody
-                }
-                dataSources
-                childrenDataDictionaryAttribute {
-                  name
-                  definition {
-                    rawMarkdownBody
-                  }
-                  units
-                }
-              }
-            }
-          }
-        }
-      `,
-        serializeFeed: ({ data }) =>
-          data.allDataDictionaryEvent.edges.map(({ node }) => ({
-            name: node.name,
-            definition:
-              node.definition && node.definition.rawMarkdownBody.trim(),
-            dataSources: node.dataSources,
-            attributes: node.childrenDataDictionaryAttribute.map(
-              (attribute) => ({
-                name: attribute.name,
-                definition: attribute.definition.rawMarkdownBody.trim(),
-                units: attribute.units,
-              })
-            ),
-          })),
-        feedFilename: 'data-dictionary',
-        nodesPerFeedFile: Infinity,
-      },
-    },
-    {
-      resolve: 'gatsby-plugin-generate-json',
-      options: {
-        query: `
-        {
-          allMdx(filter: {fields: {slug: {regex: "/docs/release-notes/"}}}) {
-            nodes {
-              frontmatter {
-                subject
-                releaseDate(fromNow: false)
-                version
-              }
-              excerpt(pruneLength: 5000)
-            }
-          }
-        }
-        `,
-        path: '/api/agent-release-notes.json',
-        serialize: ({ data }) =>
-          data.allMdx.nodes
-            .map(({ frontmatter, excerpt }) => ({
-              agent: getAgentName(frontmatter.subject),
-              date: frontmatter.releaseDate,
-              version: frontmatter.version,
-              description: excerpt,
-            }))
-            .filter(({ date, agent }) => Boolean(date && agent)),
-      },
-    },
     {
       resolve: 'gatsby-source-data-dictionary',
       options: {
