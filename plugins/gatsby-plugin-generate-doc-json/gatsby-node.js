@@ -7,8 +7,8 @@ const removeImports = require('remark-mdx-remove-imports');
 const removeExports = require('remark-mdx-remove-exports');
 const fencedCodeBlock = require('../../codemods/fencedCodeBlock');
 const customHeadingIds = require('../gatsby-remark-custom-heading-ids/utils/visitor');
-const handlers = require('../utils/handlers');
-const jsxImagesToChildren = require('../utils/jsxImagesToChildren');
+const handlers = require('./handlers');
+const jsxImagesToChildren = require('./jsxImagesToChildren');
 const all = require('mdast-util-to-hast/lib/all');
 
 const mdxElement = (h, node) => {

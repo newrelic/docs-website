@@ -9,8 +9,8 @@ const html = require('rehype-stringify');
 const removeImports = require('remark-mdx-remove-imports');
 const removeExports = require('remark-mdx-remove-exports');
 const parseISO = preferDefault(require('date-fns/parseISO'));
-const jsxImagesToChildren = require('../utils/jsxImagesToChildren');
-const handlers = require('../utils/handlers');
+const jsxImagesToChildren = require('./jsxImagesToChildren');
+const handlers = require('./handlers');
 
 // NOTE: remove-imports and remove-exports are now depreciated
 const htmlGenerator = unified()

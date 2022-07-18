@@ -7,8 +7,8 @@ const unified = require('unified');
 const toHast = require('mdast-util-to-hast');
 const removeImports = require('remark-mdx-remove-imports');
 const removeExports = require('remark-mdx-remove-exports');
-const jsxImagesToChildren = require('../utils/jsxImagesToChildren');
-const handlers = require('../utils/handlers');
+const jsxImagesToChildren = require('./jsxImagesToChildren');
+const handlers = require('./handlers');
 
 const htmlGenerator = unified()
   .use(jsxImagesToChildren)
