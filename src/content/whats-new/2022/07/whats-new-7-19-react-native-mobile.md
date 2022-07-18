@@ -15,8 +15,3 @@ Now, our mobile agent can easily capture interactions from React Native-instrume
 
 **Capture and trace errors**
 With many mobile applications, the errors recorded are often native to the codebase and can be difficult for non-mobile devs to decipher. Since React Native uses Javascript to create mobile apps, New Relic can now capture JavaScript errors that are more universally understood by engineers. Records of console logs, warnings, and errors are all kept for New Relic users to perform retroactive incident reports, and distributed tracing for React Native also helps drill into the backend cause of an issue on the frontend. Ultimately, the new value-adds to mobile monitoring strive to uphold New Relic’s mission to enhance performance observability and streamline the mobile developer’s lifecycle.
-
-**Other technical features:**
-* Promise rejection tracking
-* Unhandled exception reporting for Promises
-* Expo support (Bare Workflow & Managed Workflow) to help customers deliver React Native applications better
