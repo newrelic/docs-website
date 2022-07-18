@@ -8,7 +8,9 @@ import {
   Link,
   MarkdownContainer,
   ContributingGuidelines,
+  useTranslation,
 } from '@newrelic/gatsby-theme-newrelic';
+import MachineTranslationCallout from '../components/MachineTranslationCallout';
 import SEO from '../components/SEO';
 import PageTitle from '../components/PageTitle';
 import { TYPES } from '../utils/constants';
@@ -26,12 +28,14 @@ const WhatsNewTemplate = ({ data, location, pageContext }) => {
         releaseDate,
         learnMoreLink,
         getStartedLink,
+        translationType,
       },
       fields: { fileRelativePath },
     },
   } = data;
 
   const { disableSwiftype } = pageContext;
+  const { t } = useTranslation();
 
   return (
     <>
@@ -41,6 +45,11 @@ const WhatsNewTemplate = ({ data, location, pageContext }) => {
         type={TYPES.WHATS_NEW}
         disableSwiftype={disableSwiftype}
       />
+      {translationType === 'machine' && (
+        <MachineTranslationCallout
+          englishHref={location.pathname.replace(`/${pageContext.locale}`, '')}
+        />
+      )}
       <PageTitle
         css={css`
           max-width: 850px;
@@ -112,14 +121,14 @@ const WhatsNewTemplate = ({ data, location, pageContext }) => {
               {learnMoreLink && (
                 <li>
                   <MetaLink to={learnMoreLink} siteUrl={siteUrl}>
-                    Learn more
+                    {t('whatsNew.learnMore')}
                   </MetaLink>
                 </li>
               )}
               {getStartedLink && (
                 <li>
                   <MetaLink to={getStartedLink} siteUrl={siteUrl}>
-                    Get started
+                    {t('whatsNew.getStarted')}
                   </MetaLink>
                 </li>
               )}
@@ -171,6 +180,7 @@ export const pageQuery = graphql`
         summary
         learnMoreLink
         getStartedLink
+        translationType
       }
       fields {
         fileRelativePath
