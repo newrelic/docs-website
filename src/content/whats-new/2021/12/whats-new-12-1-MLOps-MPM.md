@@ -14,7 +14,7 @@ Everything you need in one place:
 
 * Monitor ML models and dependencies alongside their software applications and infrastructure to solve problems faster.
 * Create custom dashboards to gain trust and insights for better, more accurate ML models.
-* Get predictive alerts to ML models performance with Applied Intelligence to detect unusual changes and unknowns early, before customers are impacted.
+* Get predictive alerts to ML models performance with applied intelligence to detect unusual changes and unknowns early, before customers are impacted.
 * Monitor and visualize critical signals like recall, precision, accuracy, and more.
 * Collaborate in a production environment and gain unprecedented visibility to ensure maximum business impact of your data science investments.
 

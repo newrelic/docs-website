@@ -23,6 +23,9 @@ exports.onCreateWebpackConfig = ({ actions }) => {
         https: false,
         zlib: false,
       },
+      alias: {
+        images: path.resolve(__dirname, 'src/images/'),
+      },
     },
   });
 };
@@ -291,6 +294,7 @@ exports.createSchemaCustomization = ({ actions }) => {
   type Frontmatter {
     isFeatured: Boolean
     translationType: String
+    dataSource: String
   }
   `;
 
@@ -324,6 +328,10 @@ exports.createResolvers = ({ createResolvers }) => {
           hasOwnProperty(source, 'translationType')
             ? source.translationType
             : null,
+      },
+      dataSource: {
+        resolve: (source) =>
+          hasOwnProperty(source, 'dataSource') ? source.dataSource : null,
       },
     },
   });

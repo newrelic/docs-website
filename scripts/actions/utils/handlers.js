@@ -163,7 +163,10 @@ module.exports = {
       return h(
         node,
         'code',
-        { 'data-type': 'component', 'data-component': 'InlineCode' },
+        {
+          'data-type': 'component',
+          'data-component': 'InlineCode',
+        },
         [u('text', toString(node))]
       );
     },

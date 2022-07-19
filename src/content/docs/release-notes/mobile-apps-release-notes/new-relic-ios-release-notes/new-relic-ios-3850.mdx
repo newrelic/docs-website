@@ -1,0 +1,23 @@
+---
+subject: Mobile app for iOS
+releaseDate: '2022-03-31'
+version: 3.85.0
+downloadLink: 'https://apps.apple.com/app/id594038638'
+---
+
+### Notes
+
+AI Incident detail, now with an additional analysis tab!
+
+### New features
+
+* Added an analysis section to the AI incident detail
+* Added chart support for negative and very small numbers
+* Added support for displaying timestamps in tables configured in dashboards
+* Added search to accounts list
+
+### Improvements
+
+* Improved support for dynamic fonts
+* Fixed a crash that could occur when showing chart tooltips, and then selecting a legend item
+* Fixed a UI issue in entity explorer for users with fewer categories of entities

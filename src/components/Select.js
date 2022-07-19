@@ -10,7 +10,7 @@ const Select = ({ disabled, ...props }) => (
       align-items: center;
       width: 100%;
       min-width: 15ch;
-      border: 1px solid var(--color-neutrals-500);
+      border: 1px solid var(--border-color);
       border-radius: 0.25rem;
       padding: 0.25rem 0.5rem;
       cursor: pointer;
@@ -22,13 +22,12 @@ const Select = ({ disabled, ...props }) => (
         opacity: 0.5;
 
         .light-mode & {
-          background-color: var(--color-neutrals-100);
+          background-color: var(--primary-hover-color);
         }
       `}
 
       .dark-mode & {
-        border: 1px solid var(--color-dark-300);
-        background-color: var(--color-dark-300);
+        background-color: var(--secondary-background-color);
       }
 
       &::after {
@@ -38,11 +37,7 @@ const Select = ({ disabled, ...props }) => (
         width: 0.5rem;
         height: 0.25rem;
         clip-path: polygon(100% 0%, 0 0%, 50% 100%);
-        background-color: var(--color-neutrals-700);
-
-        .dark-mode & {
-          background-color: var(--color-dark-700);
-        }
+        background-color: var(--border-color);
       }
     `}
   >
@@ -61,6 +56,12 @@ const Select = ({ disabled, ...props }) => (
         cursor: inherit;
         line-height: inherit;
         outline: none;
+        color: var(--primary-text-color);
+
+        option {
+          font: -moz-pull-down-menu;
+          color: var(--system-text-primary-light);
+        }
 
         &:focus + .focus-ring {
           position: absolute;
@@ -68,16 +69,12 @@ const Select = ({ disabled, ...props }) => (
           left: -1px;
           right: -1px;
           bottom: -1px;
-          border: 2px solid var(--color-brand-500);
+          border: 2px solid var(--brand-button-primary-accent);
           border-radius: inherit;
         }
 
         .dark-mode & {
-          color: var(--color-dark-900);
-
-          option {
-            color: var(--color-dark-050);
-          }
+          border-color: var(--brand-button-primary-accent-hover);
         }
       `}
       {...props}

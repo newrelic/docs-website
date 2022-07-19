@@ -28,6 +28,10 @@ const getCommandLineOptions = () => {
     .option(
       '-mt, --machine-translation',
       'Boolean to only send files needing machine translation'
+    )
+    .option(
+      '-l, --locale <locale>',
+      'Specifiy specific language to be sent to smartling for translation'
     );
   program.parse(process.argv);
   return program.opts();
@@ -91,13 +95,50 @@ const getLocalizedFileData = (mdxFile) => {
   }));
 };
 
+const addFilesToTranslationQueue = async (fileNames, options) => {
+  const machineTranslation = options.machineTranslation || false;
+  const allLocalizedFileData = fileNames.flatMap(getLocalizedFileData);
+
+  const filesToTranslate = machineTranslation
+    ? allLocalizedFileData.filter(
+        ({ project_id }) => project_id === machineTranslatedProjectID
+      )
+    : allLocalizedFileData;
+
+  const includedFiles = excludeFiles(filesToTranslate);
+  const queue = await getTranslations({
+    status: STATUS.PENDING,
+  });
+
+  const filterByLocaleOption = (file) => {
+    if (options.locale) {
+      return file.locale === options.locale;
+    } else return true;
+  };
+
+  const fileDataToAddToQueue = translationDifference(
+    queue,
+    includedFiles
+  ).filter(filterByLocaleOption);
+
+  await Promise.all(
+    fileDataToAddToQueue.map(({ filename, locale, project_id }) =>
+      addTranslation({
+        slug: filename,
+        status: STATUS.PENDING,
+        locale,
+        project_id,
+      })
+    )
+  );
+};
+
 /** Entrypoint. */
 const main = async () => {
   // These come from the CLI input when using the script
   const options = getCommandLineOptions();
   const url = options.url || null;
   const directory = options.directory || null;
-  const machineTranslation = options.machineTranslation || false;
 
   let mdxFileData;
 
@@ -116,30 +157,7 @@ const main = async () => {
     mdxFileData = glob.sync(directoryPath);
   }
 
-  const allLocalizedFileData = mdxFileData.flatMap(getLocalizedFileData);
-
-  const filesToTranslate = machineTranslation
-    ? allLocalizedFileData.filter(
-        ({ project_id }) => project_id === machineTranslatedProjectID
-      )
-    : allLocalizedFileData;
-
-  const includedFiles = excludeFiles(filesToTranslate);
-  const queue = await getTranslations({
-    status: STATUS.PENDING,
-  });
-  const fileDataToAddToQueue = translationDifference(queue, includedFiles);
-
-  await Promise.all(
-    fileDataToAddToQueue.map(({ filename, locale, project_id }) =>
-      addTranslation({
-        slug: filename,
-        status: STATUS.PENDING,
-        locale,
-        project_id,
-      })
-    )
-  );
+  await addFilesToTranslationQueue(mdxFileData, options);
 
   process.exit(0);
 };
@@ -152,4 +170,5 @@ module.exports = {
   getProjectId,
   excludeFiles,
   getLocalizedFileData,
+  addFilesToTranslationQueue,
 };

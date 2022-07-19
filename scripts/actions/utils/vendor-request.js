@@ -6,17 +6,11 @@ const path = require('path');
 const serializeMDX = require('../serialize-mdx');
 const FormData = require('form-data');
 const NodeCache = require('node-cache');
+const { LOCALE_IDS } = require('./constants');
 
 const cache = new NodeCache({ stdTTL: 60 * 4, checkperiod: 2 });
 const PROJECT_ID = process.env.TRANSLATION_VENDOR_PROJECT;
 const DOCS_SITE_URL = 'https://docs.newrelic.com';
-
-// NOTE: the vendor requires the locales in a different format
-// We should consider this into the Gatsby config for each locale.
-const LOCALE_IDS = {
-  jp: 'ja-JP',
-  'ja-JP': 'jp',
-};
 
 const MAX_RETRY = 5;
 const POLL_INTERVAL = 1500;
@@ -54,8 +48,9 @@ const makeRequest = async (url, options, nthTry = 1) => {
       return Promise.reject(e);
     }
     console.warn(
-      `[!] Error making request on attempt ${nthTry}/${MAX_RETRY}. Retrying in ${POLL_INTERVAL /
-        1000} seconds`
+      `[!] Error making request on attempt ${nthTry}/${MAX_RETRY}. Retrying in ${
+        POLL_INTERVAL / 1000
+      } seconds`
     );
     // wait for delayTime amount of time before calling this method again
     await sleep(POLL_INTERVAL);
@@ -145,7 +140,7 @@ const vendorRequest = async ({
 const sendPageContext = async (fileUri, accessToken) => {
   const filepath = fileUri.replace(`src/content/`, '');
   const slug = filepath.replace(`.mdx`, '');
-  const contextUrl = new URL(slug, DOCS_SITE_URL); //need to change this once we migrate to docs-newrelic-com
+  const contextUrl = new URL(slug, DOCS_SITE_URL);
 
   const res = await fetch(contextUrl.href);
   const html = await res.text();
@@ -198,7 +193,11 @@ const uploadFile = (locale, batchUid) => async (translation) => {
     html,
   };
 
-  const filename = `${Buffer.from(LOCALE_IDS[locale] + page.file).toString(
+  const localeKey = Object.keys(LOCALE_IDS).find(
+    (key) => LOCALE_IDS[key] === locale
+  );
+
+  const filename = `${Buffer.from(localeKey + page.file).toString(
     'base64'
   )}.html`;
   const filepath = path.join(process.cwd(), filename);

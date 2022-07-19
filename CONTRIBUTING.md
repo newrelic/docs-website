@@ -8,6 +8,7 @@
     - [Unit tests](#unit-tests)
     - [Using multiple versions of Node](#using-multiple-versions-of-node)
     - [Cloning vs forking](#cloning-vs-forking)
+      - [Forks - GitHub Workflows / Actions](#forks---github-workflows--actions)
     - [Submitting a PR from a forked repo](#submitting-a-pr-from-a-forked-repo)
     - [Submitting a PR from a cloned repo](#submitting-a-pr-from-a-cloned-repo)
     - [Using the `develop` branch](#using-the-develop-branch)
@@ -79,15 +80,15 @@ which clearly explains the setup and configuration of NVM.
 
 ### Cloning vs forking
 
-To be able to [clone](https://help.github.com/en/github/creating-cloning-and-archiving-repositories/cloning-a-repository) this repository and contribute you will need to be given write access to the repository. This is reserved for New Relic Doc Writers. Contact the Developer Enablement team (#help-deven-websites Slack channel) if you need write access.
+To be able to [clone](https://help.github.com/en/github/creating-cloning-and-archiving-repositories/cloning-a-repository) this repository and contribute you will need to be given write access to the repository. This is reserved for New Relic Doc Writers. Contact the Docs Engineering team (#help-documentation Slack channel) if you need write access.
 
 To contribute without write access, you can [fork](https://help.github.com/en/github/getting-started-with-github/fork-a-repo) the repository and contribute as needed. If you're planning to leave a fork open for a long time (for example, you're working on a complex set of changes to many docs), [sync your fork](https://docs.github.com/en/github/collaborating-with-issues-and-pull-requests/syncing-a-fork) occasionally to avoid merge conflicts.
 
 #### Forks - GitHub Workflows / Actions
 
-This repository contains workflows that are not meant to be run on forks. If they do run, they will fail and generate alerts on every failed run. 
+This repository contains workflows that are not meant to be run on forks. If they do run, they will fail and generate alerts on every failed run.
 
-By default, a user should see a prompt like this after cloning the repo when looking at the actions tab: 
+By default, a user should see a prompt like this after cloning the repo when looking at the actions tab:
 
 ![Disabled GitHub Actions](src/images/workflows_disabled_by_default.png 'disabled-workflows-prompt')
 
@@ -173,8 +174,8 @@ As a reminder, here's the format for a single-line commit, but you are welcome t
 <type>(optional scope): <description>
 ```
 
-When choosing a type, you can pick from any of the standard types (feat, fix, style, test, or chore) or you can add your own. 
-**Note**: There is a `documentation` type, but please refrain from using it for general documentation changes since it is intended for changes to the repository's documentation (such as `README.md` and `CONTRIBUTING.md`) 
+When choosing a type, you can pick from any of the standard types (feat, fix, style, test, or chore) or you can add your own.
+**Note**: There is a `documentation` type, but please refrain from using it for general documentation changes since it is intended for changes to the repository's documentation (such as `README.md` and `CONTRIBUTING.md`)
 
 As far as scope, we recommend that you include this because it helps us identify relevant commits. For the docs project, the scope might refer to the part of the docs you are editing (for example, APM or errors inbox). If you are suggesting a code change to the docs site, insert the section of the codebase you worked on.
 
