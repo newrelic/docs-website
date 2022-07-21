@@ -5,7 +5,7 @@ releaseDate: '2022-07-15'
 learnMoreLink: 'https://discuss.newrelic.com/t/july-2022-end-of-life-announcements/188318' 
 ---
 
-This quarter we are discontinuing capabilities and features across the following products. If you have questions or concerns, please comment below or reach out to your account management team.
+This quarter we are discontinuing capabilities and features across the following products. If you have questions or concerns, please comment on [this Explorers Hub post](https://discuss.newrelic.com/t/july-2022-end-of-life-announcements/188318), or reach out to your account management team.
 
 **Support ending July 2022**
 
