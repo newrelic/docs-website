@@ -8,7 +8,7 @@ getStartedLink: 'https://discuss.newrelic.com/t/new-relic-monitoring-for-sap-sol
 
 Recently, we launched [New Relic Monitoring for SAP Solutions](https://newrelic.com/solutions/sap), where you can now inspect all of your SAP and non-SAP systems through one centralized view of your infrastructure, application, and business processes.
 
-!["Screenshot showing SAP and Non-SAP observability"](./images/SAP_or_NonSAP-02 "Screenshot showing SAP and Non-SAP observability")
+!["Screenshot showing SAP and Non-SAP observability"](./images/SAP_or_NonSAP-02.png "Screenshot showing SAP and Non-SAP observability")
 
 Now you will be able to:
 * **See SAP application performance and overall health data in one place.** Your telemetry metrics, events, logs, and traces all come together in a central view within our UI.
