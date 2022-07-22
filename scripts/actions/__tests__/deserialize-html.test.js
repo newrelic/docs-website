@@ -127,6 +127,18 @@ test('deserializes InlineCode components', async () => {
   expect(mdx).toEqual(input.trim());
 });
 
+test('deserializes Side components', async () => {
+  const input = `
+<Side>
+  This is one side for the SideBySide component
+</Side>
+  `;
+
+  const mdx = await deserializeHTML(await serializeMDX(input));
+
+  expect(mdx).toEqual(input.trim());
+});
+
 test('deserializes SideBySide components', async () => {
   const input = `
 <SideBySide>

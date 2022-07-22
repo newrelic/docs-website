@@ -175,6 +175,10 @@ module.exports = {
     serialize: serializeComponent,
     deserialize: deserializeComponent,
   },
+  Side: {
+    serialize: serializeComponent,
+    deserialize: deserializeComponent,
+  },
   SideBySide: {
     serialize: serializeComponent,
     deserialize: deserializeComponent,

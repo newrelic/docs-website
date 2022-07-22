@@ -144,6 +144,16 @@ test('serializes Link to html', async () => {
   expect(html).toMatchSnapshot();
 });
 
+test('serializes Side components to html', async () => {
+  const html = await serializeMDX(`
+<Side>
+  This is one side for the SideBySide component
+</Side>
+  `);
+
+  expect(html).toMatchSnapshot();
+});
+
 test('serializes SideBySide to html', async () => {
   const html = await serializeMDX(`
 <SideBySide>
