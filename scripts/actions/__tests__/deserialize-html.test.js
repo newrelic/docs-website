@@ -127,6 +127,23 @@ test('deserializes InlineCode components', async () => {
   expect(mdx).toEqual(input.trim());
 });
 
+test('deserializes SideBySide components', async () => {
+  const input = `
+<SideBySide>
+  <Side>
+    This will be displayed on the left hand-side
+  </Side>
+  <Side>
+    This will be displayed on the right hand-side
+  </Side>
+</SideBySide>
+  `;
+
+  const mdx = await deserializeHTML(await serializeMDX(input));
+
+  expect(mdx).toEqual(input.trim());
+});
+
 test('deserializes TechTileGrid components', async () => {
   const input = `
 <TechTileGrid>

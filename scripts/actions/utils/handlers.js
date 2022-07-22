@@ -175,6 +175,10 @@ module.exports = {
     serialize: serializeComponent,
     deserialize: deserializeComponent,
   },
+  SideBySide: {
+    serialize: serializeComponent,
+    deserialize: deserializeComponent,
+  },
   TechTile: {
     deserialize: (h, node) =>
       deserializeComponent(h, node, { hasChildrenProp: false }),
