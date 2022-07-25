@@ -1,0 +1,213 @@
+---
+title: ログ転送用のFluentBitプラグイン
+tags:
+  - Logs
+  - Enable log management in New Relic
+  - Enable log monitoring in New Relic
+metaDescription: 'Install and configure the New Relic logging plugin for Fluent Bit, so you can use enhanced log management capabilities.'
+translationType: machine
+---
+
+ログデータがすでにFluentBitによって監視されている場合は、 [Fluent](https://fluentbit.io/) Bit出力プラグインを使用して、NewRelicでログデータを転送および強化できます。
+
+FluentBitログをNewRelicに転送すると、ログデータを収集、処理、探索、クエリ、およびアラートするための拡張ログ管理機能が提供されます。
+
+## 基本的なプロセス [#compatibility-requirements]
+
+プラグインがインストールされたコンテナを公開しました。これは、Kubernetes統合で使用されるベースイメージとして機能します。このベースイメージを使用して、独自のカスタム構成ファイルをレイヤー化することをお勧めします。
+
+FluentBitからNewRelicにログを転送するには：
+
+1. あなたが持っていることを確認してください：
+
+   * [NewRelicライセンスキー](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key)
+   * Fluent Bit 1.0以降（推奨）、ただしv0.12以降はサポートされています
+   * FluentBitWindowsのインストール手順は[ここ](https://docs.fluentbit.io/manual/installation/windows)にあります
+   * FluentBitLinuxのインストール手順は[ここ](https://docs.fluentbit.io/manual/installation/linux)にあります
+
+2. FluentBitプラグイン[をインストール](#fluentbit-plugin)します。
+
+3. FluentBitプラグインを[構成](#configure-plugin)します。
+
+4. FluentBitプラグインを[テスト](#test-plugin)します。
+
+5. トラフィックを生成して数分待ってから[、アカウントのデータを確認してください](#find-data)。
+
+## FluentBitプラグインをインストールします [#fluentbit-plugin]
+
+Fluent Bitプラグインをインストールするには：
+
+1. [GitHubでNewRelicのFluentBitプラグインリポジトリに](https://github.com/newrelic/newrelic-fluent-bit-output)移動します。
+2. リポジトリページから、リポジトリの[クローンを作成するか、ダウンロードします](https://help.github.com/en/articles/cloning-a-repository)。
+3. 次のコマンドを実行して、プラグインをビルドします。
+
+```
+cd newrelic-fluent-bit-output && make all
+```
+
+4. `fluent-bit`デーモンがアクセスできる場所に`out_newrelic.so`または`out_newrelic_winXX.dll`を格納します。
+
+<Callout variant="tip">
+  プラグインを自分でコンパイルしたくない場合は、 [GitHubリポジトリのリリースページ](https://github.com/newrelic/newrelic-fluent-bit-output/releases)からコンパイル済みのバージョンをダウンロードできます。
+</Callout>
+
+## FluentBitプラグインを構成します [#configure-plugin]
+
+Fluent Bitは、NewRelicにデータを出力するためにNewRelicプラグインとNewRelicライセンスキーの場所を知る必要があります。Fluent Bitプラグインを構成するには：
+
+<Callout variant="important">
+  設定ファイルを編集するときは、空白に注意してください。インデントには必ず4つのスペースを使用し、キーと値の間には1つのスペースを使用してください。
+</Callout>
+
+1. プラグインディレクトリで`plugins.conf`ファイルを見つけるか作成します。
+
+2. `plugins.conf`ファイルで、 `fluent-bit.conf`ファイルに隣接する`out_newrelic.so`への参照を追加します。
+
+   ```
+   [PLUGINS]
+       Path <var>/PATH/TO/</var>newrelic-fluent-bit-output/out_newrelic.so
+   ```
+
+3. `fluent-bit.conf`ファイルで、 `service`ブロックの下に次の行を追加します。
+
+   ```
+   [SERVICE]
+   # This is the main configuration block for fluent bit.
+   # Ensure the follow line exists somewhere in the SERVICE block
+   Plugins_File plugins.conf
+   ```
+
+4. `fluent-bit.conf`ファイルの下部に以下を追加して、入力フィルターと出力フィルターを設定します。プレースホルダーテキストを[NewRelicライセンスキー](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key)に置き換えます。
+
+   ```
+   [INPUT]
+       Name tail
+       Path <var>/PATH/TO/YOUR/LOG/FILE</var>
+
+   [OUTPUT]
+       Name newrelic
+       Match *
+       licenseKey <var>YOUR_LICENSE_KEY</var>
+
+   # Optional
+   maxBufferSize 256000
+   maxRecords 1024
+   ```
+
+5. 次のコマンドを使用して、FluentBitインスタンスを再起動します。
+
+   ```
+   fluent-bit -c <var>/PATH/TO/</var>fluent-bit.conf
+
+   ```
+
+## FluentBitプラグインをテストする [#test-plugin]
+
+Fluent Bitプラグインがログファイルから入力を受信しているかどうかをテストするには、次の手順に従います。
+
+1. 次のコマンドを実行して、テストログメッセージをログファイルに追加します。
+
+   ```
+   echo "test message" >> <var>/PATH/TO/YOUR/LOG/FILE</var>
+   ```
+
+2. NewRelicの[ログUI](https://one.newrelic.com/launcher/logger.log-launcher)で`test message`を検索します。
+
+## ログをエンティティに関連付ける [#associate-logs-entities]
+
+ログ行をインフラストラクチャホストなどの[エンティティ](/docs/new-relic-one/use-new-relic-one/core-concepts/what-entity-new-relic/)に関連付けるには、 `FILTER`ブロックを追加します。
+
+```
+[FILTER]
+  Name modify
+  Match * # Or specify a match
+  Add entity.guids <Your Entity GUID ID> # Optional
+  Add hostname <Your hostname> # Optional
+```
+
+その他のオプションについては[、インフラストラクチャエージェントを使用してログを転送する](/docs/logs/enable-log-management-new-relic/enable-log-monitoring-new-relic/forward-your-logs-using-infrastructure-agent/#automatically-inserted-attributes)ための[FluentBit変更フィルターのドキュメント](https://docs.fluentbit.io/manual/pipeline/filters/modify)とドキュメントを参照してください。
+
+## オプション：プラグイン属性を構成します [#instrument-plugin]
+
+Fluent Bitプラグインを[インストール](#fluentbit-plugin)して[構成](#configure-plugin)したら、次の属性を使用して、プラグインがNewRelicにデータを送信する方法を構成できます。
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        鍵
+      </th>
+
+      <th>
+        説明
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `licenseKey`
+      </td>
+
+      <td>
+        [NewRelicライセンスキー](/docs/accounts/install-new-relic/account-setup/license-key)。`licenseKey` （**推奨**）または`apiKey`のいずれかを使用します。両方は使用しないでください。デフォルト： `none`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `maxBufferSize`
+      </td>
+
+      <td>
+        ペイロードが送信する最大サイズ（バイト単位）。デフォルト： `256000`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `maxRecords`
+      </td>
+
+      <td>
+        一度に送信するレコードの最大数。デフォルト： `1024`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `apiKey`
+      </td>
+
+      <td>
+        **非推奨。**New Relic [Insightsの挿入キー](/docs/insights/insights-data-sources/custom-data/send-custom-events-event-api#register)を使用しますが、 `licenseKey`属性を使用することをお勧めします。両方ではなく、 `licenseKey`または`apiKey`のいずれかを使用してください。
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## ログデータを表示する [#find-data]
+
+すべてが正しく構成され、データが収集されている場合は、次の両方の場所にデータログが表示されます。
+
+* [NewRelicのログUI](https://one.newrelic.com/launcher/logger.log-launcher)
+* [NRQLクエリ](/docs/chart-builder/use-chart-builder/choose-data/use-advanced-nrql-mode-specify-data)を実行するための新しいRelicツール。たとえば、次のようなクエリを実行できます。
+
+```
+SELECT * FROM Log
+```
+
+ログ管理機能を有効にしてもデータが表示されない場合は、[標準のログトラブルシューティング手順](/docs/logs/log-management/troubleshooting/no-log-data-appears-ui/)に従ってください。
+
+## 次は何ですか？ [#what-next]
+
+[Logs UI](/docs/logs/log-management/ui-data/use-logs-ui/)を使用して、プラットフォーム全体のログデータを調べます。
+
+* [ログインコンテキスト](/docs/logs/enable-log-management-new-relic/configure-logs-context/configure-logs-context-apm-agents/)機能を使用してログを転送することにより、アプリケーションとプラットフォームのパフォーマンスデータの両方をより深く把握できます。
+* [アラートを](/docs/alerts-applied-intelligence/new-relic-alerts/alert-conditions/create-alert-conditions/)設定します。
+* [データをクエリ](/docs/query-your-data/explore-query-data/get-started/introduction-querying-new-relic-data/)し、[ダッシュボードを作成します](/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards/)。
+
+## ログ転送を無効にする [#disable]
+
+ログ転送機能を無効にするには、 [FluentBitのドキュメント](https://fluentbit.io/)の標準的な手順に従います。NewRelicでは他に何もする必要はありません。
