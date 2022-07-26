@@ -1,6 +1,6 @@
 title: 'We're updating TLS requirement to 1.2 on October 24'
 summary: 'Avoid interruptions on your data, upgrade your TLS stack to TLS 1.2 or above'
-releaseDate: '2022-07-14'
+releaseDate: '2022-07-28'
 
 getStartedLink: 'https://docs.newrelic.com/docs/new-relic-solutions/get-started/networks/#tls'
 learnMoreLink: 'https://discuss.newrelic.com/t/tls-1-0-1-1-to-be-deprecated-for-all-inbound-connections-after-oct-24th-2022/188451'
