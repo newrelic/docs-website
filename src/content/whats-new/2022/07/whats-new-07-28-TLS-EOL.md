@@ -8,7 +8,7 @@ learnMoreLink: 'https://discuss.newrelic.com/t/tls-1-0-1-1-to-be-deprecated-for-
 
 At New Relic, security is our priority. This is why, effective October 24, 2022, we'll update our [Transport Layer Security (TLS)](https://en.wikipedia.org/wiki/Transport_Layer_Security) requirements for all inbound connections to a minimum TLS version of 1.2.
 
-**Customers who are already using TLS 1.2 or above will not be impacted.**
+**If you're already using TLS 1.2 or above, you won't be impacted.**
 
 To avoid interruptions on your data, upgrade to an operating system and/or TLS stack that supports TLS 1.2 or above. To ensure TLS 1.2 compatibility, please work closely with your IT and security teams on creating a migration plan.
 
