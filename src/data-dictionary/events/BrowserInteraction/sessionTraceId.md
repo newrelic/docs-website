@@ -11,5 +11,4 @@ events:
   - PageAction
 ---
 
-Allows for linking together actions from the same session. Session trace data relies on browser agent sampling so not all browser events will have this. 
-
+Allows for linking together end user actions from session traces and querying across browser events. Not all events will have this. For example, PageView events complete before the first session trace harvest. Also, initial page loads from BrowserInteraction won't always include this. 
