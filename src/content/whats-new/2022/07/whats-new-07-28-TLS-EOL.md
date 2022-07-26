@@ -1,5 +1,5 @@
 ---
-title: 'We're updating TLS requirement to 1.2 on October 24'
+title: "We're updating TLS requirement to 1.2 on October 24"
 summary: 'Avoid interruptions on your data, upgrade your TLS stack to TLS 1.2 or above'
 releaseDate: '2022-07-28'
 getStartedLink: 'https://docs.newrelic.com/docs/new-relic-solutions/get-started/networks/#tls'
