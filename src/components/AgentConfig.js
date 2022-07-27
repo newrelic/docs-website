@@ -55,9 +55,11 @@ const AgentConfig = ({ inputOptions, config, tipMdx }) => {
             />
           )
         )}
-        <Callout variant={Callout.VARIANT.TIP}>
-          <MDXContainer body={tipMdx} />
-        </Callout>
+        {tipMdx && (
+          <Callout variant={Callout.VARIANT.TIP}>
+            <MDXContainer body={tipMdx} />
+          </Callout>
+        )}
       </div>
       <InteractiveOutput
         inputs={state}
