@@ -296,6 +296,7 @@ exports.createSchemaCustomization = ({ actions }) => {
     translationType: String
     dataSource: String
   }
+
   `;
 
   createTypes(typeDefs);
