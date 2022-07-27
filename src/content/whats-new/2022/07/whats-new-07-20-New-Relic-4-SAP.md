@@ -3,7 +3,7 @@ title: 'New Relic Monitoring for SAP Solutions now available'
 summary: 'Bring together comprehensive SAP and non-SAP telemetry data under one roof'
 releaseDate: '2022-07-20'
 learnMoreLink: 'https://newrelic.com/solutions/sap'
-getStartedLink: 'https://discuss.newrelic.com/t/new-relic-monitoring-for-sap-solutions-now-available/188447'
+getStartedLink: 'https://docs.newrelic.com/docs/data-apis/custom-data/sap-integration/'
 ---
 
 Recently, we launched [New Relic Monitoring for SAP Solutions](https://newrelic.com/solutions/sap), where you can now inspect all of your SAP and non-SAP systems through one centralized view of your infrastructure, application, and business processes.
@@ -17,6 +17,6 @@ Now you will be able to:
 * **Prevent problems before they occur.** Use our advanced alerting functionality to be notified about problems before they impact your customers.
 * **Install monitoring centrally for end-to-end visibility.** This tool can be installed on a central monitoring server, so you won’t need to install agents on all of your SAP production servers.
 
-Read more about it in our [solution page](https://newrelic.com/solutions/sap) or [launch blog](https://newrelic.com/blog/nerdlog/monitor-sap-systems) post. You may also reach out to your New Relic sales rep or [request a demo](https://newrelic.com/request-demo).
+Read more about it in our [solution page](https://newrelic.com/solutions/sap), our [launch blog](https://newrelic.com/blog/nerdlog/monitor-sap-systems) post, and our [SAP integration documentation](https://docs.newrelic.com/docs/data-apis/custom-data/sap-integration). You may also reach out to your New Relic sales rep or [request a demo](https://newrelic.com/request-demo).
 
 
