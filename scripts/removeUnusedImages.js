@@ -19,8 +19,9 @@ const getFilesRecursively = (filepath) =>
 
 const getAllImageImports = (path) => {
   const files = getFilesRecursively(path);
-  const regex = new RegExp(`^import.+("|'|';|";)[ ]*$`, 'gm');
-  // imported images begin with 'import' and can end in ' or " with or without ; and any number of spaces after
+  const regex = new RegExp(`^import.+images.+("|'|';|";)[ ]*$`, 'gm');
+  // imported images begin with 'import', contain 'image'
+  // and can end in ' or " with or without ; and any number of spaces after
   const importStatements = files
     .flatMap((file) => {
       const textfile = fs.readFileSync(file, 'utf-8');
