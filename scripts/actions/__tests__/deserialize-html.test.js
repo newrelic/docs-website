@@ -139,7 +139,7 @@ test('deserializes Side components', async () => {
   expect(mdx).toEqual(input.trim());
 });
 
-test.only('deserializes SideBySide components', async () => {
+test('deserializes SideBySide components', async () => {
   const input = `
 <SideBySide>
   <Side>
