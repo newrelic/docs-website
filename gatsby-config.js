@@ -241,7 +241,7 @@ module.exports = {
     {
       resolve: 'gatsby-source-filesystem',
       options: {
-        name: 'install-docs-mdx',
+        name: 'install-docs',
         path: `${__dirname}/src/install/`,
       },
     },
