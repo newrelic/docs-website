@@ -91,7 +91,17 @@ const AgentConfig = ({ inputOptions, config, tipMdx }) => {
 };
 
 AgentConfig.propTypes = {
-  inputOptions: PropTypes.array,
+  inputOptions: PropTypes.arrayOf(
+    PropTypes.shape({
+      name: PropTypes.string.isRequired,
+      defaultName: PropTypes.string.isRequired,
+      codeLine: PropTypes.number.isRequired,
+      label: PropTypes.string,
+      value: PropTypes.string.isRequired,
+      toolTip: PropTypes.string,
+      url: PropTypes.shape({ title: PropTypes.string, href: PropTypes.string }),
+    })
+  ),
   config: PropTypes.string,
   tipMdx: PropTypes.node,
 };
