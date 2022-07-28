@@ -7,11 +7,15 @@ exports.createSchemaCustomization = ({ actions }) => {
       agentName: String!
       agentType: String!
       title: String!
-      introFilePath: String!
+      intro: IntroFile
       appInfo: [AppInfoOption!]!
       steps: [InstallStep]
       mdxFiles: [Mdx]
       whatsNextMdx: String!
+    }
+    type IntroFile @dontInfer {
+      filePath: String
+      mdx: Mdx
     }
     type AppInfoOption @dontInfer {
       optionType: String!
@@ -83,7 +87,7 @@ exports.createResolvers = ({ createResolvers, createNodeId }) => {
             return null;
           }
 
-          const { entries: mdxFiles } = await nodeModel.findAll({
+          const { entries: allMdx } = await nodeModel.findAll({
             type: 'Mdx',
             query: {
               filter: {
@@ -94,14 +98,27 @@ exports.createResolvers = ({ createResolvers, createNodeId }) => {
             },
           });
 
-          const steps = installConfigYaml.steps?.map((step) =>
+          const mdxFiles = Array.from(allMdx);
+
+          const {
+            introFilePath,
+            steps: installSteps,
+            ...installConfigYamlContent
+          } = installConfigYaml;
+
+          const introMdx = findMdxFile(introFilePath, mdxFiles);
+
+          const intro = { filePath: introFilePath, mdx: introMdx };
+
+          const steps = installSteps?.map((step) =>
             mapFileNametoFile(step, Array.from(mdxFiles))
           );
 
           return {
-            ...installConfigYaml,
-            steps: steps ?? [],
-            mdxFiles: mdxFiles,
+            ...installConfigYamlContent,
+            intro,
+            steps,
+            mdxFiles,
             id: createNodeId('installConfig'),
           };
         },
@@ -111,29 +128,32 @@ exports.createResolvers = ({ createResolvers, createNodeId }) => {
 };
 
 const mapFileNametoFile = (step, files) => {
-  const { file, overrides } = step;
-  const mdx = files.find(({ fileAbsolutePath }) =>
-    fileAbsolutePath.includes(file)
-  );
+  const { filePath, overrides } = step;
+  const mdx = findMdxFile(filePath, files);
 
   if (!overrides) {
     return { ...step, mdx };
   }
 
-  const overrideFiles = overrides.map((override) => {
+  const newOverrides = overrides.map((override) => {
     const { overrideConfig } = override;
-    const newOverrideConfig = mapFileNametoFile(overrideConfig, files);
+    const newOverrideConfig = overrideConfig.map((config) =>
+      mapFileNametoFile(config, files)
+    );
     return { ...override, overrideConfig: newOverrideConfig };
   });
 
-  return { ...step, mdx, overrides: overrideFiles };
+  return { ...step, mdx, overrides: newOverrides };
 };
+
+const findMdxFile = (filePath, files) =>
+  files.find(({ fileAbsolutePath }) => fileAbsolutePath.includes(filePath));
 
 const findInstallConfig = (yaml, agentName) => {
   if (yaml.agentName == null) {
     return null;
   }
-  if (yaml.agentName?.toLowerCase() === agentName.toLowerCase()) {
+  if (yaml.agentName.toLowerCase() === agentName.toLowerCase()) {
     return yaml;
   }
 };
