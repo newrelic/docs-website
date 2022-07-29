@@ -5,7 +5,7 @@ import MDXContainer from './MDXContainer';
 
 // This is an example of creating state in the main page where we can read the value of a select
 //
-// const optionTest = [
+// const selectTest = [
 //   {
 //     label: 'test',
 //     options: [
@@ -21,8 +21,8 @@ import MDXContainer from './MDXContainer';
 //     ],
 //   },
 // ];
-// const selectInputInitialState = optionTest.reduce((acc, option) => {
-//   acc = { ...acc, [option.label]: null };
+// const selectInputInitialState = selectTest.reduce((acc, select) => {
+//   acc = { ...acc, [select.label]: select.options[0].value };
 //   return acc;
 // }, {});
 
