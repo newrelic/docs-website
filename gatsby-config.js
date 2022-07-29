@@ -239,6 +239,20 @@ module.exports = {
       },
     },
     {
+      resolve: 'gatsby-source-filesystem',
+      options: {
+        name: 'install-docs-mdx',
+        path: `${__dirname}/src/install/mdx`,
+      },
+    },
+    {
+      resolve: 'gatsby-source-filesystem',
+      options: {
+        name: 'install-docs-yaml',
+        path: `${__dirname}/src/install/config`,
+      },
+    },
+    {
       resolve: 'gatsby-transformer-json',
       options: {
         // If we need to source json files other than the i18n/nav, we should
