@@ -3,7 +3,34 @@ import PropTypes from 'prop-types';
 import { SelectInLine } from '@newrelic/gatsby-theme-newrelic';
 import MDXContainer from './MDXContainer';
 
-const AppInfoConfig = ({ selectOptions, setPageState, mdx }) => {
+// This is an example of creating state in the main page where we can read the value of a select
+//
+// const optionTest = [
+//   {
+//     label: 'test',
+//     options: [
+//       { value: 'banana', displayName: 'Banana' },
+//       { value: 'taco', displayName: 'Taco' },
+//     ],
+//   },
+//   {
+//     label: 'test2',
+//     options: [
+//       { value: 'banana2', displayName: 'Banana2' },
+//       { value: 'taco2', displayName: 'Taco2' },
+//     ],
+//   },
+// ];
+// const selectInputInitialState = optionTest.reduce((acc, option) => {
+//   acc = { ...acc, [option.label]: null };
+//   return acc;
+// }, {});
+
+// const [pageState, setPageState] = useState({
+//   selectOptions: selectInputInitialState,
+// });
+
+const AppInfoConfig = ({ selectOptions, pageState, setPageState, mdx }) => {
   return (
     <div>
       {selectOptions.map((select) => {
@@ -11,7 +38,15 @@ const AppInfoConfig = ({ selectOptions, setPageState, mdx }) => {
           <SelectInLine
             key={select.label}
             label={select.label}
-            onChange={(e) => setPageState(e.targetvalue)}
+            onChange={(e) =>
+              setPageState({
+                ...pageState,
+                selectOptions: {
+                  ...pageState.selectOptions,
+                  [select.label]: e.target.value,
+                },
+              })
+            }
           >
             {select.options.map((option) => (
               <option key={option.label} value={option.value}>
