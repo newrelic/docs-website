@@ -1,37 +1,24 @@
 import React from 'react';
 import { graphql } from 'gatsby';
+// import { SEO } from '../../components/SEO';
 
-const InstallTemplate = ({ params }) => {
-  console.table(params);
+const InstallTemplate = (props) => {
+  // console.log('params', params);
+  console.log('gatsby variables', props);
 
-  return <p>{params.agent}</p>;
+  return <p>Hello, World</p>;
 };
 
-export const pageQuery = graphql`
-  query($slug: String!, $locale: String) {
-    allMarkdownRemark(
-      sort: {
-        fields: [frontmatter___releaseDate, frontmatter___title]
-        order: [DESC, ASC]
-      }
-      filter: { fields: { slug: { regex: "/whats-new/" } } }
-    ) {
-      edges {
-        node {
-          id
-          frontmatter {
-            title
-            summary
-            releaseDate(formatString: "MMMM D, YYYY")
-          }
-          fields {
-            slug
-          }
-        }
+export const agentQuery = graphql`
+  query($locale: String!, $slug: String!) {
+    ...MainLayout_query
+    installConfig(agentName: "java") {
+      id
+      title
+      intro {
+        filePath
       }
     }
-
-    ...MainLayout_query
   }
 `;
 

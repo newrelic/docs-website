@@ -346,6 +346,11 @@ exports.onCreatePage = ({ page, actions }) => {
     page.context.layout = 'basic';
   }
 
+  if (page.path.match(/install\//)) {
+    const pagePathArray = page.path.split('/');
+    page.context.agent = pagePathArray[pagePathArray.length - 1];
+  }
+
   if (hasTrailingSlash(page.context.slug)) {
     page.context.slug = page.context.slug.replace(TRAILING_SLASH, '');
   }
