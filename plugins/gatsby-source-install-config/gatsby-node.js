@@ -54,10 +54,17 @@ exports.createSchemaCustomization = ({ actions }) => {
       agentConfigFilePath: String
       optionType: String
     }
-    type InputOption @dontInfer {
-      labelMdx: String!
-      value: String! 
-      infoMdx: String! 
+    type InputOption @dontInfer { 
+      name: String!
+      codeLine: String!
+      label: String!
+      defaultValue: String!
+      toolTip: String,
+      url: InputUrl,
+    }
+    type InputUrl {
+      title: String!
+      href: String!
     }
   `);
 };
@@ -73,15 +80,19 @@ exports.createResolvers = ({ createResolvers, createNodeId }) => {
         resolve: async (_source, args, context) => {
           const { agentName } = args;
           const { nodeModel } = context;
-          const { entries } = await nodeModel.findAll({ type: 'ConfigYaml' });
 
           if (!agentName) {
             return null;
           }
 
-          const installConfigYaml = Array.from(entries).find((yaml) =>
-            findInstallConfig(yaml, agentName)
-          );
+          const installConfigYaml = await nodeModel.findOne({
+            type: 'ConfigYaml',
+            query: {
+              filter: {
+                agentName: { eq: agentName },
+              },
+            },
+          });
 
           if (!installConfigYaml) {
             return null;
@@ -148,12 +159,3 @@ const mapFileNametoFile = (step, files) => {
 
 const findMdxFile = (filePath, files) =>
   files.find(({ fileAbsolutePath }) => fileAbsolutePath.includes(filePath));
-
-const findInstallConfig = (yaml, agentName) => {
-  if (yaml.agentName == null) {
-    return null;
-  }
-  if (yaml.agentName.toLowerCase() === agentName.toLowerCase()) {
-    return yaml;
-  }
-};
