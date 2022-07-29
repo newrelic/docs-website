@@ -346,9 +346,11 @@ exports.onCreatePage = ({ page, actions }) => {
     page.context.layout = 'basic';
   }
 
-  if (page.path.match(/install\//)) {
+  if (page.path.includes('/install/')) {
     const pagePathArray = page.path.split('/');
-    page.context.agent = pagePathArray[pagePathArray.length - 1];
+    const lastItem = pagePathArray[pagePathArray.length - 1];
+    page.context.agent =
+      lastItem !== '' ? lastItem : pagePathArray[pagePathArray.length - 2];
   }
 
   if (hasTrailingSlash(page.context.slug)) {
