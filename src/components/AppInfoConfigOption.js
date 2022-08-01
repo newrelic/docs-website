@@ -13,6 +13,7 @@ const AppInfoConfig = ({
   const select = selectOptions.find(
     (select) => select.optionType === optionType
   );
+  const { body } = mdx;
   return (
     <div>
       <SelectInLine
@@ -35,7 +36,7 @@ const AppInfoConfig = ({
         ))}
       </SelectInLine>
 
-      {mdx && <MDXContainer body={mdx} />}
+      {mdx && <MDXContainer body={body} />}
     </div>
   );
 };
