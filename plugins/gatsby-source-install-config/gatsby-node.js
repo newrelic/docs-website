@@ -12,6 +12,7 @@ exports.createSchemaCustomization = ({ actions }) => {
       steps: [InstallStep]
       mdxFiles: [Mdx]
       whatsNextMdx: String!
+      agentConfigFile: File
     }
     type IntroFile @dontInfer {
       filePath: String
@@ -113,9 +114,21 @@ exports.createResolvers = ({ createResolvers, createNodeId }) => {
 
           const {
             introFilePath,
+            agentConfigFilePath,
             steps: installSteps,
             ...installConfigYamlContent
           } = installConfigYaml;
+
+          const agentConfigFile = await nodeModel.findOne({
+            type: 'File',
+            query: {
+              filter: {
+                absolutePath: {
+                  regex: `/${agentConfigFilePath}/`,
+                },
+              },
+            },
+          });
 
           const introMdx = findMdxFile(introFilePath, mdxFiles);
 
@@ -130,6 +143,7 @@ exports.createResolvers = ({ createResolvers, createNodeId }) => {
             intro,
             steps,
             mdxFiles,
+            agentConfigFile,
             id: createNodeId('installConfig'),
           };
         },
@@ -137,6 +151,13 @@ exports.createResolvers = ({ createResolvers, createNodeId }) => {
     },
   });
 };
+
+// const findAgentConfigFiles = (mdxFiles) => mdxFiles.flatMa((mdx) => {
+
+// });
+
+// const isAgentConfigFile = ({ frontmatter: { componentType } }) =>
+//   componentType === 'agentConfig';
 
 const mapFileNametoFile = (step, files) => {
   const { filePath, overrides } = step;

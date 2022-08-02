@@ -3,7 +3,7 @@ import PropTypes from 'prop-types';
 import { SelectInLine } from '@newrelic/gatsby-theme-newrelic';
 import MDXContainer from './MDXContainer';
 
-const AppInfoConfig = ({
+const AppInfoConfigOption = ({
   optionType,
   selectOptions,
   pageState,
@@ -13,11 +13,9 @@ const AppInfoConfig = ({
   const select = selectOptions.find(
     (select) => select.optionType === optionType
   );
-  const { body } = mdx;
   return (
     <div>
       <SelectInLine
-        key={select.label}
         label={select.label}
         onChange={(e) =>
           setPageState({
@@ -36,12 +34,12 @@ const AppInfoConfig = ({
         ))}
       </SelectInLine>
 
-      {mdx && <MDXContainer body={body} />}
+      {mdx && <MDXContainer body={mdx.body} />}
     </div>
   );
 };
 
-AppInfoConfig.propTypes = {
+AppInfoConfigOption.propTypes = {
   selectOptions: PropTypes.arrayOf(
     PropTypes.shape({
       label: PropTypes.string,
@@ -54,8 +52,8 @@ AppInfoConfig.propTypes = {
     })
   ).isRequired,
   setPageState: PropTypes.func.isRequired,
-  mdx: PropTypes.node,
+  mdx: PropTypes.object,
   optionType: PropTypes.string.isRequired,
 };
 
-export default AppInfoConfig;
+export default AppInfoConfigOption;

@@ -31,32 +31,36 @@ import MDXContainer from './MDXContainer';
 // });
 
 const AppInfoConfig = ({ selectOptions, pageState, setPageState, mdx }) => {
+  const { body } = mdx;
   return (
     <div>
       {selectOptions.map((select) => {
         return (
           <SelectInLine
-            key={select.label}
+            key={`${select.label}${select.optionType}`}
             label={select.label}
             onChange={(e) =>
               setPageState({
                 ...pageState,
                 selectOptions: {
                   ...pageState.selectOptions,
-                  [select.label]: e.target.value,
+                  [select.optionType]: e.target.value,
                 },
               })
             }
           >
             {select.options.map((option) => (
-              <option key={option.label} value={option.value}>
+              <option
+                key={`${select.optionType}${option.value}`}
+                value={option.value}
+              >
                 {option.displayName}
               </option>
             ))}
           </SelectInLine>
         );
       })}
-      {mdx && <MDXContainer body={mdx} />}
+      {body && <MDXContainer body={body} />}
     </div>
   );
 };
@@ -74,7 +78,7 @@ AppInfoConfig.propTypes = {
     })
   ),
   setPageState: PropTypes.func,
-  mdx: PropTypes.node,
+  mdx: PropTypes.object,
 };
 
 export default AppInfoConfig;

@@ -37,7 +37,7 @@ const AgentConfig = ({ inputOptions, config, tipMdx }) => {
               name={name}
               key={name}
               label={label}
-              codeLine={codeLine}
+              codeLine={parseInt(codeLine)}
               defaultValue={defaultValue}
               value={state[idx].value}
               url={url}
