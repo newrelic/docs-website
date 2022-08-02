@@ -77,6 +77,7 @@ module.exports = {
             'css',
             'js',
             'aspnet',
+            'batch',
             'csv',
             'cmake',
             'dax',
