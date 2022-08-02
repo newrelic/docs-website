@@ -135,6 +135,7 @@ exports.onPostBuild = async ({ graphql, store, reporter }) => {
 
   try {
     reporter.info(`Generating XML for security bulletins RSS feed`);
+    reporter.info(`graphql: `, graphql);
     const {
       site,
       securityBulletinFileNodes,
