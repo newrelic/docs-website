@@ -30,6 +30,7 @@ import php from './logo/php';
 import postgresql from './logo/postgresql';
 import prometheus from './logo/prometheus';
 import python from './logo/python';
+import react from './logo/react';
 import redis from './logo/redis';
 import ruby from './logo/ruby';
 import statsd from './logo/statsd';
@@ -70,6 +71,7 @@ export default {
   python,
   redis,
   ruby,
+  react,
   statsd,
   windows,
 };
