@@ -13,6 +13,10 @@ exports.createSchemaCustomization = ({ actions }) => {
       mdxFiles: [Mdx]
       whatsNextMdx: String!
     }
+    type allInstallConfig @dontInfer {
+      id: ID!
+      nodes: [InstallConfig]
+    }
     type IntroFile @dontInfer {
       filePath: String
       mdx: Mdx
@@ -47,14 +51,14 @@ exports.createSchemaCustomization = ({ actions }) => {
       frontmatter: Frontmatter
     }
     type Frontmatter {
-      componentType: String! 
+      componentType: String!
       headingText: String
       inputOptions: [InputOption]
       tipMdx: String
       agentConfigFilePath: String
       optionType: String
     }
-    type InputOption @dontInfer { 
+    type InputOption @dontInfer {
       name: String!
       codeLine: String!
       label: String!
@@ -76,23 +80,36 @@ exports.createResolvers = ({ createResolvers, createNodeId }) => {
         type: 'InstallConfig',
         args: {
           agentName: 'String!',
+          id: 'String!',
         },
         resolve: async (_source, args, context) => {
-          const { agentName } = args;
+          const { agentName, id } = args;
           const { nodeModel } = context;
+          let installConfigYaml;
 
-          if (!agentName) {
+          if (!agentName && !id) {
             return null;
           }
 
-          const installConfigYaml = await nodeModel.findOne({
-            type: 'ConfigYaml',
-            query: {
-              filter: {
-                agentName: { eq: agentName },
+          if (id && !agentName) {
+            installConfigYaml = await nodeModel.findOne({
+              type: 'ConfigYaml',
+              query: {
+                filter: {
+                  id: { eq: id },
+                },
               },
-            },
-          });
+            });
+          } else {
+            installConfigYaml = await nodeModel.findOne({
+              type: 'ConfigYaml',
+              query: {
+                filter: {
+                  agentName: { eq: agentName },
+                },
+              },
+            });
+          }
 
           if (!installConfigYaml) {
             return null;
@@ -132,6 +149,34 @@ exports.createResolvers = ({ createResolvers, createNodeId }) => {
             mdxFiles,
             id: createNodeId('installConfig'),
           };
+        },
+      },
+      allInstallConfig: {
+        type: 'allInstallConfig',
+        resolve: async (_source, args, context) => {
+          const { nodeModel } = context;
+          // const returnData = [];
+
+          const { entries: agents } = await nodeModel.findAll({
+            type: 'ConfigYaml',
+          });
+
+          return { nodes: agents};
+
+          // for (const agent of agents) {
+          //   returnData.push(
+          //     await nodeModel.findOne({
+          //       type: 'InstallConfig',
+          //       query: {
+          //         filter: {
+          //           agentName: { eq: agent },
+          //         },
+          //       },
+          //     })
+          //   );
+          // }
+          //
+          // return { nodes: returnData };
         },
       },
     },
