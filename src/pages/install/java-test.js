@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { graphql } from 'gatsby';
+import { css } from '@emotion/react';
 // import { SEO } from '../../components/SEO';
 import PageTitle from '../../components/PageTitle';
 import MDXContainer from '../../components/MDXContainer';
@@ -16,23 +17,45 @@ const defaultAppInfoState = (appInfo) => {
 };
 
 const InstallPage = ({ data }) => {
-  // console.log('params', params);
   const { installConfig = {} } = data;
   const { title, intro, steps, appInfo, agentConfigFile } = installConfig;
   const [pageState, setPageState] = useState({
     selectOptions: defaultAppInfoState(appInfo),
   });
 
-  const renderStep = (mdx) => {
+  const renderStep = (step) => {
+    const { overrides } = step;
+
+    if (overrides) {
+      for (const override of overrides) {
+        const { optionType, overrideConfig } = override;
+        const overrideValue = pageState.selectOptions[optionType];
+        if (pageState.selectOptions[optionType] !== null) {
+          const matchedOverrideConfig = overrideConfig.find(
+            ({ value }) => value === overrideValue
+          );
+          if (matchedOverrideConfig) {
+            return renderFromComponentType(matchedOverrideConfig);
+          }
+        }
+      }
+    }
+    return renderFromComponentType(step);
+  };
+
+  const renderFromComponentType = ({ mdx, skip }) => {
+    if (skip) {
+      return null;
+    }
     const { frontmatter, body } = mdx;
     const { componentType } = frontmatter;
-
     if (componentType === 'agentConfig') {
       const { inputOptions } = frontmatter;
       return (
         <AgentConfig
           config={agentConfigFile?.internal?.content}
           inputOptions={inputOptions}
+          tipMdx={mdx}
         />
       );
     } else if (componentType === 'appInfoConfig') {
@@ -57,25 +80,30 @@ const InstallPage = ({ data }) => {
       );
     }
 
-    return <MDXContainer body={body} />;
+    return body && <MDXContainer body={body} />;
   };
 
   return (
     <div>
       <PageTitle>{title}</PageTitle>
       <MDXContainer body={intro.mdx?.body} />
-      <Walkthrough>
-        {steps.map(({ mdx }, index) => {
-          const { frontmatter } = mdx;
-          return (
+      <Walkthrough
+        css={css`
+          max-width: 900px;
+        `}
+      >
+        {steps.map((step, index) => {
+          const { frontmatter } = step.mdx;
+          const content = renderStep(step);
+          return content ? (
             <Walkthrough.Step
               key={index}
               number={index}
               title={frontmatter.headingText}
             >
-              {renderStep(mdx)}
+              {content}
             </Walkthrough.Step>
-          );
+          ) : null;
         })}
       </Walkthrough>
     </div>
@@ -83,6 +111,27 @@ const InstallPage = ({ data }) => {
 };
 
 export const pageQuery = graphql`
+  fragment MDXInstallFragment on Mdx {
+    body
+    frontmatter {
+      componentType
+      optionType
+      inputOptions {
+        codeLine
+        defaultValue
+        label
+        name
+        toolTip
+        url {
+          href
+          title
+        }
+      }
+      headingText
+      agentConfigFilePath
+    }
+  }
+
   query($locale: String!, $slug: String!) {
     ...MainLayout_query
     installConfig(agentName: "java") {
@@ -109,26 +158,17 @@ export const pageQuery = graphql`
         }
       }
       steps {
-        filePath
         mdx {
-          body
-          frontmatter {
-            componentType
-            optionType
-            inputOptions {
-              codeLine
-              defaultValue
-              label
-              name
-              toolTip
-              url {
-                href
-                title
-              }
+          ...MDXInstallFragment
+        }
+        overrides {
+          optionType
+          overrideConfig {
+            mdx {
+              ...MDXInstallFragment
             }
-            headingText
-            agentConfigFilePath
-            tipMdx
+            skip
+            value
           }
         }
       }
