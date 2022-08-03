@@ -48,6 +48,7 @@ const AppInfoConfig = ({ selectOptions, pageState, setPageState, mdx }) => {
                 },
               })
             }
+            value={pageState.selectOptions[select.optionType]}
           >
             {select.options.map((option) => (
               <option

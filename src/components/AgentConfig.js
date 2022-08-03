@@ -10,6 +10,7 @@ import MDXContainer from './MDXContainer';
 
 const AgentConfig = ({ inputOptions, config, tipMdx }) => {
   const [state, setState] = useState([...inputOptions]);
+  const { body } = tipMdx;
 
   return (
     <div
@@ -55,9 +56,9 @@ const AgentConfig = ({ inputOptions, config, tipMdx }) => {
             />
           )
         )}
-        {tipMdx && (
+        {body && (
           <Callout variant={Callout.VARIANT.TIP}>
-            <MDXContainer body={tipMdx} />
+            <MDXContainer body={body} />
           </Callout>
         )}
       </div>
@@ -94,10 +95,9 @@ AgentConfig.propTypes = {
   inputOptions: PropTypes.arrayOf(
     PropTypes.shape({
       name: PropTypes.string.isRequired,
-      defaultName: PropTypes.string.isRequired,
-      codeLine: PropTypes.number.isRequired,
+      defaultValue: PropTypes.string.isRequired,
+      codeLine: PropTypes.string.isRequired,
       label: PropTypes.string,
-      value: PropTypes.string.isRequired,
       toolTip: PropTypes.string,
       url: PropTypes.shape({ title: PropTypes.string, href: PropTypes.string }),
     })

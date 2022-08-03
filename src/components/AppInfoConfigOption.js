@@ -13,6 +13,8 @@ const AppInfoConfigOption = ({
   const select = selectOptions.find(
     (select) => select.optionType === optionType
   );
+
+  const { body } = mdx;
   return (
     <div>
       <SelectInLine
@@ -22,19 +24,20 @@ const AppInfoConfigOption = ({
             ...pageState,
             selectOptions: {
               ...pageState.selectOptions,
-              [select.label]: e.target.value,
+              [select.optionType]: e.target.value,
             },
           })
         }
+        value={pageState.selectOptions[select.optionType]}
       >
         {select.options.map((option) => (
-          <option key={option.label} value={option.value}>
+          <option key={optionType + option.value} value={option.value}>
             {option.displayName}
           </option>
         ))}
       </SelectInLine>
 
-      {mdx && <MDXContainer body={mdx.body} />}
+      {body && <MDXContainer body={body} />}
     </div>
   );
 };
