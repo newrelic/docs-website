@@ -50,8 +50,8 @@ exports.createSchemaCustomization = ({ actions }) => {
     type Frontmatter {
       componentType: String! 
       headingText: String
+      descriptionText: String
       inputOptions: [InputOption]
-      tipMdx: String
       agentConfigFilePath: String
       optionType: String
     }
