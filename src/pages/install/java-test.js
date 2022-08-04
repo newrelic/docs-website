@@ -4,7 +4,7 @@ import { css } from '@emotion/react';
 // import { SEO } from '../../components/SEO';
 import PageTitle from '../../components/PageTitle';
 import MDXContainer from '../../components/MDXContainer';
-import { Walkthrough } from '@newrelic/gatsby-theme-newrelic';
+import { Walkthrough, Surface, Button } from '@newrelic/gatsby-theme-newrelic';
 import AgentConfig from '../../components/AgentConfig';
 import AppInfoConfig from '../../components/AppInfoConfig';
 import AppInfoConfigOption from '../../components/AppInfoConfigOption';
@@ -18,7 +18,14 @@ const defaultAppInfoState = (appInfo) => {
 
 const InstallPage = ({ data }) => {
   const { installConfig = {} } = data;
-  const { title, intro, steps, appInfo, agentConfigFile } = installConfig;
+  const {
+    title,
+    intro,
+    steps,
+    appInfo,
+    agentConfigFile,
+    whatsNext,
+  } = installConfig;
   const [pageState, setPageState] = useState({
     selectOptions: defaultAppInfoState(appInfo),
   });
@@ -122,6 +129,77 @@ const InstallPage = ({ data }) => {
           );
         })}
       </Walkthrough>
+      <Conclusion
+        css={css`
+          max-width: 900px;
+        `}
+        whatsNext={whatsNext}
+      />
+    </div>
+  );
+};
+
+const Conclusion = ({ whatsNext, className }) => {
+  const {
+    mdx: { body, frontmatter },
+  } = whatsNext;
+  return (
+    <div className={className}>
+      <Surface
+        css={css`
+          padding: 2rem;
+          margin-bottom: 2rem;
+          border: 1px solid #afe2e3;
+        `}
+        base={Surface.BASE.PRIMARY}
+      >
+        <h3>While you wait for your data to come in...</h3>
+      </Surface>
+      <div
+        css={css`
+          display: flex;
+          flex-direction: row;
+          gap: 2rem;
+        `}
+      >
+        <Surface
+          css={css`
+            padding: 2rem;
+            flex-grow: 1;
+            border: 1px solid #afe2e3;
+          `}
+          base={Surface.BASE.PRIMARY}
+        >
+          <h3>{frontmatter.headingText}</h3>
+          <MDXContainer body={body} />
+        </Surface>
+        <Surface
+          css={css`
+            padding: 2rem;
+            flex-grow: 1;
+            color: var(--color-white);
+            background-color: var(--attention-notification-announcement);
+          `}
+          base={Surface.BASE.PRIMARY}
+        >
+          <h3
+            css={css`
+              color: var(--color-white);
+            `}
+          >
+            Still not seeing data?
+          </h3>
+          <p>Follow our troubleshooting steps</p>
+          <Button
+            css={css`
+              background-color: var(--system-background-surface-1-light);
+            `}
+            variant={Button.VARIANT.OUTLINE}
+          >
+            Start troubleshooting.
+          </Button>
+        </Surface>
+      </div>
     </div>
   );
 };
@@ -158,6 +236,15 @@ export const pageQuery = graphql`
         filePath
         mdx {
           body
+        }
+      }
+      whatsNext {
+        filePath
+        mdx {
+          body
+          frontmatter {
+            headingText
+          }
         }
       }
       agentConfigFile {

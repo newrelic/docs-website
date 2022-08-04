@@ -7,14 +7,14 @@ exports.createSchemaCustomization = ({ actions }) => {
       agentName: String!
       agentType: String!
       title: String!
-      intro: IntroFile
+      intro: MDXConfig
       appInfo: [AppInfoOption!]!
       steps: [InstallStep]
       mdxFiles: [Mdx]
-      whatsNextMdx: String!
+      whatsNext: MDXConfig
       agentConfigFile: File
     }
-    type IntroFile @dontInfer {
+    type MDXConfig @dontInfer {
       filePath: String
       mdx: Mdx
     }
@@ -114,6 +114,7 @@ exports.createResolvers = ({ createResolvers, createNodeId }) => {
 
           const {
             introFilePath,
+            whatsNextFilePath,
             agentConfigFilePath,
             steps: installSteps,
             ...installConfigYamlContent
@@ -131,8 +132,10 @@ exports.createResolvers = ({ createResolvers, createNodeId }) => {
           });
 
           const introMdx = findMdxFile(introFilePath, mdxFiles);
+          const whatsNextMdx = findMdxFile(whatsNextFilePath, mdxFiles);
 
           const intro = { filePath: introFilePath, mdx: introMdx };
+          const whatsNext = { filePath: whatsNextFilePath, mdx: whatsNextMdx };
 
           const steps = installSteps?.map((step) =>
             mapFileNametoFile(step, Array.from(mdxFiles))
@@ -144,6 +147,7 @@ exports.createResolvers = ({ createResolvers, createNodeId }) => {
             steps,
             mdxFiles,
             agentConfigFile,
+            whatsNext,
             id: createNodeId('installConfig'),
           };
         },
