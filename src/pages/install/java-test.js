@@ -83,6 +83,12 @@ const InstallPage = ({ data }) => {
     return body && <MDXContainer body={body} />;
   };
 
+  const walkthroughSteps = steps
+    .map((step) => {
+      return { content: renderStep(step), step };
+    })
+    .filter(({ content }) => content !== null);
+
   return (
     <div>
       <PageTitle>{title}</PageTitle>
@@ -98,11 +104,9 @@ const InstallPage = ({ data }) => {
           max-width: 900px;
         `}
       >
-        {steps.map((step, index) => {
-          const { frontmatter } = step.mdx;
-          const { headingText, descriptionText } = frontmatter;
-          const content = renderStep(step);
-          return content ? (
+        {walkthroughSteps.map(({ content, step: { mdx } }, index) => {
+          const { descriptionText, headingText } = mdx?.frontmatter;
+          return (
             <Walkthrough.Step key={index} number={index} title={headingText}>
               {descriptionText && (
                 <p
@@ -115,7 +119,7 @@ const InstallPage = ({ data }) => {
               )}
               {content}
             </Walkthrough.Step>
-          ) : null;
+          );
         })}
       </Walkthrough>
     </div>
