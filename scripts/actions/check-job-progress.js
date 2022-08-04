@@ -20,6 +20,7 @@ const {
 const PROJECT_ID = configuration.TRANSLATION.VENDOR_PROJECT;
 
 const defaultTrackingMetadata = {
+  eventType: 'GithubActionsI18n',
   projectId: PROJECT_ID,
   workflow: 'checkAndDeserialize',
 };
