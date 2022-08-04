@@ -86,7 +86,13 @@ const InstallPage = ({ data }) => {
   return (
     <div>
       <PageTitle>{title}</PageTitle>
-      <MDXContainer body={intro.mdx?.body} />
+      <div
+        css={css`
+          margin-bottom: 2rem;
+        `}
+      >
+        <MDXContainer body={intro.mdx?.body} />
+      </div>
       <Walkthrough
         css={css`
           max-width: 900px;
@@ -94,13 +100,19 @@ const InstallPage = ({ data }) => {
       >
         {steps.map((step, index) => {
           const { frontmatter } = step.mdx;
+          const { headingText, descriptionText } = frontmatter;
           const content = renderStep(step);
           return content ? (
-            <Walkthrough.Step
-              key={index}
-              number={index}
-              title={frontmatter.headingText}
-            >
+            <Walkthrough.Step key={index} number={index} title={headingText}>
+              {descriptionText && (
+                <p
+                  css={css`
+                    margin-bottom: 2rem;
+                  `}
+                >
+                  {descriptionText}
+                </p>
+              )}
               {content}
             </Walkthrough.Step>
           ) : null;
@@ -128,6 +140,7 @@ export const pageQuery = graphql`
         }
       }
       headingText
+      descriptionText
       agentConfigFilePath
     }
   }
