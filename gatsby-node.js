@@ -253,7 +253,7 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
           createPage,
           disableSwiftype: !i18nNode,
         },
-        true // always defer localized pages
+        true // enable DSG
       );
     });
   });
@@ -294,6 +294,7 @@ exports.createSchemaCustomization = ({ actions }) => {
   type Frontmatter {
     isFeatured: Boolean
     translationType: String
+    dataSource: String
   }
   `;
 
@@ -327,6 +328,10 @@ exports.createResolvers = ({ createResolvers }) => {
           hasOwnProperty(source, 'translationType')
             ? source.translationType
             : null,
+      },
+      dataSource: {
+        resolve: (source) =>
+          hasOwnProperty(source, 'dataSource') ? source.dataSource : null,
       },
     },
   });
