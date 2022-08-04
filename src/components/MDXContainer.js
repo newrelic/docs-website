@@ -4,6 +4,7 @@ import {
   Lightbox,
   MDX,
   MarkdownContainer,
+  Tabs,
 } from '@newrelic/gatsby-theme-newrelic';
 
 import LandingPageHero from './LandingPageHero';
@@ -68,6 +69,11 @@ const defaultComponents = {
   ButtonLink: (props) => <MDXButton as={Link} {...props} />,
   ButtonGroup: MDXButtonGroup,
   DoNotTranslate: ({ children }) => <>{children}</>,
+  Tabs: Tabs,
+  TabsBar: Tabs.Bar,
+  TabsBarItem: Tabs.BarItem,
+  TabsPage: Tabs.Page,
+  TabsPages: Tabs.Pages,
 };
 
 const MDXContainer = ({ body, children, components }) => {
