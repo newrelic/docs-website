@@ -14,6 +14,10 @@ exports.createSchemaCustomization = ({ actions }) => {
       whatsNext: MDXConfig
       agentConfigFile: File
     }
+    type allInstallConfig @dontInfer {
+      id: ID!
+      nodes: [InstallConfig]
+    }
     type MDXConfig @dontInfer {
       filePath: String
       mdx: Mdx
@@ -48,14 +52,14 @@ exports.createSchemaCustomization = ({ actions }) => {
       frontmatter: Frontmatter
     }
     type Frontmatter {
-      componentType: String! 
+      componentType: String!
       headingText: String
       descriptionText: String
       inputOptions: [InputOption]
       agentConfigFilePath: String
       optionType: String
     }
-    type InputOption @dontInfer { 
+    type InputOption @dontInfer {
       name: String!
       codeLine: String!
       label: String!
@@ -77,79 +81,67 @@ exports.createResolvers = ({ createResolvers, createNodeId }) => {
         type: 'InstallConfig',
         args: {
           agentName: 'String!',
+          id: 'String!',
         },
         resolve: async (_source, args, context) => {
-          const { agentName } = args;
+          const { agentName, id } = args;
           const { nodeModel } = context;
+          let installConfigYaml;
 
-          if (!agentName) {
+          if (!agentName && !id) {
             return null;
           }
 
-          const installConfigYaml = await nodeModel.findOne({
-            type: 'ConfigYaml',
-            query: {
-              filter: {
-                agentName: { eq: agentName },
+          if (id && !agentName) {
+            installConfigYaml = await nodeModel.findOne({
+              type: 'ConfigYaml',
+              query: {
+                filter: {
+                  id: { eq: id },
+                },
               },
-            },
-          });
+            });
+          } else {
+            installConfigYaml = await nodeModel.findOne({
+              type: 'ConfigYaml',
+              query: {
+                filter: {
+                  agentName: { eq: agentName },
+                },
+              },
+            });
+          }
 
           if (!installConfigYaml) {
             return null;
           }
 
-          const { entries: allMdx } = await nodeModel.findAll({
-            type: 'Mdx',
-            query: {
-              filter: {
-                fileAbsolutePath: {
-                  regex: `/src/install/${installConfigYaml.agentName.toLowerCase()}/`,
-                },
-              },
-            },
-          });
-
-          const mdxFiles = Array.from(allMdx);
-
-          const {
-            introFilePath,
-            whatsNextFilePath,
-            agentConfigFilePath,
-            steps: installSteps,
-            ...installConfigYamlContent
-          } = installConfigYaml;
-
-          const agentConfigFile = await nodeModel.findOne({
-            type: 'File',
-            query: {
-              filter: {
-                absolutePath: {
-                  regex: `/${agentConfigFilePath}/`,
-                },
-              },
-            },
-          });
-
-          const introMdx = findMdxFile(introFilePath, mdxFiles);
-          const whatsNextMdx = findMdxFile(whatsNextFilePath, mdxFiles);
-
-          const intro = { filePath: introFilePath, mdx: introMdx };
-          const whatsNext = { filePath: whatsNextFilePath, mdx: whatsNextMdx };
-
-          const steps = installSteps?.map((step) =>
-            mapFileNametoFile(step, Array.from(mdxFiles))
+          const returnVal = await getReturnPayload(
+            nodeModel,
+            createNodeId,
+            installConfigYaml
           );
 
-          return {
-            ...installConfigYamlContent,
-            intro,
-            steps,
-            mdxFiles,
-            agentConfigFile,
-            whatsNext,
-            id: createNodeId('installConfig'),
-          };
+          return returnVal;
+        },
+      },
+      allInstallConfig: {
+        type: 'allInstallConfig',
+        resolve: async (_source, args, context) => {
+          const { nodeModel } = context;
+          const returnData = [];
+
+          const { entries: installConfigYamls } = await nodeModel.findAll({
+            type: 'ConfigYaml',
+          });
+
+          for (const installConfigYaml of installConfigYamls) {
+            returnData.push(
+              await getReturnPayload(nodeModel, createNodeId, installConfigYaml)
+            );
+          }
+
+          return { nodes: returnData };
         },
       },
     },
@@ -184,3 +176,57 @@ const mapFileNametoFile = (step, files) => {
 
 const findMdxFile = (filePath, files) =>
   files.find(({ fileAbsolutePath }) => fileAbsolutePath.includes(filePath));
+
+const getReturnPayload = async (nodeModel, createNodeId, installConfigYaml) => {
+  const { entries: allMdx } = await nodeModel.findAll({
+    type: 'Mdx',
+    query: {
+      filter: {
+        fileAbsolutePath: {
+          regex: `/src/install/${installConfigYaml.agentName.toLowerCase()}/`,
+        },
+      },
+    },
+  });
+
+  const mdxFiles = Array.from(allMdx);
+
+  const {
+    introFilePath,
+    whatsNextFilePath,
+    agentConfigFilePath,
+    steps: installSteps,
+    ...installConfigYamlContent
+  } = installConfigYaml;
+
+  const agentConfigFile = await nodeModel.findOne({
+    type: 'File',
+    query: {
+      filter: {
+        absolutePath: {
+          regex: `/${agentConfigFilePath}/`,
+        },
+      },
+    },
+  });
+
+  const introMdx = findMdxFile(introFilePath, mdxFiles);
+  const whatsNextMdx = findMdxFile(whatsNextFilePath, mdxFiles);
+
+  const intro = { filePath: introFilePath, mdx: introMdx };
+  const whatsNext = { filePath: whatsNextFilePath, mdx: whatsNextMdx };
+
+  const steps = installSteps?.map((step) =>
+    mapFileNametoFile(step, Array.from(mdxFiles))
+  );
+
+  return {
+    ...installConfigYamlContent,
+    whatsNext,
+    agentConfigFile,
+    intro,
+    steps,
+    mdxFiles,
+    id: createNodeId('installConfig'),
+  };
+};
