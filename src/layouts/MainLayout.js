@@ -17,7 +17,6 @@ import { animated, useTransition } from 'react-spring';
 import { useLocation } from '@reach/router';
 
 const MainLayout = ({ data = {}, children, pageContext }) => {
-  console.log('main layout data:', data);
   const { nav, rootNav } = data;
   const { contentPadding } = useLayout();
   const location = useLocation();
