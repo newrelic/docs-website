@@ -8,29 +8,8 @@ import {
 } from '@newrelic/gatsby-theme-newrelic';
 
 import MDXContainer from './MDXContainer';
-// {clicked ? (
-//   <h6
-//     css={css`
-//       padding: 0.3rem;
-//     `}
-//   >
-//     Thank you for your feedback!
-//   </h6>
-// ) : (
-//   <>
-//     {' '}
-//     <h6
-//       css={css`
-//         margin-bottom: 0;
-//       `}
-//     >
-//       {t('feedback.question')}
-//     </h6>
-//
-//     </>
-// );
 
-const SimpleFeedback = () => {
+const Feedback = () => {
   const [clicked, setClicked] = useState(false);
   const tessen = useTessen();
 
@@ -44,23 +23,18 @@ const SimpleFeedback = () => {
   };
 
   return (
-    <>
+    <div
+      css={css`
+        display: flex;
+        justify-content: center;
+        align-items: flex-start;
+        height: 100%;
+      `}
+    >
       {clicked ? (
         <h4>Thank you for your feedback!</h4>
       ) : (
-        <div
-          css={css`
-            display: flex;
-            justify-content: center;
-            align-items: flex-start;
-            gap: 0.25rem;
-            @supports not (gap: 0.5rem) {
-              a:first-of-type {
-                margin-right: 0.25rem;
-              }
-            }
-          `}
-        >
+        <>
           <Button
             variant={Button.VARIANT.LINK}
             onClick={() => handleClick('Positive')}
@@ -69,14 +43,18 @@ const SimpleFeedback = () => {
               &:hover {
                 color: var(--secondary-text-color);
               }
+              border: 1px solid #0095a9;
+              border-radius: 0.5rem 0 0 0.5rem;
+              border-right-width: 0;
+              padding: 1rem 2rem;
             `}
           >
             <Icon
-              size="0.75rem"
+              size="1.25rem"
               name="fe-thumbsup"
               css={css`
                 margin-right: 0.5rem;
-                color: var(--primary-text-color);
+                color: #0095a9;
               `}
             />
           </Button>
@@ -88,20 +66,23 @@ const SimpleFeedback = () => {
               &:hover {
                 color: var(--secondary-text-color);
               }
+              border: 1px solid #0095a9;
+              padding: 1rem 2rem;
+              border-radius: 0 0.5rem 0.5rem 0;
             `}
           >
             <Icon
-              size="0.75rem"
+              size="1.25rem"
               name="fe-thumbsdown"
               css={css`
                 margin-right: 0.5rem;
-                color: var(--primary-text-color);
+                color: #0095a9;
               `}
             />
           </Button>
-        </div>
+        </>
       )}
-    </>
+    </div>
   );
 };
 
@@ -115,11 +96,24 @@ const InstallNextSteps = ({ mdx, className }) => {
           margin-bottom: 2rem;
           border: 1px solid #afe2e3;
           background-color: rgba(175, 226, 227, 0.05);
+          display: flex;
+          flex-direction: row;
+          justify-content: space-between;
+          align-items: center;
         `}
         base={Surface.BASE.PRIMARY}
       >
-        <h3>While you wait for your data to come in...</h3>
-        <SimpleFeedback />
+        <div>
+          <h3>While you wait for your data to come in...</h3>
+          <p
+            css={css`
+              font-size: 1rem;
+            `}
+          >
+            How would you rate your install experience?
+          </p>
+        </div>
+        <Feedback />
       </Surface>
       <div
         css={css`

@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { graphql } from 'gatsby';
 import { css } from '@emotion/react';
-// import { SEO } from '../../components/SEO';
+import { useScroll } from 'react-use';
+import { Walkthrough } from '@newrelic/gatsby-theme-newrelic';
 import PageTitle from '../../components/PageTitle';
 import MDXContainer from '../../components/MDXContainer';
-import { Walkthrough } from '@newrelic/gatsby-theme-newrelic';
 import AgentConfig from '../../components/AgentConfig';
 import AppInfoConfig from '../../components/AppInfoConfig';
 import AppInfoConfigOption from '../../components/AppInfoConfigOption';
@@ -15,6 +15,10 @@ const defaultAppInfoState = (appInfo) => {
     (acc, { optionType }) => ({ ...acc, [optionType]: null }),
     {}
   );
+};
+
+const onIntersection = () => {
+  console.log('intersects');
 };
 
 const InstallPage = ({ data }) => {
@@ -30,6 +34,13 @@ const InstallPage = ({ data }) => {
   const [pageState, setPageState] = useState({
     selectOptions: defaultAppInfoState(appInfo),
   });
+
+  const root = useRef(null);
+  const { x, y } = useScroll(root);
+
+  useEffect(() => {
+    console.log(x, y);
+  }, [x, y]);
 
   const renderStep = (step) => {
     const { overrides } = step;
@@ -107,29 +118,32 @@ const InstallPage = ({ data }) => {
       >
         <MDXContainer body={intro.mdx?.body} />
       </div>
-      <Walkthrough
-        css={css`
-          max-width: 900px;
-        `}
-      >
-        {walkthroughSteps.map(({ content, step: { mdx } }, index) => {
-          const { descriptionText, headingText } = mdx?.frontmatter;
-          return (
-            <Walkthrough.Step key={index} number={index} title={headingText}>
-              {descriptionText && (
-                <p
-                  css={css`
-                    margin-bottom: 2rem;
-                  `}
-                >
-                  {descriptionText}
-                </p>
-              )}
-              {content}
-            </Walkthrough.Step>
-          );
-        })}
-      </Walkthrough>
+      <div ref={root}>
+        <Walkthrough
+          css={css`
+            max-width: 900px;
+          `}
+          r
+        >
+          {walkthroughSteps.map(({ content, step: { mdx } }, index) => {
+            const { descriptionText, headingText } = mdx?.frontmatter;
+            return (
+              <Walkthrough.Step key={index} number={index} title={headingText}>
+                {descriptionText && (
+                  <p
+                    css={css`
+                      margin-bottom: 2rem;
+                    `}
+                  >
+                    {descriptionText}
+                  </p>
+                )}
+                {content}
+              </Walkthrough.Step>
+            );
+          })}
+        </Walkthrough>
+      </div>
       <InstallNextSteps
         css={css`
           max-width: 900px;

@@ -125,25 +125,6 @@ exports.createResolvers = ({ createResolvers, createNodeId }) => {
           return returnVal;
         },
       },
-      allInstallConfig: {
-        type: 'allInstallConfig',
-        resolve: async (_source, args, context) => {
-          const { nodeModel } = context;
-          const returnData = [];
-
-          const { entries: installConfigYamls } = await nodeModel.findAll({
-            type: 'ConfigYaml',
-          });
-
-          for (const installConfigYaml of installConfigYamls) {
-            returnData.push(
-              await getReturnPayload(nodeModel, createNodeId, installConfigYaml)
-            );
-          }
-
-          return { nodes: returnData };
-        },
-      },
     },
   });
 };
