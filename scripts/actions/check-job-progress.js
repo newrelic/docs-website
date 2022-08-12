@@ -196,18 +196,25 @@ const aggregateStatuses = (slugStatuses) => {
  * @returns {Promise<void>}
  */
 const updateTranslationRecords = async (slugStatuses) => {
-  // TODO: need to update this when we implement multiple locales. This only works for one locale.
-
   await Promise.all(
     slugStatuses.map(async ({ locale, slug }) => {
       const records = await updateTranslations(
         { slug, status: StatusEnum.IN_PROGRESS, locale },
         { status: StatusEnum.COMPLETED }
       );
-
-      console.log(
-        `Translation ${records[0].id} marked as ${StatusEnum.COMPLETED}`
-      );
+      if (records[0]) {
+        console.log(
+          `Translation ${records[0].id} marked as ${StatusEnum.COMPLETED}`
+        );
+      } else {
+        log(
+          `RECORD NOT FOUND: Cannot find record for ${JSON.stringify({
+            locale,
+            slug,
+          })}`,
+          'warn'
+        );
+      }
     })
   );
 };
