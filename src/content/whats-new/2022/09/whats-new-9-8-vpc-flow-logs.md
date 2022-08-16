@@ -1,6 +1,6 @@
 ---
 title: 'New Relic announces support for Amazon VPC Flow Logs via Amazon Kinesis Data Firehose'
-summary: 'Send Amazon VPC Flow Logs via Amazon Kinesis Data Firehose to reduce Amazon CloudWatch related costs and to explore and navigate flow logs across the technology estate'
+summary: 'Send Amazon VPC flow logs via Amazon Kinesis Data Firehose to reduce Amazon CloudWatch related costs and to explore and navigate flow logs across the technology estate'
 releaseDate: '2022-07-15'
 learnMoreLink: 'https://newrelic.com/blog/nerdlog/amazon-vpc-flow-logs'
 getStartedLink: 'https://one.newrelic.com/marketplace?duration=1800000&state=79e952e9-b09e-3343-2a9c-481337ff28ac'
@@ -13,22 +13,22 @@ With the release from Amazon Web Services (AWS), we’re announcing support for 
 
 Amazon Virtual Private Cloud (Amazon VPC) enables you to launch AWS resources into an isolated and secure virtual network with the benefits of using scalable AWS infrastructure.
 
-With New Relic’s Amazon VPC Flow Log integration, you’ll be able to:
+With New Relic’s Amazon VPC flow log integration, you’ll be able to:
 
 * Monitor and alert on network traffic from within your VPC in New Relic.
 * Visualize network performance metrics like bytes and packets per second, as well as accepts and rejects per second across every TCP or UDP port.
 * Explore flow log deviations to look for unexpected changes in network volume or health.
 * Diagnose overly restrictive security group rules or potentially malicious traffic issues.
 
-![Sankey view for VPC Flow Logs](./images/4_cloudflowlogs_conversations.png "Sankey view for VPC Flow Logs")
+![Sankey view for VPC flow logs](./images/4_cloudflowlogs_conversations.png "Sankey view for VPC flow logs")
 
 ## How to configure
 With a guided configuration that supports both the AWS CLI and CloudFormation, customers can quickly define the VPCs that will ship flow logs, opt to sample or send all logs, and quickly explore VPC telemetry using network performance monitoring in New Relic.
 1. If you are not already a customer, sign up for a [free account](https://newrelic.com/signup).
-2. In New Relic, click [Add data](https://one.newrelic.com/marketplace?duration=1800000&state=79e952e9-b09e-3343-2a9c-481337ff28ac) and search for `VPC Flow Logs`.
-3. Follow the guided installation to configure your AWS environment to send VPC Flow Logs to New Relic using a Kinesis Data Firehose.
-4. Explore your VPC Flow Logs using network performance monitoring, New Relic Explorer, New Relic Navigator, and New Relic Lookout.
-5. You’ll now be able to use the curated Flow Logs view shown within infrastructure monitoring to answer _“Is it the network?”_ faster.
+2. In New Relic, click [Add data](https://one.newrelic.com/marketplace?duration=1800000&state=79e952e9-b09e-3343-2a9c-481337ff28ac) and search for `VPC flow logs`.
+3. Follow the guided installation to configure your AWS environment to send VPC flow logs to New Relic using a Kinesis Data Firehose.
+4. Explore your VPC flow logs using network performance monitoring, New Relic Explorer, New Relic Navigator, and New Relic Lookout.
+5. You’ll now be able to use the curated flow logs view shown within infrastructure monitoring to answer _“Is it the network?”_ faster.
 
 ## Next Steps
 [Sign up today for a free New Relic account](https://newrelic.com/signup) to take advantage of the 100 GB/month of data ingest, one full-platform user, and unlimited basic users offering to get started with network monitoring as part of the observability journey.
