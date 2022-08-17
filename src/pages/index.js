@@ -100,6 +100,7 @@ const HomePage = ({ data }) => {
         `}
       >
         <SectionTitle title={t('home.popularDocs.title')} />
+        <p>Some popular docs</p>
         <div
           css={css`
             display: grid;
