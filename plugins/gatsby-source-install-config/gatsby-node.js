@@ -51,14 +51,12 @@ exports.createSchemaCustomization = ({ actions }) => {
 
   createTypes(`
     type InstallConfig implements Node {
-      id: ID!
       agentName: String!
       agentType: String!
       title: String!
       intro: MDXConfig
       appInfo: [AppInfoOption!]!
       steps: [InstallStep]
-      mdxFiles: [Mdx]
       whatsNext: MDXConfig
       agentConfigFile: File
     }
