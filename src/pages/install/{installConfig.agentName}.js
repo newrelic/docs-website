@@ -1,7 +1,6 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState } from 'react';
 import { graphql } from 'gatsby';
 import { css } from '@emotion/react';
-import { useScroll } from 'react-use';
 import { Walkthrough } from '@newrelic/gatsby-theme-newrelic';
 import PageTitle from '../../components/PageTitle';
 import MDXContainer from '../../components/MDXContainer';
@@ -17,10 +16,6 @@ const defaultAppInfoState = (appInfo) => {
   );
 };
 
-const onIntersection = () => {
-  console.log('intersects');
-};
-
 const InstallPage = ({ data }) => {
   const { installConfig = {} } = data;
   const {
@@ -34,13 +29,6 @@ const InstallPage = ({ data }) => {
   const [pageState, setPageState] = useState({
     selectOptions: defaultAppInfoState(appInfo),
   });
-
-  const root = useRef(null);
-  const { x, y } = useScroll(root);
-
-  useEffect(() => {
-    console.log(x, y);
-  }, [x, y]);
 
   const renderStep = (step) => {
     const { overrides } = step;
@@ -118,7 +106,7 @@ const InstallPage = ({ data }) => {
       >
         <MDXContainer body={intro.mdx?.body} />
       </div>
-      <div ref={root}>
+      <div>
         <Walkthrough
           css={css`
             max-width: 900px;
@@ -177,9 +165,9 @@ export const pageQuery = graphql`
     }
   }
 
-  query($locale: String!, $slug: String!) {
+  query($agentName: String!, $locale: String!, $slug: String!) {
     ...MainLayout_query
-    installConfig(agentName: "java") {
+    installConfig(agentName: { eq: $agentName }) {
       id
       title
       intro {
