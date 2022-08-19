@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import PropTypes from 'prop-types';
+import { css } from '@emotion/react';
 import { SelectInLine } from '@newrelic/gatsby-theme-newrelic';
 import MDXContainer from './MDXContainer';
 
@@ -30,33 +31,55 @@ import MDXContainer from './MDXContainer';
 //   selectOptions: selectInputInitialState,
 // });
 
+// if selectOptions has recommendedGuided,
+
 const AppInfoConfig = ({ selectOptions, pageState, setPageState, mdx }) => {
+  const { body } = mdx;
+  const [showGuided, setShowGuided] = useState(false);
+
+  const handleChange = (e, select) => {
+    const value = e.target.value;
+    setPageState({
+      ...pageState,
+      selectOptions: {
+        ...pageState.selectOptions,
+        [select.optionType]: value,
+      },
+    });
+    const recommendedGuided = select.options.some(
+      (option) => option.value === value && option.recommendedGuided === true
+    );
+    setShowGuided(recommendedGuided);
+  };
+
   return (
     <div>
       {selectOptions.map((select) => {
         return (
           <SelectInLine
-            key={select.label}
+            key={`${select.label}${select.optionType}`}
             label={select.label}
-            onChange={(e) =>
-              setPageState({
-                ...pageState,
-                selectOptions: {
-                  ...pageState.selectOptions,
-                  [select.label]: e.target.value,
-                },
-              })
-            }
+            onChange={(e) => handleChange(e, select)}
+            value={pageState.selectOptions[select.optionType]}
           >
             {select.options.map((option) => (
-              <option key={option.label} value={option.value}>
+              <option
+                key={`${select.optionType}${option.value}`}
+                value={option.value}
+              >
                 {option.displayName}
               </option>
             ))}
           </SelectInLine>
         );
       })}
-      {mdx && <MDXContainer body={mdx} />}
+      <div
+        css={css`
+          margin-top: 2rem;
+        `}
+      >
+        {showGuided && body && <MDXContainer body={body} />}
+      </div>
     </div>
   );
 };
@@ -74,7 +97,7 @@ AppInfoConfig.propTypes = {
     })
   ),
   setPageState: PropTypes.func,
-  mdx: PropTypes.node,
+  mdx: PropTypes.object,
 };
 
 export default AppInfoConfig;

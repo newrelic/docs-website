@@ -241,15 +241,8 @@ module.exports = {
     {
       resolve: 'gatsby-source-filesystem',
       options: {
-        name: 'install-docs-mdx',
-        path: `${__dirname}/src/install/mdx`,
-      },
-    },
-    {
-      resolve: 'gatsby-source-filesystem',
-      options: {
-        name: 'install-docs-yaml',
-        path: `${__dirname}/src/install/config`,
+        name: 'install-docs',
+        path: `${__dirname}/src/install/`,
       },
     },
     {
@@ -364,6 +357,12 @@ module.exports = {
       resolve: `gatsby-source-filesystem`,
       options: {
         path: `./src/nav/`,
+      },
+    },
+    {
+      resolve: `gatsby-source-filesystem`,
+      options: {
+        path: `./src/install/config/`,
       },
     },
     'gatsby-plugin-generate-doc-json',
@@ -524,6 +523,7 @@ module.exports = {
       },
     },
     'gatsby-source-nav',
+    'gatsby-source-install-config',
     'gatsby-plugin-meta-redirect',
     {
       resolve: 'gatsby-plugin-gatsby-cloud',

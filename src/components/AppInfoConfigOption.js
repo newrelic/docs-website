@@ -3,7 +3,7 @@ import PropTypes from 'prop-types';
 import { SelectInLine } from '@newrelic/gatsby-theme-newrelic';
 import MDXContainer from './MDXContainer';
 
-const AppInfoConfig = ({
+const AppInfoConfigOption = ({
   optionType,
   selectOptions,
   pageState,
@@ -13,35 +13,36 @@ const AppInfoConfig = ({
   const select = selectOptions.find(
     (select) => select.optionType === optionType
   );
+
   const { body } = mdx;
   return (
     <div>
       <SelectInLine
-        key={select.label}
         label={select.label}
         onChange={(e) =>
           setPageState({
             ...pageState,
             selectOptions: {
               ...pageState.selectOptions,
-              [select.label]: e.target.value,
+              [select.optionType]: e.target.value,
             },
           })
         }
+        value={pageState.selectOptions[select.optionType]}
       >
         {select.options.map((option) => (
-          <option key={option.label} value={option.value}>
+          <option key={optionType + option.value} value={option.value}>
             {option.displayName}
           </option>
         ))}
       </SelectInLine>
 
-      {mdx && <MDXContainer body={body} />}
+      {body && <MDXContainer body={body} />}
     </div>
   );
 };
 
-AppInfoConfig.propTypes = {
+AppInfoConfigOption.propTypes = {
   selectOptions: PropTypes.arrayOf(
     PropTypes.shape({
       label: PropTypes.string,
@@ -54,8 +55,8 @@ AppInfoConfig.propTypes = {
     })
   ).isRequired,
   setPageState: PropTypes.func.isRequired,
-  mdx: PropTypes.node,
+  mdx: PropTypes.object,
   optionType: PropTypes.string.isRequired,
 };
 
-export default AppInfoConfig;
+export default AppInfoConfigOption;
