@@ -186,8 +186,10 @@ export const pageQuery = graphql`
         }
       }
       agentConfigFile {
-        internal {
-          content
+        file {
+          internal {
+            content
+          }
         }
       }
       appInfo {

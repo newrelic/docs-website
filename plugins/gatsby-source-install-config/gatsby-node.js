@@ -6,22 +6,37 @@ exports.sourceNodes = ({
   createContentDigest,
   getNodesByType,
 }) => {
-  const { createNode } = actions;
+  const { createNode, touchNode } = actions;
 
   const configYamlNodes = getNodesByType('ConfigYaml');
+  const mdxNodes = getNodesByType('Mdx');
+
+  const installMdx = mdxNodes.filter(({ fileAbsolutePath }) =>
+    fileAbsolutePath.includes('src/install')
+  );
 
   configYamlNodes.forEach((configYamlNode) => {
+    touchNode(configYamlNode);
     const {
       introFilePath,
       whatsNextFilePath,
       agentConfigFilePath,
-      steps,
+      steps: installSteps,
       agentName,
     } = configYamlNode;
+
+    const filteredInstallMdx = installMdx.filter(({ fileAbsolutePath }) =>
+      fileAbsolutePath.includes(`src/install/${agentName}`)
+    );
+
+    const steps = installSteps.map((step) =>
+      mapFileNametoFile(step, filteredInstallMdx)
+    );
 
     const data = {
       intro: {
         filePath: introFilePath,
+        mdx: findMdxFile(introFilePath, filteredInstallMdx),
       },
       steps,
       agentConfigFile: {
@@ -29,6 +44,7 @@ exports.sourceNodes = ({
       },
       whatsNext: {
         filePath: whatsNextFilePath,
+        mdx: findMdxFile(whatsNextFilePath, filteredInstallMdx),
       },
       ...pick(configYamlNode, ['title', 'agentName', 'agentType', 'appInfo']),
     };
@@ -58,7 +74,11 @@ exports.createSchemaCustomization = ({ actions }) => {
       appInfo: [AppInfoOption!]!
       steps: [InstallStep]
       whatsNext: MDXConfig
-      agentConfigFile: File
+      agentConfigFile: AgentConfigFile
+    }
+    type AgentConfigFile @dontInfer {
+      filePath: String
+      file: File
     }
     type MDXConfig @dontInfer {
       filePath: String
@@ -119,35 +139,11 @@ exports.createSchemaCustomization = ({ actions }) => {
 exports.createResolvers = ({ createResolvers }) => {
   createResolvers({
     InstallConfig: {
-      steps: {
-        resolve: async (source, _args, context) => {
-          const { nodeModel } = context;
-
-          const { entries: allMdx } = await nodeModel.findAll({
-            type: 'Mdx',
-            query: {
-              filter: {
-                fileAbsolutePath: {
-                  regex: `/src/install/${source.agentName.toLowerCase()}/`,
-                },
-              },
-            },
-          });
-
-          const mdxFiles = Array.from(allMdx);
-
-          const steps = source.steps.map((step) =>
-            mapFileNametoFile(step, Array.from(mdxFiles))
-          );
-
-          return steps;
-        },
-      },
       agentConfigFile: {
         resolve: async (source, _args, context) => {
           const { nodeModel } = context;
           const { filePath } = source.agentConfigFile;
-          const agentConfigFile = await nodeModel.findOne({
+          const file = await nodeModel.findOne({
             type: 'File',
             query: {
               filter: {
@@ -158,41 +154,7 @@ exports.createResolvers = ({ createResolvers }) => {
             },
           });
 
-          return agentConfigFile;
-        },
-      },
-      whatsNext: {
-        resolve: async (source, _args, context) => {
-          const { nodeModel } = context;
-          const { filePath } = source.whatsNext;
-          const mdx = await nodeModel.findOne({
-            type: 'Mdx',
-            query: {
-              filter: {
-                fileAbsolutePath: {
-                  regex: `/${filePath}/`,
-                },
-              },
-            },
-          });
-          return { filePath, mdx };
-        },
-      },
-      intro: {
-        resolve: async (source, _args, context) => {
-          const { nodeModel } = context;
-          const { filePath } = source.intro;
-          const mdx = await nodeModel.findOne({
-            type: 'Mdx',
-            query: {
-              filter: {
-                fileAbsolutePath: {
-                  regex: `/${filePath}/`,
-                },
-              },
-            },
-          });
-          return { filePath, mdx };
+          return { filePath, file };
         },
       },
     },
