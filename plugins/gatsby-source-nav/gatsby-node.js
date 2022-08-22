@@ -52,9 +52,6 @@ exports.createResolvers = ({ createResolvers, createNodeId }) => {
           };
 
           switch (true) {
-            case slug === '/':
-              return createRootNav(utils);
-
             case slug.startsWith('/whats-new'):
               return createWhatsNewNav(utils);
 
@@ -101,25 +98,6 @@ exports.onCreatePage = ({ page, actions }) => {
 
     createPage(page);
   }
-};
-
-const createRootNav = async ({ args, createNodeId, nodeModel }) => {
-  const { slug } = args;
-
-  const { entries } = await nodeModel.findAll({ type: 'NavYaml' });
-
-  // Convert GatsbyIterable to array to use array methods it doesn't support
-  const rootNavYamlNode = Array.from(entries.filter((node) => node.rootNav));
-  const nav = rootNavYamlNode.find((nav) => findPage(nav, slug));
-
-  if (!nav) {
-    return null;
-  }
-
-  return {
-    ...nav,
-    id: createNodeId('root'),
-  };
 };
 
 const createWhatsNewNav = async ({ createNodeId, nodeModel }) => {
@@ -261,34 +239,14 @@ const groupBy = (arr, fn) =>
     return map.set(key, [...(map.get(key) || []), item]);
   }, new Map());
 
-const createNav = async ({ args, createNodeId, nodeModel, locales }) => {
-  let { slug } = args;
-  slug = slug
-    .replace(/\/table-of-contents$/, '')
-    .replace(new RegExp(`^\\/(${locales.join('|')})(?=\\/)`), '');
-
+const createNav = async ({ createNodeId, nodeModel }) => {
   const { entries } = await nodeModel.findAll({ type: 'NavYaml' });
 
-  const allNavYamlNodes = Array.from(entries)
-    .filter((node) => !node.rootNav)
-    .sort((a, b) => a.title.localeCompare(b.title));
+  const allNavYamlNodes = Array.from(entries).sort((a, b) =>
+    a.title.localeCompare(b.title)
+  );
 
-  let nav =
-    allNavYamlNodes.find((nav) => findPage(nav, slug)) ||
-    allNavYamlNodes.find((nav) => slug.includes(nav.path));
-
-  const trueNav = allNavYamlNodes.find((nav) => slug.includes(nav.path));
-
-  if (!nav) {
-    return null;
-  }
-
-  // if current is link to auto index page && its path does not
-  // belong to nav it was first found in, find nav that matches its path
-  if (trueNav && trueNav !== nav) {
-    nav = trueNav;
-  }
-
+  const nav = allNavYamlNodes.find((nav) => findPage(nav, '/'));
   return {
     ...nav,
     id: createNodeId(nav.title),

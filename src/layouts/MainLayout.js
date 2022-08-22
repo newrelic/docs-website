@@ -12,12 +12,11 @@ import { graphql } from 'gatsby';
 import { css } from '@emotion/react';
 import SEO from '../components/SEO';
 import RootNavigation from '../components/RootNavigation';
-import SubNavigation from '../components/SubNavigation';
 import { animated, useTransition } from 'react-spring';
 import { useLocation } from '@reach/router';
 
 const MainLayout = ({ data = {}, children, pageContext }) => {
-  const { nav, rootNav } = data;
+  const { nav } = data;
   const { contentPadding } = useLayout();
   const location = useLocation();
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
@@ -26,16 +25,16 @@ const MainLayout = ({ data = {}, children, pageContext }) => {
     key: nav?.id,
     config: { mass: 1, friction: 34, tension: 400 },
     initial: { position: 'absolute' },
-    from: (nav) => ({
+    from: () => ({
       opacity: 0,
       position: 'absolute',
-      transform: `translateX(${nav?.id === rootNav.id ? '125px' : '-125px'})`,
+      transform: `translateX('125px')`,
     }),
 
     enter: { opacity: 1, transform: 'translateX(0)' },
-    leave: (nav) => ({
+    leave: () => ({
       opacity: 0,
-      transform: `translateX(${nav?.id === rootNav.id ? '125px' : '-125px'})`,
+      transform: `translateX('125px')`,
     }),
   });
 
@@ -47,15 +46,11 @@ const MainLayout = ({ data = {}, children, pageContext }) => {
     <>
       <SEO location={location} />
       <GlobalHeader
-        hideSearch={nav?.id === rootNav.id && true}
+        hideSearch={true}
         customStyles={{ navLeftMargin: '150px', searchRightMargin: '30px' }}
       />
       <MobileHeader>
-        {nav?.id === rootNav.id ? (
-          <RootNavigation nav={nav} />
-        ) : (
-          <SubNavigation nav={nav} />
-        )}
+        <RootNavigation nav={nav} />
       </MobileHeader>
       <Layout
         css={css`
@@ -90,13 +85,9 @@ const MainLayout = ({ data = {}, children, pageContext }) => {
               padding-bottom: ${contentPadding};
             `;
 
-            return nav?.id === rootNav.id ? (
+            return (
               <animated.div style={style} css={containerStyle}>
                 <RootNavigation nav={nav} />
-              </animated.div>
-            ) : (
-              <animated.div style={style} css={containerStyle}>
-                <SubNavigation nav={nav} />
               </animated.div>
             );
           })}
@@ -122,9 +113,6 @@ MainLayout.propTypes = {
 
 export const query = graphql`
   fragment MainLayout_query on Query {
-    rootNav: nav(slug: "/") {
-      id
-    }
     nav(slug: $slug) {
       id
       title(locale: $locale)
