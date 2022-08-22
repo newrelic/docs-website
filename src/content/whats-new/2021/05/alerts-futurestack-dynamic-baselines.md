@@ -2,7 +2,7 @@
 title: 'Dynamic Anomalies for all your services and infrastructure'
 summary: 'Easily apply intelligent alerting to all of your services'
 releaseDate: '2021-05-25'
-learnMoreLink: 'https://docs.newrelic.com/docs/alerts-applied-intelligence/new-relic-alerts/alert-conditions/create-anomaly-alert-conditions/#anomaly-facets'
+learnMoreLink: 'https://docs.newrelic.com/docs/alerts-applied-intelligence/new-relic-alerts/alert-conditions/create-baseline-alert-conditions/#baseline-facets'
 ---
 
 Business services and infrastructure are always changing. Now, instead of needing to understand the expected performance of an individual service so you can manually specify a static threshold, you can easily use dynamic thresholds by creating anomaly alert conditions that cover all of your services and infrastructure. These adjust to accommodate the expected fluidity and volatility of your business.
