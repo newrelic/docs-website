@@ -2,42 +2,46 @@ const fs = require('fs');
 const path = require('path');
 const yaml = require('js-yaml');
 
-const rootNavYaml = yaml.safeLoad(
-  fs.readFileSync(path.join(process.cwd(), 'src/nav/root.yml'), 'utf8')
-);
+const createSingleNav = () => {
+  const rootNavYaml = yaml.safeLoad(
+    fs.readFileSync(path.join(process.cwd(), 'src/nav/root.yml'), 'utf8')
+  );
 
-const ignorePages = [
-  '/docs/glossary/glossary',
-  '/attribute-dictionary',
-  '/whats-new',
-  '/docs/release-notes',
-];
+  const ignorePages = [
+    '/docs/glossary/glossary',
+    '/attribute-dictionary',
+    '/whats-new',
+    '/docs/release-notes',
+  ];
 
-const rootNavChildren = rootNavYaml.pages.reduce((acc, page) => {
-  let subNavChildren = null;
-  if (
-    page.path &&
-    !page.path.startsWith('http') &&
-    !ignorePages.includes(page.path)
-  ) {
-    const pageDirectory = page.path.split('/')[2];
-    subNavChildren = yaml.safeLoad(
-      fs.readFileSync(
-        path.join(process.cwd(), `src/nav/${pageDirectory}.yml`),
-        'utf8'
-      )
-    );
-  }
-  if (subNavChildren) {
-    acc.push({ ...page, pages: [subNavChildren] });
-  } else {
-    acc.push({ ...page });
-  }
-  return acc;
-}, []);
-const navToRuleThemAll = { ...rootNavYaml, pages: rootNavChildren };
-const navToRuleThemAllYaml = yaml.safeDump(navToRuleThemAll, {
-  lineWidth: 99999,
-});
+  const rootNavChildren = rootNavYaml.pages.reduce((acc, page) => {
+    let subNavChildren = null;
+    if (
+      page.path &&
+      !page.path.startsWith('http') &&
+      !ignorePages.includes(page.path)
+    ) {
+      const pageDirectory = page.path.split('/')[2];
+      subNavChildren = yaml.safeLoad(
+        fs.readFileSync(
+          path.join(process.cwd(), `src/nav/${pageDirectory}.yml`),
+          'utf8'
+        )
+      );
+    }
+    if (subNavChildren) {
+      acc.push({ ...page, pages: [subNavChildren] });
+    } else {
+      acc.push({ ...page });
+    }
+    return acc;
+  }, []);
+  const navToRuleThemAll = { ...rootNavYaml, pages: rootNavChildren };
+  const navToRuleThemAllYaml = yaml.safeDump(navToRuleThemAll, {
+    lineWidth: 99999,
+  });
 
-fs.writeFileSync(`src/nav/generatedNav.yml`, navToRuleThemAllYaml);
+  fs.writeFileSync(`src/nav/generatedNav.yml`, navToRuleThemAllYaml);
+};
+
+module.exports = createSingleNav;
