@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { graphql } from 'gatsby';
 import { css } from '@emotion/react';
 import { Walkthrough, Layout } from '@newrelic/gatsby-theme-newrelic';
@@ -29,6 +29,12 @@ const InstallPage = ({ data }) => {
   const [pageState, setPageState] = useState({
     selectOptions: defaultAppInfoState(appInfo),
   });
+
+  const [selectedIndex, setSelectedIndex] = useState(0);
+
+  const handleSelectIndex = useCallback((idx) => {
+    setSelectedIndex(idx);
+  }, []);
 
   const renderStep = (step) => {
     const { overrides } = step;
@@ -108,30 +114,31 @@ const InstallPage = ({ data }) => {
           <MDXContainer body={intro.mdx?.body} />
         </div>
         <div>
-          <Walkthrough
-            css={css`
-              max-width: 900px;
-            `}
-            r
-          >
+          <Walkthrough>
             {walkthroughSteps.map(({ content, step: { mdx } }, index) => {
               const { descriptionText, headingText } = mdx?.frontmatter;
               return (
                 <Walkthrough.Step
-                  key={index}
-                  number={index}
+                  number={index + 1}
                   title={headingText}
+                  active={selectedIndex === index}
+                  key={index}
                 >
-                  {descriptionText && (
-                    <p
-                      css={css`
-                        margin-bottom: 2rem;
-                      `}
-                    >
-                      {descriptionText}
-                    </p>
-                  )}
-                  {content}
+                  <div
+                    onMouseOver={() => handleSelectIndex(index)}
+                    onFocus={() => handleSelectIndex(index)}
+                  >
+                    {descriptionText && (
+                      <p
+                        css={css`
+                          margin-bottom: 2rem;
+                        `}
+                      >
+                        {descriptionText}
+                      </p>
+                    )}
+                    {content}
+                  </div>
                 </Walkthrough.Step>
               );
             })}
