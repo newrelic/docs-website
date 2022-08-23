@@ -7,10 +7,10 @@ import TileOption from './TileOption';
 import TileCollapser from './TileCollapser';
 
 const TileSelect = ({ options, onChange, value, label, placeholder }) => {
-  const [isOpen, setIsOpen] = useState(true);
+  const [isOpen, setIsOpen] = useState(value === null);
 
-  const handleChange = (value) => {
-    onChange(value);
+  const handleChange = (incomingValue) => {
+    onChange(incomingValue);
     setIsOpen(false);
   };
 
