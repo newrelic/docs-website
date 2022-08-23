@@ -15,7 +15,7 @@ const AppInfoConfigOption = ({ optionType, selectOptions, mdx, onChange }) => {
     <div>
       <TileSelect
         label={select.label}
-        onChange={onChange}
+        onChange={(value) => onChange(value, select)}
         value={
           queryParams.has(select.optionType)
             ? queryParams.get(select.optionType)
