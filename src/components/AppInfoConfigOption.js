@@ -1,15 +1,11 @@
 import React from 'react';
 import PropTypes from 'prop-types';
+import { useQueryParams } from '@newrelic/gatsby-theme-newrelic';
 import MDXContainer from './MDXContainer';
 import TileSelect from './TileSelect';
 
-const AppInfoConfigOption = ({
-  optionType,
-  selectOptions,
-  pageState,
-  setPageState,
-  mdx,
-}) => {
+const AppInfoConfigOption = ({ optionType, selectOptions, mdx, onChange }) => {
+  const { queryParams } = useQueryParams();
   const select = selectOptions.find(
     (select) => select.optionType === optionType
   );
@@ -19,16 +15,12 @@ const AppInfoConfigOption = ({
     <div>
       <TileSelect
         label={select.label}
-        onChange={(value) =>
-          setPageState({
-            ...pageState,
-            selectOptions: {
-              ...pageState.selectOptions,
-              [select.optionType]: value,
-            },
-          })
+        onChange={onChange}
+        value={
+          queryParams.has(select.optionType)
+            ? queryParams.get(select.optionType)
+            : null
         }
-        value={pageState.selectOptions[select.optionType]}
         options={select.options}
         placeholder={select.placeholder}
       />
@@ -50,9 +42,9 @@ AppInfoConfigOption.propTypes = {
       ),
     })
   ).isRequired,
-  setPageState: PropTypes.func.isRequired,
   mdx: PropTypes.object,
   optionType: PropTypes.string.isRequired,
+  onChange: PropTypes.func.isRequired,
 };
 
 export default AppInfoConfigOption;

@@ -1,55 +1,14 @@
-import React, { useState } from 'react';
+import React from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/react';
+import { useQueryParams } from '@newrelic/gatsby-theme-newrelic';
 import TileSelect from './TileSelect';
 import MDXContainer from './MDXContainer';
 
-// This is an example of creating state in the main page where we can read the value of a select
-//
-// const selectTest = [
-//   {
-//     label: 'test',
-//     options: [
-//       { value: 'banana', displayName: 'Banana' },
-//       { value: 'taco', displayName: 'Taco' },
-//     ],
-//   },
-//   {
-//     label: 'test2',
-//     options: [
-//       { value: 'banana2', displayName: 'Banana2' },
-//       { value: 'taco2', displayName: 'Taco2' },
-//     ],
-//   },
-// ];
-// const selectInputInitialState = selectTest.reduce((acc, select) => {
-//   acc = { ...acc, [select.label]: select.options[0].value };
-//   return acc;
-// }, {});
-
-// const [pageState, setPageState] = useState({
-//   selectOptions: selectInputInitialState,
-// });
-
-// if selectOptions has recommendedGuided,
-
-const AppInfoConfig = ({ selectOptions, pageState, setPageState, mdx }) => {
+const AppInfoConfig = ({ selectOptions, mdx, onChange, showGuided }) => {
   const { body } = mdx;
-  const [showGuided, setShowGuided] = useState(false);
 
-  const handleChange = (value, select) => {
-    setPageState({
-      ...pageState,
-      selectOptions: {
-        ...pageState.selectOptions,
-        [select.optionType]: value,
-      },
-    });
-    const recommendedGuided = select.options.some(
-      (option) => option.value === value && option.recommendedGuided === true
-    );
-    setShowGuided(recommendedGuided);
-  };
+  const { queryParams } = useQueryParams();
 
   return (
     <div>
@@ -58,8 +17,12 @@ const AppInfoConfig = ({ selectOptions, pageState, setPageState, mdx }) => {
           <TileSelect
             key={`${select.label}${select.optionType}`}
             options={select.options}
-            onChange={(value) => handleChange(value, select)}
-            value={pageState.selectOptions[select.optionType]}
+            onChange={(value) => onChange(value, select)}
+            value={
+              queryParams.has(select.optionType)
+                ? queryParams.get(select.optionType)
+                : null
+            }
             label={select.label}
             placeholder={select.placeholder}
           />
@@ -88,8 +51,9 @@ AppInfoConfig.propTypes = {
       ),
     })
   ),
-  setPageState: PropTypes.func,
   mdx: PropTypes.object,
+  showGuided: PropTypes.bool,
+  onChange: PropTypes.func.isRequired,
 };
 
 export default AppInfoConfig;
