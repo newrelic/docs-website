@@ -46,7 +46,7 @@ const MainLayout = ({ data = {}, children, pageContext }) => {
     <>
       <SEO location={location} />
       <GlobalHeader
-        hideSearch={true}
+        hideSearch={pageContext.slug === '/'}
         customStyles={{ navLeftMargin: '150px', searchRightMargin: '30px' }}
       />
       <MobileHeader>
