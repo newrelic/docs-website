@@ -1,34 +1,34 @@
 import React from 'react';
 import PropTypes from 'prop-types';
-import { SelectInLine } from '@newrelic/gatsby-theme-newrelic';
+import { SelectInLine, useQueryParams } from '@newrelic/gatsby-theme-newrelic';
 import MDXContainer from './MDXContainer';
 
-const AppInfoConfigOption = ({
-  optionType,
-  selectOptions,
-  pageState,
-  setPageState,
-  mdx,
-}) => {
+const AppInfoConfigOption = ({ optionType, selectOptions, mdx }) => {
+  const { queryParams, setQueryParam, deleteQueryParam } = useQueryParams();
   const select = selectOptions.find(
     (select) => select.optionType === optionType
   );
+
+  const handleChange = (e) => {
+    const value = e.target.value;
+    if (value) {
+      setQueryParam(select.optionType, value);
+    } else {
+      deleteQueryParam(select.optionType, value);
+    }
+  };
 
   const { body } = mdx;
   return (
     <div>
       <SelectInLine
         label={select.label}
-        onChange={(e) =>
-          setPageState({
-            ...pageState,
-            selectOptions: {
-              ...pageState.selectOptions,
-              [select.optionType]: e.target.value,
-            },
-          })
+        onChange={handleChange}
+        value={
+          queryParams.has(select.optionType)
+            ? queryParams.get(select.optionType)
+            : null
         }
-        value={pageState.selectOptions[select.optionType]}
       >
         {select.options.map((option) => (
           <option key={optionType + option.value} value={option.value}>
@@ -54,7 +54,6 @@ AppInfoConfigOption.propTypes = {
       ),
     })
   ).isRequired,
-  setPageState: PropTypes.func.isRequired,
   mdx: PropTypes.object,
   optionType: PropTypes.string.isRequired,
 };

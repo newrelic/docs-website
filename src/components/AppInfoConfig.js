@@ -1,55 +1,26 @@
 import React, { useState } from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/react';
-import { SelectInLine } from '@newrelic/gatsby-theme-newrelic';
+import { SelectInLine, useQueryParams } from '@newrelic/gatsby-theme-newrelic';
 import MDXContainer from './MDXContainer';
 
-// This is an example of creating state in the main page where we can read the value of a select
-//
-// const selectTest = [
-//   {
-//     label: 'test',
-//     options: [
-//       { value: 'banana', displayName: 'Banana' },
-//       { value: 'taco', displayName: 'Taco' },
-//     ],
-//   },
-//   {
-//     label: 'test2',
-//     options: [
-//       { value: 'banana2', displayName: 'Banana2' },
-//       { value: 'taco2', displayName: 'Taco2' },
-//     ],
-//   },
-// ];
-// const selectInputInitialState = selectTest.reduce((acc, select) => {
-//   acc = { ...acc, [select.label]: select.options[0].value };
-//   return acc;
-// }, {});
-
-// const [pageState, setPageState] = useState({
-//   selectOptions: selectInputInitialState,
-// });
-
-// if selectOptions has recommendedGuided,
-
-const AppInfoConfig = ({ selectOptions, pageState, setPageState, mdx }) => {
+const AppInfoConfig = ({ selectOptions, mdx }) => {
   const { body } = mdx;
   const [showGuided, setShowGuided] = useState(false);
 
+  const { queryParams, setQueryParam, deleteQueryParam } = useQueryParams();
+
   const handleChange = (e, select) => {
     const value = e.target.value;
-    setPageState({
-      ...pageState,
-      selectOptions: {
-        ...pageState.selectOptions,
-        [select.optionType]: value,
-      },
-    });
-    const recommendedGuided = select.options.some(
-      (option) => option.value === value && option.recommendedGuided === true
-    );
-    setShowGuided(recommendedGuided);
+    if (value) {
+      setQueryParam(select.optionType, value);
+      const recommendedGuided = select.options.some(
+        (option) => option.value === value && option.recommendedGuided === true
+      );
+      setShowGuided(recommendedGuided);
+    } else {
+      deleteQueryParam(select.optionType, value);
+    }
   };
 
   return (
@@ -60,7 +31,11 @@ const AppInfoConfig = ({ selectOptions, pageState, setPageState, mdx }) => {
             key={`${select.label}${select.optionType}`}
             label={select.label}
             onChange={(e) => handleChange(e, select)}
-            value={pageState.selectOptions[select.optionType]}
+            value={
+              queryParams.has(select.optionType)
+                ? queryParams.get(select.optionType)
+                : null
+            }
           >
             {select.options.map((option) => (
               <option
@@ -96,7 +71,6 @@ AppInfoConfig.propTypes = {
       ),
     })
   ),
-  setPageState: PropTypes.func,
   mdx: PropTypes.object,
 };
 
