@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/react';
-import { SelectInLine } from '@newrelic/gatsby-theme-newrelic';
+import TileSelect from './TileSelect';
 import MDXContainer from './MDXContainer';
 
 // This is an example of creating state in the main page where we can read the value of a select
@@ -37,8 +37,7 @@ const AppInfoConfig = ({ selectOptions, pageState, setPageState, mdx }) => {
   const { body } = mdx;
   const [showGuided, setShowGuided] = useState(false);
 
-  const handleChange = (e, select) => {
-    const value = e.target.value;
+  const handleChange = (value, select) => {
     setPageState({
       ...pageState,
       selectOptions: {
@@ -56,21 +55,14 @@ const AppInfoConfig = ({ selectOptions, pageState, setPageState, mdx }) => {
     <div>
       {selectOptions.map((select) => {
         return (
-          <SelectInLine
+          <TileSelect
             key={`${select.label}${select.optionType}`}
-            label={select.label}
-            onChange={(e) => handleChange(e, select)}
+            options={select.options}
+            onChange={(value) => handleChange(value, select)}
             value={pageState.selectOptions[select.optionType]}
-          >
-            {select.options.map((option) => (
-              <option
-                key={`${select.optionType}${option.value}`}
-                value={option.value}
-              >
-                {option.displayName}
-              </option>
-            ))}
-          </SelectInLine>
+            label={select.label}
+            placeholder={select.placeholder}
+          />
         );
       })}
       <div

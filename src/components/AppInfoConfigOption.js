@@ -1,7 +1,7 @@
 import React from 'react';
 import PropTypes from 'prop-types';
-import { SelectInLine } from '@newrelic/gatsby-theme-newrelic';
 import MDXContainer from './MDXContainer';
+import TileSelect from './TileSelect';
 
 const AppInfoConfigOption = ({
   optionType,
@@ -17,25 +17,21 @@ const AppInfoConfigOption = ({
   const { body } = mdx;
   return (
     <div>
-      <SelectInLine
+      <TileSelect
         label={select.label}
-        onChange={(e) =>
+        onChange={(value) =>
           setPageState({
             ...pageState,
             selectOptions: {
               ...pageState.selectOptions,
-              [select.optionType]: e.target.value,
+              [select.optionType]: value,
             },
           })
         }
         value={pageState.selectOptions[select.optionType]}
-      >
-        {select.options.map((option) => (
-          <option key={optionType + option.value} value={option.value}>
-            {option.displayName}
-          </option>
-        ))}
-      </SelectInLine>
+        options={select.options}
+        placeholder={select.placeholder}
+      />
 
       {body && <MDXContainer body={body} />}
     </div>
