@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { graphql } from 'gatsby';
 import { css } from '@emotion/react';
-import { Walkthrough } from '@newrelic/gatsby-theme-newrelic';
+import { Walkthrough, Layout } from '@newrelic/gatsby-theme-newrelic';
 import PageTitle from '../../components/PageTitle';
 import MDXContainer from '../../components/MDXContainer';
 import AgentConfig from '../../components/AgentConfig';
@@ -97,48 +97,54 @@ const InstallPage = ({ data }) => {
     .filter(({ content }) => content !== null);
 
   return (
-    <div>
-      <PageTitle>{title}</PageTitle>
-      <div
-        css={css`
-          margin-bottom: 2rem;
-        `}
-      >
-        <MDXContainer body={intro.mdx?.body} />
-      </div>
-      <div>
-        <Walkthrough
+    <Layout.Main>
+      <Layout.Content>
+        <PageTitle>{title}</PageTitle>
+        <div
+          css={css`
+            margin-bottom: 2rem;
+          `}
+        >
+          <MDXContainer body={intro.mdx?.body} />
+        </div>
+        <div>
+          <Walkthrough
+            css={css`
+              max-width: 900px;
+            `}
+            r
+          >
+            {walkthroughSteps.map(({ content, step: { mdx } }, index) => {
+              const { descriptionText, headingText } = mdx?.frontmatter;
+              return (
+                <Walkthrough.Step
+                  key={index}
+                  number={index}
+                  title={headingText}
+                >
+                  {descriptionText && (
+                    <p
+                      css={css`
+                        margin-bottom: 2rem;
+                      `}
+                    >
+                      {descriptionText}
+                    </p>
+                  )}
+                  {content}
+                </Walkthrough.Step>
+              );
+            })}
+          </Walkthrough>
+        </div>
+        <InstallNextSteps
           css={css`
             max-width: 900px;
           `}
-          r
-        >
-          {walkthroughSteps.map(({ content, step: { mdx } }, index) => {
-            const { descriptionText, headingText } = mdx?.frontmatter;
-            return (
-              <Walkthrough.Step key={index} number={index} title={headingText}>
-                {descriptionText && (
-                  <p
-                    css={css`
-                      margin-bottom: 2rem;
-                    `}
-                  >
-                    {descriptionText}
-                  </p>
-                )}
-                {content}
-              </Walkthrough.Step>
-            );
-          })}
-        </Walkthrough>
-      </div>
-      <InstallNextSteps
-        css={css`
-          max-width: 900px;
-        `}
-        mdx={whatsNext.mdx}
-      />
-    </div>
+          mdx={whatsNext.mdx}
+        />
+      </Layout.Content>
+    </Layout.Main>
   );
 };
 
@@ -191,12 +197,14 @@ export const pageQuery = graphql`
         }
       }
       appInfo {
+        placeholder
         label
         optionType
         options {
           displayName
           recommendedGuided
           value
+          logo
         }
       }
       steps {
