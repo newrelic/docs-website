@@ -67,11 +67,13 @@ exports.createSchemaCustomization = ({ actions }) => {
     type AppInfoOption @dontInfer {
       optionType: String!
       label: String!
+      placeholder: String!
       options: [AppInfoOptionValue!]!
     }
     type AppInfoOptionValue @dontInfer {
       value: String!
       displayName: String!
+      logo: String
       recommendedGuided: Boolean
     }
     type InstallStep @dontInfer {
