@@ -1,20 +1,13 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { graphql } from 'gatsby';
 import { css } from '@emotion/react';
-import { Walkthrough } from '@newrelic/gatsby-theme-newrelic';
+import { Walkthrough, useQueryParams } from '@newrelic/gatsby-theme-newrelic';
 import PageTitle from '../../components/PageTitle';
 import MDXContainer from '../../components/MDXContainer';
 import AgentConfig from '../../components/AgentConfig';
 import AppInfoConfig from '../../components/AppInfoConfig';
 import AppInfoConfigOption from '../../components/AppInfoConfigOption';
 import InstallNextSteps from '../../components/InstallNextSteps';
-
-const defaultAppInfoState = (appInfo) => {
-  return appInfo.reduce(
-    (acc, { optionType }) => ({ ...acc, [optionType]: null }),
-    {}
-  );
-};
 
 const InstallPage = ({ data }) => {
   const { installConfig = {} } = data;
@@ -26,9 +19,8 @@ const InstallPage = ({ data }) => {
     agentConfigFile,
     whatsNext,
   } = installConfig;
-  const [pageState, setPageState] = useState({
-    selectOptions: defaultAppInfoState(appInfo),
-  });
+
+  const { queryParams } = useQueryParams();
 
   const renderStep = (step) => {
     const { overrides } = step;
@@ -36,8 +28,8 @@ const InstallPage = ({ data }) => {
     if (overrides) {
       for (const override of overrides) {
         const { optionType, overrideConfig } = override;
-        const overrideValue = pageState.selectOptions[optionType];
-        if (pageState.selectOptions[optionType] !== null) {
+        if (queryParams.has(optionType)) {
+          const overrideValue = queryParams.get(optionType);
           const matchedOverrideConfig = overrideConfig.find(
             ({ value }) => value === overrideValue
           );
@@ -66,21 +58,12 @@ const InstallPage = ({ data }) => {
         />
       );
     } else if (componentType === 'appInfoConfig') {
-      return (
-        <AppInfoConfig
-          selectOptions={appInfo}
-          pageState={pageState}
-          setPageState={setPageState}
-          mdx={mdx}
-        />
-      );
+      return <AppInfoConfig selectOptions={appInfo} mdx={mdx} />;
     } else if (componentType === 'appInfoConfigOption') {
       const { optionType } = frontmatter;
       return (
         <AppInfoConfigOption
           selectOptions={appInfo}
-          pageState={pageState}
-          setPageState={setPageState}
           optionType={optionType}
           mdx={mdx}
         />
