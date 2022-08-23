@@ -1,27 +1,14 @@
-import React, { useState } from 'react';
+import React from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/react';
 import { useQueryParams } from '@newrelic/gatsby-theme-newrelic';
 import TileSelect from './TileSelect';
 import MDXContainer from './MDXContainer';
 
-const AppInfoConfig = ({ selectOptions, mdx }) => {
+const AppInfoConfig = ({ selectOptions, mdx, onChange, showGuided }) => {
   const { body } = mdx;
-  const [showGuided, setShowGuided] = useState(false);
 
-  const { queryParams, setQueryParam, deleteQueryParam } = useQueryParams();
-
-  const handleChange = (value, select) => {
-    if (value !== null || value !== undefined) {
-      setQueryParam(select.optionType, value);
-      const recommendedGuided = select.options.some(
-        (option) => option.value === value && option.recommendedGuided === true
-      );
-      setShowGuided(recommendedGuided);
-    } else {
-      deleteQueryParam(select.optionType, value);
-    }
-  };
+  const { queryParams } = useQueryParams();
 
   return (
     <div>
@@ -30,7 +17,7 @@ const AppInfoConfig = ({ selectOptions, mdx }) => {
           <TileSelect
             key={`${select.label}${select.optionType}`}
             options={select.options}
-            onChange={(value) => handleChange(value, select)}
+            onChange={(value) => onChange(value, select)}
             value={
               queryParams.has(select.optionType)
                 ? queryParams.get(select.optionType)
@@ -65,6 +52,8 @@ AppInfoConfig.propTypes = {
     })
   ),
   mdx: PropTypes.object,
+  showGuided: PropTypes.bool,
+  onChange: PropTypes.func.isRequired,
 };
 
 export default AppInfoConfig;

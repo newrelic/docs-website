@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { graphql } from 'gatsby';
 import { css } from '@emotion/react';
 import {
@@ -24,7 +24,20 @@ const InstallPage = ({ data }) => {
     whatsNext,
   } = installConfig;
 
-  const { queryParams } = useQueryParams();
+  const { queryParams, setQueryParam, deleteQueryParam } = useQueryParams();
+  const [showGuided, setShowGuided] = useState(false);
+
+  const handleChange = (value, select) => {
+    if (value !== null || value !== undefined) {
+      setQueryParam(select.optionType, value);
+      const recommendedGuided = select.options.some(
+        (option) => option.value === value && option.recommendedGuided === true
+      );
+      setShowGuided(recommendedGuided);
+    } else {
+      deleteQueryParam(select.optionType, value);
+    }
+  };
 
   const renderStep = (step) => {
     const { overrides } = step;
@@ -62,11 +75,19 @@ const InstallPage = ({ data }) => {
         />
       );
     } else if (componentType === 'appInfoConfig') {
-      return <AppInfoConfig selectOptions={appInfo} mdx={mdx} />;
+      return (
+        <AppInfoConfig
+          showGuided={showGuided}
+          onChange={handleChange}
+          selectOptions={appInfo}
+          mdx={mdx}
+        />
+      );
     } else if (componentType === 'appInfoConfigOption') {
       const { optionType } = frontmatter;
       return (
         <AppInfoConfigOption
+          onChange={handleChange}
           selectOptions={appInfo}
           optionType={optionType}
           mdx={mdx}
