@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/react';
-import { SelectInLine, useQueryParams } from '@newrelic/gatsby-theme-newrelic';
+import { useQueryParams } from '@newrelic/gatsby-theme-newrelic';
+import TileSelect from './TileSelect';
 import MDXContainer from './MDXContainer';
 
 const AppInfoConfig = ({ selectOptions, mdx }) => {
@@ -10,9 +11,8 @@ const AppInfoConfig = ({ selectOptions, mdx }) => {
 
   const { queryParams, setQueryParam, deleteQueryParam } = useQueryParams();
 
-  const handleChange = (e, select) => {
-    const value = e.target.value;
-    if (value) {
+  const handleChange = (value, select) => {
+    if (value !== null || value !== undefined) {
       setQueryParam(select.optionType, value);
       const recommendedGuided = select.options.some(
         (option) => option.value === value && option.recommendedGuided === true
@@ -27,25 +27,18 @@ const AppInfoConfig = ({ selectOptions, mdx }) => {
     <div>
       {selectOptions.map((select) => {
         return (
-          <SelectInLine
+          <TileSelect
             key={`${select.label}${select.optionType}`}
-            label={select.label}
-            onChange={(e) => handleChange(e, select)}
+            options={select.options}
+            onChange={(value) => handleChange(value, select)}
             value={
               queryParams.has(select.optionType)
                 ? queryParams.get(select.optionType)
                 : null
             }
-          >
-            {select.options.map((option) => (
-              <option
-                key={`${select.optionType}${option.value}`}
-                value={option.value}
-              >
-                {option.displayName}
-              </option>
-            ))}
-          </SelectInLine>
+            label={select.label}
+            placeholder={select.placeholder}
+          />
         );
       })}
       <div
