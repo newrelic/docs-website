@@ -1,1 +1,1 @@
-export { default } from './SelectTileDropdown';
+export { default } from './TileSelect';
