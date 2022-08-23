@@ -1,20 +1,17 @@
 import React, { useState } from 'react';
 import { graphql } from 'gatsby';
 import { css } from '@emotion/react';
-import { Walkthrough, Layout } from '@newrelic/gatsby-theme-newrelic';
+import {
+  Walkthrough,
+  useQueryParams,
+  Layout,
+} from '@newrelic/gatsby-theme-newrelic';
 import PageTitle from '../../components/PageTitle';
 import MDXContainer from '../../components/MDXContainer';
 import AgentConfig from '../../components/AgentConfig';
 import AppInfoConfig from '../../components/AppInfoConfig';
 import AppInfoConfigOption from '../../components/AppInfoConfigOption';
 import InstallNextSteps from '../../components/InstallNextSteps';
-
-const defaultAppInfoState = (appInfo) => {
-  return appInfo.reduce(
-    (acc, { optionType }) => ({ ...acc, [optionType]: null }),
-    {}
-  );
-};
 
 const InstallPage = ({ data }) => {
   const { installConfig = {} } = data;
@@ -26,9 +23,21 @@ const InstallPage = ({ data }) => {
     agentConfigFile,
     whatsNext,
   } = installConfig;
-  const [pageState, setPageState] = useState({
-    selectOptions: defaultAppInfoState(appInfo),
-  });
+
+  const { queryParams, setQueryParam, deleteQueryParam } = useQueryParams();
+  const [showGuided, setShowGuided] = useState(false);
+
+  const handleChange = (value, select) => {
+    if (value !== null || value !== undefined) {
+      setQueryParam(select.optionType, value);
+      const recommendedGuided = select.options.some(
+        (option) => option.value === value && option.recommendedGuided === true
+      );
+      setShowGuided(recommendedGuided);
+    } else {
+      deleteQueryParam(select.optionType, value);
+    }
+  };
 
   const renderStep = (step) => {
     const { overrides } = step;
@@ -36,8 +45,8 @@ const InstallPage = ({ data }) => {
     if (overrides) {
       for (const override of overrides) {
         const { optionType, overrideConfig } = override;
-        const overrideValue = pageState.selectOptions[optionType];
-        if (pageState.selectOptions[optionType] !== null) {
+        if (queryParams.has(optionType)) {
+          const overrideValue = queryParams.get(optionType);
           const matchedOverrideConfig = overrideConfig.find(
             ({ value }) => value === overrideValue
           );
@@ -68,9 +77,9 @@ const InstallPage = ({ data }) => {
     } else if (componentType === 'appInfoConfig') {
       return (
         <AppInfoConfig
+          showGuided={showGuided}
+          onChange={handleChange}
           selectOptions={appInfo}
-          pageState={pageState}
-          setPageState={setPageState}
           mdx={mdx}
         />
       );
@@ -78,9 +87,8 @@ const InstallPage = ({ data }) => {
       const { optionType } = frontmatter;
       return (
         <AppInfoConfigOption
+          onChange={handleChange}
           selectOptions={appInfo}
-          pageState={pageState}
-          setPageState={setPageState}
           optionType={optionType}
           mdx={mdx}
         />
