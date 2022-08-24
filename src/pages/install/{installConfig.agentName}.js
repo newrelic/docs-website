@@ -5,6 +5,7 @@ import {
   Walkthrough,
   useQueryParams,
   Layout,
+  useTessen,
 } from '@newrelic/gatsby-theme-newrelic';
 import PageTitle from '../../components/PageTitle';
 import MDXContainer from '../../components/MDXContainer';
@@ -22,10 +23,14 @@ const InstallPage = ({ data }) => {
     appInfo,
     agentConfigFile,
     whatsNext,
+    agentName,
   } = installConfig;
 
   const { queryParams, setQueryParam, deleteQueryParam } = useQueryParams();
   const [showGuided, setShowGuided] = useState(false);
+  const [selectedIndex, setSelectedIndex] = useState(0);
+
+  const tessen = useTessen();
 
   const handleChange = (value, select) => {
     if (value !== null || value !== undefined) {
@@ -34,9 +39,38 @@ const InstallPage = ({ data }) => {
         (option) => option.value === value && option.recommendedGuided === true
       );
       setShowGuided(recommendedGuided);
+      tessen.track({
+        eventName: 'appInfoOptionSelected',
+        category: `${select.optionType}AppInfoOptionSelect`,
+        value,
+        path: location.pathname,
+        agentName,
+        recommendedGuided,
+      });
     } else {
       deleteQueryParam(select.optionType, value);
     }
+  };
+
+  const handleAgentConfigChange = ({ name, value }) => {
+    tessen.track({
+      eventName: 'agentConfigFileUpdated',
+      category: `${name}AgentConfigFileUpdated`,
+      key: name,
+      value,
+      path: location.pathname,
+      agentName,
+    });
+  };
+
+  const handleSelectIndex = (index) => {
+    setSelectedIndex(index);
+    tessen.track({
+      eventName: 'activeStepUpdated',
+      activeStep: index + 1,
+      path: location.pathname,
+      agentName,
+    });
   };
 
   const renderStep = (step) => {
@@ -72,6 +106,7 @@ const InstallPage = ({ data }) => {
           config={agentConfigFile?.internal?.content}
           inputOptions={inputOptions}
           tipMdx={mdx}
+          onChange={handleAgentConfigChange}
         />
       );
     } else if (componentType === 'appInfoConfig') {
@@ -116,19 +151,17 @@ const InstallPage = ({ data }) => {
           <MDXContainer body={intro.mdx?.body} />
         </div>
         <div>
-          <Walkthrough
-            css={css`
-              max-width: 900px;
-            `}
-            r
-          >
+          <Walkthrough>
             {walkthroughSteps.map(({ content, step: { mdx } }, index) => {
               const { descriptionText, headingText } = mdx?.frontmatter;
               return (
                 <Walkthrough.Step
-                  key={index}
-                  number={index}
+                  number={index + 1}
                   title={headingText}
+                  active={selectedIndex === index}
+                  key={index}
+                  onMouseOver={() => handleSelectIndex(index)}
+                  onFocus={() => handleSelectIndex(index)}
                 >
                   {descriptionText && (
                     <p
@@ -183,6 +216,7 @@ export const pageQuery = graphql`
     ...MainLayout_query
     installConfig(agentName: { eq: $agentName }) {
       id
+      agentName
       title
       intro {
         filePath
