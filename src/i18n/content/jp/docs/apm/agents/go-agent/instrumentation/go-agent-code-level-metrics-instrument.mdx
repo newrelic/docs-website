@@ -1,0 +1,147 @@
+---
+title: Go エージェント コードレベルのメトリクス インストルメンテーション
+tags:
+  - Agents
+  - Go agent
+  - Instrumentation
+metaDescription: 'For the New Relic Go language agent, once you enable code-level metrics, you can fine-tune how your metrics are collected.'
+translationType: machine
+---
+
+[Go エージェントのコードレベルのメトリック設定](/docs/apm/agents/go-agent/configuration/go-agent-code-level-metrics-config)の手順を使用してコードレベルのメトリックを有効にした後、追加のインストルメンテーションを使用してメトリックの収集方法を微調整できます。
+
+## トランザクションの計測 [#instrument-transactions-clm]
+
+コードレベルのメトリクスを有効にすると、Go エージェントは、アプリケーションの`StartTransaction`メソッドの呼び出しによって開始されたすべてのトランザクションにソース コード コンテキスト情報を追加します。既存のインストルメンテーション コードを変更することなく、これは`StartTransaction`を呼び出した関数に基づいてソース コードの場所が追加されることを意味します。これは、計測パッケージによって`StartTransaction`が呼び出された場合でも当てはまります。
+
+ただし、特定のトランザクションのコード レベルの指標を収集する方法を手動で制御したい場合は、以下に示すように、いくつかの`newrelic.TraceOption`関数を追加できます。
+
+### 単一トランザクションのコード レベル メトリックの抑制 [#instrument-transactions-suppress-clm]
+
+特定のトランザクションのコード レベルのメトリックが必要ない場合 (たとえば、そのデータが必要ないことがわかっているときに情報を収集するオーバーヘッドを回避するため)、 `WithoutCodeLevelMetrics` 呼び出しの最後に `StartTransaction` 関数を追加します。
+
+```go
+txn := app.StartTransaction("nothing-here-to-see", newrelic.WithoutCodeLevelMetrics())
+defer txn.End()
+```
+
+### ファイル パスのプレフィックスの調整 [#instrument-transactions-path-prefix-clm]
+
+デフォルトでは、Go エージェントは、コードレベルのメトリクスによって参照されるソース ファイルの完全な (絶対) ファイル パス名を報告します。[構成ガイド](/docs/apm/agents/go-agent/configuration/go-agent-code-level-metrics-config)には、ファイル パス名をグローバルに切り捨てて、 `ConfigCodeLevelMetricsPathPrefix`設定を介して選択したディレクトリ名から開始する方法に関する情報が記載されていますが、個々のトランザクションに対して異なるファイル パス名プレフィックスを指定する必要がある場合があります。その場合は、トランザクションに`WithPathPrefix`オプションを追加してください:
+
+```go
+txn := app.StartTransaction("mytransaction", newrelic.WithPathPrefix("otherproject/lib/src"))
+defer txn.End()
+```
+
+これは、このトランザクションの場合のみ、たとえば`"/usr/src/otherproject/lib/src/main.go"`のソース ファイル パス名が`"otherproject/lib/src/main.go"`に短縮されることを意味します。
+
+### 関数認識ヒューリスティックの無視プレフィックスの調整 [#instrument-transactions-ignore-prefix-clm]
+
+デフォルトでは、Go エージェントには、インスツルメントしている関数に到達するために、エージェント自体の内部にあるコール スタック内の関数をスキップするロジックが含まれています。[構成ガイド](/docs/apm/agents/go-agent/configuration/go-agent-code-level-metrics-config)には、 `ConfigCodeLevelMetricsIgnoredPrefix`設定を介してこのヒューリスティックをグローバルに変更する方法に関する情報が記載されていますが、単一のトランザクションに対してカスタムの名前空間無視プレフィックスを提供したい場合があります。これを行うには、トランザクションに`WithIgnoredPrefix`オプションを追加します:
+
+```go
+txn := app.StartTransaction("mytransaction", newrelic.WithIgnoredPrefix("github.com/ignore/this/"))
+defer txn.End()
+```
+
+関数を無視するパッケージが複数ある場合は、 `WithIgnoredPrefix`に複数の文字列引数を指定できます。
+
+```go
+txn := app.StartTransaction("mytransaction", newrelic.WithIgnoredPrefix("github.com/ignore/this/", "github.com/ignore/that/"))
+defer txn.End()
+```
+
+この変更により、名前が`github.com/ignore/this/` (または 2 番目の例では`github.com/ignore/that/` ) で始まるパッケージの関数はすべてスキップされ、インストルメント化されている関数が検索されます。
+
+### コードの場所を明示的にマークする [#instrument-transactions-this-location-clm]
+
+レポート対象のポイントを簡単に識別できるようにするには、 `StartTransaction`呼び出しの末尾に`WithThisCodeLocation`を追加します (たとえば、トランザクションが実際に別のフレームワーク内で開始される場合)。これにより、コード レベルのメトリックは、 `WithThisCodeLocation`が呼び出されたソース コード内の場所をレポートするようになります。
+
+```go
+txn := app.StartTransaction("mytransaction", newrelic.WithThisCodeLocation())
+defer txn.End()
+```
+
+### コードの場所を明示的にマークする [#instrument-transactions-any-location-clm]
+
+また、トランザクションに関連付けるソース コード内の場所を完全に制御することもできます。基本的に、 `ThisCodeLocation`を呼び出してその場所の「マーカー」を取得することで、任意の場所をマークできます。次に、その保存されたマーカーを`WithCodeLocation`オプションで`StartTransaction`呼び出しに使用します。
+
+```go
+here := newrelic.ThisCodeLocation()
+.
+.
+.
+txn := app.StartTransaction("mytransaction", newrelic.WithCodeLocation(here))
+defer txn.End()
+```
+
+必要に応じて、 `ThisCodeLocation`にいくつかの呼び出し関数をスキップするように指示して、報告された場所がコール スタックのさらに上になるようにすることができます。たとえば、1 つの呼び出し元をスキップして、 `here`が`ThisCodeLocation`を呼び出す関数の呼び出し元を参照するようにするには、上記の例を次のように変更します。
+
+```go
+here := newrelic.ThisCodeLocation(1)
+.
+.
+.
+txn := app.StartTransaction("mytransaction", newrelic.WithCodeLocation(here))
+defer txn.End()
+```
+
+### 関数値に基づいてコードの場所を明示的にマークする [#instrument-transactions-by-function-clm]
+
+計測するコードが、関数の名前や関数リテラル値などの`func`型の値として利用できる場合、 `WithFunctionLocation`オプションを`StartTransaction`に追加し、 `func`値をパラメーターとして渡します。
+
+```go
+func myfunction() { ... }
+.
+.
+.
+txn := app.StartTransaction("myfunction", newrelic.WithFunctionLocation(myfunction))
+```
+
+または
+
+```go
+someFunction := func() {...}
+.
+.
+.
+txn := app.StartTransaction("myfunction", newrelic.WithFunctionLocation(someFunction))
+```
+
+後で`WithCodeLocation`オプションで使用するために、 `func`値から`CodeLocation`値を取得することもできます。これを、後で`WithCodeLocation`で参照できるように`ThisCodeLocation`でコードの場所を保存する[上記の使用法](#instrument-transactions-any-location-clm)と比較してください。今回は同じことを行いますが、代わりに`func`値を使用します。
+
+```go
+func myFunc() {...}
+.
+.
+.
+locationOfMyFunc, err := newrelic.FunctionLocation(myFunc)
+if err != nil {
+    // handle the case that the location could not be determined
+    // from the value passed to FunctionLocation.
+}
+.
+.
+.
+txn := app.StartTransaction("mytransaction", newrelic.WithCodeLocation(locationOfMyFunc))
+```
+
+`FunctionLocation` は、渡された値が有効な関数でない場合、またはソース コードの場所を取得できなかった場合にエラーを返すことに注意してください。対照的に、 `WithFunctionLocation` オプションは、可能であれば渡された値に基づいてコードレベルのメトリックを設定しますが、エラーが発生した場合は何もしません。
+
+## ラップされたハンドラーへのカスタム オプションの追加 [#instrument-transactions-custom-wrappers-clm]
+
+`StartTransaction`の末尾に追加できる上記と同じオプションを`WrapHandle`と`WrapHandleFunc`に追加して、必要に応じて、それらによって開始されたトランザクションに関連付けられたコードレベルのメトリック コレクションを調整することもできます (ただし、ほとんどの場合`WrapHandle`および`WrapHandleFunc`関数は、インストルメント化されているコードの場所を正しく識別します)。例えば：
+
+```go
+http.HandleFunc(newrelic.WrapHandleFunc(app, "/endpoint", endpointFunction, newrelic.WithThisCodeLocation()))
+```
+
+## トランザクション開始後のトレース オプションの変更 [#instrument-transactions-set-options-clm]
+
+場合によっては、トランザクションが既に開始されるまでコードの場所を知る余裕がない場合があります (おそらくフレームワークまたは統合機能によって)。`SetOption`メソッドを呼び出すことで、既存のトランザクションのトランザクション オプションを変更できます。パラメーターは、上で説明したように`TraceOption`関数のセットです。例えば：
+
+```go
+txn := newrelic.FromContext(r.context)
+txn.SetOption(newrelic.WithThisCodeLocation())
+```
