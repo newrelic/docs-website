@@ -8,9 +8,18 @@ import {
 } from '@newrelic/gatsby-theme-newrelic';
 import MDXContainer from './MDXContainer';
 
-const AgentConfig = ({ inputOptions, config, tipMdx }) => {
+const AgentConfig = ({ inputOptions, config, tipMdx, onChange }) => {
   const [state, setState] = useState([...inputOptions]);
   const { body } = tipMdx;
+
+  const handleChange = (value, idx, name) => {
+    setState([
+      ...state.slice(0, idx),
+      { ...state[idx], value },
+      ...state.slice(idx + 1),
+    ]);
+    onChange({ name, value });
+  };
 
   return (
     <div
@@ -42,13 +51,7 @@ const AgentConfig = ({ inputOptions, config, tipMdx }) => {
               defaultValue={defaultValue}
               value={state[idx].value}
               url={url}
-              onChange={(e) =>
-                setState([
-                  ...state.slice(0, idx),
-                  { ...state[idx], value: e.target.value },
-                  ...state.slice(idx + 1),
-                ])
-              }
+              onChange={(e) => handleChange(e.target.value, idx, name)}
               toolTip={toolTip}
               css={css`
                 margin-bottom: 1.5rem;
@@ -104,6 +107,7 @@ AgentConfig.propTypes = {
   ),
   config: PropTypes.string,
   tipMdx: PropTypes.node,
+  onChange: PropTypes.func,
 };
 
 export default AgentConfig;
