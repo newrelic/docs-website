@@ -25,6 +25,7 @@ const AppInfoConfig = ({ selectOptions, mdx, onChange, showGuided }) => {
             }
             label={select.label}
             placeholder={select.placeholder}
+            defaultOpen={!queryParams.has(select.optionType)}
           />
         );
       })}

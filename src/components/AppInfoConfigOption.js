@@ -23,6 +23,7 @@ const AppInfoConfigOption = ({ optionType, selectOptions, mdx, onChange }) => {
         }
         options={select.options}
         placeholder={select.placeholder}
+        defaultOpen={!queryParams.has(select.optionType)}
       />
 
       {body && <MDXContainer body={body} />}
