@@ -78,19 +78,22 @@ exports.createSchemaCustomization = ({ actions }) => {
     }
     type InstallStep @dontInfer {
       filePath: String
+      skip: Boolean
       mdx: Mdx
       overrides: [StepOverride]
     }
     type StepOverride @dontInfer {
-      optionType: String!
-      overrideConfig: [StepOverrideConfig]
-    }
-    type StepOverrideConfig @dontInfer {
-      value: String!
-      filePath: String
+      filePath: String 
       mdx: Mdx
       skip: Boolean
-      overrides: [StepOverride]
+      selectedOptions: [AppInfoSelectedOption]
+    }
+    type AppInfoSelectedOption @dontInfer {
+      optionType: String! 
+      options: [AppInfoSelectedOptionValues]
+    }
+    type AppInfoSelectedOptionValues @dontInfer {
+      value: String! 
     }
     type Mdx implements Node {
       frontmatter: Frontmatter
@@ -139,7 +142,7 @@ exports.createResolvers = ({ createResolvers }) => {
           const mdxFiles = Array.from(allMdx);
 
           const steps = source.steps.map((step) =>
-            mapFileNametoFile(step, Array.from(mdxFiles))
+            mapStepToMdx(step, mdxFiles)
           );
 
           return steps;
@@ -201,23 +204,20 @@ exports.createResolvers = ({ createResolvers }) => {
   });
 };
 
-const mapFileNametoFile = (step, files) => {
+const mapStepToMdx = (step, files) => {
   const { filePath, overrides } = step;
   const mdx = findMdxFile(filePath, files);
-
   if (!overrides) {
     return { ...step, mdx };
   }
 
-  const newOverrides = overrides.map((override) => {
-    const { overrideConfig } = override;
-    const newOverrideConfig = overrideConfig.map((config) =>
-      mapFileNametoFile(config, files)
-    );
-    return { ...override, overrideConfig: newOverrideConfig };
+  const overridesWithMdx = overrides.map((overrideStep) => {
+    const { filePath } = overrideStep;
+    const overrideMdx = findMdxFile(filePath, files);
+    return { ...overrideStep, mdx: overrideMdx };
   });
 
-  return { ...step, mdx, overrides: newOverrides };
+  return { ...step, mdx, overrides: overridesWithMdx };
 };
 
 const findMdxFile = (filePath, files) =>
