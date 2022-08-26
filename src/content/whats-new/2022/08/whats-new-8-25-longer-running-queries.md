@@ -1,8 +1,9 @@
 ---
-title: 'New Relic Data Plus provides more powerful queries through increased query durations and limits.’
+title: 'New Relic Data Plus provides more powerful queries through increased query durations and limits.'
 releaseDate: '2022-08-25' 
 getStartedLink: 'https://docs.newrelic.com/docs/apis/nerdgraph/examples/nerdgraph-nrql-tutorial/'
 ---
+
 # Analyze larger volumes of data with longer running queries
 
 After the launch of [Data Plus](https://docs.newrelic.com/whats-new/2022/06/whats-new-6-1-data-plus-available) in June, we are continuing to support and help your teams scale their observability practices. Today, Data Plus customers now can utilize longer running queries (up to 10x the the previous maximum duration) to analyze larger data volumes.  Data Plus customers get a max query duration of up to 10 minutes via asynchronous queries and up to two minutes via regular NRQL queries,c compared to 60 seconds for the existing data option. Learn how to run [asynchronous queries](https://newrelic.com/blog/nerdlog/data-plus-pricing) via our [NerdGraph] (https://docs.newrelic.com/docs/apis/nerdgraph/get-started/introduction-new-relic-nerdgraph/) API.
