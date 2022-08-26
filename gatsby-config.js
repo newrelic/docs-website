@@ -240,6 +240,13 @@ module.exports = {
       },
     },
     {
+      resolve: 'gatsby-source-filesystem',
+      options: {
+        name: 'install-docs',
+        path: `${__dirname}/src/install/`,
+      },
+    },
+    {
       resolve: 'gatsby-transformer-json',
       options: {
         // If we need to source json files other than the i18n/nav, we should
@@ -351,6 +358,12 @@ module.exports = {
       resolve: `gatsby-source-filesystem`,
       options: {
         path: `./src/nav/`,
+      },
+    },
+    {
+      resolve: `gatsby-source-filesystem`,
+      options: {
+        path: `./src/install/config/`,
       },
     },
     'gatsby-plugin-generate-doc-json',
@@ -511,6 +524,7 @@ module.exports = {
       },
     },
     'gatsby-source-nav',
+    'gatsby-source-install-config',
     'gatsby-plugin-meta-redirect',
     {
       resolve: 'gatsby-plugin-gatsby-cloud',
