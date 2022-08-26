@@ -296,6 +296,7 @@ exports.createSchemaCustomization = ({ actions }) => {
     translationType: String
     dataSource: String
   }
+
   `;
 
   createTypes(typeDefs);
@@ -343,6 +344,13 @@ exports.onCreatePage = ({ page, actions }) => {
 
   if (page.path.match(/404/)) {
     page.context.layout = 'basic';
+  }
+
+  if (page.path.includes('/install/')) {
+    const pagePathArray = page.path.split('/');
+    const lastItem = pagePathArray[pagePathArray.length - 1];
+    page.context.agent =
+      lastItem !== '' ? lastItem : pagePathArray[pagePathArray.length - 2];
   }
 
   if (hasTrailingSlash(page.context.slug)) {
