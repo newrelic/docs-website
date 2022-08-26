@@ -1,7 +1,7 @@
 ---
 name: allocatableCpuCoresUtilization
 type: attribute
-units: count
+units:
 events:
   - K8sNodeSample
 ---

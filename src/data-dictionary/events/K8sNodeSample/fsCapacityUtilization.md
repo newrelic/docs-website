@@ -1,7 +1,7 @@
 ---
 name: fsCapacityUtilization
 type: attribute
-units: count
+units:
 events:
   - K8sNodeSample
 ---

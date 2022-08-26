@@ -1,7 +1,7 @@
 ---
 name: clusterName
 type: attribute
-units: count
+units:
 events:
   - K8sNodeSample
 ---

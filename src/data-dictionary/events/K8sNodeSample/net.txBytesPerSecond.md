@@ -1,7 +1,7 @@
 ---
 name: net.txBytesPerSecond
 type: attribute
-units: count
+units: bytes (B)
 events:
   - K8sNodeSample
 ---

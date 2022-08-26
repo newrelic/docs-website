@@ -1,7 +1,7 @@
 ---
-name: condition.{conditionName}={conditionValue} 
+name: condition.{conditionName}={conditionValue}
 type: attribute
-units: count
+units:
 events:
   - K8sNodeSample
 ---

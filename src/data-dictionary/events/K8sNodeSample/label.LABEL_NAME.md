@@ -1,7 +1,7 @@
 ---
 name: label.LABEL_NAME
 type: attribute
-units: count
+units:
 events:
   - K8sNodeSample
 ---
