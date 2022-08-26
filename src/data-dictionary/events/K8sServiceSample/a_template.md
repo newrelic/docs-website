@@ -3,7 +3,7 @@ name:
 type: attribute
 units:
 events:
-  - K8sNamespaceSample
+  - K8sStatefulsetSample
 ---
 
 Description
