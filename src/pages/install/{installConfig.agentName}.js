@@ -73,20 +73,24 @@ const InstallPage = ({ data }) => {
     });
   };
 
+  const matchOverride = ({ optionType, options }) => {
+    if (queryParams.has(optionType)) {
+      const selectedValue = queryParams.get(optionType);
+      return options.some(({ value }) => value === selectedValue);
+    }
+    return false;
+  };
+
   const renderStep = (step) => {
     const { overrides } = step;
 
     if (overrides) {
       for (const override of overrides) {
-        const { optionType, overrideConfig } = override;
-        if (queryParams.has(optionType)) {
-          const overrideValue = queryParams.get(optionType);
-          const matchedOverrideConfig = overrideConfig.find(
-            ({ value }) => value === overrideValue
-          );
-          if (matchedOverrideConfig) {
-            return renderFromComponentType(matchedOverrideConfig);
-          }
+        const { selectedOptions } = override;
+        const isOverrided = selectedOptions.every(matchOverride);
+
+        if (isOverrided) {
+          return renderFromComponentType(override);
         }
       }
     }
@@ -221,16 +225,13 @@ export const pageQuery = graphql`
       intro {
         filePath
         mdx {
-          body
+          ...MDXInstallFragment
         }
       }
       whatsNext {
         filePath
         mdx {
-          body
-          frontmatter {
-            headingText
-          }
+          ...MDXInstallFragment
         }
       }
       agentConfigFile {
@@ -253,14 +254,18 @@ export const pageQuery = graphql`
         mdx {
           ...MDXInstallFragment
         }
+        filePath
         overrides {
-          optionType
-          overrideConfig {
-            mdx {
-              ...MDXInstallFragment
+          filePath
+          mdx {
+            ...MDXInstallFragment
+          }
+          skip
+          selectedOptions {
+            optionType
+            options {
+              value
             }
-            skip
-            value
           }
         }
       }
