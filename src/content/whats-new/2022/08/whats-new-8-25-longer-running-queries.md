@@ -1,7 +1,7 @@
 ---
 title: 'New Relic Data Plus provides more powerful queries through increased query durations and limits.’
 releaseDate: '2022-08-25' 
-getStartedLink:'https://docs.newrelic.com/docs/apis/nerdgraph/examples/nerdgraph-nrql-tutorial/'
+getStartedLink: 'https://docs.newrelic.com/docs/apis/nerdgraph/examples/nerdgraph-nrql-tutorial/'
 ---
 # Analyze larger volumes of data with longer running queries
 
