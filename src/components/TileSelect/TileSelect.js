@@ -2,17 +2,18 @@ import React, { useState } from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/react';
 
-// import logos from '../install/assets';
 import TileOption from './TileOption';
 import TileCollapser from './TileCollapser';
 
-const TileSelect = ({ options, onChange, value, label, placeholder }) => {
-  const [isOpen, setIsOpen] = useState(true);
-
-  const handleChange = (value) => {
-    onChange(value);
-    setIsOpen(false);
-  };
+const TileSelect = ({
+  options,
+  onChange,
+  value,
+  label,
+  placeholder,
+  defaultOpen = true,
+}) => {
+  const [isOpen, setIsOpen] = useState(defaultOpen);
 
   const selectedOption =
     value && options.find((option) => option.value === value);
@@ -41,7 +42,10 @@ const TileSelect = ({ options, onChange, value, label, placeholder }) => {
           {options.map((optionProps) => (
             <TileOption
               key={`${label}-${optionProps.displayName}`}
-              onChange={handleChange}
+              onChange={(val) => {
+                onChange(val);
+                setIsOpen(false);
+              }}
               isSelected={value === optionProps.value}
               {...optionProps}
             />
@@ -53,11 +57,12 @@ const TileSelect = ({ options, onChange, value, label, placeholder }) => {
 };
 
 TileSelect.propTypes = {
-  options: PropTypes.object,
+  options: PropTypes.array,
   onSelect: PropTypes.func,
   value: PropTypes.string,
   label: PropTypes.string,
   placeholder: PropTypes.string,
+  defaultOpen: PropTypes.bool,
 };
 
 export default TileSelect;
