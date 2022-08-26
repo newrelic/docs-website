@@ -9,7 +9,7 @@ We’re making it easier for you to work effectively with your teams by adding c
 
 See how it works in the demo video below.
 
-<script src="https://fast.wistia.com/embed/medias/m4b6y854wi.jsonp" async></script><script src="https://fast.wistia.com/assets/external/E-v1.js" async></script><div class="wistia_embed wistia_async_m4b6y854wi" style="height:394px;position:relative;width:700px"><div class="wistia_swatch" style="height:100%;left:0;opacity:0;overflow:hidden;position:absolute;top:0;transition:opacity 200ms;width:100%;"><img src="https://fast.wistia.com/embed/medias/m4b6y854wi/swatch" style="filter:blur(5px);height:100%;object-fit:contain;width:100%;" alt="" aria-hidden="true" onload="this.parentNode.style.opacity=1;" /></div></div>
+<iframe src="https://fast.wistia.net/embed/iframe/m4b6y854wi" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" frameBorder="0" allowfullscreen="true" class="css-1b4920d"></iframe>
 
 **Key Features:**
 * **Add comments on any page** and keep your discussions with your data.
