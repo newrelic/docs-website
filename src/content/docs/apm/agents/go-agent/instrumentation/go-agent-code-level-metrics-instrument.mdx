@@ -1,0 +1,147 @@
+---
+title: Go agent code-level metrics instrumentation
+tags:
+  - Agents
+  - Go agent
+  - Instrumentation
+metaDescription: For the New Relic Go language agent, once you enable code-level metrics, you can fine-tune how your metrics are collected.
+---
+
+After you've turned on code-level metrics using the steps in [Go agent code-level metrics configuration](/docs/apm/agents/go-agent/configuration/go-agent-code-level-metrics-config), you can fine-tune how your metrics are collected by using additional instrumentation.
+
+## Instrumenting transactions [#instrument-transactions-clm]
+
+With code-level metrics enabled, the Go agent will add source code context information to any transaction started by a call to the `StartTransaction` method of the application. Without changing any of your existing instrumentation code, this means that the source code location will be added based on the function which called `StartTransaction`. This is true even if `StartTransaction` is called for you by an instrumentation package.
+
+However, if you wish to exert some manual control over how code-level metrics are collected for a particular transaction, you may add a number of `newrelic.TraceOption` functions as described below:
+
+### Suppressing code-level metrics for a single transaction [#instrument-transactions-suppress-clm]
+
+If you don't want code-level metrics for a particular transaction (say, to avoid the overhead of collecting the information when you know you won't need that data), add a `WithoutCodeLevelMetrics` function to the end of the `StartTransaction` call:
+
+```go
+txn := app.StartTransaction("nothing-here-to-see", newrelic.WithoutCodeLevelMetrics())
+defer txn.End()
+```
+
+### Adjusting the file path prefix [#instrument-transactions-path-prefix-clm]
+
+By default, the Go agent will report full (absolute) file pathnames for the source files referenced by code-level metrics. The [configuration guide](/docs/apm/agents/go-agent/configuration/go-agent-code-level-metrics-config) has information about how you can truncate file pathnames globally to start at your choice of directory name via the `ConfigCodeLevelMetricsPathPrefix` setting, but you may need to specify a different file pathname prefix for individual transactions. If so, just add a `WithPathPrefix` option to the transaction:
+
+```go
+txn := app.StartTransaction("mytransaction", newrelic.WithPathPrefix("otherproject/lib/src"))
+defer txn.End()
+```
+
+This means that, for this transaction only, a source file pathname of, for example, `"/usr/src/otherproject/lib/src/main.go"` is shortened to `"otherproject/lib/src/main.go"`.
+
+### Adjusting the function recognition heuristic's ignore prefix [#instrument-transactions-ignore-prefix-clm]
+
+By default, the Go agent contains logic to skip over functions in the call stack which are internal to the agent itself, in order to arrive at the one you are instrumenting. The [configuration guide](/docs/apm/agents/go-agent/configuration/go-agent-code-level-metrics-config)
+has information about how you can globally change this heuristic via the `ConfigCodeLevelMetricsIgnoredPrefix` setting, but you may wish to provide a custom namespace ignore prefix for a single transaction. You can do so by adding a `WithIgnoredPrefix` option to the transaction:
+
+```go
+txn := app.StartTransaction("mytransaction", newrelic.WithIgnoredPrefix("github.com/ignore/this/"))
+defer txn.End()
+```
+
+You can specify multiple string arguments to `WithIgnoredPrefix` if there are multiple packages whose functions should be ignored:
+
+```go
+txn := app.StartTransaction("mytransaction", newrelic.WithIgnoredPrefix("github.com/ignore/this/", "github.com/ignore/that/"))
+defer txn.End()
+```
+
+
+With this change, any functions from a package whose name begins with `github.com/ignore/this/` (or `github.com/ignore/that/` in the second example) will be skipped over to find the function being instrumented.
+
+### Explicitly mark the code location [#instrument-transactions-this-location-clm]
+
+To make it easier to identify the point of interest to be reported, add `WithThisCodeLocation` to the end of the `StartTransaction` call (for example, if the transaction is actually started inside another framework). This will force the code-level metrics to report the location in the source code where `WithThisCodeLocation` was invoked.
+
+```go
+txn := app.StartTransaction("mytransaction", newrelic.WithThisCodeLocation())
+defer txn.End()
+```
+
+### Explicitly mark any code location [#instrument-transactions-any-location-clm]
+
+You can also fully control the location in your source code to be associated with a transaction. In essence you can mark any location by calling `ThisCodeLocation` to get a "marker" for that location. Then, use that saved marker with the `WithCodeLocation` option to a `StartTransaction` call:
+
+```go
+here := newrelic.ThisCodeLocation()
+.
+.
+.
+txn := app.StartTransaction("mytransaction", newrelic.WithCodeLocation(here))
+defer txn.End()
+```
+
+If needed, you can tell `ThisCodeLocation` to skip a number of calling functions so that the reported location is farther up the call stack. For example, to skip 1 caller, so that `here` refers to the caller of the function that calls `ThisCodeLocation`, change the above example to:
+```go
+here := newrelic.ThisCodeLocation(1)
+.
+.
+.
+txn := app.StartTransaction("mytransaction", newrelic.WithCodeLocation(here))
+defer txn.End()
+```
+
+### Explicitly mark the code location based on a function value [#instrument-transactions-by-function-clm]
+
+If the code you wish to instrument is available to you as a `func` type value, such as the name of a function or a function literal value, you can specify that as the location for code-level metrics reporting by adding a `WithFunctionLocation` option to `StartTransaction`, passing the `func` value as a parameter:
+
+```go
+func myfunction() { ... }
+.
+.
+.
+txn := app.StartTransaction("myfunction", newrelic.WithFunctionLocation(myfunction))
+```
+
+or
+
+```go
+someFunction := func() {...}
+.
+.
+.
+txn := app.StartTransaction("myfunction", newrelic.WithFunctionLocation(someFunction))
+```
+
+You may also obtain a `CodeLocation` value from a `func` value for later use with the `WithCodeLocation` option. Compare this to [the usage shown above](#instrument-transactions-any-location-clm) to save a code location with `ThisCodeLocation` for later reference with `WithCodeLocation`. This time we do the same thing but with a `func` value instead:
+
+```go
+func myFunc() {...}
+.
+.
+.
+locationOfMyFunc, err := newrelic.FunctionLocation(myFunc)
+if err != nil {
+    // handle the case that the location could not be determined
+    // from the value passed to FunctionLocation.
+}
+.
+.
+.
+txn := app.StartTransaction("mytransaction", newrelic.WithCodeLocation(locationOfMyFunc))
+```
+
+Note that `FunctionLocation` returns an error if the value passed to it was not a valid function, or the source code location could not be obtained from it. By contrast, the `WithFunctionLocation` option sets the code-level metrics based on the value passed if possible, but silently does nothing if an error occurs.
+
+## Adding custom options to wrapped handlers [#instrument-transactions-custom-wrappers-clm]
+
+The same options described above which may be added to the end of `StartTransaction` may also be added to `WrapHandle` and `WrapHandleFunc` to adjust the code-level metrics collection associated with transactions started by them, if desired (although in most cases the `WrapHandle` and `WrapHandleFunc` functions will correctly identify the location of the code being instrumented). For example:
+
+```go
+http.HandleFunc(newrelic.WrapHandleFunc(app, "/endpoint", endpointFunction, newrelic.WithThisCodeLocation()))
+```
+
+## Changing trace options after a transaction has started [#instrument-transactions-set-options-clm]
+
+Sometimes you don't have the luxury of knowing the code location until after the transaction has already been started (perhaps by a framework or integration function on your behalf). You may change the transaction options on an existing transaction by calling its `SetOption` method. The parameters are a set of `TraceOption` functions just as described above. For example:
+
+```go
+txn := newrelic.FromContext(r.context)
+txn.SetOption(newrelic.WithThisCodeLocation())
+```

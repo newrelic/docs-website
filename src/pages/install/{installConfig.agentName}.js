@@ -182,12 +182,7 @@ const InstallPage = ({ data }) => {
             })}
           </Walkthrough>
         </div>
-        <InstallNextSteps
-          css={css`
-            max-width: 900px;
-          `}
-          mdx={whatsNext.mdx}
-        />
+        <InstallNextSteps mdx={whatsNext.mdx} />
       </Layout.Content>
     </Layout.Main>
   );
