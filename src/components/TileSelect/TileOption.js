@@ -18,15 +18,15 @@ const TileOption = ({ displayName, value, logo, onChange, isSelected }) => {
         text-align: center;
         padding: 0.5rem;
         color: var(--system-text-primary-light);
-        border: 1px solid #3a444b;
+        border: ${isSelected
+          ? '1.25px solid var(--attention-notification-info)'
+          : ' 1px solid #3a444b'};
         background: var(--system-background-app-light);
 
         .light-mode & {
-          border: 1px solid var(--system-border-strong-light);
-
-          &:hover {
-            border-color: var(--border-hover-color);
-          }
+          border: ${isSelected
+            ? '1.25px solid var(--attention-notification-info)'
+            : '1px solid var(--system-border-strong-light)'};
         }
       `}
     >
