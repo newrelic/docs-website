@@ -3,7 +3,7 @@ name:
 type: attribute
 units:
 events:
-  - K8sPodSample
+  -  K8sContainerSample
 ---
 
 Description:
