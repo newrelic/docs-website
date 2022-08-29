@@ -1,7 +1,7 @@
 ---
 name: processResidentMemoryBytes
 type: attribute
-units: Bytes (B)
+units: bytes (B)
 events:
   - K8sSchedulerSample
 ---
