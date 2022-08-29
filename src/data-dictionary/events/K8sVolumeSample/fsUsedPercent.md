@@ -3,7 +3,7 @@ name: fsUsedPercent
 type: attribute
 units: percentage (%)
 events:
-  -  K8sVolumeSample
+  - K8sVolumeSample
 ---
 
 Usage of the volume in percentage.

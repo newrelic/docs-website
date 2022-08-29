@@ -1,7 +1,7 @@
 ---
 name: processCpuSecondsDelta
 type: attribute
-units: 
+units: seconds (s)
 events:
   - K8sSchedulerSample
 ---

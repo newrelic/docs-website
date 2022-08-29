@@ -3,7 +3,7 @@ name: clusterName
 type: attribute
 units:
 events:
-  -  K8sVolumeSample
+  - K8sDeploymentSample
 ---
 
 Cluster where the volume is configured.

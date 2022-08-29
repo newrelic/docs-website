@@ -6,4 +6,4 @@ events:
   - K8sSchedulerSample
 ---
 
-Difference of the total preemption attempts in the cluster till now.
+Difference of the total preemption attempts in the cluster until now.
