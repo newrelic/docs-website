@@ -1,15 +1,15 @@
 const shouldUpdateScroll = ({
   prevRouterProps,
-  routerProps: { location },
+  routerProps,
   getSavedScrollPosition,
 }) => {
   if (
-    location.pathname.includes('/install/') &&
-    location.pathname === prevRouterProps.location.pathname
+    routerProps?.location?.pathname.startsWith('/install/') &&
+    routerProps?.location?.pathname === prevRouterProps?.location?.pathname
   ) {
     return false;
   }
-  const currentPosition = getSavedScrollPosition(location);
+  const currentPosition = getSavedScrollPosition(routerProps?.location);
   return currentPosition || [0, 0];
 };
 
