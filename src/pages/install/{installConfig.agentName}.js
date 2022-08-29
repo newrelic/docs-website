@@ -32,7 +32,7 @@ const InstallPage = ({ data }) => {
 
   const tessen = useTessen();
 
-  const handleChange = (value, select) => {
+  const handleAppInfoStateChange = (value, select) => {
     if (value !== null || value !== undefined) {
       setQueryParam(select.optionType, value);
       const recommendedGuided = select.options.some(
@@ -117,7 +117,7 @@ const InstallPage = ({ data }) => {
       return (
         <AppInfoConfig
           showGuided={showGuided}
-          onChange={handleChange}
+          onChange={handleAppInfoStateChange}
           selectOptions={appInfo}
           mdx={mdx}
         />
@@ -126,7 +126,7 @@ const InstallPage = ({ data }) => {
       const { optionType } = frontmatter;
       return (
         <AppInfoConfigOption
-          onChange={handleChange}
+          onChange={handleAppInfoStateChange}
           selectOptions={appInfo}
           optionType={optionType}
           mdx={mdx}
@@ -182,12 +182,7 @@ const InstallPage = ({ data }) => {
             })}
           </Walkthrough>
         </div>
-        <InstallNextSteps
-          css={css`
-            max-width: 900px;
-          `}
-          mdx={whatsNext.mdx}
-        />
+        <InstallNextSteps mdx={whatsNext.mdx} />
       </Layout.Content>
     </Layout.Main>
   );
