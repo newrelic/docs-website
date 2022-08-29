@@ -1,12 +1,12 @@
 ---
 title: 'Introducing database monitoring with the DBmarlin integration'
-summary: 'New DBmarlin quickstart gives you visibility into the performance of your databases such as Oracle, MySQL, Postgres, SQL Server, Db2 and CockroachDB and more.'
+summary: 'New DBmarlin quickstart gives you visibility into the performance of your databases such as Oracle, MySQL, Postgres, SQL Server, Db2, CockroachDB, and more.'
 releaseDate: '2022-08-29'
 getStartedLink: 'https://newrelic.com/instant-observability/dbmarlin/a0daa1f8-99de-41ba-b7cb-7dd87c1bf7f2'
 learnMoreLink: 'https://discuss.newrelic.com/t/introducing-database-monitoring-with-the-dbmarlin-integration/189202'
 ---
 
-The new **DBmarlin integration and quickstart** make it easier to monitor the functionality and performance of your databases alongside the rest of your observability data. 
+The new **DBmarlin integration and the DBmarlin quickstart dashboard** for New Relic make it easier to monitor the functionality and performance of your databases alongside the rest of your observability data. 
 
 [DBmarlin](https://www.dbmarlin.com/) brings deep database performance and change monitoring to the New Relic platform so that developers, testers, SRE engineers as well as database administrators can understand *why* database performance is slow and *how* to improve it.
 
