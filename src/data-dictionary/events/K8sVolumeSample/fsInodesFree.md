@@ -3,7 +3,7 @@ name: fsInodesFree
 type: attribute
 units:
 events:
-  - K8sNodeSample
+  -  K8sVolumeSample
 ---
 
-Free inodes in the node filesystem.
+inodes available in the volume.

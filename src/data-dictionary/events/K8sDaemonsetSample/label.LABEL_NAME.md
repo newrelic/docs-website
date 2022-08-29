@@ -1,5 +1,5 @@
 ---
-name: label.LABEL_NAME:w
+name: label.LABEL_NAME
 type: attribute
 units:
 events:

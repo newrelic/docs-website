@@ -1,7 +1,7 @@
 ---
 name: cpuUsedCoreMilliseconds
 type: attribute
-units:
+units: milliseconds (ms)
 events:
   - K8sNodeSample
 ---

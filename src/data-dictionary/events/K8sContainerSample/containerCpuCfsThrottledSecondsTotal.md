@@ -1,7 +1,7 @@
 ---
 name: containerCpuCfsThrottledSecondsTotal
 type: attribute
-units:
+units: seconds (s)
 events:
   -  K8sContainerSample
 ---

@@ -3,7 +3,7 @@ name: fsInodesUsed
 type: attribute
 units:
 events:
-  - K8sNodeSample
+  -  K8sVolumeSample
 ---
 
-Used inodes in the node filesystem.
+inodes used in the volume.

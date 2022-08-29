@@ -1,5 +1,5 @@
 ---
-name: errorCountPerSecond
+name: net.errorCountPerSecond
 type: attribute
 units: count
 events:

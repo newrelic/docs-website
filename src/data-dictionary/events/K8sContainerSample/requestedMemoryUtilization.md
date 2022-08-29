@@ -1,7 +1,7 @@
 ---
 name: requestedMemoryUtilization
 type: attribute
-units:
+units: percentage (%)
 events:
   -  K8sContainerSample
 ---

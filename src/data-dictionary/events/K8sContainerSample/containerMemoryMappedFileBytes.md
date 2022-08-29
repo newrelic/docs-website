@@ -1,7 +1,7 @@
 ---
 name: containerMemoryMappedFileBytes
 type: attribute
-units:
+units: bytes (B)
 events:
   -  K8sContainerSample
 ---

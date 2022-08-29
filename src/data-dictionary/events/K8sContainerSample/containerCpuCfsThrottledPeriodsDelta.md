@@ -1,7 +1,7 @@
 ---
 name: containerCpuCfsThrottledPeriodsDelta
 type: attribute
-units: count
+units: 
 events:
   -  K8sContainerSample
 ---

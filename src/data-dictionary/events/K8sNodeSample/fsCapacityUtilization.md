@@ -1,7 +1,7 @@
 ---
 name: fsCapacityUtilization
 type: attribute
-units:
+units: percentage (%)
 events:
   - K8sNodeSample
 ---

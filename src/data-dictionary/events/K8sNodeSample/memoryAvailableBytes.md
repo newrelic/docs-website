@@ -1,7 +1,7 @@
 ---
 name: memoryAvailableBytes
 type: attribute
-units:
+units: bytes (B)
 events:
   - K8sNodeSample
 ---

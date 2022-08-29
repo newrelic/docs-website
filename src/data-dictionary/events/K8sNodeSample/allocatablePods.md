@@ -1,7 +1,7 @@
 ---
 name: allocatablePods
 type: attribute
-units: count
+units:
 events:
   - K8sNodeSample
 ---

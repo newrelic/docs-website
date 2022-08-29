@@ -1,7 +1,7 @@
 ---
 name: containerImageID
 type: attribute
-units:
+units: ID
 events:
   -  K8sContainerSample
 ---

@@ -1,7 +1,7 @@
 ---
 name: net.errorCountPerSecond
 type: attribute
-units:
+units: second (s)
 events:
   - K8sPodSample
 ---
