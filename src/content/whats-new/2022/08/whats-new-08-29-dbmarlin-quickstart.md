@@ -28,6 +28,7 @@ The quickstart sends database performance data, including database time, top SQL
 
 You can send data to New Relic with DBmarlin v2.7 and above. This allows you to monitor database performance data within a customizable New Relic quickstart dashboard alongside the rest of your stack.
 
+* [Install the quickstart](https://newrelic.com/instant-observability/dbmarlin/a0daa1f8-99de-41ba-b7cb-7dd87c1bf7f2).
 * Claim [a free premium copy of DBmarlin](https://www.dbmarlin.com/new-relic-offer) that can be applied to any supported database.
 * Before [installing the integration](https://docs.dbmarlin.com/docs/integrations/newrelic/) you'll need to install DBmarlin. If you haven't already installed DBmarlin, [see the install instructions](https://docs.dbmarlin.com/docs/Getting-Started/hardware-requirements).
 * [Read the DBmarlin blog](https://www.dbmarlin.com/blog/2022-07-29-dbmarlin-v2-7-0-released) to learn more about version 2.7 of DBmarlin and the New Relic integration.
