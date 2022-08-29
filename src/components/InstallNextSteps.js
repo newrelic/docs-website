@@ -54,7 +54,7 @@ const FeedbackSurface = () => {
             font-size: 1rem;
           `}
         >
-          How would you rate your install experience?
+          Did this doc help make your installation a success?
         </p>
       </div>
       <div>
@@ -171,7 +171,7 @@ const FeedbackResponse = ({ feedbackType }) => {
             font-size: 1rem;
           `}
         >
-          Do you have a few minutes to improve this experience?
+          Do you have a few minutes to let us know what you think?
         </p>
       </div>
       <CreateIssueButton
