@@ -1,7 +1,7 @@
 ---
 name: goThreads
 type: attribute
-units: 
+units: count
 events:
   - K8sSchedulerSample
 ---

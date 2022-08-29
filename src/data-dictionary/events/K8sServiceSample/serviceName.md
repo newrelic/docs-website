@@ -3,7 +3,7 @@ name: serviceName
 type: attribute
 units:
 events:
-  - K8sStatefulsetSample
+  - K8sServiceSample
 ---
 
 Name associated with the service.
