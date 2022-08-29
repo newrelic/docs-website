@@ -41,68 +41,87 @@ const FeedbackSurface = () => {
         background-color: rgba(175, 226, 227, 0.05);
       `}
     >
-      <div>
-        <h2
+      <div
+        css={css`
+          display: flex;
+          flex-direction: row;
+
+          @media screen and (max-width: 1200px) {
+            flex-direction: column;
+          }
+        `}
+      >
+        <div
           css={css`
-            margin-bottom: 0;
-          `}
-        >
-          While you wait for your data to come in...
-        </h2>
-        <p
-          css={css`
-            font-size: 1rem;
-          `}
-        >
-          Did this doc help make your installation a success?
-        </p>
-      </div>
-      <div>
-        <Button
-          variant={Button.VARIANT.LINK}
-          onClick={() => handleClick('Positive')}
-          css={css`
-            color: var(--primary-text-color);
-            &:hover {
-              color: var(--secondary-text-color);
+            margin-right: 10px;
+
+            @media screen and (max-width: 1200px) {
+              margin-bottom: 10px;
             }
-            border: 1px solid #0095a9;
-            border-radius: 0.5rem 0 0 0.5rem;
-            border-right-width: 0;
-            padding: 1rem 2rem;
           `}
         >
-          <Icon
-            size="1.25rem"
-            name="fe-thumbsup"
+          <h2
             css={css`
-              margin-right: 0.5rem;
-              color: #0095a9;
+              margin-bottom: 0;
             `}
-          />
-        </Button>
-        <Button
-          variant={Button.VARIANT.LINK}
-          onClick={() => handleClick('Negative')}
-          css={css`
-            color: var(--primary-text-color);
-            &:hover {
-              color: var(--secondary-text-color);
-            }
-            border: 1px solid #0095a9;
-            padding: 1rem 2rem;
-            border-radius: 0 0.5rem 0.5rem 0;
-          `}
-        >
-          <Icon
-            size="1.25rem"
-            name="fe-thumbsdown"
+          >
+            While you wait for your data to come in...
+          </h2>
+          <p
             css={css`
-              margin-right: 0.5rem;
-              color: #0095a9;
+              font-size: 1rem;
             `}
-          />
-        </Button>
+          >
+            Did this doc help make your installation a success?
+          </p>
+        </div>
+        <div>
+          <Button
+            variant={Button.VARIANT.LINK}
+            onClick={() => handleClick('Positive')}
+            css={css`
+              color: var(--primary-text-color);
+              &:hover {
+                color: var(--secondary-text-color);
+              }
+              border: 1px solid #0095a9;
+              border-radius: 0.5rem 0 0 0.5rem;
+              border-right-width: 0;
+              padding: 1rem 2rem;
+            `}
+          >
+            <Icon
+              size="1.25rem"
+              name="fe-thumbsup"
+              css={css`
+                margin-right: 0.5rem;
+                color: #0095a9;
+              `}
+            />
+          </Button>
+          <Button
+            variant={Button.VARIANT.LINK}
+            onClick={() => handleClick('Negative')}
+            css={css`
+              color: var(--primary-text-color);
+              &:hover {
+                color: var(--secondary-text-color);
+              }
+              border: 1px solid #0095a9;
+              padding: 1rem 2rem;
+              border-radius: 0 0.5rem 0.5rem 0;
+            `}
+          >
+            <Icon
+              size="1.25rem"
+              name="fe-thumbsdown"
+              css={css`
+                margin-right: 0.5rem;
+                color: #0095a9;
+              `}
+            />
+          </Button>
+        </div>
       </div>
     </Surface>
   );
