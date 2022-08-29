@@ -1,9 +1,9 @@
 ---
-name:
+name: specType
 type: attribute
 units:
 events:
   - K8sStatefulsetSample
 ---
 
-Description
+Type of the service.
