@@ -6,7 +6,9 @@ learnMoreLink: 'https://newrelic.com/blog/nerdlog/wayscript-integration'
 getStartedLink: 'https://newrelic.com/blog/nerdlog/wayscript-integration'
 ---
 ## Connect self-serve developer environments with full stack observability
-We've partnered with [WayScript](https://wayscript.com) to build an integration that lets you quickly create a developer environment and automatically monitor it with a suite of observability tools. This integration lets you:
+We've partnered with [WayScript](https://wayscript.com) to build an integration that lets you quickly create a developer environment and automatically monitor it with a suite of observability tools. 
+
+This integration lets you:
 - **Instantly spin up containerized developer environments** in a single click.
 - **Host full-fledged apps, set up internal microservices, and more**, with built-in tools like a terminal and IDE.
 - **Monitor and troubleshoot everything you build** with an easy connection to the New Relic observability platform.
