@@ -2,6 +2,7 @@
 name: memoryUsedBytes
 type: attribute
 units: bytes (B)
+events:
   - K8sContainerSample
 ---
 
