@@ -29,7 +29,6 @@ const AnimatedFeatherIcon = ({ name, size, style, ...props }) => {
 
 AnimatedFeatherIcon.propTypes = {
   defs: PropTypes.node,
-  children: PropTypes.node,
   title: PropTypes.string,
   size: PropTypes.string,
   style: PropTypes.object,
