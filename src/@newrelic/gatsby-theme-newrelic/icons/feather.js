@@ -97,7 +97,7 @@ export default {
     </>
   ),
   'chevron-down': <path d="M6 9 12 15 18 9" />,
-  'chevron-right': <path d="M9 18 15 12 9 6" />,
+  'chevron-right': <polyline points="9 18 15 12 9 6" />,
   circle: <circle cx="12" cy="12" r="10" />,
   code: (
     <>

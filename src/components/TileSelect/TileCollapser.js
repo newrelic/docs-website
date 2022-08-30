@@ -121,20 +121,26 @@ const SelectCollapser = ({
             </Link>
           )}
         </h5>
-        <Icon
-          name="fe-chevron-right"
-          size="1rem"
-          css={css`
-            margin-left: auto;
-            transition: transform 0.6s ease,
-              color var(--color-transition-duration)
-                var(--color-transition-easing);
-
-            color: var(--secondary-text-color);
-
-            ${isOpen && `transform: rotate(90deg);`}
-          `}
-        />
+        {isOpen && (
+          <Icon
+            name="fe-chevron-down"
+            size="1rem"
+            css={css`
+              margin-left: auto;
+              color: var(--secondary-text-color);
+            `}
+          />
+        )}
+        {!isOpen && (
+          <Icon
+            name="fe-chevron-right"
+            size="1rem"
+            css={css`
+              margin-left: auto;
+              color: var(--secondary-text-color);
+            `}
+          />
+        )}
       </button>
 
       <animated.div
