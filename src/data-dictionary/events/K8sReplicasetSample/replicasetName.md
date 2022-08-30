@@ -1,9 +1,9 @@
 ---
-name:
+name: replicasetName
 type: attribute
 units:
 events:
   - K8sReplicasetSample
 ---
 
-Description
+Name of the ReplicaSet to be used as an identifier.
