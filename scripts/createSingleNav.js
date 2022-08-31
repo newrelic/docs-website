@@ -29,11 +29,9 @@ const createSingleNav = () => {
         )
       );
     }
-    if (subNavChildren) {
-      acc.push({ ...page, pages: [subNavChildren] });
-    } else {
-      acc.push({ ...page });
-    }
+    acc = subNavChildren
+      ? [...acc, { ...page, pages: [subNavChildren] }]
+      : [...acc, { ...page }];
     return acc;
   }, []);
   const navToRuleThemAll = { ...rootNavYaml, pages: rootNavChildren };
