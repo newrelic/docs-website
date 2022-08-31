@@ -23,6 +23,7 @@ const SelectCollapser = ({
 
   const style = useSpring({
     transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)',
+    color: 'var(--primary-text-color)',
   });
 
   const previousIsOpen = usePrevious(isOpen);
