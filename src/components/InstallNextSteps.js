@@ -220,43 +220,57 @@ const InstallNextSteps = ({ mdx, className }) => {
           gap: 2rem;
         `}
       >
-        <Surface
+        <div
           css={css`
-            padding: 2rem;
-            flex-grow: 1;
-            border: 1px solid #afe2e3;
+            display: flex;
+
+            @media screen and (max-width: 1200px) {
+              flex-direction: column;
+            }
           `}
-          base={Surface.BASE.PRIMARY}
         >
-          <h3>{frontmatter.headingText}</h3>
-          <MDXContainer body={body} />
-        </Surface>
-        <Surface
-          css={css`
-            padding: 2rem;
-            flex-grow: 1;
-            color: var(--color-white);
-            background-color: var(--attention-notification-announcement);
-          `}
-          base={Surface.BASE.PRIMARY}
-        >
-          <h3
+          <Surface
             css={css`
+              padding: 2rem;
+              flex-grow: 1;
+              border: 1px solid #afe2e3;
+
+              @media screen and (max-width: 1200px) {
+                margin-bottom: 2rem;
+              }
+            `}
+            base={Surface.BASE.PRIMARY}
+          >
+            <h3>{frontmatter.headingText}</h3>
+            <MDXContainer body={body} />
+          </Surface>
+          <Surface
+            css={css`
+              padding: 2rem;
+              flex-grow: 1;
               color: var(--color-white);
+              background-color: var(--attention-notification-announcement);
             `}
+            base={Surface.BASE.PRIMARY}
           >
-            Still not seeing data?
-          </h3>
-          <p>Follow our troubleshooting steps</p>
-          <Button
-            css={css`
-              background-color: var(--system-background-surface-1-light);
-            `}
-            variant={Button.VARIANT.OUTLINE}
-          >
-            Start troubleshooting.
-          </Button>
-        </Surface>
+            <h3
+              css={css`
+                color: var(--color-white);
+              `}
+            >
+              Still not seeing data?
+            </h3>
+            <p>Follow our troubleshooting steps</p>
+            <Button
+              css={css`
+                background-color: var(--system-background-surface-1-light);
+              `}
+              variant={Button.VARIANT.OUTLINE}
+            >
+              Start troubleshooting.
+            </Button>
+          </Surface>
+        </div>
       </div>
     </div>
   );
