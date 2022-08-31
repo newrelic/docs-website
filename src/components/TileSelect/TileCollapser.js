@@ -129,11 +129,7 @@ const SelectCollapser = ({
             </Link>
           )}
         </h5>
-        <AnimatedFeatherIcon
-          style={style}
-          name="fe-chevron-right"
-          size="1rem"
-        />
+        <AnimatedFeatherIcon style={style} name="fe-chevron-right" />
       </button>
 
       <animated.div
