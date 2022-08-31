@@ -350,7 +350,7 @@ module.exports = {
     {
       resolve: `gatsby-source-filesystem`,
       options: {
-        path: `./src/nav/`,
+        path: `./src/nav/generatedNav.yml`,
       },
     },
     'gatsby-plugin-generate-doc-json',
