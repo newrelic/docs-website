@@ -24,7 +24,7 @@ const slugify = (str) =>
     .replace(/-+/, '-')
     .replace(/[^a-z0-9-]/g, '');
 
-const InstallPage = ({ data }) => {
+const InstallPage = ({ data, location }) => {
   const { installConfig = {} } = data;
   const {
     title,
