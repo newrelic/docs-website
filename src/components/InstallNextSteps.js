@@ -81,13 +81,21 @@ const FeedbackSurface = () => {
             onClick={() => handleClick('Positive')}
             css={css`
               color: var(--primary-text-color);
-              &:hover {
-                color: var(--secondary-text-color);
-              }
               border: 1px solid #0095a9;
               border-radius: 0.5rem 0 0 0.5rem;
               border-right-width: 0;
               padding: 1rem 2rem;
+
+              svg {
+                transition: color 200ms;
+              }
+
+              &:hover {
+                svg {
+                  color: var(--secondary-text-color);
+                  transition: color 200ms;
+                }
+              }
             `}
           >
             <Icon
@@ -104,12 +112,20 @@ const FeedbackSurface = () => {
             onClick={() => handleClick('Negative')}
             css={css`
               color: var(--primary-text-color);
-              &:hover {
-                color: var(--secondary-text-color);
-              }
               border: 1px solid #0095a9;
               padding: 1rem 2rem;
               border-radius: 0 0.5rem 0.5rem 0;
+
+              svg {
+                transition: color 200ms;
+              }
+
+              &:hover {
+                svg {
+                  color: var(--secondary-text-color);
+                  transition: color 200ms;
+                }
+              }
             `}
           >
             <Icon
@@ -218,6 +234,10 @@ const InstallNextSteps = ({ mdx, className }) => {
           display: flex;
           flex-direction: row;
           gap: 2rem;
+
+          @media screen and (max-width: 1000px) {
+            flex-direction: column;
+          }
         `}
       >
         <Surface
