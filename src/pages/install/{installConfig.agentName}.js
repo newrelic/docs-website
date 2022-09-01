@@ -223,6 +223,13 @@ const InstallPage = ({ data }) => {
           </Walkthrough>
         </div>
         <InstallNextSteps mdx={whatsNext.mdx} />
+        <ContributingGuidelines
+          css={css`
+            @media (min-width: 1240px) {
+              display: none;
+            }
+          `}
+        />
       </Layout.Content>
       <Layout.PageTools
         css={css`
