@@ -32,6 +32,13 @@ const InstallPage = ({ data }) => {
 
   const tessen = useTessen();
 
+  const capitalize = (word) => {
+    let capitalizedWord = word.split('');
+    capitalizedWord[0] = capitalizedWord[0].toUpperCase();
+    capitalizedWord = capitalizedWord.join('');
+    return capitalizedWord;
+  };
+
   const handleAppInfoStateChange = (value, select) => {
     if (value !== null || value !== undefined) {
       setQueryParam(select.optionType, value);
@@ -41,7 +48,7 @@ const InstallPage = ({ data }) => {
       setShowGuided(recommendedGuided);
       tessen.track({
         eventName: 'appInfoOptionSelected',
-        category: `${select.optionType}AppInfoOptionSelect`,
+        category: `${capitalize(select.optionType)}AppInfoOptionSelect`,
         value,
         path: location.pathname,
         agentName,
@@ -55,7 +62,7 @@ const InstallPage = ({ data }) => {
   const handleAgentConfigChange = ({ name, value }) => {
     tessen.track({
       eventName: 'agentConfigFileUpdated',
-      category: `${name}AgentConfigFileUpdated`,
+      category: `${capitalize(name)}AgentConfigFileUpdated`,
       key: name,
       value,
       path: location.pathname,
