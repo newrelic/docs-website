@@ -14,7 +14,7 @@ import AppInfoConfig from '../../components/AppInfoConfig';
 import AppInfoConfigOption from '../../components/AppInfoConfigOption';
 import InstallNextSteps from '../../components/InstallNextSteps';
 
-const InstallPage = ({ data }) => {
+const InstallPage = ({ data, location }) => {
   const { installConfig = {} } = data;
   const {
     title,
