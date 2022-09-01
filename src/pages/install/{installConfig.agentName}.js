@@ -227,7 +227,7 @@ const InstallPage = ({ data }) => {
       <Layout.PageTools
         css={css`
           @media (max-width: 1240px) {
-            position: static;
+            display: none;
           }
         `}
       >
