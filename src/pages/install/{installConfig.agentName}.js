@@ -13,8 +13,10 @@ import AgentConfig from '../../components/AgentConfig';
 import AppInfoConfig from '../../components/AppInfoConfig';
 import AppInfoConfigOption from '../../components/AppInfoConfigOption';
 import InstallNextSteps from '../../components/InstallNextSteps';
+import SEO from '../../components/SEO';
+import { TYPES } from '../../utils/constants';
 
-const InstallPage = ({ data }) => {
+const InstallPage = ({ data, location }) => {
   const { installConfig = {} } = data;
   const {
     title,
@@ -24,6 +26,7 @@ const InstallPage = ({ data }) => {
     agentConfigFile,
     whatsNext,
     agentName,
+    metaDescription,
   } = installConfig;
 
   const { queryParams, setQueryParam, deleteQueryParam } = useQueryParams();
@@ -144,47 +147,55 @@ const InstallPage = ({ data }) => {
     .filter(({ content }) => content !== null);
 
   return (
-    <Layout.Main>
-      <Layout.Content>
-        <PageTitle>{title}</PageTitle>
-        <div
-          css={css`
-            margin-bottom: 2rem;
-          `}
-        >
-          <MDXContainer body={intro.mdx?.body} />
-        </div>
-        <div>
-          <Walkthrough>
-            {walkthroughSteps.map(({ content, step: { mdx } }, index) => {
-              const { descriptionText, headingText } = mdx?.frontmatter;
-              return (
-                <Walkthrough.Step
-                  number={index + 1}
-                  title={headingText}
-                  active={selectedIndex === index}
-                  key={index}
-                  onMouseOver={() => handleSelectIndex(index)}
-                  onFocus={() => handleSelectIndex(index)}
-                >
-                  {descriptionText && (
-                    <p
-                      css={css`
-                        margin-bottom: 2rem;
-                      `}
-                    >
-                      {descriptionText}
-                    </p>
-                  )}
-                  {content}
-                </Walkthrough.Step>
-              );
-            })}
-          </Walkthrough>
-        </div>
-        <InstallNextSteps mdx={whatsNext.mdx} />
-      </Layout.Content>
-    </Layout.Main>
+    <>
+      <SEO
+        location={location}
+        title={title}
+        description={metaDescription}
+        type={TYPES.INTERACTIVE_INSTALL_PAGE}
+      />
+      <Layout.Main>
+        <Layout.Content>
+          <PageTitle>{title}</PageTitle>
+          <div
+            css={css`
+              margin-bottom: 2rem;
+            `}
+          >
+            <MDXContainer body={intro.mdx?.body} />
+          </div>
+          <div>
+            <Walkthrough>
+              {walkthroughSteps.map(({ content, step: { mdx } }, index) => {
+                const { descriptionText, headingText } = mdx?.frontmatter;
+                return (
+                  <Walkthrough.Step
+                    number={index + 1}
+                    title={headingText}
+                    active={selectedIndex === index}
+                    key={index}
+                    onMouseOver={() => handleSelectIndex(index)}
+                    onFocus={() => handleSelectIndex(index)}
+                  >
+                    {descriptionText && (
+                      <p
+                        css={css`
+                          margin-bottom: 2rem;
+                        `}
+                      >
+                        {descriptionText}
+                      </p>
+                    )}
+                    {content}
+                  </Walkthrough.Step>
+                );
+              })}
+            </Walkthrough>
+          </div>
+          <InstallNextSteps mdx={whatsNext.mdx} />
+        </Layout.Content>
+      </Layout.Main>
+    </>
   );
 };
 
