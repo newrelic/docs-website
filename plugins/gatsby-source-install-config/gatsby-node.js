@@ -30,7 +30,13 @@ exports.sourceNodes = ({
       whatsNext: {
         filePath: whatsNextFilePath,
       },
-      ...pick(configYamlNode, ['title', 'agentName', 'agentType', 'appInfo']),
+      ...pick(configYamlNode, [
+        'title',
+        'agentName',
+        'agentType',
+        'appInfo',
+        'metaDescription',
+      ]),
     };
 
     createNode({
@@ -54,6 +60,7 @@ exports.createSchemaCustomization = ({ actions }) => {
       agentName: String!
       agentType: String!
       title: String!
+      metaDescription: String
       intro: MDXConfig
       appInfo: [AppInfoOption!]!
       steps: [InstallStep]
