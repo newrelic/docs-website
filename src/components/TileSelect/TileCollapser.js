@@ -5,6 +5,8 @@ import { Icon, Link } from '@newrelic/gatsby-theme-newrelic';
 import { animated, useSpring } from 'react-spring';
 import { usePrevious, useIsomorphicLayoutEffect } from 'react-use';
 
+import AnimatedFeatherIcon from '../AnimatedFeatherIcon';
+
 const ResizeObserver = global.ResizeObserver || class ResizeObserver {};
 
 const SelectCollapser = ({
@@ -18,6 +20,12 @@ const SelectCollapser = ({
   const [element, ref] = useState();
   const [height, setHeight] = useState(0);
   const { height: viewHeight } = useSpring({ height: isOpen ? height : 0 });
+
+  const style = useSpring({
+    transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)',
+    color: 'var(--primary-text-color)',
+  });
+
   const previousIsOpen = usePrevious(isOpen);
 
   const observer = useMemo(
@@ -121,20 +129,7 @@ const SelectCollapser = ({
             </Link>
           )}
         </h5>
-        <Icon
-          name="fe-chevron-right"
-          size="1rem"
-          css={css`
-            margin-left: auto;
-            transition: transform 0.6s ease,
-              color var(--color-transition-duration)
-                var(--color-transition-easing);
-
-            color: var(--secondary-text-color);
-
-            ${isOpen && `transform: rotate(90deg);`}
-          `}
-        />
+        <AnimatedFeatherIcon style={style} name="fe-chevron-right" />
       </button>
 
       <animated.div
