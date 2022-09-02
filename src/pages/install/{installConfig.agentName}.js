@@ -3,6 +3,8 @@ import { graphql } from 'gatsby';
 import { css } from '@emotion/react';
 import {
   Walkthrough,
+  TableOfContents,
+  ContributingGuidelines,
   useQueryParams,
   Layout,
   useTessen,
@@ -15,6 +17,14 @@ import AppInfoConfigOption from '../../components/AppInfoConfigOption';
 import InstallNextSteps from '../../components/InstallNextSteps';
 import SEO from '../../components/SEO';
 import { TYPES } from '../../utils/constants';
+
+const slugify = (str) =>
+  str
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '-')
+    .replace(/-+/, '-')
+    .replace(/[^a-z0-9-]/g, '');
 
 const InstallPage = ({ data, location }) => {
   const { installConfig = {} } = data;
@@ -141,10 +151,20 @@ const InstallPage = ({ data, location }) => {
   };
 
   const walkthroughSteps = steps
-    .map((step) => {
-      return { content: renderStep(step), step };
+    .map((step, index) => {
+      const { mdx } = step;
+      return {
+        content: renderStep(step),
+        step,
+        stepHeadings: {
+          id: `${slugify(mdx.frontmatter?.headingText)}-${index + 1}`,
+          text: mdx.frontmatter?.headingText,
+        },
+      };
     })
     .filter(({ content }) => content !== null);
+
+  const headings = walkthroughSteps.map(({ stepHeadings }) => stepHeadings);
 
   return (
     <>
@@ -154,7 +174,26 @@ const InstallPage = ({ data, location }) => {
         description={metaDescription}
         type={TYPES.INTERACTIVE_INSTALL_PAGE}
       />
-      <Layout.Main>
+      <Layout.Main
+        css={css`
+          display: grid;
+          grid-template-areas:
+            'mt-disclaimer mt-disclaimer'
+            'page-title page-title'
+            'content page-tools';
+          grid-template-columns: minmax(0, 1fr) 320px;
+          grid-column-gap: 2rem;
+
+          @media screen and (max-width: 1240px) {
+            grid-template-areas:
+              'mt-disclaimer'
+              'page-title'
+              'content'
+              'page-tools';
+            grid-template-columns: minmax(0, 1fr);
+          }
+        `}
+      >
         <Layout.Content>
           <PageTitle>{title}</PageTitle>
           <div
@@ -176,6 +215,7 @@ const InstallPage = ({ data, location }) => {
                     key={index}
                     onMouseOver={() => handleSelectIndex(index)}
                     onFocus={() => handleSelectIndex(index)}
+                    id={`${slugify(mdx.frontmatter?.headingText)}-${index + 1}`}
                   >
                     {descriptionText && (
                       <p
@@ -193,7 +233,24 @@ const InstallPage = ({ data, location }) => {
             </Walkthrough>
           </div>
           <InstallNextSteps mdx={whatsNext.mdx} />
+          <ContributingGuidelines
+            css={css`
+              @media (min-width: 1240px) {
+                display: none;
+              }
+            `}
+          />
         </Layout.Content>
+        <Layout.PageTools
+          css={css`
+            @media (max-width: 1240px) {
+              display: none;
+            }
+          `}
+        >
+          <ContributingGuidelines />
+          <TableOfContents headings={headings} />
+        </Layout.PageTools>
       </Layout.Main>
     </>
   );
