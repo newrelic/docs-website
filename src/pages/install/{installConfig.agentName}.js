@@ -39,6 +39,7 @@ const InstallPage = ({ data, location }) => {
   const { queryParams, setQueryParam, deleteQueryParam } = useQueryParams();
   const [showGuided, setShowGuided] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [agentConfigUpdate, setAgentConfigUpdate] = useState([]);
 
   const tessen = useTessen();
 
@@ -69,15 +70,17 @@ const InstallPage = ({ data, location }) => {
     }
   };
 
-  const handleAgentConfigChange = ({ name, value }) => {
-    tessen.track({
-      eventName: 'agentConfigFileUpdated',
-      category: `${capitalize(name)}AgentConfigFileUpdated`,
-      key: name,
-      value,
-      path: location.pathname,
-      agentName,
-    });
+  const handleAgentConfigChange = ({ name }) => {
+    if (!agentConfigUpdate.includes(name)) {
+      tessen.track({
+        eventName: 'agentConfigFileUpdated',
+        category: `${capitalize(name)}AgentConfigFileUpdated`,
+        key: name,
+        path: location.pathname,
+        agentName,
+      });
+      setAgentConfigUpdate([...agentConfigUpdate, name]);
+    }
   };
 
   const handleSelectIndex = (index) => {
