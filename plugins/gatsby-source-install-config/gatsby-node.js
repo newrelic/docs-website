@@ -74,6 +74,7 @@ exports.createSchemaCustomization = ({ actions }) => {
       value: String!
       displayName: String!
       logo: String
+      icon: String
       recommendedGuided: Boolean
     }
     type InstallStep @dontInfer {

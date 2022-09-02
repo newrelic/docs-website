@@ -300,6 +300,7 @@ export const pageQuery = graphql`
           recommendedGuided
           value
           logo
+          icon
         }
       }
       steps {

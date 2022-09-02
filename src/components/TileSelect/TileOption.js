@@ -1,10 +1,17 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/react';
-import { Button } from '@newrelic/gatsby-theme-newrelic';
+import { Button, Icon } from '@newrelic/gatsby-theme-newrelic';
 import TileLogo from './TileLogo';
 
-const TileOption = ({ displayName, value, logo, onChange, isSelected }) => {
+const TileOption = ({
+  displayName,
+  value,
+  logo,
+  icon,
+  onChange,
+  isSelected,
+}) => {
   return (
     <Button
       role="option"
@@ -41,6 +48,17 @@ const TileOption = ({ displayName, value, logo, onChange, isSelected }) => {
           `}
         />
       )}
+      {icon && (
+        <Icon
+          name={icon}
+          css={css`
+            margin-bottom: 0.5rem;
+            img {
+              width: 2rem;
+            }
+          `}
+        />
+      )}
       <div
         css={css`
           font-size: 0.875rem;
@@ -57,6 +75,7 @@ TileOption.propTypes = {
   value: PropTypes.string.isRequired,
   logo: PropTypes.string,
   onChange: PropTypes.func,
+  icon: PropTypes.string,
 };
 
 export default TileOption;
