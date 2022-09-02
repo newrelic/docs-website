@@ -21,7 +21,7 @@ const TileSelect = ({
   return (
     <div
       css={css`
-        margin-top: 1rem;
+        margin-bottom: 2rem;
       `}
     >
       <h4>{label}</h4>

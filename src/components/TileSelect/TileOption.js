@@ -34,7 +34,7 @@ const TileOption = ({ displayName, value, logo, onChange, isSelected }) => {
         <TileLogo
           name={logo}
           css={css`
-            margin-bottom: 0;
+            margin-bottom: 0.5rem;
             img {
               width: 2rem;
             }
