@@ -1,11 +1,9 @@
 import React from 'react';
 import PropTypes from 'prop-types';
-import { useQueryParams } from '@newrelic/gatsby-theme-newrelic';
 import MDXContainer from './MDXContainer';
 import TileSelect from './TileSelect';
 
 const AppInfoConfigOption = ({ optionType, selectOptions, mdx, onChange }) => {
-  const { queryParams } = useQueryParams();
   const select = selectOptions.find(
     (select) => select.optionType === optionType
   );
@@ -16,14 +14,10 @@ const AppInfoConfigOption = ({ optionType, selectOptions, mdx, onChange }) => {
       <TileSelect
         label={select.label}
         onChange={(value) => onChange(value, select)}
-        value={
-          queryParams.has(select.optionType)
-            ? queryParams.get(select.optionType)
-            : null
-        }
+        value={select.value}
         options={select.options}
         placeholder={select.placeholder}
-        defaultOpen={!queryParams.has(select.optionType)}
+        defaultOpen={!select.value}
       />
 
       {body && <MDXContainer body={body} />}

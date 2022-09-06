@@ -1,14 +1,11 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/react';
-import { useQueryParams } from '@newrelic/gatsby-theme-newrelic';
 import TileSelect from './TileSelect';
 import MDXContainer from './MDXContainer';
 
 const AppInfoConfig = ({ selectOptions, mdx, onChange, showGuided }) => {
   const { body } = mdx;
-
-  const { queryParams } = useQueryParams();
 
   return (
     <div>
@@ -18,14 +15,10 @@ const AppInfoConfig = ({ selectOptions, mdx, onChange, showGuided }) => {
             key={`${select.label}${select.optionType}`}
             options={select.options}
             onChange={(value) => onChange(value, select)}
-            value={
-              queryParams.has(select.optionType)
-                ? queryParams.get(select.optionType)
-                : null
-            }
+            value={select.value}
             label={select.label}
             placeholder={select.placeholder}
-            defaultOpen={!queryParams.has(select.optionType)}
+            defaultOpen={!select.value}
           />
         );
       })}
