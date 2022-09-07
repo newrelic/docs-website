@@ -1,26 +1,25 @@
 ---
-title: 'New Relic Data Plus provides more powerful queries through increased query durations and limits.'
-releaseDate: '2022-09-14' 
+title: 'New Relic Data Plus allows exporting of historical data for greater data usage potential
+releaseDate: '2022-09-14'
 getStartedLink: 'https://newrelic.com/blog/nerdlog/data-plus-pricing'
 ---
+#  Historical data export allows you to secure, store, and share data to external sources
 
-# Analyze larger volumes of data with longer running queries
+Today, [Data Plus](https://docs.newrelic.com/whats-new/2022/06/whats-new-6-1-data-plus-available) customers now can export their New Relic historical data to outside of New Relic. This provides flexibility for deeper data exploration across related entities, events, and anomalies within their stack, along with the ability to upload results to external analytics tools. The historical data is exported by NRQL querying in NerdGraph that returns up 200 million data points. The resulting historical data is provided as a downloadable link to a JSON file. 
 
-After the launch of [Data Plus](/whats-new/2022/06/whats-new-6-1-data-plus-available) in June, we are continuing to support and help your teams scale their observability practices. Today, Data Plus customers now can utilize longer running queries (up to 10x the the previous maximum duration) to analyze larger data volumes. Data Plus customers get a max query duration of up to 10 minutes via asynchronous queries and up to two minutes via regular NRQL queries compared to 60 seconds for the existing data option. Learn how to run [asynchronous queries](/docs/apis/nerdgraph/examples/async-queries-nrql-tutorial/) via our [NerdGraph API](/docs/apis/nerdgraph/get-started/introduction-new-relic-nerdgraph/).
-
-In addition to more powerful and 10x longer-running queries, Data Plus also includes:
+In addition Data Plus also includes:
 
 * Up to 90 days of data retention 
-* FedRAMP and HIPAA compliance (Pro and Enterprise customers only) 
+* FedRAMP authorized
+* HIPAA compliance with HITRUST certification (Pro and Enterprise customers only) 
 * Logs obfuscation
-* Cloud provider choice (coming soon)
-* Enhanced streaming and historical data export (coming soon) 
-* Vulnerability management (coming soon)
+* Streaming data export (October 2022)
+* Vulnerability management (Q4 2022)
+* Cloud provider choice (Q1 2023)
 
 [Read more here](https://newrelic.com/blog/nerdlog/data-plus-pricing)
 
 # How to Sign up for Data Plus
+1. Understand the new pricing model and [upgrade to Data Plus here](https://docs.newrelic.com/docs/accounts/accounts-billing/new-relic-one-pricing-billing/data-ingest-billing) at a promotional pricing model of $0.50/GB.
 
-1. Understand the new pricing model and [upgrade to Data Plus here](/docs/accounts/accounts-billing/new-relic-one-pricing-billing/data-ingest-billing) at a promotional pricing model of $.50/GB.
-
-2. Learn more about asynchronous queries with [asynchronous queries tutorial](/docs/apis/nerdgraph/examples/async-queries-nrql-tutorial/) or get started [querying your data using NRQL](/docs/apis/nerdgraph/examples/nerdgraph-nrql-tutorial/).
+2. Learn more about how to run historical data exports on [our docs page](https://docs.newrelic.com/docs/apis/nerdgraph/examples/nerdgraph-historical-data-export/).
