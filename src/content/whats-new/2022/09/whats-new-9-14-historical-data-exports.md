@@ -1,9 +1,9 @@
 ---
-title: 'New Relic Data Plus allows exporting of historical data for greater data usage potential
+title: 'New Relic Data Plus allows exporting of historical data for data storage, compliance, and analysis
 releaseDate: '2022-09-14'
 getStartedLink: 'https://newrelic.com/blog/nerdlog/data-plus-pricing'
 ---
-#  Historical data export allows you to secure, store, and share data to external sources
+#  Historical data export allows you to secure, store, share and analyze data to your external tools
 
 Today, [Data Plus](https://docs.newrelic.com/whats-new/2022/06/whats-new-6-1-data-plus-available) customers now can export their New Relic historical data to outside of New Relic. This provides flexibility for deeper data exploration across related entities, events, and anomalies within their stack, along with the ability to upload results to external analytics tools. The historical data is exported by NRQL querying in NerdGraph that returns up 200 million data points. The resulting historical data is provided as a downloadable link to a JSON file. 
 
