@@ -4,37 +4,78 @@ import {
   Surface,
   Button,
   Icon,
+  CreateIssueButton,
   useTessen,
 } from '@newrelic/gatsby-theme-newrelic';
 
 import MDXContainer from './MDXContainer';
 
-const Feedback = () => {
+const FeedbackSurface = () => {
   const [clicked, setClicked] = useState(false);
+  const [feedback, setFeedback] = useState(null);
   const tessen = useTessen();
 
   const handleClick = (feedbackType) => {
     setClicked(true);
+    setFeedback(feedbackType);
     tessen.track({
-      eventName: 'feedbackThumbClick',
+      eventName: 'installFeedbackThumbClick',
       category: `${feedbackType}FeedbackClick`,
       path: location.pathname,
     });
   };
 
-  return (
-    <div
+  return clicked ? (
+    <FeedbackResponse feedbackType={feedback} />
+  ) : (
+    <Surface
+      base={Surface.BASE.PRIMARY}
       css={css`
+        padding: 2rem;
+        margin-bottom: 2rem;
         display: flex;
-        justify-content: center;
-        align-items: flex-start;
-        height: 100%;
+        flex-direction: row;
+        justify-content: space-between;
+        align-items: center;
+        border: 1px solid #afe2e3;
+        background-color: rgba(175, 226, 227, 0.05);
       `}
     >
-      {clicked ? (
-        <h4>Thank you for your feedback!</h4>
-      ) : (
-        <>
+      <div
+        css={css`
+          display: flex;
+          flex-direction: row;
+
+          @media screen and (max-width: 1200px) {
+            flex-direction: column;
+          }
+        `}
+      >
+        <div
+          css={css`
+            margin-right: 10px;
+
+            @media screen and (max-width: 1200px) {
+              margin-bottom: 10px;
+            }
+          `}
+        >
+          <h2
+            css={css`
+              margin-bottom: 0;
+            `}
+          >
+            While you wait for your data to come in...
+          </h2>
+          <p
+            css={css`
+              font-size: 1rem;
+            `}
+          >
+            Did this doc help make your installation a success?
+          </p>
+        </div>
+        <div>
           <Button
             variant={Button.VARIANT.LINK}
             onClick={() => handleClick('Positive')}
@@ -80,9 +121,90 @@ const Feedback = () => {
               `}
             />
           </Button>
-        </>
-      )}
-    </div>
+        </div>
+      </div>
+    </Surface>
+  );
+};
+
+const FeedbackResponse = ({ feedbackType }) => {
+  const feedbackText =
+    feedbackType === 'Positive' ? 'So glad to hear it!' : 'Sorry to hear that!';
+
+  const feedbackStyles =
+    feedbackType === 'Positive'
+      ? {
+          backgroundColor: '#1dcad3',
+          headingTextColor: '#0d374a',
+          secondaryTextColor: '#000000',
+          hoverButtonColor: '#000000',
+        }
+      : {
+          backgroundColor: '#0d374a',
+          headingTextColor: '#ffffff',
+          secondaryTextColor: '#ffffff',
+          hoverButtonColor: '#ffffff',
+        };
+
+  return (
+    <Surface
+      base={Surface.BASE.PRIMARY}
+      css={css`
+        padding: 2rem;
+        margin-bottom: 2rem;
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        border: 1px solid ${feedbackStyles.backgroundColor};
+        background-color: ${feedbackStyles.backgroundColor};
+      `}
+    >
+      <Icon
+        size="50px"
+        name={`fe-thumbs${feedbackType === 'Positive' ? 'up' : 'down'}`}
+        css={css`
+          color: #ffffff;
+        `}
+      />
+      <div
+        css={css`
+          display: flex;
+          flex-direction: column;
+          align-items: flex-start;
+          margin-left: 2rem;
+          margin-right: 2rem;
+        `}
+      >
+        <h2
+          css={css`
+            color: ${feedbackStyles.headingTextColor};
+            margin-bottom: 0;
+          `}
+        >
+          {feedbackText}
+        </h2>
+        <p
+          css={css`
+            color: ${feedbackStyles.secondaryTextColor};
+            margin-bottom: 0.5rem;
+            font-size: 1rem;
+          `}
+        >
+          Do you have a few minutes to let us know what you think?
+        </p>
+      </div>
+      <CreateIssueButton
+        variant="outline"
+        css={css`
+          color: ${feedbackStyles.secondaryTextColor};
+          border: 1px solid ${feedbackStyles.secondaryTextColor};
+          &:hover {
+            color: ${feedbackStyles.hoverButtonColor};
+            border: 1px solid ${feedbackStyles.hoverButtonColor};
+          }
+        `}
+      />
+    </Surface>
   );
 };
 
@@ -90,31 +212,7 @@ const InstallNextSteps = ({ mdx, className }) => {
   const { body, frontmatter } = mdx;
   return (
     <div className={className}>
-      <Surface
-        css={css`
-          padding: 2rem;
-          margin-bottom: 2rem;
-          border: 1px solid #afe2e3;
-          background-color: rgba(175, 226, 227, 0.05);
-          display: flex;
-          flex-direction: row;
-          justify-content: space-between;
-          align-items: center;
-        `}
-        base={Surface.BASE.PRIMARY}
-      >
-        <div>
-          <h3>While you wait for your data to come in...</h3>
-          <p
-            css={css`
-              font-size: 1rem;
-            `}
-          >
-            How would you rate your install experience?
-          </p>
-        </div>
-        <Feedback />
-      </Surface>
+      <FeedbackSurface />
       <div
         css={css`
           display: flex;
