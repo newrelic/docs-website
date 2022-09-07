@@ -1,6 +1,6 @@
 ---
-title: 'New Relic Data Plus provides more powerful queries through increased query durations and limits.’
-releaseDate: '2022-08-25'
+title: 'New Relic Data Plus provides more powerful queries through increased query durations and limits.'
+releaseDate: '2022-09-14' 
 getStartedLink: 'https://newrelic.com/blog/nerdlog/data-plus-pricing'
 ---
 
