@@ -25,5 +25,4 @@ Coming soon
 
 # Learn more, or sign up for Data Plus to get started
 1. Learn more and [upgrade to Data Plus here](https://docs.newrelic.com/docs/accounts/accounts-billing/new-relic-one-pricing-billing/data-ingest-billing).
-
 2. Read how to build queries for historical data exports on [our docs page](https://docs.newrelic.com/docs/apis/nerdgraph/examples/nerdgraph-historical-data-export/).
