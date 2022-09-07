@@ -4,6 +4,7 @@ import { ClassNames, css } from '@emotion/react';
 import { Surface, Icon, Link } from '@newrelic/gatsby-theme-newrelic';
 
 const TileIcon = ({ className, icon }) => {
+  console.log(icon);
   if (typeof icon === 'string') {
     return (
       <Icon
