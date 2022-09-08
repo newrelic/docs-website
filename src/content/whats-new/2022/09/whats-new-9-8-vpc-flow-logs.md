@@ -1,7 +1,7 @@
 ---
 title: 'New Relic announces support for Amazon VPC Flow Logs via Amazon Kinesis Data Firehose'
 summary: 'Send Amazon VPC flow logs via Amazon Kinesis Data Firehose to reduce Amazon CloudWatch related costs and to explore and navigate flow logs across the technology estate'
-releaseDate: '2022-07-15'
+releaseDate: '2022-09-08'
 learnMoreLink: 'https://newrelic.com/blog/nerdlog/amazon-vpc-flow-logs'
 getStartedLink: 'https://one.newrelic.com/marketplace?duration=1800000&state=79e952e9-b09e-3343-2a9c-481337ff28ac'
 ---
