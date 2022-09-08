@@ -46,6 +46,13 @@ const InstallPage = ({ data, location }) => {
 
   const tessen = useTessen();
 
+  const selectOptions = appInfo.map((select) => ({
+    ...select,
+    value: queryParams.has(select.optionType)
+      ? queryParams.get(select.optionType)
+      : null,
+  }));
+
   const capitalize = (word) => {
     let capitalizedWord = word.split('');
     capitalizedWord[0] = capitalizedWord[0].toUpperCase();
@@ -141,7 +148,7 @@ const InstallPage = ({ data, location }) => {
         <AppInfoConfig
           showGuided={showGuided}
           onChange={handleAppInfoStateChange}
-          selectOptions={appInfo}
+          selectOptions={selectOptions}
           mdx={mdx}
         />
       );
@@ -150,7 +157,7 @@ const InstallPage = ({ data, location }) => {
       return (
         <AppInfoConfigOption
           onChange={handleAppInfoStateChange}
-          selectOptions={appInfo}
+          selectOptions={selectOptions}
           optionType={optionType}
           mdx={mdx}
         />

@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/react';
+import { usePrevious } from '@newrelic/gatsby-theme-newrelic';
 
 import TileOption from './TileOption';
 import TileCollapser from './TileCollapser';
@@ -14,6 +15,14 @@ const TileSelect = ({
   defaultOpen = true,
 }) => {
   const [isOpen, setIsOpen] = useState(defaultOpen);
+
+  const prevValue = usePrevious(value);
+
+  useEffect(() => {
+    if (isOpen && value !== null && prevValue === null) {
+      setIsOpen(false);
+    }
+  }, [value, isOpen, prevValue]);
 
   const selectedOption =
     value && options.find((option) => option.value === value);
