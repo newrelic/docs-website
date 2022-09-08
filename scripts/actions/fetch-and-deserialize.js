@@ -87,7 +87,18 @@ const fetchTranslatedFilesZip = (locale) => {
    */
   return async ({ fileUris }) => {
     fileUris = fileUris.filter(
-      (uri) => uri !== 'src/announcements/q2-survey.mdx'
+      (uri) =>
+        uri !== 'src/announcements/q2-survey.mdx' &&
+        uri !==
+          'src/content/docs/apm/new-relic-apm/getting-started/introduction-apm.mdx' &&
+        uri !==
+          'src/content/docs/accounts/accounts-billing/new-relic-one-user-management/user-type.mdx' &&
+        uri !==
+          'src/content/docs/alerts-applied-intelligence/new-relic-alerts/alert-conditions/create-nrql-alert-conditions.mdx' &&
+        uri !==
+          'src/content/docs/apm/agents/java-agent/configuration/java-agent-configuration-config-file.mdx' &&
+        uri !==
+          'src/content/docs/new-relic-solutions/get-started/intro-new-relic.mdx'
     );
     const fileUriStr = fileUris.reduce((str, uri) => {
       return str.concat(`&fileUris[]=${encodeURIComponent(uri)}`);
