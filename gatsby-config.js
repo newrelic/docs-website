@@ -184,6 +184,11 @@ module.exports = {
             process.env.RECAPTCHA_TOKEN ||
             '6LdMFd8UAAAAAApWFzm8YCyuGCUfg57U1WvqVYqC',
         },
+        // Routes which need to allow the page
+        // to scroll to top on url param updates
+        shouldUpdateScroll: {
+          routes: ['/attribute-dictionary/'],
+        },
       },
     },
     {
