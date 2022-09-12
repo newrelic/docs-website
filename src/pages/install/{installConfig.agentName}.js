@@ -15,6 +15,8 @@ import AgentConfig from '../../components/AgentConfig';
 import AppInfoConfig from '../../components/AppInfoConfig';
 import AppInfoConfigOption from '../../components/AppInfoConfigOption';
 import InstallNextSteps from '../../components/InstallNextSteps';
+import SEO from '../../components/SEO';
+import { TYPES } from '../../utils/constants';
 
 const slugify = (str) =>
   str
@@ -34,6 +36,7 @@ const InstallPage = ({ data, location }) => {
     agentConfigFile,
     whatsNext,
     agentName,
+    metaDescription,
   } = installConfig;
 
   const { queryParams, setQueryParam, deleteQueryParam } = useQueryParams();
@@ -42,6 +45,13 @@ const InstallPage = ({ data, location }) => {
   const [agentConfigUpdate, setAgentConfigUpdate] = useState([]);
 
   const tessen = useTessen();
+
+  const selectOptions = appInfo.map((select) => ({
+    ...select,
+    value: queryParams.has(select.optionType)
+      ? queryParams.get(select.optionType)
+      : null,
+  }));
 
   const capitalize = (word) => {
     let capitalizedWord = word.split('');
@@ -138,7 +148,7 @@ const InstallPage = ({ data, location }) => {
         <AppInfoConfig
           showGuided={showGuided}
           onChange={handleAppInfoStateChange}
-          selectOptions={appInfo}
+          selectOptions={selectOptions}
           mdx={mdx}
         />
       );
@@ -147,7 +157,7 @@ const InstallPage = ({ data, location }) => {
       return (
         <AppInfoConfigOption
           onChange={handleAppInfoStateChange}
-          selectOptions={appInfo}
+          selectOptions={selectOptions}
           optionType={optionType}
           mdx={mdx}
         />
@@ -174,84 +184,92 @@ const InstallPage = ({ data, location }) => {
   const headings = walkthroughSteps.map(({ stepHeadings }) => stepHeadings);
 
   return (
-    <Layout.Main
-      css={css`
-        display: grid;
-        grid-template-areas:
-          'mt-disclaimer mt-disclaimer'
-          'page-title page-title'
-          'content page-tools';
-        grid-template-columns: minmax(0, 1fr) 320px;
-        grid-column-gap: 2rem;
-
-        @media screen and (max-width: 1240px) {
-          grid-template-areas:
-            'mt-disclaimer'
-            'page-title'
-            'content'
-            'page-tools';
-          grid-template-columns: minmax(0, 1fr);
-        }
-      `}
-    >
-      <Layout.Content>
-        <PageTitle>{title}</PageTitle>
-        <div
-          css={css`
-            margin-bottom: 2rem;
-          `}
-        >
-          <MDXContainer body={intro.mdx?.body} />
-        </div>
-        <div>
-          <Walkthrough>
-            {walkthroughSteps.map(({ content, step: { mdx } }, index) => {
-              const { descriptionText, headingText } = mdx?.frontmatter;
-              return (
-                <Walkthrough.Step
-                  number={index + 1}
-                  title={headingText}
-                  active={selectedIndex === index}
-                  key={index}
-                  onMouseOver={() => handleSelectIndex(index)}
-                  onFocus={() => handleSelectIndex(index)}
-                  id={`${slugify(mdx.frontmatter?.headingText)}-${index + 1}`}
-                >
-                  {descriptionText && (
-                    <p
-                      css={css`
-                        margin-bottom: 2rem;
-                      `}
-                    >
-                      {descriptionText}
-                    </p>
-                  )}
-                  {content}
-                </Walkthrough.Step>
-              );
-            })}
-          </Walkthrough>
-        </div>
-        <InstallNextSteps mdx={whatsNext.mdx} />
-        <ContributingGuidelines
-          css={css`
-            @media (min-width: 1240px) {
-              display: none;
-            }
-          `}
-        />
-      </Layout.Content>
-      <Layout.PageTools
+    <>
+      <SEO
+        location={location}
+        title={title}
+        description={metaDescription}
+        type={TYPES.INTERACTIVE_INSTALL_PAGE}
+      />
+      <Layout.Main
         css={css`
-          @media (max-width: 1240px) {
-            display: none;
+          display: grid;
+          grid-template-areas:
+            'mt-disclaimer mt-disclaimer'
+            'page-title page-title'
+            'content page-tools';
+          grid-template-columns: minmax(0, 1fr) 320px;
+          grid-column-gap: 2rem;
+
+          @media screen and (max-width: 1240px) {
+            grid-template-areas:
+              'mt-disclaimer'
+              'page-title'
+              'content'
+              'page-tools';
+            grid-template-columns: minmax(0, 1fr);
           }
         `}
       >
-        <ContributingGuidelines />
-        <TableOfContents headings={headings} />
-      </Layout.PageTools>
-    </Layout.Main>
+        <Layout.Content>
+          <PageTitle>{title}</PageTitle>
+          <div
+            css={css`
+              margin-bottom: 2rem;
+            `}
+          >
+            <MDXContainer body={intro.mdx?.body} />
+          </div>
+          <div>
+            <Walkthrough>
+              {walkthroughSteps.map(({ content, step: { mdx } }, index) => {
+                const { descriptionText, headingText } = mdx?.frontmatter;
+                return (
+                  <Walkthrough.Step
+                    number={index + 1}
+                    title={headingText}
+                    active={selectedIndex === index}
+                    key={index}
+                    onMouseOver={() => handleSelectIndex(index)}
+                    onFocus={() => handleSelectIndex(index)}
+                    id={`${slugify(mdx.frontmatter?.headingText)}-${index + 1}`}
+                  >
+                    {descriptionText && (
+                      <p
+                        css={css`
+                          margin-bottom: 2rem;
+                        `}
+                      >
+                        {descriptionText}
+                      </p>
+                    )}
+                    {content}
+                  </Walkthrough.Step>
+                );
+              })}
+            </Walkthrough>
+          </div>
+          <InstallNextSteps mdx={whatsNext.mdx} />
+          <ContributingGuidelines
+            css={css`
+              @media (min-width: 1240px) {
+                display: none;
+              }
+            `}
+          />
+        </Layout.Content>
+        <Layout.PageTools
+          css={css`
+            @media (max-width: 1240px) {
+              display: none;
+            }
+          `}
+        >
+          <ContributingGuidelines />
+          <TableOfContents headings={headings} />
+        </Layout.PageTools>
+      </Layout.Main>
+    </>
   );
 };
 
