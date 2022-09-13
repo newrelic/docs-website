@@ -44,7 +44,7 @@ const InstallFeedback = () => {
           display: flex;
           flex-direction: row;
 
-          @media screen and (max-width: 1200px) {
+          @media screen and (max-width: 1500px) {
             flex-direction: column;
           }
         `}
@@ -53,7 +53,7 @@ const InstallFeedback = () => {
           css={css`
             margin-right: 10px;
 
-            @media screen and (max-width: 1200px) {
+            @media screen and (max-width: 1500px) {
               margin-bottom: 10px;
             }
           `}
