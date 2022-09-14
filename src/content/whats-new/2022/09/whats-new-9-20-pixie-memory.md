@@ -16,6 +16,6 @@ getStartedLink: 'https://docs.newrelic.com/docs/kubernetes-pixie/auto-telemetry-
 ## How to get started
 
 * By default, the vizier-pem's memory request is the same as the limit. 
-* If you want to specify a different memory request, you can add the following configuration parameter to your Helm chart during installation. For example, for a 1Gi memory request you'd use: **--set pixie-chart.pemMemoryRequest=1Gi**
+* If you want to specify a different memory request, you can add the following configuration parameter to your Helm chart during installation. For example, for a 1 GB memory request you'd use: **--set pixie-chart.pemMemoryRequest=1Gi**
 
 Learn more in [our Pixie docs](https://docs.newrelic.com/docs/kubernetes-pixie/auto-telemetry-pixie/advanced-configuration/manage-pixie-memory/).
