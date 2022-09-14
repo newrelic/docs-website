@@ -1,5 +1,5 @@
 ---
-title: 'Find performance bottlenecks and understand your Java application CPU usage'
+title: 'Use Pixie to find performance bottlenecks and understand your Java app CPU usage'
 summary: 'Find performance bottlenecks and understand your Java application CPU usage with Pixie’s continuous application profiling.'
 releaseDate: '2022-09-20'
 learnMoreLink: 'https://docs.newrelic.com/docs/kubernetes-pixie/auto-telemetry-pixie/understand-use-data/explore-pixie-data/' 
