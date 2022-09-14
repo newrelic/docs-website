@@ -143,7 +143,7 @@ const InstallFeedback = () => {
 
 const FeedbackResponse = ({ feedbackType }) => {
   const feedbackText =
-    feedbackType === 'Positive' ? 'Great!' : 'We\'re sorry to hear that';
+    feedbackType === 'Positive' ? 'Great!' : `We're sorry to hear that`;
 
   const feedbackStyles =
     feedbackType === 'Positive'
@@ -159,6 +159,11 @@ const FeedbackResponse = ({ feedbackType }) => {
           secondaryTextColor: '#ffffff',
           hoverButtonColor: '#ffffff',
         };
+
+  const callToActionText =
+    feedbackType === 'Positive'
+      ? `Any suggestions for how to make it even better?`
+      : `We'd love to hear what went wrong so we can fix it.`;
 
   return (
     <Surface
@@ -204,7 +209,7 @@ const FeedbackResponse = ({ feedbackType }) => {
             font-size: 1rem;
           `}
         >
-          Any suggestions for how to make it even better?
+          {callToActionText}
         </p>
       </div>
       <CreateIssueButton
