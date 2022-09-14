@@ -51,7 +51,7 @@ const InstallFeedback = () => {
       >
         <div
           css={css`
-            margin-right: 10px;
+            margin-right: 25px;
 
             @media screen and (max-width: 1500px) {
               margin-bottom: 10px;
@@ -60,17 +60,17 @@ const InstallFeedback = () => {
         >
           <h2
             css={css`
-              margin-bottom: 0;
+              margin-bottom: 1;
             `}
           >
             While you wait for your data to come in...
           </h2>
           <p
             css={css`
-              font-size: 1rem;
+              font-size: 1.3rem;
             `}
           >
-            Did this doc help make your installation a success?
+            Did this doc help you install?
           </p>
         </div>
         <div>
@@ -143,7 +143,7 @@ const InstallFeedback = () => {
 
 const FeedbackResponse = ({ feedbackType }) => {
   const feedbackText =
-    feedbackType === 'Positive' ? 'So glad to hear it!' : 'Sorry to hear that!';
+    feedbackType === 'Positive' ? 'Great!' : 'We\'re sorry to hear that';
 
   const feedbackStyles =
     feedbackType === 'Positive'
@@ -204,7 +204,7 @@ const FeedbackResponse = ({ feedbackType }) => {
             font-size: 1rem;
           `}
         >
-          Do you have a few minutes to let us know what you think?
+          Any suggestions for how to make it even better?
         </p>
       </div>
       <CreateIssueButton
