@@ -1,12 +1,6 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { css } from '@emotion/react';
-import {
-  Surface,
-  Button,
-  Icon,
-  CreateIssueButton,
-  useTessen,
-} from '@newrelic/gatsby-theme-newrelic';
+import { Surface, Button } from '@newrelic/gatsby-theme-newrelic';
 import InstallFeedback from './InstallFeedback';
 
 import MDXContainer from './MDXContainer';
