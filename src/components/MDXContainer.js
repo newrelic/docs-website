@@ -10,6 +10,7 @@ import {
 import LandingPageHero from './LandingPageHero';
 import LandingPageTile from './LandingPageTile';
 import LandingPageTileGrid from './LandingPageTileGrid';
+import InstallFeedback from './InstallFeedback';
 import MDXButton from './MDXButton';
 import MDXButtonGroup from './MDXButtonGroup';
 import MDXTechTileGrid from './MDXTechTileGrid';
@@ -74,6 +75,7 @@ const defaultComponents = {
   TabsBarItem: Tabs.BarItem,
   TabsPage: Tabs.Page,
   TabsPages: Tabs.Pages,
+  InstallFeedback,
 };
 
 const MDXContainer = ({ body, children, components }) => {
