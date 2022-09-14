@@ -528,15 +528,6 @@ module.exports = {
             }),
           },
         },
-        signup: {
-          environment: process.env.ENVIRONMENT || 'staging',
-          signupUrl:
-            process.env.SIGNUP_URL ||
-            'https://signup-receiver.staging-service.newrelic.com',
-          reCaptchaToken:
-            process.env.RECAPTCHA_TOKEN ||
-            '6LdMFd8UAAAAAApWFzm8YCyuGCUfg57U1WvqVYqC',
-        },
         shouldUpdateScroll: {
           routes: ['/attribute-dictionary'],
         },
