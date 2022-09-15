@@ -1,18 +1,13 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { css } from '@emotion/react';
-import {
-  Surface,
-  Button,
-  Icon,
-  CreateIssueButton,
-  useTessen,
-} from '@newrelic/gatsby-theme-newrelic';
+import { Surface, Button, Link } from '@newrelic/gatsby-theme-newrelic';
 import InstallFeedback from './InstallFeedback';
 
 import MDXContainer from './MDXContainer';
 
 const InstallNextSteps = ({ mdx, className }) => {
   const { body, frontmatter } = mdx;
+  const { troubleshootingLink } = frontmatter;
   return (
     <div className={className}>
       <InstallFeedback />
@@ -58,8 +53,14 @@ const InstallNextSteps = ({ mdx, className }) => {
           <Button
             css={css`
               background-color: var(--system-background-surface-1-light);
+              color: var(--color-black);
+              &:hover {
+                color: var(--color-black);
+              }
             `}
             variant={Button.VARIANT.OUTLINE}
+            as={Link}
+            to={troubleshootingLink}
           >
             Start troubleshooting.
           </Button>

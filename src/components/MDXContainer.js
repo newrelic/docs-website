@@ -73,7 +73,7 @@ const defaultComponents = {
   Tabs: Tabs,
   TabsBar: Tabs.Bar,
   TabsBarItem: Tabs.BarItem,
-  TabsPage: Tabs.Page,
+  TabsPageItem: Tabs.Page,
   TabsPages: Tabs.Pages,
   InstallFeedback,
 };
