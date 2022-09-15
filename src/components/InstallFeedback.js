@@ -37,105 +37,102 @@ const InstallFeedback = () => {
         align-items: center;
         border: 1px solid #afe2e3;
         background-color: rgba(175, 226, 227, 0.05);
+        @media screen and (max-width: 1500px) {
+          flex-direction: column;
+        }
       `}
     >
       <div
         css={css`
-          display: flex;
-          flex-direction: row;
+          margin-right: 10px;
 
           @media screen and (max-width: 1500px) {
-            flex-direction: column;
+            margin-bottom: 10px;
           }
         `}
       >
-        <div
+        <h2
           css={css`
-            margin-right: 10px;
+            margin-bottom: 0;
+          `}
+        >
+          While you wait for your data to come in...
+        </h2>
+        <p
+          css={css`
+            font-size: 1rem;
+          `}
+        >
+          Did this doc help make your installation a success?
+        </p>
+      </div>
+      <div
+        css={css`
+          display: flex;
+          flex-direction: row;
+        `}
+      >
+        <Button
+          variant={Button.VARIANT.LINK}
+          onClick={() => handleClick('Positive')}
+          css={css`
+            color: var(--primary-text-color);
+            border: 1px solid #0095a9;
+            border-radius: 0.5rem 0 0 0.5rem;
+            border-right-width: 0;
+            padding: 1rem 2rem;
 
-            @media screen and (max-width: 1500px) {
-              margin-bottom: 10px;
+            svg {
+              transition: color 200ms;
+            }
+
+            &:hover {
+              svg {
+                color: var(--secondary-text-color);
+                transition: color 200ms;
+              }
             }
           `}
         >
-          <h2
+          <Icon
+            size="1.25rem"
+            name="fe-thumbsup"
             css={css`
-              margin-bottom: 0;
+              margin-right: 0.5rem;
+              color: #0095a9;
             `}
-          >
-            While you wait for your data to come in...
-          </h2>
-          <p
-            css={css`
-              font-size: 1rem;
-            `}
-          >
-            Did this doc help make your installation a success?
-          </p>
-        </div>
-        <div>
-          <Button
-            variant={Button.VARIANT.LINK}
-            onClick={() => handleClick('Positive')}
-            css={css`
-              color: var(--primary-text-color);
-              border: 1px solid #0095a9;
-              border-radius: 0.5rem 0 0 0.5rem;
-              border-right-width: 0;
-              padding: 1rem 2rem;
+          />
+        </Button>
+        <Button
+          variant={Button.VARIANT.LINK}
+          onClick={() => handleClick('Negative')}
+          css={css`
+            color: var(--primary-text-color);
+            border: 1px solid #0095a9;
+            padding: 1rem 2rem;
+            border-radius: 0 0.5rem 0.5rem 0;
 
+            svg {
+              transition: color 200ms;
+            }
+
+            &:hover {
               svg {
+                color: var(--secondary-text-color);
                 transition: color 200ms;
               }
-
-              &:hover {
-                svg {
-                  color: var(--secondary-text-color);
-                  transition: color 200ms;
-                }
-              }
-            `}
-          >
-            <Icon
-              size="1.25rem"
-              name="fe-thumbsup"
-              css={css`
-                margin-right: 0.5rem;
-                color: #0095a9;
-              `}
-            />
-          </Button>
-          <Button
-            variant={Button.VARIANT.LINK}
-            onClick={() => handleClick('Negative')}
+            }
+          `}
+        >
+          <Icon
+            size="1.25rem"
+            name="fe-thumbsdown"
             css={css`
-              color: var(--primary-text-color);
-              border: 1px solid #0095a9;
-              padding: 1rem 2rem;
-              border-radius: 0 0.5rem 0.5rem 0;
-
-              svg {
-                transition: color 200ms;
-              }
-
-              &:hover {
-                svg {
-                  color: var(--secondary-text-color);
-                  transition: color 200ms;
-                }
-              }
+              margin-right: 0.5rem;
+              color: #0095a9;
             `}
-          >
-            <Icon
-              size="1.25rem"
-              name="fe-thumbsdown"
-              css={css`
-                margin-right: 0.5rem;
-                color: #0095a9;
-              `}
-            />
-          </Button>
-        </div>
+          />
+        </Button>
       </div>
     </Surface>
   );
