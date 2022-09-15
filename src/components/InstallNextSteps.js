@@ -49,7 +49,6 @@ const InstallNextSteps = ({ mdx, className }) => {
           >
             Still not seeing data?
           </h3>
-          <p>Follow our troubleshooting steps</p>
           <Button
             css={css`
               background-color: var(--system-background-surface-1-light);
@@ -62,7 +61,7 @@ const InstallNextSteps = ({ mdx, className }) => {
             as={Link}
             to={troubleshootingLink}
           >
-            Start troubleshooting.
+            See our troubleshooting doc
           </Button>
         </Surface>
       </div>
