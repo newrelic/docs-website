@@ -63,7 +63,7 @@ const InstallFeedback = () => {
             font-size: 1rem;
           `}
         >
-          Did this doc help make your installation a success?
+          Did this doc help you install?
         </p>
       </div>
       <div
