@@ -159,6 +159,9 @@ exports.createResolvers = ({ createResolvers }) => {
         resolve: async (source, _args, context) => {
           const { nodeModel } = context;
           const { filePath } = source.agentConfigFile;
+          if (!filePath) {
+            return null;
+          }
           const agentConfigFile = await nodeModel.findOne({
             type: 'File',
             query: {
