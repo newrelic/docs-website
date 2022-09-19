@@ -1,0 +1,271 @@
+---
+title: AWS VPC 흐름 로그 모니터링 설정
+tags:
+  - Integrations
+  - Network monitoring
+  - Installation
+  - Setup
+  - AWS
+metaDescription: Set up AWS VPC flow log monitoring.
+dataSource: aws-vpc-flow-logs
+translationType: machine
+---
+
+import awsVPCflowLogsIO from 'images/aws-vpc-flow-logs-IO.png';
+
+import kinesisFirehoseGuidedInstall from 'images/kinesis-firehose-aws-vpc-flow-logs.png';
+
+import overviewCloudFlowLogs from 'images/npm-overview-cloud-flow-logs.png';
+
+<Video
+  type="youtube"
+  id="ao_8izubBFw"
+/>
+
+Amazon Kinesis Data Firehose를 통한 Amazon Virtual Private Cloud Flow(VPC) 로그는 로그를 New Relic으로 보내는 마찰을 줄이는 데 도움이 됩니다. AWS 자산 전체의 VPC 흐름 로그를 사용하면 성능 분석 및 네트워크 연결 문제 해결을 위한 주요 통찰력을 빠르게 이해할 수 있습니다.
+
+<img
+  title="AWS VPC flow logs overview"
+  alt="AWS VPC flow logs overview"
+  src={overviewCloudFlowLogs}
+/>
+
+<figcaption>
+  **[New Relic 계정에 AWS VPC 흐름 로그를](https://one.newrelic.com/nr1-core?&state=bd947742-3034-63b7-7196-8baaf36dd8d9) 추가합니다** .
+</figcaption>
+
+Amazon Virtual Private Cloud(VPC)를 사용하면 확장 가능한 AWS 인프라를 사용하여 AWS 리소스를 격리되고 안전한 가상 네트워크로 시작할 수 있습니다.
+
+<ButtonLink
+  data-tessen="stitchedPathLinkClick"
+  role="button"
+  to="https://one.newrelic.com/nr1-core?&state=bd947742-3034-63b7-7196-8baaf36dd8d9"
+  variant="primary"
+>
+  AWS VPC 흐름 로그 추가
+</ButtonLink>
+
+## 전제 조건 [#prerequisites]
+
+### New Relic 전제 조건 [#prerequisites-NR]
+
+* New Relic 계정. 하나가 없습니까? [무료 가입!](https://newrelic.com/signup) 신용 카드가 필요하지 않습니다.
+
+### AWS 전제 조건 [#prerequisites-aws]
+
+<Callout variant="important">
+  Kinesis Data Firehose를 통한 AWS VPC 흐름 로그는 아직 FedRAMP 고객에게 지원되지 않습니다. 그동안 [FedRAMP 수집 API](/docs/security/security-privacy/compliance/fedramp-compliant-endpoints#data-ingest-apis) 를 사용할 수 있습니다.
+</Callout>
+
+* 환경:
+
+  * [AWS CLI(v 1.9.15+) 설치](https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2.html) .
+  * AWS VPC 흐름 로그를 수집하는 AWS 리전 목록입니다.
+
+* 권한:
+
+  * [VPC 흐름 로그를 생성할 수 있는 권한이](https://docs.aws.amazon.com/vpc/latest/userguide/flow-logs-s3.html#flow-logs-s3-iam) 있는 AWS 사용자.
+  * [로그 전송 소유자에 대한 읽기 및 쓰기](https://docs.aws.amazon.com/vpc/latest/userguide/flow-logs-s3.html#flow-logs-file-permissions) 권한이 있는 Amazon S3 로그 파일.
+
+* [Amazon 리소스 이름(ARN)](https://docs.aws.amazon.com/AmazonS3/latest/userguide/s3-arn-format.html) :
+
+  * [전달되지 않은 흐름 로그 메시지를 저장할](https://docs.aws.amazon.com/vpc/latest/userguide/flow-logs-s3.html#flow-logs-s3-permissions) 수 있는 권한이 있는 S3 버킷의 ARN입니다.
+
+  * [Kinesis Data Firehose가 IAM 역할을 맡도록](https://docs.aws.amazon.com/firehose/latest/dev/controlling-access.html#firehose-assume-role) 허용합니다.
+
+  * 샘플링을 활성화하려면 Lambda의 IAM 역할에 대한 ARN이 필요합니다.
+
+  * [VPC 흐름 로그를 제공하도록 구성될 VPC ID](https://awscli.amazonaws.com/v2/documentation/api/latest/reference/ec2/describe-vpcs.html) 입니다. 더 세분화된 제어를 원하면 VPC ID 대신 [서브넷 ID](https://awscli.amazonaws.com/v2/documentation/api/latest/reference/ec2/describe-subnets.html) 를 지정하십시오.
+
+  * [S3 버킷 액세스 권한이 있는 Kinesis Data Firehose](https://docs.aws.amazon.com/firehose/latest/dev/controlling-access.html#using-iam-s3) 의 ARN입니다.
+
+    <Callout variant="tip">특정 지역에 대한 VPC 흐름 로그를 처음 구성할 때 가이드 설치를 통해 새 데이터 Firehose를 생성하는 것이 좋습니다. 동일한 리전의 후속 VPC 및 서브넷의 경우 기존 데이터 Firehose를 재사용할 수 있습니다.</Callout>
+
+### IAM 역할 [#iam-roles]
+
+AWS CLI를 사용하여 흐름 로그 통합을 설정하는 경우 서로 다른 인프라 구성 요소에 대해 하나 또는 두 개의 IAM 역할을 제공해야 합니다. CloudFormation을 사용하는 경우 고유한 역할을 제공하거나 템플릿이 새 역할을 정의하도록 할 수 있습니다.
+
+필요한 역할에는 최소한 다음 권한이 있어야 합니다.
+
+<CollapserGroup>
+  <Collapser
+    id="kinesis-firehose"
+    title="Kinesis Firehose"
+  >
+    이 권한이 필요합니다.
+
+    ```json
+    {
+        "Version": "2012-10-17",
+        "Statement": [
+            {
+                "Sid": "",
+                "Effect": "Allow",
+                "Action": [
+                    "s3:AbortMultipartUpload",
+                    "s3:GetBucketLocation",
+                    "s3:GetObject",
+                    "s3:ListBucket",
+                    "s3:ListBucketMultipartUploads",
+                    "s3:PutObject"
+                ],
+                "Resource": [
+                    "arn:aws:s3:::<FIREHOSE_ERRORS_BUCKET>",
+                    "arn:aws:s3:::<FIREHOSE_ERRORS_BUCKET>/*"
+                ]
+            },
+            {
+                "Sid": "",
+                "Effect": "Allow",
+                "Action": [
+                    "lambda:InvokeFunction",
+                    "lambda:GetFunctionConfiguration"
+                ],
+                "Resource": [
+                    "arn:aws:lambda:us-west-2:<YOUR_ACCOUNT>:function:NewRelic-Flow-Sampling-Lambda",
+                    "arn:aws:lambda:us-west-2:<YOUR_ACCOUNT>:function:NewRelic-Flow-Sampling-Lambda:*"
+                ]
+            }
+        ]
+    }
+    ```
+  </Collapser>
+
+  <Collapser
+    id="aws-sampling-lambda"
+    title="AWS 샘플링 람다"
+  >
+    샘플링을 사용하는 경우에만 이 권한이 필요합니다.
+
+    ```json
+    {
+        "Version": "2012-10-17",
+        "Statement": [
+            {
+                "Action": "logs:CreateLogGroup",
+                "Resource": "arn:aws:logs:us-west-2:<YOUR_ACCOUNT>:*",
+                "Effect": "Allow"
+            },
+            {
+                "Action": [
+                    "logs:CreateLogStream",
+                    "logs:PutLogEvents"
+                ],
+                "Resource": [
+                    "arn:aws:logs:us-west-2:<YOUR_ACCOUNT>:log-group:/aws/lambda/NewRelic-Flow-Sampling-Lambda:*"
+                ],
+                "Effect": "Allow"
+            }
+        ]
+    }
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## New Relic에서 로그 포맷하기 [#NR-logs-format]
+
+선별된 흐름 로그 탐색 및 엔터티 연결을 사용하려면 VPC 흐름 로그에 대해 다음 형식을 따라야 합니다.
+
+```shell
+${version} ${account-id} ${region} ${az-id} ${sublocation-type} ${vpc-id} ${subnet-id} ${instance-id} ${interface-id} ${srcaddr} ${pkt-srcaddr} ${pkt-src-aws-service} ${dstaddr} ${pkt-dstaddr} ${pkt-dst-aws-service} ${srcport} ${dstport} ${protocol} ${packets} ${bytes} ${flow-direction} ${traffic-path} ${start} ${end} ${action} ${log-status}
+```
+
+<Callout variant="tip">
+  로그 필드에 대해 자세히 알아보려면 [VPC Amazon 설명서](https://docs.aws.amazon.com/vpc/latest/userguide/flow-logs.html#flow-logs-fields) 에서 사용 가능한 필드를 확인하십시오.
+</Callout>
+
+이름이 `Log_VPC_Flows_AWS` 인 VPC 흐름 로그에 대해 [로그 파티션](https://docs.newrelic.com/docs/logs/ui-data/data-partitions/) 을 사용해야 합니다. [안내 설치](https://one.newrelic.com/nr1-core?&state=bd947742-3034-63b7-7196-8baaf36dd8d9) 를 사용하는 경우 자동으로 처리됩니다.
+
+## New Relic에서 AWS VPC 흐름 로그 모니터링 설정 [#setup-aws-vpc-flow-logs]
+
+AWS VPC 흐름 로그용으로 설계된 대시보드가 포함된 번들을 설치하여 AWS VPC 흐름 로그를 설정할 수 있습니다.
+
+1. [AWS VPC 흐름 로그 ](https://newrelic.com/instant-observability/aws-vpc-flow-logs/61d2ff67-f519-492c-a8de-6019b47d5bb2)에 대한 New Relic Instant Observability 페이지로 이동합니다.<img title="AWS VPC flow logs I/O page" alt="AWS VPC flow logs instant observability page" src={awsVPCflowLogsIO}/>
+
+   <figcaption>
+     AWS VPC 흐름 로그 모니터링을 설정하기 위한 **[New Relic Instant Observability](https://newrelic.com/instant-observability/aws-vpc-flow-logs/61d2ff67-f519-492c-a8de-6019b47d5bb2)** .
+   </figcaption>
+
+2. **지금 설치** 를 클릭하여 New Relic 계정으로 이동하고 안내된 설치 프로세스를 따르십시오.
+
+3. [New Relic에서 네트워크 성능 데이터를 시각화하십시오](/docs/network-performance-monitoring/monitoring-network-data/visualize-network-data) .
+
+## 추가 AWS VPC 흐름 로그 보내기 [#additional-aws-vpc-flow-logs]
+
+또한 더 많은 AWS VPC 흐름 로그를 설치해야 하거나 사용자 지정 대시보드와 함께 번들을 설치하지 않으려면 다음 단계를 따르십시오.
+
+1. **[안내된 설치 프로세스를](https://one.newrelic.com/nr1-core?&state=bd947742-3034-63b7-7196-8baaf36dd8d9)** 시작합니다.
+2. **계정** 선택 드롭다운에서 AWS VPC 흐름 로그를 보낼 계정을 선택하고 **계속** 을 클릭합니다.
+3. **데이터 선택** 섹션에서 **AWS VPC 흐름 로그** 를 선택하고 **계속** 을 클릭합니다.
+4. **설치 방법 선택** 섹션에서 **CLI** 를 계속하고 **계속** 을 클릭합니다.
+
+이러한 단계가 끝나면 AWS Kinesis Firehose 서비스를 통해 AWS VPC 흐름 로그를 New Relic으로 전송하도록 설정하는 데 도움이 되는 새 마법사 팝업이 나타납니다.
+
+1. **설정 옵션 선택** 섹션에서:
+
+   * 설정 방법이 올바른지 확인하십시오.
+   * VPC 흐름 로그를 New Relic으로 보낼 AWS 리전을 선택합니다.
+   * 선택적으로 Kinesis Data Firehose를 재사용하는 경우 **Kinesis Firehose to New Relic이 있습니다.** 확인란을 선택하고 계속해서 **Define flow logs** 섹션.
+   * **계속** 을 클릭합니다.
+
+2. **Kinesis Firehose 정의** 섹션에서:
+
+   * **Kinesis Firehose 이름** 필드에서 생성된 이름이 올바른지 확인합니다.
+   * **Firehose Backup Bucket** 필드에 전달에 실패한 메시지를 저장하는 데 사용할 [S3 버킷의 ARN을](https://docs.aws.amazon.com/AmazonS3/latest/userguide/s3-arn-format.html) 입력합니다. ARN은 `arn:my_string` 형식을 따라야 합니다.
+   * **Firehose IAM 역할** 필드에 Kinesis Data Firehose에서 사용할 [IAM 역할의 ARN을](https://docs.aws.amazon.com/firehose/latest/dev/controlling-access.html#firehose-assume-role) 입력합니다. ARN은 `arn:my_string` 형식을 따라야 합니다.
+   * **계속** 을 클릭합니다.
+   * 선택적으로 VPC 흐름 로그를 **샘플링하려면 샘플링 사용** 확인란을 선택하고 다음을 수행합니다.
+
+<CollapserGroup>
+  <Collapser
+    id="sampling-lambda"
+    title="샘플링 람다 사용"
+  >
+    * 먼저 **샘플링 Lambda 정의** 섹션에서 다음을 수행합니다.
+
+      * **Lambda 이름** 필드에서 Lambda 함수에 대해 생성된 이름이 올바른지 확인합니다. 특정 Lambda 명명 표준이 있는 경우 이름을 편집합니다.
+      * **샘플 속도** 필드에서 적용할 샘플 속도를 지정합니다. 기본적으로 `1:10` 으로 설정됩니다.
+
+    * 그런 다음 **샘플링 Lambda** 생성 섹션에서 **CLI 명령 생성** 을 클릭하고 다음을 수행합니다.
+
+      * **샘플링 Lambda 생성** 을 위한 코드 블록의 내용을 복사하고 AWS CLI에서 실행합니다.
+      * Lambda가 생성되었는지 확인하려면 AWS CLI의 두 번째 단계에서 명령을 실행하십시오.
+      * Lambda 함수에 대해 반환된 ARN을 복사하고 `arn:my_string` 형식으로 **Sampling Lambda ARN** 필드에 붙여넣습니다. 그런 다음 **계속** 을 클릭합니다.
+
+      <Callout variant="tip">
+        샘플링은 단순한 카운트 기능이지만 New Relic으로 배송되는 플로우 로그의 양을 줄여줍니다. 이 Lambda 함수를 사용하여 샘플링된 데이터는 New Relic의 특정 대화를 놓칠 수 있습니다. New Relic의 네트워크 모니터링 UI에서 샘플링된 데이터를 나타내는 콜아웃에 주의하십시오.
+      </Callout>
+  </Collapser>
+</CollapserGroup>
+
+3. **Kinesis Firehose 생성** 섹션에서 **CLI 명령 생성** 을 클릭하고 다음을 수행합니다.
+
+<Callout variant="tip">
+  이 데이터 수집에 사용할 새 라이센스 키를 자동으로 생성합니다. 키를 재생성하려면 생성을 클릭 **하고 새 키를 사용합니다** .
+
+  기존 키를 재사용하려면 첫 번째 단계에서 `AccessKey` 값을 업데이트하세요.
+</Callout>
+
+* **Kinesis Data Firehose 생성** 을 위한 코드 블록의 내용을 복사하여 AWS CLI에서 붙여넣고 실행합니다.
+* Kinesis Firehose가 생성되었는지 확인하려면 AWS CLI의 두 번째 단계에서 명령을 실행합니다. ARN이 반환되지 않으면 30초 동안 기다렸다가 다시 시도하십시오.
+* Kinesis Firehose에 대해 반환된 ARN을 복사하여 `arn:my_string` 형식으로 **Kinesis Data Firehose ARN** 필드에 붙여넣습니다. 그런 다음 **계속** 을 클릭합니다.
+
+<img
+  title="Generate Kinesis Firehose"
+  alt="Generate Kinesis Firehose"
+  src={kinesisFirehoseGuidedInstall}
+/>
+
+<figcaption>
+  설치 안내에서 Kinesis Firehose 단계를 생성합니다.
+</figcaption>
+
+4. **흐름 로그 정의** 섹션에서 다음을 수행합니다.
+
+* **트래픽 유형** 드롭다운에서 수락된 항목만 보낼지, 거부된 항목만 보낼지 또는 모든 흐름 로그 항목을 보낼지 선택합니다.
+* **흐름 소스 ID** 필드에 AWS VPC 흐름 로그를 생성할 VPC ID( `vpc-MY_STRING` ) 또는 서브넷 ID( `subnet-MY_STRING` )를 입력합니다.
+* **흐름 소스 유형** 필드가 자동으로 채워지므로 **계속** 을 클릭합니다.
+
+5. **흐름 로그** 생성 섹션에서 **CLI 명령 생성** 을 클릭하고 구문 블록의 내용을 복사합니다. 그런 다음 AWS CLI에서 실행하여 지정된 리소스에 대한 흐름 로그 생성을 시작합니다.
+6. **계속** 을 클릭하여 New Relic의 네트워크 모니터링 섹션에서 AWS VPC 흐름 로그 탐색을 시작합니다.
+7. [New Relic에서 네트워크 성능 데이터를 시각화하십시오](/docs/network-performance-monitoring/monitoring-network-data/visualize-network-data) .

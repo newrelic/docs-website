@@ -1,24 +1,26 @@
 import React from 'react';
 import SVG from '@newrelic/gatsby-theme-newrelic/src/components/SVG';
+import styled from '@emotion/styled';
 
-const NewRelicIcon = (props) => {
-  return (
-    <SVG {...props} viewBox="0 0 32 32">
-      <g fill="none" fillRule="evenodd">
-        <path d="M16 11c-2.7 0-5 2.3-5 5s2.2 5 5 5 5-2.3 5-5-2.3-5-5-5z" />
-        <path
-          d="M29.8 13.1c-1.3-5.9-8.6-9.3-16.2-7.7C6 7 .9 13 2.2 18.9c1.3 5.9 8.6 9.3 16.2 7.7C26 25 31.1 18.9 29.8 13.1zM17 24c-4.4 0-8-3.6-8-8s3.6-8 8-8 8 3.6 8 8-3.6 8-8 8z"
-          fill="#008C99"
-          fillRule="nonzero"
-        />
-        <path
-          d="M17 8c-4.4 0-8 3.6-8 8s3.6 8 8 8 8-3.6 8-8-3.6-8-8-8zm-1 13c-2.8 0-5-2.3-5-5s2.2-5 5-5c2.7 0 5 2.3 5 5s-2.2 5-5 5z"
-          fill="#72CCD2"
-          fillRule="nonzero"
-        />
-      </g>
-    </SVG>
-  );
-};
+const Character = styled.path`
+  fill: var(--primary-text-color);
+`;
+
+const NewRelicIcon = (props) => (
+  <SVG {...props} viewBox="0 0 32 32">
+    <path
+      d="M23.2043 11.0778V20.9232L14.6196 25.8469V32.0005L28.5741 24.001V8L23.2043 11.0778Z"
+      fill="#00AC69"
+    />
+    <path
+      d="M14.6209 6.15563L23.2056 11.0773L28.5754 7.9995L14.6209 0L0.666504 7.9995L6.03422 11.0773L14.6209 6.15563Z"
+      fill="#1CE783"
+    />
+    <Character
+      className="text-color"
+      d="M9.25323 19.0793V28.9247L14.6209 32.0005V16.0015L0.666504 8V14.1556L9.25323 19.0793Z"
+    />
+  </SVG>
+);
 
 export default NewRelicIcon;
