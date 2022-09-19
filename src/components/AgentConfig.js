@@ -49,13 +49,15 @@ const AgentConfig = ({ inputOptions, config, tipMdx, onChange }) => {
               label={label}
               codeLine={parseInt(codeLine)}
               defaultValue={defaultValue}
-              value={state[idx].value}
+              placeholder={defaultValue}
+              value={state[idx].value ?? defaultValue}
               url={url}
               onChange={(e) => handleChange(e.target.value, idx, name)}
               toolTip={toolTip}
               css={css`
                 margin-bottom: 1.5rem;
               `}
+              containerId="agent-config-codeblock"
             />
           )
         )}
@@ -68,6 +70,7 @@ const AgentConfig = ({ inputOptions, config, tipMdx, onChange }) => {
       <InteractiveOutput
         inputs={state}
         config={config}
+        containerId="agent-config-codeblock"
         css={css`
           margin-top: 1rem;
           width: 49%;
