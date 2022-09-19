@@ -195,11 +195,13 @@ const aggregateStatuses = (slugStatuses) => {
  * @param {SlugStatus[]} slugStatuses
  * @returns {Promise<void>}
  */
-const updateTranslationRecords = async (project_id, slugStatuses) => {
+const updateTranslationRecords = async (slugStatuses) => {
+  // TODO: need to update this when we implement multiple locales. This only works for one locale.
+
   await Promise.all(
     slugStatuses.map(async ({ locale, slug }) => {
       const records = await updateTranslations(
-        { slug, status: StatusEnum.IN_PROGRESS, locale, project_id },
+        { slug, status: StatusEnum.IN_PROGRESS, locale },
         { status: StatusEnum.COMPLETED }
       );
 
@@ -282,8 +284,7 @@ const main = async () => {
     const erroredStatuses = slugStatuses.filter(({ ok }) => !ok);
 
     logErroredStatuses(erroredStatuses);
-
-    await updateTranslationRecords(PROJECT_ID, slugStatuses);
+    await updateTranslationRecords(slugStatuses);
 
     const results = aggregateStatuses(slugStatuses);
 

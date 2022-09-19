@@ -7,6 +7,5 @@ events:
 
 The reason the violation was opened. Available values: 
 
-* `threshold` (the condition threshold was breached)
-* `expiration` (the entity's signal was lost)
-* `anomaly` (an automatic anomaly was generated)
+* `Threshold` (the condition threshold was breached)
+* `Expiration` (the entity's signal was lost)

@@ -86,9 +86,6 @@ const fetchTranslatedFilesZip = (locale) => {
    * @returns {Promise<AdmZip|null>}
    */
   return async ({ fileUris }) => {
-    fileUris = fileUris.filter(
-      (uri) => uri !== 'src/announcements/q2-survey.mdx'
-    );
     const fileUriStr = fileUris.reduce((str, uri) => {
       return str.concat(`&fileUris[]=${encodeURIComponent(uri)}`);
     }, '');
