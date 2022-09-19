@@ -120,11 +120,11 @@ const InstallPage = ({ data, location }) => {
         const isOverrided = selectedOptions.every(matchOverride);
 
         if (isOverrided) {
-          return renderFromComponentType(override);
+          return { content: renderFromComponentType(override), step: override };
         }
       }
     }
-    return renderFromComponentType(step);
+    return { content: renderFromComponentType(step), step };
   };
 
   const renderFromComponentType = ({ mdx, skip }) => {
@@ -168,10 +168,11 @@ const InstallPage = ({ data, location }) => {
   };
 
   const walkthroughSteps = steps
-    .map((step, index) => {
+    .map((stepsItem, index) => {
+      const { content, step } = renderStep(stepsItem);
       const { mdx } = step;
       return {
-        content: renderStep(step),
+        content,
         step,
         stepHeadings: {
           id: `${slugify(mdx.frontmatter?.headingText)}-${index + 1}`,
