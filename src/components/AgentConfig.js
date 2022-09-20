@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { css } from '@emotion/react';
 import PropTypes from 'prop-types';
 import {
-  Callout,
   CustomTextInput,
   InteractiveOutput,
 } from '@newrelic/gatsby-theme-newrelic';
@@ -49,6 +48,7 @@ const AgentConfig = ({ inputOptions, config, tipMdx, onChange }) => {
               label={label}
               codeLine={parseInt(codeLine)}
               defaultValue={defaultValue}
+              placeholder={defaultValue}
               value={state[idx].value}
               url={url}
               onChange={(e) => handleChange(e.target.value, idx, name)}
@@ -56,18 +56,16 @@ const AgentConfig = ({ inputOptions, config, tipMdx, onChange }) => {
               css={css`
                 margin-bottom: 1.5rem;
               `}
+              containerId="agent-config-codeblock"
             />
           )
         )}
-        {body && (
-          <Callout variant={Callout.VARIANT.TIP}>
-            <MDXContainer body={body} />
-          </Callout>
-        )}
+        {body && <MDXContainer body={body} />}
       </div>
       <InteractiveOutput
         inputs={state}
         config={config}
+        containerId="agent-config-codeblock"
         css={css`
           margin-top: 1rem;
           width: 49%;
