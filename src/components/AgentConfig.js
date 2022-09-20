@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { css } from '@emotion/react';
 import PropTypes from 'prop-types';
 import {
-  Callout,
   CustomTextInput,
   InteractiveOutput,
 } from '@newrelic/gatsby-theme-newrelic';
@@ -59,11 +58,7 @@ const AgentConfig = ({ inputOptions, config, tipMdx, onChange }) => {
             />
           )
         )}
-        {body && (
-          <Callout variant={Callout.VARIANT.TIP}>
-            <MDXContainer body={body} />
-          </Callout>
-        )}
+        {body && <MDXContainer body={body} />}
       </div>
       <InteractiveOutput
         inputs={state}
