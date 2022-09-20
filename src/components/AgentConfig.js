@@ -50,7 +50,7 @@ const AgentConfig = ({ inputOptions, config, tipMdx, onChange }) => {
               codeLine={parseInt(codeLine)}
               defaultValue={defaultValue}
               placeholder={defaultValue}
-              value={state[idx].value ?? defaultValue}
+              value={state[idx].value}
               url={url}
               onChange={(e) => handleChange(e.target.value, idx, name)}
               toolTip={toolTip}
