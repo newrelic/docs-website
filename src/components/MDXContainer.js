@@ -17,6 +17,7 @@ import MDXTechTileGrid from './MDXTechTileGrid';
 import PropTypes from 'prop-types';
 import React from 'react';
 import TechTile from './TechTile';
+import WhatsNextTile from './WhatsNextTile';
 
 const defaultComponents = {
   img: (props) =>
@@ -76,6 +77,7 @@ const defaultComponents = {
   TabsPageItem: Tabs.Page,
   TabsPages: Tabs.Pages,
   InstallFeedback,
+  WhatsNextTile,
 };
 
 const MDXContainer = ({ body, children, components }) => {
