@@ -134,13 +134,14 @@ const InstallPage = ({ data, location }) => {
     const { frontmatter, body } = mdx;
     const { componentType } = frontmatter;
     if (componentType === 'agentConfig') {
-      const { inputOptions } = frontmatter;
+      const { inputOptions, tipMdx } = frontmatter;
       return (
         <AgentConfig
           config={agentConfigFile?.internal?.content}
           inputOptions={inputOptions}
-          tipMdx={mdx}
+          tipMdx={tipMdx}
           onChange={handleAgentConfigChange}
+          mdx={mdx}
         />
       );
     } else if (componentType === 'appInfoConfig') {
@@ -280,6 +281,9 @@ export const pageQuery = graphql`
     frontmatter {
       componentType
       optionType
+      tipMdx {
+        body
+      }
       inputOptions {
         codeLine
         defaultValue

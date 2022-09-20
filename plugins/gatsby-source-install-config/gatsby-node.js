@@ -112,6 +112,7 @@ exports.createSchemaCustomization = ({ actions }) => {
       inputOptions: [InputOption]
       agentConfigFilePath: String
       optionType: String
+      tipMdx: Mdx
     }
     type InputOption @dontInfer { 
       name: String!
@@ -214,9 +215,22 @@ exports.createResolvers = ({ createResolvers }) => {
   });
 };
 
+const findTipMdx = (frontmatter, files) => {
+  if (frontmatter.componentType === 'agentConfig') {
+    const { tipMdxFilePath } = frontmatter;
+    const tipMdx = findMdxFile(tipMdxFilePath, files);
+    frontmatter.tipMdx = tipMdx;
+    return frontmatter;
+  }
+  return frontmatter;
+};
+
 const mapStepToMdx = (step, files) => {
   const { filePath, overrides } = step;
   const mdx = findMdxFile(filePath, files);
+  const { frontmatter } = mdx;
+  mdx.frontmatter = findTipMdx(frontmatter, files);
+
   if (!overrides) {
     return { ...step, mdx };
   }

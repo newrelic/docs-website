@@ -8,9 +8,9 @@ import {
 } from '@newrelic/gatsby-theme-newrelic';
 import MDXContainer from './MDXContainer';
 
-const AgentConfig = ({ inputOptions, config, tipMdx, onChange }) => {
+const AgentConfig = ({ inputOptions, config, tipMdx, onChange, mdx }) => {
   const [state, setState] = useState([...inputOptions]);
-  const { body } = tipMdx;
+  const { body } = mdx;
 
   const handleChange = (value, idx, name) => {
     setState([
@@ -22,75 +22,84 @@ const AgentConfig = ({ inputOptions, config, tipMdx, onChange }) => {
   };
 
   return (
-    <div
-      css={css`
-        display: flex;
-        justify-content: space-between;
-        width: 100%;
-        position: relative;
-        @media screen and (max-width: 1000px) {
-          flex-direction: column;
-        }
-      `}
-    >
+    <>
       <div
         css={css`
-          width: 49%;
+          display: flex;
+          justify-content: space-between;
+          width: 100%;
+          position: relative;
           @media screen and (max-width: 1000px) {
-            width: 100%;
+            flex-direction: column;
           }
         `}
       >
-        {inputOptions.map(
-          ({ name, label, codeLine, defaultValue, toolTip, url }, idx) => (
-            <CustomTextInput
-              name={name}
-              key={name}
-              label={label}
-              codeLine={parseInt(codeLine)}
-              defaultValue={defaultValue}
-              value={state[idx].value}
-              url={url}
-              onChange={(e) => handleChange(e.target.value, idx, name)}
-              toolTip={toolTip}
-              css={css`
-                margin-bottom: 1.5rem;
-              `}
-            />
-          )
-        )}
-        {body && (
-          <Callout variant={Callout.VARIANT.TIP}>
-            <MDXContainer body={body} />
-          </Callout>
-        )}
-      </div>
-      <InteractiveOutput
-        inputs={state}
-        config={config}
-        css={css`
-          margin-top: 1rem;
-          width: 49%;
-          @media screen and (max-width: 1000px) {
-            width: 100%;
-          }
-
-          #codeblock {
-            // removing the height of the buttons at the top or it overflows
-            max-height: calc(100% - 50px);
-          }
-          > div {
-            height: calc(100% - 16px);
-            position: absolute;
-            width: inherit;
+        <div
+          css={css`
+            width: 49%;
             @media screen and (max-width: 1000px) {
-              position: relative;
-              height: 400px;
+              width: 100%;
             }
-          }
+          `}
+        >
+          {inputOptions.map(
+            ({ name, label, codeLine, defaultValue, toolTip, url }, idx) => (
+              <CustomTextInput
+                name={name}
+                key={name}
+                label={label}
+                codeLine={parseInt(codeLine)}
+                defaultValue={defaultValue}
+                value={state[idx].value}
+                url={url}
+                onChange={(e) => handleChange(e.target.value, idx, name)}
+                toolTip={toolTip}
+                css={css`
+                  margin-bottom: 1.5rem;
+                `}
+              />
+            )
+          )}
+          {tipMdx.body && (
+            <Callout variant={Callout.VARIANT.TIP}>
+              <MDXContainer body={tipMdx.body} />
+            </Callout>
+          )}
+        </div>
+        <InteractiveOutput
+          inputs={state}
+          config={config}
+          css={css`
+            margin-top: 1rem;
+            width: 49%;
+            @media screen and (max-width: 1000px) {
+              width: 100%;
+            }
+
+            #codeblock {
+              // removing the height of the buttons at the top or it overflows
+              max-height: calc(100% - 50px);
+            }
+            > div {
+              height: calc(100% - 16px);
+              position: absolute;
+              width: inherit;
+              @media screen and (max-width: 1000px) {
+                position: relative;
+                height: 400px;
+              }
+            }
+          `}
+        />
+      </div>
+      <div
+        css={css`
+          padding-top: 1.5rem;
         `}
-      />
-    </div>
+      >
+        {body && <MDXContainer body={body} />}
+      </div>
+    </>
   );
 };
 
