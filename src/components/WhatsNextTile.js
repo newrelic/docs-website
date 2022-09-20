@@ -2,7 +2,7 @@ import React from 'react';
 import { css } from '@emotion/react';
 import { Surface } from '@newrelic/gatsby-theme-newrelic';
 
-const WhatsNextTile = ({ children, title, center }) => {
+const WhatsNextTile = ({ children, title, alignment }) => {
   return (
     <Surface
       base={Surface.BASE.PRIMARY}
@@ -11,8 +11,8 @@ const WhatsNextTile = ({ children, title, center }) => {
         height: 100%;
         display: flex;
         flex-direction: column;
-        justify-content: ${center ? 'center' : 'flex-start'};
-        align-items: ${center ? 'center' : 'flex-start'};
+        justify-content: ${alignment === 'center' ? 'center' : 'flex-start'};
+        align-items: ${alignment === 'center' ? 'center' : 'flex-start'};
       `}
     >
       <div>
