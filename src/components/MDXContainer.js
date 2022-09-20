@@ -5,6 +5,8 @@ import {
   MDX,
   MarkdownContainer,
   Tabs,
+  SideBySide,
+  Side,
 } from '@newrelic/gatsby-theme-newrelic';
 
 import LandingPageHero from './LandingPageHero';
@@ -78,6 +80,8 @@ const defaultComponents = {
   TabsPages: Tabs.Pages,
   InstallFeedback,
   WhatsNextTile,
+  Side,
+  SideBySide,
 };
 
 const MDXContainer = ({ body, children, components }) => {
