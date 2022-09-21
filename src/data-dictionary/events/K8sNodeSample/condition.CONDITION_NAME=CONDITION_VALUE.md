@@ -1,5 +1,5 @@
 ---
-name: condition.{conditionName}={conditionValue}
+name: condition.CONDITION_NAME=CONDITION_VALUE
 type: attribute
 units:
 events:

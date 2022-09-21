@@ -1,5 +1,5 @@
 ---
-name: workqueueAddsDelta_name_WORK-QUEUE-NAME
+name: workqueueAddsDelta_name_WORK_QUEUE_NAME
 type: attribute
 units:
 events:

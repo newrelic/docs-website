@@ -1,5 +1,5 @@
 ---
-name: etcdObjectCounts_resource_RESOURCE-KIND
+name: etcdObjectCounts_resource_RESOURCE_KIND
 type: attribute
 units:
 events:
