@@ -73,7 +73,7 @@ const AgentConfig = ({ inputOptions, config, tipMdx, onChange }) => {
             width: 100%;
           }
 
-          #codeblock {
+          #agent-config-codeblock {
             // removing the height of the buttons at the top or it overflows
             max-height: calc(100% - 50px);
           }
