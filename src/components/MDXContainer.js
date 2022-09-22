@@ -5,6 +5,8 @@ import {
   MDX,
   MarkdownContainer,
   Tabs,
+  SideBySide,
+  Side,
 } from '@newrelic/gatsby-theme-newrelic';
 
 import LandingPageHero from './LandingPageHero';
@@ -17,6 +19,7 @@ import MDXTechTileGrid from './MDXTechTileGrid';
 import PropTypes from 'prop-types';
 import React from 'react';
 import TechTile from './TechTile';
+import WhatsNextTile from './WhatsNextTile';
 
 const defaultComponents = {
   img: (props) =>
@@ -73,9 +76,12 @@ const defaultComponents = {
   Tabs: Tabs,
   TabsBar: Tabs.Bar,
   TabsBarItem: Tabs.BarItem,
-  TabsPage: Tabs.Page,
+  TabsPageItem: Tabs.Page,
   TabsPages: Tabs.Pages,
   InstallFeedback,
+  WhatsNextTile,
+  Side,
+  SideBySide,
 };
 
 const MDXContainer = ({ body, children, components }) => {
