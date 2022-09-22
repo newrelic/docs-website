@@ -7,7 +7,7 @@ learnMoreLink: 'https://discuss.newrelic.com/t/july-2022-end-of-life-announcemen
 
 This quarter we are discontinuing capabilities and features across the following products. If you have questions or concerns, please comment on [this Explorers Hub post](https://discuss.newrelic.com/t/july-2022-end-of-life-announcements/188318), or reach out to your account management team.
 
-**Support ending July 2022**
+**Support ending August 2022**
 
 **Python agent 3.6
 *PHP agent (certain versions, frameworks, platforms)*
