@@ -48,6 +48,7 @@ const AgentConfig = ({ inputOptions, config, tipMdx, onChange }) => {
               label={label}
               codeLine={parseInt(codeLine)}
               defaultValue={defaultValue}
+              placeholder={defaultValue}
               value={state[idx].value}
               url={url}
               onChange={(e) => handleChange(e.target.value, idx, name)}
@@ -55,6 +56,7 @@ const AgentConfig = ({ inputOptions, config, tipMdx, onChange }) => {
               css={css`
                 margin-bottom: 1.5rem;
               `}
+              containerId="agent-config-codeblock"
             />
           )
         )}
@@ -63,6 +65,7 @@ const AgentConfig = ({ inputOptions, config, tipMdx, onChange }) => {
       <InteractiveOutput
         inputs={state}
         config={config}
+        containerId="agent-config-codeblock"
         css={css`
           margin-top: 1rem;
           width: 49%;
@@ -70,7 +73,7 @@ const AgentConfig = ({ inputOptions, config, tipMdx, onChange }) => {
             width: 100%;
           }
 
-          #codeblock {
+          #agent-config-codeblock {
             // removing the height of the buttons at the top or it overflows
             max-height: calc(100% - 50px);
           }
