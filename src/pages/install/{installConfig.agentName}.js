@@ -294,7 +294,6 @@ export const pageQuery = graphql`
       headingText
       descriptionText
       agentConfigFilePath
-      troubleshootingLink
     }
   }
 
