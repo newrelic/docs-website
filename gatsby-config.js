@@ -455,6 +455,7 @@ module.exports = {
             'mustache',
             'powershell',
             'promql',
+            'properties',
             'protobuf',
             'puppet',
             'jsx',
