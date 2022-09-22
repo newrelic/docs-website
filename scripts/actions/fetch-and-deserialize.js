@@ -87,43 +87,8 @@ const fetchTranslatedFilesZip = (locale) => {
    */
   return async ({ fileUris }) => {
     fileUris = fileUris.filter(
-      (uri) =>
-        uri !==
-          'src/content/docs/distributed-tracing/concepts/how-new-relic-distributed-tracing-works.mdx' &&
-        uri !==
-          'src/content/docs/logs/logs-context/java-configure-logs-context-all.mdx' &&
-        uri !==
-          'src/content/docs/data-apis/understand-data/new-relic-data-types.mdx' &&
-        uri !==
-          'src/content/docs/apis/nerdgraph/get-started/introduction-new-relic-nerdgraph.mdx' &&
-        uri !==
-          'src/content/docs/infrastructure/install-infrastructure-agent/configuration/infrastructure-agent-configuration-settings.mdx' &&
-        uri !==
-          'src/content/docs/new-relic-solutions/new-relic-one/install-configure/install-new-relic.mdx' &&
-        uri !==
-          'src/content/docs/accounts/accounts-billing/new-relic-one-user-management/user-type.mdx' &&
-        uri !==
-          'src/content/docs/apm/agents/java-agent/getting-started/compatibility-requirements-java-agent.mdx' &&
-        uri !==
-          'src/content/docs/logs/forward-logs/forward-your-logs-using-infrastructure-agent.mdx' &&
-        uri !==
-          'src/content/docs/infrastructure/elastic-container-service-integration/installation/install-ecs-integration.mdx' &&
-        uri !==
-          'src/content/docs/kubernetes-pixie/kubernetes-integration/installation/kubernetes-integration-install-configure.mdx' &&
-        uri !==
-          'src/content/docs/accounts/accounts-billing/new-relic-one-pricing-billing/new-relic-one-pricing-billing.mdx' &&
-        uri !==
-          'src/content/docs/new-relic-solutions/get-started/networks.mdx' &&
-        uri !==
-          'src/content/docs/apm/agents/nodejs-agent/installation-configuration/nodejs-agent-configuration.mdx' &&
-        uri !==
-          'src/content/docs/alerts-applied-intelligence/new-relic-alerts/alert-conditions/create-nrql-alert-conditions.mdx' &&
-        uri !==
-          'src/content/docs/new-relic-solutions/get-started/intro-new-relic.mdx' &&
-        uri !==
-          'src/content/docs/apm/agents/nodejs-agent/getting-started/compatibility-requirements-nodejs-agent.mdx'
+      (uri) => uri !== 'src/announcements/q2-survey.mdx'
     );
-    console.log(fileUris);
     const fileUriStr = fileUris.reduce((str, uri) => {
       return str.concat(`&fileUris[]=${encodeURIComponent(uri)}`);
     }, '');
