@@ -442,6 +442,7 @@ module.exports = {
             'elixir',
             'erlang',
             'gettext',
+            'ini',
             'pascal',
             'parser',
             'nginx',
