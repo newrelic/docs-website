@@ -12,14 +12,6 @@ import LogParsing from 'images/log-parsing072822.png'
 
 解析は、非構造化ログデータを属性（キーと値のペア）に分割するプロセスです。これらの属性を使用して、便利な方法でログをファセットまたはフィルタリングできます。これにより、より優れたチャートとアラートを作成できます。
 
-解析を開始するには、YouTubeで次のビデオチュートリアルをご覧ください（約4分半）。
-
-<Video
-  id="PD7zGXqS0P0"
-  type="youtube"
-  width="560px"
-/>
-
 New Relicは、ルールに従ってログデータを解析します。このドキュメントでは、ログの解析のしくみ、組み込みのルールの使用方法、およびカスタムルールの作成方法について説明します。
 
 api.newrelic.com/graphiqlにあるGraphQLAPIである[NerdGraph](https://api.newrelic.com/graphiql)を使用して、ログ解析ルールを作成、クエリ、および管理することもできます。詳細については[、解析に関するNerdGraphチュートリアルを](/docs/apis/nerdgraph/examples/nerdgraph-log-parsing-rules-tutorial/)参照してください。
@@ -112,6 +104,8 @@ Grokは正規表現のスーパーセットであり、リテラルの複雑な�
 
 一致する文字列では、いつでも正規表現とGrokパターン名を組み合わせて使用できます。詳細については、 [Grok構文とサポートされているタイプ](#grok-syntax)のリストを参照してください。
 
+変数名は明示的に設定し、 `%{URI:uri}`のように小文字にする必要があります。`%{URI}`や`%{URI:URI}`などの式は機能しません。
+
 Grok解析ルールパターンを作成するときにGrokデバッガーを使用する方法については、YouTubeビデオ（約6分）をご覧ください。
 
 <Video
@@ -160,7 +154,7 @@ Grok解析ルールパターンを作成するときにGrokデバッガーを使
 
     1. ルールに名前を付けます。たとえば、 `Inventory Services error parsing` 。
 
-    2. 受信ログのプレフィルターとして機能する属性/値のペアを特定します。たとえば、 `entity.name`と値`Inventory Service` 。このプレフィルターは、ルールで処理する必要のあるログの数を絞り込み、不要な処理を削除します。
+    2. 着信ログのプレフィルターとして機能する NRQL `WHERE`句を特定します。たとえば、 `entity.name='Inventory Service'`です。このプレフィルターは、ルールで処理する必要があるログの数を絞り込み、不要な処理を削除します。
 
     3. Grok解析ルールを追加します。例えば：
 
@@ -286,8 +280,53 @@ Grok解析ルールパターンを作成するときにGrokデバッガーを使
               ISO8601時間として `long`
             </td>
           </tr>
+
+          <tr>
+            <td>
+              `json`
+            </td>
+
+            <td>
+              JSON 構造化データ。詳細について[は、プレーン テキストと混合した JSON の解析](#parsing-json)を参照してください。
+            </td>
+          </tr>
         </tbody>
       </table>
+  </Collapser>
+
+  <Collapser
+    id="parsing-json"
+    title="プレーンテキストと混合した JSON の解析"
+  >
+    New Relic ログ パイプラインは、デフォルトでログ JSON メッセージを解析しますが、JSON ログ メッセージがプレーン テキストと混在している場合があります。この状況では、それらを解析して、JSON 属性を使用してフィルタリングできるようにする必要がある場合があります。
+
+    その場合は、 `json` [grok type](#grok-syntax)を使用できます。これは、grok パターンによってキャプチャされた JSON を解析します。この形式は、grok 構文、解析された json 属性に割り当てるプレフィックス、 `json` [grok タイプ](#grok-syntax)の 3 つの主要部分に依存しています。`json` [grok type](#grok-syntax)を使用すると、適切にフォーマットされていないログから JSON を抽出して解析できます。たとえば、ログに日付/時刻の文字列がプレフィックスとして付けられている場合:
+
+    ```
+    2015-05-13T23:39:43.945958Z {"event": "TestRequest", "status": 200, "response": {"headers": {"X-Custom": "foo"}}, "request": {"headers": {"X-Custom": "bar"}}}
+    ```
+
+    このログ形式から JSON データを抽出して解析するには、次の Grok 式を作成します。
+
+    ```
+    %{TIMESTAMP_ISO8601:containerTimestamp} %{GREEDYDATA:my_attribute_prefix:json}
+    ```
+
+    結果のログは次のとおりです。
+
+    ```
+    containerTimestamp: "2015-05-13T23:39:43.945958Z"
+    my_attribute_prefix.event: "TestRequest"
+    my_attribute_prefix.status: 200
+    my_attribute_prefix.response.headers.X-Custom: "foo"
+    my_attribute_prefix.request.headers.X-Custom: "bar"
+    ```
+
+    オプションで、 `:json(_CONFIG_)`を使用して`json` [grok タイプ](#grok-syntax)を構成できます。
+
+    * `json({"dropOriginal": true})`: 解析で使用された JSON スニペットをドロップします。`true` (デフォルト値) に設定すると、解析ルールは元の JSON スニペットを削除します。JSON 属性はメッセージ フィールドに残ることに注意してください。
+    * `json({"dropOriginal": false})`: 抽出された JSON ペイロードが表示されます。`false`に設定すると、完全な JSON のみのペイロードが上記の`my_attribute_prefix`で指定された属性の下に表示されます。ここでは、JSON 属性がメッセージ フィールドに残り、ユーザーに JSON データの 3 つの異なるビューを提供することに注意してください。3 つのバージョンすべての保存が懸念される場合は、ここでデフォルトの`true`を使用することをお勧めします。
+    * `json({"depth": 62})`: JSON 値を解析する深さのレベル (デフォルトは 62)。
   </Collapser>
 </CollapserGroup>
 
@@ -706,7 +745,7 @@ New Relicのログ取り込みパイプラインは、ログイベントをロ�
       - name: file-simple
         file: /path/to/file
         attributes:
-          logtype: fileRaw  
+          logtype: fileRaw
       - name: nginx-example
         file: /var/log/nginx.log
         attributes:
