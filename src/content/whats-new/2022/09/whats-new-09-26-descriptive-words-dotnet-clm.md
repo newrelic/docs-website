@@ -16,6 +16,6 @@ This update lets you:
 
 **How to get started**
 * Install New Relic [CodeStream's IDE Extension](https://newrelic.com/codestream#getstarted) and sign up.
-* Update and configure your [.NET APM agent](https://docs.newrelic.com/docs/apm/agents/net-agent/other-features/net-codestream-integration/)
+* Update and configure your [.NET APM agent](https://docs.newrelic.com/docs/apm/agents/net-agent/other-features/net-codestream-integration/).
 * Read the [blog post](https://newrelic.com/blog/nerdlog/codestream-code-level-metrics) for more information.
 
