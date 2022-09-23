@@ -154,6 +154,15 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
           isDefault
         }
       }
+
+      allInstallConfig {
+        edges {
+          node {
+            redirects
+            agentName
+          }
+        }
+      }
     }
   `);
 
@@ -169,6 +178,7 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
     releaseNotes,
     landingPagesReleaseNotes,
     allLocale,
+    allInstallConfig,
     whatsNewPosts,
   } = data;
 
@@ -185,6 +195,18 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
         redirectInBrowser: true,
       });
     });
+  });
+
+  allInstallConfig.edges.forEach(({ node: { redirects, agentName } }) => {
+    redirects.length &&
+      redirects.forEach((redirect) =>
+        createLocalizedRedirect({
+          locales,
+          fromPath: redirect,
+          toPath: `/install/${agentName}/`,
+          createRedirect,
+        })
+      );
   });
 
   releaseNotes.group.forEach((el) => {

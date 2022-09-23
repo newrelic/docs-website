@@ -17,6 +17,7 @@ exports.sourceNodes = ({
       agentConfigFilePath,
       steps,
       agentName,
+      redirects,
     } = configYamlNode;
 
     const data = {
@@ -24,6 +25,7 @@ exports.sourceNodes = ({
         filePath: introFilePath,
       },
       steps,
+      redirects,
       agentConfigFile: {
         filePath: agentConfigFilePath,
       },
@@ -60,6 +62,7 @@ exports.createSchemaCustomization = ({ actions }) => {
       agentName: String!
       agentType: String!
       title: String!
+      redirects: [String]
       metaDescription: String
       intro: MDXConfig
       appInfo: [AppInfoOption!]!
