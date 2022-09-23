@@ -167,20 +167,24 @@ const InstallPage = ({ data, location }) => {
     return body && <MDXContainer body={body} />;
   };
 
-  const walkthroughSteps = steps
-    .map((stepsItem, index) => {
-      const { content, step } = renderStep(stepsItem);
-      const { mdx } = step;
-      return {
+  const walkthroughSteps = steps.reduce((acc, stepsItem, index) => {
+    const { content, step } = renderStep(stepsItem);
+    if (content === null) {
+      return acc;
+    }
+    const { mdx } = step;
+    return [
+      ...acc,
+      {
         content,
         step,
         stepHeadings: {
-          id: `${slugify(mdx.frontmatter?.headingText)}-${index + 1}`,
-          text: mdx.frontmatter?.headingText,
+          id: `${slugify(mdx?.frontmatter?.headingText)}-${index + 1}`,
+          text: mdx?.frontmatter?.headingText,
         },
-      };
-    })
-    .filter(({ content }) => content !== null);
+      },
+    ];
+  }, []);
 
   const headings = walkthroughSteps.map(({ stepHeadings }) => stepHeadings);
 
