@@ -198,7 +198,7 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
   });
 
   allInstallConfig.edges.forEach(({ node: { redirects, agentName } }) => {
-    redirects.length &&
+    redirects?.length &&
       redirects.forEach((redirect) =>
         createLocalizedRedirect({
           locales,
