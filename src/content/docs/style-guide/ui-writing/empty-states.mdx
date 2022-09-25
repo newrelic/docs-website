@@ -1,0 +1,5 @@
+---
+title: Empty states
+---
+
+See the Empty State component in our component guide.
