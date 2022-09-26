@@ -115,7 +115,11 @@ You have three options to configure APM logs in context to send your app's logs 
   This option should not be used with in-agent forwarding. Using an [external log forwarder](/docs/logs/forward-logs/enable-log-management-new-relic#log-forwarding) to send logs to New Relic while in-agent forwarding is enabled will cause your logs to be sent up twice to New Relic. Depending on your account, this may result in double billing.
 
     <Callout variant="important">
-      Local log decoration for the .NET agent does not directly alter log messages.  Your logging framework configuration will need to be updated to write out the NR-LINKING token in messages.
+      Local log decoration for the .NET agent does not directly alter log messages (except for NLog).  Your logging framework configuration will need to be updated to write out the NR-LINKING token in messages.
+    </Callout>
+
+    <Callout variant="important">
+      For logging output in JSON format, the linking metadata must added to a root-level property named "message".
     </Callout>
 
   1. If you want to use this option, make sure you have the in-agent forwarding configuration option disabled.
@@ -164,16 +168,33 @@ You have three options to configure APM logs in context to send your app's logs 
   ```
 
   **log4net.Ext.Json**:
-  Update the layout to include a member called `NR_LINKING`.
+  log4net has no built-in configuration mechanism that will output JSON with a customizable `message` property.  You can, however, implement your own custom layout that outputs JSON with the `NR_LINKING` property appended to the end of the message.  The following is an example and should be adapted to your particular needs:
 
-  ```xml
-  <layout type='log4net.Layout.SerializedLayout, log4net.Ext.Json'>
-      <decorator type='log4net.Layout.Decorators.StandardTypesFlatDecorator, log4net.Ext.Json' />
-      ...
-      <member value='NR_LINKING' />
-  </layout>
+  ```csharp
+  using log4net.Layout;
+  using System.Text.Json;
+
+  public class CustomLayout : PatternLayout
+	{
+		public override void Format(TextWriter writer, LoggingEvent loggingEvent)
+		{
+			writer.WriteLine(JsonSerializer.Serialize(new
+			{
+				timestamp = loggingEvent.TimeStampUtc,
+				level = loggingEvent.Level.DisplayName,
+				message = string.Concat(loggingEvent.MessageObject, " ", loggingEvent.LookupProperty("NR_LINKING"))
+        // Include other properties here as needed
+			}));
+		}
+	}
   ```
 
+  ```xml
+  <appender name="FileAppenderWithCustomLayout" type="log4net.Appender.FileAppender">
+    <layout type="MyNamespace.CustomLayout, MyAssembly" />
+  </appender>
+  ```
+  
   **log4net.Appender.AdoNetAppender**:
   This appender has a slightly different configuration than other layouts.  You will need to update the "message" parameter to include the metadata. The following example demonstrates this using a PatternLayout.
 
@@ -210,15 +231,76 @@ You have three options to configure APM logs in context to send your app's logs 
       .CreateLogger();
   ```
 
-  **JSON Formatter with automatic property output**
-  By default, the JsonFormatter will write out every property on a message.
+  **JSON Formatter**
+  Serilog has no built-in JSON formatter that allows for customization of a root-level `message` attribute. You can, however, implement your own custom formatter that outputs JSON with the `NR_LINKING` property appended to the end of the message. The following is an example and should be adapted to your particular needs:  
 
   ```csharp
-  Log.Logger = new LoggerConfiguration()
-      .MinimumLevel.Override("Microsoft", LogEventLevel.Information)
-      .Enrich.FromLogContext()
-      .WriteTo.Console(new JsonFormatter())
-      .CreateLogger();
+  using Serilog;
+  using Serilog.Formatting;
+  using System.Text.Json;
+
+  var loggerConfig = new LoggerConfiguration();
+
+	var formatter = new CustomJsonFormatter();
+
+	loggerConfig
+		.MinimumLevel.Debug()
+		.Enrich.FromLogContext()
+		.WriteTo.File(formatter, _logFileName);
+
+	_logger = loggerConfig.CreateLogger();
+
+
+  public class CustomJsonFormatter : ITextFormatter
+	{
+		private readonly JsonValueFormatter _valueFormatter;
+
+		public CustomJsonFormatter(JsonValueFormatter valueFormatter = null)
+		{
+			_valueFormatter = (valueFormatter ?? new JsonValueFormatter("$type"));
+		}
+
+		public void Format(LogEvent logEvent, TextWriter output)
+		{
+			FormatEvent(logEvent, output, _valueFormatter);
+			output.WriteLine();
+		}
+
+		public static void FormatEvent(LogEvent logEvent, TextWriter output, JsonValueFormatter valueFormatter)
+		{
+			if (logEvent == null)
+			{
+				throw new ArgumentNullException("logEvent");
+			}
+
+			if (output == null)
+			{
+				throw new ArgumentNullException("output");
+			}
+
+			if (valueFormatter == null)
+			{
+				throw new ArgumentNullException("valueFormatter");
+			}
+
+			// Get rendered log messsage and add New Relic linking metadata if present
+			var renderedMessage = logEvent.MessageTemplate.Render(logEvent.Properties);
+			if (logEvent.Properties.TryGetValue("NR_LINKING", out var nrLinking))
+			{
+				renderedMessage = string.Concat(renderedMessage, " ", nrLinking.ToString().Trim('"'));
+			}
+
+			var formattedEvent = new
+			{
+				Timestamp = logEvent.Timestamp,
+				Level = logEvent.Level.ToString(),
+				message = renderedMessage
+				// Include other properties here as needed
+			};
+
+			output.Write(JsonSerializer.Serialize(formattedEvent));
+		}
+	}
   ```
 
   ### Microsoft.Extensions.Logging configuration
