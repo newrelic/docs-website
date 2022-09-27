@@ -175,6 +175,10 @@ module.exports = {
     serialize: serializeComponent,
     deserialize: deserializeComponent,
   },
+  InstallFeedback: {
+    serialize: serializeComponent,
+    deserialize: deserializeComponent,
+  },
   Side: {
     serialize: serializeComponent,
     deserialize: deserializeComponent,
