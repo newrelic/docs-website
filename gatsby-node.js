@@ -275,7 +275,7 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
           createPage,
           disableSwiftype: !i18nNode,
         },
-        true // always defer localized pages
+        false // disable DSG
       );
     });
   });
