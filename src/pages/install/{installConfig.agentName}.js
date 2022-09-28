@@ -99,13 +99,6 @@ const InstallPage = ({ data, location }) => {
 
   const handleSelectIndex = (index) => {
     setSelectedIndex(index);
-    tessen.track({
-      eventName: 'activeStepUpdated',
-      category: 'StepProgress',
-      activeStep: index + 1,
-      path: location.pathname,
-      agentName,
-    });
   };
 
   const matchOverride = ({ optionType, options }) => {
