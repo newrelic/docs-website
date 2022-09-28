@@ -53,7 +53,7 @@ const ReleaseNoteLandingPage = ({ data, pageContext, location }) => {
   if (typeof window !== 'undefined' && typeof newrelic === 'object') {
     window.newrelic.setCustomAttribute(
       'pageType',
-      'Template:releaseNoteLanding'
+      'Template/ReleaseNoteLanding'
     );
   }
 

@@ -55,7 +55,7 @@ const BasicDoc = ({ data, location, pageContext }) => {
   } = frontmatter;
 
   if (typeof window !== 'undefined' && typeof newrelic === 'object') {
-    window.newrelic.setCustomAttribute('pageType', 'Template:docPage');
+    window.newrelic.setCustomAttribute('pageType', 'Template/DocPage');
   }
 
   return (

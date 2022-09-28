@@ -31,7 +31,7 @@ const AttributeDictionary = ({ data, pageContext, location }) => {
   if (typeof window !== 'undefined' && typeof newrelic === 'object') {
     window.newrelic.setCustomAttribute(
       'pageType',
-      'Interactive:PagesAttributeDictionary'
+      'Interactive/AttributeDictionary'
     );
   }
 

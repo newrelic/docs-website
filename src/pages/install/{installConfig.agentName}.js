@@ -47,7 +47,7 @@ const InstallPage = ({ data, location }) => {
   const tessen = useTessen();
 
   if (typeof window !== 'undefined' && typeof newrelic === 'object') {
-    window.newrelic.setCustomAttribute('pageType', 'Interactive:PagesInstall');
+    window.newrelic.setCustomAttribute('pageType', 'Interactive/Install');
   }
 
   const selectOptions = appInfo.map((select) => ({
