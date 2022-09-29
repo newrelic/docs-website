@@ -15,7 +15,6 @@ import { graphql } from 'gatsby';
 import { css } from '@emotion/react';
 import SEO from '../components/SEO';
 import RootNavigation from '../components/RootNavigation';
-import { animated, useTransition } from 'react-spring';
 import { useLocation, navigate } from '@reach/router';
 
 const MainLayout = ({ data = {}, children, pageContext }) => {
@@ -26,23 +25,6 @@ const MainLayout = ({ data = {}, children, pageContext }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [sidebar, setSidebar] = useState(true);
   const { t } = useTranslation();
-
-  const transition = useTransition(nav, {
-    key: nav?.id,
-    config: { mass: 1, friction: 34, tension: 400 },
-    initial: { position: 'absolute' },
-    from: () => ({
-      opacity: 0,
-      position: 'absolute',
-      transform: `translateX('125px')`,
-    }),
-
-    enter: { opacity: 1, transform: 'translateX(0)' },
-    leave: () => ({
-      opacity: 0,
-      transform: `translateX('125px')`,
-    }),
-  });
 
   useEffect(() => {
     setIsMobileNavOpen(false);
@@ -149,20 +131,8 @@ const MainLayout = ({ data = {}, children, pageContext }) => {
                   }
                 `}
               />
-              {transition((style, nav) => {
-                const containerStyle = css`
-                  left: ${contentPadding};
-                  right: ${contentPadding};
-                  top: calc(${contentPadding} + 7rem);
-                  padding-bottom: ${contentPadding};
-                `;
 
-                return (
-                  <animated.div style={style} css={containerStyle}>
-                    <RootNavigation nav={nav} />
-                  </animated.div>
-                );
-              })}
+              <RootNavigation nav={nav} />
             </>
           )}
         </Layout.Sidebar>
