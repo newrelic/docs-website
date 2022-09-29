@@ -249,16 +249,20 @@ const createNav = async ({ createNodeId, nodeModel }) => {
     createNodeId,
     nodeModel,
   });
-  nav.pages[whatsNewIndex] = {
-    ...nav.pages[whatsNewIndex],
+
+  const rootNavPages = [...nav.pages];
+  rootNavPages[whatsNewIndex] = {
+    ...rootNavPages[whatsNewIndex],
     pages: whatsNewNav.pages,
   };
-  nav.pages[releaseNotesIndex] = {
-    ...nav.pages[releaseNotesIndex],
+  rootNavPages[releaseNotesIndex] = {
+    ...rootNavPages[releaseNotesIndex],
     pages: releaseNotesNav.pages,
   };
+
   return {
     ...nav,
+    pages: [...rootNavPages],
     id: createNodeId(nav.title),
   };
 };
