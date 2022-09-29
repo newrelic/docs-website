@@ -10,7 +10,9 @@ Minimize the likelihood of unintentional sign-ups for new, disconnected standard
 
 ![Screenshot showing the new user sign-up flow after domain capture is enabled](./images/DomainCaptureSignUpFlow.png "Screenshot showing the new user sign-up flow after domain capture is enabled")
 
-<figcaption>The new user sign-up flow after domain capture is enabled.</figcaption>.
+<figcaption>
+The new user sign-up flow after domain capture is enabled.
+</figcaption>
 
 Take a deeper dive into the key steps involved in enabling domain capture:
 * **Domain name system (DNS) verification** will provide the necessary security by ensuring that the domain(s) inputted belong to the company in question. Add the TXT record provided by New Relic to your DNS records. If needed, ask your IT department for assistance with this process.
