@@ -46,6 +46,10 @@ const InstallPage = ({ data, location }) => {
 
   const tessen = useTessen();
 
+  if (typeof window !== 'undefined' && typeof newrelic === 'object') {
+    window.newrelic.setCustomAttribute('pageType', 'Interactive/Install');
+  }
+
   const selectOptions = appInfo.map((select) => ({
     ...select,
     value: queryParams.has(select.optionType)
@@ -95,12 +99,6 @@ const InstallPage = ({ data, location }) => {
 
   const handleSelectIndex = (index) => {
     setSelectedIndex(index);
-    tessen.track({
-      eventName: 'activeStepUpdated',
-      activeStep: index + 1,
-      path: location.pathname,
-      agentName,
-    });
   };
 
   const matchOverride = ({ optionType, options }) => {
