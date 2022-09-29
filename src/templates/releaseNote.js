@@ -29,6 +29,10 @@ const ReleaseNoteTemplate = ({ data, location, pageContext }) => {
 
   const title = getTitle(frontmatter);
 
+  if (typeof window !== 'undefined' && typeof newrelic === 'object') {
+    window.newrelic.setCustomAttribute('pageType', 'Template/ReleaseNote');
+  }
+
   return (
     <>
       <SEO
