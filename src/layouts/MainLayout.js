@@ -16,15 +16,37 @@ import { css } from '@emotion/react';
 import SEO from '../components/SEO';
 import RootNavigation from '../components/RootNavigation';
 import { useLocation, navigate } from '@reach/router';
+import { animated, useSpring } from 'react-spring';
 
 const MainLayout = ({ data = {}, children, pageContext }) => {
   const { nav } = data;
-  const { sidebarWidth, contentPadding } = useLayout();
+  const { sidebarWidth, contentPadding, siteMaxWidth } = useLayout();
   const location = useLocation();
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [sidebar, setSidebar] = useState(true);
   const { t } = useTranslation();
+
+  const styles = useSpring({
+    from: { background: '#1d252c' },
+    to: [
+      {
+        width: sidebar ? sidebarWidth : '50px',
+        background: '#1d252c',
+      },
+      {
+        width: sidebar ? sidebarWidth : '50px',
+        background: sidebar ? '#1d252c' : 'transparent',
+      },
+    ],
+  });
+
+  const mainStyles = useSpring({
+    to: {
+      width: sidebar ? '1200' : siteMaxWidth,
+      margin: '0 auto',
+    },
+  });
 
   useEffect(() => {
     setIsMobileNavOpen(false);
@@ -40,6 +62,7 @@ const MainLayout = ({ data = {}, children, pageContext }) => {
       <MobileHeader>
         <RootNavigation nav={nav} />
       </MobileHeader>
+
       <Layout
         css={css`
           --sidebar-width: ${sidebar ? sidebarWidth : '50px'};
@@ -50,100 +73,107 @@ const MainLayout = ({ data = {}, children, pageContext }) => {
           }
         `}
       >
-        <Layout.Sidebar
-          css={css`
-            background: var(--erno-black);
-            padding: 0;
-            ${!sidebar &&
-            css`
-              border: none;
-              background: var(--primary-background-color);
-              & > div {
-                padding: ${contentPadding} 0;
-              }
-            `}
-            hr {
-              border: none;
-              height: 1rem;
-              margin: 0;
-            }
-          `}
-        >
-          <div
+        <animated.div style={styles}>
+          <Layout.Sidebar
             css={css`
-              display: flex;
-              justify-content: space-between;
-              align-items: center;
-            `}
-          >
-            <Link
-              to="/"
-              css={css`
-                display: block;
-                text-decoration: none;
-                color: var(--system-text-primary-dark);
-                &:hover {
-                  color: var(--system-text-primary-dark);
+              padding: 0;
+              ${!sidebar &&
+              css`
+                border: none;
+                & > div {
+                  padding: ${contentPadding} 0;
                 }
               `}
-            >
-              <p
-                css={css`
-                  font-size: 44px;
-                  font-weight: 500;
-                  line-height: 0;
-                  ${!sidebar &&
-                  css`
-                    display: none;
-                  `}
-                `}
-              >
-                Docs
-              </p>
-            </Link>
-            <Button
-              variant={Button.VARIANT.PRIMARY}
+              hr {
+                border: none;
+                height: 1rem;
+                margin: 0;
+              }
+            `}
+          >
+            <div
               css={css`
-                height: 40px;
-                width: 40px;
-                padding: 0;
-                border-radius: 50%;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
               `}
-              onClick={() => setSidebar(!sidebar)}
             >
-              <Icon name="fe-move-horizontal" size="1rem" />
-            </Button>
-          </div>
-          {sidebar && (
-            <>
-              <SearchInput
-                placeholder={t('home.search.placeholder')}
-                value={searchTerm || ''}
-                iconName={SearchInput.ICONS.SEARCH}
-                isIconClickable
-                alignIcon={SearchInput.ICON_ALIGNMENT.RIGHT}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                onSubmit={() => navigate(`?q=${searchTerm || ''}`)}
+              <Link
+                to="/"
                 css={css`
-                  margin: 1.5rem 0 2rem;
-                  svg {
-                    color: var(--primary-text-color);
+                  display: block;
+                  text-decoration: none;
+                  color: var(--system-text-primary-dark);
+                  &:hover {
+                    color: var(--system-text-primary-dark);
                   }
                 `}
-              />
+              >
+                <p
+                  css={css`
+                    font-size: 44px;
+                    font-weight: 500;
+                    line-height: 0;
+                    ${!sidebar &&
+                    css`
+                      display: none;
+                    `}
+                  `}
+                >
+                  Docs
+                </p>
+              </Link>
+              <Button
+                variant={Button.VARIANT.PRIMARY}
+                css={css`
+                  height: 40px;
+                  width: 40px;
+                  padding: 0;
+                  border-radius: 50%;
+                `}
+                onClick={() => setSidebar(!sidebar)}
+              >
+                <Icon name="fe-move-horizontal" size="1rem" />
+              </Button>
+            </div>
+            {sidebar && (
+              <>
+                <SearchInput
+                  placeholder={t('home.search.placeholder')}
+                  value={searchTerm || ''}
+                  iconName={SearchInput.ICONS.SEARCH}
+                  isIconClickable
+                  alignIcon={SearchInput.ICON_ALIGNMENT.RIGHT}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onSubmit={() => navigate(`?q=${searchTerm || ''}`)}
+                  css={css`
+                    margin: 1.5rem 0 2rem;
+                    svg {
+                      color: var(--primary-text-color);
+                    }
+                  `}
+                />
 
-              <RootNavigation nav={nav} />
-            </>
-          )}
-        </Layout.Sidebar>
-
-        <Layout.Main
+                <RootNavigation nav={nav} />
+              </>
+            )}
+          </Layout.Sidebar>
+        </animated.div>
+        <animated.div
+          style={mainStyles}
           css={css`
-            display: ${isMobileNavOpen ? 'none' : 'block'};
+            display: flex;
+            justify-content: flex-end;
           `}
         >
-          {children}
-        </Layout.Main>
+          <Layout.Main
+            css={css`
+              display: ${isMobileNavOpen ? 'none' : 'block'};
+            `}
+          >
+            {children}
+          </Layout.Main>
+        </animated.div>
         <Layout.Footer fileRelativePath={pageContext.fileRelativePath} />
       </Layout>
     </>
