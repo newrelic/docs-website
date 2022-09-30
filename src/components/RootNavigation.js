@@ -2,10 +2,8 @@ import React from 'react';
 import PropTypes from 'prop-types';
 import { NavItem } from '@newrelic/gatsby-theme-newrelic';
 import { css } from '@emotion/react';
-import { useLocation } from '@reach/router';
 
 const RootNavigation = ({ nav }) => {
-  const location = useLocation();
   return (
     <nav
       role="navigation"
@@ -26,11 +24,7 @@ const RootNavigation = ({ nav }) => {
         if (page.title === 'section-break') {
           return <hr />;
         }
-        if (
-          page.title &&
-          !page.url &&
-          !location.pathname.includes('whats-new')
-        ) {
+        if (page.title && !page.url) {
           return (
             <p
               css={css`
