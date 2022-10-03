@@ -364,12 +364,8 @@ exports.onCreatePage = ({ page, actions }) => {
   const { createPage, deletePage } = actions;
   const oldPage = { ...page };
 
-  if (page.path.match(/404/)) {
+  if (page.path.match(/404.html/) || page.path.match(/dev-404-page/)) {
     page.context.layout = 'basic';
-  }
-
-  if (page.path.match(/404/) && page.path.match(/\/docs\//)) {
-    page.context.layout = 'default';
   }
 
   if (page.path.includes('/install/')) {
