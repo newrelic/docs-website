@@ -35,7 +35,6 @@ exports.createResolvers = ({ createResolvers, createNodeId }) => {
           slug: 'String!',
         },
         resolve: async (_source, args, context) => {
-          const { slug } = args;
           const { nodeModel } = context;
 
           const { entries } = await nodeModel.findAll({ type: 'Locale' });
@@ -51,16 +50,7 @@ exports.createResolvers = ({ createResolvers, createNodeId }) => {
             locales,
           };
 
-          switch (true) {
-            case slug.startsWith('/whats-new'):
-              return createWhatsNewNav(utils);
-
-            case slug.startsWith('/docs/release-notes'):
-              return createReleaseNotesNav(utils);
-
-            default:
-              return createNav(utils);
-          }
+          return createNav(utils);
         },
       },
     },
@@ -247,8 +237,32 @@ const createNav = async ({ createNodeId, nodeModel }) => {
   );
 
   const nav = allNavYamlNodes.find((nav) => findPage(nav, '/'));
+
+  const whatsNewIndex = nav.pages.findIndex(
+    (item) => item.title === `What's new?`
+  );
+  const releaseNotesIndex = nav.pages.findIndex(
+    (item) => item.title === `Release notes`
+  );
+  const whatsNewNav = await createWhatsNewNav({ createNodeId, nodeModel });
+  const releaseNotesNav = await createReleaseNotesNav({
+    createNodeId,
+    nodeModel,
+  });
+
+  const rootNavPages = [...nav.pages];
+  rootNavPages[whatsNewIndex] = {
+    ...rootNavPages[whatsNewIndex],
+    pages: whatsNewNav.pages,
+  };
+  rootNavPages[releaseNotesIndex] = {
+    ...rootNavPages[releaseNotesIndex],
+    pages: releaseNotesNav.pages,
+  };
+
   return {
     ...nav,
+    pages: [...rootNavPages],
     id: createNodeId(nav.title),
   };
 };

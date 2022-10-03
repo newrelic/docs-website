@@ -115,6 +115,10 @@ const NavItem = ({
               padding-left: ${getMobilePadding({ parent, depth })};
             }
           `}
+          ${isCurrentPage &&
+          css`
+            background: #0d374a;
+          `}
         `}
       >
         {searchTerm ? (
