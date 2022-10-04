@@ -30,7 +30,7 @@ const verifySteps = (steps, installPage) => {
       '%s\x1b[31m%s\x1b[0m',
       'please fix ',
       issues,
-      'issue/s above \n'
+      'issue(s) above \n'
     );
     process.exit(1);
   }
@@ -42,7 +42,7 @@ const verifyAppInfo = (appInfo, installPage) => {
     if (!option.placeholder) {
       console.error(
         '\x1b[31m%s\x1b[0m',
-        `\n (!) ${installPage}.yaml`,
+        `\n (!) ${installPage}.yaml > appInfo > `,
         `placeholder cannot be null \n`
       );
       issues = ++issues;
@@ -53,7 +53,7 @@ const verifyAppInfo = (appInfo, installPage) => {
       '%s\x1b[31m%s\x1b[0m',
       'please fix ',
       issues,
-      'issue/s above \n'
+      'issue(s) above \n'
     );
     process.exit(1);
   }
