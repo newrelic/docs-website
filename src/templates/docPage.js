@@ -8,7 +8,7 @@ import {
   ContributingGuidelines,
   Layout,
   RelatedResources,
-  SimpleFeedback,
+  ComplexFeedback,
   TableOfContents,
 } from '@newrelic/gatsby-theme-newrelic';
 import MachineTranslationCallout from '../components/MachineTranslationCallout';
@@ -110,7 +110,7 @@ const BasicDoc = ({ data, location, pageContext }) => {
             }
           `}
         >
-          <SimpleFeedback pageTitle={title} />
+          <ComplexFeedback pageTitle={title} />
           <ContributingGuidelines
             pageTitle={title}
             fileRelativePath={fileRelativePath}
