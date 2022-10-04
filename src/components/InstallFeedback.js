@@ -63,7 +63,7 @@ const InstallFeedback = () => {
             font-size: 1rem;
           `}
         >
-          Did this doc help make your installation a success?
+          Did this doc help you install?
         </p>
       </div>
       <div
@@ -140,7 +140,7 @@ const InstallFeedback = () => {
 
 const FeedbackResponse = ({ feedbackType }) => {
   const feedbackText =
-    feedbackType === 'Positive' ? 'So glad to hear it!' : 'Sorry to hear that!';
+    feedbackType === 'Positive' ? 'Great!' : `We're sorry to hear that`;
 
   const feedbackStyles =
     feedbackType === 'Positive'
@@ -156,6 +156,11 @@ const FeedbackResponse = ({ feedbackType }) => {
           secondaryTextColor: '#ffffff',
           hoverButtonColor: '#ffffff',
         };
+
+  const callToActionText =
+    feedbackType === 'Positive'
+      ? `Any suggestions for how to make it even better?`
+      : `We'd love to hear what went wrong so we can fix it.`;
 
   return (
     <Surface
@@ -201,7 +206,7 @@ const FeedbackResponse = ({ feedbackType }) => {
             font-size: 1rem;
           `}
         >
-          Do you have a few minutes to let us know what you think?
+          {callToActionText}
         </p>
       </div>
       <CreateIssueButton
