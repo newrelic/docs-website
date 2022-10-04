@@ -368,6 +368,10 @@ exports.onCreatePage = ({ page, actions }) => {
     page.context.layout = 'basic';
   }
 
+  if (page.path.match(/404/) && page.path.match(/\/docs\//)) {
+    page.context.layout = 'default';
+  }
+
   if (page.path.includes('/install/')) {
     const pagePathArray = page.path.split('/');
     const lastItem = pagePathArray[pagePathArray.length - 1];
