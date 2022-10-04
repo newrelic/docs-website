@@ -196,8 +196,7 @@ module.exports = {
     deserialize: deserializeComponent,
   },
   TabsBarItem: {
-    serialize: (h, node) =>
-      serializeComponent(h, node, { textAttributes: ['id'] }),
+    serialize: serializeComponent,
     deserialize: deserializeComponent,
   },
   TabsPages: {
@@ -205,8 +204,7 @@ module.exports = {
     deserialize: deserializeComponent,
   },
   TabsPageItem: {
-    serialize: (h, node) =>
-      serializeComponent(h, node, { textAttributes: ['id'] }),
+    serialize: serializeComponent,
     deserialize: deserializeComponent,
   },
   TechTile: {
