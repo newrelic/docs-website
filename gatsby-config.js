@@ -354,6 +354,18 @@ module.exports = {
         path: `./src/nav/generatedNav.yml`,
       },
     },
+    {
+      resolve: `gatsby-source-filesystem`,
+      options: {
+        path: `./src/nav/style-guide.yml`,
+      },
+    },
+    {
+      resolve: `gatsby-source-filesystem`,
+      options: {
+        path: `./src/nav/docs-agile-handbook.yml`,
+      },
+    },
     'gatsby-plugin-generate-doc-json',
     // Comment in below to run a build that checks links
     // 'gatsby-plugin-check-links',
