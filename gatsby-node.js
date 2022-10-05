@@ -154,6 +154,15 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
           isDefault
         }
       }
+
+      allInstallConfig {
+        edges {
+          node {
+            redirects
+            agentName
+          }
+        }
+      }
     }
   `);
 
@@ -169,6 +178,7 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
     releaseNotes,
     landingPagesReleaseNotes,
     allLocale,
+    allInstallConfig,
     whatsNewPosts,
   } = data;
 
@@ -185,6 +195,18 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
         redirectInBrowser: true,
       });
     });
+  });
+
+  allInstallConfig.edges.forEach(({ node: { redirects, agentName } }) => {
+    redirects?.length &&
+      redirects.forEach((redirect) =>
+        createLocalizedRedirect({
+          locales,
+          fromPath: redirect,
+          toPath: `/install/${agentName}/`,
+          createRedirect,
+        })
+      );
   });
 
   releaseNotes.group.forEach((el) => {
@@ -280,7 +302,7 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
           createPage,
           disableSwiftype: !i18nNode,
         },
-        true // always defer localized pages
+        false // disable DSG
       );
     });
   });
@@ -321,7 +343,9 @@ exports.createSchemaCustomization = ({ actions }) => {
   type Frontmatter {
     isFeatured: Boolean
     translationType: String
+    dataSource: String
   }
+
   `;
 
   createTypes(typeDefs);
@@ -355,6 +379,10 @@ exports.createResolvers = ({ createResolvers }) => {
             ? source.translationType
             : null,
       },
+      dataSource: {
+        resolve: (source) =>
+          hasOwnProperty(source, 'dataSource') ? source.dataSource : null,
+      },
     },
   });
 };
@@ -365,6 +393,17 @@ exports.onCreatePage = ({ page, actions }) => {
 
   if (page.path.match(/404/)) {
     page.context.layout = 'basic';
+  }
+
+  if (page.path.match(/404/) && page.path.match(/\/docs\//)) {
+    page.context.layout = 'default';
+  }
+
+  if (page.path.includes('/install/')) {
+    const pagePathArray = page.path.split('/');
+    const lastItem = pagePathArray[pagePathArray.length - 1];
+    page.context.agent =
+      lastItem !== '' ? lastItem : pagePathArray[pagePathArray.length - 2];
   }
 
   if (hasTrailingSlash(page.context.slug)) {

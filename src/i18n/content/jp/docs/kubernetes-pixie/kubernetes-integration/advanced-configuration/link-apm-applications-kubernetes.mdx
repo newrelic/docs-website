@@ -1,0 +1,393 @@
+---
+title: APMをインストルメント化したアプリケーションをKubernetesにリンクする
+tags:
+  - Integrations
+  - Kubernetes integration
+  - Link apps and services
+metaDescription: Connect New Relic's Kubernetes monitoring with New Relic's APM monitoring of applications.
+translationType: machine
+---
+
+Kubernetesメタデータを表示し、 [分散トレース](/docs/understand-dependencies/distributed-tracing/get-started/introduction-distributed-tracing)として[APMエージェントにリンクして、](/docs/integrations/kubernetes-integration/metadata-injection/kubernetes-apm-metadata-injection#agent-compatibility)パフォーマンスの問題を調査し、トランザクションエラーのトラブルシューティングを行うことができます。詳細については、 [Kubernetesを介したアプリのパフォーマンスのモニタリングに関するこのブログ投稿](https://blog.newrelic.com/engineering/monitoring-application-performance-in-kubernetes/)を参照してください。
+
+さらに、Pixieでの自動テレメトリを使用して、Kubernetesクラスタのモニタリングをすばやく開始できます。このPixieのNewRelicへの統合には、言語エージェントは必要ありません。Pixieを使用した自動テレメトリの詳細については、 [こちら](/docs/full-stack-observability/observe-everything/get-started/get-started-auto-telemetry-pixie)をご覧ください。
+
+メタデータインジェクション製品は、 `MutatingAdmissionWebhook`を使用して次の環境変数をポッドに追加します。
+
+```
+NEW_RELIC_METADATA_KUBERNETES_CLUSTER_NAME
+NEW_RELIC_METADATA_KUBERNETES_NODE_NAME
+NEW_RELIC_METADATA_KUBERNETES_NAMESPACE_NAME
+NEW_RELIC_METADATA_KUBERNETES_DEPLOYMENT_NAME
+NEW_RELIC_METADATA_KUBERNETES_POD_NAME
+NEW_RELIC_METADATA_KUBERNETES_CONTAINER_NAME
+NEW_RELIC_METADATA_KUBERNETES_CONTAINER_IMAGE_NAME
+```
+
+<Callout variant="tip">
+  Kubernetesメタデータインジェクションプロジェクトはオープンソースです。[APMとインフラストラクチャデータをリンクするコードは次](https://github.com/newrelic/k8s-metadata-injection/)のとおりです。
+</Callout>
+
+## 互換性と要件 [#compatibility]
+
+アプリケーションとKubernetesをリンクするには、 `MutatingWebhookConfiguration`をKubernetesクラスターにデプロイできる必要があります。
+
+必要な権限があることを確認するには、次のコマンドを実行できます。
+
+```shell
+kubectl auth can-i create mutatingwebhookconfigurations.admissionregistration.k8s.io -A
+```
+
+上記のコマンドの出力は、次のようになります。
+
+```
+<mark>yes</mark>
+```
+
+別の結果が表示される場合は、Kubernetesのドキュメントに従って、 [クラスタでアドミッションコントロールを有効にしてください](https://kubernetes.io/docs/reference/access-authn-authz/admission-controllers/#how-do-i-turn-on-an-admission-controller)。
+
+### ネットワーク要件 [#network-req]
+
+Kubernetesが`MutatingAdmissionWebhook`と通信するには、マスターノード（またはクラスターの設定方法によってはAPIサーバーコンテナー）に、ポート443のHTTPSトラフィックの出力をクラスター内の他のすべてのノードのポッドに許可する必要があります。 。
+
+これには、インフラストラクチャの設定方法（オンプレミス、AWS、Google Cloudなど）に応じて特定の構成が必要になる場合があります。
+
+### APMエージェントの互換性 [#agent-compatibility]
+
+次のNewRelicエージェントは、Kubernetesメタデータを収集します。
+
+* [2.3.0以降に移行](/docs/agents/go-agent/installation/install-new-relic-go#get-new-relic)
+* [Java4.10.0以降](/docs/agents/java-agent/installation/upgrade-java-agent)
+* [Node.js5.3.0以降](/docs/agents/nodejs-agent/installation-configuration/upgrade-nodejs-agent)
+* [Python4.14.0以降](/docs/agents/python-agent/installation-configuration/upgrade-python-agent)
+* [Ruby 6.1.0以上](/docs/agents/ruby-agent/installation/upgrade-ruby-agent-versions)
+* [.NET8.17.438以降](/docs/agents/net-agent/installation/update-net-agent)
+
+### Openshiftの要件 [#openshift-req]
+
+OpenshiftとKubernetesをリンクするには、 **Openshift3.9**以降を必要とするアドミッションWebhookの変更を有効にする必要があります。
+
+1. プロセス中に、クラスターへの`admin`権限を必要とするリソースをインストールします。これを実行して、adminとしてログインします。
+
+   ```shell
+   oc login -u system:admin
+   ```
+
+2. Webhookが正しく構成されていることを確認してください。そうでない場合は、 `master-config.yaml`ファイルを更新します。
+
+   ```yaml
+   admissionConfig:
+      pluginConfig:
+          MutatingAdmissionWebhook:
+            configuration:
+               apiVersion: apiserver.config.k8s.io/v1alpha1
+               kubeConfigFile: /dev/null
+               kind: WebhookAdmission
+         ValidatingAdmissionWebhook:
+            configuration:
+               apiVersion: apiserver.config.k8s.io/v1alpha1
+               kubeConfigFile: /dev/null
+               kind: WebhookAdmission
+               location: ""
+   ```
+
+   <Callout variant="important">
+     [Openshiftのいくつかの問題に](https://bugzilla.redhat.com/show_bug.cgi?id=1635918)対処するには、 `kubeConfigFile: /dev/null`を追加します。
+   </Callout>
+
+3. YAMLファイルを編集して構成を更新することにより、証明書の署名を有効にします。
+
+   ```yaml
+   kubernetesMasterConfig:
+      controllerArguments:
+         cluster-signing-cert-file:
+         - "/etc/origin/master/ca.crt"
+         cluster-signing-key-file:
+         - "/etc/origin/master/ca.key"
+   ```
+
+4. マスターノードでOpenshiftサービスを再起動します。
+
+<Callout variant="important">
+  Openshift 4.0以降では、これらのバージョンでは`master-config.yaml`ファイルがサポートされていないため、アドミッションWebhookを有効にするために [ダイナミックアドミッションコントロール](https://kubernetes.io/docs/reference/access-authn-authz/extensible-admission-controllers)が必要です。
+</Callout>
+
+## メタデータの注入を設定する [#configure-injection]
+
+[Helmを使用して統合をインストールする](/docs/kubernetes-pixie/kubernetes-integration/installation/install-kubernetes-integration-using-helm)と、メタデータの挿入が含まれます。チャートを構成するときに、メタデータを挿入するWebhookが有効になっていることを確認してください。
+
+```yaml
+webhook:
+  enabled: true
+```
+
+デフォルトでは、APMエージェントを含む作成するすべてのポッドに正しい環境変数が設定されており、メタデータインジェクションはクラスター全体に適用されます。環境変数が設定されていることを確認するには、実行中のすべてのコンテナーを停止し、新しいインスタンスを開始する必要があります（ [メタデータの挿入の検証](/docs/integrations/kubernetes-integration/link-your-applications/link-your-applications-kubernetes/#validate-injection)を参照）。
+
+このデフォルト設定では、 [Kubernetes証明書API](https://kubernetes.io/docs/tasks/inject-data-application/distribute-credentials-secure/)を使用して、インジェクションに必要な証明書を自動的に管理します。必要に応じて、メタデータの挿入をクラスター内の特定の名前空間に制限したり、証明書を自己管理したりできます。
+
+## カスタム構成 [#custom-configuration]
+
+### インジェクションの対象となる名前空間を制限する [#limit-namespaces]
+
+ラベルを使用して、メタデータの挿入を特定の名前空間にのみ制限できます。
+
+この機能を有効にするには、 `values-newrelic.yaml`ファイルに以下を追加します。
+
+```yaml
+nri-metadata-injection:
+  injectOnlyLabeledNamespaces: true
+```
+
+このオプションを使用すると、インジェクションは`newrelic-metadata-injection`ラベルが`enabled`に設定されている名前空間にのみ適用されます。
+
+```shell
+kubectl label namespace YOUR_NAMESPACE newrelic-metadata-injection=enabled
+```
+
+### cert-managerを使用して証明書を生成します [#cert-manager]
+
+デフォルトでは、チャートは[kube-webhook-certgen](https://github.com/kubernetes/ingress-nginx/tree/main/images/kube-webhook-certgen)を使用して、Webhookを実行するために必要な証明書を自動的に生成します。
+
+ただし、 [cert-manager](https://cert-manager.io/)がインストールされている場合は、代わりにcert-managerを使用するようにチャートを構成できます。これにより、展開プロセスが大幅に簡素化されます。
+
+```yaml
+nri-metadata-injection:
+  certManager:
+    enabled: true
+```
+
+### カスタム証明書を管理する [#option-activation]
+
+<Callout variant="tip">
+  Webhook証明書を手動で管理することは、上級ユーザーにのみお勧めします。New Relicサポートチームは、この構成のトラブルシューティングを支援できない場合があります。
+</Callout>
+
+カスタム証明書を使用するには、Helmを使用してインストールするときに証明書の自動インストールを無効にする必要があります。
+
+証明書のインストールを無効にするには、次のようにnri-bundleHelm `values.yaml`を変更します。
+
+```yaml
+nri-metadata-injection:
+  customTLSCertificate: true
+```
+
+これで、カスタム証明書管理オプションを続行できます。
+
+PEM形式でエンコードされた証明書、サーバーキー、および認証局（CA）バンドルが必要です。
+
+* それらが標準の証明書形式（X.509）である場合は、 `openssl`をインストールし、以下を実行します。
+
+```
+openssl x509 -in <var>CERTIFICATE_FILENAME</var> -outform PEM -out <var>CERTIFICATE_FILENAME.pem</var>
+openssl x509 -in <var>SERVER_KEY_FILENAME</var> -outform PEM -out <var>SERVER_KEY_FILENAME.pem</var>
+openssl x509 -in <var>CA_BUNDLE_FILENAME</var> -outform PEM -out <var>BUNDLE_FILENAME.pem</var>
+```
+
+* 証明書とキーのペアが別の形式である場合は、 [Digicertナレッジベース](https://knowledge.digicert.com/solution/SO26449.html)で詳細を確認してください。
+
+署名された証明書とキーのペアを使用してTLSシークレットを作成し、次のコマンドを使用して、変更するWebhook構成にCAでパッチを適用します。
+
+```
+kubectl create secret tls <mark>newrelic-metadata-injection-admission</mark> \
+--key=<var>PEM_ENCODED_SERVER_KEY</var> \
+--cert=<var>PEM_ENCODED_CERTIFICATE</var> \
+--dry-run -o yaml |
+kubectl -n <mark>newrelic</mark> apply -f -
+
+caBundle=$(cat <var>PEM_ENCODED_CA_BUNDLE</var> | base64 | td -d $'\n')
+kubectl patch mutatingwebhookconfiguration newrelic-metadata-injection-cfg --type='json' -p "[{'op': 'replace', 'path': '/webhooks/0/clientConfig/caBundle', 'value':'${caBundle}'}]"
+```
+
+<Callout variant="important">
+  Kubernetesによって署名された証明書の有効期限は1年です。詳細については[、GitHubのKubernetesソースコードを](https://github.com/kubernetes/kubernetes/blob/1b28775db1290a772967d192a19a8ec447053cd5/pkg/controller/apis/config/v1alpha1/defaults.go#L118)参照してください。
+</Callout>
+
+## メタデータの挿入を検証します [#validate-injection]
+
+Webhook（メタデータの挿入を担当）が正しくインストールされたことを検証するには、新しいポッドをデプロイし、NewRelic環境変数を確認します。
+
+1. 次のコマンドを実行して、ダミーのnginxポッドを作成します。
+
+```shell
+kubectl run test-nginx --image nginx -n newrelic
+```
+
+2. NewRelic環境変数が挿入されたかどうかを確認します。
+
+```shell
+kubectl exec -n newrelic test-nginx -- env | grep NEW_RELIC_METADATA_KUBERNETES
+```
+
+期待される出力は次のようになります。
+
+```
+NEW_RELIC_METADATA_KUBERNETES_CLUSTER_NAME=<var>cluster-name</var>
+NEW_RELIC_METADATA_KUBERNETES_NODE_NAME=nodea
+NEW_RELIC_METADATA_KUBERNETES_NAMESPACE_NAME=newrelic
+NEW_RELIC_METADATA_KUBERNETES_POD_NAME=test-nginx
+NEW_RELIC_METADATA_KUBERNETES_CONTAINER_NAME=nginx
+```
+
+## メタデータの挿入を無効にする [#uninstall]
+
+メタデータの挿入を無効化/アンインストールするには、 `values-newrelic.yaml`ファイルを次のように変更します。
+
+```yaml
+webhook:
+  enabled: false
+```
+
+そして、 [インストールコマンド](/docs/kubernetes-pixie/kubernetes-integration/installation/install-kubernetes-integration-using-helm#install-k8-helm)を再実行します。
+
+## トラブルシューティング [#metadata-troubleshooting]
+
+必要に応じて、これらのトラブルシューティングのヒントに従ってください。
+
+<CollapserGroup>
+  <Collapser
+    id="no-metadata-in-apm"
+    title="APMまたは分散トレーストランザクションにKubernetesメタデータがない"
+  >
+    ### 問題
+
+    Kubernetesバージョン1.19.xで実行しているときにイメージで使用される`kubectl`バージョンが原因で、 `k8s-webhook-cert-manager`ジョブによるシークレットの作成が失敗していました。新しいバージョン[1.3.2](https://github.com/newrelic/k8s-webhook-cert-manager/releases/tag/v1.3.2)ではこの問題が修正されているため、実行するだけで十分です。この場合も、イメージの更新バージョンを使用して問題を修正します。
+
+    ### 解決
+
+    1. イメージ`k8s-webhook-cert-manager`を（バージョン> = [1.3.2](https://github.com/newrelic/k8s-webhook-cert-manager/releases/tag/v1.3.2)に）更新し、ジョブを再実行します。
+    2. シークレットが正しく作成され、 `k8s-metadata-injection`ポッドを起動できるようになります。
+    3. マニフェストと`nri-bundle`の新しいバージョンは、正しいバージョンの画像ですでに更新されていることに注意してください。
+  </Collapser>
+
+  <Collapser
+    id="ca-mismatch"
+    title="`mutatingwebhookconfiguration`リソースにパッチを適用するために使用されるCAは、証明書に署名するときに使用されるCAではありません"
+  >
+    ### 問題
+
+    OpenShiftバージョン4.xでは、 `mutatingwebhookconfiguration`リソースにパッチを適用するために使用されるCAは、証明書に署名するときに使用されるCAではありません。これは、現在[ここで](https://github.com/newrelic/k8s-webhook-cert-manager/issues/33)追跡されている既知の問題です。
+
+    ポッド`nri-metadata-injection`のログに、次のエラーメッセージが表示されます。
+
+    ```
+    TLS handshake error from 10.131.0.29:37428: remote error: tls: unknown certificate authority
+    TLS handshake error from 10.129.0.1:49314: remote error: tls: bad certificate
+    ```
+
+    ### 回避策
+
+    `mutatingwebhookconfiguration`オブジェクトに保存されている証明書を手動で更新します。正しいCAの場所は、クラスター構成によって変わる可能性があります。ただし、通常、CAは名前空間`openshift-kube-controller-manager`のシークレット`csr-signer`にあります。
+  </Collapser>
+
+  <Collapser
+    id="no-metadata-in-transactions-attributes"
+    title="トランザクションの属性にKubernetesメタデータがありません"
+  >
+    ### 問題
+
+    APMエージェントのトランザクションの属性または分散トレースに含まれるKubernetesメタデータはありません。
+
+    ### 解決
+
+    1. [インストールの検証](/docs/integrations/kubernetes-integration/metadata-injection/kubernetes-apm-metadata-injection#validate-injection)手順で説明されている手順に従って、環境変数が正しく挿入されていることを確認します。
+
+    2. それらが存在しない場合は、次を実行してメタデータインジェクションポッドの名前を取得します。
+
+       ```shell
+       kubectl get pods | grep newrelic-metadata-injection-deployment
+       kubectl logs -f pod/my-pod
+       ```
+
+    3. 別のターミナルで、新しいポッドを作成し（たとえば、 [インストールの検証を](/docs/integrations/kubernetes-integration/metadata-injection/kubernetes-apm-metadata-injection#validate-injection)参照）、メタデータインジェクションデプロイメントのログにエラーがないか調べます。作成されたポッドごとに、次のような4つの新しいエントリのセットがログに記録されます。
+
+       ```
+       {"level":"info","ts":"2020-04-09T12:55:32.107Z","caller":"server/main.go:139","msg":"POST https://newrelic-metadata-injection-svc.default.svc:443/mutate?timeout=30s HTTP/2.0\" from 10.11.49.2:32836"}
+       {"level":"info","ts":"2020-04-09T12:55:32.110Z","caller":"server/webhook.go:168","msg":"received admission review","kind":"/v1, Kind=Pod","namespace":"default","name":"","pod":"busybox1","UID":"6577519b-7a61-11ea-965e-0e46d1c9335c","operation":"CREATE","userinfo":{"username":"admin","uid":"admin","groups":["system:masters","system:authenticated"]}}
+       {"level":"info","ts":"2020-04-09T12:55:32.111Z","caller":"server/webhook.go:182","msg":"admission response created","response":"[{\"op\":\"add\",\"path\":\"/spec/containers/0/env\",\"value\":[{\"name\":\"NEW_RELIC_METADATA_KUBERNETES_CLUSTER_NAME\",\"value\":\"adn_kops\"}]},{\"op\":\"add\",\"path\":\"/spec/containers/0/env/-\",\"value\":{\"name\":\"NEW_RELIC_METADATA_KUBERNETES_NODE_NAME\",\"valueFrom\":{\"fieldRef\":{\"fieldPath\":\"spec.nodeName\"}}}},{\"op\":\"add\",\"path\":\"/spec/containers/0/env/-\",\"value\":{\"name\":\"NEW_RELIC_METADATA_KUBERNETES_NAMESPACE_NAME\",\"valueFrom\":{\"fieldRef\":{\"fieldPath\":\"metadata.namespace\"}}}},{\"op\":\"add\",\"path\":\"/spec/containers/0/env/-\",\"value\":{\"name\":\"NEW_RELIC_METADATA_KUBERNETES_POD_NAME\",\"valueFrom\":{\"fieldRef\":{\"fieldPath\":\"metadata.name\"}}}},{\"op\":\"add\",\"path\":\"/spec/containers/0/env/-\",\"value\":{\"name\":\"NEW_RELIC_METADATA_KUBERNETES_CONTAINER_NAME\",\"value\":\"busybox\"}},{\"op\":\"add\",\"path\":\"/spec/containers/0/env/-\",\"value\":{\"name\":\"NEW_RELIC_METADATA_KUBERNETES_CONTAINER_IMAGE_NAME\",\"value\":\"busybox\"}}]"}
+       {"level":"info","ts":"2020-04-09T12:55:32.111Z","caller":"server/webhook.go:257","msg":"writing response"}
+       ```
+
+       ログに新しいエントリがない場合は、apiserverがWebhookサービスと通信できないことを意味します。これは、ネットワークルールまたはセキュリティグループが通信を拒否したことが原因である可能性があります。
+
+    4. apiserverがWebhookと通信できないかどうかを確認するには、apiserverログで次のようなエラーがないかどうかを確認する必要があります。
+
+       ```
+       failed calling webhook "metadata-injection.newrelic.com": <var>ERROR_REASON</var>
+       ```
+
+       apiserverログを取得するには：
+
+       1. ターミナルウィンドウで次のコマンドを実行して、Kubernetes APIサーバーへのプロキシを起動し、実行を続けます。
+
+          ```shell
+          kubectl proxy --port=8001
+          ```
+
+       2. クラスタに新しいポッドを作成します。これにより、apiserverがWebhookとの通信を試みます。次のコマンドはbusyboxを作成します。
+
+          ```shell
+          kubectl create -f https://git.io/vPieo
+          ```
+
+       3. apiserverログを取得します。
+
+          ```shell
+          curl localhost:8001/logs/kube-apiserver.log > apiserver.log
+          ```
+
+       4. busyboxコンテナを削除します。
+
+          ```shell
+          kubectl delete -f https://git.io/vPieo
+          ```
+
+       5. ログにエラーがないか調べます。
+
+          ```shell
+          grep -E 'failed calling webhook' apiserver.log
+          ```
+
+          <Callout variant="tip">
+            [メタデータインジェクションの要件の](#network-req)1つは、クラスターで実行されているポッドへの出力をapiserverに許可する必要があることです。接続のタイムアウトや接続の失敗に関するエラーが発生した場合は、クラスターのセキュリティグループとファイアウォールルールを確認してください。
+          </Callout>
+
+    5. apiserverログまたはメタデータインジェクションデプロイメントのいずれにもログエントリがない場合は、Webhookが正しく登録されていないことを意味します。
+
+    6. 次の出力を調べて、メタデータインジェクションのセットアップジョブが正常に実行されたことを確認します。
+
+       ```shell
+       kubectl get job newrelic-metadata-setup
+       ```
+
+    7. ジョブが完了していない場合は、セットアップジョブのログを調べてください。
+
+       ```shell
+       kubectl logs job/newrelic-metadata-setup
+       ```
+
+    8. 次のコマンドを実行して、 `CertificateSigningRequest`が承認および発行されていることを確認します。
+
+       ```shell
+       kubectl get csr newrelic-metadata-injection-svc.default
+       ```
+
+    9. 次のコマンドを実行して、TLSシークレットが存在することを確認します。
+
+       ```shell
+       kubectl get secret newrelic-metadata-injection-secret
+       ```
+
+    10. CAバンドルが変更中のWebhook構成に存在することを確認します。
+
+        ```shell
+        kubectl get mutatingwebhookconfiguration newrelic-metadata-injection-cfg -o json
+        ```
+
+    11. **サービス**リソースの`TargetPort`が**デプロイメント**のコンテナの**ポート**と一致することを確認します。
+
+        ```shell
+        kubectl describe service/newrelic-metadata-injection-svc
+        kubectl describe deployment/newrelic-metadata-injection-deployment
+        ```
+  </Collapser>
+</CollapserGroup>

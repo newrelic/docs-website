@@ -9,6 +9,19 @@ const getAgentName = require('./src/utils/getAgentName');
 const dataDictionaryPath = `${__dirname}/src/data-dictionary`;
 const siteUrl = 'https://docs.newrelic.com';
 const additionalLocales = ['jp', 'kr'];
+const allFolders = fs
+  .readdirSync(`${__dirname}/src/content/docs`)
+  .filter((folder) => !folder.startsWith('.'));
+const doNotIgnoreFolders =
+  process.env.BUILD_FOLDERS && process.env.BUILD_FOLDERS.split(',');
+const ignoreFolders = process.env.BUILD_FOLDERS
+  ? allFolders
+      .filter(
+        (folder) =>
+          !doNotIgnoreFolders.includes(folder) && folder !== 'release-notes'
+      )
+      .map((folder) => `${__dirname}/src/content/docs/${folder}/*`)
+  : [];
 
 const autoLinkHeaders = {
   resolve: 'gatsby-remark-autolink-headers',
@@ -46,133 +59,6 @@ module.exports = {
     `gatsby-transformer-sharp`,
     `gatsby-plugin-sharp`,
     {
-      resolve: '@newrelic/gatsby-theme-newrelic',
-      options: {
-        oneTrustID: 'e66f9ef1-3a12-4043-b7c0-1a2ea66f6d41',
-        layout: {
-          contentPadding: '1.5rem',
-          maxWidth: '1600px',
-          component: require.resolve('./src/layouts'),
-          mobileBreakpoint: '760px',
-        },
-        i18n: {
-          translationsPath: `${__dirname}/src/i18n/translations`,
-          additionalLocales,
-        },
-        prism: {
-          languages: [
-            'css',
-            'js',
-            'aspnet',
-            'csv',
-            'cmake',
-            'dax',
-            'diff',
-            'django',
-            'jinja2',
-            'docker',
-            'dockerfile',
-            'elixir',
-            'erlang',
-            'gettext',
-            'pascal',
-            'parser',
-            'nginx',
-            'n1ql',
-            'monkey',
-            'mongodb',
-            'liquid',
-            'json5',
-            'jsdoc',
-            'mustache',
-            'powershell',
-            'promql',
-            'protobuf',
-            'puppet',
-            'jsx',
-            'regex',
-            'ruby',
-            'scala',
-            'shell',
-            'swift',
-            'systemd',
-            'toml',
-            'velocity',
-            'vim',
-            'php',
-            'phpdoc',
-            'xml',
-            'xml-doc',
-            'csharp',
-            'md',
-            'java',
-            'razor',
-          ],
-        },
-        splitio: {
-          // Mocked features only used when in localhost mode
-          // https://help.split.io/hc/en-us/articles/360020448791-JavaScript-SDK#localhost-mode
-          features: {
-            free_account_button_color: {
-              treatment: 'off',
-            },
-          },
-          core: {
-            authorizationKey: process.env.SPLITIO_AUTH_KEY || 'localhost',
-          },
-          debug: false,
-        },
-        newrelic: {
-          configs: {
-            development: {
-              instrumentationType: 'proAndSPA',
-              accountId: '10956800',
-              trustKey: '1',
-              agentID: '35094418',
-              licenseKey: 'NRJS-649173eb1a7b28cd6ab',
-              applicationID: '35094418',
-              beacon: 'staging-bam-cell.nr-data.net',
-              errorBeacon: 'staging-bam-cell.nr-data.net',
-            },
-            production: {
-              instrumentationType: 'proAndSPA',
-              accountId: '10956800',
-              trustKey: '1',
-              agentID: '35094662',
-              licenseKey: 'NRJS-649173eb1a7b28cd6ab',
-              applicationID: '35094662',
-              beacon: 'staging-bam-cell.nr-data.net',
-              errorBeacon: 'staging-bam-cell.nr-data.net',
-            },
-          },
-        },
-        tessen: {
-          tessenVersion: '1.14.0',
-          product: 'DOC',
-          subproduct: 'TDOC',
-          segmentWriteKey: 'AEfP8c1VSuFxhMdk3jYFQrYQV9sHbUXx',
-          trackPageViews: true,
-          pageView: {
-            eventName: 'pageView',
-            category: 'DocPageView',
-            getProperties: ({ location, env }) => ({
-              path: location.pathname,
-              env: env === 'production' ? 'prod' : env,
-            }),
-          },
-        },
-        signup: {
-          environment: process.env.ENVIRONMENT || 'staging',
-          signupUrl:
-            process.env.SIGNUP_URL ||
-            'https://signup-receiver.staging-service.newrelic.com',
-          reCaptchaToken:
-            process.env.RECAPTCHA_TOKEN ||
-            '6LdMFd8UAAAAAApWFzm8YCyuGCUfg57U1WvqVYqC',
-        },
-      },
-    },
-    {
       resolve: 'gatsby-plugin-manifest',
       options: {
         name: 'New Relic Documentation',
@@ -193,6 +79,7 @@ module.exports = {
       options: {
         name: 'markdown-pages',
         path: `${__dirname}/src/content`,
+        ignore: ignoreFolders,
       },
     },
     {
@@ -207,6 +94,10 @@ module.exports = {
       options: {
         name: 'translated-content',
         path: `${__dirname}/src/i18n/content`,
+        ignore:
+          process.env.BUILD_I18N === 'false'
+            ? [`${__dirname}/src/i18n/content/*`]
+            : [],
       },
     },
     {
@@ -214,8 +105,20 @@ module.exports = {
       options: {
         name: 'translated-nav',
         path: `${__dirname}/src/i18n/nav`,
+        ignore:
+          process.env.BUILD_I18N === 'false'
+            ? [`${__dirname}/src/i18n/nav/*`]
+            : [],
       },
     },
+    {
+      resolve: 'gatsby-source-filesystem',
+      options: {
+        name: 'install-docs',
+        path: `${__dirname}/src/install/`,
+      },
+    },
+    'gatsby-transformer-xml',
     {
       resolve: 'gatsby-transformer-json',
       options: {
@@ -328,6 +231,12 @@ module.exports = {
       resolve: `gatsby-source-filesystem`,
       options: {
         path: `./src/nav/`,
+      },
+    },
+    {
+      resolve: `gatsby-source-filesystem`,
+      options: {
+        path: `./src/install/config/`,
       },
     },
     'gatsby-plugin-generate-doc-json',
@@ -488,6 +397,7 @@ module.exports = {
       },
     },
     'gatsby-source-nav',
+    'gatsby-source-install-config',
     'gatsby-plugin-meta-redirect',
     {
       resolve: 'gatsby-plugin-gatsby-cloud',
@@ -514,6 +424,130 @@ module.exports = {
         isTSX: true, // defaults to false
         jsxPragma: `jsx`, // defaults to "React"
         allExtensions: true, // defaults to false
+      },
+    },
+    {
+      resolve: '@newrelic/gatsby-theme-newrelic',
+      options: {
+        oneTrustID: 'e66f9ef1-3a12-4043-b7c0-1a2ea66f6d41',
+        layout: {
+          contentPadding: '1.5rem',
+          maxWidth: '1600px',
+          component: require.resolve('./src/layouts'),
+          mobileBreakpoint: '760px',
+        },
+        i18n: {
+          translationsPath: `${__dirname}/src/i18n/translations`,
+          additionalLocales,
+        },
+        prism: {
+          languages: [
+            'css',
+            'js',
+            'aspnet',
+            'batch',
+            'csv',
+            'cmake',
+            'dax',
+            'diff',
+            'django',
+            'jinja2',
+            'docker',
+            'dockerfile',
+            'elixir',
+            'erlang',
+            'gettext',
+            'ini',
+            'pascal',
+            'parser',
+            'nginx',
+            'n1ql',
+            'monkey',
+            'mongodb',
+            'liquid',
+            'json5',
+            'jsdoc',
+            'mustache',
+            'powershell',
+            'promql',
+            'properties',
+            'protobuf',
+            'puppet',
+            'jsx',
+            'regex',
+            'ruby',
+            'scala',
+            'shell',
+            'swift',
+            'systemd',
+            'toml',
+            'velocity',
+            'vim',
+            'php',
+            'phpdoc',
+            'xml',
+            'xml-doc',
+            'csharp',
+            'md',
+            'java',
+            'razor',
+          ],
+        },
+        splitio: {
+          // Mocked features only used when in localhost mode
+          // https://help.split.io/hc/en-us/articles/360020448791-JavaScript-SDK#localhost-mode
+          features: {
+            free_account_button_color: {
+              treatment: 'off',
+            },
+          },
+          core: {
+            authorizationKey: process.env.SPLITIO_AUTH_KEY || 'localhost',
+          },
+          debug: false,
+        },
+        newrelic: {
+          configs: {
+            development: {
+              instrumentationType: 'proAndSPA',
+              accountId: '10956800',
+              trustKey: '1',
+              agentID: '35094418',
+              licenseKey: 'NRJS-649173eb1a7b28cd6ab',
+              applicationID: '35094418',
+              beacon: 'staging-bam-cell.nr-data.net',
+              errorBeacon: 'staging-bam-cell.nr-data.net',
+            },
+            production: {
+              instrumentationType: 'proAndSPA',
+              accountId: '10956800',
+              trustKey: '1',
+              agentID: '35094662',
+              licenseKey: 'NRJS-649173eb1a7b28cd6ab',
+              applicationID: '35094662',
+              beacon: 'staging-bam-cell.nr-data.net',
+              errorBeacon: 'staging-bam-cell.nr-data.net',
+            },
+          },
+        },
+        tessen: {
+          tessenVersion: '1.14.0',
+          product: 'DOC',
+          subproduct: 'TDOC',
+          segmentWriteKey: 'AEfP8c1VSuFxhMdk3jYFQrYQV9sHbUXx',
+          trackPageViews: true,
+          pageView: {
+            eventName: 'pageView',
+            category: 'DocPageView',
+            getProperties: ({ location, env }) => ({
+              path: location.pathname,
+              env: env === 'production' ? 'prod' : env,
+            }),
+          },
+        },
+        shouldUpdateScroll: {
+          routes: ['/attribute-dictionary'],
+        },
       },
     },
   ],

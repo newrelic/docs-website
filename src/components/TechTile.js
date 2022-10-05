@@ -12,6 +12,7 @@ const TileIcon = ({ className, icon }) => {
         className={className}
         css={css`
           flex: 1;
+          max-height: 2rem;
         `}
       />
     );
