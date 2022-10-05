@@ -35,6 +35,7 @@ exports.createResolvers = ({ createResolvers, createNodeId }) => {
           slug: 'String!',
         },
         resolve: async (_source, args, context) => {
+          const { slug } = args;
           const { nodeModel } = context;
 
           const { entries } = await nodeModel.findAll({ type: 'Locale' });
@@ -50,7 +51,14 @@ exports.createResolvers = ({ createResolvers, createNodeId }) => {
             locales,
           };
 
-          return createNav(utils);
+          switch (true) {
+            case slug.startsWith('/docs/agile-handbook') ||
+              slug.startsWith('/docs/style-guide'):
+              return createSubNav(utils);
+
+            default:
+              return createNav(utils);
+          }
         },
       },
     },
@@ -210,6 +218,31 @@ const createReleaseNotesNav = async ({ createNodeId, nodeModel }) => {
         };
       })
     ),
+  };
+};
+
+const createSubNav = async ({ args, createNodeId, nodeModel, locales }) => {
+  let { slug } = args;
+  slug = slug
+    .replace(/\/table-of-contents$/, '')
+    .replace(new RegExp(`^\\/(${locales.join('|')})(?=\\/)`), '');
+  const { entries } = await nodeModel.findAll({ type: 'NavYaml' });
+
+  const allNavYamlNodes = Array.from(entries)
+    .filter((node) => !node.rootNav)
+    .sort((a, b) => a.title.localeCompare(b.title));
+
+  const nav =
+    allNavYamlNodes.find((nav) => findPage(nav, slug)) ||
+    allNavYamlNodes.find((nav) => slug.includes(nav.path));
+
+  if (!nav) {
+    return null;
+  }
+
+  return {
+    ...nav,
+    id: createNodeId(nav.title),
   };
 };
 
