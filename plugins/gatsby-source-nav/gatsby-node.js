@@ -22,7 +22,6 @@ exports.createSchemaCustomization = ({ actions }) => {
       icon: String
       url: String
       pages: [NavItem!]!
-      category: String
     }
   `);
 };
@@ -84,9 +83,6 @@ exports.createResolvers = ({ createResolvers, createNodeId }) => {
       },
       pages: {
         resolve: (source) => source.pages || [],
-      },
-      category: {
-        resolve: (source) => source.category || null,
       },
     },
   });
