@@ -27,7 +27,7 @@ const RootNavigation = ({ nav }) => {
         if (page.title === 'section-break') {
           return <hr />;
         }
-        if (page.title && !page.url) {
+        if (page.title && !page.url && !subNav) {
           return (
             <p
               css={css`
