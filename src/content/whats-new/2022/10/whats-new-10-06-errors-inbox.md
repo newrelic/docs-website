@@ -14,7 +14,7 @@ These enhancements include:
 !["Errors Inbox"](./images/ErrorsInbox_preview.png "Errors Inbox")
 
 **How to get started**
-* Check out our Errors inbox [documentation](https://docs.newrelic.com/docs/errors-inbox/errors-inbox/).
-* **BONUS** Watch this [NerdByte](https://www.youtube.com/watch?v=v2frs2Pyjfw) for another cool errors inbox feature: Errors Inbox Jira Integration. 
+* Check out our errors inbox [documentation](https://docs.newrelic.com/docs/errors-inbox/errors-inbox/).
+* **BONUS** Watch this [NerdByte](https://www.youtube.com/watch?v=v2frs2Pyjfw) for another cool errors inbox feature: the Jira Integration. 
 
 
