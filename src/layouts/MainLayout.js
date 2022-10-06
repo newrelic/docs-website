@@ -188,6 +188,7 @@ export const query = graphql`
     title(locale: $locale)
     url
     icon
+    category
   }
 `;
 

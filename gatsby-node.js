@@ -286,6 +286,7 @@ exports.createSchemaCustomization = ({ actions }) => {
     title: String!
     path: String
     icon: String
+    category: String
     filterable: Boolean!
     pages: [NavYaml!]!
     rootNav: Boolean!

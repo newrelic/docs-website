@@ -27,7 +27,7 @@ const RootNavigation = ({ nav }) => {
         if (page.title === 'section-break') {
           return <hr />;
         }
-        if (page.title && !page.url && !subNav) {
+        if (page.title === 'category') {
           return (
             <p
               css={css`
@@ -37,7 +37,7 @@ const RootNavigation = ({ nav }) => {
                 margin-top: 1rem;
               `}
             >
-              {page.title.toUpperCase()}
+              {page.category.toUpperCase()}
             </p>
           );
         }
