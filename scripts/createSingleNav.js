@@ -7,19 +7,15 @@ const createSingleNav = () => {
     fs.readFileSync(path.join(process.cwd(), 'src/nav/root.yml'), 'utf8')
   );
 
-  const ignorePages = [
-    '/docs/glossary/glossary',
-    '/attribute-dictionary',
-    '/whats-new',
-    '/docs/release-notes',
-  ];
+  const ignorePages = ['/whats-new', '/docs/release-notes'];
 
   const rootNavChildren = rootNavYaml.pages.reduce((acc, page) => {
     let subNavChildren = null;
     if (
       page.path &&
       !page.path.startsWith('http') &&
-      !ignorePages.includes(page.path)
+      !ignorePages.includes(page.path) &&
+      !page.singlePage
     ) {
       const pageDirectory = page.path.split('/')[2];
       subNavChildren = yaml.safeLoad(
