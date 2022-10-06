@@ -1,8 +1,8 @@
 ---
-title: 'Query and update user info with NerdGraph API' 
-summary: 'New NerdGraph functionalities for organization and user management are now available.' 
-releaseDate: '2022-09-30' 
-learnMoreLink: 'https://docs.newrelic.com/docs/apis/nerdgraph/get-started/introduction-new-relic-nerdgraph/#tutorials' 
+title: 'Query and update user info with NerdGraph API'
+summary: 'New NerdGraph functionalities for organization and user management are now available.'
+releaseDate: '2022-09-30'
+learnMoreLink: 'https://docs.newrelic.com/docs/apis/nerdgraph/get-started/introduction-new-relic-nerdgraph/#tutorials'
 getStartedLink: 'https://docs.newrelic.com/docs/apis/nerdgraph/examples/nerdgraph-manage-users/'
 ---
 
