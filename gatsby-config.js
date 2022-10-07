@@ -118,6 +118,7 @@ module.exports = {
         path: `${__dirname}/src/install/`,
       },
     },
+    'gatsby-transformer-xml',
     {
       resolve: 'gatsby-transformer-json',
       options: {
