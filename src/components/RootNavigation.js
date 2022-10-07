@@ -3,7 +3,7 @@ import PropTypes from 'prop-types';
 import { NavItem } from '@newrelic/gatsby-theme-newrelic';
 import { css } from '@emotion/react';
 
-const RootNavigation = ({ nav }) => {
+const RootNavigation = ({ nav, className }) => {
   const subNav =
     nav.url === '/docs/agile-handbook' || nav.url === '/docs/style-guide';
   return (
@@ -11,6 +11,8 @@ const RootNavigation = ({ nav }) => {
       role="navigation"
       aria-label="Navigation"
       css={css`
+        height: 100%;
+        overflow: auto;
         margin-top: 1rem;
         span,
         svg {
@@ -21,6 +23,8 @@ const RootNavigation = ({ nav }) => {
           font-weight: 400;
         }
       `}
+      id="nav"
+      className={className}
     >
       {subNav && <h3>{nav.title}</h3>}
       {nav.pages.map((page) => {
@@ -41,7 +45,7 @@ const RootNavigation = ({ nav }) => {
             </p>
           );
         }
-        return <NavItem key={page.title} page={page} />;
+        return <NavItem key={page.title} name={page.url} page={page} />;
       })}
     </nav>
   );

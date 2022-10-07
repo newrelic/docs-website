@@ -13,6 +13,7 @@ import {
 } from '@newrelic/gatsby-theme-newrelic';
 import { graphql } from 'gatsby';
 import { css } from '@emotion/react';
+import { scroller } from 'react-scroll';
 import SEO from '../components/SEO';
 import RootNavigation from '../components/RootNavigation';
 import { useLocation, navigate } from '@reach/router';
@@ -25,9 +26,19 @@ const MainLayout = ({ data = {}, children, pageContext }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [sidebar, setSidebar] = useState(true);
   const { t } = useTranslation();
+  const navHeaderHeight = '100px';
 
   useEffect(() => {
     setIsMobileNavOpen(false);
+    if (location.pathname !== '/') {
+      scroller.scrollTo(`${location.pathname}`, {
+        duration: 600,
+        delay: 0,
+        smooth: 'easeInOutQuart',
+        containerId: 'nav',
+        offset: -5,
+      });
+    }
   }, [location.pathname]);
 
   return (
@@ -54,6 +65,10 @@ const MainLayout = ({ data = {}, children, pageContext }) => {
         <Layout.Sidebar
           css={css`
             padding: 0;
+            > div {
+              height: 100%;
+              overflow: hidden;
+            }
             background: var(--erno-black);
             ${!sidebar &&
             css`
@@ -72,51 +87,55 @@ const MainLayout = ({ data = {}, children, pageContext }) => {
         >
           <div
             css={css`
-              display: flex;
-              justify-content: space-between;
-              align-items: center;
+              height: ${navHeaderHeight};
             `}
           >
-            <Link
-              to="/"
+            <div
               css={css`
-                display: block;
-                text-decoration: none;
-                color: var(--system-text-primary-dark);
-                &:hover {
-                  color: var(--system-text-primary-dark);
-                }
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
               `}
             >
-              <p
+              <Link
+                to="/"
                 css={css`
-                  font-size: 44px;
-                  font-weight: 500;
-                  line-height: 0;
-                  ${!sidebar &&
-                  css`
-                    display: none;
-                  `}
+                  display: block;
+                  text-decoration: none;
+                  color: var(--system-text-primary-dark);
+                  &:hover {
+                    color: var(--system-text-primary-dark);
+                  }
                 `}
               >
-                Docs
-              </p>
-            </Link>
-            <Button
-              variant={Button.VARIANT.PRIMARY}
-              css={css`
-                height: 40px;
-                width: 40px;
-                padding: 0;
-                border-radius: 50%;
-              `}
-              onClick={() => setSidebar(!sidebar)}
-            >
-              <Icon name="fe-move-horizontal" size="1rem" />
-            </Button>
-          </div>
-          {sidebar && (
-            <>
+                <p
+                  css={css`
+                    font-size: 44px;
+                    font-weight: 500;
+                    line-height: 0;
+                    ${!sidebar &&
+                    css`
+                      display: none;
+                    `}
+                  `}
+                >
+                  Docs
+                </p>
+              </Link>
+              <Button
+                variant={Button.VARIANT.PRIMARY}
+                css={css`
+                  height: 40px;
+                  width: 40px;
+                  padding: 0;
+                  border-radius: 50%;
+                `}
+                onClick={() => setSidebar(!sidebar)}
+              >
+                <Icon name="fe-move-horizontal" size="1rem" />
+              </Button>
+            </div>
+            {sidebar && (
               <SearchInput
                 placeholder={t('home.search.placeholder')}
                 value={searchTerm || ''}
@@ -132,9 +151,18 @@ const MainLayout = ({ data = {}, children, pageContext }) => {
                   }
                 `}
               />
-
-              <RootNavigation nav={nav} />
-            </>
+            )}
+          </div>
+          {sidebar && (
+            <RootNavigation
+              nav={nav}
+              css={css`
+                height: calc(
+                  100vh - ${navHeaderHeight} - var(--global-header-height) -
+                    4rem
+                );
+              `}
+            />
           )}
         </Layout.Sidebar>
         <Layout.Main
