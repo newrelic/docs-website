@@ -18,6 +18,7 @@ const useIsomorphicLayoutEffect =
 
 const NavItem = ({
   page,
+  name,
   __parent: parent,
   __depth: depth = 0,
   __root: root,
@@ -92,6 +93,7 @@ const NavItem = ({
       `}
     >
       <NavLink
+        name={name}
         active={isCurrentPage}
         to={page.pages?.length > 0 ? null : page.url}
         icon={page.icon}
@@ -131,6 +133,7 @@ const NavItem = ({
       {isExpanded &&
         page.pages?.map((child) => (
           <NavItem
+            name={child.url}
             key={child.url || child.title}
             page={child}
             __parent={page}
