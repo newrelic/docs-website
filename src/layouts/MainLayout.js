@@ -135,6 +135,7 @@ const MainLayout = ({ data = {}, children, pageContext }) => {
               />
 
               <RootNavigation nav={nav} />
+              <NavFooter />
             </>
           )}
         </Layout.Sidebar>
