@@ -35,7 +35,7 @@ const verifySteps = (steps, installPage) => {
           '\x1b[31m%s\x1b[0m',
           `\n (!) ${installPage}.yaml`,
           `\x1b[33m${override.filePath}\x1b[0m was not found in \x1b[32msrc/install/${installPage}/\x1b[0m \n`,
-          'make sure the file exists and check for spelling mistakes \n'
+          'make sure the file exists and check for spelling mistakes or a missing file extension (.mdx) \n'
         );
         issues = ++issues;
       }
