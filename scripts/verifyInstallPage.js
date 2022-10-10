@@ -47,6 +47,17 @@ const verifySteps = (steps, installPage) => {
         );
         issues = ++issues;
       }
+      override?.selectedOptions.length &&
+        override.selectedOptions.forEach((option) => {
+          if (!option?.optionType) {
+            console.error(
+              '\x1b[31m%s\x1b[0m',
+              `\n (!) ${installPage}.yaml`,
+              `override \x1b[33m${override.filePath}\x1b[0m is missing an \x1b[33moptionType\x1b[0m \n if this override has an optionType double check that the indenting is correct \n`
+            );
+            issues = ++issues;
+          }
+        });
     });
   });
   if (issues > 0) {
