@@ -16,6 +16,10 @@ const NavFooter = ({ width }) => {
         left: 0;
         position: fixed;
         width: ${width};
+
+        @media screen and (max-width: 1240px) {
+          width: 277px;
+        }
       `}
     >
       <ExternalLink
