@@ -1,7 +1,7 @@
 ---
 title: 'Starting November 3rd, your Go and PHP APM agent update will include automatic logs in context'
 summary: 'Reduce complexity and troubleshoot issues faster with application logs collection and forwarding built directly into the agents; opt out anytime'
-releaseDate: '2022-11-11'
+releaseDate: '2022-10-11'
 getStartedLink: 'https://docs.newrelic.com/docs/apm/new-relic-apm/getting-started/get-started-logs-context/#get-started'
 learnMoreLink: 'https://docs.newrelic.com/docs/apm/new-relic-apm/getting-started/get-started-logs-context/#agents'
 ---
