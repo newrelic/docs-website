@@ -11,7 +11,7 @@ const RootNavigation = ({ nav }) => {
       role="navigation"
       aria-label="Navigation"
       css={css`
-        margin-top: 1rem;
+        margin: 16px 0 40px 0;
         span,
         svg {
           color: #afe2e3;

@@ -56,10 +56,12 @@ const MainLayout = ({ data = {}, children, pageContext }) => {
           css={css`
             padding: 0;
             background: var(--erno-black);
+
             ${!sidebar &&
             css`
               border: none;
               background: var(--primary-background-color);
+              padding-bottom: 72px;
               & > div {
                 padding: ${contentPadding} 0;
               }
@@ -135,7 +137,7 @@ const MainLayout = ({ data = {}, children, pageContext }) => {
               />
 
               <RootNavigation nav={nav} />
-              <NavFooter />
+              <NavFooter width={sidebarWidth} />
             </>
           )}
         </Layout.Sidebar>

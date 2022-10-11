@@ -1,17 +1,21 @@
 import React from 'react';
 import { css } from '@emotion/react';
+import PropTypes from 'prop-types';
 import { ExternalLink, Icon } from '@newrelic/gatsby-theme-newrelic';
 
-const NavFooter = () => {
+const NavFooter = ({ width }) => {
   return (
     <div
       css={css`
         align-items: center;
         background: #afe2e3;
+        bottom: 0;
         display: flex;
         height: 72px;
         justify-content: center;
-        width: 100%;
+        left: 0;
+        position: fixed;
+        width: ${width};
       `}
     >
       <ExternalLink
@@ -39,6 +43,10 @@ const NavFooter = () => {
       </ExternalLink>
     </div>
   );
+};
+
+NavFooter.propTypes = {
+  width: PropTypes.string,
 };
 
 export default NavFooter;
