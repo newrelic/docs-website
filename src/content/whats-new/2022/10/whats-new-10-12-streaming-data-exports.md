@@ -10,7 +10,7 @@ Today, [Data Plus](https://docs.newrelic.com/whats-new/2022/06/whats-new-6-1-dat
 
 In addition Data Plus also includes:
 
-* Up to 90 days of data retention 
+* Up to 90 days of data retention across all data types
 * FedRAMP authorized
 * HIPAA compliance with HITRUST certification (Pro and Enterprise customers only) 
 * Logs obfuscation
