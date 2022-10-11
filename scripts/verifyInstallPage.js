@@ -5,25 +5,49 @@ const path = require('path');
 
 const verifySteps = (steps, installPage) => {
   let issues = 0;
+
   steps.forEach((step) => {
-    if (!step.filePath.includes(`/install/${installPage}/`)) {
+    const fileExists =
+      step.filePath && fs.existsSync(path.join(process.cwd(), step?.filePath));
+    if (
+      (step.filePath && !step.filePath.includes(`/install/${installPage}/`)) ||
+      fileExists === false
+    ) {
       console.error(
         '\x1b[31m%s\x1b[0m',
         `\n (!) ${installPage}.yaml`,
-        `\x1b[33m${step.filePath}\x1b[0m must point to a file in \x1b[32msrc/install/${installPage}/\x1b[0m \n`
+        `\x1b[33m${step.filePath}\x1b[0m was not found in \x1b[32msrc/install/${installPage}/\x1b[0m \n`,
+        'make sure the file exists and check for spelling mistakes \n'
       );
       issues = ++issues;
-      step.overrides?.forEach((override) => {
-        if (!override?.filePath?.includes(`/install/${installPage}/`)) {
-          console.error(
-            '\x1b[31m%s\x1b[0m',
-            `\n (!) ${installPage}.yaml`,
-            `\x1b[33m${step.filePath}\x1b[0m must point to a file in \x1b[32msrc/install/${installPage}/\x1b[0m \n`
-          );
-          issues = ++issues;
-        }
-      });
     }
+    step.overrides?.forEach((override) => {
+      const overrideFileExists =
+        override.filePath &&
+        fs.existsSync(path.join(process.cwd(), override?.filePath));
+
+      if (
+        (!override?.filePath?.includes(`/install/${installPage}/`) &&
+          override.filePath) ||
+        overrideFileExists === false
+      ) {
+        console.error(
+          '\x1b[31m%s\x1b[0m',
+          `\n (!) ${installPage}.yaml`,
+          `\x1b[33m${override.filePath}\x1b[0m was not found in \x1b[32msrc/install/${installPage}/\x1b[0m \n`,
+          'make sure the file exists and check for spelling mistakes \n'
+        );
+        issues = ++issues;
+      }
+      if (!override?.selectedOptions) {
+        console.error(
+          '\x1b[31m%s\x1b[0m',
+          `\n (!) ${installPage}.yaml`,
+          `override \x1b[33m${override.filePath}\x1b[0m does not have a value for \x1b[33mselectedOptions\x1b[0m \n This is required so that the page knows which optionType/value will cause it to override \n`
+        );
+        issues = ++issues;
+      }
+    });
   });
   if (issues > 0) {
     console.error(
@@ -121,12 +145,12 @@ const main = () => {
         '\n(!)',
         `There is a syntax issue in ${installPage}.yaml \n These are sometimes caused by apostrophes. Be sure to use double quotes around any strings with apostrophes \n`,
         '\nerror message: ',
-        `${e.message}`
+        `${e.message} \n`
       );
       process.exit(1);
     }
   } catch (e) {
-    console.log(
+    console.error(
       '\x1b[31m%s\x1b[0m',
       '\n (!)',
       `Cannot parse ${installPage}.yaml, make sure the file exists \n`,

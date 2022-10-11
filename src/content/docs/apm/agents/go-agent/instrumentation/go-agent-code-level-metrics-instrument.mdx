@@ -35,6 +35,13 @@ defer txn.End()
 
 This means that, for this transaction only, a source file pathname of, for example, `"/usr/src/otherproject/lib/src/main.go"` is shortened to `"otherproject/lib/src/main.go"`.
 
+If you have multiple path prefixes you wish to use, simply pass them as additional parameters to `WithPathPrefix`:
+
+```go
+txn := app.StartTransaction("mytransaction", newrelic.WithPathPrefix("otherproject/lib/src", "myproject/src"))
+defer txn.End()
+```
+
 ### Adjusting the function recognition heuristic's ignore prefix [#instrument-transactions-ignore-prefix-clm]
 
 By default, the Go agent contains logic to skip over functions in the call stack which are internal to the agent itself, in order to arrive at the one you are instrumenting. The [configuration guide](/docs/apm/agents/go-agent/configuration/go-agent-code-level-metrics-config)
@@ -145,3 +152,37 @@ Sometimes you don't have the luxury of knowing the code location until after the
 txn := newrelic.FromContext(r.context)
 txn.SetOption(newrelic.WithThisCodeLocation())
 ```
+
+## Improving performance with cached code level metrics functions [#instrument-transactions-cached-clm]
+
+Often the most convenient way to instrument a transaction with code-level metrics is to call `newrelic.WithThisCodeLocation()` (or similar function as described above) inside the instrumented function. However, if that function is going to be called many times throughout the runtime of your application, it would be preferable to avoid the overhead of repeatedly computing the source code location. This is especially true if the transaction code will be run concurrently in many goroutines.
+
+To mitigate this, the Go Agent provides _caching_ versions of several of these functions. They operate the same as their uncached counterparts do, except that they only do the work of figuring out the source code location the _first_ time they are called, and then simply reuse that value every subsequent time.
+
+In order to make use of this feature, you need to create a cache storage variable by calling `NewCachedCodeLocation()` and put it where it will persist between executions of the instrumented transaction.
+This variable will hold the cached value for that code location. Then simply use the methods `FunctionLocation(functionValue)` or
+`ThisCodeLocation()` just as you would use the stand-alone functions of the same names, but in this case they are methods of your `CachedCodeLocation` variable.
+These methods are thread-safe, so you may use them in concurrent goroutines without adding any additional concurrency controls to them.
+
+For example, in this code we set up a cache variable which is used in the closure assigned to the `myFunc` variable.
+
+```go
+cache := newrelic.NewCachedCodeLocation()
+
+myFunc := func() {
+	txn := app.StartTransaction("mytransaction", cache.WithThisCodeLocation())
+	defer txn.End()
+	// go on to perform the transaction
+}
+```
+
+(This example assumes that `app` is the agent's `Application` value created when the agent was started, and is visible to this code snippet.)
+
+Now we can call the `myFunc` function many times. Each (possibly concurrent) invocation of `myFunc` has a reference to the `cache` variable. The first invocation
+to execute `cache.WithThisCodeLocation()` will compute the source code location at that point, and store it in the `cache` variable. Subsequent executions of `myFunc` will reuse the value previously stored in `cache`.
+
+Note that you must use a different cache variable for each code location you want to use, since the point is to only evaluate that location once and then 
+use the cached value from there. The cache variable is not intended to be copied or used other than as documented here and in the module package documentation.
+
+Please refer to the full Go [module package documentation](https://pkg.go.dev/github.com/newrelic/go-agent/v3/newrelic) for more details about all of the cached 
+code level metrics functions and methods you may employ.
