@@ -3,9 +3,10 @@ title: 'New Relic Data Plus allows for streaming export of your data through AWS
 releaseDate: '2022-10-12'
 getStartedLink: 'https://newrelic.com/blog/nerdlog/data-plus-pricing'
 ---
+
 #  Streaming data export allows you to stream data out of New Relic for deeper data exploration as well as for compliance and security 
 
-Today, [Data Plus](https://docs.newrelic.com/whats-new/2022/06/whats-new-6-1-data-plus-available) customers can stream data out of New Relic (as it is being ingested) for compliance, security, and deeper data analysis. This is done through AWS Kinesis Firehose via NerdGraph. Using NerdGraph queries, you can create and manage streaming rules that determine what sort of data will be exported in real-time. As this data is only exported during [ingestion](https://docs.newrelic.com/docs/data-apis/manage-data/manage-data-coming-new-relic/), it differs from [historical data export](https://docs.newrelic.com/whats-new/2022/09/whats-new-9-14-historical-data-exports) which sends past data post ingestion stage.  
+Today, [Data Plus](https://docs.newrelic.com/whats-new/2022/06/whats-new-6-1-data-plus-available) customers can stream data out of New Relic (as it is being ingested) for compliance, security, and deeper data analysis. This is done through AWS Kinesis Firehose via NerdGraph. Using NerdGraph queries, you can create and manage streaming rules that determine what sort of data will be exported in real time. As this data is only exported during [ingestion](https://docs.newrelic.com/docs/data-apis/manage-data/manage-data-coming-new-relic), it differs from [historical data export](https://docs.newrelic.com/whats-new/2022/09/whats-new-9-14-historical-data-exports) which reports past data, after the ingestion stage.  
 
 In addition Data Plus also includes:
 
@@ -19,17 +20,7 @@ In addition Data Plus also includes:
 
 [Read more here](https://newrelic.com/blog/nerdlog/data-plus-pricing)
 
-# Learn more about Streaming Data Export
-1. Take a deep dive into all the capabilities available for streaming data export on [our docs page](https://docswebsitedevelop-newstreamingexportngdoc.gtsb.io/).
+# Learn more about streaming data export
 
+Take a deep dive into all the capabilities available in [our streaming data export doc](https://docs.newrelic.com/docs/apis/nerdgraph/examples/nerdgraph-streaming-export).
 
-Footer
-© 2022 GitHub, Inc.
-Footer navigation
-Terms
-Privacy
-Security
-Status
-Docs
-Contact GitHub
-Pricing
