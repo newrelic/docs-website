@@ -87,13 +87,7 @@ const fetchTranslatedFilesZip = (locale) => {
    */
   return async ({ fileUris }) => {
     fileUris = fileUris.filter(
-      (uri) =>
-        uri !== 'src/announcements/q2-survey.mdx' &&
-        uri !==
-          'src/content/docs/apm/agents/nodejs-agent/getting-started/nodejs-agent-eol-policy.mdx' &&
-        uri !==
-          'src/content/docs/apm/agents/net-agent/getting-started/net-agent-compatibility-requirements-net-framework.mdx' &&
-        !uri.includes('src/install/java')
+      (uri) => uri !== 'src/announcements/q2-survey.mdx'
     );
     const fileUriStr = fileUris.reduce((str, uri) => {
       return str.concat(`&fileUris[]=${encodeURIComponent(uri)}`);
