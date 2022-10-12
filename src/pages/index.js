@@ -134,7 +134,7 @@ const HomePage = ({ data }) => {
             title={t('home.popularDocs.t2.title')}
             label={{ text: 'Log management', color: '#FCD672' }}
             path="/docs/logs/get-started/get-started-log-management/"
-            />
+          />
           <DocTile
             title={t('home.popularDocs.t3.title')}
             label={{ text: 'APM', color: '#AFE2E3' }}
