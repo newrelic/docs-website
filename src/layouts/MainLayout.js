@@ -16,6 +16,7 @@ import { css } from '@emotion/react';
 import { scroller } from 'react-scroll';
 import SEO from '../components/SEO';
 import RootNavigation from '../components/RootNavigation';
+import NavFooter from '../components/NavFooter';
 import { useLocation, navigate } from '@reach/router';
 
 const MainLayout = ({ data = {}, children, pageContext }) => {
@@ -70,10 +71,12 @@ const MainLayout = ({ data = {}, children, pageContext }) => {
               overflow: hidden;
             }
             background: var(--erno-black);
+
             ${!sidebar &&
             css`
               border: none;
               background: var(--primary-background-color);
+              padding-bottom: 72px;
               & > div {
                 padding: ${contentPadding} 0;
               }
@@ -154,15 +157,18 @@ const MainLayout = ({ data = {}, children, pageContext }) => {
             )}
           </div>
           {sidebar && (
-            <RootNavigation
-              nav={nav}
-              css={css`
-                height: calc(
-                  100vh - ${navHeaderHeight} - var(--global-header-height) -
-                    4rem
-                );
-              `}
-            />
+            <>
+              <RootNavigation
+                nav={nav}
+                css={css`
+                  height: calc(
+                    100vh - ${navHeaderHeight} - var(--global-header-height) -
+                      4rem
+                  );
+                `}
+              />
+              <NavFooter width={sidebarWidth} />
+            </>
           )}
         </Layout.Sidebar>
         <Layout.Main

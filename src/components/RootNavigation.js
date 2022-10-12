@@ -13,7 +13,7 @@ const RootNavigation = ({ nav, className }) => {
       css={css`
         height: 100%;
         overflow: auto;
-        margin-top: 1rem;
+        margin: 16px 0 40px 0;
         span,
         svg {
           color: #afe2e3;
