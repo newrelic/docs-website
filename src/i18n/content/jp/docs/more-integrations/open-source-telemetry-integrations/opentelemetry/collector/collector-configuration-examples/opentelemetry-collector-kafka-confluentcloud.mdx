@@ -1,0 +1,412 @@
+---
+title: Confluent Cloud & Kafka モニタリング用コレクター
+tags:
+  - Integrations
+  - Open source telemetry integrations
+  - OpenTelemetry
+  - Kafka
+  - Confluent Cloud
+metaDescription: You can collect Kafka metrics from Confluent using the OpenTelemetry collector.
+translationType: machine
+---
+
+OpenTelemetry コレクターを使用して、Confluent Cloud で管理された Kafka デプロイに関するメトリクスを収集できます。コレクターは OpenTelemetry のコンポーネントであり、テレメトリ データを収集、処理し、New Relic (または任意のオブザーバビリティ バックエンド) にエクスポートします。
+
+<Callout variant="tip">
+  他のコレクターのユースケースに関するヘルプを探している場合は、 [newrelic-opentelemetry-examples](https://github.com/newrelic/newrelic-opentelemetry-examples)リポジトリを参照してください。
+</Callout>
+
+以下の手順を実行して、Confluent から Kafka メトリクスを収集します。
+
+## ステップ 1: New Relic にサインアップします。 [#signup]
+
+* まだ行っていない場合は、無料[のNewRelicアカウント](https://newrelic.com/signup)にサインアップしてください。
+* データを報告するNewRelicアカウントの[ライセンスキー](https://one.newrelic.com/launcher/api-keys-ui.launcher)を取得します。
+
+## ステップ 2: 前提条件 [#prerequisites]
+
+* 先に進む前に、 [Go](https://go.dev/doc/install)がインストールされていることを確認してください。
+* [GOPATH](https://go.dev/doc/gopath_code)を`$GOPATH/bin`に設定し、PATH 変数に追加します。
+
+## ステップ 3: PR ソース リポジトリからコンパイルする [#compile]
+
+<Callout variant="important">
+  New Relic は、[コア](https://github.com/open-telemetry/opentelemetry-collector)リポジトリと[Contrib](https://github.com/open-telemetry/opentelemetry-collector-contrib)リポジトリの両方にアップストリームの作業を提供することで、OpenTelemetry コミュニティをサポートしています。
+
+  [OpenTelemetry](https://github.com/open-telemetry/opentelemetry-collector-contrib/pull/14167) [Collector Contrib リポジトリ](https://github.com/open-telemetry/opentelemetry-collector-contrib)の PR14167 がマージされると、以下のドキュメントが更新され、Contrib リポジトリのメイン ブランチが反映されます。
+</Callout>
+
+最新のインストール手順については、 [https://github.com/abeach-nr/opentelemetry-collector-contrib.git](https://github.com/abeach-nr/opentelemetry-collector-contrib.git)を参照してください。
+
+```bash
+$ git clone https://github.com/abeach-nr/opentelemetry-collector-contrib.git
+$ cd opentelemetry-collector-contrib
+$ make otelcontribcol
+
+```
+
+バイナリは以下にインストールされます `./bin`
+
+## ステップ 4: Opentelemetry コレクターを構成する [#configure-opentelemetry-collectors]
+
+以下の例から`config.yaml`という名前の新しいファイルを作成します。
+
+ファイル内の次のキーを独自の値に置き換えます。
+
+* [クラウド API キー](https://docs.confluent.io/cloud/current/access-management/authenticate/api-keys/api-keys.html#cloud-cloud-api-keys)
+
+  * CONFLUENT_API_ID
+  * CONFLUENT_API_SECRET
+
+* [Kafka クライアント API キー](https://docs.confluent.io/cloud/current/access-management/authenticate/api-keys/api-keys.html#resource-specific-api-keys)
+
+  * CONFLUENT_API_ID
+  * CONFLUENT_API_SECRET
+
+* [New Relic インジェスト キー](/docs/apis/intro-apis/new-relic-api-keys/#license-key)
+
+  * NEW RELIC ライセンスキー
+
+* CLUSTER_ID
+
+  * Confluent クラウドからのクラスター ID
+  * クラスタ キー/シークレットは、このクラスタに固有のものである必要があります
+
+```yaml
+receivers:
+  kafkametrics:
+    brokers:
+      -
+    protocol_version: 2.0.0
+    scrapers:
+      - brokers
+      - topics
+      - consumers
+    auth:
+      sasl:
+        username: <var>INSERT_CONFLUENT_CLUSTER_API_ID</var>
+        password: <var>INSERT_CONFLUENT_CLUSTER_SECRET</var>
+        mechanism: PLAIN
+      tls:
+        insecure_skip_verify: false
+    collection_interval: 30s
+
+
+  prometheus:
+    config:
+      scrape_configs:
+        - job_name: "confluent"
+          scrape_interval: 60s # Do not go any lower than this or you'll hit rate limits
+          static_configs:
+            - targets: ["api.telemetry.confluent.cloud"]
+          scheme: https
+          basic_auth:
+            username: <var>INSERT_CONFLUENT_API_ID</var>
+            password: <var>INSERT_CONFLUENT_API_SECRET</var>
+          params:
+            "resource.kafka.id":
+              - <var>CLUSTER_ID</var>
+exporters:
+  otlp:
+    endpoint: https://otlp.nr-data.net:4317
+    headers:
+      api-key: <var>INSERT_NEW_RELIC_LICENSE_KEY</var>
+processors:
+  batch:
+  memory_limiter:
+    limit_mib: 400
+    spike_limit_mib: 100
+    check_interval: 5s
+service:
+  telemetry:
+    logs:
+  pipelines:
+    metrics:
+      receivers: [prometheus]
+      processors: [batch]
+      exporters: [otlp]
+    metrics/kafka:
+      receivers: [kafkametrics]
+      processors: [batch]
+      exporters: [otlp]
+
+
+```
+
+## ステップ 5: コレクターを実行する [#run-collector]
+
+オペレーティング システム (たとえば、 `darwin`または`linux` ) を必ず挿入して、次を実行します。
+
+```
+./bin/otelcontribcol_<var>INSERT_THE_OPERATING_SYSTEM</var>_amd64 --config config.yaml
+```
+
+## ステップ 6: New Relic でダッシュボードをセットアップする
+
+これらのメトリクスを使用するこの New Relic[サンプル ダッシュボード](./dashboard.json)を確認してください。
+
+### Kafka インスタンスのメトリクス [#instance-metrics]
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        名前
+      </th>
+
+      <th>
+        説明
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        カフカ・ブローカーズ
+      </td>
+
+      <td>
+        クラスター内のブローカーの数
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        kafka.brokers.consumer_fetch_rate_avg
+      </td>
+
+      <td>
+        平均消費者取得率
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        kafka.brokers.incoming_byte_rate_avg
+      </td>
+
+      <td>
+        平均受信バイト レート (バイト/秒)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        kafka.brokers.outgoing_byte_rate_avg
+      </td>
+
+      <td>
+        平均送信バイト レート (バイト/秒)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        kafka.brokers.request_latency_avg
+      </td>
+
+      <td>
+        リクエスト レイテンシの平均（ミリ秒）
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        kafka.brokers.request_rate_avg
+      </td>
+
+      <td>
+        1 秒あたりの平均リクエスト率
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        kafka.brokers.request_size_avg
+      </td>
+
+      <td>
+        平均リクエスト サイズ (バイト単位)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        kafka.brokers.requests_in_flight
+      </td>
+
+      <td>
+        進行中のリクエスト
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        kafka.brokers.response_rate_avg
+      </td>
+
+      <td>
+        1 秒あたりの平均応答率
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        kafka.brokers.response_size_avg
+      </td>
+
+      <td>
+        平均応答サイズ (バイト)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        kafka.consumer_group.lag
+      </td>
+
+      <td>
+        トピックの分割における消費者グループの現在のおおよその遅れ
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        kafka.consumer_group.lag_sum
+      </td>
+
+      <td>
+        トピックのすべてのパーティションにわたる消費者グループ ラグの現在のおおよその合計
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        kafka.consumer_group.members
+      </td>
+
+      <td>
+        コンシューマー グループのメンバー数
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+### コンフルエント クラウド メトリクス [#confluent-metrics]
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        名前
+      </th>
+
+      <th>
+        説明
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        confluent_kafka_server_received_bytes
+      </td>
+
+      <td>
+        ネットワークから受信した顧客データのバイト数の差分。各サンプルは、前のデータ サンプル以降に受信したバイト数です。カウントは 60 秒ごとにサンプリングされます。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        confluent_kafka_server_sent_bytes
+      </td>
+
+      <td>
+        ネットワーク経由で送信された顧客データのバイト数の差分。各サンプルは、前のデータ ポイント以降に送信されたバイト数です。カウントは 60 秒ごとにサンプリングされます。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        confluent_kafka_server_received_records
+      </td>
+
+      <td>
+        受信したレコードのデルタ カウント。各サンプルは、前のデータ サンプル以降に受信したレコードの数です。カウントは 60 秒ごとにサンプリングされます。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        confluent_kafka_server_sent_records
+      </td>
+
+      <td>
+        送信されたレコードのデルタ カウント。各サンプルは、前のデータ ポイント以降に送信されたレコードの数です。カウントは 60 秒ごとにサンプリングされます。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        confluent_kafka_server_retained_bytes
+      </td>
+
+      <td>
+        クラスターによって保持されている現在のバイト数。カウントは 60 秒ごとにサンプリングされます。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        confluent_kafka_server_active_connection_count
+      </td>
+
+      <td>
+        アクティブな認証済み接続の数。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        confluent_kafka_server_request_count
+      </td>
+
+      <td>
+        ネットワーク経由で受信したリクエストのデルタ カウント。各サンプルは、前のデータ ポイント以降に受信したリクエストの数です。60 秒ごとにサンプリングされるカウント。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        confluent_kafka_server_partition_count
+      </td>
+
+      <td>
+        パーティション数
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        confluent_kafka_server_successful_authentication_count
+      </td>
+
+      <td>
+        成功した認証のデルタ カウント。各サンプルは、前のデータ ポイント以降の成功した認証の数です。60 秒ごとにサンプリングされるカウント。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        confluent_kafka_server_consumer_lag_offsets
+      </td>
+
+      <td>
+        グループ メンバーのコミットされたオフセットとパーティションの最高水準点の間のラグ。
+      </td>
+    </tr>
+  </tbody>
+</table>
