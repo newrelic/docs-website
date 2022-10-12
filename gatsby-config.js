@@ -67,7 +67,7 @@ module.exports = {
           maxWidth: '1600px',
           component: require.resolve('./src/layouts'),
           mobileBreakpoint: '760px',
-          sidebarWidth: '394px',
+          sidebarWidth: '340px',
         },
         i18n: {
           translationsPath: `${__dirname}/src/i18n/translations`,
