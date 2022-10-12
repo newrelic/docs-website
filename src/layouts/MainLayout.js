@@ -76,7 +76,6 @@ const MainLayout = ({ data = {}, children, pageContext }) => {
             css`
               border: none;
               background: var(--primary-background-color);
-              padding-bottom: 72px;
               & > div {
                 padding: ${contentPadding} 0;
               }
@@ -167,7 +166,11 @@ const MainLayout = ({ data = {}, children, pageContext }) => {
                   );
                 `}
               />
-              <NavFooter width={sidebarWidth} />
+              <NavFooter
+                css={css`
+                  width: calc(var(--sidebar-width) - 1px);
+                `}
+              />
             </>
           )}
         </Layout.Sidebar>
@@ -178,7 +181,12 @@ const MainLayout = ({ data = {}, children, pageContext }) => {
         >
           {children}
         </Layout.Main>
-        <Layout.Footer fileRelativePath={pageContext.fileRelativePath} />
+        <Layout.Footer
+          fileRelativePath={pageContext.fileRelativePath}
+          css={css`
+            height: 60px;
+          `}
+        />
       </Layout>
     </>
   );

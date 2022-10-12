@@ -13,7 +13,13 @@ const RootNavigation = ({ nav, className }) => {
       css={css`
         height: 100%;
         overflow: auto;
-        margin: 16px 0 40px 0;
+        margin: 16px 0;
+        padding-bottom: 2rem;
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+        &::-webkit-scrollbar {
+          display: none;
+        }
         span,
         svg {
           color: #afe2e3;
