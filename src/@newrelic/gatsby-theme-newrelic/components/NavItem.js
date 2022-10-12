@@ -133,7 +133,7 @@ const NavItem = ({
       {isExpanded &&
         page.pages?.map((child) => (
           <NavItem
-            name={child.url}
+            name={`${child.url}/`}
             key={child.url || child.title}
             page={child}
             __parent={page}

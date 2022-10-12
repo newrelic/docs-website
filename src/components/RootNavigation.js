@@ -45,7 +45,7 @@ const RootNavigation = ({ nav, className }) => {
             </p>
           );
         }
-        return <NavItem key={page.title} name={page.url} page={page} />;
+        return <NavItem key={page.title} name={`${page.url}/`} page={page} />;
       })}
     </nav>
   );
