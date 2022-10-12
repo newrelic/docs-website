@@ -238,3 +238,35 @@ test('deserialize html with backticks as <code>', async () => {
 
   expect(mdx).toEqual(input.trim());
 });
+
+test('deserializes Tabs Component', async () => {
+  const input = `
+<Tabs>
+  <TabsBar>
+    <TabsBarItem id="grails-run-app">
+      Pass with run-app
+    </TabsBarItem>
+
+    <TabsBarItem id="grails-run-war">
+      Pass with run-war
+    </TabsBarItem>
+  </TabsBar>
+
+  <TabsPages>
+    <TabsPageItem id="grails-run-app">
+      1. Begin with an unzipped version of Grails.
+      2. Run this command:
+    </TabsPageItem>
+
+    <TabsPageItem id="grails-run-war">
+      1. In your Grails app, open this file with your text editor:
+      2. Add or edit the JVM arguments line:
+    </TabsPageItem>
+  </TabsPages>
+</Tabs>
+  `;
+
+  const mdx = await deserializeHTML(await serializeMDX(input));
+
+  expect(mdx).toEqual(input.trim());
+});
