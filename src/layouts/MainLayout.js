@@ -15,6 +15,7 @@ import { graphql } from 'gatsby';
 import { css } from '@emotion/react';
 import SEO from '../components/SEO';
 import RootNavigation from '../components/RootNavigation';
+import NavFooter from '../components/NavFooter';
 import { useLocation, navigate } from '@reach/router';
 
 const MainLayout = ({ data = {}, children, pageContext }) => {
@@ -55,10 +56,12 @@ const MainLayout = ({ data = {}, children, pageContext }) => {
           css={css`
             padding: 0;
             background: var(--erno-black);
+
             ${!sidebar &&
             css`
               border: none;
               background: var(--primary-background-color);
+              padding-bottom: 72px;
               & > div {
                 padding: ${contentPadding} 0;
               }
@@ -134,6 +137,7 @@ const MainLayout = ({ data = {}, children, pageContext }) => {
               />
 
               <RootNavigation nav={nav} />
+              <NavFooter width={sidebarWidth} />
             </>
           )}
         </Layout.Sidebar>
