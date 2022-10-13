@@ -70,7 +70,7 @@ const BasicDoc = ({ data, location, pageContext }) => {
           display: grid;
           grid-template-areas:
             'mt-disclaimer mt-disclaimer'
-            'page-title page-title'
+            'page-title page-tools'
             'content page-tools';
           grid-template-columns: minmax(0, 1fr) 320px;
           grid-column-gap: 2rem;
