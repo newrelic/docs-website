@@ -83,6 +83,26 @@ const NavItem = ({
         --nav-link-padding: 1rem;
         display: ${matchesSearch || !searchTerm ? 'block' : 'none'};
         padding-left: ${parent == null ? '0' : 'var(--nav-link-padding)'};
+        border-left: ${parent == null ? 'none' : 'solid #0D374A 2px'};
+        span {
+          font-weight: 700;
+        }
+        ${depth > 0 &&
+        css`
+          span {
+            font-weight: 600;
+          }
+        `}
+        ${depth > 1 &&
+        css`
+          border-left: solid rgba(231, 246, 246, 0.1) 2px;
+          span {
+            font-weight: 500;
+          }
+        `}
+        a > span {
+          font-weight: 400;
+        }
 
         ${mobileBreakpoint &&
         css`

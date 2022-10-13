@@ -23,10 +23,6 @@ const RootNavigation = ({ nav, className }) => {
         span,
         svg {
           color: #afe2e3;
-          font-weight: 700;
-        }
-        a > span {
-          font-weight: 400;
         }
       `}
       id="nav"
