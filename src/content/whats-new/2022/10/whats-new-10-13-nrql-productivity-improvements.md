@@ -16,10 +16,10 @@ In this example, we extract an item ID, and unit price from a log message, and a
 The aparse() function is a simpler, faster alternative to capture() for use when you don't require the full power of regular expressions. With aparse(), use "anchor" text and the '*' wildcard to capture the fields you need:
 !["NRQL productivity 2"](./images/NRQL-Productivity-2.png "NRQL productivity 2")
 
-Check out this demo on the new NRQL queries in this [NerdByte](https://www.youtube.com/watch?v=AxDS1IJCfbY):
+Check out this [demo NerdByte video on the new NRQL query components](https://www.youtube.com/watch?v=AxDS1IJCfbY)
 
 ## Next steps
 
 1. Review the docs for [NRQL variables](/docs/query-your-data/nrql-new-relic-query-language/get-started/nrql-syntax-clauses-functions/#with-as-nrql-var), [aparse()](/docs/query-your-data/nrql-new-relic-query-language/get-started/nrql-syntax-clauses-functions/#func-aparse) and [if()](/docs/query-your-data/nrql-new-relic-query-language/get-started/nrql-syntax-clauses-functions/#func-if) and start writing your own queries!
 2. Read our [blog](https://newrelic.com/blog/how-to-relic/nrql-improvements) post for more tips and examples.
-3. Share your feedback, post your own queries, and see even more examples in the Explorer's Hub discussion on [Anchor Parse and NRQL Variables](https://discuss.newrelic.com/t/anchor-parse-nrql-variables-parsing-values-from-log-just-got-easier/), [Regex Multi-capture](https://discuss.newrelic.com/t/regex-multi-capture-now-possible-in-nrql/), and (If())[https://discuss.newrelic.com/t/the-if-function-is-now-available-in-nrql/]
+3. Share your feedback, post your own queries, and see even more examples on our Explorer's Hub: [Anchor parse and NRQL variables](https://discuss.newrelic.com/t/anchor-parse-nrql-variables-parsing-values-from-log-just-got-easier), [Regex Multi-capture](https://discuss.newrelic.com/t/regex-multi-capture-now-possible-in-nrql), and [if()](https://discuss.newrelic.com/t/the-if-function-is-now-available-in-nrql).
