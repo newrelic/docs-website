@@ -4,6 +4,7 @@ import {
   GlobalHeader,
   Layout,
   Link,
+  Logo,
   MobileHeader,
   useLayout,
   Icon,
@@ -102,7 +103,9 @@ const MainLayout = ({ data = {}, children, pageContext }) => {
               <Link
                 to="/"
                 css={css`
-                  display: block;
+                  display: flex;
+                  justify-content: center;
+                  align-items: center;
                   text-decoration: none;
                   color: var(--system-text-primary-dark);
                   &:hover {
@@ -110,19 +113,14 @@ const MainLayout = ({ data = {}, children, pageContext }) => {
                   }
                 `}
               >
-                <p
+                <Logo
                   css={css`
-                    font-size: 44px;
-                    font-weight: 500;
-                    line-height: 0;
                     ${!sidebar &&
                     css`
                       display: none;
                     `}
                   `}
-                >
-                  Docs
-                </p>
+                />
               </Link>
               <Button
                 variant={Button.VARIANT.PRIMARY}
