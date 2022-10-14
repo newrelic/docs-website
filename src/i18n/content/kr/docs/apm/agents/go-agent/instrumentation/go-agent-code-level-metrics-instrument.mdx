@@ -36,6 +36,13 @@ defer txn.End()
 
 즉, 이 트랜잭션에 대해서만 소스 파일 경로 이름(예: `"/usr/src/otherproject/lib/src/main.go"` )이 `"otherproject/lib/src/main.go"` 로 단축됩니다.
 
+사용하려는 경로 접두어가 여러 개인 경우 추가 매개변수로 `WithPathPrefix` 에 전달하기만 하면 됩니다.
+
+```go
+txn := app.StartTransaction("mytransaction", newrelic.WithPathPrefix("otherproject/lib/src", "myproject/src"))
+defer txn.End()
+```
+
 ### 기능 인식 휴리스틱의 무시 접두사 조정 [#instrument-transactions-ignore-prefix-clm]
 
 기본적으로 Go 에이전트에는 계측 중인 에이전트에 도달하기 위해 에이전트 자체 내부에 있는 호출 스택의 기능을 건너뛰는 논리가 포함되어 있습니다. [구성 가이드](/docs/apm/agents/go-agent/configuration/go-agent-code-level-metrics-config) 에는 `ConfigCodeLevelMetricsIgnoredPrefix` 설정을 통해 이 휴리스틱을 전역적으로 변경하는 방법에 대한 정보가 있지만 단일 트랜잭션에 대해 맞춤 네임스페이스 무시 접두사를 제공할 수 있습니다. 트랜잭션에 `WithIgnoredPrefix` 옵션을 추가하면 됩니다.
@@ -145,3 +152,31 @@ http.HandleFunc(newrelic.WrapHandleFunc(app, "/endpoint", endpointFunction, newr
 txn := newrelic.FromContext(r.context)
 txn.SetOption(newrelic.WithThisCodeLocation())
 ```
+
+## 캐시된 코드 수준 메트릭 기능으로 성능 향상 [#instrument-transactions-cached-clm]
+
+코드 수준 측정항목으로 트랜잭션을 계측하는 가장 편리한 방법은 계측된 함수 내에서 `newrelic.WithThisCodeLocation()` (또는 위에서 설명한 유사한 함수)를 호출하는 것입니다. 그러나 해당 함수가 애플리케이션의 런타임 동안 여러 번 호출될 경우 소스 코드 위치를 반복적으로 계산하는 오버헤드를 피하는 것이 좋습니다. 트랜잭션 코드가 많은 고루틴에서 동시에 실행되는 경우 특히 그렇습니다.
+
+이를 완화하기 위해 Go Agent는 이러한 여러 기능의 _캐싱_ 버전을 제공합니다. 그것들은 _처음_ 호출될 때만 소스 코드 위치를 파악하는 작업을 수행한 다음 이후에 매번 해당 값을 재사용한다는 점을 제외하고는 캐시되지 않은 대응물과 동일하게 작동합니다.
+
+이 기능을 사용하려면 `NewCachedCodeLocation()` 을 호출하여 캐시 저장소 변수를 생성하고 계측된 트랜잭션 실행 간에 지속되는 위치에 넣어야 합니다. 이 변수는 해당 코드 위치에 대해 캐시된 값을 보유합니다. 그런 다음 동일한 이름의 독립 실행형 함수를 사용하는 것처럼 `FunctionLocation(functionValue)` 또는 `ThisCodeLocation()` 메서드를 사용합니다. 그러나 이 경우에는 `CachedCodeLocation` 변수의 메서드입니다. 이 메소드는 스레드로부터 안전하므로 추가 동시성 제어를 추가하지 않고도 동시 고루틴에서 사용할 수 있습니다.
+
+예를 들어 이 코드에서는 `myFunc` 변수에 할당된 클로저에 사용되는 캐시 변수를 설정합니다.
+
+```go
+cache := newrelic.NewCachedCodeLocation()
+
+myFunc := func() {
+	txn := app.StartTransaction("mytransaction", cache.WithThisCodeLocation())
+	defer txn.End()
+	// go on to perform the transaction
+}
+```
+
+(이 예에서는 `app` 이 에이전트가 시작될 때 생성된 에이전트의 `Application` 값이고 이 코드 스니펫에 표시된다고 가정합니다.)
+
+이제 `myFunc` 함수를 여러 번 호출할 수 있습니다. `myFunc` 의 각(동시에) 호출에는 `cache` 변수에 대한 참조가 있습니다. `cache.WithThisCodeLocation()` 을 실행하기 위한 첫 번째 호출은 해당 지점에서 소스 코드 위치를 계산하고 `cache` 변수에 저장합니다. `myFunc` 의 후속 실행은 이전에 `cache` 에 저장된 값을 재사용합니다.
+
+사용하려는 각 코드 위치에 대해 다른 캐시 변수를 사용해야 합니다. 요점은 해당 위치를 한 번만 평가한 다음 거기에서 캐시된 값을 사용하는 것입니다. 캐시 변수는 여기와 모듈 패키지 문서에 설명된 것 외에는 복사하거나 사용할 수 없습니다.
+
+사용할 수 있는 모든 캐시된 코드 수준 메트릭 기능 및 메서드에 대한 자세한 내용은 전체 Go [모듈 패키지 설명서](https://pkg.go.dev/github.com/newrelic/go-agent/v3/newrelic) 를 참조하세요.

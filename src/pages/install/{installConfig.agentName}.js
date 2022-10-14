@@ -48,6 +48,7 @@ const InstallPage = ({ data, location }) => {
 
   if (typeof window !== 'undefined' && typeof newrelic === 'object') {
     window.newrelic.setCustomAttribute('pageType', 'Interactive/Install');
+    window.newrelic.setCustomAttribute('agentName', agentName);
   }
 
   const selectOptions = appInfo.map((select) => ({
