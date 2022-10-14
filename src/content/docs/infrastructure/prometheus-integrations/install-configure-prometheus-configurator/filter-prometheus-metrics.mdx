@@ -1,0 +1,121 @@
+---
+title: Filter Prometheus Metrics
+tags:
+  - Integrations
+  - Prometheus integrations
+  - Install and configure Prometheus Configurator
+metaDescription: Avoid exceeding New Relic's platform limits and increasing your billing charges by using the Prometheus Configurator's filtering capabilities.
+---
+
+Avoid sending Prometheus data that is not relevant to your monitoring needs. Instead, use filters to ignore or include specific metrics. This will help you control the amount of data you send to New Relic. This will also help you avoid additional billing charges, as explained in this document.
+
+## Prevent billing increases [#rate-limits]
+By default, we use the Prometheus `discovery` and `scrape` annotations and it will scrape **all** the available targets and send all the data that's exposed from those targets. In consequence, you may exceed New Relic's platform limits and increase your billing charges. To help prevent this from happening, use the integration's filtering capabilities.
+
+For more information, see the Prometheus OpenMetrics integration requirements [TODO: Add requirementes](requirements). Also see the [troubleshooting procedures](TODOL Add troubleshooting).
+
+## Kubernetes target discovery
+
+Kubernetes jobs will discover targets and scrape targets according to the `target_discovery` configuration.
+If `pod` or/and `endpoints` are enabled Prometheus will create rules to discover any Pod or Endpoints in the cluster having an exposed port.
+
+The config parameter `target_discovery.filter` should be used to filter in the targets that Prometheus will scrape. Current conditions are filtering by `label` and `annotation`. All conditions are applied using an `AND` operation.
+
+Following example will scrape only `Pods` and `Endpoints` having the `newrelic.io/scrape: true` annotation and a label `k8s.io/app` with value `postgres` or `mysql`. In case of the Endpoints the annotation must be present in the Service related to it.
+
+Note that if not value is specified for the label or annotation, the filter will only check that exists.
+
+``` yaml
+kubernetes:
+  jobs:
+  - job_name_prefix: example
+    target_discovery:
+      pod: true
+      endpoints: true
+      filter:
+        annotation:
+          # <string>: <regex>
+          newrelic.io/scrape: 'true'
+        label:
+          # <string>: <regex>
+          k8s.io/app: '(postgres|mysql)'
+```
+
+## Metrics and label transformations.
+
+They can be applied on two levels, per job (`static_targets` or `kubernetes`) or per remote write level. If configured per job, the filtering only applies to the metrics of targets scraped by that job, and if they are applied at `newrelic_remote_write` level, the filters apply to all metrics that are being sent to New Relic.
+
+The metric filter process happens after the metrics had been scraped from the targets.
+
+The `extra_metric_relabel_config` parameter can be used to apply the filters, which adds entries of [metric_relabel_config](https://prometheus.io/docs/prometheus/latest/configuration/configuration/#relabel_config). This parameter is present at `static_targets.jobs`, `kubernetes.jobs` and the `extra_write_relabel_configs` parameter for `newrelic_remote_write`.
+
+Here you have an example of how to use it in different parts of the YAML configuration:
+``` yaml
+static_targets:
+- name: self-metrics
+  urls:
+    - 'http://static-service:8181'
+  extra_metric_relabel_config:
+  # Drop metrics with prefix 'go_' for this target.
+  - source_labels: [__name__]
+    regex: 'go_.+'
+    action: drop
+
+newrelic_remote_write:
+  extra_write_relabel_configs:
+  # Drop all metrics with the specified name before sent to New Relic.
+  - source_labels: [__name__]
+    regex: 'metric_name'
+    action: drop
+```
+
+
+### Snippet examples to drop or keep metrics
+
+ * Drops metrics with name staring with `prefix_`:
+``` yaml
+- source_labels: [__name__]
+  regex: 'prefix_.+'
+  action: drop
+
+```
+
+ * Drops metrics having a Kubernetes label `k8s.io/app=appLabelValue`:
+``` yaml
+- source_labels: [k8s_io_app]
+  regex: 'appLabelValue'
+  action: drop
+```
+
+ * Combined filter drops metrics with name staring with `prefix_` and which also have a Kubernetes label `k8s.io/app=appLabelValue`:
+``` yaml
+- source_labels: [__name__,k8s_io_app]
+  regex: 'prefix_.+;appLabelValue'
+  action: drop
+```
+
+ * Keeps only metrics with name staring with `prefix_`. All metrics not matching this will be dropped:
+``` yaml
+- source_labels: [__name__]
+  regex: 'prefix_.+'
+  action: keep
+```
+
+### Add or Drop Metric labels examples
+
+Note: Metric Labels names must comply with [Prometheus DataModel](https://prometheus.io/docs/concepts/data_model/#metric-names-and-labels).
+
+Add the `new_label=newLabelValue` labels to metrics names starting with `prefix_`:
+``` yaml
+- source_labels: [__name__]
+  regex: 'prefix_.+'
+  target_label: new_label
+  action: replace
+  replacement: newLabelValue
+```
+
+Drop from all metrics the label `label_name`. This could be use to reduce cardinality but care must be taken if removing identifying labels to ensure correct metrics aggregations are obtained.
+``` yaml
+- regex: 'label_name'
+  action: labeldrop
+```
