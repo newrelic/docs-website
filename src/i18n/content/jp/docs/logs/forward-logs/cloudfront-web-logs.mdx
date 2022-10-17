@@ -1,0 +1,160 @@
+---
+title: Amazon CloudFront のアクセス ログを転送する
+tags:
+  - Logs
+  - Enable log management in New Relic
+  - Enable log monitoring in New Relic
+  - CloudFront
+metaDescription: 'Configure New Relic logging for your Amazon CloudFront distribution, so you can use enhanced log management capabilities.'
+translationType: machine
+---
+
+import cloudfrontDashboard from 'images/cloudfront-dashboard.png'
+
+import cloudfrontCustomParsing from 'images/cloudfront-custom-parsing.png'
+
+Amazon CloudFront ディストリビューションからのログ記録を有効にして、Web アクセス ログを New Relic に送信できます。
+
+## ログ送信のオプション [#log-types]
+
+CloudFront からログを送信するには、標準ログまたはリアルタイム ログの 2 つのオプションがあります。
+
+**標準ログ**は CloudFront から S3 バケットに送信され、そこに保存されます。次に、AWS Lambda トリガーを使用して、S3 から New Relic にログを送信します。[標準ログ (アクセス ログ) の設定と使用については、Amazon CloudFront のドキュメントを参照してください](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/AccessLogs.html)。これには、S3 バケットの作成と適切な権限の設定に関する詳細情報が含まれています。標準ログにはすべてのデータ フィールドが含まれ、S3 に送信され、5 分ごとに New Relic に送信されます。Amazaon コンソールで標準ログを構成し、S3 Lambda トリガーを介して New Relic に送信する方法の詳細な手順については、「標準ログを有効にする」[セクション](#enable-standard-logging)を参照してください。
+
+**リアルタイム ログ**は、Kinesis Data Stream コンシューマーと Kinesis Data Firehose を使用してリクエストを受信してから数秒以内に送信され、New Relic に配信されます。[リアルタイム ログの設定については、Amazon CloudFront のドキュメントを参照して](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/real-time-logs.html)ください。リアルタイム ログは構成可能で、サンプリング レート (送信するログの割合) を構成し、ログ レコードで受信する特定のフィールドを選択し、ログを受信する特定のキャッシュ動作 (パス パターン) を定義できます。リアルタイム ログには、すべてのデータまたは失敗したデータのみを送信するための S3 バックアップ バケットも必要です。そのため、リアルタイム ログを有効[にするには、S3 バケットを作成するための指示に](#create-s3-bucket)も従う必要があります。Amazaon コンソールで標準ログを構成し、S3 Lambda トリガーを介して New Relic に送信する方法の詳細な手順については、 [「リアルタイム ログを有効](#enable-real-time-logging)にする」セクションを参照してください。
+
+どちらのオプションでも、[組み込みのログ解析ルール](/docs/logs/ui-data/built-log-parsing-rules)を使用して CloudFront アクセス ログを自動的に解析し、クイックスタート ダッシュボードを使用してデータの洞察をすぐに得ることができます。組み込みの解析ルールを機能させ、提供されたクイックスタート ダッシュボードのウィジェットにデータを入力するには、手順で定義されているように`logtype`属性を構成する必要があります。一部のロギング フィールドのみを選択した場合のリアルタイム ログの解析の詳細については、「[解析」セクション](#parsing-real-time-logs)を参照してください。
+
+## CloudFront ログを保存するための S3 バケットを作成する [#create-s3-bucket]
+
+CloudFront ディストリビューションで標準ログまたはリアルタイム ログを有効にするには、最初に CloudFront アクセス ログの保存に使用する S3 バケットを作成する必要があります。
+
+1. AWS マネジメント コンソールで、 **\[サービス] > \[すべてのサービス] > \[S3]**を選択します。
+2. \[**バケットの作成] を**選択します。
+3. **バケット名**を入力し、選択した**AWS リージョン**を選択します。(標準ログを使用している場合、S3 バケットは、次のセクションで作成する Lambda 関数と同じリージョンにある必要があることに注意してください。)
+4. \[**オブジェクトの所有権]**セクションで、\[**有効な ACL]**を選択します。
+5. \[**バケットの作成] を**選択します。
+
+標準ログまたはリアルタイム ログのいずれかを有効にできるようになりました。これらのオプションの手順については、読み続けてください。
+
+## 標準ロギングを有効にする [#enable-standard-logging]
+
+CloudFront ディストリビューションを更新して、標準ログを有効にします。
+
+1. AWS マネジメント コンソールで、 **\[サービス] > \[すべてのサービス] > \[CloudFront]**を選択します。
+2. ディストリビューション**ID**をクリックします。\[全般] タブで、\[設定] セクションの \[**編集**] を選択します。
+3. \[**標準ログ]**セクションで、\[**オン**] を選択してログを有効にし、ログの構成設定を表示します。
+4. **S3 バケット**で、上で作成した S3 バケット名を検索して選択します。
+5. オプション: `cloudfront_logs`のようなログ接頭辞を追加できます。
+6. \[**変更を保存**] を選択します。
+
+5 分以内に、次のファイル名形式でログ ファイルが S3 バケットに表示されるようになります。
+
+```
+<optional prefix>/<distribution ID>.YYYY-MM-DD-HH.unique-ID.gz
+```
+
+次に、AWS Lambda 関数`NewRelic-log-ingestion-s3`をインストールして構成し、S3 のアクセス ログを New Relic に送信する必要があります。適切な`LOG_TYPE`環境変数を設定できるように、Amazon CloudFront ログ用の 1 つの Lambda 関数が必要です。これにより、 [CloudFront 組み込みの解析ルール](https://docs.newrelic.com/docs/logs/ui-data/built-log-parsing-rules/#cloudfront)と[クイックスタート ダッシュボード](https://newrelic.com/instant-observability/amazon-cloudfront-web-logs)を使用できます。この Lambda 関数がすでにリージョンにインストールされていて、それを使用して他の S3 ログを New Relic に送信している場合 (ALB/NLB ログなど)、Lambda 関数を別のリージョンに再度インストールする必要があります。また、前述のように、アクセス ログを保存するための S3 バケットと、S3 ログを New Relic に送信するための Lambda 関数は、同じリージョンにある必要があります。
+
+これらの手順を実行するには:
+
+7. こちらの手順に従って、 [S3 からログを送信するように AWS Lambda を設定し](https://docs.newrelic.com/docs/logs/forward-logs/aws-lambda-sending-logs-s3/)ます。
+8. Lambda 関数がインストールされたら、\[**関数] > \[NewRelic-s3-log-ingestion] を**選択します。
+9. S3 の下の \[ **+ トリガーの追加**] ボタンを選択します。
+10. \[**トリガー構成]**で \[S3] を選択します。
+11. **Bucket**で、上で作成した S3 バケットを検索して選択します。
+12. \[**再帰呼び出し**] セクションで、確認ボックスをオンにして \[**追加**] を選択します。
+13. 関数の \[**構成**] タブで、左側の \[**環境変数**] オプションを選択します。
+14. \[**編集]**を選択し、 `LOG_TYPE`に`cloudfront-web`と入力します。
+15. Select **Save**.
+
+5 分以内に、ログ UI にログが表示されるようになります。ログを受信していることを確認するには、[ログ UI 検索バー](/docs/logs/ui-data/use-logs-ui)で`logtype:cloudfront-web`を検索するか、次のような NRQL クエリを実行します。 `FROM Log SELECT * WHERE logtype='cloudfront-web'`
+
+## リアルタイム ログを有効にする [#enable-real-time-logs]
+
+CloudFront ディストリビューションのリアルタイム ログを有効にするには、最初に CloudFront ログを受信するための Kinesis Data Stream を作成する必要があります。
+
+1. AWS マネジメント コンソールで、 **\[サービス] > \[Kinesis]**を選択します。
+2. \[**データ ストリーム] を選択し、次に \[データ ストリーム**の**作成**] を選択します。
+3. **データ ストリーム名**を入力します。たとえば、 `CloudFront-DataStream` .
+4. 選択したデータ ストリーム容量モードを選択します。
+5. \[**データ ストリームの作成] を**選択します。
+6. \[**コンシューマー]**セクションで、 \[**配信ストリームで処理] を**選択します。
+7. **Destination**には**New Relic**を選択します。
+8. **配信ストリーム名**を入力します。たとえば、 `CloudFront-DeliveryStream` .
+9. **Destination** settings セクションの HTTP エンドポイント URL で、 **New Relic logs - US**または**New Relic logs - EU**を選択します。
+10. **API key**には、New Relic アカウントの[ライセンス キー](/docs/apis/intro-apis/new-relic-api-keys/#overview-keys)を入力します。
+11. \[**パラメーターの追加] を**選択します。
+12. 以下のステップ 21 でログイン用にすべてのフィールドを選択する場合は、\[**キー]**に`logtype`と入力し、\[**値]**に`cloudfront-rtl`と入力します。以下のステップ 21 でログイン用のフィールドのサブセットを選択する場合は、 `cloudfront-rtl-custom`と入力します。すべてのフィールドを選択しない場合は、ログのカスタム解析ルールを作成する方法について、以下の[リアルタイム ログ解析セクション](#parsing-real-time-logs)を参照してください。
+13. \[**バックアップ設定**] セクションで、好みに応じて、\[**失敗したデータ**のみ] または \[ **Amazon S3 のソース レコードのバックアップ**] オプションの \[**すべてのデータ**] を選択できます。
+14. S3 バックアップ バケットの場合は、\[**参照**] を選択して、CloudFront ログを保存するために上で作成した S3 バケット名を検索して選択します。
+15. \[**配信ストリームを作成] を**選択します。
+
+次に、リアルタイム ロギング構成を作成し、CloudFront ディストリビューションにアタッチします。
+
+16. AWS マネジメント コンソールで、 **\[サービス] > \[CloudFront]**を選択します。
+17. 左側の \[**テレメトリ] セクション**で、 \[**ログ]**を選択します。
+18. \[**リアルタイム構成**] タブをクリックし、\[構成の**作成**] を選択します。
+19. 構成名を入力します。例: `CloudFront-RealTimeLogs` .
+20. `1`から`100`までのサンプリング レートを入力します。
+21. \[**フィールド]**で、\[**すべてのフィールド**] を選択するか、ログに含めるフィールドを選択します。
+22. **Endpoint**には、手順 3 で作成したデータ ストリーム名を選択します。例: `CloudFront-DataStream` .
+23. \[ディストリビューション] セクションで、 **CloudFront**ディストリビューション ID を選択します。
+24. **キャッシュの動作**については、 **\[デフォルト (\*)]**をオンにします。
+25. \[**設定の作成**] を選択します。
+
+数分以内に、 [New Relic Logs UI](/docs/logs/ui-data/use-logs-ui)にログが表示されるようになります。リアルタイム ログを受信していることを確認するには、ログ UI の検索バーで`logtype:cloudfront-rtl*`を検索するか、次のような NRQL クエリを使用します。 `FROM Log SELECT * WHERE logtype LIKE 'cloudfront-rtl%'`
+
+## リアルタイムのログ解析 [#parsing-real-time-logs]
+
+リアルタイム ログの組み込み解析ルールは、すべてのフィールドがログに記録されることを前提としています。フィールドのサブセットのみをログに記録することを選択した場合は、ログ形式に一致するカスタム解析ルールを定義する必要があります。これは、ログを正しく解析し、[クイックスタート ダッシュボード](https://newrelic.com/instant-observability/amazon-cloudfront-web-logs)を使用するために必要です。
+
+カスタム解析ルールを作成するには、ログ UI の**\[データの管理**] セクションで \[**解析]**を選択します。
+
+1. \[**ルール名**] に`CloudFront custom parsing rule`と入力します。
+
+2. **NRQL に基づいてログをフィルターするには**、 `logtype='cloundfront-rtl-custom'`と入力します。
+
+3. 以下の Grok 解析ロジックを更新して、リアルタイム ログ構成で選択したフィールド**のみ**が含まれるようにします。たとえば、 `cs_headers`フィールドを含めないことを選択した場合は、Grok から`%{SPACE}%{NOTSPACE:cs_headers}%`を削除します。
+
+   ```
+   ^%{NOTSPACE:timestamp}.\d{3}%{SPACE}%{NOTSPACE:c_ip}%{SPACE}%{NUMBER:time_to_first_byte:INT}%{SPACE}%{NUMBER:sc_status:INT}%{SPACE}%{NUMBER:sc_bytes:INT}%{SPACE}%{WORD:cs_method}%{SPACE}%{NOTSPACE:cs_protocol}%{SPACE}%{NOTSPACE:cs_host}%{SPACE}%{NOTSPACE:cs_uri_stem}%{SPACE}%{NUMBER:cs_bytes:INT}%{SPACE}%{NOTSPACE:x_edge_location}%{SPACE}%{NOTSPACE:x_edge_request_id}%{SPACE}%{NOTSPACE:x_host_header}%{SPACE}%{NUMBER:time_taken:INT}%{SPACE}%{NOTSPACE:cs_protocol_version}%{SPACE}%{NOTSPACE:cs_ip_version}%{SPACE}%{NOTSPACE:cs_user_agent}%{SPACE}%{NOTSPACE:cs_referer}%{SPACE}%{NOTSPACE:cs_cookie}%{SPACE}%{NOTSPACE:cs_uri_query}%{SPACE}%{NOTSPACE:x_edge_response_result_type}%{SPACE}%{NOTSPACE:x_forwarded_for}%{SPACE}%{NOTSPACE:ssl_protocol}%{SPACE}%{NOTSPACE:ssl_cipher}%{SPACE}%{NOTSPACE:x_edge_result_type}%{SPACE}%{NOTSPACE:fle_encrypted_fields}%{SPACE}%{NOTSPACE:fle_status}%{SPACE}%{NOTSPACE:sc_content_type}%{SPACE}%{NOTSPACE:sc_content_len}%{SPACE}%{NOTSPACE:sc_range_start}%{SPACE}%{NOTSPACE:sc_range_end}%{SPACE}%{NUMBER:c_port:INT}%{SPACE}%{NOTSPACE:x_edge_detailed_result_type}%{SPACE}%{NOTSPACE:c_country}%{SPACE}%{NOTSPACE:cs_accept_encoding}%{SPACE}%{NOTSPACE:cs_accept}%{SPACE}%{NOTSPACE:cache_behavior_path_pattern}%{SPACE}%{NOTSPACE:cs_headers}%{SPACE}%{NOTSPACE:cs_header_names}%{SPACE}%{NOTSPACE:cs_headers_count}$
+   ```
+
+4. 更新された Grok を解析ロジック セクションに貼り付け、 **Test grok**を選択して、パーサーが機能していることを検証します。
+
+5. ルールを有効にしてから、\[**解析ルールの保存]**を選択します。
+
+<img
+  title="Creating a CloudFront custom parsing rule"
+  alt="Creating a CloudFront custom parsing rule"
+  src={cloudfrontCustomParsing}
+/>
+
+<figcaption>
+  CloudFront カスタム解析設定のスクリーンショット。
+</figcaption>
+
+## 次は何ですか？ [#what-next]
+
+<img
+  title="Dashboard in Amazon CloudFront Access Logs quickstart"
+  alt="Dashboard in Amazon CloudFront Access Logs quickstart"
+  src={cloudfrontDashboard}
+/>
+
+<figcaption>
+  Amazon CloudFront Access Logs のクイックスタートには、事前構築済みのダッシュボードが含まれています。
+</figcaption>
+
+次のステップのアイデアを次に示します。
+
+* 事前に作成されたダッシュボードを使用して数分で開始し、Amazon CloudFront アクセス ログから主要なメトリクスを確認できます。[Amazon CloudFront アクセス ログのクイックスタート](https://newrelic.com/instant-observability/amazon-cloudfront-web-logs)に移動し、\[**今すぐインストール**] をクリックします。
+* [ログ UI](/docs/logs/log-management/ui-data/use-logs-ui)を使用して、プラットフォーム全体のログ データを調べます。
+* [コンテキスト](/docs/logs/enable-log-management-new-relic/configure-logs-context/configure-logs-context-apm-agents)機能のログを使用してログを転送することで、アプリケーションとプラットフォームのパフォーマンス データの両方をより深く可視化できます。
+* [アラートを](/docs/alerts-applied-intelligence/new-relic-alerts/alert-conditions/create-alert-conditions)設定します。
+* [データをクエリ](/docs/query-your-data/explore-query-data/get-started/introduction-querying-new-relic-data/)し、[ダッシュボードを作成します](/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards)。
+
+## ログ転送を無効にする [#disable]
+
+ログ転送機能を無効にするには、2 つのオプションがあります。New Relic への S3 ログの送信を停止したいだけの場合は、 `NewRelic-log-ingestion-s3` Lambda 関数で S3 トリガーを削除できます。Amazon CloudFront アクセス ログを完全に無効にする場合は、トリガーを削除し、CloudFront ディストリビューションの一般設定でログをオフにする必要があります。
