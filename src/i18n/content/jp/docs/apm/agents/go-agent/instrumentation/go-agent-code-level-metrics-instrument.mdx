@@ -36,6 +36,13 @@ defer txn.End()
 
 これは、このトランザクションの場合のみ、たとえば`"/usr/src/otherproject/lib/src/main.go"`のソース ファイル パス名が`"otherproject/lib/src/main.go"`に短縮されることを意味します。
 
+使用したいパス接頭辞が複数ある場合は、それらを追加パラメータとして`WithPathPrefix`に渡すだけです:
+
+```go
+txn := app.StartTransaction("mytransaction", newrelic.WithPathPrefix("otherproject/lib/src", "myproject/src"))
+defer txn.End()
+```
+
 ### 関数認識ヒューリスティックの無視プレフィックスの調整 [#instrument-transactions-ignore-prefix-clm]
 
 デフォルトでは、Go エージェントには、インスツルメントしている関数に到達するために、エージェント自体の内部にあるコール スタック内の関数をスキップするロジックが含まれています。[構成ガイド](/docs/apm/agents/go-agent/configuration/go-agent-code-level-metrics-config)には、 `ConfigCodeLevelMetricsIgnoredPrefix`設定を介してこのヒューリスティックをグローバルに変更する方法に関する情報が記載されていますが、単一のトランザクションに対してカスタムの名前空間無視プレフィックスを提供したい場合があります。これを行うには、トランザクションに`WithIgnoredPrefix`オプションを追加します:
@@ -145,3 +152,31 @@ http.HandleFunc(newrelic.WrapHandleFunc(app, "/endpoint", endpointFunction, newr
 txn := newrelic.FromContext(r.context)
 txn.SetOption(newrelic.WithThisCodeLocation())
 ```
+
+## キャッシュされたコード レベルのメトリクス関数によるパフォーマンスの向上 [#instrument-transactions-cached-clm]
+
+多くの場合、コード レベルのメトリクスでトランザクションをインストルメント化する最も便利な方法は、インストルメント化された関数内で`newrelic.WithThisCodeLocation()` (または上記の同様の関数) を呼び出すことです。ただし、その関数がアプリケーションの実行中に何度も呼び出される場合は、ソース コードの場所を繰り返し計算するオーバーヘッドを回避することをお勧めします。これは、トランザクション コードが多くのゴルーチンで同時に実行される場合に特に当てはまります。
+
+これを軽減するために、Go Agent はこれらの関数のいくつかの_キャッシュ_バージョンを提供します。それらは、_最初_に呼び出されたときにソースコードの場所を特定する作業のみを行い、その後はその値を再利用するだけであることを除いて、キャッシュされていない対応するものと同じように動作します。
+
+この機能を利用するには、 `NewCachedCodeLocation()`を呼び出してキャッシュ ストレージ変数を作成し、計測されたトランザクションの実行間で保持される場所に配置する必要があります。この変数は、そのコードの場所のキャッシュされた値を保持します。次に、同じ名前のスタンドアロン関数を使用するのと同じように、メソッド`FunctionLocation(functionValue)`または`ThisCodeLocation()`を使用しますが、この場合、それらは`CachedCodeLocation`変数のメソッドです。これらのメソッドはスレッドセーフであるため、追加の同時実行制御を追加しなくても、並行ゴルーチンで使用できます。
+
+たとえば、このコードでは、 `myFunc`変数に割り当てられたクロージャで使用されるキャッシュ変数を設定しています。
+
+```go
+cache := newrelic.NewCachedCodeLocation()
+
+myFunc := func() {
+	txn := app.StartTransaction("mytransaction", cache.WithThisCodeLocation())
+	defer txn.End()
+	// go on to perform the transaction
+}
+```
+
+(この例では、 `app`がエージェントの開始時に作成されたエージェントの`Application`値であり、このコード スニペットに表示されると想定しています。)
+
+これで、 `myFunc`関数を何度も呼び出すことができます。`myFunc`の各 (場合によっては同時の) 呼び出しには、 `cache`変数への参照があります。`cache.WithThisCodeLocation()`を実行する最初の呼び出しは、その時点でのソース コードの場所を計算し、それを`cache`変数に格納します。`myFunc`の後続の実行では、以前に`cache`に格納された値が再利用されます。
+
+ポイントは、その場所を一度だけ評価し、そこからキャッシュされた値を使用することであるため、使用するコードの場所ごとに異なるキャッシュ変数を使用する必要があることに注意してください。キャッシュ変数は、ここおよびモジュール パッケージのドキュメントに記載されている以外にコピーまたは使用することを意図していません。
+
+使用できるすべてのキャッシュされたコード レベルのメトリクス関数とメソッドの詳細については、Go[モジュール パッケージの完全なドキュメント](https://pkg.go.dev/github.com/newrelic/go-agent/v3/newrelic)を参照してください。
