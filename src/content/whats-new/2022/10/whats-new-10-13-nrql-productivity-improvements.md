@@ -1,5 +1,6 @@
 ---
 title: 'Enhanced string parsing for better, more efficient NRQL queries'
+summary: 'Efficiently explore complex data with new NRQL variables, aparse(), if(), and more'
 releaseDate: '2022-10-14'
 getStartedLink: 'https://docs.newrelic.com/docs/query-your-data/nrql-new-relic-query-language/get-started/nrql-syntax-clauses-functions'
 ---
