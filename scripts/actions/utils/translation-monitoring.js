@@ -3,7 +3,7 @@
 
 const fetch = require('node-fetch');
 
-const NEW_RELIC_ACCOUNT_ID = process.env.NEW_RELIC_ACCOUNT_ID;
+const NEW_RELIC_ACCOUNT_ID = '10956800';
 const NEW_RELIC_LICENSE_KEY = process.env.NEW_RELIC_LICENSE_KEY;
 
 const CUSTOM_EVENT = {
