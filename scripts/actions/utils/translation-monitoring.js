@@ -3,7 +3,7 @@
 
 const fetch = require('node-fetch');
 
-const NEW_RELIC_ACCOUNT_ID = '10956800';
+const NEW_RELIC_ACCOUNT_ID = process.env.NEW_RELIC_ACCOUNT_ID;
 const NEW_RELIC_LICENSE_KEY = process.env.NEW_RELIC_LICENSE_KEY;
 
 const CUSTOM_EVENT = {
@@ -27,6 +27,7 @@ const TRACKING_TARGET = {
  * @returns {Promise<boolean>} Whether or not the request was (eventually) successful
  */
 const apiRequest = async (key, accountId, data) => {
+  console.log(accountId);
   const url = `https://staging-insights-collector.newrelic.com/v1/accounts/${accountId}/events`;
 
   if (!NEW_RELIC_LICENSE_KEY) {
