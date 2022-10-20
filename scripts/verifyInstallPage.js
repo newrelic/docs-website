@@ -2,6 +2,77 @@
 const fs = require('fs');
 const yaml = require('js-yaml');
 const path = require('path');
+const YamlValidator = require('yaml-validator');
+
+const options = {
+  structure: {
+    school: {
+      'description?': 'string', // Optional, won't show in invalid array
+      code: 'number',
+      principal: {
+        name: 'string',
+      },
+      classRooms: [
+        {
+          name: 'string',
+          id: 'number',
+          'location?': {
+            floor: 'string',
+            building: 'string',
+          },
+        },
+      ],
+      teachers: ['string'],
+    },
+  },
+};
+
+const installSchema = {
+  agentName: 'string',
+  agentType: 'string',
+  title: 'string',
+  redirects: ['string'],
+  'metaDescription?': 'string',
+  introFilePath: 'string',
+  appInfo: [
+    {
+      optionType: 'string',
+      label: 'string',
+      placeholder: 'string',
+      options: [
+        {
+          value: 'string',
+          displayName: 'string',
+          'logo?': 'string',
+          'icon?': 'string',
+          'recommendedGuided?': 'boolean',
+        },
+      ],
+    },
+  ],
+  steps: [
+    {
+      filePath: 'string',
+      'overrides?': [
+        {
+          'filePath?': 'string',
+          'skip?': 'boolean',
+          selectedOptions: [
+            {
+              optionType: 'string',
+              options: [{ value: 'string' }],
+            },
+          ],
+        },
+      ],
+    },
+  ],
+  whatsNextFilePath: 'string',
+};
+
+// verify yaml file
+
+const verifyFields = () => {};
 
 const verifySteps = (steps, installPage) => {
   let issues = 0;
