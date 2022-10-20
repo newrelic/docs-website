@@ -65,11 +65,16 @@ const onRenderBody = async ({ setPostBodyComponents }) => {
     />
   );
 
+  const optimizelySnippet = (
+    <script src="https://cdn.optimizely.com/public/7331003/s/web_blog_docs.js" />
+  );
+
   setPostBodyComponents([
     linkedInId,
     linkedInFunc,
     linkedInImg,
     twitterSnippet,
+    optimizelySnippet,
   ]);
 };
 
