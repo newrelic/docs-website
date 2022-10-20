@@ -2,77 +2,7 @@
 const fs = require('fs');
 const yaml = require('js-yaml');
 const path = require('path');
-const YamlValidator = require('yaml-validator');
-
-const options = {
-  structure: {
-    school: {
-      'description?': 'string', // Optional, won't show in invalid array
-      code: 'number',
-      principal: {
-        name: 'string',
-      },
-      classRooms: [
-        {
-          name: 'string',
-          id: 'number',
-          'location?': {
-            floor: 'string',
-            building: 'string',
-          },
-        },
-      ],
-      teachers: ['string'],
-    },
-  },
-};
-
-const installSchema = {
-  agentName: 'string',
-  agentType: 'string',
-  title: 'string',
-  redirects: ['string'],
-  'metaDescription?': 'string',
-  introFilePath: 'string',
-  appInfo: [
-    {
-      optionType: 'string',
-      label: 'string',
-      placeholder: 'string',
-      options: [
-        {
-          value: 'string',
-          displayName: 'string',
-          'logo?': 'string',
-          'icon?': 'string',
-          'recommendedGuided?': 'boolean',
-        },
-      ],
-    },
-  ],
-  steps: [
-    {
-      filePath: 'string',
-      'overrides?': [
-        {
-          'filePath?': 'string',
-          'skip?': 'boolean',
-          selectedOptions: [
-            {
-              optionType: 'string',
-              options: [{ value: 'string' }],
-            },
-          ],
-        },
-      ],
-    },
-  ],
-  whatsNextFilePath: 'string',
-};
-
-// verify yaml file
-
-const verifyFields = () => {};
+const { validateYamlFields } = require('./validate-install/schema');
 
 const verifySteps = (steps, installPage) => {
   let issues = 0;
@@ -216,6 +146,10 @@ const main = () => {
     );
     try {
       const data = yaml.load(file);
+
+      const isValid = validateYamlFields(data);
+      console.log(isValid);
+
       const { agentName, agentType, title, steps, appInfo } = data;
       checkForNullValues({ agentName, agentType, title, appInfo }, installPage);
       verifyAgentName(agentName);
@@ -243,4 +177,50 @@ const main = () => {
   console.log(' ✅ no issues found');
 };
 
-main();
+const validateInstall = () => {
+  const installPage = process.argv.slice(2);
+
+  if (installPage.length === 0) {
+    // just a little styling for the output
+    console.error(
+      '\x1b[31m%s\x1b[0m',
+      '\n (!)',
+      'Please provide the name of the agent/install page',
+      '\n eg. yarn verify-installpage java \n'
+    );
+    process.exit(1);
+  }
+  try {
+    const file = fs.readFileSync(
+      path.join(process.cwd(), `/src/install/config/${installPage}.yaml`),
+      'utf8'
+    );
+    try {
+      const data = yaml.load(file);
+
+      validateYamlFields(data);
+    } catch (e) {
+      console.error(
+        '\x1b[31m%s\x1b[0m%s\x1b[31m%s\x1b[0m%s',
+        '\n(!)',
+        `There is a syntax issue in ${installPage}.yaml \n These are sometimes caused by apostrophes. Be sure to use double quotes around any strings with apostrophes \n`,
+        '\nerror message: ',
+        `${e.message} \n`
+      );
+      process.exit(1);
+    }
+  } catch (e) {
+    console.error(
+      '\x1b[31m%s\x1b[0m',
+      '\n (!)',
+      `Cannot parse ${installPage}.yaml, make sure the file exists \n`,
+      `${e.message} \n`
+    );
+    process.exit(1);
+  }
+  console.log(' ✅ no issues found');
+};
+
+validateInstall();
+
+// main();
