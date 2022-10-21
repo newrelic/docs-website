@@ -107,6 +107,7 @@ const createWhatsNewNav = async ({ createNodeId, nodeModel }) => {
           regex: '/src/content/whats-new/',
         },
       },
+      limit: 1,
       sort: {
         fields: ['frontmatter.releaseDate', 'frontmatter.title'],
         order: ['DESC', 'ASC'],
@@ -115,11 +116,11 @@ const createWhatsNewNav = async ({ createNodeId, nodeModel }) => {
   });
 
   const posts = Array.from(entries);
-
+  console.log('posts', posts);
   const currentYear = new Date().getFullYear();
   const postsByYear = groupBy(posts, (post) => parseDate(post).getFullYear());
   const thisYearsPosts = postsByYear.get(currentYear) || [];
-
+  console.log('thisYearsPosts', thisYearsPosts);
   const postsByMonth = groupBy(thisYearsPosts, (post) =>
     parseDate(post).toLocaleString('default', { month: 'long' })
   );
@@ -132,11 +133,16 @@ const createWhatsNewNav = async ({ createNodeId, nodeModel }) => {
     .concat(previousYearsPosts)
     .map(([key, posts]) => ({ title: key, pages: formatPosts(posts) }))
     .filter(({ pages }) => pages.length);
-
+  console.log('navItems', navItems);
   return {
     id: createNodeId('whats-new'),
     title: "What's new",
-    pages: [{ title: 'Overview', url: '/whats-new' }].concat(navItems),
+    pages: [{ title: 'Overview', url: '/whats-new' }].concat([
+      {
+        title: 'Test',
+        url: '/whats-new/2022/08/whats-new-08-29-dbmarlin-quickstart',
+      },
+    ]),
   };
 };
 
@@ -214,7 +220,14 @@ const createReleaseNotesNav = async ({ createNodeId, nodeModel }) => {
         return {
           title: subject,
           url: landingPage && landingPage.fields.slug,
-          pages: formatReleaseNotePosts(filterBySubject(subject, posts)),
+          pages: [
+            {
+              title: subject + ' overview',
+              url: landingPage && landingPage.fields.slug,
+            },
+          ].concat(
+            formatReleaseNotePosts(filterBySubject(subject, posts)).slice(0, 10)
+          ),
         };
       })
     ),
