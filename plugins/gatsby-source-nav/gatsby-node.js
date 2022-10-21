@@ -107,6 +107,7 @@ const createWhatsNewNav = async ({ createNodeId, nodeModel }) => {
           regex: '/src/content/whats-new/',
         },
       },
+      limit: 10,
       sort: {
         fields: ['frontmatter.releaseDate', 'frontmatter.title'],
         order: ['DESC', 'ASC'],
@@ -115,23 +116,7 @@ const createWhatsNewNav = async ({ createNodeId, nodeModel }) => {
   });
 
   const posts = Array.from(entries);
-
-  const currentYear = new Date().getFullYear();
-  const postsByYear = groupBy(posts, (post) => parseDate(post).getFullYear());
-  const thisYearsPosts = postsByYear.get(currentYear) || [];
-
-  const postsByMonth = groupBy(thisYearsPosts, (post) =>
-    parseDate(post).toLocaleString('default', { month: 'long' })
-  );
-
-  const previousYearsPosts = Array.from(postsByYear.entries()).filter(
-    ([year]) => year < currentYear
-  );
-
-  const navItems = Array.from(postsByMonth.entries())
-    .concat(previousYearsPosts)
-    .map(([key, posts]) => ({ title: key, pages: formatPosts(posts) }))
-    .filter(({ pages }) => pages.length);
+  const navItems = formatPosts(posts);
 
   return {
     id: createNodeId('whats-new'),
@@ -214,7 +199,14 @@ const createReleaseNotesNav = async ({ createNodeId, nodeModel }) => {
         return {
           title: subject,
           url: landingPage && landingPage.fields.slug,
-          pages: formatReleaseNotePosts(filterBySubject(subject, posts)),
+          pages: [
+            {
+              title: subject + ' overview',
+              url: landingPage && landingPage.fields.slug,
+            },
+          ].concat(
+            formatReleaseNotePosts(filterBySubject(subject, posts)).slice(0, 10)
+          ),
         };
       })
     ),
@@ -246,21 +238,11 @@ const createSubNav = async ({ args, createNodeId, nodeModel, locales }) => {
   };
 };
 
-const parseDate = (post) => parseISO(post.frontmatter.releaseDate);
-
 const formatPosts = (posts) =>
   posts.map((post) => ({
     title: post.frontmatter.title,
     url: post.fields.slug,
-    pages: [],
   }));
-
-const groupBy = (arr, fn) =>
-  arr.reduce((map, item) => {
-    const key = fn(item);
-
-    return map.set(key, [...(map.get(key) || []), item]);
-  }, new Map());
 
 const createNav = async ({ createNodeId, nodeModel }) => {
   const { entries } = await nodeModel.findAll({ type: 'NavYaml' });
