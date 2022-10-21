@@ -107,7 +107,7 @@ const createWhatsNewNav = async ({ createNodeId, nodeModel }) => {
           regex: '/src/content/whats-new/',
         },
       },
-      limit: 1,
+      limit: 10,
       sort: {
         fields: ['frontmatter.releaseDate', 'frontmatter.title'],
         order: ['DESC', 'ASC'],
@@ -116,33 +116,12 @@ const createWhatsNewNav = async ({ createNodeId, nodeModel }) => {
   });
 
   const posts = Array.from(entries);
-  console.log('posts', posts);
-  const currentYear = new Date().getFullYear();
-  const postsByYear = groupBy(posts, (post) => parseDate(post).getFullYear());
-  const thisYearsPosts = postsByYear.get(currentYear) || [];
-  console.log('thisYearsPosts', thisYearsPosts);
-  const postsByMonth = groupBy(thisYearsPosts, (post) =>
-    parseDate(post).toLocaleString('default', { month: 'long' })
-  );
+  const navItems = formatPosts(posts);
 
-  const previousYearsPosts = Array.from(postsByYear.entries()).filter(
-    ([year]) => year < currentYear
-  );
-
-  const navItems = Array.from(postsByMonth.entries())
-    .concat(previousYearsPosts)
-    .map(([key, posts]) => ({ title: key, pages: formatPosts(posts) }))
-    .filter(({ pages }) => pages.length);
-  console.log('navItems', navItems);
   return {
     id: createNodeId('whats-new'),
     title: "What's new",
-    pages: [{ title: 'Overview', url: '/whats-new' }].concat([
-      {
-        title: 'Test',
-        url: '/whats-new/2022/08/whats-new-08-29-dbmarlin-quickstart',
-      },
-    ]),
+    pages: [{ title: 'Overview', url: '/whats-new' }].concat(navItems),
   };
 };
 
@@ -259,21 +238,11 @@ const createSubNav = async ({ args, createNodeId, nodeModel, locales }) => {
   };
 };
 
-const parseDate = (post) => parseISO(post.frontmatter.releaseDate);
-
 const formatPosts = (posts) =>
   posts.map((post) => ({
     title: post.frontmatter.title,
     url: post.fields.slug,
-    pages: [],
   }));
-
-const groupBy = (arr, fn) =>
-  arr.reduce((map, item) => {
-    const key = fn(item);
-
-    return map.set(key, [...(map.get(key) || []), item]);
-  }, new Map());
 
 const createNav = async ({ createNodeId, nodeModel }) => {
   const { entries } = await nodeModel.findAll({ type: 'NavYaml' });
