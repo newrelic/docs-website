@@ -31,6 +31,10 @@ const WhatsNew = ({ data, location, pageContext }) => {
       .entries()
   );
 
+  if (typeof window !== 'undefined' && typeof newrelic === 'object') {
+    window.newrelic.setCustomAttribute('pageType', 'Dynamic/WhatsNew');
+  }
+
   const { t } = useTranslation();
 
   return (
