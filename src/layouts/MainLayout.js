@@ -132,7 +132,16 @@ const MainLayout = ({ data = {}, children, pageContext }) => {
                 `}
                 onClick={() => setSidebar(!sidebar)}
               >
-                <Icon name="fe-move-horizontal" size="1rem" />
+                <Icon
+                  name="nr-nav-collapse"
+                  size="1rem"
+                  css={
+                    !sidebar &&
+                    css`
+                      transform: rotateZ(180deg);
+                    `
+                  }
+                />
               </Button>
             </div>
             {sidebar && (
@@ -158,6 +167,7 @@ const MainLayout = ({ data = {}, children, pageContext }) => {
               <RootNavigation
                 nav={nav}
                 css={css`
+                  overflow-x: hidden;
                   height: calc(
                     100vh - ${navHeaderHeight} - var(--global-header-height) -
                       4rem
