@@ -1,0 +1,331 @@
+---
+title: 웹 트랜잭션 시간 데이터 가져오기(v2)
+tags:
+  - APIs
+  - REST API v2
+  - Application examples (v2)
+metaDescription: How to use the New Relic REST API v2 to get data in the Web transaction response time chart on your app's APM Summary page.
+translationType: machine
+---
+
+애플리케이션의 [**요약** 페이지](/docs/apm/applications-menu/monitoring/apm-overview-page) 에 있는 **웹 트랜잭션 시간** 차트에 표시되는 [메트릭 타임슬라이스 데이터](/docs/data-analysis/metrics/analyze-your-metrics/data-collection-metric-timeslice-event-data#timeslice-data) 는 웹 앱의 구성에 따라 다릅니다. 가능한 구성 요소는 다음과 같습니다.
+
+* [응답 시간](/docs/data-analysis/user-interface-functions/view-your-data/response-time)
+* 에이전트 언어에 대한 총 신청 시간
+* 데이터 저장소, 데이터베이스 또는 (Ruby) 데이터베이스
+* [웹 외부](/docs/accounts-partnerships/education/getting-started-new-relic/glossary#web-external)
+* 멤캐시
+* 대기 시간 요청
+
+REST API(v2)를 사용하여 **웹 트랜잭션 시간** 차트에 표시된 데이터를 얻는 방법에 대해 설명합니다.
+
+## 일반 API 값 [#general]
+
+직접 계산할 때 다음 사항에 유의하십시오.
+
+* 이 예에 사용된 [기본 시간 범위(30분)](/docs/apm/apis/requirements/specifying-time-range-api-v2#api-call) 를 변경할 수 있습니다.
+* 지정한 시간 범위는 이러한 **모든** 쿼리에서 일관되어야 합니다. 그렇지 않으면 최종 계산이 정확하지 않습니다.
+* `HttpDispatcher:call_count` 은 거의 모든 계산에 사용되지만 지정된 시간 범위 동안 한 번만 획득하면 됩니다.
+* 이 예의 `${APPID}` 및 `${APIKEY}` 변수를 특정 [애플리케이션 ID](/docs/apm/apis/requirements/identification-code) 및 [API 키로](/docs/apis/rest-api-v2/requirements/rest-api-key#viewing) 바꿔야 합니다.
+
+## HttpDispatcher [#HttpDispatcher]
+
+**웹 트랜잭션 시간** 차트에서 오버레이된 `response time` 선은 `HttpDispatcher` 시간과 결합된 `Request queuing` 시간을 나타냅니다. `HttpDispatcher:average_response_time` 은 요청 대기 시간 없이 웹 애플리케이션에 대한 총 응답 시간이며 직접 가져옵니다. 신청 총 시간을 계산하는 데 사용되지 않습니다.
+
+이 메트릭을 얻으려면 다음 명령을 사용하십시오.
+
+```
+curl -X GET 'https://api.newrelic.com/v2/applications/${APPID}/metrics/data.json' \
+     -H 'X-Api-Key:${APIKEY}' -i \
+     -d 'names[]=HttpDispatcher&values[]=average_response_time'
+```
+
+## 신청 총 시간 [#app-total-time]
+
+`Application total time` 은 New Relic 에이전트 언어(Java/JVM 시간, PHP, Python 등)를 나타냅니다. 여기에는 `Request queuing` 시간 및 `HttpDispatcher` 시간을 **제외하고** 차트의 다른 값에 기인 **하지 않는** 모든 처리 시간이 포함됩니다. 이것이 다른 구성 요소를 먼저 계산해야 하는 이유입니다.
+
+이 방정식을 사용하여 `Application total time` 을 결정합니다.
+
+```
+Application total time = <a href="#web-tx-total-time">WebTransactionTotalTime</a> - <a href="#datastore">Datastore time</a> - <a href="#database">Database time</a> - <a href="#ruby_database">(Ruby) Database</a> - <a href="#web_external">Web external</a> - <a href="#memcache">Memcache</a>
+```
+
+이 방정식의 각 값은 이 문서의 뒷부분에서 자세히 설명합니다.
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        **신청 총 시간 계산**
+      </th>
+
+      <th>
+        **코멘트**
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        자귀
+      </td>
+
+      <td>
+        방정식의 모든 용어가 적용되는 것은 아닙니다. 애플리케이션에 해당 데이터가 표시되지 않으면 해당 용어가 무시될 수 있습니다.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        데이터 저장소 및 데이터베이스
+      </td>
+
+      <td>
+        `Datastore time` , `Database time` 및 `(Ruby) Database` 값 [이 동일하지 않습니다](#datastore-v-database) . 2015년 2월부터 데이터베이스를 대체하기 위해 `Datastore` 이(가) 단계적으로 도입되고 있습니다. 또한 [Ruby 에이전트](#ruby_database) 는 약간 다른 형식으로 데이터를 저장합니다.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        멤캐시
+      </td>
+
+      <td>
+        [`Memcache`](#memcache) 용어는 모든 애플리케이션에 존재하지 않을 수 있습니다.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        대기 시간 요청
+      </td>
+
+      <td>
+        `Request queuing` 시간(존재하는 경우)이 UI의 차트에 나타날 수 있지만 계산에는 포함되지 않습니다. 단순히 편의상 제공됩니다.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        응답 시간
+      </td>
+
+      <td>
+        `Response time` 은 UI의 차트에 오버레이된 선으로 나타날 수 있습니다. 이 시간은 신청 총 시간 계산에 포함되지 않습니다.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        웹 트랜잭션 총 시간 대 HttpDispatcher
+      </td>
+
+      <td>
+        애플리케이션이 [`WebTransactionTotalTime` 측정항목](#web-tx-total-time) 을 보고하지 않으면 `HttpDispatcher` 측정항목을 사용합니다. `WebTransactionTotalTime` 측정항목은 비동기 동작을 나타낼 수 있는 최신 에이전트에만 있습니다.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## 웹 트랜잭션 총 시간 [#web-tx-total-time]
+
+`WebTransactionTotalTime` 은 웹 애플리케이션의 총 실행 시간이며 직접 가져옵니다. 다음 명령을 사용합니다.
+
+```
+curl -X GET 'https://api.newrelic.com/v2/applications/${APPID}/metrics/data.json' \ 
+       -H 'X-Api-Key:${APIKEY}' -i \ 
+       -d 'names[]=WebTransactionTotalTime&values[]=average_response_time'
+```
+
+## 데이터 저장소와 데이터베이스 [#datastore-v-database]
+
+2015년 2월 현재 New Relic 에이전트는 데이터베이스 시간을 특정 데이터베이스 유형으로 구분하여 표시합니다. 특정 에이전트 버전 요구 사항은 [데이터베이스 및 느린 쿼리 기능 가용성](/docs/apm/applications-menu/monitoring/databases-slow-queries-page#availablity) 을 참조하세요.
+
+이러한 New Relic 에이전트는 `Database` 측정항목 이름을 `Datastore/${DBTYPE}` 으로 대체합니다. 여기서 `${DBTYPE}` 는 적절한 데이터베이스를 식별합니다. 예를 들어 Postgres, MongoDB, Microsoft SQL Server, ODBC, Redis, SQLite, Memcached, Solr, Elasticsearch 등
+
+## 데이터 저장소 총 시간 [#datastore]
+
+**웹 트랜잭션 시간** 차트에 일반 **데이터베이스** 범주가 표시되면 이러한 계산을 사용하지 마십시오. 대신 [데이터베이스](#database) 계산을 사용하십시오.
+
+`Datastore` 총 시간은 파생된 값입니다. 그것을 계산하려면 다음 방정식을 사용하십시오.
+
+```
+Datastore time = ( Datastore/${DBTYPE}/allWeb:average_response_time * Datastore/${DBTYPE}/allWeb:call_count ) / HttpDispatcher:call_count
+```
+
+`${DBTYPE}` 은 보고된 데이터베이스 유형을 나타냅니다. 예를 들어 Postgres, ODBC, Redis, MongoDB, MySQL, Microsoft SQL Server, SQLite, Cassandra, Memcached 등입니다. 데이터베이스 이름을 적절하게 대체하십시오.
+
+이 계산을 위한 데이터를 얻으려면 다음 명령을 사용하십시오.
+
+* HttpDispatcher:call_count
+
+  ```
+  curl -X GET 'https://api.newrelic.com/v2/applications/${APPID}/metrics/data.json' \
+           -H 'X-Api-Key:${API_KEY}' -i \
+           -d 'names[]=HttpDispatcher&values[]=call_count'
+  ```
+
+* 데이터 저장소/$&#x7B;DBTYPE}/allWeb:call_count
+
+  ```
+  curl -X GET 'https://api.newrelic.com/v2/applications/${APPID}/metrics/data.json' \
+       -H 'X-Api-Key:${APIKEY}' -i \
+       -d 'names[]=Datastore/${DBTYPE}/allWeb&values[]=call_count'
+  ```
+
+* 데이터 저장소/$&#x7B;DBTYPE}/allWeb:average_response_time
+
+  ```
+  curl -X GET 'https://api.newrelic.com/v2/applications/${APPID}/metrics/data.json' \
+       -H 'X-Api-Key:${APIKEY}' -i \
+       -d 'names[]=Datastore/${DBTYPE}/allWeb&values[]=average_response_time'
+  ```
+
+단일 명령으로 이 작업을 수행할 수도 있습니다.
+
+```
+curl -X GET 'https://api.newrelic.com/v2/applications/${APPID}/metrics/data.json' \
+     -H 'X-Api-Key:${APIKEY}' -i \
+     -d 'names[]=Datastore/MongoDB/allWeb&names[]=HttpDispatcher&values[]=average_response_time&values[]=call_count'
+```
+
+## 데이터베이스 총 시간 [#database]
+
+3.11.0보다 오래된 Ruby 에이전트를 사용하는 경우 이러한 계산을 사용하지 마십시오. 대신 [(Ruby) 데이터베이스](#ruby_database) 계산을 사용하십시오.
+
+`Database` 총 시간은 파생된 값입니다. 그것을 계산하려면 다음 방정식을 사용하십시오.
+
+```
+Database time = ( Database/allWeb:average_response_time * Database/allWeb:call_count ) / HttpDispatcher:call_count
+```
+
+이 계산을 위한 데이터를 얻으려면 다음 명령을 사용하십시오.
+
+* HttpDispatcher:call_count
+
+  ```
+  curl -X GET 'https://api.newrelic.com/v2/applications/${APPID}/metrics/data.json' \
+       -H 'X-Api-Key:${APIKEY}' -i \
+       -d 'names[]=HttpDispatcher&values[]=call_count'
+  ```
+
+* 데이터베이스/allWeb:call_count
+
+  ```
+  curl -X GET 'https://api.newrelic.com/v2/applications/${APPID}/metrics/data.json' \
+       -H 'X-Api-Key:${APIKEY}' -i \
+       -d 'names[]=Database/allWeb&values[]=call_count'
+  ```
+
+* Database/allWeb:average_response_time
+
+  ```
+  curl -X GET 'https://api.newrelic.com/v2/applications/${APPID}/metrics/data.json' \
+       -H 'X-Api-Key:${APIKEY}' -i \
+       -d 'names[]=Database/allWeb&values[]=average_response_time'
+  ```
+
+## (Ruby) 데이터베이스 총 시간 [#ruby_database]
+
+Ruby 에이전트를 사용 **하지 않는** 경우 계산을 사용하여 [데이터베이스](#database) 값을 구하십시오. 이러한 값은 Ruby 에이전트 버전 3.10.0.279 이하에서만 제공됩니다. Ruby 에이전트 버전 3.11.0 이상에서는 대신 [Datastore](#datastore) 값을 사용합니다.
+
+`(Ruby) Database` 총 시간은 파생된 값입니다. 그것을 계산하려면 다음 방정식을 사용하십시오.
+
+```
+(Ruby) Database = ( ActiveRecord/all:average_response_time * ActiveRecord/all:call_count ) / HttpDispatcher:call_count
+```
+
+이 계산을 위한 데이터를 얻으려면 다음 명령을 사용하십시오.
+
+* HttpDispatcher:call_count
+
+  ```
+  curl -X GET 'https://api.newrelic.com/v2/applications/${APPID}/metrics/data.json' \
+       -H 'X-Api-Key:${APIKEY}' -i \
+       -d 'names[]=HttpDispatcher&values[]=call_count'
+  ```
+
+* ActiveRecord/all:call_count
+
+  ```
+  curl -X GET 'https://api.newrelic.com/v2/applications/${APPID}/metrics/data.json' \
+       -H 'X-Api-Key:${APIKEY}' -i \
+       -d 'names[]=ActiveRecord/all&values[]=call_count'
+  ```
+
+* ActiveRecord/전체:average_response_time
+
+  ```
+  curl -X GET 'https://api.newrelic.com/v2/applications/${APPID}/metrics/data.json' \
+       -H 'X-Api-Key:${APIKEY}' -i \
+       -d 'names[]=ActiveRecord/all&values[]=average_response_time'
+  ```
+
+## Memcache 총 시간 [#memcache]
+
+사용 가능한 경우 `Memcache` 응답 시간은 파생된 값입니다. (모든 애플리케이션에 `Memcache` 응답 시간이 있는 것은 아닙니다.) 이를 계산하려면 다음 방정식을 사용하십시오.
+
+```
+Memcache = ( Memcache/allWeb:average_response_time * Memcache/allWeb:call_count ) / HttpDispatcher:call_count
+```
+
+이 계산을 위한 데이터를 얻으려면 다음 명령을 사용하십시오.
+
+* HttpDispatcher:call_count
+
+  ```
+  curl -X GET 'https://api.newrelic.com/v2/applications/${APPID}/metrics/data.json' \
+       -H 'X-Api-Key:${APIKEY}' -i \
+       -d 'names[]=HttpDispatcher&values[]=call_count'
+  ```
+
+* Memcache/allWeb:call_count
+
+  ```
+  curl -X GET 'https://api.newrelic.com/v2/applications/$(APPID)/metrics/data.xml' \
+       -H 'X-Api-Key:${APIKEY}' -i \
+       -d 'names[]=Memcache/allWeb&values[]=call_count'
+  ```
+
+* Memcache/allWeb:average_response_time
+
+  ```
+  curl -X GET https://api.newrelic.com/v2/applications/${APPID}/metrics/data.xml" \
+       -H 'X-Api-Key:${APIKEY}' -i \
+       -d 'names[]=Memcache/allWeb&values[]=average_response_time'
+  ```
+
+## 웹 외부 총 시간 [#web_external]
+
+`Web external` 총 시간은 파생된 값입니다. 그것을 계산하려면 다음 방정식을 사용하십시오.
+
+```
+Web external = ( External/allWeb:average_response_time * External/allWeb:call_count ) / HttpDispatcher:call_count
+```
+
+이 계산을 위한 데이터를 얻으려면 다음 명령을 사용하십시오.
+
+* HttpDispatcher:call_count
+
+  ```
+  curl -X GET 'https://api.newrelic.com/v2/applications/${APPID}/metrics/data.json' \
+       -H 'X-Api-Key:${APIKEY}' -i \
+       -d 'names[]=HttpDispatcher&values[]=call_count'
+  ```
+
+* 외부/전체웹:call_count
+
+  ```
+  curl -X GET 'https://api.newrelic.com/v2/applications/${APPID}/metrics/data.json' \
+       -H 'X-Api-Key:${APIKEY}' -i \
+       -d 'names[]=External/allWeb&values[]=call_count'
+  ```
+
+* 외부/전체웹:average_response_time
+
+  ```
+  curl -X GET 'https://api.newrelic.com/v2/applications/${APPID}/metrics/data.json' \
+       -H 'X-Api-Key:${APIKEY}' -i \
+       -d 'names[]=External/allWeb&values[]=average_response_time'
+  ```

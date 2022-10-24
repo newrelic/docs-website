@@ -29,6 +29,10 @@ const ReleaseNoteTemplate = ({ data, location, pageContext }) => {
 
   const title = getTitle(frontmatter);
 
+  if (typeof window !== 'undefined' && typeof newrelic === 'object') {
+    window.newrelic.setCustomAttribute('pageType', 'Template/ReleaseNote');
+  }
+
   return (
     <>
       <SEO
@@ -54,7 +58,6 @@ const ReleaseNoteTemplate = ({ data, location, pageContext }) => {
           justify-content: space-between;
           align-items: center;
           font-size: 0.75rem;
-          color: var(--color-dark-600);
           display: flex;
           align-items: baseline;
           max-width: 850px;

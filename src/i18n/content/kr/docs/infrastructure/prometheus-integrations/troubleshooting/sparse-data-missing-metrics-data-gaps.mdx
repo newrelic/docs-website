@@ -1,0 +1,58 @@
+---
+title: '희소 데이터, 누락된 측정항목 및 데이터 격차'
+type: troubleshooting
+tags:
+  - Integrations
+  - Prometheus integrations
+  - Troubleshooting
+metaDescription: Troubleshooting tips for the Prometheus OpenMetrics integration for Docker or Kubernetes if no data appears in New Relic's UI.
+translationType: machine
+---
+
+## 문제
+
+Docker 또는 Kubernetes용 [Prometheus OpenMetrics 통합](/docs/integrations/prometheus-integrations/install-configure-openmetrics/install-update-or-uninstall-your-prometheus-openmetrics-integration) 을 설치했지만 New Relic의 UI에서 희소 데이터, 누락된 메트릭 및 데이터 격차를 발견했습니다.
+
+## 해결책
+
+일부 메트릭이 정기적으로 수집되지 않는 경우 다음을 수행합니다.
+
+1. CPU가 제한되고 있는지, 컨테이너에 할당된 메모리가 충분한지 확인합니다.
+
+   컨테이너에 사용 가능한 리소스가 충분하지 않은 경우 샘플 간에 더 긴 간격으로 데이터를 보낼 수 있습니다. 메모리 제한이 낮으면 통합이 중단되고 다시 시작될 수 있습니다. 리소스의 올바른 제한 및 요청은 모니터링되는 대상의 수와 각 대상이 노출하는 메트릭의 수에 따라 달라질 수 있습니다. 자세한 내용 [은 대규모 환경 구성 설명서 의 지침을](/docs/integrations/prometheus-integrations/install-configure-openmetrics/configure-prometheus-openmetrics-integrations) 참조하십시오.
+
+2. 통합 로그에서 다음 오류 메시지를 확인하십시오.
+
+   ```
+   {"err":"unexpected post response code: 413: Request Entity Too Large"}
+   ```
+
+   이 문제로 인해 일부 페이로드가 삭제되었으며 현재 새 릴리스에서 수정되었습니다. 있는 경우 이미지를 최신 버전으로 업데이트합니다.
+
+3. 통합에서 모니터링하는 일부 `/metrics` 엔드포인트가 시간 초과되거나 응답하는 데 몇 초가 걸리는 경우 데이터 스크래핑 속도가 느려질 수 있습니다. 여러 엔드포인트가 응답하는 데 엄청난 시간이 걸리는 경우 통합 성능이 저하될 수 있습니다. 이로 인해 간헐적으로 데이터가 누락됩니다.
+
+   이러한 엔드포인트를 감지하려면 다음을 실행하십시오.
+
+   ```
+   SELECT average(nr_stats_integration_fetch_target_duration_seconds) 
+   FROM Metric where clusterName=’clustername' SINCE 30 MINUTES AGO FACET target LIMIT 30
+   ```
+
+   이 쿼리는 Prometheus OpenMetrics 통합에 의해 노출된 데이터를 검색하고 각 엔드포인트를 가져오는 데 필요한 시간을 보여줍니다.
+
+   지연 시간이 `1s` 이상인 엔드포인트를 수정하거나 Prometheus 스크래핑 레이블을 제거하여 모니터링에서 제외하세요.
+
+4. 이러한 끝점을 제거할 수 없고 응답의 대기 시간을 피할 수 없는 경우 더 많은 작업자를 병렬로 실행하도록 통합을 구성합니다. 이렇게 하면 통합이 동시에 더 많은 끝점을 가져올 수 있습니다.
+
+   이렇게 하려면 통합을 최신 버전으로 업데이트하고 새 구성 옵션 `worker_threads` 을 적용합니다. 4, 6, 8에서 16까지 점진적으로 수행하는 것이 좋습니다.
+
+   이 해결 방법은 문제를 최소화할 뿐이며 여러 엔드포인트가 오작동하는 경우 성능이 계속 저하됩니다. 또한 작업자의 수에 따라 메모리 및 CPU 사용량이 증가하므로 그에 따라 메모리 및 CPU를 늘려야 합니다.
+
+5. 모니터링되는 모든 엔드포인트의 대기 시간이 짧고 컨테이너가 조절되지 않는 경우 다음 쿼리를 실행합니다. 이렇게 하면 통합이 모든 대상을 스크랩하고 구성된 `scrape_duration` 를 초과하는 경우 데이터를 보내는 데 걸리는 시간을 확인할 수 있습니다.
+
+   ```
+   SELECT latest(nr_stats_integration_process_duration_seconds) FROM Metric
+   where clusterName=’clustername' SINCE 30 MINUTES AGO TIMESERIES
+   ```
+
+   먼저 게시된 최신 이미지로 통합을 업데이트합니다. 그런 다음 모든 대상을 스크랩하는 데 필요한 시간을 줄이려면 구성 옵션 `worker_threads` 으로 작업자 수를 늘립니다. `r_stats_integration_process_duration_seconds` 이 정의된 `scrape_duration` 에 접근할 때까지 4에서 6, 8, 최대 16까지 점진적으로 수행하는 것이 좋습니다. 메모리 사용량과 CPU 사용량이 증가합니다.

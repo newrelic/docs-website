@@ -1,0 +1,177 @@
+---
+title: NRIntegrationError 이벤트로 Metric API 문제 해결
+type: troubleshooting
+tags:
+  - Ingest and manage data
+  - Ingest APIs
+metaDescription: Troubleshoot missing data from the Metric API by querying NRIntegrationError data.
+translationType: machine
+---
+
+## 문제
+
+메트릭 데이터 포인트를 [Metric API](/docs/introduction-new-relic-metric-api) 로 보냈고 데이터를 쿼리할 때 예상한 결과가 표시되지 않습니다. 다음 체크리스트를 사용하여 근본 원인을 확인하십시오.
+
+* [데이터를 올바르게 쿼리하고](/docs/introduction-new-relic-metric-api#view-and-query) 있는지 확인하십시오.
+* [API에서 반환된 HTTP 상태 코드를](/docs/report-metrics-metric-api#response-validation) 확인합니다. 인증 실패와 같은 문제는 HTTP 상태 코드로 진단할 수 있습니다.
+* [New Relic의 remote_write 엔드포인트](/docs/integrations/prometheus-integrations/get-started/monitor-prometheus-new-relic#remote-write) 를 통해 Prometheus 서버에서 데이터를 보내는 경우 Prometheus 서버 로그에서 New Relic 엔드포인트의 오류 또는 2xx가 아닌 HTTP 응답을 확인하세요.
+* [`NrIntegrationError` 이벤트](/docs/telemetry-data-platform/manage-data/nrintegrationerror) 에 대해 계정을 쿼리합니다. New Relic의 수집 엔드포인트는 비동기식입니다. 즉, 엔드포인트가 HTTP 응답을 반환 _한 후_ 페이로드를 확인합니다. 페이로드를 확인하는 동안 문제가 발생하면 계정에 `NrIntegrationError` 이벤트가 생성됩니다. New Relic은 또한 `NrIntegrationError` 이벤트를 사용하여 다양한 속도 제한에 도달했을 때 고객에게 알립니다.
+
+## 해결책
+
+### 오류 세부정보 보기 [#error-details]
+
+`NrIntegrationError` 이벤트 사용에 대한 소개는 [`NrIntegrationError`](/docs/telemetry-data-platform/manage-data/nrintegrationerror) 을(를) 참조하세요.
+
+다음은 Metric API 수집 문제를 검사하기 위한 NRQL의 예입니다.
+
+```
+SELECT count(*) FROM NrIntegrationError WHERE newRelicFeature = 'Metrics' facet category, message limit 100 since 24 hours ago
+```
+
+`category` 은 오류 유형을 나타내고 `message` 은 오류에 대한 자세한 정보를 제공합니다. `category` 가 `rateLimit` 이면 속도 제한 유형에 대한 자세한 내용은 `rateLimitType` 필드도 검사해야 합니다.
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        범주
+      </th>
+
+      <th>
+        비율 제한 유형
+      </th>
+
+      <th>
+        설명 및 솔루션
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `BadRequest`
+      </td>
+
+      <td>
+        (설정되지 않음)
+      </td>
+
+      <td>
+        JSON 페이로드에 문제가 있습니다. 여기에는 JSON 구문 오류, 속성 이름 또는 너무 긴 값이 포함됩니다.
+
+        정확한 문제를 확인하려면 `message` 필드를 확인하세요. 그런 다음 JSON 페이로드를 검토하고 적절한 의미 체계 지침을 충족하도록 업데이트합니다.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `RateLimit`
+      </td>
+
+      <td>
+        `DatapointsPerMinute`
+      </td>
+
+      <td>
+        분당 너무 많은 데이터 포인트를 보내고 있습니다. 이 오류가 발생하면 데이터를 덜 자주 보내거나 New Relic 계정 담당자에게 연락하거나 [지원 포털](https://support.newrelic.com/) 을 방문하여 측정 단위 속도 제한 변경을 요청할 수 있습니다.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `RateLimit`
+      </td>
+
+      <td>
+        `UniqueTimeseriesPerDay`
+      </td>
+
+      <td>
+        `containerId` 또는 `URI` 과 같이 고유한 값이 많은 속성이 있습니다. 이 오류를 해결하려면 문제를 일으킬 수 있는 속성을 검토하고 제거하십시오. 원하는 경우 [데이터 삭제 규칙](/docs/accounts/accounts/data-management/drop-data-using-nerdgraph) 을 사용하여 수집 시 속성을 제거할 수 있습니다.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `RateLimit`
+      </td>
+
+      <td>
+        `UniquePrometheusTimeseries`
+      </td>
+
+      <td>
+        [New Relic의 remote_write 엔드포인트](/docs/integrations/prometheus-integrations/get-started/monitor-prometheus-new-relic#remote-write) 를 통해 너무 많은 고유 시계열을 보고하는 Prometheus 서버가 있습니다.
+
+        [Prometheus 서버 구성](https://prometheus.io/docs/prometheus/latest/configuration/configuration/) 을 수정하여 스크랩되는 대상 수를 줄이거나 서버 구성의 [remote_write 섹션](https://prometheus.io/docs/prometheus/latest/configuration/configuration/#remote_write) 에서 [레이블 재지정 규칙](https://prometheus.io/docs/prometheus/latest/configuration/configuration/#relabel_config) 을 사용하여 시계열 또는 매우 고유한 레이블을 삭제하여 보고되는 고유 시계열 수를 줄이십시오.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `RateLimit`
+      </td>
+
+      <td>
+        `RequestsPerMinute`
+      </td>
+
+      <td>
+        분당 너무 많은 요청이 전송되고 있습니다. 이 문제를 해결하려면 각 요청에 더 많은 데이터 포인트를 넣고 덜 자주 보내십시오.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `RateLimit`
+      </td>
+
+      <td>
+        `ErrorGroupsPerDay`
+      </td>
+
+      <td>
+        일일 오류 그룹 제한을 초과했습니다. 수신 오류 그룹은 남은 하루 동안 삭제되며 UTC 자정 이후에도 정상적으로 계속됩니다.
+
+        이를 해결하려면 New Relic에서 수집하는 고유한 오류 메시지의 양을 줄이십시오.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+### 수집된 페이로드에 오류 일치 [#errors-payloads]
+
+HTTP 요청 페이로드의 구문 문제로 인해 [`NrIntegrationError` 이벤트](/docs/telemetry-data-platform/manage-data/nrintegrationerror) 가 생성되면 이벤트에 `apiKeyPrefix` 및 `requestId` 속성이 포함됩니다.
+
+* `apiKeyPrefix` 은 데이터를 보내는 데 사용된 API 키의 처음 6개 문자와 일치합니다.
+* `requestId` 은 HTTP 응답에서 전송된 `requestId` }과 일치합니다.
+
+이 필드를 보려면 다음 NRQL 쿼리를 실행하십시오.
+
+```
+SELECT message, apiKeyPrefix, requestId FROM NrIntegrationError limit 100
+```
+
+특정 `requestId` 를 확인하려면 다음 NRQL 쿼리를 실행합니다.
+
+```
+SELECT * FROM NrIntegrationError where requestId ='<var>REQUEST_ID</var>'
+```
+
+### 프로그래밍 방식으로 NrIntegrationError 이벤트 검색
+
+프로그래밍 방식으로 이러한 오류를 검색하려면:
+
+1. [Insights 쿼리 API 키](/docs/insights/insights-api/get-data/query-insights-event-data-api) 가 있는지 확인합니다( **[insights.newrelic.com](https://insights.newrelic.com) > Manage data > API keys** 이동).
+
+2. 아래와 같이 HTTP 요청을 생성합니다.
+
+   <Callout variant="tip">
+     계정이 EU 데이터 센터의 데이터를 호스팅하는 경우 [EU 지역 계정에 적절한 API 엔드포인트를](/docs/using-new-relic/welcome-new-relic/getting-started/introduction-eu-region-data-center#endpoints) 사용하고 있는지 확인하십시오.
+   </Callout>
+
+   ```
+   curl -H "Accept: application/json" -H "X-Query-Key:<var>YOUR_API_KEY_HERE</var>" "https://insights-api.newrelic.com/v1/accounts/<var>YOUR_ACCOUNT_HERE</var>/query?nrql=SELECT%20*%20FROM%20NrIntegrationError%20where%20newRelicFeature='Metrics'"
+   ```

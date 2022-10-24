@@ -1,0 +1,77 @@
+---
+title: 요청 계측
+tags:
+  - Agents
+  - Ruby agent
+  - Background jobs
+metaDescription: Additional information about configuring the New Relic Ruby instrumentation of Resque jobs.
+translationType: machine
+---
+
+웹 애플리케이션 자체 외에도 New Relic Ruby 에이전트는 Resque 작업을 계측할 수도 있습니다.
+
+## 작업 인수 캡처 [#capturing_job_parameters]
+
+Ruby 에이전트 버전 3.6.9부터 트랜잭션 추적 및 추적된 오류에서 Resque 작업 인수를 캡처하도록 Ruby 에이전트를 선택적으로 구성할 수 있습니다. 이것은 실패한 작업을 재현하려고 할 때 특히 유용할 수 있습니다. 작업 인수에 민감한 정보가 포함된 경우 기본적으로 이 기능은 꺼져 있습니다. 이 기능을 활성화하려면 에이전트 버전에 **맞게 newrelic.yml** 을 편집하십시오.
+
+* newrelic_rpm 3.12.0 이상: `attributes.include: job.resque.args.*`
+* newrelic_rpm 3.6.9 - 3.11.X의 경우: `resque.capture_params: true`
+
+이 기능은 HTTP 요청 매개변수가 웹 요청에 대한 트랜잭션 추적 및 추적된 오류에서 캡처되는지 여부를 제어하는 일반 `capture_params` 최상위 설정과 다릅니다. 이 두 가지 설정을 독립적으로 구성할 수 있습니다.
+
+## Resque 버전 1.23.1 이상 [#resque_1_23_1_plus]
+
+Resque 1.23.1 이상을 실행하는 경우 New Relic의 Resque 계측이 작동하기 위해 일반 에이전트 설치 절차 외에 코드를 변경할 필요가 없습니다.
+
+**예외:** 이전 버전의 Resque를 실행할 때 Resque `before_first_fork` , `before_fork` 또는 `after_fork` 후크에서 `NewRelic::Agent` 메서드에 대한 호출이 남아 있는 경우 Resque 1.23으로 업그레이드한 후 해당 호출을 **제거** 해야 합니다. .1 이상.
+
+## 대체 포크 모드 [#resque_plugins]
+
+[resque-multi-job-forks](https://github.com/stulentsev/resque-multi-job-forks) 또는 [resque-jobs-per-fork](https://github.com/samgranieri/resque-jobs-per-fork) gem은 Resque의 분기 동작을 변경하여 개별 작업에 대해 분기하지 않고 대신 작업 배치당 한 번 분기하도록 합니다. 마찬가지로 `FORK_PER_JOB` 환경 변수를 `false` 로 설정하여 Resque에서 분기를 완전히 비활성화할 수 있습니다.
+
+애플리케이션에서 이러한 대체 분기 모드를 사용하는 경우 Ruby 에이전트 **버전 3.9.7 이상** 을 실행하고 있는지 확인하십시오. 이전 버전의 Ruby 에이전트는 이러한 대체 분기 모드에서 제대로 작동하지 않습니다. 3.9.7 이상으로 업그레이드하는 경우 에이전트가 이러한 환경에서 작동하도록 하기 위해 이전에 사용했을 수 있는 `manual_start` 또는 `after_fork` 와 같은 `NewRelic::Agent` 메소드에 대한 모든 직접 호출을 제거해야 합니다. .
+
+## 이전 Resque 버전(&lt; 1.23.1) [#old_resque]
+
+Resque 1.23.1 이전 버전에서 New Relic의 Ruby 에이전트를 사용할 수 있습니다. 그러나 New Relic은 최상의 결과를 위해 Resque 1.23.1 이상으로 업그레이드할 것을 권장합니다.
+
+많은 애플리케이션은 Resque 작업의 수명 동안 중요한 지점에 사용자 정의 코드를 삽입하기 위해 Resque( `before_fork` , `after_fork` 등)에 의해 노출된 후크를 사용합니다. New Relic Ruby 에이전트도 계측을 배치할 수 있도록 이러한 후크를 사용해야 합니다.
+
+1.23.1 이전의 Resque 버전에서는 후크를 여러 번 정의할 수 없습니다. 마지막 정의가 우선합니다. Resque 버전 1.23.1 이상으로 업그레이드할 수 없는 경우(후크를 서로 덮어쓰지 않고 여러 번 정의할 수 있음), 필요한 New Relic 코드를 추가하여 사용자 정의 Resque 후크를 수정할 수 있습니다. 다음은 예입니다.
+
+**예: 사용자 정의 Resque 후크 수정**
+
+사용자 정의 코드가 없는 후크에 대한 정의를 생략할 수 있습니다. 이 경우 에이전트가 자동으로 설치합니다.
+
+```ruby
+Resque.before_first_fork do
+  # ... your custom hook code ...
+  NewRelic::Agent.manual_start(:dispatcher => :resque,
+                               :sync_startup => true,
+                               :start_channel_listener => true)
+end
+    
+Resque.before_fork do |job|
+  # ... your custom hook code ...
+  NewRelic::Agent.register_report_channel(job.object_id)
+end
+    
+Resque.after_fork do |job|
+  # ... your custom hook code ...
+  NewRelic::Agent.after_fork(:report_to_channel => job.object_id,
+                             :report_instance_busy => false)
+end
+```
+
+## 교착 상태 작업 [#deadlocks]
+
+일부 고객(특히 작업 처리량이 매우 높은 고객)은 Ruby 에이전트가 활성화된 Resque 작업자 프로세스에서 간헐적인 교착 상태를 보고했습니다. 이러한 교착 상태는 Ruby 에이전트가 New Relic 서버에 데이터를 보내는 데 사용하는 백그라운드 스레드와 Resque의 분기 동작 간의 잘못된 상호 작용으로 인해 발생합니다.
+
+이러한 문제를 해결하려면 다음 옵션 중 하나를 사용하십시오.
+
+* Resque 프로세스를 생성할 때 `FORK_PER_JOB` 환경 변수를 `false` 로 설정하여 Resque의 분기 동작을 비활성화합니다.
+* Ruby 표준 라이브러리의 `resolv-replace` 라이브러리를 사용하여 Ruby의 기본 DNS 확인 코드를 순수한 Ruby 버전으로 교체합니다.
+
+Ruby 에이전트는 Resque 마스터 프로세스의 백그라운드 스레드를 사용하여 New Relic 수집기에 데이터를 보냅니다. 일부 환경에서 이 스레드는 DNS 확인 중(New Relic 수집기의 호스트 이름을 확인할 때) 기본 잠금을 획득합니다.
+
+기본 Resque 마스터 프로세스의 기본 스레드가 자식 프로세스를 생성하기 위해 fork를 호출하는 동안 이 기본 잠금이 백그라운드 스레드에 의해 유지되는 경우에도 분기된 자식 프로세스에서 유지된 것으로 표시됩니다. 그러나 `fork` 은 호출 스레드만 복사하므로 기본 잠금을 보유하고 있던 백그라운드 스레드는 하위 프로세스에 존재하지 않으므로 기본 잠금이 해제되지 않습니다. 자식 프로세스가 DNS 확인을 시도하면 동일한 기본 잠금 및 교착 상태를 얻으려고 시도합니다. 이 [Github 문제](https://github.com/resque/resque/issues/1101) 를 방지하려면 Ruby의 기본 DNS 확인 경로 대신 `resolv-replace` 을 사용하세요.

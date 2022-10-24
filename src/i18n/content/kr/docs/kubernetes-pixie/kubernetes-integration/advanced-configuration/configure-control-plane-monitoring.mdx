@@ -1,0 +1,592 @@
+---
+title: 컨트롤 플레인 모니터링 구성
+tags:
+  - Integrations
+  - Kubernetes integration
+  - Installation
+metaDescription: How to configure control plane monitoring for your Kubernetes integration with New Relic.
+translationType: machine
+---
+
+import newRelicOneK8SClusterExplorerControlPlaneParameters from 'images/new-relic-one-k8s-cluster-explorer-control-plane-parameters.png'
+
+import kubernetesIntegrationCP from 'images/kubernetes-integration-cp.png'
+
+import kubernetesIntegrationCPExternal from 'images/kubernetes-integration-cp-external.png'
+
+[New Relic](/docs/infrastructure/new-relic-infrastructure/getting-started/introduction-new-relic-infrastructure) 은 Kubernetes 통합을 위한 [제어 평면](https://kubernetes.io/docs/concepts/overview/components/#control-plane-components) 지원을 제공하므로 클러스터의 제어 평면 구성 요소에서 메트릭을 모니터링하고 수집할 수 있습니다. 그 데이터는 New Relic에서 찾을 수 있고 [쿼리와 차트를 만드는](/docs/using-new-relic/data/understand-data/query-new-relic-data) 데 사용할 수 있습니다.
+
+<Callout variant="tip">
+  달리 지정하지 않는 한 이 페이지는 [Kubernetes 통합 v3](/docs/kubernetes-pixie/kubernetes-integration/get-started/changes-since-v3) 을 참조합니다. v2에 대한 컨트롤 플레인 모니터링을 구성하는 방법에 대한 자세한 내용은 아래의 특정 섹션에서 찾을 수 있습니다.
+</Callout>
+
+## 특징 [#control-plane-integration-features]
+
+다음 제어 평면 구성 요소에서 [메트릭](http://docs.newrelic.com/docs/integrations/kubernetes-integration/understand-use-data/understand-use-data#metrics) 을 모니터링하고 수집합니다.
+
+* **etcd** : 리더 정보, 상주 메모리 크기, OS 스레드 수, 합의 제안 데이터 등. 지원되는 메트릭 목록은 [etcd 데이터](/docs/integrations/kubernetes-integration/understand-use-data/understand-use-data#etcd-data) 를 참조하십시오.
+* **API 서버** : `apiserver` 요청 비율, HTTP 메소드 및 응답 코드별 `apiserver` 요청 분석 등 지원되는 측정항목의 전체 목록은 [API 서버 데이터](/docs/integrations/kubernetes-integration/understand-use-data/understand-use-data#api-server-data) 를 참조하세요.
+* **스케줄러** : 요청된 CPU/메모리 대 노드에서 사용 가능한 것, taint에 대한 허용, 설정된 선호도 또는 반선호도 등. 지원되는 메트릭의 전체 목록은 [스케줄러 데이터](/docs/integrations/kubernetes-integration/understand-use-data/understand-use-data#scheduler-data) 를 참조하세요.
+* **컨트롤러 관리자** : 상주 메모리 크기, 생성된 OS 스레드 수, 현재 존재하는 고루틴 등 지원되는 메트릭의 전체 목록은 [컨트롤러 관리자 데이터](/docs/integrations/kubernetes-integration/understand-use-data/understand-use-data#controller-manager-data) 를 참조하세요.
+
+## 호환성 및 요구 사항 [#compatibility]
+
+* AKS, EKS, GKE를 포함한 대부분의 관리형 클러스터는 제어 영역 구성 요소에 대한 외부 액세스를 허용하지 않습니다.그렇기 때문에 관리되는 클러스터에서 New Relic은 API 서버에 대한 컨트롤 플레인 메트릭만 얻을 수 있고 etcd, 스케줄러 또는 컨트롤러 관리자에 대해서는 얻을 수 없습니다.
+* [비권한 모드](/docs/integrations/kubernetes-integration/installation/kubernetes-installation-configuration#unprivileged) 에서 솔루션을 배포할 때 제어 평면 설정에는 [추가 단계](#hostnetwork-privileged) 가 필요하며 몇 가지 주의 사항이 적용될 수 있습니다.
+* [OpenShift](http://learn.openshift.com/?extIdCarryOver=true&sc_cid=701f2000001OH7iAAG) 4.x는 기본값과 다른 제어 평면 구성 요소 메트릭 끝점을 사용합니다.
+
+## 제어 평면 구성 요소 [#component]
+
+Kubernetes 제어 영역을 모니터링하는 작업은 기본적으로 DaemonSet으로 배포되는 `nrk8s-controlplane` 구성요소의 책임입니다. 이 구성요소는 `node-role.kubernetes.io/control-plane` 또는 `node-role.kubernetes.io/master` 과 같이 마스터 노드를 식별하는 데 일반적으로 사용되는 레이블이 포함된 `nodeSelectorTerms` 의 기본 목록을 사용하여 마스터 노드에 자동으로 배포됩니다. 그럼에도 불구하고 이 선택기는 `values.yml` 파일에 표시되므로 다른 환경에 맞게 재구성할 수 있습니다.
+
+이러한 선택기와 일치하는 노드가 없는 클러스터는 포드가 예약되지 않으므로 리소스를 낭비하지 않으며 기능적으로 Helm 차트에서 `controlPlane.enabled` 을 `false` 로 설정하여 제어 평면 모니터링을 비활성화하는 것과 동일합니다.
+
+제어 평면의 각 구성 요소에는 개별적으로 다음을 수행할 수 있는 전용 섹션이 있습니다.
+
+* 해당 구성 요소의 모니터링 활성화 또는 비활성화
+* 해당 구성 요소를 검색하기 위한 특정 선택기 및 네임스페이스 정의
+* 해당 구성 요소에 대한 메트릭을 가져오는 데 사용할 끝점 및 경로를 정의합니다.
+* 해당 구성 요소에 대한 메트릭을 가져오는 데 사용해야 하는 인증 메커니즘을 정의합니다.
+* 자동 검색을 완전히 건너뛰는 끝점을 수동으로 지정
+
+<img
+  title="Diagram showing a possible configuration scraping etcd with mTLS and API server with bearer Token."
+  alt="Diagram showing a possible configuration scraping etcd with mTLS and API server with bearer Token. The monitoring is a DaemonSet deployed on master nodes only."
+  src={kubernetesIntegrationCP}
+/>
+
+`controlPlane` 키 아래 nri-kubernetes 차트의 [values.yaml](https://github.com/newrelic/nri-kubernetes/blob/main/charts/newrelic-infrastructure/values.yaml) 에서 사용 가능한 모든 구성 옵션을 확인할 수 있습니다.
+
+`nri-bundle` 차트를 통해 통합을 설치하는 경우 [해당 하위 차트에 값을 전달](https://helm.sh/docs/chart_template_guide/subcharts_and_globals/) 해야 합니다.예를 들어 `controlPlane` 구성요소에서 `etcd` 모니터링을 비활성화하려면 다음을 수행할 수 있습니다.
+
+```yaml
+newrelic-infrastructure:
+  controlPlane:
+    config:
+      etcd:
+        enabled: false
+```
+
+### 자동 검색 및 기본 구성 [#autodiscovery-default]
+
+기본적으로 [Helm 차트](/docs/kubernetes-pixie/kubernetes-integration/installation/install-kubernetes-integration-using-helm) 는 `Kubeadm` 또는 `minikube` 과 같이 클러스터 내부에서 제어 영역을 실행하는 온프레미스 배포의 일부 제어 영역 구성 요소에 대해 즉시 작동해야 하는 구성을 제공합니다.
+
+자동 검색은 검색 메커니즘으로 포드 레이블에 의존하기 때문에 클라우드 환경에서 또는 제어 평면 구성 요소가 클러스터 내에서 실행되고 있지 않을 때마다 작동하지 않습니다.그러나 제어 평면 구성 요소에 연결할 수 있는 경우 이러한 시나리오에서 [정적 끝점](#static-endpoints) 을 활용할 수 있습니다.
+
+#### `hostNetwork` 그리고 `privileged` [#hostnetwork-privileged]
+
+v3 미만 버전에서 통합이 `privileged: false` 을 사용하여 배포되면 제어 영역 구성요소에 대한 `hostNetwork` 설정도 `false` 로 설정됩니다.
+
+버전 3 이상에서 `privileged` 플래그는 `securityContext` 객체, 즉 컨테이너가 호스트 측정항목에 대한 액세스 권한이 있는 루트로 실행되는지 여부에만 영향을 줍니다. 대부분의 배포에서 제어 평면 엔드포인트에 도달하는 데 필요한 `hostNetwork: true` 이 있는 제어 평면에서 측정항목을 가져오는 포드를 제외하고 모든 통합 구성요소는 이제 기본적으로 `hostNetwork: false` 입니다. 모든 구성요소의 `hostNetwork` 값은 [`values.yaml` 의 `hostNetwork` 토글을](https://github.com/newrelic/helm-charts/tree/master/library/common-library#values-managed-globally) 사용하여 개별적으로 또는 전체적으로 변경할 수 있습니다.
+
+클러스터 또는 기타 정책으로 인해 `hostNetwork` 으로 실행 중인 포드가 허용되지 않는 경우 제어 평면 모니터링이 불가능하며 `controlPlane.enabled` 을 `false` 로 설정하여 비활성화해야 합니다.
+
+`hostNetwork` 없이 제어 영역을 모니터링하는 데 사용할 수 있는 [사용자 지정 자동](#autodiscovery-default) 검색 또는 [정적 엔드포인트](#static-endpoints) 가 포함된 고급 구성이 있는 경우 [프로젝트의 README](https://github.com/newrelic/nri-kubernetes/blob/main/charts/newrelic-infrastructure/README.md) 를 확인하고 [`values.yaml`](https://github.com/newrelic/nri-kubernetes/blob/main/charts/newrelic-infrastructure/values.yaml) 에서 `controlPlane.hostNetwork` 도구를 찾으세요.
+
+#### 사용자 지정 자동 검색 [#autodiscovery-default]
+
+자동 검색에 사용되는 선택기는 `values.yaml` 파일의 구성 항목으로 완전히 노출됩니다. 즉, 제어 영역이 클러스터의 일부로 실행되는 거의 모든 환경에 맞게 조정하거나 교체할 수 있습니다.
+
+자동 검색 섹션은 다음과 같습니다.
+
+```yaml
+autodiscover:
+  - selector: "tier=control-plane,component=etcd"
+    namespace: kube-system
+    # Set to true to consider only pods sharing the node with the scraper pod.
+    # This should be set to `true` if Kind is Daemonset, `false` otherwise.
+    matchNode: true
+    # Try to reach etcd using the following endpoints.
+    endpoints:
+      - url: https://localhost:4001
+        insecureSkipVerify: true
+        auth:
+          type: bearer
+      - url: http://localhost:2381
+  - selector: "k8s-app=etcd-manager-main"
+    namespace: kube-system
+    matchNode: true
+    endpoints:
+      - url: https://localhost:4001
+        insecureSkipVerify: true
+        auth:
+          type: bearer
+```
+
+`autodiscover` 섹션에는 자동 검색 항목 목록이 있습니다. 각 항목에는 다음이 포함됩니다.
+
+* `selector`: 포드를 찾는 데 사용할 문자열로 인코딩된 레이블 선택기입니다.
+* `matchNode`: true로 설정하면 검색을 수행하는 DaemonSet의 특정 인스턴스와 동일한 노드에서 실행되는 포드로 검색을 추가로 제한합니다.
+* `endpoints`: 지정된 선택기에 대해 팟(Pod)이 발견되면 시도할 엔드포인트 목록입니다.
+
+또한 각 `endpoint` 에는 다음이 포함됩니다.
+
+* `url`: 스키마를 포함하여 대상에 대한 URL입니다. `http` 또는 `https` 수 있습니다.
+* `insecureSkipVerify`: true로 설정하면 인증서에서 `https` URL을 확인하지 않습니다.
+* `auth.type`: 요청을 인증하는 데 사용할 메커니즘입니다. 현재 다음 방법이 지원됩니다.
+* 없음: `auth` 을 지정하지 않으면 요청에 인증이 포함되지 않습니다.
+* `bearer`: Kubernetes API에 대해 인증하는 데 사용된 동일한 전달자 토큰이 이 요청으로 전송됩니다.
+* `mtls`: mTLS를 사용하여 요청을 수행합니다.
+
+##### mTLS [#mtls]
+
+`mtls` 유형의 경우 다음을 지정해야 합니다.
+
+```yaml
+endpoints:
+  - url: https://localhost:4001
+    auth:
+      type: mtls
+      mtls:
+        secretName: secret-name
+        secretNamespace: secret-namespace
+```
+
+여기서 `secret-name` 은 `secret-namespace` 에 있는 Kubernetes TLS 보안 비밀의 이름이며 해당 특정 엔드포인트에 연결하는 데 필요한 인증서, 키 및 CA를 포함합니다.
+
+통합은 이 비밀을 탑재하는 대신 런타임에 가져오므로 액세스 권한을 부여하는 RBAC 역할이 필요합니다. Helm 차트는 렌더링 시 자동으로 `auth.mtls` 항목을 감지하고 `rbac.create` 이 false로 설정되지 않는 한 이러한 특정 비밀 및 네임스페이스에 대한 항목을 자동으로 생성합니다.
+
+통합은 다음 키로 비밀을 수락합니다.
+
+* `cacert`: 서명하는 데 사용되는 PEM 인코딩된 CA 인증서 `cert`
+* `cert`: etcd에 제시될 PEM 인코딩 인증서
+* `key`: 위의 인증서에 해당하는 PEM으로 인코딩된 개인 키
+
+이러한 인증서는 etcd가 작동하는 데 사용하는 것과 동일한 CA에서 서명해야 합니다.
+
+이러한 인증서를 생성하는 방법은 Kubernetes 배포에 따라 크게 다르기 때문에 이 문서의 범위를 벗어납니다. 필요한 etcd 피어 인증서를 가져오는 방법을 보려면 배포 설명서를 참조하십시오. 예를 들어 Kubeadm에서는 마스터 노드의 `/etc/kubernetes/pki/etcd/peer.{crt,key}` 에서 찾을 수 있습니다.
+
+etcd 피어 인증서를 찾거나 생성한 후에는 암호에 있을 것으로 예상되는 키와 일치하도록 파일 이름을 변경하고 클러스터에 암호를 생성해야 합니다.
+
+```shell
+mv peer.crt cert
+mv peer.key key
+mv ca.crt cacert
+
+kubectl -n newrelic create secret tls newrelic-etcd-tls-secret --cert=./cert --key=./key --certificate-authority=./cacert
+```
+
+마지막으로 이 섹션의 시작 부분에 표시된 구성 스니펫에 비밀 이름( `newrelic-etcd-tls-secret` )과 네임스페이스( `newrelic` )를 입력할 수 있습니다. Helm 차트는 이 구성을 자동으로 구문 분석하고 RBAC 역할을 생성하여 `nrk8s-controlplane` 구성 요소에 대한 이 특정 비밀 및 네임스페이스에 대한 액세스 권한을 부여하므로 이와 관련하여 수동 작업이 필요하지 않습니다.
+
+### 정적 엔드포인트 [#static-endpoints]
+
+자동 검색은 제어 평면이 Kubernetes 클러스터 내부에 있는 경우를 포함해야 하지만 일부 배포 또는 정교한 Kubernetes 환경은 가용성 또는 리소스 격리를 포함한 다양한 이유로 제어 평면을 다른 곳에서 실행합니다.
+
+이러한 경우 노드에서 컨트롤 플레인 레이블이 있는 포드가 있는지 여부에 관계없이 임의의 고정 URL을 스크랩하도록 통합을 구성할 수 있습니다. 이것은 `staticEndpoint` 항목을 지정하여 수행됩니다. 예를 들어 외부 etcd 인스턴스에 대한 인스턴스는 다음과 같습니다.
+
+```yaml
+controlPlane:
+  etcd:
+    staticEndpoint:
+      url: https://url:port
+      insecureSkipVerify: true
+      auth: {}
+```
+
+<img
+  title="Diagram showing a possible configuration scraping an external API server with bearer Token."
+  alt="Diagram showing a possible configuration scraping an external API server with bearer Token. The monitoring is a Deployment with a single replica."
+  src={kubernetesIntegrationCPExternal}
+/>
+
+`staticEndpoint` 위에 설명된 필드의 `autodiscover` 항목에 있는 `endpoints` 과 동일한 유형의 항목입니다. 여기에서 인증 메커니즘과 스키마가 지원됩니다.
+
+`staticEndpoint` 이 설정되면 `autodiscover` 섹션이 완전히 무시됩니다.
+
+#### 제한 사항 [#static-endpoints-limitations]
+
+<Callout variant="important">
+  노드 외부(즉, `localhost` 아님) 엔드포인트를 가리키는 `staticEndpoint` 를 사용하는 경우 `controlPlane.kind` 를 `DaemonSet` 에서 `Deployment` 로 변경해야 합니다.
+</Callout>
+
+`staticEndpoint` 사용 시 모든 `nrk8s-controlplane` 포드는 해당 엔드포인트에 도달하여 긁어모으려고 합니다. 즉, `nrk8s-controlplane` 가 DaemonSet(기본값)이면 DaemonSet의 모든 인스턴스가 이 끝점을 스크랩합니다. `localhost` 을 가리키는 경우에는 문제가 없지만 엔드포인트가 노드에 로컬이 아닌 경우 잠재적으로 메트릭을 복제하고 청구 가능한 사용량을 증가시킬 수 있습니다. `staticEndpoint` 를 사용하고 로컬이 아닌 URL을 가리키는 경우 `controlPlane.kind` 를 배포로 변경해야 합니다.
+
+위와 같은 이유로 현재 일부 제어 평면 구성 요소에는 자동 검색을 사용하고 다른 구성 요소에는 정적 끝점을 사용할 수 없습니다. 이는 향후 통합 버전에서 해결하기 위해 작업 중인 알려진 제한 사항입니다.
+
+마지막으로 `staticEndpoint` 에서는 구성요소당 단일 엔드포인트만 정의할 수 있습니다. 즉, 서로 다른 호스트에 여러 제어 평면 샤드가 있는 경우 현재 이를 별도로 가리킬 수 없습니다. 이는 향후 버전에서 해결하기 위해 작업 중인 알려진 제한 사항이기도 합니다. 당분간 해결 방법은 다른 곳에서 다른 샤드에 대한 측정항목을 집계하고 `staticEndpoint` URL이 집계된 출력을 가리키도록 하는 것입니다.
+
+#### 관리 및 클라우드 환경을 위한 제어 평면 모니터링 [#cloud-control-plane]
+
+EKS 또는 GKE와 같은 일부 클라우드 환경에서는 Kubernetes API 서버에서 측정항목을 검색할 수 있습니다. 이것은 정적 엔드포인트로 쉽게 구성할 수 있습니다.
+
+```yaml
+controlPlane:
+  affinity: false  # https://github.com/helm/helm/issues/9136
+  kind: Deployment
+  config:
+    etcd:
+      enabled: false
+    scheduler:
+      enabled: false
+    controllerManager:
+      enabled: false
+    apiServer:
+     staticEndpoint:
+       url: "https://kubernetes.default:443"
+       insecureSkipVerify: true
+       auth:
+         type: bearer
+```
+
+이는 API 서버에만 적용되며 etcd, 스케줄러 및 컨트롤러 관리자는 클라우드 환경에서 계속 액세스할 수 없습니다.
+
+또한 특정 관리 또는 클라우드 환경에 따라 Kubernetes 서비스가 API 서버의 여러 인스턴스 간에 트래픽을 로드 밸런싱할 수 있습니다.이 경우 로드 밸런서가 선택하는 특정 인스턴스에 의존하는 메트릭은 신뢰할 수 없습니다.
+
+#### Rancher RKE1에 대한 제어 평면 모니터링 [#rancher]
+
+Rancher Kubernetes Engine(RKE1)을 활용하여 배포된 클러스터는 제어 평면 구성 요소를 Kubelet에서 관리하는 Pod가 아닌 Docker 컨테이너로 실행합니다. 그렇기 때문에 통합에서 해당 컨테이너를 자동 검색할 수 없으며 모든 엔드포인트를 통합 구성의 `staticEndpoint` 섹션에서 수동으로 지정해야 합니다.
+
+통합은 사용 가능한 인증 방법(서비스 계정 토큰, 사용자 지정 mTLS 인증서 또는 없음)을 사용하여 직접 연결하거나 프록시를 통해 다른 끝점에 연결할 수 있어야 합니다.
+
+예를 들어 스케줄러 및 컨트롤러 관리자 측정항목에 연결할 수 있도록 하려면 `--authorization-always-allow-paths` [플래그](https://kubernetes.io/docs/reference/command-line-tools-reference/kube-scheduler/) 를 추가하여 `/metrics` 또는 `--authentication-kubeconfig` 및 `--authorization-kubeconfig` 에서 토큰 인증을 활성화해야 할 수 있습니다.
+
+지정된 포트에서 모든 구성 요소에 연결할 수 있다고 가정하면 다음 구성은 API 서버, 스케줄러 및 컨트롤러 관리자를 모니터링합니다.
+
+```yaml
+controlPlane:
+  kind: DaemonSet
+  config:
+    scheduler:
+      enabled: true
+      staticEndpoint:
+        url: https://localhost:10259
+        insecureSkipVerify: true
+        auth:
+          type: bearer
+    controllerManager:
+      enabled: true
+      staticEndpoint:
+        url: https://localhost:10257
+        insecureSkipVerify: true
+        auth:
+          type: bearer
+    apiServer:
+      enabled: true
+      staticEndpoint:
+        url: https://localhost:6443
+        insecureSkipVerify: true
+        auth:
+          type: bearer
+```
+
+이 예에서 통합은 각 `staticEndpoint` 에 로컬로 연결되기 때문에 `hostNetwork` 옵션이 true로 설정된 각 제어 영역 구성요소의 동일한 노드에서 실행되어야 합니다. 따라서 `controlPlane.kind` 는 `DaemonSet` 으로 유지되어야 합니다. 또한 DaemonSet에는 모니터링하려는 모든 제어 평면 노드에서 모든 인스턴스가 실행되도록 구성된 선호도 규칙, nodeSelector 및 허용 오차가 필요합니다.
+
+`node-role.kubernetes.io/controlplane` 레이블을 확인하여 제어 영역 노드를 인식할 수 있습니다. 이 레이블은 통합 기본 선호도 규칙에서 이미 고려하고 있습니다.
+
+## 통합 버전 2로 제어 영역 모니터링 [#monitoring-control-plane]
+
+이 섹션에서는 통합 버전 2 이하에서 컨트롤 플레인 모니터링을 구성하는 방법을 다룹니다.
+
+이러한 버전에는 덜 유연한 자동 검색 옵션이 있었고 외부 끝점을 지원하지 않았습니다. 가능한 한 빨리 [버전 3](/docs/kubernetes-pixie/kubernetes-integration/get-started/changes-since-v3) 으로 업데이트하는 것이 좋습니다. Kubernetes 통합 [의 변경 사항을 확인하십시오](/docs/kubernetes-pixie/kubernetes-integration/get-started/changes-since-v3) .
+
+<CollapserGroup>
+  <Collapser
+    className="freq-link"
+    id="controlplane-v2"
+    title="통합 버전 2에서 제어 평면 모니터링"
+  >
+    ## 마스터 노드 및 제어 평면 구성 요소 검색 [#discover-nodes-components]
+
+    Kubernetes 통합은 [kubeadm](https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/create-cluster-kubeadm/) 레이블 지정 규칙에 따라 마스터 노드 및 제어 평면 구성 요소를 검색합니다. 즉, 마스터 노드에는 `node-role.kubernetes.io/master=""` 또는 `kubernetes.io/role="master"` 레이블이 지정되어야 합니다.
+
+    제어 영역 구성요소에는 `k8s-app` 또는 `tier` 및 `component` 레이블이 있어야 합니다. 허용되는 레이블 조합 및 값은 다음 표를 참조하십시오.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "110px" }}>
+            요소
+          </th>
+
+          <th>
+            상표
+          </th>
+
+          <th style={{ width: "200px" }}>
+            끝점
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            API 서버
+          </td>
+
+          <td>
+            **Kubeadm / Kops / ClusterAPI**
+
+            `k8s-app=kube-apiserver`
+
+            `tier=control-plane component=kube-apiserver`
+
+            **오픈시프트**
+
+            `app=openshift-kube-apiserver apiserver=true`
+          </td>
+
+          <td>
+            `localhost:443/metrics` 기본적으로(구성 가능) 요청이 실패하면 `localhost:8080/metrics`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            등
+          </td>
+
+          <td>
+            **Kubeadm / Kops / ClusterAPI**
+
+            `k8s-app=etcd-manager-main`
+
+            `tier=control-plane component=etcd`
+
+            **오픈시프트**
+
+            `k8s-app=etcd`
+          </td>
+
+          <td>
+            `localhost:4001/metrics`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            스케줄러
+          </td>
+
+          <td>
+            **Kubeadm / Kops / ClusterAPI**
+
+            `k8s-app=kube-scheduler`
+
+            `tier=control-plane component=kube-scheduler`
+
+            **오픈시프트**
+
+            `app=openshift-kube-scheduler scheduler=true`
+          </td>
+
+          <td>
+            `localhost:10251/metrics`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            컨트롤러 관리자
+          </td>
+
+          <td>
+            **Kubeadm / Kops / ClusterAPI**
+
+            `k8s-app=kube-controller-manager`
+
+            `tier=control-plane component=kube-controller-manager​`
+
+            **오픈시프트**
+
+            `app=kube-controller-manager kube-controller-manager=true`
+          </td>
+
+          <td>
+            `localhost:10252/metrics`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    통합이 마스터 노드 내에서 실행 중임을 감지하면 위의 표에 나열된 레이블과 일치하는 포드를 찾아 노드에서 실행 중인 구성 요소를 찾으려고 시도합니다. 실행 중인 모든 구성 요소에 대해 통합은 해당 메트릭 엔드포인트에 요청합니다.
+
+    ### 구성
+
+    제어 평면 모니터링은 마스터 노드 내부에서 실행되는 에이전트에 대해 자동입니다. 클라이언트 요청에 대해 상호 TLS 인증(mTLS)을 사용하기 때문에 실행하기 위해 추가 단계가 필요한 유일한 구성 요소는 etcd입니다. API 서버는 [보안 포트](https://kubernetes.io/docs/reference/access-authn-authz/controlling-access/#api-server-ports-and-ips) 를 사용하여 쿼리하도록 구성할 수도 있습니다.
+
+    <Callout variant="important">
+      [OpenShift](http://learn.openshift.com/?extIdCarryOver=true&sc_cid=701f2000001OH7iAAG) 4.x에 대한 제어 평면 모니터링에는 추가 구성이 필요합니다. 자세한 내용은 [OpenShift 4.x 구성](#openshift-4x-configuration) 섹션을 참조하십시오.
+    </Callout>
+
+    #### 등
+
+    etcd 쿼리를 위해 mTLS를 설정하려면 다음 두 가지 구성 옵션을 설정해야 합니다.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "280px" }}>
+            옵션
+          </th>
+
+          <th>
+            값
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `ETCD_TLS_SECRET_NAME`
+          </td>
+
+          <td>
+            mTLS 구성을 포함하는 Kubernetes 시크릿의 이름입니다.
+
+            비밀에는 다음 키가 포함되어야 합니다.
+
+            * `cert`: 요청하는 클라이언트를 식별하는 인증서입니다. etcd의 신뢰할 수 있는 CA에서 서명해야 합니다.
+
+            * `key`: 클라이언트 인증서를 생성하는 데 사용되는 개인 키입니다.
+
+            * `cacert`: etcd 서버 인증서를 식별하는 데 사용되는 루트 CA입니다.
+
+              `ETCD_TLS_SECRET_NAME` 옵션이 설정되어 있지 않으면 etcd 측정항목을 가져오지 않습니다.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `ETCD_TLS_SECRET_NAMESPACE`
+          </td>
+
+          <td>
+            `ETCD_TLS_SECRET_NAME` 에 지정된 보안 비밀이 생성된 네임스페이스입니다. 설정하지 않으면 `default` 네임스페이스가 사용됩니다.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    #### API 서버
+
+    기본적으로 API 서버 측정항목은 보안되지 않은 `localhost:8080` 엔드포인트를 사용하여 쿼리됩니다. 이 포트가 비활성화된 경우 보안 포트를 통해 이러한 메트릭을 쿼리할 수도 있습니다. 이를 활성화하려면 Kubernetes 통합 매니페스트 파일에서 다음 구성 옵션을 설정하십시오.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "250px" }}>
+            옵션
+          </th>
+
+          <th>
+            값
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `API_SERVER_ENDPOINT_URL`
+          </td>
+
+          <td>
+            메트릭을 쿼리하기 위한 (보안) URL입니다. API 서버는 기본적으로 `localhost:443` 을 사용합니다.
+
+            `ClusterRole` 이 매니페스트에서 찾은 최신 버전으로 업데이트되었는지 확인합니다.
+
+            버전 1.15.0에 추가됨
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <Callout variant="important">
+      API 서버에서 사용하는 보안 포트에 따라 포트가 다를 수 있습니다.
+
+      예를 들어 Minikube에서 API 서버 보안 포트는 8443이므로 `API_SERVER_ENDPOINT_URL` 를 다음으로 설정해야 합니다. `https://localhost:8443`
+    </Callout>
+  </Collapser>
+</CollapserGroup>
+
+## 오픈시프트 구성 [#openshift-4x-configuration]
+
+Kubernetes 통합 버전 3에는 OpenShift 클러스터에서 제어 평면 구성 요소를 자동 검색하는 기본 설정이 포함되어 있으므로 etcd를 제외한 모든 구성 요소에 대해 즉시 작동해야 합니다.
+
+메트릭 엔드포인트가 OpenShift 환경에서 mTLS 인증을 요구하도록 구성되어 있으므로 Etcd는 기본적으로 지원되지 않습니다. 우리의 통합은 이 구성에서 etcd 메트릭을 가져오기 위해 mTLS 인증을 지원하지만 필요한 mTLS 인증서를 수동으로 생성해야 합니다. 이는 사용자의 명시적인 승인 없이 통합에 대한 광범위한 권한을 부여하는 것을 방지하기 위해 필요합니다.
+
+mTLS 암호를 생성하려면 [아래 이 섹션](#mtls-how-to-openshift) 의 단계를 수행한 다음 [mtls 섹션](#mtls) 에 설명된 대로 새로 생성된 암호를 사용하도록 통합을 구성하십시오.
+
+<CollapserGroup>
+  <Collapser
+    className="freq-link"
+    id="openshift-v2"
+    title="통합 버전 2의 OpenShift 구성"
+  >
+    <Callout variant="important">
+      Helm을 통해 `openshift` 을 설치할 때 이러한 엔드포인트를 자동으로 포함하도록 구성을 지정합니다. `openshift.enabled=true` 및 `openshift.version="4.x"` 를 설정하면 보안 엔드포인트가 포함되고 `/var/run/crio.sock` 런타임이 활성화됩니다.
+    </Callout>
+
+    [OpenShift](http://learn.openshift.com/?extIdCarryOver=true&sc_cid=701f2000001OH7iAAG) 4.x의 제어 평면 구성 요소는 SSL 및 서비스 계정 기반 인증이 필요한 끝점 URL을 사용합니다. 따라서 [기본](/docs/integrations/kubernetes-integration/installation/configure-control-plane-monitoring#discover-nodes-components) 끝점 URL을 사용할 수 없습니다.
+
+    OpenShift에서 제어 평면 모니터링을 구성하려면 [사용자 지정 매니페스트](/docs/integrations/kubernetes-integration/installation/kubernetes-integration-install-configure#customized-manifest) 에서 다음 환경 변수의 주석 처리를 제거합니다. URL 값은 [OpenShift](http://learn.openshift.com/?extIdCarryOver=true&sc_cid=701f2000001OH7iAAG) 4.x의 컨트롤 플레인 모니터링 메트릭 엔드포인트에 대한 기본 기본 URL로 사전 구성됩니다.
+
+    ```
+    - name: "SCHEDULER_ENDPOINT_URL"
+      value: "https://localhost:10259
+    - name: "ETCD_ENDPOINT_URL"
+      value: "https://localhost:9979"
+    - name: "CONTROLLER_MANAGER_ENDPOINT_URL"
+      value: "https://localhost:10257"
+    - name: "API_SERVER_ENDPOINT_URL"
+      value: "https://localhost:6443"
+    ```
+
+    <Callout variant="important">
+      사용자 지정 `ETCD_ENDPOINT_URL` 이 정의되더라도 etcd는 HTTPS 및 mTLS 인증을 구성해야 합니다. OpenShift에서 etcd용 mTLS 구성에 대한 자세한 내용은 OpenShift에서 [etcd용 mTLS 설정을](#mtls-how-to-openshift) 참조하십시오.
+    </Callout>
+  </Collapser>
+</CollapserGroup>
+
+### OpenShift에서 etcd용 mTLS 설정 [#mtls-how-to-openshift]
+
+[OpenShift](http://learn.openshift.com/?extIdCarryOver=true&sc_cid=701f2000001OH7iAAG) 4.x에서 etcd에 대한 상호 TLS 인증을 설정하려면 다음 지침을 따르십시오.
+
+1. 클러스터에서 불투명한 비밀로 etcd 클라이언트 인증서를 내보냅니다. 기본 관리형 OpenShift 클러스터에서 비밀 이름은 `kube-etcd-client-certs` 이며 `openshift-monitoring` 네임스페이스에 저장됩니다.
+
+   ```shell
+   kubectl get secret kube-etcd-client-certs -n openshift-monitoring -o yaml > etcd-secret.yaml
+   ```
+
+2. 선택적으로 비밀 이름과 네임스페이스를 의미 있는 것으로 변경합니다.
+
+3. 메타데이터 섹션에서 다음과 같은 불필요한 키를 제거합니다.
+
+   * `creationTimestamp`
+   * `resourceVersion`
+   * `selfLink`
+   * `uid`
+
+4. 새 이름과 네임스페이스로 매니페스트를 설치합니다.
+
+   ```shell
+   kubectl apply -n newrelic -f etcd-secret.yaml
+   ```
+
+5. [mtls 섹션](#mtls) 에 설명된 대로 새로 생성된 비밀을 사용하도록 통합을 구성합니다.
+
+## 데이터 보기 [#check-integration-works]
+
+통합이 올바르게 설정되었으면 아래 표시된 것처럼 [Kubernetes 클러스터 탐색기](/docs/integrations/kubernetes-integration/cluster-explorer/kubernetes-cluster-explorer) 의 전용 섹션에 모든 제어 플레인 구성 요소와 해당 상태가 포함됩니다.
+
+<img
+  title="new-relic-one-k8s-cluster-explorer-control-plane-parameters.png"
+  alt="New Relic - Kubernetes Cluster Explorer - Control Plane section"
+  src={newRelicOneK8SClusterExplorerControlPlaneParameters}
+/>
+
+<figcaption>
+  **[one.newrelic.com](https://one.newrelic.com) > Kubernetes Cluster Explorer** : Kubernetes 클러스터 탐색기를 사용하여 클러스터의 제어 평면 구성 요소에서 메트릭을 모니터링하고 수집합니다.
+</figcaption>
+
+이 [NRQL](/docs/query-data/nrql-new-relic-query-language/getting-started/introduction-nrql) 쿼리를 사용하여 제어 평면 데이터를 확인할 수도 있습니다.
+
+```SQL
+SELECT latest(timestamp) FROM K8sApiServerSample, K8sEtcdSample, K8sSchedulerSample, K8sControllerManagerSample FACET entityName where clusterName = '_MY_CLUSTER_NAME_'
+```
+
+<Callout variant="tip">
+  여전히 컨트롤 플레인 데이터가 표시되지 않으면 [Kubernetes 통합 문제 해결: 데이터가 표시되지 않음](/docs/integrations/kubernetes-integration/troubleshooting/kubernetes-integration-troubleshooting-not-seeing-data) 에 설명된 솔루션을 시도하십시오.
+</Callout>

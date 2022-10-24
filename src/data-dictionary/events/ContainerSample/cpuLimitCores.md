@@ -6,4 +6,4 @@ events:
   - ContainerSample
 ---
 
-Number of cores available for the container.
+How much of the available CPU resources a container can use.

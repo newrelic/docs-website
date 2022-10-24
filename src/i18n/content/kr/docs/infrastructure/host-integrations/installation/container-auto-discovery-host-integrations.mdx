@@ -1,0 +1,368 @@
+---
+title: 호스트 내 통합을 위한 컨테이너 자동 검색
+tags:
+  - Integrations
+  - On-host integrations
+  - Installation
+metaDescription: Use discovery to automatically configure a New Relic infrastructure integration to monitor services that may run in multiple containers.
+translationType: machine
+---
+
+컨테이너 자동 검색 기능을 사용하면 여러 컨테이너에서 실행되는 서비스를 자동으로 모니터링하도록 통합을 구성할 수 있습니다. 통합의 구성 파일에서 컨테이너의 일치 기준을 설정할 수 있으며 에이전트는 기준과 일치하는 각 로컬 컨테이너에 대해 통합을 실행합니다.
+
+검색 요소를 찾은 횟수만큼 통합이 실행됩니다. 검색에서 컨테이너를 찾지 못하면 통합이 실행되지 않습니다.
+
+<Callout variant="tip">
+  현재 [인프라 에이전트](/docs/infrastructure/install-configure-manage-infrastructure) 는 로컬 Docker 컨테이너를 검색할 수 있습니다.
+</Callout>
+
+## 구성에 자리 표시자 추가 [#example]
+
+통합 구성에서 `${discovery.<property>}` 자리 표시자를 만들어야 합니다. 그러면 자동으로 특정 컨테이너 정보로 대체됩니다.
+
+이러한 예(Docker 전용 환경 및 Kubernetes용)는 `nginx` 을 포함하는 이미지 이름이 있고 `env=production` 로 레이블이 지정된 모든 로컬 컨테이너를 모니터링하도록[NGINX 통합](/docs/integrations/host-integrations/host-integrations-list/apache-monitoring-integration) 을 구성하는 방법을 보여줍니다. 각 서비스는 서로 다른 IP와 포트를 통해 사용할 수 있으므로 변수여야 합니다.
+
+<CollapserGroup>
+  <Collapser
+    id="docker-example"
+    title="Docker 예시(비조정)"
+  >
+    이 구성은 Kubernetes 또는 기타 오케스트레이션 환경 없이 Docker가 사용되는 비 오케스트레이션 시나리오에 적용됩니다.
+
+    ```
+    discovery:
+      docker:
+        match:
+          image: /nginx/
+          label.env: production
+    integrations:
+      - name: nginx-server-metrics
+        command: metrics
+        env:
+    # use discovery.private.ip if container doesn't have attached public ip address
+          STATUS_URL: http://${discovery.ip}:${discovery.port}/status
+          STATUS_MODULE: discover
+          REMOTE_MONITORING: true
+        labels:
+          env: ${discovery.label.env}
+          role: ${discovery.label.role}
+    ```
+  </Collapser>
+
+  <Collapser
+    id="kubernetes-example"
+    title="쿠버네티스 예시"
+  >
+    Kubernetes 및[Kubernetes 통합](/docs/integrations/kubernetes-integration/get-started/introduction-kubernetes-integration) 을 사용하는 경우 통합을 위한 ConfigMap은 다음과 같습니다. `nri-discovery-kubernetes` 은 구성을 자동으로 감지합니다. 그러나 일부 사용자 정의가 필요한 경우 도구는 몇 가지 선택적 인수를 허용합니다.
+
+    * `--namespaces`: 쉼표로 구분된 네임스페이스 목록
+
+    * `--tls`: 보안(TLS) 연결 사용
+
+    * `--port`: kubelet에 연결하는 데 사용되는 포트입니다.
+
+    * `--host`: kubelet에 연결하는 데 사용되는 호스트입니다.
+
+      ```
+      ---
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: nri-integration-cfg
+        namespace: default
+      data:
+        nginx-config.yaml: |
+          ---
+          discovery:
+            command:
+              # Run discovery for Kubernetes. Use the following <mark>optional arguments</mark>:
+              # --namespaces: Comma separated list of namespaces to discover pods on
+              # --tls: Use secure (TLS) connection
+              # --port: Port used to connect to the kubelet.
+              # --host: Host used to connect to the kubelet.
+              exec: /var/db/newrelic-infra/nri-discovery-kubernetes
+              match:
+                image: /nginx/
+                label.env: production
+          integrations:
+            - name: nri-nginx
+              env:
+                # Use the discovered IP as the host address
+                STATUS_URL: http://${discovery.ip}/server-status?auto
+                METRICS: 1
+      ```
+  </Collapser>
+</CollapserGroup>
+
+## 검색 속성 추가 [#define-discover]
+
+검색을 구성하려면 다음 속성을 사용하여 통합 구성 YAML에서 `discovery` 항목을 설정하세요. **모든** 속성이 정의된 값과 일치하면 컨테이너가 일치합니다.
+
+<Callout variant="tip">
+  속성 값은 일치하는 값이 `/.../` 사이에 설정되지 않는 한 **정확한 문자열** 과 일치합니다. 슬래시 안의 내용은 [정규식](https://en.wikipedia.org/wiki/Regular_expression) 과 일치합니다.
+</Callout>
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "250px" }}>
+        검색 키 이름
+      </th>
+
+      <th>
+        설명
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `ttl`
+
+        유형: 문자열
+      </td>
+
+      <td>
+        캐싱된 검색 결과의 TTL(Time-To-Live)은 검색 프로세스 수를 최소화하는 데 사용됩니다. 숫자 다음에 시간 단위( `s` , `m` 또는 `h` )가 오는 방식으로 정의합니다.
+
+        예: `30s` , `10m` , `1h` , `0`
+
+        기본값: 1m
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `docker`
+
+        유형: YAML 속성
+      </td>
+
+      <td>
+        정의와 일치하는 Docker 컨테이너. 이것은 다음과 같은 지도를 포함하는 `match` 속성으로 구성됩니다.
+
+        * 각 키는 다음 속성 중 하나입니다.
+
+        * 값은 반환된 컨테이너에 대해 지정된 속성의 예상 값입니다.
+
+        * 모든 속성이 일치하면 컨테이너가 일치합니다(AND 연산).
+
+          사용 가능한 YAML 키는 다음과 같습니다.
+
+        * `ip`: 컨테이너 외부 IP 주소(있는 경우)
+
+        * `private.ip`: 컨테이너 사설 IP 주소
+
+        * `port`: 컨테이너 외부 포트 번호
+
+        * `private.port`: 컨테이너 전용 포트 번호
+
+        * `image`: 이미지 이름
+
+        * `name`: 컨테이너 이름
+
+        * `label.<label name>`: 이름으로 액세스할 수 있는 모든 컨테이너 레이블
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+### 발견 사례 [#example]
+
+다음 예시는 이미지가 `httpd:` (정규 표현식으로 제공됨)으로 시작하고 레이블이 `scrapable=yes` 인 모든 Docker 컨테이너와 일치합니다. 결과는 5분의 TTL(Time-To-Live)로 캐시됩니다.
+
+```
+discovery:
+  ttl: 5m
+  docker:
+    match:
+      image: /^httpd:/
+      label.scrapable: yes
+```
+
+## 사용 가능한 컨테이너 정보 [#container-information]
+
+검색 기능은 현재 통합을 구성하는 데 사용할 수 있는 다음 변수를 내보냅니다. 인프라 에이전트는 이를 검색된 컨테이너의 해당 값으로 바꿉니다.
+
+<Callout variant="important">
+  `discovery.` 접두사를 추가해야 합니다.
+</Callout>
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "350px" }}>
+        변하기 쉬운
+      </th>
+
+      <th>
+        설명
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `${discovery.ip}`
+      </td>
+
+      <td>
+        컨테이너 공용 IP 주소(있는 경우)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `${discovery.private.ip}`
+      </td>
+
+      <td>
+        컨테이너 사설 IP 주소
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `${discovery.port}`
+      </td>
+
+      <td>
+        컨테이너 공용 포트 번호
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `${discovery.private.port}`
+      </td>
+
+      <td>
+        컨테이너 전용 포트 번호
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `${discovery.image}`
+      </td>
+
+      <td>
+        이미지 이름
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `${discovery.name}`
+      </td>
+
+      <td>
+        컨테이너 이름
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `${discovery.label.<label name>}`
+      </td>
+
+      <td>
+        이름으로 액세스할 수 있는 모든 컨테이너 레이블
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+### 여러 포트 매핑
+
+컨테이너가 많은 비공개 또는 공개 포트를 노출하면 `discovery.private.ports.` 또는 `discovery.ports.` 다음에 0에서 시작하는 색인을 통해 액세스할 수 있습니다. 포트는 낮은 비공개 포트 값에서 높은 값으로 색인이 생성됩니다.
+
+예를 들어, 각각 공용 포트 2345 및 1111을 통해 80 및 443 개인 포트를 노출하는 컨테이너는 다음 변수에 해당 값을 제공합니다.
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "350px" }}>
+        변하기 쉬운
+      </th>
+
+      <th>
+        값
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `${discovery.private.ports.0}`
+      </td>
+
+      <td>
+        `80` (최하위 프라이빗 포트)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `${discovery.private.ports.1}`
+      </td>
+
+      <td>
+        `443` (가장 높은 개인 항구)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `${discovery.ports.0}`
+      </td>
+
+      <td>
+        `2345` (개인 포트 0에 대한 공용 포트 매핑)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `${discovery.ports.1}`
+      </td>
+
+      <td>
+        `1111` (개인 포트 1에 대한 공용 포트 매핑)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `${discovery.private.port}`
+      </td>
+
+      <td>
+        `80` ( `${discovery.private.ports.0}` 과 동일)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `${discovery.port}`
+      </td>
+
+      <td>
+        `2345` ( `${discovery.ports.0}` 과 동일)
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<Callout variant="important">
+  `port` 단어는 인덱싱되지 않은 변수에서는 단수이고 인덱싱된 변수에서는 복수입니다.
+</Callout>
+
+### 프로토콜 이름으로 포트 매핑
+
+이전 섹션의 인덱싱 외에도 프로토콜 이름(예: `tcp` , `udp` 등)으로 포트를 참조할 수도 있습니다. 예: `${discovery.ports.tcp}` 또는 `${discovery.ports.udp}` .
+
+여러 포트가 동일한 프로토콜과 일치하는 경우 이전 섹션의 규칙( `${discovery.ports.tcp.0}` , `${discovery.ports.tcp.1}` 등)에 의해 인덱싱될 수도 있습니다.

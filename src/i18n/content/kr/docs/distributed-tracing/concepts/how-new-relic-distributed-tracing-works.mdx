@@ -1,0 +1,464 @@
+---
+title: 기술 분산 추적 세부정보
+tags:
+  - Understand dependencies
+  - Distributed tracing
+  - Get started
+metaDescription: 'Technical details of New Relic''s distributed tracing, including limits, explanation of sampling, trace data structure, and trace storage.'
+translationType: human
+---
+
+import infiniteTracingOverview from 'images/Infinite_Tracing_Overview.png'
+
+import newRelicDistributedTracingTraceStructure from 'images/new-relic-distributed-tracing-trace-structure.png'
+
+import doc5207Middleware0 from 'images/doc-5207_middleware_0.png'
+
+import doc5207MixedExample20 from 'images/doc-5207_mixed_example_2_0.png'
+
+import doc5207MiddlewareW3C0 from 'images/doc-5207_middleware_w3c_0.png'
+
+import doc5207DiffVendW3C0 from 'images/doc-5207_diff_vend_w3c_0.png'
+
+다음은 뉴렐릭 분산 추적이 작동하는 방식에 대한 몇 가지 기술적인 세부 사항입니다.
+
+* [트레이스 샘플링 작동 방식](#sampling)
+* [트레이스 데이터 구성 방법](#trace-structure)
+* [트레이스 데이터 저장 방법](#trace-storage)
+* [애플리케이션 간에 트레이스 컨텍스트가 전달되는 방법](#headers)
+
+## 트레이스 샘플링 [#sampling]
+
+트레이스 샘플링 방법은 설정과 사용 중인 뉴렐릭 추적 툴에 따라 다릅니다. 예를 들어, OpenTelemetry 같은 서드파티 텔레메트리 서비스를 사용해 데이터가 뉴렐릭에 도착하기 전에 트레이스 샘플링을 구현하고 있을 수 있고, [Infinite Tracing](/docs/understand-dependencies/distributed-tracing/infinite-tracing/introduction-infinite-tracing)을 사용해 모든 트레이스 데이터를 뉴렐릭으로 보내고 뉴렐릭이 샘플링을 하는 경우도 있습니다.
+
+뉴렐릭의 다음과 같은 몇 가지 샘플링 전략을 제공합니다.
+
+* [헤드 기반 샘플링](#head-based) (표준 분산 추적)
+* [테일 기반 샘플링](#tail-based) (Infinite Tracing)
+* [샘플링 없음](#no-sampling)
+
+### 헤드 기반 샘플링 (표준 분산 추적) [#head-based]
+
+[Infinite Tracing](#tail-based) 기능을 제외한 대부분의 추적 툴은 헤드 기반 샘플링 방식을 사용합니다. 이 방식은 트레이스의 모든 스팬이 도착하기 전에 개별 스팬에 필터를 적용합니다. 즉, 필터링 프로세스의 시작(‘헤드’)에서 스팬을 수락할지 여부에 대한 결정이 내려집니다. 뉴렐릭은 이 샘플링 전략을 사용하여 스토리지 및 성능 문제를 방지하고 활동의 대표적인 샘플을 캡처합니다.
+
+다음은 표준 분산 추적 툴에서 헤드 기반 샘플링을 구현하는 방법에 대한 몇 가지 세부 정보입니다.
+
+<CollapserGroup>
+  <Collapser
+    id="trace-origin-sampling"
+    title="언어 에이전트: 어댑티브 샘플링"
+  >
+    뉴렐릭의 APM 언어 에이전트는 어댑티브 샘플링을 사용하여 시스템 활동의 대표적인 샘플을 캡처합니다. 다음은 어댑티브 샘플링이 작동하는 방식에 대한 설명입니다.
+
+    분산 트레이스의 첫 번째 서비스에 대해 10개의 요청이 샘플링되도록 선택됩니다. 해당 서비스에 대한 처리량은 요청이 샘플링되는 빈도를 조정하는 데 사용됩니다. 이에 대한 보다 자세한 설명은 다음과 같습니다.
+
+    분산 트레이스에서 모니터링하는 첫 번째 서비스를 트레이스 오리진(trace origin)이라고 합니다. 트레이스 오리진은 추적할 요청을 무작위로 선택합니다. 이 결정은 해당 요청에 의해 영향을 받는 다운스트림 서비스로 전파됩니다. 요청이 완료되면, 뉴렐릭이 감지한 요청에 의해 영향을 받은 모든 스팬이 UI에서 완전한 트레이스로 사용 가능하게 됩니다. (그러나 [에이전트 한도](#agent-limits-sampling)로 인해 트레이스 단편화가 발생할 수 있습니다.)
+
+    APM 에이전트에는 분당 수집되는 트랜잭션 수에 대한 한도(에이전트에 따라 다를 수 있음)와 [에이전트 인스턴스별로 분당 수집되는 스팬 수](/docs/data-apis/manage-data/view-system-limits/#all_products)에 대한 한도가 있습니다. 이러한 한도를 준수하기 위해 트레이스 오리진의 기본 트레이스 수는 분당 트레이스 10개입니다.
+
+    APM 에이전트는 일정 시간에 대한 대표적인 샘플을 얻기 위해 이러한 10개의 트레이스를 1분 동안 분산시킵니다. 정확한 샘플링 비율은 이전 분의 트랜잭션 수에 따라 다릅니다. 속도는 증가 또는 감소하는 트랜잭션 처리량의 변화에 대응합니다.
+
+    예를 들어, 이전 1분에 100개의 트랜잭션이 있었다면 에이전트는 비슷한 수의 트랜잭션을 예상하고 추적할 트랜잭션 10개 중 1개를 선택합니다.
+  </Collapser>
+
+  <Collapser
+    id="agent-limits-sampling"
+    title="언어 에이전트: 한도 및 샘플링"
+  >
+    헤드 기반 샘플링을 사용하는 APM 에이전트 인스턴스에는 [에이전트 인스턴스별 분당 스팬 수](/docs/data-apis/manage-data/view-system-limits/#all_products)에 대한 최대 한도가 있습니다. 에이전트는 표시된 모든 스팬이 분산 트레이스의 일부로 샘플링되도록 유지하려는 시도를 합니다.
+
+    많은 분산 시스템에서 평균적인 마이크로서비스는 요청당 10-20개의 스팬을 생성할 수 있습니다. 이러한 경우 에이전트 스팬 한도는 선택한 모든 스팬을 수용할 수 있으며, 해당 서비스는 트레이스에 전체 세부 정보가 포함됩니다.
+
+    그러나 서비스에 대한 일부 요청은 많은 스팬을 생성하고, 에이전트 스팬 한도에 도달합니다. 결과적으로, 일부 트레이스에는 해당 서비스에 대한 전체 세부 정보가 없게 됩니다. 이에 대한 한 가지 해결책은 더 적게 활동을 보고하여 더 적은 스팬이 보고되도록 에이전트를 커스텀 계측하는 것입니다.
+
+    트레이스 데이터에 대한 브라우저 모니터링이 언어 에이전트와 어떻게 다른지 알아보려면 [브라우저 트레이스](#browser-spans)를 참조하십시오.
+  </Collapser>
+
+  <Collapser
+    id="lambda-sampling"
+    title="Lambda 트레이스 샘플링"
+  >
+    AWS Lambda 모니터링은 [자체 샘플링 프로세스](/docs/serverless-function-monitoring/aws-lambda-monitoring/ui-data/understand-lambda-data-structure#data-structure)를 사용합니다.
+  </Collapser>
+</CollapserGroup>
+
+### 테일 기반 샘플링 (Infinite Tracing) [#tail-based]
+
+뉴렐릭의 [Infinite Tracing](https://newrelic.com/products/edge-infinite-tracing) 기능은 테일 기반 샘플링 접근 방식을 사용합니다. ‘테일 기반 샘플링’은 트레이스의 모든 스팬이 도착한 후 처리의 끝 부분에서 트레이스 보유 결정이 내려진다는 것을 의미합니다.
+
+Infinite Tracing을 사용하면 애플리케이션 또는 서드파티 텔레메트리 서비스에서 트레이스 데이터를 100% 보낼 수 있으며, Infinite Tracing이 어떤 트레이스 데이터가 가장 중요한지 알아냅니다. 그리고 중요한 트레이스가 보유되도록 샘플링을 구성할 수 있습니다.
+
+<Callout variant="important">
+  Infinite Tracing은 애플리케이션 또는 서드파티 텔레메트리 서비스에서 더 많은 트레이스 데이터를 수집하고 전달할 수 있으므로 결과적으로 송신 비용이 증가할 수 있습니다. 이 솔루션이 귀사에 적합한지 확인할 수 있도록, Infinite Tracing을 구현할 때는 이 비용을 주시할 것을 권합니다.
+</Callout>
+
+<CollapserGroup>
+  <Collapser
+    id="infinite-architecture"
+    title="아키텍처"
+  >
+    Infinite Tracing의 경우 에이전트 또는 통합은 계측된 모든 스팬의 100%를 트레이스 옵저버에게 보냅니다. 트레이스 옵저버는 뉴렐릭 Edge라는 AWS의 서비스 클러스터에 있는 분산 추적 서비스입니다.
+
+    <Callout variant="tip">
+      스팬만 트레이스 옵저버로 이동합니다. 메트릭, 커스텀 이벤트, 트랜잭션 트레이스 같은 다른 모든 데이터는 뉴렐릭에 일반 경로로 전송되고 로컬 샘플링의 대상이 됩니다.
+    </Callout>
+
+    데이터를 보내려는 AWS 리전에 대해 고유한 트레이스 옵저버(trace observer) 엔드포인트를 구성합니다. 추적은 교차 계정 기능이기 때문에 뉴렐릭의 기본 구현은 [계정 구성원](/docs/glossary/glossary/#account-family) 당 리전당 하나의 트레이스 옵저버만 허용합니다. (더 요청하려면 계정 담당자에게 문의하십시오.) 엔드포인트는 특정 워크로드에 대한 트레이스 옵저버를 나타냅니다. 예를 들어, 싱글 트레이스(요청)의 모든 스팬은 해당 엔드포인트으로 가야 합니다.
+
+    다음은 두 개의 아키텍처 다이어그램입니다. 하나는 APM 에이전트를 사용하는 경우의 데이터 흐름을 보여주고, 다른 하나는 OpenTelemetry Exporter 같은 뉴렐릭 통합을 사용하는 경우를 보여줍니다.
+
+    <img
+      title="Here are two diagrams showing the flow of data: one for agents and another for integrations with Infinite Tracing."
+      alt="Here are two diagrams showing the flow of data: one for agents and another for integrations with Infinite Tracing."
+      src={infiniteTracingOverview}
+    />
+
+    트레이스 옵저버는 해당 트레이스의 스팬이 도착하는 동안 트레이스를 열린 상태로 유지합니다. 트레이스의 첫 번째 스팬이 도착하면 세션이 10초 동안 열린 상태로 유지됩니다. 해당 트레이스의 새 스팬이 도착할 때마다 만료 시간이 10초로 재설정됩니다. 지난 10초 이내에 범위가 도착하지 않은 트레이스는 자동으로 만료됩니다.
+  </Collapser>
+
+  <Collapser
+    id="tail-sampling-strategy"
+    title="테일 기반 샘플링 알고리즘"
+  >
+    기본적으로 각 트레이스 옵저버는 세 가지 샘플러에 트레이스를 제공합니다. 하나는 기간 이상 값을 찾고, 다른 하나는 오류가 있는 트레이스를 찾으며, 다른 하나는 모든 트레이스 유형에서 무작위로 샘플링을 시도합니다. 각 샘플러는 기준과 일치하는 트레이스의 목표 비율을 유지합니다.
+
+    다음은 각 샘플러에 대한 세부정보입니다.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "100px" }}>
+            샘플러
+          </th>
+
+          <th>
+            매치 기준
+          </th>
+
+          <th>
+            목표 비율
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            Duration
+          </td>
+
+          <td>
+            이상치 기간이 있는 트레이스, 두 가지 알고리즘 사용:
+
+            * Gaussian(정규 분포와 99번째 백분위수에서 임계값을 가정)
+            * Eccentricity(분포가 없다고 가정하고 클러스터 기반 임계값)
+          </td>
+
+          <td>
+            100%
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            오류
+          </td>
+
+          <td>
+            오류가 있는 스팬이 하나 이상 있는 트레이스
+          </td>
+
+          <td>
+            100%
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            랜덤
+          </td>
+
+          <td>
+            모든 트레이스
+          </td>
+
+          <td>
+            1%(설정 가능. [Infinite Tracing: 랜덤 트레이스 필터](/docs/understand-dependencies/distributed-tracing/other-requirements/infinite-tracing-random-trace-filter) 참조)
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    매치 기준이 트레이스가 일치하면 각 샘플러는 트레이스의 형태를 확인합니다. 트레이스의 형태는 루트 스팬의 엔터티 이름과 스팬 이름의 고유한 조합입니다. 이는 요청의 진입점을 사용하여 트레이스를 분리하는 간단한 방법입니다.
+
+    형태가 파악되면 샘플러는 목표 샘플링 비율에 따라 트레이스를 보유할지 또는 거부할지 결정합니다. 100%이면 트레이스 자동으로 보유됩니다. 이보다 작으면 샘플러가 주어진 트레이스를 보유할 확률은 목표 백분율에 의해 결정됩니다. 예를 들어, 기본 설정된 목표율은 랜덤 트레이스의 경우 1이므로 해당 트레이스의 1%가 보유됩니다. 원하는 경우 [랜덤 필터 비율을 변경](/docs/understand-dependencies/distributed-tracing/other-requirements/infinite-tracing-random-trace-filter)할 수 있습니다.
+
+    트레이스 옵저버는 처리량 백분율을 사용하므로 선택한 트레이스 수는 해당 처리량에 따라 달라집니다.
+  </Collapser>
+</CollapserGroup>
+
+### 샘플링 없음 [#no-sampling]
+
+일부 툴은 샘플링을 사용하지 않습니다. 이 툴에 대한 샘플링 세부정보는 다음과 같습니다.
+
+<CollapserGroup>
+  <Collapser
+    id="browser-spans"
+    title="브라우저 및 모바일 트레이스 보고"
+  >
+    [브라우저 모니터링 분산 추적](/docs/browser/new-relic-browser/browser-pro-features/browser-data-distributed-tracing)과 [모바일 모니터링](/docs/mobile-monitoring/new-relic-mobile-android/get-started/new-relic-mobile-and-dt)은 모든 스팬을 보고합니다.
+
+    뉴렐릭의 APM 언어 에이전트는 종종 브라우저 및 모바일 모니터링과 함께 사용되며 언어 에이전트는 [샘플링](#trace-origin-sampling)을 사용합니다. 이는 백엔드 스팬보다 브라우저 및 모바일 스팬이 더 많을 수 있음을 의미하며, 이로 인해 브라우저 및 모바일 앱 스팬이 백엔드 스팬에서 분리될 수 있습니다. 프런트 엔드 및 백 엔드 스팬이 포함된 트레이스 쿼리에 대한 팁은 [브라우저 스팬 데이터 찾기](/docs/browser/new-relic-browser/browser-pro-features/browser-data-distributed-tracing#find-data)를 참조하세요.
+  </Collapser>
+</CollapserGroup>
+
+## 트레이스 데이터의 구성 방법 [#trace-structure]
+
+분산 트레이스의 구조를 이해하면 다음과 같은 이점이 있습니다.
+
+* [UI에 트레이스가 표시되는 방식](/docs/apm/distributed-tracing/ui-data/understand-use-distributed-tracing-data) 이해
+* [트레이스 데이터 쿼리](/docs/apm/distributed-tracing/ui-data/example-queries-distributed-trace-data) 지원
+
+분산 트레이스는 하나의 ‘상위’ 트레이스를 참조하는 ‘하위’ 트레이스가 있는 트리 모양의 구조를 가지고 있습니다. 이 다이어그램은 트레이스에서 몇 가지 중요한 스팬 관계를 보여줍니다.
+
+<img
+  title="trace-structure-diagram.png"
+  alt="New Relic distributed tracing trace structure diagram"
+  src={newRelicDistributedTracingTraceStructure}
+/>
+
+<figcaption>
+  이 다이어그램은 분산 추적의 스팬들이 서로 어떻게 관련되어 있는지 보여줍니다.
+</figcaption>
+
+이 다이어그램은 몇 가지 중요한 개념을 보여줍니다.
+
+* **트레이스 루트**: 트레이스의 첫 번째 서비스 또는 프로세스를 **루트** 서비스 또는 프로세스라고 합니다.
+
+* **프로세스 경계**: 프로세스는 논리적 코드 조각의 실행을 나타냅니다. 프로세스의 예로는 백엔드 서비스 또는 Lambda 함수가 있습니다. 프로세스 내의 스팬은 다음 중 하나로 분류됩니다.
+
+  * **Entry 스팬**: 프로세스의 첫 번째 스팬입니다.
+  * **Exit 스팬**: a) Entry 스팬의 상위 스팬이거나 b) `http.` 또는 `db.` 속성이 있어 외부 호출을 나타내는 경우, Exit 스팬으로 간주됩니다.
+  * **In-process 스팬**: 내부 메서드 호출 또는 함수를 나타내며 Exit 또는 Entry 스팬이 아닌 스팬입니다.
+
+* **Client 스팬**: Client 스팬은 다른 [엔터티](/docs/using-new-relic/welcome-new-relic/get-started/glossary#entity) 또는 외부 종속성에 대한 호출을 나타냅니다. 현재 두 가지 Client 스팬 유형이 있습니다.
+
+  * **Datastore**. If a client span has attributes prefixed with `db.` (like `db.statement`), it's categorized as a datastore span.
+  * **External**. If a client span has attributes prefixed with `http.` (like `http.url`) or has a child span in another process, it's categorized as an external span. This is a general category for any external calls that aren't datastore queries. If an external span contains `http.url` or `net.peer.name`, it's indexed on the [External services](/docs/apm/apm-ui-pages/monitoring/external-services/external-services-intro) page.
+
+* **트레이스 기간**: 트레이의 총 지속 시간은 가장 빠른 스팬의 시작부터 마지막 스팬의 완료까지 걸린 시간에 의해 결정됩니다.
+
+api.newrelic.com/graphiql에서 [NerdGraph](https://api.newrelic.com/graphiql) [GraphiQL 탐색기](/docs/apis/graphql-api/tutorials/query-distributed-trace-data-using-graphql-api)를 사용하여 스팬 관계 데이터를 쿼리할 수 있습니다.
+
+## 트레이스 데이터 저장 방법 [#trace-storage]
+
+트레이스 데이터가 저장되는 방법을 이해하면 트레이스 데이터를 [쿼리](/docs/apm/distributed-tracing/ui-data/example-queries-distributed-trace-data)하는 데 도움이 될 수 있습니다.
+
+뉴렐릭은 트레이스 데이터 다음으로 저장합니다.
+
+* `Span`: [스팬](/docs/using-new-relic/welcome-new-relic/get-started/glossary/#span)은 분산 트레이스의 일부인 연산을 나타냅니다. 스팬이 나타낼 수 있는 연산에는 [브라우저 측 상호 작용](/docs/browser/new-relic-browser/browser-pro-features/browser-data-distributed-tracing), 데이터스토어 쿼리, 다른 서비스에 대한 호출, 메서드 레벨 타이밍 및 [Lambda 함수](/docs/serverless-function-monitoring/aws-lambda-monitoring/get-started/introduction-new-relic-monitoring-aws-lambda)가 포함됩니다. 예: HTTP 서비스에서 스팬은 HTTP 요청 시작 시 생성되고 HTTP 서버가 응답을 반환할 때 완료됩니다. 스팬 속성에는 트레이스-관계 세부 정보(예: traceId, guid)를 포함하여 해당 연산에 대한 중요한 정보(예: 기간, 호스트 데이터 등)가 포함되어 있습니다. 스팬 관련 데이터는 [스팬 속성](/attribute-dictionary/?event=Span)을 참조하세요.
+* `Transaction`:에이전트가 트레이스의 [엔터티](/docs/using-new-relic/welcome-new-relic/getting-started/glossary#alert-entity)를 모니터링하는 경우 해당 엔터티에 대한 요청은 싱글 `Transaction` 이벤트를 생성합니다. 트랜잭션을 통해 트레이스 데이터를 다른 뉴렐릭 기능에 연결할 수 있습니다. 트랜잭션 관련 데이터는 [트랜잭션 속성](/attribute-dictionary/?event=Transaction)을 참조하세요.
+* 컨텍스트 메타데이터. 트레이스에 대한 계산과 해당 스팬들 간의 관계를 보여주는 메타데이터를 저장합니다. [이 데이터를 쿼리](/docs/apis/graphql-api/tutorials/query-distributed-trace-data-using-graphql-api)하려면 [NerdGraph GraphiQL 탐색기](https://api.newrelic.com/graphiql)를 사용하십시오.
+
+## 애플리케이션 간에 트레이스 컨텍스트가 전달되는 방법 [#headers]
+
+뉴렐릭은 W3C 트레이스 컨텍스트 표준을 지원하므로 네트워크 및 서비스 전반에서 트랜잭션을 더 쉽게 추적할 수 있습니다. 분산 추적을 [활성화](/docs/understand-dependencies/distributed-tracing/enable-configure/overview-enable-distributed-tracing)하면 뉴렐릭 에이전트는 서비스의 아웃바운드 요청에 HTTP 헤더를 추가합니다. HTTP 헤더는 해외 여행 시 여권과 같은 역할을 합니다. HTTP 헤더는 소프트웨어 트레이스들을 식별하고 다양한 네트워크, 프로세스 및 보안 시스템을 통과할 때 중요한 정보를 전달합니다.
+
+헤더에는 트레이스 ID, 스팬 ID, 뉴렐릭 계정 ID 및 샘플링 정보 같은 메타데이터 등 나중에 스팬들을 함께 연결하는 데 도움이 되는 정보도 포함되어 있습니다. 헤더에 대한 자세한 내용은 아래 표를 참조하세요.
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "250px" }}>
+        항목
+      </th>
+
+      <th>
+        설명
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `accountId`
+      </td>
+
+      <td>
+        이것은 뉴렐릭 계정 ID입니다. 그러나 귀하의 계정에 포함된 사용자들과 뉴렐릭 관리자만이 이 ID를 귀하의 계정 정보와 어떤 식으로든 연결할 수 있습니다.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `appId`
+      </td>
+
+      <td>
+        이는 트레이스 헤더를 생성하는 애플리케이션의 애플리케이션 ID입니다. `accountId`와 마찬가지로 이 식별자는 해당 계정의 사용자에게만 정보를 제공합니다.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `guid`
+      </td>
+
+      <td>
+        분산 추적을 사용하면 트레이스의 각 작업 세그먼트가 `span`으로 표시되며, 각 스팬에는 [`guid`](/attribute-dictionary/?event=Span&attribute=guid) 속성이 있습니다. 프로세스 내 마지막 스팬의 `guid`는 나가는 요청과 함께 전송되므로 수신 서비스의 첫 번째 작업 세그먼트는 이 `guid`를 추적 내 데이터를 연결하는 [`parentId`](/attribute-dictionary/?event=Span&attribute=parentId) 속성으로 추가할 수 있습니다.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Parent type
+      </td>
+
+      <td>
+        모바일, 브라우저, Ruby 앱 등에서 트레이스 헤더의 소스입니다. 이는 이 헤더가 연결된 요청에 의해 트리거된 트랜잭션의 [`parent.type`](/attribute-dictionary/?event=Transaction&attribute=parent.type) 속성이 됩니다.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Priority
+      </td>
+
+      <td>
+        무작위로 생성된 우선순위 값으로 샘플링 한도에 도달할 때 샘플링되는 데이터를 결정하는 데 도움을 줍니다. 이는 요청의 일부인 첫 번째 뉴렐릭 에이전트가 설정한 부동 값이므로 트레이스의 모든 데이터는 동일한 우선순위 값을 가집니다.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Sampled
+      </td>
+
+      <td>
+        요청에 대해 트레이스 데이터를 수집해야 하는지 여부를 에이전트에 알리는 boolean 값입니다. 이는 또한 [수집된 모든 스팬과 트랜잭션 데이터에 대한 속성](/attribute-dictionary/?event=Span&attribute=sampled)으로 추가됩니다. [이 가이드에서 이 샘플링 프로세스에 대한 보다 자세한 내용을 설명](https://discuss.newrelic.com/t/distributed-tracing-troubleshooting-framework/146183)합니다.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Timestamp
+      </td>
+
+      <td>
+        페이로드가 생성된 Unix 타임스탬프(밀리초)입니다.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `traceId`
+      </td>
+
+      <td>
+        프로세스 간 및 프로세스 내 경계를 넘는 단일 요청을 식별하는 데 사용되는 [고유 ID](/attribute-dictionary/?event=Span&attribute=traceId)(무작위로 생성된 문자열)입니다. 이 ID를 사용해 분산 트레이스에서 스팬들을 연결할 수 있습니다.이 ID는 또한 스팬 및 트랜잭션 데이터의 속성으로 추가됩니다.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `transactionId`
+      </td>
+
+      <td>
+        트랜잭션 이벤트의 [고유 식별자](/attribute-dictionary/?event=Span&attribute=transactionId)입니다.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Trusted account key
+      </td>
+
+      <td>
+        이는 귀하의 계정과 연결된 다른 계정을 식별하는 데 도움이 되는 키입니다. 따라서 트레이스가 교차하는 하위 계정이 여러 개인 경우 트레이스에 포함된 모든 데이터가 신뢰할 수 있는 소스에서 온 것임을 확인할 수 있으며, 데이터에 액세스할 수 있는 사용자를 알려줍니다.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Version and data key
+      </td>
+
+      <td>
+        이는 주/부 버전을 식별하므로 에이전트가 현재 버전에서 주요 변경 사항이 있는 버전에서 트레이스 헤더를 수신하면 해당 헤더를 거부하고 거부 결정과 그 이유를 보고할 수 있습니다.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+이 헤더 정보는 헤더 형식을 인식하지 못하는 미들웨어나 에이전트에 의해 진행이 중지되지 않는 한 트레이스의 각 스팬을 따라 전달됩니다. (그림 1 참조)
+
+<img
+  title="Diagram of a failed trace with proprietary headers."
+  alt="Diagram of a failed trace with proprietary headers."
+  src={doc5207Middleware0}
+/>
+
+<figcaption>
+  그림 1
+</figcaption>
+
+헤더 전파 문제를 해결하기 위해, 뉴렐릭은 두 개의 표준화된 헤더가 필요한 W3C 추적 컨텍스트 사양을 지원합니다. 최신 W3C 뉴렐릭 에이전트는 다음 두 가지 필수 헤더를 전송 및 수신하며, 기본적으로 이전 뉴렐릭 에이전트의 헤더도 전송 및 수신합니다.
+
+* W3C(`traceparent`): 전체 트레이스(트레이스 ID) 및 호출 서비스(스팬 ID)를 식별하는 기본 헤더입니다.
+* W3C(`tracestate`): 공급업체별 정보를 전달하고 추적이 있었던 위치를 추적하는 필수 헤더입니다.
+* 뉴렐릭(`newrelic`): 이전 뉴렐릭 에이전트와의 역호환성을 유지하기 위해 여전히 전송되는 고유한 원본 헤더입니다.
+
+이 세 가지 헤더의 조합을 통해, 다음 유형의 에이전트로 계측된 서비스 전반으로 트레이스를 전파할 수 있습니다.
+
+* W3C 뉴렐릭 에이전트
+* W3C가 아닌 뉴렐릭 에이전트
+* W3C 트레이스 컨텍스트 호환 에이전트
+
+<Callout variant="important">
+  요청이 W3C 트레이스 컨텍스트 호환 에이전트에만 영향을 주는 경우 뉴렐릭 헤더를 끌 수 있습니다. `newrelic` 헤더 끄기에 대한 자세한 내용은 [에이전트 구성](/docs/agents/manage-apm-agents/configuration/configure-agent) 문서를 참조하세요.
+</Callout>
+
+아래 시나리오는 성공적인 헤더 전파의 다양한 유형을 보여줍니다.
+
+<CollapserGroup>
+  <Collapser
+    id="three-agents"
+    title="시나리오 1: 세 가지에이전트 유형에 영향을 주는 트레이스"
+  >
+    다음은 요청이 세 가지 다른 에이전트 유형에 영향을 주는 헤더의 흐름을 보여줍니다.
+
+    <img
+      title="mixed_example_2.png"
+      alt="Diagram showing a transaction's trip across various components."
+      src={doc5207MixedExample20}
+    />
+  </Collapser>
+
+  <Collapser
+    id="middleware-success"
+    title="시나리오 2: W3C 뉴렐릭 및 미들웨어를 사용한 트레이스"
+  >
+    이것은 W3C 뉴렐릭 에이전트가 일부 미들웨어로 보낸 헤더의 조합을 보여줍니다.
+
+    <img
+      title="middleware_w3c.png"
+      alt="Diagram showing a successful trace with W3C-compliant middleware."
+      src={doc5207MiddlewareW3C0}
+    />
+  </Collapser>
+
+  <Collapser
+    id="another-w3c-agent"
+    title="시나리오 3: W3C와 호환되는 에이전트와 뉴렐릭 에이전트를 사용한 트레이스"
+  >
+    이는 W3C 뉴렐릭 에이전트가 수락한 다른 공급업체의 필수 W3C 헤더 2개를 보여줍니다.
+
+    <img
+      title="diff_vend_w3c.png"
+      alt="Diagram shows a successful trace with W3C-compliant vendor."
+      src={doc5207DiffVendW3C0}
+    />
+  </Collapser>
+</CollapserGroup>

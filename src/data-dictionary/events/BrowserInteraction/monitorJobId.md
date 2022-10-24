@@ -6,5 +6,4 @@ events:
   - BrowserInteraction
   - JavaScriptError
 ---
-
-The ID of a single Synthetics monitor run, which began at a specific time and originated from a specific location.
+The ID of a single synthetic monitor run, which began at a specific time and originated from a specific location.

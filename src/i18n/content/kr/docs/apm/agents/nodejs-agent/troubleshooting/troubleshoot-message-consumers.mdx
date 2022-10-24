@@ -1,0 +1,120 @@
+---
+title: 메시지 소비자 문제 해결
+type: troubleshooting
+tags:
+  - Agents
+  - Nodejs agent
+  - Troubleshooting
+metaDescription: Troubleshooting procedures for message consumer services monitored by New Relic's Node.js agent.
+translationType: machine
+---
+
+## 문제
+
+메시지 소비자 서비스는 모니터링을 더 어렵게 만드는 HTTP 서버와 몇 가지 차이점이 있습니다. 이 문서에서는 이러한 제한 사항과 New Relic Node.js 에이전트를 사용하여 이를 해결하는 방법에 대해 설명합니다.
+
+메시지에 반드시 응답이 있는 것은 아니므로 트랜잭션의 끝을 확인하기 어려울 수 있습니다. New Relic의 Node.js 에이전트가 메시지 소비자가 언제 완료되는지 결정할 수 없는 경우 트랜잭션을 즉시 종료합니다. 애플리케이션에 따라 다음 문제 해결 팁을 따르십시오.
+
+## 해결책
+
+이 문제에 대한 해결책은 콜백을 사용하는지 약속을 사용하는지에 따라 다릅니다.
+
+### 콜백
+
+`amqplib` 의 `callback_api` 와 같은 콜백 기반 메시징 API를 사용할 때 소비자가 완료되는 시점을 쉽게 결정할 수 있는 방법은 없습니다. 다음은 예입니다.
+
+<CollapserGroup>
+  <Collapser
+    id="callback-problem"
+    title="콜백 문제"
+  >
+    이 예에서 이 서비스에 대해 생성된 모든 트랜잭션은 즉시 종료되고 `doWorkWithMessage` 에서 수행한 작업은 표시되지 않습니다.
+
+    ```
+    const newrelic = require('newrelic');
+    const amqp = require('amqplib/callback_api');
+
+    // Connect, make a channel, and assert required queues...
+
+    channel.consume('my.queue', (msg) => {
+      doWorkWithMessage(msg, (err) => {
+        if (err) {
+          logger.error(err);
+          channel.reject(msg, true); // Requeue message on failure.
+        }
+      });
+    }, {noAck: true});
+    ```
+
+    트랜잭션 시간을 적절하게 맞추려면 다음 솔루션과 같이 트랜잭션을 가져와 수동으로 종료해야 합니다.
+  </Collapser>
+
+  <Collapser
+    id="callback-solution"
+    title="해결책"
+  >
+    트랜잭션 시간을 적절하게 설정하려면 트랜잭션을 가져와 수동으로 종료하십시오. 소비자를 다음과 같이 수정합니다.
+
+    ```
+    channel.consume('my.queue', (msg) => {
+      var transaction = newrelic.getTransaction();
+
+      doWorkWithMessage(msg, (err) => {
+        if (err) {
+          logger.error(err);
+          channel.reject(msg, true); // Requeue message on failure.
+        }
+
+        transaction.end();
+      });
+    }, {noAck: true});
+    ```
+  </Collapser>
+</CollapserGroup>
+
+### 약속
+
+Promise 기반 서버의 경우 메시지 소비자는 Promise를 반환하기만 하면 됩니다. 해당 약속이 해결되거나 거부되면 트랜잭션이 종료됩니다. 다음은 예입니다.
+
+<CollapserGroup>
+  <Collapser
+    id="promise-problem"
+    title="약속 문제"
+  >
+    이 예에서 `doWorkWithMessage` 은 약속을 반환합니다.
+
+    ```
+    const newrelic = require('newrelic');
+    const amqp = require('amqplib');
+
+    // Connect, make a channel, and assert required queues...
+
+    channel.consume('my.queue', (msg) => {
+      doWorkWithMessage(msg).catch((err) => {
+        if (err) {
+          logger.error(err);
+          channel.reject(msg, true); // Requeue message on failure.
+        }
+      });
+    }, {noAck: true});
+    ```
+  </Collapser>
+
+  <Collapser
+    id="promise-solution"
+    title="해결책"
+  >
+    정확한 타이밍을 얻으려면 코드를 다음과 같이 수정하여 체인의 끝을 반환합니다.
+
+    ```
+    channel.consume('my.queue', (msg) => {
+      return doWorkWithMessage(msg).catch((err) => {
+        if (err) {
+          logger.error(err);
+          channel.reject(msg, true); // Requeue message on failure.
+        }
+      });
+    }, {noAck: true});
+    ```
+  </Collapser>
+</CollapserGroup>

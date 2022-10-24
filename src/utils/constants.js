@@ -12,6 +12,6 @@ export const TYPES = {
   API_LANDING_PAGE: 'term_page_api_menu',
   TABLE_OF_CONTENTS: 'views_page_menu',
   AUTO_INDEX_PAGE: 'views_page_menu',
-  ATTRIBUTE_DICTIONARY: 'views_page_content',
   WHATS_NEW_PAGE: 'views_page_content',
+  INTERACTIVE_INSTALL_PAGE: 'interactive_install_page',
 };

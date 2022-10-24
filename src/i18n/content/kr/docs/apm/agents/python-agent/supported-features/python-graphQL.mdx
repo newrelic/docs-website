@@ -1,0 +1,334 @@
+---
+title: 파이썬과 GraphQL
+tags:
+  - Agents
+  - Python agent
+translationType: machine
+---
+
+## 업무
+
+트랜잭션은 실행된 GraphQL 작업을 기반으로 명명된 웹 트랜잭션으로 캡처됩니다. 작업 유형, 작업 이름 및 가장 깊은 고유 경로와 같은 세부 정보는 고유한 쿼리 표현을 그룹화하는 데 사용됩니다.
+
+트랜잭션의 원시 표현은 다음과 같습니다. `{operation_type}/{operation_name}/{deepest_unique_path}`
+
+이 쿼리 예제를 사용하여:
+
+```graphql
+query {
+  libraries {
+    books {
+      title
+      author {
+        name
+      }
+    }
+  }
+}
+```
+
+UI의 트랜잭션은 궁극적으로 다음과 유사하게 표시됩니다. `query/<anonymous>/libraries.books`
+
+### 세부
+
+#### 작업 유형
+
+작업이 쿼리인지 돌연변이인지 나타냅니다.
+
+#### 작업 이름
+
+제공되는 경우 작업 이름 또는 `<anonymous>` .
+
+`query { libraries }` 이름이 제공되지 않았기 때문에 작업 이름이 비어 있습니다.
+
+`query GetLibraries { libraries }` 과 같은 이름을 가진 쿼리는 작업 이름 `'GetLibraries'` 을 사용합니다.
+
+#### 가장 깊은 고유 경로
+
+각 수준에서 하나의 필드만 선택된 쿼리의 선택 집합에 포함된 가장 깊은 경로입니다. 작업 이름을 재사용할 수 있으므로 지정된 작업의 고유성을 추가로 결정하는 데 도움이 됩니다.
+
+우리는 이름을 지정할 때 임의의 결정을 내리는 것을 피하기 위해 가장 깊은 고유 경로(이전과 같은 가장 깊은 경로 대신)를 사용합니다. 이는 애플리케이션 속도를 저하시킬 수 있는 세부 사항을 암시하거나 숨길 수 있습니다.
+
+쿼리의 경우:
+
+```graphql
+query {
+  libraries {
+    branch
+    booksInStock {
+      isbn,
+      title,
+      author
+    }
+    magazinesInStock {
+      issue,
+      title
+    }
+  }
+}
+```
+
+그 지점을 넘어 여러 필드를 선택하므로 '라이브러리'의 가장 깊고 고유한 경로를 선택합니다. 해당 지점 이후에 실행된 모든 확인자는 트랜잭션의 성능 특성에 기여할 수 있습니다.
+
+쿼리가 해석기당 하나의 필드만 선택하는 것이라면 각 선택 집합이 고유하므로 전체 경로를 선택합니다.
+
+쿼리:
+
+```graphql
+query {
+  libraries {
+    booksInStock {
+      title
+    }
+  }
+}
+```
+
+가장 깊은 고유 경로가 생성됩니다. `'libraries.booksInStock.title'` .
+
+`id` 및 `__typename` 필드는 이름 지정 결정에서 자동으로 제외됩니다.
+
+예를 들어, 하위 그래프 쿼리는 다음과 같습니다.
+
+```graph1l
+query {
+  libraries {
+    branch
+    __typename
+    id
+  }
+}
+```
+
+결과는 `libraries.branch` 의 가장 깊은 고유 경로입니다.
+
+### 유니온 유형 및 인라인 프래그먼트
+
+인라인 프래그먼트를 활용하는 Union 유형의 경우 트랜잭션 이름은 `< ... >` 대괄호를 사용하여 쿼리에 하나의 결과만 지정된 경우 Union 쿼리에 대해 기본적으로 선택된 필드를 나타냅니다.
+
+다음 스키마의 경우:
+
+```graphql
+union SearchResult = Book | Author
+
+type Book {
+  title: String!
+}
+
+type Author {
+  name: String!
+}
+
+type Query {
+  search(contains: String): [SearchResult!]
+}
+```
+
+그리고 다음 쿼리:
+
+```graphql
+query example {
+  search(contains: "author") {
+    __typename
+    ... on Author {
+      name
+    }
+  }
+}
+```
+
+다음과 같은 트랜잭션 이름이 생성됩니다.
+
+`query/example/search<Author>.name`
+
+그러나 쿼리가 책과 저자를 모두 반환하는 경우:
+
+```graphql
+query example {
+  search(contains: "author") {
+    __typename
+    ... on Author {
+      name
+    }
+    ... on Book {
+      title
+    }
+  }
+}
+```
+
+결과 트랜잭션 이름은 `query/example/search`
+
+### 오류 시 이름 지정
+
+GraphQL 요청을 확인하거나 구문 분석하는 동안 오류가 발생하면 트랜잭션 이름 지정에 영향을 줄 수 있습니다.
+
+#### 예외
+
+미들웨어나 해석기에서 오류가 발생하면 트랜잭션 이름은 단순히 오류가 발생한 미들웨어 또는 해석기의 이름이 됩니다.
+
+#### 검증 오류
+
+요청한 작업이 구문 분석할 수 있었지만 유효성을 검사할 수 없는 경우 트랜잭션 이름으로 다음이 생성됩니다.
+
+GraphQL2: `graphql.validation.validation:validate` GraphQL3: `graphql.validation.validate.validate`
+
+#### 구문 분석 오류
+
+요청한 작업을 구문 분석할 수 없는 경우 트랜잭션 이름으로 다음이 생성됩니다.
+
+```
+graphql.language.parser:parse
+```
+
+## 메트릭
+
+Python 에이전트는 GraphQL 필드 해석기 및 작업 메트릭을 보고하여 장기적인 추세를 이해하고 분석할 수 있도록 합니다.
+
+### 작업 메트릭
+
+작업 메트릭은 다음 형식을 사용하여 보고됩니다.
+
+```
+GraphQL/operation/GraphQL/{operation_type}/{operation_name}/{deepest_unique_path}
+```
+
+작업 유형: 실행할 작업의 유형을 지정합니다. 작업 유형을 결정할 수 없는 경우 `query` , `mutation` 또는 `<unknown>` 가 됩니다.
+
+작업 이름: 작업 이름(제공된 경우) 또는 `<anonymous>` .
+
+[가장 깊은 고유 경로](#deepest-unique-path) : 각 수준에서 하나의 필드만 선택되는 쿼리의 선택 집합에 포함된 가장 깊은 경로입니다. 이것은 작업 이름을 재사용할 수 있으므로 주어진 작업의 고유성을 추가로 결정하는 데 도움이 됩니다.
+
+### 필드 리졸버 측정항목
+
+Field resolver 메트릭은 다음 형식을 사용하여 보고됩니다.
+
+```
+GraphQL/resolve/GraphQL/{field_name}
+```
+
+해석기 메트릭은 요청된 GraphQL 데이터의 특정 부분을 해결하는 데 소요된 시간을 캡처합니다. 이들은 들어오는 쿼리 속도를 늦추는 데 기여할 수 있는 특정 확인자를 찾는 데 사용할 수 있습니다.
+
+## 스팬 및 속성
+
+범위는 GraphQL 작업, 필드 확인 및 데이터베이스에 대한 쿼리 작성과 같은 필드 확인의 일부로 발생하는 추가 작업에 대해 캡처됩니다.
+
+작업 범위에는 작업 유형, 작업 이름 및 가장 깊은 고유 경로가 포함됩니다. 이는 트랜잭션 또는 추적 내에서 특정 호출의 개별 기간 및 속성을 나타냅니다.
+
+```
+GraphQL/operation/GraphQL/{operation_type}/{operation_name}/{deepest_unique_path}
+```
+
+**작업 범위 속성**
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        **이름**
+      </th>
+
+      <th>
+        **설명**
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `graphql.operation.type`
+      </td>
+
+      <td>
+        쿼리 또는 돌연변이
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `graphql.operation.name`
+      </td>
+
+      <td>
+        작업에 지정된 이름 또는 `< anonymous >`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `graphql.operation.query`
+      </td>
+
+      <td>
+        쿼리에 지정된 이름 또는 `< anonymous >`
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+### 필드 해석기 범위
+
+확인자 범위는 개별 필드의 확인 경로를 활용하여 주어진 추적 또는 트랜잭션 내에서 가장 잘 구별됩니다. 예를 들어, 책 대신 `libraries.books` 을 사용할 수 있습니다. 이는 GraphQL 작업의 일부로 확인되는 특정 필드의 개별 기간 및 속성을 나타냅니다.
+
+```
+GraphQL/resolve/GraphQL/{path}
+```
+
+**해석기 범위 속성**
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        **이름**
+      </th>
+
+      <th>
+        **설명**
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `graphql.field.name`
+      </td>
+
+      <td>
+        해결된 필드의 이름
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `graphql.field.returnType`
+      </td>
+
+      <td>
+        확인된 필드의 반환 유형(예: `Book!` , `[String]` )
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `graphql.field.parentType`
+      </td>
+
+      <td>
+        이 필드의 상위 유형(예: `[Book]` )
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `graphql.field.path`
+      </td>
+
+      <td>
+        필드의 전체 해석기 경로(예: `libraries.books` )
+      </td>
+    </tr>
+  </tbody>
+</table>

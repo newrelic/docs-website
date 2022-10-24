@@ -20,7 +20,7 @@ Here's an example of how these Grafana dashboards with Prometheus data look in o
 
 ### Step 1: Get data flowing into New Relic with the Prometheus remote write integration
 
-Go to [Instrument Everything – US](http://one.newrelic.com/launcher/nr1-core.settings?pane=eyJuZXJkbGV0SWQiOiJ0dWNzb24ucGxnLWluc3RydW1lbnQtZXZlcnl0aGluZyJ9) or [Instrument Everything – EU](http://one.eu.newrelic.com/launcher/nr1-core.settings?pane=eyJuZXJkbGV0SWQiOiJ0dWNzb24ucGxnLWluc3RydW1lbnQtZXZlcnl0aGluZyJ9), then click the **Prometheus** tile.
+Go to [Instrument Everything – US](https://one.newrelic.com/launcher/nr1-core.settings?pane=eyJuZXJkbGV0SWQiOiJ0dWNzb24ucGxnLWluc3RydW1lbnQtZXZlcnl0aGluZyJ9) or [Instrument Everything – EU](http://one.eu.newrelic.com/launcher/nr1-core.settings?pane=eyJuZXJkbGV0SWQiOiJ0dWNzb24ucGxnLWluc3RydW1lbnQtZXZlcnl0aGluZyJ9), then click the **Prometheus** tile.
 
 You can also go to the [Prometheus remote write setup page](https://one.newrelic.com/launcher/nr1-core.settings?pane=eyJuZXJkbGV0SWQiOiJwcm9tZXRoZXVzLXJlbW90ZS13cml0ZS1pbnRlZ3JhdGlvbi1uZXJkbGV0cy5zZXR1cC1wcm9tZXRoZXVzIn0=) to get your `remote_write` URL.
 

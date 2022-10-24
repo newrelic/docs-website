@@ -1,4 +1,5 @@
-/// <reference path="./translation_workflow/models/typedefs.js" />
+/* eslint-disable no-console */
+// / <reference path="./translation_workflow/models/typedefs.js" />
 'use strict';
 
 const fs = require('fs');
@@ -6,8 +7,18 @@ const path = require('path');
 
 const { vendorRequest, uploadFile } = require('./utils/vendor-request');
 const Database = require('./translation_workflow/database');
+const {
+  trackTranslationError,
+  trackTranslationEvent,
+  TRACKING_TARGET,
+} = require('./utils/translation-monitoring');
 
 const PROJECT_ID = process.env.TRANSLATION_VENDOR_PROJECT;
+
+const defaultTrackingMetadata = {
+  projectId: PROJECT_ID,
+  workflow: 'sendAndUpdateTranslationQueue',
+};
 
 /**
  *
@@ -39,22 +50,18 @@ const getReadyToGoTranslationsForEachLocale = async () => {
   const readyToGoTranslations = pendingTranslations
     .filter(
       (pendingTranslation) =>
-        !Boolean(
-          inProgressTranslations.find(
-            (inProgressTranslation) =>
-              pendingTranslation.slug === inProgressTranslation.slug &&
-              pendingTranslation.locale === inProgressTranslation.locale
-          )
+        !inProgressTranslations.find(
+          (inProgressTranslation) =>
+            pendingTranslation.slug === inProgressTranslation.slug &&
+            pendingTranslation.locale === inProgressTranslation.locale
         )
     )
     .filter(
       (pendingTranslation) =>
-        !Boolean(
-          erroredTranslations.find(
-            (erroredTranslation) =>
-              pendingTranslation.slug === erroredTranslation.slug &&
-              pendingTranslation.locale === erroredTranslation.locale
-          )
+        !erroredTranslations.find(
+          (erroredTranslation) =>
+            pendingTranslation.slug === erroredTranslation.slug &&
+            pendingTranslation.locale === erroredTranslation.locale
         )
     )
     .filter((translation) => {
@@ -106,9 +113,9 @@ const createJobs = async (locales) => {
     })
   );
 
-  return await Promise.all(
+  return Promise.all(
     jobResponses.map(async (jobResponse) => {
-      return await Database.addJob({
+      return Database.addJob({
         job_uid: jobResponse.translationJobUid,
         status: 'PENDING',
         locale: jobResponse.targetLocaleIds[0],
@@ -140,7 +147,7 @@ const createBatches = async (jobRecords, translationsPerLocale) => {
         ), // for the job's locale, grab slugs corresponding to that locale
       };
 
-      var createBatchResponse = await vendorRequest({
+      const createBatchResponse = await vendorRequest({
         method: 'POST',
         endpoint: `/job-batches-api/v2/projects/${PROJECT_ID}/batches`,
         body,
@@ -182,6 +189,15 @@ const uploadFiles = async (batches, translationsPerLocale) => {
           successCount += 1;
         }
       } catch (error) {
+        await trackTranslationError({
+          ...defaultTrackingMetadata,
+          target: TRACKING_TARGET.FILE,
+          slug: translation.slug,
+          locale: batch.locale,
+          jobId: batch.jobId,
+          error,
+          errorMessage: `Error occured during upload process for: ${translation.slug}`,
+        });
         console.log(
           `Error occured during upload process for: ${translation.slug}`
         );
@@ -194,6 +210,15 @@ const uploadFiles = async (batches, translationsPerLocale) => {
     if (successCount > 0) {
       // if at least one file was successfully uploaded, set job to in progress
       await Database.updateJob(batch.jobId, { status: 'IN_PROGRESS' });
+
+      await trackTranslationEvent({
+        target: TRACKING_TARGET.JOB,
+        status: 'IN_PROGRESS',
+        jobId: batch.jobId,
+        locale: batch.locale,
+        successCount,
+        ...defaultTrackingMetadata,
+      });
     }
   }
 };
@@ -217,9 +242,23 @@ const main = async () => {
       translationsPerLocale
     );
     await uploadFiles(createdBatches, translationsPerLocale);
+
+    await trackTranslationEvent({
+      ...defaultTrackingMetadata,
+      target: TRACKING_TARGET.WORKFLOW,
+      createdJobsCount: createdJobs.length,
+      createdBatchesCount: createdBatches.length,
+    });
   } catch (error) {
+    await trackTranslationError({
+      ...defaultTrackingMetadata,
+      target: TRACKING_TARGET.WORKFLOW,
+      error,
+      errorMessage: `Unable to send and update translation queue to vendor`,
+    });
     console.log(`Error encountered: ${error}`);
     console.log(error.stack);
+    // eslint-disable-next-line require-atomic-updates
     process.exitCode = 1;
   }
 };

@@ -7,4 +7,4 @@ events:
   - BrowserTiming
 ---
 
-The time in seconds between the start of the BrowserInteraction and the start of the request.
+The time in seconds between the start of the `BrowserInteraction` and the start of the request.

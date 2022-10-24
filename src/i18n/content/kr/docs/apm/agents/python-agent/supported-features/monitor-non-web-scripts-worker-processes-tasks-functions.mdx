@@ -1,0 +1,145 @@
+---
+title: '웹이 아닌 스크립트, 작업자 프로세스, 작업 및 기능 모니터링'
+tags:
+  - Agents
+  - Python agent
+  - Supported features
+metaDescription: 'New Relic Python agent: How to instrument background tasks and other non-web transactions.'
+translationType: machine
+---
+
+[Python 에이전트](/docs/agents/python-agent/getting-started/introduction-new-relic-python) 는 주로 웹 앱 및 해당 웹 요청을 모니터링하도록 설계되었으므로 WSGI 기반 웹 앱 및 인기 있는 웹 프레임워크에 대한 내장 계측이 포함됩니다.
+
+그러나 `background_task` 메서드를 사용하여 임의의 작업 기반 시스템, 독립 실행형 스크립트, 작업자 프로세스 및 웹이 아닌 트랜잭션을 모니터링할 수도 있습니다. 이러한 트랜잭션은 New Relic UI에서 [웹이 아닌](/docs/apm/applications-menu/monitoring/transactions-page#tx_types) 트랜잭션으로 표시됩니다.
+
+Python 에이전트에는 작업 대기열 시스템 [Celery](/docs/agents/python-agent/back-end-services/python-agent-celery) 및 Gearman용 도구도 내장되어 있습니다.
+
+## Python 에이전트 통합 [#integrating]
+
+첫 번째 요구 사항은 에이전트를 초기화하고 모니터링할 프로세스와 함께 실행하는 것입니다. 이것은 웹 응용 프로그램에 대한 [표준 Python 설치](/docs/agents/python-agent/getting-started/python-agent-quick-start) 에 설명된 것과 동일한 프로세스입니다.
+
+추적할 작업이 기존 모니터링 웹 응용 프로그램 프로세스의 백그라운드 스레드에서 실행 중인 경우 에이전트 초기화가 이미 수행되어 있으므로 이 단계를 반복할 필요가 없습니다.
+
+웹 트래픽도 처리하지 않는 애플리케이션을 계측하는 경우 WSGI 애플리케이션 진입점을 래핑할 필요가 없습니다.
+
+## 모니터링할 작업 래핑 [#wrapping]
+
+WSGI 애플리케이션 진입점을 래핑하는 대신 추적하려는 백그라운드 작업을 수행하는 기능을 래핑해야 합니다. 예를 들어:
+
+```
+import newrelic.agent
+
+@newrelic.agent.background_task()
+def execute_task():
+     ...
+```
+
+기본적으로 작업의 이름은 데코레이터가 적용되는 함수의 이름이 됩니다.
+
+작업 이름을 재정의하려는 경우 데코레이터에 명명된 인수로 제공할 수 있습니다. 기본 `Function` 대신 대체 그룹을 지정할 수도 있습니다.
+
+```
+import newrelic.agent
+
+@newrelic.agent.background_task(name='database-update', group='Task')
+def database_update():
+    ...
+```
+
+작업 이름을 동적으로 설정해야 하는 경우 컨텍스트 관리자 개체를 대신 사용해야 합니다. 컨텍스트 관리자 개체를 사용할 때 먼저 보고할 응용 프로그램 데이터에 해당하는 응용 프로그램 개체를 검색해야 합니다. 응용 프로그램 개체를 검색할 때 응용 프로그램 이름을 생략하면 사용 중인 에이전트 구성에 명명된 기본 응용 프로그램에 해당하는 이름이 생성됩니다.
+
+```
+import newrelic.agent
+
+def execute_task(task_name):
+    application = newrelic.agent.application()
+    with newrelic.agent.BackgroundTask(application, name=task_name, group='Task'):
+        ...
+```
+
+백그라운드 작업 데코레이터 또는 컨텍스트 관리자 개체에 의해 래핑된 것은 무엇이든 유한한 실행 시간을 갖는 작업이어야 합니다. 별도의 작업이 실행되고 있는 프로세스의 메인 루프를 래핑하면 안 됩니다. 개별 작업의 실행만 래핑되어야 합니다. 메인 루프를 잘못 래핑하면 메인 루프가 반환되지 않고 데이터가 캡처되지만 데이터 집계 및 보고는 작업이 실제로 완료된 후에만 발생하기 때문에 보고되지 않습니다.
+
+따라서 추적하려는 특정 세부 작업을 래핑하십시오. 이러한 작업은 프로세스 수명 동안 두 번 이상 실행될 수 있으며 모두 보고됩니다.
+
+## Python 에이전트 강제 등록 [#registration]
+
+기본적으로 에이전트는 트랜잭션(웹 또는 비웹)이 처음 실행될 때 자신을 등록합니다. 에이전트가 스스로 등록할 때까지는 데이터가 실제로 누적될 수 없고 일반적으로 병렬 작업으로 발생하므로 초기 트랜잭션에 대한 데이터는 캡처되지 않습니다.
+
+장기 실행 프로세스의 경우 일반적으로 허용되며 등록이 발생할 때까지 웹 서버 시작을 지연하여 요청이 처리되지 않도록 하는 것보다 낫습니다.
+
+그러나 웹이 아닌 트랜잭션의 경우 스크립트가 하나의 작업만 수행하고 오래 실행되는 경우가 종종 있습니다. 이러한 이유로 에이전트가 등록될 때까지 대기하는 시작 지연은 데이터 캡처를 보장하므로 허용됩니다.
+
+이 경우 두 가지 방법 중 하나로 등록을 강제할 수 있습니다. 가장 간단한 방법은 에이전트 구성에서 시작 시간 초과를 지정하는 것입니다. 이 시간 초과는 에이전트의 지연 등록을 수행할 때 진행하기 전에 에이전트가 등록을 기다려야 하는 시간입니다. 이것은 대기할 최대 시간을 나타냅니다. 등록 시간이 제한 시간에 지정된 것보다 적은 시간이 걸리면 즉시 계속됩니다.
+
+에이전트 구성 파일을 사용하는 경우 에이전트 구성 파일의 `newrelic` 섹션에 다음 항목을 추가하면 됩니다.
+
+```
+startup_timeout = 10.0
+```
+
+또는 `NEW_RELIC_STARTUP_TIMEOUT` 환경 변수를 사용하여 시작 시간 초과를 지정할 수 있습니다.
+
+웹 애플리케이션에 이 시작 시간 초과를 사용할 때 주의해야 합니다. 그렇게 하면 초기 웹 요청을 처리할 때 웹 서버가 멈추고 사용자가 응답을 받는 속도가 지연되기 때문입니다.
+
+필요한 경우 에이전트를 강제 등록하는 것도 애플리케이션 코드 내의 코드에서 수행할 수도 있습니다.
+
+```
+import newrelic.agent
+
+application = newrelic.agent.register_application(timeout=10.0)
+
+def execute_task(task_name):
+    with newrelic.agent.BackgroundTask(application, name=task_name, group='Task'):
+        ...
+```
+
+시간 초과는 `register_application()` 함수에 대한 명명된 매개변수여야 합니다. 에이전트 구성에서 지정한 것과 다른 애플리케이션 이름을 사용해야 하는 경우 `register_application()` 함수에 대한 첫 번째 인수여야 합니다.
+
+애플리케이션에 에이전트를 등록할 때의 결과는 타임아웃 기간 내에 성공 여부와 상관없이 해당 애플리케이션 객체이다. 이것은 백그라운드 작업 컨텍스트 관리자와 함께 사용할 수 있습니다.
+
+## 프로세스 종료 시 데이터 업로드 [#data]
+
+에이전트는 장기 실행 프로세스에서 사용하기 위한 것입니다. 일회성 작업을 실행하는 스크립트에서 사용할 수 있지만 위에서 설명한 대로 응용 프로그램에 대한 에이전트 등록을 강제로 수행해야 합니다. 이렇게 하면 스크립트에서 실행되는 초기 작업에 대한 데이터가 캡처됩니다.
+
+그렇다고 해서 작업의 세부 정보가 보고된다는 보장은 없습니다.
+
+작업 완료 시 작업에 대한 데이터가 보고되지 않기 때문입니다. 대신 데이터가 누적되며 일반적으로 1분에 한 번 보고됩니다. 그러나 일회성 작업을 실행하는 스크립트의 경우 전체 스크립트가 충분히 오래 실행되지 않아 백그라운드 데이터 수집 및 데이터 수집기에 대한 데이터 보고가 실행될 수 있습니다.
+
+부분 수집 기간의 데이터에 대처하기 위해 에이전트는 스크립트가 종료될 때 에이전트 종료 시 이러한 부분 데이터 업로드를 시도합니다. 이 작업을 영원히 시도하지 않고 대신 프로세스 종료를 무기한 지연하지 않도록 이 프로세스가 오래 걸리면 시간이 초과됩니다.
+
+이 경우 기본 종료 시간 제한은 2.5초입니다. 여기서 특정 값은 Apache 웹 서버의 Python 웹 애플리케이션에서 에이전트를 실행할 때 특정 시간 제약이 있기 때문에 선택됩니다. Apache의 경우 Apache는 3초 후에 프로세스를 종료하므로 시간 초과를 더 길게 설정할 수 없습니다. 따라서 에이전트는 Apache가 프로세스를 종료하기 전에 종료 시 실행해야 하는 다른 코드에 기회를 주기 위해 조금 전에 종료됩니다.
+
+실제로 이 시간 초과는 스크립트 종료 시 데이터를 보고할 만큼 충분히 길지 않은 경우일 수 있습니다. 특히 스크립트가 실행되는 호스트와 데이터 수집기 사이에 느린 네트워크 또는 방화벽이 있는 경우에는 더욱 그렇습니다.
+
+이 경우 스크립트의 일회성 작업 데이터가 실제로 보고되도록 종료 시간 초과를 늘려야 할 수 있습니다.
+
+에이전트 구성 파일을 사용하는 경우 다음 항목을 추가하여 변경합니다.
+
+```
+shutdown_timeout = 2.5
+```
+
+에이전트 구성 파일의 `[newrelic]` 섹션에 있습니다.
+
+또는 `NEW_RELIC_SHUTDOWN_TIMEOUT` 환경 변수를 사용하여 종료 시간 초과를 지정할 수 있습니다.
+
+필요한 경우에만 이 종료 시간 초과를 수정하십시오.
+
+## Django 관리 명령 모니터링 [#django]
+
+일반적인 사용 사례 중 하나는 Django 관리 명령을 모니터링하는 것입니다. 일반적인 시나리오이기 때문에 이에 대한 기본 지원을 제공합니다. 그러나 모든 Django 관리 명령을 자동으로 모니터링할 수 없기 때문에 선택적으로 활성화됩니다. 이는 `runserver` 및 `run_gunicorn` 과 같은 일부가 무한 루프이기 때문입니다. 특히 이 두 가지를 계측하는 것은 웹 애플리케이션으로 모니터링하기 위한 일반 계측을 방해하기도 합니다.
+
+모니터링할 수 있는 Django 관리 명령에 대한 제한으로 인해 에이전트 구성 파일에 특수 구성 섹션 `[import-hook:django]` 을 추가해야 합니다. 그런 다음 `instrumentation.scripts.django_admin` 설정 아래에 공백으로 구분된 목록을 제공해야 합니다.
+
+```
+[import-hook:django] 
+instrumentation.scripts.django_admin = syncdb sqlflush
+```
+
+기본적으로 시작 시간 제한은 Django 관리 명령을 모니터링할 때 자동으로 10.0초로 지정됩니다. 시작 시간 초과를 재정의해야 하는 경우 동일한 `import-hook:django` 구성 섹션 내에서 `instrumentation.background_task.startup_timeout` 설정을 지정할 수 있습니다.
+
+추가 구성이 지정되면 `newrelic-admin` 래퍼 스크립트로 래핑된 Django 관리 명령을 실행할 수 있습니다.
+
+```
+NEW_RELIC_CONFIG_FILE=newrelic.ini newrelic-admin run-python manage.py syncdb
+```

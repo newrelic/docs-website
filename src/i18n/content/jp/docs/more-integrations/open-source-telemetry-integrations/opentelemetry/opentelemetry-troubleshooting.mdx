@@ -1,0 +1,119 @@
+---
+title: NewRelicを使用したOpenTelemetryのトラブルシューティング
+tags:
+  - Integrations
+  - Open source telemetry integrations
+  - OpenTelemetry
+metaDescription: Troubleshoot tips for when you use OpenTelemetry with New Relic
+translationType: machine
+---
+
+import otlpTroubleshootingFacetQuery from 'images/otlp-troubleshooting-facet-query.png'
+
+New Relicを使用したOpenTelemetryのトラブルシューティングは、 [ベストプラクティス](/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/opentelemetry-concepts)に従っていることを確認するだけの問題かもしれませんが、問題を診断するために追加の手順を実行する必要がある場合があります。ここでは、発生する可能性のある特定の問題の例と、それらを解決するための手順とツールを示します。
+
+## OTLPを介して送信されたOpenTelemetryデータはクエリできません
+
+### 問題
+
+OTLPを使用してOpenTelemetryメトリック、ログ、またはトレースを送信しましたが、データを表示できません。深く掘り下げる前に、次のことを確認してください。
+
+* 構成されたOTLPエンドポイントは、 [文書化](/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/opentelemetry-quick-start/#review-settings)されたエンドポイントの1つと一致し、適切にフォーマットされており[、OTLP / gRPC](https://github.com/open-telemetry/opentelemetry-specification/blob/v1.8.0/specification/protocol/otlp.md#otlpgrpc-default-port)の[デフォルトポート4317、またはOTLP/HTTP](https://github.com/open-telemetry/opentelemetry-specification/blob/v1.8.0/specification/protocol/otlp.md#otlphttp-default-port)のデフォルトポート4318が含まれています。ポート443は、どちらのトランスポートでもサポートされています。該当する場合は、FedRAMPコンプライアンスの特定のエンドポイントに注意してください。
+* お住まいの地域に基づいて、正しいエンドポイントを使用していることを確認してください。たとえば、ヨーロッパに拠点を置き、米国のエンドポイントにデータを送信するようにエクスポーターを構成している場合、エンドポイントは地域固有であるため、データのエクスポートに失敗します。
+* アウトバウンドトラフィックはファイアウォールによって制限されていません。[ネットワーク](/docs/using-new-relic/cross-product-functions/install-configure/networks/#opentelemetry)ドキュメントでは、明示的に許可する必要があるドメインとネットワークブロックについて説明しています。
+* クライアントはTLS1.2以降を使用するように構成されており、リクエストには有効なNew Relicアカウント（取り込み）[ライセンスキー](https://one.newrelic.com/launcher/api-keys-ui.launcher)を持つ`api-key`ヘッダーが含まれています。
+* リクエストには有効なprotobufペイロードが含まれ、gRPCまたはHTTPトランスポートを使用します。できれば、 [gzip圧縮](/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/opentelemetry-concepts/#compression)を有効にします。リクエストのペイロードは1MB（10 ^ 6バイト）以下である必要があります。[JSONでエンコードされたprotobuf](https://github.com/open-telemetry/opentelemetry-specification/blob/v1.8.0/specification/protocol/otlp.md#otlphttp-connection)ペイロードもサポートされています。
+* クライアントの出力とログは、 `4xx`または`5xx`の応答コードが返されていることを示していません。
+
+### 解決
+
+プラットフォームへのテレメトリデータの配信が成功したことを検証するために使用できるツールは多数あります。最初の良いステップは、[データ管理ハブ](/docs/data-apis/manage-data/manage-your-data/)をチェックしてデータの取り込みを[ファセット化](/docs/data-apis/manage-data/manage-data-coming-new-relic/#facet-data-ingest)し、さまざまなソースから到着するデータの量を判断することです。[データエクスプローラー](/docs/query-your-data/explore-query-data/browse-data/introduction-data-explorer/#use-case-troubleshooting)または[クエリビルダー](/docs/query-your-data/explore-query-data/query-builder/use-advanced-nrql-mode-query-data/)を使用して、 `instrumentation.provider`または`newrelic.source`属性でファセットされたデータを検索することもできます。
+
+```sql
+FROM Log, Metric, Span SELECT datapointcount() WHERE instrumentation.provider = 'opentelemetry' FACET instrumentation.provider, newrelic.source
+```
+
+<img
+  title="Screenshot showing the data point count for logs, metrics, and traces faceted by instrumentation.provider and newrelic.source"
+  alt="Screenshot showing the data point count for logs, metrics, and traces faceted by instrumentation.provider and newrelic.source"
+  src={otlpTroubleshootingFacetQuery}
+/>
+
+このクエリは、データがOTLP経由で到着しているかどうかを示します。期待するデータが存在しない場合は、次の代替クエリを試してください。
+
+```sql
+FROM Log, Metric, Span SELECT count(*) where newrelic.source LIKE 'api.%.otlp'
+```
+
+[NrIntegrationErrorイベント](/docs/data-apis/manage-data/nrintegrationerror/)を照会して、統合エラーをチェックすることもできます。これは、構成やフォーマットに問題があるかどうか、またはプラットフォームの制限に遭遇したかどうかを判断するのに役立ちます。
+
+<Callout variant="important">
+  OTLPを介したメトリック、ログ、およびトレースの取り込み制限は、他の[データ取り込みAPI制限](/docs/data-apis/manage-data/view-system-limits/#data-ingest-api-limits)と同じです。
+</Callout>
+
+New Relic UIのさまざまな部分は、適切に機能するために特定の属性の存在に依存しています。多くの場所で[NRQLコンソール](/docs/query-your-data/explore-query-data/query-builder/nrql-console/)機能を使用して、クエリの`WHERE`または`FACET`句で必要な属性を確認できます。これらの句を編集してクエリを再実行し、これらの属性が欠落しているデータが存在するかどうかを判断することもできます。必要な属性の例には、 `service.name`および`service.instance.id`が含まれます。例のより完全なリストについては、 [リソース](/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/opentelemetry-concepts/#resources)を参照してください。
+
+## OpenTelemetry ログ相関が機能しない
+
+### 問題
+
+`service.name` ( [OpenTelemetry ログ: ベスト プラクティス](/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/best-practices/opentelemetry-best-practices-logs)) を使用してログをサービスと関連付けたので、トレースに関連付けられたログを確認できますが、New Relic UI にはログが表示されません。このシナリオでは、ログ データは New Relic に送信されましたが、対応するスパンで分散トレース UI に表示されません。
+
+### 解決
+
+ログをトレース データと関連付けるには、 `trace_id`および`span_id`に含まれるトレース コンテキストをログに含める必要があります。ただし、ログが New Relic UI に確実に表示されるようにするには、ログ パイプラインでルールを構成して、 `trace_id`と`span_id`を`trace.id`と`span.id`に変換する必要があります。
+
+## OpenTelemetryエンティティまたは関係がありません
+
+### 問題
+
+サービスまたはインフラストラクチャコンポーネントからOpenTelemetryデータを送信しましたが、[エンティティ](/docs/new-relic-one/use-new-relic-one/core-concepts/what-entity-new-relic/)またはその[関係](/docs/new-relic-one/use-new-relic-one/core-concepts/what-entity-new-relic/#related-entities)が欠落しているか、正しくありません。
+
+### 解決
+
+OpenTelemetryエンティティは、 `EXT-SERVICE`エンティティタイプについて説明されている[パブリックルール](https://github.com/newrelic/entity-definitions/blob/b8e75d839eed7859044a9bb601a62e5323107350/definitions/ext-service/definition.yml)に基づいて合成されます。照合する標準のルールは、OpenTelemetryの[セマンティック規則](https://github.com/open-telemetry/opentelemetry-specification/blob/527206ea49e384de957eda105d9425aa8fefca25/specification/overview.md#semantic-conventions)に従う`service.name`ディメンションの存在に依存しています。
+
+OpenTelemetry Java SDKで`service.name`を設定するには、それを [リソース](/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/opentelemetry-concepts/#resources)に含めます。
+
+```java
+var resource = Resource.getDefault()
+    .merge(Resource.builder().put(SERVICE_NAME, serviceName).build());
+```
+
+SDKによっては、 `OTEL_RESOURCE_ATTRIBUTES`または`OTEL_SERVICE_NAME` [環境変数](https://github.com/open-telemetry/opentelemetry-specification/blob/20c82de552d08428e8cadaaef3e6cb46812f7c00/specification/sdk-environment-variables.md#general-sdk-configuration)で宣言して`service.name`を設定することもできます。
+
+ログ管理の場合、構造化ログテンプレートを使用して`service.name`を挿入できます。ログの例を次に示します。
+
+* [サービス名の設定](https://github.com/newrelic/newrelic-opentelemetry-examples/blob/e28b30f621545c0b14189955bec850b25a7f3235/java/otlp-nr-mapping/testCases/log/kitchen-sink-log-proto.json#L48-L53)
+* [Log4j2に関連するログ](https://github.com/newrelic/newrelic-opentelemetry-examples/tree/ab6f89ac97ffb26d8e66ae6a1200ac3607538bd2/java/logs-in-context-log4j2)
+
+<Callout variant="tip">
+  New Relicを使用したOpenTelemetryのその他の例については、GitHubの[newrelic-opentelemetry-examples](https://github.com/newrelic/newrelic-opentelemetry-examples)リポジトリにアクセスしてください。
+</Callout>
+
+## OpenTelemetryコレクターのトラブルシューティング [#troubleshooting-collector]
+
+コレクターのトラブルシューティングのヒントと監視方法に最適な場所は、OpenTelemetryコミュニティの最新のガイドラインです。コミュニティのトラブルシューティングドキュメントについては、以下のリンクを参照してください。
+
+### コレクターログ [#collector-logs]
+
+構成`service::telemetry::logs`でログレベルを設定します。デフォルトのレベルは`INFO`です。サポートされているレベルは、 `DEBUG` 、 `INFO` 、 `WARN` 、 `ERROR` 、 `DPANIC` 、 `PANIC` 、 `FATAL`です。
+
+トラブルシューティングのヒントについては、 [ログのトラブルシューティング（GitHub）](https://github.com/open-telemetry/opentelemetry-collector/blob/main/docs/troubleshooting.md#logs)を参照してください。
+
+### コレクターメトリック [#collector-metrics]
+
+次のNRQLクエリは、NewRelicのコレクター自体から利用可能なすべてのメトリックを示しています。
+
+```sql
+FROM Metric SELECT uniques(metricName) WHERE metricName like ‘otelcol_%’ LIMIT MAX
+```
+
+トラブルシューティングのヒントについては、以下を参照してください。
+
+* [メトリックのトラブルシューティング（GitHub）](https://github.com/open-telemetry/opentelemetry-collector/blob/main/docs/troubleshooting.md#metrics)
+* [コレクターメトリックの監視（GitHub）](https://github.com/open-telemetry/opentelemetry-collector/blob/main/docs/monitoring.md)
+
+### コレクタートレース [#collector-traces]
+
+トラブルシューティングのヒントについては、 [zPages（Github）](https://github.com/open-telemetry/opentelemetry-collector/blob/main/docs/troubleshooting.md#zpages)を参照してください。

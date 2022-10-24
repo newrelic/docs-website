@@ -6,4 +6,4 @@ events:
   - Span
 ---
 
-The grouped URL of the AJAX request. For example: myapp.com/acct/\*/ajax.
+The grouped URL of the AJAX request. For example: `myapp.com/acct/\*/ajax`.

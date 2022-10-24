@@ -16,6 +16,8 @@ jest.mock('../utils/vendor-request');
 jest.mock('../fetch-and-deserialize');
 jest.mock('../configuration');
 
+const PROJECT_ID = '7470e5b60';
+
 describe('check-jobs-progress tests', () => {
   beforeEach(() => {
     jest.resetAllMocks();
@@ -89,13 +91,14 @@ describe('check-jobs-progress tests', () => {
 
       const slugStatus = { ok: false, slug: 'failure.txt', locale: 'ja-JP' };
 
-      await updateTranslationRecords([slugStatus]);
+      await updateTranslationRecords(PROJECT_ID, [slugStatus]);
 
       expect(updateTranslations.mock.calls.length).toBe(1);
       expect(updateTranslations.mock.calls[0][0]).toStrictEqual({
         slug: 'failure.txt',
         status: 'IN_PROGRESS',
         locale: 'ja-JP',
+        project_id: '7470e5b60',
       });
       expect(updateTranslations.mock.calls[0][1]).toStrictEqual({
         status: 'COMPLETED',
@@ -107,13 +110,14 @@ describe('check-jobs-progress tests', () => {
 
       const slugStatus = { ok: true, slug: 'success.txt', locale: 'ja-JP' };
 
-      await updateTranslationRecords([slugStatus]);
+      await updateTranslationRecords(PROJECT_ID, [slugStatus]);
 
       expect(updateTranslations.mock.calls.length).toBe(1);
       expect(updateTranslations.mock.calls[0][0]).toStrictEqual({
         slug: 'success.txt',
         status: 'IN_PROGRESS',
         locale: 'ja-JP',
+        project_id: '7470e5b60',
       });
       expect(updateTranslations.mock.calls[0][1]).toStrictEqual({
         status: 'COMPLETED',
@@ -128,13 +132,14 @@ describe('check-jobs-progress tests', () => {
         { ok: true, slug: 'fake_slug_3.txt', locale: 'ko-KR' },
       ];
 
-      await updateTranslationRecords(slugStatuses);
+      await updateTranslationRecords(PROJECT_ID, slugStatuses);
 
       expect(updateTranslations.mock.calls.length).toBe(3);
       expect(updateTranslations.mock.calls[0][0]).toStrictEqual({
         slug: 'fake_slug.txt',
         status: 'IN_PROGRESS',
         locale: 'ja-JP',
+        project_id: '7470e5b60',
       });
       expect(updateTranslations.mock.calls[0][1]).toStrictEqual({
         status: 'COMPLETED',
@@ -143,6 +148,7 @@ describe('check-jobs-progress tests', () => {
         slug: 'fake_slug_2.txt',
         status: 'IN_PROGRESS',
         locale: 'ko-KR',
+        project_id: '7470e5b60',
       });
       expect(updateTranslations.mock.calls[1][1]).toStrictEqual({
         status: 'COMPLETED',
@@ -151,6 +157,7 @@ describe('check-jobs-progress tests', () => {
         slug: 'fake_slug_3.txt',
         status: 'IN_PROGRESS',
         locale: 'ko-KR',
+        project_id: '7470e5b60',
       });
       expect(updateTranslations.mock.calls[2][1]).toStrictEqual({
         status: 'COMPLETED',

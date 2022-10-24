@@ -1,0 +1,310 @@
+---
+title: '경보 품질 관리: 경보를 최적화하고 경보 피로도를 줄입니다.'
+tags:
+  - Observability maturity
+  - 'Uptime, performance, and reliability'
+  - Alert quality management
+  - Implementation guide
+metaDescription: 'New Relic observability maturity series: the alert quality management guide helps reduce alert fatigue by ensuring that fewer and more valuable incidents are created in New Relic.'
+translationType: machine
+---
+
+이 가이드는 알림 품질을 개선하고 최적화하는 방법을 안내합니다. [관찰 가능성 성숙도에 대한 시리즈](/docs/new-relic-solutions/observability-maturity/introduction) 의 일부입니다. 변경된 경고 아키텍처를 반영하고 스톡 NrAiIncident 이벤트 유형을 사용하도록 업데이트되었습니다.
+
+## 개요 [#overview]
+
+팀은 높은 경보 볼륨과 비즈니스 영향에 맞지 않는 경보를 경험할 때 경보 피로로 어려움을 겪습니다. 경보 볼륨이 높으면 사고 대응자가 경보가 거짓이고 비즈니스에 영향을 미치지 않는다고 가정하도록 교육합니다. 결과적으로 그들은 다른 경고보다 해결하기 쉬운 경고의 우선 순위를 정하고 SLA 목표 내에 머물 수 있도록 해결되지 않은 사건을 종료할 수 있습니다. 그 결과 실제 비즈니스에 영향을 미치는 문제가 발생할 경우 사고 대응이 느려지고 범위와 심각도가 높아집니다.
+
+**경고 품질 관리** (AQM)는 실제 비즈니스에 영향을 미치는 경고에만 집중할 수 있도록 성가신 사건의 수를 줄이는 데 중점을 둡니다. 이렇게 하면 경보 피로가 줄어들고 귀하와 귀하의 팀이 적시에 적절한 장소에 주의를 집중할 수 있습니다.
+
+다음과 같은 경우 AQM에 적합한 후보자입니다.
+
+* 알림이 너무 많습니다.
+* 오랫동안 열려 있는 알림이 있습니다.
+* 귀하의 알림은 관련이 없습니다.
+* 고객은 모니터링 도구보다 먼저 문제를 발견합니다.
+* 관찰 가능성 도구의 가치를 볼 수 없습니다.
+
+다음은 경고 품질 관리 개념을 소개하는 짧은 비디오(3:34)입니다.
+
+<Video
+  id="80hL0rxYLT4"
+  type="youtube"
+/>
+
+## 요망되는 결과 [#desired-outcome]
+
+비즈니스 영향 측정을 기반으로 경고 전략을 사용하면 응답 시간을 줄이고 중요한 이벤트에 대한 인식을 높일 수 있습니다. 경고 신호 대 잡음비를 개선하면 혼란을 줄이고 문제의 근본 원인을 신속하게 식별하고 격리할 수 있습니다.
+
+**경보 품질 관리** 의 전반적인 목표는 더 적은 수의 더 가치 있는 사고가 생성되도록 하는 것입니다. 결과:
+
+* 가동 시간 및 가용성 향상
+* 감소된 MTTR
+* 경고 볼륨 감소
+* 중요하지 않은 경고를 쉽게 식별하여 가치 있게 만들거나 제거할 수 있습니다.
+
+이 가이드는 이러한 목표를 향한 진행 상황을 측정하는 데 사용할 핵심 성과 지표를 생성하는 프로세스를 안내합니다. KPI는 실시간으로 측정되어 대시보드에 게시되며 성가신 경고를 식별 및 줄이고 사고 조사 참여를 늘리는 데 사용할 지속적인 개선 프로세스를 추진하는 데 사용됩니다.
+
+**경보 품질 관리** 관행에는 알 수 없거나 예기치 않은 장애 모드를 감지하도록 설계된 이상 감지 또는 AIOps가 포함되지 않습니다. 두 가지 방식(AQM 및 ML/AI)은 함께 작동하며 상호 배타적이지 않습니다.
+
+## 핵심 성과 지표 [#key-perf-indicators]
+
+_참고: 이 구현 가이드의 이전 릴리스는 필수 KPI를 수집하기 위해 웹훅에 의해 생성된 사용자 정의 이벤트( **nrAQMIncident** )에 의존했습니다. 그 종속성이 변경되었습니다. AQM은 이제 기본 **NrAiIncident** 이벤트 유형을 대신 사용합니다. **NrAiIncident** 는 아직 사고 참여 KPI를 노출하지 않으므로 사고 참여에 대한 모든 참조가 AQM에서 제거되었습니다. 자세한 내용은 [AQM 마이그레이션 가이드](#aqm-migration-guide) 섹션을 참조하세요._
+
+AQM 프로세스를 사용하여 인시던트 볼륨 KPI를 수집하고 측정합니다. 이러한 KPI는 가장 시끄럽고 가장 가치가 낮은 경고를 찾는 데 도움이 되므로 경고의 가치를 높이거나 제거할 수 있습니다. 그런 다음 장기적인 메트릭 추세를 사용하여 경영진과 이해 관계자에게 실제 비즈니스 영향을 보여줍니다.
+
+인시던트(경고 유무에 관계없이)를 작업 대기열처럼 처리해야 합니다. 대기열과 마찬가지로 경고 수는 거의 0에 가까운 시간을 소비해야 합니다. 각 사건은 조건을 해결하기 위한 조사 또는 시정 조치를 위한 방아쇠가 되어야 합니다. 경고가 어떤 종류의 조치로 이어지지 않으면 경고 조건의 값에 대해 질문해야 합니다.
+
+특히 "항상 켜져 있는" 특정 사건을 본다면 그 이유에 대해 질문해야 합니다. 지속적으로 비즈니스에 영향을 미치고 있습니까, 아니면 단순히 많은 양의 소음이 있습니까? 경고 볼륨 KPI는 이러한 질문에 답하고 고품질 경고의 정상적인 상태를 향한 진행 상황을 측정하는 데 도움이 됩니다.
+
+이러한 측정항목에 대한 자세한 정보는 다음과 같습니다.
+
+<CollapserGroup>
+  <Collapser
+    id="kpi-incident-count"
+    title="사고 수 KPI"
+  >
+    인시던트 수는 일정 기간 동안 생성된 인시던트 수입니다. 일반적으로 현재 주와 이전 주를 비교해야 합니다.
+
+    **목표:** 가치가 낮거나 성가신 사건의 수를 줄입니다.
+
+    **모범 사례:**
+
+    * 조건 설정이 실제 비즈니스 영향을 감지하도록 의도되었는지 확인합니다.
+    * 조건 설정이 비정상적인 동작을 감지하는지 확인합니다.
+    * 사고 세부 정보 "확인" 기능이 의미 있고 실행 가능한 경고를 측정하는 데 도움이 된다고 알립니다. [인시던트 확인 KPI 비율을](#kpi-user-engagement) 참조하십시오.
+    * 모든 이해 관계자에게 AQM KPI를 보고합니다.
+  </Collapser>
+
+  <Collapser
+    id="kpi-incident-duration"
+    title="누적 사고 기간 KPI"
+  >
+    누적 인시던트 기간은 일정 기간 동안 모든 인시던트가 누적된 총합(분)입니다. 일반적으로 현재 주와 이전 주를 비교해야 합니다.
+
+    **목표:** 총 사고 누적 시간(분)을 줄입니다.
+
+    **모범 사례:**
+
+    * 일종의 조사 활동에 동기를 부여하지 않는 사건을 수동으로 종료하지 마십시오. 수동 폐쇄는 사고 길이의 실제 기간을 왜곡합니다.
+    * 수신자의 수정 조치를 초래하지 않는 경고를 제거합니다.
+    * 탐지 및 응답 시간 개선에 대한 중요성을 전달하여 조사 비율과 평균 조사 시간을 개선합니다.
+    * 모든 이해 관계자에게 AQM KPI를 보고합니다.
+  </Collapser>
+
+  <Collapser
+    id="kpi-mttc"
+    title="평균 마감 시간(MTTC) KPI"
+  >
+    측정된 기간 내 사고의 평균 지속 시간입니다.
+
+    **목표:** MTTC 감소
+
+    **모범 사례:**
+
+    * 인시던트를 수동으로 닫지 마십시오. 수동 폐쇄는 사고 길이의 실제 기간을 왜곡합니다.
+    * 신뢰성 엔지니어링 기술을 향상시킵니다.
+    * 모든 이해 관계자에게 AQM KPI를 보고합니다.
+  </Collapser>
+
+  <Collapser
+    id="kpi-pct-under-five"
+    title="5분 미만의 KPI 비율"
+  >
+    인시던트 기간이 5분 미만인 인시던트의 비율입니다. 이것은 인시던트 플래핑의 지표가 될 수 있습니다.
+
+    **목표:** 짧은 기간 동안 사고의 비율을 최소화합니다.
+
+    **모범 사례:**
+
+    * 조건이 예상 동작에서 합법적인 이탈을 감지하는지 확인합니다.
+    * 서비스 수준 관리를 이해합니다.
+    * 조건이 비즈니스 영향 또는 임박한 비즈니스 영향과 상관관계가 있는 합법적인 편차를 감지하는지 확인합니다.
+  </Collapser>
+</CollapserGroup>
+
+## 전제 조건 [#prerequisites]
+
+시작하기 전에 이에 상응하는 경험이 없는 경우 [NRU(New Relic University) 개요 과정](https://learn.newrelic.com/overview-course) 을 완료하십시오.
+
+또한 다음 사항에 대한 기본적인 이해가 있어야 합니다.
+
+* New Relic 경고 정책 및 조건 구성
+* NRQL(쿼리 언어)
+* 알림 권장사항
+* New Relic APM 및 인프라 모니터링
+* 비정상 동작과 정상 동작을 구분하기 위해 데이터의 기준을 설정하는 방법
+
+## 현재 상태 설정 [#current-state]
+
+지속적인 개선 프로세스와 마찬가지로 AQM의 첫 번째 단계는 KPI의 현재 상태를 설정하는 것입니다. 이렇게 하려면 다음 작업을 수행하십시오.
+
+* [AQM 대시보드 설치](#install-dashboard)
+* [이벤트 볼륨 KPI 분석](#analyze-event-volume)
+* [초기 AQM 오리엔테이션 및 활성화 수행](#perform-enablement-one)
+* [두 번째 활성화 세션 수행](#perform-enablement-two)
+
+_참고: 이 구현 가이드의 이전 릴리스는 필수 KPI를 수집하기 위해 웹훅에 의해 생성된 사용자 정의 이벤트( **nrAQMIncident** )에 의존했습니다. 그 종속성이 변경되었습니다. AQM은 이제 기본 **NrAiIncident** 이벤트 유형을 대신 사용합니다. 자세한 내용은 [AQM 마이그레이션 가이드](#aqm-migration-guide) 섹션을 참조하세요._
+
+### AQM 대시보드 설치 [#install-dashboard]
+
+AQM 대시보드는 AQM 프로세스를 구동하는 기본 자산입니다. 다음을 수행하여 AQM 대시보드를 설치해야 합니다.
+
+1. [GitHub의 관찰 가능성 성숙도 리소스 센터에서 대시보드 정의 JSON 파일을 다운로드하십시오.](https://github.com/newrelic/oma-resource-center/tree/main/src/content/docs/oma/value-drivers/uptime-performance-and-reliability/use-cases/alert-quality-management)
+2. 대시보드를 가져올 계정의 ID를 반영하도록 **accountId** 속성을 업데이트합니다. 0000000에서 올바른 계정 ID로 업데이트해야 하는 해당 속성의 인스턴스가 13개 있습니다.
+3. 정의를 계정으로 가져옵니다.
+
+대시보드 가져오기에 대한 자세한 내용은 대시보드 [소개 를](/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards/#dashboards-import) 참조하십시오.
+
+### 이벤트 볼륨 KPI 분석 [#analyze-event-volume]
+
+대시보드를 설치한 후 즉시 이를 사용하여 4가지 이벤트 볼륨 KPI를 분석할 수 있습니다.
+
+대시보드의 **정책별 경고 수** 창을 사용하여 5분 미만 동안 높은 인시던트 수, 높은 누적 인시던트 기간, 긴 MTT 종료 또는 열린 인시던트 비율을 생성하는 정책을 찾습니다. 특히 다음과 같은 정책을 식별해야 합니다.
+
+* "상시 작동" 인시던트(즉, 누적 기간이 수천 분 이상인 사건).
+* 사건의 30% 이상이 5분 미만 동안 열려 있는 경우.
+* MTT 마감 시간이 30분 이상인 사람.
+* 이로 인해 매주 350건 이상의 사고가 발생합니다.
+
+이러한 기준 중 하나 이상에 맞는 상위 4개 정책을 식별하고 정책 조건을 검토하고 결과적인 사고 세부 정보를 보고 패턴을 결정해야 합니다. 그런 다음 해당 정책을 생성한 팀과 해당 정책이 생성한 인시던트에 대응하는 팀이 AQM 활성화 프로세스에 참여하도록 해야 합니다.
+
+### 초기 AQM 오리엔테이션 및 활성화 수행 [#perform-enablement-one]
+
+이 단계에서 사고 관리 팀과 기타 이해 관계자는 AQM 프로세스의 목표, 참여 범위를 배우고 [이벤트 볼륨 분석](#analyze-event-volume) 단계에서 식별한 정책의 초기 검토에 참여합니다.
+
+[첫 번째 세션 템플릿 프레젠테이션](https://docs.google.com/presentation/d/1TBK_4AJ_YdDNddjy5R82soyOnK81JsLmmg3qTeFHGW8/edit?usp=sharing) 을 사용하여 이 자료를 이해 관계자에게 전달할 수 있습니다.
+
+AQM 대시보드는 지속적인 개선 프로세스의 시작점으로 사용해야 하는 인시던트 볼륨 KPI의 초기 기준선을 제공합니다. 또한 상위 4개 사고 정책을 더 가치 있게 변경하는 방법에 대해 해당 팀과 논의해야 합니다. 시끄러운 정책을 검토할 때 다음과 같은 순서로 각 정책에 대해 다음 질문을 해야 합니다.
+
+1. 경고가 수정해야 하는 리소스에 대해 알려줍니까? 그렇다면 문제를 해결하고 경고 볼륨이 감소하는지 확인하십시오.
+2. 경고가 실제로 즉각적인 응답이 필요한 사항에 대해 알려줍니까? 그렇지 않은 경우 정책을 조정하거나 비활성화합니다.
+3. 정책 임계값이 올바르게 설정되어 있습니까? 그렇지 않은 경우 임계값 조정을 고려하십시오.
+
+### 두 번째 활성화 세션 수행 [#perform-enablement-two]
+
+첫 번째 활성화 2주 후에 두 번째 활성화 세션을 수행해야 합니다. 이 단계에서는 사고 관리 팀과 기타 이해 관계자에게 AQM 추세 데이터와 계속해서 따르게 될 지속적인 개선 프로세스를 소개합니다.
+
+이 프로세스는 네 가지 활동으로 구성됩니다.
+
+1. AQM 대시보드 및 KPI 추세 검토: 여기에서 귀하와 이해 관계자는 AQM KPI를 보고 주별 추세를 식별합니다. 팀은 KPI가 개선되지 않는 영역을 식별하고 개선을 주도하는 전략을 개발해야 합니다.
+2. 성과, 도전 과제 및 기회 식별: 여기에서 귀하와 이해 관계자는 경보 품질의 현재 상태를 비즈니스 영향에 매핑하여 개선으로 인해 비즈니스 결과가 개선된 영역과 문제가 비즈니스 결과에 영향을 미치는 영역을 식별합니다.
+3. 사고 정책 검토: AQM 대시보드를 사용하여 귀하와 이해 관계자는 가장 시끄러운 사고 정책을 식별합니다. 식별된 정책은 아래 4단계에 자세히 설명된 대로 평가되어야 합니다.
+4. 경고 정책 권장 사항: 이 단계에서 귀하와 이해 관계자는 다음 기준을 사용하여 가장 시끄러운 정책을 검토합니다.
+
+* 경고가 비즈니스에 영향을 미칩니까?
+
+* 정책이 제대로 구성되어 있습니까?
+
+  * 수정해야 할 리소스에 대해 알려주고 있습니까?
+  * 정책이 필요한가? 비즈니스 영향이 있습니까?
+  * 임계값이 올바르게 설정되어 있습니까?
+
+1. 기술 권장 사항: 여기에서 귀하와 이해 관계자는 다음을 포함한 모든 기술적 권장 사항을 검토합니다.
+
+   * 엔지니어링이 검토할 애플리케이션/시스템 문제가 있습니까?
+   * 고쳐야 할 잘못 구성된 정책이 있습니까?
+   * 계측 공백이 있습니까?
+
+[두 번째 세션 템플릿 프레젠테이션](https://docs.google.com/presentation/d/1d8QN2rELwFDNieYPJrD2axhLvAs_wKb6xMI1UtoTvmo/edit?usp=sharing) 을 사용하여 AQM 프로세스의 이 부분을 구성할 수 있습니다.
+
+이 단계에서는 [첫 번째 지원 세션](#perform-enablement-one) 에서 식별한 가장 중요한 4가지 정책을 검토하고 KPI가 어떻게 개선되었는지 강조하여 AQM의 가치를 보여줄 기회를 가져야 합니다.
+
+## 개선 프로세스 [#improvement-process]
+
+이것은 누적된 AQM 데이터를 주기적으로 검토하고 정책을 경고하기 위해 필요에 따라 조정하는 지속적인 개선 프로세스의 진행 단계입니다. 경고 볼륨이 수용 가능한 수준이 될 때까지 매주 또는 격주로 이 단계를 수행해야 합니다. 그러면 덜 자주 수행할 수 있습니다.
+
+이 단계에서 다음을 수행해야 합니다.
+
+* 매주 KPI를 고위 경영진에게 보고하여 이해 관계자 팀이 작업의 우선 순위를 적절하게 지정하고 약속된 비즈니스 결과를 향한 진행 상황을 보여줍니다.
+* 몇 개월에서 몇 년 동안 주간 KPI를 기록하고 유지하여 기준선을 설정하고 개선 속도를 보여줍니다.
+
+이것은 지속적인 개선 과정이라는 점을 명심해야 합니다. AQM 목표를 달성할 수 있도록 장기간에 걸쳐 KPI를 계속 수집하고 평가할 것입니다.
+
+## 가치 실현 [#value-realization]
+
+AQM 프로세스가 설정되면 안정성과 안정성이 동일하게 유지되거나 개선되는 동안 경고 볼륨이 크게 감소하는 것을 볼 수 있습니다. 또한 경고가 명확하고 모호하지 않은 비즈니스 영향을 미치는지 확인해야 합니다. AQM KPI는 이러한 개선 사항에 대한 정량화 가능한 증거를 제공합니다.
+
+이 프로세스는 또한 경보 작성자가 새로운 경보 정책이 응답자에게 미치는 영향을 더 잘 이해하고 경보 작성자가 보다 의미 있는 경보 정책을 구축하는 데 도움이 되어야 합니다.
+
+AQM의 목표를 달성하기 위한 경로에 확실히 도달했다면 [서비스 수준 관리](/docs/new-relic-solutions/observability-maturity/uptime-performance-reliability/slm-implementation-guide) 또는 안정성 엔지니어링과 같은 **가동 시간, 성능 및 안정성** 가치 흐름 내에서 다른 사용 사례로 이동하는 것을 고려하십시오. [고객 경험](/docs/new-relic-solutions/observability-maturity/customer-experience/quality-foundation-implementation-guide) 과 같은 다른 관찰 가능성 성숙도 가치 흐름으로 이동할 수도 있습니다.
+
+## KPI 참조 [#kpi-reference]
+
+다음은 각 KPI에 대한 설명과 New Relic 플랫폼에서 추출할 샘플 NRQL 쿼리입니다. 이러한 KPI는 [GitHub의 관찰 가능성 성숙도 리소스 센터에서 다운로드할 수 있는 AQM 대시보드에도 포함되어 있습니다.](https://github.com/newrelic/oma-resource-center/tree/main/src/content/docs/oma/value-drivers/uptime-performance-and-reliability/use-cases/alert-quality-management)
+
+### 사고 규모
+
+<CollapserGroup>
+  <Collapser
+    id="kpi-incident-count-query"
+    title="사고 수 KPI"
+  >
+    인시던트 수는 일정 기간 동안 생성된 인시던트 수입니다. 일반적으로 현재 주와 이전 주를 비교해야 합니다.
+
+    NRQL 쿼리:
+
+    ```
+    FROM NrAiIncident SELECT count(*) AS 'Incident Count' WHERE event = 'open' AND priority = 'critical' SINCE 1 WEEK AGO COMPARE WITH 1 WEEK AGO
+    ```
+  </Collapser>
+
+  <Collapser
+    id="kpi-incident-duration-query"
+    title="누적 사고 기간 KPI"
+  >
+    누적 인시던트 기간은 일정 기간 동안 모든 인시던트가 누적된 총합(분)입니다. 일반적으로 현재 주와 이전 주를 비교해야 합니다.
+
+    NRQL 쿼리:
+
+    ```
+    FROM NrAiIncident SELECT sum(durationSeconds)/60 AS 'Incident Minutes' WHERE event = 'close' AND priority = 'critical' SINCE 1 WEEK AGO COMPARE WITH 1 WEEK AGO
+    ```
+  </Collapser>
+
+  <Collapser
+    id="kpi-mttc-query"
+    title="평균 마감 시간(MTTC) KPI"
+  >
+    측정된 기간 내 사고의 평균 지속 시간입니다.
+
+    NRQL 쿼리:
+
+    ```
+    FROM NrAiIncident SELECT average(durationSeconds/60) AS 'Incident MTTC (minutes)' WHERE event = 'close' AND priority = 'critical' SINCE 1 WEEK AGO COMPARE WITH 1 WEEK AGO
+    ```
+  </Collapser>
+
+  <Collapser
+    id="kpi-pct-under-five-query"
+    title="5분 미만의 KPI 비율"
+  >
+    인시던트 기간이 5분 미만인 인시던트의 비율입니다. 이것은 인시던트 플래핑의 지표가 될 수 있습니다.
+
+    NRQL 쿼리:
+
+    ```
+    FROM NrAiIncident SELECT percentage(count(*), WHERE durationSeconds <= 5*60) AS '% Under 5min' WHERE event = 'close' AND priority = 'critical' SINCE 1 WEEK AGO COMPARE WITH 1 WEEK AGO 
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## 추가 리소스
+
+계정에서 이것을 구현하기 전에 손을 더럽히고 싶습니까? [경보 품질 관리 랩](https://learn.newrelic.com/hands-on-lab-alert-quality-management) 확인
+
+## AQM 마이그레이션 가이드 [#aqm-migration-guide]
+
+AQM의 원래 릴리스에서는 nrAQMIncident라는 사용자 지정 이벤트를 활용하여 프로세스를 주도했습니다. nrAQMINcident 이벤트는 계정의 각 경고 정책과 연결된 웹후크에 의해 생성되었으며 인시던트 볼륨 및 참여 KPI를 모두 생성했습니다.
+
+AQM의 현재 버전은 NrAiIncident라는 기본 이벤트를 사용합니다. 이 이벤트는 자동으로 생성되지만 인시던트 참여는 생성하지 않습니다(예: MTT-조사 및 조사 비율) KPI.
+
+참여 KPI가 중요한 경우 웹훅 기반 방법론을 계속 사용해야 합니다. 웹훅 유지 관리 작업이 너무 많은 수고를 추가한다면 새로운(NrAiIncident) 방법론으로 전환할 수 있습니다. 조직에서 AQM을 처음으로 채택하는 경우 새로운 **NrAiIncident** 기반 방법론을 사용해야 합니다.
+
+전환을 선택하는 경우 다음 사항에 유의해야 합니다.
+
+* 기존 AQM 대시보드를 NrAiIncident 이벤트를 사용하는 새 AQM 대시보드로 교체해야 합니다.
+* nrAQMIncident에서 NrAiIncident로 전환하면 KPI 수치가 크게 변경됩니다. 이는 NrAiIncident 이벤트가 임계값 위반이 발생한 횟수를 추적하는 반면 nrAQMIncident 이벤트는 경고 알림을 추적하기 때문입니다. 숫자는 변경되었지만 KPI와의 기본 관계 및 KPI 간의 상대 값은 변경되지 않았습니다. 혼란의 위험을 줄이기 위해 AQM 참가자에게 이에 대해 교육해야 합니다.
+* 더 이상 인시던트 참여 KPI가 표시되지 않습니다.
+
+전환이 완료되면 AQM 웹훅 및 이전 대시보드를 비활성화하거나 삭제할 수 있습니다.
