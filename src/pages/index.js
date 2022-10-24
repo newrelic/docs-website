@@ -132,14 +132,14 @@ const HomePage = ({ data }) => {
             path="/docs/query-your-data/nrql-new-relic-query-language/get-started/nrql-syntax-clauses-functions/"
           />
           <DocTile
-            label={{ text: 'Events', color: '#AFE2E3' }}
             title={t('home.popularDocs.t2.title')}
-            path="/attribute-dictionary/"
+            label={{ text: 'Log management', color: '#FCD672' }}
+            path="/docs/logs/get-started/get-started-log-management/"
           />
           <DocTile
             title={t('home.popularDocs.t3.title')}
-            label={{ text: 'Log management', color: '#FCD672' }}
-            path="/docs/logs/get-started/get-started-log-management/"
+            label={{ text: 'APM', color: '#AFE2E3' }}
+            path="/install/java/"
           />
         </div>
       </Section>
