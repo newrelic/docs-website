@@ -1,26 +1,27 @@
 ---
-title: 'Create and monitor self-serve developer environments in minutes'
-summary: 'with the new WayScript integration'
-releaseDate: '2022-08-31'
-learnMoreLink: 'https://newrelic.com/blog/nerdlog/wayscript-integration' 
-getStartedLink: 'https://newrelic.com/blog/nerdlog/wayscript-integration'
+title: 'Monitor Jenkins with OpenTelemetry and New Relic'
+summary: 'Get deeper visibility into your CI/CD workflows with the Jenkins integration and quickstart'
+releaseDate: '2022-10-25'
+learnMoreLink: 'https://newrelic.com/blog/how-to-relic/monitoring-jenkins-pipelines' 
+getStartedLink: 'https://newrelic.com/instant-observability/jenkins'
 ---
-## Connect self-serve developer environments with full stack observability
-We've partnered with [WayScript](https://wayscript.com) to build an integration that lets you quickly create a developer environment and automatically monitor it with a suite of observability tools. This integration lets you:
-- **Instantly spin up containerized developer environments** in a single click.
-- **Host full-fledged apps, set up internal microservices, and more**, with built-in tools like a terminal and IDE.
-- **Monitor and troubleshoot everything you build** with an easy connection to the New Relic observability platform.
+Jenkins is a popular open-source automation tool for implementing continuous integration (CI) and continuous development (CD) workflows called pipelines. Now, you can monitor your Jenkins data with New Relic using the Jenkins OpenTelemetry plugin, making it easier to get observability into your CI/CD pipeline health and performance.
 
-<iframe width="560" height="315" src="https://www.youtube.com/embed/EjX0nZ0w6Mo" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+![Screenshot showing sample Jenkins dashboard in New Relic](./images/whatsnew_jenkins_io_dashboard.png "Screenshot showing sample Jenkins dashboard in New Relic")
+<figcaption>Install the Jenkins quickstart dashboard for a pre-built view of your key pipeline metrics. For example, you can see a summary of the number of Jenkins instances available, the number of successful jobs, the top errors, and the job queue status.</figcaption>
 
-# How to get started
-It only takes a few minutes to create your environment in WayScript, connect it to New Relic, and start monitoring your apps and services.
-- Watch the [demo](https://www.youtube.com/watch?v=EjX0nZ0w6Mo) above for a tutorial.
-- Read the [blog post](https://newrelic.com/blog/nerdlog/wayscript-integration) for step by step instructions.
-- If you don't have one yet, sign up for a [free WayScript account](https://app.wayscript.com/) and [free New Relic account](https://newrelic.com/signup).
+## Improve your jobs and builds with pipeline observability
+Sending your Jenkins pipeline data to New Relic provides visibility into the building and deployment phases of the DevOps lifecycle, giving you more insights into your DevOps practices and helping you shift left.
 
-# Learn more
-- Learn how to build your first tools with the [WayScript starter docs](https://wsxdocs.wayscript.com/quickstart).
-- Check out the [integration docs](http://docs.wayscript.com/managing-tools/integrations/new-relic).
+With the Jenkins integration and [quickstart](https://newrelic.com/instant-observability/jenkins), you can easily:
+- **Understand the health of your Jenkins pipelines at a glance** with a pre-built dashboard showing key metrics about your builds, agents, queues, jobs, and more.
+- **See exactly where pipelines start failing** with distributed traces, allowing you to create appropriate alerts 
+- **View Jenkins console logs in context** of your pipeline build steps
 
-<iframe width="560" height="315" src="https://fast.wistia.net/embed/iframe/53mdh8hbwz" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" frameBorder="0" allowfullscreen="false" class="css-1b4920d"></iframe>
+## Get started
+<iframe width="560" height="315" src="https://www.youtube.com/watch?v=ZCF75LTtdz0" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+
+To start monitoring Jenkins in New Relic:
+1.  Watch the video above for a demo walkthrough
+2.  Read the [blog](https://newrelic.com/blog/how-to-relic/monitoring-jenkins-pipelines) and [documentation](https://docs.newrelic.com/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/jenkins/monitoring-jenkins-ot) for set up instructions
+3.  Install the [quickstart](https://newrelic.com/instant-observability/jenkins) to get the out-of-the-box Jenkins monitoring dashboard
