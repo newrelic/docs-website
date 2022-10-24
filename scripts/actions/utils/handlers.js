@@ -175,11 +175,35 @@ module.exports = {
     serialize: serializeComponent,
     deserialize: deserializeComponent,
   },
+  InstallFeedback: {
+    serialize: serializeComponent,
+    deserialize: deserializeComponent,
+  },
   Side: {
     serialize: serializeComponent,
     deserialize: deserializeComponent,
   },
   SideBySide: {
+    serialize: serializeComponent,
+    deserialize: deserializeComponent,
+  },
+  Tabs: {
+    serialize: serializeComponent,
+    deserialize: deserializeComponent,
+  },
+  TabsBar: {
+    serialize: serializeComponent,
+    deserialize: deserializeComponent,
+  },
+  TabsBarItem: {
+    serialize: serializeComponent,
+    deserialize: deserializeComponent,
+  },
+  TabsPages: {
+    serialize: serializeComponent,
+    deserialize: deserializeComponent,
+  },
+  TabsPageItem: {
     serialize: serializeComponent,
     deserialize: deserializeComponent,
   },
