@@ -20,9 +20,9 @@ With the Jenkins integration and [quickstart](https://newrelic.com/instant-obser
 - **View Jenkins console logs in context** of your pipeline build steps
 
 ## Get started
-<iframe width="560" height="315" src="https://www.youtube.com/watch?v=ZCF75LTtdz0" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+<iframe width="702" height="395" src="https://www.youtube.com/embed/ZCF75LTtdz0" title="Monitoring Jenkins with OpenTelemetry" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
 
 To start monitoring Jenkins in New Relic:
-1.  Watch the video above for a demo walkthrough
+1.  Watch the [video](https://www.youtube.com/watch?v=ZCF75LTtdz0) above for a demo walkthrough
 2.  Read the [blog](https://newrelic.com/blog/how-to-relic/monitoring-jenkins-pipelines) and [documentation](https://docs.newrelic.com/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/jenkins/monitoring-jenkins-ot) for set up instructions
 3.  Install the [quickstart](https://newrelic.com/instant-observability/jenkins) to get the out-of-the-box Jenkins monitoring dashboard
