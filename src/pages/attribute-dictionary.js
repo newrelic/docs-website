@@ -28,6 +28,13 @@ const AttributeDictionary = ({ data, pageContext, location }) => {
   const [searchedAttribute, setSearchedAttribute] = useState(null);
   const { queryParams } = useQueryParams();
 
+  if (typeof window !== 'undefined' && typeof newrelic === 'object') {
+    window.newrelic.setCustomAttribute(
+      'pageType',
+      'Interactive/AttributeDictionary'
+    );
+  }
+
   const events = useMemo(
     () => allDataDictionaryEvent.edges.map((edge) => edge.node),
     [allDataDictionaryEvent]
