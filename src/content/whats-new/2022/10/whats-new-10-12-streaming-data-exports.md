@@ -1,6 +1,6 @@
 ---
 title: 'New Relic Data Plus allows for streaming export of your data through AWS Kinesis Firehose for deeper data exploration and compliance needs.'
-releaseDate: '2022-10-25'
+releaseDate: '2022-10-31'
 getStartedLink: 'https://docs.newrelic.com/docs/apis/nerdgraph/examples/nerdgraph-streaming-export'
 ---
 
@@ -23,4 +23,3 @@ In addition, Data Plus also includes:
 # Learn more about streaming data export
 
 Take a deep dive into all the capabilities available in [our streaming data export doc](https://docs.newrelic.com/docs/apis/nerdgraph/examples/nerdgraph-streaming-export).
-
