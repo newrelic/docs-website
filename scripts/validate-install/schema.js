@@ -52,11 +52,19 @@ const Frontmatter = object({
 
 const MdxFilePath = define('MdxFilePath', (value) => {
   if (path.extname(value) !== '.mdx') {
-    return { code: 'incorrect_file_type' };
+    return {
+      code: 'incorrect_file_type',
+      message: `Expected an .mdx file type, but received: ${path.extname(
+        value
+      )} at ${value}`,
+    };
   }
 
   if (!fs.existsSync(path.join(process.cwd(), value))) {
-    return { code: 'file_not_found' };
+    return {
+      code: 'file_not_found',
+      message: `File not found at ${value}, check that the file exists or that the filePath is correct`,
+    };
   }
 
   const file = fs.readFileSync(path.join(process.cwd(), value), 'utf8');
@@ -75,7 +83,10 @@ const MdxFilePath = define('MdxFilePath', (value) => {
 
 const FilePath = define('FilePath', (value) => {
   if (!fs.existsSync(path.join(process.cwd(), value))) {
-    return { code: 'file_not_found' };
+    return {
+      code: 'file_not_found',
+      message: `No file found at ${value}, check that the file exists or that the filePath is correct`,
+    };
   }
 
   return true;
@@ -129,16 +140,26 @@ const InstallConfig = object({
   whatsNextFilePath: MdxFilePath,
 });
 
-// define MdxFilePath
+const outputErrors = (error) => {
+  const errors = error.failures();
+  console.log(`❌ Found ${errors.length} errors:`);
+  for (const failure of error.failures()) {
+    console.error(
+      '\x1b[31m%s\x1b[0m',
+      '(!)',
+      failure.message,
+      '\n   ',
+      `path: ${JSON.stringify(failure.path)}`
+    );
+  }
+};
 
 const validateYamlFields = (data) => {
   try {
     assert(data, InstallConfig);
     return true;
   } catch (error) {
-    for (const failure of error.failures()) {
-      console.error(failure);
-    }
+    outputErrors(error);
     return false;
   }
 };
