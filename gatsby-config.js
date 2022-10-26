@@ -405,7 +405,7 @@ module.exports = {
         allPageHeaders: [
           'Referrer-Policy: no-referrer-when-downgrade',
           'Content-Security-Policy: frame-ancestors *.newrelic.com',
-          'X-Frame-Options SAMEORIGIN',
+          'X-Frame-Options: SAMEORIGIN',
         ],
       },
     },
