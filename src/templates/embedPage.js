@@ -1,10 +1,15 @@
 import React, { useEffect } from 'react';
 import { graphql } from 'gatsby';
 import PropTypes from 'prop-types';
-import { Layout, useQueryParams } from '@newrelic/gatsby-theme-newrelic';
+import { Layout, useQueryParams, Link } from '@newrelic/gatsby-theme-newrelic';
 import useDarkMode from 'use-dark-mode';
 import EmbedContext from '../components/EmbedContext';
 import MDXContainer from '../components/MDXContainer';
+
+const components = {
+  a: ({ href, ...props }) => <Link to={href} isEmbedPageLink {...props} />,
+  Link: (props) => <Link {...props} isEmbedPageLink {...props} />,
+};
 
 const EmbedPage = ({ data }) => {
   const { mdx } = data;
@@ -27,8 +32,7 @@ const EmbedPage = ({ data }) => {
     <EmbedContext.Provider value={{ isEmbedded: true }}>
       <h1>{title}</h1>
       <Layout.Content>
-        {' '}
-        <MDXContainer body={body} />
+        <MDXContainer components={components} body={body} />
       </Layout.Content>
     </EmbedContext.Provider>
   );
