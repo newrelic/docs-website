@@ -4,8 +4,6 @@ import { NavItem } from '@newrelic/gatsby-theme-newrelic';
 import { css } from '@emotion/react';
 
 const RootNavigation = ({ nav, className }) => {
-  const subNav =
-    nav.url === '/docs/agile-handbook' || nav.url === '/docs/style-guide';
   return (
     <nav
       role="navigation"
@@ -28,12 +26,11 @@ const RootNavigation = ({ nav, className }) => {
       id="nav"
       className={className}
     >
-      {subNav && <h3>{nav.title}</h3>}
       {nav.pages.map((page) => {
         if (page.title === 'section-break') {
           return <hr />;
         }
-        if (page.title && !page.url && !subNav) {
+        if (page.title && !page.url) {
           return (
             <p
               css={css`
