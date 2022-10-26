@@ -230,7 +230,19 @@ module.exports = {
     {
       resolve: `gatsby-source-filesystem`,
       options: {
-        path: `./src/nav/`,
+        path: `./src/nav/generatedNav.yml`,
+      },
+    },
+    {
+      resolve: `gatsby-source-filesystem`,
+      options: {
+        path: `./src/nav/style-guide.yml`,
+      },
+    },
+    {
+      resolve: `gatsby-source-filesystem`,
+      options: {
+        path: `./src/nav/docs-agile-handbook.yml`,
       },
     },
     {
@@ -435,6 +447,7 @@ module.exports = {
           maxWidth: '1600px',
           component: require.resolve('./src/layouts'),
           mobileBreakpoint: '760px',
+          sidebarWidth: '340px',
         },
         i18n: {
           translationsPath: `${__dirname}/src/i18n/translations`,
@@ -541,6 +554,12 @@ module.exports = {
         },
         shouldUpdateScroll: {
           routes: ['/attribute-dictionary'],
+        },
+        feedback: {
+          environment: process.env.ENVIRONMENT || 'staging',
+          reCaptchaToken:
+            process.env.RECAPTCHA_TOKEN ||
+            '6Lfn8wUiAAAAANBY-ZtKg4V9b4rdGZtJuAng62jo',
         },
       },
     },
