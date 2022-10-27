@@ -14,14 +14,14 @@ import {
 } from '@newrelic/gatsby-theme-newrelic';
 import { graphql } from 'gatsby';
 import { css } from '@emotion/react';
-import { scroller } from 'react-scroll';
 import SEO from '../components/SEO';
 import RootNavigation from '../components/RootNavigation';
+import SubNavigation from '../components/SubNavigation';
 import NavFooter from '../components/NavFooter';
 import { useLocation, navigate } from '@reach/router';
 
 const MainLayout = ({ data = {}, children, pageContext }) => {
-  const { nav } = data;
+  const { nav, rootNav } = data;
   const { sidebarWidth, contentPadding } = useLayout();
   const location = useLocation();
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
@@ -32,15 +32,6 @@ const MainLayout = ({ data = {}, children, pageContext }) => {
 
   useEffect(() => {
     setIsMobileNavOpen(false);
-    if (location.pathname !== '/') {
-      scroller.scrollTo(`${location.pathname}`, {
-        duration: 600,
-        delay: 0,
-        smooth: 'easeInOutQuart',
-        containerId: 'nav',
-        offset: -5,
-      });
-    }
   }, [location.pathname]);
 
   return (
@@ -51,7 +42,11 @@ const MainLayout = ({ data = {}, children, pageContext }) => {
         customStyles={{ navLeftMargin: '150px', searchRightMargin: '30px' }}
       />
       <MobileHeader>
-        <RootNavigation nav={nav} />
+        {nav?.id === rootNav.id ? (
+          <RootNavigation nav={nav} />
+        ) : (
+          <SubNavigation nav={nav} />
+        )}
       </MobileHeader>
 
       <Layout
@@ -164,16 +159,30 @@ const MainLayout = ({ data = {}, children, pageContext }) => {
           </div>
           {sidebar && (
             <>
-              <RootNavigation
-                nav={nav}
-                css={css`
-                  overflow-x: hidden;
-                  height: calc(
-                    100vh - ${navHeaderHeight} - var(--global-header-height) -
-                      4rem
-                  );
-                `}
-              />
+              {' '}
+              {nav?.id === rootNav.id ? (
+                <RootNavigation
+                  css={css`
+                    overflow-x: hidden;
+                    height: calc(
+                      100vh - ${navHeaderHeight} - var(--global-header-height) -
+                        4rem
+                    );
+                  `}
+                  nav={nav}
+                />
+              ) : (
+                <SubNavigation
+                  css={css`
+                    overflow-x: hidden;
+                    height: calc(
+                      100vh - ${navHeaderHeight} - var(--global-header-height) -
+                        4rem
+                    );
+                  `}
+                  nav={nav}
+                />
+              )}
               <NavFooter
                 css={css`
                   width: calc(var(--sidebar-width) - 1px);
@@ -208,6 +217,9 @@ MainLayout.propTypes = {
 
 export const query = graphql`
   fragment MainLayout_query on Query {
+    rootNav: nav(slug: "/") {
+      id
+    }
     nav(slug: $slug) {
       id
       title(locale: $locale)
