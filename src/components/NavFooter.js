@@ -33,7 +33,7 @@ const NavFooter = ({ className }) => {
           text-underline-offset: 10px;
         `}
       >
-        See our 470+ quickstarts
+        See our 500+ quickstarts
         <Icon
           css={css`
             position: absolute;
