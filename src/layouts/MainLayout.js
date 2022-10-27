@@ -14,7 +14,6 @@ import {
 } from '@newrelic/gatsby-theme-newrelic';
 import { graphql } from 'gatsby';
 import { css } from '@emotion/react';
-import { scroller } from 'react-scroll';
 import SEO from '../components/SEO';
 import RootNavigation from '../components/RootNavigation';
 import SubNavigation from '../components/SubNavigation';
@@ -33,15 +32,6 @@ const MainLayout = ({ data = {}, children, pageContext }) => {
 
   useEffect(() => {
     setIsMobileNavOpen(false);
-    if (location.pathname !== '/') {
-      scroller.scrollTo(`${location.pathname}`, {
-        duration: 600,
-        delay: 0,
-        smooth: 'easeInOutQuart',
-        containerId: 'nav',
-        offset: -5,
-      });
-    }
   }, [location.pathname]);
 
   return (
