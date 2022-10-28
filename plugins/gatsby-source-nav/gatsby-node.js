@@ -15,7 +15,6 @@ exports.createSchemaCustomization = ({ actions }) => {
       url: String
       pages: [NavItem!]!
     }
-
     type NavItem @dontInfer {
       id: ID!
       title(locale: String = "en"): String!
@@ -52,9 +51,14 @@ exports.createResolvers = ({ createResolvers, createNodeId }) => {
           };
 
           switch (true) {
-            case slug.startsWith('/docs/agile-handbook') ||
-              slug.startsWith('/docs/style-guide'):
-              return createSubNav(utils);
+            case slug === '/':
+              return createRootNav(utils);
+
+            case slug.startsWith('/whats-new'):
+              return createWhatsNewNav(utils);
+
+            case slug.startsWith('/docs/release-notes'):
+              return createReleaseNotesNav(utils);
 
             default:
               return createNav(utils);
@@ -98,6 +102,25 @@ exports.onCreatePage = ({ page, actions }) => {
   }
 };
 
+const createRootNav = async ({ args, createNodeId, nodeModel }) => {
+  const { slug } = args;
+
+  const { entries } = await nodeModel.findAll({ type: 'NavYaml' });
+
+  // Convert GatsbyIterable to array to use array methods it doesn't support
+  const rootNavYamlNode = Array.from(entries.filter((node) => node.rootNav));
+  const nav = rootNavYamlNode.find((nav) => findPage(nav, slug));
+
+  if (!nav) {
+    return null;
+  }
+
+  return {
+    ...nav,
+    id: createNodeId('root'),
+  };
+};
+
 const createWhatsNewNav = async ({ createNodeId, nodeModel }) => {
   const { entries } = await nodeModel.findAll({
     type: 'MarkdownRemark',
@@ -107,7 +130,6 @@ const createWhatsNewNav = async ({ createNodeId, nodeModel }) => {
           regex: '/src/content/whats-new/',
         },
       },
-      limit: 10,
       sort: {
         fields: ['frontmatter.releaseDate', 'frontmatter.title'],
         order: ['DESC', 'ASC'],
@@ -116,7 +138,23 @@ const createWhatsNewNav = async ({ createNodeId, nodeModel }) => {
   });
 
   const posts = Array.from(entries);
-  const navItems = formatPosts(posts);
+
+  const currentYear = new Date().getFullYear();
+  const postsByYear = groupBy(posts, (post) => parseDate(post).getFullYear());
+  const thisYearsPosts = postsByYear.get(currentYear) || [];
+
+  const postsByMonth = groupBy(thisYearsPosts, (post) =>
+    parseDate(post).toLocaleString('default', { month: 'long' })
+  );
+
+  const previousYearsPosts = Array.from(postsByYear.entries()).filter(
+    ([year]) => year < currentYear
+  );
+
+  const navItems = Array.from(postsByMonth.entries())
+    .concat(previousYearsPosts)
+    .map(([key, posts]) => ({ title: key, pages: formatPosts(posts) }))
+    .filter(({ pages }) => pages.length);
 
   return {
     id: createNodeId('whats-new'),
@@ -199,85 +237,59 @@ const createReleaseNotesNav = async ({ createNodeId, nodeModel }) => {
         return {
           title: subject,
           url: landingPage && landingPage.fields.slug,
-          pages: [
-            {
-              title: subject + ' overview',
-              url: landingPage && landingPage.fields.slug,
-            },
-          ].concat(
-            formatReleaseNotePosts(filterBySubject(subject, posts)).slice(0, 10)
-          ),
+          pages: formatReleaseNotePosts(filterBySubject(subject, posts)),
         };
       })
     ),
   };
 };
 
-const createSubNav = async ({ args, createNodeId, nodeModel, locales }) => {
+const parseDate = (post) => parseISO(post.frontmatter.releaseDate);
+
+const formatPosts = (posts) =>
+  posts.map((post) => ({
+    title: post.frontmatter.title,
+    url: post.fields.slug,
+    pages: [],
+  }));
+
+const groupBy = (arr, fn) =>
+  arr.reduce((map, item) => {
+    const key = fn(item);
+
+    return map.set(key, [...(map.get(key) || []), item]);
+  }, new Map());
+
+const createNav = async ({ args, createNodeId, nodeModel, locales }) => {
   let { slug } = args;
   slug = slug
     .replace(/\/table-of-contents$/, '')
     .replace(new RegExp(`^\\/(${locales.join('|')})(?=\\/)`), '');
+
   const { entries } = await nodeModel.findAll({ type: 'NavYaml' });
 
   const allNavYamlNodes = Array.from(entries)
     .filter((node) => !node.rootNav)
     .sort((a, b) => a.title.localeCompare(b.title));
 
-  const nav =
+  let nav =
     allNavYamlNodes.find((nav) => findPage(nav, slug)) ||
     allNavYamlNodes.find((nav) => slug.includes(nav.path));
+
+  const trueNav = allNavYamlNodes.find((nav) => slug.includes(nav.path));
 
   if (!nav) {
     return null;
   }
 
-  return {
-    ...nav,
-    id: createNodeId(nav.title),
-  };
-};
-
-const formatPosts = (posts) =>
-  posts.map((post) => ({
-    title: post.frontmatter.title,
-    url: post.fields.slug,
-  }));
-
-const createNav = async ({ createNodeId, nodeModel }) => {
-  const { entries } = await nodeModel.findAll({ type: 'NavYaml' });
-
-  const allNavYamlNodes = Array.from(entries).sort((a, b) =>
-    a.title.localeCompare(b.title)
-  );
-
-  const nav = allNavYamlNodes.find((nav) => findPage(nav, '/'));
-
-  const whatsNewIndex = nav.pages.findIndex(
-    (item) => item.title === `What's new?`
-  );
-  const releaseNotesIndex = nav.pages.findIndex(
-    (item) => item.title === `Release notes`
-  );
-  const whatsNewNav = await createWhatsNewNav({ createNodeId, nodeModel });
-  const releaseNotesNav = await createReleaseNotesNav({
-    createNodeId,
-    nodeModel,
-  });
-
-  const rootNavPages = [...nav.pages];
-  rootNavPages[whatsNewIndex] = {
-    ...rootNavPages[whatsNewIndex],
-    pages: whatsNewNav.pages,
-  };
-  rootNavPages[releaseNotesIndex] = {
-    ...rootNavPages[releaseNotesIndex],
-    pages: releaseNotesNav.pages,
-  };
+  // if current is link to auto index page && its path does not
+  // belong to nav it was first found in, find nav that matches its path
+  if (trueNav && trueNav !== nav) {
+    nav = trueNav;
+  }
 
   return {
     ...nav,
-    pages: [...rootNavPages],
     id: createNodeId(nav.title),
   };
 };
