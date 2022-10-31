@@ -5,8 +5,13 @@ events:
   - PageView
   - PageAction
   - BrowserInteraction
-  - BrowserTiming
+  - MobileSession
+  - MobileHandledException
+  - MobileCrash
+  - MobileRequest
+  - MobileRequestError
   - AjaxRequest
+  - BrowserTiming
   - PageViewTiming
   - JavaScriptError
 ---
