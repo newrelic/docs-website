@@ -212,7 +212,7 @@ const EventDefinition = memo(
             }
 
             @media (max-width: 1240px) {
-              position: relative;
+              position: initial;
             }
           `}
         >
@@ -241,9 +241,6 @@ const EventDefinition = memo(
           data-swiftype-index="false"
           css={css`
             margin-bottom: 1rem;
-            @media (max-width: 1240px) {
-              margin-top: 4.1rem;
-            }
           `}
         >
           <span
