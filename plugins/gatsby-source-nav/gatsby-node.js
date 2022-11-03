@@ -15,7 +15,6 @@ exports.createSchemaCustomization = ({ actions }) => {
       url: String
       pages: [NavItem!]!
     }
-
     type NavItem @dontInfer {
       id: ID!
       title(locale: String = "en"): String!
