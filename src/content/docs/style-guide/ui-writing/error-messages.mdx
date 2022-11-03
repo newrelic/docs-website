@@ -1,0 +1,5 @@
+---
+title: Error messages
+---
+
+See the Empty State component in our component guide.

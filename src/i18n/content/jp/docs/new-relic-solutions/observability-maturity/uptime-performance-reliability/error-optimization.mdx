@@ -1,0 +1,398 @@
+---
+title: 'エラーの最適化: エラー追跡を改善する'
+tags:
+  - Observability maturity
+  - UPR
+  - 'Uptime, performance, and reliability'
+  - Error optimization
+  - Error tracking
+  - Implementation guide
+translationType: machine
+---
+
+import etoAddServiceLevel from 'images/oma-eto-add-service-level.png'
+
+import etoSetServiceLevelTypeApm from 'images/oma-eto-sl-type-apm.png'
+
+import etoSetServiceLevelTagApm from 'images/oma-eto-sl-tag-apm.png'
+
+import etoSetServiceLevelTypeBrowser from 'images/oma-eto-sl-type-browser.png'
+
+import etoSetServiceLevelTagBrowser from 'images/oma-eto-sl-tag-browser.png'
+
+import etoSetServiceLevelTypeMobileCrash from 'images/oma-eto-sl-type-mobile-crash.png'
+
+import etoSetServiceLevelTypeMobileRequestError from 'images/oma-eto-sl-type-mobile-request-error.png'
+
+import etoSetServiceLevelTypeServerless from 'images/oma-eto-sl-type-serverless.png'
+
+import etoSetServiceLevelTagServerless from 'images/oma-eto-sl-tag-serverless.png'
+
+import etoFilterServiceLevels from 'images/oma-eto-sl-filter.png'
+
+このガイドでは、エラーを最適化して、エラー率、エラー検出、カスタマー エクスペリエンスを向上させる方法について説明します。これは[、オブザーバビリティの成熟度に関するシリーズ](/docs/new-relic-solutions/observability-maturity/introduction)の一部です。
+
+## 概要 [#overview]
+
+エラー追跡は、アプリケーションのエラーとエラー率を把握することで、顧客のソフトウェア体験に影響を与える問題に対処できるようにします。
+
+このガイドの目的は、New Relic の顧客またはチームが以下を行えるようにすることです。
+
+* New Relic がエラーを理解する方法を調整して、エラー関連のメトリクスが意味のあるエラーのみを反映するようにします。
+* 時間の経過とともにエラーの発生率を下げる
+
+## 望ましい結果 [#desired-outcome]
+
+アプリケーションのエラー率と平均解決時間を短縮することで、カスタマー エクスペリエンスと信頼性を向上させます。
+
+## 主要業績評価指標 [#kpis]
+
+### ビジネスKPI
+
+顧客が経験するエラーを減らすことで、信頼性が向上します。信頼性を向上させた組織は、より高いコンバージョン率 (ユーザー ジャーニーの完了率) とより高いユーザー エンゲージメントを経験します。これにより、組織は収益目標 (商業) または社会的影響の目標 (非営利) の達成に近づきます。
+
+<CollapserGroup>
+  <Collapser
+    id="kpi-error-bus-conversion-rate"
+    title="変換速度"
+  >
+    コンバージョン率は、多くの場合、購入率または広告のクリックスルー率を示すために使用されます。この場合、コンバージョン率は完了したユーザー ジャーニーを測定するために使用されます。完了したユーザー ジャーニーには、チケットの発行、フォームの送信、ビデオの視聴、サイトへの広告のフォロー、オンラインでの購入などが含まれます。
+
+    **目標:**ユーザー ジャーニーの完了数とユーザー セッション数の比率を増やします。
+
+    **ベスト プラクティス**エラーはフロントエンド アプリケーションとバックエンド アプリケーションの両方で発生しますが、通常はフロントエンドで測定されます。[ファネル クエリ](/docs/query-your-data/nrql-new-relic-query-language/nrql-query-tutorials/funnels-evaluate-data-series-related-events)はコンバージョンの測定によく使用されますが、特定の期間の合計セッション数に対するコンバージョン数をカウントすることで、さらに簡単に測定できます。
+
+    API サービスを提供し、ビジネスにコンバージョン率が適用される場合、最初のサービスへの呼び出し数と呼び出しを取得する最終サービスへの呼び出し数を比較することで、コンバージョン率を測定できます。例えば：
+
+    ```
+    FROM Transaction SELECT 
+       (FROM Transaction select count(*) WHERE request.uri = '/api/v1/lastStep') /
+       (FROM Transaction select count(*) WHERE request.uri = '/api/v1/firstStep') AS conversionRate
+    ```
+
+    コンバージョンを改善するその他の例については、ユーザー ジャーニーの最終ステップから開始してコンバージョン率を改善する方法を説明している、 [ファネルの底部分析ガイド](/docs/new-relic-solutions/observability-maturity/customer-experience/bottom-funnel-analysis-customer-journey-guide)をご覧ください。  
+
+  </Collapser>
+
+  <Collapser
+    id="kpi-error-bus-page-views"
+    title="ページビュー数"
+  >
+    ページ ビューをカウントして、エンゲージメントの増減を測定します。
+
+    **目標:**ページビューを増やす
+
+    **ベスト プラクティス**エラーはフロントエンド アプリケーションとバックエンド アプリケーションの両方で発生しますが、通常はフロントエンドで測定されます。改善を行っている場所に関連するフロントエンド アプリケーションのページ ビューを追跡することにより、ユーザー エンゲージメントに対するエラーの改善の影響を測定します。
+
+    NRQL クエリは次のようになります。
+
+    ```
+    FROM PageView SELECT count(*) WHERE appName in ('CustomerApp1', 'CustomerApp2')
+    ```
+
+    API をサービスとして提供し、それがビジネスに関連している場合は、トランザクション数を追跡することで、ページ ビューに相当するものを追跡できます。
+
+    ```
+    FROM Transaction count(*) WHERE appName = 'apiService'
+    ```
+  </Collapser>
+
+  <Collapser
+    id="kpi-error-bus-users"
+    title="ユーザー数"
+  >
+    ページ ビューをカウントして、エンゲージメントの増減を測定します。
+
+    **目標:**サイトにアクセスするユーザー数を増やす
+
+    **ベスト プラクティス**エラーはフロントエンド アプリケーションとバックエンド アプリケーションの両方で発生しますが、通常はフロントエンドで測定されます。特定の期間にサイトにアクセスするユーザー数を追跡することにより、エラーの改善がユーザー エンゲージメントに与える影響を測定します。ユーザーを追跡するためのカスタム インストルメンテーションを追加していない場合は、代わりにセッションを追跡できます。
+
+    NRQL クエリは次のようになります。
+
+    ```
+    FROM PageView SELECT uniqueCount(userId) WHERE appName in ('CustomerApp1', 'CustomerApp2')
+    ```
+
+    また
+
+    ```
+    FROM PageView SELECT uniqueCount(session) WHERE appName in ('CustomerApp1', 'CustomerApp2')
+    ```
+
+    API をサービスとして提供し、顧客 ID を取得し、それがビジネスに関連している場合、トランザクションで顧客を追跡することにより、ユーザーに相当するものを追跡できます。
+
+    ```
+    FROM Transaction uniqueCount(customerId) WHERE appName = 'apiService'
+    ```
+  </Collapser>
+</CollapserGroup>
+
+上記のビジネス KPI は、フロントエンド アプリケーションを提供することでユーザーをサポートすることを前提としています。API を介して顧客をサポートする場合、上記の KPI をトランザクション エンティティ タイプに適合させることができる場合があります。API をサービスとして提供する一部の組織は、以下のような運用 KPI を使用して、提供するサービスの品質を高めています。
+
+### 運用 KPI
+
+<CollapserGroup>
+  <Collapser
+    id="kpi-error-operational-error-rate"
+    title="エラー率"
+  >
+    エラー率は、リクエストに対するエラーの比率です。
+
+    エラーは、300 以上の HTTP 応答コード、未処理の例外、モバイル クラッシュ、またはチームの誰かがエラーになるように構成したイベントである可能性があります。
+
+    **目標:**管理するアプリケーション全体のエラー率を減らします。
+
+    **ベスト プラクティス**これは、エラー追跡の改善に対する進捗状況を追跡するために使用する主要な KPI です。エラー率を改善するための手順には、重要でないエラーを除外することや、影響のあるエラーを解決することが含まれます。
+  </Collapser>
+
+  <Collapser
+    id="kpi-error-operational-error-mean-time"
+    title="エラーをクローズする平均時間"
+  >
+    解決までの平均時間は、問題が解決された直後に、アラートが問題を通知してから問題が解決されるまでの時間を測定します。この KPI は、 [アラートの品質管理](/docs/new-relic-solutions/observability-maturity/uptime-performance-reliability/alert-quality-management-guide#key-perf-indicators)の一部として追跡されます
+
+    **目標:**エラー率を下げることで、問題を解決するまでの平均時間を短縮します。
+
+    **ベスト プラクティス**問題が発生したときに、より迅速に検出できるように、強力なエラー プラクティスを構築します。
+
+    * 問題がエラーの急増に関連しているかどうか
+    * 問題の原因がエラーである場合、どのエラーが問題の原因であるか
+
+    [アラート品質管理ガイド](/docs/new-relic-solutions/observability-maturity/uptime-performance-reliability/alert-quality-management-guide)には、この KPI を追跡する方法が示されています。
+  </Collapser>
+</CollapserGroup>
+
+## 前提条件 [#prerequisites]
+
+### 必要なインストールと構成
+
+* APM、ブラウザ監視、モバイル監視、サーバーレス監視、または OpenTelemetry ソリューションによってエラーがキャプチャされていることを確認してください。
+* Web アプリケーションの最新の[ソース マップ](/docs/browser/new-relic-browser/browser-pro-features/upload-source-maps-api)
+* モバイル アプリケーションの最新の[記号](/docs/mobile-monitoring/new-relic-mobile-ios/configuration/ios-tvos-crash-reporting)化
+
+## 現在の状態を確立する [#establish-current-state]
+
+* [アプリケーションのワークロードを作成する](#create-workload)
+* [ワークロードのサービス レベルを作成する](#create-service-level)
+
+### アプリケーションのワークロードを作成する [#create-workload]
+
+エラーを最適化しようとしているアプリケーションとサービスのリストを定義します。エラー最適化プロセスを実施するチームは、これらのアプリとサービスに対して全責任を負い、管理する必要があります。決定したら、これらのエンティティの[ワークロード](/docs/new-relic-solutions/new-relic-one/workloads/workloads-isolate-resolve-incidents-faster)を設定します。
+
+ワークロードは、特定のチームが担当するエンティティ (アプリケーション、インスタンスなど) のグループです。それらを使用すると、何かを実行できるエンティティのみのデータを確認できます。ここで設定したワークロードに基づいて、ほとんどの作業を進めることになります。
+
+ワークロードのセットアップには数分しかかかりません。[ワークロードの説明](/docs/new-relic-solutions/new-relic-one/workloads/workloads-isolate-resolve-incidents-faster)を参照してください。
+
+すでにワークロードに精通しており、アプリケーションとサービスを複数のワークロードに分割したい場合は、そうすることができます。ワークロードごとに以下の手順に従ってください。
+
+### ワークロードのサービス レベルを作成する [#create-service-level]
+
+[サービス レベル](/docs/service-level-management/intro-slm)を使用すると、特定のエンティティ グループの[サービス レベル目標 (SLO)](https://sre.google/sre-book/service-level-objectives)を簡単に構成および表示できます。サービス レベルを使用することは、エラー管理プロジェクトの成功を監視および伝達するための 1 つの方法です。
+
+ワークロードから、\[**サービス レベル**] タブに移動します。ワークロード内の各エンティティのエラー率を測定するサービス レベルを作成します。これは、サービス レベル UI のステップ 2 で構成されます。サービス レベルごとに、WHERE 句を使用して、考慮すべきではない適切な要求またはエラーを除外します。
+
+<img
+  title="Add a service level to your workload"
+  alt="Add a service level"
+  src={etoAddServiceLevel}
+/>
+
+<br/>
+
+<br/>
+
+<CollapserGroup>
+  <Collapser
+    id="apm-service-level"
+    title="アプリケーション サービスごとにエラー レート サービス レベルを作成する"
+  >
+    サービス作成のステップ 2 では、 **Success** SLI を選択します。
+
+    <img
+      title="Set the service level type"
+      alt="Set type"
+      src={etoSetServiceLevelTypeApm}
+    />
+
+    サービス レベルにタグを追加して、すべてのエラー率を 1 つのビューで確認できるようにします。デフォルトのタグを使用できます `category:success`
+
+    <img
+      title="Create a service level tag"
+      alt="Create tag"
+      src={etoSetServiceLevelTagApm}
+    />
+  </Collapser>
+
+  <Collapser
+    id="browser-service-level"
+    title="各ブラウザ アプリケーションのエラー レート サービス レベルを作成する"
+  >
+    * サービス作成のステップ 2 では、 **Success** SLI を選択します。
+
+    <img
+      title="Set the service level type"
+      alt="Set type"
+      src={etoSetServiceLevelTypeBrowser}
+    />
+
+    * ステップ 4 では、サービス レベルにタグを追加します。デフォルトのタグを使用できます `category:success`
+
+    <img
+      title="Create a service level tag"
+      alt="Create tag"
+      src={etoSetServiceLevelTagBrowser}
+    />
+  </Collapser>
+
+  <Collapser
+    id="mobile-service-level"
+    title="モバイル アプリケーションごとにエラー レート サービス レベルを作成する"
+  >
+    モバイル クラッシュのサービス レベルを作成する
+
+    * ステップ 2 では、有効なイベントのソースとして`MobileSession`を選択します。悪い応答のソースとして`MobileCrash`を選択してください。
+
+      <img title="Set the service level type" alt="Set type" src={etoSetServiceLevelTypeMobileCrash}/>
+
+    * ステップ 4 では、サービス レベルにタグを追加します。デフォルトのタグ`category:success`を使用できます。
+
+    モバイル リクエスト エラーのサービス レベルを作成する
+
+    * ステップ 2 では、有効なイベントのソースとして`MobileRequest`を選択します。悪い応答のソースとして`MobileRequestError`を選択してください。
+
+      <img title="Set the service level type" alt="Set type" src={etoSetServiceLevelTypeMobileRequestError}/>
+
+    * ステップ 4 では、サービス レベルにタグを追加します。デフォルトのタグ`category:success`を使用できます。
+  </Collapser>
+
+  <Collapser
+    id="serverless-service-level"
+    title="各サーバーレス アプリケーションのエラー率サービス レベルを作成する"
+  >
+    [サーバーレス監視](/docs/serverless-function-monitoring/aws-lambda-monitoring/get-started/monitoring-aws-lambda-serverless-monitoring)と統合された AWS Lambda 関数のエラー率サービス レベルを作成します。
+
+    * ステップ 1 では、エンティティ タイプとして`Lambda function`を選択します
+    * ステップ 2 では、有効なイベントの場合は`AWSLambdaInvocation`を選択し、不適切な応答の場合は`AwsLambdaInvocationError`を選択します
+
+    <img
+      title="Set the service level type"
+      alt="Set type"
+      src={etoSetServiceLevelTypeServerless}
+    />
+
+    * ステップ 4 では、サービス レベルにタグを追加します。デフォルトのタグを使用できます `category:success`
+
+    <img
+      title="Create a service level tag"
+      alt="Create tag"
+      src={etoSetServiceLevelTagBrowser}
+    />
+
+    現在、サービス レベルは、AWS Lambda [の New Relic サーバーレス モニタリングを](/docs/serverless-function-monitoring/aws-lambda-monitoring/get-started/monitoring-aws-lambda-serverless-monitoring)使用する AWS Lambda 関数のエラー率のみをサポートしています。次のクエリを使用して、サービス レベル外のエラー率を取得できます。
+
+    ```
+    SELECT sum(provider.errors.Sum)/sum(provider.invocations.Sum)*100 FROM ServerlessSample
+    ```
+  </Collapser>
+
+  <Collapser
+    id="otel-service-level"
+    title="開いているテレメトリ アプリケーションごとにエラー レート サービス レベルを作成する"
+  >
+    * ステップ 1 で`Service - OpenTelemetry`を選択します。
+    * ステップ 2 の有効なイベントの場合、適切なイベント タイプとして`Span`エンティティ タイプを使用します。以下を WHERE 句に追加します。 `(span.kind LIKE 'server' OR span.kind LIKE 'consumer' OR kind LIKE 'server' OR kind LIKE 'consumer')`
+    * ステップ 2 の無効なイベントには、 `Span`エンティティ タイプと`Repeat WHERE clause`オプションを使用します。以下を WHERE 句に追加して、不適切な応答を検出します。 `otel.status_code = 'ERROR'`
+    * ステップ 4 では、サービス レベルにタグを追加します。デフォルトのタグ`category:success`を使用できます。
+  </Collapser>
+</CollapserGroup>
+
+### サービス レベルを使用して、現在のエラー率に対する進捗状況を追跡します
+
+上記のプロセスを使用して、現在のエラー率に基づいてサービス レベルを作成しました。
+
+* SLO 列には、ベースラインを使用して選択した目標エラー率が表示されます。
+* 運用ビュー モードでは、ターゲットに対する最近のパフォーマンスが表示されます。
+* 期間表示モードでは、より長い期間にわたってターゲットに対するパフォーマンスが表示されます。
+* 改善が行われると、エラー率の目標を更新できます。
+
+<img
+  title="Create a service level tag"
+  alt="Create tag"
+  src={etoFilterServiceLevels}
+/>
+
+## 改善プロセス [#improvement-process]
+
+* [重要でないエラーを特定する](#create-workload)
+* [エラー率から重要でないエラーを取り除く](#create-service-level)
+* [エラー率アラートを設定する](#error-rate-alerts)
+* [エラーヒーロー名簿を確立する](#error-hero)
+* [エラー インボックスを使用してエラーをトリアージする](#errors-inbox)
+* [エラーを JIRA にリンクする](#jira)
+* [エラーを Slack にリンクする](#slack)
+* [CodeStream を使用する](#codestream)
+
+### 重要でないエラーを特定する [#inconsequential-errors]
+
+最も快適な方法でエラーを調べてください。以下を使用してこれを行うことができます。
+
+* APM、モバイル監視、JavaScript エラー、サーバーレス監視、および OpenTelemetry のすぐに使えるビュー
+* ワークロード用にフィルター処理された受信トレイのエラー
+* `TransactionError` 、 `JavaScriptError` 、 `MobileRequestError` 、 `AwsLambdaInvocationError` 、 `Span`
+
+### エラー率から重要でないエラーを取り除く [#remove-inconsequential-errors]
+
+重要でないエラーは、次の 2 つの方法のいずれかで削除できます。
+
+* [構成](/docs/apm/agents/manage-apm-agents/agent-data/manage-errors-apm-collect-ignore-or-mark-expected/#ignore)(APM のみ) または[ドロップ ルール](/docs/data-apis/manage-data/drop-data-using-nerdgraph)を使用して、それらの取り込みを停止します。このアプローチは、キャプチャする必要がないことが確実なエラーに対してのみ機能します。このアプローチの追加の利点は、ノイズの多いエラーの取り込みが減少することです。
+* NRQL を使用して、サービス レベルの計算からエラーを除外します。これを行うには、不適切な応答の WHERE 句フィルターに追加します。これによりエラー率が大幅に改善される場合は、必ずサービス レベルを再ベースしてください。そうすることで、エラー アラートの精度が向上します。
+
+### エラー率アラートを設定する [#error-rate-alerts]
+
+[ワークロードのサービス レベルの作成](#create-service-level)で設定した各サービス レベルを確認し、エラー率が許容範囲を超えた場合にチームに通知するアラートを作成します。
+
+### エラーヒーロー名簿を確立する [#error-hero]
+
+アラートは、現在のレベルのエラー パフォーマンスを満たしているかどうかを知らせますが、改善には役立ちません。顧客の感情を改善するには、チームのメンバーが毎日エラーを確認するプロセスを作成します。エラー ヒーローは次のことを行う必要があります。
+
+* 最初は、スクロールせずに見える範囲で発生するエラーに焦点を当てます。毎日のレビュー プロセスの場合、これは、過去 24 時間以内にのみ発生したエラーに焦点を当てることを意味します。
+* [エラー インボックス](/docs/errors-inbox/errors-inbox)を使用してエラーをトリアージする
+
+### エラー インボックスを使用してエラーをトリアージする [#errors-inbox]
+
+エラー インボックスは、すべてのエラーが顧客に影響を与える前に、プロアクティブに検出、トリアージ、アクションを実行するための単一の場所です。同様のエラーはグループ化され、作業の重複を回避し、発生回数によってエラーに優先順位を付けることができます。
+
+エラー インボックスにアクセスするときは、チームに関連するエラーのみが表示されるように、必ずワークロードを選択してください。
+
+チームとしてエラー インボックスを確認する時間を定期的に取っておきます。多数のエラー グループを処理する必要があるため、まず、毎日または週に数回が理にかなっています。その後、毎週または隔週がより適切な場合があります。
+
+トレースやログなどの詳細情報を取得する必要がある場合は、エラーの詳細画面をクリックして、エラーを 1 つずつ確認します。これは、エラーの原因を指摘するか、さらなる調査の開始点を提供します。
+
+簡単な議論の後、エラーグループを次のいずれかとしてマークする立場になるかもしれません:
+
+* 無視: エラーが問題にならない場合に使用します。これにより、その時点から受信トレイ ビューからエラー グループが非表示になります。
+* 解決済み: エラーが既知の問題の結果であり、現在は修正されている場合に使用します。これにより、再発しない限り、リストからエラー グループが削除されます。再発する場合は、以前に実装した修正を再考する必要があります。
+
+注: エラー インボックスを介してエラーを無視または解決しても、エラー率メトリックへのカウントは停止しません。
+
+上記のステータスのいずれも適切でない場合は、エラーを適切なチーム メンバーに割り当てて、さらなる調査と解決を依頼してください。そのチーム メンバーは、自分の時間にさらに調査を実施し、エラー グループのメモを進捗状況で更新したり、メモ セクションを介して他のチーム メンバーに助けを求めたりすることができます。
+
+次のトリアージ ミーティングで、これらのエラー グループに再度アクセスして、解決済みとしてマークできるかどうかを確認できます。時間が経つにつれて、新しいエラー グループの数が減り、KPI にプラスの動きが見られるようになるはずです。
+
+### エラーを JIRA にリンクする [#jira]
+
+特殊なケースや複雑なエラーが発生すると、他のチームに助けを求める必要があることに気付くかもしれません。エラー インボックスを Jira にリンクすると、これに役立つ場合があります。[エラー受信トレイを Jira](/docs/errors-inbox/error-external-services#jira)に接続して、エラー グループに接続されたチケットを簡単に作成できるようにします。Jira テンプレートを介して Jira に送信される情報を制御できます。
+
+### エラーを Slack にリンクする [#slack]
+
+エラー インボックスに届くエラーの速度が低下するにつれて、定期的なチーム セッションはもはや有効な時間の使い方ではない可能性があります。別の方法として、[エラー インボックスを Slack にリンク](/docs/errors-inbox/error-external-services#slack)し、a) チャネルを監視し、発生したエラー グループを解決/無視/割り当てする担当者をローテーションで指名するか、b) チームがエラー グループに積極的に対応できるようにする、のいずれかを行います。
+
+### CodeStream を使用する [#codestream]
+
+エラー グループの多くは、解決するためにコードの変更が必要になります。[CodeStream を New Relic アカウント](/docs/codestream/start-here/what-is-codestream)に接続して、問題のあるコードを IDE で直接開き、コードを直接調査します。開発者がレビューできるように、コードの特定の行にメモやコメントを残すこともできます。
+
+CodeStream を使用した New Relic は、バージョン番号の確認や SHA のコミットなど、エラー グループに関するより多くのコンテキストを提供します。さらに、コードの問題を特定、議論、および修正するための一元化された場所としてエラー インボックスを使用すると、コードの問題に効率的に対応し、作業の重複を避けることができます。
+
+## 価値の実現 [#value-realization]
+
+練習を進めながら、エラー率を毎週確認してください。エラー率が低下するにつれて、解決までの平均時間が短縮され、顧客満足度が向上するはずです。
