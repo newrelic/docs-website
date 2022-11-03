@@ -1,0 +1,231 @@
+---
+title: 'ストリーミング データ エクスポート: データを AWS Kinesis Firehose に送信する'
+tags:
+  - APIs
+  - NerdGraph
+metaDescription: 'With the New Relic streaming export feature, you can send your data as its ingested to New Relic to an AWS Kinesis firehose.'
+translationType: machine
+---
+
+[Data Plus](/docs/accounts/accounts-billing/new-relic-one-pricing-billing/data-ingest-billing/#data-plus)で利用できるストリーミング エクスポート機能を使用すると、New Relic に取り込まれたデータを AWS Kinesis firehose に送信できます。[NerdGraph](/docs/apis/nerdgraph/get-started/introduction-new-relic-nerdgraph)を使用してストリーミング ルールを作成および更新する方法と、既存のルールを表示する方法について説明します。これらの呼び出しを行うに[は、NerdGraph エクスプローラー](/docs/apis/nerdgraph/get-started/nerdgraph-explorer)を使用できます。
+
+## ストリーミング エクスポートとは [#definition]
+
+データが New Relic 組織に取り込まれると、ストリーミング エクスポート機能がそのデータを AWS Kinesis firehose に送信します。エクスポートする New Relic データの種類を管理する[NRQL](/docs/query-your-data/nrql-new-relic-query-language/get-started/introduction-nrql-new-relics-query-language)を使用して定義されたカスタム ルールを設定できます。
+
+ストリーミング エクスポートを使用できる例:
+
+* データレイクにデータを入力するには
+* AI/ML トレーニングの強化
+* コンプライアンス、法律、またはセキュリティ上の理由による長期保存
+
+ストリーミング エクスポート ルールはいつでも無効または有効にできます。ただし、ストリーミング エクスポートは現在取り込まれたデータのみを送信することに注意してください。つまり、ストリーミング エクスポートを無効にして再度有効にすると、オフのときに取り込まれたデータはこの機能では送信されません。過去のデータをエクスポートするには、 [Historical data export](/docs/apis/nerdgraph/examples/nerdgraph-historical-data-export)を使用できます。
+
+## 要件と限界 [#requirements]
+
+パーミッション関連の要件。
+
+* [Data Plus](/docs/accounts/accounts-billing/new-relic-one-pricing-billing/data-ingest-billing/#data-plus)オプション付きの Pro または Enterprise エディション
+* ストリーミング ルールを作成または管理するには: [組織設定](/docs/accounts/accounts-billing/new-relic-one-user-management/user-management-concepts/#admin-settings)を持つ[コアまたはフル プラットフォーム ユーザー](/docs/accounts/accounts-billing/new-relic-one-user-management/user-type)である必要があります
+
+NRQL 要件:
+
+* 集計のないフラットなクエリである必要があります。たとえば、 `SELECT *`または`SELECT column1, column2`フォームがサポートされています。
+* サブクエリを除く、WHERE 句のすべてに適用可能
+* クエリに`FACET`句、 `COMPARE WITH` 、またはを含めることはできません `LOOKUP`
+* ネストされたクエリはサポートされていません
+* [メトリック タイムスライス データ](/docs/data-apis/understand-data/new-relic-data-types/#timeslice-data)ではなく[、NRDB に格納されたデータ型](/docs/data-apis/understand-data/new-relic-data-types/#timeslice-data)をサポート
+
+## 重要な分野 [#fields]
+
+これらの呼び出しのほとんどは、AWS アカウントに関連するいくつかのフィールドを使用します。
+
+* `awsAccountId`: [AWS アカウント ID](https://docs.aws.amazon.com/IAM/latest/UserGuide/console_account-alias.html) 。値の例: `10000000000`
+* `deliveryStreamName`: [Kinesis ストリーム名](https://docs.aws.amazon.com/kinesis/latest/APIReference/API_CreateStream.html)。例: `firehose-test-stream` .
+* `region`:[AWS リージョン](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/using-regions-availability-zones.html)。例： `us-east-1`
+* `role`: Kinesis Firehose の[AWS IAM ロール](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles.html)。これは常に`firehose-role`です。
+
+## ストリームの作成方法 [#create-stream]
+
+まず、エクスポートするデータを決定します。次に、NerdGraph 呼び出しを使用して、NRQL を使用して必要なストリーミング ルールを作成します。いくつかの例を挙げます。
+
+### ストリームを作成する [#create-stream]
+
+新しいストリーミング ルールを作成するときは、次のすべてのフィールドが必要になります。ストリーミング ルールを作成する例を次に示します。
+
+```graphql
+mutation {
+  streamingExportCreateRule(
+    accountId: <var>NR_ACCOUNT_ID</var>, 
+    ruleParameters: {
+      description: "<var>RULE_DESCRIPTION</var>", 
+      name: "<var>RULE_NAME</var>", 
+      nrql: "<var>SELECT * FROM NodeStatus</var>"
+    }, 
+    awsParameters: {
+      awsAccountId: "<var>AWS_ACCOUNT_ID</var>", 
+      deliveryStreamName: "<var>FIREHOSE_STREAM_NAME</var>", 
+      region: "<var>AWS_REGION</var>", 
+      role: "firehose-role"
+    }
+  ) {
+    id
+    status
+  }
+}
+```
+
+ルール ID とステータスを含む結果がすぐに得られます。ステータスは`CREATION_IN_PROGRESS`として表示されます。ルール ID を使用して、ルールが正常に作成されたかどうかを確認できます。
+
+AWS ポリシーの検証に時間がかかるため、ルールの作成が完了するまでに最大 6 分かかる場合があります。
+
+ルールの登録が完了する前に、別のミューテーション アクション ( `Enable` 、 `Disable` 、または`Update`など) を開始することはできません。これは、ルールが作成プロセスに対してロックされているためです。
+
+`Delete`はいつでも使用できます。
+
+ルールの登録プロセスが完了する前に別のミューテーション アクションを試みると、「エクスポート ルールは現在、別の要求によって更新されています。しばらく待ってからもう一度お試しください。」のようなメッセージが表示されます。
+
+ルールの作成に必要な約 6 分以内であれば、いつでも作成を終了してステータスを変更できます。ステータスは`ENABLED` 、 `DISABLED` 、または`CREATION_FAILED`に変わります。これらの値の詳細:
+
+* `ENABLED` ルールが正常に作成され、データのストリーミングが開始されたことを意味します。
+* `CREATION_FAILED` ルールの作成に失敗したことを意味します。これは、AWS ポリシーの検証など、いくつかの理由で発生する可能性があります。
+* `DISABLED` は、ルールが作成されたものの、フィルタ ストリームの制限に達した、またはフィルタ ストリーム ルールの作成に失敗したなどの理由により、まだ有効になっていないことを意味します。6 分経ってもステータスが`CREATION_IN_PROGRESS`のままの場合は、サービスのシステム エラーが原因でルールの作成に失敗したことを意味します。ルールを削除して、新しいルールをもう一度作成してみてください。
+
+ストリーミング ルールが作成されると、それを[表示できます](#view-stream)。
+
+### ストリームを更新する [#update-stream]
+
+新しいストリーミング ルールを更新するときは、次のすべてのフィールドが必要になります。ストリーミング ルールを更新する例を次に示します。
+
+```graphql
+mutation {
+  streamingExportUpdateRule(
+    id: <var>NEW_RELIC_ACCOUNT_ID</var>, 
+    ruleParameters: {
+      description: "<var>RULE_DESCRIPTION</var>", 
+      name: "<var>RULE_NAME</var>", 
+      nrql: "<var>YOUR_NRQL_QUERY</var>"
+    }, 
+    awsParameters: {
+      awsAccountId: "<var>AWS_ACCOUNT_ID</var>", 
+      deliveryStreamName: "<var>FIREHOSE_STREAM_NAME</var>", 
+      region: "<var>AWS_REGION</var>", 
+      role: "firehose-role"
+    }
+  ) {
+    id
+    status
+  }
+}
+```
+
+更新中は、メッセージ フィールドに次のメッセージが表示されます。後でもう一度確認してください。」完全に更新されるまで最大 6 分かかる場合があります。
+
+ユーザーは、 `streamingRule`を呼び出してルールを取得することにより、ルールが更新されたかどうかを確認できます。ルールが更新されている間、ルールはロックされ、他のミューテーション アクションはルールに対して実行できません。同じルールで別のミューテーション アクションを実行しようとすると、「エクスポート ルールは現在、別のリクエストによって更新されています。しばらく待ってからもう一度お試しください」というメッセージが表示されます。ユーザーは、削除されたルールを除くすべてのステータスのルールを更新できます。
+
+### ストリームを無効にする [#disable-stream]
+
+ルールを無効にするには、ルール ID を指定するだけです。ストリームを無効にする例を次に示します。
+
+```
+mutation {
+  streamingExportDisableRule(id: <var>RULE_ID</var>) {
+    id
+    status
+    message
+  }
+}
+```
+
+ルールのステータスが`ENABLED`の場合にのみ、ルールを無効にできます。別の状態にあるルールを無効にしようとすると、「ステータスが許可されていないため、エクスポート ルールを有効または無効にすることはできません」というエラー メッセージが返されます。別のミューテーションが行われたためにルールがロックされている場合、ルールを無効にすることはできません。
+
+### ストリームを有効にする [#enable-stream]
+
+ルールを有効にする場合は、ルール ID のみを指定する必要があります。ストリームを有効にする例を次に示します。
+
+```
+mutation {
+  streamingExportEnableRule(id: <var>RULE_ID</var>) {
+    id
+    status
+    message
+  }
+}
+```
+
+ステータスが`DISABLED`の場合にのみルールを有効にできます。別の状態にあるルールを有効にしようとすると、「ステータスが許可されていないため、エクスポート ルールを有効または無効にすることはできません」のようなエラー メッセージが返されます。別のミューテーションが行われたためにルールがロックされている場合、ルールを有効にすることはできません。
+
+### ストリームを削除する [#delete-stream]
+
+ストリームを削除するには、ルール ID を指定する必要があります。次に例を示します。
+
+```
+mutation {
+  streamingExportDeleteRule(id: <var>RULE_ID</var>) {
+    id
+    ...
+  }
+}
+```
+
+削除は、まだ削除されていない限り、どのステータスのルールでも実行できます。ルールが削除されると、再度有効にすることはできません。ルールは、ルール ID を使用して steamingRule API を呼び出すことにより、削除後 24 時間以内に引き続き表示できます。24 時間が経過すると、nerdgraph でルールを検索できなくなります。
+
+## ストリームを表示 [#view-stream]
+
+アカウント ID とルール ID を照会して、特定のストリーム ルールに関する情報を照会できます。次に例を示します。
+
+```graphql
+{
+  actor {
+    account(id: <var>NR_ACCOUNT_ID</var>) {
+      streamingExport {
+        streamingRule(id: "<var>RULE_ID</var>") {
+          aws {
+            awsAccountId
+            deliveryStreamName
+            region
+            role
+          }
+          createdAt
+          description
+          id
+          message
+          name
+          nrql
+          status
+          updatedAt
+        }
+      }
+    }
+  }
+}
+```
+
+既存のすべてのストリームを照会することもできます。次に例を示します。
+
+```graphql
+{
+  actor {
+    account(id: <var>NR_ACCOUNT_ID</var>) {
+      streamingExport {
+        streamingRules {
+          aws {
+            awsAccountId
+            region
+            deliveryStreamName
+            role
+          }
+          createdAt
+          description
+          id
+          message
+          name
+          nrql
+          status
+          updatedAt
+        }
+      }
+    }
+  }
+}
+```
