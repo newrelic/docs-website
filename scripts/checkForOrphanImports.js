@@ -31,7 +31,24 @@ const getAllImageImports = (path) => {
         return null;
       }
       const textfile = fs.readFileSync(file, 'utf-8');
-      const imports = textfile.match(importRegex)?.map((importStatement) => {
+      const fullImportStatements = textfile.match(importRegex);
+      if (fullImportStatements?.length > 1) {
+        const lines = textfile.split('\n');
+        for (let i = 0; i < fullImportStatements.length - 1; i++) {
+          const importLine1 = lines.indexOf(fullImportStatements[i]);
+          const importLine2 = lines.indexOf(fullImportStatements[i + 1]);
+          if (importLine2 - importLine1 <= 1) {
+            console.log(
+              `\n The imports on lines \x1b[31m${file}:${
+                importLine1 + 1
+              }\x1b[0m and \x1b[31m${
+                importLine2 + 1
+              }\x1b[0m do not have adequate spacing.`
+            );
+          }
+        }
+      }
+      const imports = fullImportStatements?.map((importStatement) => {
         return importStatement.split(/'|"/)[0].split(' ')[1];
       });
       const imgSrcs = textfile.match(imgSrcRegex)?.map((source) => {
@@ -45,7 +62,7 @@ const getAllImageImports = (path) => {
         }
       });
 
-      return textfile.match(importRegex);
+      return fullImportStatements;
     })
     .filter(Boolean);
 
