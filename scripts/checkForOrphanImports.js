@@ -43,7 +43,7 @@ const getAllImageImports = (path) => {
                 importLine1 + 1
               }\x1b[0m and \x1b[31m${
                 importLine2 + 1
-              }\x1b[0m do not have adequate spacing`
+              }\x1b[0m need a new line between them`
             );
           }
         }
