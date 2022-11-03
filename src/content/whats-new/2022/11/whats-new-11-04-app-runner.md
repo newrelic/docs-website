@@ -15,7 +15,7 @@ New Relic now integrates with App Runner and you can use this to monitor and opt
 
 In this example dashboard provided in the [IO QuickStart](https://newrelic.com/instant-observability/aws-apprunner), you can see the data needed to monitor the health of your App Runner deployment, including latency, traffic, errors, and utilization.
 
-From this dashboard, you can see whether **RequestLatency** is associated with **CPUUtilization**, **MemoryUtilization**, or change in the **total number of Requests**. For example, suppose you determine latency issues are associated with utilization. In that case, it's possible that your resources are underprovisioned, and auto-scaling settings or CPU units reserved need adjusting to prevent a degraded customer experience.
+From this dashboard, you can see whether **RequestLatency** is associated with **CPUUtilization**, **MemoryUtilization**, or change in the **total number of Requests**. For example, suppose you determine latency issues are associated with utilization. In that case, it's possible that your resources are under-provisioned, and that auto-scaling settings or reserved CPU units need adjusting to prevent a degraded customer experience.
 
 Conversely, if **CPUUtilization** or **MemoryUtilization** is much lower than the threshold consistently, you may consider scaling back your provisioned resources to be more cost-effective.
 
