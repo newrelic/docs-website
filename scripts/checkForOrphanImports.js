@@ -43,12 +43,17 @@ const getAllImageImports = (path) => {
                 importLine1 + 1
               }\x1b[0m and \x1b[31m${
                 importLine2 + 1
-              }\x1b[0m do not have adequate spacing.`
+              }\x1b[0m do not have adequate spacing`
             );
           }
         }
       }
       const imports = fullImportStatements?.map((importStatement) => {
+        if (importStatement.trim().split(' ').length !== 4) {
+          console.log(
+            `\n The import \x1b[31m${importStatement}\x1b[0m in \x1b[31m${file}\x1b[0m has incorrect spacing`
+          );
+        }
         return importStatement.split(/'|"/)[0].split(' ')[1];
       });
       const imgSrcs = textfile.match(imgSrcRegex)?.map((source) => {
