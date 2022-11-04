@@ -30,7 +30,7 @@ Amazon Linux 2022 instance instrumented with the New Relic infrastructure monito
 
 If you haven't already integrated your New Relic account with AWS, use guided install to deploy the recommended [Amazon CloudWatch Metric Streams integration](https://newrelic.com/blog/how-to-relic/cloudwatch-metric-streams-insights). Integrating with AWS will stream Amazon CloudWatch telemetry data to your New Relic account and enhance your full-stack observability. This integration allows you to correlate the AWS services you use with your cloud-based infrastructure and applications and your end-user experience.
 
-Next, make sure to run the [Amazon EC2](https://newrelic.com/instant-observability/aws-ec2 quickstart) to add an Amazon EC2 dashboard and `High CPU Utilization` alert.
+Next, make sure to run the [Amazon EC2 quickstart](https://newrelic.com/instant-observability/aws-ec2) to add an Amazon EC2 dashboard and `High CPU Utilization` alert.
 
 **One last item**
 
