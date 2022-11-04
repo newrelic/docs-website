@@ -11,13 +11,13 @@ redirects:
   - /docs/auto-telemetry-pixie/custom-image-registry
 ---
 
-If your environment requires use of a custom Docker image registry, Pixie supports configuration for this. During install, use Helm to point the Pixie containers at your custom repositories.
+If your environment requires use of a custom Docker image registry, Pixie supports configuration for this. During install, use Helm to point the Pixie containers at your custom repositories. Please also refer to the process described in Pixie documentation for [https://docs.pixielabs.ai/reference/admin/deploy-options/#custom-image-registry](setting up the custom images).
 
 ## Use a custom Docker image registry [#use-custom-registry]
 
 If you want to use a custom registry, add the following parameters to your Helm chart during installation:
 
-* `registry` - use to identify the namespaces that you want to exclude from sending observability data to New Relic. If empty, data for all namespaces is sent to New Relic. For example:
+* `registry` - use to identify the custom image registry. For example:
 
   ```
   --set pixie-chart.registry="[YOUR REGISTRY URL]"
