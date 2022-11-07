@@ -27,6 +27,18 @@ const crazyEgg = (location) => {
   }
 };
 
+const isStyleGuidePage = (url) => {
+  return url.includes('docs/style-guide');
+};
+
+const isAgileHandbookPage = (url) => {
+  return url.includes('docs/agile-handbook');
+};
+
+const isExcludedFromSwiftype = (url) => {
+  return isStyleGuidePage(url) || isAgileHandbookPage(url);
+};
+
 const DocsSiteSeo = ({
   location,
   title,
@@ -77,6 +89,10 @@ const DocsSiteSeo = ({
         data-type="string"
         content={dataSource}
       />
+    )}
+
+    {isExcludedFromSwiftype(location.pathname) && (
+      <meta name="st:robots" content="noindex, nofollow" />
     )}
 
     {(description || title) && (

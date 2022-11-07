@@ -546,7 +546,7 @@ module.exports = {
         feedback: {
           environment: process.env.ENVIRONMENT || 'staging',
           reCaptchaToken:
-            process.env.RECAPTCHA_TOKEN ||
+            process.env.FEEDBACK_RECAPTCHA_TOKEN ||
             '6Lfn8wUiAAAAANBY-ZtKg4V9b4rdGZtJuAng62jo',
         },
       },
