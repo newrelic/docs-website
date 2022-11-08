@@ -3,41 +3,19 @@ import PropTypes from 'prop-types';
 import { NavItem } from '@newrelic/gatsby-theme-newrelic';
 import { css } from '@emotion/react';
 
-const SubNavigation = ({ nav, className }) => {
+const SubNavigation = ({ nav }) => {
   return (
     <>
       {nav && (
         <div
           css={css`
-            height: 100%;
-            overflow: auto;
-            margin: 16px 0;
-            padding-bottom: 2rem;
-            -ms-overflow-style: none;
-            scrollbar-width: none;
-            &::-webkit-scrollbar {
-              display: none;
-            }
-            span,
-            svg {
-              color: #afe2e3;
-            }
+            margin-top: 1rem;
           `}
-          className={className}
         >
-          <p
-            css={css`
-              color: #1dcad3;
-              margin: 0;
-              font-size: 14px;
-              margin-top: 1rem;
-            `}
-          >
-            {nav.title.toUpperCase()}
-          </p>
+          <h2>{nav.title}</h2>
           <nav>
             {nav.pages.map((page) => (
-              <NavItem key={page.title} name={`${page.url}/`} page={page} />
+              <NavItem key={page.title} page={page} />
             ))}
           </nav>
         </div>

@@ -295,5 +295,4 @@ module.exports = {
   mark: (h, node) => h(node, 'mark', {}, [u('text', toString(node))]),
   figcaption: (h, node) =>
     h(node, 'div', { className: ['meta'] }, all(h, node)),
-  InstallFeedback: () => null,
 };

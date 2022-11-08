@@ -50,13 +50,6 @@ const ReleaseNoteLandingPage = ({ data, pageContext, location }) => {
 
   const title = `${subject} release notes`;
 
-  if (typeof window !== 'undefined' && typeof newrelic === 'object') {
-    window.newrelic.setCustomAttribute(
-      'pageType',
-      'Template/ReleaseNoteLanding'
-    );
-  }
-
   return (
     <>
       <SEO

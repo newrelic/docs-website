@@ -8,7 +8,7 @@ import {
   ContributingGuidelines,
   Layout,
   RelatedResources,
-  ComplexFeedback,
+  SimpleFeedback,
   TableOfContents,
 } from '@newrelic/gatsby-theme-newrelic';
 import MachineTranslationCallout from '../components/MachineTranslationCallout';
@@ -54,10 +54,6 @@ const BasicDoc = ({ data, location, pageContext }) => {
     dataSource,
   } = frontmatter;
 
-  if (typeof window !== 'undefined' && typeof newrelic === 'object') {
-    window.newrelic.setCustomAttribute('pageType', 'Template/DocPage');
-  }
-
   return (
     <>
       <SEO
@@ -74,7 +70,7 @@ const BasicDoc = ({ data, location, pageContext }) => {
           display: grid;
           grid-template-areas:
             'mt-disclaimer mt-disclaimer'
-            'page-title page-tools'
+            'page-title page-title'
             'content page-tools';
           grid-template-columns: minmax(0, 1fr) 320px;
           grid-column-gap: 2rem;
@@ -110,13 +106,13 @@ const BasicDoc = ({ data, location, pageContext }) => {
             }
           `}
         >
+          <SimpleFeedback pageTitle={title} />
           <ContributingGuidelines
             pageTitle={title}
             fileRelativePath={fileRelativePath}
             issueLabels={['feedback', 'feedback-issue']}
           />
           <TableOfContents headings={headings} />
-          <ComplexFeedback pageTitle={title} />
           <RelatedResources
             resources={relatedResources}
             css={css`

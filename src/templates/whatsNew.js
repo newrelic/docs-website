@@ -33,10 +33,6 @@ const WhatsNewTemplate = ({ data, location, pageContext }) => {
 
   const { disableSwiftype } = pageContext;
 
-  if (typeof window !== 'undefined' && typeof newrelic === 'object') {
-    window.newrelic.setCustomAttribute('pageType', 'Template/WhatsNew');
-  }
-
   return (
     <>
       <SEO

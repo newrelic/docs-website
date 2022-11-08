@@ -112,14 +112,6 @@ module.exports = {
       },
     },
     {
-      resolve: 'gatsby-source-filesystem',
-      options: {
-        name: 'install-docs',
-        path: `${__dirname}/src/install/`,
-      },
-    },
-    'gatsby-transformer-xml',
-    {
       resolve: 'gatsby-transformer-json',
       options: {
         // If we need to source json files other than the i18n/nav, we should
@@ -231,12 +223,6 @@ module.exports = {
       resolve: `gatsby-source-filesystem`,
       options: {
         path: `./src/nav/`,
-      },
-    },
-    {
-      resolve: `gatsby-source-filesystem`,
-      options: {
-        path: `./src/install/config/`,
       },
     },
     'gatsby-plugin-generate-doc-json',
@@ -397,7 +383,6 @@ module.exports = {
       },
     },
     'gatsby-source-nav',
-    'gatsby-source-install-config',
     'gatsby-plugin-meta-redirect',
     {
       resolve: 'gatsby-plugin-gatsby-cloud',
@@ -435,7 +420,6 @@ module.exports = {
           maxWidth: '1600px',
           component: require.resolve('./src/layouts'),
           mobileBreakpoint: '760px',
-          sidebarWidth: '340px',
         },
         i18n: {
           translationsPath: `${__dirname}/src/i18n/translations`,
@@ -458,7 +442,6 @@ module.exports = {
             'elixir',
             'erlang',
             'gettext',
-            'ini',
             'pascal',
             'parser',
             'nginx',
@@ -471,7 +454,6 @@ module.exports = {
             'mustache',
             'powershell',
             'promql',
-            'properties',
             'protobuf',
             'puppet',
             'jsx',
@@ -508,21 +490,27 @@ module.exports = {
           debug: false,
         },
         newrelic: {
-          config: {
-            instrumentationType: 'proAndSPA',
-            accountId: '10956800',
-            trustKey: '1',
-            agentID:
-              process.env.ENVIRONMENT === 'production'
-                ? '35094662'
-                : '35094418',
-            licenseKey: 'NRJS-649173eb1a7b28cd6ab',
-            applicationID:
-              process.env.ENVIRONMENT === 'production'
-                ? '35094662'
-                : '35094418',
-            beacon: 'staging-bam-cell.nr-data.net',
-            errorBeacon: 'staging-bam-cell.nr-data.net',
+          configs: {
+            development: {
+              instrumentationType: 'proAndSPA',
+              accountId: '10956800',
+              trustKey: '1',
+              agentID: '35094418',
+              licenseKey: 'NRJS-649173eb1a7b28cd6ab',
+              applicationID: '35094418',
+              beacon: 'staging-bam-cell.nr-data.net',
+              errorBeacon: 'staging-bam-cell.nr-data.net',
+            },
+            production: {
+              instrumentationType: 'proAndSPA',
+              accountId: '10956800',
+              trustKey: '1',
+              agentID: '35094662',
+              licenseKey: 'NRJS-649173eb1a7b28cd6ab',
+              applicationID: '35094662',
+              beacon: 'staging-bam-cell.nr-data.net',
+              errorBeacon: 'staging-bam-cell.nr-data.net',
+            },
           },
         },
         tessen: {
@@ -542,12 +530,6 @@ module.exports = {
         },
         shouldUpdateScroll: {
           routes: ['/attribute-dictionary'],
-        },
-        feedback: {
-          environment: process.env.ENVIRONMENT || 'staging',
-          reCaptchaToken:
-            process.env.RECAPTCHA_TOKEN ||
-            '6Lfn8wUiAAAAANBY-ZtKg4V9b4rdGZtJuAng62jo',
         },
       },
     },

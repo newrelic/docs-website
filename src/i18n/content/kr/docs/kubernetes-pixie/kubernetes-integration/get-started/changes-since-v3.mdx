@@ -1,0 +1,299 @@
+---
+title: 'Kubernetes 통합: v3에서 변경된 사항'
+tags:
+  - Integrations
+  - Kubernetes integration
+  - Changelog
+metaDescription: Changes introduced in Kubernetes Integration version 3
+translationType: machine
+---
+
+import kubernetesV3Integration from 'images/kubernetes-v3-integration.png'
+
+## 개요 [#overview]
+
+버전 3부터 New Relic의 Kubernetes 솔루션은 보다 모듈화되고 구성 가능한 것을 목표로 하는 새로운 아키텍처를 특징으로 하여 솔루션 배포 방법을 선택하고 더 많은 환경과 호환되도록 하는 더 많은 권한을 제공합니다.
+
+Kubernetes 통합 버전 3에서 보고한 데이터는 버전 2 이후로 변경되지 않았습니다. 버전 3의 경우 구성 가능성, 안정성 및 사용자 경험에 중점을 두었습니다.
+
+<Callout variant="important">
+  Kubernetes 통합 버전 3( `appVersion` )은 `nri-bundle` 차트 `version` 4에 포함되어 있습니다.
+</Callout>
+
+### 아키텍처 변경 [#architecture]
+
+이 새 버전에서 통합의 주요 구성요소인 `newrelic-infrastructure` DaemonSet은 `nrk8s-ksm` , `nrk8s-kubelet` 및 `nrk8s-controlplane` 세 가지 구성요소로 나뉘며 첫 번째는 배포이고 다음 두 개는 DaemonSet입니다. . 이렇게 하면 런타임이 아닌 일정 및 배포 시간에 결정을 내리기가 더 쉽습니다.
+
+또한 스크래핑 프로세스의 수명 주기도 변경했습니다. 우리는 일회성 단기 프로세스에서 장기 프로세스로 전환하여 클러스터 개체에 대한 기본 제공 캐싱 및 감시를 제공하는 Kubernetes 정보 제공자와 같은 상위 수준 Kubernetes API를 활용할 수 있습니다. 이러한 이유로 각 구성 요소에는 두 개의 컨테이너가 있습니다.
+
+1. 메트릭 수집을 담당하는 통합용 컨테이너입니다.
+2. New Relic Platform에 메트릭을 보내는 데 사용되는 New Relic Infrastructure Agent가 있는 컨테이너입니다.
+
+<img
+  title="Diagram showing the integration installed in a 3 nodes cluster"
+  alt="Diagram showing the integration installed in a 3 nodes cluster"
+  src={kubernetesV3Integration}
+/>
+
+### Kube-state-metrics 구성 요소 [#nrk8s-ksm]
+
+Kubernetes 조직 아래에 있는 OSS 프로젝트 [`kube-state-metrics`](https://github.com/kubernetes/kube-state-metrics) 위에 클러스터 상태 측정항목을 구축합니다. 이전에는 우리 솔루션이 단 하나의 DaemonSet으로 구성되었기 때문에 메트릭 스크래핑을 담당할 포드를 결정하기 위한 선택 프로세스가 있었습니다. 이 과정은 단지 지역성을 기반으로 했습니다. 담당 포드는 KSM 배포와 노드를 공유하는 포드입니다.
+
+KSM 출력에는 전체 클러스터에 대한 데이터가 포함되어 있으므로 이 출력을 구문 분석하려면 상당한 양의 리소스가 필요합니다. 이것은 대규모 클러스터 운영자가 가정할 수 있는 것이지만 이 많은 양의 리소스가 필요한 DaemonSet의 임의의 인스턴스라는 사실로 인해 클러스터 운영자는 실제로 필요한 데몬셋 전체에 이러한 소비를 허용해야 합니다.
+
+KSM 스크래핑의 또 다른 문제는 KSM 포드가 있는 노드를 파악하는 것이었습니다. 이렇게 하려면 API 서버에 연결하고 일부 레이블로 팟(Pod)을 필터링해야 하지만 통합의 단기 특성을 감안할 때 캐시와 감시자는 API 서버에서 효과적으로 사용되지 않았습니다. 이로 인해 대규모 클러스터에서 DaemonSet의 모든 인스턴스는 KSM 포드가 옆에 있는지 여부를 파악하기 위해 네임스페이스가 없는 포드 목록 요청으로 컨트롤 플레인을 넘겼습니다.
+
+우리는 KSM이 스크랩되는 방식에 두 가지 큰 변화를 주어 이 문제를 해결하기로 결정했습니다.
+
+1. DaemonSet 포드에서 KSM을 스크랩하는 책임을 다른 단일 인스턴스 배포로 분할합니다.
+2. 코드를 리팩터링하고 장기 실행되도록 하면 기본 제공 캐싱 및 감시 메커니즘을 제공하는 Kubernetes 정보 제공자를 활용할 수 있습니다.
+
+따라서 이제 특정 배포 `nrk8s-ksm` 가 KSM을 찾고 스크랩합니다. 이 포드는 이제 수명이 길고 단일이므로 엔드포인트 정보 제공자를 안전하게 사용하여 KSM 포드의 IP를 찾고 스크랩할 수 있습니다. 정보 제공자는 자동으로 클러스터의 정보 제공자 목록을 로컬로 캐시하고 새 정보를 감시하여 포드가 어디에 있는지 파악하라는 요청으로 API 서버를 습격하는 것을 방지합니다.
+
+샤딩된 KSM 설정은 아직 지원되지 않지만 이 새 코드는 이러한 향후 개선 사항을 염두에 두고 작성되었습니다.
+
+<Callout variant="important">
+  `aws.ec2.*`와 같은 클라우드 공급자 호스트 태그는 `K8sNamespaceSample`, `K8sDeploymentSample`, `K8sReplicasetSample`, `K8sDaemonsetSample`, `K8sStatefulsetSample`, `K8sServiceSample`및 `K8sHpaSample`와 같이 특정 노드에 엄격하게 연결되지 않은 엔터티와 관련된 샘플에 더 이상 포함되지 않습니다. 이러한 태그는 클러스터의 임의의 단일 노드에서 잘못 소싱되었습니다. 이로 인해 `K8sServiceSample` 에 `hostname` 속성이 있고, 해당 `hostname` 은 서비스가 아닌 노드의 속성이거나, `K8sDeploymentSample` 에 임의 노드의 속성이 있는 `numCores` 속성이 있는 것과 같은 오해의 소지가 있는 상황이 발생했습니다. 배포와 관련된 총 코어 수가 아니라 클러스터에 있습니다. 이러한 샘플에 속성을 추가해야 하는 경우 `customAttributes` 을 사용합니다.
+</Callout>
+
+### Kubelet 구성 요소 [#nrk8s-kubelet]
+
+Kubelet은 모든 Kubernetes 노드에서 실행되는 서비스인 "Kubernetes 에이전트"이며 컨트롤 플레인의 지시에 따라 컨테이너 생성을 담당합니다. Container Runtime과 긴밀하게 협력하는 것은 Kubelet이기 때문에 CPU, 메모리, 디스크, 네트워크 등의 사용과 같은 통합을 위한 인프라 메트릭의 주요 소스입니다. 완전히 문서화되지는 않았지만 Kubelet API는 사실상 대부분의 Kubernetes 메트릭에 대한 표준 소스입니다.
+
+Kubelet 스크랩은 일반적으로 리소스가 적은 작업입니다. 이를 감안하고 가능할 때마다 노드 간 트래픽을 최소화하려는 의도를 감안할 때 `nrk8s-kubelet` 은 각 인스턴스가 동일한 노드에서 실행 중인 Kubelet에서 측정항목을 수집하는 DaemonSet으로 실행됩니다.
+
+`nrk8s-kubelet` 제대로 실행하기 위해 더 이상 `hostNetwork` 이 필요하지 않으며 대신 노드 IP를 사용하여 Kubelet에 연결합니다. 이 프로세스가 실패하면 `nrk8s-kubelet` 은 API 서버 프록시를 통해 노드에 도달하도록 대체됩니다. 이 폴백 메커니즘은 새로운 것은 아니지만 클러스터가 매우 큰 경우 많은 kubelet을 프록시하면 API 서버의 로드가 증가할 수 있으므로 이를 염두에 두는 것이 좋습니다. 로그에서 다음과 같은 메시지를 찾아 API 서버가 프록시로 사용 중인지 확인할 수 있습니다.
+
+```
+Trying to connect to kubelet through API proxy
+```
+
+### 제어 평면 구성 요소 [#nrk8s-controlplane]
+
+CP 구성 요소를 성공적으로 찾고 연결하기 위해 통합을 활성화하는 것은 아마도 이 노력의 가장 어려운 부분 중 하나였을 것입니다. 이에 대한 주된 이유는 CP 구성 요소를 구성할 수 있는 방법의 양입니다. 클러스터 내부 또는 외부, 하나 이상의 복제본 포함, 전용 노드 유무 등입니다. 또한 다른 CP 구성 요소가 직접 구성될 수 있습니다.
+
+우리는 다음 시나리오를 염두에 두고 현재 접근 방식을 구축했습니다.
+
+1. CP 모니터링은 Kubeadm 또는 Minikube와 같이 기본적으로 CP에 연결할 수 있는 환경에서 즉시 작동해야 합니다.
+2. CP를 자동 검색할 수 없는 설정의 경우. 예를 들어 클러스터 외부에 있는 경우 사용자가 자신의 끝점을 지정할 수 있는 방법을 제공해야 합니다.
+3. 자동 검색 실패로 인해 배포가 실패해서는 안 되지만 수동으로 정의된 끝점에 도달하지 못하면 배포가 실패해야 합니다.
+
+Kubeadm과 같은 주요 Kubernetes 배포는 호스트의 네트워크 네임스페이스에 있는 localhost에서만 수신하도록 구성된 CP 구성요소를 배포하므로 우리는 `nrk8s-controlplane` 을 `hostNetwork: true` 와 함께 DaemonSet으로 배포하기로 결정했습니다.
+
+자동 검색 및 정적 끝점을 지원하도록 구성을 구성했습니다. 광범위한 배포판과 호환되도록 구성 항목으로 알려진 광범위한 기본값을 제공합니다. 코드 대신 구성에서 이 작업을 수행하면 필요에 따라 자동 검색을 조정할 수 있습니다.
+
+또 다른 개선 사항은 선택자당 여러 엔드포인트를 가질 가능성을 추가하고 올바른 엔드포인트를 자동으로 감지하는 프로브 메커니즘을 추가하는 것입니다. 이를 통해 동일한 선택기를 사용하여 포트 또는 프로토콜과 같은 다양한 구성을 시도할 수 있습니다.
+
+etcd CP 구성 요소의 스크래핑 구성은 모든 구성 요소에 동일한 구조와 기능이 적용되는 다음과 같습니다.
+
+```yaml
+config:
+  etcd:
+    enabled: true
+    autodiscover:
+      - selector: "tier=control-plane,component=etcd"
+        namespace: kube-system
+        matchNode: true
+        endpoints:
+          - url: https://localhost:4001
+            insecureSkipVerify: true
+            auth:
+              type: bearer
+          - url: http://localhost:2381
+    staticEndpoint:
+      url: https://url:port
+      insecureSkipVerify: true
+      auth: {}
+```
+
+`staticEndpoint` 이 설정되면 구성요소가 스크랩을 시도합니다. 엔드포인트에 도달할 수 없으면 통합이 실패하므로 수동 엔드포인트가 구성될 때 자동 오류가 발생하지 않습니다.
+
+`staticEndpoint` 이 설정되지 않은 경우 구성요소는 지정된 `namespace` 의 `selector` 과 일치하는 첫 번째 포드를 찾는 자동 검색 항목을 반복하고 선택적으로 DaemonSet의 동일한 노드에서 실행 중입니다( `matchNode` `true` 로 설정됨). 포드가 검색된 후 구성 요소는 http `HEAD` 요청을 실행하여 나열된 엔드포인트를 순서대로 검색하고 선택한 인증 유형을 사용하여 첫 번째로 성공한 프로브를 스크랩합니다.
+
+위에서 `etcd` 구성요소에 대한 구성 발췌를 보여주지만 스크래핑 로직은 다른 구성요소에 대해 동일합니다.
+
+컨트롤 플레인 모니터링을 구성하는 방법에 대한 자세한 지침은 [컨트롤 플레인 모니터링](/docs/kubernetes-pixie/kubernetes-integration/advanced-configuration/configure-control-plane-monitoring) 페이지를 확인하십시오.
+
+### 투구 차트 [#helm-charts]
+
+Helm은 클러스터에 솔루션을 배포하기 위해 제공하는 기본 수단입니다. 하나의 DaemonSet만 관리해야 했던 이전 버전에 비해 차트 복잡성도 크게 증가했습니다. 이제 각각 약간 다른 구성을 가진 하나의 배포와 두 개의 DaemonSet를 관리해야 합니다. 이렇게 하면 차트 및 생성된 매니페스트 위에 수동 패치를 적용할 필요 없이 솔루션을 필요에 맞게 조정할 수 있는 유연성이 높아집니다.
+
+새로운 Helm 차트가 제공하는 몇 가지 새로운 기능은 다음과 같습니다.
+
+* 모든 포드에 대한 `securityContext` 의 전체 제어
+* 모든 포드에 대해 포드 `labels` 및 `annotations` 에 대한 전체 제어
+* 추가 환경 변수 추가 기능, `volumes` 및 `volumeMounts`
+* 도달한 끝점, 자동 검색 동작 및 스크래핑 간격을 포함하여 통합 구성에 대한 전체 제어
+* Helm 관용구 및 표준과의 더 나은 정렬
+
+[차트의 `README.md`](https://github.com/newrelic/nri-kubernetes/blob/main/charts/newrelic-infrastructure/README.md) 에서 뒤집을 수 있는 모든 스위치에 대한 자세한 내용을 확인할 수 있습니다.
+
+## 마이그레이션 가이드 [#migration-guide]
+
+이전 버전에서 최대한 쉽게 마이그레이션할 수 있도록 이전 newrelic-infrastructure 차트에서 지정할 수 있는 대부분의 옵션을 새 버전으로 변환하는 호환성 계층을 개발했습니다. 이 호환성 계층은 일시적이며 향후 제거될 예정이므로 이 가이드를 주의 깊게 읽고 사람의 감독하에 구성을 마이그레이션하는 것이 좋습니다.
+
+### KSM 구성 [#ksm-config]
+
+<Callout variant="tip">
+  KSM 모니터링은 대부분의 구성에서 기본적으로 작동하므로 대부분의 사용자는 이 구성을 변경할 필요가 없습니다.
+</Callout>
+
+* `disableKubeStateMetrics` `ksm.enabled` 으로 대체되었습니다. 기본값은 여전히 동일합니다(KSM 스크래핑 활성화됨).
+* `kubeStateMetricsScheme`, `kubeStateMetricsPort` , `kubeStateMetricsUrl` , `kubeStateMetricsPodLabel` 및 `kubeStateMetricsNamespace` 는 보다 포괄적이고 유연한 `ksm.config` 로 대체되었습니다.
+
+`ksm.config` 객체의 구조는 다음과 같습니다.
+
+```yaml
+ksm:
+  config:
+   # When autodiscovering KSM, force the following scheme. By default, `http` is used.
+   scheme: "http"
+   # Label selector to find kube-state-metrics endpoints. Defaults to `app.kubernetes.io/name=kube-state-metrics`.
+   selector: "app.kubernetes.io/name=kube-state-metrics"
+   # Restrict KSM discovery to this particular namespace. Defaults to all namespaces.
+   namespace: ""
+   # When autodiscovering, only consider endpoints that use this port. By default, all ports from the discovered `endpoint` are probed.
+   #port: 8080
+   # Override autodiscovery mechanism completely and specify the KSM url directly instead
+   #staticUrl: "http://test.io:8080/metrics"
+```
+
+### 제어 평면 구성 [#controlplane-configuration]
+
+컨트롤 플레인 구성이 크게 변경되었습니다. 이전에 컨트롤 플레인 모니터링을 활성화한 경우 [컨트롤 플레인 모니터링 전용 페이지 구성](/docs/kubernetes-pixie/kubernetes-integration/advanced-configuration/configure-control-plane-monitoring) 을 살펴보는 것이 좋습니다.
+
+다음 옵션은 위에 링크된 섹션에서 다루는 보다 포괄적인 구성으로 대체되었습니다.
+
+* `apiServerSecurePort`
+* `etcdTlsSecretName`
+* `etcdTlsSecretNamespace`
+* `controllerManagerEndpointUrl`, `etcdEndpointUrl` , `apiServerEndpointUrl` 및 `schedulerEndpointUrl`
+
+### 에이전트 구성 [#agent-configuration]
+
+이전에 `config` 에 지정된 에이전트 구성 파일이 `common.agentConfig` )로 이동되었습니다. 파일 형식은 변경되지 않았으며 여기에서 구성할 수 있는 전체 옵션을 찾을 수 [있습니다](/docs/infrastructure/install-infrastructure-agent/configuration/infrastructure-agent-configuration-settings/) .
+
+다음 에이전트 옵션은 이전에 `values.yml` 파일의 루트에서 "별칭 지정"되었으며 더 이상 사용할 수 없습니다.
+
+* `logFile` `common.agentConfig.log_file` 으로 대체되었습니다.
+* `eventQueueDepth` `common.agentConfig.event_queue_depth` 으로 대체되었습니다.
+* `customAttributes` 형식이 yaml 개체로 변경되었습니다. 이전 형식인 수동으로 json으로 인코딩된 문자열(예: `{"team": "devops"}` )은 더 이상 사용되지 않습니다.
+* 이전에는 `customAttributes` 에 기본 `clusterName` 항목이 있었는데 제거할 경우 원치 않는 결과가 발생할 수 있습니다. 더 이상 그렇지 않습니다. 이제 사용자는 `customAttributes` 전체를 안전하게 재정의할 수 있습니다.
+* `discoveryCacheTTL` 이제 검색이 내장 캐시가 있는 kubernetes 정보 제공자를 사용하여 수행되기 때문에 가 완전히 제거되었습니다.
+
+### 통합 구성 [#integrations-configuration]
+
+통합은 이전에 배열 형식을 사용하여 `integrations_config` 아래에 구성되었습니다.
+
+```yaml
+integrations_config:
+  - name: nri-redis.yaml
+    data:
+      discovery:  # ...
+      integrations:  # ...
+```
+
+메커니즘은 동일하게 유지되지만 보다 사용자 친화적으로 형식을 변경했습니다.
+
+```yaml
+integrations:
+  nri-redis-sampleapp:
+    discovery:  # ...
+    integrations:  # ...
+```
+
+또한 이제 검색 명령에서 `--port` 및 `--tls` 플래그가 필수입니다. 과거에는 다음이 작동했습니다.
+
+```yaml
+integrations:
+  nri-redis-sampleapp:
+    discovery:
+      command:
+        exec: /var/db/newrelic-infra/nri-discovery-kubernetes
+```
+
+v3부터 `--port` 및 `--tls` 을 지정해야 합니다.
+
+```yaml
+integrations:
+  nri-redis-sampleapp:
+    discovery:
+      command:
+        exec: /var/db/newrelic-infra/nri-discovery-kubernetes --tls --port 10250
+```
+
+이 변경은 v2 이하에서 `nrk8s-kubelet` 구성요소(또는 이에 상응하는 것)가 `hostNetwork: true` 와 함께 실행되어 `nri-discovery-kubernetes` 가 `localhost` 및 일반 http를 사용하여 kubelet에 연결할 수 있기 때문에 필요합니다. 보안상의 이유로 더 이상 그렇지 않으므로 지금부터 두 플래그를 모두 지정해야 합니다.
+
+Kubernetes에서 호스트 내 통합을 구성하는 방법에 대한 자세한 내용은 Kubernetes [에서 서비스 모니터링](/docs/kubernetes-pixie/kubernetes-integration/link-apps-services/monitor-services-running-kubernetes) 페이지를 확인하세요.
+
+### 기타 차트 값 [#misc-chart-values]
+
+통합 구성과 관련이 없지만 helm 차트에 대한 다음 기타 옵션도 변경되었습니다.
+
+* `runAsUser` 포드에 직접 템플릿화되고 더 많은 구성이 가능한 `securityContext` 으로 대체되었습니다.
+* `resources` 이제 세 가지 다른 워크로드를 배포하므로 제거되었습니다. 각각에 대한 리소스는 다음에서 개별적으로 구성할 수 있습니다.
+* `ksm.resources`
+* `kubelet.resources`
+* `controlPlane.resources`
+* 마찬가지로 `tolerations` 은(는) 세 개로 분할되었으며 이전 항목은 더 이상 유효하지 않습니다.
+* `ksm.tolerations`
+* `kubelet.tolerations`
+* `controlPlane.tolerations`
+
+
+* 세 가지 모두 기본값은 `NoSchedule` 에 대한 모든 값을 허용하고 `NoExecute`
+
+
+* `image` 모든 하위 키는 현재 배포된 세 개의 이미지 각각에 대한 개별 섹션으로 대체되었습니다.
+* `images.forwarder.*` 인프라 에이전트 전달자를 구성합니다.
+* `images.agent.*` 인프라-에이전트 및 온-호스트 통합을 번들하는 이미지를 구성합니다.
+* `images.integration.*` k8s 데이터 스크래핑을 담당하는 이미지를 구성합니다.
+
+### v2에서 업그레이드 [#upgrade-from-v2]
+
+Kubernetes 통합 버전 2( [nri-bundle 차트](https://github.com/newrelic/helm-charts/tree/master/charts/nri-bundle) 버전 3.x에 포함)에서 업그레이드하려면 원하는 라이선스 키 및 구성으로 `values-newrelic.yaml` 파일을 생성하는 것이 좋습니다. 이전에 다음과 같은 명령을 사용하여 CLI에서 직접 차트를 설치한 경우:
+
+```shell
+helm install newrelic/nri-bundle \
+--set global.licenseKey=<New Relic License key> \
+--set global.cluster=<Cluster name> \
+--set infrastructure.enabled=true \
+--set prometheus.enabled=true \
+--set webhook.enabled=true \
+--set ksm.enabled=true \
+--set kubeEvents.enabled=true \
+--set logging.enabled=true
+```
+
+제공된 `--set` 인수를 사용하여 다음과 같이 yaml 파일에 넣을 수 있습니다.
+
+```yaml
+# values-newrelic.yaml
+global:
+  licenseKey: <New Relic License key>
+  cluster: <Cluster name>
+infrastructure:
+  enabled: true
+prometheus:
+  enabled: true
+webhook:
+  enabled: true
+ksm:
+  enabled: true
+kubeEvents:
+  enabled: true
+logging:
+  enabled: true
+```
+
+이 작업을 수행하고 [위의 섹션](#migration-guide) 에 따라 변경했을 수 있는 다른 설정을 적용한 후 다음 명령을 실행하여 업그레이드할 수 있습니다.
+
+```shell
+helm upgrade newrelic newrelic/nri-bundle \
+--namespace newrelic --create-namespace \
+-f values-newrelic.yaml
+```
+
+<Callout variant="important">
+  `--reuse-values` 플래그는 v2에서 v3으로 업그레이드하는 데 지원되지 않습니다.
+</Callout>

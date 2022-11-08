@@ -6,4 +6,4 @@ events:
   - SyntheticsPrivateLocationStatus
 ---
 
-Total number of queued checks waiting to run in the private location.
+Count of how many checks are scheduled to run in that location.

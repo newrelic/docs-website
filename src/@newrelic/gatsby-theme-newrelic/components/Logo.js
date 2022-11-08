@@ -10,7 +10,10 @@ const Logo = ({ className, width }) => (
       width: ${width || '118px'};
 
       .text-color {
-        fill: #e7f6f6;
+        fill: #1d252c;
+        .dark-mode & {
+          fill: #dddedf;
+        }
       }
       .hexagon-color {
         fill: var(--system-text-primary-light);
