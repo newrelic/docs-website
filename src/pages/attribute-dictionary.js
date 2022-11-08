@@ -11,7 +11,7 @@ import {
   useQueryParams,
   Icon,
   useTranslation,
-  SimpleFeedback,
+  ComplexFeedback,
   Table,
 } from '@newrelic/gatsby-theme-newrelic';
 import { TYPES } from '../utils/constants';
@@ -149,12 +149,12 @@ const AttributeDictionary = ({ data, pageContext, location }) => {
             }
           `}
         >
-          <SimpleFeedback title="Attribute dictionary" />
           <ContributingGuidelines
             fileRelativePath={pageContext.fileRelativePath}
             issueLabels={['feedback', 'feedback-issue']}
           />
           <DataDictionaryFilter events={events} location={location} />
+          <ComplexFeedback title="Attribute dictionary" />
         </Layout.PageTools>
       </div>
     </>
@@ -212,7 +212,7 @@ const EventDefinition = memo(
             }
 
             @media (max-width: 1240px) {
-              position: relative;
+              position: initial;
             }
           `}
         >
