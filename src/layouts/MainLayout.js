@@ -7,37 +7,28 @@ import {
   Logo,
   MobileHeader,
   useLayout,
+  Icon,
+  Button,
+  SearchInput,
+  useTranslation,
 } from '@newrelic/gatsby-theme-newrelic';
 import { graphql } from 'gatsby';
 import { css } from '@emotion/react';
 import SEO from '../components/SEO';
 import RootNavigation from '../components/RootNavigation';
 import SubNavigation from '../components/SubNavigation';
-import { animated, useTransition } from 'react-spring';
-import { useLocation } from '@reach/router';
+import NavFooter from '../components/NavFooter';
+import { useLocation, navigate } from '@reach/router';
 
 const MainLayout = ({ data = {}, children, pageContext }) => {
   const { nav, rootNav } = data;
-  const { contentPadding } = useLayout();
+  const { sidebarWidth, contentPadding } = useLayout();
   const location = useLocation();
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
-
-  const transition = useTransition(nav, {
-    key: nav?.id,
-    config: { mass: 1, friction: 34, tension: 400 },
-    initial: { position: 'absolute' },
-    from: (nav) => ({
-      opacity: 0,
-      position: 'absolute',
-      transform: `translateX(${nav?.id === rootNav.id ? '125px' : '-125px'})`,
-    }),
-
-    enter: { opacity: 1, transform: 'translateX(0)' },
-    leave: (nav) => ({
-      opacity: 0,
-      transform: `translateX(${nav?.id === rootNav.id ? '125px' : '-125px'})`,
-    }),
-  });
+  const [searchTerm, setSearchTerm] = useState('');
+  const [sidebar, setSidebar] = useState(true);
+  const { t } = useTranslation();
+  const navHeaderHeight = '100px';
 
   useEffect(() => {
     setIsMobileNavOpen(false);
@@ -47,7 +38,7 @@ const MainLayout = ({ data = {}, children, pageContext }) => {
     <>
       <SEO location={location} />
       <GlobalHeader
-        hideSearch={nav?.id === rootNav.id && true}
+        hideSearch
         customStyles={{ navLeftMargin: '150px', searchRightMargin: '30px' }}
       />
       <MobileHeader>
@@ -57,49 +48,148 @@ const MainLayout = ({ data = {}, children, pageContext }) => {
           <SubNavigation nav={nav} />
         )}
       </MobileHeader>
+
       <Layout
         css={css`
-          margin-top: 1rem;
+          --sidebar-width: ${sidebar ? sidebarWidth : '50px'};
           -webkit-font-smoothing: antialiased;
           font-size: 1.125rem;
+          @media screen and (max-width: 1240px) {
+            --sidebar-width: ${sidebar ? '278px' : '50px'};
+          }
         `}
       >
         <Layout.Sidebar
           css={css`
-            background: var(--primary-background-color);
+            padding: 0;
+            > div {
+              height: 100%;
+              overflow: hidden;
+            }
+            background: var(--erno-black);
+
+            ${!sidebar &&
+            css`
+              border: none;
+              background: var(--primary-background-color);
+              & > div {
+                padding: ${contentPadding} 0;
+              }
+            `}
             hr {
-              border-color: var(--border-color);
+              border: none;
+              height: 1rem;
+              margin: 0;
             }
           `}
         >
-          <Link
-            to="/"
+          <div
             css={css`
-              display: block;
-              margin-bottom: 1rem;
-              text-decoration: none;
+              height: ${navHeaderHeight};
             `}
           >
-            <Logo />
-          </Link>
-          {transition((style, nav) => {
-            const containerStyle = css`
-              left: ${contentPadding};
-              right: ${contentPadding};
-              top: calc(${contentPadding} + 3rem);
-              padding-bottom: ${contentPadding};
-            `;
-
-            return nav?.id === rootNav.id ? (
-              <animated.div style={style} css={containerStyle}>
-                <RootNavigation nav={nav} />
-              </animated.div>
-            ) : (
-              <animated.div style={style} css={containerStyle}>
-                <SubNavigation nav={nav} />
-              </animated.div>
-            );
-          })}
+            <div
+              css={css`
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+              `}
+            >
+              <Link
+                to="/"
+                css={css`
+                  display: flex;
+                  justify-content: center;
+                  align-items: center;
+                  text-decoration: none;
+                  color: var(--system-text-primary-dark);
+                  &:hover {
+                    color: var(--system-text-primary-dark);
+                  }
+                `}
+              >
+                <Logo
+                  css={css`
+                    ${!sidebar &&
+                    css`
+                      display: none;
+                    `}
+                  `}
+                />
+              </Link>
+              <Button
+                variant={Button.VARIANT.PRIMARY}
+                css={css`
+                  height: 40px;
+                  width: 40px;
+                  padding: 0;
+                  border-radius: 50%;
+                `}
+                onClick={() => setSidebar(!sidebar)}
+              >
+                <Icon
+                  name="nr-nav-collapse"
+                  size="1rem"
+                  css={
+                    !sidebar &&
+                    css`
+                      transform: rotateZ(180deg);
+                    `
+                  }
+                />
+              </Button>
+            </div>
+            {sidebar && (
+              <SearchInput
+                placeholder={t('home.search.placeholder')}
+                value={searchTerm || ''}
+                iconName={SearchInput.ICONS.SEARCH}
+                isIconClickable
+                alignIcon={SearchInput.ICON_ALIGNMENT.RIGHT}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                onSubmit={() => navigate(`?q=${searchTerm || ''}`)}
+                css={css`
+                  margin: 1.5rem 0 2rem;
+                  svg {
+                    color: var(--primary-text-color);
+                  }
+                `}
+              />
+            )}
+          </div>
+          {sidebar && (
+            <>
+              {' '}
+              {nav?.id === rootNav.id ? (
+                <RootNavigation
+                  css={css`
+                    overflow-x: hidden;
+                    height: calc(
+                      100vh - ${navHeaderHeight} - var(--global-header-height) -
+                        4rem
+                    );
+                  `}
+                  nav={nav}
+                />
+              ) : (
+                <SubNavigation
+                  css={css`
+                    overflow-x: hidden;
+                    height: calc(
+                      100vh - ${navHeaderHeight} - var(--global-header-height) -
+                        4rem
+                    );
+                  `}
+                  nav={nav}
+                />
+              )}
+              <NavFooter
+                css={css`
+                  width: calc(var(--sidebar-width) - 1px);
+                `}
+              />
+            </>
+          )}
         </Layout.Sidebar>
         <Layout.Main
           css={css`
@@ -108,7 +198,12 @@ const MainLayout = ({ data = {}, children, pageContext }) => {
         >
           {children}
         </Layout.Main>
-        <Layout.Footer fileRelativePath={pageContext.fileRelativePath} />
+        <Layout.Footer
+          fileRelativePath={pageContext.fileRelativePath}
+          css={css`
+            height: 60px;
+          `}
+        />
       </Layout>
     </>
   );
