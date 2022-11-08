@@ -212,7 +212,7 @@ const EventDefinition = memo(
             }
 
             @media (max-width: 1240px) {
-              position: relative;
+              position: initial;
             }
           `}
         >
