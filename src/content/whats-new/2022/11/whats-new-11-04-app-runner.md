@@ -13,7 +13,7 @@ New Relic now integrates with App Runner and you can use this to monitor and opt
 ![Metrics and logs for AWS App Runner displayed in New Relic](./images/AppRunnerDashboard.png "Metrics and logs for AWS App Runner displayed in New Relic")
 <figcaption>Metrics and logs for AWS App Runner displayed in New Relic</figcaption>
 
-In this example dashboard provided in the [IO QuickStart](https://newrelic.com/instant-observability/aws-apprunner), you can see the data needed to monitor the health of your App Runner deployment, including latency, traffic, errors, and utilization.
+In this example dashboard provided in the [AWS App Runner quickstart](https://newrelic.com/instant-observability/aws-apprunner) from New Relic Instant Observability, you can see the data needed to monitor the health of your App Runner deployment, including latency, traffic, errors, and utilization.
 
 From this dashboard, you can see whether `RequestLatency` is associated with `CPUUtilization`, `MemoryUtilization`, or change in the `total number of requests`. For example, suppose you determine latency issues are associated with utilization. In that case, it's possible that your resources are under-provisioned, and that auto-scaling settings or reserved CPU units need adjusting to prevent a degraded customer experience.
 
