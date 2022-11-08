@@ -2,6 +2,7 @@
 title: 'Get automatic visibility into AMQP messages, and trace TLS messages to node.js services in your K8s clusters'
 summary: 'Pixie uses eBPF to automatically capture the messages in your clusters and now supports 10 protocols and two encryption libraries'
 releaseDate: '2022-11-09'
+learnMoreLink: 'https://www.youtube.com/watch?v=YKwjXLNXdt4'
 getStartedLink: 'https://docs.newrelic.com/docs/kubernetes-pixie/auto-telemetry-pixie/install-auto-telemetry-pixie/'
 ---
 
@@ -32,6 +33,8 @@ For tracing messages over TLS/SSL, we support the following libraries:
 # How to get started
 1. Install [Pixie](https://docs.newrelic.com/docs/kubernetes-pixie/auto-telemetry-pixie/install-auto-telemetry-pixie)
 2. Open the [**Live debugging with Pixie**](https://docs.newrelic.com/docs/kubernetes-pixie/auto-telemetry-pixie/understand-use-data/live-debugging-with-pixie) tab to explore your telemetry data.
+
+Watch this [**overview video**](https://www.youtube.com/watch?v=YKwjXLNXdt4) to learn more.
 
 ![A screenshot showing AMQP messages.](./images/AMQP.png "A screenshot showing AMQP messages.")
 
