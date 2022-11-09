@@ -8,7 +8,7 @@ getStartedLink: 'https://docs.newrelic.com/docs/new-relic-solutions/new-relic-on
 
 The latest version of agents provides you improved monitoring capabilities to analyze the performance of your systems. Here are some of the key features that you could be missing out on if you don’t upgrade:
 
-![](./images/INSERT_IMAGE_FILE_NAME "Repeat the alternative text here as the title of the image")
+![Update agents](./images/dt_agent.png "A screen of updating your agent")
 
 
 **Decode system complexity with distributed tracing** - With distributed tracing enabled by default in the latest agents, you can see all your service dependencies and quickly drill down into individual requests and errors to find the root cause of issues.
