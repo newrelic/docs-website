@@ -15,9 +15,9 @@ If your environment requires use of a custom Docker image registry, Pixie suppor
 
 ## Use a custom Docker image registry [#use-custom-registry]
 
-If you want to use a custom registry, add the following parameters to your Helm chart during installation:
+If you want to use a custom registry, add the following parameters to your `newrelic-bundle` Helm chart during installation:
 
-* `registry` - use to identify the custom image registry. For example:
+* `pixie-chart.registry` - use to identify the custom image registry. For example:
 
   ```
   --set pixie-chart.registry="[YOUR REGISTRY URL]"
@@ -56,7 +56,7 @@ If you're just upgrading an existing install, then this is a much simpler approa
 helm upgrade newrelic-bundle newrelic/nri-bundle --reuse-values -n newrelic --set pixie-chart.registry="[YOUR REGISTRY URL]"
 ```
 
-And if you're using a values.yaml file to configure your Helm chart, include this setting:
+And if you're using a `values.yaml` file to configure your Helm chart, include this setting:
 
 ```
 pixie-chart:
