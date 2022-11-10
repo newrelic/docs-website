@@ -3,7 +3,7 @@ title: 'Ingest Telemetry directly from Lambda using New Relic Extensions'
 summary: ' Access your AWS Lambda telemetry directly using the New Relic extension to receive enhanced telemetry data (logs, platform traces, and new performance metrics) directly from Lambda execution environment through a single interface' 
 releaseDate: '2022-11-10' 
 learnMoreLink: 'https://discuss.newrelic.com/t/ingest-telemetry-directly-from-lambda-using-new-relic-extensions/190989' 
-getStartedLink: 'https://docs.newrelic.com/docs/infrastructure/amazon-integrations/aws-integrations-list/aws-lambda-telemetry'
+getStartedLink: 'https://newrelic.com/instant-observability/aws-lambda-telemetry-extension'
 
 
 In the past, Amazon Web Services (AWS) enabled the ingest of AWS Lambda logs directly to reduce cloud spend, bypassing Amazon CloudWatch and saving costs for our customers. AWS has now extended this functionality to all telemetry data types, including metrics, events, and traces. Observability data on Lambda function execution can now be delivered through a new lambda extension. 
