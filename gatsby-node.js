@@ -452,6 +452,31 @@ const createPageFromNode = (
         layout: 'basic',
       },
     });
+  } else if (template === 'releaseNotesLandingPage') {
+    const releaseNotes = node.data.landingPagesReleaseNotes.nodes;
+    const releaseNotesPerPage = 3; // TODO: change to 10
+    const numPages = Math.ceil(releaseNotes.length / releaseNotesPerPage);
+    Array.from({ length: numPages }).forEach((_, i) => {
+      createPage({
+        path:
+          i === 0
+            ? path.join(prefix, slug, '/')
+            : path.join(prefix, slug, `/${i + 1}`),
+        component: path.resolve(path.join(TEMPLATE_DIR, `${template}.js`)),
+        context: {
+          limit: releaseNotesPerPage,
+          skip: i * releaseNotesPerPage,
+          numPages,
+          currentPage: i + 1,
+          ...context,
+          fileRelativePath,
+          slug,
+          slugRegex: `${slug}/.+/`,
+          disableSwiftype,
+        },
+        defer,
+      });
+    });
   } else {
     createPage({
       path: path.join(prefix, slug, '/'),
