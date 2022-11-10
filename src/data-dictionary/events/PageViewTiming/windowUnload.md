@@ -6,6 +6,6 @@ events:
   - PageViewTiming
 ---
 
-The windowUnload event is fired when a document or child resource is being unloaded.
+The windowUnload event occurs when the page unloading is detected. In modern practice, this is based off the pagehide event firing.
 
-The `windowUnload` event is fired when a document or child resource is being unloaded. See supporting documentation and browser compatibility for the [Window Unload event MDN docs](https://developer.mozilla.org/en-US/docs/Web/API/Window/unload_event) .
+See supporting documentation and browser compatibility for the [Window pagehide event MDN docs](https://developer.mozilla.org/en-US/docs/Web/API/Window/pagehide_event) .
