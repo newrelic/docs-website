@@ -26,7 +26,7 @@ const createSingleNav = () => {
       );
     }
     acc = subNavChildren
-      ? [...acc, { ...page, pages: subNavChildren }]
+      ? [...acc, { ...subNavChildren }]
       : [...acc, { ...page }];
     return acc;
   }, []);

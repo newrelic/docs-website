@@ -8,7 +8,7 @@ exports.createSchemaCustomization = ({ actions }) => {
   const { createTypes } = actions;
 
   createTypes(`
-    type Nav @dontInfer {
+    type Nav implements Node {
       id: ID!
       title(locale: String = "en"): String
       filterable: Boolean!
@@ -25,7 +25,7 @@ exports.createSchemaCustomization = ({ actions }) => {
   `);
 };
 
-exports.createResolvers = ({ createResolvers, createNodeId }) => {
+exports.createResolvers = ({ createResolvers, gatsbyCache, createNodeId }) => {
   createResolvers({
     Query: {
       nav: {
@@ -33,47 +33,56 @@ exports.createResolvers = ({ createResolvers, createNodeId }) => {
         args: {
           slug: 'String!',
         },
-        resolve: async (_source, args, context) => {
-          const { slug } = args;
+        resolve: async (_source, _args, context) => {
+          // const { slug } = args;
           const { nodeModel } = context;
-
-          const { entries } = await nodeModel.findAll({ type: 'Locale' });
-
-          // Convert GatsbyIterable to array to use array methods it doesn't support
-          const locales = Array.from(entries)
-            .filter(({ isDefault }) => !isDefault)
-            .map(({ locale }) => locale);
-          const utils = {
-            args,
-            nodeModel,
-            createNodeId,
-            locales,
-          };
-
-          switch (true) {
-            case slug === '/':
-              return createRootNav(utils);
-
-            case slug.startsWith('/whats-new'):
-              return createWhatsNewNav(utils);
-
-            case slug.startsWith('/docs/release-notes'):
-              return createReleaseNotesNav(utils);
-
-            default:
-              return createNav(utils);
+          // // The cache could also be accessed here.
+          // const { entries } = await nodeModel.findAll({ type: 'Locale' });
+          // // Convert GatsbyIterable to array to use array methods it doesn't support
+          // const locales = Array.from(entries)
+          //   .filter(({ isDefault }) => !isDefault)
+          //   .map(({ locale }) => locale);
+          // const utils = {
+          //   args,
+          //   nodeModel,
+          //   createNodeId,
+          //   locales,
+          // };
+          // switch (true) {
+          //   case slug === '/':
+          //     return createRootNav(utils);
+          //   case slug.startsWith('/whats-new'):
+          //     return createWhatsNewNav(utils);
+          //   case slug.startsWith('/docs/release-notes'):
+          //     return createReleaseNotesNav(utils);
+          //   default:
+          //     return createNav(utils);
+          // }
+          const rootNavKey = `source-nav-cache-query-master`;
+          let rootNav = gatsbyCache.get(rootNavKey);
+          if (!rootNav) {
+            const result = await nodeModel.findAll({ type: 'Nav' });
+            rootNav = Array.from(result.entries)[0];
+            gatsbyCache.set(rootNavKey, rootNav);
           }
+          // console.log(
+          //   'entries here: ',
+          //   result,
+          //   rootNav,
+          //   await result.totalCount()
+          // );
+          return rootNav;
         },
       },
     },
     Nav: {
-      filterable: {
-        resolve: (source) =>
-          hasOwnProperty(source, 'filterable') ? source.filterable : true,
-      },
-      url: {
-        resolve: (source) => source.url || source.path,
-      },
+      // filterable: {
+      //   resolve: (source) =>
+      //     hasOwnProperty(source, 'filterable') ? source.filterable : true,
+      // },
+      //   url: {
+      //     resolve: (source) => source.url || source.path,
+      //   },
       title: {
         resolve: findTranslatedTitle,
       },
@@ -82,12 +91,12 @@ exports.createResolvers = ({ createResolvers, createNodeId }) => {
       title: {
         resolve: findTranslatedTitle,
       },
-      url: {
-        resolve: (source) => source.url || source.path,
-      },
-      pages: {
-        resolve: (source) => source.pages || [],
-      },
+      // url: {
+      //   resolve: (source) => source.url || source.path,
+      // },
+      // pages: {
+      //   resolve: (source) => source.pages || [],
+      // },
     },
   });
 };
@@ -101,6 +110,92 @@ exports.onCreatePage = ({ page, actions }) => {
     createPage(page);
   }
 };
+
+exports.sourceNodes = async ({
+  actions,
+  cache,
+  getNodesByType,
+  createNodeId,
+  createContentDigest,
+  reporter,
+}) => {
+  const { createNode } = actions;
+  const navCacheKey = `source-nav-cache-master`;
+  // Store new Nodes (the actual graphql stuff that's being queried) here.
+  // This could potentially be an alternative to the stuff in createResolvers,
+  // and is what Gatsby insists is a requirement in "source" plugins
+  reporter.info(`source-nav's sourceNodes called now!`);
+  let navToRuleThemAll = await cache.get(navCacheKey);
+  if (navToRuleThemAll) {
+    // TODO
+    // might need to touch old nodes to maintain their existance? (touchNode action)
+    reporter.info(`source-nav's single nav was found in cache!`);
+  } else {
+    reporter.info(`source-nav's nav wasn't cached! Creating new nav nodes.`);
+    const data = await getNodesByType(`NavYaml`);
+    // console.log(data);
+
+    const rootNavSubPages = await createNavNodesHelper(
+      createNodeId,
+      data[0].pages
+    );
+    const rootNodeData = {
+      title: data[0].title,
+      filterable: data[0].filterable || true,
+      url: data[0].path || '/',
+      pages: rootNavSubPages,
+    };
+    navToRuleThemAll = {
+      ...rootNodeData,
+      id: createNodeId(data[0].title),
+      parent: null,
+      children: [],
+      internal: {
+        type: `Nav`,
+        contentDigest: createContentDigest(rootNodeData),
+      },
+    };
+    reporter.info(`source-nav is caching the result of Node creation...`);
+    cache.set(navCacheKey, navToRuleThemAll);
+  }
+
+  createNode(navToRuleThemAll);
+};
+
+const createNavNodesHelper = async (createNodeId, pages) => {
+  const pagesAsNavItemNodes = [];
+  if (pages && pages.length !== 0) {
+    pages.forEach(async (page) => {
+      const subPages = await createNavNodesHelper(createNodeId, page.pages);
+      const newNavItemData = {
+        id: createNodeId(page.title),
+        title: page.title, // TODO: some localization stuff
+        icon: page.icon,
+        url: page.path, // TODO: figure out what to do when path is null??
+        pages: subPages || [],
+      };
+      // const newNavItemNode = {
+      //   ...newNavItemData,
+      //   id: createNodeId(page.title),
+      //   parent: null,
+      //   children: [],
+      //   internal: {
+      //     type: `NavItem`,
+      //     contentDigest: createContentDigest(newNavItemData),
+      //   },
+      // };
+      // createNode(newNavItemNode);
+      pagesAsNavItemNodes.push(newNavItemData);
+    });
+  }
+  return pagesAsNavItemNodes;
+};
+
+// exports.onPostBuild = ({ cache, grapql, reporter }, { query }) => {
+//   // Cache on build here.
+//   // const cacheKey = 'source-nav-graphql-cache';
+//   reporter.info(`source-nav's onPostBuild called now!`);
+// };
 
 const createRootNav = async ({ args, createNodeId, nodeModel }) => {
   const { slug } = args;

@@ -28,11 +28,11 @@ const linkVisitorMdx = ({ fileRelativePath }) => async (tree) => {
         if (!skippedLinkTypes(to)) {
           const code = await getPageResponse(to);
           if (code === 404) {
-            console.log(`INVALID LINK: ${to} \n > file: ${fileRelativePath}`);
+            // console.log(`INVALID LINK: ${to} \n > file: ${fileRelativePath}`);
           }
         }
       } catch (error) {
-        console.error('ERROR:', to);
+        // console.error('ERROR:', to);
       }
     }
   );

@@ -21,7 +21,7 @@ const getLinksFromNav = (filepath) => {
 
     return { links: [...new Set(extractLinks(data))], filepath };
   } catch (e) {
-    console.error(`Unable to fetch ${filepath}:\n${e}`);
+    // console.error(`Unable to fetch ${filepath}:\n${e}`);
   }
 };
 
@@ -53,7 +53,8 @@ const checkNavLinks = async ({ nodes }) => {
 
   invalidLinks.forEach(({ filepath, paths }) =>
     paths.forEach((path) =>
-      console.log(`INVALID LINK: ${path} \n > ${filepath}`)
+      // console.log(`INVALID LINK: ${path} \n > ${filepath}`)
+      {}
     )
   );
 };
