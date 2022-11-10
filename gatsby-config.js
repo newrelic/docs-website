@@ -435,6 +435,7 @@ module.exports = {
           maxWidth: '1600px',
           component: require.resolve('./src/layouts'),
           mobileBreakpoint: '760px',
+          sidebarWidth: '340px',
         },
         i18n: {
           translationsPath: `${__dirname}/src/i18n/translations`,
@@ -507,27 +508,21 @@ module.exports = {
           debug: false,
         },
         newrelic: {
-          configs: {
-            development: {
-              instrumentationType: 'proAndSPA',
-              accountId: '10956800',
-              trustKey: '1',
-              agentID: '35094418',
-              licenseKey: 'NRJS-649173eb1a7b28cd6ab',
-              applicationID: '35094418',
-              beacon: 'staging-bam-cell.nr-data.net',
-              errorBeacon: 'staging-bam-cell.nr-data.net',
-            },
-            production: {
-              instrumentationType: 'proAndSPA',
-              accountId: '10956800',
-              trustKey: '1',
-              agentID: '35094662',
-              licenseKey: 'NRJS-649173eb1a7b28cd6ab',
-              applicationID: '35094662',
-              beacon: 'staging-bam-cell.nr-data.net',
-              errorBeacon: 'staging-bam-cell.nr-data.net',
-            },
+          config: {
+            instrumentationType: 'proAndSPA',
+            accountId: '10956800',
+            trustKey: '1',
+            agentID:
+              process.env.ENVIRONMENT === 'production'
+                ? '35094662'
+                : '35094418',
+            licenseKey: 'NRJS-649173eb1a7b28cd6ab',
+            applicationID:
+              process.env.ENVIRONMENT === 'production'
+                ? '35094662'
+                : '35094418',
+            beacon: 'staging-bam-cell.nr-data.net',
+            errorBeacon: 'staging-bam-cell.nr-data.net',
           },
         },
         tessen: {
@@ -547,6 +542,12 @@ module.exports = {
         },
         shouldUpdateScroll: {
           routes: ['/attribute-dictionary'],
+        },
+        feedback: {
+          environment: process.env.ENVIRONMENT || 'staging',
+          reCaptchaToken:
+            process.env.FEEDBACK_RECAPTCHA_TOKEN ||
+            '6Lfn8wUiAAAAANBY-ZtKg4V9b4rdGZtJuAng62jo',
         },
       },
     },
