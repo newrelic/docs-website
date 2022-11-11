@@ -25,7 +25,7 @@ exports.createSchemaCustomization = ({ actions }) => {
   `);
 };
 
-exports.createResolvers = ({ createResolvers, gatsbyCache, createNodeId }) => {
+exports.createResolvers = ({ createResolvers, cache }) => {
   createResolvers({
     Query: {
       nav: {
@@ -33,56 +33,45 @@ exports.createResolvers = ({ createResolvers, gatsbyCache, createNodeId }) => {
         args: {
           slug: 'String!',
         },
-        resolve: async (_source, _args, context) => {
-          // const { slug } = args;
+        resolve: async (_source, args, context) => {
+          const { slug } = args;
           const { nodeModel } = context;
-          // // The cache could also be accessed here.
-          // const { entries } = await nodeModel.findAll({ type: 'Locale' });
-          // // Convert GatsbyIterable to array to use array methods it doesn't support
-          // const locales = Array.from(entries)
-          //   .filter(({ isDefault }) => !isDefault)
-          //   .map(({ locale }) => locale);
-          // const utils = {
-          //   args,
-          //   nodeModel,
-          //   createNodeId,
-          //   locales,
-          // };
-          // switch (true) {
-          //   case slug === '/':
-          //     return createRootNav(utils);
-          //   case slug.startsWith('/whats-new'):
-          //     return createWhatsNewNav(utils);
-          //   case slug.startsWith('/docs/release-notes'):
-          //     return createReleaseNotesNav(utils);
-          //   default:
-          //     return createNav(utils);
-          // }
-          const rootNavKey = `source-nav-cache-query-master`;
-          let rootNav = gatsbyCache.get(rootNavKey);
-          if (!rootNav) {
-            const result = await nodeModel.findAll({ type: 'Nav' });
-            rootNav = Array.from(result.entries)[0];
-            gatsbyCache.set(rootNavKey, rootNav);
+
+          let navCacheKey = `source-nav-cache-query-`;
+          let navUrlFilter;
+          switch (true) {
+            case slug.startsWith('/docs/agile-handbook'):
+              navCacheKey += `handbook`;
+              navUrlFilter = '/docs/agile-handbook';
+              break;
+            case slug.startsWith('/docs/style-guide'):
+              navCacheKey += `style`;
+              navUrlFilter = '/docs/style-guide';
+              break;
+            default:
+              navCacheKey += `master`;
+              navUrlFilter = '/';
+              break;
           }
-          // console.log(
-          //   'entries here: ',
-          //   result,
-          //   rootNav,
-          //   await result.totalCount()
-          // );
-          return rootNav;
+
+          let nav = await cache.get(navCacheKey);
+          if (!nav) {
+            nav = await nodeModel.findOne({
+              type: 'Nav',
+              query: {
+                filter: {
+                  url: { eq: navUrlFilter },
+                },
+              },
+            });
+            // nav = Array.from(result.entries)[0];
+            cache.set(navCacheKey, nav);
+          }
+          return nav;
         },
       },
     },
     Nav: {
-      // filterable: {
-      //   resolve: (source) =>
-      //     hasOwnProperty(source, 'filterable') ? source.filterable : true,
-      // },
-      //   url: {
-      //     resolve: (source) => source.url || source.path,
-      //   },
       title: {
         resolve: findTranslatedTitle,
       },
@@ -91,12 +80,6 @@ exports.createResolvers = ({ createResolvers, gatsbyCache, createNodeId }) => {
       title: {
         resolve: findTranslatedTitle,
       },
-      // url: {
-      //   resolve: (source) => source.url || source.path,
-      // },
-      // pages: {
-      //   resolve: (source) => source.pages || [],
-      // },
     },
   });
 };
@@ -120,34 +103,58 @@ exports.sourceNodes = async ({
   reporter,
 }) => {
   const { createNode } = actions;
-  const navCacheKey = `source-nav-cache-master`;
-  // Store new Nodes (the actual graphql stuff that's being queried) here.
-  // This could potentially be an alternative to the stuff in createResolvers,
-  // and is what Gatsby insists is a requirement in "source" plugins
+  const rootNavCacheKey = `source-nav-cache-master`;
+  const styleNavCacheKey = `source-nav-cache-style`;
+  const handbookNavCacheKey = `source-nav-cache-handbook`;
+
   reporter.info(`source-nav's sourceNodes called now!`);
-  let navToRuleThemAll = await cache.get(navCacheKey);
+
+  let navToRuleThemAll = await cache.get(rootNavCacheKey);
+  let styleGuideNav;
+  let agileHandbookNav;
   if (navToRuleThemAll) {
-    // TODO
-    // might need to touch old nodes to maintain their existance? (touchNode action)
     reporter.info(`source-nav's single nav was found in cache!`);
+    styleGuideNav = await cache.get(styleNavCacheKey);
+    agileHandbookNav = await cache.get(handbookNavCacheKey);
   } else {
     reporter.info(`source-nav's nav wasn't cached! Creating new nav nodes.`);
     const data = await getNodesByType(`NavYaml`);
-    // console.log(data);
-
-    const rootNavSubPages = await createNavNodesHelper(
-      createNodeId,
-      data[0].pages
+    const rootNavData = data.find((navYaml) => navYaml.path === '/');
+    const styleNavData = data.find(
+      (navYaml) => navYaml.path === '/docs/style-guide'
     );
+    const handbookNavData = data.find(
+      (navYaml) => navYaml.path === '/docs/agile-handbook'
+    );
+
+    const rootNavSubPages = await createNavItemsHelper(
+      createNodeId,
+      rootNavData.pages
+    );
+
+    // Release Notes
+    const releaseNoteNodes = await createReleaseNotesNav({
+      createNodeId,
+      getNodesByType,
+    });
+    rootNavSubPages.push(releaseNoteNodes);
+
+    // What's New
+    const whatsNewNodes = await createWhatsNewNav({
+      createNodeId,
+      getNodesByType,
+    });
+    rootNavSubPages.push(whatsNewNodes);
+
     const rootNodeData = {
-      title: data[0].title,
-      filterable: data[0].filterable || true,
-      url: data[0].path || '/',
+      title: rootNavData.title,
+      filterable: rootNavData.filterable || true,
+      url: rootNavData.path || '/',
       pages: rootNavSubPages,
     };
     navToRuleThemAll = {
       ...rootNodeData,
-      id: createNodeId(data[0].title),
+      id: createNodeId(rootNavData.title),
       parent: null,
       children: [],
       internal: {
@@ -155,84 +162,87 @@ exports.sourceNodes = async ({
         contentDigest: createContentDigest(rootNodeData),
       },
     };
+
+    // Style Guide
+    styleGuideNav = await createNavNode(
+      createNodeId,
+      createContentDigest,
+      styleNavData
+    );
+
+    // Agile Handbook
+    agileHandbookNav = await createNavNode(
+      createNodeId,
+      createContentDigest,
+      handbookNavData
+    );
+
     reporter.info(`source-nav is caching the result of Node creation...`);
-    cache.set(navCacheKey, navToRuleThemAll);
+    cache.set(rootNavCacheKey, navToRuleThemAll);
+    cache.set(styleNavCacheKey, styleGuideNav);
+    cache.set(handbookNavCacheKey, agileHandbookNav);
   }
 
   createNode(navToRuleThemAll);
+  createNode(styleGuideNav);
+  createNode(agileHandbookNav);
 };
 
-const createNavNodesHelper = async (createNodeId, pages) => {
+const createNavNode = async (createNodeId, createContentDigest, navYaml) => {
+  const subPages = await createNavItemsHelper(createNodeId, navYaml.pages);
+  const nodeData = {
+    title: navYaml.title,
+    filterable: navYaml.filterable || true,
+    url: navYaml.path,
+    pages: subPages,
+  };
+  return {
+    ...nodeData,
+    id: createNodeId(navYaml.title),
+    parent: null,
+    children: [],
+    internal: {
+      type: `Nav`,
+      contentDigest: createContentDigest(nodeData),
+    },
+  };
+};
+
+const createNavItemsHelper = async (createNodeId, pages) => {
   const pagesAsNavItemNodes = [];
   if (pages && pages.length !== 0) {
     pages.forEach(async (page) => {
-      const subPages = await createNavNodesHelper(createNodeId, page.pages);
+      const subPages = await createNavItemsHelper(createNodeId, page.pages);
       const newNavItemData = {
         id: createNodeId(page.title),
-        title: page.title, // TODO: some localization stuff
+        title: page.title,
         icon: page.icon,
-        url: page.path, // TODO: figure out what to do when path is null??
+        url: page.path,
         pages: subPages || [],
       };
-      // const newNavItemNode = {
-      //   ...newNavItemData,
-      //   id: createNodeId(page.title),
-      //   parent: null,
-      //   children: [],
-      //   internal: {
-      //     type: `NavItem`,
-      //     contentDigest: createContentDigest(newNavItemData),
-      //   },
-      // };
-      // createNode(newNavItemNode);
       pagesAsNavItemNodes.push(newNavItemData);
     });
   }
   return pagesAsNavItemNodes;
 };
 
-// exports.onPostBuild = ({ cache, grapql, reporter }, { query }) => {
-//   // Cache on build here.
-//   // const cacheKey = 'source-nav-graphql-cache';
-//   reporter.info(`source-nav's onPostBuild called now!`);
-// };
-
-const createRootNav = async ({ args, createNodeId, nodeModel }) => {
-  const { slug } = args;
-
-  const { entries } = await nodeModel.findAll({ type: 'NavYaml' });
-
-  // Convert GatsbyIterable to array to use array methods it doesn't support
-  const rootNavYamlNode = Array.from(entries.filter((node) => node.rootNav));
-  const nav = rootNavYamlNode.find((nav) => findPage(nav, slug));
-
-  if (!nav) {
-    return null;
-  }
-
-  return {
-    ...nav,
-    id: createNodeId('root'),
-  };
-};
-
-const createWhatsNewNav = async ({ createNodeId, nodeModel }) => {
-  const { entries } = await nodeModel.findAll({
-    type: 'MarkdownRemark',
-    query: {
-      filter: {
-        fileAbsolutePath: {
-          regex: '/src/content/whats-new/',
-        },
-      },
-      sort: {
-        fields: ['frontmatter.releaseDate', 'frontmatter.title'],
-        order: ['DESC', 'ASC'],
-      },
-    },
-  });
-
-  const posts = Array.from(entries);
+const createWhatsNewNav = async ({ createNodeId, getNodesByType }) => {
+  const posts = getNodesByType(`MarkdownRemark`)
+    .filter((element) =>
+      /src\/content\/whats-new/.test(element.fileAbsolutePath)
+    )
+    .sort((leftNode, rightNode) => {
+      const releaseDateComparison = leftNode.frontmatter.releaseDate.localeCompare(
+        rightNode.frontmatter.releaseDate
+      );
+      if (releaseDateComparison === 0) {
+        return rightNode.frontmatter.title.localeCompare(
+          leftNode.frontmatter.title
+        );
+      } else {
+        return releaseDateComparison;
+      }
+    });
 
   const currentYear = new Date().getFullYear();
   const postsByYear = groupBy(posts, (post) => parseDate(post).getFullYear());
@@ -251,48 +261,29 @@ const createWhatsNewNav = async ({ createNodeId, nodeModel }) => {
     .map(([key, posts]) => ({ title: key, pages: formatPosts(posts) }))
     .filter(({ pages }) => pages.length);
 
+  // TODO: add IDs for NavItems
   return {
     id: createNodeId('whats-new'),
     title: "What's new",
-    pages: [{ title: 'Overview', url: '/whats-new' }].concat(navItems),
+    pages: [{ title: 'Overview', url: '/whats-new', pages: [] }].concat(
+      navItems
+    ),
   };
 };
 
-const createReleaseNotesNav = async ({ createNodeId, nodeModel }) => {
-  const [
-    { entries: releaseNoteEntries },
-    { entries: landingPagesEntries },
-  ] = await Promise.all([
-    nodeModel.findAll({
-      type: 'Mdx',
-      query: {
-        filter: {
-          fileAbsolutePath: {
-            regex: '/src/content/docs/release-notes/.*(?<!index).mdx/',
-          },
-        },
-        sort: {
-          fields: ['frontmatter.releaseDate'],
-          order: ['DESC'],
-        },
-      },
-    }),
-
-    nodeModel.findAll({
-      type: 'Mdx',
-      query: {
-        filter: {
-          fileAbsolutePath: {
-            regex: '/src/content/docs/release-notes/.*/index.mdx$/',
-          },
-        },
-      },
-    }),
-  ]);
-
-  // Convert GatsbyIterable to array to use array methods it doesn't support
-  const posts = Array.from(releaseNoteEntries);
-  const landingPages = Array.from(landingPagesEntries);
+const createReleaseNotesNav = async ({ createNodeId, getNodesByType }) => {
+  const allMdxNodes = getNodesByType(`Mdx`);
+  const releaseNoteRegex = /src\/content\/docs\/release-notes\/.*(?<!index).mdx/;
+  const landingPageRegex = /src\/content\/docs\/release-notes\/.*\/index.mdx$/;
+  const posts = [];
+  const landingPages = [];
+  allMdxNodes.forEach((element) => {
+    if (releaseNoteRegex.test(element.fileAbsolutePath)) {
+      posts.push(element);
+    } else if (landingPageRegex.test(element.fileAbsolutePath)) {
+      landingPages.push(element);
+    }
+  });
 
   const subjects = posts
     .reduce((acc, curr) => [...new Set([...acc, curr.frontmatter.subject])], [])
@@ -320,10 +311,13 @@ const createReleaseNotesNav = async ({ createNodeId, nodeModel }) => {
   const filterBySubject = (subject, posts) =>
     posts.filter((post) => post.frontmatter.subject === subject);
 
+  // TODO: add IDs for NavItems
   return {
     id: createNodeId('release-notes'),
     title: 'Release Notes',
-    pages: [{ title: 'Overview', url: '/docs/release-notes' }].concat(
+    pages: [
+      { title: 'Overview', url: '/docs/release-notes', pages: [] },
+    ].concat(
       subjects.map((subject) => {
         const landingPage = landingPages.find(
           (page) => page.frontmatter.subject === subject

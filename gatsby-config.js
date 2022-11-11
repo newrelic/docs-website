@@ -236,6 +236,18 @@ module.exports = {
     {
       resolve: `gatsby-source-filesystem`,
       options: {
+        path: `./src/nav/style-guide.yml`,
+      },
+    },
+    {
+      resolve: `gatsby-source-filesystem`,
+      options: {
+        path: `./src/nav/docs-agile-handbook.yml`,
+      },
+    },
+    {
+      resolve: `gatsby-source-filesystem`,
+      options: {
         path: `./src/install/config/`,
       },
     },
