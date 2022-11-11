@@ -1,9 +1,6 @@
 const preferDefault = (m) => (m && m.default) || m;
 const parseISO = preferDefault(require('date-fns/parseISO'));
 
-const hasOwnProperty = (obj, key) =>
-  Object.prototype.hasOwnProperty.call(obj, key);
-
 exports.createSchemaCustomization = ({ actions }) => {
   const { createTypes } = actions;
 
@@ -64,7 +61,6 @@ exports.createResolvers = ({ createResolvers, cache }) => {
                 },
               },
             });
-            // nav = Array.from(result.entries)[0];
             cache.set(navCacheKey, nav);
           }
           return nav;
@@ -258,16 +254,24 @@ const createWhatsNewNav = async ({ createNodeId, getNodesByType }) => {
 
   const navItems = Array.from(postsByMonth.entries())
     .concat(previousYearsPosts)
-    .map(([key, posts]) => ({ title: key, pages: formatPosts(posts) }))
+    .map(([key, posts]) => ({
+      id: createNodeId(key),
+      title: key,
+      pages: formatPosts(posts),
+    }))
     .filter(({ pages }) => pages.length);
 
-  // TODO: add IDs for NavItems
   return {
     id: createNodeId('whats-new'),
     title: "What's new",
-    pages: [{ title: 'Overview', url: '/whats-new', pages: [] }].concat(
-      navItems
-    ),
+    pages: [
+      {
+        id: createNodeId('Overview'),
+        title: 'Overview',
+        url: '/whats-new',
+        pages: [],
+      },
+    ].concat(navItems),
   };
 };
 
@@ -301,8 +305,12 @@ const createReleaseNotesNav = async ({ createNodeId, getNodesByType }) => {
         ? `${post.frontmatter.subject} v${post.frontmatter.version}`
         : post.frontmatter.subject;
 
+      const title = post.frontmatter.title
+        ? post.frontmatter.title
+        : derivedTitle;
       return {
-        title: post.frontmatter.title ? post.frontmatter.title : derivedTitle,
+        id: createNodeId(title),
+        title: title,
         url: post.fields.slug,
         pages: [],
       };
@@ -311,12 +319,16 @@ const createReleaseNotesNav = async ({ createNodeId, getNodesByType }) => {
   const filterBySubject = (subject, posts) =>
     posts.filter((post) => post.frontmatter.subject === subject);
 
-  // TODO: add IDs for NavItems
   return {
     id: createNodeId('release-notes'),
     title: 'Release Notes',
     pages: [
-      { title: 'Overview', url: '/docs/release-notes', pages: [] },
+      {
+        id: createNodeId('Overview'),
+        title: 'Overview',
+        url: '/docs/release-notes',
+        pages: [],
+      },
     ].concat(
       subjects.map((subject) => {
         const landingPage = landingPages.find(
@@ -324,6 +336,7 @@ const createReleaseNotesNav = async ({ createNodeId, getNodesByType }) => {
         );
 
         return {
+          id: createNodeId(subject),
           title: subject,
           url: landingPage && landingPage.fields.slug,
           pages: formatReleaseNotePosts(filterBySubject(subject, posts)),
@@ -349,40 +362,6 @@ const groupBy = (arr, fn) =>
     return map.set(key, [...(map.get(key) || []), item]);
   }, new Map());
 
-const createNav = async ({ args, createNodeId, nodeModel, locales }) => {
-  let { slug } = args;
-  slug = slug
-    .replace(/\/table-of-contents$/, '')
-    .replace(new RegExp(`^\\/(${locales.join('|')})(?=\\/)`), '');
-
-  const { entries } = await nodeModel.findAll({ type: 'NavYaml' });
-
-  const allNavYamlNodes = Array.from(entries)
-    .filter((node) => !node.rootNav)
-    .sort((a, b) => a.title.localeCompare(b.title));
-
-  let nav =
-    allNavYamlNodes.find((nav) => findPage(nav, slug)) ||
-    allNavYamlNodes.find((nav) => slug.includes(nav.path));
-
-  const trueNav = allNavYamlNodes.find((nav) => slug.includes(nav.path));
-
-  if (!nav) {
-    return null;
-  }
-
-  // if current is link to auto index page && its path does not
-  // belong to nav it was first found in, find nav that matches its path
-  if (trueNav && trueNav !== nav) {
-    nav = trueNav;
-  }
-
-  return {
-    ...nav,
-    id: createNodeId(nav.title),
-  };
-};
-
 const findTranslatedTitle = async (source, args, { nodeModel }) => {
   if (args.locale === 'en') {
     return source.title;
@@ -399,16 +378,4 @@ const findTranslatedTitle = async (source, args, { nodeModel }) => {
   });
 
   return item ? item.title : source.title;
-};
-
-const findPage = (page, path) => {
-  if (page.path === path) {
-    return page;
-  }
-
-  if (page.pages == null || page.pages.length === 0) {
-    return null;
-  }
-
-  return page.pages.find((child) => findPage(child, path));
 };
