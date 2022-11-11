@@ -14,7 +14,7 @@ const {
 } = require('@opentelemetry/exporter-trace-otlp-proto');
 const api = require('@opentelemetry/api');
 
-const NR_OTLP_ENDPOINT = 'https://otlp.nr-data.net:4317/v1/traces';
+const NR_OTLP_ENDPOINT = 'https://staging-otlp.nr-data.net:4317/v1/traces';
 
 // NOTE: set this to DEBUG if needed
 api.diag.setLogger(new api.DiagConsoleLogger(), api.DiagLogLevel.INFO);
@@ -29,8 +29,6 @@ const resource = new Resource({
 });
 
 const instrumentations = [getNodeAutoInstrumentations()];
-
-console.log({ NR_API_KEY: process.env.NR_API_KEY });
 
 // Configure the OTLP/PROTO trace exporter.
 const traceExporter = new OTLPTraceExporter({
