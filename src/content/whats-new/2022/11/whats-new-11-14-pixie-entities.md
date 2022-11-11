@@ -1,0 +1,17 @@
+---
+title: 'New Relic adds first class support for Pixie data'
+summary: 'Automatically detect and export sampled and aggregated data from Pixie for long term retention'
+releaseDate: '2022-11-14'
+learnMoreLink: 'https://discuss.newrelic.com/t/ingest-telemetry-directly-from-lambda-using-new-relic-extensions/190989' 
+getStartedLink: 'https://docs.newrelic.com/docs/kubernetes-pixie/auto-telemetry-pixie/understand-use-data/explore-pixie-data/'
+---
+
+Starting today, New Relic automatically detects and exports sampled and aggregated data from Pixie for long term retention from various technologies including Kafka, DNS, MySQL, RabbitMQ, PostgresQL, and Redis. 
+
+If you are already using Pixie with New Relic with either the Kubernetes integration v2.0.0+  or the Pixie-New Relic Plugin v1.4.2+ , no need to do anything else! You should see entities from your environment directly in your New Relic environment. 
+
+If you aren’t using Pixie with New Relic yet, get started easily by installing the Kubernetes + Pixie integration using the guided installation path.
+
+Learn more in our [Pixie Docs](https://docs.newrelic.com/docs/kubernetes-pixie/auto-telemetry-pixie/understand-use-data/explore-pixie-data/).
+
+![Kafka observability data detected by Pixie displayed in New Relic](./images/pixie-entity.png "Kafka observability data detected by Pixie displayed in New Relic")
