@@ -133,14 +133,14 @@ exports.sourceNodes = async ({
       createNodeId,
       getNodesByType,
     });
-    rootNavSubPages.push(releaseNoteNodes);
+    rootNavSubPages.splice(25, 0, releaseNoteNodes);
 
     // What's New
     const whatsNewNodes = await createWhatsNewNav({
       createNodeId,
       getNodesByType,
     });
-    rootNavSubPages.push(whatsNewNodes);
+    rootNavSubPages.splice(3, 0, whatsNewNodes);
 
     const rootNodeData = {
       title: rootNavData.title,
@@ -264,6 +264,7 @@ const createWhatsNewNav = async ({ createNodeId, getNodesByType }) => {
   return {
     id: createNodeId('whats-new'),
     title: "What's new",
+    url: '/whats-new',
     pages: [
       {
         id: createNodeId('Overview'),
@@ -322,6 +323,7 @@ const createReleaseNotesNav = async ({ createNodeId, getNodesByType }) => {
   return {
     id: createNodeId('release-notes'),
     title: 'Release Notes',
+    url: '/docs/release-notes',
     pages: [
       {
         id: createNodeId('Overview'),
