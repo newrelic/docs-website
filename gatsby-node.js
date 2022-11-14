@@ -5,6 +5,7 @@ const { createFilePath } = require('gatsby-source-filesystem');
 
 const TEMPLATE_DIR = 'src/templates/';
 const TRAILING_SLASH = /\/$/;
+const releaseNotesPerAgent = {};
 
 const hasOwnProperty = (obj, key) =>
   Object.prototype.hasOwnProperty.call(obj, key);
@@ -211,13 +212,14 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
   });
 
   releaseNotes.group.forEach((el) => {
-    const { fieldValue, nodes } = el;
+    const { fieldValue, nodes, totalCount } = el;
 
     const landingPage = landingPagesReleaseNotes.nodes.find(
       (node) => node.frontmatter.subject === fieldValue
     );
 
     if (landingPage) {
+      releaseNotesPerAgent[landingPage.frontmatter.subject] = totalCount;
       const { redirects } = landingPage.frontmatter;
 
       createLocalizedRedirect({
@@ -246,7 +248,7 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
 
   allMdx.edges.concat(allMarkdownRemark.edges).forEach(({ node }) => {
     const {
-      fields: { slug },
+      fields: { slug, fileRelativePath },
       frontmatter: { redirects },
     } = node;
 
@@ -454,15 +456,9 @@ const createPageFromNode = (
       },
     });
   } else if (template === 'releaseNoteLandingPage') {
-    // const releaseNotes = node.data.landingPagesReleaseNotes.nodes;
-    const releaseNotes = 50;
-    // Placeholder for proof of pagination. how to we get this number dynamically?
-    // Ex: we are building the ".NET agent" landing page -
-    // how do we tell it how many .NET release notes we have?
-    const releaseNotesPerPage = 3;
-    // TODO: change to 10
-    // using 3 so its obvious in development that it worked
-    // const numPages = Math.ceil(releaseNotes.length / releaseNotesPerPage);
+    const agentName = node.frontmatter.subject;
+    const releaseNotes = releaseNotesPerAgent[agentName];
+    const releaseNotesPerPage = 10;
     const numPages = Math.ceil(releaseNotes / releaseNotesPerPage);
     Array.from({ length: numPages }).forEach((_, i) => {
       createPage({
