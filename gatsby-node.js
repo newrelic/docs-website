@@ -129,6 +129,7 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
               slug
             }
           }
+          totalCount
         }
       }
 
@@ -452,16 +453,23 @@ const createPageFromNode = (
         layout: 'basic',
       },
     });
-  } else if (template === 'releaseNotesLandingPage') {
-    const releaseNotes = node.data.landingPagesReleaseNotes.nodes;
-    const releaseNotesPerPage = 3; // TODO: change to 10
-    const numPages = Math.ceil(releaseNotes.length / releaseNotesPerPage);
+  } else if (template === 'releaseNoteLandingPage') {
+    // const releaseNotes = node.data.landingPagesReleaseNotes.nodes;
+    const releaseNotes = 50;
+    // Placeholder for proof of pagination. how to we get this number dynamically?
+    // Ex: we are building the ".NET agent" landing page -
+    // how do we tell it how many .NET release notes we have?
+    const releaseNotesPerPage = 3;
+    // TODO: change to 10
+    // using 3 so its obvious in development that it worked
+    // const numPages = Math.ceil(releaseNotes.length / releaseNotesPerPage);
+    const numPages = Math.ceil(releaseNotes / releaseNotesPerPage);
     Array.from({ length: numPages }).forEach((_, i) => {
       createPage({
         path:
           i === 0
             ? path.join(prefix, slug, '/')
-            : path.join(prefix, slug, `/${i + 1}`),
+            : path.join(prefix, slug, `/${i + 1}/`),
         component: path.resolve(path.join(TEMPLATE_DIR, `${template}.js`)),
         context: {
           limit: releaseNotesPerPage,
