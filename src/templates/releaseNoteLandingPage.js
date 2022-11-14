@@ -8,6 +8,7 @@ import SEO from '../components/SEO';
 import { Icon, Layout, Link } from '@newrelic/gatsby-theme-newrelic';
 import filter from 'unist-util-filter';
 import { TYPES } from '../utils/constants';
+import { Button } from '@newrelic/gatsby-theme-newrelic';
 
 const EXCERPT_LENGTH = 200;
 
@@ -56,6 +57,13 @@ const ReleaseNoteLandingPage = ({ data, pageContext, location }) => {
       'Template/ReleaseNoteLanding'
     );
   }
+  // Pagination button navigation logic
+  const totalPages = Math.ceil(data.totalReleaseNotesPerAgent.totalCount / 10);
+  const prevPage =
+    pageContext.currentPage <= 2 ? '' : pageContext.currentPage - 1;
+  const nextPage = pageContext.currentPage + 1;
+  const hasNextPage = nextPage <= totalPages;
+  const hasPrevPage = prevPage >= 2;
 
   return (
     <>
@@ -147,6 +155,54 @@ const ReleaseNoteLandingPage = ({ data, pageContext, location }) => {
             );
           })}
         </Timeline>
+        <div
+          css={css`
+            display: flex;
+            width: 100%;
+            justify-content: space-between;
+            align-items: flex-end;
+            margin-top: 50px;
+          `}
+        >
+          <Link
+            css={css`
+              text-decoration: none;
+              &[disabled] {
+                pointer-events: none;
+                button {
+                  border-color: grey;
+                  color: grey;
+                }
+              }
+            `}
+            disabled={!hasPrevPage}
+            to={`${slug}/${prevPage}/`}
+          >
+            <Button variant={Button.VARIANT.OUTLINE}>
+              <Icon name="fe-arrow-left" />
+              Prev
+            </Button>
+          </Link>
+          <Link
+            css={css`
+              text-decoration: none;
+              &[disabled] {
+                pointer-events: none;
+                button {
+                  border-color: grey;
+                  color: grey;
+                }
+              }
+            `}
+            disabled={!hasNextPage}
+            to={`${slug}/${nextPage}/`}
+          >
+            <Button variant={Button.VARIANT.OUTLINE}>
+              Next
+              <Icon name="fe-arrow-right" />
+            </Button>
+          </Link>
+        </div>
       </Layout.Content>
     </>
   );
@@ -190,6 +246,13 @@ export const pageQuery = graphql`
       frontmatter {
         subject
       }
+    }
+    totalReleaseNotesPerAgent: allMdx(
+      filter: {
+        frontmatter: { subject: { eq: $subject }, releaseDate: { ne: null } }
+      }
+    ) {
+      totalCount
     }
 
     ...MainLayout_query
