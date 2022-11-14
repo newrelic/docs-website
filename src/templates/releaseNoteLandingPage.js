@@ -27,7 +27,7 @@ const sortByVersion = (
 };
 
 const ReleaseNoteLandingPage = ({ data, pageContext, location }) => {
-  const { slug, disableSwiftype } = pageContext;
+  const { slug, disableSwiftype, currentPage } = pageContext;
   const {
     allMdx: { nodes: posts },
     mdx: {
@@ -59,11 +59,10 @@ const ReleaseNoteLandingPage = ({ data, pageContext, location }) => {
   }
   // Pagination button navigation logic
   const totalPages = Math.ceil(data.totalReleaseNotesPerAgent.totalCount / 10);
-  const prevPage =
-    pageContext.currentPage <= 2 ? '' : pageContext.currentPage - 1;
-  const nextPage = pageContext.currentPage + 1;
+  const prevPage = currentPage <= 1 ? '' : currentPage - 1;
+  const nextPage = currentPage + 1;
   const hasNextPage = nextPage <= totalPages;
-  const hasPrevPage = prevPage >= 2;
+  const hasPrevPage = prevPage >= 1;
 
   return (
     <>
@@ -162,10 +161,13 @@ const ReleaseNoteLandingPage = ({ data, pageContext, location }) => {
             justify-content: space-between;
             align-items: flex-end;
             margin-top: 50px;
-          `}
-        >
-          <Link
-            css={css`
+            a {
+              button {
+                &:hover {
+                  color: var(--brand-button-primary-accent-hover);
+                  border-color: var(--brand-button-primary-accent-hover);
+                }
+              }
               text-decoration: none;
               &[disabled] {
                 pointer-events: none;
@@ -174,29 +176,37 @@ const ReleaseNoteLandingPage = ({ data, pageContext, location }) => {
                   color: grey;
                 }
               }
-            `}
+              &.current {
+                button {
+                  border-color: var(--brand-button-primary-accent);
+                }
+              }
+            }
+          `}
+        >
+          <Link
+            css={css``}
             disabled={!hasPrevPage}
-            to={`${slug}/${prevPage}/`}
+            to={`${slug}${prevPage === 1 ? '/' : `${prevPage}/`}`}
+            // there is no url for agent-release-notes/1/
           >
             <Button variant={Button.VARIANT.OUTLINE}>
               <Icon name="fe-arrow-left" />
               Prev
             </Button>
           </Link>
-          <Link
-            css={css`
-              text-decoration: none;
-              &[disabled] {
-                pointer-events: none;
-                button {
-                  border-color: grey;
-                  color: grey;
-                }
-              }
-            `}
-            disabled={!hasNextPage}
-            to={`${slug}/${nextPage}/`}
-          >
+          {Array.from({ length: totalPages }).map((_, i) => (
+            <Link
+              css={css``}
+              className={currentPage === i + 1 ? 'current' : ''}
+              to={`${slug}/${i > 0 ? i + 1 : ''}`}
+              key={`page${i}`}
+            >
+              <Button variant={Button.VARIANT.OUTLINE}>{i + 1} </Button>
+            </Link>
+          ))}
+
+          <Link css={css``} disabled={!hasNextPage} to={`${slug}/${nextPage}/`}>
             <Button variant={Button.VARIANT.OUTLINE}>
               Next
               <Icon name="fe-arrow-right" />
