@@ -210,11 +210,16 @@ const ReleaseNoteLandingPage = ({ data, pageContext, location }) => {
                 </Link>
               )}
 
-              <Link css={css``} className="current" to={`${slug}/`}>
-                <Button variant={Button.VARIANT.OUTLINE}>
-                  {`Page ${currentPage} of ${totalPages}`}{' '}
-                </Button>
-              </Link>
+              <Button
+                variant={Button.VARIANT.OUTLINE}
+                css={css`
+                  pointer-events: none;
+                  margin: 0 1rem;
+                  border: none;
+                `}
+              >
+                {`Page ${currentPage} of ${totalPages}`}{' '}
+              </Button>
               {currentPage !== totalPages && currentPage !== 1 && (
                 <Link
                   css={css``}
