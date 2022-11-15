@@ -12,17 +12,15 @@ import {
   SearchInput,
   useTranslation,
 } from '@newrelic/gatsby-theme-newrelic';
-import { graphql } from 'gatsby';
 import { css } from '@emotion/react';
 import SEO from '../components/SEO';
 import RootNavigation from '../components/RootNavigation';
-import SubNavigation from '../components/SubNavigation';
 import NavFooter from '../components/NavFooter';
 import { useLocation, navigate } from '@reach/router';
 
-const MainLayout = ({ data = {}, children, pageContext }) => {
-  const { nav, rootNav } = data;
+const MainLayout = ({ children, pageContext }) => {
   const { sidebarWidth, contentPadding } = useLayout();
+  const { locale } = pageContext;
   const location = useLocation();
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -42,11 +40,7 @@ const MainLayout = ({ data = {}, children, pageContext }) => {
         customStyles={{ navLeftMargin: '150px', searchRightMargin: '30px' }}
       />
       <MobileHeader>
-        {nav?.id === rootNav.id ? (
-          <RootNavigation nav={nav} />
-        ) : (
-          <SubNavigation nav={nav} />
-        )}
+        <RootNavigation locale={locale} />
       </MobileHeader>
 
       <Layout
@@ -159,30 +153,16 @@ const MainLayout = ({ data = {}, children, pageContext }) => {
           </div>
           {sidebar && (
             <>
-              {' '}
-              {nav?.id === rootNav.id ? (
-                <RootNavigation
-                  css={css`
-                    overflow-x: hidden;
-                    height: calc(
-                      100vh - ${navHeaderHeight} - var(--global-header-height) -
-                        4rem
-                    );
-                  `}
-                  nav={nav}
-                />
-              ) : (
-                <SubNavigation
-                  css={css`
-                    overflow-x: hidden;
-                    height: calc(
-                      100vh - ${navHeaderHeight} - var(--global-header-height) -
-                        4rem
-                    );
-                  `}
-                  nav={nav}
-                />
-              )}
+              <RootNavigation
+                locale={locale}
+                css={css`
+                  overflow-x: hidden;
+                  height: calc(
+                    100vh - ${navHeaderHeight} - var(--global-header-height) -
+                      4rem
+                  );
+                `}
+              />
               <NavFooter
                 css={css`
                   width: calc(var(--sidebar-width) - 1px);
@@ -211,46 +191,7 @@ const MainLayout = ({ data = {}, children, pageContext }) => {
 
 MainLayout.propTypes = {
   children: PropTypes.node,
-  data: PropTypes.object,
   pageContext: PropTypes.object,
 };
-
-export const query = graphql`
-  fragment MainLayout_query on Query {
-    rootNav: nav(slug: "/") {
-      id
-    }
-    nav(slug: $slug) {
-      id
-      title(locale: $locale)
-      url
-      filterable
-      pages {
-        ...MainLayout_navPages
-        pages {
-          ...MainLayout_navPages
-          pages {
-            ...MainLayout_navPages
-            pages {
-              ...MainLayout_navPages
-              pages {
-                ...MainLayout_navPages
-                pages {
-                  ...MainLayout_navPages
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-
-  fragment MainLayout_navPages on NavItem {
-    title(locale: $locale)
-    url
-    icon
-  }
-`;
 
 export default MainLayout;
