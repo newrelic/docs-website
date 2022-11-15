@@ -157,12 +157,12 @@ const ReleaseNoteLandingPage = ({ data, pageContext, location }) => {
         <div
           css={css`
             display: flex;
-
             max-width: 760px;
-            justify-content: space-between;
+            justify-content: center;
             align-items: flex-end;
             margin: 6rem auto 0;
             a {
+              margin: 0 1rem 0;
               button {
                 &:hover {
                   color: var(--brand-button-primary-accent-hover);
