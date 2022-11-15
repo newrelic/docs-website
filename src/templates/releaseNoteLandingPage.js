@@ -157,10 +157,11 @@ const ReleaseNoteLandingPage = ({ data, pageContext, location }) => {
         <div
           css={css`
             display: flex;
-            width: 100%;
+
+            max-width: 760px;
             justify-content: space-between;
             align-items: flex-end;
-            margin-top: 50px;
+            margin: 6rem auto 0;
             a {
               button {
                 &:hover {
@@ -170,11 +171,12 @@ const ReleaseNoteLandingPage = ({ data, pageContext, location }) => {
               }
               text-decoration: none;
               &[disabled] {
-                pointer-events: none;
+                ${'' /* pointer-events: none;
                 button {
                   border-color: grey;
                   color: grey;
-                }
+                } */}
+                display: none;
               }
               &.current {
                 button {
@@ -187,7 +189,7 @@ const ReleaseNoteLandingPage = ({ data, pageContext, location }) => {
           <Link
             css={css``}
             disabled={!hasPrevPage}
-            to={`${slug}${prevPage === 1 ? '/' : `${prevPage}/`}`}
+            to={`${slug}${prevPage === 1 ? '/' : `/${prevPage}/`}`}
             // there is no url for agent-release-notes/1/
           >
             <Button variant={Button.VARIANT.OUTLINE}>
@@ -195,16 +197,38 @@ const ReleaseNoteLandingPage = ({ data, pageContext, location }) => {
               Prev
             </Button>
           </Link>
-          {Array.from({ length: totalPages }).map((_, i) => (
-            <Link
-              css={css``}
-              className={currentPage === i + 1 ? 'current' : ''}
-              to={`${slug}/${i > 0 ? i + 1 : ''}`}
-              key={`page${i}`}
-            >
-              <Button variant={Button.VARIANT.OUTLINE}>{i + 1} </Button>
-            </Link>
-          ))}
+          {/* prev, first, current of total, total, next  
+          hide next and previous if disabled*/}
+          {totalPages >= 2 && (
+            <>
+              {currentPage !== 1 && currentPage !== totalPages && (
+                <Link
+                  css={css``}
+                  className={currentPage === 1 ? 'current' : ''}
+                  to={slug}
+                >
+                  <Button variant={Button.VARIANT.OUTLINE}>1</Button>
+                </Link>
+              )}
+
+              <Link css={css``} className="current" to={`${slug}/`}>
+                <Button variant={Button.VARIANT.OUTLINE}>
+                  {`Page ${currentPage} of ${totalPages}`}{' '}
+                </Button>
+              </Link>
+              {currentPage !== totalPages && currentPage !== 1 && (
+                <Link
+                  css={css``}
+                  className={currentPage === totalPages ? 'current' : ''}
+                  to={`${slug}/${totalPages}/`}
+                >
+                  <Button variant={Button.VARIANT.OUTLINE}>
+                    {totalPages}{' '}
+                  </Button>
+                </Link>
+              )}
+            </>
+          )}
 
           <Link css={css``} disabled={!hasNextPage} to={`${slug}/${nextPage}/`}>
             <Button variant={Button.VARIANT.OUTLINE}>
