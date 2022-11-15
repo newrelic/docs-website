@@ -5,10 +5,9 @@ import { graphql } from 'gatsby';
 import PageTitle from '../components/PageTitle';
 import Timeline from '../components/Timeline';
 import SEO from '../components/SEO';
-import { Icon, Layout, Link } from '@newrelic/gatsby-theme-newrelic';
+import { Button, Icon, Layout, Link } from '@newrelic/gatsby-theme-newrelic';
 import filter from 'unist-util-filter';
 import { TYPES } from '../utils/constants';
-import { Button } from '@newrelic/gatsby-theme-newrelic';
 
 const EXCERPT_LENGTH = 200;
 
