@@ -20,13 +20,15 @@ import { useLocation, navigate } from '@reach/router';
 
 const MainLayout = ({ children, pageContext }) => {
   const { sidebarWidth, contentPadding } = useLayout();
-  const { locale } = pageContext;
+  const { locale, slug } = pageContext;
   const location = useLocation();
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [sidebar, setSidebar] = useState(true);
   const { t } = useTranslation();
   const navHeaderHeight = '100px';
+  const isStyleGuide =
+    slug.match(/\/docs\/style-guide/) || slug.match(/\/docs\/agile-handbook/);
 
   useEffect(() => {
     setIsMobileNavOpen(false);
@@ -40,7 +42,7 @@ const MainLayout = ({ children, pageContext }) => {
         customStyles={{ navLeftMargin: '150px', searchRightMargin: '30px' }}
       />
       <MobileHeader>
-        <RootNavigation locale={locale} />
+        <RootNavigation locale={locale} isStyleGuide={isStyleGuide} />
       </MobileHeader>
 
       <Layout
@@ -154,6 +156,7 @@ const MainLayout = ({ children, pageContext }) => {
           {sidebar && (
             <>
               <RootNavigation
+                isStyleGuide={isStyleGuide}
                 locale={locale}
                 css={css`
                   overflow-x: hidden;

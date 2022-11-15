@@ -3,8 +3,7 @@ import { css } from '@emotion/react';
 import { NavItem } from '@newrelic/gatsby-theme-newrelic';
 
 const Navigation = ({ nav, className }) => {
-  const subNav =
-    nav.url === '/docs/agile-handbook' || nav.url === '/docs/style-guide';
+  const subNav = nav.url === '/docs/style-guide';
   return (
     <nav
       role="navigation"
@@ -27,7 +26,6 @@ const Navigation = ({ nav, className }) => {
       id="nav"
       className={className}
     >
-      {subNav && <h3>{nav.title}</h3>}
       {nav.pages.map((page) => {
         if (page.title === 'section-break') {
           return <hr />;
