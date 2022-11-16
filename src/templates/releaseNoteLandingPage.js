@@ -227,13 +227,7 @@ ReleaseNoteLandingPage.propTypes = {
 };
 
 export const pageQuery = graphql`
-  query(
-    $slug: String!
-    $subject: String!
-    $skip: Int
-    $limit: Int
-  ) {
-
+  query($slug: String!, $subject: String!, $skip: Int, $limit: Int) {
     allMdx(
       filter: {
         frontmatter: { subject: { eq: $subject }, releaseDate: { ne: null } }
