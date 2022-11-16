@@ -440,6 +440,7 @@ const createPageFromNode = (
   defer = false
 ) => {
   const {
+    frontmatter: { subject: agentName },
     fields: { fileRelativePath, slug },
   } = node;
 
@@ -456,7 +457,6 @@ const createPageFromNode = (
       },
     });
   } else if (template === 'releaseNoteLandingPage') {
-    const agentName = node.frontmatter.subject;
     const releaseNotes = releaseNotesPerAgent[agentName];
     const releaseNotesPerPage = 10;
     const numPages = Math.ceil(releaseNotes / releaseNotesPerPage);
