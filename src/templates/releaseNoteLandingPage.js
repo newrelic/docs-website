@@ -230,10 +230,10 @@ export const pageQuery = graphql`
   query(
     $slug: String!
     $subject: String!
-    $locale: String
     $skip: Int
     $limit: Int
   ) {
+
     allMdx(
       filter: {
         frontmatter: { subject: { eq: $subject }, releaseDate: { ne: null } }
@@ -266,8 +266,6 @@ export const pageQuery = graphql`
     ) {
       totalCount
     }
-
-    ...MainLayout_query
   }
 `;
 
