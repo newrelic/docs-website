@@ -38,8 +38,6 @@ In our ongoing commitment to constantly innovate and build more integrations for
 
 6. Click on the Heroku tile, add your [drain token](https://devcenter.heroku.com/articles/log-drains#drain-tokens), and select an [Insights Insert API key](https://docs.newrelic.com/docs/apis/get-started/intro-apis/new-relic-api-keys/#insights-insert-key) to map it to.
 
-![heroku-tile.png](./images/heroku-tile.png "Heroku tile")
-
 7. Click **Add Heroku drain log** and logs will begin flowing to your New Relic account within seconds.
 
 ## Watch the Nerdlog Segment
