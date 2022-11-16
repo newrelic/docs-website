@@ -275,7 +275,7 @@ test('serializes Icon to html', async () => {
 });
 
 test('serializes var to html', async () => {
-  const html = await serializeMDX(`<var>JAVA_AGENT_VERSION</var>`);
+  const html = await serializeMDX(`JAVA_AGENT_VERSION`);
 
   expect(html).toMatchSnapshot();
 });
