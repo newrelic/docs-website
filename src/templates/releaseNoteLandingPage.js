@@ -161,7 +161,7 @@ const ReleaseNoteLandingPage = ({ data, pageContext, location }) => {
             align-items: flex-end;
             margin: 6rem auto 0;
             a {
-              margin: 0 1rem 0;
+              margin: 0 0.5rem 0;
               button {
                 &:hover {
                   color: var(--brand-button-primary-accent-hover);
@@ -170,74 +170,48 @@ const ReleaseNoteLandingPage = ({ data, pageContext, location }) => {
               }
               text-decoration: none;
               &[disabled] {
-                ${'' /* pointer-events: none;
+                pointer-events: none;
                 button {
-                  border-color: grey;
-                  color: grey;
-                } */}
-                display: none;
-              }
-              &.current {
-                button {
-                  border-color: var(--brand-button-primary-accent);
+                  border-color: --system-text-muted-light;
+                  color: --system-text-muted-light;
                 }
               }
             }
           `}
         >
+          <Link disabled={!hasPrevPage} to={slug}>
+            <Button disabled={!hasPrevPage} variant={Button.VARIANT.OUTLINE}>
+              First
+            </Button>
+          </Link>
+
           <Link
-            css={css``}
             disabled={!hasPrevPage}
             to={`${slug}${prevPage === 1 ? '/' : `/${prevPage}/`}`}
             // there is no url for agent-release-notes/1/
           >
-            <Button variant={Button.VARIANT.OUTLINE}>
+            <Button disabled={!hasPrevPage} variant={Button.VARIANT.OUTLINE}>
               <Icon name="fe-arrow-left" />
-              Prev
             </Button>
           </Link>
-          {/* prev, first, current of total, total, next  
-          hide next and previous if disabled*/}
-          {totalPages >= 2 && (
-            <>
-              {currentPage !== 1 && currentPage !== totalPages && (
-                <Link
-                  css={css``}
-                  className={currentPage === 1 ? 'current' : ''}
-                  to={slug}
-                >
-                  <Button variant={Button.VARIANT.OUTLINE}>1</Button>
-                </Link>
-              )}
-
-              <Button
-                variant={Button.VARIANT.OUTLINE}
-                css={css`
-                  pointer-events: none;
-                  margin: 0 1rem;
-                  border: none;
-                `}
-              >
-                {`Page ${currentPage} of ${totalPages}`}{' '}
-              </Button>
-              {currentPage !== totalPages && currentPage !== 1 && (
-                <Link
-                  css={css``}
-                  className={currentPage === totalPages ? 'current' : ''}
-                  to={`${slug}/${totalPages}/`}
-                >
-                  <Button variant={Button.VARIANT.OUTLINE}>
-                    {totalPages}{' '}
-                  </Button>
-                </Link>
-              )}
-            </>
-          )}
-
-          <Link css={css``} disabled={!hasNextPage} to={`${slug}/${nextPage}/`}>
-            <Button variant={Button.VARIANT.OUTLINE}>
-              Next
+          <Button
+            variant={Button.VARIANT.OUTLINE}
+            css={css`
+              pointer-events: none;
+              margin: 0 0.5rem;
+              border: none;
+            `}
+          >
+            {`Page ${currentPage} of ${totalPages}`}{' '}
+          </Button>
+          <Link disabled={!hasNextPage} to={`${slug}/${nextPage}/`}>
+            <Button disabled={!hasNextPage} variant={Button.VARIANT.OUTLINE}>
               <Icon name="fe-arrow-right" />
+            </Button>
+          </Link>
+          <Link disabled={!hasNextPage} to={`${slug}/${totalPages}/`}>
+            <Button disabled={!hasNextPage} variant={Button.VARIANT.OUTLINE}>
+              Last
             </Button>
           </Link>
         </div>
