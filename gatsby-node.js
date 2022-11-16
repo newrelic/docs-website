@@ -248,7 +248,7 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
 
   allMdx.edges.concat(allMarkdownRemark.edges).forEach(({ node }) => {
     const {
-      fields: { slug, fileRelativePath },
+      fields: { slug },
       frontmatter: { redirects },
     } = node;
 
