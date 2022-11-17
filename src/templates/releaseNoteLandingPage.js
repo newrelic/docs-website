@@ -159,7 +159,7 @@ ReleaseNoteLandingPage.propTypes = {
 };
 
 export const pageQuery = graphql`
-  query($slug: String!, $subject: String!, $locale: String) {
+  query($slug: String!, $subject: String!) {
     allMdx(
       filter: {
         frontmatter: { subject: { eq: $subject }, releaseDate: { ne: null } }
@@ -183,8 +183,6 @@ export const pageQuery = graphql`
         subject
       }
     }
-
-    ...MainLayout_query
   }
 `;
 

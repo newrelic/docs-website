@@ -3,7 +3,7 @@ title: 'New Instant Observability integrations for monitoring API, network, appl
 summary: 'Partner integrations from Cloudflare, Netlify Postman, Glassbox, and Datazoom'
 releaseDate: '2022-04-27'
 learnMoreLink: 'https://newrelic.com/blog/nerdlog/integrations-api-network-streaming-apm'
-getStartedLink: 'https://one.newrelic.com/nr1-core?state=f67884e5-349b-b770-a832-0ec79bcf05d7'
+getStartedLink: 'https://one.newrelic.com/marketplace?state=7ca7c800-845d-8b31-4677-d21bcc061961'
 ---
 
 [New Relic Instant Observability (I/O)](https://newrelic.com/instant-observability/) is an open ecosystem of more than 450 free, prebuilt quickstarts that help you start monitoring your system in minutes. These quickstarts bundle necessary building blocks for instrumenting, monitoring, and acting on signals from your telemetry data, wherever it comes from. 

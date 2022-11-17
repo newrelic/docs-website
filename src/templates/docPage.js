@@ -8,7 +8,7 @@ import {
   ContributingGuidelines,
   Layout,
   RelatedResources,
-  SimpleFeedback,
+  ComplexFeedback,
   TableOfContents,
 } from '@newrelic/gatsby-theme-newrelic';
 import MachineTranslationCallout from '../components/MachineTranslationCallout';
@@ -74,7 +74,7 @@ const BasicDoc = ({ data, location, pageContext }) => {
           display: grid;
           grid-template-areas:
             'mt-disclaimer mt-disclaimer'
-            'page-title page-title'
+            'page-title page-tools'
             'content page-tools';
           grid-template-columns: minmax(0, 1fr) 320px;
           grid-column-gap: 2rem;
@@ -110,13 +110,13 @@ const BasicDoc = ({ data, location, pageContext }) => {
             }
           `}
         >
-          <SimpleFeedback pageTitle={title} />
           <ContributingGuidelines
             pageTitle={title}
             fileRelativePath={fileRelativePath}
             issueLabels={['feedback', 'feedback-issue']}
           />
           <TableOfContents headings={headings} />
+          <ComplexFeedback pageTitle={title} />
           <RelatedResources
             resources={relatedResources}
             css={css`
@@ -136,7 +136,7 @@ BasicDoc.propTypes = {
 };
 
 export const pageQuery = graphql`
-  query($slug: String!, $locale: String) {
+  query($slug: String!) {
     mdx(fields: { slug: { eq: $slug } }) {
       mdxAST
       body
@@ -157,7 +157,6 @@ export const pageQuery = graphql`
       }
       ...TableOfContents_page
     }
-    ...MainLayout_query
   }
 `;
 

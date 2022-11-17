@@ -42,16 +42,20 @@ const getAllImages = () => {
 };
 
 const deleteUnusedImages = () => {
-  const englishImportedImages = getAllImageImports('src/content/docs');
-  const i18nImportedImages = getAllImageImports('src/i18n/content');
+  // eslint-disable-next-line no-console
+  console.log(`🔎 Checking for unused images, this may take a moment...`);
 
-  const importedImages = englishImportedImages.concat(i18nImportedImages);
+  const allImportedImages = getAllImageImports('src');
+  const uniqueImportedImages = new Set();
+  allImportedImages.forEach((imageName) => uniqueImportedImages.add(imageName));
+  const importedImages = Array.from(uniqueImportedImages);
   const inRepoImages = getAllImages();
 
   const imagesNotBeingUsed = inRepoImages.filter(
     (image) =>
       !importedImages.includes(image) && !IMAGE_ALLOWLIST.includes(image)
   );
+  // eslint-disable-next-line no-console
   console.log(
     `Deleting ${imagesNotBeingUsed.length} image/s not being imported in any file`
   );

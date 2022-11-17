@@ -2,6 +2,7 @@ const path = require('path');
 const { prop } = require('./scripts/utils/functional.js');
 const externalRedirects = require('./src/data/external-redirects.json');
 const { createFilePath } = require('gatsby-source-filesystem');
+const createSingleNav = require('./scripts/createSingleNav');
 
 const TEMPLATE_DIR = 'src/templates/';
 const TRAILING_SLASH = /\/$/;
@@ -14,6 +15,10 @@ const hasTrailingSlash = (pathname) =>
 
 const appendTrailingSlash = (pathname) =>
   pathname.endsWith('/') ? pathname : `${pathname}/`;
+
+exports.onPreBootstrap = () => {
+  createSingleNav();
+};
 
 exports.onCreateWebpackConfig = ({ actions }) => {
   actions.setWebpackConfig({
