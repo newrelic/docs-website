@@ -105,10 +105,6 @@ module.exports = {
       options: {
         name: 'translated-nav',
         path: `${__dirname}/src/i18n/nav`,
-        ignore:
-          process.env.BUILD_I18N === 'false'
-            ? [`${__dirname}/src/i18n/nav/*`]
-            : [],
       },
     },
     {
@@ -230,7 +226,13 @@ module.exports = {
     {
       resolve: `gatsby-source-filesystem`,
       options: {
-        path: `./src/nav/`,
+        path: `./src/nav/generatedNav.yml`,
+      },
+    },
+    {
+      resolve: `gatsby-source-filesystem`,
+      options: {
+        path: `./src/nav/style-guide.yml`,
       },
     },
     {
