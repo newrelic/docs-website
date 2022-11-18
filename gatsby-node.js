@@ -394,12 +394,9 @@ const createLocalizedRedirect = ({
   createRedirect,
 }) => {
   // Create redirects
-  const pathWithTrailingSlash = hasTrailingSlash(fromPath)
-    ? fromPath
-    : path.join(fromPath, '/');
 
   createRedirect({
-    fromPath: pathWithTrailingSlash,
+    fromPath,
     toPath: appendTrailingSlash(toPath),
     isPermanent,
     redirectInBrowser,
@@ -407,7 +404,7 @@ const createLocalizedRedirect = ({
 
   locales.forEach((locale) => {
     createRedirect({
-      fromPath: path.join(`/${locale}`, pathWithTrailingSlash),
+      fromPath: path.join(`/${locale}`, fromPath),
       toPath: appendTrailingSlash(path.join(`/${locale}`, toPath)),
       isPermanent,
       redirectInBrowser,
