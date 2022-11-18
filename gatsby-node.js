@@ -361,7 +361,7 @@ exports.createResolvers = ({ createResolvers }) => {
 };
 
 exports.onCreatePage = ({ page, actions }) => {
-  const { createPage, deletePage } = actions;
+  const { createPage } = actions;
 
   if (page.path.match(/404/)) {
     page.context.layout = 'basic';
@@ -377,6 +377,11 @@ exports.onCreatePage = ({ page, actions }) => {
     page.context.agent =
       lastItem !== '' ? lastItem : pagePathArray[pagePathArray.length - 2];
   }
+
+  if (hasTrailingSlash(page.context.slug)) {
+    page.context.slug = page.context.slug.replace(TRAILING_SLASH, '');
+  }
+
   createPage(page);
 };
 
