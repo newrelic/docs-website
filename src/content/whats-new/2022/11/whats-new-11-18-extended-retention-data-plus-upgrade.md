@@ -6,7 +6,7 @@ learnMoreLink: 'https://docs.newrelic.com/docs/data-apis/manage-data/manage-data
 getStartedLink: 'https://one.newrelic.com/data-management-hub'
 ---
 
-## Overview
+## Extending data retention and upgrading to Data Plus is becoming simpler
 
 We've made it easy to extend your data retention directly in-product, giving you the controls to decide how long you need your data for compliance or performing long-term analysis. Extended retention only costs $0.05/GB per a month, giving you the ability to conduct historical analysis to get deeper insights than you could with standard retention. Learn more about data retention for specific data types here.
 
