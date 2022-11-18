@@ -42,11 +42,10 @@ const MainLayout = ({ children, pageContext }) => {
     setIsMobileNavOpen(false);
     // react scroll causes the page to crash if it doesn't find an element
     // so we're checking for the element before firing
-    const scrollElement = document.getElementsByName(
-      addTrailingSlash(location.pathname)
-    );
+    const pathName = addTrailingSlash(location.pathname);
+    const scrollElement = document.getElementsByName(pathName);
     if (location.pathname !== '/' && scrollElement.length === 1) {
-      scroller.scrollTo(addTrailingSlash(location.pathname), {
+      scroller.scrollTo(pathName, {
         duration: 600,
         delay: 0,
         smooth: 'easeInOutQuart',
