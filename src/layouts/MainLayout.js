@@ -13,6 +13,7 @@ import {
   useTranslation,
 } from '@newrelic/gatsby-theme-newrelic';
 import { css } from '@emotion/react';
+import { scroller } from 'react-scroll';
 import SEO from '../components/SEO';
 import RootNavigation from '../components/RootNavigation';
 import NavFooter from '../components/NavFooter';
@@ -29,9 +30,29 @@ const MainLayout = ({ children, pageContext }) => {
   const navHeaderHeight = '100px';
   const isStyleGuide =
     slug.match(/\/docs\/style-guide/) || slug.match(/\/docs\/agile-handbook/);
+  const addTrailingSlash = (path) => {
+    if (path.endsWith('/')) {
+      return path;
+    } else {
+      return path.concat('/');
+    }
+  };
 
   useEffect(() => {
     setIsMobileNavOpen(false);
+    // react scroll causes the page to crash if it doesn't find an element
+    // so we're checking for the element before firing
+    const pathName = addTrailingSlash(location.pathname);
+    const scrollElement = document.getElementsByName(pathName);
+    if (location.pathname !== '/' && scrollElement.length === 1) {
+      scroller.scrollTo(pathName, {
+        duration: 600,
+        delay: 0,
+        smooth: 'easeInOutQuart',
+        containerId: 'nav',
+        offset: -5,
+      });
+    }
   }, [location.pathname]);
 
   return (
