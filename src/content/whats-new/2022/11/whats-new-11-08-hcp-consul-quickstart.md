@@ -17,8 +17,6 @@ Monitoring your cluster metrics is pivotal for keeping your mesh services operat
 
 This integration works by installing goStatsD tooling on your HCP Consul cluster and sending metrics to New Relic for data visualization, alerting, and more. For additional details, see our [HCP Consul integration docs on GitHub](https://github.com/newrelic-experimental/hashicorp-quickstart-annex/blob/main/hcp-consul/README.md).
 
-<iframe width="560" height="315" src="https://www.youtube.com/embed/EjX0nZ0w6Mo" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
-
 ## Get the quickstart dashboard
 
 Install the [HCP Consul quickstart](https://newrelic.com/instant-observability/hcp-consul) for a pre-built dashboard that lets you see health and performance metrics for your environment, client members, network, runtime, cluster membership, and Envoy.
