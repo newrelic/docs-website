@@ -40,8 +40,13 @@ const MainLayout = ({ children, pageContext }) => {
 
   useEffect(() => {
     setIsMobileNavOpen(false);
-    if (location.pathname !== '/') {
-      scroller.scrollTo(`${addTrailingSlash(location.pathname)}`, {
+    // react scroll causes the page to crash if it doesn't find an element
+    // so we're checking for the element before firing
+    const scrollElement = document.getElementsByName(
+      addTrailingSlash(location.pathname)
+    );
+    if (location.pathname !== '/' && scrollElement.length === 1) {
+      scroller.scrollTo(addTrailingSlash(location.pathname), {
         duration: 600,
         delay: 0,
         smooth: 'easeInOutQuart',
