@@ -24,7 +24,7 @@ Also included in this release is the ability to upgrade to (Data Plus)[https://n
 
 
 
-[Compare-data-options-1.png]
+![Comparing standard option vs Data Plus capabilities](./images/compare-data-options-1.png "Comparing standard option vs Data Plus capabilities")
 
 
 
