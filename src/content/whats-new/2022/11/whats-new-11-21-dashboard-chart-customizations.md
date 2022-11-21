@@ -7,7 +7,7 @@ getStartedLink: 'https://newrelic.com/blog/how-to-relic/dashboard-chart-customiz
 ---
 
 # New chart customization options
-New Relic dashboards let you analyze telemetry data across your entire stack, regardless of the source. Dashboards are a flexible way for engineering teams to visualize data however they want by combining pre-made templates, native platform visualizations, custom queries, and more--all in one place.
+New Relic dashboards let you analyze telemetry data across your entire stack, regardless of the source. Dashboards are a flexible way for engineering teams to visualize data however they want by combining pre-made templates, native platform visualizations, custom queries, and more—all in one place.
 
 Now there are more ways to upgrade your dashboards, including:
 - **Markdown widget:** Add rich custom content to your dashboards such as links, checklists, tables, and text formatting.
@@ -27,4 +27,4 @@ See some use cases and how to make the most of the Markdown widget:
 ![Screenshot showing sample dashboard in New Relic](./images/samplecustomdashboard.png "Screenshot showing sample dashboard in New Relic")
 <figcaption>Import the sample dashboard to test out the new customization options.</figcaption>
 
-You can explore the customization options too by following the steps in this [hands-on blog](https://newrelic.com/blog/how-to-relic/dashboard-chart-customizations). It shows shows you how to import the pre-made template dashboard, describes each option, and demonstrates how to use them in your own charts.
+You can explore the customization options by following the steps in this [hands-on blog](https://newrelic.com/blog/how-to-relic/dashboard-chart-customizations). It shows shows you how to import the pre-made template dashboard, describes each option, and demonstrates how to use them in your own charts.
