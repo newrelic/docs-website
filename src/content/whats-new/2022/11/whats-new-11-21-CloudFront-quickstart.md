@@ -10,9 +10,9 @@ getStartedLink: 'https://newrelic.com/instant-observability/amazon-cloudfront-we
 
 The [Amazon CloudFront quickstart](https://newrelic.com/instant-observability/amazon-cloudfront-web-logs) lets you easily explore your data to resolve CDN-related issues faster in New Relic with a pre-built dashboard that visualizes CDN performance and client information.
 
-To enable this integration, see how to [connect AWS services to New Relic](/docs/infrastructure/amazon-integrations/connect/connect-aws-new-relic-infrastructure-monitoring/). There are two options for sending logs from Amazon CloudFront: [standard logging (access logs)](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/AccessLogs.html), and [real-time logs](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/real-time-logs.html). Find more information for both options in our [documentation](/docs/logs/forward-logs/cloudfront-web-logs/). 
+To enable this integration, see [how to connect AWS services to New Relic](/docs/infrastructure/amazon-integrations/connect/connect-aws-new-relic-infrastructure-monitoring/). There are two options for sending logs from Amazon CloudFront: [standard logging (access logs)](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/AccessLogs.html), and [real-time logs](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/real-time-logs.html). Find more information for both options in our [CloudFront web logs docs](https://docs.newrelic.com/docs/logs/forward-logs/cloudfront-web-logs/). 
 
-Watch this the short video to learn how to send your Amazon CloudFront distribution access logs to New Relic:
+Watch this short video to learn how to send your Amazon CloudFront distribution access logs to New Relic:
 
 <iframe width="1280" height="720" src="https://www.youtube.com/embed/to3giuHSiMo" title="Monitor CDN Performance with Amazon CloudFront" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
 
