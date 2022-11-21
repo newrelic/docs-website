@@ -10,11 +10,11 @@ getStartedLink: 'https://newrelic.com/blog/how-to-relic/dashboard-chart-customiz
 New Relic dashboards let you analyze telemetry data across your entire stack, regardless of the source. Dashboards are a flexible way for engineering teams to visualize data however they want by combining pre-made templates, native platform visualizations, custom queries, and more--all in one place.
 
 Now there are more ways to upgrade your dashboards, including:
--**Markdown widget:** Add rich custom content to your dashboards.
--**Custom colors:** Highlight key information or choose a preferred color palette for each data series
--**Null value options:** Four options to display, transform, or remove null points.
--**Unit labels:** Increase chart detail and clarity
--**Override time picker:** Analyze different time ranges in a single dashboard.
+- **Markdown widget:** Add rich custom content to your dashboards such as links, checklists, tables, and text formatting.
+- **Custom colors:** Highlight key information or choose a preferred color palette for each data series.
+- **Null value options:** Four options to display, transform, or remove null points.
+- **Unit labels:** Increase chart detail and clarity with custom units per series.
+- **Override time picker:** Analyze different time ranges in a single dashboard.
 
 ## See it in action
 Check out the video below to see an interactive demo:
