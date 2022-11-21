@@ -300,8 +300,7 @@ export const pageQuery = graphql`
     }
   }
 
-  query($agentName: String!, $locale: String!, $slug: String!) {
-    ...MainLayout_query
+  query($agentName: String!) {
     installConfig(agentName: { eq: $agentName }) {
       id
       agentName
