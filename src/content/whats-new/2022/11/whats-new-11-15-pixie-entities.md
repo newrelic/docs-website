@@ -2,7 +2,7 @@
 title: 'First-class support now available for Pixie data'
 summary: 'Automatically detect and export sampled and aggregated data from Pixie for long-term retention'
 releaseDate: '2022-11-15'
-learnMoreLink: 'https://discuss.newrelic.com/t/ingest-telemetry-directly-from-lambda-using-new-relic-extensions/190989' 
+learnMoreLink: 'https://docs.newrelic.com/docs/kubernetes-pixie/auto-telemetry-pixie/understand-use-data/overview/#pixie-configure-storage' 
 getStartedLink: 'https://docs.newrelic.com/docs/kubernetes-pixie/auto-telemetry-pixie/understand-use-data/explore-pixie-data/'
 ---
 
