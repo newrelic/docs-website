@@ -48,6 +48,7 @@ const InstallPage = ({ data, location }) => {
 
   if (typeof window !== 'undefined' && typeof newrelic === 'object') {
     window.newrelic.setCustomAttribute('pageType', 'Interactive/Install');
+    window.newrelic.setCustomAttribute('agentName', agentName);
   }
 
   const selectOptions = appInfo.map((select) => ({
@@ -299,8 +300,7 @@ export const pageQuery = graphql`
     }
   }
 
-  query($agentName: String!, $locale: String!, $slug: String!) {
-    ...MainLayout_query
+  query($agentName: String!) {
     installConfig(agentName: { eq: $agentName }) {
       id
       agentName
