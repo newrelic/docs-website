@@ -14,7 +14,7 @@ To enable this integration, see [how to connect AWS services to New Relic](/docs
 
 Watch this short video to learn how to send your Amazon CloudFront distribution access logs to New Relic:
 
-<iframe width="1280" height="720" src="https://www.youtube.com/embed/to3giuHSiMo" title="Monitor CDN Performance with Amazon CloudFront" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+<iframe width="560" height="315" src="https://www.youtube.com/embed/to3giuHSiMo" title="Monitor CDN Performance with Amazon CloudFront" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
 
 ## Using another CDN?
 
