@@ -1,6 +1,6 @@
 ---
 title: 'Enhance optimization recommendations with new AWS Compute Optimizer integration' 
-summary: 'Data Plus customers using our AWS infrastructure agent can now use New Relic memory utilization metrics for EC2 to supercharge their AWS Compute Optimizer recommendations.' 
+summary: 'Data Plus customers using our AWS infrastructure agent can now use New Relic memory utilization metrics for Amazon EC2 to supercharge their AWS Compute Optimizer recommendations.' 
 releaseDate: '2022-11-28' 
 learnMoreLink: 'https://aws.amazon.com/compute-optimizer/' 
 ---
@@ -11,7 +11,7 @@ New Relic is pleased to partner with AWS to allow joint customers on our Data Pl
 ![AWS Compute Optimizer Recommendations](./images/AWS_Compute_Optimizer_Recommendations.jpg "AWS Compute Optimizer Recommendations")
 AWS Compute Optimizer Recommendations
 
-To prepare for this integration, be sure to first deploy the New Relic Infrastructure Agent to any EC2 instances in AWS that you want to monitor. Instructions for using AWS System Manager Distributor to easily do so can be found [here](https://docs.newrelic.com/docs/infrastructure/amazon-integrations/aws-integrations-list/aws-sys-dist).
+To prepare for this integration, be sure to first deploy the New Relic infrastructure agent to any EC2 instances in AWS that you want to monitor. Instructions for using AWS System Manager Distributor to easily do so can be found [here](https://docs.newrelic.com/docs/infrastructure/amazon-integrations/aws-integrations-list/aws-sys-dist).
 
 To enable this integration, first select New Relic as your third party provider in AWS Compute Optimizer.
 
