@@ -1,7 +1,7 @@
 ---
 title: 'Get full observability of your clusters with Prometheus monitoring that scales as you grow.'
 summary: 'New agent, dashboards, and alerts make monitoring Prometheus metrics easier than ever'
-releaseDate: '2022-11-10'
+releaseDate: '2022-11-30'
 learnMoreLink: 'https://docs.newrelic.com/docs/infrastructure/prometheus-integrations/install-configure-prometheus-agent/install-prometheus-agent/' 
 getStartedLink: 'https://newrelic.com/instant-observability/?search=prometheus'
 ---
