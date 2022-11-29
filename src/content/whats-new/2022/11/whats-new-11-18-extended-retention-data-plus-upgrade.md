@@ -16,7 +16,7 @@ Note that this self-serve ability is only available to some organizations.
 
 ## How to get started
 
-1. Extend data retention or upgrade to Data Plus from the [data management hub](https://one.newrelic.com/data-management-hub). (Noe that [this feature isn't available to all organizations](https://docs.newrelic.com/docs/data-apis/manage-data/manage-data-retention#requirements).)
+1. Extend data retention or upgrade to Data Plus from the [data management hub](https://one.newrelic.com/data-management-hub). (Note that [this feature isn't available to all organizations](https://docs.newrelic.com/docs/data-apis/manage-data/manage-data-retention#requirements).)
 2. Learn more about [data retention](https://docs.newrelic.com/docs/data-apis/manage-data/manage-data-retention/#retention-periods).
 3. If you have further questions, reach out to your account team or check out our [pricing page](https://newrelic.com/pricing).
 
