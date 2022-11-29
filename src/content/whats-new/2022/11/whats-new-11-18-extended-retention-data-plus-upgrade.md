@@ -1,5 +1,5 @@
 ---
-title: 'Extend data retention in-product for compliance and longer-term analysis'
+title: 'Extend data retention in-product for compliance and long-term analysis'
 summary: 'Our new in-product capability makes it easy for you to adjust your retention or access Data Plus without needing to contact sales'
 releaseDate: '2022-11-22'
 learnMoreLink: 'https://docs.newrelic.com/docs/data-apis/manage-data/manage-data-retention/#adjust-retention'
