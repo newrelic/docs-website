@@ -1,6 +1,6 @@
 ---
 title: 'Get precise dashboard filtering using template variables' 
-summary: 'New advanced feature, template variables, lets you create dynamic dashboards that are easier to navigate and filter through' 
+summary: 'Template variables, a new advanced feature, let you create dynamic dashboards that are easier to navigate and filter through' 
 releaseDate: '2022-11-30' 
 learnMoreLink: 'https://newrelic.com/blog/how-to-relic/dashboard-template-variables' 
 getStartedLink: 'https://docs.newrelic.com/docs/query-your-data/explore-query-data/dashboards/dashboard-template-variables/'
