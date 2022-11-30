@@ -6,7 +6,6 @@ const createSingleNav = require('./scripts/createSingleNav');
 
 const TEMPLATE_DIR = 'src/templates/';
 const TRAILING_SLASH = /\/$/;
-const releaseNotesPerAgent = {};
 
 const hasOwnProperty = (obj, key) =>
   Object.prototype.hasOwnProperty.call(obj, key);
@@ -117,44 +116,6 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
         }
       }
 
-      releaseNotes: allMdx(
-        filter: {
-          fileAbsolutePath: {
-            regex: "/src/content/docs/release-notes/.*(?<!index).mdx/"
-          }
-        }
-        sort: { fields: frontmatter___releaseDate, order: DESC }
-      ) {
-        group(limit: 1, field: frontmatter___subject) {
-          fieldValue
-          nodes {
-            frontmatter {
-              releaseDate
-            }
-            fields {
-              slug
-            }
-          }
-          totalCount
-        }
-      }
-
-      landingPagesReleaseNotes: allMdx(
-        filter: {
-          fileAbsolutePath: { regex: "/docs/release-notes/.*/index.mdx$/" }
-        }
-      ) {
-        nodes {
-          fields {
-            slug
-          }
-          frontmatter {
-            subject
-            redirects
-          }
-        }
-      }
-
       allLocale {
         nodes {
           locale
@@ -182,8 +143,6 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
     allI18nMdx,
     allMarkdownRemark,
     allMdx,
-    releaseNotes,
-    landingPagesReleaseNotes,
     allLocale,
     allInstallConfig,
     whatsNewPosts,
@@ -214,39 +173,6 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
           createRedirect,
         })
       );
-  });
-
-  releaseNotes.group.forEach((el) => {
-    const { fieldValue, nodes, totalCount } = el;
-
-    const landingPage = landingPagesReleaseNotes.nodes.find(
-      (node) => node.frontmatter.subject === fieldValue
-    );
-
-    if (landingPage) {
-      releaseNotesPerAgent[landingPage.frontmatter.subject] = totalCount;
-      const { redirects } = landingPage.frontmatter;
-
-      createLocalizedRedirect({
-        locales,
-        fromPath: path.join(landingPage.fields.slug, 'current'),
-        toPath: nodes[0].fields.slug,
-        isPermanent: false,
-        createRedirect,
-      });
-
-      if (redirects) {
-        redirects.forEach((fromPath) => {
-          createLocalizedRedirect({
-            locales,
-            fromPath,
-            toPath: landingPage.fields.slug,
-            isPermanent: false,
-            createRedirect,
-          });
-        });
-      }
-    }
   });
 
   const translatedContentNodes = allI18nMdx.edges.map(({ node }) => node);
@@ -426,7 +352,6 @@ const createPageFromNode = (
   defer = false
 ) => {
   const {
-    frontmatter: { subject: agentName },
     fields: { fileRelativePath, slug },
   } = node;
 
@@ -441,31 +366,6 @@ const createPageFromNode = (
         fileRelativePath,
         layout: 'basic',
       },
-    });
-  } else if (template === 'releaseNoteLandingPage') {
-    const releaseNotes = releaseNotesPerAgent[agentName];
-    const releaseNotesPerPage = 10;
-    const numPages = Math.ceil(releaseNotes / releaseNotesPerPage);
-    Array.from({ length: numPages }).forEach((_, i) => {
-      createPage({
-        path:
-          i === 0
-            ? path.join(prefix, slug, '/')
-            : path.join(prefix, slug, `/${i + 1}/`),
-        component: path.resolve(path.join(TEMPLATE_DIR, `${template}.js`)),
-        context: {
-          limit: releaseNotesPerPage,
-          skip: i * releaseNotesPerPage,
-          numPages,
-          currentPage: i + 1,
-          ...context,
-          fileRelativePath,
-          slug,
-          slugRegex: `${slug}/.+/`,
-          disableSwiftype,
-        },
-        defer,
-      });
     });
   } else {
     createPage({

@@ -362,36 +362,6 @@ module.exports = {
         nodesPerFeedFile: Infinity,
       },
     },
-    {
-      resolve: `gatsby-plugin-generate-json`,
-      options: {
-        query: `
-        {
-          allMdx(filter: {fields: {slug: {regex: "/docs/release-notes/"}}}) {
-            nodes {
-              frontmatter {
-                subject
-                releaseDate(fromNow: false)
-                version
-              }
-              excerpt(pruneLength: 5000)
-            }
-          }
-        }
-        `,
-        path: '/api/agent-release-notes.json',
-        serialize: ({ data }) =>
-          data.allMdx.nodes
-            .map(({ frontmatter, excerpt }) => ({
-              agent: getAgentName(frontmatter.subject),
-              date: frontmatter.releaseDate,
-              version: frontmatter.version,
-              description: excerpt,
-            }))
-            .filter(({ date, agent }) => Boolean(date && agent)),
-      },
-    },
-    'gatsby-plugin-release-note-rss',
     'gatsby-plugin-whats-new-rss',
     'gatsby-plugin-security-bulletins-rss',
     {

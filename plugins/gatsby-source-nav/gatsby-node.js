@@ -121,94 +121,6 @@ const createWhatsNewNav = async ({ createNodeId, nodeModel }) => {
   };
 };
 
-const createReleaseNotesNav = async ({ createNodeId, nodeModel }) => {
-  const [
-    { entries: releaseNoteEntries },
-    { entries: landingPagesEntries },
-  ] = await Promise.all([
-    nodeModel.findAll({
-      type: 'Mdx',
-      query: {
-        filter: {
-          fileAbsolutePath: {
-            regex: '/src/content/docs/release-notes/.*(?<!index).mdx/',
-          },
-        },
-        sort: {
-          fields: ['frontmatter.releaseDate'],
-          order: ['DESC'],
-        },
-      },
-    }),
-
-    nodeModel.findAll({
-      type: 'Mdx',
-      query: {
-        filter: {
-          fileAbsolutePath: {
-            regex: '/src/content/docs/release-notes/.*/index.mdx$/',
-          },
-        },
-      },
-    }),
-  ]);
-
-  // Convert GatsbyIterable to array to use array methods it doesn't support
-  const posts = Array.from(releaseNoteEntries);
-  const landingPages = Array.from(landingPagesEntries);
-
-  const subjects = posts
-    .reduce((acc, curr) => [...new Set([...acc, curr.frontmatter.subject])], [])
-    .filter(Boolean)
-    .sort((a, b) =>
-      a
-        .toLowerCase()
-        .replace(/\W/, '')
-        .localeCompare(b.toLowerCase().replace(/\W/, ''))
-    );
-
-  const formatReleaseNotePosts = (posts) =>
-    posts.map((post) => {
-      const derivedTitle = post.frontmatter.version
-        ? `${post.frontmatter.subject} v${post.frontmatter.version}`
-        : post.frontmatter.subject;
-
-      return {
-        title: post.frontmatter.title ? post.frontmatter.title : derivedTitle,
-        url: post.fields.slug,
-        pages: [],
-      };
-    });
-
-  const filterBySubject = (subject, posts) =>
-    posts.filter((post) => post.frontmatter.subject === subject);
-
-  return {
-    id: createNodeId('release-notes'),
-    title: 'Release Notes',
-    pages: [{ title: 'Overview', url: '/docs/release-notes' }].concat(
-      subjects.map((subject) => {
-        const landingPage = landingPages.find(
-          (page) => page.frontmatter.subject === subject
-        );
-
-        return {
-          title: subject,
-          url: landingPage && landingPage.fields.slug,
-          pages: [
-            {
-              title: subject + ' overview',
-              url: landingPage && landingPage.fields.slug,
-            },
-          ].concat(
-            formatReleaseNotePosts(filterBySubject(subject, posts)).slice(0, 10)
-          ),
-        };
-      })
-    ),
-  };
-};
-
 const createSubNav = async ({ args, createNodeId, nodeModel, locales }) => {
   let { slug } = args;
   slug = slug
@@ -252,23 +164,12 @@ const createNav = async ({ createNodeId, nodeModel }) => {
   const whatsNewIndex = nav.pages.findIndex(
     (item) => item.title === `What's new?`
   );
-  const releaseNotesIndex = nav.pages.findIndex(
-    (item) => item.title === `Release notes`
-  );
   const whatsNewNav = await createWhatsNewNav({ createNodeId, nodeModel });
-  const releaseNotesNav = await createReleaseNotesNav({
-    createNodeId,
-    nodeModel,
-  });
 
   const rootNavPages = [...nav.pages];
   rootNavPages[whatsNewIndex] = {
     ...rootNavPages[whatsNewIndex],
     pages: whatsNewNav.pages,
-  };
-  rootNavPages[releaseNotesIndex] = {
-    ...rootNavPages[releaseNotesIndex],
-    pages: releaseNotesNav.pages,
   };
 
   return {
