@@ -283,7 +283,7 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
           createPage,
           disableSwiftype: !i18nNode,
         },
-        false // disable DSG
+        true // enable DSG
       );
     });
   });
@@ -369,8 +369,7 @@ exports.createResolvers = ({ createResolvers }) => {
 };
 
 exports.onCreatePage = ({ page, actions }) => {
-  const { createPage, deletePage } = actions;
-  const oldPage = { ...page };
+  const { createPage } = actions;
 
   if (page.path.match(/404/)) {
     page.context.layout = 'basic';
@@ -391,7 +390,6 @@ exports.onCreatePage = ({ page, actions }) => {
     page.context.slug = page.context.slug.replace(TRAILING_SLASH, '');
   }
 
-  deletePage(oldPage);
   createPage(page);
 };
 
@@ -403,21 +401,10 @@ const createLocalizedRedirect = ({
   isPermanent = true,
   createRedirect,
 }) => {
-  // Create redirects for paths with and without a trailing slash
-  const pathWithTrailingSlash = hasTrailingSlash(fromPath)
-    ? fromPath
-    : path.join(fromPath, '/');
-  const pathWithoutTrailingSlash = pathWithTrailingSlash.slice(0, -1);
+  // Create redirects
 
   createRedirect({
-    fromPath: pathWithTrailingSlash,
-    toPath: appendTrailingSlash(toPath),
-    isPermanent,
-    redirectInBrowser,
-  });
-
-  createRedirect({
-    fromPath: pathWithoutTrailingSlash,
+    fromPath,
     toPath: appendTrailingSlash(toPath),
     isPermanent,
     redirectInBrowser,
@@ -425,13 +412,7 @@ const createLocalizedRedirect = ({
 
   locales.forEach((locale) => {
     createRedirect({
-      fromPath: path.join(`/${locale}`, pathWithTrailingSlash),
-      toPath: appendTrailingSlash(path.join(`/${locale}`, toPath)),
-      isPermanent,
-      redirectInBrowser,
-    });
-    createRedirect({
-      fromPath: path.join(`/${locale}`, pathWithoutTrailingSlash),
+      fromPath: path.join(`/${locale}`, fromPath),
       toPath: appendTrailingSlash(path.join(`/${locale}`, toPath)),
       isPermanent,
       redirectInBrowser,
