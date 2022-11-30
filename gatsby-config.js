@@ -32,6 +32,7 @@ const autoLinkHeaders = {
 };
 
 module.exports = {
+  trailingSlash: 'always',
   flags: {
     DEV_SSR: true,
     PRESERVE_FILE_DOWNLOAD_CACHE: true,
@@ -105,10 +106,6 @@ module.exports = {
       options: {
         name: 'translated-nav',
         path: `${__dirname}/src/i18n/nav`,
-        ignore:
-          process.env.BUILD_I18N === 'false'
-            ? [`${__dirname}/src/i18n/nav/*`]
-            : [],
       },
     },
     {
@@ -227,10 +224,17 @@ module.exports = {
       },
     },
     `gatsby-transformer-yaml`,
+    `gatsby-transformer-plaintext`,
     {
       resolve: `gatsby-source-filesystem`,
       options: {
-        path: `./src/nav/`,
+        path: `./src/nav/generatedNav.yml`,
+      },
+    },
+    {
+      resolve: `gatsby-source-filesystem`,
+      options: {
+        path: `./src/nav/style-guide.yml`,
       },
     },
     {
@@ -493,19 +497,6 @@ module.exports = {
             'java',
             'razor',
           ],
-        },
-        splitio: {
-          // Mocked features only used when in localhost mode
-          // https://help.split.io/hc/en-us/articles/360020448791-JavaScript-SDK#localhost-mode
-          features: {
-            free_account_button_color: {
-              treatment: 'off',
-            },
-          },
-          core: {
-            authorizationKey: process.env.SPLITIO_AUTH_KEY || 'localhost',
-          },
-          debug: false,
         },
         newrelic: {
           config: {

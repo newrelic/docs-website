@@ -212,7 +212,7 @@ HomePage.propTypes = {
 };
 
 export const pageQuery = graphql`
-  query($slug: String!, $locale: String) {
+  query {
     site {
       layout {
         contentPadding
@@ -239,7 +239,6 @@ export const pageQuery = graphql`
         }
       }
     }
-    ...MainLayout_query
   }
 `;
 
