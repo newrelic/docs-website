@@ -386,7 +386,6 @@ const createPageFromNode = (
 const TEMPLATES_BY_TYPE = {
   landingPage: 'landingPage',
   apiDoc: 'docPage',
-  releaseNote: 'releaseNote',
   troubleshooting: 'docPage',
 };
 
@@ -399,15 +398,6 @@ const getTemplate = (node) => {
   switch (true) {
     case Boolean(frontmatter.type):
       return { template: TEMPLATES_BY_TYPE[frontmatter.type] };
-
-    case /docs\/release-notes\/.*\/index.mdx$/.test(fileRelativePath):
-      return {
-        template: 'releaseNoteLandingPage',
-        context: { subject: frontmatter.subject },
-      };
-
-    case fileRelativePath.includes('src/content/docs/release-notes'):
-      return { template: 'releaseNote' };
 
     case fileRelativePath.includes('src/content/whats-new'):
       return { template: 'whatsNew' };

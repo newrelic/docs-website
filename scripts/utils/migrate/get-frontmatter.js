@@ -5,7 +5,6 @@ const he = require('he');
 const GATSBY_CONTENT_TYPES = {
   [TYPES.LANDING_PAGE]: 'landingPage',
   [TYPES.API_DOC]: 'apiDoc',
-  [TYPES.RELEASE_NOTE]: 'releaseNote',
   [TYPES.TROUBLESHOOTING]: 'troubleshooting',
 };
 
@@ -70,31 +69,6 @@ const addCustomFrontmatter = {
     translate: doc.japaneseVersionExists === 'yes' ? ['jp'] : null,
     metaDescription: doc.metaDescription ? doc.metaDescription.trim() : null,
   }),
-  [TYPES.RELEASE_NOTE]: ({ doc }, _, file) => {
-    const match = doc.title.match(/^(.*?)v?\d+(\.\d+){0,3}/);
-
-    if (!match) {
-      file.message(
-        `Unable to extract subject: ${doc.title}`,
-        null,
-        'get-frontmatter'
-      );
-    }
-
-    const subject = match ? match[1].trim() : doc.title.trim();
-
-    return {
-      subject: normalizeSubject(subject),
-      releaseDate: doc.releasedOn.split(' ')[0],
-      version: doc.releaseVersion && doc.releaseVersion.replace(/^v/i, ''),
-      downloadLink: doc.downloadLink,
-      type: file.path.match(/src\/content\/docs\/release-notes/)
-        ? null
-        : 'releaseNote',
-      translate: doc.japaneseVersionExists === 'yes' ? ['jp'] : null,
-      metaDescription: doc.metaDescription ? doc.metaDescription.trim() : null,
-    };
-  },
   [TYPES.WHATS_NEW]: ({ doc }) => ({
     title: doc.title,
     summary: doc.summary ? he.decode(doc.summary).trim() : null,
