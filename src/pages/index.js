@@ -42,6 +42,7 @@ const HomePage = ({ data }) => {
         css={css`
           font-size: 3.5rem;
           font-weight: 500;
+          line-height: 1;
           @media screen and (max-width: ${mobileBreakpoint}) {
             font-size: 1.5rem;
           }
@@ -131,14 +132,14 @@ const HomePage = ({ data }) => {
             path="/docs/query-your-data/nrql-new-relic-query-language/get-started/nrql-syntax-clauses-functions/"
           />
           <DocTile
-            label={{ text: 'Events', color: '#AFE2E3' }}
             title={t('home.popularDocs.t2.title')}
-            path="/attribute-dictionary/"
+            label={{ text: 'Log management', color: '#FCD672' }}
+            path="/docs/logs/get-started/get-started-log-management/"
           />
           <DocTile
             title={t('home.popularDocs.t3.title')}
-            label={{ text: 'Log management', color: '#FCD672' }}
-            path="/docs/logs/get-started/get-started-log-management/"
+            label={{ text: 'APM', color: '#AFE2E3' }}
+            path="/install/java/"
           />
         </div>
       </Section>
@@ -211,7 +212,7 @@ HomePage.propTypes = {
 };
 
 export const pageQuery = graphql`
-  query($slug: String!, $locale: String) {
+  query {
     site {
       layout {
         contentPadding
@@ -238,7 +239,6 @@ export const pageQuery = graphql`
         }
       }
     }
-    ...MainLayout_query
   }
 `;
 
