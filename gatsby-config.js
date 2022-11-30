@@ -32,7 +32,6 @@ const autoLinkHeaders = {
 };
 
 module.exports = {
-  trailingSlash: 'always',
   flags: {
     DEV_SSR: true,
     PRESERVE_FILE_DOWNLOAD_CACHE: true,
