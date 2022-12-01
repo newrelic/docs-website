@@ -2,9 +2,11 @@ const path = require('path');
 const { prop } = require('./scripts/utils/functional.js');
 const externalRedirects = require('./src/data/external-redirects.json');
 const { createFilePath } = require('gatsby-source-filesystem');
+const createSingleNav = require('./scripts/createSingleNav');
 
 const TEMPLATE_DIR = 'src/templates/';
 const TRAILING_SLASH = /\/$/;
+const releaseNotesPerAgent = {};
 
 const hasOwnProperty = (obj, key) =>
   Object.prototype.hasOwnProperty.call(obj, key);
@@ -14,6 +16,10 @@ const hasTrailingSlash = (pathname) =>
 
 const appendTrailingSlash = (pathname) =>
   pathname.endsWith('/') ? pathname : `${pathname}/`;
+
+exports.onPreBootstrap = () => {
+  createSingleNav();
+};
 
 exports.onCreateWebpackConfig = ({ actions }) => {
   actions.setWebpackConfig({
@@ -129,6 +135,7 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
               slug
             }
           }
+          totalCount
         }
       }
 
@@ -154,6 +161,15 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
           isDefault
         }
       }
+
+      allInstallConfig {
+        edges {
+          node {
+            redirects
+            agentName
+          }
+        }
+      }
     }
   `);
 
@@ -169,6 +185,7 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
     releaseNotes,
     landingPagesReleaseNotes,
     allLocale,
+    allInstallConfig,
     whatsNewPosts,
   } = data;
 
@@ -187,14 +204,27 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
     });
   });
 
+  allInstallConfig.edges.forEach(({ node: { redirects, agentName } }) => {
+    redirects?.length &&
+      redirects.forEach((redirect) =>
+        createLocalizedRedirect({
+          locales,
+          fromPath: redirect,
+          toPath: `/install/${agentName}/`,
+          createRedirect,
+        })
+      );
+  });
+
   releaseNotes.group.forEach((el) => {
-    const { fieldValue, nodes } = el;
+    const { fieldValue, nodes, totalCount } = el;
 
     const landingPage = landingPagesReleaseNotes.nodes.find(
       (node) => node.frontmatter.subject === fieldValue
     );
 
     if (landingPage) {
+      releaseNotesPerAgent[landingPage.frontmatter.subject] = totalCount;
       const { redirects } = landingPage.frontmatter;
 
       createLocalizedRedirect({
@@ -296,6 +326,7 @@ exports.createSchemaCustomization = ({ actions }) => {
     translationType: String
     dataSource: String
   }
+
   `;
 
   createTypes(typeDefs);
@@ -338,18 +369,27 @@ exports.createResolvers = ({ createResolvers }) => {
 };
 
 exports.onCreatePage = ({ page, actions }) => {
-  const { createPage, deletePage } = actions;
-  const oldPage = { ...page };
+  const { createPage } = actions;
 
   if (page.path.match(/404/)) {
     page.context.layout = 'basic';
+  }
+
+  if (page.path.match(/404/) && page.path.match(/\/docs\//)) {
+    page.context.layout = 'default';
+  }
+
+  if (page.path.includes('/install/')) {
+    const pagePathArray = page.path.split('/');
+    const lastItem = pagePathArray[pagePathArray.length - 1];
+    page.context.agent =
+      lastItem !== '' ? lastItem : pagePathArray[pagePathArray.length - 2];
   }
 
   if (hasTrailingSlash(page.context.slug)) {
     page.context.slug = page.context.slug.replace(TRAILING_SLASH, '');
   }
 
-  deletePage(oldPage);
   createPage(page);
 };
 
@@ -361,21 +401,10 @@ const createLocalizedRedirect = ({
   isPermanent = true,
   createRedirect,
 }) => {
-  // Create redirects for paths with and without a trailing slash
-  const pathWithTrailingSlash = hasTrailingSlash(fromPath)
-    ? fromPath
-    : path.join(fromPath, '/');
-  const pathWithoutTrailingSlash = pathWithTrailingSlash.slice(0, -1);
+  // Create redirects
 
   createRedirect({
-    fromPath: pathWithTrailingSlash,
-    toPath: appendTrailingSlash(toPath),
-    isPermanent,
-    redirectInBrowser,
-  });
-
-  createRedirect({
-    fromPath: pathWithoutTrailingSlash,
+    fromPath,
     toPath: appendTrailingSlash(toPath),
     isPermanent,
     redirectInBrowser,
@@ -383,13 +412,7 @@ const createLocalizedRedirect = ({
 
   locales.forEach((locale) => {
     createRedirect({
-      fromPath: path.join(`/${locale}`, pathWithTrailingSlash),
-      toPath: appendTrailingSlash(path.join(`/${locale}`, toPath)),
-      isPermanent,
-      redirectInBrowser,
-    });
-    createRedirect({
-      fromPath: path.join(`/${locale}`, pathWithoutTrailingSlash),
+      fromPath: path.join(`/${locale}`, fromPath),
       toPath: appendTrailingSlash(path.join(`/${locale}`, toPath)),
       isPermanent,
       redirectInBrowser,
@@ -403,6 +426,7 @@ const createPageFromNode = (
   defer = false
 ) => {
   const {
+    frontmatter: { subject: agentName },
     fields: { fileRelativePath, slug },
   } = node;
 
@@ -417,6 +441,31 @@ const createPageFromNode = (
         fileRelativePath,
         layout: 'basic',
       },
+    });
+  } else if (template === 'releaseNoteLandingPage') {
+    const releaseNotes = releaseNotesPerAgent[agentName];
+    const releaseNotesPerPage = 10;
+    const numPages = Math.ceil(releaseNotes / releaseNotesPerPage);
+    Array.from({ length: numPages }).forEach((_, i) => {
+      createPage({
+        path:
+          i === 0
+            ? path.join(prefix, slug, '/')
+            : path.join(prefix, slug, `/${i + 1}/`),
+        component: path.resolve(path.join(TEMPLATE_DIR, `${template}.js`)),
+        context: {
+          limit: releaseNotesPerPage,
+          skip: i * releaseNotesPerPage,
+          numPages,
+          currentPage: i + 1,
+          ...context,
+          fileRelativePath,
+          slug,
+          slugRegex: `${slug}/.+/`,
+          disableSwiftype,
+        },
+        defer,
+      });
     });
   } else {
     createPage({

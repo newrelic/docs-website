@@ -31,6 +31,10 @@ const WhatsNew = ({ data, location, pageContext }) => {
       .entries()
   );
 
+  if (typeof window !== 'undefined' && typeof newrelic === 'object') {
+    window.newrelic.setCustomAttribute('pageType', 'Dynamic/WhatsNew');
+  }
+
   const { t } = useTranslation();
 
   return (
@@ -129,7 +133,7 @@ WhatsNew.propTypes = {
 };
 
 export const pageQuery = graphql`
-  query($slug: String!, $locale: String) {
+  query {
     allMarkdownRemark(
       sort: {
         fields: [frontmatter___releaseDate, frontmatter___title]
@@ -151,8 +155,6 @@ export const pageQuery = graphql`
         }
       }
     }
-
-    ...MainLayout_query
   }
 `;
 
