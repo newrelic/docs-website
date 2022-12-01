@@ -46,6 +46,11 @@ const InstallPage = ({ data, location }) => {
 
   const tessen = useTessen();
 
+  if (typeof window !== 'undefined' && typeof newrelic === 'object') {
+    window.newrelic.setCustomAttribute('pageType', 'Interactive/Install');
+    window.newrelic.setCustomAttribute('agentName', agentName);
+  }
+
   const selectOptions = appInfo.map((select) => ({
     ...select,
     value: queryParams.has(select.optionType)
@@ -95,12 +100,6 @@ const InstallPage = ({ data, location }) => {
 
   const handleSelectIndex = (index) => {
     setSelectedIndex(index);
-    tessen.track({
-      eventName: 'activeStepUpdated',
-      activeStep: index + 1,
-      path: location.pathname,
-      agentName,
-    });
   };
 
   const matchOverride = ({ optionType, options }) => {
@@ -134,11 +133,12 @@ const InstallPage = ({ data, location }) => {
     const { frontmatter, body } = mdx;
     const { componentType } = frontmatter;
     if (componentType === 'agentConfig') {
-      const { inputOptions } = frontmatter;
+      const { inputOptions, fileName } = frontmatter;
       return (
         <AgentConfig
           config={agentConfigFile?.internal?.content}
           inputOptions={inputOptions}
+          fileName={fileName}
           tipMdx={mdx}
           onChange={handleAgentConfigChange}
         />
@@ -284,6 +284,7 @@ export const pageQuery = graphql`
     frontmatter {
       componentType
       optionType
+      fileName
       inputOptions {
         codeLine
         defaultValue
@@ -301,8 +302,7 @@ export const pageQuery = graphql`
     }
   }
 
-  query($agentName: String!, $locale: String!, $slug: String!) {
-    ...MainLayout_query
+  query($agentName: String!) {
     installConfig(agentName: { eq: $agentName }) {
       id
       agentName

@@ -2,9 +2,11 @@ const path = require('path');
 const { prop } = require('./scripts/utils/functional.js');
 const externalRedirects = require('./src/data/external-redirects.json');
 const { createFilePath } = require('gatsby-source-filesystem');
+const createSingleNav = require('./scripts/createSingleNav');
 
 const TEMPLATE_DIR = 'src/templates/';
 const TRAILING_SLASH = /\/$/;
+const releaseNotesPerAgent = {};
 
 const hasOwnProperty = (obj, key) =>
   Object.prototype.hasOwnProperty.call(obj, key);
@@ -14,6 +16,10 @@ const hasTrailingSlash = (pathname) =>
 
 const appendTrailingSlash = (pathname) =>
   pathname.endsWith('/') ? pathname : `${pathname}/`;
+
+exports.onPreBootstrap = () => {
+  createSingleNav();
+};
 
 exports.onCreateWebpackConfig = ({ actions }) => {
   actions.setWebpackConfig({
@@ -129,6 +135,7 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
               slug
             }
           }
+          totalCount
         }
       }
 
@@ -210,13 +217,14 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
   });
 
   releaseNotes.group.forEach((el) => {
-    const { fieldValue, nodes } = el;
+    const { fieldValue, nodes, totalCount } = el;
 
     const landingPage = landingPagesReleaseNotes.nodes.find(
       (node) => node.frontmatter.subject === fieldValue
     );
 
     if (landingPage) {
+      releaseNotesPerAgent[landingPage.frontmatter.subject] = totalCount;
       const { redirects } = landingPage.frontmatter;
 
       createLocalizedRedirect({
@@ -275,7 +283,7 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
           createPage,
           disableSwiftype: !i18nNode,
         },
-        false // disable DSG
+        true // enable DSG
       );
     });
   });
@@ -368,6 +376,10 @@ exports.onCreatePage = ({ page, actions }) => {
     page.context.layout = 'basic';
   }
 
+  if (page.path.match(/404/) && page.path.match(/\/docs\//)) {
+    page.context.layout = 'default';
+  }
+
   if (page.path.includes('/install/')) {
     const pagePathArray = page.path.split('/');
     const lastItem = pagePathArray[pagePathArray.length - 1];
@@ -433,6 +445,7 @@ const createPageFromNode = (
   defer = false
 ) => {
   const {
+    frontmatter: { subject: agentName },
     fields: { fileRelativePath, slug },
   } = node;
 
@@ -447,6 +460,31 @@ const createPageFromNode = (
         fileRelativePath,
         layout: 'basic',
       },
+    });
+  } else if (template === 'releaseNoteLandingPage') {
+    const releaseNotes = releaseNotesPerAgent[agentName];
+    const releaseNotesPerPage = 10;
+    const numPages = Math.ceil(releaseNotes / releaseNotesPerPage);
+    Array.from({ length: numPages }).forEach((_, i) => {
+      createPage({
+        path:
+          i === 0
+            ? path.join(prefix, slug, '/')
+            : path.join(prefix, slug, `/${i + 1}/`),
+        component: path.resolve(path.join(TEMPLATE_DIR, `${template}.js`)),
+        context: {
+          limit: releaseNotesPerPage,
+          skip: i * releaseNotesPerPage,
+          numPages,
+          currentPage: i + 1,
+          ...context,
+          fileRelativePath,
+          slug,
+          slugRegex: `${slug}/.+/`,
+          disableSwiftype,
+        },
+        defer,
+      });
     });
   } else {
     createPage({

@@ -18,6 +18,7 @@ const useIsomorphicLayoutEffect =
 
 const NavItem = ({
   page,
+  name,
   __parent: parent,
   __depth: depth = 0,
   __root: root,
@@ -82,6 +83,26 @@ const NavItem = ({
         --nav-link-padding: 1rem;
         display: ${matchesSearch || !searchTerm ? 'block' : 'none'};
         padding-left: ${parent == null ? '0' : 'var(--nav-link-padding)'};
+        border-left: ${parent == null ? 'none' : 'solid #0D374A 2px'};
+        span {
+          font-weight: 700;
+        }
+        ${depth > 0 &&
+        css`
+          span {
+            font-weight: 600;
+          }
+        `}
+        ${depth > 1 &&
+        css`
+          border-left: solid rgba(231, 246, 246, 0.1) 2px;
+          span {
+            font-weight: 500;
+          }
+        `}
+        a > span {
+          font-weight: 400;
+        }
 
         ${mobileBreakpoint &&
         css`
@@ -92,6 +113,7 @@ const NavItem = ({
       `}
     >
       <NavLink
+        name={name}
         active={isCurrentPage}
         to={page.pages?.length > 0 ? null : page.url}
         icon={page.icon}
@@ -115,6 +137,10 @@ const NavItem = ({
               padding-left: ${getMobilePadding({ parent, depth })};
             }
           `}
+          ${isCurrentPage &&
+          css`
+            background: #0d374a;
+          `}
         `}
       >
         {searchTerm ? (
@@ -127,6 +153,7 @@ const NavItem = ({
       {isExpanded &&
         page.pages?.map((child) => (
           <NavItem
+            name={`${child.url}/`}
             key={child.url || child.title}
             page={child}
             __parent={page}
