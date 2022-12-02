@@ -5,6 +5,7 @@ import {
   Button,
   Icon,
   useTessen,
+  useTranslation,
 } from '@newrelic/gatsby-theme-newrelic';
 import { isValidEmail } from '../utils/isValidEmail';
 
@@ -262,7 +263,13 @@ const InstallFeedback = () => {
           )}
         </>
       ) : (
-        <h2>Thank you!</h2>
+        <h2
+          css={css`
+            margin: auto;
+          `}
+        >
+          Thank you!
+        </h2>
       )}
     </Surface>
   );
