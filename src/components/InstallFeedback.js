@@ -222,6 +222,7 @@ const InstallFeedback = () => {
                       // using && here to increase specificity over the p styling in the section above
                       && {
                         font-size: 1rem;
+                        margin: auto auto auto 0;
                         color: var(--attention-notification-critical);
                       }
                     `}
@@ -230,6 +231,17 @@ const InstallFeedback = () => {
                   </p>
                 )}
               </div>
+              <div
+                css={css`
+                  margin-top: -1rem;
+                  font-size: 0.75rem;
+                  color: var(--secondary-text-color);
+                  width: 50%;
+                `}
+              >
+                {t('installFeedback.emailDisclaimer')}
+              </div>
+
               <div css={css``}>
                 <Button
                   variant={Button.VARIANT.NORMAL}
