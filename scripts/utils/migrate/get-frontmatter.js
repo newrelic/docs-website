@@ -94,23 +94,6 @@ const addCustomFrontmatter = {
   }),
 };
 
-const normalizeSubject = (subject) => {
-  const replacements = [
-    [/ios/i, 'iOS'],
-    [/(?<=\s)Agent/, 'agent'],
-    [/node(?=\s)/i, 'Node.js'],
-    ['Private Minion', 'private minion'],
-    [/^NET/, '.NET'],
-    [/infrastructure\s(\w+\s)?agent/i, 'infrastructure $1agent'],
-    [/java/, 'Java'],
-  ];
-
-  return replacements.reduce(
-    (str, [regex, replacement]) => str.replace(regex, replacement),
-    subject
-  );
-};
-
 const stripNulls = (obj) =>
   Object.fromEntries(Object.entries(obj).filter(([, value]) => value != null));
 

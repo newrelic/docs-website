@@ -91,7 +91,6 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
             }
             frontmatter {
               type
-              subject
               redirects
             }
           }
@@ -109,7 +108,6 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
             }
             frontmatter {
               type
-              subject
               translationType
             }
           }
