@@ -14,7 +14,6 @@ Our Prometheus solution can be broken down into two components–the **data laye
 - **Scale and performance**: Get horizontal scaling via agent sharding using [Prometheus agent mode](https://prometheus.io/blog/2021/11/16/agent/).
 - **Start easily**: Automatically collect cluster performance metrics, and metrics from 20+ services such as Istio, CoreDNS, NGINX, Redis, etcd, Calico, and more.
 - **Federation**: Combine data from all of your Prometheus servers in one place.
-- **Scale and performance**: Get horizontal scaling via agent sharding (using Prometheus agent mode).
 - **Minimize local storage**: Get 13 months of retention with New Relic, and dial down your local resources.
 
 # **Analysis layer**: Observe all your telemetry data in one place.
