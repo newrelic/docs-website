@@ -10,20 +10,21 @@ import {
 import { isValidEmail } from '../utils/isValidEmail';
 
 const InstallFeedback = () => {
-  const [clicked, setClicked] = useState(false); // feedbackType
+  const [commentButtonClicked, setCommentButtonClicked] = useState(false);
   const [userComments, setUserComments] = useState(null);
   const [userEmail, setUserEmail] = useState(null);
   const [shouldSubmit, setShouldSubmit] = useState(false);
   const [formSubmitted, setFormSubmitted] = useState(false);
 
   const tessen = useTessen();
+  const { t } = useTranslation();
 
   const isCommentBoxEmpty = (comment) => {
     return comment === null || comment === '';
   };
 
   const handleClick = () => {
-    setClicked(true);
+    setCommentButtonClicked(true);
     tessen.track({
       eventName: 'installFeedbackClick',
       path: location.pathname,
@@ -32,7 +33,7 @@ const InstallFeedback = () => {
 
   const handleSubmit = async () => {
     setFormSubmitted(true);
-    setClicked(false);
+    setCommentButtonClicked(false);
   };
 
   return (
@@ -72,17 +73,17 @@ const InstallFeedback = () => {
                   margin-bottom: 0.5rem;
                 `}
               >
-                Did this doc help you install?
+                {t('installFeedback.question')}
               </h2>
               <p
                 css={css`
                   font-size: 1.25rem;
                 `}
               >
-                How can we do this better?
+                {t('installFeedback.prompt')}
               </p>
             </div>
-            {!clicked && (
+            {!commentButtonClicked && (
               <div
                 css={css`
                   display: flex;
@@ -114,7 +115,7 @@ const InstallFeedback = () => {
                     }
                   `}
                 >
-                  Leave comment
+                  {t('installFeedback.commentButton')}
                   <Icon
                     size="1.5rem"
                     name="fe-contact-us"
@@ -130,7 +131,7 @@ const InstallFeedback = () => {
               </div>
             )}
           </div>
-          {clicked && !formSubmitted && (
+          {commentButtonClicked && !formSubmitted && (
             <div
               css={css`
                 margin-top: 2rem;
@@ -177,7 +178,7 @@ const InstallFeedback = () => {
               `}
             >
               <div>
-                <p>Comment</p>
+                <p>{t('installFeedback.comment')}</p>
                 <textarea
                   value={userComments}
                   maxLength="30000"
@@ -195,7 +196,7 @@ const InstallFeedback = () => {
                 />
               </div>
               <div>
-                <p>Your email (optional)</p>
+                <p>{t('installFeedback.email')}</p>
                 <input
                   value={userEmail}
                   placeholder="datanerd@example.com"
@@ -214,6 +215,7 @@ const InstallFeedback = () => {
                     width: 30%;
                   `}
                 />
+
                 {userEmail && !isValidEmail(userEmail) && (
                   <p
                     css={css`
@@ -221,11 +223,10 @@ const InstallFeedback = () => {
                       && {
                         font-size: 1rem;
                         color: var(--attention-notification-critical);
-                        margin: auto auto auto 0;
                       }
                     `}
                   >
-                    Please provide a valid email
+                    {t('installFeedback.validEmail')}
                   </p>
                 )}
               </div>
@@ -256,7 +257,7 @@ const InstallFeedback = () => {
                     }
                   `}
                 >
-                  Submit comment
+                  {t('installFeedback.submitButton')}
                 </Button>
               </div>
             </div>
@@ -268,7 +269,7 @@ const InstallFeedback = () => {
             margin: auto;
           `}
         >
-          Thank you!
+          {t('installFeedback.submitMessage')}
         </h2>
       )}
     </Surface>
