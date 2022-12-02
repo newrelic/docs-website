@@ -133,11 +133,12 @@ const InstallPage = ({ data, location }) => {
     const { frontmatter, body } = mdx;
     const { componentType } = frontmatter;
     if (componentType === 'agentConfig') {
-      const { inputOptions } = frontmatter;
+      const { inputOptions, fileName } = frontmatter;
       return (
         <AgentConfig
           config={agentConfigFile?.internal?.content}
           inputOptions={inputOptions}
+          fileName={fileName}
           tipMdx={mdx}
           onChange={handleAgentConfigChange}
         />
@@ -283,6 +284,7 @@ export const pageQuery = graphql`
     frontmatter {
       componentType
       optionType
+      fileName
       inputOptions {
         codeLine
         defaultValue
@@ -300,8 +302,7 @@ export const pageQuery = graphql`
     }
   }
 
-  query($agentName: String!, $locale: String!, $slug: String!) {
-    ...MainLayout_query
+  query($agentName: String!) {
     installConfig(agentName: { eq: $agentName }) {
       id
       agentName

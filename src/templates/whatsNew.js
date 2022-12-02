@@ -161,7 +161,7 @@ WhatsNewTemplate.propTypes = {
 };
 
 export const pageQuery = graphql`
-  query($slug: String!, $locale: String) {
+  query($slug: String!) {
     site {
       siteMetadata {
         siteUrl
@@ -180,8 +180,6 @@ export const pageQuery = graphql`
         fileRelativePath
       }
     }
-
-    ...MainLayout_query
   }
 `;
 
