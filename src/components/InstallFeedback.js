@@ -72,6 +72,7 @@ const InstallFeedback = () => {
               <h2
                 css={css`
                   margin-bottom: 0;
+                  text-align: center;
                 `}
               >
                 {t('installFeedback.question')}
