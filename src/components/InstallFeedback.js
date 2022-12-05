@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { css } from '@emotion/react';
+import { useLocation } from '@reach/router';
+
 import {
   Surface,
   Button,
@@ -7,6 +9,7 @@ import {
   useTessen,
   useTranslation,
 } from '@newrelic/gatsby-theme-newrelic';
+import RecaptchaFooter from '@newrelic/gatsby-theme-newrelic/src/components/SignupModal/RecaptchaFooter';
 import { isValidEmail } from '../utils/isValidEmail';
 
 const InstallFeedback = () => {
@@ -31,9 +34,61 @@ const InstallFeedback = () => {
     });
   };
 
+  const location = useLocation();
+  const CAPTCHA_ACTION = 'installFeedback';
+
+  const recaptchaReady = () => {
+    return new Promise((resolve, reject) => {
+      try {
+        window.grecaptcha.ready(resolve);
+      } catch (err) {
+        reject(err);
+      }
+    });
+  };
+
+  const generateRecaptchaToken = () => {
+    // turn the recaptcha thenable into an actual promise
+    return new Promise((resolve, reject) => {
+      window.grecaptcha
+        .execute(window._nr_feedback.reCaptchaToken, {
+          action: CAPTCHA_ACTION,
+        })
+        .then(resolve, reject);
+    });
+  };
+
   const handleSubmit = async () => {
     setFormSubmitted(true);
     setCommentButtonClicked(false);
+    await recaptchaReady();
+    const recaptchaToken = await generateRecaptchaToken();
+    tessen.track({
+      eventName: 'installFeedbackSubmitted',
+      path: location.pathname,
+      userEmail,
+      userComments,
+    });
+    const jiraSubmission = {
+      title: pageTitle,
+      // how do we get this without changing all the mdx file where it is being used?
+      // should we use the pathname? a default string?
+      description: userComments,
+      pageUrl: location.href,
+      email: userEmail,
+      recaptchaToken,
+    };
+    fetch(
+      'https://docs-user-feedback-service.newrelic-external.com/user-feedback-service',
+      {
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(jiraSubmission),
+      }
+    );
   };
 
   return (
@@ -95,6 +150,9 @@ const InstallFeedback = () => {
                     border-radius: 0.5rem;
                     padding: 1rem 2rem;
                     margin-right: 0.5rem;
+                    @media screen and (max-width: 1500px) {
+                      margin-top: 1rem;
+                    }
 
                     svg {
                       transition: fill 200ms;
@@ -228,8 +286,8 @@ const InstallFeedback = () => {
               </div>
               <div
                 css={css`
-                  margin-top: -1rem;
                   font-size: 0.75rem;
+                  margin-top: -2rem;
                   color: var(--secondary-text-color);
                   width: 50%;
                 `}
@@ -266,6 +324,17 @@ const InstallFeedback = () => {
                 >
                   {t('installFeedback.submitButton')}
                 </Button>
+              </div>
+              <div
+                css={css`
+                  p {
+                    text-align: center;
+                    margin: auto;
+                    width: 100%;
+                  }
+                `}
+              >
+                <RecaptchaFooter />
               </div>
             </div>
           )}
