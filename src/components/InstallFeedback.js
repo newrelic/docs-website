@@ -43,7 +43,7 @@ const InstallFeedback = () => {
         padding: 2rem;
         margin-bottom: 2rem;
         border: 1px solid #afe2e3;
-        background-color: rgba(175, 226, 227, 0.05);
+        background-color: rgba(175, 226, 227, 0.1);
       `}
     >
       {!formSubmitted ? (
@@ -53,6 +53,7 @@ const InstallFeedback = () => {
               display: flex;
               flex-direction: row;
               justify-content: space-between;
+              align-items: flex-start;
               align-items: center;
               @media screen and (max-width: 1500px) {
                 flex-direction: column;
@@ -70,18 +71,11 @@ const InstallFeedback = () => {
             >
               <h2
                 css={css`
-                  margin-bottom: 0.5rem;
+                  margin-bottom: 0;
                 `}
               >
                 {t('installFeedback.question')}
               </h2>
-              <p
-                css={css`
-                  font-size: 1.25rem;
-                `}
-              >
-                {t('installFeedback.prompt')}
-              </p>
             </div>
             {!commentButtonClicked && (
               <div
@@ -276,13 +270,14 @@ const InstallFeedback = () => {
           )}
         </>
       ) : (
-        <h2
+        <p
           css={css`
             margin: auto;
+            font-size: 1.5rem;
           `}
         >
           {t('installFeedback.submitMessage')}
-        </h2>
+        </p>
       )}
     </Surface>
   );
