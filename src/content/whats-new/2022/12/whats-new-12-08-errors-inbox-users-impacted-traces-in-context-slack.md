@@ -1,6 +1,6 @@
 ---
 title: 'Prioritize and address critical errors with new errors inbox features' 
-summary: 'Speed error resolution and act on your error groups quickly with users impacted, traces in context, and Slack notifications at the entity level.' 
+summary: 'Speed up error resolution and act on your error groups quickly with users impacted, traces in context, and Slack notifications at the entity level.' 
 releaseDate: '2022-12-08' 
 learnMoreLink: 'https://newrelic.com/blog/nerdlog/error-triage-workflow' 
 getStartedLink: 'https://docs.newrelic.com/docs/errors-inbox/errors-inbox/' 
@@ -15,11 +15,6 @@ These enhancements include:
 <iframe width="560" height="315" src="https://www.youtube.com/embed/BSW-AraNnE0" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
 
 
-
 **How to get started**
 * Check out the [**Errors Inbox documentation**](https://docs.newrelic.com/docs/errors-inbox/errors-inbox/) 
 * Read our [**blog post**](https://newrelic.com/blog/nerdlog/error-triage-workflow) 
-
-
-
-
