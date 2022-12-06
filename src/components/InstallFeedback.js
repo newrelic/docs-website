@@ -74,7 +74,7 @@ const InstallFeedback = () => {
     const jiraSubmission = {
       title: `Install page ${title}`,
       description: userComments,
-      formType: 'docInstallFeedback',
+      formType: 'userInstallFeedback',
       pageUrl: location.href,
       email: userEmail,
       recaptchaToken,
