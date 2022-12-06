@@ -131,9 +131,8 @@ const InstallFeedback = () => {
               css={css`
                 margin-top: 2rem;
                 display: flex;
-                flex-direction: row;
+                flex-direction: column;
                 grid-row-gap: 2rem;
-                flex-wrap: wrap;
                 justify-content: space-between;
                 align-items: center;
                 input,
