@@ -8,9 +8,9 @@ import {
   Icon,
   useTessen,
   useTranslation,
+  isValidEmail,
 } from '@newrelic/gatsby-theme-newrelic';
 import RecaptchaFooter from '@newrelic/gatsby-theme-newrelic/src/components/SignupModal/RecaptchaFooter';
-import { isValidEmail } from '../utils/isValidEmail';
 
 const InstallFeedback = () => {
   const [commentButtonClicked, setCommentButtonClicked] = useState(false);
