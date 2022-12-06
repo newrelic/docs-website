@@ -71,9 +71,10 @@ const InstallFeedback = () => {
     });
     const jiraSubmission = {
       title: pageTitle,
-      // how do we get this without changing all the mdx file where it is being used?
+      // how do we get this without changing all the mdx files where it is being used to include a prop?
       // should we use the pathname? a default string?
       description: userComments,
+      formType: 'installDoc',
       pageUrl: location.href,
       email: userEmail,
       recaptchaToken,
