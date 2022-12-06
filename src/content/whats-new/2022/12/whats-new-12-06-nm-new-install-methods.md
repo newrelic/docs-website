@@ -1,5 +1,5 @@
 ---
-title: 'Faster time to value with new ways to bring in your network data'
+title: 'Making it easier to bring in data with new Network Monitoring install methods'
 summary: 'Our Network Monitoring data installation now supports Linux deb/npm so you can begin detection of network issues faster'
 releaseDate: '2022-12-06'
 learnMoreLink: 'https://docs.newrelic.com/docs/network-performance-monitoring/setup-performance-monitoring/snmp-performance-monitoring/'
