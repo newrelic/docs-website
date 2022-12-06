@@ -61,6 +61,8 @@ const InstallFeedback = () => {
   const handleSubmit = async () => {
     setFormSubmitted(true);
     setCommentButtonClicked(false);
+    const title = location.pathname.split('/').slice(0, -1).pop();
+
     await recaptchaReady();
     const recaptchaToken = await generateRecaptchaToken();
     tessen.track({
@@ -70,7 +72,7 @@ const InstallFeedback = () => {
       userComments,
     });
     const jiraSubmission = {
-      title: 'Install page',
+      title: `Install page ${title}`,
       description: userComments,
       formType: 'docInstallFeedback',
       pageUrl: location.href,
