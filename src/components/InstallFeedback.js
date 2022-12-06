@@ -295,7 +295,7 @@ const InstallFeedback = () => {
                 {t('installFeedback.emailDisclaimer')}
               </div>
 
-              <div css={css``}>
+              <div>
                 <Button
                   variant={Button.VARIANT.NORMAL}
                   size={Button.SIZE.LARGE}
