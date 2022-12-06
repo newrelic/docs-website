@@ -6,8 +6,8 @@ import {
   Icon,
   useTessen,
   useTranslation,
+  isValidEmail,
 } from '@newrelic/gatsby-theme-newrelic';
-import { isValidEmail } from '../utils/isValidEmail';
 
 const InstallFeedback = () => {
   const [commentButtonClicked, setCommentButtonClicked] = useState(false);
