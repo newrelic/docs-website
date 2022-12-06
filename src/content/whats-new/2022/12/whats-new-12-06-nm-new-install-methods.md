@@ -14,8 +14,8 @@ To bring in additional coverage and bring in faster time to value, we're now sup
 
 Network monitoring provides:
 
-1. Streamlined detection: Rule-in or rule-out the network without paging the Network team.
-2. Improved MTTR: Apply the right resources at the right layer faster.
+1. Streamlined detection: Know if it's network causing issues without paging the Network team.
+2. Improved MTTR: Know where a problem resides on the tech stack and who to notify.
 3. Increase operational efficiency: Detect network anomalies by default with AI and automatic alerting.
 
 ## How to get started
