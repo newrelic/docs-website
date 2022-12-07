@@ -197,9 +197,8 @@ const InstallFeedback = () => {
                   onChange={(e) => {
                     setUserEmail(e.target.value);
                     setShouldSubmit(
-                      (isValidEmail(e.target.value) ||
-                        e.target.value.length === 0) &&
-                        !isCommentBoxEmpty
+                      isValidEmail(e.target.value && !isCommentBoxEmpty) ||
+                        (e.target.value.length === 0 && !isCommentBoxEmpty)
                     );
                   }}
                   css={css`
