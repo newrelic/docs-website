@@ -11,4 +11,4 @@ events:
   - JavaScriptError
 ---
 
-The URL of the page that was loaded for the PageView. For example: http://www.newrelic.com. This URL does not include query parameters.
+The URL of the page that was loaded for the PageView, for example: http://www.newrelic.com. This URL does not include query parameters.

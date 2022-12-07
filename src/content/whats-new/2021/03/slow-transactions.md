@@ -1,9 +1,9 @@
 ---
-title: 'Slow transactions on the service Summary'
+title: 'Slow transactions on the service summary page'
 summary: 'Quickly dive into the most time-consuming requests to your application or service'
 releaseDate: '2021-03-30'
 ---
-With the slow transactions list, you can jump to a complete slow trace of one of your top five most time-consuming transactions with one click from the **Summary** view. You can also, for the first time, see the error rates for those transactions, to instantly identify which code path is responsible for an increase in errors.
+With the slow transactions list, you can jump to a complete slow trace of one of your top five most time-consuming transactions with one click from the **Summary** page. You can also, for the first time, see the error rates for those transactions, to instantly identify which code path is responsible for an increase in errors.
 
 ![View of transactions list](./images/Transactions.png "View of transactions list")
 

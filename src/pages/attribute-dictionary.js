@@ -11,7 +11,7 @@ import {
   useQueryParams,
   Icon,
   useTranslation,
-  SimpleFeedback,
+  ComplexFeedback,
   Table,
 } from '@newrelic/gatsby-theme-newrelic';
 import { TYPES } from '../utils/constants';
@@ -19,8 +19,6 @@ import { TYPES } from '../utils/constants';
 import DataDictionaryFilter from '../components/DataDictionaryFilter';
 import SEO from '../components/SEO';
 import PageTitle from '../components/PageTitle';
-
-import { useMedia } from 'react-use';
 
 const AttributeDictionary = ({ data, pageContext, location }) => {
   const { allDataDictionaryEvent } = data;
@@ -30,7 +28,12 @@ const AttributeDictionary = ({ data, pageContext, location }) => {
   const [searchedAttribute, setSearchedAttribute] = useState(null);
   const { queryParams } = useQueryParams();
 
-  const isMobileScreen = useMedia('(max-width: 1240)');
+  if (typeof window !== 'undefined' && typeof newrelic === 'object') {
+    window.newrelic.setCustomAttribute(
+      'pageType',
+      'Interactive/AttributeDictionary'
+    );
+  }
 
   const events = useMemo(
     () => allDataDictionaryEvent.edges.map((edge) => edge.node),
@@ -73,7 +76,7 @@ const AttributeDictionary = ({ data, pageContext, location }) => {
     <>
       <SEO
         location={location}
-        type={TYPES.ATTRIBUTE_DICTIONARY}
+        type={TYPES.BASIC_PAGE.default}
         title="New Relic data dictionary"
       />
       <div
@@ -146,14 +149,12 @@ const AttributeDictionary = ({ data, pageContext, location }) => {
             }
           `}
         >
-          <SimpleFeedback title="Attribute dictionary" />
-          {!isMobileScreen && (
-            <ContributingGuidelines
-              fileRelativePath={pageContext.fileRelativePath}
-              issueLabels={['feedback', 'feedback-issue']}
-            />
-          )}
+          <ContributingGuidelines
+            fileRelativePath={pageContext.fileRelativePath}
+            issueLabels={['feedback', 'feedback-issue']}
+          />
           <DataDictionaryFilter events={events} location={location} />
+          <ComplexFeedback title="Attribute dictionary" />
         </Layout.PageTools>
       </div>
     </>
@@ -211,7 +212,7 @@ const EventDefinition = memo(
             }
 
             @media (max-width: 1240px) {
-              position: relative;
+              position: initial;
             }
           `}
         >
@@ -237,6 +238,7 @@ const EventDefinition = memo(
           </div>
         </h2>
         <div
+          data-swiftype-index="false"
           css={css`
             margin-bottom: 1rem;
           `}
@@ -261,8 +263,11 @@ const EventDefinition = memo(
             ))}
           </TagList>
         </div>
-        <div dangerouslySetInnerHTML={{ __html: event.definition?.html }} />
-        <Table>
+        <div
+          data-swiftype-index="false"
+          dangerouslySetInnerHTML={{ __html: event.definition?.html }}
+        />
+        <Table data-swiftype-index="false">
           <thead>
             <tr>
               <th
@@ -295,7 +300,7 @@ const EventDefinition = memo(
                       css={css`
                         display: flex;
                         align-items: center;
-                        color: var(--color-text-primary);
+                        color: var(--link-color);
                         text-decoration: none;
 
                         &:hover svg {
@@ -329,7 +334,7 @@ const EventDefinition = memo(
                           font-size: 0.75rem;
 
                           .dark-mode & {
-                            color: var(--color-dark-600);
+                            color: var(--secondary-text-color);
                           }
                         `}
                       >
@@ -390,7 +395,7 @@ EventDefinition.propTypes = {
 };
 
 export const pageQuery = graphql`
-  query($slug: String!, $locale: String!) {
+  query {
     allDataDictionaryEvent(sort: { fields: [name] }) {
       edges {
         node {
@@ -413,8 +418,6 @@ export const pageQuery = graphql`
         }
       }
     }
-
-    ...MainLayout_query
   }
 `;
 

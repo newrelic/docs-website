@@ -1,5 +1,5 @@
 ---
-title: 'Nerdlog Roundup: Ingesting OpenTelemetry Data, RUM, and more'
+title: 'Nerdlog Roundup: Ingesting OpenTelemetry data, RUM, and more'
 summary: 'Ingest OpenTelemery data and logs, drop your data, and monitor your browser performance'
 releaseDate: '2021-02-25'
 learnMoreLink: 'https://blog.newrelic.com/product-news/nerdlog-episode-2/?mkt_tok=eyJpIjoiTVdFNFlXSTVOMkptT0dOaSIsInQiOiJ0Q0JaeWlWTmVLU1FqNGViSVY0WUV2eUJPalI4WUNnZWdNMFlLSDcrUGsxbTh3TXJLcDY2QUt2MmVLNmt2d2l3ZDlVR3ltN3hYaVJXXC9tMDdNbmZ5Vnc9PSJ9'

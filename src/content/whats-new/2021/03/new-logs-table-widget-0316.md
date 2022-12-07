@@ -1,5 +1,5 @@
 ---
-title: 'Visualize log details in Dashboards with our new Logs Table Widget'
+title: 'Visualize log details in dashboards with our new Logs table widget'
 summary: 'More flexibility and control for log message visualizations'
 releaseDate: '2021-03-16'
 learnMoreLink: 'https://docs.newrelic.com/docs/logs/'

@@ -7,4 +7,4 @@ events:
   - NrMTDConsumption
 ---
 
-A cost estimate based on consumption and metric cost. This is an estimate of costs, not your invoice amount.
+A cost estimate based on your usage. This is an estimate, not an actual invoiced amount. To be deprecated in May of 2022. 

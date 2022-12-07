@@ -1,0 +1,278 @@
+---
+title: Trace your .NET Lambda functions with New Relic and OpenTelemetry
+metaDescription: How to instrument .NET applications on AWS Lambda with OpenTelemetry in New Relic.
+---
+
+<Callout
+  variant="tip"
+  title="PREVIEW"
+>
+  AWS Lambda with OpenTelemetry for .NET is still in development.
+</Callout>
+
+This guide will cover how you can use [OpenTelemetry
+Lambda](https://github.com/open-telemetry/opentelemetry-lambda) to trace your .NET Lambda functions using AWS's managed [OpenTelemetry Lambda Layers](https://aws-otel.github.io/docs/getting-started/lambda/lambda-dotnet). OpenTelemetry makes it easy to instrument your functions, including automatic instrumentation for many popular libraries.
+
+## Prerequisites [#prerequisites]
+
+This guide assumes you have the following:
+
+* A New Relic account. If you don't have one, [create one for free](https://newrelic.com/signup).
+* An AWS account. If you don't have one, [create one for free](https://aws.amazon.com/).
+* A .NET Lambda Function running under either the `dotnetcore2.1` or `dotnetcore3.1` runtimes. If you don't have one yet, [create one now](https://docs.aws.amazon.com/lambda/latest/dg/lambda-csharp.html).
+
+## Step 1: Enable X-Ray [#xray]
+
+Even though we're not using AWS X-Ray in this setup, we still need to enable X-Ray in the Lambda function to enable the tracing features built into AWS OpenDistro.
+
+To enable X-Ray:
+
+1. Open your function in the [Lambda Console](https://console.aws.amazon.com/lambda).
+2. Choose **Configuration**, then **Monitoring Tools**.
+3. Choose **Edit**.
+4. Under **X-Ray**, enable **Active tracing**.
+
+Alternatively, if you're using [SAM (Serverless Application Model)](https://aws.amazon.com/serverless/sam/) or [CloudFormation](https://aws.amazon.com/cloudformation/resources/templates/) templates, you can enable X-Ray by adding the following to your Lambda function's properties:
+
+```yaml
+  yourFunctionHere:
+    Type: AWS::Serverless::Function
+    Properties:
+      ...
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        ...
+        - AWSXrayWriteOnlyAccess
+      Tracing: Active
+```
+
+<Callout variant="important">
+  This option requires that you have `AWSLambdaBasicExecutionRole` or an equivalent policy attached to your function.
+</Callout>
+
+## Step 2: Install the layer [#install]
+
+AWS publishes a managed layer that includes the [OpenTelemetry Lambda Collector](https://github.com/open-telemetry/opentelemetry-lambda).
+
+To install it:
+
+1. Open your function in the [Lambda Console](https://console.aws.amazon.com/lambda).
+2. Under **Layers** in the **Designer** section, choose **Add a layer**.
+3. Under **Specify an ARN**, paste one of the layer ARNs for your function's architecture from the list below. Replace `{region}`with your AWS region, such as `us-east-1`.
+4. Choose **Add**.
+
+* AMD64 / X86_64: `arn:aws:lambda:{region}:901920570463:layer:aws-otel-collector-amd64-ver-0-45-0:2`
+* ARM64: `arn:aws:lambda:\<region>:901920570463:layer:aws-otel-collector-arm64-ver-0-45-0:2`
+
+For SAM and CloudFormation templates, add the following to your function's properties. Be sure to replace `your-license-key-here` with your [New Relic license key](/docs/apis/intro-apis/new-relic-api-keys/#ingest-keys) and `otlp.nr-data.net:4317` with the New Relic OpenTelemetry Endpoint for your region.
+
+```yaml
+  yourFunctionHere:
+    Type: AWS::Serverless::Function
+    Properties:
+      ...
+      Layers:
+        # Use this if using x86_64 architecture
+        - !Sub arn:${AWS::Partition}:lambda:${AWS::Region}:901920570463:layer:aws-otel-collector-amd64-ver-0-45-0:2
+        # Use this if using arm64 architecture
+        - !Sub arn:${AWS::Partition}:lambda:${AWS::Region}:901920570463:layer:aws-otel-collector-arm64-ver-0-45-0:2
+```
+
+<Callout variant="important">
+  Refer to the [latest ARNs published by AWS](https://aws-otel.github.io/docs/getting-started/lambda/lambda-dotnet) to verify the layer ARNs above are up to date.
+</Callout>
+
+## Step 3: Add New Relic environment variables [#env-variables]
+
+To send the OpenTelemetry data that this layer collects to New Relic, we need to configure the OpenTelemetry Lambda Collector that is packaged with the layer to export the telemetry it receives to the [New Relic OpenTelemetry Endpoint](/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/opentelemetry-quick-start). Before we do that, we first need to set some environment variables that it will depend upon.
+
+1. Generate and copy a [New Relic license key](/docs/apis/intro-apis/new-relic-api-keys/#ingest-keys) from your New Relic account.
+2. Open up your function in the [Lambda Console](https://console.aws.amazon.com/lambda).
+3. Choose **Configuration** and then **Environment variables**.
+4. Under **Environment variables**, choose **Edit**.
+5. Choose **Add environment variable**.
+6. For the **Key** set it to `NEW_RELIC_LICENSE_KEY` and set the **Value** to the value of the license key you generated in step 1. Then choose **Save**.
+7. Choose **Add environment variable** again.
+8. For the **Key** set it to `NEW_RELIC_OPENTELEMETRY_ENDPOINT` and set the **Value** to one of the options below (depends on your New Relic region). Then choose **Save**.
+9. Choose **Add environment variable** again.
+10. For the **Key** set it to `OTEL_SERVICE_NAME` and set the **Value** to your function's name. Then choose **Save**.
+
+* `otlp.nr-data.net:4317`: If your New Relic account is in the US region
+* `otlp.eu01.nr-data.net:4317`: If your New Relic account is in the EU region
+
+For SAM and CloudFormation templates, add the following to your function's properties. Be sure to replace `your-license-key-here` with your [New Relic license key](/docs/apis/intro-apis/new-relic-api-keys/#ingest-keys) and `otlp.nr-data.net:4317` with the New Relic OpenTelemetry Endpoint for your region.
+
+```yaml
+  yourFunctionHere:
+    Type: AWS::Serverless::Function
+    Properties:
+      ...
+      Environment:
+        Variables:
+          ...
+          NEW_RELIC_LICENSE_KEY: your-license-key-here
+          NEW_RELIC_OPENTELEMETRY_ENDPOINT: otlp.nr-data.net:4317
+          OTEL_SERVICE_NAME: your-function-name-here
+```
+
+<Callout variant="important">
+  Replace `your-license-key-here` with your New Relic License Key and `otlp.nr-data.net:4317` with the endpoint appropriate for your New Relic region (see list above).
+</Callout>
+
+## Step 4: Configure the collector [#collector]
+
+Now we will override the OpenTelemetry Lambda Collector's default configuration with one that exports telemetry to the New Relic OpenTelemetry Endpoint. To do this we must include a `collector.yaml` config file with our function.
+
+Create a `collector.yaml` file in your function's root directory with the following contents:
+
+```yaml
+receivers:
+  otlp:
+    protocols:
+      grpc:
+      http:
+
+exporters:
+  otlp:
+    endpoint: ${NEW_RELIC_OPENTELEMETRY_ENDPOINT}
+    headers:
+      api-key: ${NEW_RELIC_LICENSE_KEY}
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      exporters: [otlp]
+    metrics:
+      receivers: [otlp]
+      exporters: [otlp]
+    logs:
+      receivers: [otlp]
+      exporters: [otlp]
+```
+
+Bundle this `collector.yaml` file in the root directory of your function's zip package.
+
+An example `*.csproj` config might look like this:
+
+```
+<ItemGroup>
+  <Content Include="collector.yaml">
+    <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+  </Content>  
+</ItemGroup>
+```
+
+Then re-deploy your function.
+
+1. Open your function in the [Lambda Console](https://console.aws.amazon.com/lambda).
+2. Choose **Configuration** and then **Environment variables**.
+3. Under **Environment variables**, choose **Edit**.
+4. Choose **Add environment variable**.
+5. For the **Key** set `OPENTELEMETRY_COLLECTOR_CONFIG_FILE` and set the **Value** to `/var/task/collector.yaml`.
+6. Then choose **Save**.
+
+For SAM and CloudFormation templates, add this to your function's properties:
+
+```yaml
+  yourFunctionHere:
+    Type: AWS::Serverless::Function
+    Properties:
+      ...
+      Environment:
+        Variables:
+          ...
+          OPENTELEMETRY_COLLECTOR_CONFIG_FILE: /var/task/collector.yaml
+```
+
+<Callout variant="important">
+  This assumes you bundled your `collector.yaml` in your function's root directory. If you bundled it somewhere else, replace `/var/task/collector.yaml` with the path to your `collector.yaml`.
+</Callout>
+
+## Step 5: Instrument Your Function [#instrument]
+
+First add the [OpenTelemetry SDK for AWS Lambda](https://www.nuget.org/packages/OpenTelemetry.Contrib.Instrumentation.AWSLambda/).
+
+```
+dotnet add package OpenTelemetry.Contrib.Instrumentation.AWSLambda
+```
+
+Add a call to `AddAWSLambdaConfigurations()` from `TracerProvider`.
+
+```csharp
+TracerProvider tracerProvider = Sdk.CreateTracerProviderBuilder()
+    // add other instrumentations here
+    .AddAWSLambdaConfigurations()
+    .Build();
+```
+
+Create a wrapper function with the same signature as the original Lambda handler function. Call `AWSLambdaWrapper.Trace()` API and pass `TracerProvider`, the original Lambda function, and its inputs as parameters.
+
+```csharp
+// new Lambda function handler passed in
+public string TracingFunctionHandler(JObject input, ILambdaContext context)
+=> AWSLambdaWrapper.Trace(tracerProvider, OriginalFunctionHandler, input, context);
+
+public string OriginalFunctionHandler(JObject input, ILambdaContext context)
+{
+    return input?.ToString();
+}
+```
+
+For example, a basic API Gateway Lambda function would look like this:
+
+```csharp
+namespace Example
+{
+    public class Function
+    {
+        public static TracerProvider tracerProvider;
+
+        static Function()
+        {
+            tracerProvider = Sdk.CreateTracerProviderBuilder()
+                .AddAWSInstrumentation()
+                .AddOtlpExporter()
+                .AddAWSLambdaConfigurations()
+                .Build();
+        }
+
+        // use AwsSdkSample::AwsSdkSample.Function::TracingFunctionHandler as input Lambda handler instead
+        public APIGatewayProxyResponse TracingFunctionHandler(APIGatewayProxyRequest request, ILambdaContext context)
+        {
+            return AWSLambdaWrapper.Trace(tracerProvider, FunctionHandler, request, context);
+        }
+
+        /// <summary>
+        /// A simple function that takes a APIGatewayProxyRequest and returns a APIGatewayProxyResponse
+        /// </summary>
+        /// <param name="input"></param>
+        /// <param name="context"></param>
+        /// <returns></returns>
+        public APIGatewayProxyResponse FunctionHandler(APIGatewayProxyRequest request, ILambdaContext context)
+        {
+            return new APIGatewayProxyResponse() { StatusCode = 200, Body = Environment.GetEnvironmentVariable("_X_AMZN_TRACE_ID") };
+        }
+    }
+}
+```
+
+Then set the wrapper function as the Lambda function's handler. For the class above, the handler would be `function::Example.Function::TracingFunctionHandler`.
+
+For a working example, including tracing the AWS SDK, see [this sample app](https://github.com/open-telemetry/opentelemetry-lambda/blob/main/dotnet/sample-apps/aws-sdk/wrapper/SampleApps/AwsSdkSample/Function.cs).
+
+The above is just a basic example, for more advanced instrumentation refer to the [OpenTelemetry .NET SDK documentation](https://github.com/open-telemetry/opentelemetry-dotnet).
+
+## Step 6: View your data in the New Relic UI [#view-data]
+
+First you will want to [invoke your Lambda function](https://docs.aws.amazon.com/lambda/latest/dg/lambda-invocation.html) a few times to start generating telemetry. From there, head over to New Relic to find your [traces](https://one.newrelic.com/launcher/nr1-core.explorer?overlay=eyJuZXJkbGV0SWQiOiJkYXRhLWV4cGxvcmF0aW9uLnF1ZXJ5LWJ1aWxkZXIiLCJpbml0aWFsQWN0aXZlSW50ZXJmYWNlIjoibnJxbEVkaXRvciIsImluaXRpYWxOcnFsVmFsdWUiOiIiLCJpbml0aWFsUXVlcmllcyI6W3sibnJxbCI6IkZST00gU3BhbiBTRUxFQ1QgY291bnQoKikgd2hlcmUgbmV3cmVsaWMuc291cmNlPSclb3RscCUnIFRJTUVTRVJJRVMifV0sImluaXRpYWxDaGFydFNldHRpbmdzIjp7ImNoYXJ0VHlwZSI6IkNIQVJUX0xJTkUiLCJsaW1pdCI6NzU0MiwibGlua2VkRW50aXR5R3VpZCI6bnVsbCwibGlua2VkRGFzaGJvYXJkSWQiOm51bGwsInlTY2FsZSI6eyJzdGF0aWMiOmZhbHNlLCJkb21haW4iOltudWxsLG51bGxdfSwieVplcm8iOnRydWV9fQo=), [metrics](https://one.newrelic.com/launcher/nr1-core.explorer?overlay=eyJuZXJkbGV0SWQiOiJkYXRhLWV4cGxvcmF0aW9uLnF1ZXJ5LWJ1aWxkZXIiLCJpbml0aWFsQWN0aXZlSW50ZXJmYWNlIjoibnJxbEVkaXRvciIsImluaXRpYWxOcnFsVmFsdWUiOiIiLCJpbml0aWFsUXVlcmllcyI6W3sibnJxbCI6IkZST00gTWV0cmljIFNFTEVDVCBjb3VudCgqKSB3aGVyZSBuZXdyZWxpYy5zb3VyY2UgTElLRSAnJW90bHAlJyBUSU1FU0VSSUVTIn1dLCJpbml0aWFsQ2hhcnRTZXR0aW5ncyI6eyJjaGFydFR5cGUiOiJDSEFSVF9MSU5FIiwibGltaXQiOjc1NDIsImxpbmtlZEVudGl0eUd1aWQiOm51bGwsImxpbmtlZERhc2hib2FyZElkIjpudWxsLCJ5U2NhbGUiOnsic3RhdGljIjpmYWxzZSwiZG9tYWluIjpbbnVsbCxudWxsXX0sInlaZXJvIjp0cnVlfX0K), and [logs](https://one.newrelic.com/launcher/nr1-core.explorer?overlay=eyJuZXJkbGV0SWQiOiJkYXRhLWV4cGxvcmF0aW9uLnF1ZXJ5LWJ1aWxkZXIiLCJpbml0aWFsQWN0aXZlSW50ZXJmYWNlIjoibnJxbEVkaXRvciIsImluaXRpYWxOcnFsVmFsdWUiOiIiLCJpbml0aWFsUXVlcmllcyI6W3sibnJxbCI6IkZST00gTG9nIFNFTEVDVCBjb3VudCgqKSB3aGVyZSBuZXdyZWxpYy5zb3VyY2U9JyVvdGxwJScgVElNRVNFUklFUyJ9XSwiaW5pdGlhbENoYXJ0U2V0dGluZ3MiOnsiY2hhcnRUeXBlIjoiQ0hBUlRfTElORSIsImxpbWl0Ijo3NTQyLCJsaW5rZWRFbnRpdHlHdWlkIjpudWxsLCJsaW5rZWREYXNoYm9hcmRJZCI6bnVsbCwieVNjYWxlIjp7InN0YXRpYyI6ZmFsc2UsImRvbWFpbiI6W251bGwsbnVsbF19LCJ5WmVybyI6dHJ1ZX19Cg==).
+
+Your telemetry will not appear under New Relic Serverless. Instead, you will find your telemetry data under the New Relic OpenTelemetry Nerdlets.
+
+## Distributed Tracing [#distributed-tracing]
+
+In some cases you may see fragmented distributed traces within New Relic with this configuration. This occurs when a trace starts or involves a service that is outside the ADOT context (for example, a managed AWS service). Spans from that service are created by X-Ray, not OpenTelemetry, and ADOT does not forward them to New Relic. Although the traces appear fragmented, they still provide complete insight into performance within the Lambda function as well as other services whose spans were forwarded to New Relic.
+
+## More information [#more-info]
+
+For more information, check out the [New Relic OpenTelemetry quick start](/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/opentelemetry-quick-start).

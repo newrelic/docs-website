@@ -1,5 +1,5 @@
 ---
-title: 'Recommended Alert Conditions'
+title: 'Recommended alert conditions'
 summary: 'Quickly and easily expand your alert coverage'
 releaseDate: '2021-07-13'
 learnMoreLink: 'https://docs.newrelic.com/docs/alerts-applied-intelligence/new-relic-alerts/alert-conditions/condition-recommendations/'

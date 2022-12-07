@@ -1,0 +1,178 @@
+---
+title: Rubyエージェント7.xから8.xへの移行ガイド
+tags:
+  - Agents
+  - Ruby agent
+  - Getting started
+translationType: machine
+---
+
+## 概要 [#summary]
+
+このガイドでは、Rubyエージェントの7.xシリーズと8.xシリーズの主な変更点、アップグレード時に発生する可能性のある問題、およびバージョン8.xへの移行を成功させる方法について説明します。
+
+主な変更点は以下の通りです。
+
+* [`add_method_tracer` API メソッドの変更](#add_method_tracer)
+* [Distributed Tracingはデフォルトで有効です。](#distributed_tracing)
+* [クロスアプリケーショントレースは非推奨](#cross_application_tracing)
+* [非推奨のAPIメソッドとレガシー・インスツルメンテーションの削除](#removed_deprecated)
+
+[詳細は、8.0のマイルストーン](https://github.com/newrelic/newrelic-ruby-agent/milestone/10?closed=1) をご覧ください。
+
+## `add_method_tracer` API メソッドの変更 [#add_method_tracer]
+
+### メトリック名のパラメータにProcsを指定すると、文字列が補間されなくなる
+
+`add_method_tracer`の 2 番目の引数は、トレースされたメソッドへの呼び出しを記録するために使用されるメトリックの名前です。
+
+これまでは、この文字列にRubyスタイルの補間を行うことで、メトリック名にメソッド受信側の変数を含めることができました。例えば
+
+```ruby
+# old (<= 7.2)
+add_method_tracer :foo, 'metric_#{args[0]}'
+```
+
+8.0では、この文字列は補間されなくなりました。上記の動作を維持するには、代わりに Proc を渡してください。
+
+```ruby
+# new (8.0+)
+add_method_tracer :foo, -> (*args) { "metric_#{args[0]}" } # note the double-quotes
+```
+
+`add_method_tracer`に渡される Proc のアリティは、元のトレースされたメソッドのアリティと一致する (または互換性のあるスプラットを使用する) 必要があることに注意してください。
+
+### `:code_header` および`:code_footer`パラメータは Procs のみを受け入れます
+
+メトリック名と同様に、 `add_method_tracer`に対する`:code_header`および`:code_footer`オプションは、以前はメソッド レシーバーのコンテキストで補間される文字列として指定されていました。
+
+Ruby エージェント 8.0 では、上記の例のように、 `:code_header`と`:code_footer`は Procs として指定された場合にのみ呼び出されます。
+
+### メソッドごとに 1 回`add_method_tracer`を呼び出します
+
+同じメソッドで`add_method_tracer`を複数回呼び出すと、そのメソッドに対して以前に定義されたメソッド トレーサが上書きされます。トレースされたメソッドごとに`add_method_tracer`行が 1 つだけある必要があります。
+
+以前は、エージェントは、複数の指標を同じメソッドに追加することを許可していましたが、そのような指標ごとに`add_method_tracer`を 1 回呼び出す必要がありました。これは引き続き実行できますが、メトリック名を`add_method_tracer`の 2 番目の引数として文字列またはプロシージャの配列として渡す必要があります。
+
+```ruby
+# old
+add_method_tracer :foo, 'metric1'
+add_method_tracer :foo, 'metric2', push_scope: false
+add_method_tracer :foo, 'metric3', push_scope: false
+```
+
+```ruby
+# new
+add_method_tracer :foo, ['metric1', 'metric2', 'metric3']
+```
+
+`push_scope: false`が指定されていない限り、最初のメトリック名はスコープ メトリックとして作成されることに注意してください。次の名前付き指標は対象外になります。トレースされた各メソッドには、スコープ メトリックが 1 つしかありません。
+
+<Callout variant="tip">
+  古いバージョンの Mocha では、更新された`add_method_tracer`で問題が発生する可能性があります。Mocha バージョン 1.2.0 ではこのバグが修正されているため、エージェントのバージョンをアップグレードした後にテスト スイートで次のようなエラーが発生した場合:
+
+  ```
+  NoMethodError: super: no superclass method 'instance_method' for <ExampleClass>
+  ```
+
+  Mocha バージョン &lt; `1.2.0`がインストールされている場合は、Mocha バージョンを`1.2.0`以上に増やしてみてください。
+
+  このエラーは、テスト環境でMochaのメソッドを呼び出した場合にのみ発生します。しかし、トラブルシューティングの際には、アプリケーションの機能を確認することをお勧めします。
+</Callout>
+
+## Distributed Tracingはデフォルトで有効です。 [#distributed_tracing]
+
+`distributed_tracing.enabled`のデフォルトの構成オプションは、バージョン 8.0 以降では true に設定されています。分散トレースを無効にするには、この構成オプションを`newrelic.yml`で false に設定します。
+
+```yml
+distributed_tracing:
+  enabled: false
+```
+
+## クロスアプリケーショントレースは非推奨 [#cross_application_tracing]
+
+[Cross Application Tracing](/docs/agents/ruby-agent/features/cross-application-tracing-ruby/) は、8.0では非推奨となっており、将来のリリースで削除される予定です。
+
+<Callout variant="tip">
+  分散トレースとクロスアプリケーショントレースを同時に使用することはできません。両方の設定オプションが有効な場合は、分散トレースのみが使用されます。
+
+  クロスアプリケーショントレースを継続して使用するには、newrelic.ymlで分散型トレースとクロスアプリケーショントレースの両方の設定を更新する必要があります。
+
+  ```yml
+  cross_application_tracing:
+    enabled: true
+
+  distributed_tracing:
+    enabled: false
+  ```
+</Callout>
+
+## 非推奨のAPIメソッドとレガシー・インスツルメンテーションの削除 [#removed_deprecated]
+
+以下のメソッドは、以前は非推奨でしたが、現在は削除されています。
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        削除
+      </th>
+
+      <th>
+        置き換え
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `disable_transaction_tracing` API メソッド
+      </td>
+
+      <td>
+        [`disable_all_tracing`](https://rubydoc.info/github/newrelic/newrelic-ruby-agent/NewRelic/Agent:disable_all_tracing)または[`ignore_transaction`](https://rubydoc.info/github/newrelic/newrelic-ruby-agent/NewRelic/Agent:ignore_transaction) API メソッド
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `External.start_segment` API メソッド
+      </td>
+
+      <td>
+        [`Tracer#start_external_request_segment`](https://rubydoc.info/github/newrelic/newrelic-ruby-agent/NewRelic/Agent/Tracer.start_external_request_segment) API メソッド
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `Transaction.wrap` API メソッド
+      </td>
+
+      <td>
+        [`Tracer#in_transaction`](https://rubydoc.info/github/newrelic/newrelic-ruby-agent/NewRelic/Agent/Tracer.in_transaction) API メソッド
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Mongo&lt; 2.1 instrumentation
+      </td>
+
+      <td>
+        Mongo 2.1以上へのアップグレード
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Excon&lt; 0.19.0 instrumentation
+      </td>
+
+      <td>
+        Excon 0.19.0以上へのアップグレード
+      </td>
+    </tr>
+  </tbody>
+</table>

@@ -1,0 +1,208 @@
+---
+title: Instrument Go 거래
+tags:
+  - Agents
+  - Go agent
+  - Instrumentation
+metaDescription: Learn how to set up New Relic monitoring of  web and non-web transactions in your Golang application or microservice.
+translationType: machine
+---
+
+HTTP 응답 또는 백그라운드 작업과 같은 특정 앱 서버 활동과 관련된 [트랜잭션](/docs/apm/transactions/intro-transactions/transactions-new-relic-apm) 을 생성하여 [New Relic for Go](/docs/agents/go-agent/get-started/new-relic-go) 애플리케이션 또는 마이크로서비스를 모니터링합니다. 그런 다음 [APM **트랜잭션** 페이지](/docs/apm/applications-menu/monitoring/transactions-page) 를 포함하여 New Relic에서 앱의 성능을 볼 수 있습니다.
+
+## 웹 및 비웹 트랜잭션 식별 [#go-monitoring]
+
+다른 많은 언어와 달리 Go 애플리케이션은 컴파일된 기본 바이너리 파일에서 실행됩니다. 즉, Golang 앱에 New Relic을 설정하려면 소스 코드에 New Relic 메서드를 수동으로 추가해야 합니다.
+
+APM에서 트랜잭션은 [웹 트랜잭션](/docs/apm/transactions/intro-transactions/transactions-new-relic-apm) 또는 웹이 [아닌](/docs/apm/transactions/intro-transactions/monitor-background-processes-other-non-web-transactions) 트랜잭션으로 식별됩니다.
+
+* HTTP 요청 및 응답 작성자가 있는 트랜잭션을 계측하거나 래핑할 때 New Relic은 이를 웹 트랜잭션으로 처리합니다.
+* HTTP 데이터가 없는 트랜잭션을 계측하거나 래핑할 때 New Relic은 이를 웹이 아닌 트랜잭션으로 처리합니다.
+
+세그먼트는 트랜잭션을 구성하는 기능 및 호출입니다. New Relic for Go를 사용 [하여 트랜잭션에 세그먼트 수준 세부 정보를 추가](/docs/agents/go-agent/get-started/instrument-go-segments) 할 수도 있습니다.
+
+## 트랜잭션 모니터링 [#go-txn]
+
+<Callout variant="important">
+  거래 이름 끝에 대괄호 `[suffix]` 를 사용하지 마십시오. New Relic은 자동으로 이름에서 괄호를 제거합니다. 대신 필요한 경우 괄호 `(suffix)` 또는 기타 기호를 사용하십시오.
+</Callout>
+
+트랜잭션을 모니터링하려면 다음 코드를 모니터링하려는 기능의 시작 직후에 배치합니다. 예를 들어:
+
+```go
+txn := app.StartTransaction("transaction_name")
+defer txn.End()
+```
+
+이 코드 예제에서:
+
+* `app` New Relic 구성 프로세스 중에 할당된 변수를 나타냅니다. 자세한 내용은 [Go 에이전트 설치 절차](/docs/agents/go-agent/installation/install-new-relic-go) 를 참조하십시오.
+* [`defer`](https://gobyexample.com/defer) 문은 함수가 닫힐 때까지 세그먼트 종료를 연기합니다.
+
+웹 트랜잭션을 모니터링하려면 `Transaction.SetWebRequest` 및 선택적으로 `Transaction.SetWebResponse` API를 호출합니다.
+
+```go
+txn := app.StartTransaction("transaction_name")
+defer txn.End()
+
+// req is a *http.Request, this marks the transaction as a web transaction
+txn.SetWebRequestHTTP(req)
+
+// writer is a http.ResponseWriter, use the returned writer in place of the original
+writer = txn.SetWebResponse(writer)
+writer.WriteHeader(500)
+```
+
+<CollapserGroup>
+  <Collapser
+    id="transaction-example"
+    title="거래 예시"
+  >
+    다음은 `checkout_transaction` 이라는 트랜잭션을 생성하기 위한 간단한 전후 예입니다.
+
+    **전에:**
+
+    ```go
+    func checkout() {
+        // function code here
+    }
+    ```
+
+    **후에:**
+
+    ```go
+    func checkout() {
+        txn := app.StartTransaction("checkout_transaction")
+        defer txn.End()
+        // function code here
+    }
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## 여러 고루틴으로 트랜잭션 모니터링 [#goroutines]
+
+여러 고루틴에서 트랜잭션을 모니터링하려면 `Transaction.NewGoroutine()` 을 사용합니다. `NewGoroutine` 메서드는 각 세그먼트 생성 고루틴에 필요한 트랜잭션에 대한 새 참조를 반환합니다. 다른 고루틴이 시작되기 전이나 후에 `NewGoroutine` 를 호출하는지 여부는 중요하지 않습니다.
+
+모든 `Transaction` 메서드는 모든 `Transaction` 참조에서 사용할 수 있습니다. `Transaction` 는 `End()` 이 고루틴에서 호출될 때 종료됩니다.
+
+<CollapserGroup>
+  <Collapser
+    id="multie-example"
+    title="여러 고루틴 예제"
+  >
+    아래 예는 새 `Transaction` 참조를 다른 고루틴에 직접 전달합니다.
+
+    ```go
+    go func(txn *newrelic.Transaction) {
+        defer txn.StartSegment("async").End()
+        time.Sleep(100 * time.Millisecond)
+    }(txn.NewGoroutine())
+    ```
+
+    아래 예는 채널의 새 `Transaction` 참조를 다른 고루틴으로 전달합니다.
+
+    ```go
+    ch := make(chan *newrelic.Transaction)
+    go func() {
+        txn := <-ch
+        defer txn.StartSegment("async").End()
+        time.Sleep(100 * time.Millisecond)
+    }()
+    ch <- txn.NewGoroutine()
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## HTTP 핸들러를 래핑하여 트랜잭션 모니터링 [#http-handler-txns]
+
+표준 HTTP 라이브러리 패키지를 사용 [하는 경우 함수 코드를 계측](/docs/agents/go-agent/get-started/new-relic-go-monitor-transactions#go-txn) 하는 대신 HTTP 요청을 래핑하여 트랜잭션을 생성할 수 있습니다.
+
+다음은 랩핑되는 HTTP 핸들러의 전후 예입니다.
+
+**전에:**
+
+```go
+http.HandleFunc("/users", usersHandler)
+```
+
+**후에:**
+
+이렇게 하면 요청 및 응답 작성자와의 트랜잭션이 자동으로 시작되고 종료됩니다.
+
+```go
+http.HandleFunc(newrelic.WrapHandleFunc(app, "/users", usersHandler))
+```
+
+핸들러의 트랜잭션에 액세스하려면 `newrelic.FromContext` API를 사용하세요. 이것은 Go 버전 1.7 이상에서만 작동합니다. 예를 들어:
+
+```go
+func myHandler(w http.ResponseWriter, r *http.Request) {
+    txn := newrelic.FromContext(r.Context())
+    txn.NoticeError(errors.New("my error message"))
+}
+```
+
+## 오류 모니터링 [#go-error-methods]
+
+New Relic for Go는 세 가지 방법으로 오류를 캡처합니다.
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "350px" }}>
+        원하는 경우...
+      </th>
+
+      <th>
+        이것을 사용
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        오류를 추적하고 메시지, 클래스 및 속성의 조합을 보고합니다.
+      </td>
+
+      <td>
+        [`Transaction.NoticeError()`](https://github.com/newrelic/go-agent/blob/master/GUIDE.md#noticeerror)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        패닉 보고
+      </td>
+
+      <td>
+        `defer` 으)로 종료된 트랜잭션은 패닉을 자동으로 기록합니다. [자세한 내용은 New Relic for Go GitHub 설명서를 참조하십시오](https://github.com/newrelic/go-agent/blob/master/GUIDE.md#panics) . 버전 3.0.0부터 이 기능은 `Config.ErrorCollector.RecordPanics` 구성을 `true` 로 설정하여 구체적으로 활성화해야 합니다.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        오류 응답 코드 보고
+      </td>
+
+      <td>
+        트랜잭션은 400 이상 100 이하의 오류를 자동으로 기록합니다. [자세한 내용은 New Relic for Go GitHub 설명서를 참조하십시오](https://github.com/newrelic/go-agent/blob/master/GUIDE.md#error-response-codes) .
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## APM 및 인프라 데이터에 대한 로그 보기 [#logs-context]
+
+또한 로그와 애플리케이션의 데이터를 함께 가져와 더 쉽고 빠르게 문제를 해결할 수 있습니다. [컨텍스트의 로그를](/docs/logs/logs-context/configure-logs-context-go/) 사용하면 앱의 UI에서 직접 오류 및 추적과 관련된 로그 메시지를 볼 수 있습니다.
+
+1. **오류** 페이지에서 추적을 클릭하면 [**오류 세부정보** 페이지](/docs/apm/apm-ui-pages/error-analytics/errors-page-find-fix-verify-problems) 로 이동합니다.
+2. 오류 세부정보 페이지에서 **로그 보기** 를 클릭합니다.
+3. 개별 로그 메시지와 관련된 세부 정보를 보려면 메시지를 직접 클릭하십시오.
+
+Kubernetes 클러스터와 같은 [인프라 데이터](/docs/logs/forward-logs/forward-your-logs-using-infrastructure-agent/) 컨텍스트에서 로그를 볼 수도 있습니다. 다른 UI로 전환할 필요가 없습니다.
+
+## 추가 거래 방법 [#go-transactions-methods]
+
+`Transaction` 객체에는 `NoticeError` , `AddAttribute` 및 `Ignore` 와 같이 트랜잭션 동작을 제어하는 데 사용할 수 있는 몇 가지 선택적 메서드가 있습니다. 트랜잭션 방법 목록은 [Godoc의 New Relic for Go 트랜잭션 방법을](https://godoc.org/github.com/newrelic/go-agent/v3/newrelic#Transaction) 참조하십시오.

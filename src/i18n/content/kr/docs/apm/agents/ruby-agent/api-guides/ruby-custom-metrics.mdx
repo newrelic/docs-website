@@ -1,0 +1,148 @@
+---
+title: Ruby 맞춤 측정항목
+tags:
+  - Agents
+  - Ruby agent
+  - API guides
+metaDescription: 'For information about customizing New Relic''s Ruby agent API to collect additional metrics, start here.'
+translationType: machine
+---
+
+사용자 지정 메트릭을 사용하면 API 호출을 통해 임의의 성능 데이터(예: 타이밍 또는 컴퓨터 리소스 데이터)를 기록할 수 있습니다. 그런 다음 [쿼리 빌더](/docs/query-your-data/explore-query-data/query-builder/introduction-query-builder) 를 사용하여 차트를 만들고 해당 측정항목을 추적합니다. 사용자 지정 메트릭을 사용하여 New Relic 내에서 모니터링을 통합할 수 있습니다.
+
+<Callout variant="caution">
+  너무 많은 메트릭을 수집하면 애플리케이션과 New Relic 에이전트의 성능에 영향을 줄 수 있습니다. 데이터 문제를 방지하려면 고유한 사용자 정의 측정항목의 총 수를 2000개 미만으로 유지하십시오.
+</Callout>
+
+<Callout variant="important">
+  이 절차는 Rails 버전 7 이상에서 테스트되지 않았습니다.
+</Callout>
+
+## 측정항목 이름 지정 [#metric_names]
+
+메트릭 이름은 New Relic에서 추적한 특정 데이터 값을 식별합니다. New Relic Ruby 에이전트의 API를 사용하여 사용자 지정 메트릭을 추적할 때 메트릭 이름 지정과 값이 집계되는 방식을 고려하는 것이 중요합니다.
+
+맞춤 측정항목 이름은 접두사 `Custom/` , 클래스 또는 카테고리 이름, 레이블로 구성되며 각각 슬래시 표시 `/` : `Custom/<class>/<method>` 또는 `Custom/<category>/<name>` (예: `Custom/MyClass/My_method` )로 구분됩니다.
+
+<CollapserGroup>
+  <Collapser
+    id="metric_names"
+    title="측정항목 이름 및 경로"
+  >
+    측정항목 이름은 슬래시 `/` 로 구분된 경로입니다. 사용자 정의 계측의 경우 다음 패턴을 사용하십시오.
+
+    ```
+    <category>/<class>/<method>
+    ```
+
+    기본 측정항목 이름을 재정의하려면 두 번째 인수를 `add_method_tracer` 에 전달합니다. 이는 기본 `Custom` 이외의 범주를 지정하거나 메서드 및 클래스 이름이 메트릭을 잘 나타내지 않는 경우에 필요할 수 있습니다.
+
+    예약된 카테고리는 다음과 같습니다.
+
+    * 액티브 레코드
+    * Apdex
+    * CPU
+    * 제어 장치
+    * 데이터 베이스
+    * 메모리
+    * 보다
+    * 관습
+
+    <Callout variant="tip">
+      맞춤 측정항목 이름의 경우 `Custom/<class>/<method>` 또는 `Custom/<category>>/>name>`
+    </Callout>
+  </Collapser>
+
+  <Collapser
+    id="metrics_and_stats"
+    title="Ruby 에이전트의 메트릭 및 통계"
+  >
+    측정항목 데이터를 수집하는 데 사용되는 두 가지 기본 데이터 구조 `MetricSpec` 및 `Stats` 가 있습니다.
+
+    `A MetricSpec is an identifier for which we have data. The following pseudo Ruby defines a metric:`
+
+    ```
+    class MetricSpec
+      attr_accessor :name    # String - metric name
+      attr_accessor :scope   # String - current controller action
+    end
+    ```
+
+    이름은 메트릭이 나타내는 것을 식별합니다. 선택적 범위는 현재 요청을 처리하는 컨트롤러 작업의 이름입니다. 범위가 비어 있는 경우 메트릭은 "전역"입니다.
+
+    측정항목 값은 `Stats` 에 의해 기록됩니다. `Stats` 은 일반적으로 메서드 실행에 대한 데이터를 수집하지만 흥미로운 데이터를 저장할 수 있습니다. 다음 의사 Ruby는 `Stats` 를 정의합니다.
+
+    ```
+    class Stats
+      attr_accessor :call_count           # Integer - method invocation count
+      attr_accessor :total_call_time      # Float - total method call time (in seconds)
+      attr_accessor :total_exclusive_time # Float - total time spent in the traced method minus any child time (in seconds)
+      attr_accessor :min_call_time        # Float - the smallest method invocation time (in seconds)
+      attr_accessor :max_call_time        # Float - the largest method invocation time (in seconds)
+      attr_accessor :sum_of_squares       # Float - the sum of squares of response times - used for standard deviation computation
+      attr_accessor :begin_time           # Time - the start of the time window for this data
+      attr_accessor :end_time             # Time - end of the time window for this data
+    end
+    ```
+  </Collapser>
+
+  <Collapser
+    id="stat_policy"
+    title="통계 집계 정책"
+  >
+    New Relic의 강점 중 하나는 시간이 지남에 따라 데이터를 집계하는 기능입니다. (집계는 여러 항목을 하나로 결합하는 행위입니다.) 사용자 지정 메트릭을 수집할 때 사용자 지정 메트릭을 수집할 때 알아야 하는 집계 정책이 중요할 수 있습니다. 여기에는 다음이 포함됩니다.
+
+    * `call_count`: 덧셈
+    * `total_call_time`: 덧셈
+    * `total_exclusive_time`: 덧셈
+    * `min_call_time`: 각 min_call_time의 Min()
+    * `max_call_time`: 각 max_call_time의 Max()
+    * `sum_of_squares`: 덧셈
+    * `begin_time`: 각 begin_time의 Min()
+    * `end_time`: 각 end_time의 Max()
+  </Collapser>
+</CollapserGroup>
+
+## 맞춤 측정항목 기록 [#recording-custom-metrics]
+
+측정항목 데이터를 기록하기 위한 공개 API는 `NewRelic::Agent` , [`record_metric`](#record_metric) 및 [`increment_metric`](#increment_metric) 에 대한 두 가지 메서드로 구성됩니다.
+
+<Callout variant="tip">
+  `record_metric` 및 `increment_metric` 모두 스레드로부터 안전합니다.
+</Callout>
+
+### record_metric(metric_name, 값) [#record_metric]
+
+`record_metric` 일반적으로 특정 기간과 관련된 이벤트 기반 메트릭을 기록하는 데 사용해야 합니다. `metric_name` 은 표준 측정항목 이름 지정 규칙을 따르는 문자열이어야 합니다. `value` 은 일반적으로 숫자이지만 해시일 수도 있습니다.
+
+`value` 이 숫자 값인 경우 이벤트와 관련된 측정의 크기(예: 특정 메서드 호출 기간)를 나타내야 합니다.
+
+`value` 이 해시인 경우 `:count` , `:total` , `:min` , `:max` 및 `:sum_of_squares` 키가 모두 숫자 값을 포함해야 합니다. 이 양식은 메트릭을 자체적으로 집계하고 주기적으로(예: 백그라운드 스레드에서) 보고하려는 경우에 유용합니다. 제공된 통계는 동일한 메트릭에 대해 이전에 수집된 값과 함께 집계됩니다. 해시 키의 이름은 플랫폼 API에서 사용하는 키의 이름과 일치하도록 선택되었습니다.
+
+### increment_metric(metric_name, amount=1) [#increment_metric]
+
+`increment_metric` 단순 카운터 역할을 하는 메트릭을 업데이트하는 데 사용해야 합니다. 선택한 측정항목의 개수가 지정된 양만큼 증가합니다.
+
+## 맞춤 측정항목의 예 [#example]
+
+다음은 메트릭을 사용하여 사이트를 통해 흐르는 통화를 추적하는 방법을 보여주는 예입니다.
+
+```
+class Cart
+
+  def checkout()
+    amount = compute_cart_total    # computes the amount to charge the customer
+
+    ::NewRelic::Agent.record_metric('Custom/Cart/charge_amount', amount)
+
+    charge_customer(amount)
+    ...
+  end
+end
+```
+
+시간 경과에 따른 데이터 집계 방식에 대한 자세한 내용은 [통계 집계 정책](/docs/ruby/ruby-custom-metric-naming#stat_policy) 을 참조하십시오.
+
+## 맞춤 측정항목 보기 [#viewing-custom]
+
+이러한 사용자 지정 메트릭을 보려면 [쿼리 빌더](/docs/query-your-data/explore-query-data/query-builder/introduction-query-builder) 를 사용하여 메트릭을 검색하고 사용자 지정 가능한 차트를 만들고 해당 차트를 대시보드에 추가하십시오.

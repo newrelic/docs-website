@@ -11,4 +11,4 @@ events:
   - PageViewTiming
 ---
 
-The name of the application that handled the request as shown in New Relic Browser.
+The name of the application that handled the request as shown in browser monitoring.

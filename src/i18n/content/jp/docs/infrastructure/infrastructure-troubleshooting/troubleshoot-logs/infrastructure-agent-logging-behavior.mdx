@@ -1,0 +1,119 @@
+---
+title: インフラストラクチャ・エージェントのロギング動作
+tags:
+  - Infrastructure
+  - Infrastructure monitoring troubleshooting
+  - Troubleshoot logs
+metaDescription: How Infrastructure generates and stores logs for the infrastructure agent.
+translationType: machine
+---
+
+New Relicのインフラストラクチャエージェントは、独自のデータと統合のログを収集し、それらを単一のソースに統合します。デフォルトでは、ログは`standard-output`に表示され、 [ログファイル](/docs/infrastructure/install-configure-infrastructure/configuration/infrastructure-configuration-settings#log-file)に追加されます。標準出力でログを無効にするに[は、エージェントの構成オプションを参照してください](/docs/infrastructure/install-infrastructure-agent/configuration/infrastructure-agent-configuration-settings/#stdout)。
+
+## 基本構成
+
+次の例は、Linuxシステムでのエージェントログの一般的な構成を示しています（Windowsまたは他のプラットフォームを実行している場合はファイルパスを変更します）。
+
+```
+log:
+  level: info
+  file: '/var/log/newrelic-infra/newrelic-infra.log'
+  rotate:
+    max_size_mb: 100
+    max_files: 5                             
+    compression_enabled: true                
+    file_pattern: "YYYY-MM-DD_hh-mm-ss".log
+```
+
+## ログの重大度レベル [#security-levels]
+
+インフラストラクチャーでは、標準的な [Syslog の深刻度レベルのサブセットを使用しています](https://en.wikipedia.org/wiki/Syslog#Severity_level) 。
+
+* `ERROR`：エラー条件が満たされました
+* `WARN`：警告条件が満たされました
+* `INFO`：情報メッセージ
+* `DEBUG`：デバッグレベルのメッセージが含まれています（トラブルシューティング時に役立ちます）
+
+## ログのフォーマット
+
+[インフラストラクチャエージェント v1.4.9 以降](/docs/release-notes/infrastructure-release-notes/infrastructure-agent-release-notes) では、ログメッセージがコンテキスト値とともにインライン化されます。これにより、グループ化やフィルタリングがしやすくなります。
+
+```
+containerized agent found in container
+     containerID: <var>VALUE</var>
+```
+
+デフォルトでは、インフラストラクチャーのログはテキストとしてフォーマットされています。
+
+* フォアグラウンドモードでは、ログ出力はタイムスタンプなしのカラー表示となります。
+
+  ```
+  DEBUG <var>Sending deltas divided in blocks</var> component=<var>PatchSender</var> mentityKey=<var>ohaimaci</var> mnumberOfBlocks=<var>1</var>
+  ```
+
+* バックグラウンドモードでは、ログはタイムスタンプ付きで出力されます。これは、サービスとして実行する場合や、ログをファイルにダンプする場合に使用されます。
+
+  ```
+  time="<var>2019-07-12T09:54:15+02:00</var>" level=<var>info</var> msg="<var>Agent service manager shutdown completed successfully.</var>" component=<var>AgentService</var> service=newrelic-infra
+  ```
+
+また、ログをJSONファイルとしてフォーマットすることもできます。
+
+```
+{"context":{},"level":"<var>info</var>","msg":"<var>upstart_interval_sec: 0</var>","timestamp":"<var>2019-07-11T18:24:03+02:00</var>"} 
+{"context":{},"level":"<var>info</var>","msg":"<var>plugin_dir</var>: ","timestamp":"<var>2019-07-11T18:24:03+02:00</var>"}
+```
+
+ログ形式を変更するには、 [エージェントの構成設定](/docs/infrastructure/install-infrastructure-agent/configuration/infrastructure-agent-configuration-settings/#log-format)を参照してください。
+
+## ビルトインログローテーション [#builtin-log-rotation]
+
+[インフラストラクチャエージェントv1.28.0以降の場合](/docs/release-notes/infrastructure-release-notes/infrastructure-agent-release-notes)、組み込みのログローテーションおよび圧縮メカニズムがエージェントで使用できます。
+
+## スマートバーボーズモード
+
+[インフラストラクチャエージェントのバージョン1.9.0以降](/docs/release-notes/infrastructure-release-notes/infrastructure-agent-release-notes) では、ログのスマートverboseモードを有効にすることができます。
+
+Smart verboseモードでは、エラーメッセージが検出されるまで、デバッグメッセージがログに記録されません。エラーが検出されると、デバッグメッセージはエラーが発生する前にログファイルに書き込まれます。設定された最新の数のデバッグメッセージのみが記録されることに注意してください。例えば、設定された上限を10とした場合、エラーが検出されると、エラーが検出される前の最新の10個のデバッグメッセージがログに記録されます。
+
+スマート冗長モードとデバッグメッセージ制限を有効にする方法の詳細については、 [インフラストラクチャ構成設定](/docs/infrastructure/install-infrastructure-agent/configuration/infrastructure-agent-configuration-settings/#logging-variables)を参照してください。
+
+## 統合ログ管理
+
+インテグレーションは、JSONペイロードをSTDOUTに、プレーンテキスト（将来的にはJSON構造化）のログをSTDERRに書き込みます。
+
+インフラストラクチャエージェントは統合STDERR行を処理し、この出力をエージェントログに転送します。
+
+エージェントは各STDERR行を以下のように処理します。
+
+* **エージェントが冗長モードで実行される場合**: DEBUGエージェントのログエントリとしてSTDERRの全行を転送するだけで、\`msg\`フィールド内に統合行のコンテキストを配置します。
+* **それ以外の場合**: 想定されるフォーマット(下記参照)に沿って行を解析し、深刻度が \`fatal\` または \`error\` の統合によって生成されたエントリのみをエージェントの ERROR レベルとして記録します。この場合、フィールドは構造化された方法で抽出され、転送されます (したがって、エージェントで JSON 出力が有効な場合、フィールドはクエリ可能になります。
+
+### 統合STDERR期待フォーマット
+
+行は、等号で区切られたキーと値のペアのリストであることが期待されます。キーには任意の文字を含めることができますが、値には3つの異なる形式があります。
+
+1. string:&lt;quote>任意の文字（エスケープされた引用符を含む） ▽"&lt; quote>
+2. 地図：&&#x7B;任意の文字}。
+3. word: スペースを除く任意の文字
+
+エージェントの内部では、この正規表現を使ってフィールドを抽出しています。
+
+```
+([^\s]*?)=(".*?[^\\]"|&{.*?}|[^\s]*)
+```
+
+例えば、このセリフ。
+
+```
+time="2015-03-26T01:27:38-04:00" level=error msg="Foo bar baz" foo=bar
+```
+
+これらのフィールドを含む構造化されたエージェントログラインが生成されます。
+
+```
+- "time": "2015-03-26T01:27:38-04:00"
+- "level": "error"
+- "msg": "Foo bar baz"
+- "foo": "bar"
+```

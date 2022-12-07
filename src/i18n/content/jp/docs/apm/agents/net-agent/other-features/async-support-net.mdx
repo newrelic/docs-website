@@ -1,0 +1,206 @@
+---
+title: .NETでの非同期サポート
+tags:
+  - Agents
+  - NET agent
+  - Other features
+metaDescription: 'How to activate asynchronous mode with New Relic''s .NET agent, plus a summary of new, disabled, or unavailable features when async mode is active.'
+translationType: machine
+---
+
+New Relicの.NETエージェントには、エージェント[バージョン6.0以降](/docs/release-notes/agent-release-notes/net-release-notes)、非同期フレームワークインストルメンテーションが自動的に含まれています。.NET 4.5で導入された標準の`async-await`パターンでは、呼び出されたメソッドで実行されている作業がまだ進行中であっても、非同期メソッドの呼び出しが返される可能性があります。.NETエージェントは、この進行中の非同期作業を監視し、それが完了するのを待ってからタイミングを記録します。
+
+## 非同期インストゥルメンテーションをサポートする機能 [#features]
+
+非同期のサポートが追加されたことにより、.NETエージェントで利用できる機能が増えました。しかし、この機能強化の一環として、これまでエージェントが提供していたいくつかの機能が利用できなくなりました。特記されている場合を除き、.NETエージェントでサポートされている他の [フレームワーク](/docs/agents/net-agent/getting-started/compatibility-requirements-net-agent) の非同期メソッドをインストルメントすることはできません。
+
+<CollapserGroup>
+  <Collapser
+    id="HttpClient"
+    title="HttpClientの非同期メソッド"
+  >
+    エージェントは、これらの`HttpClient`非同期メソッドをインストルメントします。
+
+    * `SendAsync`
+    * `GetAsync`
+    * `PostAsync`
+    * `PutAsync`
+    * `DeleteAsync`
+    * `GetStringAsync`
+    * `GetStreamAsync`
+    * `GetByteArrayAsync`
+  </Collapser>
+
+  <Collapser title="RestClientの非同期メソッド">
+    エージェントは、これらの`RestClient`非同期メソッドをインストルメントします。
+
+    * `ExecuteTaskAsync`
+    * `ExecuteGetTaskAsync`
+    * `ExecutePostTaskAsync`
+  </Collapser>
+
+  <Collapser
+    id="SqlCommand"
+    title="SqlCommandの非同期メソッド"
+  >
+    エージェントは、これらの`SqlCommand`非同期メソッドをインストルメントします。
+
+    * `ExecuteReaderAsync`
+    * `ExecuteNonQueryAsync`
+    * `ExecuteScalarAsync`
+    * `ExecuteXmlReaderAsync`
+  </Collapser>
+
+  <Collapser
+    id="SqlDataReader"
+    title="SqlDataReaderの非同期メソッド"
+  >
+    エージェントは、これらの`SqlDataReader`非同期メソッドをインストルメントします。
+
+    * `NextResultAsync`
+    * `ReadAsync`
+  </Collapser>
+
+  <Collapser
+    id="NpgsqlCommand"
+    title="NpgsqlCommandの非同期メソッド(Postgres)"
+  >
+    エージェントはこれらの`NpgsqlCommand`非同期メソッドをインストルメントします（Postgres）：
+
+    * `ExecuteReaderAsync`
+    * `ExecuteNonQueryAsync`
+    * `ExecuteScalarAsync`
+  </Collapser>
+
+  <Collapser
+    id="custom-instrumentation"
+    title="カスタムインストゥルメンテーション"
+  >
+    .NETエージェントは、独自の非同期メソッドの [カスタムインスツルメンテーション](/docs/agents/net-agent/instrumentation/net-custom-transactions#example-custom-txn-async)をサポートしています。
+  </Collapser>
+</CollapserGroup>
+
+## 既知の制限 [#known-issues]
+
+ここでは、当社の.NETエージェントを使用した非同期インスツルメンテーションに関する既知の制限事項をまとめています。
+
+<CollapserGroup>
+  <Collapser
+    id="response-time1"
+    title="応答時間が合計時間より短い"
+  >
+    応答時間は、 `async` - `await`使用シーンで費やされた合計時間よりも短いと予想されます。Webエンドポイントの次のコード例を検討してください。
+
+    ```cs
+    async Task<string> WebEndpointExample() 
+    {
+        await DoSomethingForSomeSecondsAsync(5); //kick off a 5-second-work to be done.
+        return "Complete";
+    }
+
+    [Trace]
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static async Task DoSomethingForSomeSecondsAsync(int seconds)
+    {
+        await Task.Delay(TimeSpan.FromSeconds(seconds));
+    }
+    ```
+
+    このコード例では、 `WebEndpointExample`が完了するまでに約5秒かかるため、 `WebEndpointExample`エンドポイントへのリクエストを表すトランザクションの応答時間は約5秒になります。
+
+    エージェントは、トランザクションを構成する個々のセグメントの「ビジー」時間（インストルメントされたメソッドが実際に実行されている時間）もキャプチャします。それらは`WebEndpointExample`と`DoSomethingForSomeSecondsAsync`です。理想的には、2つのセグメントの合計実行時間は応答時間（約5秒）に等しくなります。
+
+    `DoSomethingForSomeSecondsAsync`の実行時間は5秒であることが簡単にわかります。ただし、 `WebEndpointExample`の実行時間は0秒に近い必要があります。（これは何の作業も行いません。 `DoSomethingForSomeSecondsAsync`が完了するのは`await`秒です。）
+
+    ただし、エージェントは実行時間を約5秒と測定します。これは、メソッドが別のメソッドを`await`しているときに、エージェントがブロックされた時間（CPU時間ではない）を検出できないためです。したがって、合計時間は10秒として報告されます。これは、応答時間（約5秒）よりも長くなります。
+
+    同時に、エージェントは`async`メソッドの呼び出しが常に呼び出し元をブロックすることを想定できません。次の例はこれを示しています。
+
+    ```cs
+    async Task<string> WebEndpointExample()
+    {
+        var task = DoSomethingForSomeSecondsAsync(5); //kick off a 5-second-work to be done.
+
+        //Do something less than 5 seconds here.
+
+        await task;
+        return "Complete";
+    }
+
+    [Trace]
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static async Task DoSomethingForSomeSecondsAsync(int seconds)
+    {
+        await Task.Delay(TimeSpan.FromSeconds(seconds));
+    }
+    ```
+
+    この例では、応答時間はまだ約5秒ですが、 `WebEndpointExample`の実際の実行時間は約0ではなくなりました。
+  </Collapser>
+
+  <Collapser
+    id="asp-pipeline"
+    title="ASPパイプラインの更新が必要"
+  >
+    レガシーASPパイプラインが存在する場合、.NETエージェントが非同期メソッドを計測しないという問題がありました。この問題は、.NET Framework 4.0以下で作成されたアプリケーションを.NET Framework 4.5以上に移行した場合にのみ発生しますが、非同期メソッドが導入される前にMicrosoft社がレガシーASPパイプラインを置き換えたため、この問題が発生します。
+
+    この問題がお客様のアプリケーションに影響するかどうか、また、影響する場合の解決方法については、 [トラブルシューティングの手順を確認してください](/docs/agents/net-agent/troubleshooting/missing-async-metrics)。
+  </Collapser>
+
+  <Collapser
+    id="task-not-void"
+    title="リターンタイプ タスク要件"
+  >
+    .NETエージェントは、 `Task`または`Task<T>`以外の戻り型を持つ非同期メソッドのインストルメンテーションをサポートしていません。エージェントは`async void`メソッドをサポートしていません。
+
+    詳しくは、 [async return typeについてのMicrosoftのドキュメントを参照してください](https://docs.microsoft.com/en-us/dotnet/csharp/programming-guide/concepts/async/async-return-types) 。
+
+    * [`Task<TResult>`](https://docs.microsoft.com/en-us/dotnet/csharp/programming-guide/concepts/async/async-return-types#BKMK_TaskTReturnType)リターンタイプ
+    * [非同期ボイド](https://docs.microsoft.com/en-us/dotnet/csharp/programming-guide/concepts/async/async-return-types#BKMK_VoidReturnType)
+    * [一般化された非同期リターンタイプ](https://docs.microsoft.com/en-us/dotnet/csharp/programming-guide/concepts/async/async-return-types#generalized-async-return-types-and-valuetasktresult)
+  </Collapser>
+
+  <Collapser
+    id="begin-end-style"
+    title="始まりと終わりのスタイルのためのインストルメントはありません"
+  >
+    .NETエージェントは、 [WCFアプリケーション](https://docs.microsoft.com/en-us/dotnet/framework/wcf/feature-details/how-to-call-wcf-service-operations-asynchronously)を除いて、 `begin*`および`end*`スタイルを使用する.NETメソッドをインストルメントしません。この例外を除いて、アプリケーションがこれらのタイプのメソッドを呼び出す場合、エージェントはそれらのセグメントを作成しません。ただし、残りのトランザクションとセグメントは正しく作成されます。
+  </Collapser>
+
+  <Collapser
+    id="manual-created-threads-capture"
+    title="手動で作成されたスレッドにスコープされたメトリクス/セグメント"
+  >
+    .NETエージェントは、スコープ付きのメトリクスや、アプリケーションが手動で作成したスレッド内のセグメントをキャプチャしません。
+  </Collapser>
+
+  <Collapser
+    id="async-await"
+    title="インストゥルメント化された非同期メソッドでは、Task.Resultではなくawaitを使用する必要があります。"
+  >
+    アプリケーションがインストルメント化された非同期メソッドを呼び出す場合は、 `Task.Result()`などの`Task`関連メソッドではなく`await`を使用して結果を待ちます。そうしないと、インストルメンテーションが正しく機能しない場合があります。
+
+    一般に、非同期メソッドを呼び出すときは`Task.Result()`の使用を避けてください。[デッドロック](http://blog.stephencleary.com/2012/07/dont-block-on-async-code.html)につながる可能性があります。
+  </Collapser>
+
+  <Collapser
+    id="continue-with-timing"
+    title="ContinueWithブロックがタイミング測定に影響することがある"
+  >
+    インストルメント化された非同期メソッドによって返されるpromiseに独自の`ContinueWith({})`ブロックを追加すると、インストルメンテーションによって報告されるタイミング測定に影響を与える可能性があります。たとえば、時間には`ContinueWith`の実行にかかる時間が含まれる場合があります。
+  </Collapser>
+
+  <Collapser
+    id="iis-wcf-nesting"
+    title="IISでホストされたWCFアプリでのネスティングの問題"
+  >
+    IISでホストされている[WCFサービス](/docs/agents/net-agent/instrumentation/instrumenting-wcf-applications)は、 `ExecuteRequestHandler`セグメントの下に**WCF**セグメントを適切にネストしません。報告された[合計時間](/docs/data-analysis/user-interface-functions/response-time#response-time-total-time)は正確ですが、2つのセグメントはトランザクショントレース内の兄弟であるように見えます。
+  </Collapser>
+
+  <Collapser
+    id="stack-traces-segments"
+    title="セグメントがスタックトレースを自動作成しない"
+  >
+    トランザクショントレースのセグメントは、 `transaction_tracer.stack_trace_threshold`より長く実行されている場合でも、スタックトレースを自動的に生成しません。
+  </Collapser>
+</CollapserGroup>

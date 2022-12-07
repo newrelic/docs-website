@@ -14,16 +14,11 @@ const { omit } = require('lodash');
 module.exports = {
   CodeBlock: {
     serialize: (h, node) =>
-      h(
-        node,
-        'pre',
-        {
-          'data-type': 'component',
-          'data-component': 'CodeBlock',
-          'data-props': serializeJSValue(omit(node, ['type'])),
-        },
-        [h(node, 'code')]
-      ),
+      h(node, 'pre', {
+        'data-type': 'component',
+        'data-component': 'CodeBlock',
+        'data-props': serializeJSValue(omit(node, ['type'])),
+      }),
     deserialize: (h, node) =>
       h(node, 'code', deserializeJSValue(node.properties.dataProps)),
   },
@@ -108,6 +103,14 @@ module.exports = {
     deserialize: deserializeComponent,
     serialize: serializeComponent,
   },
+  DoNotTranslate: {
+    deserialize: deserializeComponent,
+    serialize: (h, node) =>
+      serializeComponent(h, node, {
+        classNames: 'notranslate',
+        wrapChildren: false,
+      }),
+  },
   ExternalLink: {
     deserialize: deserializeComponent,
     serialize: serializeComponent,
@@ -160,12 +163,47 @@ module.exports = {
       return h(
         node,
         'code',
-        { 'data-type': 'component', 'data-component': 'InlineCode' },
+        {
+          'data-type': 'component',
+          'data-component': 'InlineCode',
+        },
         [u('text', toString(node))]
       );
     },
   },
   ImageSizing: {
+    serialize: serializeComponent,
+    deserialize: deserializeComponent,
+  },
+  InstallFeedback: {
+    serialize: serializeComponent,
+    deserialize: deserializeComponent,
+  },
+  Side: {
+    serialize: serializeComponent,
+    deserialize: deserializeComponent,
+  },
+  SideBySide: {
+    serialize: serializeComponent,
+    deserialize: deserializeComponent,
+  },
+  Tabs: {
+    serialize: serializeComponent,
+    deserialize: deserializeComponent,
+  },
+  TabsBar: {
+    serialize: serializeComponent,
+    deserialize: deserializeComponent,
+  },
+  TabsBarItem: {
+    serialize: serializeComponent,
+    deserialize: deserializeComponent,
+  },
+  TabsPages: {
+    serialize: serializeComponent,
+    deserialize: deserializeComponent,
+  },
+  TabsPageItem: {
     serialize: serializeComponent,
     deserialize: deserializeComponent,
   },
@@ -267,6 +305,26 @@ module.exports = {
       serializeComponent(h, node, { textAttributes: ['alt'] }),
   },
   a: {
+    deserialize: deserializeComponent,
+    serialize: serializeComponent,
+  },
+  nobr: {
+    deserialize: deserializeComponent,
+    serialize: serializeComponent,
+  },
+  br: {
+    deserialize: deserializeComponent,
+    serialize: serializeComponent,
+  },
+  strong: {
+    deserialize: deserializeComponent,
+    serialize: serializeComponent,
+  },
+  b: {
+    deserialize: deserializeComponent,
+    serialize: serializeComponent,
+  },
+  sup: {
     deserialize: deserializeComponent,
     serialize: serializeComponent,
   },

@@ -6,4 +6,4 @@ events:
   - AjaxRequest
 ---
 
-The HTTP response code. Example: 200.
+The HTTP response code. Example: `200`.

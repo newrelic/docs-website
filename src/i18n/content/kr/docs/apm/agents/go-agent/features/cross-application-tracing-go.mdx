@@ -1,0 +1,128 @@
+---
+title: Go를 사용한 교차 애플리케이션 추적
+tags:
+  - Agents
+  - Go agent
+  - Features
+metaDescription: How to implement cross application tracing with the Go agent in order to connect transactions across APM-monitored apps.
+translationType: machine
+---
+
+Go 에이전트는 [CAT(교차 애플리케이션 추적)을](/docs/apm/transactions/cross-application-traces/introduction-cross-application-traces) 지원합니다. 교차 애플리케이션 추적은 서비스 지향 또는 마이크로서비스 아키텍처를 구현하는 애플리케이션에 필수적인 APM 모니터링 앱 간의 트랜잭션을 연결합니다.
+
+<Callout variant="important">
+  이제 [분산 추적](/docs/apm/distributed-tracing/getting-started/introduction-distributed-tracing) 을 사용할 수 있습니다. 분산 추적은 애플리케이션 간 추적을 개선한 것으로 대규모 분산 시스템에 권장됩니다.
+</Callout>
+
+## Go로 교차 애플리케이션 추적 활성화 [#enable]
+
+[`CrossApplicationTracer.Enabled`](/docs/agents/go-agent/instrumentation/go-agent-configuration#cross-tracer-enabled) 구성 플래그를 사용하여 Go 에이전트에서 교차 애플리케이션 추적을 활성화하거나 비활성화할 수 있습니다.
+
+## Go를 사용한 트랜잭션 및 HTTP 요청 지침 [#guidelines]
+
+교차 애플리케이션 추적이 활성화된 경우에도 HTTP(s) 요청에 응답하거나 자체 HTTP(s) 요청을 [생성하거나 자체 트랜잭션을 생성](/docs/agents/go-agent/get-started/instrument-go-transactions) 할 때 애플리케이션이 몇 가지 간단한 규칙을 따르는지 확인해야 합니다.
+
+<CollapserGroup>
+  <Collapser
+    id="create-transactions"
+    title="http.ServeMux를 통한 트랜잭션 생성"
+  >
+    Go의 [`http.ServeMux`](https://golang.org/pkg/net/http/#ServeMux) 를 사용 중이고 CAT 지원을 원하는 경우 에이전트의 `WrapHandle` 및 `WrapHandleFunc` 래퍼를 사용해야 합니다. 이러한 래퍼는 [자동으로 올바른 CAT 헤더를 추가하는](/docs/apm/transactions/cross-application-traces/introduction-cross-application-traces#security) 요청 및 응답 작성기로 트랜잭션을 시작하고 종료합니다. 코드는 다음과 유사해야 합니다.
+
+    ```go
+    http.HandleFunc("/users", usersHandler)
+    http.HandleFunc(newrelic.WrapHandleFunc(app, "/users", usersHandler))
+    ```
+
+    [Instrument Go 트랜잭션](/docs/agents/go-agent/get-started/instrument-go-transactions#http-handler-txns) 에서 이러한 래퍼에 대해 자세히 읽을 수 있습니다.
+  </Collapser>
+
+  <Collapser
+    id="create-manually"
+    title="수동으로 웹 트랜잭션 생성"
+  >
+    `app.StartTransaction` 으로 고유한 트랜잭션을 생성할 때 `Transaction.SetWebRequest` 및 `Transaction.SetWebResponse` 도 호출해야 합니다. 예를 들어 다음 코드로 시작된 트랜잭션에는 CAT가 활성화됩니다.
+
+    ```go
+    txn := app.StartTransaction("transactionName")
+    // req is a *http.Request, this marks the transaction as a web transaction
+    txn.SetWebRequestHTTP(req)
+
+    // writer is a http.ResponseWriter, use the returned writer in place of the original
+    writer = txn.SetWebResponse(writer)
+    writer.WriteHeader(500)
+
+    defer txn.End()
+    ```
+
+    그러나 `Transaction.SetWebRequest` 및 `Transaction.SetWebResponse` 에 대한 호출 없이 시작된 트랜잭션에는 CAT가 활성화 **되지 않습니다** .
+
+    ```go
+    // Cross application tracing not enabled
+    txn := app.StartTransaction("transactionName")
+    defer txn.End()
+    ```
+
+    또한 HTTP 응답 코드를 설정하는 경우 표준 라이브러리의 [`http.ResponseWriter.WriteHeader`](https://golang.org/pkg/net/http/#ResponseWriter) 메서드가 아닌 Go 에이전트의 `txn.WriteHeader` 메서드를 사용하세요.
+
+    ```go
+    // old code
+    // writer.WriteHeader(http.StatusInternalServerError)
+
+    // replace with this
+    txn := app.StartTransaction("transactionName")
+    txn.SetWebRequest(req)
+    writer = txn.SetWebResponse(writer)
+    writer.WriteHeader(http.StatusInternalServerError)
+    ```
+  </Collapser>
+
+  <Collapser
+    id="make-http-requests"
+    title="HTTP 요청 만들기"
+  >
+    아웃바운드 HTTP(s) 요청이 CAT에 적합하도록 [하려면 외부 세그먼트를 만들어야 합니다](/docs/agents/go-agent/get-started/instrument-go-segments#go-external-segments) .
+
+    아웃바운드 HTTP(s) 요청에 대한 외부 세그먼트를 만드는 가장 쉬운 방법은 `newrelic.NewRoundTripper` 메서드를 사용하는 것입니다. 예를 들어, 이 코드는 나가는 CAT 헤더를 포함하는 `http://api.example.com/` 에 대한 요청을 만듭니다.
+
+    ```go
+    func useNewRoundTripper(txn *newrelic.Transaction) (*http.Response, error) {
+        client := &http.Client{}
+        client.Transport = newrelic.NewRoundTripper(client.Transport)
+        req, _ := http.NewRequest("GET", "http://api.example.com/", nil)
+        req = newrelic.RequestWithTransactionContext(req, txn)
+        return client.Do(req)
+    }
+    ```
+
+    Go 표준 라이브러리의 `http.Request` 을 사용하는 더 복잡한 요청이 있는 경우 `newrelic.StartExternalSegment` 메서드를 사용하여 아웃바운드 요청이 CAT에 적합한지 확인해야 합니다.
+
+    ```go
+    func external(txn *newrelic.Transaction, req *http.Request) (*http.Response, error) {
+        s := newrelic.StartExternalSegment(txn, req)
+        response, err := http.DefaultClient.Do(req)
+        s.Response = response
+        s.End()
+        return response, err
+    }
+    ```
+
+    구조체 리터럴을 통해 `ExternalSegment` 을 생성하는 것도 가능하지만 이 세그먼트는 CAT에 적합 **하지 않습니다** . 이 때문에 New Relic은 [`newrelic.NewRoundTripper` 또는 `newrelic.ExternalSegment`](/docs/agents/go-agent/get-started/instrument-go-segments#go-external-segments) 사용을 권장합니다.
+
+    ```go
+    func noGoodForCat(txn *newrelic.Transaction, url string) (*http.Response, error) {
+        // CAT headers not inserted
+        defer newrelic.ExternalSegment{
+            StartTime: txn.StartSegmentNow(),
+            URL:       url,
+        }.End()
+
+        return http.Get(url)
+    }
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## 분산 추적 가져오기 [#distributed-tracing]
+
+New Relic은 또한 [분산 추적](/docs/apm/distributed-tracing/getting-started/introduction-distributed-tracing) 을 제공합니다. 분산 추적은 애플리케이션 간 추적을 개선한 것으로 대규모 분산 시스템에 권장됩니다.

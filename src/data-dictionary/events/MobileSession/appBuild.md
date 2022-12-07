@@ -1,6 +1,7 @@
 ---
 name: appBuild
 type: attribute
+units: ID
 events:
   - MobileSession
   - MobileHandledException

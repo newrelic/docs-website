@@ -1,13 +1,12 @@
-const fs = require('fs');
 const path = require('path');
 const { prop } = require('./scripts/utils/functional.js');
 const externalRedirects = require('./src/data/external-redirects.json');
-
 const { createFilePath } = require('gatsby-source-filesystem');
+const createSingleNav = require('./scripts/createSingleNav');
 
-const SWIFTYPE_RESOURCES_DIR = 'src/data/swiftype-resources';
 const TEMPLATE_DIR = 'src/templates/';
 const TRAILING_SLASH = /\/$/;
+const releaseNotesPerAgent = {};
 
 const hasOwnProperty = (obj, key) =>
   Object.prototype.hasOwnProperty.call(obj, key);
@@ -18,24 +17,23 @@ const hasTrailingSlash = (pathname) =>
 const appendTrailingSlash = (pathname) =>
   pathname.endsWith('/') ? pathname : `${pathname}/`;
 
-// before we build, combine related resource files into one
 exports.onPreBootstrap = () => {
-  const files = fs.readdirSync(SWIFTYPE_RESOURCES_DIR);
-  const content = files.map((filename) => {
-    return fs.readFileSync(path.join(SWIFTYPE_RESOURCES_DIR, filename), {
-      encoding: 'utf8',
-    });
-  });
-  const json = content.reduce(
-    (acc, fileContent) => ({ ...acc, ...JSON.parse(fileContent) }),
-    {}
-  );
+  createSingleNav();
+};
 
-  fs.writeFileSync(
-    path.join(process.cwd(), '/src/data/swiftype-resources.json'),
-    JSON.stringify(json, null, 2),
-    'utf8'
-  );
+exports.onCreateWebpackConfig = ({ actions }) => {
+  actions.setWebpackConfig({
+    resolve: {
+      fallback: {
+        http: false,
+        https: false,
+        zlib: false,
+      },
+      alias: {
+        images: path.resolve(__dirname, 'src/images/'),
+      },
+    },
+  });
 };
 
 exports.onCreateNode = ({ node, getNode, actions }) => {
@@ -79,9 +77,6 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
         filter: { fileAbsolutePath: { regex: "/src/content/whats-new/" } }
       ) {
         nodes {
-          frontmatter {
-            isFeatured
-          }
           fields {
             slug
           }
@@ -116,6 +111,7 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
             frontmatter {
               type
               subject
+              translationType
             }
           }
         }
@@ -139,6 +135,7 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
               slug
             }
           }
+          totalCount
         }
       }
 
@@ -164,6 +161,15 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
           isDefault
         }
       }
+
+      allInstallConfig {
+        edges {
+          node {
+            redirects
+            agentName
+          }
+        }
+      }
     }
   `);
 
@@ -179,6 +185,7 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
     releaseNotes,
     landingPagesReleaseNotes,
     allLocale,
+    allInstallConfig,
     whatsNewPosts,
   } = data;
 
@@ -197,14 +204,27 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
     });
   });
 
+  allInstallConfig.edges.forEach(({ node: { redirects, agentName } }) => {
+    redirects?.length &&
+      redirects.forEach((redirect) =>
+        createLocalizedRedirect({
+          locales,
+          fromPath: redirect,
+          toPath: `/install/${agentName}/`,
+          createRedirect,
+        })
+      );
+  });
+
   releaseNotes.group.forEach((el) => {
-    const { fieldValue, nodes } = el;
+    const { fieldValue, nodes, totalCount } = el;
 
     const landingPage = landingPagesReleaseNotes.nodes.find(
       (node) => node.frontmatter.subject === fieldValue
     );
 
     if (landingPage) {
+      releaseNotesPerAgent[landingPage.frontmatter.subject] = totalCount;
       const { redirects } = landingPage.frontmatter;
 
       createLocalizedRedirect({
@@ -256,23 +276,22 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
           i18nNode.fields.slug.replace(`/${locale}`, '') === node.fields.slug
       );
 
-      createPageFromNode(i18nNode || node, {
-        prefix: i18nNode ? '' : locale,
-        createPage,
-        disableSwiftype: !i18nNode,
-      });
+      createPageFromNode(
+        i18nNode || node,
+        {
+          prefix: i18nNode ? '' : locale,
+          createPage,
+          disableSwiftype: !i18nNode,
+        },
+        true // enable DSG
+      );
     });
   });
 
   whatsNewPosts.nodes.forEach((node) => {
     const {
-      frontmatter: { isFeatured },
       fields: { slug },
     } = node;
-
-    if (!isFeatured) {
-      node.frontmatter.isFeatured = false;
-    }
 
     createLocalizedRedirect({
       locales,
@@ -296,21 +315,20 @@ exports.createSchemaCustomization = ({ actions }) => {
     pages: [NavYaml!]!
     rootNav: Boolean!
   }
+  type MarkdownRemark implements Node {
+    frontmatter: Frontmatter
+  }
+  type Mdx implements Node {
+    frontmatter: Frontmatter
+  }
+  type Frontmatter {
+    isFeatured: Boolean
+    translationType: String
+    dataSource: String
+  }
+
   `;
 
-  createTypes(typeDefs);
-};
-
-exports.createSchemaCustomization = ({ actions }) => {
-  const { createTypes } = actions;
-  const typeDefs = `
-    type MarkdownRemark implements Node {
-      frontmatter: Frontmatter
-    }
-    type Frontmatter {
-      isFeatured: Boolean
-    }
-  `;
   createTypes(typeDefs);
 };
 
@@ -331,22 +349,47 @@ exports.createResolvers = ({ createResolvers }) => {
           hasOwnProperty(source, 'rootNav') ? source.rootNav : false,
       },
     },
+    Frontmatter: {
+      isFeatured: {
+        resolve: (source) =>
+          hasOwnProperty(source, 'isFeatured') ? source.isFeatured : false,
+      },
+      translationType: {
+        resolve: (source) =>
+          hasOwnProperty(source, 'translationType')
+            ? source.translationType
+            : null,
+      },
+      dataSource: {
+        resolve: (source) =>
+          hasOwnProperty(source, 'dataSource') ? source.dataSource : null,
+      },
+    },
   });
 };
 
 exports.onCreatePage = ({ page, actions }) => {
-  const { createPage, deletePage } = actions;
-  const oldPage = { ...page };
+  const { createPage } = actions;
 
   if (page.path.match(/404/)) {
     page.context.layout = 'basic';
+  }
+
+  if (page.path.match(/404/) && page.path.match(/\/docs\//)) {
+    page.context.layout = 'default';
+  }
+
+  if (page.path.includes('/install/')) {
+    const pagePathArray = page.path.split('/');
+    const lastItem = pagePathArray[pagePathArray.length - 1];
+    page.context.agent =
+      lastItem !== '' ? lastItem : pagePathArray[pagePathArray.length - 2];
   }
 
   if (hasTrailingSlash(page.context.slug)) {
     page.context.slug = page.context.slug.replace(TRAILING_SLASH, '');
   }
 
-  deletePage(oldPage);
   createPage(page);
 };
 
@@ -362,17 +405,9 @@ const createLocalizedRedirect = ({
   const pathWithTrailingSlash = hasTrailingSlash(fromPath)
     ? fromPath
     : path.join(fromPath, '/');
-  const pathWithoutTrailingSlash = pathWithTrailingSlash.slice(0, -1);
 
   createRedirect({
     fromPath: pathWithTrailingSlash,
-    toPath: appendTrailingSlash(toPath),
-    isPermanent,
-    redirectInBrowser,
-  });
-
-  createRedirect({
-    fromPath: pathWithoutTrailingSlash,
     toPath: appendTrailingSlash(toPath),
     isPermanent,
     redirectInBrowser,
@@ -385,20 +420,16 @@ const createLocalizedRedirect = ({
       isPermanent,
       redirectInBrowser,
     });
-    createRedirect({
-      fromPath: path.join(`/${locale}`, pathWithoutTrailingSlash),
-      toPath: appendTrailingSlash(path.join(`/${locale}`, toPath)),
-      isPermanent,
-      redirectInBrowser,
-    });
   });
 };
 
 const createPageFromNode = (
   node,
-  { createPage, prefix = '', disableSwiftype = false }
+  { createPage, prefix = '', disableSwiftype = false },
+  defer = false
 ) => {
   const {
+    frontmatter: { subject: agentName },
     fields: { fileRelativePath, slug },
   } = node;
 
@@ -414,6 +445,31 @@ const createPageFromNode = (
         layout: 'basic',
       },
     });
+  } else if (template === 'releaseNoteLandingPage') {
+    const releaseNotes = releaseNotesPerAgent[agentName];
+    const releaseNotesPerPage = 10;
+    const numPages = Math.ceil(releaseNotes / releaseNotesPerPage);
+    Array.from({ length: numPages }).forEach((_, i) => {
+      createPage({
+        path:
+          i === 0
+            ? path.join(prefix, slug, '/')
+            : path.join(prefix, slug, `/${i + 1}/`),
+        component: path.resolve(path.join(TEMPLATE_DIR, `${template}.js`)),
+        context: {
+          limit: releaseNotesPerPage,
+          skip: i * releaseNotesPerPage,
+          numPages,
+          currentPage: i + 1,
+          ...context,
+          fileRelativePath,
+          slug,
+          slugRegex: `${slug}/.+/`,
+          disableSwiftype,
+        },
+        defer,
+      });
+    });
   } else {
     createPage({
       path: path.join(prefix, slug, '/'),
@@ -425,6 +481,7 @@ const createPageFromNode = (
         slugRegex: `${slug}/.+/`,
         disableSwiftype,
       },
+      defer,
     });
   }
 };
@@ -434,7 +491,6 @@ const TEMPLATES_BY_TYPE = {
   apiDoc: 'docPage',
   releaseNote: 'releaseNote',
   troubleshooting: 'docPage',
-  apiLandingPage: 'apiLandingPage',
 };
 
 const getTemplate = (node) => {

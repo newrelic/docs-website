@@ -1,0 +1,450 @@
+---
+title: Python 사용자 지정 측정항목
+tags:
+  - Agents
+  - Python agent
+  - Supported features
+metaDescription: How to record additional custom metrics with the Python agent using the agent API.
+translationType: machine
+---
+
+사용자 지정 메트릭을 사용하면 Python 에이전트에서 제공하는 API를 사용하여 임의의 메트릭을 기록할 수 있습니다. 이는 웹 애플리케이션에 의해 구현된 비즈니스 기능과 관련된 메트릭을 기록하는 데 사용되거나 웹 애플리케이션의 성능을 평가하는 데 사용되는 추가 메트릭일 수 있습니다.
+
+**권장 사항:** 잠재적인 데이터 문제를 방지하려면 사용자 지정 메트릭에 의해 도입된 고유한 메트릭의 총 수를 2000개 미만으로 유지하십시오.
+
+<Callout variant="important">
+  사용자 지정 메트릭을 사용하기 전에 에이전트를 초기화하고 대상 프로세스와 통합해야 합니다. 지침은 [Python 에이전트 통합](/docs/agents/python-agent/installation-configuration/python-agent-integration) 을 참조하십시오.
+</Callout>
+
+## 맞춤 측정항목 차트 작성
+
+사용자 지정 메트릭을 보려면 [데이터를 쿼리하여](/docs/query-your-data/explore-query-data/explore-data/introduction-querying-new-relic-data) 메트릭을 검색하고 사용자 지정 가능한 차트를 만드십시오.
+
+## 푸시 대 풀 인터페이스
+
+Python 에이전트는 사용자 지정 메트릭을 기록하는 두 가지 방법을 제공합니다. 첫 번째는 사용자 지정 지표를 기록할 시기를 결정할 수 있는 푸시 스타일 API입니다. 두 번째는 사용자 지정 메트릭 데이터 소스를 등록하고 에이전트가 [수집 주기](/docs/accounts-partnerships/education/getting-started-new-relic/glossary#harvest-cycle) 당 한 번씩 메트릭에 대한 코드를 폴링하는 풀 스타일 API입니다.
+
+풀 스타일 API는 수확 주기 기간 동안 비율 또는 사용률 메트릭을 생성해야 하는 경우 중요합니다. 이는 수확 주기의 기간을 적절하게 계산할 수 있고 또한 수확 주기에 대해 하나의 메트릭만 기록되도록 할 수 있기 때문입니다.
+
+## 단일 측정항목 기록 [#recording-a-custom-metric]
+
+단일 사용자 지정 메트릭을 기록하기 위해 Python 에이전트는 다음 기능을 제공합니다.
+
+```
+newrelic.agent.record_custom_metric(name, value, application=None)
+```
+
+다음과 같이 응용 프로그램 개체 없이 호출될 때
+
+```
+newrelic.agent.record_custom_metric('Custom/Value', value)
+```
+
+그런 다음 에이전트가 모니터링하는 트랜잭션 컨텍스트 내에서 호출해야 합니다. 이는 현재 트랜잭션이 조회되고 사용자 정의 메트릭이 처음에 해당 트랜잭션에 첨부되기 때문입니다.
+
+이후에 트랜잭션이 무시되도록 표시되지 않는 한 사용자 지정 메트릭은 트랜잭션이 완료될 때 트랜잭션이 보고되는 애플리케이션에 대한 다른 메트릭과 집계됩니다.
+
+이 API 함수가 백그라운드 스레드(백그라운드 작업으로 추적되지 않음)와 같이 모니터링되는 트랜잭션 컨텍스트 외부에서 호출되면 호출은 아무 작업도 수행하지 않고 데이터는 삭제됩니다. 이러한 상황에서 사용자 정의 메트릭을 기록할 수 있으려면 사용자 정의 메트릭을 기록해야 하는 응용 프로그램에 해당하는 응용 프로그램 개체를 제공해야 합니다.
+
+```
+application = newrelic.agent.register_application()
+
+def report_custom_metrics():
+    while True:
+        newrelic.agent.record_custom_metric('Custom/Value', value(), application)
+        time.sleep(60.0)
+
+thread = threading.Thread(target=report_custom_metrics)
+thread.setDaemon(True)
+thread.start()
+```
+
+현재 트랜잭션에 대한 사용자 지정 메트릭을 기록하는 경우(응용 프로그램 개체를 제공하지 않음) 사용자 지정 메트릭이 처음에 트랜잭션 개체에 첨부되므로 API 호출 시 스레드 잠금이 필요하지 않습니다. 스레드 잠금을 획득해야 하는 것은 완료 시 전체 트랜잭션이 기록되는 경우에만 가능합니다. 이것은 트랜잭션의 모든 메트릭을 현재 수집 주기에 대한 메트릭 테이블과 병합하기 위해 획득해야 하는 동일한 잠금입니다. 따라서 이미 필요한 것 외에 추가 잠금이 필요하지 않습니다.
+
+그러나 API 호출이 응용 프로그램 개체에 제공되는 경우 사용자 지정 메트릭을 기록하려면 각 호출에 대해 잠금을 획득해야 합니다. 따라서 많은 수의 메트릭에 대해 이러한 방식으로 메트릭을 한 번에 하나씩 기록하면 스레드 잠금 경합으로 인해 과도한 영향을 받을 수 있습니다.
+
+## 여러 측정항목 기록
+
+한 번에 여러 메트릭을 기록하는 경우 스레드 잠금의 필요성을 줄이기 위해 대신 다음 기능을 사용할 수 있습니다.
+
+```
+newrelic.agent.record_custom_metrics(metrics, application=None)
+```
+
+이는 name 및 value 인수 대신 iterable을 제공할 수 있다는 점을 제외하고 `record_custom_metric()` 호출과 동일한 방식으로 작동합니다. iterable은 목록, 튜플 또는 생성기 함수를 포함하는 기타 반복 가능한 객체일 수 있습니다. iterable은 사용자 지정 메트릭의 이름과 값으로 구성된 튜플을 반환해야 합니다.
+
+```
+import psutil
+import os
+ 
+def memory_metrics():
+    pid = os.getpid()
+    p = psutil.Process(os.getpid())
+    m = p.get_memory_info()
+
+    yield ('Custom/Memory/Physical', float(m.rss)/(1024*1024))
+    yield ('Custom/Memory/Virtual', float(m.vms)/(1024*1024))
+ 
+application = newrelic.agent.register_application()
+
+def report_custom_metrics():
+    while True:
+        newrelic.agent.record_custom_metrics(memory_metrics(), application)
+        time.sleep(60.0)
+
+thread = threading.Thread(target=report_custom_metrics)
+thread.setDaemon(True)
+thread.start()
+```
+
+응용 프로그램 개체와 함께 사용하면 얼마나 많은 사용자 지정 메트릭이 기록되는지에 관계없이 각 호출에 대해 스레드 잠금을 한 번만 수행하면 됩니다.
+
+## 맞춤 측정항목의 이름 지정
+
+Python 에이전트가 보고하는 모든 사용자 정의 측정항목은 접두사 `Custom/` 로 시작해야 합니다. 일반적으로 카테고리 이름과 레이블 세그먼트가 뒤따릅니다. `Custom/` 측정항목을 사용하지 않으면 [측정항목 및 이벤트](/docs/query-your-data/explore-query-data/data-explorer/introduction-data-explorer) 에서 맞춤 측정항목을 선택하지 못할 수 있습니다.
+
+## 사전 집계된 측정항목
+
+사용 가능한 메트릭 세트에 iterable을 전달하여 메트릭 세트를 기록할 때 동일한 명명된 메트릭이 두 번 이상 나타날 수 있습니다. 이 상황에서 에이전트는 개별 값을 하나의 샘플로 집계합니다.
+
+가능하지만 이러한 방식으로 단일 메트릭에 대한 모든 개별 원시 샘플을 유지한 다음 나중에 전달하는 것이 실용적이지 않은 경우 메트릭 소스는 대신 메트릭을 미리 집계하고 결과로 집계된 데이터 샘플을 제공할 수 있습니다.
+
+따라서 값이 숫자 값인 대신 값에 대해 사전이 전달됩니다. 사전 내의 필드는 다음과 같습니다.
+
+* `count`
+* `total`
+* `min`
+* `max`
+* `sum_of_squares`
+
+단일 메트릭에 대한 집계를 수행하는 데 사용할 수 있는 도우미 클래스의 구현은 다음과 같습니다.
+
+```
+class Stats(dict):
+
+    def __init__(self, count=0, total=0.0, min=0.0, max=0.0, sum_of_squares=0.0):
+        self.count = count
+        self.total = total
+        self.min = min
+        self.max = max
+        self.sum_of_squares = sum_of_squares
+
+    def __setattr__(self, name, value):
+        self[name] = value
+
+    def __getattr__(self, name):
+        return self[name]
+
+    def merge_stats(self, other):
+        self.total += other.total
+        self.min = self.count and min(self.min, other.min) or other.min
+        self.max = max(self.max, other.max)
+        self.sum_of_squares += other.sum_of_squares
+        self.count += other.count
+
+    def merge_value(self, value):
+        self.total += value
+        self.min = self.count and min(self.min, value) or value
+        self.max = max(self.max, value)
+        self.sum_of_squares += value ** 2
+        self.count += 1
+```
+
+이 클래스는 그 자체가 사전이므로 해당 인스턴스를 값으로 직접 전달할 수 있습니다.
+
+이것은 다음과 같이 사용될 수 있습니다:
+
+```
+application = newrelic.agent.register_application()
+
+def sample_value():
+    return ...
+
+def report_custom_metrics():
+    count = 0
+    stats = Stats()
+
+    while True:
+        count += 1
+
+        stats.merge_value(sample_value())
+
+        if count % 60 == 0:
+            newrelic.agent.record_custom_metric('Custom/Value', stats, application)
+            stats = Stats()
+
+        time.sleep(1.0)
+
+thread = threading.Thread(target=report_custom_metrics)
+thread.setDaemon(True)
+thread.start()
+```
+
+## 맞춤 측정항목 데이터 소스
+
+`record_custom_metric()` 및 `record_custom_metrics()` API 호출에는 여전히 사용자 지정 측정항목을 에이전트에 푸시하기 위한 명시적 조치가 필요합니다.
+
+데이터를 에이전트에 푸시하는 것은 특히 백그라운드 스레드에서 수행되고 60초 간격으로 수행되는 경우 문제가 될 수 있습니다. 이는 데이터가 푸시될 때 에이전트가 데이터 수집기에 데이터를 다시 보고할 때와 정확하게 동기화되지 않을 수 있기 때문입니다.
+
+백그라운드 스레드가 60초 동안 메트릭을 사전 집계한 다음 이를 기록했다면 에이전트가 데이터를 보고하는 시간에 가까워지면 에이전트가 데이터를 보고하기 직전이나 직후에 발생할 수 있습니다. 따라서 이러한 시간 동기화 부족으로 인해 해당 샘플에 대한 메트릭이 한 수확 주기에 보고되고 다음에는 두 개가 보고되지 않을 수 있습니다.
+
+이에 대한 솔루션은 에이전트가 데이터 보고 프로세스의 일부로 메트릭 생산자로부터 사용자 지정 메트릭을 가져와 즉시 보고되고 수확 주기와 동기화되도록 하는 것입니다.
+
+이 풀 스타일 API에서 이러한 메트릭의 소스를 메트릭 데이터 소스라고 합니다.
+
+## 데이터 소스 등록
+
+메트릭 데이터 소스를 등록하기 위한 API 함수는 다음과 같습니다.
+
+```
+newrelic.agent.register_data_source(source, application=None, name=None, settings=None, **properties)
+```
+
+사용자 지정 메트릭을 생성해야 하는 방법에 대한 다양한 요구 사항으로 인해 데이터 원본을 구현하는 데 다양한 방법을 사용할 수 있습니다.
+
+가장 간단한 데이터 소스 유형은 게이지 메트릭을 제공하는 데이터 소스입니다. 그것은 특정 시점의 가치가 관련이 있고 역사적으로 일어난 일은 중요하지 않은 것입니다.
+
+```
+import psutil
+import os
+
+@newrelic.agent.data_source_generator(name='Memory Usage')
+def memory_metrics():
+    pid = os.getpid()
+    p = psutil.Process(os.getpid())
+    m = p.get_memory_info()
+    yield ('Custom/Memory/Physical', float(m.rss)/(1024*1024))
+    yield ('Custom/Memory/Virtual', float(m.vms)/(1024*1024))
+ 
+newrelic.agent.register_data_source(memory_metrics)
+```
+
+여기에 사용된 데코레이터는 다음과 같습니다.
+
+```
+newrelic.agent.data_source_generator(name=None, **properties)
+```
+
+특히 생성기 함수를 래핑하거나 호출될 때 반복 가능한 항목을 반환하는 함수를 래핑하기 위한 것입니다.
+
+데이터 소스 등록 시 이름은 선택 사항입니다. 주로 오류를 기록할 때 메시지가 데이터 소스에 대해 더 인식할 수 있는 이름을 제공할 수 있도록 존재합니다. name이 `register_data_source()` 에 전달되지 않으면 데코레이터를 사용하는 실제 데이터 소스와 연결된 모든 이름이 대신 사용되거나 데이터 소스 자체의 이름이 지정되지 않은 경우 함수의 이름이 사용됩니다.
+
+데이터 소스를 등록할 때 응용 프로그램 개체가 제공되지 않으면 데이터 소스는 해당 프로세스에서 에이전트가 데이터를 보고하는 모든 응용 프로그램과 자동으로 연결됩니다. 응용 프로그램이 제공되는 경우 데이터 소스는 해당 특정 응용 프로그램에만 연결됩니다.
+
+데이터 소스가 애플리케이션에 대해 명시적으로 등록되든 모든 애플리케이션에 적용되든 관계없이 에이전트는 먼저 해당 애플리케이션에 등록되어야 합니다. 이는 모니터링 중인 기존 웹 애플리케이션 프로세스에서 데이터 소스를 사용하는 경우 일반적으로 발생합니다. 그러나 독립 실행형 프로그램에서 데이터 소스를 사용하여 맞춤 측정항목만 보고하는 경우 데이터가 수집되기 전에 애플리케이션에 대한 에이전트 등록을 강제 실행하는 데 필요한 경우 API 호출 `register_application()` 이 사용되는지 확인해야 합니다. .
+
+## 데이터 소스 초기화
+
+데코레이터는 데이터 소스의 이름을 지정하는 기능을 제공하지만 데코레이터의 더 중요한 이유는 데이터 소스를 실행하기 위한 설정 단계 시퀀스의 복잡성을 숨기기 때문입니다. 이러한 단계의 순서는 다음과 같습니다.
+
+1. 데이터 소스는 특정 방식으로 실행되도록 설정하기 위해 전달되는 모든 구성을 보유하는 사전과 함께 초기화됩니다.
+2. 초기화되면 데이터 소스는 데이터 소스를 설명하는 속성 사전을 반환합니다. 여기에는 데이터 소스 공급자의 특정 인스턴스를 만들기 위한 팩토리 함수에 대한 참조가 포함됩니다.
+3. 그런 다음 팩토리를 호출하여 특정 소비자(응용 프로그램)에 대해 데이터 소스 공급자의 인스턴스가 생성됩니다. 팩토리 함수는 소비자 이름을 포함하여 실행 중인 환경을 설명하는 사전을 전달합니다.
+
+데코레이터에 의존하지 않도록 위의 예를 다시 작성하면 다음과 같이 됩니다.
+
+```
+import os
+import psutil
+ 
+def memory_metrics_data_source(settings):
+    def memory_metrics():
+        pid = os.getpid()
+        p = psutil.Process(os.getpid())
+        m = p.get_memory_info()
+        yield ('Custom/Memory/Physical', float(m.rss)/(1024*1024))
+        yield ('Custom/Memory/Virtual', float(m.vms)/(1024*1024))
+
+    def memory_metrics_factory(environ):
+        return memory_metrics
+ 
+    properties = {}
+    properties['name'] = 'Memory Usage'
+    properties['factory'] = memory_metrics_factory
+ 
+    return properties
+ 
+newrelic.agent.register_data_source(memory_metrics_data_source)
+```
+
+더 복잡한 기본 프로토콜의 목적은 데이터 소스를 적절하게 초기화하고 해당 구성 및 소비자의 세부 사항을 기반으로 사용자 정의할 수 있는 충분한 후크 포인트를 제공하는 것입니다.
+
+## 데이터 소스의 인스턴스
+
+마지막으로 생성된 시간에 신경 쓰지 않는 게이지 메트릭이 반환되기 때문에 이전 예제에서 더 이상 수행할 작업이 없었습니다. 메트릭이 시간이 지남에 따라 발생하는 것을 반영하므로 일부 상태를 유지해야 하는 경우 데이터 소스의 인스턴스를 생성할 수 있는 기능이 필요합니다.
+
+따라서 팩토리 기능은 메트릭이 보고되는 각 애플리케이션에 대해 생성될 데이터 소스의 인스턴스에 대한 기능을 제공합니다.
+
+다른 애플리케이션에 대한 수확 주기의 시작 및 종료 시간이 다를 수 있기 때문에 프로세스당 하나가 아닌 애플리케이션당 하나의 데이터 소스 인스턴스가 허용됩니다. 이 시나리오에서 프로세스당 하나만 있고 메트릭이 수확 주기 기간과 연결되어 있는 경우 결과 메트릭은 각 애플리케이션에 대해 정확하지 않을 것입니다. 따라서 데이터 소스 인스턴스에 대한 기능이 애플리케이션별로 제공됩니다.
+
+위와 같이 중첩 함수를 사용하면 상태를 유지해야 하는 데이터 소스를 다음과 같이 작성할 수 있습니다.
+
+```
+import os
+import time
+import multiprocessing
+ 
+@newrelic.agent.data_source_factory(name='CPU Usage')
+def cpu_metrics_data_source(settings, environ):
+    state = {}
+    state['last_timestamp'] = time.time()
+    state['times'] = os.times()
+
+    def cpu_metrics():
+        now = time.time()
+        new_times = os.times()
+        elapsed_time = now - state['last_timestamp']
+        user_time = new_times[0] - state['times'][0]
+        utilization = user_time / (elapsed_time*multiprocessing.cpu_count())
+        state['last_timestamp'] = now
+        state['times'] = new_times
+
+        yield ('Custom/CPU/User Time', user_time)
+        yield ('Custom/CPU/User/Utilization', utilization)
+
+    return cpu_metrics
+ 
+newrelic.agent.register_data_source(cpu_metrics_data_source)
+```
+
+여기에 사용된 데코레이터는 다음과 같습니다.
+
+```
+newrelic.agent.data_source_factory(name=None, **properties)
+```
+
+이 경우 데코레이터는 팩토리 함수를 래핑합니다. 데코레이터는 필요할 때 데이터 소스에 대한 속성을 자동으로 반환하기 때문에 팩토리는 설정과 그것이 사용되는 환경의 설명을 모두 가져옵니다.
+
+중첩된 함수를 사용하는 것은 약간의 마술이며 상태를 유지하기 위해 외부 함수 스택의 사전을 사용하는 코드가 필요합니다. 대안은 데이터 소스를 클래스에 적용된 데코레이터와 함께 실제 클래스로 구현하는 것입니다.
+
+```
+import os
+import time
+import multiprocessing
+ 
+@newrelic.agent.data_source_factory(name='CPU Usage')
+class CPUMetricsDataSource(object):
+
+    def __init__(self, settings, environ):
+        self.last_timestamp = time.time()
+        self.times = os.times()
+
+    def __call__(self):
+        now = time.time()
+        new_times = os.times()
+        elapsed_time = now - self.last_timestamp
+        user_time = new_times[0] - self.times[0]
+        utilization = user_time / (elapsed_time*multiprocessing.cpu_count())
+        self.last_timestamp = now
+        self.times = new_times
+
+        yield ('Custom/CPU/User Time', user_time)
+        yield ('Custom/CPU/User/Utilization', utilization)
+
+newrelic.agent.register_data_source(CPUMetricsDataSource)
+```
+
+## 데이터 소스의 수명 주기
+
+데이터 소스가 언제든지 메트릭을 생성할 수 있지만 에이전트 자체가 항상 애플리케이션에 대한 메트릭을 보고하는 것은 아닙니다. 특히 에이전트가 특정 응용 프로그램에 대한 데이터 수집기에 자체 등록을 관리한 후에만 메트릭 수집을 시작하고 보고합니다.
+
+이 구분은 기간을 기반으로 메트릭을 생성하는 데이터 소스에 중요합니다. 등록이 발생한 시점까지 또는 에이전트가 메트릭을 보고한 마지막 시간까지의 기간을 포함하려면 데이터 소스에서 생성된 메트릭만 있어야 합니다. 이것이 완료되지 않으면 보고된 메트릭이 정렬되지 않으므로 웹 트랜잭션 또는 백그라운드 작업 추적의 메트릭과 적절하게 상관 관계가 있는지 확인할 수 없습니다.
+
+이러한 이유로 데이터 소스의 팩토리는 애플리케이션 등록이 완료되고 메트릭 수집이 시작된 경우에만 데이터 소스의 인스턴스를 생성하기 위해 호출됩니다. 이렇게 하면 모든 참조 타임스탬프가 정확해집니다.
+
+특정 응용 프로그램에 대한 에이전트 실행이 종료되면 서버 측 구성 변경으로 인한 서버 측 강제 재시작 또는 데이터 수집기에 데이터 보고가 연속적으로 실패하여 데이터 소스가 삭제됩니다. 에이전트가 응용 프로그램에 대해 다시 등록할 수 있게 되면 데이터 소스의 새 인스턴스가 생성됩니다.
+
+이 경우 데이터 원본의 올바른 정리는 데이터 원본 개체가 삭제될 때 데이터 원본 개체를 즉시 제거하는 방법에 따라 달라집니다. 개체 참조 카운트 주기 때문에 신뢰할 수 없습니다. 또한 `__del__()` 메서드가 실제로 객체의 즉각적인 파괴를 방지하는 방식으로 도입하는 문제 때문에 정리 작업을 트리거하기 위해 `__del__()` 메서드를 추가해야 하는 데이터 소스를 피하는 것이 바람직합니다.
+
+이러한 이유로 데이터 소스가 메모리에 지속적으로 유지되고 삭제되지 않는 것을 포함하여 설정 및 종료에 대한 더 많은 제어가 필요한 경우 측정항목에 대한 계산을 `start()` `stop()` 할 수 있습니다. 클래스 인스턴스로 구현됩니다.
+
+```
+import os
+import time
+import multiprocessing
+
+@newrelic.agent.data_source_factory(name='CPU Usage')
+class CPUMetricsDataSource(object):
+
+    def __init__(self, settings, environ):
+        self.last_timestamp = None
+        self.times = None
+ 
+    def start(self):
+        self.last_timestamp = time.time()
+        self.times = os.times()
+ 
+    def stop(self):
+        self.last_timestamp = None
+        self.times = None
+
+    def __call__(self):
+        if self.times is None:
+            return
+
+        now = time.time()
+        new_times = os.times()
+        elapsed_time = now - self.last_timestamp
+        user_time = new_times[0] - self.times[0]
+        utilization = user_time / (elapsed_time*multiprocessing.cpu_count())
+        self.last_timestamp = now
+        self.times = new_times
+
+        yield ('CPU/User Time', user_time)
+        yield ('CPU/User/Utilization', utilization)
+
+newrelic.agent.register_data_source(CPUMetricsDataSource)
+```
+
+`start()` 및 `stop()` 메서드를 정의하면 에이전트 실행이 종료될 때 데이터 소스의 인스턴스가 삭제되지 않고 계속 유지됩니다. 이 시점에서 에이전트는 데이터 소스가 자체적으로 메트릭 집계의 일시 중단을 처리하고 누적된 메트릭을 삭제하고 에이전트가 데이터 수집기에 애플리케이션을 다시 등록하고 `start()` 를 다시 호출할 때만 해당 메트릭에 대한 추적이 재개됩니다.
+
+## 데이터 소스 구성
+
+데이터 소스가 항상 하나의 특정 정보 소스에 바인딩되는 것은 아닙니다. 메트릭이 생성되는 다양한 기본 정보 소스에 대해 데이터 소스를 등록해야 할 수도 있습니다. 이 경우 `register_data_source()` 함수를 사용하여 데이터 소스를 등록할 때 고유한 설정을 전달할 수 있습니다. 데이터 팩터리를 사용할 때 이러한 설정은 데이터 원본이 초기화될 때 사용할 수 있습니다.
+
+```
+@newrelic.agent.data_source_factory()
+class HostMonitorDataSource(object):
+ 
+    def __init__(self, settings, environ):
+        self.hostname = settings['hostname']
+
+    def __call__(self):
+        ...
+ 
+newrelic.agent.register_data_source(HostMonitorDataSource,
+  name='Host Monitor (host-1)', settings=dict(hostname='host-1'))
+newrelic.agent.register_data_source(HostMonitorDataSource,
+  name='Host Monitor (host-2)', settings=dict(hostname='host-2'))
+```
+
+설정 제공이 선택사항인 경우 데이터 소스는 `settings` 옵션이 `None` 이 아닌 경우에만 설정 액세스를 시도해야 합니다. 사전을 제공하더라도 사전에 누락된 설정에도 대처해야 합니다.
+
+## 구성 파일에서 설정
+
+여기의 예는 `register_data_source()` API 호출의 사용을 보여주지만 이는 데이터 소스가 등록되는 일반적인 방법이 아닙니다. 데이터 소스에 대한 모듈을 가져오고 등록하려면 응용 프로그램을 수정해야 하므로 선호하는 방법이 아닙니다.
+
+대신 데이터 소스를 정의하고 기존의 모니터링되는 웹 애플리케이션에 통합하는 기본 방법은 에이전트 구성 파일에 데이터 소스를 나열하는 것입니다. 이렇게 하려면 접두사가 `data-source:` 인 각 데이터 소스의 에이전트 구성 파일에 추가 섹션을 추가해야 합니다.
+
+```
+[data-source:process-info]
+enabled = true
+function = samplers.process_info:process_info_data_source
+```
+
+에이전트 구성 파일에서 데이터 소스를 등록하는 경우 애플리케이션 코드 또는 데이터 소스를 정의하는 모듈에서 발생하는 `register_data_source()` 함수를 사용하여 수행되는 동일한 데이터 소스에 대해 별도의 등록이 없어야 합니다. 있는 경우 데이터 소스의 두 인스턴스가 등록됩니다.
+
+데이터 소스에 대한 특정 설정을 제공해야 하는 경우 에이전트 구성 파일에 별도의 섹션을 만들고 데이터 소스 구성의 `settings` 값에서 섹션 이름을 참조하여 이를 수행할 수 있습니다.
+
+```
+[data-source:host-monitor]
+enabled = true
+function = samplers.process_info:process_info_data_source
+name = Host Monitor (host-1)
+settings = host-monitor:host-1
+
+[host-monitor:host-1]
+hostname = host-1
+```
+
+구성 파일을 통해 제공되는 데이터 소스 설정은 항상 문자열 값으로 전달되므로 애플리케이션 코드와 함께 `register_data_source()` 을 사용하여 데이터 소스를 등록하고 명시적으로 설정을 제공하는 경우에도 해당 문자열을 값 설정에 사용하는 것이 좋습니다. 그런 다음 데이터 소스는 숫자 값이나 값 목록과 같은 다른 유형으로의 변환을 처리해야 합니다.

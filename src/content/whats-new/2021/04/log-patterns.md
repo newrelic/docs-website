@@ -8,7 +8,7 @@ getStartedLink: 'https://one.nr/0PoR8YblajG'
 
 Reduce troubleshooting time with machine learning to automatically detect patterns that are clustered to surface outliers in log data. 
 
-Now, you can quickly find the patterns and use them to create queries, alerts and dashboards. This feature is generally available in beta, and you can easily opt in by contacting your account manager to experience how this innovation can serve your business needs on your own data.  In the next few weeks a new option will be provided to turn on/off this feature directly in the UI.
+Now, you can quickly find the patterns and use them to create queries, alerts and dashboards. This feature is generally available in beta, and you can easily opt in by contacting your account manager to experience how this innovation can serve your business needs on your own data. In the next few weeks a new option will be provided to turn on/off this feature directly in the UI.
 
 ![Screenshot showing log patterns UI](./images/log-patterns-WN041221.png "log patterns")
 

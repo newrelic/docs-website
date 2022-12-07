@@ -1,0 +1,120 @@
+---
+title: メッセージコンシューマーのトラブルシューティング
+type: troubleshooting
+tags:
+  - Agents
+  - Nodejs agent
+  - Troubleshooting
+metaDescription: Troubleshooting procedures for message consumer services monitored by New Relic's Node.js agent.
+translationType: machine
+---
+
+## 問題
+
+メッセージコンシューマーサービスには、HTTPサーバーとは異なるいくつかの点があり、それらをモニタリングすることが難しくなっています。このドキュメントでは、そのような制限と、New Relic Node.js エージェントを使って制限を回避する方法について説明します。
+
+メッセージには必ずしも返信があるとは限らないため、トランザクションの終了を判断するのが難しい場合があります。New Relic の Node.js エージェントは、メッセージ・コンシューマーがいつ終了するかを判断できない場合、直ちにトランザクションを終了します。アプリケーションに応じて、以下のトラブルシューティングのヒントに従ってください。
+
+## 解決策
+
+この問題を解決するには、コールバックとプロミスのどちらを使用するかによって異なります。
+
+### コールバック
+
+`amqplib`'s `callback_api` のようなコールバックベースのメッセージングAPIを使用する場合、コンシューマーがいつ終了したかを判断する簡単な方法はありません。以下はその例です。
+
+<CollapserGroup>
+  <Collapser
+    id="callback-problem"
+    title="コールバック問題"
+  >
+    この例では、このサービスのために作成されたすべてのトランザクションは直ちに終了し、 `doWorkWithMessage` で行われた作業は一切表示されません。
+
+    ```
+    const newrelic = require('newrelic');
+    const amqp = require('amqplib/callback_api');
+
+    // Connect, make a channel, and assert required queues...
+
+    channel.consume('my.queue', (msg) => {
+      doWorkWithMessage(msg, (err) => {
+        if (err) {
+          logger.error(err);
+          channel.reject(msg, true); // Requeue message on failure.
+        }
+      });
+    }, {noAck: true});
+    ```
+
+    トランザクションの時間を適切に計るためには、次のソリューションに示すように、トランザクションを取得して手動で終了させる必要があります。
+  </Collapser>
+
+  <Collapser
+    id="callback-solution"
+    title="解決策"
+  >
+    トランザクションの時間を適切に設定するには、トランザクションを取得し、手動で終了させます。コンシューマーをこのように修正します。
+
+    ```
+    channel.consume('my.queue', (msg) => {
+      var transaction = newrelic.getTransaction();
+
+      doWorkWithMessage(msg, (err) => {
+        if (err) {
+          logger.error(err);
+          channel.reject(msg, true); // Requeue message on failure.
+        }
+
+        transaction.end();
+      });
+    }, {noAck: true});
+    ```
+  </Collapser>
+</CollapserGroup>
+
+### 約束
+
+プロミス・ベースのサーバーでは、メッセージ・コンシューマーは単にプロミスを返す必要があります。そのプロミスが解決または拒否されると、トランザクションが終了します。以下はその例です。
+
+<CollapserGroup>
+  <Collapser
+    id="promise-problem"
+    title="プロミス問題"
+  >
+    この例では、 `doWorkWithMessage` がプロミスを返します。
+
+    ```
+    const newrelic = require('newrelic');
+    const amqp = require('amqplib');
+
+    // Connect, make a channel, and assert required queues...
+
+    channel.consume('my.queue', (msg) => {
+      doWorkWithMessage(msg).catch((err) => {
+        if (err) {
+          logger.error(err);
+          channel.reject(msg, true); // Requeue message on failure.
+        }
+      });
+    }, {noAck: true});
+    ```
+  </Collapser>
+
+  <Collapser
+    id="promise-solution"
+    title="解決策"
+  >
+    正しいタイミングを得るためには、コードを変更してチェーンの端を戻す。
+
+    ```
+    channel.consume('my.queue', (msg) => {
+      return doWorkWithMessage(msg).catch((err) => {
+        if (err) {
+          logger.error(err);
+          channel.reject(msg, true); // Requeue message on failure.
+        }
+      });
+    }, {noAck: true});
+    ```
+  </Collapser>
+</CollapserGroup>

@@ -1,0 +1,141 @@
+---
+title: Node.js v1 사용자 정의 계측(레거시)
+tags:
+  - Agents
+  - Nodejs agent
+  - Extend your instrumentation
+metaDescription: 'Expand your Node.js instrumentation in New Relic to cover uninstrumented frameworks, databases, segments. Use custom tracers to better track async work.'
+translationType: machine
+---
+
+New Relic for Node.js는 대부분의 표준 웹 요청을 자동으로 계측하지만 때로는 확장된 계측을 원할 때도 있습니다. 사용자 정의 계측을 사용하여 [웹 소켓](#web-txn) , [백그라운드 작업](#background-txn) 및 [지원되지 않는 데이터베이스](#expanding-instrumentation) 를 계측할 수 있습니다. 사용자 정의 계측은 [더 깊은 통찰력을 위해 코드의 특정 섹션을 대상으로](#expanding-instrumentation) 할 수도 있습니다.
+
+사용자 정의 계측은 Node.js 에이전트 버전 1.10.0 이상에서 사용할 수 있습니다. 최신 Node.js 에이전트 기능을 활용하려면 에이전트를 [업그레이드하십시오](/docs/agents/nodejs-agent/installation-configuration/upgrade-nodejs-agent) .
+
+## 웹 트랜잭션 계측 [#web-txn]
+
+websocket 요청과 같은 웹 트랜잭션을 계측하려면 사용자 지정 트랜잭션을 생성하십시오. 사용자 지정 트랜잭션을 생성하면 에이전트가 자동으로 계측하는 트랜잭션에서 얻을 수 있는 것과 동일한 유형의 사용자 지정 트랜잭션에 대한 가시성을 얻을 수 있습니다.
+
+1. 계측하려는 핸들러를 [`createWebTransaction()`](/docs/agents/nodejs-agent/supported-features/nodejs-agent-api#createWebTransaction) 으로 래핑합니다.
+2. 트랜잭션이 끝날 때 [`endTransaction()`](/docs/agents/nodejs-agent/supported-features/nodejs-agent-api#endTransaction) 을(를) 호출해야 합니다.
+
+<Callout variant="important">
+  거래 이름 끝에 대괄호 `[suffix]` 를 사용하지 마십시오. New Relic은 자동으로 이름에서 괄호를 제거합니다. 대신 필요한 경우 괄호 `(suffix)` 또는 기타 기호를 사용하십시오.
+</Callout>
+
+<CollapserGroup>
+  <Collapser
+    id="instrument-in-socket-io"
+    title="예: socket.io에서 두 개의 트랜잭션 계측"
+  >
+    이 예시는 **socket.io** 내에서 `/websocket/ping` 트랜잭션과 `/websocket/new-message` 트랜잭션을 계측합니다. `/ping` 예시는 동기식이고 `/new-message` 예시는 비동기식입니다.
+
+    ```js
+    var nr = require('newrelic');
+    var app = require('http').createServer();
+    var io = require('socket.io')(app);
+
+    io.on('connection', function (socket) {
+      socket.on('ping', nr.createWebTransaction('/websocket/ping', function (data) {
+        socket.emit('pong');
+        nr.endTransaction();
+      }));
+      socket.on('new-message', nr.createWebTransaction('/websocket/new-message', function (data) {
+        addMessageToChat(data, function () {
+          socket.emit('message-received');
+          nr.endTransaction();
+        });
+      }));
+    });
+    ```
+
+    <Callout variant="tip">
+      트랜잭션이 끝날 때 [`endTransaction()`](/docs/agents/nodejs-agent/supported-features/nodejs-agent-api#endTransaction) 을(를) 호출해야 합니다.
+    </Callout>
+  </Collapser>
+</CollapserGroup>
+
+## 백그라운드 트랜잭션 계측 [#background-txn]
+
+또한 사용자 지정 트랜잭션을 사용하여 앱 내의 주기적 작업 또는 요청이 완료된 후 계속되는 작업과 같은 백그라운드 작업을 계측할 수 있습니다. 백그라운드 작업을 계측하려면 계측하려는 핸들러를[`createBackgroundTransaction()`](/docs/agents/nodejs-agent/supported-features/nodejs-agent-api#createBackgroundTransaction) 으로 래핑합니다. 트랜잭션이 끝날 때 [`endTransaction()`](/docs/agents/nodejs-agent/supported-features/nodejs-agent-api#endTransaction) 을(를) 호출해야 합니다.
+
+<CollapserGroup>
+  <Collapser
+    id="example-instrument-update"
+    title="예: setInterval 내의 기기"
+  >
+    이 예시는 `setInterval` } 내에서 `update:cache` 를 계측합니다.
+
+    ```js
+    var nr = require('newrelic');
+    var redis = require('redis').createClient();
+
+    setInterval(nr.createBackgroundTransaction('update:cache', function () {
+      var newValue = someDataGenerator();
+
+      redis.set('some:cache:key', newValue, function () {
+        nr.endTransaction(); // End the transaction once redis is done
+      });
+    }), 30000); // Every 30s
+    ```
+
+    <Callout variant="tip">
+      트랜잭션이 끝날 때 [`endTransaction()`](/docs/agents/nodejs-agent/supported-features/nodejs-agent-api#endTransaction) 을(를) 호출해야 합니다.
+    </Callout>
+  </Collapser>
+</CollapserGroup>
+
+## 트랜잭션 내 계측 확장 [#expanding-instrumentation]
+
+또한 사용자 지정 계측을 사용하여 이미 계측된 웹 트랜잭션에 대한 가시성을 높이거나 자동으로 계측되지 않는 데이터베이스 및 기타 트랜잭션 내 작업에 대한 통찰력을 얻을 수 있습니다. 이렇게 하려면 사용자 지정 추적 프로그램에서 콜백을 래핑합니다. 사용자 지정 추적기는 특정 기능 또는 데이터베이스 호출과 같은 기존 트랜잭션 내의 추가 세그먼트에 대한 특정 메트릭을 생성하고 수집합니다.
+
+콜백을 계측하려면 [`createTracer()`](/docs/agents/nodejs-agent/supported-features/nodejs-agent-api#createTracer) 으로 콜백을 래핑합니다. 비동기 함수 내에서 호출되는 함수를 계측하려면 대상 함수와 상위 비동기 함수를 [`createTracer()`](/docs/agents/nodejs-agent/supported-features/nodejs-agent-api#createTracer) 로 래핑해야 합니다.
+
+<Callout variant="tip">
+  이미 계측된 트랜잭션 내부에 이러한 예제를 배치해야 합니다. 트랜잭션은 자동으로 계측되거나 사용자 지정 트랜잭션을 통해 수행될 수 있습니다.
+</Callout>
+
+<CollapserGroup>
+  <Collapser
+    id="wrap-single-callback"
+    title="예: 콜백 계측"
+  >
+    이 예에서는 단일 콜백을 래핑합니다.
+
+    ```js
+    // Wrap the callback in a segment
+    db.createObject(nr.createTracer('db:createObject', function (err, result) {
+      // Some error handler that will end the response for us
+      if (util.handleError(err, res)) {
+        return;
+      }
+      res.write(JSON.stringify(result.rows[0].id));
+      res.write('\n');
+      res.end();
+    }));
+    ```
+  </Collapser>
+
+  <Collapser
+    id="wrap-two-callbacks"
+    title="예: 비동기 함수 계측"
+  >
+    이 예는 `pg.connect` 및 `client.query` 모두를 래핑합니다. 이는 `client.query` 가 비동기 상위 함수( `pg.connect` )에 의해 호출되기 때문입니다. 그렇지 않으면 `client.query` 에서 데이터를 얻을 수 없습니다. 이렇게 하면 `createTracer()` 가 이러한 비동기 경계를 넘어 활성 트랜잭션을 전파할 수 있습니다.
+
+    ```js
+    pg.connect(config.db_string, nr.createTracer('pg:connect', function (err, client, done) {
+      if (util.handleError(err, '500', res)) {
+        return done();
+      }
+      client.query('SELECT count(*) FROM test_count', nr.createTracer('pg:query', function (err, result) {
+        if (util.handleError(err, '500', res)) {
+          return done();
+        }
+
+        res.write(result.rows[0].count);
+        res.write('\n');
+      }));
+    }));
+    ```
+  </Collapser>
+</CollapserGroup>

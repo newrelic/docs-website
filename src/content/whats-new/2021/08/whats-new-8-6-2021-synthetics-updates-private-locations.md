@@ -1,6 +1,6 @@
 ---
-title: 'Synthetics Update: Private Locations in the new user interface'
-summary: 'New Synthetic monitors now available in Private Locations'
+title: 'Synthetics update: Private locations in the new user interface'
+summary: 'New Synthetic monitors now available in private locations'
 releaseDate: '2021-08-06'
 learnMoreLink: 'https://docs.newrelic.com/docs/synthetics/synthetic-monitoring/getting-started/types-synthetic-monitors/#types-monitors'
 ---

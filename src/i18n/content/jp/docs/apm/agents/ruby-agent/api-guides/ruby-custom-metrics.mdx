@@ -1,0 +1,148 @@
+---
+title: Rubyのカスタムメトリクス
+tags:
+  - Agents
+  - Ruby agent
+  - API guides
+metaDescription: 'For information about customizing New Relic''s Ruby agent API to collect additional metrics, start here.'
+translationType: machine
+---
+
+カスタムメトリクスでは、APIコールを介して任意のパフォーマンスデータを記録することができます（例えば、タイミングやコンピュータリソースのデータなど）。その後、 [クエリビルダー](/docs/query-your-data/explore-query-data/query-builder/introduction-query-builder) を使用してチャートを作成し、そのメトリックを追跡することができます。カスタムメトリクスを使用することで、New Relic 内のモニタリングを統一することができます。
+
+<Callout variant="caution">
+  あまりにも多くのメトリクスを収集すると、アプリケーションやNew Relicエージェントのパフォーマンスに影響を与える可能性があります。データの問題を避けるために、ユニークなカスタムメトリクスの総数は2000以下にしてください。
+</Callout>
+
+<Callout variant="important">
+  これらの手順は、Railsバージョン7以降ではテストされていません。
+</Callout>
+
+## ネーミング・メトリクス [#metric_names]
+
+メトリクス名は、New Relic が追跡する特定のデータ値を識別します。New Relic Ruby エージェントの API を使用してカスタムメトリクスを追跡する際には、メトリクスのネーミングと値の集計方法を考慮することが重要です。
+
+カスタムメトリック名は、プレフィックス`Custom/` 、クラスまたはカテゴリ名、およびラベルで構成され、それぞれスラッシュマーク`/` ： `Custom/<class>/<method>`または`Custom/<category>/<name>` （たとえば、 `Custom/MyClass/My_method` ）で区切られます。
+
+<CollapserGroup>
+  <Collapser
+    id="metric_names"
+    title="メトリック名とパス"
+  >
+    メトリック名は、スラッシュマーク`/`で区切られたパスです。カスタムインストルメンテーションの場合は、次のパターンを使用します。
+
+    ```
+    <category>/<class>/<method>
+    ```
+
+    デフォルトのメトリック名を上書きするには、2番目の引数を`add_method_tracer`に渡します。これは、デフォルトの`Custom`以外のカテゴリを指定する場合、またはメソッドとクラス名がメトリックを適切に表していない場合に必要になる場合があります。
+
+    予約済みのカテゴリーは以下の通りです。
+
+    * ActiveRecord
+    * Apdex
+    * CPU
+    * コントローラ
+    * データベース
+    * メモリ
+    * View
+    * カスタム
+
+    <Callout variant="tip">
+      カスタム指標名の場合は、 `Custom/<class>/<method>`または `Custom/<category>>/>name>`
+    </Callout>
+  </Collapser>
+
+  <Collapser
+    id="metrics_and_stats"
+    title="Rubyエージェントでのメトリクスとスタッツ"
+  >
+    メトリックデータの収集に使用される2つの基本的なデータ構造があります： `MetricSpec`と`Stats` 。
+
+    `A MetricSpec is an identifier for which we have data. The following pseudo Ruby defines a metric:`
+
+    ```
+    class MetricSpec
+      attr_accessor :name    # String - metric name
+      attr_accessor :scope   # String - current controller action
+    end
+    ```
+
+    名前は、メトリックが何を表すかを識別します。オプションのスコープは、現在のリクエストを処理するコントローラ アクションの名前です。スコープが空の場合、メトリックは"global" となります。
+
+    メトリック値は`Stats`によって記録されます。 `Stats`は通常、メソッドの実行に関するデータを収集しますが、興味深いデータを保存できます。次の疑似Rubyは`Stats`を定義します：
+
+    ```
+    class Stats
+      attr_accessor :call_count           # Integer - method invocation count
+      attr_accessor :total_call_time      # Float - total method call time (in seconds)
+      attr_accessor :total_exclusive_time # Float - total time spent in the traced method minus any child time (in seconds)
+      attr_accessor :min_call_time        # Float - the smallest method invocation time (in seconds)
+      attr_accessor :max_call_time        # Float - the largest method invocation time (in seconds)
+      attr_accessor :sum_of_squares       # Float - the sum of squares of response times - used for standard deviation computation
+      attr_accessor :begin_time           # Time - the start of the time window for this data
+      attr_accessor :end_time             # Time - end of the time window for this data
+    end
+    ```
+  </Collapser>
+
+  <Collapser
+    id="stat_policy"
+    title="スタットアグリゲーションポリシー"
+  >
+    New Relic の強みのひとつに、時間をかけてデータを集約する機能があります。(集約とは、複数のものを1つにまとめることです。) カスタムメトリクスを収集する際には、集約ポリシーが重要になります。これには次のようなものがあります。
+
+    * `call_count`： 添加
+    * `total_call_time`： 添加
+    * `total_exclusive_time`： 添加
+    * `min_call_time`：各min_call_timeのMin（）
+    * `max_call_time`：各max_call_timeのMax（）
+    * `sum_of_squares`： 添加
+    * `begin_time`：各begin_timeのMin（）
+    * `end_time`：各end_timeのMax（）
+  </Collapser>
+</CollapserGroup>
+
+## カスタムメトリクスの記録 [#recording-custom-metrics]
+
+メトリックデータを記録するためのパブリックAPIは、 `NewRelic::Agent` 、 [`record_metric`](#record_metric) 、および[`increment_metric`](#increment_metric)の2つのメソッドで構成されています。
+
+<Callout variant="tip">
+  `record_metric`と`increment_metric`はどちらもスレッドセーフです。
+</Callout>
+
+### record_metric(metric_name, value) [#record_metric]
+
+`record_metric` 通常は特定の期間に関連付けられている、イベントベースのメトリックを記録するために使用する必要があります。 `metric_name`は、標準のメトリック命名規則に従った文字列である必要があります。 `value`は通常数値ですが、ハッシュの場合もあります。
+
+`value`が数値の場合、特定のメソッド呼び出しの期間など、イベントに関連付けられた測定値の大きさを表す必要があります。
+
+`value`がハッシュの場合、 `:count` 、 `:total` 、 `:min` 、 `:max` 、および`:sum_of_squares`キーが含まれている必要があり、すべて数値が含まれています。このフォームは、メトリックを独自に集計し、定期的に（たとえば、バックグラウンドスレッドから）レポートする場合に役立ちます。提供された統計は、同じメトリックに対して以前に収集された値と集計されます。ハッシュキーの名前は、プラットフォームAPIで使用されるキーの名前と一致するように選択されています。
+
+### increment_metric(メトリック名, amount=1) [#increment_metric]
+
+`increment_metric` 単純なカウンターとして機能するメトリックを更新するために使用する必要があります。選択したメトリックのカウントは、指定した量だけ増加します。
+
+## カスタムメトリックの例 [#example]
+
+ここでは、サイトを流れる通貨を追跡するためにメトリクスをどのように使用するかの例を示します。
+
+```
+class Cart
+
+  def checkout()
+    amount = compute_cart_total    # computes the amount to charge the customer
+
+    ::NewRelic::Agent.record_metric('Custom/Cart/charge_amount', amount)
+
+    charge_customer(amount)
+    ...
+  end
+end
+```
+
+データが時間とともにどのように集約されていくかについては、 [Stat aggregation policy](/docs/ruby/ruby-custom-metric-naming#stat_policy) を参照してください。
+
+## カスタムメトリクスの表示 [#viewing-custom]
+
+これらのカスタムメトリクスを表示するには、 [クエリビルダ](/docs/query-your-data/explore-query-data/query-builder/introduction-query-builder) を使用してメトリクスを検索し、カスタマイズ可能なチャートを作成し、そのチャートをダッシュボードに追加します。

@@ -1,0 +1,15 @@
+---
+subject: Mobile app for Android
+releaseDate: '2022-01-26'
+version: 4.2.3
+downloadLink: 'https://play.google.com/store/apps/details?id=com.newrelic.rpm'
+---
+
+### Notes
+
+* Release 4.2.3 adds ability to open the app with a Dashboard permalink from New Relic site to that Dashboard.
+
+### Fixes
+
+* A crash on login when users fo not have a browser app installed on device.
+* A crash happening when a user's connection is unavailable.

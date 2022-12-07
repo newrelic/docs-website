@@ -1,5 +1,5 @@
 ---
-title: 'Nerdlog Roundup: Muting Rules, Custom Data Visualizations, and more AIOps fun!  '
+title: 'Nerdlog Roundup: Muting rules, custom data visualizations, and more AIOps fun!  '
 summary: 'Smarter incident intelligence and custom data visualizations'
 releaseDate: '2021-03-08'
 learnMoreLink: 'https://blog.newrelic.com/product-news/nerdlog-aiops-and-custom-dashboards/'
@@ -13,7 +13,7 @@ Sr. Product Manager Devin Cheevers shows how our Anomalies feed can help give yo
 
 ## **Using AI to find correlated failures**
 
-Principal Product Manager Nate Heinrich shows us how anomalies and alerts can be automatically correlated with other data sources via [Incident Intelligence.](https://docs.newrelic.com/docs/alerts-applied-intelligence/applied-intelligence/incident-intelligence/get-started-incident-intelligence)
+Principal Product Manager Nate Heinrich shows us how anomalies and alerts can be automatically correlated with other data sources via [incident intelligence.](https://docs.newrelic.com/docs/alerts-applied-intelligence/applied-intelligence/incident-intelligence/get-started-incident-intelligence)
 
 <iframe width="560" height="315" src="https://www.youtube.com/embed/SvSvnIY8pG8" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
 

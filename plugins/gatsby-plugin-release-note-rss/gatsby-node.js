@@ -1,16 +1,23 @@
+const preferDefault = (m) => (m && m.default) || m;
 const fs = require('fs');
 const path = require('path');
 const RSS = require('rss');
 const format = require('date-fns/format');
-const parseISO = require('date-fns/parseISO');
 const unified = require('unified');
 const toHast = require('mdast-util-to-hast');
 const html = require('rehype-stringify');
 const removeImports = require('remark-mdx-remove-imports');
 const removeExports = require('remark-mdx-remove-exports');
+const parseISO = preferDefault(require('date-fns/parseISO'));
+const jsxImagesToChildren = require('../utils/jsxImagesToChildren');
+const handlers = require('../utils/handlers');
 
 // NOTE: remove-imports and remove-exports are now depreciated
-const htmlGenerator = unified().use(removeImports).use(removeExports).use(html);
+const htmlGenerator = unified()
+  .use(jsxImagesToChildren)
+  .use(removeImports)
+  .use(removeExports)
+  .use(html);
 
 const releaseNotesQuery = async (graphql) => {
   const query = `
@@ -56,6 +63,18 @@ const releaseNotesQuery = async (graphql) => {
           fieldValue
         }
       }
+      allImageSharp {
+        nodes {
+          parent {
+            ... on File {
+              relativePath
+            }
+          }
+          original {
+            src
+          }
+        }
+      }
     }
   `;
 
@@ -65,12 +84,19 @@ const releaseNotesQuery = async (graphql) => {
 };
 
 // converts graphQL response (node) into a consumable format for RSS
-const getFeedItem = (node, siteMetadata) => {
+const getFeedItem = (node, siteMetadata, imageHashMap) => {
   const { frontmatter, slug, mdxAST } = node;
   const { releaseDate, subject, version } = frontmatter;
 
   const transformedAST = htmlGenerator.runSync(mdxAST);
-  const html = htmlGenerator.stringify(toHast(transformedAST));
+  const html = htmlGenerator.stringify(
+    toHast(transformedAST, {
+      handlers: {
+        image: (h, node, parent) =>
+          handlers.image(h, node, parent, imageHashMap),
+      },
+    })
+  );
 
   // time is necessary for RSS validity
   const date = parseISO(releaseDate);
@@ -90,9 +116,13 @@ const getFeedItem = (node, siteMetadata) => {
   };
 };
 
-const generateFeed = (publicDir, siteMetadata, reporter, landingPages) => (
-  group
-) => {
+const generateFeed = (
+  publicDir,
+  siteMetadata,
+  reporter,
+  landingPages,
+  imageHashMap
+) => (group) => {
   const title = `${group.fieldValue} release notes`;
   const landingPage = landingPages.find(
     (page) => page.frontmatter.subject === group.fieldValue
@@ -117,7 +147,7 @@ const generateFeed = (publicDir, siteMetadata, reporter, landingPages) => (
   reporter.info(`\t${feedOptions.feed_url}`);
 
   const feed = group.nodes.reduce((rss, node) => {
-    rss.item(getFeedItem(node, siteMetadata));
+    rss.item(getFeedItem(node, siteMetadata, imageHashMap));
     return rss;
   }, new RSS(feedOptions));
 
@@ -141,10 +171,25 @@ exports.onPostBuild = async ({ graphql, store, reporter }) => {
       site,
       landingPages: { nodes: landingPages },
       allMdx,
+      allImageSharp,
     } = await releaseNotesQuery(graphql);
 
+    const imageHashMap = allImageSharp.nodes.reduce(
+      (acc, { original, parent }) => ({
+        ...acc,
+        [parent.relativePath]: original?.src || null,
+      }),
+      {}
+    );
+
     allMdx.group.forEach(
-      generateFeed(publicDir, site.siteMetadata, reporter, landingPages)
+      generateFeed(
+        publicDir,
+        site.siteMetadata,
+        reporter,
+        landingPages,
+        imageHashMap
+      )
     );
 
     reporter.info('\tDone!');

@@ -9,4 +9,4 @@ events:
   - MobileRequestError
 ---
 
-The version number of the agent running on the application. For example: 4.232.0.  Duplicate of `newRelicAgentVersion`.
+The version number of the agent running on the application. For example: 4.232.0. Duplicate of `newRelicAgentVersion`.

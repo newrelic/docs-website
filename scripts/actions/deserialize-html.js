@@ -11,6 +11,7 @@ const heading = require('hast-util-to-mdast/lib/handlers/heading');
 const u = require('unist-builder');
 const { last } = require('lodash');
 const yaml = require('js-yaml');
+const { configuration } = require('./configuration');
 
 const component = (h, node) => {
   if (!node.properties || !node.properties.dataType) {
@@ -74,6 +75,7 @@ const stripTranslateFrontmatter = () => {
       const frontmatterObj = yaml.load(tree.children[0].value);
       delete frontmatterObj.translate;
       delete frontmatterObj.redirects;
+      frontmatterObj.translationType = configuration.TRANSLATION.TYPE;
       const frontmatterStr = yaml
         .dump(frontmatterObj, { lineWidth: -1 })
         .trim();

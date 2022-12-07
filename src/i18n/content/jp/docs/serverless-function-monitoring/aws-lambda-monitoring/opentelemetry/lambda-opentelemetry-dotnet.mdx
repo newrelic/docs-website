@@ -1,0 +1,279 @@
+---
+title: New RelicとOpenTelemetryによる.NET Lambda関数のトレース
+metaDescription: How to instrument .NET applications on AWS Lambda with OpenTelemetry in New Relic.
+translationType: machine
+---
+
+<Callout
+  variant="tip"
+  title="PREVIEW"
+>
+  OpenTelemetryfor.NETを搭載したAWSLambdaはまだ開発中です。
+</Callout>
+
+このガイドでは、 [OpenTelemetry Lambda](https://github.com/open-telemetry/opentelemetry-lambda) を使って、AWS のマネージド [OpenTelemetry Lambda Layers](https://aws-otel.github.io/docs/getting-started/lambda/lambda-dotnet) を使って、.NET Lambda 関数をトレースする方法を説明します。OpenTelemetryは、多くの一般的なライブラリの自動インスツルメンテーションを含む、関数のインスツルメンテーションを簡単に行うことができます。
+
+## 前提条件 [#prerequisites]
+
+このガイドでは、以下のものを想定しています。
+
+* New Relic のアカウントです。まだお持ちでない方は、 [無料で作成できます。](https://newrelic.com/signup).
+* AWSのアカウントです。お持ちでない方は、 [無料で作成できます。](https://aws.amazon.com/).
+* `dotnetcore2.1`または`dotnetcore3.1`ランタイムで実行される.NETLambda関数。まだ持っていない場合は、[今すぐ作成して](https://docs.aws.amazon.com/lambda/latest/dg/lambda-csharp.html)ください。
+
+## ステップ1：X-Rayを有効にする [#xray]
+
+今回の設定ではAWS X-Rayを使用していませんが、AWS OpenDistroに組み込まれたトレース機能を有効にするために、Lambda関数でX-Rayを有効にする必要があります。
+
+X-Rayを有効にするには。
+
+1. 作成した関数を [Lambda Console](https://console.aws.amazon.com/lambda) で開きます。
+2. **設定** 、次に **モニタリングツール** を選択します。
+3. **Edit** を選択します。
+4. **X-Ray** で、 **Active tracing** を有効にします。
+
+または、 [SAM（サーバーレスアプリケーションモデル）](https://aws.amazon.com/serverless/sam/)または[CloudFormation](https://aws.amazon.com/cloudformation/resources/templates/)テンプレートを使用している場合は、Lambda関数のプロパティに以下を追加することでX線を有効にできます。
+
+```yaml
+  yourFunctionHere:
+    Type: AWS::Serverless::Function
+    Properties:
+      ...
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        ...
+        - AWSXrayWriteOnlyAccess
+      Tracing: Active
+```
+
+<Callout variant="important">
+  このオプションでは、関数に`AWSLambdaBasicExecutionRole`または同等のポリシーがアタッチされている必要があります。
+</Callout>
+
+## ステップ2：レイヤーの取り付け [#install]
+
+AWSは、 [OpenTelemetry Lambda Collector](https://github.com/open-telemetry/opentelemetry-lambda) を含むマネージドレイヤーを公開しています。
+
+インストールするには
+
+1. 作成した関数を [Lambda Console](https://console.aws.amazon.com/lambda) で開きます。
+2. \[**デザイナ]**セクションの\[**レイヤー]**で、\[レイヤーの**追加**]を選択します。
+3. \[ARNの**指定]で、以下のリストから関数のアーキテクチャーのレイヤーARN**の1つを貼り付けます。 `{region}`を`us-east-1`などのAWSリージョンに置き換えます。
+4. Choose **Add**.
+
+* AMD64 / X86_64： `arn:aws:lambda:{region}:901920570463:layer:aws-otel-collector-amd64-ver-0-45-0:2`
+* ARM64： `arn:aws:lambda:\<region>:901920570463:layer:aws-otel-collector-arm64-ver-0-45-0:2`
+
+SAMおよびCloudFormationテンプレートの場合、関数のプロパティに以下を追加します。お住まいの地域の`your-license-key-here`をNewRelic[ライセンスキー](/docs/apis/intro-apis/new-relic-api-keys/#ingest-keys)に、 `otlp.nr-data.net:4317`をNewRelicOpenTelemetryエンドポイントに必ず置き換えてください。
+
+```yaml
+  yourFunctionHere:
+    Type: AWS::Serverless::Function
+    Properties:
+      ...
+      Layers:
+        # Use this if using x86_64 architecture
+        - !Sub arn:${AWS::Partition}:lambda:${AWS::Region}:901920570463:layer:aws-otel-collector-amd64-ver-0-45-0:2
+        # Use this if using arm64 architecture
+        - !Sub arn:${AWS::Partition}:lambda:${AWS::Region}:901920570463:layer:aws-otel-collector-arm64-ver-0-45-0:2
+```
+
+<Callout variant="important">
+  [AWSが公開している最新のARN](https://aws-otel.github.io/docs/getting-started/lambda/lambda-dotnet)を参照して、上記のレイヤーARNが最新であることを確認してください。
+</Callout>
+
+## ステップ3：New Relicの環境変数の追加 [#env-variables]
+
+このレイヤーが収集した OpenTelemetry データを New Relic に送信するためには、レイヤーに同梱されている OpenTelemetry Lambda Collector を設定して、受信したテレメトリを [New Relic OpenTelemetry Endpoint](/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/opentelemetry-quick-start) にエクスポートする必要があります。その前に、まずこのコレクターが依存するいくつかの環境変数を設定する必要があります。
+
+1. New Relic のライセンスキー [を生成し、New Relic アカウントからコピーします。](/docs/apis/intro-apis/new-relic-api-keys/#ingest-keys)
+2. [](/docs/apis/intro-apis/new-relic-api-keys/#ingest-keys)
+3. [](/docs/apis/intro-apis/new-relic-api-keys/#ingest-keys)[Lambda Console](https://console.aws.amazon.com/lambda) で作成した関数を開きます。
+4. **Configuration** を選択し、次に **Environment variables** を選択します。
+5. **Environment variables** の下で、 **Edit** を選択します。
+6. **環境変数の追加** を選択します。
+7. **キー**の場合は`NEW_RELIC_LICENSE_KEY`に設定し、**値**を手順1で生成したライセンスキーの値に設定します。次に、\[**保存**]を選択します。
+8. **環境変数の追加** を再度選択します。
+9. **Key**の場合は`NEW_RELIC_OPENTELEMETRY_ENDPOINT`に設定し、 **Value**を以下のオプションのいずれかに設定します（New Relicリージョンによって異なります）。次に、\[**保存**]を選択します。
+10. **環境変数の追加** を再度選択します。
+11. **キー**の場合は`OTEL_SERVICE_NAME`に設定し、**値**を関数の名前に設定します。次に、\[**保存**]を選択します。
+
+* `otlp.nr-data.net:4317`：NewRelicアカウントが米国地域にある場合
+* `otlp.eu01.nr-data.net:4317`：NewRelicアカウントがEU地域にある場合
+
+SAMおよびCloudFormationテンプレートの場合、関数のプロパティに以下を追加します。お住まいの地域の`your-license-key-here`をNewRelic[ライセンスキー](/docs/apis/intro-apis/new-relic-api-keys/#ingest-keys)に、 `otlp.nr-data.net:4317`をNewRelicOpenTelemetryエンドポイントに必ず置き換えてください。
+
+```yaml
+  yourFunctionHere:
+    Type: AWS::Serverless::Function
+    Properties:
+      ...
+      Environment:
+        Variables:
+          ...
+          NEW_RELIC_LICENSE_KEY: your-license-key-here
+          NEW_RELIC_OPENTELEMETRY_ENDPOINT: otlp.nr-data.net:4317
+          OTEL_SERVICE_NAME: your-function-name-here
+```
+
+<Callout variant="important">
+  `your-license-key-here`をNewRelicライセンスキーに置き換え、 `otlp.nr-data.net:4317`をNew Relicリージョンに適したエンドポイントに置き換えます（上記のリストを参照）。
+</Callout>
+
+## ステップ4：コレクターの設定 [#collector]
+
+次に、OpenTelemetry Lambda Collectorのデフォルト構成を、テレメトリをNewRelicOpenTelemetryエンドポイントにエクスポートする構成でオーバーライドします。これを行うには、関数に`collector.yaml`構成ファイルを含める必要があります。
+
+関数のルートディレクトリに、次の内容の`collector.yaml`ファイルを作成します。
+
+```yaml
+receivers:
+  otlp:
+    protocols:
+      grpc:
+      http:
+
+exporters:
+  otlp:
+    endpoint: ${NEW_RELIC_OPENTELEMETRY_ENDPOINT}
+    headers:
+      api-key: ${NEW_RELIC_LICENSE_KEY}
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      exporters: [otlp]
+    metrics:
+      receivers: [otlp]
+      exporters: [otlp]
+    logs:
+      receivers: [otlp]
+      exporters: [otlp]
+```
+
+この`collector.yaml`ファイルを関数のzipパッケージのルートディレクトリにバンドルします。
+
+`*.csproj`設定の例は次のようになります。
+
+```
+<ItemGroup>
+  <Content Include="collector.yaml">
+    <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+  </Content>  
+</ItemGroup>
+```
+
+そして、機能を再展開する。
+
+1. 作成した関数を [Lambda Console](https://console.aws.amazon.com/lambda) で開きます。
+2. **Configuration** を選択し、次に **Environment variables** を選択します。
+3. **Environment variables** の下で、 **Edit** を選択します。
+4. **環境変数の追加** を選択します。
+5. **キー**セット`OPENTELEMETRY_COLLECTOR_CONFIG_FILE`の場合、**値**を`/var/task/collector.yaml`に設定します。
+6. そして、 **Save** を選択します。
+
+SAMやCloudFormationのテンプレートの場合は、関数のプロパティにこれを追加します。
+
+```yaml
+  yourFunctionHere:
+    Type: AWS::Serverless::Function
+    Properties:
+      ...
+      Environment:
+        Variables:
+          ...
+          OPENTELEMETRY_COLLECTOR_CONFIG_FILE: /var/task/collector.yaml
+```
+
+<Callout variant="important">
+  これは、関数のルートディレクトリに`collector.yaml`をバンドルしていることを前提としています。別の場所にバンドルした場合は、 `/var/task/collector.yaml`を`collector.yaml`へのパスに置き換えてください。
+</Callout>
+
+## ステップ5：機能のインストゥルメント化 [#instrument]
+
+まず、 [OpenTelemetry SDK for AWS Lambda](https://www.nuget.org/packages/OpenTelemetry.Contrib.Instrumentation.AWSLambda/) を追加します。
+
+```
+dotnet add package OpenTelemetry.Contrib.Instrumentation.AWSLambda
+```
+
+`TracerProvider` `AddAWSLambdaConfigurations()`への呼び出しを追加します。
+
+```csharp
+TracerProvider tracerProvider = Sdk.CreateTracerProviderBuilder()
+    // add other instrumentations here
+    .AddAWSLambdaConfigurations()
+    .Build();
+```
+
+元のLambdaハンドラー関数と同じシグネチャでラッパー関数を作成します。 `AWSLambdaWrapper.Trace()` APIを呼び出し、元のLambda関数である`TracerProvider`とその入力をパラメーターとして渡します。
+
+```csharp
+// new Lambda function handler passed in
+public string TracingFunctionHandler(JObject input, ILambdaContext context)
+=> AWSLambdaWrapper.Trace(tracerProvider, OriginalFunctionHandler, input, context);
+
+public string OriginalFunctionHandler(JObject input, ILambdaContext context)
+{
+    return input?.ToString();
+}
+```
+
+例えば、基本的なAPI GatewayのLambda関数は次のようなものです。
+
+```csharp
+namespace Example
+{
+    public class Function
+    {
+        public static TracerProvider tracerProvider;
+
+        static Function()
+        {
+            tracerProvider = Sdk.CreateTracerProviderBuilder()
+                .AddAWSInstrumentation()
+                .AddOtlpExporter()
+                .AddAWSLambdaConfigurations()
+                .Build();
+        }
+
+        // use AwsSdkSample::AwsSdkSample.Function::TracingFunctionHandler as input Lambda handler instead
+        public APIGatewayProxyResponse TracingFunctionHandler(APIGatewayProxyRequest request, ILambdaContext context)
+        {
+            return AWSLambdaWrapper.Trace(tracerProvider, FunctionHandler, request, context);
+        }
+
+        /// <summary>
+        /// A simple function that takes a APIGatewayProxyRequest and returns a APIGatewayProxyResponse
+        /// </summary>
+        /// <param name="input"></param>
+        /// <param name="context"></param>
+        /// <returns></returns>
+        public APIGatewayProxyResponse FunctionHandler(APIGatewayProxyRequest request, ILambdaContext context)
+        {
+            return new APIGatewayProxyResponse() { StatusCode = 200, Body = Environment.GetEnvironmentVariable("_X_AMZN_TRACE_ID") };
+        }
+    }
+}
+```
+
+次に、ラッパー関数をLambda関数のハンドラーとして設定します。上記のクラスの場合、ハンドラーは`function::Example.Function::TracingFunctionHandler`になります。
+
+AWS SDKのトレースを含めた動作例については、 [このサンプルアプリ](https://github.com/open-telemetry/opentelemetry-lambda/blob/main/dotnet/sample-apps/aws-sdk/wrapper/SampleApps/AwsSdkSample/Function.cs) を参照してください。
+
+上記は基本的な例です。より高度なインストゥルメンテーションについては、 [OpenTelemetry .NET SDK documentation](https://github.com/open-telemetry/opentelemetry-dotnet) をご参照ください。
+
+## ステップ 6: New Relic UI でデータを表示する [#view-data]
+
+まず、 [Lambda 関数](https://docs.aws.amazon.com/lambda/latest/dg/lambda-invocation.html) を何度か起動して、テレメトリの生成を開始します。そこからNew Relicにアクセスして、 [トレース](https://one.newrelic.com/launcher/nr1-core.explorer?overlay=eyJuZXJkbGV0SWQiOiJkYXRhLWV4cGxvcmF0aW9uLnF1ZXJ5LWJ1aWxkZXIiLCJpbml0aWFsQWN0aXZlSW50ZXJmYWNlIjoibnJxbEVkaXRvciIsImluaXRpYWxOcnFsVmFsdWUiOiIiLCJpbml0aWFsUXVlcmllcyI6W3sibnJxbCI6IkZST00gU3BhbiBTRUxFQ1QgY291bnQoKikgd2hlcmUgbmV3cmVsaWMuc291cmNlPSclb3RscCUnIFRJTUVTRVJJRVMifV0sImluaXRpYWxDaGFydFNldHRpbmdzIjp7ImNoYXJ0VHlwZSI6IkNIQVJUX0xJTkUiLCJsaW1pdCI6NzU0MiwibGlua2VkRW50aXR5R3VpZCI6bnVsbCwibGlua2VkRGFzaGJvYXJkSWQiOm51bGwsInlTY2FsZSI6eyJzdGF0aWMiOmZhbHNlLCJkb21haW4iOltudWxsLG51bGxdfSwieVplcm8iOnRydWV9fQo=) 、 [メトリクス](https://one.newrelic.com/launcher/nr1-core.explorer?overlay=eyJuZXJkbGV0SWQiOiJkYXRhLWV4cGxvcmF0aW9uLnF1ZXJ5LWJ1aWxkZXIiLCJpbml0aWFsQWN0aXZlSW50ZXJmYWNlIjoibnJxbEVkaXRvciIsImluaXRpYWxOcnFsVmFsdWUiOiIiLCJpbml0aWFsUXVlcmllcyI6W3sibnJxbCI6IkZST00gTWV0cmljIFNFTEVDVCBjb3VudCgqKSB3aGVyZSBuZXdyZWxpYy5zb3VyY2UgTElLRSAnJW90bHAlJyBUSU1FU0VSSUVTIn1dLCJpbml0aWFsQ2hhcnRTZXR0aW5ncyI6eyJjaGFydFR5cGUiOiJDSEFSVF9MSU5FIiwibGltaXQiOjc1NDIsImxpbmtlZEVudGl0eUd1aWQiOm51bGwsImxpbmtlZERhc2hib2FyZElkIjpudWxsLCJ5U2NhbGUiOnsic3RhdGljIjpmYWxzZSwiZG9tYWluIjpbbnVsbCxudWxsXX0sInlaZXJvIjp0cnVlfX0K) 、 [ログ](https://one.newrelic.com/launcher/nr1-core.explorer?overlay=eyJuZXJkbGV0SWQiOiJkYXRhLWV4cGxvcmF0aW9uLnF1ZXJ5LWJ1aWxkZXIiLCJpbml0aWFsQWN0aXZlSW50ZXJmYWNlIjoibnJxbEVkaXRvciIsImluaXRpYWxOcnFsVmFsdWUiOiIiLCJpbml0aWFsUXVlcmllcyI6W3sibnJxbCI6IkZST00gTG9nIFNFTEVDVCBjb3VudCgqKSB3aGVyZSBuZXdyZWxpYy5zb3VyY2U9JyVvdGxwJScgVElNRVNFUklFUyJ9XSwiaW5pdGlhbENoYXJ0U2V0dGluZ3MiOnsiY2hhcnRUeXBlIjoiQ0hBUlRfTElORSIsImxpbWl0Ijo3NTQyLCJsaW5rZWRFbnRpdHlHdWlkIjpudWxsLCJsaW5rZWREYXNoYm9hcmRJZCI6bnVsbCwieVNjYWxlIjp7InN0YXRpYyI6ZmFsc2UsImRvbWFpbiI6W251bGwsbnVsbF19LCJ5WmVybyI6dHJ1ZX19Cg==) を見つけてください。
+
+Telemetry は New Relic Serverless の下には表示されません。代わりに、New Relic OpenTelemetry Nerdlets の下にテレメトリーデータが表示されます。
+
+## 分散型トレーシング [#distributed-tracing]
+
+場合によっては、この構成でNewRelic内に断片化された分散トレースが表示されることがあります。これは、トレースが開始されるか、ADOTコンテキスト外のサービス（マネージドAWSサービスなど）が関与する場合に発生します。そのサービスのスパンはOpenTelemetryではなくX線によって作成され、ADOTはそれらをNewRelicに転送しません。トレースは断片化されているように見えますが、Lambda関数内のパフォーマンスや、スパンがNewRelicに転送された他のサービスに関する完全な洞察を提供します。
+
+## 詳細情報 [#more-info]
+
+詳細については、 [New Relic OpenTelemetry クイックスタート](/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/opentelemetry-quick-start) をご覧ください。

@@ -1,0 +1,164 @@
+---
+title: NerdGraph APIによるサービスレベルの設定
+tags:
+  - Full-Stack Observability
+  - Observe everything
+  - Service level management
+  - SLI/SLO
+  - Configure
+  - Consume
+  - NerdGraph
+metaDescription: Our new offer to create and consume SLI/SLOs using the NerdGraph API.
+translationType: machine
+---
+
+New Relic を使用すると、アプリケーションに対して [サービスレベル](/docs/service-level-management/create-slm) を実装し、 [計画セッションやインシデント対応の際に UI から簡単に](/docs/service-level-management/consume-slm) 結果を消費し、目的を望ましいユーザーエクスペリエンスに調整するために構成を段階的に反復することができます。
+
+UI以外にも、 [NerdGraph API Explorer](/docs/apis/nerdgraph/get-started/introduction-new-relic-nerdgraph/) を使用して、SLIとそのSLOの作成・編集を行うことができます。また、 [Terraform Service Level resource](https://registry.terraform.io/providers/newrelic/newrelic/latest/docs/resources/service_level) を使用して、この設定を自動化することもできます。
+
+<Callout variant="important">
+  サービスレベルを作成するには、ユーザーは [イベントからメトリックへのルールを変更および削除する機能](/docs/accounts/accounts-billing/new-relic-one-user-management/user-capabilities#insights)が必要です。
+</Callout>
+
+## SLOでSLIを作る [#create-sli-slo]
+
+SLIとSLOの作成と編集 [SLIとSLOの設定における基本的な概念（SLIが関連するエンティティなど）については、](/docs/service-level-management/create-slm#sli-entity) を参照してください。また、APMサービスやブラウザアプリケーションの最も一般的な指標の例については、そのドキュメントを参照してください。
+
+以下は、 `serviceLevelCreate`ミューテーションクエリを使用してSLIを作成するNerdGraph呼び出しの例です。
+
+```graphql
+mutation {
+  serviceLevelCreate(
+    entityGuid: "entityGuid"
+    indicator: {
+      name: "Latency below 0.25 seconds"
+      description: "The proportion of valid requests that were served faster than 0.25s, which is considered to correspond to a good experience."
+      events: {
+        validEvents: { 
+          from: "Transaction", 
+          where: "entityGuid = 'entityGuid'" 
+        }
+        goodEvents: {
+          from: "Transaction"
+          where: "entityGuid = 'entityGuid' and duration < 0.25"
+        }
+        accountId: accountId
+      }
+      objectives: {
+        target: 99.5
+        timeWindow: { 
+          rolling: { 
+            count: 7, 
+            unit: DAY 
+          } 
+        }
+      }
+    }
+  ) {
+    id
+    description
+  }
+}
+```
+
+これらのフィールドを含んでいます。
+
+* **`entityGuid`** ：このSLIを関連付ける[エンティティ](https://docs-preview.newrelic.com/docs/service-level-management/create-slm#sli-entity)（APMサービス、ブラウザアプリケーションなど）のGUID。UIで、このGUIDはエンティティページの\[**メタデータの表示とタグの管理]**の下にあります。
+
+* **`description`** ：適切なイベントを決定する選択されたしきい値を含む詳細な説明を使用します。
+
+  * 例えば、可用性のSLIの場合、"The proportion of valid requests that were served without errors "のような内容を含める。
+  * また、レイテンシーSLIの場合は、「良い体験に相当すると考えられる0.25秒よりも速く提供された有効なリクエストの割合」などの説明を記載します。
+
+* **`accountId`** ：APMサービスまたはブラウザアプリケーションが属するアカウントのID。SLI/SLO計算用のNRDBデータが含まれています。
+
+* **`badEvents.from`** 、 **`badEvents.where`**
+
+  * 不正なイベント`SELECT count(*) FROM badEvents.from WHERE badEvents.where`を定義するNRQLクエリには、これらの`FROM` }句と`WHERE`句が必要です。
+  * 有効なイベントと不良なイベントからSLIを定義した場合は、 `goodEvents`オブジェクトを空のままにします。
+
+* **`goodEvents.from`** 、 **`goodEvents.where`**
+
+  * 適切なイベント`SELECT count(*) FROM goodEvents.from WHERE goodEvents.where`を定義するNRQLクエリには、これらの`FROM` }句と`WHERE`句が必要です。
+  * 有効で適切なイベントからSLIを定義した場合は、 `badEvents`オブジェクトを空のままにします。
+
+* **`validEvents.from`** 、 **`validEvents.where`**
+
+  * これらは、有効なイベントを定義するNRQLクエリの`FROM`および`WHERE`句であり、結果は`SELECT count(*) FROM validEvents.from WHERE validEvents.where`になります。
+
+* **`name`** ：サービスレベルが何であるかを理解するのに役立つSLIの短いカテゴリ名。SLI定義に含まれる特定のパラメーターとフィルターを含めることをお勧めします。例：
+
+  * 入手方法
+  * 4秒以下のレイテンシー
+  * 0.1以下のデスクトップ用CLS
+
+* **`objectives`** ：SLIの目標（SLO）の配列。
+
+  * `target`：SLOの目標、最大100.00。このフィールドは、最大5桁の小数点以下をサポートします。
+
+    * ユーザーが現在のエクスペリエンスに満足している場合は、SLOのパーセンテージを現在のベースラインに合わせて設定してください。例えば、SLIの良い出来事を判断するために使われるパーセンタイルです。
+
+  * `timeWindow.rolling.count`：SLOを計算するために考慮される期間の長さ。サポートされている値は、 `1` 、 `7` 、 `14` 、 `28` 、および`30`です。
+
+  * `timeWindow.rolling.unit`： `DAY`はサポートされている値です。
+
+## APMサービスのSLIの構成を取得する [#retrieve-config]
+
+このクエリを使用して、 `id`を含むSLIの構成を取得します。
+
+```graphql
+{
+  actor {
+    entity(guid: "entityGuid") {
+      guid
+      name
+      serviceLevel {
+        indicators {
+          createdAt
+          createdBy {
+            email
+          }
+          description
+          entityGuid
+          id
+          name
+          objectives {
+            target
+            timeWindow {
+              rolling {
+                count
+                unit
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+## SLIのSLOの更新 [#update-slo]
+
+`serviceLevelUpdate`ミューテーションを使用して、SLIごとに1つ以上のSLOを定義します。SLIの`id`を取得するには、上記のクエリを使用します。
+
+```graphql
+mutation {
+  serviceLevelUpdate(
+    id: "indicators.id"
+    indicator: {
+      objectives: {
+        target: 99.00
+        timeWindow: { 
+          rolling: { 
+            count: 7, 
+            unit: DAY 
+          }
+        }
+      }
+    }
+  ) {
+    id
+  }
+}
+```

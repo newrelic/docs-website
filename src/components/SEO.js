@@ -27,12 +27,25 @@ const crazyEgg = (location) => {
   }
 };
 
+const isStyleGuidePage = (url) => {
+  return url.includes('docs/style-guide');
+};
+
+const isAgileHandbookPage = (url) => {
+  return url.includes('docs/agile-handbook');
+};
+
+const isExcludedFromSwiftype = (url) => {
+  return isStyleGuidePage(url) || isAgileHandbookPage(url);
+};
+
 const DocsSiteSeo = ({
   location,
   title,
   description,
   type,
   tags,
+  dataSource,
   disableSwiftype,
 }) => (
   <SEO location={location} title={title}>
@@ -69,6 +82,19 @@ const DocsSiteSeo = ({
       />
     )}
 
+    {dataSource && (
+      <meta
+        className="swiftype"
+        name="dataSource"
+        data-type="string"
+        content={dataSource}
+      />
+    )}
+
+    {isExcludedFromSwiftype(location.pathname) && (
+      <meta name="st:robots" content="noindex, nofollow" />
+    )}
+
     {(description || title) && (
       <meta name="description" content={description || title} />
     )}
@@ -82,6 +108,7 @@ DocsSiteSeo.propTypes = {
   title: PropTypes.string,
   description: PropTypes.string,
   type: PropTypes.string,
+  dataSource: PropTypes.string,
   tags: PropTypes.array,
   disableSwiftype: PropTypes.bool,
 };

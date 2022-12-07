@@ -1,0 +1,178 @@
+---
+title: GAE 가변형 환경에 New Relic Java 에이전트 설치
+tags:
+  - Agents
+  - Java agent
+  - Additional installation
+metaDescription: How to set up the New Relic Java agent with an app on the Google App Engine (GAE) flexible environment.
+translationType: machine
+---
+
+APM의 [Java 에이전트](/docs/agents/java-agent/getting-started/introduction-new-relic-java) 를 사용하면 [Google App Engine(GAE) 가변형 환경](https://cloud.google.com/appengine/docs/flexible/java/) 에 있는 애플리케이션을 모니터링할 수 있습니다. GAE flex 앱에 New Relic을 추가하면 앱의 상태와 성능에 대한 통찰력을 얻을 수 있고 [APM](/docs/apm/new-relic-apm/getting-started/introduction-new-relic-apm) , [브라우저 모니터링](/docs/browser/new-relic-browser/getting-started/introduction-new-relic-browser) 및[대시보드](/docs/query-your-data/explore-query-data/dashboards/introduction-new-relic-one-dashboards) 에서 볼 수 있는 메트릭으로 GAE를 확장할 수 있습니다.
+
+이 문서에서는 [사용자 지정 런타임](https://cloud.google.com/appengine/docs/flexible/custom-runtimes/about-custom-runtimes) 을 구성하여 GAE flex 앱에 New Relic을 추가하는 방법을 설명하고 Docker와 함께 Tomcat 앱을 배포하는 예를 제공합니다.
+
+<Callout variant="important">
+  New Relic Java 에이전트는 사용자 지정 런타임을 사용하여 GAE 가변형 환경에서 실행할 수 있습니다. 다른 환경의 제한으로 인해 GAE 표준 환경 또는 Google App Engine의 ["네이티브 모드"](/docs/accounts-partnerships/partnerships/google-cloud-platform-gcp/google-app-engine-environment#native-mode) 설치를 사용하지 마십시오.
+</Callout>
+
+## Docker를 사용하여 사용자 지정 런타임 빌드 [#build-runtime]
+
+[맞춤 런타임 빌드에 대한 Google 문서를](https://cloud.google.com/appengine/docs/flexible/custom-runtimes/build) 참조하세요. New Relic Java 에이전트가 포함된 사용자 지정 런타임을 빌드하는 방법은 여러 가지가 있습니다( [예: Tomcat 사용](#tomcat-example) ). 일반적으로 사용자 지정 런타임을 빌드하려면 다음을 수행합니다.
+
+1. [애플리케이션을 설정하고](#setup-gae) 사용자 지정 런타임에 필요한 GAE 관련 종속성을 설치합니다. 프로젝트에 New Relic Java 에이전트를 포함합니다.
+2. 해당하는 [경우 Maven 또는 Gradle](#configure-pom-xml) 을 구성합니다.
+3. [`app.yaml` 파일](#configure-app-yaml) 을 구성합니다.
+4. [Dockerfile](#configure-dockerfile) 을 구성하십시오.
+5. [Docker 이미지를 빌드합니다](#build-docker-image) .
+6. 초기화된 GAE 가변형 환경에 Docker 이미지를 [배포](#deploy-docker-image-to-gae) 합니다.
+7. **권장 사항:** [GAE 상태 확인을 비활성화합니다](#health-checks) .
+
+GAE 가변형 환경에서 자바 앱 배포 및 구성에 대한 자세한 내용은 다음을 참조하세요.
+
+* Java용 [Google App Engine 문서](https://cloud.google.com/appengine/docs/flexible/java/)
+* Java 앱 배포를 위한 [Google App Engine의 자습서](https://cloud.google.com/appengine/docs/flexible/java/tutorials)
+
+## Tomcat을 사용한 GAE 플렉스 예제 [#tomcat-example]
+
+이 예제에서는 New Relic Java 에이전트를 설치하고, 사용자 지정 런타임을 빌드하고, Tomcat에 애플리케이션 WAR을 배포하여 GAE flex 앱에 New Relic을 추가하는 방법을 설명합니다. 특정 앱 서버에 필요한 [Java 에이전트를 설치해야](/docs/agents/java-agent/installation/include-java-agent-jvm-argument) 합니다.
+
+<CollapserGroup>
+  <Collapser
+    id="setup-gae"
+    title="1. GAE Flexible 프로젝트 설정 및 종속성 설치"
+  >
+    1. 표준 절차에 따라 특정 앱 서버에 필요한 [Java 에이전트를 설치하고](/docs/agents/java-agent/installation/include-java-agent-jvm-argument) [라이선스 키](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key) 를 얻습니다.
+
+    2. [Java용 Google App Engine 절차에](https://cloud.google.com/appengine/docs/flexible/java/managing-projects-apps-billing#create) 따라 새 Cloud Platform 프로젝트를 만들고 App Engine 애플리케이션을 만들고 [Google Cloud SDK](https://cloud.google.com/sdk/gcloud/) 에 대한 기타 전제조건을 완료합니다.
+
+    3. [Maven](https://cloud.google.com/appengine/docs/flexible/java/using-maven) 또는 [Gradle](https://cloud.google.com/appengine/docs/flexible/java/using-gradle) App Engine 플러그인 및 [Java](http://www.oracle.com/technetwork/java/javase/downloads/jre8-downloads-2133155.html) 와 같은 필요한 종속성을 설치합니다.
+
+       Google Cloud SDK는 GAE 앱을 관리하고 배포하기 위한 `gcloud` 명령줄 도구를 제공합니다.
+  </Collapser>
+
+  <Collapser
+    id="configure-pom-xml"
+    title="2. Java 에이전트 및 빌드 프로젝트를 포함하도록 Maven pom.xml 구성"
+  >
+    이 예시에서는 Maven을 사용하여 프로젝트를 빌드하고 Docker Tomcat 이미지를 사용하여 프로젝트를 실행하며 `gcloud` 명령줄 도구를 사용하여 Docker 이미지를 GAE 가변형 환경에 배포합니다.
+
+    1. 프로젝트가 빌드될 때, [모든 Java 에이전트 구성요소를 다운로드하고 압축을 풀](/docs/agents/java-agent/frameworks/maven-installation-java#h2-zip) 때 Java 에이전트 종속성을 프로젝트의 `target` 디렉토리에 추가합니다.
+
+    2. 자바 에이전트 종속성을 `pom.xml` 에 추가한 후 다음을 실행하여 애플리케이션을 빌드합니다.
+
+       ```
+       mvn clean install
+       ```
+
+    3. 프로젝트의 `target` 디렉토리를 확인하여 앱의 `WAR` 파일과 압축을 푼 `newrelic` 디렉토리를 찾습니다.
+
+       이러한 파일은 Docker 이미지에 통합됩니다.
+
+       <Callout variant="tip">
+         [App Engine Maven 또는 Jetty Maven 플러그인](http://cloud.google.com/appengine/docs/flexible/java/using-maven#adding_the_app_engine_maven_and_jetty_maven_plugins) 을 `pom.xml` 에 추가할 수도 있습니다. 이렇게 하면 Maven을 사용하여 GAE 가변형 환경에 앱을 배포할 수 있습니다.
+       </Callout>
+  </Collapser>
+
+  <Collapser
+    id="configure-app-yaml"
+    title="3. app.yaml 구성"
+  >
+    [app.yaml](https://cloud.google.com/appengine/docs/flexible/java/configuring-your-app-with-app-yaml) 구성 파일은 커스텀 런타임이 있는 GAE 가변형 환경 앱에 필요합니다. 최소한 다음이 포함되어 있는지 확인하십시오.
+
+    ```
+    env: flex
+    runtime: custom
+    ```
+  </Collapser>
+
+  <Collapser
+    id="configure-dockerfile"
+    title="4. Dockerfile 구성"
+  >
+    [Dockerfile](http://docs.docker.com/engine/reference/builder/) 은 빌드할 Docker 이미지를 정의하며 GAE 가변형 환경 앱에 필요합니다. 다음 Dockerfile 예시 코드에서 `newrelic.yml` 및 `catalina.sh` 파일은 이미 Docker 이미지에 복사된 파일을 대체하기 위해 로컬로 구성되었습니다. ( [New Relic 라이선스 키](/docs/apis/intro-apis/new-relic-api-keys/#ingest-license-key) 를 Dockerfile에 직접 추가하거나 `docker run` 명령에서 환경 변수를 사용할 수 있습니다.)
+
+    ```
+    # base Tomcat image to build Docker image from
+    FROM tomcat:8.5.14-jre8
+
+    MAINTAINER Jane Doe <janedoe@mail.com>
+
+    # Tomcat directory to copy Java agent files to
+    ENV NEWRELIC_HOME /usr/local/tomcat/newrelic
+
+    # copy application war from target to Tomcat webapps
+    ADD target/*.war /usr/local/tomcat/webapps
+
+    # copy Java agent files from target to Tomcat NEWRELIC_HOME
+    ADD target/newrelic ${NEWRELIC_HOME}
+
+    # update Java agent yml with license_key and app_name and copy to image  
+    ADD newrelic.yml ${NEWRELIC_HOME}
+
+    # update catalina.sh with <a href="/docs/agents/java-agent/installation/include-java-agent-jvm-argument#tomcat-catalinash">-javaagent:/path/to/newrelic.jar</a> and copy to image 
+    ADD catalina.sh /usr/local/tomcat/bin/
+    ```
+  </Collapser>
+
+  <Collapser
+    id="build-docker-image"
+    title="5. 도커 이미지 빌드"
+  >
+    배포된 애플리케이션 WAR을 모니터링하는 New Relic Java 에이전트로 Tomcat을 실행하는 Docker 이미지를 빌드하려면 다음 명령을 실행합니다. 현재 디렉토리에 빌드 파일이 포함되어 있음을 나타내려면 코드 끝에 마침표를 포함해야 합니다.
+
+    ```
+    docker build -f Dockerfile -t newrelic-tomcat .
+    ```
+
+    이 명령을 실행한 후 `newrelic-tomcat` 이라는 Docker 이미지가 있는지 확인합니다.
+  </Collapser>
+
+  <Collapser
+    id="deploy-docker-image-to-gae"
+    title="6. 초기화된 GAE 가변형 환경에 Docker 이미지 배포"
+  >
+    1. Docker 이미지를 [초기화된 GAE 가변형 환경](https://cloud.google.com/sdk/docs/initializing) 에 배포하려면 다음 명령어를 실행하세요.
+
+       ```
+       gcloud app deploy
+       ```
+
+    2. 배포가 완료될 때까지 기다리십시오.
+
+    3. 브라우저에서 앱을 열려면 다음 명령을 실행합니다.
+
+       ```
+       gcloud app browse
+       ```
+
+    4. New Relic에서 GAE flex 앱 데이터를 보려면 [APM **요약** 페이지](/docs/apm/applications-menu/monitoring/apm-overview-page) 로 이동하십시오.
+  </Collapser>
+</CollapserGroup>
+
+## 권장 사항: 상태 확인 비활성화 [#health-checks]
+
+Google App Engine은 인스턴스가 성공적으로 배포되었는지 확인하고 실행 중인 인스턴스가 정상 상태를 유지하는지 확인하기 위해 [정기적인 상태 확인 요청](https://cloud.google.com/appengine/docs/flexible/java/how-instances-are-managed) 을 보냅니다. 상태 확인은 URL `/_ah/health` 에 대한 HTTP 요청입니다.
+
+사용자 지정 런타임을 만드는 경우 앱은 많은 수의 상태 확인 요청을 처리할 수 있어야 합니다. 그렇지 않으면 앱 데이터가 APM에서 올바르게 표시되지 않을 수 있습니다. 애플리케이션에 대한 추가 계측 오버헤드 및 왜곡된 처리량을 방지하려면 상태 확인을 비활성화하는 것이 좋습니다.
+
+**권장 사항: 다음** 을 추가하여 [상태 확인을 비활성화](https://cloud.google.com/appengine/docs/flexible/java/configuring-your-app-with-app-yaml#health_checks) 하도록 `app.yaml` 을 구성합니다.
+
+```
+health_check:
+  enable_health_check: False
+```
+
+## GAE에서 Java 에이전트 문제 해결 로그 가져오기 [#java-agent-logs]
+
+다음 리소스를 사용하여 GAE 플렉스 환경 앱 문제를 해결하세요.
+
+* GAE 인스턴스에 연결하고 코드를 실행하는 Docker 컨테이너에서 셸을 시작 [하려면 인스턴스 디버깅](https://cloud.google.com/appengine/docs/flexible/java/debugging-an-instance) 을 참조하십시오.
+
+* [Cloud Platform 콘솔](https://cloud.google.com/compute/docs/console) 에서 New Relic 자바 에이전트 로그를 [Stackdriver](http://cloud.google.com/logging/docs/view/logs_viewer_v2) 로 리디렉션하려면 `newrelic.yml` 파일을 다음으로 변경합니다.
+
+  ```
+  log_file_name: STDOUT
+  ```
+
+* 로그를 보려면 [Cloud Platform 콘솔의 로그 뷰어](https://cloud.google.com/appengine/docs/flexible/php/writing-application-logs) 를 사용하세요.

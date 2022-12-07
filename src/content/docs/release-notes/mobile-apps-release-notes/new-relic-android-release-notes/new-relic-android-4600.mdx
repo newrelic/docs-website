@@ -1,0 +1,13 @@
+---
+subject: Mobile app for Android
+releaseDate: '2022-07-07'
+version: 4.6.0
+downloadLink: 'https://play.google.com/store/apps/details?id=com.newrelic.rpm'
+---
+
+### Notes
+
+* Incident detail: added Nrql and Timeline information.
+* Updated Explorer tab to display newly supported entity types.
+* New snazzzy loading spinner!
+* Various bug fixes

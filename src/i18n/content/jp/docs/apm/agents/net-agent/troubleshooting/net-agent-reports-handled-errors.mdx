@@ -1,0 +1,135 @@
+---
+title: .NETエージェントの処理エラー報告
+type: troubleshooting
+tags:
+  - Agents
+  - NET agent
+  - Troubleshooting
+metaDescription: How to prevent New Relic's .NET agent from reporting handled errors as though they are standard errors.
+translationType: machine
+---
+
+## 問題
+
+New Relic の .NET エージェントは、処理されたエラーを標準的なエラーであるかのように報告します。これは、Azure のワーカーロール、コンソールアプリ、非同期作業、および同様の操作で最もよく見られます。
+
+## 解決策
+
+誤ったエラー・レポートを避けるために、例外ハンドラを直接または間接的に含むメソッドをインスツルメンテーションします。この例のように、 [カスタム・インスツルメンテーション](/docs/agents/net-agent/custom-instrumentation/introduction-net-custom-instrumentation) ファイルを定義するか、 [カスタム・トランザクション](/docs/agents/net-agent/custom-instrumentation/create-transactions-xml-net) でメソッドをラップすることで、ターゲット・メソッドをインストゥルメントします。
+
+<CollapserGroup>
+  <Collapser
+    id="get-response-block"
+    title="GetResponse()がエラーになる"
+  >
+    この例では、メソッド`Foo()`がインストルメントされてい**ない限り**、NewRelicは`GetResponse()`からのエラーを報告します。 `Foo`がインストルメントされている限り、New Relicは`Foo`が呼び出されたときにトランザクションを開始し、 `Foo`が終了したときにトランザクションを終了します。
+
+    エラーは`Foo`が終了する前に処理されるため、NewRelicはエラーを報告しません。 `GetResponse()`が`Foo`トランザクションのセグメントになることにも注意してください。
+
+    ```cs
+    using System;
+    using System.Collections.Generic;
+    using System.Threading;
+    using System.Threading.Tasks;
+    using System.Net;
+    using System.IO;
+
+    namespace ErrorTester
+    {
+        class Program
+        {
+            static void Main(string[] args)
+            {
+                var i = 0;
+                while (true)
+                {
+                    Foo(++i);
+                }
+            }
+
+            static void Foo(int i)
+            {
+                try
+                {
+                    GetNotFound();
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine("Got it " + i + "!");
+                    Thread.Sleep(1000);
+                }
+            }
+
+            static string GetNotFound()
+            {
+                string uri = "http://localhost/Test/this/is/not/a/real/page";
+                var request = (HttpWebRequest)WebRequest.Create(uri);
+                var response = request.GetResponse();
+                var data = new StreamReader(response.GetResponseStream()).ReadToEnd();
+                response.Close();
+                return data;
+            }
+        }
+    }
+    ```
+  </Collapser>
+
+  <Collapser
+    id="custom-instrumentation"
+    title="カスタムインストゥルメンテーションファイルの定義"
+  >
+    楽器`Foo`へ：
+
+    1. [カスタムインストルメンテーションファイル](/docs/agents/net-agent/custom-instrumentation/introduction-net-custom-instrumentation)を定義します;たとえば、 `CustomInstrumentation.xml` ：
+
+       ```xml
+       <?xml version="1.0" encoding="utf-8"?>
+       <!-- © 2008-2014 New Relic, Inc. All rights reserved. -->
+       <!--
+           When you edit this file, please use an XML aware editor (such as Visual Studio),
+           and pair with the companion file extension.xsd to minimize the
+           chance of introducing typos that may confuse the agent when it is run.
+       -->
+       <extension xmlns="urn:newrelic-extension">
+         <instrumentation>
+           <tracerFactory >
+             <match assemblyName="ErrorTester" className="ErrorTester.Program">
+               <exactMethodMatcher methodName="Foo" /> 
+             </match>
+           </tracerFactory>
+         </instrumentation>
+       </extension>
+       ```
+
+    2. `CustomInstrumenation.xml`を`CoreInstrumentation.xml`と一緒にNewRelic拡張フォルダーに配置し、アプリケーションを再起動します。
+  </Collapser>
+
+  <Collapser
+    id="custom-transaction"
+    title="メソッドをカスタム・トランザクションでラップする"
+  >
+    `Foo`をインストルメント化するには、[カスタムトランザクション](/docs/agents/net-agent/custom-instrumentation/create-transactions-xml-net)でラップします。
+
+    ```xml
+    <extension xmlns="urn:newrelic-extension">
+      <instrumentation>
+         <tracerFactory name="NewRelic.Agent.Core.Tracer.Factories.BackgroundThreadTracerFactory" metricName="Background/Task">
+           <match assemblyName="ErrorTester" className="ErrorTester.Program">
+             <exactMethodMatcher methodName="Foo" />
+           </match>
+        </tracerFactory>
+      </instrumentation>
+    </extension>
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## 原因
+
+New Relic の .NET エージェントが報告するエラーは、トランザクションを終了する処理されないエラーのみです。トランザクションが終了する前にアプリが例外ハンドラを呼び出した場合、New Relic はエラーを報告しません。
+
+しかし、New Relic は、エラーが Web トランザクション、WCF トランザクション、またはカスタム トランザクションの外で発生した場合、例外ハンドラを必ずしも検出しません。これは、エージェントが"ミニトランザクション" を、トランザクションに関連付けられていないインスツルメンテッド・メソッドのために作成するためです。
+
+計装化されたメソッドが終了すると、ミニトランザクションが終了します。ミニトランザクションがエラーを投げ、インスツルメンテッド・メソッドがそれを処理しない場合、New Relic はエラーを報告します。
+
+これは、[例](#get-response-block)に示すように、 `GetResponse()`を呼び出すコンソールアプリで確認できます。 `GetResponse`がエラーをスローした場合、 `GetResponse()`がtry / catchブロック内で呼び出されても、NewRelicはそれを報告します。 `GetResponse()` "mini-transaction"が終了し、トランザクションの終了時にエラーがまだ処理されていないため、エージェントはエラーを報告します。

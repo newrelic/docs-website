@@ -1,0 +1,168 @@
+---
+title: 파이썬 팁과 트릭
+tags:
+  - Agents
+  - Python agent
+  - Supported features
+metaDescription: 'How to use decorators and introspection, identify a transaction, or record custom metrics with the Python agent.'
+translationType: machine
+---
+
+웹 애플리케이션을 모니터링하기 위해 Python 에이전트를 최대한 활용하는 데 도움이 되는 몇 가지 팁과 요령이 있습니다.
+
+## 데코레이터와 자기 성찰 [#decorators_and_introspection]
+
+트랜잭션 또는 함수 추적 노드의 이름을 지정할 때 Python 에이전트는 호출되는 함수의 이름을 검사해야 합니다. 함수가 원시 함수 또는 클래스 메서드인 경우 이 모든 것이 잘 작동합니다. 그러나 데코레이터가 함수 또는 클래스 메서드에 적용된 경우 래핑된 함수를 내부 검사하는 기능을 유지하기 위해 데코레이터가 구현되지 않은 경우 에이전트는 래핑된 함수 대신 데코레이터 래퍼 함수의 이름을 사용합니다.
+
+데코레이터가 구현되는 일반적인 방식은 다음 패턴을 사용하는 것입니다.
+
+```
+def decorator(f):
+    def _decorator():
+        f()
+    return _decorator
+
+@decorator
+def foo():
+    pass
+```
+
+이 구현의 문제는 `foo.__name__` 의 값을 보면 `foo` 가 아니라 `_decorator` 이 된다는 것입니다. 데코레이터가 별도의 모듈에 포함된 경우 `foo.__module__` 을 보면 래핑된 함수가 포함된 모듈의 이름이 아니라 데코레이터가 선언된 모듈의 이름이 됩니다.
+
+모듈과 함수의 이름이 올바르게 지정되었는지 확인하려면 표준 라이브러리 **functools** 모듈의 `wraps()` 데코레이터를 사용하여 내부 데코레이터 함수를 래핑합니다.
+
+```
+import functools
+
+def decorator(f):
+    @functools.wraps(f)
+    def _decorator():
+        f()
+    return _decorator
+
+@decorator
+def foo():
+    pass
+```
+
+자세한 내용은 Python 웹사이트에서 `wraps()` 함수에 대한 [문서](http://docs.python.org/library/functools.html#functools.wraps) 를 참조하세요.
+
+## 거래 식별 [#identifying_a_transaction]
+
+Python 에이전트가 트랜잭션에 대한 오류 세부 정보를 기록하거나 느린 트랜잭션 추적을 캡처할 때 트랜잭션에 대해 별도로 기록할 수 있는 다른 데이터와 상관 관계를 지정하는 데 사용할 수 있는 고유 식별자가 없습니다. 이것은 예를 들어 UI의 정보를 자신의 웹 애플리케이션 로깅과 일치시키는 것을 어렵게 만듭니다.
+
+이러한 교차 일치를 수행하거나 이 상황에 도움이 될 수 있는 몇 가지 추가 세부 정보를 트랜잭션에 대해 간단히 캡처하려면 에이전트 API를 사용하여 트랜잭션에 대한 사용자 정의 매개변수를 기록할 수 있습니다. 오류가 발생하거나 느린 트랜잭션 추적이 기록되어 UI에 표시되는 경우 사용자가 제공하는 이러한 추가 매개변수는 오류 또는 추적 세부사항의 **사용자 정의 매개변수** 섹션 아래에 표시됩니다.
+
+이러한 추가 세부정보를 추가하려면 **newrelic.agent** 모듈에서 `add_custom_attribute()` 함수를 사용할 수 있습니다.
+
+<Callout variant="important">
+  거래 이름 끝에 대괄호 `[suffix]` 를 사용하지 마십시오. 에이전트는 자동으로 이름에서 대괄호를 제거합니다. 대신 필요한 경우 괄호 `(suffix)` 또는 기타 기호를 사용하십시오.
+</Callout>
+
+예를 들어 Django 웹 프레임워크 자습서의 polls 애플리케이션에서 다음 코드를 사용합니다.
+
+```
+from django.shortcuts import render_to_response, get_object_or_404
+
+def detail(request, poll_id):
+    p = get_object_or_404(Poll, pk=poll_id)
+    return render_to_response('polls/detail.html', {'poll': p})
+```
+
+문제가 발생하는 경우 사용할 수 있도록 트랜잭션에 대한 폴 ID를 기록하려면 다음을 사용합니다.
+
+```
+import newrelic.agent
+
+def detail(request, poll_id):
+    newrelic.agent.add_custom_attribute('poll_id', poll_id)
+    p = get_object_or_404(Poll, pk=poll_id)
+    return render_to_response('polls/detail.html', {'poll': p})
+```
+
+사용자 정의 매개변수에 사용되는 값은 **json** 모듈에서 제공하는 JSON 인코더로 직렬화할 수 있는 모든 값일 수 있습니다. 여기에는 튜플, 목록 및 사전이 포함됩니다.
+
+**권장 사항:** 값을 정수, 부동 소수점 또는 문자열 값으로 제한합니다. 더 복잡한 데이터 구조를 사용하는 경우 너무 큰 데이터 구조를 연결하지 마십시오. 데이터 구조를 수집하고 패키지화한 다음 핵심 애플리케이션으로 보낼 때까지 캐시해야 하기 때문입니다.
+
+값을 JSON으로 직렬화할 수 없는 경우 오류 세부 정보 또는 느린 트랜잭션이 폐기될 수 있으므로 간단한 값도 선호됩니다.
+
+## 맞춤 측정항목 기록 [#recording_custom_metrics]
+
+우리가 알고 있는 Python용 공개적으로 사용 가능한 타사 모듈만 계측할 수 있습니다. 고유한 코드에 대한 계측을 확장하려면 [Python 계측 추가](/docs/agents/python-agent/supported-features/python-custom-instrumentation) 에 설명된 기술을 사용하십시오. 이렇게 하면 웹 트랜잭션 및 느린 트랜잭션 추적에 대한 성능 분석 데이터를 확인할 수 있습니다.
+
+API 호출을 통해 임의의 성능 데이터(예: 타이밍 또는 컴퓨터 리소스 데이터)를 기록할 수 있습니다. 그런 다음 [메트릭 및 이벤트를](/docs/query-your-data/explore-query-data/data-explorer/introduction-data-explorer) 사용하여 차트를 만들고 해당 메트릭을 추적합니다. 사용자 지정 메트릭을 사용하여 모니터링을 통합할 수 있습니다.
+
+맞춤 측정항목을 기록하려면 **newrelic.agent** 모듈에서 `record_custom_metric()` 함수를 사용하세요. 메트릭의 이름과 값인 두 개의 인수가 필요합니다. 값은 정수 또는 부동 소수점 값이어야 합니다.
+
+```
+import newrelic.agent
+
+def create_account(request, ...):
+    ...
+    newrelic.agent.record_custom_metric('Custom/Signups', 1)
+    ...
+    return render_to_response('...', ...)
+```
+
+기존 에이전트 측정항목과 네임스페이스 충돌을 방지하려면 측정항목 이름 `Custom/` 의 경로를 시작하세요(예: `Custom/MyMetric` ).
+
+맞춤 측정항목은 각 [수확 주기](/docs/accounts-partnerships/education/getting-started-new-relic/glossary#harvest-cycle) 에 걸쳐 집계된 다음 [수집기](/docs/accounts-partnerships/education/getting-started-new-relic/glossary#collector) 로 전송됩니다. 이 경우 수확 주기의 등록 수를 기록하기 위해 각 `1` 가 추가됩니다.
+
+함수 추적 계측은 함수 호출 또는 코드 블록에서 보낸 시간을 추적하는 데 사용되지만 별도의 사용자 지정 차트를 허용하지 않습니다. 사용자 지정 측정항목을 사용하여 소요 시간과 관련된 시간을 기록하고 차트로 작성할 수 있습니다.
+
+이를 더 쉽게 하기 위해 메트릭의 타이밍 및 기록을 위한 컨텍스트 관리자 클래스를 미리 정의할 수 있습니다.
+
+```
+class CustomMetricTimedNode(object):
+
+    def __init__(self, name):
+        self.name = name
+        self.start_time = None
+        self.end_time = None
+
+    def __enter__(self):
+        self.start_time = time.time()
+        return self
+
+    def __exit__(self, exc, value, tb):
+        if not self.start_time:
+            return
+        self.end_time = time.time()
+        duration = self.end_time - self.start_time
+        newrelic.agent.record_custom_metric(self.name, duration)
+```
+
+그런 다음 코드 블록 주위의 `with` 문과 함께 사용할 수 있습니다.
+
+```
+def function():
+    with CustomMetricTimedNode('Custom/TimedNode1'):
+        time.sleep(0.01)
+```
+
+컨텍스트 관리자는 함수 데코레이터를 만들어 함수에 적용할 수 있습니다.
+
+```
+def custom_metric_timed_node(name):
+    def _decorator(f):
+        @functools.wraps(f)
+        def _wrapper(*args, **kwargs):
+            with CustomMetricTimedNode(name):
+                return f(*args, **kwargs)
+        return _wrapper
+    return _decorator
+```
+
+다음과 같이 사용됩니다.
+
+```
+@custom_metric_timed_node('Custom/TimedNode2')
+def function():
+    time.sleep(0.01)
+```
+
+함수 추적을 위한 계측을 추가할 때와 마찬가지로 유한 집합 내에서 길이가 비교적 작은 메트릭 이름을 선택하는 것이 좋습니다. 값에 제한이 없는 이름은 피해야 합니다. 그렇지 않으면 이름의 양이 많아 의미 있는 방식으로 표시하기 어렵습니다. 고유한 이름이 많으면 과도한 메모리가 사용되고 에이전트가 강제로 이름을 정규화하여 고유한 이름의 수를 제한할 수 있습니다.
+
+<Callout variant="caution">
+  너무 많은 메트릭을 수집하면 애플리케이션과 에이전트의 성능에 영향을 줄 수 있습니다. 잠재적인 데이터 문제를 방지하려면 사용자 정의 계측에 의해 도입된 고유 메트릭의 총 수를 2000 미만으로 유지하십시오.
+</Callout>

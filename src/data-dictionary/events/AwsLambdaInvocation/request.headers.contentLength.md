@@ -9,4 +9,4 @@ events:
   - TransactionError
 ---
 
-Incoming request size in bytes as read from the Content-Length HTTP request header.
+Incoming request size in bytes as read from the `Content-Length` HTTP request header.

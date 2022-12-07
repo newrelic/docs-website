@@ -1,0 +1,383 @@
+---
+title: function_trace(파이썬 에이전트 API)
+type: apiDoc
+shortDescription: '기본적으로 계측되지 않는 함수, 메서드, 생성기 및 코루틴을 계측하는 데 사용됩니다.'
+tags:
+  - Agents
+  - Python agent
+  - Python agent API
+metaDescription: 'Python API: Functions for adding functions and class methods to a transaction.'
+translationType: machine
+---
+
+## 통사론
+
+```
+newrelic.agent.function_trace(name=None, group=None, label=None, params=None, terminal=False)
+```
+
+기본적으로 계측되지 않는 함수, 메서드, 생성기 및 코루틴을 계측하는 데 사용됩니다.
+
+## 설명
+
+`function_trace` 함수, 메서드, 생성기 및 코루틴에 추가하기 위한 데코레이터입니다. 이 데코레이터를 추가하면 추가 [트랜잭션](/docs/accounts-partnerships/education/getting-started-new-relic/glossary#transaction) 정보(트랜잭션 추적 정보 포함)를 수집할 수 있습니다. (앱 코드를 건드릴 필요 없이 기능을 계측하는 다른 방법 [은 구성 파일에 나열하는 것입니다](/docs/agents/python-agent/custom-instrumentation/python-custom-instrumentation-config-file) .)
+
+`function_trace` 데코레이팅된 함수에서 발생하는 모든 함수의 전체 프로필을 제공하지는 않습니다. New Relic UI에 데코레이팅된 기능을 노드로 추가하고 해당 기능에 소요된 시간을 캡처하는 역할을 합니다. 해당 함수에서 진행 중인 작업에 대한 자세한 내용이 필요한 경우 함수 추적을 함수의 자식 함수에도 적용해야 합니다.
+
+`function_trace` 데코레이터는 에이전트 버전이 2.102.0.85 이상인 생성기 및 코루틴에서 사용할 수 있습니다. 이러한 개체의 타이밍은 소비가 시작될 때 시작되고 개체가 소진되거나 범위를 벗어날 때 끝납니다. 이는 메트릭이 생성기 또는 코루틴 개체 자체를 생성하는 데 걸린 시간을 나타내는 이전 버전에서 변경된 사항입니다.
+
+정적 및 클래스 메서드를 포함하여 기존 데코레이터와 함께 데코레이터를 사용할 수 있습니다. 여러 데코레이터를 중첩할 때 `function_trace` 데코레이터를 가장 바깥쪽 데코레이터로 사용하세요.
+
+<Callout variant="important">
+  래핑되는 데코레이터의 경우 구현 시 Python 표준 라이브러리의 `functools.wraps()` 을 사용합니다. (또는 그렇지 않으면 데코레이터가 올바른 이름 검사를 허용하는 데 필요한 가장 안쪽에 있는 래핑된 객체의 올바른 이름 속성을 전파하도록 합니다.) 이것이 완료되지 않으면 메트릭이 보고될 때 중첩된 데코레이터 함수의 이름(가장 안쪽이 아닌 래핑된 함수)가 사용됩니다.
+</Callout>
+
+## 대체 호출 양식 [#alternate]
+
+데코레이터를 사용할 수 없는 설정의 경우 다음 대체 호출 양식을 사용할 수 있습니다.
+
+### 컨텍스트 관리자 [#context-manager]
+
+`FunctionTrace` 컨텍스트 관리자는 전달할 매개변수를 런타임 전에 결정할 수 없을 때 사용됩니다. (예를 들어, 가져올 때 함수의 이름을 모를 수 있습니다.) 컨텍스트 관리자를 사용하여 메트릭의 이름을 지정할 때 항상 이름과 메트릭 경로 접두어를 제공해야 합니다.
+
+`FunctionTrace` 클래스는 컨텍스트 관리자를 구현하며 `with` 문과 함께 사용됩니다. `FunctionTrace` 클래스는 트랜잭션에 대한 시간 추적에 사용할 수 있는 가장 낮은 수준의 기본 요소입니다.
+
+`with` 문은 단일 함수가 아니라 시간 제한이 있는 범위를 정의합니다. 따라서 컨텍스트 관리자는 임의의 코드 블록에 적용될 수 있습니다. 따라서 코드 블록은 여러 함수에 대한 호출을 포함하거나 추적하려는 시간 지향 알고리즘을 구현하는 자체 포함된 코드 블록일 수 있습니다.
+
+<Callout variant="important">
+  너무 많이 호출되는 코드 블록을 추적하지 마십시오. 예를 들어, 여러 번 실행되는 루프 컨텍스트 내에서 사용하지 마십시오. 생성된 데이터는 성능 오버헤드를 발생시킵니다. 더 나은 솔루션은 루프를 묶는 것입니다.
+</Callout>
+
+### 래퍼
+
+추적하려는 특정 함수가 어디에 있는지 미리 알고 있으면 `function_trace` 데코레이터를 사용할 수 있습니다. 그러나 추적해야 하는 모든 함수를 **모르는** 경우(예: 라우팅 시스템의 일부로 동적으로 조회되는 경우) `FunctionTraceWrapper` 을 사용하여 다음 위치에서 함수를 래핑해야 합니다. 등록시 또는 호출시.
+
+### 경로 기반 래핑 [#path-based]
+
+`wrap_function_trace` 함수가 선언된 코드 외부에서 함수를 래핑하는 데 사용됩니다. 예를 들어 수정하고 싶지 않은 라이브러리 코드를 계측하는 데 사용할 수 있습니다.
+
+이러한 호출 형식 간의 차이점에 대한 자세한 내용은 다른 [호출](/docs/python-agent-api-different-call-forms) 형식 을 참조하십시오.
+
+## 매개변수
+
+### 데코레이터의 매개변수 [#main-parameters]
+
+```
+newrelic.agent.function_trace(name=None, group=None, label=None, params=None, terminal=False)
+```
+
+이 호출에는 다음 매개변수가 포함됩니다.
+
+<table>
+  <thead>
+    <tr>
+      <th width="25%">
+        매개변수
+      </th>
+
+      <th>
+        설명
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `name`
+
+        _끈_
+      </td>
+
+      <td>
+        선택 과목. 함수 이름입니다. 설정하지 않으면 기본적으로 함수의 캡처된 이름이 사용됩니다.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `group`
+
+        _끈_
+      </td>
+
+      <td>
+        선택 과목. `group` 은 `name` 매개변수의 이름 지정 구조를 나타냅니다. 이것은 [트랜잭션 유형](/docs/apm/applications-menu/monitoring/transactions-page#tx_functions) 을 분리하기 위해 UI에서 사용됩니다.
+
+        제공되지 않은 경우 그룹은 이름이 `module:class.function` 또는 `module:function` 형식이고 실행 중인 함수의 이름을 나타내는 것으로 가정하여 기본적으로 `Function` 으로 설정됩니다. 사용자 지정 그룹을 생성하는 경우 `Python/` 접두사를 사용하는 것이 좋습니다.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `label`
+
+        _끈_
+      </td>
+
+      <td>
+        선택 과목. 트랜잭션 추적의 세그먼트에 콜아웃 스타일 플래그를 추가합니다. 기본값은 `None` 입니다.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `params`
+
+        _딕셔너리_
+      </td>
+
+      <td>
+        선택 과목. 트랜잭션 추적의 세그먼트에 추가할 사용자 지정 매개변수입니다.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `terminal`
+
+        _부울_
+      </td>
+
+      <td>
+        선택 과목. true인 경우 하위 세그먼트가 기록되지 않습니다. 기본값은 False입니다.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+### 컨텍스트 관리자용 매개변수 [#context-mgr-parameters]
+
+```
+newrelic.agent.FunctionTrace(name, group=None, label=None, params=None, terminal=False)
+```
+
+컨텍스트 관리자의 [매개변수](#main-parameters) 에는 `function_trace` 의 모든 매개변수가 포함됩니다. `name` 매개변수는 선택 사항이 아니라 필수 사항입니다.
+
+<table>
+  <thead>
+    <tr>
+      <th width="25%">
+        매개변수
+      </th>
+
+      <th>
+        설명
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `name`
+
+        _끈_
+      </td>
+
+      <td>
+        필수의. 함수 이름입니다.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+### 래퍼 매개변수
+
+```
+newrelic.agent.FunctionTraceWrapper(wrapped, name=None, group=None, label=None, params=None, terminal=False)
+```
+
+래퍼 매개변수에는 `function_trace` 및 `wrapped` 매개변수에 대한 모든 [매개변수](#main-parameters) 가 포함됩니다.
+
+<table>
+  <thead>
+    <tr>
+      <th width="25%">
+        매개변수
+      </th>
+
+      <th>
+        설명
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `wrapped`
+
+        _기능_
+      </td>
+
+      <td>
+        필수의. 래핑되는 함수입니다.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+### 경로 기반 래핑 매개변수 [#path-wrap-parameters]
+
+```
+newrelic.agent.wrap_function_trace(module, object_path, name=None, group=None, label=None, params=None, terminal=False)
+```
+
+매개변수에는 `function_trace` 에 대한 모든 [매개변수](#main-parameters) 와 다음 매개변수가 포함됩니다.
+
+<table>
+  <thead>
+    <tr>
+      <th width="25%">
+        매개변수
+      </th>
+
+      <th>
+        설명
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `module`
+
+        _물체_
+      </td>
+
+      <td>
+        필수의. 계측할 함수가 포함된 모듈입니다.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `object_path`
+
+        _끈_
+      </td>
+
+      <td>
+        함수의 위치에 대한 경로입니다.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## 예
+
+### `function_trace` 예시 [#trace_example]
+
+`function_trace` 데코레이터 사용 예:
+
+```
+import newrelic.agent
+
+class _Database(UserDict.DictMixin):
+
+    ...
+
+    @newrelic.agent.function_trace()
+    def _commit(self):
+        ...
+
+@newrelic.agent.function_trace()
+def open(file, flag=None, mode=0666):
+...
+```
+
+네이티브 코루틴과 함께 `function_trace` 데코레이터를 사용하는 예:
+
+```
+import newrelic.agent
+
+class _Database(UserDict.DictMixin):
+
+    ...
+
+    @newrelic.agent.function_trace()
+    async def _commit(self):
+        ...
+
+@newrelic.agent.function_trace()
+async def open(file, flag=None, mode=0666):
+...
+```
+
+### 컨텍스트 관리자 예제 [#context-mgr-example]
+
+`FunctionTrace` 컨텍스트 관리자를 사용하는 예:
+
+```
+import newrelic.agent
+
+def dispatch_request(self, request):
+    adapter = self.url_map.bind_to_environ(request.environ)
+    try:
+        endpoint, values = adapter.match()
+        function = getattr(self, 'on_' + endpoint)
+        with newrelic.agent.FunctionTrace(
+                endpoint, 'Python/EndPoint'):
+            return function(request, **values)
+    except HTTPException as e:
+        return e
+```
+
+### 래퍼 예 [#trace-wrap-example]
+
+`FunctionTraceWrapper` 사용 예:
+
+Werkzeug를 사용한 URL 라우팅은 먼저 `getattr()` 을 사용하여 클래스의 메서드를 동적으로 조회하는 데 사용되는 이름을 생성한 다음 결과를 호출합니다.
+
+```
+def dispatch_request(self, request):
+    adapter = self.url_map.bind_to_environ(request.environ)
+    try:
+        endpoint, values = adapter.match()
+        return getattr(self, 'on_' + endpoint)(request, **values)
+    except HTTPException as e:
+        return e
+```
+
+끝점 기능을 추적하려면 다음과 같이 다시 작성할 수 있습니다.
+
+```
+import newrelic.agent
+
+def dispatch_request(self, request):
+    adapter = self.url_map.bind_to_environ(request.environ)
+    try:
+        endpoint, values = adapter.match()
+        function = getattr(self, 'on_' + endpoint)
+        function = newrelic.agent.FunctionTraceWrapper(function)
+        return function(request, **values)
+    except HTTPException as e:
+        return e
+```
+
+(호출되는 함수의 식별자를 기반으로 측정항목의 이름을 지정하는 대신) 엔드포인트 이름을 따라 측정항목의 이름을 지정하려는 경우 `FunctionTraceWrapper` 객체가 생성될 때 사용할 이름과 대체 측정항목 경로 접두사를 제공할 수 있습니다.
+
+```
+import newrelic.agent
+
+def dispatch_request(self, request):
+    adapter = self.url_map.bind_to_environ(request.environ)
+    try:
+        endpoint, values = adapter.match()
+        function = getattr(self, 'on_' + endpoint)
+        function = newrelic.agent.FunctionTraceWrapper(
+                function, name=endpoint, group='Python/EndPoint')
+        return function(request, **values)
+    except HTTPException as e:
+        return e
+```
+
+이 예에서 엔드포인트가 `help` 인 경우 최종 측정항목은 다음과 같습니다.
+
+```
+Python/EndPoint/help
+```
+
+트랜잭션에 대한 성능 분석에서 카테고리는 `Python` 이고 세그먼트 이름은 `EndPoint/help` 입니다. 해당 세그먼트 이름은 느린 트랜잭션 추적에서도 노드 이름으로 나타납니다.

@@ -49,11 +49,6 @@ const TimelineItem = ({ label, children }) => (
           line-height: 1;
           font-weight: 600;
           font-size: 0.875rem;
-          color: var(--color-neutrals-900);
-
-          .dark-mode & {
-            color: var(--color-dark-900);
-          }
 
           @media screen and (max-width: ${MOBILE_BREAKPOINT}) {
             display: block;
