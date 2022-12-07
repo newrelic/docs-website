@@ -1,0 +1,105 @@
+---
+title: Troubleshooting guide for the Prometheus agent
+tags:
+  - Integrations
+  - Prometheus integrations
+  - Install and configure Prometheus agent
+metaDescription: Troubleshooting guide for the Prometheus agent
+---
+
+## Get verbose logs [#verbose-logs]
+
+You can enable verbose logs in the `newrelic-prometheus-agent` chart by setting the `verboseLog` or `global.verboseLog` variables to `true`.
+
+```yaml
+# (...)
+global:
+  verboseLog: true
+# (...)
+```
+
+Once this has been updated on the values files, run the following helm upgrade command:
+
+```bash
+helm upgrade <RELEASE_NAME> newrelic-prometheus-configurator/newrelic-prometheus-agent \
+--namespace <NEWRELIC_NAMESPACE> \
+-f values-newrelic.yaml \
+[--version fixed-chart-version]
+```
+
+## Not seeing metrics for a target [#target-with-no-metrics]
+
+You need, at least, one `job` that is discovering the target in Kubernetes that matches the filter specified, or the target should be listed as `static_target`.
+
+If you're using the default configuration on Kubernetes, check that your pod or service has the `prometheus.io/scrape=true` annotation.
+
+By default, the Prometheus agent scrapes metrics only from [Prometheus integrations](/docs/infrastructure/prometheus-integrations/integrations-list/integrations-list-intro). Unless you selected to scrape all the Prometheus endpoints in the cluster, the Prometheus agent filters the endpoints to be scraped by using the labels defined in [source_labels](https://github.com/newrelic/newrelic-prometheus-configurator/blob/main/charts/newrelic-prometheus-agent/values.yaml).
+
+
+## Not seeing metrics in a dashboard [#dashboard-with-no-metrics]
+
+Some of the dashboards provided by the [Prometheus integrations](/docs/infrastructure/prometheus-integrations/integrations-list/integrations-list-intro) may have been filtered by a Kubernetes label. Check the corresponding integration documentation to get more information.
+
+## Check up metric status [#up-metrics]
+
+Every target scrape generates the `up` metric with the all target metrics. If scraping is successful, these metrics have `1` as a value. If it's not successful, their value is `0`.
+
+```SQL
+FROM Metric SELECT latest(up) WHERE cluster_name= 'YOUR_CLUSTER_NAME' AND pod = 'TARGET_POD_NAME' TIMESERIES
+```
+
+If this metric doesn't exist for the target, it may have been dropped.
+
+If the values are `0`, scraping has failed.
+
+## Target dropped by filter rules [#target-dropped-by-filter]
+
+To check dropped targets, you can use the Prometheus API's [targets endpoint](https://prometheus.io/docs/prometheus/latest/querying/api/#targets).
+
+To list all dropped targets in JSON format and show all discovered labels, run the following command:
+
+```shell
+kubectl exec newrelic-prometheus-agent-0 -- wget -O - 'localhost:9090/api/v1/targets?state=dropped' 2>/dev/null
+```
+
+## Target scrape fail [#target-scrape-fail]
+
+If the `up` metrics have `0` as a value, it means that the target is actively scraped by Prometheus but the scrape has failed. You can check the reason in the verbose logs with a log entry similar to this:
+
+```bash
+prometheus ts=timestamp caller=scrape.go:1332 level=debug component="scrape manager" scrape_pool=kubernetes-job-pod target=http://1.2.3.4:80/metrics msg="<error>" err="<error detail>"
+```
+
+You can also check the active target list using Prometheus API's [targets endpoint](https://prometheus.io/docs/prometheus/latest/querying/api/#targets).
+
+To list all active targets in JSON and show all discovered labels, run the following command:
+
+```shell
+kubectl exec newrelic-prometheus-agent-0 -- wget -O - 'localhost:9090/api/v1/targets?state=active' 2>/dev/null
+```
+
+The failed target will be listed, and the error will be available in the `lastError` field in an output similar to this:
+
+```json
+{
+    "status": "success",
+    "data": {
+        "activeTargets": [
+            {
+                "discoveredLabels": <map of labels>,
+                "labels": <map of labels>,
+                "scrapePool": "kubernetes-job-pod",
+                "scrapeUrl": "http://172.17.0.5:80/metrics",
+                "globalUrl": "http://172.17.0.5:80/metrics",
+                "lastError": <error detail>,
+                "lastScrape": "2022-09-19T14:19:20.543747971Z",
+                "lastScrapeDuration": 0.000372542,
+                "health": "down",
+                "scrapeInterval": "15s",
+                "scrapeTimeout": "10s"
+            },
+            ...
+        ]
+    }
+}
+```
