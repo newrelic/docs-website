@@ -30,6 +30,7 @@ const InstallFeedback = () => {
     setCommentButtonClicked(true);
     tessen.track({
       eventName: 'installFeedbackClick',
+      category: 'LeaveAComment',
       path: location.pathname,
     });
   };
@@ -67,6 +68,7 @@ const InstallFeedback = () => {
     const recaptchaToken = await generateRecaptchaToken();
     tessen.track({
       eventName: 'installFeedbackSubmitted',
+      category: 'Comment',
       path: location.pathname,
       userEmail,
       userComments,
