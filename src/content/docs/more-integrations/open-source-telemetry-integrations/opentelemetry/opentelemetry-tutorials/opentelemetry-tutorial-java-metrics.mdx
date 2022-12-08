@@ -1,0 +1,341 @@
+---
+title: 'OpenTelemetry tutorial: Manual instrumentation of Java app with metrics'
+tags:
+  - Integrations
+  - Open source telemetry integrations
+  - OpenTelemetry
+metaDescription: You can set up OpenTelemetry to monitor a simple Java app with metrics.
+---
+
+To help you see how manual instrumentation works in a simple Java app, try out this tutorial that highlights metrics.
+
+Metrics are a telemetry data type that are really helpful because they combine individual measurements into aggregations, and produce data that is constant as a function of system load. You can use this data in conjunction with spans to help spot trends and provide application runtime telemetry. You can also annotate any metric with attributes to help describe what subdivision of the measurements the metric represents.
+
+The OpenTelemetry metrics API defines a number of instruments, which record measurements that are aggregated by the metrics SDK and exported out of process. There are two types of instruments:
+
+* Synchronous instruments, which record measurements as they occur and have associated distributed context
+* Asynchronous instruments register a callback, which is invoked only once per collection and do not have associated context
+
+<Callout variant="tip">
+  If you have any questions about the status of metric in the OpenTelemetry project, see the [signal statuses](https://opentelemetry.io/docs/instrumentation/java/#status-and-releases).
+</Callout>
+
+During this tutorial for generating and exporting traces, you'll open up the demo app and add dependencies, resources, a trace provider, exporter, and some instrumentation. Then, you'll run the app and check out the traces in the New Relic UI.
+
+## A. Download the demo application [#download]
+
+Start by cloning the demo application, which generates the nth number in the Fibonacci sequence:
+
+```
+git clone git@github.com:reese-lee/getting-started-guides.git
+```
+## B. Register runtime metrics instrumentation [#runtime-metrics]
+
+Import the following dependencies and register your runtime metrics instrumentation:
+
+1. Go to the app's source code directory:
+    ```
+    cd src/main/java/com/example/demo
+    ```
+2. Open `Application.java` and add the following to import dependencies and register your runtimne metrics instrumentation:
+
+    ```
+    // Dependencies for metrics
+    <var>import io.opentelemetry.exporter.otlp.metrics.OtlpGrpcMetricExporter;</var>
+    <var>import io.opentelemetry.sdk.metrics.InstrumentType;</var>
+    <var>import io.opentelemetry.sdk.metrics.SdkMeterProvider;</var>
+    <var>import io.opentelemetry.sdk.metrics.data.AggregationTemporality;</var>
+    <var>import io.opentelemetry.sdk.metrics.export.AggregationTemporalitySelector;</var>
+    <var>import io.opentelemetry.sdk.metrics.export.DefaultAggregationSelector;</var>
+    <var>import io.opentelemetry.sdk.metrics.export.PeriodicMetricReader;</var>
+    <var>import io.opentelemetry.sdk.metrics.internal.view.ExponentialHistogramAggregation;</var>
+    <var>import io.opentelemetry.instrumentation.runtimemetrics.GarbageCollector;</var>
+    <var>import io.opentelemetry.instrumentation.runtimemetrics.MemoryPools;</var>
+
+    @SpringBootApplication
+    public class Application {
+
+      public static void main(String[] args) {
+        // Configure OpenTelemetry as early as possible
+        var openTelemetrySdk = openTelemetrySdk();
+
+        <var>// Register runtime metrics instrumentation</var>
+        <var>MemoryPools.registerObservers(openTelemetrySdk);</var>
+        <var>GarbageCollector.registerObservers(openTelemetrySdk);</var>
+
+        SpringApplication.run(Application.class, args);
+      }
+    . . .
+    }
+
+## C. Configure a meter provder [#meter-provider]
+
+You need to confiure a meter provider to get access to the meter. Then, the meter allows you to create instrument objects, and you'll use those instrument objects to record measurements of some type.
+
+Continue in `Application.java` and add the following.
+
+<Callout variant="tip">
+  If you have already completed the tracing tutorial, insert this under the tracing `spanExporterBuilder`.
+</Callout>
+
+```
+  private static OpenTelemetrySdk openTelemetrySdk() {
+
+. . .
+    // Add otlp span exporter
+    var spanExporterBuilder =
+        OtlpGrpcSpanExporter.builder()
+            .setEndpoint("https://otlp.nr-data.net:4317")
+            .setCompression("gzip")
+            .addHeader("api-key", newrelicLicenseKey);
+    sdkTracerProviderBuilder.addSpanProcessor(
+        BatchSpanProcessor.builder(spanExporterBuilder.build()).build());
+
+    <var>// Configure meter provider</var>
+    <var>var sdkMeterProviderBuilder = SdkMeterProvider.builder().setResource(resource);</var>
+
+    return OpenTelemetrySdk.builder()
+        .setPropagators(ContextPropagators.create(W3CTraceContextPropagator.getInstance()))
+        .setTracerProvider(sdkTracerProviderBuilder.build())
+        .setLogEmitterProvider(sdkLogEmitterProvider.build())
+        .buildAndRegisterGlobal();
+  }
+```
+
+## D. Configure an OTLP metrics exporter [#metrics-exporter]
+
+This is the component that sends metrics from your application to New Relic. Continue in `Application.java`, and add this directly under the meter provider:
+
+```
+  private static OpenTelemetrySdk openTelemetrySdk() {
+. . .
+    // Configure meter provider
+    var sdkMeterProviderBuilder = SdkMeterProvider.builder().setResource(resource);
+
+    <var>// Add otlp metric exporter</var>
+    <var>var metricExporterBuilder =</var>
+        <var>OtlpGrpcMetricExporter.builder()</var>
+            <var>.setEndpoint("https://otlp.nr-data.net:4317")</var>
+            <var>.setCompression("gzip")</var>
+            <var>.addHeader("api-key", newrelicLicenseKey)</var>
+            <var>// IMPORTANT: New Relic requires metrics to be delta temporality</var>
+            <var>.setAggregationTemporalitySelector(AggregationTemporalitySelector.deltaPreferred())</var>
+            <var>// Use exponential histogram aggregation for histogram instruments to produce better</var>
+            <var>// data and compression</var>
+            <var>.setDefaultAggregationSelector(</var>
+                <var>DefaultAggregationSelector.getDefault()</var>
+                    <var>.with(InstrumentType.HISTOGRAM, ExponentialHistogramAggregation.getDefault()));</var>
+
+    return OpenTelemetrySdk.builder()
+        .setPropagators(ContextPropagators.create(W3CTraceContextPropagator.getInstance()))
+        .setTracerProvider(sdkTracerProviderBuilder.build())
+        .setLogEmitterProvider(sdkLogEmitterProvider.build())
+        .buildAndRegisterGlobal();
+  }
+```
+
+Notes:
+
+* The endpoint you set here is where the generated data will be exported to; in this case, it is one of [New Relic’s OTLP endpoints](https://docs.newrelic.com/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/opentelemetry-setup#review-settings). If your account is in the EU, use https://otlp.eu01.nr-data.net:4317.
+* Setting `gzip` compression allows you to maximize the amount of data you can send per request; New Relic allows a maximum payload size of 1MB (10^6 bytes).
+* The `api-key` header is how you configure which New Relic account you want your data exported to. Remember to export your license key as an environment variable by completing [this step](#LINK)). 
+* New Relic supports metrics in delta temporality, instead of the default cumulative.
+* We recommend using exponential histogram aggregation instead of the default explicit bucket histogram aggregation for better data compression.
+
+## E. Configure a metric reader [#reader]
+
+The metric reader is part of the SDK that enables you to register metric producers, collect metrics from metric producers, and handle SDK shutdown signals.
+
+Continue in `Application.java`, and add this directly under the metric exporter:
+
+```
+  private static OpenTelemetrySdk openTelemetrySdk() {
+. . .
+    // Configure meter provider
+    var sdkMeterProviderBuilder = SdkMeterProvider.builder().setResource(resource);
+
+    // Add otlp metric exporter
+    var metricExporterBuilder =
+        OtlpGrpcMetricExporter.builder()
+            .setEndpoint("https://otlp.nr-data.net:4317")
+            .setCompression("gzip")
+            .addHeader("api-key", newrelicLicenseKey)
+            // IMPORTANT: New Relic requires metrics to be delta temporality
+            .setAggregationTemporalitySelector(AggregationTemporalitySelector.deltaPreferred())
+            // Use exponential histogram aggregation for histogram instruments to produce better
+            // data and compression
+            .setDefaultAggregationSelector(
+                DefaultAggregationSelector.getDefault()
+                    .with(InstrumentType.HISTOGRAM, ExponentialHistogramAggregation.getDefault()));
+    <var>// Register and build a metric reader</var>
+    <var>sdkMeterProviderBuilder.registerMetricReader(</var>
+                      <var>PeriodicMetricReader.builder(metricExporterBuilder.build()).build());</var>
+
+    // Bring it all together
+    return OpenTelemetrySdk.builder()
+        .setPropagators(ContextPropagators.create(W3CTraceContextPropagator.getInstance()))
+        .setTracerProvider(sdkTracerProviderBuilder.build())
+        .setLogEmitterProvider(sdkLogEmitterProvider.build())
+        .buildAndRegisterGlobal();
+  }
+
+```
+
+## F. Return the SDK [#return-sdk]
+
+Bring it all together by returning the meter provider:
+
+```
+  private static OpenTelemetrySdk openTelemetrySdk() {
+. . .
+
+    <var>// Bring it all together
+    <var>return OpenTelemetrySdk.builder()</var>
+        <var>.setPropagators(ContextPropagators.create(W3CTraceContextPropagator.getInstance()))</var>
+        <var>.setTracerProvider(sdkTracerProviderBuilder.build())</var>
+        <var>.setMeterProvider(sdkMeterProviderBuilder.build())</var>
+        <var>.setLogEmitterProvider(sdkLogEmitterProvider.build())</var>
+        <var>.buildAndRegisterGlobal();</var>
+  }
+```
+
+## G. Instrument the code: [#instrument-initial]
+
+You are going to build a custom counter using a `LongCounter`, which records only positive values and is useful for counting things, such as the number of bytes sent over a network. By default, counter measurements are aggregated to always-increasing monotonic sums.
+
+Go to `Controller.java` and make the following changes to import the relevant dependencies and then initialize static constants for your meter and a custom counter.
+
+<Callout variant="tip">
+  If you have already done the tracing tutorial, insert this under the tracing constants.
+</Callout>
+
+```
+<var>import io.opentelemetry.api.metrics.LongCounter;</var>
+<var>import io.opentelemetry.api.metrics.Meter;</var>
+
+@RestController
+public class Controller {
+
+  // Tracing constants
+  private static final Tracer TRACER = GlobalOpenTelemetry.getTracer(Controller.class.getName());
+  private static final AttributeKey<Long> ATTR_N = AttributeKey.longKey("fibonacci.n");
+  private static final AttributeKey<Long> ATTR_RESULT = AttributeKey.longKey("fibonacci.result");
+
+  <var>// Meter constants</var>
+  <var>private static final Meter METER =</var>
+  <var>GlobalOpenTelemetry.getMeterProvider().get(Application.class.getName());</var>
+  <var>private final LongCounter MY_COUNTER =</var>
+  <var>METER.counterBuilder("my-custom-counter").setDescription("A counter to count things").build();</var>
+. . .
+}
+```
+
+## H. Add a custom counter [#custom-counter]
+
+Next, place your counter within the `fibonacci()` method, and set an attribute for the metric:
+
+<Callout variant="tip">
+  If you've already completed the traces tutorial, you can insert this after you'v started the span.
+</Callout>
+
+```
+  private long fibonacci(long n) {
+    var span = TRACER.spanBuilder("fibonacci").startSpan();
+    span.setAttribute(ATTR_N, n);
+
+    <var>// A custom counter</var>
+    <var>MY_COUNTER.add(123, Attributes.of(AttributeKey.stringKey("MyKey"), "SomeValue"));</var>
+. . .
+  }
+```
+
+## F. Create environment variables for your OTLP exporter [#env-vars]
+
+Now, export the two environment variables you configured in your OTLP exporter. This method ensures your license key is not hardcoded. It also makes it simpler to update your OTLP endpoint.
+
+Before you create the environment variables, keep the following in mind:
+
+* Make sure to use your [ingest license key](https://docs.newrelic.com/docs/apis/intro-apis/new-relic-api-keys/#license-key):
+* By default, the OTLP exporter is pointed to one of [New Relic's OTLP endpoints](https://docs.newrelic.com/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/opentelemetry-setup#review-settings). You can override it by setting a different value, for instance, if your account is based in the EU:
+    * For US-based accounts: https://otlp.nr-data.net:4317
+    * For EU-based accounts: https://otlp.eu01.nr-data.net:4317
+* If you don't set the endpoint, the data will be exported to one of our OTLP endpoints by default, since you are setting it as the default in the code below.
+
+Complete the following:
+
+1. Add the following dependencies and code to `Application.java` so any environment variables you set can be picked up:
+
+    ```
+    <var>// Dependencies for resource configuration</var>
+    <var>import java.util.Optional;</var>
+    <var>import java.util.function.Function;</var>
+
+    @SpringBootApplication
+    public class Application {
+
+      public static void main(String[] args) {
+    . . .
+      }
+
+      private static OpenTelemetrySdk openTelemetrySdk() {
+        <var>// Environment variables for your OTLP exporters</var>
+        <var>var newrelicLicenseKey = getEnvOrDefault("NEW_RELIC_LICENSE_KEY", Function.identity(), "");</var>
+        <var>var newrelicOtlpEndpoint = getEnvOrDefault("OTLP_HOST", Function.identity(), "https://otlp.nr-data.net:4317");</var>
+
+        // Configure resource
+    . . .
+        // Bring it all together
+        return OpenTelemetrySdk.builder()
+            .setPropagators(ContextPropagators.create(W3CTraceContextPropagator.getInstance()))
+            .setTracerProvider(sdkTracerProviderBuilder.build())
+            .buildAndRegisterGlobal();
+      }
+
+      <var>private static <T> T getEnvOrDefault(</var>
+          <var>String key, Function<String, T> transformer, T defaultValue) {</var>
+        <var>return Optional.ofNullable(System.getenv(key))</var>
+            <var>.filter(s -> !s.isBlank())</var>
+            <var>.or(() -> Optional.ofNullable(System.getProperty(key)))</var>
+            <var>.filter(s -> !s.isBlank())</var>
+            <var>.map(transformer)</var>
+            <var>.orElse(defaultValue);</var>
+      <var>}</var>
+    }
+    ```
+
+2. Run these commands in your terminal:
+
+    ```
+    export newrelicLicenseKey=<your_license_key>
+    export newrelicOtlpEndpoint=https://otlp.nr-data.net:4317
+    ```
+
+## J. Exercise the app to generate some traffic [#exercise]
+
+You're finally ready to send some data to New Relic!
+
+1. To run the application, go to the `java` directory and execute this command:
+
+    ```
+    ./gradlew bootRun
+    ```
+
+    <Callout variant="tip">
+      If your terminal displays the Spring ASCII, it means your app has successfully built and is running:
+    </Callout>
+
+2. To generate traffic, open a new terminal tab, navigate to the `java` directory, and run this command:
+
+    ```
+    ./load-generator.sh
+    ```
+
+## K. View your data in New Relic [#view-data]
+
+You'll need to wait a few minutes for your trace data to show up in your New Relic account.
+
+1. Go to **[one.newrelic.com](https://one.newrelic.com/all-capabilities) > APM & services**.
+2. Click your entity (service).
+3. In the left pane, click **Metrics explorer** to view your counter metrics.
+
+For more details about viewing your data, see [OpenTelemetry in the New Relic UI](https://docs.newrelic.com/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/view-your-data/opentelemetry-distributed-tracing-page)
