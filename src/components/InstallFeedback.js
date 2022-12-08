@@ -36,7 +36,7 @@ const InstallFeedback = () => {
   };
 
   const location = useLocation();
-  const CAPTCHA_ACTION = 'installFeedback';
+  const CAPTCHA_ACTION = 'userFeedback';
 
   const recaptchaReady = () => {
     return new Promise((resolve, reject) => {
