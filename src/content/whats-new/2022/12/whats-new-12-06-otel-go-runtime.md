@@ -2,7 +2,7 @@
 title: 'Observe Golang runtime for OpenTelemetry services' 
 summary: 'Diagnose problems in the Golang runtime for services instrumented with OpenTelemetry' 
 releaseDate: '2022-12-06' 
-getStartedLink: '' 
+getStartedLink: 'https://docs.newrelic.com/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/view-your-data/opentelemetry-go-runtime-page/' 
 ---
 A new **Go runtime** page for services instrumented with OpenTelemetry allows you to identify service instances with unusual or unhealthy performance patterns. You can compare the key service health and Go runtime metrics over time, across any number of instances.
 
