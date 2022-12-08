@@ -1,0 +1,544 @@
+---
+title: OpenTelemetry tutorial: Manual instrumentation of Java app with spans
+tags:
+  - Integrations
+  - Open source telemetry integrations
+  - OpenTelemetry
+metaDescription: You can set up OpenTelemetry to monitor a simple Java app with spans.
+---
+
+
+To help you see how manual instrumentation works in a simple Java app, try out this tutorial that highlights traces. Traces allow you to see what happens when a user or an application makes a request in your service.
+
+Each trace is made up of spans, which represent a logical unit of work or an operation within a particular request. You will learn how to create and end a span, set an attribute on a span, and record an exception, which is captured on the span as a span event.
+
+<Callout variant="tip">
+  If you have any questions about the status of traces in the OpenTelemetry prject, see the [signal statuses](https://opentelemetry.io/docs/instrumentation/java/#status-and-releases).
+</Callout>
+
+During this tutorial for generating and exporting traces, you'll be doing the following:
+
+* Download the demo program
+* Add OpenTelemetry dependencies
+* Configure a resource, tracer provider, and exporter
+* Export your license key as an environment variable
+* Instrument the code
+* Set a span attribute
+* Record an exception
+* Exercise the app to generate traffic
+* View your data in the New Relic UI
+
+Complete the sections in the order they appear:
+
+## Download the demo application [#download]
+
+Start by cloning the demo application, which generates the nth number in the Fibonacci sequence:
+
+```
+git clone git@github.com:reese-lee/getting-started-guides.git
+```
+
+## Add OpenTelemetry Dependencies [#dependencies]
+
+To add dependencies, 
+
+1. Go to the application's `java` directory.
+
+    ```
+    cd Uninstrumented/java
+    ```
+2. Open `build.gradle` in your preferred text editor:
+3. Add the following in the `dependencies` block of the build.gradle file:
+
+    ```
+
+    dependencies {
+        implementation 'org.springframework.boot:spring-boot-starter-web'
+        testImplementation 'org.springframework.boot:spring-boot-starter-test'
+
+        implementation platform('io.opentelemetry:opentelemetry-bom:1.18.0')
+        implementation platform('io.opentelemetry:opentelemetry-bom-alpha:1.18.0-alpha')
+        implementation platform('io.opentelemetry.instrumentation:opentelemetry-instrumentation-bom-alpha:1.18.0-alpha')
+        implementation 'io.opentelemetry:opentelemetry-api'
+        implementation 'io.opentelemetry:opentelemetry-sdk'
+        implementation 'io.opentelemetry:opentelemetry-exporter-otlp'
+        implementation 'io.opentelemetry.instrumentation:opentelemetry-spring-webmvc-5.3'
+    }
+    ```
+
+Notes:
+
+* The `bom` (bill of materials) dependencies are used to synchronize versions of dependencies for a particular ecosystem. Since OpenTelemetry publishes a lot of Java components, these help ensure that all the versions are synchronized, whether you use just a few or a lot of them.
+* The remaining dependencies provide access to the SDK, API, OTLP exporter, and instrumentation libraries.
+
+
+Complete the following:
+
+Configure a resource
+Configure a tracer provider
+Configure an OTLP span exporter
+Return the SDK
+
+NOTE: Java users also have the option of using the [SDK autoconfigure extension module](https://github.com/open-telemetry/opentelemetry-java/tree/main/sdk-extensions/autoconfigure) to configure the SDK; see [here](#SDK-auto-config) for how to set this up. This extension only impacts the SDK configuration; you will still need to instrument the application following the instrumentation steps in this guide.
+
+## Configure a resource [#provide-resource]
+
+A resource in OpenTelemetry represents information about an entity generating telemetry data. You'll learn how to associate all telemetry data you send to New Relic with a resource so it can be linked with the appropriate entity in New Relic.
+
+1. Go to the app's source code directory:
+
+    ```
+    cd src/main/java/com/example/demo
+    ```
+2. Open `Application.java`.
+3. Configure an instance of the OpenTelemetry SDK as early as possible, so add the following to the main function block:
+
+    ```
+    @SpringBootApplication
+    public class Application {
+
+      public static void main(String[] args) {
+        // Configure OpenTelemetry as early as possible
+        var openTelemetrySdk = openTelemetrySdk();
+
+        SpringApplication.run(Application.class, args);
+      }
+    }
+    ```
+4. Import the necessary dependencies and add the following code directly under the `main` function block:
+
+    ```
+    // Dependencies for resource configuration
+    import io.opentelemetry.api.GlobalOpenTelemetry;
+    import io.opentelemetry.sdk.OpenTelemetrySdk;
+    import io.opentelemetry.sdk.resources.Resource;
+    import io.opentelemetry.semconv.resource.attributes.ResourceAttributes;
+    import java.util.UUID;
+
+    @SpringBootApplication
+    public class Application {
+
+      public static void main(String[] args) {
+    . . .
+    }
+
+      private static OpenTelemetrySdk openTelemetrySdk() {
+          // Configure resource
+          var resource =
+              Resource.getDefault().toBuilder()
+                .put(ResourceAttributes.SERVICE_NAME, "getting-started-java")
+                .put(ResourceAttributes.SERVICE_INSTANCE_ID, UUID.randomUUID().toString())
+                .build();
+      }
+    . . .
+    }
+    ```
+
+Notes:
+
+* `SERVICE_NAME` defines your app name and will be how you identify your service in New Relic. This value is also how you associate all the telemetry data generated by this app with an entity in New Relic, and allows you to scope your queries to a specific entity.
+* `SERVICE_INSTANCE_ID` is required to light up certain New Relic features; it will allow you to differentiate between hosts.
+
+## Configure a tracer provider [#trace-provider]
+
+The tracer provider will create a [Tracer](https://opentelemetry.io/docs/concepts/signals/traces/#tracer), which creates spans that contain more information about a given operation, such as a service request. You will instantiate the tracer in the [instrumentation steps](#LINK) in Step 3.
+
+Continue in `Application.java` and add the following:
+
+``` 
+// Dependencies for tracing 
+import io.opentelemetry.sdk.trace.SdkTracerProvider;
+import io.opentelemetry.sdk.trace.SpanLimits;
+import io.opentelemetry.sdk.trace.export.BatchSpanProcessor;
+import io.opentelemetry.exporter.otlp.trace.OtlpGrpcSpanExporter; 
+import io.opentelemetry.api.common.Attributes;
+import io.opentelemetry.context.propagation.ContextPropagators;
+
+@SpringBootApplication
+public class Application {
+
+  public static void main(String[] args) {
+    // Configure OpenTelemetry as early as possible
+    var openTelemetrySdk = openTelemetrySdk();
+
+    SpringApplication.run(Application.class, args);
+  }
+
+  private static OpenTelemetrySdk openTelemetrySdk() {
+    // Configure resource
+. . .
+    // Configure tracer provider
+    var sdkTracerProviderBuilder =
+        SdkTracerProvider.builder()
+            .setResource(resource)
+            // New Relic's max attribute length is 4095 characters
+            .setSpanLimits(
+                SpanLimits.getDefault().toBuilder().setMaxAttributeValueLength(4095).build());
+
+}
+```
+
+Notes:
+
+Setting a limit on the maximum attribute value length will prevent span data from getting dropped if it exceeds [New Relic's limit](https://docs.newrelic.com/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/best-practices/opentelemetry-best-practices-attributes/).
+
+## Configure an OTLP span exporter
+
+This is the component that sends spans from your application to New Relic. 
+
+Continue in `Application.java` and add this directly under the tracer provider:
+
+```
+  private static OpenTelemetrySdk openTelemetrySdk() {
+    // Configure resource
+    var resource =
+        Resource.getDefault().toBuilder()
+          .put(ResourceAttributes.SERVICE_NAME, "getting-started-java")
+          .put(ResourceAttributes.SERVICE_INSTANCE_ID, UUID.randomUUID().toString())
+          .build();
+
+    // Configure tracer provider
+    var sdkTracerProviderBuilder =
+        SdkTracerProvider.builder()
+            .setResource(resource)
+            // New Relic's max attribute length is 4095 characters
+            .setSpanLimits(
+                SpanLimits.getDefault().toBuilder().setMaxAttributeValueLength(4095).build());
+                
+    // Add otlp span exporter
+    var spanExporterBuilder =
+    OtlpGrpcSpanExporter.builder()
+      .setEndpoint(newrelicOtlpEndpoint)
+      .setCompression("gzip")
+      .addHeader("api-key", newrelicLicenseKey);
+    sdkTracerProviderBuilder.addSpanProcessor(
+      BatchSpanProcessor.builder(spanExporterBuilder.build()).build());
+
+  }
+```
+
+Notes:
+
+* You will set both of the following environment variables in [Step 2a](#LINK):
+* The `newrelicOtlpEndpoint` env var is how you configure where the generated data will be exported to. 
+* The `newrelicLicenseKey` env var is how you configure which New Relic account you want your data exported to. 
+* Setting `gzip` compression allows you to maximize the amount of data you can send per request; New Relic's maximum allowed payload size is 1MB (10^6 bytes). 
+
+## Return the SDK [#return-sdk]
+
+Bring it all together by returning the SDK. In `Application.java`, add the following code under your span exporter builder:
+
+```
+  private static OpenTelemetrySdk openTelemetrySdk() {
+    // Configure resource
+. . .
+    // Configure tracer provider
+    var sdkTracerProviderBuilder =
+        SdkTracerProvider.builder()
+            .setResource(resource)
+            // New Relic's max attribute length is 4095 characters
+            .setSpanLimits(
+                SpanLimits.getDefault().toBuilder().setMaxAttributeValueLength(4095).build());
+ 
+   // Add otlp span exporter
+    var spanExporterBuilder =
+        OtlpGrpcSpanExporter.builder()
+            .setEndpoint(newrelicOtlpEndpoint)
+            .setCompression("gzip")
+            .addHeader("api-key", newrelicLicenseKey);
+    sdkTracerProviderBuilder.addSpanProcessor(
+        BatchSpanProcessor.builder(spanExporterBuilder.build()).build());    
+
+    // Bring it all together
+    return OpenTelemetrySdk.builder()
+        .setPropagators(ContextPropagators.create(W3CTraceContextPropagator.getInstance()))
+        .setTracerProvider(sdkTracerProviderBuilder.build())
+        .buildAndRegisterGlobal();
+  }
+```
+
+## Create environment variables for your OTLP exporter [#env-vars]
+
+Now, you're going to export the two environment variables you configured in your OTLP exporter. This method ensures your license key is not hardcoded, and makes it simpler to update your OTLP endpoint (if you don't set the endpoint, the data will be exported to one of our OTLP endpoints by default, since you are setting it as the default in the code below).
+
+Before you create the environment variables, keep the following in mind:
+
+* Make sure to use your [ingest license key](https://docs.newrelic.com/docs/apis/intro-apis/new-relic-api-keys/#license-key):
+* By default, the OTLP exporter is pointed to one of [New Relic's OTLP endpoints](https://docs.newrelic.com/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/opentelemetry-setup#review-settings). You can override it by setting a different value, for instance, if your account is based in the EU:
+    * For US-based accounts: https://otlp.nr-data.net:4317
+    * For EU-based accounts: https://otlp.eu01.nr-data.net:4317
+
+Complete the following:
+
+1. Add the following dependencies and code to `Application.java` so any environment variables you set can be picked up:
+
+    ```
+    // Dependencies for resource configuration
+    import java.util.Optional;
+    import java.util.function.Function;
+
+    @SpringBootApplication
+    public class Application {
+
+      public static void main(String[] args) {
+    . . .
+      }
+
+      private static OpenTelemetrySdk openTelemetrySdk() {
+        // Environment variables for your OTLP exporters
+        var newrelicLicenseKey = getEnvOrDefault("NEW_RELIC_LICENSE_KEY", Function.identity(), "");
+        var newrelicOtlpEndpoint = getEnvOrDefault("OTLP_HOST", Function.identity(), "https://otlp.nr-data.net:4317");
+
+        // Configure resource
+    . . .
+        // Bring it all together
+        return OpenTelemetrySdk.builder()
+            .setPropagators(ContextPropagators.create(W3CTraceContextPropagator.getInstance()))
+            .setTracerProvider(sdkTracerProviderBuilder.build())
+            .buildAndRegisterGlobal();
+      }
+
+      private static <T> T getEnvOrDefault(
+          String key, Function<String, T> transformer, T defaultValue) {
+        return Optional.ofNullable(System.getenv(key))
+            .filter(s -> !s.isBlank())
+            .or(() -> Optional.ofNullable(System.getProperty(key)))
+            .filter(s -> !s.isBlank())
+            .map(transformer)
+            .orElse(defaultValue);
+      }
+    }
+    ```
+
+2. Run the commands below in your terminal:
+
+    ```
+    export newrelicLicenseKey=<your_license_key>
+    export newrelicOtlpEndpoint=https://otlp.nr-data.net:4317
+    ```
+
+## Instrument the code: Provide automatic base instrumentation [#initial-instrum]
+
+At this point, you have successfully configured your OpenTelemetry resource for tracing. You are now going to instrument the application code.
+
+
+First, open your Application.java file and 
+
+1. In  `Application.java`, add the following code to provide automatic base instrumentation for Spring web applications:
+
+    ```
+    // Dependencies for tracing
+    import io.opentelemetry.instrumentation.spring.webmvc.v5_3.SpringWebMvcTelemetry;
+    . . .
+
+    @SpringBootApplication
+    public class Application {
+
+      public static void main(String[] args) {
+        // Configure OpenTelemetry as early as possible
+        var openTelemetrySdk = openTelemetrySdk();
+
+        SpringApplication.run(Application.class, args);
+      }
+
+      private static OpenTelemetrySdk openTelemetrySdk() {
+    . . .
+      }
+
+      private static <T> T getEnvOrDefault(
+    . . .
+      }
+
+      // Add Spring WebMVC instrumentation by registering a tracing filter
+      @Bean
+      public Filter webMvcTracingFilter() {
+        return SpringWebMvcTelemetry.create(GlobalOpenTelemetry.get()).createServletFilter();
+      }
+    }
+    ```
+
+2. Complete instrumentation by going to `Controller.java` and adding the following code:
+
+    ```
+    import io.opentelemetry.api.GlobalOpenTelemetry;
+
+    // Dependencies for tracing
+    import io.opentelemetry.api.trace.Tracer;
+    import io.opentelemetry.api.trace.StatusCode;
+    import io.opentelemetry.api.trace.Span;
+    import io.opentelemetry.api.common.Attributes;
+    import io.opentelemetry.api.common.AttributeKey;
+
+    @RestController
+    public class Controller {
+
+      private static final Tracer TRACER = GlobalOpenTelemetry.getTracer(Controller.class.getName());
+      private static final AttributeKey<Long> ATTR_N = AttributeKey.longKey("fibonacci.n");
+      private static final AttributeKey<Long> ATTR_RESULT = AttributeKey.longKey("fibonacci.result");
+
+      @GetMapping(value = "/fibonacci")
+      public Map<String, Object> ping(@RequestParam(required = true, name = "n") long n) {
+        return Map.of("n", n, "result", fibonacci(n));
+      }
+    . . .
+    }
+    ```
+    <Callout variant="tip">
+      The [Tracer](https://opentelemetry.io/docs/concepts/signals/traces/#tracer) creates spans, and the static constants are set to hold two attribute keys, which you will use later to provide request-level insights in your spans. 
+    </Callout>
+
+## Instrument the code: Set a span attribute [#set-span-attrib]
+
+You have the freedom to create whatever spans you want, and it is up to you to annotate your spans with attributes on specific operations. The attributes you set will provide additional context about the specific operation you are tracking, such as results or operation properties.
+
+1. In your `Controller.java`, locate `fibonacci()` and add the following code to start a new span and set your first attribute:
+
+    ```
+      private long fibonacci(long n) {
+        // Start a new span and set your first attribute
+        var span = TRACER.spanBuilder("fibonacci").startSpan();
+        span.setAttribute(ATTR_N, n);
+
+        try {
+    . . .
+        }
+      }
+    ```
+    <Callout variant="tip">
+      This creates a span called `fibonacci` that captures data about the execution of this method, starting with an attribute that stores the value of n from the user's request. 
+    </Callout>
+
+2. To obtain additional granularity into your code, add these attributes to your span to store information about successful requests:
+
+    ```
+    private long fibonacci(long n) {
+      // Start a new span and set your first attribute
+      var span = TRACER.spanBuilder("fibonacci").startSpan();
+      span.setAttribute(ATTR_N, n);
+      try {
+        if (n < 1 || n > 90) {
+          throw new IllegalArgumentException("n must be 1 <= n <= 90.");
+        }
+
+        // Base cases
+        if (n == 1) {
+          span.setAttribute(ATTR_RESULT, 1);
+          return 1;
+        }
+        if (n == 2) {
+          span.setAttribute(ATTR_RESULT, 1);
+          return 1;
+        }
+
+        long lastLast = 1;
+        long last = 2;
+        for (long i = 4; i <= n; i++) {
+          long cur = last + lastLast;
+          lastLast = last;
+          last = cur;
+        }
+        span.setAttribute(ATTR_RESULT, last);
+        return last;
+      } catch (IllegalArgumentException e) {
+        throw e;
+      } finally {
+      }
+    }
+    ```
+
+## Instrument the code: Record an exception
+
+You may want to record exceptions as they happen, so we recommend you do this in conjunction with setting the span status. 
+
+1. Set your span as the current span, then set the status code to error in the event of an exception, and end the span:
+
+    ```
+      private long fibonacci(long n) {
+        // Start a new span and set your first attribute
+        var span = TRACER.spanBuilder("fibonacci").startSpan();
+        span.setAttribute(ATTR_N, n);
+
+        // Set the span as the current span
+        try (var scope = span.makeCurrent()) { 
+          if (n < 1 || n > 90) {
+            throw new IllegalArgumentException("n must be 1 <= n <= 90.");
+          }
+
+          // Base cases
+          if (n == 1) {
+            span.setAttribute(ATTR_RESULT, 1);
+            return 1;
+          }
+          if (n == 2) {
+            span.setAttribute(ATTR_RESULT, 1);
+            return 1;
+          }
+
+          long lastLast = 1;
+          long last = 2;
+          for (long i = 4; i <= n; i++) {
+            long cur = last + lastLast;
+            lastLast = last;
+            last = cur;
+          }
+          span.setAttribute(ATTR_RESULT, last);
+          return last;
+        } catch (IllegalArgumentException e) {
+            // Record the exception and set the span status
+            span.recordException(e).setStatus(StatusCode.ERROR, e.getMessage());
+          throw e;
+        } finally {
+            // End the span
+            span.end();
+        }
+      }
+    ```
+    <Callout variant="tip">
+      This method throws an `IllegalArgumentException` if a user provides invalid input; when this happens, the exception is recorded as an event on the span and the span's status will be set to `ERROR`. The exception message is captured as the status description. Before moving to the next step, end the span.
+    </Callout>
+
+2. In `handleException()` in the `ErrorHandler` class, set the status for the span to `ERROR`:
+
+    ```
+    @ControllerAdvice
+    private static class ErrorHandler {
+
+      @ExceptionHandler({
+              IllegalArgumentException.class,
+              MissingServletRequestParameterException.class,
+              HttpRequestMethodNotSupportedException.class
+      })
+      public ResponseEntity<Object> handleException(Exception e) {
+        // Set the span status and description
+        Span.current().setStatus(StatusCode.ERROR, e.getMessage());
+
+        return new ResponseEntity<>(Map.of("message", e.getMessage()), HttpStatus.BAD_REQUEST);
+      }
+
+    }
+    ```
+
+Just like before, this sets the span's status code if the user inputs an invalid number. However, because this happens in the exception handler, rather than in `fibonacci()`, the current span is the parent span for the request. Now, when your application endpoint raises an exception, both the parent span and child span will have a span status of `ERROR`. 
+
+## Exercise the app to generate some traffic [#exercise]
+
+You're finally ready to send some data to New Relic:
+
+1. To run the application, navigate to the `java` directory and run this command:
+
+    ```
+    ./gradlew bootRun
+    ```
+    <Callout variant="tip">
+      If your terminal displays the Spring ASCII, it means your app has successfully built and is running: 
+    </Callout>
+
+2. To generate traffic, open a new terminal tab, navigate to the `java` directory, and run this command:
+
+    ```
+    ./load-generator.sh
+    ```
+
+## View your data in New Relic [#view-data]
+
+You're now ready to view your trace data in [your New Relic account](https://one.newrelic.com/)! Learn where to view it [here](https://docs.newrelic.com/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/view-your-data/opentelemetry-distributed-tracing-page). 
