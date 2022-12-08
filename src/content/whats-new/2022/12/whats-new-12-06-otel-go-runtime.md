@@ -14,6 +14,6 @@ With this data, you can:
 
 ![Comparison view with timeseries charts, showing Go runtime instances with different throughput rates, as well as different garbage collection behavior](./images/whats-new-otel-go-runtime.png "Comparison view with timeseries charts, showing Go runtime instances with different throughput rates, as well as different garbage collection behavior")
 
-On the new Go runtime page, you can choose several service instances to compare, based on summaries of key metrics: response time, throughput, error rate, garbage collection time, and memory usage. Then, you can compare all those instances' Go runtime metrics collected by OpenTelemetry instrumentation using timeseries charts to spot problems.
+The new Go runtime page is based on summaries of key metrics: response time, throughput, error rate, garbage collection time, and memory usage. You can use these key metrics to compare several service instances. You can also compare all those instances' Go runtime metrics collected by OpenTelemetry instrumentation using timeseries charts to spot problems.
 
 The New Relic Go runtime page is available today for OpenTelemetry services instrumented with the `runtime` package from [opentelemetry-go-contrib](https://github.com/open-telemetry/opentelemetry-go-contrib/tree/main/instrumentation), version 1.4.0 or later.
