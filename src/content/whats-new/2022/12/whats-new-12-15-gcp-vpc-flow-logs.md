@@ -1,14 +1,14 @@
 ---
-title: 'We’re making it easier monitor network issues with support for Google VPC Flow Logs’
+title: 'We’re making it easier monitor network issues with support for GCP VPC Flow Logs’
 summary: 'Reduce MTTR by understanding metrics and diagnosing network issues faster'
 releaseDate: '2022-12-15'
 learnMoreLink: 'https://docs.newrelic.com/docs/network-performance-monitoring/setup-performance-monitoring/cloud-flow-logs/gcp-vpc-flow-log-monitoring/' 
 getStartedLink: 'https://one.newrelic.com/nr1-core?&state=bd947742-3034-63b7-7196-8baaf36dd8d9'
 ---
 
-## We’re expanding our network monitoring cloud flow logs integration to support Google VPC for your multi-cloud environments
+## We’re expanding our network monitoring cloud flow logs integration to support Google Cloud Platform Virutal Private Cloud flow logs
 
-We’re making it easier to understand your virtual private cloud (VPC) networks by adding support for Google VPC flow log data. With VPC flow logs running across your GCP estates, you can quickly understand key insights for performance analytics and troubleshooting network connectivity. 
+We’re making it easier to understand your virtual private cloud (VPC) networks by adding support for GCP VPC flow log data. With VPC flow logs running across your GCP estates, you can quickly understand key insights for performance analytics and troubleshooting network connectivity. 
 
 Google Virtual Private Cloud (GCP VPC) enables you to launch resources into an isolated and secure virtual network with the benefits of using GCP scaling infrastructure. 
 
@@ -21,6 +21,7 @@ By using our network monitoring solution to monitor VPC flow logs from across yo
 3. Explore flow log deviations to look for unexpected changes in network volume or health.
 4. Diagnose overly restrictive security group rules or potentially malicious traffic issues
 
+Start monitoring your GCP Cloud Flow Logs [here](https://one.newrelic.com/marketplace?account=1606862&state=5d7bff4d-3d87-db8c-0e34-3aaf1094ee7e
 
 ## How to get started
 
