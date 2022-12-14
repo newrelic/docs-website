@@ -10,7 +10,7 @@ getStartedLink: 'https://one.newrelic.com/nr1-core?&state=bd947742-3034-63b7-719
 
 We’re making it easier to understand your virtual private cloud (VPC) networks by adding support for GCP VPC flow log data. With VPC flow logs running across your GCP estates, you can quickly understand key insights for performance analytics and troubleshooting network connectivity. 
 
-Google Virtual Private Cloud enables you to launch resources into an isolated and secure virtual network with the benefits of using GCP scaling infrastructure. 
+Google VPC enables you to launch resources into an isolated and secure virtual network with the benefits of using GCP scaling infrastructure. 
 
 !["Screenshot showing GCP VPC Flow Logs visualized in New Relic"](./images/GCP-Flow-Logs-1.png "Screenshot showing GCP VPC Flow Logs visualized in New Relic")
 
