@@ -22,6 +22,11 @@ import TechTile from './TechTile';
 import WhatsNextTile from './WhatsNextTile';
 
 const defaultComponents = {
+  a: ({ href, children }) => (
+    <Link to={href} displayExternalIcon={href?.startsWith('http')}>
+      {children}
+    </Link>
+  ),
   img: (props) =>
     props.style || props.variant === 'TechTile' ? (
       <img
