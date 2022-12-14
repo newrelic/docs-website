@@ -12,7 +12,7 @@ We’re making it easier to understand your virtual private cloud (VPC) networks
 
 Google Virtual Private Cloud (GCP VPC) enables you to launch resources into an isolated and secure virtual network with the benefits of using GCP scaling infrastructure. 
 
-[GCP-VPC-Flow-Logs-1]
+!["Screenshot showing GCP VPC Flow Logs visualized in New Relic"](./images/GCP-Flow-Logs-1.png "Screenshot showing GCP VPC Flow Logs visualized in New Relic")
 
 By using our network monitoring solution to monitor VPC flow logs from across your GCP environments, you can:
 
