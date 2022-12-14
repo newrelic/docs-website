@@ -21,7 +21,7 @@ By using our network monitoring solution to monitor VPC flow logs from across yo
 3. Explore flow log deviations to look for unexpected changes in network volume or health.
 4. Diagnose overly restrictive security group rules or potentially malicious traffic issues
 
-Start monitoring your GCP Cloud Flow Logs [here](https://one.newrelic.com/marketplace?account=1606862&state=5d7bff4d-3d87-db8c-0e34-3aaf1094ee7e
+Start monitoring your GCP Cloud Flow Logs [here](https://one.newrelic.com/marketplace?account=1606862&state=5d7bff4d-3d87-db8c-0e34-3aaf1094ee7e)
 
 ## How to get started
 
