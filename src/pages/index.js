@@ -42,6 +42,7 @@ const HomePage = ({ data }) => {
         css={css`
           font-size: 3.5rem;
           font-weight: 500;
+          line-height: 1;
           @media screen and (max-width: ${mobileBreakpoint}) {
             font-size: 1.5rem;
           }
@@ -211,7 +212,7 @@ HomePage.propTypes = {
 };
 
 export const pageQuery = graphql`
-  query($slug: String!, $locale: String) {
+  query {
     site {
       layout {
         contentPadding
@@ -238,7 +239,6 @@ export const pageQuery = graphql`
         }
       }
     }
-    ...MainLayout_query
   }
 `;
 

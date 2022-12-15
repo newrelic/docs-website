@@ -2,6 +2,7 @@ import {
   ExternalLink,
   Link,
   Lightbox,
+  MDXLink,
   MDX,
   MarkdownContainer,
   Tabs,
@@ -22,6 +23,7 @@ import TechTile from './TechTile';
 import WhatsNextTile from './WhatsNextTile';
 
 const defaultComponents = {
+  a: (props) => <MDXLink {...props} displayExternalIcon />,
   img: (props) =>
     props.style || props.variant === 'TechTile' ? (
       <img
