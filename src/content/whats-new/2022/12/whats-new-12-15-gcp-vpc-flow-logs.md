@@ -1,5 +1,5 @@
 ---
-title: 'We’re making it easier monitor network issues with support for GCP VPC Flow Logs’
+title: "We’re making it easier monitor network issues with support for GCP VPC Flow Logs"
 summary: 'Reduce MTTR by understanding metrics and diagnosing network issues faster'
 releaseDate: '2022-12-15'
 learnMoreLink: 'https://docs.newrelic.com/docs/network-performance-monitoring/setup-performance-monitoring/cloud-flow-logs/gcp-vpc-flow-log-monitoring/' 
