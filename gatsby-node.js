@@ -99,24 +99,6 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
         }
       }
 
-      allI18nMdx: allMdx(
-        filter: { fileAbsolutePath: { regex: "/src/i18n/content/" } }
-      ) {
-        edges {
-          node {
-            fields {
-              fileRelativePath
-              slug
-            }
-            frontmatter {
-              type
-              subject
-              translationType
-            }
-          }
-        }
-      }
-
       releaseNotes: allMdx(
         filter: {
           fileAbsolutePath: {
@@ -155,13 +137,6 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
         }
       }
 
-      allLocale {
-        nodes {
-          locale
-          isDefault
-        }
-      }
-
       allInstallConfig {
         edges {
           node {
@@ -179,19 +154,13 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
   }
 
   const {
-    allI18nMdx,
     allMarkdownRemark,
     allMdx,
     releaseNotes,
     landingPagesReleaseNotes,
-    allLocale,
     allInstallConfig,
     whatsNewPosts,
   } = data;
-
-  const locales = allLocale.nodes
-    .filter((locale) => !locale.isDefault)
-    .map(prop('locale'));
 
   externalRedirects.forEach(({ url, paths }) => {
     paths.forEach((path) => {
@@ -208,7 +177,6 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
     redirects?.length &&
       redirects.forEach((redirect) =>
         createLocalizedRedirect({
-          locales,
           fromPath: redirect,
           toPath: `/install/${agentName}/`,
           createRedirect,
@@ -228,7 +196,6 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
       const { redirects } = landingPage.frontmatter;
 
       createLocalizedRedirect({
-        locales,
         fromPath: path.join(landingPage.fields.slug, 'current'),
         toPath: nodes[0].fields.slug,
         isPermanent: false,
@@ -238,7 +205,6 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
       if (redirects) {
         redirects.forEach((fromPath) => {
           createLocalizedRedirect({
-            locales,
             fromPath,
             toPath: landingPage.fields.slug,
             isPermanent: false,
@@ -249,8 +215,6 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
     }
   });
 
-  const translatedContentNodes = allI18nMdx.edges.map(({ node }) => node);
-
   allMdx.edges.concat(allMarkdownRemark.edges).forEach(({ node }) => {
     const {
       fields: { slug },
@@ -260,7 +224,6 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
     if (redirects) {
       redirects.forEach((fromPath) => {
         createLocalizedRedirect({
-          locales,
           fromPath,
           toPath: slug,
           createRedirect,
@@ -269,23 +232,6 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
     }
 
     createPageFromNode(node, { createPage });
-
-    locales.forEach((locale) => {
-      const i18nNode = translatedContentNodes.find(
-        (i18nNode) =>
-          i18nNode.fields.slug.replace(`/${locale}`, '') === node.fields.slug
-      );
-
-      createPageFromNode(
-        i18nNode || node,
-        {
-          prefix: i18nNode ? '' : locale,
-          createPage,
-          disableSwiftype: !i18nNode,
-        },
-        false // disable DSG
-      );
-    });
   });
 
   whatsNewPosts.nodes.forEach((node) => {
@@ -294,7 +240,6 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
     } = node;
 
     createLocalizedRedirect({
-      locales,
       fromPath: slug.replace(/\/\d{4}\/\d{2}/, ''),
       toPath: slug,
       createRedirect,
@@ -396,7 +341,6 @@ exports.onCreatePage = ({ page, actions }) => {
 const createLocalizedRedirect = ({
   fromPath,
   toPath,
-  locales,
   redirectInBrowser = true,
   isPermanent = true,
   createRedirect,
@@ -411,15 +355,6 @@ const createLocalizedRedirect = ({
     toPath: appendTrailingSlash(toPath),
     isPermanent,
     redirectInBrowser,
-  });
-
-  locales.forEach((locale) => {
-    createRedirect({
-      fromPath: path.join(`/${locale}`, pathWithTrailingSlash),
-      toPath: appendTrailingSlash(path.join(`/${locale}`, toPath)),
-      isPermanent,
-      redirectInBrowser,
-    });
   });
 };
 
