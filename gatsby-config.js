@@ -93,17 +93,6 @@ module.exports = {
     {
       resolve: 'gatsby-source-filesystem',
       options: {
-        name: 'translated-content',
-        path: `${__dirname}/src/i18n/content`,
-        ignore:
-          process.env.BUILD_I18N === 'false'
-            ? [`${__dirname}/src/i18n/content/*`]
-            : [],
-      },
-    },
-    {
-      resolve: 'gatsby-source-filesystem',
-      options: {
         name: 'translated-nav',
         path: `${__dirname}/src/i18n/nav`,
       },
