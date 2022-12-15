@@ -283,7 +283,7 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
           createPage,
           disableSwiftype: !i18nNode,
         },
-        true // enable DSG
+        false // disable DSG
       );
     });
   });
@@ -401,10 +401,13 @@ const createLocalizedRedirect = ({
   isPermanent = true,
   createRedirect,
 }) => {
-  // Create redirects
+  // Create redirects for paths with and without a trailing slash
+  const pathWithTrailingSlash = hasTrailingSlash(fromPath)
+    ? fromPath
+    : path.join(fromPath, '/');
 
   createRedirect({
-    fromPath,
+    fromPath: pathWithTrailingSlash,
     toPath: appendTrailingSlash(toPath),
     isPermanent,
     redirectInBrowser,
@@ -412,7 +415,7 @@ const createLocalizedRedirect = ({
 
   locales.forEach((locale) => {
     createRedirect({
-      fromPath: path.join(`/${locale}`, fromPath),
+      fromPath: path.join(`/${locale}`, pathWithTrailingSlash),
       toPath: appendTrailingSlash(path.join(`/${locale}`, toPath)),
       isPermanent,
       redirectInBrowser,

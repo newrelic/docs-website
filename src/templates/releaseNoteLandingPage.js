@@ -6,10 +6,7 @@ import PageTitle from '../components/PageTitle';
 import Timeline from '../components/Timeline';
 import SEO from '../components/SEO';
 import { Button, Icon, Layout, Link } from '@newrelic/gatsby-theme-newrelic';
-import filter from 'unist-util-filter';
 import { TYPES } from '../utils/constants';
-
-const EXCERPT_LENGTH = 200;
 
 const sortByVersion = (
   { frontmatter: { version: versionA } },
@@ -113,8 +110,6 @@ const ReleaseNoteLandingPage = ({ data, pageContext, location }) => {
             return (
               <Timeline.Item label={date} key={date}>
                 {posts.sort(sortByVersion).map((post) => {
-                  const excerpt = getBestGuessExcerpt(post.mdxAST);
-
                   return (
                     <div
                       key={post.version}
@@ -143,8 +138,7 @@ const ReleaseNoteLandingPage = ({ data, pageContext, location }) => {
                           margin-bottom: 0;
                         `}
                       >
-                        {excerpt.slice(0, EXCERPT_LENGTH)}
-                        {excerpt.length > EXCERPT_LENGTH ? '…' : ''}
+                        {post.excerpt}
                       </p>
                     </div>
                   );
@@ -237,7 +231,6 @@ export const pageQuery = graphql`
       skip: $skip
     ) {
       nodes {
-        mdxAST
         fields {
           slug
         }
@@ -246,6 +239,7 @@ export const pageQuery = graphql`
           version
           releaseDate(formatString: "MMMM D, YYYY")
         }
+        excerpt
       }
     }
     mdx(fields: { slug: { eq: $slug } }) {
@@ -262,62 +256,5 @@ export const pageQuery = graphql`
     }
   }
 `;
-
-// copying in function from mdast-util-to-string so we can render list items with periods and spaces between
-function toString(node) {
-  const isList = node.type === 'list';
-  return (
-    (node &&
-      (node.value ||
-        node.alt ||
-        node.title ||
-        ('children' in node && all(node.children, isList)) ||
-        ('length' in node && all(node, isList)))) ||
-    ''
-  );
-}
-
-function all(values, isList) {
-  const result = [];
-  const length = values.length;
-  let index = -1;
-
-  while (++index < length) {
-    result[index] = toString(values[index]);
-  }
-  if (isList) {
-    const strippedPeriodResults = result.map((listItem) => {
-      if (listItem[listItem.length - 1] === '.') {
-        return listItem.slice(0, -1);
-      } else {
-        return listItem;
-      }
-    });
-    return strippedPeriodResults.join('. ');
-  } else {
-    return result.join('');
-  }
-}
-
-const getBestGuessExcerpt = (mdxAST) => {
-  const textTypes = [
-    'paragraph',
-    'list',
-    'listItem',
-    'text',
-    'root',
-    'link',
-    'inlineCode',
-  ];
-  const ast = filter(mdxAST, (node) => textTypes.includes(node.type));
-
-  return toString(
-    filter(
-      ast,
-      (node, idx, parent) =>
-        node.type === 'root' || parent.type !== 'root' || idx === 0
-    )
-  );
-};
 
 export default ReleaseNoteLandingPage;
