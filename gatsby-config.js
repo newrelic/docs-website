@@ -32,6 +32,7 @@ const autoLinkHeaders = {
 };
 
 module.exports = {
+  trailingSlash: 'always',
   flags: {
     DEV_SSR: true,
     PRESERVE_FILE_DOWNLOAD_CACHE: true,
@@ -105,10 +106,6 @@ module.exports = {
       options: {
         name: 'translated-nav',
         path: `${__dirname}/src/i18n/nav`,
-        ignore:
-          process.env.BUILD_I18N === 'false'
-            ? [`${__dirname}/src/i18n/nav/*`]
-            : [],
       },
     },
     {
@@ -227,10 +224,17 @@ module.exports = {
       },
     },
     `gatsby-transformer-yaml`,
+    `gatsby-transformer-plaintext`,
     {
       resolve: `gatsby-source-filesystem`,
       options: {
-        path: `./src/nav/`,
+        path: `./src/nav/generatedNav.yml`,
+      },
+    },
+    {
+      resolve: `gatsby-source-filesystem`,
+      options: {
+        path: `./src/nav/style-guide.yml`,
       },
     },
     {
