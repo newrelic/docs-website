@@ -221,6 +221,7 @@ module.exports = {
             ),
           },
         ],
+        lessBabel: true,
       },
     },
     `gatsby-transformer-yaml`,
