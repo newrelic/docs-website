@@ -112,16 +112,23 @@ const InstallPage = ({ data, location }) => {
 
   const renderStep = (step) => {
     const { overrides } = step;
-
+    let shouldNotRender = false;
     if (overrides) {
       for (const override of overrides) {
-        const { selectedOptions } = override;
-        const isOverrided = selectedOptions.every(matchOverride);
-
-        if (isOverrided) {
+        const { selectedOptions, addStep } = override;
+        const isOverridden = selectedOptions.every(matchOverride);
+        const hasAddOption = addStep;
+        if (isOverridden && hasAddOption) {
+          return { content: renderFromComponentType(step), step };
+        } else if (isOverridden) {
           return { content: renderFromComponentType(override), step: override };
+        } else if (hasAddOption) {
+          shouldNotRender = true;
         }
       }
+    }
+    if (shouldNotRender) {
+      return { content: null };
     }
     return { content: renderFromComponentType(step), step };
   };
@@ -345,6 +352,7 @@ export const pageQuery = graphql`
           mdx {
             ...MDXInstallFragment
           }
+          addStep
           skip
           selectedOptions {
             optionType
