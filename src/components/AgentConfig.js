@@ -7,7 +7,7 @@ import {
 } from '@newrelic/gatsby-theme-newrelic';
 import MDXContainer from './MDXContainer';
 
-const AgentConfig = ({ inputOptions, config, tipMdx, onChange }) => {
+const AgentConfig = ({ inputOptions, config, tipMdx, onChange, fileName }) => {
   const [state, setState] = useState([...inputOptions]);
   const { body } = tipMdx;
 
@@ -65,6 +65,7 @@ const AgentConfig = ({ inputOptions, config, tipMdx, onChange }) => {
       <InteractiveOutput
         inputs={state}
         config={config}
+        fileName={fileName}
         containerId="agent-config-codeblock"
         css={css`
           margin-top: 1rem;

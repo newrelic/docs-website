@@ -32,6 +32,7 @@ const autoLinkHeaders = {
 };
 
 module.exports = {
+  trailingSlash: 'always',
   flags: {
     DEV_SSR: true,
     PRESERVE_FILE_DOWNLOAD_CACHE: true,
@@ -223,6 +224,7 @@ module.exports = {
       },
     },
     `gatsby-transformer-yaml`,
+    `gatsby-transformer-plaintext`,
     {
       resolve: `gatsby-source-filesystem`,
       options: {
