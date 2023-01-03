@@ -95,7 +95,7 @@ exports.createSchemaCustomization = ({ actions }) => {
       filePath: String 
       mdx: Mdx
       skip: Boolean
-      addStep: Boolean
+      isConditionalStep: Boolean
       selectedOptions: [AppInfoSelectedOption]
     }
     type AppInfoSelectedOption @dontInfer {
