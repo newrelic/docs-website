@@ -66,5 +66,6 @@ module.exports = {
     'jsx-a11y/no-onchange': 'off',
     'react/react-in-jsx-scope': 'off',
     'react/prop-types': 'off',
+    'no-control-regex': 0,
   },
 };
