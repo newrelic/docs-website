@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { graphql } from 'gatsby';
 import { css } from '@emotion/react';
 import {
@@ -43,6 +43,7 @@ const InstallPage = ({ data, location }) => {
   const [showGuided, setShowGuided] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [agentConfigUpdate, setAgentConfigUpdate] = useState([]);
+  const [isHydrated, setIsHydrated] = useState(false);
 
   const tessen = useTessen();
 
@@ -162,6 +163,7 @@ const InstallPage = ({ data, location }) => {
       const { optionType } = frontmatter;
       return (
         <AppInfoConfigOption
+          showGuided={showGuided}
           onChange={handleAppInfoStateChange}
           selectOptions={selectOptions}
           optionType={optionType}
@@ -193,6 +195,14 @@ const InstallPage = ({ data, location }) => {
   }, []);
 
   const headings = walkthroughSteps.map(({ stepHeadings }) => stepHeadings);
+
+  useEffect(() => {
+    setIsHydrated(true);
+  }, []);
+
+  if (!isHydrated) {
+    return null;
+  }
 
   return (
     <>
