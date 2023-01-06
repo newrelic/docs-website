@@ -8,14 +8,14 @@ getStartedLink: 'https://newrelic.com/products/browser-monitoring'
 
 The new Web Vitals happy path in our browser monitoring experience exposes the best and worst performing pages, providing web developers with visibility into impacted users and minimizing MTTD during outages. You can favorite pages and drill into details on the best and worst performing sites, scoped down by the web vital you want to filter by.
 
-!["summary page"](./images/summarypage "Favorite pages and drill into details on site performance, underneath Core Web Vital metrics.")
+![summary page](./images/summarypage.png "Favorite pages and drill into details on site performance, underneath Core Web Vital metrics.")
 
 Your engineers can look at the pages that are getting the most throughput and traffic and prioritize fixing those first, as well as favorite them for the future. There are also updates to existing Web Vital functionality such as the Geography graphic and Device Type charts.
 
-!["line graph"](./images/linegraph "View a time series graph of page performance, filtered by Web Vital")
+![line graph](./images/linegraph.png "View a time series graph of page performance, filtered by Web Vital")
 
 For example, if you know that your end user base is coming specifically from two or three regions, you can favorite those regions, so that each time you log in you can just view what you care about where most of your users are coming from.
 
-!["filterable geo"](./images/geography "Our filterable map shows Web Vital performance by region; here high performing pages are highlighted in green.")
+![filterable geo](./images/geography.png "Our filterable map shows Web Vital performance by region; here high performing pages are highlighted in green.")
 
 Read more about New Relic’s browser monitoring capabilities [here](https://newrelic.com/platform/browser-monitoring).
