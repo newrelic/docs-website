@@ -14,7 +14,6 @@ Key features:
 * **Easily highlight problem areas** with a built-in screenshot tool, which you can share via Slack (or email, if you prefer).
 * **Capture institutional knowledge** as you go with an archive of ongoing discussions, answered questions, and resolved issues. 
 
-
 **How to get started** 
 * Check out our [documentation](https://docs.newrelic.com/docs/new-relic-solutions/new-relic-one/ui-data/collaborate/collaborate-with-teammates/) 
 * Read our [blog post](https://newrelic.com/blog/nerdlog/new-relic-collaboration) 
