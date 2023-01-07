@@ -17,7 +17,7 @@ Key features:
 **How to get started** 
 * Check out our [documentation](https://docs.newrelic.com/docs/new-relic-solutions/new-relic-one/ui-data/collaborate/collaborate-with-teammates/) 
 * Read our [blog post](https://newrelic.com/blog/nerdlog/new-relic-collaboration) 
-* See how it works in the demo video below.
+* See how it works in the demo video below
 
 <iframe width="560" height="315" src="https://fast.wistia.net/embed/iframe/m4b6y854wi" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" frameBorder="0" allowfullscreen="false" class="css-1b4920d"></iframe>
 
