@@ -196,6 +196,9 @@ const InstallPage = ({ data, location }) => {
 
   const headings = walkthroughSteps.map(({ stepHeadings }) => stepHeadings);
 
+  // this was added because were running into hydration issues when an
+  // appConfigOption was supposed to conditionally render after a selection
+  // was chosen
   useEffect(() => {
     setIsHydrated(true);
   }, []);
