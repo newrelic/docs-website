@@ -24,7 +24,7 @@ const NavFooter = ({ className }) => {
       className={className}
     >
       <ExternalLink
-        to="https://newrelic.com/instant-observability"
+        to="https://one.newrelic.com/marketplace"
         css={css`
           color: #00586f;
           font-size: 18px;
