@@ -19,6 +19,13 @@ import RootNavigation from '../components/RootNavigation';
 import NavFooter from '../components/NavFooter';
 import { useLocation, navigate } from '@reach/router';
 
+const SCROLL_OPTIONS = {
+  duration: 600,
+  delay: 0,
+  smooth: 'easeInOutQuart',
+  // containerId: 'nav',
+  offset: -5,
+};
 const MainLayout = ({ children, pageContext }) => {
   const { sidebarWidth, contentPadding } = useLayout();
   const { locale, slug } = pageContext;
@@ -46,14 +53,21 @@ const MainLayout = ({ children, pageContext }) => {
     const scrollElement = document.getElementsByName(pathName);
     if (location.pathname !== '/' && scrollElement.length === 1) {
       scroller.scrollTo(pathName, {
-        duration: 600,
-        delay: 0,
-        smooth: 'easeInOutQuart',
+        ...SCROLL_OPTIONS,
         containerId: 'nav',
-        offset: -5,
       });
     }
-  }, [location.pathname]);
+
+    const anchorId = location.hash;
+    if (!anchorId) return
+    const mainContentEl = document.querySelector(anchorId);
+    if (mainContentEl) {
+      scroller.scrollTo(mainContentEl, {
+        ...SCROLL_OPTIONS,
+        containerId: 'main-container'
+      });
+    }
+  }, [location.hash, location.pathname]);
 
   return (
     <>
