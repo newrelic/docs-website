@@ -2,8 +2,22 @@ import React from 'react';
 import { css } from '@emotion/react';
 import PropTypes from 'prop-types';
 import { ExternalLink, Icon } from '@newrelic/gatsby-theme-newrelic';
+import useTessen from '@newrelic/gatsby-theme-newrelic/src/hooks/useTessen';
 
 const NavFooter = ({ className }) => {
+  const tessen = useTessen();
+
+  const linkTo = 'https://one.newrelic.com/marketplace';
+
+  const handleCtaClick = () => {
+    tessen.track({
+      eventName: 'navFooterCtaClick',
+      category: 'NavFooter',
+      pageUrl: location.href,
+      linkTo,
+    });
+  };
+
   return (
     <div
       css={css`
@@ -24,7 +38,8 @@ const NavFooter = ({ className }) => {
       className={className}
     >
       <ExternalLink
-        to="https://one.newrelic.com/marketplace"
+        to={linkTo}
+        onClick={handleCtaClick}
         css={css`
           color: #00586f;
           font-size: 18px;
