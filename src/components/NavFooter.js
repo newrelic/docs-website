@@ -37,6 +37,9 @@ const NavFooter = ({ className }) => {
           position: relative;
           text-underline-offset: 10px;
         `}
+        instrumentation={{
+          component: 'navFooterCta',
+        }}
       >
         {t('nav.footer')}
         <Icon
