@@ -2,22 +2,8 @@ import React from 'react';
 import { css } from '@emotion/react';
 import PropTypes from 'prop-types';
 import { ExternalLink, Icon } from '@newrelic/gatsby-theme-newrelic';
-import useTessen from '@newrelic/gatsby-theme-newrelic/src/hooks/useTessen';
 
 const NavFooter = ({ className }) => {
-  const tessen = useTessen();
-
-  const linkTo = 'https://one.newrelic.com/marketplace';
-
-  const handleCtaClick = () => {
-    tessen.track({
-      eventName: 'navFooterCtaClick',
-      category: 'NavFooter',
-      pageUrl: location.href,
-      linkTo,
-    });
-  };
-
   return (
     <div
       css={css`
@@ -38,8 +24,7 @@ const NavFooter = ({ className }) => {
       className={className}
     >
       <ExternalLink
-        to={linkTo}
-        onClick={handleCtaClick}
+        to="https://newrelic.com/instant-observability"
         css={css`
           color: #00586f;
           font-size: 18px;
@@ -47,6 +32,9 @@ const NavFooter = ({ className }) => {
           position: relative;
           text-underline-offset: 10px;
         `}
+        instrumentation={{
+          component: 'navFooterCta',
+        }}
       >
         See our 500+ quickstarts
         <Icon
