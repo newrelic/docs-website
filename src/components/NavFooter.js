@@ -1,9 +1,14 @@
 import React from 'react';
 import { css } from '@emotion/react';
 import PropTypes from 'prop-types';
-import { ExternalLink, Icon } from '@newrelic/gatsby-theme-newrelic';
+import {
+  ExternalLink,
+  Icon,
+  useTranslation,
+} from '@newrelic/gatsby-theme-newrelic';
 
 const NavFooter = ({ className }) => {
+  const { t } = useTranslation();
   return (
     <div
       css={css`
@@ -32,8 +37,11 @@ const NavFooter = ({ className }) => {
           position: relative;
           text-underline-offset: 10px;
         `}
+        instrumentation={{
+          component: 'navFooterCta',
+        }}
       >
-        See our 500+ quickstarts
+        {t('nav.footer')}
         <Icon
           css={css`
             position: absolute;
