@@ -128,12 +128,12 @@ const HomePage = ({ data }) => {
         >
           <DocTile
             title={t('home.popularDocs.t1.title')}
-            label={{ text: 'Queries', color: '#F4CBE7' }}
+            label={{ text: 'Get started', color: '#F4CBE7' }}
             path="/docs/apm/new-relic-apm/getting-started/introduction-apm"
           />
           <DocTile
             title={t('home.popularDocs.t2.title')}
-            label={{ text: 'Log management', color: '#FCD672' }}
+            label={{ text: 'Security', color: '#FCD672' }}
             path="/docs/vulnerability-management/overview"
           />
           <DocTile
