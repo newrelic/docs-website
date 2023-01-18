@@ -5,4 +5,4 @@ events:
   - PageViewTiming
 ---
 
-Sent when the document becomes hidden to the user, which in modern practice signals the end of a user's session. This event always accompanies `windowUnload` but can also occurred when the user switches tab, for example.
+Sent when the document becomes hidden to the user, which in modern practice signals the _potential end_ of an user session. This event always accompanies `windowUnload` if that occurs, but it can also fire separately when the user switches tab, for example, in which case the unload isn't fired.
