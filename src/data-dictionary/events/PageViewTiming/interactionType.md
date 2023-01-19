@@ -5,8 +5,6 @@ events:
   - PageViewTiming
 ---
 
-The event type of the first interaction that occurs on the web app: pointerdown, mousedown, click, keydown, or touchstart.
-
 The event type of the first interaction that occurs on the web application. The type can be one of the following:
 
 *   `pointerdown`
