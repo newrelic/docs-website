@@ -130,6 +130,7 @@ const Override = object({
   filePath: optional(MdxFilePath),
   selectedOptions: array(SelectedOption),
   skip: optional(boolean()),
+  isConditionalStep: optional(boolean()),
 });
 
 const Step = object({
