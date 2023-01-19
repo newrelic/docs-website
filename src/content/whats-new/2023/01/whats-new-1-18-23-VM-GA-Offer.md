@@ -8,11 +8,11 @@ learnMoreLink: 'https://newrelic.com/blog/nerdlog/vulnerability-management'
 
 *General availability in the EU region planned for Feb 15, 2023.*
 
-Here at New Relic we know addressing security is now a shared responsibility between DevOps and Security teams. To help all teams monitor and manage all enterprise telemetry data in one place, we’re excited to announce the general availability of New Relic Vulnerability Management as part of the all-in-one observability platform experience.
+Here at New Relic we know that addressing security risks is now a shared responsibility between DevOps and Security teams. To help all teams monitor and manage their enterprise telemetry data in one place, we’re excited to announce the general availability of New Relic Vulnerability Management as part of the all-in-one observability platform experience.
 
-https://www.youtube.com/watch?v=BFVvvnPbVP0
+Development, security, and operations teams can now use one, connected experience to manage application security issues and avoid switching between siloed tools. All of this is available as part of New Relic’s radically simple and transparent consumption pricing, with a single add-on and a promotional offer to democratize observability, and security for all engineers.
 
-Now development, security, and operations teams can use one connected experience to manage application security issues and avoid switching between siloed tools. All of this is available as part of New Relic’s industry leading simple and transparent consumption pricing with a single add-on and a promotional offer to democratize observability, and security for all engineers.
+<iframe width="560" height="315" src="https://www.youtube.com/embed/BFVvvnPbVP0" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
 
 See performance and security issues in one connected experience with:
 
@@ -22,8 +22,8 @@ See performance and security issues in one connected experience with:
 * Automatic risk prioritization: Library security risk evaluation across your software stack, which is correlated with the service catalog to help you understand your security posture.
 * Alerting on newly discovered vulnerabilities: Notifications via Slack and webhooks when new vulnerabilities are introduced in your code base.
 
-**Get started with New Relic Vulnerability Management**
+## Get started with New Relic Vulnerability Management
 
-If you have a free account or if you are a Data Plus customer, you already have access to New Relic Vulnerability Management. If you have a standard account, you can enable New Relic Vulnerability Management as a single add-on for an additional $0.10/GB over your current data ingest price. If you purchase on or before Jan 31, 2023, you can take advantage of the limited promotion and lock in a 40% discount on the New Relic Vulnerability Management add-on for just an additional $0.06/GB for the remainder of your contract.
+If you have a free account or if you are a Data Plus customer, you already have access to New Relic Vulnerability Management. If you have a standard account, you can add Vulnerability Management to your current data ingest plan as a single add-on for an additional $0.10/GB. If you purchase on or before Jan 31, 2023, you can take advantage of our limited-time promotion and lock in a 40% discount on the New Relic Vulnerability Management add-on for just an additional **$0.06/GB** for the remainder of your contract.
 
-Click **[here](https://one.newrelic.com/vulnerability-management)** and start making your applications more secure.
+Click **[here](https://one.newrelic.com/vulnerability-management)** to start making your applications more secure.
