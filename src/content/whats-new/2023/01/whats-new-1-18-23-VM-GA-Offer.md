@@ -12,7 +12,7 @@ Here at New Relic we know addressing security is now a shared responsibility bet
 
 https://www.youtube.com/watch?v=BFVvvnPbVP0
 
-Now development, security, and operations teams can use one connected experience to manage application security issues and avoid switching between siloed tools. All of this is available as part of New Relic’s industry leading simple and transparent consumption pricing with a single add-on and a promotional offer to democratize observability and security for all engineers.
+Now development, security, and operations teams can use one connected experience to manage application security issues and avoid switching between siloed tools. All of this is available as part of New Relic’s industry leading simple and transparent consumption pricing with a single add-on and a promotional offer to democratize observability, and security for all engineers.
 
 See performance and security issues in one connected experience with:
 
@@ -22,8 +22,8 @@ See performance and security issues in one connected experience with:
 * Automatic risk prioritization: Library security risk evaluation across your software stack, which is correlated with the service catalog to help you understand your security posture.
 * Alerting on newly discovered vulnerabilities: Notifications via Slack and webhooks when new vulnerabilities are introduced in your code base.
 
-**Get started with New Relic Vulnerability Management.**
+**Get started with New Relic Vulnerability Management**
 
-If you have a free account or if you are a Data Plus customer, you already have access to New Relic Vulnerability Management. If you have a standard account, you can enable New Relic Vulnerability Management as a single add-on for an additional $0.10/GB over your current data ingest price. If you purchase on or before Jan 31, 2023, you can take advantage of the limited promotion and lock in a 40% discount on the New Relic Vulnerability Management add-on for just an additional $0.06/GB for the remainder of your contract1
+If you have a free account or if you are a Data Plus customer, you already have access to New Relic Vulnerability Management. If you have a standard account, you can enable New Relic Vulnerability Management as a single add-on for an additional $0.10/GB over your current data ingest price. If you purchase on or before Jan 31, 2023, you can take advantage of the limited promotion and lock in a 40% discount on the New Relic Vulnerability Management add-on for just an additional $0.06/GB for the remainder of your contract.
 
 Click **[here](https://one.newrelic.com/vulnerability-management)** and start making your applications more secure.
