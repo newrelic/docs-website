@@ -64,23 +64,19 @@ const BasicDoc = ({ data, location, pageContext }) => {
   const {
     title,
     metaDescription,
-    type,
+    tags,
     translationType,
     dataSource,
     isTutorial,
   } = frontmatter;
 
-  let { tags } = frontmatter;
+  let { type } = frontmatter;
 
   if (typeof window !== 'undefined' && typeof newrelic === 'object') {
     window.newrelic.setCustomAttribute('pageType', 'Template/DocPage');
   }
   if (isTutorial) {
-    if (tags?.length > 0) {
-      tags.push('tutorial');
-    } else {
-      tags = ['tutorial'];
-    }
+    type = 'tutorial';
   }
   return (
     <>
