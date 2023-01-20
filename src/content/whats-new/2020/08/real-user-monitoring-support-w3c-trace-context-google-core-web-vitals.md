@@ -1,10 +1,10 @@
 ---
-title: 'Real-user monitoring support for W3C trace context and Google Core Web Vitals '
+title: 'Real user monitoring support for W3C trace context and Google Core Web Vitals '
 summary: We've added support for W3C trace context and Google Core Web Vitals!
 releaseDate: '2020-08-26'
 ---
 
-While it has a new home within our [Full-Stack Observability](https://newrelic.com/platform/full-stack-observability) product, we’ve made improvements to our [Browser agent](https://newrelic.com/products/browser-monitoring) and [Real User Monitoring (RUM) capabilities](/docs/browser/new-relic-browser/getting-started/introduction-browser-monitoring), including:
+While it has a new home within our [Full-Stack Observability](https://newrelic.com/platform/full-stack-observability) product, we’ve made improvements to our [Browser agent](https://newrelic.com/products/browser-monitoring) and [real user monitoring capabilities](/docs/browser/new-relic-browser/getting-started/introduction-browser-monitoring), including:
 
 * [W3C trace context](https://www.w3.org/TR/trace-context/) standardization
 * [Cumulative Layout Shift](https://web.dev/cls/) to measure a page’s visual stability
