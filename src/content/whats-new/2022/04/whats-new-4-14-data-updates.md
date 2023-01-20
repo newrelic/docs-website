@@ -6,16 +6,11 @@ releaseDate: '2022-04-14'
 
 ## Introducing Data Plus (New!) 
 
-Starting June 1, 2022, customers on our [usage-based pricing model](https://docs.newrelic.com/docs/accounts/original-accounts-billing/original-product-based-pricing/overview-pricing-models) will be able to choose between our original data option and a new Data Plus option, listed at the promotional price of $0.50/GB ingested (includes $1.15/GB of value), to avoid ballooning data costs when scaling your observability practice. 
+Starting June 1, 2022, customers are able to choose between our original data option and a new [Data Plus option](/docs/accounts/accounts-billing/new-relic-one-pricing-billing/data-ingest-billing/#data-plus), listed at the promotional price of $0.50/GB ingested (includes $1.15/GB of value), to avoid ballooning data costs when scaling your observability practice. 
 
-Data Plus combines at-scale performance and governance capabilities in one simple, predictable, and affordable price per gigabyte which is 56%+ more cost effective than paying for each capability individually. Data Plus includes: 
+Data Plus combines at-scale performance and governance capabilities in one simple, predictable, and affordable price per gigabyte which is 56%+ more cost effective than paying for each capability individually. 
 
-* **Up to 90 days of data retention:** Instead of paying individual premiums for data indexing and retention of each data source, customers will be able to choose which data they want stored longer in New Relic without increasing their monthly costs.
-* **Up to 3x the max query limits and 2x the max query duration:** Engineers can inspect up to one trillion data points per 30 minutes and 100 billion data points per minute (compared to 300 billion data points per 30 minutes and 10 billion data points per minute). In addition, Data Plus customers get a max query duration of up to 2 minutes (compared to 60 seconds for our original data option).
-* **FedRAMP and HIPAA compliance:** New Relic Data Plus provides options for customers in highly regulated sectors to enable security configurations required for FedRAMP and HIPAA compliance. (Requires Enterprise edition.)
-* **Logs obfuscation:** Engineers can track logs obfuscation rules directly in the log management UI and create anonymous identifiers for sensitive log data such as personally identifiable information (PII), access tokens, and other private or regulated data.
-* **Cloud provider choice (coming soon):** Flexibility to run observability workloads on the cloud provider of your choice, AWS or Microsoft Azure, to align your telemetry storage with your engineering deployment model and cloud preference. 
-* **Enhanced streaming and historical data export (coming soon):** Ability to export New Relic data to external destinations for historical analysis and modeling, long-term storage, and integration with other data analytics platforms.
+**To see what you get with Data Plus, see [our Data Plus docs](/docs/accounts/accounts-billing/new-relic-one-pricing-billing/data-ingest-billing/#data-plus).** 
 
 ## Data ingest list price update 
 
