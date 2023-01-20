@@ -541,6 +541,7 @@ module.exports = {
             process.env.FEEDBACK_RECAPTCHA_TOKEN ||
             '6Lfn8wUiAAAAANBY-ZtKg4V9b4rdGZtJuAng62jo',
         },
+        newRelicRequestingServicesHeader: 'docs-website',
       },
     },
   ],
