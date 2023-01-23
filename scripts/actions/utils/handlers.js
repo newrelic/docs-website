@@ -187,6 +187,14 @@ module.exports = {
     serialize: serializeComponent,
     deserialize: deserializeComponent,
   },
+  Steps: {
+    serialize: serializeComponent,
+    deserialize: deserializeComponent,
+  },
+  Step: {
+    serialize: serializeComponent,
+    deserialize: deserializeComponent,
+  },
   Tabs: {
     serialize: serializeComponent,
     deserialize: deserializeComponent,
