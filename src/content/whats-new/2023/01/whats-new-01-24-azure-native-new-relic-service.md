@@ -32,6 +32,16 @@ Watch this Data Bytes video to learn how to onboard. For more specific configura
 
 <iframe width="560" height="315" src="https://youtu.be/48LHdqOMAsQ" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
 
+## Install New Relic agents easily from the Azure Portal
+
+After you’ve set up the New Relic integration, you’ll need to deploy our infrastructure and APM agents to get a fuller view of your stack, and we’ve made it easy to do so right from the Azure Portal. 
+
+![Install the New Relic infrastructure monitoring agent from the Azure Portal](./images/azure-native-new-relic-service-InfraAgentInstall.png "Install the New Relic infrastructure monitoring agent from the Azure Portal")
+Install the New Relic infrastructure monitoring agent from the Azure Portal
+
+![Install the New Relic APM agent from the Azure Portal](./images/azure-native-new-relic-service-APMAgentInstall.png "Install the New Relic APM agent from the Azure Portal")
+Install the New Relic APM agent from the Azure Portal
+
 ## Pay with Azure MACC Credits
 Microsoft Azure Consumption Commitment (MACC) is a commitment to spend a certain amount on Microsoft Azure services within a specific timeframe. By subscribing to the **Azure Native New Relic Service** through the Azure Marketplace, you can apply New Relic spend to retire your MACC.
 
