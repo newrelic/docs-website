@@ -165,6 +165,7 @@ module.exports = {
         // https://github.com/mdx-js/mdx/issues/1283
         //
         // If this is addressed in MDX v2, we can safely remove this.
+        lessBabel: true,
         remarkPlugins: [],
         rehypePlugins: [
           require('./rehype-plugins/image-sizing'),
