@@ -10,15 +10,14 @@ export const TOGGLE_VIEWS = {
   newUserView: 'new-user-view',
   defaultView: 'default-view',
 };
+import { useToggleViewContext } from './ToggleViewContext';
+
+export const TOGGLE_VIEWS = {
+  newUserView: 'new-user-view',
+  defaultView: 'default-view',
+};
 
 const ToggleSelector = () => {
-  const [currentView, setCurrentView] = useViewToggleContext();
-  const tessen = useTessen();
-
-  const TOGGLE_VIEWS = {
-    newUserView: 'new-user-view',
-    defaultView: 'default-view',
-  };
   const [currentView, setCurrentView] = useToggleViewContext();
   const tessen = useTessen();
 

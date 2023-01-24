@@ -14,7 +14,6 @@ const ToggleView = ({ children, id }) => {
         id !== currentView &&
         css`
           display: none;
-          display: none;
         `
       }
     >
