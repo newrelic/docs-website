@@ -13,11 +13,16 @@ import {
   useTranslation,
   useLoggedIn,
 } from '@newrelic/gatsby-theme-newrelic';
+import { useLoggedIn } from '@newrelic/gatsby-theme-newrelic/src/hooks/useLoggedIn';
+// these loggin hooks might need to be exported from gatsby-theme-newrelic/index.js like our other hooks.
+
 import SurfaceLink from '../components/SurfaceLink';
 import HomepageBanner from '../components/HomepageBanner';
 import FindYourQuickStart from '../components/FindYourQuickstart';
 import MDXContainer from '../components/MDXContainer';
-import ToggleSelector, { TOGGLE_VIEWS } from '../components/ViewToggle/ToggleSelector';
+import ToggleSelector, {
+  TOGGLE_VIEWS,
+} from '../components/ViewToggle/ToggleSelector';
 import ToggleView from '../components/ViewToggle/ToggleView';
 import { ToggleViewContext } from '../components/ViewToggle/ToggleViewContext';
 
@@ -46,7 +51,9 @@ const HomePage = ({ data }) => {
   useEffect(() => {
     const storedToggleView = window.localStorage.getItem(SAVED_TOGGLE_VIEW_KEY);
     if (!storedToggleView && loggedIn !== null) {
-      setCurrentView(loggedIn ? TOGGLE_VIEWS.defaultView : TOGGLE_VIEWS.newUserView);
+      setCurrentView(
+        loggedIn ? TOGGLE_VIEWS.defaultView : TOGGLE_VIEWS.newUserView
+      );
     }
     if (storedToggleView) {
       setCurrentView(storedToggleView);
@@ -262,7 +269,7 @@ HomePage.propTypes = {
 };
 
 export const pageQuery = graphql`
-  query ($quicklaunchSlug: String!) {
+  query($quicklaunchSlug: String!) {
     site {
       layout {
         contentPadding
