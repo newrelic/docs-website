@@ -325,6 +325,7 @@ exports.createSchemaCustomization = ({ actions }) => {
     isFeatured: Boolean
     translationType: String
     dataSource: String
+    isTutorial: Boolean
   }
 
   `;
@@ -363,6 +364,10 @@ exports.createResolvers = ({ createResolvers }) => {
       dataSource: {
         resolve: (source) =>
           hasOwnProperty(source, 'dataSource') ? source.dataSource : null,
+      },
+      isTutorial: {
+        resolve: (source) =>
+          hasOwnProperty(source, 'isTutorial') ? source.isTutorial : null,
       },
     },
   });
