@@ -13,9 +13,6 @@ import {
   useTranslation,
   useLoggedIn,
 } from '@newrelic/gatsby-theme-newrelic';
-import { useLoggedIn } from '@newrelic/gatsby-theme-newrelic/src/hooks/useLoggedIn';
-// these loggin hooks might need to be exported from gatsby-theme-newrelic/index.js like our other hooks.
-
 import SurfaceLink from '../components/SurfaceLink';
 import HomepageBanner from '../components/HomepageBanner';
 import FindYourQuickStart from '../components/FindYourQuickstart';
