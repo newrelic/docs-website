@@ -113,6 +113,11 @@ const InstallFeedback = () => {
               justify-content: space-between;
               align-items: flex-start;
               align-items: center;
+
+              @media screen and (max-width: 1450px) {
+                flex-wrap: wrap;
+                justify-content: center;
+              }
             `}
           >
             <div
@@ -154,6 +159,20 @@ const InstallFeedback = () => {
                     transition: color 200ms, border-color 200ms;
                     @media screen and (max-width: 1500px) {
                       margin-top: 1rem;
+                    }
+
+                    @media screen and (max-width: 1450px) {
+                      margin-right: 0;
+                    }
+
+                    @media screen and (max-width: 820px) {
+                      font-size: 1rem;
+                      padding: 1rem;
+                    }
+
+                    @media screen and (max-width: 420px) {
+                      padding-left: 0.25rem;
+                      padding-right: 0.25rem;
                     }
 
                     svg {
