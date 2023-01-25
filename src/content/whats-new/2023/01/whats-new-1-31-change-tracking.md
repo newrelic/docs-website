@@ -4,16 +4,20 @@ summary: 'Change tracking marks critical changes and deployments alongside perfo
 releaseDate: '2023-01-31' 
 learnMoreLink: 'https://newrelic.com/platform/change-tracking' 
 getStartedLink: 'https://docs.newrelic.com/docs/change-tracking/change-tracking-introduction/'
-isFeatured: true;
+isFeatured: true
 ---
 
 
 We’re excited to announce that change tracking is now generally available to all customers! We’ve made it easy to understand how changes to your system, such as code deployments, configuration changes, and business events, impact application and service performance.
 
-Change tracking allows you to directly tie the performance of your software to recent changes from interfaces across New Relic. In APM, mobile, browser, service levels, alerts, and custom dashboards (and more soon), you can see how deployments and other change events relate to shifts in golden signals, errors, log attributes, incidents, and more. You can make these insights actionable with change event details such as commit SHAs, deep links, group IDs, CI/CD metadata, timestamps, descriptions, version numbers, links to changelogs, and more. Change tracking helps you access this wealth of information and see your best next steps without losing context—simply click on a deployment marker or run a quick query.
+Change tracking allows you to directly tie the performance of your software to recent changes from interfaces across New Relic. In APM, mobile, browser, service levels, alerts, and custom dashboards (and more soon), you can see how deployments and other change events relate to shifts in golden signals, errors, log attributes, incidents, and more.
+
+You can make these insights actionable with change event details such as commit SHAs, deep links, group IDs, CI/CD metadata, timestamps, descriptions, version numbers, links to changelogs, and more. Change tracking helps you access this wealth of information and see your best next steps without losing context&mdash;simply click on a deployment marker or run a quick query.
 
 ![Screenshot showing the New Relic change analysis interface](./images/Change_Tracking_Analysis_Interface_Details_Page.png "Screenshot showing the New Relic change analysis interface")
+<figcaption>
 Screenshot showing the New Relic change analysis interface
+</figcaption>
 
 Change tracking gives you the following capabilities:
 
@@ -26,9 +30,9 @@ Change tracking gives you the following capabilities:
 
 ## How to get started
 
-1. Learn how to use change tracking by reading the [**docs**](https://docs.newrelic.com/docs/change-tracking/change-tracking-introduction/)
-2. Log in to [New Relic](https://one.newrelic.com/)
-3. Navigate to APM, browser, mobile, service levels, or any custom dashboard
+1. Learn how to use change tracking by reading the [**docs**](https://docs.newrelic.com/docs/change-tracking/change-tracking-introduction/).
+2. Log in to [New Relic](https://one.newrelic.com/).
+3. Navigate to APM, browser, mobile, service levels, or any custom dashboard.
 4. Apply markers to charts and access the change analysis details page by either clicking on a marker or navigating to APM & services > Events > Deployments *New* in the left-hand navigation menu.
 
 If you’d like to automatically mark any kind of custom change event across your performance charts, [sign up](https://newrelic.com/signup) to discover the new interface and the new GraphQL API for yourself.
