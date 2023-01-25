@@ -15,11 +15,13 @@ import {
 import SurfaceLink from '../components/SurfaceLink';
 import HomepageBanner from '../components/HomepageBanner';
 import FindYourQuickStart from '../components/FindYourQuickstart';
+import QuickLaunchSteps from '../components/QuickLaunchSteps';
 
 const HomePage = ({ data }) => {
   const {
     site: { layout },
     allMarkdownRemark: { edges: whatsNewPosts },
+    allMdx: { nodes: stepsMdx },
   } = data;
 
   const [searchTerm, setSearchTerm] = useState('');
@@ -92,6 +94,7 @@ const HomePage = ({ data }) => {
           {t('home.search.popularSearches.options.4')}
         </Link>
       </div>
+      <QuickLaunchSteps stepsMdx={stepsMdx} />
       <HomepageBanner />
       <Section
         layout={layout}
@@ -216,6 +219,14 @@ export const pageQuery = graphql`
     site {
       layout {
         contentPadding
+      }
+    }
+    allMdx(filter: { frontmatter: { homePage: { eq: true } } }) {
+      nodes {
+        body
+        frontmatter {
+          stepNumber
+        }
       }
     }
     allMarkdownRemark(
