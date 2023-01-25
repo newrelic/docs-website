@@ -115,6 +115,13 @@ module.exports = {
         path: `${__dirname}/src/install/`,
       },
     },
+    {
+      resolve: 'gatsby-source-filesystem',
+      options: {
+        name: 'homepage-steps',
+        path: `${__dirname}/src/homepageSteps/`,
+      },
+    },
     'gatsby-transformer-xml',
     {
       resolve: 'gatsby-transformer-json',
