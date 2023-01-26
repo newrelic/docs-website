@@ -50,6 +50,28 @@ exports.onCreateNode = ({ node, getNode, actions }) => {
       value: createFilePath({ node, getNode, trailingSlash: false }),
     });
   }
+
+  if (
+    node.internal.type === 'Mdx' &&
+    node.fileAbsolutePath.includes('homepageSteps')
+  ) {
+    const getStepLocale = () => {
+      switch (true) {
+        case node.fileAbsolutePath.includes('homepageSteps/step'):
+          return 'en';
+        case node.fileAbsolutePath.includes('homepageSteps/jp'):
+          return 'jp';
+        case node.fileAbsolutePath.includes('homepageSteps/kr'):
+          return 'kr';
+      }
+    };
+    const stepLocale = getStepLocale();
+    createNodeField({
+      node,
+      name: 'locale',
+      value: stepLocale,
+    });
+  }
 };
 
 exports.createPages = async ({ actions, graphql, reporter }) => {
