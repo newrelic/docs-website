@@ -32,6 +32,7 @@ const autoLinkHeaders = {
 };
 
 module.exports = {
+  trailingSlash: 'always',
   flags: {
     DEV_SSR: true,
     PRESERVE_FILE_DOWNLOAD_CACHE: true,
@@ -408,6 +409,7 @@ module.exports = {
         allPageHeaders: [
           'Referrer-Policy: no-referrer-when-downgrade',
           'Content-Security-Policy: frame-ancestors *.newrelic.com',
+          'Cache-Control: no-cache',
         ],
       },
     },
@@ -539,6 +541,7 @@ module.exports = {
             process.env.FEEDBACK_RECAPTCHA_TOKEN ||
             '6Lfn8wUiAAAAANBY-ZtKg4V9b4rdGZtJuAng62jo',
         },
+        newRelicRequestingServicesHeader: 'docs-website',
       },
     },
   ],

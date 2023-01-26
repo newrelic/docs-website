@@ -325,6 +325,7 @@ exports.createSchemaCustomization = ({ actions }) => {
     isFeatured: Boolean
     translationType: String
     dataSource: String
+    isTutorial: Boolean
   }
 
   `;
@@ -364,13 +365,16 @@ exports.createResolvers = ({ createResolvers }) => {
         resolve: (source) =>
           hasOwnProperty(source, 'dataSource') ? source.dataSource : null,
       },
+      isTutorial: {
+        resolve: (source) =>
+          hasOwnProperty(source, 'isTutorial') ? source.isTutorial : null,
+      },
     },
   });
 };
 
 exports.onCreatePage = ({ page, actions }) => {
-  const { createPage, deletePage } = actions;
-  const oldPage = { ...page };
+  const { createPage } = actions;
 
   if (page.path.match(/404/)) {
     page.context.layout = 'basic';
@@ -391,7 +395,6 @@ exports.onCreatePage = ({ page, actions }) => {
     page.context.slug = page.context.slug.replace(TRAILING_SLASH, '');
   }
 
-  deletePage(oldPage);
   createPage(page);
 };
 
@@ -407,7 +410,6 @@ const createLocalizedRedirect = ({
   const pathWithTrailingSlash = hasTrailingSlash(fromPath)
     ? fromPath
     : path.join(fromPath, '/');
-  const pathWithoutTrailingSlash = pathWithTrailingSlash.slice(0, -1);
 
   createRedirect({
     fromPath: pathWithTrailingSlash,
@@ -416,22 +418,9 @@ const createLocalizedRedirect = ({
     redirectInBrowser,
   });
 
-  createRedirect({
-    fromPath: pathWithoutTrailingSlash,
-    toPath: appendTrailingSlash(toPath),
-    isPermanent,
-    redirectInBrowser,
-  });
-
   locales.forEach((locale) => {
     createRedirect({
       fromPath: path.join(`/${locale}`, pathWithTrailingSlash),
-      toPath: appendTrailingSlash(path.join(`/${locale}`, toPath)),
-      isPermanent,
-      redirectInBrowser,
-    });
-    createRedirect({
-      fromPath: path.join(`/${locale}`, pathWithoutTrailingSlash),
       toPath: appendTrailingSlash(path.join(`/${locale}`, toPath)),
       isPermanent,
       redirectInBrowser,
