@@ -3,7 +3,6 @@
 const AdmZip = require('adm-zip');
 const vfile = require('vfile');
 const { writeSync } = require('to-vfile');
-const path = require('path');
 const fetch = require('node-fetch');
 
 const deserializedHtml = require('./deserialize-html');
@@ -28,7 +27,7 @@ const defaultTrackingMetadata = {
 
 /**
  * @typedef HtmlFile
- * @property {string} path - Source path of file w/o `src/.../content/docs` prefix, or extension.
+ * @property {string} path - Source path of file.
  * @property {string} html - (HTML) Content of the file as a string.
  */
 
@@ -39,7 +38,7 @@ const defaultTrackingMetadata = {
  */
 
 /**
- * Method which writes translated content to the 'src/content/i18n' path.
+ * Method which writes translated content to the 'src/i18n/' path.
  * @param {vfile.VFile[]} vfiles
  */
 const writeFilesSync = (vfiles) => {
@@ -130,20 +129,15 @@ const fetchTranslatedFilesZip = (locale) => {
 /**
  * @param {String} locale
  */
-const extractFiles = (locale) => {
+const extractFiles = () => {
   /**
    * @param {AdmZip} zip - the downloaded zip containing batch of files.
    * @returns {HtmlFile[]}
    */
   return (zip) => {
     return zip.getEntries().map((entry) => {
-      const filepath = entry.entryName.replace(
-        `${locale}/src/content/docs`,
-        ''
-      );
-      const slug = filepath.replace(`.mdx`, '');
       return {
-        path: slug,
+        path: entry.entryName,
         html: zip.readAsText(entry, 'utf8'),
       };
     });
@@ -159,16 +153,29 @@ const deserializeHtmlToMdx = (locale) => {
    * @returns {Promise<SlugStatus>}
    */
   return async ({ path: contentPath, html }) => {
-    const completePath = `${path.join('src/content/docs', contentPath)}.mdx`;
     const localeKey = Object.keys(LOCALE_IDS).find(
       (key) => LOCALE_IDS[key] === locale
     );
 
     try {
-      const localePath = path.join(
-        `src/i18n/content/${localeKey}/docs/`,
-        contentPath
-      );
+      const isDocsContent = contentPath.includes('i18n/content/');
+      const isHomepageStepContent = contentPath.includes('i18n/homepageSteps/');
+      let localePath = '';
+      if (isDocsContent) {
+        localePath = contentPath.replace(
+          `${locale}/src/content/docs`,
+          `src/i18n/content/${localeKey}/docs`
+        );
+      } else if (isHomepageStepContent) {
+        localePath = contentPath.replace(
+          `${locale}/src/homepageSteps`,
+          `src/i18n/homepageSteps/${localeKey}`
+        );
+      } else {
+        throw new Error(
+          'Unhandled file path: we currently only support files from src/content/docs and src/homepageSteps'
+        );
+      }
       const mdx = await deserializedHtml(html);
 
       const temp = vfile({
@@ -182,14 +189,14 @@ const deserializeHtmlToMdx = (locale) => {
 
       return {
         ok: true,
-        slug: completePath,
+        slug: contentPath,
         locale,
       };
     } catch (ex) {
       await trackTranslationError({
         ...defaultTrackingMetadata,
         target: TRACKING_TARGET.FILE,
-        slug: completePath,
+        slug: contentPath,
         locale,
         error: ex,
         errorMessage: `Failed to deserialize: ${contentPath}`,
@@ -197,7 +204,7 @@ const deserializeHtmlToMdx = (locale) => {
       console.log(`Failed to deserialize: ${contentPath}`);
       console.log(ex);
 
-      return { ok: false, slug: completePath, locale };
+      return { ok: false, slug: contentPath, locale };
     }
   };
 };
@@ -220,7 +227,7 @@ const fetchAndDeserializeFiles = async ({ locale, fileUris }) => {
 
   console.log(`Downloaded ${zips.length} zips`);
 
-  const files = zips.flatMap(extractFiles(locale));
+  const files = zips.flatMap(extractFiles());
 
   console.log(`Unzipped ${files.length} total files.`);
 
