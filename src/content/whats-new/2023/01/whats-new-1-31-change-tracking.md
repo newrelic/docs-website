@@ -34,4 +34,4 @@ Change tracking gives you the following capabilities:
 
 To get started, see our [docs](https://docs.newrelic.com/docs/change-tracking/change-tracking-introduction/) for tips about how to designate which changes to monitor and how to view them in the UI.
 
-If you don’t have a New Relic account already, [sign up for free](https://newrelic.com/signup) so you can to discover the new GraphQL API and user interface for yourself.
+If you don’t have a New Relic account already, [sign up for free](https://newrelic.com/signup) so you can discover the power of change tracking and test the new GraphQL API for yourself.
