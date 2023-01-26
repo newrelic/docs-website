@@ -1,14 +1,16 @@
 ---
-title: 'Gain context with change tracking, now generally available' 
-summary: 'Change tracking marks critical changes and deployments alongside performance data—adding context to anomalies, issues, errors, and incidents.' 
-releaseDate: '2023-01-31' 
-learnMoreLink: 'https://newrelic.com/platform/change-tracking' 
+title: 'Gain context with change tracking, now generally available'
+summary: 'Change tracking marks critical changes and deployments alongside performance data—adding context to anomalies, issues, errors, and incidents.'
+releaseDate: '2023-01-31'
+learnMoreLink: 'https://newrelic.com/platform/change-tracking'
 getStartedLink: 'https://docs.newrelic.com/docs/change-tracking/change-tracking-introduction/'
 isFeatured: true
 ---
 
 
 We’re excited to announce that change tracking is now generally available to all customers! We’ve made it easy to understand how changes to your system, such as code deployments, configuration changes, and business events, impact application and service performance.
+
+## Get full stack deployment and event context with change tracking
 
 Change tracking allows you to directly tie the performance of your software to recent changes from interfaces across New Relic. In APM, mobile, browser, service levels, alerts, and custom dashboards (and more soon), you can see how deployments and other changes relate to shifts in golden signals, errors, log attributes, incidents, and more.
 
@@ -30,11 +32,6 @@ Change tracking gives you the following capabilities:
 
 ## How to get started
 
-1. Learn how to use change tracking by reading the [**docs**](https://docs.newrelic.com/docs/change-tracking/change-tracking-introduction/).
-2. Log in to [New Relic](https://one.newrelic.com/).
-3. Navigate to APM, browser, mobile, service levels, or any custom dashboard.
-4. Apply markers to charts and access the change analysis details page by either clicking on a marker or navigating to APM & services > Events > Deployments *New* in the left-hand navigation menu.
+To get started, see our [docs](https://docs.newrelic.com/docs/change-tracking/change-tracking-introduction/) for tips about how to designate which changes to monitor and how to view them in the UI.
 
-If you’d like to automatically mark any kind of custom change event across your performance charts, [sign up](https://newrelic.com/signup) to discover the new interface and the new GraphQL API for yourself.
-
-If you don’t have a New Relic account already, [sign up for a free New Relic account](https://newrelic.com/signup) today. Your free account includes 100 GB/month of free data ingest, one free full-access user, and unlimited free basic users.
+If you don’t have a New Relic account already, [sign up for free](https://newrelic.com/signup) so you can to discover the new GraphQL API and user interface for yourself.
