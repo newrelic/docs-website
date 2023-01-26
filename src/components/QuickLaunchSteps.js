@@ -1,12 +1,13 @@
 import React from 'react';
 import { css } from '@emotion/react';
 import MDXContainer from './MDXContainer';
-import { Tabs } from '@newrelic/gatsby-theme-newrelic';
+import { Tabs, useLocale } from '@newrelic/gatsby-theme-newrelic';
 
 const QuickLaunchSteps = ({ stepsMdx }) => {
-  const sortedSteps = stepsMdx.sort(
-    (a, b) => a.frontmatter.stepNumber - b.frontmatter.stepNumber
-  );
+  const { locale } = useLocale();
+  const sortedSteps = stepsMdx
+    .filter((step) => step.fields.locale === locale)
+    .sort((a, b) => a.frontmatter.stepNumber - b.frontmatter.stepNumber);
 
   return (
     <div

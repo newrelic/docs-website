@@ -224,6 +224,9 @@ export const pageQuery = graphql`
     allMdx(filter: { frontmatter: { homePage: { eq: true } } }) {
       nodes {
         body
+        fields {
+          locale
+        }
         frontmatter {
           stepNumber
         }
