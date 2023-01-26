@@ -10,7 +10,7 @@ isFeatured: true
 
 We’re excited to announce that change tracking is now generally available to all customers! We’ve made it easy to understand how changes to your system, such as code deployments, configuration changes, and business events, impact application and service performance.
 
-Change tracking allows you to directly tie the performance of your software to recent changes from interfaces across New Relic. In APM, mobile, browser, service levels, alerts, and custom dashboards (and more soon), you can see how deployments and other change events relate to shifts in golden signals, errors, log attributes, incidents, and more.
+Change tracking allows you to directly tie the performance of your software to recent changes from interfaces across New Relic. In APM, mobile, browser, service levels, alerts, and custom dashboards (and more soon), you can see how deployments and other changes relate to shifts in golden signals, errors, log attributes, incidents, and more.
 
 You can make these insights actionable with change event details such as commit SHAs, deep links, group IDs, CI/CD metadata, timestamps, descriptions, version numbers, links to changelogs, and more. Change tracking helps you access this wealth of information and see your best next steps without losing context&mdash;simply click on a deployment marker or run a quick query.
 
