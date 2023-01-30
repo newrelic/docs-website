@@ -1,0 +1,77 @@
+---
+title: 累積指標 (プレビュー)
+tags:
+  - Integrations
+  - Open source telemetry integrations
+  - OpenTelemetry
+metaDescription: Support for cumulative metrics at New Relic
+translationType: machine
+---
+
+import moreintegrationsOtlpFacetQuery from 'images/more-integrations_screenshot-crop_otlp-facet-query.png'
+
+[OpenTelemetry 統合](/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/opentelemetry-introduction)または[Prometheus リモート書き込み統合](/docs/infrastructure/prometheus-integrations/install-configure-remote-write/set-your-prometheus-remote-write-integration)から累積メトリクスを報告すると、New Relic がそのデータをどのように処理するか (たとえば、デルタ測定値に変換する方法) を理解するのに役立ちます。これは、New Relic UI ビューを理解し、データをクエリし、データ レポートの問題を理解するのに役立ちます。
+
+## プレビュー [#preview]
+
+これらのドキュメントは、現在プレビュー中の[`cumulativeCount`](/docs/data-apis/understand-data/metric-data/metric-data-type/#metric-types)指標タイプ用です。
+
+## 累積指標と差分指標の説明 [#explained]
+
+アプリケーションからメトリック データを収集するときは、クエリ時にデータを使用および解釈する方法を決定する際に、そのデータが_どの_ように測定されたかを考慮することが重要です。[メトリクス タイプ](/docs/data-apis/understand-data/metric-data/metric-data-type/#metric-types)は重要な要素の 1 つです。特定の New Relic 集計関数は、一部のタイプでは機能し、他のタイプでは機能しません。しかし、もう 1 つの重要な要素は、メトリックの**一時性**です。
+
+2 つの一時性は、 **delta**と**cumulative**です。`Delta`は、レポート間隔の間に測定値がリセットされることを示します。`Cumulative`は、リセットがなく、測定値が累積されていることを示します。Prometheus は累積メトリック コレクターの一般的な例であり ([データ型に関する Prometheus ドキュメント](https://prometheus.io/docs/concepts/metric_types))、OpenTelemetry は累積メトリックを収集する方法も定義しています ([一時性に関する OpenTelemetry ドキュメント](https://opentelemetry.io/docs/reference/specification/metrics/data-model/#temporality))。
+
+New Relic は、Prometheus と OpenTelemetry の累積データの送信をサポートし、取り込み時にデルタ変換を実行して、プラットフォーム上の他のメトリクスとの整合性を高め、 [NRQL](/docs/query-your-data/nrql-new-relic-query-language/get-started/introduction-nrql-new-relics-query-language)を介してそのデータとやり取りしやすくします。累積カウンターは New Relic [`cumulativeCount`](/docs/data-apis/understand-data/metric-data/metric-data-type/#metric-types)として保存され、累積ヒストグラムは New Relic [`distribution`](/docs/data-apis/understand-data/metric-data/metric-data-type/#metric-types)として保存されます。
+
+## Prometheus リモート書き込みサポート [#prom-support]
+
+詳しくは、 [Prometheus リモート書き込み統合](/docs/infrastructure/prometheus-integrations/get-started/send-prometheus-metric-data-new-relic)を参照してください。
+
+## OpenTelemetry のサポート [#otel-support]
+
+詳細については、 [OpenTelemetry メトリック: ベスト プラクティス](https://docs.newrelic.com/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/best-practices/opentelemetry-best-practices-metrics/)を参照してください。
+
+## 累積からデルタへの変換の詳細 [#delta-conversion]
+
+大まかに言えば、デルタ変換は、イベント時間に連続する 2 つのデータ ポイントを取得し、差を計算することによって実行されます。ただし、実際にはこれほど単純なことはありません。ここでは、予想されるいくつかの一般的なシナリオと、その対処方法を示します。
+
+### リセット [#resets]
+
+時[系列](https://opentelemetry.io/docs/reference/specification/metrics/data-model/#timeseries-model)のデータの値が突然減少した場合、これをリセットとして扱い、その新しい測定値を独自のデルタ値として出力します (つまり、 `0`測定値が前にあったかのように)。
+
+[OpenTelemetry は、値の減少が予想外である状況も定義](https://opentelemetry.io/docs/reference/specification/metrics/data-model/#resets-and-gaps)します。これらのケースを検出し[、New Relic 統合エラー](/docs/data-apis/manage-data/nrintegrationerror)を介して通知するために最善を尽くします (以下の[トラブルシューティング](#troubleshooting)を参照)。
+
+### データの並べ替え [#reorder-data]
+
+New Relic にデータポイントが順不同で到着する原因は、多くの場合にあることを理解しています。そのため、レポートの時系列に予期しないギャップが検出された場合は、データ ポイントをバッファリングして並べ替えます。ギャップは、特定の時系列のデータを受信するレートによって決定される予想レポート間隔によって推測されます。バッファリングは制限されており、最終的にはデータポイントを「再シーケンスするには遅すぎる」と見なします。この場合、検出されたギャップ全体でデルタが計算され、時系列の処理が続行されます。
+
+### 古いデータ [#stale-data]
+
+デルタ変換はステートフルな操作であるため、レポートを停止し、最終的にその状態を落とす可能性がある時系列を認識する必要があります。timeseries が**5 分間**新しいデータ ポイントを報告しなかった場合、バッファされたギャップ全体のデルタの計算を含め、現在の状態をフラッシュします。これは、データ ポイントが後の時点で到着した場合、それがその時系列の始まりであるかのように扱われ、事実上、フラッシュ前の最後のデータ ポイントとフラッシュ後の最初のデータ ポイントの間のデルタが失われることを意味します。これは、デルタ変換の利点を得るには、メトリック レポート間隔を**5 分**未満にする必要があることを意味します。
+
+### 累積額に関する特記事項 [#cumulative-sums]
+
+データがアプリケーションによって記録され、単調に増加する値のシーケンスとして送信されたとしても、そのデータに対して`sum()`を呼び出すと、データがデルタ値のシーケンスであるかのように扱われます。 `derivative()`を計算する必要はありません!
+
+合計をデルタに変換する場合、New Relic はデルタと一緒に累積値も発行して、最新の累積値をクエリできるようにします。累積値にアクセスするには、 [getField()](/docs/query-your-data/nrql-new-relic-query-language/get-started/nrql-syntax-clauses-functions/#func-getfield)を使用できます (例については、 [メトリクスのクエリ方法を](https://docs.newrelic.com/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/best-practices/opentelemetry-best-practices-metrics/#query)参照してください)。
+
+データ ポイントは、間隔の開始点である関連する`timestamps`にプロットされることに注意してください。ただし、累積値はデータ ポイントの`endTimestamp`に関連付けられているため、累積クエリを解釈するときにデータ ポイントの幅を考慮する必要がある場合があります。
+
+## トラブルシューティング [#troubleshooting]
+
+場合によっては、累積からデルタへの変換プロセスの結果として、 [New Relic 統合エラー](/docs/data-apis/manage-data/nrintegrationerror)が報告されます。ここにいくつかの一般的な理由があります。
+
+### 翻訳エラー [#translation-errors]
+
+デルタ変換には、イベント時間に連続する 2 つのデータ ポイントが単調に増加する累積値を持つという仮定が含まれます。この想定が破られると予想されるのは、監視対象のプロセスが再起動されたときだけです。他の理由で単調性が失われた場合でも、これをリセットとして扱いますが、アカウントに[New Relic 統合エラー](/docs/data-apis/manage-data/nrintegrationerror)イベントを生成して通知を試みます。これは、 OpenTelemetry データに対しては可能です**が、 Prometheus に対しては可能ではありません**。OpenTelemetry には、そのような状況を検出するために使用できるより多くの情報が含まれているためです。単調性の予想外の中断の最も一般的な原因は、クライアント側アプリケーションがカーディナリティの制限に達し、データを削除してメモリの負荷を軽減した場合です。場合によっては、これが予期しないリセットとして機能し、New Relic に送信される値が予期せず減少する可能性があります。OTLP ログでこれのインスタンスを探すことをお勧めします。
+
+```
+Instrument % has exceeded the maximum allowed accumulations (2000)
+```
+
+OpenTelemetry は、[**ビュー**](https://opentelemetry.io/docs/reference/specification/metrics/sdk/#view)を使用してクライアント側のカーディナリティを減らす方法を提供し、これらの問題を修正するための推奨される方法です。もう 1 つのオプションは、メモリの節約に役立つ[デルタ一時性を使用して OTLP メトリックを](https://opentelemetry.io/docs/reference/specification/metrics/sdk_exporters/otlp/#additional-configuration)エクスポートする方法を検討することです。
+
+### カーディナリティ制限 [#card-limits]
+
+翻訳中は、システム保護として、メトリック資格に基づくメトリック カーディナリティ制限も緩やかに適用されます。ロールアップの[ように 1 日あたり](/docs/data-apis/ingest-apis/metric-api/metric-api-limits-restricted-attributes/#violation-unique-timeseries)の制限を適用するのではなく、この制限は、追跡される同時時系列の数として適用されます。同時[の一意のメトリック timeseries](/docs/data-apis/ingest-apis/metric-api/NRQL-high-cardinality-metrics/#what-why)が多すぎると、古いものが期限切れになるまで、新しい受信 timeseries を削除します (古い[データ](#stale-data)を参照してください)。

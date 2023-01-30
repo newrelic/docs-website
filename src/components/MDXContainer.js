@@ -58,7 +58,6 @@ const defaultComponents = {
                   margin: '0 0.25rem',
                 }
           }
-          loading="lazy"
         />
       </Lightbox>
     ),
