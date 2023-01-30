@@ -1,21 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useLocalStorage } from 'react-use';
 import useViewToggleContext from './useViewToggleContext';
-import ToggleSelector from './ToggleSelector';
-import { useLoggedIn } from '@newrelic/gatsby-theme-newrelic';
 
-export const useViewToggle = (initialView) => {
+const ToggleSelector = (onToggleChange) => {};
+
+const ToggleView = (children, id) => {};
+
+export const useViewToggle = () => {
   const [currentView, setCurrentView] = useLocalStorage(
-    'docs-website/homepage-selected-view',
+    'docs-website/homepage-selected-tab',
     initialView
   );
 
-  const ToggleWithAppliedState = () => (
-    <ToggleSelector currentView={currentView} onViewChange={setCurrentView} />
-  );
-
-  return [
-    ToggleWithAppliedState,
-    { setView: setCurrentView, currentView: currentView },
-  ];
+  return [ToggleSelector, ToggleView, { onTabChange }];
 };
