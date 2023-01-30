@@ -134,13 +134,20 @@ const extractFiles = () => {
    * @param {AdmZip} zip - the downloaded zip containing batch of files.
    * @returns {HtmlFile[]}
    */
+
   return (zip) => {
-    return zip.getEntries().map((entry) => {
-      return {
-        path: entry.entryName,
-        html: zip.readAsText(entry, 'utf8'),
-      };
-    });
+    return zip
+      .getEntries()
+      .map((entry) => {
+        if (entry.entryName.endsWith('.mdx')) {
+          return {
+            path: entry.entryName,
+            html: zip.readAsText(entry, 'utf8'),
+          };
+        }
+        return null;
+      })
+      .filter(Boolean);
   };
 };
 
@@ -158,8 +165,8 @@ const deserializeHtmlToMdx = (locale) => {
     );
 
     try {
-      const isDocsContent = contentPath.includes('i18n/content/');
-      const isHomepageStepContent = contentPath.includes('i18n/homepageSteps/');
+      const isDocsContent = contentPath.includes('src/content/');
+      const isHomepageStepContent = contentPath.includes('src/homepageSteps/');
       let localePath = '';
       if (isDocsContent) {
         localePath = contentPath.replace(
@@ -170,10 +177,6 @@ const deserializeHtmlToMdx = (locale) => {
         localePath = contentPath.replace(
           `${locale}/src/homepageSteps`,
           `src/i18n/homepageSteps/${localeKey}`
-        );
-      } else {
-        throw new Error(
-          'Unhandled file path: we currently only support files from src/content/docs and src/homepageSteps'
         );
       }
       const mdx = await deserializedHtml(html);
