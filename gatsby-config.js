@@ -175,10 +175,10 @@ module.exports = {
         ],
         gatsbyRemarkPlugins: [
           {
-            resolve: 'gatsby-remark-images',
+            resolve: require.resolve('./plugins/gatsby-remark-images-mdx'),
             options: {
               maxWidth: 1200,
-              linkImagesToOriginal: true,
+              linkImagesToOriginal: false,
               backgroundColor: 'transparent',
               disableBgImageOnAlpha: true,
             },

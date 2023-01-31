@@ -6,6 +6,7 @@ const {
   imageWrapperClass,
 } = require(`./constants`);
 const visitWithParents = require(`unist-util-visit-parents`);
+const { selectAll } = require(`unist-util-select`);
 const getDefinitions = require(`mdast-util-definitions`);
 const path = require(`path`);
 const queryString = require(`query-string`);
@@ -66,8 +67,9 @@ module.exports = (
   const definitions = getDefinitions(markdownAST);
 
   // This will allow the use of html image tags
-  // const rawHtmlNodes = select(markdownAST, `html`)
-  const rawHtmlNodes = [];
+  const rawHtmlNodes = selectAll(`html`, markdownAST);
+  console.log({ rawHtmlNodes });
+  // const rawHtmlNodes = [];
   visitWithParents(markdownAST, [`html`, `jsx`], (node, ancestors) => {
     const inLink = ancestors.some(findParentLinks);
 
