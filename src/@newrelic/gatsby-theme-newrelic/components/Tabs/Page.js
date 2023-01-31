@@ -6,7 +6,6 @@ import useTabsContext from './useTabsContext';
 
 const Page = ({ index, children, id }) => {
   const [currentTab] = useTabsContext();
-  console.log('current page', currentTab, id);
 
   const isSelected =
     id === currentTab || (currentTab === undefined && index === 0);

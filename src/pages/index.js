@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
 import { navigate } from '@reach/router';
 import { css } from '@emotion/react';
-import { useLocalStorage } from 'react-use';
 import { graphql } from 'gatsby';
 import {
   Link,
@@ -14,6 +13,8 @@ import {
   useTranslation,
   useLoggedIn,
 } from '@newrelic/gatsby-theme-newrelic';
+import ToggleSelector from '../components/ViewToggle/ToggleSelector';
+// import ToggleView from '../components/ViewToggle/ToggleView';
 import SurfaceLink from '../components/SurfaceLink';
 import HomepageBanner from '../components/HomepageBanner';
 import FindYourQuickStart from '../components/FindYourQuickstart';
