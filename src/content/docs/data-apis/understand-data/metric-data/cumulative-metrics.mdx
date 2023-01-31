@@ -1,0 +1,76 @@
+---
+title: "Cumulative metrics (preview)"
+tags:
+  - Integrations
+  - Open source telemetry integrations
+  - OpenTelemetry
+metaDescription: Support for cumulative metrics at New Relic
+---
+
+import moreintegrationsOtlpFacetQuery from 'images/more-integrations_screenshot-crop_otlp-facet-query.png'
+
+If you report cumulative metrics from [our OpenTelemetry integration](/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/opentelemetry-introduction) or our [Prometheus remote write integration](/docs/infrastructure/prometheus-integrations/install-configure-remote-write/set-your-prometheus-remote-write-integration), it will help you understand how New Relic handles that data (for example, how we convert that to delta measurements). This will help you understand your New Relic UI views, help you query your data, and help you understand data-reporting issues. 
+
+## Preview [#preview]
+
+These docs are for our [`cumulativeCount`](/docs/data-apis/understand-data/metric-data/metric-data-type/#metric-types) metric type, which is currently in a preview. 
+
+## Cumulative and delta metrics explained [#explained]
+
+When collecting metric data from an application, it's important to consider *how* that data was measured when deciding how to use and interpret it at query time. The [metric type](/docs/data-apis/understand-data/metric-data/metric-data-type/#metric-types) is one important factor, with certain New Relic aggregation functions working with some types and not others. But another important factor is the metric's **temporality**. 
+
+The two temporalities are **delta** and **cumulative**. `Delta` indicates that measurements are reset between reporting intervals. `Cumulative` indicates there is no reset and the measurements are accumulated. Prometheus is a common example of a cumulative metrics collector ([Prometheus docs on data types](https://prometheus.io/docs/concepts/metric_types)), and OpenTelemetry also defines ways to collect cumulative metrics ([OpenTelemetry docs on temporality](https://opentelemetry.io/docs/reference/specification/metrics/data-model/#temporality)). 
+
+New Relic supports sending Prometheus and OpenTelemetry cumulative data and will perform delta conversion at ingest to make it more aligned with other metrics on our platform and easier to interact with that data via [NRQL](/docs/query-your-data/nrql-new-relic-query-language/get-started/introduction-nrql-new-relics-query-language). Cumulative counters are stored as a New Relic [`cumulativeCount`](/docs/data-apis/understand-data/metric-data/metric-data-type/#metric-types), and cumulative histograms are stored as a New Relic [`distribution`](/docs/data-apis/understand-data/metric-data/metric-data-type/#metric-types).
+
+## Prometheus remote write support [#prom-support]
+
+For more information, see [Prometheus remote write integration](/docs/infrastructure/prometheus-integrations/get-started/send-prometheus-metric-data-new-relic).
+
+## OpenTelemetry support [#otel-support]
+
+For more information, see [OpenTelemetry metrics: Best practices](https://docs.newrelic.com/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/best-practices/opentelemetry-best-practices-metrics/).
+
+## Cumulative to delta conversion details [#delta-conversion]
+
+At a high level, delta conversion is performed by taking two data points sequential in event time and computing a difference. However, things are never this simple in practice. Here are some common scenarios we anticipate and how we handle them.
+
+### Resets [#resets]
+
+If data for a [timeseries](https://opentelemetry.io/docs/reference/specification/metrics/data-model/#timeseries-model) suddenly decreases in value, we treat this as a reset and will emit that new measurement as its own delta value (in other words, as if it were preceded by a `0` measurement). 
+
+[OpenTelemetry also defines](https://opentelemetry.io/docs/reference/specification/metrics/data-model/#resets-and-gaps) situations where a decrease in value is unexpected, and we do our best to detect these cases and notify you via [New Relic integration errors](/docs/data-apis/manage-data/nrintegrationerror) (see [troubleshooting](#troubleshooting) below).
+
+### Reordering data [#reorder-data]
+
+We understand that many things can cause data points to arrive at New Relic out of order. As such, we will buffer data points and reorder them if we detect an unexpected gap in the reporting timeseries. Gaps are inferred by an expected reporting interval determined by the rate at which we receive data for a given timeseries. Buffering is bounded and eventually we will consider a data point "too late for resequencing". In this case, a delta is computed across the detected gap and processing of the timeseries continues.
+
+### Stale data [#stale-data]
+
+As delta conversion is a stateful operation, we must be cognizant of timeseries that may stop reporting and eventually drop its state. If a timeseries has not reported any new data points for **5 minutes**, we will flush the state we have, including computing deltas across any buffered gaps. This means that if a data point arrives at a later point in time, it will be treated as if it were the beginning of that timeseries, effectively losing the delta between the last data point before the flush and the first data point after the flush. This means that metric reporting intervals should be less than **5 minutes** to get the benefit of delta conversion.
+
+### Speical note about cumulative sums [#cumulative-sums]
+
+Even though the data was recorded by your application and sent as a sequence of monotonically increasing values, calling `sum()` on it will treat it as though it were a sequence of delta values; no need to compute any `derivative()`!
+
+When converting a sum to a delta, New Relic will also emit the cumulative value alongside the delta to maintain the ability for you to query the latest cumulative value. To access the cumulative value, you can use [getField()](/docs/query-your-data/nrql-new-relic-query-language/get-started/nrql-syntax-clauses-functions/#func-getfield) (see [How to query metrics](https://docs.newrelic.com/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/best-practices/opentelemetry-best-practices-metrics/#query) for examples).
+
+Note that data points are plotted at their associated `timestamps` which are the start of an interval. However, cumulative values are associated with the `endTimestamp` of the data point, so you may need to consider the width of a data point when interpreting cumulative queries.
+
+## Troubleshooting [#troubleshooting]
+
+In some cases we will report an [New Relic integration error](/docs/data-apis/manage-data/nrintegrationerror) as a result of the cumulative to delta conversion process. Here are some common reasons.
+
+### Translation errors [#translation-errors]
+
+Delta conversion involves the assumption that two data points sequential in event time will have monotonically increasing cumulative values. The only time this assumption is expected to break is when the process being monitored is restarted. If monotonicity is broken for any other reason we will still treat this as a reset, but will attempt to notify you by generating a [New Relic integration error](/docs/data-apis/manage-data/nrintegrationerror) event into your account. This is possible to do for OpenTelemetry data **but not Prometheus**, because OpenTelemetry includes more information that can be used to detect such situations. The most common cause for an unexpected break in monotonicity is when the client side application hits cardinality limits and drops data to relieve memory pressure. In certain cases, this acts as an unexpected reset and can result in an unexpected decrease in values sent to New Relic. It is recommended that you look for instances of this in your OTLP logs:
+
+```
+Instrument % has exceeded the maximum allowed accumulations (2000)
+```
+
+OpenTelemetry provides a way to reduce cardinality client side using [**Views**](https://opentelemetry.io/docs/reference/specification/metrics/sdk/#view) and is the recommended path to fix these issues. Another option is to explore exporting your [OTLP metrics using Delta temporality](https://opentelemetry.io/docs/reference/specification/metrics/sdk_exporters/otlp/#additional-configuration) which can help save on memory.
+
+### Cardinality limits [#card-limits]
+
+During translation, we also loosely enforce metric cardinality limits that are based on your metric entitlements as a system protection. Rather than enforcing the limit [per day, as we do with rollups](/docs/data-apis/ingest-apis/metric-api/metric-api-limits-restricted-attributes/#violation-unique-timeseries), this limit is enforced as the number of concurrent timeseries being tracked. Once there are too many concurrent [unique metric timeseries](/docs/data-apis/ingest-apis/metric-api/NRQL-high-cardinality-metrics/#what-why), we will drop new incoming timeseries until an old one ages out (see [Stale data](#stale-data)).
