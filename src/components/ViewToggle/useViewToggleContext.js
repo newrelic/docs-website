@@ -1,5 +1,5 @@
 import { useContext } from 'react';
-import ViewToggleContext from '../Context';
+import ViewToggleContext from '@newrelic/gatsby-theme-newrelic/src/components/Context';
 
 const useViewToggleContext = () => useContext(ViewToggleContext);
 

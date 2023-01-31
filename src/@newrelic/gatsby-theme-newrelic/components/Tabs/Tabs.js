@@ -4,6 +4,8 @@ import { useLocalStorage } from 'react-use';
 
 import TabsContext from '../Context';
 
+import StatelessTabs from './StatelessTabs';
+
 import Bar from './Bar';
 import BarItem from './BarItem';
 import Pages from './Pages';
@@ -36,15 +38,6 @@ const Tabs = ({ children, initialTab }) => {
 
   return (
     <TabsContext.Provider value={[tabState, setTabState]}>
-      {children}
-    </TabsContext.Provider>
-  );
-};
-
-const StatelessTabs = ({ children, currentTab, onTabChange }) => {
-  console.log('current', currentTab);
-  return (
-    <TabsContext.Provider value={[currentTab, onTabChange]}>
       {children}
     </TabsContext.Provider>
   );

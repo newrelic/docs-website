@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
 import { navigate } from '@reach/router';
 import { css } from '@emotion/react';
-import { useLocalStorage } from 'react-use';
 import { graphql } from 'gatsby';
 import {
   Link,
