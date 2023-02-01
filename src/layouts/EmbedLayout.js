@@ -6,6 +6,7 @@ import { css, Global } from '@emotion/react';
 const EmbedLayout = ({ children }) => {
   return (
     <>
+      <meta name="robots" content="noindex" />
       <Global
         styles={css`
           body {
