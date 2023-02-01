@@ -4,6 +4,22 @@ import { css } from '@emotion/react';
 
 import { useTessen } from '@newrelic/gatsby-theme-newrelic';
 
+
+import { useToggleViewContext } from './ToggleViewContext';
+
+export const TOGGLE_VIEWS = {
+  newUserView: 'new-user-view',
+  defaultView: 'default-view',
+};
+
+const ToggleSelector = () => {
+  const [currentView, setCurrentView] = useToggleViewContext();
+  const tessen = useTessen();
+
+
+
+import { useTessen } from '@newrelic/gatsby-theme-newrelic';
+
 import { useToggleViewContext } from './ToggleViewContext';
 
 export const TOGGLE_VIEWS = {
