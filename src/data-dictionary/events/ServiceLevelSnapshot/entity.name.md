@@ -1,8 +1,8 @@
 ---
 name: entity.name
-type: ServiceLevelSnapshot
+type: attribute
 events:
-  - Metric
+  - ServiceLevelSnapshot
 ---
 
 The service level entity name.
