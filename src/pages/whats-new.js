@@ -133,7 +133,7 @@ WhatsNew.propTypes = {
 };
 
 export const pageQuery = graphql`
-  query($slug: String!, $locale: String) {
+  query {
     allMarkdownRemark(
       sort: {
         fields: [frontmatter___releaseDate, frontmatter___title]
@@ -155,8 +155,6 @@ export const pageQuery = graphql`
         }
       }
     }
-
-    ...MainLayout_query
   }
 `;
 

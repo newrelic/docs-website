@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/react';
 import { graphql } from 'gatsby';
+import { takeWhile } from 'lodash';
 import PageTitle from '../components/PageTitle';
 import MDXContainer from '../components/MDXContainer';
 import {
@@ -14,14 +15,30 @@ import {
 import MachineTranslationCallout from '../components/MachineTranslationCallout';
 import SEO from '../components/SEO';
 import GithubSlugger from 'github-slugger';
-import { parseHeading } from '../../plugins/gatsby-remark-custom-heading-ids/utils/heading';
 import { TYPES } from '../utils/constants';
+
+/**
+ * Some `title`s from the `tableOfContents` field are
+ * formatted like "NRQL query examples #examples".
+ * This function splits the title and the hash into a tuple.
+ * Not all titles include a hash.
+ * For those, a tuple of [string, undefined] is returned.
+ *
+ * @returns [string, string | undefined]
+ */
+const splitTOCTitle = (title = '') => {
+  const chunks = title.split(' ');
+  const titleText = takeWhile(chunks, (word) => !word.startsWith('#'));
+  const slug = chunks.find((word) => word.startsWith('#'));
+
+  return [titleText.join(' '), slug];
+};
 
 const BasicDoc = ({ data, location, pageContext }) => {
   const { mdx } = data;
   const {
     frontmatter,
-    mdxAST,
+    tableOfContents,
     body,
     fields: { fileRelativePath },
     relatedResources,
@@ -30,34 +47,37 @@ const BasicDoc = ({ data, location, pageContext }) => {
 
   const headings = useMemo(() => {
     const slugs = new GithubSlugger();
+    return (tableOfContents.items ?? []).map(({ title, url }) => {
+      const [titleText, slug] = splitTOCTitle(title);
 
-    return mdxAST.children
-      .filter(
-        (node) =>
-          node.type === 'heading' &&
-          node.depth === 2 &&
-          node.children.length > 0
-      )
-      .map((heading) => {
-        const { id, text } = parseHeading(heading);
-
-        return { id: id || slugs.slug(text), text };
-      });
-  }, [mdxAST]);
+      return {
+        // the slug as it's parsed from the title is actually
+        // more correct/reliable than the `url` property from GraphQL.
+        // `id` here shouldn't include a hash (it gets added later),
+        // and a double hash breaks the links.
+        id: (slug || url || slugs.slug(titleText)).replace('#', ''),
+        text: titleText,
+      };
+    });
+  }, [tableOfContents]);
 
   const {
     title,
     metaDescription,
-    type,
     tags,
     translationType,
     dataSource,
+    isTutorial,
   } = frontmatter;
+
+  let { type } = frontmatter;
 
   if (typeof window !== 'undefined' && typeof newrelic === 'object') {
     window.newrelic.setCustomAttribute('pageType', 'Template/DocPage');
   }
-
+  if (isTutorial) {
+    type = 'tutorial';
+  }
   return (
     <>
       <SEO
@@ -136,15 +156,16 @@ BasicDoc.propTypes = {
 };
 
 export const pageQuery = graphql`
-  query($slug: String!, $locale: String) {
+  query($slug: String!) {
     mdx(fields: { slug: { eq: $slug } }) {
-      mdxAST
       body
+      tableOfContents
       frontmatter {
         title
         metaDescription
         type
         tags
+        isTutorial
         translationType
         dataSource
       }
@@ -157,7 +178,6 @@ export const pageQuery = graphql`
       }
       ...TableOfContents_page
     }
-    ...MainLayout_query
   }
 `;
 

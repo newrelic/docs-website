@@ -212,7 +212,7 @@ const EventDefinition = memo(
             }
 
             @media (max-width: 1240px) {
-              position: relative;
+              position: initial;
             }
           `}
         >
@@ -395,7 +395,7 @@ EventDefinition.propTypes = {
 };
 
 export const pageQuery = graphql`
-  query($slug: String!, $locale: String!) {
+  query {
     allDataDictionaryEvent(sort: { fields: [name] }) {
       edges {
         node {
@@ -418,8 +418,6 @@ export const pageQuery = graphql`
         }
       }
     }
-
-    ...MainLayout_query
   }
 `;
 

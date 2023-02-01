@@ -2,6 +2,7 @@ import {
   ExternalLink,
   Link,
   Lightbox,
+  MDXLink,
   MDX,
   MarkdownContainer,
   Tabs,
@@ -23,6 +24,7 @@ import WhatsNextTile from './WhatsNextTile';
 import HideWhenEmbedded from './HideWhenEmbedded';
 
 const defaultComponents = {
+  a: (props) => <MDXLink {...props} displayExternalIcon />,
   img: (props) =>
     props.style || props.variant === 'TechTile' ? (
       <img
@@ -57,7 +59,6 @@ const defaultComponents = {
                   margin: '0 0.25rem',
                 }
           }
-          loading="lazy"
         />
       </Lightbox>
     ),

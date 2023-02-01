@@ -3,7 +3,7 @@ import PropTypes from 'prop-types';
 import { NavItem } from '@newrelic/gatsby-theme-newrelic';
 import { css } from '@emotion/react';
 
-const SubNavigation = ({ nav }) => {
+const SubNavigation = ({ nav, className }) => {
   return (
     <>
       {nav && (
@@ -23,6 +23,7 @@ const SubNavigation = ({ nav }) => {
               color: #afe2e3;
             }
           `}
+          className={className}
         >
           <p
             css={css`

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { graphql } from 'gatsby';
 import { css } from '@emotion/react';
 import {
@@ -43,6 +43,7 @@ const InstallPage = ({ data, location }) => {
   const [showGuided, setShowGuided] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [agentConfigUpdate, setAgentConfigUpdate] = useState([]);
+  const [isHydrated, setIsHydrated] = useState(false);
 
   const tessen = useTessen();
 
@@ -112,16 +113,22 @@ const InstallPage = ({ data, location }) => {
 
   const renderStep = (step) => {
     const { overrides } = step;
-
+    let shouldNotRender = false;
     if (overrides) {
       for (const override of overrides) {
-        const { selectedOptions } = override;
-        const isOverrided = selectedOptions.every(matchOverride);
-
-        if (isOverrided) {
+        const { selectedOptions, isConditionalStep } = override;
+        const isOverridden = selectedOptions.every(matchOverride);
+        if (isOverridden && isConditionalStep) {
+          return { content: renderFromComponentType(step), step };
+        } else if (isOverridden) {
           return { content: renderFromComponentType(override), step: override };
+        } else if (isConditionalStep) {
+          shouldNotRender = true;
         }
       }
+    }
+    if (shouldNotRender) {
+      return { content: null };
     }
     return { content: renderFromComponentType(step), step };
   };
@@ -133,11 +140,12 @@ const InstallPage = ({ data, location }) => {
     const { frontmatter, body } = mdx;
     const { componentType } = frontmatter;
     if (componentType === 'agentConfig') {
-      const { inputOptions } = frontmatter;
+      const { inputOptions, fileName } = frontmatter;
       return (
         <AgentConfig
           config={agentConfigFile?.internal?.content}
           inputOptions={inputOptions}
+          fileName={fileName}
           tipMdx={mdx}
           onChange={handleAgentConfigChange}
         />
@@ -155,6 +163,7 @@ const InstallPage = ({ data, location }) => {
       const { optionType } = frontmatter;
       return (
         <AppInfoConfigOption
+          showGuided={showGuided}
           onChange={handleAppInfoStateChange}
           selectOptions={selectOptions}
           optionType={optionType}
@@ -186,6 +195,17 @@ const InstallPage = ({ data, location }) => {
   }, []);
 
   const headings = walkthroughSteps.map(({ stepHeadings }) => stepHeadings);
+
+  // this was added because were running into hydration issues when an
+  // appConfigOption was supposed to conditionally render after a selection
+  // was chosen
+  useEffect(() => {
+    setIsHydrated(true);
+  }, []);
+
+  if (!isHydrated) {
+    return null;
+  }
 
   return (
     <>
@@ -283,6 +303,7 @@ export const pageQuery = graphql`
     frontmatter {
       componentType
       optionType
+      fileName
       inputOptions {
         codeLine
         defaultValue
@@ -300,8 +321,7 @@ export const pageQuery = graphql`
     }
   }
 
-  query($agentName: String!, $locale: String!, $slug: String!) {
-    ...MainLayout_query
+  query($agentName: String!) {
     installConfig(agentName: { eq: $agentName }) {
       id
       agentName
@@ -344,6 +364,7 @@ export const pageQuery = graphql`
           mdx {
             ...MDXInstallFragment
           }
+          isConditionalStep
           skip
           selectedOptions {
             optionType

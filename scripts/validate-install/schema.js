@@ -67,18 +67,28 @@ const MdxFilePath = define('MdxFilePath', (value) => {
     };
   }
 
-  const file = fs.readFileSync(path.join(process.cwd(), value), 'utf8');
+  try {
+    const file = fs.readFileSync(path.join(process.cwd(), value), 'utf8');
+    const data = fm(file);
+    const frontmatter = yaml.load(data.frontmatter);
 
-  const data = fm(file);
-  const frontmatter = yaml.load(data.frontmatter);
+    const [error] = validate(frontmatter, Frontmatter);
 
-  const [error] = validate(frontmatter, Frontmatter);
+    if (error) {
+      return error;
+    }
 
-  if (error) {
-    return error;
+    return true;
+  } catch (e) {
+    console.error(
+      '\x1b[31m%s\x1b[0m%s\x1b[31m%s\x1b[0m%s',
+      '\n(!)',
+      `There is a syntax issue in ${value} \n These are sometimes caused by apostrophes. Be sure to use double quotes around any strings with apostrophes \n`,
+      '\nerror message: ',
+      `${e.message} \n`
+    );
+    process.exit(1);
   }
-
-  return true;
 });
 
 const FilePath = define('FilePath', (value) => {
@@ -120,6 +130,7 @@ const Override = object({
   filePath: optional(MdxFilePath),
   selectedOptions: array(SelectedOption),
   skip: optional(boolean()),
+  isConditionalStep: optional(boolean()),
 });
 
 const Step = object({
@@ -134,7 +145,7 @@ const InstallConfig = object({
   metaDescription: optional(string()),
   introFilePath: MdxFilePath,
   agentConfigFilePath: optional(FilePath),
-  redirects: array(string()),
+  redirects: optional(array(string())),
   appInfo: array(AppInfoOption),
   steps: array(Step),
   whatsNextFilePath: MdxFilePath,

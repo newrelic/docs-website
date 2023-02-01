@@ -26,7 +26,7 @@ const createSingleNav = () => {
       );
     }
     acc = subNavChildren
-      ? [...acc, { ...page, pages: subNavChildren }]
+      ? [...acc, { ...subNavChildren }]
       : [...acc, { ...page }];
     return acc;
   }, []);
@@ -37,7 +37,5 @@ const createSingleNav = () => {
 
   fs.writeFileSync(`src/nav/generatedNav.yml`, navToRuleThemAllYaml);
 };
-
-createSingleNav();
 
 module.exports = createSingleNav;

@@ -1,0 +1,386 @@
+---
+title: 'ストリーミング データ エクスポート: AWS Kinesis Firehose または Azure Event Hub にデータを送信します'
+tags:
+  - APIs
+  - NerdGraph
+metaDescription: 'With the New Relic streaming export feature, you can send your data as it''s ingested to New Relic to an AWS Kinesis Firehose or Azure Event Hub.'
+translationType: machine
+---
+
+[Data Plus](/docs/accounts/accounts-billing/new-relic-one-pricing-billing/data-ingest-billing/#data-plus)で利用できるストリーミング エクスポート機能を使用すると、New Relic によって取り込まれたデータを AWS Kinesis Firehose または Azure Event Hub に送信できます。[NerdGraph](/docs/apis/nerdgraph/get-started/introduction-new-relic-nerdgraph)を使用してストリーミング ルールを作成および更新する方法と、既存のルールを表示する方法について説明します。これらの呼び出しを行うに[は、NerdGraph エクスプローラー](/docs/apis/nerdgraph/get-started/nerdgraph-explorer)を使用できます。
+
+## ストリーミング エクスポートとは [#definition]
+
+New Relic 組織によってデータが取り込まれると、ストリーミング エクスポート機能によってそのデータが AWS Kinesis Firehose または Azure Event Hub に送信されます。エクスポートする New Relic データの種類を管理する[NRQL](/docs/query-your-data/nrql-new-relic-query-language/get-started/introduction-nrql-new-relics-query-language)を使用して定義されたカスタム ルールを設定できます。
+
+ストリーミング エクスポートを使用できる例:
+
+* データレイクにデータを入力するには
+* AI/ML トレーニングの強化
+* コンプライアンス、法律、またはセキュリティ上の理由による長期保存
+
+ストリーミング エクスポート ルールはいつでも無効または有効にできます。ただし、ストリーミング エクスポートは現在取り込まれたデータのみを送信することに注意してください。つまり、ストリーミング エクスポートを無効にして再度有効にすると、オフのときに取り込まれたデータはこの機能では送信されません。過去のデータをエクスポートするには、 [Historical data export](/docs/apis/nerdgraph/examples/nerdgraph-historical-data-export)を使用できます。
+
+## 要件と限界 [#requirements]
+
+パーミッション関連の要件。
+
+* [Data Plus](/docs/accounts/accounts-billing/new-relic-one-pricing-billing/data-ingest-billing/#data-plus)オプション付きの Pro または Enterprise エディション
+* ユーザー タイプ:[コア ユーザーまたはフル プラットフォーム ユーザー](/docs/accounts/accounts-billing/new-relic-one-user-management/user-type)
+* 機能: [ストリーミング データ機能](/docs/accounts/accounts-billing/new-relic-one-user-management/user-capabilities#data-platform)
+
+New Relic データを受信するには、AWS Kinesis Firehose または Azure Event Hub をセットアップする必要があります。まだこれを行っていない場合は、以下の[AWS](#firehose-setup)または[Azure](#event-hub-setup)の手順に従ってください。
+
+NRQL 要件:
+
+* 集計のないフラットなクエリである必要があります。たとえば、 `SELECT *`または`SELECT column1, column2`フォームがサポートされています。
+* サブクエリを除く、 `WHERE`句のすべてに適用されます。
+* クエリに`FACET`句、 `COMPARE WITH`または`LOOKUP`を含めることはできません。
+* ネストされたクエリはサポートされていません。
+* [メトリック タイムスライス データ](/docs/data-apis/understand-data/new-relic-data-types/#timeslice-data)ではなく[、NRDB に格納されたデータ型](/docs/data-apis/understand-data/new-relic-data-types/#timeslice-data)をサポートします。
+
+## AWS Kinesis Firehose をセットアップする [#firehose-setup]
+
+AWS へのストリーミング データ エクスポートを設定するには、最初に Amazon Kinesis Firehose を設定する必要があります。この手順については、次の 3 つのステップで説明します。
+
+### ステップ 1.ストリーミング エクスポート用の Firehose を作成する [#create-firehose]
+
+New Relic データをストリーミングする専用の Firehose を作成します。
+
+1. Amazon Kineses Data Firehose に移動します。
+2. 配信ストリームを作成します。
+3. ストリームに名前を付けます (この名前は後でルール登録で使用します)。
+4. **Direct PUT またはその他のソース**を使用して、New Relic の JSON イベント形式 (S3、Redshift、または OpenSearch など) と互換性のある宛先を指定します。
+
+### ステップ 2.IAM Firehose 書き込みアクセス ポリシーを作成する [#create-policy]
+
+1. IAM に移動し、 \[**ポリシー**] を選択します。
+2. ポリシーを作成します。
+3. Firehose サービスを選択し、 `PutRecord`と`PutRecordBatch`を選択します。
+4. `Resources`では、配信ストリームを選択し、ARN を追加して、ストリームのリージョンを選択します。
+5. AWS アカウント番号を入力し、名前ボックスに目的の配信ストリーム名を入力します。
+6. ポリシーを作成します。
+
+### ステップ 3. New Relic の書き込みアクセスを許可するための IAM ロールを作成する [#iam-role]
+
+IAM ロールを設定するには:
+
+1. IAM に移動し、 **Roles**をクリックします。
+2. AWS アカウントのロールを作成してから**、別の AWS アカウントを選択します**。
+3. New Relic エクスポート アカウント ID を入力します: `888632727556` 。
+4. \[**外部 ID が必要] を**選択し、エクスポート元の New Relic アカウントの[アカウント ID](/docs/accounts/accounts-billing/account-structure/account-id)を入力します。
+5. \[**アクセス許可]**をクリックし、上で作成したポリシーを選択します。
+6. ロール名 (これはエクスポート登録で使用されます) と説明を追加します。
+7. ロールを作成します。
+
+それが完了したら、NerdGraph を使用してエクスポート ルールの設定に取り組むことができます。詳細については、読み続けてください。
+
+## Azure イベント ハブをセットアップする [#event-hub-setup]
+
+Azure へのストリーミング データ エクスポートを設定するには、最初にイベント ハブを設定する必要があります。この手順については、次の 3 つのステップで説明します。
+
+または、[こちら](https://learn.microsoft.com/en-us/azure/event-hubs/event-hubs-create)の Azure ガイドに従うこともできます。
+
+### 手順 1. Event Hubs 名前空間を作成する [#create-event-hubs-namespace]
+
+1. Microsoft Azure アカウント内の Event Hubs に移動します。
+2. 手順に従って、Event Hubs 名前空間を作成します。すべてのデータを確実に受信できるように、自動インフレを有効にすることをお勧めします。
+3. パブリック アクセスが有効になっていることを確認します。共有アクセス ポリシーを使用して、イベント ハブで安全に認証します。
+4. Event Hubs 名前空間がデプロイされたら、 \[**リソースに移動] を**クリックします。
+
+### 手順 2. イベント ハブを作成する [#create-event-hub]
+
+1. 左の列で、 \[ **Event Hubs** ] をクリックします。
+2. 次に、\[ **+ イベント ハブ] をクリックして、イベント ハブ**を作成します。
+3. 目的のイベント ハブ名を入力します。後でストリーミング エクスポート ルールを作成するために必要になるため、これを保存します。
+4. イベント ハブが作成されたら、イベント ハブをクリックします。
+
+### ステップ 3. 共有アクセス ポリシーを作成してアタッチする [#event-hub-policy]
+
+1. 左の列で、\[**共有アクセス ポリシー**] に移動します。
+2. ページの上部にある \[ **+ 追加] を**クリックします。
+3. 共有アクセス ポリシーの名前を選択します。
+4. \[**送信**] をオンにして、\[**作成**] をクリックします。
+5. 作成したポリシーをクリックし、 **Connection string–primary key**をコピーします。これを保存します。これを使用して認証し、イベント ハブにデータを送信します。
+
+それが完了したら、NerdGraph を使用してエクスポート ルールの設定に取り組むことができます。詳細については、読み続けてください。
+
+## 重要な分野 [#fields]
+
+これから説明するストリーミング データ エクスポートの NerdGraph 呼び出しのほとんどは、アカウントに関連するいくつかのフィールドを使用します。
+
+AWS Kinesis Firehose の場合:
+
+* `awsAccountId`: [AWS アカウント ID](https://docs.aws.amazon.com/IAM/latest/UserGuide/console_account-alias.html) 。例えば： `10000000000`
+* `deliveryStreamName`: [Kinesis ストリーム名](https://docs.aws.amazon.com/kinesis/latest/APIReference/API_CreateStream.html)。例: `firehose-test-stream` .
+* `region`:[AWS リージョン](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/using-regions-availability-zones.html)。例: `us-east-1` .
+* `role`: Kinesis Firehose の[AWS IAM ロール](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles.html)。これは常に`firehose-role`です。
+
+Azure イベント ハブの場合:
+
+* `eventHubConnectionString`: [Azure イベント ハブの接続文字列](https://learn.microsoft.com/en-us/azure/event-hubs/event-hubs-get-connection-string)。次のように見えます: `Endpoint=sb://<NamespaceName>.servicebus.windows.net/;SharedAccessKeyName=<KeyName>;SharedAccessKey=<KeyValue>;EntityPath=<EventHubName>`
+* `eventHubName`: イベント ハブ名。例: `my-event-hub` .
+
+## ストリーミング エクスポート ルールを作成する方法 [#create-stream]
+
+まず、エクスポートするデータを決定します。次に、NerdGraph 呼び出しで、NRQL を使用して必要なストリーミング ルールを作成します。いくつかの例を挙げます。
+
+### ストリームを作成する [#create-stream]
+
+新しいストリーミング ルールを作成するときは、次のすべてのフィールドが必要になります。AWS Kinesis Firehose にエクスポートするストリーミング ルールを作成する例を次に示します。
+
+```graphql
+mutation {
+  streamingExportCreateRule(
+    accountId: YOUR_NR_ACCOUNT_ID,
+    ruleParameters: {
+      description: "ADD_RULE_DESCRIPTION",
+      name: "PROVIDE_RULE_NAME",
+      nrql: "SELECT * FROM NodeStatus"
+    },
+    awsParameters: {
+      awsAccountId: "YOUR_AWS_ACCOUNT_ID",
+      deliveryStreamName: "FIREHOSE_STREAM_NAME",
+      region: "SPECIFY_AWS_REGION",
+      role: "firehose-role"
+    }
+  ) {
+    id
+    status
+  }
+}
+```
+
+Azure Event Hub にエクスポートするストリーミング ルールを作成する例を次に示します。
+
+```graphql
+mutation {
+  streamingExportCreateRule(
+    accountId: YOUR_NR_ACCOUNT_ID,
+    ruleParameters: {
+      description: "ADD_RULE_DESCRIPTION",
+      name: "PROVIDE_RULE_NAME",
+      nrql: "SELECT * FROM NodeStatus"
+    },
+    azureParameters: {
+      eventHubConnectionString: "YOUR_EVENT_HUB_SAS_CONNECTION_STRING",
+      eventHubName: "YOUR_EVENT_HUB_NAME"
+    }
+  ) {
+    id
+    status
+  }
+}
+```
+
+ルール ID とステータスを含む結果がすぐに得られます。ステータスは`CREATION_IN_PROGRESS`として表示されます。ルール ID を使用して、ルールが正常に作成されたかどうかを確認できます。
+
+ポリシーの検証に時間がかかるため、ルールの作成が完了するまでに最大 6 分かかる場合があります。
+
+ルールの登録が完了する前に、別のミューテーション アクション ( `Enable` 、 `Disable` 、または`Update`など) を開始することはできません。これは、ルールが作成プロセスに対してロックされているためです。ルールの登録プロセスが完了する前に別のミューテーション アクションを試みると、「エクスポート ルールは現在、別の要求によって更新されています。しばらく待ってからもう一度お試しください。」のようなメッセージが表示されます。
+
+`Delete`はいつでも使用できます。
+
+ルールの作成に必要な約 6 分以内であれば、いつでも作成を終了してステータスを変更できます。ステータスは`ENABLED` 、 `DISABLED` 、または`CREATION_FAILED`に変わります。
+
+値に関する次の詳細を参照してください。
+
+* `ENABLED` ルールが正常に作成され、データのストリーミングが開始されたことを意味します。
+* `CREATION_FAILED` ルールの作成に失敗したことを意味します。これはいくつかの理由で発生する可能性がありますが、多くの場合、AWS ポリシーまたは Azure SAS 検証の失敗が原因です。
+* `DISABLED` は、ルールが作成されたものの、フィルタ ストリームの制限に達した、またはフィルタ ストリーム ルールの作成に失敗したなどの理由により、まだ有効になっていないことを意味します。6 分経ってもステータスが`CREATION_IN_PROGRESS`のままの場合は、サービスのシステム エラーが原因でルールの作成に失敗したことを意味します。ルールを削除して、新しいルールをもう一度作成してみてください。
+
+ストリーミング ルールが作成されると、それを[表示できます](#view-stream)。
+
+### ストリームを更新する [#update-stream]
+
+新しいストリーミング ルールを更新するときは、次のすべてのフィールドが必要になります。ストリーミング ルールを更新する例を次に示します。
+
+AWS Kinesis Firehose:
+
+```graphql
+mutation {
+  streamingExportUpdateRule(
+    id: RULE_ID,
+    ruleParameters: {
+      description: "ADD_RULE_DESCRIPTION",
+      name: "PROVIDE_RULE_NAME",
+      nrql: "YOUR_NRQL_QUERY"
+    },
+    awsParameters: {
+      awsAccountId: "YOUR_AWS_ACCOUNT_ID",
+      deliveryStreamName: "FIREHOSE_STREAM_NAME",
+      region: "SPECIFY_AWS_REGION",
+      role: "firehose-role"
+    }
+  ) {
+    id
+    status
+  }
+}
+```
+
+Azure イベント ハブ:
+
+```graphql
+mutation {
+  streamingExportUpdateRule(
+    id: RULE_ID,
+    ruleParameters: {
+      description: "ADD_RULE_DESCRIPTION",
+      name: "PROVIDE_RULE_NAME",
+      nrql: "YOUR_NRQL_QUERY"
+    },
+    azureParameters: {
+      eventHubConnectionString: "YOUR_EVENT_HUB_SAS_CONNECTION_STRING",
+      eventHubName: "YOUR_EVENT_HUB_NAME"
+    }
+  ) {
+    id
+    status
+  }
+}
+```
+
+更新中は、メッセージ フィールドに次のメッセージが表示されます。後でもう一度確認してください。」完全に更新されるまで最大 6 分かかる場合があります。
+
+`streamingRule`を呼び出してルールを取得することで、ルールが更新されたかどうかを確認できます。ルールが更新されている間、ルールはロックされ、他のミューテーション アクションはルールに対して実行できません。同じルールに対して別のミューテーション アクションを実行しようとすると、「エクスポート ルールは現在別のリクエストによって更新されています。しばらく待ってからもう一度お試しください」というメッセージが表示されます。ユーザーは、削除されたルールを除くすべてのステータスのルールを更新できます。
+
+### ストリームを無効にする [#disable-stream]
+
+ルールを無効にするには、ルール ID を指定するだけです。ストリームを無効にする例を次に示します。
+
+```graphql
+mutation {
+  streamingExportDisableRule(id: RULE_ID) {
+    id
+    status
+    message
+  }
+}
+```
+
+ルールのステータスが`ENABLED`の場合にのみ、ルールを無効にできます。別の状態にあるルールを無効にしようとすると、「ステータスが許可されていないため、エクスポート ルールを有効または無効にすることはできません」というエラー メッセージが返されます。別のミューテーションが行われたためにルールがロックされている場合、ルールを無効にすることはできません。
+
+### ストリームを有効にする [#enable-stream]
+
+ルールを有効にする場合は、ルール ID のみを指定する必要があります。ストリームを有効にする例を次に示します。
+
+```graphql
+mutation {
+  streamingExportEnableRule(id: RULE_ID) {
+    id
+    status
+    message
+  }
+}
+```
+
+ステータスが`DISABLED`の場合にのみルールを有効にできます。別の状態にあるルールを有効にしようとすると、「ステータスが許可されていないため、エクスポート ルールを有効または無効にすることはできません」のようなエラー メッセージが返されます。別のミューテーションが行われたためにルールがロックされている場合、ルールを有効にすることはできません。
+
+### ストリームを削除する [#delete-stream]
+
+ストリームを削除するには、ルール ID を指定する必要があります。次に例を示します。
+
+```graphql
+mutation {
+  streamingExportDeleteRule(id: RULE_ID) {
+    id
+    ...
+  }
+}
+```
+
+削除は、まだ削除されていない限り、どのステータスのルールでも実行できます。ルールが削除されると、再度有効にすることはできません。削除後 24 時間以内であれば、ルール ID を指定して`steamingRule` API を呼び出すことで、ルールを引き続き表示できます。24 時間後、ルールは NerdGraph で検索できなくなります。
+
+## ストリームを表示 [#view-stream]
+
+アカウント ID とルール ID を照会して、特定のストリーム ルールに関する情報を照会できます。次に例を示します。
+
+AWS Kinesis Firehose:
+
+```graphql
+{
+  actor {
+    account(id: YOUR_NR_ACCOUNT_ID) {
+      streamingExport {
+        streamingRule(id: "RULE_ID") {
+          aws {
+            awsAccountId
+            deliveryStreamName
+            region
+            role
+          }
+          createdAt
+          description
+          id
+          message
+          name
+          nrql
+          status
+          updatedAt
+        }
+      }
+    }
+  }
+}
+```
+
+Azure イベント ハブ:
+
+```graphql
+{
+  actor {
+    account(id: YOUR_NR_ACCOUNT_ID) {
+      streamingExport {
+        streamingRule(id: "RULE_ID") {
+          azure {
+            eventHubConnectionString
+            eventHubName
+          }
+          createdAt
+          description
+          id
+          message
+          name
+          nrql
+          status
+          updatedAt
+        }
+      }
+    }
+  }
+}
+```
+
+既存のすべてのストリームを照会することもできます。次に例を示します。
+
+```graphql
+{
+  actor {
+    account(id: YOUR_NR_ACCOUNT_ID) {
+      streamingExport {
+        streamingRules {
+          aws {
+            awsAccountId
+            region
+            deliveryStreamName
+            role
+          }
+          azure {
+            eventHubConnectionString
+            eventHubName
+          }
+          createdAt
+          description
+          id
+          message
+          name
+          nrql
+          status
+          updatedAt
+        }
+      }
+    }
+  }
+}
+```

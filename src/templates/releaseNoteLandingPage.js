@@ -5,11 +5,8 @@ import { graphql } from 'gatsby';
 import PageTitle from '../components/PageTitle';
 import Timeline from '../components/Timeline';
 import SEO from '../components/SEO';
-import { Icon, Layout, Link } from '@newrelic/gatsby-theme-newrelic';
-import filter from 'unist-util-filter';
+import { Button, Icon, Layout, Link } from '@newrelic/gatsby-theme-newrelic';
 import { TYPES } from '../utils/constants';
-
-const EXCERPT_LENGTH = 200;
 
 const sortByVersion = (
   { frontmatter: { version: versionA } },
@@ -26,7 +23,7 @@ const sortByVersion = (
 };
 
 const ReleaseNoteLandingPage = ({ data, pageContext, location }) => {
-  const { slug, disableSwiftype } = pageContext;
+  const { slug, disableSwiftype, currentPage } = pageContext;
   const {
     allMdx: { nodes: posts },
     mdx: {
@@ -56,6 +53,12 @@ const ReleaseNoteLandingPage = ({ data, pageContext, location }) => {
       'Template/ReleaseNoteLanding'
     );
   }
+  // Pagination button navigation logic
+  const totalPages = Math.ceil(data.totalReleaseNotesPerAgent.totalCount / 10);
+  const prevPage = currentPage <= 1 ? '' : currentPage - 1;
+  const nextPage = currentPage + 1;
+  const hasNextPage = nextPage <= totalPages;
+  const hasPrevPage = prevPage >= 1;
 
   return (
     <>
@@ -107,8 +110,6 @@ const ReleaseNoteLandingPage = ({ data, pageContext, location }) => {
             return (
               <Timeline.Item label={date} key={date}>
                 {posts.sort(sortByVersion).map((post) => {
-                  const excerpt = getBestGuessExcerpt(post.mdxAST);
-
                   return (
                     <div
                       key={post.version}
@@ -137,8 +138,7 @@ const ReleaseNoteLandingPage = ({ data, pageContext, location }) => {
                           margin-bottom: 0;
                         `}
                       >
-                        {excerpt.slice(0, EXCERPT_LENGTH)}
-                        {excerpt.length > EXCERPT_LENGTH ? '…' : ''}
+                        {post.excerpt}
                       </p>
                     </div>
                   );
@@ -147,6 +147,68 @@ const ReleaseNoteLandingPage = ({ data, pageContext, location }) => {
             );
           })}
         </Timeline>
+        <div
+          css={css`
+            display: flex;
+            max-width: 760px;
+            justify-content: center;
+            align-items: flex-end;
+            margin: 6rem auto 0;
+            a {
+              margin: 0 0.5rem 0;
+              button {
+                &:hover {
+                  color: var(--brand-button-primary-accent-hover);
+                  border-color: var(--brand-button-primary-accent-hover);
+                }
+              }
+              text-decoration: none;
+              &[disabled] {
+                pointer-events: none;
+                button {
+                  border-color: --system-text-muted-light;
+                  color: --system-text-muted-light;
+                }
+              }
+            }
+          `}
+        >
+          <Link disabled={!hasPrevPage} to={slug}>
+            <Button disabled={!hasPrevPage} variant={Button.VARIANT.OUTLINE}>
+              First
+            </Button>
+          </Link>
+
+          <Link
+            disabled={!hasPrevPage}
+            to={`${slug}${prevPage === 1 ? '/' : `/${prevPage}/`}`}
+            // there is no url for agent-release-notes/1/
+          >
+            <Button disabled={!hasPrevPage} variant={Button.VARIANT.OUTLINE}>
+              <Icon name="fe-arrow-left" />
+            </Button>
+          </Link>
+          <Button
+            variant={Button.VARIANT.OUTLINE}
+            css={css`
+              pointer-events: none;
+              margin: 0 0.5rem;
+              border: none;
+            `}
+          >
+            {`Page ${currentPage} of ${totalPages}`}{' '}
+          </Button>
+          <Link disabled={!hasNextPage} to={`${slug}/${nextPage}/`}>
+            <Button disabled={!hasNextPage} variant={Button.VARIANT.OUTLINE}>
+              <Icon name="fe-arrow-right" />
+            </Button>
+          </Link>
+          <Link disabled={!hasNextPage} to={`${slug}/${totalPages}/`}>
+            <Button disabled={!hasNextPage} variant={Button.VARIANT.OUTLINE}>
+              Last
+            </Button>
+          </Link>
+        </div>
       </Layout.Content>
     </>
   );
@@ -159,15 +221,16 @@ ReleaseNoteLandingPage.propTypes = {
 };
 
 export const pageQuery = graphql`
-  query($slug: String!, $subject: String!, $locale: String) {
+  query($slug: String!, $subject: String!, $skip: Int, $limit: Int) {
     allMdx(
       filter: {
         frontmatter: { subject: { eq: $subject }, releaseDate: { ne: null } }
       }
       sort: { fields: [frontmatter___releaseDate], order: [DESC] }
+      limit: $limit
+      skip: $skip
     ) {
       nodes {
-        mdxAST
         fields {
           slug
         }
@@ -176,6 +239,7 @@ export const pageQuery = graphql`
           version
           releaseDate(formatString: "MMMM D, YYYY")
         }
+        excerpt
       }
     }
     mdx(fields: { slug: { eq: $slug } }) {
@@ -183,66 +247,14 @@ export const pageQuery = graphql`
         subject
       }
     }
-
-    ...MainLayout_query
+    totalReleaseNotesPerAgent: allMdx(
+      filter: {
+        frontmatter: { subject: { eq: $subject }, releaseDate: { ne: null } }
+      }
+    ) {
+      totalCount
+    }
   }
 `;
-
-// copying in function from mdast-util-to-string so we can render list items with periods and spaces between
-function toString(node) {
-  const isList = node.type === 'list';
-  return (
-    (node &&
-      (node.value ||
-        node.alt ||
-        node.title ||
-        ('children' in node && all(node.children, isList)) ||
-        ('length' in node && all(node, isList)))) ||
-    ''
-  );
-}
-
-function all(values, isList) {
-  const result = [];
-  const length = values.length;
-  let index = -1;
-
-  while (++index < length) {
-    result[index] = toString(values[index]);
-  }
-  if (isList) {
-    const strippedPeriodResults = result.map((listItem) => {
-      if (listItem[listItem.length - 1] === '.') {
-        return listItem.slice(0, -1);
-      } else {
-        return listItem;
-      }
-    });
-    return strippedPeriodResults.join('. ');
-  } else {
-    return result.join('');
-  }
-}
-
-const getBestGuessExcerpt = (mdxAST) => {
-  const textTypes = [
-    'paragraph',
-    'list',
-    'listItem',
-    'text',
-    'root',
-    'link',
-    'inlineCode',
-  ];
-  const ast = filter(mdxAST, (node) => textTypes.includes(node.type));
-
-  return toString(
-    filter(
-      ast,
-      (node, idx, parent) =>
-        node.type === 'root' || parent.type !== 'root' || idx === 0
-    )
-  );
-};
 
 export default ReleaseNoteLandingPage;
