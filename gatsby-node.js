@@ -249,14 +249,13 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
     }
   });
 
-  const createEmbed = (node) => {
+  const createEmbed = (node, defer = false) => {
     const {
       fields: { fileRelativePath, slug },
     } = node;
 
     if (
-      // TODO: eventually exclude release notes from embeds / nr1-help-xp
-      // fileRelativePath.includes('src/content/docs/release-notes') ||
+      fileRelativePath.includes('src/content/docs/release-notes') ||
       fileRelativePath.includes('src/content/whats-new')
     ) {
       return;
@@ -272,6 +271,7 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
         fileRelativePath,
         layout: 'EmbedLayout',
       },
+      defer,
     });
   };
 
@@ -295,7 +295,10 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
     }
 
     createPageFromNode(node, { createPage });
-    createEmbed(node);
+    createEmbed(
+      node,
+      true // enable dsg
+    );
 
     locales.forEach((locale) => {
       const i18nNode = translatedContentNodes.find(
