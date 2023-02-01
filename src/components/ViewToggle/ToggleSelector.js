@@ -1,4 +1,5 @@
 import React from 'react';
+import React from 'react';
 import { css } from '@emotion/react';
 
 import { useTessen } from '@newrelic/gatsby-theme-newrelic';
@@ -11,6 +12,13 @@ export const TOGGLE_VIEWS = {
 };
 
 const ToggleSelector = () => {
+  const [currentView, setCurrentView] = useViewToggleContext();
+  const tessen = useTessen();
+
+  const TOGGLE_VIEWS = {
+    newUserView: 'new-user-view',
+    defaultView: 'default-view',
+  };
   const [currentView, setCurrentView] = useToggleViewContext();
   const tessen = useTessen();
 
@@ -20,6 +28,11 @@ const ToggleSelector = () => {
         type="button"
         onClick={() => {
           setCurrentView(TOGGLE_VIEWS.newUserView);
+          tessen.track({
+            eventName: 'homepageToggleClick',
+            category: 'HomepageToggle',
+            tabView: 'newUserView',
+          });
           tessen.track({
             eventName: 'homepageToggleClick',
             category: 'HomepageToggle',
@@ -49,6 +62,11 @@ const ToggleSelector = () => {
         type="button"
         onClick={() => {
           setCurrentView(TOGGLE_VIEWS.defaultView);
+          tessen.track({
+            eventName: 'homepageToggleClick',
+            category: 'HomepageToggle',
+            tabView: 'defaultView',
+          });
           tessen.track({
             eventName: 'homepageToggleClick',
             category: 'HomepageToggle',

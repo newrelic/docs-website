@@ -13,8 +13,6 @@ import {
   useTranslation,
   useLoggedIn,
 } from '@newrelic/gatsby-theme-newrelic';
-import ToggleSelector from '../components/ViewToggle/ToggleSelector';
-// import ToggleView from '../components/ViewToggle/ToggleView';
 import SurfaceLink from '../components/SurfaceLink';
 import HomepageBanner from '../components/HomepageBanner';
 import FindYourQuickStart from '../components/FindYourQuickstart';
