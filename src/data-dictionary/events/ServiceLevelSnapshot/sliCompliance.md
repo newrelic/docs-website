@@ -1,6 +1,7 @@
 ---
 name: sliCompliance
 type: attribute
+units: percentage (%)
 events:
   - ServiceLevelSnapshot
 ---

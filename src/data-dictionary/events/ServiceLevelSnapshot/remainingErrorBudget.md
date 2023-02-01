@@ -1,6 +1,7 @@
 ---
 name: remainingErrorBudget
 type: attribute
+units: percentage (%)
 events:
   - ServiceLevelSnapshot
 ---
