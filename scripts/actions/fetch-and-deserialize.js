@@ -138,16 +138,11 @@ const extractFiles = () => {
   return (zip) => {
     return zip
       .getEntries()
-      .map((entry) => {
-        if (entry.entryName.endsWith('.mdx')) {
-          return {
-            path: entry.entryName,
-            html: zip.readAsText(entry, 'utf8'),
-          };
-        }
-        return null;
-      })
-      .filter(Boolean);
+      .filter((entry) => entry.entryName.endsWith('.mdx'))
+      .map((entry) => ({
+        path: entry.entryName,
+        html: zip.readAsText(entry, 'utf8'),
+      }));
   };
 };
 
