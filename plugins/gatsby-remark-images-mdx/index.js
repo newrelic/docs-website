@@ -18,6 +18,8 @@ const cheerio = require(`cheerio`);
 const { slash } = require(`gatsby-core-utils`);
 const chalk = require(`chalk`);
 
+const util = require('util');
+
 // Should be the same as https://github.com/gatsbyjs/gatsby/blob/master/packages/gatsby-transformer-sharp/src/supported-extensions.js
 const supportedExtensions = {
   jpeg: true,
@@ -66,15 +68,38 @@ module.exports = (
   // Get all the available definitions in the markdown tree
   const definitions = getDefinitions(markdownAST);
 
-  // This will allow the use of html image tags
-  const rawHtmlNodes = selectAll(`html`, markdownAST);
-  console.log({ rawHtmlNodes });
-  // const rawHtmlNodes = [];
-  visitWithParents(markdownAST, [`html`, `jsx`], (node, ancestors) => {
-    const inLink = ancestors.some(findParentLinks);
+  // const rawHtmlNodes = selectAll(`mdxBlockElement`, markdownAST);
+  // console.log(
+  //   util.inspect(markdownAST, { showHidden: false, depth: null, colors: true })
+  // );
 
-    rawHtmlNodes.push({ node, inLink });
+  const rawHtmlNodes = [];
+
+  visitWithParents(markdownAST, [`mdxBlockElement`], (node, ancestors) => {
+    // const inLink = ancestors.some(findParentLinks);
+    if (node.name === 'img') {
+      rawHtmlNodes.push({ node });
+    }
   });
+
+  console.log(
+    util.inspect(rawHtmlNodes, {
+      showHidden: false,
+      depth: null,
+      colors: true,
+    })
+  );
+
+  // This will allow the use of html image tags
+  // const rawHtmlNodes = select(markdownAST, 'html');
+
+  // const rawHtmlNodes = [];
+
+  // visitWithParents(markdownAST, [`html`, `jsx`], (node, ancestors) => {
+  //   const inLink = ancestors.some(findParentLinks);
+
+  //   rawHtmlNodes.push({ node, inLink });
+  // });
 
   // This will only work for markdown syntax image tags
   const markdownImageNodes = [];
