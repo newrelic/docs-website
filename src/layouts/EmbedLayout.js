@@ -2,11 +2,14 @@ import React from 'react';
 import { Layout } from '@newrelic/gatsby-theme-newrelic';
 import PropTypes from 'prop-types';
 import { css, Global } from '@emotion/react';
+import { Helmet } from 'react-helmet';
 
 const EmbedLayout = ({ children }) => {
   return (
     <>
-      <meta name="robots" content="noindex" />
+      <Helmet>
+        <meta name="robots" content="noindex" />
+      </Helmet>
       <Global
         styles={css`
           body {
