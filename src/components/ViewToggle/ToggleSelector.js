@@ -58,12 +58,21 @@ const ToggleSelector = () => {
           &:hover {
             color: var(--primary-text-color);
           }
+          .dark-mode & {
+            box-shadow: inset 0px 0px 2px rgba(255, 255, 255, 0.25);
+            background-color: var(--secondary-background-color);
+            color: var(--system-text-disabled-dark);
+          }
 
           ${currentView === TOGGLE_VIEWS.newUserView &&
           css`
             box-shadow: unset;
-            color: var(--primary-text-color);
+            color: #293338;
             background-color: var(--brand-button-primary-accent);
+            .dark-mode & {
+              color: #293338;
+              background-color: var(--brand-button-primary-accent);
+            }
           `}
         `}
       >
@@ -81,6 +90,8 @@ const ToggleSelector = () => {
           });
         }}
         css={css`
+          background-color: #eceded;
+
           border-radius: 0 4px 4px 0;
           width: 103px;
           color: #9ea5a9;
@@ -88,12 +99,21 @@ const ToggleSelector = () => {
           &:hover {
             color: var(--primary-text-color);
           }
+          .dark-mode & {
+            box-shadow: inset 0px 0px 2px rgba(255, 255, 255, 0.25);
+            background-color: var(--secondary-background-color);
+            color: var(--system-text-disabled-dark);
+          }
 
           ${currentView === TOGGLE_VIEWS.defaultView &&
           css`
             box-shadow: unset;
-            color: var(--primary-text-color);
+            color: #293338;
             background-color: var(--brand-button-primary-accent);
+            .dark-mode & {
+              color: #293338;
+              background-color: var(--brand-button-primary-accent);
+            }
           `}
         `}
       >
