@@ -115,6 +115,24 @@ module.exports = {
     deserialize: deserializeComponent,
     serialize: serializeComponent,
   },
+  LicenseKey: {
+    deserialize: (h, node) => {
+      // this is to remove the `span`'s children to make this
+      // a self closing tag.
+      node.children = [];
+      return deserializeComponent(h, node, { tagName: 'LicenseKey' });
+    },
+    serialize: (h, node) =>
+      h(
+        node,
+        'span',
+        {
+          'data-type': 'component',
+          'data-component': 'LicenseKey',
+        },
+        [u('text', 'account license key')]
+      ),
+  },
   Link: {
     deserialize: deserializeComponent,
     serialize: serializeComponent,
