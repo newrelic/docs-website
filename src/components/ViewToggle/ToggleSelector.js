@@ -1,7 +1,7 @@
 import React from 'react';
 import { css } from '@emotion/react';
 
-import { useTessen } from '@newrelic/gatsby-theme-newrelic';
+import { useTessen, useTranslation } from '@newrelic/gatsby-theme-newrelic';
 
 import { useToggleViewContext } from './ToggleViewContext';
 
@@ -15,6 +15,7 @@ const mobileBreakpoint = '450px';
 const ToggleSelector = () => {
   const [currentView, setCurrentView] = useToggleViewContext();
   const tessen = useTessen();
+  const { t } = useTranslation();
 
   return (
     <div
@@ -53,7 +54,6 @@ const ToggleSelector = () => {
           background-color: #eceded;
           border-radius: 4px 0 0 4px;
           width: 140px;
-          color: #9ea5a9;
           box-shadow: inset 0px 0px 2px rgba(0, 0, 0, 0.25);
           &:hover {
             color: var(--primary-text-color);
@@ -64,14 +64,10 @@ const ToggleSelector = () => {
             box-shadow: unset;
             color: var(--primary-text-color);
             background-color: var(--brand-button-primary-accent);
-
-            .dark-mode & {
-              border-bottom: var(--brand-button-primary-accent-hover) solid 3px;
-            }
           `}
         `}
       >
-        Quick launch guide
+        {t('home.toggle.newUserView')}
       </button>
 
       <button
@@ -98,14 +94,10 @@ const ToggleSelector = () => {
             box-shadow: unset;
             color: var(--primary-text-color);
             background-color: var(--brand-button-primary-accent);
-
-            .dark-mode & {
-              border-bottom: var(--brand-button-primary-accent-hover) solid 3px;
-            }
           `}
         `}
       >
-        Default view
+        {t('home.toggle.defaultView')}
       </button>
     </div>
   );
