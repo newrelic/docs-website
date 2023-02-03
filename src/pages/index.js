@@ -76,12 +76,12 @@ const HomePage = ({ data }) => {
     <ToggleViewContext.Provider value={[currentView, setCurrentView]}>
       <div
         css={css`
-          display: flex;
+          display: grid;
           margin-top: 2rem;
+          gap: 1rem;
           justify-content: space-between;
-          @media screen and (max-width: 1380px) {
-            flex-direction: column-reverse;
-          }
+          grid-template-columns: 2fr 1fr;
+          align-items: center;
         `}
       >
         <h1
@@ -98,9 +98,8 @@ const HomePage = ({ data }) => {
         </h1>
         <ToggleSelector
           css={css`
-            @media screen and (max-width: 1380px) {
-              align-self: flex-end;
-            }
+            justify-self: end;
+
             @media screen and (max-width: 760px) {
               display: none;
             }

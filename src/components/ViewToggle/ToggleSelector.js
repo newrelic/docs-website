@@ -1,7 +1,11 @@
 import React from 'react';
 import { css } from '@emotion/react';
 
-import { useTessen, useTranslation } from '@newrelic/gatsby-theme-newrelic';
+import {
+  useTessen,
+  useTranslation,
+  Trans,
+} from '@newrelic/gatsby-theme-newrelic';
 
 import { useToggleViewContext } from './ToggleViewContext';
 import Tooltip from '../Tooltip';
@@ -21,133 +25,130 @@ const ToggleSelector = ({ className }) => {
   return (
     <div
       css={css`
-        width: 244px;
-        display: flex;
-        align-items: center;
-        position: relative;
-
-        button {
-          height: 32px;
-          font-size: 0.75rem;
-          border: none;
-        }
-
-        @media screen and (max-width: 800px) {
-          align-items: flex-end;
-          flex-direction: column;
-          justify-content: center;
-        }
-        @media screen and (max-width: ${mobileBreakpoint}) {
-          display: none;
-        }
+        display: grid;
+        place-items: center;
       `}
       className={className}
     >
-      <Tooltip
+      <div
         css={css`
-          position: absolute;
-          top: -70px;
-          left: -50px;
-          @media screen and (max-width: 1380px) {
-            top: -50px;
-            left: -270px;
-            &::before {
-              left: calc(278px - 1.8rem);
-              border-radius: 0;
-              border-top-right-radius: 3px;
-              bottom: 15%;
-            }
+          width: 244px;
+          display: flex;
+          align-items: center;
+          position: relative;
+
+          button {
+            height: 32px;
+            font-size: 0.75rem;
+            border: none;
+          }
+
+          @media screen and (max-width: 800px) {
+            align-items: flex-end;
+            flex-direction: column;
+            justify-content: center;
+          }
+          @media screen and (max-width: ${mobileBreakpoint}) {
+            display: none;
           }
         `}
       >
-        <p>👋 Hey there! Are you a new user?</p>
-        <p
+        <Tooltip
           css={css`
-            font-size: 12px;
+            position: absolute;
+            bottom: 150%;
+            left: -50px;
+            & p:nth-of-type(2) {
+              font-size: 12px;
+            }
           `}
         >
-          Check out our <strong>new</strong> quick launch view here!
-        </p>
-      </Tooltip>
-      <button
-        type="button"
-        onClick={() => {
-          setCurrentView(TOGGLE_VIEWS.newUserView);
-          tessen.track({
-            eventName: 'homepageToggleClick',
-            category: 'HomepageToggle',
-            tabView: 'newUserView',
-          });
-        }}
-        css={css`
-          background-color: #eceded;
-          border-radius: 4px 0 0 4px;
-          width: 140px;
-          box-shadow: inset 0px 0px 2px rgba(0, 0, 0, 0.25);
-          &:hover {
-            color: var(--primary-text-color);
-          }
-          .dark-mode & {
-            box-shadow: inset 0px 0px 2px rgba(255, 255, 255, 0.25);
-            background-color: var(--secondary-background-color);
-            color: var(--system-text-disabled-dark);
-          }
-
-          ${currentView === TOGGLE_VIEWS.newUserView &&
-          css`
-            box-shadow: unset;
-            color: #293338;
-            background-color: var(--brand-button-primary-accent);
+          <Trans i18nKey="home.toggle.tooltip">
+            <p>👋 Hey there! Are you a new user?</p>
+            <p>
+              Check out our <strong>new</strong>quick launch view here!
+            </p>
+          </Trans>
+        </Tooltip>
+        <button
+          type="button"
+          onClick={() => {
+            setCurrentView(TOGGLE_VIEWS.newUserView);
+            tessen.track({
+              eventName: 'homepageToggleClick',
+              category: 'HomepageToggle',
+              tabView: 'newUserView',
+            });
+          }}
+          css={css`
+            background-color: #eceded;
+            border-radius: 4px 0 0 4px;
+            padding: 8px 16px 8px 16px;
+            box-shadow: inset 0px 0px 2px rgba(0, 0, 0, 0.25);
+            &:hover {
+              color: var(--primary-text-color);
+            }
             .dark-mode & {
+              box-shadow: inset 0px 0px 2px rgba(255, 255, 255, 0.25);
+              background-color: var(--secondary-background-color);
+              color: var(--system-text-disabled-dark);
+            }
+
+            ${currentView === TOGGLE_VIEWS.newUserView &&
+            css`
+              box-shadow: unset;
               color: #293338;
               background-color: var(--brand-button-primary-accent);
-            }
+              .dark-mode & {
+                color: #293338;
+                background-color: var(--brand-button-primary-accent);
+              }
+            `}
           `}
-        `}
-      >
-        {t('home.toggle.newUserView')}
-      </button>
+        >
+          {t('home.toggle.newUserView')}
+        </button>
 
-      <button
-        type="button"
-        onClick={() => {
-          setCurrentView(TOGGLE_VIEWS.defaultView);
-          tessen.track({
-            eventName: 'homepageToggleClick',
-            category: 'HomepageToggle',
-            tabView: 'defaultView',
-          });
-        }}
-        css={css`
-          background-color: #eceded;
-
-          border-radius: 0 4px 4px 0;
-          width: 103px;
-          color: #9ea5a9;
-          box-shadow: inset 0px 0px 2px rgba(0, 0, 0, 0.25);
-          &:hover {
-            color: var(--primary-text-color);
-          }
-          .dark-mode & {
-            box-shadow: inset 0px 0px 2px rgba(255, 255, 255, 0.25);
-            background-color: var(--secondary-background-color);
-            color: var(--system-text-disabled-dark);
-          }
-
-          ${currentView === TOGGLE_VIEWS.defaultView &&
-          css`
-            box-shadow: unset;
-            color: #293338;
-            background-color: var(--brand-button-primary-accent);
+        <button
+          type="button"
+          onClick={() => {
+            setCurrentView(TOGGLE_VIEWS.defaultView);
+            tessen.track({
+              eventName: 'homepageToggleClick',
+              category: 'HomepageToggle',
+              tabView: 'defaultView',
+            });
+          }}
+          css={css`
+            background-color: #eceded;
+            border-radius: 0 4px 4px 0;
+            padding: 8px 16px 8px 16px;
+            color: #9ea5a9;
+            box-shadow: inset 0px 0px 2px rgba(0, 0, 0, 0.25);
+            &:hover {
+              color: var(--primary-text-color);
+            }
             .dark-mode & {
+              box-shadow: inset 0px 0px 2px rgba(255, 255, 255, 0.25);
+              background-color: var(--secondary-background-color);
+              color: var(--system-text-disabled-dark);
+            }
+
+            ${currentView === TOGGLE_VIEWS.defaultView &&
+            css`
+              box-shadow: unset;
               color: #293338;
               background-color: var(--brand-button-primary-accent);
-            }
+              .dark-mode & {
+                color: #293338;
+                background-color: var(--brand-button-primary-accent);
+              }
+            `}
           `}
-        `}
-      >
-        {t('home.toggle.defaultView')}
-      </button>
+        >
+          {t('home.toggle.defaultView')}
+        </button>
+      </div>
     </div>
   );
 };
