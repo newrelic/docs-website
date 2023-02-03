@@ -4,10 +4,10 @@ import { css } from '@emotion/react';
 const Tooltip = ({ className, children }) => {
   const [shouldHide, setShouldHide] = useState(false);
 
-  // useEffect(() => {
-  //   const timer = setTimeout(() => setShouldHide(true), 5000);
-  //   return () => clearTimeout(timer);
-  // }, []);
+  useEffect(() => {
+    const timer = setTimeout(() => setShouldHide(true), 5000);
+    return () => clearTimeout(timer);
+  }, []);
 
   return (
     <div
