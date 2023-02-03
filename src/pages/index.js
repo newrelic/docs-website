@@ -77,7 +77,11 @@ const HomePage = ({ data }) => {
       <div
         css={css`
           display: flex;
+          margin-top: 2rem;
           justify-content: space-between;
+          @media screen and (max-width: 1380px) {
+            flex-direction: column-reverse;
+          }
         `}
       >
         <h1
@@ -92,7 +96,16 @@ const HomePage = ({ data }) => {
         >
           {t('home.pageTitle')}
         </h1>
-        <ToggleSelector />
+        <ToggleSelector
+          css={css`
+            @media screen and (max-width: 1380px) {
+              align-self: flex-end;
+            }
+            @media screen and (max-width: 760px) {
+              display: none;
+            }
+          `}
+        />
       </div>
       <SearchInput
         placeholder={t('home.search.placeholder')}
