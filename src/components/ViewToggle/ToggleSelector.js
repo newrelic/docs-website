@@ -4,6 +4,7 @@ import { css } from '@emotion/react';
 import { useTessen, useTranslation } from '@newrelic/gatsby-theme-newrelic';
 
 import { useToggleViewContext } from './ToggleViewContext';
+import Tooltip from '../Tooltip';
 
 export const TOGGLE_VIEWS = {
   newUserView: 'new-user-view',
@@ -12,7 +13,7 @@ export const TOGGLE_VIEWS = {
 
 const mobileBreakpoint = '450px';
 
-const ToggleSelector = () => {
+const ToggleSelector = ({ className }) => {
   const [currentView, setCurrentView] = useToggleViewContext();
   const tessen = useTessen();
   const { t } = useTranslation();
@@ -23,6 +24,7 @@ const ToggleSelector = () => {
         width: 244px;
         display: flex;
         align-items: center;
+        position: relative;
 
         button {
           height: 32px;
@@ -39,7 +41,34 @@ const ToggleSelector = () => {
           display: none;
         }
       `}
+      className={className}
     >
+      <Tooltip
+        css={css`
+          position: absolute;
+          top: -70px;
+          left: -50px;
+          @media screen and (max-width: 1380px) {
+            top: -50px;
+            left: -270px;
+            &::before {
+              left: calc(278px - 1.8rem);
+              border-radius: 0;
+              border-top-right-radius: 3px;
+              bottom: 15%;
+            }
+          }
+        `}
+      >
+        <p>👋 Hey there! Are you a new user?</p>
+        <p
+          css={css`
+            font-size: 12px;
+          `}
+        >
+          Check out our <strong>new</strong> quick launch view here!
+        </p>
+      </Tooltip>
       <button
         type="button"
         onClick={() => {
