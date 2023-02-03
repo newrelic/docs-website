@@ -17,11 +17,12 @@ import SurfaceLink from '../components/SurfaceLink';
 import HomepageBanner from '../components/HomepageBanner';
 import FindYourQuickStart from '../components/FindYourQuickstart';
 import MDXContainer from '../components/MDXContainer';
-import ToggleSelector, {
+import {
+  ToggleSelector,
+  ToggleView,
+  ToggleViewContext,
   TOGGLE_VIEWS,
-} from '../components/ViewToggle/ToggleSelector';
-import ToggleView from '../components/ViewToggle/ToggleView';
-import { ToggleViewContext } from '../components/ViewToggle/ToggleViewContext';
+} from '../components/ToggleView';
 
 const SAVED_TOGGLE_VIEW_KEY = 'docs-website/homepage-selected-view';
 
@@ -281,7 +282,7 @@ HomePage.propTypes = {
 };
 
 export const pageQuery = graphql`
-  query($quicklaunchSlug: String!) {
+  query ($quicklaunchSlug: String!) {
     site {
       layout {
         contentPadding
