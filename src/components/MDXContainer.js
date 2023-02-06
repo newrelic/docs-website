@@ -1,5 +1,6 @@
 import {
   ExternalLink,
+  LicenseKey,
   Link,
   Lightbox,
   MDXLink,
@@ -68,6 +69,7 @@ const defaultComponents = {
   LandingPageHero,
   LandingPageTile,
   LandingPageTileGrid,
+  LicenseKey,
   TechTile,
   TechTileGrid: MDXTechTileGrid,
   Button: MDXButton,
