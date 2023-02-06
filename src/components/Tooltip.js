@@ -4,10 +4,10 @@ import { css } from '@emotion/react';
 const Tooltip = ({ className, children }) => {
   const [shouldHide, setShouldHide] = useState(false);
 
-  useEffect(() => {
-    const timer = setTimeout(() => setShouldHide(true), 5000);
-    return () => clearTimeout(timer);
-  }, []);
+  // useEffect(() => {
+  //   const timer = setTimeout(() => setShouldHide(true), 5000);
+  //   return () => clearTimeout(timer);
+  // }, []);
 
   return (
     <div
@@ -22,6 +22,7 @@ const Tooltip = ({ className, children }) => {
         font-size: 14px;
         color: var(--system-text-primary-dark);
         background: var(--erno-black);
+        box-shadow: 0px -5px 6px 0 rgba(0,0,0,0.25);
         &::before {
           --size: 1rem;
           background: var(--erno-black);
