@@ -7,11 +7,11 @@ const onPreRenderHTML = ({
 }) => {
   const headComponents = getHeadComponents();
   if (pathname.endsWith('/embed') || pathname.endsWith('/embed/')) {
-    return replaceHeadComponents([
+    return replaceHeadComponents(
       headComponents.filter(
         (component) => !FILTERED_HEAD_KEYS.includes(component.key)
-      ),
-    ]);
+      )
+    );
   }
   return replaceHeadComponents([headComponents]);
 };
