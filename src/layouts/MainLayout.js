@@ -16,7 +16,6 @@ import { css } from '@emotion/react';
 import { scroller } from 'react-scroll';
 import SEO from '../components/SEO';
 import RootNavigation from '../components/RootNavigation';
-import EmbedLayout from './EmbedLayout';
 import NavFooter from '../components/NavFooter';
 import { useLocation, navigate } from '@reach/router';
 
@@ -55,14 +54,6 @@ const MainLayout = ({ children, pageContext }) => {
       });
     }
   }, [location.pathname]);
-
-  const isEmbed = pageContext.layout && pageContext.layout === 'EmbedLayout';
-  if (pageContext.fileRelativePath.match(/404/)) {
-    return children;
-  }
-  if (isEmbed) {
-    return <EmbedLayout>{children}</EmbedLayout>;
-  }
 
   return (
     <>
