@@ -278,7 +278,7 @@ test('deserializes LicenseKey component', async () => {
   expect(mdx).toEqual(input);
 });
 
-test.only('serialize iframes', async () => {
+test('serialize iframes', async () => {
   const input = `<iframe
   width="560"
   height="315"

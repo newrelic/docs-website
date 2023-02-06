@@ -386,7 +386,7 @@ test('serialize LicenseKey component', async () => {
   expect(html).toMatchSnapshot();
 });
 
-test.only('serialize iframes', async () => {
+test('serialize iframes', async () => {
   const mdx =
     '<iframe width="560" height="315" src="https://www.youtube.com/embed/04JP0ky_hjI" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>';
   const html = await serializeMDX(mdx);
