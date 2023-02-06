@@ -32,6 +32,7 @@ const ToggleSelector = ({ className }) => {
     >
       <div
         css={css`
+          width: 244px;
           display: flex;
           align-items: center;
           position: relative;
