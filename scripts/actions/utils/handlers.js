@@ -354,4 +354,8 @@ module.exports = {
     deserialize: deserializeComponent,
     serialize: serializeComponent,
   },
+  iframe: {
+    deserialize: deserializeComponent,
+    serialize: serializeComponent,
+  },
 };
