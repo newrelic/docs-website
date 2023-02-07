@@ -38,7 +38,7 @@ const HomePage = ({ data }) => {
 
   const { loggedIn } = useLoggedIn();
   const [searchTerm, setSearchTerm] = useState('');
-  const [currentView, setCurrentView] = useState(TOGGLE_VIEWS.defaultView);
+  const [currentView, setCurrentView] = useState(TOGGLE_VIEWS.newUserView);
 
   const { t } = useTranslation();
 
