@@ -61,7 +61,6 @@ const HomePage = ({ data }) => {
 
   useEffect(() => {
     if (currentView !== TOGGLE_VIEWS.fallbackView) {
-      console.log('fallback', currentView);
       window.localStorage.setItem(SAVED_TOGGLE_VIEW_KEY, currentView);
     }
   }, [currentView]);
