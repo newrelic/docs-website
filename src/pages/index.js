@@ -38,13 +38,14 @@ const HomePage = ({ data }) => {
 
   const { loggedIn } = useLoggedIn();
   const [searchTerm, setSearchTerm] = useState('');
-  const [currentView, setCurrentView] = useState(TOGGLE_VIEWS.newUserView);
+  const [currentView, setCurrentView] = useState(TOGGLE_VIEWS.fallbackView);
 
   const { t } = useTranslation();
 
   /* `useLocalStorage` hook doesn't work here because SSR doesn't have access to
    * localStorage, so when it gets to the client, the current tab is already set
    * and the client doesn't know to update it.
+   *
    */
   useEffect(() => {
     const storedToggleView = window.localStorage.getItem(SAVED_TOGGLE_VIEW_KEY);
@@ -58,10 +59,12 @@ const HomePage = ({ data }) => {
     }
   }, [setCurrentView, loggedIn]);
 
-  useEffect(
-    () => window.localStorage.setItem(SAVED_TOGGLE_VIEW_KEY, currentView),
-    [currentView]
-  );
+  useEffect(() => {
+    if (currentView !== TOGGLE_VIEWS.fallbackView) {
+      console.log('fallback', currentView);
+      window.localStorage.setItem(SAVED_TOGGLE_VIEW_KEY, currentView);
+    }
+  }, [currentView]);
 
   const mobileBreakpoint = '450px';
 
