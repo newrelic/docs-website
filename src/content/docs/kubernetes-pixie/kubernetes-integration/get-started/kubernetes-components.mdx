@@ -1,0 +1,93 @@
+---
+title: New Relic Kubernetes components
+tags:
+  - Integrations
+  - Kubernetes integration
+  - Kubernetes components
+metaDescription: "Learn what components are deployed after installing the Kubernetes integration."
+---
+
+The New Relic Kubernetes integration gives you full observability into the health and performance of your cluster, whether you're running Kubernetes on-premises or in the cloud. It gives you visibility into Kubernetes namespaces, deployments, replicasets, nodes, pods, and containers.
+
+## Architecture [#architecture]
+
+The `newrelic-infrastructure` DaemonSet is the main component of the integration. It's divided into three different components: `nrk8s-ksm`, `nrk8s-kubelet`, and `nrk8s-controlplane`. The first is a deployment and the next two are DaemonSets.
+
+Each of the components has two containers:
+
+1. A container for the integration, responsible for collecting metrics.
+2. A container with the New Relic infrastructure agent, which is used to send the metrics to New Relic.
+
+### Kube-state-metrics component [#nrk8s-ksm]
+
+We build our cluster state metrics on top of the OSS project[`kube-state-metrics`](https://github.com/kubernetes/kube-state-metrics), which is housed under the Kubernetes organization itself. 
+
+A specific deployment `nrk8s-ksm` takes care of finding KSM and scraping it. With this pod being long-lived and single, it can safely use an endpoints informer to locate the IP of the KSM pod and scrape it. The informer automatically caches the list of informers in the cluster locally and watches for new ones, avoiding storming the API Server with requests to figure out where the pod was located.
+
+See [Bring your own KSM](https://github.com/newrelic/helm-charts/blob/master/charts/nri-bundle/README.md#bring-your-own-ksm) for more information about KSM supported versions.
+
+<Callout variant="important">
+  Use `customAttributes` to add an attribute to amples related to entities that are not strictly tied to a particular node: `K8sNamespaceSample`, `K8sDeploymentSample`, `K8sReplicasetSample`, `K8sDaemonsetSample`, `K8sStatefulsetSample`, `K8sServiceSample`, and `K8sHpaSample`.
+</Callout>
+
+### Kubelet component [#nrk8s-kubelet]
+
+The Kubelet is the “Kubernetes agent”, a service that runs on every Kubernetes node and is responsible for creating the containers as instructed by the control plane. Since it's the Kubelet who partners closely with the Container Runtime, it's the main source of infrastructure metrics for our integration, such as use of CPU, memory, disk, network, etc. Although not thoroughly documented, the Kubelet API is the de-facto source for most Kubernetes metrics.
+
+Scraping the Kubelet is typically a low-resource operation. Given this, and our intent to minimize internode traffic whenever possible, `nrk8s-kubelet` is run as a DaemonSet where each instance gathers metric from the Kubelet running in the same node as it is.
+
+`nrk8s-kubelet` connects to the Kubelet using the Node IP. If this process fails, `nrk8s-kubelet` will fall back to reach the node through the API Server proxy. This fallback mechanism helps you with very large clusters, as proxying many kubelets might increase the load in the API server. You can check if the API Server is being used as a proxy by looking for a message like this in the logs:
+
+```
+Trying to connect to kubelet through API proxy
+```
+
+### Control plane component [#nrk8s-controlplane]
+
+As major Kubernetes distributions, we deploy `nrk8s-controlplane` as a DaemonSet with `hostNetwork: true`. The configuration is structured to support autodiscover and static endpoints. To be compatible with a wide range of distributions out of the box, we provide a wide range of known defaults as configuration entries. Doing this in the configuration instead of the code allows you to tweak autodiscovery to your needs.
+
+There is the possibility of having multiple endpoints per selector and adding a probe mechanism which automatically detects the correct one. This allows you to try different configurations such as ports or protocols by using the same selector.
+
+Scraping configuration for the etcd CP component looks like the following where the same structure and features applies for all components:
+
+```yaml
+config:
+  etcd:
+    enabled: true
+    autodiscover:
+      - selector: "tier=control-plane,component=etcd"
+        namespace: kube-system
+        matchNode: true
+        endpoints:
+          - url: https://localhost:4001
+            insecureSkipVerify: true
+            auth:
+              type: bearer
+          - url: http://localhost:2381
+    staticEndpoint:
+      url: https://url:port
+      insecureSkipVerify: true
+      auth: {}
+```
+
+If `staticEndpoint` is set, the component tries to scrape it. If it can't hit the endpoint, the integration fails so there're no silent errors when manual endpoints are configured.
+
+If `staticEndpoint` is not set, the component will iterate over the autodiscover entries looking for the first pod that matches the `selector` in the specified `namespace`, and optionally is running in the same node of the DaemonSet (if `matchNode` is set to `true`). After a pod is discovered, the component probes, issuing an http `HEAD` request, the listed endpoints in order and scrapes the first successful probed one using the authorization type selected.
+
+While above we show a config excerpt for the `etcd` component, the scraping logic is the same for other components.
+
+For more detailed instructions on how to configure control plane monitoring, please check the [control plane monitoring](/docs/kubernetes-pixie/kubernetes-integration/advanced-configuration/configure-control-plane-monitoring) page.
+
+### Helm Charts [#helm-charts]
+
+Helm is the primary means we offer to deploy our solution into your clusters. The Helm chart manages one deployment and two DaemonSets where each has slightly different configurations. This gives you more flexibility to adapt the solution to your needs, without the need to apply manual patches on top of the chart, and the generated manifests.
+
+Some of the new features that our new Helm chart exposes are these:
+
+* Full control of the `securityContext` for all pods
+* Full control of pod `labels` and `annotations` for all pods
+* Ability to add extra environment variables, `volumes`, and `volumeMounts`
+* Full control on the integration configuration, including which endpoints are reached, autodiscovery behavior, and scraping intervals
+* Better alignment with Helm idioms and standards
+
+You can check full details on all the switches that can be flipped in the [Chart's `README.md`](https://github.com/newrelic/nri-kubernetes/blob/main/charts/newrelic-infrastructure/README.md).
