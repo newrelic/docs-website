@@ -32,15 +32,16 @@ const ToggleSelector = ({ className }) => {
     >
       <div
         css={css`
-          width: 244px;
           display: flex;
           align-items: center;
+          flex-wrap: wrap;
           position: relative;
 
           button {
-            height: 32px;
             font-size: 0.75rem;
             border: none;
+            cursor: pointer;
+            padding: 8px 16px;
           }
 
           @media screen and (max-width: 800px) {
@@ -94,6 +95,10 @@ const ToggleSelector = ({ className }) => {
               color: var(--system-text-disabled-dark);
             }
 
+            @media (max-width: 920px) {
+              border-radius: 4px;
+            }
+
             ${currentView === TOGGLE_VIEWS.newUserView &&
             css`
               box-shadow: unset;
@@ -132,6 +137,10 @@ const ToggleSelector = ({ className }) => {
               box-shadow: inset 0px 0px 2px rgba(255, 255, 255, 0.25);
               background-color: var(--secondary-background-color);
               color: var(--system-text-disabled-dark);
+            }
+
+            @media (max-width: 920px) {
+              border-radius: 4px;
             }
 
             ${currentView === TOGGLE_VIEWS.defaultView &&

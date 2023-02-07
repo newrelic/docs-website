@@ -81,8 +81,12 @@ const HomePage = ({ data }) => {
           margin-top: 2rem;
           gap: 1rem;
           justify-content: space-between;
-          grid-template-columns: 2fr 1fr;
+          grid-template-columns: 1fr max-content;
           align-items: center;
+
+          @media (max-width: 920px) {
+            grid-template-columns: 1fr auto;
+          }
         `}
       >
         <h1
