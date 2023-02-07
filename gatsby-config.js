@@ -373,6 +373,10 @@ module.exports = {
                 subject
                 releaseDate(fromNow: false)
                 version
+                feature
+                bug
+                security
+                ingest
               }
               excerpt(pruneLength: 5000)
             }
@@ -386,6 +390,10 @@ module.exports = {
               agent: getAgentName(frontmatter.subject),
               date: frontmatter.releaseDate,
               version: frontmatter.version,
+              feature: frontmatter.feature,
+              bug: frontmatter.bug,
+              security: frontmatter.security,
+              ingest: frontmatter.ingest,
               description: excerpt,
             }))
             .filter(({ date, agent }) => Boolean(date && agent)),
@@ -409,6 +417,7 @@ module.exports = {
         allPageHeaders: [
           'Referrer-Policy: no-referrer-when-downgrade',
           'Content-Security-Policy: frame-ancestors *.newrelic.com',
+          'Cache-Control: no-cache',
         ],
       },
     },
@@ -462,7 +471,10 @@ module.exports = {
             'elixir',
             'erlang',
             'gettext',
+            'gradle',
+            'groovy',
             'ini',
+            'kotlin',
             'pascal',
             'parser',
             'nginx',
@@ -540,6 +552,7 @@ module.exports = {
             process.env.FEEDBACK_RECAPTCHA_TOKEN ||
             '6Lfn8wUiAAAAANBY-ZtKg4V9b4rdGZtJuAng62jo',
         },
+        newRelicRequestingServicesHeader: 'docs-website',
       },
     },
   ],

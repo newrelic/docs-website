@@ -1,7 +1,9 @@
 import {
   ExternalLink,
+  LicenseKey,
   Link,
   Lightbox,
+  MDXLink,
   MDX,
   MarkdownContainer,
   Tabs,
@@ -22,6 +24,7 @@ import TechTile from './TechTile';
 import WhatsNextTile from './WhatsNextTile';
 
 const defaultComponents = {
+  a: (props) => <MDXLink {...props} displayExternalIcon />,
   img: (props) =>
     props.style || props.variant === 'TechTile' ? (
       <img
@@ -56,7 +59,6 @@ const defaultComponents = {
                   margin: '0 0.25rem',
                 }
           }
-          loading="lazy"
         />
       </Lightbox>
     ),
@@ -67,6 +69,7 @@ const defaultComponents = {
   LandingPageHero,
   LandingPageTile,
   LandingPageTileGrid,
+  LicenseKey,
   TechTile,
   TechTileGrid: MDXTechTileGrid,
   Button: MDXButton,
