@@ -11,6 +11,8 @@ import { useToggleViewContext } from './ToggleViewContext';
 import Tooltip from '../Tooltip';
 
 export const TOGGLE_VIEWS = {
+  fallbackView: 'new-user-view',
+  // ^used to determine if the view has been set by a user so we know whether or not to override with a loggedin check
   newUserView: 'new-user-view',
   defaultView: 'default-view',
 };
