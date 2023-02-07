@@ -283,7 +283,7 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
           createPage,
           disableSwiftype: !i18nNode,
         },
-        false // disable DSG
+        true // enable DSG
       );
     });
   });
@@ -325,6 +325,7 @@ exports.createSchemaCustomization = ({ actions }) => {
     isFeatured: Boolean
     translationType: String
     dataSource: String
+    isTutorial: Boolean
   }
 
   `;
@@ -364,12 +365,29 @@ exports.createResolvers = ({ createResolvers }) => {
         resolve: (source) =>
           hasOwnProperty(source, 'dataSource') ? source.dataSource : null,
       },
+      isTutorial: {
+        resolve: (source) =>
+          hasOwnProperty(source, 'isTutorial') ? source.isTutorial : null,
+      },
     },
   });
 };
 
 exports.onCreatePage = ({ page, actions }) => {
   const { createPage } = actions;
+
+  if (page.path === '/') {
+    page.context.quicklaunchSlug =
+      'docs/new-relic-solutions/get-started/quick-launch-guide';
+  }
+  if (page.path === '/jp/') {
+    page.context.quicklaunchSlug =
+      'jp/docs/new-relic-solutions/get-started/quick-launch-guide';
+  }
+  if (page.path === '/kr/') {
+    page.context.quicklaunchSlug =
+      'kr/docs/new-relic-solutions/get-started/quick-launch-guide';
+  }
 
   if (page.path.match(/404/)) {
     page.context.layout = 'basic';

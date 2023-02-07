@@ -5,4 +5,4 @@ events:
   - PageViewTiming
 ---
 
-Sent when the browser hides the current page in the process of loading a different page from the session's history (for example, a browser back button click). 
+Sent when the document becomes hidden to the user, which could mean the user switched tabs or navigated to another page. This is the most reliable event to indicate the (potential) end of a user session or visit to the page.
