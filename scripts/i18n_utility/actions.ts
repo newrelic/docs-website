@@ -186,10 +186,11 @@ const printRenameChanges = (renameChanges: FileRename[]): void => {
  * Method to make renames changes. printRenameChanges will display the changes that will be made.
  */
 const makeRenameChanges = (renameChanges: FileRename[]): void => {
-  renameChanges.forEach(async (rename) => {
+  console.log('renameChanges', renameChanges);
+  renameChanges.forEach((rename) => {
     fs.mkdirSync(path.dirname(rename.to), { recursive: true });
     console.log(`Moving ${rename.from} to ${rename.to}`);
-    await git.mv(rename.from, rename.to);
+    git.mv(rename.from, rename.to);
   });
 };
 
