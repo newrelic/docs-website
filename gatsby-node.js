@@ -396,6 +396,19 @@ exports.createResolvers = ({ createResolvers }) => {
 exports.onCreatePage = ({ page, actions }) => {
   const { createPage } = actions;
 
+  if (page.path === '/') {
+    page.context.quicklaunchSlug =
+      'docs/new-relic-solutions/get-started/quick-launch-guide';
+  }
+  if (page.path === '/jp/') {
+    page.context.quicklaunchSlug =
+      'jp/docs/new-relic-solutions/get-started/quick-launch-guide';
+  }
+  if (page.path === '/kr/') {
+    page.context.quicklaunchSlug =
+      'kr/docs/new-relic-solutions/get-started/quick-launch-guide';
+  }
+
   if (page.path.match(/404/)) {
     page.context.layout = 'basic';
   }
