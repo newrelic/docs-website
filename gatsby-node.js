@@ -326,6 +326,10 @@ exports.createSchemaCustomization = ({ actions }) => {
     translationType: String
     dataSource: String
     isTutorial: Boolean
+    feature: [String]
+    bug: [String]
+    security: [String]
+    ingest: [String]
   }
 
   `;
@@ -369,6 +373,22 @@ exports.createResolvers = ({ createResolvers }) => {
         resolve: (source) =>
           hasOwnProperty(source, 'isTutorial') ? source.isTutorial : null,
       },
+      feature: {
+        resolve: (source) =>
+          hasOwnProperty(source, 'feature') ? source.feature : null,
+      },
+      bug: {
+        resolve: (source) =>
+          hasOwnProperty(source, 'bug') ? source.bug : null,
+      },
+      security: {
+        resolve: (source) =>
+          hasOwnProperty(source, 'security') ? source.security : null,
+      },
+      ingest: {
+        resolve: (source) =>
+          hasOwnProperty(source, 'ingest') ? source.ingest : null,
+      }
     },
   });
 };
