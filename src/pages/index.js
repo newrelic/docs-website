@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import PropTypes from 'prop-types';
 import { navigate } from '@reach/router';
 import { css } from '@emotion/react';
@@ -38,7 +38,12 @@ const HomePage = ({ data }) => {
 
   const { loggedIn } = useLoggedIn();
   const [searchTerm, setSearchTerm] = useState('');
-  const [currentView, setCurrentView] = useState(TOGGLE_VIEWS.fallbackView);
+  const hasToggled = useRef(false);
+  const [currentView, setCurrentView] = useState(TOGGLE_VIEWS.newUserView);
+  const updateView = (id) => {
+    hasToggled.current = true;
+    setCurrentView(id);
+  };
 
   const { t } = useTranslation();
 
@@ -60,7 +65,7 @@ const HomePage = ({ data }) => {
   }, [setCurrentView, loggedIn]);
 
   useEffect(() => {
-    if (currentView !== TOGGLE_VIEWS.fallbackView) {
+    if (hasToggled.current) {
       window.localStorage.setItem(SAVED_TOGGLE_VIEW_KEY, currentView);
     }
   }, [currentView]);
@@ -76,7 +81,7 @@ const HomePage = ({ data }) => {
   });
 
   return (
-    <ToggleViewContext.Provider value={[currentView, setCurrentView]}>
+    <ToggleViewContext.Provider value={[currentView, updateView]}>
       <div
         css={css`
           display: grid;
@@ -288,7 +293,7 @@ HomePage.propTypes = {
 };
 
 export const pageQuery = graphql`
-  query($quicklaunchSlug: String!) {
+  query ($quicklaunchSlug: String!) {
     site {
       layout {
         contentPadding
