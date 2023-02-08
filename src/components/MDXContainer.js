@@ -1,5 +1,6 @@
 import {
   ExternalLink,
+  LicenseKey,
   Link,
   Lightbox,
   MDXLink,
@@ -58,7 +59,6 @@ const defaultComponents = {
                   margin: '0 0.25rem',
                 }
           }
-          loading="lazy"
         />
       </Lightbox>
     ),
@@ -69,6 +69,7 @@ const defaultComponents = {
   LandingPageHero,
   LandingPageTile,
   LandingPageTileGrid,
+  LicenseKey,
   TechTile,
   TechTileGrid: MDXTechTileGrid,
   Button: MDXButton,
