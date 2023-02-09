@@ -9,7 +9,7 @@ const updateFrontmatter = async (filePath) => {
     console.log(`reading ${filePath}`);
     const contents = fs.readFileSync(filePath);
     const { data } = frontmatter(contents);
-    console.log(data.translate);
+    console.log(data);
   } catch (exception) {
     console.log(JSON.stringify(exception, null, 4));
     return filePath;
