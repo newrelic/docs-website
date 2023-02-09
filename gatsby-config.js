@@ -373,8 +373,8 @@ module.exports = {
                 subject
                 releaseDate(fromNow: false)
                 version
-                feature
-                bug
+                features
+                bugs
                 security
                 ingest
               }
@@ -390,8 +390,8 @@ module.exports = {
               agent: getAgentName(frontmatter.subject),
               date: frontmatter.releaseDate,
               version: frontmatter.version,
-              feature: frontmatter.feature,
-              bug: frontmatter.bug,
+              features: frontmatter.features,
+              bugs: frontmatter.bugs,
               security: frontmatter.security,
               ingest: frontmatter.ingest,
               description: excerpt,
