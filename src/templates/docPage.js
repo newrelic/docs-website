@@ -4,6 +4,7 @@ import { css } from '@emotion/react';
 import { graphql } from 'gatsby';
 import { takeWhile } from 'lodash';
 import PageTitle from '../components/PageTitle';
+import DocPageBanner from '../components/DocPageBanner';
 import MDXContainer from '../components/MDXContainer';
 import {
   ContributingGuidelines,
@@ -33,6 +34,8 @@ const splitTOCTitle = (title = '') => {
 
   return [titleText.join(' '), slug];
 };
+
+const bannerHeight = '78px';
 
 const BasicDoc = ({ data, location, pageContext }) => {
   const { mdx } = data;
@@ -68,7 +71,9 @@ const BasicDoc = ({ data, location, pageContext }) => {
     translationType,
     dataSource,
     isTutorial,
+    signupBanner,
   } = frontmatter;
+  console.log(signupBanner);
 
   let { type } = frontmatter;
 
@@ -89,6 +94,14 @@ const BasicDoc = ({ data, location, pageContext }) => {
         dataSource={dataSource}
         disableSwiftype={disableSwiftype}
       />
+      {signupBanner && (
+        <DocPageBanner
+          height={bannerHeight}
+          text={signupBanner.text}
+          cta={signupBanner.cta}
+          url={signupBanner.url}
+        />
+      )}
       <div
         css={css`
           display: grid;
@@ -98,6 +111,14 @@ const BasicDoc = ({ data, location, pageContext }) => {
             'content page-tools';
           grid-template-columns: minmax(0, 1fr) 320px;
           grid-column-gap: 2rem;
+
+          ${signupBanner &&
+          css`
+            margin-top: ${bannerHeight};
+            @media screen and (max-width: 760px) {
+              margin-top: 0;
+            }
+          `}
 
           @media screen and (max-width: 1240px) {
             grid-template-areas:
@@ -168,6 +189,11 @@ export const pageQuery = graphql`
         isTutorial
         translationType
         dataSource
+        signupBanner {
+          cta
+          url
+          text
+        }
       }
       fields {
         fileRelativePath
