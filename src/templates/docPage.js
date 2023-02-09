@@ -1,8 +1,9 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/react';
 import { graphql } from 'gatsby';
 import { takeWhile } from 'lodash';
+import { createLocalStorageStateHook } from 'use-local-storage-state';
 import PageTitle from '../components/PageTitle';
 import DocPageBanner from '../components/DocPageBanner';
 import MDXContainer from '../components/MDXContainer';
@@ -12,6 +13,7 @@ import {
   RelatedResources,
   ComplexFeedback,
   TableOfContents,
+  useHasMounted,
 } from '@newrelic/gatsby-theme-newrelic';
 import MachineTranslationCallout from '../components/MachineTranslationCallout';
 import SEO from '../components/SEO';
@@ -73,7 +75,6 @@ const BasicDoc = ({ data, location, pageContext }) => {
     isTutorial,
     signupBanner,
   } = frontmatter;
-  console.log(signupBanner);
 
   let { type } = frontmatter;
 
@@ -82,6 +83,23 @@ const BasicDoc = ({ data, location, pageContext }) => {
   }
   if (isTutorial) {
     type = 'tutorial';
+  }
+  const useBannerDismissed = createLocalStorageStateHook(
+    `docBannerDismissed-${title}`
+  );
+
+  const [bannerDismissed, setBannerDismissed] = useBannerDismissed(null);
+  const [bannerVisible, setBannerVisible] = useState(bannerDismissed !== true);
+
+  const onCloseBanner = () => {
+    setBannerVisible(false);
+    setBannerDismissed(true);
+  };
+
+  const hasMounted = useHasMounted();
+
+  if (!hasMounted) {
+    return null;
   }
   return (
     <>
@@ -94,12 +112,13 @@ const BasicDoc = ({ data, location, pageContext }) => {
         dataSource={dataSource}
         disableSwiftype={disableSwiftype}
       />
-      {signupBanner && (
+      {signupBanner && bannerVisible && (
         <DocPageBanner
           height={bannerHeight}
           text={signupBanner.text}
           cta={signupBanner.cta}
           url={signupBanner.url}
+          onClose={onCloseBanner}
         />
       )}
       <div
@@ -113,6 +132,7 @@ const BasicDoc = ({ data, location, pageContext }) => {
           grid-column-gap: 2rem;
 
           ${signupBanner &&
+          bannerVisible &&
           css`
             margin-top: ${bannerHeight};
             @media screen and (max-width: 760px) {

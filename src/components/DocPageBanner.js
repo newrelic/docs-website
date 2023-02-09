@@ -1,10 +1,10 @@
 // VSU
 import React from 'react';
 import { css } from '@emotion/react';
-import { Button, Link } from '@newrelic/gatsby-theme-newrelic';
+import { Button, Link, Icon } from '@newrelic/gatsby-theme-newrelic';
 import lines from './bannerLines.svg';
 
-const DocPageBanner = ({ text, cta, url, height }) => (
+const DocPageBanner = ({ text, cta, url, height, onClose }) => (
   <div
     css={css`
       height: ${height};
@@ -62,6 +62,18 @@ const DocPageBanner = ({ text, cta, url, height }) => (
       >
         {cta ?? 'Start now'}
       </Button>
+      {onClose && (
+        <Icon
+          name="fe-x"
+          css={css`
+            color: white;
+            position: absolute;
+            top: 3px;
+            right: 3px;
+          `}
+          onClick={onClose}
+        />
+      )}
     </div>
   </div>
 );
