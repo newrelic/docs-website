@@ -59,6 +59,7 @@ const DocPageBanner = ({ text, cta, url, height, onClose }) => (
         as={Link}
         to={url ?? 'https://newrelic.com/signup'}
         variant={Button.VARIANT.PRIMARY}
+        instrumentation={{ component: 'docBannerCta' }}
       >
         {cta ?? 'Start now'}
       </Button>
