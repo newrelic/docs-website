@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/react';
 import { graphql } from 'gatsby';
@@ -13,7 +13,7 @@ import {
   RelatedResources,
   ComplexFeedback,
   TableOfContents,
-  useHasMounted,
+  useLoggedIn,
 } from '@newrelic/gatsby-theme-newrelic';
 import MachineTranslationCallout from '../components/MachineTranslationCallout';
 import SEO from '../components/SEO';
@@ -88,6 +88,8 @@ const BasicDoc = ({ data, location, pageContext }) => {
     `docBannerDismissed-${title}`
   );
 
+  const { loggedIn } = useLoggedIn();
+
   const [bannerDismissed, setBannerDismissed] = useBannerDismissed(null);
   const [bannerVisible, setBannerVisible] = useState(bannerDismissed !== true);
 
@@ -96,7 +98,15 @@ const BasicDoc = ({ data, location, pageContext }) => {
     setBannerDismissed(true);
   };
 
-  const hasMounted = useHasMounted();
+  const [hasMounted, setHasMounted] = useState(false);
+
+  useEffect(() => {
+    if (loggedIn) {
+      setBannerVisible(false);
+      setBannerDismissed(true);
+    }
+    setHasMounted(true);
+  }, [loggedIn, setBannerDismissed]);
 
   if (!hasMounted) {
     return null;
