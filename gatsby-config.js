@@ -373,6 +373,10 @@ module.exports = {
                 subject
                 releaseDate(fromNow: false)
                 version
+                features
+                bugs
+                security
+                ingest
               }
               excerpt(pruneLength: 5000)
             }
@@ -386,6 +390,10 @@ module.exports = {
               agent: getAgentName(frontmatter.subject),
               date: frontmatter.releaseDate,
               version: frontmatter.version,
+              features: frontmatter.features,
+              bugs: frontmatter.bugs,
+              security: frontmatter.security,
+              ingest: frontmatter.ingest,
               description: excerpt,
             }))
             .filter(({ date, agent }) => Boolean(date && agent)),
