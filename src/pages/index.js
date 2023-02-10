@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import PropTypes from 'prop-types';
 import { navigate } from '@reach/router';
 import { css } from '@emotion/react';
@@ -8,23 +8,67 @@ import {
   Icon,
   SearchInput,
   Surface,
+  Tag,
   useInstrumentedHandler,
   useTranslation,
-  Tag,
+  useLoggedIn,
 } from '@newrelic/gatsby-theme-newrelic';
 import SurfaceLink from '../components/SurfaceLink';
 import HomepageBanner from '../components/HomepageBanner';
 import FindYourQuickStart from '../components/FindYourQuickstart';
+import MDXContainer from '../components/MDXContainer';
+import {
+  ToggleSelector,
+  ToggleView,
+  ToggleViewContext,
+  TOGGLE_VIEWS,
+} from '../components/ToggleView';
+
+const SAVED_TOGGLE_VIEW_KEY = 'docs-website/homepage-selected-view';
 
 const HomePage = ({ data }) => {
   const {
     site: { layout },
     allMarkdownRemark: { edges: whatsNewPosts },
+    quicklaunch: {
+      body,
+      frontmatter: { title },
+    },
   } = data;
 
+  const { loggedIn } = useLoggedIn();
   const [searchTerm, setSearchTerm] = useState('');
+  const hasToggled = useRef(false);
+  const [currentView, setCurrentView] = useState(TOGGLE_VIEWS.newUserView);
+  const updateView = (id) => {
+    hasToggled.current = true;
+    setCurrentView(id);
+  };
 
   const { t } = useTranslation();
+
+  /* `useLocalStorage` hook doesn't work here because SSR doesn't have access to
+   * localStorage, so when it gets to the client, the current tab is already set
+   * and the client doesn't know to update it.
+   *
+   */
+  useEffect(() => {
+    const storedToggleView = window.localStorage.getItem(SAVED_TOGGLE_VIEW_KEY);
+    if (!storedToggleView && loggedIn !== null) {
+      setCurrentView(
+        loggedIn ? TOGGLE_VIEWS.defaultView : TOGGLE_VIEWS.newUserView
+      );
+    }
+    if (storedToggleView) {
+      setCurrentView(storedToggleView);
+    }
+  }, [setCurrentView, loggedIn]);
+
+  useEffect(() => {
+    if (hasToggled.current) {
+      window.localStorage.setItem(SAVED_TOGGLE_VIEW_KEY, currentView);
+    }
+  }, [currentView]);
 
   const mobileBreakpoint = '450px';
 
@@ -37,19 +81,43 @@ const HomePage = ({ data }) => {
   });
 
   return (
-    <>
-      <h1
+    <ToggleViewContext.Provider value={[currentView, updateView]}>
+      <div
         css={css`
-          font-size: 3.5rem;
-          font-weight: 500;
-          line-height: 1;
-          @media screen and (max-width: ${mobileBreakpoint}) {
-            font-size: 1.5rem;
+          display: grid;
+          margin-top: 2rem;
+          gap: 1rem;
+          justify-content: space-between;
+          grid-template-columns: 1fr max-content;
+          align-items: center;
+
+          @media (max-width: 920px) {
+            grid-template-columns: 1fr auto;
           }
         `}
       >
-        {t('home.pageTitle')}
-      </h1>
+        <h1
+          css={css`
+            font-size: 3.5rem;
+            font-weight: 500;
+            line-height: 1;
+            @media screen and (max-width: ${mobileBreakpoint}) {
+              font-size: 1.5rem;
+            }
+          `}
+        >
+          {t('home.pageTitle')}
+        </h1>
+        <ToggleSelector
+          css={css`
+            justify-self: end;
+
+            @media screen and (max-width: 760px) {
+              display: none;
+            }
+          `}
+        />
+      </div>
       <SearchInput
         placeholder={t('home.search.placeholder')}
         size={SearchInput.SIZE.LARGE}
@@ -71,7 +139,6 @@ const HomePage = ({ data }) => {
           width: 40%;
           display: flex;
           width: 100%;
-          margin-bottom: 1rem;
           flex-wrap: wrap;
           a {
             margin-left: 0.75rem;
@@ -92,98 +159,112 @@ const HomePage = ({ data }) => {
           {t('home.search.popularSearches.options.4')}
         </Link>
       </div>
-      <HomepageBanner />
-      <Section
-        layout={layout}
-        css={css`
-          border: none;
-          background: var(--tertiary-background-color);
-        `}
-      >
-        <SectionTitle title={t('home.popularDocs.title')} />
-        <div
+      <ToggleView id={TOGGLE_VIEWS.newUserView}>
+        <h1
           css={css`
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            grid-gap: 1rem;
-            counter-reset: welcome-tile;
-            flex: 2;
-            align-self: flex-start;
-            @media screen and (max-width: 1500px) {
-              align-self: auto;
-            }
-
-            @media screen and (max-width: 1050px) {
-              grid-template-columns: 1fr;
-            }
-
-            @media screen and (max-width: 760px) {
-              grid-template-columns: repeat(3, 1fr);
-            }
-
-            @media screen and (max-width: 650px) {
-              grid-template-columns: 1fr;
-            }
+            font-weight: normal;
+            font-size: 3rem;
           `}
         >
-          <DocTile
-            title={t('home.popularDocs.t1.title')}
-            label={{ text: 'Queries', color: '#F4CBE7' }}
-            path="/docs/query-your-data/nrql-new-relic-query-language/get-started/nrql-syntax-clauses-functions/"
-          />
-          <DocTile
-            title={t('home.popularDocs.t2.title')}
-            label={{ text: 'Log management', color: '#FCD672' }}
-            path="/docs/logs/get-started/get-started-log-management/"
-          />
-          <DocTile
-            title={t('home.popularDocs.t3.title')}
-            label={{ text: 'APM', color: '#AFE2E3' }}
-            path="/install/java/"
-          />
-        </div>
-      </Section>
-      <Section layout={layout}>
-        <SectionTitle title={t('home.whatsNew.title')} />
-        <div
+          Getting started
+        </h1>
+        <h1> {title}</h1>
+        <MDXContainer body={body} />
+      </ToggleView>
+      <ToggleView id={TOGGLE_VIEWS.defaultView}>
+        <HomepageBanner />
+        <Section
+          layout={layout}
           css={css`
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            grid-gap: 1rem;
-            counter-reset: welcome-tile;
-            flex: 2;
-            align-self: flex-start;
-            @media screen and (max-width: 1500px) {
-              align-self: auto;
-            }
-
-            @media screen and (max-width: 1050px) {
-              grid-template-columns: 1fr;
-            }
-
-            @media screen and (max-width: 760px) {
-              grid-template-columns: repeat(3, 1fr);
-            }
-
-            @media screen and (max-width: 650px) {
-              grid-template-columns: 1fr;
-            }
+            border: none;
+            background: var(--tertiary-background-color);
           `}
         >
-          {latestWhatsNewPosts.map((post) => (
+          <SectionTitle title={t('home.popularDocs.title')} />
+          <div
+            css={css`
+              display: grid;
+              grid-template-columns: repeat(3, 1fr);
+              grid-gap: 1rem;
+              counter-reset: welcome-tile;
+              flex: 2;
+              align-self: flex-start;
+              @media screen and (max-width: 1500px) {
+                align-self: auto;
+              }
+
+              @media screen and (max-width: 1050px) {
+                grid-template-columns: 1fr;
+              }
+
+              @media screen and (max-width: 760px) {
+                grid-template-columns: repeat(3, 1fr);
+              }
+
+              @media screen and (max-width: 650px) {
+                grid-template-columns: 1fr;
+              }
+            `}
+          >
             <DocTile
-              key={post.title}
-              title={post.title}
-              date={post.releaseDate}
-              path={post.path}
+              title={t('home.popularDocs.t1.title')}
+              label={{ text: 'Get started', color: '#F4CBE7' }}
+              path="/docs/apm/new-relic-apm/getting-started/introduction-apm"
             />
-          ))}
-        </div>
-      </Section>
-      <Section layout={layout}>
-        <FindYourQuickStart />
-      </Section>
-    </>
+            <DocTile
+              title={t('home.popularDocs.t2.title')}
+              label={{ text: 'Security', color: '#FCD672' }}
+              path="/docs/vulnerability-management/overview"
+            />
+            <DocTile
+              title={t('home.popularDocs.t3.title')}
+              label={{ text: 'APM', color: '#AFE2E3' }}
+              path="/install/java/"
+            />
+          </div>
+        </Section>
+        <Section layout={layout}>
+          <SectionTitle title={t('home.whatsNew.title')} />
+          <div
+            css={css`
+              display: grid;
+              grid-template-columns: repeat(3, 1fr);
+              grid-gap: 1rem;
+              counter-reset: welcome-tile;
+              flex: 2;
+              align-self: flex-start;
+              @media screen and (max-width: 1500px) {
+                align-self: auto;
+              }
+
+              @media screen and (max-width: 1050px) {
+                grid-template-columns: 1fr;
+              }
+
+              @media screen and (max-width: 760px) {
+                grid-template-columns: repeat(3, 1fr);
+              }
+
+              @media screen and (max-width: 650px) {
+                grid-template-columns: 1fr;
+              }
+            `}
+          >
+            {latestWhatsNewPosts.map((post) => (
+              <DocTile
+                key={post.title}
+                title={post.title}
+                date={post.releaseDate}
+                path={post.path}
+              />
+            ))}
+          </div>
+        </Section>
+        <Section layout={layout}>
+          <FindYourQuickStart />
+        </Section>
+      </ToggleView>
+    </ToggleViewContext.Provider>
   );
 };
 
@@ -212,10 +293,16 @@ HomePage.propTypes = {
 };
 
 export const pageQuery = graphql`
-  query {
+  query($quicklaunchSlug: String!) {
     site {
       layout {
         contentPadding
+      }
+    }
+    quicklaunch: mdx(slug: { eq: $quicklaunchSlug }) {
+      body
+      frontmatter {
+        title
       }
     }
     allMarkdownRemark(

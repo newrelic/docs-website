@@ -379,3 +379,9 @@ test('serialize Tabs Components', async () => {
 
   expect(html).toMatchSnapshot();
 });
+
+test('serialize LicenseKey component', async () => {
+  const mdx = '<LicenseKey />'
+  const html = await serializeMDX(mdx)
+  expect(html).toMatchSnapshot();
+})

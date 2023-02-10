@@ -28,6 +28,10 @@ const TileOption = ({ displayName, value, logo, onChange, isSelected }) => {
             ? '1.25px solid var(--attention-notification-info)'
             : '1px solid var(--system-border-strong-light)'};
         }
+        div {
+          white-space: normal;
+          line-height: 1.2;
+        }
       `}
     >
       {logo && (

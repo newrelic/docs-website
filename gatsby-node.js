@@ -325,6 +325,11 @@ exports.createSchemaCustomization = ({ actions }) => {
     isFeatured: Boolean
     translationType: String
     dataSource: String
+    isTutorial: Boolean
+    feature: [String]
+    bug: [String]
+    security: [String]
+    ingest: [String]
   }
 
   `;
@@ -364,12 +369,45 @@ exports.createResolvers = ({ createResolvers }) => {
         resolve: (source) =>
           hasOwnProperty(source, 'dataSource') ? source.dataSource : null,
       },
+      isTutorial: {
+        resolve: (source) =>
+          hasOwnProperty(source, 'isTutorial') ? source.isTutorial : null,
+      },
+      feature: {
+        resolve: (source) =>
+          hasOwnProperty(source, 'feature') ? source.feature : null,
+      },
+      bug: {
+        resolve: (source) =>
+          hasOwnProperty(source, 'bug') ? source.bug : null,
+      },
+      security: {
+        resolve: (source) =>
+          hasOwnProperty(source, 'security') ? source.security : null,
+      },
+      ingest: {
+        resolve: (source) =>
+          hasOwnProperty(source, 'ingest') ? source.ingest : null,
+      }
     },
   });
 };
 
 exports.onCreatePage = ({ page, actions }) => {
   const { createPage } = actions;
+
+  if (page.path === '/') {
+    page.context.quicklaunchSlug =
+      'docs/new-relic-solutions/get-started/quick-launch-guide';
+  }
+  if (page.path === '/jp/') {
+    page.context.quicklaunchSlug =
+      'jp/docs/new-relic-solutions/get-started/quick-launch-guide';
+  }
+  if (page.path === '/kr/') {
+    page.context.quicklaunchSlug =
+      'kr/docs/new-relic-solutions/get-started/quick-launch-guide';
+  }
 
   if (page.path.match(/404/)) {
     page.context.layout = 'basic';
