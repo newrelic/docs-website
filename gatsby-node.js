@@ -326,8 +326,8 @@ exports.createSchemaCustomization = ({ actions }) => {
     translationType: String
     dataSource: String
     isTutorial: Boolean
-    feature: [String]
-    bug: [String]
+    features: [String]
+    bugs: [String]
     security: [String]
     ingest: [String]
   }
@@ -373,13 +373,13 @@ exports.createResolvers = ({ createResolvers }) => {
         resolve: (source) =>
           hasOwnProperty(source, 'isTutorial') ? source.isTutorial : null,
       },
-      feature: {
+      features: {
         resolve: (source) =>
-          hasOwnProperty(source, 'feature') ? source.feature : null,
+          hasOwnProperty(source, 'features') ? source.features : null,
       },
-      bug: {
+      bugs: {
         resolve: (source) =>
-          hasOwnProperty(source, 'bug') ? source.bug : null,
+          hasOwnProperty(source, 'bugs') ? source.bugs : null,
       },
       security: {
         resolve: (source) =>
