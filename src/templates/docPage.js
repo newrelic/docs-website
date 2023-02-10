@@ -37,7 +37,7 @@ const splitTOCTitle = (title = '') => {
   return [titleText.join(' '), slug];
 };
 
-const bannerHeight = '78px';
+const BANNER_HEIGHT = '78px';
 
 const BasicDoc = ({ data, location, pageContext }) => {
   const { mdx } = data;
@@ -114,7 +114,7 @@ const BasicDoc = ({ data, location, pageContext }) => {
       />
       {signupBanner && bannerVisible && (
         <DocPageBanner
-          height={bannerHeight}
+          height={BANNER_HEIGHT}
           text={signupBanner.text}
           cta={signupBanner.cta}
           url={signupBanner.url}
@@ -134,7 +134,7 @@ const BasicDoc = ({ data, location, pageContext }) => {
           ${signupBanner &&
           bannerVisible &&
           css`
-            margin-top: ${bannerHeight};
+            margin-top: ${BANNER_HEIGHT};
             @media screen and (max-width: 760px) {
               margin-top: 0;
             }
