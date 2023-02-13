@@ -326,10 +326,16 @@ exports.createSchemaCustomization = ({ actions }) => {
     translationType: String
     dataSource: String
     isTutorial: Boolean
+    signupBanner: SignupBanner
     features: [String]
     bugs: [String]
     security: [String]
     ingest: [String]
+  }
+  type SignupBanner {
+    cta: String
+    url: String
+    text: String
   }
 
   `;
@@ -388,7 +394,21 @@ exports.createResolvers = ({ createResolvers }) => {
       ingest: {
         resolve: (source) =>
           hasOwnProperty(source, 'ingest') ? source.ingest : null,
-      }
+      },
+    },
+    SignupBanner: {
+      cta: {
+        resolve: (source) =>
+          hasOwnProperty(source, 'cta') ? source.cta : null,
+      },
+      url: {
+        resolve: (source) =>
+          hasOwnProperty(source, 'url') ? source.url : null,
+      },
+      text: {
+        resolve: (source) =>
+          hasOwnProperty(source, 'text') ? source.text : null,
+      },
     },
   });
 };
