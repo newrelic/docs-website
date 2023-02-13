@@ -1,20 +1,18 @@
 import React, { useEffect, useRef, useState } from 'react';
-import PropTypes from 'prop-types';
 import { navigate } from '@reach/router';
 import { css } from '@emotion/react';
 import { graphql } from 'gatsby';
+import PropTypes from 'prop-types';
 import {
   Link,
   Icon,
   SearchInput,
-  Surface,
-  Tag,
   useInstrumentedHandler,
   useTranslation,
   useLoggedIn,
 } from '@newrelic/gatsby-theme-newrelic';
-import SurfaceLink from '../components/SurfaceLink';
 import HomepageBanner from '../components/HomepageBanner';
+import { DocTile } from '../components/DocTile';
 import FindYourQuickStart from '../components/FindYourQuickstart';
 import MDXContainer from '../components/MDXContainer';
 import {
@@ -207,20 +205,23 @@ const HomePage = ({ data }) => {
             `}
           >
             <DocTile
-              title={t('home.popularDocs.t1.title')}
               label={{ text: 'Get started', color: '#F4CBE7' }}
               path="/docs/apm/new-relic-apm/getting-started/introduction-apm"
-            />
+            >
+              {t('home.popularDocs.t1.title')}
+            </DocTile>
             <DocTile
-              title={t('home.popularDocs.t2.title')}
               label={{ text: 'Security', color: '#FCD672' }}
               path="/docs/vulnerability-management/overview"
-            />
+            >
+              {t('home.popularDocs.t2.title')}
+            </DocTile>
             <DocTile
-              title={t('home.popularDocs.t3.title')}
               label={{ text: 'APM', color: '#AFE2E3' }}
               path="/install/java/"
-            />
+            >
+              {t('home.popularDocs.t3.title')}
+            </DocTile>
           </div>
         </Section>
         <Section layout={layout}>
@@ -253,10 +254,11 @@ const HomePage = ({ data }) => {
             {latestWhatsNewPosts.map((post) => (
               <DocTile
                 key={post.title}
-                title={post.title}
                 date={post.releaseDate}
                 path={post.path}
-              />
+              >
+                {post.title}
+              </DocTile>
             ))}
           </div>
         </Section>
@@ -403,112 +405,6 @@ SectionTitle.propTypes = {
   title: PropTypes.string,
   icon: PropTypes.elementType,
   to: PropTypes.string,
-};
-
-const DocTile = ({ title, path, instrumentation, label, date }) => (
-  <SurfaceLink
-    base={Surface.BASE.SECONDARY}
-    to={path}
-    interactive
-    instrumentation={instrumentation}
-    css={css`
-      min-height: 130px;
-      border-radius: 4px;
-      background: var(--secondary-background-color);
-
-      .dark-mode & {
-        background: var(--secondary-background-color);
-      }
-
-      @media screen and (max-width: 1050px) {
-        &:not(:last-child) {
-          margin-bottom: 2rem;
-        }
-      }
-
-      @media screen and (max-width: 760px) {
-        && {
-          margin-bottom: 0;
-        }
-      }
-
-      @media screen and (max-width: 650px) {
-        font-size: 14px;
-        &:not(:last-child) {
-          margin-bottom: 2rem;
-        }
-      }
-    `}
-  >
-    <div
-      css={css`
-        display: flex;
-        flex-direction: column;
-        height: 100%;
-        justify-content: space-between;
-        align-items: space-between;
-        padding: 2rem;
-
-        @media screen and (max-width: 650px) {
-          padding: 1.5rem;
-        }
-      `}
-    >
-      <h4
-        css={css`
-          margin-bottom: 1rem;
-          font-weight: 400;
-          font-size: 20px;
-        `}
-      >
-        {title}
-      </h4>
-      <div
-        css={css`
-          display: flex;
-          justify-content: space-between;
-        `}
-      >
-        {label && (
-          <Tag
-            css={css`
-              background: ${label.color};
-              color: var(--system-text-primary-light);
-
-              .dark-mode & {
-                background: ${label.color};
-                color: var(--system-text-primary-light);
-              }
-            `}
-          >
-            {label.text}
-          </Tag>
-        )}
-        {date && (
-          <Tag
-            css={css`
-              color: var(--primary-text-color);
-            `}
-          >
-            {date}
-          </Tag>
-        )}
-        <Icon
-          name="fe-arrow-right"
-          css={css`
-            color: var(--primary-text-color);
-          `}
-        />
-      </div>
-    </div>
-  </SurfaceLink>
-);
-
-DocTile.propTypes = {
-  label: PropTypes.array,
-  title: PropTypes.string,
-  date: PropTypes.string,
-  instrumentation: PropTypes.object,
 };
 
 export default HomePage;
