@@ -91,10 +91,9 @@ const BasicDoc = ({ data, location, pageContext }) => {
   const { loggedIn } = useLoggedIn();
 
   const [bannerDismissed, setBannerDismissed] = useBannerDismissed(null);
-  const [bannerVisible, setBannerVisible] = useState(bannerDismissed !== true);
+  const bannerVisible = !loggedIn && !bannerDismissed;
 
   const onCloseBanner = () => {
-    setBannerVisible(false);
     setBannerDismissed(true);
   };
 
@@ -102,7 +101,6 @@ const BasicDoc = ({ data, location, pageContext }) => {
 
   useEffect(() => {
     if (loggedIn) {
-      setBannerVisible(false);
       setBannerDismissed(true);
     }
     setHasMounted(true);
