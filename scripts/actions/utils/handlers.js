@@ -103,6 +103,14 @@ module.exports = {
     deserialize: deserializeComponent,
     serialize: serializeComponent,
   },
+  DocTile: {
+    deserialize: deserializeComponent,
+    serialize: serializeComponent,
+  },
+  DocTiles: {
+    deserialize: deserializeComponent,
+    serialize: serializeComponent,
+  },
   DoNotTranslate: {
     deserialize: deserializeComponent,
     serialize: (h, node) =>
