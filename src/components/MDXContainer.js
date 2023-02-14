@@ -24,6 +24,7 @@ import PropTypes from 'prop-types';
 import React from 'react';
 import TechTile from './TechTile';
 import WhatsNextTile from './WhatsNextTile';
+import HideWhenEmbedded from './HideWhenEmbedded';
 
 const defaultComponents = {
   a: (props) => <MDXLink {...props} displayExternalIcon />,
@@ -98,6 +99,7 @@ const defaultComponents = {
   WhatsNextTile,
   Side,
   SideBySide,
+  HideWhenEmbedded,
 };
 
 const MDXContainer = ({ body, children, components }) => {
