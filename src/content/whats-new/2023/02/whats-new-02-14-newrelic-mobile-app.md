@@ -18,4 +18,4 @@ Key features:
 **How to get started** 
 * [iOS app documentation](https://docs.newrelic.com/docs/mobile-apps/ios/) 
 * [Android app documentation](https://docs.newrelic.com/docs/mobile-apps/android/) 
-* Download the [iOS app](https://apps.apple.com/us/app/new-relic/id594038638) or [android app](https://play.google.com/store/apps/details?id=com.newrelic.rpm&hl=en_US&gl=US)
+* Download the [iOS app](https://apps.apple.com/us/app/new-relic/id594038638) or [Android app](https://play.google.com/store/apps/details?id=com.newrelic.rpm&hl=en_US&gl=US)
