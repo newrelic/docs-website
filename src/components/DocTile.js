@@ -27,25 +27,6 @@ export const DocTile = ({
       .dark-mode & {
         background: var(--secondary-background-color);
       }
-
-      @media screen and (max-width: 1050px) {
-        &:not(:last-child) {
-          margin-bottom: 2rem;
-        }
-      }
-
-      @media screen and (max-width: 760px) {
-        && {
-          margin-bottom: 0;
-        }
-      }
-
-      @media screen and (max-width: 650px) {
-        font-size: 14px;
-        &:not(:last-child) {
-          margin-bottom: 2rem;
-        }
-      }
     `}
     className={className}
   >
