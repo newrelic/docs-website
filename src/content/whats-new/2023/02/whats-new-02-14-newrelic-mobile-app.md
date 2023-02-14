@@ -1,7 +1,7 @@
 ---
 title: 'Stay ahead of critical issues with the New Relic mobile app'
 summary: 'Get real-time visibility into your system’s health – anytime, anywhere.'
-releaseDate: '2023-02-14’
+releaseDate: '2023-02-14'
 learnMoreLink: 'https://docs.newrelic.com/docs/mobile-apps/android' 
 getStartedLink: 'https://play.google.com/store/apps/details?id=com.newrelic.rpm&hl=en_US&gl=US'
 ---
