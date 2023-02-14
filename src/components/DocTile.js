@@ -118,6 +118,10 @@ DocTile.propTypes = {
   label: PropTypes.array,
   date: PropTypes.string,
   instrumentation: PropTypes.object,
+  children: PropTypes.node,
+  path: PropTypes.string,
+  number: PropTypes.number,
+  className: PropTypes.string,
 };
 
 export const DocTiles = ({ children, numbered = false }) => (
