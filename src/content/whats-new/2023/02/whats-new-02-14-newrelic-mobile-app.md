@@ -8,7 +8,7 @@ getStartedLink: 'https://play.google.com/store/apps/details?id=com.newrelic.rpm&
 
 If you’re an engineer who’s on-call, you play a crucial role in maintaining system performance and responding to incidents before your customers are affected. But what if you’re not at your workstation or it’s just an inconvenient time? Enter the New Relic mobile app—your solution to stay connected and on top of your system health, no matter where you are.
 
-With our mobile app, you’ll be able to ensure that your systems are running smoothly and quickly identify and triage issues that arise. Access your data and alerts in real-time, reducing mean time to detection (MTTD) and mean time to tesolution (MTTR) by proactively responding to incidents and collaborating with your team for swift remediation.
+With our mobile app, you’ll be able to ensure that your systems are running smoothly and quickly identify and triage issues that arise. Access your data and alerts in real-time, reducing mean time to detection (MTTD) and mean time to resolution (MTTR) by proactively responding to incidents and collaborating with your team for swift remediation.
 
 Key features:
 * **On-the-go access:** Monitor the health of your systems and applications, even when you’re away from your desk.
