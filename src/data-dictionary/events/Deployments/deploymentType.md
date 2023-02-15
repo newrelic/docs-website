@@ -5,4 +5,4 @@ events:
   - Deployments
 ---
 
-The type of the deployment (for example, 'BASIC', 'BLUE-GREEN', 'BASIC', 'OTHER', 'ROLLING', 'SHADOW').
+The type of the deployment (for example, 'BASIC', 'BLUE-GREEN', 'BASIC', 'OTHER', 'ROLLING', or 'SHADOW').
