@@ -12,8 +12,8 @@ const getFiles = (filepath) =>
   fs.readdirSync(filepath).map(pathJoin(filepath)).filter(isFile);
 
 const getFilesRecursively = (filepath) =>
-  getDirectories(filepath)
-    .flatMap(getFilesRecursively)
-    .reduce((acc, file) => [...acc, file], getFiles(filepath));
+  getFiles(filepath).concat(
+    getDirectories(filepath).flatMap(getFilesRecursively)
+  );
 
 module.exports = getFilesRecursively;
