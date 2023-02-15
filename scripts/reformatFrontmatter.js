@@ -1,36 +1,65 @@
-// const mdx = require('@mdx-js/mdx');
+/* eslint-disable no-console */
 const fs = require('fs');
-const glob = require('glob');
-const frontmatter = require('@github-docs/frontmatter');
+const yaml = require('js-yaml');
+const unified = require('unified');
+const remarkParse = require('remark-parse');
+const remarkMdx = require('remark-mdx');
+const remarkMdxjs = require('remark-mdxjs');
+const frontmatter = require('remark-frontmatter');
+const remarkStringify = require('remark-stringify');
+const fencedCodeBlock = require('../codemods/fencedCodeBlock');
+const getFilesRecursively = require('./utils/getFilesRecursively');
 
-let noTranslation = 0;
-let jpTranslation = 0;
-let krTranslation = 0;
+const convertFrontmatter = () => {
+  const transformer = (tree) => {
+    if (tree?.children[0]?.type === 'yaml') {
+      const frontmatterObj = yaml.load(tree.children[0].value);
+      frontmatterObj.translation = { machine: ['jp', 'kr'] };
+      if (frontmatterObj.translate) {
+        frontmatterObj.translation.human = frontmatterObj.translate;
+        frontmatterObj.translation.machine = frontmatterObj.translation.machine.filter(
+          (locale) => !frontmatterObj.translation.human.includes(locale)
+        );
+        delete frontmatterObj.translate;
+        if (frontmatterObj.translation.machine.length === 0) {
+          delete frontmatterObj.translation.machine;
+        }
+      }
+      const frontmatterStr = yaml
+        .dump(frontmatterObj, { lineWidth: -1 })
+        .trim();
+      tree.children[0].value = frontmatterStr;
+      return tree;
+    }
+  };
 
-const updateFrontmatter = async (filePath) => {
-  const contents = fs.readFileSync(filePath);
-  const { data } = frontmatter(contents);
-  if (data.translate && Array.isArray(data.translate)) {
-    if (data.translate.includes('jp')) {
-      jpTranslation++;
+  return transformer;
+};
+const processor = unified()
+  .use(remarkParse)
+  .use(remarkStringify, {
+    bullet: '*',
+    fences: true,
+    listItemIndent: '1',
+  })
+  .use(remarkMdx)
+  .use(remarkMdxjs)
+  .use(frontmatter, ['yaml'])
+  .use(fencedCodeBlock)
+  .use(convertFrontmatter);
+
+const getAllFrontmatter = (path) => {
+  const files = getFilesRecursively(path);
+
+  files.forEach(async (filepath) => {
+    try {
+      const fileData = fs.readFileSync(filepath, 'utf8');
+      const { contents } = await processor.process(fileData);
+      fs.writeFileSync(filepath, contents, 'utf-8');
+    } catch (err) {
+      console.log(err.reason, `\n \x1b[31m${filepath}\x1b[0m \n`);
     }
-    if (data.translate.includes('kr')) {
-      krTranslation++;
-    }
-  } else {
-    noTranslation++;
-    return;
-  }
+  });
 };
 
-const main = async () => {
-  const filePaths = glob.sync(`${__dirname}/../src/content/**/*.mdx`);
-  await Promise.all(filePaths.map(updateFrontmatter));
-  // const results = allResults.filter(Boolean);
-
-  console.log('noTranslation', noTranslation);
-  console.log('jpTranslation', jpTranslation);
-  console.log('krTranslation', krTranslation);
-};
-
-main();
+getAllFrontmatter('src/content/docs');
