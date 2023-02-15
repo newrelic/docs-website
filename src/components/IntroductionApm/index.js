@@ -1,0 +1,1 @@
+export { FeaturedContent } from './FeaturedContent';
