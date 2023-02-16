@@ -372,7 +372,11 @@ module.exports = {
               frontmatter {
                 subject
                 releaseDate(fromNow: false)
+                downloadLink
                 version
+                features
+                bugs
+                security
               }
               excerpt(pruneLength: 5000)
             }
@@ -385,7 +389,11 @@ module.exports = {
             .map(({ frontmatter, excerpt }) => ({
               agent: getAgentName(frontmatter.subject),
               date: frontmatter.releaseDate,
+              downloadLink: frontmatter.downloadLink,
               version: frontmatter.version,
+              features: frontmatter.features,
+              bugs: frontmatter.bugs,
+              security: frontmatter.security,
               description: excerpt,
             }))
             .filter(({ date, agent }) => Boolean(date && agent)),

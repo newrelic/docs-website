@@ -272,8 +272,29 @@ test('deserializes Tabs Component', async () => {
 });
 
 test('deserializes LicenseKey component', async () => {
-  const input = '<LicenseKey/>'
+  const input = '<LicenseKey/>';
 
-  const mdx = await deserializeHTML(await serializeMDX(input))
+  const mdx = await deserializeHTML(await serializeMDX(input));
   expect(mdx).toEqual(input);
-})
+});
+
+test('deserialize iframes', async () => {
+  const input = `<iframe
+  width="560"
+  height="315"
+  src="https://www.youtube.com/embed/04JP0ky_hjI"
+  frameborder="0"
+  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+  allowfullscreen
+/>`;
+
+  const mdx = await deserializeHTML(await serializeMDX(input));
+  expect(mdx).toEqual(input);
+});
+
+test('deserializes InlineSignup component', async () => {
+  const input = '<InlineSignup/>';
+
+  const mdx = await deserializeHTML(await serializeMDX(input));
+  expect(mdx).toEqual(input);
+});

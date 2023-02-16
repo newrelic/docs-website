@@ -249,6 +249,32 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
     }
   });
 
+  const createEmbed = (node, defer = false) => {
+    const {
+      fields: { fileRelativePath, slug },
+    } = node;
+
+    if (
+      fileRelativePath.includes('src/content/docs/release-notes') ||
+      fileRelativePath.includes('src/content/whats-new')
+    ) {
+      return;
+    }
+
+    const pagePath = path.join(slug, 'embed', '/');
+
+    createPage({
+      path: pagePath,
+      component: path.resolve(`src/templates/embedPage.js`),
+      context: {
+        slug,
+        fileRelativePath,
+        layout: 'EmbedLayout',
+      },
+      defer,
+    });
+  };
+
   const translatedContentNodes = allI18nMdx.edges.map(({ node }) => node);
 
   allMdx.edges.concat(allMarkdownRemark.edges).forEach(({ node }) => {
@@ -269,6 +295,10 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
     }
 
     createPageFromNode(node, { createPage });
+    createEmbed(
+      node,
+      true // enable dsg
+    );
 
     locales.forEach((locale) => {
       const i18nNode = translatedContentNodes.find(
@@ -326,6 +356,16 @@ exports.createSchemaCustomization = ({ actions }) => {
     translationType: String
     dataSource: String
     isTutorial: Boolean
+    downloadLink: String
+    signupBanner: SignupBanner
+    features: [String]
+    bugs: [String]
+    security: [String]
+  }
+  type SignupBanner {
+    cta: String
+    url: String
+    text: String
   }
 
   `;
@@ -368,6 +408,36 @@ exports.createResolvers = ({ createResolvers }) => {
       isTutorial: {
         resolve: (source) =>
           hasOwnProperty(source, 'isTutorial') ? source.isTutorial : null,
+      },
+      downloadLink: {
+        resolve: (source) =>
+          hasOwnProperty(source, 'downloadLink') ? source.downloadLink : null,
+      },
+      features: {
+        resolve: (source) =>
+          hasOwnProperty(source, 'features') ? source.features : null,
+      },
+      bugs: {
+        resolve: (source) =>
+          hasOwnProperty(source, 'bugs') ? source.bugs : null,
+      },
+      security: {
+        resolve: (source) =>
+          hasOwnProperty(source, 'security') ? source.security : null,
+      },
+    },
+    SignupBanner: {
+      cta: {
+        resolve: (source) =>
+          hasOwnProperty(source, 'cta') ? source.cta : null,
+      },
+      url: {
+        resolve: (source) =>
+          hasOwnProperty(source, 'url') ? source.url : null,
+      },
+      text: {
+        resolve: (source) =>
+          hasOwnProperty(source, 'text') ? source.text : null,
       },
     },
   });
