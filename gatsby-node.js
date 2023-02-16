@@ -364,11 +364,11 @@ exports.createSchemaCustomization = ({ actions }) => {
     translationType: String
     dataSource: String
     isTutorial: Boolean
+    downloadLink: String
     signupBanner: SignupBanner
     features: [String]
     bugs: [String]
     security: [String]
-    ingest: [String]
   }
   type SignupBanner {
     cta: String
@@ -417,6 +417,10 @@ exports.createResolvers = ({ createResolvers }) => {
         resolve: (source) =>
           hasOwnProperty(source, 'isTutorial') ? source.isTutorial : null,
       },
+      downloadLink: {
+        resolve: (source) =>
+          hasOwnProperty(source, 'downloadLink') ? source.downloadLink : null,
+      },
       features: {
         resolve: (source) =>
           hasOwnProperty(source, 'features') ? source.features : null,
@@ -428,10 +432,6 @@ exports.createResolvers = ({ createResolvers }) => {
       security: {
         resolve: (source) =>
           hasOwnProperty(source, 'security') ? source.security : null,
-      },
-      ingest: {
-        resolve: (source) =>
-          hasOwnProperty(source, 'ingest') ? source.ingest : null,
       },
     },
     SignupBanner: {
