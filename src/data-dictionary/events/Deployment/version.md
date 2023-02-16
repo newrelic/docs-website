@@ -2,7 +2,7 @@
 name: version
 type: attribute
 events:
-  - Deployments
+  - Deployment
 ---
 
 The version of the deployment (for example, v1.1).

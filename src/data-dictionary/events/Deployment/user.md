@@ -2,7 +2,7 @@
 name: user
 type: attribute
 events:
-  - Deployments
+  - Deployment
 ---
 
 Username of the deployer or bot that created this deployment.

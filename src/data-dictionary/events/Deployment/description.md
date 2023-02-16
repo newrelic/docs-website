@@ -2,7 +2,7 @@
 name: description
 type: attribute
 events:
-  - Deployments
+  - Deployment
 ---
 
 A description of the deployment.

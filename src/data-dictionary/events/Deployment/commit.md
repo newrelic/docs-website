@@ -2,7 +2,7 @@
 name: commit
 type: attribute
 events:
-  - Deployments
+  - Deployment
 ---
 
 The commit identifier (for example, the Git commit SHA).
