@@ -9,104 +9,111 @@ import {
   StackedContent,
   TitleBlock,
 } from '../components/IntroductionApm';
-import { Side, SideBySide } from '@newrelic/gatsby-theme-newrelic';
+import {
+  Side,
+  SideBySide,
+  useTranslation,
+} from '@newrelic/gatsby-theme-newrelic';
 
-import browserAjaxDetails from 'images/browser_screenshot-full_ajax-details.png';
+import introImage from 'images/new-apm-images/intro.png';
+import entitiesImage from 'images/new-apm-images/entities.png';
+import logManagement from 'images/new-apm-images/log-management.png';
+import vulnerabilityManagement from 'images/new-apm-images/vulnerability-management.png';
+import apdex from 'images/new-apm-images/apdex.png';
+import errorManagement from 'images/new-apm-images/error-management.png';
+import userSatisfaction from 'images/new-apm-images/user-satisfaction.png';
+import autoLogInjest from 'images/new-apm-images/auto-log-injest.png';
+import trackDeps from 'images/new-apm-images/track-deps.png';
 
-const introTextInput = [
-  'Our application performance monitoring (APM) provides a unified monitoring service for all your apps and microservices.',
-  "Monitor everything from the hundreds of dependencies of a modern stack down to simple web-transaction times and throughput of an app. Keep track of your app's health in real-time by monitoring your metrics, events, logs, and transactions (MELT) through pre-built and custom dashboards",
-];
-
-const titleBlockText = 'Our agents automatically instrument and report:';
-
-const introTitle = 'Complete visibility and analytics at your fingertips';
-
-const firstList = [
-  'Observe the performance of your application by installing one of our agents - it takes just minutes!',
-  'Monitor the performance and health of all your services in one place',
-  'Pair New Relic with OpenTelemetry or other open source tools',
-];
-
-const IntroductionApm = () => (
-  <>
-    <FeaturedContent
-      text={introTextInput}
-      title={introTitle}
-      img={browserAjaxDetails}
-    />
-    <SectionWrapper>
-      <GreenLine />
-      <SectionWrapper column>
-        <FeaturedContent
-          list={firstList}
-          subTitle={introTitle}
-          img={browserAjaxDetails}
-          lineIcon="thumbsup"
-        />
-        <TitleBlock list={firstList} text={titleBlockText} title={introTitle} />
-        <FeaturedContent lineIcon="lock" lineIconOnly>
-          <SideBySide>
-            <Side>
-              <StackedContent
-                list={firstList}
-                subTitle={introTitle}
-                img={browserAjaxDetails}
-              />
-            </Side>
-            <Side>
-              <StackedContent
-                list={firstList}
-                subTitle={introTitle}
-                img={browserAjaxDetails}
-              />
-            </Side>
-          </SideBySide>
-        </FeaturedContent>
-        <FeaturedContent
-          list={firstList}
-          subTitle={introTitle}
-          img={browserAjaxDetails}
-          lineIcon="thumbsup"
-        />
+const IntroductionApm = () => {
+  const { t } = useTranslation();
+  return (
+    <>
+      <FeaturedContent
+        text={[t('apm.intro.text.0'), t('apm.intro.text.1')]}
+        title={t('apm.intro.title')}
+        img={introImage}
+      />
+      <SectionWrapper>
+        <GreenLine />
+        <SectionWrapper column>
+          <FeaturedContent
+            list={[
+              t('apm.block1.list.0'),
+              t('apm.block1.list.1'),
+              t('apm.block1.list.2'),
+            ]}
+            subTitle={t('apm.block1.subTitle')}
+            img={entitiesImage}
+            lineIcon="thumbsup"
+          />
+          <TitleBlock
+            list={[
+              t('apm.block2.list.0'),
+              t('apm.block2.list.1'),
+              t('apm.block2.list.2'),
+            ]}
+            text={t('apm.block2.text')}
+            title={t('apm.block2.title')}
+          />
+          <FeaturedContent lineIcon="lock" lineIconOnly>
+            <SideBySide>
+              <Side>
+                <StackedContent
+                  list={[t('apm.block3.0.list.0'), t('apm.block3.0.list.1')]}
+                  subTitle={t('apm.block3.0.subTitle')}
+                  img={logManagement}
+                />
+              </Side>
+              <Side>
+                <StackedContent
+                  list={[t('apm.block3.1.list.0'), t('apm.block3.1.list.1')]}
+                  subTitle={t('apm.block3.1.subTitle')}
+                  img={vulnerabilityManagement}
+                />
+              </Side>
+            </SideBySide>
+          </FeaturedContent>
+          <FeaturedContent
+            list={[t('apm.block4.list.0'), t('apm.block4.list.1')]}
+            subTitle={t('apm.block4.subTitle')}
+            img={apdex}
+            lineIcon="thumbsup"
+          />
+        </SectionWrapper>
       </SectionWrapper>
-    </SectionWrapper>
-    <SideBySide
-      css={css`
-        // margin: 0 auto;
-        // width: 85%;
-      `}
-    >
-      <Side>
-        <SmallStackedContent
-          subTitle={introTitle}
-          img={browserAjaxDetails}
-          text={titleBlockText}
-        />
-      </Side>
-      <Side>
-        <SmallStackedContent
-          subTitle={introTitle}
-          img={browserAjaxDetails}
-          text={titleBlockText}
-        />
-      </Side>
-      <Side>
-        <SmallStackedContent
-          subTitle={introTitle}
-          img={browserAjaxDetails}
-          text={titleBlockText}
-        />
-      </Side>
-      <Side>
-        <SmallStackedContent
-          subTitle={introTitle}
-          img={browserAjaxDetails}
-          text={titleBlockText}
-        />
-      </Side>
-    </SideBySide>
-  </>
-);
+      <SideBySide>
+        <Side>
+          <SmallStackedContent
+            subTitle={t('apm.block5.0.subTitle')}
+            img={errorManagement}
+            text={t('apm.block5.0.text')}
+          />
+        </Side>
+        <Side>
+          <SmallStackedContent
+            subTitle={t('apm.block5.1.subTitle')}
+            img={userSatisfaction}
+            text={t('apm.block5.1.text')}
+          />
+        </Side>
+        <Side>
+          <SmallStackedContent
+            subTitle={t('apm.block5.2.subTitle')}
+            img={autoLogInjest}
+            text={t('apm.block5.2.text')}
+          />
+        </Side>
+        <Side>
+          <SmallStackedContent
+            subTitle={t('apm.block5.3.subTitle')}
+            img={trackDeps}
+            text={t('apm.block5.3.text')}
+          />
+        </Side>
+      </SideBySide>
+    </>
+  );
+};
 
 export default IntroductionApm;

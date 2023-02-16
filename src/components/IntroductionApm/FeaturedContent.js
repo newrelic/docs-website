@@ -39,7 +39,7 @@ export const FeaturedContent = ({
           )}
         </TextContainer>
         {img && (
-          <ImageWrapper>
+          <ImageWrapper separator={title}>
             <img src={img} />
           </ImageWrapper>
         )}
@@ -77,7 +77,7 @@ const ImageWrapper = styled.div`
   align-items: center;
   display: flex;
   justify-content: center;
-  padding-left: 32px;
+  ${(p) => p.separator && `padding-left: 32px`};
   width: 30%;
 
   img {
@@ -99,7 +99,7 @@ const LineIcon = styled(Icon)`
 const LineIconWrapper = styled.div`
   background: var(--primary-background-color);
   border: 2px solid var(--system-text-secondary);
-  left: -40px;
+  left: -48px;
   padding: 20px;
   position: absolute;
   top: 40%;

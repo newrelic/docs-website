@@ -64,4 +64,5 @@ const ImageWrapper = styled.div`
 
 const SubTitle = styled.h2`
   font-size: 28px;
+  text-align: center;
 `;

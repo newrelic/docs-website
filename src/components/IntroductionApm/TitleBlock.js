@@ -38,10 +38,12 @@ const Container = styled.div`
 const ListItem = styled.div`
   align-items: center;
   display: flex;
+  margin-right: 8px;
 `;
 
 const ListWrapper = styled.ul`
   display: flex;
+  justify-content: center;
   list-style-type: none;
   padding: 0;
 
