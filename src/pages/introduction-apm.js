@@ -1,5 +1,4 @@
 import React from 'react';
-import { css } from '@emotion/react';
 
 import {
   FeaturedContent,
@@ -33,6 +32,7 @@ const IntroductionApm = () => {
         text={[t('apm.intro.text.0'), t('apm.intro.text.1')]}
         title={t('apm.intro.title')}
         img={introImage}
+        alt="Complete visibility and analytics at your fingertips"
       />
       <SectionWrapper>
         <GreenLine />
@@ -45,6 +45,7 @@ const IntroductionApm = () => {
             ]}
             subTitle={t('apm.block1.subTitle')}
             img={entitiesImage}
+            alt="See the health of all your services in a glance"
             lineIcon="monitor"
           />
           <TitleBlock
@@ -63,6 +64,7 @@ const IntroductionApm = () => {
                   list={[t('apm.block3.0.list.0'), t('apm.block3.0.list.1')]}
                   subTitle={t('apm.block3.0.subTitle')}
                   img={logManagement}
+                  alt="Log Management"
                 />
               </Side>
               <Side>
@@ -70,6 +72,7 @@ const IntroductionApm = () => {
                   list={[t('apm.block3.1.list.0'), t('apm.block3.1.list.1')]}
                   subTitle={t('apm.block3.1.subTitle')}
                   img={vulnerabilityManagement}
+                  alt="Vulnerability management"
                 />
               </Side>
             </SideBySide>
@@ -79,6 +82,7 @@ const IntroductionApm = () => {
             subTitle={t('apm.block4.subTitle')}
             img={apdex}
             lineIcon="thumbsup"
+            alt="Ensure a great user experience"
           />
         </SectionWrapper>
       </SectionWrapper>
@@ -88,6 +92,7 @@ const IntroductionApm = () => {
             subTitle={t('apm.block5.0.subTitle')}
             img={errorManagement}
             text={t('apm.block5.0.text')}
+            alt="Proactive error management"
           />
         </Side>
         <Side>
@@ -95,6 +100,7 @@ const IntroductionApm = () => {
             subTitle={t('apm.block5.1.subTitle')}
             img={userSatisfaction}
             text={t('apm.block5.1.text')}
+            alt="Measure user satisfaction"
           />
         </Side>
         <Side>
@@ -102,6 +108,7 @@ const IntroductionApm = () => {
             subTitle={t('apm.block5.2.subTitle')}
             img={autoLogInjest}
             text={t('apm.block5.2.text')}
+            alt="Automatic log ingest"
           />
         </Side>
         <Side>
@@ -109,6 +116,7 @@ const IntroductionApm = () => {
             subTitle={t('apm.block5.3.subTitle')}
             img={trackDeps}
             text={t('apm.block5.3.text')}
+            alt="Track dependancies"
           />
         </Side>
       </SideBySide>

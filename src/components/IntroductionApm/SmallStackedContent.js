@@ -1,10 +1,10 @@
 import React from 'react';
 import styled from '@emotion/styled';
 
-export const SmallStackedContent = ({ img, subTitle, text }) => (
+export const SmallStackedContent = ({ alt, img, subTitle, text }) => (
   <Container>
     <ImageWrapper>
-      <img src={img} />
+      <img alt={alt} src={img} />
     </ImageWrapper>
     <SubTitle>{subTitle}</SubTitle>
     <Text>{text}</Text>

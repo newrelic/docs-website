@@ -4,11 +4,11 @@ import { css } from '@emotion/react';
 
 import { Icon } from '@newrelic/gatsby-theme-newrelic';
 
-export const StackedContent = ({ img, list, subTitle }) => (
+export const StackedContent = ({ alt, img, list, subTitle }) => (
   <Container>
     {subTitle && <SubTitle>{subTitle}</SubTitle>}
     <ImageWrapper>
-      <img src={img} />
+      <img alt={alt} src={img} />
     </ImageWrapper>
     {list && (
       <ListWrapper>
@@ -32,7 +32,7 @@ export const StackedContent = ({ img, list, subTitle }) => (
 const Container = styled.div`
   display: flex;
   flex-direction: column;
-  margin: 48px 40px;
+  margin: 0 40px;
   width: 80%;
 `;
 

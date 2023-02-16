@@ -5,6 +5,7 @@ import { css } from '@emotion/react';
 import { Icon } from '@newrelic/gatsby-theme-newrelic';
 
 export const FeaturedContent = ({
+  alt,
   children,
   lineIcon,
   lineIconOnly,
@@ -40,7 +41,7 @@ export const FeaturedContent = ({
         </TextContainer>
         {img && (
           <ImageWrapper separator={title}>
-            <img src={img} />
+            <img alt={alt} src={img} />
           </ImageWrapper>
         )}
       </>
@@ -105,10 +106,6 @@ const LineIconWrapper = styled.div`
   display: flex;
   justify-content: center;
   padding: 8px;
-
-  @media screen and (max-width: 1000px) {
-    display: none;
-  }
 `;
 
 const ListItem = styled.div`
@@ -133,7 +130,7 @@ const TextContainer = styled.div`
   flex-direction: column;
   justify-content: center;
   padding: 36px 0;
-  padding-right: ${(p) => (p.separator ? `32px` : `0`)};
+  padding-right: ${(p) => (p.separator ? `32px` : `16px`)};
   width: 66%;
 
   @media screen and (max-width: 1000px) {
@@ -151,6 +148,10 @@ const Spacer = styled.div`
   padding: 12px;
   position: absolute;
   top: 40%;
+
+  @media screen and (max-width: 1000px) {
+    display: none;
+  }
 `;
 
 const Title = styled.h1`
