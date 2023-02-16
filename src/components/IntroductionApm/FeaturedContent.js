@@ -73,6 +73,8 @@ const Container = styled.div`
 
   @media screen and (max-width: 1000px) {
     flex-direction: column;
+    margin-top: 0;
+    padding: 0;
   }
 `;
 
@@ -135,6 +137,7 @@ const TextContainer = styled.div`
 
   @media screen and (max-width: 1000px) {
     border: 0;
+    padding: 0;
     width: 100%;
   }
 `;
@@ -156,4 +159,8 @@ const Spacer = styled.div`
 
 const Title = styled.h1`
   font-size: 44px;
+
+  @media screen and (max-width: 1000px) {
+    font-size: 32px;
+  }
 `;

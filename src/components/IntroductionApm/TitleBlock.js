@@ -33,6 +33,11 @@ const Container = styled.div`
   margin: 48px 0;
   padding: 0 40px;
   width: 100%;
+
+  @media screen and (max-width: 1000px) {
+    margin: 32px 0;
+    padding: 0;
+  }
 `;
 
 const ListItem = styled.div`
@@ -64,4 +69,8 @@ const TextContainer = styled.div`
 const Title = styled.h1`
   font-size: 44px;
   text-align: center;
+
+  @media screen and (max-width: 1000px) {
+    font-size: 28px;
+  }
 `;
