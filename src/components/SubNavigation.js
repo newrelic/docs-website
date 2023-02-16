@@ -20,7 +20,7 @@ const SubNavigation = ({ nav, className }) => {
             }
             span,
             svg {
-              color: #1ce783;
+              color: #afe2e3;
             }
           `}
           className={className}
