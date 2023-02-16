@@ -4,31 +4,30 @@ import { css } from '@emotion/react';
 
 import { Icon } from '@newrelic/gatsby-theme-newrelic';
 
-export const StackedContent = ({ img, list, subTitle }) => {
-  return (
-    <Container>
-      {subTitle && <SubTitle>{subTitle}</SubTitle>}
-      <ImageWrapper>
-        <img src={img} />
-      </ImageWrapper>
-      {list && (
-        <ListWrapper>
-          {list.map((item, i) => (
-            <ListItem key={i}>
-              <Icon
-                name="fe-check"
-                css={css`
-                  margin-right: 8px;
-                `}
-              />
-              <li>{item}</li>
-            </ListItem>
-          ))}
-        </ListWrapper>
-      )}
-    </Container>
-  );
-};
+export const StackedContent = ({ img, list, subTitle }) => (
+  <Container>
+    {subTitle && <SubTitle>{subTitle}</SubTitle>}
+    <ImageWrapper>
+      <img src={img} />
+    </ImageWrapper>
+    {list && (
+      <ListWrapper>
+        {list.map((item, i) => (
+          <ListItemWrapper key={i}>
+            <Icon
+              name="fe-check"
+              css={css`
+                margin-right: 8px;
+                width: 36px;
+              `}
+            />
+            <ListItem>{item}</ListItem>
+          </ListItemWrapper>
+        ))}
+      </ListWrapper>
+    )}
+  </Container>
+);
 
 const Container = styled.div`
   display: flex;
@@ -37,7 +36,11 @@ const Container = styled.div`
   width: 80%;
 `;
 
-const ListItem = styled.div`
+const ListItem = styled.li`
+  width: 85%;
+`;
+
+const ListItemWrapper = styled.div`
   align-items: center;
   display: flex;
 `;

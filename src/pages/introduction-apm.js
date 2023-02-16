@@ -1,5 +1,10 @@
 import React from 'react';
-import { FeaturedContent, StackedContent } from '../components/IntroductionApm';
+import {
+  FeaturedContent,
+  SmallStackedContent,
+  StackedContent,
+  TitleBlock,
+} from '../components/IntroductionApm';
 import { Side, SideBySide } from '@newrelic/gatsby-theme-newrelic';
 
 import browserAjaxDetails from 'images/browser_screenshot-full_ajax-details.png';
@@ -8,6 +13,8 @@ const introTextInput = [
   'Our application performance monitoring (APM) provides a unified monitoring service for all your apps and microservices.',
   "Monitor everything from the hundreds of dependencies of a modern stack down to simple web-transaction times and throughput of an app. Keep track of your app's health in real-time by monitoring your metrics, events, logs, and transactions (MELT) through pre-built and custom dashboards",
 ];
+
+const titleBlockText = 'Our agents automatically instrument and report:';
 
 const introTitle = 'Complete visibility and analytics at your fingertips';
 
@@ -30,6 +37,7 @@ const IntroductionApm = () => (
       subTitle={introTitle}
       img={browserAjaxDetails}
     />
+    <TitleBlock list={firstList} text={titleBlockText} title={introTitle} />
     <SideBySide>
       <Side>
         <StackedContent
@@ -43,6 +51,42 @@ const IntroductionApm = () => (
           list={firstList}
           subTitle={introTitle}
           img={browserAjaxDetails}
+        />
+      </Side>
+    </SideBySide>
+    <FeaturedContent
+      list={firstList}
+      subTitle={introTitle}
+      img={browserAjaxDetails}
+    />
+
+    <SideBySide>
+      <Side>
+        <SmallStackedContent
+          subTitle={introTitle}
+          img={browserAjaxDetails}
+          text={titleBlockText}
+        />
+      </Side>
+      <Side>
+        <SmallStackedContent
+          subTitle={introTitle}
+          img={browserAjaxDetails}
+          text={titleBlockText}
+        />
+      </Side>
+      <Side>
+        <SmallStackedContent
+          subTitle={introTitle}
+          img={browserAjaxDetails}
+          text={titleBlockText}
+        />
+      </Side>
+      <Side>
+        <SmallStackedContent
+          subTitle={introTitle}
+          img={browserAjaxDetails}
+          text={titleBlockText}
         />
       </Side>
     </SideBySide>

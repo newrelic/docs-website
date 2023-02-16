@@ -4,35 +4,34 @@ import { css } from '@emotion/react';
 
 import { Icon } from '@newrelic/gatsby-theme-newrelic';
 
-export const FeaturedContent = ({ img, list, subTitle, text, title }) => {
-  return (
-    <Container>
-      <TextContainer separator={title}>
-        {title && <Title>{title}</Title>}
-        {subTitle && <SubTitle>{subTitle}</SubTitle>}
-        {text && text.map((paragraph, i) => <p key={i}>{paragraph}</p>)}
-        {list && (
-          <ListWrapper>
-            {list.map((item, i) => (
-              <ListItem key={i}>
-                <Icon
-                  name="fe-check"
-                  css={css`
-                    margin-right: 8px;
-                  `}
-                />
-                <li>{item}</li>
-              </ListItem>
-            ))}
-          </ListWrapper>
-        )}
-      </TextContainer>
-      <ImageWrapper>
-        <img src={img} />
-      </ImageWrapper>
-    </Container>
-  );
-};
+export const FeaturedContent = ({ img, list, subTitle, text, title }) => (
+  <Container>
+    <TextContainer separator={title}>
+      {title && <Title>{title}</Title>}
+      {subTitle && <SubTitle>{subTitle}</SubTitle>}
+      {text && text.map((paragraph, i) => <p key={i}>{paragraph}</p>)}
+      {list && (
+        <ListWrapper>
+          {list.map((item, i) => (
+            <ListItem key={i}>
+              <Icon
+                name="fe-check"
+                css={css`
+                  margin-right: 8px;
+                  width: 36px;
+                `}
+              />
+              <li>{item}</li>
+            </ListItem>
+          ))}
+        </ListWrapper>
+      )}
+    </TextContainer>
+    <ImageWrapper>
+      <img src={img} />
+    </ImageWrapper>
+  </Container>
+);
 
 const Container = styled.div`
   display: flex;
