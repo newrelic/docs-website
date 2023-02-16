@@ -1,11 +1,9 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo } from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/react';
 import { graphql } from 'gatsby';
 import { takeWhile } from 'lodash';
-import { createLocalStorageStateHook } from 'use-local-storage-state';
 import PageTitle from '../components/PageTitle';
-import DocPageBanner from '../components/DocPageBanner';
 import MDXContainer from '../components/MDXContainer';
 import {
   ContributingGuidelines,
@@ -13,7 +11,6 @@ import {
   RelatedResources,
   ComplexFeedback,
   TableOfContents,
-  useLoggedIn,
 } from '@newrelic/gatsby-theme-newrelic';
 import MachineTranslationCallout from '../components/MachineTranslationCallout';
 import SEO from '../components/SEO';
@@ -36,8 +33,6 @@ const splitTOCTitle = (title = '') => {
 
   return [titleText.join(' '), slug];
 };
-
-const BANNER_HEIGHT = '78px';
 
 const BasicDoc = ({ data, location, pageContext }) => {
   const { mdx } = data;
@@ -73,7 +68,6 @@ const BasicDoc = ({ data, location, pageContext }) => {
     translationType,
     dataSource,
     isTutorial,
-    signupBanner,
   } = frontmatter;
 
   let { type } = frontmatter;
@@ -84,31 +78,7 @@ const BasicDoc = ({ data, location, pageContext }) => {
   if (isTutorial) {
     type = 'tutorial';
   }
-  const useBannerDismissed = createLocalStorageStateHook(
-    `docBannerDismissed-${title}`
-  );
 
-  const { loggedIn } = useLoggedIn();
-
-  const [bannerDismissed, setBannerDismissed] = useBannerDismissed(null);
-  const bannerVisible = !loggedIn && !bannerDismissed;
-
-  const onCloseBanner = () => {
-    setBannerDismissed(true);
-  };
-
-  const [hasMounted, setHasMounted] = useState(false);
-
-  useEffect(() => {
-    if (loggedIn) {
-      setBannerDismissed(true);
-    }
-    setHasMounted(true);
-  }, [loggedIn, setBannerDismissed]);
-
-  if (!hasMounted) {
-    return null;
-  }
   return (
     <>
       <SEO
@@ -120,15 +90,6 @@ const BasicDoc = ({ data, location, pageContext }) => {
         dataSource={dataSource}
         disableSwiftype={disableSwiftype}
       />
-      {signupBanner && bannerVisible && (
-        <DocPageBanner
-          height={BANNER_HEIGHT}
-          text={signupBanner.text}
-          cta={signupBanner.cta}
-          url={signupBanner.url}
-          onClose={onCloseBanner}
-        />
-      )}
       <div
         css={css`
           display: grid;
@@ -138,24 +99,6 @@ const BasicDoc = ({ data, location, pageContext }) => {
             'content page-tools';
           grid-template-columns: minmax(0, 1fr) 320px;
           grid-column-gap: 2rem;
-
-          ${signupBanner &&
-          bannerVisible &&
-          css`
-            margin-top: ${BANNER_HEIGHT};
-            @media screen and (max-width: 760px) {
-              margin-top: 0;
-            }
-          `}
-
-          @media screen and (max-width: 1240px) {
-            grid-template-areas:
-              'mt-disclaimer'
-              'page-title'
-              'content'
-              'page-tools';
-            grid-template-columns: minmax(0, 1fr);
-          }
         `}
       >
         {translationType === 'machine' && (
@@ -217,11 +160,6 @@ export const pageQuery = graphql`
         isTutorial
         translationType
         dataSource
-        signupBanner {
-          cta
-          url
-          text
-        }
       }
       fields {
         fileRelativePath
