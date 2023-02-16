@@ -45,7 +45,7 @@ const IntroductionApm = () => {
             ]}
             subTitle={t('apm.block1.subTitle')}
             img={entitiesImage}
-            lineIcon="thumbsup"
+            lineIcon="monitor"
           />
           <TitleBlock
             list={[

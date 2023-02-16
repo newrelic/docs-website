@@ -47,14 +47,16 @@ export const FeaturedContent = ({
     )}
     {lineIcon && (
       <>
-        <LineIconWrapper>
-          <LineIcon
-            name={lineIcon}
-            css={css`
-              width: 36px;
-            `}
-          />
-        </LineIconWrapper>
+        <Spacer>
+          <LineIconWrapper>
+            <LineIcon
+              name={lineIcon}
+              css={css`
+                width: 36px;
+              `}
+            />
+          </LineIconWrapper>
+        </Spacer>
         {children}
       </>
     )}
@@ -91,18 +93,18 @@ const ImageWrapper = styled.div`
 `;
 
 const LineIcon = styled(Icon)`
-  color: var(--system-text-secondary);
+  color: var(--secondary-text-color);
   height: 33px;
   width: 33px;
 `;
 
 const LineIconWrapper = styled.div`
+  align-items: center;
   background: var(--primary-background-color);
-  border: 2px solid var(--system-text-secondary);
-  left: -48px;
-  padding: 20px;
-  position: absolute;
-  top: 40%;
+  border: 4px solid var(--secondary-text-color);
+  display: flex;
+  justify-content: center;
+  padding: 8px;
 
   @media screen and (max-width: 1000px) {
     display: none;
@@ -112,6 +114,7 @@ const LineIconWrapper = styled.div`
 const ListItem = styled.div`
   align-items: center;
   display: flex;
+  margin-bottom: 16px;
 `;
 
 const ListWrapper = styled.ul`
@@ -121,10 +124,14 @@ const ListWrapper = styled.ul`
 
 const SubTitle = styled.h2`
   font-size: 28px;
+  margin-bottom: 32px;
 `;
 
 const TextContainer = styled.div`
   ${(p) => p.separator && `border-right: 1px solid #f1b9df`};
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
   padding: 36px 0;
   padding-right: ${(p) => (p.separator ? `32px` : `0`)};
   width: 66%;
@@ -133,6 +140,17 @@ const TextContainer = styled.div`
     border: 0;
     width: 100%;
   }
+`;
+
+const Spacer = styled.div`
+  align-items: center;
+  background: var(--primary-background-color);
+  display: flex;
+  justify-content: center;
+  left: -50px;
+  padding: 12px;
+  position: absolute;
+  top: 40%;
 `;
 
 const Title = styled.h1`

@@ -43,6 +43,7 @@ const ListItem = styled.li`
 const ListItemWrapper = styled.div`
   align-items: center;
   display: flex;
+  margin-bottom: 16px;
 `;
 
 const ListWrapper = styled.ul`
