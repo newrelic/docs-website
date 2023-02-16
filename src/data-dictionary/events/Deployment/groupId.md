@@ -1,7 +1,6 @@
 ---
 name: groupId
 type: attribute
-units: ID
 events:
   - Deployments
 ---
