@@ -1,6 +1,10 @@
 import React from 'react';
+import { css } from '@emotion/react';
+
 import {
   FeaturedContent,
+  GreenLine,
+  SectionWrapper,
   SmallStackedContent,
   StackedContent,
   TitleBlock,
@@ -31,36 +35,48 @@ const IntroductionApm = () => (
       title={introTitle}
       img={browserAjaxDetails}
     />
-
-    <FeaturedContent
-      list={firstList}
-      subTitle={introTitle}
-      img={browserAjaxDetails}
-    />
-    <TitleBlock list={firstList} text={titleBlockText} title={introTitle} />
-    <SideBySide>
-      <Side>
-        <StackedContent
+    <SectionWrapper>
+      <GreenLine />
+      <SectionWrapper column>
+        <FeaturedContent
           list={firstList}
           subTitle={introTitle}
           img={browserAjaxDetails}
+          lineIcon="thumbsup"
         />
-      </Side>
-      <Side>
-        <StackedContent
+        <TitleBlock list={firstList} text={titleBlockText} title={introTitle} />
+        <FeaturedContent lineIcon="lock" lineIconOnly>
+          <SideBySide>
+            <Side>
+              <StackedContent
+                list={firstList}
+                subTitle={introTitle}
+                img={browserAjaxDetails}
+              />
+            </Side>
+            <Side>
+              <StackedContent
+                list={firstList}
+                subTitle={introTitle}
+                img={browserAjaxDetails}
+              />
+            </Side>
+          </SideBySide>
+        </FeaturedContent>
+        <FeaturedContent
           list={firstList}
           subTitle={introTitle}
           img={browserAjaxDetails}
+          lineIcon="thumbsup"
         />
-      </Side>
-    </SideBySide>
-    <FeaturedContent
-      list={firstList}
-      subTitle={introTitle}
-      img={browserAjaxDetails}
-    />
-
-    <SideBySide>
+      </SectionWrapper>
+    </SectionWrapper>
+    <SideBySide
+      css={css`
+        // margin: 0 auto;
+        // width: 85%;
+      `}
+    >
       <Side>
         <SmallStackedContent
           subTitle={introTitle}

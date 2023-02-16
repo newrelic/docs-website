@@ -14,8 +14,8 @@ export const SmallStackedContent = ({ img, subTitle, text }) => (
 const Container = styled.div`
   display: flex;
   flex-direction: column;
-  margin: 48px 40px;
-  width: 80%;
+  justify-content: center;
+  margin: 32px;
 `;
 
 const ImageWrapper = styled.div`
@@ -32,6 +32,7 @@ const ImageWrapper = styled.div`
 
 const SubTitle = styled.h2`
   font-size: 18px;
+  text-align: center;
 `;
 
 const Text = styled.p`

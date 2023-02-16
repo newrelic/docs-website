@@ -44,6 +44,10 @@ const ListWrapper = styled.ul`
   display: flex;
   list-style-type: none;
   padding: 0;
+
+  @media screen and (max-width: 1000px) {
+    flex-direction: column;
+  }
 `;
 
 const Text = styled.p`
@@ -52,8 +56,7 @@ const Text = styled.p`
 `;
 
 const TextContainer = styled.div`
-  padding: 36px 0;
-  width: 66%;
+  width: 80%;
 `;
 
 const Title = styled.h1`
