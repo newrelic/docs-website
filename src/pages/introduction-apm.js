@@ -1,5 +1,6 @@
 import React from 'react';
-import { FeaturedContent } from '../components/IntroductionApm';
+import { FeaturedContent, StackedContent } from '../components/IntroductionApm';
+import { Side, SideBySide } from '@newrelic/gatsby-theme-newrelic';
 
 import browserAjaxDetails from 'images/browser_screenshot-full_ajax-details.png';
 
@@ -10,6 +11,12 @@ const introTextInput = [
 
 const introTitle = 'Complete visibility and analytics at your fingertips';
 
+const firstList = [
+  'Observe the performance of your application by installing one of our agents - it takes just minutes!',
+  'Monitor the performance and health of all your services in one place',
+  'Pair New Relic with OpenTelemetry or other open source tools',
+];
+
 const IntroductionApm = () => (
   <>
     <FeaturedContent
@@ -19,10 +26,26 @@ const IntroductionApm = () => (
     />
 
     <FeaturedContent
-      list={introTextInput}
+      list={firstList}
       subTitle={introTitle}
       img={browserAjaxDetails}
     />
+    <SideBySide>
+      <Side>
+        <StackedContent
+          list={firstList}
+          subTitle={introTitle}
+          img={browserAjaxDetails}
+        />
+      </Side>
+      <Side>
+        <StackedContent
+          list={firstList}
+          subTitle={introTitle}
+          img={browserAjaxDetails}
+        />
+      </Side>
+    </SideBySide>
   </>
 );
 
