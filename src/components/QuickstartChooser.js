@@ -2,6 +2,7 @@ import React from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/react';
 import styled from '@emotion/styled';
+import cx from 'classnames';
 import logos from '@newrelic/gatsby-theme-newrelic/src/icons/logo';
 import { useTranslation } from '@newrelic/gatsby-theme-newrelic';
 import dataism from '../images/dataism.png';
@@ -57,14 +58,17 @@ const QUICKSTARTS = [
   },
 ];
 
-const QuickstartChooser = ({ quickstarts = QUICKSTARTS }) => {
+const QuickstartChooser = ({
+  secondary = false,
+  quickstarts = QUICKSTARTS,
+}) => {
   const { t } = useTranslation();
   return (
-    <Container>
+    <Container className={cx({ secondary })}>
       <CtaContainer>
         <h2>{t('quickstartChooser.heading')}</h2>
         <p>
-          {t('quickstartChooser.blurbLineOne')}&shy;
+          {t('quickstartChooser.blurbLineOne')}{' '}
           {t('quickstartChooser.blurbLineTwo')}
         </p>
         <Arrow />
@@ -187,6 +191,29 @@ const Container = styled.div`
     max-width: 100vw;
   }
 
+  &.secondary {
+    background: #f3f4f4;
+    display: block;
+
+    & h2 {
+      margin-bottom: 0.5rem;
+    }
+
+    & h2,
+    & p {
+      color: var(--system-text-primary-light);
+    }
+
+    & svg.arrow {
+      display: none;
+    }
+
+    & ${ChooserContainer} {
+      gap: 1.625rem;
+      grid-template-columns: repeat(auto-fit, 112px);
+    }
+  }
+
   h2 {
     font-size: 1.75rem;
     margin-bottom: 2rem;
@@ -214,7 +241,7 @@ const CtaContainer = styled.div`
 
 const Arrow = ({ className }) => (
   <svg
-    className={className}
+    className={cx(className, 'arrow')}
     css={css`
       bottom: -4%;
       left: 77%;
