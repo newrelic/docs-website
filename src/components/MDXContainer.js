@@ -16,7 +16,7 @@ import { DocTile, DocTiles } from './DocTile';
 import LandingPageHero from './LandingPageHero';
 import LandingPageTile from './LandingPageTile';
 import LandingPageTileGrid from './LandingPageTileGrid';
-import InlineSignup from './InlineSignup';
+import DocInlineSignup from './DocInlineSignup';
 import InstallFeedback from './InstallFeedback';
 import MDXButton from './MDXButton';
 import MDXButtonGroup from './MDXButtonGroup';
@@ -96,7 +96,7 @@ const defaultComponents = {
   TabsBarItem: Tabs.BarItem,
   TabsPageItem: Tabs.Page,
   TabsPages: Tabs.Pages,
-  InlineSignup: InlineSignup,
+  DocInlineSignup: DocInlineSignup,
   InstallFeedback,
   WhatsNextTile,
   Side,
