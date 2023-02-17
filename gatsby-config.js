@@ -243,7 +243,7 @@ module.exports = {
         path: `./src/install/config/`,
       },
     },
-    'gatsby-plugin-generate-doc-json',
+    // 'gatsby-plugin-generate-doc-json',
     // Comment in below to run a build that checks links
     // 'gatsby-plugin-check-links',
     {
