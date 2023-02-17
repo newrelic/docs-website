@@ -8,6 +8,7 @@ import {
   StackedContent,
   TitleBlock,
 } from '../components/IntroductionApm';
+import QuickstartChooser from '../components/QuickstartChooser'
 import {
   Side,
   SideBySide,
@@ -34,6 +35,7 @@ const IntroductionApm = () => {
         img={introImage}
         alt="Complete visibility and analytics at your fingertips"
       />
+      <QuickstartChooser />
       <SectionWrapper>
         <GreenLine />
         <SectionWrapper column>
