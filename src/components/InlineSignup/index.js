@@ -1,4 +1,4 @@
-import InlineSignup from './InlineSignup';
+import { InlineSignup } from '@newrelic/gatsby-theme-newrelic';
 import HideWhenEmbedded from '../HideWhenEmbedded';
 
 const WrappedInlineSignup = () => (
