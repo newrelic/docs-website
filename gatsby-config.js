@@ -552,6 +552,15 @@ module.exports = {
             process.env.FEEDBACK_RECAPTCHA_TOKEN ||
             '6Lfn8wUiAAAAANBY-ZtKg4V9b4rdGZtJuAng62jo',
         },
+        signup: {
+          environment: process.env.ENVIRONMENT || 'staging',
+          signupUrl:
+            process.env.SIGNUP_URL ||
+            'https://signup-receiver.staging-service.newrelic.com',
+          reCaptchaToken:
+            process.env.RECAPTCHA_TOKEN ||
+            '6LdZ0xcgAAAAAPxQTpvn9B4qzTRhRM8llwvt41dX',
+        },
         newRelicRequestingServicesHeader: 'docs-website',
       },
     },
