@@ -1,10 +1,8 @@
 // import InlineSignup from './InlineSignup';
-import HideWhenEmbedded from '../HideWhenEmbedded';
+// import HideWhenEmbedded from '../HideWhenEmbedded';
 
-const WrappedInlineSignup = () => (
-  <HideWhenEmbedded>
-    <div>hewwo</div>
-  </HideWhenEmbedded>
+const InlineSignup = () => (
+  <div>hewwo</div>
 );
 
-export default WrappedInlineSignup;
+export default InlineSignup;
