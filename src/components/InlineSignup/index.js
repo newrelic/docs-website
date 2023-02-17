@@ -1,8 +1,10 @@
 // import InlineSignup from './InlineSignup';
-// import HideWhenEmbedded from '../HideWhenEmbedded';
+import HideWhenEmbedded from '../HideWhenEmbedded';
 
 const InlineSignup = () => (
-  <div>hewwo</div>
+  <HideWhenEmbedded>
+    <div>hewwo</div>
+  </HideWhenEmbedded>
 );
 
 export default InlineSignup;
