@@ -1,120 +1,117 @@
-import React, { useState } from 'react';
-import { css } from '@emotion/react';
+import React from 'react';
 import styled from '@emotion/styled';
-import cx from 'classnames';
 
-import { Button, Trans, useLoggedIn, useTessen, useTranslation } from '@newrelic/gatsby-theme-newrelic';
-import { createAccountRequest } from '@newrelic/gatsby-theme-newrelic/src/components/SignupModal/signup';
-import RecaptchaFooter from '@newrelic/gatsby-theme-newrelic/src/components/SignupModal/RecaptchaFooter';
-
+import { Button } from '@newrelic/gatsby-theme-newrelic';
 const MOBILE_BREAKPOINT = '600px';
+
+const InlineSignup = () => <div>blease work</div>
 
 /**
  * [VSU] This component allows users to sign up inline in a doc.
  * It only renders if the current user is not logged in.
  */
-const InlineSignup = () => {
-  const [error, setError] = useState(null);
-  const tessen = useTessen();
-  const { t } = useTranslation();
-  const { loggedIn } = useLoggedIn();
-  const submitEvent = {
-    category: 'InlineSignup',
-    eventName: 'attemptedSignup',
-  };
+// const InlineSignup = () => {
+//   const [error, setError] = useState(null);
+//   const tessen = useTessen();
+//   const { t } = useTranslation();
+//   const { loggedIn } = useLoggedIn();
+//   const submitEvent = {
+//     category: 'InlineSignup',
+//     eventName: 'attemptedSignup',
+//   };
 
-  const onSubmit = async (e) => {
-    e.preventDefault();
-    const { email, name } = Object.fromEntries(new FormData(e.target));
-    const organizationId = await createAccountRequest(
-      { email, name },
-      tessen,
-      submitEvent
-    );
+//   const onSubmit = async (e) => {
+//     e.preventDefault();
+//     const { email, name } = Object.fromEntries(new FormData(e.target));
+//     const organizationId = await createAccountRequest(
+//       { email, name },
+//       tessen,
+//       submitEvent
+//     );
 
-    if (organizationId) {
-      const redirectUrl = `https://newrelic.com/thank-you?org=${organizationId}&standalone=true`;
-      window.location.assign(redirectUrl);
-    } else {
-      setError(true);
-    }
-  };
+//     if (organizationId) {
+//       const redirectUrl = `https://newrelic.com/thank-you?org=${organizationId}&standalone=true`;
+//       window.location.assign(redirectUrl);
+//     } else {
+//       setError(true);
+//     }
+//   };
 
-  if (loggedIn == null || loggedIn) return null;
+//   if (loggedIn == null || loggedIn) return null;
 
-  return (
-    <Form onSubmit={onSubmit}>
-      <CTAText>{t('inlineSignup.ctaText')}</CTAText>
+//   return (
+//     <Form onSubmit={onSubmit}>
+//       <CTAText>{t('inlineSignup.ctaText')}</CTAText>
 
-      <InputContainer>
-        <label className="screenreader-only" htmlFor="inline-signup-name">
-          {t('inlineSignup.nameLabel')}
-        </label>
-        <Input
-          className="first"
-          id="inline-signup-name"
-          name="name"
-          // this basically says that a name has to have atleast one letter.
-          // numbers are allowed, for a name like Charles the 3rd.
-          // i used `\p{Letter}` here instead of `[a-zA-Z]`
-          // to allow Unicode characters in names, like Björk, or 준영.
-          pattern=".*\p{Letter}+.*"
-          placeholder={t('inlineSignup.nameLabel')}
-          required
-          type="text"
-        />
-        {/* for the sake of not complicating the markup, i'm using this
-         * for both the input validation hint and the error text if
-         * the account creation fails.
-         */}
-        <ValidationHint className={cx({ error })}>
-          {error
-            ? t('inlineSignup.submitError')
-            : t('inlineSignup.nameValidationHint')}
-        </ValidationHint>
-      </InputContainer>
-      <InputContainer>
-        <label className="screenreader-only" htmlFor="inline-signup-email">
-          {t('inlineSignup.emailLabel')}
-        </label>
-        <Input
-          className="last"
-          id="inline-signup-email"
-          name="email"
-          pattern=".+@.+\..+"
-          placeholder={t('inlineSignup.emailLabel')}
-          required
-          type="email"
-        />
-        <ValidationHint>{t('inlineSignup.emailValidationHint')}</ValidationHint>
-      </InputContainer>
+//       <InputContainer>
+//         <label className="screenreader-only" htmlFor="inline-signup-name">
+//           {t('inlineSignup.nameLabel')}
+//         </label>
+//         <Input
+//           className="first"
+//           id="inline-signup-name"
+//           name="name"
+//           // this basically says that a name has to have atleast one letter.
+//           // numbers are allowed, for a name like Charles the 3rd.
+//           // i used `\p{Letter}` here instead of `[a-zA-Z]`
+//           // to allow Unicode characters in names, like Björk, or 준영.
+//           pattern=".*\p{Letter}+.*"
+//           placeholder={t('inlineSignup.nameLabel')}
+//           required
+//           type="text"
+//         />
+//         {/* for the sake of not complicating the markup, i'm using this
+//          * for both the input validation hint and the error text if
+//          * the account creation fails.
+//          */}
+//         <ValidationHint className={cx({ error })}>
+//           {error
+//             ? t('inlineSignup.submitError')
+//             : t('inlineSignup.nameValidationHint')}
+//         </ValidationHint>
+//       </InputContainer>
+//       <InputContainer>
+//         <label className="screenreader-only" htmlFor="inline-signup-email">
+//           {t('inlineSignup.emailLabel')}
+//         </label>
+//         <Input
+//           className="last"
+//           id="inline-signup-email"
+//           name="email"
+//           pattern=".+@.+\..+"
+//           placeholder={t('inlineSignup.emailLabel')}
+//           required
+//           type="email"
+//         />
+//         <ValidationHint>{t('inlineSignup.emailValidationHint')}</ValidationHint>
+//       </InputContainer>
 
-      <CTAButton type="submit" variant={Button.VARIANT.PRIMARY}>
-        {t('inlineSignup.ctaButton')}
-      </CTAButton>
+//       <CTAButton type="submit" variant={Button.VARIANT.PRIMARY}>
+//         {t('inlineSignup.ctaButton')}
+//       </CTAButton>
 
-      <Terms>
-        <Trans i18nKey="inlineSignup.terms">
-          100 GB + 1 user free. Forever. No credit card required.
-          <br />
-          By signing up you're agreeing to{' '}
-          <a href="https://newrelic.com/termsandconditions/terms">
-            Terms of Service
-          </a>{' '}
-          and{' '}
-          <a href="https://newrelic.com/termsandconditions/privacy">
-            Services Privacy Notice.
-          </a>
-        </Trans>
-      </Terms>
-      <RecaptchaFooter
-        css={css`
-          grid-column: 1 / 4;
-        `}
-      />
-    </Form>
-  );
-};
+//       <Terms>
+//         <Trans i18nKey="inlineSignup.terms">
+//           100 GB + 1 user free. Forever. No credit card required.
+//           <br />
+//           By signing up you're agreeing to{' '}
+//           <a href="https://newrelic.com/termsandconditions/terms">
+//             Terms of Service
+//           </a>{' '}
+//           and{' '}
+//           <a href="https://newrelic.com/termsandconditions/privacy">
+//             Services Privacy Notice.
+//           </a>
+//         </Trans>
+//       </Terms>
+//       <RecaptchaFooter
+//         css={css`
+//           grid-column: 1 / 4;
+//         `}
+//       />
+//     </Form>
+//   );
+// };
 
 const CTAButton = styled(Button)`
   align-self: start;
