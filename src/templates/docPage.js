@@ -99,6 +99,15 @@ const BasicDoc = ({ data, location, pageContext }) => {
             'content page-tools';
           grid-template-columns: minmax(0, 1fr) 320px;
           grid-column-gap: 2rem;
+
+          @media screen and (max-width: 1240px) {
+            grid-template-areas:
+              'mt-disclaimer'
+              'page-title'
+              'content'
+              'page-tools';
+            grid-template-columns: minmax(0, 1fr);
+          }
         `}
       >
         {translationType === 'machine' && (
