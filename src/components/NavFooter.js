@@ -13,7 +13,7 @@ const NavFooter = ({ className }) => {
     <div
       css={css`
         align-items: center;
-        background: #afe2e3;
+        background: #1ce783;
         bottom: 0;
         display: flex;
         height: 60px;
