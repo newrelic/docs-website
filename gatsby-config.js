@@ -559,7 +559,7 @@ module.exports = {
             'https://signup-receiver.staging-service.newrelic.com',
           reCaptchaToken:
             process.env.RECAPTCHA_TOKEN ||
-            '6LdZ0xcgAAAAAPxQTpvn9B4qzTRhRM8llwvt41dX',
+            '6LeGFt8UAAAAANfnpE8si2Z6NnAqYKnPAYgMpStu',
         },
         newRelicRequestingServicesHeader: 'docs-website',
       },
