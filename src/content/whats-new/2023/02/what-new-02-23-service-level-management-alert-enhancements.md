@@ -1,8 +1,8 @@
 ---
 title: 'Expanded alert capabilities for service level management'
-summary: '’Track error budgets and monitor SLI and SLO burn rates to alert on performance issues before they affect your customers.’
+summary: 'Track error budgets and monitor SLI and SLO burn rates to alert on performance issues before they affect your customers.'
 releaseDate: '2023-02-23'
-learnMoreLink: ‘https://docs.newrelic.com/docs/service-level-management/alerts-slm/’
+learnMoreLink: 'https://docs.newrelic.com/docs/service-level-management/alerts-slm/'
 ---
 
 Now you can automatically determine alert thresholds and set up alerts for error budgets and fast burn rates! Service level management is a way for you to determine service boundaries and track your most critical applications and services in one place.  
