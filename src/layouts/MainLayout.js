@@ -20,14 +20,14 @@ import RootNavigation from '../components/RootNavigation';
 import NavFooter from '../components/NavFooter';
 import { useLocation, navigate } from '@reach/router';
 
-const MainLayout = ({ children, pageContext }) => {
+const MainLayout = ({ children, pageContext, sidebarOpen = true }) => {
   const { loggedIn } = useLoggedIn();
   const { sidebarWidth, contentPadding } = useLayout();
   const { locale, slug } = pageContext;
   const location = useLocation();
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [sidebar, setSidebar] = useState(true);
+  const [sidebar, setSidebar] = useState(sidebarOpen);
   const { t } = useTranslation();
   const navHeaderHeight = '100px';
   const isStyleGuide =
@@ -42,6 +42,7 @@ const MainLayout = ({ children, pageContext }) => {
 
   useEffect(() => {
     setIsMobileNavOpen(false);
+    setSidebar(sidebarOpen);
     // react scroll causes the page to crash if it doesn't find an element
     // so we're checking for the element before firing
     const pathName = addTrailingSlash(location.pathname);
@@ -55,10 +56,10 @@ const MainLayout = ({ children, pageContext }) => {
         offset: -5,
       });
     }
-    if (location.pathname === '/' && !loggedIn) {
-      setSidebar(false);
+    if (loggedIn) {
+      setSidebar(true);
     }
-  }, [location.pathname, loggedIn]);
+  }, [location.pathname, loggedIn, sidebarOpen]);
 
   return (
     <>

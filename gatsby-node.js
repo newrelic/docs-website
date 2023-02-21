@@ -449,6 +449,7 @@ exports.onCreatePage = ({ page, actions }) => {
   if (page.path === '/') {
     page.context.quicklaunchSlug =
       'docs/new-relic-solutions/get-started/quick-launch-guide';
+    page.context.layout = 'homepage';
   }
   if (page.path === '/jp/') {
     page.context.quicklaunchSlug =
