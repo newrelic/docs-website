@@ -11,6 +11,7 @@ import {
   Button,
   SearchInput,
   useTranslation,
+  useLoggedIn,
 } from '@newrelic/gatsby-theme-newrelic';
 import { css } from '@emotion/react';
 import { scroller } from 'react-scroll';
@@ -20,6 +21,7 @@ import NavFooter from '../components/NavFooter';
 import { useLocation, navigate } from '@reach/router';
 
 const MainLayout = ({ children, pageContext }) => {
+  const { loggedIn } = useLoggedIn();
   const { sidebarWidth, contentPadding } = useLayout();
   const { locale, slug } = pageContext;
   const location = useLocation();
@@ -53,7 +55,10 @@ const MainLayout = ({ children, pageContext }) => {
         offset: -5,
       });
     }
-  }, [location.pathname]);
+    if (location.pathname === '/' && !loggedIn) {
+      setSidebar(false);
+    }
+  }, [location.pathname, loggedIn]);
 
   return (
     <>
