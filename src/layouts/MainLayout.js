@@ -198,6 +198,7 @@ const MainLayout = ({ children, pageContext }) => {
         <Layout.Main
           css={css`
             display: ${isMobileNavOpen ? 'none' : 'block'};
+            position: relative;
           `}
         >
           {children}
