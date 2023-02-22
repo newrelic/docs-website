@@ -8,11 +8,14 @@ import {
   StackedContent,
   TitleBlock,
 } from '../components/IntroductionApm';
+
 import {
   Side,
   SideBySide,
   useTranslation,
 } from '@newrelic/gatsby-theme-newrelic';
+
+import QuickstartChooser from '../components/QuickstartChooser';
 
 import introImage from 'images/new-apm-images/intro.png';
 import entitiesImage from 'images/new-apm-images/entities.png';
@@ -34,6 +37,7 @@ const IntroductionApm = () => {
         img={introImage}
         alt="Complete visibility and analytics at your fingertips"
       />
+      <QuickstartChooser />
       <SectionWrapper>
         <GreenLine />
         <SectionWrapper column>
@@ -120,6 +124,7 @@ const IntroductionApm = () => {
           />
         </Side>
       </SideBySide>
+      <QuickstartChooser secondary />
     </>
   );
 };
