@@ -482,10 +482,6 @@ exports.onCreatePage = ({ page, actions }) => {
       lastItem !== '' ? lastItem : pagePathArray[pagePathArray.length - 2];
   }
 
-  if (page.path === '/introduction-apm/') {
-    page.context.layout = 'basic';
-  }
-
   if (hasTrailingSlash(page.context.slug)) {
     page.context.slug = page.context.slug.replace(TRAILING_SLASH, '');
   }
