@@ -4,7 +4,6 @@ summary: 'Change tracking marks critical changes and deployments alongside perfo
 releaseDate: '2023-01-31'
 learnMoreLink: 'https://newrelic.com/platform/change-tracking'
 getStartedLink: 'https://docs.newrelic.com/docs/change-tracking/change-tracking-introduction/'
-isFeatured: true
 ---
 
 
