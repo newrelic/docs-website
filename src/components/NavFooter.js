@@ -10,9 +10,7 @@ import json from '../data/nav-footer-cta';
 
 const NavFooter = ({ className }) => {
   const { t } = useTranslation();
-
   const currentPage = location.pathname;
-  console.log('jsonTest pathname', currentPage);
 
   let ctaObject = {
     i18nKey: 'default',
@@ -25,11 +23,8 @@ const NavFooter = ({ className }) => {
   for (const product of allCTAs) {
     if (currentPage.includes(json[product].directory)) {
       ctaObject = json[product];
-      console.log('jsonTest yay!', ctaObject.text);
     }
   }
-
-  console.log('jsonTest object', ctaObject);
 
   return (
     <div
