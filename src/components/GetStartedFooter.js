@@ -16,15 +16,14 @@ const GetStartedFooter = ({ className, ...props }) => {
         justify-content: center;
         align-items: center;
         padding: 0 1.5rem;
-
         font-size: 33px;
-
         background-color: var(--brand-button-primary-accent);
 
         > h3 {
           font-size: 44px;
           line-height: 50px;
           font-weight: 500;
+          color: var(--erno-black);
         }
 
         @media screen and (max-width: ${MOBILE_BREAKPOINT}) {
@@ -97,6 +96,7 @@ const GetStartedFooter = ({ className, ...props }) => {
           href="https://newrelic.com/signup/"
           css={css`
             color: var(--brand-button-primary-accent);
+            background: var(--erno-black);
             border-radius: 4px;
             font-size: 14px;
             line-height: 21px;
@@ -123,9 +123,8 @@ const GetStartedFooter = ({ className, ...props }) => {
             line-height: 21px;
             font-weight: 400;
             padding: 1rem;
-            > div {
-              color: var(--button-outline-color);
-            }
+            color: var(--erno-black);
+            border-color: var(--erno-black);
           `}
         >
           Get Demo
