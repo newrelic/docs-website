@@ -6,9 +6,31 @@ import {
   Icon,
   useTranslation,
 } from '@newrelic/gatsby-theme-newrelic';
+import json from '../data/nav-footer-cta';
 
 const NavFooter = ({ className }) => {
   const { t } = useTranslation();
+
+  const currentPage = location.pathname;
+  console.log('jsonTest pathname', currentPage);
+
+  let ctaObject = {
+    i18nKey: 'default',
+    link: 'https://one.newrelic.com/marketplace',
+    icon: 'fe-external-link',
+  };
+
+  const allCTAs = Object.keys(json);
+
+  for (const product of allCTAs) {
+    if (currentPage.includes(json[product].directory)) {
+      ctaObject = json[product];
+      console.log('jsonTest yay!', ctaObject.text);
+    }
+  }
+
+  console.log('jsonTest object', ctaObject);
+
   return (
     <div
       css={css`
@@ -24,14 +46,17 @@ const NavFooter = ({ className }) => {
 
         @media screen and (max-width: 1240px) {
           width: 277px;
+          a {
+            font-size: 15px;
+          }
         }
       `}
       className={className}
     >
       <ExternalLink
-        to="https://one.newrelic.com/marketplace"
+        to={ctaObject.link}
         css={css`
-          color: #00586f;
+          color: var(--erno-black);
           font-size: 18px;
           line-height: 24px;
           position: relative;
@@ -41,17 +66,18 @@ const NavFooter = ({ className }) => {
           component: 'navFooterCta',
         }}
       >
-        {t('nav.footer')}
+        {t(`navFooter.${ctaObject.i18nKey}`)}
         <Icon
           css={css`
             position: absolute;
             top: 4px;
+            right: -20px;
+            stoke: var(--erno-black);
 
             && path {
-              display: none;
             }
           `}
-          name="fe-external-link"
+          name={ctaObject.icon}
         />
       </ExternalLink>
     </div>
