@@ -127,7 +127,6 @@ const SubTitle = styled.h2`
 `;
 
 const TextContainer = styled.div`
-  ${(p) => p.separator && `border-right: 1px solid #f1b9df`};
   display: flex;
   flex-direction: column;
   justify-content: center;
