@@ -6,23 +6,27 @@ import {
   Icon,
   useTranslation,
 } from '@newrelic/gatsby-theme-newrelic';
-import json from '../data/nav-footer-cta';
+import ctaJson from '../data/nav-footer-cta';
 
 const NavFooter = ({ className }) => {
   const { t } = useTranslation();
-  const currentPage = location.pathname;
-
-  let ctaObject = {
+  let ctaContent = {
     i18nKey: 'default',
     link: 'https://one.newrelic.com/marketplace',
     icon: 'fe-external-link',
   };
 
-  const allCTAs = Object.keys(json);
+  let currentPage;
+
+  if (typeof window !== 'undefined') {
+    currentPage = window.location.pathname;
+  }
+
+  const allCTAs = Object.keys(ctaJson);
 
   for (const product of allCTAs) {
-    if (currentPage.includes(json[product].directory)) {
-      ctaObject = json[product];
+    if (currentPage.includes(ctaJson[product].directory)) {
+      ctaContent = ctaJson[product];
     }
   }
 
@@ -49,7 +53,7 @@ const NavFooter = ({ className }) => {
       className={className}
     >
       <ExternalLink
-        to={ctaObject.link}
+        to={ctaContent.link}
         css={css`
           color: var(--erno-black);
           font-size: 18px;
@@ -61,7 +65,7 @@ const NavFooter = ({ className }) => {
           component: 'navFooterCta',
         }}
       >
-        {t(`navFooter.${ctaObject.i18nKey}`)}
+        {t(`navFooter.${ctaContent.i18nKey}`)}
         <Icon
           css={css`
             position: absolute;
@@ -72,7 +76,7 @@ const NavFooter = ({ className }) => {
             && path {
             }
           `}
-          name={ctaObject.icon}
+          name={ctaContent.icon}
         />
       </ExternalLink>
     </div>
