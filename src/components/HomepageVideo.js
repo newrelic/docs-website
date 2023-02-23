@@ -5,12 +5,13 @@ import { SearchInput, useTranslation } from '@newrelic/gatsby-theme-newrelic';
 import { navigate } from '@reach/router';
 import curlyAndDotsBackground from './curlyAndDots.svg';
 import dotsBackground from './dots.svg';
-import { MOBILE_BREAKPOINT } from './Timeline/config';
+import InlineSignup from './InlineSignup';
+
+const MOBILE_BREAKPOINT = '1050px';
 
 const HomepageVideo = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const { t } = useTranslation();
-  const MOBILE_BREAKPOINT = '1050px';
 
   return (
     <>
@@ -69,7 +70,20 @@ const HomepageVideo = () => {
             </div>
           </div>
         </VideoContainer>
-        <SignupContainer>inline signup</SignupContainer>
+        <SignupContainer>
+          <InlineSignup
+            showCTA={false}
+            css={css`
+              margin: 0;
+              div:first-of-type {
+                margin: 0;
+              }
+              p {
+                color: var(--system-text-secondary-inverted-dark);
+              }
+            `}
+          />
+        </SignupContainer>
       </PageContainer>
     </>
   );
@@ -85,7 +99,7 @@ const PageContainer = styled.div`
   display: grid;
   grid-template-areas: 'welcome video' 'break signup';
   grid-template-columns: 2fr 3fr;
-  grid-gap: 2rem;
+  grid-gap: 1rem;
   background-image: url(${curlyAndDotsBackground});
   background-size: 70%;
   background-repeat: no-repeat;
@@ -118,7 +132,8 @@ const VideoContainer = styled.div`
   }
 `;
 const SignupContainer = styled.div`
-  height: 120px;
   background: var(--erno-black);
   grid-area: signup;
+  padding: 2rem;
+  border-radius: 4px;
 `;
