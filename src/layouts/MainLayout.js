@@ -18,6 +18,7 @@ import SEO from '../components/SEO';
 import RootNavigation from '../components/RootNavigation';
 import NavFooter from '../components/NavFooter';
 import { useLocation, navigate } from '@reach/router';
+import GetStartedFooter from '../components/GetStartedFooter';
 
 const MainLayout = ({ children, pageContext }) => {
   const { sidebarWidth, contentPadding } = useLayout();
@@ -74,6 +75,13 @@ const MainLayout = ({ children, pageContext }) => {
           @media screen and (max-width: 1240px) {
             --sidebar-width: ${sidebar ? '278px' : '50px'};
           }
+          ${location.pathname === '/' &&
+          css`
+            grid-template-areas:
+              'sidebar main'
+              'sidebar signup'
+              'sidebar footer' !important;
+          `}
         `}
       >
         <Layout.Sidebar
@@ -203,10 +211,26 @@ const MainLayout = ({ children, pageContext }) => {
         >
           {children}
         </Layout.Main>
+        {location.pathname === '/' && (
+          <GetStartedFooter
+            css={css`
+              grid-area: signup;
+              z-index: 1;
+              ${!sidebar &&
+              css`
+                grid-column: 1/3;
+              `}
+            `}
+          />
+        )}
         <Layout.Footer
           fileRelativePath={pageContext.fileRelativePath}
           css={css`
             height: 60px;
+            ${!sidebar &&
+            css`
+              grid-column: 1/3;
+            `}
           `}
         />
       </Layout>
