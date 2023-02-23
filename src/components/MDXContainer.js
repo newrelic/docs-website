@@ -10,10 +10,13 @@ import {
   SideBySide,
   Side,
 } from '@newrelic/gatsby-theme-newrelic';
+import { css } from '@emotion/react';
 
+import { DocTile, DocTiles } from './DocTile';
 import LandingPageHero from './LandingPageHero';
 import LandingPageTile from './LandingPageTile';
 import LandingPageTileGrid from './LandingPageTileGrid';
+import InlineSignup from './InlineSignup';
 import InstallFeedback from './InstallFeedback';
 import MDXButton from './MDXButton';
 import MDXButtonGroup from './MDXButtonGroup';
@@ -22,6 +25,7 @@ import PropTypes from 'prop-types';
 import React from 'react';
 import TechTile from './TechTile';
 import WhatsNextTile from './WhatsNextTile';
+import HideWhenEmbedded from './HideWhenEmbedded';
 
 const defaultComponents = {
   a: (props) => <MDXLink {...props} displayExternalIcon />,
@@ -62,6 +66,17 @@ const defaultComponents = {
         />
       </Lightbox>
     ),
+  DocTile: (props) => (
+    <DocTile
+      css={css`
+        margin: 1rem 0;
+      `}
+      {...props}
+    >
+      {props.children}
+    </DocTile>
+  ),
+  DocTiles,
   ExternalLink: (props) => (
     <ExternalLink {...props} onClick={(e) => e.stopPropagation()} />
   ),
@@ -81,10 +96,12 @@ const defaultComponents = {
   TabsBarItem: Tabs.BarItem,
   TabsPageItem: Tabs.Page,
   TabsPages: Tabs.Pages,
+  InlineSignup,
   InstallFeedback,
   WhatsNextTile,
   Side,
   SideBySide,
+  HideWhenEmbedded,
 };
 
 const MDXContainer = ({ body, children, components }) => {

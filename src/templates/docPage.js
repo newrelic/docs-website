@@ -78,6 +78,7 @@ const BasicDoc = ({ data, location, pageContext }) => {
   if (isTutorial) {
     type = 'tutorial';
   }
+
   return (
     <>
       <SEO
