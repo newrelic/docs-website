@@ -12,7 +12,6 @@ import {
 } from '@newrelic/gatsby-theme-newrelic';
 import { createAccountRequest } from '@newrelic/gatsby-theme-newrelic/src/components/SignupModal/signup';
 import RecaptchaFooter from '@newrelic/gatsby-theme-newrelic/src/components/SignupModal/RecaptchaFooter';
-import HideWhenEmbedded from './HideWhenEmbedded';
 
 const MOBILE_BREAKPOINT = '600px';
 
@@ -20,7 +19,7 @@ const MOBILE_BREAKPOINT = '600px';
  * [VSU] This component allows users to sign up inline in a doc.
  * It only renders if the current user is not logged in.
  */
-const InlineSignup = () => {
+const InlineSignup = ({ className, showCTA = true }) => {
   const [error, setError] = useState(null);
   const tessen = useTessen();
   const { t } = useTranslation();
@@ -50,8 +49,8 @@ const InlineSignup = () => {
   if (loggedIn == null || loggedIn) return null;
 
   return (
-    <Form onSubmit={onSubmit}>
-      <CTAText>{t('inlineSignup.ctaText')}</CTAText>
+    <Form onSubmit={onSubmit} className={className}>
+      {showCTA && <CTAText>{t('inlineSignup.ctaText')}</CTAText>}
 
       <InputContainer>
         <label className="screenreader-only" htmlFor="inline-signup-name">
@@ -242,10 +241,4 @@ const Terms = styled.p`
   }
 `;
 
-const WrappedInlineSignup = () => (
-  <HideWhenEmbedded>
-    <InlineSignup />
-  </HideWhenEmbedded>
-);
-
-export default WrappedInlineSignup;
+export default InlineSignup;
