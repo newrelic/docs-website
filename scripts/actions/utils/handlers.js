@@ -103,6 +103,14 @@ module.exports = {
     deserialize: deserializeComponent,
     serialize: serializeComponent,
   },
+  DocTile: {
+    deserialize: deserializeComponent,
+    serialize: serializeComponent,
+  },
+  DocTiles: {
+    deserialize: deserializeComponent,
+    serialize: serializeComponent,
+  },
   DoNotTranslate: {
     deserialize: deserializeComponent,
     serialize: (h, node) =>
@@ -114,6 +122,24 @@ module.exports = {
   ExternalLink: {
     deserialize: deserializeComponent,
     serialize: serializeComponent,
+  },
+  LicenseKey: {
+    deserialize: (h, node) => {
+      // this is to remove the `span`'s children to make this
+      // a self closing tag.
+      node.children = [];
+      return deserializeComponent(h, node, { tagName: 'LicenseKey' });
+    },
+    serialize: (h, node) =>
+      h(
+        node,
+        'span',
+        {
+          'data-type': 'component',
+          'data-component': 'LicenseKey',
+        },
+        [u('text', 'account license key')]
+      ),
   },
   Link: {
     deserialize: deserializeComponent,
@@ -184,6 +210,14 @@ module.exports = {
     deserialize: deserializeComponent,
   },
   SideBySide: {
+    serialize: serializeComponent,
+    deserialize: deserializeComponent,
+  },
+  Steps: {
+    serialize: serializeComponent,
+    deserialize: deserializeComponent,
+  },
+  Step: {
     serialize: serializeComponent,
     deserialize: deserializeComponent,
   },
@@ -325,6 +359,10 @@ module.exports = {
     serialize: serializeComponent,
   },
   sup: {
+    deserialize: deserializeComponent,
+    serialize: serializeComponent,
+  },
+  iframe: {
     deserialize: deserializeComponent,
     serialize: serializeComponent,
   },

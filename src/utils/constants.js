@@ -3,6 +3,7 @@ export const TYPES = {
     default: 'page',
     apiDoc: 'api_doc',
     troubleshooting: 'troubleshooting_doc',
+    tutorial: 'tutorial_doc',
   },
   LANDING_PAGE: 'term_page_landing_page',
   RELEASE_NOTE: 'release_notes',
@@ -15,3 +16,5 @@ export const TYPES = {
   WHATS_NEW_PAGE: 'views_page_content',
   INTERACTIVE_INSTALL_PAGE: 'interactive_install_page',
 };
+
+export const FILTERED_HEAD_KEYS = ['one-trust'];

@@ -1,0 +1,29 @@
+---
+subject: iOS agent
+title: tvOS agent v5.12.1
+releaseDate: '2017-03-10'
+version: 5.12.1
+downloadLink: 'https://download.newrelic.com/tvos_agent/NewRelic_tvOS_Agent_5.12.1.zip'
+---
+
+### Improvements
+
+* Adds new API `+[NewRelic recordCustomEvent:(NSString*)eventType withAttributes:(NSDictionary*)attributes]`
+
+This method replaces `+[NewRelic recordEvent:(NSString*)name withAttributes:(NSDictionary*)attributes]` which is now deprecated, with the intention of removal in the future. The new API creates a new event with an event type specified by the `eventType` parameter, whereas the deprecated method create a event with the Mobile event type and an attribute with the name 'name' and the value of the `name` parameter. This change satisfies customer requests for:
+
+* Improved Insights query performance
+
+* Defining custom event types
+
+* Finding custom event in Insights more easily
+
+* Flexibility to define data retention per custom event type
+
+* Adds helper method `+setUserId:` to NewRelic.h which sets a session attribute, `userId`, with the passed value. This method is effectively the same as `[NewRelic setAttribute:@"userId" value:<username>];`
+
+* This release adds a new Insights event type: `MobileRequestError`. This new event tracks networking and http errors during the app's lifecycle, adding the ability to slice and dice network error data! More details can be found at [Mobile Request Error Events](https://docs.newrelic.com/docs/mobilerequesterror-events-insights).
+
+* This agent now applies the `lastInteraction` attribute to all events, not just crash events.
+
+* The applications build value is now added as a default session attribute: `appBuild`.

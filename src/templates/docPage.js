@@ -64,14 +64,19 @@ const BasicDoc = ({ data, location, pageContext }) => {
   const {
     title,
     metaDescription,
-    type,
     tags,
     translationType,
     dataSource,
+    isTutorial,
   } = frontmatter;
+
+  let { type } = frontmatter;
 
   if (typeof window !== 'undefined' && typeof newrelic === 'object') {
     window.newrelic.setCustomAttribute('pageType', 'Template/DocPage');
+  }
+  if (isTutorial) {
+    type = 'tutorial';
   }
 
   return (
@@ -161,6 +166,7 @@ export const pageQuery = graphql`
         metaDescription
         type
         tags
+        isTutorial
         translationType
         dataSource
       }

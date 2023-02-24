@@ -270,3 +270,24 @@ test('deserializes Tabs Component', async () => {
 
   expect(mdx).toEqual(input.trim());
 });
+
+test('deserializes LicenseKey component', async () => {
+  const input = '<LicenseKey/>';
+
+  const mdx = await deserializeHTML(await serializeMDX(input));
+  expect(mdx).toEqual(input);
+});
+
+test('deserialize iframes', async () => {
+  const input = `<iframe
+  width="560"
+  height="315"
+  src="https://www.youtube.com/embed/04JP0ky_hjI"
+  frameborder="0"
+  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+  allowfullscreen
+/>`;
+
+  const mdx = await deserializeHTML(await serializeMDX(input));
+  expect(mdx).toEqual(input);
+});
