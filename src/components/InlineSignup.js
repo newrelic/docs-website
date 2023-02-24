@@ -19,7 +19,11 @@ const MOBILE_BREAKPOINT = '600px';
  * [VSU] This component allows users to sign up inline in a doc.
  * It only renders if the current user is not logged in.
  */
-const InlineSignup = ({ className, showCTA = true }) => {
+const InlineSignup = ({
+  className,
+  showCTA = true,
+  hideWhenLoggedOut = true,
+}) => {
   const [error, setError] = useState(null);
   const tessen = useTessen();
   const { t } = useTranslation();
@@ -46,7 +50,7 @@ const InlineSignup = ({ className, showCTA = true }) => {
     }
   };
 
-  if (loggedIn == null || loggedIn) return null;
+  if ((loggedIn == null || loggedIn) && hideWhenLoggedOut) return null;
 
   return (
     <Form onSubmit={onSubmit} className={className}>
@@ -99,20 +103,22 @@ const InlineSignup = ({ className, showCTA = true }) => {
         {t('inlineSignup.ctaButton')}
       </CTAButton>
 
-      <Terms>
-        <Trans i18nKey="inlineSignup.terms">
-          100 GB + 1 user free. Forever. No credit card required.
-          <br />
-          By signing up you're agreeing to{' '}
-          <a href="https://newrelic.com/termsandconditions/terms">
-            Terms of Service
-          </a>{' '}
-          and{' '}
-          <a href="https://newrelic.com/termsandconditions/privacy">
-            Services Privacy Notice.
-          </a>
-        </Trans>
-      </Terms>
+      {showCTA && (
+        <Terms>
+          <Trans i18nKey="inlineSignup.terms">
+            100 GB + 1 user free. Forever. No credit card required.
+            <br />
+            By signing up you're agreeing to{' '}
+            <a href="https://newrelic.com/termsandconditions/terms">
+              Terms of Service
+            </a>{' '}
+            and{' '}
+            <a href="https://newrelic.com/termsandconditions/privacy">
+              Services Privacy Notice.
+            </a>
+          </Trans>
+        </Terms>
+      )}
       <RecaptchaFooter
         css={css`
           grid-column: 1 / 4;
