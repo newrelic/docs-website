@@ -70,10 +70,23 @@ const HomepageVideo = () => {
         <SignupContainer>
           <InlineSignup
             showCTA={false}
+            hideWhenLoggedOut={false}
             css={css`
               margin: 0;
               div:first-of-type {
                 margin: 0;
+              }
+              input {
+                height: 56px;
+                background-color: var(--secondary-background-color);
+                &::placeholder {
+                  color: var(--primary-font-color);
+                  font-size: 18px;
+                }
+              }
+              button {
+                height: 56px;
+                font-size: 18px;
               }
               p {
                 color: var(--system-text-secondary-inverted-dark);
