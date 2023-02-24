@@ -4,6 +4,7 @@ import { css } from '@emotion/react';
 import { SearchInput, useTranslation } from '@newrelic/gatsby-theme-newrelic';
 import { navigate } from '@reach/router';
 import curlyAndDotsBackground from './curlyAndDots.svg';
+import curlyAndDotsBackgroundDarkmode from './curlyAndDotsDarkmode.svg';
 import dotsBackground from './dots.svg';
 import InlineSignup from './InlineSignup';
 
@@ -17,13 +18,9 @@ const HomepageVideo = () => {
     <>
       <PageContainer>
         <WelcomeContainer>
-          <h1>New Relic Docs</h1>
-          <p>
-            Lorem ipsum dolor sit amet. Ea provident adipisci eum esse eveniet
-            eos necessitatibus sunt qui architecto recusandae. Et autem soluta
-            et modi voluptates ad autem ipsam vel nihil nisi non excepturi quae
-            33 dicta suscipit est doloremque neque.
-          </p>
+          <h1>{t('homepageVideo.header')}</h1>
+          <p>{t('homepageVideo.p1')}</p>
+          <p>{t('homepageVideo.p2')}</p>
           <SearchInput
             placeholder={t('home.search.placeholder')}
             size={SearchInput.SIZE.LARGE}
@@ -104,6 +101,9 @@ const PageContainer = styled.div`
   background-size: 70%;
   background-repeat: no-repeat;
   background-position: top -3vh right 20%;
+  .dark-mode & {
+    background-image: url(${curlyAndDotsBackgroundDarkmode});
+  }
   @media screen and (max-width: ${MOBILE_BREAKPOINT}) {
     display: flex;
     flex-direction: column;
