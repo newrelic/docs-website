@@ -12,9 +12,6 @@ Now, you can visualize your synthetic monitoring performance data with adjustabl
 
 Watch the video below to see an overview of the synthetic monitoring table feature:
 
-<Video
-  type="wistia"
-  id="myf2ows1ak"
-/>
+<iframe width="560" height="315" src="https://fast.wistia.net/embed/iframe/myf2ows1ak" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" frameBorder="0" allowfullscreen="false" class="css-1b4920d"></iframe>
 
-To learn more about how to implement synthetic monitoring and use these tables to monitor and maintain the health of your website or application, read our [benefits](https://newrelic.com/platform/synthetics) page and comprehensive [documentation](https://docs.newrelic.com/docs/synthetics/synthetic-monitoring/getting-started/get-started-synthetic-monitoring/).
+To learn more about how to implement synthetic monitoring and use these tables to monitor and maintain the health of your website or application, read our [synthetic monitor benefits page](https://newrelic.com/platform/synthetics) and [our comprehensive docs](https://docs.newrelic.com/docs/synthetics/synthetic-monitoring/getting-started/get-started-synthetic-monitoring).
