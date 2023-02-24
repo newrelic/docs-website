@@ -102,23 +102,20 @@ const InlineSignup = ({
       <CTAButton type="submit" variant={Button.VARIANT.PRIMARY}>
         {t('inlineSignup.ctaButton')}
       </CTAButton>
-
-      {showCTA && (
-        <Terms>
-          <Trans i18nKey="inlineSignup.terms">
-            100 GB + 1 user free. Forever. No credit card required.
-            <br />
-            By signing up you're agreeing to{' '}
-            <a href="https://newrelic.com/termsandconditions/terms">
-              Terms of Service
-            </a>{' '}
-            and{' '}
-            <a href="https://newrelic.com/termsandconditions/privacy">
-              Services Privacy Notice.
-            </a>
-          </Trans>
-        </Terms>
-      )}
+      <Terms>
+        <Trans i18nKey="inlineSignup.terms">
+          100 GB + 1 user free. Forever. No credit card required.
+          <br />
+          By signing up you're agreeing to{' '}
+          <a href="https://newrelic.com/termsandconditions/terms">
+            Terms of Service
+          </a>{' '}
+          and{' '}
+          <a href="https://newrelic.com/termsandconditions/privacy">
+            Services Privacy Notice.
+          </a>
+        </Trans>
+      </Terms>
       <RecaptchaFooter
         css={css`
           grid-column: 1 / 4;

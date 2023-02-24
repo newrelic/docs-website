@@ -67,33 +67,38 @@ const HomepageVideo = () => {
             </div>
           </div>
         </VideoContainer>
-        <SignupContainer>
-          <InlineSignup
-            showCTA={false}
-            hideWhenLoggedOut={false}
-            css={css`
-              margin: 0;
-              div:first-of-type {
-                margin: 0;
-              }
-              input {
-                height: 56px;
-                background-color: var(--secondary-background-color);
-                &::placeholder {
-                  color: var(--primary-font-color);
-                  font-size: 18px;
-                }
-              }
-              button {
-                height: 56px;
+
+        <InlineSignup
+          showCTA={false}
+          hideWhenLoggedOut={false}
+          css={css`
+            grid-area: signup;
+            margin-top: 1rem;
+            margin: 0;
+            div {
+              height: 56px;
+              margin-bottom: 1rem;
+            }
+            div:first-of-type {
+              margin-left: 0;
+            }
+            input {
+              height: 56px;
+              background-color: var(--secondary-background-color);
+              &::placeholder {
+                color: var(--primary-font-color);
                 font-size: 18px;
               }
-              p {
-                color: var(--system-text-secondary-inverted-dark);
-              }
-            `}
-          />
-        </SignupContainer>
+            }
+            button {
+              height: 56px;
+              font-size: 18px;
+            }
+            p {
+              color: var(--primary-text-color);
+            }
+          `}
+        />
       </PageContainer>
     </>
   );
@@ -143,10 +148,4 @@ const VideoContainer = styled.div`
   @media screen and (max-width: ${MOBILE_BREAKPOINT}) {
     width: 100%;
   }
-`;
-const SignupContainer = styled.div`
-  background: var(--erno-black);
-  grid-area: signup;
-  padding: 2rem;
-  border-radius: 4px;
 `;
