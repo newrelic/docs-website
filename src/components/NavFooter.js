@@ -49,7 +49,7 @@ const NavFooter = ({ className }) => {
       className={className}
     >
       <ExternalLink
-        to="{ctaContent.link}"
+        to={ctaContent.link}
         css={css`
           color: var(--erno-black);
           font-size: 17px;
