@@ -40,6 +40,8 @@ const MainLayout = ({ children, pageContext, sidebarOpen = true }) => {
       return path.concat('/');
     }
   };
+  const isHomepage =
+    location.pathname === '/' || location.pathname === `/${locale}/`;
 
   useEffect(() => {
     setIsMobileNavOpen(false);
@@ -81,12 +83,12 @@ const MainLayout = ({ children, pageContext, sidebarOpen = true }) => {
           @media screen and (max-width: 1240px) {
             --sidebar-width: ${sidebar ? '278px' : '50px'};
           }
-          ${location.pathname === '/' &&
+          ${isHomepage &&
           css`
             grid-template-areas:
               'sidebar main'
               'sidebar signup'
-              'sidebar footer' !important;
+              'sidebar footer';
           `}
         `}
       >
@@ -217,7 +219,7 @@ const MainLayout = ({ children, pageContext, sidebarOpen = true }) => {
         >
           {children}
         </Layout.Main>
-        {location.pathname === '/' && (
+        {isHomepage && (
           <GetStartedFooter
             css={css`
               grid-area: signup;
