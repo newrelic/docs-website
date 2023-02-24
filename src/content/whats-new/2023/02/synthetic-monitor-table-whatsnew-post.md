@@ -1,7 +1,7 @@
 ---
 title: 'Introducing synthetic monitoring tables'
 summary: 'Dig into your synthetic monitoring performance with tables that show you the result, location, time, and detailed insights.'
-releaseDate: '2023-02-25'
+releaseDate: '2023-02-24'
 learnMoreLink: 'https://newrelic.com/platform/synthetics'
 getStartedLink: 'https://docs.newrelic.com/docs/synthetics/synthetic-monitoring/getting-started/get-started-synthetic-monitoring/'
 ---
