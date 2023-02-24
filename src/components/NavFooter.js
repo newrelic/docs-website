@@ -42,7 +42,7 @@ const NavFooter = ({ className }) => {
         @media screen and (max-width: 1240px) {
           width: 277px;
           a {
-            font-size: 15px;
+            font-size: 14px;
           }
         }
       `}
@@ -52,27 +52,56 @@ const NavFooter = ({ className }) => {
         to="{ctaContent.link}"
         css={css`
           color: var(--erno-black);
-          font-size: 18px;
+          font-size: 17px;
           line-height: 24px;
           position: relative;
-          text-underline-offset: 10px;
+          text-decoration: none;
         `}
         instrumentation={{
           component: 'navFooterCta',
         }}
       >
+        {ctaContent.icon && (
+          <Icon
+            css={css`
+              position: absolute;
+              left: -1.6em;
+              top: 1.5px;
+              height: 1.35em;
+              width: 1.35em;
+              fill: var(--erno-black);
+              opacity: 0.85;
+
+              && path {
+                color: var(--erno-black);
+                opacity: 0.85;
+              }
+              @media screen and (max-width: 1240px) {
+                left: -1.6em;
+                top: 3.5px;
+                height: 1.3em;
+                width: 1.3em;
+              }
+            `}
+            name={ctaContent.icon}
+          />
+        )}
         {t(`navFooter.${ctaContent.i18nKey}`)}
         <Icon
           css={css`
             position: absolute;
             top: 4px;
-            right: -20px;
+            right: -1em;
+            height: 1.1em;
+            width: 1.1em;
             stoke: var(--erno-black);
+            stroke-width: 1.5;
 
             && path {
+              display: none;
             }
           `}
-          name={ctaContent.icon}
+          name="fe-external-link"
         />
       </ExternalLink>
     </div>
