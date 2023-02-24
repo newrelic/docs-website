@@ -1,5 +1,5 @@
 import Button from '@newrelic/gatsby-theme-newrelic/src/components/Button';
-import { ExternalLink } from '@newrelic/gatsby-theme-newrelic';
+import { ExternalLink, useTranslation } from '@newrelic/gatsby-theme-newrelic';
 import PropTypes from 'prop-types';
 import React from 'react';
 import { css } from '@emotion/react';
@@ -7,6 +7,8 @@ import { css } from '@emotion/react';
 const MOBILE_BREAKPOINT = '1050px';
 
 const GetStartedFooter = ({ className, ...props }) => {
+  const { t } = useTranslation();
+
   return (
     <div
       css={css`
@@ -55,7 +57,7 @@ const GetStartedFooter = ({ className, ...props }) => {
           margin-bottom: 0px;
         `}
       >
-        Get started today for free.
+        {t('getStartedFooter.header')}
       </h3>
       <div
         css={css`
@@ -110,7 +112,7 @@ const GetStartedFooter = ({ className, ...props }) => {
             }
           `}
         >
-          Sign Up
+          {t('getStartedFooter.signup')}
         </Button>
         <Button
           {...props}
@@ -127,7 +129,7 @@ const GetStartedFooter = ({ className, ...props }) => {
             border-color: var(--erno-black);
           `}
         >
-          Get Demo
+          {t('getStartedFooter.demo')}
         </Button>
       </div>
     </div>
