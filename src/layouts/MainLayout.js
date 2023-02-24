@@ -19,7 +19,6 @@ import SEO from '../components/SEO';
 import RootNavigation from '../components/RootNavigation';
 import NavFooter from '../components/NavFooter';
 import { useLocation, navigate } from '@reach/router';
-import GetStartedFooter from '../components/GetStartedFooter';
 
 const MainLayout = ({ children, pageContext, sidebarOpen = true }) => {
   const { loggedIn } = useLoggedIn();
@@ -40,8 +39,6 @@ const MainLayout = ({ children, pageContext, sidebarOpen = true }) => {
       return path.concat('/');
     }
   };
-  const isHomepage =
-    location.pathname === '/' || location.pathname === `/${locale}/`;
 
   useEffect(() => {
     setIsMobileNavOpen(false);
@@ -83,13 +80,6 @@ const MainLayout = ({ children, pageContext, sidebarOpen = true }) => {
           @media screen and (max-width: 1240px) {
             --sidebar-width: ${sidebar ? '278px' : '50px'};
           }
-          ${isHomepage &&
-          css`
-            grid-template-areas:
-              'sidebar main'
-              'sidebar signup'
-              'sidebar footer';
-          `}
         `}
       >
         <Layout.Sidebar
@@ -219,18 +209,6 @@ const MainLayout = ({ children, pageContext, sidebarOpen = true }) => {
         >
           {children}
         </Layout.Main>
-        {isHomepage && (
-          <GetStartedFooter
-            css={css`
-              grid-area: signup;
-              z-index: 1;
-              ${!sidebar &&
-              css`
-                grid-column: 1/3;
-              `}
-            `}
-          />
-        )}
         <Layout.Footer
           fileRelativePath={pageContext.fileRelativePath}
           css={css`
