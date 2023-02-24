@@ -10,23 +10,19 @@ import ctaJson from '../data/nav-footer-cta';
 
 const NavFooter = ({ className }) => {
   const { t } = useTranslation();
-  let ctaContent = {
-    i18nKey: 'default',
-    link: 'https://one.newrelic.com/marketplace',
-    icon: 'fe-external-link',
-  };
-
-  let currentPage;
-
-  if (typeof window !== 'undefined') {
-    currentPage = window.location.pathname;
-  }
-
+  let ctaContent = ctaJson.default;
   const allCTAs = Object.keys(ctaJson);
 
-  for (const product of allCTAs) {
-    if (currentPage.includes(ctaJson[product].directory)) {
-      ctaContent = ctaJson[product];
+  if (typeof window !== 'undefined') {
+    const currentPage = location.pathname;
+
+    for (const product of allCTAs) {
+      if (
+        currentPage.includes(ctaJson[product].directory) &&
+        product !== 'default'
+      ) {
+        ctaContent = ctaJson[product];
+      }
     }
   }
 
@@ -53,7 +49,7 @@ const NavFooter = ({ className }) => {
       className={className}
     >
       <ExternalLink
-        to={ctaContent.link}
+        to="{ctaContent.link}"
         css={css`
           color: var(--erno-black);
           font-size: 18px;
