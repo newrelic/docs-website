@@ -56,6 +56,9 @@ const NavFooter = ({ className }) => {
           line-height: 24px;
           position: relative;
           text-decoration: none;
+          :hover {
+            color: #00586f;
+          }
         `}
         instrumentation={{
           component: 'navFooterCta',
@@ -69,11 +72,9 @@ const NavFooter = ({ className }) => {
               top: 1.5px;
               height: 1.35em;
               width: 1.35em;
-              fill: var(--erno-black);
               opacity: 0.85;
 
               && path {
-                color: var(--erno-black);
                 opacity: 0.85;
               }
               @media screen and (max-width: 1240px) {
