@@ -51,7 +51,7 @@ const NavFooter = ({ className }) => {
       <ExternalLink
         to={ctaContent.link}
         css={css`
-          color: var(--erno-black);
+          color: black;
           font-size: 17px;
           line-height: 24px;
           position: relative;
@@ -75,7 +75,7 @@ const NavFooter = ({ className }) => {
               opacity: 0.85;
 
               && path {
-                opacity: 0.85;
+                fill: var(--erno-black);
               }
               @media screen and (max-width: 1240px) {
                 left: -1.6em;
