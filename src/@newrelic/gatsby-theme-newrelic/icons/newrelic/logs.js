@@ -14,8 +14,8 @@ const LogsIcon = (props) => (
     `}
   >
     <path
-      fill-rule="evenodd"
-      clip-rule="evenodd"
+      fillRule="evenodd"
+      clipRule="evenodd"
       d="M6 11V12H3V11H6ZM8 8V9H3V8H8ZM5.7 0H0V15H11V5.3L5.7 0ZM6 1.7L9.3 5H6V1.7ZM10 14H1V1H5V6H10V14Z"
     />
   </SVG>
