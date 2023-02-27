@@ -1,6 +1,6 @@
 ---
 title: 'Access distributed traces in context of errors inbox, APM errors, and logs'
-summary: 'The first to support metrics, events, logs, and traces'
+summary: 'Surface correlated traces in one click with no additional configuration'
 releaseDate: '2023-02-28'
 learnMoreLink: 'https://newrelic.com/blog/nerdlog/distributed-traces-errors-logs'
 getStartedLink: 'https://onenr.io/07j90EyeaRO'
