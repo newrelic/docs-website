@@ -217,7 +217,7 @@ const HomePage = ({ data }) => {
               {t('home.popularDocs.t2.title')}
             </DocTile>
             <DocTile
-              label={{ text: 'Get started', color: '#F4CBE7'' }}
+              label={{ text: 'Get started', color: '#F4CBE7' }}
               path="/docs/synthetics/synthetic-monitoring/getting-started/get-started-synthetic-monitoring/"
             >
               {t('home.popularDocs.t3.title')}
