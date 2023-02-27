@@ -3,9 +3,8 @@ import styled from '@emotion/styled';
 import { css } from '@emotion/react';
 import { SearchInput, useTranslation } from '@newrelic/gatsby-theme-newrelic';
 import { navigate } from '@reach/router';
-import curlyAndDotsBackground from './curlyAndDots.svg';
-import curlyAndDotsBackgroundDarkmode from './curlyAndDotsDarkmode.svg';
-import dotsBackground from './dots.svg';
+import curlyAndDotsBackground from './curlyAndDots.png';
+import curlyAndDotsBackgroundDarkmode from './curlyAndDotsDM.png';
 import InlineSignup from './InlineSignup';
 
 const MOBILE_BREAKPOINT = '1050px';
@@ -43,7 +42,7 @@ const HomepageVideo = () => {
             style={{ padding: '56.25% 0 0 ', position: 'relative' }}
           >
             <div
-              clasName="wistia_responsive_wrapper"
+              className="wistia_responsive_wrapper"
               style={{
                 height: '100%',
                 left: '0',
@@ -66,39 +65,36 @@ const HomepageVideo = () => {
               />
             </div>
           </div>
-        </VideoContainer>
-
-        <InlineSignup
-          showCTA={false}
-          hideWhenLoggedOut={false}
-          css={css`
-            grid-area: signup;
-            margin-top: 1rem;
-            margin: 0;
-            div {
-              height: 56px;
-              margin-bottom: 1rem;
-            }
-            div:first-of-type {
-              margin-left: 0;
-            }
-            input {
-              height: 56px;
-              background-color: var(--secondary-background-color);
-              &::placeholder {
-                color: var(--primary-font-color);
+          <InlineSignup
+            showCTA={false}
+            hideWhenLoggedOut={false}
+            css={css`
+              margin-top: 2rem;
+              div {
+                height: 56px;
+                margin-bottom: 1rem;
+              }
+              div:first-of-type {
+                margin-left: 0;
+              }
+              input {
+                height: 56px;
+                background-color: var(--secondary-background-color);
+                &::placeholder {
+                  color: var(--primary-font-color);
+                  font-size: 18px;
+                }
+              }
+              button {
+                height: 56px;
                 font-size: 18px;
               }
-            }
-            button {
-              height: 56px;
-              font-size: 18px;
-            }
-            p {
-              color: var(--primary-text-color);
-            }
-          `}
-        />
+              p {
+                color: var(--primary-text-color);
+              }
+            `}
+          />
+        </VideoContainer>
       </PageContainer>
     </>
   );
@@ -123,17 +119,19 @@ const PageContainer = styled.div`
     background-image: url(${curlyAndDotsBackgroundDarkmode});
   }
   @media screen and (max-width: ${MOBILE_BREAKPOINT}) {
+    background-image: none;
     display: flex;
     flex-direction: column;
     padding-top: 2rem;
-    background-image: url(${dotsBackground});
-    background-size: cover;
+    .dark-mode & {
+      background-image: none;
+    }
   }
 `;
 const WelcomeContainer = styled.div`
   grid-area: welcome;
-  align-self: end;
   padding-right: 3rem;
+  padding-top: 0.5rem;
   h1 {
     font-size: 56px;
     font-weight: 500;
