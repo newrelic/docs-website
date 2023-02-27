@@ -154,6 +154,7 @@ const Form = styled.form`
   @media (max-width: ${MOBILE_BREAKPOINT}) {
     gap: 1rem;
     margin-left: 0;
+    grid-template-columns: 37.5% 37.5%;
   }
 `;
 
