@@ -8,7 +8,7 @@ getStartedLink: 'https://docs.newrelic.com/docs/synthetics/synthetic-monitoring/
 
 New Relic synthetic monitoring allows you to simulate user interactions with your website or application, and monitor its performance and availability across thousands of public and private locations to proactively detect and resolve issues.
 
-Now, you can visualize your synthetic monitoring performance data on the Alerts and AI Issue Page with adjustable tables that display success and failure results, location, time, and key metrics such as response time, error rate, and availability. You can use these tables to quickly identify issues and take corrective action by customizing them to show the data that's most important to you, and setting up alerts to notify you when performance or availability thresholds are exceeded.
+Now, you can visualize your synthetic monitoring performance data on the Alerts and AI **Issue** UI page, which has adjustable tables that display success and failure results, location, time, and key metrics such as response time, error rate, and availability. You can use these tables to quickly identify issues and take corrective action by customizing them to show the data that's most important to you, and setting up alerts to notify you when performance or availability thresholds are exceeded.
 
 Watch the video below to see an overview of the synthetic monitoring table feature in the issue page:
 
