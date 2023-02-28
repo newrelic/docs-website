@@ -128,10 +128,7 @@ const HomepageVideo = () => {
             hideWhenLoggedOut={false}
             css={css`
               margin-top: 2rem;
-              div {
-                height: 56px;
-                margin-bottom: 1rem;
-              }
+
               div:first-of-type {
                 margin-left: 0;
               }
