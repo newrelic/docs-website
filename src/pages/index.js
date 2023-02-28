@@ -14,13 +14,13 @@ import {
 import HomepageBanner from '../components/HomepageBanner';
 import { DocTile } from '../components/DocTile';
 import FindYourQuickStart from '../components/FindYourQuickstart';
-import MDXContainer from '../components/MDXContainer';
 import {
   ToggleSelector,
   ToggleView,
   ToggleViewContext,
   TOGGLE_VIEWS,
 } from '../components/ToggleView';
+import HomepageVideo from '../components/HomepageVideo';
 
 const SAVED_TOGGLE_VIEW_KEY = 'docs-website/homepage-selected-view';
 
@@ -28,10 +28,6 @@ const HomePage = ({ data }) => {
   const {
     site: { layout },
     allMarkdownRemark: { edges: whatsNewPosts },
-    quicklaunch: {
-      body,
-      frontmatter: { title },
-    },
   } = data;
 
   const { loggedIn } = useLoggedIn();
@@ -83,7 +79,6 @@ const HomePage = ({ data }) => {
       <div
         css={css`
           display: grid;
-          margin-top: 2rem;
           gap: 1rem;
           justify-content: space-between;
           grid-template-columns: 1fr max-content;
@@ -94,6 +89,21 @@ const HomePage = ({ data }) => {
           }
         `}
       >
+        <ToggleSelector
+          css={css`
+            justify-self: end;
+
+            @media screen and (max-width: 760px) {
+              display: none;
+            }
+          `}
+        />
+      </div>
+
+      <ToggleView id={TOGGLE_VIEWS.newUserView}>
+        <HomepageVideo />
+      </ToggleView>
+      <ToggleView id={TOGGLE_VIEWS.defaultView}>
         <h1
           css={css`
             font-size: 3.5rem;
@@ -106,70 +116,49 @@ const HomePage = ({ data }) => {
         >
           {t('home.pageTitle')}
         </h1>
-        <ToggleSelector
+        <SearchInput
+          placeholder={t('home.search.placeholder')}
+          size={SearchInput.SIZE.LARGE}
+          value={searchTerm || ''}
+          iconName={SearchInput.ICONS.SEARCH}
+          isIconClickable
+          alignIcon={SearchInput.ICON_ALIGNMENT.RIGHT}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          onSubmit={() => navigate(`?q=${searchTerm || ''}`)}
           css={css`
-            justify-self: end;
-
-            @media screen and (max-width: 760px) {
-              display: none;
+            @media screen and (max-width: ${mobileBreakpoint}) {
+              margin-bottom: 1rem;
             }
           `}
         />
-      </div>
-      <SearchInput
-        placeholder={t('home.search.placeholder')}
-        size={SearchInput.SIZE.LARGE}
-        value={searchTerm || ''}
-        iconName={SearchInput.ICONS.SEARCH}
-        isIconClickable
-        alignIcon={SearchInput.ICON_ALIGNMENT.RIGHT}
-        onChange={(e) => setSearchTerm(e.target.value)}
-        onSubmit={() => navigate(`?q=${searchTerm || ''}`)}
-        css={css`
-          @media screen and (max-width: ${mobileBreakpoint}) {
-            margin-bottom: 1rem;
-          }
-        `}
-      />
-      <div
-        css={css`
-          margin-top: 1rem;
-          width: 40%;
-          display: flex;
-          width: 100%;
-          flex-wrap: wrap;
-          a {
-            margin-left: 0.75rem;
-          }
-          @media screen and (max-width: ${mobileBreakpoint}) {
-            display: none;
-          }
-        `}
-      >
-        <p>{t('home.search.popularSearches.title')}: </p>
-        <Link to="?q=nrql">{t('home.search.popularSearches.options.0')}</Link>
-        <Link to="?q=logs">{t('home.search.popularSearches.options.1')}</Link>
-        <Link to="?q=alert">{t('home.search.popularSearches.options.2')}</Link>
-        <Link to="?q=best practices">
-          {t('home.search.popularSearches.options.3')}
-        </Link>
-        <Link to="?q=kubernetes">
-          {t('home.search.popularSearches.options.4')}
-        </Link>
-      </div>
-      <ToggleView id={TOGGLE_VIEWS.newUserView}>
-        <h1
+        <div
           css={css`
-            font-weight: normal;
-            font-size: 3rem;
+            margin-top: 1rem;
+            width: 40%;
+            display: flex;
+            width: 100%;
+            flex-wrap: wrap;
+            a {
+              margin-left: 0.75rem;
+            }
+            @media screen and (max-width: ${mobileBreakpoint}) {
+              display: none;
+            }
           `}
         >
-          Getting started
-        </h1>
-        <h1> {title}</h1>
-        <MDXContainer body={body} />
-      </ToggleView>
-      <ToggleView id={TOGGLE_VIEWS.defaultView}>
+          <p>{t('home.search.popularSearches.title')}: </p>
+          <Link to="?q=nrql">{t('home.search.popularSearches.options.0')}</Link>
+          <Link to="?q=logs">{t('home.search.popularSearches.options.1')}</Link>
+          <Link to="?q=alert">
+            {t('home.search.popularSearches.options.2')}
+          </Link>
+          <Link to="?q=best practices">
+            {t('home.search.popularSearches.options.3')}
+          </Link>
+          <Link to="?q=kubernetes">
+            {t('home.search.popularSearches.options.4')}
+          </Link>
+        </div>
         <HomepageBanner />
         <Section
           layout={layout}
