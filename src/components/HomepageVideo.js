@@ -54,7 +54,8 @@ const HomepageVideo = () => {
           css={css`
             grid-area: welcome;
             padding-right: 3rem;
-            padding-top: 0.5rem;
+            align-self: center;
+            margin-bottom: 6rem;
             h1 {
               font-size: 56px;
               font-weight: 500;
