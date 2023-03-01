@@ -94,6 +94,7 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
               type
               subject
               redirects
+              hideNavs
             }
           }
         }
@@ -526,7 +527,7 @@ const createPageFromNode = (
   defer = false
 ) => {
   const {
-    frontmatter: { subject: agentName },
+    frontmatter: { subject: agentName, hideNavs },
     fields: { fileRelativePath, slug },
   } = node;
 
@@ -574,6 +575,7 @@ const createPageFromNode = (
       context: {
         ...context,
         fileRelativePath,
+        hideNavs,
         slug,
         slugRegex: `${slug}/.+/`,
         disableSwiftype,

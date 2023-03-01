@@ -24,7 +24,7 @@ import { MainLayoutContext } from '../components/MainLayoutContext';
 const MainLayout = ({ children, pageContext, sidebarOpen = true }) => {
   const { loggedIn } = useLoggedIn();
   const { sidebarWidth, contentPadding } = useLayout();
-  const { locale, slug } = pageContext;
+  const { locale, slug, hideNavs } = pageContext;
   const location = useLocation();
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -43,7 +43,7 @@ const MainLayout = ({ children, pageContext, sidebarOpen = true }) => {
 
   useEffect(() => {
     setIsMobileNavOpen(false);
-    setSidebar(sidebarOpen);
+    setSidebar(hideNavs ? !hideNavs : sidebarOpen);
     // react scroll causes the page to crash if it doesn't find an element
     // so we're checking for the element before firing
     const pathName = addTrailingSlash(location.pathname);
@@ -57,10 +57,10 @@ const MainLayout = ({ children, pageContext, sidebarOpen = true }) => {
         offset: -5,
       });
     }
-    if (loggedIn) {
+    if (loggedIn && !hideNavs) {
       setSidebar(true);
     }
-  }, [location.pathname, loggedIn, sidebarOpen]);
+  }, [location.pathname, loggedIn, sidebarOpen, hideNavs]);
 
   return (
     <>

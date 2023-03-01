@@ -43,7 +43,7 @@ const BasicDoc = ({ data, location, pageContext }) => {
     fields: { fileRelativePath },
     relatedResources,
   } = mdx;
-  const { disableSwiftype } = pageContext;
+  const { disableSwiftype, hideNavs } = pageContext;
 
   const headings = useMemo(() => {
     const slugs = new GithubSlugger();
@@ -108,6 +108,22 @@ const BasicDoc = ({ data, location, pageContext }) => {
               'page-tools';
             grid-template-columns: minmax(0, 1fr);
           }
+          ${hideNavs &&
+          css`
+            grid-template-areas:
+              'mt-disclaimer'
+              'page-title page'
+              'content';
+              grid-template-columns: 1fr;
+
+            @media screen and (max-width: 1240px) {
+              grid-template-areas:
+                'mt-disclaimer'
+                'page-title'
+                'content'
+              grid-template-columns: minmax(0, 1fr);
+            }
+          `}
         `}
       >
         {translationType === 'machine' && (
@@ -123,28 +139,30 @@ const BasicDoc = ({ data, location, pageContext }) => {
         <Layout.Content>
           <MDXContainer body={body} />
         </Layout.Content>
-        <Layout.PageTools
-          css={css`
-            @media screen and (max-width: 1240px) {
-              margin-top: 1rem;
-              position: static;
-            }
-          `}
-        >
-          <ContributingGuidelines
-            pageTitle={title}
-            fileRelativePath={fileRelativePath}
-            issueLabels={['feedback', 'feedback-issue']}
-          />
-          <TableOfContents headings={headings} />
-          <ComplexFeedback pageTitle={title} />
-          <RelatedResources
-            resources={relatedResources}
+        {!hideNavs && (
+          <Layout.PageTools
             css={css`
-              border-top: 1px solid var(--divider-color);
+              @media screen and (max-width: 1240px) {
+                margin-top: 1rem;
+                position: static;
+              }
             `}
-          />
-        </Layout.PageTools>
+          >
+            <ContributingGuidelines
+              pageTitle={title}
+              fileRelativePath={fileRelativePath}
+              issueLabels={['feedback', 'feedback-issue']}
+            />
+            <TableOfContents headings={headings} />
+            <ComplexFeedback pageTitle={title} />
+            <RelatedResources
+              resources={relatedResources}
+              css={css`
+                border-top: 1px solid var(--divider-color);
+              `}
+            />
+          </Layout.PageTools>
+        )}
       </div>
     </>
   );
