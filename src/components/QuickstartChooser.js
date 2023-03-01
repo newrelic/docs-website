@@ -166,6 +166,7 @@ const Container = styled.div`
   grid-template-rows: auto auto auto;
   justify-content: center;
   margin: 0 calc(var(--site-content-padding) * -1);
+  margin-left: calc(var(--site-content-padding) * -1 - 1px);
   padding: 54px 64px;
   position: relative;
 
@@ -189,6 +190,10 @@ const Container = styled.div`
   @media (max-width: 780px) {
     padding: 1rem;
     max-width: 100vw;
+  }
+
+  @media (max-width: 760px) {
+    margin-left: calc(var(--site-content-padding) * -1);
   }
 
   &.secondary {

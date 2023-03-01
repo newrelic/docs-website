@@ -12,7 +12,6 @@ import {
 } from '@newrelic/gatsby-theme-newrelic';
 import { createAccountRequest } from '@newrelic/gatsby-theme-newrelic/src/components/SignupModal/signup';
 import RecaptchaFooter from '@newrelic/gatsby-theme-newrelic/src/components/SignupModal/RecaptchaFooter';
-import HideWhenEmbedded from './HideWhenEmbedded';
 
 const MOBILE_BREAKPOINT = '600px';
 
@@ -20,7 +19,11 @@ const MOBILE_BREAKPOINT = '600px';
  * [VSU] This component allows users to sign up inline in a doc.
  * It only renders if the current user is not logged in.
  */
-const InlineSignup = () => {
+const InlineSignup = ({
+  className,
+  showCTA = true,
+  hideWhenLoggedOut = true,
+}) => {
   const [error, setError] = useState(null);
   const tessen = useTessen();
   const { t } = useTranslation();
@@ -47,11 +50,11 @@ const InlineSignup = () => {
     }
   };
 
-  if (loggedIn == null || loggedIn) return null;
+  if ((loggedIn == null || loggedIn) && hideWhenLoggedOut) return null;
 
   return (
-    <Form onSubmit={onSubmit}>
-      <CTAText>{t('inlineSignup.ctaText')}</CTAText>
+    <Form onSubmit={onSubmit} className={className}>
+      {showCTA && <CTAText>{t('inlineSignup.ctaText')}</CTAText>}
 
       <InputContainer>
         <label className="screenreader-only" htmlFor="inline-signup-name">
@@ -99,7 +102,6 @@ const InlineSignup = () => {
       <CTAButton type="submit" variant={Button.VARIANT.PRIMARY}>
         {t('inlineSignup.ctaButton')}
       </CTAButton>
-
       <Terms>
         <Trans i18nKey="inlineSignup.terms">
           100 GB + 1 user free. Forever. No credit card required.
@@ -152,6 +154,7 @@ const Form = styled.form`
   @media (max-width: ${MOBILE_BREAKPOINT}) {
     gap: 1rem;
     margin-left: 0;
+    grid-template-columns: 37.5% 37.5%;
   }
 `;
 
@@ -242,10 +245,4 @@ const Terms = styled.p`
   }
 `;
 
-const WrappedInlineSignup = () => (
-  <HideWhenEmbedded>
-    <InlineSignup />
-  </HideWhenEmbedded>
-);
-
-export default WrappedInlineSignup;
+export default InlineSignup;
