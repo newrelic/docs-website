@@ -45,11 +45,14 @@ const MainLayout = ({ children, pageContext, sidebarOpen = true }) => {
   /*
    * [VSU] some docs pages are being designed as JS for faster experimenting
    * and will never have the frontmatter property
+   * Using regex for check to account for paths with and without trailing slash
    */
-  const introDocsAsJS = ['/introduction-apm'];
-  if (introDocsAsJS.includes(location.pathname) && !hideNavs) {
-    hideNavs = true;
-  }
+  const docsAsJS = ['/introduction-apm'];
+  docsAsJS.forEach((docUrl) => {
+    if (location.pathname.match(docUrl) && !hideNavs) {
+      hideNavs = true;
+    }
+  });
 
   useEffect(() => {
     setIsMobileNavOpen(false);
