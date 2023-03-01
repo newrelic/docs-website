@@ -24,7 +24,8 @@ import { MainLayoutContext } from '../components/MainLayoutContext';
 const MainLayout = ({ children, pageContext, sidebarOpen = true }) => {
   const { loggedIn } = useLoggedIn();
   const { sidebarWidth, contentPadding } = useLayout();
-  const { locale, slug, hideNavs } = pageContext;
+  const { locale, slug } = pageContext;
+  let { hideNavs } = pageContext;
   const location = useLocation();
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -40,6 +41,15 @@ const MainLayout = ({ children, pageContext, sidebarOpen = true }) => {
       return path.concat('/');
     }
   };
+
+  /*
+   * [VSU] some docs pages are being designed as JS for faster experimenting
+   * and will never have the frontmatter property
+   */
+  const introDocsAsJS = ['/introduction-apm'];
+  if (introDocsAsJS.includes(location.pathname) && !hideNavs) {
+    hideNavs = true;
+  }
 
   useEffect(() => {
     setIsMobileNavOpen(false);
