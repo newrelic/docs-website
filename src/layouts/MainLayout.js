@@ -47,16 +47,13 @@ const MainLayout = ({ children, pageContext, sidebarOpen = true }) => {
    * and will never have the frontmatter property
    * Using regex for check to account for paths with and without trailing slash
    */
-  const docsAsJS = ['/introduction-apm'];
-  docsAsJS.forEach((docUrl) => {
-    if (location.pathname.match(docUrl) && !hideNavs) {
-      hideNavs = true;
-    }
-  });
+  const docsAsJS = [/introduction-apm/];
+  const isJSDoc = docsAsJS.some((docUrl) => docUrl.test(location.pathname));
+  hideNavs ||= isJSDoc;
 
   useEffect(() => {
     setIsMobileNavOpen(false);
-    setSidebar(hideNavs ? !hideNavs : sidebarOpen);
+    setSidebar(hideNavs ? false : sidebarOpen);
     // react scroll causes the page to crash if it doesn't find an element
     // so we're checking for the element before firing
     const pathName = addTrailingSlash(location.pathname);
