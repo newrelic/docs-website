@@ -3,13 +3,7 @@ import { css } from '@emotion/react';
 import styled from '@emotion/styled';
 import cx from 'classnames';
 
-import {
-  Button,
-  Trans,
-  useLoggedIn,
-  useTessen,
-  useTranslation,
-} from '@newrelic/gatsby-theme-newrelic';
+import { Button, Trans, useLoggedIn, useTessen, useTranslation } from '@newrelic/gatsby-theme-newrelic';
 import { createAccountRequest } from '@newrelic/gatsby-theme-newrelic/src/components/SignupModal/signup';
 import RecaptchaFooter from '@newrelic/gatsby-theme-newrelic/src/components/SignupModal/RecaptchaFooter';
 
@@ -19,11 +13,7 @@ const MOBILE_BREAKPOINT = '600px';
  * [VSU] This component allows users to sign up inline in a doc.
  * It only renders if the current user is not logged in.
  */
-const InlineSignup = ({
-  className,
-  showCTA = true,
-  hideWhenLoggedOut = true,
-}) => {
+const InlineSignup = () => {
   const [error, setError] = useState(null);
   const tessen = useTessen();
   const { t } = useTranslation();
@@ -50,13 +40,11 @@ const InlineSignup = ({
     }
   };
 
-
-  if ((loggedIn == null || loggedIn) && hideWhenLoggedOut) return null;
+  if (loggedIn == null || loggedIn) return null;
 
   return (
-    <Form onSubmit={onSubmit} className={className}>
-      {showCTA && <CTAText>{t('inlineSignup.ctaText')}</CTAText>}
-
+    <Form onSubmit={onSubmit}>
+      <CTAText>{t('inlineSignup.ctaText')}</CTAText>
 
       <InputContainer>
         <label className="screenreader-only" htmlFor="inline-signup-name">
@@ -104,6 +92,7 @@ const InlineSignup = ({
       <CTAButton type="submit" variant={Button.VARIANT.PRIMARY}>
         {t('inlineSignup.ctaButton')}
       </CTAButton>
+
       <Terms>
         <Trans i18nKey="inlineSignup.terms">
           100 GB + 1 user free. Forever. No credit card required.
@@ -156,7 +145,6 @@ const Form = styled.form`
   @media (max-width: ${MOBILE_BREAKPOINT}) {
     gap: 1rem;
     margin-left: 0;
-    grid-template-columns: 37.5% 37.5%;
   }
 `;
 
@@ -246,6 +234,5 @@ const Terms = styled.p`
     color: currentColor;
   }
 `;
-
 
 export default InlineSignup;

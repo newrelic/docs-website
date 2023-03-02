@@ -197,6 +197,10 @@ module.exports = {
       );
     },
   },
+  InlineSignup: {
+    serialize: serializeComponent,
+    deserialize: deserializeComponent,
+  },
   ImageSizing: {
     serialize: serializeComponent,
     deserialize: deserializeComponent,
