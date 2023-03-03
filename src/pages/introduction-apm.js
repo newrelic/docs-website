@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 
 import {
   FeaturedContent,
@@ -29,6 +29,17 @@ import trackDeps from 'images/new-apm-images/track-deps.png';
 
 const IntroductionApm = () => {
   const { t } = useTranslation();
+
+  useEffect(() => {
+    const gatsbyFocusWrapper = document.querySelectorAll(
+      '#gatsby-focus-wrapper'
+    );
+
+    if (gatsbyFocusWrapper.length > 1) {
+      gatsbyFocusWrapper[1].remove();
+    }
+  }, []);
+
   return (
     <>
       <FeaturedContent
