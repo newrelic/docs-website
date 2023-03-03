@@ -365,6 +365,7 @@ exports.createSchemaCustomization = ({ actions }) => {
     translationType: String
     dataSource: String
     isTutorial: Boolean
+    hideNavs: Boolean
     downloadLink: String
     signupBanner: SignupBanner
     features: [String]
@@ -417,6 +418,10 @@ exports.createResolvers = ({ createResolvers }) => {
       isTutorial: {
         resolve: (source) =>
           hasOwnProperty(source, 'isTutorial') ? source.isTutorial : null,
+      },
+      hideNavs: {
+        resolve: (source) =>
+          hasOwnProperty(source, 'hideNavs') ? source.hideNavs : null,
       },
       downloadLink: {
         resolve: (source) =>
