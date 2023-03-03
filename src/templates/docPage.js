@@ -120,11 +120,9 @@ const BasicDoc = ({ data, location, pageContext }) => {
           />
         )}
         <PageTitle>{title}</PageTitle>
-        <LoggedInProvider>
-          <Layout.Content>
-            <MDXContainer body={body} />
-          </Layout.Content>
-        </LoggedInProvider>
+        <Layout.Content>
+          <MDXContainer body={body} />
+        </Layout.Content>
         <Layout.PageTools
           css={css`
             @media screen and (max-width: 1240px) {
