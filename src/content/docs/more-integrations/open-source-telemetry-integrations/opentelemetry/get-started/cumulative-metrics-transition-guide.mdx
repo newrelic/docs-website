@@ -1,0 +1,151 @@
+---
+title: Transition guide for OpenTelemetry cumulative sum metrics
+metaDescription: 'A transition guide about a change in how New Relic handles OpenTelemetry cumulative sum metrics, and how to update your queries and alerts for that change.'
+redirects: 
+---
+
+Our OTLP metric pipeline is being upgraded to better support how we handle [cumulative metrics](/docs/data-apis/understand-data/metric-data/cumulative-metrics). As part of this upgrade we're transitioning the underlying [metric data type](/docs/data-apis/understand-data/metric-data/metric-data-type/#metric-types) for [monotonic cumulative sums](https://opentelemetry.io/docs/reference/specification/metrics/data-model/#sums) from a `gauge` type to the `cumulativeCount` type. The `cumulativeCount` type allows you to query both the cumulative and delta value associated with reported data. 
+
+Starting March 14, 2023, new New Relic customers will use the new `cumulativeCount` type, but if you were a New Relic customer before that date, you won't have access to that metric type until June 13. On that date, the use of our `gauge` metric type for cumulative sums will be deprecated and reach end-of-life (EoL), and your cumulative sums will be stored as the `cumulativeCount` type. 
+
+If you were a customer using cumulative metrics before March 14, you should check and potentially modify existing queries and alerts that may be relying on those metrics. The sections below will teach you: 
+
+* How to know if your account is impacted
+* How to prepare for the EoL
+* How to preview the `cumulativeCount` functionality 
+
+<Callout variant="important">
+Non-monotonic cumulative sums will **not** be affected by this upgrade.
+</Callout>
+
+## Check your account for impact [#impact]
+
+If your account was sending OTLP cumulative sum metrics to New Relic before March 14, 2023, then that account will be impacted by the EoL on June 13, 2023. 
+
+To check if your account is impacted, run the following NRQL query:
+
+```
+FROM NrIntegrationError SELECT count(*) 
+WHERE newRelicFeature = 'cumulativeSumAsGaugeEoL' 
+SINCE 24 hours ago
+```
+
+The query will return results if you've reported metrics impacted by this EoL in the last 24 hours. 
+
+To investigate further, you can view the event message to see which metrics are affected:
+
+```
+FROM NrIntegrationError SELECT metricName 
+WHERE newRelicFeature = 'cumulativeSumAsGaugeEoL' 
+LIMIT MAX SINCE 24 hours ago
+```
+
+Any monitoring or alerting involving these metrics will need to be reviewed and updated prior to the EoL date. The next section contains suggested actions for impacted metrics. 
+
+## What to do if you're impacted [#what-to-do]
+
+We recommend impacted accounts to check and potentially modify existing NRQL-generated charts and alerts that target OTLP cumulative sum metrics. Our [OpenTelemetry best practices](/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/best-practices/opentelemetry-best-practices-metrics#query) outline the differences in querying between a `gauge` and a `cumulativeCount` metric type. Namely, you'll be able to target either the delta value (by default) or the cumulative value by selecting the cumulative field. 
+
+Below we focus on updating [alert conditions](/docs/alerts-applied-intelligence/new-relic-alerts/alert-conditions/create-nrql-alert-conditions), because alerts are generally more important than charts. For your custom charts, you can either:
+
+* Take the same general approach we describe for alerts: create a new chart with an updated query and erase the old chart after the EoL, OR
+* Wait until after the EoL and replace the queries
+
+## Suggested action: Create new versions of alerts [#alerts]
+
+Here are some examples of queries that might be used in alerts. We'll give you the original query, then a `gauge` version of the query, and a `cumulativeCount` version of the query. You should replace your existing alert with the `gauge` version of the query, and create a duplicate alert condition that uses the `cumulativeCount` version. That way, when we transition your account to `cumulativeCount` on June 16, that alert condition will be available when the old query no longer works. 
+
+### Cumulative queries [#cumulative-queries]
+
+Original query: 
+```
+FROM Metric SELECT latest(<metricName>)
+```
+
+Gauge version of the query:
+``` 
+FROM Metric SELECT latest(<metricName>) 
+WHERE <metricName>[type] = 'gauge'
+```
+
+Cumulative count version of the query: 
+```
+FROM Metric SELECT latest(<metricName>[cumulative]) 
+WHERE <metricName>[type] = 'cumulativeCount'
+```
+
+### Rate of change queries [#rate-of-change-queries]
+
+Original query: 
+
+```
+FROM Metric SELECT derivative(<metricName>, 1 minute)
+```
+
+Gauge version of query:
+``` 
+FROM Metric SELECT derivative(<metricName>, 1 minute) 
+WHERE <metricName>[type] = 'gauge'
+```
+
+Cumulative count version of query:
+
+```
+FROM Metric SELECT rate(sum(<metricName>[cumulative]), 1 minute) 
+WHERE <metricName>[type] = 'cumulativeCount'
+```
+
+## Suggested action: preview cumulativeCount before the EoL [#preview]
+
+Affected accounts will continue to have their cumulative sums stored as `gauge` types until the EoL. However, optionally, you can try out `cumulativeCount` before the EoL to validate your queries and alerts are behaving as expected. To test `cumuativeCount` types early, add the following attribute to OTLP data you send to New Relic:
+
+```
+newrelic_metric_type=cumulativeCount
+```
+
+<Callout variant="important">
+When you start sending `newrelic_metric_type=cumulativeCount` on your data, any cumulative sums we receive will be translated into `cumulativeCount` types. This means any existing queries or alerts set up to target a `gauge` type will no longer be valid. Keep this in mind when testing the `cumulativeCount` experience. To return to the `gauge` type, simply stop setting the `newrelic_metric_type` attribute. 
+</Callout>
+
+### Instrumentation library [#instrumentation-library]
+
+If you're using an OTLP instrumentation library within your code base, you should reference the [appropriate language SDK](/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/get-started/opentelemetry-set-up-your-app/#instrument) for your application. Any method of adding the attribute `newrelic_metric_type=cumulativeCount` to individual metric data points or to the `Resource attribute` level should be sufficient. 
+
+Here's an example of adding the attribute directly to the reporting metric in the Java SDK:
+
+```
+final var meter = openTelemetry.meterBuilder("manual-instrumentation-scope")
+                .setInstrumentationVersion("1.0.0")
+                .build();
+final LongCounter counter = meter.counterBuilder("myCumulativeCounter")
+                .build();
+counter.add(1, Attributes.of(stringKey("newrelic_metric_type"), "cumulativeCount"));
+```
+
+### Collector [#collector]
+
+If the source of your OTLP monitoring is coming from the OTLP collector, you can use the OpenTelemetry [attributes processor](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/processor/attributesprocessor/README.md) to add the attribute before it's sent to your exporters. For example, the following snippet will insert the `newrelic_metric_type=cumulativeCount` attribute:
+
+```
+…
+attributes:
+  actions:
+    - key: newrelic_metric_type
+      action: insert
+      value: cumulativeCount
+…
+service:
+  pipelines:
+    metrics:
+      …
+      processors: [...,attributes,...]
+      …
+```
+
+### Checking results [#checking-results]
+
+After setting `newrelic_metric_type=cumulativeCount` in your metric data, you can check that we're receiving it correctly with this query:
+
+```
+FROM Metric SELECT count(*) WHERE %[type] = 'cumulativeCount' TIMESERIES
+```
