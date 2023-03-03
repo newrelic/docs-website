@@ -96,7 +96,11 @@ const defaultComponents = {
   TabsBarItem: Tabs.BarItem,
   TabsPageItem: Tabs.Page,
   TabsPages: Tabs.Pages,
-  InlineSignup,
+  InlineSignup: () => (
+    <HideWhenEmbedded>
+      <InlineSignup />
+    </HideWhenEmbedded>
+  ),
   InstallFeedback,
   WhatsNextTile,
   Side,
