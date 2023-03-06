@@ -11,6 +11,7 @@ import {
   RelatedResources,
   ComplexFeedback,
   TableOfContents,
+  LoggedInProvider,
 } from '@newrelic/gatsby-theme-newrelic';
 import MachineTranslationCallout from '../components/MachineTranslationCallout';
 import SEO from '../components/SEO';
@@ -136,9 +137,11 @@ const BasicDoc = ({ data, location, pageContext }) => {
         )}
         <PageTitle>{title}</PageTitle>
 
-        <Layout.Content>
-          <MDXContainer body={body} />
-        </Layout.Content>
+        <LoggedInProvider>
+          <Layout.Content>
+            <MDXContainer body={body} />
+          </Layout.Content>
+        </LoggedInProvider>
         {!hideNavs && (
           <Layout.PageTools
             css={css`
