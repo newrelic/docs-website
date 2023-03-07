@@ -13,6 +13,7 @@ import {
 const TwoButton = ({
   text,
   header,
+  learnMore,
   learnMoreUrl,
   primaryButton,
   primaryButtonUrl,
@@ -47,7 +48,7 @@ const TwoButton = ({
         <Text>
           {text}{' '}
           <Link onClick={onLearnMore} href={learnMoreUrl}>
-            Learn more
+            {learnMore}
           </Link>
         </Text>
         <PrimaryButton
