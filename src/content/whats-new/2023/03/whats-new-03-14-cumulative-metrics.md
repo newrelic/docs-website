@@ -1,7 +1,7 @@
 ---
-title: ‘We now support cumulative metrics from OpenTelemetry and Prometheus'
-summary: 'Simplify your monitoring workflow by easily querying both cumulative and delta metrics, without the need for client-side configuration.’ 
-releaseDate: '2023-03-14’
+title: 'We now support cumulative metrics from OpenTelemetry and Prometheus'
+summary: 'Simplify your monitoring workflow by easily querying both cumulative and delta metrics, without the need for client-side configuration.' 
+releaseDate: '2023-03-14'
 learnMoreLink: 'https://docs.newrelic.com/docs/data-apis/understand-data/metric-data/cumulative-metrics/' 
 ---
 
