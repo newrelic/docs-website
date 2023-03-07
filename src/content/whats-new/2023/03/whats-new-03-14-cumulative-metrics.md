@@ -18,4 +18,4 @@ With this update, you can:
 * Read our [cumulative metrics documentation](https://docs.newrelic.com/docs/data-apis/understand-data/metric-data/cumulative-metrics/) 
 * Get started with [OpenTelemetry](https://docs.newrelic.com/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/opentelemetry-introduction/) or [Prometheus](https://docs.newrelic.com/docs/infrastructure/prometheus-integrations/get-started/send-prometheus-metric-data-new-relic/) with New Relic
 
-!["View how to query cumulative metrics"](./images/cumulative-metrics-query "Image showing how to query cumulative metrics")
+!["View how to query cumulative metrics"](./images/cumulative-metrics-query.png "Image showing how to query cumulative metrics")
