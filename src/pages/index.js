@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { navigate } from '@reach/router';
 import { css } from '@emotion/react';
+import cx from 'classnames';
 import { graphql } from 'gatsby';
 import PropTypes from 'prop-types';
 import {
@@ -21,6 +22,8 @@ import {
   TOGGLE_VIEWS,
 } from '../components/ToggleView';
 import HomepageVideo from '../components/HomepageVideo';
+import { T } from 'lodash/fp';
+import styled from '@emotion/styled';
 
 const SAVED_TOGGLE_VIEW_KEY = 'docs-website/homepage-selected-view';
 
@@ -32,12 +35,13 @@ const HomePage = ({ data }) => {
 
   const { loggedIn } = useLoggedIn();
   const [searchTerm, setSearchTerm] = useState('');
-  const hasToggled = useRef(false);
   const [currentView, setCurrentView] = useState(TOGGLE_VIEWS.newUserView);
+  const hasToggled = useRef(false);
   const updateView = (id) => {
     hasToggled.current = true;
     setCurrentView(id);
   };
+  const searchbar = currentView === TOGGLE_VIEWS.newUserView;
 
   const { t } = useTranslation();
 
@@ -80,7 +84,7 @@ const HomePage = ({ data }) => {
         css={css`
           display: grid;
           gap: 1rem;
-          justify-content: space-between;
+          justify-content: right;
           grid-template-columns: 1fr max-content;
           align-items: center;
 
@@ -89,6 +93,20 @@ const HomePage = ({ data }) => {
           }
         `}
       >
+        <AnimatedSearchInput
+          placeholder="Search"
+          size={SearchInput.SIZE.SMALL}
+          value={searchTerm || ''}
+          iconName={SearchInput.ICONS.SEARCH}
+          isIconClickable
+          alignIcon={SearchInput.ICON_ALIGNMENT.RIGHT}
+          onChange={(e) => {
+            setSearchTerm(e.target.value);
+          }}
+          onSubmit={() => navigate(`?q=${searchTerm || ''}`)}
+          className={cx(searchbar && 'visible')}
+        />
+
         <ToggleSelector
           css={css`
             justify-self: end;
@@ -283,6 +301,52 @@ HomePage.propTypes = {
   }),
 };
 
+const AnimatedSearchInput = styled(SearchInput)`
+  justify-self: end;
+  width: 150px;
+  transition: width 0.55s ease;
+  display: none;
+  &.visible {
+    display: grid;
+  }
+  & input {
+    justify-self: end;
+    width: 0.5rem;
+    border: none;
+    background: none;
+    padding-left: 0.75rem;
+    height: 30px;
+  }
+  &:focus-within {
+    svg {
+      stroke: var(--erno-black);
+    }
+  }
+  &:hover {
+    width: 150px;
+    svg {
+      stroke: var(--erno-black);
+    }
+  }
+  svg {
+    stroke: #fff;
+    right: 0.75rem;
+    transition: stroke 0.55s ease;
+  }
+
+  & input:hover,
+  & input:active,
+  & input:focus {
+    box-shadow: none;
+    width: 150px;
+    border: 1px solid var(--system-text-primary-light);
+    background: #fff;
+    color: var(--system-text-primary-light);
+    &::placeholder {
+      color: var(--system-text-primary-light);
+    }
+  }
+`;
 export const pageQuery = graphql`
   query($quicklaunchSlug: String!) {
     site {
