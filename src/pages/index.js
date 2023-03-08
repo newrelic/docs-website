@@ -22,7 +22,6 @@ import {
   TOGGLE_VIEWS,
 } from '../components/ToggleView';
 import HomepageVideo from '../components/HomepageVideo';
-import { T } from 'lodash/fp';
 import styled from '@emotion/styled';
 
 const SAVED_TOGGLE_VIEW_KEY = 'docs-website/homepage-selected-view';
@@ -41,7 +40,7 @@ const HomePage = ({ data }) => {
     hasToggled.current = true;
     setCurrentView(id);
   };
-  const searchbar = currentView === TOGGLE_VIEWS.newUserView;
+  const showAnimatedSearchBar = currentView === TOGGLE_VIEWS.newUserView;
 
   const { t } = useTranslation();
 
@@ -104,7 +103,7 @@ const HomePage = ({ data }) => {
             setSearchTerm(e.target.value);
           }}
           onSubmit={() => navigate(`?q=${searchTerm || ''}`)}
-          className={cx(searchbar && 'visible')}
+          className={cx(showAnimatedSearchBar && 'visible')}
         />
 
         <ToggleSelector
@@ -304,18 +303,23 @@ HomePage.propTypes = {
 const AnimatedSearchInput = styled(SearchInput)`
   justify-self: end;
   width: 150px;
-  transition: width 0.55s ease;
+  transition: width 1200ms cubic-bezier(0.7, 0, 0.35, 1);
   display: none;
   &.visible {
     display: grid;
   }
-  & input {
+  input {
     justify-self: end;
     width: 0.5rem;
     border: none;
     background: none;
     padding-left: 0.75rem;
     height: 30px;
+  }
+  svg {
+    stroke: #fff;
+    right: 0.75rem;
+    transition: stroke 0.55s ease;
   }
   &:focus-within {
     svg {
@@ -328,15 +332,9 @@ const AnimatedSearchInput = styled(SearchInput)`
       stroke: var(--erno-black);
     }
   }
-  svg {
-    stroke: #fff;
-    right: 0.75rem;
-    transition: stroke 0.55s ease;
-  }
-
-  & input:hover,
-  & input:active,
-  & input:focus {
+  input:hover,
+  input:active,
+  input:focus {
     box-shadow: none;
     width: 150px;
     border: 1px solid var(--system-text-primary-light);
