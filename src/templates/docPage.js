@@ -101,6 +101,10 @@ const BasicDoc = ({ data, location, pageContext }) => {
           grid-template-columns: minmax(0, 1fr) 320px;
           grid-column-gap: 2rem;
 
+          iframe {
+            max-width: 100%;
+          }
+
           @media screen and (max-width: 1240px) {
             grid-template-areas:
               'mt-disclaimer'
