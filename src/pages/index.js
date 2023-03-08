@@ -14,6 +14,7 @@ import {
 import HomepageBanner from '../components/HomepageBanner';
 import { DocTile } from '../components/DocTile';
 import FindYourQuickStart from '../components/FindYourQuickstart';
+import PersonaSignup from '../components/Persona/PersonaSignup';
 import {
   ToggleSelector,
   ToggleView,
@@ -253,6 +254,7 @@ const HomePage = ({ data }) => {
         </Section>
         <Section layout={layout}>
           <FindYourQuickStart />
+          {/* <PersonaSignup /> */}
         </Section>
       </ToggleView>
     </ToggleViewContext.Provider>

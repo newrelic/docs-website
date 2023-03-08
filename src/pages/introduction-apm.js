@@ -9,6 +9,8 @@ import {
   TitleBlock,
 } from '../components/IntroductionApm';
 
+import { PersonaSignup } from '../components/Persona';
+
 import {
   Side,
   SideBySide,
@@ -42,6 +44,7 @@ const IntroductionApm = () => {
 
   return (
     <>
+      <PersonaSignup />
       <FeaturedContent
         text={[t('apm.intro.text.0'), t('apm.intro.text.1')]}
         title={t('apm.intro.title')}
