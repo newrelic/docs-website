@@ -76,6 +76,7 @@ const DocPageBanner = ({ text, cta, url, height, onClose }) => {
               right: 3px;
             `}
             onClick={onClose}
+            instrumentation={{ component: 'docBannerDismiss' }}
           />
         )}
       </div>
