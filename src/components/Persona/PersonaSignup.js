@@ -6,6 +6,7 @@ import cx from 'classnames';
 import {
   Button,
   Icon,
+  Trans,
   useTessen,
   useTranslation,
 } from '@newrelic/gatsby-theme-newrelic';
@@ -24,7 +25,7 @@ export const PersonaSignup = ({ className }) => {
   const tessen = useTessen();
   const { t } = useTranslation();
   const submitEvent = {
-    category: 'InlineSignup',
+    category: 'PersonaHomepageSignup',
     eventName: 'attemptedSignup',
   };
 
@@ -48,9 +49,7 @@ export const PersonaSignup = ({ className }) => {
   return (
     <Wrapper open={open}>
       <Form onSubmit={onSubmit} className={className}>
-        <CTAText>
-          100 GB + 1 user free. Forever. No credit card required.
-        </CTAText>
+        <CTAText>{t('personaSignup.terms')}</CTAText>
         <Close name="x" onClick={() => setOpen(false)} />
         <InputContainer>
           <label className="screenreader-only" htmlFor="inline-signup-name">
@@ -97,14 +96,16 @@ export const PersonaSignup = ({ className }) => {
           {t('inlineSignup.ctaButton')}
         </CTAButton>
         <Terms>
-          By signing up you're agreeing to{' '}
-          <a href="https://newrelic.com/termsandconditions/terms">
-            Terms of Service
-          </a>{' '}
-          and{' '}
-          <a href="https://newrelic.com/termsandconditions/privacy">
-            Services Privacy Notice.
-          </a>
+          <Trans i18nKey="personaSignup.conditions">
+            By signing up you're agreeing to{' '}
+            <a href="https://newrelic.com/termsandconditions/terms">
+              Terms of Service
+            </a>{' '}
+            and{' '}
+            <a href="https://newrelic.com/termsandconditions/privacy">
+              Services Privacy Notice.
+            </a>
+          </Trans>
         </Terms>
         <RecaptchaFooter
           css={css`
@@ -160,6 +161,7 @@ const Form = styled.form`
   @media (max-width: ${MOBILE_BREAKPOINT}) {
     gap: 0.5rem;
     margin-left: 0;
+    padding-top: 32px;
   }
 `;
 
@@ -184,6 +186,7 @@ const ValidationHint = styled.p`
 const Input = styled.input`
   background: var(--secondary-background-color);
   border: 1px solid var(--primary-text-color);
+  box-sizing: border-box;
   color: var(--primary-text-color);
   font-size: 0.875rem;
   line-height: 1.25rem;
@@ -231,6 +234,8 @@ const InputContainer = styled.div`
 
   @media (max-width: ${MOBILE_BREAKPOINT}) {
     grid-column: 1 / 4;
+    justify-items: start;
+    width: 90%;
 
     &:first-of-type {
       margin-left: 0;
