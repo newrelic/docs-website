@@ -17,7 +17,7 @@ export const DocTile = ({
     base={Surface.BASE.SECONDARY}
     to={path}
     interactive
-    instrumentation={{ component: 'docTile' }}
+    instrumentation={{ component: 'DocTile' }}
     css={css`
       display: block;
       min-height: 130px;
