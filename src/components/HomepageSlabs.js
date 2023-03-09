@@ -33,59 +33,17 @@ const HomepageSlabs = () => {
     },
   };
 
-  const [opacitySprings1, opacityApi1] = useSpring(() => ({
-    from: { opacity: 0.5 },
-  }));
+  const [opacitySprings1, opacityApi1] = useSpring(() => {});
 
-  const [opacitySprings2, opacityApi2] = useSpring(() => ({
-    from: { opacity: 0.5 },
-  }));
+  const [opacitySprings2, opacityApi2] = useSpring(() => {});
 
-  const [opacitySprings3, opacityApi3] = useSpring(() => ({
-    from: { opacity: 0.5 },
-  }));
+  const [opacitySprings3, opacityApi3] = useSpring(() => {});
 
-  const [springs1, panel1Api] = useSpring(() => {
-    if (isTabletWidth) {
-      return {
-        from: { height: '33%' },
-        to: { height: '50%' },
-      };
-    } else {
-      return {
-        from: { width: '33%' },
-        to: { width: '70%' },
-      };
-    }
-  });
+  const [springs1, panel1Api] = useSpring(() => {});
 
-  const [springs2, panel2Api] = useSpring(() => {
-    if (isTabletWidth) {
-      return {
-        from: { height: '33%' },
-        to: { height: '25%' },
-      };
-    } else {
-      return {
-        from: { width: '33%' },
-        to: { width: '15%' },
-      };
-    }
-  });
+  const [springs2, panel2Api] = useSpring(() => {});
 
-  const [springs3, panel3Api] = useSpring(() => {
-    if (isTabletWidth) {
-      return {
-        from: { height: '33%' },
-        to: { height: '25%' },
-      };
-    } else {
-      return {
-        from: { width: '33%' },
-        to: { width: '15%' },
-      };
-    }
-  });
+  const [springs3, panel3Api] = useSpring(() => {});
 
   const SPRING_APIS = { 1: panel1Api, 2: panel2Api, 3: panel3Api };
   const OPACITY_SPRING_APIS = {
@@ -95,29 +53,44 @@ const HomepageSlabs = () => {
   };
 
   useEffect(() => {
+    const springConfig = {
+      mass: 1,
+      friction: 36,
+      tension: 170,
+    };
     const initialPanelState = {
       from: {
-        width: '15%',
+        width: '33%',
         height: '100%',
       },
       to: {
         width: '15%',
       },
+      config: springConfig,
     };
     const initialTabletPanelState = {
       from: {
-        height: '25%',
+        height: '33%',
         width: '100%',
       },
       to: {
         height: '25%',
       },
+      config: springConfig,
     };
     setActivePanel(1);
-    opacityApi1.start({ from: { opacity: 0.5 }, to: { opacity: 0 } });
-    opacityApi2.start({ from: { opacity: 0.5 }, to: { opacity: 0.5 } });
-    opacityApi3.start({ from: { opacity: 0.5 }, to: { opacity: 0.5 } });
-
+    opacityApi1.start({
+      from: { opacity: 0.5 },
+      to: { opacity: 0 },
+    });
+    opacityApi2.start({
+      from: { opacity: 0.5 },
+      to: { opacity: 0.5 },
+    });
+    opacityApi3.start({
+      from: { opacity: 0.5 },
+      to: { opacity: 0.5 },
+    });
     if (isTabletWidth) {
       panel1Api.start({
         from: {
@@ -127,18 +100,20 @@ const HomepageSlabs = () => {
         to: {
           height: '50%',
         },
+        config: springConfig,
       });
       panel2Api.start(initialTabletPanelState);
       panel3Api.start(initialTabletPanelState);
     } else {
       panel1Api.start({
         from: {
-          width: '15%',
+          width: '33%',
           height: '100%',
         },
         to: {
           width: '70%',
         },
+        config: springConfig,
       });
       panel2Api.start(initialPanelState);
       panel3Api.start(initialPanelState);
@@ -255,9 +230,11 @@ const Slab = ({
 }) => {
   const header = activePanel === panelId ? headers.active : headers.default;
   const transitions = useTransition(header, {
+    initial: { opacity: 1 },
     from: { opacity: 0 },
     enter: { opacity: 1 },
     leave: { display: 'none' },
+    exitBeforeEnter: true,
   });
 
   return (
