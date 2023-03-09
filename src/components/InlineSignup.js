@@ -19,11 +19,7 @@ const MOBILE_BREAKPOINT = '600px';
  * [VSU] This component allows users to sign up inline in a doc.
  * It only renders if the current user is not logged in.
  */
-const InlineSignup = ({
-  className,
-  showCTA = true,
-  hideWhenLoggedOut = true,
-}) => {
+const InlineSignup = ({ className, hideWhenLoggedOut = true }) => {
   const [error, setError] = useState(null);
   const tessen = useTessen();
   const { t } = useTranslation();
@@ -54,8 +50,6 @@ const InlineSignup = ({
 
   return (
     <Form onSubmit={onSubmit} className={className}>
-      {showCTA && <CTAText>{t('inlineSignup.ctaText')}</CTAText>}
-
       <InputContainer>
         <label className="screenreader-only" htmlFor="inline-signup-name">
           {t('inlineSignup.nameLabel')}
@@ -134,15 +128,6 @@ const CTAButton = styled(Button)`
 
   @media (max-width: ${MOBILE_BREAKPOINT}) {
     margin-left: 0;
-  }
-`;
-
-const CTAText = styled.p`
-  grid-column: 1 / 4;
-  font-size: 1.125rem;
-
-  @media (max-width: ${MOBILE_BREAKPOINT}) {
-    margin: 0;
   }
 `;
 
