@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useState } from 'react';
 import { navigate } from '@reach/router';
 import { css } from '@emotion/react';
 import { graphql } from 'gatsby';
@@ -9,20 +9,12 @@ import {
   SearchInput,
   useInstrumentedHandler,
   useTranslation,
-  useLoggedIn,
 } from '@newrelic/gatsby-theme-newrelic';
 import HomepageBanner from '../components/HomepageBanner';
 import { DocTile } from '../components/DocTile';
 import FindYourQuickStart from '../components/FindYourQuickstart';
-import {
-  ToggleSelector,
-  ToggleView,
-  ToggleViewContext,
-  TOGGLE_VIEWS,
-} from '../components/ToggleView';
-import HomepageVideo from '../components/HomepageVideo';
-
-const SAVED_TOGGLE_VIEW_KEY = 'docs-website/homepage-selected-view';
+import { ToggleView, TOGGLE_VIEWS } from '../components/ToggleView';
+import HomepageSlabs from '../components/HomepageSlabs';
 
 const HomePage = ({ data }) => {
   const {
@@ -30,39 +22,9 @@ const HomePage = ({ data }) => {
     allMarkdownRemark: { edges: whatsNewPosts },
   } = data;
 
-  const { loggedIn } = useLoggedIn();
-  const [searchTerm, setSearchTerm] = useState('');
-  const hasToggled = useRef(false);
-  const [currentView, setCurrentView] = useState(TOGGLE_VIEWS.newUserView);
-  const updateView = (id) => {
-    hasToggled.current = true;
-    setCurrentView(id);
-  };
-
   const { t } = useTranslation();
 
-  /* `useLocalStorage` hook doesn't work here because SSR doesn't have access to
-   * localStorage, so when it gets to the client, the current tab is already set
-   * and the client doesn't know to update it.
-   *
-   */
-  useEffect(() => {
-    const storedToggleView = window.localStorage.getItem(SAVED_TOGGLE_VIEW_KEY);
-    if (!storedToggleView && loggedIn !== null) {
-      setCurrentView(
-        loggedIn ? TOGGLE_VIEWS.defaultView : TOGGLE_VIEWS.newUserView
-      );
-    }
-    if (storedToggleView) {
-      setCurrentView(storedToggleView);
-    }
-  }, [setCurrentView, loggedIn]);
-
-  useEffect(() => {
-    if (hasToggled.current) {
-      window.localStorage.setItem(SAVED_TOGGLE_VIEW_KEY, currentView);
-    }
-  }, [currentView]);
+  const [searchTerm, setSearchTerm] = useState('');
 
   const mobileBreakpoint = '450px';
 
@@ -75,33 +37,9 @@ const HomePage = ({ data }) => {
   });
 
   return (
-    <ToggleViewContext.Provider value={[currentView, updateView]}>
-      <div
-        css={css`
-          display: grid;
-          gap: 1rem;
-          justify-content: space-between;
-          grid-template-columns: 1fr max-content;
-          align-items: center;
-
-          @media (max-width: 920px) {
-            grid-template-columns: 1fr auto;
-          }
-        `}
-      >
-        <ToggleSelector
-          css={css`
-            justify-self: end;
-
-            @media screen and (max-width: 760px) {
-              display: none;
-            }
-          `}
-        />
-      </div>
-
+    <>
       <ToggleView id={TOGGLE_VIEWS.newUserView}>
-        <HomepageVideo />
+        <HomepageSlabs />
       </ToggleView>
       <ToggleView id={TOGGLE_VIEWS.defaultView}>
         <h1
@@ -255,7 +193,7 @@ const HomePage = ({ data }) => {
           <FindYourQuickStart />
         </Section>
       </ToggleView>
-    </ToggleViewContext.Provider>
+    </>
   );
 };
 
