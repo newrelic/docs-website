@@ -154,7 +154,7 @@ const HomepageLayout = ({ children, pageContext, sidebarOpen = true }) => {
                   position: absolute;
                   top: 1.5rem;
                   right: 0;
-                  z-index: 2;
+                  z-index: 90;
 
                   @media (max-width: 920px) {
                     grid-template-columns: 1fr auto;
