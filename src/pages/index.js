@@ -332,7 +332,7 @@ const AnimatedSearchInput = styled(SearchInput)`
       stroke: var(--erno-black);
     }
   }
-  input:hover,
+  &:hover input,
   input:active,
   input:focus {
     box-shadow: none;
