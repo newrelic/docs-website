@@ -203,10 +203,6 @@ const InstallPage = ({ data, location }) => {
     setIsHydrated(true);
   }, []);
 
-  if (!isHydrated) {
-    return null;
-  }
-
   return (
     <>
       <SEO
@@ -245,33 +241,37 @@ const InstallPage = ({ data, location }) => {
             <MDXContainer body={intro.mdx?.body} />
           </div>
           <div>
-            <Walkthrough>
-              {walkthroughSteps.map(({ content, step: { mdx } }, index) => {
-                const { descriptionText, headingText } = mdx?.frontmatter;
-                return (
-                  <Walkthrough.Step
-                    number={index + 1}
-                    title={headingText}
-                    active={selectedIndex === index}
-                    key={index}
-                    onMouseOver={() => handleSelectIndex(index)}
-                    onFocus={() => handleSelectIndex(index)}
-                    id={`${slugify(mdx.frontmatter?.headingText)}-${index + 1}`}
-                  >
-                    {descriptionText && (
-                      <p
-                        css={css`
-                          margin-bottom: 2rem;
-                        `}
-                      >
-                        {descriptionText}
-                      </p>
-                    )}
-                    {content}
-                  </Walkthrough.Step>
-                );
-              })}
-            </Walkthrough>
+            {isHydrated ? (
+              <Walkthrough>
+                {walkthroughSteps.map(({ content, step: { mdx } }, index) => {
+                  const { descriptionText, headingText } = mdx?.frontmatter;
+                  return (
+                    <Walkthrough.Step
+                      number={index + 1}
+                      title={headingText}
+                      active={selectedIndex === index}
+                      key={index}
+                      onMouseOver={() => handleSelectIndex(index)}
+                      onFocus={() => handleSelectIndex(index)}
+                      id={`${slugify(mdx.frontmatter?.headingText)}-${
+                        index + 1
+                      }`}
+                    >
+                      {descriptionText && (
+                        <p
+                          css={css`
+                            margin-bottom: 2rem;
+                          `}
+                        >
+                          {descriptionText}
+                        </p>
+                      )}
+                      {content}
+                    </Walkthrough.Step>
+                  );
+                })}
+              </Walkthrough>
+            ) : null}
           </div>
           <InstallNextSteps mdx={whatsNext.mdx} />
           <ContributingGuidelines
