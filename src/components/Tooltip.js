@@ -1,14 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { css } from '@emotion/react';
-import { useToggleViewContext } from './ToggleView/ToggleViewContext';
-import { TOGGLE_VIEWS } from './ToggleView';
 
 const Tooltip = ({ className, children }) => {
-  const [currentView] = useToggleViewContext();
   const [shouldHide, setShouldHide] = useState(false);
-  // const [shouldHide, setShouldHide] = useState(
-  //   currentView === TOGGLE_VIEWS.newUserView
-  // );
 
   useEffect(() => {
     const timer = setTimeout(() => setShouldHide(true), 5000);
