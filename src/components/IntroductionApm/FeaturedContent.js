@@ -1,8 +1,20 @@
-import React from 'react';
+import React, { useState } from 'react';
 import styled from '@emotion/styled';
-import { css } from '@emotion/react';
+import { css, keyframes } from '@emotion/react';
+import VisibilitySensor from 'react-visibility-sensor';
 
 import { Icon } from '@newrelic/gatsby-theme-newrelic';
+
+const slideFadeIn = keyframes`
+  from {
+    opacity: 0;
+    transform: translateY(6%);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0%);
+  }
+`;
 
 export const FeaturedContent = ({
   alt,
@@ -14,62 +26,81 @@ export const FeaturedContent = ({
   subTitle,
   text,
   title,
-}) => (
-  <Container>
-    {!lineIconOnly && (
-      <>
-        <TextContainer separator={title}>
-          {title && <Title>{title}</Title>}
-          {subTitle && <SubTitle>{subTitle}</SubTitle>}
-          {text && text.map((paragraph, i) => <p key={i}>{paragraph}</p>)}
-          {list && (
-            <ListWrapper>
-              {list.map((item, i) => (
-                <ListItem key={i}>
-                  <Icon
-                    name="fe-check"
-                    css={css`
-                      margin-right: 8px;
-                      width: 36px;
-                    `}
-                  />
-                  <li>{item}</li>
-                </ListItem>
-              ))}
-            </ListWrapper>
-          )}
-        </TextContainer>
-        {img && (
-          <ImageWrapper separator={title}>
-            <img alt={alt} src={img} />
-          </ImageWrapper>
+}) => {
+  const [isVisible, setVisible] = useState(false);
+
+  const updateVisibility = (isVisible) => {
+    if (isVisible) {
+      setVisible(true);
+    }
+  };
+
+  return (
+    <VisibilitySensor onChange={updateVisibility}>
+      <Container className={isVisible ? 'visible' : ''}>
+        {!lineIconOnly && (
+          <>
+            <TextContainer separator={title}>
+              {title && <Title>{title}</Title>}
+              {subTitle && <SubTitle>{subTitle}</SubTitle>}
+              {text && text.map((paragraph, i) => <p key={i}>{paragraph}</p>)}
+              {list && (
+                <ListWrapper>
+                  {list.map((item, i) => (
+                    <ListItem key={i}>
+                      <Icon
+                        name="fe-check"
+                        css={css`
+                          margin-right: 8px;
+                          width: 36px;
+                        `}
+                      />
+                      <li>{item}</li>
+                    </ListItem>
+                  ))}
+                </ListWrapper>
+              )}
+            </TextContainer>
+            {img && (
+              <ImageWrapper separator={title}>
+                <img alt={alt} src={img} />
+              </ImageWrapper>
+            )}
+          </>
         )}
-      </>
-    )}
-    {lineIcon && (
-      <>
-        <Spacer>
-          <LineIconWrapper>
-            <LineIcon
-              name={lineIcon}
-              css={css`
-                width: 36px;
-              `}
-            />
-          </LineIconWrapper>
-        </Spacer>
-        {children}
-      </>
-    )}
-  </Container>
-);
+        {lineIcon && (
+          <>
+            <Spacer>
+              <LineIconWrapper>
+                <LineIcon
+                  name={lineIcon}
+                  css={css`
+                    width: 36px;
+                  `}
+                />
+              </LineIconWrapper>
+            </Spacer>
+            {children}
+          </>
+        )}
+      </Container>
+    </VisibilitySensor>
+  );
+};
 
 const Container = styled.div`
-  display: flex;
-  margin: 48px 0;
-  padding: 0 40px;
-  position: relative;
-  width: 100%;
+cubic-bezier(0, 0.3, 0.4, 1);
+display: flex;
+margin: 48px 0;
+opacity: 0;
+padding: 0 40px;
+position: relative;
+width: 100%;
+
+&.visible {
+    animation: 500ms ${slideFadeIn};
+    opacity: 1;
+  }
 
   @media screen and (max-width: 1000px) {
     flex-direction: column;
