@@ -117,7 +117,18 @@ const HomepageLayout = ({ children, pageContext, sidebarOpen = true }) => {
         hideSearch
         customStyles={{ navLeftMargin: '150px', searchRightMargin: '30px' }}
       />
-      <MobileHeader>
+      <MobileHeader
+        css={
+          currentView === TOGGLE_VIEWS.newUserView &&
+          css`
+            background-color: black;
+
+            button > div {
+              background-color: var(--system-text-primary-dark);
+            }
+          `
+        }
+      >
         <RootNavigation locale={locale} isStyleGuide={false} />
       </MobileHeader>
       <LoggedInProvider>

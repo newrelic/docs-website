@@ -47,6 +47,7 @@ const HomePage = ({ data }) => {
             font-size: 3.5rem;
             font-weight: 500;
             line-height: 1;
+            margin-top: 1.5rem;
             @media screen and (max-width: ${mobileBreakpoint}) {
               font-size: 1.5rem;
             }
