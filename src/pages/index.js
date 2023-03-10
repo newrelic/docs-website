@@ -1,30 +1,20 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useState } from 'react';
 import { navigate } from '@reach/router';
 import { css } from '@emotion/react';
-import cx from 'classnames';
-import { graphql } from 'gatsby';
 import PropTypes from 'prop-types';
+import { graphql } from 'gatsby';
 import {
   Link,
   Icon,
   SearchInput,
-  useInstrumentedHandler,
   useTranslation,
-  useLoggedIn,
+  useInstrumentedHandler,
 } from '@newrelic/gatsby-theme-newrelic';
 import HomepageBanner from '../components/HomepageBanner';
 import { DocTile } from '../components/DocTile';
 import FindYourQuickStart from '../components/FindYourQuickstart';
-import {
-  ToggleSelector,
-  ToggleView,
-  ToggleViewContext,
-  TOGGLE_VIEWS,
-} from '../components/ToggleView';
-import HomepageVideo from '../components/HomepageVideo';
-import styled from '@emotion/styled';
-
-const SAVED_TOGGLE_VIEW_KEY = 'docs-website/homepage-selected-view';
+import { ToggleView, TOGGLE_VIEWS } from '../components/ToggleView';
+import HomepageSlabs from '../components/HomepageSlabs';
 
 const HomePage = ({ data }) => {
   const {
@@ -32,40 +22,9 @@ const HomePage = ({ data }) => {
     allMarkdownRemark: { edges: whatsNewPosts },
   } = data;
 
-  const { loggedIn } = useLoggedIn();
-  const [searchTerm, setSearchTerm] = useState('');
-  const [currentView, setCurrentView] = useState(TOGGLE_VIEWS.newUserView);
-  const hasToggled = useRef(false);
-  const updateView = (id) => {
-    hasToggled.current = true;
-    setCurrentView(id);
-  };
-  const showAnimatedSearchBar = currentView === TOGGLE_VIEWS.newUserView;
-
   const { t } = useTranslation();
 
-  /* `useLocalStorage` hook doesn't work here because SSR doesn't have access to
-   * localStorage, so when it gets to the client, the current tab is already set
-   * and the client doesn't know to update it.
-   *
-   */
-  useEffect(() => {
-    const storedToggleView = window.localStorage.getItem(SAVED_TOGGLE_VIEW_KEY);
-    if (!storedToggleView && loggedIn !== null) {
-      setCurrentView(
-        loggedIn ? TOGGLE_VIEWS.defaultView : TOGGLE_VIEWS.newUserView
-      );
-    }
-    if (storedToggleView) {
-      setCurrentView(storedToggleView);
-    }
-  }, [setCurrentView, loggedIn]);
-
-  useEffect(() => {
-    if (hasToggled.current) {
-      window.localStorage.setItem(SAVED_TOGGLE_VIEW_KEY, currentView);
-    }
-  }, [currentView]);
+  const [searchTerm, setSearchTerm] = useState('');
 
   const mobileBreakpoint = '450px';
 
@@ -78,47 +37,9 @@ const HomePage = ({ data }) => {
   });
 
   return (
-    <ToggleViewContext.Provider value={[currentView, updateView]}>
-      <div
-        css={css`
-          display: grid;
-          gap: 1rem;
-          justify-content: right;
-          grid-template-columns: 1fr max-content;
-          align-items: center;
-
-          @media (max-width: 920px) {
-            grid-template-columns: 1fr auto;
-          }
-        `}
-      >
-        <AnimatedSearchInput
-          placeholder="Search"
-          size={SearchInput.SIZE.SMALL}
-          value={searchTerm || ''}
-          iconName={SearchInput.ICONS.SEARCH}
-          isIconClickable
-          alignIcon={SearchInput.ICON_ALIGNMENT.RIGHT}
-          onChange={(e) => {
-            setSearchTerm(e.target.value);
-          }}
-          onSubmit={() => navigate(`?q=${searchTerm || ''}`)}
-          className={cx(showAnimatedSearchBar && 'visible')}
-        />
-
-        <ToggleSelector
-          css={css`
-            justify-self: end;
-
-            @media screen and (max-width: 760px) {
-              display: none;
-            }
-          `}
-        />
-      </div>
-
+    <>
       <ToggleView id={TOGGLE_VIEWS.newUserView}>
-        <HomepageVideo />
+        <HomepageSlabs />
       </ToggleView>
       <ToggleView id={TOGGLE_VIEWS.defaultView}>
         <h1
@@ -126,6 +47,7 @@ const HomePage = ({ data }) => {
             font-size: 3.5rem;
             font-weight: 500;
             line-height: 1;
+            margin-top: 1.5rem;
             @media screen and (max-width: ${mobileBreakpoint}) {
               font-size: 1.5rem;
             }
@@ -272,7 +194,7 @@ const HomePage = ({ data }) => {
           <FindYourQuickStart />
         </Section>
       </ToggleView>
-    </ToggleViewContext.Provider>
+    </>
   );
 };
 
@@ -300,51 +222,6 @@ HomePage.propTypes = {
   }),
 };
 
-const AnimatedSearchInput = styled(SearchInput)`
-  justify-self: end;
-  width: 150px;
-  transition: width 1200ms cubic-bezier(0.7, 0, 0.35, 1);
-  display: none;
-  &.visible {
-    display: grid;
-  }
-  input {
-    justify-self: end;
-    width: 0.5rem;
-    border: none;
-    background: none;
-    padding-left: 0.75rem;
-    height: 30px;
-  }
-  svg {
-    stroke: #fff;
-    right: 0.75rem;
-    transition: stroke 0.55s ease;
-  }
-  &:focus-within {
-    svg {
-      stroke: var(--erno-black);
-    }
-  }
-  &:hover {
-    width: 150px;
-    svg {
-      stroke: var(--erno-black);
-    }
-  }
-  &:hover input,
-  input:active,
-  input:focus {
-    box-shadow: none;
-    width: 150px;
-    border: 1px solid var(--system-text-primary-light);
-    background: #fff;
-    color: var(--system-text-primary-light);
-    &::placeholder {
-      color: var(--system-text-primary-light);
-    }
-  }
-`;
 export const pageQuery = graphql`
   query($quicklaunchSlug: String!) {
     site {
