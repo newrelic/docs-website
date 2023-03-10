@@ -9,34 +9,16 @@ import frontend from './frontend.png';
 import devops from './devops.png';
 
 // TODO
-// random panel
+// random panel ✅
 // dark/lightmode overhaul
 // add margin to top of default view
 
 const HomepageSlabs = () => {
   const { t } = useTranslation();
   const [sidebar] = useMainLayoutContext();
-  const randomPanelId = Math.ceil(Math.random() * 3);
-  const [activePanel, setActivePanel] = useState(randomPanelId);
+  const [activePanel, setActivePanel] = useState(null);
 
   const isTabletWidth = useMediaQuery('(max-width: 1240px)');
-
-  const normalTransition = {
-    from: {
-      width: '15%',
-    },
-    to: {
-      width: '70%',
-    },
-  };
-  const tabletTransition = {
-    from: {
-      height: '25%',
-    },
-    to: {
-      height: '50%',
-    },
-  };
 
   const [opacitySprings1, opacityApi1] = useSpring(() => {});
 
@@ -58,97 +40,57 @@ const HomepageSlabs = () => {
   };
 
   useEffect(() => {
-    const springConfig = {
-      mass: 1,
-      friction: 36,
-      tension: 170,
-    };
-    const initialPanelState = {
-      from: {
-        width: '33%',
-        height: '100%',
-      },
-      to: {
-        width: '15%',
-      },
-      config: springConfig,
-    };
-    const initialTabletPanelState = {
-      from: {
-        height: '33%',
-        width: '100%',
-      },
-      to: {
-        height: '25%',
-      },
-      config: springConfig,
-    };
-
-    opacityApi1.start({
-      from: { opacity: 0.5 },
-      to: { opacity: 0 },
-    });
-    opacityApi2.start({
-      from: { opacity: 0.5 },
-      to: { opacity: 0.5 },
-    });
-    opacityApi3.start({
-      from: { opacity: 0.5 },
-      to: { opacity: 0.5 },
-    });
-
-    if (isTabletWidth) {
-      for (const apiKey in PANEL_SPRING_APIS) {
-        if (Number(apiKey) === randomPanelId) {
-          PANEL_SPRING_APIS[apiKey].start({
-            from: {
-              height: '25%',
-              width: '100%',
-            },
-            to: {
-              height: '50%',
-            },
-            config: springConfig,
-          });
-        } else {
-          PANEL_SPRING_APIS[apiKey].start(initialTabletPanelState);
-        }
-      }
-    } else {
-      for (const apiKey in PANEL_SPRING_APIS) {
-        if (Number(apiKey) === randomPanelId) {
-          PANEL_SPRING_APIS[apiKey].start({
-            from: {
-              width: '15%',
-              height: '100%',
-            },
-            to: {
-              width: '70%',
-            },
-            config: springConfig,
-          });
-        } else {
-          PANEL_SPRING_APIS[apiKey].start(initialPanelState);
-        }
+    const transition = isTabletWidth ? tabletTransition : normalTransition;
+    const initialTransition = isTabletWidth
+      ? initialTabletPanelState
+      : initialPanelState;
+    for (const apiKey in PANEL_SPRING_APIS) {
+      if (Number(apiKey) === activePanel) {
+        PANEL_SPRING_APIS[apiKey].start(transition);
+        OPACITY_SPRING_APIS[apiKey].start(opacityFadeOut);
+      } else {
+        PANEL_SPRING_APIS[apiKey].start(initialTransition);
+        OPACITY_SPRING_APIS[apiKey].start(opacityFadeIn);
       }
     }
-  }, [PANEL_SPRING_APIS, isTabletWidth, opacityApi1, opacityApi2, opacityApi3]);
+  }, [
+    OPACITY_SPRING_APIS,
+    PANEL_SPRING_APIS,
+    activePanel,
+    isTabletWidth,
+    sidebar,
+  ]);
+
+  useEffect(() => {
+    const randomPanelId = Math.ceil(Math.random() * 3);
+    setActivePanel(randomPanelId);
+
+    const transition = isTabletWidth ? tabletTransition : normalTransition;
+    const initialTransition = isTabletWidth
+      ? initialTabletPanelState
+      : initialPanelState;
+    // without this, on page load the slabs snap to their new locations
+    const startingTransition = isTabletWidth
+      ? {
+          ...initialTransition,
+          from: { ...initialTransition.from, height: '33%' },
+        }
+      : {
+          ...initialTransition,
+          from: { ...initialTransition.from, width: '33%' },
+        };
+    for (const apiKey in PANEL_SPRING_APIS) {
+      if (Number(apiKey) === activePanel) {
+        PANEL_SPRING_APIS[apiKey].start(transition);
+        OPACITY_SPRING_APIS[apiKey].start(opacityFadeOut);
+      } else {
+        PANEL_SPRING_APIS[apiKey].start(startingTransition);
+        OPACITY_SPRING_APIS[apiKey].start(opacityFadeIn);
+      }
+    }
+  }, []);
 
   const handlePanelClick = (panelId) => {
-    if (activePanel !== panelId) {
-      isTabletWidth
-        ? PANEL_SPRING_APIS[panelId].start(tabletTransition)
-        : PANEL_SPRING_APIS[panelId].start(normalTransition);
-      PANEL_SPRING_APIS[activePanel].start({
-        reverse: true,
-      });
-      OPACITY_SPRING_APIS[panelId].start({
-        from: { opacity: 0.5 },
-        to: { opacity: 0 },
-      });
-      OPACITY_SPRING_APIS[activePanel].start({ reverse: true });
-    }
-
     setActivePanel(panelId);
   };
 
@@ -156,6 +98,7 @@ const HomepageSlabs = () => {
     <div
       css={css`
         width: ${sidebar ? 'calc(100vw - var(--sidebar-width))' : '100vw'};
+        /* header and footer heights */
         height: calc(100vh - 72px - 60px);
         display: flex;
 
@@ -313,4 +256,52 @@ const Slab = ({
   );
 };
 
+const springConfig = {
+  mass: 1,
+  friction: 36,
+  tension: 170,
+};
+const normalTransition = {
+  from: {
+    height: '100%',
+  },
+  to: {
+    height: '100%',
+    width: '70%',
+  },
+};
+const tabletTransition = {
+  from: {
+    width: '100%',
+  },
+  to: {
+    height: '50%',
+    width: '100%',
+  },
+};
+const initialPanelState = {
+  from: {
+    height: '100%',
+  },
+  to: {
+    width: '15%',
+  },
+  config: springConfig,
+};
+const initialTabletPanelState = {
+  from: {
+    width: '100%',
+  },
+  to: {
+    height: '25%',
+  },
+  config: springConfig,
+};
+const opacityFadeOut = {
+  from: { opacity: 0.3 },
+  to: { opacity: 0 },
+};
+const opacityFadeIn = {
+  to: { opacity: 0.5 },
+};
 export default HomepageSlabs;

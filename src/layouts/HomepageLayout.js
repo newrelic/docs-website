@@ -132,6 +132,7 @@ const HomepageLayout = ({ children, pageContext, sidebarOpen = true }) => {
                   ? 'black'
                   : 'var(--primary-background-color)'};
                 position: relative;
+                max-width: unset;
 
                 ${!sidebar &&
                 currentView === TOGGLE_VIEWS.newUserView &&
