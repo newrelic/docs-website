@@ -1,11 +1,14 @@
 import React, { cloneElement } from 'react';
 import { Icon, Surface, Tag } from '@newrelic/gatsby-theme-newrelic';
+import cx from 'classnames';
 import SurfaceLink from './SurfaceLink';
 import { css } from '@emotion/react';
 import PropTypes from 'prop-types';
+import { animated, useTrail } from 'react-spring';
 
 export const DocTile = ({
   children,
+  forceLightMode = false,
   path,
   instrumentation,
   label,
@@ -18,17 +21,20 @@ export const DocTile = ({
     to={path}
     interactive
     instrumentation={instrumentation}
+    className={cx({ forceLightMode }, className)}
     css={css`
       display: block;
       min-height: 130px;
       border-radius: 4px;
       background: var(--secondary-background-color);
 
-      .dark-mode & {
-        background: var(--secondary-background-color);
+      &.forceLightMode {
+        background: var(--system-background-surface-1-light);
+      }
+      &.forceLightMode * {
+        color: var(--system-text-primary-light);
       }
     `}
-    className={className}
   >
     <div
       css={css`
@@ -122,28 +128,60 @@ DocTile.propTypes = {
   path: PropTypes.string,
   number: PropTypes.number,
   className: PropTypes.string,
+  forceLightMode: PropTypes.bool,
 };
 
-export const DocTiles = ({ children, numbered = false }) => (
-  <div
-    css={css`
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(255px, 1fr));
-      grid-auto-rows: 1fr;
-      grid-gap: 1rem;
-      a {
-        margin: 0;
-      }
-      margin: 1rem 0;
-    `}
-  >
-    {numbered
-      ? children.map((child, idx) => cloneElement(child, { number: ++idx }))
-      : children}
-  </div>
-);
+const SPRING = { tension: 186, friction: 16 };
+
+export const DocTiles = ({
+  animated: isAnimated,
+  children,
+  numbered = false,
+}) => {
+  const trails = useTrail(children.length, {
+    config: SPRING,
+    from: { opacity: 0, y: 124 },
+    to: { opacity: 1, y: 0 },
+  });
+  let tiles = numbered
+    ? children.map((child, idx) => cloneElement(child, { number: ++idx }))
+    : children;
+
+  if (isAnimated) {
+    tiles = tiles.map((child, idx) => (
+      <animated.div
+        css={css`
+          display: grid;
+          height: 100%;
+        `}
+        key={idx}
+        style={trails[idx]}
+      >
+        {child}
+      </animated.div>
+    ));
+  }
+
+  return (
+    <div
+      css={css`
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(255px, 1fr));
+        grid-auto-rows: 1fr;
+        grid-gap: 1rem;
+        a {
+          margin: 0;
+        }
+        margin: 1rem 0;
+      `}
+    >
+      {tiles}
+    </div>
+  );
+};
 
 DocTiles.propTypes = {
+  animated: PropTypes.bool,
   children: PropTypes.node,
   numbered: PropTypes.bool,
 };
