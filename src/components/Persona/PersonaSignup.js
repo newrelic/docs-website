@@ -15,10 +15,6 @@ import RecaptchaFooter from '@newrelic/gatsby-theme-newrelic/src/components/Sign
 
 const MOBILE_BREAKPOINT = '600px';
 
-/**
- * [VSU] This component allows users to sign up inline in a doc.
- * It only renders if the current user is not logged in.
- */
 export const PersonaSignup = ({ className }) => {
   const [error, setError] = useState(null);
   const [open, setOpen] = useState(true);
@@ -50,7 +46,9 @@ export const PersonaSignup = ({ className }) => {
     <Wrapper open={open}>
       <Form onSubmit={onSubmit} className={className}>
         <CTAText>{t('personaSignup.terms')}</CTAText>
-        <Close name="x" onClick={() => setOpen(false)} />
+        <Close aria-label="Close" onClick={() => setOpen(false)}>
+          <Icon name="x" />
+        </Close>
         <InputContainer>
           <label className="screenreader-only" htmlFor="inline-signup-name">
             {t('inlineSignup.nameLabel')}
@@ -118,7 +116,9 @@ export const PersonaSignup = ({ className }) => {
   );
 };
 
-const Close = styled(Icon)`
+const Close = styled.button`
+  background: transparent;
+  border: none;
   color: white;
   position: absolute;
   right: 16px;
