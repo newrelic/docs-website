@@ -1,12 +1,27 @@
 // VSU
 import React from 'react';
 import { css } from '@emotion/react';
-import { Button, Link, Icon } from '@newrelic/gatsby-theme-newrelic';
+import {
+  Button,
+  Link,
+  Icon,
+  useInstrumentedHandler,
+} from '@newrelic/gatsby-theme-newrelic';
 import lines from './bannerLines.svg';
 
 const DocPageBanner = ({ text, cta, url, height, onClose }) => {
   const ctaWithDefault = cta ?? 'Start now';
   const urlWithDefault = url ?? 'https://newrelic.com/signup';
+
+  const handleBannerDismiss = useInstrumentedHandler(
+    () => {
+      onClose();
+    },
+    {
+      eventName: 'dismiss',
+      category: 'DocBanner',
+    }
+  );
   return (
     <div
       css={css`
@@ -36,7 +51,7 @@ const DocPageBanner = ({ text, cta, url, height, onClose }) => {
           /* grid causes a 1 pixel gap on either side of the main body */
           left: -1px;
           width: calc(100% + 1px);
-          padding: 1.5rem;
+          padding: 1.5rem 2rem 1.5rem 1.5rem;
           background-image: url(${lines});
           background-position: right;
           background-repeat: no-repeat;
@@ -66,20 +81,27 @@ const DocPageBanner = ({ text, cta, url, height, onClose }) => {
         >
           {ctaWithDefault}
         </Button>
-        {onClose && (
-          <Icon
-            name="fe-x"
-            css={css`
-              color: white;
-              position: absolute;
-              top: 3px;
-              right: 3px;
-            `}
-            onClick={onClose}
-            instrumentation={{ component: 'docBannerDismiss' }}
-          />
-        )}
       </div>
+      <Button
+        css={css`
+          position: absolute;
+          top: 0;
+          right: 0;
+          background: none;
+          border: none;
+          padding: 8px;
+        `}
+        variant={Button.VARIANT.SIMPLE}
+        onClick={handleBannerDismiss}
+        aria-label="close"
+      >
+        <Icon
+          name="fe-x"
+          css={css`
+            color: white;
+          `}
+        />
+      </Button>
     </div>
   );
 };
