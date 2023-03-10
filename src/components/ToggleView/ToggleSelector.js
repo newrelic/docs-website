@@ -11,7 +11,6 @@ import { useToggleViewContext } from './ToggleViewContext';
 
 import Tooltip from '../Tooltip';
 
-const SAVED_TOGGLE_VIEW_KEY = 'docs-website/homepage-selected-view';
 export const TOGGLE_VIEWS = {
   newUserView: 'new-user-view',
   defaultView: 'default-view',
@@ -19,21 +18,10 @@ export const TOGGLE_VIEWS = {
 
 const mobileBreakpoint = '450px';
 
-const ToggleSelector = ({ className }) => {
+const ToggleSelector = ({ className, showTooltip }) => {
   const [currentView, setCurrentView] = useToggleViewContext();
   const tessen = useTessen();
   const { t } = useTranslation();
-
-  /* this check prevents the tooltip from continuing to show
-   * on each render of the defaultview if it's triggered
-   * by the user selecting the toggle buttons which sets the local
-   * storage key
-   */
-
-  const showTooltip =
-    currentView === TOGGLE_VIEWS.defaultView &&
-    window.localStorage.getItem(SAVED_TOGGLE_VIEW_KEY) !==
-      TOGGLE_VIEWS.newUserView;
 
   return (
     <div
