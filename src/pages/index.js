@@ -1,20 +1,28 @@
-import React, { useState } from 'react';
-import PropTypes from 'prop-types';
+import React, { useEffect, useRef, useState } from 'react';
 import { navigate } from '@reach/router';
 import { css } from '@emotion/react';
 import { graphql } from 'gatsby';
+import PropTypes from 'prop-types';
 import {
   Link,
   Icon,
   SearchInput,
-  Surface,
   useInstrumentedHandler,
   useTranslation,
-  Tag,
+  useLoggedIn,
 } from '@newrelic/gatsby-theme-newrelic';
-import SurfaceLink from '../components/SurfaceLink';
 import HomepageBanner from '../components/HomepageBanner';
+import { DocTile } from '../components/DocTile';
 import FindYourQuickStart from '../components/FindYourQuickstart';
+import {
+  ToggleSelector,
+  ToggleView,
+  ToggleViewContext,
+  TOGGLE_VIEWS,
+} from '../components/ToggleView';
+import HomepageVideo from '../components/HomepageVideo';
+
+const SAVED_TOGGLE_VIEW_KEY = 'docs-website/homepage-selected-view';
 
 const HomePage = ({ data }) => {
   const {
@@ -22,9 +30,39 @@ const HomePage = ({ data }) => {
     allMarkdownRemark: { edges: whatsNewPosts },
   } = data;
 
+  const { loggedIn } = useLoggedIn();
   const [searchTerm, setSearchTerm] = useState('');
+  const hasToggled = useRef(false);
+  const [currentView, setCurrentView] = useState(TOGGLE_VIEWS.newUserView);
+  const updateView = (id) => {
+    hasToggled.current = true;
+    setCurrentView(id);
+  };
 
   const { t } = useTranslation();
+
+  /* `useLocalStorage` hook doesn't work here because SSR doesn't have access to
+   * localStorage, so when it gets to the client, the current tab is already set
+   * and the client doesn't know to update it.
+   *
+   */
+  useEffect(() => {
+    const storedToggleView = window.localStorage.getItem(SAVED_TOGGLE_VIEW_KEY);
+    if (!storedToggleView && loggedIn !== null) {
+      setCurrentView(
+        loggedIn ? TOGGLE_VIEWS.defaultView : TOGGLE_VIEWS.newUserView
+      );
+    }
+    if (storedToggleView) {
+      setCurrentView(storedToggleView);
+    }
+  }, [setCurrentView, loggedIn]);
+
+  useEffect(() => {
+    if (hasToggled.current) {
+      window.localStorage.setItem(SAVED_TOGGLE_VIEW_KEY, currentView);
+    }
+  }, [currentView]);
 
   const mobileBreakpoint = '450px';
 
@@ -37,153 +75,187 @@ const HomePage = ({ data }) => {
   });
 
   return (
-    <>
-      <h1
-        css={css`
-          font-size: 3.5rem;
-          font-weight: 500;
-          line-height: 1;
-          @media screen and (max-width: ${mobileBreakpoint}) {
-            font-size: 1.5rem;
-          }
-        `}
-      >
-        {t('home.pageTitle')}
-      </h1>
-      <SearchInput
-        placeholder={t('home.search.placeholder')}
-        size={SearchInput.SIZE.LARGE}
-        value={searchTerm || ''}
-        iconName={SearchInput.ICONS.SEARCH}
-        isIconClickable
-        alignIcon={SearchInput.ICON_ALIGNMENT.RIGHT}
-        onChange={(e) => setSearchTerm(e.target.value)}
-        onSubmit={() => navigate(`?q=${searchTerm || ''}`)}
-        css={css`
-          @media screen and (max-width: ${mobileBreakpoint}) {
-            margin-bottom: 1rem;
-          }
-        `}
-      />
+    <ToggleViewContext.Provider value={[currentView, updateView]}>
       <div
         css={css`
-          margin-top: 1rem;
-          width: 40%;
-          display: flex;
-          width: 100%;
-          margin-bottom: 1rem;
-          flex-wrap: wrap;
-          a {
-            margin-left: 0.75rem;
-          }
-          @media screen and (max-width: ${mobileBreakpoint}) {
-            display: none;
+          display: grid;
+          gap: 1rem;
+          justify-content: space-between;
+          grid-template-columns: 1fr max-content;
+          align-items: center;
+
+          @media (max-width: 920px) {
+            grid-template-columns: 1fr auto;
           }
         `}
       >
-        <p>{t('home.search.popularSearches.title')}: </p>
-        <Link to="?q=nrql">{t('home.search.popularSearches.options.0')}</Link>
-        <Link to="?q=logs">{t('home.search.popularSearches.options.1')}</Link>
-        <Link to="?q=alert">{t('home.search.popularSearches.options.2')}</Link>
-        <Link to="?q=best practices">
-          {t('home.search.popularSearches.options.3')}
-        </Link>
-        <Link to="?q=kubernetes">
-          {t('home.search.popularSearches.options.4')}
-        </Link>
+        <ToggleSelector
+          css={css`
+            justify-self: end;
+
+            @media screen and (max-width: 760px) {
+              display: none;
+            }
+          `}
+        />
       </div>
-      <HomepageBanner />
-      <Section
-        layout={layout}
-        css={css`
-          border: none;
-          background: var(--tertiary-background-color);
-        `}
-      >
-        <SectionTitle title={t('home.popularDocs.title')} />
-        <div
+
+      <ToggleView id={TOGGLE_VIEWS.newUserView}>
+        <HomepageVideo />
+      </ToggleView>
+      <ToggleView id={TOGGLE_VIEWS.defaultView}>
+        <h1
           css={css`
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            grid-gap: 1rem;
-            counter-reset: welcome-tile;
-            flex: 2;
-            align-self: flex-start;
-            @media screen and (max-width: 1500px) {
-              align-self: auto;
-            }
-
-            @media screen and (max-width: 1050px) {
-              grid-template-columns: 1fr;
-            }
-
-            @media screen and (max-width: 760px) {
-              grid-template-columns: repeat(3, 1fr);
-            }
-
-            @media screen and (max-width: 650px) {
-              grid-template-columns: 1fr;
+            font-size: 3.5rem;
+            font-weight: 500;
+            line-height: 1;
+            @media screen and (max-width: ${mobileBreakpoint}) {
+              font-size: 1.5rem;
             }
           `}
         >
-          <DocTile
-            title={t('home.popularDocs.t1.title')}
-            label={{ text: 'Get started', color: '#F4CBE7' }}
-            path="/docs/apm/new-relic-apm/getting-started/introduction-apm"
-          />
-          <DocTile
-            title={t('home.popularDocs.t2.title')}
-            label={{ text: 'Security', color: '#FCD672' }}
-            path="/docs/vulnerability-management/overview"
-          />
-          <DocTile
-            title={t('home.popularDocs.t3.title')}
-            label={{ text: 'APM', color: '#AFE2E3' }}
-            path="/install/java/"
-          />
+          {t('home.pageTitle')}
+        </h1>
+        <SearchInput
+          placeholder={t('home.search.placeholder')}
+          size={SearchInput.SIZE.LARGE}
+          value={searchTerm || ''}
+          iconName={SearchInput.ICONS.SEARCH}
+          isIconClickable
+          alignIcon={SearchInput.ICON_ALIGNMENT.RIGHT}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          onSubmit={() => navigate(`?q=${searchTerm || ''}`)}
+          css={css`
+            @media screen and (max-width: ${mobileBreakpoint}) {
+              margin-bottom: 1rem;
+            }
+          `}
+        />
+        <div
+          css={css`
+            margin-top: 1rem;
+            width: 40%;
+            display: flex;
+            width: 100%;
+            flex-wrap: wrap;
+            a {
+              margin-left: 0.75rem;
+            }
+            @media screen and (max-width: ${mobileBreakpoint}) {
+              display: none;
+            }
+          `}
+        >
+          <p>{t('home.search.popularSearches.title')}: </p>
+          <Link to="?q=nrql">{t('home.search.popularSearches.options.0')}</Link>
+          <Link to="?q=logs">{t('home.search.popularSearches.options.1')}</Link>
+          <Link to="?q=alert">
+            {t('home.search.popularSearches.options.2')}
+          </Link>
+          <Link to="?q=best practices">
+            {t('home.search.popularSearches.options.3')}
+          </Link>
+          <Link to="?q=kubernetes">
+            {t('home.search.popularSearches.options.4')}
+          </Link>
         </div>
-      </Section>
-      <Section layout={layout}>
-        <SectionTitle title={t('home.whatsNew.title')} />
-        <div
+        <HomepageBanner />
+        <Section
+          layout={layout}
           css={css`
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            grid-gap: 1rem;
-            counter-reset: welcome-tile;
-            flex: 2;
-            align-self: flex-start;
-            @media screen and (max-width: 1500px) {
-              align-self: auto;
-            }
-
-            @media screen and (max-width: 1050px) {
-              grid-template-columns: 1fr;
-            }
-
-            @media screen and (max-width: 760px) {
-              grid-template-columns: repeat(3, 1fr);
-            }
-
-            @media screen and (max-width: 650px) {
-              grid-template-columns: 1fr;
-            }
+            border: none;
+            background: var(--tertiary-background-color);
           `}
         >
-          {latestWhatsNewPosts.map((post) => (
+          <SectionTitle title={t('home.popularDocs.title')} />
+          <div
+            css={css`
+              display: grid;
+              grid-template-columns: repeat(3, 1fr);
+              grid-gap: 1rem;
+              counter-reset: welcome-tile;
+              flex: 2;
+              align-self: flex-start;
+              @media screen and (max-width: 1500px) {
+                align-self: auto;
+              }
+
+              @media screen and (max-width: 1050px) {
+                grid-template-columns: 1fr;
+              }
+
+              @media screen and (max-width: 760px) {
+                grid-template-columns: repeat(3, 1fr);
+              }
+
+              @media screen and (max-width: 650px) {
+                grid-template-columns: 1fr;
+              }
+            `}
+          >
             <DocTile
-              key={post.title}
-              title={post.title}
-              date={post.releaseDate}
-              path={post.path}
-            />
-          ))}
-        </div>
-      </Section>
-      <Section layout={layout}>
-        <FindYourQuickStart />
-      </Section>
-    </>
+              label={{ text: 'Get started', color: '#F4CBE7' }}
+              path="/docs/apm/new-relic-apm/getting-started/introduction-apm"
+            >
+              {t('home.popularDocs.t1.title')}
+            </DocTile>
+            <DocTile
+              label={{ text: 'Get started', color: '#F4CBE7' }}
+              path="/docs/browser/browser-monitoring/getting-started/introduction-browser-monitoring/"
+            >
+              {t('home.popularDocs.t2.title')}
+            </DocTile>
+            <DocTile
+              label={{ text: 'Get started', color: '#F4CBE7' }}
+              path="/docs/synthetics/synthetic-monitoring/getting-started/get-started-synthetic-monitoring/"
+            >
+              {t('home.popularDocs.t3.title')}
+            </DocTile>
+          </div>
+        </Section>
+        <Section layout={layout}>
+          <SectionTitle title={t('home.whatsNew.title')} />
+          <div
+            css={css`
+              display: grid;
+              grid-template-columns: repeat(3, 1fr);
+              grid-gap: 1rem;
+              counter-reset: welcome-tile;
+              flex: 2;
+              align-self: flex-start;
+              @media screen and (max-width: 1500px) {
+                align-self: auto;
+              }
+
+              @media screen and (max-width: 1050px) {
+                grid-template-columns: 1fr;
+              }
+
+              @media screen and (max-width: 760px) {
+                grid-template-columns: repeat(3, 1fr);
+              }
+
+              @media screen and (max-width: 650px) {
+                grid-template-columns: 1fr;
+              }
+            `}
+          >
+            {latestWhatsNewPosts.map((post) => (
+              <DocTile
+                key={post.title}
+                date={post.releaseDate}
+                path={post.path}
+              >
+                {post.title}
+              </DocTile>
+            ))}
+          </div>
+        </Section>
+        <Section layout={layout}>
+          <FindYourQuickStart />
+        </Section>
+      </ToggleView>
+    </ToggleViewContext.Provider>
   );
 };
 
@@ -212,10 +284,16 @@ HomePage.propTypes = {
 };
 
 export const pageQuery = graphql`
-  query {
+  query($quicklaunchSlug: String!) {
     site {
       layout {
         contentPadding
+      }
+    }
+    quicklaunch: mdx(slug: { eq: $quicklaunchSlug }) {
+      body
+      frontmatter {
+        title
       }
     }
     allMarkdownRemark(
@@ -316,112 +394,6 @@ SectionTitle.propTypes = {
   title: PropTypes.string,
   icon: PropTypes.elementType,
   to: PropTypes.string,
-};
-
-const DocTile = ({ title, path, instrumentation, label, date }) => (
-  <SurfaceLink
-    base={Surface.BASE.SECONDARY}
-    to={path}
-    interactive
-    instrumentation={instrumentation}
-    css={css`
-      min-height: 130px;
-      border-radius: 4px;
-      background: var(--secondary-background-color);
-
-      .dark-mode & {
-        background: var(--secondary-background-color);
-      }
-
-      @media screen and (max-width: 1050px) {
-        &:not(:last-child) {
-          margin-bottom: 2rem;
-        }
-      }
-
-      @media screen and (max-width: 760px) {
-        && {
-          margin-bottom: 0;
-        }
-      }
-
-      @media screen and (max-width: 650px) {
-        font-size: 14px;
-        &:not(:last-child) {
-          margin-bottom: 2rem;
-        }
-      }
-    `}
-  >
-    <div
-      css={css`
-        display: flex;
-        flex-direction: column;
-        height: 100%;
-        justify-content: space-between;
-        align-items: space-between;
-        padding: 2rem;
-
-        @media screen and (max-width: 650px) {
-          padding: 1.5rem;
-        }
-      `}
-    >
-      <h4
-        css={css`
-          margin-bottom: 1rem;
-          font-weight: 400;
-          font-size: 20px;
-        `}
-      >
-        {title}
-      </h4>
-      <div
-        css={css`
-          display: flex;
-          justify-content: space-between;
-        `}
-      >
-        {label && (
-          <Tag
-            css={css`
-              background: ${label.color};
-              color: var(--system-text-primary-light);
-
-              .dark-mode & {
-                background: ${label.color};
-                color: var(--system-text-primary-light);
-              }
-            `}
-          >
-            {label.text}
-          </Tag>
-        )}
-        {date && (
-          <Tag
-            css={css`
-              color: var(--primary-text-color);
-            `}
-          >
-            {date}
-          </Tag>
-        )}
-        <Icon
-          name="fe-arrow-right"
-          css={css`
-            color: var(--primary-text-color);
-          `}
-        />
-      </div>
-    </div>
-  </SurfaceLink>
-);
-
-DocTile.propTypes = {
-  label: PropTypes.array,
-  title: PropTypes.string,
-  date: PropTypes.string,
-  instrumentation: PropTypes.object,
 };
 
 export default HomePage;

@@ -11,6 +11,7 @@ import {
   RelatedResources,
   ComplexFeedback,
   TableOfContents,
+  LoggedInProvider,
 } from '@newrelic/gatsby-theme-newrelic';
 import MachineTranslationCallout from '../components/MachineTranslationCallout';
 import SEO from '../components/SEO';
@@ -43,7 +44,7 @@ const BasicDoc = ({ data, location, pageContext }) => {
     fields: { fileRelativePath },
     relatedResources,
   } = mdx;
-  const { disableSwiftype } = pageContext;
+  const { disableSwiftype, hideNavs } = pageContext;
 
   const headings = useMemo(() => {
     const slugs = new GithubSlugger();
@@ -78,6 +79,7 @@ const BasicDoc = ({ data, location, pageContext }) => {
   if (isTutorial) {
     type = 'tutorial';
   }
+
   return (
     <>
       <SEO
@@ -99,6 +101,10 @@ const BasicDoc = ({ data, location, pageContext }) => {
           grid-template-columns: minmax(0, 1fr) 320px;
           grid-column-gap: 2rem;
 
+          iframe {
+            max-width: 100%;
+          }
+
           @media screen and (max-width: 1240px) {
             grid-template-areas:
               'mt-disclaimer'
@@ -107,6 +113,22 @@ const BasicDoc = ({ data, location, pageContext }) => {
               'page-tools';
             grid-template-columns: minmax(0, 1fr);
           }
+          ${hideNavs &&
+          css`
+            grid-template-areas:
+              'mt-disclaimer'
+              'page-title page'
+              'content';
+              grid-template-columns: 1fr;
+
+            @media screen and (max-width: 1240px) {
+              grid-template-areas:
+                'mt-disclaimer'
+                'page-title'
+                'content'
+              grid-template-columns: minmax(0, 1fr);
+            }
+          `}
         `}
       >
         {translationType === 'machine' && (
@@ -119,31 +141,35 @@ const BasicDoc = ({ data, location, pageContext }) => {
         )}
         <PageTitle>{title}</PageTitle>
 
-        <Layout.Content>
-          <MDXContainer body={body} />
-        </Layout.Content>
-        <Layout.PageTools
-          css={css`
-            @media screen and (max-width: 1240px) {
-              margin-top: 1rem;
-              position: static;
-            }
-          `}
-        >
-          <ContributingGuidelines
-            pageTitle={title}
-            fileRelativePath={fileRelativePath}
-            issueLabels={['feedback', 'feedback-issue']}
-          />
-          <TableOfContents headings={headings} />
-          <ComplexFeedback pageTitle={title} />
-          <RelatedResources
-            resources={relatedResources}
+        <LoggedInProvider>
+          <Layout.Content>
+            <MDXContainer body={body} />
+          </Layout.Content>
+        </LoggedInProvider>
+        {!hideNavs && (
+          <Layout.PageTools
             css={css`
-              border-top: 1px solid var(--divider-color);
+              @media screen and (max-width: 1240px) {
+                margin-top: 1rem;
+                position: static;
+              }
             `}
-          />
-        </Layout.PageTools>
+          >
+            <ContributingGuidelines
+              pageTitle={title}
+              fileRelativePath={fileRelativePath}
+              issueLabels={['feedback', 'feedback-issue']}
+            />
+            <TableOfContents headings={headings} />
+            <ComplexFeedback pageTitle={title} />
+            <RelatedResources
+              resources={relatedResources}
+              css={css`
+                border-top: 1px solid var(--divider-color);
+              `}
+            />
+          </Layout.PageTools>
+        )}
       </div>
     </>
   );

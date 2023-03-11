@@ -82,7 +82,7 @@ const NavItem = ({
         --icon-spacing: 0.5rem;
         --nav-link-padding: 1rem;
         display: ${matchesSearch || !searchTerm ? 'block' : 'none'};
-        padding-left: ${parent == null ? '0' : 'var(--nav-link-padding)'};
+        padding-left: ${parent == null ? '8px' : 'var(--nav-link-padding)'};
         border-left: ${parent == null ? 'none' : 'solid #0D374A 2px'};
         span {
           font-weight: 700;
