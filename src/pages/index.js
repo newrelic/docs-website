@@ -34,7 +34,7 @@ const HomePage = ({ data }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const hasToggled = useRef(false);
   const [currentView, setCurrentView] = useState(TOGGLE_VIEWS.newUserView);
-  const [showTooltip, setShowTooltip] = useState();
+  const [showTooltip, setShowTooltip] = useState(); // used for tooltip
   const updateView = (id) => {
     hasToggled.current = true;
     setCurrentView(id);
@@ -56,14 +56,17 @@ const HomePage = ({ data }) => {
     if (!storedToggleView && loggedIn !== null) {
       setCurrentView(chooseViewByLoggedIn);
     }
+
     /* prevents the tooltip from continuing to show on every render
      * of the defaultview if it's triggered by the toggle buttons
      * and only on initial page load to defaultview
      */
-    setShowTooltip(
-      storedToggleView === TOGGLE_VIEWS.defaultView ||
-        chooseViewByLoggedIn === TOGGLE_VIEWS.defaultView
-    );
+    if (loggedIn) {
+      setShowTooltip(storedToggleView !== TOGGLE_VIEWS.newUserView);
+    } else if (!loggedIn) {
+      setShowTooltip(storedToggleView === TOGGLE_VIEWS.defaultView);
+    }
+
     if (storedToggleView) {
       setCurrentView(storedToggleView);
     }
