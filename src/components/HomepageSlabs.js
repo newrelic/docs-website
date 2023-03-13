@@ -326,22 +326,23 @@ const Blurb = styled.p`
   /* even with the delay */
   width: 62vw;
 
+  @media (max-width: 1420px) {
+    width: 57vw;
+  }
+
   @media (max-width: 1240px) {
     width: 70vw;
   }
 
-  @media (max-width: 820px) {
+  @media (max-width: 880px) {
     width: 57vw;
   }
 `;
 
 const DocTiles = styled(DocTilesBase)`
   @media screen and (max-width: 1240px) {
-    grid-template-columns: repeat(auto-fit, minmax(225px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(175px, 1fr));
     max-width: 78%;
-  }
-  @media screen and (max-width: 820px) {
-    max-width: 60%;
   }
 `
 
@@ -363,6 +364,16 @@ const DocTile = styled(DocTileBase)`
     & > div {
       gap: 0.25rem;
       padding: 1rem;
+    }
+  }
+  @media screen and (max-width: 880px) {
+    & h4 {
+      font-size: 18px;
+    }
+
+    & > div {
+      gap: 0.25rem;
+      padding: 0.75rem;
     }
   }
 `;
