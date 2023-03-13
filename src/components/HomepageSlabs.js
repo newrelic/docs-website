@@ -5,7 +5,7 @@ import { useSpring, animated, useTransition } from '@react-spring/web';
 import { useTranslation } from '@newrelic/gatsby-theme-newrelic';
 
 import { useMainLayoutContext } from './MainLayoutContext';
-import { DocTiles, DocTile as DocTileBase } from '../components/DocTile';
+import { DocTiles as DocTilesBase, DocTile as DocTileBase } from '../components/DocTile';
 import useMediaQuery from '../hooks/useMediaQuery';
 import backend from './backend.png';
 import frontend from './frontend.png';
@@ -263,6 +263,7 @@ const Slab = ({
         background-position: center bottom -95px;
         padding-top: 3.5rem;
         min-width: 240px;
+        overflow: hidden;
         position: relative;
 
         h1,
@@ -280,6 +281,7 @@ const Slab = ({
           width: 100%;
           background-size: 800px auto;
           background-position: right -200px top 20%;
+          padding-top: 4.5rem;
           h1 {
             font-size: 48px;
           }
@@ -319,8 +321,29 @@ const Slab = ({
 const Blurb = styled.p`
   font-size: 20px;
   line-height: 1.5;
-  max-width: 85%;
+  /* using vws here because a percentage causes the text */
+  /* to jumble around while the slide animation is playing, */
+  /* even with the delay */
+  width: 62vw;
+
+  @media (max-width: 1240px) {
+    width: 70vw;
+  }
+
+  @media (max-width: 820px) {
+    width: 57vw;
+  }
 `;
+
+const DocTiles = styled(DocTilesBase)`
+  @media screen and (max-width: 1240px) {
+    grid-template-columns: repeat(auto-fit, minmax(225px, 1fr));
+    max-width: 78%;
+  }
+  @media screen and (max-width: 820px) {
+    max-width: 60%;
+  }
+`
 
 const DocTile = styled(DocTileBase)`
   & > div {
@@ -331,6 +354,15 @@ const DocTile = styled(DocTileBase)`
 
     & h4 {
       margin: 0;
+    }
+  }
+
+  @media screen and (max-width: 1240px) {
+    min-height: unset;
+
+    & > div {
+      gap: 0.25rem;
+      padding: 1rem;
     }
   }
 `;

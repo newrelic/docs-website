@@ -134,6 +134,7 @@ DocTile.propTypes = {
 const SPRING = { tension: 186, friction: 16 };
 
 export const DocTiles = ({
+  className,
   animated: isAnimated,
   children,
   numbered = false,
@@ -175,6 +176,7 @@ export const DocTiles = ({
         }
         margin: 1rem 0;
       `}
+      className={className}
     >
       {tiles}
     </div>
