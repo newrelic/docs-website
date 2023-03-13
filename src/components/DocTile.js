@@ -142,6 +142,7 @@ export const DocTiles = ({
     config: SPRING,
     from: { opacity: 0, y: 124 },
     to: { opacity: 1, y: 0 },
+    delay: 400,
   });
   let tiles = numbered
     ? children.map((child, idx) => cloneElement(child, { number: ++idx }))

@@ -1,17 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { css } from '@emotion/react';
+import styled from '@emotion/styled';
 import { useSpring, animated, useTransition } from '@react-spring/web';
 import { useTranslation } from '@newrelic/gatsby-theme-newrelic';
+
 import { useMainLayoutContext } from './MainLayoutContext';
+import { DocTiles, DocTile as DocTileBase } from '../components/DocTile';
 import useMediaQuery from '../hooks/useMediaQuery';
 import backend from './backend.png';
 import frontend from './frontend.png';
 import devops from './devops.png';
-
-// TODO
-// random panel ✅
-// dark/lightmode overhaul
-// add margin to top of default view
 
 const HomepageSlabs = () => {
   const { t } = useTranslation();
@@ -20,16 +18,16 @@ const HomepageSlabs = () => {
 
   const isTabletWidth = useMediaQuery('(max-width: 1240px)');
 
+  const [textOpacitySprings1, textOpacityApi1] = useSpring(() => {});
+  const [textOpacitySprings2, textOpacityApi2] = useSpring(() => {});
+  const [textOpacitySprings3, textOpacityApi3] = useSpring(() => {});
+
   const [opacitySprings1, opacityApi1] = useSpring(() => {});
-
   const [opacitySprings2, opacityApi2] = useSpring(() => {});
-
   const [opacitySprings3, opacityApi3] = useSpring(() => {});
 
   const [panelSprings1, panelApi1] = useSpring(() => {});
-
   const [panelSprings2, panelApi2] = useSpring(() => {});
-
   const [panelSprings3, panelApi3] = useSpring(() => {});
 
   const PANEL_SPRING_APIS = { 1: panelApi1, 2: panelApi2, 3: panelApi3 };
@@ -37,6 +35,11 @@ const HomepageSlabs = () => {
     1: opacityApi1,
     2: opacityApi2,
     3: opacityApi3,
+  };
+  const TEXT_OPACITY_SPRING_APIS = {
+    1: textOpacityApi1,
+    2: textOpacityApi2,
+    3: textOpacityApi3,
   };
 
   useEffect(() => {
@@ -48,9 +51,11 @@ const HomepageSlabs = () => {
       if (Number(apiKey) === activePanel) {
         PANEL_SPRING_APIS[apiKey].start(transition);
         OPACITY_SPRING_APIS[apiKey].start(opacityFadeOut);
+        TEXT_OPACITY_SPRING_APIS[apiKey].start(textOpacityFadeIn);
       } else {
         PANEL_SPRING_APIS[apiKey].start(initialTransition);
         OPACITY_SPRING_APIS[apiKey].start(opacityFadeIn);
+        TEXT_OPACITY_SPRING_APIS[apiKey].start(textOpacityFadeOut);
       }
     }
   }, [
@@ -82,9 +87,11 @@ const HomepageSlabs = () => {
     for (const apiKey in PANEL_SPRING_APIS) {
       if (Number(apiKey) === activePanel) {
         PANEL_SPRING_APIS[apiKey].start(transition);
+        TEXT_OPACITY_SPRING_APIS[apiKey].start(textOpacityFadeIn);
         OPACITY_SPRING_APIS[apiKey].start(opacityFadeOut);
       } else {
         PANEL_SPRING_APIS[apiKey].start(startingTransition);
+        TEXT_OPACITY_SPRING_APIS[apiKey].start(textOpacityFadeOut);
         OPACITY_SPRING_APIS[apiKey].start(opacityFadeIn);
       }
     }
@@ -120,7 +127,7 @@ const HomepageSlabs = () => {
         panelId={1}
         css={css`
           background-image: url(${frontend});
-          > div {
+          > div:first-child {
             background-color: #fac632;
           }
           ${activePanel !== 1 &&
@@ -131,7 +138,24 @@ const HomepageSlabs = () => {
             background-position: right -80px top 20%;
           }
         `}
-      />
+      >
+        <animated.div style={textOpacitySprings1}>
+          {activePanel === 1 && <Blurb>{t('home.personas.blurbs.1')}</Blurb>}
+        </animated.div>
+        {activePanel === 1 && (
+          <DocTiles animated>
+            <DocTile forceLightMode path="/">
+              {t('home.personas.tiles.1.0')}
+            </DocTile>
+            <DocTile forceLightMode path="/">
+              {t('home.personas.tiles.1.1')}
+            </DocTile>
+            <DocTile forceLightMode path="/">
+              {t('home.personas.tiles.1.2')}
+            </DocTile>
+          </DocTiles>
+        )}
+      </Slab>
       <Slab
         style={panelSprings2}
         opacitySprings={opacitySprings2}
@@ -145,11 +169,28 @@ const HomepageSlabs = () => {
         panelId={2}
         css={css`
           background-image: url(${backend});
-          > div {
+          > div:first-child {
             background-color: #f547be;
           }
         `}
-      />
+      >
+        <animated.div style={textOpacitySprings2}>
+          {activePanel === 2 && <Blurb>{t('home.personas.blurbs.2')}</Blurb>}
+        </animated.div>
+        {activePanel === 2 && (
+          <DocTiles animated>
+            <DocTile forceLightMode path="/">
+              {t('home.personas.tiles.2.0')}
+            </DocTile>
+            <DocTile forceLightMode path="/">
+              {t('home.personas.tiles.2.1')}
+            </DocTile>
+            <DocTile forceLightMode path="/">
+              {t('home.personas.tiles.2.2')}
+            </DocTile>
+          </DocTiles>
+        )}
+      </Slab>
       <Slab
         style={panelSprings3}
         opacitySprings={opacitySprings3}
@@ -163,11 +204,28 @@ const HomepageSlabs = () => {
         panelId={3}
         css={css`
           background-image: url(${devops});
-          > div {
+          > div:first-child {
             background-color: #2bdfe3;
           }
         `}
-      />
+      >
+        <animated.div style={textOpacitySprings3}>
+          {activePanel === 3 && <Blurb>{t('home.personas.blurbs.3')}</Blurb>}
+        </animated.div>
+        {activePanel === 3 && (
+          <DocTiles animated>
+            <DocTile forceLightMode path="/">
+              {t('home.personas.tiles.3.0')}
+            </DocTile>
+            <DocTile forceLightMode path="/">
+              {t('home.personas.tiles.3.1')}
+            </DocTile>
+            <DocTile forceLightMode path="/">
+              {t('home.personas.tiles.3.2')}
+            </DocTile>
+          </DocTiles>
+        )}
+      </Slab>
     </div>
   );
 };
@@ -179,6 +237,7 @@ const Slab = ({
   headers,
   opacitySprings,
   isTabletWidth,
+  children,
   ...props
 }) => {
   const isActivePanel = activePanel === panelId;
@@ -201,8 +260,8 @@ const Slab = ({
         background-color: black;
         background-size: auto 70%;
         background-repeat: no-repeat;
-        background-position: center bottom -60px;
-        padding-top: 5rem;
+        background-position: center bottom -95px;
+        padding-top: 3.5rem;
         min-width: 240px;
         position: relative;
 
@@ -252,9 +311,29 @@ const Slab = ({
       {transitions((style, item) => (
         <animated.h1 style={style}>{item}</animated.h1>
       ))}
+      {children}
     </animated.div>
   );
 };
+
+const Blurb = styled.p`
+  font-size: 20px;
+  line-height: 1.5;
+  max-width: 85%;
+`;
+
+const DocTile = styled(DocTileBase)`
+  & > div {
+    align-items: center;
+    flex-direction: row;
+    gap: 1rem;
+    padding: 1.5rem;
+
+    & h4 {
+      margin: 0;
+    }
+  }
+`;
 
 const springConfig = {
   mass: 1,
@@ -303,5 +382,13 @@ const opacityFadeOut = {
 };
 const opacityFadeIn = {
   to: { opacity: 0.5 },
+};
+const textOpacityFadeIn = {
+  delay: 400,
+  from: { opacity: 0 },
+  to: { opacity: 1 },
+};
+const textOpacityFadeOut = {
+  to: { opacity: 0 },
 };
 export default HomepageSlabs;
