@@ -61,6 +61,8 @@ const NavFooter = ({ className }) => {
         `}
         instrumentation={{
           component: 'navFooterCta',
+          product: `${ctaContent.i18nKey}`,
+          text: `${t(`navFooter.${ctaContent.i18nKey}`)}`,
         }}
       >
         <Icon

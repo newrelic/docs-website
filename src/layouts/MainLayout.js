@@ -26,6 +26,7 @@ const MainLayout = ({ children, pageContext, sidebarOpen = true }) => {
   const { loggedIn } = useLoggedIn();
   const { sidebarWidth, contentPadding } = useLayout();
   const { locale, slug } = pageContext;
+  let { hideNavs } = pageContext;
   const location = useLocation();
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -42,9 +43,18 @@ const MainLayout = ({ children, pageContext, sidebarOpen = true }) => {
     }
   };
 
+  /*
+   * [VSU] some docs pages are being designed as JS for faster experimenting
+   * and will never have the frontmatter property
+   * Using regex for check to account for paths with and without trailing slash
+   */
+  const docsAsJS = [/introduction-apm/];
+  const isJSDoc = docsAsJS.some((docUrl) => docUrl.test(location.pathname));
+  hideNavs ||= isJSDoc;
+
   useEffect(() => {
     setIsMobileNavOpen(false);
-    setSidebar(sidebarOpen);
+    setSidebar(hideNavs ? false : sidebarOpen);
     // react scroll causes the page to crash if it doesn't find an element
     // so we're checking for the element before firing
     const pathName = addTrailingSlash(location.pathname);
@@ -58,10 +68,10 @@ const MainLayout = ({ children, pageContext, sidebarOpen = true }) => {
         offset: -5,
       });
     }
-    if (loggedIn) {
+    if (loggedIn && !hideNavs) {
       setSidebar(true);
     }
-  }, [location.pathname, loggedIn, sidebarOpen]);
+  }, [location.pathname, loggedIn, sidebarOpen, hideNavs]);
 
   return (
     <>
