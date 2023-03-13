@@ -5,7 +5,7 @@ import { useSpring, animated, useTransition } from '@react-spring/web';
 import { useTranslation } from '@newrelic/gatsby-theme-newrelic';
 
 import { useMainLayoutContext } from './MainLayoutContext';
-import { DocTiles as DocTilesBase, DocTile as DocTileBase } from '../components/DocTile';
+import { DocTiles as DocTilesBase, DocTile as DocTileBase } from './DocTile';
 import useMediaQuery from '../hooks/useMediaQuery';
 import backend from './backend.png';
 import frontend from './frontend.png';
@@ -61,6 +61,7 @@ const HomepageSlabs = () => {
   }, [
     OPACITY_SPRING_APIS,
     PANEL_SPRING_APIS,
+    TEXT_OPACITY_SPRING_APIS,
     activePanel,
     isTabletWidth,
     sidebar,
@@ -95,7 +96,13 @@ const HomepageSlabs = () => {
         OPACITY_SPRING_APIS[apiKey].start(opacityFadeIn);
       }
     }
-  }, []);
+  }, [
+    OPACITY_SPRING_APIS,
+    PANEL_SPRING_APIS,
+    TEXT_OPACITY_SPRING_APIS,
+    activePanel,
+    isTabletWidth,
+  ]);
 
   const handlePanelClick = (panelId) => {
     setActivePanel(panelId);
@@ -344,7 +351,7 @@ const DocTiles = styled(DocTilesBase)`
     grid-template-columns: repeat(auto-fit, minmax(175px, 1fr));
     max-width: 78%;
   }
-`
+`;
 
 const DocTile = styled(DocTileBase)`
   & > div {
