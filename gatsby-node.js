@@ -94,6 +94,7 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
               type
               subject
               redirects
+              hideNavs
             }
           }
         }
@@ -330,6 +331,14 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
       createRedirect,
     });
   });
+
+  // Redirect for VSU page to new Introduction to APM doc
+  createRedirect({
+    fromPath: '/docs/apm/new-relic-apm/getting-started/introduction-apm/',
+    toPath: '/introduction-apm',
+    isPermanent: false,
+    redirectInBrowser: true,
+  });
 };
 
 exports.createSchemaCustomization = ({ actions }) => {
@@ -356,6 +365,7 @@ exports.createSchemaCustomization = ({ actions }) => {
     translationType: String
     dataSource: String
     isTutorial: Boolean
+    hideNavs: Boolean
     downloadLink: String
     signupBanner: SignupBanner
     features: [String]
@@ -409,6 +419,10 @@ exports.createResolvers = ({ createResolvers }) => {
         resolve: (source) =>
           hasOwnProperty(source, 'isTutorial') ? source.isTutorial : null,
       },
+      hideNavs: {
+        resolve: (source) =>
+          hasOwnProperty(source, 'hideNavs') ? source.hideNavs : null,
+      },
       downloadLink: {
         resolve: (source) =>
           hasOwnProperty(source, 'downloadLink') ? source.downloadLink : null,
@@ -449,6 +463,7 @@ exports.onCreatePage = ({ page, actions }) => {
   if (page.path === '/') {
     page.context.quicklaunchSlug =
       'docs/new-relic-solutions/get-started/quick-launch-guide';
+    page.context.layout = 'homepage';
   }
   if (page.path === '/jp/') {
     page.context.quicklaunchSlug =
@@ -517,7 +532,7 @@ const createPageFromNode = (
   defer = false
 ) => {
   const {
-    frontmatter: { subject: agentName },
+    frontmatter: { subject: agentName, hideNavs },
     fields: { fileRelativePath, slug },
   } = node;
 
@@ -565,6 +580,7 @@ const createPageFromNode = (
       context: {
         ...context,
         fileRelativePath,
+        hideNavs,
         slug,
         slugRegex: `${slug}/.+/`,
         disableSwiftype,
