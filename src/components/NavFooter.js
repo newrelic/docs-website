@@ -1,14 +1,30 @@
 import React from 'react';
 import { css } from '@emotion/react';
+import { useLocation } from '@reach/router';
 import PropTypes from 'prop-types';
 import {
   ExternalLink,
   Icon,
   useTranslation,
 } from '@newrelic/gatsby-theme-newrelic';
+import ctaJson from '../data/nav-footer-cta';
 
 const NavFooter = ({ className }) => {
   const { t } = useTranslation();
+  const location = useLocation();
+  const currentPage = location.pathname;
+  let ctaContent = ctaJson.default;
+  const allCTAs = Object.keys(ctaJson);
+
+  for (const product of allCTAs) {
+    if (
+      currentPage.includes(ctaJson[product].directory) &&
+      product !== 'default'
+    ) {
+      ctaContent = ctaJson[product];
+    }
+  }
+
   return (
     <div
       css={css`
@@ -24,28 +40,62 @@ const NavFooter = ({ className }) => {
 
         @media screen and (max-width: 1240px) {
           width: 277px;
+          a {
+            font-size: 14px;
+          }
         }
       `}
       className={className}
     >
       <ExternalLink
-        to="https://one.newrelic.com/marketplace"
+        to={ctaContent.link}
         css={css`
-          color: #00586f;
-          font-size: 18px;
+          color: black;
+          font-size: 17px;
           line-height: 24px;
           position: relative;
-          text-underline-offset: 10px;
+          text-decoration: none;
+          :hover {
+            color: #00586f;
+          }
         `}
         instrumentation={{
           component: 'navFooterCta',
+          product: `${ctaContent.i18nKey}`,
+          text: `${t(`navFooter.${ctaContent.i18nKey}`)}`,
         }}
       >
-        {t('nav.footer')}
+        <Icon
+          css={css`
+            position: absolute;
+            left: -1.6em;
+            top: 1.5px;
+            height: 1.35em;
+            width: 1.35em;
+            opacity: 0.85;
+
+            && path {
+              fill: var(--erno-black);
+            }
+            @media screen and (max-width: 1240px) {
+              left: -1.6em;
+              top: 3.5px;
+              height: 1.3em;
+              width: 1.3em;
+            }
+          `}
+          name={ctaContent.icon}
+        />
+        {t(`navFooter.${ctaContent.i18nKey}`)}
         <Icon
           css={css`
             position: absolute;
             top: 4px;
+            right: -1em;
+            height: 1.1em;
+            width: 1.1em;
+            stroke: var(--erno-black);
+            stroke-width: 1.5;
 
             && path {
               display: none;
