@@ -144,14 +144,14 @@ const HomepageSlabs = () => {
         </animated.div>
         {activePanel === 1 && (
           <DocTiles animated>
-            <DocTile forceLightMode path="/">
-              {t('home.personas.tiles.1.0')}
+            <DocTile forceLightMode path={t('home.personas.tiles.1.0.url')}>
+              {t('home.personas.tiles.1.0.label')}
             </DocTile>
-            <DocTile forceLightMode path="/">
-              {t('home.personas.tiles.1.1')}
+            <DocTile forceLightMode path={t('home.personas.tiles.1.1.url')}>
+              {t('home.personas.tiles.1.1.label')}
             </DocTile>
-            <DocTile forceLightMode path="/">
-              {t('home.personas.tiles.1.2')}
+            <DocTile forceLightMode path={t('home.personas.tiles.1.2.url')}>
+              {t('home.personas.tiles.1.2.label')}
             </DocTile>
           </DocTiles>
         )}
@@ -179,14 +179,14 @@ const HomepageSlabs = () => {
         </animated.div>
         {activePanel === 2 && (
           <DocTiles animated>
-            <DocTile forceLightMode path="/">
-              {t('home.personas.tiles.2.0')}
+            <DocTile forceLightMode path={t('home.personas.tiles.2.0.url')}>
+              {t('home.personas.tiles.2.0.label')}
             </DocTile>
-            <DocTile forceLightMode path="/">
-              {t('home.personas.tiles.2.1')}
+            <DocTile forceLightMode path={t('home.personas.tiles.2.1.url')}>
+              {t('home.personas.tiles.2.1.label')}
             </DocTile>
-            <DocTile forceLightMode path="/">
-              {t('home.personas.tiles.2.2')}
+            <DocTile forceLightMode path={t('home.personas.tiles.2.2.url')}>
+              {t('home.personas.tiles.2.2.label')}
             </DocTile>
           </DocTiles>
         )}
@@ -214,14 +214,14 @@ const HomepageSlabs = () => {
         </animated.div>
         {activePanel === 3 && (
           <DocTiles animated>
-            <DocTile forceLightMode path="/">
-              {t('home.personas.tiles.3.0')}
+            <DocTile forceLightMode path={t('home.personas.tiles.3.0.url')}>
+              {t('home.personas.tiles.3.0.label')}
             </DocTile>
-            <DocTile forceLightMode path="/">
-              {t('home.personas.tiles.3.1')}
+            <DocTile forceLightMode path={t('home.personas.tiles.3.1.url')}>
+              {t('home.personas.tiles.3.1.label')}
             </DocTile>
-            <DocTile forceLightMode path="/">
-              {t('home.personas.tiles.3.2')}
+            <DocTile forceLightMode path={t('home.personas.tiles.3.2.url')}>
+              {t('home.personas.tiles.3.2.label')}
             </DocTile>
           </DocTiles>
         )}
