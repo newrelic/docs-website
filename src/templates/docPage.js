@@ -3,6 +3,8 @@ import PropTypes from 'prop-types';
 import { css } from '@emotion/react';
 import { graphql } from 'gatsby';
 import { takeWhile } from 'lodash';
+import { createLocalStorageStateHook } from 'use-local-storage-state';
+import DocPageBanner from '../components/DocPageBanner';
 import PageTitle from '../components/PageTitle';
 import MDXContainer from '../components/MDXContainer';
 import {
@@ -12,11 +14,14 @@ import {
   ComplexFeedback,
   TableOfContents,
   LoggedInProvider,
+  useLoggedIn,
 } from '@newrelic/gatsby-theme-newrelic';
 import MachineTranslationCallout from '../components/MachineTranslationCallout';
 import SEO from '../components/SEO';
 import GithubSlugger from 'github-slugger';
 import { TYPES } from '../utils/constants';
+
+const BANNER_HEIGHT = '78px';
 
 /**
  * Some `title`s from the `tableOfContents` field are
@@ -69,6 +74,7 @@ const BasicDoc = ({ data, location, pageContext }) => {
     translationType,
     dataSource,
     isTutorial,
+    signupBanner,
   } = frontmatter;
 
   let { type } = frontmatter;
@@ -79,6 +85,17 @@ const BasicDoc = ({ data, location, pageContext }) => {
   if (isTutorial) {
     type = 'tutorial';
   }
+
+  const { loggedIn } = useLoggedIn();
+  const useBannerDismissed = createLocalStorageStateHook(
+    `docBannerDismissed-${title}`
+  );
+  const [bannerDismissed, setBannerDismissed] = useBannerDismissed(false);
+  const bannerVisible = !loggedIn && !bannerDismissed && signupBanner;
+
+  const onCloseBanner = () => {
+    setBannerDismissed(true);
+  };
 
   return (
     <>
@@ -91,6 +108,13 @@ const BasicDoc = ({ data, location, pageContext }) => {
         dataSource={dataSource}
         disableSwiftype={disableSwiftype}
       />
+      {bannerVisible && (
+        <DocPageBanner
+          height={BANNER_HEIGHT}
+          onClose={onCloseBanner}
+          {...signupBanner}
+        />
+      )}
       <div
         css={css`
           display: grid;
@@ -100,6 +124,14 @@ const BasicDoc = ({ data, location, pageContext }) => {
             'content page-tools';
           grid-template-columns: minmax(0, 1fr) 320px;
           grid-column-gap: 2rem;
+
+          ${bannerVisible &&
+          css`
+            margin-top: ${BANNER_HEIGHT};
+            @media screen and (max-width: 760px) {
+              margin-top: 0;
+            }
+          `}
 
           iframe {
             max-width: 100%;
@@ -194,6 +226,11 @@ export const pageQuery = graphql`
         isTutorial
         translationType
         dataSource
+        signupBanner {
+          cta
+          text
+          url
+        }
       }
       fields {
         fileRelativePath
