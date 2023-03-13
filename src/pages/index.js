@@ -1,14 +1,14 @@
 import React, { useState } from 'react';
 import { navigate } from '@reach/router';
 import { css } from '@emotion/react';
-import { graphql } from 'gatsby';
 import PropTypes from 'prop-types';
+import { graphql } from 'gatsby';
 import {
   Link,
   Icon,
   SearchInput,
-  useInstrumentedHandler,
   useTranslation,
+  useInstrumentedHandler,
 } from '@newrelic/gatsby-theme-newrelic';
 import HomepageBanner from '../components/HomepageBanner';
 import { DocTile } from '../components/DocTile';

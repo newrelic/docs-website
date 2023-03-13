@@ -14,6 +14,8 @@ import {
   useLoggedIn,
   LoggedInProvider,
 } from '@newrelic/gatsby-theme-newrelic';
+import cx from 'classnames';
+import styled from '@emotion/styled';
 import { css } from '@emotion/react';
 import { scroller } from 'react-scroll';
 import SEO from '../components/SEO';
@@ -84,6 +86,7 @@ const HomepageLayout = ({ children, pageContext, sidebarOpen = true }) => {
     hasToggled.current = true;
     setCurrentView(id);
   };
+  const showAnimatedSearchBar = currentView === TOGGLE_VIEWS.newUserView;
 
   const SAVED_TOGGLE_VIEW_KEY = 'docs-website/homepage-selected-view';
 
@@ -160,7 +163,7 @@ const HomepageLayout = ({ children, pageContext, sidebarOpen = true }) => {
                 css={css`
                   display: grid;
                   gap: 1rem;
-                  justify-content: space-between;
+                  justify-content: right;
                   grid-template-columns: 1fr max-content;
                   align-items: center;
                   position: absolute;
@@ -173,6 +176,19 @@ const HomepageLayout = ({ children, pageContext, sidebarOpen = true }) => {
                   }
                 `}
               >
+                <AnimatedSearchInput
+                  placeholder="Search"
+                  size={SearchInput.SIZE.SMALL}
+                  value={searchTerm || ''}
+                  iconName={SearchInput.ICONS.SEARCH}
+                  isIconClickable
+                  alignIcon={SearchInput.ICON_ALIGNMENT.RIGHT}
+                  onChange={(e) => {
+                    setSearchTerm(e.target.value);
+                  }}
+                  onSubmit={() => navigate(`?q=${searchTerm || ''}`)}
+                  className={cx(showAnimatedSearchBar && 'visible')}
+                />
                 <ToggleSelector
                   css={css`
                     justify-self: end;
@@ -335,6 +351,52 @@ const HomepageLayout = ({ children, pageContext, sidebarOpen = true }) => {
     </>
   );
 };
+
+const AnimatedSearchInput = styled(SearchInput)`
+  justify-self: end;
+  width: 150px;
+  transition: width 1200ms cubic-bezier(0.7, 0, 0.35, 1);
+  display: none;
+  &.visible {
+    display: grid;
+  }
+  input {
+    justify-self: end;
+    width: 0.5rem;
+    border: none;
+    background: none;
+    padding-left: 0.75rem;
+    height: 30px;
+  }
+  svg {
+    stroke: #fff;
+    right: 0.75rem;
+    transition: stroke 0.55s ease;
+  }
+  &:focus-within {
+    svg {
+      stroke: var(--erno-black);
+    }
+  }
+  &:hover {
+    width: 150px;
+    svg {
+      stroke: var(--erno-black);
+    }
+  }
+  &:hover input,
+  input:active,
+  input:focus {
+    box-shadow: none;
+    width: 150px;
+    border: 1px solid var(--system-text-primary-light);
+    background: #fff;
+    color: var(--system-text-primary-light);
+    &::placeholder {
+      color: var(--system-text-primary-light);
+    }
+  }
+`;
 
 HomepageLayout.propTypes = {
   children: PropTypes.node,
