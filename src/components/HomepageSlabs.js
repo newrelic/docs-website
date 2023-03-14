@@ -421,11 +421,12 @@ const initialTabletPanelState = {
   config: springConfig,
 };
 const opacityFadeOut = {
-  from: { opacity: 0.3 },
-  to: { opacity: 0 },
+  from: { display: 'block', opacity: 0.3 },
+  to: [{ opacity: 0 }, { display: 'none'}]
 };
 const opacityFadeIn = {
-  to: { opacity: 0.5 },
+  from: { display: 'none' },
+  to: [{ display: 'block'},{ opacity: 0.5 }],
 };
 const textOpacityFadeIn = {
   delay: 400,
