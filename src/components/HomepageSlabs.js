@@ -2,7 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { css } from '@emotion/react';
 import styled from '@emotion/styled';
 import { useSpring, animated, useTransition } from '@react-spring/web';
-import { useTranslation } from '@newrelic/gatsby-theme-newrelic';
+import {
+  useInstrumentedHandler,
+  useTranslation,
+} from '@newrelic/gatsby-theme-newrelic';
 
 import { useMainLayoutContext } from './MainLayoutContext';
 import { DocTiles as DocTilesBase, DocTile as DocTileBase } from './DocTile';
@@ -10,6 +13,7 @@ import useMediaQuery from '../hooks/useMediaQuery';
 import backend from './backend.png';
 import frontend from './frontend.png';
 import devops from './devops.png';
+import { PersonaSignup } from './Persona';
 
 const HomepageSlabs = () => {
   const { t } = useTranslation();
@@ -145,13 +149,40 @@ const HomepageSlabs = () => {
         </animated.div>
         {activePanel === 1 && (
           <DocTiles animated>
-            <DocTile forceLightMode path={t('home.personas.tiles.1.0.url')}>
+            <DocTile
+              forceLightMode
+              instrumentation={{
+                category: 'PersonaHomepage',
+                eventName: 'docTileClick',
+                slabId: 1,
+                tileId: 1,
+              }}
+              path={t('home.personas.tiles.1.0.url')}
+            >
               {t('home.personas.tiles.1.0.label')}
             </DocTile>
-            <DocTile forceLightMode path={t('home.personas.tiles.1.1.url')}>
+            <DocTile
+              forceLightMode
+              instrumentation={{
+                category: 'PersonaHomepage',
+                eventName: 'docTileClick',
+                slabId: 1,
+                tileId: 2,
+              }}
+              path={t('home.personas.tiles.1.1.url')}
+            >
               {t('home.personas.tiles.1.1.label')}
             </DocTile>
-            <DocTile forceLightMode path={t('home.personas.tiles.1.2.url')}>
+            <DocTile
+              forceLightMode
+              instrumentation={{
+                category: 'PersonaHomepage',
+                eventName: 'docTileClick',
+                slabId: 1,
+                tileId: 3,
+              }}
+              path={t('home.personas.tiles.1.2.url')}
+            >
               {t('home.personas.tiles.1.2.label')}
             </DocTile>
           </DocTiles>
@@ -180,13 +211,40 @@ const HomepageSlabs = () => {
         </animated.div>
         {activePanel === 2 && (
           <DocTiles animated>
-            <DocTile forceLightMode path={t('home.personas.tiles.2.0.url')}>
+            <DocTile
+              forceLightMode
+              instrumentation={{
+                category: 'PersonaHomepage',
+                eventName: 'docTileClick',
+                slabId: 2,
+                tileId: 1,
+              }}
+              path={t('home.personas.tiles.2.0.url')}
+            >
               {t('home.personas.tiles.2.0.label')}
             </DocTile>
-            <DocTile forceLightMode path={t('home.personas.tiles.2.1.url')}>
+            <DocTile
+              forceLightMode
+              instrumentation={{
+                category: 'PersonaHomepage',
+                eventName: 'docTileClick',
+                slabId: 2,
+                tileId: 2,
+              }}
+              path={t('home.personas.tiles.2.1.url')}
+            >
               {t('home.personas.tiles.2.1.label')}
             </DocTile>
-            <DocTile forceLightMode path={t('home.personas.tiles.2.2.url')}>
+            <DocTile
+              forceLightMode
+              instrumentation={{
+                category: 'PersonaHomepage',
+                eventName: 'docTileClick',
+                slabId: 2,
+                tileId: 3,
+              }}
+              path={t('home.personas.tiles.2.2.url')}
+            >
               {t('home.personas.tiles.2.2.label')}
             </DocTile>
           </DocTiles>
@@ -215,18 +273,46 @@ const HomepageSlabs = () => {
         </animated.div>
         {activePanel === 3 && (
           <DocTiles animated>
-            <DocTile forceLightMode path={t('home.personas.tiles.3.0.url')}>
+            <DocTile
+              forceLightMode
+              instrumentation={{
+                category: 'PersonaHomepage',
+                eventName: 'docTileClick',
+                slabId: 3,
+                tileId: 1,
+              }}
+              path={t('home.personas.tiles.3.0.url')}
+            >
               {t('home.personas.tiles.3.0.label')}
             </DocTile>
-            <DocTile forceLightMode path={t('home.personas.tiles.3.1.url')}>
+            <DocTile
+              forceLightMode
+              instrumentation={{
+                category: 'PersonaHomepage',
+                eventName: 'docTileClick',
+                slabId: 3,
+                tileId: 2,
+              }}
+              path={t('home.personas.tiles.3.1.url')}
+            >
               {t('home.personas.tiles.3.1.label')}
             </DocTile>
-            <DocTile forceLightMode path={t('home.personas.tiles.3.2.url')}>
+            <DocTile
+              forceLightMode
+              instrumentation={{
+                category: 'PersonaHomepage',
+                eventName: 'docTileClick',
+                slabId: 3,
+                tileId: 3,
+              }}
+              path={t('home.personas.tiles.3.2.url')}
+            >
               {t('home.personas.tiles.3.2.label')}
             </DocTile>
           </DocTiles>
         )}
       </Slab>
+    <PersonaSignup />
     </div>
   );
 };
@@ -250,6 +336,12 @@ const Slab = ({
     enter: { opacity: 1 },
     leave: { display: 'none' },
     exitBeforeEnter: true,
+  });
+
+  const onSlabClick = useInstrumentedHandler(() => {}, {
+    category: 'PersonaHomepage',
+    eventName: 'slabClick',
+    slabId: panelId,
   });
 
   return (
@@ -309,6 +401,7 @@ const Slab = ({
             transition: opacity 300ms;
           `}
         `}
+        onClick={onSlabClick}
         style={opacitySprings}
       />
       {transitions((style, item) => (
@@ -422,11 +515,11 @@ const initialTabletPanelState = {
 };
 const opacityFadeOut = {
   from: { display: 'block', opacity: 0.3 },
-  to: [{ opacity: 0 }, { display: 'none'}]
+  to: [{ opacity: 0 }, { display: 'none' }],
 };
 const opacityFadeIn = {
   from: { display: 'none' },
-  to: [{ display: 'block'},{ opacity: 0.5 }],
+  to: [{ display: 'block' }, { opacity: 0.5 }],
 };
 const textOpacityFadeIn = {
   delay: 400,

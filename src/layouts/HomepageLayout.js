@@ -327,6 +327,7 @@ const HomepageLayout = ({ children, pageContext, sidebarOpen = true }) => {
                 css={css`
                   display: ${isMobileNavOpen ? 'none' : 'block'};
                   position: relative;
+                  ${currentView === TOGGLE_VIEWS.newUserView && 'max-width: unset;'}
                   padding: ${currentView === TOGGLE_VIEWS.newUserView
                     ? '0'
                     : '1.5rem'};

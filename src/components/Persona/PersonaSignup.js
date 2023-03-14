@@ -13,7 +13,7 @@ import {
 import { createAccountRequest } from '@newrelic/gatsby-theme-newrelic/src/components/SignupModal/signup';
 import RecaptchaFooter from '@newrelic/gatsby-theme-newrelic/src/components/SignupModal/RecaptchaFooter';
 
-const MOBILE_BREAKPOINT = '600px';
+const MOBILE_BREAKPOINT = '1240px';
 
 export const PersonaSignup = ({ className }) => {
   const [error, setError] = useState(null);
@@ -44,11 +44,11 @@ export const PersonaSignup = ({ className }) => {
 
   return (
     <Wrapper open={open}>
+      <Close aria-label="Close" onClick={() => setOpen(false)}>
+        <Icon name="x" />
+      </Close>
       <Form onSubmit={onSubmit} className={className}>
         <CTAText>{t('personaSignup.terms')}</CTAText>
-        <Close aria-label="Close" onClick={() => setOpen(false)}>
-          <Icon name="x" />
-        </Close>
         <InputContainer>
           <label className="screenreader-only" htmlFor="inline-signup-name">
             {t('inlineSignup.nameLabel')}
@@ -162,6 +162,7 @@ const Form = styled.form`
     gap: 0.5rem;
     margin-left: 0;
     padding-top: 32px;
+    width: 87%;
   }
 `;
 
@@ -231,16 +232,6 @@ const InputContainer = styled.div`
   grid-template-rows: auto 1fr;
   place-items: center;
   position: relative;
-
-  @media (max-width: ${MOBILE_BREAKPOINT}) {
-    grid-column: 1 / 4;
-    justify-items: start;
-    width: 90%;
-
-    &:first-of-type {
-      margin-left: 0;
-    }
-  }
 `;
 
 const Terms = styled.p`
@@ -258,15 +249,20 @@ const Terms = styled.p`
 const Wrapper = styled.div`
   background: var(--system-border-regular-dark);
   border-radius: 4px;
+  bottom: 20px;
   display: ${(p) => (p.open ? `block` : `none`)};
   max-width: 525px;
   position: absolute;
+  right: 20px;
   z-index: 10;
 
   @media (max-width: ${MOBILE_BREAKPOINT}) {
     border-radius: 0;
-    margin: 0 calc(var(--site-content-padding) * -1);
+    bottom: 0;
+    right: 0;
+    margin: 0;
     max-width: none;
+    position: relative;
     width: 100%;
   }
 `;
