@@ -130,16 +130,7 @@ module.exports = {
       node.children = [];
       return deserializeComponent(h, node, { tagName: 'InlinePopover' });
     },
-    serialize: (h, node) =>
-      h(
-        node,
-        'span',
-        {
-          'data-type': 'component',
-          'data-component': 'InlinePopover',
-        },
-        [u('text', 'account license key')]
-      ),
+    serialize: serializeComponent,
   },
   Link: {
     deserialize: deserializeComponent,
