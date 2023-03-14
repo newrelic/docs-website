@@ -31,3 +31,6 @@ To start monitoring JFrog in New Relic:
 - Read the [blog](https://newrelic.com/blog/how-to-relic/jfrog-integration) to see how to make the most of the integration
 - Follow the [documentation](https://github.com/jfrog/log-analytics-newrelic#readme) to set up the integration with Fluentd and OpenMetrics
 - Install the [quickstart](https://newrelic.com/instant-observability/jfrog-platform) to get the pre-built dashboards
+- Watch the [video](https://www.youtube.com/watch?v=nHHLvvlPlNQ) below for a walkthrough demo
+
+<iframe width="560" height="315" src="https://www.youtube.com/embed/nHHLvvlPlNQ" title="Monitoring the JFrog Platform in New Relic" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
