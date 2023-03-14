@@ -30,4 +30,4 @@ The new [quickstart integration](http://newrelic.com/instant-observability/jfrog
 To start monitoring JFrog in New Relic:
 - Read the [blog](https://newrelic.com/blog/how-to-relic/jfrog-integration) to see how to make the most of the integration
 - Follow the [documentation](https://github.com/jfrog/log-analytics-newrelic#readme) to set up the integration with Fluentd and OpenMetrics
-- Install the [quickstart](https://newrelic.com/instant-observability/jenkins) to get the pre-built dashboards
+- Install the [quickstart](https://newrelic.com/instant-observability/jfrog-platform) to get the pre-built dashboards
