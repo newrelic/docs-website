@@ -1,7 +1,7 @@
 ---
 title: 'Monitor OpenAI’s GPT Application Usage in New Relic'
 summary: 'Monitor OpenAI applications running GPT-3 and GPT-4 with just two lines of code using New Relic to track the cost, usage, and performance of your models in real-time.'
-releaseDate: '2023-03-14'
+releaseDate: '2023-03-15'
 learnMoreLink: 'https://newrelic.com/instant-observability/openai'
 getStartedLink: 'https://github.com/newrelic/nr-openai-observability'
 ---
