@@ -1,14 +1,14 @@
 ---
 title: 'Monitor your JFrog Artifactory and JFrog Xray in New Relic'
 summary: 'Get faster, more secure software delivery with the JFrog integration and quickstart'
-releaseDate: '2022-03-15'
+releaseDate: '2023-03-15'
 learnMoreLink: 'https://newrelic.com/blog/how-to-relic/jfrog-integration' 
 getStartedLink: 'https://newrelic.com/instant-observability/jfrog-platform'
 ---
 
 ## Get real-time insights of your software supply chain in minutes
 
-We've partnered with JFrog and New Relic to provide DevOps, DevSecOps, and engineers teams full visibility and actionable insights into the performance and security of their software supply chains. 
+We've partnered with JFrog to provide DevOps, DevSecOps, and engineers teams full visibility and actionable insights into the performance and security of their software supply chains. 
 
 The new [quickstart integration](http://newrelic.com/instant-observability/jfrog-platform) lets you monitor your **JFrog Artifactory** and **JFrog Xray** environments to help fine-tune your DevOps pipelines and ensure faster, seamless software releases. Plus, all full New Relic users and all tiers of self-hosted JFrog customers can access it for free! 
 
