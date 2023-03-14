@@ -1,5 +1,6 @@
 const {
   add,
+  addMinutes,
   format,
   isBefore,
   isValid,
@@ -8,6 +9,22 @@ const {
 } = require('date-fns');
 
 const DATE_FORMAT = 'yyyy-MM-dd';
+
+/**
+ * Helper method for formatting a date taking into account timezones
+ *
+ * date-fns uses native Date under the hood, which is timezone aware,
+ * and without accounting for timezone, will cause issues with formatting
+ * in different timezones.
+ *
+ * An alternative approach would be to use `date-fns-tz`'s [format](https://date-fns.org/v2.29.3/docs/Time-Zones#date-fns-tz)
+ *
+ * @param {Date} date date to format
+ * @returns {String} the formatted date
+ */
+function formatTZAware(date) {
+  return format(addMinutes(date, date.getTimezoneOffset()), DATE_FORMAT);
+}
 
 /**
  * Validation method for ensuring that input is a valid date in yyyy-MM-dd format
@@ -34,9 +51,8 @@ function isValidDateString(str) {
  * @returns {string} EOL date for provided release date in yyyy-MM-dd format
  */
 module.exports = function getEOLDate(releaseDateString, eolDateString) {
-  // TODO: are we sure we need this logic? I couldn't find anything in docs-website that looked like it would be used, but Clark said we should add it.
   if (eolDateString && isValidDateString(eolDateString)) {
-    return format(new Date(eolDateString), DATE_FORMAT);
+    return formatTZAware(new Date(eolDateString));
   }
 
   if (!releaseDateString || !isValidDateString(releaseDateString)) {
@@ -62,5 +78,5 @@ module.exports = function getEOLDate(releaseDateString, eolDateString) {
     generatedEOLDate = add(releaseDate, { years: 1 });
   }
 
-  return format(generatedEOLDate, DATE_FORMAT);
+  return formatTZAware(generatedEOLDate);
 };
