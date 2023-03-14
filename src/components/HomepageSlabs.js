@@ -96,13 +96,7 @@ const HomepageSlabs = () => {
         OPACITY_SPRING_APIS[apiKey].start(opacityFadeIn);
       }
     }
-  }, [
-    OPACITY_SPRING_APIS,
-    PANEL_SPRING_APIS,
-    TEXT_OPACITY_SPRING_APIS,
-    activePanel,
-    isTabletWidth,
-  ]);
+  }, []);
 
   const handlePanelClick = (panelId) => {
     setActivePanel(panelId);
