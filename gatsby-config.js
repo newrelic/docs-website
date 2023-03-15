@@ -418,6 +418,7 @@ module.exports = {
           'Referrer-Policy: no-referrer-when-downgrade',
           'Content-Security-Policy: frame-ancestors *.newrelic.com',
           'Cache-Control: no-cache',
+          'Basic-Auth: clarkclinton:sunnyliztabatha',
         ],
       },
     },
