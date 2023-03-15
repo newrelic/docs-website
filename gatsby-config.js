@@ -440,6 +440,12 @@ module.exports = {
       },
     },
     {
+      resolve: 'gatsby-plugin-robots-txt',
+      options: {
+        policy: [{ userAgent: '*', disallow: ['/'] }],
+      },
+    },
+    {
       resolve: '@newrelic/gatsby-theme-newrelic',
       options: {
         oneTrustID: 'e66f9ef1-3a12-4043-b7c0-1a2ea66f6d41',
