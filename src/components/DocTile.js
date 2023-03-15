@@ -4,20 +4,12 @@ import SurfaceLink from './SurfaceLink';
 import { css } from '@emotion/react';
 import PropTypes from 'prop-types';
 
-export const DocTile = ({
-  children,
-  path,
-  instrumentation,
-  label,
-  date,
-  number,
-  className,
-}) => (
+export const DocTile = ({ children, path, label, date, number, className }) => (
   <SurfaceLink
     base={Surface.BASE.SECONDARY}
     to={path}
     interactive
-    instrumentation={instrumentation}
+    instrumentation={{ component: 'DocTile' }}
     css={css`
       display: block;
       min-height: 130px;
@@ -117,7 +109,6 @@ export const DocTile = ({
 DocTile.propTypes = {
   label: PropTypes.array,
   date: PropTypes.string,
-  instrumentation: PropTypes.object,
   children: PropTypes.node,
   path: PropTypes.string,
   number: PropTypes.number,
