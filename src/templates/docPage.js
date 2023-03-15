@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/react';
 import { graphql } from 'gatsby';
@@ -91,7 +91,12 @@ const BasicDoc = ({ data, location, pageContext }) => {
     `docBannerDismissed-${title}`
   );
   const [bannerDismissed, setBannerDismissed] = useBannerDismissed(false);
-  const bannerVisible = !loggedIn && !bannerDismissed && signupBanner;
+  const [mounted, setMounted] = useState(false);
+  const bannerVisible =
+    !loggedIn && !bannerDismissed && signupBanner && mounted;
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const onCloseBanner = () => {
     setBannerDismissed(true);
