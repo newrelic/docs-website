@@ -380,8 +380,8 @@ test('serialize Tabs Components', async () => {
   expect(html).toMatchSnapshot();
 });
 
-test('serialize LicenseKey component', async () => {
-  const mdx = '<LicenseKey />';
+test('serialize InlinePopover component', async () => {
+  const mdx = '<InlinePopover/>';
   const html = await serializeMDX(mdx);
   expect(html).toMatchSnapshot();
 });
