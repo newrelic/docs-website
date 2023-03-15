@@ -10,7 +10,7 @@ If you're already using, or plan to use, OpenAI's GPT-3, GPT-3.5, or GPT-4 at sc
 
 Companies around the world are embracing GPT-3 and GPT-4 to power help desk tickets and live chat logs, develop content and images, and accelerate semantic searches. New Relic monitoring for OpenAI is fast, easy to use, and unlocks real-time metrics that can help engineering teams optimize usage, reduce costs, and achieve better results.
 
-## New Relic integrates with GPT-3, GPT-4, and OpenAI to provide the following benefits:
+## New Relic integrates with OpenAI, GPT-3, and beyond to provide the following benefits:
 
 ![New Relic's OpenAI integration providing a pre-built dashboard for monitoring performance, cost, and usage of GPT applications. ](./images/newrelic_openai_integration_dashboard.png "A screenshot showing the New Relic Instant Observability quickstart dashboard for OpenAI.")
 
