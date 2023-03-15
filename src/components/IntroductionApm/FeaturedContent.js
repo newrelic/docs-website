@@ -25,11 +25,18 @@ export const FeaturedContent = ({
     }
   };
 
-  const isAnimated = animate ? 'visible' : '';
+  const makeVisible = (animate) => {
+    if (!animate) {
+      return 'no-animate';
+    }
+    if (isVisible) {
+      return 'visible';
+    }
+  };
 
   return (
     <VisibilitySensor onChange={updateVisibility}>
-      <Container className={isVisible ? isAnimated : ''}>
+      <Container className={makeVisible(animate)}>
         {!lineIconOnly && (
           <>
             <TextContainer separator={title}>
@@ -99,6 +106,10 @@ opacity: 0;
 padding: 0 40px;
 position: relative;
 width: 100%;
+
+&.no-animate {
+  opacity: 1;
+}
 
 &.visible {
     animation: 500ms ${slideFadeIn};

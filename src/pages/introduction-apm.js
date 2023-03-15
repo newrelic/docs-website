@@ -1,10 +1,11 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Side,
   SideBySide,
   useTranslation,
 } from '@newrelic/gatsby-theme-newrelic';
 import { animated, useTrail } from 'react-spring';
+import VisibilitySensor from 'react-visibility-sensor';
 
 import {
   FeaturedContent,
@@ -29,13 +30,42 @@ import trackDeps from 'images/new-apm-images/track-deps.png';
 
 const IntroductionApm = () => {
   const { t } = useTranslation();
-  const spring = useTrail(2, {
+  const [twoColumnVisible, setTwoColumnVisible] = useState(false);
+  const [fourColumnVisible, setFourColumnVisible] = useState(false);
+
+  const twoColumn = useTrail(2, {
     from: {
       opacity: 0,
       y: '6%',
     },
-    to: { opacity: 1, y: '0%' },
+    to: {
+      opacity: twoColumnVisible ? 1 : 0,
+      y: twoColumnVisible ? '0%' : '6%',
+    },
   });
+
+  const handleTwoColumn = (isVisible) => {
+    if (isVisible) {
+      setTwoColumnVisible(true);
+    }
+  };
+
+  const fourColumn = useTrail(4, {
+    from: {
+      opacity: 0,
+      y: '6%',
+    },
+    to: {
+      opacity: fourColumnVisible ? 1 : 0,
+      y: fourColumnVisible ? '0%' : '6%',
+    },
+  });
+
+  const handleFourColumn = (isVisible) => {
+    if (isVisible) {
+      setFourColumnVisible(true);
+    }
+  };
 
   useEffect(() => {
     const gatsbyFocusWrapper = document.querySelectorAll(
@@ -54,7 +84,6 @@ const IntroductionApm = () => {
         title={t('apm.intro.title')}
         img={introImage}
         alt="Complete visibility and analytics at your fingertips"
-        animate
       />
       <QuickstartChooser />
       <SectionWrapper>
@@ -81,71 +110,92 @@ const IntroductionApm = () => {
             text={t('apm.block2.text')}
             title={t('apm.block2.title')}
           />
-          <SideBySide>
-            <Side>
-              <animated.div style={spring[0]}>
-                <StackedContent
-                  list={[t('apm.block3.0.list.0'), t('apm.block3.0.list.1')]}
-                  subTitle={t('apm.block3.0.subTitle')}
-                  img={logManagement}
-                  alt="Log Management"
-                />
-              </animated.div>
-            </Side>
-            <Side>
-              <animated.div style={spring[1]}>
-                <StackedContent
-                  list={[t('apm.block3.1.list.0'), t('apm.block3.1.list.1')]}
-                  subTitle={t('apm.block3.1.subTitle')}
-                  img={vulnerabilityManagement}
-                  alt="Vulnerability management"
-                />
-              </animated.div>
-            </Side>
-          </SideBySide>
+          <FeaturedContent lineIcon="lock" lineIconOnly animate>
+            <VisibilitySensor onChange={handleTwoColumn}>
+              <SideBySide>
+                <animated.div style={twoColumn[0]}>
+                  <Side>
+                    <StackedContent
+                      list={[
+                        t('apm.block3.0.list.0'),
+                        t('apm.block3.0.list.1'),
+                      ]}
+                      subTitle={t('apm.block3.0.subTitle')}
+                      img={logManagement}
+                      alt="Log Management"
+                    />
+                  </Side>
+                </animated.div>
+                <animated.div style={twoColumn[1]}>
+                  <Side>
+                    <StackedContent
+                      list={[
+                        t('apm.block3.1.list.0'),
+                        t('apm.block3.1.list.1'),
+                      ]}
+                      subTitle={t('apm.block3.1.subTitle')}
+                      img={vulnerabilityManagement}
+                      alt="Vulnerability management"
+                    />
+                  </Side>
+                </animated.div>
+              </SideBySide>
+            </VisibilitySensor>
+          </FeaturedContent>
           <FeaturedContent
             list={[t('apm.block4.list.0'), t('apm.block4.list.1')]}
             subTitle={t('apm.block4.subTitle')}
             img={apdex}
             lineIcon="thumbsup"
             alt="Ensure a great user experience"
+            animate
           />
         </SectionWrapper>
       </SectionWrapper>
-      <SideBySide>
-        <Side>
-          <SmallStackedContent
-            subTitle={t('apm.block5.0.subTitle')}
-            img={errorManagement}
-            text={t('apm.block5.0.text')}
-            alt="Proactive error management"
-          />
-        </Side>
-        <Side>
-          <SmallStackedContent
-            subTitle={t('apm.block5.1.subTitle')}
-            img={userSatisfaction}
-            text={t('apm.block5.1.text')}
-            alt="Measure user satisfaction"
-          />
-        </Side>
-        <Side>
-          <SmallStackedContent
-            subTitle={t('apm.block5.2.subTitle')}
-            img={autoLogInjest}
-            text={t('apm.block5.2.text')}
-            alt="Automatic log ingest"
-          />
-        </Side>
-        <Side>
-          <SmallStackedContent
-            subTitle={t('apm.block5.3.subTitle')}
-            img={trackDeps}
-            text={t('apm.block5.3.text')}
-            alt="Track dependancies"
-          />
-        </Side>
-      </SideBySide>
+      <VisibilitySensor onChange={handleFourColumn}>
+        <SideBySide>
+          <animated.div style={fourColumn[0]}>
+            <Side>
+              <SmallStackedContent
+                subTitle={t('apm.block5.0.subTitle')}
+                img={errorManagement}
+                text={t('apm.block5.0.text')}
+                alt="Proactive error management"
+              />
+            </Side>
+          </animated.div>
+          <animated.div style={fourColumn[1]}>
+            <Side>
+              <SmallStackedContent
+                subTitle={t('apm.block5.1.subTitle')}
+                img={userSatisfaction}
+                text={t('apm.block5.1.text')}
+                alt="Measure user satisfaction"
+              />
+            </Side>
+          </animated.div>
+          <animated.div style={fourColumn[2]}>
+            <Side>
+              <SmallStackedContent
+                subTitle={t('apm.block5.2.subTitle')}
+                img={autoLogInjest}
+                text={t('apm.block5.2.text')}
+                alt="Automatic log ingest"
+              />
+            </Side>
+          </animated.div>
+          <animated.div style={fourColumn[3]}>
+            <Side>
+              <SmallStackedContent
+                subTitle={t('apm.block5.3.subTitle')}
+                img={trackDeps}
+                text={t('apm.block5.3.text')}
+                alt="Track dependancies"
+              />
+            </Side>
+          </animated.div>
+        </SideBySide>
+      </VisibilitySensor>
       <QuickstartChooser secondary />
     </>
   );

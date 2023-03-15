@@ -1,31 +1,60 @@
-import React from 'react';
+import React, { useState } from 'react';
 import styled from '@emotion/styled';
 import { css } from '@emotion/react';
+import { animated, useTrail } from 'react-spring';
+import VisibilitySensor from 'react-visibility-sensor';
 
 import { Icon } from '@newrelic/gatsby-theme-newrelic';
 
-export const TitleBlock = ({ list, text, title }) => (
-  <Container>
-    <TextContainer>
-      <Title>{title}</Title>
-      <Text>{text}</Text>
-      <ListWrapper>
-        {list.map((item, i) => (
-          <ListItem key={i}>
-            <Icon
-              name="fe-check"
-              css={css`
-                margin-right: 8px;
-                width: 36px;
-              `}
-            />
-            <li>{item}</li>
-          </ListItem>
-        ))}
-      </ListWrapper>
-    </TextContainer>
-  </Container>
-);
+export const TitleBlock = ({ list, text, title }) => {
+  const [isVisible, setVisible] = useState(false);
+
+  const updateVisibility = (isVisible) => {
+    if (isVisible) {
+      setVisible(true);
+    }
+  };
+
+  const spring = useTrail(5, {
+    from: {
+      opacity: 0,
+      y: '6%',
+    },
+    to: {
+      opacity: isVisible ? 1 : 0,
+      y: isVisible ? '0%' : '6%',
+    },
+  });
+
+  return (
+    <VisibilitySensor onChange={updateVisibility}>
+      <Container>
+        <TextContainer>
+          <Title as={animated.h1} style={spring[0]}>
+            {title}
+          </Title>
+          <Text as={animated.p} style={spring[1]}>
+            {text}
+          </Text>
+          <ListWrapper>
+            {list.map((item, i) => (
+              <ListItem as={animated.div} key={i} style={spring[2 + i]}>
+                <Icon
+                  name="fe-check"
+                  css={css`
+                    margin-right: 8px;
+                    width: 36px;
+                  `}
+                />
+                <li>{item}</li>
+              </ListItem>
+            ))}
+          </ListWrapper>
+        </TextContainer>
+      </Container>
+    </VisibilitySensor>
+  );
+};
 
 const Container = styled.div`
   display: flex;
@@ -50,6 +79,7 @@ const ListWrapper = styled.ul`
   display: flex;
   justify-content: center;
   list-style-type: none;
+  margin-top: 1rem;
   padding: 0;
 
   @media screen and (max-width: 1000px) {
