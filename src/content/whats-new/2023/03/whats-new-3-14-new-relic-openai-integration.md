@@ -22,7 +22,7 @@ Companies around the world are embracing GPT-3 and GPT-4 to power help desk tick
 
 ## How to get started
 
-With just two lines of code, simply import the monitor module from the `nr_openai_monitor` library and automatically generate a dashboard that displays a variety of key GPT-3 and GPT-4 performance metrics such as cost, requests, average response time, and average tokens per request.
+With just two lines of code, simply import the monitor module from the `nr_openai_monitor` library and automatically generate a dashboard that displays a variety of key GPT-3 and GPT-3.5 performance metrics such as cost, requests, average response time, and average tokens per request.
 
 To get started, simply install the [OpenAI Observability quickstart](https://newrelic.com/instant-observability/openai) from New Relic I/O or visit our [library repo](https://github.com/newrelic/nr-openai-observability) for further instructions on how to integrate New Relic with your OpenAI apps and deploy the custom dashboard.
 
