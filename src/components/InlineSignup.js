@@ -46,6 +46,25 @@ const InlineSignup = ({ className, hideWhenLoggedOut = true }) => {
     }
   };
 
+  const onFocus = (input) => {
+    tessen.track({
+      category: 'InlineSignup',
+      eventName: `${input}Focus`,
+    });
+  };
+  const onBlur = (input, e) => {
+    /* using onBlur instead of onChange so it
+     * only checks the contents of the input field once
+     * when the user clicks away, including the Submit button
+     */
+    if (e.target.value.length > 0) {
+      tessen.track({
+        category: 'InlineSignup',
+        eventName: `${input}Input`,
+      });
+    }
+  };
+
   if ((loggedIn == null || loggedIn) && hideWhenLoggedOut) return null;
 
   return (
@@ -58,6 +77,14 @@ const InlineSignup = ({ className, hideWhenLoggedOut = true }) => {
           className="first"
           id="inline-signup-name"
           name="name"
+          onFocus={(e) => {
+            e.preventDefault();
+            onFocus('name');
+          }}
+          onBlur={(e) => {
+            e.preventDefault();
+            onBlur('name', e);
+          }}
           // this basically says that a name has to have atleast one letter.
           // numbers are allowed, for a name like Charles the 3rd.
           // i used `\p{Letter}` here instead of `[a-zA-Z]`
@@ -85,6 +112,14 @@ const InlineSignup = ({ className, hideWhenLoggedOut = true }) => {
           className="last"
           id="inline-signup-email"
           name="email"
+          onFocus={(e) => {
+            e.preventDefault();
+            onFocus('email');
+          }}
+          onBlur={(e) => {
+            e.preventDefault();
+            onBlur('email', e);
+          }}
           pattern=".+@.+\..+"
           placeholder={t('inlineSignup.emailLabel')}
           required
