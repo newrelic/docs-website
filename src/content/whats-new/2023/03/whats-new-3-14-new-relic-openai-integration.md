@@ -8,7 +8,7 @@ getStartedLink: 'https://github.com/newrelic/nr-openai-observability'
 
 If you're already using, or plan to use, OpenAI's GPT-3, GPT-3.5, or GPT-4 at scale, it's important to monitor metrics like average request time, total requests, and total cost. Doing so can help you ensure that OpenAI services like ChatGPT are working as expected, especially when those services are required for important functions like customer service and support.
 
-Companies around the world are embracing GPT-3 and GPT-4 to power help desk tickets and live chat logs, develop content and images, and accelerate semantic searches. New Relic monitoring for OpenAI is fast, easy to use, and unlocks real-time metrics that can help engineering teams optimize usage, reduce costs, and achieve better results.
+Companies around the world are embracing GPT to power help desk tickets and live chat logs, develop content and images, and accelerate semantic searches. New Relic monitoring for OpenAI is fast, easy to use, and unlocks real-time metrics that can help engineering teams optimize usage, reduce costs, and achieve better results.
 
 ## New Relic integrates with OpenAI, GPT-3, and beyond to provide the following benefits:
 
