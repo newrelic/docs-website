@@ -1,4 +1,10 @@
 import React, { useEffect } from 'react';
+import {
+  Side,
+  SideBySide,
+  useTranslation,
+} from '@newrelic/gatsby-theme-newrelic';
+import { animated, useTrail } from 'react-spring';
 
 import {
   FeaturedContent,
@@ -8,12 +14,6 @@ import {
   StackedContent,
   TitleBlock,
 } from '../components/IntroductionApm';
-
-import {
-  Side,
-  SideBySide,
-  useTranslation,
-} from '@newrelic/gatsby-theme-newrelic';
 
 import QuickstartChooser from '../components/QuickstartChooser';
 
@@ -29,6 +29,13 @@ import trackDeps from 'images/new-apm-images/track-deps.png';
 
 const IntroductionApm = () => {
   const { t } = useTranslation();
+  const spring = useTrail(2, {
+    from: {
+      opacity: 0,
+      y: '6%',
+    },
+    to: { opacity: 1, y: '0%' },
+  });
 
   useEffect(() => {
     const gatsbyFocusWrapper = document.querySelectorAll(
@@ -47,6 +54,7 @@ const IntroductionApm = () => {
         title={t('apm.intro.title')}
         img={introImage}
         alt="Complete visibility and analytics at your fingertips"
+        animate
       />
       <QuickstartChooser />
       <SectionWrapper>
@@ -62,6 +70,7 @@ const IntroductionApm = () => {
             img={entitiesImage}
             alt="See the health of all your services in a glance"
             lineIcon="monitor"
+            animate
           />
           <TitleBlock
             list={[
@@ -72,26 +81,28 @@ const IntroductionApm = () => {
             text={t('apm.block2.text')}
             title={t('apm.block2.title')}
           />
-          <FeaturedContent lineIcon="lock" lineIconOnly>
-            <SideBySide>
-              <Side>
+          <SideBySide>
+            <Side>
+              <animated.div style={spring[0]}>
                 <StackedContent
                   list={[t('apm.block3.0.list.0'), t('apm.block3.0.list.1')]}
                   subTitle={t('apm.block3.0.subTitle')}
                   img={logManagement}
                   alt="Log Management"
                 />
-              </Side>
-              <Side>
+              </animated.div>
+            </Side>
+            <Side>
+              <animated.div style={spring[1]}>
                 <StackedContent
                   list={[t('apm.block3.1.list.0'), t('apm.block3.1.list.1')]}
                   subTitle={t('apm.block3.1.subTitle')}
                   img={vulnerabilityManagement}
                   alt="Vulnerability management"
                 />
-              </Side>
-            </SideBySide>
-          </FeaturedContent>
+              </animated.div>
+            </Side>
+          </SideBySide>
           <FeaturedContent
             list={[t('apm.block4.list.0'), t('apm.block4.list.1')]}
             subTitle={t('apm.block4.subTitle')}

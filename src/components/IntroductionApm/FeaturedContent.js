@@ -5,19 +5,9 @@ import VisibilitySensor from 'react-visibility-sensor';
 
 import { Icon } from '@newrelic/gatsby-theme-newrelic';
 
-const slideFadeIn = keyframes`
-  from {
-    opacity: 0;
-    transform: translateY(6%);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0%);
-  }
-`;
-
 export const FeaturedContent = ({
   alt,
+  animate = false,
   children,
   lineIcon,
   lineIconOnly,
@@ -35,9 +25,11 @@ export const FeaturedContent = ({
     }
   };
 
+  const isAnimated = animate ? 'visible' : '';
+
   return (
     <VisibilitySensor onChange={updateVisibility}>
-      <Container className={isVisible ? 'visible' : ''}>
+      <Container className={isVisible ? isAnimated : ''}>
         {!lineIconOnly && (
           <>
             <TextContainer separator={title}>
@@ -87,6 +79,17 @@ export const FeaturedContent = ({
     </VisibilitySensor>
   );
 };
+
+const slideFadeIn = keyframes`
+  from {
+    opacity: 0;
+    transform: translateY(6%);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0%);
+  }
+`;
 
 const Container = styled.div`
 cubic-bezier(0, 0.3, 0.4, 1);
