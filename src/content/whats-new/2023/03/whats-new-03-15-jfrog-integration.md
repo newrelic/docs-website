@@ -10,7 +10,7 @@ getStartedLink: 'https://newrelic.com/instant-observability/jfrog-platform'
 
 We've partnered with JFrog to provide DevOps, DevSecOps, and engineer teams full visibility and actionable insights into the performance and security of their software supply chains. 
 
-The new [quickstart integration](http://newrelic.com/instant-observability/jfrog-platform) lets you monitor your **JFrog Artifactory** and **JFrog Xray** environments to help fine-tune your DevOps pipelines and ensure faster, seamless software releases. Plus, all New Relic full platform users and all tiers of self-hosted JFrog customers can access it for free! 
+The new [quickstart integration](http://newrelic.com/instant-observability/jfrog-platform) lets you monitor your **JFrog Artifactory** and **JFrog Xray** environments to help fine-tune your DevOps pipelines and ensure faster, seamless software releases. This integration is available for all New Relic full platform users and free for all tiers of self-hosted JFrog customers. 
 
 ## Benefits
 
