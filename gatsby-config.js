@@ -244,8 +244,6 @@ module.exports = {
       },
     },
     // 'gatsby-plugin-generate-doc-json',
-    // Comment in below to run a build that checks links
-    // 'gatsby-plugin-check-links',
     {
       resolve: 'gatsby-plugin-generate-json',
       options: {
@@ -442,6 +440,23 @@ module.exports = {
     {
       resolve: '@newrelic/gatsby-theme-newrelic',
       options: {
+        sitemap: process.env.ENVIRONMENT === 'production',
+        robots: {
+          siteUrl,
+          resolveEnv: () => process.env.ENVIRONMENT || 'development',
+          env: {
+            staging: {
+              host: 'https://docs-dev.newrelic.com',
+              policy: [{ userAgent: '*', disallow: ['/'] }],
+            },
+            development: {
+              policy: [{ userAgent: '*', disallow: ['/'] }],
+            },
+            production: {
+              policy: [{ userAgent: '*', allow: '/' }],
+            },
+          },
+        },
         oneTrustID: 'e66f9ef1-3a12-4043-b7c0-1a2ea66f6d41',
         layout: {
           contentPadding: '1.5rem',
