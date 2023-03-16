@@ -6,4 +6,6 @@ events:
   - SystemSample
 ---
 
-The number of cores within a single CPU. This corresponds with the 'cpu cores' field in /proc/cpuinfo in Linux.
+* Linux: [/proc/cpuinfo: 'cpu cores'] The number of cores within a single CPU.
+
+* Windows: [WMI win32_processor: 'NumberOfLogicalProcessors'] The number of logical processors, including cores divided by hyperthreading.
