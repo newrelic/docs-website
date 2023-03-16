@@ -1,7 +1,7 @@
 ---
 title: 'New Relic launches support for Amazon Linux 2023'
 summary: 'New and existing New Relic customers running workloads on AWS can take advantage of the updated Amazon Linux 2023.'
-releaseDate: '2023-03-15'
+releaseDate: '2023-03-16'
 learnMoreLink: 'https://newrelic.com/blog/nerdlog/support-for-amazon-linux'
 getStartedLink: 'https://one.newrelic.com/marketplace?state=49e6d628-79ac-7022-1689-a6a6b7673f54'
 ---
