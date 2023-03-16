@@ -123,6 +123,7 @@ const Close = styled.button`
   position: absolute;
   right: 16px;
   top: 16px;
+  z-index: 1;
 
   &:hover {
     cursor: pointer;
