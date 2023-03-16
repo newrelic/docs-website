@@ -91,7 +91,8 @@ const HomepageLayout = ({ children, pageContext, sidebarOpen = true }) => {
   const showAnimatedSearchBar = currentView === TOGGLE_VIEWS.newUserView;
 
   const SAVED_TOGGLE_VIEW_KEY = 'docs-website/homepage-selected-view';
-  const isShowingPersona = currentView === TOGGLE_VIEWS.newUserView && !isMobileWidth
+  const isShowingPersona =
+    currentView === TOGGLE_VIEWS.newUserView && !isMobileWidth;
 
   /* `useLocalStorage` hook doesn't work here because SSR doesn't have access to
    * localStorage, so when it gets to the client, the current tab is already set
@@ -334,10 +335,13 @@ const HomepageLayout = ({ children, pageContext, sidebarOpen = true }) => {
                 css={css`
                   display: ${isMobileNavOpen ? 'none' : 'block'};
                   position: relative;
-                  ${currentView === TOGGLE_VIEWS.newUserView && 'max-width: unset;'}
-                  padding: ${currentView === TOGGLE_VIEWS.newUserView
-                    ? '0'
-                    : '1.5rem'};
+                  ${
+                    currentView === TOGGLE_VIEWS.newUserView &&
+                    'max-width: unset;'
+                  }
+                  padding: ${
+                    currentView === TOGGLE_VIEWS.newUserView ? '0' : '1.5rem'
+                  };
                 `}
               >
                 {children}
@@ -379,17 +383,25 @@ const AnimatedSearchInput = styled(SearchInput)`
   svg {
     stroke: #fff;
     right: 0.75rem;
-    transition: stroke 0.55s ease;
+    transition: stroke, width, height 0.55s ease;
+    width: 1.25rem;
+    height: 1.25rem;
   }
   &:focus-within {
     svg {
+      transition: stroke, width, height 0.55s ease;
       stroke: var(--erno-black);
+      width: 0.75rem;
+      height: 0.75rem;
     }
   }
   &:hover {
     width: 150px;
     svg {
+      transition: stroke, width, height 0.55s ease;
       stroke: var(--erno-black);
+      width: 0.75rem;
+      height: 0.75rem;
     }
   }
   &:hover input,
