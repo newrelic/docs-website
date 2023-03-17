@@ -1,18 +1,19 @@
 import React, { useState } from 'react';
 import styled from '@emotion/styled';
-import { css, keyframes } from '@emotion/react';
+import { css } from '@emotion/react';
 import VisibilitySensor from 'react-visibility-sensor';
+import { animated, useTrail } from 'react-spring';
 
 import { Icon } from '@newrelic/gatsby-theme-newrelic';
 
 export const FeaturedContent = ({
   alt,
-  animate = false,
   children,
   lineIcon,
   lineIconOnly,
   img,
   list,
+  offset = 0,
   subTitle,
   text,
   title,
@@ -25,28 +26,41 @@ export const FeaturedContent = ({
     }
   };
 
-  const makeVisible = (animate) => {
-    if (!animate) {
-      return 'no-animate';
-    }
-    if (isVisible) {
-      return 'visible';
-    }
-  };
+  offset && console.log(offset, isVisible);
+
+  const spring = useTrail(6, {
+    config: { mass: 1, tension: 400, friction: 40 },
+    from: {
+      opacity: 0,
+      y: '6%',
+    },
+    to: {
+      opacity: isVisible ? 1 : 0,
+      y: isVisible ? '0%' : '6%',
+    },
+  });
 
   return (
-    <VisibilitySensor onChange={updateVisibility}>
-      <Container className={makeVisible(animate)}>
+    <VisibilitySensor
+      onChange={updateVisibility}
+      partialVisibility={offset && true}
+      offset={{ bottom: offset }}
+    >
+      <Container>
         {!lineIconOnly && (
           <>
             <TextContainer separator={title}>
               {title && <Title>{title}</Title>}
-              {subTitle && <SubTitle>{subTitle}</SubTitle>}
+              {subTitle && (
+                <SubTitle as={animated.h2} style={spring[1]}>
+                  {subTitle}
+                </SubTitle>
+              )}
               {text && text.map((paragraph, i) => <p key={i}>{paragraph}</p>)}
               {list && (
                 <ListWrapper>
                   {list.map((item, i) => (
-                    <ListItem key={i}>
+                    <ListItem key={i} as={animated.div} style={spring[3 + i]}>
                       <Icon
                         name="fe-check"
                         css={css`
@@ -61,7 +75,11 @@ export const FeaturedContent = ({
               )}
             </TextContainer>
             {img && (
-              <ImageWrapper separator={title}>
+              <ImageWrapper
+                separator={title}
+                as={animated.div}
+                style={spring[2]}
+              >
                 <img alt={alt} src={img} />
               </ImageWrapper>
             )}
@@ -70,7 +88,7 @@ export const FeaturedContent = ({
         {lineIcon && (
           <>
             <Spacer>
-              <LineIconWrapper>
+              <LineIconWrapper as={animated.div} style={spring[0]}>
                 <LineIcon
                   name={lineIcon}
                   css={css`
@@ -87,22 +105,10 @@ export const FeaturedContent = ({
   );
 };
 
-const slideFadeIn = keyframes`
-  from {
-    opacity: 0;
-    transform: translateY(6%);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0%);
-  }
-`;
-
 const Container = styled.div`
 cubic-bezier(0, 0.3, 0.4, 1);
 display: flex;
 margin: 48px 0;
-opacity: 0;
 padding: 0 40px;
 position: relative;
 width: 100%;
@@ -110,11 +116,6 @@ width: 100%;
 &.no-animate {
   opacity: 1;
 }
-
-&.visible {
-    animation: 500ms ${slideFadeIn};
-    opacity: 1;
-  }
 
   @media screen and (max-width: 1000px) {
     flex-direction: column;
@@ -155,7 +156,7 @@ const LineIconWrapper = styled.div`
   padding: 8px;
 `;
 
-const ListItem = styled.div`
+const ListItem = styled.li`
   align-items: center;
   display: flex;
   margin-bottom: 16px;
@@ -191,7 +192,7 @@ const Spacer = styled.div`
   background: var(--primary-background-color);
   display: flex;
   justify-content: center;
-  left: -50px;
+  left: -52px;
   padding: 12px;
   position: absolute;
   top: 40%;

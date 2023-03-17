@@ -27,7 +27,7 @@ export const TitleBlock = ({ list, text, title }) => {
   });
 
   return (
-    <VisibilitySensor onChange={updateVisibility}>
+    <VisibilitySensor onChange={updateVisibility} offset={{ bottom: 200 }}>
       <Container>
         <TextContainer>
           <Title as={animated.h1} style={spring[0]}>

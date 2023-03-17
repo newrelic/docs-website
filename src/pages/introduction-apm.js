@@ -6,6 +6,7 @@ import {
 } from '@newrelic/gatsby-theme-newrelic';
 import { animated, useTrail } from 'react-spring';
 import VisibilitySensor from 'react-visibility-sensor';
+import { useMedia } from 'react-use';
 
 import {
   FeaturedContent,
@@ -15,7 +16,6 @@ import {
   StackedContent,
   TitleBlock,
 } from '../components/IntroductionApm';
-
 import QuickstartChooser from '../components/QuickstartChooser';
 
 import introImage from 'images/new-apm-images/intro.png';
@@ -33,7 +33,11 @@ const IntroductionApm = () => {
   const [twoColumnVisible, setTwoColumnVisible] = useState(false);
   const [fourColumnVisible, setFourColumnVisible] = useState(false);
 
+  const isMobileScreen = useMedia('(max-width: 1240px)');
+
   const twoColumn = useTrail(2, {
+    config: { mass: 1, tension: 500, friction: 100 },
+    delay: 500,
     from: {
       opacity: 0,
       y: '6%',
@@ -51,6 +55,7 @@ const IntroductionApm = () => {
   };
 
   const fourColumn = useTrail(4, {
+    config: { mass: 1, tension: 500, friction: 100 },
     from: {
       opacity: 0,
       y: '6%',
@@ -61,7 +66,7 @@ const IntroductionApm = () => {
     },
   });
 
-  const handleFourColumn = (isVisible) => {
+  const handleFourColumn = (isVisible, e) => {
     if (isVisible) {
       setFourColumnVisible(true);
     }
@@ -99,7 +104,6 @@ const IntroductionApm = () => {
             img={entitiesImage}
             alt="See the health of all your services in a glance"
             lineIcon="monitor"
-            animate
           />
           <TitleBlock
             list={[
@@ -110,8 +114,12 @@ const IntroductionApm = () => {
             text={t('apm.block2.text')}
             title={t('apm.block2.title')}
           />
-          <FeaturedContent lineIcon="lock" lineIconOnly animate>
-            <VisibilitySensor onChange={handleTwoColumn}>
+          <FeaturedContent lineIcon="lock" lineIconOnly offset={320}>
+            <VisibilitySensor
+              onChange={handleTwoColumn}
+              partialVisibility
+              offset={{ bottom: 300 }}
+            >
               <SideBySide>
                 <animated.div style={twoColumn[0]}>
                   <Side>
@@ -123,6 +131,7 @@ const IntroductionApm = () => {
                       subTitle={t('apm.block3.0.subTitle')}
                       img={logManagement}
                       alt="Log Management"
+                      isVisible={twoColumnVisible}
                     />
                   </Side>
                 </animated.div>
@@ -136,6 +145,7 @@ const IntroductionApm = () => {
                       subTitle={t('apm.block3.1.subTitle')}
                       img={vulnerabilityManagement}
                       alt="Vulnerability management"
+                      isVisible={twoColumnVisible}
                     />
                   </Side>
                 </animated.div>
@@ -152,7 +162,11 @@ const IntroductionApm = () => {
           />
         </SectionWrapper>
       </SectionWrapper>
-      <VisibilitySensor onChange={handleFourColumn}>
+      <VisibilitySensor
+        onChange={handleFourColumn}
+        offset={{ top: 100 }}
+        partialVisibility={isMobileScreen}
+      >
         <SideBySide>
           <animated.div style={fourColumn[0]}>
             <Side>
