@@ -1,3 +1,6 @@
+/* eslint-disable no-useless-escape */
+// for VWO script linting errors
+
 import React from 'react';
 import PropTypes from 'prop-types';
 
