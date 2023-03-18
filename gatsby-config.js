@@ -477,6 +477,7 @@ module.exports = {
             'batch',
             'csv',
             'cmake',
+            'dart',
             'dax',
             'diff',
             'django',
