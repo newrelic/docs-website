@@ -113,16 +113,6 @@ const HomePage = ({ data }) => {
         <Link to="?q=kubernetes">
           {t('home.search.popularSearches.options.4')}
         </Link>
-        <ToggleSelector
-          showTooltip={showTooltip}
-          css={css`
-            justify-self: end;
-
-            @media screen and (max-width: 760px) {
-              display: none;
-            }
-          `}
-        />
       </div>
       <HomepageBanner />
       <Section
