@@ -26,8 +26,6 @@ export const FeaturedContent = ({
     }
   };
 
-  offset && console.log(offset, isVisible);
-
   const spring = useTrail(6, {
     config: { mass: 1, tension: 400, friction: 40 },
     from: {

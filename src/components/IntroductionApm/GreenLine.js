@@ -4,6 +4,7 @@ import styled from '@emotion/styled';
 export const GreenLine = () => {
   let [calcHeight, setCalcHeight] = useState(0);
   const lineRef = useRef(null);
+  const containerRef = useRef(null);
 
   const handleLineHeight = (h) => {
     if (lineRef.current.getAttribute('height') >= h) return;
@@ -12,7 +13,8 @@ export const GreenLine = () => {
 
   const handleScroll = () => {
     console.log(lineRef.current.getBoundingClientRect());
-    const totalHeight = lineRef.current.getBoundingClientRect().height;
+    const totalHeight = containerRef.current.getBoundingClientRect().height;
+    console.log('totalHeight', totalHeight);
     let top = lineRef.current.getBoundingClientRect().top;
 
     if (top <= 300) {
@@ -37,7 +39,7 @@ export const GreenLine = () => {
   }, []);
 
   return (
-    <Wrapper onScroll={handleScroll}>
+    <Wrapper ref={containerRef}>
       <Line height={calcHeight} ref={lineRef} />
     </Wrapper>
   );
