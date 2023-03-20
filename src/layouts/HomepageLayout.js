@@ -84,6 +84,7 @@ const HomepageLayout = ({ children, pageContext, sidebarOpen = true }) => {
 
   const hasToggled = useRef(false);
   const [currentView, setCurrentView] = useState(TOGGLE_VIEWS.newUserView);
+  const [showTooltip, setShowTooltip] = useState();
   const updateView = (id) => {
     hasToggled.current = true;
     setCurrentView(id);
@@ -101,10 +102,26 @@ const HomepageLayout = ({ children, pageContext, sidebarOpen = true }) => {
    */
   useEffect(() => {
     const storedToggleView = window.localStorage.getItem(SAVED_TOGGLE_VIEW_KEY);
+
+    const chooseViewByLoggedIn = loggedIn
+      ? TOGGLE_VIEWS.defaultView
+      : TOGGLE_VIEWS.newUserView;
+
     if (!storedToggleView && loggedIn !== null) {
       setCurrentView(
         loggedIn ? TOGGLE_VIEWS.defaultView : TOGGLE_VIEWS.newUserView
       );
+      setCurrentView(chooseViewByLoggedIn);
+    }
+
+    /* prevents the tooltip from continuing to show on every render
+     * of the defaultview if it's triggered by the toggle buttons
+     * and only on initial page load to defaultview
+     */
+    if (loggedIn) {
+      setShowTooltip(storedToggleView !== TOGGLE_VIEWS.newUserView);
+    } else if (!loggedIn) {
+      setShowTooltip(storedToggleView === TOGGLE_VIEWS.defaultView);
     }
     if (storedToggleView) {
       setCurrentView(storedToggleView);
@@ -198,6 +215,7 @@ const HomepageLayout = ({ children, pageContext, sidebarOpen = true }) => {
                   className={cx(showAnimatedSearchBar && 'visible')}
                 />
                 <ToggleSelector
+                  showTooltip={showTooltip}
                   css={css`
                     justify-self: end;
                     @media screen and (max-width: 760px) {
