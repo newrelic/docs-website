@@ -163,9 +163,7 @@ const HomepageLayout = ({ children, pageContext, sidebarOpen = true }) => {
                 --sidebar-width: ${sidebar ? sidebarWidth : '60px'};
                 -webkit-font-smoothing: antialiased;
                 font-size: 1.125rem;
-                background-color: ${isShowingPersona
-                  ? 'black'
-                  : 'var(--primary-background-color)'};
+                background-color: var(--primary-background-color);
                 position: relative;
                 max-width: unset;
 
@@ -177,6 +175,9 @@ const HomepageLayout = ({ children, pageContext, sidebarOpen = true }) => {
 
                 @media screen and (max-width: 1240px) {
                   --sidebar-width: ${sidebar ? '278px' : '50px'};
+                }
+                @media (min-width: 761px) {
+                  background: black;
                 }
               `}
             >
@@ -352,14 +353,15 @@ const HomepageLayout = ({ children, pageContext, sidebarOpen = true }) => {
               <Layout.Main
                 css={css`
                   display: ${isMobileNavOpen ? 'none' : 'block'};
+                  padding: 0;
                   position: relative;
-                  ${
-                    currentView === TOGGLE_VIEWS.newUserView &&
-                    'max-width: unset;'
+
+                  @media (max-width: 760px) {
+                    padding: 1.5rem;
                   }
-                  padding: ${
-                    currentView === TOGGLE_VIEWS.newUserView ? '0' : '1.5rem'
-                  };
+                  @media (min-width: 761px) {
+                    max-width: unset;
+                  }
                 `}
               >
                 {children}
