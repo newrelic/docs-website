@@ -2,8 +2,7 @@
 title: 'Find the Right Pre-built Dashboard with the Popular Pre-built Dashboards Section'
 summary: 'Save your time and resources by discovering and installing pre-built dashboards directly from the New Relic platform’s Dashboards UI'
 releaseDate: '2022-03-22'
-learnMoreLink: ''
-getStartedLink: ''
+getStartedLink: 'https://one.newrelic.com/dashboards'
 ---
 
 Getting instant observability with our quickstart dashboards has never been easier. With the new Popular Pre-built Dashboards Section, you can now easily discover and conveniently install any of our pre-built dashboards directly from our platform’s [Dashboards UI](https://one.newrelic.com/dashboards). All in all, this creates a more cohesive dashboard experience where you can find your custom and pre-built dashboards all in one place.
