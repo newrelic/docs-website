@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { navigate } from '@reach/router';
 import { css } from '@emotion/react';
 import PropTypes from 'prop-types';
@@ -7,13 +7,18 @@ import {
   Link,
   Icon,
   SearchInput,
+  useLoggedIn,
   useTranslation,
   useInstrumentedHandler,
 } from '@newrelic/gatsby-theme-newrelic';
 import HomepageBanner from '../components/HomepageBanner';
 import { DocTile } from '../components/DocTile';
 import FindYourQuickStart from '../components/FindYourQuickstart';
-import { ToggleView, TOGGLE_VIEWS } from '../components/ToggleView';
+import {
+  ToggleSelector,
+  ToggleView,
+  TOGGLE_VIEWS,
+} from '../components/ToggleView';
 import HomepageSlabs from '../components/HomepageSlabs';
 import useMediaQuery from '../hooks/useMediaQuery';
 
@@ -24,32 +29,23 @@ const HomePage = ({ data }) => {
   } = data;
   const isMobile = useMediaQuery('(max-width: 760px)');
 
-  const { loggedIn } = useLoggedIn();
   const [searchTerm, setSearchTerm] = useState('');
-  const hasToggled = useRef(false);
-  const [currentView, setCurrentView] = useState(TOGGLE_VIEWS.newUserView);
   const [showTooltip, setShowTooltip] = useState(); // used for tooltip
-  const updateView = (id) => {
-    hasToggled.current = true;
-    setCurrentView(id);
-  };
-
+  const { loggedIn } = useLoggedIn();
   const { t } = useTranslation();
 
-  /* `useLocalStorage` hook doesn't work here because SSR doesn't have access to
-   * localStorage, so when it gets to the client, the current tab is already set
-   * and the client doesn't know to update it.
-   *
-   */
+  const mobileBreakpoint = '450px';
+  const SAVED_TOGGLE_VIEW_KEY = 'docs-website/homepage-selected-view';
+  const latestWhatsNewPosts = whatsNewPosts.map((edge) => {
+    return {
+      title: edge.node.frontmatter.title,
+      releaseDate: edge.node.frontmatter.releaseDate,
+      path: edge.node.fields.slug,
+    };
+  });
+
   useEffect(() => {
     const storedToggleView = window.localStorage.getItem(SAVED_TOGGLE_VIEW_KEY);
-    const chooseViewByLoggedIn = loggedIn
-      ? TOGGLE_VIEWS.defaultView
-      : TOGGLE_VIEWS.newUserView;
-
-    if (!storedToggleView && loggedIn !== null) {
-      setCurrentView(chooseViewByLoggedIn);
-    }
 
     /* prevents the tooltip from continuing to show on every render
      * of the defaultview if it's triggered by the toggle buttons
@@ -60,27 +56,7 @@ const HomePage = ({ data }) => {
     } else if (!loggedIn) {
       setShowTooltip(storedToggleView === TOGGLE_VIEWS.defaultView);
     }
-
-    if (storedToggleView) {
-      setCurrentView(storedToggleView);
-    }
-  }, [setCurrentView, loggedIn]);
-
-  useEffect(() => {
-    if (hasToggled.current) {
-      window.localStorage.setItem(SAVED_TOGGLE_VIEW_KEY, currentView);
-    }
-  }, [currentView]);
-
-  const mobileBreakpoint = '450px';
-
-  const latestWhatsNewPosts = whatsNewPosts.map((edge) => {
-    return {
-      title: edge.node.frontmatter.title,
-      releaseDate: edge.node.frontmatter.releaseDate,
-      path: edge.node.fields.slug,
-    };
-  });
+  }, [loggedIn]);
 
   const defaultView = (
     <>

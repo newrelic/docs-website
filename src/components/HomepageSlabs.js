@@ -312,7 +312,7 @@ const HomepageSlabs = () => {
           </DocTiles>
         )}
       </Slab>
-    <PersonaSignup />
+      <PersonaSignup />
     </div>
   );
 };
