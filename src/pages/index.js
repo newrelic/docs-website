@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { navigate } from '@reach/router';
 import { css } from '@emotion/react';
 import PropTypes from 'prop-types';
@@ -7,18 +7,13 @@ import {
   Link,
   Icon,
   SearchInput,
-  useLoggedIn,
   useTranslation,
   useInstrumentedHandler,
 } from '@newrelic/gatsby-theme-newrelic';
 import HomepageBanner from '../components/HomepageBanner';
 import { DocTile } from '../components/DocTile';
 import FindYourQuickStart from '../components/FindYourQuickstart';
-import {
-  ToggleSelector,
-  ToggleView,
-  TOGGLE_VIEWS,
-} from '../components/ToggleView';
+import { ToggleView, TOGGLE_VIEWS } from '../components/ToggleView';
 import HomepageSlabs from '../components/HomepageSlabs';
 import useMediaQuery from '../hooks/useMediaQuery';
 
@@ -30,12 +25,9 @@ const HomePage = ({ data }) => {
   const isMobile = useMediaQuery('(max-width: 760px)');
 
   const [searchTerm, setSearchTerm] = useState('');
-  const [showTooltip, setShowTooltip] = useState(); // used for tooltip
-  const { loggedIn } = useLoggedIn();
   const { t } = useTranslation();
 
   const mobileBreakpoint = '450px';
-  const SAVED_TOGGLE_VIEW_KEY = 'docs-website/homepage-selected-view';
   const latestWhatsNewPosts = whatsNewPosts.map((edge) => {
     return {
       title: edge.node.frontmatter.title,
@@ -43,20 +35,6 @@ const HomePage = ({ data }) => {
       path: edge.node.fields.slug,
     };
   });
-
-  useEffect(() => {
-    const storedToggleView = window.localStorage.getItem(SAVED_TOGGLE_VIEW_KEY);
-
-    /* prevents the tooltip from continuing to show on every render
-     * of the defaultview if it's triggered by the toggle buttons
-     * and only on initial page load to defaultview
-     */
-    if (loggedIn) {
-      setShowTooltip(storedToggleView !== TOGGLE_VIEWS.newUserView);
-    } else if (!loggedIn) {
-      setShowTooltip(storedToggleView === TOGGLE_VIEWS.defaultView);
-    }
-  }, [loggedIn]);
 
   const defaultView = (
     <>
