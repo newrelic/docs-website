@@ -24,9 +24,53 @@ const HomePage = ({ data }) => {
   } = data;
   const isMobile = useMediaQuery('(max-width: 760px)');
 
+  const { loggedIn } = useLoggedIn();
+  const [searchTerm, setSearchTerm] = useState('');
+  const hasToggled = useRef(false);
+  const [currentView, setCurrentView] = useState(TOGGLE_VIEWS.newUserView);
+  const [showTooltip, setShowTooltip] = useState(); // used for tooltip
+  const updateView = (id) => {
+    hasToggled.current = true;
+    setCurrentView(id);
+  };
+
   const { t } = useTranslation();
 
-  const [searchTerm, setSearchTerm] = useState('');
+  /* `useLocalStorage` hook doesn't work here because SSR doesn't have access to
+   * localStorage, so when it gets to the client, the current tab is already set
+   * and the client doesn't know to update it.
+   *
+   */
+  useEffect(() => {
+    const storedToggleView = window.localStorage.getItem(SAVED_TOGGLE_VIEW_KEY);
+    const chooseViewByLoggedIn = loggedIn
+      ? TOGGLE_VIEWS.defaultView
+      : TOGGLE_VIEWS.newUserView;
+
+    if (!storedToggleView && loggedIn !== null) {
+      setCurrentView(chooseViewByLoggedIn);
+    }
+
+    /* prevents the tooltip from continuing to show on every render
+     * of the defaultview if it's triggered by the toggle buttons
+     * and only on initial page load to defaultview
+     */
+    if (loggedIn) {
+      setShowTooltip(storedToggleView !== TOGGLE_VIEWS.newUserView);
+    } else if (!loggedIn) {
+      setShowTooltip(storedToggleView === TOGGLE_VIEWS.defaultView);
+    }
+
+    if (storedToggleView) {
+      setCurrentView(storedToggleView);
+    }
+  }, [setCurrentView, loggedIn]);
+
+  useEffect(() => {
+    if (hasToggled.current) {
+      window.localStorage.setItem(SAVED_TOGGLE_VIEW_KEY, currentView);
+    }
+  }, [currentView]);
 
   const mobileBreakpoint = '450px';
 
@@ -93,6 +137,16 @@ const HomePage = ({ data }) => {
         <Link to="?q=kubernetes">
           {t('home.search.popularSearches.options.4')}
         </Link>
+        <ToggleSelector
+          showTooltip={showTooltip}
+          css={css`
+            justify-self: end;
+
+            @media screen and (max-width: 760px) {
+              display: none;
+            }
+          `}
+        />
       </div>
       <HomepageBanner />
       <Section
