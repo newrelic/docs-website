@@ -595,7 +595,6 @@ const TEMPLATES_BY_TYPE = {
   apiDoc: 'docPage',
   releaseNote: 'releaseNote',
   troubleshooting: 'docPage',
-  docBannerTest: 'docBannerTest',
 };
 
 const getTemplate = (node) => {
