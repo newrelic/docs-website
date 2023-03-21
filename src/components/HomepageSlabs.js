@@ -117,6 +117,10 @@ const HomepageSlabs = () => {
         @media screen and (max-width: 1240px) {
           flex-direction: column;
         }
+
+        @media screen and (max-width: 760px) {
+          display: none;
+        }
       `}
     >
       <Slab
