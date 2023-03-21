@@ -367,10 +367,17 @@ const HomepageLayout = ({ children, pageContext, sidebarOpen = true }) => {
                 fileRelativePath={pageContext.fileRelativePath}
                 css={css`
                   height: 60px;
+                  a:first-of-type {
+                    margin-left: 0;
+                  }
                   ${!sidebar &&
                   css`
                     grid-column: 1/3;
                   `}
+                  @media (max-width: 760px) {
+                    height: 100%;
+                    align-items: center;
+                  }
                 `}
               />
             </Layout>
