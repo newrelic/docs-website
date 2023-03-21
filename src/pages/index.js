@@ -37,7 +37,15 @@ const HomePage = ({ data }) => {
   });
 
   const defaultView = (
-    <>
+    <div
+      css={css`
+        padding: 1.5rem;
+
+        @media (max-width: 760px) {
+          padding: 0;
+        }
+      `}
+    >
       <h1
         css={css`
           font-size: 3.5rem;
@@ -183,7 +191,7 @@ const HomePage = ({ data }) => {
       <Section layout={layout}>
         <FindYourQuickStart />
       </Section>
-    </>
+    </div>
   );
 
   if (isMobile) {
