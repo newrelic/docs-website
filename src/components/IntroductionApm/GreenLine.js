@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import styled from '@emotion/styled';
 
-export const GreenLine = () => {
+export const GreenLine = ({ iconPositions }) => {
   let [calcHeight, setCalcHeight] = useState(0);
   const lineRef = useRef(null);
   const containerRef = useRef(null);
@@ -11,26 +11,23 @@ export const GreenLine = () => {
     setCalcHeight(h);
   };
 
+  console.log('iconPositions', iconPositions);
+
   const handleScroll = () => {
-    console.log(lineRef.current.getBoundingClientRect());
+    iconPositions.sort();
+    // console.log(lineRef.current.getBoundingClientRect());
     const totalHeight = containerRef.current.getBoundingClientRect().height;
-    console.log('totalHeight', totalHeight);
+    // console.log('totalHeight', totalHeight);
     let top = lineRef.current.getBoundingClientRect().top;
 
     if (top <= 300) {
-      handleLineHeight(20);
-    }
-    if (top <= 0) {
-      handleLineHeight(40);
+      handleLineHeight(iconPositions[0] / totalHeight);
     }
     if (top <= -300) {
-      handleLineHeight(60);
-    }
-    if (top <= -600) {
-      handleLineHeight(80);
+      handleLineHeight(iconPositions[1] / totalHeight);
     }
     if (top <= -1000) {
-      handleLineHeight(100);
+      handleLineHeight(iconPositions[2] / totalHeight);
     }
   };
 

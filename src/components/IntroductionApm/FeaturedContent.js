@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import styled from '@emotion/styled';
 import { css } from '@emotion/react';
 import VisibilitySensor from 'react-visibility-sensor';
@@ -7,6 +7,7 @@ import { animated, useTrail } from 'react-spring';
 import { Icon } from '@newrelic/gatsby-theme-newrelic';
 
 export const FeaturedContent = ({
+  addIconPosition,
   alt,
   children,
   lineIcon,
@@ -19,6 +20,14 @@ export const FeaturedContent = ({
   title,
 }) => {
   const [isVisible, setVisible] = useState(false);
+
+  const hasIconPosition = useRef(false);
+  const iconPositionRef = useCallback((ele) => {
+    if (hasIconPosition.current) return;
+    // ensures this only get 1 measurement per render
+    hasIconPosition.current = true;
+    return addIconPosition(ele?.getBoundingClientRect()?.top);
+  });
 
   const updateVisibility = (isVisible) => {
     if (isVisible) {
@@ -86,7 +95,11 @@ export const FeaturedContent = ({
         {lineIcon && (
           <>
             <Spacer>
-              <LineIconWrapper as={animated.div} style={spring[0]}>
+              <LineIconWrapper
+                as={animated.div}
+                style={spring[0]}
+                ref={iconPositionRef}
+              >
                 <LineIcon
                   name={lineIcon}
                   css={css`

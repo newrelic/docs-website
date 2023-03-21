@@ -32,6 +32,7 @@ const IntroductionApm = () => {
   const { t } = useTranslation();
   const [twoColumnVisible, setTwoColumnVisible] = useState(false);
   const [fourColumnVisible, setFourColumnVisible] = useState(false);
+  const [iconPositions, setIconPositions] = useState([]);
 
   const isMobileScreen = useMedia('(max-width: 1240px)');
 
@@ -72,6 +73,10 @@ const IntroductionApm = () => {
     }
   };
 
+  const addIconPosition = (position) => {
+    setIconPositions((positions) => positions.concat(position));
+  };
+
   useEffect(() => {
     const gatsbyFocusWrapper = document.querySelectorAll(
       '#gatsby-focus-wrapper'
@@ -92,7 +97,7 @@ const IntroductionApm = () => {
       />
       <QuickstartChooser />
       <SectionWrapper>
-        <GreenLine />
+        <GreenLine iconPositions={iconPositions} />
         <SectionWrapper column>
           <FeaturedContent
             list={[
@@ -104,6 +109,7 @@ const IntroductionApm = () => {
             img={entitiesImage}
             alt="See the health of all your services in a glance"
             lineIcon="monitor"
+            addIconPosition={addIconPosition}
           />
           <TitleBlock
             list={[
@@ -114,7 +120,12 @@ const IntroductionApm = () => {
             text={t('apm.block2.text')}
             title={t('apm.block2.title')}
           />
-          <FeaturedContent lineIcon="lock" lineIconOnly offset={320}>
+          <FeaturedContent
+            lineIcon="lock"
+            lineIconOnly
+            offset={320}
+            addIconPosition={addIconPosition}
+          >
             <VisibilitySensor
               onChange={handleTwoColumn}
               partialVisibility
@@ -159,6 +170,7 @@ const IntroductionApm = () => {
             lineIcon="thumbsup"
             alt="Ensure a great user experience"
             animate
+            addIconPosition={addIconPosition}
           />
         </SectionWrapper>
       </SectionWrapper>
