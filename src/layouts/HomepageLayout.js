@@ -28,7 +28,6 @@ import {
   TOGGLE_VIEWS,
   ToggleSelector,
 } from '../components/ToggleView';
-import useMediaQuery from '../hooks/useMediaQuery';
 
 const HomepageLayout = ({ children, pageContext, sidebarOpen = true }) => {
   const { loggedIn } = useLoggedIn();
@@ -40,7 +39,6 @@ const HomepageLayout = ({ children, pageContext, sidebarOpen = true }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [sidebar, setSidebar] = useState(sidebarOpen);
   const { t } = useTranslation();
-  const isMobileWidth = useMediaQuery('(max-width: 760px)');
   const navHeaderHeight = '100px';
   const isStyleGuide =
     slug.match(/\/docs\/style-guide/) || slug.match(/\/docs\/agile-handbook/);
@@ -92,8 +90,6 @@ const HomepageLayout = ({ children, pageContext, sidebarOpen = true }) => {
   const showAnimatedSearchBar = currentView === TOGGLE_VIEWS.newUserView;
 
   const SAVED_TOGGLE_VIEW_KEY = 'docs-website/homepage-selected-view';
-  const isShowingPersona =
-    currentView === TOGGLE_VIEWS.newUserView && !isMobileWidth;
 
   /* `useLocalStorage` hook doesn't work here because SSR doesn't have access to
    * localStorage, so when it gets to the client, the current tab is already set
