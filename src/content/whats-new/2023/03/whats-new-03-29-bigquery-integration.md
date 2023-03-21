@@ -4,9 +4,9 @@ summary: 'Optimize query performance and control your costs on Google BigQuery'
 releaseDate: '2023-03-29'
 getStartedLink: 'https://newrelic.com/instant-observability/google-bigquery'
 ---
-New Relic has integrated with Google Cloud Platform’s (GCP) BigQuery to provide continuous insights on the health and performance of BigQuery services. By integrating your BigQuery data with New Relic, you can ingest and visualize service metrics to troubleshoot performance issues or optimize your costs. Today we are further announcing that we successfully achieved the designation of [Google Cloud Ready - BigQuery](https://cloud.google.com/bigquery/docs/bigquery-ready-overview). 
+New Relic has integrated with Google Cloud Platform’s (GCP) BigQuery to provide continuous insights on the health and performance of BigQuery services. By integrating your BigQuery data with New Relic, you can ingest and visualize service metrics to troubleshoot performance issues or optimize your costs. 
 
-BigQuery provides the capability to provide computing capacity across your workloads, teams, or departments using the concept of reservations. You can allocate slots to designated groups of GCP projects in your organization. By integrating with BigQuery, New Relic provides real time observability for your Google BigQuery telemetry data such as: 
+BigQuery provides the ability to allocate computing capacity across your organization's workloads, teams, or departments using the concept of reservations to designate slots for groups of GCP projects. As a designated [Google Cloud Ready - BigQuery](https://cloud.google.com/bigquery/docs/bigquery-ready-overview) integration, New Relic provides real-time observability for your Google BigQuery telemetry data such as: 
 
 ## Query optimization
 For each reservation, you can see the number of slots allocated for your different workloads and job types, as well as slots allocated for queries within the project. By monitoring query counts and execution times, you can quickly determine if the demand for jobs is higher than the allocated amount for the reservation; for instance, if one job ran slower and used significantly fewer slots than the other, this could mean it had more limited access to resources because it was competing against other active jobs.
