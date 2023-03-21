@@ -176,9 +176,6 @@ const HomepageLayout = ({ children, pageContext, sidebarOpen = true }) => {
                 @media screen and (max-width: 1240px) {
                   --sidebar-width: ${sidebar ? '278px' : '50px'};
                 }
-                @media (min-width: 761px) {
-                  background: black;
-                }
               `}
             >
               <div
