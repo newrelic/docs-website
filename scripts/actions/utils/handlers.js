@@ -132,6 +132,10 @@ module.exports = {
     },
     serialize: serializeComponent,
   },
+  InlineSignup: {
+    deserialize: deserializeComponent,
+    serialize: serializeComponent,
+  },
   Link: {
     deserialize: deserializeComponent,
     serialize: serializeComponent,

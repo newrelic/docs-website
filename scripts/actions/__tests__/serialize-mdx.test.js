@@ -392,3 +392,10 @@ test('serialize iframes', async () => {
   const html = await serializeMDX(mdx);
   expect(html).toMatchSnapshot();
 });
+
+test('Serialize Inline Signup Form', async () => {
+  const mdx = `<InlineSignup />`;
+
+  const html = await serializeMDX(mdx);
+  expect(html).toMatchSnapshot();
+});
