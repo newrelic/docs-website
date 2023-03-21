@@ -142,16 +142,11 @@ const HomepageLayout = ({ children, pageContext, sidebarOpen = true }) => {
         customStyles={{ navLeftMargin: '150px', searchRightMargin: '30px' }}
       />
       <MobileHeader
-        css={
-          isShowingPersona &&
-          css`
-            background-color: black;
-
-            button > div {
-              background-color: var(--system-text-primary-dark);
-            }
-          `
-        }
+        css={css`
+          && .text-color {
+            fill: var(--primary-text-color);
+          }
+        `}
       >
         <RootNavigation locale={locale} isStyleGuide={false} />
       </MobileHeader>
