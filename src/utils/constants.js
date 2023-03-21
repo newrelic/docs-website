@@ -3,7 +3,6 @@ export const TYPES = {
     default: 'page',
     apiDoc: 'api_doc',
     troubleshooting: 'troubleshooting_doc',
-    tutorial: 'tutorial_doc',
   },
   LANDING_PAGE: 'term_page_landing_page',
   RELEASE_NOTE: 'release_notes',
