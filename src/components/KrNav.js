@@ -39,6 +39,7 @@ const krQuery = graphql`
     title(locale: "kr")
     url
     icon
+    label
   }
 `;
 
