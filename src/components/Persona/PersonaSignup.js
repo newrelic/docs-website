@@ -12,10 +12,13 @@ import {
 } from '@newrelic/gatsby-theme-newrelic';
 import { createAccountRequest } from '@newrelic/gatsby-theme-newrelic/src/components/SignupModal/signup';
 import RecaptchaFooter from '@newrelic/gatsby-theme-newrelic/src/components/SignupModal/RecaptchaFooter';
+import useMediaQuery from '../../hooks/useMediaQuery';
 
 const MOBILE_BREAKPOINT = '1240px';
 
 export const PersonaSignup = ({ className }) => {
+  const isTabletWidth = useMediaQuery('(max-width: 920px)');
+  const [isExpanded, setIsExpanded] = useState(!isTabletWidth);
   const [error, setError] = useState(null);
   const [open, setOpen] = useState(true);
   const tessen = useTessen();
@@ -43,74 +46,92 @@ export const PersonaSignup = ({ className }) => {
   };
 
   return (
-    <Wrapper open={open}>
+    <Wrapper open={open} isExpanded={isExpanded}>
       <Close aria-label="Close" onClick={() => setOpen(false)}>
         <Icon name="x" />
       </Close>
       <Form onSubmit={onSubmit} className={className}>
         <CTAText>{t('personaSignup.terms')}</CTAText>
-        <InputContainer>
-          <label className="screenreader-only" htmlFor="inline-signup-name">
-            {t('inlineSignup.nameLabel')}
-          </label>
-          <Input
-            className="first"
-            id="inline-signup-name"
-            name="name"
-            // this basically says that a name has to have atleast one letter.
-            // numbers are allowed, for a name like Charles the 3rd.
-            // i used `\p{Letter}` here instead of `[a-zA-Z]`
-            // to allow Unicode characters in names, like Björk, or 준영.
-            pattern=".*\p{Letter}+.*"
-            placeholder={t('inlineSignup.nameLabel')}
-            required
-            type="text"
-          />
-          <ValidationHint className={cx({ error })}>
-            {error
-              ? t('inlineSignup.submitError')
-              : t('inlineSignup.nameValidationHint')}
-          </ValidationHint>
-        </InputContainer>
-        <InputContainer>
-          <label className="screenreader-only" htmlFor="inline-signup-email">
-            {t('inlineSignup.emailLabel')}
-          </label>
-          <Input
-            className="last"
-            id="inline-signup-email"
-            name="email"
-            pattern=".+@.+\..+"
-            placeholder={t('inlineSignup.emailLabel')}
-            required
-            type="email"
-          />
-          <ValidationHint>
-            {t('inlineSignup.emailValidationHint')}
-          </ValidationHint>
-        </InputContainer>
+        {isExpanded && (
+          <>
+            <InputContainer>
+              <label className="screenreader-only" htmlFor="inline-signup-name">
+                {t('inlineSignup.nameLabel')}
+              </label>
+              <Input
+                className="first"
+                id="inline-signup-name"
+                name="name"
+                // this basically says that a name has to have atleast one letter.
+                // numbers are allowed, for a name like Charles the 3rd.
+                // i used `\p{Letter}` here instead of `[a-zA-Z]`
+                // to allow Unicode characters in names, like Björk, or 준영.
+                pattern=".*\p{Letter}+.*"
+                placeholder={t('inlineSignup.nameLabel')}
+                required
+                type="text"
+              />
+              <ValidationHint className={cx({ error })}>
+                {error
+                  ? t('inlineSignup.submitError')
+                  : t('inlineSignup.nameValidationHint')}
+              </ValidationHint>
+            </InputContainer>
+            <InputContainer>
+              <label
+                className="screenreader-only"
+                htmlFor="inline-signup-email"
+              >
+                {t('inlineSignup.emailLabel')}
+              </label>
+              <Input
+                className="last"
+                id="inline-signup-email"
+                name="email"
+                pattern=".+@.+\..+"
+                placeholder={t('inlineSignup.emailLabel')}
+                required
+                type="email"
+              />
+              <ValidationHint>
+                {t('inlineSignup.emailValidationHint')}
+              </ValidationHint>
+            </InputContainer>
 
-        <CTAButton type="submit" variant={Button.VARIANT.PRIMARY}>
-          {t('inlineSignup.ctaButton')}
-        </CTAButton>
-        <Terms>
-          <Trans i18nKey="personaSignup.conditions">
-            By signing up you're agreeing to{' '}
-            <a href="https://newrelic.com/termsandconditions/terms">
-              Terms of Service
-            </a>{' '}
-            and{' '}
-            <a href="https://newrelic.com/termsandconditions/privacy">
-              Services Privacy Notice.
-            </a>
-          </Trans>
-        </Terms>
-        <RecaptchaFooter
-          css={css`
-            color: var(--system-text-muted-light);
-            grid-column: 1 / 4;
-          `}
-        />
+            <CTAButton type="submit" variant={Button.VARIANT.PRIMARY}>
+              {t('inlineSignup.ctaButton')}
+            </CTAButton>
+            <Terms>
+              <Trans i18nKey="personaSignup.conditions">
+                By signing up you're agreeing to{' '}
+                <a href="https://newrelic.com/termsandconditions/terms">
+                  Terms of Service
+                </a>{' '}
+                and{' '}
+                <a href="https://newrelic.com/termsandconditions/privacy">
+                  Services Privacy Notice.
+                </a>
+              </Trans>
+            </Terms>
+            <RecaptchaFooter
+              css={css`
+                color: var(--system-text-muted-light);
+                grid-column: 1 / 4;
+              `}
+            />
+          </>
+        )}
+        {!isExpanded && (
+          <Button
+            variant={Button.VARIANT.PRIMARY}
+            onClick={() => setIsExpanded(true)}
+            css={css`
+              grid-column: 1 / 4;
+            `}
+          >
+            Start now
+          </Button>
+        )}
       </Form>
     </Wrapper>
   );
@@ -252,18 +273,8 @@ const Wrapper = styled.div`
   border-radius: 4px;
   bottom: 20px;
   display: ${(p) => (p.open ? `block` : `none`)};
-  max-width: 525px;
+  max-width: ${(p) => (p.isExpanded ? `525px` : `222px`)};
   position: absolute;
   right: 20px;
   z-index: 10;
-
-  @media (max-width: ${MOBILE_BREAKPOINT}) {
-    border-radius: 0;
-    bottom: 0;
-    right: 0;
-    margin: 0;
-    max-width: none;
-    position: relative;
-    width: 100%;
-  }
 `;
