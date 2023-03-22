@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { css } from '@emotion/react';
 import styled from '@emotion/styled';
+import cx from 'classnames';
 import { useSpring, animated, useTransition } from '@react-spring/web';
 import {
   useInstrumentedHandler,
@@ -15,12 +16,19 @@ import frontend from './frontend.png';
 import devops from './devops.png';
 import { PersonaSignup } from './Persona';
 
+const TABLET_BREAKPOINT = 1240;
+const TABLET_BREAKPOINT_SIDEBAR_OPEN = 1400;
+
 const HomepageSlabs = () => {
   const { t } = useTranslation();
   const [sidebar] = useMainLayoutContext();
   const [activePanel, setActivePanel] = useState(null);
 
-  const isTabletWidth = useMediaQuery('(max-width: 1240px)');
+  const isTabletWidth = useMediaQuery(
+    `(max-width: ${
+      sidebar ? TABLET_BREAKPOINT_SIDEBAR_OPEN : TABLET_BREAKPOINT
+    }px)`
+  );
 
   const [textOpacitySprings1, textOpacityApi1] = useSpring(() => {});
   const [textOpacitySprings2, textOpacityApi2] = useSpring(() => {});
@@ -114,7 +122,9 @@ const HomepageSlabs = () => {
         height: calc(100vh - 72px - 60px);
         display: flex;
 
-        @media screen and (max-width: 1240px) {
+        @media screen and (max-width: ${sidebar
+            ? TABLET_BREAKPOINT_SIDEBAR_OPEN
+            : TABLET_BREAKPOINT}px) {
           flex-direction: column;
         }
 
@@ -143,13 +153,19 @@ const HomepageSlabs = () => {
           css`
             background-position-x: 80%;
           `}
-          @media screen and (max-width: 1240px) {
+          @media screen and (max-width: ${sidebar
+            ? TABLET_BREAKPOINT_SIDEBAR_OPEN
+            : TABLET_BREAKPOINT}px) {
             background-position: right -80px top 20%;
           }
         `}
       >
         <animated.div style={textOpacitySprings1}>
-          {activePanel === 1 && <Blurb>{t('home.personas.blurbs.1')}</Blurb>}
+          {activePanel === 1 && (
+            <Blurb className={cx(sidebar && 'sidebar-open')}>
+              {t('home.personas.blurbs.1')}
+            </Blurb>
+          )}
         </animated.div>
         {activePanel === 1 && (
           <DocTiles animated>
@@ -211,7 +227,11 @@ const HomepageSlabs = () => {
         `}
       >
         <animated.div style={textOpacitySprings2}>
-          {activePanel === 2 && <Blurb>{t('home.personas.blurbs.2')}</Blurb>}
+          {activePanel === 2 && (
+            <Blurb className={cx(sidebar && 'sidebar-open')}>
+              {t('home.personas.blurbs.2')}
+            </Blurb>
+          )}
         </animated.div>
         {activePanel === 2 && (
           <DocTiles animated>
@@ -273,7 +293,11 @@ const HomepageSlabs = () => {
         `}
       >
         <animated.div style={textOpacitySprings3}>
-          {activePanel === 3 && <Blurb>{t('home.personas.blurbs.3')}</Blurb>}
+          {activePanel === 3 && (
+            <Blurb className={cx(sidebar && 'sidebar-open')}>
+              {t('home.personas.blurbs.3')}
+            </Blurb>
+          )}
         </animated.div>
         {activePanel === 3 && (
           <DocTiles animated>
@@ -331,6 +355,7 @@ const Slab = ({
   children,
   ...props
 }) => {
+  const [sidebar] = useMainLayoutContext();
   const isActivePanel = activePanel === panelId;
   const header =
     !isActivePanel || isTabletWidth ? headers.default : headers.active;
@@ -373,7 +398,9 @@ const Slab = ({
           font-weight: 500;
         }
 
-        @media screen and (max-width: 1240px) {
+        @media screen and (max-width: ${sidebar
+            ? TABLET_BREAKPOINT_SIDEBAR_OPEN
+            : TABLET_BREAKPOINT}px) {
           height: 33%;
           width: 100%;
           background-size: 800px auto;
@@ -434,6 +461,26 @@ const Blurb = styled.p`
 
   @media (max-width: 880px) {
     width: 57vw;
+  }
+
+  &.sidebar-open {
+    width: 55vw;
+
+    @media (max-width: 1850px) {
+      width: 50vw;
+    }
+
+    @media (max-width: 1695px) {
+      width: 45vw;
+    }
+
+    @media (max-width: 1540px) {
+      width: 40vw;
+    }
+
+    @media (max-width: 1280px) {
+      width: 45vw;
+    }
   }
 `;
 
