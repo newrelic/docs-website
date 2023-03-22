@@ -34,6 +34,7 @@ const HomepageSlabs = () => {
   const [panelSprings2, panelApi2] = useSpring(() => {});
   const [panelSprings3, panelApi3] = useSpring(() => {});
 
+  /* eslint-disable react-hooks/exhaustive-deps */
   const PANEL_SPRING_APIS = { 1: panelApi1, 2: panelApi2, 3: panelApi3 };
   const OPACITY_SPRING_APIS = {
     1: opacityApi1,
@@ -45,6 +46,7 @@ const HomepageSlabs = () => {
     2: textOpacityApi2,
     3: textOpacityApi3,
   };
+  /* eslint-enable react-hooks/exhaustive-deps */
 
   useEffect(() => {
     const transition = isTabletWidth ? tabletTransition : normalTransition;
@@ -71,6 +73,7 @@ const HomepageSlabs = () => {
     sidebar,
   ]);
 
+  /* eslint-disable react-hooks/exhaustive-deps */
   useEffect(() => {
     const randomPanelId = Math.ceil(Math.random() * 3);
     setActivePanel(randomPanelId);
@@ -101,6 +104,7 @@ const HomepageSlabs = () => {
       }
     }
   }, []);
+  /* eslint-enable react-hooks/exhaustive-deps */
 
   const handlePanelClick = (panelId) => {
     setActivePanel(panelId);
