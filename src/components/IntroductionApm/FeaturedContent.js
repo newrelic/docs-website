@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useState } from 'react';
 import styled from '@emotion/styled';
 import { css } from '@emotion/react';
 import VisibilitySensor from 'react-visibility-sensor';
