@@ -149,13 +149,15 @@ const HomepageSlabs = () => {
           > div:first-child {
             background-color: #fac632;
           }
-          ${activePanel !== 1 &&
-          css`
-            background-position-x: 80%;
-          `}
-          @media screen and (max-width: ${sidebar
-            ? TABLET_BREAKPOINT_SIDEBAR_OPEN
-            : TABLET_BREAKPOINT}px) {
+          ${
+            activePanel !== 1 &&
+            css`
+              background-position-x: 80%;
+            `
+          }
+          @media screen and (max-width: ${
+            sidebar ? TABLET_BREAKPOINT_SIDEBAR_OPEN : TABLET_BREAKPOINT
+          }px) {
             background-position: right -80px top 20%;
           }
         `}
