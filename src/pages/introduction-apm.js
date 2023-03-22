@@ -74,7 +74,7 @@ const IntroductionApm = () => {
     },
   });
 
-  const handleFourColumn = (isVisible, e) => {
+  const handleFourColumn = (isVisible) => {
     if (isVisible) {
       setFourColumnVisible(true);
 
