@@ -17,7 +17,7 @@ The **Popular pre-built dashboards** section features dashboards that were chose
 
 ![The new Popular pre-built dashboards section.](./images/Recommended_Quickstarts_Section.png "A screenshot that shows the new Popular pre-built dashboards section.")
 
-Clicking on a dashboard brings you to a guided installation process with the requirement details and a link to the code repository to the right side. 
+Clicking on a dashboard brings you to a guided installation process with the requirement details and a link to the code repository on the right side. 
 
 ![Guided installation process for a quickstart dashboard.](./images/Quickstart_Install.png "A screenshot that shows the guided installation process for a quickstart dashboard.")
 
