@@ -174,9 +174,8 @@ const HomepageSlabs = () => {
           )}
         </animated.div>
         {activePanel === 1 && (
-          <DocTiles animated>
+          <DocTiles animated variant="light">
             <DocTile
-              forceLightMode
               instrumentation={{
                 category: 'PersonaHomepage',
                 eventName: 'docTileClick',
@@ -188,7 +187,6 @@ const HomepageSlabs = () => {
               {t('home.personas.tiles.1.0.label')}
             </DocTile>
             <DocTile
-              forceLightMode
               instrumentation={{
                 category: 'PersonaHomepage',
                 eventName: 'docTileClick',
@@ -200,7 +198,6 @@ const HomepageSlabs = () => {
               {t('home.personas.tiles.1.1.label')}
             </DocTile>
             <DocTile
-              forceLightMode
               instrumentation={{
                 category: 'PersonaHomepage',
                 eventName: 'docTileClick',
@@ -240,9 +237,8 @@ const HomepageSlabs = () => {
           )}
         </animated.div>
         {activePanel === 2 && (
-          <DocTiles animated>
+          <DocTiles animated variant="light">
             <DocTile
-              forceLightMode
               instrumentation={{
                 category: 'PersonaHomepage',
                 eventName: 'docTileClick',
@@ -254,7 +250,6 @@ const HomepageSlabs = () => {
               {t('home.personas.tiles.2.0.label')}
             </DocTile>
             <DocTile
-              forceLightMode
               instrumentation={{
                 category: 'PersonaHomepage',
                 eventName: 'docTileClick',
@@ -266,7 +261,6 @@ const HomepageSlabs = () => {
               {t('home.personas.tiles.2.1.label')}
             </DocTile>
             <DocTile
-              forceLightMode
               instrumentation={{
                 category: 'PersonaHomepage',
                 eventName: 'docTileClick',
@@ -306,9 +300,8 @@ const HomepageSlabs = () => {
           )}
         </animated.div>
         {activePanel === 3 && (
-          <DocTiles animated>
+          <DocTiles animated variant="light">
             <DocTile
-              forceLightMode
               instrumentation={{
                 category: 'PersonaHomepage',
                 eventName: 'docTileClick',
@@ -320,7 +313,6 @@ const HomepageSlabs = () => {
               {t('home.personas.tiles.3.0.label')}
             </DocTile>
             <DocTile
-              forceLightMode
               instrumentation={{
                 category: 'PersonaHomepage',
                 eventName: 'docTileClick',
@@ -332,7 +324,6 @@ const HomepageSlabs = () => {
               {t('home.personas.tiles.3.1.label')}
             </DocTile>
             <DocTile
-              forceLightMode
               instrumentation={{
                 category: 'PersonaHomepage',
                 eventName: 'docTileClick',
