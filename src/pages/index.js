@@ -1,77 +1,33 @@
-import React, { useEffect, useRef, useState } from 'react';
-import PropTypes from 'prop-types';
+import React, { useState } from 'react';
 import { navigate } from '@reach/router';
 import { css } from '@emotion/react';
+import PropTypes from 'prop-types';
 import { graphql } from 'gatsby';
 import {
   Link,
   Icon,
   SearchInput,
-  Surface,
-  Tag,
-  useInstrumentedHandler,
   useTranslation,
-  useLoggedIn,
+  useInstrumentedHandler,
 } from '@newrelic/gatsby-theme-newrelic';
-import SurfaceLink from '../components/SurfaceLink';
 import HomepageBanner from '../components/HomepageBanner';
+import { DocTile } from '../components/DocTile';
 import FindYourQuickStart from '../components/FindYourQuickstart';
-import MDXContainer from '../components/MDXContainer';
-import {
-  ToggleSelector,
-  ToggleView,
-  ToggleViewContext,
-  TOGGLE_VIEWS,
-} from '../components/ToggleView';
-
-const SAVED_TOGGLE_VIEW_KEY = 'docs-website/homepage-selected-view';
+import { ToggleView, TOGGLE_VIEWS } from '../components/ToggleView';
+import HomepageSlabs from '../components/HomepageSlabs';
+import useMediaQuery from '../hooks/useMediaQuery';
 
 const HomePage = ({ data }) => {
   const {
     site: { layout },
     allMarkdownRemark: { edges: whatsNewPosts },
-    quicklaunch: {
-      body,
-      frontmatter: { title },
-    },
   } = data;
+  const isMobile = useMediaQuery('(max-width: 760px)');
 
-  const { loggedIn } = useLoggedIn();
   const [searchTerm, setSearchTerm] = useState('');
-  const hasToggled = useRef(false);
-  const [currentView, setCurrentView] = useState(TOGGLE_VIEWS.newUserView);
-  const updateView = (id) => {
-    hasToggled.current = true;
-    setCurrentView(id);
-  };
-
   const { t } = useTranslation();
 
-  /* `useLocalStorage` hook doesn't work here because SSR doesn't have access to
-   * localStorage, so when it gets to the client, the current tab is already set
-   * and the client doesn't know to update it.
-   *
-   */
-  useEffect(() => {
-    const storedToggleView = window.localStorage.getItem(SAVED_TOGGLE_VIEW_KEY);
-    if (!storedToggleView && loggedIn !== null) {
-      setCurrentView(
-        loggedIn ? TOGGLE_VIEWS.defaultView : TOGGLE_VIEWS.newUserView
-      );
-    }
-    if (storedToggleView) {
-      setCurrentView(storedToggleView);
-    }
-  }, [setCurrentView, loggedIn]);
-
-  useEffect(() => {
-    if (hasToggled.current) {
-      window.localStorage.setItem(SAVED_TOGGLE_VIEW_KEY, currentView);
-    }
-  }, [currentView]);
-
   const mobileBreakpoint = '450px';
-
   const latestWhatsNewPosts = whatsNewPosts.map((edge) => {
     return {
       title: edge.node.frontmatter.title,
@@ -80,44 +36,29 @@ const HomePage = ({ data }) => {
     };
   });
 
-  return (
-    <ToggleViewContext.Provider value={[currentView, updateView]}>
-      <div
-        css={css`
-          display: grid;
-          margin-top: 2rem;
-          gap: 1rem;
-          justify-content: space-between;
-          grid-template-columns: 1fr max-content;
-          align-items: center;
+  const defaultView = (
+    <div
+      css={css`
+        padding: 1.5rem;
 
-          @media (max-width: 920px) {
-            grid-template-columns: 1fr auto;
+        @media (max-width: 760px) {
+          padding: 0;
+        }
+      `}
+    >
+      <h1
+        css={css`
+          font-size: 3.5rem;
+          font-weight: 500;
+          line-height: 1;
+          margin-top: 1.5rem;
+          @media screen and (max-width: ${mobileBreakpoint}) {
+            font-size: 1.5rem;
           }
         `}
       >
-        <h1
-          css={css`
-            font-size: 3.5rem;
-            font-weight: 500;
-            line-height: 1;
-            @media screen and (max-width: ${mobileBreakpoint}) {
-              font-size: 1.5rem;
-            }
-          `}
-        >
-          {t('home.pageTitle')}
-        </h1>
-        <ToggleSelector
-          css={css`
-            justify-self: end;
-
-            @media screen and (max-width: 760px) {
-              display: none;
-            }
-          `}
-        />
-      </div>
+        {t('home.pageTitle')}
+      </h1>
       <SearchInput
         placeholder={t('home.search.placeholder')}
         size={SearchInput.SIZE.LARGE}
@@ -159,112 +100,112 @@ const HomePage = ({ data }) => {
           {t('home.search.popularSearches.options.4')}
         </Link>
       </div>
+      <HomepageBanner />
+      <Section
+        layout={layout}
+        css={css`
+          border: none;
+          background: var(--tertiary-background-color);
+        `}
+      >
+        <SectionTitle title={t('home.popularDocs.title')} />
+        <div
+          css={css`
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            grid-gap: 1rem;
+            counter-reset: welcome-tile;
+            flex: 2;
+            align-self: flex-start;
+            @media screen and (max-width: 1500px) {
+              align-self: auto;
+            }
+
+            @media screen and (max-width: 1050px) {
+              grid-template-columns: 1fr;
+            }
+
+            @media screen and (max-width: 760px) {
+              grid-template-columns: repeat(3, 1fr);
+            }
+
+            @media screen and (max-width: 650px) {
+              grid-template-columns: 1fr;
+            }
+          `}
+        >
+          <DocTile
+            label={{ text: 'Get started', color: '#F4CBE7' }}
+            path="/docs/apm/new-relic-apm/getting-started/introduction-apm"
+          >
+            {t('home.popularDocs.t1.title')}
+          </DocTile>
+          <DocTile
+            label={{ text: 'Get started', color: '#F4CBE7' }}
+            path="/docs/browser/browser-monitoring/getting-started/introduction-browser-monitoring/"
+          >
+            {t('home.popularDocs.t2.title')}
+          </DocTile>
+          <DocTile
+            label={{ text: 'Get started', color: '#F4CBE7' }}
+            path="/docs/synthetics/synthetic-monitoring/getting-started/get-started-synthetic-monitoring/"
+          >
+            {t('home.popularDocs.t3.title')}
+          </DocTile>
+        </div>
+      </Section>
+      <Section layout={layout}>
+        <SectionTitle title={t('home.whatsNew.title')} />
+        <div
+          css={css`
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            grid-gap: 1rem;
+            counter-reset: welcome-tile;
+            flex: 2;
+            align-self: flex-start;
+            @media screen and (max-width: 1500px) {
+              align-self: auto;
+            }
+
+            @media screen and (max-width: 1050px) {
+              grid-template-columns: 1fr;
+            }
+
+            @media screen and (max-width: 760px) {
+              grid-template-columns: repeat(3, 1fr);
+            }
+
+            @media screen and (max-width: 650px) {
+              grid-template-columns: 1fr;
+            }
+          `}
+        >
+          {latestWhatsNewPosts.map((post) => (
+            <DocTile key={post.title} date={post.releaseDate} path={post.path}>
+              {post.title}
+            </DocTile>
+          ))}
+        </div>
+      </Section>
+      <Section layout={layout}>
+        <FindYourQuickStart />
+      </Section>
+    </div>
+  );
+
+  if (isMobile) {
+    return defaultView;
+  }
+
+  return (
+    <>
       <ToggleView id={TOGGLE_VIEWS.newUserView}>
-        <h1
-          css={css`
-            font-weight: normal;
-            font-size: 3rem;
-          `}
-        >
-          Getting started
-        </h1>
-        <h1> {title}</h1>
-        <MDXContainer body={body} />
+        <HomepageSlabs />
       </ToggleView>
-      <ToggleView id={TOGGLE_VIEWS.defaultView}>
-        <HomepageBanner />
-        <Section
-          layout={layout}
-          css={css`
-            border: none;
-            background: var(--tertiary-background-color);
-          `}
-        >
-          <SectionTitle title={t('home.popularDocs.title')} />
-          <div
-            css={css`
-              display: grid;
-              grid-template-columns: repeat(3, 1fr);
-              grid-gap: 1rem;
-              counter-reset: welcome-tile;
-              flex: 2;
-              align-self: flex-start;
-              @media screen and (max-width: 1500px) {
-                align-self: auto;
-              }
 
-              @media screen and (max-width: 1050px) {
-                grid-template-columns: 1fr;
-              }
-
-              @media screen and (max-width: 760px) {
-                grid-template-columns: repeat(3, 1fr);
-              }
-
-              @media screen and (max-width: 650px) {
-                grid-template-columns: 1fr;
-              }
-            `}
-          >
-            <DocTile
-              title={t('home.popularDocs.t1.title')}
-              label={{ text: 'Get started', color: '#F4CBE7' }}
-              path="/docs/apm/new-relic-apm/getting-started/introduction-apm"
-            />
-            <DocTile
-              title={t('home.popularDocs.t2.title')}
-              label={{ text: 'Security', color: '#FCD672' }}
-              path="/docs/vulnerability-management/overview"
-            />
-            <DocTile
-              title={t('home.popularDocs.t3.title')}
-              label={{ text: 'APM', color: '#AFE2E3' }}
-              path="/install/java/"
-            />
-          </div>
-        </Section>
-        <Section layout={layout}>
-          <SectionTitle title={t('home.whatsNew.title')} />
-          <div
-            css={css`
-              display: grid;
-              grid-template-columns: repeat(3, 1fr);
-              grid-gap: 1rem;
-              counter-reset: welcome-tile;
-              flex: 2;
-              align-self: flex-start;
-              @media screen and (max-width: 1500px) {
-                align-self: auto;
-              }
-
-              @media screen and (max-width: 1050px) {
-                grid-template-columns: 1fr;
-              }
-
-              @media screen and (max-width: 760px) {
-                grid-template-columns: repeat(3, 1fr);
-              }
-
-              @media screen and (max-width: 650px) {
-                grid-template-columns: 1fr;
-              }
-            `}
-          >
-            {latestWhatsNewPosts.map((post) => (
-              <DocTile
-                key={post.title}
-                title={post.title}
-                date={post.releaseDate}
-                path={post.path}
-              />
-            ))}
-          </div>
-        </Section>
-        <Section layout={layout}>
-          <FindYourQuickStart />
-        </Section>
-      </ToggleView>
-    </ToggleViewContext.Provider>
+      <ToggleView id={TOGGLE_VIEWS.defaultView}>{defaultView}</ToggleView>
+    </>
   );
 };
 
@@ -403,112 +344,6 @@ SectionTitle.propTypes = {
   title: PropTypes.string,
   icon: PropTypes.elementType,
   to: PropTypes.string,
-};
-
-const DocTile = ({ title, path, instrumentation, label, date }) => (
-  <SurfaceLink
-    base={Surface.BASE.SECONDARY}
-    to={path}
-    interactive
-    instrumentation={instrumentation}
-    css={css`
-      min-height: 130px;
-      border-radius: 4px;
-      background: var(--secondary-background-color);
-
-      .dark-mode & {
-        background: var(--secondary-background-color);
-      }
-
-      @media screen and (max-width: 1050px) {
-        &:not(:last-child) {
-          margin-bottom: 2rem;
-        }
-      }
-
-      @media screen and (max-width: 760px) {
-        && {
-          margin-bottom: 0;
-        }
-      }
-
-      @media screen and (max-width: 650px) {
-        font-size: 14px;
-        &:not(:last-child) {
-          margin-bottom: 2rem;
-        }
-      }
-    `}
-  >
-    <div
-      css={css`
-        display: flex;
-        flex-direction: column;
-        height: 100%;
-        justify-content: space-between;
-        align-items: space-between;
-        padding: 2rem;
-
-        @media screen and (max-width: 650px) {
-          padding: 1.5rem;
-        }
-      `}
-    >
-      <h4
-        css={css`
-          margin-bottom: 1rem;
-          font-weight: 400;
-          font-size: 20px;
-        `}
-      >
-        {title}
-      </h4>
-      <div
-        css={css`
-          display: flex;
-          justify-content: space-between;
-        `}
-      >
-        {label && (
-          <Tag
-            css={css`
-              background: ${label.color};
-              color: var(--system-text-primary-light);
-
-              .dark-mode & {
-                background: ${label.color};
-                color: var(--system-text-primary-light);
-              }
-            `}
-          >
-            {label.text}
-          </Tag>
-        )}
-        {date && (
-          <Tag
-            css={css`
-              color: var(--primary-text-color);
-            `}
-          >
-            {date}
-          </Tag>
-        )}
-        <Icon
-          name="fe-arrow-right"
-          css={css`
-            color: var(--primary-text-color);
-          `}
-        />
-      </div>
-    </div>
-  </SurfaceLink>
-);
-
-DocTile.propTypes = {
-  label: PropTypes.array,
-  title: PropTypes.string,
-  date: PropTypes.string,
-  instrumentation: PropTypes.object,
 };
 
 export default HomePage;

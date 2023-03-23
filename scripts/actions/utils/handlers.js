@@ -103,6 +103,14 @@ module.exports = {
     deserialize: deserializeComponent,
     serialize: serializeComponent,
   },
+  DocTile: {
+    deserialize: deserializeComponent,
+    serialize: serializeComponent,
+  },
+  DocTiles: {
+    deserialize: deserializeComponent,
+    serialize: serializeComponent,
+  },
   DoNotTranslate: {
     deserialize: deserializeComponent,
     serialize: (h, node) =>
@@ -115,23 +123,18 @@ module.exports = {
     deserialize: deserializeComponent,
     serialize: serializeComponent,
   },
-  LicenseKey: {
+  InlinePopover: {
     deserialize: (h, node) => {
       // this is to remove the `span`'s children to make this
       // a self closing tag.
       node.children = [];
-      return deserializeComponent(h, node, { tagName: 'LicenseKey' });
+      return deserializeComponent(h, node, { tagName: 'InlinePopover' });
     },
-    serialize: (h, node) =>
-      h(
-        node,
-        'span',
-        {
-          'data-type': 'component',
-          'data-component': 'LicenseKey',
-        },
-        [u('text', 'account license key')]
-      ),
+    serialize: serializeComponent,
+  },
+  InlineSignup: {
+    serialize: serializeComponent,
+    deserialize: deserializeComponent,
   },
   Link: {
     deserialize: deserializeComponent,
@@ -351,6 +354,10 @@ module.exports = {
     serialize: serializeComponent,
   },
   sup: {
+    deserialize: deserializeComponent,
+    serialize: serializeComponent,
+  },
+  iframe: {
     deserialize: deserializeComponent,
     serialize: serializeComponent,
   },

@@ -5,4 +5,4 @@ events:
   - MobileHandledException
 ---
 
-For XCFramework agent only. The library name where the exception was generated. 
+For iOS agent only. The library name where the exception was generated. 

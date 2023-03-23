@@ -243,9 +243,7 @@ module.exports = {
         path: `./src/install/config/`,
       },
     },
-    'gatsby-plugin-generate-doc-json',
-    // Comment in below to run a build that checks links
-    // 'gatsby-plugin-check-links',
+    // 'gatsby-plugin-generate-doc-json',
     {
       resolve: 'gatsby-plugin-generate-json',
       options: {
@@ -372,11 +370,11 @@ module.exports = {
               frontmatter {
                 subject
                 releaseDate(fromNow: false)
+                downloadLink
                 version
-                feature
-                bug
+                features
+                bugs
                 security
-                ingest
               }
               excerpt(pruneLength: 5000)
             }
@@ -389,11 +387,11 @@ module.exports = {
             .map(({ frontmatter, excerpt }) => ({
               agent: getAgentName(frontmatter.subject),
               date: frontmatter.releaseDate,
+              downloadLink: frontmatter.downloadLink,
               version: frontmatter.version,
-              feature: frontmatter.feature,
-              bug: frontmatter.bug,
+              features: frontmatter.features,
+              bugs: frontmatter.bugs,
               security: frontmatter.security,
-              ingest: frontmatter.ingest,
               description: excerpt,
             }))
             .filter(({ date, agent }) => Boolean(date && agent)),
@@ -442,6 +440,23 @@ module.exports = {
     {
       resolve: '@newrelic/gatsby-theme-newrelic',
       options: {
+        sitemap: process.env.ENVIRONMENT === 'production',
+        robots: {
+          siteUrl,
+          resolveEnv: () => process.env.ENVIRONMENT || 'development',
+          env: {
+            staging: {
+              host: 'https://docs-dev.newrelic.com',
+              policy: [{ userAgent: '*', disallow: ['/'] }],
+            },
+            development: {
+              policy: [{ userAgent: '*', disallow: ['/'] }],
+            },
+            production: {
+              policy: [{ userAgent: '*', allow: '/' }],
+            },
+          },
+        },
         oneTrustID: 'e66f9ef1-3a12-4043-b7c0-1a2ea66f6d41',
         layout: {
           contentPadding: '1.5rem',
@@ -462,6 +477,7 @@ module.exports = {
             'batch',
             'csv',
             'cmake',
+            'dart',
             'dax',
             'diff',
             'django',
@@ -551,6 +567,15 @@ module.exports = {
           reCaptchaToken:
             process.env.FEEDBACK_RECAPTCHA_TOKEN ||
             '6Lfn8wUiAAAAANBY-ZtKg4V9b4rdGZtJuAng62jo',
+        },
+        signup: {
+          environment: process.env.ENVIRONMENT || 'staging',
+          signupUrl:
+            process.env.SIGNUP_URL ||
+            'https://signup-receiver.staging-service.newrelic.com',
+          reCaptchaToken:
+            process.env.RECAPTCHA_TOKEN ||
+            '6LeGFt8UAAAAANfnpE8si2Z6NnAqYKnPAYgMpStu',
         },
         newRelicRequestingServicesHeader: 'docs-website',
       },

@@ -380,8 +380,21 @@ test('serialize Tabs Components', async () => {
   expect(html).toMatchSnapshot();
 });
 
-test('serialize LicenseKey component', async () => {
-  const mdx = '<LicenseKey />'
-  const html = await serializeMDX(mdx)
+test('serialize InlinePopover component', async () => {
+  const mdx = '<InlinePopover/>';
+  const html = await serializeMDX(mdx);
   expect(html).toMatchSnapshot();
-})
+});
+
+test('serialize iframes', async () => {
+  const mdx =
+    '<iframe width="560" height="315" src="https://www.youtube.com/embed/04JP0ky_hjI" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>';
+  const html = await serializeMDX(mdx);
+  expect(html).toMatchSnapshot();
+});
+
+test('serialize InlineSignup component', async () => {
+  const mdx = '<InlineSignup />';
+  const html = await serializeMDX(mdx);
+  expect(html).toMatchSnapshot();
+});
