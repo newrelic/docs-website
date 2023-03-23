@@ -5,6 +5,7 @@ const unified = require('unified');
 const rehypeStringify = require('rehype-stringify');
 const addAbsoluteImagePath = require('./rehype-plugins/utils/addAbsoluteImagePath');
 const getAgentName = require('./src/utils/getAgentName');
+const getEOLDate = require('./src/utils/getEOLDate');
 
 const dataDictionaryPath = `${__dirname}/src/data-dictionary`;
 const siteUrl = 'https://docs.newrelic.com';
@@ -370,6 +371,7 @@ module.exports = {
               frontmatter {
                 subject
                 releaseDate(fromNow: false)
+                eolDate(fromNow: false)
                 downloadLink
                 version
                 features
@@ -387,6 +389,7 @@ module.exports = {
             .map(({ frontmatter, excerpt }) => ({
               agent: getAgentName(frontmatter.subject),
               date: frontmatter.releaseDate,
+              eolDate: getEOLDate(frontmatter.releaseDate, frontmatter.eolDate),
               downloadLink: frontmatter.downloadLink,
               version: frontmatter.version,
               features: frontmatter.features,
