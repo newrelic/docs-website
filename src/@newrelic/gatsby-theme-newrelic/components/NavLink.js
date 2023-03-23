@@ -125,10 +125,10 @@ const NavLink = ({
 const NavLabel = styled.p`
   display: inline;
   margin-left: 0.5rem;
-  padding: 0 0.25rem;
-  background: #e1edff;
+  padding: 1px 4px;
+  background: #103156;
   border-radius: 3px;
-  color: #0b6acb;
+  color: #3d9dff;
   font-size: 0.75rem;
   font-weight: 400;
 `;
