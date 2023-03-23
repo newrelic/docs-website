@@ -39,6 +39,7 @@ const jpQuery = graphql`
     title(locale: "jp")
     url
     icon
+    label
   }
 `;
 
