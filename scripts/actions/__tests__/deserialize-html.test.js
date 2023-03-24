@@ -271,8 +271,8 @@ test('deserializes Tabs Component', async () => {
   expect(mdx).toEqual(input.trim());
 });
 
-test('deserializes LicenseKey component', async () => {
-  const input = '<LicenseKey/>';
+test('deserializes InlinePopover component', async () => {
+  const input = '<InlinePopover/>';
 
   const mdx = await deserializeHTML(await serializeMDX(input));
   expect(mdx).toEqual(input);
@@ -287,6 +287,13 @@ test('deserialize iframes', async () => {
   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
   allowfullscreen
 />`;
+
+  const mdx = await deserializeHTML(await serializeMDX(input));
+  expect(mdx).toEqual(input);
+});
+
+test('deserializes InlineSignup component', async () => {
+  const input = '<InlineSignup/>';
 
   const mdx = await deserializeHTML(await serializeMDX(input));
   expect(mdx).toEqual(input);

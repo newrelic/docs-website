@@ -94,6 +94,7 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
               type
               subject
               redirects
+              hideNavs
             }
           }
         }
@@ -349,6 +350,7 @@ exports.createSchemaCustomization = ({ actions }) => {
     title: String!
     path: String
     icon: String
+    label: String
     filterable: Boolean!
     pages: [NavYaml!]!
     rootNav: Boolean!
@@ -363,7 +365,7 @@ exports.createSchemaCustomization = ({ actions }) => {
     isFeatured: Boolean
     translationType: String
     dataSource: String
-    isTutorial: Boolean
+    hideNavs: Boolean
     downloadLink: String
     signupBanner: SignupBanner
     features: [String]
@@ -413,9 +415,9 @@ exports.createResolvers = ({ createResolvers }) => {
         resolve: (source) =>
           hasOwnProperty(source, 'dataSource') ? source.dataSource : null,
       },
-      isTutorial: {
+      hideNavs: {
         resolve: (source) =>
-          hasOwnProperty(source, 'isTutorial') ? source.isTutorial : null,
+          hasOwnProperty(source, 'hideNavs') ? source.hideNavs : null,
       },
       downloadLink: {
         resolve: (source) =>
@@ -526,7 +528,7 @@ const createPageFromNode = (
   defer = false
 ) => {
   const {
-    frontmatter: { subject: agentName },
+    frontmatter: { subject: agentName, hideNavs },
     fields: { fileRelativePath, slug },
   } = node;
 
@@ -574,6 +576,7 @@ const createPageFromNode = (
       context: {
         ...context,
         fileRelativePath,
+        hideNavs,
         slug,
         slugRegex: `${slug}/.+/`,
         disableSwiftype,

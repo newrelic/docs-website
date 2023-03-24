@@ -19,11 +19,7 @@ const MOBILE_BREAKPOINT = '600px';
  * [VSU] This component allows users to sign up inline in a doc.
  * It only renders if the current user is not logged in.
  */
-const InlineSignup = ({
-  className,
-  showCTA = true,
-  hideWhenLoggedOut = true,
-}) => {
+const InlineSignup = ({ className, hideWhenLoggedOut = true }) => {
   const [error, setError] = useState(null);
   const tessen = useTessen();
   const { t } = useTranslation();
@@ -50,12 +46,29 @@ const InlineSignup = ({
     }
   };
 
+  const onFocus = (input) => {
+    tessen.track({
+      category: 'InlineSignup',
+      eventName: `${input}Focus`,
+    });
+  };
+  const onBlur = (input, e) => {
+    /* using onBlur instead of onChange so it
+     * only checks the contents of the input field once
+     * when the user clicks away, including the Submit button
+     */
+    if (e.target.value.length > 0) {
+      tessen.track({
+        category: 'InlineSignup',
+        eventName: `${input}Input`,
+      });
+    }
+  };
+
   if ((loggedIn == null || loggedIn) && hideWhenLoggedOut) return null;
 
   return (
     <Form onSubmit={onSubmit} className={className}>
-      {showCTA && <CTAText>{t('inlineSignup.ctaText')}</CTAText>}
-
       <InputContainer>
         <label className="screenreader-only" htmlFor="inline-signup-name">
           {t('inlineSignup.nameLabel')}
@@ -64,6 +77,14 @@ const InlineSignup = ({
           className="first"
           id="inline-signup-name"
           name="name"
+          onFocus={(e) => {
+            e.preventDefault();
+            onFocus('name');
+          }}
+          onBlur={(e) => {
+            e.preventDefault();
+            onBlur('name', e);
+          }}
           // this basically says that a name has to have atleast one letter.
           // numbers are allowed, for a name like Charles the 3rd.
           // i used `\p{Letter}` here instead of `[a-zA-Z]`
@@ -91,6 +112,14 @@ const InlineSignup = ({
           className="last"
           id="inline-signup-email"
           name="email"
+          onFocus={(e) => {
+            e.preventDefault();
+            onFocus('email');
+          }}
+          onBlur={(e) => {
+            e.preventDefault();
+            onBlur('email', e);
+          }}
           pattern=".+@.+\..+"
           placeholder={t('inlineSignup.emailLabel')}
           required
@@ -134,15 +163,6 @@ const CTAButton = styled(Button)`
 
   @media (max-width: ${MOBILE_BREAKPOINT}) {
     margin-left: 0;
-  }
-`;
-
-const CTAText = styled.p`
-  grid-column: 1 / 4;
-  font-size: 1.125rem;
-
-  @media (max-width: ${MOBILE_BREAKPOINT}) {
-    margin: 0;
   }
 `;
 

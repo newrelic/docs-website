@@ -17,6 +17,7 @@ import LandingPageHero from './LandingPageHero';
 import LandingPageTile from './LandingPageTile';
 import LandingPageTileGrid from './LandingPageTileGrid';
 import InlineSignup from './InlineSignup';
+import InlinePopover from './InlinePopover';
 import InstallFeedback from './InstallFeedback';
 import MDXButton from './MDXButton';
 import MDXButtonGroup from './MDXButtonGroup';
@@ -101,6 +102,7 @@ const defaultComponents = {
       <InlineSignup />
     </HideWhenEmbedded>
   ),
+  InlinePopover,
   InstallFeedback,
   WhatsNextTile,
   Side,
