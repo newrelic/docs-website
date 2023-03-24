@@ -38,9 +38,6 @@ exports.onPostBuild = async ({ graphql, store }) => {
           mdxAST
           slug
           body
-          frontmatter {
-            isTutorial
-          }
         }
       }
       allImageSharp {
@@ -68,11 +65,7 @@ exports.onPostBuild = async ({ graphql, store }) => {
     {}
   );
 
-  const filteredMdx = allMdx.nodes.filter((mdx) => {
-    return mdx.frontmatter.isTutorial !== true;
-  });
-
-  filteredMdx.forEach((node) => {
+  allMdx.forEach((node) => {
     const { body: mdxBody, slug, mdxAST } = node;
 
     const filepath = path.join(program.directory, 'public', `${slug}.json`);

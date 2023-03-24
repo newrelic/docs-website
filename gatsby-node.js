@@ -350,6 +350,7 @@ exports.createSchemaCustomization = ({ actions }) => {
     title: String!
     path: String
     icon: String
+    label: String
     filterable: Boolean!
     pages: [NavYaml!]!
     rootNav: Boolean!
@@ -364,7 +365,6 @@ exports.createSchemaCustomization = ({ actions }) => {
     isFeatured: Boolean
     translationType: String
     dataSource: String
-    isTutorial: Boolean
     hideNavs: Boolean
     downloadLink: String
     signupBanner: SignupBanner
@@ -414,10 +414,6 @@ exports.createResolvers = ({ createResolvers }) => {
       dataSource: {
         resolve: (source) =>
           hasOwnProperty(source, 'dataSource') ? source.dataSource : null,
-      },
-      isTutorial: {
-        resolve: (source) =>
-          hasOwnProperty(source, 'isTutorial') ? source.isTutorial : null,
       },
       hideNavs: {
         resolve: (source) =>
@@ -595,7 +591,6 @@ const TEMPLATES_BY_TYPE = {
   apiDoc: 'docPage',
   releaseNote: 'releaseNote',
   troubleshooting: 'docPage',
-  docBannerTest: 'docBannerTest',
 };
 
 const getTemplate = (node) => {
