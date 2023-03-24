@@ -10,6 +10,7 @@ import {
   Icon,
   Button,
   SearchInput,
+  useTessen,
   useTranslation,
   useLoggedIn,
   LoggedInProvider,
@@ -23,6 +24,7 @@ import { useLocation, navigate } from '@reach/router';
 import { MainLayoutContext } from '../components/MainLayoutContext';
 
 const MainLayout = ({ children, pageContext, sidebarOpen = true }) => {
+  const tessen = useTessen();
   const { loggedIn } = useLoggedIn();
   const { sidebarWidth, contentPadding } = useLayout();
   const { locale, slug } = pageContext;
@@ -161,7 +163,13 @@ const MainLayout = ({ children, pageContext, sidebarOpen = true }) => {
                       padding: 0;
                       border-radius: 50%;
                     `}
-                    onClick={() => setSidebar(!sidebar)}
+                    onClick={() => {
+                      tessen.track({
+                        eventName: sidebar ? 'closeNav' : 'openNav',
+                        category: 'NavCollapserClick',
+                      });
+                      setSidebar(!sidebar);
+                    }}
                   >
                     <Icon
                       name="nr-nav-collapse"
@@ -183,7 +191,14 @@ const MainLayout = ({ children, pageContext, sidebarOpen = true }) => {
                     isIconClickable
                     alignIcon={SearchInput.ICON_ALIGNMENT.RIGHT}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    onSubmit={() => navigate(`?q=${searchTerm || ''}`)}
+                    onSubmit={() => {
+                      tessen.track({
+                        eventName: 'nonHomepageSearchEntered',
+                        category: 'SidebarSearch',
+                        searchTerm,
+                      });
+                      navigate(`?q=${searchTerm || ''}`);
+                    }}
                     css={css`
                       margin: 1.5rem 0 2rem;
                       svg {
