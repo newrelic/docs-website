@@ -29,16 +29,15 @@ Querying for custom attributes using SystemSample.
 
 ## Create tags in the UI
 
-![Adding a “businessRegion: emea” tag to the docker-desktop host.](./images/adding-business-region-ui-tag.png "Adding a “businessRegion: emea” tag to the docker-desktop host.")
-Adding a “businessRegion: emea” tag to the docker-desktop host.
+Here's an example of how to create and query tags in the UI:
 
-![Adding a “businessDepartment: finance” tag to the docker-desktop host.](./images/adding-business-department-ui-tag.png "Adding a “businessDepartment: finance” tag to the docker-desktop host.")
-Adding a “businessDepartment: finance” tag to the docker-desktop host.
-
-And then query them with a tags. prefix, like so:
-![And then query them with a tags. prefix.](./images/query-for-ui-tags.png "And then query them with a tags. prefix.")
-
-Querying these newly created custom attributes and UI tags all together will look like this:
-![Querying these newly created custom attributes and UI tags all together.](./images/querying-attributes-and-tags-as-table.png "Querying these newly created custom attributes and UI tags all together.")
+1. Add a `businessRegion: emea` tag to the docker-desktop host.
+    ![Adding a “businessRegion: emea” tag to the docker-desktop host.](./images/adding-business-region-ui-tag.png "Adding a “businessRegion: emea” tag to the docker-desktop host.")
+2. Add a `businessDepartment: finance` tag to the docker-desktop host.
+    ![Adding a “businessDepartment: finance” tag to the docker-desktop host.](./images/adding-business-department-ui-tag.png "Adding a “businessDepartment: finance” tag to the docker-desktop host.")
+3. Query them with a `tags.` prefix:
+    ![And then query them with a tags. prefix.](./images/query-for-ui-tags.png "And then query them with a tags. prefix.")
+4. Query these newly created custom attributes and UI tags all together like this:
+    ![Querying these newly created custom attributes and UI tags all together.](./images/querying-attributes-and-tags-as-table.png "Querying these newly created custom attributes and UI tags all together.")
 
 To get started, use the documentation link [here](https://docs.newrelic.com/docs/new-relic-solutions/new-relic-one/core-concepts/use-tags-help-organize-find-your-data/#query-infra-tags).
