@@ -193,8 +193,8 @@ const MainLayout = ({ children, pageContext, sidebarOpen = true }) => {
                     onChange={(e) => setSearchTerm(e.target.value)}
                     onSubmit={() => {
                       tessen.track({
-                        eventName: 'nonHomepageSearchEntered',
-                        category: 'SidebarSearch',
+                        eventName: 'nonHomepageSidebarSearch',
+                        category: 'SearchInput',
                         searchTerm,
                       });
                       navigate(`?q=${searchTerm || ''}`);

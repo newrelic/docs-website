@@ -204,8 +204,8 @@ const HomepageLayout = ({ children, pageContext, sidebarOpen = true }) => {
                   }}
                   onSubmit={() => {
                     tessen.track({
-                      eventName: 'homepageSearchEntered',
-                      category: 'PersonaViewSearch',
+                      eventName: 'personaViewSearch',
+                      category: 'SearchInput',
                       searchTerm,
                     });
                     navigate(`?q=${searchTerm || ''}`);
@@ -324,8 +324,8 @@ const HomepageLayout = ({ children, pageContext, sidebarOpen = true }) => {
                       onChange={(e) => setSearchTerm(e.target.value)}
                       onSubmit={() => {
                         tessen.track({
-                          eventName: 'homepageSearchEntered',
-                          category: 'SidebarSearch',
+                          eventName: 'homepageSidebarSearch',
+                          category: 'SearchInput',
                           searchTerm,
                         });
                         navigate(`?q=${searchTerm || ''}`);

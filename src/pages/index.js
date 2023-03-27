@@ -71,8 +71,8 @@ const HomePage = ({ data }) => {
         onChange={(e) => setSearchTerm(e.target.value)}
         onSubmit={() => {
           tessen.track({
-            eventName: 'defaultViewSearchTriggered',
-            category: 'HomepageSearch',
+            eventName: 'defaultViewSearch',
+            category: 'SearchInput',
           });
           navigate(`?q=${searchTerm || ''}`);
         }}
