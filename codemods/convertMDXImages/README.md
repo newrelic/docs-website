@@ -24,7 +24,7 @@ Example:
 Gets converted to
 
 ```md
-  import myImage from 'images/myImage.png'
+  import myImage from 'images/myImage.webp'
 
   <img
     src={myImage}
@@ -48,7 +48,7 @@ In this scenario, ImageSizing is expecting an MDX URL Image. After running the c
 Gets converted to:
 
 ```md
-  import myImage from 'images/myImage.png'
+  import myImage from 'images/myImage.webp'
 
   <img
     src={myImage}
@@ -69,7 +69,7 @@ In this scenario, `heading` inline text and/or components.
 Gets converted to:
 
 ```md
-  import myImage from 'images/myImage.png'
+  import myImage from 'images/myImage.webp'
 
   # <img src={myImage} alt="my image" title="my awesome image" />
 ```
