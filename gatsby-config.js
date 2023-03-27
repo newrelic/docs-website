@@ -459,7 +459,6 @@ module.exports = {
             },
           },
         },
-        oneTrustID: 'e66f9ef1-3a12-4043-b7c0-1a2ea66f6d41',
         layout: {
           contentPadding: '1.5rem',
           maxWidth: '1600px',
