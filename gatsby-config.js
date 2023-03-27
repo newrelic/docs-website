@@ -379,6 +379,7 @@ module.exports = {
                 security
               }
               excerpt(pruneLength: 5000)
+              slug
             }
           }
         }
@@ -386,7 +387,7 @@ module.exports = {
         path: '/api/agent-release-notes.json',
         serialize: ({ data }) =>
           data.allMdx.nodes
-            .map(({ frontmatter, excerpt }) => {
+            .map(({ frontmatter, excerpt, slug }) => {
               const releaseNote = {
                 agent: getAgentName(frontmatter.subject),
                 date: frontmatter.releaseDate,
@@ -396,6 +397,7 @@ module.exports = {
                 bugs: frontmatter.bugs,
                 security: frontmatter.security,
                 description: excerpt,
+                slug: slug,
               };
 
               if (releaseNote.date) {
@@ -470,7 +472,6 @@ module.exports = {
             },
           },
         },
-        oneTrustID: 'e66f9ef1-3a12-4043-b7c0-1a2ea66f6d41',
         layout: {
           contentPadding: '1.5rem',
           maxWidth: '1600px',
