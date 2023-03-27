@@ -100,7 +100,7 @@ const NavItem = ({
             font-weight: 500;
           }
         `}
-        a > span {
+        a > div > span {
           font-weight: 400;
         }
 
@@ -117,6 +117,7 @@ const NavItem = ({
         active={isCurrentPage}
         to={page.pages?.length > 0 ? null : page.url}
         icon={page.icon}
+        label={page.label}
         isExpanded={isExpanded}
         expandable={page.pages?.length > 0}
         onClick={() => {
@@ -168,6 +169,7 @@ const NavItem = ({
 const page = PropTypes.shape({
   title: PropTypes.string.isRequired,
   icon: PropTypes.string,
+  label: PropTypes.string,
   url: PropTypes.string,
   pages: PropTypes.arrayOf(PropTypes.object),
 });
