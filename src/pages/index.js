@@ -7,6 +7,7 @@ import {
   Link,
   Icon,
   SearchInput,
+  useTessen,
   useTranslation,
   useInstrumentedHandler,
 } from '@newrelic/gatsby-theme-newrelic';
@@ -18,6 +19,7 @@ import HomepageSlabs from '../components/HomepageSlabs';
 import useMediaQuery from '../hooks/useMediaQuery';
 
 const HomePage = ({ data }) => {
+  const tessen = useTessen();
   const {
     site: { layout },
     allMarkdownRemark: { edges: whatsNewPosts },
@@ -37,7 +39,15 @@ const HomePage = ({ data }) => {
   });
 
   const defaultView = (
-    <>
+    <div
+      css={css`
+        padding: 1.5rem;
+
+        @media (max-width: 760px) {
+          padding: 0;
+        }
+      `}
+    >
       <h1
         css={css`
           font-size: 3.5rem;
@@ -59,7 +69,13 @@ const HomePage = ({ data }) => {
         isIconClickable
         alignIcon={SearchInput.ICON_ALIGNMENT.RIGHT}
         onChange={(e) => setSearchTerm(e.target.value)}
-        onSubmit={() => navigate(`?q=${searchTerm || ''}`)}
+        onSubmit={() => {
+          tessen.track({
+            eventName: 'defaultViewSearch',
+            category: 'SearchInput',
+          });
+          navigate(`?q=${searchTerm || ''}`);
+        }}
         css={css`
           @media screen and (max-width: ${mobileBreakpoint}) {
             margin-bottom: 1rem;
@@ -183,7 +199,7 @@ const HomePage = ({ data }) => {
       <Section layout={layout}>
         <FindYourQuickStart />
       </Section>
-    </>
+    </div>
   );
 
   if (isMobile) {
