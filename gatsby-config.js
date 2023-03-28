@@ -244,8 +244,6 @@ module.exports = {
       },
     },
     // 'gatsby-plugin-generate-doc-json',
-    // Comment in below to run a build that checks links
-    // 'gatsby-plugin-check-links',
     {
       resolve: 'gatsby-plugin-generate-json',
       options: {
@@ -379,6 +377,7 @@ module.exports = {
                 security
               }
               excerpt(pruneLength: 5000)
+              slug
             }
           }
         }
@@ -386,7 +385,7 @@ module.exports = {
         path: '/api/agent-release-notes.json',
         serialize: ({ data }) =>
           data.allMdx.nodes
-            .map(({ frontmatter, excerpt }) => ({
+            .map(({ frontmatter, excerpt, slug }) => ({
               agent: getAgentName(frontmatter.subject),
               date: frontmatter.releaseDate,
               downloadLink: frontmatter.downloadLink,
@@ -395,6 +394,7 @@ module.exports = {
               bugs: frontmatter.bugs,
               security: frontmatter.security,
               description: excerpt,
+              slug: slug,
             }))
             .filter(({ date, agent }) => Boolean(date && agent)),
       },
@@ -442,7 +442,23 @@ module.exports = {
     {
       resolve: '@newrelic/gatsby-theme-newrelic',
       options: {
-        oneTrustID: 'e66f9ef1-3a12-4043-b7c0-1a2ea66f6d41',
+        sitemap: process.env.ENVIRONMENT === 'production',
+        robots: {
+          siteUrl,
+          resolveEnv: () => process.env.ENVIRONMENT || 'development',
+          env: {
+            staging: {
+              host: 'https://docs-dev.newrelic.com',
+              policy: [{ userAgent: '*', disallow: ['/'] }],
+            },
+            development: {
+              policy: [{ userAgent: '*', disallow: ['/'] }],
+            },
+            production: {
+              policy: [{ userAgent: '*', allow: '/' }],
+            },
+          },
+        },
         layout: {
           contentPadding: '1.5rem',
           maxWidth: '1600px',
@@ -462,6 +478,7 @@ module.exports = {
             'batch',
             'csv',
             'cmake',
+            'dart',
             'dax',
             'diff',
             'django',
