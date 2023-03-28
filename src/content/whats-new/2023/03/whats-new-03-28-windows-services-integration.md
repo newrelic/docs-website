@@ -7,11 +7,11 @@ getStartedLink: 'https://newrelic.com/instant-observability/winservices'
 ---
 ## The New Relic Windows Services integration is now GA
 
-We’re excited to announce the general availability of New Relic infrastructure’s Windows Services integration. Customers with a subscription to New Relic can now pull data from their Windows services directly into New Relic without installing any third-party software.
+We’re excited to announce the general availability of our Windows Services integration. Customers with a subscription to New Relic can now pull data from their Windows services directly into New Relic without installing any third-party software.
 
-Windows Services is a core component of the Microsoft Windows operating system and enable the creation and management of long-running processes
+Windows Services are core components of the Microsoft Windows operating system and enable the creation and management of long-running processes.
 
-This on-host integration allows you to track key metrics and gain critical insights into how your services in Windows are performing.
+This integration allows you to track key metrics and gain critical insights into how your services in Windows are performing.
 
 ![Windows Services dashboard showing service count and status state](./images/Windows-Services-Dashboard-New-Relic-One.png "Windows Services dashboard showing service count and status state")
 Windows Services dashboard showing service count and status state
