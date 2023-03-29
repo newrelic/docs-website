@@ -371,7 +371,6 @@ exports.createSchemaCustomization = ({ actions }) => {
     features: [String]
     bugs: [String]
     security: [String]
-    eolDate: String
   }
   type SignupBanner {
     cta: String

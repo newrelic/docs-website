@@ -371,7 +371,6 @@ module.exports = {
               frontmatter {
                 subject
                 releaseDate(fromNow: false)
-                eolDate
                 downloadLink
                 version
                 features
@@ -401,10 +400,7 @@ module.exports = {
               };
 
               if (releaseNote.date) {
-                releaseNote.eolDate = getEOLDate(
-                  releaseNote.date,
-                  frontmatter.eolDate
-                );
+                releaseNote.eolDate = getEOLDate(releaseNote.date);
               }
 
               return releaseNote;
