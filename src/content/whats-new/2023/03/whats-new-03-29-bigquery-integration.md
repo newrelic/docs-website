@@ -15,4 +15,4 @@ For each reservation, you can see the number of slots allocated for your differe
 Optimize your costs by evaluating your slot utilization via table metrics. Determine if slots are efficiently allocated, whether too many are underutilized, or whether you are too close to full utilization — which could result in poor performance if usage spikes. You can also view the number of billed bytes, allowing you to prioritize executions in order to reduce the amount of resources required.
 
 ## Next steps
-To begin exploring how to instrument Google BigQuery with New Relic see our [**docs**](https://docs.newrelic.com/docs/infrastructure/google-cloud-platform-integrations/gcp-integrations-list/google-bigquery-monitoring-integration/) and [**quickstart**](https://newrelic.com/instant-observability/google-bigquery).
+To begin exploring how to instrument Google BigQuery with New Relic see our [integration doc](https://docs.newrelic.com/docs/infrastructure/google-cloud-platform-integrations/gcp-integrations-list/google-bigquery-monitoring-integration/) and [quickstart](https://newrelic.com/instant-observability/google-bigquery).
