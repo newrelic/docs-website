@@ -8,6 +8,7 @@ import {
 } from '@newrelic/gatsby-theme-newrelic';
 
 import { useToggleViewContext } from './ToggleViewContext';
+
 import Tooltip from '../Tooltip';
 
 export const TOGGLE_VIEWS = {
@@ -17,7 +18,7 @@ export const TOGGLE_VIEWS = {
 
 const mobileBreakpoint = '450px';
 
-const ToggleSelector = ({ className }) => {
+const ToggleSelector = ({ className, showTooltip }) => {
   const [currentView, setCurrentView] = useToggleViewContext();
   const tessen = useTessen();
   const { t } = useTranslation();
@@ -27,6 +28,7 @@ const ToggleSelector = ({ className }) => {
       css={css`
         display: grid;
         place-items: center;
+        margin-right: 1.5rem;
       `}
       className={className}
     >
@@ -54,23 +56,25 @@ const ToggleSelector = ({ className }) => {
           }
         `}
       >
-        <Tooltip
-          css={css`
-            position: absolute;
-            bottom: 150%;
-            left: -50px;
-            & p:nth-of-type(2) {
-              font-size: 12px;
-            }
-          `}
-        >
-          <Trans i18nKey="home.toggle.tooltip">
-            <p>👋 Hey there! Are you a new user?</p>
-            <p>
-              Check out our <strong>new</strong>quick launch view here!
-            </p>
-          </Trans>
-        </Tooltip>
+        {showTooltip && (
+          <Tooltip
+            css={css`
+              position: absolute;
+              bottom: 150%;
+              left: -50px;
+              & p:nth-of-type(2) {
+                font-size: 12px;
+              }
+            `}
+          >
+            <Trans i18nKey="home.toggle.tooltip">
+              <p>👋 Hey there! Are you a new user?</p>
+              <p>
+                Check out our <strong>new</strong>quick launch view here!
+              </p>
+            </Trans>
+          </Tooltip>
+        )}
         <button
           type="button"
           onClick={() => {

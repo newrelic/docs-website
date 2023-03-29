@@ -6,4 +6,6 @@ events:
   - SystemSample
 ---
 
-The total number of cores in all CPUs. This corresponds with the 'processor' entry in /proc/cpuinfo in Linux.
+* Linux: [/proc/cpuinfo: 'processor'] The total number of cores in all CPUs.
+
+* Windows: [WMI win32_processor: 'NumberOfCores'] The number of physical processors on the integrated circuit.
