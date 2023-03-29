@@ -1,11 +1,11 @@
 import React, { forwardRef } from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/react';
+import Content from '@newrelic/gatsby-theme-newrelic/src/components/Layout/Content';
+import Footer from '@newrelic/gatsby-theme-newrelic/src/components/Layout/Footer';
+import Main from '@newrelic/gatsby-theme-newrelic/src/components/Layout/Main';
 import PageTools from '@newrelic/gatsby-theme-newrelic/src/components/Layout/PageTools';
 
-import Content from './Content';
-import Footer from './Footer';
-import Main from './Main';
 import Sidebar from './Sidebar';
 import { useMainLayoutContext } from '../../../../components/MainLayoutContext';
 
