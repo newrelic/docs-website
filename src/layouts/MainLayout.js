@@ -16,6 +16,7 @@ import {
 } from '@newrelic/gatsby-theme-newrelic';
 import { css } from '@emotion/react';
 import { scroller } from 'react-scroll';
+import { CSSTransition } from 'react-transition-group'
 import SEO from '../components/SEO';
 import RootNavigation from '../components/RootNavigation';
 import NavFooter from '../components/NavFooter';
@@ -73,6 +74,32 @@ const MainLayout = ({ children, pageContext, sidebarOpen = true }) => {
     }
   }, [location.pathname, loggedIn, sidebarOpen, hideNavs]);
 
+  // TODO adjust `left` for widths under breakpoint
+  const navCollapser = (
+    <Button
+      variant={Button.VARIANT.PRIMARY}
+      css={css`
+        height: 40px;
+        width: 40px;
+        padding: 0;
+        border-radius: 50%;
+        left: 269px;
+        position: fixed;
+        top: 35px;
+        transition: 300ms translate ease;
+        z-index: 1;
+
+        ${!sidebar && `translate: calc(var(--sidebar-width) - 260px);`}
+      `}
+      onClick={() => setSidebar(!sidebar)}
+    >
+      <Icon
+        name="nr-nav-collapse"
+        size="1rem"
+      />
+    </Button>
+  );
+
   return (
     <>
       <SEO location={location} />
@@ -87,15 +114,17 @@ const MainLayout = ({ children, pageContext, sidebarOpen = true }) => {
         <MainLayoutContext.Provider value={[sidebar]}>
           <Layout
             css={css`
-              --sidebar-width: ${sidebar ? sidebarWidth : '50px'};
+              --sidebar-width: ${sidebarWidth};
               -webkit-font-smoothing: antialiased;
               font-size: 1.125rem;
               @media screen and (max-width: 1240px) {
-                --sidebar-width: ${sidebar ? '278px' : '50px'};
+                --sidebar-width: 278px;
               }
             `}
           >
+            {navCollapser}
             <Layout.Sidebar
+              aria-hidden={!sidebar}
               css={css`
                 padding: 0;
                 > div {
@@ -104,14 +133,6 @@ const MainLayout = ({ children, pageContext, sidebarOpen = true }) => {
                 }
                 background: var(--erno-black);
 
-                ${!sidebar &&
-                css`
-                  border: none;
-                  background: var(--primary-background-color);
-                  & > div {
-                    padding: ${contentPadding} 0;
-                  }
-                `}
                 hr {
                   border: none;
                   height: 1rem;
@@ -153,27 +174,6 @@ const MainLayout = ({ children, pageContext, sidebarOpen = true }) => {
                       `}
                     />
                   </Link>
-                  <Button
-                    variant={Button.VARIANT.PRIMARY}
-                    css={css`
-                      height: 40px;
-                      width: 40px;
-                      padding: 0;
-                      border-radius: 50%;
-                    `}
-                    onClick={() => setSidebar(!sidebar)}
-                  >
-                    <Icon
-                      name="nr-nav-collapse"
-                      size="1rem"
-                      css={
-                        !sidebar &&
-                        css`
-                          transform: rotateZ(180deg);
-                        `
-                      }
-                    />
-                  </Button>
                 </div>
                 {sidebar && (
                   <SearchInput
@@ -193,35 +193,60 @@ const MainLayout = ({ children, pageContext, sidebarOpen = true }) => {
                   />
                 )}
               </div>
-              {sidebar && (
-                <>
-                  <RootNavigation
-                    isStyleGuide={isStyleGuide}
-                    locale={locale}
-                    css={css`
-                      overflow-x: hidden;
-                      height: calc(
-                        100vh - ${navHeaderHeight} - var(--global-header-height) -
-                          4rem
-                      );
-                    `}
-                  />
-                  <NavFooter
-                    css={css`
-                      width: calc(var(--sidebar-width) - 1px);
-                    `}
-                  />
-                </>
-              )}
+
+              <>
+                <RootNavigation
+                  isStyleGuide={isStyleGuide}
+                  locale={locale}
+                  css={css`
+                    overflow-x: hidden;
+                    height: calc(
+                      100vh - ${navHeaderHeight} - var(--global-header-height) -
+                        4rem
+                    );
+                  `}
+                />
+                <NavFooter
+                  css={css`
+                    width: calc(var(--sidebar-width) - 1px);
+                  `}
+                />
+              </>
             </Layout.Sidebar>
-            <Layout.Main
-              css={css`
-                display: ${isMobileNavOpen ? 'none' : 'block'};
-                position: relative;
-              `}
-            >
-              {children}
-            </Layout.Main>
+            <CSSTransition in={sidebar} timeout={300} classNames="main-transition">
+              <Layout.Main
+                css={css`
+                  display: ${isMobileNavOpen ? 'none' : 'block'};
+                  ${!sidebar &&
+                  `padding-left: calc(var(--site-content-padding) + 50px);`}
+                  position: relative;
+
+                &.main-transition-enter {
+                  translate: 50px;
+                }
+                &.main-transition-enter-active {
+                  translate: 0;
+                  transition: 300ms translate ease;
+                }
+                &.main-transition-enter-done {
+                  translate: 0;
+                }
+
+                &.main-transition-exit {
+                  translate: -50px;
+                }
+                &.main-transition-exit-active {
+                  translate: 0;
+                  transition: 300ms translate ease;
+                }
+                &.main-transition-exit-done {
+                  translate: 0;
+                }
+                `}
+              >
+                {children}
+              </Layout.Main>
+            </CSSTransition>
             <Layout.Footer
               fileRelativePath={pageContext.fileRelativePath}
               css={css`
