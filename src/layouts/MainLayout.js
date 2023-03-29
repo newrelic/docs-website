@@ -85,11 +85,11 @@ const MainLayout = ({ children, pageContext, sidebarOpen = true }) => {
         border-radius: 50%;
         left: 269px;
         position: fixed;
-        top: 35px;
+        top: 102px;
         transition: 300ms translate ease;
         z-index: 1;
 
-        ${!sidebar && `translate: calc(var(--sidebar-width) - 260px);`}
+        ${!sidebar && `translate: calc(calc(var(--sidebar-width) * -1) + 80px);`}
       `}
       onClick={() => setSidebar(!sidebar)}
     >
@@ -112,6 +112,7 @@ const MainLayout = ({ children, pageContext, sidebarOpen = true }) => {
       </MobileHeader>
       <LoggedInProvider>
         <MainLayoutContext.Provider value={[sidebar]}>
+          {navCollapser}
           <Layout
             css={css`
               --sidebar-width: ${sidebarWidth};
@@ -122,7 +123,6 @@ const MainLayout = ({ children, pageContext, sidebarOpen = true }) => {
               }
             `}
           >
-            {navCollapser}
             <Layout.Sidebar
               aria-hidden={!sidebar}
               css={css`
