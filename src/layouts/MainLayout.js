@@ -15,8 +15,8 @@ import {
 } from '@newrelic/gatsby-theme-newrelic';
 import { css } from '@emotion/react';
 import { scroller } from 'react-scroll';
-import { CSSTransition } from 'react-transition-group'
-import Layout from '../components/Layout'
+import { CSSTransition } from 'react-transition-group';
+import Layout from '../components/Layout';
 import SEO from '../components/SEO';
 import RootNavigation from '../components/RootNavigation';
 import NavFooter from '../components/NavFooter';
@@ -93,19 +93,18 @@ const MainLayout = ({ children, pageContext, sidebarOpen = true }) => {
           display: none;
         }
 
-        ${!sidebar && `translate: calc(calc(var(--sidebar-width) * -1) + 80px);`}
+        ${!sidebar &&
+        `translate: calc(calc(var(--sidebar-width) * -1) + 80px);`}
 
         @media (max-width: 1240px) {
           left: 208px;
-        ${!sidebar && `translate: calc(calc(var(--sidebar-width) * -1) + 141px);`}
+          ${!sidebar &&
+          `translate: calc(calc(var(--sidebar-width) * -1) + 141px);`}
         }
       `}
       onClick={() => setSidebar(!sidebar)}
     >
-      <Icon
-        name="nr-nav-collapse"
-        size="1rem"
-      />
+      <Icon name="nr-nav-collapse" size="1rem" />
     </Button>
   );
 
@@ -222,38 +221,42 @@ const MainLayout = ({ children, pageContext, sidebarOpen = true }) => {
                 />
               </>
             </Layout.Sidebar>
-            <CSSTransition in={sidebar} timeout={300} classNames="main-transition">
+            <CSSTransition
+              in={sidebar}
+              timeout={300}
+              classNames="main-transition"
+            >
               <Layout.Main
                 css={css`
                   display: ${isMobileNavOpen ? 'none' : 'block'};
                   position: relative;
 
-                @media(min-width: 760px) {
-                  ${!sidebar &&
-                  `padding-left: calc(var(--site-content-padding) + 50px);`}
-                }
+                  @media (min-width: 760px) {
+                    ${!sidebar &&
+                    `padding-left: calc(var(--site-content-padding) + 50px);`}
+                  }
 
-                &.main-transition-enter {
-                  translate: 50px;
-                }
-                &.main-transition-enter-active {
-                  translate: 0;
-                  transition: 300ms translate ease;
-                }
-                &.main-transition-enter-done {
-                  translate: 0;
-                }
+                  &.main-transition-enter {
+                    translate: 50px;
+                  }
+                  &.main-transition-enter-active {
+                    translate: 0;
+                    transition: 300ms translate ease;
+                  }
+                  &.main-transition-enter-done {
+                    translate: 0;
+                  }
 
-                &.main-transition-exit {
-                  translate: -50px;
-                }
-                &.main-transition-exit-active {
-                  translate: 0;
-                  transition: 300ms translate ease;
-                }
-                &.main-transition-exit-done {
-                  translate: 0;
-                }
+                  &.main-transition-exit {
+                    translate: -50px;
+                  }
+                  &.main-transition-exit-active {
+                    translate: 0;
+                    transition: 300ms translate ease;
+                  }
+                  &.main-transition-exit-done {
+                    translate: 0;
+                  }
                 `}
               >
                 {children}

@@ -250,7 +250,7 @@ BasicDoc.propTypes = {
 };
 
 export const pageQuery = graphql`
-  query ($slug: String!) {
+  query($slug: String!) {
     mdx(fields: { slug: { eq: $slug } }) {
       body
       tableOfContents
