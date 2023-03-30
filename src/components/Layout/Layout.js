@@ -7,7 +7,7 @@ import Main from '@newrelic/gatsby-theme-newrelic/src/components/Layout/Main';
 import PageTools from '@newrelic/gatsby-theme-newrelic/src/components/Layout/PageTools';
 
 import Sidebar from './Sidebar';
-import { useMainLayoutContext } from '../../../../components/MainLayoutContext';
+import { useMainLayoutContext } from '../MainLayoutContext';
 
 const Layout = ({ className, children }) => {
   const [sidebar] = useMainLayoutContext();
@@ -38,6 +38,8 @@ const Layout = ({ className, children }) => {
               'main'
               'footer';
             grid-template-rows: unset;
+            translate: 0;
+            width: 100%;
           }
         `}
         className={className}

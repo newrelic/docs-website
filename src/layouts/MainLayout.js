@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
 import {
   GlobalHeader,
-  Layout,
   Link,
   Logo,
   MobileHeader,
@@ -17,6 +16,7 @@ import {
 import { css } from '@emotion/react';
 import { scroller } from 'react-scroll';
 import { CSSTransition } from 'react-transition-group'
+import Layout from '../components/Layout'
 import SEO from '../components/SEO';
 import RootNavigation from '../components/RootNavigation';
 import NavFooter from '../components/NavFooter';
@@ -89,7 +89,16 @@ const MainLayout = ({ children, pageContext, sidebarOpen = true }) => {
         transition: 300ms translate ease;
         z-index: 1;
 
+        @media (max-width: 760px) {
+          display: none;
+        }
+
         ${!sidebar && `translate: calc(calc(var(--sidebar-width) * -1) + 80px);`}
+
+        @media (max-width: 1240px) {
+          left: 208px;
+        ${!sidebar && `translate: calc(calc(var(--sidebar-width) * -1) + 141px);`}
+        }
       `}
       onClick={() => setSidebar(!sidebar)}
     >
@@ -217,9 +226,12 @@ const MainLayout = ({ children, pageContext, sidebarOpen = true }) => {
               <Layout.Main
                 css={css`
                   display: ${isMobileNavOpen ? 'none' : 'block'};
+                  position: relative;
+
+                @media(min-width: 760px) {
                   ${!sidebar &&
                   `padding-left: calc(var(--site-content-padding) + 50px);`}
-                  position: relative;
+                }
 
                 &.main-transition-enter {
                   translate: 50px;

@@ -10,13 +10,13 @@ import PageTitle from '../components/PageTitle';
 import MDXContainer from '../components/MDXContainer';
 import {
   ContributingGuidelines,
-  Layout,
   RelatedResources,
   ComplexFeedback,
   TableOfContents,
   LoggedInProvider,
   useLoggedIn,
 } from '@newrelic/gatsby-theme-newrelic';
+import Layout from '../components/Layout';
 import MachineTranslationCallout from '../components/MachineTranslationCallout';
 import SEO from '../components/SEO';
 import GithubSlugger from 'github-slugger';
