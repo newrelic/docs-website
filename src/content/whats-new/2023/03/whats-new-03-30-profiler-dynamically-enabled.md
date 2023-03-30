@@ -6,7 +6,7 @@ learnMoreLink: 'https://forum.newrelic.com/s/hubtopic/aAX8W00000005W8/on-demand-
 getStartedLink: 'https://docs.newrelic.com/docs/apm/agents/java-agent/configuration/java-agent-configuration-config-file/#jfr-real-time-profiling'
 ---
 
-Our **real-time profiling** using Java Flight Recorder (JFR) is a powerful tool to continuously profile Java applications and JVM in production environments. It comes specially handy when troubleshooting because it helps to pinpoint what caused an incident, and the performance issues resulting from that.
+Our **real-time profiling** using Java Flight Recorder (JFR) is a powerful tool to continuously profile Java applications and JVM in production environments. It comes specially handy when troubleshooting because it helps to pinpoint what caused an incident, and the performance issues resulting from that. 
 
 It brings visibility into how resources are allocated in a process, how CPU is used, garbage collection impact on performance, per JVM, every five minutes!
 And, on top of JVM behaviour, it also shows call trees, CPU time, and memory resources consumed by your classes and methods. This way, you can easily see what methods are used most in your application, and the resources they require, so that you can optimize when and where required.
