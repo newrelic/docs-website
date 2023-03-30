@@ -291,3 +291,10 @@ test('deserialize iframes', async () => {
   const mdx = await deserializeHTML(await serializeMDX(input));
   expect(mdx).toEqual(input);
 });
+
+test('deserializes InlineSignup component', async () => {
+  const input = '<InlineSignup/>';
+
+  const mdx = await deserializeHTML(await serializeMDX(input));
+  expect(mdx).toEqual(input);
+});
