@@ -14,5 +14,5 @@ On top of JVM behaviour, it also shows call trees, CPU time, and memory resource
 
 Seamlessly change your profiling configuration by toggling the setting in **Settings > Application > Java Flight Recorder**, or by changing the configuration yaml: 
 
-![Change your profiling configuration by toggling the setting in Settings > Application > Java Flight Recorder or by changing the configuration yaml.](./images/whats-new-04-06-profiler-dynamically-enabled.png "A screenshot showing real time profiling toggle in Application settings")
+![Change your profiling configuration by toggling the setting in Settings > Application > Java Flight Recorder or by changing the configuration yaml.](./images/whats-new-03-30-profiler-dynamically-enabled.png "A screenshot showing real time profiling toggle in Application settings")
 <figcaption>To enable or disable the real-time profiling feature navigate to Settings > Application and click on the Java Flight recorder toggle.</figcaption>
