@@ -1,7 +1,7 @@
 ---
 title: 'New K8s dashboard: Understand how cluster resources impact workloads'
 summary: 'Debug and identify problems faster in a single dashboard'
-releaseDate: '2022-03-29'
+releaseDate: '2023-03-29'
 learnMoreLink: 'https://docs.newrelic.com/docs/kubernetes-pixie/kubernetes-integration/understand-use-data/kubernetes-cluster-explorer/#cluster-overview-dashboard' 
 getStartedLink: 'https://one.newrelic.com'
 ---
