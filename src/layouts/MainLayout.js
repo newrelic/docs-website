@@ -74,7 +74,6 @@ const MainLayout = ({ children, pageContext, sidebarOpen = true }) => {
     }
   }, [location.pathname, loggedIn, sidebarOpen, hideNavs]);
 
-  // TODO adjust `left` for widths under breakpoint
   const navCollapser = (
     <Button
       variant={Button.VARIANT.PRIMARY}
