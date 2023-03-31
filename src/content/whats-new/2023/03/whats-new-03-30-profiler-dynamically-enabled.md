@@ -12,7 +12,7 @@ Real-time profiling offers visibility into how resources are allocated in a proc
 
 On top of JVM behaviour, it also shows call trees, CPU time, and memory resources consumed by your classes and methods. This enables you to easily see what methods are used most in your application and the resources they require, so that you can optimize when and where required.
 
-Seamlessly change your profiling configuration by toggling the setting in **Settings > Application > Java Flight Recorder**, or by changing the configuration yaml: 
+Using Java agent release 8.0.0 or above, you can seamlessly change your profiling configuration by toggling the setting in **Settings > Application > Java Flight Recorder**, or by changing the configuration yaml: 
 
 ![Change your profiling configuration by toggling the setting in Settings > Application > Java Flight Recorder or by changing the configuration yaml.](./images/whats-new-03-30-profiler-dynamically-enabled.png "A screenshot showing real time profiling toggle in Application settings")
 <figcaption>To enable or disable the real-time profiling feature navigate to Settings > Application and click on the Java Flight recorder toggle.</figcaption>
