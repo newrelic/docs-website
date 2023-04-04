@@ -290,12 +290,6 @@ const HomepageLayout = ({ children, pageContext, sidebarOpen = true }) => {
                       <Icon
                         name="nr-nav-collapse"
                         size="1rem"
-                        css={
-                          !sidebar &&
-                          css`
-                            transform: rotateZ(180deg);
-                          `
-                        }
                       />
                     </Button>
                   </div>
