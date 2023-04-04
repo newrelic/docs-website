@@ -124,7 +124,7 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
             regex: "/src/content/docs/release-notes/.*(?<!index).mdx/"
           }
         }
-        sort: { fields: frontmatter___releaseDate, order: DESC }
+        sort: { fields: [frontmatter___releaseDate, frontmatter___version], order: DESC }
       ) {
         group(limit: 1, field: frontmatter___subject) {
           fieldValue
