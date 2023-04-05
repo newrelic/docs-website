@@ -19,6 +19,7 @@ export const TOGGLE_VIEWS = {
 const mobileBreakpoint = '450px';
 
 const ToggleSelector = ({ className, showTooltip }) => {
+  showTooltip = true;
   const [currentView, setCurrentView] = useToggleViewContext();
   const tessen = useTessen();
   const { t } = useTranslation();
@@ -70,7 +71,7 @@ const ToggleSelector = ({ className, showTooltip }) => {
             <Trans i18nKey="home.toggle.tooltip">
               <p>👋 Hey there! Are you a new user?</p>
               <p>
-                Check out our <strong>new</strong>quick launch view here!
+                Check out our <strong>new</strong> introduction view here!
               </p>
             </Trans>
           </Tooltip>
