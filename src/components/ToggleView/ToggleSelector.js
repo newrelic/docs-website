@@ -19,7 +19,6 @@ export const TOGGLE_VIEWS = {
 const mobileBreakpoint = '450px';
 
 const ToggleSelector = ({ className, showTooltip }) => {
-  showTooltip = true;
   const [currentView, setCurrentView] = useToggleViewContext();
   const tessen = useTessen();
   const { t } = useTranslation();
