@@ -1,6 +1,5 @@
 import React from 'react';
 import MainLayout from './MainLayout';
-import HomepageLayout from './HomepageLayout';
 import EmbedLayout from './EmbedLayout';
 import PropTypes from 'prop-types';
 
@@ -12,9 +11,9 @@ const Layout = ({ children, ...props }) => {
       return children;
     case 'homepage':
       return (
-        <HomepageLayout sidebarOpen={false} {...props}>
+        <MainLayout sidebarOpen={false} {...props}>
           {children}
-        </HomepageLayout>
+        </MainLayout>
       );
     case 'EmbedLayout':
       if (pageContext.fileRelativePath.match(/404/)) {
