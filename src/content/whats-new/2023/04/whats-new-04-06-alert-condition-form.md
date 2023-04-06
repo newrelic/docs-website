@@ -3,7 +3,6 @@ title: 'Streamline alert configuration and management'
 summary: 'Set up alerts faster and with more flexible configuration options.’
 releaseDate: '2023-04-06'
 learnMoreLink: 'https://docs.newrelic.com/docs/alerts-applied-intelligence/new-relic-alerts/alert-conditions/create-nrql-alert-conditions/' 
-
 ---
 
 We’re releasing a number of capabilities that simplify alert management, making setup faster and easier than ever and ensuring coverage without noise.
