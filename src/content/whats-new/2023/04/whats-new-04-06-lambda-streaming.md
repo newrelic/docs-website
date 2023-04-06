@@ -1,7 +1,7 @@
 ---
 title: 'Monitor your Lambda Response Streaming with New Relic'
 summary: 'Keep track of volume of data and throughput for you Lambda Streaming function and prevent unexpected overages '
-releaseDate: '2023-04-06'
+releaseDate: '2023-04-07'
 ---
 
 
