@@ -441,6 +441,12 @@ module.exports = {
       },
     },
     {
+      resolve: `gatsby-plugin-env-variables`,
+      options: {
+        allowList: ['ENVIRONMENT'],
+      },
+    },
+    {
       resolve: `gatsby-plugin-typescript`,
       options: {
         isTSX: true, // defaults to false
