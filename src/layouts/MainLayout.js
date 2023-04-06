@@ -9,6 +9,7 @@ import {
   Icon,
   Button,
   SearchInput,
+  useTessen,
   useTranslation,
   useLoggedIn,
   LoggedInProvider,
@@ -24,6 +25,7 @@ import { useLocation, navigate } from '@reach/router';
 import { MainLayoutContext } from '../components/MainLayoutContext';
 
 const MainLayout = ({ children, pageContext, sidebarOpen = true }) => {
+  const tessen = useTessen();
   const { loggedIn } = useLoggedIn();
   const { sidebarWidth, contentPadding } = useLayout();
   const { locale, slug } = pageContext;
@@ -190,7 +192,14 @@ const MainLayout = ({ children, pageContext, sidebarOpen = true }) => {
                     isIconClickable
                     alignIcon={SearchInput.ICON_ALIGNMENT.RIGHT}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    onSubmit={() => navigate(`?q=${searchTerm || ''}`)}
+                    onSubmit={() => {
+                      tessen.track({
+                        eventName: 'nonHomepageSidebarSearch',
+                        category: 'SearchInput',
+                        searchTerm,
+                      });
+                      navigate(`?q=${searchTerm || ''}`);
+                    }}
                     css={css`
                       margin: 1.5rem 0 2rem;
                       svg {
