@@ -36,10 +36,10 @@ const NavItem = ({
     new RegExp(`\\/${locale.locale}(?=\\/)`),
     ''
   );
-  const containsCurrentPage = useMemo(
-    () => containsPage(page, pathname),
-    [page, pathname]
-  );
+  const containsCurrentPage = useMemo(() => containsPage(page, pathname), [
+    page,
+    pathname,
+  ]);
   const isCurrentPage = page.url === pathname;
   const shouldExpand = isCurrentPage || containsCurrentPage;
   const hasChangedPage = pathname !== usePrevious(pathname);
@@ -177,11 +177,11 @@ const NavItem = ({
                 sharedAncestorDepth(current, child.flipId)
             }
             flipId={child.flipId}
+            key={child.url || child.title}
             translate
           >
             <NavItem
               name={`${child.url}/`}
-              key={child.url || child.title}
               page={child}
               onExpand={onExpand}
               __parent={page}
@@ -247,7 +247,7 @@ const sameParentFlipId = (flipIdA, flipIdB) =>
 
 const sharedAncestorDepth = (flipIdA, flipIdB) => {
   let depth = -1;
-  let length = flipIdA.length;
+  const length = flipIdA.length;
 
   while (true) {
     if (flipIdA[depth + 1] === flipIdB[depth + 1] && depth < length) {

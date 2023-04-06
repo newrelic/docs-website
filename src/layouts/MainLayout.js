@@ -27,7 +27,7 @@ import { MainLayoutContext } from '../components/MainLayoutContext';
 const MainLayout = ({ children, pageContext, sidebarOpen = true }) => {
   const tessen = useTessen();
   const { loggedIn } = useLoggedIn();
-  const { sidebarWidth, contentPadding } = useLayout();
+  const { sidebarWidth } = useLayout();
   const { locale, slug } = pageContext;
   let { hideNavs } = pageContext;
   const location = useLocation();

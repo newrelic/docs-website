@@ -1,4 +1,4 @@
-import React, { forwardRef } from 'react';
+import React from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/react';
 import Content from '@newrelic/gatsby-theme-newrelic/src/components/Layout/Content';

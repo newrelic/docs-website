@@ -6,7 +6,7 @@ import { Flipped, Flipper } from 'react-flip-toolkit';
 const Navigation = ({ nav, className }) => {
   const subNav = nav.url === '/docs/style-guide';
   const [flipKey, setFlipKey] = useState();
-  const lastClickedId = useRef(null)
+  const lastClickedId = useRef(null);
 
   const keyedNav = useMemo(
     () => ({
@@ -17,10 +17,11 @@ const Navigation = ({ nav, className }) => {
   );
 
   const updateFlipKey = (clickedItemId) => {
-    lastClickedId.current = clickedItemId
+    lastClickedId.current = clickedItemId;
     // using `Symbol` here ensures the `flipKey` changes on every update
+    // eslint-disable-next-line symbol-description
     setFlipKey(Symbol());
-  }
+  };
 
   return (
     <nav
@@ -66,10 +67,9 @@ const Navigation = ({ nav, className }) => {
             );
           }
           return (
-            <Flipped flipId={page.flipId} opacity translate>
+            <Flipped flipId={page.flipId} key={page.title} opacity translate>
               <NavItem
                 onExpand={updateFlipKey}
-                key={page.title}
                 name={`${page.url}/`}
                 page={page}
               />

@@ -1,7 +1,7 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/react';
-import { animated } from 'react-spring'
+import { animated } from 'react-spring';
 
 const Sidebar = ({ children, className }) => {
   return (

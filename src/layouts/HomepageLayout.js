@@ -302,10 +302,7 @@ const HomepageLayout = ({ children, pageContext, sidebarOpen = true }) => {
                         setSidebar(!sidebar);
                       }}
                     >
-                      <Icon
-                        name="nr-nav-collapse"
-                        size="1rem"
-                      />
+                      <Icon name="nr-nav-collapse" size="1rem" />
                     </Button>
                   </div>
                   {sidebar && (
