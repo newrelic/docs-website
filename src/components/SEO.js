@@ -60,7 +60,7 @@ const DocsSiteSeo = ({
   disableSwiftype,
 }) => (
   <SEO location={location} title={title}>
-    {process.env.ENVIRONMENT === 'staging' && (
+    {process.env.GATSBY_ENVIRONMENT === 'staging' && (
       <meta name="robots" content="noindex" />
     )}
     {disableSwiftype && <meta name="st:robots" content="nofollow, noindex" />}
