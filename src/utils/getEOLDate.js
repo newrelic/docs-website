@@ -47,14 +47,9 @@ function isValidDateString(str) {
  * https://docs.newrelic.com/docs/licenses/end-of-life/notification-changes-new-relic-saas-features-distributed-software/#impact
  *
  * @param {string} releaseDateString release date of software, from front-matter field releaseDate
- * @param {string} eolDateString eol date of software, prioritized for backwards compatability
  * @returns {string} EOL date for provided release date in yyyy-MM-dd format
  */
-module.exports = function getEOLDate(releaseDateString, eolDateString) {
-  if (eolDateString && isValidDateString(eolDateString)) {
-    return formatTZAware(new Date(eolDateString));
-  }
-
+module.exports = function getEOLDate(releaseDateString) {
   if (!releaseDateString || !isValidDateString(releaseDateString)) {
     throw new Error(
       `releaseDate must be a valid date in ${DATE_FORMAT} format`
