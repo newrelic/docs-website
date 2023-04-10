@@ -87,7 +87,7 @@ const HomePage = ({ data }) => {
       path: edge.node.fields.slug,
     };
   });
-
+  console.log('🗑');
   return (
     <ToggleViewContext.Provider value={[currentView, updateView]}>
       <div
