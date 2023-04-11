@@ -1,5 +1,6 @@
+/* eslint-disable no-console */
 import { promisify } from 'util';
-import { exec as callback_exec } from 'child_process';
+import { exec as callback_exec, spawn } from 'child_process';
 
 const exec = promisify(callback_exec);
 
@@ -18,6 +19,7 @@ await exec('git diff --diff-filter=d --cached --name-only', (error, stdout) => {
     const pngImagesMessage = `\n\n\n\x1b[45m Commit failed:\x1b[0m 
       \n\n\nℹ️  The following images are in a PNG format. 
       \nPlease convert the images to ✨WebP✨ format by running \x1b[100m\x1b[96m yarn script.sh \x1b[0m \n`;
+
     if (pngImages.length > 0) {
       console.log(pngImagesMessage);
       pngImages.forEach((img) => {
@@ -30,7 +32,16 @@ await exec('git diff --diff-filter=d --cached --name-only', (error, stdout) => {
     mdxFiles = stagedFiles.filter((file) =>
       file.toLocaleLowerCase().endsWith('.mdx')
     );
-    // console.log(mdxFiles);
+    if (mdxFiles.length > 0) {
+      console.log('\n\n\n🔎 Verifying MDX files...\n\n\n');
+      mdxFiles.forEach((file) => {
+        callback_exec(`node scripts/verify_mdx.js ${file}`);
+        console.log(file);
+        process.exit(1);
+      });
+    }
+    // TODO: turn this back on
+    process.exit(0);
+    // process.exit(1);
   }
-  process.exit(0);
 });
