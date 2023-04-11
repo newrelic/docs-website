@@ -302,7 +302,16 @@ const HomepageLayout = ({ children, pageContext, sidebarOpen = true }) => {
                         setSidebar(!sidebar);
                       }}
                     >
-                      <Icon name="nr-nav-collapse" size="1rem" />
+                      <Icon
+                        name="nr-nav-collapse"
+                        size="1rem"
+                        css={
+                          !sidebar &&
+                          css`
+                            transform: rotateZ(180deg);
+                          `
+                        }
+                      />
                     </Button>
                   </div>
                   {sidebar && (

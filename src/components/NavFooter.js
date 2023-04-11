@@ -35,7 +35,7 @@ const NavFooter = ({ className }) => {
         height: 60px;
         justify-content: center;
         left: 0;
-        position: absolute;
+        position: fixed;
         width: 340px;
 
         @media screen and (max-width: 1240px) {
