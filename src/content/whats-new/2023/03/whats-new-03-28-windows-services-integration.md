@@ -1,5 +1,5 @@
 ---
-title: 'Windows Services integation is now GA' 
+title: 'Windows Services integration is now GA' 
 summary: 'This on-host integration allows you to track key metrics and gain critical insights into how your services in Windows are performing.' 
 releaseDate: '2023-03-28' 
 learnMoreLink: 'https://docs.newrelic.com/docs/infrastructure/host-integrations/host-integrations-list/windows-services-integration/' 
