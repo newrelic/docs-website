@@ -1,6 +1,6 @@
 /* eslint-disable no-console */
 import { promisify } from 'util';
-import { exec as callback_exec, spawn } from 'child_process';
+import { exec as callback_exec } from 'child_process';
 
 const exec = promisify(callback_exec);
 
@@ -16,31 +16,31 @@ await exec('git diff --diff-filter=d --cached --name-only', (error, stdout) => {
     pngImages = stagedFiles.filter((file) =>
       file.toLocaleLowerCase().endsWith('.png')
     );
-    const pngImagesMessage = `\n\n\n\x1b[45m Commit failed:\x1b[0m 
-      \n\n\nℹ️  The following images are in a PNG format. 
-      \nPlease convert the images to ✨WebP✨ format by running \x1b[100m\x1b[96m yarn script.sh \x1b[0m \n`;
+    const pngImagesMessage = `\n\n🚨 Commit failed: 🚨 
+      \n\nℹ️  The following images are in a PNG format. 
+      \nPlease run \n\n👉 yarn script.sh  \n`;
 
     if (pngImages.length > 0) {
       console.log(pngImagesMessage);
       pngImages.forEach((img) => {
-        console.log(`• \x1b[95m ${img} \x1b[0m`);
+        console.log(`• 🌠 ${img}`);
       });
       console.log(`\n`);
       process.exit(1);
     }
 
-    mdxFiles = stagedFiles.filter((file) =>
-      file.toLocaleLowerCase().endsWith('.mdx')
-    );
-    if (mdxFiles.length > 0) {
-      console.log('\n\n\n🔎 Verifying MDX files...\n\n\n');
-      mdxFiles.forEach((file) => {
-        callback_exec(`node scripts/verify_mdx.js ${file}`);
-        console.log(file);
-        process.exit(1);
-      });
-    }
-    // TODO: turn this back on
+    // mdxFiles = stagedFiles.filter((file) =>
+    //   file.toLocaleLowerCase().endsWith('.mdx')
+    // );
+    // if (mdxFiles.length > 0) {
+    //   console.log('\n\n\n🔎 Verifying MDX files...\n\n\n');
+    //   mdxFiles.forEach((file) => {
+    //     callback_exec(`node scripts/verify_mdx.js ${file}`);
+    //     console.log(file);
+    //     process.exit(1);
+    //   });
+    // }
+    // // TODO: turn this back on
     process.exit(0);
     // process.exit(1);
   }

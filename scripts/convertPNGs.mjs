@@ -44,15 +44,18 @@ const stagedMDs = stagedFiles.filter((file) =>
 );
 
 const allPNGs = await glob('**/*.png');
-const allMDs = await glob('**/*.{md,mdx}');
+const allMDsAndJSs = await glob('**/*.{md,mdx,js}');
 
 const pngsToConvert = cli.flags.global ? allPNGs : stagedPNGs;
-const mdToConvert = cli.flags.global ? allMDs : stagedMDs;
+const mdToConvert = cli.flags.global ? allMDsAndJSs : stagedMDs;
 
 const updateMarkdownReferences = async (mdArray) => {
   for (const file of mdArray) {
     const imgImportRegEx = /(?:(\(.+)\.png|(import.*from .+)\.png)/g;
     const contents = await readFile(file, { encoding: 'utf8' });
+    if (!imgImportRegEx.test(contents)) {
+      break;
+    }
     const newContents = contents.replaceAll(imgImportRegEx, '$1$2.webp');
     await writeFile(file, newContents).then(() =>
       console.log(`✨  Updated image reference(s) in \x1b[33m${file}\x1b[0m`)
