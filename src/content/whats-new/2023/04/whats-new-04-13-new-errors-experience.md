@@ -14,7 +14,7 @@ We've designed the new errors experience to seamlessly connect your error analys
 * **Error details in context to reduce mental load & context switching:** Get insight into filters applied for a particular error occurrence, as well as previous grouped-by selections at the detailed view to eliminate the need for context-switching.
 * **Seamless transition from analysis to triage to act on errors with confidence and speed:** Access triage capabilities within a single screen to reduce time needed to detect, analyze and triage error occurrences. This feature now connects each individual error occurrence to the error group that it belongs to.
 
-<iframe width="560" height="315" src="https://www.youtube.com/watch?v=i5_NVpMA_B8" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+<iframe width="560" height="315" src="https://www.youtube.com/embed/i5_NVpMA_B8" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
 
 **How to get started**
 * Check out our [documentation](https://docs.newrelic.com/docs/errors-inbox/apm-tab/)
