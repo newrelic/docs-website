@@ -2,7 +2,8 @@
 /* eslint-disable no-console */
 
 import { rm, readFile, writeFile } from 'fs/promises';
-import { glob } from 'glob';
+import { glob } from 'glob10';
+// installed with an alias because v10 conflicts with jest dependencies
 import meow from 'meow';
 import webp from 'webp-converter';
 import { promisify } from 'util';
