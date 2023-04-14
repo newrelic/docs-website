@@ -5,8 +5,6 @@ releaseDate: '2023-03-27'
 getStartedLink: 'https://docs.newrelic.com/docs/new-relic-solutions/new-relic-one/core-concepts/use-tags-help-organize-find-your-data/#query-infra-tags'
 ---
 
-Query & alert on your custom infrastructure attributes and tags
-
 Infrastructure is complicated. Thousands of components spread all over the cloud and the world, ephemeral in nature, all with different purposes–how do you keep track of them? New Relic infrastructure monitoring offers users the ability to create custom attributes in the agent configuration file and custom tags in the New Relic UI to make the organization of your mission-critical systems as flexible as you need it to be. The New Relic infrastructure team is excited to announce new enhancements to how our users can interact with their tags:
 
 * Query your custom infrastructure tags: In your NRQL queries, use `where` and `facet` to isolate entities how you want them to be isolated.
