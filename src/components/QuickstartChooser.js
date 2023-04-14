@@ -260,12 +260,12 @@ const Arrow = ({ className }) => (
   <svg
     className={cx(className, 'arrow')}
     css={css`
-      bottom: -4%;
-      left: 77%;
+      bottom: -30%;
+      left: 75%;
       position: absolute;
 
       @media (max-width: 1620px) {
-        bottom: -12%;
+        bottom: -30%;
       }
       @media (max-width: 1585px) {
         left: 60%;
