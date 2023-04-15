@@ -9,6 +9,7 @@ import {
   SearchInput,
   useInstrumentedHandler,
   useTranslation,
+  useTessen,
   useLoggedIn,
 } from '@newrelic/gatsby-theme-newrelic';
 import HomepageBanner from '../components/HomepageBanner';
@@ -29,7 +30,7 @@ const HomePage = ({ data }) => {
     site: { layout },
     allMarkdownRemark: { edges: whatsNewPosts },
   } = data;
-
+  const tessen = useTessen();
   const { loggedIn } = useLoggedIn();
   const [searchTerm, setSearchTerm] = useState('');
   const hasToggled = useRef(false);
@@ -136,7 +137,13 @@ const HomePage = ({ data }) => {
           isIconClickable
           alignIcon={SearchInput.ICON_ALIGNMENT.RIGHT}
           onChange={(e) => setSearchTerm(e.target.value)}
-          onSubmit={() => navigate(`?q=${searchTerm || ''}`)}
+          onSubmit={() => {
+            tessen.track({
+              eventName: 'defaultViewSearch',
+              category: 'SearchInput',
+            });
+            navigate(`?q=${searchTerm || ''}`);
+          }}
           css={css`
             @media screen and (max-width: ${mobileBreakpoint}) {
               margin-bottom: 1rem;
