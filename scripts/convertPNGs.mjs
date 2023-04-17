@@ -51,11 +51,12 @@ const pngsToConvert = cli.flags.global ? allPNGs : stagedPNGs;
 const mdToConvert = cli.flags.global ? allMDsAndJSs : stagedMDs;
 
 const updateMarkdownReferences = async (mdArray) => {
+  console.log(`⏳  Checking references in ${mdArray.length} markdown & JS files`)
   for (const file of mdArray) {
     const imgImportRegEx = /(?:(\(.+)\.png|(import.*from .+)\.png)/g;
     const contents = await readFile(file, { encoding: 'utf8' });
     if (!imgImportRegEx.test(contents)) {
-      break;
+      continue;
     }
     const newContents = contents.replaceAll(imgImportRegEx, '$1$2.webp');
     await writeFile(file, newContents).then(() =>
