@@ -28,6 +28,10 @@ const main = async () => {
 
   console.log(results);
   console.log(`Failed file count: ${results.length}`);
+
+  if (results.length > 0) {
+    process.exitCode = 1;
+  }
 };
 
 main();
