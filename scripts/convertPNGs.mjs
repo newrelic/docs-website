@@ -41,7 +41,7 @@ const stagedPNGs = stagedFiles.filter((file) =>
   file.toLocaleLowerCase().endsWith('.png')
 );
 const stagedMDs = stagedFiles.filter((file) =>
-  /.mdx?$/.test(file.toLocaleLowerCase())
+  /\.mdx?$/.test(file.toLocaleLowerCase())
 );
 
 const allPNGs = await glob('**/*.png');
