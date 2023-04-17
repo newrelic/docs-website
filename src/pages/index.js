@@ -9,6 +9,7 @@ import {
   SearchInput,
   useInstrumentedHandler,
   useTranslation,
+  useTessen,
   useLoggedIn,
 } from '@newrelic/gatsby-theme-newrelic';
 import HomepageBanner from '../components/HomepageBanner';
@@ -29,7 +30,7 @@ const HomePage = ({ data }) => {
     site: { layout },
     allMarkdownRemark: { edges: whatsNewPosts },
   } = data;
-
+  const tessen = useTessen();
   const { loggedIn } = useLoggedIn();
   const [searchTerm, setSearchTerm] = useState('');
   const hasToggled = useRef(false);
@@ -97,7 +98,6 @@ const HomePage = ({ data }) => {
           justify-content: space-between;
           grid-template-columns: 1fr max-content;
           align-items: center;
-
           @media (max-width: 920px) {
             grid-template-columns: 1fr auto;
           }
@@ -107,14 +107,12 @@ const HomePage = ({ data }) => {
           showTooltip={showTooltip}
           css={css`
             justify-self: end;
-
             @media screen and (max-width: 760px) {
               display: none;
             }
           `}
         />
       </div>
-
       <ToggleView id={TOGGLE_VIEWS.newUserView}>
         <HomepageVideo />
       </ToggleView>
@@ -139,7 +137,13 @@ const HomePage = ({ data }) => {
           isIconClickable
           alignIcon={SearchInput.ICON_ALIGNMENT.RIGHT}
           onChange={(e) => setSearchTerm(e.target.value)}
-          onSubmit={() => navigate(`?q=${searchTerm || ''}`)}
+          onSubmit={() => {
+            tessen.track({
+              eventName: 'defaultViewSearch',
+              category: 'SearchInput',
+            });
+            navigate(`?q=${searchTerm || ''}`);
+          }}
           css={css`
             @media screen and (max-width: ${mobileBreakpoint}) {
               margin-bottom: 1rem;
@@ -194,15 +198,12 @@ const HomePage = ({ data }) => {
               @media screen and (max-width: 1500px) {
                 align-self: auto;
               }
-
               @media screen and (max-width: 1050px) {
                 grid-template-columns: 1fr;
               }
-
               @media screen and (max-width: 760px) {
                 grid-template-columns: repeat(3, 1fr);
               }
-
               @media screen and (max-width: 650px) {
                 grid-template-columns: 1fr;
               }
@@ -241,7 +242,6 @@ const HomePage = ({ data }) => {
               @media screen and (max-width: 1500px) {
                 align-self: auto;
               }
-
               @media screen and (max-width: 1050px) {
                 grid-template-columns: 1fr;
               }
@@ -273,7 +273,6 @@ const HomePage = ({ data }) => {
     </ToggleViewContext.Provider>
   );
 };
-
 HomePage.propTypes = {
   data: PropTypes.shape({
     site: PropTypes.shape({
@@ -297,7 +296,6 @@ HomePage.propTypes = {
     }),
   }),
 };
-
 export const pageQuery = graphql`
   query($quicklaunchSlug: String!) {
     site {
@@ -334,17 +332,14 @@ export const pageQuery = graphql`
     }
   }
 `;
-
 const Section = ({ ...props }) => {
   return (
     <section
       css={css`
         padding-top: 2.5rem;
-
         .dark-mode & {
           background: var(--tertiary-background-color);
         }
-
         &:first-child {
           padding-top: 0;
         }
@@ -353,14 +348,12 @@ const Section = ({ ...props }) => {
     />
   );
 };
-
 Section.propTypes = {
   alternate: PropTypes.bool,
   layout: PropTypes.shape({
     contentPadding: PropTypes.string,
   }),
 };
-
 const SectionTitle = ({ title, icon, to }) => {
   const handleClick = useInstrumentedHandler({
     eventName: 'sectionTitleClick',
@@ -368,7 +361,6 @@ const SectionTitle = ({ title, icon, to }) => {
     title,
     href: to,
   });
-
   const Wrapper = to ? Link : React.Fragment;
   const props = to
     ? {
@@ -379,7 +371,6 @@ const SectionTitle = ({ title, icon, to }) => {
         `,
       }
     : {};
-
   return (
     <Wrapper {...props}>
       <h3
@@ -404,11 +395,9 @@ const SectionTitle = ({ title, icon, to }) => {
     </Wrapper>
   );
 };
-
 SectionTitle.propTypes = {
   title: PropTypes.string,
   icon: PropTypes.elementType,
   to: PropTypes.string,
 };
-
 export default HomePage;

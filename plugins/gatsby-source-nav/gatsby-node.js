@@ -16,6 +16,7 @@ exports.createSchemaCustomization = ({ actions }) => {
       id: ID!
       title(locale: String = "en"): String!
       icon: String
+      label: String
       url: String
       pages: [NavItem!]!
     }

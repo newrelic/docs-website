@@ -28,6 +28,7 @@ const ToggleSelector = ({ className, showTooltip }) => {
       css={css`
         display: grid;
         place-items: center;
+        margin-right: 1.5rem;
       `}
       className={className}
     >
@@ -69,7 +70,7 @@ const ToggleSelector = ({ className, showTooltip }) => {
             <Trans i18nKey="home.toggle.tooltip">
               <p>👋 Hey there! Are you a new user?</p>
               <p>
-                Check out our <strong>new</strong>quick launch view here!
+                Check out our <strong>new</strong> introduction view here!
               </p>
             </Trans>
           </Tooltip>
