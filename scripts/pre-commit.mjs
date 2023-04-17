@@ -16,7 +16,7 @@ await exec('git diff --diff-filter=d --cached --name-only', (error, stdout) => {
       file.toLocaleLowerCase().endsWith('.png')
     );
     const pngImagesMessage = `\n\n🚨 Commit failed: 🚨 
-      \n\nℹ️  The following images are in a PNG format. 
+      \n\nℹ️  The following images are not ✨WebP✨ format. 
       \nPlease run \n\n👉 yarn convert-to-webp  \n`;
 
     if (pngImages.length > 0) {
