@@ -12,16 +12,19 @@ import {
   useNavigation,
   stripTrailingSlash,
 } from '@newrelic/gatsby-theme-newrelic';
+import { Flipped } from 'react-flip-toolkit';
 
 const useIsomorphicLayoutEffect =
   typeof window !== 'undefined' ? useLayoutEffect : useEffect;
 
 const NavItem = ({
+  onExpand,
   page,
   name,
   __parent: parent,
   __depth: depth = 0,
   __root: root,
+  ...rest
 }) => {
   const locale = useLocale();
   const location = useLocation();
@@ -111,6 +114,7 @@ const NavItem = ({
           }
         `}
       `}
+      {...rest}
     >
       <NavLink
         name={name}
@@ -121,9 +125,13 @@ const NavItem = ({
         isExpanded={isExpanded}
         expandable={page.pages?.length > 0}
         onClick={() => {
-          setIsExpanded(() => !isExpanded);
+          onExpand(page.flipId);
+          setIsExpanded(toggle);
         }}
-        onToggle={() => setIsExpanded(toggle)}
+        onToggle={() => {
+          onExpand(page.flipId);
+          setIsExpanded(toggle);
+        }}
         mobileBreakpoint={mobileBreakpoint}
         css={css`
           padding-left: ${root?.icon
@@ -153,14 +161,34 @@ const NavItem = ({
 
       {isExpanded &&
         page.pages?.map((child) => (
-          <NavItem
-            name={`${child.url}/`}
+          <Flipped
+            // we need to avoid animating if the current item's parent is animating,
+            // otherwise it will try to double animate to its new position
+            // and it looks wack.
+            // this makes sure we're only animating either siblings under
+            // the same parent, or items at the same depth under a different parent
+            // but within the same ancestry tree.
+            // items without a shared ancestor at depth 0 are also animated,
+            // these are the top-level nav items.
+            shouldFlip={(_prev, current) =>
+              (sameDepth(current, child.flipId) &&
+                sameParentFlipId(current, child.flipId)) ||
+              layersDeep(child.flipId) ===
+                sharedAncestorDepth(current, child.flipId)
+            }
+            flipId={child.flipId}
             key={child.url || child.title}
-            page={child}
-            __parent={page}
-            __depth={depth + 1}
-            __root={depth === 0 ? page : root}
-          />
+            translate
+          >
+            <NavItem
+              name={`${child.url}/`}
+              page={child}
+              onExpand={onExpand}
+              __parent={page}
+              __depth={depth + 1}
+              __root={depth === 0 ? page : root}
+            />
+          </Flipped>
         ))}
     </div>
   );
@@ -206,5 +234,28 @@ const containsPage = (page, url) => {
 const matchesSearchTerm = (page, searchTerm) =>
   new RegExp(searchTerm, 'i').test(page.title) ||
   (page.pages || []).some((child) => matchesSearchTerm(child, searchTerm));
+
+const layersDeep = (flipId) => flipId.length - 1;
+
+const parentFlipId = (flipId) => flipId.slice(0, -1);
+
+const sameDepth = (flipIdA, flipIdB) =>
+  layersDeep(flipIdA) === layersDeep(flipIdB);
+
+const sameParentFlipId = (flipIdA, flipIdB) =>
+  parentFlipId(flipIdA).join('') === parentFlipId(flipIdB).join('');
+
+const sharedAncestorDepth = (flipIdA, flipIdB) => {
+  let depth = -1;
+  const length = flipIdA.length;
+
+  while (true) {
+    if (flipIdA[depth + 1] === flipIdB[depth + 1] && depth < length) {
+      depth += 1;
+    } else {
+      return depth + 1;
+    }
+  }
+};
 
 export default NavItem;

@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
 import {
   GlobalHeader,
-  Layout,
   Link,
   Logo,
   MobileHeader,
@@ -10,12 +9,15 @@ import {
   Icon,
   Button,
   SearchInput,
+  useTessen,
   useTranslation,
   useLoggedIn,
   LoggedInProvider,
 } from '@newrelic/gatsby-theme-newrelic';
 import { css } from '@emotion/react';
 import { scroller } from 'react-scroll';
+import { CSSTransition } from 'react-transition-group';
+import Layout from '../components/Layout';
 import SEO from '../components/SEO';
 import RootNavigation from '../components/RootNavigation';
 import NavFooter from '../components/NavFooter';
@@ -23,8 +25,9 @@ import { useLocation, navigate } from '@reach/router';
 import { MainLayoutContext } from '../components/MainLayoutContext';
 
 const MainLayout = ({ children, pageContext, sidebarOpen = true }) => {
+  const tessen = useTessen();
   const { loggedIn } = useLoggedIn();
-  const { sidebarWidth, contentPadding } = useLayout();
+  const { sidebarWidth } = useLayout();
   const { locale, slug } = pageContext;
   let { hideNavs } = pageContext;
   const location = useLocation();
@@ -73,6 +76,39 @@ const MainLayout = ({ children, pageContext, sidebarOpen = true }) => {
     }
   }, [location.pathname, loggedIn, sidebarOpen, hideNavs]);
 
+  const navCollapser = (
+    <Button
+      variant={Button.VARIANT.PRIMARY}
+      css={css`
+        height: 40px;
+        width: 40px;
+        padding: 0;
+        border-radius: 50%;
+        left: 269px;
+        position: fixed;
+        top: 102px;
+        transition: 300ms translate ease;
+        z-index: 1;
+
+        @media (max-width: 760px) {
+          display: none;
+        }
+
+        ${!sidebar &&
+        `translate: calc(calc(var(--sidebar-width) * -1) + 80px);`}
+
+        @media (max-width: 1240px) {
+          left: 208px;
+          ${!sidebar &&
+          `translate: calc(calc(var(--sidebar-width) * -1) + 141px);`}
+        }
+      `}
+      onClick={() => setSidebar(!sidebar)}
+    >
+      <Icon name="nr-nav-collapse" size="1rem" />
+    </Button>
+  );
+
   return (
     <>
       <SEO location={location} />
@@ -85,17 +121,19 @@ const MainLayout = ({ children, pageContext, sidebarOpen = true }) => {
       </MobileHeader>
       <LoggedInProvider>
         <MainLayoutContext.Provider value={[sidebar]}>
+          {navCollapser}
           <Layout
             css={css`
-              --sidebar-width: ${sidebar ? sidebarWidth : '50px'};
+              --sidebar-width: ${sidebarWidth};
               -webkit-font-smoothing: antialiased;
               font-size: 1.125rem;
               @media screen and (max-width: 1240px) {
-                --sidebar-width: ${sidebar ? '278px' : '50px'};
+                --sidebar-width: 278px;
               }
             `}
           >
             <Layout.Sidebar
+              aria-hidden={!sidebar}
               css={css`
                 padding: 0;
                 > div {
@@ -104,14 +142,6 @@ const MainLayout = ({ children, pageContext, sidebarOpen = true }) => {
                 }
                 background: var(--erno-black);
 
-                ${!sidebar &&
-                css`
-                  border: none;
-                  background: var(--primary-background-color);
-                  & > div {
-                    padding: ${contentPadding} 0;
-                  }
-                `}
                 hr {
                   border: none;
                   height: 1rem;
@@ -153,27 +183,6 @@ const MainLayout = ({ children, pageContext, sidebarOpen = true }) => {
                       `}
                     />
                   </Link>
-                  <Button
-                    variant={Button.VARIANT.PRIMARY}
-                    css={css`
-                      height: 40px;
-                      width: 40px;
-                      padding: 0;
-                      border-radius: 50%;
-                    `}
-                    onClick={() => setSidebar(!sidebar)}
-                  >
-                    <Icon
-                      name="nr-nav-collapse"
-                      size="1rem"
-                      css={
-                        !sidebar &&
-                        css`
-                          transform: rotateZ(180deg);
-                        `
-                      }
-                    />
-                  </Button>
                 </div>
                 {sidebar && (
                   <SearchInput
@@ -183,7 +192,14 @@ const MainLayout = ({ children, pageContext, sidebarOpen = true }) => {
                     isIconClickable
                     alignIcon={SearchInput.ICON_ALIGNMENT.RIGHT}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    onSubmit={() => navigate(`?q=${searchTerm || ''}`)}
+                    onSubmit={() => {
+                      tessen.track({
+                        eventName: 'nonHomepageSidebarSearch',
+                        category: 'SearchInput',
+                        searchTerm,
+                      });
+                      navigate(`?q=${searchTerm || ''}`);
+                    }}
                     css={css`
                       margin: 1.5rem 0 2rem;
                       svg {
@@ -193,35 +209,67 @@ const MainLayout = ({ children, pageContext, sidebarOpen = true }) => {
                   />
                 )}
               </div>
-              {sidebar && (
-                <>
-                  <RootNavigation
-                    isStyleGuide={isStyleGuide}
-                    locale={locale}
-                    css={css`
-                      overflow-x: hidden;
-                      height: calc(
-                        100vh - ${navHeaderHeight} - var(--global-header-height) -
-                          4rem
-                      );
-                    `}
-                  />
-                  <NavFooter
-                    css={css`
-                      width: calc(var(--sidebar-width) - 1px);
-                    `}
-                  />
-                </>
-              )}
+
+              <>
+                <RootNavigation
+                  isStyleGuide={isStyleGuide}
+                  locale={locale}
+                  css={css`
+                    overflow-x: hidden;
+                    height: calc(
+                      100vh - ${navHeaderHeight} - var(--global-header-height) -
+                        4rem
+                    );
+                  `}
+                />
+                <NavFooter
+                  css={css`
+                    width: calc(var(--sidebar-width) - 1px);
+                  `}
+                />
+              </>
             </Layout.Sidebar>
-            <Layout.Main
-              css={css`
-                display: ${isMobileNavOpen ? 'none' : 'block'};
-                position: relative;
-              `}
+            <CSSTransition
+              in={sidebar}
+              timeout={300}
+              classNames="main-transition"
             >
-              {children}
-            </Layout.Main>
+              <Layout.Main
+                css={css`
+                  display: ${isMobileNavOpen ? 'none' : 'block'};
+                  position: relative;
+
+                  @media (min-width: 760px) {
+                    ${!sidebar &&
+                    `padding-left: calc(var(--site-content-padding) + 50px);`}
+                  }
+
+                  &.main-transition-enter {
+                    translate: 50px;
+                  }
+                  &.main-transition-enter-active {
+                    translate: 0;
+                    transition: 300ms translate ease;
+                  }
+                  &.main-transition-enter-done {
+                    translate: 0;
+                  }
+
+                  &.main-transition-exit {
+                    translate: -50px;
+                  }
+                  &.main-transition-exit-active {
+                    translate: 0;
+                    transition: 300ms translate ease;
+                  }
+                  &.main-transition-exit-done {
+                    translate: 0;
+                  }
+                `}
+              >
+                {children}
+              </Layout.Main>
+            </CSSTransition>
             <Layout.Footer
               fileRelativePath={pageContext.fileRelativePath}
               css={css`
