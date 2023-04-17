@@ -70,13 +70,17 @@ const updateMarkdownReferences = async (mdArray) => {
       continue;
     }
     const newContents = contents.replaceAll(imgImportRegEx, '$1$2.webp');
-    await writeFile(file, newContents).then(() =>
-      console.log(`✨  Updated image reference(s) in \x1b[33m${file}\x1b[0m`)
-    ).catch(err => {
-      console.log(`😵  Failed trying to update reference(s) in \x1b[33m${file}\x1b[0m:`)
-      console.log(err)
-      process.exitCode = 1
-    });
+    await writeFile(file, newContents)
+      .then(() =>
+        console.log(`✨  Updated image reference(s) in \x1b[33m${file}\x1b[0m`)
+      )
+      .catch((err) => {
+        console.log(
+          `😵  Failed trying to update reference(s) in \x1b[33m${file}\x1b[0m:`
+        );
+        console.log(err);
+        process.exitCode = 1;
+      });
   }
 };
 
@@ -91,9 +95,11 @@ const convertImages = async (imageArray) => {
         console.log(`✨  Converted \x1b[33m${imagePath}\x1b[0m to ✨WebP✨`)
       )
       .catch((err) => {
-        console.log(`😵  Failed trying to convert \x1b[33m${imagePath}\x1b[0m:`);
-        console.log(err)
-        process.exitCode = 1
+        console.log(
+          `😵  Failed trying to convert \x1b[33m${imagePath}\x1b[0m:`
+        );
+        console.log(err);
+        process.exitCode = 1;
       });
   }
 };
