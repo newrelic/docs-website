@@ -116,9 +116,11 @@ const ChooserContainer = styled.ul`
   list-style: none;
   padding: 0;
   place-items: center;
+  justify-content: center;
 
   @media (max-width: 1508px) {
     gap: 2rem;
+    column-gap: 6vw;
     justify-content: center;
   }
 
@@ -228,6 +230,10 @@ const Container = styled.div`
     & ${ChooserContainer} {
       gap: 1.625rem;
       grid-template-columns: repeat(auto-fit, 112px);
+      @media only screen and (min-width: 950px) and (max-width: 1270px) {
+        column-gap: 8vw;
+        grid-template-columns: repeat(4, 112px);
+      }
     }
   }
 
