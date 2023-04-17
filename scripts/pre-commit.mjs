@@ -17,7 +17,7 @@ await exec('git diff --diff-filter=d --cached --name-only', (error, stdout) => {
     );
     const pngImagesMessage = `\n\n🚨 Commit failed: 🚨 
       \n\nℹ️  The following images are in a PNG format. 
-      \nPlease run \n\n👉 yarn script.sh  \n`;
+      \nPlease run \n\n👉 yarn convert-to-webp  \n`;
 
     if (pngImages.length > 0) {
       console.log(pngImagesMessage);
