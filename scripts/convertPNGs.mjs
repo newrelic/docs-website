@@ -64,6 +64,7 @@ const updateMarkdownReferences = async (mdArray) => {
   console.log(
     `⏳  Checking references in ${mdArray.length} markdown & JS files`
   );
+
   for (const file of mdArray) {
     const contents = await readFile(file, { encoding: 'utf8' });
     if (!imgImportRegEx.test(contents)) {
