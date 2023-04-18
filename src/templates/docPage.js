@@ -10,7 +10,6 @@ import PageTitle from '../components/PageTitle';
 import MDXContainer from '../components/MDXContainer';
 import {
   ContributingGuidelines,
-  RelatedResources,
   ComplexFeedback,
   TableOfContents,
   LoggedInProvider,
@@ -49,7 +48,6 @@ const BasicDoc = ({ data, location, pageContext }) => {
     tableOfContents,
     body,
     fields: { fileRelativePath },
-    relatedResources,
   } = mdx;
   const { disableSwiftype, hideNavs } = pageContext;
 
@@ -125,7 +123,7 @@ const BasicDoc = ({ data, location, pageContext }) => {
             'mt-disclaimer mt-disclaimer'
             'page-title page-tools'
             'content page-tools';
-          grid-template-columns: minmax(0, 1fr) 320px;
+          grid-template-columns: minmax(0, 1fr) 205px;
           grid-column-gap: 2rem;
 
           ${bannerVisible &&
@@ -222,18 +220,12 @@ const BasicDoc = ({ data, location, pageContext }) => {
                 }
               `}
             >
+              <TableOfContents headings={headings} />
+              <ComplexFeedback pageTitle={title} />
               <ContributingGuidelines
                 pageTitle={title}
                 fileRelativePath={fileRelativePath}
                 issueLabels={['feedback', 'feedback-issue']}
-              />
-              <TableOfContents headings={headings} />
-              <ComplexFeedback pageTitle={title} />
-              <RelatedResources
-                resources={relatedResources}
-                css={css`
-                  border-top: 1px solid var(--divider-color);
-                `}
               />
             </Layout.PageTools>
           </CSSTransition>
@@ -269,10 +261,6 @@ export const pageQuery = graphql`
       }
       fields {
         fileRelativePath
-      }
-      relatedResources(limit: 3) {
-        title
-        url
       }
       ...TableOfContents_page
     }
