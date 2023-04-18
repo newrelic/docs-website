@@ -4,7 +4,7 @@ import { css } from '@emotion/react';
 import styled from '@emotion/styled';
 import cx from 'classnames';
 import logos from '@newrelic/gatsby-theme-newrelic/src/icons/logo';
-import { useTranslation } from '@newrelic/gatsby-theme-newrelic';
+import { useTranslation, useTessen } from '@newrelic/gatsby-theme-newrelic';
 import dataism from '../images/dataism.png';
 
 const QUICKSTARTS = [
@@ -63,6 +63,8 @@ const QuickstartChooser = ({
   quickstarts = QUICKSTARTS,
 }) => {
   const { t } = useTranslation();
+  const tessen = useTessen();
+
   return (
     <Container className={cx({ secondary })}>
       <CtaContainer>
@@ -76,7 +78,17 @@ const QuickstartChooser = ({
       <ChooserContainer>
         {quickstarts.map((quickstart) => (
           <li key={quickstart.name}>
-            <a aria-label={quickstart.name} href={quickstart.url}>
+            <a
+              aria-label={quickstart.name}
+              href={quickstart.url}
+              onClick={() => {
+                tessen.track({
+                  eventName: 'quickstartClick',
+                  category: 'QuickstartChooser',
+                  quickstart: quickstart.name,
+                });
+              }}
+            >
               {quickstart.logo()}
             </a>
           </li>
@@ -104,9 +116,11 @@ const ChooserContainer = styled.ul`
   list-style: none;
   padding: 0;
   place-items: center;
+  justify-content: center;
 
   @media (max-width: 1508px) {
     gap: 2rem;
+    column-gap: 6vw;
     justify-content: center;
   }
 
@@ -216,6 +230,10 @@ const Container = styled.div`
     & ${ChooserContainer} {
       gap: 1.625rem;
       grid-template-columns: repeat(auto-fit, 112px);
+      @media only screen and (min-width: 950px) and (max-width: 1270px) {
+        column-gap: 8vw;
+        grid-template-columns: repeat(4, 112px);
+      }
     }
   }
 
@@ -248,12 +266,12 @@ const Arrow = ({ className }) => (
   <svg
     className={cx(className, 'arrow')}
     css={css`
-      bottom: -4%;
-      left: 77%;
+      bottom: -30%;
+      left: 75%;
       position: absolute;
 
       @media (max-width: 1620px) {
-        bottom: -12%;
+        bottom: -30%;
       }
       @media (max-width: 1585px) {
         left: 60%;

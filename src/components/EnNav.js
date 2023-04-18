@@ -39,6 +39,7 @@ const enQuery = graphql`
     title(locale: "en")
     url
     icon
+    label
   }
 `;
 

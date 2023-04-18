@@ -1,0 +1,1 @@
+export { PersonaSignup } from './PersonaSignup';
