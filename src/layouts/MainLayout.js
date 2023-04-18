@@ -11,6 +11,7 @@ import {
   SearchInput,
   useTessen,
   useTranslation,
+  useLoggedIn,
   LoggedInProvider,
 } from '@newrelic/gatsby-theme-newrelic';
 import { css } from '@emotion/react';
@@ -23,14 +24,16 @@ import NavFooter from '../components/NavFooter';
 import { useLocation, navigate } from '@reach/router';
 import { MainLayoutContext } from '../components/MainLayoutContext';
 
-const MainLayout = ({ children, pageContext }) => {
+const MainLayout = ({ children, pageContext, sidebarOpen = true }) => {
   const tessen = useTessen();
+  const { loggedIn } = useLoggedIn();
   const { sidebarWidth } = useLayout();
   const { locale, slug } = pageContext;
+  let { hideNavs } = pageContext;
   const location = useLocation();
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [sidebar, setSidebar] = useState(true);
+  const [sidebar, setSidebar] = useState(sidebarOpen);
   const { t } = useTranslation();
   const navHeaderHeight = '100px';
   const isStyleGuide =
@@ -43,8 +46,18 @@ const MainLayout = ({ children, pageContext }) => {
     }
   };
 
+  /*
+   * [VSU] some docs pages are being designed as JS for faster experimenting
+   * and will never have the frontmatter property
+   * Using regex for check to account for paths with and without trailing slash
+   */
+  const docsAsJS = [/introduction-apm/];
+  const isJSDoc = docsAsJS.some((docUrl) => docUrl.test(location.pathname));
+  hideNavs ||= isJSDoc;
+
   useEffect(() => {
     setIsMobileNavOpen(false);
+    setSidebar(hideNavs ? false : sidebarOpen);
     // react scroll causes the page to crash if it doesn't find an element
     // so we're checking for the element before firing
     const pathName = addTrailingSlash(location.pathname);
@@ -58,7 +71,10 @@ const MainLayout = ({ children, pageContext }) => {
         offset: -5,
       });
     }
-  }, [location.pathname]);
+    if (loggedIn && !hideNavs) {
+      setSidebar(true);
+    }
+  }, [location.pathname, loggedIn, sidebarOpen, hideNavs]);
 
   const navCollapser = (
     <Button

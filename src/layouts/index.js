@@ -9,6 +9,12 @@ const Layout = ({ children, ...props }) => {
   switch (pageContext.layout) {
     case 'basic':
       return children;
+    case 'homepage':
+      return (
+        <MainLayout sidebarOpen={false} {...props}>
+          {children}
+        </MainLayout>
+      );
     case 'EmbedLayout':
       if (pageContext.fileRelativePath.match(/404/)) {
         return children;
