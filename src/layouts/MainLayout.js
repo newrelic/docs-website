@@ -13,6 +13,7 @@ import {
   useTranslation,
   LoggedInProvider,
 } from '@newrelic/gatsby-theme-newrelic';
+import { isNavClosed, setNavClosed } from '../utils/navState';
 import { css } from '@emotion/react';
 import { scroller } from 'react-scroll';
 import { CSSTransition } from 'react-transition-group';
@@ -45,6 +46,7 @@ const MainLayout = ({ children, pageContext }) => {
 
   useEffect(() => {
     setIsMobileNavOpen(false);
+    setSidebar(!isNavClosed());
     // react scroll causes the page to crash if it doesn't find an element
     // so we're checking for the element before firing
     const pathName = addTrailingSlash(location.pathname);
@@ -59,6 +61,10 @@ const MainLayout = ({ children, pageContext }) => {
       });
     }
   }, [location.pathname]);
+
+  useEffect(() => {
+    setNavClosed(!sidebar);
+  }, [sidebar]);
 
   const navCollapser = (
     <Button
@@ -87,7 +93,9 @@ const MainLayout = ({ children, pageContext }) => {
           `translate: calc(calc(var(--sidebar-width) * -1) + 141px);`}
         }
       `}
-      onClick={() => setSidebar(!sidebar)}
+      onClick={() => {
+        setSidebar(!sidebar);
+      }}
     >
       <Icon name="nr-nav-collapse" size="1rem" />
     </Button>
