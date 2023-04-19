@@ -49,7 +49,7 @@ const BasicDoc = ({ data, location, pageContext }) => {
     body,
     fields: { fileRelativePath },
   } = mdx;
-  const { disableSwiftype, hideNavs } = pageContext;
+  const { disableSwiftype, hidePageTools } = pageContext;
 
   const headings = useMemo(() => {
     const slugs = new GithubSlugger();
@@ -146,7 +146,7 @@ const BasicDoc = ({ data, location, pageContext }) => {
               'page-tools';
             grid-template-columns: minmax(0, 1fr);
           }
-          ${hideNavs &&
+          ${hidePageTools &&
           css`
             grid-template-areas:
               'mt-disclaimer'
@@ -179,7 +179,7 @@ const BasicDoc = ({ data, location, pageContext }) => {
             <MDXContainer body={body} />
           </Layout.Content>
         </LoggedInProvider>
-        {!hideNavs && (
+        {!hidePageTools && (
           // TODO pass nodeRef to avoid `findDOMNode` usage
           // this transition is the inverse of the page `translate` transition
           // it keeps the PageTools in the same place when the nav opens/ closes

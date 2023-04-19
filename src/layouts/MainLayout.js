@@ -11,9 +11,9 @@ import {
   SearchInput,
   useTessen,
   useTranslation,
-  useLoggedIn,
   LoggedInProvider,
 } from '@newrelic/gatsby-theme-newrelic';
+import { isNavClosed, setNavClosed } from '../utils/navState';
 import { css } from '@emotion/react';
 import { scroller } from 'react-scroll';
 import { CSSTransition } from 'react-transition-group';
@@ -24,16 +24,14 @@ import NavFooter from '../components/NavFooter';
 import { useLocation, navigate } from '@reach/router';
 import { MainLayoutContext } from '../components/MainLayoutContext';
 
-const MainLayout = ({ children, pageContext, sidebarOpen = true }) => {
+const MainLayout = ({ children, pageContext }) => {
   const tessen = useTessen();
-  const { loggedIn } = useLoggedIn();
   const { sidebarWidth } = useLayout();
   const { locale, slug } = pageContext;
-  let { hideNavs } = pageContext;
   const location = useLocation();
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [sidebar, setSidebar] = useState(sidebarOpen);
+  const [sidebar, setSidebar] = useState(true);
   const { t } = useTranslation();
   const navHeaderHeight = '100px';
   const isStyleGuide =
@@ -46,18 +44,9 @@ const MainLayout = ({ children, pageContext, sidebarOpen = true }) => {
     }
   };
 
-  /*
-   * [VSU] some docs pages are being designed as JS for faster experimenting
-   * and will never have the frontmatter property
-   * Using regex for check to account for paths with and without trailing slash
-   */
-  const docsAsJS = [/introduction-apm/];
-  const isJSDoc = docsAsJS.some((docUrl) => docUrl.test(location.pathname));
-  hideNavs ||= isJSDoc;
-
   useEffect(() => {
     setIsMobileNavOpen(false);
-    setSidebar(hideNavs ? false : sidebarOpen);
+    setSidebar(!isNavClosed());
     // react scroll causes the page to crash if it doesn't find an element
     // so we're checking for the element before firing
     const pathName = addTrailingSlash(location.pathname);
@@ -71,10 +60,11 @@ const MainLayout = ({ children, pageContext, sidebarOpen = true }) => {
         offset: -5,
       });
     }
-    if (loggedIn && !hideNavs) {
-      setSidebar(true);
-    }
-  }, [location.pathname, loggedIn, sidebarOpen, hideNavs]);
+  }, [location.pathname]);
+
+  useEffect(() => {
+    setNavClosed(!sidebar);
+  }, [sidebar]);
 
   const navCollapser = (
     <Button
@@ -103,7 +93,9 @@ const MainLayout = ({ children, pageContext, sidebarOpen = true }) => {
           `translate: calc(calc(var(--sidebar-width) * -1) + 141px);`}
         }
       `}
-      onClick={() => setSidebar(!sidebar)}
+      onClick={() => {
+        setSidebar(!sidebar);
+      }}
     >
       <Icon name="nr-nav-collapse" size="1rem" />
     </Button>
