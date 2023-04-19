@@ -1,5 +1,5 @@
 export const isNavClosed = () => {
-  if (window.localStorage) {
+  if (typeof window !== 'undefined') {
     const localStorageNavState = localStorage.getItem('nav_closed');
     if (localStorageNavState === 'true' || localStorageNavState === 'false') {
       return JSON.parse(localStorageNavState);
