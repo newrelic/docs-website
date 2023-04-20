@@ -1,7 +1,7 @@
 ---
 title: 'Updates to improve your experience with Lookout'
 summary: 'Improvements to Lookout make views more usable and more flexible around identifying anomalous behavior and fixing issues.'
-releaseDate: '2023-04-18'
+releaseDate: '2023-04-20'
 learnMoreLink: 'https://docs.newrelic.com/docs/new-relic-solutions/new-relic-one/core-concepts/new-relic-lookout-monitor-your-estate-glance/'
 ---
 
