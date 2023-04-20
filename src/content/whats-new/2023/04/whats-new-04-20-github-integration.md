@@ -1,6 +1,6 @@
 ---
 title: 'Create GitHub Actions Deployment Protection Rules with New Relic AIOps'
-summary: 'Ensure high quality code and prevent downstream issues by connecting system health to GitHub Actions Deployment Protection Rules'
+summary: 'Ensure high quality code and prevent downstream issues by connecting system health to GitHub Actions Deployment Protection Rules.'
 releaseDate: '2022-04-20'
 learnMoreLink: 'https://github.blog/2023-04-20-announcing-github-actions-deployment-protection-rules-now-in-public-beta'
 getStartedLink: 'https://github.com/apps/new-relic-gate'
@@ -49,10 +49,10 @@ New Relic lets you [create alert conditions](https://docs.newrelic.com/docs/aler
     * The next deployment should succeed.
 
 ![GitHub settings page.](./images/gh_settings_configure.png "A screenshot showing the GitHub settings page.")
-<figcaption>To use the New Relic Gate, you need to enable it in your GitHub repository environment. Select your repository **settings**, select **environment**, then check the box next to **New Relic Gate**.</figcaption>
+<figcaption>To use the New Relic Gate, you need to enable it in your GitHub repository environment. Select your repository  <b>settings</b>, select <b>environment</b>, then check the box next to <b>New Relic Gate</b>.</figcaption>
 
-![screenshot showing New Relic alert conditions.](./images/gh_nr_conditions.png "screenshot showing New Relic alert conditions.")
-<figcaption>[Create an alert policy](https://docs.newrelic.com/docs/alerts-applied-intelligence/new-relic-alerts/alert-policies/specify-when-alerts-create-incidents/) in New Relic, which will act as the desired deployment gate.</figcaption>
+![screenshot showing New Relic alert conditions.](./images/gh_nr_conditions.png "A screenshot showing New Relic alert conditions.")
+<figcaption>Create an alert policy in New Relic, which will act as the desired deployment gate.</figcaption>
 
-![screenshot deployment protection rules in GitHub.](./images/gh_action_passed_failed "screenshot deployment protection rules in GitHub.")
-<figcaption>View the results of the New Relic gate on the GitHub Actions page, under **Deployment protection rules.**</figcaption>
+![screenshot deployment protection rules in GitHub.](./images/gh_action_passed_failed.png "A screenshot deployment protection rules in GitHub.")
+<figcaption>View the results of the New Relic gate on the GitHub Actions page, under <b>Deployment protection rules</b>.</figcaption>
