@@ -1,7 +1,7 @@
 ---
 title: 'Create GitHub Actions Deployment Protection Rules with New Relic AIOps'
 summary: 'Ensure high quality code and prevent downstream issues by connecting system health to GitHub Actions Deployment Protection Rules.'
-releaseDate: '2022-04-20'
+releaseDate: '2023-04-20'
 learnMoreLink: 'https://github.blog/2023-04-20-announcing-github-actions-deployment-protection-rules-now-in-public-beta'
 getStartedLink: 'https://github.com/apps/new-relic-gate'
 ---
