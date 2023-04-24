@@ -1,9 +1,15 @@
 import React, { useEffect } from 'react';
 import { graphql } from 'gatsby';
 import PropTypes from 'prop-types';
-import { Layout, useQueryParams, Link } from '@newrelic/gatsby-theme-newrelic';
+import {
+  Layout,
+  useQueryParams,
+  Link,
+  useTessen,
+} from '@newrelic/gatsby-theme-newrelic';
 import useDarkMode from 'use-dark-mode';
 import EmbedContext from '../components/EmbedContext';
+import ErrorBoundary from '../components/ErrorBoundary';
 import MDXContainer from '../components/MDXContainer';
 
 const components = {
@@ -20,6 +26,8 @@ const EmbedPage = ({ data }) => {
   const embedDarkMode = queryParams.get('embedDarkMode');
   const darkMode = useDarkMode(embedDarkMode === 'enabled');
 
+  const tessen = useTessen();
+
   useEffect(() => {
     if (embedDarkMode === 'enabled') {
       darkMode.enable();
@@ -29,12 +37,18 @@ const EmbedPage = ({ data }) => {
   }, [darkMode, embedDarkMode]);
 
   return (
-    <EmbedContext.Provider value={{ isEmbedded: true }}>
-      <h1>{title}</h1>
-      <Layout.Content>
-        <MDXContainer components={components} body={body} />
-      </Layout.Content>
-    </EmbedContext.Provider>
+    <ErrorBoundary
+      callTessen={() =>
+        tessen.track({ category: 'PageErrored', eventName: 'embed' })
+      }
+    >
+      <EmbedContext.Provider value={{ isEmbedded: true }}>
+        <h1>{title}</h1>
+        <Layout.Content>
+          <MDXContainer components={components} body={body} />
+        </Layout.Content>
+      </EmbedContext.Provider>
+    </ErrorBoundary>
   );
 };
 

@@ -8,10 +8,12 @@ import {
   Link,
   MarkdownContainer,
   ContributingGuidelines,
+  useTessen,
 } from '@newrelic/gatsby-theme-newrelic';
 import SEO from '../components/SEO';
 import PageTitle from '../components/PageTitle';
 import { TYPES } from '../utils/constants';
+import ErrorBoundary from '../components/ErrorBoundary';
 
 const WhatsNewTemplate = ({ data, location, pageContext }) => {
   const {
@@ -37,8 +39,14 @@ const WhatsNewTemplate = ({ data, location, pageContext }) => {
     window.newrelic.setCustomAttribute('pageType', 'Template/WhatsNew');
   }
 
+  const tessen = useTessen();
+
   return (
-    <>
+    <ErrorBoundary
+      callTessen={() =>
+        tessen.track({ category: 'PageErrored', eventName: 'whatsNew' })
+      }
+    >
       <SEO
         location={location}
         title={title}
@@ -150,7 +158,7 @@ const WhatsNewTemplate = ({ data, location, pageContext }) => {
           issueLabels={['feedback', 'feedback-issue']}
         />
       </Layout.Content>
-    </>
+    </ErrorBoundary>
   );
 };
 

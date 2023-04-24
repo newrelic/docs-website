@@ -11,6 +11,7 @@ import {
   useQueryParams,
   Icon,
   useTranslation,
+  useTessen,
   ComplexFeedback,
   Table,
 } from '@newrelic/gatsby-theme-newrelic';
@@ -19,6 +20,7 @@ import { TYPES } from '../utils/constants';
 import DataDictionaryFilter from '../components/DataDictionaryFilter';
 import SEO from '../components/SEO';
 import PageTitle from '../components/PageTitle';
+import ErrorBoundary from '../components/ErrorBoundary';
 
 const AttributeDictionary = ({ data, pageContext, location }) => {
   const { allDataDictionaryEvent } = data;
@@ -39,6 +41,8 @@ const AttributeDictionary = ({ data, pageContext, location }) => {
     () => allDataDictionaryEvent.edges.map((edge) => edge.node),
     [allDataDictionaryEvent]
   );
+
+  const tessen = useTessen();
 
   useEffect(() => {
     let filteredEvents = events;
@@ -73,7 +77,14 @@ const AttributeDictionary = ({ data, pageContext, location }) => {
   const { t } = useTranslation();
 
   return (
-    <>
+    <ErrorBoundary
+      callTessen={() =>
+        tessen.track({
+          category: 'PageErrored',
+          eventName: 'attributeDictionary',
+        })
+      }
+    >
       <SEO
         location={location}
         type={TYPES.BASIC_PAGE.default}
@@ -157,7 +168,7 @@ const AttributeDictionary = ({ data, pageContext, location }) => {
           />
         </Layout.PageTools>
       </div>
-    </>
+    </ErrorBoundary>
   );
 };
 

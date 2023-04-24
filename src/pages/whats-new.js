@@ -8,9 +8,11 @@ import {
   Icon,
   Link,
   useTranslation,
+  useTessen,
 } from '@newrelic/gatsby-theme-newrelic';
 import Timeline from '../components/Timeline';
 import SEO from '../components/SEO';
+import ErrorBoundary from '../components/ErrorBoundary';
 import { TYPES } from '../utils/constants';
 
 const WhatsNew = ({ data, location, pageContext }) => {
@@ -36,9 +38,14 @@ const WhatsNew = ({ data, location, pageContext }) => {
   }
 
   const { t } = useTranslation();
+  const tessen = useTessen();
 
   return (
-    <>
+    <ErrorBoundary
+      callTessen={() =>
+        tessen.track({ category: 'PageErrored', eventName: 'whatsNewOverview' })
+      }
+    >
       <SEO
         location={location}
         title="What's new in New Relic"
@@ -122,7 +129,7 @@ const WhatsNew = ({ data, location, pageContext }) => {
           </Timeline>
         </Layout.Content>
       </div>
-    </>
+    </ErrorBoundary>
   );
 };
 

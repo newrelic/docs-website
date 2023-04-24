@@ -17,6 +17,7 @@ import {
   TitleBlock,
 } from '../components/IntroductionApm';
 import QuickstartChooser from '../components/QuickstartChooser';
+import ErrorBoundary from '../components/ErrorBoundary';
 
 import introImage from 'images/new-apm-images/intro.png';
 import entitiesImage from 'images/new-apm-images/entities.png';
@@ -98,7 +99,11 @@ const IntroductionApm = () => {
   }, []);
 
   return (
-    <>
+    <ErrorBoundary
+      callTessen={() =>
+        tessen.track({ category: 'PageErrored', eventName: 'apm' })
+      }
+    >
       <FeaturedContent
         text={[t('apm.intro.text.0'), t('apm.intro.text.1')]}
         title={t('apm.intro.title')}
@@ -215,7 +220,7 @@ const IntroductionApm = () => {
         </SideBySide>
       </VisibilitySensor>
       <QuickstartChooser secondary />
-    </>
+    </ErrorBoundary>
   );
 };
 
