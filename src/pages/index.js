@@ -24,6 +24,7 @@ import {
 import HomepageVideo from '../components/HomepageVideo';
 
 const SAVED_TOGGLE_VIEW_KEY = 'docs-website/homepage-selected-view';
+console.log('Oh no! I left a log!');
 
 const HomePage = ({ data }) => {
   const {
