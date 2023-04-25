@@ -1,5 +1,5 @@
 ---
-name: httpResponseCode
+name: http.statusCode
 type: attribute
 units: enum
 events:
@@ -9,4 +9,4 @@ events:
   - Span
 ---
 
-The HTTP response code associated with the transaction. Some agents use `http.statusCode`, which is equivalent.
+The HTTP status code associated with the transaction. Some agents use `httpResponseCode`, which is equivalent.
