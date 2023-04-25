@@ -211,7 +211,7 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
         createLocalizedRedirect({
           locales,
           fromPath: redirect,
-          toPath: `/install/${agentName}/`,
+          toPath: `/interactive/${agentName}/`,
           createRedirect,
         })
       );
@@ -478,7 +478,7 @@ exports.onCreatePage = ({ page, actions }) => {
     page.context.layout = 'default';
   }
 
-  if (page.path.includes('/install/')) {
+  if (page.path.includes('/interactive/')) {
     const pagePathArray = page.path.split('/');
     const lastItem = pagePathArray[pagePathArray.length - 1];
     page.context.agent =
