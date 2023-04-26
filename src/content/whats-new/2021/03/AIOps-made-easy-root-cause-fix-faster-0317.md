@@ -26,7 +26,7 @@ You can see which entities (hosts, containers, applications) are affected to qui
 
 Adding to our existing two-way integration with PagerDuty, you can now eliminate the toil of managing incidents across tools by syncing the state of correlated issues in Applied Intelligence with ServiceNow incidents bi-directionally. As the state of correlated issues changes in either platform, it is now automatically updated in both tools. Applied Intelligence also supports a webhook for integrating with VictorOps, OpsGenie and other tools of your choice.
 
-![two-way-integration.png](./images/two-way-integration.png "Two-way integration")
+![two-way-integration.png](./images/two-way-integration.webp "Two-way integration")
 
 Learn more about two-way integration with ServiceNow straight from our product team [here](https://youtu.be/29Ms4wfziB8). 
 
@@ -34,4 +34,4 @@ Learn more about two-way integration with ServiceNow straight from our product t
 
 Get [automatic recommendations](https://docs.newrelic.com/docs/alerts-applied-intelligence/applied-intelligence/incident-intelligence/get-started-incident-intelligence/#suggested-responders) for individuals on your team who are best equipped to respond to an issue, either because they are experts in the component failing or have resolved similar issues before. This enhancement builds on our existing support for suggesting responders based on PagerDuty incident data, by suggesting responders for issues that originate from New Relic Alert violations. Best of all, this feature is completely automatic and requires no configuration or model training—it just works out of the box as New Relic learns from the behaviors of responders on your team.
 
-![suggested-responders.png](./images/suggested-responders.png "Suggested responders")
+![suggested-responders.png](./images/suggested-responders.webp "Suggested responders")

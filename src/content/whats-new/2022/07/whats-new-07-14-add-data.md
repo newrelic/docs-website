@@ -21,6 +21,6 @@ The best part is that it only takes a few minutes to get started&mdash;no need f
 - **A richer, more connected platform experience**: It's now easier to get more value from your data. Go directly from instrumentation to the most relevant New Relic view such as application management, log management, or infrastructure monitoring.
 - **A single place to install anything**: Instrument data sources, deploy ready-made dashboards, set up alerts, or do it all. The new **Add data** view gives you more granular control over what you install and how you explore your stack so you can focus on the job to be done.
 
-![Add data view in New Relic](./images/add_data_darkmode.png "A screenshot that shows the add data view in New Relic.")
+![Add data view in New Relic](./images/add_data_darkmode.webp "A screenshot that shows the add data view in New Relic.")
 
 <figcaption>Choose from hundreds of data sources, pre-built dashboards, and more in the new <b>Add data</b> catalog. Select one to install your resources in minutes.</figcaption>

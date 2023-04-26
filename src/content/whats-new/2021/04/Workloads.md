@@ -14,7 +14,7 @@ We’ve released the new Health and Activity views that make it easier to unders
 
 The new Health tab shows how the global status of your workload changed in the last few hours, along with the current status of the workload entities. Use this view to understand if you need to take immediate action on any of the components that build your system.
 
-![Workloads view 1](./images/Workloads.png "Workloads view 1")
+![Workloads view 1](./images/Workloads.webp "Workloads view 1")
 
 Similar to the Navigator view that you can find on New Relic One Explorer, you’ll immediately see which entities are alerting, and will be able to filter and group them by health status, entity type or tag key. When something’s failing, you’ll immediately spot which entities in your system you need to have a look at first. 
 
@@ -26,10 +26,10 @@ You’ll find the golden metrics of your workload in the Activity tab. These cha
 
 And... don’t miss the new Activity stream! You’ll see all deployments, open incidents, anomalies and even workload configuration changes that can explain why you’re seeing changes in the golden metrics.
 
-![Workloads view 2](./images/Workloads-2.png "Workloads view 2")
+![Workloads view 2](./images/Workloads-2.webp "Workloads view 2")
 
 And if the charts get too messy, just use the filter bar to scope down the time series you’d like to focus on.
 
 New Relic Workloads is available out-of-the-box to all Full-Stack Observability users, you can start creating them from the Explorer.
 
-![Workloads view 3](./images/Workloads-3.png "Workloads view 3")
+![Workloads view 3](./images/Workloads-3.webp "Workloads view 3")

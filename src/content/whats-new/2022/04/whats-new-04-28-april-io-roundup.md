@@ -10,7 +10,7 @@ getStartedLink: 'https://one.newrelic.com/marketplace?state=7ca7c800-845d-8b31-4
 
 We are pleased to announce new integrations and quickstarts with **[Cloudflare](https://newrelic.com/instant-observability/cloudflare/fc2bb0ac-6622-43c6-8c1f-6a4c26ab5434)**, **[Netlify](https://newrelic.com/instant-observability/netlify-logs/63f08781-18ad-4a89-ae63-49718deee041)**, **[Postman](https://newrelic.com/instant-observability/postman/d465bf08-b737-4bc5-b5ad-dd5be272967b)**, **[Datazoom](https://newrelic.com/instant-observability/datazoom/2ffed926-6ee2-43b2-a942-344192fdf418)**, and **[Glassbox](https://newrelic.com/instant-observability/glassbox/bdb952f3-28db-4ee7-89c6-b00244b0bb73)**. Read on for a summary, or read [the full blog post about these integrations](https://newrelic.com/blog/nerdlog/integrations-api-network-streaming-apm).
 
-![Instant Observability integration partners April 2022](./images/IO-partners-april2022.png "Image of Instant Observability integration partners April 2022.")
+![Instant Observability integration partners April 2022](./images/IO-partners-april2022.webp "Image of Instant Observability integration partners April 2022.")
 
 ## Cloudflare Network Logs
 
@@ -53,7 +53,7 @@ Watch our video tutorial on how to monitor Postman API metrics in New Relic:
 
 [Datazoom](https://www.datazoom.io/) is an enterprise video data platform. The software solution captures, standardizes, enriches, and routes data from various points across an end-to-end video workflow. The [Datazoom quickstart](https://newrelic.com/instant-observability/datazoom/2ffed926-6ee2-43b2-a942-344192fdf418) provides a fast and easy launching point into video metrics built on top of New Relic dashboards, so you can gain insights about your viewers, content, ads, and your platform's performance. You can customize the dashboard to use only metrics that fit your goals, edit metric calculations, and tailor them to your needs.
 
-![Datazoom dashboard](./images/datazoom_dashboard.png "Screenshot of Datazoom dashboard.")
+![Datazoom dashboard](./images/datazoom_dashboard.webp "Screenshot of Datazoom dashboard.")
 
 **Resources:**
 * [Datazoom quickstart](https://newrelic.com/instant-observability/datazoom/2ffed926-6ee2-43b2-a942-344192fdf418)
