@@ -5,4 +5,4 @@ dataSources:
   - Kubernetes
 ---
 
-This event contains Kubernetes `Job` data.
+This event contains Kubernetes Job data.
