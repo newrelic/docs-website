@@ -6,4 +6,4 @@ events:
   - K8sCronjobSample
 ---
 
-The schedule which the CronJob uses to run Jobs.
+The schedule which the CronJob uses to run jobs.

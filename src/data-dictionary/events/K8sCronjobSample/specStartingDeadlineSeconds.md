@@ -6,4 +6,4 @@ events:
   - K8sCronjobSample
 ---
 
-The deadline in seconds for starting the Job if it misses scheduled time for any reason.
+The deadline in seconds for starting the job if it misses scheduled time for any reason.
