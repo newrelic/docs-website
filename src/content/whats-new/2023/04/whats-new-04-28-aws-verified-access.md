@@ -1,7 +1,7 @@
 ---
 title: 'New Relic supports AWS Verified Access'
 summary: 'Connect safely to your corporate applications without VPN and have a complete view of all your access logs'
-releaseDate: '2023-04-27'
+releaseDate: '2023-04-28'
 learnMoreLink: 'https://example.com'
 getStartedLink: '[https://newrelic.com/instant-observability/aws-verified-access]'
 ---
