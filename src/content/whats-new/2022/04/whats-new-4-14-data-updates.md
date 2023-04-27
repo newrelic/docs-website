@@ -38,7 +38,7 @@ The list price will be effective June 1 for all new customers. All customers wil
 
 **Q: How do the two options compare?**
 
-!["A comparison of Data Plus and original data option"](./images/data-plus-comparison.png "A comparison of Data Plus and original data option")
+!["A comparison of Data Plus and original data option"](./images/data-plus-comparison.webp "A comparison of Data Plus and original data option")
 
 **Q: Where can I see my current data usage?**
 

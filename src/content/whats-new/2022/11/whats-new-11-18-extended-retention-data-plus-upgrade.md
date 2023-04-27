@@ -20,4 +20,4 @@ Note that this self-serve ability is only available to some organizations.
 2. Learn more about [data retention](https://docs.newrelic.com/docs/data-apis/manage-data/manage-data-retention/#retention-periods).
 3. If you have further questions, reach out to your account team or check out our [pricing page](https://newrelic.com/pricing).
 
-![Comparing standard option vs Data Plus capabilities](./images/compare-data-options-1.png "Comparing standard option vs Data Plus capabilities")
+![Comparing standard option vs Data Plus capabilities](./images/compare-data-options-1.webp "Comparing standard option vs Data Plus capabilities")

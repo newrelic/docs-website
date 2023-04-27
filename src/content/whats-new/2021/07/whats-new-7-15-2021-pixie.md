@@ -19,4 +19,4 @@ Auto-telemetry with Pixie means every service gets monitoring instantly, and bec
 
 To learn more, [click here](https://newrelic.com/platform/kubernetes-pixie) or **Learn More** above.
 
-![Screenshot of Pixie flamegraph](./images/pixie.png "Screenshot of Pixie flamegraph")
+![Screenshot of Pixie flamegraph](./images/pixie.webp "Screenshot of Pixie flamegraph")
