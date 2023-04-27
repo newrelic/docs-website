@@ -21,4 +21,4 @@ To make sure your Kubernetes performance data appears in New Relic One:
 * See our general [APM](https://docs.newrelic.com/docs/apm/new-relic-apm/getting-started/introduction-apm/) documentation, as well as information about the [Kubernetes summary page](https://docs.newrelic.com/docs/apm/apm-ui-pages/monitoring/kubernetes-summary-page).
 * Ensure users have [**Full user** licenses](https://newrelic.com/pricing).
 
-![Screenshot showing Kubernetes in APM](./images/apm-k8s-2.png "Screenshot showing Kubernetes in APM")
+![Screenshot showing Kubernetes in APM](./images/apm-k8s-2.webp "Screenshot showing Kubernetes in APM")

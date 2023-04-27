@@ -24,7 +24,7 @@ See some use cases and how to make the most of the Markdown widget:
 <iframe width="702" height="395" src="https://www.youtube.com/embed/_dLwy7xskBk" title="Enhance your New Relic dashboards with Markdown" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
 
 ## Try it yourself with the template dashboard
-![Screenshot showing sample dashboard in New Relic](./images/samplecustomdashboard.png "Screenshot showing sample dashboard in New Relic")
+![Screenshot showing sample dashboard in New Relic](./images/samplecustomdashboard.webp "Screenshot showing sample dashboard in New Relic")
 <figcaption>Import the sample dashboard to test out the new customization options.</figcaption>
 
 You can explore the customization options by following the steps in this [hands-on blog](https://newrelic.com/blog/how-to-relic/dashboard-chart-customizations). It shows shows you how to import the pre-made template dashboard, describes each option, and demonstrates how to use them in your own charts.

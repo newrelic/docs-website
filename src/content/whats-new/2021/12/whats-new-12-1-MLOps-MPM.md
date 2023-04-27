@@ -20,5 +20,5 @@ Everything you need in one place:
 
 New Relic I/O ecosystem offers flexible quickstarts and easy integrations to leading data science platforms like AWS Sagemaker, Algorithmia (DataRobot), Aporia, Superwise, Comet, DagsHub, Mona, and TruEra.
 
-![Example of ML Model Performance Monitoring data in New Relic dashboard](./images/MLOps-whats-new-screen120621.png "Example of ML Model Performance Monitoring data in New Relic dashboard")
+![Example of ML Model Performance Monitoring data in New Relic dashboard](./images/MLOps-whats-new-screen120621.webp "Example of ML Model Performance Monitoring data in New Relic dashboard")
 New Relic ML Model Performance Monitoring enables data science teams to measure ML model performance.
