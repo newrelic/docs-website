@@ -1,7 +1,7 @@
 ---
 name: specStartingDeadlineSeconds
 type: attribute
-units:
+units: seconds (s)
 events:
   - K8sCronjobSample
 ---

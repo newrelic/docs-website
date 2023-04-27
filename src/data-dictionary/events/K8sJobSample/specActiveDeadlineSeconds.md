@@ -1,7 +1,7 @@
 ---
 name: specActiveDeadlineSeconds
 type: attribute
-units:
+units: seconds (s)
 events:
   - K8sJobSample
 ---
