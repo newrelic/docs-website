@@ -1,5 +1,5 @@
 ---
-name: K8sCronJobSample
+name: K8sCronjobSample
 type: event
 dataSources:
   - Kubernetes
