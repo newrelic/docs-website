@@ -6,4 +6,4 @@ events:
   - K8sCronjobSample
 ---
 
-Labels associated with your CronJob, so you can filter and query for specific CronJobs.
+Labels associated with your CronJob so you can filter and query for specific CronJobs.
