@@ -5,4 +5,4 @@ dataSources:
   - Kubernetes
 ---
 
-This event contains Kubernetes `CronJob` data.
+This event contains Kubernetes CronJob data.
