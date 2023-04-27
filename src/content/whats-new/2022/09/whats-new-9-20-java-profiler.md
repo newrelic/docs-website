@@ -25,6 +25,6 @@ getStartedLink: 'https://docs.newrelic.com/docs/kubernetes-pixie/auto-telemetry-
 
 Learn more and check out a deep-dive video on the [Pixie docs page](https://docs.px.dev/tutorials/pixie-101/profiler/).
 
-![A screenshot showing CPU utilization by function.](./images/Java_profiler.png "A screenshot showing CPU utilization by function.")
+![A screenshot showing CPU utilization by function.](./images/Java_profiler.webp "A screenshot showing CPU utilization by function.")
 
 <figcaption>A screenshot showing CPU utilization by function.</figcaption>

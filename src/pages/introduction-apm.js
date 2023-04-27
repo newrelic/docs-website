@@ -18,15 +18,15 @@ import {
 } from '../components/IntroductionApm';
 import QuickstartChooser from '../components/QuickstartChooser';
 
-import introImage from 'images/new-apm-images/intro.png';
-import entitiesImage from 'images/new-apm-images/entities.png';
-import logManagement from 'images/new-apm-images/log-management.png';
-import vulnerabilityManagement from 'images/new-apm-images/vulnerability-management.png';
-import apdex from 'images/new-apm-images/apdex.png';
-import errorManagement from 'images/new-apm-images/error-management.png';
-import userSatisfaction from 'images/new-apm-images/user-satisfaction.png';
-import autoLogInjest from 'images/new-apm-images/auto-log-injest.png';
-import trackDeps from 'images/new-apm-images/track-deps.png';
+import introImage from 'images/new-apm-images/intro.webp';
+import entitiesImage from 'images/new-apm-images/entities.webp';
+import logManagement from 'images/new-apm-images/log-management.webp';
+import vulnerabilityManagement from 'images/new-apm-images/vulnerability-management.webp';
+import apdex from 'images/new-apm-images/apdex.webp';
+import errorManagement from 'images/new-apm-images/error-management.webp';
+import userSatisfaction from 'images/new-apm-images/user-satisfaction.webp';
+import autoLogInjest from 'images/new-apm-images/auto-log-injest.webp';
+import trackDeps from 'images/new-apm-images/track-deps.webp';
 
 const IntroductionApm = () => {
   const { t } = useTranslation();

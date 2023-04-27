@@ -12,4 +12,4 @@ The OpenTelemetry spec supports array data types for metrics, traces, and logs, 
 # How to get started
 To learn more, check out the [docs page](https://docs.newrelic.com/docs/query-your-data/nrql-new-relic-query-language/get-started/arrays-in-nrql/).
 
-![A screenshot of a NRQL query. The query is "from query select keyset()".](./images/Arrays.png)
+![A screenshot of a NRQL query. The query is "from query select keyset()".](./images/Arrays.webp)
