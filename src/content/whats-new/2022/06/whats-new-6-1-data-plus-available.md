@@ -49,7 +49,7 @@ Existing paid self-serve customers will not see an immediate ingest price increa
 
 **Q: How do the two offerings compare?**
 
-!["A comparison of Data Plus and original data option"](./images/data-plus-comparison.png "A comparison of Data Plus and original data option")
+!["A comparison of Data Plus and original data option"](./images/data-plus-comparison.webp "A comparison of Data Plus and original data option")
 
 **Q: Where can I see my current data usage?**
 
