@@ -2,7 +2,7 @@ import React from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/react';
 import { graphql } from 'gatsby';
-import { Icon, Layout, Link, useTessen } from '@newrelic/gatsby-theme-newrelic';
+import { Icon, Layout, Link } from '@newrelic/gatsby-theme-newrelic';
 import PageTitle from '../components/PageTitle';
 import MDXContainer from '../components/MDXContainer';
 import SEO from '../components/SEO';
@@ -26,8 +26,6 @@ const ReleaseNoteTemplate = ({ data, location, pageContext }) => {
     },
   } = data;
 
-  const tessen = useTessen();
-
   const { disableSwiftype } = pageContext;
 
   const title = getTitle(frontmatter);
@@ -37,7 +35,7 @@ const ReleaseNoteTemplate = ({ data, location, pageContext }) => {
   }
 
   return (
-    <ErrorBoundary tessen={tessen} eventName="releaseNote">
+    <ErrorBoundary eventName="releaseNote">
       <SEO
         location={location}
         title={title}

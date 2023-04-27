@@ -8,7 +8,6 @@ import {
   Icon,
   Link,
   useTranslation,
-  useTessen,
 } from '@newrelic/gatsby-theme-newrelic';
 import Timeline from '../components/Timeline';
 import SEO from '../components/SEO';
@@ -38,10 +37,9 @@ const WhatsNew = ({ data, location, pageContext }) => {
   }
 
   const { t } = useTranslation();
-  const tessen = useTessen();
 
   return (
-    <ErrorBoundary tessen={tessen} eventName="whatsNewOverview">
+    <ErrorBoundary eventName="whatsNewOverview">
       <SEO
         location={location}
         title="What's new in New Relic"

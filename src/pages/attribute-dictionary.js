@@ -11,7 +11,6 @@ import {
   useQueryParams,
   Icon,
   useTranslation,
-  useTessen,
   ComplexFeedback,
   Table,
 } from '@newrelic/gatsby-theme-newrelic';
@@ -41,8 +40,6 @@ const AttributeDictionary = ({ data, pageContext, location }) => {
     () => allDataDictionaryEvent.edges.map((edge) => edge.node),
     [allDataDictionaryEvent]
   );
-
-  const tessen = useTessen();
 
   useEffect(() => {
     let filteredEvents = events;
@@ -77,7 +74,7 @@ const AttributeDictionary = ({ data, pageContext, location }) => {
   const { t } = useTranslation();
 
   return (
-    <ErrorBoundary tessen={tessen} eventName="attributeDictionary">
+    <ErrorBoundary eventName="attributeDictionary">
       <SEO
         location={location}
         type={TYPES.BASIC_PAGE.default}

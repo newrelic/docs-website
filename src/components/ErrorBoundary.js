@@ -1,28 +1,14 @@
-/* eslint-disable react/sort-comp */
 import React from 'react';
-import ErrorMessage from './ErrorMessage';
+import { useTessen } from '@newrelic/gatsby-theme-newrelic';
+import ErrorBoundaryCC from './ErrorBoundaryCC';
 
-class ErrorBoundary extends React.Component {
-  state = { hasError: false };
-
-  static getDerivedStateFromError() {
-    return { hasError: true };
-  }
-
-  componentDidCatch() {
-    this.props.tessen.track({
-      category: 'PageErrored',
-      eventName: this.props.eventName,
-    });
-  }
-
-  render() {
-    if (this.state.hasError) {
-      return <ErrorMessage />;
-    }
-
-    return this.props.children;
-  }
-}
+const ErrorBoundary = ({ eventName, children }) => {
+  const tessen = useTessen();
+  return (
+    <ErrorBoundaryCC tessen={tessen} eventName={eventName}>
+      {children}
+    </ErrorBoundaryCC>
+  );
+};
 
 export default ErrorBoundary;

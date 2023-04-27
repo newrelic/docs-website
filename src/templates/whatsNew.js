@@ -8,7 +8,6 @@ import {
   Link,
   MarkdownContainer,
   ContributingGuidelines,
-  useTessen,
 } from '@newrelic/gatsby-theme-newrelic';
 import SEO from '../components/SEO';
 import PageTitle from '../components/PageTitle';
@@ -39,10 +38,8 @@ const WhatsNewTemplate = ({ data, location, pageContext }) => {
     window.newrelic.setCustomAttribute('pageType', 'Template/WhatsNew');
   }
 
-  const tessen = useTessen();
-
   return (
-    <ErrorBoundary tessen={tessen} eventName="whatsNew">
+    <ErrorBoundary eventName="whatsNew">
       <SEO
         location={location}
         title={title}

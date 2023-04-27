@@ -205,7 +205,7 @@ const InstallPage = ({ data, location }) => {
   }, []);
 
   return (
-    <ErrorBoundary tessen={tessen} eventName="install">
+    <ErrorBoundary eventName="install">
       <SEO
         location={location}
         title={title}

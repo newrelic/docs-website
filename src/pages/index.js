@@ -91,7 +91,7 @@ const HomePage = ({ data }) => {
   });
 
   return (
-    <ErrorBoundary tessen={tessen} eventName="homepage">
+    <ErrorBoundary eventName="homepage">
       <ToggleViewContext.Provider value={[currentView, updateView]}>
         <div
           css={css`

@@ -14,7 +14,6 @@ import {
   TableOfContents,
   LoggedInProvider,
   useLoggedIn,
-  useTessen,
 } from '@newrelic/gatsby-theme-newrelic';
 import Layout from '../components/Layout';
 import MachineTranslationCallout from '../components/MachineTranslationCallout';
@@ -100,10 +99,8 @@ const BasicDoc = ({ data, location, pageContext }) => {
     setBannerDismissed(true);
   };
 
-  const tessen = useTessen();
-
   return (
-    <ErrorBoundary tessen={tessen} eventName="doc">
+    <ErrorBoundary eventName="doc">
       <SEO
         location={location}
         title={title}
