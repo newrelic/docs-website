@@ -41,11 +41,7 @@ const WhatsNew = ({ data, location, pageContext }) => {
   const tessen = useTessen();
 
   return (
-    <ErrorBoundary
-      callTessen={() =>
-        tessen.track({ category: 'PageErrored', eventName: 'whatsNewOverview' })
-      }
-    >
+    <ErrorBoundary tessen={tessen} eventName="whatsNewOverview">
       <SEO
         location={location}
         title="What's new in New Relic"

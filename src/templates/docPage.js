@@ -103,11 +103,7 @@ const BasicDoc = ({ data, location, pageContext }) => {
   const tessen = useTessen();
 
   return (
-    <ErrorBoundary
-      callTessen={() =>
-        tessen.track({ category: 'PageErrored', eventName: 'doc' })
-      }
-    >
+    <ErrorBoundary tessen={tessen} eventName="doc">
       <SEO
         location={location}
         title={title}

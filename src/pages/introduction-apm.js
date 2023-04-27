@@ -99,11 +99,7 @@ const IntroductionApm = () => {
   }, []);
 
   return (
-    <ErrorBoundary
-      callTessen={() =>
-        tessen.track({ category: 'PageErrored', eventName: 'apm' })
-      }
-    >
+    <ErrorBoundary tessen={tessen} eventName="apm">
       <FeaturedContent
         text={[t('apm.intro.text.0'), t('apm.intro.text.1')]}
         title={t('apm.intro.title')}

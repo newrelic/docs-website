@@ -77,14 +77,7 @@ const AttributeDictionary = ({ data, pageContext, location }) => {
   const { t } = useTranslation();
 
   return (
-    <ErrorBoundary
-      callTessen={() =>
-        tessen.track({
-          category: 'PageErrored',
-          eventName: 'attributeDictionary',
-        })
-      }
-    >
+    <ErrorBoundary tessen={tessen} eventName="attributeDictionary">
       <SEO
         location={location}
         type={TYPES.BASIC_PAGE.default}

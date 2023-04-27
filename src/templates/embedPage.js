@@ -37,11 +37,7 @@ const EmbedPage = ({ data }) => {
   }, [darkMode, embedDarkMode]);
 
   return (
-    <ErrorBoundary
-      callTessen={() =>
-        tessen.track({ category: 'PageErrored', eventName: 'embed' })
-      }
-    >
+    <ErrorBoundary tessen={tessen} eventName="embed">
       <EmbedContext.Provider value={{ isEmbedded: true }}>
         <h1>{title}</h1>
         <Layout.Content>

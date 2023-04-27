@@ -37,11 +37,7 @@ const ReleaseNoteTemplate = ({ data, location, pageContext }) => {
   }
 
   return (
-    <ErrorBoundary
-      callTessen={() =>
-        tessen.track({ category: 'PageErrored', eventName: 'releaseNote' })
-      }
-    >
+    <ErrorBoundary tessen={tessen} eventName="releaseNote">
       <SEO
         location={location}
         title={title}

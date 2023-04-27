@@ -91,14 +91,7 @@ const HomePage = ({ data }) => {
   });
 
   return (
-    <ErrorBoundary
-      callTessen={() =>
-        tessen.track({
-          category: 'PageErrored',
-          eventName: 'homepage',
-        })
-      }
-    >
+    <ErrorBoundary tessen={tessen} eventName="homepage">
       <ToggleViewContext.Provider value={[currentView, updateView]}>
         <div
           css={css`

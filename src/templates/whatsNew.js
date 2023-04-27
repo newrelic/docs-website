@@ -42,11 +42,7 @@ const WhatsNewTemplate = ({ data, location, pageContext }) => {
   const tessen = useTessen();
 
   return (
-    <ErrorBoundary
-      callTessen={() =>
-        tessen.track({ category: 'PageErrored', eventName: 'whatsNew' })
-      }
-    >
+    <ErrorBoundary tessen={tessen} eventName="whatsNew">
       <SEO
         location={location}
         title={title}

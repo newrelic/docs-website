@@ -205,11 +205,7 @@ const InstallPage = ({ data, location }) => {
   }, []);
 
   return (
-    <ErrorBoundary
-      callTessen={() =>
-        tessen.track({ category: 'PageErrored', eventName: 'install' })
-      }
-    >
+    <ErrorBoundary tessen={tessen} eventName="install">
       <SEO
         location={location}
         title={title}
