@@ -19,6 +19,7 @@ import { TYPES } from '../utils/constants';
 import DataDictionaryFilter from '../components/DataDictionaryFilter';
 import SEO from '../components/SEO';
 import PageTitle from '../components/PageTitle';
+import ErrorBoundary from '../components/ErrorBoundary';
 
 const AttributeDictionary = ({ data, pageContext, location }) => {
   const { allDataDictionaryEvent } = data;
@@ -73,7 +74,7 @@ const AttributeDictionary = ({ data, pageContext, location }) => {
   const { t } = useTranslation();
 
   return (
-    <>
+    <ErrorBoundary eventName="attributeDictionary">
       <SEO
         location={location}
         type={TYPES.BASIC_PAGE.default}
@@ -157,7 +158,7 @@ const AttributeDictionary = ({ data, pageContext, location }) => {
           />
         </Layout.PageTools>
       </div>
-    </>
+    </ErrorBoundary>
   );
 };
 
