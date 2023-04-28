@@ -11,7 +11,7 @@ Whether you are just getting started on AWS or cloud native technology, New Reli
 ## Lowering costs for our customers
 Since introducing consumption-based pricing in July of 2020, we have been looking for ways to reduce our customers’ costs through efficiency.
 
-All AWS EC2 users using Infrastructure Monitoring will see a slight decrease in their Telemetry Data Platform costs. However, for customers that use Amazon EC2 custom tags, the reduction will be higher. Both are enabled by increased back-end improvements to store and manage the data and reduce the storage footprint while maintaining all the UI functionality. These reductions will vary depending on usage.
+All AWS EC2 users using Infrastructure Monitoring will see a slight decrease in their Telemetry Data Platform costs. However, for customers that use Amazon EC2 custom tags, the reduction will be higher. Both are enabled by increased backend improvements to store and manage the data and reduce the storage footprint while maintaining all the UI functionality. These reductions will vary depending on usage.
 
 * The changes are effective beginning December 15th, 2021.
 
