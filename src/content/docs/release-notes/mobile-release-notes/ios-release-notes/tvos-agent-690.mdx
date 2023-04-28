@@ -1,0 +1,11 @@
+---
+subject: iOS agent
+title: tvOS agent v6.9.0
+releaseDate: '2019-10-25'
+version: 6.9.0
+downloadLink: 'https://download.newrelic.com/tvos_agent/NewRelic_tvOS_Agent_6.9.0.zip'
+---
+
+### Fixes
+
+* Improved possible race-condition with accessing currentSessionId. Note: This release was built with Xcode11 and may be incompatible with earlier versions of Xcode.

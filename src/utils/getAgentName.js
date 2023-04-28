@@ -19,6 +19,7 @@ const AGENTS = [
 // keeping the naming streamlined and in matching with previous data
 const RENAMES = { '.net': 'dotnet', node: 'nodejs' };
 
+const IGNORE_SUBECTS = ['Node API runtime', 'Node browser runtime'];
 /**
  * @param {string} subject The release note "subject" in frontmatter
  * @returns {string}
@@ -29,7 +30,9 @@ const getAgentName = (subject) => {
     const subjLowercase = subject.toLowerCase();
     const agentName = AGENTS.find(
       (agent) =>
-        subjLowercase.includes(agent) && !subjLowercase.includes('insights')
+        subjLowercase.includes(agent) &&
+        !subjLowercase.includes('insights') &&
+        !IGNORE_SUBECTS.includes(subject)
     );
 
     return RENAMES[agentName] || agentName;

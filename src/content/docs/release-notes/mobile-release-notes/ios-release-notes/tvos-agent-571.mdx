@@ -1,0 +1,11 @@
+---
+subject: iOS agent
+title: tvOS agent v5.7.1
+releaseDate: '2016-08-02'
+version: 5.7.1
+downloadLink: 'https://download.newrelic.com/tvos_agent/NewRelic_tvOS_Agent_5.7.1.zip'
+---
+
+### Fixes
+
+* The dSYM upload script can now handle targets with spaces in the name.

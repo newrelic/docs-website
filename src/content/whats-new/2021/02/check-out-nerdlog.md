@@ -5,7 +5,7 @@ releaseDate: '2021-02-08'
 getStartedLink: 'https://www.twitch.tv/new_relic'
 ---
 
-![nerdlog.png](./images/nerdlog_0.png "nerdlog.png")
+![nerdlog.png](./images/nerdlog_0.webp "nerdlog.webp")
 
 Love the product updates you see here? Check out the Nerdlog, our brand new live-stream changelog on Twitch.
 

@@ -123,23 +123,18 @@ module.exports = {
     deserialize: deserializeComponent,
     serialize: serializeComponent,
   },
-  LicenseKey: {
+  InlinePopover: {
     deserialize: (h, node) => {
       // this is to remove the `span`'s children to make this
       // a self closing tag.
       node.children = [];
-      return deserializeComponent(h, node, { tagName: 'LicenseKey' });
+      return deserializeComponent(h, node, { tagName: 'InlinePopover' });
     },
-    serialize: (h, node) =>
-      h(
-        node,
-        'span',
-        {
-          'data-type': 'component',
-          'data-component': 'LicenseKey',
-        },
-        [u('text', 'account license key')]
-      ),
+    serialize: serializeComponent,
+  },
+  InlineSignup: {
+    serialize: serializeComponent,
+    deserialize: deserializeComponent,
   },
   Link: {
     deserialize: deserializeComponent,

@@ -1,0 +1,14 @@
+---
+subject: iOS agent
+title: tvOS agent v6.4.0
+releaseDate: '2018-10-09'
+version: 6.4.0
+downloadLink: 'https://download.newrelic.com/tvos_agent/NewRelic_tvOS_Agent_6.4.0.zip'
+---
+
+### Fixes
+
+* `+setMaxEventBufferTime` and `+setMaxEventPoolSize` now persist between background/foreground
+* dSYM upload script has been improved. It is now better at finding and uploading dSYMs.
+
+Note: This agent was built with Xcode10. It may be necessary to use Xcode10 for compatibility.

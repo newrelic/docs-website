@@ -1,0 +1,11 @@
+---
+subject: iOS agent
+title: tvOS agent v5.14.1
+releaseDate: '2017-07-11'
+version: 5.14.1
+downloadLink: 'https://download.newrelic.com/tvos_agent/NewRelic_tvOS_Agent_5.14.1.zip'
+---
+
+### Fixes
+
+* Removed URL parameters from MobileRequestError and MobileRequest events. The concern being there may be confidential information contained in these parameters.

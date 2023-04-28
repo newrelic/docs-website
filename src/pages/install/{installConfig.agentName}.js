@@ -17,6 +17,7 @@ import AppInfoConfigOption from '../../components/AppInfoConfigOption';
 import InstallNextSteps from '../../components/InstallNextSteps';
 import SEO from '../../components/SEO';
 import { TYPES } from '../../utils/constants';
+import ErrorBoundary from '../../components/ErrorBoundary';
 
 const slugify = (str) =>
   str
@@ -203,12 +204,8 @@ const InstallPage = ({ data, location }) => {
     setIsHydrated(true);
   }, []);
 
-  if (!isHydrated) {
-    return null;
-  }
-
   return (
-    <>
+    <ErrorBoundary eventName="install">
       <SEO
         location={location}
         title={title}
@@ -222,7 +219,7 @@ const InstallPage = ({ data, location }) => {
             'mt-disclaimer mt-disclaimer'
             'page-title page-title'
             'content page-tools';
-          grid-template-columns: minmax(0, 1fr) 320px;
+          grid-template-columns: minmax(0, 1fr) 205px;
           grid-column-gap: 2rem;
 
           @media screen and (max-width: 1240px) {
@@ -245,33 +242,37 @@ const InstallPage = ({ data, location }) => {
             <MDXContainer body={intro.mdx?.body} />
           </div>
           <div>
-            <Walkthrough>
-              {walkthroughSteps.map(({ content, step: { mdx } }, index) => {
-                const { descriptionText, headingText } = mdx?.frontmatter;
-                return (
-                  <Walkthrough.Step
-                    number={index + 1}
-                    title={headingText}
-                    active={selectedIndex === index}
-                    key={index}
-                    onMouseOver={() => handleSelectIndex(index)}
-                    onFocus={() => handleSelectIndex(index)}
-                    id={`${slugify(mdx.frontmatter?.headingText)}-${index + 1}`}
-                  >
-                    {descriptionText && (
-                      <p
-                        css={css`
-                          margin-bottom: 2rem;
-                        `}
-                      >
-                        {descriptionText}
-                      </p>
-                    )}
-                    {content}
-                  </Walkthrough.Step>
-                );
-              })}
-            </Walkthrough>
+            {isHydrated ? (
+              <Walkthrough>
+                {walkthroughSteps.map(({ content, step: { mdx } }, index) => {
+                  const { descriptionText, headingText } = mdx?.frontmatter;
+                  return (
+                    <Walkthrough.Step
+                      number={index + 1}
+                      title={headingText}
+                      active={selectedIndex === index}
+                      key={index}
+                      onMouseOver={() => handleSelectIndex(index)}
+                      onFocus={() => handleSelectIndex(index)}
+                      id={`${slugify(mdx.frontmatter?.headingText)}-${
+                        index + 1
+                      }`}
+                    >
+                      {descriptionText && (
+                        <p
+                          css={css`
+                            margin-bottom: 2rem;
+                          `}
+                        >
+                          {descriptionText}
+                        </p>
+                      )}
+                      {content}
+                    </Walkthrough.Step>
+                  );
+                })}
+              </Walkthrough>
+            ) : null}
           </div>
           <InstallNextSteps mdx={whatsNext.mdx} />
           <ContributingGuidelines
@@ -293,7 +294,7 @@ const InstallPage = ({ data, location }) => {
           <TableOfContents headings={headings} />
         </Layout.PageTools>
       </Layout.Main>
-    </>
+    </ErrorBoundary>
   );
 };
 

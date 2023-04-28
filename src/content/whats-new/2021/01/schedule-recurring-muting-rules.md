@@ -13,7 +13,7 @@ Muting rules now have even more functionality, allowing you to schedule recurrin
 
 **Monthly:** The rule will activate once a month, on the day of the month specified. In the screenshot below, if monthly were selected, the rule would activate every month on the 7th.
 
-![Recurring muting rules for alerts](./images/whats-new-muting-rules010621.png "Recurring muting rules for alerts")
+![Recurring muting rules for alerts](./images/whats-new-muting-rules010621.webp "Recurring muting rules for alerts")
 
 How to schedule a recurring muting rule in New Relic One
 

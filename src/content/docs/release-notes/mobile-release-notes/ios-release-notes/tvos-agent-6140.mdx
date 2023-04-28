@@ -1,0 +1,11 @@
+---
+subject: iOS agent
+title: tvOS agent v6.14.0
+releaseDate: '2020-08-25'
+version: 6.14.0
+downloadLink: 'https://download.newrelic.com/tvos_agent/NewRelic_tvOS_Agent_6.14.0.zip'
+---
+
+### Improvements
+
+* Added API to allow the agent data upload hosts to be set during agent start-up. ( `+(void) startWithApplicationToken:andCollectorAddress:andCrashCollectorAddress:` )

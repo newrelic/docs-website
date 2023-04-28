@@ -4,7 +4,6 @@ summary: 'Change tracking marks critical changes and deployments alongside perfo
 releaseDate: '2023-01-31'
 learnMoreLink: 'https://newrelic.com/platform/change-tracking'
 getStartedLink: 'https://docs.newrelic.com/docs/change-tracking/change-tracking-introduction/'
-isFeatured: true
 ---
 
 
@@ -16,7 +15,7 @@ Change tracking allows you to directly tie the performance of your software to r
 
 You can make these insights actionable with change event details such as commit SHAs, deep links, group IDs, CI/CD metadata, timestamps, descriptions, version numbers, links to changelogs, and more. Change tracking helps you access this wealth of information and see your best next steps without losing context&mdash;simply click on a deployment marker or run a quick query.
 
-![Screenshot showing the New Relic change analysis interface](./images/Change_Tracking_Analysis_Interface_Details_Page.png "Screenshot showing the New Relic change analysis interface")
+![Screenshot showing the New Relic change analysis interface](./images/Change_Tracking_Analysis_Interface_Details_Page.webp "Screenshot showing the New Relic change analysis interface")
 <figcaption>
 Screenshot showing the New Relic change analysis interface
 </figcaption>

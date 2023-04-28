@@ -9,18 +9,20 @@ import {
   SearchInput,
   useInstrumentedHandler,
   useTranslation,
+  useTessen,
   useLoggedIn,
 } from '@newrelic/gatsby-theme-newrelic';
 import HomepageBanner from '../components/HomepageBanner';
 import { DocTile } from '../components/DocTile';
 import FindYourQuickStart from '../components/FindYourQuickstart';
-import MDXContainer from '../components/MDXContainer';
 import {
   ToggleSelector,
   ToggleView,
   ToggleViewContext,
   TOGGLE_VIEWS,
 } from '../components/ToggleView';
+import HomepageVideo from '../components/HomepageVideo';
+import ErrorBoundary from '../components/ErrorBoundary';
 
 const SAVED_TOGGLE_VIEW_KEY = 'docs-website/homepage-selected-view';
 
@@ -28,16 +30,13 @@ const HomePage = ({ data }) => {
   const {
     site: { layout },
     allMarkdownRemark: { edges: whatsNewPosts },
-    quicklaunch: {
-      body,
-      frontmatter: { title },
-    },
   } = data;
-
+  const tessen = useTessen();
   const { loggedIn } = useLoggedIn();
   const [searchTerm, setSearchTerm] = useState('');
   const hasToggled = useRef(false);
   const [currentView, setCurrentView] = useState(TOGGLE_VIEWS.newUserView);
+  const [showTooltip, setShowTooltip] = useState(); // used for tooltip
   const updateView = (id) => {
     hasToggled.current = true;
     setCurrentView(id);
@@ -52,11 +51,24 @@ const HomePage = ({ data }) => {
    */
   useEffect(() => {
     const storedToggleView = window.localStorage.getItem(SAVED_TOGGLE_VIEW_KEY);
+    const chooseViewByLoggedIn = loggedIn
+      ? TOGGLE_VIEWS.defaultView
+      : TOGGLE_VIEWS.newUserView;
+
     if (!storedToggleView && loggedIn !== null) {
-      setCurrentView(
-        loggedIn ? TOGGLE_VIEWS.defaultView : TOGGLE_VIEWS.newUserView
-      );
+      setCurrentView(chooseViewByLoggedIn);
     }
+
+    /* prevents the tooltip from continuing to show on every render
+     * of the defaultview if it's triggered by the toggle buttons
+     * and only on initial page load to defaultview
+     */
+    if (loggedIn) {
+      setShowTooltip(storedToggleView !== TOGGLE_VIEWS.newUserView);
+    } else if (!loggedIn) {
+      setShowTooltip(storedToggleView === TOGGLE_VIEWS.defaultView);
+    }
+
     if (storedToggleView) {
       setCurrentView(storedToggleView);
     }
@@ -79,197 +91,195 @@ const HomePage = ({ data }) => {
   });
 
   return (
-    <ToggleViewContext.Provider value={[currentView, updateView]}>
-      <div
-        css={css`
-          display: grid;
-          margin-top: 2rem;
-          gap: 1rem;
-          justify-content: space-between;
-          grid-template-columns: 1fr max-content;
-          align-items: center;
-
-          @media (max-width: 920px) {
-            grid-template-columns: 1fr auto;
-          }
-        `}
-      >
-        <h1
+    <ErrorBoundary eventName="homepage">
+      <ToggleViewContext.Provider value={[currentView, updateView]}>
+        <div
           css={css`
-            font-size: 3.5rem;
-            font-weight: 500;
-            line-height: 1;
-            @media screen and (max-width: ${mobileBreakpoint}) {
-              font-size: 1.5rem;
+            display: grid;
+            gap: 1rem;
+            justify-content: space-between;
+            grid-template-columns: 1fr max-content;
+            align-items: center;
+            @media (max-width: 920px) {
+              grid-template-columns: 1fr auto;
             }
           `}
         >
-          {t('home.pageTitle')}
-        </h1>
-        <ToggleSelector
-          css={css`
-            justify-self: end;
-
-            @media screen and (max-width: 760px) {
-              display: none;
-            }
-          `}
-        />
-      </div>
-      <SearchInput
-        placeholder={t('home.search.placeholder')}
-        size={SearchInput.SIZE.LARGE}
-        value={searchTerm || ''}
-        iconName={SearchInput.ICONS.SEARCH}
-        isIconClickable
-        alignIcon={SearchInput.ICON_ALIGNMENT.RIGHT}
-        onChange={(e) => setSearchTerm(e.target.value)}
-        onSubmit={() => navigate(`?q=${searchTerm || ''}`)}
-        css={css`
-          @media screen and (max-width: ${mobileBreakpoint}) {
-            margin-bottom: 1rem;
-          }
-        `}
-      />
-      <div
-        css={css`
-          margin-top: 1rem;
-          width: 40%;
-          display: flex;
-          width: 100%;
-          flex-wrap: wrap;
-          a {
-            margin-left: 0.75rem;
-          }
-          @media screen and (max-width: ${mobileBreakpoint}) {
-            display: none;
-          }
-        `}
-      >
-        <p>{t('home.search.popularSearches.title')}: </p>
-        <Link to="?q=nrql">{t('home.search.popularSearches.options.0')}</Link>
-        <Link to="?q=logs">{t('home.search.popularSearches.options.1')}</Link>
-        <Link to="?q=alert">{t('home.search.popularSearches.options.2')}</Link>
-        <Link to="?q=best practices">
-          {t('home.search.popularSearches.options.3')}
-        </Link>
-        <Link to="?q=kubernetes">
-          {t('home.search.popularSearches.options.4')}
-        </Link>
-      </div>
-      <ToggleView id={TOGGLE_VIEWS.newUserView}>
-        <h1
-          css={css`
-            font-weight: normal;
-            font-size: 3rem;
-          `}
-        >
-          Getting started
-        </h1>
-        <h1> {title}</h1>
-        <MDXContainer body={body} />
-      </ToggleView>
-      <ToggleView id={TOGGLE_VIEWS.defaultView}>
-        <HomepageBanner />
-        <Section
-          layout={layout}
-          css={css`
-            border: none;
-            background: var(--tertiary-background-color);
-          `}
-        >
-          <SectionTitle title={t('home.popularDocs.title')} />
-          <div
+          <ToggleSelector
+            showTooltip={showTooltip}
             css={css`
-              display: grid;
-              grid-template-columns: repeat(3, 1fr);
-              grid-gap: 1rem;
-              counter-reset: welcome-tile;
-              flex: 2;
-              align-self: flex-start;
-              @media screen and (max-width: 1500px) {
-                align-self: auto;
-              }
-
-              @media screen and (max-width: 1050px) {
-                grid-template-columns: 1fr;
-              }
-
+              justify-self: end;
               @media screen and (max-width: 760px) {
-                grid-template-columns: repeat(3, 1fr);
+                display: none;
               }
-
-              @media screen and (max-width: 650px) {
-                grid-template-columns: 1fr;
+            `}
+          />
+        </div>
+        <ToggleView id={TOGGLE_VIEWS.newUserView}>
+          <HomepageVideo />
+        </ToggleView>
+        <ToggleView id={TOGGLE_VIEWS.defaultView}>
+          <h1
+            css={css`
+              font-size: 3.5rem;
+              font-weight: 500;
+              line-height: 1;
+              @media screen and (max-width: ${mobileBreakpoint}) {
+                font-size: 1.5rem;
               }
             `}
           >
-            <DocTile
-              label={{ text: 'Get started', color: '#F4CBE7' }}
-              path="/docs/apm/new-relic-apm/getting-started/introduction-apm"
-            >
-              {t('home.popularDocs.t1.title')}
-            </DocTile>
-            <DocTile
-              label={{ text: 'Security', color: '#FCD672' }}
-              path="/docs/vulnerability-management/overview"
-            >
-              {t('home.popularDocs.t2.title')}
-            </DocTile>
-            <DocTile
-              label={{ text: 'APM', color: '#AFE2E3' }}
-              path="/install/java/"
-            >
-              {t('home.popularDocs.t3.title')}
-            </DocTile>
+            {t('home.pageTitle')}
+          </h1>
+          <SearchInput
+            placeholder={t('home.search.placeholder')}
+            size={SearchInput.SIZE.LARGE}
+            value={searchTerm || ''}
+            iconName={SearchInput.ICONS.SEARCH}
+            isIconClickable
+            alignIcon={SearchInput.ICON_ALIGNMENT.RIGHT}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            onSubmit={() => {
+              tessen.track({
+                eventName: 'defaultViewSearch',
+                category: 'SearchInput',
+              });
+              navigate(`?q=${searchTerm || ''}`);
+            }}
+            css={css`
+              @media screen and (max-width: ${mobileBreakpoint}) {
+                margin-bottom: 1rem;
+              }
+            `}
+          />
+          <div
+            css={css`
+              margin-top: 1rem;
+              width: 40%;
+              display: flex;
+              width: 100%;
+              flex-wrap: wrap;
+              a {
+                margin-left: 0.75rem;
+              }
+              @media screen and (max-width: ${mobileBreakpoint}) {
+                display: none;
+              }
+            `}
+          >
+            <p>{t('home.search.popularSearches.title')}: </p>
+            <Link to="?q=nrql">
+              {t('home.search.popularSearches.options.0')}
+            </Link>
+            <Link to="?q=logs">
+              {t('home.search.popularSearches.options.1')}
+            </Link>
+            <Link to="?q=alert">
+              {t('home.search.popularSearches.options.2')}
+            </Link>
+            <Link to="?q=best practices">
+              {t('home.search.popularSearches.options.3')}
+            </Link>
+            <Link to="?q=kubernetes">
+              {t('home.search.popularSearches.options.4')}
+            </Link>
           </div>
-        </Section>
-        <Section layout={layout}>
-          <SectionTitle title={t('home.whatsNew.title')} />
-          <div
+          <HomepageBanner />
+          <Section
+            layout={layout}
             css={css`
-              display: grid;
-              grid-template-columns: repeat(3, 1fr);
-              grid-gap: 1rem;
-              counter-reset: welcome-tile;
-              flex: 2;
-              align-self: flex-start;
-              @media screen and (max-width: 1500px) {
-                align-self: auto;
-              }
-
-              @media screen and (max-width: 1050px) {
-                grid-template-columns: 1fr;
-              }
-
-              @media screen and (max-width: 760px) {
-                grid-template-columns: repeat(3, 1fr);
-              }
-
-              @media screen and (max-width: 650px) {
-                grid-template-columns: 1fr;
-              }
+              border: none;
+              background: var(--tertiary-background-color);
             `}
           >
-            {latestWhatsNewPosts.map((post) => (
+            <SectionTitle title={t('home.popularDocs.title')} />
+            <div
+              css={css`
+                display: grid;
+                grid-template-columns: repeat(3, 1fr);
+                grid-gap: 1rem;
+                counter-reset: welcome-tile;
+                flex: 2;
+                align-self: flex-start;
+                @media screen and (max-width: 1500px) {
+                  align-self: auto;
+                }
+                @media screen and (max-width: 1050px) {
+                  grid-template-columns: 1fr;
+                }
+                @media screen and (max-width: 760px) {
+                  grid-template-columns: repeat(3, 1fr);
+                }
+                @media screen and (max-width: 650px) {
+                  grid-template-columns: 1fr;
+                }
+              `}
+            >
               <DocTile
-                key={post.title}
-                date={post.releaseDate}
-                path={post.path}
+                label={{ text: 'Get started', color: '#F4CBE7' }}
+                path="/docs/apm/new-relic-apm/getting-started/introduction-apm"
               >
-                {post.title}
+                {t('home.popularDocs.t1.title')}
               </DocTile>
-            ))}
-          </div>
-        </Section>
-        <Section layout={layout}>
-          <FindYourQuickStart />
-        </Section>
-      </ToggleView>
-    </ToggleViewContext.Provider>
+              <DocTile
+                label={{ text: 'Get started', color: '#F4CBE7' }}
+                path="/docs/browser/browser-monitoring/getting-started/introduction-browser-monitoring/"
+              >
+                {t('home.popularDocs.t2.title')}
+              </DocTile>
+              <DocTile
+                label={{ text: 'Get started', color: '#F4CBE7' }}
+                path="/docs/synthetics/synthetic-monitoring/getting-started/get-started-synthetic-monitoring/"
+              >
+                {t('home.popularDocs.t3.title')}
+              </DocTile>
+            </div>
+          </Section>
+          <Section layout={layout}>
+            <SectionTitle title={t('home.whatsNew.title')} />
+            <div
+              css={css`
+                display: grid;
+                grid-template-columns: repeat(3, 1fr);
+                grid-gap: 1rem;
+                counter-reset: welcome-tile;
+                flex: 2;
+                align-self: flex-start;
+                @media screen and (max-width: 1500px) {
+                  align-self: auto;
+                }
+                @media screen and (max-width: 1050px) {
+                  grid-template-columns: 1fr;
+                }
+
+                @media screen and (max-width: 760px) {
+                  grid-template-columns: repeat(3, 1fr);
+                }
+
+                @media screen and (max-width: 650px) {
+                  grid-template-columns: 1fr;
+                }
+              `}
+            >
+              {latestWhatsNewPosts.map((post) => (
+                <DocTile
+                  key={post.title}
+                  date={post.releaseDate}
+                  path={post.path}
+                >
+                  {post.title}
+                </DocTile>
+              ))}
+            </div>
+          </Section>
+          <Section layout={layout}>
+            <FindYourQuickStart />
+          </Section>
+        </ToggleView>
+      </ToggleViewContext.Provider>
+    </ErrorBoundary>
   );
 };
-
 HomePage.propTypes = {
   data: PropTypes.shape({
     site: PropTypes.shape({
@@ -293,7 +303,6 @@ HomePage.propTypes = {
     }),
   }),
 };
-
 export const pageQuery = graphql`
   query($quicklaunchSlug: String!) {
     site {
@@ -330,17 +339,14 @@ export const pageQuery = graphql`
     }
   }
 `;
-
 const Section = ({ ...props }) => {
   return (
     <section
       css={css`
         padding-top: 2.5rem;
-
         .dark-mode & {
           background: var(--tertiary-background-color);
         }
-
         &:first-child {
           padding-top: 0;
         }
@@ -349,14 +355,12 @@ const Section = ({ ...props }) => {
     />
   );
 };
-
 Section.propTypes = {
   alternate: PropTypes.bool,
   layout: PropTypes.shape({
     contentPadding: PropTypes.string,
   }),
 };
-
 const SectionTitle = ({ title, icon, to }) => {
   const handleClick = useInstrumentedHandler({
     eventName: 'sectionTitleClick',
@@ -364,7 +368,6 @@ const SectionTitle = ({ title, icon, to }) => {
     title,
     href: to,
   });
-
   const Wrapper = to ? Link : React.Fragment;
   const props = to
     ? {
@@ -375,7 +378,6 @@ const SectionTitle = ({ title, icon, to }) => {
         `,
       }
     : {};
-
   return (
     <Wrapper {...props}>
       <h3
@@ -400,11 +402,9 @@ const SectionTitle = ({ title, icon, to }) => {
     </Wrapper>
   );
 };
-
 SectionTitle.propTypes = {
   title: PropTypes.string,
   icon: PropTypes.elementType,
   to: PropTypes.string,
 };
-
 export default HomePage;

@@ -1,0 +1,11 @@
+---
+subject: iOS agent
+title: tvOS agent v5.8.0
+releaseDate: '2016-09-02'
+version: 5.8.0
+downloadLink: 'https://download.newrelic.com/tvos_agent/NewRelic_tvOS_Agent_5.8.0.zip'
+---
+
+### Improvements
+
+* Added support for control characters in insights data. Control characters will now be displayed by their common escaped character representation. e.g.: an 'end-of-text' control character will be displayed a '^C'.
