@@ -1,7 +1,7 @@
 ---
 title: "Events from OTLP logs"
 summary: "Events have joined OpenTelemetry metrics, logs, and traces in New Relic!"
-releaseDate: "yyyy-mm-dd"
+releaseDate: "2023-05-dd"
 getStartedLink: "https://docs.newrelic.com/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/view-your-data/opentelemetry-events/"
 ---
 
@@ -14,9 +14,9 @@ New Relic’s OTLP Logs API will detect logs with those attributes and write the
 
 Here's an example of how to view the data using the [query builder](https://docs.newrelic.com/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/view-your-data/opentelemetry-data-explorer-query-builder/):
 
-![](https://docs.newrelic.com/static/otel-events-133393f4958cc530f0fb16ef4c1c4a01.png "Screenshot showing how OpenTelemetry events having event.type='ApiRequest' can be queried in the query builder using SELECT * FROM ApiRequest")
+![](./images/query-event-attributes.webp "Screenshot showing how OpenTelemetry events having event.type='ApiRequest' can be queried in the query builder using SELECT * FROM ApiRequest")
 
-Note that both event.type and event.domain need to be included in the OpenTelemetry events for them to become available as events in New Relic. The OpenTelemetry Events API already [enforces](https://opentelemetry.io/docs/reference/specification/logs/event-api/) this through the EventLogger and Events constructor or factory method interfaces.
+Note that both `event.type` and `event.domain` need to be included in the OpenTelemetry events for them to become available as events in New Relic. The OpenTelemetry Events API already [enforces](https://opentelemetry.io/docs/reference/specification/logs/event-api/) this through the `EventLogger` and `Events` constructor or factory method interfaces.
 
 To learn about OpenTelemetry in other UI pages, see the [UI overview](https://docs.newrelic.com/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/view-your-data/opentelemetry-view-your-data/). Feedback or questions about OpenTelemetry events? Come chat with us in [CNCF slack, #otel-newrelic](https://cloud-native.slack.com/archives/C024DRQ63UP).
 
