@@ -1,9 +1,8 @@
 ---
 title: 'Log in or sign up for New Relic with the new Google integration'
-summary: 'We now provide you the power of Google's secure authentication technology to manage access to New Relic services.'
+summary: "We now provide you the power of Google's secure authentication technology to manage access to New Relic services."
 releaseDate: '2023-05-01'
-learnMoreLink: '[https://docs.newrelic.com/docs/accounts/accounts-billing/account-setup/login-options]'
-getStartedLink: ''
+learnMoreLink: 'https://docs.newrelic.com/docs/accounts/accounts-billing/account-setup/login-options'
 ---
 
 We are excited to announce a new feature that simplifies the onboarding experience for our users. New Relic now seamlessly integrates with Google for user log in and sign up, giving you the power of Google's secure authentication technology to manage access to our services.
