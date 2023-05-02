@@ -1,7 +1,7 @@
 ---
 title: "Events from OTLP logs"
 summary: "Events have joined OpenTelemetry metrics, logs, and traces in New Relic!"
-releaseDate: "2023-05-dd"
+releaseDate: "2023-05-15"
 getStartedLink: "https://docs.newrelic.com/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/view-your-data/opentelemetry-events/"
 ---
 
@@ -14,12 +14,12 @@ New Relic’s OTLP Logs API will detect logs with those attributes and write the
 
 Here's an example of how to view the data using the [query builder](https://docs.newrelic.com/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/view-your-data/opentelemetry-data-explorer-query-builder/):
 
-![](./images/query-event-attributes.webp "Screenshot showing how OpenTelemetry events having event.type='ApiRequest' can be queried in the query builder using SELECT * FROM ApiRequest")
+![Screenshot showing how OpenTelemetry events having event.type='ApiRequest' can be queried in the query builder using SELECT * FROM ApiRequest](./images/query-event-attributes.webp "Screenshot of query builder")
 
 Note that both `event.type` and `event.domain` need to be included in the OpenTelemetry events for them to become available as events in New Relic. The OpenTelemetry Events API already [enforces](https://opentelemetry.io/docs/reference/specification/logs/event-api/) this through the `EventLogger` and `Events` constructor or factory method interfaces.
 
-To learn about OpenTelemetry in other UI pages, see the [UI overview](https://docs.newrelic.com/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/view-your-data/opentelemetry-view-your-data/). Feedback or questions about OpenTelemetry events? Come chat with us in [CNCF slack, #otel-newrelic](https://cloud-native.slack.com/archives/C024DRQ63UP).
+To learn about OpenTelemetry in other UI pages, see the [UI overview](https://docs.newrelic.com/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/view-your-data/opentelemetry-view-your-data/). Have feedback or questions about OpenTelemetry events? Come chat with us in [CNCF slack, #otel-newrelic](https://cloud-native.slack.com/archives/C024DRQ63UP).
 
 **As of May 2023, the Event API is marked experimental. Because New Relic supports the latest OpenTelemetry standards, if the Events API changes before it stabilizes, we will update our support without advance notice.**
 
-**What does that mean for you? The Logs API could change the criteria for writing events from OTLP logs. Any queries written using the custom event (e.g. dashboards, alerts) would stop working and your data would be preserved as Logs rather than custom events.**
+**What does that mean for you? We could change the criteria our Logs API uses for writing events from OTLP logs. Any queries written using the custom event (for example, dashboards and alerts) would stop working and your data would be preserved as logs rather than custom events.**
