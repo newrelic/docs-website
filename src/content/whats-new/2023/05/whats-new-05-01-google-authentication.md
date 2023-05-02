@@ -12,10 +12,6 @@ We are excited to announce a new feature that simplifies the onboarding experien
 * You can now log in and sign up on New Relic with your Google or Google Workspace account, enabling a secure and quick authentication process.
 * This integration helps reduce password fatigue, allowing you to centrally manage access to New Relic and other services that support Google authentication.
 
-**Key benefit:** 
-
-* **Single sign-on (SSO)**: With this integration, new users never have to remember multiple sets of credentials to experience the New Relic platform.
-
 **How to use**:
 
 1. Go to the [New Relic login page](https://login.newrelic.com/login).
