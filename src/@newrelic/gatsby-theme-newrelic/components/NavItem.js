@@ -40,7 +40,8 @@ const NavItem = ({
     page,
     pathname,
   ]);
-  const isCurrentPage = page.url === pathname;
+  const hasChildPages = page.pages?.length > 0;
+  const isCurrentPage = page.url === pathname && !hasChildPages;
   const shouldExpand = isCurrentPage || containsCurrentPage;
   const hasChangedPage = pathname !== usePrevious(pathname);
   const [isExpanded, setIsExpanded] = useState(shouldExpand);
@@ -117,13 +118,13 @@ const NavItem = ({
       {...rest}
     >
       <NavLink
-        name={name}
+        name={hasChildPages ? '' : name}
         active={isCurrentPage}
-        to={page.pages?.length > 0 ? null : page.url}
+        to={hasChildPages ? null : page.url}
         icon={page.icon}
         label={page.label}
         isExpanded={isExpanded}
-        expandable={page.pages?.length > 0}
+        expandable={hasChildPages}
         onClick={() => {
           onExpand(page.flipId);
           setIsExpanded(toggle);
