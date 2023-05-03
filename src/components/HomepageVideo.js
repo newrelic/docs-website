@@ -1,15 +1,20 @@
 import React, { useEffect, useState } from 'react';
 import { css } from '@emotion/react';
-import { SearchInput, useTranslation } from '@newrelic/gatsby-theme-newrelic';
+import {
+  SearchInput,
+  useTessen,
+  useTranslation,
+} from '@newrelic/gatsby-theme-newrelic';
 import { navigate } from '@reach/router';
-import curlyAndDotsBackground from './curlyAndDots.png';
-import curlyAndDotsBackgroundDarkmode from './curlyAndDotsDM.png';
+import curlyAndDotsBackground from './curlyAndDots.webp';
+import curlyAndDotsBackgroundDarkmode from './curlyAndDotsDM.webp';
 import InlineSignup from './InlineSignup';
 import { useMainLayoutContext } from './MainLayoutContext';
 
 const HomepageVideo = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const { t } = useTranslation();
+  const tessen = useTessen();
   const [sidebar] = useMainLayoutContext();
   const [mobileBreakpoint, setMobileBreakpoint] = useState('1050px');
 
@@ -80,7 +85,14 @@ const HomepageVideo = () => {
             onChange={(e) => {
               setSearchTerm(e.target.value);
             }}
-            onSubmit={() => navigate(`?q=${searchTerm || ''}`)}
+            onSubmit={() => {
+              tessen.track({
+                eventName: 'videoViewSearch',
+                category: 'SearchInput',
+                searchTerm,
+              });
+              navigate(`?q=${searchTerm || ''}`);
+            }}
             css={css`
               @media screen and (max-width: ${mobileBreakpoint}) {
                 margin-bottom: 1rem;

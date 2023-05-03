@@ -39,9 +39,8 @@ const TileOption = ({ displayName, value, logo, onChange, isSelected }) => {
           name={logo}
           css={css`
             margin-bottom: 0;
-            img {
-              width: 2rem;
-            }
+            max-height: 3rem;
+            max-width: 80%;
           `}
         />
       )}

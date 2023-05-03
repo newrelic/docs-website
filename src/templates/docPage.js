@@ -1,22 +1,29 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/react';
 import { graphql } from 'gatsby';
 import { takeWhile } from 'lodash';
+import { CSSTransition } from 'react-transition-group';
+import { createLocalStorageStateHook } from 'use-local-storage-state';
+import DocPageBanner from '../components/DocPageBanner';
 import PageTitle from '../components/PageTitle';
 import MDXContainer from '../components/MDXContainer';
 import {
   ContributingGuidelines,
-  Layout,
-  RelatedResources,
   ComplexFeedback,
   TableOfContents,
   LoggedInProvider,
+  useLoggedIn,
 } from '@newrelic/gatsby-theme-newrelic';
+import Layout from '../components/Layout';
 import MachineTranslationCallout from '../components/MachineTranslationCallout';
 import SEO from '../components/SEO';
 import GithubSlugger from 'github-slugger';
 import { TYPES } from '../utils/constants';
+import { useMainLayoutContext } from '../components/MainLayoutContext';
+import ErrorBoundary from '../components/ErrorBoundary';
+
+const BANNER_HEIGHT = '78px';
 
 /**
  * Some `title`s from the `tableOfContents` field are
@@ -42,9 +49,8 @@ const BasicDoc = ({ data, location, pageContext }) => {
     tableOfContents,
     body,
     fields: { fileRelativePath },
-    relatedResources,
   } = mdx;
-  const { disableSwiftype, hideNavs } = pageContext;
+  const { disableSwiftype, hidePageTools } = pageContext;
 
   const headings = useMemo(() => {
     const slugs = new GithubSlugger();
@@ -66,22 +72,35 @@ const BasicDoc = ({ data, location, pageContext }) => {
     title,
     metaDescription,
     tags,
+    type,
     translationType,
     dataSource,
-    isTutorial,
+    signupBanner,
   } = frontmatter;
-
-  let { type } = frontmatter;
 
   if (typeof window !== 'undefined' && typeof newrelic === 'object') {
     window.newrelic.setCustomAttribute('pageType', 'Template/DocPage');
   }
-  if (isTutorial) {
-    type = 'tutorial';
-  }
+
+  const { loggedIn } = useLoggedIn();
+  const [sidebar] = useMainLayoutContext();
+  const useBannerDismissed = createLocalStorageStateHook(
+    `docBannerDismissed-${title}`
+  );
+  const [bannerDismissed, setBannerDismissed] = useBannerDismissed(false);
+  const [mounted, setMounted] = useState(false);
+  const bannerVisible =
+    !loggedIn && !bannerDismissed && signupBanner && mounted;
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const onCloseBanner = () => {
+    setBannerDismissed(true);
+  };
 
   return (
-    <>
+    <ErrorBoundary eventName="doc">
       <SEO
         location={location}
         title={title}
@@ -91,6 +110,13 @@ const BasicDoc = ({ data, location, pageContext }) => {
         dataSource={dataSource}
         disableSwiftype={disableSwiftype}
       />
+      {bannerVisible && (
+        <DocPageBanner
+          height={BANNER_HEIGHT}
+          onClose={onCloseBanner}
+          {...signupBanner}
+        />
+      )}
       <div
         css={css`
           display: grid;
@@ -98,8 +124,16 @@ const BasicDoc = ({ data, location, pageContext }) => {
             'mt-disclaimer mt-disclaimer'
             'page-title page-tools'
             'content page-tools';
-          grid-template-columns: minmax(0, 1fr) 320px;
+          grid-template-columns: minmax(0, 1fr) 205px;
           grid-column-gap: 2rem;
+
+          ${bannerVisible &&
+          css`
+            margin-top: ${BANNER_HEIGHT};
+            @media screen and (max-width: 760px) {
+              margin-top: 0;
+            }
+          `}
 
           iframe {
             max-width: 100%;
@@ -113,7 +147,7 @@ const BasicDoc = ({ data, location, pageContext }) => {
               'page-tools';
             grid-template-columns: minmax(0, 1fr);
           }
-          ${hideNavs &&
+          ${hidePageTools &&
           css`
             grid-template-areas:
               'mt-disclaimer'
@@ -146,32 +180,59 @@ const BasicDoc = ({ data, location, pageContext }) => {
             <MDXContainer body={body} />
           </Layout.Content>
         </LoggedInProvider>
-        {!hideNavs && (
-          <Layout.PageTools
-            css={css`
-              @media screen and (max-width: 1240px) {
-                margin-top: 1rem;
-                position: static;
-              }
-            `}
+        {!hidePageTools && (
+          // TODO pass nodeRef to avoid `findDOMNode` usage
+          // this transition is the inverse of the page `translate` transition
+          // it keeps the PageTools in the same place when the nav opens/ closes
+          <CSSTransition
+            in={sidebar}
+            classNames="page-tools-transition"
+            timeout={300}
           >
-            <ContributingGuidelines
-              pageTitle={title}
-              fileRelativePath={fileRelativePath}
-              issueLabels={['feedback', 'feedback-issue']}
-            />
-            <TableOfContents headings={headings} />
-            <ComplexFeedback pageTitle={title} />
-            <RelatedResources
-              resources={relatedResources}
+            <Layout.PageTools
               css={css`
-                border-top: 1px solid var(--divider-color);
+                background: var(--primary-background-color);
+
+                &.page-tools-transition-enter {
+                  translate: calc(var(--sidebar-width) - 50px);
+                }
+                &.page-tools-transition-enter-active {
+                  translate: 0;
+                  transition: 300ms translate ease;
+                }
+                &.page-tools-transition-enter-done {
+                  translate: 0;
+                }
+
+                &.page-tools-transition-exit {
+                  translate: calc(calc(var(--sidebar-width) - 50px) * -1);
+                }
+                &.page-tools-transition-exit-active {
+                  translate: 0;
+                  transition: 300ms translate ease;
+                }
+                &.page-tools-transition-exit-done {
+                  translate: 0;
+                }
+
+                @media screen and (max-width: 1240px) {
+                  margin-top: 1rem;
+                  position: static;
+                }
               `}
-            />
-          </Layout.PageTools>
+            >
+              <TableOfContents headings={headings} />
+              <ComplexFeedback pageTitle={title} />
+              <ContributingGuidelines
+                pageTitle={title}
+                fileRelativePath={fileRelativePath}
+                issueLabels={['feedback', 'feedback-issue']}
+              />
+            </Layout.PageTools>
+          </CSSTransition>
         )}
       </div>
-    </>
+    </ErrorBoundary>
   );
 };
 
@@ -191,16 +252,16 @@ export const pageQuery = graphql`
         metaDescription
         type
         tags
-        isTutorial
         translationType
         dataSource
+        signupBanner {
+          cta
+          text
+          url
+        }
       }
       fields {
         fileRelativePath
-      }
-      relatedResources(limit: 3) {
-        title
-        url
       }
       ...TableOfContents_page
     }

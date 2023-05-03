@@ -10,7 +10,7 @@ getStartedLink: 'https://newrelic.com/instant-observability/jfrog-platform'
 
 We've partnered with JFrog to provide DevOps, DevSecOps, and engineer teams full visibility and actionable insights into the performance and security of their software supply chains. 
 
-The new [quickstart integration](http://newrelic.com/instant-observability/jfrog-platform) lets you monitor your **JFrog Artifactory** and **JFrog Xray** environments to help fine-tune your DevOps pipelines and ensure faster, seamless software releases. Plus, all New Relic full platform users and all tiers of self-hosted JFrog customers can access it for free! 
+The new [quickstart integration](http://newrelic.com/instant-observability/jfrog-platform) lets you monitor your **JFrog Artifactory** and **JFrog Xray** environments to help fine-tune your DevOps pipelines and ensure faster, seamless software releases. This integration is available for all New Relic full platform users and free for all tiers of self-hosted JFrog customers. 
 
 ## Benefits
 
@@ -22,7 +22,7 @@ The new [quickstart integration](http://newrelic.com/instant-observability/jfrog
 <iframe width="560" height="315" src="https://fast.wistia.net/embed/iframe/d5ywdxo6qr" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" frameBorder="0" allowfullscreen="false" class="css-1b4920d"></iframe>
 <figcaption>The JFrog Artifactory dashboard helps you track performance and usage of your artifactory services and lets you audit users who access your instances. You can also directly view real time logs and entities in New Relic.</figcaption>
 
-![Screenshot showing JFrog XRay dashboard in New Relic](./images/JFrog_Xray_dash.png "Screenshot showing JFrog XRay dashboard in New Relic")
+![Screenshot showing JFrog XRay dashboard in New Relic](./images/JFrog_Xray_dash.webp "Screenshot showing JFrog XRay dashboard in New Relic")
 <figcaption>Uncover and mitigate vulnerabilities with the JFrog XRay dashboard.</figcaption>
 
 

@@ -265,7 +265,7 @@ const main = async () => {
     log(`batchUids: ${batchesToDeserialize.map(prop('batchUid')).join(', ')}`);
 
     console.log(
-      `::set-output name=batchesToDeserialize::${batchesToDeserialize.length}`
+      `batchesToDeserialize=${batchesToDeserialize.length} >> $GITHUB_OUTPUT`
     );
 
     // download the newly translated files and deserialize them (into MDX).
@@ -291,10 +291,10 @@ const main = async () => {
       `Final results --- ${results.totalSuccesses} files completed, ${results.totalFailures} files errored.`
     );
     console.log(
-      `::set-output name=successfulTranslations::${results.totalSuccesses}`
+      `successfulTranslations=${results.totalSuccesses} >> $GITHUB_OUTPUT`
     );
     console.log(
-      `::set-output name=failedTranslations::${results.totalFailures}`
+      `failedTranslations=${results.totalFailures} >> $GITHUB_OUTPUT`
     );
 
     await trackTranslationEvent({

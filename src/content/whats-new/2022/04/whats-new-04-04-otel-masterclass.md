@@ -9,5 +9,5 @@ Learn the ins and outs of OpenTelemetry starting with the basic concepts arounds
 
 
 
-![Screenshot showing OpenTelemetry](./images/otel_masterclass.png "Screenshot showing OpenTelemetry")
+![Screenshot showing OpenTelemetry](./images/otel_masterclass.webp "Screenshot showing OpenTelemetry")
 
