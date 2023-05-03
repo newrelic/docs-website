@@ -12,5 +12,5 @@ As the OpenTelemetry project continues to mature, we’re continuously evolving 
 - Infinite Tracing with gRPC
 - Enhanced curated user experiences to visualize and analyze your OpenTelemetry data
 
-![Screenshot showing OpenTelemetry traces ](./images/whats-new-02-17-otel_update.png "Screenshot showing OpenTelemetry traces ")
+![Screenshot showing OpenTelemetry traces ](./images/whats-new-02-17-otel_update.webp "Screenshot showing OpenTelemetry traces ")
 

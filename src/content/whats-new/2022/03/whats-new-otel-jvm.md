@@ -12,6 +12,6 @@ With this data, you can:
   * Identify instances receiving an unbalanced amount of traffic.
   * Spot slow memory leaks.
 
-![Comparison view with timeseries charts, showing three JVM instances with different throughput rates, as well as different garbage collection behavior](./images/whats-new-otel-jvms.png "Comparison view with timeseries charts, showing three JVM instances with different throughput rates, as well as different garbage collection behavior")
+![Comparison view with timeseries charts, showing three JVM instances with different throughput rates, as well as different garbage collection behavior](./images/whats-new-otel-jvms.webp "Comparison view with timeseries charts, showing three JVM instances with different throughput rates, as well as different garbage collection behavior")
 
 On the new JVMs page, you can choose several service instances to compare, based on summaries of key metrics: response time, throughput, error rate, garbage collection time, and memory usage. Then, you can compare all those instances' JVM metrics collected by OpenTelemetry instrumentation using timeseries charts to spot problems.

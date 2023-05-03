@@ -16,12 +16,12 @@ If you're a new or existing New Relic customer monitoring AWS workloads on Amazo
 ## Guided install
 Use the [Guided install](https://one.newrelic.com/marketplace?state=49e6d628-79ac-7022-1689-a6a6b7673f54) to install a New Relic agent with a single command to start monitoring your infrastructure and log data in real-time.
 
-![The New Relic guided install offers an enhanced instrumentation experience providing agent installation and incorporating alerts, dashboards, and logs in context.](./images/GuidedInstall.png "The New Relic guided install offers an enhanced instrumentation experience providing agent installation and incorporating alerts, dashboards, and logs in context.")
+![The New Relic guided install offers an enhanced instrumentation experience providing agent installation and incorporating alerts, dashboards, and logs in context.](./images/GuidedInstall.webp "The New Relic guided install offers an enhanced instrumentation experience providing agent installation and incorporating alerts, dashboards, and logs in context.")
 The New Relic guided install offers an enhanced instrumentation experience providing agent installation and incorporating alerts, dashboards, and logs in context.
 
 Installing the infrastructure agent with +Add data and using the Guided install from within the New Relic platform is the fastest way to start monitoring your instances.
 
-![Amazon Linux 2023 instance instrumented with the New Relic infrastructure monitoring agent.](./images/AL2023wAgent.png "Amazon Linux 2023 instance instrumented with the New Relic infrastructure monitoring agent.")
+![Amazon Linux 2023 instance instrumented with the New Relic infrastructure monitoring agent.](./images/AL2023wAgent.webp "Amazon Linux 2023 instance instrumented with the New Relic infrastructure monitoring agent.")
 Amazon Linux 2023 instance instrumented with the New Relic infrastructure monitoring agent.
 
 ## Next Steps

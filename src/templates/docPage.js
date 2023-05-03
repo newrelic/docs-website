@@ -21,6 +21,7 @@ import SEO from '../components/SEO';
 import GithubSlugger from 'github-slugger';
 import { TYPES } from '../utils/constants';
 import { useMainLayoutContext } from '../components/MainLayoutContext';
+import ErrorBoundary from '../components/ErrorBoundary';
 
 const BANNER_HEIGHT = '78px';
 
@@ -99,7 +100,7 @@ const BasicDoc = ({ data, location, pageContext }) => {
   };
 
   return (
-    <>
+    <ErrorBoundary eventName="doc">
       <SEO
         location={location}
         title={title}
@@ -231,7 +232,7 @@ const BasicDoc = ({ data, location, pageContext }) => {
           </CSSTransition>
         )}
       </div>
-    </>
+    </ErrorBoundary>
   );
 };
 
