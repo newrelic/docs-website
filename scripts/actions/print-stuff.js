@@ -1,3 +1,3 @@
-console.log(`outputfromlog=1 >> $GITHUB_OUTPUT`);
+console.log(`outputfromlog=2 >> $GITHUB_OUTPUT`);
 
-return `outputfromreturn=1 >> $GITHUB_OUTPUT`;
+return `outputfromreturn=2 >> $GITHUB_OUTPUT`;
