@@ -12,6 +12,41 @@ import remarkMdx from 'remark-mdx';
 import remarkStringify from 'remark-stringify';
 import stripMarkdown from 'strip-markdown';
 
+const excerptify = async (body) => {
+  const plainText = await unified()
+    .use(remarkParse)
+    .use(remarkMdx)
+    .use(stripMarkdown)
+    .use(remarkStringify)
+    .process(body);
+
+  return plainText.contents
+    .replace(/\n+/g, ' ')
+    .replace(/^import .+ ['"].+['"];?/g, '');
+};
+
+const generateReleaseNoteObject = async (filePath) => {
+  const file = await readFile(filePath, { encoding: 'utf8' });
+  const slug = slugify(filePath);
+  const { attributes, body } = frontmatter(file);
+
+  const output = {
+    agent: getAgentName(attributes.subject) ?? null,
+    date: attributes.releaseDate ?? null,
+    downloadLink: attributes.downloadLink ?? null,
+    version: attributes.version ?? null,
+    features: attributes.features ?? null,
+    bugs: attributes.bugs ?? null,
+    security: attributes.security ?? null,
+    description: (await excerptify(body)) ?? null,
+    slug,
+  };
+
+  return output;
+};
+
+const slugify = (str) => str.replace('src/content/', '').replace('.mdx', '');
+
 const releaseNoteMdxs = await glob('src/content/docs/release-notes/**/*.mdx', {
   ignore: '**/index.mdx',
 });
@@ -30,38 +65,3 @@ const putCommand = new PutObjectCommand({
 });
 
 client.send(putCommand);
-
-const generateReleaseNoteObject = async (filePath) => {
-  const file = await readFile(filePath, { encoding: 'utf8' });
-  const slug = slugify(filePath);
-  const { attributes, body } = frontmatter(file);
-
-  const excerptify = async (body) => {
-    const plainText = await unified()
-      .use(remarkParse)
-      .use(remarkMdx)
-      .use(stripMarkdown)
-      .use(remarkStringify)
-      .process(body);
-
-    return plainText.contents
-      .replace(/\n+/g, ' ')
-      .replace(/^import .+ ['"].+['"];?/g, '');
-  };
-
-  const output = {
-    agent: getAgentName(attributes.subject) ?? null,
-    date: attributes.releaseDate ?? null,
-    downloadLink: attributes.downloadLink ?? null,
-    version: attributes.version ?? null,
-    features: attributes.features ?? null,
-    bugs: attributes.bugs ?? null,
-    security: attributes.security ?? null,
-    description: (await excerptify(body)) ?? null,
-    slug,
-  };
-
-  return output;
-};
-
-const slugify = (str) => str.replace('src/content/', '').replace('.mdx', '');
