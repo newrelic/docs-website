@@ -36,6 +36,19 @@ const generateReleaseNoteObject = async (filePath) => {
   const slug = slugify(filePath);
   const { attributes, body } = frontmatter(file);
 
+  const excerptify = async (body) => {
+    const plainText = await unified()
+      .use(remarkParse)
+      .use(remarkMdx)
+      .use(stripMarkdown)
+      .use(remarkStringify)
+      .process(body);
+
+    return plainText.contents
+      .replace(/\n+/g, ' ')
+      .replace(/^import .+ ['"].+['"];?/g, '');
+  };
+
   const output = {
     agent: getAgentName(attributes.subject) ?? null,
     date: attributes.releaseDate ?? null,
@@ -49,19 +62,6 @@ const generateReleaseNoteObject = async (filePath) => {
   };
 
   return output;
-};
-
-const excerptify = async (body) => {
-  const plainText = await unified()
-    .use(remarkParse)
-    .use(remarkMdx)
-    .use(stripMarkdown)
-    .use(remarkStringify)
-    .process(body);
-
-  return plainText.contents
-    .replace(/\n+/g, ' ')
-    .replace(/^import .+ ['"].+['"];?/g, '');
 };
 
 const slugify = (str) => str.replace('src/content/', '').replace('.mdx', '');
