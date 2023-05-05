@@ -12,7 +12,7 @@ The new **DBmarlin integration and the DBmarlin quickstart dashboard** for New R
 
 The quickstart sends database performance data, including database time, top SQL statements, and top wait events, from DBmarlin to New Relic. It also comes with a pre-built dashboard so you can see when database slowdowns occur and what is causing them.
 
-![DBmarlin quickstart dashboard](./images/dbmarlin_dashboard.png "A screenshot that shows the DBmarlin quickstart dashboard in New Relic.")
+![DBmarlin quickstart dashboard](./images/dbmarlin_dashboard.webp "A screenshot that shows the DBmarlin quickstart dashboard in New Relic.")
 
 <figcaption>Install the DBmarlin quickstart for a pre-configured dashboard to quickly monitor the performance of your databases.</figcaption>
 

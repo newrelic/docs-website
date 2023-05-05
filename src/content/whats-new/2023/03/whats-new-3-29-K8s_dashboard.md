@@ -28,6 +28,6 @@ The **Overview dashboard** and **Events dashboard** provide the following:
 2. Choose the cluster you’d like to analyze.
 3. By default, you’ll arrive in the Kubernetes cluster explorer ‘view.’ Towards the top of the page, select either the **Overview NEW** or **Events** links.
 
-![A screenshot showing the Kubernetes Overview dashboard.](./images/K8s_dashboard.png "A screenshot showing the Kubernetes Overview dashboard.")
+![A screenshot showing the Kubernetes Overview dashboard.](./images/K8s_dashboard.webp "A screenshot showing the Kubernetes Overview dashboard.")
 
 <figcaption>A screenshot showing the Kubernetes Overview dashboard.</figcaption>

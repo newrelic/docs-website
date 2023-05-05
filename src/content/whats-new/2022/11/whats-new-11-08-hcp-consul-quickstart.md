@@ -21,7 +21,7 @@ This integration works by installing goStatsD tooling on your HCP Consul cluster
 
 Install the [HCP Consul quickstart](https://newrelic.com/instant-observability/hcp-consul) for a pre-built dashboard that lets you see health and performance metrics for your environment, client members, network, runtime, cluster membership, and Envoy.
 
-![Screenshot showing sample HCP Consul dashboard in New Relic](./images/whatsnew_hcp_consul_dashboard01.png "Screenshot showing sample HCP Consul dashboard in New Relic")
+![Screenshot showing sample HCP Consul dashboard in New Relic](./images/whatsnew_hcp_consul_dashboard01.webp "Screenshot showing sample HCP Consul dashboard in New Relic")
 
 ## About HCP Consul
 

@@ -4,6 +4,7 @@ import PropTypes from 'prop-types';
 import { Layout, useQueryParams, Link } from '@newrelic/gatsby-theme-newrelic';
 import useDarkMode from 'use-dark-mode';
 import EmbedContext from '../components/EmbedContext';
+import ErrorBoundary from '../components/ErrorBoundary';
 import MDXContainer from '../components/MDXContainer';
 
 const components = {
@@ -29,12 +30,14 @@ const EmbedPage = ({ data }) => {
   }, [darkMode, embedDarkMode]);
 
   return (
-    <EmbedContext.Provider value={{ isEmbedded: true }}>
-      <h1>{title}</h1>
-      <Layout.Content>
-        <MDXContainer components={components} body={body} />
-      </Layout.Content>
-    </EmbedContext.Provider>
+    <ErrorBoundary eventName="embed">
+      <EmbedContext.Provider value={{ isEmbedded: true }}>
+        <h1>{title}</h1>
+        <Layout.Content>
+          <MDXContainer components={components} body={body} />
+        </Layout.Content>
+      </EmbedContext.Provider>
+    </ErrorBoundary>
   );
 };
 

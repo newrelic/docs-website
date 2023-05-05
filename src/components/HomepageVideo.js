@@ -6,8 +6,8 @@ import {
   useTranslation,
 } from '@newrelic/gatsby-theme-newrelic';
 import { navigate } from '@reach/router';
-import curlyAndDotsBackground from './curlyAndDots.png';
-import curlyAndDotsBackgroundDarkmode from './curlyAndDotsDM.png';
+import curlyAndDotsBackground from './curlyAndDots.webp';
+import curlyAndDotsBackgroundDarkmode from './curlyAndDotsDM.webp';
 import InlineSignup from './InlineSignup';
 import { useMainLayoutContext } from './MainLayoutContext';
 
