@@ -4,26 +4,39 @@ import frontmatter from 'front-matter';
 import { readFile } from 'fs/promises';
 import { glob } from 'glob10';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
-import unified from 'unified';
+import { unified } from 'unified';
 
 import getAgentName from '../src/utils/getAgentName.js';
 import remarkParse from 'remark-parse';
 import remarkMdx from 'remark-mdx';
-import remarkStringify from 'remark-stringify';
-import stripMarkdown from 'strip-markdown';
+import { visit } from 'unist-util-visit';
 
 const excerptify = async (body) => {
-  const plainText = await unified()
+  const Compiler = (tree) => {
+    let result = '';
+    visit(tree, (leaf, index, parent) => {
+      if (leaf.type === 'text' || leaf.type === 'inlineCode') {
+        result += leaf.value;
+        if (parent.children.length - 1 === index) {
+          result += ' ';
+        }
+      }
+    });
+    return result.trim();
+  };
+
+  const vFile = await unified()
     .use(remarkParse)
+    .use(function () {
+      this.Compiler = Compiler;
+    })
     .use(remarkMdx)
-    .use(stripMarkdown)
-    .use(remarkStringify)
     .process(body);
 
-  return plainText.contents
-    .replace(/\n+/g, ' ')
-    .replace(/^import .+ ['"].+['"];?/g, '');
+  return vFile.value;
 };
+
+const slugify = (str) => str.replace('src/content/', '').replace('.mdx', '');
 
 const generateReleaseNoteObject = async (filePath) => {
   const file = await readFile(filePath, { encoding: 'utf8' });
@@ -44,8 +57,6 @@ const generateReleaseNoteObject = async (filePath) => {
 
   return output;
 };
-
-const slugify = (str) => str.replace('src/content/', '').replace('.mdx', '');
 
 const releaseNoteMdxs = await glob('src/content/docs/release-notes/**/*.mdx', {
   ignore: '**/index.mdx',
