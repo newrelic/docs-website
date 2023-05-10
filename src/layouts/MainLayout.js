@@ -94,6 +94,10 @@ const MainLayout = ({ children, pageContext }) => {
         }
       `}
       onClick={() => {
+        tessen.track({
+          eventName: sidebar ? 'closeNav' : 'openNav',
+          category: 'NavCollapserClick',
+        });
         setSidebar(!sidebar);
       }}
     >
