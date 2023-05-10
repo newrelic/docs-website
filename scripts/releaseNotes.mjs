@@ -4,12 +4,12 @@ import frontmatter from 'front-matter';
 import { readFile } from 'fs/promises';
 import { glob } from 'glob10';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
-import { unified } from 'unified';
+import { unified } from 'unified10';
 
 import getAgentName from '../src/utils/getAgentName.js';
-import remarkParse from 'remark-parse';
-import remarkMdx from 'remark-mdx';
-import { visit } from 'unist-util-visit';
+import remarkParse from 'remark-parse10';
+import remarkMdx from 'remark-mdx2.3';
+import { visit } from 'unist-util-visit4';
 
 const excerptify = async (body) => {
   const Compiler = (tree) => {
