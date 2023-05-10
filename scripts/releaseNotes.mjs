@@ -22,7 +22,7 @@ const excerptify = async (body) => {
         }
       }
     });
-    return result.trim();
+    return result.trim().slice(0, 5000);
   };
 
   const vFile = await unified()
