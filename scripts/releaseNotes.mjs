@@ -22,7 +22,11 @@ const excerptify = async (body) => {
         }
       }
     });
-    return result.trim().slice(0, 5000);
+    result = result.trim();
+    const length = result.length;
+    result = result.slice(0, 5000);
+    if (length > 5000) result += '…';
+    return result;
   };
 
   const vFile = await unified()
@@ -54,6 +58,10 @@ const generateReleaseNoteObject = async (filePath) => {
     description: (await excerptify(body)) ?? null,
     slug,
   };
+
+  if (attributes.date) {
+    output.eolDate = getEOLDate(attributes.date);
+  }
 
   return output;
 };
