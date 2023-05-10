@@ -5,11 +5,12 @@ import { readFile } from 'fs/promises';
 import { glob } from 'glob10';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { unified } from 'unified10';
-
-import getAgentName from '../src/utils/getAgentName.js';
 import remarkParse from 'remark-parse10';
 import remarkMdx from 'remark-mdx2.3';
 import { visit } from 'unist-util-visit4';
+
+import getAgentName from '../src/utils/getAgentName.js';
+import getEOLDate from '../src/utils/getEOLDate.js';
 
 const excerptify = async (body) => {
   const Compiler = (tree) => {
@@ -59,8 +60,8 @@ const generateReleaseNoteObject = async (filePath) => {
     slug,
   };
 
-  if (attributes.date) {
-    output.eolDate = getEOLDate(attributes.date);
+  if (attributes.releaseDate) {
+    output.eolDate = getEOLDate(attributes.releaseDate);
   }
 
   return output;
