@@ -4,31 +4,21 @@
 import { rm, readFile, writeFile } from 'fs/promises';
 // installed with an alias because v10 conflicts with jest dependencies
 import { glob } from 'glob10';
-import meow from 'meow';
+import { Command } from 'commander';
 import webp from 'webp-converter';
 import { promisify } from 'util';
 import { exec as callback_exec } from 'child_process';
 
-const cli = meow(
-  `
-	Usage
-	  $ yarn convert-to-webp <flag>
-
-	Options
-	  --global, -g  run on all images in the repo, not just staged images
-
-`,
-  {
-    description: 'Convert staged PNG and JPG images to WebP.',
-    importMeta: import.meta,
-    flags: {
-      global: {
-        type: 'boolean',
-        alias: 'g',
-      },
-    },
-  }
-);
+const program = new Command();
+program
+  .description('Convert staged PNG and JPG images to WebP.')
+  .option(
+    '-g, --global',
+    'run on all images in the repo, not just staged images'
+  )
+  .parse();
+const options = program.opts();
+const runGlobally = Boolean(options.global);
 
 const exec = promisify(callback_exec);
 
@@ -51,8 +41,8 @@ const stagedMDs = stagedFiles.filter((file) =>
 const allImages = await glob(`**/*.{${imgExtensions.join(',')}}`);
 const allMDsAndJSs = await glob('src/**/*.{md,mdx,js}');
 
-const imagesToConvert = cli.flags.global ? allImages : stagedImages;
-const mdToConvert = cli.flags.global ? allMDsAndJSs : stagedMDs;
+const imagesToConvert = runGlobally ? allImages : stagedImages;
+const mdToConvert = runGlobally ? allMDsAndJSs : stagedMDs;
 
 const updateMarkdownReferences = async (mdArray) => {
   const imgImportRegEx = new RegExp(
