@@ -13,7 +13,7 @@ const program = new Command();
 program
   .description('Convert staged PNG and JPG images to WebP.')
   .option(
-    '--global, -g',
+    '-g, --global',
     'run on all images in the repo, not just staged images'
   )
   .parse();
