@@ -38,7 +38,7 @@ const stagedMDs = stagedFiles.filter((file) =>
   /\.mdx?$/.test(file.toLocaleLowerCase())
 );
 const allImages = await glob(`**/*.{${imgExtensions.join(',')}}`, {
-  ignore: ['**/favicon.png', '**/node_modules/**/*', 'public/**/*'],
+  ignore: ['**/favicon.png', 'node_modules/*'],
 });
 const allMDsAndJSs = await glob('src/**/*.{md,mdx,js}');
 
