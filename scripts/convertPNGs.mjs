@@ -31,14 +31,15 @@ const stagedFiles = (
 const imgExtensions = ['jpg', 'jpeg', 'png'];
 const imgRegex = new RegExp(`\.(?:${imgExtensions.join('|')})$`);
 
-const stagedImages = stagedFiles.filter((file) =>
-  imgRegex.test(file.toLocaleLowerCase())
-);
+const stagedImages = stagedFiles
+  .filter((file) => imgRegex.test(file.toLocaleLowerCase()))
+  .filter((file) => !/favicon.png$/.test(file));
 const stagedMDs = stagedFiles.filter((file) =>
   /\.mdx?$/.test(file.toLocaleLowerCase())
 );
-
-const allImages = await glob(`**/*.{${imgExtensions.join(',')}}`);
+const allImages = await glob(`**/*.{${imgExtensions.join(',')}}`, {
+  ignore: ['**/favicon.png', 'node_modules/**'],
+});
 const allMDsAndJSs = await glob('src/**/*.{md,mdx,js}');
 
 const imagesToConvert = runGlobally ? allImages : stagedImages;
