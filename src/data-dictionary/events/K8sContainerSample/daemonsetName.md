@@ -6,4 +6,4 @@ events:
   - K8sContainerSample
 ---
 
-Name of the DaemonSet that the container is associated with, to be used as an identifier.
+Name of the DaemonSet the container is associated with.
