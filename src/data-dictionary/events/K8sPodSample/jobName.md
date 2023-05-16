@@ -6,4 +6,4 @@ events:
   - K8sPodSample
 ---
 
-Name of the Job the container is associated with.
+Name of the Job the Pod is associated with.

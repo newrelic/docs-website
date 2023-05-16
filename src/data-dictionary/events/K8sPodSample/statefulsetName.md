@@ -6,4 +6,4 @@ events:
   - K8sPodSample
 ---
 
-Name of the StatefulSet the container is associated with.
+Name of the StatefulSet the Pod is associated with.

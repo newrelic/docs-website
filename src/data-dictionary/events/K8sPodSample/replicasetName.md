@@ -6,4 +6,4 @@ events:
   - K8sPodSample
 ---
 
-Name of the ReplicaSet the container is associated with.
+Name of the ReplicaSet the Pod is associated with.

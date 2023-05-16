@@ -6,4 +6,4 @@ events:
   - K8sPodSample
 ---
 
-Name of the DaemonSet the container is associated with.
+Name of the DaemonSet the Pod is associated with.
