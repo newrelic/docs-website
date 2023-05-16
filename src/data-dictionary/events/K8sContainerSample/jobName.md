@@ -6,4 +6,4 @@ events:
   - K8sContainerSample
 ---
 
-Name of the Job that the container is associated with, to be used as an identifier.
+Name of the Job the container is associated with.
