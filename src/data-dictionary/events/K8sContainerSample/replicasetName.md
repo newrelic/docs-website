@@ -6,4 +6,4 @@ events:
   - K8sContainerSample
 ---
 
-Name of the ReplicaSet that the container is associated with, to be used as an identifier.
+Name of the ReplicaSet the container is associated with.
