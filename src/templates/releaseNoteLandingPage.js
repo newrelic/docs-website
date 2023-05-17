@@ -103,7 +103,13 @@ const ReleaseNoteLandingPage = ({ data, pageContext, location }) => {
           />
         </Link>
       </PageTitle>
-      <Layout.Content>
+      <Layout.Content
+        css={css`
+          & img {
+            max-height: 460px;
+          }
+        `}
+      >
         <Timeline>
           {postsByDate.map(([date, posts], idx) => {
             const isLast = idx === postsByDate.length - 1;
