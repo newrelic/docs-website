@@ -1,0 +1,152 @@
+---
+title: 'Set up OpenTelemetry and New Relic: A best practice guide'
+tags:
+  - Integrations
+  - Open source telemetry integrations
+  - OpenTelemetry
+metaDescription: A best practice guide for setting up New Relic monitoring for your application using OpenTelemetry.
+---
+
+This guide will give you some tips and best practices for using OpenTelemetry to instrument your application or service, and then reporting that data to your New Relic account. 
+
+This can be a helpful guide for: 
+
+* Existing New Relic customers who currently use our APM solutions, or other third-party monitoring solutions, but want to switch to OpenTelemetry
+* Any organization that wants to switch over to using OpenTelemetry and New Relic 
+
+This guide will walk you through ten important steps required for getting your OpenTelemetry data working with New Relic.
+
+
+## 1. Instrument applications with OpenTelemetry [#instrument-apps]
+
+The first step is to instrument application code using OpenTelemetry. For some languages, such as Java, .NET, Python, and Node.js, OpenTelemetry provides an auto-instrumentation approach. This is a great starting point for many applications that can be built on later. Instructions for auto-instrumentation can be found here: 
+
+* [Java auto-instrumentation](https://opentelemetry.io/docs/instrumentation/java/automatic) 
+* [.NET auto-instrumentation](https://opentelemetry.io/docs/instrumentation/net/automatic) 
+* [Node.js auto-instrumentation](https://opentelemetry.io/docs/instrumentation/js/getting-started/nodejs)
+* [Python auto-instrumentation](https://opentelemetry.io/docs/instrumentation/python/automatic)
+
+Manual instrumentation can be used for languages that don't support auto-instrumentation, such as [Go](https://opentelemetry.io/docs/instrumentation/go/manual). It can also be used to augment telemetry collected via auto-instrumentation. 
+
+Auto-instrumentation collects traces, and in some cases, metrics. Both of these signals are important for observing your applications. 
+
+OpenTelemetry can also be used to capture logs. To allow us to correlate OpenTelemetry traces with our [logs-in-context feature](/docs/logs/logs-context/logs-in-context), ensure the `service.name` attribute is included with log entries. For more about reporting OpenTelemetry logs, see our [OpenTelemetry logs docs](/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/best-practices/opentelemetry-best-practices-logs). 
+
+## 2. Deploy the OpenTelemetry Collector [#deploy-collector]
+
+Next, we'll want to deploy the OpenTelemetry Collector, which is recommended for using OpenTelemetry in production as it offloads tasks such as batching, retries, and encryption. 
+
+The OpenTelemetry Collector should be configured to export OTLP data to our endpoint. This is explained in [our docs on sending data from an OpenTelemetry Collector](/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/get-started/opentelemetry-set-up-your-app/#review-settings).
+
+As part of the collector configuration, it's important to use the [cumulative-to-delta processor](/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/best-practices/opentelemetry-best-practices-metrics), which converts metrics with cumulative temporality to a delta format. 
+
+To avoid data being dropped, we also recommend [truncating](/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/best-practices/opentelemetry-best-practices-attributes) any attributes greater than 4095 characters in length. For an example of applying these practices, see [this collector config](https://github.com/newrelic/newrelic-opentelemetry-examples/tree/main/collector). 
+
+To collect infrastructure metrics, include the [host metrics receiver](/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/collector/opentelemetry-collector-infra-hosts) in the collector config. When using the host receiver as part of the collector configuration, New Relic automatically detects host metrics as part of a host entity and will synthesize its golden metrics (providing the same experience as that resulting from using our infrastructure agent). 
+
+Many customers choose to run collectors using both agent and gateway deployment methods: 
+
+* **Agent**: with this method, the collector runs on the same host as the application (for example, binary, sidecar, or daemonset).
+* **Gateway**: with this method, one or more collector instances run as a standalone service per cluster, data center or region.
+
+The agent collector on each host performs basic processing tasks before exporting data to a cluster of gateway collectors. The gateway collectors in turn are configured to export data to New Relic. 
+
+Large OpenTelemetry deployments will also need to choose a strategy for scaling the collector, both for performance and resiliency benefits. For details on scaling the collector, see [the OpenTelemetry docs](https://opentelemetry.io/docs/collector/scaling). 
+
+If your OpenTelemetry-instrumented services are running in a Kubernetes environment, follow the steps in [Link OpenTelemetry-instrumented applications to Kubernetes](/docs/kubernetes-pixie/kubernetes-integration/advanced-configuration/link-otel-applications-kubernetes). This ensures that Kubernetes data in New Relic is correlated with OpenTelemetry data. 
+
+## 3. Implement trace sampling strategy [#trace-sampling]
+
+By default, OpenTelemetry will capture 100% of traces from the application and send them to New Relic. So before deploying OpenTelemetry in production, a sampling strategy for traces should be implemented. This helps to reduce application overhead related to the telemetry, as well as reduce the amount of data egress from your network and data ingest volume into New Relic. 
+
+For best practices related to OpenTelemetry sampling, see [our sampling docs](/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/best-practices/opentelemetry-best-practices-traces/#sampling). Sampling configuration should be tweaked as part of the load testing process (described below), with the goal of ensuring sufficient trace data to troubleshoot issues while avoiding excess data egress and ingestion. 
+
+When using tail-based sampling, take care to avoid orphaned, fragmented spans. For how to scale the collector when using the tail-sampling processor to avoid orphaned spans, see [the OpenTelemetry docs on scaling Collectors](https://opentelemetry.io/docs/collector/scaling/#scaling-stateful-collectors).
+
+## 4. Perform load testing and tune configuration [#load-testing-tun-config]
+
+Before putting OpenTelemetry into production with an application, it's best to perform a load test in a lower environment. This provides you an opportunity to: 
+
+* Measure the overhead of OpenTelemetry instrumentation on the application, by analyzing incremental CPU and memory utilization, as well as service latency.  
+* Measure the data egress volume from the collector and ingest volume into New Relic, as both will increase ingest and have potential billing impacts. 
+* This also provides an opportunity to load test the OpenTelemetry collector, and ensure it can sufficiently handle production-like load. For tips on scaling the Collector, see [the OpenTelemetry docs](https://opentelemetry.io/docs/collector/scaling).
+
+## 5. Define service level objectives [#slos]
+
+Once OpenTelemetry data is flowing into New Relic, it's important for you to define service level objectives, so you can determine when SLOs are not being met and take action accordingly. 
+
+[Service levels](/docs/service-level-management/intro-slm) are used to measure the performance of a service from the end user (or client application) point of view. With New Relic, you can define and consume service level indicators (SLIs) and service level objectives (SLOs) for your applications. We recommend configuring service levels for OpenTelemetry-instrumented services. 
+
+After you create your set of SLOs, we'll start generating SLI data. The operational view shows how your service levels are improving or degrading in different time windows. You can use this view to track the SLI attainment over time (%), and see the compliance for each service level. 
+
+You can also monitor the error budget for each SLO, which indicates what percentage of requests could still have a bad response over the SLO period, without compromising the objective.
+
+## 6. Configure alerting and incident management [#alerting]
+
+It's also important to configure alert policies, so we can detect and remediate problems before they impact end users of the application. 
+
+At a high-level, alerts are configured via alert policies, which include one or more alert conditions. Violations of alert conditions result in incidents, and similar incidents are grouped together as issues. Finally, issues can trigger workflows that include logic to turn issues into notifications. For a diagram to help you understand these concepts, see [Alerting concepts](/docs/alerts-applied-intelligence/applied-intelligence/incident-intelligence/basic-alerting-concepts).
+
+For example, you might define an alert condition to open an incident if the response time of an OpenTelemetry-instrumented service exceeds 500 ms. We could then define a workflow that sends an email notification to a distribution list when the alert condition violation occurs, or notify an on-call team using Slack. 
+
+You can also [configure alerting on service levels](/docs/service-level-management/alerts-slm), to notify you when significant business impact incidents occur. 
+
+To learn how to create an alert policy with conditions, see [Create your first alert](/docs/alerts-applied-intelligence/new-relic-alerts/get-started/your-first-nrql-condition). To learn how to turn issues into notifications, see [Workflows](/docs/alerts-applied-intelligence/applied-intelligence/incident-workflows/incident-workflows). When creating a workflow, you can specify one or more [destinations](/docs/alerts-applied-intelligence/notifications/destinations) to send notifications to third-party systems, such as Slack, ServiceNow, and Jira. 
+
+Integrating New Relic alerts with incident management systems and processes is key to getting value from OpenTelemetry data because it brings more visibility to application issues, and provides insight that facilitates quick remediation of problems. 
+
+For more tips on alerting: 
+
+* Our general [Alerting best practices](/docs/new-relic-solutions/best-practices-guides/alerts-applied-intelligence/alerts-best-practices) 
+* [Best practices for OpenTelemetry alerting](/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/best-practices/opentelemetry-best-practices-alerts)
+
+## 7. Create workloads to group related entities [#workloads]
+
+New Relic [workloads](/docs/new-relic-solutions/new-relic-one/workloads/workloads-isolate-resolve-incidents-faster) let you group related entities, providing aggregated health and activity data from frontend to backend services across your entire stack. Workloads help you [understand the status of complex systems](/docs/new-relic-solutions/new-relic-one/workloads/use-workloads), [detect issues](/docs/new-relic-solutions/new-relic-one/workloads/workload-status-views-notifications), understand the cause and impact of an incident, and resolve those issues quickly.  
+
+We recommend creating workloads to group OpenTelemetry services together with related entities. This could include entities monitored by our infrastructure monitoring, APM, Kubernetes monitoring, browser monitoring, and other entities. Workloads help you group entities into more manageable chunks, typically aligned with the teams responsible for those entities. This is especially valuable for large environments, which might have thousands of monitored entities. 
+
+Creating workloads unlocks other valuable features in New Relic, such as [errors inbox](/docs/errors-inbox/errors-inbox). With errors inbox, your teams can proactively detect, triage, and take action on all errors before they impact your customers. Errors are intelligently grouped to cut down on noise and ensure that critical errors are detected quickly and efficiently. This allows your team to resolve errors from across your stack, including errors from APM, browser (RUM), mobile, serverless (AWS Lambda) data, and OpenTelemetry, displayed on one screen. 
+
+As OpenTelemetry is implemented for your application services, we recommend using errors inbox to proactively review and remediate the most common errors before they impact end users. 
+
+## 8. Build dashboards for custom visualizations [#dashboards]
+
+New Relic provides a number of [out-of-the-box views of your OpenTelemetry data](/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/view-your-data/opentelemetry-view-your-data) to help get you started. As your teams start using the data for troubleshooting and identifying issues proactively, you may discover a need for custom visualizations. You can create custom dashboards for this purpose. 
+
+To learn the benefits of creating custom dashboards, and how to get started with them, see [Dashboards](/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards).
+
+## 9. Add context with custom instrumentation [#custom-instrumentation]
+
+Whether starting with automatic or manual instrumentation, it will often make sense to add additional instrumentation over time as needs for additional data arise while triaging issues. For example: 
+
+* Attributes can be added to spans to provide additional context about the request, which can be helpful during troubleshooting to understand the business impact of the issue (for example, adding the tenant ID to a span, to assist with troubleshooting a multi-tenant application). 
+* Additional nested spans can be captured, providing more detail for troubleshooting a particular aspect of the application more deeply. 
+* Custom metrics can be captured, from either a technical perspective (for example, tracking the number of cache hits and misses) or a business perspective (for example, tracking the average number of items in the cart during checkout). 
+
+The OpenTelemetry docs provide guidance and examples of these and more on a per-language basis. For example, when using Java you can use the following docs:
+
+* [Creating nested spans](https://opentelemetry.io/docs/instrumentation/java/manual/#create-nested-spans) 
+* [Span attributes](https://opentelemetry.io/docs/instrumentation/java/manual/#span-attributes)
+* [Metrics](https://opentelemetry.io/docs/instrumentation/java/manual/#metrics)
+
+We also have some examples that illustrate OpenTelemetry manual instrumentation using various languages.
+
+10. Use, measure, and refine [#use-refine]
+
+To improve your observability maturity, it's important to adopt a continuous improvement mindset. As OpenTelemetry and other data captured in New Relic is used to troubleshoot issues, we should make note of the following and take action as appropriate: 
+
+* Did existing alert conditions proactively detect the issue before end users were impacted? If not, we should tweak alert conditions or add new ones. 
+* Are critical alerts continually popping up that don't require any action? If so, alert conditions should be tweaked so that only those conditions requiring action are raised.  
+* Was sufficient detail provided in traces to troubleshoot the issue? If not, we should review instrumentation and consider capturing more span attributes and nested spans. 
+* Were custom NRQL queries required to troubleshoot? If so, we should consider incorporating some of the resulting charts into dashboards. 
+
+As instrumentation is refined over time, the ability to proactively detect issues will be improved, and the time to resolve them will be decreased. This leads to a reduction in both MTTD (mean time to detect) and MTTR (mean time to resolution). 
+
+We have an [Alert quality management guide](/docs/new-relic-solutions/observability-maturity/uptime-performance-reliability/alert-quality-management-guide) that walks you through the process of improving and optimizing the quality of your alerting, ultimately leading to increased uptime and availability, reduced MTTR, and decreased alerting volume. 
+
+We also have a [Service level management guide](/docs/new-relic-solutions/observability-maturity/uptime-performance-reliability/optimize-slm-guide) that walks you through how to improve and optimize the quality of your service level management. Successful implementation of these recommendations can provide the following benefits: 
+
+* Reduction in the number of business-disrupting incidents
+* Reduced MTTR 
+* Reduced effort per incident 
