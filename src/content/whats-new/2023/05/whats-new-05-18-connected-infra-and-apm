@@ -1,5 +1,5 @@
 ---
-title: 'Connected infrastructure monitoring & APM is now in public preview’'
+title: 'Connected infrastructure monitoring and APM is now in public preview'
 summary: 'Eliminate screen swivels and surprise bills with other tools'
 releaseDate: '2023-05-18'
 learnMoreLink: 'https://newrelic.com/blog/nerdlog/connected-infrastructure-and-apm' 
