@@ -46,7 +46,35 @@ const onRenderBody = async ({ setPostBodyComponents }) => {
     />
   );
 
-  setPostBodyComponents([linkedInId, linkedInFunc, linkedInImg]);
+  const marketo = (
+    <script
+      dangerouslySetInnerHTML={{
+        __html: `(function() {
+          var didInit = false;
+          function initMunchkin() {
+            if(didInit === false) {
+              didInit = true;
+              Munchkin.init('341-XKP-310');
+            }
+          }
+          var s = document.createElement('script');
+          s.type = 'text/javascript';
+          s.async = true;
+          s.src = '//munchkin.marketo.net/munchkin.js';
+          s.onreadystatechange = function() {
+            if (this.readyState == 'complete' || this.readyState == 'loaded') {
+              initMunchkin();
+            }
+          };
+          s.onload = initMunchkin;
+          document.getElementsByTagName('head')[0].appendChild(s);
+        })();`,
+      }}
+      type="text/javascript"
+    ></script>
+  );
+
+  setPostBodyComponents([linkedInId, linkedInFunc, linkedInImg, marketo]);
 };
 
 export default onRenderBody;
