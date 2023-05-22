@@ -19,4 +19,4 @@ The Azure Monitor integration is available! This integration gives you real-time
 
 To get started, learn more about the [Azure Monitoring integration](/docs/infrastructure/microsoft-azure-integrations/azure-integrations-list/azure-monitor), or see how to [migrate to the Azure Monitor integration](/docs/infrastructure/microsoft-azure-integrations/azure-integrations-list/azure-monitor/#migrate).
 
-If you have feedback about the integration, please go to **[one.newrelic.com](https://one.newrelic.com/)** > **Help** > **Give Us Feedback**, and send us your thoughts.
+If you have feedback about the integration, go to **[one.newrelic.com](https://one.newrelic.com/)** > **Help** > **Give Us Feedback**, and send us your thoughts.
