@@ -10,7 +10,7 @@ Recently, we launched New Relic Errors Inbox, an error tracking solution that pr
 
 Read more about the latest updates in our [blog post](https://newrelic.com/blog/how-to-relic/error-tracking-with-errors-inbox) and watch a demo in the latest Nerdlog episode [here](https://youtu.be/3LoIG5I75-Y).
 
-![An image showing the error screen](./images/error.png "Errors inbox")
+![An image showing the error screen](./images/error.webp "Errors inbox")
 
 **What’s Included with New Relic Errors Inbox:**
 

@@ -11,7 +11,7 @@ These enhancements include:
 * [Bulk actions to save time and declutter the inbox:](https://docs.newrelic.com/docs/errors-inbox/errors-inbox/#bulk-actions) You can now update the status of multiple error groups (up to 2,000) all at once. 
 * [Email Notifications to foster contextual collaboration:](https://docs.newrelic.com/docs/errors-inbox/errors-email-notifications) Email notifications and any status updates are now sent via New Relic to assigned users, with detailed error information in-line. 
 
-!["Errors Inbox"](./images/ErrorsInbox_preview.png "Errors Inbox")
+!["Errors Inbox"](./images/ErrorsInbox_preview.webp "Errors Inbox")
 
 **How to get started**
 * Check out our errors inbox [documentation](https://docs.newrelic.com/docs/errors-inbox/errors-inbox/).

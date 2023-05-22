@@ -23,4 +23,4 @@ If you are using AWS Elastic Kubernetes Service (EKS) to build a [Shared Service
 ## How to get started
 To learn more, check out the [step-by-step instructions](https://aws.amazon.com/blogs/apn/simplifying-kubernetes-observability-with-amazon-eks-blueprints/) or watch a [3-minute demo video](https://youtu.be/WHO5T_7-5es).
 
-![New Relic add-on for EKS Blueprints code.](./images/EKS-blueprints-add-on.png "New Relic add-on for EKS Blueprints code.")
+![New Relic add-on for EKS Blueprints code.](./images/EKS-blueprints-add-on.webp "New Relic add-on for EKS Blueprints code.")

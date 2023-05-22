@@ -60,6 +60,9 @@ const DocsSiteSeo = ({
   disableSwiftype,
 }) => (
   <SEO location={location} title={title}>
+    {process.env.GATSBY_ENVIRONMENT === 'staging' && (
+      <meta name="robots" content="noindex" />
+    )}
     {disableSwiftype && <meta name="st:robots" content="nofollow, noindex" />}
     {METADATA.map((data) => (
       <meta key={data.name} {...data} />

@@ -9,7 +9,9 @@ const visit = require('unist-util-visit');
 
 const isHash = (to) => to.startsWith('#');
 const isEmail = (to) => to.startsWith('https://') || to.startsWith('mailto:');
-const isNRDownload = (to) => to.startsWith('http://download.newrelic.com/');
+const isNRDownload = (to) =>
+  to.startsWith('http://download.newrelic.com/') ||
+  to.startsWith('https://download.newrelic.com');
 
 const skippedLinkTypes = (to) => isHash(to) || isEmail(to) || isNRDownload(to);
 

@@ -1,5 +1,5 @@
 ---
-title: 'Windows Services integation is now GA' 
+title: 'Windows Services integration is now GA' 
 summary: 'This on-host integration allows you to track key metrics and gain critical insights into how your services in Windows are performing.' 
 releaseDate: '2023-03-28' 
 learnMoreLink: 'https://docs.newrelic.com/docs/infrastructure/host-integrations/host-integrations-list/windows-services-integration/' 
@@ -13,7 +13,7 @@ Windows Services are core components of the Microsoft Windows operating system a
 
 This integration allows you to track key metrics and gain critical insights into how your services in Windows are performing.
 
-![Windows Services dashboard showing service count and status state](./images/Windows-Services-Dashboard-New-Relic-One.png "Windows Services dashboard showing service count and status state")
+![Windows Services dashboard showing service count and status state](./images/Windows-Services-Dashboard-New-Relic-One.webp "Windows Services dashboard showing service count and status state")
 Windows Services dashboard showing service count and status state
 
 ## Key benefits
