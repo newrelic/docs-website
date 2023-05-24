@@ -3,7 +3,7 @@ import { useCallback, useState } from 'react';
 /**
  * Returns a `measureCallback` to be used in a ref slot,
  * and its `top` and `left` values once they're calculated.
- * 
+ *
  * @example
  * ```jsx
  * const Component = () => {

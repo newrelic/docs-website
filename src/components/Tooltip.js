@@ -15,7 +15,7 @@ const Tooltip = ({ className, children }) => {
       initializer={(div) => {
         if (div == null) return;
         div.style.position = 'absolute';
-        div.style.top = '0'
+        div.style.top = '0';
       }}
     >
       <div
@@ -30,7 +30,7 @@ const Tooltip = ({ className, children }) => {
           font-size: 14px;
           color: var(--system-text-primary-dark);
           background: var(--erno-black);
-          box-shadow: 0px -5px 6px 0 rgba(0,0,0,0.25);
+          box-shadow: 0px -5px 6px 0 rgba(0, 0, 0, 0.25);
           &::before {
             --size: 1rem;
             background: var(--erno-black);
@@ -48,12 +48,10 @@ const Tooltip = ({ className, children }) => {
           p {
             margin: 0;
           }
-          ${
-            shouldHide &&
-            css`
-              display: none;
-            `
-          }
+          ${shouldHide &&
+          css`
+            display: none;
+          `}
         `}
         className={className}
       >
