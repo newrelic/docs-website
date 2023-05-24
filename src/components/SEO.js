@@ -15,11 +15,16 @@ const METADATA = [
 
 const visualWebsiteOptimizer = (location) => {
   const { pathname } = location;
-  const homepage = '/';
-  const signup =
-    '/docs/accounts/accounts-billing/account-setup/create-your-new-relic-account/';
+  const vwoPaths = [
+    /docs\/accounts\/accounts-billing\/account-setup\/create-your-new-relic-account/,
+    /docs\/accounts\/accounts-billing\/new-relic-one-pricing-billing\/new-relic-one-pricing-billing/,
+    /docs\/licenses\/license-information\/usage-plans\/new-relic-usage-plan/,
+    /docs\/accounts\/accounts-billing\/new-relic-one-pricing-billing\/data-ingest-billing/,
+    /docs\/accounts\/accounts-billing\/new-relic-one-user-management\/user-type/,
+  ];
+  const withVWO = vwoPaths.some((path) => path.test(pathname));
 
-  if (pathname === homepage || pathname === signup) {
+  if (withVWO || pathname === '/') {
     return (
       <script type="text/javascript" id="vwoCode">
         {`window._vwo_code=window._vwo_code || (function() {
