@@ -13,5 +13,5 @@ APM summary tiles provide insights across the stack, ranging from key transactio
  
 
 
-![APM Summary Tiles](./images/summary_tiles.png "A screenshot that shows the health indicators")
+![APM Summary Tiles](./images/summary_tiles_new.png "A screenshot that shows the health indicators")
 
