@@ -15,13 +15,7 @@ const METADATA = [
 
 const visualWebsiteOptimizer = (location) => {
   const { pathname } = location;
-  const vwoPaths = [
-    /docs\/accounts\/accounts-billing\/account-setup\/create-your-new-relic-account/,
-    /docs\/accounts\/accounts-billing\/new-relic-one-pricing-billing\/new-relic-one-pricing-billing/,
-    /docs\/licenses\/license-information\/usage-plans\/new-relic-usage-plan/,
-    /docs\/accounts\/accounts-billing\/new-relic-one-pricing-billing\/data-ingest-billing/,
-    /docs\/accounts\/accounts-billing\/new-relic-one-user-management\/user-type/,
-  ];
+  const vwoPaths = [];
   const withVWO = vwoPaths.some((path) => path.test(pathname));
 
   if (withVWO || pathname === '/') {
