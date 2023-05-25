@@ -12,6 +12,6 @@ APM summary tiles provide insights across the stack, ranging from key transactio
 * **Improve reliability:** Close monitoring gaps and get a more complete picture of the health of your applications with guided onboarding workflows that makes it easy to set up the key health indicators for your services.
  
 
-
 ![APM Summary Tiles](./images/summary_tiles_new.png "A screenshot that shows the health indicators")
+
 
