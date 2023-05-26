@@ -20,7 +20,7 @@ const usePosition = () => {
     if (!measureEl || dimensions != null) return;
 
     setDimensions(measureEl.getBoundingClientRect());
-  });
+  }, []);
 
   return [
     measureCallback,
