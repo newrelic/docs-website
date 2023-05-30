@@ -8,7 +8,7 @@ getStartedLink: 'https://newrelic.com/instant-observability/jenkins'
 
 You can now monitor your Jenkins data with New Relic using the Jenkins OpenTelemetry plugin. Jenkins is a popular open-source automation tool for implementing continuous integration (CI) and continuous development (CD) workflows called pipelines. The Jenkins OpenTelemetry plugin makes it easier to get observability into your CI/CD pipeline health and performance. 
 
-![Screenshot showing sample Jenkins dashboard in New Relic](./images/whatsnew_jenkins_io_dashboard.png "Screenshot showing sample Jenkins dashboard in New Relic")
+![Screenshot showing sample Jenkins dashboard in New Relic](./images/whatsnew_jenkins_io_dashboard.webp "Screenshot showing sample Jenkins dashboard in New Relic")
 <figcaption>Install the Jenkins quickstart dashboard for a pre-built view of your key pipeline metrics. For example, you can see a summary of the number of Jenkins instances available, the number of successful jobs, the top errors, and the job queue status.</figcaption>
 
 ## Improve your jobs and builds with pipeline observability

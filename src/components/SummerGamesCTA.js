@@ -1,6 +1,6 @@
 import React from 'react';
 import { css } from '@emotion/react';
-import fsBanner from '../images/summer_games_banner.png';
+import fsBanner from '../images/summer_games_banner.webp';
 
 const SummerGamesCTA = () => {
   return (

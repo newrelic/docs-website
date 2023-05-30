@@ -25,6 +25,6 @@ Our Prometheus solution can be broken down into two components–the **data laye
 1. Deploy New Relic’s [**new Prometheus agent**](https://docs.newrelic.com/docs/infrastructure/prometheus-integrations/install-configure-prometheus-agent/install-prometheus-agent/).
 2. Analyze cluster performance using our [**new dashboard**](https://newrelic.com/instant-observability/kubernetes-prometheus).
 3. Deploy [**Quickstarts**](https://newrelic.com/instant-observability/?search=prometheus) with preconfigured dashboards and alerting policies for cluster services, such as NGINX, Redis, etcd, and more.
-![A screenshot showing cluster metrics.](./images/Prometheus.png "A screenshot showing cluster metrics.")
+![A screenshot showing cluster metrics.](./images/Prometheus.webp "A screenshot showing cluster metrics.")
 
 <figcaption>A screenshot showing cluster metrics.</figcaption>

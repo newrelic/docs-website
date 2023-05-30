@@ -13,7 +13,7 @@ Leveraging New Relic as your observability platform can simplify monitoring of y
 
 New Relic and Pixie support a guided install, HELM or manifest method, so that data is quickly populated throughout the platform. The [New Relic Kubernetes cluster explorer](https://docs.newrelic.com/docs/kubernetes-pixie/kubernetes-integration/understand-use-data/kubernetes-cluster-explorer/) will immediately show you the health and status of your nodes and pods. Any state changes would be identified and can be acted upon. Further analysis is available through Pixie or with tight integrations across the platform.
 
-![Kubernetes detailed view](./images/K8sDetailedView.png "Kubernetes detailed view")
+![Kubernetes detailed view](./images/K8sDetailedView.webp "Kubernetes detailed view")
 <figcaption>Kubernetes detailed view</figcaption>
 
 ## Get started now

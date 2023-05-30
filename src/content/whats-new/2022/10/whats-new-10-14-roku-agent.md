@@ -12,7 +12,7 @@ Our Roku agent provides the first comprehensive observability solution on the ma
 * Process large quantities of data with performance metrics.
 * Get access to curated UIs with preconfigured, interactive data visualizations without having to manually run queries or create dashboards.
 
-!["Screenshot showing a UI with interactive data visualizations (Nerdlets)"](./images/Roku-nerdlet.png "Screenshot showing a UI with interactive data visualizations (Nerdlets)")
+!["Screenshot showing a UI with interactive data visualizations (Nerdlets)"](./images/Roku-nerdlet.webp "Screenshot showing a UI with interactive data visualizations (Nerdlets)")
 
 Key functionalities of our updated agent include:
 

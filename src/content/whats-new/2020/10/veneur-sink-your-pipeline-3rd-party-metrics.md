@@ -16,4 +16,4 @@ With Veneur you get:
 * Improved efficiency over other metric aggregator implementations because vendors charge based on the number of metrics they consume
 * Improved reliability by building a more resilient forwarding system over single points of failure
 
-![Veneur metrics](./images/veneur_metrics-768x733.jpeg "Veneur metrics")
+![Veneur metrics](./images/veneur_metrics-768x733.webp "Veneur metrics")
