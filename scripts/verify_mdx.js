@@ -1,16 +1,27 @@
+const frontmatter = require('@github-docs/frontmatter');
 const mdx = require('@mdx-js/mdx');
 const fs = require('fs');
 const glob = require('glob');
 
 const readFile = async (filePath) => {
+  let failed = false;
+  console.log(`reading ${filePath}`);
+
+  const mdxText = fs.readFileSync(filePath, 'utf8');
   try {
-    console.log(`reading ${filePath}`);
-    const mdxText = fs.readFileSync(filePath, 'utf8');
     const jsx = mdx.sync(mdxText);
   } catch (exception) {
     console.log(JSON.stringify(exception, null, 4));
-    return filePath;
+    failed = true;
   }
+
+  const { errors } = frontmatter(mdxText);
+  if (errors.length > 0) {
+    console.log(JSON.stringify(errors, null, 4));
+    failed = true;
+  }
+
+  return failed ? filePath : null;
 };
 
 const main = async () => {
