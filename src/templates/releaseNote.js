@@ -102,6 +102,10 @@ const ReleaseNoteTemplate = ({ data, location, pageContext }) => {
       <Layout.Content
         css={css`
           max-width: 850px;
+
+          & img {
+            max-height: 460px;
+          }
         `}
       >
         <MDXContainer body={body} />
