@@ -22,6 +22,6 @@ Note that in order to see Kubernetes performance data in New Relic, you must mee
 2. You are using [APM](https://docs.newrelic.com/docs/apm/new-relic-apm/getting-started/introduction-apm/)
 3. Users must be [full platform users](https://docs.newrelic.com/docs/accounts/accounts-billing/new-relic-one-user-management/user-type)
 
-![A screenshot showing CPU usage by cluster over time.](./images/K8s_APM.png "A screenshot showing CPU usage by cluster over time.")
+![A screenshot showing CPU usage by cluster over time.](./images/K8s_APM.webp "A screenshot showing CPU usage by cluster over time.")
 
 <figcaption>A screenshot showing CPU usage by cluster over time.</figcaption>

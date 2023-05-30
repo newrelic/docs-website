@@ -46,36 +46,35 @@ const onRenderBody = async ({ setPostBodyComponents }) => {
     />
   );
 
-  const twitterSnippet = (
+  const marketo = (
     <script
       dangerouslySetInnerHTML={{
-        __html: `!function(e,t,n,s,u,a){e.twq || ((s = e.twq = function () {
-      s.exe ? s.exe.apply(s, arguments) : s.queue.push(arguments);
-    }),
-    (s.version = '1.1'),
-    (s.queue = []),
-    (u = t.createElement(n)),
-    (u.async = !0),
-    (u.src = '//static.ads-twitter.com/uwt.js'),
-    (a = t.getElementsByTagName(n)[0]),
-    a.parentNode.insertBefore(u, a))}(window,document,'script');
-  twq('init','o73vi'); 
-  twq('track','PageView');`,
+        __html: `(function() {
+          var didInit = false;
+          function initMunchkin() {
+            if(didInit === false) {
+              didInit = true;
+              Munchkin.init('341-XKP-310');
+            }
+          }
+          var s = document.createElement('script');
+          s.type = 'text/javascript';
+          s.async = true;
+          s.src = '//munchkin.marketo.net/munchkin.js';
+          s.onreadystatechange = function() {
+            if (this.readyState == 'complete' || this.readyState == 'loaded') {
+              initMunchkin();
+            }
+          };
+          s.onload = initMunchkin;
+          document.getElementsByTagName('head')[0].appendChild(s);
+        })();`,
       }}
-    />
+      type="text/javascript"
+    ></script>
   );
 
-  const optimizelySnippet = (
-    <script src="https://cdn.optimizely.com/public/7331003/s/web_blog_docs.js" />
-  );
-
-  setPostBodyComponents([
-    linkedInId,
-    linkedInFunc,
-    linkedInImg,
-    twitterSnippet,
-    optimizelySnippet,
-  ]);
+  setPostBodyComponents([linkedInId, linkedInFunc, linkedInImg, marketo]);
 };
 
 export default onRenderBody;

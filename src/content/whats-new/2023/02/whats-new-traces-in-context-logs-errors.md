@@ -15,15 +15,15 @@ To start using traces in context, deploy or update to the latest [APM](https://d
 Here are some examples of how you can view traces in context:
 
 **Errors inbox**
-![Click the Occurrences tab](./images/errors-inbox-traces-in-context.png "Error inbox - traces in context")
+![Click the Occurrences tab](./images/errors-inbox-traces-in-context.webp "Error inbox - traces in context")
 <figcaption>View distributed traces in the occurrences tab of errors inbox</figcaption>
 
 **APM errors page**
-![In the APM errors page, click error group](./images/apm-errors-traces-in-context.png "APM errors - traces in context")
+![In the APM errors page, click error group](./images/apm-errors-traces-in-context.webp "APM errors - traces in context")
 <figcaption>View distributed traces in the error group in the APM errors page</figcaption>
 
 **APM log details page**
-![Click into the log details to see traces in context](./images/logs-traces-in-context.png "Logs - traces in context")
+![Click into the log details to see traces in context](./images/logs-traces-in-context.webp "Logs - traces in context")
 <figcaption>View distributed traces in the log details panel</figcaption>
 
 ## Learn more
