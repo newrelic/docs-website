@@ -19,6 +19,7 @@ import { TYPES } from '../utils/constants';
 import DataDictionaryFilter from '../components/DataDictionaryFilter';
 import SEO from '../components/SEO';
 import PageTitle from '../components/PageTitle';
+import ErrorBoundary from '../components/ErrorBoundary';
 
 const AttributeDictionary = ({ data, pageContext, location }) => {
   const { allDataDictionaryEvent } = data;
@@ -73,7 +74,7 @@ const AttributeDictionary = ({ data, pageContext, location }) => {
   const { t } = useTranslation();
 
   return (
-    <>
+    <ErrorBoundary eventName="attributeDictionary">
       <SEO
         location={location}
         type={TYPES.BASIC_PAGE.default}
@@ -86,7 +87,7 @@ const AttributeDictionary = ({ data, pageContext, location }) => {
             'page-title page-title'
             'page-description page-tools'
             'content page-tools';
-          grid-template-columns: minmax(0, 1fr) 320px;
+          grid-template-columns: minmax(0, 1fr) 205px;
           grid-column-gap: 2rem;
           @media (max-width: 1240px) {
             grid-template-areas:
@@ -149,15 +150,15 @@ const AttributeDictionary = ({ data, pageContext, location }) => {
             }
           `}
         >
+          <DataDictionaryFilter events={events} location={location} />
+          <ComplexFeedback title="Attribute dictionary" />
           <ContributingGuidelines
             fileRelativePath={pageContext.fileRelativePath}
             issueLabels={['feedback', 'feedback-issue']}
           />
-          <DataDictionaryFilter events={events} location={location} />
-          <ComplexFeedback title="Attribute dictionary" />
         </Layout.PageTools>
       </div>
-    </>
+    </ErrorBoundary>
   );
 };
 
