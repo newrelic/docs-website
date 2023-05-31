@@ -449,6 +449,12 @@ module.exports = {
       },
     },
     {
+      resolve: 'gatsby-plugin-robots-txt',
+      options: {
+        policy: [{ userAgent: '*', disallow: ['/'] }],
+      },
+    },
+    {
       resolve: '@newrelic/gatsby-theme-newrelic',
       options: {
         sitemap: process.env.ENVIRONMENT === 'production',

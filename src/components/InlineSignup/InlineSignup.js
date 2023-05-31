@@ -3,13 +3,7 @@ import { css } from '@emotion/react';
 import styled from '@emotion/styled';
 import cx from 'classnames';
 
-import {
-  Button,
-  Trans,
-  useLoggedIn,
-  useTessen,
-  useTranslation,
-} from '@newrelic/gatsby-theme-newrelic';
+import { Button, Trans, useLoggedIn, useTessen, useTranslation } from '@newrelic/gatsby-theme-newrelic';
 import { createAccountRequest } from '@newrelic/gatsby-theme-newrelic/src/components/SignupModal/signup';
 import RecaptchaFooter from '@newrelic/gatsby-theme-newrelic/src/components/SignupModal/RecaptchaFooter';
 
@@ -19,7 +13,7 @@ const MOBILE_BREAKPOINT = '600px';
  * [VSU] This component allows users to sign up inline in a doc.
  * It only renders if the current user is not logged in.
  */
-const InlineSignup = ({ className, hideWhenLoggedOut = true }) => {
+const InlineSignup = () => {
   const [error, setError] = useState(null);
   const tessen = useTessen();
   const { t } = useTranslation();
@@ -46,29 +40,12 @@ const InlineSignup = ({ className, hideWhenLoggedOut = true }) => {
     }
   };
 
-const onFocus = (input) => {
-    tessen.track({
-      category: 'InlineSignup',
-      eventName: `${input}Focus`,
-    });
-  };
-  const onBlur = (input, e) => {
-    /* using onBlur instead of onChange so it
-     * only checks the contents of the input field once
-     * when the user clicks away, including the Submit button
-     */
-    if (e.target.value.length > 0) {
-      tessen.track({
-        category: 'InlineSignup',
-        eventName: `${input}Input`,
-      });
-    }
-  };
-
-  if ((loggedIn == null || loggedIn) && hideWhenLoggedOut) return null;
+  if (loggedIn == null || loggedIn) return null;
 
   return (
-    <Form onSubmit={onSubmit} className={className}>
+    <Form onSubmit={onSubmit}>
+      <CTAText>{t('inlineSignup.ctaText')}</CTAText>
+
       <InputContainer>
         <label className="screenreader-only" htmlFor="inline-signup-name">
           {t('inlineSignup.nameLabel')}
@@ -77,14 +54,6 @@ const onFocus = (input) => {
           className="first"
           id="inline-signup-name"
           name="name"
-          onFocus={(e) => {
-            e.preventDefault();
-            onFocus('name');
-          }}
-          onBlur={(e) => {
-            e.preventDefault();
-            onBlur('name', e);
-          }}
           // this basically says that a name has to have atleast one letter.
           // numbers are allowed, for a name like Charles the 3rd.
           // i used `\p{Letter}` here instead of `[a-zA-Z]`
@@ -112,14 +81,6 @@ const onFocus = (input) => {
           className="last"
           id="inline-signup-email"
           name="email"
-          onFocus={(e) => {
-            e.preventDefault();
-            onFocus('email');
-          }}
-          onBlur={(e) => {
-            e.preventDefault();
-            onBlur('email', e);
-          }}
           pattern=".+@.+\..+"
           placeholder={t('inlineSignup.emailLabel')}
           required
@@ -131,6 +92,7 @@ const onFocus = (input) => {
       <CTAButton type="submit" variant={Button.VARIANT.PRIMARY}>
         {t('inlineSignup.ctaButton')}
       </CTAButton>
+
       <Terms>
         <Trans i18nKey="inlineSignup.terms">
           100 GB + 1 user free. Forever. No credit card required.
@@ -166,6 +128,15 @@ const CTAButton = styled(Button)`
   }
 `;
 
+const CTAText = styled.p`
+  grid-column: 1 / 4;
+  font-size: 1.125rem;
+
+  @media (max-width: ${MOBILE_BREAKPOINT}) {
+    margin: 0;
+  }
+`;
+
 const Form = styled.form`
   display: grid;
   grid-template-columns: 37.5% 37.5% 25%;
@@ -174,7 +145,6 @@ const Form = styled.form`
   @media (max-width: ${MOBILE_BREAKPOINT}) {
     gap: 1rem;
     margin-left: 0;
-    grid-template-columns: 37.5% 37.5%;
   }
 `;
 
@@ -264,6 +234,5 @@ const Terms = styled.p`
     color: currentColor;
   }
 `;
-
 
 export default InlineSignup;
