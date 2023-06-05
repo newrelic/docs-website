@@ -13,5 +13,5 @@ In response to customer feedback, we've streamlined the Logs UI to simplify the 
 - Overall performance optimizations to make the Logs UI faster and more responsive
 
 
-![Logs UI Design Updates](./images/whats-new-logs-ui.webp "A screenshot that shows changes to the Logs UI")
+![Logs UI Design Updates](./images/whats-new-logs-ui.png "A screenshot that shows changes to the Logs UI")
 
