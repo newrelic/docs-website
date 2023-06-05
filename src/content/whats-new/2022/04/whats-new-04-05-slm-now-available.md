@@ -8,7 +8,7 @@ learnMoreLink: "https://docs.newrelic.com/docs/service-level-management/intro-sl
 
 ## Service Level Management is now generally available in New Relic One
 
-!["A screenshot of the Service Level Management UI"](./images/slm_ui.png "Service Level Management UI")
+!["A screenshot of the Service Level Management UI"](./images/slm_ui.webp "Service Level Management UI")
 
 Today, we're excited to announce that New Relic service level management is now generally available!
 

@@ -13,4 +13,4 @@ New Relic One’s new, simple interface for service level management (beta) make
 
 You can learn more about this release and how you can implement service level management in [our docs](https://docs.newrelic.com/docs/service-level-management/intro-slm). Or go to the **Service Levels (Beta)** menu within any APM Service for an automatic SLI baseline and setup.  
 
-![Example of availability and latency SLIs on an APM service](./images/ServiceLevels-whats-new-screen120121.png "Example of availability and latency SLIs on an APM service")
+![Example of availability and latency SLIs on an APM service](./images/ServiceLevels-whats-new-screen120121.webp "Example of availability and latency SLIs on an APM service")

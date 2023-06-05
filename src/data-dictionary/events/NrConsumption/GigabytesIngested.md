@@ -1,7 +1,7 @@
 ---
 name: GigabytesIngested
 type: attribute
-units: gibibyte (Gib)
+units: gigabyte (GB)
 events:
   - NrConsumption
   - NrMTDConsumption

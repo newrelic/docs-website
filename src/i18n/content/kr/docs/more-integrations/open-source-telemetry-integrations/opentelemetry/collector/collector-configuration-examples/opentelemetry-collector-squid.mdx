@@ -1,0 +1,1934 @@
+---
+title: 오징어 수집가
+tags:
+  - Integrations
+  - Open source telemetry integrations
+  - OpenTelemetry
+  - Squid
+metaDescription: You can collect Squid metrics using the OpenTelemetry Collector.
+translationType: machine
+---
+
+OpenTelemetry Collector를 사용하여 Squid 캐시 관리자에 대한 지표를 수집할 수 있습니다. 수집기는 원격 측정 데이터를 수집, 처리 및 New Relic(또는 관측 가능성 백엔드)으로 내보내는 OpenTelemetry의 구성 요소입니다.
+
+<Callout variant="tip">
+  다른 수집기 사용 사례에 대한 도움말을 찾고 있다면 [newrelic-opentelemetry-examples](https://github.com/newrelic/newrelic-opentelemetry-examples) 리포지토리를 참조하세요.
+</Callout>
+
+Squid에서 측정항목을 수집하려면 아래 단계를 완료하세요.
+
+## 1단계: 아직 가입하지 않은 경우 무료 계정에 가입 [#signup]
+
+<InlineSignup/>
+
+## 2단계: 전제 조건 [#prerequisites]
+
+Squid Prometheus 내보내기가 실행될 호스트가 `squid.conf` 파일에서 허용을 설정하여 [Squid 캐시 관리자](https://wiki.squid-cache.org/Features/CacheManager/Index) 에 액세스하도록 허용합니다.
+
+`squid.conf`의 예:
+
+```
+# Given this access list
+acl localnet src 192.168.0.0/16
+
+# We would allow that ip range to access the manager by setting this directive
+http_access allow localnet manager
+```
+
+Squid 캐시 관리자용[Squid Prometheus 내보내기를 설치](https://github.com/boynux/squid-exporter) 하고 모니터링하려는 Squid 캐시 관리자를 가리키도록 설정합니다.
+
+익스포터 실행 예시:
+
+```
+squid-exporter -squid-hostname localhost -squid-port 3128 -listen ":9301" -squid-login admin -squid-password admin
+```
+
+<Callout variant="tip">
+  Squid Prometheus 내보내기 v1.10.4 이상이 필요하며 사용 가능한 최신 버전을 권장합니다.
+</Callout>
+
+## 3단계: Opentelemetry 수집기 설치 [#install-opentelemetry-collector]
+
+[Opentelemetry 문서](https://opentelemetry.io/docs/collector/getting-started/)에 따라 Opentelemetry 수집기를 다운로드하고 설치합니다.
+
+## 4단계: Opentelemetry 수집기 구성 [#configure-opentelemetry-collector]
+
+아래 예에서 `config.yaml` 이라는 새 파일을 만듭니다.
+
+파일에서 다음 키를 고유한 값으로 바꿉니다.
+
+* 오징어:
+
+  * `SQUID_EXPORTER_HOSTNAME`
+  * `SQUID_EXPORTER_PORT`
+  * `SQUID_EXPORTER_METRICS_PATH`
+  * `SQUID_CACHEMGR`
+
+* [New Relic 라이선스 키](/docs/apis/intro-apis/new-relic-api-keys/#license-key):
+
+  * `NEW_RELIC_LICENSE_KEY`
+
+`SQUID_CACHEMGR` 엔티티를 생성하고 연관된 대시보드를 실행하려면 레이블 `squid_cachemgr: SQUID_CACHEMGR` (여기서 SQUID_CACHEMGR은 고유 식별자여야 함)가 필요합니다.
+
+```yaml
+receivers:
+  prometheus:
+    config:
+      scrape_configs:
+        - job_name: "squid"
+          static_configs:
+            - targets: [ "SQUID_EXPORTER_HOSTNAME:SQUID_EXPORTER_PORT" ]
+              labels:
+                squid_cachemgr: SQUID_CACHEMGR
+          metrics_path: SQUID_EXPORTER_METRICS_PATH
+          metric_relabel_configs:
+            - source_labels: [__name__]
+              regex: "^process_.*"
+              action: drop
+
+exporters:
+  otlp:
+    endpoint: https://otlp.nr-data.net:4317
+    headers:
+      api-key: NEW_RELIC_LICENSE_KEY
+processors:
+  batch:
+  memory_limiter:
+    limit_mib: 400
+    spike_limit_mib: 100
+    check_interval: 5s
+service:
+  telemetry:
+    logs:
+  pipelines:
+    metrics:
+      receivers: [prometheus]
+      processors: [batch, memory_limiter]
+      exporters: [otlp]
+```
+
+추가 구성 세부 정보는 [Opentelemetry Collector 문서](https://opentelemetry.io/docs/collector/configuration/) 및 [Prometheus 구성 문서를](https://prometheus.io/docs/prometheus/latest/configuration/configuration/) 확인할 수 있습니다.
+
+## 4단계: 수집기 실행 [#run-collector]
+
+Opentelemetry 수집기를 실행합니다(실행 방법은 선택한 설치 방법에 따라 다를 수 있음). 예:
+
+```yaml
+/usr/bin/otelcol --config ./config.yaml
+```
+
+## 5단계: 데이터 찾기 및 사용
+
+### 데이터 탐색
+
+[측정항목 탐색기를](/docs/query-your-data/explore-query-data/browse-data/introduction-data-explorer) 사용하여 수집 중인 측정항목을 확인할 수 있습니다. Squid Prometheus 내보내기에서 보고하는 모든 측정항목은 `SQUID_CACHEMGR` 에 이름이 설정되고 `squid_` 접두사로 시작하는 `SQUID_CACHEMGR` 항목으로 그룹화됩니다.
+
+### 측정항목 데이터 [#squid-metrics]
+
+squid 캐시 관리자가 보고한 스크랩된 메트릭의 두 그룹은 다음과 같습니다.
+
+<CollapserGroup>
+  <Collapser
+    id="squid-counter-metrics"
+    title="오징어 카운터 메트릭"
+  >
+    <table>
+      <thead>
+        <tr>
+          <td>
+            이름
+          </td>
+
+          <td>
+            측정항목 유형
+          </td>
+
+          <td>
+            설명
+          </td>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `squid_client_http_errors_total`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            총 클라이언트 http 오류 수
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_client_http_hit_kbytes_out_bytes_total`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            총 클라이언트 KB 캐시 적중 수
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_client_http_hits_total`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            총 클라이언트 캐시 적중 수
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_client_http_kbytes_in_kbytes_total`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            수신된 총 클라이언트 킬로바이트 수
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_client_http_kbytes_out_kbytes_total`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            전송된 총 클라이언트 KB 수
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_client_http_requests_total`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            총 클라이언트 요청 수
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_exporter_build_info`
+          </td>
+
+          <td>
+            gauge
+          </td>
+
+          <td>
+            `squid_exporter` 가) 빌드된 버전, 버전, 분기 및 goversion으로 라벨이 지정된 상수 '1' 값이 있는 측정항목입니다.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_server_all_errors_total`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            총 서버 모든 오류 수
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_server_all_kbytes_in_kbytes_total`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            수신된 총 서버 킬로바이트 수
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_server_all_kbytes_out_kbytes_total`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            전송된 총 서버 KB 수
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_server_all_requests_total`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            총 서버 모든 요청 수
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_server_ftp_errors_total`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            총 서버 FTP 오류 수
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_server_ftp_kbytes_in_kbytes_total`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            수신된 총 서버 ftp KB 수
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_server_ftp_kbytes_out_kbytes_total`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            전송된 총 서버 ftp KB 수
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_server_ftp_requests_total`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            총 서버 FTP 요청 수
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_server_http_errors_total`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            총 서버 http 오류 수
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_server_http_kbytes_in_kbytes_total`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            수신된 총 서버 http 킬로바이트 수
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_server_http_kbytes_out_kbytes_total`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            전송된 총 서버 http 킬로바이트 수
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_server_http_requests_total`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            총 서버 http 요청 수
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_server_other_errors_total`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            총 서버 기타 오류 수
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_server_other_kbytes_in_kbytes_total`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            받은 총 서버 기타 킬로바이트 수
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_server_other_kbytes_out_kbytes_total`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            전송된 총 서버 기타 킬로바이트 수
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_server_other_requests_total`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            총 서버 기타 요청 수
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_swap_files_cleaned_total`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            주기적 정리 절차에 의해 제거된 고아 캐시 파일 수
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_swap_ins_total`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            디스크에서 읽은 개체 수
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_swap_outs_total`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            디스크에 저장된 개체 수
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_up`
+          </td>
+
+          <td>
+            gauge
+          </td>
+
+          <td>
+            squid의 마지막 쿼리는 성공했습니까?
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    id="squid-service-times-metrics"
+    title="오징어 서비스 시간 메트릭"
+  >
+    <table>
+      <thead>
+        <tr>
+          <td>
+            이름
+          </td>
+
+          <td>
+            측정항목 유형
+          </td>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `squid_Cache_Hits_5`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            서비스 시간 백분위수 5분
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Cache_Hits_10`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            서비스 시간 백분위수 5분
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Cache_Hits_15`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            서비스 시간 백분위수 5분
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Cache_Hits_20`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            서비스 시간 백분위수 5분
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Cache_Hits_25`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            서비스 시간 백분위수 5분
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Cache_Hits_30`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            서비스 시간 백분위수 5분
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Cache_Hits_35`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            서비스 시간 백분위수 5분
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Cache_Hits_40`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            서비스 시간 백분위수 5분
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Cache_Hits_45`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            서비스 시간 백분위수 5분
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Cache_Hits_50`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            서비스 시간 백분위수 5분
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Cache_Hits_55`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            서비스 시간 백분위수 5분
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Cache_Hits_60`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            서비스 시간 백분위수 5분
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Cache_Hits_65`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            서비스 시간 백분위수 5분
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Cache_Hits_70`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            서비스 시간 백분위수 5분
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Cache_Hits_75`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            서비스 시간 백분위수 5분
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Cache_Hits_80`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            서비스 시간 백분위수 5분
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Cache_Hits_85`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            서비스 시간 백분위수 5분
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Cache_Hits_90`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            서비스 시간 백분위수 5분
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Cache_Hits_95`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            서비스 시간 백분위수 5분
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Cache_Misses_5`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            서비스 시간 백분위수 5분
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Cache_Misses_10`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            서비스 시간 백분위수 5분
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Cache_Misses_15`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            서비스 시간 백분위수 5분
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Cache_Misses_20`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            서비스 시간 백분위수 5분
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Cache_Misses_25`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            서비스 시간 백분위수 5분
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Cache_Misses_30`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            서비스 시간 백분위수 5분
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Cache_Misses_35`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            서비스 시간 백분위수 5분
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Cache_Misses_40`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            서비스 시간 백분위수 5분
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Cache_Misses_45`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            서비스 시간 백분위수 5분
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Cache_Misses_50`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            서비스 시간 백분위수 5분
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Cache_Misses_55`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            서비스 시간 백분위수 5분
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Cache_Misses_60`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            서비스 시간 백분위수 5분
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Cache_Misses_65`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            서비스 시간 백분위수 5분
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Cache_Misses_70`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            서비스 시간 백분위수 5분
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Cache_Misses_75`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            서비스 시간 백분위수 5분
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Cache_Misses_80`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            서비스 시간 백분위수 5분
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Cache_Misses_85`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            서비스 시간 백분위수 5분
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Cache_Misses_90`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            서비스 시간 백분위수 5분
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Cache_Misses_95`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            서비스 시간 백분위수 5분
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_DNS_Lookups_5`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            서비스 시간 백분위수 5분
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_DNS_Lookups_10`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            서비스 시간 백분위수 5분
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_DNS_Lookups_15`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            서비스 시간 백분위수 5분
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_DNS_Lookups_20`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            서비스 시간 백분위수 5분
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_DNS_Lookups_25`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            서비스 시간 백분위수 5분
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_DNS_Lookups_30`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            서비스 시간 백분위수 5분
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_DNS_Lookups_35`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            서비스 시간 백분위수 5분
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_DNS_Lookups_40`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            서비스 시간 백분위수 5분
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_DNS_Lookups_45`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            서비스 시간 백분위수 5분
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_DNS_Lookups_50`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            서비스 시간 백분위수 5분
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_DNS_Lookups_55`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            서비스 시간 백분위수 5분
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_DNS_Lookups_60`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            서비스 시간 백분위수 5분
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_DNS_Lookups_65`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            서비스 시간 백분위수 5분
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_DNS_Lookups_70`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            서비스 시간 백분위수 5분
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_DNS_Lookups_75`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            서비스 시간 백분위수 5분
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_DNS_Lookups_80`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            서비스 시간 백분위수 5분
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_DNS_Lookups_85`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            서비스 시간 백분위수 5분
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_DNS_Lookups_90`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            서비스 시간 백분위수 5분
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_DNS_Lookups_95`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            서비스 시간 백분위수 5분
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_HTTP_Requests_All_5`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            서비스 시간 백분위수 5분
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_HTTP_Requests_All_10`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            서비스 시간 백분위수 5분
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_HTTP_Requests_All_15`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            서비스 시간 백분위수 5분
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_HTTP_Requests_All_20`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            서비스 시간 백분위수 5분
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_HTTP_Requests_All_25`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            서비스 시간 백분위수 5분
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_HTTP_Requests_All_30`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            서비스 시간 백분위수 5분
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_HTTP_Requests_All_35`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            서비스 시간 백분위수 5분
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_HTTP_Requests_All_40`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            서비스 시간 백분위수 5분
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_HTTP_Requests_All_45`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            서비스 시간 백분위수 5분
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_HTTP_Requests_All_5`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            서비스 시간 백분위수 5분
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_HTTP_Requests_All_50`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            서비스 시간 백분위수 5분
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_HTTP_Requests_All_55`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            서비스 시간 백분위수 5분
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_HTTP_Requests_All_60`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            서비스 시간 백분위수 5분
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_HTTP_Requests_All_65`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            서비스 시간 백분위수 5분
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_HTTP_Requests_All_70`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            서비스 시간 백분위수 5분
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_HTTP_Requests_All_75`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            서비스 시간 백분위수 5분
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_HTTP_Requests_All_80`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            서비스 시간 백분위수 5분
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_HTTP_Requests_All_85`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            서비스 시간 백분위수 5분
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_HTTP_Requests_All_90`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            서비스 시간 백분위수 5분
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_HTTP_Requests_All_95`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            서비스 시간 백분위수 5분
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Near_Hits_5`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            서비스 시간 백분위수 5분
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Near_Hits_10`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            서비스 시간 백분위수 5분
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Near_Hits_15`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            서비스 시간 백분위수 5분
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Near_Hits_20`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            서비스 시간 백분위수 5분
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Near_Hits_25`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            서비스 시간 백분위수 5분
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Near_Hits_30`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            서비스 시간 백분위수 5분
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Near_Hits_35`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            서비스 시간 백분위수 5분
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Near_Hits_40`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            서비스 시간 백분위수 5분
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Near_Hits_45`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            서비스 시간 백분위수 5분
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Near_Hits_50`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            서비스 시간 백분위수 5분
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Near_Hits_55`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            서비스 시간 백분위수 5분
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Near_Hits_60`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            서비스 시간 백분위수 5분
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Near_Hits_65`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            서비스 시간 백분위수 5분
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Near_Hits_70`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            서비스 시간 백분위수 5분
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Near_Hits_75`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            서비스 시간 백분위수 5분
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Near_Hits_80`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            서비스 시간 백분위수 5분
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Near_Hits_85`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            서비스 시간 백분위수 5분
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Near_Hits_90`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            서비스 시간 백분위수 5분
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Near_Hits_95`
+          </td>
+
+          <td>
+            카운터
+          </td>
+
+          <td>
+            서비스 시간 백분위수 5분
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+</CollapserGroup>
+
+## 문제점 해결 [#troubleshooting]
+
+<CollapserGroup>
+  <Collapser
+    id="cumulative-sum-metrics"
+    title="Squid 대시보드가 작동하지 않습니다."
+  >
+    Squid 대시보드는 누적 합계 메트릭을 사용하지만 [Opentelemetry 누적 합계 메트릭에 대한 전환 가이드](/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/get-started/cumulative-metrics-transition-guide/)에 명시된 대로 누적 합계를 사용하는 계정은 전환 EOL까지 _게이지_ 로 계속 보고합니다.
+
+    이 경우 [전환 가이드](/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/get-started/cumulative-metrics-transition-guide/#preview)에 제안된 대로 전환 EOL 전에 누적 카운터로 보고하기 위해 squid 측정항목에 속성을 일시적으로 포함해야 합니다.
+
+    이렇게 하려면 Opentelemetry 수집기 구성의 스퀴드 파이프라인에서 Opentelemetry 특성 프로세서를 사용할 수 있습니다. 예:
+
+    ```yaml
+      attributes:
+        actions:
+          - key: newrelic_metric_type
+            action: insert
+            value: cumulativeCount
+    ```
+  </Collapser>
+
+  <Collapser
+    id="prometheus-metrics-normalization"
+    title="측정항목 이름이 일치하지 않습니다."
+  >
+    Squids 대시보드 및 엔티티는 Prometheus 메트릭 명명 규칙을 사용하여 Squid의 Prometheus 내보내기에서 보고하는 메트릭과 일치시킵니다. 그러나 OpenTelemetry Prometheus 수신기는 [v076.3](https://github.com/open-telemetry/opentelemetry-collector-contrib/releases/tag/v0.76.3)이후 기본적으로 OpenTelemetry 명명 규칙을 사용합니다.
+
+    Prometheus 메트릭 명명 규칙을 사용하려면 OpenTelemetry 수집기를 실행할 때 `pkg.translator.prometheus.NormalizeName` `feature-gate` 를 비활성화합니다.
+
+    ```shell
+    otelcol-contrib --config ./config.yaml --feature-gates=-pkg.translator.prometheus.NormalizeName
+    ```
+  </Collapser>
+</CollapserGroup>

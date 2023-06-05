@@ -25,7 +25,7 @@ You will easily identify the actual status by reviewing the most important metri
 
 Check the health of your authoritative servers by looking at the information provided by the dashboard.
 
-![A screenshot of the PowerDNS dashboard.](./images/PowerDNS-NR.png "The PowerDNS New Relic Dashboard")
+![A screenshot of the PowerDNS dashboard.](./images/PowerDNS-NR.webp "The PowerDNS New Relic Dashboard")
 
 ## Get started with the PowerDNS integration.
 

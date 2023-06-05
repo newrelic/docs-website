@@ -14,4 +14,4 @@ New Relic is the **only** observability platform with both TISAX and ISO 27001 c
 * **Data types**: Metrics, events, logs, and traces
 * **Environments**: On-premises and cloud
 
-![Diagram showing TISAX workflow](./images/tisax-and-iso-27001.png "Diagram showing TISAX workflow")
+![Diagram showing TISAX workflow](./images/tisax-and-iso-27001.webp "Diagram showing TISAX workflow")

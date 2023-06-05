@@ -10,6 +10,7 @@ import {
   Icon,
   Button,
   SearchInput,
+  useTessen,
   useTranslation,
   useLoggedIn,
   LoggedInProvider,
@@ -28,19 +29,17 @@ import {
   TOGGLE_VIEWS,
   ToggleSelector,
 } from '../components/ToggleView';
-import useMediaQuery from '../hooks/useMediaQuery';
 
-const HomepageLayout = ({ children, pageContext, sidebarOpen = true }) => {
+const HomepageLayout = ({ children, pageContext }) => {
+  const tessen = useTessen();
   const { loggedIn } = useLoggedIn();
   const { sidebarWidth } = useLayout();
   const { locale, slug } = pageContext;
-  let { hideNavs } = pageContext;
   const location = useLocation();
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [sidebar, setSidebar] = useState(sidebarOpen);
+  const [sidebar, setSidebar] = useState(true);
   const { t } = useTranslation();
-  const isMobileWidth = useMediaQuery('(max-width: 760px)');
   const navHeaderHeight = '100px';
   const isStyleGuide =
     slug.match(/\/docs\/style-guide/) || slug.match(/\/docs\/agile-handbook/);
@@ -52,18 +51,8 @@ const HomepageLayout = ({ children, pageContext, sidebarOpen = true }) => {
     }
   };
 
-  /*
-   * [VSU] some docs pages are being designed as JS for faster experimenting
-   * and will never have the frontmatter property
-   * Using regex for check to account for paths with and without trailing slash
-   */
-  const docsAsJS = [/introduction-apm/];
-  const isJSDoc = docsAsJS.some((docUrl) => docUrl.test(location.pathname));
-  hideNavs ||= isJSDoc;
-
   useEffect(() => {
     setIsMobileNavOpen(false);
-    setSidebar(hideNavs ? false : sidebarOpen);
     // react scroll causes the page to crash if it doesn't find an element
     // so we're checking for the element before firing
     const pathName = addTrailingSlash(location.pathname);
@@ -77,10 +66,7 @@ const HomepageLayout = ({ children, pageContext, sidebarOpen = true }) => {
         offset: -5,
       });
     }
-    if (loggedIn && !hideNavs) {
-      setSidebar(true);
-    }
-  }, [location.pathname, loggedIn, sidebarOpen, hideNavs]);
+  }, [location.pathname]);
 
   const hasToggled = useRef(false);
   const [currentView, setCurrentView] = useState(TOGGLE_VIEWS.newUserView);
@@ -92,8 +78,6 @@ const HomepageLayout = ({ children, pageContext, sidebarOpen = true }) => {
   const showAnimatedSearchBar = currentView === TOGGLE_VIEWS.newUserView;
 
   const SAVED_TOGGLE_VIEW_KEY = 'docs-website/homepage-selected-view';
-  const isShowingPersona =
-    currentView === TOGGLE_VIEWS.newUserView && !isMobileWidth;
 
   /* `useLocalStorage` hook doesn't work here because SSR doesn't have access to
    * localStorage, so when it gets to the client, the current tab is already set
@@ -142,16 +126,11 @@ const HomepageLayout = ({ children, pageContext, sidebarOpen = true }) => {
         customStyles={{ navLeftMargin: '150px', searchRightMargin: '30px' }}
       />
       <MobileHeader
-        css={
-          isShowingPersona &&
-          css`
-            background-color: black;
-
-            button > div {
-              background-color: var(--system-text-primary-dark);
-            }
-          `
-        }
+        css={css`
+          && .text-color {
+            fill: var(--primary-text-color);
+          }
+        `}
       >
         <RootNavigation locale={locale} isStyleGuide={false} />
       </MobileHeader>
@@ -209,7 +188,14 @@ const HomepageLayout = ({ children, pageContext, sidebarOpen = true }) => {
                   onChange={(e) => {
                     setSearchTerm(e.target.value);
                   }}
-                  onSubmit={() => navigate(`?q=${searchTerm || ''}`)}
+                  onSubmit={() => {
+                    tessen.track({
+                      eventName: 'personaViewSearch',
+                      category: 'SearchInput',
+                      searchTerm,
+                    });
+                    navigate(`?q=${searchTerm || ''}`);
+                  }}
                   className={cx(showAnimatedSearchBar && 'visible')}
                 />
                 <ToggleSelector
@@ -294,18 +280,15 @@ const HomepageLayout = ({ children, pageContext, sidebarOpen = true }) => {
                         padding: 0;
                         border-radius: 50%;
                       `}
-                      onClick={() => setSidebar(!sidebar)}
+                      onClick={() => {
+                        tessen.track({
+                          eventName: sidebar ? 'closeNav' : 'openNav',
+                          category: 'NavCollapserClick',
+                        });
+                        setSidebar(!sidebar);
+                      }}
                     >
-                      <Icon
-                        name="nr-nav-collapse"
-                        size="1rem"
-                        css={
-                          !sidebar &&
-                          css`
-                            transform: rotateZ(180deg);
-                          `
-                        }
-                      />
+                      <Icon name="nr-nav-collapse" size="1rem" />
                     </Button>
                   </div>
                   {sidebar && (
@@ -316,7 +299,14 @@ const HomepageLayout = ({ children, pageContext, sidebarOpen = true }) => {
                       isIconClickable
                       alignIcon={SearchInput.ICON_ALIGNMENT.RIGHT}
                       onChange={(e) => setSearchTerm(e.target.value)}
-                      onSubmit={() => navigate(`?q=${searchTerm || ''}`)}
+                      onSubmit={() => {
+                        tessen.track({
+                          eventName: 'homepageSidebarSearch',
+                          category: 'SearchInput',
+                          searchTerm,
+                        });
+                        navigate(`?q=${searchTerm || ''}`);
+                      }}
                       css={css`
                         margin: 1.5rem 0 2rem;
                         svg {
@@ -367,10 +357,17 @@ const HomepageLayout = ({ children, pageContext, sidebarOpen = true }) => {
                 fileRelativePath={pageContext.fileRelativePath}
                 css={css`
                   height: 60px;
+                  a:first-of-type {
+                    margin-left: 0;
+                  }
                   ${!sidebar &&
                   css`
                     grid-column: 1/3;
                   `}
+                  @media (max-width: 760px) {
+                    height: 100%;
+                    align-items: center;
+                  }
                 `}
               />
             </Layout>

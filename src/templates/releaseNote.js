@@ -6,6 +6,7 @@ import { Icon, Layout, Link } from '@newrelic/gatsby-theme-newrelic';
 import PageTitle from '../components/PageTitle';
 import MDXContainer from '../components/MDXContainer';
 import SEO from '../components/SEO';
+import ErrorBoundary from '../components/ErrorBoundary';
 import { TYPES } from '../utils/constants';
 
 const getTitle = ({ title, version, subject }) => {
@@ -34,7 +35,7 @@ const ReleaseNoteTemplate = ({ data, location, pageContext }) => {
   }
 
   return (
-    <>
+    <ErrorBoundary eventName="releaseNote">
       <SEO
         location={location}
         title={title}
@@ -101,11 +102,15 @@ const ReleaseNoteTemplate = ({ data, location, pageContext }) => {
       <Layout.Content
         css={css`
           max-width: 850px;
+
+          & img {
+            max-height: 460px;
+          }
         `}
       >
         <MDXContainer body={body} />
       </Layout.Content>
-    </>
+    </ErrorBoundary>
   );
 };
 

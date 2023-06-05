@@ -15,11 +15,10 @@ const METADATA = [
 
 const visualWebsiteOptimizer = (location) => {
   const { pathname } = location;
-  const homepage = '/';
-  const signup =
-    '/docs/accounts/accounts-billing/account-setup/create-your-new-relic-account/';
+  const vwoPaths = [];
+  const withVWO = vwoPaths.some((path) => path.test(pathname));
 
-  if (pathname === homepage || pathname === signup) {
+  if (withVWO || pathname === '/') {
     return (
       <script type="text/javascript" id="vwoCode">
         {`window._vwo_code=window._vwo_code || (function() {
@@ -60,6 +59,9 @@ const DocsSiteSeo = ({
   disableSwiftype,
 }) => (
   <SEO location={location} title={title}>
+    {process.env.GATSBY_ENVIRONMENT === 'staging' && (
+      <meta name="robots" content="noindex" />
+    )}
     {disableSwiftype && <meta name="st:robots" content="nofollow, noindex" />}
     {METADATA.map((data) => (
       <meta key={data.name} {...data} />
