@@ -25,7 +25,7 @@ const UserJourneyControls = ({ previousStep, nextStep, className }) => {
   });
   return (
     <JourneyContainer>
-      <SurfaceLink
+      <JourneyLink
         base={Surface.BASE.SECONDARY}
         to={previousStep.path}
         interactive
@@ -35,34 +35,9 @@ const UserJourneyControls = ({ previousStep, nextStep, className }) => {
           path: previousStep.path,
         }}
         className={className}
-        css={css`
-          color: var(--primary-text-color);
-          flex: 1;
-          background: var(--secondary-background-color);
-          display: block;
-          min-height: 130px;
-          border-radius: 4px;
-          padding: 2rem;
-          &:hover {
-            color: var(--primary-text-color);
-          }
-
-          @media screen and (max-width: 650px) {
-            padding: 1.5rem;
-          }
-          .dark-mode & {
-            background: var(--secondary-background-color);
-          }
-        `}
         onMouseEnter={triggerLeft}
       >
-        <div
-          css={css`
-            display: flex;
-            height: 100%;
-            align-items: center;
-          `}
-        >
+        <InnerContainer>
           <animated.div style={leftButton}>
             <Icon
               name="fe-arrow-left"
@@ -76,18 +51,13 @@ const UserJourneyControls = ({ previousStep, nextStep, className }) => {
               `}
             />
           </animated.div>
-          <div
-            css={css`
-              display: flex;
-              flex-direction: column;
-            `}
-          >
+          <TextContainer>
             <h3>{previousStep.title}</h3>
             <p>{previousStep.body}</p>
-          </div>
-        </div>
-      </SurfaceLink>
-      <SurfaceLink
+          </TextContainer>
+        </InnerContainer>
+      </JourneyLink>
+      <JourneyLink
         base={Surface.BASE.SECONDARY}
         to={nextStep.path}
         interactive
@@ -98,45 +68,22 @@ const UserJourneyControls = ({ previousStep, nextStep, className }) => {
         }}
         className={className}
         css={css`
-          flex: 1;
-          color: var(--primary-text-color);
-          background: var(--secondary-background-color);
-          display: block;
-          min-height: 130px;
           border: solid 2px var(--brand-button-primary-accent);
-
-          border-radius: 4px;
-          padding: 2rem;
           &:hover {
             color: var(--primary-text-color);
-            /* border: solid 3px var(--brand-button-primary-accent); */
             box-shadow: -2px -2px var(--brand-button-primary-accent),
               2px -2px var(--brand-button-primary-accent),
               -2px 2px var(--brand-button-primary-accent),
               2px 2px var(--brand-button-primary-accent);
           }
-
-          @media screen and (max-width: 650px) {
-            padding: 1.5rem;
-          }
-          .dark-mode & {
-            background: var(--secondary-background-color);
-          }
         `}
         onMouseEnter={triggerRight}
       >
-        <div
-          css={css`
-            display: flex;
-            height: 100%;
-            justify-content: space-between;
-            align-items: center;
-          `}
-        >
-          <div>
+        <InnerContainer>
+          <TextContainer>
             <h3>{nextStep.title}</h3>
             <p>{nextStep.body}</p>
-          </div>
+          </TextContainer>
           <animated.div style={rightButton}>
             <Icon
               name="fe-arrow-right"
@@ -150,34 +97,46 @@ const UserJourneyControls = ({ previousStep, nextStep, className }) => {
               `}
             />
           </animated.div>
-        </div>
-      </SurfaceLink>
+        </InnerContainer>
+      </JourneyLink>
     </JourneyContainer>
   );
 };
+
 const JourneyContainer = styled.div`
   display: flex;
   gap: 1rem;
 `;
 
-// const JourneyLink = styled.SurfaceLink`
-//   color: var(--primary-text-color);
-//   flex: 1;
-//   background: var(--secondary-background-color);
-//   display: block;
-//   min-height: 130px;
-//   border-radius: 4px;
-//   padding: 2rem;
-//   &:hover {
-//     color: var(--primary-text-color);
-//   }
+const JourneyLink = styled(SurfaceLink)`
+  color: var(--primary-text-color);
+  flex: 1;
+  background: var(--secondary-background-color);
+  display: block;
+  min-height: 130px;
+  border-radius: 4px;
+  padding: 2rem;
+  &:hover {
+    color: var(--primary-text-color);
+  }
 
-//   @media screen and (max-width: 650px) {
-//     padding: 1.5rem;
-//   }
-//   .dark-mode & {
-//     background: var(--secondary-background-color);
-//   }
-// `;
+  @media screen and (max-width: 650px) {
+    padding: 1.5rem;
+  }
+  .dark-mode & {
+    background: var(--secondary-background-color);
+  }
+`;
+
+const InnerContainer = styled.div`
+  display: flex;
+  height: 100%;
+  align-items: center;
+`;
+
+const TextContainer = styled.div`
+  display: flex;
+  flex-direction: column;
+`;
 
 export default UserJourneyControls;
