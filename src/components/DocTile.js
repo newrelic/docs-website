@@ -68,6 +68,7 @@ export const DocTile = ({
       className={className}
       css={css`
         color: var(--primary-text-color);
+        background: var(--secondary-background-color);
         display: block;
         min-height: 130px;
         border-radius: 4px;
@@ -81,6 +82,9 @@ export const DocTile = ({
         }
 
         .doc-tiles-default & {
+          background: var(--secondary-background-color);
+        }
+        .dark-mode & {
           background: var(--secondary-background-color);
         }
 
