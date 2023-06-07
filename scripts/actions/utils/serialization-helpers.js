@@ -14,6 +14,13 @@ const removeParagraphs = () => (tree) => {
   });
 };
 
+const createJsonStr = (str) =>
+  str
+    .replace(/(\w+:)|(\w+ :)/g, function (matchedStr) {
+      return `"${matchedStr.substring(0, matchedStr.length - 1)}":`;
+    })
+    .replace(/'/g, '"');
+
 const attributeProcessor = unified()
   .use(toMDAST)
   .use(remarkMdx)
@@ -109,8 +116,10 @@ const stripNulls = (obj) =>
   Object.fromEntries(Object.entries(obj).filter(([, value]) => value != null));
 
 module.exports = {
+  createJsonStr,
   serializeComponent,
   serializeProps,
   serializeTextProp,
   serializeJSValue,
+  serializeAttributeValue,
 };
