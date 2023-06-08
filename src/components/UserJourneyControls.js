@@ -79,7 +79,11 @@ const UserJourneyControls = ({ previousStep, nextStep, className }) => {
         `}
         onMouseEnter={triggerRight}
       >
-        <InnerContainer>
+        <InnerContainer
+          css={css`
+            justify-content: space-between;
+          `}
+        >
           <TextContainer>
             <h3>{nextStep.title}</h3>
             <p>{nextStep.body}</p>
