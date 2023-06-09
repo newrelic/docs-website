@@ -39,10 +39,10 @@ For more specific configurations, see [our docs](https://docs.newrelic.com/docs/
 
 After you’ve set up the New Relic integration, you’ll need to deploy our infrastructure and APM agents to get a fuller view of your stack, and we’ve made it easy to do so right from the Azure Portal. 
 
-![Install the New Relic infrastructure monitoring agent from the Azure Portal](./images/azure-native-new-relic-service-InfraAgentInstall.png "Install the New Relic infrastructure monitoring agent from the Azure Portal")
+![Install the New Relic infrastructure monitoring agent from the Azure Portal](./images/azure-native-new-relic-service-InfraAgentInstall.webp "Install the New Relic infrastructure monitoring agent from the Azure Portal")
 Install the New Relic infrastructure monitoring agent from the Azure Portal
 
-![Install the New Relic APM agent from the Azure Portal](./images/azure-native-new-relic-service-APMAgentInstall.png "Install the New Relic APM agent from the Azure Portal")
+![Install the New Relic APM agent from the Azure Portal](./images/azure-native-new-relic-service-APMAgentInstall.webp "Install the New Relic APM agent from the Azure Portal")
 Install a New Relic APM agent from the Azure Portal
 
 ## Pay with Azure MACC Credits

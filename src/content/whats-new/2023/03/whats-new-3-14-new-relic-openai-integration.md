@@ -12,7 +12,7 @@ Companies around the world are embracing GPT to power help desk tickets and live
 
 ## New Relic integrates with OpenAI, GPT-3, and beyond to provide the following benefits:
 
-![New Relic's OpenAI integration providing a pre-built dashboard for monitoring performance, cost, and usage of GPT applications. ](./images/newrelic_openai_integration_dashboard.png "A screenshot showing the New Relic Instant Observability quickstart dashboard for OpenAI.")
+![New Relic's OpenAI integration providing a pre-built dashboard for monitoring performance, cost, and usage of GPT applications. ](./images/newrelic_openai_integration_dashboard.webp "A screenshot showing the New Relic Instant Observability quickstart dashboard for OpenAI.")
 
 * __Get started for free:__ Our out-of-the-box GPT monitoring solution is the first of its kind, and included at no additional cost to all New Relic full platform users.
 * __Easy installation:__ With just two lines of code, users can import the monitor module from the `nr_openai_monitor` library and automatically generate a dashboard that displays a variety of key GPT performance metrics.

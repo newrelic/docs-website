@@ -7,6 +7,7 @@ import Timeline from '../components/Timeline';
 import SEO from '../components/SEO';
 import { Button, Icon, Layout, Link } from '@newrelic/gatsby-theme-newrelic';
 import { TYPES } from '../utils/constants';
+import MDXContainer from '../components/MDXContainer';
 
 const sortByVersion = (
   { frontmatter: { version: versionA } },
@@ -102,7 +103,13 @@ const ReleaseNoteLandingPage = ({ data, pageContext, location }) => {
           />
         </Link>
       </PageTitle>
-      <Layout.Content>
+      <Layout.Content
+        css={css`
+          & img {
+            max-height: 460px;
+          }
+        `}
+      >
         <Timeline>
           {postsByDate.map(([date, posts], idx) => {
             const isLast = idx === postsByDate.length - 1;
@@ -138,7 +145,7 @@ const ReleaseNoteLandingPage = ({ data, pageContext, location }) => {
                           margin-bottom: 0;
                         `}
                       >
-                        {post.excerpt}
+                        <MDXContainer body={post.body} />
                       </p>
                     </div>
                   );
@@ -239,7 +246,7 @@ export const pageQuery = graphql`
           version
           releaseDate(formatString: "MMMM D, YYYY")
         }
-        excerpt
+        body
       }
     }
     mdx(fields: { slug: { eq: $slug } }) {

@@ -1,0 +1,202 @@
+---
+title: 試合当日に向けて意味のあるサービスレベルを作成する
+metaDescription: 'Learn to find important capabilities, define your baselines, and set up meaningful service levels for peak demand.'
+translationType: machine
+---
+
+import userJourneyAPossibleUserJourney from 'images/user-journey_screenshot-full_A-possible-user-journey.gif'
+
+import queriesnrqlRequesturiFacet from 'images/queries-nrql_screenshot-crop_requesturi-facet.webp'
+
+import queriesnrqlLatencyandSuccessBaseline from 'images/queries-nrql_screenshot-crop_Latency-and-success-baseline.webp'
+
+import serviceLevelsintheUIServiceLevelsintheUI from 'images/Service-levels-in-the-UI_screenshot-full_Service-levels-in-the-UI.webp'
+
+import slmUpdateSLIinUI from 'images/slm_screenshot-full_Update-SLI-in-UI.webp'
+
+import serviceLevelsUI from 'images/Service-levels-UI_screenshot-crop.webp'
+
+会社の大きなイベントの準備は大変です。これにより、あなたとあなたのチームはビジネスの観点からシステム アーキテクチャを再考するよう促され、複数の重大なインシデントが発生したときに一連の判断を下すことが求められます。すべてを一度に優先できない場合、どうすれば Gameday を成功させることができますか?重要なことはどうやって見つけますか?
+
+イベントに参加するチームに対する最大の推奨事項は、サービス レベルを設定することです。サービス レベルを使用すると、個別のシステム コンポーネントを取得して、試合当日に関する貴重なビジネス データを抽出できます。チームがホスト、サービス、アプリの観点から考える一方で、サービス レベルでは、これらのエンティティを必要な部分に分割することが求められます。
+
+## 目的 [#objectives]
+
+このチュートリアルでは、次のことを行います。
+
+* New Relic にクエリを実行してベースラインを決定する
+* ベースラインに基づいたサービス レベルを作成する
+
+## 優先事項を特定する [#understand]
+
+通常、ホスト、アプリ、サービスという観点から考える場合、優先順位を見つけるのは難しい場合があります。キャパシティ プランニングの要点は、適切なものに優先順位を付けることです。顧客がアプリをどのように操作するかを評価し、それらの顧客タッチポイントを強化する機能を特定することをお勧めします。
+
+New Relic Acme Telco Home デモ サイトのユーザー ジャーニーの例を次に示します。
+
+<img
+  title="You can attach service levels to customer touchpoints"
+  alt="An example user journey demonstrating what a customer touchpoint looks like"
+  src={userJourneyAPossibleUserJourney}
+/>
+
+このユーザーはいくつの機能に触れますか?製品リスト ページに移動し、製品を選択します。商品ページに移動したら、下にスクロールして数量を入力し、商品をカートに追加します。これらのアクションはそれぞれ、潜在的なサービス レベルに対応しており、需要のピーク日に監視できます。
+
+独自のアプリの機能を特定するのに役立つように、アーキテクチャに関して事前に自問できるいくつかの質問があります。
+
+* 顧客はどのような行程を最も頻繁に経験しますか?
+* これらの旅のうち、購入取引を伴うものはどれですか?
+
+ビジネスに不可欠な機能を特定したら、それに必要な可観測性の範囲を把握する必要があります。こうした旅のどこに警戒ギャップがあるのでしょうか?まだ監視する必要があるのでしょうか?
+
+これらの質問に答えることで、ビジネス ニーズに基づいたシステム アーキテクチャに関する説明を作成できます。API 呼び出し、クリック アクション、またはトランザクションに関して収集されたデータは、ビジネスの健全性を示す指標に変換できます。
+
+## ベースラインを問い合わせる [#query]
+
+何を優先すべきかを見つけたら、次のステップは、アプリが日常的にどのように動作するかを理解することです。アプリの通常の動作はベースラインであり、一種の期待値です。これを朝のコーヒーのようなものと考えることができます。そのコーヒーの味を期待しているので、味の違いはマシンに問題があることを示している可能性があります。
+
+<Steps>
+  <Step>
+    ### 人気のあるトランザクションをすべてプルする
+
+    **[one.newrelic.com > Query Your Data](https://one.newrelic.com/data-exploration/query-builder)**に移動し、次のクエリを入力します。
+
+    <SideBySide>
+      <Side>
+        ```sql
+        FROM Transaction SELECT count(*) FACET request.uri SINCE 1 week AGO
+        ```
+      </Side>
+
+      <Side>
+        <img
+          title="Find all request.uri transactions"
+          alt="Find all request.uri transactions"
+          src={queriesnrqlRequesturiFacet}
+        />
+      </Side>
+    </SideBySide>
+
+    このクエリは、アプリのトランザクションに関するすべてのデータを取得し、アプリに対してリクエストが行われたトランザクションのみを含むようにフィルター処理します。 `request.uri`の表から、 `/js/controllers/` が人気のある `request.uri`であることがわかります。これを使って作業していきます。
+  </Step>
+
+  <Step>
+    ### レイテンシのベースラインと成功のベースラインを見つける
+
+    `/js/controllers/`に注目して、上記のクエリを次のように更新します。
+
+    * `FACET` を削除し、その特定の URI にクエリを集中させます。
+    * 合計 `count(*)` を次のように置き換えます `percentile(duration, 95)`
+
+    <SideBySide>
+      <Side>
+        ```sql
+        FROM Transaction SELECT percentile(duration, 95) AS 'Latency Baselines', percentage(count(*), WHERE error is false) AS 'Success Baseline' SINCE 1 WEEK AGO WHERE request.URI LIKE '/js/services/%'
+        ```
+      </Side>
+
+      <Side>
+        <img
+          title="Latency and Success baseline"
+          alt=""
+          src={queriesnrqlLatencyandSuccessBaseline}
+        />
+      </Side>
+    </SideBySide>
+
+    このクエリは、トランザクションが通常 42 ミリ秒で応答し、成功率が 99.27% であることを示しています。これがレイテンシーのベースラインです。
+  </Step>
+
+  <Step>
+    ### ベースラインに基づいたサービス レベルを作成する
+
+    いくつかのベースラインができたので、意味のあるサービス レベルを作成できます。 **Query Your Data** ページから、 **[one.newrelic.com](https://one.newrelic.com) > APM & Services**に戻り、 **Reports** の下にある **Service level**をクリックします。
+
+    新しいサービス レベルを追加すると、New Relic はアプリ内のすべてのデータ ソースからベースライン平均を自動入力します。ただし、特定の機能の特定のベースラインを優先したいと考えています。
+
+    前のセクションから取得したベースラインを使用して、 `WHERE` ボックスを編集できます。入力されたクエリの末尾に次の文字列を追加し、行が次のようになります。
+
+    <SideBySide>
+      <Side>
+        ```sql
+        entityGUID = 'YOUR_GUID' AND (transactionType = 'Web') AND request.uri LIKE `/js/services/%`
+        ```
+      </Side>
+
+      <Side>
+        <img
+          title="Create baseline informed SLI"
+          alt=""
+          src={slmUpdateSLIinUI}
+        />
+      </Side>
+    </SideBySide>
+
+    `WHERE` フィールドを更新した後、 `AND` フィールドの期間が手順 2 でクエリしたミリ秒単位の時間と一致していることを確認します。この場合、リクエストは約 42(ms) で応答を受け取り、 `AND` フィールドは .4 と一致します間隔。
+  </Step>
+
+  <Step>
+    ### UI でサービス レベルを表示する
+
+    ベースライン情報に基づいたサービス レベルを作成したので、それを UI で表示できるようになります。このサービス レベルのアラートを作成することをお勧めします。チュートリアル シリーズの次の部分で品質を評価できます。
+
+    <SideBySide>
+      <Side>
+        <img
+          title="View your service levels"
+          alt=""
+          src={serviceLevelsintheUIServiceLevelsintheUI}
+        />
+      </Side>
+
+      <Side>
+        <img
+          title="Service levels summary page"
+          src={serviceLevelsUI}
+        />
+      </Side>
+    </SideBySide>
+  </Step>
+</Steps>
+
+<DocTiles numbered>
+  <DocTile
+    title="Get started"
+    path="/docs/journey-demand/get-started"
+  >
+    APM とインフラストラクチャ エージェントを使用してアーキテクチャに関するデータを取得する
+  </DocTile>
+
+  <DocTile
+    title="Create service levels for gameday"
+    path="/docs/journey-demand/find-your-baseline/"
+    label={{text: "You are here", color: "orange"}}
+  >
+    ベースラインに基づいてサービス レベルを作成する
+  </DocTile>
+</DocTiles>
+
+<DocTiles>
+  <DocTile
+    title="Reduce noise with quality alerts"
+    number="3"
+    path="/docs/journey-demand/create-quality-alerts/"
+  >
+    アラート品質管理でアラートを評価する
+  </DocTile>
+
+  <DocTile
+    title="Align your teams with workloads"
+    number="4"
+    path="/docs/journey-demand/organize-data-workloads/"
+  >
+    同じデータを中心にチームを調整する
+  </DocTile>
+
+  <DocTile
+    title="Autoscale your infrastructure with Kubernetes"
+    number="5"
+    path="/docs/journey-demand/autoscale-your-infra/"
+  >
+    需要のピークに合わせてリソースを拡張
+  </DocTile>
+</DocTiles>
