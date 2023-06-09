@@ -20,7 +20,7 @@ import InlinePopover from './InlinePopover';
 import InstallFeedback from './InstallFeedback';
 import MDXButton from './MDXButton';
 import MDXButtonGroup from './MDXButtonGroup';
-import MDXComment from './MDXComment';
+import ContributorNote from './ContributorNote';
 import MDXTechTileGrid from './MDXTechTileGrid';
 import PropTypes from 'prop-types';
 import React from 'react';
@@ -91,7 +91,7 @@ const defaultComponents = {
   ButtonLink: (props) => <MDXButton as={Link} {...props} />,
   ButtonGroup: MDXButtonGroup,
   DoNotTranslate: ({ children }) => <>{children}</>,
-  WARNING: MDXComment,
+  ContributorNote,
   Tabs: Tabs,
   TabsBar: Tabs.Bar,
   TabsBarItem: Tabs.BarItem,

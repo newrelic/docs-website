@@ -399,13 +399,13 @@ test('serialize InlineSignup component', async () => {
   expect(html).toMatchSnapshot();
 });
 
-test('serializes MDXComment to html with "notranslate" class', async () => {
+test('serializes CONTRIBUTOR_NOTE to html with "notranslate" class', async () => {
   const html = await serializeMDX(`
-<WARNING>
+<CONTRIBUTOR_NOTE>
   This is a note to future authors about the MDX content.
 
   It does not render in the UI
-</WARNING>
+</CONTRIBUTOR_NOTE>
   `);
 
   expect(html).toMatchSnapshot();
