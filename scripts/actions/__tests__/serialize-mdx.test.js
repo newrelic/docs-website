@@ -398,3 +398,15 @@ test('serialize InlineSignup component', async () => {
   const html = await serializeMDX(mdx);
   expect(html).toMatchSnapshot();
 });
+
+test('serializes MDXComment to html with "notranslate" class', async () => {
+  const html = await serializeMDX(`
+<WARNING>
+  This is a note to future authors about the MDX content.
+
+  It does not render in the UI
+</WARNING>
+  `);
+
+  expect(html).toMatchSnapshot();
+});

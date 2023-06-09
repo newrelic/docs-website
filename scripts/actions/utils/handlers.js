@@ -119,6 +119,14 @@ module.exports = {
         wrapChildren: false,
       }),
   },
+  WARNING: {
+    deserialize: deserializeComponent,
+    serialize: (h, node) =>
+      serializeComponent(h, node, {
+        classNames: 'notranslate',
+        wrapChildren: false,
+      }),
+  },
   ExternalLink: {
     deserialize: deserializeComponent,
     serialize: serializeComponent,
