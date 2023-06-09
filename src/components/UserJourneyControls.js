@@ -7,22 +7,21 @@ import { Surface, Icon } from '@newrelic/gatsby-theme-newrelic';
 import SurfaceLink from './SurfaceLink';
 
 const UserJourneyControls = ({ previousStep, nextStep, className }) => {
+  const springConfig = {
+    mass: 3,
+    tension: 160,
+    friction: 15,
+  };
+
   const [rightButton, triggerRight] = useBoop({
     x: 20,
-    springConfig: {
-      mass: 3,
-      tension: 160,
-      friction: 15,
-    },
+    springConfig,
   });
   const [leftButton, triggerLeft] = useBoop({
     x: -20,
-    springConfig: {
-      mass: 3,
-      tension: 160,
-      friction: 15,
-    },
+    springConfig,
   });
+
   return (
     <JourneyContainer>
       <JourneyLink
@@ -45,9 +44,6 @@ const UserJourneyControls = ({ previousStep, nextStep, className }) => {
               css={css`
                 color: var(--system-text-primary);
                 margin-right: 2rem;
-                .doc-tiles-labs & {
-                  display: none;
-                }
               `}
             />
           </animated.div>
@@ -74,7 +70,7 @@ const UserJourneyControls = ({ previousStep, nextStep, className }) => {
             box-shadow: -2px -2px var(--brand-button-primary-accent),
               2px -2px var(--brand-button-primary-accent),
               -2px 2px var(--brand-button-primary-accent),
-              2px 2px var(--brand-button-primary-accent);
+              2px 2px var(--brand-button-primary-accent), var(--shadow-3);
           }
         `}
         onMouseEnter={triggerRight}
@@ -95,9 +91,6 @@ const UserJourneyControls = ({ previousStep, nextStep, className }) => {
               css={css`
                 color: var(--primary-text-color);
                 margin-left: 2rem;
-                .doc-tiles-labs & {
-                  display: none;
-                }
               `}
             />
           </animated.div>
