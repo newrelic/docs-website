@@ -91,7 +91,7 @@ const defaultComponents = {
   ButtonLink: (props) => <MDXButton as={Link} {...props} />,
   ButtonGroup: MDXButtonGroup,
   DoNotTranslate: ({ children }) => <>{children}</>,
-  ContributorNote,
+  CONTRIBUTOR_NOTE: ContributorNote,
   Tabs: Tabs,
   TabsBar: Tabs.Bar,
   TabsBarItem: Tabs.BarItem,

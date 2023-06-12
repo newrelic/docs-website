@@ -7,14 +7,6 @@ import PropTypes from 'prop-types';
  *
  * It is not rendered in the UI and is not translated.
  */
-const ContributorNote = ({ children }) => <NoteStyles>{children}</NoteStyles>;
-
-ContributorNote.propTypes = {
-  children: PropTypes.node,
-};
-
-const NoteStyles = styled.div`
-  display: none;
-`;
+const ContributorNote = () => null;
 
 export default ContributorNote;
