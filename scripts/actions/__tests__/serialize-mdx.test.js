@@ -399,7 +399,7 @@ test('serialize InlineSignup component', async () => {
   expect(html).toMatchSnapshot();
 });
 
-test('serializes CONTRIBUTOR_NOTE to html with "notranslate" class', async () => {
+test('serializing CONTRIBUTOR_NOTE removes it from translated files', async () => {
   const html = await serializeMDX(`
 <CONTRIBUTOR_NOTE>
   This is a note to future authors about the MDX content.

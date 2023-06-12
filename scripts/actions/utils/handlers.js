@@ -120,12 +120,9 @@ module.exports = {
       }),
   },
   CONTRIBUTOR_NOTE: {
-    deserialize: deserializeComponent,
-    serialize: (h, node) =>
-      serializeComponent(h, node, {
-        classNames: 'notranslate',
-        wrapChildren: false,
-      }),
+    // this pulls this component out of translated files
+    // there should never be anything to deserialize
+    serialize: () => null,
   },
   ExternalLink: {
     deserialize: deserializeComponent,

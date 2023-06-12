@@ -298,17 +298,3 @@ test('deserializes InlineSignup component', async () => {
   const mdx = await deserializeHTML(await serializeMDX(input));
   expect(mdx).toEqual(input);
 });
-
-test('deserializes CONTRIBUTOR_NOTE component', async () => {
-  const input = `
-<CONTRIBUTOR_NOTE>
-  This is a note to future authors about the MDX content.
-
-  It does not render in the UI
-</CONTRIBUTOR_NOTE>
-    `;
-
-  const mdx = await deserializeHTML(await serializeMDX(input));
-
-  expect(mdx).toEqual(input.trim());
-});
