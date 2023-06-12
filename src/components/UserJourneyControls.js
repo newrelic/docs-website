@@ -103,6 +103,9 @@ const UserJourneyControls = ({ previousStep, nextStep, className }) => {
 const JourneyContainer = styled.div`
   display: flex;
   gap: 1rem;
+  @media screen and (max-width: 1000px) {
+    flex-direction: column;
+  }
 `;
 
 const JourneyLink = styled(SurfaceLink)`
