@@ -1,4 +1,5 @@
 const {
+  createJsonStr,
   serializeComponent,
   serializeJSValue,
 } = require('./serialization-helpers');
@@ -245,6 +246,52 @@ module.exports = {
   TechTileGrid: {
     deserialize: deserializeComponent,
     serialize: serializeComponent,
+  },
+  UserJourneyControls: {
+    deserialize: (h, node) => {
+      const data = deserializeJSValue(node.properties.dataValue);
+      const translatedProps = node.children.reduce((acc, child) => {
+        const key = child.properties.dataKey;
+        const value = child.children[0].value;
+        return { ...acc, [key]: value };
+      }, {});
+      const stuff = data.attributes.map((attr) => {
+        const prop = JSON.parse(createJsonStr(attr.value.value));
+        prop.title = translatedProps[`${attr.name}-title`];
+        prop.body = translatedProps[`${attr.name}-body`];
+        attr.value.value = JSON.stringify(prop);
+        return attr;
+      });
+
+      data.attributes = stuff;
+
+      return h(node, 'mdxBlockElement', data);
+    },
+    serialize: (h, node) => {
+      const serializeAttribute = (name, attribute) => {
+        const attributeValue = JSON.parse(createJsonStr(attribute.value));
+        return [
+          h(node, 'div', { 'data-key': `${name}-title` }, [
+            u('text', attributeValue.title),
+          ]),
+          h(node, 'div', { 'data-key': `${name}-body` }, [
+            u('text', attributeValue.body),
+          ]),
+        ];
+      };
+      const serializedAttributes = node.attributes.flatMap((attribute) =>
+        serializeAttribute(attribute.name, attribute.value)
+      );
+      return h(
+        node,
+        'div',
+        {
+          'data-type': 'UserJourneyControls',
+          'data-value': serializeJSValue(node),
+        },
+        serializedAttributes
+      );
+    },
   },
   Video: {
     deserialize: deserializeComponent,

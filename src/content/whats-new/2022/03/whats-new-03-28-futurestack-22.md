@@ -6,7 +6,7 @@ releaseDate: '2022-03-28'
 learnMoreLink: 'https://www.futurestack.com/anqQXE?RefId=WHATSNEW' 
 ---
 
-![FutureStack22](./images/FutureStack.jpg "FutureStack22")
+![FutureStack22](./images/FutureStack.webp "FutureStack22")
 
 
 ## Join us for FutureStack May 17-19 at the Cosmopolitan of Las Vegas
