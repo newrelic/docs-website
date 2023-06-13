@@ -24,6 +24,7 @@ import MDXTechTileGrid from './MDXTechTileGrid';
 import PropTypes from 'prop-types';
 import React from 'react';
 import TechTile from './TechTile';
+import UserJourneyControls from './UserJourneyControls';
 import WhatsNextTile from './WhatsNextTile';
 import HideWhenEmbedded from './HideWhenEmbedded';
 
@@ -105,6 +106,7 @@ const defaultComponents = {
   WhatsNextTile,
   Side,
   SideBySide,
+  UserJourneyControls,
   HideWhenEmbedded,
 };
 
