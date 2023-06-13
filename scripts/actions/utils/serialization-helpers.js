@@ -14,6 +14,14 @@ const removeParagraphs = () => (tree) => {
   });
 };
 
+// this converts the string version of props to a json string so we can use JSON.parse on it
+const createJsonStr = (str) =>
+  str
+    .replace(/(\w+:)|(\w+ :)/g, function (matchedStr) {
+      return `"${matchedStr.substring(0, matchedStr.length - 1)}":`;
+    })
+    .replace(/'/g, '"');
+
 const attributeProcessor = unified()
   .use(toMDAST)
   .use(remarkMdx)
@@ -109,8 +117,10 @@ const stripNulls = (obj) =>
   Object.fromEntries(Object.entries(obj).filter(([, value]) => value != null));
 
 module.exports = {
+  createJsonStr,
   serializeComponent,
   serializeProps,
   serializeTextProp,
   serializeJSValue,
+  serializeAttributeValue,
 };
