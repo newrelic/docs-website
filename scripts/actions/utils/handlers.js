@@ -120,6 +120,11 @@ module.exports = {
         wrapChildren: false,
       }),
   },
+  CONTRIBUTOR_NOTE: {
+    // this pulls this component out of translated files
+    // there should never be anything to deserialize
+    serialize: () => null,
+  },
   ExternalLink: {
     deserialize: deserializeComponent,
     serialize: serializeComponent,
