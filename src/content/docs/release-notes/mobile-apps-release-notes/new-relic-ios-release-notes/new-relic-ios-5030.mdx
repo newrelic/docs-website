@@ -1,0 +1,23 @@
+---
+subject: Mobile app for iOS
+releaseDate: '2023-06-13'
+version: 5.3.0
+downloadLink: 'https://apps.apple.com/app/id594038638'
+---
+
+### Notes
+
+Added a new Kubernetes page for APM services that run on Kubernetes.
+
+### New features
+
+* New Kubernetes page that is scoped to the service, and shows containers, pods and deployments the service is running on
+
+### Improvements
+
+* Improved log timestamps for previous days
+* Dashboard filters now apply to all pages that belong to that dashboard
+
+### Fixes
+
+* Fixed a few summary pages for Kubernetes entities
