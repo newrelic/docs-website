@@ -1,7 +1,7 @@
 ---
 title: 'New, scalable K8s monitoring UI to dynamically analyze your Kubernetes clusters'
 summary: 'Analyze your data more granularly to isolate performance issues'
-releaseDate: '2022-06-14'
+releaseDate: '2023-06-14'
 getStartedLink: 'https://docs.newrelic.com/docs/kubernetes-pixie/kubernetes-integration/understand-use-data/kubernetes-cluster-explorer/#navigator-preview'
 ---
 
