@@ -7,7 +7,7 @@ getStartedLink: 'https://docs.newrelic.com/docs/kubernetes-pixie/kubernetes-inte
 
 We've completely rebuilt our Kubernetes experience to give you a new UI that scales with large clusters. And with user-selectable drop-downs, you can now slice and dice your data in powerful new ways to dynamically analyze your performance.
 
-#Key features
+# Key features
 1. **See everything at-a-glance**: Quickly understand overall cluster health with a completely redesigned visual experience that scales with large clusters.
 2. **Explore performance dynamically**: See performance in a gradient view of user-selectable Entity Types and Metrics, Grouped by Namespace, Deployment, Pod, and Node (more coming!).
 3. **Go beyond nodes and pods**: Analyze your cluster's performance broken down by Deployments, Statefulsets, and Daemonsets.
