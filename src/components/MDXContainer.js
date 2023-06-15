@@ -20,10 +20,12 @@ import InlinePopover from './InlinePopover';
 import InstallFeedback from './InstallFeedback';
 import MDXButton from './MDXButton';
 import MDXButtonGroup from './MDXButtonGroup';
+import ContributorNote from './ContributorNote';
 import MDXTechTileGrid from './MDXTechTileGrid';
 import PropTypes from 'prop-types';
 import React from 'react';
 import TechTile from './TechTile';
+import UserJourneyControls from './UserJourneyControls';
 import WhatsNextTile from './WhatsNextTile';
 import HideWhenEmbedded from './HideWhenEmbedded';
 
@@ -90,6 +92,7 @@ const defaultComponents = {
   ButtonLink: (props) => <MDXButton as={Link} {...props} />,
   ButtonGroup: MDXButtonGroup,
   DoNotTranslate: ({ children }) => <>{children}</>,
+  CONTRIBUTOR_NOTE: ContributorNote,
   Tabs: Tabs,
   TabsBar: Tabs.Bar,
   TabsBarItem: Tabs.BarItem,
@@ -105,6 +108,7 @@ const defaultComponents = {
   WhatsNextTile,
   Side,
   SideBySide,
+  UserJourneyControls,
   HideWhenEmbedded,
 };
 

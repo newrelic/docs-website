@@ -398,3 +398,15 @@ test('serialize InlineSignup component', async () => {
   const html = await serializeMDX(mdx);
   expect(html).toMatchSnapshot();
 });
+
+test('serializing CONTRIBUTOR_NOTE removes it from translated files', async () => {
+  const html = await serializeMDX(`
+<CONTRIBUTOR_NOTE>
+  This is a note to future authors about the MDX content.
+
+  It does not render in the UI
+</CONTRIBUTOR_NOTE>
+  `);
+
+  expect(html).toMatchSnapshot();
+});
