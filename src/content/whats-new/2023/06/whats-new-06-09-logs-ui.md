@@ -12,5 +12,5 @@ In response to customer feedback, we've streamlined the logs UI to simplify the 
 * Added new options to the partitions menu to more easily view all partitions, and recently viewed partitions.
 * Improved overall performance with new optimizations for a faster and more responsive logs UI.
 
-![Logs UI Design Updates](./images/whats-new-logs-ui.png "A screenshot that shows changes to the Logs UI")
+![Logs UI Design Updates](./images/whats-new-logs-ui.webp "A screenshot that shows changes to the Logs UI")
 
