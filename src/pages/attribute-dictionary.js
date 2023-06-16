@@ -1,7 +1,6 @@
 import React, { memo, useMemo, useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/react';
-import { graphql, useStaticQuery } from 'gatsby';
 import {
   ContributingGuidelines,
   Layout,

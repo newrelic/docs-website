@@ -309,50 +309,6 @@ module.exports = {
         },
       },
     },
-    // {
-    //   resolve: `gatsby-plugin-json-output`,
-    //   options: {
-    //     siteUrl,
-    //     graphQLQuery: `
-    //     {
-    //       allDataDictionaryEvent {
-    //         edges {
-    //           node {
-    //             name
-    //             definition {
-    //               rawMarkdownBody
-    //             }
-    //             dataSources
-    //             childrenDataDictionaryAttribute {
-    //               name
-    //               definition {
-    //                 rawMarkdownBody
-    //               }
-    //               units
-    //             }
-    //           }
-    //         }
-    //       }
-    //     }
-    //   `,
-    //     serializeFeed: ({ data }) =>
-    //       data.allDataDictionaryEvent.edges.map(({ node }) => ({
-    //         name: node.name,
-    //         definition:
-    //           node.definition && node.definition.rawMarkdownBody.trim(),
-    //         dataSources: node.dataSources,
-    //         attributes: node.childrenDataDictionaryAttribute.map(
-    //           (attribute) => ({
-    //             name: attribute.name,
-    //             definition: attribute.definition.rawMarkdownBody.trim(),
-    //             units: attribute.units,
-    //           })
-    //         ),
-    //       })),
-    //     feedFilename: 'data-dictionary',
-    //     nodesPerFeedFile: Infinity,
-    //   },
-    // },
     'gatsby-plugin-release-note-rss',
     'gatsby-plugin-whats-new-rss',
     'gatsby-plugin-security-bulletins-rss',
