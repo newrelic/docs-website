@@ -1,7 +1,7 @@
 import React, { memo, useMemo, useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/react';
-import { graphql } from 'gatsby';
+import { graphql, useStaticQuery } from 'gatsby';
 import {
   ContributingGuidelines,
   Layout,
@@ -14,6 +14,7 @@ import {
   ComplexFeedback,
   Table,
 } from '@newrelic/gatsby-theme-newrelic';
+
 import { TYPES } from '../utils/constants';
 
 import DataDictionaryFilter from '../components/DataDictionaryFilter';
@@ -21,8 +22,10 @@ import SEO from '../components/SEO';
 import PageTitle from '../components/PageTitle';
 import ErrorBoundary from '../components/ErrorBoundary';
 
-const AttributeDictionary = ({ data, pageContext, location }) => {
-  const { allDataDictionaryEvent } = data;
+import { data } from '../../attribute-dictionary.json';
+
+const AttributeDictionary = ({ pageContext, location }) => {
+  const allDataDictionaryEvent = data.docs.dataDictionary.events;
 
   const [filteredEvents, setFilteredEvents] = useState([]);
   const [filteredAttribute, setFilteredAttribute] = useState(null);
@@ -36,10 +39,9 @@ const AttributeDictionary = ({ data, pageContext, location }) => {
     );
   }
 
-  const events = useMemo(
-    () => allDataDictionaryEvent.edges.map((edge) => edge.node),
-    [allDataDictionaryEvent]
-  );
+  const events = useMemo(() => allDataDictionaryEvent.map((item) => item), [
+    allDataDictionaryEvent,
+  ]);
 
   useEffect(() => {
     let filteredEvents = events;
@@ -58,7 +60,7 @@ const AttributeDictionary = ({ data, pageContext, location }) => {
 
     if (queryParams.has('attributeSearch')) {
       filteredEvents = filteredEvents.filter((event) =>
-        event.childrenDataDictionaryAttribute.some(({ name }) =>
+        event.attributes.some(({ name }) =>
           name
             .toLowerCase()
             .includes(queryParams.get('attributeSearch').toLowerCase())
@@ -150,6 +152,7 @@ const AttributeDictionary = ({ data, pageContext, location }) => {
             }
           `}
         >
+          {/* TODO: how do we replace this functionality */}
           <DataDictionaryFilter events={events} location={location} />
           <ComplexFeedback title="Attribute dictionary" />
           <ContributingGuidelines
@@ -163,7 +166,6 @@ const AttributeDictionary = ({ data, pageContext, location }) => {
 };
 
 AttributeDictionary.propTypes = {
-  data: PropTypes.object.isRequired,
   pageContext: PropTypes.object.isRequired,
   location: PropTypes.shape({
     pathname: PropTypes.string.isRequired,
@@ -177,16 +179,15 @@ const EventDefinition = memo(
     let filteredAttributes = [];
 
     if (searchedAttribute) {
-      filteredAttributes = event.childrenDataDictionaryAttribute.filter(
-        ({ name }) =>
-          name.toLowerCase().includes(searchedAttribute.toLowerCase())
+      filteredAttributes = event.attributes.filter(({ name }) =>
+        name.toLowerCase().includes(searchedAttribute.toLowerCase())
       );
     } else if (filteredAttribute) {
-      filteredAttributes = event.childrenDataDictionaryAttribute.filter(
+      filteredAttributes = event.attributes.filter(
         ({ name }) => name === filteredAttribute
       );
     } else {
-      filteredAttributes = event.childrenDataDictionaryAttribute;
+      filteredAttributes = event.attributes;
     }
 
     return (
@@ -256,17 +257,17 @@ const EventDefinition = memo(
             {event.dataSources.map((dataSource) => (
               <Tag
                 as={Link}
-                to={`${location.pathname}?dataSource=${dataSource}`}
-                key={dataSource}
+                to={`${location.pathname}?dataSource=${dataSource.name}`}
+                key={dataSource.name}
               >
-                {dataSource}
+                {dataSource.name}
               </Tag>
             ))}
           </TagList>
         </div>
         <div
           data-swiftype-index="false"
-          dangerouslySetInnerHTML={{ __html: event.definition?.html }}
+          dangerouslySetInnerHTML={{ __html: event.definition }}
         />
         <Table data-swiftype-index="false">
           <thead>
@@ -329,7 +330,7 @@ const EventDefinition = memo(
                         `}
                       />
                     </Link>
-                    {attribute.units && (
+                    {attribute.units?.label && (
                       <div
                         css={css`
                           font-size: 0.75rem;
@@ -339,7 +340,7 @@ const EventDefinition = memo(
                           }
                         `}
                       >
-                        {attribute.units}
+                        {attribute.units?.label}
                       </div>
                     )}
                   </td>
@@ -351,7 +352,7 @@ const EventDefinition = memo(
                       }
                     `}
                     dangerouslySetInnerHTML={{
-                      __html: attribute.definition.html,
+                      __html: attribute.definition,
                     }}
                   />
                   <td
@@ -367,13 +368,21 @@ const EventDefinition = memo(
                         font-size: 0.875rem;
                       `}
                     >
-                      {attribute.events.map((event) => (
+                      {/* TODO: how do we link these? */}
+                      <li key={`${attribute.name}`}>
+                        <Link
+                          to={`${location.pathname}?event=${attribute.name}`}
+                        >
+                          linked events go here
+                        </Link>
+                      </li>
+                      {/* {attribute.events.map((event) => (
                         <li key={`${attribute.name}-${event.name}`}>
                           <Link to={`${location.pathname}?event=${event.name}`}>
                             {event.name}
                           </Link>
                         </li>
-                      ))}
+                      ))} */}
                     </ul>
                   </td>
                 </tr>
@@ -395,31 +404,31 @@ EventDefinition.propTypes = {
   }).isRequired,
 };
 
-export const pageQuery = graphql`
-  query {
-    allDataDictionaryEvent(sort: { fields: [name] }) {
-      edges {
-        node {
-          name
-          dataSources
-          definition {
-            html
-          }
-          childrenDataDictionaryAttribute {
-            name
-            units
-            definition {
-              html
-            }
-            events {
-              name
-            }
-          }
-          ...DataDictionaryFilter_events
-        }
-      }
-    }
-  }
-`;
+// export const pageQuery = graphql`
+//   query {
+//     allDataDictionaryEvent(sort: { fields: [name] }) {
+//       edges {
+//         node {
+//           name
+//           dataSources
+//           definition {
+//             html
+//           }
+//           childrenDataDictionaryAttribute {
+//             name
+//             units
+//             definition {
+//               html
+//             }
+//             events {
+//               name
+//             }
+//           }
+//           ...DataDictionaryFilter_events
+//         }
+//       }
+//     }
+//   }
+// `;
 
 export default AttributeDictionary;
