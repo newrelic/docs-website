@@ -12,9 +12,13 @@ import {
 import Select from './Select';
 import { navigate } from '@reach/router';
 
+import { data } from '../../attribute-dictionary.json';
+
 const uniq = (arr) => [...new Set(arr)];
 
 const DataDictionaryFilter = ({ location, events }) => {
+  const allDataDictionaryEvent = data.docs.dataDictionary.events;
+
   const { queryParams } = useQueryParams();
   const [formState, setFormState] = useState(() => ({
     dataSource: queryParams.get('dataSource'),
@@ -171,15 +175,26 @@ const DataDictionaryFilter = ({ location, events }) => {
   );
 };
 
-export const query = graphql`
-  fragment DataDictionaryFilter_events on DataDictionaryEvent {
-    name
-    dataSources
-    childrenDataDictionaryAttribute {
-      name
-    }
-  }
-`;
+// export const query = graphql`
+//   fragment DataDictionaryFilter_events on DataDictionaryEvent {
+//     name
+//     dataSources
+//     childrenDataDictionaryAttribute {
+//       name
+//     }
+//   }
+// `;
+
+// export const sampleEvent = {
+//   actionText: {
+//     Events: [
+//       {
+//         name: 'event1',
+//       },
+//       { name: 'event2' },
+//     ],
+//   },
+// };
 
 DataDictionaryFilter.propTypes = {
   events: PropTypes.arrayOf(
