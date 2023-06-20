@@ -5,7 +5,7 @@ import styled from '@emotion/styled';
 import cx from 'classnames';
 import logos from '@newrelic/gatsby-theme-newrelic/src/icons/logo';
 import { useTranslation, useTessen } from '@newrelic/gatsby-theme-newrelic';
-import dataism from '../images/dataism.webp';
+import dataism from 'images/dataism.webp';
 
 const QUICKSTARTS = [
   {
