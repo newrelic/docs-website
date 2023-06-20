@@ -158,17 +158,14 @@ To monitor our demo app with the OpenTelemetry Python agent:
     | `pip install virtualenv`          | `getting-started-python`        |
     | `python -m venv venv`             | `otlp`                          |
     | `.\venv\Scripts\Activate.ps1`     | `https://otlp.nr-data.net:4317` |
-    | `pip install -r requirements.txt` | `api-key=NEW_RELIC_LICENSE_KEY` |
 
-    <Callout variant="tip">
-      Instead of installing PyPI packages from the `requirements.txt` file, you can do this manually:
-      ```
-      pip install flask
-      pip install opentelemetry-instrumentation-flask
-      pip install opentelemetry-exporter-otlp
-      pip install opentelemetry-distro
-      ```
-    </Callout>
+    ```
+    pip install flask
+    pip install opentelemetry-instrumentation-flask
+    pip install opentelemetry-exporter-otlp
+    pip install opentelemetry-distro
+    ```
+
 4. Go to our [environment variables reference section](#ref-env-vars) below to see which variables you need to export and then return to these steps.
 5. Continue in `getting-started-guides/python/Uninstrumented/` to launch the agent with the app:
     * Linux/Mac: `opentelemetry-instrument python3 app.py`
@@ -277,10 +274,8 @@ from opentelemetry.sdk.resources import Resource
 import uuid
 
 OTEL_RESOURCE_ATTRIBUTES = {
-    "service.name": "getting-started-python",
-    "service.instance.id": str(uuid.uuid1()),
-    "environment": "local",
-    "tags.team": "newrelic"
+    "service.instance.id": str(uuid.uuid1()), 
+    "environment": "local"
 }
 ```
 
@@ -296,6 +291,7 @@ from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+from opentelemetry.trace.status import Status, StatusCode
 
 # Initialize tracing and an exporter that can send data to an OTLP endpoint
 # SELECT * FROM Span WHERE instrumentation.provider='opentelemetry'
@@ -320,75 +316,76 @@ from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExp
 # SELECT count(`http.server.active_requests`) FROM Metric FACET `service.name` TIMESERIES
 metrics.set_meter_provider(MeterProvider(resource=Resource.create(OTEL_RESOURCE_ATTRIBUTES), metric_readers=[PeriodicExportingMetricReader(OTLPMetricExporter())]))
 metrics.get_meter_provider()
+fib_counter = metrics.get_meter("opentelemetry.instrumentation.custom").create_counter("fibonacci.invocations", unit="1", description="Measures the number of times the fibonacci method is invoked.")
 ```
 
 ### F. Add instrumentation libraries: logs [#library-logs]
 
 In `app.py` add the following:
 
-1. Import the logging module and set the `basicConfig` logging level to DEBUG if you haven't done this already. These two lines should be added after `from flask import Flask, jsonify` and before `app = Flask(__name__)`.
-    ```
-    import logging
-    logging.basicConfig(level=logging.DEBUG)
-    ```
-2. Then, add the following section after the OpenTelemetry Settings, or after the Traces or Metrics section:
-    ```python
-    ########
-    # Logs # - OpenTelemetry Logs are still in the experimental state
-    ########
-    from opentelemetry import _logs
-    from opentelemetry.sdk._logs import LoggerProvider, LoggingHandler
-    from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
-    from opentelemetry.exporter.otlp.proto.grpc._log_exporter import OTLPLogExporter
+Import the logging module and set the `basicConfig` logging level to DEBUG if you haven't done this already. Then, add the following section after the OpenTelemetry Settings, or after the Traces or Metrics section:
+```python
+########
+# Logs # - OpenTelemetry Logs are still in the "experimental" state, so function names may change in the future
+########
+import logging
+logging.basicConfig(level=logging.DEBUG)
 
-    # Initialize logging and an exporter that can send data to an OTLP endpoint by attaching OTLP handler to root logger
-    # SELECT * FROM Log WHERE instrumentation.provider='opentelemetry'
-    _logs.set_logger_provider(LoggerProvider(resource=Resource.create(OTEL_RESOURCE_ATTRIBUTES)))
-    logging.getLogger().addHandler(LoggingHandler(logger_provider=_logs.get_logger_provider().add_log_record_processor(BatchLogRecordProcessor(OTLPLogExporter()))))
-    ```
+from opentelemetry import _logs
+from opentelemetry.sdk._logs import LoggerProvider, LoggingHandler
+from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
+from opentelemetry.exporter.otlp.proto.grpc._log_exporter import OTLPLogExporter
+
+# Initialize logging and an exporter that can send data to an OTLP endpoint by attaching OTLP handler to root logger
+# SELECT * FROM Log WHERE instrumentation.provider='opentelemetry'
+_logs.set_logger_provider(LoggerProvider(resource=Resource.create(OTEL_RESOURCE_ATTRIBUTES)))
+logging.getLogger().addHandler(LoggingHandler(logger_provider=_logs.get_logger_provider().add_log_record_processor(BatchLogRecordProcessor(OTLPLogExporter()))))
+```
 
 ### G. Add auto-instrumentation [#auto-instrum]
 
 In `app.py` add the following after the OpenTelemetry Settings, or after the Traces or Metrics, or Logs section.  This helps with linking spans for Distributed Tracing and Logs-in-Context.:
 
 ```python
-########################
-# Auto-Instrumentation #
-########################
+#####################
+# Flask Application #
+#####################
+from flask import Flask, jsonify, request
 from opentelemetry.instrumentation.flask import FlaskInstrumentor
-from opentelemetry.instrumentation.logging import LoggingInstrumentor
 
-# No OTEL SpanID/TraceID for spans/logs if you leave this out
+app = Flask(__name__)
 FlaskInstrumentor().instrument_app(app)
-LoggingInstrumentor().instrument()
 ```
 
 ### H. Custom trace instrumentation: Create a custom span [#custom-span]
 
 In `app.py` add the highlighted lines. In this case, add this line right before your function definition, after the `@app.route` line but before the `def fibonacci(x):` line:
-`@trace.get_tracer("opentelemetry.instrumentation.custom").start_as_current_span("fibonacci", kind=trace.SpanKind.SERVER)`:
+`@trace.get_tracer("opentelemetry.instrumentation.custom").start_as_current_span("/fibonacci")`:
 
 ```python
-@trace.get_tracer("opentelemetry.instrumentation.custom").start_as_current_span("fibonacci", kind=trace.SpanKind.SERVER)
+@trace.get_tracer("opentelemetry.instrumentation.custom").start_as_current_span("/fibonacci")
 ```
 Here is the larger snippet:
 
 ```python lineHighlight=2
-@app.route("/fibonacci/<int:x>", strict_slashes=False)
-@trace.get_tracer("opentelemetry.instrumentation.custom").start_as_current_span("fibonacci", kind=trace.SpanKind.SERVER)
-def fibonacci(x):
-   
+@app.route("/fibonacci")
+@trace.get_tracer("opentelemetry.instrumentation.custom").start_as_current_span("/fibonacci")
+def fibonacci():
+    args = request.args
+    x = int(args.get("n"))
+    error_message = "n must be 1 <= n <= 90."
+    
     try:
         assert 1 <= x <= 90
         array = [0, 1]
         for n in range(2, x + 1):
             array.append(array[n - 1] + array[n - 2])
 
-        return jsonify(fibonacci_index=x, fibonacci_number=array[x])
+        return jsonify(n=x, result=array[x])
 
-    except (ValueError, AssertionError):
-        raise ValueError("x must be 1 <= x <= 90.")
-
+    except AssertionError:
+        return jsonify({"message": error_message})
+    
 app.run(host='0.0.0.0', port=8080)
 ```
 
@@ -406,10 +403,13 @@ In `app.py` add the following:
     ```
 
     The updated code should now look like this:
-    ```python lineHighlight=4,12
-    @app.route("/fibonacci/<int:x>", strict_slashes=False)
-    @trace.get_tracer("opentelemetry.instrumentation.custom").start_as_current_span("fibonacci", kind=trace.SpanKind.SERVER)
-    def fibonacci(x):
+    ```python lineHighlight=7,15
+    @app.route("/fibonacci")
+    @trace.get_tracer("opentelemetry.instrumentation.custom").start_as_current_span("/fibonacci")
+    def fibonacci():
+        args = request.args
+        x = int(args.get("n"))
+        error_message = "n must be 1 <= n <= 90."
         trace.get_current_span().set_attribute("fibonacci.n", x)
         
         try:
@@ -419,27 +419,26 @@ In `app.py` add the following:
                 array.append(array[n - 1] + array[n - 2])
 
             trace.get_current_span().set_attribute("fibonacci.result", array[x])
-            return jsonify(fibonacci_index=x, fibonacci_number=array[x])
+            return jsonify(n=x, result=array[x])
 
-        except (ValueError, AssertionError):
-            raise ValueError("x must be 1 <= x <= 90.")
-
+        except AssertionError:
+            return jsonify({"message": error_message})
+        
     app.run(host='0.0.0.0', port=8080)
     ```
 
 ### J. Custom trace instrumentation: Record an exception [#span-exception]
 
-In `app.py` add the highlighted line.  In this case, when an exception occurs, we set the attribute `otel.status_code = ERROR`. To do this, we also need to import the `Status` and `StatusCode` modules from the `opentelemetry.trace.status package`.
+In `app.py` add the highlighted lines.  In this case, when an exception occurs, we set the attribute `otel.status_code = ERROR` and record this as a Span Event. To do this, we also need to import the `Status` and `StatusCode` modules from the `opentelemetry.trace.status package` in the previous section.
 
-```python lineHighlight=2,20
-# Everything Else
-from opentelemetry.trace.status import Status, StatusCode
-
-# The rest of the Flask application
-@app.route("/fibonacci/<int:x>", strict_slashes=False)
-@trace.get_tracer("opentelemetry.instrumentation.custom").start_as_current_span("fibonacci", kind=trace.SpanKind.SERVER)
-def fibonacci(x):
-    trace.get_current_span().set_attribute("oteldemo.n", x)
+```python lineHighlight=19,20
+@app.route("/fibonacci")
+@trace.get_tracer("opentelemetry.instrumentation.custom").start_as_current_span("/fibonacci")
+def fibonacci():
+    args = request.args
+    x = int(args.get("n"))
+    error_message = "n must be 1 <= n <= 90."
+    trace.get_current_span().set_attribute("fibonacci.n", x)
     
     try:
         assert 1 <= x <= 90
@@ -447,13 +446,14 @@ def fibonacci(x):
         for n in range(2, x + 1):
             array.append(array[n - 1] + array[n - 2])
 
-        trace.get_current_span().set_attribute("oteldemo.result", array[x])
-        return jsonify(fibonacci_index=x, fibonacci_number=array[x])
+        trace.get_current_span().set_attribute("fibonacci.result", array[x])
+        return jsonify(n=x, result=array[x])
 
-    except (ValueError, AssertionError):
-        trace.get_current_span().set_status(Status(StatusCode.ERROR, "Number outside of accepted range."))
-        raise ValueError("x must be 1 <= x <= 90.")
-
+    except AssertionError:
+        trace.get_current_span().record_exception(exception=Exception, attributes={"exception.type": "AssertionError", "exception.message": error_message})
+        trace.get_current_span().set_status(Status(StatusCode.ERROR, error_message))
+        return jsonify({"message": error_message})
+    
 app.run(host='0.0.0.0', port=8080)
 ```
 
@@ -462,15 +462,13 @@ app.run(host='0.0.0.0', port=8080)
 
 In `app.py` add the highlighted line.  This creates a counter to show how many times this function runs successfully and how many times it fails to run.
 
-```python lineHighlight=3,18,23
-# Everything Else
-from opentelemetry.trace.status import Status, StatusCode
-fib_counter = metrics.get_meter("opentelemetry.instrumentation.custom").create_counter("fibonacci.invocations", unit="1", description="Counts the number of times this function runs")
-
-# The rest of the Flask application
-@app.route("/fibonacci/<int:x>", strict_slashes=False)
-@trace.get_tracer("opentelemetry.instrumentation.custom").start_as_current_span("fibonacci", kind=trace.SpanKind.SERVER)
-def fibonacci(x):
+```python lineHighlight=16,22
+@app.route("/fibonacci")
+@trace.get_tracer("opentelemetry.instrumentation.custom").start_as_current_span("/fibonacci")
+def fibonacci():
+    args = request.args
+    x = int(args.get("n"))
+    error_message = "n must be 1 <= n <= 90."
     trace.get_current_span().set_attribute("fibonacci.n", x)
     
     try:
@@ -481,13 +479,14 @@ def fibonacci(x):
 
         trace.get_current_span().set_attribute("fibonacci.result", array[x])
         fib_counter.add(1, {"fibonacci.valid.n": "true"})
-        return jsonify(fibonacci_index=x, fibonacci_number=array[x])
+        return jsonify(n=x, result=array[x])
 
-    except (ValueError, AssertionError):
-        trace.get_current_span().set_status(Status(StatusCode.ERROR, "Number outside of accepted range."))
+    except AssertionError:
+        trace.get_current_span().record_exception(exception=Exception, attributes={"exception.type": "AssertionError", "exception.message": error_message})
+        trace.get_current_span().set_status(Status(StatusCode.ERROR, error_message))
         fib_counter.add(1, {"fibonacci.valid.n": "false"})
-        raise ValueError("x must be 1 <= x <= 90.")
-
+        return jsonify({"message": error_message})
+    
 app.run(host='0.0.0.0', port=8080)
 ```
 
@@ -495,15 +494,13 @@ app.run(host='0.0.0.0', port=8080)
 
 Edit `app.py` to add the following.  In this case, we add a custom log for INFO so we know what the input and output values are.  Also, we add a custom log for ERROR when the input value is outside of the expected range.
 
-```python lineHighlight=19,25,
-# Everything Else
-from opentelemetry.trace.status import Status, StatusCode
-fib_counter = metrics.get_meter("opentelemetry.instrumentation.custom").create_counter("work.counter", unit="1", description="Counts the number of times this function runs")
-
-# The rest of the Flask application
-@app.route("/fibonacci/<int:x>", strict_slashes=False)
-@trace.get_tracer("opentelemetry.instrumentation.custom").start_as_current_span("fibonacci", kind=trace.SpanKind.SERVER)
-def fibonacci(x):
+```python lineHighlight=17,24,
+@app.route("/fibonacci")
+@trace.get_tracer("opentelemetry.instrumentation.custom").start_as_current_span("/fibonacci")
+def fibonacci():
+    args = request.args
+    x = int(args.get("n"))
+    error_message = "n must be 1 <= n <= 90."
     trace.get_current_span().set_attribute("fibonacci.n", x)
     
     try:
@@ -515,14 +512,15 @@ def fibonacci(x):
         trace.get_current_span().set_attribute("fibonacci.result", array[x])
         fib_counter.add(1, {"fibonacci.valid.n": "true"})
         logging.info("Compute fibonacci(" + str(x) + ") = " + str(array[x]))
-        return jsonify(fibonacci_index=x, fibonacci_number=array[x])
+        return jsonify(n=x, result=array[x])
 
-    except (ValueError, AssertionError):
-        trace.get_current_span().set_status(Status(StatusCode.ERROR, "Number outside of accepted range."))
+    except AssertionError:
+        trace.get_current_span().record_exception(exception=Exception, attributes={"exception.type": "AssertionError", "exception.message": error_message})
+        trace.get_current_span().set_status(Status(StatusCode.ERROR, error_message))
         fib_counter.add(1, {"fibonacci.valid.n": "false"})
         logging.error("Failed to compute fibonacci(" + str(x) + ")")
-        raise ValueError("x must be 1 <= x <= 90.")
-
+        return jsonify({"message": error_message})
+    
 app.run(host='0.0.0.0', port=8080)
 ```
 
