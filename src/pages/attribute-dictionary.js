@@ -371,31 +371,4 @@ EventDefinition.propTypes = {
   }).isRequired,
 };
 
-// export const pageQuery = graphql`
-//   query {
-//     allDataDictionaryEvent(sort: { fields: [name] }) {
-//       edges {
-//         node {
-//           name
-//           dataSources
-//           definition {
-//             html
-//           }
-//           childrenDataDictionaryAttribute {
-//             name
-//             units
-//             definition {
-//               html
-//             }
-//             events {
-//               name
-//             }
-//           }
-//           ...DataDictionaryFilter_events
-//         }
-//       }
-//     }
-//   }
-// `;
-
 export default AttributeDictionary;
