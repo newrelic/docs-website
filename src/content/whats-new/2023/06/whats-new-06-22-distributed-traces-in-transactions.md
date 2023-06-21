@@ -4,8 +4,8 @@ summary: 'Get visibility into your app’s performance with transaction data and
 releaseDate: '2023-06-22' 
 learnMoreLink: 'https://docs.newrelic.com/docs/apm/transactions/transaction-traces/introduction-transaction-traces/' 
 getStartedLink: 'https://docs.newrelic.com/docs/apm/transactions/transaction-traces/transaction-traces-trace-details-page/#distributed-traces'
-
 ---
+
 We’re rolling out critical enhancements to our transactions and distributed traces workflow. With Distributed Tracing in Transactions, you can quickly and effectively understand how your app and services are doing with the contextual data you need to conduct root-cause analysis faster and optimize your application’s performance.
 
 **Key capabilities include:**
