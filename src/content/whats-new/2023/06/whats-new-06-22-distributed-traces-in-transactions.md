@@ -20,8 +20,8 @@ We’re rolling out critical enhancements to our transactions and distributed tr
 
 **How to get started**
 
-* Check out our documentation on [Distributed Tracing](https://docs.newrelic.com/docs/apm/transactions/transaction-traces/transaction-traces-trace-details-page/#distributed-traces)
-* Read our documentation on [Transaction Traces](https://docs.newrelic.com/docs/apm/transactions/transaction-traces/introduction-transaction-traces/)
+* Check out our documentation on [Distributed Tracing](/docs/apm/transactions/transaction-traces/transaction-traces-trace-details-page/#distributed-traces)
+* Read our documentation on [Transaction Traces](/docs/apm/transactions/transaction-traces/introduction-transaction-traces)
 
 
 
