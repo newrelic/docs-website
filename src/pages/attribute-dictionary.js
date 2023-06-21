@@ -24,7 +24,7 @@ import ErrorBoundary from '../components/ErrorBoundary';
 import { data } from '../../attribute-dictionary.json';
 
 const AttributeDictionary = ({ pageContext, location }) => {
-  const allDataDictionaryEvent = data.docs.dataDictionary.events;
+  const allDataDictionaryEvent = data.docs.events;
 
   const [filteredEvents, setFilteredEvents] = useState([]);
   const [filteredAttribute, setFilteredAttribute] = useState(null);
@@ -151,7 +151,6 @@ const AttributeDictionary = ({ pageContext, location }) => {
             }
           `}
         >
-          {/* TODO: how do we replace this functionality */}
           <DataDictionaryFilter events={events} location={location} />
           <ComplexFeedback title="Attribute dictionary" />
           <ContributingGuidelines
@@ -279,7 +278,6 @@ const EventDefinition = memo(
                 Attribute name
               </th>
               <th>Definition</th>
-              <th>Data types</th>
             </tr>
           </thead>
           <tbody>
@@ -354,36 +352,6 @@ const EventDefinition = memo(
                       __html: attribute.definition,
                     }}
                   />
-                  <td
-                    css={css`
-                      width: 1px;
-                    `}
-                  >
-                    <ul
-                      css={css`
-                        margin: 0;
-                        list-style: none;
-                        padding-left: 0;
-                        font-size: 0.875rem;
-                      `}
-                    >
-                      {/* TODO: how do we link these? */}
-                      <li key={`${attribute.name}`}>
-                        <Link
-                          to={`${location.pathname}?event=${attribute.name}`}
-                        >
-                          linked events go here
-                        </Link>
-                      </li>
-                      {/* {attribute.events.map((event) => (
-                        <li key={`${attribute.name}-${event.name}`}>
-                          <Link to={`${location.pathname}?event=${event.name}`}>
-                            {event.name}
-                          </Link>
-                        </li>
-                      ))} */}
-                    </ul>
-                  </td>
                 </tr>
               );
             })}

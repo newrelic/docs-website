@@ -1,7 +1,6 @@
 import React, { memo, useEffect, useMemo, useState } from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/react';
-import { graphql } from 'gatsby';
 import {
   PageTools,
   Button,
@@ -12,13 +11,9 @@ import {
 import Select from './Select';
 import { navigate } from '@reach/router';
 
-import { data } from '../../attribute-dictionary.json';
-
 const uniq = (arr) => [...new Set(arr)];
 
 const DataDictionaryFilter = ({ location, events }) => {
-  const allDataDictionaryEvent = data.docs.dataDictionary.events;
-
   const { queryParams } = useQueryParams();
   const [formState, setFormState] = useState(() => ({
     dataSource: queryParams.get('dataSource'),
@@ -29,9 +24,9 @@ const DataDictionaryFilter = ({ location, events }) => {
 
   const dataSources = useMemo(
     () =>
-      uniq(events.flatMap((event) => event.dataSources)).sort((a, b) =>
-        a.localeCompare(b)
-      ),
+      uniq(
+        events.flatMap((event) => event.dataSources.map((ds) => ds.name))
+      ).sort((a, b) => a.localeCompare(b)),
     [events]
   );
 
@@ -55,16 +50,6 @@ const DataDictionaryFilter = ({ location, events }) => {
       document.removeEventListener('keydown', handler);
     };
   });
-
-  const filteredEvents = useMemo(
-    () =>
-      formState.dataSource
-        ? events.filter((event) =>
-            event.dataSources.includes(formState.dataSource)
-          )
-        : events,
-    [events, formState.dataSource]
-  );
 
   const navigateToParams = (params) => {
     Object.entries(params).forEach(([key, value]) => {
@@ -120,29 +105,6 @@ const DataDictionaryFilter = ({ location, events }) => {
           ))}
         </Select>
       </FormControl>
-      <FormControl>
-        <Label htmlFor="eventFilter">Data type</Label>
-        <Select
-          id="eventFilter"
-          value={formState.event || ''}
-          onChange={(e) => {
-            const { value } = e.target;
-
-            setFormState((state) => ({
-              ...state,
-              event: value,
-              attribute: null,
-            }));
-          }}
-        >
-          <option value="">All</option>
-          {filteredEvents.map((event) => (
-            <option key={event.name} value={event.name}>
-              {event.name}
-            </option>
-          ))}
-        </Select>
-      </FormControl>
 
       <FormControl>
         <Button
@@ -174,27 +136,6 @@ const DataDictionaryFilter = ({ location, events }) => {
     </PageTools.Section>
   );
 };
-
-// export const query = graphql`
-//   fragment DataDictionaryFilter_events on DataDictionaryEvent {
-//     name
-//     dataSources
-//     childrenDataDictionaryAttribute {
-//       name
-//     }
-//   }
-// `;
-
-// export const sampleEvent = {
-//   actionText: {
-//     Events: [
-//       {
-//         name: 'event1',
-//       },
-//       { name: 'event2' },
-//     ],
-//   },
-// };
 
 DataDictionaryFilter.propTypes = {
   events: PropTypes.arrayOf(
