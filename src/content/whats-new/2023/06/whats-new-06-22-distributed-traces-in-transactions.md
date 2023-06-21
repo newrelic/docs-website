@@ -2,7 +2,7 @@
 title: 'Debug faster and improve performance with Distributed Traces in Transactions' 
 summary: 'Get visibility into your app’s performance with transaction data and its associated distributed traces 
 releaseDate: '2023-06-22' 
-learnMoreLink: 'https://docs.newrelic.com/docs/apm/transactions/transaction-traces/introduction-transaction-traces/' 
+learnMoreLink: 'https://docs.newrelic.com/docs/apm/transactions/transaction-traces/introduction-transaction-traces' 
 getStartedLink: 'https://docs.newrelic.com/docs/apm/transactions/transaction-traces/transaction-traces-trace-details-page/#distributed-traces'
 ---
 
