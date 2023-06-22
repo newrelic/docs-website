@@ -48,7 +48,9 @@ const AttributeDictionary = ({ pageContext, location }) => {
 
     if (queryParams.has('dataSource')) {
       filteredEvents = filteredEvents.filter((event) =>
-        event.dataSources.includes(queryParams.get('dataSource'))
+        event.dataSources.some((ds) =>
+          ds.name.includes(queryParams.get('dataSource'))
+        )
       );
     }
 
