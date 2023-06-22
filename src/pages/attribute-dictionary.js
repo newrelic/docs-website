@@ -21,10 +21,11 @@ import SEO from '../components/SEO';
 import PageTitle from '../components/PageTitle';
 import ErrorBoundary from '../components/ErrorBoundary';
 
-import { data } from '../../attribute-dictionary.json';
+import attributeDictionaryData from '../../attribute-dictionary.json';
 
 const AttributeDictionary = ({ pageContext, location }) => {
-  const allDataDictionaryEvent = data.docs.dataDictionary.events;
+  const allDataDictionaryEvent =
+    attributeDictionaryData.data.docs.dataDictionary.events;
 
   const [filteredEvents, setFilteredEvents] = useState([]);
   const [filteredAttribute, setFilteredAttribute] = useState(null);
