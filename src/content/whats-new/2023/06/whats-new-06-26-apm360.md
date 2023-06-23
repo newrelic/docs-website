@@ -1,6 +1,6 @@
 ---
-title: 'Introducing New Relic APM 360'
-summary: 'Prevent issues with daily insights from a unified view of telemetry across the stack and all development stages.  '
+title: 'Unlock the power of daily insights with New Relic APM 360'
+summary: 'Prevent issues with a unified view of telemetry across the stack and all development stages.  '
 releaseDate: '2023-06-26'
 learnMoreLink: 'https://newrelic.com/blog/nerdlog/apm-360'
 getStartedLink: 'https://docs.newrelic.com/introduction-apm/'
