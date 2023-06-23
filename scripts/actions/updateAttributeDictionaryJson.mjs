@@ -41,11 +41,11 @@ async function updateJson() {
 
     const compareJson = fs.readFileSync(JSON_FILE_PATH, { encoding: 'utf-8' });
 
-    const hasUpdates = compareJson === formattedJson;
+    const hasUpdates = compareJson != formattedJson;
 
     const message = hasUpdates
-      ? 'No updates to attribute dictionary'
-      : 'Adding updates for attribute dictionary json';
+      ? 'Adding updates for attribute dictionary json'
+      : 'No updates to attribute dictionary';
 
     core.setOutput('updateAttributeDictionary', hasUpdates);
 
