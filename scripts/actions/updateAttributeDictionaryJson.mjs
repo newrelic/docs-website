@@ -37,6 +37,7 @@ async function updateJson() {
     }).then((res) => res.json());
 
     const formattedJson = JSON.stringify(updatedJson, null, 2);
+    console.log('JSON1: \n', formattedJson);
     console.log('Fetch successful!');
 
     const compareJson = fs.readFileSync(JSON_FILE_PATH, { encoding: 'utf-8' });
