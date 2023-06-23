@@ -30,6 +30,16 @@ const DataDictionaryFilter = ({ location, events }) => {
     [events]
   );
 
+  const filteredEvents = useMemo(
+    () =>
+      formState.dataSource
+        ? events.filter((event) =>
+            event.dataSources.includes(formState.dataSource)
+          )
+        : events,
+    [events, formState.dataSource]
+  );
+
   useEffect(() => {
     setFormState({
       dataSource: queryParams.get('dataSource'),
@@ -101,6 +111,29 @@ const DataDictionaryFilter = ({ location, events }) => {
           {dataSources.map((dataSource) => (
             <option key={dataSource} value={dataSource}>
               {dataSource}
+            </option>
+          ))}
+        </Select>
+      </FormControl>
+      <FormControl>
+        <Label htmlFor="eventFilter">Data type</Label>
+        <Select
+          id="eventFilter"
+          value={formState.event || ''}
+          onChange={(e) => {
+            const { value } = e.target;
+
+            setFormState((state) => ({
+              ...state,
+              event: value,
+              attribute: null,
+            }));
+          }}
+        >
+          <option value="">All</option>
+          {filteredEvents.map((event) => (
+            <option key={event.name} value={event.name}>
+              {event.name}
             </option>
           ))}
         </Select>
