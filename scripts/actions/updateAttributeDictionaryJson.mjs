@@ -1,6 +1,7 @@
 #! /usr/bin/env node
 import fetch from 'node-fetch';
 import fs from 'fs';
+import core from '@actions/core';
 
 const NERDGRAPH_API_URL = 'https://staging-api.newrelic.com/graphql';
 const JSON_FILE_PATH = './attribute-dictionary.json';
@@ -40,12 +41,15 @@ async function updateJson() {
 
     const compareJson = fs.readFileSync(JSON_FILE_PATH, { encoding: 'utf-8' });
 
-    const hasUpdates =
-      compareJson === formattedJson
-        ? 'No updates to attribute dictionary'
-        : 'Adding updates for attribute dictionary json';
+    const hasUpdates = compareJson === formattedJson;
 
-    console.log(hasUpdates);
+    const message = hasUpdates
+      ? 'No updates to attribute dictionary'
+      : 'Adding updates for attribute dictionary json';
+
+    core.setOutput('updateAttributeDictionary', hasUpdates);
+
+    console.log(message);
 
     fs.writeFileSync(JSON_FILE_PATH, formattedJson);
   } catch (error) {
