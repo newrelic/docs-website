@@ -1,7 +1,7 @@
 ---
 title: 'Synthetics Horde IP changes for private locations'
 summary: ''
-releaseDate: '2023-06-23’
+releaseDate: '2023-06-23'
 learnMoreLink: 'https://docs.newrelic.com/docs/new-relic-solutions/get-started/networks/#synthetics' 
 ---
 
