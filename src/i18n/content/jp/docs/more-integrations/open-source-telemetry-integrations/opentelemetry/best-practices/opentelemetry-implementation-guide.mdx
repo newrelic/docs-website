@@ -1,0 +1,162 @@
+---
+title: OpenTelemetry と New Relic の実装ガイド
+tags:
+  - Integrations
+  - Open source telemetry integrations
+  - OpenTelemetry
+metaDescription: A best practice guide for setting up New Relic monitoring for your application using OpenTelemetry.
+translationType: machine
+---
+
+このガイドには、New Relic で OpenTelemetry を実装するためのヒントとベスト プラクティスが含まれており、以下の場合に役立ちます。
+
+* 現在 New Relic の APM ソリューションまたは他のサードパーティの監視ソリューションを使用しているが、OpenTelemetry への切り替えを希望している既存の New Relic 顧客
+* OpenTelemetry と New Relic の使用に切り替えたい組織
+
+このガイドでは、New Relic で OpenTelemetry データを最大限に活用するのに役立つ 10 の重要な手順を説明します。
+
+## 1. OpenTelemetry を使用してアプリケーションを計測する [#instrument-apps]
+
+OpenTelemetry の取り組みの最初のステップは、アプリケーションを計測することです。このガイドでは、この手順の概要を説明し、いくつかの重要な考慮事項に焦点を当てます。詳細な手順については、 [「OpenTelemetry の使用を開始する方法」を](/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/get-started/opentelemetry-get-started-intro)参照してください。
+
+Java、.NET、Python、Node.js などの一部の言語では、OpenTelemetry は、自動計測アプローチを提供します。これは、後で構築できる多くのアプリケーションにとって優れた出発点となります。自動インストルメンテーションの手順については、こちらを参照してください。
+
+* [Java 自動インストルメンテーション](https://opentelemetry.io/docs/instrumentation/java/automatic)
+* [.NET 自動インストルメンテーション](https://opentelemetry.io/docs/instrumentation/net/automatic)
+* [Node.js の自動インストルメンテーション](https://opentelemetry.io/docs/instrumentation/js/getting-started/nodejs)
+* [Python の自動インストルメンテーション](https://opentelemetry.io/docs/instrumentation/python/automatic)
+
+手動インストルメンテーションは、 [Go](https://opentelemetry.io/docs/instrumentation/go/manual)などの自動インストルメンテーションをサポートしていない言語で使用できます。また、自動計測によって収集されたテレメトリを強化するために使用することもできます。
+
+自動インスツルメンテーションはトレースを収集し、場合によってはメトリクスも収集します。これらの信号は両方とも、アプリケーションを観察するために重要です。
+
+どのインスツルメンテーション アプローチを選択するかに関係なく、New Relic UI のさまざまな部分が適切に機能するためには特定の属性の存在に依存していることを理解することが重要です。
+
+`service.name` 属性は、リソースを UI のエンティティに関連付けるために必要です。また、特定のペインを点灯するには `service.instance.id` が必要です。
+
+New Relic の OpenTelemetry エンティティのゴールデン シグナル チャートには、チャートを駆動するためにスパンまたはメトリクスを選択できるトグルが含まれています。New Relic は、次のメトリクスに基づいてスパンからゴールデン シグナルを導出します。
+
+* `http.server.duration`
+* `rpc.server.duration`
+* `http.status_code`
+
+これらのメトリクスが自動インスツルメンテーションにまだ存在していない場合は、SDK を使用してアプリケーションのインストルメンテーションに追加します。
+
+これらの属性はすべて [OpenTelemetry リソースのセマンティック規則](https://github.com/open-telemetry/opentelemetry-specification/tree/main/specification/resource/semantic_conventions#resource-semantic-conventions)によって定義されており、通常は OpenTelemetry SDK を使用してリソースを作成することによって設定されます。
+
+OpenTelemetry を使用してログをキャプチャすることもできます。OpenTelemetry トレースを [ログインコンテキスト機能](/docs/logs/logs-context/logs-in-context)と関連付けられるようにするには、ログ エントリに `service.name`、 `trace.id`、および `span.id` 属性が含まれていることを確認してください。OpenTelemetry ログのレポートの詳細については、 [OpenTelemetry ログのドキュメント](/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/best-practices/opentelemetry-best-practices-logs)を参照してください。
+
+## 2. OpenTelemetry コレクターのデプロイ [#deploy-collector]
+
+次に、OpenTelemetry Collector をデプロイします。これは、バッチ処理、再試行、暗号化などのタスクをオフロードするため、運用環境で OpenTelemetry を使用する場合に推奨されます。
+
+OpenTelemetry Collector の構成に関するヒントをいくつか紹介します。
+
+* **適切なエンドポイントを使用してください**。OTLP データをエンドポイントにエクスポートするように構成する必要があります。これ [については、OpenTelemetry Collector からのデータ送信に関するドキュメント](/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/get-started/opentelemetry-set-up-your-app/#review-settings)で説明されています。
+* **データのドロップを回避します**。データのドロップを回避するには、長さが 4095 文字を超える属性 [を切り捨てること](/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/best-practices/opentelemetry-best-practices-attributes) をお勧めします。これらのプラクティスを適用する例については、 [このコレクター設定](https://github.com/newrelic/newrelic-opentelemetry-examples/tree/main/collector)を参照してください。
+* **インフラストラクチャ**。インフラストラクチャ メトリクスを収集するには、 [ホスト メトリクス レシーバを](/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/collector/opentelemetry-collector-infra-hosts) コレクタ設定に含めます。コレクター構成の一部としてホスト レシーバーを使用すると、ホスト エンティティの一部としてホスト メトリックが自動的に検出され、そのゴールデン メトリックが合成されます (つまり、インフラストラクチャ エージェントを使用した場合と同じエクスペリエンスが得られます)。
+* **スケーリング**。大規模な OpenTelemetry 導入では、パフォーマンスと回復力の両方の利点を得るために、コレクターをスケーリングするための戦略を選択する必要があります。コレクターのスケーリングの詳細については、 [OpenTelemetry のドキュメント](https://opentelemetry.io/docs/collector/scaling)を参照してください。
+* **Kubernetes**: OpenTelemetry で計測されたサービスが Kubernetes 環境で実行されている場合は、 [「OpenTelemetry で計測されたアプリケーションを Kubernetes にリンクする」](/docs/kubernetes-pixie/kubernetes-integration/advanced-configuration/link-otel-applications-kubernetes)の手順に従います。これにより、Kubernetes データが OpenTelemetry データと確実に関連付けられます。
+
+多くのお客様は、エージェントとゲートウェイの両方の展開方法を使用してコレクターを実行することを選択しています。
+
+* **エージェント**: この方法では、コレクターはアプリケーション (バイナリ、サイドカー、デーモンセットなど) と同じホスト上で実行されます。
+* **ゲートウェイ**: この方法では、クラスター、データセンター、またはリージョンごとに 1 つ以上のコレクター インスタンスがスタンドアロン サービスとして実行されます。
+
+各ホスト上のエージェント コレクターは、ゲートウェイ コレクターのクラスターにデータをエクスポートする前に、基本的な処理タスクを実行します。次に、ゲートウェイ コレクターはデータを New Relic にエクスポートするように構成されます。詳細については、 [「New Relic を使用した OpenTelemetry のリファレンス アーキテクチャ」](/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/opentelemetry-ref-architecture)を参照してください。
+
+## 3. トレースサンプリング戦略を実装する [#trace-sampling]
+
+デフォルトでは、OpenTelemetry はアプリケーションから 100% のトレースをキャプチャし、New Relic に送信します。したがって、OpenTelemetry を運用環境に導入する前に、トレースのサンプリング戦略を実装する必要があります。これにより、テレメトリに関連するアプリケーションのオーバーヘッドが削減されるだけでなく、ネットワークからのデータ送信量と New Relic へのデータ取り込み量も削減されます。
+
+OpenTelemetry サンプリングに関連するベスト プラクティスについては、 [サンプリングに関するドキュメント](/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/best-practices/opentelemetry-best-practices-traces/#sampling)を参照してください。過剰なデータの出力と取り込みを回避しながら、問題のトラブルシューティングに十分なトレース データを確保することを目的として、負荷テスト プロセス (後述) の一部としてサンプリング構成を調整する必要があります。
+
+テールベースのサンプリングを使用する場合は、孤立した断片化されたスパンを避けるように注意してください。テール サンプリング プロセッサを使用して孤立したスパンを回避するときにコレクタをスケーリングする方法については、 [コレクタのスケーリングに関する OpenTelemetry ドキュメント](https://opentelemetry.io/docs/collector/scaling/#scaling-stateful-collectors)を参照してください。
+
+## 4. 負荷テストを実行し、構成を調整する [#load-testing-tun-config]
+
+OpenTelemetry をアプリケーションで運用環境に導入する前に、下位環境で負荷テストを実行することをお勧めします。これにより、次のことが可能になります。
+
+* CPU とメモリの使用量の増分とサービスの遅延を分析することにより、アプリケーション上の OpenTelemetry インストルメンテーションのオーバーヘッドを測定します。
+* コレクターからのデータ送信量と New Relic への取り込み量を測定します。どちらも取り込みが増加し、請求に影響する可能性があるためです。
+* これにより、OpenTelemetry Collector の負荷テストを行い、本番環境のような負荷を十分に処理できることを確認する機会も提供されます。Collector のスケーリングに関するヒントについては、 [OpenTelemetry のドキュメント](https://opentelemetry.io/docs/collector/scaling)を参照してください。
+
+## 5. サービスレベル目標を定義する [#slos]
+
+OpenTelemetry データが New Relic に流入したら、SLO が満たされていない時期を判断し、それに応じて措置を講じることができるように、サービス レベルの目標を定義することが重要です。
+
+[サービス レベルは、](/docs/service-level-management/intro-slm) エンド ユーザー (またはクライアント アプリケーション) の観点からサービスのパフォーマンスを測定するために使用されます。New Relic を使用すると、アプリケーションのサービス レベル インジケーター (SLI) とサービス レベル目標 (SLO) を定義して利用できます。OpenTelemetry を装備したサービスのサービス レベルを構成することをお勧めします。
+
+SLO のセットを作成すると、New Relic は SLI データの生成を開始します。運用ビューには、さまざまな時間枠でサービス レベルがどのように向上または低下しているかが表示されます。このビューを使用して、時間の経過に伴う SLI 達成度 (%) を追跡し、各サービス レベルの準拠状況を確認できます。
+
+また、各 SLO のエラー バジェットを監視することもできます。これは、目標を損なうことなく、SLO 期間中に応答が悪い可能性があるリクエストの割合を示します。
+
+## 6. アラートとインシデント管理を構成する [#alerting]
+
+アプリケーションのエンド ユーザーに影響を与える前に問題を検出して修正できるように、アラート ポリシーを構成することも重要です。
+
+高レベルでは、アラートは 1 つ以上のアラート条件を含むアラート ポリシーを介して構成されます。アラート条件に違反するとインシデントが発生し、同様のインシデントは問題としてグループ化されます。最後に、問題は、問題を通知に変換するロジックを含むワークフローをトリガーできます。これらの概念を理解するのに役立つ図については、 [「アラートの概念」](/docs/alerts-applied-intelligence/applied-intelligence/incident-intelligence/basic-alerting-concepts)を参照してください。
+
+たとえば、OpenTelemetry で計測されたサービスの応答時間が 500 ミリ秒を超えた場合にインシデントをオープンするアラート条件を定義できます。その後、アラート条件違反が発生したときに配布リストに電子メール通知を送信するワークフローを定義したり、Slack を使用してオンコール チームに通知したりできます。
+
+[サービス レベルでアラートを構成して](/docs/service-level-management/alerts-slm)、ビジネスに重大な影響を与えるインシデントが発生したときに通知することもできます。
+
+条件付きのアラート ポリシーを作成する方法については、 [「最初のアラートを作成する」](/docs/alerts-applied-intelligence/new-relic-alerts/get-started/your-first-nrql-condition)を参照してください。問題を通知に変換する方法については、 [「ワークフロー」](/docs/alerts-applied-intelligence/applied-intelligence/incident-workflows/incident-workflows)を参照してください。ワークフローを作成するときに、Slack、ServiceNow、Jira などのサードパーティ システムに通知を送信する 1 つ以上の [宛先](/docs/alerts-applied-intelligence/notifications/destinations) を指定できます。
+
+New Relic アラートをインシデント管理システムおよびプロセスと統合することは、アプリケーションの問題の可視性を高め、問題の迅速な修復を促進する洞察を提供するため、OpenTelemetry データから価値を得る鍵となります。
+
+アラートに関するその他のヒントについては、次を参照してください。
+
+* 一般的な [アラートのベスト プラクティス](/docs/new-relic-solutions/best-practices-guides/alerts-applied-intelligence/alerts-best-practices)
+* [OpenTelemetry アラートのベスト プラクティス](/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/best-practices/opentelemetry-best-practices-alerts)
+
+## 7. ワークロードを作成して関連エンティティをグループ化する [#workloads]
+
+New Relic [ワークロードを](/docs/new-relic-solutions/new-relic-one/workloads/workloads-isolate-resolve-incidents-faster) 使用すると、関連するエンティティをグループ化し、フロントエンド サービスからバックエンド サービスまでスタック全体にわたって集約された健全性とアクティビティ データを提供できます。ワークロードは [、複雑なシステムのステータスを理解し](/docs/new-relic-solutions/new-relic-one/workloads/use-workloads)、 [問題を検出し](/docs/new-relic-solutions/new-relic-one/workloads/workload-status-views-notifications)、インシデントの原因と影響を理解し、それらの問題を迅速に解決するのに役立ちます。
+
+OpenTelemetry サービスを関連エンティティとともにグループ化するワークロードを作成することをお勧めします。これには、インフラストラクチャ監視、APM、Kubernetes 監視、ブラウザ監視、その他のエンティティによって監視されるエンティティが含まれる可能性があります。ワークロードは、エンティティをより管理しやすいチャンクにグループ化するのに役立ち、通常はそれらのエンティティを担当するチームと連携します。これは、監視対象のエンティティが数千も存在する可能性がある大規模な環境で特に役立ちます。
+
+ワークロードを作成すると、 [エラー受信箱](/docs/errors-inbox/errors-inbox)など、New Relic の他の貴重な機能のロックが解除されます。エラー受信箱を使用すると、チームは顧客に影響を与える前に、すべてのエラーをプロアクティブに検出、優先順位付けし、アクションを実行できます。エラーはインテリジェントにグループ化されるため、ノイズが削減され、重大なエラーが迅速かつ効率的に検出されます。これにより、チームは、APM、ブラウザ (RUM)、モバイル、サーバーレス (AWS Lambda) データ、OpenTelemetry からのエラーなど、スタック全体からのエラーを解決し、1 つの画面に表示できるようになります。
+
+OpenTelemetry はアプリケーション サービスに実装されているため、エラー インボックスを使用して、最も一般的なエラーをエンド ユーザーに影響を与える前に事前に確認して修正することをお勧めします。エラー インボックスでエラー グループを識別するためにどの OpenTelemetry 属性が使用されるかについては、 [「一意のフィンガープリントの作成方法」を](/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/view-your-data/opentelemetry-errors-inbox-page/#unique-fingerprints)参照してください。
+
+## 8. カスタム ビジュアライゼーション用のダッシュボードを構築する [#dashboards]
+
+New Relic は、すぐに使用できる [OpenTelemetry データのビューを多数](/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/view-your-data/opentelemetry-view-your-data) 提供しています。チームがトラブルシューティングや問題の特定にプロアクティブにデータを使用し始めると、カスタムの視覚化の必要性が見つかるかもしれません。この目的のためにカスタム ダッシュボードを作成できます。
+
+カスタム ダッシュボードを作成する利点とその使用を開始する方法については、 [「 ダッシュボード 」](/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards)を参照してください。
+
+## 9. カスタム インストルメンテーションによるコンテキストの追加 [#custom-instrumentation]
+
+自動または手動のインスツルメンテーションから始める場合でも、問題を優先順位付けする際に追加データの必要性が生じると、時間の経過とともに追加のインスツルメンテーションを追加することが合理的になることがよくあります。例えば：
+
+* 属性をスパンに追加して、リクエストに関する追加のコンテキストを提供できます。これは、トラブルシューティング中に問題のビジネスへの影響を理解するのに役立ちます (たとえば、テナント ID をスパンに追加して、マルチテナント アプリケーションのトラブルシューティングを支援します)。 。
+* 追加のネストされたスパンをキャプチャして、アプリケーションの特定の側面をより深くトラブルシューティングするための詳細情報を提供できます。
+* カスタム メトリクスは、技術的な観点 (キャッシュ ヒットとミスの数の追跡など) またはビジネスの観点 (チェックアウト中のカート内の商品の平均数の追跡など) のいずれかから取得できます。
+
+OpenTelemetry のドキュメントでは、言語ごとにこれらのガイダンスと例が提供されています。たとえば、Java を使用する場合は、次のドキュメントを使用できます。
+
+* [ネストされたスパンの作成](https://opentelemetry.io/docs/instrumentation/java/manual/#create-nested-spans)
+* [スパン属性](https://opentelemetry.io/docs/instrumentation/java/manual/#span-attributes)
+* [指標](https://opentelemetry.io/docs/instrumentation/java/manual/#metrics)
+
+さまざまな言語を使用した [OpenTelemetry 手動計測を示す例もいくつか](https://github.com/newrelic/newrelic-opentelemetry-examples) あります。
+
+## 10. 使用、測定、改良 [#use-refine]
+
+可観測性の成熟度を向上させるには、継続的な改善の考え方を取り入れることが重要です。New Relic でキャプチャされた OpenTelemetry およびその他のデータは問題のトラブルシューティングに使用されるため、次の点に注意して適切な措置を講じる必要があります。
+
+* 既存のアラート条件は、エンド ユーザーが影響を受ける前に問題を積極的に検出しましたか?そうでない場合は、アラート条件を調整するか、新しいアラート条件を追加する必要があります。
+* アクションを必要としない重要なアラートが継続的に表示されますか?その場合は、アクションが必要な条件のみが発生するようにアラート条件を調整する必要があります。
+* 問題をトラブルシューティングするために十分な詳細がトレースに提供されましたか?そうでない場合は、インストルメンテーションを確認し、より多くのスパン属性とネストされたスパンをキャプチャすることを検討する必要があります。
+* トラブルシューティングにはカスタム NRQL クエリが必要でしたか?その場合は、結果として得られるグラフの一部をダッシュボードに組み込むことを検討する必要があります。
+
+時間の経過とともに計測機器が改良されるにつれて、問題を積極的に検出する能力が向上し、問題を解決するまでの時間が短縮されます。これにより、MTTD (平均検出時間) と MTTR (平均解決時間) の両方が短縮されます。
+
+当社では、アラートの品質を改善および最適化するプロセスを説明する [アラート品質管理ガイド](/docs/new-relic-solutions/observability-maturity/uptime-performance-reliability/alert-quality-management-guide) を用意しており、最終的には稼働時間と可用性の向上、MTTR の削減、アラート量の削減につながります。
+
+また、 [サービス レベル管理の品質を向上および最適化する方法を説明するサービス レベル管理ガイド](/docs/new-relic-solutions/observability-maturity/uptime-performance-reliability/optimize-slm-guide) もあります。これらの推奨事項を適切に実施すると、次のような利点が得られます。
+
+* ビジネスに支障をきたすインシデントの数の削減
+* MTTRの短縮
+* インシデントごとの労力の削減

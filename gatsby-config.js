@@ -361,53 +361,6 @@ module.exports = {
         nodesPerFeedFile: Infinity,
       },
     },
-    {
-      resolve: `gatsby-plugin-generate-json`,
-      options: {
-        query: `
-        {
-          allMdx(filter: {fields: {slug: {regex: "/docs/release-notes/"}}}) {
-            nodes {
-              frontmatter {
-                subject
-                releaseDate(fromNow: false)
-                downloadLink
-                version
-                features
-                bugs
-                security
-              }
-              excerpt(pruneLength: 5000)
-              slug
-            }
-          }
-        }
-        `,
-        path: '/api/agent-release-notes.json',
-        serialize: ({ data }) =>
-          data.allMdx.nodes
-            .map(({ frontmatter, excerpt, slug }) => {
-              const releaseNote = {
-                agent: getAgentName(frontmatter.subject),
-                date: frontmatter.releaseDate,
-                downloadLink: frontmatter.downloadLink,
-                version: frontmatter.version,
-                features: frontmatter.features,
-                bugs: frontmatter.bugs,
-                security: frontmatter.security,
-                description: excerpt,
-                slug: slug,
-              };
-
-              if (releaseNote.date) {
-                releaseNote.eolDate = getEOLDate(releaseNote.date);
-              }
-
-              return releaseNote;
-            })
-            .filter(({ date, agent }) => Boolean(date && agent)),
-      },
-    },
     'gatsby-plugin-release-note-rss',
     'gatsby-plugin-whats-new-rss',
     'gatsby-plugin-security-bulletins-rss',
