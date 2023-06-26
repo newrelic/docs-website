@@ -3,6 +3,11 @@ name: entity.guid
 type: attribute
 units: ID
 events:
+  - Deployment
+  - ServiceLevelSnapshot
+  - NrAiIncidentExternal
+  - NrAiSignal
+  - NrAiIncident
   - Span
 ---
 
