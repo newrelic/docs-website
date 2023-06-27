@@ -5,4 +5,4 @@ events:
   - NrAiIssue
 ---
 
-The name of the correlation rule
+The name of the correlation rule.
