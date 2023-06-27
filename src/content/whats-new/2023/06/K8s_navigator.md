@@ -19,6 +19,6 @@ We've completely rebuilt our Kubernetes experience to give you a new UI that sca
 2. Select the toggle next to **Preview the new Kubernetes experience (New)**
 3. Read the [**documentation**](https://docs.newrelic.com/docs/kubernetes-pixie/kubernetes-integration/understand-use-data/kubernetes-cluster-explorer/#navigator-preview) to learn more.
 
-![A screenshot showing CPU usage by Pod grouped by Namespace.](./images/K8s_navigator.png "A screenshot showing CPU usage by Pod grouped by Namespace.")
+![A screenshot showing CPU usage by Pod grouped by Namespace.](./images/K8s_navigator.webp "A screenshot showing CPU usage by Pod grouped by Namespace.")
 
 <figcaption>A screenshot showing CPU usage by Pod grouped by Namespace.</figcaption>
