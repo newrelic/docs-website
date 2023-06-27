@@ -10,6 +10,7 @@ import {
 import { useToggleViewContext } from './ToggleViewContext';
 
 import Tooltip from '../Tooltip';
+import usePosition from '../../hooks/usePosition';
 
 export const TOGGLE_VIEWS = {
   newUserView: 'new-user-view',
@@ -22,6 +23,7 @@ const ToggleSelector = ({ className, showTooltip }) => {
   const [currentView, setCurrentView] = useToggleViewContext();
   const tessen = useTessen();
   const { t } = useTranslation();
+  const [anchorRef, { left, top }] = usePosition();
 
   return (
     <div
@@ -31,6 +33,7 @@ const ToggleSelector = ({ className, showTooltip }) => {
         margin-right: 1.5rem;
       `}
       className={className}
+      ref={anchorRef}
     >
       <div
         css={css`
@@ -60,8 +63,8 @@ const ToggleSelector = ({ className, showTooltip }) => {
           <Tooltip
             css={css`
               position: absolute;
-              bottom: 150%;
-              left: -50px;
+              top: calc(${top}px - var(--height) - 12px);
+              left: calc(${left}px - 64px);
               & p:nth-of-type(2) {
                 font-size: 12px;
               }
