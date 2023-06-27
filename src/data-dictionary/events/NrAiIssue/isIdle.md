@@ -1,5 +1,5 @@
 ---
-name: incidentIds
+name: isIdle
 type: attribute
 units: ID
 events:

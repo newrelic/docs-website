@@ -1,5 +1,5 @@
 ---
-name: sources
+name: timestamp
 type: attribute
 events:
   - NrAiIssue

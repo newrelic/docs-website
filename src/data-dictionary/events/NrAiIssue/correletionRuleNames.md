@@ -1,5 +1,5 @@
 ---
-name: sources
+name: correletionRuleNames
 type: attribute
 events:
   - NrAiIssue

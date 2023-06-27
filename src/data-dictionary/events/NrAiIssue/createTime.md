@@ -1,5 +1,5 @@
 ---
-name: accountIds
+name: createTime
 type: attribute
 events:
   - NrAiIssue
