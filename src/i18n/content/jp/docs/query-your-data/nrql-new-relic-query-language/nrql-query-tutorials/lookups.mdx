@@ -1,0 +1,155 @@
+---
+title: ルックアップ テーブル データをクエリする方法
+tags:
+  - Query your data
+  - 'NRQL: New Relic Query Language'
+  - NRQL query tutorials
+metaDescription: 'In New Relic, how to query data added via CSV lookup tables.'
+translationType: machine
+---
+
+import nrqlExampleStatusCodes from 'images/nrql_screenshot-crop_example-status-codes.webp'
+
+import nrqlLookupQueryTranslateItemIds from 'images/nrql_screenshot-crop_lookup-query-translate-item-ids.webp'
+
+import nrqlLookupQueryGeoip from 'images/nrql_screenshot-crop_lookup-query-geoip.webp'
+
+[CSV 形式のルックアップ テーブルをアップロードする](/docs/logs/ui-data/lookup-tables-ui)と、 `lookup()` 関数を使用して NRQL クエリでそのデータにアクセスできます。
+
+## ルックアップ テーブルを使用する理由 [#why]
+
+ルックアップ テーブルを使用する理由とそのアップロード方法については、 [「ルックアップ テーブル」](/docs/logs/ui-data/lookup-tables-ui)を参照してください。
+
+## 基本的なクエリ構文 [#basic-syntax]
+
+テーブルに `storeNames`という名前を付けたとします。このクエリは、そのテーブルからすべてのデータを選択します。
+
+```sql
+FROM lookup(storeNames) 
+SELECT *
+```
+
+このクエリは、同じテーブルからいくつかの特定の属性を選択します。
+
+```sql
+FROM lookup(storeNames) 
+SELECT store_ID, store_name, description
+```
+
+## クエリの例 [#query-with-data]
+
+ルックアップ テーブルの主な利点は、そのデータと New Relic に保存されているテレメトリ データを組み合わせるクエリを使用できることです。
+
+次は、クエリの例です。
+
+<CollapserGroup>
+  <Collapser
+    id="avoid-hardcording"
+    title="ホストの長いリストをハードコーディングしないでください"
+  >
+    このクエリは、ルックアップ テーブルに含まれるホスト名をクエリすることで、ホストの長いリストのハードコーディングを回避します。
+
+    ```sql
+    FROM Log 
+    SELECT count(*)
+    WHERE hostname IN (FROM lookup(myHosts) SELECT uniques(myHost))
+    ```
+  </Collapser>
+
+  <Collapser
+    id="using-join"
+    title="JOINを使用したクエリ"
+  >
+    `JOIN` クエリを使用すると、データをより理解しやすくなります。たとえば、カスタム イベント タイプの次のクエリでは、 `storeNames` テーブルを使用して、店舗名と総売上高を表示します。また、これにより 10,000 の制限が許可されることにも注意してください。これは、ルックアップ テーブルが他の NRQL データ型よりも高い制限をサポートしているためです。
+
+    ```sql
+    FROM StoreEvent 
+    JOIN (FROM lookup(storeNames) SELECT store_ID as storeId, storeName AS name LIMIT 10000) ON shopId = storeId 
+    SELECT shopId, storeName, totalSales
+    ```
+  </Collapser>
+
+  <Collapser
+    id="status-codes"
+    title="ステータスコードを変換する"
+  >
+    以下は、ステータス コードを読み取り可能なステータスの概要に変換するクエリです。
+
+    ```sql
+    FROM Transaction 
+      JOIN (FROM lookup(statusCodeTable) SELECT status_code, status_summary, status_definition)
+      ON http.statusCode=status_code
+    SELECT count(*) FACET status_summary
+    ```
+
+    結果の例をいくつか示します。
+
+    <img
+      title="Screenshot of query for lookups translating status codes"
+      alt="Screenshot of query for lookups translating status codes"
+      src={nrqlExampleStatusCodes}
+    />
+  </Collapser>
+
+  <Collapser
+    id="item-ids"
+    title="アイテムIDを翻訳する"
+  >
+    このクエリは、複数の NRQL 機能が連携してログ データのクエリからビジネス情報を取得する方法を示しています。このクエリはログ メッセージからアイテムに関する情報を抽出し、 `JOIN` を使用してわかりやすいアイテム名を取得し、アイテム名と保存されているアイテム数のテーブルを生成します。
+
+    ```sql
+    WITH aparse(message, 'POST to carts: * body: {"itemId":"*","unitPrice":*}%') AS (URL, ItemID, Price)
+    FROM Log 
+      JOIN (FROM lookup(itemNames) SELECT ItemID, itemName) ON ItemID
+    SELECT count(*) FACET itemName 
+    WHERE message LIKE 'POST to carts%'
+    SINCE 30 days ago
+    ```
+
+    結果の例をいくつか示します。
+
+    <img
+      title="Screenshot of query for lookups translating item IDs"
+      alt="Screenshot of query for lookups translating item IDs"
+      src={nrqlLookupQueryTranslateItemIds}
+    />
+  </Collapser>
+
+  <Collapser
+    id="geoip"
+    title="地理情報を使用して場所を分析する"
+  >
+    このクエリはルックアップと [GeoIP を](/docs/logs/ui-data/parsing#geo) 組み合わせて、最も失敗したステータスを持つ場所を見つけます。
+
+    ```sql
+    FROM Log 
+      JOIN (FROM lookup(statusCodeTable) SELECT status_code, status_summary, status_definition)
+      ON CacheResponseStatus=status_code
+    SELECT count(*) WHERE ClientIP.countryName IS NOT NULL AND status_summary != 'Success'
+    FACET ClientIP.countryName, status_summary, CacheResponseStatus
+    SINCE 1 day ago LIMIT MAX
+    ```
+
+    結果の例をいくつか示します。
+
+    <img
+      title="Screenshot of query for GeoIP info"
+      alt="Screenshot of query for GeoIP info"
+      src={nrqlLookupQueryGeoip}
+    />
+  </Collapser>
+</CollapserGroup>
+
+## クエリに関する技術的な詳細 [#limitations]
+
+`LIMIT` を使用する場合に返される応答の最大数は 20,000 です。
+
+NRQL アラート条件にルックアップ データを使用することはできません。
+
+次の NRQL 関数はルックアップ クエリではサポートされていません。
+
+* `TIMESERIES`
+* `COMPARE WITH`
+* `EXTRAPOLATE`
+
+ただし、これらの句は、検索クエリが内部クエリに含まれている場合に使用できます。この例については、 [このクエリを](#item-ids)参照してください。
