@@ -6,4 +6,4 @@ events:
   - NrAiIssue
 ---
 
-If applicable, the timestamp when the incident was closed.
+The timestamp when the incident was closed.

@@ -5,4 +5,4 @@ events:
   - NrAiIssue
 ---
 
-The type of the targeted entity, if available.
+The type of the targeted entity.

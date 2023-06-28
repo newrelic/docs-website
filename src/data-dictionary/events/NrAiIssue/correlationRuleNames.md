@@ -1,5 +1,5 @@
 ---
-name: correletionRuleNames
+name: correlationRuleNames
 type: attribute
 events:
   - NrAiIssue

@@ -6,4 +6,4 @@ events:
   - NrAiIssue
 ---
 
-The unique identifier of the incidents inside the issue.
+The unique identifiers of the issue's incidents.

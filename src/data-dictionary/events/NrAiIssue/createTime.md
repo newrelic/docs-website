@@ -5,4 +5,4 @@ events:
   - NrAiIssue
 ---
 
-If applicable, the timestamp when the issue was created.
+The timestamp when the issue was created.

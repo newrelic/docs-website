@@ -1,9 +1,9 @@
 ---
 name: lastModifiedTime
 type: attribute
-units: seconds (s)
+units: millisecond (s)
 events:
   - NrAiIssue
 ---
 
-The timestamp of the last modification, if applicable.
+The timestamp of the last modification.

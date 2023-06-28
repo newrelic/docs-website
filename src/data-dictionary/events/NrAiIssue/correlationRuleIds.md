@@ -1,5 +1,5 @@
 ---
-name: correletionRuleIds
+name: correlationRuleIds
 type: attribute
 units: ID
 events:
