@@ -1,7 +1,7 @@
 ---
 title: 'Subquery JOINs and Lookups now available across all data types, GeoIP available for logs'
 summary: 'Resolve business-critical incidents with your data in one query'
-releaseDate: '2022-06-29'
+releaseDate: '2023-06-29'
 learnMoreLink: 'https://newrelic.com/blog/nerdlog/query-enhancements' 
 getStartedLink: 'https://newrelic.com/blog/how-to-relic/subquery-joins'
 ---
