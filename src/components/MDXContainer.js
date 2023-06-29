@@ -12,6 +12,7 @@ import {
 import { css } from '@emotion/react';
 
 import { DocTile, DocTiles } from './DocTile';
+import EolPage from './EolPage';
 import LandingPageHero from './LandingPageHero';
 import LandingPageTile from './LandingPageTile';
 import LandingPageTileGrid from './LandingPageTileGrid';
@@ -110,6 +111,7 @@ const defaultComponents = {
   SideBySide,
   UserJourneyControls,
   HideWhenEmbedded,
+  EolPage,
 };
 
 const MDXContainer = ({ body, children, components }) => {
