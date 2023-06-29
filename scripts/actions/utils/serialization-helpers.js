@@ -15,13 +15,13 @@ const removeParagraphs = () => (tree) => {
 };
 
 // this converts the string version of props to a json string so we can use JSON.parse on it
-const matchSingleOuterQuotesRegex = /(')([^,]*)(')/g;
+const matchSingleOuterQuotesRegex = /'([^,]*)'/g;
 const createJsonStr = (str) =>
   str
     .replace(/(\w+:)|(\w+ :)/g, function (matchedStr) {
       return `"${matchedStr.substring(0, matchedStr.length - 1)}":`;
     })
-    .replace(matchSingleOuterQuotesRegex, '"$2"');
+    .replace(matchSingleOuterQuotesRegex, '"$1"');
 
 const attributeProcessor = unified()
   .use(toMDAST)
