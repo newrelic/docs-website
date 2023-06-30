@@ -125,6 +125,10 @@ module.exports = {
     // there should never be anything to deserialize
     serialize: () => null,
   },
+  EolPage: {
+    deserialize: deserializeComponent,
+    serialize: serializeComponent,
+  },
   ExternalLink: {
     deserialize: deserializeComponent,
     serialize: serializeComponent,
