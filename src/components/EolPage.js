@@ -32,12 +32,14 @@ const EolPage = ({ agent, locale = 'en' }) => {
     }
   };
 
+  // Decided to include two different locales (ja || jp)
+  // to match our file structure
   const formatDate = (date, locale) => {
     const iso = parseISO(date);
-    if (locale === 'ja') {
+    if (locale === 'ja' || locale === 'jp') {
       return format(iso, 'PPP', { locale: ja });
     }
-    if (locale === 'ko') {
+    if (locale === 'ko' || locale === 'kr') {
       return format(iso, 'PPP', { locale: ko });
     }
     return format(iso, 'PP');
