@@ -1,0 +1,155 @@
+---
+title: 조회 테이블 데이터를 쿼리하는 방법
+tags:
+  - Query your data
+  - 'NRQL: New Relic Query Language'
+  - NRQL query tutorials
+metaDescription: 'In New Relic, how to query data added via CSV lookup tables.'
+translationType: machine
+---
+
+import nrqlExampleStatusCodes from 'images/nrql_screenshot-crop_example-status-codes.webp'
+
+import nrqlLookupQueryTranslateItemIds from 'images/nrql_screenshot-crop_lookup-query-translate-item-ids.webp'
+
+import nrqlLookupQueryGeoip from 'images/nrql_screenshot-crop_lookup-query-geoip.webp'
+
+[CSV 형식 조회 테이블을 업로드](/docs/logs/ui-data/lookup-tables-ui)하면 `lookup()` 함수를 사용하여 NRQL 쿼리에서 해당 데이터에 액세스할 수 있습니다.
+
+## 조회 테이블을 사용하는 이유는 무엇입니까? [#why]
+
+조회 테이블을 사용하는 이유와 업로드 방법은 [조회 테이블 을](/docs/logs/ui-data/lookup-tables-ui)참조하십시오.
+
+## 기본 쿼리 구문 [#basic-syntax]
+
+테이블 이름을 `storeNames`로 지정했다고 가정해 보겠습니다. 이 쿼리는 해당 테이블에서 모든 데이터를 선택합니다.
+
+```sql
+FROM lookup(storeNames) 
+SELECT *
+```
+
+이 쿼리는 동일한 테이블에서 몇 가지 특정 속성을 선택합니다.
+
+```sql
+FROM lookup(storeNames) 
+SELECT store_ID, store_name, description
+```
+
+## 쿼리 예시 [#query-with-data]
+
+조회 테이블의 주요 이점은 해당 데이터를 New Relic에 저장된 원격 분석 데이터와 결합하는 쿼리를 사용할 수 있다는 것입니다.
+
+다음은 몇 가지 쿼리 예입니다.
+
+<CollapserGroup>
+  <Collapser
+    id="avoid-hardcording"
+    title="긴 호스트 목록을 하드코딩하지 마십시오."
+  >
+    이 쿼리는 조회 테이블에 포함된 호스트 이름을 쿼리하여 긴 호스트 목록을 하드코딩하는 것을 방지합니다.
+
+    ```sql
+    FROM Log 
+    SELECT count(*)
+    WHERE hostname IN (FROM lookup(myHosts) SELECT uniques(myHost))
+    ```
+  </Collapser>
+
+  <Collapser
+    id="using-join"
+    title="JOIN을 사용한 쿼리"
+  >
+    `JOIN` 쿼리를 사용하면 데이터를 더 이해하기 쉽게 만들 수 있습니다. 예를 들어 사용자 정의 이벤트 유형에 대한 이 쿼리는 `storeNames` 테이블을 사용하여 총 매출과 함께 매장 이름을 표시합니다. 또한 이것은 10,000의 제한을 허용한다는 점에 유의하십시오. 조회 테이블이 다른 NRQL 데이터 유형보다 더 높은 제한을 지원하기 때문입니다.
+
+    ```sql
+    FROM StoreEvent 
+    JOIN (FROM lookup(storeNames) SELECT store_ID as storeId, storeName AS name LIMIT 10000) ON shopId = storeId 
+    SELECT shopId, storeName, totalSales
+    ```
+  </Collapser>
+
+  <Collapser
+    id="status-codes"
+    title="상태 코드 번역"
+  >
+    다음은 상태 코드를 읽을 수 있는 상태 요약으로 변환하는 쿼리입니다.
+
+    ```sql
+    FROM Transaction 
+      JOIN (FROM lookup(statusCodeTable) SELECT status_code, status_summary, status_definition)
+      ON http.statusCode=status_code
+    SELECT count(*) FACET status_summary
+    ```
+
+    다음은 몇 가지 예시 결과입니다.
+
+    <img
+      title="Screenshot of query for lookups translating status codes"
+      alt="Screenshot of query for lookups translating status codes"
+      src={nrqlExampleStatusCodes}
+    />
+  </Collapser>
+
+  <Collapser
+    id="item-ids"
+    title="항목 ID 번역"
+  >
+    이 쿼리는 여러 NRQL 기능이 함께 작동하여 로그 데이터 쿼리에서 비즈니스 정보를 얻는 방법을 보여줍니다. 쿼리는 로그 메시지에서 항목에 대한 정보를 추출하고 `JOIN` 사용하여 사용자에게 친숙한 항목 이름을 가져오고 항목 이름 테이블과 저장된 항목 수를 생성합니다.
+
+    ```sql
+    WITH aparse(message, 'POST to carts: * body: {"itemId":"*","unitPrice":*}%') AS (URL, ItemID, Price)
+    FROM Log 
+      JOIN (FROM lookup(itemNames) SELECT ItemID, itemName) ON ItemID
+    SELECT count(*) FACET itemName 
+    WHERE message LIKE 'POST to carts%'
+    SINCE 30 days ago
+    ```
+
+    다음은 몇 가지 예시 결과입니다.
+
+    <img
+      title="Screenshot of query for lookups translating item IDs"
+      alt="Screenshot of query for lookups translating item IDs"
+      src={nrqlLookupQueryTranslateItemIds}
+    />
+  </Collapser>
+
+  <Collapser
+    id="geoip"
+    title="지리적 정보를 사용하여 위치 분석"
+  >
+    이 쿼리는 조회와 [GeoIP를](/docs/logs/ui-data/parsing#geo) 결합하여 가장 실패한 상태인 위치를 찾습니다.
+
+    ```sql
+    FROM Log 
+      JOIN (FROM lookup(statusCodeTable) SELECT status_code, status_summary, status_definition)
+      ON CacheResponseStatus=status_code
+    SELECT count(*) WHERE ClientIP.countryName IS NOT NULL AND status_summary != 'Success'
+    FACET ClientIP.countryName, status_summary, CacheResponseStatus
+    SINCE 1 day ago LIMIT MAX
+    ```
+
+    다음은 몇 가지 예시 결과입니다.
+
+    <img
+      title="Screenshot of query for GeoIP info"
+      alt="Screenshot of query for GeoIP info"
+      src={nrqlLookupQueryGeoip}
+    />
+  </Collapser>
+</CollapserGroup>
+
+## 쿼리에 대한 기술 세부정보 [#limitations]
+
+`LIMIT` 사용 시 반환되는 최대 응답 수는 20,000개입니다.
+
+NRQL 경고 조건에 대한 조회 데이터를 사용할 수 없습니다.
+
+다음 NRQL 함수는 조회 쿼리에서 지원되지 않습니다.
+
+* `TIMESERIES`
+* `COMPARE WITH`
+* `EXTRAPOLATE`
+
+그러나 조회 쿼리가 내부 쿼리에 포함된 경우 이러한 절을 사용할 수 있습니다. 이에 대한 예는 [이 쿼리를](#item-ids)참조하십시오.
