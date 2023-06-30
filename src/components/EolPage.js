@@ -54,7 +54,7 @@ const EolPage = ({ agent, locale = 'en' }) => {
       <tbody>
         {table.map((note) => {
           return (
-            <tr>
+            <tr key={note.version}>
               <td>v{note.version}</td>
               <td>{formatDate(note.date, locale)}</td>
               <td>{formatDate(note.eolDate, locale)}</td>
