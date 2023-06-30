@@ -5,7 +5,7 @@ import { ja, ko } from 'date-fns/locale';
 const AGENT_RELEASE_NOTES_URL =
   'https://docs-assets.newrelic-external.com/release-notes-json';
 
-const EolPage = ({ agent, locale }) => {
+const EolPage = ({ agent, locale = 'en' }) => {
   const [releaseNotes, setReleaseNotes] = useState([]);
 
   useEffect(async () => {
@@ -62,7 +62,7 @@ const EolPage = ({ agent, locale }) => {
       </tbody>
     );
   }
-  return <p>Loading...</p>;
+  return null;
 };
 
 export default EolPage;
