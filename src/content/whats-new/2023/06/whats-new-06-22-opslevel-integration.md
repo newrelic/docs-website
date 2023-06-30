@@ -16,3 +16,5 @@ Benefits include:
 - Keep your team informed of alerts and notify the correct people to help resolve them
 
 Learn how to set up the webhook integration in the video below, or read the [documentation](https://docs.opslevel.com/docs/new-relic-integration) and OpsLevel [blog post](http://www.opslevel.com/blog/get-ahead-of-performance-issues-and-alerts-with-new-relic-in-opslevel).
+
+<iframe width="560" height="315" src="https://www.youtube.com/embed/Wu5rEX8CG1c" title="Get continuous page speed insights with website performance monitoring" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>

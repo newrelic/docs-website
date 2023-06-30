@@ -15,6 +15,6 @@ So what's new? The new interactive scorecards are, well, _interactive_. Here's w
 
 Read the [Documentation](https://docs.newrelic.com/docs/infrastructure/infrastructure-ui-pages/hosts-new-view/#summary) to learn more.
 
-![A screenshot showing interactive scorecards.](./images/Interactive_scorecards.png "A screenshot showing interactive scorecards.")
+![A screenshot showing interactive scorecards.](./images/Interactive_scorecards.webp "A screenshot showing interactive scorecards.")
 
 <figcaption>A screenshot showing interactive scorecards.</figcaption>

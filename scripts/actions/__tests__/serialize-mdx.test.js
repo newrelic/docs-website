@@ -1,5 +1,6 @@
 import serializeMDX from '../serialize-mdx';
 import fs from 'fs';
+import deserializeHTML from '../deserialize-html';
 
 test('serializes DoNotTranslate wrapping a Collapser', async () => {
   const html = await serializeMDX(`
@@ -409,4 +410,16 @@ test('serializing CONTRIBUTOR_NOTE removes it from translated files', async () =
   `);
 
   expect(html).toMatchSnapshot();
+});
+
+test('serializing components with apostrophes in their props', async () => {
+  const input = `
+    <UserJourneyControls
+    nextStep={{"path": "/docs/tutorial-dd-migration/making-the-switch/", "title": "Next step", "body": "Learn more about New Relic's other features and what you need to make the switch from Datadog"}}
+    previousStep={{"path": "/docs/tutorial-dd-migration/installing-monitor/", "title": "Previous step", "body": "Learn more about ingesting data to monitor"}} />
+    `;
+  const html = await serializeMDX(input);
+  const str = await deserializeHTML(html);
+  expect(html).toMatchSnapshot();
+  expect(str.replace(/ |\n/g, '')).toBe(input.replace(/ |\n/g, ''));
 });

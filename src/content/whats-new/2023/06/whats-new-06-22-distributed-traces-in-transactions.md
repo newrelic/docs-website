@@ -12,11 +12,11 @@ We’re rolling out critical enhancements to our transactions and distributed tr
 
 * **Connected traces and transactions toggle:** Get to the root cause faster by viewing only transactions that surface the associated distributed traces in a single view.
 * 
-!["Toggle transactions"](./images/transactions_toggle.png)
+!["Toggle transactions"](./images/transactions_toggle.webp)
 
 * **Simplified workflow to surface the contextual data:** Analyze application performance with insights into the associated trace of a transaction with a single click.
   
-!["View DT"](./images/view_distributed_traces.png)
+!["View DT"](./images/view_distributed_traces.webp)
 
 **How to get started**
 
