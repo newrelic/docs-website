@@ -424,7 +424,7 @@ test('serializing components with apostrophes in their props', async () => {
   expect(str.replace(/ |\n/g, '')).toBe(input.replace(/ |\n/g, ''));
 });
 
-test.only('EolPage', async () => {
+test('EolPage', async () => {
   const input = `<EolPage agent='node' locale='ko' />`;
   const html = await serializeMDX(input);
   expect(html).toMatchSnapshot();

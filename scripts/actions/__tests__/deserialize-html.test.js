@@ -298,9 +298,3 @@ test('deserializes InlineSignup component', async () => {
   const mdx = await deserializeHTML(await serializeMDX(input));
   expect(mdx).toEqual(input);
 });
-
-test.only('EolPage', async () => {
-  const input = `<EolPage agent='node' locale='ko' />`;
-  const mdx = await deserializeHTML(await serializeMDX(input));
-  expect(mdx).toMatchSnapshot();
-});
