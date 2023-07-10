@@ -1,5 +1,5 @@
 import React from 'react';
-import { format, isAfter, parseISO } from 'date-fns';
+import { format, isAfter, isSameDay, parseISO } from 'date-fns';
 import { ja, ko } from 'date-fns/locale';
 import { useStaticQuery, graphql } from 'gatsby';
 import { compareVersions } from 'compare-versions';
@@ -41,13 +41,13 @@ const EolPage = ({ agent, locale = 'en' }) => {
     const aDate = parseISO(a.date);
     const bDate = parseISO(b.date);
 
+    if (isSameDay(aDate, bDate)) {
+      compareVersions(a.version, b.version);
+    }
+
     if (aDate < bDate) {
       return 1;
-    } else if (aDate > bDate) {
-      return -1;
-    } else {
-      compareVersions(b.version, a.version);
-    }
+    } else return -1;
   };
 
   // Decided to include two different locales (ja || jp)
@@ -64,8 +64,7 @@ const EolPage = ({ agent, locale = 'en' }) => {
   };
 
   const isSupportedVersion = (eolDate) => {
-    const eol = eolDate.split('-');
-    const supportedDate = new Date(eol[0], eol[1] - 1, eol[2]);
+    const supportedDate = parseISO(eolDate);
     return isAfter(supportedDate, new Date());
   };
 
@@ -74,7 +73,6 @@ const EolPage = ({ agent, locale = 'en' }) => {
     .filter((note) => isSupportedVersion(note.eolDate))
     .sort(sortDateDesc);
 
-  console.log(table);
   return (
     <tbody>
       {table.map((note) => {
