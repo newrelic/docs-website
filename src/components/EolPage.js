@@ -71,7 +71,7 @@ const EolPage = ({ agent, locale = 'en' }) => {
     <tbody>
       {table.map((note) => {
         return (
-          // Some release notes have the same version but diff dates
+          // Some release notes have the same date but diff versions
           <tr key={note.date + note.version}>
             <td>v{note.version}</td>
             <td>{formatDate(note.date, locale)}</td>
