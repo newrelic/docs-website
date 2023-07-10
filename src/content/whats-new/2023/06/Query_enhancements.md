@@ -29,6 +29,6 @@ GeoIP translates IP addresses into geographical data, allowing you to understand
 
 To learn more, read the [GeoIP documentation](https://docs.newrelic.com/docs/logs/ui-data/parsing/#geo).
 
-![A screenshot showing a query with JOINs, Lookups, and GeoIP.](./images/query_enhancements.png "A screenshot showing a query with JOINs, Lookups, and GeoIP.")
+![A screenshot showing a query with JOINs, Lookups, and GeoIP.](./images/query_enhancements.webp "A screenshot showing a query with JOINs, Lookups, and GeoIP.")
 
 <figcaption>A screenshot showing a query with JOINs, Lookups, and GeoIP.</figcaption>
