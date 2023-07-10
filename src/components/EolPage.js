@@ -1,5 +1,5 @@
 import React from 'react';
-import { format, parseISO } from 'date-fns';
+import { format, isAfter, parseISO } from 'date-fns';
 import { ja, ko } from 'date-fns/locale';
 import { useStaticQuery, graphql } from 'gatsby';
 import { compareVersions } from 'compare-versions';
@@ -63,10 +63,18 @@ const EolPage = ({ agent, locale = 'en' }) => {
     return format(iso, 'PP');
   };
 
+  const isSupportedVersion = (eolDate) => {
+    const eol = eolDate.split('-');
+    const supportedDate = new Date(eol[0], eol[1] - 1, eol[2]);
+    return isAfter(supportedDate, new Date());
+  };
+
   const table = releaseNotesJson
     .filter((note) => note.agent === agent)
+    .filter((note) => isSupportedVersion(note.eolDate))
     .sort(sortDateDesc);
 
+  console.log(table);
   return (
     <tbody>
       {table.map((note) => {
