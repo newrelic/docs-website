@@ -31,21 +31,18 @@ const EolPage = ({ agent, locale = 'en' }) => {
   const releaseNotesJson = allMdx.nodes.map((note) => {
     return {
       agent: getAgentName(note.frontmatter.subject),
-      date: note.frontmatter.releaseDate,
-      eolDate: getEOLDate(note.frontmatter.releaseDate),
+      date: parseISO(note.frontmatter.releaseDate),
+      eolDate: parseISO(getEOLDate(note.frontmatter.releaseDate)),
       version: note.frontmatter.version,
     };
   });
 
   const sortDateDesc = (a, b) => {
-    const aDate = parseISO(a.date);
-    const bDate = parseISO(b.date);
-
-    if (isSameDay(aDate, bDate)) {
+    if (isSameDay(a.date, b.date)) {
       compareVersions(a.version, b.version);
     }
 
-    if (aDate < bDate) {
+    if (a.date < b.date) {
       return 1;
     } else return -1;
   };
@@ -53,24 +50,21 @@ const EolPage = ({ agent, locale = 'en' }) => {
   // Decided to include two different locales (ja || jp)
   // to match our file structure
   const formatDate = (date, locale) => {
-    const iso = parseISO(date);
     if (locale === 'ja' || locale === 'jp') {
-      return format(iso, 'PPP', { locale: ja });
+      return format(date, 'PPP', { locale: ja });
     }
     if (locale === 'ko' || locale === 'kr') {
-      return format(iso, 'PPP', { locale: ko });
+      return format(date, 'PPP', { locale: ko });
     }
-    return format(iso, 'PP');
+    return format(date, 'PP');
   };
 
   const isSupportedVersion = (eolDate) => {
-    const supportedDate = parseISO(eolDate);
-    return isAfter(supportedDate, new Date());
+    return isAfter(eolDate, new Date());
   };
 
   const table = releaseNotesJson
-    .filter((note) => note.agent === agent)
-    .filter((note) => isSupportedVersion(note.eolDate))
+    .filter((note) => note.agent === agent && isSupportedVersion(note.eolDate))
     .sort(sortDateDesc);
 
   return (
