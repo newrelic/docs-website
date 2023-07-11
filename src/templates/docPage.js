@@ -124,7 +124,7 @@ const BasicDoc = ({ data, location, pageContext }) => {
             'mt-disclaimer mt-disclaimer'
             'page-title page-tools'
             'content page-tools';
-          grid-template-columns: minmax(0, 1fr) 205px;
+          grid-template-columns: minmax(0, 1fr) 12.8125rem;
           grid-column-gap: 2rem;
 
           ${bannerVisible &&
