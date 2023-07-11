@@ -3,7 +3,7 @@ import fetch from 'node-fetch';
 import fs from 'fs';
 import core from '@actions/core';
 
-const NERDGRAPH_API_URL = 'https://staging-api.newrelic.com/graphql';
+const NERDGRAPH_API_URL = 'https://api.newrelic.com/graphql';
 const JSON_FILE_PATH = 'src/data/attribute-dictionary.json';
 
 const GQL_QUERY = `
