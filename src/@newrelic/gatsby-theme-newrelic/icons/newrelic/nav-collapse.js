@@ -29,7 +29,7 @@ const NavCollapseIcon = (props) => {
   const [rectSpring] = useSpring(
     () => ({
       delay: 280,
-      from: { x: '0' },
+      from: { x: '0px' },
       to: { x: '14px' },
       reverse: sidebar,
       config: RECT_SPRING,
