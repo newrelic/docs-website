@@ -6,7 +6,6 @@ const rehypeStringify = require('rehype-stringify');
 const addAbsoluteImagePath = require('./rehype-plugins/utils/addAbsoluteImagePath');
 const getAgentName = require('./src/utils/getAgentName');
 
-const dataDictionaryPath = `${__dirname}/src/data-dictionary`;
 const siteUrl = 'https://docs.newrelic.com';
 const additionalLocales = ['jp', 'kr'];
 const allFolders = fs
@@ -81,13 +80,6 @@ module.exports = {
         name: 'markdown-pages',
         path: `${__dirname}/src/content`,
         ignore: ignoreFolders,
-      },
-    },
-    {
-      resolve: 'gatsby-source-filesystem',
-      options: {
-        name: 'data-dictionary',
-        path: dataDictionaryPath,
       },
     },
     {
@@ -316,59 +308,10 @@ module.exports = {
         },
       },
     },
-    {
-      resolve: `gatsby-plugin-json-output`,
-      options: {
-        siteUrl,
-        graphQLQuery: `
-        {
-          allDataDictionaryEvent {
-            edges {
-              node {
-                name
-                definition {
-                  rawMarkdownBody
-                }
-                dataSources
-                childrenDataDictionaryAttribute {
-                  name
-                  definition {
-                    rawMarkdownBody
-                  }
-                  units
-                }
-              }
-            }
-          }
-        }
-      `,
-        serializeFeed: ({ data }) =>
-          data.allDataDictionaryEvent.edges.map(({ node }) => ({
-            name: node.name,
-            definition:
-              node.definition && node.definition.rawMarkdownBody.trim(),
-            dataSources: node.dataSources,
-            attributes: node.childrenDataDictionaryAttribute.map(
-              (attribute) => ({
-                name: attribute.name,
-                definition: attribute.definition.rawMarkdownBody.trim(),
-                units: attribute.units,
-              })
-            ),
-          })),
-        feedFilename: 'data-dictionary',
-        nodesPerFeedFile: Infinity,
-      },
-    },
     'gatsby-plugin-release-note-rss',
     'gatsby-plugin-whats-new-rss',
     'gatsby-plugin-security-bulletins-rss',
-    {
-      resolve: 'gatsby-source-data-dictionary',
-      options: {
-        path: dataDictionaryPath,
-      },
-    },
+
     'gatsby-source-nav',
     'gatsby-source-install-config',
     'gatsby-plugin-meta-redirect',
