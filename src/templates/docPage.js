@@ -3,7 +3,6 @@ import PropTypes from 'prop-types';
 import { css } from '@emotion/react';
 import { graphql } from 'gatsby';
 import { takeWhile } from 'lodash';
-import { CSSTransition } from 'react-transition-group';
 import { createLocalStorageStateHook } from 'use-local-storage-state';
 import DocPageBanner from '../components/DocPageBanner';
 import PageTitle from '../components/PageTitle';
@@ -22,6 +21,7 @@ import GithubSlugger from 'github-slugger';
 import { TYPES } from '../utils/constants';
 import { useMainLayoutContext } from '../components/MainLayoutContext';
 import ErrorBoundary from '../components/ErrorBoundary';
+import { Flipped } from 'react-flip-toolkit';
 
 const BANNER_HEIGHT = '78px';
 
@@ -117,8 +117,9 @@ const BasicDoc = ({ data, location, pageContext }) => {
           {...signupBanner}
         />
       )}
-      <div
-        css={css`
+      <Flipped flipId="main-content" spring="stiff" translate>
+        <div
+          css={css`
           display: grid;
           grid-template-areas:
             'mt-disclaimer mt-disclaimer'
@@ -128,7 +129,7 @@ const BasicDoc = ({ data, location, pageContext }) => {
           grid-column-gap: 2rem;
 
           ${bannerVisible &&
-          css`
+            css`
             margin-top: ${BANNER_HEIGHT};
             @media screen and (max-width: 760px) {
               margin-top: 0;
@@ -148,7 +149,7 @@ const BasicDoc = ({ data, location, pageContext }) => {
             grid-template-columns: minmax(0, 1fr);
           }
           ${hidePageTools &&
-          css`
+            css`
             grid-template-areas:
               'mt-disclaimer'
               'page-title page'
@@ -164,74 +165,46 @@ const BasicDoc = ({ data, location, pageContext }) => {
             }
           `}
         `}
-      >
-        {translationType === 'machine' && (
-          <MachineTranslationCallout
-            englishHref={location.pathname.replace(
-              `/${pageContext.locale}`,
-              ''
-            )}
-          />
-        )}
-        <PageTitle>{title}</PageTitle>
+        >
+          {translationType === 'machine' && (
+            <MachineTranslationCallout
+              englishHref={location.pathname.replace(
+                `/${pageContext.locale}`,
+                ''
+              )}
+            />
+          )}
+          <PageTitle>{title}</PageTitle>
 
-        <LoggedInProvider>
-          <Layout.Content>
-            <MDXContainer body={body} />
-          </Layout.Content>
-        </LoggedInProvider>
-        {!hidePageTools && (
-          // TODO pass nodeRef to avoid `findDOMNode` usage
-          // this transition is the inverse of the page `translate` transition
-          // it keeps the PageTools in the same place when the nav opens/ closes
-          <CSSTransition
-            in={sidebar}
-            classNames="page-tools-transition"
-            timeout={300}
-          >
-            <Layout.PageTools
-              css={css`
+          <LoggedInProvider>
+            <Layout.Content>
+              <MDXContainer body={body} />
+            </Layout.Content>
+          </LoggedInProvider>
+          {!hidePageTools && (
+            <Flipped flipId="page-tools" translate>
+              <Layout.PageTools
+                css={css`
                 background: var(--primary-background-color);
-
-                &.page-tools-transition-enter {
-                  translate: calc(var(--sidebar-width) - 50px);
-                }
-                &.page-tools-transition-enter-active {
-                  translate: 0;
-                  transition: 300ms translate ease;
-                }
-                &.page-tools-transition-enter-done {
-                  translate: 0;
-                }
-
-                &.page-tools-transition-exit {
-                  translate: calc(calc(var(--sidebar-width) - 50px) * -1);
-                }
-                &.page-tools-transition-exit-active {
-                  translate: 0;
-                  transition: 300ms translate ease;
-                }
-                &.page-tools-transition-exit-done {
-                  translate: 0;
-                }
 
                 @media screen and (max-width: 1240px) {
                   margin-top: 1rem;
                   position: static;
                 }
               `}
-            >
-              <TableOfContents headings={headings} />
-              <ComplexFeedback pageTitle={title} />
-              <ContributingGuidelines
-                pageTitle={title}
-                fileRelativePath={fileRelativePath}
-                issueLabels={['feedback', 'feedback-issue']}
-              />
-            </Layout.PageTools>
-          </CSSTransition>
-        )}
-      </div>
+              >
+                <TableOfContents headings={headings} />
+                <ComplexFeedback pageTitle={title} />
+                <ContributingGuidelines
+                  pageTitle={title}
+                  fileRelativePath={fileRelativePath}
+                  issueLabels={['feedback', 'feedback-issue']}
+                />
+              </Layout.PageTools>
+            </Flipped>
+          )}
+        </div>
+      </Flipped>
     </ErrorBoundary>
   );
 };

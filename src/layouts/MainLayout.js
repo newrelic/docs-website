@@ -16,7 +16,7 @@ import {
 import { isNavClosed, setNavClosed } from '../utils/navState';
 import { css } from '@emotion/react';
 import { scroller } from 'react-scroll';
-import { CSSTransition } from 'react-transition-group';
+import { Flipped, Flipper } from 'react-flip-toolkit';
 import Layout from '../components/Layout';
 import SEO from '../components/SEO';
 import RootNavigation from '../components/RootNavigation';
@@ -90,7 +90,7 @@ const MainLayout = ({ children, pageContext }) => {
         @media (max-width: 1240px) {
           left: 208px;
           ${!sidebar &&
-          `translate: calc(calc(var(--sidebar-width) * -1) + 141px);`}
+        `translate: calc(calc(var(--sidebar-width) * -1) + 141px);`}
         }
       `}
       onClick={() => {
@@ -117,9 +117,10 @@ const MainLayout = ({ children, pageContext }) => {
       </MobileHeader>
       <LoggedInProvider>
         <MainLayoutContext.Provider value={[sidebar]}>
-          {navCollapser}
-          <Layout
-            css={css`
+          <Flipper flipKey={sidebar}>
+            {navCollapser}
+            <Layout
+              css={css`
               --sidebar-width: ${sidebarWidth};
               -webkit-font-smoothing: antialiased;
               font-size: 1.125rem;
@@ -127,10 +128,10 @@ const MainLayout = ({ children, pageContext }) => {
                 --sidebar-width: 278px;
               }
             `}
-          >
-            <Layout.Sidebar
-              aria-hidden={!sidebar}
-              css={css`
+            >
+              <Layout.Sidebar
+                aria-hidden={!sidebar}
+                css={css`
                 padding: 0;
                 > div {
                   height: 100%;
@@ -144,22 +145,22 @@ const MainLayout = ({ children, pageContext }) => {
                   margin: 0;
                 }
               `}
-            >
-              <div
-                css={css`
-                  height: ${navHeaderHeight};
-                `}
               >
                 <div
                   css={css`
+                  height: ${navHeaderHeight};
+                `}
+                >
+                  <div
+                    css={css`
                     display: flex;
                     justify-content: space-between;
                     align-items: center;
                   `}
-                >
-                  <Link
-                    to="/"
-                    css={css`
+                  >
+                    <Link
+                      to="/"
+                      css={css`
                       display: flex;
                       justify-content: center;
                       align-items: center;
@@ -169,67 +170,62 @@ const MainLayout = ({ children, pageContext }) => {
                         color: var(--system-text-primary-dark);
                       }
                     `}
-                  >
-                    <Logo
-                      css={css`
+                    >
+                      <Logo
+                        css={css`
                         ${!sidebar &&
-                        css`
+                          css`
                           display: none;
                         `}
                       `}
-                    />
-                  </Link>
-                </div>
-                {sidebar && (
-                  <SearchInput
-                    placeholder={t('home.search.placeholder')}
-                    value={searchTerm || ''}
-                    iconName={SearchInput.ICONS.SEARCH}
-                    isIconClickable
-                    alignIcon={SearchInput.ICON_ALIGNMENT.RIGHT}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    onSubmit={() => {
-                      tessen.track({
-                        eventName: 'nonHomepageSidebarSearch',
-                        category: 'SearchInput',
-                        searchTerm,
-                      });
-                      navigate(`?q=${searchTerm || ''}`);
-                    }}
-                    css={css`
+                      />
+                    </Link>
+                  </div>
+                  {sidebar && (
+                    <SearchInput
+                      placeholder={t('home.search.placeholder')}
+                      value={searchTerm || ''}
+                      iconName={SearchInput.ICONS.SEARCH}
+                      isIconClickable
+                      alignIcon={SearchInput.ICON_ALIGNMENT.RIGHT}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      onSubmit={() => {
+                        tessen.track({
+                          eventName: 'nonHomepageSidebarSearch',
+                          category: 'SearchInput',
+                          searchTerm,
+                        });
+                        navigate(`?q=${searchTerm || ''}`);
+                      }}
+                      css={css`
                       margin: 1.5rem 0 2rem;
                       svg {
                         color: var(--primary-text-color);
                       }
                     `}
-                  />
-                )}
-              </div>
+                    />
+                  )}
+                </div>
 
-              <>
-                <RootNavigation
-                  isStyleGuide={isStyleGuide}
-                  locale={locale}
-                  css={css`
+                <>
+                  <RootNavigation
+                    isStyleGuide={isStyleGuide}
+                    locale={locale}
+                    css={css`
                     overflow-x: hidden;
                     height: calc(
                       100vh - ${navHeaderHeight} - var(--global-header-height) -
                         4rem
                     );
                   `}
-                />
-                <NavFooter
-                  css={css`
+                  />
+                  <NavFooter
+                    css={css`
                     width: calc(var(--sidebar-width) - 1px);
                   `}
-                />
-              </>
-            </Layout.Sidebar>
-            <CSSTransition
-              in={sidebar}
-              timeout={300}
-              classNames="main-transition"
-            >
+                  />
+                </>
+              </Layout.Sidebar>
               <Layout.Main
                 css={css`
                   display: ${isMobileNavOpen ? 'none' : 'block'};
@@ -237,46 +233,24 @@ const MainLayout = ({ children, pageContext }) => {
 
                   @media (min-width: 760px) {
                     ${!sidebar &&
-                    `padding-left: calc(var(--site-content-padding) + 50px);`}
-                  }
-
-                  &.main-transition-enter {
-                    translate: 50px;
-                  }
-                  &.main-transition-enter-active {
-                    translate: 0;
-                    transition: 300ms translate ease;
-                  }
-                  &.main-transition-enter-done {
-                    translate: 0;
-                  }
-
-                  &.main-transition-exit {
-                    translate: -50px;
-                  }
-                  &.main-transition-exit-active {
-                    translate: 0;
-                    transition: 300ms translate ease;
-                  }
-                  &.main-transition-exit-done {
-                    translate: 0;
+                  `padding-left: calc(var(--site-content-padding) + 50px);`}
                   }
                 `}
               >
                 {children}
               </Layout.Main>
-            </CSSTransition>
-            <Layout.Footer
-              fileRelativePath={pageContext.fileRelativePath}
-              css={css`
+              <Layout.Footer
+                fileRelativePath={pageContext.fileRelativePath}
+                css={css`
                 height: 60px;
                 ${!sidebar &&
-                css`
+                  css`
                   grid-column: 1/3;
                 `}
               `}
-            />
-          </Layout>
+              />
+            </Layout>
+          </Flipper>
         </MainLayoutContext.Provider>
       </LoggedInProvider>
     </>

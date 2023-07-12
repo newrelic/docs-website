@@ -1,11 +1,10 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/react';
-import { animated } from 'react-spring';
 
 const Sidebar = ({ children, className }) => {
   return (
-    <animated.aside
+    <aside
       data-swiftype-index={false}
       css={css`
         grid-area: sidebar;
@@ -33,7 +32,7 @@ const Sidebar = ({ children, className }) => {
       >
         {children}
       </div>
-    </animated.aside>
+    </aside>
   );
 };
 
