@@ -3,6 +3,7 @@ import fetch from 'node-fetch';
 import fs from 'fs';
 import core from '@actions/core';
 
+// this should be prod nerdgraph
 const NERDGRAPH_API_URL = 'https://api.newrelic.com/graphql';
 const JSON_FILE_PATH = 'src/data/attribute-dictionary.json';
 
@@ -10,10 +11,14 @@ const GQL_QUERY = `
   {
     docs {
       dataDictionary {
-        events(names: "PageView") {
+        events {
           name
+          definition(format: HTML)
+          dataSources {
+            name
+          }
           attributes {
-            definition
+            definition(format: HTML)
             name
             units {
               label
