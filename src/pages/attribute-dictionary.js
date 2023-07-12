@@ -24,8 +24,17 @@ import ErrorBoundary from '../components/ErrorBoundary';
 import attributeDictionaryData from '../data/attribute-dictionary.json';
 
 const AttributeDictionary = ({ pageContext, location }) => {
-  const allDataDictionaryEvent =
-    attributeDictionaryData.data.docs.dataDictionary.events;
+  const allDataDictionaryEvent = attributeDictionaryData.data.docs.dataDictionary.events.sort(
+    function (a, b) {
+      if (a.name < b.name) {
+        return -1;
+      }
+      if (a.name > b.name) {
+        return 1;
+      }
+      return 0;
+    }
+  );
 
   const [filteredEvents, setFilteredEvents] = useState([]);
   const [filteredAttribute, setFilteredAttribute] = useState(null);
