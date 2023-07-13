@@ -184,20 +184,30 @@ AttributeDictionary.propTypes = {
 
 const pluralize = (word, count) => (count === 1 ? word : `${word}s`);
 
+const sortAttributes = (a, b) => {
+  const nameA = a.name.toUpperCase();
+  const nameB = b.name.toUpperCase();
+  if (nameA < nameB) return -1;
+  if (nameA > nameB) return 1;
+  return 0;
+};
+
 const EventDefinition = memo(
   ({ location, event, searchedAttribute, filteredAttribute }) => {
     let filteredAttributes = [];
 
     if (searchedAttribute) {
-      filteredAttributes = event.attributes.filter(({ name }) =>
-        name.toLowerCase().includes(searchedAttribute.toLowerCase())
-      );
+      filteredAttributes = event.attributes
+        .filter(({ name }) =>
+          name.toLowerCase().includes(searchedAttribute.toLowerCase())
+        )
+        .sort(sortAttributes);
     } else if (filteredAttribute) {
-      filteredAttributes = event.attributes.filter(
-        ({ name }) => name === filteredAttribute
-      );
+      filteredAttributes = event.attributes
+        .filter(({ name }) => name === filteredAttribute)
+        .sort(sortAttributes);
     } else {
-      filteredAttributes = event.attributes;
+      filteredAttributes = event.attributes.sort(sortAttributes);
     }
 
     return (
