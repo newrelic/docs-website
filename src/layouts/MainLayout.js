@@ -67,43 +67,47 @@ const MainLayout = ({ children, pageContext }) => {
   }, [sidebar]);
 
   const navCollapser = (
-    <Button
-      variant={Button.VARIANT.PRIMARY}
-      css={css`
+    <Flipped flipId="collapser">
+      <div css={css`
+      height: calc(100vh - var(--global-header-height));
+      top: calc(var(--global-header-height));
+      position: sticky;
+      grid-row: 1;
+      grid-column: 1;
+      width: 80px;
+      left: ${sidebar ? '259px' : '349px'};
+      display: flex;
+      padding: 1.5rem 0;
+      z-index: 1;
+    `}>
+        <Button
+          variant={Button.VARIANT.PRIMARY}
+          css={css`
         height: 40px;
         width: 40px;
         padding: 0;
         border-radius: 50%;
-        left: 269px;
-        position: fixed;
-        top: 102px;
         transition: 300ms translate ease;
-        z-index: 1;
 
         @media (max-width: 760px) {
           display: none;
         }
-
-        ${!sidebar &&
-        `translate: calc(calc(var(--sidebar-width) * -1) + 80px);`}
-
-        @media (max-width: 1240px) {
-          left: 208px;
-          ${!sidebar &&
-        `translate: calc(calc(var(--sidebar-width) * -1) + 141px);`}
-        }
       `}
-      onClick={() => {
-        tessen.track({
-          eventName: sidebar ? 'closeNav' : 'openNav',
-          category: 'NavCollapserClick',
-        });
-        setSidebar(!sidebar);
-      }}
-    >
-      <Icon name="nr-nav-collapse" size="1rem" />
-    </Button>
+          onClick={() => {
+            tessen.track({
+              eventName: sidebar ? 'closeNav' : 'openNav',
+              category: 'NavCollapserClick',
+            });
+            setSidebar(!sidebar);
+          }}
+        >
+          <Icon name="nr-nav-collapse" size="1rem" />
+        </Button>
+      </div>
+    </Flipped>
   );
+
+  window.toggleSidebar = () => setSidebar(!sidebar)
 
   return (
     <>
@@ -118,7 +122,6 @@ const MainLayout = ({ children, pageContext }) => {
       <LoggedInProvider>
         <MainLayoutContext.Provider value={[sidebar]}>
           <Flipper flipKey={sidebar}>
-            {navCollapser}
             <Layout
               css={css`
               --sidebar-width: ${sidebarWidth};
@@ -226,6 +229,7 @@ const MainLayout = ({ children, pageContext }) => {
                   />
                 </>
               </Layout.Sidebar>
+              {navCollapser}
               <Layout.Main
                 css={css`
                   display: ${isMobileNavOpen ? 'none' : 'block'};

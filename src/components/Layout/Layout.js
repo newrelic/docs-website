@@ -8,6 +8,7 @@ import PageTools from '@newrelic/gatsby-theme-newrelic/src/components/Layout/Pag
 
 import Sidebar from './Sidebar';
 import { useMainLayoutContext } from '../MainLayoutContext';
+import { Flipped } from 'react-flip-toolkit';
 
 const Layout = ({ className, children }) => {
   const [sidebar] = useMainLayoutContext();
@@ -19,8 +20,9 @@ const Layout = ({ className, children }) => {
         width: 100%;
       `}
     >
-      <div
-        css={css`
+      <Flipped flipId="main-layout" translate>
+        <div
+          css={css`
           display: grid;
           grid-template-columns: var(--sidebar-width) 1fr;
           grid-template-areas:
@@ -30,7 +32,6 @@ const Layout = ({ className, children }) => {
           min-height: calc(100vh - var(--global-header-height));
           width: ${sidebar ? '100%' : 'calc(100% + var(--sidebar-width))'};
           translate: ${sidebar ? '0' : 'calc(-1 * var(--sidebar-width))'};
-          transition: 300ms translate ease;
 
           @media screen and (max-width: 760px) {
             grid-template-columns: minmax(0, 1fr);
@@ -42,10 +43,11 @@ const Layout = ({ className, children }) => {
             width: 100%;
           }
         `}
-        className={className}
-      >
-        {children}
-      </div>
+          className={className}
+        >
+          {children}
+        </div>
+      </Flipped>
     </div>
   );
 };

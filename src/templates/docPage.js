@@ -117,7 +117,7 @@ const BasicDoc = ({ data, location, pageContext }) => {
           {...signupBanner}
         />
       )}
-      <Flipped flipId="main-content" spring="stiff" translate>
+      <Flipped inverseflipId="main-layout" translate>
         <div
           css={css`
           display: grid;
@@ -182,7 +182,7 @@ const BasicDoc = ({ data, location, pageContext }) => {
             </Layout.Content>
           </LoggedInProvider>
           {!hidePageTools && (
-            <Flipped flipId="page-tools" translate>
+            <Flipped inverseflipId="main-layout" translate>
               <Layout.PageTools
                 css={css`
                 background: var(--primary-background-color);
