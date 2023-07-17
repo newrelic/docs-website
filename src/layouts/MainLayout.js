@@ -101,7 +101,7 @@ const MainLayout = ({ children, pageContext }) => {
 
           @media (max-width: 1240px) {
             ${!sidebar &&
-            `translate: calc(calc(var(--sidebar-width) * -1) + 141px);`}
+            `translate: calc(calc(var(--sidebar-width) / 4) + 14px);`}
           }
         `}
         onClick={() => {
