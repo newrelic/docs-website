@@ -15,11 +15,10 @@ const METADATA = [
 
 const visualWebsiteOptimizer = (location) => {
   const { pathname } = location;
-  const homepage = '/';
-  const signup =
-    '/docs/accounts/accounts-billing/account-setup/create-your-new-relic-account/';
+  const vwoPaths = [];
+  const withVWO = vwoPaths.some((path) => path.test(pathname));
 
-  if (pathname === homepage || pathname === signup) {
+  if (withVWO || pathname === '/') {
     return (
       <script type="text/javascript" id="vwoCode">
         {`window._vwo_code=window._vwo_code || (function() {

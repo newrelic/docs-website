@@ -1,0 +1,203 @@
+---
+title: Kubernetes로 인프라 자동 확장
+metaDescription: Automatically allocate and deallocate infrastructure resources to your pods with horizontal pod autoscaling.
+translationType: machine
+---
+
+import kubernetesK8sHPA from 'images/kubernetes_diagram_K8s-HPA.webp'
+
+피크 수요 이벤트를 준비하려면 시간이 필요합니다. 기준선을 설정하고 서비스 수준 계약을 평가하고 동일한 데이터를 중심으로 모든 팀을 조정해야 합니다. 인프라 확장에는 비슷한 고려 사항이 있지만 비용 대비 시스템 요구 사항을 예측하는 것도 포함됩니다. 성능을 희생하지 않고 어떻게 둘 사이의 균형을 맞추나요? 충분히 좋은 기준은 어디입니까?
+
+한 가지 솔루션은 Pixie와의 Kubernetes 통합으로 구축된 HPA(horizontal pod autoscaling)입니다. HPA를 설정하면 Kubernetes 클러스터는 수요가 최고조에 달할 때 자동으로 더 많은 포드를 할당하고 수요가 감소할 때 할당을 해제합니다. 이를 통해 수요를 예상할 때 비용 문제를 피할 수 있습니다.
+
+<img
+  title="Horizontal pod autoscaling"
+  alt="Diagram demonstrating how HPA interacts with New Relic at a high level."
+  src={kubernetesK8sHPA}
+/>
+
+이 가이드에서는 Kubernetes 클러스터를 사용하고 있다고 가정합니다. HPA를 설정하려면 다음이 필요합니다.
+
+* 쿠버네티스 1.16 이상
+
+* New Relic 사용자
+
+  <InlinePopover type="licenseKey"/>
+
+* 클러스터에 설치된 다른 외부 측정항목 어댑터 없음
+
+## 목표 [#objectives]
+
+이 자습서에서는 HPA용 데모 환경을 설정하는 과정을 안내합니다. 당신은:
+
+* New Relic Kubernetes 통합 설치
+* 자동 크기 조정을 테스트하기 위한 예시 환경 설정
+
+## Kubernetes에 메트릭 전달 [#k8s]
+
+<Steps>
+  <Step>
+    ### New Relic Pixie 연구소 저장소 복제
+
+    Github에서 다음 리포지토리를 복제합니다.
+
+    ```bash
+    git clone https://github.com/newrelic-experimental/pixie-lab-materials
+    ​​cd pixie-lab-materials/main
+    ./setup.sh
+    ```
+  </Step>
+
+  <Step>
+    `setup.sh` 스크립트는 Pixie 지원 하이퍼킷 드라이버를 사용하여 새로운 minikube 클러스터를 가동합니다. 그런 다음 Pixie에서 최적의 성능을 위해 네트워크 메모리와 CPU를 구성하고 데모 애플리케이션을 구성하는 모든 포드와 서비스를 생성합니다.
+
+    새 터미널 창에서 minikube 터널을 엽니다.
+
+    ```bash
+    minikube tunnel -p minikube-pixie-lab
+    ```
+
+    두 개의 터미널이 있어야 합니다.
+
+    * 데모 애플리케이션에 액세스하기 위해 열려 있는 터널입니다.
+    * 자습서에 대한 명령을 실행하는 위치입니다.
+  </Step>
+
+  <Step>
+    ### Pixie와 Kubernetes 통합 설치
+
+    [가이드 설치](https://one.newrelic.com/nr1-core?account=2498654&state=d1aae74b-0ad6-b0f3-093d-cc89ecf89234) 에 따라 New Relic Kubernetes 통합을 설치하십시오. 그러면 New Relic이 Kubernetes 클러스터에 연결됩니다. 다음을 확인하십시오.
+
+    * Pixie를 활성화하려면 Pixie를 통해 **Instant service-level insights** \[즉각적인 서비스 수준 통찰력], **Full-body requests** \[전신 요청] 및 **Application profiles through Pixie** \[애플리케이션 프로필을] 확인하십시오.
+
+    * 다른 모든 기본 선택 항목 유지
+
+      계속을 클릭하면 해당 명령을 복사하여 개발 환경에 붙여넣습니다.
+  </Step>
+
+  <Step>
+    ### New Relic Metrics Adapter 설치
+
+    New Relic Metrics Adapter를 설치하려면 `newrelic-k8s-metrics-adapter` Helm 차트를 사용하세요. `nri-bundle-chart` 를 사용하여 New Relic Kubernetes 구성요소를 배포한 경우 이 Helm 차트에 액세스할 수 있습니다.
+
+    ```bash
+    helm upgrade --install newrelic newrelic/nri-bundle \
+      --namespace newrelic --create-namespace --reuse-values \
+      --set metrics-adapter.enabled=true \
+      --set newrelic-k8s-metrics-adapter.personalAPIKey=YOUR_NEW_RELIC_PERSONAL_API_KEY \
+      --set newrelic-k8s-metrics-adapter.config.accountID=YOUR_NEW_RELIC_ACCOUNT_ID \
+      --set newrelic-k8s-metrics-adapter.config.externalMetrics.manipulate_average_requests.query="FROM Metric SELECT average(http.server.duration) WHERE instrumentation.provider='pixie'"
+    ```
+
+    이러한 플래그가 수행하는 작업은 다음과 같습니다.
+
+    * `metrics-adapter.enabled`: 메트릭 어댑터 차트를 설치하려면 `true` 으로 설정합니다.
+
+    * `newrelic-k8s-metrics-adapter.personalAPIKey`: New Relic API 키를 설정합니다.
+
+    * `newrelic-k8s-metrics-adapter.accountID`: 메트릭을 전달하는 계정의 ID입니다.
+
+    * `newrelic-k8s-metrics-adapter.config.externalMetrics.external_metric_name.query`: 다음 정보가 있는 새 외부 메트릭을 추가합니다.
+
+      * `external_metric_name`: 메트릭 이름입니다.
+      * `query`: 메트릭에 대한 기본 NRQL 쿼리입니다.
+  </Step>
+
+  <Step>
+    ### NRQL 쿼리가 정확한지 확인하십시오.
+
+    New Relic에서 자동 크기 조정기로 메트릭을 보내기 전에 쿼리를 테스트해야 합니다. **[one.newrelic.com](https://one.newrelic.com) > Query your Data**로 이동한 후 다음 NRQL 쿼리를 복사하여 붙여넣습니다.
+
+    ```sql
+    FROM Metric SELECT average(http.server.duration) WHERE instrumentation.provider='pixie'
+    ```
+  </Step>
+
+  <Step>
+    ### 자동 크기 조정기 구성
+
+    `pixie-lab-materials/main/kube` 디렉토리에서 `hpa.yml`라는 새 파일을 만듭니다. New Relic 메트릭 어댑터는 이 YAML 파일의 HPA 정의에 의해 정의된 컨트롤러 관리자로 데이터를 보냅니다.
+
+    ```yml
+    kind: HorizontalPodAutoscaler
+    apiVersion: autoscaling/v2beta2
+    metadata:
+        name: manipulate-scaler
+    spec:
+        scaleTargetRef:
+            apiVersion: apps/v1
+            kind: Deployment
+            name: manipulation-service
+        minReplicas: 1
+        maxReplicas: 10
+        metrics:
+            - type: External
+                external:
+                    metric:
+                        name: manipulate_average_requests
+                    target:
+                        type: Value
+                        value: 100
+    ```
+
+    다음을 실행하여 새 YAML 파일을 적용합니다.
+
+    ```bash
+    cd pixie-lab-materials/main/kube
+    kubectl apply -f hpa.yaml
+    ```
+  </Step>
+</Steps>
+
+## 작업 확인: 로드를 추가하여 자동 크기 조정 트리거 [#check]
+
+1. `kubectl get services`) 사용하여 사이트 배포로 이동합니다.
+2. 브라우저의 프런트엔드 서비스에서 `EXTERNAL-IP` 를 엽니다.
+3. `hey` 설치하고 `brew install hey`로 Go v1.17을 설치합니다.
+4. `hey -n 10 -c 2 -m GET http://<EXTERNAL-IP>`을(를) 사용하여 `EXTERNAL-IP` 에 GET 요청을 보냅니다.
+5. `watch kubnectl get hpa`로 HPA 자동 확장을 확인하세요.
+
+평균 HTTP 요청 시간이 증가함에 따라 포드가 복제본 수를 자동 확장하는 경우 HPA를 성공적으로 설정한 것입니다. 필요에 따라 New Relic 및 HPA가 자동으로 확장되도록 자체 서비스에 대한 구성을 조정할 수 있습니다.
+
+<DocTiles numbered>
+  <DocTile
+    title="Get started"
+    path="/docs/journey-demand/get-started"
+  >
+    APM 및 인프라 에이전트를 사용하여 아키텍처에 대한 데이터 가져오기
+  </DocTile>
+
+  <DocTile
+    title="Create service levels for gameday"
+    path="/docs/journey-demand/find-your-baseline/"
+  >
+    기준에 따라 서비스 수준 생성
+  </DocTile>
+</DocTiles>
+
+<DocTiles>
+  <DocTile
+    title="Reduce noise with quality alerts"
+    number="3"
+    path="/docs/journey-demand/create-quality-alerts/"
+  >
+    알림 품질 관리로 알림 평가
+  </DocTile>
+
+  <DocTile
+    title="Align your teams with workloads"
+    number="4"
+    path="/docs/journey-demand/organize-data-workloads/"
+  >
+    동일한 데이터를 중심으로 팀 조정
+  </DocTile>
+
+  <DocTile
+    title="Autoscale your infrastructure with Kubernetes"
+    number="5"
+    path="/docs/journey-demand/autoscale-your-infra/"
+    label={{text: "You are here", color: "orange"}}
+  >
+    수요가 급증할 때 리소스 확장
+  </DocTile>
+</DocTiles>

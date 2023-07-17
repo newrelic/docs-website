@@ -1,0 +1,164 @@
+---
+title: Autoscale your infrastructure with Kubernetes
+metaDescription: "Automatically allocate and deallocate infrastructure resources to your pods with horizontal pod autoscaling."
+redirects:
+  - /docs/journey-demand/autoscale-your-infra/
+---
+
+import kubernetesK8sHPA from 'images/kubernetes_diagram_K8s-HPA.webp'
+
+Preparing for a peak demand event requires time: you have to establish your baselines, assess your service level agreements, and align all your teams around the same data. Scaling your infrastructure has similar considerations, but also involves projecting system needs against cost. How do you balance the two without sacrificing performance? Where is the threshold for good enough?
+
+One solution is horizontal pod autoscaling (HPA), which is built with our Kubernetes integration with Pixie. Once you've set up HPA, your Kubernetes cluster automatically allocates more pods when demand peaks, then deallocates when demand falls. This allows you to sidestep cost concerns when anticipating demand.
+
+<img
+    title="Horizontal pod autoscaling"
+    alt="Diagram demonstrating how HPA interacts with New Relic at a high level."
+    src={kubernetesK8sHPA}
+/>
+
+The tutorial assumes that you're using Kubernetes clusters. To set up HPA, you'll need:
+
+* Kubernetes 1.16 or higher
+* Your New Relic user <InlinePopover type="licenseKey" />
+* No other external metrics adapter installed in the cluster
+
+## Objectives [#objectives]
+
+This tutorial walks you through setting up a demo environment for HPA. You will:
+
+* Install the New Relic Kubernetes integration
+* Set up an example environment to test autoscaling  
+
+## Forward metrics to Kubernetes [#k8s]
+
+<Steps>
+    <Step>
+        ### Clone our New Relic Pixie lab repo
+
+        Clone the following repo from Github:
+
+        ```bash
+        git clone https://github.com/newrelic-experimental/pixie-lab-materials
+        ​​cd pixie-lab-materials/main
+        ./setup.sh
+        ```
+    </Step>
+    <Step>
+The `setup.sh` script spins up a new minikube cluster using the Pixie-supported hyperkit driver. It then configures your network memory and CPU for optimal performance with Pixie and creates all the pods and services that make up the demo application.
+
+In a new terminal window, open a minikube tunnel:
+
+```bash
+minikube tunnel -p minikube-pixie-lab
+```
+
+You should have two terminals: 
+
+* Your tunnel, which remains open to access your demo application.
+* A place to run commands for the tutorial.
+
+    </Step>
+    <Step>
+        ### Install the Kubernetes integration with Pixie
+
+        Follow our [guided install](https://one.newrelic.com/nr1-core?account=2498654&state=d1aae74b-0ad6-b0f3-093d-cc89ecf89234) to install the New Relic Kubernetes integration. This connects New Relic to your Kubernetes cluster. Make sure to:
+
+        * Check **Instant service-level insights**, **Full-body requests**, and **Application profiles through Pixie** to enable Pixie.
+        * Keep all other default checked items
+
+        Once you click continue, copy and paste that command into your dev environment. 
+
+    </Step>
+    <Step>
+        ### Install New Relic Metrics Adapter
+
+        To install the New Relic Metrics Adapter, use the `newrelic-k8s-metrics-adapter` Helm chart. If you've used the `nri-bundle-chart` to deploy any New Relic Kubernetes components, then you have access to this Helm chart. 
+
+
+        ```bash
+        helm upgrade --install newrelic newrelic/nri-bundle \
+          --namespace newrelic --create-namespace --reuse-values \
+          --set metrics-adapter.enabled=true \
+          --set newrelic-k8s-metrics-adapter.personalAPIKey=YOUR_NEW_RELIC_PERSONAL_API_KEY \
+          --set newrelic-k8s-metrics-adapter.config.accountID=YOUR_NEW_RELIC_ACCOUNT_ID \
+          --set newrelic-k8s-metrics-adapter.config.externalMetrics.manipulate_average_requests.query="FROM Metric SELECT average(http.server.duration) WHERE instrumentation.provider='pixie'"
+        ```
+
+        Here's what these flags do:
+
+        * `metrics-adapter.enabled`: Sets to `true` to install the metrics adapter chart
+        * `newrelic-k8s-metrics-adapter.personalAPIKey`: Sets your New Relic API key.
+        * `newrelic-k8s-metrics-adapter.accountID`: The ID of the account that forwards metrics.
+        * `newrelic-k8s-metrics-adapter.config.externalMetrics.external_metric_name.query`: Adds a new external metric with the following information:
+            * `external_metric_name`: The metric name.
+            * `query`: The base NRQL query for the metric.
+
+
+    </Step>
+    <Step>
+        ### Confirm your NRQL query is accurate
+
+        You should test your query before sending metrics to the autoscaler from New Relic. Go to **[one.newrelic.com](https://one.newrelic.com) > Query your Data**, then copy and paste the following NRQL query:
+
+        ```sql
+        FROM Metric SELECT average(http.server.duration) WHERE instrumentation.provider='pixie'
+        ```
+    </Step>
+    <Step>
+### Configure your autoscaler
+
+From the `pixie-lab-materials/main/kube` directory, create a new file called `hpa.yml`. The New Relic metrics adapter sends data to the controller manager, which is defined by the HPA definition in this YAML file. 
+
+```yml
+kind: HorizontalPodAutoscaler
+apiVersion: autoscaling/v2beta2
+metadata:
+    name: manipulate-scaler
+spec:
+    scaleTargetRef:
+        apiVersion: apps/v1
+        kind: Deployment
+        name: manipulation-service
+    minReplicas: 1
+    maxReplicas: 10
+    metrics:
+        - type: External
+            external:
+                metric:
+                    name: manipulate_average_requests
+                target:
+                    type: Value
+                    value: 100
+```
+
+Apply the new YAML file by running:
+
+```bash
+cd pixie-lab-materials/main/kube
+kubectl apply -f hpa.yaml
+```
+
+</Step>
+</Steps>
+
+## Check your work: Add load to trigger autoscaling [#check]
+
+1. Navigate to your site deployment with `kubectl get services`.
+2. Open the `EXTERNAL-IP` from your frontend-service in your browser.
+3. Install `hey` and Go v1.17 with `brew install hey`.
+4. Send GET requests to the `EXTERNAL-IP` with `hey -n 10 -c 2 -m GET http://<EXTERNAL-IP>`.
+5. Watch your HPA autoscalling with `watch kubnectl get hpa`. 
+
+You've successfully set up HPA if the pod autoscales the number of replicas as the average HTTP request time increases. You can adjust the configuration for your own services so that New Relic and HPA automatically autoscale as needed.
+
+<DocTiles numbered>
+    <DocTile title='Get started' path="/docs/journey-demand/get-started">Get data about your architecture with APM and infrastructure agents</DocTile>
+    <DocTile title='Create service levels for gameday' path="/docs/journey-demand/find-your-baseline/">Create service levels informed by your baseline  </DocTile>
+</DocTiles>
+
+<DocTiles>
+    <DocTile title='Reduce noise with quality alerts' number='3' path="/docs/journey-demand/create-quality-alerts/">Evaluate your alerts with alert quality management</DocTile>
+    <DocTile title='Align your teams with workloads' number='4' path="/docs/journey-demand/organize-data-workloads/">Align your teams around the same data</DocTile>    
+    <DocTile title='Autoscale your infrastructure with Kubernetes' number='5' path="/docs/journey-demand/autoscale-your-infra/" label={{text: "You are here", color: "orange"}}> Scale your resources as demand peaks</DocTile>
+</DocTiles>

@@ -1,7 +1,6 @@
 import React, { memo, useMemo, useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/react';
-import { graphql } from 'gatsby';
 import {
   ContributingGuidelines,
   Layout,
@@ -14,6 +13,7 @@ import {
   ComplexFeedback,
   Table,
 } from '@newrelic/gatsby-theme-newrelic';
+
 import { TYPES } from '../utils/constants';
 
 import DataDictionaryFilter from '../components/DataDictionaryFilter';
@@ -21,8 +21,20 @@ import SEO from '../components/SEO';
 import PageTitle from '../components/PageTitle';
 import ErrorBoundary from '../components/ErrorBoundary';
 
-const AttributeDictionary = ({ data, pageContext, location }) => {
-  const { allDataDictionaryEvent } = data;
+import attributeDictionaryData from '../data/attribute-dictionary.json';
+
+const AttributeDictionary = ({ pageContext, location }) => {
+  const allDataDictionaryEvent = attributeDictionaryData.data.docs.dataDictionary.events.sort(
+    function (a, b) {
+      if (a.name < b.name) {
+        return -1;
+      }
+      if (a.name > b.name) {
+        return 1;
+      }
+      return 0;
+    }
+  );
 
   const [filteredEvents, setFilteredEvents] = useState([]);
   const [filteredAttribute, setFilteredAttribute] = useState(null);
@@ -36,17 +48,18 @@ const AttributeDictionary = ({ data, pageContext, location }) => {
     );
   }
 
-  const events = useMemo(
-    () => allDataDictionaryEvent.edges.map((edge) => edge.node),
-    [allDataDictionaryEvent]
-  );
+  const events = useMemo(() => allDataDictionaryEvent.map((item) => item), [
+    allDataDictionaryEvent,
+  ]);
 
   useEffect(() => {
     let filteredEvents = events;
 
     if (queryParams.has('dataSource')) {
       filteredEvents = filteredEvents.filter((event) =>
-        event.dataSources.includes(queryParams.get('dataSource'))
+        event.dataSources
+          .map((ds) => ds.name)
+          .some((name) => name.includes(queryParams.get('dataSource')))
       );
     }
 
@@ -58,7 +71,7 @@ const AttributeDictionary = ({ data, pageContext, location }) => {
 
     if (queryParams.has('attributeSearch')) {
       filteredEvents = filteredEvents.filter((event) =>
-        event.childrenDataDictionaryAttribute.some(({ name }) =>
+        event.attributes.some(({ name }) =>
           name
             .toLowerCase()
             .includes(queryParams.get('attributeSearch').toLowerCase())
@@ -87,7 +100,7 @@ const AttributeDictionary = ({ data, pageContext, location }) => {
             'page-title page-title'
             'page-description page-tools'
             'content page-tools';
-          grid-template-columns: minmax(0, 1fr) 205px;
+          grid-template-columns: minmax(0, 1fr) 12.8125rem;
           grid-column-gap: 2rem;
           @media (max-width: 1240px) {
             grid-template-areas:
@@ -163,7 +176,6 @@ const AttributeDictionary = ({ data, pageContext, location }) => {
 };
 
 AttributeDictionary.propTypes = {
-  data: PropTypes.object.isRequired,
   pageContext: PropTypes.object.isRequired,
   location: PropTypes.shape({
     pathname: PropTypes.string.isRequired,
@@ -172,21 +184,30 @@ AttributeDictionary.propTypes = {
 
 const pluralize = (word, count) => (count === 1 ? word : `${word}s`);
 
+const sortAttributes = (a, b) => {
+  const nameA = a.name.toUpperCase();
+  const nameB = b.name.toUpperCase();
+  if (nameA < nameB) return -1;
+  if (nameA > nameB) return 1;
+  return 0;
+};
+
 const EventDefinition = memo(
   ({ location, event, searchedAttribute, filteredAttribute }) => {
     let filteredAttributes = [];
 
     if (searchedAttribute) {
-      filteredAttributes = event.childrenDataDictionaryAttribute.filter(
-        ({ name }) =>
+      filteredAttributes = event.attributes
+        .filter(({ name }) =>
           name.toLowerCase().includes(searchedAttribute.toLowerCase())
-      );
+        )
+        .sort(sortAttributes);
     } else if (filteredAttribute) {
-      filteredAttributes = event.childrenDataDictionaryAttribute.filter(
-        ({ name }) => name === filteredAttribute
-      );
+      filteredAttributes = event.attributes
+        .filter(({ name }) => name === filteredAttribute)
+        .sort(sortAttributes);
     } else {
-      filteredAttributes = event.childrenDataDictionaryAttribute;
+      filteredAttributes = event.attributes.sort(sortAttributes);
     }
 
     return (
@@ -256,17 +277,17 @@ const EventDefinition = memo(
             {event.dataSources.map((dataSource) => (
               <Tag
                 as={Link}
-                to={`${location.pathname}?dataSource=${dataSource}`}
-                key={dataSource}
+                to={`${location.pathname}?dataSource=${dataSource.name}`}
+                key={dataSource.name}
               >
-                {dataSource}
+                {dataSource.name}
               </Tag>
             ))}
           </TagList>
         </div>
         <div
           data-swiftype-index="false"
-          dangerouslySetInnerHTML={{ __html: event.definition?.html }}
+          dangerouslySetInnerHTML={{ __html: event.definition }}
         />
         <Table data-swiftype-index="false">
           <thead>
@@ -279,7 +300,6 @@ const EventDefinition = memo(
                 Attribute name
               </th>
               <th>Definition</th>
-              <th>Data types</th>
             </tr>
           </thead>
           <tbody>
@@ -329,7 +349,7 @@ const EventDefinition = memo(
                         `}
                       />
                     </Link>
-                    {attribute.units && (
+                    {attribute.units?.label && (
                       <div
                         css={css`
                           font-size: 0.75rem;
@@ -339,7 +359,7 @@ const EventDefinition = memo(
                           }
                         `}
                       >
-                        {attribute.units}
+                        {attribute.units?.label}
                       </div>
                     )}
                   </td>
@@ -351,31 +371,9 @@ const EventDefinition = memo(
                       }
                     `}
                     dangerouslySetInnerHTML={{
-                      __html: attribute.definition.html,
+                      __html: attribute.definition,
                     }}
                   />
-                  <td
-                    css={css`
-                      width: 1px;
-                    `}
-                  >
-                    <ul
-                      css={css`
-                        margin: 0;
-                        list-style: none;
-                        padding-left: 0;
-                        font-size: 0.875rem;
-                      `}
-                    >
-                      {attribute.events.map((event) => (
-                        <li key={`${attribute.name}-${event.name}`}>
-                          <Link to={`${location.pathname}?event=${event.name}`}>
-                            {event.name}
-                          </Link>
-                        </li>
-                      ))}
-                    </ul>
-                  </td>
                 </tr>
               );
             })}
@@ -394,32 +392,5 @@ EventDefinition.propTypes = {
     pathname: PropTypes.string.isRequired,
   }).isRequired,
 };
-
-export const pageQuery = graphql`
-  query {
-    allDataDictionaryEvent(sort: { fields: [name] }) {
-      edges {
-        node {
-          name
-          dataSources
-          definition {
-            html
-          }
-          childrenDataDictionaryAttribute {
-            name
-            units
-            definition {
-              html
-            }
-            events {
-              name
-            }
-          }
-          ...DataDictionaryFilter_events
-        }
-      }
-    }
-  }
-`;
 
 export default AttributeDictionary;

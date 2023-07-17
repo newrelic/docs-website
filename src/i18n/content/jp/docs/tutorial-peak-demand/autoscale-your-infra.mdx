@@ -1,0 +1,203 @@
+---
+title: Kubernetes を使用してインフラストラクチャを自動スケールする
+metaDescription: Automatically allocate and deallocate infrastructure resources to your pods with horizontal pod autoscaling.
+translationType: machine
+---
+
+import kubernetesK8sHPA from 'images/kubernetes_diagram_K8s-HPA.webp'
+
+ピーク需要イベントの準備には時間がかかります。ベースラインを確立し、サービス レベル アグリーメントを評価し、同じデータを中心にすべてのチームを調整する必要があります。インフラストラクチャの拡張にも同様の考慮事項がありますが、コストに対するシステムのニーズの予測も必要になります。パフォーマンスを犠牲にすることなく、この 2 つのバランスを取るにはどうすればよいでしょうか?十分に良いという基準はどこにあるのでしょうか?
+
+ソリューションの 1 つは、Pixie と Kubernetes の統合によって構築された水平ポッド自動スケーリング (HPA) です。HPA を設定すると、Kubernetes クラスターは需要がピークに達したときに自動的にさらに多くのポッドを割り当て、需要が低下したときに割り当てを解除します。これにより、需要を予測する際にコストの懸念を回避できます。
+
+<img
+  title="Horizontal pod autoscaling"
+  alt="Diagram demonstrating how HPA interacts with New Relic at a high level."
+  src={kubernetesK8sHPA}
+/>
+
+このチュートリアルでは、Kubernetes クラスターを使用していることを前提としています。HPA を設定するには、次のものが必要です。
+
+* Kubernetes 1.16以降
+
+* あなたの New Relic ユーザー
+
+  <InlinePopover type="licenseKey"/>
+
+* クラスターには他の外部メトリック アダプターがインストールされていません
+
+## 目的 [#objectives]
+
+このチュートリアルでは、HPA のデモ環境をセットアップする手順を説明します。あなたはするであろう：
+
+* New Relic Kubernetes統合をインストールする
+* 自動スケーリングをテストするためのサンプル環境をセットアップする
+
+## メトリクスを Kubernetes に転送する [#k8s]
+
+<Steps>
+  <Step>
+    ### New Relic Pixie lab リポジトリのクローンを作成します
+
+    Github から次のリポジトリのクローンを作成します。
+
+    ```bash
+    git clone https://github.com/newrelic-experimental/pixie-lab-materials
+    ​​cd pixie-lab-materials/main
+    ./setup.sh
+    ```
+  </Step>
+
+  <Step>
+    `setup.sh` スクリプトは、Pixie がサポートするハイパーキット ドライバーを使用して新しい minikube クラスターを起動します。次に、Pixie で最適なパフォーマンスが得られるようにネットワーク メモリと CPU を構成し、デモ アプリケーションを構成するすべてのポッドとサービスを作成します。
+
+    新しいターミナル ウィンドウで、minikube トンネルを開きます。
+
+    ```bash
+    minikube tunnel -p minikube-pixie-lab
+    ```
+
+    2 つの端末が必要です。
+
+    * デモ アプリケーションにアクセスするために開いたままになっているトンネル。
+    * チュートリアルのコマンドを実行する場所。
+  </Step>
+
+  <Step>
+    ### Kubernetes と Pixie の統合をインストールする
+
+    [ガイド付きインストール](https://one.newrelic.com/nr1-core?account=2498654&state=d1aae74b-0ad6-b0f3-093d-cc89ecf89234) に従って、New Relic Kubernetes 統合をインストールします。これにより、New Relic が Kubernetes クラスターに接続されます。必ず次のことを行ってください。
+
+    * Pixie を有効 にするには、**Instant service-level insights**\[インスタント サービス レベルの洞察]、 **Full-body requests**\[フルボディ リクエスト]、および **Application profiles through Pixie**\[Pixie を介したアプリケーション プロファイル]を 確認します。
+
+    * 他のデフォルトのチェック項目はすべてそのままにしておきます
+
+      \[続行] をクリックしたら、そのコマンドをコピーして開発環境に貼り付けます。
+  </Step>
+
+  <Step>
+    ### New Relic メトリクス アダプターのインストール
+
+    New Relic Metrics Adapter をインストールするには、 `newrelic-k8s-metrics-adapter` Helm チャートを使用します。 `nri-bundle-chart` を使用して New Relic Kubernetes コンポーネントをデプロイした場合は、この Helm チャートにアクセスできます。
+
+    ```bash
+    helm upgrade --install newrelic newrelic/nri-bundle \
+      --namespace newrelic --create-namespace --reuse-values \
+      --set metrics-adapter.enabled=true \
+      --set newrelic-k8s-metrics-adapter.personalAPIKey=YOUR_NEW_RELIC_PERSONAL_API_KEY \
+      --set newrelic-k8s-metrics-adapter.config.accountID=YOUR_NEW_RELIC_ACCOUNT_ID \
+      --set newrelic-k8s-metrics-adapter.config.externalMetrics.manipulate_average_requests.query="FROM Metric SELECT average(http.server.duration) WHERE instrumentation.provider='pixie'"
+    ```
+
+    これらのフラグの機能は次のとおりです。
+
+    * `metrics-adapter.enabled`: メトリクス アダプター チャートをインストールするには、 `true` に設定します。
+
+    * `newrelic-k8s-metrics-adapter.personalAPIKey`: New Relic API キーを設定します。
+
+    * `newrelic-k8s-metrics-adapter.accountID`: メトリクスを転送するアカウントの ID。
+
+    * `newrelic-k8s-metrics-adapter.config.externalMetrics.external_metric_name.query`: 次の情報を含む新しい外部メトリックを追加します。
+
+      * `external_metric_name`：メトリック名。
+      * `query`: メトリクスのベース NRQL クエリ。
+  </Step>
+
+  <Step>
+    ### NRQL クエリが正確であることを確認する
+
+    New Relic からオートスケーラーにメトリクスを送信する前に、クエリをテストする必要があります。 **[one.newrelic.com](https://one.newrelic.com) > Query your Data**に移動し、次の NRQL クエリをコピーして貼り付けます。
+
+    ```sql
+    FROM Metric SELECT average(http.server.duration) WHERE instrumentation.provider='pixie'
+    ```
+  </Step>
+
+  <Step>
+    ### オートスケーラーを構成する
+
+    `pixie-lab-materials/main/kube` ディレクトリから、 `hpa.yml`という名前の新しいファイルを作成します。New Relic メトリクス アダプターは、この YAML ファイルの HPA 定義によって定義されているコントローラー マネージャーにデータを送信します。
+
+    ```yml
+    kind: HorizontalPodAutoscaler
+    apiVersion: autoscaling/v2beta2
+    metadata:
+        name: manipulate-scaler
+    spec:
+        scaleTargetRef:
+            apiVersion: apps/v1
+            kind: Deployment
+            name: manipulation-service
+        minReplicas: 1
+        maxReplicas: 10
+        metrics:
+            - type: External
+                external:
+                    metric:
+                        name: manipulate_average_requests
+                    target:
+                        type: Value
+                        value: 100
+    ```
+
+    次のコマンドを実行して、新しい YAML ファイルを適用します。
+
+    ```bash
+    cd pixie-lab-materials/main/kube
+    kubectl apply -f hpa.yaml
+    ```
+  </Step>
+</Steps>
+
+## 作業を確認します: 負荷を追加して自動スケーリングをトリガーします [#check]
+
+1. `kubectl get services`を使用してサイトのデプロイメントに移動します。
+2. ブラウザでフロントエンド サービスから `EXTERNAL-IP` を開きます。
+3. `hey` をインストールし、 `brew install hey`を使用して Go v1.17 をインストールします。
+4. `hey -n 10 -c 2 -m GET http://<EXTERNAL-IP>`を使用して GET リクエストを `EXTERNAL-IP` に送信します。
+5. `watch kubnectl get hpa`を使用して HPA 自動スケーリングを監視します。
+
+平均 HTTP リクエスト時間が増加するにつれてポッドがレプリカの数を自動スケールする場合、HPA は正常にセットアップされています。New Relic と HPA が必要に応じて自動的に自動スケーリングされるように、独自のサービスの構成を調整できます。
+
+<DocTiles numbered>
+  <DocTile
+    title="Get started"
+    path="/docs/journey-demand/get-started"
+  >
+    APM とインフラストラクチャ エージェントを使用してアーキテクチャに関するデータを取得する
+  </DocTile>
+
+  <DocTile
+    title="Create service levels for gameday"
+    path="/docs/journey-demand/find-your-baseline/"
+  >
+    ベースラインに基づいてサービス レベルを作成する
+  </DocTile>
+</DocTiles>
+
+<DocTiles>
+  <DocTile
+    title="Reduce noise with quality alerts"
+    number="3"
+    path="/docs/journey-demand/create-quality-alerts/"
+  >
+    アラート品質管理でアラートを評価する
+  </DocTile>
+
+  <DocTile
+    title="Align your teams with workloads"
+    number="4"
+    path="/docs/journey-demand/organize-data-workloads/"
+  >
+    同じデータを中心にチームを調整する
+  </DocTile>
+
+  <DocTile
+    title="Autoscale your infrastructure with Kubernetes"
+    number="5"
+    path="/docs/journey-demand/autoscale-your-infra/"
+    label={{text: "You are here", color: "orange"}}
+  >
+    需要のピークに合わせてリソースを拡張
+  </DocTile>
+</DocTiles>
