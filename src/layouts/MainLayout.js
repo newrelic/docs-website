@@ -82,6 +82,10 @@ const MainLayout = ({ children, pageContext }) => {
         @media (max-width: 760px) {
           display: none;
         }
+
+        @media (max-width: 1240px) {
+          left: 208px;
+        }
       `}
     >
       <Button
