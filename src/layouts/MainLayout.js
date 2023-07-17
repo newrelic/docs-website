@@ -76,7 +76,12 @@ const MainLayout = ({ children, pageContext }) => {
         padding: 1.5rem 0;
         position: sticky;
         top: var(--global-header-height);
+        width: 0;
         z-index: 1;
+
+        @media (max-width: 760px) {
+          display: none;
+        }
       `}
     >
       <Button
@@ -87,10 +92,6 @@ const MainLayout = ({ children, pageContext }) => {
           padding: 0;
           border-radius: 50%;
           transition: 300ms translate ease;
-
-          @media (max-width: 760px) {
-            display: none;
-          }
 
           ${!sidebar && `translate: calc(var(--sidebar-width) / 4);`}
 
