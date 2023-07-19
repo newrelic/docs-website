@@ -250,32 +250,6 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
     }
   });
 
-  const createEmbed = (node, defer = false) => {
-    const {
-      fields: { fileRelativePath, slug },
-    } = node;
-
-    if (
-      fileRelativePath.includes('src/content/docs/release-notes') ||
-      fileRelativePath.includes('src/content/whats-new')
-    ) {
-      return;
-    }
-
-    const pagePath = path.join(slug, 'embed', '/');
-
-    createPage({
-      path: pagePath,
-      component: path.resolve(`src/templates/embedPage.js`),
-      context: {
-        slug,
-        fileRelativePath,
-        layout: 'EmbedLayout',
-      },
-      defer,
-    });
-  };
-
   const translatedContentNodes = allI18nMdx.edges.map(({ node }) => node);
 
   allMdx.edges.concat(allMarkdownRemark.edges).forEach(({ node }) => {
@@ -296,10 +270,6 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
     }
 
     createPageFromNode(node, { createPage });
-    createEmbed(
-      node,
-      true // enable dsg
-    );
 
     locales.forEach((locale) => {
       const i18nNode = translatedContentNodes.find(

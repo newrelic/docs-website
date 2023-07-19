@@ -76,7 +76,16 @@ const MainLayout = ({ children, pageContext }) => {
         padding: 1.5rem 0;
         position: sticky;
         top: var(--global-header-height);
+        width: 0;
         z-index: 1;
+
+        @media (max-width: 760px) {
+          display: none;
+        }
+
+        @media (max-width: 1240px) {
+          left: 208px;
+        }
       `}
     >
       <Button
@@ -88,15 +97,11 @@ const MainLayout = ({ children, pageContext }) => {
           border-radius: 50%;
           transition: 300ms translate ease;
 
-          @media (max-width: 760px) {
-            display: none;
-          }
-
           ${!sidebar && `translate: calc(var(--sidebar-width) / 4);`}
 
           @media (max-width: 1240px) {
             ${!sidebar &&
-            `translate: calc(calc(var(--sidebar-width) * -1) + 141px);`}
+            `translate: calc(calc(var(--sidebar-width) / 4) + 14px);`}
           }
         `}
         onClick={() => {
