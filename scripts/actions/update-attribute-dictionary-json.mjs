@@ -66,6 +66,10 @@ async function updateJson() {
 
   console.log(message);
 
+  if (!hasUpdates) {
+    return
+  }
+
   const newJson = JSON.stringify(newEvents, null, 2);
   fs.writeFileSync(JSON_FILE_PATH, newJson);
 }
