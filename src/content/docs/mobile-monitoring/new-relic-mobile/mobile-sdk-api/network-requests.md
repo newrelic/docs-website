@@ -1,0 +1,1288 @@
+---
+title: Record breadcrumbs
+type: apiDoc
+shortDescription: 'Records a MobileBreadcrumb event used for crash analysis.'
+tags:
+  - Mobile monitoring
+  - Mobile SDK API
+  - Custom instrumentation
+metaDescription: Mobile app monitoring API to record a MobileBreadcrumb event for crash analysis.
+redirects:
+  - /docs/mobile-monitoring/new-relic-mobile-ios/ios-sdk-api/notice-network-request
+  - /docs/mobile-monitoring/new-relic-mobile-android/android-sdk-api/notice-http-transaction
+---
+
+<Tabs>
+	<TabsBar>
+        <TabsBarItem id="android">
+            Android
+        </TabsBarItem>
+        <TabsBarItem id="ios">
+            iOS
+        </TabsBarItem>
+        <TabsBarItem id="capacitor">
+            Capacitor
+        </TabsBarItem>
+        <TabsBarItem id="cordova">
+            Cordova
+        </TabsBarItem>
+        <TabsBarItem id="flutter">
+            Flutter
+        </TabsBarItem>
+        <TabsBarItem id="react">
+            React Native
+        </TabsBarItem>
+        <TabsBarItem id="xamarin">
+            Xamarin
+        </TabsBarItem>
+        <TabsBarItem id="maui">
+            .NET MAUI
+        </TabsBarItem>
+    </TabsBar>
+
+    <TabsPages>
+        <TabsPageItem id="android">
+## Syntax
+
+```java
+NewRelic.noticeHttpTransaction(string $url, string $httpMethod, int $statusCode, long $startTime, long $endTime, long $bytesSent, long $bytesReceived [, string $responseBody])
+```
+
+## Description
+
+The New Relic Android SDK API provides several methods to track network requests and network failures. You can use `noticeHttpTransaction` to record HTTP transactions, with an option to also send a response body.
+
+If a network request fails, you can record details about the failure with [`noticeNetworkFailure()`](/docs/mobile-monitoring/new-relic-mobile-android/android-sdk-api/noticenetworkfailure-android-agent-api).
+
+## Requirements
+
+Compatible with all agent versions.
+
+## Parameters
+
+<table>
+  <thead>
+    <tr>
+      <th width={200}>
+        **Parameter**
+      </th>
+
+      <th>
+        **Description**
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `$url`
+
+        _string_
+      </td>
+
+      <td>
+        Required. The URL of the request.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `$httpMethod`
+
+        _string_
+      </td>
+
+      <td>
+        Required. The HTTP method used, such as GET or POST.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `$statusCode`
+
+        _int_
+      </td>
+
+      <td>
+        Required. The statusCode of the HTTP response, such as 200 for **OK**.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `$startTime`
+
+        _int_
+      </td>
+
+      <td>
+        Required. The start time of the request in milliseconds since the epoch.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `$endTime`
+
+        _int_
+      </td>
+
+      <td>
+        Required. The end time of the request in milliseconds since the epoch.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `$bytesSent`
+
+        _int_
+      </td>
+
+      <td>
+        Required. The number of bytes sent in the request.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `$bytesReceived`
+
+        _int_
+      </td>
+
+      <td>
+        Required. The number of bytes received in the response.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `$responseBody`
+
+        _string_
+      </td>
+
+      <td>
+        Optional. The response body of the HTTP response. The response body will be truncated and included in an HTTP Error metric if the HTTP transaction is an error.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Example
+
+Here's an example of tracking an HTTP transaction:
+
+```java
+public class CustomHttpMetricsLogger implements Interceptor {
+
+    @Override
+    public Response intercept(Chain chain) throws IOException {
+        Request request = chain.request();
+        //collect request start time
+        long t1 = System.nanoTime();
+        //get the size of the request body
+        long requestSize = null == request.body() ? 0 : request.body().contentLength();
+        //proceed with the request
+        Response response = chain.proceed(request);
+        //capture the time when response returns
+        long t2 = System.nanoTime();
+        long responseSize = null == response.body() ? 0 : response.body().contentLength();
+        //tell New Relic to notice this request
+        NewRelic.noticeHttpTransaction(request.urlString(), request.method(), response.code(), t1, t2, requestSize, responseSize);
+        //return response for processing
+        return response;
+    }
+}
+```
+
+        </TabsPageItem>
+        <TabsPageItem id="ios">
+
+## Syntax
+
+```
++ (void)noticeNetworkRequestForURL:(NSURL*)url
+                        httpMethod:(NSString*)httpMethod
+                         withTimer:(NRTimer*)timer
+                   responseHeaders:(NSDictionary*)headers
+                        statusCode:(NSInteger)httpStatusCode
+                         bytesSent:(NSUInteger)bytesSent
+                     bytesReceived:(NSUInteger)bytesReceived
+                      responseData:(NSData *)responseData
+                      traceHeaders:(NSDictionary<NSString*,NSString*>* _Nullable)traceHeaders
+                         andParams:(NSDictionary * _Nullable)params;
+```
+
+## Description
+
+New Relic will track the URL, response time, status code, and data sent and received.
+
+If the response header's dictionary contains a `X-NewRelic-AppData` header, New Relic will track the association between the mobile app and the web server, and the New Relic UI will display the correlation and comparison of server vs. network vs. queue time.
+
+If the HTTP status code indicates an error (400 and above), New Relic will also track this request as an error. The request header's dictionary and the response body data will be encoded as a server error in the New Relic UI.
+
+## Requirements
+
+Compatible with all agent versions.
+
+## Parameters
+
+<table>
+  <thead>
+    <tr>
+      <th width={200}>
+        **Parameter**
+      </th>
+
+      <th>
+        **Description**
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `$url`
+
+        _URL_
+      </td>
+
+      <td>
+        Required. The URL of the request.
+      </td>
+    </tr>
+    <tr>
+      <td>
+        `$httpMethod`
+
+        _string_
+      </td>
+
+      <td>
+        Required. The HTTP method of the request.
+      </td>
+    </tr>
+    <tr>
+      <td>
+        `$timer`
+
+        _NRTimer_
+      </td>
+
+      <td>
+        Required. A timer that captures the start and end of the request.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `$startTime`
+
+        _double_
+      </td>
+
+      <td>
+        Optional. A double that captures the end time of the request.
+        `startTime` and `endTime` can be used as an alternative to `timer`.
+      </td>
+    </tr>
+
+        <tr>
+      <td>
+        `$endTime`
+
+        _double_
+      </td>
+
+      <td>
+        Optional. A double that captures the end time of the request.
+        (`startTime` and `endTime` can be used as an alternative to `timer`)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `$responseHeaders`
+
+        _NSDictionary_
+      </td>
+
+      <td>
+        Required. A dictionary of the headers returned in the server response.
+      </td>
+    </tr>
+    <tr>
+      <td>
+        `$httpStatusCode`
+
+        _NSUInteger_
+      </td>
+
+      <td>
+        Required. The status code of the HTTP response.
+      </td>
+    </tr>
+    <tr>
+      <td>
+        `$bytesSent`
+
+        _NSUInteger_
+      </td>
+
+      <td>
+        Required. The number of bytes sent in the request body.
+      </td>
+    </tr>
+    <tr>
+      <td>
+        `$bytesReceived`
+
+        _NSUInteger_
+      </td>
+
+      <td>
+        Required. The number of bytes received in the response body.
+      </td>
+    </tr>
+    <tr>
+      <td>
+        `$responseData`
+
+        _NSData_
+      </td>
+
+      <td>
+        Required. The response body data returned by the server. Used when recording a traced server error.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `$traceHeaders`
+
+        _NSDictionary_
+      </td>
+
+      <td>
+        Nullable. Used for distributed tracing.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `$params`
+
+        _NSDictionary_
+      </td>
+
+      <td>
+        Nullable. Unused.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Examples
+
+### Objective-C [#obj-c]
+
+Here's an example of tracking a HTTP transaction: 
+
+```objectivec
+[NewRelic noticeNetworkRequestForURL:[NSURL URLWithString:@"https://www.newrelic.com"] httpMethod:@"GET" withTimer:[[NRTimer alloc] init]
+                        responseHeaders:@{} statusCode:200 bytesSent:1024 bytesReceived:52
+                        responseData:[NSData data] traceHeaders:nil andParams:nil];
+```
+
+Here's an example with start and end times:
+
+```objectivec
+[NewRelic noticeNetworkRequestForURL:[NSURL URLWithString:@"https://www.newrelic.com"] httpMethod:@"GET" startTime:0.0 endTime:0.1
+                        responseHeaders:@{} statusCode:200 bytesSent:1024 bytesReceived:52
+                        responseData:[NSData data] traceHeaders:nil andParams:nil];
+```
+
+### Swift
+
+Here's an example of tracking a HTTP transaction: 
+
+```swift
+NewRelic.noticeNetworkRequest(for: URL(string: "https://www.newrelic.com"), httpMethod: "GET", with: NRTimer(), responseHeaders: [:],
+                              statusCode: 200, bytesSent: 1000, bytesReceived: 1000, responseData: Data(), traceHeaders: nil, andParams: nil)
+```
+
+Here's an example with start and end times:
+
+```swift
+NewRelic.noticeNetworkRequest(for: URL(string: "https://www.newrelic.com"), httpMethod: "GET", startTime: 0.0, endTime: 0.1, responseHeaders: [:],
+                              statusCode: 200, bytesSent: 1000, bytesReceived: 1000, responseData: Data(), traceHeaders: nil, andParams: nil)
+```
+
+        </TabsPageItem>
+        <TabsPageItem id="capacitor">
+
+## Syntax
+
+```typescript
+noticeHttpTransaction(options: { url: string; method: string; status: number; startTime: number; endTime: number; bytesSent: number; bytesReceived: number; body: string; }) => void
+```
+
+## Description
+
+Manually records HTTP transactions, with an option to also send a response body.
+
+
+## Requirements
+
+Capacitor version _ or higher
+
+## Parameters
+
+<table>
+  <thead>
+    <tr>
+      <th width={200}>
+        **Parameter**
+      </th>
+
+      <th>
+        **Description**
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `url`
+
+        String
+      </td>
+
+      <td>
+        Required. The URL of the request.
+      </td>
+    </tr>
+    <tr>
+      <td>
+        `method`
+
+        String
+      </td>
+
+      <td>
+        Required. The HTTP method of the request.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `status`
+
+        Number
+      </td>
+
+      <td>
+        Required. The HTTP status code of the response.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `startTime`
+
+        Number
+      </td>
+
+      <td>
+        Optional. The start time of the request in milliseconds since the epoch.
+        `startTime` and `endTime` can be used as an alternative to `timer`.
+      </td>
+    </tr>
+
+        <tr>
+      <td>
+        `endTime`
+
+        Number
+      </td>
+
+      <td>
+        Optional. The end time of the request in milliseconds since the epoch.
+        `startTime` and `endTime` can be used as an alternative to `timer`.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `bytesSent`
+
+        Number
+      </td>
+
+      <td>
+        Required. The number of bytes sent in the request.
+      </td>
+    </tr>
+    <tr>
+      <td>
+        `bytesReceived`
+
+        Number
+      </td>
+
+      <td>
+        Required. The number of bytes received in the response.
+      </td>
+    </tr>
+    <tr>
+      <td>
+        `body`
+
+        String
+      </td>
+
+      <td>
+        Optional. The response body of the HTTP response.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Example
+
+```typescript
+    NewRelicCapacitorPlugin.noticeHttpTransaction({
+      url: "https://fakewebsite.com",
+      method: "GET",
+      status: 200,
+      startTime: Date.now(),
+      endTime: Date.now(),
+      bytesSent: 10,
+      bytesReceived: 2500,
+      body: "fake http response body 200",
+    });
+```
+
+        </TabsPageItem>
+        <TabsPageItem id="cordova">
+
+## Syntax
+
+```typescript
+noticeHttpTransaction(url: string, method: string, status: number, startTime: number, endTime: number, bytesSent: number, bytesReceived: number, body?: string)
+
+```
+
+## Description
+
+The New Relic Cordova plugin automatically collects HTTP transactions, but if you want to manually record HTTP transactions, use this method to do so.
+
+## Requirements
+
+Cordova version _ or higher 
+
+## Parameters
+
+<table>
+  <thead>
+    <tr>
+      <th width={200}>
+        **Parameter**
+      </th>
+
+      <th>
+        **Description**
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `url`
+
+        String
+      </td>
+
+      <td>
+        Required. The URL of the request.
+      </td>
+    </tr>
+    <tr>
+      <td>
+        `method`
+
+        String
+      </td>
+
+      <td>
+        Required. The HTTP method of the request.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `status`
+
+        Number
+      </td>
+
+      <td>
+        Required. The HTTP status code of the response.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `startTime`
+
+        Number
+      </td>
+
+      <td>
+        Optional. The start time of the request in milliseconds since the epoch.
+        `startTime` and `endTime` can be used as an alternative to `timer`.
+      </td>
+    </tr>
+
+        <tr>
+      <td>
+        `endTime`
+
+        Number
+      </td>
+
+      <td>
+        Optional. The end time of the request in milliseconds since the epoch.
+        `startTime` and `endTime` can be used as an alternative to `timer`.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `bytesSent`
+
+        Number
+      </td>
+
+      <td>
+        Required. The number of bytes sent in the request.
+      </td>
+    </tr>
+    <tr>
+      <td>
+        `bytesReceived`
+
+        Number
+      </td>
+
+      <td>
+        Required. The number of bytes received in the response.
+      </td>
+    </tr>
+    <tr>
+      <td>
+        `body?`
+
+        String
+      </td>
+
+      <td>
+        Optional. The response body of the HTTP response.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Example
+
+  ```js
+NewRelic.noticeHttpTransaction('https://fakewebsiteurl.com', 'GET', 200, Date.now(), Date.now(), 0, 100000, 'fake request body');
+
+  ```
+
+        </TabsPageItem>
+        <TabsPageItem id="flutter">
+
+## Syntax
+
+```dart
+noticeHttpTransaction(String url,String httpMethod,int statusCode,int startTime,int endTime,int bytesSent,int bytesReceived,Map<String, dynamic>? traceData,{String responseBody = ""}): void;
+```
+
+## Description
+
+Tracks network requests manually. You can use this method to record HTTP transactions, with an option to also send a response body.
+
+## Requirements
+
+Flutter agent _ or higher
+
+## Parameters
+
+<table>
+  <thead>
+    <tr>
+      <th width={200}>
+        **Parameter**
+      </th>
+
+      <th>
+        **Description**
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `url`
+
+        String
+      </td>
+
+      <td>
+        Required. The URL of the request.
+      </td>
+    </tr>
+    <tr>
+      <td>
+        `httpmethod`
+
+        String
+      </td>
+
+      <td>
+        Required. The HTTP method of the request.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `statusCode`
+
+        int
+      </td>
+
+      <td>
+        Required. The HTTP status code of the response.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `startTime`
+
+        int
+      </td>
+
+      <td>
+        Optional. The start time of the request in milliseconds since the epoch.
+        `startTime` and `endTime` can be used as an alternative to `timer`.
+      </td>
+    </tr>
+
+        <tr>
+      <td>
+        `endTime`
+
+        int
+      </td>
+
+      <td>
+        Optional. The end time of the request in milliseconds since the epoch.
+        `startTime` and `endTime` can be used as an alternative to `timer`.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `bytesSent`
+
+        int
+      </td>
+
+      <td>
+        Required. The number of bytes sent in the request.
+      </td>
+    </tr>
+    <tr>
+      <td>
+        `bytesReceived`
+
+        int
+      </td>
+
+      <td>
+        Required. The number of bytes received in the response.
+      </td>
+    </tr>
+        <tr>
+      <td>
+        `traceData`
+
+        Map<String, dynamic>?
+      </td>
+
+      <td>
+        Optional. A dictionary of key-value pairs that can be used to provide additional information about the transaction.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `responseBody`
+
+        String
+      </td>
+
+      <td>
+        Optional. The response body of the HTTP response.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Example
+
+```dart
+NewrelicMobile.instance.noticeNetworkFailure("https://cb6b02be-a319-4de5-a3b1-361de2564493.mock.pstmn.io/searchpage", "GET", 1000, 2000,'Test Network Failure', NetworkFailure.dnsLookupFailed);
+```
+        </TabsPageItem>
+        <TabsPageItem id="react">
+
+## Syntax
+
+```js
+noticeHttpTransaction(url: string, httpMethod: string, statusCode: number, startTime: number, endTime: number, bytesSent: number, bytesReceived: number, responseBody: string): void;
+```
+
+## Description
+
+Tracks network requests manually. You can use this method to record HTTP transactions, with an option to also send a response body.
+
+## Requirements
+
+React Native _ or higher
+
+
+## Parameters
+
+<table>
+  <thead>
+    <tr>
+      <th width={200}>
+        **Parameter**
+      </th>
+
+      <th>
+        **Description**
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `url`
+
+        String
+      </td>
+
+      <td>
+        Required. The URL of the request.
+      </td>
+    </tr>
+    <tr>
+      <td>
+        `httpmethod`
+
+        String
+      </td>
+
+      <td>
+        Required. The HTTP method of the request.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `statusCode`
+
+        Number
+      </td>
+
+      <td>
+        Required. The HTTP status code of the response.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `startTime`
+
+        Number
+      </td>
+
+      <td>
+        Optional. The start time of the request in milliseconds since the epoch.
+        `startTime` and `endTime` can be used as an alternative to `timer`.
+      </td>
+    </tr>
+
+        <tr>
+      <td>
+        `endTime`
+
+        Number
+      </td>
+
+      <td>
+        Optional. The end time of the request in milliseconds since the epoch.
+        `startTime` and `endTime` can be used as an alternative to `timer`.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `bytesSent`
+
+        Number
+      </td>
+
+      <td>
+        Required. The number of bytes sent in the request.
+      </td>
+    </tr>
+    <tr>
+      <td>
+        `bytesReceived`
+
+        Number
+      </td>
+
+      <td>
+        Required. The number of bytes received in the response.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `responseBody`
+
+        String
+      </td>
+
+      <td>
+        Optional. The response body of the HTTP response.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Example
+
+ ```js
+        NewRelic.noticeHttpTransaction('https://github.com', 'GET', 200, Date.now(), Date.now()+1000, 100, 101, "response body"); 
+  ```
+
+        </TabsPageItem>
+        <TabsPageItem id="xamarin">
+
+## Syntax
+
+```csharp
+NoticeHttpTransaction(string url, string httpMethod, int statusCode, long startTime,long endTime, long bytesSent, long bytesReceived, string responseBody): void;
+```
+
+## Description
+
+Tracks network requests manually. You can use this method to record HTTP transactions, with an option to also send a response body.
+
+## Requirements
+
+Xamarin agent version _ or igher
+
+## Parameters
+
+<table>
+  <thead>
+    <tr>
+      <th width={200}>
+        **Parameter**
+      </th>
+
+      <th>
+        **Description**
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `url`
+
+        String
+      </td>
+
+      <td>
+        Required. The URL of the request.
+      </td>
+    </tr>
+    <tr>
+      <td>
+        `httpmethod`
+
+        String
+      </td>
+
+      <td>
+        Required. The HTTP method of the request.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `statusCode`
+
+        int
+      </td>
+
+      <td>
+        Required. The HTTP status code of the response.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `startTime`
+
+        long
+      </td>
+
+      <td>
+        Optional. The start time of the request in milliseconds since the epoch.
+        `startTime` and `endTime` can be used as an alternative to `timer`.
+      </td>
+    </tr>
+
+        <tr>
+      <td>
+        `endTime`
+
+        long
+      </td>
+
+      <td>
+        Optional. The end time of the request in milliseconds since the epoch.
+        `startTime` and `endTime` can be used as an alternative to `timer`.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `bytesSent`
+
+        long
+      </td>
+
+      <td>
+        Required. The number of bytes sent in the request.
+      </td>
+    </tr>
+    <tr>
+      <td>
+        `bytesReceived`
+
+        long
+      </td>
+
+      <td>
+        Required. The number of bytes received in the response.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `responseBody`
+
+        String
+      </td>
+
+      <td>
+        Optional. The response body of the HTTP response.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Example
+
+``` csharp
+ CrossNewRelicClient.Current.NoticeHttpTransaction(
+      "https://newrelic.com",
+      "GET",
+      200,
+      DateTimeOffset.Now.ToUnixTimeMilliseconds(),
+      DateTimeOffset.Now.ToUnixTimeMilliseconds() + 100,
+      0,
+      1000,
+      ""
+    );
+```
+
+        </TabsPageItem>
+        <TabsPageItem id="maui">
+
+## Syntax
+
+```csharp
+NoticeHttpTransaction(string url, string httpMethod, int statusCode, long startTime,long endTime, long bytesSent, long bytesReceived, string responseBody): void;
+```
+
+## Description
+
+Tracks network requests manually. You can use this method to record HTTP transactions, with an option to also send a response body.
+
+## Requirements
+
+.NET MAUI agent version _ or higher
+
+## Parameters
+
+<table>
+  <thead>
+    <tr>
+      <th width={200}>
+        **Parameter**
+      </th>
+
+      <th>
+        **Description**
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `url`
+
+        String
+      </td>
+
+      <td>
+        Required. The URL of the request.
+      </td>
+    </tr>
+    <tr>
+      <td>
+        `httpmethod`
+
+        String
+      </td>
+
+      <td>
+        Required. The HTTP method of the request.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `statusCode`
+
+        int
+      </td>
+
+      <td>
+        Required. The HTTP status code of the response.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `startTime`
+
+        long
+      </td>
+
+      <td>
+        Optional. The start time of the request in milliseconds since the epoch.
+        `startTime` and `endTime` can be used as an alternative to `timer`.
+      </td>
+    </tr>
+
+        <tr>
+      <td>
+        `endTime`
+
+        long
+      </td>
+
+      <td>
+        Optional. The end time of the request in milliseconds since the epoch.
+        `startTime` and `endTime` can be used as an alternative to `timer`.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `bytesSent`
+
+        long
+      </td>
+
+      <td>
+        Required. The number of bytes sent in the request.
+      </td>
+    </tr>
+    <tr>
+      <td>
+        `bytesReceived`
+
+        long
+      </td>
+
+      <td>
+        Required. The number of bytes received in the response.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `responseBody`
+
+        String
+      </td>
+
+      <td>
+        Optional. The response body of the HTTP response.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Example
+
+``` C#
+    CrossNewRelic.Current.NoticeHttpTransaction(
+      "https://newrelic.com",
+      "GET",
+      200,
+      DateTimeOffset.Now.ToUnixTimeMilliseconds(),
+      DateTimeOffset.Now.ToUnixTimeMilliseconds() + 100,
+      0,
+      1000,
+      ""
+    );
+```
+        </TabsPageItem>
+    </TabsPages>
+</Tabs>
