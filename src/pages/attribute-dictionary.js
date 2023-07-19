@@ -42,25 +42,28 @@ const AttributeDictionary = ({ pageContext, location }) => {
     let filteredEvents = events;
 
     if (queryParams.has('dataSource')) {
+      let dataSource = queryParams.get('dataSource');
       filteredEvents = filteredEvents.filter((event) =>
         event.dataSources
           .map((ds) => ds.name)
-          .some((name) => name.includes(queryParams.get('dataSource')))
+          .some((name) => name.includes(dataSource))
       );
     }
 
     if (queryParams.has('event')) {
+      let eventQuery = queryParams.get('event');
       filteredEvents = filteredEvents.filter(
-        (event) => event.name === queryParams.get('event')
+        (event) => event.name === eventQuery
       );
     }
 
     if (queryParams.has('attributeSearch')) {
+      let attributeSearch = queryParams.get('attributeSearch').toLowerCase();
       filteredEvents = filteredEvents.filter((event) =>
         event.attributes.some(({ name }) =>
           name
             .toLowerCase()
-            .includes(queryParams.get('attributeSearch').toLowerCase())
+            .includes(attributeSearch)
         )
       );
     }
