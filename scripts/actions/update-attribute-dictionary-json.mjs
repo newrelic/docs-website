@@ -2,6 +2,7 @@
 import fetch from 'node-fetch';
 import fs from 'fs';
 import core from '@actions/core';
+import deepEqual from 'deep-equal'
 
 // this should be prod nerdgraph
 const NERDGRAPH_API_URL = 'https://staging-api.newrelic.com/graphql';
@@ -23,6 +24,9 @@ const GQL_QUERY = `
             units {
               label
             }
+            events {
+              name
+            }
           }
         }
       }
@@ -31,26 +35,28 @@ const GQL_QUERY = `
 `;
 
 async function updateJson() {
-  const updatedJson = await fetch(NERDGRAPH_API_URL, {
+  const newData = await fetch(NERDGRAPH_API_URL, {
     method: 'POST',
     headers: {
       'Api-Key': process.env.API_KEY,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({ query: GQL_QUERY }),
-  }).then((res) => res.json());
+  })
+    .then((res) => res.json());
 
-  if (updatedJson.hasOwnProperty('error')) {
+  if (newData.hasOwnProperty('error')) {
     console.error('Issue with fetching attribute dictionary:', error);
     process.exit(1);
   }
-
-  const formattedJson = JSON.stringify(updatedJson, null, 2);
   console.log('Fetch successful!');
 
-  const compareJson = fs.readFileSync(JSON_FILE_PATH, { encoding: 'utf-8' });
+  const newEvents = newData.data.docs.dataDictionary.events;
 
-  const hasUpdates = compareJson != formattedJson;
+  const oldJson = fs.readFileSync(JSON_FILE_PATH, { encoding: 'utf-8' });
+  const oldEvents = JSON.parse(oldJson);
+
+  const hasUpdates = !deepEqual(oldEvents, newEvents);
 
   const message = hasUpdates
     ? 'Adding updates for attribute dictionary json'
@@ -60,7 +66,8 @@ async function updateJson() {
 
   console.log(message);
 
-  fs.writeFileSync(JSON_FILE_PATH, formattedJson);
+  const newJson = JSON.stringify(newEvents, null, 2);
+  fs.writeFileSync(JSON_FILE_PATH, newJson);
 }
 
 updateJson();

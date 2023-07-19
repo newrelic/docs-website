@@ -13,6 +13,7 @@ import {
   ComplexFeedback,
   Table,
 } from '@newrelic/gatsby-theme-newrelic';
+import { sortBy } from 'lodash';
 
 import { TYPES } from '../utils/constants';
 
@@ -21,21 +22,10 @@ import SEO from '../components/SEO';
 import PageTitle from '../components/PageTitle';
 import ErrorBoundary from '../components/ErrorBoundary';
 
-import attributeDictionaryData from '../data/attribute-dictionary.json';
+import eventsJson from '../data/attribute-dictionary.json';
+const events = sortBy(eventsJson, ['name']);
 
 const AttributeDictionary = ({ pageContext, location }) => {
-  const allDataDictionaryEvent = attributeDictionaryData.data.docs.dataDictionary.events.sort(
-    function (a, b) {
-      if (a.name < b.name) {
-        return -1;
-      }
-      if (a.name > b.name) {
-        return 1;
-      }
-      return 0;
-    }
-  );
-
   const [filteredEvents, setFilteredEvents] = useState([]);
   const [filteredAttribute, setFilteredAttribute] = useState(null);
   const [searchedAttribute, setSearchedAttribute] = useState(null);
@@ -47,10 +37,6 @@ const AttributeDictionary = ({ pageContext, location }) => {
       'Interactive/AttributeDictionary'
     );
   }
-
-  const events = useMemo(() => allDataDictionaryEvent.map((item) => item), [
-    allDataDictionaryEvent,
-  ]);
 
   useEffect(() => {
     let filteredEvents = events;
@@ -300,6 +286,7 @@ const EventDefinition = memo(
                 Attribute name
               </th>
               <th>Definition</th>
+              <th>Data types</th>
             </tr>
           </thead>
           <tbody>
@@ -374,6 +361,28 @@ const EventDefinition = memo(
                       __html: attribute.definition,
                     }}
                   />
+                  <td
+                    css={css`
+                      width: 1px;
+                    `}
+                  >
+                    <ul
+                      css={css`
+                        margin: 0;
+                        list-style: none;
+                        padding-left: 0;
+                        font-size: 0.875rem;
+                      `}
+                    >
+                      {sortBy(attribute.events, ['name']).map((event) => (
+                        <li key={`${attribute.name}-${event.name}`}>
+                          <Link to={`${location.pathname}?event=${event.name}`}>
+                            {event.name}
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  </td>
                 </tr>
               );
             })}
