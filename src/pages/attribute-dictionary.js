@@ -1,4 +1,4 @@
-import React, { memo, useMemo, useEffect, useState } from 'react';
+import React, { memo, useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/react';
 import {
@@ -23,6 +23,7 @@ import PageTitle from '../components/PageTitle';
 import ErrorBoundary from '../components/ErrorBoundary';
 
 import eventsJson from '../data/attribute-dictionary.json';
+
 const events = sortBy(eventsJson, ['name']);
 
 const AttributeDictionary = ({ pageContext, location }) => {
@@ -42,7 +43,7 @@ const AttributeDictionary = ({ pageContext, location }) => {
     let filteredEvents = events;
 
     if (queryParams.has('dataSource')) {
-      let dataSource = queryParams.get('dataSource');
+      const dataSource = queryParams.get('dataSource');
       filteredEvents = filteredEvents.filter((event) =>
         event.dataSources
           .map((ds) => ds.name)
@@ -51,19 +52,17 @@ const AttributeDictionary = ({ pageContext, location }) => {
     }
 
     if (queryParams.has('event')) {
-      let eventQuery = queryParams.get('event');
+      const eventQuery = queryParams.get('event');
       filteredEvents = filteredEvents.filter(
         (event) => event.name === eventQuery
       );
     }
 
     if (queryParams.has('attributeSearch')) {
-      let attributeSearch = queryParams.get('attributeSearch').toLowerCase();
+      const attributeSearch = queryParams.get('attributeSearch').toLowerCase();
       filteredEvents = filteredEvents.filter((event) =>
         event.attributes.some(({ name }) =>
-          name
-            .toLowerCase()
-            .includes(attributeSearch)
+          name.toLowerCase().includes(attributeSearch)
         )
       );
     }
@@ -71,7 +70,7 @@ const AttributeDictionary = ({ pageContext, location }) => {
     setFilteredEvents(filteredEvents.map((event) => event.name));
     setSearchedAttribute(queryParams.get('attributeSearch'));
     setFilteredAttribute(queryParams.get('attribute'));
-  }, [queryParams, events]);
+  }, [queryParams]);
 
   const { t } = useTranslation();
 
