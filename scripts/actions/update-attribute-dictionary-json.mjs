@@ -2,7 +2,8 @@
 import fetch from 'node-fetch';
 import fs from 'fs';
 import core from '@actions/core';
-import deepEqual from 'deep-equal'
+import deepEqual from 'deep-equal';
+import { sortBy } from 'lodash/fp';
 
 // this should be prod nerdgraph
 const NERDGRAPH_API_URL = 'https://staging-api.newrelic.com/graphql';
@@ -34,6 +35,24 @@ const GQL_QUERY = `
   }
 `;
 
+const sortByName = sortBy(['name']);
+
+// the service doesn't guarantee sort order,
+// so to effectively compare the old and new data,
+// we need to sort every array before doing a `deepEqual`.
+const sortEverythingByName = (events) =>
+  sortByName(
+    events.map((event) => ({
+      ...event,
+      attributes: sortByName(
+        event.attributes.map((attribute) => ({
+          ...attribute,
+          events: sortByName(attribute.events),
+        }))
+      ),
+    }))
+  );
+
 async function updateJson() {
   const newData = await fetch(NERDGRAPH_API_URL, {
     method: 'POST',
@@ -42,8 +61,7 @@ async function updateJson() {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({ query: GQL_QUERY }),
-  })
-    .then((res) => res.json());
+  }).then((res) => res.json());
 
   if (newData.hasOwnProperty('error')) {
     console.error('Issue with fetching attribute dictionary:', error);
@@ -51,7 +69,9 @@ async function updateJson() {
   }
   console.log('Fetch successful!');
 
-  const newEvents = newData.data.docs.dataDictionary.events;
+  const newEvents = sortEverythingByName(
+    newData.data.docs.dataDictionary.events
+  );
 
   const oldJson = fs.readFileSync(JSON_FILE_PATH, { encoding: 'utf-8' });
   const oldEvents = JSON.parse(oldJson);
@@ -67,7 +87,7 @@ async function updateJson() {
   console.log(message);
 
   if (!hasUpdates) {
-    return
+    return;
   }
 
   const newJson = JSON.stringify(newEvents, null, 2);
