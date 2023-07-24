@@ -67,42 +67,54 @@ const MainLayout = ({ children, pageContext }) => {
   }, [sidebar]);
 
   const navCollapser = (
-    <Button
-      variant={Button.VARIANT.PRIMARY}
+    <div
       css={css`
-        height: 40px;
-        width: 40px;
-        padding: 0;
-        border-radius: 50%;
+        grid-column: 1;
+        grid-row: 1;
+        height: calc(100vh - var(--global-header-height));
         left: 269px;
-        position: fixed;
-        top: 102px;
-        transition: 300ms translate ease;
+        padding: 1.5rem 0;
+        position: sticky;
+        top: var(--global-header-height);
+        width: 0;
         z-index: 1;
 
         @media (max-width: 760px) {
           display: none;
         }
 
-        ${!sidebar &&
-        `translate: calc(calc(var(--sidebar-width) * -1) + 80px);`}
-
         @media (max-width: 1240px) {
           left: 208px;
-          ${!sidebar &&
-          `translate: calc(calc(var(--sidebar-width) * -1) + 141px);`}
         }
       `}
-      onClick={() => {
-        tessen.track({
-          eventName: sidebar ? 'closeNav' : 'openNav',
-          category: 'NavCollapserClick',
-        });
-        setSidebar(!sidebar);
-      }}
     >
-      <Icon name="nr-nav-collapse" size="1rem" />
-    </Button>
+      <Button
+        variant={Button.VARIANT.PRIMARY}
+        css={css`
+          height: 40px;
+          width: 40px;
+          padding: 0;
+          border-radius: 50%;
+          transition: 300ms translate ease;
+
+          ${!sidebar && `translate: calc(var(--sidebar-width) / 4);`}
+
+          @media (max-width: 1240px) {
+            ${!sidebar &&
+            `translate: calc(calc(var(--sidebar-width) / 4) + 14px);`}
+          }
+        `}
+        onClick={() => {
+          tessen.track({
+            eventName: sidebar ? 'closeNav' : 'openNav',
+            category: 'NavCollapserClick',
+          });
+          setSidebar(!sidebar);
+        }}
+      >
+        <Icon name="nr-nav-collapse" size="1rem" />
+      </Button>
+    </div>
   );
 
   return (
@@ -117,7 +129,6 @@ const MainLayout = ({ children, pageContext }) => {
       </MobileHeader>
       <LoggedInProvider>
         <MainLayoutContext.Provider value={[sidebar]}>
-          {navCollapser}
           <Layout
             css={css`
               --sidebar-width: ${sidebarWidth};
@@ -128,6 +139,7 @@ const MainLayout = ({ children, pageContext }) => {
               }
             `}
           >
+            {navCollapser}
             <Layout.Sidebar
               aria-hidden={!sidebar}
               css={css`
