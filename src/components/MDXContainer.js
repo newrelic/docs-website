@@ -33,14 +33,14 @@ const defaultComponents = {
   a: (props) => <MDXLink {...props} displayExternalIcon />,
   img: ({
     alt = 'Docs site',
-    class: className,
+    className,
     src,
     style = {},
     title,
     variant,
     width,
   }) =>
-    console.log('className', className) || style || variant === 'TechTile' ? (
+    style || variant === 'TechTile' ? (
       <img
         width={width || 'inherit'}
         src={src}
