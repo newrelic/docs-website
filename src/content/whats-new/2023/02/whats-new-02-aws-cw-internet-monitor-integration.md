@@ -23,7 +23,7 @@ For the recommended streaming approach, an Amazon Kinesis Delivery stream and Cl
 Metric Stream should be set on your Amazon account. If "Metrics being streamed" aren't set to "All namespaces" in your CloudWatch Metric Stream, make sure "InternetMonitor" is selected. 
 
 Once the integration has been enabled, wait for some time then look for your data in 
-**[one.newrelic.com](https://one.newrelic.com/all-capabilities) > Metrics and events**, and then filter by `aws.internetmonitor`.
+**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Metrics and events**, and then filter by `aws.internetmonitor`.
 
 ![See your data in New Relic](./images/cwim-nr1-metrics.webp "your data in New Relic")
 

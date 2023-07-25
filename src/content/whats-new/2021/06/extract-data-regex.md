@@ -20,6 +20,6 @@ As an example, the below query will find which accounts are using specific servi
 
 ## Get started today
 
-1. Start using Regex capture in your NRQL queries by going to **[one.newrelic.com](https://one.newrelic.com/all-capabilities) > Query builder**.
+1. Start using Regex capture in your NRQL queries by going to **[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Query builder**.
 2. Learn more by reading our [NRQL documentation](https://docs.newrelic.com/docs/query-your-data/nrql-new-relic-query-language/get-started/nrql-syntax-clauses-functions/).
 3. Check out our [newrelic.com/blog](https://newrelic.com/blog/how-to-relic/using-regex-capture) with example queries.
