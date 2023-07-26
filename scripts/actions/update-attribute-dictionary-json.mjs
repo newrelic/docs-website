@@ -3,7 +3,7 @@ import fetch from 'node-fetch';
 import fs from 'fs';
 import core from '@actions/core';
 import deepEqual from 'deep-equal';
-import { sortBy } from 'lodash/fp';
+import sortBy from 'lodash/fp/sortBy.js';
 
 // this should be prod nerdgraph
 const NERDGRAPH_API_URL = 'https://staging-api.newrelic.com/graphql';
@@ -25,9 +25,7 @@ const GQL_QUERY = `
             units {
               label
             }
-            events {
-              name
-            }
+            events
           }
         }
       }
@@ -47,7 +45,7 @@ const sortEverythingByName = (events) =>
       attributes: sortByName(
         event.attributes.map((attribute) => ({
           ...attribute,
-          events: sortByName(attribute.events),
+          events: attribute.events.sort(),
         }))
       ),
     }))

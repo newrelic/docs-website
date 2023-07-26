@@ -13,7 +13,6 @@ import {
   ComplexFeedback,
   Table,
 } from '@newrelic/gatsby-theme-newrelic';
-import { sortBy } from 'lodash';
 
 import { TYPES } from '../utils/constants';
 
@@ -22,9 +21,7 @@ import SEO from '../components/SEO';
 import PageTitle from '../components/PageTitle';
 import ErrorBoundary from '../components/ErrorBoundary';
 
-import eventsJson from '../data/attribute-dictionary.json';
-
-const events = sortBy(eventsJson, ['name']);
+import events from '../data/attribute-dictionary.json';
 
 const AttributeDictionary = ({ pageContext, location }) => {
   const [filteredEvents, setFilteredEvents] = useState([]);
@@ -376,10 +373,10 @@ const EventDefinition = memo(
                         font-size: 0.875rem;
                       `}
                     >
-                      {sortBy(attribute.events, ['name']).map((event) => (
-                        <li key={`${attribute.name}-${event.name}`}>
-                          <Link to={`${location.pathname}?event=${event.name}`}>
-                            {event.name}
+                      {attribute.events.map((event) => (
+                        <li key={`${attribute.name}-${event}`}>
+                          <Link to={`${location.pathname}?event=${event}`}>
+                            {event}
                           </Link>
                         </li>
                       ))}
