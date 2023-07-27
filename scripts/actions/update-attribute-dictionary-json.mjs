@@ -2,6 +2,8 @@
 import fetch from 'node-fetch';
 import fs from 'fs';
 import core from '@actions/core';
+import deepEqual from 'deep-equal';
+import sortBy from 'lodash/fp/sortBy.js';
 
 // this should be prod nerdgraph
 const NERDGRAPH_API_URL = 'https://staging-api.newrelic.com/graphql';
@@ -23,6 +25,7 @@ const GQL_QUERY = `
             units {
               label
             }
+            events
           }
         }
       }
@@ -30,8 +33,26 @@ const GQL_QUERY = `
   }
 `;
 
+const sortByName = sortBy(['name']);
+
+// the service doesn't guarantee sort order,
+// so to effectively compare the old and new data,
+// we need to sort every array before doing a `deepEqual`.
+const sortEverythingByName = (events) =>
+  sortByName(
+    events.map((event) => ({
+      ...event,
+      attributes: sortByName(
+        event.attributes.map((attribute) => ({
+          ...attribute,
+          events: attribute.events.sort(),
+        }))
+      ),
+    }))
+  );
+
 async function updateJson() {
-  const updatedJson = await fetch(NERDGRAPH_API_URL, {
+  const newData = await fetch(NERDGRAPH_API_URL, {
     method: 'POST',
     headers: {
       'Api-Key': process.env.API_KEY,
@@ -40,17 +61,20 @@ async function updateJson() {
     body: JSON.stringify({ query: GQL_QUERY }),
   }).then((res) => res.json());
 
-  if (updatedJson.hasOwnProperty('error')) {
+  if (newData.hasOwnProperty('error')) {
     console.error('Issue with fetching attribute dictionary:', error);
     process.exit(1);
   }
-
-  const formattedJson = JSON.stringify(updatedJson, null, 2);
   console.log('Fetch successful!');
 
-  const compareJson = fs.readFileSync(JSON_FILE_PATH, { encoding: 'utf-8' });
+  const newEvents = sortEverythingByName(
+    newData.data.docs.dataDictionary.events
+  );
 
-  const hasUpdates = compareJson != formattedJson;
+  const oldJson = fs.readFileSync(JSON_FILE_PATH, { encoding: 'utf-8' });
+  const oldEvents = JSON.parse(oldJson);
+
+  const hasUpdates = !deepEqual(oldEvents, newEvents);
 
   const message = hasUpdates
     ? 'Adding updates for attribute dictionary json'
@@ -60,7 +84,12 @@ async function updateJson() {
 
   console.log(message);
 
-  fs.writeFileSync(JSON_FILE_PATH, formattedJson);
+  if (!hasUpdates) {
+    return;
+  }
+
+  const newJson = JSON.stringify(newEvents, null, 2);
+  fs.writeFileSync(JSON_FILE_PATH, newJson);
 }
 
 updateJson();
