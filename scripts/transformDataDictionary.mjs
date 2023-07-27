@@ -60,7 +60,7 @@ eventStrs
     events.set(attributes.name, {
       ...attributes,
       body,
-      attributes: new Set(),
+      sharedAttributes: new Set(),
       fsPath: path,
     })
   );
@@ -75,27 +75,26 @@ let attributeStrs = await Promise.all(
 );
 attributeStrs
   .map(([path, attributeStr]) => [path, frontmatter(attributeStr)])
-  .forEach(([path, { attributes: mdAttributes, body }]) =>
-    attributes.set(mdAttributes.name, {
+  .forEach(([path, { attributes: mdAttributes, body }]) => {
+    const qualifiedName = `${getParentFromPath(path)}/${mdAttributes.name}`
+    attributes.set(qualifiedName, {
       ...mdAttributes,
       body,
-      parentEvent: getParentFromPath(path),
       fsPath: path,
     })
+  }
   );
 
-for (const [name, attribute] of attributes) {
-  const parent = attribute.parentEvent;
-  const qualifiedName = `${parent}/${name}`;
+for (const [qualifiedName, attribute] of attributes) {
+  const parent = qualifiedName.split('/')[0]
 
   attribute.events
     .filter((event) => event !== parent)
-    .forEach((event) => events.get(event).attributes.add(qualifiedName));
+    .forEach((event) => events.get(event).sharedAttributes.add(qualifiedName));
   delete attribute.events;
 
   let path = attribute.fsPath;
   delete attribute.fsPath;
-  delete attribute.parentEvent;
 
   let yaml = constructYaml(attribute);
   const parentFolder = path.split('/').slice(0, -1).join('/');
@@ -103,12 +102,12 @@ for (const [name, attribute] of attributes) {
   fs.writeFile(path, yaml);
 }
 
-for (const [name, event] of events) {
+for (const [_name, event] of events) {
   let path = event.fsPath;
   delete event.fsPath;
-  event.attributes = Array.from(event.attributes).sort();
-  if (event.attributes.length === 0) {
-    delete event.attributes;
+  event.sharedAttributes = Array.from(event.sharedAttributes).sort();
+  if (event.sharedAttributes.length === 0) {
+    delete event.sharedAttributes;
   }
 
   let yaml = constructYaml(event);
