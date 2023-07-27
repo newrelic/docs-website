@@ -7,7 +7,10 @@ getStartedLink: 'https://onenr.io/0vwBKqdNKRp'
 ---
 
 New Relic dashboards provide a rich library of open-source custom chart widgets built with React.js. These are organized according to common use cases, and all pinned within a single dashboard view. With charts widget packs, you get:
+
 - **Customizable Templates**: Visualize your data, your way, with out-of-the-box tools and resources and advanced capabilities to customize the data to your needs and the needs of your stakeholders.
 - **Open Source Library**: Access our open source and developer community as well as New Relic’s library of dashboards, quickstarts, custom visualizations, and more.
 
-[**Watch the Databyte**](https://youtu.be/sQApeuTP1K0)
+<iframe width="560" height="315" src="https://www.youtube.com/embed/sQApeuTP1K0" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+
+
