@@ -31,40 +31,38 @@ import WhatsNextTile from './WhatsNextTile';
 
 const defaultComponents = {
   a: (props) => <MDXLink {...props} displayExternalIcon />,
-  img: (props) =>
-    props.style || props.variant === 'TechTile' ? (
+  img: ({
+    alt = 'Docs site',
+    className,
+    src,
+    style = {},
+    title,
+    variant,
+    width,
+  }) =>
+    style || variant === 'TechTile' ? (
       <img
-        width={props.width ? props.width : 'inherit'}
-        src={props.src}
-        alt={props.alt ? props.alt : 'Docs site'}
-        title={props.title}
-        style={
-          props.style
-            ? { ...props.style, margin: '0 0.25rem' }
-            : { margin: '0 0.25rem' }
-        }
+        width={width || 'inherit'}
+        src={src}
+        alt={alt}
+        title={title}
+        className={className}
+        style={{ ...style, margin: '0 0.25rem' }}
       />
     ) : (
       <Lightbox>
         <img
-          width={props.width ? props.width : 'auto'}
-          src={props.src}
-          alt={props.alt ? props.alt : 'Docs site'}
-          title={props.title}
-          style={
-            props.style
-              ? {
-                  ...props.style,
-                  borderRadius: '0.25rem',
-                  maxWidth: '100%',
-                  margin: '0 0.25rem',
-                }
-              : {
-                  borderRadius: '0.25rem',
-                  maxWidth: '100%',
-                  margin: '0 0.25rem',
-                }
-          }
+          width={width || 'auto'}
+          src={src}
+          alt={alt}
+          title={title}
+          className={className}
+          style={{
+            ...style,
+            borderRadius: '0.25rem',
+            maxWidth: '100%',
+            margin: '0 0.25rem',
+          }}
         />
       </Lightbox>
     ),
