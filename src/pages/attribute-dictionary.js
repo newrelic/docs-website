@@ -1,4 +1,4 @@
-import React, { memo, useMemo, useEffect, useState } from 'react';
+import React, { memo, useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/react';
 import {
@@ -21,21 +21,9 @@ import SEO from '../components/SEO';
 import PageTitle from '../components/PageTitle';
 import ErrorBoundary from '../components/ErrorBoundary';
 
-import attributeDictionaryData from '../data/attribute-dictionary.json';
+import events from '../data/attribute-dictionary.json';
 
 const AttributeDictionary = ({ pageContext, location }) => {
-  const allDataDictionaryEvent = attributeDictionaryData.data.docs.dataDictionary.events.sort(
-    function (a, b) {
-      if (a.name < b.name) {
-        return -1;
-      }
-      if (a.name > b.name) {
-        return 1;
-      }
-      return 0;
-    }
-  );
-
   const [filteredEvents, setFilteredEvents] = useState([]);
   const [filteredAttribute, setFilteredAttribute] = useState(null);
   const [searchedAttribute, setSearchedAttribute] = useState(null);
@@ -48,33 +36,30 @@ const AttributeDictionary = ({ pageContext, location }) => {
     );
   }
 
-  const events = useMemo(() => allDataDictionaryEvent.map((item) => item), [
-    allDataDictionaryEvent,
-  ]);
-
   useEffect(() => {
     let filteredEvents = events;
 
     if (queryParams.has('dataSource')) {
+      const dataSource = queryParams.get('dataSource');
       filteredEvents = filteredEvents.filter((event) =>
         event.dataSources
           .map((ds) => ds.name)
-          .some((name) => name.includes(queryParams.get('dataSource')))
+          .some((name) => name.includes(dataSource))
       );
     }
 
     if (queryParams.has('event')) {
+      const eventQuery = queryParams.get('event');
       filteredEvents = filteredEvents.filter(
-        (event) => event.name === queryParams.get('event')
+        (event) => event.name === eventQuery
       );
     }
 
     if (queryParams.has('attributeSearch')) {
+      const attributeSearch = queryParams.get('attributeSearch').toLowerCase();
       filteredEvents = filteredEvents.filter((event) =>
         event.attributes.some(({ name }) =>
-          name
-            .toLowerCase()
-            .includes(queryParams.get('attributeSearch').toLowerCase())
+          name.toLowerCase().includes(attributeSearch)
         )
       );
     }
@@ -82,7 +67,7 @@ const AttributeDictionary = ({ pageContext, location }) => {
     setFilteredEvents(filteredEvents.map((event) => event.name));
     setSearchedAttribute(queryParams.get('attributeSearch'));
     setFilteredAttribute(queryParams.get('attribute'));
-  }, [queryParams, events]);
+  }, [queryParams]);
 
   const { t } = useTranslation();
 
@@ -164,7 +149,7 @@ const AttributeDictionary = ({ pageContext, location }) => {
           `}
         >
           <DataDictionaryFilter events={events} location={location} />
-          <ComplexFeedback title="Attribute dictionary" />
+          <ComplexFeedback pageTitle="Attribute dictionary" />
           <ContributingGuidelines
             fileRelativePath={pageContext.fileRelativePath}
             issueLabels={['feedback', 'feedback-issue']}
@@ -184,20 +169,30 @@ AttributeDictionary.propTypes = {
 
 const pluralize = (word, count) => (count === 1 ? word : `${word}s`);
 
+const sortAttributes = (a, b) => {
+  const nameA = a.name.toUpperCase();
+  const nameB = b.name.toUpperCase();
+  if (nameA < nameB) return -1;
+  if (nameA > nameB) return 1;
+  return 0;
+};
+
 const EventDefinition = memo(
   ({ location, event, searchedAttribute, filteredAttribute }) => {
     let filteredAttributes = [];
 
     if (searchedAttribute) {
-      filteredAttributes = event.attributes.filter(({ name }) =>
-        name.toLowerCase().includes(searchedAttribute.toLowerCase())
-      );
+      filteredAttributes = event.attributes
+        .filter(({ name }) =>
+          name.toLowerCase().includes(searchedAttribute.toLowerCase())
+        )
+        .sort(sortAttributes);
     } else if (filteredAttribute) {
-      filteredAttributes = event.attributes.filter(
-        ({ name }) => name === filteredAttribute
-      );
+      filteredAttributes = event.attributes
+        .filter(({ name }) => name === filteredAttribute)
+        .sort(sortAttributes);
     } else {
-      filteredAttributes = event.attributes;
+      filteredAttributes = event.attributes.sort(sortAttributes);
     }
 
     return (
@@ -290,6 +285,7 @@ const EventDefinition = memo(
                 Attribute name
               </th>
               <th>Definition</th>
+              <th>Data types</th>
             </tr>
           </thead>
           <tbody>
@@ -364,6 +360,28 @@ const EventDefinition = memo(
                       __html: attribute.definition,
                     }}
                   />
+                  <td
+                    css={css`
+                      width: 1px;
+                    `}
+                  >
+                    <ul
+                      css={css`
+                        margin: 0;
+                        list-style: none;
+                        padding-left: 0;
+                        font-size: 0.875rem;
+                      `}
+                    >
+                      {attribute.events.map((event) => (
+                        <li key={`${attribute.name}-${event}`}>
+                          <Link to={`${location.pathname}?event=${event}`}>
+                            {event}
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  </td>
                 </tr>
               );
             })}

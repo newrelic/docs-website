@@ -28,7 +28,6 @@ import React from 'react';
 import TechTile from './TechTile';
 import UserJourneyControls from './UserJourneyControls';
 import WhatsNextTile from './WhatsNextTile';
-import HideWhenEmbedded from './HideWhenEmbedded';
 
 const defaultComponents = {
   a: (props) => <MDXLink {...props} displayExternalIcon />,
@@ -99,18 +98,13 @@ const defaultComponents = {
   TabsBarItem: Tabs.BarItem,
   TabsPageItem: Tabs.Page,
   TabsPages: Tabs.Pages,
-  InlineSignup: () => (
-    <HideWhenEmbedded>
-      <InlineSignup />
-    </HideWhenEmbedded>
-  ),
+  InlineSignup,
   InlinePopover,
   InstallFeedback,
   WhatsNextTile,
   Side,
   SideBySide,
   UserJourneyControls,
-  HideWhenEmbedded,
   EolPage,
 };
 
