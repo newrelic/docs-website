@@ -2,8 +2,8 @@
 title: 'Eliminate vulnerabilities in every app and ship code faster with New Relic IAST'
 summary: 'Gain visibility and context to security findings with unmatched detection accuracy and proof-of-exploit for faster remediation.'
 releaseDate: '2023-07-26'
-learnMoreLink: 'newrelic.com/blog/nerdlog/application-security'
-getStartedLink: 'newrelic.com/platform/application-security'
+learnMoreLink: 'https://newrelic.com/blog/nerdlog/application-security'
+getStartedLink: 'https://newrelic.com/platform/application-security'
 ---
 
 Applications are the lifeblood of every organization and in today's digital business developers need to move fast and ensure every application is secure. Now you can with New Relic interactive application security testing (IAST).
