@@ -4,7 +4,7 @@ summary: 'New cdfPercentage() and getCdfCount() functions are now available in N
 releaseDate: '2023-07-31'
 ---
 
-The **cumulative distribution function** (cdf) gives the probability that a value is less than or equal to a threshold.
+The **cumulative distribution function** ([cdf](https://en.wikipedia.org/wiki/Cumulative_distribution_function)) gives the probability that a value is less than or equal to a threshold.
 
 In NRQL, you can use the `cdfPercentage()` function to show what percentage of a numeric or distribution metric attribute's values are less than one or more thresholds. The `getCdfCount()` function returns how many of a numeric or distribution metric attribute's values are less than a threshold.
 
