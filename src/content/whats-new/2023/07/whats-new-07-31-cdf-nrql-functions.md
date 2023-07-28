@@ -1,6 +1,6 @@
 ---
 title: 'Cumulative distribution functions in NRQL'
-summary: 'New cdfPercentage() and getCdfCount() functions are now available in NRQL'
+summary: 'CdfPercentage() and getCdfCount() functions are now available in NRQL'
 releaseDate: '2023-07-31'
 ---
 
