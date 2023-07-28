@@ -1,0 +1,766 @@
+---
+title: '서비스 특성화: 애플리케이션 원격 분석 최적화'
+tags:
+  - Observability maturity
+  - Operational efficiency
+  - Service characterization
+  - Implementation guide
+metaDescription: Use service characterization to optimize application telemetry for issue detection and resolution
+translationType: machine
+---
+
+import omaOeScServiceDiagram from 'images/oma-oe_diagram_sc-service.webp'
+
+import omaOeScTransactionBreakdown from 'images/oma-oe-sc_screenshot-full_transaction-breakdown.webp'
+
+import omaOeScTransactionBreakdownWeighted from 'images/oma-oe-sc-transaction-breakdown-weighted.webp'
+
+import omaOeScTransactionBreakdownHistogramNonNormal from 'images/oma-oe-sc_screenshot-full_transaction-breakdown-histogram-non-normal.webp'
+
+import omaOeScTransactionBreakdownHistogramNormal from 'images/oma-oe-sc_screenshot-full_transaction-breakdown-histogram-normal.webp'
+
+import omaOeScTransactionAttributes from 'images/oma-oe-sc_screenshot-full_transaction-attributes.webp'
+
+import omaOeScErrorAttributes from 'images/oma-oe-sc_screenshot-crop_error-attributes.webp'
+
+import omaOeScTransactionNrqlCustomAttribute from 'images/oma-oe-sc_screenshot-crop_transaction-nrql-custom-attributes.webp'
+
+import omaOeScTransactionNrqlFeatureFlag from 'images/oma-oe-sc_screenshot-crop_transaction-nrql-feature-flag.webp'
+
+import omaOeScSummaryComponents from 'images/oma-oe-sc_screenshot-full_summary-components.webp'
+
+import omaOeScTransactionComponents from 'images/oma-oe-sc_screenshot-crop_transaction-components.webp'
+
+import omaOeScSummaryClient from 'images/oma-oe-sc_screenshot-full_summary-client.webp'
+
+import omaOeScExternalService from 'images/oma-oe-sc_screenshot-full_external-service.webp'
+
+import omaOeScDatabases from 'images/oma-oe-sc_screenshot-full_databases.webp'
+
+import omaOeScSyntheticsMenu from 'images/oma-oe-sc_screenshot-crop_synthetics-menu.webp'
+
+애플리케이션 서비스를 모니터링하고 최적화하는 데 필요한 원격 분석이 있는지 여부를 결정합니다.
+
+## 전제 조건 [#prerequisites]
+
+가이드의 단계를 진행하면서 다음 설명서 리소스를 가까이에 두십시오.
+
+* [APM 에이전트 설치](/docs/new-relic-one/install-configure/install-new-relic/#apm-install) 및 [구성](/docs/new-relic-one/install-configure/configure-new-relic-agents)
+
+* 계측 가이드:
+
+  * [C-SDK](/docs/apm/agents/c-sdk/instrumentation/instrument-your-app-c-sdk)
+  * [가다](/docs/apm/agents/go-agent/instrumentation)
+  * [자바](/docs/apm/agents/java-agent/custom-instrumentation/java-custom-instrumentation)
+  * [.그물](/docs/apm/agents/net-agent/custom-instrumentation/introduction-net-custom-instrumentation)
+  * [노드.js](/docs/apm/agents/nodejs-agent/extend-your-instrumentation/nodejs-custom-instrumentation)
+  * [PHP](/docs/apm/agents/php-agent/php-agent-api/)
+  * [파이썬](/docs/apm/agents/python-agent/custom-instrumentation/python-custom-instrumentation/)
+  * [루비](/docs/apm/agents/ruby-agent/api-guides/ruby-custom-instrumentation/)
+  * [OpenTelemetry SDK](https://opensource.newrelic.com/projects/open-telemetry)
+
+* [New Relic 합성 모니터링 소개](/docs/synthetics/)
+
+## 현재 상태 설정 [#current-state]
+
+서비스의 현재 상태를 설정하려면 다음 두 단계를 거쳐야 합니다.
+
+* [계측 요구 사항 결정](#instrumentation-needs)
+* [엔드포인트 테스트 이해](#endpoint-testing)
+
+이에 대해서는 아래에서 더 자세히 설명합니다.
+
+### 계측 요구 사항 결정 [#instrumentation-needs]
+
+비즈니스 요구를 충족하는 모든 서비스에는 다음 질문에 답할 수 있는 충분한 도구가 있어야 합니다.
+
+* 얼마나 많은 요청을 받습니까?
+* 얼마나 많은 메시지와 HTTP 요청을 보내야 합니까?
+* 얼마나 많은 요청이 성공했습니까?
+* 전체 요청에 대한 응답 시간은 얼마입니까?
+* 종속성에 대한 호출에 대한 응답 시간은 얼마입니까?
+* 이 프로세스는 몇 개의 요청에서 얼마나 많은 리소스를 사용해야 합니까?
+* 내 모든 실패 지점은 무엇입니까?
+
+**원격 측정이 내 서비스의 기능과 목적을 적절하게 설명합니까?**
+
+당신의 서비스가 무엇을 하는지 생각해보세요. 아마도 주문을 받고 주문의 무결성을 검증해야 하고 해당 주문을 교환소 서비스에 전달하고 요청자에게 다시 전달되는 확인 코드를 수신할 수 있습니다. 이 예는 서비스 기능을 세분화하고 서비스가 어떻게 작동하는지에 대한 정보에 입각한 평가를 하기에 충분한 원격 측정 및 컨텍스트가 있는지 평가할 수 있는 명확한 경로를 제공합니다.
+
+<img
+  src={omaOeScServiceDiagram}
+  alt="Service Diagram"
+  title="Service Diagram"
+/>
+
+<figcaption>
+  HTTP 요청을 수신하고 처리하는 개념적 서비스입니다.
+</figcaption>
+
+New Relic의 에이전트를 사용하는 경우 이 섹션의 시작 부분에 있는 질문에 답하는 데 필요한 모든 정보가 있어야 합니다. 그러나 때때로 특정 구현에는 추가 계측이 필요합니다.
+
+다음 표에는 계측을 통해 원격 분석 또는 메타데이터 캡처를 추가할 수 있는 추가 상황이 나와 있습니다. 다음 [개선 프로세스](#improvement-process) 섹션에서는 서비스 관리에 필요한 추가 데이터를 얻는 방법을 설명합니다.
+
+계측에 대한 고려 사항:
+
+|                                           |                                                                                                        |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| 기본 원격 분석 요구 사항이 충족됩니까?                    | 그렇지 않은 경우 격차를 문서화하고 맞춤형 구성이나 추가 계측 기술을 통해 격차를 줄일 수 있는지 평가하십시오.                                         |
+| 원격 분석 내에서 개별 사용자 스토리를 분리할 수 있습니까?         | 그렇지 않은 경우 에이전트의 추적 기능을 사용하여 적절한 컨텍스트 메타데이터가 있는 개별 사용자 스토리의 호출을 캡처합니다.                                  |
+| 사용자 스토리를 호출하는 매개변수에 대한 통찰력이 있습니까?         | 그렇지 않은 경우 에이전트 SDK를 통해 사용자 지정 속성을 사용하여 트랜잭션 및 범위에 컨텍스트를 추가합니다.                                         |
+| 소프트웨어의 주요 기능 구성 요소를 측정할 수 있습니까?           | 그렇지 않은 경우 계측 SDK를 사용하여 코드의 특정 기능 요소에 대한 기준 메트릭을 만듭니다. (캐시 조회, 처리 루틴 또는 유틸리티 기능).                       |
+| 내 코드에서 외부 시스템으로의 클라이언트 상호 작용을 측정할 수 있습니까? | 그렇지 않은 경우 요청 및 응답이 구성 요소 수준 추적으로 캡슐화되었는지 확인합니다. 클라이언트 호출이 비동기식인 경우 분산 추적 기능을 구현하여 연속 처리를 확인하는 것이 좋습니다. |
+
+### 엔드포인트 테스트 이해 [#endpoint-testing]
+
+끝점 테스트는 주어진 시스템 오류의 근본 원인을 결정하는 방법을 크게 가속화하는 간단하고 실용적인 접근 방식입니다. 이를 통해 운영 및 지원 팀은 실제 문제가 있음을 신속하게 파악하고 해당 문제를 특정 서비스로 격리할 수 있습니다.
+
+최신 소프트웨어 시스템은 작업을 완료하기 위해 여러 서비스에 의존합니다. 역사적으로 이러한 서비스 엔드포인트를 모니터링하는 프로세스는 간단했습니다. 아키텍처 팀은 운영 팀에 대해 잘 문서화된 종속성 맵을 생성합니다. 운영 팀은 충실하게 항목별 엔드포인트를 확인합니다.
+
+오늘날에는 지속적인 전달 프로세스와 소규모 배치 변경으로 운영 팀이 종합 검사를 예측하고 사전에 정의하기 어려운 속도로 새로운 엔드포인트와 종속성을 생성하고 배포할 수 있습니다. 서비스 개발자에게 개발 단계에서 프로덕션 서비스 테스트를 정의할 수 있는 더 큰 제어 범위를 제공함으로써 관찰 가능성 프로그램에 대한 엔드포인트 테스트 범위를 크게 늘릴 수 있습니다.
+
+#### 결정 매트릭스 [#endpoint-testing-decision-matrix]
+
+합성 수표를 생성할지 여부를 결정하는 것은 간단합니다. 종속성에 대한 실패의 첫 번째 발생을 알고 싶을 것입니다. 다음 질문 중 하나라도 "예"라고 답한 경우 전용 종합 검사를 만드는 것이 좋습니다.
+
+* 엔드포인트가 고객을 대상으로 합니까?
+* 끝점이 새 종속성을 호출합니까?
+* 엔드포인트가 다른 네트워크 인프라에 있습니까?
+* 엔드포인트가 여러 서비스 간에 공유됩니까?
+* 엔드포인트가 CDN에서 지원하는 콘텐츠 출처입니까?
+
+## 개선 프로세스 [#improvement-process]
+
+개선 프로세스에는 종종 다음과 같은 주요 단계가 포함됩니다.
+
+* [계측 구성](#config-based-instrumentation)
+* [서비스 기능 격리](#isolate-service-functions)
+* [사용자 정의 트랜잭션 이름 정의](#custom-transaction-names)
+* [서비스 구성 요소 측정](#component-measurement)
+* [프레임워크가 측정되었는지 확인](#framework-measurement)
+* [모든 외부 통화 추적](#external-services)
+* [엔드포인트 테스트](#endpoint-testing2)
+
+이제 더 자세히 살펴보겠습니다.
+
+### 계측 구성 [#config-based-instrumentation]
+
+각 New Relic 에이전트는 다양한 구성 옵션을 제공합니다. 일반적으로 인프라 호스트, 애플리케이션 런타임 및 클라우드 서비스 공급자에 대한 연결 내에 에이전트를 포함하는 표준 접근 방식을 정의합니다. 기본 에이전트 구성은 일반적이며 광범위하게 적용할 수 있습니다.
+
+개발자가 배포 적용 가능성에 영향을 미치는 가장 좋은 방법 중 하나는 서비스 인스턴스에 대한 기본 구성 옵션을 재정의하는 것입니다. 다음은 고려해야 할 기본 계측 옵션입니다.
+
+#### 효과적인 서비스 이름 만들기 [#service-naming]
+
+<Callout variant="tip">
+  New Relic 에이전트는 서비스 런타임 이름을 정의하는 다양한 메커니즘을 제공합니다. 런타임 환경에 대한 구현 세부 정보를 찾으려면 [애플리케이션 이름 지정 가이드를](/docs/apm/agents/manage-apm-agents/app-naming) 참조하세요.
+</Callout>
+
+서비스에 부여한 이름은 **네임스페이스** 를 제공합니다(에이전트 데이터를 찾을 수 있는 위치). New Relic이 서비스의 동작을 이해하기 위해 사용하는 가장 중요한 전략 중 하나는 유사한 것을 함께 집계하고 집계에서 파생된 공통점을 사용하여 분산을 분리하는 것입니다.
+
+최신 서비스는 종종 용량 처리 또는 특정 기능 세분화를 보장하기 위해 여러 컨텍스트에 배포됩니다. 집계의 이점을 활용하려면 서비스 런타임이 동일한 운영 특성을 가진 인스턴스를 그룹화하는 것이 매우 중요합니다. 따라서 서비스를 배포할 때 배포된 서비스의 이름을 지정하는 데 도움이 되도록 다음 세 가지 기준에 세심한 주의를 기울이십시오.
+
+* 내 서비스가 특정 고객을 대상으로 합니까?
+* 내 서비스가 다른 코드베이스를 실행하고 있습니까?
+* 내 코드베이스가 다른 런타임 구성을 사용하고 있습니까?
+
+이러한 질문에 "예"라고 답한 경우 서비스에 대한 고유한 이름을 만드는 것이 좋습니다.
+
+**청중 기준**
+
+청중을 최종 사용자 또는 서비스 기능의 그룹으로 생각하십시오. 서비스가 북미 및 유럽 배포 간에 분할된 경우 해당 배포의 런타임을 그에 따라 그룹화해야 합니다. 예를 들어:
+
+```
+newrelic.appname = PORTAL_AMER
+```
+
+그리고
+
+```
+newrelic.appname = PORTAL_EMEA
+```
+
+이렇게 하면 해당 대상이 만든 원격 분석을 함께 그룹화하여 특정 사용자 대상과 관련된 서비스 문제의 컨텍스트 유사성을 더 잘 이해할 수 있습니다.
+
+때때로 우리가 애플리케이션을 배포하는 방식은 관리 기능이 있는 포털 애플리케이션과 같은 서비스의 운영 컨텍스트를 나눕니다. 관리 기능이 일반 포털 코드베이스에 포함되어 있을 수 있지만 클러스터의 한 인스턴스만 포털 관리 요청을 처리합니다. 이 경우 기능적 잠재고객 세분화 기회가 있으므로 적절한 이름을 지정해야 합니다. 예를 들어:
+
+```
+newrelic.appname = PORTAL_MAIN
+```
+
+그리고
+
+```
+newrelic.appname = PORTAL_ADMIN
+```
+
+**코드베이스 기준**
+
+하나의 서비스를 가장하여 다른 코드 버전을 실행하는 경우 해당 런타임 인스턴스를 분할하고 이름 지정 체계의 일부로 버전 이름 지정을 통합하는 것을 고려하십시오. 다른 서비스 버전을 실행하는 하나의 서비스 이름으로 코드를 그룹화하면 생성하는 모든 메트릭의 신호 대 잡음비가 증가합니다.
+
+다른 코드 버전은 다른 양의 컴퓨팅 리소스를 사용하거나 데이터를 다르게 처리할 수 있습니다. 메트릭에서 얻은 신호가 다른 기능 구현으로 인한 경우 서비스가 정상적으로 작동하는지 확인하기가 매우 어려워집니다.
+
+여러 버전을 동시에 실행하는 경우 서비스 이름에 숫자 식별자를 추가하는 것이 좋습니다. 예를 들어:
+
+```
+newrelic.appname = PORTAL_MAIN_V112
+```
+
+그리고
+
+```
+newrelic.appname = PORTAL_MAIN_V115
+```
+
+LaunchDarkly 또는 Split과 같은 기능 플래그 프레임워크 프레임워크를 사용하는 경우 단일 코드베이스 내에 여러 버전의 애플리케이션 또는 서비스가 있을 수 있습니다. 이러한 조건을 해결하려면 서비스 기능 격리에 대한 섹션을 참조하십시오.
+
+**런타임 기준**
+
+서비스 인스턴스가 런타임 제약 조건이 다른 시스템에 배포되는 경우 자체 원격 분석 네임스페이스에 캡슐화되어야 합니다. 이는 공유 리소스에 대한 네트워크 연결 이점을 제공하는 다른 데이터 센터에 배포하거나 서비스가 다른 메모리 또는 스레드 구성을 사용하여 별도의 컴퓨팅 계층에서 실행 중일 수 있습니다.
+
+코드 런타임 작업에 영향을 주는 이러한 특성으로 인해 다른 작업 동작으로 이어지는 다양한 동작이 발생할 수 있습니다. 예를 들어:
+
+```
+newrelic.appname = PORTAL_NYC_DC
+```
+
+그리고
+
+```
+newrelic.appname = PORTAL_REALLY_BIG_FOOTPRINT
+```
+
+#### 기본 에이전트 구성 재정의 [#override-default-agent-config]
+
+<Callout variant="tip">
+  New Relic 에이전트는 런타임 구성을 위한 다양한 옵션을 제공합니다. 런타임에 특정한 옵션은 [APM 에이전트 구성 문서](/docs/new-relic-one/install-configure/configure-new-relic-agents) 를 참조하십시오.
+</Callout>
+
+각 New Relic APM 에이전트는 기본 구성을 수정하기 위한 다양한 옵션을 제공합니다. 가장 포괄적이고 일관된 위치는 각 에이전트 설치와 함께 제공되는 구성 파일입니다. 그러나 New Relic 에이전트는 명령줄 매개변수를 서비스 인스턴스 런타임에 직접 전달하거나, 환경 변수를 사용하거나, 런타임 시 에이전트의 SDK 내에서 함수를 호출하여 구성할 수도 있습니다.
+
+.NET 에이전트 구성 옵션은 다음과 같습니다.
+
+* [New Relic .NET SDK API 사용](/docs/apm/agents/net-agent/net-agent-api/)
+* [환경 변수](/docs/apm/agents/net-agent/configuration/net-agent-configuration/#environment-variables)
+* [구성 파일 옵션](/docs/apm/agents/net-agent/configuration/net-agent-configuration/#setup)
+
+### 서비스 기능 격리 [#isolate-service-functions]
+
+[효과적인 서비스 이름 만들기](#service-naming) 섹션에 표시된 것처럼 계측의 주요 목표 중 하나는 유사한 런타임 제약 조건을 단일 명명된 단위로 그룹화하도록 New Relic 에이전트를 구성하는 것입니다. 소프트웨어 시스템이 결정론적 방식으로 작동해야 하기 때문에 우리는 이것을 제안합니다.
+
+특정 입력 세트의 경우 예상 범위의 측정 가능한 결과를 얻어야 합니다. 이러한 제약 조건을 명명된 서비스 런타임 구성 요소에 편안하게 포함할 수 있는 정도는 정상적인 동작을 이해하고 비정상적인 동작을 격리하는 데 크게 도움이 됩니다.
+
+효과적인 서비스 명명 전략을 결정했으면 다음 단계는 서비스에 대해 수집된 원격 분석을 살펴보고 서비스의 기능을 적절하게 격리하는지 확인하는 것입니다. 우리가 가장 자주 접하는 구현 패턴은 웹 요청에 의해 호출되는 일련의 함수입니다. 서비스 런타임에 대한 웹 요청을 처음 수신하고 처리하면 처리 리소스가 할당됩니다. New Relic은 이 리소스 할당 및 코드 실행을 트랜잭션으로 정의합니다.
+
+New Relic 에이전트는 감지된 트랜잭션에 대한 네임스페이스를 생성하는 일련의 가정으로 구성됩니다. 이러한 가정은 에이전트 언어 런타임 간에 다릅니다. 예를 들어 New Relic Java 에이전트가 트랜잭션 이름을 결정하는 방법에 대한 좋은 예는 [Java 에이전트의 트랜잭션 이름 지정 문서](/docs/apm/agents/java-agent/instrumentation/transaction-naming-protocol/) 에서 찾을 수 있습니다.
+
+그러나 에이전트 트랜잭션 명명 프로토콜을 적용한 후에도 만족스럽지 못한 결과를 남길 수 있습니다. 컨텍스트를 개선하기 위해 트랜잭션의 이름을 지정하는 추가 도구를 추가하면 서비스의 실행 동작에 대한 이해가 크게 향상될 수 있습니다.
+
+트랜잭션 이름 지정의 목표는 개발자가 아닌 사람도 이해하기 쉬운 접근 방식으로 서비스 기능을 잘 분할하는 APM 트랜잭션 보기여야 합니다.
+
+<img
+  src={omaOeScTransactionBreakdown}
+  alt="Transaction Breakdown"
+  title="Transaction Breakdown"
+/>
+
+<figcaption>
+  New Relic 서비스 트랜잭션 분석 보기.
+</figcaption>
+
+트랜잭션 분석 이미지는 트랜잭션 세분화의 좋은 예입니다. 서비스의 더 넓은 코드베이스 내에서 각 트랜잭션이 수행하는 작업의 양에 대한 자세한 추적을 제공합니다. 또한 비즈니스 컨텍스트(트랜잭션이 수행하는 작업)에 대한 힌트를 제공하는 일반 사용자 친화적인 이름으로 트랜잭션을 표시합니다. 트랜잭션 이름 지정 및 속성 포함에 대해 자세히 알아볼 때 데이터의 비기술적 관찰자가 이름 지정 접근 방식에 액세스할 수 있도록 해야 합니다.
+
+<img
+  src={omaOeScTransactionBreakdownWeighted}
+  alt="Transaction Breakdown Weighted"
+  title="Transaction Breakdown Weighted"
+/>
+
+<figcaption>
+  트랜잭션 분석: 이 서비스의 트랜잭션은 꽤 일반적인 이름을 가진 하나의 트랜잭션 이름에 높은 가중치를 두는 것 같습니다. 이와 같은 분석은 다음과 같은 질문을 던집니다. "이것이 내 서비스가 수행하는 작업을 잘 나타내는가?"
+</figcaption>
+
+둔감한 트랜잭션 분석 이미지는 트랜잭션 이름 세분화의 나쁜 예를 보여줍니다. 이 경우 트랜잭션 볼륨의 약 60%가 `OperationHandler/handle` 으로 지정됩니다. 트랜잭션 볼륨의 백분율 속성과 이름의 일반적인 특성은 모두 해당 트랜잭션 네임스페이스 아래에 지나치게 열성적인 트랜잭션 집계가 있을 수 있음을 나타냅니다.
+
+트랜잭션 이름 지정 접근 방식을 검증하는 좋은 방법은 서비스 웹 트랜잭션 히스토그램 대시보드에서 상당한 기간 동안 트랜잭션에 대한 응답 시간 분포를 검토하는 것입니다.
+
+<img
+  src={omaOeScTransactionBreakdownHistogramNonNormal}
+  alt="Transaction Histogram Non-normal"
+  title="Transaction Histogram Non-normal"
+/>
+
+<figcaption>
+  서비스 트랜잭션 히스토그램 보기는 각 응답 시간 버킷에 속하는 트랜잭션 수를 보여줍니다. 좋은 명명 전략은 정규 분포를 나타내는 경향이 있습니다.
+</figcaption>
+
+서비스 트랜잭션 이미지는 광범위한 트랜잭션 응답률을 보여줍니다. 대부분의 트랜잭션이 0-200밀리초 범위에 있지만 200-1000밀리초 범위의 값을 나타냅니다. 트랜잭션에 대해 매우 분산된 응답 범위가 있는 경우 다음과 같이 자문해야 합니다.
+
+**이 트랜잭션의 이름을 지정하는 데 도움이 될 수 있는 트랜잭션 실행 중 어떤 정보가 있습니까?**
+
+많은 경우에 비정규 분포는 매개변수가 요청에 전달되거나 트랜잭션이 수행하도록 요청받은 작업의 직접적인 결과입니다. 서비스 쿼리 트랜잭션이 데이터 범위를 매개변수로 사용할 수 있다고 생각하는 것은 매우 쉽습니다. 날짜 범위가 작을수록 조회 시간이 더 빨라질 수 있습니다. 따라서 일부 예상 매개변수 제약 조건(> 1일, 1-5일, >5일)에서 파생된 의미 체계를 제공하면 보다 의미 있는 세분화를 제공할 수 있습니다.
+
+목표는 고유한 특성이 가장 적은 트랜잭션을 그룹화하는 데 도움이 되는 트랜잭션 이름을 만드는 것입니다.
+
+<img
+  src={omaOeScTransactionBreakdownHistogramNormal}
+  alt="Transaction Histogram"
+  title="Transaction Histogram"
+/>
+
+<figcaption>
+  개별 트랜잭션이 더 적은 예외와 함께 보다 일관된 응답 시간 달성을 보고하는 트랜잭션 세분화의 보다 정규 분포입니다.
+</figcaption>
+
+정규 분포 이미지는 서비스 내에서 보다 의도적으로 명명된 트랜잭션을 보여줍니다. 이 경우 웹 트랜잭션 응답 시간이 더 밀접하게 그룹화되어 일관된 실행 특성을 나타냅니다.
+
+트랜잭션 명명 전략이 수행하는 작업 유형별로 서비스 기능을 그룹화하는 일관된 메커니즘을 제공하도록 함으로써 비정상적인 동작을 신속하게 격리하거나 변형의 근본 원인을 더 잘 이해할 수 있습니다. 이를 통해 애플리케이션을 리팩토링하고 서비스 기능의 전반적인 예측 가능성을 높일 수 있습니다.
+
+### 사용자 정의 트랜잭션 이름 정의 [#custom-transaction-names]
+
+<Callout variant="tip">
+  런타임에 대한 트랜잭션 명명 절차를 검토하려면 [New Relic 에이전트](/docs/apm/new-relic-apm/getting-started/introduction-apm) 의 API 가이드를 참조하세요.
+</Callout>
+
+New Relic 에이전트 트랜잭션 이름 지정 서비스에는 New Relic 에이전트 SDK에 대한 `SetName(String name)` 유사 API 호출이 필요합니다. 각 언어 런타임 에이전트에는 이름을 설정하기 위한 고유한 구문과 옵션이 있습니다.
+
+예를 들어 HTTP 요청 매개변수의 값을 가져와 New Relic Java 에이전트에서 트랜잭션의 이름을 지정하는 데 사용하려면 다음과 유사한 코드를 사용할 수 있습니다.
+
+```
+com.newrelic.agent.Agent.LOG.finer("[my query handler] Renaming transaction based on an important query parameter");
+
+com.newrelic.api.agent.NewRelic.setTransactionName("Query Handler_" + (javax.servlet.http.HttpServletRequest)_servletrequest_0).getParameter("important_query_parm"));
+```
+
+참고: New Relic 트랜잭션 이름에는 최대 용량이 있습니다. 트랜잭션 이름 지정 전략은 수천 개의 잠재적 트랜잭션 이름이 있는 경우 어느 정도의 특수성을 절충해야 합니다.
+
+너무 많은 트랜잭션 이름이 보고되면 New Relic은 해당 트랜잭션 이름을 그룹화하는 규칙을 만들려고 시도합니다. 자세한 내용은 메트릭 그룹화 문제와 관련된 [에이전트 문제 해결 가이드](/docs/using-new-relic/cross-product-functions/troubleshooting/metric-grouping-issues) 에서 찾을 수 있습니다.
+
+메트릭 그룹화 문제가 의심되는 경우 New Relic으로 지원 사례를 여십시오. 그러면 트랜잭션 이름 지정 문제의 원인을 격리하기 위해 기꺼이 협력하겠습니다.
+
+### 트랜잭션으로 매개변수 캡처 [#capture-parameters]
+
+<Callout variant="tip">
+  속성 사용자 정의에 대한 메타데이터 향상 옵션을 검토하려면 에이전트 언어에 대한 [New Relic 에이전트 사용자 정의 속성 가이드](/docs/using-new-relic/data/customize-data/collect-custom-attributes/) 를 참조하십시오.
+</Callout>
+
+트랜잭션 이름은 서비스 동작을 더 잘 이해할 수 있도록 서비스 기능을 세분화하는 강력한 방법입니다. 이를 통해 New Relic UI에서 직접 기능을 개별적으로 분리할 수 있습니다.
+
+그러나 트랜잭션 이름을 분리하지 않고 서비스 기능에 대한 추가 컨텍스트를 얻으려는 경우가 많습니다. 이는 서비스에서 특성 캡처를 도입하여 수행할 수 있습니다.
+
+`name:value` 쌍 속성을 추가하여 각 거래의 세부정보를 꾸밀 수 있습니다. 속성은 APM 트랜잭션 추적 및 오류 UI를 통해 또는 `Transaction` 이벤트 유형에서 매개변수의 직접 쿼리를 통해 각 트랜잭션 이벤트에서 사용할 수 있습니다.
+
+<img
+  src={omaOeScTransactionAttributes}
+  alt="Transaction Attributes"
+  title="Transaction Attributes"
+/>
+
+<figcaption>
+  트랜잭션 추적을 선택한 후 서비스 트랜잭션에 대해 설정한 사용자 지정 속성을 볼 수 있습니다.
+</figcaption>
+
+다음은 APM 오류 UI에서 볼 수 있는 트랜잭션 추적 세부 정보의 예입니다.
+
+<img
+  src={omaOeScErrorAttributes}
+  alt="Error Attributes"
+  title="Error Attributes"
+/>
+
+<figcaption>
+  APM 오류 UI에 표시되는 사용자 정의 속성.
+</figcaption>
+
+유용한 트랜잭션 이름 세분화를 개발했다면 속성의 추가 컨텍스트를 사용하여 예기치 않은 결과를 가져온 입력, 집단 또는 세그먼트를 더 잘 이해할 수 있습니다.
+
+APM UI 내에서 트랜잭션의 컨텍스트를 이해할 수 있을 뿐만 아니라 매개변수의 도입은 트랜잭션 데이터를 직접 쿼리하여 트랜잭션을 집계하고 분석하는 데 매우 유용한 도구입니다. 사용자 정의 속성이 각 트랜잭션에 추가되어 특정 조건을 쉽게 분리하고 패싯합니다.
+
+<img
+  src={omaOeScTransactionNrqlCustomAttribute}
+  alt="NRQL Custom Attributes"
+  title="NRQL Custom Attributes"
+/>
+
+<figcaption>
+  패싯 데이터베이스 호출 기간에 사용자 지정 특성을 사용하는 NRQL 쿼리 식입니다.
+</figcaption>
+
+매개변수 캡처 접근 방식은 Split 또는 LaunchDarkly와 같은 기능 플래그 시스템과 함께 사용할 수도 있습니다. 이 경우 기능 플래그에 대한 결정 핸들러를 구현할 때 고객에게 표시되는 버전이나 기능을 제어하는 코드 블록에 적용되는 플래그 컨텍스트(예: `optimized_version = on` )를 캡처하는 것을 고려하십시오.
+
+<img
+  src={omaOeScTransactionNrqlFeatureFlag}
+  alt="NRQL Custom Attributes Feature Flags"
+  title="NRQL Custom Attributes Feature Flags"
+/>
+
+<figcaption>
+  기능 플래그의 상태가 트랜잭션 사용자 정의 속성에 의해 캡처될 때 결과를 보여주는 NRQL 쿼리입니다. 기능 플래그 상태 속성을 통해 코드 실행 경로가 성능, 처리량 및 종속성 활용에 미치는 영향을 이해할 수 있습니다.
+</figcaption>
+
+예를 들어 HTTP 요청 매개변수의 값을 가져와 New Relic Java 에이전트와 함께 사용자 정의 속성으로 저장하려면 다음과 유사한 코드를 사용할 수 있습니다.
+
+```
+com.newrelic.agent.Agent.LOG.finer("[my query handler] Adding an Attribute to transaction based on an important query parameter");
+
+com.newrelic.api.agent.NewRelic.addCustomParameter("ImportantParm", (javax.servlet.http.HttpServletRequest)_servletrequest_0).getParameter("important_query_parm"));
+```
+
+### 서비스 구성 요소 측정 [#component-measurement]
+
+서비스 컨텍스트 내에서 특정 트랜잭션의 동작은 기능을 분리하고 소프트웨어 시스템이 효과적으로 작동하도록 하는 강력한 방법입니다. 그러나 소프트웨어 시스템의 동작을 보는 또 다른 방법은 구현의 세부 구성 요소 실행 모델을 검토하는 것입니다. 애플리케이션 프레임워크 코드 구성 요소는 서비스 전체에서 공유되며 구성 요소 성능에 대한 지속적인 평가는 전체 서비스 상태에 대한 통찰력을 제공할 수 있습니다.
+
+New Relic에는 구성 요소 실행 세부 정보를 관찰할 수 있는 두 곳이 있습니다. APM의 서비스 요약 대시보드는 구성 요소(예: 가비지 수집 실행 또는 데이터베이스 호출)별로 분류된 서비스의 복합 실행 보기를 제공합니다.
+
+<img
+  src={omaOeScSummaryComponents}
+  alt="Summary Components"
+  title="Summary Components"
+/>
+
+<figcaption>
+  이 요약 대시보드는 애플리케이션 내의 주요 구성 요소 유형에 대한 분석을 제공합니다. Memcached, 외부 웹 호출, MySQL 및 Dirac은 모두 서비스의 집합적 트랜잭션이 비즈니스 논리를 실행하는 데 사용하는 공유 코드 프레임워크의 예입니다.
+</figcaption>
+
+유사한 분류가 거래별로 제공됩니다.
+
+<img
+  src={omaOeScTransactionComponents}
+  alt="Transaction Components"
+  title="Transaction Components"
+/>
+
+<figcaption>
+  이 단일 트랜잭션 요약 보기는 기여하는 실행 시간을 구성요소별로 분류합니다. 이렇게 하면 트랜잭션 내 구성 요소의 집계 성능을 볼 수 있습니다.
+</figcaption>
+
+트랜잭션 구성 요소 세그먼트는 일관된 성능 동작을 나타내는 경향이 있으므로 이 일관성을 사용하여 기본 동작의 변경 사항을 감지할 수 있습니다. 이것은 근본적인 문제의 좋은 표시가 될 수 있습니다. 리소스 제약은 개별 트랜잭션 세부 정보보다 구성 요소 프레임워크 내에서 더 명확하게 나타나는 경향이 있습니다. 이를 통해 서비스 내에서 실행되는 모든 코드에서 경험하는 공통 제약 조건을 통해 종속성의 특성을 추론할 수 있습니다.
+
+### 프레임워크가 측정되었는지 확인 [#framework-measurement]
+
+<Callout variant="tip">
+  계측에 메트릭 이름을 추가하는 방법에 대한 정보를 찾으려면 특정 APM 에이전트에 대한 계측 및 SDK 가이드를 참조하십시오.
+</Callout>
+
+프레임워크 계측을 위한 구문은 서비스가 작성된 언어에 따라 다르지만 일반적인 접근 방식은 모든 사람에게 일관됩니다. 서비스 내의 실행 스레드를 New Relic 원격 측정 내의 트랜잭션에 대한 비유로 고려하십시오. 스택의 각 메서드 또는 함수 실행은 추가 계측을 추가할 수 있는 기회입니다. 이러한 방식으로 New Relic은 트랜잭션에 대한 시간 주석이 있는 호출 스택을 유지 관리하고 이러한 메서드/함수 시작/중지 타이밍을 사용하여 일련의 구성 요소 메트릭으로 집계합니다.
+
+<img
+  src={omaOeScSummaryClient}
+  alt="Service Summary Components"
+  title="Service Summary Components"
+/>
+
+<figcaption>
+  MongoDB를 호출하는 간단한 Node.js 애플리케이션. 애플리케이션의 두 가지 주요 구성 요소는 요청 수신과 MongoDB에 대한 get/put 작업입니다.
+</figcaption>
+
+특정 논리 세그먼트가 서비스 또는 트랜잭션의 기능에 중요한 경우 해당 호출을 New Relic 에이전트에 대한 콜백으로 래핑하여 에이전트가 개별 코드 구성 요소에 들어갔다는 것을 이해하고 해당 시간 내에서 소비된 시간을 집계할 수 있도록 하십시오. 그에 따라 구성 요소. 콜백에 메트릭 이름을 전달하여 서비스 및 트랜잭션에 대한 구성 요소 세그먼트 메트릭을 생성합니다.
+
+메트릭 이름 지정 옵션은 계측 언어에 따라 다르므로 특정 언어 설명서를 참조하십시오.
+
+New Relic 에이전트를 사용하면 계측에 대한 사용자 지정 메트릭 이름을 지정할 수 있습니다. `metricName` 은 구성요소에 대해 집계된 측정항목을 결정하는 데 사용됩니다. 다음 예는 자바 에이전트 SDK `@Trace` 주석에 전달되는 `metricName` 매개변수를 보여줍니다.
+
+```
+@Weave
+public abstract class MQOutboundMessageContext implements OutboundTransportMessageContext {
+
+    @Trace(dispatcher = true, metricName="MQTransport")
+    public void send(final TransportSendListener listener) throws TransportException {
+        try {
+            NewRelic.getAgent().getTracedMethod().setMetricName("Message", "MQ", "Produce");
+            MQHelper.processSendMessage(this, NewRelic.getAgent().getTracedMethod());
+        } catch (Exception e) {
+            NewRelic.getAgent().getLogger().log(Level.FINE, e, "Unable to set metadata on outgoing MQ message");
+        }
+
+        Weaver.callOriginal();
+    }
+
+}
+```
+
+### 모든 외부 서비스 호출 추적 [#external-services]
+
+<Callout variant="tip">
+  클라이언트 라이브러리 계측에 대한 세부 정보를 찾으려면 관련 APM 에이전트에 대한 계측 및 SDK 가이드를 참조하십시오.
+</Callout>
+
+클라이언트 계측은 서비스에서 외부 리소스에 대한 호출을 캡슐화하는 것을 말합니다. 일반적으로 New Relic 에이전트는 HTTP, gRPC, 메시징 및 데이터베이스 프로토콜에 널리 사용되는 클라이언트를 인식하고 적절한 계측 패턴을 적용하여 해당 클라이언트에 대한 호출을 외부 서비스로 집계합니다.
+
+<img
+  src={omaOeScExternalService}
+  alt="External Services"
+  title="External Services"
+/>
+
+<figcaption>
+  New Relic APM 내의 외부 서비스 대시보드 세부 정보.
+</figcaption>
+
+프로토콜에 대한 고유한 클라이언트 핸들러를 작성했거나 매우 새롭거나 약간의 틈새를 사용하는 경우 New Relic 에이전트는 클라이언트를 인식하지 못하고 클라이언트 호출의 동작을 기록할 수 있습니다. 이를 위해 APM 내의 외부 서비스 및 데이터베이스를 확인하여 서비스에 대해 예상되는 모든 외부 효과를 나타내야 합니다.
+
+<img
+  src={omaOeScDatabases}
+  alt="Databases"
+  title="Databases"
+/>
+
+<figcaption>
+  New Relic APM 내의 데이터베이스 프로토콜 대시보드 세부 정보.
+</figcaption>
+
+모든 서비스의 종속성이 여기에 표시되는지 확인하는 것이 중요합니다. 서비스 종속성이 표시되지 않으면 APM 에이전트가 적절하게 추적할 수 있도록 외부 호출을 가로채기 위해 새로운 계측을 도입해야 합니다. 다음 예는 상담원이 캡처하기 위해 Golang에서 외부 호출을 래핑하는 방법을 보여줍니다.
+
+```
+package main
+
+import (
+	"net/http"
+
+	"github.com/newrelic/go-agent/v3/newrelic"
+)
+
+func currentTransaction() *newrelic.Transaction {
+	return nil
+}
+
+func main() {
+	txn := currentTransaction()
+	client := &http.Client{}
+	request, _ := http.NewRequest("GET", "http://www.example.com", nil)
+	segment := newrelic.StartExternalSegment(txn, request)
+	response, _ := client.Do(request)
+	segment.Response = response
+	segment.End()
+}
+```
+
+다른 에이전트 API 외부 호출 추적의 예:
+
+* [가다 `ExternalSegment`](https://pkg.go.dev/github.com/newrelic/go-agent/v3/newrelic#ExternalSegment)
+* [자바 `ExternalParameters`](https://newrelic.github.io/java-agent-api/javadoc/com/newrelic/api/agent/TracedMethod.html#reportAsExternal(com.newrelic.api.agent.ExternalParameters))
+* [파이썬 `external_trace`](/docs/apm/agents/python-agent/python-agent-api/externaltrace-python-agent-api/)
+
+### 엔드포인트 테스트 [#endpoint-testing2]
+
+엔드포인트 테스트는 서비스 계측 프로그램에 두 가지 이점을 제공합니다.
+
+* **결함 감지:** 단순한 참/거짓 결과를 생성하는 끝점에 대한 테스트를 인코딩하여 운영 팀이 서비스 제공의 무결성이 손상되었는지 판단하기 위해 개별 오류를 분리할 수 있습니다.
+* **기준 설정:** 종합 또는 기계 테스트는 제어 관점에서 서비스 제공의 일관성을 평가할 수 있는 예측 가능한 조건 세트를 제공합니다.
+
+New Relic의 종합 모니터링은 향상된 Selenium JavaScript SDK를 사용하여 다양한 테스트 유형을 생성할 수 있는 기능을 제공합니다. Selenium 기반 테스트 스크립트가 정의되면 New Relic은 스크립트 실행 위치와 빈도를 관리합니다.
+
+<img
+  src={omaOeScSyntheticsMenu}
+  alt="Synthetics"
+  title="Synthetics"
+/>
+
+<figcaption>
+  New Relic 합성 런칭 대시보드.
+</figcaption>
+
+합성 테스트는 각각 고유한 초점이 있는 다양한 테스트 옵션을 제공합니다. 자세한 내용은 [종합 모니터링 설명서](https://docs.newrelic.com/docs/synthetics/) 를 참조하십시오.
+
+서비스 개발자의 관점에서 가장 많이 사용되는 모니터 유형은 **엔드포인트 가용성** 입니다. 이 모니터 유형은 HTTP 요청 조건을 스크립팅하는 기능을 제공합니다. 이는 액세스 가능한 API에 대한 POST 또는 GET만큼 간단하거나 Selenium 모니터링 스크립트가 다단계 프로세스의 기능적 무결성을 확인하기 위해 요청을 연속적으로 평가하는 여러 단계를 포함할 수 있습니다.
+
+실제로 개발자는 끝점 가용성과 무결성을 평가하기 위해 가능한 가장 간단한 테스트를 구현하는 것을 고려해야 합니다. 예를 들어, 통화 그룹에 대한 현재 환율을 제공하는 새 서비스 끝점을 방금 만들었습니다. 이것은 JSON 개체 배열을 반환하는 끝점에서 간단한 GET입니다.
+
+* 요청 예: `http://example-ip:3000/exchange`
+* 응답 예:
+
+```
+[
+  {
+    "status": [
+      "quote"
+    ],
+    "_id": "5b9bf97f61c22f4fb5beb5c9",
+    "name": "cdn",
+    "Created_date": "2021-07-12T18:10:07.488Z",
+    "__v": 1
+  },
+  {
+    "status": [
+      "quote"
+    ],
+    "_id": "5b9bfb2a61c22f4fb5beb5ca",
+    "name": "usd",
+    "Created_date": "2021-07-12T18:17:14.224Z",
+    "__v": 0.80
+  },
+  {
+    "status": [
+      "quote"
+    ],
+    "_id": "5b9bfb3261c22f4fb5beb5cb",
+    "name": "eur",
+    "Created_date": "2021-07-12T18:17:22.476Z",
+    "__v": 0.68
+  },
+  {
+    "status": [
+      "quote"
+    ],
+    "_id": "5b9bfb3761c22f4fb5beb5cc",
+    "name": "mex",
+    "Created_date": "2021-07-12T18:17:27.009Z",
+    "__v": 15.97
+  }
+]
+```
+
+이 서비스가 작동 가능한 것으로 간주되려면 요청에 응답해야 하지만 4가지 통화 응답도 제공해야 합니다. 우리는 현재 콘텐츠에 대해 걱정하지 않고 각 CDN, USD, EUR 및 MEX 통화에 대해 하나의 배열에 4개의 요소를 다시 가져온다는 사실에 대해 걱정하지 않습니다.
+
+New Relic 합성 모니터링을 사용하면 API 테스트 스크립트는 다음과 같이 보일 수 있습니다.
+
+```
+/**
+* This script checks to see if we get the currency data from the endpoint.
+*/
+var assert = require('assert');
+var myQueryKey = 'secret_key';
+var options = {
+  uri: 'http://example_ip:3000/exchange',
+  headers: {
+    'X-Query-Key': myQueryKey,
+    'Accept': 'application/json'
+  }
+};
+
+function callback (err, response, body){
+  var data = JSON.parse(body);
+  var info = body;
+  if (Array.isArray(data)) {
+    if (data.length !== 4) {
+      assert.fail('Unexpected results in API Call, result was ' + JSON.stringify(data));
+    }
+  }
+}
+
+$http.get(options, callback);
+```
+
+합성 스크립트는 New Relic 인터페이스에서 직접 구성할 수 있지만 소스 리포지토리 시스템 내에서 엔드포인트 테스트를 유지 관리하고 자동화를 사용하는 것이 좋습니다. 이렇게 하면 서비스가 프로덕션 서비스 제공에 도입하는 새로운 엔드포인트 종속성을 엔드포인트 테스트가 수반하는지 확인하는 데 도움이 됩니다.
+
+## 가치 실현 [#value-realization]
+
+서비스 계측의 영향은 프로세스를 감독하는 데 투자하려는 관심 수준과 직접적인 관련이 있습니다. 서비스 모니터링 프로세스와 마찬가지로 관찰 가능성 프로그램은 노력에 대한 투자에 대한 기대 수익에 대해 비판적으로 생각하는 전담 팀 기능을 통해 이점을 얻을 수 있습니다. 다음은 조직의 투자 비용과 기대 효과에 대해 생각하기 위한 몇 가지 지침입니다.
+
+다음 섹션에서는 서비스 계측을 관찰 가능성 관행에 통합하여 예상해야 하는 투자 및 수익을 추정하는 접근 방식을 간략하게 설명합니다.
+
+### 투자 [#investments]
+
+<CollapserGroup>
+  <Collapser
+    id="inv-training"
+    title="훈련"
+  >
+    모든 개발자가 New Relic 에이전트 SDK 및 플랫폼 기능에 익숙해야 합니다.
+
+    **비용 모델:** 회사의 개발자 FTE 모델 및 프로젝트 견적에 따라 다릅니다.
+
+    **예상:** 일반적으로 개발자가 New Relic 계측 기능을 사용하여 효과를 얻는 데 몇 시간이 걸립니다.
+
+    * 초기: 16시간 교육/탐색
+    * 반복: 4시간/Q 검토
+    * 핵심 기술을 개발하고 New Relic 플랫폼을 위한 기술 통화를 유지하기 위해 개발자당 연간 16-40시간 교육 투자
+  </Collapser>
+
+  <Collapser
+    id="inv-maintain"
+    title="개발 및 유지보수"
+  >
+    서비스 프로젝트 내에서 계측을 구현하고 유지 관리하는 데 필요한 개발 노력.
+
+    **비용 모델:** 회사의 개발자 FTE 모델 및 프로젝트 견적에 따라 다릅니다.
+
+    **추정:** 이것은 프로젝트의 범위와 필요한 계측 작업의 양에 따라 달라지는 경향이 있습니다.
+
+    * 초기: 서비스당 개발자당 8시간
+    * 반복: 4시간/Q 유지 관리
+    * 개발자당 서비스 계측 개발 및 유지 관리에 16-32시간의 프로젝트 추정
+  </Collapser>
+</CollapserGroup>
+
+### 보고 [#returns]
+
+<CollapserGroup>
+  <Collapser
+    id="returns-aqm-impact"
+    title="AQM 영향"
+  >
+    당사의 [경보 품질 관리 방식](/docs/new-relic-solutions/observability-maturity/uptime-performance-reliability/aqm-implementation-guide) 은 다양한 시스템 성능의 경보 알림이 신속하게 처리되도록 하여 운영 팀에 상당한 이점을 제공합니다. 이렇게 하면 인시던트 수정 중에 서비스 제공 및 리소스 할당이 향상됩니다.
+
+    관찰 가능성 프로그램에 통합된 효과적인 계측 방식은 의미 있는 경고를 생성하는 팀의 능력을 크게 향상시킵니다.
+
+    **KPI:**
+
+    * 볼륨: 사건 수
+    * 볼륨: 누적 사고 기간
+    * 거래량: MTTC(평균 마감 시간)
+    * 사용자 참여: 평균 조사 시간
+
+    **결과:**
+
+    * 경고 소음 감소
+    * 경보 및 사고 대응성 향상
+    * 덜 알려지지 않은 근본 원인
+    * 운영 생산성 향상
+    * 향상된 서비스 제공
+  </Collapser>
+
+  <Collapser
+    id="returns-service-quality-improvement"
+    title="서비스 품질 향상"
+  >
+    서비스 품질을 개선하면 서비스의 주요 재무 지표에 직접적인 영향을 미칩니다. 이를 위해서는 애플리케이션에 대해 잘 합리화된 재무 모델이 있어야 합니다. 일반적으로 이 수익은 오류 또는 apdex 달성과 같은 핵심 서비스 품질 측정의 각 백분율 개선에 대한 통화 값을 연결하여 예상할 수 있습니다.
+
+    서비스 계측에 대한 투자가 증가함에 따라 서비스 품질 측정에 대한 달성도가 향상되어야 합니다.
+
+    **KPI:** 서비스 품질(비즈니스 KPI)
+
+    **결과:**
+
+    * 오류에 영향을 미치는 사용자 수 감소
+    * 더 강력하고 탄력적인 서비스 구성 요소
+  </Collapser>
+
+  <Collapser
+    id="returns-service-delivery-improvement"
+    title="서비스 제공 개선"
+  >
+    서비스 인스턴스에서 더 나은 원격 측정을 제공함으로써 전달 조직은 변동성 또는 가동 중지 시간을 더 빨리 감지하고 더 빠르게 수정할 수 있어야 합니다. 이는 전반적인 서비스 제공 KPI를 개선하고 중단 또는 성능 저하 에피소드를 줄입니다.
+
+    비용은 사고를 감지, 조사 및 수정하는 데 걸리는 시간과 관련될 수 있습니다. 이는 이벤트 중에 손실될 서비스가 조직에 제공하는 가치와 관련되거나 제대로 작동하지 않는 서비스를 처리하는 일반적인 비용과 관련될 수 있습니다.
+
+    **KPI:**
+
+    * 평균 감지 시간(MTTD)
+    * 평균 식별 시간(MTTI)
+    * 평균 해결 시간(MTTR)
+
+    **결과:**
+
+    * 사고 감지 시간 단축
+    * 사고 해결 시간 단축
+  </Collapser>
+</CollapserGroup>
+
+## 자원 [#resources]
+
+* [New Relic대학교](https://learn.newrelic.com/).
+
+* [APM 에이전트 설치](/docs/new-relic-one/install-configure/install-new-relic/#apm-install) 및 [구성](/docs/new-relic-one/install-configure/configure-new-relic-agents)
+
+* 계측 가이드:
+
+  * [C-SDK](/docs/apm/agents/c-sdk/instrumentation/instrument-your-app-c-sdk)
+  * [가다](/docs/apm/agents/go-agent/instrumentation)
+  * [자바](/docs/apm/agents/java-agent/custom-instrumentation/java-custom-instrumentation)
+  * [.그물](/docs/apm/agents/net-agent/custom-instrumentation/introduction-net-custom-instrumentation)
+  * [노드.js](/docs/apm/agents/nodejs-agent/extend-your-instrumentation/nodejs-custom-instrumentation)
+  * [PHP](/docs/apm/agents/php-agent/php-agent-api/)
+  * [파이썬](/docs/apm/agents/python-agent/custom-instrumentation/python-custom-instrumentation/)
+  * [루비](/docs/apm/agents/ruby-agent/api-guides/ruby-custom-instrumentation/)
+  * [OpenTelemetry SDK](https://opensource.newrelic.com/projects/open-telemetry)
+
+* [New Relic 합성 모니터링 소개](/docs/synthetics/)
