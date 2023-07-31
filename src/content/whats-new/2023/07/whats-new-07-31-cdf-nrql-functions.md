@@ -1,6 +1,6 @@
 ---
-title: 'Cumulative distribution functions now available in NRQL'
-summary: 'Use CdfPercentage() and getCdfCount() functions to calculate metric attribute thresholds'
+title: 'Cumulative distribution functions are now available in NRQL'
+summary: 'Calculate the number of below-threshold metric attribute values with CdfPercentage() and getCdfCount()'
 learnMorelink: 'https://docs.newrelic.com/docs/query-your-data/nrql-new-relic-query-language/get-started/nrql-syntax-clauses-functions/#func-getCdfCount'
 releaseDate: '2023-07-31'
 ---
