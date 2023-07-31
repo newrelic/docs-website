@@ -511,7 +511,7 @@ module.exports = [
       'Android SDK API',
     ],
     node: {
-      path: '/docs/mobile-monitoring/new-relic-mobile-android/android-sdk-api',
+      path: '/docs/mobile-monitoring/new-relic-mobile/mobile-sdk/mobile-sdk-api-guide/',
     },
   },
   {
@@ -523,7 +523,7 @@ module.exports = [
       'iOS SDK API',
     ],
     node: {
-      path: '/docs/mobile-monitoring/new-relic-mobile-ios/ios-sdk-api',
+      path: '/docs/mobile-monitoring/new-relic-mobile/mobile-sdk/mobile-sdk-api-guide/',
     },
   },
   {
