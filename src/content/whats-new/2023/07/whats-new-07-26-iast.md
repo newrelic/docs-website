@@ -12,7 +12,7 @@ New Relic IAST provides instant visibility and context to security findings via 
 
 To access these new capabilities simply [log into New Relic](https://one.newrelic.com) and select [IAST](https://one.newrelic.com/iast) from the left hand side nav to start testing each and every application.
 
-![New Relic IAST](./images/newrelic_iast.png "New Relic IAST")
+![New Relic IAST](./images/newrelic_iast.webp "New Relic IAST")
 
 With New Relic IAST you can:
 - See all protected and unprotected applications and eliminate blind spots for more comprehensive application security testing.
