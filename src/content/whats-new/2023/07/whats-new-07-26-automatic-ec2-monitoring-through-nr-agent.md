@@ -5,9 +5,9 @@ releaseDate: '2023-07-27'
 
 ---
 
-The ec2 quickstart solution provided here is designed for individuals seeking to enhance observability on AWS EC2 instances within their AWS Account by monitoring host metrics.
+The EC2 Quickstart solution provided here is designed for individuals seeking to enhance observability on AWS EC2 instances within their AWS Account by monitoring host metrics.
 
-After successfully deploying the [cloudformation template](), users will be able to monitor ec2 instances present across multiple regions and AWS Accounts in New Relic. It automates the installation of [New Relic Infrastructure Agent](https://docs.newrelic.com/docs/infrastructure/install-infrastructure-agent/get-started/install-infrastructure-agent/) in existing (before installation of this solution) and new ec2 instances (any instance spinned post installation of this solution). This agent is responsible for sending host metrics to New Relic.  
+After successfully deploying the [cloudformation template](), users will be able to monitor EC2 instances present across multiple regions and AWS Accounts in New Relic. It automates the installation of [New Relic Infrastructure Agent](https://docs.newrelic.com/docs/infrastructure/install-infrastructure-agent/get-started/install-infrastructure-agent/) in existing (before installation of this solution) and new EC2 instances (any instance spinned post installation of this solution). This agent is responsible for sending host metrics to New Relic.  
 
 **Observability in New Relic post successful deployment**
  
