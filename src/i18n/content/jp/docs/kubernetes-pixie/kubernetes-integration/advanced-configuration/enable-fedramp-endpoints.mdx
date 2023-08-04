@@ -1,0 +1,107 @@
+---
+title: FedRAMP 準拠のエンドポイントを有効にする
+tags:
+  - Integrations
+  - Kubernetes integration
+  - Installation
+  - Configuration
+  - Fedramp
+metaDescription: How to enable the Kubernetes integrations to send data to the New Relic FedRamp-compliant endpoints.
+translationType: machine
+---
+
+New Relic の Kubernetes 統合をインストールしていて、データが [FedRAMP 準拠のエンドポイント](/docs/security/security-privacy/compliance/fedramp-compliant-endpoints/)に確実に送信されるようにする必要がある場合、このページでは Helm と Manifest の両方のインストール オプションを使用してこれを実現する方法について説明します。
+
+New Relic における FedRAMP コンプライアンスの詳細については、 [FedRAMP Moderate ドキュメント ページ](/docs/security/security-privacy/compliance/certificates-standards-regulations/fedramp-moderate/)を参照してください。
+
+### 兜 [#helm]
+
+Helm インストールの実行時に `global.fedramp.enabled` パラメータを `true` に設定することで、FedRAMP サポートをグローバルに有効にできます。このグローバル設定は、 `nri-bundle` 親チャート内に含まれるすべてのサブチャートまでカスケードされ、その結果、すべてのエージェントが New Relic の FedRAMP 準拠エンドポイントにデータを送信するように設定されます。
+
+```shell
+helm upgrade --install newrelic-bundle newrelic/nri-bundle \
+ --set global.licenseKey=<YOUR LICENSE KEY> \
+ --set global.cluster=<YOUR CLUSTER NAME> \
+ --namespace=newrelic \
+ --set newrelic-infrastructure.privileged=true \
+ --set global.lowDataMode=true \
+ --set kube-state-metrics.image.tag=<KSM VERSION> \
+ --set kube-state-metrics.enabled=true \
+ --set kubeEvents.enabled=true \
+ --set global.fedramp.enabled=true
+```
+
+インストールにvalues.yamlファイルを使用する場合は、同じパラメータを有効にします。
+
+```yaml
+...
+global:
+  fedramp:
+    enabled: true
+...
+```
+
+`nri-bundle` value.yaml ファイルの完全な例は、 [ここに](https://github.com/newrelic/helm-charts/blob/master/charts/nri-bundle/values.yaml)あります。
+
+### マニフェスト [#manifest]
+
+[Guided Install](https://one.newrelic.com/nr1-core?account=2498654&state=d1aae74b-0ad6-b0f3-093d-cc89ecf89234)のマニフェスト インストール方法を使用してインストールする場合は、 `k8s-config-generator` サービスに渡される JSON パラメータに `"global.fedramp.enabled":"true"` を追加する必要があります。
+
+#### 例
+
+```shell
+function ver { printf "%03d%03d" $(echo "$1" | tr '.' ' '); } && \
+K8S_VERSION=$(kubectl version --short 2>&1 | grep 'Server Version' | awk -F' v' '{ print $2; }' | awk -F. '{ print $1"."$2; }') && \
+if [[ $(ver $K8S_VERSION) -lt $(ver "1.25") ]]; then KSM_IMAGE_VERSION="v2.6.0"; else KSM_IMAGE_VERSION="v2.7.0"; fi && \
+curl -X POST https://k8s-config-generator.service.newrelic.com/generate -H 'Content-Type: application/json' -d '{"global.cluster":"<YOUR CLUSTER NAME>>","global.namespace":"newrelic","newrelic-infrastructure.privileged":"true","global.lowDataMode":"true","kube-state-metrics.image.tag":"'${KSM_IMAGE_VERSION}'","kube-state-metrics.enabled":"true","kubeEvents.enabled":"true","global.licenseKey":"<YOUR LICENSE KEY>", "global.fedramp.enabled":"true"}' > newrelic.yaml && (kubectl create namespace newrelic ; kubectl apply -f newrelic.yaml)
+```
+
+### FedRAMP 設定を検証する
+
+FedRAMP エンドポイントが正常に構成されたことを検証するには、いくつかの方法があります。まず、必要に応じて、 `ConfigMaps` に `fedramp: true`が含まれていることを検証します。クラスターからの出力は、インストールされたコンポーネントによって異なる場合があります。
+
+#### ConfigMap の検証
+
+```
+$ kubectl get cm -n newrelic -o yaml | grep fedramp -A 1
+        fedramp:
+          enabled: true
+--
+          cluster_name: minkube-fedramp-test
+        scrape_interval: 30s
+--
+      fedramp: true
+  kind: ConfigMap
+--
+            clusterName: minkube-fedramp-test
+            agentHTTPTimeout: 30s
+--
+        clusterName: minkube-fedramp-test
+      fedramp: true
+      http_server_enabled: true
+--
+        clusterName: minkube-fedramp-test
+      fedramp: true
+      http_server_enabled: true
+--
+        clusterName: minkube-fedramp-test
+      features:
+--
+      fedramp: true
+      http_server_enabled: true
+```
+
+#### ポッドログの検証
+
+さらに、ポッド ログで `collectorURL` 値を確認できます。当社のインフラストラクチャ エージェントは、データ送信のためにこのコレクタに接続します。
+
+<Callout title="詳細なログが必要です">
+  `collectorURL`を表示するには、詳細ログを有効にする必要があります。これを行うには、 `nri-bundle` ヘルム チャートの `--set newrelic-infrastructure.verboseLog=true` 設定を使用します。検証が完了したら、詳細ログを無効にする必要があります。
+</Callout>
+
+FedRAMP エンドポイントが正常に有効になったことを検証するには、以下に示すように `kubectl` コマンドを実行し、ログ出力で `collectorURL` を探します。必ず、 `newrelic-bundle-nrk8s-kubelet-f74g2` ポッド名をクラスターのポッドに置き換えてください。
+
+```
+$ kubectl logs newrelic-bundle-nrk8s-kubelet-f74g2 -n newrelic -c agent | grep collectorURL
+time="2023-07-26T20:09:33Z" level=debug msg="Collector URL" action=NormalizeConfig collectorURL="https://gov-infra-api.newrelic.com" component=Configuration
+```
