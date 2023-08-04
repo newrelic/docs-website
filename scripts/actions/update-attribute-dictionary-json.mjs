@@ -81,8 +81,8 @@ async function updateJson() {
     : 'No updates to attribute dictionary';
 
   core.setOutput('updateAttributeDictionary', hasUpdates);
-
-  console.log('Has Updates?', hasUpdates, 'message:', message);
+  console.log('has updates:', hasUpdates, 'typeof:', typeof hasUpdates);
+  console.log('message:', message);
 
   if (hasUpdates) {
     const newJson = JSON.stringify(newEvents, null, 2);
