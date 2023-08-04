@@ -511,7 +511,7 @@ module.exports = [
       'Android SDK API',
     ],
     node: {
-      path: '/docs/mobile-monitoring/new-relic-mobile/mobile-sdk/mobile-sdk-api-guide/',
+      path: '/docs/mobile-monitoring/new-relic-mobile-android/android-sdk-api',
     },
   },
   {
