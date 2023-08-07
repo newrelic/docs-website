@@ -1,0 +1,193 @@
+---
+title: 도커 컨테이너 수집기
+tags:
+  - Integrations
+  - Open source telemetry integrations
+  - OpenTelemetry
+  - Docker
+  - Container
+metaDescription: You can collect docker container metrics using the OpenTelemetry collector.
+translationType: machine
+---
+
+import infrastructureDockerOTELDashboard from 'images/infrastructure_screenshot-crop_docker-otel-dashboard.webp'
+
+OpenTelemetry 수집기를 사용하여 Docker 컨테이너에 대한 메트릭을 수집할 수 있습니다. 수집기는 원격 측정 데이터를 수집, 처리 및 New Relic(또는 관측 가능성 백엔드)으로 내보내는 OpenTelemetry의 구성 요소입니다.
+
+사전 구축된 대시보드에서 이 [메트릭 데이터를](#data) 보고 경고 정책을 생성하고 사용자 지정 쿼리 및 차트를 생성할 수 있습니다.
+
+<img
+  title="Docker Open Telemetry quickstart dashboard"
+  alt="Image of the dashboard available through the Docker Open Telemetry quickstart"
+  src={infrastructureDockerOTELDashboard}
+/>
+
+<Callout variant="tip">
+  다른 수집기 사용 사례에 대한 도움말을 찾고 있다면 [newrelic-opentelemetry-examples](https://github.com/newrelic/newrelic-opentelemetry-examples) 리포지토리를 참조하세요.
+</Callout>
+
+Docker 컨테이너에서 측정항목을 수집하려면 아래 단계를 완료하세요.
+
+## 1단계: 아직 가입하지 않은 경우 무료 계정에 가입 [#signup]
+
+<InlineSignup/>
+
+## 2단계: 전제 조건 [#prerequisites]
+
+수집기는 [dockerstats 수신기](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/receiver/dockerstatsreceiver) 구성 요소(최소 버전 권장 v0.81.0)를 사용하며 끝점을 통해 docker 데몬에 액세스해야 합니다.
+
+* 기본적으로 `unix:///var/run/docker.sock` 엔드포인트가 사용됩니다. 따라서 수집기는 도커 소켓을 읽을 수 있는 사용자로 실행해야 합니다.
+
+## 3단계: Opentelemetry 수집기 설치 [#install-opentelemetry-collector]
+
+[Opentelemetry 문서](https://opentelemetry.io/docs/collector/getting-started/)에 따라 Opentelemetry 수집기를 다운로드하고 설치합니다.
+
+최소한 다음 구성 요소를 포함하여 [OpenTelemetry Collector Contrib Distro](https://github.com/open-telemetry/opentelemetry-collector-releases/tree/main/distributions/otelcol-contrib) 또는 기타 배포를 설치해야 합니다.
+
+* [Dockerstats 수신기](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/receiver/dockerstatsreceiver)
+* [OTLP 수출업체](https://pkg.go.dev/go.opentelemetry.io/collector/exporter/otlpexporter)
+* [리소스 프로세서](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/processor/resourceprocessor/README.md)
+* [리소스 감지 프로세서](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/processor/resourcedetectionprocessor/README.md)
+
+## 4단계: Opentelemetry 수집기 구성 [#configure-opentelemetry-collector]
+
+아래 예에서 `config.yaml` 라는 새 파일을 업데이트하거나 생성합니다.
+
+파일의 `NEW_RELIC_LICENSE_KEY` 를 고유한 값으로 바꿉니다. 자세한 내용은 [New Relic 라이선스 키를](/docs/apis/intro-apis/new-relic-api-keys/#license-key) 참조하세요.
+
+```yaml
+receivers:
+
+  docker_stats:
+    metrics:
+      container.cpu.usage.total:
+        enabled: true
+      container.cpu.throttling_data.periods:
+        enabled: true
+      container.cpu.throttling_data.throttled_periods:
+        enabled: true
+      # `container.cpu.percent` is deprecated in favor of `container.cpu.utilization` in opentelemetry-collector-contrib v0.79.0
+      container.cpu.utilization:
+        enabled: true
+      container.cpu.percent:
+        enabled: false
+      container.memory.usage.limit:
+        enabled: true
+      container.memory.usage.total:
+        enabled: true
+      container.memory.percent:
+        enabled: true
+      container.blockio.io_service_bytes_recursive:
+        enabled: true
+      container.network.io.usage.rx_bytes:
+        enabled: true
+      container.network.io.usage.tx_bytes:
+        enabled: true
+      container.network.io.usage.rx_dropped:
+        enabled: true
+      container.network.io.usage.tx_dropped:
+        enabled: true
+      container.network.io.usage.rx_errors:
+        enabled: true
+      container.network.io.usage.tx_errors:
+        enabled: true
+      container.network.io.usage.rx_packets:
+        enabled: true
+      container.network.io.usage.tx_packets:
+        enabled: true
+      container.pids.count:
+        enabled: true
+
+processors:
+
+  # resource and resource-detection processors allow decorating the metrics with host attributes
+  resource:
+    attributes:
+      - key: host.id
+        from_attribute: host.name
+        action: insert
+
+  resourcedetection:
+    detectors: ["env", "system"]
+
+  resourcedetection/cloud:
+    detectors: ["gcp", "ec2", "azure"]
+    timeout: 2s
+    override: false
+
+exporters:
+  otlp:
+    endpoint: https://otlp.nr-data.net:443
+    headers:
+      api-key: NEW_RELIC_LICENSE_KEY
+
+service:
+  telemetry:
+    logs:
+  pipelines:
+    metrics:
+      receivers: [docker_stats]
+      processors:
+        - resourcedetection
+        - resourcedetection/cloud
+        - resource
+      exporters: [otlp]
+```
+
+추가 구성 옵션은 다음을 검토하십시오.
+
+* [Dockerstats 수신기 설명서](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/receiver/dockerstatsreceiver#configuration)
+* [Opentelemetry 수집기 설명서](https://opentelemetry.io/docs/collector/configuration/)
+* [배치 프로세서](https://github.com/open-telemetry/opentelemetry-collector/blob/main/processor/batchprocessor/README.md)
+
+## 4단계: 수집기 실행 [#run-collector]
+
+Opentelemetry 수집기를 실행합니다(실행 방법은 선택한 설치 방법에 따라 다를 수 있음). 예:
+
+```yaml
+/usr/bin/otelcol-contrib --config ./config.yaml
+```
+
+## 5단계: 데이터 찾기 및 사용
+
+### 인프라 UI에서 컨테이너 데이터 찾아보기 [#using-ui]
+
+Docker 수신기에 대한 권장 구성을 사용하여 새 [인프라 UI](/docs/infrastructure/infrastructure-ui-pages/infrastructure-ui-entities#access-new-ui) (새 호스트 UI) 환경에서 호스트에서 실행 중인 [컨테이너를 탐색할 수 있습니다.](/docs/infrastructure/infrastructure-ui-pages/hosts-new-view/#containers)
+
+### 엔터티 기반 경험 활용
+
+Open Telemetry Docker 수신기에서 생성된 컨테이너의 원격 측정 데이터는 컨테이너 엔터티를 생성합니다. [엔터티는](/docs/new-relic-solutions/new-relic-one/core-concepts/what-entity-new-relic/) New Relic에 데이터를 보고하고 고유한 엔터티 ID로 식별되는 모든 것입니다.
+
+모니터링되는 엔터티는 엔터티 탐색기, 워크로드 및 Lookout과 같은 기능의 드라이버입니다. 이러한 경험을 통해 혜택을 받는 방법에 대한 자세한 내용은 이 [문서를](/docs/new-relic-solutions/new-relic-one/core-concepts/new-relic-explorer-view-performance-across-apps-services-hosts/) 확인하십시오.
+
+### 데이터 탐색 및 쿼리 [#data]
+
+[측정항목 탐색기를](/docs/query-your-data/explore-query-data/browse-data/introduction-data-explorer) 사용하여 수집 중인 측정항목을 확인할 수 있습니다. Docker 통계 수신자가 보고하는 모든 측정항목은 `"container."` 접두사로 시작합니다.
+
+다음 NRQL 쿼리는 받은 메트릭을 쿼리하는 데 도움이 되는 예를 보여줍니다.
+
+* 측정항목 이름별로 수집된 측정항목 업데이트 수 나열:
+
+  ```sql
+  SELECT count(*) FROM Metric WHERE metricName LIKE 'container.%' and instrumentation.provider='opentelemetry' LIMIT max
+  ```
+
+* 호스트별로 패싯된 특정 측정항목 쿼리:
+
+  ```sql
+    SELECT average(container.cpu.percent) FROM Metric WHERE instrumentation.provider='opentelemetry' FACET host.name TIMESERIES
+  ```
+
+* 지정된 측정항목에 사용할 수 있는 측정기준 나열:
+
+  ```sql
+  SELECT keyset() FROM Metric WHERE metricName = 'container.cpu.percent'
+  ```
+
+### 빠른 시작 설치 [#quickstart]
+
+[Docker Open Telemetry Quickstart](https://newrelic.com/instant-observability/docker-otel) 에 포함된 Docker 대시보드를 활용하여 사전 정의된 그래프 및 필터 덕분에 Docker 인프라를 쉽게 모니터링할 수 있습니다.
+
+### 측정항목 데이터
+
+지원되는 모든 메트릭 목록은 [dockerstats 수신기 메트릭 참조를](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/receiver/dockerstatsreceiver/documentation.md) 참조하세요.
