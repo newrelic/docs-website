@@ -1,0 +1,294 @@
+---
+title: Best practices for network monitoring
+tags:
+  - Network monitoring
+  - Best practices
+translate:
+  - kr
+  - jp
+metaDescription: Review best practices for network monitoring.
+---
+
+import networkCommonArchitecture from 'images/network_diagram_common-architecture.webp'
+
+This document serves as an overview of the best practices available for deployment of the [KTranslate container](https://github.com/kentik/ktranslate) used in New Relic’s network monitoring capability.
+The guidance here is based on the recommendations of various subject matter experts combined with common patterns of deployment that customers are using in their production environments today.
+
+## Deployment considerations [#deployment-considerations]
+
+For the purposes of this document, we will be referencing an architecture that covers the following requirements:
+
+* SNMP polling and SNMP Traps collection
+* Syslog collection from network devices
+* Network Flow collection in NetFlow v5, NetFlow v9, IPFIX, and sFlow protocols
+* Support for multiple sites separated by large distance, geographically
+
+## Common architecture [#common-architecture]
+
+<img
+    title="Common network architecture diagram"
+    alt="Diagram to visualize common network architecture"
+    src={networkCommonArchitecture}
+/>
+
+The diagram visualizes common network architecture and includes the following:
+
+* 3 containers on 1 host serving the ‘DC_01’ location in America. These containers process SNMP polling, NetFlow v5 collection, and Syslog collection
+* 1 container on 1 host serving the ‘OFFICE_01’ location in Sydney, Australia. This container processes SNMP polling and SNMP Trap collection.
+* 3 containers on 1 host service the new ‘DC_02’ location in Dublin, Ireland. These containers process NetFlow v9, IPFIX, and sFlow collection.
+
+## Architectural considerations [#archictural-considerations]
+
+### Container task
+
+There are some basic rules around what an individual container is capable of doing which are the main drivers when designing your deployment.
+
+* Containers that collect SNMP data can also receive SNMP traps by default.
+* Containers that receive Syslog data should run on their own.
+* Containers that receive network flow data must be isolated based on the type of flow template being collected.
+
+#### About Network Flow and Syslog containers [#about-containers]
+
+Technically speaking, there is no requirement for a custom configuration file when using one of these containers. The default from the container image will work fine as all of your container settings will be placed by flags at runtime. 
+
+However, without a configuration file with entries in the devices section, the results sent to New Relic’s APIs will use device_name entries resolved via DNS from the IP address in the respective packet. There is support for providing a custom DNS server location at runtime, but full control with tagging is generally accomplished by providing your own entries with the flow_only setting set to true. 
+Administrators will generally want to control this name so it aligns with the name sent in from SNMP polling the same device.
+
+### Geography [#geography]
+
+SNMP as a protocol, along with ICMP for ping, are generally deprioritized in modern networks. Additionally, SNMP is a UDP protocol that is sensitive to extended latency for round trip times. Care must be taken to create containers close to their target devices  to protect from failed polling scenarios.
+
+### Compute scale [#compute-scale]
+
+The individual containers deployed with the KTranslate image are usually hosted on very small hosts and have minimal requirements as outlined in [our documentation](/docs/network-performance-monitoring/advanced/ktranslate-container-management/#container-requirements). However scaling this host’s CPU may be required in heavy polling scenarios. The primary motivator for scaling to a larger CPU footprint for a container is the amount of load presented to the task. In these situations it is normally better to run multiple containers to load balance instead of increasing the total size of your Docker host, which has underlying cost implications.
+
+### Summary of architectural considerations [#summary]
+
+Summary
+In our architecture sample above, the following considerations are in place:
+
+* Each geographical location has its own local containers used to collect and forward data to New Relic.
+* DC_01 has 3 total containers:
+
+    * 1 - SNMP polling*
+    * 1 - NetFlow v5 collection
+    * 1 - Syslog collection
+
+    <Callout variant="important">
+    In DC_01 there is a Class B private subnet (/16). Care needs to be taken to split up discovery targets into manageable subnet sizes to ensure the job has time to complete.
+    </Callout>
+
+* OFFICE_01 uses a single container:
+
+    * 1 - SNMP polling with discovery against a /24 subnet
+
+* DC_02 has 3 containers, all dedicated to different templates in network flow collection:
+
+    * 1 - NetFlow v9
+    * 1 - IPFIX
+    * 1 - sFlow
+
+    <Callout variant="important">
+    In DC_02, there is an even larger Class A private subnet (/8); however, since there is no need for a discovery in this location there are no concerns about scaling the jobs. Depending on flows-per-second, there may be a need in the future to scale out into additional containers. In a situation like this, you simply need to configure your network flow exporters to target different ports on the Docker host.
+    </Callout>
+
+## Maintaining your deployment [#maintaining-deployment]
+
+After initial installation, there are various techniques that are used to maintain the network monitoring observability footprint. Integrating configuration file changes with tools like Ansible are common, as is building GitOps pipelines around the architecture to support versioning and “guest” options where external teams can submit changes for review.
+The most common need for ongoing maintenance is in keeping the list of target devices accurate. There are 3 main patterns supported for this goal:
+
+* Automatic discovery (preferred)
+* Manual discovery
+* Manual device addition
+
+### Automatic discovery (preferred) [#automatic-discovery]
+
+“Discovery” is the process used by KTranslate to scan a target list of IP addresses and/or ranges, perform a liveness probe, and then run a basic SNMP walk of the MIB-2 System MIB to attempt matching the device to a known SNMP profile.
+
+The container has embedded container runtime flags (-snmp_discovery_min and -snmp_discovery_on_start) that allow administrators to build a schedule of recurring SNMP discovery events. In effect, this will automate discovery jobs against the targets from the discovery section in the configuration file, and then automatically update the file with new devices along with refreshing the service so it accepts said changes. 
+
+This is the native configuration pattern found if you follow the guided installation through the New Relic UI.
+
+<table>
+    <thead>
+        <tr>
+            <th>
+                Pros
+            </th>
+            <th>
+                Cons
+            </th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>
+                * Hands-off discovery for known IP ranges and SNMP community strings.
+                * Automated correlation to the proper SNMP profile for each device.
+                * Safety mechanisms are in place to prevent improper settings that could break your configuration file.
+            </td>
+            <td>
+                * Requires a pre-existing target list of IP addresses and SNMP community strings/V3 authentication in the discovery section of the configuration file.
+                * Large subnets are at risk of timeouts (we recommend /16 and above).
+                * Teams that make use of device-specific user_tags in their configuration files will have extra work to ensure new devices have their tags updated.
+            </td>
+        </tr>
+    </tbody>
+</table>
+
+#### Pattern example [#pattern-example]
+
+Using our example office location; your default initial configuration file would look like this:
+
+```
+devices: {}
+trap:
+  listen: '0.0.0.0:1620'
+discovery:
+  cidrs:
+    - 192.168.0.0/24
+  ignore_list: []
+  debug: false
+  ports:
+    - 161
+  default_communities:
+    - public
+  default_v3: null
+  add_devices: true
+  add_mibs: true
+  threads: 4
+  replace_devices: true
+  check_all_ips: true
+  use_snmp_v1: false
+global:
+  poll_time_sec: 300
+  mib_profile_dir: /etc/ktranslate/profiles
+  mibs_enabled:
+    - IF-MIB
+  timeout_ms: 3000
+  retries: 0
+```
+
+And you associated Docker run command would look like this, replacing `$NR_LICENSE_KEY` and `$NR_ACCOUNT_ID`:
+
+```
+docker run -d --name ktranslate-nr-office01-snmp --restart unless-stopped --pull=always -p 162:1620/udp \
+-v `pwd`/snmp-base.yaml:/snmp-base.yaml \
+-e NEW_RELIC_API_KEY=$NR_LICENSE_KEY \
+kentik/ktranslate:v2 \
+  -snmp /snmp-base.yaml \
+  -nr_account_id=$NR_ACCOUNT_ID \
+  -metrics=jchf \
+  -tee_logs=true \
+  -service_name=nr-office01-snmp \
+  -snmp_discovery_on_start=true \
+  -snmp_discovery_min=180 \
+  nr1.snmp
+```
+
+### Manual discovery [#manual-discovery]
+
+This pattern uses the same discovery mechanism as the automated option, but gives the administrator more control by allowing you to run a bespoke container ad hoc where you have a chance to review and manipulate the results as your needs dictate. This is generally the motion used in environments where tagging is prevalent or there is a good amount of control from a centralized team adding new devices into the network, reducing the need for full subnet scanning.
+
+<table>
+    <thead>
+        <tr>
+            <th>
+                Pros
+            </th>
+            <th>
+                Cons
+            </th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>
+                * Full control over the targets and results, including tag decoration.
+                * Helps to prevent possible devices that are not in scope for your monitoring footprint.
+                * Automated correlation to the proper SNMP profile for each device.
+                * Safety mechanisms are in place to prevent improper settings that could break your configuration file.
+
+            </td>
+            <td>
+                * An administrator must run the container on demand, and from the same Docker host that your production container runs on to ensure network/SNMP connectivity is tested properly.
+                * Moving the results from the discovery into the production configuration file is a manual process that requires a restart of the production container in order to load the new settings.
+
+            </td>
+        </tr>
+    </tbody>
+</table>
+
+#### Pattern example
+
+This pattern follows the original deployment option for KTranslate, with the [steps outlined in our documentation](/docs/network-performance-monitoring/setup-performance-monitoring/snmp-performance-monitoring/#manual-container-setup). At a high level, the process contains:
+
+1. Pull the latest version of the Docker image to your local machine.
+2. Copy the sample `snmp-base.yaml` configuration file from the image to your local machine.
+3. Edit the configuration file to update the `discovery` section with the settings you need for `cidrs` and `default_communities`.
+4. Launch a short-lived container executing an ad hoc discovery job.
+5. Edit any changes needed to the resulting devices in your configuration file.
+6. Copy the new devices from your discovery configuration file into the production container configuration file.
+7. Restart your production container to load the new settings.
+
+### Manual device addition
+
+The last option is to skip the entire discovery process and manually add devices directly into the production configuration file. In practice, it is fairly rare to see this pattern in use as the standard discovery options automatically match devices to their profiles, and ensure that your configuration file is formatted correctly. 
+
+<table>
+    <thead>
+        <tr>
+            <th>
+                Pros
+            </th>
+            <th>
+                Cons
+            </th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>
+                * Full control over the configuration of devices and their tag decorations.
+
+            </td>
+            <td>
+                * Medium risk of misconfiguration in the settings. This method requires that you know the System Object Identifier (SysOID) of the device as well as understand the profile the device would target so you can identify which MIBs you want enabled (all of this is automated in discovery).
+                * Still requires a restart of the production container to load the new settings.
+
+            </td>
+        </tr>
+    </tbody>
+</table>
+
+#### Pattern example
+
+An example of the device settings needed to successfully monitor an APC UPS:
+
+```
+devices:
+ ups_snmpv2c__10.10.0.201:
+   device_name: ups_snmpv2c
+   device_ip: 10.10.0.201
+   snmp_comm: public
+   oid: .1.3.6.1.4.1.318.1.3.27
+   mib_profile: apc_ups.yml
+   provider: kentik-ups
+   user_tags:
+     owning_team: dc_ops
+...
+global:
+  ...
+  mibs_enabled:
+  - ARISTA-BGP4V2-MIB
+  - ARISTA-QUEUE-MIB
+  - BGP4-MIB
+  - CISCO-MEMORY-POOL-MIB
+  - CISCO-PROCESS-MIB
+  - HOST-RESOURCES-MIB
+  - IF-MIB
+  - OSPF-MIB
+  - PowerNet-MIB_UPS
+```
+
+Required settings are outlined in detail in our documentation for the [devices](/docs/network-performance-monitoring/advanced/advanced-config/#devices) and [global blocks](/docs/network-performance-monitoring/advanced/advanced-config/#global).
