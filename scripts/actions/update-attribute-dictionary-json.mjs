@@ -82,14 +82,10 @@ async function updateJson() {
 
   core.setOutput('updateAttributeDictionary', hasUpdates);
 
-  console.log(message);
-
-  if (!hasUpdates) {
-    return;
+  if (hasUpdates) {
+    const newJson = JSON.stringify(newEvents, null, 2);
+    fs.writeFileSync(JSON_FILE_PATH, newJson);
   }
-
-  const newJson = JSON.stringify(newEvents, null, 2);
-  fs.writeFileSync(JSON_FILE_PATH, newJson);
 }
 
 updateJson();
