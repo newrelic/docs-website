@@ -5,6 +5,7 @@ import { graphql } from 'gatsby';
 import { takeWhile } from 'lodash';
 import { CSSTransition } from 'react-transition-group';
 import { createLocalStorageStateHook } from 'use-local-storage-state';
+import { selectAll } from 'unist-util-select';
 import DocPageBanner from '../components/DocPageBanner';
 import PageTitle from '../components/PageTitle';
 import MDXContainer from '../components/MDXContainer';
@@ -25,48 +26,35 @@ import ErrorBoundary from '../components/ErrorBoundary';
 
 const BANNER_HEIGHT = '78px';
 
-/**
- * Some `title`s from the `tableOfContents` field are
- * formatted like "NRQL query examples #examples".
- * This function splits the title and the hash into a tuple.
- * Not all titles include a hash.
- * For those, a tuple of [string, undefined] is returned.
- *
- * @returns [string, string | undefined]
- */
-const splitTOCTitle = (title = '') => {
-  const chunks = title.split(' ');
-  const titleText = takeWhile(chunks, (word) => !word.startsWith('#'));
-  const slug = chunks.find((word) => word.startsWith('#'));
-
-  return [titleText.join(' '), slug];
-};
-
 const BasicDoc = ({ data, location, pageContext }) => {
   const { mdx } = data;
   const {
     frontmatter,
-    tableOfContents,
     body,
     fields: { fileRelativePath },
+    mdxAST,
   } = mdx;
   const { disableSwiftype, hidePageTools } = pageContext;
 
   const headings = useMemo(() => {
     const slugs = new GithubSlugger();
-    return (tableOfContents.items ?? []).map(({ title, url }) => {
-      const [titleText, slug] = splitTOCTitle(title);
+
+    // manually pulling headings instead of using TableOfContents supplied by GraphQL
+    // so we have access to deeper nested headings like within Steps
+    const mdxASTHeadings = selectAll('heading', mdxAST);
+    return (mdxASTHeadings ?? []).map((node) => {
+      const title = node.children[0].value;
 
       return {
         // the slug as it's parsed from the title is actually
         // more correct/reliable than the `url` property from GraphQL.
         // `id` here shouldn't include a hash (it gets added later),
         // and a double hash breaks the links.
-        id: (slug || url || slugs.slug(titleText)).replace('#', ''),
-        text: titleText,
+        id: slugs.slug(title),
+        text: title,
       };
     });
-  }, [tableOfContents]);
+  }, [mdxAST]);
 
   const {
     title,
@@ -246,7 +234,6 @@ export const pageQuery = graphql`
   query($slug: String!) {
     mdx(fields: { slug: { eq: $slug } }) {
       body
-      tableOfContents
       frontmatter {
         title
         metaDescription
@@ -263,7 +250,7 @@ export const pageQuery = graphql`
       fields {
         fileRelativePath
       }
-      ...TableOfContents_page
+      mdxAST
     }
   }
 `;
