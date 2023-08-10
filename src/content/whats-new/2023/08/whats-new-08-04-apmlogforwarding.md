@@ -14,5 +14,5 @@ APM logs in context bring together log data and other relevant APM telemetry to 
 By leveraging APM logs in context with New Relic APM 360, organizations can achieve more efficient monitoring, streamlined troubleshooting, and proactive issue resolution, resulting in better overall application performance and user experiences.
 
 
-![Log forwarding onboarding](./images/apm_logforwarding.png "A screenshot that show onboarding workflow for APM log forwarding")
+![Log forwarding onboarding](./images/apm_logforwarding.webp "A screenshot that show onboarding workflow for APM log forwarding")
 
