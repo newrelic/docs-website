@@ -1,7 +1,7 @@
 ---
 title: 'Export Logs to CSV or JSON'
 summary: 'Easily download logs from the Logs UI'
-releaseDate: '2023-08-14'
+releaseDate: '2023-08-11'
 ---
 
 Download your logs easily in the Logs UI by using the new Export feature! This allows you to download logs in either the JSON or CSV format, up to the export limit. 
