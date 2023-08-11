@@ -9,4 +9,4 @@ Expanding on the log management user analytics, you can now create saved views. 
 
 ![Log management UI](./images/95499-log-management.webp "Log management UI")
 
-**[one.newrelic.com](https://one.newrelic.com/all-capabilities) > Logs > Saved Views**
+**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Logs > Saved Views**
