@@ -605,18 +605,18 @@ The Node.js API and Node.js Browser runtimes are sized independently using a com
 
 The `parallelism` setting controls how many pods of a particular runtime run concurrently. The `parallelism` setting is the equivalent of the `synthetics.heavyWorkers` configuration in the containerized private minion (CPM). Ensure that your Kubernetes cluster has enough resources available to run this number of pods based on their [resource request and limit values](/docs/synthetics/synthetic-monitoring/private-locations/install-job-manager/#kubernetes-requirements).
 
-The `completions` setting controls how many pods of a particular runtime must complete before the `CronJob` can start another job for that runtime. For improved efficiency, `completions` should be set to 6-10x the `parallelism` value. This can help to minimize the "end of completions effect" where fewer than the `parallelism` number pods are running as "Completed" pods approaches the `completions` value.
+The `completions` setting controls how many pods of a particular runtime must complete before the `CronJob` can start another Kubernetes Job for that runtime. Note the difference between a Kubernetes Job (capital J) versus a Synthetics monitor job. For improved efficiency, `completions` should be set to 6-10x the `parallelism` value. This can help to minimize the "nearing the end of completions" inefficiency where fewer than the `parallelism` number pods could end up running as the Kubernetes Job waits for all `completions` to finish.
 
-When `completions` is greater than 1, pods with a "Completed" status will remain visible in the output of `kubectl get pods` until all completions defined in the job have been met, for example 6/6 from `kubectl get jobs`. Resources are released from the node when a pod has a status of Completed or Failed.
+When `completions` is greater than 1, pods with a "Completed" status will remain visible in the output of `kubectl get pods -n YOUR_NAMESPACE` until all completions defined in the Kubernetes Job have been met, for example 6/6 completions. Resources are released from the node when a pod has a status of Completed or Failed.
 
-A CronJob age of 5 minutes (300 seconds) is a conservative target to account for natural variability in job duration and rate (jobs per minute). The following equations can be used as a starting point for `completions` and `parallelism` for each runtime. Adjustments may need to be made based on observations of private location queue growth.
+A Kubernetes Job age of 5 minutes (`kubectl get jobs -n YOUR_NAMESPACE`) is a conservative target to account for variability in how long it takes pods to complete and how many Synthetics jobs need to run per minute (jobs rate). The following equations can be used as a starting point for `completions` and `parallelism` for each runtime. Adjustments may need to be made based on observations of private location queue growth.
 
 ```m
 completions = 300 / avg job duration (s)
-parallelism = jobs per minute / completions
+parallelism = Synthetics jobs per minute / completions
 ```
 
-Different runtimes will likely have different job durations and rates. The following queries can be used to obtain average duration and rate for a private location.
+Different runtimes will likely have different Synthetics job durations and rates. The following queries can be used to obtain average duration and rate for a private location.
 
 ```sql
 # non-ping average job duration by runtime type
@@ -627,7 +627,7 @@ FROM SyntheticCheck SELECT rate(uniqueCount(id), 1 minute) AS 'jobs per minute' 
 ```
 
 <Callout variant="tip">
-  The above queries are based on current results. If your private location does not have any results or the job manager is not performing at its best, query results may not be accurate. In that case, try a few different values for `completions` and `parallelism` until you see a `kubectl get jobs` duration of at least 5 minutes (enough completions) and the queue is not growing (enough parallelism).
+  The above queries are based on current results. If your private location does not have any results or the job manager is not performing at its best, query results may not be accurate. In that case, try a few different values for `completions` and `parallelism` until you see a `kubectl get jobs -n YOUR_NAMESPACE` duration of at least 5 minutes (enough completions) and the queue is not growing (enough parallelism).
 </Callout>
 
 <table>
@@ -652,7 +652,7 @@ FROM SyntheticCheck SELECT rate(uniqueCount(id), 1 minute) AS 'jobs per minute' 
         </td>
 
         <td>
-          The runtime will execute 1 job per minute. After 1 job completes, the `CronJob` configuration will start a new job at the next minute. **Throughput will be extremely limited with this configuration.**
+          The runtime will execute 1 Synthetics job per minute. After 1 job completes, the `CronJob` configuration will start a new job at the next minute. **Throughput will be extremely limited with this configuration.**
         </td>
       </tr>
 
@@ -664,7 +664,7 @@ FROM SyntheticCheck SELECT rate(uniqueCount(id), 1 minute) AS 'jobs per minute' 
         </td>
 
         <td>
-          The runtime will execute 1 job at a time. After the job completes, a new job will start immediately. After the `completions` setting number of jobs completes, the `CronJob` configuration will start a new job and reset the completions counter. **Throughput will be limited, but slightly better.** A single long running job will block the processing of any other jobs of this type.
+          The runtime will execute 1 Synthetics job at a time. After the job completes, a new job will start immediately. After the `completions` setting number of jobs completes, the `CronJob` configuration will start a new Kubernetes Job and reset the completions counter. **Throughput will be limited, but slightly better.** A single long running Synthetics job will block the processing of any other Synthetics jobs of this type.
         </td>
       </tr>
 
@@ -676,14 +676,15 @@ FROM SyntheticCheck SELECT rate(uniqueCount(id), 1 minute) AS 'jobs per minute' 
         </td>
 
         <td>
-          The runtime will execute 3 jobs at once. After any of these jobs complete, a new job will start immediately. After the `completions` setting number of jobs completes, the `CronJob` configuration will start a new job and reset the completions counter. **Throughput is much better with this or similar configurations.** A single long running job will have limited impact to the processing of other jobs of this type.
+          The runtime will execute 3 Synthetics jobs at once. After any of these jobs complete, a new job will start immediately. After the `completions` setting number of jobs completes, the `CronJob` configuration will start a new Kubernetes Job and reset the completions counter. **Throughput is much better with this or similar configurations.** A single long running Synthetics job will have limited impact to the processing of other Synthetics jobs of this type.
         </td>
       </tr>
     </tbody>
   </table>
 
-If jobs take longer to complete, fewer completions are needed to fill 1 minute but more parallel pods are needed. Similarly, if more jobs need to be processed per minute, more parallel pods are needed.
+If Synthetics jobs take longer to complete, fewer completions are needed to fill 5 minutes with jobs but more parallel pods will be needed. Similarly, if more Synthetics jobs need to be processed per minute, more parallel pods will be needed. The `parallelism` setting directly affects how many Synthetics jobs per minute can be run. Too small a value and the queue may grow. Too large a value and nodes may become resource constrained.
 
-You can use the `completions` value to obtain a good starting point for the value of `parallelism`. The `parallelism` setting directly affects how many jobs per minute can be run. Too small a value and the queue may grow. Too large a value and the node may become resource constrained.
+If your `parallelism` settings is working well to keep the queue at zero, setting a higher value for `completions` than what is calculated from `300 / avg job duration` can help to improve efficiency in a couple of ways:
 
-If your `parallelism` settings is working well to keep the queue at zero, it's not a bad idea to set a higher value for `completions` than what was initially calculated from `60 / avg job duration`. This can help to accommodate cases where jobs complete faster than expected and avoid the scenario where the `completions` value is reached before 1 minute has elapsed. The most efficient `completions` setting will fill the entire minute with running and completing jobs. If not enough completions, job processing for that runtime will sit idle for some number of seconds until the next `CronJob` can spin up another set of `completions`.
+* Accommodate variability in job durations such that at least 1 minute is filled with Synthetics jobs, which is the minimum CronJob duration.
+* The "nearing the end of completions" inefficiency where the next set of completions can't start until the final job completes.
