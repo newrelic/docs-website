@@ -1,18 +1,19 @@
 ---
-title: Guidelines for network monitoring
+title: Network monitoring guidelines for KTranslate containers
 tags:
   - Network monitoring
   - Guidelines
 translate:
   - kr
   - jp
-metaDescription: Review guidelines for network monitoring.
+metaDescription: Review guidelines for monitoring KTranslate containers.
 ---
 
 import networkCommonArchitecture from 'images/network_diagram_common-architecture.webp'
 
-This document serves as an overview of the best practices available for deployment of the [KTranslate container](https://github.com/kentik/ktranslate) used in New Relic’s network monitoring capability.
-The guidance here is based on the recommendations of various subject matter experts combined with common patterns of deployment that customers are using in their production environments today.
+In network monitoring, New Relic utilizes [KTranslate containers](https://github.com/kentik/ktranslate) to collect network telemetry data, which can be used to monitor network performance, identify bottlenecks, and troubleshoot problems.
+
+Learn best practices for deploying the KTranslate container, along with architectural and deployment considerations. The guidance is based on the recommendations of subject matter experts and common patterns of deployment used by customers in production environments.
 
 ## Deployment considerations [#deployment-considerations]
 
@@ -31,13 +32,13 @@ For the purposes of this document, we will be referencing an architecture that c
     This diagram reflects common networking architecture with the following:
 
 * **DC_01 (AMER)**: 
-    * Three containers on one host serving the `DC_01` location in New York City.
+    * Three containers on one host serving the DC_01 location in New York City.
     * Containers process SNMP polling, NetFlow v5 collection, and Syslog collection
 * **OFFICE_01 (APJ)**:
-    * One container on one host serving the `OFFICE_01` location in Sydney, Australia. 
+    * One container on one host serving the OFFICE_01 location in Sydney, Australia. 
     * Container processes SNMP polling and SNMP Trap collection
 * **DC_02 (EMEA)**:
-    * Three containers on one host serving the `DC_02` location in Dublin, Ireland. 
+    * Three containers on one host serving the DC_02 location in Dublin, Ireland. 
     * Containers process NetFlow v9, IPFIX, and sFlow collection
 
   </Side>
@@ -56,15 +57,15 @@ For the purposes of this document, we will be referencing an architecture that c
 
 ### A container's task
 
-There are some basic rules around what an individual container is capable of doing which are the main drivers when designing your deployment.
+There are some basic rules around what an individual container is capable of doing which are the main drivers when designing network deployment:
 
 * Containers that collect SNMP data can also receive SNMP traps by default.
 * Containers that receive Syslog data should run on their own.
 * Containers that receive network flow data must be isolated based on the type of flow template being collected.
 
-#### Network Flow and Syslog containers [#about-containers]
+### Network Flow and Syslog containers [#about-containers]
 
-Technically speaking, there is no requirement for a custom configuration file when using one of these containers. The default from the container image will work fine as all of your container settings will be placed by flags at runtime. 
+Technically speaking, there is no requirement for a custom configuration file when using one of these containers. The default from the container image will work fine because all of the container settings are placed by flags at runtime. 
 
 However, without a configuration file with entries in the devices section, the results sent to New Relic APIs will use `device_name` entries resolved via DNS from the IP address in the respective packet. There is support for providing a custom DNS server location at runtime, but full control with tagging is generally accomplished by providing your own entries with the `flow_only` setting set to `true`. Administrators will generally want to control this name so it aligns with the name sent in from SNMP polling the same device.
 
@@ -76,43 +77,45 @@ SNMP as a protocol, along with ICMP for ping, are generally deprioritized in mod
 
 The individual containers deployed with the KTranslate image are usually hosted on very small hosts and have minimal requirements as outlined in [our documentation](/docs/network-performance-monitoring/advanced/ktranslate-container-management/#container-requirements). However scaling this host’s CPU may be required in heavy polling scenarios. The primary motivator for scaling to a larger CPU footprint for a container is the amount of load presented to the task. In these situations it is normally better to run multiple containers to load balance instead of increasing the total size of your Docker host, which has underlying cost implications.
 
-### Summary of architectural considerations [#summary]
+### Summary [#summary]
 
 In the [common architecture example](#common-architecture) above, the following architectural considerations are in place:
 
 * Each geographical location has its own local containers used to collect and forward data to New Relic.
-* `DC_01` has three containers:
+* DC_01 has three containers:
 
     * Container 1: SNMP polling
     * Container 2: NetFlow v5 collection
     * Container 3: Syslog collection
 
-    <Callout variant="important">
-    In `DC_01` there is a Class B private subnet (/16). Care needs to be taken to split up discovery targets into manageable subnet sizes to ensure the job has time to complete.
+    <Callout variant="tip" title="Recommendation">
+    In DC_01 there is a Class B private subnet (/16). Care needs to be taken to split up discovery targets into manageable subnet sizes to ensure the job has time to complete.
     </Callout>
 
-* `OFFICE_01` uses a single container for SNMP polling with discovery against a /24 subnet.
+* OFFICE_01 uses a single container for SNMP polling with discovery against a /24 subnet.
 
-* `DC_02` has three containers, all dedicated to different templates in network flow collection:
+* DC_02 has three containers, all dedicated to different templates in network flow collection:
 
     * Container 1: NetFlow v9
     * Container 2: IPFIX
     * Container 3: sFlow
 
-    <Callout variant="important">
-    In `DC_02`, there is an even larger Class A private subnet (/8); however, since there is no need for a discovery in this location there are no concerns about scaling the jobs. Depending on flows-per-second, there may be a need in the future to scale out into additional containers. In a situation like this, you simply need to configure your network flow exporters to target different ports on the Docker host.
+    <Callout variant="tip" title="Recommendation">
+    In DC_02, there is an even larger Class A private subnet (/8); however, since there is no need for a discovery in this location there are no concerns about scaling the jobs. Depending on flows-per-second, there may be a need in the future to scale out into additional containers. In a situation like this, you simply need to configure your network flow exporters to target different ports on the Docker host.
     </Callout>
+
+Recommendations below will reference this sample networking architecture.
 
 ## Maintaining your deployment [#maintaining-deployment]
 
 After initial installation, there are various techniques that are used to maintain the network monitoring observability footprint. Integrating configuration file changes with tools like Ansible are common, as is building GitOps pipelines around the architecture to support versioning and “guest” options where external teams can submit changes for review.
 
-The most common need for ongoing maintenance is in keeping the list of target devices accurate. Depending on your environment needs, we recommend the following discovery processes to add devices to your configuration file:
+The most common need for ongoing maintenance is in keeping the list of target devices accurate. There are three main discovery methods to update target devices: 
 
 <CollapserGroup>
 <Collapser
     id="automatic-discovery"
-    title="(Recommended) Automatic discovery"
+    title="Automatic discovery (preferred)"
 >
 Automatic discovery is the process used by KTranslate to scan a target list of IP addresses and/or ranges, perform a liveness probe, and then run a basic SNMP walk of the MIB-2 System MIB to attempt matching the device to a known SNMP profile.
 
@@ -151,7 +154,7 @@ Evaluate the pros and cons below to see if this discovery method is right for yo
     </tbody>
 </table>
 
-#### Example [#pattern-example]
+### How to use this method [#how-to]
 
 Using our example office location, your default initial configuration file would look like this:
 
@@ -241,7 +244,7 @@ Evaluate the pros and cons below to see if this discovery method is right for yo
     </tbody>
 </table>
 
-#### Example
+### How to use this method
 
 This discovery method follows the original deployment option for KTranslate, with the [steps outlined in our documentation](/docs/network-performance-monitoring/setup-performance-monitoring/snmp-performance-monitoring/#manual-container-setup). At a high level, the discovery process is:
 
@@ -291,7 +294,7 @@ Evaluate the pros and cons below to see if this discovery method is right for yo
     </tbody>
 </table>
 
-#### Pattern example
+### How to use this method
 
 Here's an example of the device settings needed to successfully monitor an APC UPS:
 
