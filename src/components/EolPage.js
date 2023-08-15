@@ -16,9 +16,9 @@ const releaseNotesQuery = graphql`
       }
     ) {
       nodes {
+        fileAbsolutePath
         frontmatter {
           releaseDate
-          subject
           version
         }
       }
@@ -28,13 +28,18 @@ const releaseNotesQuery = graphql`
 
 const EolPage = ({ agent, locale = 'en' }) => {
   const { allMdx } = useStaticQuery(releaseNotesQuery);
-  const releaseNotesJson = allMdx.nodes.map((note) => {
-    return {
-      agent: getAgentName(note.frontmatter.subject),
+  const releaseNotes = new Map();
+  allMdx.nodes.forEach((note) => {
+    const agentName = getAgentName(note.fileAbsolutePath);
+    const noteData = {
       date: parseISO(note.frontmatter.releaseDate),
       eolDate: parseISO(getEOLDate(note.frontmatter.releaseDate)),
       version: note.frontmatter.version,
     };
+
+    const existing = releaseNotes.get(agentName) ?? [];
+    existing.push(noteData);
+    releaseNotes.set(agentName, existing);
   });
 
   const sortDateDesc = (a, b) => {
@@ -63,8 +68,9 @@ const EolPage = ({ agent, locale = 'en' }) => {
     return isAfter(eolDate, new Date());
   };
 
-  const table = releaseNotesJson
-    .filter((note) => note.agent === agent && isSupportedVersion(note.eolDate))
+  const table = releaseNotes
+    .get(agent)
+    .filter((note) => isSupportedVersion(note.eolDate))
     .sort(sortDateDesc);
 
   return (
