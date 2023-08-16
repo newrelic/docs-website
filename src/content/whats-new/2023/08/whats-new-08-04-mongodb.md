@@ -14,7 +14,7 @@ The new MongoDB integration, which is based on Prometheus, replaces the legacy M
 **New installations:** Read our [documentation](https://docs.newrelic.com/docs/infrastructure/host-integrations/host-integrations-list/mongodb/mongodb-monitoring-integration-new/) to learn how to install and configure the new integration.
 **Migrate from our legacy integration:** Read our [migration doc](https://docs.newrelic.com/docs/infrastructure/host-integrations/host-integrations-list/mongodb/mongodb-migration-guide/) to upgrade to the new integration.
 
-![MongoDB dashboard](./images/whats-new-08-04-mongodb.png "MongoDB dashboard")
+![MongoDB dashboard](./images/whats-new-08-04-mongodb.webp "MongoDB dashboard")
 
 ## Benefits of the new integration
 
