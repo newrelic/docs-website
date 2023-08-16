@@ -12,7 +12,7 @@ With New Relic Preserved Traces you can:
 * **Find trace details faster:** get the insights you need faster with direct links to traces that now include the context you need to conduct root-cause analysis (RCA). 
 * **Deeper transaction analysis:** view and investigate trace data over time to improve issue identification, discover trends and identify areas for improvement.
 
-![View PreservedTraces](./images/view_preserved_traces.png"View PreservedTraces")
+![View PreservedTraces](./images/view_preserved_traces.png"View PreservedTraces)
 
 **How to get started**
 * Check out our [documentation](https://docs.newrelic.com/docs/distributed-tracing/ui-data/understand-use-distributed-tracing-ui/#preserved-traces)
