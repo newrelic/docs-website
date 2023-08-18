@@ -52,13 +52,30 @@ const excerptify = async (body) => {
 
 const slugify = (str) => str.replace('src/content/', '').replace('.mdx', '');
 
+const INCLUDE_AGENTS = new Set([
+  '.net',
+  'android',
+  'browser',
+  'dontnet',
+  'go',
+  'infrastructure',
+  'ios',
+  'java',
+  'node',
+  'nodejs',
+  'php',
+  'python',
+  'ruby',
+  'sdk',
+]);
+
 const generateReleaseNoteObject = async (filePath) => {
   const file = await readFile(filePath, { encoding: 'utf8' });
   const slug = slugify(filePath);
   const { attributes, body } = frontmatter(file);
 
   const output = {
-    agent: getAgentName(attributes.subject) ?? null,
+    agent: getAgentName(filePath) ?? null,
     date: attributes.releaseDate ?? null,
     downloadLink: attributes.downloadLink ?? null,
     version: attributes.version ?? null,
@@ -82,7 +99,9 @@ const releaseNoteMdxs = await glob('src/content/docs/release-notes/**/*.mdx', {
 
 const releaseNotes = (
   await Promise.all(releaseNoteMdxs.map(generateReleaseNoteObject))
-).filter(({ date, agent }) => Boolean(date && agent));
+).filter(
+  ({ date, agent }) => Boolean(date && agent) && INCLUDE_AGENTS.has(agent)
+);
 console.error('📦 release notes JSON generated');
 
 if (uploadToS3) {
