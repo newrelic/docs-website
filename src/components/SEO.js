@@ -45,9 +45,10 @@ const isAgileHandbookPage = (url) => {
   return url.includes('docs/agile-handbook');
 };
 
-const isExcludedFromSwiftype = (url) => {
-  return isStyleGuidePage(url) || isAgileHandbookPage(url);
-};
+const isMdxTestPage = (url) => url.includes('docs/mdx-test-page');
+
+const isExcludedFromSwiftype = (url) =>
+  isStyleGuidePage(url) || isAgileHandbookPage(url) || isMdxTestPage(url);
 
 const DocsSiteSeo = ({
   location,
