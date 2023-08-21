@@ -56,7 +56,7 @@ const INCLUDE_AGENTS = new Set([
   '.net',
   'android',
   'browser',
-  'dontnet',
+  'dotnet',
   'go',
   'infrastructure',
   'ios',
