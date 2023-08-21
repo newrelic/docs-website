@@ -4,11 +4,9 @@ summary: 'Automate the monitoring of your AWS EC2 infrastructure with our EC2 qu
 releaseDate: '2023-08-08'
 ---
 
-Our EC2 quickstart solution allows you to automate the monitoring of your AWS EC2 infrastructure. It's easy to get started and provides enhanced monitoring of your EC2 instances and achieves deeper observability within your AWS account. 
+Our EC2 quickstart solution allows you to automate the monitoring of your AWS EC2 infrastructure. It provides enhanced monitoring of your EC2 instances and achieves deep observability within your AWS account. 
 
-To get started, deploy the [CloudFormation template](https://github.com/aws-quickstart/quickstart-ct-newrelic-one/blob/main/templates/EC2_Quickstart.yml). It automates the installation of our [infrastructure agent](https://docs.newrelic.com/docs/infrastructure/install-infrastructure-agent/get-started/install-infrastructure-agent/) in existing (before this installation) and new EC2 instances (instance spun after this installation). 
-
-Our infrastructure agent sends metrics about your host(s) to New Relic.
+To get started, deploy the [CloudFormation template](https://github.com/aws-quickstart/quickstart-ct-newrelic-one/blob/main/templates/EC2_Quickstart.yml). It automates the installation of our [infrastructure agent](https://docs.newrelic.com/docs/infrastructure/install-infrastructure-agent/get-started/install-infrastructure-agent) in existing EC2 instances (before this installation) and new ones (those created after this installation). 
 
 **Observability in New Relic after successful deployment**
  
