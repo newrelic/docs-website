@@ -19,6 +19,7 @@ const releaseNotesQuery = graphql`
         fileAbsolutePath
         frontmatter {
           releaseDate
+          eolDate
           version
         }
       }
@@ -32,7 +33,9 @@ const EolPage = ({ agent, locale = 'en' }) => {
     .filter((note) => getAgentName(note.fileAbsolutePath) === agent)
     .map((note) => ({
       date: parseISO(note.frontmatter.releaseDate),
-      eolDate: parseISO(getEOLDate(note.frontmatter.releaseDate)),
+      eolDate:
+        parseISO(note.frontmatter.eolDate) ||
+        parseISO(getEOLDate(note.frontmatter.releaseDate)),
       version: note.frontmatter.version,
     }));
 
@@ -69,6 +72,8 @@ const EolPage = ({ agent, locale = 'en' }) => {
   return (
     <tbody>
       {table.map((note) => {
+        console.log('eolDate', note.eolDate);
+
         return (
           // Some release notes have the same date but diff versions
           <tr key={note.date + note.version}>
