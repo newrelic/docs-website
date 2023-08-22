@@ -39,12 +39,17 @@
 
 The site has content & accepts contributions in english, but users can be located anywhere in the world. The translation process takes the english content and translates it into other languages.
 
+**NOTE:** "TV" means "Translation Vendor" in the context of this document.
+
 ## What is the translation process
 
 The translation process has the following high-level steps:
 
 1. When a PR to main is merged, if it includes translatable files, queue those files up to be translated.
 2. Submit queued translation requests to vendor.
+
+   - We have a batching function that will only allow us to fetch 50 file URIs at a time. This is due to the TV API design where file URIs are fetched via query parameters instead of part of the body of the API request.
+
 3. Check for finished translations, download translated files and add them to the repo.
 
 Additionally, we've recently added the ability to have content be machine translated, but the process is ultimately still the same, we just decide in the first step if content should be machine or human translated.
@@ -72,13 +77,13 @@ The workflows are:
 
 This workflow looks through all of the files that are being merged into the main branch, finds the files that are of the `.mdx` type and have the `translate` frontmatter. It then adds the file names (i.e. the slugs) to a PostgreSQL database table called `translations` along with the `locale` they are to be translated to and a `status` of `PENDING`.
 
-Over the next two weeks, all of the changed files will be added to this queue continuously on every merge to main. If a particular file is changed multiple times in this period, it is only queued once for sending.
+All of the changed files will be added to this queue continuously on every merge to main with a status of `PENDING`. If a particular file is changed multiple times in this period, it is only queued if it not already queued with the `PENDING` status.
 
 As part of the machine translation work, this step also determines whether a file is meant to be human or machine translated. To do this, we look at the `translate` frontmatter, which indicates to us what is meant to be human translated. Anything not included in the `translate` frontmatter, or if the frontmatter is missing entirely, indicates to us that a document should be machine translated. Once we know that, we set the `project_id` field in the `translations` database table for the translation request record.
 
 ### Manually triggering workflow
 
-There is an additional github action to be able to manually queue up specific files. This can be manually triggered in the Actions tab of github under the workflow `Manually Add Slugs to Translation Queue`. When clicking `Run workflow` you will be prompted to enter the slugs that you would like to queue up, separated by comma. An example input would be `src/content/docs/codestream/how-use-codestream/discuss-code.mdx,src/content/docs/infrastructure/host-integrations/host-integrations-list/nginx/nginx-integration.mdx`. You additionally can select to queue it up for machine translation and give a locale, such as `jp, kr`.
+There is an additional github action to be able to manually queue up specific files. This can be manually triggered in the Actions tab of github under the workflow `Manually Add Slugs to Translation Queue`. When clicking `Run workflow` you will be prompted to enter the slugs that you would like to queue up, separated by comma. An example input would be `src/content/docs/codestream/how-use-codestream/discuss-code.mdx,src/content/docs/infrastructure/host-integrations/host-integrations-list/nginx/nginx-integration.mdx`. You additionally can select to queue it up for machine translation and give a locale, such as `ja-JP, ko-KR`.
 
 ### Summary
 
@@ -86,8 +91,7 @@ There is an additional github action to be able to manually queue up specific fi
 - Can be manually triggered? `Yes`, when using manual version of workflow
 - Steps:
   - Looks at the files that have been changed on the merge
-  - Saves the filenames (or slugs) that have `translate` property in the frontmatter
-  - For each file with the `translate` property, will save the filename, locale and status to the Translation table
+  - Will save the filename, locale and status to the Translation table if not already pending
     - `project_id` set to either machine or human translation project
 
 ## Workflow 2a: Sending content for machine translation
@@ -96,7 +100,7 @@ This workflow takes all machine translation requests from the `translations` tab
 
 ### Summary
 
-- Executes: on the `1st` and `15th` of the month
+- Executes: `daily`
 - Can be manually triggered? `Yes`
 - Steps:
   - Get files from `Translation` table with `PENDING` status
@@ -177,7 +181,7 @@ Some scenarios for running a manual workflow.
 
 If you only want to send everything that is in the translation queue earlier, then you will just need to trigger the **Send content to be translated** workflow. Just follow the steps above to trigger the workflow. The result should be a job in TV. If there is no job, this could be for a couple of reasons:
 _ There are no files in the translation table.
-_ The job didn’t execute correctly but didn’t fail. Reach out to an engineer on the Developer Enablement team to find out what went wrong (maybe some edge case we missed).
+_ The job didn’t execute correctly but didn’t fail. Reach out to an engineer on the Docs Engineering team to find out what went wrong (maybe some edge case we missed).
 
 ### There’s a job completed, and you want those changes in a pull request right away
 
@@ -200,7 +204,13 @@ Once you are in the file, you may click the little pen icon in the right hand co
 
 ### There is a file where you want to re-run a translation but hasn’t been edited recently
 
-This is a case we hopefully wouldn’t run into, since we are constantly keeping track of all the files that have been edited and regularly sending them to be translated. If, however, something happens and there is some need to run a translation on a file that hasn’t been edited recently (no changes to frontmatter, no editing of the content) then reach out to someone on the Developer Enablement team. We may suggest running the translation separately as not part of the workflow (i.e. uploading the files manually, downloading them and then creating a PR) or we can add the filenames manually to the translation queue, but this is not recommended.
+This is a case we hopefully wouldn’t run into, since we are constantly keeping track of all the files that have been edited and regularly sending them to be translated. If, however, something happens and there is some need to run a translation on a file that hasn’t been edited recently (no changes to frontmatter, no editing of the content) then reach out to someone on the Docs Engineering team. We may suggest running the translation separately as not part of the workflow (i.e. uploading the files manually, downloading them and then creating a PR) or we can add the filenames manually to the translation queue, but this is not recommended.
+
+### File is deleted from active job in TV
+
+If the file can be identified and has not been labelled as a COMPLETED entry in the DB AND the file cannot be found in the TV UI as complete or listed as IN_PROGRESS, our current fix is to delete the file entry in the DB and let the process start from the beginning for this particular file by manually triggering an upload/queue of the file impacted.
+
+#### Helpful Queries in the PostgresDB:
 
 # Key concepts / Glossary
 
@@ -248,7 +258,7 @@ We have the following tables in our localization workflow:
 ## Locales
 
 - `id`
-- `locale` - one of `[ja-JP]`
+- `locale` - one of `[ja-JP, ko-KR]`
 
 ## Statuses
 
