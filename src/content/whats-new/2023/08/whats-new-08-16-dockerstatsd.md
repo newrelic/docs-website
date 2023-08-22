@@ -13,5 +13,5 @@ OpenTelemetry Collector simplifies instrumentation efforts by providing a centra
 
 * **StatsD:** Using the OpenTelemetry Collector you can now independently harvest StatsD metrics without the requirement to have Docker for scraping. This allows for streamlined and simplified acquisition of StatsD metrics which you can then visualize with New Relic to get 360° insights.
 
-![Docker and Statsd OTel sources](./images/otel_docker_statsd.png "A screenshot that shows Docker dashboard")
+![Docker and Statsd OTel sources](./images/otel_docker_statsd.webp "A screenshot that shows Docker dashboard")
 
