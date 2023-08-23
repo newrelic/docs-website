@@ -15,7 +15,7 @@ With this enhancement, you’ll get:
 !["View Custom Errors"](./images/Errors_Fingerprinting.png"View Custom Errors")
 
 **How to get started**
-* Check out our [documentation](https://docs.newrelic.com/docs/errors-inbox/errors-inbox/#custom-groups)
+* Check out our [documentation](https://docs.newrelic.com/docs/apm/agents/manage-apm-agents/agent-data/manage-errors-apm-collect-ignore-or-mark-expected/#error-fingerprinting)
 
 
 
