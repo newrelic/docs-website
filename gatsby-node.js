@@ -354,6 +354,7 @@ exports.createSchemaCustomization = (
     translationType: String
     dataSource: String
     hideNavs: Boolean
+    eolDate: String
     downloadLink: String
     signupBanner: SignupBanner
     features: [String]
@@ -463,6 +464,10 @@ exports.createResolvers = ({ createResolvers }) => {
       hideNavs: {
         resolve: (source) =>
           hasOwnProperty(source, 'hideNavs') ? source.hideNavs : null,
+      },
+      eolDate: {
+        resolve: (source) =>
+          hasOwnProperty(source, 'eolDate') ? source.eolDate : null,
       },
       downloadLink: {
         resolve: (source) =>
