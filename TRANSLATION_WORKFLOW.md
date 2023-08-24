@@ -1,38 +1,3 @@
-- [High-level overview](#high-level-overview)
-  - [Purpose](#purpose)
-  - [What is the translation process](#what-is-the-translation-process)
-- [Detailed Overview](#detailed-overview)
-  - [Background](#background)
-  - [Workflow 1: Queueing Translation Requests](#workflow-1-queueing-translation-requests)
-    - [Manually triggering workflow](#manually-triggering-workflow)
-    - [Summary](#summary)
-  - [Workflow 2a: Sending content for machine translation](#workflow-2a-sending-content-for-machine-translation)
-    - [Summary](#summary-1)
-  - [Workflow 2b: Sending content for human translation](#workflow-2b-sending-content-for-human-translation)
-    - [Summary](#summary-2)
-  - [Workflow 3: Downloading finished translations, cleaning up](#workflow-3-downloading-finished-translations-cleaning-up)
-    - [Summary](#summary-3)
-- [Manually triggering workflow:](#manually-triggering-workflow)
-- [Scenarios](#scenarios)
-  - [There’s a bunch of content that has been deployed to production (i.e. merged into the main branch) and you want to send those translated files over sooner than the two week interval.](#theres-a-bunch-of-content-that-has-been-deployed-to-production-ie-merged-into-the-main-branch-and-you-want-to-send-those-translated-files-over-sooner-than-the-two-week-interval)
-  - [There’s a job completed, and you want those changes in a pull request right away](#theres-a-job-completed-and-you-want-those-changes-in-a-pull-request-right-away)
-  - [You have some files that you want to add to the `translations` queue.](#you-have-some-files-that-you-want-to-add-to-the-translations-queue)
-  - [There is a file that hasn’t been translated before into that language](#there-is-a-file-that-hasnt-been-translated-before-into-that-language)
-  - [There is a file where you want to re-run a translation but hasn’t been edited recently](#there-is-a-file-where-you-want-to-re-run-a-translation-but-hasnt-been-edited-recently)
-- [Key concepts / Glossary](#key-concepts--glossary)
-  - [GitHub Branches and Pull Requests](#github-branches-and-pull-requests)
-  - [GitHub Actions](#github-actions)
-- [PostgreSQL tables](#postgresql-tables)
-  - [Translations](#translations)
-  - [Jobs](#jobs)
-  - [TranslationsJobs](#translationsjobs)
-  - [Locales](#locales)
-  - [Statuses](#statuses)
-  - [Serialization / Deserialization](#serialization--deserialization)
-- [Gatsby Cloud](#gatsby-cloud)
-- [Context](#context)
-<!-- toc -->
-
 # High-level overview
 
 ## Purpose
@@ -56,6 +21,41 @@ Additionally, we've recently added the ability to have content be machine transl
 
 **NOTE:** Check out the workflow Figma design for a visual reference [here](https://www.figma.com/file/Ph8QXJlXm2Xxu2As27HBqx/Send-Translation?node-id=0%3A1).
 
+- [High-level overview](#high-level-overview)
+  - [Purpose](#purpose)
+  - [What is the translation process](#what-is-the-translation-process)
+- [Detailed Overview](#detailed-overview)
+  - [Background](#background)
+  - [Workflow 1: Queueing Translation Requests](#workflow-1-queueing-translation-requests)
+    - [Manually triggering workflow](#manually-triggering-workflow)
+    - [Summary](#summary)
+  - [Workflow 2a: Sending content for machine translation](#workflow-2a-sending-content-for-machine-translation)
+    - [Summary](#summary-1)
+  - [Workflow 2b: Sending content for human translation](#workflow-2b-sending-content-for-human-translation)
+    - [Summary](#summary-2)
+  - [Workflow 3: Downloading finished translations, cleaning up](#workflow-3-downloading-finished-translations-cleaning-up)
+    - [Summary](#summary-3)
+- [Manually triggering workflow:](#manually-triggering-workflow-1)
+- [Scenarios](#scenarios)
+  - [There’s a bunch of content that has been deployed to production (i.e. merged into the main branch) and you want to send those translated files over sooner than the two week interval.](#theres-a-bunch-of-content-that-has-been-deployed-to-production-ie-merged-into-the-main-branch-and-you-want-to-send-those-translated-files-over-sooner-than-the-two-week-interval)
+  - [There’s a job completed, and you want those changes in a pull request right away](#theres-a-job-completed-and-you-want-those-changes-in-a-pull-request-right-away)
+  - [You have some files that you want to add to the `translations` queue.](#you-have-some-files-that-you-want-to-add-to-the-translations-queue)
+  - [There is a file that hasn’t been translated before into that language](#there-is-a-file-that-hasnt-been-translated-before-into-that-language)
+  - [There is a file where you want to re-run a translation but hasn’t been edited recently](#there-is-a-file-where-you-want-to-re-run-a-translation-but-hasnt-been-edited-recently)
+- [Key concepts / Glossary](#key-concepts--glossary)
+  - [GitHub Branches and Pull Requests](#github-branches-and-pull-requests)
+  - [GitHub Actions](#github-actions)
+- [PostgreSQL tables](#postgresql-tables)
+  - [Translations](#translations)
+  - [Jobs](#jobs)
+  - [TranslationsJobs](#translationsjobs)
+  - [Locales](#locales)
+  - [Statuses](#statuses)
+  - [Serialization / Deserialization](#serialization--deserialization)
+- [Gatsby Cloud](#gatsby-cloud)
+- [Context](#context)
+<!-- toc -->
+
 # Detailed Overview
 
 ## Background
@@ -64,14 +64,14 @@ The whole process is executed as a series of GitHub workflows which can be found
 
 The workflows are:
 
-- queueing translation requests
-  - this workflow takes a PR, looks for translatable files, and queues them up for either human or machine translation
-- sending content for machine translation
-  - this workflow takes queued up machine translation requests, and submits them to the vendor
-- sending content for human translation
-  - this workflow takes queued up human translation requests, and submits them to the vendor
-- checking for finished translations, downloading content, cleaning up
-  - this workflow has two jobs (one for human, one for machine) which check a given project for finished translations, downloads translated files, and PRs them back into the repository
+- _Queueing Translation Requests_
+  - This workflow takes a PR, looks for translatable files, and queues them up for either human or machine translation
+- _Sending Content for Machine Translation_
+  - This workflow takes queued up machine translation requests, and submits them to the vendor
+- _Sending Content for Human Translation_
+  - This workflow takes queued up human translation requests, and submits them to the vendor
+- _Checking for Finished Translations, Downloading Content, Cleaning Up_
+  - This workflow has two jobs (one for human, one for machine) which check a given project for finished translations, downloads translated files, and PRs them back into the repository
 
 ## Workflow 1: Queueing Translation Requests
 
@@ -87,12 +87,13 @@ There is an additional github action to be able to manually queue up specific fi
 
 ### Summary
 
-- Executes: on every merge to the `main` branch`
+- Executes: on every merge to the `main` branch
 - Can be manually triggered? `Yes`, when using manual version of workflow
 - Steps:
   - Looks at the files that have been changed on the merge
   - Will save the filename, locale and status to the Translation table if not already pending
     - `project_id` set to either machine or human translation project
+      - Project IDs are stored in One Password
 
 ## Workflow 2a: Sending content for machine translation
 
@@ -158,9 +159,12 @@ And there you have it! The files will be fully translated and added to our stagi
 
 If there are time sensitive jobs that you would like to have translated, then a manual trigger might be necessary! To manually trigger any workflow, you must go to the repository: https://github.com/newrelic/docs-website
 
-1. Go to the `Actions` tab from the homepage of the repository.
+1. Go to the [`Actions`](https://github.com/newrelic/docs-website/actions) tab from the homepage of the repository.
 
-- You can then see all of the workflows that we have available. There are three specific to the localization workflow: Add Slugs to Translation Queue, Check status of translation jobs, and Send content to be translated.
+- You can then see all of the workflows that we have available. There are three specific to the localization workflow:
+  - Add Slugs to Translation Queue
+  - Check status of translation jobs
+  - Send content to be translated.
 
 2. Select the workflow that you would like to run manually.
 3. Click on run workflow, which will open a dropdown.
@@ -215,8 +219,6 @@ If the file can be identified and has not been labelled as a COMPLETED entry in 
 # Key concepts / Glossary
 
 ## GitHub Branches and Pull Requests
-
-Branches are source code for a specific version of the code. You usually branch off of the `default` branch which is the source of truth for your codebase. When you branch off of the `default` branch and make some changes, you can create a pull request to add those changes back in. In a pull request, you are requesting that the changes you made in your branch get merged into the `default` or base branch.
 
 On our site, we have a little bit of a different set up. We have two branches that are the source of truth for our codebase. We have the `develop` branch which holds the code for our “staging environment” (meaning everything that we want to change before publishing it to the whole world) and then the `main` branch which holds the code for our “production environment.”
 
@@ -273,10 +275,12 @@ In this, we take our mdx components and convert them into plain html. We specifi
 
 When getting this content back from TV, we get back the same format that we sent it to them with the strings replaced with the translated strings. Then we take all the “serialized” components and convert them back into mdx, and take the file and save it as mdx.
 
+This can be tested via the `yarn serialize` && `yarn deserialize` scripts
+
 # Gatsby Cloud
 
 Although not listed on the diagrams above, Gatsby Cloud is where we host and deploy our site. Every time we merge into the main branch, Gatsby Cloud is triggered to build the latest updates from GitHub. It fetches the code from the main branch and builds the site. Once the site has passed the checks, it deploys the built site to [docs.newrelic.com](https://docs.newrelic.com). If the site fails to build, then the new version is not deployed and the engineers are notified.
 
 # Context
 
-Although also not described in detail in the Automatic workflow section, we also send visual context to TV during the Send content to be translated workflow. This context is the html straight from the current version of the docs site available on [docs.newrelic.com](https://docs.newrelic.com). When we send the context to TV, they run automatic matching on the files to match the files that we have uploaded to the contexts that we have uploaded. In the Check status of translation files workflow, we delete the contexts for the job that we have created. The reason for this is to ensure that no outdated contexts are being matched. Read more about visual context and context matching here.
+Although also not described in detail in the Automatic workflow section, we also send visual context to TV during the _Send Content to be Translated_ workflow. This context is the html straight from the current version of the docs site available on [docs.newrelic.com](https://docs.newrelic.com). When we send the context to TV, they run automatic matching on the files that we have uploaded to the contexts that we have uploaded. In the _Check status of translation files_ workflow, we delete the contexts for the job that we have created. The reason for this is to ensure that no outdated contexts are being matched.
