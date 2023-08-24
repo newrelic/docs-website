@@ -1,14 +1,17 @@
+#!/usr/bin/env node
+
+import { unified } from 'unified';
+import remarkParse from 'remark-parse';
+import rehypeRemark from 'rehype-remark';
+import remarkFrontmatter from 'remark-frontmatter';
+import remarkMdx from 'remark-mdx';
+import remarkMdxjs from 'remark-mdxjs';
+import rehypeStringify from 'rehype-stringify';
+import addClasses from 'rehype-add-classes';
+import rehypeFormat from 'rehype-format';
+
 const handlers = require('./utils/handlers');
 const fencedCodeBlock = require('../../codemods/fencedCodeBlock');
-const unified = require('unified');
-const toMDAST = require('remark-parse');
-const frontmatter = require('remark-frontmatter');
-const remarkMdx = require('remark-mdx');
-const remarkMdxjs = require('remark-mdxjs');
-const remark2rehype = require('remark-rehype');
-const addClasses = require('rehype-add-classes');
-const html = require('rehype-stringify');
-const format = require('rehype-format');
 const customHeadingIds = require('../../plugins/gatsby-remark-custom-heading-ids/utils/visitor');
 
 const mdxElement = (h, node) => {
@@ -24,13 +27,13 @@ const mdxElement = (h, node) => {
 };
 
 const processor = unified()
-  .use(toMDAST)
+  .use(remarkParse)
   .use(remarkMdx)
   .use(remarkMdxjs)
-  .use(frontmatter, ['yaml'])
+  .use(remarkFrontmatter, ['yaml'])
   .use(fencedCodeBlock)
   .use(customHeadingIds)
-  .use(remark2rehype, {
+  .use(rehypeRemark, {
     handlers: {
       import: handlers.import.serialize,
       yaml: handlers.frontmatter.serialize,
@@ -39,8 +42,8 @@ const processor = unified()
       code: handlers.CodeBlock.serialize,
     },
   })
-  .use(format)
-  .use(html)
+  .use(rehypeFormat)
+  .use(rehypeStringify)
   .use(addClasses, {
     // adds notranslate class to <code> elements
     code: 'notranslate',
@@ -52,4 +55,4 @@ const serializeMDX = async (mdx) => {
   return contents;
 };
 
-module.exports = serializeMDX;
+export default serializeMDX;

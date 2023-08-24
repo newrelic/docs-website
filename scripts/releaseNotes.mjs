@@ -4,9 +4,9 @@ import frontmatter from 'front-matter';
 import { readFile } from 'fs/promises';
 import { glob } from 'glob10';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
-import { unified } from 'unified10';
-import remarkParse from 'remark-parse10';
-import remarkMdx from 'remark-mdx2.3';
+import { unified } from 'unified';
+import remarkParse from 'remark-parse';
+import remarkMdx from 'remark';
 import { visit } from 'unist-util-visit4';
 import { Command } from 'commander';
 

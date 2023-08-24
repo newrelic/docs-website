@@ -1,8 +1,6 @@
-import deserializeHTML from '../deserialize-html';
-import serializeMDX from '../serialize-mdx';
+import serializeMDX from '../serialize-mdx.mjs';
+import deserializeHTML from '../deserialize-html.mjs';
 import fs from 'fs';
-
-const { configuration } = require('../configuration');
 
 jest.mock('../configuration', () => ({
   configuration: {
@@ -292,9 +290,31 @@ test('deserialize iframes', async () => {
   expect(mdx).toEqual(input);
 });
 
-test('deserializes InlineSignup component', async () => {
+test.only('deserializes InlineSignup component', async () => {
   const input = '<InlineSignup/>';
 
   const mdx = await deserializeHTML(await serializeMDX(input));
   expect(mdx).toEqual(input);
+});
+
+test.only('deserializes InlineSignup component', async () => {
+  const testMdx = `
+<Collapser
+  className="freq-link"
+  id="func-cardinality"
+  title={<InlineCode>cardinality([metric_name, include:{'{attribute_list}'}, exclude:{'{attribute_list}'}])</InlineCode>}
+>
+  Use the \`cardinality()\` function to obtain the number of combinations of all the dimensions (attributes) on a [metric](/docs/using-new-relic/data/understand-data/new-relic-data-types#metrics).
+
+  It takes three arguments, all optional:
+
+  * Metric name: if present, \`cardinality()\` only computes the metric specified.
+  * Include: if present, the include list restricts the cardinality computation to those attributes.
+  * Exclude: if present, the exclude list causes those attributes to be ignored in the cardinality computation.
+
+</Collapser>
+`;
+
+  const mdx = await deserializeHTML(await serializeMDX(testMdx));
+  expect(mdx).toEqual(testMdx);
 });

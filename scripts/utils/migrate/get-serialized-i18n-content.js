@@ -1,6 +1,6 @@
 const path = require('path');
 const fs = require('fs');
-const serializeMDX = require('../../actions/serialize-mdx');
+const serializeMDX = require('../../actions/serialize-mdx.mjs');
 
 const JP_DIR = 'src/i18n/content/jp/docs';
 const OUT_DIR = 'serializedContent';

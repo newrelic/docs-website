@@ -1,15 +1,17 @@
-const unified = require('unified');
-const parse = require('rehype-parse');
-const rehype2remark = require('rehype-remark');
-const stringify = require('remark-stringify');
-const frontmatter = require('remark-frontmatter');
-const remarkMdx = require('remark-mdx');
-const remarkMdxjs = require('remark-mdxjs');
+#!/usr/bin/env node
+
+import { unified } from 'unified';
+import remarkParse from 'remark-parse';
+import rehypeRemark from 'rehype-remark';
+import remarkStringify from 'remark-stringify';
+import remarkFrontmatter from 'remark-frontmatter';
+import remarkMdx from 'remark-mdx';
+import remarkMdxjs from 'remark-mdxjs';
+import { defaultHandlers, heading } from 'hast-util-to-mdast';
+import u from 'unist-builder';
+import { last } from 'lodash';
+
 const handlers = require('./utils/handlers');
-const defaultHandlers = require('hast-util-to-mdast/lib/handlers');
-const heading = require('hast-util-to-mdast/lib/handlers/heading');
-const u = require('unist-builder');
-const { last } = require('lodash');
 const yaml = require('js-yaml');
 const { configuration } = require('./configuration');
 
@@ -88,8 +90,8 @@ const stripTranslateFrontmatter = () => {
 };
 
 const processor = unified()
-  .use(parse)
-  .use(rehype2remark, {
+  .use(remarkParse)
+  .use(rehypeRemark, {
     handlers: {
       code: component,
       table: component,
@@ -111,14 +113,14 @@ const processor = unified()
       h6: headingWithCustomId,
     },
   })
-  .use(stringify, {
+  .use(remarkStringify, {
     bullet: '*',
     fences: true,
     listItemIndent: '1',
   })
   .use(remarkMdx)
   .use(remarkMdxjs)
-  .use(frontmatter, ['yaml'])
+  .use(remarkFrontmatter, ['yaml'])
   .use(stripTranslateFrontmatter);
 
 const deserializeHTML = async (html) => {
@@ -127,4 +129,4 @@ const deserializeHTML = async (html) => {
   return contents.trim();
 };
 
-module.exports = deserializeHTML;
+export default deserializeHTML;

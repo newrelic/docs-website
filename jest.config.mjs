@@ -1,4 +1,4 @@
-module.exports = {
+export default {
   transform: {
     '^.+\\.jsx?$': '<rootDir>/jest-preprocess.js',
     '.(ts|tsx)': 'ts-jest',
@@ -17,6 +17,6 @@ module.exports = {
   },
   setupFiles: ['<rootDir>/loadershim.js'],
   setupFilesAfterEnv: ['<rootDir>/setup-test-env.js'],
-  testRegex: '(/__tests__/.*|\\.(test|spec))\\.(ts|tsx|js)$',
-  moduleFileExtensions: ['js', 'ts', 'tsx', 'json'],
+  testRegex: '(/__tests__/.*|\\.(test|spec))\\.(ts|tsx|js|mjs)$',
+  moduleFileExtensions: ['js', 'ts', 'tsx', 'json', 'mjs'],
 };

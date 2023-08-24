@@ -1,6 +1,6 @@
-import serializeMDX from '../serialize-mdx';
+import serializeMDX from '../serialize-mdx.mjs';
 import fs from 'fs';
-import deserializeHTML from '../deserialize-html';
+import deserializeHTML from '../deserialize-html.mjs';
 
 test('serializes DoNotTranslate wrapping a Collapser', async () => {
   const html = await serializeMDX(`

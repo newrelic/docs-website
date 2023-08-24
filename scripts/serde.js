@@ -3,8 +3,8 @@
 const fs = require('fs/promises');
 const { program } = require('commander');
 
-const serializeMDX = require('./actions/serialize-mdx');
-const deserializeHTML = require('./actions/deserialize-html');
+const serializeMDX = require('./actions/serialize-mdx.mjs');
+const deserializeHTML = require('./actions/deserialize-html.mjs');
 
 const cantOpenPath = (path) => () => {
   console.error(`😵 unable to open path ${path}`);
