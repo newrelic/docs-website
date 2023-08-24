@@ -2,13 +2,13 @@
 
 import { unified } from 'unified';
 import remarkParse from 'remark-parse';
-import rehypeRemark from 'rehype-remark';
+import { rehypeRemark } from 'rehype-remark';
 import remarkStringify from 'remark-stringify';
 import remarkFrontmatter from 'remark-frontmatter';
 import remarkMdx from 'remark-mdx';
 import remarkMdxjs from 'remark-mdxjs';
 import { defaultHandlers, heading } from 'hast-util-to-mdast';
-import u from 'unist-builder';
+import { u } from 'unist-builder';
 import { last } from 'lodash';
 
 const handlers = require('./utils/handlers');

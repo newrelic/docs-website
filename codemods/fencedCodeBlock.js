@@ -22,4 +22,4 @@ const fencedCodeBlock = () => (tree) => {
   );
 };
 
-module.exports = fencedCodeBlock;
+export default fencedCodeBlock;

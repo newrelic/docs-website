@@ -8,11 +8,11 @@ const {
   deserializeJSValue,
 } = require('./deserialization-helpers');
 const yaml = require('js-yaml');
-const u = require('unist-builder');
+import { u } from 'unist-builder';
 const toString = require('mdast-util-to-string');
 const { omit } = require('lodash');
 
-module.exports = {
+const handler = {
   CodeBlock: {
     serialize: (h, node) =>
       h(node, 'pre', {
@@ -418,3 +418,5 @@ module.exports = {
     serialize: serializeComponent,
   },
 };
+
+export default handler;

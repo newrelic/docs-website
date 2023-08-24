@@ -25,4 +25,4 @@ const visitor = () => (tree) => {
   });
 };
 
-module.exports = visitor;
+export default visitor;

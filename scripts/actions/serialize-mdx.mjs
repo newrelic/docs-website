@@ -8,11 +8,15 @@ import remarkMdx from 'remark-mdx';
 import remarkMdxjs from 'remark-mdxjs';
 import rehypeStringify from 'rehype-stringify';
 import addClasses from 'rehype-add-classes';
-import rehypeFormat from 'rehype-format';
+import { rehypeFormat } from 'rehype-format';
 
-const handlers = require('./utils/handlers');
-const fencedCodeBlock = require('../../codemods/fencedCodeBlock');
-const customHeadingIds = require('../../plugins/gatsby-remark-custom-heading-ids/utils/visitor');
+import handlers from './utils/handlers';
+import fencedCodeBlock from '../../codemods/fencedCodeBlock';
+import { visitor as customHeadingIds } from '../../plugins/gatsby-remark-custom-heading-ids/utils/visitor';
+
+// const handlers = require('./utils/handlers');
+// const fencedCodeBlock = require('../../codemods/fencedCodeBlock');
+// const customHeadingIds = require('../../plugins/gatsby-remark-custom-heading-ids/utils/visitor');
 
 const mdxElement = (h, node) => {
   const handler = handlers[node.name];
