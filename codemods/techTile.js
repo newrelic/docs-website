@@ -12,7 +12,7 @@ const {
   mdxValueExpression,
   mdxBlockElement,
   mdxSpanElement,
-} = require('./utils/mdxast-builder');
+} = require('./utils/mdxast-builder.mjs');
 const { root } = require('mdast-builder');
 const stringify = require('./utils/mdxast-stringify');
 const toString = require('mdast-util-to-string');

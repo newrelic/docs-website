@@ -1,6 +1,6 @@
 const { curry } = require('lodash/fp');
 const convert = require('unist-util-is/convert');
-const { mdxAttribute } = require('./mdxast-builder');
+const { mdxAttribute } = require('./mdxast-builder.mjs');
 
 const isType = curry((type, node) => node.type === type);
 

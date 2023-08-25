@@ -19,7 +19,8 @@ const removeParagraphs = () => (tree) => {
 // are just strings that look like JS objects.
 // this uses `eval` to "parse" them into actual JS objects,
 // so we can `JSON.stringify them`.
-const createJsonStr = (str) => JSON.stringify(eval(`const obj = ${str}; obj`));
+export const createJsonStr = (str) =>
+  JSON.stringify(eval(`const obj = ${str}; obj`));
 
 const attributeProcessor = unified()
   .use(toMDAST)
@@ -27,7 +28,7 @@ const attributeProcessor = unified()
   .use(remarkMdxjs)
   .use(removeParagraphs);
 
-const serializeAttributeValue = (h, attribute) => {
+export const serializeAttributeValue = (h, attribute) => {
   if (typeof attribute === 'string') {
     return u('text', attribute);
   }
@@ -42,7 +43,7 @@ const serializeAttributeValue = (h, attribute) => {
   throw new Error('Unable to handle attribute');
 };
 
-const serializeTextProp = (h, node, propName) => {
+export const serializeTextProp = (h, node, propName) => {
   const attribute = findAttribute(propName, node);
 
   if (!attribute) {
@@ -54,10 +55,10 @@ const serializeTextProp = (h, node, propName) => {
   ]);
 };
 
-const serializeJSValue = (value) =>
+export const serializeJSValue = (value) =>
   Buffer.from(JSON.stringify(value)).toString('base64');
 
-const serializeProps = (node) => {
+export const serializeProps = (node) => {
   if (node.attributes.length === 0) {
     return null;
   }
@@ -69,7 +70,7 @@ const serializeProps = (node) => {
   );
 };
 
-const serializeComponent = (
+export const serializeComponent = (
   h,
   node,
   {
@@ -114,12 +115,3 @@ const getComponentName = (node) =>
 
 const stripNulls = (obj) =>
   Object.fromEntries(Object.entries(obj).filter(([, value]) => value != null));
-
-module.exports = {
-  createJsonStr,
-  serializeComponent,
-  serializeProps,
-  serializeTextProp,
-  serializeJSValue,
-  serializeAttributeValue,
-};

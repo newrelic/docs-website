@@ -11,7 +11,7 @@ import { defaultHandlers, heading } from 'hast-util-to-mdast';
 import { u } from 'unist-builder';
 import { last } from 'lodash';
 
-const handlers = require('./utils/handlers');
+const handlers = require('./utils/handlers.mjs');
 const yaml = require('js-yaml');
 const { configuration } = require('./configuration');
 

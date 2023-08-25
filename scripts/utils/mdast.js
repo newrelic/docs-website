@@ -1,4 +1,4 @@
-const yaml = require('js-yaml');
+import yaml from 'js-yaml';
 import { u } from 'unist-builder';
 
 const frontmatter = (attributes) => u('yaml', yaml.safeDump(attributes).trim());

@@ -10,7 +10,7 @@ const {
 } = require('./utils/mdxast');
 const is = require('unist-util-is');
 const toString = require('mdast-util-to-string');
-const { mdxBlockElement } = require('./utils/mdxast-builder');
+const { mdxBlockElement } = require('./utils/mdxast-builder.mjs');
 
 const isLandingPageTile = isMdxBlockElement('LandingPageTile');
 const isTitleLink = (node) =>

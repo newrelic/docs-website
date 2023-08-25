@@ -4,7 +4,7 @@ const {
   mdxSpanElement,
   mdxSpanExpression,
   mdxValueExpression,
-} = require('./mdxast-builder');
+} = require('./mdxast-builder.mjs');
 const { camelCase } = require('lodash');
 const path = require('path');
 const util = require('util');

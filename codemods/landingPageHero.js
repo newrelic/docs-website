@@ -1,5 +1,5 @@
 const visit = require('unist-util-visit');
-const { mdxBlockElement } = require('./utils/mdxast-builder');
+const { mdxBlockElement } = require('./utils/mdxast-builder.mjs');
 
 const containsImage = (node) => {
   if (node.type === 'image') {
