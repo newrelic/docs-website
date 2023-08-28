@@ -7,7 +7,7 @@ const {
   removeAttribute,
   removeChild,
   setAttribute,
-} = require('./utils/mdxast');
+} = require('./utils/mdxast.mjs');
 const toString = require('mdast-util-to-string');
 const toJSXExpression = require('./utils/to-jsx-expression');
 

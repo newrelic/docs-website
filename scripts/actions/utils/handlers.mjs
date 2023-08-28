@@ -2,24 +2,27 @@ import {
   createJsonStr,
   serializeComponent,
   serializeJSValue,
-} from './serialization-helpers';
+} from './serialization-helpers.mjs';
 import {
   deserializeComponent,
   deserializeJSValue,
 } from './deserialization-helpers.mjs';
 import yaml from 'js-yaml';
-import u from 'unist-builder';
+import { u } from 'unist-builder';
 import { toString } from 'mdast-util-to-string';
-import { omit } from 'lodash';
+import { omit } from 'lodash-es';
 
 const handler = {
   CodeBlock: {
-    serialize: (h, node) =>
-      h(node, 'pre', {
+    serialize: (h, node) => {
+      console.log('I SAID WEEE');
+
+      return h(node, 'pre', {
         'data-type': 'component',
         'data-component': 'CodeBlock',
         'data-props': serializeJSValue(omit(node, ['type'])),
-      }),
+      });
+    },
     deserialize: (h, node) =>
       h(node, 'code', deserializeJSValue(node.properties.dataProps)),
   },
@@ -48,12 +51,12 @@ const handler = {
         node,
         'yaml',
         yaml
-          .safeDump({ ...data, ...frontMatterAtt }, { lineWidth: Infinity })
+          .dump({ ...data, ...frontMatterAtt }, { lineWidth: Infinity })
           .trim()
       );
     },
     serialize: (h, node) => {
-      const data = yaml.safeLoad(node.value);
+      const data = yaml.load(node.value);
       const serializeValue = (name) =>
         data[name] &&
         h(node, 'div', { 'data-key': name }, [u('text', data[name])]);
@@ -188,8 +191,10 @@ const handler = {
     serialize: serializeComponent,
   },
   InlineCode: {
-    deserialize: (h, node) =>
-      h(node, 'mdxSpanElement', { name: 'InlineCode' }, node.children),
+    deserialize: (h, node) => {
+      console.log('WEE');
+      return h(node, 'mdxSpanElement', { name: 'InlineCode' }, node.children);
+    },
     serialize: (h, node) => {
       return h(
         node,

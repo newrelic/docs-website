@@ -3,7 +3,7 @@ const {
   addAttribute,
   isMdxBlockElement,
   removeAttribute,
-} = require('./utils/mdxast');
+} = require('./utils/mdxast.mjs');
 
 const SPECIAL_VARIANTS = {
   permissions: 'tip',

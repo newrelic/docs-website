@@ -1,5 +1,5 @@
 const Database = require('../database');
-const { vendorRequest } = require('../../utils/vendor-request');
+const { vendorRequest } = require('../../utils/vendor-request.mjs');
 
 const PROJECT_ID = process.env.TRANSLATION_VENDOR_PROJECT;
 

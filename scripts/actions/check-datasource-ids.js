@@ -1,11 +1,11 @@
-const { fetchNRGraphqlResults } = require('../utils/nr-graphql-helpers');
-const { fetchPaginatedGHResults } = require('./utils/github-api-helpers');
-const fs = require('fs');
-const path = require('path');
-const frontmatter = require('@github-docs/frontmatter');
-const { Command } = require('commander');
-const { prop } = require('../utils/functional');
-const { get } = require('lodash');
+import { fetchNRGraphqlResults } from '../utils/nr-graphql-helpers.mjs';
+import { fetchPaginatedGHResults } from './utils/github-api-helpers.mjs';
+import fs from 'fs';
+import path from 'path';
+import frontmatter from '@github-docs/frontmatter';
+import { Command } from 'commander';
+import { prop } from '../utils/functional';
+import { get } from 'lodash-es';
 
 const DATASOURCE_ID_QUERY = `# gql 
 query DataSourceIdQuery {

@@ -7,7 +7,7 @@ const {
   hasClassName,
   removeChild,
   setAttribute,
-} = require('./utils/mdxast');
+} = require('./utils/mdxast.mjs');
 const toJSXExpression = require('./utils/to-jsx-expression');
 
 const clamshells = () => (tree, file) => {

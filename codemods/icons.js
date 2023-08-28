@@ -5,7 +5,7 @@ const {
   isMdxElement,
   removeAttribute,
   addAttribute,
-} = require('./utils/mdxast');
+} = require('./utils/mdxast.mjs');
 
 const ICON_NAME = /\bfa-((?!\d)[a-z-]+\b)/;
 const ICON_SIZE = /fa-(\d)x/;

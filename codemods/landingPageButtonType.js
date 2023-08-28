@@ -1,5 +1,5 @@
 const visit = require('unist-util-visit');
-const { isMdxBlockElement, setAttribute } = require('./utils/mdxast');
+const { isMdxBlockElement, setAttribute } = require('./utils/mdxast.mjs');
 
 const landingPageButtonType = () => (tree, file) => {
   if (file.data.doc.type !== 'landing_page') {

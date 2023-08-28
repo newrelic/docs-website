@@ -5,7 +5,7 @@ const {
   findAttribute,
   isMdxBlockElement,
   hasClassName,
-} = require('./utils/mdxast');
+} = require('./utils/mdxast.mjs');
 const {
   mdxAttribute,
   mdxImport,

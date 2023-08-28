@@ -1,5 +1,9 @@
 const visit = require('unist-util-visit');
-const { isMdxElement, hasAttribute, setAttribute } = require('./utils/mdxast');
+const {
+  isMdxElement,
+  hasAttribute,
+  setAttribute,
+} = require('./utils/mdxast.mjs');
 const is = require('unist-util-is');
 
 const TOC_LINK = /\?toc=true$/;

@@ -1,7 +1,7 @@
 const { Command } = require('commander');
 const {
   addFilesToTranslationQueue,
-} = require('./add-files-to-translation-queue');
+} = require('./add-files-to-translation-queue.mjs');
 
 const getCommandLineOptions = () => {
   const program = new Command();

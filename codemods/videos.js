@@ -3,7 +3,7 @@ const {
   addAttribute,
   findAttribute,
   isMdxBlockElement,
-} = require('./utils/mdxast');
+} = require('./utils/mdxast.mjs');
 
 const getVideoProps = (src) => {
   if (src.startsWith('//')) {

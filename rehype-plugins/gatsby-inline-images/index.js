@@ -1,4 +1,4 @@
-const visit = require('unist-util-visit');
+const { visit } = require('unist-util-visit');
 const phrasing = require('hast-util-phrasing');
 const is = require('hast-util-is-element');
 const has = require('hast-util-has-property');

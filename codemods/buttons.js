@@ -4,7 +4,7 @@ const {
   addAttribute,
   hasClassName,
   findAttribute,
-} = require('./utils/mdxast');
+} = require('./utils/mdxast.mjs');
 
 const VARIANT = /\bbtn-((?!lg)[a-z]+\b)/;
 const VARIANTS = { primary: 'primary', secondary: 'link' };

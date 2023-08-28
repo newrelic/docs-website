@@ -4,7 +4,7 @@ import frontmatter from 'front-matter';
 import * as fs from 'fs/promises';
 import { glob } from 'glob10';
 import yaml from 'js-yaml';
-import _ from 'lodash';
+import _ from 'lodash-es';
 import { mkdirp } from 'mkdirp';
 
 /**
@@ -76,17 +76,16 @@ let attributeStrs = await Promise.all(
 attributeStrs
   .map(([path, attributeStr]) => [path, frontmatter(attributeStr)])
   .forEach(([path, { attributes: mdAttributes, body }]) => {
-    const qualifiedName = `${getParentFromPath(path)}/${mdAttributes.name}`
+    const qualifiedName = `${getParentFromPath(path)}/${mdAttributes.name}`;
     attributes.set(qualifiedName, {
       ...mdAttributes,
       body,
       fsPath: path,
-    })
-  }
-  );
+    });
+  });
 
 for (const [qualifiedName, attribute] of attributes) {
-  const parent = qualifiedName.split('/')[0]
+  const parent = qualifiedName.split('/')[0];
 
   attribute.events
     .filter((event) => event !== parent)

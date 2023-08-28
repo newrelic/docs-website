@@ -1,23 +1,23 @@
 #!/usr/bin/env node
 
 import { unified } from 'unified';
-import remarkParse from 'remark-parse';
-import { rehypeRemark } from 'rehype-remark';
+import rehypeParse from 'rehype-parse';
+import rehypeRemark from 'rehype-remark';
 import remarkStringify from 'remark-stringify';
 import remarkFrontmatter from 'remark-frontmatter';
 import remarkMdx from 'remark-mdx';
-import remarkMdxjs from 'remark-mdxjs';
-import { defaultHandlers, heading } from 'hast-util-to-mdast';
-import { u } from 'unist-builder';
-import { last } from 'lodash';
+import { toMdast } from 'hast-util-to-mdast';
 
-const handlers = require('./utils/handlers.mjs');
-const yaml = require('js-yaml');
-const { configuration } = require('./configuration');
+import { u } from 'unist-builder';
+import { last } from 'lodash-es';
+
+import handlers from './utils/handlers.mjs';
+import yaml from 'js-yaml';
+import { configuration } from './configuration.mjs';
 
 const component = (h, node) => {
   if (!node.properties || !node.properties.dataType) {
-    return defaultHandlers[node.tagName](h, node);
+    return toMdast(node);
   }
 
   const { dataType, dataComponent } = node.properties;
@@ -28,7 +28,6 @@ const component = (h, node) => {
 
   const key =
     dataType === 'component' ? dataComponent || node.tagName : dataType;
-
   const handler = handlers[key];
 
   if (!handler || !handler.deserialize) {
@@ -36,14 +35,12 @@ const component = (h, node) => {
       `Unable to deserialize node: '${key}'. Please specify a deserializer in 'scripts/actions/utils/handlers.js'`
     );
   }
-
   return handler.deserialize(h, node);
 };
 
 const headingWithCustomId = (h, node) => {
-  const result = heading(h, node);
+  const result = toMdast(node);
   const { id } = node.properties || {};
-
   if (!id) {
     return result;
   }
@@ -90,7 +87,7 @@ const stripTranslateFrontmatter = () => {
 };
 
 const processor = unified()
-  .use(remarkParse)
+  .use(rehypeParse)
   .use(rehypeRemark, {
     handlers: {
       code: component,
@@ -119,14 +116,44 @@ const processor = unified()
     listItemIndent: '1',
   })
   .use(remarkMdx)
-  .use(remarkMdxjs)
   .use(remarkFrontmatter, ['yaml'])
   .use(stripTranslateFrontmatter);
 
-const deserializeHTML = async (html) => {
-  const { contents } = await processor.process(html);
+// const processor = unified()
+//   .use(rehypeParse)
+//   .use(rehypeRemark, {
+//     handlers: {
+//       code: component,
+//       table: component,
+//       thead: component,
+//       tbody: component,
+//       tr: component,
+//       td: component,
+//       th: component,
+//       span: component,
+//       div: component,
+//       pre: component,
+//       var: component,
+//       mark: component,
+//       h1: headingWithCustomId,
+//       h2: headingWithCustomId,
+//       h3: headingWithCustomId,
+//       h4: headingWithCustomId,
+//       h5: headingWithCustomId,
+//       h6: headingWithCustomId,
+//     },
+//   })
+//   .use(remarkStringify, {
+//     bullet: '*',
+//     fences: true,
+//     listItemIndent: '1',
+//   })
+//   .use(remarkMdx);
 
-  return contents.trim();
+const deserializeHTML = async (html) => {
+  const file = await processor.processSync(html).value;
+  console.log(file);
+  return file;
 };
 
 export default deserializeHTML;

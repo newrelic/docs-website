@@ -8,7 +8,7 @@ const NAV_DIR = path.join(process.cwd(), '/src/nav');
 
 const navData = fs.readdirSync(NAV_DIR).map((filename) => {
   const filepath = path.join(NAV_DIR, filename);
-  const yamlData = yaml.safeLoad(fs.readFileSync(filepath, 'utf8'));
+  const yamlData = yaml.load(fs.readFileSync(filepath, 'utf8'));
   return vfile({
     contents: fs.readFileSync(filepath, 'utf8'),
     path: filepath,
@@ -33,7 +33,7 @@ const removePaths = (obj, topLevelPath) => {
 
 navData.forEach((file) => {
   const contentDataRemovedPaths = removePaths(
-    yaml.safeLoad(file.contents),
+    yaml.load(file.contents),
     file.data.topLevelPath
   );
 

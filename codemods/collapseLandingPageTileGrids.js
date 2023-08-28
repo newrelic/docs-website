@@ -1,5 +1,5 @@
 const visit = require('unist-util-visit');
-const { isMdxBlockElement, removeChild } = require('./utils/mdxast');
+const { isMdxBlockElement, removeChild } = require('./utils/mdxast.mjs');
 
 const collapseLandingPageTileGrids = () => (tree, file) => {
   if (file.data.doc.type !== 'landing_page') {

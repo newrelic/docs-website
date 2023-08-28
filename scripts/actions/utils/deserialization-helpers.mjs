@@ -1,15 +1,17 @@
-const deserializeJSValue = (value) => JSON.parse(Buffer.from(value, 'base64'));
-import { all } from 'hast-util-to-mdast';
+import { toMdast } from 'hast-util-to-mdast';
 import remarkMdx from 'remark-mdx';
 import remarkMdxjs from 'remark-mdxjs';
 import remarkStringify from 'remark-stringify';
-import unified from 'unified';
+import { unified } from 'unified';
 import {
   mdxAttribute,
   mdxValueExpression,
 } from '../../../codemods/utils/mdxast-builder.mjs';
-import visit from 'unist-util-visit';
+import { visit } from 'unist-util-visit';
 import { u } from 'unist-builder';
+
+export const deserializeJSValue = (value) =>
+  JSON.parse(Buffer.from(value, 'base64'));
 
 const hasChildren = (node) => node.children && node.children.length;
 
@@ -56,7 +58,6 @@ export const deserializeComponent = (
   const props = dataProps ? deserializeJSValue(dataProps) : [];
   const inferredType =
     node.tagName === 'span' ? 'mdxSpanElement' : 'mdxBlockElement';
-
   const hasWrappedChildren = hasChildren(node)
     ? node.children.some(
         (node) => node.properties && node.properties.dataProp === 'children'
@@ -86,7 +87,6 @@ export const deserializeComponent = (
           ...attributes.slice(idx + 1),
         ];
   }, props);
-
   const newNode = h(
     node,
     type || inferredType,
@@ -94,8 +94,7 @@ export const deserializeComponent = (
       name: name === 'React.Fragment' ? null : name,
       attributes,
     },
-    childrenNode && hasChildrenProp ? all(h, childrenNode) : []
+    childrenNode && hasChildrenProp ? toMdast(childrenNode) : []
   );
-
   return newNode;
 };

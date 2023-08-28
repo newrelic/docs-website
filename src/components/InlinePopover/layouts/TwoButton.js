@@ -1,7 +1,7 @@
 import React from 'react';
 import { css } from '@emotion/react';
 import styled from '@emotion/styled';
-import { capitalize } from 'lodash';
+import { capitalize } from 'lodash-es';
 
 import {
   Button,

@@ -14,7 +14,7 @@ const {
   containsImport,
   findAttribute,
   addAttribute,
-} = require('./mdxast');
+} = require('./mdxast.mjs');
 const { root, text } = require('mdast-builder');
 const stringify = require('./mdxast-stringify');
 

@@ -1,5 +1,5 @@
 const visit = require('unist-util-visit');
-const { isMdxBlockElement } = require('./utils/mdxast');
+const { isMdxBlockElement } = require('./utils/mdxast.mjs');
 
 const imageSizing = () => (tree) => {
   visit(tree, isMdxBlockElement('ImageSizing'), (node, idx, parent) => {

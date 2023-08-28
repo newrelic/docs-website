@@ -1,4 +1,4 @@
-const { isMdxBlockElement } = require('./utils/mdxast');
+const { isMdxBlockElement } = require('./utils/mdxast.mjs');
 
 const landingPageImagePlacement = () => (tree, file) => {
   if (file.data.doc.type !== 'landing_page') {

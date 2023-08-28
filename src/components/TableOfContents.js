@@ -6,7 +6,7 @@ import { useMedia } from 'react-use';
 import { Icon, PageTools } from '@newrelic/gatsby-theme-newrelic';
 import useActiveHash from '../hooks/useActiveHash';
 import GithubSlugger from 'github-slugger';
-import { parseHeading } from '../../plugins/gatsby-remark-custom-heading-ids/utils/heading';
+import { parseHeading } from '../../plugins/gatsby-remark-custom-heading-ids/utils/heading.mjs';
 
 const prop = (name) => (obj) => obj[name];
 

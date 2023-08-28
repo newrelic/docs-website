@@ -1,6 +1,6 @@
 const visit = require('unist-util-visit');
 const toString = require('mdast-util-to-string');
-const { isMdxElement } = require('./utils/mdxast');
+const { isMdxElement } = require('./utils/mdxast.mjs');
 
 const inlineCodeBlock = () => (tree) => {
   visit(

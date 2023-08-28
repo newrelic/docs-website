@@ -1,6 +1,6 @@
 import React from 'react';
 import PropTypes from 'prop-types';
-import { capitalize } from 'lodash';
+import { capitalize } from 'lodash-es';
 import { PopoverButton, useLocale } from '@newrelic/gatsby-theme-newrelic';
 
 import enJson from '../../data/popovers_en.json';

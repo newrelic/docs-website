@@ -7,7 +7,7 @@ const {
   findAttribute,
   setAttribute,
   removeChild,
-} = require('./utils/mdxast');
+} = require('./utils/mdxast.mjs');
 const is = require('unist-util-is');
 const toString = require('mdast-util-to-string');
 const { mdxBlockElement } = require('./utils/mdxast-builder.mjs');

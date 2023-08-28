@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/react';
 import { graphql } from 'gatsby';
-import { takeWhile } from 'lodash';
+import { takeWhile } from 'lodash-es';
 import { CSSTransition } from 'react-transition-group';
 import { createLocalStorageStateHook } from 'use-local-storage-state';
 import DocPageBanner from '../components/DocPageBanner';
