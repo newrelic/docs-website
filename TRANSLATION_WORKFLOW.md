@@ -12,10 +12,8 @@ The translation process has the following high-level steps:
 
 1. When a PR to main is merged, if it includes translatable files, queue those files up to be translated.
 2. Submit queued translation requests to vendor.
-
-   - We have a batching function that will only allow us to fetch 50 file URIs at a time. This is due to the TV API design where file URIs are fetched via query parameters instead of part of the body of the API request.
-
 3. Check for finished translations, download translated files and add them to the repo.
+   - We have a batching function that will only allow us to fetch 50 file URIs at a time. This is due to the TV API design where file URIs are fetched via query parameters instead of part of the body of the API request.
 
 Additionally, we've recently added the ability to have content be machine translated, but the process is ultimately still the same, we just decide in the first step if content should be machine or human translated.
 
@@ -214,7 +212,7 @@ This is a case we hopefully wouldn’t run into, since we are constantly keeping
 
 If the file can be identified and has not been labelled as a COMPLETED entry in the DB AND the file cannot be found in the TV UI as complete or listed as IN_PROGRESS, our current fix is to delete the file entry in the DB and let the process start from the beginning for this particular file by manually triggering an upload/queue of the file impacted.
 
-#### Helpful Queries in the PostgresDB:
+### A file attains the status of "ERRORED" in the DB.
 
 # Key concepts / Glossary
 
@@ -275,7 +273,7 @@ In this, we take our mdx components and convert them into plain html. We specifi
 
 When getting this content back from TV, we get back the same format that we sent it to them with the strings replaced with the translated strings. Then we take all the “serialized” components and convert them back into mdx, and take the file and save it as mdx.
 
-This can be tested via the `yarn serialize` && `yarn deserialize` scripts
+This can be tested via the `yarn serialize` && `yarn deserialize` scripts. These scripts are used by passing a file path to them and will output the result of the function to the terminal. ex: `yarn serialize path/to/file.mdx`.
 
 # Gatsby Cloud
 
