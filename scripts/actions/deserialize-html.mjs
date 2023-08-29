@@ -122,9 +122,8 @@ const processor = unified()
   });
 
 const deserializeHTML = async (html) => {
-  const file = await processor.processSync(html).value;
-  console.log(file);
-  return file;
+  const { value } = await processor.processSync(html);
+  return value;
 };
 
 export default deserializeHTML;
