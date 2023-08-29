@@ -280,7 +280,8 @@ const handler = {
       });
 
       data.attributes = stuff;
-
+      // temporary until translations with the old type all come through
+      data.type = 'mdxJsxFlowElement';
       return h(node, 'mdxJsxFlowElement', data);
     },
     serialize: (h, node) => {
