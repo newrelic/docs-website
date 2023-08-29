@@ -12,6 +12,8 @@ import { Command } from 'commander';
 
 import getAgentName from '../src/utils/getAgentName.js';
 import getEOLDate from '../src/utils/getEOLDate.js';
+import fs from 'fs';
+import path from 'path';
 
 const program = new Command();
 program
@@ -124,5 +126,10 @@ if (uploadToS3) {
       console.error(err);
     });
 } else {
-  console.log(JSON.stringify(releaseNotes));
+  console.log('Writing JSON to file');
+  fs.writeFileSync(
+    path.join(process.cwd(), 'release-note.json'),
+    JSON.stringify(releaseNotes, null, 2),
+    'utf-8'
+  );
 }
