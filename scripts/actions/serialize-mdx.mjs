@@ -37,8 +37,6 @@ const processor = unified()
     handlers: {
       import: handlers.import.serialize,
       yaml: handlers.frontmatter.serialize,
-      mdxSpanElement: mdxElement,
-      mdxBlockElement: mdxElement,
       code: handlers.CodeBlock.serialize,
     },
   })
