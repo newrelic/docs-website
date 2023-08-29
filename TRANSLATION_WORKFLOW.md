@@ -212,7 +212,13 @@ This is a case we hopefully wouldn’t run into, since we are constantly keeping
 
 If the file can be identified and has not been labelled as a COMPLETED entry in the DB AND the file cannot be found in the TV UI as complete or listed as IN_PROGRESS, our current fix is to delete the file entry in the DB and let the process start from the beginning for this particular file by manually triggering an upload/queue of the file impacted.
 
-### A file attains the status of "ERRORED" in the DB.
+### A file errors during deserialization.
+
+Individual files won't be marked as `ERRORED` in the DB the same way Jobs will be. In order to see a list of files that have errored during the fetch/deserialization process (the "Check status of translation jobs" github action) a NRQL query can be run in the NR staging env:
+
+`SELECT slug, locale from TranslationWorkflowError where target = 'file' and workflow = 'checkTranslationsAndDeserialize' since 1 month ago limit 100`
+
+When this occurs, we'll need to update the translation engine being used in TV. This is usually done by our i18n specialist.
 
 # Key concepts / Glossary
 
