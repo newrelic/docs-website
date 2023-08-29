@@ -6,6 +6,7 @@ import rehypeRemark from 'rehype-remark';
 import remarkStringify from 'remark-stringify';
 import remarkFrontmatter from 'remark-frontmatter';
 import remarkMdx from 'remark-mdx';
+import remarkGfm from 'remark-gfm';
 import { toMdast } from 'hast-util-to-mdast';
 
 import { u } from 'unist-builder';
@@ -110,45 +111,15 @@ const processor = unified()
       h6: headingWithCustomId,
     },
   })
+  .use(remarkGfm)
+  .use(remarkMdx)
+  .use(remarkFrontmatter, ['yaml'])
+  .use(stripTranslateFrontmatter)
   .use(remarkStringify, {
     bullet: '*',
     fences: true,
     listItemIndent: '1',
-  })
-  .use(remarkMdx)
-  .use(remarkFrontmatter, ['yaml'])
-  .use(stripTranslateFrontmatter);
-
-// const processor = unified()
-//   .use(rehypeParse)
-//   .use(rehypeRemark, {
-//     handlers: {
-//       code: component,
-//       table: component,
-//       thead: component,
-//       tbody: component,
-//       tr: component,
-//       td: component,
-//       th: component,
-//       span: component,
-//       div: component,
-//       pre: component,
-//       var: component,
-//       mark: component,
-//       h1: headingWithCustomId,
-//       h2: headingWithCustomId,
-//       h3: headingWithCustomId,
-//       h4: headingWithCustomId,
-//       h5: headingWithCustomId,
-//       h6: headingWithCustomId,
-//     },
-//   })
-//   .use(remarkStringify, {
-//     bullet: '*',
-//     fences: true,
-//     listItemIndent: '1',
-//   })
-//   .use(remarkMdx);
+  });
 
 const deserializeHTML = async (html) => {
   const file = await processor.processSync(html).value;
