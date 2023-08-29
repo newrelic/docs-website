@@ -15,8 +15,6 @@ import { omit } from 'lodash-es';
 const handler = {
   CodeBlock: {
     serialize: (h, node) => {
-      console.log('I SAID WEEE');
-
       return h(node, 'pre', {
         'data-type': 'component',
         'data-component': 'CodeBlock',
@@ -30,11 +28,11 @@ const handler = {
     deserialize: (h, node) => {
       const value = Buffer.from(node.properties.dataValue, 'base64').toString();
 
-      return h(node, 'import', value);
+      return h(node, 'mdxjsEsm', value);
     },
     serialize: (h, node) =>
       h(node, 'div', {
-        'data-type': 'import',
+        'data-type': 'mdxjsEsm',
         'data-value': Buffer.from(node.value).toString('base64'),
       }),
   },
@@ -192,8 +190,12 @@ const handler = {
   },
   InlineCode: {
     deserialize: (h, node) => {
-      console.log('WEE');
-      return h(node, 'mdxSpanElement', { name: 'InlineCode' }, node.children);
+      return h(
+        node,
+        'mdxJsxTextElement',
+        { name: 'InlineCode' },
+        node.children
+      );
     },
     serialize: (h, node) => {
       return h(
@@ -279,7 +281,7 @@ const handler = {
 
       data.attributes = stuff;
 
-      return h(node, 'mdxBlockElement', data);
+      return h(node, 'mdxJsxFlowElement', data);
     },
     serialize: (h, node) => {
       const serializeAttribute = (name, attribute) => {
@@ -359,7 +361,7 @@ const handler = {
   },
   var: {
     deserialize: (h, node) =>
-      deserializeComponent(h, node, { type: 'mdxSpanElement' }),
+      deserializeComponent(h, node, { type: 'mdxJsxTextElement' }),
     serialize: (h, node) =>
       serializeComponent(h, node, {
         wrapChildren: false,
@@ -369,7 +371,7 @@ const handler = {
   },
   mark: {
     deserialize: (h, node) =>
-      deserializeComponent(h, node, { type: 'mdxSpanElement' }),
+      deserializeComponent(h, node, { type: 'mdxJsxTextElement' }),
     serialize: (h, node) =>
       serializeComponent(h, node, {
         wrapChildren: false,

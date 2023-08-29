@@ -57,7 +57,7 @@ export const deserializeComponent = (
   const name = dataComponent || node.tagName;
   const props = dataProps ? deserializeJSValue(dataProps) : [];
   const inferredType =
-    node.tagName === 'span' ? 'mdxSpanElement' : 'mdxBlockElement';
+    node.tagName === 'span' ? 'mdxJsxTextElement' : 'mdxJsxFlowElement';
   const hasWrappedChildren = hasChildren(node)
     ? node.children.some(
         (node) => node.properties && node.properties.dataProp === 'children'
@@ -94,7 +94,7 @@ export const deserializeComponent = (
       name: name === 'React.Fragment' ? null : name,
       attributes,
     },
-    childrenNode && hasChildrenProp ? toMdast(childrenNode) : []
+    childrenNode && hasChildrenProp ? toMdast(childrenNode).children : []
   );
   return newNode;
 };
