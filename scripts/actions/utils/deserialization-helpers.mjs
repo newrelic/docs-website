@@ -1,4 +1,4 @@
-import { toMdast } from 'hast-util-to-mdast';
+import { all } from 'hast-util-to-mdast';
 import remarkMdx from 'remark-mdx';
 import remarkMdxjs from 'remark-mdxjs';
 import remarkStringify from 'remark-stringify';
@@ -87,6 +87,7 @@ export const deserializeComponent = (
           ...attributes.slice(idx + 1),
         ];
   }, props);
+
   const newNode = h(
     node,
     type || inferredType,
@@ -94,7 +95,7 @@ export const deserializeComponent = (
       name: name === 'React.Fragment' ? null : name,
       attributes,
     },
-    childrenNode && hasChildrenProp ? toMdast(childrenNode).children : []
+    childrenNode && hasChildrenProp ? all(h, childrenNode) : []
   );
   return newNode;
 };
