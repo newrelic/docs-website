@@ -1,10 +1,10 @@
 ---
-title: Install EKS Fargate
+title: Install in EKS Fargate
 tags:
   - Integrations
   - Kubernetes integration
   - Installation
-metaDescription: How to install the EKS Fargate integration.
+metaDescription: How to install the Infrastructure Operator in EKS Fargate.
 redirects:
   - /docs/integrations/kubernetes-integration/installation/install-fargate-integration
   - /docs/kubernetes-pixie/kubernetes-integration/installation/install-fargate-integration
@@ -107,44 +107,79 @@ First, add the New Relic Helm repository if you have not done so before:
 helm repo add newrelic https://helm-charts.newrelic.com
 ```
 
-Then, in order to install the operator in charge of injecting the infrastructure sidecar, please create a file named `values-newrelic.yaml`, which will be used to define your configuration:
+Then, in order to install the operator in charge of injecting the infrastructure sidecar, please create a file named `values.yaml`, which will be used to define your configuration:
 
 ```yaml
-global:
-  licenseKey: _YOUR_NEW_RELIC_LICENSE_KEY_
-  cluster: _K8S_CLUSTER_NAME_
-  fargate: true  # Enable fargate support
+## Global values
 
-prometheus:
-  # Automatically scrape prometheus metrics for annotated services in the cluster
-  # Collecting prometheus metrics for large clusters might impact data usage significantly
-  enabled: true
-  lowDataMode: true  # Skip ingesting cluster-level metrics
-webhook:
-  # Deploy our webhook to link APM and Kubernetes entities
-  enabled: true
-kubeEvents:
-  # Report Kubernetes events
-  enabled: true
-logging:
-  # Report logs for containers running in the cluster
-  enabled: true
-ksm:
-  # Deploy kube-state-metrics in the cluster.
-  # Set this to true unless it is already deployed.
-  enabled: true
+global:
+  # -- The cluster name for the Kubernetes cluster.
+  cluster: "_YOUR_K8S_CLUSTER_NAME_"
+
+  # -- The license key for your New Relic Account. This will be preferred configuration option if both `licenseKey` and `customSecret` are specified.
+  licenseKey: "_YOUR_NEW_RELIC_LICENSE_KEY_"
+
+  # -- (bool) In each integration it has different behavior. Enables operating system metric collection on each EC2 K8s node. Not applicable to Fargate nodes.
+  # @default -- false
+  privileged: true
+
+  # -- (bool) Must be set to `true` when deploying in an EKS Fargate environment
+  # @default -- false
+  fargate: true
+
+## Enable nri-bundle sub-charts
+
 newrelic-infra-operator:
-  # Deploy the infrastructure operator, which will inject the monitoring sidecar on fargate pods
+  # Deploys the infrastructure operator, which injects the monitoring sidecar into Fargate pods
   enabled: true
+  tolerations: 
+    - key: "eks.amazonaws.com/compute-type"
+      operator: "Equal"
+      value: "fargate"
+      effect: "NoSchedule"
+  config:
+    ignoreMutationErrors: true
+    infraAgentInjection:
+      # Injection policies can be defined here.  See [values file](https://github.com/newrelic/newrelic-infra-operator/blob/main/charts/newrelic-infra-operator/values.yaml#L114-L125) for more detail.
+      policies:
+      - namespaceName: namespace-a
+      - namespaceName: namespace-b
+
+newrelic-infrastructure:
+  # Deploys the Infrastructure Daemonset to EC2 nodes.  Disable for Fargate-only clusters.
+  enabled: true
+
+nri-metadata-injection:
+  # Deploy our mutating admission webhook to link APM and Kubernetes entities
+  enabled: true
+
+kube-state-metrics:
+  # Deploys Kube State Metrics.  Disable if you are already running KSM in your cluster.
+  enabled: true
+
+nri-kube-events:
+  # Deploy the Kubernetes events integration.
+  enabled: true
+
+newrelic-logging:
+  # Deploys the New Relic's Fluent Bit daemonset to EC2 nodes.  Disable for Fargate-only clusters.
+  enabled: true
+
+newrelic-prometheus-agent:
+  # Deploys the Prometheus agent for scraping Prometheus endpoints.
+  enabled: true
+  config:
+    kubernetes:
+      integrations_filter:
+        enabled: true
+        source_labels: ["app.kubernetes.io/name", "app.newrelic.io/name", "k8s-app"]
+        app_values: ["redis", "traefik", "calico", "nginx", "coredns", "kube-dns", "etcd", "cockroachdb", "velero", "harbor", "argocd", "istio"]
 ```
 
 Finally, after creating and tweaking the file, you can deploy the solution using the following Helm command:
 
 ```shell
-helm upgrade --install newrelic newrelic/nri-bundle \
---namespace newrelic --create-namespace \
--f values-newrelic.yaml \
---devel
+helm upgrade --install newrelic-bundle newrelic/nri-bundle -n newrelic --create-namespace -f values.yaml
 ```
 
 <Callout variant="important">
@@ -435,7 +470,7 @@ Here's an example of what a Fargate node looks like in the New Relic UI:
 
 To view your AWS data:
 
-1. Go to **[one.newrelic.com](https://one.newrelic.com/all-capabilities) > Infrastructure > Kubernetes** and do one of the following:
+1. Go to **[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Infrastructure > Kubernetes** and do one of the following:
    * Select an integration name to view data.
    * Select the Explore data icon to view AWS data.
 2. Filter your data using two Fargate tags:

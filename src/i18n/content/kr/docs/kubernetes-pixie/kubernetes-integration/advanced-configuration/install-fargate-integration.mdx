@@ -1,10 +1,10 @@
 ---
-title: EKS Fargate 설치
+title: EKS Fargate에 설치
 tags:
   - Integrations
   - Kubernetes integration
   - Installation
-metaDescription: How to install the EKS Fargate integration.
+metaDescription: How to install the Infrastructure Operator in EKS Fargate.
 translationType: machine
 ---
 
@@ -49,7 +49,7 @@ EKS Fargate 클러스터에 New Relic 전체 관찰 가능성을 설치하기 �
 * [자동 주입(권장)](#automatic)
 * [수동 주입](#manual)
 
-선택한 접근 방식에 관계없이 설치 후 경험은 정확히 동일합니다. 유일한 차이점은 용기가 주입되는 방식입니다. 모니터링하려는 각 배포를 수동으로 편집할 필요가 없으므로 New Relic Infrastructure Operator로 자동 주입을 설정하는 것이 좋습니다.
+선택한 접근 방식에 관계없이 설치 후 경험은 완전히 동일합니다. 유일한 차이점은 컨테이너가 주입되는 방식입니다. 모니터링하려는 각 배포를 수동으로 편집할 필요가 없기 때문에 New Relic 인프라 모니터링 연산자로 자동 주입을 설정하는 것이 좋습니다.
 
 ### 자동 주입(권장) [#automatic]
 
@@ -111,44 +111,79 @@ EKS Fargate 클러스터에 New Relic 전체 관찰 가능성을 설치하기 �
 helm repo add newrelic https://helm-charts.newrelic.com
 ```
 
-그런 다음 인프라 사이드카 주입을 담당하는 운영자를 설치하려면 구성을 정의하는 데 사용할 `values-newrelic.yaml` 파일을 생성하세요.
+그런 다음 인프라 사이드카 주입을 담당하는 운영자를 설치하려면 구성을 정의하는 데 사용할 `values.yaml` 파일을 생성하세요.
 
 ```yaml
-global:
-  licenseKey: _YOUR_NEW_RELIC_LICENSE_KEY_
-  cluster: _K8S_CLUSTER_NAME_
-  fargate: true  # Enable fargate support
+## Global values
 
-prometheus:
-  # Automatically scrape prometheus metrics for annotated services in the cluster
-  # Collecting prometheus metrics for large clusters might impact data usage significantly
-  enabled: true
-  lowDataMode: true  # Skip ingesting cluster-level metrics
-webhook:
-  # Deploy our webhook to link APM and Kubernetes entities
-  enabled: true
-kubeEvents:
-  # Report Kubernetes events
-  enabled: true
-logging:
-  # Report logs for containers running in the cluster
-  enabled: true
-ksm:
-  # Deploy kube-state-metrics in the cluster.
-  # Set this to true unless it is already deployed.
-  enabled: true
+global:
+  # -- The cluster name for the Kubernetes cluster.
+  cluster: "_YOUR_K8S_CLUSTER_NAME_"
+
+  # -- The license key for your New Relic Account. This will be preferred configuration option if both `licenseKey` and `customSecret` are specified.
+  licenseKey: "_YOUR_NEW_RELIC_LICENSE_KEY_"
+
+  # -- (bool) In each integration it has different behavior. Enables operating system metric collection on each EC2 K8s node. Not applicable to Fargate nodes.
+  # @default -- false
+  privileged: true
+
+  # -- (bool) Must be set to `true` when deploying in an EKS Fargate environment
+  # @default -- false
+  fargate: true
+
+## Enable nri-bundle sub-charts
+
 newrelic-infra-operator:
-  # Deploy the infrastructure operator, which will inject the monitoring sidecar on fargate pods
+  # Deploys the infrastructure operator, which injects the monitoring sidecar into Fargate pods
   enabled: true
+  tolerations: 
+    - key: "eks.amazonaws.com/compute-type"
+      operator: "Equal"
+      value: "fargate"
+      effect: "NoSchedule"
+  config:
+    ignoreMutationErrors: true
+    infraAgentInjection:
+      # Injection policies can be defined here.  See [values file](https://github.com/newrelic/newrelic-infra-operator/blob/main/charts/newrelic-infra-operator/values.yaml#L114-L125) for more detail.
+      policies:
+      - namespaceName: namespace-a
+      - namespaceName: namespace-b
+
+newrelic-infrastructure:
+  # Deploys the Infrastructure Daemonset to EC2 nodes.  Disable for Fargate-only clusters.
+  enabled: true
+
+nri-metadata-injection:
+  # Deploy our mutating admission webhook to link APM and Kubernetes entities
+  enabled: true
+
+kube-state-metrics:
+  # Deploys Kube State Metrics.  Disable if you are already running KSM in your cluster.
+  enabled: true
+
+nri-kube-events:
+  # Deploy the Kubernetes events integration.
+  enabled: true
+
+newrelic-logging:
+  # Deploys the New Relic's Fluent Bit daemonset to EC2 nodes.  Disable for Fargate-only clusters.
+  enabled: true
+
+newrelic-prometheus-agent:
+  # Deploys the Prometheus agent for scraping Prometheus endpoints.
+  enabled: true
+  config:
+    kubernetes:
+      integrations_filter:
+        enabled: true
+        source_labels: ["app.kubernetes.io/name", "app.newrelic.io/name", "k8s-app"]
+        app_values: ["redis", "traefik", "calico", "nginx", "coredns", "kube-dns", "etcd", "cockroachdb", "velero", "harbor", "argocd", "istio"]
 ```
 
 마지막으로 파일을 만들고 조정한 후 다음 Helm 명령을 사용하여 솔루션을 배포할 수 있습니다.
 
 ```shell
-helm upgrade --install newrelic newrelic/nri-bundle \
---namespace newrelic --create-namespace \
--f values-newrelic.yaml \
---devel
+helm upgrade --install newrelic-bundle newrelic/nri-bundle -n newrelic --create-namespace -f values.yaml
 ```
 
 <Callout variant="important">
@@ -443,7 +478,7 @@ Fargate 노드에서 Infra `DaemonSet` 복제본이 예약되고 있는 것을 �
 
 AWS 데이터를 보려면:
 
-1. **[one.newrelic.com](https://one.newrelic.com/all-capabilities) > Infrastructure > Kubernetes** 로 이동하여 다음 중 하나를 수행합니다.
+1. **[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Infrastructure > Kubernetes** 로 이동하고 다음 중 하나를 수행합니다.
 
    * 데이터를 보려면 통합 이름을 선택하세요.
    * 데이터 탐색 아이콘을 선택하여 AWS 데이터를 봅니다.
