@@ -24,16 +24,19 @@ const waitForXPath = (xpath, timeout = TIMEOUT) =>
 const main = async () => {
   // running on develop builds because the url is static
   // github workflow triggers on PRs to main
-  await driver.get(
-    'https://docswebsitedevelop.gatsbyjs.io/docs/mdx-test-page/'
-  );
+  const testUrl =
+    process.env.WEBDRIVER_ENV === 'main'
+      ? 'https://docswebsitedevelop.gatsbyjs.io/'
+      : 'http://localhost:8000/';
+
+  await driver.get(testUrl + 'docs/mdx-test-page/');
 
   // order here matters — some tests scroll the page
   await collapserTest();
   await searchTest();
   await navTest();
 
-  await driver.get('https://docswebsitedevelop.gatsbyjs.io');
+  await driver.get(testUrl);
   await tileTest();
 
   // this step isn't necessary in synthetics
