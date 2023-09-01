@@ -29,7 +29,7 @@ const main = async () => {
   );
 
   // order here matters — some tests scroll the page
-  // await collapserTest();
+  await collapserTest();
   await searchTest();
   await navTest();
 
