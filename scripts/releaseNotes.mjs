@@ -86,13 +86,14 @@ const generateReleaseNoteObject = async (filePath) => {
     slug,
   };
 
-  if (attributes.releaseDate) {
+  if (attributes.eolDate) {
+    output.eolDate = attributes.eolDate;
+  } else if (attributes.releaseDate) {
     output.eolDate = getEOLDate(attributes.releaseDate);
   }
 
   return output;
 };
-
 const releaseNoteMdxs = await glob('src/content/docs/release-notes/**/*.mdx', {
   ignore: '**/index.mdx',
 });

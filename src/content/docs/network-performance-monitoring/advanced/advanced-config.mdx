@@ -16,6 +16,7 @@ If you want to explore all the options you can use when configuring the monitori
 Here's an example of the various configuration options available in the `snmp-base.yaml` file used by the **ktranslate** docker image to poll for SNMP and flow data devices. You can also see a heavily-commented sample in the [KTranslate repository on GitHub](https://github.com/kentik/ktranslate/blob/main/config/snmp.yaml.sample).
 
 ```yaml
+# Configuration of every device monitored by this container
 devices:
   # Sample of SNMP v2c device
   ups_snmpv2c__10.10.0.201:
@@ -133,14 +134,22 @@ devices:
       ext_only: true
       meraki_config:
         api_key: APIKEY123ABC
-        monitor_uplinks: true
+        monitor_clients: true
         monitor_devices: true
         monitor_org_changes: true
+        monitor_uplinks: true
+        monitor_vpn_status: true
         organizations:
           - "Top Org.*"
         networks:
           - "Production"
           - "Guest"
+        product_types:
+          - wireless
+        preferences:
+          device_status_only: true
+          show_vpn_peers: true
+# Configuration for receipt of SNMP Traps
 trap:
   listen: 0.0.0.0:1620
   community: public
@@ -148,6 +157,7 @@ trap:
   transport: ""
   v3_config: null
   trap_only: false
+# Configuration for the SNMP discovery job
 discovery:
   cidrs:
   - 10.0.0.0/24
@@ -545,7 +555,19 @@ global:
           </td>
 
           <td>
-            [API Polling config](#api-polling-config)
+            [API Polling config](#optional-api-polling-configurations)
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            ext.ext_only
+          </td>
+
+          <td/>
+
+          <td>
+            Disables all SNMP polling for this `device_name` config. Default: `false`.
           </td>
         </tr>
       </tbody>
@@ -1136,13 +1158,69 @@ global:
       You can use [AWS Secrets Manager](https://aws.amazon.com/secrets-manager/) natively in your SNMP v3 config using the `aws.sm.$SECRET_NAME` syntax, replacing `$SECRET_NAME` as necessary to have **ktranslate** pull in your credentials during Docker runtime.
     </Callout>
   </Collapser>
+</CollapserGroup>
 
+## Optional API polling configurations [#optional-api-polling-configurations]
+
+<Callout variant="tip">
+  You can use [AWS Secrets Manager](https://aws.amazon.com/secrets-manager/) natively in your API config using the `aws.sm.$SECRET_NAME` syntax, replacing `$SECRET_NAME` as necessary to have **ktranslate** pull in your credentials during Docker runtime.
+</Callout>
+
+<CollapserGroup>
   <Collapser
-    id="api-polling-config"
-    title="Optional API Polling configurations"
+    id="arista"
+    title="Arista eAPI"
   >
-    ### Arista eAPI
-    
+
+    The [Arista eAPI](https://www.arista.com/assets/data/pdf/Whitepapers/Arista_eAPI_FINAL.pdf) integration collects additional BGP and MLAG telemetry that isn't typically available via SNMP polling.
+
+    * BGP details are collected from this command: `show ip bgp summary vrf all`
+
+    NRQL to find BGP telemetry:
+    ```sql
+    FROM Metric SELECT
+      max(kentik.eapi.bgp.InMsgQueue) AS 'InQ', // Messages Queued from the Neighbor
+      max(kentik.eapi.bgp.MsgReceived) AS 'MsgSent', // Messages Received from the Neighbor
+      max(kentik.eapi.bgp.MsgSent) AS 'MsgRcvd', // Messages Sent to the Neighbor
+      latest(peer_state) AS 'State', // State of the BGP session
+      latest(kentik.eapi.bgp.UpDownTime) AS 'Up/Down', // Period the BGP session has been in current state
+      latest(kentik.eapi.bgp.Version) AS 'V' // BGP version number
+    FACET
+      entity.name AS 'Device',
+      router_id AS 'Device IP',
+      peer AS 'BGP Peer',
+      peer_asn AS 'BGP Peer ASN',
+      vrf AS 'VRF Name'
+    ```
+
+    <br />
+
+    * MLAG details are collected from this command: `show mlag detail`
+
+    NRQL to find MLAG telemetry:
+    ```sql
+    FROM Metric SELECT
+      latest(kentik.eapi.mlag.PortsConfigured) AS 'Ports Configured', // Count of MLAG ports currently configured
+      latest(kentik.eapi.mlag.PortsDisabled) AS 'Ports Disabled', // Count of MLAG ports in 'Disabled' state
+      latest(kentik.eapi.mlag.PortsActivePartial) AS 'Ports Active-partial', // Count of MLAG ports in 'Active-partial' state 
+      latest(kentik.eapi.mlag.PortsInactive) AS 'Ports Inactive', // Count of MLAG ports in 'Inactive' state
+      latest(kentik.eapi.mlag.PortsActiveFull) AS 'Ports Active-full', // Count of MLAG ports in 'Active-full' state
+      latest(kentik.eapi.mlag.PortsErrdisabled) AS 'Ports Err-disabled', // Count of MLAG ports in 'Err-disabled' state
+      latest(config_sanity) AS 'Config-Sanity', // Current result of 'config-sanity' check
+      latest(state) AS 'State', // Current MLAG state
+      latest(neg_status) AS 'Negotiation Status', // Current negotiation status between switches
+      latest(peer_address) AS 'Peer Address', // Address of MLAG peer
+      latest(peer_link) AS 'Peer Link', // Link name for MLAG peer
+      latest(peer_link_status) AS 'Peer Link Status', // Status of MLAG peer
+      latest(local_interface) AS 'Local Interface', // Local interface used for MLAG configuration
+      latest(local_intf_status) AS 'Local Interface Status' // Status of local interface used for MLAG configuration
+    FACET
+      entity.name AS 'Device',
+      domain_id AS 'MLAG Domain ID'
+    ```
+
+    ### Configuration options
+
     <table>
       <thead>
         <tr>
@@ -1160,178 +1238,302 @@ global:
       <tbody>
         <tr>
           <td>
-            username
+            eapi_config.username
           </td>
           <td>
             ✓
           </td>
           <td>
-            User name for eAPI authentication
+            The username to pass to the device to authenticate the eAPI authentication.
           </td>
         </tr>
         <tr>
           <td>
-            password
+            eapi_config.password
           </td>
           <td>
             ✓
           </td>
           <td>
-            Password for eAPI authentication
+            The password to pass to the device to authenticate the eAPI authentication.
           </td>
         </tr>
         <tr>
           <td>
-            transport
+            eapi_config.transport
           </td>
           <td/>
           <td>
-            Transport protocol for eAPI authentication. The possible values are `https` and `http`
+            Specifies the type of connection transport to use. The possible values are `https` and `http`. Default: `https`.
           </td>
         </tr>
         <tr>
           <td>
-            port
+            eapi_config.port
           </td>
           <td>
             ✓
           </td>
           <td>
-            TCP port number for eAPI authentication
-          </td>
-        </tr>
-        <tr>
-          <td>
-            ext_only
-          </td>
-          <td/>
-          <td>
-            Disables all SNMP polling for this `device_name` config. Default: `false`
+            The TCP port of the endpoint for the eAPI connection.
           </td>
         </tr>
       </tbody>
     </table>
+  </Collapser>
 
-    ### Meraki Dashboard API
+  <Collapser
+    id="meraki"
+    title="Meraki Dashboard API"
+  >
+
+    The [Meraki Dashboard API](https://developer.cisco.com/meraki/api-latest/) integration pulls various metrics related to the health of your Meraki environment. The combination of various configuration options allows you to set up different monitoring scenarios for your needs.
+
+    * `meraki_config.monitor_clients: true`: Uses the [Get Network Clients](https://developer.cisco.com/meraki/api-latest/get-network-clients/) endpoint to iterate through all target networks and return client data.
+
+    <Callout variant="important">
+      In large environments, this API call has known issues with timeouts against the Meraki Dashboard API, resulting in missing metrics.
+    </Callout>
+
+    NRQL to find network client telemetry:
+
+    ```sql
+    FROM Metric SELECT
+      latest(status) AS 'Current Client Status',
+      max(kentik.meraki.clients.RecvTotal) AS 'Total Received Bytes',
+      max(kentik.meraki.clients.SentTotal) AS 'Total Sent Bytes'
+    FACET
+      network AS 'Network Name',
+      client_id AS 'Client ID',
+      client_mac_addr AS 'Client MAC',
+      description AS 'Client Description',
+      vlan AS 'Client VLAN',
+      user AS 'Client User',
+      manufacturer AS 'Client Manufacturer',
+      device_type AS 'Client Type',
+      recent_device_name AS 'Latest Device'
+    WHERE instrumentation.name = 'meraki.clients'
+    ```
+
+    <br />
+
+    * `meraki_config.monitor_devices: true && meraki_config.preferences.device_status_only: true`: Uses the [Get Organization Device Statuses](https://developer.cisco.com/meraki/api-latest/get-organization-devices-statuses/) endpoint to list the status of every Meraki device in the organization.
+
+    NRQL to find device status telemetry:
+
+    ```sql
+    FROM Metric SELECT
+      latest(status) AS 'Device Status' // Current status of this device
+    FACET
+      org_id AS 'Organization ID',
+      org_name AS 'Organization Name',
+      network_id AS 'Network ID',
+      network AS 'Network Name',
+      device_name AS 'Device Name',
+      src_addr AS 'Device Public IP',
+      mac AS 'Device MAC',
+      model AS 'Device Model',
+      serial AS 'Device Serial'
+    WHERE instrumentation.name = 'meraki.device_status'
+    ```
+
+    <br />
+
+    * `meraki_config.monitor_org_changes: true`: Uses the [Get Organization Configuration Changes](https://developer.cisco.com/meraki/api-latest/get-organization-configuration-changes/) endpoint to view the change log for the organization.
+
+    NRQL to find organization configuration change telemetry:
+
+    ```sql
+    FROM KExtEvent SELECT *
+    ```
+
+    <br />
+
+    * `meraki_config.monitor_uplinks: true`: Uses the [Get Organization Uplinks Statuses](https://developer.cisco.com/meraki/api-latest/get-organization-uplinks-statuses/) endpoint to list the uplink status of every Meraki MX, MG and Z series device in the organization.
+
+    NRQL to find device uplink status telemetry:
+
+    ```sql
+    FROM Metric SELECT
+      max(kentik.meraki.uplinks.LatencyMS) AS 'Uplink Latency', // Uplink measured latency in milliseconds
+      max(kentik.meraki.uplinks.LossPct) AS 'Uplink Loss %', // Uplink measured loss percentage
+      max(kentik.meraki.uplinks.Recv) AS 'Uplink Receive Bytes', // Uplink bytes received
+      max(kentik.meraki.uplinks.Sent) AS 'Uplink Transmit Bytes', // Uplink bytes sent
+      latest(status) AS 'Uplink Status' // Latest status of the uplink
+    FACET
+      org_id AS 'Organization ID',
+      org_name AS 'Organization Name',
+      network_id AS 'Network ID',
+      network AS 'Network Name',
+      device_name AS 'Device Name',
+      interface AS 'Device Uplink Interface',
+      model AS 'Device Model',
+      serial AS 'Device Serial'
+    WHERE org_id IS NOT NULL
+    ```
+
+    <br />
+
+    * `meraki_config.monitor_vpn_status: true && meraki_config.preferences.show_vpn_peers: false`: Uses the [Get Organization Appliance VPN Statuses](https://developer.cisco.com/meraki/api-latest/get-organization-appliance-vpn-statuses/) endpoint the show VPN statuses across the networks in the organization.
+
+    NRQL to find VPN status telemetry:
+
+    ```sql
+    FROM Metric SELECT
+      latest(status) AS 'VPN Status' // Latest status of this VPN
+    FACET
+      org_id AS 'Organization ID',
+      org_name AS 'Organization Name',
+      network_id AS 'Network ID',
+      network AS 'Network Name',
+      device_name AS 'Device Name',
+      serial AS 'Device Serial',
+      vpn_mode AS 'VPN Mode',
+      wan1 OR wan2 AS 'WAN Interface IP'
+    WHERE instrumentation.name = 'meraki.vpn_status'
+    AND org_id IS NOT NULL
+    ```
+
+    <br />
+
+    * `meraki_config.monitor_vpn_status: true && meraki_config.preferences.show_vpn_peers: true`: Uses the [Get Organization Appliance VPN Statuses](https://developer.cisco.com/meraki/api-latest/get-organization-appliance-vpn-statuses/) endpoint to add information about VPN peers across the networks in the organization.
+
+    NRQL to find VPN peers telemetry:
+
+    ```sql
+    FROM Metric SELECT
+      latest(status) AS 'Peer Status' // Current status of this VPN peer
+    FACET
+      network_id AS 'Network ID',
+      network AS 'Network Name',
+      device_name AS 'Device Name',
+      serial AS 'Device Serial',
+      vpn_mode AS 'VPN Mode',
+      wan1 AS 'WAN 1 IP',
+      wan2 AS 'WAN 2 IP',
+      peer_name AS 'Peer Name', // Name of this peer
+      peer_reachability AS 'Peer Reachability', // Latest results of reachability test for this peer
+      peer_network_id AS 'Peer Network ID', // Network ID for this peer
+      peer_type AS 'Peer Type' // Type of Peer (Meraki vs Third-party)
+    WHERE metricName = 'kentik.meraki.vpn_status.PeerStatus'
+    ```
+
+    ### Primary configuration options
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}> Key name </th>
+          <th> Required </th>
+          <th> Input </th>
+          <th> Description </th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td> meraki_config.api_key </td>
+          <td> ✓ </td>
+          <td> API Key (string) </td>
+          <td> [Meraki Dashboard API key](https://documentation.meraki.com/General_Administration/Other_Topics/Cisco_Meraki_Dashboard_API#Enable_API_Access) for authentication. </td>
+        </tr>
+        <tr>
+          <td> meraki_config.monitor_clients </td>
+          <td />
+          <td> true | false (Default: false) </td>
+          <td> Monitor client status and performance per network. *(Not recommended for large environments due to timeout problems)* </td>
+        </tr>
+        <tr>
+          <td> meraki_config.monitor_devices </td>
+          <td />
+          <td> true | false (Default: false) </td>
+          <td> Monitor the status of every Meraki device in the organization. </td>
+        </tr>
+        <tr>
+          <td> meraki_config.monitor_org_changes </td>
+          <td />
+          <td> true | false (Default: false) </td>
+          <td> Monitors the change log for the organization. </td>
+        </tr>
+        <tr>
+          <td> meraki_config.monitor_uplinks </td>
+          <td />
+          <td> true | false (Default: true) </td>
+          <td> Monitors the uplink status of every Meraki MX, MG and Z series device in the organization. </td>
+        </tr>
+        <tr>
+          <td> meraki_config.monitor_vpn_status </td>
+          <td />
+          <td> true | false (Default: false) </td>
+          <td> Monitors the VPN statuses across the networks in the organization. </td>
+        </tr>
+      </tbody>
+    </table> 
+    
+    ### Filtering options
+    
+    These options allow you to restrict monitoring to specifically targeted objects in your Meraki environment.
     
     <table>
       <thead>
         <tr>
-          <th style={{ width: "200px" }}>
-            Key name
-          </th>
-          
-          <th>
-            Required
-          </th>
-          
-          <th>
-            Description
-          </th>
+          <th style={{ width: "200px" }}> Key name </th>
+          <th> Required </th>
+          <th> Input </th>
+          <th> Description </th>
         </tr>
       </thead>
-
-     <tbody>
+      <tbody>
         <tr>
-          <td>
-            meraki_config.api_key
-          </td>
-          
-          <td>
-            ✓
-          </td>
-          
-          <td>
-            [Meraki Dashboard API key](https://documentation.meraki.com/General_Administration/Other_Topics/Cisco_Meraki_Dashboard_API#Enable_API_Access) for authentication
-          </td>
+          <td> meraki_config.organizations </td>
+          <td />
+          <td> Regex in [RE2 syntax](https://github.com/google/re2/wiki/Syntax) (Default: null) </td>
+          <td> Filters all monitoring to a specific list of organizations. </td>
         </tr>
-
         <tr>
-          <td>
-            meraki_config.monitor_uplinks
-          </td>
-          
-          <td>
-            ✓
-          </td>
-          
-          <td>
-            Monitor uplink performance and status for all Meraki appliances in target organizations
-          </td>
+          <td> meraki_config.networks </td>
+          <td />
+          <td> Regex in [RE2 syntax](https://github.com/google/re2/wiki/Syntax) (Default: null) </td>
+          <td> Filters all monitoring to a specific list of networks. </td>
         </tr>
-
         <tr>
-          <td>
-            meraki_config.monitor_devices
-          </td>
-          
-          <td>
-            ✓
-          </td>
-          
-          <td>
-            Monitor connected client performance and status for all devices in target networks
-          </td>
+          <td> meraki_config.product_types </td>
+          <td />
+          <td> Valid types are wireless, appliance, switch, systemsManager, camera, cellularGateway, sensor, and cloudGateway. (Default: null) </td>
+          <td> Adds parameters to the [monitor_devices](https://developer.cisco.com/meraki/api-latest/get-organization-devices-statuses/) API request to filter on specific types of devices. </td>
         </tr>
-
-        <tr>
-          <td>
-            meraki_config.monitor_org_changes
-          </td>
-          
-          <td>
-            ✓
-          </td>
-          
-          <td>
-            Monitor [Organization configuration changes](https://developer.cisco.com/meraki/api-latest/#!get-organization-configuration-changes). Creates events in the `KExtEvent` namespace.
-          </td>
-        </tr>
-
-        <tr>
-          <td>
-            meraki_config.organizations
-          </td>
-          
-          <td/>
-          
-          <td>
-            List of regex patterns to match Organization names for monitoring
-          </td>
-        </tr>
-
-        <tr>
-          <td>
-            meraki_config.networks
-          </td>
-          
-          <td/>
-          
-          <td>
-            List of regex patterns to match Network names for monitoring
-          </td>
-        </tr>
-
-        <tr>
-          <td>
-            ext_only
-          </td>
-          
-          <td/>
-          
-          <td>
-            Disables all SNMP polling for this `device_name` config. Default: `false`
-          </td>
-        </tr>
-     </tbody>
+      </tbody>
     </table>
-
-    <Callout variant="tip">
-      You can use [AWS Secrets Manager](https://aws.amazon.com/secrets-manager/) natively in your API config using the `aws.sm.$SECRET_NAME` syntax, replacing `$SECRET_NAME` as necessary to have **ktranslate** pull in your credentials during Docker runtime.
-    </Callout>
+    
+    ### Additional preferences
+    
+    These options allow you to further define the data collected from the main configuration options. Various combinations are described in the examples section above. 
+    
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}> Key name </th>
+          <th> Required </th>
+          <th> Input </th>
+          <th> Description </th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td> meraki_config.preferences.device_status_only </td>
+          <td />
+          <td> true | false (Default: false) </td>
+          <td> Used in combination with `monitor_devices` to restrict polling to only status information. *(This is helpful in large organizations to prevent timeout issues)*. </td>
+        </tr>
+        <tr>
+          <td> meraki_config.preferences.show_vpn_peers </td>
+          <td />
+          <td> true | false (Default: false) </td>
+          <td> Used in combination with `monitor_vpn_status` to add telemetry on VPN peers. </td>
+        </tr>
+      </tbody>
+    </table>
   </Collapser>
 </CollapserGroup>
-
 
 ## Optional external config files [#external-config-files]
 
