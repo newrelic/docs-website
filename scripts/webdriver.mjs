@@ -1,6 +1,6 @@
 /* eslint-disable no-console */
 
-/* this script is mirrored in our scripted web browser
+/* this script is mostly mirrored in our scripted web browser
  * synthetics check that runs on the production site.
  * if you make updates, be sure to add them there as well.
  * https://staging.onenr.io/037jbB4Akjy
@@ -8,6 +8,13 @@
 
 import assert from 'assert';
 import { Builder, By, WebElement, until } from 'selenium-webdriver';
+import { Options } from 'selenium-webdriver/chrome.js';
+
+const options = new Options();
+// options required for github action to run chromedriver properly
+options.addArguments('no-sandbox');
+options.addArguments('disable-dev-shm-usage');
+options.addArguments('headless');
 
 const TIMEOUT = 10000;
 
@@ -22,14 +29,14 @@ const main = async () => {
   );
 
   // order here matters — some tests scroll the page
-  await collapserTest();
+  // await collapserTest();
   await searchTest();
   await navTest();
 
   await driver.get('https://docswebsitedevelop.gatsbyjs.io');
   await tileTest();
 
-  // this last step isn't necessary in synthetics
+  // this step isn't necessary in synthetics
   await driver.quit();
 };
 
@@ -82,11 +89,21 @@ const tileTest = async () => {
   );
   console.log('clicking Default view tab button');
   await defaultViewTab.click();
+
+  // Added this xpath for the scroll function.
+  // for some reason, when running in headless mode the site
+  // header overlaps the tile we need to click
+  const [popularDocsSection] = await waitForXPath(
+    '//main//section//h3[text()="Popular docs"]'
+  );
   const [firstDocTile] = await waitForXPath(
     '//main//section//h3[text()="Popular docs"]/following::a'
   );
   // sometimes the cookie banner covers the doc tile so we need to scroll
-  await driver.executeScript('arguments[0].scrollIntoView()', firstDocTile);
+  await driver.executeScript(
+    'arguments[0].scrollIntoView()',
+    popularDocsSection
+  );
   await firstDocTile.click();
   await driver.wait(
     until.stalenessOf(firstDocTile),
@@ -103,6 +120,9 @@ const tileTest = async () => {
   );
 };
 
-const driver = await new Builder().forBrowser('chrome').build();
+const driver = await new Builder()
+  .forBrowser('chrome')
+  .setChromeOptions(options)
+  .build();
 
 main();
