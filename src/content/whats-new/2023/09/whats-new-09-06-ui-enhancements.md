@@ -3,7 +3,7 @@ title: 'Improve your efficiency with Quick Find and keyboard shortcuts'
 summary: 'Unlock new levels of productivity with updated search and navigation functionalities'
 releaseDate: '2023-09-06'
 learnMoreLink: 'https://youtu.be/SNb503B6qTE' 
-getStartedLink: 'https://docs.newrelic.com/docs/mobile-apps/dashboards-new-relic-mobile-apps/'
+getStartedLink: 'https://docs.newrelic.com/docs/new-relic-solutions/new-relic-one/introduction-new-relic-platform/#shortcuts'
 ---
 
 Discover enhanced search, customizable shortcuts, and collapsible second-level navigation in our latest UI enhancements. These updates allow you to navigate the platform with precision, save time, and gain critical insights for peak system performance and reduced MTTR.
@@ -17,5 +17,5 @@ With our new UI enhancements, you can:
 
 **Next steps**
 
-* Check out our documentation for [keyboard shortcuts](https://docs.newrelic.com/docs/mobile-apps/dashboards-new-relic-mobile-apps/) and [quick find](https://docs.newrelic.com/docs/new-relic-solutions/new-relic-one/core-concepts/search-filter-entities/) 
+* Check out our documentation for [keyboard shortcuts](https://docs.newrelic.com/docs/new-relic-solutions/new-relic-one/introduction-new-relic-platform/#shortcuts) and [quick find](https://docs.newrelic.com/docs/new-relic-solutions/new-relic-one/core-concepts/search-filter-entities/) 
 * Watch the [databyte video](https://www.youtube.com/watch?v=t2x20sW0HqM).
