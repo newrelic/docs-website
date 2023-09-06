@@ -17,5 +17,5 @@ With our new UI enhancements, you can:
 
 **Next steps**
 
-* Check out our documentation for [keyboard shortcuts](https://docs.newrelic.com/docs/new-relic-solutions/new-relic-one/introduction-new-relic-platform/#shortcuts) and [quick find](https://docs.newrelic.com/docs/new-relic-solutions/new-relic-one/core-concepts/search-filter-entities/) 
+* Check out our documentation for [keyboard shortcuts](https://docs.newrelic.com/docs/new-relic-solutions/new-relic-one/introduction-new-relic-platform/#shortcuts) and [quick find](https://docs.newrelic.com/docs/new-relic-solutions/new-relic-one/introduction-new-relic-platform/#search). 
 * Watch the [databyte video](https://www.youtube.com/watch?v=t2x20sW0HqM).
