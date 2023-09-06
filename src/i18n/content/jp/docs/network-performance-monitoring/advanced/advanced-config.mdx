@@ -15,6 +15,7 @@ translationType: machine
 SNMP とフロー データ デバイスをポーリングするために**ktranslate** Docker イメージで使用される`snmp-base.yaml`ファイルで使用できるさまざまな構成オプションの例を次に示します。[GitHub の KTranslate リポジトリ](https://github.com/kentik/ktranslate/blob/main/config/snmp.yaml.sample)で、コメントの多いサンプルを確認することもできます。
 
 ```yaml
+# Configuration of every device monitored by this container
 devices:
   # Sample of SNMP v2c device
   ups_snmpv2c__10.10.0.201:
@@ -94,6 +95,7 @@ devices:
   ping_only__10.10.0.220:
     device_name: ping_only
     device_ip: 10.10.0.220
+    provider: kentik-ping
     user_tags:
       owning_team: load_balancing
     ping_only: true
@@ -131,14 +133,22 @@ devices:
       ext_only: true
       meraki_config:
         api_key: APIKEY123ABC
-        monitor_uplinks: true
+        monitor_clients: true
         monitor_devices: true
         monitor_org_changes: true
+        monitor_uplinks: true
+        monitor_vpn_status: true
         organizations:
           - "Top Org.*"
         networks:
           - "Production"
           - "Guest"
+        product_types:
+          - wireless
+        preferences:
+          device_status_only: true
+          show_vpn_peers: true
+# Configuration for receipt of SNMP Traps
 trap:
   listen: 0.0.0.0:1620
   community: public
@@ -146,6 +156,7 @@ trap:
   transport: ""
   v3_config: null
   trap_only: false
+# Configuration for the SNMP discovery job
 discovery:
   cidrs:
   - 10.0.0.0/24
@@ -505,7 +516,7 @@ global:
           <td/>
 
           <td>
-            すべてのSNMPポーリングを無効にし、 `true`の場合にこのデバイスの[応答時間](#response_time-attribute)ポーリングを有効にします。この設定は、 `global.response_time`属性を上書きします。デフォルトでは、 `false`に設定されています。
+            `true`の場合、すべての SNMP ポーリングを無効にし、このデバイスの [応答時間](#response_time-attribute) ポーリングを有効にします。この設定は、 `global.response_time` 属性をオーバーライドします。デフォルトでは、 `false`に設定されています。各 ping_only デバイスに行 `provider: kentik_ping` が含まれていることを確認してください。
           </td>
         </tr>
 
@@ -543,7 +554,19 @@ global:
           </td>
 
           <td>
-            [APIポーリング構成](#api-polling-config)
+            [APIポーリング構成](#optional-api-polling-configurations)
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            ext.ext_only
+          </td>
+
+          <td/>
+
+          <td>
+            この `device_name` 構成のすべての SNMP ポーリングを無効にします。デフォルト: `false` 。
           </td>
         </tr>
       </tbody>
@@ -681,7 +704,7 @@ global:
           </td>
 
           <td>
-            [CIDR表記](https://en.wikipedia.org/wiki/Classless_Inter-Domain_Routing#CIDR_notation)のターゲットIP範囲の配列。
+            [CIDR 表記](https://en.wikipedia.org/wiki/Classless_Inter-Domain_Routing#CIDR_notation)のターゲット IP 範囲の配列。 [タイムアウトを避ける](/docs/network-performance-monitoring/troubleshooting/snmp-discovery-no-devices)ために、これらの範囲のサイズに注意してください。
           </td>
         </tr>
 
@@ -1131,216 +1154,539 @@ global:
       `aws.sm.$SECRET_NAME`構文を使用してSNMPv3設定で[AWSSecretsManager](https://aws.amazon.com/secrets-manager/)をネイティブに使用できます。必要に応じて`$SECRET_NAME`を置き換えて、Dockerランタイム中に**ktranslate**がクレデンシャルをプルするようにします。
     </Callout>
   </Collapser>
+</CollapserGroup>
+
+## オプションの API ポーリング構成 [#optional-api-polling-configurations]
+
+<Callout variant="tip">
+  `aws.sm.$SECRET_NAME`構文を使用して API 設定で[AWS Secrets Manager](https://aws.amazon.com/secrets-manager/)をネイティブに使用できます。必要に応じて`$SECRET_NAME`を置き換えて、Docker ランタイム中に**ktranslate**が認証情報を取得できるようにします。
+</Callout>
+
+<CollapserGroup>
+  <Collapser
+    id="arista"
+    title="Arista eAPI"
+  >
+    [Arista eAPI](https://www.arista.com/assets/data/pdf/Whitepapers/Arista_eAPI_FINAL.pdf) 統合は、通常 SNMP ポーリングでは利用できない追加の BGP および MLAG テレメトリを収集します。
+
+    * BGP の詳細は次のコマンドから収集されます。 `show ip bgp summary vrf all`
+
+      NRQL を使用して BGP テレメトリを検索します。
+
+      ```sql
+      FROM Metric SELECT
+        max(kentik.eapi.bgp.InMsgQueue) AS 'InQ', // Messages Queued from the Neighbor
+        max(kentik.eapi.bgp.MsgReceived) AS 'MsgSent', // Messages Received from the Neighbor
+        max(kentik.eapi.bgp.MsgSent) AS 'MsgRcvd', // Messages Sent to the Neighbor
+        latest(peer_state) AS 'State', // State of the BGP session
+        latest(kentik.eapi.bgp.UpDownTime) AS 'Up/Down', // Period the BGP session has been in current state
+        latest(kentik.eapi.bgp.Version) AS 'V' // BGP version number
+      FACET
+        entity.name AS 'Device',
+        router_id AS 'Device IP',
+        peer AS 'BGP Peer',
+        peer_asn AS 'BGP Peer ASN',
+        vrf AS 'VRF Name'
+      ```
+
+      <br/>
+
+    * MLAG の詳細は、次のコマンドから収集されます。 `show mlag detail`
+
+      NRQL で MLAG テレメトリを検索します。
+
+      ```sql
+      FROM Metric SELECT
+        latest(kentik.eapi.mlag.PortsConfigured) AS 'Ports Configured', // Count of MLAG ports currently configured
+        latest(kentik.eapi.mlag.PortsDisabled) AS 'Ports Disabled', // Count of MLAG ports in 'Disabled' state
+        latest(kentik.eapi.mlag.PortsActivePartial) AS 'Ports Active-partial', // Count of MLAG ports in 'Active-partial' state 
+        latest(kentik.eapi.mlag.PortsInactive) AS 'Ports Inactive', // Count of MLAG ports in 'Inactive' state
+        latest(kentik.eapi.mlag.PortsActiveFull) AS 'Ports Active-full', // Count of MLAG ports in 'Active-full' state
+        latest(kentik.eapi.mlag.PortsErrdisabled) AS 'Ports Err-disabled', // Count of MLAG ports in 'Err-disabled' state
+        latest(config_sanity) AS 'Config-Sanity', // Current result of 'config-sanity' check
+        latest(state) AS 'State', // Current MLAG state
+        latest(neg_status) AS 'Negotiation Status', // Current negotiation status between switches
+        latest(peer_address) AS 'Peer Address', // Address of MLAG peer
+        latest(peer_link) AS 'Peer Link', // Link name for MLAG peer
+        latest(peer_link_status) AS 'Peer Link Status', // Status of MLAG peer
+        latest(local_interface) AS 'Local Interface', // Local interface used for MLAG configuration
+        latest(local_intf_status) AS 'Local Interface Status' // Status of local interface used for MLAG configuration
+      FACET
+        entity.name AS 'Device',
+        domain_id AS 'MLAG Domain ID'
+      ```
+
+      ### 設定オプション
+
+      <table>
+        <thead>
+          <tr>
+            <th style={{ width: "200px" }}>
+              キー名
+            </th>
+
+            <th>
+              必須
+            </th>
+
+            <th>
+              説明
+            </th>
+          </tr>
+        </thead>
+
+        <tbody>
+          <tr>
+            <td>
+              eapi_config.ユーザー名
+            </td>
+
+            <td>
+              ✓✓
+            </td>
+
+            <td>
+              eAPI 認証を認証するためにデバイスに渡すユーザー名。
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              eapi_config.パスワード
+            </td>
+
+            <td>
+              ✓✓
+            </td>
+
+            <td>
+              eAPI 認証を認証するためにデバイスに渡すパスワード。
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              eapi_config.transport
+            </td>
+
+            <td/>
+
+            <td>
+              使用する接続トランスポートのタイプを指定します。可能な値は `https` と `http`です。デフォルト: `https` 。
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              eapi_config.port
+            </td>
+
+            <td>
+              ✓✓
+            </td>
+
+            <td>
+              eAPI 接続のエンドポイントの TCP ポート。
+            </td>
+          </tr>
+        </tbody>
+      </table>
+  </Collapser>
 
   <Collapser
-    id="api-polling-config"
-    title="オプションのAPIポーリング構成"
+    id="meraki"
+    title="Meraki ダッシュボード API"
   >
-    ### Arista eAPI
+    [Meraki ダッシュボード API](https://developer.cisco.com/meraki/api-latest/) 統合は、Meraki 環境の健全性に関連するさまざまなメトリクスを取得します。さまざまな構成オプションを組み合わせることで、ニーズに合わせたさまざまな監視シナリオをセットアップできます。
 
-    <table>
-      <thead>
-        <tr>
-          <th style={{ width: "200px" }}>
-            キー名
-          </th>
+    * `meraki_config.monitor_clients: true`: [Get Network Clients](https://developer.cisco.com/meraki/api-latest/get-network-clients/) エンドポイントを使用して、すべてのターゲット ネットワークを反復処理し、クライアント データを返します。
 
-          <th>
-            必須
-          </th>
+      <Callout variant="important">
+        大規模な環境では、この API 呼び出しには Meraki ダッシュボード API に対するタイムアウトに関する既知の問題があり、結果としてメトリクスが欠落します。
+      </Callout>
 
-          <th>
-            説明
-          </th>
-        </tr>
-      </thead>
+      NRQL を使用してネットワーク クライアント テレメトリを検索します。
 
-      <tbody>
-        <tr>
-          <td>
-            username
-          </td>
+      ```sql
+      FROM Metric SELECT
+        latest(status) AS 'Current Client Status',
+        max(kentik.meraki.clients.RecvTotal) AS 'Total Received Bytes',
+        max(kentik.meraki.clients.SentTotal) AS 'Total Sent Bytes'
+      FACET
+        network AS 'Network Name',
+        client_id AS 'Client ID',
+        client_mac_addr AS 'Client MAC',
+        description AS 'Client Description',
+        vlan AS 'Client VLAN',
+        user AS 'Client User',
+        manufacturer AS 'Client Manufacturer',
+        device_type AS 'Client Type',
+        recent_device_name AS 'Latest Device'
+      WHERE instrumentation.name = 'meraki.clients'
+      ```
 
-          <td>
-            ✓✓
-          </td>
+      <br/>
 
-          <td>
-            eAPI認証のユーザー名
-          </td>
-        </tr>
+    * `meraki_config.monitor_devices: true && meraki_config.preferences.device_status_only: true`： [組織デバイス ステータスの取得](https://developer.cisco.com/meraki/api-latest/get-organization-devices-statuses/) エンドポイントを使用して、組織内のすべての Meraki デバイスのステータスを一覧表示します。
 
-        <tr>
-          <td>
-            password
-          </td>
+      NRQL を使用してデバイス ステータス テレメトリを検索します。
 
-          <td>
-            ✓✓
-          </td>
+      ```sql
+      FROM Metric SELECT
+        latest(status) AS 'Device Status' // Current status of this device
+      FACET
+        org_id AS 'Organization ID',
+        org_name AS 'Organization Name',
+        network_id AS 'Network ID',
+        network AS 'Network Name',
+        device_name AS 'Device Name',
+        src_addr AS 'Device Public IP',
+        mac AS 'Device MAC',
+        model AS 'Device Model',
+        serial AS 'Device Serial'
+      WHERE instrumentation.name = 'meraki.device_status'
+      ```
 
-          <td>
-            eAPI認証用のパスワード
-          </td>
-        </tr>
+      <br/>
 
-        <tr>
-          <td>
-            transport
-          </td>
+    * `meraki_config.monitor_org_changes: true`:[組織構成変更の取得](https://developer.cisco.com/meraki/api-latest/get-organization-configuration-changes/) エンドポイントを使用して、組織の変更ログを表示します。
 
-          <td/>
+      NRQL を使用して組織構成変更テレメトリを検索します。
 
-          <td>
-            eAPI認証用のトランスポートプロトコル。可能な値は`https`と `http`
-          </td>
-        </tr>
+      ```sql
+      FROM KExtEvent SELECT *
+      ```
 
-        <tr>
-          <td>
-            port
-          </td>
+      <br/>
 
-          <td>
-            ✓✓
-          </td>
+    * `meraki_config.monitor_uplinks: true`： [組織のアップリンク ステータスの取得](https://developer.cisco.com/meraki/api-latest/get-organization-uplinks-statuses/) エンドポイントを使用して、組織内のすべての Meraki MX、MG、および Z シリーズ デバイスのアップリンク ステータスを一覧表示します。
 
-          <td>
-            eAPI認証用のTCPポート番号
-          </td>
-        </tr>
+      NRQL を使用してデバイスのアップリンク ステータス テレメトリを検索します。
 
-        <tr>
-          <td>
-            ext_only
-          </td>
+      ```sql
+      FROM Metric SELECT
+        max(kentik.meraki.uplinks.LatencyMS) AS 'Uplink Latency', // Uplink measured latency in milliseconds
+        max(kentik.meraki.uplinks.LossPct) AS 'Uplink Loss %', // Uplink measured loss percentage
+        max(kentik.meraki.uplinks.Recv) AS 'Uplink Receive Bytes', // Uplink bytes received
+        max(kentik.meraki.uplinks.Sent) AS 'Uplink Transmit Bytes', // Uplink bytes sent
+        latest(status) AS 'Uplink Status' // Latest status of the uplink
+      FACET
+        org_id AS 'Organization ID',
+        org_name AS 'Organization Name',
+        network_id AS 'Network ID',
+        network AS 'Network Name',
+        device_name AS 'Device Name',
+        interface AS 'Device Uplink Interface',
+        model AS 'Device Model',
+        serial AS 'Device Serial'
+      WHERE org_id IS NOT NULL
+      ```
 
-          <td/>
+      <br/>
 
-          <td>
-            この`device_name`構成のすべての SNMP ポーリングを無効にします。デフォルト： `false`
-          </td>
-        </tr>
-      </tbody>
-    </table>
+    * `meraki_config.monitor_vpn_status: true && meraki_config.preferences.show_vpn_peers: false`:[組織アプライアンスの VPN ステータスの取得](https://developer.cisco.com/meraki/api-latest/get-organization-appliance-vpn-statuses/) エンドポイントを使用して、組織内のネットワーク全体の VPN ステータスを表示します。
 
-    ### Meraki ダッシュボード API
+      NRQL を使用して VPN ステータス テレメトリを検索します。
 
-    <table>
-      <thead>
-        <tr>
-          <th style={{ width: "200px" }}>
-            キー名
-          </th>
+      ```sql
+      FROM Metric SELECT
+        latest(status) AS 'VPN Status' // Latest status of this VPN
+      FACET
+        org_id AS 'Organization ID',
+        org_name AS 'Organization Name',
+        network_id AS 'Network ID',
+        network AS 'Network Name',
+        device_name AS 'Device Name',
+        serial AS 'Device Serial',
+        vpn_mode AS 'VPN Mode',
+        wan1 OR wan2 AS 'WAN Interface IP'
+      WHERE instrumentation.name = 'meraki.vpn_status'
+      AND org_id IS NOT NULL
+      ```
 
-          <th>
-            必須
-          </th>
+      <br/>
 
-          <th>
-            説明
-          </th>
-        </tr>
-      </thead>
+    * `meraki_config.monitor_vpn_status: true && meraki_config.preferences.show_vpn_peers: true`:[組織アプライアンスの VPN ステータスの取得](https://developer.cisco.com/meraki/api-latest/get-organization-appliance-vpn-statuses/) エンドポイントを使用して、組織内のネットワーク全体の VPN ピアに関する情報を追加します。
 
-      <tbody>
-        <tr>
-          <td>
-            meraki_config.api_key
-          </td>
+      NRQL を使用して VPN ピアのテレメトリを検索します。
 
-          <td>
-            ✓✓
-          </td>
+      ```sql
+      FROM Metric SELECT
+        latest(status) AS 'Peer Status' // Current status of this VPN peer
+      FACET
+        network_id AS 'Network ID',
+        network AS 'Network Name',
+        device_name AS 'Device Name',
+        serial AS 'Device Serial',
+        vpn_mode AS 'VPN Mode',
+        wan1 AS 'WAN 1 IP',
+        wan2 AS 'WAN 2 IP',
+        peer_name AS 'Peer Name', // Name of this peer
+        peer_reachability AS 'Peer Reachability', // Latest results of reachability test for this peer
+        peer_network_id AS 'Peer Network ID', // Network ID for this peer
+        peer_type AS 'Peer Type' // Type of Peer (Meraki vs Third-party)
+      WHERE metricName = 'kentik.meraki.vpn_status.PeerStatus'
+      ```
 
-          <td>
-            認証用の[Meraki ダッシュボード API キー](https://documentation.meraki.com/General_Administration/Other_Topics/Cisco_Meraki_Dashboard_API#Enable_API_Access)
-          </td>
-        </tr>
+      ### 主な構成オプション
 
-        <tr>
-          <td>
-            meraki_config.monitor_uplinks
-          </td>
+      <table>
+        <thead>
+          <tr>
+            <th style={{ width: "200px" }}>
+              キー名
+            </th>
 
-          <td>
-            ✓✓
-          </td>
+            <th>
+              必須
+            </th>
 
-          <td>
-            対象組織内のすべての Meraki アプライアンスのアップリンクのパフォーマンスとステータスを監視します
-          </td>
-        </tr>
+            <th>
+              入力
+            </th>
 
-        <tr>
-          <td>
-            meraki_config.monitor_devices
-          </td>
+            <th>
+              説明
+            </th>
+          </tr>
+        </thead>
 
-          <td>
-            ✓✓
-          </td>
+        <tbody>
+          <tr>
+            <td>
+              meraki_config.api_key
+            </td>
 
-          <td>
-            ターゲット ネットワーク内のすべてのデバイスについて、接続されたクライアントのパフォーマンスとステータスを監視します
-          </td>
-        </tr>
+            <td>
+              ✓✓
+            </td>
 
-        <tr>
-          <td>
-            meraki_config.monitor_org_changes
-          </td>
+            <td>
+              APIキー(文字列)
+            </td>
 
-          <td>
-            ✓✓
-          </td>
+            <td>
+              認証用の[Meraki ダッシュボード API キー](https://documentation.meraki.com/General_Administration/Other_Topics/Cisco_Meraki_Dashboard_API#Enable_API_Access) 。
+            </td>
+          </tr>
 
-          <td>
-            [組織構成の変更を](https://developer.cisco.com/meraki/api-latest/#!get-organization-configuration-changes)監視します。`KExtEvent`名前空間にイベントを作成します。
-          </td>
-        </tr>
+          <tr>
+            <td>
+              meraki_config.monitor_clients
+            </td>
 
-        <tr>
-          <td>
-            meraki_config.organizations
-          </td>
+            <td/>
 
-          <td/>
+            <td>
+              本当 | false (デフォルト: false)
+            </td>
 
-          <td>
-            監視対象の組織名に一致する正規表現パターンのリスト
-          </td>
-        </tr>
+            <td>
+              ネットワークごとにクライアントのステータスとパフォーマンスを監視します。_(タイムアウトの問題があるため、大規模な環境には推奨されません)_
+            </td>
+          </tr>
 
-        <tr>
-          <td>
-            meraki_config.networks
-          </td>
+          <tr>
+            <td>
+              meraki_config.monitor_devices
+            </td>
 
-          <td/>
+            <td/>
 
-          <td>
-            監視対象のネットワーク名に一致する正規表現パターンのリスト
-          </td>
-        </tr>
+            <td>
+              本当 | false (デフォルト: false)
+            </td>
 
-        <tr>
-          <td>
-            ext_only
-          </td>
+            <td>
+              組織内のすべての Meraki デバイスのステータスを監視します。
+            </td>
+          </tr>
 
-          <td/>
+          <tr>
+            <td>
+              meraki_config.monitor_org_changes
+            </td>
 
-          <td>
-            この`device_name`構成のすべての SNMP ポーリングを無効にします。デフォルト： `false`
-          </td>
-        </tr>
-      </tbody>
-    </table>
+            <td/>
 
-    <Callout variant="tip">
-      `aws.sm.$SECRET_NAME`構文を使用して API 設定で[AWS Secrets Manager](https://aws.amazon.com/secrets-manager/)をネイティブに使用できます。必要に応じて`$SECRET_NAME`を置き換えて、Docker ランタイム中に**ktranslate**が認証情報を取得できるようにします。
-    </Callout>
+            <td>
+              本当 | false (デフォルト: false)
+            </td>
+
+            <td>
+              組織の変更ログを監視します。
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              meraki_config.monitor_uplinks
+            </td>
+
+            <td/>
+
+            <td>
+              本当 | false (デフォルト: true)
+            </td>
+
+            <td>
+              組織内のすべての Meraki MX、MG、および Z シリーズ デバイスのアップリンク ステータスを監視します。
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              meraki_config.monitor_vpn_status
+            </td>
+
+            <td/>
+
+            <td>
+              本当 | false (デフォルト: false)
+            </td>
+
+            <td>
+              組織内のネットワーク全体の VPN ステータスを監視します。
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      ### フィルタリングオプション
+
+      これらのオプションを使用すると、Meraki 環境内の特定の対象オブジェクトへの監視を制限できます。
+
+      <table>
+        <thead>
+          <tr>
+            <th style={{ width: "200px" }}>
+              キー名
+            </th>
+
+            <th>
+              必須
+            </th>
+
+            <th>
+              入力
+            </th>
+
+            <th>
+              説明
+            </th>
+          </tr>
+        </thead>
+
+        <tbody>
+          <tr>
+            <td>
+              meraki_config.organizations
+            </td>
+
+            <td/>
+
+            <td>
+              [RE2 構文](https://github.com/google/re2/wiki/Syntax)の正規表現 (デフォルト: null)
+            </td>
+
+            <td>
+              すべての監視をフィルタリングして、組織の特定のリストを絞り込みます。
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              meraki_config.networks
+            </td>
+
+            <td/>
+
+            <td>
+              [RE2 構文](https://github.com/google/re2/wiki/Syntax)の正規表現 (デフォルト: null)
+            </td>
+
+            <td>
+              すべての監視をフィルタリングして、ネットワークの特定のリストを絞り込みます。
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              meraki_config.product_types
+            </td>
+
+            <td/>
+
+            <td>
+              有効なタイプは、ワイヤレス、アプライアンス、スイッチ、systemsManager、カメラ、セルラーゲートウェイ、センサー、およびクラウドゲートウェイです。(デフォルト: null)
+            </td>
+
+            <td>
+              特定のタイプのデバイスでフィルタリングするためのパラメータを [monitor_devices](https://developer.cisco.com/meraki/api-latest/get-organization-devices-statuses/) APIリクエストに追加します。
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      ### 追加の設定
+
+      これらのオプションを使用すると、メインの構成オプションから収集されたデータをさらに定義できます。上記の例のセクションでは、さまざまな組み合わせが説明されています。
+
+      <table>
+        <thead>
+          <tr>
+            <th style={{ width: "200px" }}>
+              キー名
+            </th>
+
+            <th>
+              必須
+            </th>
+
+            <th>
+              入力
+            </th>
+
+            <th>
+              説明
+            </th>
+          </tr>
+        </thead>
+
+        <tbody>
+          <tr>
+            <td>
+              meraki_config.preferences.device_status_only
+            </td>
+
+            <td/>
+
+            <td>
+              本当 | false (デフォルト: false)
+            </td>
+
+            <td>
+              `monitor_devices` と組み合わせて使用すると、ポーリングをステータス情報のみに制限できます。_(これは、大規模な組織でタイムアウトの問題を防ぐのに役立ちます)_ 。
+            </td>
+          </tr>
+
+          <tr>
+            <td>
+              meraki_config.preferences.show_vpn_peers
+            </td>
+
+            <td/>
+
+            <td>
+              本当 | false (デフォルト: false)
+            </td>
+
+            <td>
+              `monitor_vpn_status` と組み合わせて使用して、VPN ピアにテレメトリを追加します。
+            </td>
+          </tr>
+        </tbody>
+      </table>
   </Collapser>
 </CollapserGroup>
 

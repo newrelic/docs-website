@@ -1,0 +1,351 @@
+---
+title: AWS PrivateLink 経由で New Relic データを送信する
+metaDescription: Send telemetry from your VPC to New Relic via AWS PrivateLink
+translationType: machine
+---
+
+import awsCreateVpcEndpointUi from 'images/accounts_screenshot-full_aws-create-vpc-endpoint-ui.webp'
+
+[AWS PrivateLink](https://aws.amazon.com/privatelink)を介して、AWS Virtual Private Cloud (VPC) から New Relic にテレメトリ データを送信できます。
+
+## 概要 [#overview]
+
+AWS PrivateLink 経由で New Relic データを送信すると、次のことができます。
+
+* AWS 下りコストを削減する
+* データを Amazon ネットワーク内に保持することでセキュリティを向上させます
+
+PrivateLink は、 [テレメトリ データを](/docs/data-apis/understand-data/new-relic-data-types) さまざまな New Relic [エンドポイント](#endpoints)に送信するために機能します。 [NerdGraph](/docs/apis/nerdgraph/get-started/introduction-new-relic-nerdgraph) APIやその他の非取り込みAPIには使用できません。
+
+この機能を使用するには、ローカル New Relic エージェントと統合が AWS PrivateLink 経由でデータを New Relic にルーティングするために使用する [インターフェイス エンドポイント](#create) を VPC 内に設定する必要があります。
+
+## 要件 [#requirements]
+
+PrivateLink には [New Relic Data Plus](/docs/accounts/accounts-billing/new-relic-one-pricing-billing/data-ingest-billing/#data-plus) オプションが必要です。データ プラスを使用せずにデータを送信しようとすると、PrivateLink 経由で送信されたトラフィックは拒否され、402 エラーが返されます。
+
+## サポートされているリージョンとゾーン [#regions-zones]
+
+New Relic は、以下の AWS PrivateLink エンドポイントを公開します。
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        地域
+      </th>
+
+      <th>
+        ゾーン
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        us-east-2 (オハイオ州)
+      </td>
+
+      <td>
+        * `use2-az1`
+        * `use2-az2`
+        * `use2-az3`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        EU-CENTRAL-1
+      </td>
+
+      <td>
+        * `euc1-az1`
+        * `euc1-az2`
+        * `euc1-az3`
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+エンドポイント サービスは、それが作成されたリージョンでのみ利用できます ([Amazon ドキュメントを参照](https://docs.aws.amazon.com/vpc/latest/privatelink/create-endpoint-service.html)) が、リージョン間ピアリングを使用して他のリージョンからアクセスすることもできます。
+
+つまり、VPC が `us-east-2`にある場合、必要な作業は、以下で説明するように、必要な内部 VPC エンドポイントを作成することだけです。ただし、別のリージョンにいる場合は、この手順の後に [ピアリング接続も設定する](#peering) 必要があります。
+
+## エンドポイント [#endpoints]
+
+AWS PrivateLink 経由で利用できる New Relic エンドポイント サービスは次のとおりです。
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        情報源
+      </th>
+
+      <th>
+        ホスト名
+      </th>
+
+      <th>
+        エンドポイントサービス名
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        APM
+      </td>
+
+      <td>
+        `collector.newrelic.com`
+      </td>
+
+      <td>
+        `com.amazonaws.vpce.us-east-2.vpce-svc-00e75af63239fbdc8`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        イベントのAPI
+      </td>
+
+      <td>
+        `insights-collector.newrelic.com`
+      </td>
+
+      <td>
+        `com.amazonaws.vpce.us-east-2.vpce-svc-030074dde03e5f7f1`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        メトリック API (Prometheus およびその他の統合を含む)
+      </td>
+
+      <td>
+        `metric-api.newrelic.com`
+      </td>
+
+      <td>
+        `com.amazonaws.vpce.us-east-2.vpce-svc-0b48963952181a468`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        ロギング
+      </td>
+
+      <td>
+        `log-api.newrelic.com`
+      </td>
+
+      <td>
+        `com.amazonaws.vpce.us-east-2.vpce-svc-070f8190492d268ec`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        ディストリビューティッド（分散）トレーシング
+      </td>
+
+      <td>
+        `trace-api.newrelic.com`
+      </td>
+
+      <td>
+        `com.amazonaws.vpce.us-east-2.vpce-svc-0cc5a5c85730683db`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        AWS Lambda と Cloudwatch Logs のモニタリング
+      </td>
+
+      <td>
+        `cloud-collector.newrelic.com`
+      </td>
+
+      <td>
+        `com.amazonaws.vpce.us-east-2.vpce-svc-0c4032e13941b3e9d`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        インフラストラクチャの監視とオンホスト統合
+      </td>
+
+      <td>
+        `infra-api.newrelic.com`
+      </td>
+
+      <td>
+        `com.amazonaws.vpce.us-east-2.vpce-svc-0df10112dc8c0f0b0`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        OpenTelemetry
+      </td>
+
+      <td>
+        `otlp.nr-data.net`
+      </td>
+
+      <td>
+        `com.amazonaws.vpce.us-east-2.vpce-svc-0bf91fb637cf37b4f`
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<Callout variant="tip">
+  エンドポイントは次のものではまだ利用でき **ません** 。
+
+  * FedRAMP データ
+  * New Relic 無限トレース
+  * Syslog TCP トラフィック
+  * CloudWatch メトリクス ストリーム
+</Callout>
+
+## VPC エンドポイントを作成する [#create]
+
+上の表で使用している New Relic エンドポイント サービスごとに、VPC 内に [VPC エンドポイントを作成してアタッチします](https://docs.aws.amazon.com/vpc/latest/privatelink/create-interface-endpoint.html) 。これらのエンドポイントを作成するときは、New Relic がエンドポイント サービスで構成したアベイラビリティ ゾーンに対応する VPC サブネットとセキュリティ グループを構成する必要があります。
+
+VPC エンドポイントを作成してアタッチするためのガイドとして、以下の表とスクリーンショットを使用してください。
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        フィールド
+      </th>
+
+      <th>
+        説明
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        **名札**
+      </td>
+
+      <td>
+        オプション。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        **サービスカテゴリー**
+      </td>
+
+      <td>
+        **Other endpoint services** \[その他のエンドポイント サービス]を選択します。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        **サービス設定**
+      </td>
+
+      <td>
+        **Service name** \[サービス名]で、テーブル内の値を見つけて、 **Verify** \[確認]をクリックします。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        **VPC**
+      </td>
+
+      <td>
+        ドロップダウンから VPC を選択します。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        **追加の設定**
+      </td>
+
+      <td>
+        以下を選択します。
+
+        * **DNS名を有効にする**
+        * **IPv4**
+
+        VPC エンドポイントの **Enable DNS name** \[DNS 名を有効にする] オプションをオンにすると、その VPC 内のパブリックルートが PrivateLink パスに置き換えられます。 [エンドポイントポリシーを使用してサービスへのアクセスを制御し](https://docs.aws.amazon.com/vpc/latest/privatelink/vpc-endpoints-access.html#vpc-endpoint-policies) 、VPC 内のアクセスを制限することもできます。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        **サブネット**
+      </td>
+
+      <td>
+        ゾーンを選択します。 **IP address type** \[IP アドレスの種類] で **IPv4** を選択します。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        **セキュリティグループ**
+      </td>
+
+      <td>
+        **Group ID** \[グループ ID]を選択します。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        **タグ**
+      </td>
+
+      <td>
+        オプションのキーと値のペアを挿入します。
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+いくつかのサンプル設定のスクリーンショットを次に示します。
+
+<CollapserGroup>
+  <Collapser
+    id="aws-vpc-endpoint-ui"
+    title="エンドポイントの作成"
+  >
+    <img
+      title="Screenshot of where to start an on-demand session"
+      alt="Screenshot of where to start an on-demand session"
+      src={awsCreateVpcEndpointUi}
+    />
+  </Collapser>
+</CollapserGroup>
+
+## ピアリング接続を設定する [#peering]
+
+これは、 `us-east-2` (オハイオ州) 以外の地域を使用している場合にのみ必要です。
+
+### VPC ピアリング [#vpc-peering]
+
+[手順に従って、作成したエンドポイント接続の VPC ID を指定して、リージョン間 VPC ピアリング接続](https://docs.aws.amazon.com/vpc/latest/peering/create-vpc-peering-connection.html)を作成します。
+
+### トランジットゲートウェイピアリング [#transit-gateway-peering]
+
+[手順に従って Route 53 PHZ を作成し、作成したエンドポイント接続の VPC ID を指定して VPC 間で共有します](https://aws.amazon.com/blogs/networking-and-content-delivery/integrating-aws-transit-gateway-with-aws-privatelink-and-amazon-route-53-resolver)。

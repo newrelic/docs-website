@@ -1,7 +1,6 @@
 import React, { memo, useEffect, useMemo, useState } from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/react';
-import { graphql } from 'gatsby';
 import {
   PageTools,
   Button,
@@ -25,10 +24,20 @@ const DataDictionaryFilter = ({ location, events }) => {
 
   const dataSources = useMemo(
     () =>
-      uniq(events.flatMap((event) => event.dataSources)).sort((a, b) =>
-        a.localeCompare(b)
-      ),
+      uniq(
+        events.flatMap((event) => event.dataSources.map((ds) => ds.name))
+      ).sort((a, b) => a.localeCompare(b)),
     [events]
+  );
+
+  const filteredEvents = useMemo(
+    () =>
+      formState.dataSource
+        ? events.filter((event) =>
+            event.dataSources.includes(formState.dataSource)
+          )
+        : events,
+    [events, formState.dataSource]
   );
 
   useEffect(() => {
@@ -51,16 +60,6 @@ const DataDictionaryFilter = ({ location, events }) => {
       document.removeEventListener('keydown', handler);
     };
   });
-
-  const filteredEvents = useMemo(
-    () =>
-      formState.dataSource
-        ? events.filter((event) =>
-            event.dataSources.includes(formState.dataSource)
-          )
-        : events,
-    [events, formState.dataSource]
-  );
 
   const navigateToParams = (params) => {
     Object.entries(params).forEach(([key, value]) => {
@@ -170,16 +169,6 @@ const DataDictionaryFilter = ({ location, events }) => {
     </PageTools.Section>
   );
 };
-
-export const query = graphql`
-  fragment DataDictionaryFilter_events on DataDictionaryEvent {
-    name
-    dataSources
-    childrenDataDictionaryAttribute {
-      name
-    }
-  }
-`;
 
 DataDictionaryFilter.propTypes = {
   events: PropTypes.arrayOf(

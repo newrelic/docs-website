@@ -1,0 +1,23 @@
+---
+title: Comments
+tags:
+  - Basic style guide
+  - Style guide quick reference
+---
+
+Sometimes you need to catch the attention of your fellow writers or contributors, alerting them about some aspect of the MDX documentation files before they make changes. You can do this by inserting a comment with the `<CONTRIBUTOR_NOTE>` component.
+
+Here are just two examples of where you might use this component:
+
+* Warn others about making changes to sensitive information on the site.
+* Explain the rationale for why information exists where it is on the site.
+
+When you use the `<CONTRIBUTOR_NOTE>` component to compose notes, those notes will never get converted to HTML and will never be seen by our readers directly on the website (including in **View source**). However, they are available to those who choose to edit the site, so always consider your voice and tone.
+
+Here's an example:
+
+```
+<CONTRIBUTOR_NOTE>
+  Do not change this URL unless you have explicit permission from a manager at New Relic.
+</CONTRIBUTOR_NOTE>
+```

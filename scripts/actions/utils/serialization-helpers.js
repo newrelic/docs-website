@@ -14,13 +14,12 @@ const removeParagraphs = () => (tree) => {
   });
 };
 
-// this converts the string version of props to a json string so we can use JSON.parse on it
-const createJsonStr = (str) =>
-  str
-    .replace(/(\w+:)|(\w+ :)/g, function (matchedStr) {
-      return `"${matchedStr.substring(0, matchedStr.length - 1)}":`;
-    })
-    .replace(/'/g, '"');
+// `UserJourneyControls` has the `nextStep` and `prevStep` props,
+// which take objects. when we try to serialize MDX, those props
+// are just strings that look like JS objects.
+// this uses `eval` to "parse" them into actual JS objects,
+// so we can `JSON.stringify them`.
+const createJsonStr = (str) => JSON.stringify(eval(`const obj = ${str}; obj`));
 
 const attributeProcessor = unified()
   .use(toMDAST)
