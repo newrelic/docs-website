@@ -4,10 +4,6 @@ const externalRedirects = require('./src/data/external-redirects.json');
 const { createFilePath } = require('gatsby-source-filesystem');
 const createSingleNav = require('./scripts/createSingleNav');
 const generateTOC = require('mdast-util-toc');
-// are needed for our tableOfContents override
-const genMDX = require('gatsby-plugin-mdx/utils/gen-mdx.js');
-const defaultOptions = require('gatsby-plugin-mdx/utils/default-options.js');
-const getTableOfContents = require('gatsby-plugin-mdx/utils/get-table-of-content.js');
 
 const TEMPLATE_DIR = 'src/templates/';
 const TRAILING_SLASH = /\/$/;
@@ -60,105 +56,117 @@ exports.onCreateNode = ({ node, getNode, actions }) => {
 exports.createPages = async ({ actions, graphql, reporter }) => {
   const { createPage, createRedirect } = actions;
 
-  const { data, errors } = await graphql(`{
-  allMarkdownRemark(filter: {fileAbsolutePath: {regex: "/src/content/"}}) {
-    edges {
-      node {
-        frontmatter {
-          type
+  const { data, errors } = await graphql(`
+    {
+      allMarkdownRemark(
+        filter: { fileAbsolutePath: { regex: "/src/content/" } }
+      ) {
+        edges {
+          node {
+            frontmatter {
+              type
+            }
+            fields {
+              fileRelativePath
+              slug
+            }
+          }
         }
-        fields {
-          fileRelativePath
-          slug
+      }
+      whatsNewPosts: allMarkdownRemark(
+        filter: { fileAbsolutePath: { regex: "/src/content/whats-new/" } }
+      ) {
+        nodes {
+          fields {
+            slug
+          }
+        }
+      }
+      allMdx(filter: { fileAbsolutePath: { regex: "/src/content/" } }) {
+        edges {
+          node {
+            fields {
+              fileRelativePath
+              slug
+            }
+            frontmatter {
+              type
+              subject
+              redirects
+              hideNavs
+            }
+          }
+        }
+      }
+      allI18nMdx: allMdx(
+        filter: { fileAbsolutePath: { regex: "/src/i18n/content/" } }
+      ) {
+        edges {
+          node {
+            fields {
+              fileRelativePath
+              slug
+            }
+            frontmatter {
+              type
+              subject
+              translationType
+            }
+          }
+        }
+      }
+      releaseNotes: allMdx(
+        filter: {
+          fileAbsolutePath: {
+            regex: "/src/content/docs/release-notes/.*(?<!index).mdx/"
+          }
+        }
+        sort: { frontmatter: { releaseDate: DESC } }
+      ) {
+        group(limit: 1, field: { frontmatter: { subject: SELECT } }) {
+          fieldValue
+          nodes {
+            frontmatter {
+              releaseDate
+            }
+            fields {
+              slug
+            }
+          }
+          totalCount
+        }
+      }
+      landingPagesReleaseNotes: allMdx(
+        filter: {
+          fileAbsolutePath: { regex: "/docs/release-notes/.*/index.mdx$/" }
+        }
+      ) {
+        nodes {
+          fields {
+            slug
+          }
+          frontmatter {
+            subject
+            redirects
+          }
+        }
+      }
+      allLocale {
+        nodes {
+          locale
+          isDefault
+        }
+      }
+      allInstallConfig {
+        edges {
+          node {
+            redirects
+            agentName
+          }
         }
       }
     }
-  }
-  whatsNewPosts: allMarkdownRemark(
-    filter: {fileAbsolutePath: {regex: "/src/content/whats-new/"}}
-  ) {
-    nodes {
-      fields {
-        slug
-      }
-    }
-  }
-  allMdx(filter: {fileAbsolutePath: {regex: "/src/content/"}}) {
-    edges {
-      node {
-        fields {
-          fileRelativePath
-          slug
-        }
-        frontmatter {
-          type
-          subject
-          redirects
-          hideNavs
-        }
-      }
-    }
-  }
-  allI18nMdx: allMdx(filter: {fileAbsolutePath: {regex: "/src/i18n/content/"}}) {
-    edges {
-      node {
-        fields {
-          fileRelativePath
-          slug
-        }
-        frontmatter {
-          type
-          subject
-          translationType
-        }
-      }
-    }
-  }
-  releaseNotes: allMdx(
-    filter: {fileAbsolutePath: {regex: "/src/content/docs/release-notes/.*(?<!index).mdx/"}}
-    sort: {frontmatter: {releaseDate: DESC}}
-  ) {
-    group(limit: 1, field: {frontmatter: {subject: SELECT}}) {
-      fieldValue
-      nodes {
-        frontmatter {
-          releaseDate
-        }
-        fields {
-          slug
-        }
-      }
-      totalCount
-    }
-  }
-  landingPagesReleaseNotes: allMdx(
-    filter: {fileAbsolutePath: {regex: "/docs/release-notes/.*/index.mdx$/"}}
-  ) {
-    nodes {
-      fields {
-        slug
-      }
-      frontmatter {
-        subject
-        redirects
-      }
-    }
-  }
-  allLocale {
-    nodes {
-      locale
-      isDefault
-    }
-  }
-  allInstallConfig {
-    edges {
-      node {
-        redirects
-        agentName
-      }
-    }
-  }
-}`);
+  `);
 
   if (errors) {
     reporter.panicOnBuild(`Error while running GraphQL query.`);
@@ -297,20 +305,7 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
   });
 };
 
-exports.createSchemaCustomization = (
-  {
-    getNode,
-    getNodes,
-    pathPrefix,
-    reporter,
-    cache,
-    actions,
-    schema,
-    store,
-    ...helpers
-  },
-  pluginOptions
-) => {
+exports.createSchemaCustomization = ({ actions }) => {
   const { createTypes } = actions;
 
   const typeDefs = `
@@ -347,67 +342,9 @@ exports.createSchemaCustomization = (
     url: String
     text: String
   }
-
   `;
 
-  // this was taken from gatsby-plugin-mdx/gatsby/create-schema-customization.js
-  const options = defaultOptions(pluginOptions);
-
-  const pendingPromises = new WeakMap();
-  const processMDX = ({ node }) => {
-    let promise = pendingPromises.get(node);
-    if (!promise) {
-      promise = genMDX({
-        node,
-        options,
-        store,
-        pathPrefix,
-        getNode,
-        getNodes,
-        cache,
-        reporter,
-        actions,
-        schema,
-        ...helpers,
-      });
-      pendingPromises.set(node, promise);
-      promise.then(() => {
-        pendingPromises.delete(node);
-      });
-    }
-    return promise;
-  };
-
-  const tocExtension = schema.buildObjectType({
-    name: `Mdx`,
-    fields: {
-      tableOfContents: {
-        type: `JSON`,
-        args: {
-          maxDepth: {
-            type: `Int`,
-            default: 6,
-          },
-        },
-        async resolve(mdxNode, { maxDepth }) {
-          const { mdast } = await processMDX({ node: mdxNode });
-          const toc = generateTOC(mdast, {
-            maxDepth,
-
-            // override gatsby-plugin-mdx tableOfContents options
-            // to allow Step headers to show in PageTools
-            parents: [
-              (node) => node.type === 'mdxBlockElement' && node.name === 'Step',
-              'root',
-            ],
-          });
-
-          return getTableOfContents(toc.map, {});
-        },
-      },
-    },
-  });
-  createTypes([typeDefs, tocExtension]);
+  createTypes(typeDefs);
 };
 
 exports.createResolvers = ({ createResolvers }) => {
