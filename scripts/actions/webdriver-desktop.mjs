@@ -24,10 +24,10 @@ const waitForXPath = (xpath, timeout = TIMEOUT) =>
 const main = async () => {
   // running on develop builds because the url is static
   // github workflow triggers on PRs to main
-  const testUrl =
-    process.env.WEBDRIVER_ENV === 'main'
-      ? 'https://docswebsitedevelop.gatsbyjs.io/'
-      : 'http://localhost:8000/';
+  const testUrl = 'https://docswebsitedevelop.gatsbyjs.io/';
+  // process.env.WEBDRIVER_ENV === 'main'
+  //   ? 'https://docswebsitedevelop.gatsbyjs.io/'
+  //   : 'http://localhost:8000/';
 
   await driver.get(testUrl + 'docs/mdx-test-page/');
 
@@ -47,6 +47,8 @@ const collapserTest = async () => {
   const [firstCollapser, secondCollapser] = await waitForXPath(
     '//h5[contains(@id, "collapser")]/ancestor::button'
   );
+  // Ensure page loads
+  await driver.sleep(500);
   const { y: initialTop } = await secondCollapser.getRect();
   console.log('clicking first collapser');
   await firstCollapser.click();
