@@ -52,13 +52,30 @@ const excerptify = async (body) => {
 
 const slugify = (str) => str.replace('src/content/', '').replace('.mdx', '');
 
+const INCLUDE_AGENTS = new Set([
+  '.net',
+  'android',
+  'browser',
+  'dotnet',
+  'go',
+  'infrastructure',
+  'ios',
+  'java',
+  'node',
+  'nodejs',
+  'php',
+  'python',
+  'ruby',
+  'sdk',
+]);
+
 const generateReleaseNoteObject = async (filePath) => {
   const file = await readFile(filePath, { encoding: 'utf8' });
   const slug = slugify(filePath);
   const { attributes, body } = frontmatter(file);
 
   const output = {
-    agent: getAgentName(attributes.subject) ?? null,
+    agent: getAgentName(filePath) ?? null,
     date: attributes.releaseDate ?? null,
     downloadLink: attributes.downloadLink ?? null,
     version: attributes.version ?? null,
@@ -69,20 +86,23 @@ const generateReleaseNoteObject = async (filePath) => {
     slug,
   };
 
-  if (attributes.releaseDate) {
+  if (attributes.eolDate) {
+    output.eolDate = attributes.eolDate;
+  } else if (attributes.releaseDate) {
     output.eolDate = getEOLDate(attributes.releaseDate);
   }
 
   return output;
 };
-
 const releaseNoteMdxs = await glob('src/content/docs/release-notes/**/*.mdx', {
   ignore: '**/index.mdx',
 });
 
 const releaseNotes = (
   await Promise.all(releaseNoteMdxs.map(generateReleaseNoteObject))
-).filter(({ date, agent }) => Boolean(date && agent));
+).filter(
+  ({ date, agent }) => Boolean(date && agent) && INCLUDE_AGENTS.has(agent)
+);
 console.error('📦 release notes JSON generated');
 
 if (uploadToS3) {
