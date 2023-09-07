@@ -133,30 +133,25 @@ WhatsNew.propTypes = {
   pageContext: PropTypes.object.isRequired,
 };
 
-export const pageQuery = graphql`
-  query {
-    allMarkdownRemark(
-      sort: {
-        fields: [frontmatter___releaseDate, frontmatter___title]
-        order: [DESC, ASC]
-      }
-      filter: { fields: { slug: { regex: "/whats-new/" } } }
-    ) {
-      edges {
-        node {
-          id
-          frontmatter {
-            title
-            summary
-            releaseDate(formatString: "MMMM D, YYYY")
-          }
-          fields {
-            slug
-          }
+export const pageQuery = graphql`{
+  allMarkdownRemark(
+    sort: [{frontmatter: {releaseDate: DESC}}, {frontmatter: {title: ASC}}]
+    filter: {fields: {slug: {regex: "/whats-new/"}}}
+  ) {
+    edges {
+      node {
+        id
+        frontmatter {
+          title
+          summary
+          releaseDate(formatString: "MMMM D, YYYY")
+        }
+        fields {
+          slug
         }
       }
     }
   }
-`;
+}`;
 
 export default WhatsNew;

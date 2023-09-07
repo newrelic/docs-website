@@ -60,124 +60,105 @@ exports.onCreateNode = ({ node, getNode, actions }) => {
 exports.createPages = async ({ actions, graphql, reporter }) => {
   const { createPage, createRedirect } = actions;
 
-  const { data, errors } = await graphql(`
-    query {
-      allMarkdownRemark(
-        filter: { fileAbsolutePath: { regex: "/src/content/" } }
-      ) {
-        edges {
-          node {
-            frontmatter {
-              type
-            }
-            fields {
-              fileRelativePath
-              slug
-            }
-          }
+  const { data, errors } = await graphql(`{
+  allMarkdownRemark(filter: {fileAbsolutePath: {regex: "/src/content/"}}) {
+    edges {
+      node {
+        frontmatter {
+          type
         }
-      }
-
-      whatsNewPosts: allMarkdownRemark(
-        filter: { fileAbsolutePath: { regex: "/src/content/whats-new/" } }
-      ) {
-        nodes {
-          fields {
-            slug
-          }
-        }
-      }
-
-      allMdx(filter: { fileAbsolutePath: { regex: "/src/content/" } }) {
-        edges {
-          node {
-            fields {
-              fileRelativePath
-              slug
-            }
-            frontmatter {
-              type
-              subject
-              redirects
-              hideNavs
-            }
-          }
-        }
-      }
-
-      allI18nMdx: allMdx(
-        filter: { fileAbsolutePath: { regex: "/src/i18n/content/" } }
-      ) {
-        edges {
-          node {
-            fields {
-              fileRelativePath
-              slug
-            }
-            frontmatter {
-              type
-              subject
-              translationType
-            }
-          }
-        }
-      }
-
-      releaseNotes: allMdx(
-        filter: {
-          fileAbsolutePath: {
-            regex: "/src/content/docs/release-notes/.*(?<!index).mdx/"
-          }
-        }
-        sort: { fields: frontmatter___releaseDate, order: DESC }
-      ) {
-        group(limit: 1, field: frontmatter___subject) {
-          fieldValue
-          nodes {
-            frontmatter {
-              releaseDate
-            }
-            fields {
-              slug
-            }
-          }
-          totalCount
-        }
-      }
-
-      landingPagesReleaseNotes: allMdx(
-        filter: {
-          fileAbsolutePath: { regex: "/docs/release-notes/.*/index.mdx$/" }
-        }
-      ) {
-        nodes {
-          fields {
-            slug
-          }
-          frontmatter {
-            subject
-            redirects
-          }
-        }
-      }
-
-      allLocale {
-        nodes {
-          locale
-          isDefault
-        }
-      }
-
-      allInstallConfig {
-        edges {
-          node {
-            redirects
-            agentName
-          }
+        fields {
+          fileRelativePath
+          slug
         }
       }
     }
-  `);
+  }
+  whatsNewPosts: allMarkdownRemark(
+    filter: {fileAbsolutePath: {regex: "/src/content/whats-new/"}}
+  ) {
+    nodes {
+      fields {
+        slug
+      }
+    }
+  }
+  allMdx(filter: {fileAbsolutePath: {regex: "/src/content/"}}) {
+    edges {
+      node {
+        fields {
+          fileRelativePath
+          slug
+        }
+        frontmatter {
+          type
+          subject
+          redirects
+          hideNavs
+        }
+      }
+    }
+  }
+  allI18nMdx: allMdx(filter: {fileAbsolutePath: {regex: "/src/i18n/content/"}}) {
+    edges {
+      node {
+        fields {
+          fileRelativePath
+          slug
+        }
+        frontmatter {
+          type
+          subject
+          translationType
+        }
+      }
+    }
+  }
+  releaseNotes: allMdx(
+    filter: {fileAbsolutePath: {regex: "/src/content/docs/release-notes/.*(?<!index).mdx/"}}
+    sort: {frontmatter: {releaseDate: DESC}}
+  ) {
+    group(limit: 1, field: {frontmatter: {subject: SELECT}}) {
+      fieldValue
+      nodes {
+        frontmatter {
+          releaseDate
+        }
+        fields {
+          slug
+        }
+      }
+      totalCount
+    }
+  }
+  landingPagesReleaseNotes: allMdx(
+    filter: {fileAbsolutePath: {regex: "/docs/release-notes/.*/index.mdx$/"}}
+  ) {
+    nodes {
+      fields {
+        slug
+      }
+      frontmatter {
+        subject
+        redirects
+      }
+    }
+  }
+  allLocale {
+    nodes {
+      locale
+      isDefault
+    }
+  }
+  allInstallConfig {
+    edges {
+      node {
+        redirects
+        agentName
+      }
+    }
+  }
+}`);
 
   if (errors) {
     reporter.panicOnBuild(`Error while running GraphQL query.`);

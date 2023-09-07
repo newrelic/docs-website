@@ -20,63 +20,55 @@ const htmlGenerator = unified()
   .use(html);
 
 const releaseNotesQuery = async (graphql) => {
-  const query = `
-    {
-      site {
-        siteMetadata {
-          title
-          siteUrl
-        }
+  const query = `{
+  site {
+    siteMetadata {
+      title
+      siteUrl
+    }
+  }
+  landingPages: allMdx(
+    filter: {fileAbsolutePath: {regex: "/docs/release-notes/.*/index.mdx$/"}}
+  ) {
+    nodes {
+      fields {
+        slug
       }
-      landingPages: allMdx(
-        filter: {
-          fileAbsolutePath: { regex: "/docs/release-notes/.*/index.mdx$/" }
-        }
-      ) {
-        nodes {
-          fields {
-            slug
-          }
-          frontmatter {
-            subject
-          }
-        }
-      }
-      allMdx(
-        filter: {
-          fileAbsolutePath: {
-            regex: "/src/content/docs/release-notes/.*(?<!index).mdx/"
-          }
-        }
-      ) {
-        group(field: frontmatter___subject) {
-          nodes {
-            frontmatter {
-              subject
-              version
-              releaseDate
-            }
-            slug
-            id
-            mdxAST
-          }
-          fieldValue
-        }
-      }
-      allImageSharp {
-        nodes {
-          parent {
-            ... on File {
-              relativePath
-            }
-          }
-          original {
-            src
-          }
-        }
+      frontmatter {
+        subject
       }
     }
-  `;
+  }
+  allMdx(
+    filter: {fileAbsolutePath: {regex: "/src/content/docs/release-notes/.*(?<!index).mdx/"}}
+  ) {
+    group(field: {frontmatter: {subject: SELECT}}) {
+      nodes {
+        frontmatter {
+          subject
+          version
+          releaseDate
+        }
+        slug
+        id
+        mdxAST
+      }
+      fieldValue
+    }
+  }
+  allImageSharp {
+    nodes {
+      parent {
+        ... on File {
+          relativePath
+        }
+      }
+      original {
+        src
+      }
+    }
+  }
+}`;
 
   const { data } = await graphql(query);
 

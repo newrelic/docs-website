@@ -17,10 +17,8 @@ const sortByVersion = (
     return 0;
   }
 
-  return (
-    parseInt(versionB.replace(/\D/g, ''), 10) -
-    parseInt(versionA.replace(/\D/g, ''), 10)
-  );
+  return parseInt(versionB.replace(/\D/g, ''), 10) -
+  parseInt(versionA.replace(/\D/g, ''), 10);
 };
 
 const ReleaseNoteLandingPage = ({ data, pageContext, location }) => {
@@ -227,41 +225,35 @@ ReleaseNoteLandingPage.propTypes = {
   pageContext: PropTypes.object.isRequired,
 };
 
-export const pageQuery = graphql`
-  query($slug: String!, $subject: String!, $skip: Int, $limit: Int) {
-    allMdx(
-      filter: {
-        frontmatter: { subject: { eq: $subject }, releaseDate: { ne: null } }
+export const pageQuery = graphql`query ($slug: String!, $subject: String!, $skip: Int, $limit: Int) {
+  allMdx(
+    filter: {frontmatter: {subject: {eq: $subject}, releaseDate: {ne: null}}}
+    sort: {frontmatter: {releaseDate: DESC}}
+    limit: $limit
+    skip: $skip
+  ) {
+    nodes {
+      fields {
+        slug
       }
-      sort: { fields: [frontmatter___releaseDate], order: [DESC] }
-      limit: $limit
-      skip: $skip
-    ) {
-      nodes {
-        fields {
-          slug
-        }
-        frontmatter {
-          title
-          version
-          releaseDate(formatString: "MMMM D, YYYY")
-        }
-        body
-      }
-    }
-    mdx(fields: { slug: { eq: $slug } }) {
       frontmatter {
-        subject
+        title
+        version
+        releaseDate(formatString: "MMMM D, YYYY")
       }
-    }
-    totalReleaseNotesPerAgent: allMdx(
-      filter: {
-        frontmatter: { subject: { eq: $subject }, releaseDate: { ne: null } }
-      }
-    ) {
-      totalCount
+      body
     }
   }
-`;
+  mdx(fields: {slug: {eq: $slug}}) {
+    frontmatter {
+      subject
+    }
+  }
+  totalReleaseNotesPerAgent: allMdx(
+    filter: {frontmatter: {subject: {eq: $subject}, releaseDate: {ne: null}}}
+  ) {
+    totalCount
+  }
+}`;
 
 export default ReleaseNoteLandingPage;
