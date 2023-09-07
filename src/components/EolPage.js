@@ -10,13 +10,17 @@ const releaseNotesQuery = graphql`
   query {
     allMdx(
       filter: {
-        fileAbsolutePath: {
-          regex: "/src/content/docs/release-notes/.*(?<!index).mdx/"
+        internal: {
+          contentFilePath: {
+            regex: "/src/content/docs/release-notes/.*(?<!index).mdx/"
+          }
         }
       }
     ) {
       nodes {
-        fileAbsolutePath
+        internal {
+          contentFilePath
+        }
         frontmatter {
           releaseDate
           eolDate
@@ -30,7 +34,7 @@ const releaseNotesQuery = graphql`
 const EolPage = ({ agent, locale = 'en' }) => {
   const { allMdx } = useStaticQuery(releaseNotesQuery);
   const releaseNotes = allMdx.nodes
-    .filter((note) => getAgentName(note.fileAbsolutePath) === agent)
+    .filter((note) => getAgentName(note.internal.contentFilePath) === agent)
     .map((note) => ({
       date: parseISO(note.frontmatter.releaseDate),
       eolDate: parseISO(

@@ -82,7 +82,9 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
           }
         }
       }
-      allMdx(filter: { fileAbsolutePath: { regex: "/src/content/" } }) {
+      allMdx(
+        filter: { internal: { contentFilePath: { regex: "/src/content/" } } }
+      ) {
         edges {
           node {
             fields {
@@ -99,7 +101,9 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
         }
       }
       allI18nMdx: allMdx(
-        filter: { fileAbsolutePath: { regex: "/src/i18n/content/" } }
+        filter: {
+          internal: { contentFilePath: { regex: "/src/i18n/content/" } }
+        }
       ) {
         edges {
           node {
@@ -117,8 +121,10 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
       }
       releaseNotes: allMdx(
         filter: {
-          fileAbsolutePath: {
-            regex: "/src/content/docs/release-notes/.*(?<!index).mdx/"
+          internal: {
+            contentFilePath: {
+              regex: "/src/content/docs/release-notes/.*(?<!index).mdx/"
+            }
           }
         }
         sort: { frontmatter: { releaseDate: DESC } }
@@ -138,7 +144,9 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
       }
       landingPagesReleaseNotes: allMdx(
         filter: {
-          fileAbsolutePath: { regex: "/docs/release-notes/.*/index.mdx$/" }
+          internal: {
+            contentFilePath: { regex: "/docs/release-notes/.*/index.mdx$/" }
+          }
         }
       ) {
         nodes {

@@ -303,37 +303,42 @@ HomePage.propTypes = {
     }),
   }),
 };
-export const pageQuery = graphql`query ($quicklaunchSlug: String!) {
-  site {
-    layout {
-      contentPadding
+export const pageQuery = graphql`
+  query ($quicklaunchSlug: String!) {
+    site {
+      layout {
+        contentPadding
+      }
     }
-  }
-  quicklaunch: mdx(slug: {eq: $quicklaunchSlug}) {
-    body
-    frontmatter {
-      title
+    quicklaunch: mdx(fields: { slug: { eq: $quicklaunchSlug } }) {
+      body
+      frontmatter {
+        title
+      }
     }
-  }
-  allMarkdownRemark(
-    sort: [{frontmatter: {releaseDate: DESC}}, {frontmatter: {title: ASC}}]
-    filter: {fields: {slug: {regex: "/whats-new/"}}}
-    limit: 3
-  ) {
-    edges {
-      node {
-        id
-        frontmatter {
-          title
-          releaseDate(formatString: "MMMM DD, YYYY")
-        }
-        fields {
-          slug
+    allMarkdownRemark(
+      sort: [
+        { frontmatter: { releaseDate: DESC } }
+        { frontmatter: { title: ASC } }
+      ]
+      filter: { fields: { slug: { regex: "/whats-new/" } } }
+      limit: 3
+    ) {
+      edges {
+        node {
+          id
+          frontmatter {
+            title
+            releaseDate(formatString: "MMMM DD, YYYY")
+          }
+          fields {
+            slug
+          }
         }
       }
     }
   }
-}`;
+`;
 const Section = ({ ...props }) => {
   return (
     <section
