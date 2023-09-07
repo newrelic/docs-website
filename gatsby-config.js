@@ -157,14 +157,16 @@ module.exports = {
         // https://github.com/mdx-js/mdx/issues/1283
         //
         // If this is addressed in MDX v2, we can safely remove this.
-        remarkPlugins: [],
-        rehypePlugins: [
-          require('./rehype-plugins/image-sizing'),
-          [
-            require('./rehype-plugins/gatsby-inline-images'),
-            { spacing: '0.5rem' },
+        mdxOptions: {
+          remarkPlugins: [],
+          rehypePlugins: [
+            require('./rehype-plugins/image-sizing'),
+            [
+              require('./rehype-plugins/gatsby-inline-images'),
+              { spacing: '0.5rem' },
+            ],
           ],
-        ],
+        },
         gatsbyRemarkPlugins: [
           {
             resolve: 'gatsby-remark-images',
