@@ -48,13 +48,13 @@ exports.createResolvers = ({ createResolvers, createNodeId }) => {
             locales,
           };
 
-          switch (true) {
-            case slug.startsWith('/docs/agile-handbook') ||
-              slug.startsWith('/docs/style-guide'):
-              return createSubNav(utils);
-
-            default:
-              return createNav(utils);
+          if (
+            slug.startsWith('/docs/agile-handbook') ||
+            slug.startsWith('/docs/style-guide')
+          ) {
+            return createSubNav(utils);
+          } else {
+            return createNav(utils);
           }
         },
       },
@@ -123,36 +123,34 @@ const createWhatsNewNav = async ({ createNodeId, nodeModel }) => {
 };
 
 const createReleaseNotesNav = async ({ createNodeId, nodeModel }) => {
-  const [
-    { entries: releaseNoteEntries },
-    { entries: landingPagesEntries },
-  ] = await Promise.all([
-    nodeModel.findAll({
-      type: 'Mdx',
-      query: {
-        filter: {
-          fileAbsolutePath: {
-            regex: '/src/content/docs/release-notes/.*(?<!index).mdx/',
+  const [{ entries: releaseNoteEntries }, { entries: landingPagesEntries }] =
+    await Promise.all([
+      nodeModel.findAll({
+        type: 'Mdx',
+        query: {
+          filter: {
+            fileAbsolutePath: {
+              regex: '/src/content/docs/release-notes/.*(?<!index).mdx/',
+            },
+          },
+          sort: {
+            fields: ['frontmatter.releaseDate', 'slug'],
+            order: ['DESC', 'DESC'],
           },
         },
-        sort: {
-          fields: ['frontmatter.releaseDate', 'slug'],
-          order: ['DESC', 'DESC'],
-        },
-      },
-    }),
+      }),
 
-    nodeModel.findAll({
-      type: 'Mdx',
-      query: {
-        filter: {
-          fileAbsolutePath: {
-            regex: '/src/content/docs/release-notes/.*/index.mdx$/',
+      nodeModel.findAll({
+        type: 'Mdx',
+        query: {
+          filter: {
+            fileAbsolutePath: {
+              regex: '/src/content/docs/release-notes/.*/index.mdx$/',
+            },
           },
         },
-      },
-    }),
-  ]);
+      }),
+    ]);
 
   // Convert GatsbyIterable to array to use array methods it doesn't support
   const posts = Array.from(releaseNoteEntries);
