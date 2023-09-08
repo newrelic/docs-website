@@ -47,6 +47,8 @@ const collapserTest = async () => {
   const [firstCollapser, secondCollapser] = await waitForXPath(
     '//h5[contains(@id, "collapser")]/ancestor::button'
   );
+  // Ensure page loads
+  await driver.sleep(500);
   const { y: initialTop } = await secondCollapser.getRect();
   console.log('clicking first collapser');
   await firstCollapser.click();
