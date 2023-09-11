@@ -1,4 +1,4 @@
-const visit = require('unist-util-visit');
+const visit = require('unist-util-visit2');
 const {
   isMdxElement,
   parseImport,
@@ -6,10 +6,10 @@ const {
   removeAttribute,
 } = require('../../codemods/utils/mdxast');
 const { mdxBlockElement } = require('../../codemods/utils/mdxast-builder');
-const toMDAST = require('remark-parse');
-const remarkMdx = require('remark-mdx');
+const toMDAST = require('remark-parse8');
+const remarkMdx = require('remark-mdx2next');
 const remarkMdxjs = require('remark-mdxjs');
-const unified = require('unified');
+const unified = require('unified9');
 const { set } = require('lodash');
 
 const removeParagraphs = () => (tree) => {

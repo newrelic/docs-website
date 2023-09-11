@@ -1,10 +1,10 @@
-import all from 'mdast-util-to-hast/lib/all';
-import one from 'mdast-util-to-hast/lib/one';
-import { findAttribute } from '../../codemods/utils/mdxast';
-import { toString } from 'mdast-util-to-string';
-import { u } from 'unist-builder';
-import { compileStyleObject } from '../../rehype-plugins/utils/styles';
-import { set, get } from 'lodash';
+const all = require('mdast-util-to-hast10/lib/all');
+const one = require('mdast-util-to-hast10/lib/one');
+const { findAttribute } = require('../../codemods/utils/mdxast');
+const toString = require('mdast-util-to-string1');
+const u = require('unist-builder2');
+const { compileStyleObject } = require('../../rehype-plugins/utils/styles');
+const { set, get } = require('lodash');
 
 const stripNulls = (obj) =>
   Object.fromEntries(Object.entries(obj).filter(([, value]) => value != null));
@@ -81,7 +81,7 @@ const isBlockImage = (parent, node) => {
   return !isBlock.includes(false);
 };
 
-export default {
+module.exports = {
   image: (h, node, parent, imageHashMap) => {
     const domain = 'https://docs.newrelic.com';
     const srcUrl = getSrcUrl(node.url);

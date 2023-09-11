@@ -4,12 +4,10 @@ const path = require('path');
 const RSS = require('rss');
 const format = require('date-fns/format');
 const parseISO = preferDefault(require('date-fns/parseISO'));
-const unified = require('unified');
+const unified = require('unified9');
 const parse = require('rehype-parse');
 const addAbsoluteImagePath = require('../../rehype-plugins/utils/addAbsoluteImagePath');
-const rehypeStringify = require('rehype-stringify');
-const removeImports = require('remark-mdx-remove-imports');
-const removeExports = require('remark-mdx-remove-exports');
+const rehypeStringify = require('rehype-stringify8');
 
 // NOTE: remove-imports and remove-exports are now depreciated
 

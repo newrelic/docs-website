@@ -1,6 +1,6 @@
-const { visit } = require('unist-util-visit');
+const { visit } = require('unist-util-visit2');
 const phrasing = require('hast-util-phrasing');
-const is = require('hast-util-is-element');
+const is = require('hast-util-is-element1');
 const has = require('hast-util-has-property');
 const { parseStyleString, compileStyleObject } = require('../utils/styles');
 

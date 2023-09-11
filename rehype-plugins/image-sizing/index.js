@@ -1,8 +1,5 @@
-const { visit } = require('unist-util-visit');
-const {
-  isMdxElement,
-  findAttribute,
-} = require('../../codemods/utils/mdxast.mjs');
+const { visit } = require('unist-util-visit2');
+const { isMdxElement, findAttribute } = require('../../codemods/utils/mdxast');
 const { parseStyleString, compileStyleObject } = require('../utils/styles');
 const { select } = require('hast-util-select');
 

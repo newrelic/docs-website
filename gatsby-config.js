@@ -1,10 +1,9 @@
 const fs = require('fs');
 const path = require('path');
 const parse = require('rehype-parse');
-const unified = require('unified');
-const rehypeStringify = require('rehype-stringify');
+const unified = require('unified9');
+const rehypeStringify = require('rehype-stringify8');
 const addAbsoluteImagePath = require('./rehype-plugins/utils/addAbsoluteImagePath');
-const getAgentName = require('./src/utils/getAgentName');
 
 const siteUrl = 'https://docs.newrelic.com';
 const additionalLocales = ['jp', 'kr'];
