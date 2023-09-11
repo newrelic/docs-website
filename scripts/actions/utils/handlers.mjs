@@ -24,6 +24,20 @@ const handler = {
     deserialize: (h, node) =>
       h(node, 'code', deserializeJSValue(node.properties.dataProps)),
   },
+  mdxjsEsm: {
+    deserialize: (h, node) => {
+      const value = Buffer.from(node.properties.dataValue, 'base64').toString();
+
+      return h(node, 'mdxjsEsm', value);
+    },
+    serialize: (h, node) =>
+      h(node, 'div', {
+        'data-type': 'mdxjsEsm',
+        'data-value': Buffer.from(node.value).toString('base64'),
+      }),
+  },
+  // temporarily needed until old translations with this node type pass through.
+  // will be replaced by mdxjsEsm type above
   import: {
     deserialize: (h, node) => {
       const value = Buffer.from(node.properties.dataValue, 'base64').toString();
