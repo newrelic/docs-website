@@ -17,7 +17,7 @@ const hasChildren = (node) => node.children && node.children.length;
 
 const inlineCodeAttribute = () => (tree) => {
   visit(tree, 'inlineCode', (node) => {
-    node.type = 'mdxSpanElement';
+    node.type = 'mdxJsxTextElement';
     node.name = 'InlineCode';
     node.children = [u('text', node.value)];
   });
@@ -39,7 +39,7 @@ export const deserializeAttributeValue = (h, node) => {
   }
 
   if (node.type === 'element') {
-    const tree = deserializeComponent(h, node, { type: 'mdxSpanElement' });
+    const tree = deserializeComponent(h, node, { type: 'mdxJsxTextElement' });
     const transformedTree = attributeProcessor.runSync(tree);
 
     return mdxValueExpression(attributeProcessor.stringify(transformedTree));

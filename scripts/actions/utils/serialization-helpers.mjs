@@ -1,6 +1,6 @@
 import { findAttribute } from '../../../codemods/utils/mdxast.mjs';
 import { omit } from 'lodash-es';
-import { toHast } from 'mdast-util-to-hast';
+import { all } from './all.mjs';
 import { u } from 'unist-builder';
 import toMDAST from 'remark-parse';
 import remarkMdx from 'remark-mdx';
@@ -83,7 +83,7 @@ export const serializeComponent = (
   } = {}
 ) => {
   node.children = children;
-  const inferredTagName = node.type === 'mdxSpanElement' ? 'span' : 'div';
+  const inferredTagName = node.type === 'mdxTextElement' ? 'span' : 'div';
 
   return h(
     node,
@@ -102,9 +102,9 @@ export const serializeComponent = (
               node.position,
               inferredTagName,
               { 'data-type': 'prop', 'data-prop': 'children' },
-              toHast(h, node)
+              all(h, node)
             )
-          : toHast(h, node)
+          : all(h, node)
       )
       .filter(Boolean)
   );

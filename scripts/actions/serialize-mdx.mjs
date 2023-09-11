@@ -2,17 +2,15 @@
 
 import { unified } from 'unified';
 import remarkParse from 'remark-parse';
-import rehypeRemark from 'rehype-remark';
+import remarkRehype from 'remark-rehype';
 import remarkFrontmatter from 'remark-frontmatter';
 import remarkMdx from 'remark-mdx';
-import remarkMdxjs from 'remark-mdxjs';
 import rehypeStringify from 'rehype-stringify';
 import addClasses from 'rehype-add-classes';
 import rehypeFormat from 'rehype-format';
 
 import handlers from './utils/handlers.mjs';
 import fencedCodeBlock from '../../codemods/fencedCodeBlock.mjs';
-import customHeadingIds from '../../plugins/gatsby-remark-custom-heading-ids/utils/visitor.mjs';
 
 const mdxElement = (h, node) => {
   const handler = handlers[node.name];
@@ -29,14 +27,14 @@ const mdxElement = (h, node) => {
 const processor = unified()
   .use(remarkParse)
   .use(remarkMdx)
-  .use(remarkMdxjs)
   .use(remarkFrontmatter, ['yaml'])
   .use(fencedCodeBlock)
-  .use(customHeadingIds)
-  .use(rehypeRemark, {
+  .use(remarkRehype, {
     handlers: {
-      import: handlers.import.serialize,
       yaml: handlers.frontmatter.serialize,
+      mdxjsEsm: handlers.mdxjsEsm.serialize,
+      mdxJsxTextElement: mdxElement,
+      mdxJsxFlowElement: mdxElement,
       code: handlers.CodeBlock.serialize,
     },
   })
@@ -48,9 +46,9 @@ const processor = unified()
   });
 
 const serializeMDX = async (mdx) => {
-  const { contents } = await processor.process(mdx);
+  const { value } = await processor.process(mdx);
 
-  return contents;
+  return value;
 };
 
 export default serializeMDX;
