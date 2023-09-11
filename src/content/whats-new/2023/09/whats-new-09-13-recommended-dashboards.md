@@ -1,6 +1,6 @@
 ---
 title: 'Personalized pre-built dashboard recommendations to help you monitor in minutes'
-summary: 'Save time and discover relevant observability resources faster with tailored quickstart recommendations in right your dashboards UI'
+summary: 'Save time and discover relevant observability resources faster with tailored quickstart recommendations right in your dashboards UI'
 releaseDate: '2023-09-13'
 learnMoreLink: 'https://docs.newrelic.com/docs/query-your-data/explore-query-data/dashboards/prebuilt-dashboards' 
 getStartedLink: 'https://one.newrelic.com/dashboards'
@@ -18,7 +18,7 @@ We've updated our [dashboards UI](https://one.newrelic.com/dashboards) to recomm
 
 ## How to get started
 To install a pre-built dashboard:
-1. Go to the [dashboards page](https://one.newrelic.com/dashboards) and select the account you want to work in
+1. Go to the [dashboards page](https://one.newrelic.com/dashboards) and select the account you want to work in.
 2. Select a dashboard from the **Recommended dashboards** section at the top of the screen.
 3. Follow the instructions in the **Setup data source** section. If you've already instrumented the data source, you can skip this step.
 4. Click **View dashboard** to deploy the dashboard!
@@ -27,11 +27,11 @@ To install a pre-built dashboard:
 To tailor your recommendations, you can now modify your account stack configuration: 
 1. From the dashboard home page, make sure you have an account selected.
 2. Under the **Recommended dashboards** section, select **Tell us about your stack**.
-3. In the new window, update your stack configuration by selecting all applicable choices
+3. In the new window, update your stack configuration by selecting all applicable choices.
 4. Confirm and select **Save**. The new recommendations will now appear.
 
 **Note:**
 - If you have not selected your stack configuration, your recommendations will include a common set of curated popular pre-built dashboards.
-- When you change your stack configuration, this will affect the recommendations for your entire account, including other those of other users in the same account. 
+- When you change your stack configuration, this will affect the recommendations for your entire account, including those of other users in the same account.
 
 Learn more by reading the [docs](https://docs.newrelic.com/docs/query-your-data/explore-query-data/dashboards/prebuilt-dashboards).
