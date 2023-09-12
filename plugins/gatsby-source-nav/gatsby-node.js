@@ -105,10 +105,13 @@ const createWhatsNewNav = async ({ createNodeId, nodeModel }) => {
         },
       },
       limit: 10,
-      sort: {
-        fields: ['frontmatter.releaseDate', 'frontmatter.title'],
-        order: ['DESC', 'ASC'],
-      },
+      sort: [
+        {
+          frontmatter: {
+            releaseDate: 'DESC',
+          },
+        },
+      ],
     },
   });
 
@@ -129,14 +132,13 @@ const createReleaseNotesNav = async ({ createNodeId, nodeModel }) => {
         type: 'Mdx',
         query: {
           filter: {
-            fileAbsolutePath: {
-              regex: '/src/content/docs/release-notes/.*(?<!index).mdx/',
+            internal: {
+              contentFilePath: {
+                regex: '/src/content/docs/release-notes/.*(?<!index).mdx/',
+              },
             },
           },
-          sort: {
-            fields: ['frontmatter.releaseDate', 'slug'],
-            order: ['DESC', 'DESC'],
-          },
+          sort: [{ frontmatter: { releaseDate: 'DESC' } }],
         },
       }),
 
@@ -144,8 +146,10 @@ const createReleaseNotesNav = async ({ createNodeId, nodeModel }) => {
         type: 'Mdx',
         query: {
           filter: {
-            fileAbsolutePath: {
-              regex: '/src/content/docs/release-notes/.*/index.mdx$/',
+            internal: {
+              contentFilePath: {
+                regex: '/src/content/docs/release-notes/.*/index.mdx$/',
+              },
             },
           },
         },
