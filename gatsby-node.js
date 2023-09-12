@@ -37,22 +37,6 @@ exports.onCreateWebpackConfig = ({ actions }) => {
   });
 };
 
-exports.onCreateNode = ({ node, getNode, actions }) => {
-  const { createNodeField } = actions;
-
-  if (
-    node.internal.type === 'Mdx' ||
-    (node.internal.type === 'MarkdownRemark' &&
-      node.fileAbsolutePath.includes('src/content'))
-  ) {
-    createNodeField({
-      node,
-      name: 'slug',
-      value: createFilePath({ node, getNode, trailingSlash: false }),
-    });
-  }
-};
-
 exports.createPages = async ({ actions, graphql, reporter }) => {
   const { createPage, createRedirect } = actions;
 
