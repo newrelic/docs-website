@@ -31,12 +31,17 @@ const main = async () => {
 
   await driver.get(testUrl + 'docs/mdx-test-page/');
 
+  // Ensure page loads, 2000 ms wait
+  await driver.sleep(2000);
+
   // order here matters — some tests scroll the page
   await collapserTest();
   await searchTest();
   await navTest();
 
   await driver.get(testUrl);
+  // Ensure home page loads, 2000 ms wait
+  await driver.sleep(2000);
   await tileTest();
 
   // this step isn't necessary in synthetics
@@ -47,11 +52,7 @@ const collapserTest = async () => {
   const [firstCollapser, secondCollapser] = await waitForXPath(
     '//h5[contains(@id, "collapser")]/ancestor::button'
   );
-  // Ensure page loads, 2000 ms wait
-  await driver.sleep(2000);
-  console.log('sleep for 2000 ms');
-  console.log('firstCollapser', firstCollapser);
-  console.log('secondCollapser', secondCollapser);
+
   const { y: initialTop } = await secondCollapser.getRect();
   console.log('clicking first collapser');
   await firstCollapser.click();
