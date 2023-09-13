@@ -6,11 +6,11 @@ learnMoreLink: 'https://docs.newrelic.com/docs/query-your-data/explore-query-dat
 getStartedLink: 'https://one.newrelic.com/dashboards'
 ---
 
-We've updated our [dashboards UI](https://one.newrelic.com/dashboards) to recommend quickstart dashboards personalized based on your stack. So, you can quickly find relevant data visualizations in seconds in the same place you find the rest of your dashboards. With this update, you can:
+We've updated our [dashboards UI](https://one.newrelic.com/dashboards) to recommend quickstart dashboards personalized based on your stack. Now you can quickly find relevant data visualizations in the same place you find the rest of your dashboards. With this update, you can:
 
-- **Discover curated pre-made solutions** based on the stack you rely on
-- **Get instant full-stack observability** with a guided dashboard installation process 
-- **Save the time and hassle** of manually building dashboards from scratch, so you can spend your time monitoring and troubleshooting your system
+- **Discover curated pre-made solutions** based on the stack you rely on.
+- **Get instant full-stack observability** with a guided dashboard installation process.
+- **Save the time and hassle** of manually building dashboards from scratch, so you can spend your time monitoring and troubleshooting your system.
 
 <iframe width="560" height="315" src="https://fast.wistia.net/embed/iframe/n94eq1l2wz" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
 
@@ -25,7 +25,7 @@ To install a pre-built dashboard:
 
 ## Curate your recommendations
 To tailor your recommendations, you can now modify your account stack configuration: 
-1. From the dashboard home page, make sure you have an account selected.
+1. From the **Dashboard** home page, make sure you have an account selected.
 2. Under the **Recommended dashboards** section, select **Tell us about your stack**.
 3. In the new window, update your stack configuration by selecting all applicable choices.
 4. Confirm and select **Save**. The new recommendations will now appear.
