@@ -54,6 +54,9 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
               fileRelativePath
               slug
             }
+            internal {
+              contentFilePath
+            }
           }
         }
       }
@@ -81,6 +84,9 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
               redirects
               hideNavs
             }
+            internal {
+              contentFilePath
+            }
           }
         }
       }
@@ -99,6 +105,9 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
               type
               subject
               translationType
+            }
+            internal {
+              contentFilePath
             }
           }
         }
@@ -490,6 +499,7 @@ const createPageFromNode = (
   const {
     frontmatter: { subject: agentName, hideNavs },
     fields: { fileRelativePath, slug },
+    internal: { contentFilePath },
   } = node;
 
   const { template, context = {} } = getTemplate(node);
@@ -530,9 +540,12 @@ const createPageFromNode = (
       });
     });
   } else {
+    const templatePath = path.resolve(
+      path.join(TEMPLATE_DIR, `${template}.js`)
+    );
     createPage({
       path: path.join(prefix, slug, '/'),
-      component: path.resolve(path.join(TEMPLATE_DIR, `${template}.js`)),
+      component: `${templatePath}?__contentFilePath=${contentFilePath}`,
       context: {
         ...context,
         fileRelativePath,
