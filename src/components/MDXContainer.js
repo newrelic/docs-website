@@ -36,6 +36,7 @@ const defaultComponents = {
       <img
         width={props.width ? props.width : 'inherit'}
         src={props.src}
+        className={props.className}
         alt={props.alt ? props.alt : 'Docs site'}
         title={props.title}
         style={
@@ -49,6 +50,7 @@ const defaultComponents = {
         <img
           width={props.width ? props.width : 'auto'}
           src={props.src}
+          className={props.className}
           alt={props.alt ? props.alt : 'Docs site'}
           title={props.title}
           style={
