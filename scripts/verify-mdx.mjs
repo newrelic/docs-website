@@ -1,16 +1,25 @@
-const frontmatter = require('@github-docs/frontmatter');
-const mdx = require('@mdx-js/mdx');
-const fs = require('fs');
-const glob = require('glob');
+import frontmatter from '@github-docs/frontmatter';
+import { compileSync } from '@mdx-js/mdx';
+import fs from 'fs';
+import glob from 'glob';
+import path from 'path';
+import { fileURLToPath } from 'url';
+// import MDXContainer from '../src/components/MDXContainer.mjs';
+
+// const { defaultComponents } = MDXContainer;
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const readFile = async (filePath) => {
   let failed = false;
-  console.log(`reading ${filePath}`);
+  // console.log(`reading ${filePath}`);
 
   const mdxText = fs.readFileSync(filePath, 'utf8');
   try {
-    const jsx = mdx.sync(mdxText);
+    compileSync(mdxText);
   } catch (exception) {
+    console.log('filepath', filePath);
     console.log(JSON.stringify(exception, null, 4));
     failed = true;
   }

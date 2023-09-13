@@ -3,7 +3,6 @@ const toMDAST = require('remark-parse');
 const stringify = require('remark-stringify');
 const frontmatter = require('remark-frontmatter');
 const remarkMdx = require('remark-mdx');
-const remarkMdxjs = require('remark-mdxjs');
 
 const createProcessor = ({ codemods = [] } = {}) => {
   const processor = unified()
@@ -14,7 +13,6 @@ const createProcessor = ({ codemods = [] } = {}) => {
     })
     .use(toMDAST)
     .use(remarkMdx)
-    .use(remarkMdxjs)
     .use(frontmatter, ['yaml']);
 
   codemods.forEach((plugin) => {

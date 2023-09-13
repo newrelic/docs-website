@@ -8,7 +8,6 @@ const {
 const { mdxBlockElement } = require('../../codemods/utils/mdxast-builder');
 const toMDAST = require('remark-parse');
 const remarkMdx = require('remark-mdx');
-const remarkMdxjs = require('remark-mdxjs');
 const unified = require('unified');
 const { set } = require('lodash');
 
@@ -54,7 +53,6 @@ const jsxPropToElement = (attrName, node) => {
 const attributeProcessor = unified()
   .use(toMDAST)
   .use(remarkMdx)
-  .use(remarkMdxjs)
   .use(removeParagraphs);
 
 const jsxImagesToChildren = () => (tree) => {

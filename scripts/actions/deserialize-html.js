@@ -4,7 +4,6 @@ const rehype2remark = require('rehype-remark');
 const stringify = require('remark-stringify');
 const frontmatter = require('remark-frontmatter');
 const remarkMdx = require('remark-mdx');
-const remarkMdxjs = require('remark-mdxjs');
 const handlers = require('./utils/handlers');
 const defaultHandlers = require('hast-util-to-mdast/lib/handlers');
 const heading = require('hast-util-to-mdast/lib/handlers/heading');
@@ -117,7 +116,6 @@ const processor = unified()
     listItemIndent: '1',
   })
   .use(remarkMdx)
-  .use(remarkMdxjs)
   .use(frontmatter, ['yaml'])
   .use(stripTranslateFrontmatter);
 

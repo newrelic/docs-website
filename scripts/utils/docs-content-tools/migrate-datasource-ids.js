@@ -7,7 +7,6 @@ const frontmatter = require('remark-frontmatter');
 const yaml = require('js-yaml');
 const unified = require('unified');
 const remarkMdx = require('remark-mdx');
-const remarkMdxjs = require('remark-mdxjs');
 const remarkParse = require('remark-parse');
 const remarkStringify = require('remark-stringify');
 const fencedCodeBlock = require('../../../codemods/fencedCodeBlock');
@@ -117,7 +116,6 @@ const writeIdsToDocs = async () => {
           listItemIndent: '1',
         })
         .use(remarkMdx)
-        .use(remarkMdxjs)
         .use(frontmatter, ['yaml'])
         .use(fencedCodeBlock)
         .use(updateFrontMatter);

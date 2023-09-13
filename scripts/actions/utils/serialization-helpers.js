@@ -4,7 +4,6 @@ const all = require('mdast-util-to-hast/lib/all');
 const u = require('unist-builder');
 const toMDAST = require('remark-parse');
 const remarkMdx = require('remark-mdx');
-const remarkMdxjs = require('remark-mdxjs');
 const unified = require('unified');
 const visit = require('unist-util-visit');
 
@@ -24,7 +23,6 @@ const createJsonStr = (str) => JSON.stringify(eval(`const obj = ${str}; obj`));
 const attributeProcessor = unified()
   .use(toMDAST)
   .use(remarkMdx)
-  .use(remarkMdxjs)
   .use(removeParagraphs);
 
 const serializeAttributeValue = (h, attribute) => {

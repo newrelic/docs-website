@@ -4,7 +4,6 @@ const glob = require('glob');
 const unified = require('unified');
 const remarkParse = require('remark-parse');
 const remarkMdx = require('remark-mdx');
-const remarkMdxjs = require('remark-mdxjs');
 const visit = require('unist-util-visit');
 const u = require('unist-builder');
 const camelCase = require('camelcase');
@@ -219,7 +218,6 @@ const createAST = () => {
       listItemIndent: '1',
     })
     .use(remarkMdx)
-    .use(remarkMdxjs)
     .use(frontmatter, ['yaml'])
     .use(convertImages)
     .parse(mdxFile);
@@ -247,7 +245,6 @@ const runConvertImages = async (paths = []) => {
       listItemIndent: '1',
     })
     .use(remarkMdx)
-    .use(remarkMdxjs)
     .use(frontmatter, ['yaml'])
     .use(fencedCodeBlock)
     .use(convertImages);

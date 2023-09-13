@@ -1,7 +1,6 @@
 const deserializeJSValue = (value) => JSON.parse(Buffer.from(value, 'base64'));
 const all = require('hast-util-to-mdast/lib/all');
 const remarkMdx = require('remark-mdx');
-const remarkMdxjs = require('remark-mdxjs');
 const stringify = require('remark-stringify');
 const unified = require('unified');
 const {
@@ -28,7 +27,6 @@ const attributeProcessor = unified()
     listItemIndent: '1',
   })
   .use(remarkMdx)
-  .use(remarkMdxjs)
   .use(inlineCodeAttribute);
 
 const deserializeAttributeValue = (h, node) => {
