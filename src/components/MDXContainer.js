@@ -36,7 +36,8 @@ const defaultComponents = {
       <img
         width={props.width ? props.width : 'inherit'}
         src={props.src}
-        className={props.className}
+        // this prevents images from stretching when the width is set to a percent value
+        className={props.width ? 'unbound' : props.className}
         alt={props.alt ? props.alt : 'Docs site'}
         title={props.title}
         style={
@@ -50,7 +51,8 @@ const defaultComponents = {
         <img
           width={props.width ? props.width : 'auto'}
           src={props.src}
-          className={props.className}
+          // this prevents images from stretching if the width is set to a percent value
+          className={props.width ? 'unbound' : props.className}
           alt={props.alt ? props.alt : 'Docs site'}
           title={props.title}
           style={
