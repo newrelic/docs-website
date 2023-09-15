@@ -1,6 +1,6 @@
-const { pick } = require('lodash');
+import { pick } from 'lodash-es';
 
-exports.sourceNodes = ({
+export const sourceNodes = ({
   actions,
   createNodeId,
   createContentDigest,
@@ -54,7 +54,7 @@ exports.sourceNodes = ({
   });
 };
 
-exports.createSchemaCustomization = ({ actions }) => {
+export const createSchemaCustomization = ({ actions }) => {
   const { createTypes } = actions;
 
   createTypes(`
@@ -131,7 +131,7 @@ exports.createSchemaCustomization = ({ actions }) => {
   `);
 };
 
-exports.createResolvers = ({ createResolvers }) => {
+export const createResolvers = ({ createResolvers }) => {
   createResolvers({
     InstallConfig: {
       steps: {

@@ -1,4 +1,4 @@
-const parseStyleString = (string) => {
+export const parseStyleString = (string) => {
   if (!string) {
     return {};
   }
@@ -13,10 +13,8 @@ const parseStyleString = (string) => {
     }, {});
 };
 
-const compileStyleObject = (styles) =>
+export const compileStyleObject = (styles) =>
   Object.entries(styles)
     .filter(([, value]) => Boolean(value))
     .map((rule) => rule.join(': '))
     .join('; ');
-
-module.exports = { parseStyleString, compileStyleObject };

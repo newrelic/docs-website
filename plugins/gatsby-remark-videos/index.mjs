@@ -1,8 +1,8 @@
-const visit = require('unist-util-visit');
-const { parse } = require('node-html-parser');
-const { oneLine } = require('common-tags');
+import { visit } from 'unist-util-visit';
+import { parse } from 'node-html-parser';
+import { oneLine } from 'common-tags';
 
-module.exports = ({ markdownAST }) => {
+export default ({ markdownAST }) => {
   visit(markdownAST, 'html', (node) => {
     const root = parse(node.value);
     const element = root.firstChild;

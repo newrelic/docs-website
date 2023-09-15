@@ -7,7 +7,7 @@ import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { unified } from 'unified10';
 import remarkParse from 'remark-parse10';
 import remarkMdx from 'remark-mdx';
-import { visit } from 'unist-util-visit4';
+import { visit } from 'unist-util-visit';
 import { Command } from 'commander';
 
 import getAgentName from '../src/utils/getAgentName.js';

@@ -1,14 +1,15 @@
-const fs = require('fs');
-const path = require('path');
-const RSS = require('rss');
-const format = require('date-fns/format');
-const html = require('rehype-stringify');
-const unified = require('unified');
-const toHast = require('mdast-util-to-hast');
-const removeImports = require('remark-mdx-remove-imports');
-const removeExports = require('remark-mdx-remove-exports');
-const jsxImagesToChildren = require('../utils/jsxImagesToChildren');
-const handlers = require('../utils/handlers');
+import fs from 'fs';
+import path from 'path';
+import RSS from 'rss';
+import { format } from 'date-fns';
+import html from 'rehype-stringify';
+import { unified } from 'unified';
+import { toHast } from 'mdast-util-to-hast';
+import removeImports from 'remark-mdx-remove-imports';
+import removeExports from 'remark-mdx-remove-exports';
+
+import jsxImagesToChildren from '../utils/jsxImagesToChildren.mjs';
+import handlers from '../utils/handlers.mjs';
 
 const htmlGenerator = unified()
   .use(jsxImagesToChildren)
@@ -129,17 +130,14 @@ const generateFeed = (
   fs.writeFileSync(filepath, feed.xml());
 };
 
-exports.onPostBuild = async ({ graphql, store, reporter }) => {
+export const onPostBuild = async ({ graphql, store, reporter }) => {
   const { program } = store.getState();
   const publicDir = path.join(program.directory, 'public');
 
   try {
     reporter.info(`Generating XML for security bulletins RSS feed`);
-    const {
-      site,
-      securityBulletinFileNodes,
-      allImageSharp,
-    } = await securityBulletinsQuery(graphql);
+    const { site, securityBulletinFileNodes, allImageSharp } =
+      await securityBulletinsQuery(graphql);
 
     const imageHashMap = allImageSharp.nodes.reduce(
       (acc, { original, parent }) => ({

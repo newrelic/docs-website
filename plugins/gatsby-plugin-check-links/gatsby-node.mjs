@@ -1,8 +1,8 @@
-const checkNavLinks = require('./utils/check-nav-links');
-const { linkVisitorMdx, linkVisitorHtml } = require('./utils/links-visitors');
-const unified = require('unified');
+import checkNavLinks from './utils/check-nav-links.mjs';
+import { linkVisitorMdx, linkVisitorHtml } from './utils/links-visitors.mjs';
+import { unified } from 'unified';
 
-exports.onPostBuild = async ({ graphql }) => {
+export const onPostBuild = async ({ graphql }) => {
   const { data } = await graphql(`
     query {
       allMdx {

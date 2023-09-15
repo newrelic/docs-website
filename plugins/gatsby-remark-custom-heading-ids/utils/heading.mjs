@@ -1,8 +1,8 @@
-const remove = require('unist-util-remove');
-const filter = require('unist-util-filter');
-const toString = require('mdast-util-to-string');
-const convert = require('unist-util-is/convert');
-const { cloneDeep, last } = require('lodash');
+import { remove } from 'unist-util-remove';
+import { filter } from 'unist-util-filter';
+import { toString } from 'mdast-util-to-string';
+import { convert } from 'unist-util-is';
+import { cloneDeep, last } from 'lodash';
 
 const CUSTOM_ID = /^#[\w-]+$/;
 const isIgnoredNode = convert(['image']);
@@ -45,4 +45,4 @@ const parseHeading = (node) => {
   return { id: null, text: toString(node) };
 };
 
-module.exports = { getId, parseHeading, isHeadingWithCustomId };
+export default { getId, parseHeading, isHeadingWithCustomId };

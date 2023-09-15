@@ -1,7 +1,7 @@
-const fs = require('fs');
-const path = require('path');
+import fs from 'fs';
+import path from 'path';
 
-exports.onPostBuild = async ({ graphql, store }, pluginOptions) => {
+export const onPostBuild = async ({ graphql, store }, pluginOptions) => {
   const { program } = store.getState();
   const { query, serialize } = pluginOptions;
 

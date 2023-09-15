@@ -1,7 +1,7 @@
-const visit = require('unist-util-visit');
-const remove = require('unist-util-remove');
-const { get, set } = require('lodash');
-const { isHeadingWithCustomId, getId } = require('./heading');
+import { visit } from 'unist-util-visit';
+import { remove } from 'unist-util-remove';
+import { get, set } from 'lodash';
+import { isHeadingWithCustomId, getId } from './heading.mjs';
 
 const visitor = () => (tree) => {
   visit(tree, isHeadingWithCustomId, (heading) => {
@@ -25,4 +25,4 @@ const visitor = () => (tree) => {
   });
 };
 
-module.exports = visitor;
+export default visitor;

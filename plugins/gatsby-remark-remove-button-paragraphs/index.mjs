@@ -1,10 +1,10 @@
-const visit = require('unist-util-visit');
+import { visit } from 'unist-util-visit';
 
 const isButtonLike = (node) =>
   node.type === 'mdxBlockElement' &&
   ['Button', 'ButtonLink'].includes(node.name);
 
-module.exports = ({ markdownAST }) => {
+export default ({ markdownAST }) => {
   visit(markdownAST, isButtonLike, (node) => {
     if (!node.children) {
       return;

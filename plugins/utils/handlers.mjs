@@ -1,11 +1,13 @@
-const all = require('mdast-util-to-hast/lib/all');
-const one = require('mdast-util-to-hast/lib/one');
-const { findAttribute } = require('../../codemods/utils/mdxast');
-const toString = require('mdast-util-to-string');
-const u = require('unist-builder');
-const { compileStyleObject } = require('../../rehype-plugins/utils/styles');
-const { set, get } = require('lodash');
+// import { all, one } from 'mdast-util-to-hast/lib/state.js';
+import { toString } from 'mdast-util-to-string';
+import { u } from 'unist-builder';
+import { set, get } from 'lodash';
 
+import { findAttribute } from '../../codemods/utils/mdxast.mjs';
+import { compileStyleObject } from '../../rehype-plugins/utils/styles.mjs';
+
+const all = () => null;
+const one = () => null;
 const stripNulls = (obj) =>
   Object.fromEntries(Object.entries(obj).filter(([, value]) => value != null));
 
@@ -81,7 +83,7 @@ const isBlockImage = (parent, node) => {
   return !isBlock.includes(false);
 };
 
-module.exports = {
+export default {
   image: (h, node, parent, imageHashMap) => {
     const domain = 'https://docs.newrelic.com';
     const srcUrl = getSrcUrl(node.url);
@@ -170,9 +172,10 @@ module.exports = {
       node,
       'a',
       {
-        className: className.reduce((arr, prop) => [...arr, `btn-${prop}`], [
-          'btn',
-        ]),
+        className: className.reduce(
+          (arr, prop) => [...arr, `btn-${prop}`],
+          ['btn']
+        ),
         href: findAttribute('to', node),
       },
       [u('text', toString(node))]

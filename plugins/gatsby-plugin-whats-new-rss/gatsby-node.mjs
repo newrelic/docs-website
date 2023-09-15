@@ -1,17 +1,13 @@
 const preferDefault = (m) => (m && m.default) || m;
-const fs = require('fs');
-const path = require('path');
-const RSS = require('rss');
-const format = require('date-fns/format');
-const parseISO = preferDefault(require('date-fns/parseISO'));
-const unified = require('unified');
-const parse = require('rehype-parse');
-const addAbsoluteImagePath = require('../../rehype-plugins/utils/addAbsoluteImagePath');
-const rehypeStringify = require('rehype-stringify');
-const removeImports = require('remark-mdx-remove-imports');
-const removeExports = require('remark-mdx-remove-exports');
+import fs from 'fs';
+import path from 'path';
+import RSS from 'rss';
+import { format, parseISO } from 'date-fns';
+import { unified } from 'unified';
+import parse from 'rehype-parse';
+import rehypeStringify from 'rehype-stringify';
 
-// NOTE: remove-imports and remove-exports are now depreciated
+import addAbsoluteImagePath from '../../rehype-plugins/utils/addAbsoluteImagePath.mjs';
 
 const whatsNewQuery = async (graphql) => {
   const query = `
@@ -108,7 +104,7 @@ const generateFeed = (publicDir, siteMetadata, reporter, whatsNewNodes) => {
   fs.writeFileSync(filepath, feed.xml());
 };
 
-exports.onPostBuild = async ({ graphql, store, reporter }) => {
+export const onPostBuild = async ({ graphql, store, reporter }) => {
   const { program } = store.getState();
   const publicDir = path.join(program.directory, 'public');
 

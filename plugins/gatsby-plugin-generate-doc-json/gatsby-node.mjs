@@ -1,15 +1,16 @@
-const fs = require('fs');
-const path = require('path');
-const unified = require('unified');
-const toHast = require('mdast-util-to-hast');
-const html = require('rehype-stringify');
-const removeImports = require('remark-mdx-remove-imports');
-const removeExports = require('remark-mdx-remove-exports');
-const fencedCodeBlock = require('../../codemods/fencedCodeBlock');
-const customHeadingIds = require('../gatsby-remark-custom-heading-ids/utils/visitor');
-const handlers = require('../utils/handlers');
-const jsxImagesToChildren = require('../utils/jsxImagesToChildren');
-const all = require('mdast-util-to-hast/lib/all');
+import fs from 'fs';
+import path from 'path';
+import { unified } from 'unified';
+import { toHast } from 'mdast-util-to-hast';
+import html from 'rehype-stringify';
+import removeImports from 'remark-mdx-remove-imports';
+import removeExports from 'remark-mdx-remove-exports';
+import { all } from 'mdast-util-to-hast/lib/state';
+
+import fencedCodeBlock from '../../codemods/fencedCodeBlock.mjs';
+import customHeadingIds from '../gatsby-remark-custom-heading-ids/utils/visitor.mjs';
+import jsxImagesToChildren from '../utils/jsxImagesToChildren.mjs';
+import handlers from '../utils/handlers.mjs';
 
 const mdxElement = (h, node) => {
   const handler = handlers[node.name];
@@ -28,7 +29,7 @@ const htmlGenerator = unified()
   .use(customHeadingIds)
   .use(html);
 
-exports.onPostBuild = async ({ graphql, store }) => {
+export const onPostBuild = async ({ graphql, store }) => {
   const { program } = store.getState();
 
   const { data } = await graphql(`

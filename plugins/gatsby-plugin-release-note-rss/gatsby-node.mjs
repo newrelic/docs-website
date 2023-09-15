@@ -1,16 +1,16 @@
 const preferDefault = (m) => (m && m.default) || m;
-const fs = require('fs');
-const path = require('path');
-const RSS = require('rss');
-const format = require('date-fns/format');
-const unified = require('unified');
-const toHast = require('mdast-util-to-hast');
-const html = require('rehype-stringify');
-const removeImports = require('remark-mdx-remove-imports');
-const removeExports = require('remark-mdx-remove-exports');
-const parseISO = preferDefault(require('date-fns/parseISO'));
-const jsxImagesToChildren = require('../utils/jsxImagesToChildren');
-const handlers = require('../utils/handlers');
+import fs from 'fs';
+import path from 'path';
+import RSS from 'rss';
+import { format, parseISO } from 'date-fns';
+import { unified } from 'unified';
+import { toHast } from 'mdast-util-to-hast';
+import html from 'rehype-stringify';
+import removeImports from 'remark-mdx-remove-imports';
+import removeExports from 'remark-mdx-remove-exports';
+
+import jsxImagesToChildren from '../utils/jsxImagesToChildren.mjs';
+import handlers from '../utils/handlers.mjs';
 
 // NOTE: remove-imports and remove-exports are now depreciated
 const htmlGenerator = unified()
@@ -108,52 +108,48 @@ const getFeedItem = (node, siteMetadata, imageHashMap) => {
   };
 };
 
-const generateFeed = (
-  publicDir,
-  siteMetadata,
-  reporter,
-  landingPages,
-  imageHashMap
-) => (group) => {
-  const title = `${group.fieldValue} release notes`;
-  const landingPage = landingPages.find(
-    (page) => page.frontmatter.subject === group.fieldValue
-  );
-
-  if (!landingPage) {
-    reporter.info(
-      `\tNo landing page found for '${group.fieldValue}'. Skipping...`
+const generateFeed =
+  (publicDir, siteMetadata, reporter, landingPages, imageHashMap) =>
+  (group) => {
+    const title = `${group.fieldValue} release notes`;
+    const landingPage = landingPages.find(
+      (page) => page.frontmatter.subject === group.fieldValue
     );
-    return;
-  }
 
-  const feedPath = path.join(landingPage.fields.slug, 'feed.xml');
+    if (!landingPage) {
+      reporter.info(
+        `\tNo landing page found for '${group.fieldValue}'. Skipping...`
+      );
+      return;
+    }
 
-  // https://github.com/dylang/node-rss#feedoptions
-  const feedOptions = {
-    title,
-    feed_url: new URL(feedPath, siteMetadata.siteUrl).href,
-    site_url: siteMetadata.siteUrl,
+    const feedPath = path.join(landingPage.fields.slug, 'feed.xml');
+
+    // https://github.com/dylang/node-rss#feedoptions
+    const feedOptions = {
+      title,
+      feed_url: new URL(feedPath, siteMetadata.siteUrl).href,
+      site_url: siteMetadata.siteUrl,
+    };
+
+    reporter.info(`\t${feedOptions.feed_url}`);
+
+    const feed = group.nodes.reduce((rss, node) => {
+      rss.item(getFeedItem(node, siteMetadata, imageHashMap));
+      return rss;
+    }, new RSS(feedOptions));
+
+    const filepath = path.join(publicDir, feedPath);
+    const dir = path.dirname(filepath);
+
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+
+    fs.writeFileSync(filepath, feed.xml());
   };
 
-  reporter.info(`\t${feedOptions.feed_url}`);
-
-  const feed = group.nodes.reduce((rss, node) => {
-    rss.item(getFeedItem(node, siteMetadata, imageHashMap));
-    return rss;
-  }, new RSS(feedOptions));
-
-  const filepath = path.join(publicDir, feedPath);
-  const dir = path.dirname(filepath);
-
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
-
-  fs.writeFileSync(filepath, feed.xml());
-};
-
-exports.onPostBuild = async ({ graphql, store, reporter }) => {
+export const onPostBuild = async ({ graphql, store, reporter }) => {
   const { program } = store.getState();
   const publicDir = path.join(program.directory, 'public');
 

@@ -1,34 +1,34 @@
-const { curry } = require('lodash/fp');
-const convert = require('unist-util-is/convert');
-const { mdxAttribute } = require('./mdxast-builder');
+import curry from 'lodash/fp/curry.js';
+import { convert } from 'unist-util-is';
+import { mdxAttribute } from './mdxast-builder.mjs';
 
-const isType = curry((type, node) => node.type === type);
+export const isType = curry((type, node) => node.type === type);
 
-const isMdxBlockElement = curry(
+export const isMdxBlockElement = curry(
   (name, node) => isType('mdxBlockElement', node) && node.name === name
 );
 
-const isMdxSpanElement = curry(
+export const isMdxSpanElement = curry(
   (name, node) => isType('mdxSpanElement', node) && node.name === name
 );
 
-const isMdxElement = curry(
+export const isMdxElement = curry(
   (name, node) => isMdxBlockElement(name, node) || isMdxSpanElement(name, node)
 );
 
-const hasOnlyChild = curry(
+export const hasOnlyChild = curry(
   (name, node) => node.children.length === 1 && isType(name, node.children[0])
 );
 
-const flatten = (node) => {
+export const flatten = (node) => {
   node.children = node.children[0].children;
 };
 
-const hasAttribute = curry((attribute, node) =>
+export const hasAttribute = curry((attribute, node) =>
   node.attributes.some((attr) => attr.name === attribute)
 );
 
-const findAttribute = (attributeName, node) => {
+export const findAttribute = (attributeName, node) => {
   if (!node.attributes) {
     return null;
   }
@@ -36,7 +36,7 @@ const findAttribute = (attributeName, node) => {
   return attribute ? attribute.value : null;
 };
 
-const hasClassName = curry((className, node) => {
+export const hasClassName = curry((className, node) => {
   if (!node.attributes) {
     return false;
   }
@@ -47,7 +47,7 @@ const hasClassName = curry((className, node) => {
   );
 });
 
-const setAttribute = (name, value, node) => {
+export const setAttribute = (name, value, node) => {
   const attribute =
     node.attributes && node.attributes.find((attr) => attr.name === name);
 
@@ -58,7 +58,7 @@ const setAttribute = (name, value, node) => {
   }
 };
 
-const removeAttribute = curry((attribute, node) => {
+export const removeAttribute = curry((attribute, node) => {
   const idx = node.attributes.findIndex((attr) => {
     return typeof attribute === 'function'
       ? attribute(attr)
@@ -82,7 +82,7 @@ const removeChild = curry((child, parent) => {
   }
 });
 
-const isPlainText = (node) => {
+export const isPlainText = (node) => {
   return (
     node.children.every((node) => node.type === 'text') ||
     (node.children.length === 1 &&
@@ -91,19 +91,19 @@ const isPlainText = (node) => {
   );
 };
 
-const findChild = (node, test) => {
+export const findChild = (node, test) => {
   const matches = convert(test);
 
   return node.children.find((child, idx) => matches(child, idx, node));
 };
 
-const parseImport = (node) => {
+export const parseImport = (node) => {
   const match = node.value.match(/import (\w+?) from ['"](.*?)['"]/);
 
   return match ? { expression: match[1], path: match[2] } : null;
 };
 
-const containsImport = (tree, node) => {
+export const containsImport = (tree, node) => {
   return tree.children.some((child) => {
     if (child.type !== 'import') {
       return false;
@@ -120,24 +120,4 @@ const containsImport = (tree, node) => {
     // `./images/debian.png.`
     return childImport.path.toLowerCase() === nodeImport.path.toLowerCase();
   });
-};
-
-module.exports = {
-  addAttribute,
-  containsImport,
-  parseImport,
-  flatten,
-  isMdxBlockElement,
-  isMdxElement,
-  isMdxSpanElement,
-  isPlainText,
-  hasAttribute,
-  findAttribute,
-  hasClassName,
-  hasOnlyChild,
-  findChild,
-  removeAttribute,
-  removeChild,
-  isType,
-  setAttribute,
 };

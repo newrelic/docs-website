@@ -1,7 +1,7 @@
 const hasOwnProperty = (obj, key) =>
   Object.prototype.hasOwnProperty.call(obj, key);
 
-exports.createSchemaCustomization = ({ actions }) => {
+export const createSchemaCustomization = ({ actions }) => {
   const { createTypes } = actions;
 
   createTypes(`
@@ -23,7 +23,7 @@ exports.createSchemaCustomization = ({ actions }) => {
   `);
 };
 
-exports.createResolvers = ({ createResolvers, createNodeId }) => {
+export const createResolvers = ({ createResolvers, createNodeId }) => {
   createResolvers({
     Query: {
       nav: {
@@ -85,7 +85,7 @@ exports.createResolvers = ({ createResolvers, createNodeId }) => {
   });
 };
 
-exports.onCreatePage = ({ page, actions }) => {
+export const onCreatePage = ({ page, actions }) => {
   const { createPage } = actions;
 
   if (!page.context.slug) {

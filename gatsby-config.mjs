@@ -1,10 +1,18 @@
-const fs = require('fs');
-const path = require('path');
-const parse = require('rehype-parse');
-const unified = require('unified');
-const rehypeStringify = require('rehype-stringify');
-const addAbsoluteImagePath = require('./rehype-plugins/utils/addAbsoluteImagePath');
-const getAgentName = require('./src/utils/getAgentName');
+import fs from 'fs';
+import path, { dirname } from 'path';
+import parse from 'rehype-parse';
+import unified from 'unified';
+import rehypeStringify from 'rehype-stringify';
+import { fileURLToPath } from 'url';
+import { createRequire } from 'module';
+
+import addAbsoluteImagePath from './rehype-plugins/utils/addAbsoluteImagePath.mjs';
+import getAgentName from './src/utils/getAgentName.js';
+import rehypeImageSizing from './rehype-plugins/image-sizing/index.mjs';
+import rehypeInlineImages from './rehype-plugins/gatsby-inline-images/index.mjs';
+
+const require = createRequire(import.meta.url);
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const siteUrl = 'https://docs.newrelic.com';
 const additionalLocales = ['jp', 'kr'];
@@ -25,12 +33,11 @@ const ignoreFolders = process.env.BUILD_FOLDERS
 const autoLinkHeaders = {
   resolve: 'gatsby-remark-autolink-headers',
   options: {
-    icon:
-      '<svg xmlns="http://www.w3.org/2000/svg" focusable="false" width="1rem" height="1rem" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 7h3a5 5 0 0 1 5 5 5 5 0 0 1-5 5h-3m-6 0H6a5 5 0 0 1-5-5 5 5 0 0 1 5-5h3"></path><line x1="8" y1="12" x2="16" y2="12"></line></svg>',
+    icon: '<svg xmlns="http://www.w3.org/2000/svg" focusable="false" width="1rem" height="1rem" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 7h3a5 5 0 0 1 5 5 5 5 0 0 1-5 5h-3m-6 0H6a5 5 0 0 1-5-5 5 5 0 0 1 5-5h3"></path><line x1="8" y1="12" x2="16" y2="12"></line></svg>',
   },
 };
 
-module.exports = {
+export default {
   trailingSlash: 'always',
   flags: {
     DEV_SSR: true,
@@ -137,14 +144,16 @@ module.exports = {
           //
           // Source: https://github.com/gatsbyjs/gatsby/issues/7317#issuecomment-412984851
           'gatsby-remark-copy-linked-files',
-          'gatsby-remark-videos',
+          require.resolve('./plugins/gatsby-remark-videos/index.mjs'),
           {
-            resolve: 'gatsby-remark-gifs',
+            resolve: require.resolve('./plugins/gatsby-remark-gifs/index.mjs'),
             options: {
               maxWidth: 850,
             },
           },
-          'gatsby-remark-custom-heading-ids',
+          require.resolve(
+            './plugins/gatsby-remark-custom-heading-ids/index.mjs'
+          ),
         ],
       },
     },
@@ -160,11 +169,8 @@ module.exports = {
         mdxOptions: {
           remarkPlugins: [],
           rehypePlugins: [
-            require('./rehype-plugins/image-sizing'),
-            [
-              require('./rehype-plugins/gatsby-inline-images'),
-              { spacing: '0.5rem' },
-            ],
+            rehypeImageSizing,
+            [rehypeInlineImages, { spacing: '0.5rem' }],
           ],
         },
         gatsbyRemarkPlugins: [
@@ -186,11 +192,13 @@ module.exports = {
           // https://github.com/gatsbyjs/gatsby/issues/23194
           {
             resolve: require.resolve(
-              './plugins/gatsby-remark-custom-heading-ids'
+              './plugins/gatsby-remark-custom-heading-ids/index.mjs'
             ),
           },
           {
-            resolve: require.resolve('./plugins/gatsby-remark-mdx-v2-images'),
+            resolve: require.resolve(
+              './plugins/gatsby-remark-mdx-v2-images/index.mjs'
+            ),
           },
           // Gifs are not supported via gatsby-remark-images (https://github.com/gatsbyjs/gatsby/issues/7317).
           // It is recommended to therefore use this plugin to copy files with a
@@ -199,14 +207,14 @@ module.exports = {
           // Source: https://github.com/gatsbyjs/gatsby/issues/7317#issuecomment-412984851
           'gatsby-remark-copy-linked-files',
           {
-            resolve: require.resolve('./plugins/gatsby-remark-gifs'),
+            resolve: require.resolve('./plugins/gatsby-remark-gifs/index.mjs'),
             options: {
               maxWidth: 1200,
             },
           },
           {
             resolve: require.resolve(
-              './plugins/gatsby-remark-remove-button-paragraphs'
+              './plugins/gatsby-remark-remove-button-paragraphs/index.mjs'
             ),
           },
         ],
@@ -305,9 +313,9 @@ module.exports = {
         },
       },
     },
-    'gatsby-plugin-release-note-rss',
-    'gatsby-plugin-whats-new-rss',
-    'gatsby-plugin-security-bulletins-rss',
+    // 'gatsby-plugin-release-note-rss',
+    // 'gatsby-plugin-whats-new-rss',
+    // 'gatsby-plugin-security-bulletins-rss',
 
     'gatsby-source-nav',
     'gatsby-source-install-config',

@@ -1,8 +1,8 @@
-const fs = require('fs');
-const yaml = require('js-yaml');
+import fs from 'fs';
+import yaml from 'js-yaml';
 
 const NAV_DIR = 'src/nav';
-const getPageResponse = require('./get-page-response');
+import getPageResponse from './get-page-response.mjs';
 
 const extractLinks = (data, links = []) => {
   if (!data.pages) {
@@ -58,4 +58,4 @@ const checkNavLinks = async ({ nodes }) => {
   );
 };
 
-module.exports = checkNavLinks;
+export default checkNavLinks;

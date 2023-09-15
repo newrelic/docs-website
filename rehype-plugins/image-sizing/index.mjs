@@ -1,7 +1,8 @@
-const visit = require('unist-util-visit');
-const { isMdxElement, findAttribute } = require('../../codemods/utils/mdxast');
-const { parseStyleString, compileStyleObject } = require('../utils/styles');
-const { select } = require('hast-util-select');
+import { visit } from 'unist-util-visit';
+import { select } from 'hast-util-select';
+
+import { isMdxElement, findAttribute } from '../../codemods/utils/mdxast.mjs';
+import { parseStyleString, compileStyleObject } from '../utils/styles.mjs';
 
 const imageSizing = () => (tree) => {
   visit(tree, isMdxElement('ImageSizing'), (node, idx, parent) => {
@@ -35,4 +36,4 @@ const imageSizing = () => (tree) => {
   });
 };
 
-module.exports = imageSizing;
+export default imageSizing;

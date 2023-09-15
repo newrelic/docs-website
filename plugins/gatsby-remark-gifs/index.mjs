@@ -1,10 +1,10 @@
-const visit = require('unist-util-visit');
-const path = require('path');
+import { visit } from 'unist-util-visit';
+import path from 'path';
 
 // match the default from gatsby-remark-images
 const DEFAULT_MAX_WIDTH = 650;
 
-module.exports = ({ markdownAST }, pluginOptions) => {
+export default ({ markdownAST }, pluginOptions) => {
   const { maxWidth = DEFAULT_MAX_WIDTH } = pluginOptions;
 
   visit(markdownAST, 'image', (node) => {

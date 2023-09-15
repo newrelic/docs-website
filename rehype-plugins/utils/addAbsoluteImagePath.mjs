@@ -1,5 +1,5 @@
-const visit = require('unist-util-visit');
-const is = require('hast-util-is-element');
+import { visit } from 'unist-util-visit';
+import { isElement as is } from 'hast-util-is-element';
 
 const prependSiteUrl = (src) => `https://docs.newrelic.com${src}`;
 
@@ -18,4 +18,4 @@ const addAbsoluteImagePath = () => (tree) => {
   );
 };
 
-module.exports = addAbsoluteImagePath;
+export default addAbsoluteImagePath;

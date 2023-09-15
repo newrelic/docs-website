@@ -1,9 +1,10 @@
-const path = require('path');
-const { prop } = require('./scripts/utils/functional.js');
-const externalRedirects = require('./src/data/external-redirects.json');
-const { createFilePath } = require('gatsby-source-filesystem');
-const createSingleNav = require('./scripts/createSingleNav');
-const generateTOC = require('mdast-util-toc');
+import path from 'path';
+import generateTOC from 'mdast-util-toc';
+import { createFilePath } from 'gatsby-source-filesystem';
+
+import { prop } from './scripts/utils/functional.js';
+import externalRedirects from './src/data/external-redirects.json';
+import createSingleNav from './scripts/createSingleNav.js';
 
 const TEMPLATE_DIR = 'src/templates/';
 const TRAILING_SLASH = /\/$/;
@@ -18,11 +19,11 @@ const hasTrailingSlash = (pathname) =>
 const appendTrailingSlash = (pathname) =>
   pathname.endsWith('/') ? pathname : `${pathname}/`;
 
-exports.onPreBootstrap = () => {
+export const onPreBootstrap = () => {
   createSingleNav();
 };
 
-exports.onCreateWebpackConfig = ({ actions }) => {
+export const onCreateWebpackConfig = ({ actions }) => {
   actions.setWebpackConfig({
     resolve: {
       fallback: {
@@ -37,7 +38,7 @@ exports.onCreateWebpackConfig = ({ actions }) => {
   });
 };
 
-exports.createPages = async ({ actions, graphql, reporter }) => {
+export const createPages = async ({ actions, graphql, reporter }) => {
   const { createPage, createRedirect } = actions;
 
   const { data, errors } = await graphql(`
@@ -306,7 +307,7 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
   });
 };
 
-exports.createSchemaCustomization = ({ actions }) => {
+export const createSchemaCustomization = ({ actions }) => {
   const { createTypes } = actions;
 
   const typeDefs = `
@@ -348,7 +349,7 @@ exports.createSchemaCustomization = ({ actions }) => {
   createTypes(typeDefs);
 };
 
-exports.createResolvers = ({ createResolvers }) => {
+export const createResolvers = ({ createResolvers }) => {
   createResolvers({
     NavYaml: {
       pages: {
@@ -422,7 +423,7 @@ exports.createResolvers = ({ createResolvers }) => {
   });
 };
 
-exports.onCreatePage = ({ page, actions }) => {
+export const onCreatePage = ({ page, actions }) => {
   const { createPage } = actions;
 
   if (page.path === '/') {

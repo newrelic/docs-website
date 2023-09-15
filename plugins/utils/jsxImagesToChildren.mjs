@@ -1,15 +1,16 @@
-const visit = require('unist-util-visit');
-const {
+import { visit } from 'unist-util-visit';
+import toMDAST from 'remark-parse';
+import remarkMdx from 'remark-mdx';
+import { unified } from 'unified';
+import { set } from 'lodash';
+
+import {
   isMdxElement,
   parseImport,
   findAttribute,
   removeAttribute,
-} = require('../../codemods/utils/mdxast');
-const { mdxBlockElement } = require('../../codemods/utils/mdxast-builder');
-const toMDAST = require('remark-parse');
-const remarkMdx = require('remark-mdx');
-const unified = require('unified');
-const { set } = require('lodash');
+} from '../../codemods/utils/mdxast.mjs';
+import { mdxBlockElement } from '../../codemods/utils/mdxast-builder.mjs';
 
 const removeParagraphs = () => (tree) => {
   visit(tree, 'paragraph', (node, idx, parent) => {
@@ -131,4 +132,4 @@ const jsxImagesToChildren = () => (tree) => {
   );
 };
 
-module.exports = jsxImagesToChildren;
+export default jsxImagesToChildren;
