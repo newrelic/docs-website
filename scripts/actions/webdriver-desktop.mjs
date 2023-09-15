@@ -25,7 +25,10 @@ const waitForXPath = (xpath, timeout = TIMEOUT) =>
 const main = async () => {
   // running on develop builds because the url is static
   // github workflow triggers on PRs to main
-  const testUrl = 'https://docswebsitedevelop.gatsbyjs.io/';
+  const testUrl =
+    process.env.WEBDRIVER_ENV === 'main'
+      ? 'https://docswebsitedevelop.gatsbyjs.io/'
+      : 'http://localhost:8000/';
 
   await driver.get(testUrl + 'docs/mdx-test-page/');
 
