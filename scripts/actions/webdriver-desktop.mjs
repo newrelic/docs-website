@@ -17,6 +17,7 @@ options.addArguments('disable-dev-shm-usage');
 options.addArguments('headless');
 
 const TIMEOUT = 10000;
+const SLEEP_TIME = 5000;
 
 const waitForXPath = (xpath, timeout = TIMEOUT) =>
   driver.wait(until.elementsLocated(By.xpath(xpath)), timeout);
@@ -32,7 +33,7 @@ const main = async () => {
   await driver.get(testUrl + 'docs/mdx-test-page/');
 
   // Ensure page loads, 2000 ms wait
-  await driver.sleep(2000);
+  await driver.sleep(SLEEP_TIME);
 
   // order here matters — some tests scroll the page
   await collapserTest();
@@ -41,7 +42,7 @@ const main = async () => {
 
   await driver.get(testUrl);
   // Ensure home page loads, 2000 ms wait
-  await driver.sleep(2000);
+  await driver.sleep(SLEEP_TIME);
   await tileTest();
 
   // this step isn't necessary in synthetics
