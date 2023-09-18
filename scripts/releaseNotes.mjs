@@ -17,9 +17,11 @@ const program = new Command();
 program
   .description('generate agent release note JSON')
   .option('-u, --upload', 'upload resulting JSON to S3')
+  .option('-v, --validate, validate resulting JSON')
   .parse();
 const options = program.opts();
 const uploadToS3 = Boolean(options.upload);
+const validateJSON = Boolean(options.validate);
 
 const excerptify = async (body) => {
   const Compiler = (tree) => {
@@ -105,6 +107,29 @@ const releaseNotes = (
 );
 console.error('📦 release notes JSON generated');
 
+const validateReleaseNotesAgents = (json) => {
+  const JSON_AGENTS = new Set([
+    'android',
+    'browser',
+    'dotnet',
+    'go',
+    'infrastructure',
+    'ios',
+    'java',
+    'nodejs',
+    'php',
+    'python',
+    'ruby',
+  ]);
+  JSON_AGENTS.forEach((agent) => {
+    if (json.filter((note) => note.agent === agent).length < 1) {
+      console.error(`😵 No release notes found for ${agent}`);
+      process.exitCode(1);
+    }
+  });
+  console.error(`✨ Release notes validated`);
+};
+
 if (uploadToS3) {
   const client = new S3Client({ region: 'us-east-2' });
 
@@ -123,6 +148,8 @@ if (uploadToS3) {
       console.error('😵 failed to upload release notes to S3');
       console.error(err);
     });
+} else if (validateJSON) {
+  validateReleaseNotesAgents(releaseNotes);
 } else {
   console.log(JSON.stringify(releaseNotes));
 }
