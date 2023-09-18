@@ -1,7 +1,7 @@
 ---
 title: 'Personalized pre-built dashboard recommendations to help you monitor in minutes'
 summary: 'Save time and discover relevant observability resources faster with tailored quickstart recommendations right in your dashboards UI'
-releaseDate: '2023-09-13'
+releaseDate: '2023-09-18'
 learnMoreLink: 'https://docs.newrelic.com/docs/query-your-data/explore-query-data/dashboards/prebuilt-dashboards' 
 getStartedLink: 'https://one.newrelic.com/dashboards'
 ---
