@@ -12,6 +12,7 @@ import { Command } from 'commander';
 
 import getAgentName from '../src/utils/getAgentName.js';
 import getEOLDate from '../src/utils/getEOLDate.js';
+import { Agent } from 'http';
 
 const program = new Command();
 program
@@ -108,10 +109,11 @@ const releaseNotes = (
 console.error('📦 release notes JSON generated');
 
 const validateReleaseNotesAgents = (json) => {
+  // this set excludes 'sdk', 'node' and '.net' from the one above
   const JSON_AGENTS = new Set([
     'android',
     'browser',
-    'dontnet',
+    'dotnet',
     'go',
     'infrastructure',
     'ios',
@@ -121,13 +123,35 @@ const validateReleaseNotesAgents = (json) => {
     'python',
     'ruby',
   ]);
+
   JSON_AGENTS.forEach((agent) => {
-    if (json.filter((note) => note.agent === agent).length < 1) {
+    const agentsCount = json.filter((note) => note.agent === agent).length;
+    if (agentsCount < 1) {
       console.error(`😵 No release notes found for ${agent}`);
       process.exitCode(1);
     }
+    console.error(`🕵️ Found ${agentsCount} release notes for ${agent}`);
   });
-  console.error(`✨ Release notes validated`);
+
+  const requiredData = [
+    'agent',
+    'date',
+    'version',
+    'description',
+    'slug',
+    'eolDate',
+  ];
+
+  json.forEach((note) =>
+    requiredData.forEach((key) => {
+      if (!note[key]) {
+        console.error(note);
+        console.error(`😵 Missing ${key} data`);
+        process.exitCode(1);
+      }
+    })
+  );
+  console.error(`✨ Release notes JSON validated`);
 };
 
 if (uploadToS3) {
