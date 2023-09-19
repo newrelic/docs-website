@@ -20,6 +20,7 @@ options.addArguments('disable-dev-shm-usage');
 options.addArguments('headless');
 
 const TIMEOUT = 10000;
+const SLEEP_TIME = 500;
 
 const waitForXPath = (xpath, timeout = TIMEOUT) =>
   driver.wait(until.elementsLocated(By.xpath(xpath)), timeout);
@@ -63,7 +64,7 @@ const collapserTest = async () => {
   console.log('clicking first collapser');
   await firstCollapser.click();
   // sleep is required here on mobile to account for the click delay
-  await driver.sleep(500);
+  await driver.sleep(SLEEP_TIME);
   const { y: afterTop } = await secondCollapser.getRect();
   assert.notEqual(
     initialTop,
@@ -79,7 +80,7 @@ const navTest = async () => {
     '//header//button[contains(@aria-label, "Mobile")]'
   );
   await hamburgerButton.click();
-  await driver.sleep(500);
+  await driver.sleep(SLEEP_TIME);
   // nav on mobile is a new list, the desktop nav comes first in the DOM but is hidden
   const [_desktopRN, releaseNotes] = await waitForXPath(releaseNotesXPath);
   const [_desktopINN, initialNextNode] = await waitForXPath(nextNodeXPath);
@@ -99,7 +100,7 @@ const searchTest = async () => {
   console.log('clicking search button');
   await searchButton.click();
   // sleep is required here on mobile to account for the click delay
-  await driver.sleep(500);
+  await driver.sleep(SLEEP_TIME);
   const activeEl = await driver.executeScript('return document.activeElement');
   assert.equal(
     await activeEl.getTagName(),
