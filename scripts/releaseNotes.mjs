@@ -112,7 +112,7 @@ const validateReleaseNotesAgents = (releaseNotes) => {
   const JSON_AGENTS = new Set([
     'android',
     'browser',
-    'dontnet',
+    'dotnet',
     'go',
     'infrastructure',
     'ios',
