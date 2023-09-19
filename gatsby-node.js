@@ -1,5 +1,5 @@
-const path = require('path');
 const { prop } = require('./scripts/utils/functional.js');
+const path = require('path');
 const externalRedirects = require('./src/data/external-redirects.json');
 const { createFilePath } = require('gatsby-source-filesystem');
 const createSingleNav = require('./scripts/createSingleNav');
