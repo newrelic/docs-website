@@ -107,7 +107,7 @@ const releaseNotes = (
 );
 console.error('📦 release notes JSON generated');
 
-const validateReleaseNotesAgents = (json) => {
+const validateReleaseNotesAgents = (releaseNotes) => {
   // this set excludes 'sdk', 'node' and '.net' from the one above
   const JSON_AGENTS = new Set([
     'android',
@@ -124,7 +124,8 @@ const validateReleaseNotesAgents = (json) => {
   ]);
 
   JSON_AGENTS.forEach((agent) => {
-    const agentsCount = json.filter((note) => note.agent === agent).length;
+    const agentsCount = releaseNotes.filter((note) => note.agent === agent)
+      .length;
     if (agentsCount < 1) {
       console.error(`😵 No release notes found for ${agent}`);
       process.exitCode(1);
@@ -141,7 +142,7 @@ const validateReleaseNotesAgents = (json) => {
     'eolDate',
   ];
 
-  json.forEach((note) =>
+  releaseNotes.forEach((note) =>
     requiredData.forEach((key) => {
       if (!note[key]) {
         console.error(note);
