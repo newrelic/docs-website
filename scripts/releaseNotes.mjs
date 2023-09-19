@@ -12,7 +12,6 @@ import { Command } from 'commander';
 
 import getAgentName from '../src/utils/getAgentName.js';
 import getEOLDate from '../src/utils/getEOLDate.js';
-import { Agent } from 'http';
 
 const program = new Command();
 program
