@@ -112,7 +112,7 @@ const validateReleaseNotesAgents = (releaseNotes) => {
   const JSON_AGENTS = new Set([
     'android',
     'browser',
-    'dotnet',
+    'dontnet',
     'go',
     'infrastructure',
     'ios',
@@ -123,14 +123,17 @@ const validateReleaseNotesAgents = (releaseNotes) => {
     'ruby',
   ]);
 
+  const errors = [];
+
   JSON_AGENTS.forEach((agent) => {
     const agentsCount = releaseNotes.filter((note) => note.agent === agent)
       .length;
     if (agentsCount < 1) {
-      console.error(`😵 No release notes found for ${agent}`);
-      process.exitCode(1);
+      const message = `\n😵 No release notes found for ${agent}`;
+      errors.push(message);
+    } else {
+      console.error(`🕵️ Found ${agentsCount} release notes for ${agent}`);
     }
-    console.error(`🕵️ Found ${agentsCount} release notes for ${agent}`);
   });
 
   const requiredData = [
@@ -142,16 +145,22 @@ const validateReleaseNotesAgents = (releaseNotes) => {
     'eolDate',
   ];
 
-  releaseNotes.forEach((note) =>
+  releaseNotes.forEach((note) => {
     requiredData.forEach((key) => {
       if (!note[key]) {
-        console.error(note);
-        console.error(`😵 Missing ${key} data`);
-        process.exitCode(1);
+        const message = `\n😵 Missing ${key} data for: \n ${JSON.stringify(
+          note
+        )}`;
+        errors.push(message);
       }
-    })
-  );
-  console.error(`✨ Release notes JSON validated`);
+    });
+  });
+  if (errors.length > 0) {
+    errors.forEach((error) => console.error(error));
+    process.exitCode = 1;
+  } else {
+    console.error(`✨ Release notes JSON validated`);
+  }
 };
 
 if (uploadToS3) {
