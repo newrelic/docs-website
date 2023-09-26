@@ -15,7 +15,7 @@ With Session Replay, you can:
 * **Fix code-level issues:** Access granular traces and error details to identify the exact code responsible for performance issues and get to the root cause faster.
 * **Ensure user privacy:** Protect users with client-side privacy obfuscation and encryption to ensure the security of their data.
 
-![A screenshot showing session replay player ui.](./images/rewind-replay-resolve-v2.png "A screenshot showing session replay player ui.")
+![A screenshot showing session replay player ui.](./images/rewind-replay-resolve-v2.webp "A screenshot showing session replay player ui.")
 
 **Next steps**
 
