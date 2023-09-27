@@ -1,0 +1,118 @@
+---
+title: start
+type: apiDoc
+shortDescription: A method used to start agent features when running in a deferred state
+tags:
+  - Browser
+  - Browser monitoring
+  - Browser Agent
+metaDescription: A method used to start agent features when running in a deferred state
+redirects:
+---
+
+<Callout variant="important">
+This API will work for any browser edition (Browser Lite, Pro, or Pro+SPA). The configuration required to use this API is not currently connected to the larger deployment system within New Relic.  As such, this feature is only supported via Copy/Paste or NPM until further changes are made.
+</Callout>  
+
+
+
+## Syntax
+
+```js
+newrelic.start(value: string[]|null)
+```
+
+Browser API used to start agent features when running in a deferred state
+
+## Requirements
+
+Agent version [1.239.0](/docs/release-notes/new-relic-browser-release-notes/browser-agent-release-notes) or higher.
+
+
+
+## Description
+
+Features can be loaded in a `deferred` state, which can be controlled by setting the appropriate features' `autoStart` property to `false` in the configuration block used by the agent. This feature state means events will be observed and stored in the agent, but will not be harvested to NR1 until told to do so with the `.start()` API method. See [Feature Names]('#feature-names') for a list of feature names. See [Examples]('#examples') for examples showing how to set features into a deferred state.
+
+Upon executing this function with a valid value, the browser agent will start the relevant features that have been deferred by the `autoStart: false` configuration. If called with no arguments, the method will start all features that have been deferred.
+If called with a list of strings representing the feature names, the feature names matching the strings will be started.  See [Feature Names]('#feature-names') for a list of feature names.
+
+## Parameters
+
+<table>
+  <thead>
+    <tr>
+      <th width="25%">
+        Parameter
+      </th>
+
+      <th>
+        Description
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `value`
+
+        _string[]_ OR _null_
+      </td>
+
+      <td>
+        Optional. An array of strings relating to a list of features to be started
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Feature Names
+* ajax
+* jserrors
+* metrics
+* page_action
+* page_view_event
+* page_view_timing
+* session_replay
+* session_trace
+* spa
+
+## Use Cases
+* You want to wait to harvest data until a user has consented with a model on your site
+* You wish to wait to harvest data until your site has set custom attributes
+
+## Examples
+
+### Loading all features in a deferred state (copy/paste, NPM)
+```js
+// Change the init portion of the configuration block to add `autoStart: false` to any features desired to load in a deferred state
+NREUM.init = {
+  // feature configurations
+  ajax: {autoStart: false},
+  jserrors: {autoStart: false},
+  metrics: {autoStart: false},
+  page_action: {autoStart: false},
+  page_view_event: {autoStart: false},
+  page_view_timing: {autoStart: false},
+  session_replay: {autoStart: false},
+  session_trace: {autoStart: false},
+  spa: {autoStart: false},
+  // other configurations
+  // ...
+}
+```
+
+### "Starting" a list of deferred features
+
+```js
+newrelic.start(['ajax', 'jserrors', 'page_action'])
+// ajax, jserrors, and page_action features will now start harvesting
+```
+
+### "Starting" all deferred features
+
+```js
+newrelic.start()
+// all deferred features in the agent will now start harvesting
+```
