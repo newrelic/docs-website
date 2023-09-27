@@ -32,7 +32,7 @@ Agent version [1.239.0](/docs/release-notes/new-relic-browser-release-notes/brow
 
 ## Description
 
-Features can be loaded in a `deferred` state, which can be controlled by setting the appropriate features' `autoStart` property to `false` in the configuration block used by the agent. This feature state means events will be observed and stored in the agent, but will not be harvested to NR1 until told to do so with the `.start()` API method. See [Feature Names]('#feature-names') for a list of feature names. See [Examples]('#examples') for examples showing how to set features into a deferred state.
+Features can be loaded in a `deferred` state, which can be controlled by setting the appropriate features' `autoStart` property to `false` in the configuration block used by the agent. This feature state means events will be observed and stored in the agent, but *will not be harvested to NR1 until told to do so* with the `.start()` API method. See [Feature Names]('#feature-names') for a list of feature names. See [Examples]('#examples') for examples showing how to set features into a deferred state.
 
 Upon executing this function with a valid value, the browser agent will start the relevant features that have been deferred by the `autoStart: false` configuration. If called with no arguments, the method will start all features that have been deferred.
 If called with a list of strings representing the feature names, the feature names matching the strings will be started.  See [Feature Names]('#feature-names') for a list of feature names.
@@ -79,7 +79,7 @@ If called with a list of strings representing the feature names, the feature nam
 * spa
 
 ## Use Cases
-* You want to wait to harvest data until a user has consented with a model on your site
+* You want to wait to harvest data until a user has consented with a modal on your site
 * You wish to wait to harvest data until your site has set custom attributes
 
 ## Examples
