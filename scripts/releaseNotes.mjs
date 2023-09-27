@@ -17,9 +17,11 @@ const program = new Command();
 program
   .description('generate agent release note JSON')
   .option('-u, --upload', 'upload resulting JSON to S3')
+  .option('-v, --validate, validate resulting JSON')
   .parse();
 const options = program.opts();
 const uploadToS3 = Boolean(options.upload);
+const validateJSON = Boolean(options.validate);
 
 const excerptify = async (body) => {
   const Compiler = (tree) => {
@@ -56,7 +58,7 @@ const INCLUDE_AGENTS = new Set([
   '.net',
   'android',
   'browser',
-  'dontnet',
+  'dotnet',
   'go',
   'infrastructure',
   'ios',
@@ -86,13 +88,14 @@ const generateReleaseNoteObject = async (filePath) => {
     slug,
   };
 
-  if (attributes.releaseDate) {
+  if (attributes.eolDate) {
+    output.eolDate = attributes.eolDate;
+  } else if (attributes.releaseDate) {
     output.eolDate = getEOLDate(attributes.releaseDate);
   }
 
   return output;
 };
-
 const releaseNoteMdxs = await glob('src/content/docs/release-notes/**/*.mdx', {
   ignore: '**/index.mdx',
 });
@@ -103,6 +106,62 @@ const releaseNotes = (
   ({ date, agent }) => Boolean(date && agent) && INCLUDE_AGENTS.has(agent)
 );
 console.error('📦 release notes JSON generated');
+
+const validateReleaseNotesAgents = (releaseNotes) => {
+  // this set excludes 'sdk', 'node' and '.net' from the one above
+  const JSON_AGENTS = new Set([
+    'android',
+    'browser',
+    'dotnet',
+    'go',
+    'infrastructure',
+    'ios',
+    'java',
+    'nodejs',
+    'php',
+    'python',
+    'ruby',
+  ]);
+
+  const errors = [];
+
+  JSON_AGENTS.forEach((agent) => {
+    const agentsCount = releaseNotes.filter((note) => note.agent === agent)
+      .length;
+    if (agentsCount < 1) {
+      const message = `\n😵 No release notes found for ${agent}`;
+      errors.push(message);
+    } else {
+      console.error(`🕵️ Found ${agentsCount} release notes for ${agent}`);
+    }
+  });
+
+  const requiredData = [
+    'agent',
+    'date',
+    'version',
+    'description',
+    'slug',
+    'eolDate',
+  ];
+
+  releaseNotes.forEach((note) => {
+    requiredData.forEach((key) => {
+      if (!note[key]) {
+        const message = `\n😵 Missing ${key} data for: \n ${JSON.stringify(
+          note
+        )}`;
+        errors.push(message);
+      }
+    });
+  });
+  if (errors.length > 0) {
+    errors.forEach((error) => console.error(error));
+    process.exitCode = 1;
+  } else {
+    console.error(`✨ Release notes JSON validated`);
+  }
+};
 
 if (uploadToS3) {
   const client = new S3Client({ region: 'us-east-2' });
@@ -122,6 +181,8 @@ if (uploadToS3) {
       console.error('😵 failed to upload release notes to S3');
       console.error(err);
     });
+} else if (validateJSON) {
+  validateReleaseNotesAgents(releaseNotes);
 } else {
   console.log(JSON.stringify(releaseNotes));
 }
