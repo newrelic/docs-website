@@ -1,10 +1,15 @@
-import path from 'path';
 import generateTOC from 'mdast-util-toc';
+import path, { dirname } from 'path';
 import { createFilePath } from 'gatsby-source-filesystem';
+import { createRequire } from 'module';
+import { fileURLToPath } from 'url';
 
 import { prop } from './scripts/utils/functional.js';
-import externalRedirects from './src/data/external-redirects.json';
+import externalRedirects from './src/data/external-redirects.json' assert { type: 'json' };
 import createSingleNav from './scripts/createSingleNav.js';
+
+const require = createRequire(import.meta.url);
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const TEMPLATE_DIR = 'src/templates/';
 const TRAILING_SLASH = /\/$/;
@@ -19,10 +24,16 @@ const hasTrailingSlash = (pathname) =>
 const appendTrailingSlash = (pathname) =>
   pathname.endsWith('/') ? pathname : `${pathname}/`;
 
+/**
+ * @type {import('gatsby').GatsbyNode['onPreBootstrap']}
+ */
 export const onPreBootstrap = () => {
   createSingleNav();
 };
 
+/**
+ * @type {import('gatsby').GatsbyNode['onCreateWebpackConfig']}
+ */
 export const onCreateWebpackConfig = ({ actions }) => {
   actions.setWebpackConfig({
     resolve: {
@@ -38,9 +49,13 @@ export const onCreateWebpackConfig = ({ actions }) => {
   });
 };
 
+/**
+ * @type {import('gatsby').GatsbyNode['createPages']}
+ */
 export const createPages = async ({ actions, graphql, reporter }) => {
   const { createPage, createRedirect } = actions;
 
+  console.time('createPages graphql query');
   const { data, errors } = await graphql(`
     {
       allMarkdownRemark(
@@ -169,6 +184,7 @@ export const createPages = async ({ actions, graphql, reporter }) => {
       }
     }
   `);
+  console.timeEnd('createPages graphql query');
 
   if (errors) {
     reporter.panicOnBuild(`Error while running GraphQL query.`);
@@ -179,17 +195,34 @@ export const createPages = async ({ actions, graphql, reporter }) => {
     allI18nMdx,
     allMarkdownRemark,
     allMdx,
-    releaseNotes,
+    releaseNotes = { group: [] },
     landingPagesReleaseNotes,
     allLocale,
-    allInstallConfig,
-    whatsNewPosts,
+    allInstallConfig = { edges: [] },
+    whatsNewPosts = { nodes: [] },
   } = data;
+  const landingPageNodes = new Map();
+  landingPagesReleaseNotes.nodes.forEach((node) =>
+    landingPageNodes.set(node.frontmatter.subject, node)
+  );
+
+  console.log(
+    '🐸landingPagesReleaseNotes.nodes.length',
+    landingPagesReleaseNotes.nodes.length
+  );
+  console.log('🐸releaseNotes.group.length', releaseNotes.group.length);
+  console.log('🐸allMdx.edges.length', allMdx.edges.length);
+  console.log('🐸allI18nMdx.edges.length', allI18nMdx.edges.length);
+  console.log(
+    '🐸allMarkdownRemark.edges.length',
+    allMarkdownRemark.edges.length
+  );
 
   const locales = allLocale.nodes
     .filter((locale) => !locale.isDefault)
     .map(prop('locale'));
 
+  console.time('creating redirects');
   externalRedirects.forEach(({ url, paths }) => {
     paths.forEach((path) => {
       createRedirect({
@@ -200,25 +233,24 @@ export const createPages = async ({ actions, graphql, reporter }) => {
       });
     });
   });
+  console.timeEnd('creating redirects');
 
+  console.time('creating localized redirects');
   allInstallConfig.edges.forEach(({ node: { redirects, agentName } }) => {
-    redirects?.length &&
-      redirects.forEach((redirect) =>
-        createLocalizedRedirect({
-          locales,
-          fromPath: redirect,
-          toPath: `/install/${agentName}/`,
-          createRedirect,
-        })
-      );
+    redirects?.forEach((redirect) =>
+      createLocalizedRedirect({
+        locales,
+        fromPath: redirect,
+        toPath: `/install/${agentName}/`,
+        createRedirect,
+      })
+    );
   });
 
   releaseNotes.group.forEach((el) => {
     const { fieldValue, nodes, totalCount } = el;
 
-    const landingPage = landingPagesReleaseNotes.nodes.find(
-      (node) => node.frontmatter.subject === fieldValue
-    );
+    const landingPage = landingPageNodes.get(fieldValue);
 
     if (landingPage) {
       releaseNotesPerAgent[landingPage.frontmatter.subject] = totalCount;
@@ -246,7 +278,17 @@ export const createPages = async ({ actions, graphql, reporter }) => {
     }
   });
 
-  const translatedContentNodes = allI18nMdx.edges.map(({ node }) => node);
+  const localeRegex = /src\/i18n\/content\/(.*?)\//g;
+  const i18nReplaceRegex = /src\/i18n\/content\/.*?\//;
+  const translatedContentNodes = new Map();
+  allI18nMdx.edges.forEach(({ node }) => {
+    const { slug } = node.fields;
+    const locale = getCaptureGroup(localeRegex, slug);
+    const nonI18nSlug = slug.replace(i18nReplaceRegex, 'src/content');
+    const nodes = translatedContentNodes.get(nonI18nSlug) ?? {};
+    nodes[locale] = node;
+    translatedContentNodes.set(nonI18nSlug, nodes);
+  });
 
   allMdx.edges.concat(allMarkdownRemark.edges).forEach(({ node }) => {
     const {
@@ -268,10 +310,7 @@ export const createPages = async ({ actions, graphql, reporter }) => {
     createPageFromNode(node, { createPage });
 
     locales.forEach((locale) => {
-      const i18nNode = translatedContentNodes.find(
-        (i18nNode) =>
-          i18nNode.fields.slug.replace(`/${locale}`, '') === node.fields.slug
-      );
+      const i18nNode = translatedContentNodes.get(node.fields.slug)?.[locale];
 
       createPageFromNode(
         i18nNode || node,
@@ -297,6 +336,7 @@ export const createPages = async ({ actions, graphql, reporter }) => {
       createRedirect,
     });
   });
+  console.timeEnd('creating localized redirects');
 
   // Redirect for VSU page to new Introduction to APM doc
   createRedirect({
@@ -307,6 +347,9 @@ export const createPages = async ({ actions, graphql, reporter }) => {
   });
 };
 
+/**
+ * @type {import('gatsby').GatsbyNode['createSchemaCustomization']}
+ */
 export const createSchemaCustomization = ({ actions }) => {
   const { createTypes } = actions;
 
@@ -349,6 +392,9 @@ export const createSchemaCustomization = ({ actions }) => {
   createTypes(typeDefs);
 };
 
+/**
+ * @type {import('gatsby').GatsbyNode['createResolvers']}
+ */
 export const createResolvers = ({ createResolvers }) => {
   createResolvers({
     NavYaml: {
@@ -423,6 +469,9 @@ export const createResolvers = ({ createResolvers }) => {
   });
 };
 
+/**
+ * @type {import('gatsby').GatsbyNode['onCreatePage']}
+ */
 export const onCreatePage = ({ page, actions }) => {
   const { createPage } = actions;
 
@@ -566,6 +615,8 @@ const TEMPLATES_BY_TYPE = {
   releaseNote: 'releaseNote',
   troubleshooting: 'docPage',
 };
+
+const getCaptureGroup = (regex, string) => string.match(regex)[1];
 
 const getTemplate = (node) => {
   const {

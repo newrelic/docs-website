@@ -2,18 +2,18 @@ import { remove } from 'unist-util-remove';
 import { filter } from 'unist-util-filter';
 import { toString } from 'mdast-util-to-string';
 import { convert } from 'unist-util-is';
-import { cloneDeep, last } from 'lodash';
+import { cloneDeep, last } from 'lodash-es';
 
 const CUSTOM_ID = /^#[\w-]+$/;
 const isIgnoredNode = convert(['image']);
 
-const getId = (node) => {
+export const getId = (node) => {
   const { label } = last(node.children);
 
   return label.replace(/^#/, '');
 };
 
-const isHeadingWithCustomId = (node) => {
+export const isHeadingWithCustomId = (node) => {
   const lastChild = last(node.children);
 
   return (
@@ -24,7 +24,7 @@ const isHeadingWithCustomId = (node) => {
   );
 };
 
-const parseHeading = (node) => {
+export const parseHeading = (node) => {
   if (node.type !== 'heading') {
     throw new Error('Node must be a heading');
   }
@@ -44,5 +44,3 @@ const parseHeading = (node) => {
 
   return { id: null, text: toString(node) };
 };
-
-export default { getId, parseHeading, isHeadingWithCustomId };

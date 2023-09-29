@@ -108,11 +108,10 @@ const defaultComponents = {
   EolPage,
 };
 
-const MDXContainer = ({ body, children, components }) => {
+const MDXContainer = ({ body, components }) => {
   return (
     <MarkdownContainer>
-      <MDX body={body} components={{ ...defaultComponents, ...components }} />
-      {children}
+      <MDX components={{ ...defaultComponents, ...components }}>{body}</MDX>
     </MarkdownContainer>
   );
 };
@@ -120,7 +119,6 @@ const MDXContainer = ({ body, children, components }) => {
 MDXContainer.propTypes = {
   body: PropTypes.node,
   components: PropTypes.object,
-  children: PropTypes.node,
 };
 
 export default MDXContainer;

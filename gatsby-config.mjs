@@ -20,13 +20,11 @@ const allFolders = fs
   .readdirSync(`${__dirname}/src/content/docs`)
   .filter((folder) => !folder.startsWith('.'));
 const doNotIgnoreFolders =
-  process.env.BUILD_FOLDERS && process.env.BUILD_FOLDERS.split(',');
+  process.env.BUILD_FOLDERS &&
+  new Set(process.env.BUILD_FOLDERS.split(',').concat('release-notes'));
 const ignoreFolders = process.env.BUILD_FOLDERS
   ? allFolders
-      .filter(
-        (folder) =>
-          !doNotIgnoreFolders.includes(folder) && folder !== 'release-notes'
-      )
+      .filter((folder) => !doNotIgnoreFolders.has(folder))
       .map((folder) => `${__dirname}/src/content/docs/${folder}/*`)
   : [];
 
@@ -37,7 +35,11 @@ const autoLinkHeaders = {
   },
 };
 
+/**
+ * @type {import('gatsby').GatsbyConfig}
+ */
 export default {
+  graphqlTypegen: true,
   trailingSlash: 'always',
   flags: {
     DEV_SSR: true,
@@ -55,14 +57,6 @@ export default {
       'https://docs.newrelic.com/docs/style-guide/writing-guidelines/create-edit-content/',
   },
   plugins: [
-    'gatsby-plugin-react-helmet',
-    {
-      resolve: `gatsby-source-filesystem`,
-      options: {
-        name: `images`,
-        path: `${__dirname}/src/images`,
-      },
-    },
     `gatsby-transformer-sharp`,
     `gatsby-plugin-sharp`,
     {
@@ -108,13 +102,22 @@ export default {
       },
     },
     {
+      resolve: `gatsby-source-filesystem`,
+      options: {
+        name: `images`,
+        path: `${__dirname}/src/images`,
+      },
+    },
+    {
       resolve: 'gatsby-source-filesystem',
       options: {
         name: 'install-docs',
         path: `${__dirname}/src/install/`,
       },
     },
+
     'gatsby-transformer-xml',
+
     {
       resolve: 'gatsby-transformer-json',
       options: {
@@ -143,80 +146,77 @@ export default {
           // .gif extension to the public folder.
           //
           // Source: https://github.com/gatsbyjs/gatsby/issues/7317#issuecomment-412984851
-          'gatsby-remark-copy-linked-files',
-          require.resolve('./plugins/gatsby-remark-videos/index.mjs'),
-          {
-            resolve: require.resolve('./plugins/gatsby-remark-gifs/index.mjs'),
-            options: {
-              maxWidth: 850,
-            },
-          },
-          require.resolve(
-            './plugins/gatsby-remark-custom-heading-ids/index.mjs'
-          ),
+          // 'gatsby-remark-copy-linked-files',
+
+          // require.resolve('./plugins/gatsby-remark-videos/index.js'),
+
+          // {
+          //   resolve: require.resolve('./plugins/gatsby-remark-gifs/index.js'),
+          //   options: {
+          //     maxWidth: 850,
+          //   },
+          // },
+
+          // require.resolve(
+          //   './plugins/gatsby-remark-custom-heading-ids/index.js'
+          // ),
         ],
       },
     },
     {
       resolve: 'gatsby-plugin-mdx',
       options: {
-        // Include our patch for handling indented code blocks to ensure the
-        // fence does not get rendered as part of the block. There is an open
-        // issue in the MDX project about this:
-        // https://github.com/mdx-js/mdx/issues/1283
-        //
-        // If this is addressed in MDX v2, we can safely remove this.
         mdxOptions: {
           remarkPlugins: [],
           rehypePlugins: [
-            rehypeImageSizing,
-            [rehypeInlineImages, { spacing: '0.5rem' }],
+            // rehypeImageSizing,
+            // [rehypeInlineImages, { spacing: '0.5rem' }],
           ],
         },
         gatsbyRemarkPlugins: [
-          {
-            resolve: 'gatsby-remark-images',
-            options: {
-              maxWidth: 1200,
-              linkImagesToOriginal: true,
-              backgroundColor: 'transparent',
-              disableBgImageOnAlpha: true,
-            },
-          },
-          autoLinkHeaders,
+          // {
+          //   resolve: 'gatsby-remark-images',
+          //   options: {
+          //     maxWidth: 1200,
+          //     linkImagesToOriginal: true,
+          //     backgroundColor: 'transparent',
+          //     disableBgImageOnAlpha: true,
+          //   },
+          // },
+          // autoLinkHeaders,
           // This MUST come after `gatsby-remark-autolink-headers` to ensure the
           // link created for the icon has the proper id.
           //
           // This also uses the `require.resolve` syntax because
           // `gatsby-plugin-mdx` is unable to resolve local plugins.
           // https://github.com/gatsbyjs/gatsby/issues/23194
-          {
-            resolve: require.resolve(
-              './plugins/gatsby-remark-custom-heading-ids/index.mjs'
-            ),
-          },
-          {
-            resolve: require.resolve(
-              './plugins/gatsby-remark-mdx-v2-images/index.mjs'
-            ),
-          },
+          // {
+          //   resolve: require.resolve(
+          //     './plugins/gatsby-remark-custom-heading-ids/index.js'
+          //   ),
+          // },
+          // {
+          //   resolve: require.resolve(
+          //     './plugins/gatsby-remark-mdx-v2-images/index.mjs'
+          //   ),
+          // },
           // Gifs are not supported via gatsby-remark-images (https://github.com/gatsbyjs/gatsby/issues/7317).
           // It is recommended to therefore use this plugin to copy files with a
           // .gif extension to the public folder.
           //
           // Source: https://github.com/gatsbyjs/gatsby/issues/7317#issuecomment-412984851
-          'gatsby-remark-copy-linked-files',
-          {
-            resolve: require.resolve('./plugins/gatsby-remark-gifs/index.mjs'),
-            options: {
-              maxWidth: 1200,
-            },
-          },
-          {
-            resolve: require.resolve(
-              './plugins/gatsby-remark-remove-button-paragraphs/index.mjs'
-            ),
-          },
+          // 'gatsby-remark-copy-linked-files',
+          // {
+          //   resolve: require.resolve('./plugins/gatsby-remark-gifs/index.js'),
+          //   options: {
+          //     maxWidth: 1200,
+          //   },
+          // },
+          // {
+          //   resolve: require.resolve(
+          //     './plugins/gatsby-remark-remove-button-paragraphs/index.js'
+          //   ),
+          // },
         ],
       },
     },
@@ -241,85 +241,90 @@ export default {
       },
     },
     // 'gatsby-plugin-generate-doc-json',
-    {
-      resolve: 'gatsby-plugin-generate-json',
-      options: {
-        query: `
-        {
-          allMarkdownRemark(filter: {fields: {slug: {regex: "/whats-new/"}}}) {
-            nodes {
-              frontmatter {
-                title
-                releaseDate
-                getStartedLink
-                learnMoreLink
-                summary
-                isFeatured
-              }
-              fields {
-                slug
-              }
-              htmlAst
-            }
-          }
-        }
-        `,
-        path: '/api/nr1/content/nr1-announcements.json',
-        serialize: ({ data }) => {
-          const ids = JSON.parse(
-            fs.readFileSync(path.join(__dirname, 'src/data/whats-new-ids.json'))
-          );
+    // {
+    //   resolve: 'gatsby-plugin-generate-json',
+    //   options: {
+    //     query: `
+    //     {
+    //       allMarkdownRemark(filter: {fields: {slug: {regex: "/whats-new/"}}}) {
+    //         nodes {
+    //           frontmatter {
+    //             title
+    //             releaseDate
+    //             getStartedLink
+    //             learnMoreLink
+    //             summary
+    //             isFeatured
+    //           }
+    //           fields {
+    //             slug
+    //           }
+    //           htmlAst
+    //         }
+    //       }
+    //     }
+    //     `,
+    //     path: '/api/nr1/content/nr1-announcements.json',
+    //     serialize: ({ data }) => {
+    //       const ids = JSON.parse(
+    //         fs.readFileSync(path.join(__dirname, 'src/data/whats-new-ids.json'))
+    //       );
 
-          const htmlParser = unified()
-            .use(parse)
-            .use(addAbsoluteImagePath)
-            .use(rehypeStringify);
+    //       const htmlParser = unified()
+    //         .use(parse)
+    //         .use(addAbsoluteImagePath)
+    //         .use(rehypeStringify);
 
-          return {
-            announcements: data.allMarkdownRemark.nodes.map(
-              ({ frontmatter, htmlAst, fields }) => {
-                const parsedHtml = htmlParser.runSync(htmlAst);
-                return {
-                  docsID: ids[fields.slug],
-                  title: frontmatter.title,
-                  summary: frontmatter.summary,
-                  releaseDateTime: frontmatter.releaseDate,
-                  learnMoreLink: frontmatter.learnMoreLink,
-                  getStartedLink: frontmatter.getStartedLink,
-                  body: htmlParser.stringify(parsedHtml),
-                  docUrl: new URL(fields.slug, siteUrl).href,
-                  isFeatured: frontmatter.isFeatured,
-                };
-              }
-            ),
-          };
-        },
-      },
-    },
-    {
-      resolve: 'gatsby-plugin-generate-json',
-      options: {
-        path: '/api/nr1/content/nr1-announcements/ids.json',
-        serialize: () => {
-          const ids = JSON.parse(
-            fs.readFileSync(path.join(__dirname, 'src/data/whats-new-ids.json'))
-          );
+    //       return {
+    //         announcements: data.allMarkdownRemark.nodes.map(
+    //           ({ frontmatter, htmlAst, fields }) => {
+    //             const parsedHtml = htmlParser.runSync(htmlAst);
+    //             return {
+    //               docsID: ids[fields.slug],
+    //               title: frontmatter.title,
+    //               summary: frontmatter.summary,
+    //               releaseDateTime: frontmatter.releaseDate,
+    //               learnMoreLink: frontmatter.learnMoreLink,
+    //               getStartedLink: frontmatter.getStartedLink,
+    //               body: htmlParser.stringify(parsedHtml),
+    //               docUrl: new URL(fields.slug, siteUrl).href,
+    //               isFeatured: frontmatter.isFeatured,
+    //             };
+    //           }
+    //         ),
+    //       };
+    //     },
+    //   },
+    // },
 
-          return {
-            announcements: Object.values(ids).map((id) => ({
-              docsID: id,
-            })),
-          };
-        },
-      },
-    },
+    // {
+    //   resolve: 'gatsby-plugin-generate-json',
+    //   options: {
+    //     path: '/api/nr1/content/nr1-announcements/ids.json',
+    //     serialize: () => {
+    //       const ids = JSON.parse(
+    //         fs.readFileSync(path.join(__dirname, 'src/data/whats-new-ids.json'))
+    //       );
+
+    //       return {
+    //         announcements: Object.values(ids).map((id) => ({
+    //           docsID: id,
+    //         })),
+    //       };
+    //     },
+    //   },
+    // },
+
     // 'gatsby-plugin-release-note-rss',
     // 'gatsby-plugin-whats-new-rss',
     // 'gatsby-plugin-security-bulletins-rss',
 
     'gatsby-source-nav',
+
     'gatsby-source-install-config',
+
     'gatsby-plugin-meta-redirect',
+
     {
       resolve: 'gatsby-plugin-gatsby-cloud',
       options: {
@@ -331,15 +336,15 @@ export default {
       },
     },
     // https://www.gatsbyjs.com/plugins/gatsby-plugin-typegen/
-    {
-      resolve: 'gatsby-plugin-typegen',
-      options: {
-        outputPath: 'src/__generated__/gatsby-types.d.ts',
-        emitSchema: {
-          'src/__generated__/gatsby-schema.graphql': true,
-        },
-      },
-    },
+    // {
+    //   resolve: 'gatsby-plugin-typegen',
+    //   options: {
+    //     outputPath: 'src/__generated__/gatsby-types.d.ts',
+    //     emitSchema: {
+    //       'src/__generated__/gatsby-schema.graphql': true,
+    //     },
+    //   },
+    // },
     {
       resolve: `gatsby-plugin-typescript`,
       options: {

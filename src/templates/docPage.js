@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import PropTypes from 'prop-types';
-import { css } from '@emotion/react';
+import styled from '@emotion/styled';
 import { graphql } from 'gatsby';
 import { takeWhile } from 'lodash';
 import { CSSTransition } from 'react-transition-group';
@@ -42,12 +42,11 @@ const splitTOCTitle = (title = '') => {
   return [titleText.join(' '), slug];
 };
 
-const BasicDoc = ({ data, location, pageContext }) => {
+const BasicDoc = ({ children: body, data, location, pageContext }) => {
   const { mdx } = data;
   const {
     frontmatter,
     tableOfContents,
-    body,
     fields: { fileRelativePath },
   } = mdx;
   const { disableSwiftype, hidePageTools } = pageContext;
@@ -117,54 +116,7 @@ const BasicDoc = ({ data, location, pageContext }) => {
           {...signupBanner}
         />
       )}
-      <div
-        css={css`
-          display: grid;
-          grid-template-areas:
-            'mt-disclaimer mt-disclaimer'
-            'page-title page-tools'
-            'content page-tools';
-          grid-template-columns: minmax(0, 1fr) 12.8125rem;
-          grid-column-gap: 2rem;
-
-          ${bannerVisible &&
-          css`
-            margin-top: ${BANNER_HEIGHT};
-            @media screen and (max-width: 760px) {
-              margin-top: 0;
-            }
-          `}
-
-          iframe {
-            max-width: 100%;
-          }
-
-          @media screen and (max-width: 1240px) {
-            grid-template-areas:
-              'mt-disclaimer'
-              'page-title'
-              'content'
-              'page-tools';
-            grid-template-columns: minmax(0, 1fr);
-          }
-          ${hidePageTools &&
-          css`
-            grid-template-areas:
-              'mt-disclaimer'
-              'page-title page'
-              'content';
-              grid-template-columns: 1fr;
-
-            @media screen and (max-width: 1240px) {
-              grid-template-areas:
-                'mt-disclaimer'
-                'page-title'
-                'content'
-              grid-template-columns: minmax(0, 1fr);
-            }
-          `}
-        `}
-      >
+      <Container>
         {translationType === 'machine' && (
           <MachineTranslationCallout
             englishHref={location.pathname.replace(
@@ -189,38 +141,7 @@ const BasicDoc = ({ data, location, pageContext }) => {
             classNames="page-tools-transition"
             timeout={300}
           >
-            <Layout.PageTools
-              css={css`
-                background: var(--primary-background-color);
-
-                &.page-tools-transition-enter {
-                  translate: calc(var(--sidebar-width) - 50px);
-                }
-                &.page-tools-transition-enter-active {
-                  translate: 0;
-                  transition: 300ms translate ease;
-                }
-                &.page-tools-transition-enter-done {
-                  translate: 0;
-                }
-
-                &.page-tools-transition-exit {
-                  translate: calc(calc(var(--sidebar-width) - 50px) * -1);
-                }
-                &.page-tools-transition-exit-active {
-                  translate: 0;
-                  transition: 300ms translate ease;
-                }
-                &.page-tools-transition-exit-done {
-                  translate: 0;
-                }
-
-                @media screen and (max-width: 1240px) {
-                  margin-top: 1rem;
-                  position: static;
-                }
-              `}
-            >
+            <PageTools>
               <TableOfContents headings={headings} />
               <ComplexFeedback pageTitle={title} />
               <ContributingGuidelines
@@ -228,13 +149,91 @@ const BasicDoc = ({ data, location, pageContext }) => {
                 fileRelativePath={fileRelativePath}
                 issueLabels={['feedback', 'feedback-issue']}
               />
-            </Layout.PageTools>
+            </PageTools>
           </CSSTransition>
         )}
-      </div>
+      </Container>
     </ErrorBoundary>
   );
 };
+
+const Container = styled.div`
+  display: grid;
+  grid-template-areas:
+    'mt-disclaimer mt-disclaimer'
+    'page-title page-tools'
+    'content page-tools';
+  grid-template-columns: minmax(0, 1fr) 12.8125rem;
+  grid-column-gap: 2rem;
+
+  @media screen and (max-width: 1240px) {
+    grid-template-areas:
+      'mt-disclaimer'
+      'page-title'
+      'content'
+      'page-tools';
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  &.banner-visible {
+    margin-top: ${BANNER_HEIGHT};
+
+    @media screen and (max-width: 760px) {
+      margin-top: 0;
+    }
+  }
+
+  & iframe {
+    max-width: 100%;
+  }
+
+  &.hide-page-tools {
+    grid-template-areas:
+      'mt-disclaimer'
+      'page-title page'
+      'content';
+    grid-template-columns: 1fr;
+
+    @media screen and (max-width: 1240px) {
+      grid-template-areas:
+        'mt-disclaimer'
+        'page-title'
+        'content'
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+`;
+
+const PageTools = styled(Layout.PageTools)`
+  background: var(--primary-background-color);
+
+  &.page-tools-transition-enter {
+    translate: calc(var(--sidebar-width) - 50px);
+  }
+  &.page-tools-transition-enter-active {
+    translate: 0;
+    transition: 300ms translate ease;
+  }
+  &.page-tools-transition-enter-done {
+    translate: 0;
+  }
+
+  &.page-tools-transition-exit {
+    translate: calc(calc(var(--sidebar-width) - 50px) * -1);
+  }
+  &.page-tools-transition-exit-active {
+    translate: 0;
+    transition: 300ms translate ease;
+  }
+  &.page-tools-transition-exit-done {
+    translate: 0;
+  }
+
+  @media screen and (max-width: 1240px) {
+    margin-top: 1rem;
+    position: static;
+  }
+`;
 
 BasicDoc.propTypes = {
   data: PropTypes.object.isRequired,
@@ -243,7 +242,7 @@ BasicDoc.propTypes = {
 };
 
 export const pageQuery = graphql`
-  query($slug: String!) {
+  query ($slug: String!) {
     mdx(fields: { slug: { eq: $slug } }) {
       body
       tableOfContents

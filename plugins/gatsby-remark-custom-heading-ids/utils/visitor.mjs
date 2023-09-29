@@ -1,6 +1,6 @@
 import { visit } from 'unist-util-visit';
 import { remove } from 'unist-util-remove';
-import { get, set } from 'lodash';
+import { get, set } from 'lodash-es';
 import { isHeadingWithCustomId, getId } from './heading.mjs';
 
 const visitor = () => (tree) => {
