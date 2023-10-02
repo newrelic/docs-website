@@ -5,10 +5,8 @@ releaseDate: '2023-10-02'
 learnMoreLink: 'https://docs.newrelic.com/docs/apis/lookups-service-api/lookups-service-api'
 ---
 
-When the NRQL Lookups feature was added, lookup table maintenance was made available to users via the lookup table UI. We understand automation is crucial to our customers. Manually updating a lookup table through the UI each morning is not an efficient system.
+Our new NRQL Lookups API lets you automate lookup table maintenance through a REST API. In addition to uploading CSV formatted files, tables can now be defined directly in a JSON payload - facilitating the management of lookup tables.
 
-Now, with the NRQL Lookups API, you can automate lookup table maintenance through a REST API.
-
-The NRQL Lookups API facilitates management of lookup tables. In addition to uploading CSV formatted files, tables can be defined directly in a JSON payload.
+Following the NRQL Lookups feature release, users could only perform lookup table maintenance via the Lookups tables UI. We realize that manually updating a lookup table through the UI each morning is not realistic, and are pleased to offer automation for this critical process.
 
 Check out the [NRQL Lookups API documentation](https://docs.newrelic.com/docs/apis/lookups-service-api/lookups-service-api) for more details.
