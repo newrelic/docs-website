@@ -37,6 +37,7 @@ devices:
     - PowerNet-MIB_UPS
     - TCP-MIB
     - UDP-MIB
+    purge_after_num: 1
   # Sample of SNMP v3 device
   router_snmpv3__10.10.0.202:
     device_name: router_snmpv3
@@ -134,7 +135,6 @@ devices:
       ext_only: true
       meraki_config:
         api_key: APIKEY123ABC
-        monitor_clients: true
         monitor_devices: true
         monitor_org_changes: true
         monitor_uplinks: true
@@ -149,6 +149,7 @@ devices:
         preferences:
           device_status_only: true
           show_vpn_peers: true
+          hide_uplink_usage: false
 # Configuration for receipt of SNMP Traps
 trap:
   listen: 0.0.0.0:1620
@@ -180,7 +181,7 @@ discovery:
   add_devices: true
   replace_devices: true
   no_dedup_engine_id: false
-  check_all_ips: false
+  check_all_ips: true
 global:
   poll_time_sec: 60
   drop_if_outside_poll: false
@@ -204,6 +205,7 @@ global:
     environment: production
   match_attributes:
     if_Description: ".*WAN.*"
+  purge_devices_after_num: 0
 ```
 
 <CollapserGroup>
@@ -542,6 +544,18 @@ global:
 
           <td>
             Disables all SNMP polling when `true`. By default, it's set to `false`.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            purge_after_num
+          </td>
+
+          <td/>
+
+          <td>
+            Removes device from config file after X scheduled discovery jobs have failed. **This setting overrides the global `purge_devices_after_num` setting.** Set this to `-1` to keep device forever, or any integer >= `1` to set up a purge threshold. (Default: `0`)
           </td>
         </tr>
 
@@ -1036,6 +1050,18 @@ global:
             Indicates whether [response time](#response_time-attribute) polling is enabled for all devices in the configuration file. By default, it's set to `false`.
           </td>
         </tr>
+
+        <tr>
+          <td>
+            purge_devices_after_num
+          </td>
+
+          <td/>
+
+          <td>
+            Removes devices from config file after X scheduled discovery jobs have failed. Set this to `-1` to keep devices forever, or any integer >= `1` to set up a purge threshold. (Default: `0`)
+          </td>
+        </tr>
       </tbody>
     </table>
   </Collapser>
@@ -1289,34 +1315,6 @@ global:
 
     The [Meraki Dashboard API](https://developer.cisco.com/meraki/api-latest/) integration pulls various metrics related to the health of your Meraki environment. The combination of various configuration options allows you to set up different monitoring scenarios for your needs.
 
-    * `meraki_config.monitor_clients: true`: Uses the [Get Network Clients](https://developer.cisco.com/meraki/api-latest/get-network-clients/) endpoint to iterate through all target networks and return client data.
-
-    <Callout variant="important">
-      In large environments, this API call has known issues with timeouts against the Meraki Dashboard API, resulting in missing metrics.
-    </Callout>
-
-    NRQL to find network client telemetry:
-
-    ```sql
-    FROM Metric SELECT
-      latest(status) AS 'Current Client Status',
-      max(kentik.meraki.clients.RecvTotal) AS 'Total Received Bytes',
-      max(kentik.meraki.clients.SentTotal) AS 'Total Sent Bytes'
-    FACET
-      network AS 'Network Name',
-      client_id AS 'Client ID',
-      client_mac_addr AS 'Client MAC',
-      description AS 'Client Description',
-      vlan AS 'Client VLAN',
-      user AS 'Client User',
-      manufacturer AS 'Client Manufacturer',
-      device_type AS 'Client Type',
-      recent_device_name AS 'Latest Device'
-    WHERE instrumentation.name = 'meraki.clients'
-    ```
-
-    <br />
-
     * `meraki_config.monitor_devices: true && meraki_config.preferences.device_status_only: true`: Uses the [Get Organization Device Statuses](https://developer.cisco.com/meraki/api-latest/get-organization-devices-statuses/) endpoint to list the status of every Meraki device in the organization.
 
     NRQL to find device status telemetry:
@@ -1349,9 +1347,9 @@ global:
 
     <br />
 
-    * `meraki_config.monitor_uplinks: true`: Uses the [Get Organization Uplinks Statuses](https://developer.cisco.com/meraki/api-latest/get-organization-uplinks-statuses/) endpoint to list the uplink status of every Meraki MX, MG and Z series device in the organization.
+    * `meraki_config.monitor_uplinks: true && meraki_config.preferences.hide_uplink_usage: false`: Uses the [Get Organization Uplinks Statuses](https://developer.cisco.com/meraki/api-latest/get-organization-uplinks-statuses/) endpoint to list the uplink status and performance of every Meraki MX, MG and Z series device in the organization.
 
-    NRQL to find device uplink status telemetry:
+    NRQL to find device uplink telemetry:
 
     ```sql
     FROM Metric SELECT
@@ -1359,6 +1357,27 @@ global:
       max(kentik.meraki.uplinks.LossPct) AS 'Uplink Loss %', // Uplink measured loss percentage
       max(kentik.meraki.uplinks.Recv) AS 'Uplink Receive Bytes', // Uplink bytes received
       max(kentik.meraki.uplinks.Sent) AS 'Uplink Transmit Bytes', // Uplink bytes sent
+      latest(status) AS 'Uplink Status' // Latest status of the uplink
+    FACET
+      org_id AS 'Organization ID',
+      org_name AS 'Organization Name',
+      network_id AS 'Network ID',
+      network AS 'Network Name',
+      device_name AS 'Device Name',
+      interface AS 'Device Uplink Interface',
+      model AS 'Device Model',
+      serial AS 'Device Serial'
+    WHERE org_id IS NOT NULL
+    ```
+
+    <br />
+
+    * `meraki_config.monitor_uplinks: true && meraki_config.preferences.hide_uplink_usage: true`: Uses the [Get Organization Uplinks Statuses](https://developer.cisco.com/meraki/api-latest/get-organization-uplinks-statuses/) endpoint to list only the uplink status of every Meraki MX, MG and Z series device in the organization.
+
+    NRQL to find device uplink status telemetry:
+
+    ```sql
+    FROM Metric SELECT
       latest(status) AS 'Uplink Status' // Latest status of the uplink
     FACET
       org_id AS 'Organization ID',
@@ -1437,12 +1456,6 @@ global:
           <td> [Meraki Dashboard API key](https://documentation.meraki.com/General_Administration/Other_Topics/Cisco_Meraki_Dashboard_API#Enable_API_Access) for authentication. </td>
         </tr>
         <tr>
-          <td> meraki_config.monitor_clients </td>
-          <td />
-          <td> true | false (Default: false) </td>
-          <td> Monitor client status and performance per network. *(Not recommended for large environments due to timeout problems)* </td>
-        </tr>
-        <tr>
           <td> meraki_config.monitor_devices </td>
           <td />
           <td> true | false (Default: false) </td>
@@ -1458,7 +1471,7 @@ global:
           <td> meraki_config.monitor_uplinks </td>
           <td />
           <td> true | false (Default: true) </td>
-          <td> Monitors the uplink status of every Meraki MX, MG and Z series device in the organization. </td>
+          <td> Monitors the uplink status and performance of every Meraki MX, MG and Z series device in the organization. </td>
         </tr>
         <tr>
           <td> meraki_config.monitor_vpn_status </td>
@@ -1522,7 +1535,13 @@ global:
           <td> meraki_config.preferences.device_status_only </td>
           <td />
           <td> true | false (Default: false) </td>
-          <td> Used in combination with `monitor_devices` to restrict polling to only status information. *(This is helpful in large organizations to prevent timeout issues)*. </td>
+          <td> *Required* when using `monitor_devices: true` to restrict polling to only status information. **(This is used to prevent timeout issues.)** </td>
+        </tr>
+        <tr>
+          <td> meraki_config.preferences.hide_uplink_usage </td>
+          <td />
+          <td> true | false (Default: false) </td>
+          <td> Used in combination with `monitor_uplinks` to remove performance metrics and only return status information for uplinks. </td>
         </tr>
         <tr>
           <td> meraki_config.preferences.show_vpn_peers </td>
