@@ -235,7 +235,6 @@ module.exports = {
         path: `./src/install/config/`,
       },
     },
-    // 'gatsby-plugin-generate-doc-json',
     {
       resolve: 'gatsby-plugin-generate-json',
       options: {
