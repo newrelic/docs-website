@@ -10,7 +10,7 @@ Introducing the public preview for our IBM MQ integration to monitor the perform
 
 IBM MQ enables decoupled applications and services to communicate and exchange data in a reliable and scalable way, whether you're trying to integrate applications running in different frameworks, languages, platforms, clouds, or locations. 
 
-![Tab one: New Relic quickstart dashboard for the IBM MQ integration](./images/IBMMQLightDashboard.png "Tab one: New Relic quickstart dashboard for the IBM MQ integration")
+![Tab one: New Relic quickstart dashboard for the IBM MQ integration](./images/IBMMQLightDashboard.webp "Tab one: New Relic quickstart dashboard for the IBM MQ integration")
 
 ## Instant observability
 
@@ -27,7 +27,7 @@ Install the public preview to instrument your IBM MQ infrastructure. It comes wi
 * Expired messages by queue
 * Filesystem usage
 
-![Tab two: New Relic quickstart dashboard for the IBM MQ integration](./images/IBMMQLightDashboardTabTwo.png "Tab two: New Relic quickstart dashboard for the IBM MQ integration")
+![Tab two: New Relic quickstart dashboard for the IBM MQ integration](./images/IBMMQLightDashboardTabTwo.webp "Tab two: New Relic quickstart dashboard for the IBM MQ integration")
 
 ## Get started now
 

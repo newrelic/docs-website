@@ -14,4 +14,4 @@ If you aren’t using Pixie with New Relic yet, get started easily by installing
 
 Learn more about [how to configure Pixie Ingest](https://docs.newrelic.com/docs/kubernetes-pixie/auto-telemetry-pixie/understand-use-data/overview#pixie-configure-storage).
 
-![Kafka observability data detected by Pixie displayed in New Relic](./images/pixie-entity.png "Kafka observability data detected by Pixie displayed in New Relic")
+![Kafka observability data detected by Pixie displayed in New Relic](./images/pixie-entity.webp "Kafka observability data detected by Pixie displayed in New Relic")

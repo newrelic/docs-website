@@ -13,7 +13,7 @@ workload footprint on AWS.
 
 Also it can be done without modifying application code, and without impacting the performance of workloads.
 
-![AWS CloudWatch Internet Monitor](./images/cw-internet-monitor.png "AWS CloudWatch Internet Monitor")
+![AWS CloudWatch Internet Monitor](./images/cw-internet-monitor.webp "AWS CloudWatch Internet Monitor")
 
 To prepare for this integration, be sure to link your Amazon and New Relic account either via 
 [streaming](https://docs.newrelic.com/docs/apis/nerdgraph/examples/nerdgraph-streaming-export) (recommended) or via 
@@ -25,7 +25,7 @@ Metric Stream should be set on your Amazon account. If "Metrics being streamed" 
 Once the integration has been enabled, wait for some time then look for your data in 
 **[one.newrelic.com](https://one.newrelic.com/all-capabilities) > Metrics and events**, and then filter by `aws.internetmonitor`.
 
-![See your data in New Relic](./images/cwim-nr1-metrics.png "your data in New Relic")
+![See your data in New Relic](./images/cwim-nr1-metrics.webp "your data in New Relic")
 
-![Dashboard](./images/cwim-nr1-db.png "Dashboard")
+![Dashboard](./images/cwim-nr1-db.webp "Dashboard")
 

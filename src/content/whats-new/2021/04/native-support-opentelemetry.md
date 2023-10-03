@@ -8,4 +8,4 @@ New Relic is excited to announce the availability of native OpenTelemetry Protoc
 
 You can now send traces, metrics, and logs directly to New Relic via the open source OpenTelemetry protocol and utilize the out-of-the-box user experiences to quickly discover the data you need to root-cause and optimize the performance of your applications and services.
 
-![Screenshot showing OpenTelemetry data in New Relic](./images/otlp.png "OpenTelemetry data in New Relic")
+![Screenshot showing OpenTelemetry data in New Relic](./images/otlp.webp "OpenTelemetry data in New Relic")

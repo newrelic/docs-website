@@ -17,7 +17,7 @@ With the launch of four new NRQL functions, you can now transform string data ri
 
 By combining these new string functions, you can extract and format the data you want right within your NRQL query.  This can be especially powerful when combined with our recently announced [NRQL variables feature](https://one.newrelic.com/whats-new?state=54b6bc30-6f70-3507-6966-4b8073aa66af) for even faster insights:
 
-![NRQL with string functions](./images/NRQL-string-functions.png "NRQL with string functions")
+![NRQL with string functions](./images/NRQL-string-functions.webp "NRQL with string functions")
 
 ## Next steps
 

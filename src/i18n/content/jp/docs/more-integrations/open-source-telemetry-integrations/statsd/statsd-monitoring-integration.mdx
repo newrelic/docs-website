@@ -1,0 +1,623 @@
+---
+title: StatsDモニタリングの統合
+tags:
+  - Integrations
+  - On-host integrations
+  - On-host integrations list
+dataSource: statsd
+translationType: machine
+---
+
+import infrastructureStatsdNrqlCondition from 'images/infrastructure_screenshot-crop_statsd-nrql-condition.webp'
+
+import infrastructureStatsdNrqlAlert from 'images/infrastructure_screenshot-crop_statsd-nrql-alert.webp'
+
+StatsD の統合により、 [StatsD](https://github.com/statsd/statsd)-format data を New Relic に簡単に取り込むことができます。また、データに任意のタグ（キーと値のペア）を追加することもできます。メトリクスが New Relic に取り込まれると、 [データを照会したり、](#find-use-data) カスタムチャートやダッシュボードを作成することができます。
+
+StatsDインテグレーションを試してみませんか？ [New Relicアカウントを作成してください](https://newrelic.com/signup) 無料でご利用いただけます。クレジットカードは必要ありません。
+
+## 要件
+
+この統合では、 [Metric API](/docs/data-ingest-apis/get-data-new-relic/metric-api/introduction-metric-api) と [Event API を](/docs/insights/insights-data-sources/custom-data/introduction-event-api) 使用してデータを取り込みます。 これらの API を使用するには、 <InlinePopover type="licenseKey"/>.
+
+この統合は、Metric API の [要件とデータ制限](/docs/data-ingest-apis/get-data-new-relic/metric-api/metric-api-limits-restricted-attributes)に従います。レート制限に達しているかどうかを確認するには、次の [`NrIntegrationError` イベント](/docs/telemetry-data-platform/manage-data/nrintegrationerror)の NRQL クエリを実行します。
+
+```sql
+SELECT count(*) FROM NrIntegrationError 
+  WHERE newRelicFeature ='Metrics' 
+  FACET category, message
+  LIMIT 100 since 1 day ago
+```
+
+統合は、amd64およびarm64アーキテクチャ用の[DockerHub](https://hub.docker.com/r/newrelic/nri-statsd/tags)でLinuxコンテナイメージとして利用できます。
+
+## インストール
+
+ここでは、標準的なインストールの方法を説明します。KubernetesでStatsDを動作させたい場合は、 [Kubernetes install](#kubernetes) をご覧ください。
+
+StatsD 統合をインストールするには、次のコマンドを実行し、 [New Relic アカウント ID](/docs/accounts/install-new-relic/account-setup/account-id) と <InlinePopover type="licenseKey"/>. これにより、 `gostatsd`で使用される TOML 構成ファイルが生成されます。
+
+```shell
+docker run \
+  -d --restart unless-stopped \
+  --name newrelic-statsd \
+  -h $(hostname) \
+  -e NR_ACCOUNT_ID=YOUR_ACCOUNT_ID \
+  -e NR_API_KEY=NEW_RELIC_LICENSE_KEY \
+  -p 8125:8125/udp \
+  newrelic/nri-statsd:latest
+```
+
+組織が [EU データセンター地域](/docs/using-new-relic/welcome-new-relic/get-started/introduction-eu-region-data-center)にある場合は、これを上記のコマンドに追加します。
+
+```shell
+-e NR_EU_REGION=true \
+```
+
+インストール後は
+
+* オプションを行う [追加設定](#configure)
+* [指標の定義](#metric-format)
+* [カスタムタグの追加](#add-tags) データに
+* [アラートの作成](#alerts)
+
+### Kubernetesへのインストール [#kubernetes]
+
+ここでは、デプロイメントとサービスオブジェクトのためのKubernetesマニフェストの例を紹介します。
+
+<CollapserGroup>
+  <Collapser
+    id="k8s-manifest-examples"
+    title="Kubernetesのマニフェストの例"
+  >
+    以下は、Kubernetes 環境に StatsD をデプロイし、 `newrelic-statsd`という名前の StatsD サービスを作成するための Kubernetes マニフェストの例です。[ アカウント ID](/docs/accounts/install-new-relic/account-setup/account-id) と <InlinePopover type="licenseKey"/>.
+
+    **deployment.yml**:
+
+    ```yml
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: newrelic-statsd
+      namespace: tooling
+      labels:
+        app: newrelic-statsd
+    spec:
+      selector:
+        matchLabels:
+          app: newrelic-statsd
+      replicas: 2
+      revisionHistoryLimit: 2
+      template:
+        metadata:
+          labels:
+            app: newrelic-statsd
+        spec:
+          serviceAccountName: newrelic-statsd
+          containers:
+          - name: newrelic-statsd
+            image: newrelic/nri-statsd:latest
+            env:
+            - name: NR_ACCOUNT_ID
+              value: "NEW_RELIC_ACCOUNT_ID"
+            - name: NR_API_KEY
+              value: "NEW_RELIC_LICENSE_KEY"
+    ```
+
+    **service.yml**:
+
+    ```yml
+    apiVersion: v1
+    kind: Service
+    metadata:
+      name: newrelic-statsd
+      namespace: tooling
+      labels:
+        app: newrelic-statsd
+    spec:
+      type: ClusterIP
+      ports:
+      - name: newrelic-statsd
+        port: 80
+        targetPort: 8125
+        protocol: UDP
+      selector:
+        app: newrelic-statsd
+    ```
+
+    **service-account.yml** ：
+
+    ```yml
+    apiVersion: v1
+    kind: ServiceAccount
+    metadata:
+      name: newrelic-statsd
+      namespace: default
+    ```
+
+    設定の詳細については、 [Kubernetes の設定](#k8s-config) を参照してください。
+  </Collapser>
+
+  <Collapser
+    id="k8s-helm-chart"
+    title="Kubernetes Helm チャート"
+  >
+    統合をインストールするために、 [StatsD Helm チャート](https://github.com/newrelic/helm-charts/tree/master/charts/nri-statsd) も利用できます。
+  </Collapser>
+</CollapserGroup>
+
+<InstallFeedback/>
+
+## 設定
+
+[インストール手順](#install)では、環境変数を使用して`nri-statsd`を実行します。これにより、TOML構成ファイルが生成されます。さらに、次の構成オプションを設定できます。
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        設定オプション
+      </th>
+
+      <th>
+        説明
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `expiry-interval`
+
+        _ストリング_
+      </td>
+
+      <td>
+        この期間、指標が更新されない場合、その指標の報告を停止します。デフォルトは`5m`です。
+
+        フラッシュ間隔の間に値が更新された場合にのみメトリックを送信する場合は、これを`1ms`に構成します。メトリックを期限切れにしないようにするには、 `0`に設定します。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `percent-threshold`
+
+        _整数のリスト_
+      </td>
+
+      <td>
+        メトリックの集計に使用されるパーセンタイルを指定します。デフォルト： `90` 。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `metrics-addr`
+
+        _ストリング_
+      </td>
+
+      <td>
+        メトリックをリッスンするアドレスを示します。デフォルト： `:8125` 。 nri-statsd `v2.3.0` （goStatsD `v34.2.1` ）から、Unixドメインソケット（UDS）を介した接続がサポートされます。構成で「\[host]：port」の代わりに「metrics-addr = / some / path/newrelic-statsd.socket」を使用します。
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<Callout variant="tip">
+  StatsD統合を使用してFedRAMPコンプライアンスを確保するには、カスタム構成で以下のエンドポイントを定義する必要があります。
+
+  ```
+  address = 'https://gov-insights-collector.newrelic.com/v1/accounts/  $NR_ACCOUNT_ID/events'
+  ```
+
+  ```
+  address-metrics = 'https://gov-infra-api.newrelic.com/metric/v1'
+  ```
+</Callout>
+
+ここでは、デフォルトの設定を上書きして設定をカスタマイズする例を紹介します。
+
+<CollapserGroup>
+  <Collapser
+    id="config-example"
+    title="カスタム設定の例"
+  >
+    ```
+    # Specify after how long do we expire metrics, default:5m
+    expiry-interval = '1ms'
+
+    # percent-threshold specify a list of percentiles for metrics aggregation, default:90
+    percent-threshold = [90, 99]
+
+    backends='newrelic'
+    [newrelic]
+    # flush types supported: metrics,  insights, infra
+    flush-type = 'metrics'
+    transport = 'default'
+    address = 'https://insights-collector.newrelic.com/v1/accounts/$NR_ACCOUNT_ID/events'
+    address-metrics = 'https://metric-api.newrelic.com/metric/v1'
+    api-key = 'NEW_RELIC_LICENSE_KEY'
+    ```
+
+    **タイマーサブメトリクスの無効化**
+
+    デフォルトでは、 `nri_statsd`はタイマーメトリックに対して次の値を計算します：フラッシュ間隔の標準偏差、平均、中央値、合計、下限、および上限。これらのメトリックを無効にする場合は、 `disabled-sub-metrics`構成セクションを追加し、無効にするメトリックに`true`を設定することで無効にできます。次に例を示します。
+
+    ```
+    # disabled-sub-metrics configuration section allows disabling timer sub-metrics
+    [disabled-sub-metrics]
+    # Regular metrics
+    count=false
+    count-per-second=false
+    mean=false
+    median=false
+    lower=false
+    upper=false
+    stddev=false
+    sum=false
+    sum-squares=false
+
+    # Percentile metrics
+    count-pct=false
+    mean-pct=false
+    sum-pct=false
+    sum-squares-pct=false
+    lower-pct=false
+    upper-pct=false
+    ```
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="docker-config"
+    title="Docker: デフォルトの設定を上書きする"
+  >
+    コンテナーでの実行中にデフォルトの`nri-statsd`構成を上書きするには、コンテナー内に構成ファイルをマウントできます。
+
+    以下のテンプレートは、お客様の状況に応じて適宜採用してください。
+
+    例：
+
+    ```
+    backends='newrelic'
+    flush-interval='10s'
+
+    [newrelic]
+    # flush types supported: metrics,  insights, infra
+    flush-type = 'metrics'
+    transport = 'default'
+    address-metrics = 'https://metric-api.newrelic.com/metric/v1'
+    api-key = 'NEW_RELIC_LICENSE_KEY'
+    ```
+
+    ファイルを適切なパスにマウントした状態でコンテナを実行するには
+
+    ```shell
+    docker run \
+      ...
+      -v ${PWD}/nri-statsd.toml:/etc/opt/newrelic/nri-statsd.toml \
+      ...
+      newrelic/nri-statsd:latest
+    ```
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="k8s-config"
+    title="Kubernetes: デフォルトの設定を上書きする"
+  >
+    Kubernetesで実行されている`nri-statsd`を設定するための最良のアプローチは、 `configMap`を使用して`configMap`をコンテナにマウントすることです。 （これは、Dockerで構成ファイルをマウントするのと同様のプロセスです。）
+
+    例：
+
+    ```
+    apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: nri-statsd-config
+      namespace: default
+    data:
+      nri-statsd.toml: |
+        backends='newrelic'
+        flush-interval='10s'
+
+        [newrelic]
+        # flush types supported: metrics,  insights, infra
+        flush-type = 'metrics'
+        transport = 'default'
+        address = 'https://metric-api.newrelic.com/metric/v1'
+        api-key = '$NEW_RELIC_LICENSE_KEY'
+    ```
+
+    configMapを使用するには、デプロイメント仕様テンプレートでボリュームを宣言してから、コンテナー仕様で`volumeMount`を宣言します。
+
+    例：
+
+    ```
+    apiVersion: apps/v1
+    kind: Deployment
+    spec:
+      template:
+        spec:
+        containers:
+          ....
+          volumeMounts:
+            - mountPath: /etc/opt/newrelic/
+              name: nri-statsd-config
+        volumes:
+          - name: nri-statsd-config
+            configMap:
+              name: nri-statsd-config
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## メトリックフォーマット
+
+インテグレーションは、 [StatsD プロトコル](https://github.com/statsd/statsd) を使用してメトリクスを受信します。オプションで、サンプルレートを設定したり、タグを追加することができます。
+
+ここでは、私たちが使用しているメトリックデータのフォーマットを紹介します。
+
+```
+<metric name>:<value>|<type>|@<sample rate>|#<tags>
+```
+
+ここでは、これらの分野について説明します。
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "150px" }}>
+        フィールド名
+      </th>
+
+      <th>
+        説明
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        &lt;metric name>  
+        `string`
+      </td>
+
+      <td>
+        **必須です。** メトリックの名前。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        &lt;value>  
+        `string`
+      </td>
+
+      <td>
+        **必須です。** [メトリックタイプ](#metric-types) 。
+
+        * `c` = counter
+        * `g` = gauge
+        * `ms` = timer
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        @&lt;sample rate>  
+        `float`
+      </td>
+
+      <td>
+        **単純なカウンターやタイマーカウンターのオプション** 。多くのメトリクスを送信する必要がある場合、サンプリングを使用してネットワーク・トラフィックを削減することができます。ただし、データの分解能が低下するという欠点があります。
+
+        `1`未満のサンプルレートでこれがどのように機能するかの例：これを`0.1`に設定すると、カウンターは10回に1回の測定値を送信します。
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        ＃&lt;tags>  
+        `string`
+      </td>
+
+      <td>
+        **オプションです。** メトリクスに付けられたタグは、属性（キーと値のペア）に変換されます。タグ付けオプションの詳細については、 [Tags](#add-tags) を参照してください。
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## メトリックのタイプ
+
+ここでは、メトリクスの種類とそのフォーマットをご紹介します。
+
+<CollapserGroup>
+  <Collapser
+    id="counter"
+    title="カウンター"
+  >
+    カウンターは、あるイベントの発生回数を測定するものです。例えば、レポート間隔ごとのキャッシュヒット数や、レポート間隔ごとのスレッド作成数などです。
+
+    カウンタは、値に符号を追加することにより、同じフラッシュ間隔中にインクリメントまたはデクリメントできます。次の例では、カウンター値は`2`になります。
+
+    ```
+    counter:4|c
+     counter:-2|c
+    ```
+
+    フラッシュするたびに、現在のカウントが送信され、 `0`にリセットされます。カウントが更新されていない場合、次のフラッシュで値`0`が送信されます。 [`expiry-interval`](#configure)を`1ms`に設定することで、この動作を無効にすることを選択できます。
+
+    ここでは、10回に1回の割合でサンプリングされているカウンターの例を紹介します。
+
+    ```
+    counter:4|c@0.1
+    ```
+  </Collapser>
+
+  <Collapser
+    id="gauge"
+    title="ゲージ"
+  >
+    ゲージは、時間の経過とともに増加または減少する可能性のある値を表します。ゲージの例としては、温度、CPU使用率、メモリなどがあります。以下にその例を示します。
+
+    ```
+    temperature:40|g
+    ```
+
+    ゲージが更新されていない場合、次のフラッシュで前の値が送信されます。 [`expiry-interval`](#configure)を`1ms`に設定することで、この動作を無効にすることを選択できます。
+  </Collapser>
+
+  <Collapser
+    id="timer"
+    title="タイマー"
+  >
+    タイマーメトリックタイプは、タイミングデータを測定します。
+
+    デフォルトでは、 `nri_statsd`はタイマーメトリックに対して次の値を計算します：フラッシュ間隔の標準偏差、平均、中央値、合計、下限、および上限。これらは、次の形式でサブメトリックとして送信されます。
+
+    ```
+    <metric_base_name>.std_dev 
+    <metric_base_name>.median
+    <metric_base_name>.summary
+    <metric_base_name>.sum_squares
+    <metric_base_name>.mean
+    <metric_base_name>.per_second
+    ```
+
+    設定されたパーセンタイルは、以下のメトリクスを生成します。パーセンタイルのしきい値は、タグとして付けられます。
+
+    ```
+    <metric_base_name>.sum_squares.percentiles
+    <metric_base_name>.sum.percentiles
+    <metric_base_name>.count.percentiles
+    <metric_base_name>.upper.percentiles
+    <metric_base_name>.mean.percentiles
+    ```
+
+    パーセンタイルしきい値は、 [`percent-threshold`](#configure)構成オプションを使用して調整できます。これらは、 [`disabled-sub-metrics`構成セクション](#config-example)から制御できます。
+  </Collapser>
+</CollapserGroup>
+
+## タグ（属性）の追加 [#add-tags]
+
+データにタグを追加することができます。タグは [属性](/docs/using-new-relic/welcome-new-relic/get-started/glossary#attribute) （キーと値のペア）として保存されます。タグの追加には2つのオプションがあります。
+
+* すべてのメトリクスに適用されるデフォルトのタグを追加します。これらは、すべてのメトリクスに適用されます。これらは固定されており、時間が経っても変化しません。
+* メトリクスレベルのタグを追加します。このタグは特定のメトリクスに適用され、2回のサブミットの間に値を変更することができます。
+
+<CollapserGroup>
+  <Collapser
+    id="tags-nri-statsd"
+    title="すべてのメトリクスに適用されるデフォルトタグの追加"
+  >
+    メトリクスやイベントにタグを追加するには、 [起動コマンド](#install) で環境変数を定義します。
+
+    ここでは、2つのタグを作成する例を紹介します。
+
+    ```
+    -e TAGS="environment:production region:us"
+    ```
+
+    [起動コマンド](#install) で使用されている環境変数を示します。
+
+    ```
+    docker run \
+      -d --restart unless-stopped \
+      --name newrelic-statsd \
+      -h $(hostname) \
+      -e NR_ACCOUNT_ID=YOUR_ACCOUNT_ID \
+      -e NR_API_KEY=NEW_RELIC_LICENSE_KEY \
+      -e TAGS="environment:production region:us" \ 
+      -p 8125:8125/udp \
+      newrelic/nri-statsd:latest
+    ```
+  </Collapser>
+
+  <Collapser
+    id="tags-app-code"
+    title="メトリックレベルのタグの追加"
+  >
+    [メトリックフォーマット](#metric-format) を定義する際に、このフォーマットを使用してタグを追加することができます。
+
+    ```
+    <bucket name>:<value>|<type>|#<tags>
+    ```
+
+    この例では、 `<tags>`はコンマで区切られたタグのリストです。タグの形式は、 `simple`または`key:value`です。
+  </Collapser>
+</CollapserGroup>
+
+以下は、カスタムタグを含む [NRQL](/docs/query-data/nrql-new-relic-query-language/getting-started/introduction-nrql) クエリの例です。
+
+```
+SELECT count(*) FROM Metric WHERE environment = 'production'
+```
+
+## アラートの作成 [#alerts]
+
+[NRQLのアラート条件](/docs/alerts/new-relic-alerts/defining-conditions/create-alert-conditions-nrql-queries) を使ってStatsDのデータにアラートを出すことができます。
+
+<CollapserGroup>
+  <Collapser
+    id="alert-example"
+    title="アラート例"
+  >
+    この手順では、サンプルデータの送信から、そのデータを使ったアラート条件の作成までを行います。
+
+    まず、このデータをNew RelicのStatsDコンテナに送ります。
+
+    ```
+    echo "prod.test.num:32|g" | nc -v -w 1 -u localhost 8125
+    ```
+
+    次に、このクエリを使用して、 [NRQL アラート条件](/docs/alerts/new-relic-alerts/defining-conditions/create-alert-conditions-nrql-queries) を作成します。
+
+    ```
+    SELECT latest(prod.test.num) FROM Metric WHERE metricName = 'prod.test.num'
+    ```
+
+    このNRQLのアラート条件を作成しているイメージは以下の通りです。送られてきたサンプルデータは、チャートの右上にある青い点で表されていることに注目してください。
+
+    <img
+      title="statsd-nrql-alert-condition-example.png"
+      alt="StatsD NRQL alert condition query"
+      src={infrastructureStatsdNrqlCondition}
+    />
+
+    それでは、これらの設定でアラート条件を作成します。
+
+    <img
+      title="StatsD NRQL alert condition creation example"
+      alt="StatsD NRQL alert condition creation example"
+      src={infrastructureStatsdNrqlAlert}
+    />
+
+    NRQL のアラート条件を作成する際には、必ず **条件名** を設定してください。
+
+    50を超える値のメトリックが送信された場合、インシデントが作成され、通知されます。このインシデントは24時間後に自動的にクローズされます。アラートが機能していることをテストするには、次のコマンドを実行します。
+
+    ```
+    echo "prod.test.num:60|g" | nc -v -w 1 -u localhost 8125
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## データを見つけて使用する [#find-use-data]
+
+データを照会するには、New Relic の [クエリオプション](/docs/using-new-relic/data/understand-data/query-new-relic-data) を使用します。例えば、 [NRQL](/docs/query-data/nrql-new-relic-query-language/getting-started/introduction-nrql) のようなクエリを実行します。
+
+```
+SELECT count(*) FROM Metric WHERE metricName = 'myMetric' and environment = 'production'
+```
+
+`Metric`データ型をクエリする方法の詳細については、「[メトリックデータのクエリ](/docs/data-ingest-apis/get-data-new-relic/metric-api/view-query-you-metric-data)」を参照してください。
+
+## ソースコードを確認してください [#source-code]
+
+この統合はオープン ソース ソフトウェアです。つまり[、ソース コードを参照して](https://github.com/newrelic/nri-statsd/)改善を送信したり、独自のフォークを作成してビルドしたりできます。

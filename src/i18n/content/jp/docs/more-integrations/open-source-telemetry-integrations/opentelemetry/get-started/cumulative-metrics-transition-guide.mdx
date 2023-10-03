@@ -1,0 +1,181 @@
+---
+title: OpenTelemetry 累積合計メトリクスの移行ガイド
+metaDescription: 'A transition guide about a change in how New Relic handles OpenTelemetry cumulative sum metrics, and how to update your queries and alerts for that change.'
+translationType: machine
+---
+
+輸出条件年 = 2023; export const gaDate = '4 月 4 日'; export const eolDate = '10 月 22 日'; const gaDateAndYear = gaDate + ', ' + 年をエクスポートします。 const eolDateAndYear = eolDate + ', ' + 年をエクスポートします。
+
+OTLP メトリック パイプラインは、 [累積メトリックの](/docs/data-apis/understand-data/metric-data/cumulative-metrics)処理方法をより適切にサポートするためにアップグレードされています。このアップグレードの一環として [、単調累積合計](https://opentelemetry.io/docs/reference/specification/metrics/data-model/#sums) の基礎となる [メトリック データ タイプを](/docs/data-apis/understand-data/metric-data/metric-data-type/#metric-types) `gauge` タイプから `cumulativeCount` タイプに移行します。 `cumulativeCount` タイプを使用すると、報告されたデータに関連付けられた累積値とデルタ値の両方を照会できます。
+
+gaDateAndYear を開始すると、次のサポート終了 (EoL) タイムラインに従って累積単調メトリックを取り込みます。
+
+* 日付と年:
+
+  * `cumulativeCount` メトリック タイプとして累積単調合計の取り込みが解放されます (非単調累積合計は影響を受けませ **ん** )。これらのメトリックを `gauge` メトリック タイプとして取り込む以前の経験は非推奨です。
+  * この日付より前に累積単調合計を積極的に送信していたアカウントは、引き続き `gauge` タイプの取り込みを使用できます。
+  * 他のすべてのアカウントには、 `cumulativeCount` 指標タイプとして取り込まれた累積単調合計があります。
+
+* gaDate から eolDate:
+
+  * 非推奨の `gauge` タイプの取り込みを使用しているアカウントは、 `cumulativeCount` タイプの取り込みをオプトインできます。**早期のオプトインは、影響を受けるクエリとアラートが EoL によって中断されないようにするための最良の方法です**。
+
+* eolDateAndYear: すべてのアカウントは、累積単調合計の `cumulativeCount` タイプの取り込みに移行されます。
+
+gaDate の前に累積単調合計を取り込んでいた場合、この 180 日間は、影響を受けるメトリックを利用するクエリとアラートを更新する時間を与えます。
+
+以下のセクションでは、次のことを学びます。
+
+* 影響を受けているかどうかを知る方法
+* EoL に備える方法
+* EoL 日前に `cumulativeCount` 機能にオプトインする方法
+
+<Callout variant="important">
+  非単調な累積和は影響を受けませ **ん** 。
+</Callout>
+
+## 影響を確認する [#impact]
+
+アカウントが gaDateAnd Year より前に OTLP 累積合計メトリクスを New Relic に送信していた場合、eolDateAnd Year の EoL の影響を受けます。
+
+影響を受けているかどうかを確認するには、関連するアカウントに対して次の NRQL クエリを実行します。
+
+```
+FROM NrIntegrationError SELECT count(*)
+WHERE newRelicFeature = 'cumulativeSumAsGaugeEoL'
+SINCE 24 hours ago
+```
+
+この EoL の影響を受けた指標を過去 24 時間以内に報告した場合、クエリは結果を返します。
+
+さらに調査するには、イベント メッセージを表示して、影響を受けるメトリックを確認します。
+
+```
+FROM NrIntegrationError SELECT uniques(metricName)
+WHERE newRelicFeature = 'cumulativeSumAsGaugeEoL'
+LIMIT MAX SINCE 24 hours ago
+```
+
+これらのメトリクスに関連する監視またはアラートは、EoL 日前に確認および更新する必要があります。次のセクションには、影響を受けるメトリックに対する推奨アクションが含まれています。
+
+## 影響を受けた場合の対処方法 [#what-to-do]
+
+eolDate で、OTLP 単調累積合計メトリックのレポートは、 `gauge` から `cumulativeCount` メトリック タイプの使用に切り替わります。これらのメトリクスを使用している場合は、それに備える必要があります。たとえば、新しいメトリック タイプで重複するアラート条件を作成して、切り替えが発生したときに中断が発生しないようにすることができます (その方法については以下で説明します)。
+
+[OpenTelemetry のベスト プラクティスでは、](/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/best-practices/opentelemetry-best-practices-metrics#query) `gauge` 指標タイプと `cumulativeCount` 指標タイプのクエリの違いについて概説しています。つまり、累積フィールドを選択することで、デルタ値 (デフォルト) または累積値のいずれかをターゲットにすることができます。
+
+累積単調合計メトリック `metricName`のクエリの例を見てみましょう。EoL までは、次のようなクエリです。
+
+```
+FROM Metric SELECT latest(<metricName>)
+```
+
+`gauge` 指標のみを評価します。EoL が発生すると、 `metricName` に関連付けられた基になるメトリック タイプが `cumulativeCount`に変更されます。アラートによっては、 `gauge` および `cumulativeCount` タイプのメトリック値がデータ ポイントの異なる値を表すため、この変更により誤った結果が生じる可能性があります。
+
+以下では、 [アラート条件](/docs/alerts-applied-intelligence/new-relic-alerts/alert-conditions/create-nrql-alert-conditions)の更新に焦点を当てています。これは、通常、アラートがチャートよりも重要であるためです。カスタム チャートでは、次のいずれかを実行できます。
+
+* アラートについて説明したのと同じ一般的なアプローチを取る (更新されたクエリで新しいチャートを作成し、EoL 後に古いチャートを消去する)、または
+* EoL 後まで待ってチャートを更新する
+
+## 推奨されるアクション: 新しいバージョンのアラートを作成する [#alerts]
+
+アラート条件で使用される可能性のあるクエリの例を次に示します。元のクエリ、 `gauge` バージョンのクエリ、 `cumulativeCount` バージョンのクエリが提供されます。既存のアラートをクエリの `gauge` バージョンに置き換え、 `cumulativeCount` バージョンを使用する複製アラート条件を作成する必要があります。そうすれば、eolDate にアカウントを `cumulativeCount` に移行するときに、古いクエリが機能しなくなったときにそのアラート条件が利用可能になります。
+
+### 累積クエリ [#cumulative-queries]
+
+元のクエリ:
+
+```
+FROM Metric SELECT latest(<metricName>)
+```
+
+クエリのゲージ バージョン:
+
+```
+FROM Metric SELECT latest(<metricName>)
+WHERE <metricName>[type] = 'gauge'
+```
+
+クエリの累積カウント バージョン:
+
+```
+FROM Metric SELECT latest(<metricName>[cumulative])
+WHERE <metricName>[type] = 'cumulativeCount'
+```
+
+### 変化率クエリ [#rate-of-change-queries]
+
+元のクエリ:
+
+```
+FROM Metric SELECT derivative(<metricName>, 1 minute)
+```
+
+クエリのゲージ バージョン:
+
+```
+FROM Metric SELECT derivative(<metricName>, 1 minute)
+WHERE <metricName>[type] = 'gauge'
+```
+
+クエリの累積カウント バージョン:
+
+```
+FROM Metric SELECT rate(sum(<metricName>[cumulative]), 1 minute)
+WHERE <metricName>[type] = 'cumulativeCount'
+```
+
+## 推奨されるアクション: EoL の前に CumulativeCount をプレビューする [#preview]
+
+影響を受けるアカウントは、EoL まで累積合計が `gauge` 型として引き続き保存されます。ただし、必要に応じて、EoL の前に `cumulativeCount` を試して、クエリとアラートが期待どおりに動作していることを検証できます。 `cumuativeCount` 型を早期にテストするには、New Relic に送信する OTLP データに次の属性を追加します。
+
+```
+newrelic_metric_type=cumulativeCount
+```
+
+<Callout variant="important">
+  データで `newrelic_metric_type=cumulativeCount` の送信を開始すると、受信した累積単調合計は `cumulativeCount` 型に変換されます。これは、 `gauge` タイプをターゲットにするように設定された既存のクエリまたはアラートが予期しない結果を受け取ることを意味します。 `cumulativeCount` エクスペリエンスをテストするときは、この点に注意してください。 `gauge` タイプに戻すには、 `newrelic_metric_type` 属性の設定を停止するだけです。
+</Callout>
+
+### 計測ライブラリ [#instrumentation-library]
+
+コード ベース内で OTLP 計測ライブラリを使用している場合は、アプリケーションに [適した言語 SDK](/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/get-started/opentelemetry-set-up-your-app/#instrument) を参照する必要があります。個々のメトリック データ ポイントまたはリソース属性レベルに属性 `newrelic_metric_type=cumulativeCount` を追加する方法はどれでも十分です。
+
+Java SDK でレポート指標に属性を直接追加する例を次に示します。
+
+```
+final var meter = openTelemetry.meterBuilder("manual-instrumentation-scope")
+                .setInstrumentationVersion("1.0.0")
+                .build();
+final LongCounter counter = meter.counterBuilder("myCumulativeCounter")
+                .build();
+counter.add(1, Attributes.of(stringKey("newrelic_metric_type"), "cumulativeCount"));
+```
+
+### コレクター [#collector]
+
+OTLP 監視のソースが OTLP コレクターからのものである場合は、OpenTelemetry [属性プロセッサを](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/processor/attributesprocessor/README.md) 使用して、エクスポーターに送信する前に属性を追加できます。たとえば、次のスニペットは `newrelic_metric_type=cumulativeCount` 属性を挿入します:
+
+```
+…
+attributes:
+  actions:
+    - key: newrelic_metric_type
+      action: insert
+      value: cumulativeCount
+…
+service:
+  pipelines:
+    metrics:
+      …
+      processors: [...,attributes,...]
+      …
+```
+
+### 結果の確認 [#checking-results]
+
+指標データに `newrelic_metric_type=cumulativeCount` を設定した後、次のクエリで正しく受信されていることを確認できます。
+
+```
+FROM Metric SELECT count(*) WHERE %[type] = 'cumulativeCount' TIMESERIES
+```

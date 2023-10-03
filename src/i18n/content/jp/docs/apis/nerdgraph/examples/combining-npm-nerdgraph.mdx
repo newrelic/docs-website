@@ -1,0 +1,205 @@
+---
+title: npm と NerdGraph を使用して複数のアプリを計測する
+metaDescription: 'For New Relic browser monitoring, how to combine the npm package with NerdGraph to instrument multiple applications via API.'
+translationType: machine
+---
+
+NerdGraph API を使用して、新しいブラウザー アプリケーションを作成し、構成値を取得できます。これをブラウザー エージェント npm パッケージと組み合わせて、アプリケーション ビルド プロセスの一部としてブラウザー エージェントの構成を組み込んだり、アプリケーション内のエージェントの実装からエージェントの構成を分離したりできます。
+
+NerdGraph を使用してブラウザー アプリケーションを作成または構成したことがない場合は、まず [この NerdGraph チュートリアル](/docs/apis/nerdgraph/examples/browser-monitoring-config-nerdgraph#create-browser)をお読みください。
+
+## エージェントを設定する [#set-up-agent]
+
+プロジェクトのルートまたはフロントエンドの依存関係が管理されている場所で、IDE とターミナルを開きます。これは、 `npm install --save @newrelic/browser-agent` を実行して npm パッケージをインストールする場所です。インストールしたら、Web サイトのメイン エントリ ポイント ファイルを見つけます。これは `<project_root>/src/index.js` または `<project_root>/src/index.ts` の可能性がありますが、アプリケーションでは異なる場合があります。複数のエントリポイントがある場合は、ブラウザで最も早く読み込まれ、できれば `async` または `defer` スクリプト要素属性を使用していないエントリポイントを選択してください。
+
+ブラウザー エージェントを追加する場所を見つけたら、このコード スニペットをそのファイルに追加します。
+
+```javascript
+import { BrowserAgent } from '@newrelic/browser-agent/loaders/browser-agent'
+// Remaining import statements
+
+// Populate using values from NerdGraph
+const options = {
+  init: { ... },
+  info: { ... },
+  loader_config: { ...}
+}
+
+// The agent loader code executes immediately on instantiation.
+new BrowserAgent(options)
+
+// Remaining code
+```
+
+ブラウザ エージェントの `import` ステートメントは、ソース ファイルの最初にある必要があります。残りの `import` ステートメントの後、すぐにブラウザー エージェントをインスタンス化して構成します。ブラウザー エージェントができるだけ早くデータを読み込んでキャプチャできるように、他のコードよりも前にこれを実行してください。
+
+## 構成を取得する [#retrieve-config]
+
+前のスニペットの `options` オブジェクトには、New Relic のブラウザ アプリケーションに関する構成情報を入力する必要があります。このチュートリアルでは、New Relic UI を既存のブラウザー アプリケーションと NerdGraph Explorer で使用して、API 呼び出しを完了します。
+
+<Steps>
+  <Step>
+    ### ブラウザ アプリケーション エンティティ GUID を取得する [#get-entity-guid]
+
+    NerdGraph API を使用するには、インストルメント化するブラウザー アプリケーションの [エンティティ GUID](/docs/new-relic-solutions/new-relic-one/core-concepts/what-entity-new-relic/#find) を取得する必要があります。
+  </Step>
+
+  <Step>
+    ### ブラウザ アプリケーションの構成を取得する [#retrieve-app-config]
+
+    [api.newrelic.com/graphiql](https://api.newrelic.com/graphiql) で NerdGraph エクスプローラーを開きます。以下のクエリを使用して、ブラウザ アプリケーションの構成値を取得します。New Relic アカウントで [EU データセンター](/docs/using-new-relic/welcome-new-relic/get-started/our-eu-us-region-data-centers)を使用している場合は、 [api.eu.newrelic.com/graphiql](https://api.eu.newrelic.com/graphiql)にアクセスしてください。
+
+    ```graphql
+    query {
+      actor {
+        entity(guid: '<guid>') {
+          ... on BrowserApplicationEntity {
+            guid
+            name
+            browserProperties {
+              jsConfigScript
+            }
+          }
+        }
+      }
+    }
+    ```
+
+    クエリの `<guid>` 部分を、以前に取得したエンティティ GUID に置き換えます。クエリを実行すると、次のような出力が表示されます。
+
+    ```graphql
+    {
+      "data": {
+        "actor": {
+          "entity": {
+            "browserProperties": {
+              "jsConfig": {
+                "info": {
+                  "applicationID": 1234567,
+                  "beacon": "bam.nr-data.net",
+                  "errorBeacon": "bam.nr-data.net",
+                  "licenseKey": 123456789,
+                  "sa": 1
+                },
+                "init": {
+                  "ajax": {
+                    "deny_list": [
+                      "bam-cell.nr-data.net"
+                    ]
+                  },
+                  "distributed_tracing": {
+                    "allowed_origins": [],
+                    "cors_enabled": false,
+                    "cors_use_newrelic_header": false,
+                    "cors_use_tracecontext_headers": false,
+                    "enabled": true,
+                    "exclude_newrelic_header": false
+                  },
+                  "privacy": {
+                    "cookies_enabled": true
+                  }
+                },
+                "loader_config": {
+                  "accountID": <redacted>,
+                  "agentID": <redacted>,
+                  "applicationID": <redacted>,
+                  "licenseKey": "<redacted>",
+                  "trustKey": 1672072
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    ```
+
+    <Callout variant="tip">
+      NerdGraph の使用に関する詳細情報が必要ですか? [NerdGraph の紹介 を](/docs/apis/nerdgraph/get-started/introduction-new-relic-nerdgraph)参照してください。
+    </Callout>
+  </Step>
+
+  <Step>
+    ### 構成をインストールする [#install-config]
+
+    `jsConfig` プロパティの内容をコピーし、ソース ファイルの `options` オブジェクトの内容を置き換えます。
+  </Step>
+</Steps>
+
+## npmパッケージを使用してデプロイする [#deploy-with-npm]
+
+npm パッケージをインストールして適切に構成したら、ブラウザー アプリケーションをビルドしてデプロイできます。Web サイトをブラウザにロードし、構成から `beacon` URI に対してネットワーク呼び出しが行われていることを確認します。
+
+## ブラウザ アプリケーションの構成を HTML に挿入する [#inject-config-into-html]
+
+ブラウザー アプリケーションの構成をソース コードに配置する代わりに、構成を Web サイトの HTML に挿入することもできます。これは、ソース コードが複数の Web サイトで再利用される場合に特に便利です。
+
+<Steps>
+  <Step>
+    ### ソース コード スニペットを変更する [#modify-source-code-snippet]
+
+    ソース コードの最初のスニペットを `import` に変更し、パラメータなしで `BrowserAgent` クラスをインスタンス化します。
+
+    ```javascript
+    import { BrowserAgent } from '@newrelic/browser-agent/loaders/browser-agent'
+    // Remaining import statements
+
+    // The agent loader code executes immediately on instantiation.
+    new BrowserAgent()
+
+    // Remaining code
+    ```
+  </Step>
+
+  <Step>
+    ### NerdGraph クエリを変更する [#modify-graphql]
+
+    NerdGraph クエリを変更して、ブラウザ アプリケーションの構成を JSON でエンコードされたスクリプト文字列として取得します。 `<guid>` を以前に取得したブラウザー アプリケーション エンティティ GUID に置き換えることを忘れないで、新しいクエリを実行します。
+
+    ```graphql
+    query {
+      actor {
+        entity(guid: '<guid>') {
+          ... on BrowserApplicationEntity {
+            guid
+            name
+            browserProperties {
+              jsConfigScript
+            }
+          }
+        }
+      }
+    }
+    ```
+
+    これにより、次のような結果が返されます。
+
+    ```graphql
+    {
+      "data": {
+        "actor": {
+          "entity": {
+            "browserProperties": {
+              "jsConfigScript": "<script type=\"text/javascript\">\n;window.NREUM||(NREUM={});NREUM.init={distributed_tracing:{enabled:true},privacy:{cookies_enabled:true},ajax:{deny_list:[\"bam-cell.nr-data.net\"]}};\n\n;NREUM.loader_config={accountID:\"<redacted>\",trustKey:\"<redacted>\",agentID:\"<redacted>\",licenseKey:\"<redacted>\",applicationID:\"<redacted>\"};\n;NREUM.info={beacon:\"bam.nr-data.net\",errorBeacon:\"bam.nr-data.net\",licenseKey:\"<redacted>\",applicationID:\"<redacted>\",sa:1};\n</script>\n"
+            }
+          }
+        }
+      }
+    }
+    ```
+  </Step>
+
+  <Step>
+    ### 構成をインストールする [#inject-install-config]
+
+    `jsConfigScript` プロパティの内容をコピーします。結果を JSON パーサーで実行するか、 `\"` の値を `"`に置き換える必要があります。結果は、すべてのブラウザー アプリケーション構成情報を含む `<script>` 要素を含む文字列になります。 `<script>` 要素を、ウェブサイトの HTML の `<head>` 要素の上部に配置しますが、 `<meta>` 要素よりも下に配置します。
+  </Step>
+</Steps>
+
+## 次のステップ [#next-steps]
+
+このチュートリアルは、NerdGraph API とブラウザー エージェント npm パッケージの使用方法のほんの一部にすぎません。次のステップのアイデア:
+
+* ブラウザー エージェントを Web サイト ビルダー アプリケーションに統合し、NerdGraph を使用して、顧客が管理ダッシュボード内で New Relic の監視を有効にすると、各顧客のブラウザー アプリケーション構成を取得します。
+* 組織のコンポーネント ライブラリに共有ブラウザ エージェント コンポーネントを作成し、NerdGraph を呼び出す CDN エッジ関数を使用して、構成を HTML に自動的に挿入します。
+* CI/CD パイプラインを変更して、デプロイ先の環境に基づいて、NerdGraph からのさまざまなブラウザー アプリケーション構成をソース コードに取り込みます。

@@ -1,0 +1,1934 @@
+---
+title: イカのコレクター
+tags:
+  - Integrations
+  - Open source telemetry integrations
+  - OpenTelemetry
+  - Squid
+metaDescription: You can collect Squid metrics using the OpenTelemetry Collector.
+translationType: machine
+---
+
+OpenTelemetry Collector を使用して、Squid Cache Manager に関するメトリクスを収集できます。コレクターは、テレメトリ データを収集、処理し、New Relic (または任意の可観測性バックエンド) にエクスポートする OpenTelemetry のコンポーネントです。
+
+<Callout variant="tip">
+  他のコレクターのユースケースに関するヘルプを探している場合は、 [newrelic-opentelemetry-examples](https://github.com/newrelic/newrelic-opentelemetry-examples)リポジトリを参照してください。
+</Callout>
+
+以下の手順を実行して、Squid からメトリクスを収集します。
+
+## ステップ 1: 無料アカウントにサインアップします (まだサインアップしていない場合)。 [#signup]
+
+<InlineSignup/>
+
+## ステップ 2: 前提条件 [#prerequisites]
+
+`squid.conf` ファイルで許可を設定して、Squid Prometheus エクスポーターが実行されるホストが [Squid キャッシュ マネージャー](https://wiki.squid-cache.org/Features/CacheManager/Index) にアクセスできるようにします。
+
+`squid.conf`の例:
+
+```
+# Given this access list
+acl localnet src 192.168.0.0/16
+
+# We would allow that ip range to access the manager by setting this directive
+http_access allow localnet manager
+```
+
+Squid キャッシュ マネージャー用の[Squid Prometheus エクスポーターをインストールし](https://github.com/boynux/squid-exporter) 、監視する Squid キャッシュ マネージャーを指すように設定します。
+
+エクスポーターの実行例:
+
+```
+squid-exporter -squid-hostname localhost -squid-port 3128 -listen ":9301" -squid-login admin -squid-password admin
+```
+
+<Callout variant="tip">
+  Squid Prometheus エクスポーター v1.10.4 以降が必要です。利用可能な最新バージョンをお勧めします。
+</Callout>
+
+## ステップ 3: Opentelemetry コレクターをインストールする [#install-opentelemetry-collector]
+
+[Opentelemetry docs](https://opentelemetry.io/docs/collector/getting-started/)に従って、Opentelemetry コレクターをダウンロードしてインストールします。
+
+## ステップ 4: Opentelemetry コレクターを構成する [#configure-opentelemetry-collector]
+
+以下の例から`config.yaml`という名前の新しいファイルを作成します。
+
+ファイル内の次のキーを独自の値に置き換えます。
+
+* イカ：
+
+  * `SQUID_EXPORTER_HOSTNAME`
+  * `SQUID_EXPORTER_PORT`
+  * `SQUID_EXPORTER_METRICS_PATH`
+  * `SQUID_CACHEMGR`
+
+* [New Relic ライセンス キー](/docs/apis/intro-apis/new-relic-api-keys/#license-key):
+
+  * `NEW_RELIC_LICENSE_KEY`
+
+`SQUID_CACHEMGR` エンティティを作成し、関連するダッシュボードを実行するには、ラベル `squid_cachemgr: SQUID_CACHEMGR` (SQUID_CACHEMGR は一意の識別子である必要があります) が必要です。
+
+```yaml
+receivers:
+  prometheus:
+    config:
+      scrape_configs:
+        - job_name: "squid"
+          static_configs:
+            - targets: [ "SQUID_EXPORTER_HOSTNAME:SQUID_EXPORTER_PORT" ]
+              labels:
+                squid_cachemgr: SQUID_CACHEMGR
+          metrics_path: SQUID_EXPORTER_METRICS_PATH
+          metric_relabel_configs:
+            - source_labels: [__name__]
+              regex: "^process_.*"
+              action: drop
+
+exporters:
+  otlp:
+    endpoint: https://otlp.nr-data.net:4317
+    headers:
+      api-key: NEW_RELIC_LICENSE_KEY
+processors:
+  batch:
+  memory_limiter:
+    limit_mib: 400
+    spike_limit_mib: 100
+    check_interval: 5s
+service:
+  telemetry:
+    logs:
+  pipelines:
+    metrics:
+      receivers: [prometheus]
+      processors: [batch, memory_limiter]
+      exporters: [otlp]
+```
+
+追加の構成の詳細については [、Opentelemetry Collector のドキュメント](https://opentelemetry.io/docs/collector/configuration/) と [Prometheus 構成のドキュメント](https://prometheus.io/docs/prometheus/latest/configuration/configuration/) を確認してください。
+
+## ステップ 4: コレクターを実行する [#run-collector]
+
+Opentelemetry コレクターを実行します (実行方法は、選択したインストール方法によって異なる場合があります)。例：
+
+```yaml
+/usr/bin/otelcol --config ./config.yaml
+```
+
+## ステップ 5: データを見つけて使用する
+
+### データを調べる
+
+[メトリクス エクスプローラーを](/docs/query-your-data/explore-query-data/browse-data/introduction-data-explorer) 使用して、取り込まれているメトリクスを確認できます。Squid Prometheus エクスポータによって報告されるすべての指標は、 `SQUID_CACHEMGR` に設定された名前で `squid_` プレフィックスで始まる `SQUID_CACHEMGR` エンティティにグループ化されます。
+
+### メトリックデータ [#squid-metrics]
+
+これらは、squid キャッシュ マネージャーによって報告され、スクレイピングされる 2 つのグループのメトリックです。
+
+<CollapserGroup>
+  <Collapser
+    id="squid-counter-metrics"
+    title="イカカウンターのメトリクス"
+  >
+    <table>
+      <thead>
+        <tr>
+          <td>
+            名前
+          </td>
+
+          <td>
+            メトリックタイプ
+          </td>
+
+          <td>
+            説明
+          </td>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `squid_client_http_errors_total`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            クライアント http エラーの総数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_client_http_hit_kbytes_out_bytes_total`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            クライアント キャッシュ ヒットの合計キロバイト数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_client_http_hits_total`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            クライアント キャッシュ ヒットの総数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_client_http_kbytes_in_kbytes_total`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            受信したクライアントの総キロバイト数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_client_http_kbytes_out_kbytes_total`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            転送されたクライアントの合計キロバイト数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_client_http_requests_total`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            クライアント要求の総数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_exporter_build_info`
+          </td>
+
+          <td>
+            ゲージ
+          </td>
+
+          <td>
+            バージョン、リビジョン、ブランチ、および `squid_exporter` の作成元である goversion によってラベル付けされた定数「1」値を持つメトリック。
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_server_all_errors_total`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サーバーオールエラーの総数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_server_all_kbytes_in_kbytes_total`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サーバーが受信した総キロバイト数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_server_all_kbytes_out_kbytes_total`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            転送されたサーバーの合計キロバイト数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_server_all_requests_total`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サーバー全リクエストの総数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_server_ftp_errors_total`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サーバーの ftp エラーの総数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_server_ftp_kbytes_in_kbytes_total`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            受信したサーバー ftp キロバイトの総数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_server_ftp_kbytes_out_kbytes_total`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            転送されたサーバー ftp キロバイトの総数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_server_ftp_requests_total`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サーバーの ftp 要求の総数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_server_http_errors_total`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サーバーの http エラーの総数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_server_http_kbytes_in_kbytes_total`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            受信したサーバー http キロバイトの総数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_server_http_kbytes_out_kbytes_total`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            転送されたサーバー http キロバイトの総数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_server_http_requests_total`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サーバーの http リクエストの総数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_server_other_errors_total`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サーバーのその他のエラーの総数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_server_other_kbytes_in_kbytes_total`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            受信したサーバーのその他のキロバイトの総数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_server_other_kbytes_out_kbytes_total`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            転送されたサーバーのその他のキロバイトの総数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_server_other_requests_total`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サーバーその他のリクエストの総数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_swap_files_cleaned_total`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            定期的なクリーンアップ手順によって削除された孤立したキャッシュ ファイルの数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_swap_ins_total`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            ディスクから読み取られたオブジェクトの数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_swap_outs_total`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            ディスクに保存されたオブジェクトの数
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_up`
+          </td>
+
+          <td>
+            ゲージ
+          </td>
+
+          <td>
+            squid の最後のクエリは成功しましたか?
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    id="squid-service-times-metrics"
+    title="Squid サービス時間の指標"
+  >
+    <table>
+      <thead>
+        <tr>
+          <td>
+            名前
+          </td>
+
+          <td>
+            メトリックタイプ
+          </td>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `squid_Cache_Hits_5`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サービス時間パーセンタイル 5 分
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Cache_Hits_10`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サービス時間パーセンタイル 5 分
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Cache_Hits_15`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サービス時間パーセンタイル 5 分
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Cache_Hits_20`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サービス時間パーセンタイル 5 分
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Cache_Hits_25`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サービス時間パーセンタイル 5 分
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Cache_Hits_30`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サービス時間パーセンタイル 5 分
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Cache_Hits_35`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サービス時間パーセンタイル 5 分
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Cache_Hits_40`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サービス時間パーセンタイル 5 分
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Cache_Hits_45`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サービス時間パーセンタイル 5 分
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Cache_Hits_50`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サービス時間パーセンタイル 5 分
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Cache_Hits_55`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サービス時間パーセンタイル 5 分
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Cache_Hits_60`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サービス時間パーセンタイル 5 分
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Cache_Hits_65`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サービス時間パーセンタイル 5 分
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Cache_Hits_70`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サービス時間パーセンタイル 5 分
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Cache_Hits_75`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サービス時間パーセンタイル 5 分
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Cache_Hits_80`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サービス時間パーセンタイル 5 分
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Cache_Hits_85`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サービス時間パーセンタイル 5 分
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Cache_Hits_90`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サービス時間パーセンタイル 5 分
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Cache_Hits_95`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サービス時間パーセンタイル 5 分
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Cache_Misses_5`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サービス時間パーセンタイル 5 分
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Cache_Misses_10`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サービス時間パーセンタイル 5 分
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Cache_Misses_15`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サービス時間パーセンタイル 5 分
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Cache_Misses_20`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サービス時間パーセンタイル 5 分
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Cache_Misses_25`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サービス時間パーセンタイル 5 分
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Cache_Misses_30`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サービス時間パーセンタイル 5 分
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Cache_Misses_35`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サービス時間パーセンタイル 5 分
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Cache_Misses_40`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サービス時間パーセンタイル 5 分
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Cache_Misses_45`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サービス時間パーセンタイル 5 分
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Cache_Misses_50`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サービス時間パーセンタイル 5 分
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Cache_Misses_55`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サービス時間パーセンタイル 5 分
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Cache_Misses_60`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サービス時間パーセンタイル 5 分
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Cache_Misses_65`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サービス時間パーセンタイル 5 分
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Cache_Misses_70`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サービス時間パーセンタイル 5 分
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Cache_Misses_75`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サービス時間パーセンタイル 5 分
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Cache_Misses_80`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サービス時間パーセンタイル 5 分
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Cache_Misses_85`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サービス時間パーセンタイル 5 分
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Cache_Misses_90`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サービス時間パーセンタイル 5 分
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Cache_Misses_95`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サービス時間パーセンタイル 5 分
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_DNS_Lookups_5`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サービス時間パーセンタイル 5 分
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_DNS_Lookups_10`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サービス時間パーセンタイル 5 分
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_DNS_Lookups_15`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サービス時間パーセンタイル 5 分
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_DNS_Lookups_20`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サービス時間パーセンタイル 5 分
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_DNS_Lookups_25`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サービス時間パーセンタイル 5 分
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_DNS_Lookups_30`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サービス時間パーセンタイル 5 分
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_DNS_Lookups_35`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サービス時間パーセンタイル 5 分
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_DNS_Lookups_40`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サービス時間パーセンタイル 5 分
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_DNS_Lookups_45`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サービス時間パーセンタイル 5 分
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_DNS_Lookups_50`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サービス時間パーセンタイル 5 分
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_DNS_Lookups_55`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サービス時間パーセンタイル 5 分
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_DNS_Lookups_60`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サービス時間パーセンタイル 5 分
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_DNS_Lookups_65`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サービス時間パーセンタイル 5 分
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_DNS_Lookups_70`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サービス時間パーセンタイル 5 分
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_DNS_Lookups_75`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サービス時間パーセンタイル 5 分
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_DNS_Lookups_80`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サービス時間パーセンタイル 5 分
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_DNS_Lookups_85`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サービス時間パーセンタイル 5 分
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_DNS_Lookups_90`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サービス時間パーセンタイル 5 分
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_DNS_Lookups_95`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サービス時間パーセンタイル 5 分
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_HTTP_Requests_All_5`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サービス時間パーセンタイル 5 分
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_HTTP_Requests_All_10`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サービス時間パーセンタイル 5 分
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_HTTP_Requests_All_15`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サービス時間パーセンタイル 5 分
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_HTTP_Requests_All_20`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サービス時間パーセンタイル 5 分
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_HTTP_Requests_All_25`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サービス時間パーセンタイル 5 分
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_HTTP_Requests_All_30`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サービス時間パーセンタイル 5 分
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_HTTP_Requests_All_35`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サービス時間パーセンタイル 5 分
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_HTTP_Requests_All_40`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サービス時間パーセンタイル 5 分
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_HTTP_Requests_All_45`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サービス時間パーセンタイル 5 分
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_HTTP_Requests_All_5`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サービス時間パーセンタイル 5 分
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_HTTP_Requests_All_50`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サービス時間パーセンタイル 5 分
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_HTTP_Requests_All_55`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サービス時間パーセンタイル 5 分
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_HTTP_Requests_All_60`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サービス時間パーセンタイル 5 分
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_HTTP_Requests_All_65`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サービス時間パーセンタイル 5 分
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_HTTP_Requests_All_70`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サービス時間パーセンタイル 5 分
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_HTTP_Requests_All_75`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サービス時間パーセンタイル 5 分
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_HTTP_Requests_All_80`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サービス時間パーセンタイル 5 分
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_HTTP_Requests_All_85`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サービス時間パーセンタイル 5 分
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_HTTP_Requests_All_90`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サービス時間パーセンタイル 5 分
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_HTTP_Requests_All_95`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サービス時間パーセンタイル 5 分
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Near_Hits_5`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サービス時間パーセンタイル 5 分
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Near_Hits_10`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サービス時間パーセンタイル 5 分
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Near_Hits_15`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サービス時間パーセンタイル 5 分
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Near_Hits_20`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サービス時間パーセンタイル 5 分
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Near_Hits_25`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サービス時間パーセンタイル 5 分
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Near_Hits_30`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サービス時間パーセンタイル 5 分
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Near_Hits_35`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サービス時間パーセンタイル 5 分
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Near_Hits_40`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サービス時間パーセンタイル 5 分
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Near_Hits_45`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サービス時間パーセンタイル 5 分
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Near_Hits_50`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サービス時間パーセンタイル 5 分
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Near_Hits_55`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サービス時間パーセンタイル 5 分
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Near_Hits_60`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サービス時間パーセンタイル 5 分
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Near_Hits_65`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サービス時間パーセンタイル 5 分
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Near_Hits_70`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サービス時間パーセンタイル 5 分
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Near_Hits_75`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サービス時間パーセンタイル 5 分
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Near_Hits_80`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サービス時間パーセンタイル 5 分
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Near_Hits_85`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サービス時間パーセンタイル 5 分
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Near_Hits_90`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サービス時間パーセンタイル 5 分
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `squid_Near_Hits_95`
+          </td>
+
+          <td>
+            counter
+          </td>
+
+          <td>
+            サービス時間パーセンタイル 5 分
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+</CollapserGroup>
+
+## トラブルシューティング [#troubleshooting]
+
+<CollapserGroup>
+  <Collapser
+    id="cumulative-sum-metrics"
+    title="Squid ダッシュボードが機能しない"
+  >
+    Squid ダッシュボードは累積合計メトリックを使用しますが、 [Opentelemetry 累積合計メトリックの移行ガイド](/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/get-started/cumulative-metrics-transition-guide/)に記載されているように、累積合計を使用するアカウントは移行 EOL までそれらを _ゲージ_ として報告し続けます。
+
+    その場合は、 [移行ガイド](/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/get-started/cumulative-metrics-transition-guide/#preview)で推奨されているように、移行 EOL の前に累積カウンターとしてレポートするために、squid メトリクスに属性を一時的に含める必要があります。
+
+    これを行うには、Opentelemetry コレクター構成の squid パイプラインで Opentelemetry 属性プロセッサーを使用できます。例：
+
+    ```yaml
+      attributes:
+        actions:
+          - key: newrelic_metric_type
+            action: insert
+            value: cumulativeCount
+    ```
+  </Collapser>
+
+  <Collapser
+    id="prometheus-metrics-normalization"
+    title="メトリクス名が一致しません"
+  >
+    Squids のダッシュボードとエンティティは、Squid の Prometheus エクスポータによってレポートされるメトリクスと一致するように、Prometheus メトリクスの命名規則を使用します。ただし、OpenTelemetry Prometheus レシーバーは、 [v076.3](https://github.com/open-telemetry/opentelemetry-collector-contrib/releases/tag/v0.76.3)以降、デフォルトで OpenTelemetry 命名規則を使用します。
+
+    Prometheus メトリクスの命名規則を使用するには、OpenTelemetry コレクターの実行時に `pkg.translator.prometheus.NormalizeName` `feature-gate` を無効にします。
+
+    ```shell
+    otelcol-contrib --config ./config.yaml --feature-gates=-pkg.translator.prometheus.NormalizeName
+    ```
+  </Collapser>
+</CollapserGroup>

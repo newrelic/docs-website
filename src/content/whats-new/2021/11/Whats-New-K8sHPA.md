@@ -12,7 +12,7 @@ The [Horizontal Pod Autoscaling](https://kubernetes.io/docs/tasks/run-applicatio
 
 With Kubernetes v1.6, it became possible to autoscale off of user-defined custom [external metrics](https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale-walkthrough/#autoscaling-on-metrics-not-related-to-kubernetes-objects) collected from within the cluster.
 
-![A diagram that shows how New Relic's metrics adapter works with HPA.](./images/K8sHPA-NR.png "K8s HAP Architecture with New Relic")
+![A diagram that shows how New Relic's metrics adapter works with HPA.](./images/K8sHPA-NR.webp "K8s HAP Architecture with New Relic")
 
 ## Get started with the New Relic Metrics adapter.
 

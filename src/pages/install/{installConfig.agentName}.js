@@ -17,6 +17,7 @@ import AppInfoConfigOption from '../../components/AppInfoConfigOption';
 import InstallNextSteps from '../../components/InstallNextSteps';
 import SEO from '../../components/SEO';
 import { TYPES } from '../../utils/constants';
+import ErrorBoundary from '../../components/ErrorBoundary';
 
 const slugify = (str) =>
   str
@@ -204,7 +205,7 @@ const InstallPage = ({ data, location }) => {
   }, []);
 
   return (
-    <>
+    <ErrorBoundary eventName="install">
       <SEO
         location={location}
         title={title}
@@ -218,7 +219,7 @@ const InstallPage = ({ data, location }) => {
             'mt-disclaimer mt-disclaimer'
             'page-title page-title'
             'content page-tools';
-          grid-template-columns: minmax(0, 1fr) 320px;
+          grid-template-columns: minmax(0, 1fr) 12.8125rem;
           grid-column-gap: 2rem;
 
           @media screen and (max-width: 1240px) {
@@ -293,7 +294,7 @@ const InstallPage = ({ data, location }) => {
           <TableOfContents headings={headings} />
         </Layout.PageTools>
       </Layout.Main>
-    </>
+    </ErrorBoundary>
   );
 };
 

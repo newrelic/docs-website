@@ -10,4 +10,4 @@ With the Jira integration you can start tracking, managing, and updating tickets
 
 Start your errors inbox journey today!
 
-![A screenshot showing the New Relic Jira integration](./images/Errorsinbox_Jira.png "A screenshot showing the New Relic Jira integration")
+![A screenshot showing the New Relic Jira integration](./images/Errorsinbox_Jira.webp "A screenshot showing the New Relic Jira integration")

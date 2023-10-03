@@ -9,7 +9,7 @@ In case you missed it, [New Relic I/O](https://docs.newrelic.com/whats-new/2021/
 
 ## New integrations for Instant Observability
 
-![Partners contributing quickstarts to Instant Observability](./images/io-partner-quickstarts.png "Partners contributing quickstarts to Instant Observability")
+![Partners contributing quickstarts to Instant Observability](./images/io-partner-quickstarts.webp "Partners contributing quickstarts to Instant Observability")
 
 The latest cohort of partners contributing to make observability a daily habit for engineers spans across CI/CD, Kubernetes testing, and leading machine learning operations (MLOps) platforms. These partners include:
 
@@ -27,7 +27,7 @@ The latest cohort of partners contributing to make observability a daily habit f
   * [Superwise.ai](https://newrelic.com/instant-observability/superwise-mlops/6c61cb57-c966-4435-b46c-f96b568d9873/)
   * [TruEra](https://newrelic.com/instant-observability/truera/81402789-9ae9-4cbd-8686-4d2d4de8951f/)
 
-![Dashboard with model performance metrics](./images/performance-metrics.png "Dashboard with model performance metrics")
+![Dashboard with model performance metrics](./images/performance-metrics.webp "Dashboard with model performance metrics")
 
 ## Visualize and monitor all your data in one platform
 

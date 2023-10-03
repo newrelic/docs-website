@@ -18,4 +18,4 @@ Send your OpenTelemetry data to New Relic using one of the [OpenTelemetry export
 * **Databases:** The [databases](https://docs.newrelic.com/docs/apm/apm-ui-pages/monitoring/databases-page-view-operations-throughput-response-time) page shows an application’s database and cache data with charts to view throughput, response time and operations.
 * **Metric explorer:** Use the [metrics explorer](https://docs.newrelic.com/docs/insights/use-insights-ui/explore-data/metric-explorer-search-chart-metrics-sent-new-relic-agents) to view your metrics and facet by various dimensions and create dashboards.
 
-![Screenshot showing OpenTelemetry data in the New Relic UI.](./images/whats_up_opentelemetry.png "whats_up_opentelemetry.png")
+![Screenshot showing OpenTelemetry data in the New Relic UI.](./images/whats_up_opentelemetry.webp "whats_up_opentelemetry.webp")

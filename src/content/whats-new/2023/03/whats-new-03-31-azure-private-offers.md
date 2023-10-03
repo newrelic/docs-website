@@ -19,7 +19,7 @@ If you switch to private offers, you can still monitor all of your on-premises a
 * Logs obfuscation
 * Vulnerability management
 
-![New Relic private offers listing in the Azure Marketplace](./images/Azure-Private-Offers.png "New Relic private offers listing in the Azure Marketplace")
+![New Relic private offers listing in the Azure Marketplace](./images/Azure-Private-Offers.webp "New Relic private offers listing in the Azure Marketplace")
 <figcaption>New Relic private offers listing in the Azure Marketplace</figcaption>
 
 ## Store your telemetry in Azure

@@ -9,7 +9,7 @@ Now you can automatically determine alert thresholds and set up alerts for error
 
 If you’re unfamiliar with alerting on error budgets and burn rates, check out [the documentation](https://docs.newrelic.com/docs/service-level-management/alerts-slm/) to learn more.
 
-![Discover the power of service levels and take action faster with error budget and burn rate alerting](./images/service_level_management_with_new_relic.png "A screenshot showing the service level management overview page.")
+![Discover the power of service levels and take action faster with error budget and burn rate alerting](./images/service_level_management_with_new_relic.webp "A screenshot showing the service level management overview page.")
 
 **How this helps you:**
 * You can automatically determine alert thresholds for SLIs and SLOs.

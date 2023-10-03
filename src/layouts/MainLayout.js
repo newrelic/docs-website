@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
 import {
   GlobalHeader,
-  Layout,
   Link,
   Logo,
   MobileHeader,
@@ -12,27 +11,27 @@ import {
   SearchInput,
   useTessen,
   useTranslation,
-  useLoggedIn,
   LoggedInProvider,
 } from '@newrelic/gatsby-theme-newrelic';
+import { isNavClosed, setNavClosed } from '../utils/navState';
 import { css } from '@emotion/react';
 import { scroller } from 'react-scroll';
+import { CSSTransition } from 'react-transition-group';
+import Layout from '../components/Layout';
 import SEO from '../components/SEO';
 import RootNavigation from '../components/RootNavigation';
 import NavFooter from '../components/NavFooter';
 import { useLocation, navigate } from '@reach/router';
 import { MainLayoutContext } from '../components/MainLayoutContext';
 
-const MainLayout = ({ children, pageContext, sidebarOpen = true }) => {
+const MainLayout = ({ children, pageContext }) => {
   const tessen = useTessen();
-  const { loggedIn } = useLoggedIn();
-  const { sidebarWidth, contentPadding } = useLayout();
+  const { sidebarWidth } = useLayout();
   const { locale, slug } = pageContext;
-  let { hideNavs } = pageContext;
   const location = useLocation();
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [sidebar, setSidebar] = useState(sidebarOpen);
+  const [sidebar, setSidebar] = useState(true);
   const { t } = useTranslation();
   const navHeaderHeight = '100px';
   const isStyleGuide =
@@ -45,18 +44,9 @@ const MainLayout = ({ children, pageContext, sidebarOpen = true }) => {
     }
   };
 
-  /*
-   * [VSU] some docs pages are being designed as JS for faster experimenting
-   * and will never have the frontmatter property
-   * Using regex for check to account for paths with and without trailing slash
-   */
-  const docsAsJS = [/introduction-apm/];
-  const isJSDoc = docsAsJS.some((docUrl) => docUrl.test(location.pathname));
-  hideNavs ||= isJSDoc;
-
   useEffect(() => {
     setIsMobileNavOpen(false);
-    setSidebar(hideNavs ? false : sidebarOpen);
+    setSidebar(!isNavClosed());
     // react scroll causes the page to crash if it doesn't find an element
     // so we're checking for the element before firing
     const pathName = addTrailingSlash(location.pathname);
@@ -70,10 +60,62 @@ const MainLayout = ({ children, pageContext, sidebarOpen = true }) => {
         offset: -5,
       });
     }
-    if (loggedIn && !hideNavs) {
-      setSidebar(true);
-    }
-  }, [location.pathname, loggedIn, sidebarOpen, hideNavs]);
+  }, [location.pathname]);
+
+  useEffect(() => {
+    setNavClosed(!sidebar);
+  }, [sidebar]);
+
+  const navCollapser = (
+    <div
+      css={css`
+        grid-column: 1;
+        grid-row: 1;
+        height: calc(100vh - var(--global-header-height));
+        left: 269px;
+        padding: 1.5rem 0;
+        position: sticky;
+        top: var(--global-header-height);
+        width: 0;
+        z-index: 1;
+
+        @media (max-width: 760px) {
+          display: none;
+        }
+
+        @media (max-width: 1240px) {
+          left: 208px;
+        }
+      `}
+    >
+      <Button
+        variant={Button.VARIANT.PRIMARY}
+        css={css`
+          height: 40px;
+          width: 40px;
+          padding: 0;
+          border-radius: 50%;
+          transition: 300ms translate ease;
+
+          ${!sidebar && `translate: calc(var(--sidebar-width) / 4);`}
+
+          @media (max-width: 1240px) {
+            ${!sidebar &&
+            `translate: calc(calc(var(--sidebar-width) / 4) + 14px);`}
+          }
+        `}
+        onClick={() => {
+          tessen.track({
+            eventName: sidebar ? 'closeNav' : 'openNav',
+            category: 'NavCollapserClick',
+          });
+          setSidebar(!sidebar);
+        }}
+      >
+        <Icon name="nr-nav-collapse" size="1rem" />
+      </Button>
+    </div>
+  );
 
   return (
     <>
@@ -89,15 +131,17 @@ const MainLayout = ({ children, pageContext, sidebarOpen = true }) => {
         <MainLayoutContext.Provider value={[sidebar]}>
           <Layout
             css={css`
-              --sidebar-width: ${sidebar ? sidebarWidth : '50px'};
+              --sidebar-width: ${sidebarWidth};
               -webkit-font-smoothing: antialiased;
               font-size: 1.125rem;
               @media screen and (max-width: 1240px) {
-                --sidebar-width: ${sidebar ? '278px' : '50px'};
+                --sidebar-width: 278px;
               }
             `}
           >
+            {navCollapser}
             <Layout.Sidebar
+              aria-hidden={!sidebar}
               css={css`
                 padding: 0;
                 > div {
@@ -106,14 +150,6 @@ const MainLayout = ({ children, pageContext, sidebarOpen = true }) => {
                 }
                 background: var(--erno-black);
 
-                ${!sidebar &&
-                css`
-                  border: none;
-                  background: var(--primary-background-color);
-                  & > div {
-                    padding: ${contentPadding} 0;
-                  }
-                `}
                 hr {
                   border: none;
                   height: 1rem;
@@ -155,33 +191,6 @@ const MainLayout = ({ children, pageContext, sidebarOpen = true }) => {
                       `}
                     />
                   </Link>
-                  <Button
-                    variant={Button.VARIANT.PRIMARY}
-                    css={css`
-                      height: 40px;
-                      width: 40px;
-                      padding: 0;
-                      border-radius: 50%;
-                    `}
-                    onClick={() => {
-                      tessen.track({
-                        eventName: sidebar ? 'closeNav' : 'openNav',
-                        category: 'NavCollapserClick',
-                      });
-                      setSidebar(!sidebar);
-                    }}
-                  >
-                    <Icon
-                      name="nr-nav-collapse"
-                      size="1rem"
-                      css={
-                        !sidebar &&
-                        css`
-                          transform: rotateZ(180deg);
-                        `
-                      }
-                    />
-                  </Button>
                 </div>
                 {sidebar && (
                   <SearchInput
@@ -208,35 +217,67 @@ const MainLayout = ({ children, pageContext, sidebarOpen = true }) => {
                   />
                 )}
               </div>
-              {sidebar && (
-                <>
-                  <RootNavigation
-                    isStyleGuide={isStyleGuide}
-                    locale={locale}
-                    css={css`
-                      overflow-x: hidden;
-                      height: calc(
-                        100vh - ${navHeaderHeight} - var(--global-header-height) -
-                          4rem
-                      );
-                    `}
-                  />
-                  <NavFooter
-                    css={css`
-                      width: calc(var(--sidebar-width) - 1px);
-                    `}
-                  />
-                </>
-              )}
+
+              <>
+                <RootNavigation
+                  isStyleGuide={isStyleGuide}
+                  locale={locale}
+                  css={css`
+                    overflow-x: hidden;
+                    height: calc(
+                      100vh - ${navHeaderHeight} - var(--global-header-height) -
+                        4rem
+                    );
+                  `}
+                />
+                <NavFooter
+                  css={css`
+                    width: calc(var(--sidebar-width) - 1px);
+                  `}
+                />
+              </>
             </Layout.Sidebar>
-            <Layout.Main
-              css={css`
-                display: ${isMobileNavOpen ? 'none' : 'block'};
-                position: relative;
-              `}
+            <CSSTransition
+              in={sidebar}
+              timeout={300}
+              classNames="main-transition"
             >
-              {children}
-            </Layout.Main>
+              <Layout.Main
+                css={css`
+                  display: ${isMobileNavOpen ? 'none' : 'block'};
+                  position: relative;
+
+                  @media (min-width: 760px) {
+                    ${!sidebar &&
+                    `padding-left: calc(var(--site-content-padding) + 50px);`}
+                  }
+
+                  &.main-transition-enter {
+                    translate: 50px;
+                  }
+                  &.main-transition-enter-active {
+                    translate: 0;
+                    transition: 300ms translate ease;
+                  }
+                  &.main-transition-enter-done {
+                    translate: 0;
+                  }
+
+                  &.main-transition-exit {
+                    translate: -50px;
+                  }
+                  &.main-transition-exit-active {
+                    translate: 0;
+                    transition: 300ms translate ease;
+                  }
+                  &.main-transition-exit-done {
+                    translate: 0;
+                  }
+                `}
+              >
+                {children}
+              </Layout.Main>
+            </CSSTransition>
             <Layout.Footer
               fileRelativePath={pageContext.fileRelativePath}
               css={css`

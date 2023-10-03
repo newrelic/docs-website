@@ -36,6 +36,6 @@ For tracing messages over TLS/SSL, we support the following libraries:
 
 Watch this [**overview video**](https://www.youtube.com/watch?v=YKwjXLNXdt4) to learn more.
 
-![A screenshot showing AMQP messages.](./images/AMQP.png "A screenshot showing AMQP messages.")
+![A screenshot showing AMQP messages.](./images/AMQP.webp "A screenshot showing AMQP messages.")
 
 <figcaption>A screenshot showing AMQP messages.</figcaption>

@@ -7,11 +7,13 @@ metaDescription: "With the New Relic streaming export feature, you can send your
 redirects:
 ---
 
+import {Collapser} from "@newrelic/gatsby-theme-newrelic";
+
 With our streaming export feature, available with [Data Plus](/docs/accounts/accounts-billing/new-relic-one-pricing-billing/data-ingest-billing/#data-plus), you can send your data to an AWS Kinesis Firehose or Azure Event Hub as it's ingested by New Relic. We'll explain how to create and update a streaming rule using [NerdGraph](/docs/apis/nerdgraph/get-started/introduction-new-relic-nerdgraph) and how to view existing rules. You can use [the NerdGraph explorer](/docs/apis/nerdgraph/get-started/nerdgraph-explorer) to make these calls.
 
 ## What is streaming export? [#definition]
 
-As data is ingested by your New Relic organization, our streaming export feature sends that data to an AWS Kinesis Firehose or Azure Event Hub. You can set up custom rules, defined using [NRQL](/docs/query-your-data/nrql-new-relic-query-language/get-started/introduction-nrql-new-relics-query-language), that govern what kinds of New Relic data you'll export.
+As data is ingested by your New Relic organization, our streaming export feature sends that data to an AWS Kinesis Firehose or Azure Event Hub. You can set up custom rules, which are defined using [NRQL](/docs/query-your-data/nrql-new-relic-query-language/get-started/introduction-nrql-new-relics-query-language), to govern what kinds of New Relic data you'll export. You can also elect to have this data compressed before it's exported, using our new [Export Compression](#compression) feature.
 
 Some examples of things you can use streaming export for:
 
@@ -28,7 +30,7 @@ Limits on streamed data: The amount of data you can stream per month is limited 
 Permissions-related requirements:
 * Pro or Enterprise edition with [Data Plus](/docs/accounts/accounts-billing/new-relic-one-pricing-billing/data-ingest-billing/#data-plus) option
 * User type: [core user or full platform user](/docs/accounts/accounts-billing/new-relic-one-user-management/user-type)
-* Capability: the [streaming data capability](/docs/accounts/accounts-billing/new-relic-one-user-management/user-capabilities#data-platform)
+* The [streaming data permission](/docs/accounts/accounts-billing/new-relic-one-user-management/user-permissions#data-platform)
 
 You must have an AWS Kinesis Firehose or Azure Event Hub set up to receive New Relic data. If you haven't already done this, you can follow our steps below for [AWS](#firehose-setup) or [Azure](#event-hub-setup).
 
@@ -138,7 +140,8 @@ mutation {
     ruleParameters: {
       description: "ADD_RULE_DESCRIPTION",
       name: "PROVIDE_RULE_NAME",
-      nrql: "SELECT * FROM NodeStatus"
+      nrql: "SELECT * FROM NodeStatus",
+      payloadCompression: DISABLED
     },
     awsParameters: {
       awsAccountId: "YOUR_AWS_ACCOUNT_ID",
@@ -162,7 +165,8 @@ mutation {
     ruleParameters: {
       description: "ADD_RULE_DESCRIPTION",
       name: "PROVIDE_RULE_NAME",
-      nrql: "SELECT * FROM NodeStatus"
+      nrql: "SELECT * FROM NodeStatus",
+      payloadCompression: DISABLED
     },
     azureParameters: {
       eventHubConnectionString: "YOUR_EVENT_HUB_SAS_CONNECTION_STRING",
@@ -206,7 +210,8 @@ mutation {
     ruleParameters: {
       description: "ADD_RULE_DESCRIPTION",
       name: "PROVIDE_RULE_NAME",
-      nrql: "YOUR_NRQL_QUERY"
+      nrql: "YOUR_NRQL_QUERY",
+      payloadCompression: DISABLED
     },
     awsParameters: {
       awsAccountId: "YOUR_AWS_ACCOUNT_ID",
@@ -230,7 +235,8 @@ mutation {
     ruleParameters: {
       description: "ADD_RULE_DESCRIPTION",
       name: "PROVIDE_RULE_NAME",
-      nrql: "YOUR_NRQL_QUERY"
+      nrql: "YOUR_NRQL_QUERY",
+      payloadCompression: DISABLED
     },
     azureParameters: {
       eventHubConnectionString: "YOUR_EVENT_HUB_SAS_CONNECTION_STRING",
@@ -320,6 +326,7 @@ AWS Kinesis Firehose:
           nrql
           status
           updatedAt
+          payloadCompression
         }
       }
     }
@@ -346,6 +353,7 @@ Azure Event Hub:
           nrql
           status
           updatedAt
+          payloadCompression
         }
       }
     }
@@ -380,9 +388,87 @@ You can also query for all existing streams. Here's an example:
           nrql
           status
           updatedAt
+          payloadCompression
         }
       }
     }
   }
 }
 ```
+
+## Export compression [#compression]
+
+Optionally, we can compress payloads before they are exported, though this is disabled by default. This can help avoid hitting your ingested data limit and save money on ingress costs.
+
+You can enable compression using the `payloadCompression` field under `ruleParameters`. This field can be any of the following values:
+
+* `DISABLED`: Payloads will not be compressed before being exported. If unspecified, `payloadCompression` will default to this value.
+* `GZIP`: Compress payloads with the GZIP format before exporting
+
+GZIP is the only compression format currently available, though we may choose to make more formats available in the future.
+
+When compression is enabled on an existing AWS export rule, the next message from Kinesis Firehose may contain both compressed and uncompressed data. This is due to buffering within Kinesis Firehose. To avoid this, you can temporarily disable the export rule before enabling compression, or create a new Kinesis Firehose stream for the compressed data alone to flow through.
+
+If you do encounter this issue and you're exporting to S3 or another file storage system, you can view the compressed part of the data by following these steps:
+
+1. Manually download the object.
+2. Separate the object into two separate files by copying the compressed data into a new file.
+3. Decompress the new, compressed-only data file.
+
+Once you have the compressed data, you can re-upload it to S3 (or whatever other service you're using) and delete the old file.
+
+### Automatic Decompression in AWS
+
+Once your data has arrived in AWS, you may want options to automatically decompress it. If you're streaming that data to an S3 bucket, there are two ways to enable automatic decompression:
+
+<CollapserGroup>
+  <Collapser id="collapser-1" title="Object Lambda access point">
+    Access points function as separate methods by which objects in S3 buckets can be accessed and downloaded. AWS supplies a feature called [Object Lambda access points](https://docs.aws.amazon.com/AmazonS3/latest/userguide/UsingMetadata.html), which perform a Lambda function on each S3 object accessed via the access point. Follow these steps to enable such an access point:
+    1. Navigate to [this page](https://docs.aws.amazon.com/AmazonS3/latest/userguide/olap-examples.html#olap-examples-3), click the link to the serverless repo.
+    2. Click the **Deploy** button at the bottom of the page.
+    3. [Set up an access point on your S3 bucket](https://docs.aws.amazon.com/AmazonS3/latest/userguide/create-access-points.html).
+    4. [Create an Object Lambda access point](https://docs.aws.amazon.com/AmazonS3/latest/userguide/olap-create.html). This access point must have these settings:
+       * The **Supporting Access Point** on this Lambda access point will need to be set to the access point you set up on the S3 bucket.
+       * Under **Transformation Configuration**:
+       * The **GetObject** box must be checked.
+       * The DecompressGZFunction Lambda function (or whichever other function is necessary, if a different compression format is used) must be specified.
+  </Collapser>
+
+  <Collapser id="collapser-2" title="Metadata-setting Lambda function">
+    AWS will automatically decompress objects downloaded from S3, if those objects have the correct metadata set. We have written a function that automatically applies this metadata to every new object downloaded to a set S3 object. Here's how to set it up:
+    1. Navigate [here](https://github.com/newrelic/metadata-setting-lambda-function), clone the repository locally, and follow the provided steps in the README file to generate a ZIP file containing the lambda function.
+    2. Create an [IAM role](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles.html) for the function.
+    * When [creating the role](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_create_for-service.html#roles-creatingrole-service-console), be sure to set the trusted entity type as "AWS Service", with "Lambda" as your use case.
+    * This role must have a policy with these permissions: `s3:PutObject` and `s3:GetObject`.
+    3. In AWS, navigate to the [Lambda functions page](https://console.aws.amazon.com/lambda/home#/functions).
+    4. Click **Create function**.
+    5. Select the Java 11 runtime environment.
+    6. Click **Change default execution role > Use an existing role**. Enter the role you created in step 2 here.
+    7. Scroll down and click **Create function**.
+    8. Once the function has been created, click **Upload from** and select **.zip or .jar file** from the dropdown.
+    9. Click **Upload** from the box that pops up, and select the ZIP file created in step 1.
+    10. Once the upload has finished, click **Save** to exit the pop-up box.
+    11. All that's left to do now is enable this Lambda function to trigger on S3 object creation. Click **Add trigger** to start setting that up.
+    12. From the dropdown, select **S3** as your source.
+    13. Enter the name of the S3 bucket you'd like to apply the metadata to in the **Bucket** field.
+    14. Remove the default **All object create events** from the event types. From the Event types dropdown, select **PUT**.
+    15. Check the **Recursive invocation** box, then click **Add** in the bottom right.
+
+    The Lambda function will now start automatically adding the compression metadata to all newly added S3 objects.
+  </Collapser>
+</CollapserGroup>
+
+### Automatic Decompression in Azure
+
+If you're exporting data to Azure, it's possible to view decompressed versions of the objects stored in your event hub using a [Stream Analytics Job](https://learn.microsoft.com/en-us/azure/event-hubs/process-data-azure-stream-analytics). To do so, follow these steps:
+
+1. Follow [this guide](https://learn.microsoft.com/en-us/azure/event-hubs/process-data-azure-stream-analytics) up to step 16.
+ * On step 13, you may choose to use the same event hub as the output without breaking anything, though we do not recommend this if you intend to proceed to step 17 and start the job, as doing so as not been tested.
+2. In the left pane of your streaming analytics job, click **Inputs**, then click on the input you set up.
+3. Scroll down to the bottom of the pane that appears on the right, and configure the input with these settings:
+ * Event serialization format: JSON
+ * Encoding: UTF-8
+ * Event compression type: GZip
+4. Click **Save** at the bottom of the pane.
+5. Click **Query** on the side of the screen.
+ Using the **Input preview** tab, you should now be able to query the event hub from this screen.

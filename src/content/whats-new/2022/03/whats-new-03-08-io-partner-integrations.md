@@ -6,7 +6,7 @@ learnMoreLink: 'https://newrelic.com/blog/nerdlog/integrations-for-ci-cd-analyti
 getStartedLink: 'https://newrelic.com/instant-observability/'
 ---
 In case you missed it, [New Relic I/O](https://docs.newrelic.com/whats-new/2021/10/instant-observability-10-13-21) helps you instrument, monitor, and analyze your stack in minutes. The secret ingredient: [450+ free expert-built quickstarts](https://developer.newrelic.com/instant-observability/) that bundle the integrations, guides, dashboards, and alerts for the technologies you rely on.
-![Partners contributing quickstarts to Instant Observability](./images/new_io_partners2.png "Partners contributing quickstarts to Instant Observability")
+![Partners contributing quickstarts to Instant Observability](./images/new_io_partners2.webp "Partners contributing quickstarts to Instant Observability")
 ## New integrations for instant observability
 
 The latest cohort of partners contributing to making observability a daily habit for engineers spans across CI/CD platforms, integration platforms, data analysis, and agile project management. These partners include:
@@ -25,7 +25,7 @@ The latest cohort of partners contributing to making observability a daily habit
 **Agile project management**: Connect Jira with error tracking
 * [Atlassian Jira for Errors Inbox](https://newrelic.com/instant-observability/jira-errors-inbox/06734d77-b06a-4410-aafa-eed1944c0ac4/) | [tutorial](https://www.youtube.com/watch?v=AidzzD4SHko)
 
-![Dashboard with CircleCI job metrics metrics](./images/CircleCI_quickstart_dashboard.png "Dashboard with CircleCI job metrics metrics")
+![Dashboard with CircleCI job metrics metrics](./images/CircleCI_quickstart_dashboard.webp "Dashboard with CircleCI job metrics metrics")
 
 ## Visualize and monitor all your data in one platform
 Learn more about how each of these partner-built quickstarts can help you quickly expand your observability game by reading this [blog post](https://newrelic.com/blog/nerdlog/integrations-for-ci-cd-analytics#toc-instant-observability-for-data-analytics). Or, dive into New Relic I/O and [find a quickstart](https://onenr.io/0Bj3BBAdbRX) for your stack.

@@ -17,4 +17,4 @@ getStartedLink: 'https://newrelic.com/instant-observability/network-syslog/478be
 ## How to configure Syslog with New Relic
 Open the [**Instant Observability (I/O) quickstart**](https://newrelic.com/instant-observability/network-syslog/478be4d3-134a-4738-995a-7bbe020edcad/) for a guided installation that will also deploy an example dashboard. Alternatively, you may follow along manually using our [**documentation**](https://docs.newrelic.com/docs/network-performance-monitoring/setup-performance-monitoring/network-syslog-monitoring/).
 
-![Syslog dashboard screenshot](./images/Syslog.png "Syslog dashboard screenshot")
+![Syslog dashboard screenshot](./images/Syslog.webp "Syslog dashboard screenshot")

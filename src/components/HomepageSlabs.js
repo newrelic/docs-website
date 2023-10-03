@@ -11,9 +11,9 @@ import {
 import { useMainLayoutContext } from './MainLayoutContext';
 import { DocTiles as DocTilesBase, DocTile as DocTileBase } from './DocTile';
 import useMediaQuery from '../hooks/useMediaQuery';
-import backend from './backend.png';
-import frontend from './frontend.png';
-import devops from './devops.png';
+import backend from './backend.webp';
+import frontend from './frontend.webp';
+import devops from './devops.webp';
 import { PersonaSignup } from './Persona';
 
 const TABLET_BREAKPOINT = 1240;

@@ -16,4 +16,4 @@ Welcome to an entirely new network monitoring onboarding experience, landing pag
 
 To learn more, read the [blog](https://newrelic.com/blog/nerdlog/curated-npm-ui).
 
-![New network monitoring curated UI.](./images/network_monitoring.png "New network monitoring curated UI.")
+![New network monitoring curated UI.](./images/network_monitoring.webp "New network monitoring curated UI.")

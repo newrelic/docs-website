@@ -1,0 +1,313 @@
+---
+title: Send New Relic data via AWS PrivateLink
+metaDescription: Send telemetry from your VPC to New Relic via AWS PrivateLink
+---
+
+import awsCreateVpcEndpointUi from 'images/accounts_screenshot-full_aws-create-vpc-endpoint-ui.webp'
+
+You can send telemetry data from your AWS Virtual Private Cloud (VPC) to New Relic via [AWS PrivateLink](https://aws.amazon.com/privatelink).
+
+## Overview [#overview]
+
+Sending your New Relic data via AWS PrivateLink can:
+
+* Reduce your AWS egress costs
+* Improve security by keeping your data within the Amazon network
+
+PrivateLink works for sending [telemetry data](/docs/data-apis/understand-data/new-relic-data-types) to a variety of New Relic [endpoints](#endpoints). It can't be used for our [NerdGraph API](/docs/apis/nerdgraph/get-started/introduction-new-relic-nerdgraph) or other non-ingest APIs.
+
+To use this feature, you'll need to configure an [interface endpoint](#create) in your VPC that your local New Relic agents and integrations will use to route data to New Relic via AWS PrivateLink.
+
+## Requirements [#requirements]
+
+PrivateLink requires the [New Relic Data Plus](/docs/accounts/accounts-billing/new-relic-one-pricing-billing/data-ingest-billing/#data-plus) option. If you attempt to send data without Data Plus, traffic sent via PrivateLink will be rejected and returned with a 402 error.
+
+## Supported regions and zones [#regions-zones] 
+
+New Relic exposes AWS PrivateLink endpoints for the following:
+
+<table>
+    <thead>
+        <tr>
+            <th>
+              Region
+            </th>
+            <th>
+              Zone 
+            </th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>
+               us-east-2 (Ohio)
+            </td>
+            <td>
+               * `use2-az1`
+               * `use2-az2`
+               * `use2-az3`
+            </td>
+        </tr>
+        <tr>
+            <td>
+              eu-central-1
+            </td>
+            <td>
+              * `euc1-az1`
+              * `euc1-az2`
+              * `euc1-az3`
+            </td>
+        </tr>
+    </tbody>
+</table>
+
+An endpoint service is available only in the region where it was created ([see the Amazon docs](https://docs.aws.amazon.com/vpc/latest/privatelink/create-endpoint-service.html)), but it can be accessed from other regions using inter-region peering.
+
+This means that if your VPC is in `us-east-2`, the only thing you need to do is to create the necessary internal VPC endpoint, as described below. But if you're in another region, you'll need to also [set up a peering connection](#peering) after that step.
+
+## The endpoints [#endpoints]
+
+These are the New Relic endpoint services available via AWS PrivateLink:
+
+    <table>
+      <thead>
+        <tr>
+          <th>
+            Data source
+          </th>
+
+          <th>
+            Hostname(s)
+          </th>
+          <th>
+            Endpoint service name
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+          APM
+          </td>
+          <td>
+          `collector.newrelic.com`
+          </td>
+          <td>
+          `com.amazonaws.vpce.us-east-2.vpce-svc-00e75af63239fbdc8`
+          </td>
+
+        </tr>
+        <tr>
+          <td>
+          Event API
+          </td>
+          <td>
+          `insights-collector.newrelic.com`
+          </td>
+          <td>
+          `com.amazonaws.vpce.us-east-2.vpce-svc-030074dde03e5f7f1`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+          Metric API (including Prometheus and other integrations)
+          </td>
+          <td>
+          `metric-api.newrelic.com`
+          </td>
+
+          <td>
+          `com.amazonaws.vpce.us-east-2.vpce-svc-0b48963952181a468`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+          Logging
+          </td>
+          <td>
+          `log-api.newrelic.com`
+          </td>
+          <td>
+          `com.amazonaws.vpce.us-east-2.vpce-svc-070f8190492d268ec`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+          Distributed tracing
+          </td>
+          <td>
+          `trace-api.newrelic.com`
+          </td>
+          <td>
+          `com.amazonaws.vpce.us-east-2.vpce-svc-0cc5a5c85730683db`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+          AWS Lambda and Cloudwatch Logs monitoring 
+          </td>
+          <td>
+          `cloud-collector.newrelic.com`
+          </td>
+          <td>
+          `com.amazonaws.vpce.us-east-2.vpce-svc-0c4032e13941b3e9d`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+          Infrastructure monitoring and on-host integrations
+          </td>
+          <td>
+          `infra-api.newrelic.com`
+          </td>
+
+          <td>
+          `com.amazonaws.vpce.us-east-2.vpce-svc-0df10112dc8c0f0b0`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+          OpenTelemetry
+          </td>
+          <td>
+          `otlp.nr-data.net`
+          </td>
+          <td>
+          `com.amazonaws.vpce.us-east-2.vpce-svc-0bf91fb637cf37b4f`
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+<Callout variant="tip">
+  Endpoints are **not** yet available for:
+    * FedRAMP data
+    * New Relic Infinite Tracing
+    * Syslog TCP traffic
+    * CloudWatch Metric Streams
+</Callout>
+
+## Create VPC endpoints [#create]
+
+For each of the New Relic endpoint services you're using from the table above, [create and attach a VPC endpoint](https://docs.aws.amazon.com/vpc/latest/privatelink/create-interface-endpoint.html) within your VPC. When creating these endpoints, you'll need to configure the VPC subnets and security groups corresponding to the availability zones that New Relic has configured with the endpoint service.
+
+Use the table and screenshot below as a guide to create and attach the VPC endpoint:
+
+<table>
+    <thead>
+        <tr>
+            <th>
+              Field
+            </th>
+            <th>
+              Description
+            </th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>
+               **Name tag**
+            </td>
+            <td>
+               Optional.
+            </td>
+        </tr>
+        <tr>
+            <td>
+              **Service category**
+            </td>
+            <td>
+              Select **Other endpoint services**.
+            </td>
+        </tr>
+        <tr>
+            <td>
+               **Service settings**
+            </td>
+            <td>
+               For **Service name**, find the value in the table and click **Verify**.
+            </td>
+        </tr>
+        <tr>
+            <td>
+               **VPC**
+            </td>
+            <td>
+              Select the VPC from the dropdown.
+            </td>
+        </tr>
+        <tr>
+            <td>
+               **Additional settings**
+            </td>
+            <td>
+              Select the following:
+               * **Enable DNS name**
+               * **IPv4**
+
+
+              By checking the **Enable DNS name** option for the VPC endpoint, the PrivateLink path will replace the public route within that VPC. You may also wish to [control access to services using endpoint policies](https://docs.aws.amazon.com/vpc/latest/privatelink/vpc-endpoints-access.html#vpc-endpoint-policies) to limit access within your VPC.
+            </td>
+        </tr>
+        <tr>
+            <td>
+              **Subnets**
+            </td>
+            <td>
+              Select the zones. For **IP address type**, select **IPv4**.
+            </td>
+        </tr>
+        <tr>
+            <td>
+               **Security groups**
+            </td>
+            <td>
+               Select the **Group ID**.
+            </td>
+        </tr>
+        <tr>
+            <td>
+              **Tags**
+            </td>
+            <td>
+              Insert optional key/value pairs.
+            </td>
+        </tr>
+    </tbody>
+</table>
+
+Here's a screenshot of some sample settings:
+
+<CollapserGroup>
+  <Collapser
+    id="aws-vpc-endpoint-ui"
+    title="Create endpoint"
+  >
+
+<img
+  title="Screenshot of where to start an on-demand session"
+  alt="Screenshot of where to start an on-demand session"
+  src={awsCreateVpcEndpointUi}
+/>
+  </Collapser>
+</CollapserGroup>
+
+## Set up a peering connection [#peering]
+
+This is required only if you're using a region other than `us-east-2` (Ohio).
+
+### VPC peering [#vpc-peering]
+
+Follow [the instructions to create inter-region VPC peering connections](https://docs.aws.amazon.com/vpc/latest/peering/create-vpc-peering-connection.html), specifying the VPC ID of the endpoint connections you created.
+
+### Transit Gateway peering [#transit-gateway-peering]
+
+Follow [the instructions to create a Route 53 PHZ and share it between VPCs](https://aws.amazon.com/blogs/networking-and-content-delivery/integrating-aws-transit-gateway-with-aws-privatelink-and-amazon-route-53-resolver), specifying the VPC ID of the endpoint connections you created.

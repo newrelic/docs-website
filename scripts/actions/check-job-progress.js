@@ -1,5 +1,6 @@
 /* eslint-disable no-console */
 'use strict';
+const core = require('@actions/core');
 const {
   getJobs,
   updateJob,
@@ -203,9 +204,14 @@ const updateTranslationRecords = async (project_id, slugStatuses) => {
         { status: StatusEnum.COMPLETED }
       );
 
-      console.log(
-        `Translation ${records[0].id} marked as ${StatusEnum.COMPLETED}`
-      );
+      const id = records[0]?.id;
+
+      if (id == null) {
+        console.log(`Unable to update ${locale} translation for slug ${slug}`);
+        process.exitCode = 1;
+      } else {
+        console.log(`Translation ${id} marked as ${StatusEnum.COMPLETED}`);
+      }
     })
   );
 };
@@ -264,9 +270,7 @@ const main = async () => {
     log(`${batchesToDeserialize.length} batches ready to be deserialized`);
     log(`batchUids: ${batchesToDeserialize.map(prop('batchUid')).join(', ')}`);
 
-    console.log(
-      `::set-output name=batchesToDeserialize::${batchesToDeserialize.length}`
-    );
+    core.setOutput('batchesToDeserialize', batchesToDeserialize.length);
 
     // download the newly translated files and deserialize them (into MDX).
     const slugStatuses = (
@@ -290,12 +294,9 @@ const main = async () => {
     console.log(
       `Final results --- ${results.totalSuccesses} files completed, ${results.totalFailures} files errored.`
     );
-    console.log(
-      `::set-output name=successfulTranslations::${results.totalSuccesses}`
-    );
-    console.log(
-      `::set-output name=failedTranslations::${results.totalFailures}`
-    );
+
+    core.setOutput('successfulTranslations', results.totalSuccesses);
+    core.setOutput('failedTranslations', results.totalFailures);
 
     await trackTranslationEvent({
       ...defaultTrackingMetadata,

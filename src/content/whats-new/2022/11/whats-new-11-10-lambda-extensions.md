@@ -20,5 +20,5 @@ Telemetry API allows extensions to subscribe to three different telemetry stream
 
 Telemetry API enables extensions to receive traces about the events related to Lambda execution environment lifecycle, with trace spans compatible with the OpenTelemetry format. Trace segments can be enriched by additional metadata for easier contextualization and diagnosis. Pairing this trace data with log data, you can rapidly troubleshoot performance problems, outages, and errors.
 
-![Metrics, events and logs from Lambda Extensions displayed in New Relic](./images/lambda_extensions.png "Metrics, events and logs from Lambda Extensions displayed in New Relic")
+![Metrics, events and logs from Lambda Extensions displayed in New Relic](./images/lambda_extensions.webp "Metrics, events and logs from Lambda Extensions displayed in New Relic")
 

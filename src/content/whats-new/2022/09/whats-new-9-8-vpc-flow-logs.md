@@ -9,7 +9,7 @@ getStartedLink: 'https://one.newrelic.com/marketplace?duration=1800000&state=79e
 
 With the release from Amazon Web Services (AWS), we’re announcing support for Amazon Virtual Private Cloud Flow Logs via Amazon Kinesis Data Firehose to reduce the friction of sending logs to New Relic. With VPC flow logs from across your AWS estates, you can quickly understand key insights for performance analytics and troubleshooting network connectivity.
 
-![Cloud flow logs page overview](./images/1_cloudflowlogs_overview.png "Cloud flow logs page overview")
+![Cloud flow logs page overview](./images/1_cloudflowlogs_overview.webp "Cloud flow logs page overview")
 
 Amazon Virtual Private Cloud (Amazon VPC) enables you to launch AWS resources into an isolated and secure virtual network with the benefits of using scalable AWS infrastructure.
 
@@ -20,7 +20,7 @@ With New Relic’s Amazon VPC flow log integration, you’ll be able to:
 * Explore flow log deviations to look for unexpected changes in network volume or health.
 * Diagnose overly restrictive security group rules or potentially malicious traffic issues.
 
-![Sankey view for VPC flow logs](./images/4_cloudflowlogs_conversations.png "Sankey view for VPC flow logs")
+![Sankey view for VPC flow logs](./images/4_cloudflowlogs_conversations.webp "Sankey view for VPC flow logs")
 
 ## How to configure
 

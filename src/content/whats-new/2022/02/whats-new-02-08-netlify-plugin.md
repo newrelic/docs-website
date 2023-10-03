@@ -18,7 +18,7 @@ Doing so gives you the following benefits:
 
 Open the [Instant Observability (I/O) quick start](https://developer.newrelic.com/instant-observability/netlify/5861d7f5-26c0-43ad-bda8-c893c4b27b25/) for a guided installation that will also deploy an example dashboard. Alternatively, you may follow along manually using our [documentation on GitHub](https://github.com/newrelic-experimental/netlify-plugin).
 
-![Netlify dashboard](./images/netlify_dashboard_2022-02-09.png  "Netlify dashboard")
+![Netlify dashboard](./images/netlify_dashboard_2022-02-09.webp  "Netlify dashboard")
 
 
 

@@ -1,0 +1,245 @@
+---
+title: 센드메일 통합
+tags:
+  - Sendmail integration
+  - New Relic integrations
+metaDescription: Install our Sendmail dashboards and see your Sendmail performance data in New Relic.
+translationType: machine
+---
+
+import infrastructureSendmailIntegration from 'images/infrastructure_screenshot-full_Sendmail-integration.webp'
+
+당사의 Sendmail 통합은 Sendmail 메일 전송 에이전트의 성능을 모니터링하여 에이전트를 신속하게 계측하고 모니터링할 수 있도록 도와줍니다.
+
+<img
+  title="Screenshot of Sendmail dashboard"
+  src={infrastructureSendmailIntegration}
+/>
+
+<figcaption>
+  Sendmail 통합을 설정한 후 Sendmail 메트릭에 대한 대시보드를 제공합니다.
+</figcaption>
+
+## 인프라 에이전트 설치 [#infra]
+
+데이터를 New Relic으로 가져오려면 인프라 에이전트를 설치하십시오.
+
+두 가지 방법으로 인프라 에이전트를 설치할 수 있습니다.
+
+* [가이드 설치](https://one.newrelic.com/nr1-core?state=4f81feab-35f7-e97e-9903-52510f8542bd) 는 시스템을 검사하고 시스템에 가장 적합한 애플리케이션 모니터링 에이전트와 함께 인프라 에이전트를 설치하는 CLI 도구입니다. 가이드 설치 작동 방식에 대해 자세히 알아보려면 [가이드 설치 개요](/docs/infrastructure/host-integrations/installation/new-relic-guided-install-overview) 를 확인하세요.
+* 인프라 에이전트를 수동으로 설치하려면 [Linux](/docs/infrastructure/install-infrastructure-agent/linux-installation/install-infrastructure-monitoring-agent-linux), [Windows](/docs/infrastructure/install-infrastructure-agent/windows-installation/install-infrastructure-monitoring-agent-windows/)또는 [macOS](/docs/infrastructure/install-infrastructure-agent/macos-installation/install-infrastructure-monitoring-agent-macos/)용 수동 설치에 대한 자습서를 따를 수 있습니다.
+
+## Sendmail용 NRI-Flex 구성
+
+Flex는 New Relic 인프라 에이전트와 함께 번들로 제공됩니다. 플렉스 구성 파일을 만들려면 다음 단계를 따르세요.
+
+1. 다음 경로에 `sendmail-flex-config.yml` 이라는 파일을 만듭니다.
+
+   ```shell
+   /etc/newrelic-infra/integrations.d
+   ```
+
+2. 아래 스니펫을 사용하여 `sendmail-flex-config.yml` 라는 구성 파일을 업데이트합니다.
+
+```yml
+---
+  integrations:
+    - name: nri-flex
+      config:
+        name: sendmailFlex
+        apis:
+          #check if Sendmail service is up.
+          - event_type: SendmailUp
+            commands:
+              - run: echo "value:$(systemctl status sendmail | grep 'Active':' active (running)' | wc -l)"
+                split_by: ':'
+
+          #check if Sendmail service is down.
+          - event_type: SendmailDown
+            commands:
+              - run: echo "value:$(systemctl status sendmail | grep 'Active':' inactive (dead)' | wc -l)"
+                split_by: ':'
+
+          #Read the number of times SMTP service is unreachable.
+          - event_type: SendmailSMTPserviceUnreachable
+            commands:
+              - run: echo "value:$(cat /var/log/mail.log | grep -E 'stat=Service unavailable' | wc -l)"
+                split_by: ':'
+
+          #Read the count of error message - host not found.
+          - event_type: SendmailHostNotFound
+            commands:
+              - run: echo "value:$(cat /var/log/mail.log | grep -c 'host not found')"
+                split_by: ':'
+
+          #Read the count of error logged.
+          - event_type: SendmailErrorCount
+            commands:
+              - run: echo "value:$(cat /var/log/mail.err | wc -l)"
+                split_by: ':'
+
+          #Read the number of messages accepted for delivery.
+          - event_type: SendmailMessageAcceptedForDelivery
+            commands:
+              - run: echo "value:$(cat /var/log/mail.log | grep -c 'Message accepted for delivery')"
+                split_by: ':'
+
+          #Read the number of messages sent & deferred.
+          - event_type: SendmailMessageStatus
+            commands:
+              - run: echo "sent:$(cat /var/log/mail.log | grep 'stat=Sent' |  wc -l)"
+                split_by: ':'
+              - run: echo "deferred:$(cat /var/log/mail.log | grep 'stat=Deferred' |  wc -l)"
+                split_by: ':'
+
+          #Read the number of messages held by user.
+          - event_type: SendmailHeldMessage
+            commands:
+              - run: echo "value:$(cat /var/mail/<USER> | grep -c 'Subject:')"
+                split_by: ':'
+
+          #Read the number of connection timeout.
+          - event_type: SendmailConnectionTimeOut
+            commands:
+              - run: echo "value:$(cat /var/log/mail.log | grep -c 'timeout')"
+                split_by: ':'
+
+          #Read the recipients with message count.
+          - event_type: SendmailRecipientsbyMessageCount
+            commands:
+              - run: cat /var/log/mail.log | grep "to=<.*.>" | awk '{n=split($7,a,"to="); print a[1],a[2]}' | cut -d "<" -f2 |cut -d ">" -f1 | sort | uniq -c | sort -nr
+                split: horizontal
+                header_split_by: \s+(\d+)\s+(.*.)
+                set_header: [msgCount.total, recipients.total]
+                regex_match: true
+                split_by: \s+(\d+)\s+(.*.)
+              - run: cat /var/log/mail.log | grep "to=<.*.>" | grep "$(date +'%b %e')" | awk '{n=split($7,a,"to="); print a[1],a[2]}' | cut -d "<" -f2 |cut -d ">" -f1 | sort | uniq -c | sort -nr
+                split: horizontal
+                header_split_by: \s+(\d+)\s+(.*.)
+                set_header: [msgCount.latest, recipients.latest]
+                regex_match: true
+                split_by: \s+(\d+)\s+(.*.)
+
+          #Read the recipients host/domain.
+          - event_type: SendmailRecipientsHostname
+            commands:
+              - run: cat /var/log/mail.log | grep "to=<.*.>" | awk '{print $7}' | grep -oE '[^@]+[a-zA-Z0-9\-\.]+\.[a-zA-Z]{2,}' | sort | uniq -c
+                split: horizontal
+                header_split_by: \s+(\d+)\s+(.*.)
+                set_header: [hostCount.total, hostname.total]
+                regex_match: true
+                split_by: \s+(\d+)\s+(.*.)
+              - run: cat /var/log/mail.log | grep "to=<.*.>" | grep "$(date +'%b %e')" | awk '{print $7}' | grep -oE '[^@]+[a-zA-Z0-9\-\.]+\.[a-zA-Z]{2,}' | sort | uniq -c
+                split: horizontal
+                header_split_by: \s+(\d+)\s+(.*.)
+                set_header: [hostCount.latest, hostname.latest]
+                regex_match: true
+                split_by: \s+(\d+)\s+(.*.)
+
+          #Read the senders with message count.
+          - event_type: SendmailSendersbyMessageCount
+            commands:
+              - run: cat /var/log/mail.log | grep "from=<.*@.*>" | awk '{print $7}' | cut -d "<" -f2 |cut -d ">" -f1 | sort | uniq -c
+                split: horizontal
+                header_split_by: \s+(\d+)\s+(.*.)
+                set_header: [msg.total, senders.total]
+                regex_match: true
+                split_by: \s+(\d+)\s+(.*.)
+              - run: cat /var/log/mail.log | grep "from=<.*@.*>" | grep "$(date +'%b %e')" | awk '{print $7}' | cut -d "<" -f2 |cut -d ">" -f1 | sort | uniq -c
+                split: horizontal
+                header_split_by: \s+(\d+)\s+(.*.)
+                set_header: [msg.latest, senders.latest]
+                regex_match: true
+                split_by: \s+(\d+)\s+(.*.)
+
+          #Read the senders host/domain.
+          - event_type: SendmailSendersHostname
+            commands:
+              - run: cat /var/log/mail.log | grep "from=<.*.>" | awk '{print $7}' | grep -oE '[^@]+[a-zA-Z0-9\-\.]+\.[a-zA-Z]{2,}' | sort | uniq -c
+                split: horizontal
+                header_split_by: \s+(\d+)\s+(.*.)
+                set_header: [hostCount.total, hostname.total]
+                regex_match: true
+                split_by: \s+(\d+)\s+(.*.)
+              - run: cat /var/log/mail.log | grep "from=<.*.>" | grep "$(date +'%b %e')" | awk '{print $7}' | grep -oE '[^@]+[a-zA-Z0-9\-\.]+\.[a-zA-Z]{2,}' | sort | uniq -c
+                split: horizontal
+                header_split_by: \s+(\d+)\s+(.*.)
+                set_header: [hostCount.latest, hostname.latest]
+                regex_match: true
+                split_by: \s+(\d+)\s+(.*.) 
+```
+
+## Sendmail 로그를 New Relic으로 전달
+
+우리의 [로그 전달을](/docs/logs/forward-logs/forward-your-logs-using-infrastructure-agent/) 사용하여 Sendmail 로그를 New Relic으로 전달할 수 있습니다.
+
+Linux 시스템에서는 `logging.yml` 라는 로그 파일이 다음 경로에 있어야 합니다.
+
+```shell
+/etc/newrelic-infra/logging.d/
+```
+
+`logging.yml` 파일에 다음 스크립트를 추가합니다.
+
+```yml
+  
+logs:
+  - name: mail.log
+    file: /var/log/mail.log
+    attributes:
+      logtype: sendmail_log
+  - name: mail.err
+    file: /var/log/mail.err
+    attributes:
+      logtype: sendmail_error
+```
+
+## New Relic 인프라 에이전트 다시 시작
+
+데이터 읽기를 시작하기 전에 [인프라 에이전트 문서](/docs/infrastructure/install-infrastructure-agent/manage-your-agent/start-stop-restart-infrastructure-agent/) 의 지침을 사용하여 인프라 에이전트를 다시 시작하십시오.
+
+```shell
+sudo systemctl restart newrelic-infra.service
+```
+
+몇 분 안에 애플리케이션이 메트릭을 [one.newrelic.com](https://one.newrelic.com)으로 보냅니다.
+
+## 데이터 찾기
+
+`Sendmail` 이라는 사전 구축된 대시보드 템플릿을 선택하여 Sendmail 애플리케이션 메트릭을 모니터링할 수 있습니다. 사전 구축된 대시보드 템플릿을 사용하려면 다음 단계를 따르세요.
+
+1. [one.newrelic.com](https://one.newrelic.com)에서, **+ Add data** \[+ 데이터 추가] 페이지로 이동합니다.
+2. **대시보드 를**클릭합니다.
+3. 검색창에 `sendmail` 를 입력합니다.
+4. Sendmail 대시보드가 나타납니다. 그것을 클릭하여 설치하십시오.
+
+Sendmail 대시보드는 사용자 정의 대시보드로 간주되며 **Dashboards** UI에서 찾을 수 있습니다. 대시보드 사용 및 편집에 대한 문서는 [대시보드 문서 를](/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards)참조하십시오.
+
+다음은 최신 메시지의 전송 상태를 찾기 위한 NRQL 쿼리입니다.
+
+```sql
+SELECT latest(sent) as 'Sent', latest(deferred) as ‘Deferred’ 
+FROM SendmailMessageStatus
+```
+
+다음은 Sendmail 서비스 상태를 보기 위한 NRQL 쿼리입니다.
+
+```sql
+SELECT latest(value) as 'Service Up' 
+FROM SendmailUp 
+TIMESERIES AUTO
+```
+
+## 다음은 뭐지?
+
+NRQL 쿼리 작성 및 대시보드 생성에 대해 자세히 알아보려면 다음 문서를 확인하세요.
+
+* 기본 및 고급 쿼리를 생성 [하기 위한 쿼리 빌더 소개](/docs/query-your-data/explore-query-data/query-builder/introduction-query-builder)
+
+* [대시보드를 사용자 지정하고 다양한 작업을 수행하기 위한 대시보드 소개](/docs/query-your-data/explore-query-data/dashboards/introduction-dashboards)
+
+* [대시보드를 관리하여](/docs/query-your-data/explore-query-data/dashboards/manage-your-dashboard)
+
+  <InlinePopover type="dashboards"/>
+
+  디스플레이 모드를 사용하거나 대시보드에 더 많은 콘텐츠를 추가할 수 있습니다.

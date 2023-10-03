@@ -51,7 +51,7 @@ const DocPageBanner = ({ text, cta, url, height, onClose }) => {
           /* grid causes a 1 pixel gap on either side of the main body */
           left: -1px;
           width: calc(100% + 1px);
-          padding: 1.5rem 2rem 1.5rem 1.5rem;
+          padding: 1.5rem 2rem 1.5rem 3.5rem;
           background-image: url(${lines});
           background-position: right;
           background-repeat: no-repeat;

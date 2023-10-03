@@ -17,4 +17,4 @@ Pixie data helps you debug faster than ever before, giving you access to everyth
 2. Choose [**Guided install**](https://one.newrelic.com/launcher/nr1-core.home?pane=eyJuZXJkbGV0SWQiOiJucjEtY29yZS5ob21lLXNjcmVlbiJ9&cards%5B0%5D=eyJuZXJkbGV0SWQiOiJucjEtaW5zdGFsbC1uZXdyZWxpYy5ucjEtaW5zdGFsbC1uZXdyZWxpYyIsImFjdGlvbkluZGV4IjoxfQ==) or [**EU Guided install.**](https://one.eu.newrelic.com/launcher/nr1-core.home?pane=eyJuZXJkbGV0SWQiOiJucjEtY29yZS5ob21lLXNjcmVlbiJ9&cards%5B0%5D=eyJuZXJkbGV0SWQiOiJucjEtaW5zdGFsbC1uZXdyZWxpYy5ucjEtaW5zdGFsbC1uZXdyZWxpYyIsImFjdGlvbkluZGV4IjoxfQ==)
 3. Choose **Kubernetes**, and then follow the on-screen prompts.
 
-![Screen capture showing Kubernetes cluster explorer](./images/kubernetes-cluster-explorer.png "Screen capture showing Kubernetes cluster explorer")
+![Screen capture showing Kubernetes cluster explorer](./images/kubernetes-cluster-explorer.webp "Screen capture showing Kubernetes cluster explorer")

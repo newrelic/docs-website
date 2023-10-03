@@ -12,6 +12,7 @@ import {
 import SEO from '../components/SEO';
 import PageTitle from '../components/PageTitle';
 import { TYPES } from '../utils/constants';
+import ErrorBoundary from '../components/ErrorBoundary';
 
 const WhatsNewTemplate = ({ data, location, pageContext }) => {
   const {
@@ -38,7 +39,7 @@ const WhatsNewTemplate = ({ data, location, pageContext }) => {
   }
 
   return (
-    <>
+    <ErrorBoundary eventName="whatsNew">
       <SEO
         location={location}
         title={title}
@@ -150,7 +151,7 @@ const WhatsNewTemplate = ({ data, location, pageContext }) => {
           issueLabels={['feedback', 'feedback-issue']}
         />
       </Layout.Content>
-    </>
+    </ErrorBoundary>
   );
 };
 

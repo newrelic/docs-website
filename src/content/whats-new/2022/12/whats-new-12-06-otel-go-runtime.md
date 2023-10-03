@@ -12,7 +12,7 @@ With this data, you can:
   * Identify instances receiving an unbalanced amount of traffic
   * Spot slow memory leaks or goroutine leaks
 
-![Comparison view with timeseries charts, showing Go runtime instances with different throughput rates, as well as different garbage collection behavior](./images/whats-new-otel-go-runtime.png "Comparison view with timeseries charts, showing Go runtime instances with different throughput rates, as well as different garbage collection behavior")
+![Comparison view with timeseries charts, showing Go runtime instances with different throughput rates, as well as different garbage collection behavior](./images/whats-new-otel-go-runtime.webp "Comparison view with timeseries charts, showing Go runtime instances with different throughput rates, as well as different garbage collection behavior")
 
 The new Go runtime page is based on summaries of key metrics: response time, throughput, error rate, garbage collection time, and memory usage. You can use these key metrics to compare several service instances. You can also compare all those instances' Go runtime metrics collected by OpenTelemetry instrumentation using timeseries charts to spot problems.
 

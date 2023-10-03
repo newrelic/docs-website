@@ -10,7 +10,7 @@ Amazon Web Services (AWS) offers AWS App Runner as a fully managed service to en
 
 New Relic now integrates with App Runner and you can use this to monitor and optimize your containerized applications, ensure they perform as expected, and validate that the App Runner service was deployed correctly. In addition, the reporting of metrics, events, and logs gives complete visibility into your containerized application.
 
-![Metrics and logs for AWS App Runner displayed in New Relic](./images/AppRunnerDashboard.png "Metrics and logs for AWS App Runner displayed in New Relic")
+![Metrics and logs for AWS App Runner displayed in New Relic](./images/AppRunnerDashboard.webp "Metrics and logs for AWS App Runner displayed in New Relic")
 <figcaption>Metrics and logs for AWS App Runner displayed in New Relic</figcaption>
 
 In this example dashboard provided in the [AWS App Runner quickstart](https://newrelic.com/instant-observability/aws-apprunner) from New Relic Instant Observability, you can see the data needed to monitor the health of your App Runner deployment, including latency, traffic, errors, and utilization.

@@ -14,4 +14,4 @@ If you’re looking to instrument your React Native applications, try our experi
 
 We’ve improved [reliability from our Android service](https://discuss.newrelic.com/t/mobile-apm-changes-coming-soon-to-improve-our-android-stack-trace-deobfuscation/117188) and changed the way our service handles Android stack deobfuscation to make crash and handled exception stack traces more accurate after retracing. These fixes will be released to production in the following weeks, so stay tuned.
 
-![New Relic One mobile summary](./images/NR-One-Mobile-Summary.png "New Relic One mobile summary")
+![New Relic One mobile summary](./images/NR-One-Mobile-Summary.webp "New Relic One mobile summary")

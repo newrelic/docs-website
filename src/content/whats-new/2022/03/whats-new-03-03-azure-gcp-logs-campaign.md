@@ -14,7 +14,7 @@ New logs integrations:
 * **For Azure:** Blob Storage, or via an Event Hub
 * **For GCP:** pub/sub integration
 
-!["Azure and CGP Integration Icons"](./images/azure_gcp_logs_icons.png "Azure and CGP Integration Icons")
+!["Azure and CGP Integration Icons"](./images/azure_gcp_logs_icons.webp "Azure and CGP Integration Icons")
 
 <figcaption>Azure and GCP log integrations are part of New Relic’s log forwarding plugins that make it easy for our customers to get logs into New Relic One.</figcaption>
 

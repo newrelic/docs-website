@@ -9,4 +9,4 @@ Now you can drop entire metrics at ingest (in addition to events, logs, and trac
 
 To get started, follow the steps detailed in our [documentation](https://docs.newrelic.com/docs/accounts/accounts/data-management/drop-data-using-nerdgraph).
 
-![Screenshot showing a query in NerdGraph to drop metrics.](./images/drop-metrics-graphql.png "drop-metrics-graphql.png")
+![Screenshot showing a query in NerdGraph to drop metrics.](./images/drop-metrics-graphql.webp "drop-metrics-graphql.webp")
