@@ -48,6 +48,7 @@ module.exports = {
       'https://docs.newrelic.com/docs/style-guide/writing-guidelines/create-edit-content/',
   },
   plugins: [
+    `gatsby-plugin-netlify`,
     'gatsby-plugin-react-helmet',
     {
       resolve: `gatsby-source-filesystem`,
