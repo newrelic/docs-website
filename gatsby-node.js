@@ -289,7 +289,7 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
           createPage,
           disableSwiftype: !i18nNode,
         },
-        true // enable DSG
+        false // disable DSG
       );
     });
   });
