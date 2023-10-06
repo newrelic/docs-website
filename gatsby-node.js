@@ -3,6 +3,11 @@ const { prop } = require('./scripts/utils/functional.js');
 const externalRedirects = require('./src/data/external-redirects.json');
 const { createFilePath } = require('gatsby-source-filesystem');
 const createSingleNav = require('./scripts/createSingleNav');
+const generateTOC = require('mdast-util-toc');
+// are needed for our tableOfContents override
+const genMDX = require('gatsby-plugin-mdx/utils/gen-mdx.js');
+const defaultOptions = require('gatsby-plugin-mdx/utils/default-options.js');
+const getTableOfContents = require('gatsby-plugin-mdx/utils/get-table-of-content.js');
 
 const TEMPLATE_DIR = 'src/templates/';
 const TRAILING_SLASH = /\/$/;
@@ -302,7 +307,20 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
     });
   });
 
-exports.createSchemaCustomization = ({ actions }) => {
+exports.createSchemaCustomization = (
+  {
+    getNode,
+    getNodes,
+    pathPrefix,
+    reporter,
+    cache,
+    actions,
+    schema,
+    store,
+    ...helpers
+  },
+  pluginOptions
+) => {
   const { createTypes } = actions;
 
   const typeDefs = `
@@ -327,6 +345,7 @@ exports.createSchemaCustomization = ({ actions }) => {
     translationType: String
     dataSource: String
     hideNavs: Boolean
+    eolDate: String
     downloadLink: String
     signupBanner: SignupBanner
     features: [String]
@@ -341,7 +360,64 @@ exports.createSchemaCustomization = ({ actions }) => {
 
   `;
 
-  createTypes(typeDefs);
+  // this was taken from gatsby-plugin-mdx/gatsby/create-schema-customization.js
+  const options = defaultOptions(pluginOptions);
+
+  const pendingPromises = new WeakMap();
+  const processMDX = ({ node }) => {
+    let promise = pendingPromises.get(node);
+    if (!promise) {
+      promise = genMDX({
+        node,
+        options,
+        store,
+        pathPrefix,
+        getNode,
+        getNodes,
+        cache,
+        reporter,
+        actions,
+        schema,
+        ...helpers,
+      });
+      pendingPromises.set(node, promise);
+      promise.then(() => {
+        pendingPromises.delete(node);
+      });
+    }
+    return promise;
+  };
+
+  const tocExtension = schema.buildObjectType({
+    name: `Mdx`,
+    fields: {
+      tableOfContents: {
+        type: `JSON`,
+        args: {
+          maxDepth: {
+            type: `Int`,
+            default: 6,
+          },
+        },
+        async resolve(mdxNode, { maxDepth }) {
+          const { mdast } = await processMDX({ node: mdxNode });
+          const toc = generateTOC(mdast, {
+            maxDepth,
+
+            // override gatsby-plugin-mdx tableOfContents options
+            // to allow Step headers to show in PageTools
+            parents: [
+              (node) => node.type === 'mdxBlockElement' && node.name === 'Step',
+              'root',
+            ],
+          });
+
+          return getTableOfContents(toc.map, {});
+        },
+      },
+    },
+  });
+  createTypes([typeDefs, tocExtension]);
 };
 
 exports.createResolvers = ({ createResolvers }) => {
@@ -379,6 +455,10 @@ exports.createResolvers = ({ createResolvers }) => {
       hideNavs: {
         resolve: (source) =>
           hasOwnProperty(source, 'hideNavs') ? source.hideNavs : null,
+      },
+      eolDate: {
+        resolve: (source) =>
+          hasOwnProperty(source, 'eolDate') ? source.eolDate : null,
       },
       downloadLink: {
         resolve: (source) =>
