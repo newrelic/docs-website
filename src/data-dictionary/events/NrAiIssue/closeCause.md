@@ -19,7 +19,7 @@ What caused the incident to close. Available values:
 
 * `CONDITION_DISABLED`: Condition disabled.
 
-* `CONDITION_MODIFIED`: Condition [edited](/docs/alerts-applied-intelligence/new-relic-alerts/alert-conditions/create-nrql-alert-conditions/#evaluation-resets).
+* `CONDITION_MODIFIED`: Condition [edited](/docs/alerts-applied-intelligence/new-relic-alerts/alert-conditions/nrql-alert-conditions/#evaluation-resets).
 
 * `EVALUATOR`: Natural close because the metric has ceased to breach the threshold.
 

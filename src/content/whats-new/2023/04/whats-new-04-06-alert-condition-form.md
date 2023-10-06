@@ -2,7 +2,7 @@
 title: 'Streamline alert configuration and management'
 summary: 'Set up alerts faster and with more flexible configuration options.'
 releaseDate: '2023-04-06'
-learnMoreLink: 'https://docs.newrelic.com/docs/alerts-applied-intelligence/new-relic-alerts/alert-conditions/create-nrql-alert-conditions/' 
+learnMoreLink: 'https://docs.newrelic.com/docs/alerts-applied-intelligence/new-relic-alerts/alert-conditions/nrql-alert-conditions/' 
 ---
 
 We’re releasing a number of capabilities that simplify alert management, making setup faster and easier than ever and ensuring coverage without noise.
@@ -28,7 +28,7 @@ We’ve simplified our alert condition creation setup flow and are giving you mo
 
 ## Guided point-and-click alert configuration flow
 
-The dropdown options provided in the new UI make it as simple as selecting the type of signal, the entity type, and the specific services that you’d like to configure an alert for. From there, you simply match these alert configurations in the same flow to your workflow and destination policies. These changes make it easier to [create NRQL alert conditions](https://docs.newrelic.com/docs/alerts-applied-intelligence/new-relic-alerts/alert-conditions/create-nrql-alert-conditions/), especially if you’re unfamiliar with constructing NRQL queries.
+The dropdown options provided in the new UI make it as simple as selecting the type of signal, the entity type, and the specific services that you’d like to configure an alert for. From there, you simply match these alert configurations in the same flow to your workflow and destination policies. These changes make it easier to [create NRQL alert conditions](https://docs.newrelic.com/docs/alerts-applied-intelligence/new-relic-alerts/alert-conditions/nrql-alert-conditions/), especially if you’re unfamiliar with constructing NRQL queries.
 
 ## Recommended alert configurations to eliminate gaps
 
@@ -54,4 +54,4 @@ Until now, the issues notifications log did not include critical details relevan
 
 We’ve made enhancements to the alert configuration flow to make it easier to use Terraform directly in New Relic. The Terraform script generator provides a button in your NRQL alert condition edit screen that will let you see an alert condition, as currently configured in the UI, as it would appear in a Terraform script.
 
-To dive into more of these improvements, check out the [Data Byte video](https://youtu.be/xUfyeZymvBU) or read more about the benefits of the new alert condition creation flow in our [documentation](https://docs.newrelic.com/docs/alerts-applied-intelligence/new-relic-alerts/alert-conditions/create-nrql-alert-conditions/). 
+To dive into more of these improvements, check out the [Data Byte video](https://youtu.be/xUfyeZymvBU) or read more about the benefits of the new alert condition creation flow in our [documentation](https://docs.newrelic.com/docs/alerts-applied-intelligence/new-relic-alerts/alert-conditions/nrql-alert-conditions/). 

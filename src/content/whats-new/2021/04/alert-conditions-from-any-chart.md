@@ -2,7 +2,7 @@
 title: 'Create alert conditions from any chart'
 summary: 'Now you can create an alert condition from just about anywhere in New Relic!'
 releaseDate: '2021-04-12'
-learnMoreLink: 'https://docs.newrelic.com/docs/alerts-applied-intelligence/new-relic-alerts/alert-conditions/create-nrql-alert-conditions/#h2-nested-aggregation-nrql-alerts'
+learnMoreLink: 'https://docs.newrelic.com/docs/alerts-applied-intelligence/new-relic-alerts/alert-conditions/nrql-alert-conditions/#h2-nested-aggregation-nrql-alerts'
 getStartedLink: 'https://one.nr/08dQekbgNRe'
 ---
 Now you can create an alert condition from just about anywhere in New Relic!  Well, anywhere where there is a New Relic One chart. 
