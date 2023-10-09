@@ -191,7 +191,7 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
     landingPagesReleaseNotes,
     allLocale,
     allInstallConfig,
-    whatsNewPosts,
+    // whatsNewPosts,
   } = data;
 
   const locales = allLocale.nodes
@@ -293,18 +293,20 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
     });
   });
 
-  whatsNewPosts.nodes.forEach((node) => {
-    const {
-      fields: { slug },
-    } = node;
+  // Disable to try to fix build failure on netlify
 
-    createLocalizedRedirect({
-      locales,
-      fromPath: slug.replace(/\/\d{4}\/\d{2}/, ''),
-      toPath: slug,
-      createRedirect,
-    });
-  });
+  // whatsNewPosts.nodes.forEach((node) => {
+  //   const {
+  //     fields: { slug },
+  //   } = node;
+
+  // createLocalizedRedirect({
+  //   locales,
+  //   fromPath: slug.replace(/\/\d{4}\/\d{2}/, ''),
+  //   toPath: slug,
+  //   createRedirect,
+  // });
+  // });
 
   // Redirect for old VSU Introduction to APM .js doc
   createRedirect({
