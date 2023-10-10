@@ -1,5 +1,5 @@
 const handlers = require('./utils/handlers');
-const fencedCodeBlock = require('../../codemods/fencedCodeBlock');
+const fencedCodeBlock = require('./utils/fencedCodeBlock');
 const unified = require('unified');
 const toMDAST = require('remark-parse');
 const frontmatter = require('remark-frontmatter');
