@@ -1,8 +1,7 @@
 import frontmatter from 'front-matter';
-import { readFile } from 'fs/promises';
+import { readFile, writeFile } from 'fs/promises';
 import { glob } from 'glob10';
 import { join } from 'path';
-import TOML from '@iarna/toml';
 
 // from -> to key/value structure, since redirects are a 1:many relationship.
 // ie, redirecting _from_ `/docs/security` can only redirect to one place,
@@ -29,10 +28,13 @@ for (const path of mdxPaths) {
   }
 }
 
-const redirectsList = Array.from(redirects.entries()).map(([from, to]) => ({
-  from,
-  to,
-  status: 301,
-}));
+const redirectsList = Array.from(redirects.entries())
+  .map(([from, to]) => ({
+    from,
+    to,
+    status: 301,
+  }))
+  .map(({ from, to, status }) => `${from} ${to} ${status}`)
+  .join('\n');
 
-console.log(TOML.stringify({ redirects: redirectsList }));
+writeFile('./_redirects', redirectsList, 'utf-8');
