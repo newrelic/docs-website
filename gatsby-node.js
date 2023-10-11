@@ -1,6 +1,5 @@
 const path = require('path');
 const { prop } = require('./scripts/utils/functional.js');
-const externalRedirects = require('./src/data/external-redirects.json');
 const { createFilePath } = require('gatsby-source-filesystem');
 const createSingleNav = require('./scripts/createSingleNav');
 const generateTOC = require('mdast-util-toc');
@@ -18,9 +17,6 @@ const hasOwnProperty = (obj, key) =>
 
 const hasTrailingSlash = (pathname) =>
   pathname === '/' ? false : TRAILING_SLASH.test(pathname);
-
-const appendTrailingSlash = (pathname) =>
-  pathname.endsWith('/') ? pathname : `${pathname}/`;
 
 exports.onPreBootstrap = () => {
   createSingleNav();
@@ -43,11 +39,11 @@ exports.onCreateWebpackConfig = ({ actions }) => {
 
 exports.onCreateNode = ({ node, getNode, actions }) => {
   const { createNodeField } = actions;
+  const type = node.internal.type;
 
   if (
-    node.internal.type === 'Mdx' ||
-    (node.internal.type === 'MarkdownRemark' &&
-      node.fileAbsolutePath.includes('src/content'))
+    type === 'Mdx' ||
+    (type === 'MarkdownRemark' && node.fileAbsolutePath.includes('src/content'))
   ) {
     createNodeField({
       node,
@@ -58,7 +54,7 @@ exports.onCreateNode = ({ node, getNode, actions }) => {
 };
 
 exports.createPages = async ({ actions, graphql, reporter }) => {
-  const { createPage, createRedirect } = actions;
+  const { createPage } = actions;
 
   const { data, errors } = await graphql(`
     query {
@@ -78,16 +74,6 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
         }
       }
 
-      whatsNewPosts: allMarkdownRemark(
-        filter: { fileAbsolutePath: { regex: "/src/content/whats-new/" } }
-      ) {
-        nodes {
-          fields {
-            slug
-          }
-        }
-      }
-
       allMdx(filter: { fileAbsolutePath: { regex: "/src/content/" } }) {
         edges {
           node {
@@ -98,7 +84,6 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
             frontmatter {
               type
               subject
-              redirects
               hideNavs
             }
           }
@@ -123,57 +108,10 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
         }
       }
 
-      releaseNotes: allMdx(
-        filter: {
-          fileAbsolutePath: {
-            regex: "/src/content/docs/release-notes/.*(?<!index).mdx/"
-          }
-        }
-        sort: { fields: frontmatter___releaseDate, order: DESC }
-      ) {
-        group(limit: 1, field: frontmatter___subject) {
-          fieldValue
-          nodes {
-            frontmatter {
-              releaseDate
-            }
-            fields {
-              slug
-            }
-          }
-          totalCount
-        }
-      }
-
-      landingPagesReleaseNotes: allMdx(
-        filter: {
-          fileAbsolutePath: { regex: "/docs/release-notes/.*/index.mdx$/" }
-        }
-      ) {
-        nodes {
-          fields {
-            slug
-          }
-          frontmatter {
-            subject
-            redirects
-          }
-        }
-      }
-
       allLocale {
         nodes {
           locale
           isDefault
-        }
-      }
-
-      allInstallConfig {
-        edges {
-          node {
-            redirects
-            agentName
-          }
         }
       }
     }
@@ -184,96 +122,15 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
     return;
   }
 
-  const {
-    allI18nMdx,
-    allMarkdownRemark,
-    allMdx,
-    releaseNotes,
-    landingPagesReleaseNotes,
-    allLocale,
-    allInstallConfig,
-    // whatsNewPosts,
-  } = data;
+  const { allI18nMdx, allMarkdownRemark, allMdx, allLocale } = data;
 
   const locales = allLocale.nodes
     .filter((locale) => !locale.isDefault)
     .map(prop('locale'));
 
-  externalRedirects.forEach(({ url, paths }) => {
-    paths.forEach((path) => {
-      createRedirect({
-        fromPath: path,
-        toPath: url,
-        isPermanent: true,
-        redirectInBrowser: true,
-      });
-    });
-  });
-
-  allInstallConfig.edges.forEach(({ node: { redirects, agentName } }) => {
-    redirects?.length &&
-      redirects.forEach((redirect) =>
-        createLocalizedRedirect({
-          locales,
-          fromPath: redirect,
-          toPath: `/install/${agentName}/`,
-          createRedirect,
-        })
-      );
-  });
-
-  releaseNotes.group.forEach((el) => {
-    const { fieldValue, nodes, totalCount } = el;
-
-    const landingPage = landingPagesReleaseNotes.nodes.find(
-      (node) => node.frontmatter.subject === fieldValue
-    );
-
-    if (landingPage) {
-      releaseNotesPerAgent[landingPage.frontmatter.subject] = totalCount;
-      const { redirects } = landingPage.frontmatter;
-
-      createLocalizedRedirect({
-        locales,
-        fromPath: path.join(landingPage.fields.slug, 'current'),
-        toPath: nodes[0].fields.slug,
-        isPermanent: false,
-        createRedirect,
-      });
-
-      if (redirects) {
-        redirects.forEach((fromPath) => {
-          createLocalizedRedirect({
-            locales,
-            fromPath,
-            toPath: landingPage.fields.slug,
-            isPermanent: false,
-            createRedirect,
-          });
-        });
-      }
-    }
-  });
-
   const translatedContentNodes = allI18nMdx.edges.map(({ node }) => node);
 
   allMdx.edges.concat(allMarkdownRemark.edges).forEach(({ node }) => {
-    const {
-      fields: { slug },
-      frontmatter: { redirects },
-    } = node;
-
-    if (redirects) {
-      redirects.forEach((fromPath) => {
-        createLocalizedRedirect({
-          locales,
-          fromPath,
-          toPath: slug,
-          createRedirect,
-        });
-      });
-    }
-
     createPageFromNode(node, { createPage });
 
     locales.forEach((locale) => {
@@ -292,29 +149,6 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
         true // enable DSG
       );
     });
-  });
-
-  // Disable to try to fix build failure on netlify
-
-  // whatsNewPosts.nodes.forEach((node) => {
-  //   const {
-  //     fields: { slug },
-  //   } = node;
-
-  // createLocalizedRedirect({
-  //   locales,
-  //   fromPath: slug.replace(/\/\d{4}\/\d{2}/, ''),
-  //   toPath: slug,
-  //   createRedirect,
-  // });
-  // });
-
-  // Redirect for VSU page to new Introduction to APM doc
-  createRedirect({
-    fromPath: '/docs/apm/new-relic-apm/getting-started/introduction-apm/',
-    toPath: '/introduction-apm',
-    isPermanent: false,
-    redirectInBrowser: true,
   });
 };
 
@@ -542,36 +376,6 @@ exports.onCreatePage = ({ page, actions }) => {
   }
 
   createPage(page);
-};
-
-const createLocalizedRedirect = ({
-  fromPath,
-  toPath,
-  locales,
-  redirectInBrowser = true,
-  isPermanent = true,
-  createRedirect,
-}) => {
-  // Create redirects for paths with and without a trailing slash
-  const pathWithTrailingSlash = hasTrailingSlash(fromPath)
-    ? fromPath
-    : path.join(fromPath, '/');
-
-  createRedirect({
-    fromPath: pathWithTrailingSlash,
-    toPath: appendTrailingSlash(toPath),
-    isPermanent,
-    redirectInBrowser,
-  });
-
-  locales.forEach((locale) => {
-    createRedirect({
-      fromPath: path.join(`/${locale}`, pathWithTrailingSlash),
-      toPath: appendTrailingSlash(path.join(`/${locale}`, toPath)),
-      isPermanent,
-      redirectInBrowser,
-    });
-  });
 };
 
 const createPageFromNode = (
