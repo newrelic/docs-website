@@ -1,5 +1,5 @@
 import frontmatter from 'front-matter';
-import { readFile, writeFile } from 'fs/promises';
+import { mkdir, readFile, writeFile } from 'fs/promises';
 import { glob } from 'glob10';
 import { join } from 'path';
 
@@ -37,4 +37,5 @@ const redirectsList = Array.from(redirects.entries())
   .map(({ from, to, status }) => `${from} ${to} ${status}`)
   .join('\n');
 
-writeFile('./_redirects', redirectsList, 'utf-8');
+await mkdir('./public').catch(() => null);
+writeFile('./public/_redirects', redirectsList, 'utf-8');
