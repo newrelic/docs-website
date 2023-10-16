@@ -13,6 +13,7 @@ const mdxPaths = await glob('src/content/docs/**/*.{md,mdx}');
 const urlFromFsPath = (fspath) =>
   fspath.replace(/src\/content/, '').replace(/\.mdx?$/, '');
 
+// MDX frontmatter redirects
 for (const path of mdxPaths) {
   const contents = await readFile(join(process.cwd(), path), 'utf-8');
   const to = urlFromFsPath(path);
@@ -25,6 +26,18 @@ for (const path of mdxPaths) {
     const localizedTo = `/${locale}${to}`;
     const localizedRedirects = enRedirects.map((from) => `/${locale}${from}`);
     localizedRedirects.forEach((from) => redirects.set(from, localizedTo));
+  }
+}
+
+// external redirects
+const externalRedirects = JSON.parse(
+  await readFile('./src/data/external-redirects.json', 'utf-8')
+);
+
+for (const redirect of externalRedirects) {
+  const to = redirect.url;
+  for (const from of redirect.paths) {
+    redirects.set(from, to);
   }
 }
 
