@@ -108,6 +108,42 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
         }
       }
 
+      releaseNotes: allMdx(
+        filter: {
+          fileAbsolutePath: {
+            regex: "/src/content/docs/release-notes/.*(?<!index).mdx/"
+          }
+        }
+        sort: { fields: frontmatter___releaseDate, order: DESC }
+      ) {
+        group(limit: 1, field: frontmatter___subject) {
+          fieldValue
+          nodes {
+            frontmatter {
+              releaseDate
+            }
+            fields {
+              slug
+            }
+          }
+          totalCount
+        }
+      }
+      landingPagesReleaseNotes: allMdx(
+        filter: {
+          fileAbsolutePath: { regex: "/docs/release-notes/.*/index.mdx$/" }
+        }
+      ) {
+        nodes {
+          fields {
+            slug
+          }
+          frontmatter {
+            subject
+          }
+        }
+      }
+
       allLocale {
         nodes {
           locale
@@ -122,7 +158,26 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
     return;
   }
 
-  const { allI18nMdx, allMarkdownRemark, allMdx, allLocale } = data;
+  const {
+    allI18nMdx,
+    allMarkdownRemark,
+    allMdx,
+    allLocale,
+    releaseNotes,
+    landingPagesReleaseNotes,
+  } = data;
+
+  releaseNotes.group.forEach((el) => {
+    const { fieldValue, totalCount } = el;
+
+    const landingPage = landingPagesReleaseNotes.nodes.find(
+      (node) => node.frontmatter.subject === fieldValue
+    );
+
+    if (landingPage) {
+      releaseNotesPerAgent[landingPage.frontmatter.subject] = totalCount;
+    }
+  });
 
   const locales = allLocale.nodes
     .filter((locale) => !locale.isDefault)
