@@ -1,4 +1,4 @@
-const frontmatter = require('@github-docs/frontmatter');
+const { frontmatter } = require('./utils/frontmatter');
 const mdx = require('@mdx-js/mdx');
 const fs = require('fs');
 const glob = require('glob');
@@ -15,9 +15,11 @@ const readFile = async (filePath) => {
     failed = true;
   }
 
-  const { errors } = frontmatter(mdxText);
-  if (errors.length > 0) {
-    console.log(JSON.stringify(errors, null, 4));
+  const { error } = frontmatter(mdxText);
+  if (error != null) {
+    console.log('❌ frontmatter error:');
+    console.log(error.reason);
+    console.log(error.mark.snippet);
     failed = true;
   }
 
