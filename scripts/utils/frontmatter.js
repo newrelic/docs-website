@@ -64,7 +64,6 @@ const frontmatter = (mdString) => {
       error: null,
     };
   } catch (error) {
-    // make this common error message a little easier to understand
     if (error.reason.startsWith('can not read a block mapping entry;')) {
       error.reason = DEFAULT_REASON;
     }
