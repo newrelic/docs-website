@@ -1,36 +1,50 @@
 ---
-title: Incomplete telemetry from JBoss and Wildfly
+title: Classloading Isssues from JBoss and Wildfly
 type: troubleshooting
 tags:
   - Agents
   - Java agent
   - Troubleshooting
 metaDescription: 'If you are running an app using JBoss/Wildfly, you may get incomplete or incorrect telemetry due to classloading issues with classes the agent use if you use Finest level logs. 
-Usually this is resolved by setting a system property jboss.modules.system.pkgs with a comma seperated list of java packages causing this error.'
+Your application may even fail to start up. Usually this is resolved by upgrading the agent, 
+setting certain system properties, or through manually configuring module dependencies.'
 redirects:
-  - /docs/agents/java-agent/troubleshooting/jboss-and-wildfly-incomplete-telemetry
+  - /docs/agents/java-agent/troubleshooting/jboss-and-wildfly-classloading-issues
+  - /docs/agents/java-agent/troubleshooting/classloading-issues-jboss-and-wildfly
+  - /docs/agents/java-agent/troubleshooting/classloading-issues-jboss-and-wildfly
 ---
 
 ## Problem [#problem]
 
-You are getting incomplete telemetry from an app using JBoss EAP 7.4 (or up) or Wildfly 23 (or up). 
+You are experiencing classloading issues from JBoss EAP/Wildfly.
+
+### A. Classes Fail to Load Inside the Agent [#problem-application-runtime]
+This can be in the form of incomplete telemetry from an app using JBoss EAP 7.4 (or up) or Wildfly 23 (or up). 
 Some of the following ways telemetry can be incomplete include:
 
 * Web requests are translated into non-web transactions
 * Your dispatcher name is incorrect
 
-If you set your logs using the `Finest` log level and find `NoClassDefFoundError` stack traces, this indicates a problem with how
+If you set your logs using the `Finest` log level and find `NoClassDefFoundError` and `ClassNotFoundException` stack traces, this indicates a problem with how
 class-loading works with JBoss EAP and Wildfly. 
 
-The agent weaver can instrument a specific class in an app using JBoss, but the modified classes might use packages and modules that are not recognized by JBoss EAP/Wildfly. The result here is the ClassLoader cannot find specific classes, which will throw a `NoClassDefFoundError`. 
+The agent weaver can instrument a specific class in an app using JBoss, but the modified classes might use packages and modules that are not recognized by JBoss EAP/Wildfly. 
+The result here is JBoss's module class-loader cannot find specific classes, which will throw a `NoClassDefFoundError`. 
 
-While your app may still work, the data sent by the agent will be incorrect or incomplete. Since agent version 8.6, the Java agent can make JBoss recognize certain packages. This allows Wildfly/JBoss EAP instrumentation to work out of the box, but the ClassLoader may still return `NoClassDefFoundError`.
+While your app may still work, the data sent by the agent will be incorrect or incomplete. Since agent version 8.6, the Java agent can make JBoss recognize certain packages 
+by having them be loaded by the system classloader. 
+This allows Wildfly/JBoss EAP instrumentation to work out of the box, but the ClassLoader may still return `ClassNotFoundException` or `NoClassDefFoundError`.
+
+### B. Classes Fail to Load During Application Runtime [#problem-application-runtime]
+If Java Agent versions `8.6` and up and you are using the Jakarta/J2EE Management Api (i.e. JSR-777), your application fails to startup. 
+You would be getting `ClassNotFoundException`s and the package name included in the class is `javax.management.j2ee`
 
 ## Solution [#solution]
 
+### A. Incomplete Telemetry [#solution-incomplete-telemetry]
 When you set the agent log level to `Finest`, check for stack traces containing `NoClassDefFoundError` in your agent log file.
 
-Even though this example was patched in 8.6, here's an example of this error appearing in the `java.util.logging` package:
+Here's an example of this error appearing in the `java.util.logging` package even though this example was patched in 8.6:
 
 ```
 2022-02-01T11:59:16,167-0800 [97709 221] com.newrelic.agent.instrumentation.ClassTransformerServiceImpl FINEST: An error was thrown from instrumentation library com.newrelic.instrumentation.servlet-2.4
@@ -82,8 +96,104 @@ java.lang.NoClassDefFoundError: java/util/logging/Level
 	at org.jboss.threads.EnhancedQueueExecutor$ThreadBody.run(EnhancedQueueExecutor.java:1377) [jboss-threads-2.4.0.Final-redhat-00001.jar!/:2.4.0.Final-redhat-00001]
 	at org.xnio.XnioWorker$WorkerThreadFactory$1$1.run(XnioWorker.java:1280) [xnio-api-3.8.4.Final-redhat-00001.jar!/:3.8.4.Final-redhat-00001]
 	at java.lang.Thread.run(Thread.java:748) [?:1.8.0_312]
+Caused by: java.lang.ClassNotFoundException: java.util.logging.Level from [Module "io.undertow.servlet" version 2.2.5.Final-redhat-00001 from local module loader @7ce85af2 (finder: local module finder @316acbb5 (roots: /Users/obenmeir/AppServers/jboss-eap-7.4/modules,/Users/obenmeir/AppServers/jboss-eap-7.4/modules/system/layers/base))]
+	at org.jboss.modules.ModuleClassLoader.findClass(ModuleClassLoader.java:255) ~[?:?]
+	at org.jboss.modules.ConcurrentClassLoader.performLoadClassUnchecked(ConcurrentClassLoader.java:410) ~[?:?]
+	at org.jboss.modules.ConcurrentClassLoader.performLoadClass(ConcurrentClassLoader.java:398) ~[?:?]
+	at org.jboss.modules.ConcurrentClassLoader.loadClass(ConcurrentClassLoader.java:116) ~[?:?]
+	... 22 more
+```
+#### Fix 1: Upgrade the Agent [#solution-a-fix-1]
+Upgrade the Java Agent to `8.6` or higher.
+
+#### Fix 2: Mark Packages to be Loaded by the System Classloader [#solution-a-fix-2]
+* Since the class `java.util.logging.Level` causes the error, we have to set a system property called `jboss.modules.system.pkgs`. This lets JBoss recognize all classes in the `java.util.logging` package as a system package. As such classes under the package namespace will be loaded by a system class-loader rather than JBoss's classloader.
+* To resolve this, set the system property by adding a comma-separated list of Java packages you want JBoss to recognize. For example: `Djboss.modules.system.pkgs=java.util.logging,javax.management`. 
+
+#### Fix 3: Manually Configuring JBoss Modules [#solution-a-fix-3]
+One of the problems with the previous fixes is some packages are not available via the system classloader or at least not all of them. One case here is with the `javax.management` package. 
+As a result you risk your application failing to startup or not even functioning correctly due to `ClassNotFoundException`s being thrown around.
+
+In this case you will need to manually configure affected JBoss Modules that are mentioned in your agent logs.
+
+For our scenario we will continue with `java.util.logging`, which is part of the `java.logging` module. 
+Based on the stacktrace, we see the affected JBoss module is `io.undertow.servlet`. 
+
+We can find the configuration file for a specific JBoss module in your JBoss server by: 
+1. Going into the relative path `modules/system/layers/base`
+2. Then entering the file path based on the module name. In the case of `io.undertow.servlet`, this translates to `io/undertow/servlet`. 
+3. Finally we go into the file under the path `main/module.xml`.
+So the full relative path for the `io.undertow.servlet` configuration file is `modules/system/layers/base/io/undertow/servlet/main/module.xml`.
+
+Then in that XML file, inside the `<module>` tag, we edit the body of the `<dependencies>` tag (and if the tag is not there, add it). 
+Inside the `<dependencies>` tag we add the element `<module name="$PLACEHOLDER FOR MODULE NAME"/>`. 
+For `java.util.logging`, the element becomes `<module name="$PLACEHOLDER FOR MODULE NAME"/>`.
+
+Here is a sample XML for `io.undertow.servlet`:
+```xml
+
+<module name="io.undertow.servlet" xmlns="urn:jboss:module:1.9">
+    <resources>
+        <resource-root path="undertow-servlet-2.2.5.Final-redhat-00001.jar"/>
+    </resources>
+
+    <dependencies>
+        <module name="javax.annotation.api"/>
+        <module name="sun.jdk"/>
+        <module name="javax.servlet.api"/>
+        <module name="javax.servlet.jsp.api"/>
+        <module name="javax.servlet.jstl.api"/>
+        <module name="org.jboss.logging"/>
+        <module name="io.undertow.core"/>
+        <module name="org.jboss.xnio"/>
+        <module name="jdk.unsupported"/>
+
+        <!-- Add visibility to java.util.logging -->
+        <module name="java.logging"/>
+    </dependencies>
+</module>
 ```
 
-* Since the class `java.util.logging.Level` causes the error, we have to set a system property called `jboss.modules.system.pkgs`. This lets JBoss recognize all classes in the `java.util.logging` package.
-* To resolve this, set the system property by adding a comma-separated list of Java packages you want JBoss to recognize. For example: `Djboss.modules.system.pkgs=java.util.logging,javax.management`. 
-* After implementing this solution, we recommend that you contact [support](https://support.newrelic.com/s/). If `NoClassDefFoundError` is found in the agent logs, it means our agent is using that class. Notifying our support team opens the door for a potential patch that makes JBoss recognize more packages.
+You will need to repeat this for all affected modules.
+
+### B. Classes Fail to Load During Application Runtime [#solution-application-runtime]
+As stated (before)[#problem-application-runtime], if you upgraded the Java Agent to `8.6` or higher, your application may fail to startup if you are using the Jakarta/J2EE Management API.
+The solution to this is to upgrade your agent to `8.7` or higher and then add the system property:
+```
+-Dcom.newrelic.jboss.jsr77.fix=true
+```
+
+The consequence of setting the system property to true is the agent will not label `javax.management` as a system class.
+
+As a consequence, if you are using JBoss EAP 7.4 or Wildfly 23 and higher, additional configuration is needed. 
+You will follow the same steps as you did with (a previous solution)[#solution-a-fix-3] where you will configure JBoss modules correctly.
+
+In particular you will need to edit the XML file `modules/system/layers/base/io/undertow/servlet/main/module.xml`. 
+Within the XML file, inside the body of `<dependencies>` add the XML element: `<module name="java.management"/>`.
+
+Here is an example XML snippet for JBoss EAP 7.4:
+```xml
+<module name="io.undertow.servlet" xmlns="urn:jboss:module:1.9">
+    <resources>
+        <resource-root path="undertow-servlet-2.2.5.Final-redhat-00001.jar"/>
+    </resources>
+
+    <dependencies>
+        <module name="javax.annotation.api"/>
+        <module name="sun.jdk"/>
+        <module name="javax.servlet.api"/>
+        <module name="javax.servlet.jsp.api"/>
+        <module name="javax.servlet.jstl.api"/>
+        <module name="org.jboss.logging"/>
+        <module name="io.undertow.core"/>
+        <module name="org.jboss.xnio"/>
+        <module name="jdk.unsupported"/>
+        <module name="java.management"/>
+    </dependencies>
+</module>
+```
+
+## Contacting Support [#contact-support]
+After implementing the above solutions, we recommend that you contact [support](https://support.newrelic.com/s/). 
+If `NoClassDefFoundError` is found in the agent logs, it means our agent is using that class. 
+Notifying our support team opens the door for a potential patch that makes JBoss recognize more packages.
