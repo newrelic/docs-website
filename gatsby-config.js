@@ -322,7 +322,6 @@ module.exports = {
 
     'gatsby-source-nav',
     'gatsby-source-install-config',
-    // 'gatsby-plugin-meta-redirect',
     {
       resolve: 'gatsby-plugin-gatsby-cloud',
       options: {
