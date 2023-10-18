@@ -1,6 +1,5 @@
 #! /usr/bin/env node
 
-import frontmatter from 'front-matter';
 import { readFile } from 'fs/promises';
 import { glob } from 'glob10';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
@@ -12,6 +11,7 @@ import { Command } from 'commander';
 
 import getAgentName from '../src/utils/getAgentName.js';
 import getEOLDate from '../src/utils/getEOLDate.js';
+import { frontmatter } from './utils/frontmatter.js';
 
 const program = new Command();
 program
@@ -74,7 +74,15 @@ const INCLUDE_AGENTS = new Set([
 const generateReleaseNoteObject = async (filePath) => {
   const file = await readFile(filePath, { encoding: 'utf8' });
   const slug = slugify(filePath);
-  const { attributes, body } = frontmatter(file);
+  const { attributes, body, error } = frontmatter(file);
+
+  if (error != null) {
+    console.log('❌ frontmatter error:');
+    console.log(filePath);
+    console.log(error.reason);
+    console.log(error.mark.snippet);
+    throw error;
+  }
 
   const output = {
     agent: getAgentName(filePath) ?? null,
@@ -101,10 +109,13 @@ const releaseNoteMdxs = await glob('src/content/docs/release-notes/**/*.mdx', {
 });
 
 const releaseNotes = (
-  await Promise.all(releaseNoteMdxs.map(generateReleaseNoteObject))
-).filter(
-  ({ date, agent }) => Boolean(date && agent) && INCLUDE_AGENTS.has(agent)
-);
+  await Promise.allSettled(releaseNoteMdxs.map(generateReleaseNoteObject))
+)
+  .filter(({ status }) => status === 'fulfilled')
+  .map(({ value }) => value)
+  .filter(
+    ({ date, agent }) => Boolean(date && agent) && INCLUDE_AGENTS.has(agent)
+  );
 console.error('📦 release notes JSON generated');
 
 const validateReleaseNotesAgents = (releaseNotes) => {
@@ -126,8 +137,9 @@ const validateReleaseNotesAgents = (releaseNotes) => {
   const errors = [];
 
   JSON_AGENTS.forEach((agent) => {
-    const agentsCount = releaseNotes.filter((note) => note.agent === agent)
-      .length;
+    const agentsCount = releaseNotes.filter(
+      (note) => note.agent === agent
+    ).length;
     if (agentsCount < 1) {
       const message = `\n😵 No release notes found for ${agent}`;
       errors.push(message);
