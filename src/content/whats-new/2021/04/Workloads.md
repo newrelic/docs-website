@@ -18,7 +18,7 @@ The new Health tab shows how the global status of your workload changed in the l
 
 Similar to the Navigator view that you can find on New Relic One Explorer, you’ll immediately see which entities are alerting, and will be able to filter and group them by health status, entity type or tag key. When something’s failing, you’ll immediately spot which entities in your system you need to have a look at first. 
 
-The Health tab also compiles all the open violations that affect your workload, with a preview of the conditions that are violated.
+The Health tab also compiles all the open breaches that affect your workload, with a preview of the conditions that are breached.
 
 ## The Activity tab
 

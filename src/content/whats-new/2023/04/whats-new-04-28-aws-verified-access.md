@@ -10,5 +10,5 @@ Amazon Web Services (AWS) now offers a simple, secure way to connect to your cor
 
 With this integration, verified access logs are sent to New Relic so that every access request, whether allowed or denied can be displayed on a unified dashboard, which customers can use for troubleshooting, auditability, compliance, or to investigate security incidents. 
 
-![Access logs for AWS Verified Access displayed in New Relic](./images/VerifiedAccessLogs.png "Access logs for AWS Verified Access displayed in New Relic")
+![Access logs for AWS Verified Access displayed in New Relic](./images/VerifiedAccessLogs.webp "Access logs for AWS Verified Access displayed in New Relic")
 <figcaption> AWS Verified Access logs displayed in New Relic</figcaption>

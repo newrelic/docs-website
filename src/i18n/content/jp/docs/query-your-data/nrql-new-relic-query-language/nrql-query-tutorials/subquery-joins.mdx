@@ -1,0 +1,153 @@
+---
+title: NRQLサブクエリ結合
+tags:
+  - Query your data
+  - 'NRQL: New Relic Query Language'
+  - NRQL query tutorials
+metaDescription: 'For New Relic query language (NRQL): how to use subquery joins.'
+translationType: machine
+---
+
+import nrqlJoinTuturialRowsSidebyside from 'images/nrql-join-tutorial-rows-sidebyside.webp'
+import nrqlJoinTuturialRowsJoined from 'images/nrql-join-tutorial-rows-joined.webp'
+import nrqlJoinTuturialAggregatesSidebyside from 'images/nrql-join-tutorial-aggregates-sidebyside.webp'
+import nrqlJoinTuturialAggregatesJoined from 'images/nrql-join-tutorial-aggregates-joined.webp'
+import nrqlJoinTuturialCalculationsSidebyside from 'images/nrql-join-tutorial-calculations-sidebyside.webp'
+import nrqlJoinTuturialCalculationsJoined from 'images/nrql-join-tutorial-calculations-joined.webp'
+
+New Relic 内に保存されているデータの多くは、他のデータ ( `Transaction` と `TransactionError` 、 `PageView` と `PageAction` 、 `Log` 、インフラストラクチャ イベントなど) に関連しています。これで、最終的にサブクエリ結合を使用して分析を実行し、これらのイベント間の相関関係を計算できるようになります。
+
+## サブクエリ結合の基本 [#subquery-join-basics]
+
+[サブクエリは](/docs/query-your-data/nrql-new-relic-query-language/get-started/subqueries-in-nrql) 、別のクエリ内にネストされたクエリです。サブクエリ結合を使用すると、キーに基づいてサブクエリの結果とその外部クエリの結果を組み合わせることができ、データセット全体の分析と強化が可能になります。
+
+### サブクエリ結合の例
+
+インフラストラクチャ データとトランザクション データを結合する次の例を考えてみましょう。
+
+<img
+  title="Datasets related by container ID"
+  alt="Datasets Related by Container ID"
+  src={nrqlJoinTuturialRowsSidebyside}
+/>
+
+この例には、インフラストラクチャ コンテナー (`ProcessSample`) の平均 CPU パーセンテージと、コンテナーごとのアプリ トランザクションの平均継続時間という 2 つのデータセットがあります。多くの場合、異なるソースからのデータは相互に関連付けられます。この場合、次のサブクエリ結合を使用して、コンテナーの CPU 使用率の上昇がトランザクションの速度低下の原因となっているかどうかを判断できます。
+
+```sql
+FROM Transaction
+  JOIN (FROM ProcessSample SELECT average(cpuPercent) AS cpu
+  FACET containerId LIMIT MAX) ON containerId
+SELECT average(duration)/latest(cpu) FACET containerId, containerName
+```
+
+<img
+  title="Datasets Joined by Container ID"
+  alt="Datasets Joined by Container ID"
+  src={nrqlJoinTuturialRowsJoined}
+/>
+
+このクエリを使用すると、CPU 使用率を考慮して平均トランザクション時間が長いコンテナーを確認し、異常値を調査して修正すべきバグや最適化が必要かどうかを確認できます。
+
+## サブクエリ結合の書き方
+
+サブクエリ結合には、2 つのデータセットと、2 つをリンクする主キーという 3 つのコンポーネントが必要です。
+
+```sql
+FROM Event [INNER|LEFT] JOIN (subquery) ON [key =] key SELECT ...
+```
+
+構文にはいくつかの簡単なルールがあります。
+
+* JOIN 句は常に FROM 句の直後に置く必要があります。
+* JOIN には、結合タイプを接頭辞として付けることができます。INNER または LEFT はオプションであり、省略した場合のデフォルトは INNER です。
+* サブクエリを含む括弧は JOIN 句の直後に置く必要があります。
+* ON 句はサブクエリの直後に置く必要があり、2 つの形式があります (詳細は以下を参照)。
+
+## 制限 [#subquery-join-limitations]
+
+* 結合されたサブクエリのデフォルトの [`LIMIT`](#sel-limit) は引き続き 10 で、最大 `LIMIT` は 2000 です。外側のクエリの `LIMIT` 内側のクエリに影響を与えないことに注意してください。
+* 結合サブクエリでの `TIMESERIES` の使用はサポートされていません。外側のクエリで `TIMESERIES`を使用する場合、結合されたサブクエリはクエリのタイムスパン全体にわたって 1 つの結果を提供することに注意してください。
+* 結合サブクエリでの `COMPARE WITH` の使用はサポートされていません。外側のクエリで `COMPARE WITH`を使用する場合、結合されたサブクエリはクエリの基本タイムスパンに基づいて単一の結果を提供し、タイムスパンと比較する外側のクエリに別の値を提供しないことに注意してください。
+* すべてのサブクエリと同様に、結合されたサブクエリはアラート条件では使用できません。
+* SELECT \* は親クエリではサポートされていますが、結合されたサブクエリではサポートされていません。
+* 結合のカーディナリティは 1:100 に制限されています。つまり、1 つの結合キーはサブクエリ結果の 100 を超える行にマップできません。
+* ON 句は等価条件のみをサポートします。
+* JOIN キーは、メトリック値のような複雑な属性にすることはできません。
+* JOIN 条件では属性タイプの強制は行われません。JOIN の ON 条件の左側は、ON 条件の右側と同じ型である必要があります。
+* メトリックのワイルドカードは、JOIN の ON 条件ではサポートされません。
+* サブクエリをメトリクスの行単位のクエリにすることはできません。
+* JOIN の ON 条件の右側は、クエリによって投影された識別子である必要があります。関数や算術演算は使用できません。
+* 結合されたサブクエリは `uniques()` 結果を投影できません。
+
+## サブクエリ結合の例 [#subquery-join-examples]
+
+サブクエリ結合の例をいくつか示します。
+
+<CollapserGroup>
+  <Collapser
+    id="add-missing-data"
+    title="不足しているデータを追加する"
+  >
+    この例では、APM データは 2 つの場所にあります。 `PageView` はエンド ユーザーが訪問したページに関する情報を提供し、 `PageAction` はページ上で実行されたアクションを提供します。これら 2 つのイベントには両方ともエンド ユーザーのセッションを識別するセッション ID がありますが、一部のデータは一方のイベントに含まれ、もう一方のイベントには含まれません。
+
+    ここで `city` は `PageView` の属性ですが、 `PageAction`ではありません。一方、 `currentUrl` は、 `PageAction` の属性ですが、 `PageView`ではありません。
+
+    <img
+      title="Datasets Related by Session ID"
+      alt="Datasets Related by Session ID"
+      src={nrqlJoinTuturialAggregatesSidebyside}
+    />
+
+    サブクエリ結合を使用すると、不足しているデータで `PageAction` データセットを強化できます。セッション ID を使用してデータを結合すると、最もクリック数が多かった URL だけでなく、これらのアクションがどこから来たのかも確認できます。
+
+    ```sql
+    FROM PageAction
+      JOIN (FROM PageView SELECT count(*) FACET session, city
+      LIMIT MAX) ON session
+    SELECT count(*) FACET city, currentUrl
+    ```
+
+    <img
+      title="Datasets Joined by Session ID"
+      alt="Datasets Joined by Session ID"
+      src={nrqlJoinTuturialAggregatesJoined}
+    />
+
+    ヒント: 外部クエリに結合される結果の数を最大化するには、内部サブクエリに LIMIT MAX を含めます。現在の最大結果制限は 2000 行です。
+  </Collapser>
+
+  <Collapser
+    id="calculations-across-datasets"
+    title="データセット全体の計算"
+  >
+    この例では、2 つのログ データセットが相互に一致するように解析され、ログ エラーの割合を求める計算が実行されます。
+
+    ログには、ログ メッセージ内にデータが埋め込まれている場合があります。 `aparse()` などの拡張文字列解析関数を使用すると、キー値を抽出できます。この場合、主キーのアプリケーション ID は、Log と Log_Error の両方のログ メッセージ内にあります。
+
+    <img
+      title="Datasets Related by App ID"
+      alt="Datasets Related by App ID"
+      src={nrqlJoinTuturialCalculationsSidebyside}
+    />
+
+    アプリケーションごとのエラーの割合を見つけるには、LEFT JOIN が必要です。これは、すべてのアプリケーションにエラーがあるわけではなく、INNER JOIN によってこれらのアプリケーションが除外されるためです。
+
+    ```sql
+    WITH numeric(aparse(message, '%applicationId: * %')) AS application_Id
+    FROM Log
+      LEFT JOIN (FROM Log_Error SELECT count(*) AS errCnt
+         FACET numeric(aparse(message, '%appId: * %')) AS app_Id
+         SINCE 1 day ago LIMIT MAX) ON application_Id=app_Id
+    SELECT (latest(errorCount) OR 0)/count(*) AS errorPercentage
+    FACET app_name, application_Id SINCE 1 day ago
+    ```
+
+    <img
+      title="Datasets Joined by App ID"
+      alt="Datasets Joined by App ID"
+      src={nrqlJoinTuturialCalculationsJoined}
+    />
+
+    2 つの異なるログ パーティションにデータが保存されており、アプリケーション ID がログ メッセージに隠されていたとしても、サブクエリ結合により必要なデータを解析し、エラーの割合を計算することができました。最新() の使用は、内部クエリの集計が外部クエリで正しく計算されていることを確認するのにも役立ちました。
+  </Collapser>
+</CollapserGroup>

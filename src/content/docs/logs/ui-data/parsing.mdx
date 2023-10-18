@@ -19,7 +19,7 @@ At New Relic, log **parsing** refers to the process of pulling out [attributes](
 
 New Relic parses log data automatically according to certain parsing rules. In this doc, you'll learn how logs parsing works, and how to create your own custom parsing rules.
 
-You can also create, query, and manage your log parsing rules by using NerdGraph, our GraphQL API, at [api.newrelic.com/graphiql](https://api.newrelic.com/graphiql). For more information, see our [NerdGraph tutorial for parsing](/docs/apis/nerdgraph/examples/nerdgraph-log-parsing-rules-tutorial/).
+You can also create, query, and manage your log parsing rules by using NerdGraph, our GraphQL API. A helpful tool for this is our [Nerdgraph API explorer](https://api.newrelic.com/graphiql). For more information, see our [NerdGraph tutorial for parsing](/docs/apis/nerdgraph/examples/nerdgraph-log-parsing-rules-tutorial/).
 
 Here's a 5-minute video about log parsing:
 
@@ -90,6 +90,7 @@ Here's an overview of how New Relic implements parsing of logs:
 
       <td>
         * Parsing will only be applied once to each log message. If multiple parsing rules match the log, only the first that succeeds will be applied.
+        * Parsing rules are unordered. If more than one parsing rules matches a log, one is chosen at random. Be sure to build your parsing rules so that they do not match the same logs.
         * Parsing takes place during log ingestion, before data is written to NRDB. Once data has been written to storage, it can no longer be parsed.
         * Parsing occurs in the pipeline **before** data enrichments take place. Be careful when defining the matching criteria for a parsing rule. If the criteria is based on an attribute that doesn't exist until after parsing or enrichment take place, that data won't be present in the logs when matching occurs. As a result, no parsing will happen.
       </td>
@@ -331,11 +332,20 @@ Note that variable names must be explicitly set and be lowercase like `%{URI:uri
           `geo`
         </td>
         <td>
-          Geographic location from IP addresses. See [Geolocating IP addresses](#geo) for more information.
+          Geographic location from IP addresses. See [Geolocating IP addresses (GeoIP)](#geo) for more information.
         </td>
       </tr>
     </tbody>
   </table>
+  </Collapser>
+
+  <Collapser
+    id="grok-multiline"
+    title="Grok multiline parsing"
+  >
+    If you have multiline logs, be aware that the `GREEDYDATA` Grok pattern does not match newlines (it is equivalent to `.*`). 
+
+    So instead of using `%{GREEDYDATA:some_attribute}` directly, you will need to add the multiline flag in front of it: `(?s)%{GREEDYDATA:some_attribute}`
   </Collapser>
 
   <Collapser
@@ -365,11 +375,35 @@ Note that variable names must be explicitly set and be lowercase like `%{URI:uri
     my_attribute_prefix.request.headers.X-Custom: "bar"
     ```
 
+    You can define the list of attributes to extract with the option `keepAttributes`. For example, with the following Grok expression:
+
+    ```
+    %{TIMESTAMP_ISO8601:containerTimestamp} %{GREEDYDATA:my_attribute_prefix:json({"keepAttributes": ["my_attribute_prefix.event", "my_attribute_prefix.response.headers.X-Custom"]})}
+    ```
+
+    The resulting log is:
+
+    ```
+    containerTimestamp: "2015-05-13T23:39:43.945958Z"
+    my_attribute_prefix.event: "TestRequest"
+    my_attribute_prefix.request.headers.X-Custom: "bar"
+    ```
+
+    If you need to omit the `my_attribute_prefix` prefix, you can include the `"noPrefix": true` in the configuration.
+
+    ```
+    %{TIMESTAMP_ISO8601:containerTimestamp} %{GREEDYDATA:my_attribute_prefix:json({"noPrefix": true})}
+    ```
+
     You can also configure the `json` [Grok type](#grok-syntax) using `:json(_CONFIG_)`:
 
     - `json({"dropOriginal": true})`: Drop the JSON snippet that was used in parsing. When set to `true` (default value), the parsing rule will drop the original JSON snippet. Note the JSON attributes will remain in the message field.
     - `json({"dropOriginal": false})`: This will show the JSON payload that was extracted. When set to `false`, the full JSON-only payload will be displayed under an attribute named in `my_attribute_prefix` above. Note the JSON attributes will remain in the message field here as well giving the user 3 different views of the JSON data. If storage of all three versions is a concern it's recommended to use the default of `true` here.
     - `json({"depth": 62})`: Levels of depth you want to parse the JSON value (defaulted to 62).
+    - `json({"keepAttributes": ["attr1", "attr2", ..., "attrN"]})`: Specifies which attributes will be extracted from the JSON. The provided list cannot be empty. If this configuration option is not set, all attributes are extracted.
+    - `json({"noPrefix": true})`: Set this option to `true` to remove the prefix from the attributes extracted from the JSON.
+
+
   </Collapser>
   <Collapser
     id="parsing-csv"
@@ -424,7 +458,7 @@ Note that variable names must be explicitly set and be lowercase like `%{URI:uri
   </Collapser>
   <Collapser
     id="geo"
-    title="Geolocating IP addresses"
+    title="Geolocating IP addresses (GeoIP)"
   >
     If your system sends logs containing IPv4 addresses, New Relic can locate them geographically and enrich log events with the specified attributes. You can use the `geo` [Grok type](#grok-syntax), which finds the position of an IP address captured by the Grok pattern. This format can be configured to return one or more fields related to the address, such as the city, country, and latitude/longitude of the IP.
 
@@ -526,8 +560,6 @@ In order to prevent problems, we apply two parsing limits: per-message-per-rule 
 
       <td>
         The per-account limit exists to prevent accounts from using more than their fair share of resources. The limit considers the total time spent processing **all** log messages for an account per-minute.
-
-        The limit is not a fixed value; it scales up or down proportionally to the volume of data stored daily by the account and the environment size that is subsequently allocated to support that customer.
       </td>
     </tr>
   </tbody>
@@ -1001,13 +1033,13 @@ Many logs are formatted or structured in a unique way. In order to parse them, c
   src={logsParsingUi}
 />
 <figcaption>
-  From the left nav in the Logs UI, select **Parsing**, then create your own custom parsing rule with a valid NRQL `WHERE` clause and Grok pattern.
+  From the left nav in the logs UI, select **Parsing**, then create your own custom parsing rule with a valid NRQL `WHERE` clause and Grok pattern.
 </figcaption>
 
 To create and manage your own, custom parsing rules:
 
-1. Go to **[one.newrelic.com](https://one.newrelic.com/all-capabilities) > Logs**.
-2. From **Manage Data** on the left nav of the Logs UI, click **Parsing**, then click **Create parsing rule**.
+1. Go to **[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Logs**.
+2. From **Manage data** on the left nav of the logs UI, click **Parsing**, then click **Create parsing rule**.
 3. Enter a name for the new parsing rule.
 4. Select an existing field to parse (default = `message`), or enter a new field name.
 5. Enter a valid NRQL `WHERE` clause to match the logs you want to parse.
@@ -1017,8 +1049,8 @@ To create and manage your own, custom parsing rules:
 
 To view existing parsing rules:
 
-1. Go to **[one.newrelic.com](https://one.newrelic.com/all-capabilities) > Logs**.
-2. From **Manage Data** on the left nav of the Logs UI, click **Parsing**.
+1. Go to **[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Logs**.
+2. From **Manage data** on the left nav of the logs UI, click **Parsing**.
 
 ## Troubleshooting [#troubleshooting]
 

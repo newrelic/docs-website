@@ -74,7 +74,6 @@ const BasicDoc = ({ data, location, pageContext }) => {
     tags,
     type,
     translationType,
-    dataSource,
     signupBanner,
   } = frontmatter;
 
@@ -107,7 +106,6 @@ const BasicDoc = ({ data, location, pageContext }) => {
         description={metaDescription}
         type={type ? TYPES.BASIC_PAGE[type] : TYPES.BASIC_PAGE.default}
         tags={tags}
-        dataSource={dataSource}
         disableSwiftype={disableSwiftype}
       />
       {bannerVisible && (
@@ -124,7 +122,7 @@ const BasicDoc = ({ data, location, pageContext }) => {
             'mt-disclaimer mt-disclaimer'
             'page-title page-tools'
             'content page-tools';
-          grid-template-columns: minmax(0, 1fr) 205px;
+          grid-template-columns: minmax(0, 1fr) 12.8125rem;
           grid-column-gap: 2rem;
 
           ${bannerVisible &&
@@ -253,7 +251,6 @@ export const pageQuery = graphql`
         type
         tags
         translationType
-        dataSource
         signupBanner {
           cta
           text

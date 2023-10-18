@@ -4,10 +4,7 @@ const parse = require('rehype-parse');
 const unified = require('unified');
 const rehypeStringify = require('rehype-stringify');
 const addAbsoluteImagePath = require('./rehype-plugins/utils/addAbsoluteImagePath');
-const getAgentName = require('./src/utils/getAgentName');
-const getEOLDate = require('./src/utils/getEOLDate');
 
-const dataDictionaryPath = `${__dirname}/src/data-dictionary`;
 const siteUrl = 'https://docs.newrelic.com';
 const additionalLocales = ['jp', 'kr'];
 const allFolders = fs
@@ -87,13 +84,6 @@ module.exports = {
     {
       resolve: 'gatsby-source-filesystem',
       options: {
-        name: 'data-dictionary',
-        path: dataDictionaryPath,
-      },
-    },
-    {
-      resolve: 'gatsby-source-filesystem',
-      options: {
         name: 'translated-content',
         path: `${__dirname}/src/i18n/content`,
         ignore:
@@ -168,7 +158,6 @@ module.exports = {
         // If this is addressed in MDX v2, we can safely remove this.
         remarkPlugins: [],
         rehypePlugins: [
-          require('./rehype-plugins/image-sizing'),
           [
             require('./rehype-plugins/gatsby-inline-images'),
             { spacing: '0.5rem' },
@@ -244,7 +233,6 @@ module.exports = {
         path: `./src/install/config/`,
       },
     },
-    // 'gatsby-plugin-generate-doc-json',
     {
       resolve: 'gatsby-plugin-generate-json',
       options: {
@@ -317,106 +305,10 @@ module.exports = {
         },
       },
     },
-    {
-      resolve: `gatsby-plugin-json-output`,
-      options: {
-        siteUrl,
-        graphQLQuery: `
-        {
-          allDataDictionaryEvent {
-            edges {
-              node {
-                name
-                definition {
-                  rawMarkdownBody
-                }
-                dataSources
-                childrenDataDictionaryAttribute {
-                  name
-                  definition {
-                    rawMarkdownBody
-                  }
-                  units
-                }
-              }
-            }
-          }
-        }
-      `,
-        serializeFeed: ({ data }) =>
-          data.allDataDictionaryEvent.edges.map(({ node }) => ({
-            name: node.name,
-            definition:
-              node.definition && node.definition.rawMarkdownBody.trim(),
-            dataSources: node.dataSources,
-            attributes: node.childrenDataDictionaryAttribute.map(
-              (attribute) => ({
-                name: attribute.name,
-                definition: attribute.definition.rawMarkdownBody.trim(),
-                units: attribute.units,
-              })
-            ),
-          })),
-        feedFilename: 'data-dictionary',
-        nodesPerFeedFile: Infinity,
-      },
-    },
-    {
-      resolve: `gatsby-plugin-generate-json`,
-      options: {
-        query: `
-        {
-          allMdx(filter: {fields: {slug: {regex: "/docs/release-notes/"}}}) {
-            nodes {
-              frontmatter {
-                subject
-                releaseDate(fromNow: false)
-                downloadLink
-                version
-                features
-                bugs
-                security
-              }
-              excerpt(pruneLength: 5000)
-              slug
-            }
-          }
-        }
-        `,
-        path: '/api/agent-release-notes.json',
-        serialize: ({ data }) =>
-          data.allMdx.nodes
-            .map(({ frontmatter, excerpt, slug }) => {
-              const releaseNote = {
-                agent: getAgentName(frontmatter.subject),
-                date: frontmatter.releaseDate,
-                downloadLink: frontmatter.downloadLink,
-                version: frontmatter.version,
-                features: frontmatter.features,
-                bugs: frontmatter.bugs,
-                security: frontmatter.security,
-                description: excerpt,
-                slug: slug,
-              };
-
-              if (releaseNote.date) {
-                releaseNote.eolDate = getEOLDate(releaseNote.date);
-              }
-
-              return releaseNote;
-            })
-            .filter(({ date, agent }) => Boolean(date && agent)),
-      },
-    },
     'gatsby-plugin-release-note-rss',
     'gatsby-plugin-whats-new-rss',
     'gatsby-plugin-security-bulletins-rss',
-    {
-      resolve: 'gatsby-source-data-dictionary',
-      options: {
-        path: dataDictionaryPath,
-      },
-    },
+
     'gatsby-source-nav',
     'gatsby-source-install-config',
     'gatsby-plugin-meta-redirect',

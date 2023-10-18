@@ -1,0 +1,208 @@
+---
+title: Instrument multiple apps with npm and NerdGraph
+metaDescription: For New Relic browser monitoring, how to combine the npm package with NerdGraph to instrument multiple applications via API. 
+---
+
+You can use our NerdGraph API to create a new browser application and retrieve the configuration values. This can be combined with the browser agent npm package to incorporate the configuration of the browser agent as part of your application build process or separate the configuration of the agent from the implementation of the agent within your application.
+
+If you've never used NerdGraph to create or configure a browser application, first read [this NerdGraph tutorial](/docs/apis/nerdgraph/examples/browser-monitoring-config-nerdgraph#create-browser).
+
+## Set up the agent [#set-up-agent]
+
+Open your IDE and a terminal in the root of your project or where your frontend dependencies are managed. This is the location where you will run `npm install --save @newrelic/browser-agent` to install the npm package. Once installed, locate the main entry point file for your website. This may be `<project_root>/src/index.js` or `<project_root>/src/index.ts` but could be different in your application. If you have multiple entrypoints, select the one that loads the soonest in the browser and preferrably is not using the `async` or `defer` script element attributes.
+
+Once you have located where you want to add the browser agent, add this code snippet in that file.
+
+```javascript
+import { BrowserAgent } from '@newrelic/browser-agent/loaders/browser-agent'
+// Remaining import statements
+
+// Populate using values from NerdGraph
+const options = {
+  init: { ... },
+  info: { ... },
+  loader_config: { ...}
+}
+
+// The agent loader code executes immediately on instantiation.
+new BrowserAgent(options)
+
+// Remaining code
+```
+
+The `import` statement for the browser agent should be the first thing in your source file. After the remaining `import` statements, immediately instantiate and configure the browser agent. Be sure to do this before any other code so the browser agent has a chance to load and capture data as early as possible.
+
+## Retrieve the configuration [#retrieve-config]
+
+The `options` object in the previous snippet needs to be populated with configuration information about the browser application from New Relic. For the purposes of this tutorial, we will use the New Relic UI with an existing browser application and the NerdGraph Explorer to complete the API calls.
+
+<Steps>
+<Step>
+### Get browser application entity GUID [#get-entity-guid]
+
+To use the NerdGraph API, you'll need to get [the entity GUID](/docs/new-relic-solutions/new-relic-one/core-concepts/what-entity-new-relic/#find) for the browser application you're instrumenting. 
+
+</Step>
+
+<Step>
+### Retrieve browser application config [#retrieve-app-config]
+
+Open the NerdGraph Explorer at [api.newrelic.com/graphiql](https://api.newrelic.com/graphiql) and use the below query to retrieve the config values for the browser application. If your New Relic account uses an [EU data center](/docs/using-new-relic/welcome-new-relic/get-started/our-eu-us-region-data-centers), go to [api.eu.newrelic.com/graphiql](https://api.eu.newrelic.com/graphiql).
+
+```graphql
+query {
+  actor {
+    entity(guid: '<guid>') {
+      ... on BrowserApplicationEntity {
+        guid
+        name
+        browserProperties {
+          jsConfigScript
+        }
+      }
+    }
+  }
+}
+```
+
+Replace the `<guid>` portion of the query with the entity GUID you retrieved earlier. Run the query and you should receive output like that shown here:
+
+```graphql
+{
+  "data": {
+    "actor": {
+      "entity": {
+        "browserProperties": {
+          "jsConfig": {
+            "info": {
+              "applicationID": 1234567,
+              "beacon": "bam.nr-data.net",
+              "errorBeacon": "bam.nr-data.net",
+              "licenseKey": 123456789,
+              "sa": 1
+            },
+            "init": {
+              "ajax": {
+                "deny_list": [
+                  "bam-cell.nr-data.net"
+                ]
+              },
+              "distributed_tracing": {
+                "allowed_origins": [],
+                "cors_enabled": false,
+                "cors_use_newrelic_header": false,
+                "cors_use_tracecontext_headers": false,
+                "enabled": true,
+                "exclude_newrelic_header": false
+              },
+              "privacy": {
+                "cookies_enabled": true
+              }
+            },
+            "loader_config": {
+              "accountID": <redacted>,
+              "agentID": <redacted>,
+              "applicationID": <redacted>,
+              "licenseKey": "<redacted>",
+              "trustKey": 1672072
+            }
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+<Callout variant="tip">
+Need more information on using NerdGraph? See [Introduction to NerdGraph](/docs/apis/nerdgraph/get-started/introduction-new-relic-nerdgraph).
+</Callout>
+
+</Step>
+
+<Step>
+### Install the config [#install-config]
+
+Copy the contents of the `jsConfig` property and replace the contents of the `options` object your source file.
+</Step>
+</Steps>
+
+## Deploy using the npm package [#deploy-with-npm]
+
+With the npm package installed and properly configured, you can now build and deploy your browser application. Load your website in a browser and verify there are network calls being made to the `beacon` URI from the config.
+
+## Inject browser application config into HTML [#inject-config-into-html]
+
+As an alternative to placing the browser application configuration in your source code, you may want to inject the configuration into the HTML of your website. This is especially useful when your source code is reused across multiple websites.
+
+<Steps>
+<Step>
+### Modify source code snippet [#modify-source-code-snippet]
+
+Modify the first snippet in your source code to `import` and instantiate the `BrowserAgent` class with no parameters.
+
+```javascript
+import { BrowserAgent } from '@newrelic/browser-agent/loaders/browser-agent'
+// Remaining import statements
+
+// The agent loader code executes immediately on instantiation.
+new BrowserAgent()
+
+// Remaining code
+```
+</Step>
+
+<Step>
+### Modify NerdGraph query [#modify-graphql]
+
+Modify the NerdGraph query to retrieve the browser application config as a JSON encoded script string. Run the new query remembering to replace `<guid>` with the browser application entity GUID retrieved earlier.
+
+```graphql
+query {
+  actor {
+    entity(guid: '<guid>') {
+      ... on BrowserApplicationEntity {
+        guid
+        name
+        browserProperties {
+          jsConfigScript
+        }
+      }
+    }
+  }
+}
+```
+
+This will return a result like: 
+
+```graphql
+{
+  "data": {
+    "actor": {
+      "entity": {
+        "browserProperties": {
+          "jsConfigScript": "<script type=\"text/javascript\">\n;window.NREUM||(NREUM={});NREUM.init={distributed_tracing:{enabled:true},privacy:{cookies_enabled:true},ajax:{deny_list:[\"bam-cell.nr-data.net\"]}};\n\n;NREUM.loader_config={accountID:\"<redacted>\",trustKey:\"<redacted>\",agentID:\"<redacted>\",licenseKey:\"<redacted>\",applicationID:\"<redacted>\"};\n;NREUM.info={beacon:\"bam.nr-data.net\",errorBeacon:\"bam.nr-data.net\",licenseKey:\"<redacted>\",applicationID:\"<redacted>\",sa:1};\n</script>\n"
+        }
+      }
+    }
+  }
+}
+```
+</Step>
+
+<Step>
+### Install the config [#inject-install-config]
+
+Copy the contents of the `jsConfigScript` property. You will need to run the results through a JSON parser or replace the values of `\"` with `"`. The result will be a string containing a `<script>` element with all the browser application config information. Place the `<script>` element at the top of the `<head>` element, but below any `<meta>` elements, of your website HTML.
+
+
+</Step>
+</Steps>
+
+## Next steps [#next-steps]
+
+This tutorial only scratches the surface of how you might use our NerdGraph API and the browser agent npm package. Some ideas for next steps:
+
+* Integrate the browser agent into your website builder application and use NerdGraph to retrieve the browser application config for each of your customers when they enable New Relic monitoring within your management dashboard.
+* Create a shared browser agent component in your organization's component library and automatically injects the configuration into the HTML using a CDN edge function that calls NerdGraph.
+* Modify your CI/CD pipeline to populate the source code with different browser application configurations from NerdGraph based on what environment is being deployed to.

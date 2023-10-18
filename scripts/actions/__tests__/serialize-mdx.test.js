@@ -1,5 +1,6 @@
 import serializeMDX from '../serialize-mdx';
 import fs from 'fs';
+import deserializeHTML from '../deserialize-html';
 
 test('serializes DoNotTranslate wrapping a Collapser', async () => {
   const html = await serializeMDX(`
@@ -396,5 +397,45 @@ test('serialize iframes', async () => {
 test('serialize InlineSignup component', async () => {
   const mdx = '<InlineSignup />';
   const html = await serializeMDX(mdx);
+  expect(html).toMatchSnapshot();
+});
+
+test('serializing CONTRIBUTOR_NOTE removes it from translated files', async () => {
+  const html = await serializeMDX(`
+<CONTRIBUTOR_NOTE>
+  This is a note to future authors about the MDX content.
+
+  It does not render in the UI
+</CONTRIBUTOR_NOTE>
+  `);
+
+  expect(html).toMatchSnapshot();
+});
+
+test('serializing components with apostrophes in their props', async () => {
+  const input = `
+    <UserJourneyControls
+    nextStep={{"path": "/docs/tutorial-dd-migration/making-the-switch/", "title": "Next step", "body": "Learn more about New Relic's other features and what you need to make the switch from Datadog"}}
+    previousStep={{"path": "/docs/tutorial-dd-migration/installing-monitor/", "title": "Previous step", "body": "Learn more about ingesting data to monitor"}} />
+    `;
+  // `title` string has a colon
+  const input2 = `
+    <UserJourneyControls
+        nextStep={{"path": "/docs/distributed-tracing/ui-data/trace-details/", "title": "Next step:", "body": "Understand the trace details UI"}}
+    />    
+  `;
+  const html = await serializeMDX(input);
+  const str = await deserializeHTML(html);
+  expect(html).toMatchSnapshot();
+  expect(str.replace(/ |\n/g, '')).toBe(input.replace(/ |\n/g, ''));
+  const html2 = await serializeMDX(input2);
+  const str2 = await deserializeHTML(html2);
+  expect(html2).toMatchSnapshot();
+  expect(str2.replace(/ |\n/g, '')).toBe(input2.replace(/ |\n/g, ''));
+});
+
+test('EolPage', async () => {
+  const input = `<EolPage agent='node' locale='ko' />`;
+  const html = await serializeMDX(input);
   expect(html).toMatchSnapshot();
 });

@@ -12,6 +12,7 @@ import {
 import { css } from '@emotion/react';
 
 import { DocTile, DocTiles } from './DocTile';
+import EolPage from './EolPage';
 import LandingPageHero from './LandingPageHero';
 import LandingPageTile from './LandingPageTile';
 import LandingPageTileGrid from './LandingPageTileGrid';
@@ -20,12 +21,13 @@ import InlinePopover from './InlinePopover';
 import InstallFeedback from './InstallFeedback';
 import MDXButton from './MDXButton';
 import MDXButtonGroup from './MDXButtonGroup';
+import ContributorNote from './ContributorNote';
 import MDXTechTileGrid from './MDXTechTileGrid';
 import PropTypes from 'prop-types';
 import React from 'react';
 import TechTile from './TechTile';
+import UserJourneyControls from './UserJourneyControls';
 import WhatsNextTile from './WhatsNextTile';
-import HideWhenEmbedded from './HideWhenEmbedded';
 
 const defaultComponents = {
   a: (props) => <MDXLink {...props} displayExternalIcon />,
@@ -90,22 +92,20 @@ const defaultComponents = {
   ButtonLink: (props) => <MDXButton as={Link} {...props} />,
   ButtonGroup: MDXButtonGroup,
   DoNotTranslate: ({ children }) => <>{children}</>,
+  CONTRIBUTOR_NOTE: ContributorNote,
   Tabs: Tabs,
   TabsBar: Tabs.Bar,
   TabsBarItem: Tabs.BarItem,
   TabsPageItem: Tabs.Page,
   TabsPages: Tabs.Pages,
-  InlineSignup: () => (
-    <HideWhenEmbedded>
-      <InlineSignup />
-    </HideWhenEmbedded>
-  ),
+  InlineSignup,
   InlinePopover,
   InstallFeedback,
   WhatsNextTile,
   Side,
   SideBySide,
-  HideWhenEmbedded,
+  UserJourneyControls,
+  EolPage,
 };
 
 const MDXContainer = ({ body, children, components }) => {

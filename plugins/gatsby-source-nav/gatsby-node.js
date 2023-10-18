@@ -136,8 +136,8 @@ const createReleaseNotesNav = async ({ createNodeId, nodeModel }) => {
           },
         },
         sort: {
-          fields: ['frontmatter.releaseDate'],
-          order: ['DESC'],
+          fields: ['frontmatter.releaseDate', 'slug'],
+          order: ['DESC', 'DESC'],
         },
       },
     }),

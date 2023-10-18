@@ -1,0 +1,660 @@
+---
+title: "Service characterization: Optimize your application telemetry" 
+tags:
+  - Observability maturity
+  - Operational efficiency 
+  - Service characterization
+  - Implementation guide
+metaDescription: "Use service characterization to optimize application telemetry for issue detection and resolution"
+redirects:
+  - /docs/apm/agents/manage-apm-agents/agent-data/custom-instrumentation
+  - /docs/new-relic-solutions/observability-maturity/operational-efficiency/sc-implementation-guide
+---
+
+import omaOeScServiceDiagram from 'images/oma-oe_diagram_sc-service.webp'
+
+import omaOeScTransactionBreakdown from 'images/oma-oe-sc_screenshot-full_transaction-breakdown.webp'
+
+import omaOeScTransactionBreakdownWeighted from 'images/oma-oe-sc-transaction-breakdown-weighted.webp'
+
+import omaOeScTransactionBreakdownHistogramNonNormal from 'images/oma-oe-sc_screenshot-full_transaction-breakdown-histogram-non-normal.webp'
+
+import omaOeScTransactionBreakdownHistogramNormal from 'images/oma-oe-sc_screenshot-full_transaction-breakdown-histogram-normal.webp'
+
+import omaOeScTransactionAttributes from 'images/oma-oe-sc_screenshot-full_transaction-attributes.webp'
+
+import omaOeScErrorAttributes from 'images/oma-oe-sc_screenshot-crop_error-attributes.webp'
+
+import omaOeScTransactionNrqlCustomAttribute from 'images/oma-oe-sc_screenshot-crop_transaction-nrql-custom-attributes.webp'
+
+import omaOeScTransactionNrqlFeatureFlag from 'images/oma-oe-sc_screenshot-crop_transaction-nrql-feature-flag.webp'
+
+import omaOeScSummaryComponents from 'images/oma-oe-sc_screenshot-full_summary-components.webp'
+
+import omaOeScTransactionComponents from 'images/oma-oe-sc_screenshot-crop_transaction-components.webp'
+
+import omaOeScSummaryClient from 'images/oma-oe-sc_screenshot-full_summary-client.webp'
+
+import omaOeScExternalService from 'images/oma-oe-sc_screenshot-full_external-service.webp'
+
+import omaOeScDatabases from 'images/oma-oe-sc_screenshot-full_databases.webp'
+
+import omaOeScSyntheticsMenu from 'images/oma-oe-sc_screenshot-crop_synthetics-menu.webp'
+
+Determine whether or not you have the telemetry needed for monitoring and optimizing your application services. 
+
+
+## Prerequisites [#prerequisites]
+
+As you work through the steps in the guide, keep the following documentation resources handy:
+* [APM agent install](/docs/new-relic-one/install-configure/install-new-relic/#apm-install) and [configure](/docs/new-relic-one/install-configure/configure-new-relic-agents)
+* Instrumentation guides:
+  * [C-SDK](/docs/apm/agents/c-sdk/instrumentation/instrument-your-app-c-sdk)
+  * [Go](/docs/apm/agents/go-agent/instrumentation)
+  * [Java](/docs/apm/agents/java-agent/custom-instrumentation/java-custom-instrumentation)
+  * [.NET](/docs/apm/agents/net-agent/custom-instrumentation/introduction-net-custom-instrumentation)
+  * [Node.js](/docs/apm/agents/nodejs-agent/extend-your-instrumentation/nodejs-custom-instrumentation)
+  * [PHP](/docs/apm/agents/php-agent/php-agent-api/)
+  * [Python](/docs/apm/agents/python-agent/custom-instrumentation/python-custom-instrumentation/)
+  * [Ruby](/docs/apm/agents/ruby-agent/api-guides/ruby-custom-instrumentation/)
+  * [OpenTelemetry SDKs](https://opensource.newrelic.com/projects/open-telemetry)
+* [Introduction to New Relic synthetic monitoring](/docs/synthetics/)
+
+## Establish the current state [#current-state]
+
+To establish the current state of your services, you'll go through two steps: 
+* [Determine your instrumentation needs](#instrumentation-needs)  
+* [Understand endpoint testing](#endpoint-testing)
+
+These are described in more detail below. 
+
+### Determine your instrumentation needs [#instrumentation-needs]
+
+Every service fulfilling a business need should have enough instrumentation to answer the following questions. 
+* How many requests do I receive?
+* How many messages and HTTP requests do I send?
+* How many requests are successful?
+* What is the response time for a full request?
+* What is the response time for invocation to a dependency?
+* How much resource should this process take under what number of requests?
+* What are all my points of failure?
+
+**Does the telemetry adequately describe the function and the purpose of my service?**
+
+Think about what your service does. Perhaps it receives an order, needs to validate the order for integrity, conveys that order to a clearinghouse service, and receives a confirmation code that is relayed back to the requestor. This example gives a clear path to break down the function of service and evaluate if we have enough telemetry and context to make informed appraisals of how the service is functioning.
+
+<img src={omaOeScServiceDiagram} alt="Service Diagram" title="Service Diagram" />
+
+<figcaption>Conceptual service that receives and processes HTTP requests.</figcaption>
+
+If you are using New Relic's agents, you should have all the information you need to answer the questions at the beginning of this section. However, sometimes specific implementations require additional instrumentation.
+
+The following table documents additional situations where you might add telemetry or metadata capture through instrumentation. The [improvement process](#improvement-process) section that follows describes how to get additional data needed to manage your service.
+
+Considerations for instrumentation:
+
+|                                                                         |                                                                                                                                                                                                                   |
+| ----------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Are my base telemetry requirements satisfied?                           | If not, document the gaps and evaluate if they can be closed through custom configuration or additional instrumentation techniques.                                                                               |
+| Can I isolate discrete user stories within the telemetry?               | If not, use trace capabilities of agents to capture the invocation of a discrete user story with adequate context metadata.                                                                                       |
+| Do I have insight into the parameters that are invoking user stories?   | If not, use custom attributes through agent SDKs to add context to the transactions and spans.                                                                                                                    |
+| Can I measure the major functional components of the software?          | If not, use instrumentation SDKs to create baseline metrics on a specific functional element of the code. (cache lookups, processing routines, or utility functions).                                             |
+| Can I measure the client interactions from my code to external systems? | If not, ensure requests and responses are encapsulated by component level tracking. If the client invocation is asynchronous, consider implementing distributed trace features to view the successive processing. |
+
+### Understand endpoint testing [#endpoint-testing]
+
+Endpoint testing is a simple and practical approach that greatly expedites how to determine the root cause of a given system failure. It allows operations and supporting teams to quickly know there is a real problem, and isolate that problem to a specific service.
+
+Modern software systems depend on a number of services to complete their tasks. Historically, the process of monitoring those service endpoints was straightforward. The architecture team would produce a well documented map of dependencies for the operations team. The operations team would dutifully create a check of the itemized endpoints.
+
+Today, with continuous delivery processes and small batch changes, new endpoints and dependencies can be created and deployed at a rate that makes it difficult for an operations team to anticipate and proactively define synthetic checks. By giving the service developers greater scope of control to define production services tests during the development phase, you will greatly increase the coverage of endpoint tests for your observability program.
+
+#### Decision matrix [#endpoint-testing-decision-matrix]
+
+To determine whether to create a synthetic check is straightforward. You'll want to know the first occurrence of a failure for a dependency. If you answer “yes” to any of the following questions, consider creating a dedicated synthetic check:
+* Is the endpoint customer-facing?
+* Does the endpoint invoke new dependencies?
+* Is the endpoint on a different network infrastructure?
+* Is the endpoint shared between multiple services?
+* Is the endpoint a content origin supported by a CDN?
+
+## Improvement process [#improvement-process]
+
+An improvement process will often include these major steps: 
+* [Configure your instrumentation](#config-based-instrumentation)  
+* [Isolate service functions](#isolate-service-functions)  
+* [Define custom transaction names](#custom-transaction-names)  
+* [Measure service components](#component-measurement)  
+* [Ensure your frameworks are measured](#framework-measurement)  
+* [Track every external call](#external-services)  
+* [Test your endpoints](#endpoint-testing2)
+
+We'll examine these in more detail now. 
+
+### Configure your instrumentation [#config-based-instrumentation]
+
+Each New Relic agent provides a variety of configuration options. Typically you'll define a standard approach to include the agents within infrastructure hosts, application runtimes, and connections to your cloud service providers. Default agent configurations are generic and widely applicable.
+
+One of the best ways for developers to influence the applicability of deployment is by overriding the default configuration options for your service instance. The following are default instrumentation options to consider.
+
+#### Create an effective service name [#service-naming]
+
+<Callout variant="tip">
+  New Relic agents provide a variety of mechanisms to define the service runtime name. Please see the [application naming guide](/docs/apm/agents/manage-apm-agents/app-naming) to find the implementation details for your runtime environment.
+</Callout>
+
+The name you give a service provides the **namespace** (where you will find the agent data). One of the most important strategies New Relic uses to understand the behavior of your services is to aggregate like things together and to use the commonalities derived from aggregation to isolate variance.
+
+Modern services are often deployed to multiple contexts to ensure capacity handling or specific functional segmentation. In order to take advantage of the benefits of aggregation, it's very important that your service runtimes are grouping instances with identical operational characteristics. Therefore, when deploying services, pay close attention to the following three criteria to help you name your deployed services:
+* Does my service target a specific audience?
+* Is my service running a different codebase?
+* Is my codebase using a different runtime configuration?
+
+If you answer “yes” to any of these questions, consider creating a unique name for your service.
+
+**Audience criteria**
+
+Think of the audience as the group of end users or service functions. If your service is split between North American and European deployments, the runtimes in those deployments should be grouped accordingly. For example:
+
+```
+newrelic.appname = PORTAL_AMER
+```
+
+and
+
+```
+newrelic.appname = PORTAL_EMEA
+```
+
+This will group the telemetry created by that audience together, allowing you to better understand the contextual similarities of service problems related to a specific user audience.
+
+Sometimes the way we deploy applications divides the operational context of a service, such as a portal application with administrative functions. Maybe the admin functions are baked into the general portal codebase, but only one instance in a cluster is handling the portal admin requests. In that case you have a functional audience segmentation opportunity, so you should ensure that it is named appropriately. For example:
+
+```
+newrelic.appname = PORTAL_MAIN
+```
+
+and
+
+```
+newrelic.appname = PORTAL_ADMIN
+```
+
+**Codebase criteria**
+
+If you're running different code versions under the guise of one service, consider segmenting those runtime instances and incorporating version naming as part of your naming scheme. When you group code together as one service name that is executing different service versions, you're increasing the noise-to-signal ratio of any metrics you produce.
+
+Different code versions might use different amounts of compute resource or process data differently. It becomes very difficult to determine if a service is behaving normally when the signals you get from the metrics are due to different functional implementations.
+
+If you have multiple versions running concurrently, consider adding a numeric identifier to the service name. For example:
+
+```
+newrelic.appname = PORTAL_MAIN_V112
+```
+
+and
+
+```
+newrelic.appname = PORTAL_MAIN_V115
+```
+
+If you employ feature flag framework frameworks like LaunchDarkly or Split, you may have multiple versions of an application or service within a single codebase. To address those conditions, please consult the section on isolating service functions. 
+
+**Runtime criteria**
+
+If an instance of a service is deployed to a system with different runtime constraints, it should be encapsulated in its own telemetry namespace. This can be a deployment to a different datacenter that offers network connectivity advantages to a shared resource, or perhaps the service is running on a separate compute tier with a different memory or thread configuration.
+
+These characteristics that affect the code runtime operation can cause different behaviors that lead to different operations behaviors. For example:
+
+```
+newrelic.appname = PORTAL_NYC_DC
+```
+
+and
+
+```
+newrelic.appname = PORTAL_REALLY_BIG_FOOTPRINT
+```
+
+#### Override default agent configuration [#override-default-agent-config]
+
+<Callout variant="tip">
+  The New Relic agents provide a variety of options for runtime configuration. Please refer to the [APM agent config docs](/docs/new-relic-one/install-configure/configure-new-relic-agents) for the options specific to your runtime.
+</Callout>
+
+Each New Relic APM agent provides a variety of options to modify the default configuration. The most comprehensive and consistent location is the configuration file that accompanies each agent install. However, New Relic agents can also be configured by passing command line parameters directly to the service instance runtime, by using environment variables, or by calling functions within the agent's SDK at runtime.
+
+Here are the .NET agent configuration options:
+* [Using the New Relic .NET SDK API](/docs/apm/agents/net-agent/net-agent-api/)
+* [Environment variables](/docs/apm/agents/net-agent/configuration/net-agent-configuration/#environment-variables)
+* [Config file options](/docs/apm/agents/net-agent/configuration/net-agent-configuration/#setup)
+
+### Isolate service functions [#isolate-service-functions]
+
+As the [Create an effective service name](#service-naming) section indicated, one of the primary objectives of instrumentation is to configure the New Relic agent to group similar runtime constraints together as a single named unit. We suggest this because software systems should behave in deterministic ways.
+
+For a specific set of inputs, you should get an expected range of measurable outcomes. The degree to which we can comfortably contain these constraints into named service runtime components greatly helps us understand normal behavior and isolate aberrant behavior.
+
+Once you have settled on an effective service naming strategy, the next step is to look within the telemetry collected for the service and determine if it suitably isolates the service's functionality. The implementation pattern we most often encounter is a series of functions being invoked by a web request. The initial receipt and handling of a web request to a service runtime results in the allocation of processing resources. New Relic defines this resource allocation and code execution as a transaction.
+
+The New Relic agent is configured with a set of assumptions that create namespaces for transactions as they are detected. Those assumptions differ between the agent language runtime. For example, a good example of how the New Relic Java agent determines the transaction name can be found in the [Java agent's transaction naming documentation](/docs/apm/agents/java-agent/instrumentation/transaction-naming-protocol/).
+
+However, even after the agent transaction naming protocol has been applied, it may leave you with an unsatisfactory result. By adding additional instrumentation to name the transaction to improve its context, this can greatly improve your understanding of the service's execution behavior.
+
+The goal for transaction naming should be a view of APM transactions that provides good segmentation of the services functions in an approach that's easy to understand for a non-developer.
+
+<img src={omaOeScTransactionBreakdown} alt="Transaction Breakdown" title="Transaction Breakdown" />
+
+<figcaption>New Relic service transaction breakdown view.</figcaption>
+
+The transaction breakdown image is a good example of transaction segmentation. It provides detailed tracking of the amount of work being done by each transaction within the broader codebase of the service. It also displays the transaction with a plain user-friendly name that offers some hint of its business context (what the transaction does). As you learn more about naming transactions and including attributes, be sure to make your naming approach accessible for non-technical observers of the data.
+
+<img src={omaOeScTransactionBreakdownWeighted} alt="Transaction Breakdown Weighted" title="Transaction Breakdown Weighted" />
+
+<figcaption>Transaction breakdown: the transactions in this service seem to be highly weighted to one transaction name with a pretty generic name. Breakdowns like this beg the question: "Is this a good representation of the work my service does?"</figcaption>
+
+The obtuse transaction breakdown image demonstrates a bad example of transaction name segmentation. In this case we have about 60% of the transaction volume being named `OperationHandler/handle`. Both the percentage attribution of the transaction volume and the generic nature of the name indicate there might be an overly zealous aggregation of transactions underneath that transaction namespace.
+
+A good way to validate your transaction naming approach is to review the distribution of response times for your transaction over a significant period of time in the service web transaction histogram dashboard.
+
+<img src={omaOeScTransactionBreakdownHistogramNonNormal} alt="Transaction Histogram Non-normal" title="Transaction Histogram Non-normal"/>
+
+<figcaption>The service transaction histogram view shows the count of transactions that fall into each response time bucket. A good naming strategy tends to display a normal distribution.</figcaption>
+
+The service transaction image shows a wide range of transaction response rates. Although the bulk of the transactions land in the 0-200 millisecond range, it indicates values ranging from 200-1000 milliseconds. When you have a highly distributed range of responses for a transaction, you should ask yourself:
+
+**What information do I have during the transaction execution that can help me name this transaction?**
+
+In many cases, non-normal distributions are a direct result of the parameters being passed to a request, or the work the transaction is being asked to do. It is pretty easy to consider that a service query transaction might take a data range as a parameter. The date range when small might provide a faster lookup time. Therefore, perhaps providing a meaning scheme that is derived from some expected parameter constraints (> 1day, 1-5 days, >5 days) might provide a more meaningful segmentation.
+
+Your objective is to create a transaction name that facilitates grouping transactions with the fewest unique characteristics.
+
+<img src={omaOeScTransactionBreakdownHistogramNormal} alt="Transaction Histogram" title="Transaction Histogram"/>
+
+<figcaption>A more normal distribution of transaction segmentation where individual transactions report more consistent response time attainment with fewer exceptions.</figcaption>
+
+The normal distribution image demonstrates more purposefully named transactions within a service. In this case the web transaction response times are more closely grouped, indicating consistent execution characteristics.
+
+By ensuring your transaction naming strategy provides a consistent mechanism to group your service’s functions by the types of operations they are performing, you will be able to quickly isolate aberrant behavior, or better understand the root cause of the variations. This will allow you to refactor your application and increase the overall predictability of your service's functions.
+
+### Define custom transaction names [#custom-transaction-names]
+
+<Callout variant="tip">
+  Consult the API guide for your [New Relic agent](/docs/apm/new-relic-apm/getting-started/introduction-apm) to review the transaction naming procedure for your runtime.
+</Callout>
+
+The New Relic agent transaction naming service requires the invocation of a `SetName(String name)`-like API call to the New Relic agent SDK. Each language runtime agent has its own syntax and option for setting the name.
+
+For example, to take the value of an HTTP request parameter and use it to name a transaction in the New Relic Java agent, you can use code similar to this:
+
+```
+com.newrelic.agent.Agent.LOG.finer("[my query handler] Renaming transaction based on an important query parameter");
+
+com.newrelic.api.agent.NewRelic.setTransactionName("Query Handler_" + (javax.servlet.http.HttpServletRequest)_servletrequest_0).getParameter("important_query_parm"));
+```
+
+Please note: There is a maximum capacity for New Relic transaction names. Your transaction naming strategy will have to trade off a degree of specificity if there are thousands of potential transaction names.
+
+When too many transaction names are being reported, New Relic will attempt to create rules to group those transaction names. More details can be found in the [agent troubleshooting guide](/docs/using-new-relic/cross-product-functions/troubleshooting/metric-grouping-issues) related to metric grouping issues.
+
+Should you suspect a metric grouping issue, open a support case with New Relic, and we'll be happy to work with you to isolate the cause of the transaction naming issue.
+
+### Capture parameters with your transactions [#capture-parameters]
+
+<Callout variant="tip">
+  Consult the [New Relic agent custom attributes guide](/docs/using-new-relic/data/customize-data/collect-custom-attributes/) for your agent language to review the metadata enhancement options for attribute customization.
+</Callout>
+
+The transaction name is a powerful way for you to segment your service's functionality so that you can better understand its behavior. This allows you to discretely isolate functionality directly in the New Relic UI.
+
+However, there are many occasions when you'll want to get some additional context on the function of your service without resorting to isolating the transaction name. This can be accomplished by introducing attribute capture by your service.
+
+You can add `name:value` pair attributes to decorate the details of each transaction. The attributes will be available in each transaction event through the APM transaction trace and errors UI, or through direct query of parameters from the `Transaction` event type.
+
+<img src={omaOeScTransactionAttributes} alt="Transaction Attributes" title="Transaction Attributes"/>
+
+<figcaption>After you select a transaction trace, you can view the custom attributes you have set for your service’s transaction.</figcaption>
+
+Here's an example of the transaction trace details you can see in the APM errors UI.
+
+<img src={omaOeScErrorAttributes} alt="Error Attributes" title="Error Attributes" />
+
+<figcaption>Custom attributes displayed in the APM errors UI.</figcaption>
+
+If you've developed a useful transaction name segmentation, you can use the additional context of the attributes to better understand the inputs, cohorts, or segments that led to an unexpected result.
+
+In addition to being able to understand the context of your transaction within the APM UI, the introduction of parameters is an extremely useful tool to aggregate and analyze transactions by querying transaction data directly. Custom attributes are added to each transaction, making it easy to isolate and facet on specific conditions.
+
+<img src={omaOeScTransactionNrqlCustomAttribute} alt="NRQL Custom Attributes" title="NRQL Custom Attributes" />
+
+<figcaption>NRQL query expression that uses a custom attribute to facet database call duration.</figcaption>
+
+The parameter capture approach can also be used with feature flag systems like Split or LaunchDarkly. In this case, as you're implementing the decision handler for the feature flag, consider capturing the flag context (for example, `optimized_version = on`) that's being applied to the block of code controlling the version or feature the customer sees.
+
+<img src={omaOeScTransactionNrqlFeatureFlag} alt="NRQL Custom Attributes Feature Flags" title="NRQL Custom Attributes Feature Flags" />
+
+<figcaption>NRQL query that demonstrates the result when the state of a feature flag is captured by a transaction custom attribute. The feature flag state attribute allows us to understand the impact of the code execution path on performance, throughput, and dependency utilization.</figcaption>
+
+For example, to take the value of an HTTP request parameter and save it as a custom attribute with the New Relic Java agent, you can use code similar to this:
+
+```
+com.newrelic.agent.Agent.LOG.finer("[my query handler] Adding an Attribute to transaction based on an important query parameter");
+
+com.newrelic.api.agent.NewRelic.addCustomParameter("ImportantParm", (javax.servlet.http.HttpServletRequest)_servletrequest_0).getParameter("important_query_parm"));
+```
+
+### Measure service components [#component-measurement]
+
+The behavior of a specific transaction within the context of a service is a powerful way to segregate functionality and ensure a software system is operating effectively. However, another way to look at the behavior of a software system is to review the detailed component execution model of its implementation. The application framework code components are shared throughout the service, and the ongoing evaluation of component performance can provide an insight into the overall service health.
+
+In New Relic, there are two places we can observe component execution details. The service summary dashboard in APM provides a view of the composite execution of the service broken down by its component parts (for example, garbage collection execution or database calls).
+
+<img src={omaOeScSummaryComponents} alt="Summary Components" title="Summary Components" />
+
+<figcaption>This summary dashboard provides a breakdown of major component types within the application. Memcached, External Web Invocations, MySQL and Dirac are all examples of shared code frameworks that the collective transactions of the service are using to execute their business logic.</figcaption>
+
+A similar breakdown is provided on a transaction-by-transaction basis.
+
+<img src={omaOeScTransactionComponents} alt="Transaction Components" title="Transaction Components" />
+
+<figcaption>This single transaction summary view breaks out the contributing execution time by component. This helps you see the aggregate performance of components within a transaction.</figcaption>
+
+Transaction component segments will tend to demonstrate consistent performance behavior, you can use this consistency to detect a change in its fundamental behavior. This can be a good indication of an underlying issue. Resource constraints tend to manifest more obviously within component frameworks than within individual transaction details. This allows you to infer characteristics of dependencies through the common constraints being experienced by all code running within a service.
+
+### Ensure your frameworks are measured [#framework-measurement]
+
+<Callout variant="tip"> 
+  To find information about adding metric names to your instrumentation, consult the instrumentation and SDK guides for a specific APM agent.
+</Callout>
+
+The syntax for framework instrumentation is specific to the language your service is written in, but the general approach is consistent for all. Consider the threads of execution within your Services as an analogy for transactions within New Relic telemetry. Each method or function execution on the stack is an opportunity to add additional instrumentation. In this way New Relic maintains a time-annotated invocation stack for the transaction and uses those method/function start/stop timings to aggregate it into a series of component metrics.
+
+<img src={omaOeScSummaryClient} alt="Service Summary Components" title="Service Summary Components" />
+
+<figcaption>A simple Node.js application making a call to a MongoDB. The two major components of the application are the receipt of the request and get/put operations to the MongoDB.</figcaption>
+
+If a particular segment of logic is crucial to the function of your service or transaction, consider wrapping that call with callbacks to the New Relic agent so that the agent can understand that it has entered a discrete code component and can aggregate the time consumed within that component accordingly. By passing a metric name to the callback, you will create a component segment metric for your service and transaction.
+
+The metric naming option is specific to the instrumentation language, so be sure to consult the specific language documentation.
+
+The New Relic agents allow you to specify a custom metric name for the instrumentation. The `metricName` will be used to determine the aggregated metric for the component. The following example demonstrates the `metricName` parameter being passed to a Java agent SDK `@Trace` annotation.
+
+```
+@Weave
+public abstract class MQOutboundMessageContext implements OutboundTransportMessageContext {
+
+    @Trace(dispatcher = true, metricName="MQTransport")
+    public void send(final TransportSendListener listener) throws TransportException {
+        try {
+            NewRelic.getAgent().getTracedMethod().setMetricName("Message", "MQ", "Produce");
+            MQHelper.processSendMessage(this, NewRelic.getAgent().getTracedMethod());
+        } catch (Exception e) {
+            NewRelic.getAgent().getLogger().log(Level.FINE, e, "Unable to set metadata on outgoing MQ message");
+        }
+
+        Weaver.callOriginal();
+    }
+
+}
+```
+
+### Track every external service call [#external-services]
+
+<Callout variant="tip">
+  To find the details of client library instrumentation, consult the instrumentation and SDK guides for the relevant APM agent.  
+</Callout>
+
+Client instrumentation refers to encapsulating a call from your service to an external resource. Generally, New Relic agents are aware of clients popular for HTTP, gRPC, messaging, and database protocols and will apply the appropriate instrumentation pattern to aggregate calls to those clients as external services.
+
+<img src={omaOeScExternalService} alt="External Services" title="External Services" />
+
+<figcaption>External service dashboard details within New Relic APM.</figcaption>
+
+If you have written your own client handler for a protocol, or are using something very new or somewhat niche, the New Relic agent may not recognize the client and record the behavior of the client call. To this end you should verify the external services and databases within APM to represent all expected externalities for your service.
+
+<img src={omaOeScDatabases} alt="Databases" title="Databases" />
+
+<figcaption>Database protocol dashboard details within New Relic APM.</figcaption>
+
+It's important to validate that all your services' dependencies are represented here. If you don't see your service dependencies, you'll need to introduce new instrumentation to intercept the external call so that your APM agent can track it accordingly. The following example demonstrates wrapping an external call in Golang for capture by the agent.
+
+```
+package main
+
+import (
+	"net/http"
+
+	"github.com/newrelic/go-agent/v3/newrelic"
+)
+
+func currentTransaction() *newrelic.Transaction {
+	return nil
+}
+
+func main() {
+	txn := currentTransaction()
+	client := &http.Client{}
+	request, _ := http.NewRequest("GET", "http://www.example.com", nil)
+	segment := newrelic.StartExternalSegment(txn, request)
+	response, _ := client.Do(request)
+	segment.Response = response
+	segment.End()
+}
+```
+
+Examples of other agent API external call tracing:
+
+* [Go `ExternalSegment`](https://pkg.go.dev/github.com/newrelic/go-agent/v3/newrelic#ExternalSegment)
+* [Java `ExternalParameters`](https://newrelic.github.io/java-agent-api/javadoc/com/newrelic/api/agent/TracedMethod.html#reportAsExternal(com.newrelic.api.agent.ExternalParameters))
+* [Python `external_trace`](/docs/apm/agents/python-agent/python-agent-api/externaltrace-python-agent-api/)
+
+### Test your endpoints [#endpoint-testing2]
+
+Endpoint testing provides two benefits to your service instrumentation program:
+* **Defect detection:** By encoding a test for an endpoint that produces a simple true/false result, it allows the operations team to isolate discrete failures to determine if the integrity of service delivery has been compromised.
+* **Baselining:** Synthetic or machine tests provide a predictable set of conditions that allow you to evaluate the consistency of your service delivery from a control perspective.
+
+New Relic's synthetic monitoring offers the ability to create a variety of testing types by employing an enhanced Selenium JavaScript SDK. Once a Selenium-based test script has been defined, New Relic will manage the location of the script execution as well as its frequency.
+
+<img src={omaOeScSyntheticsMenu} alt="Synthetics" title="Synthetics" />
+
+<figcaption>New Relic synthetics launch dashboard.</figcaption>
+
+The synthetic test offers a variety of test options, each with its own focus. For more information see our [synthetic monitoring documentation](https://docs.newrelic.com/docs/synthetics/).
+
+From the perspective of a service developer, the monitor type that is most frequently employed is **Endpoint availability**. This monitor type provides the ability to script HTTP request conditions. These can be as simple as a POST or GET to an accessible API, or involve multiple steps where the Selenium monitoring script successively evaluates requests to ascertain functional integrity of a multi-step process.
+
+In practice, developers should consider implementing the simplest possible test to evaluate endpoint availability and integrity. For example, you have just created a new Service endpoint that provides the current exchange rate for a group of currencies. This is a simple GET at an endpoint that returns a JSON object array.
+
+* Request example:  `http://example-ip:3000/exchange`
+* Response example:
+
+```
+[
+  {
+    "status": [
+      "quote"
+    ],
+    "_id": "5b9bf97f61c22f4fb5beb5c9",
+    "name": "cdn",
+    "Created_date": "2021-07-12T18:10:07.488Z",
+    "__v": 1
+  },
+  {
+    "status": [
+      "quote"
+    ],
+    "_id": "5b9bfb2a61c22f4fb5beb5ca",
+    "name": "usd",
+    "Created_date": "2021-07-12T18:17:14.224Z",
+    "__v": 0.80
+  },
+  {
+    "status": [
+      "quote"
+    ],
+    "_id": "5b9bfb3261c22f4fb5beb5cb",
+    "name": "eur",
+    "Created_date": "2021-07-12T18:17:22.476Z",
+    "__v": 0.68
+  },
+  {
+    "status": [
+      "quote"
+    ],
+    "_id": "5b9bfb3761c22f4fb5beb5cc",
+    "name": "mex",
+    "Created_date": "2021-07-12T18:17:27.009Z",
+    "__v": 15.97
+  }
+]
+```
+
+In order for this service to be considered operational, it needs to respond to requests but also provide the four currency responses. We're not worried about the content at the moment, just the fact we get four elements back in the array one, for each CDN, USD, EUR and MEX currencies.
+
+Using New Relic synthetic monitoring, an API test script could look like the following:
+
+```
+/**
+* This script checks to see if we get the currency data from the endpoint.
+*/
+var assert = require('assert');
+var myQueryKey = 'secret_key';
+var options = {
+  uri: 'http://example_ip:3000/exchange',
+  headers: {
+    'X-Query-Key': myQueryKey,
+    'Accept': 'application/json'
+  }
+};
+
+function callback (err, response, body){
+  var data = JSON.parse(body);
+  var info = body;
+  if (Array.isArray(data)) {
+    if (data.length !== 4) {
+      assert.fail('Unexpected results in API Call, result was ' + JSON.stringify(data));
+    }
+  }
+}
+
+$http.get(options, callback);
+```
+
+The synthetics script can be directly configured in the New Relic interface, but we highly recommend you maintain your endpoint tests within your source repository system and employ automation. This will help ensure your endpoint testing accompanies the new endpoint dependencies that your Services introduce to production service delivery.
+
+## Value realization [#value-realization]
+
+The impact of service instrumentation will be directly related to the level of attention you're willing to invest in overseeing the process. Like the process of monitoring services, your observability program will benefit through a dedicated team function that thinks critically about its expectations of return for its investment in effort. Here is some guidance to think about the cost of investment for your organization and expectation of benefit.
+
+The following section outlines an approach for estimating the investments and returns you should expect by incorporating service instrumentation into your observability practice.
+
+### Investments [#investments]
+
+<CollapserGroup>
+  <Collapser
+    id="inv-training"
+    title="Training"
+  >
+Ensure all developers are familiar with New Relic agent SDKs and platform capabilities.
+
+**Cost model:** Dependent on your company's developer FTE model and project estimation.
+
+**Estimation:** Typically a number of hours for a developer to become effective using New Relic instrumentation features.
+
+* Initial: 16 hours training / exploration
+* Recurring: 4 hours/Q review
+* Per developer a yearly investment of 16-40 hours training to develop core skills and maintain skills currency for New Relic platform
+  </Collapser>
+
+  <Collapser
+    id="inv-maintain"
+    title="Development and maintenance"
+  >
+The development effort required to implement and maintain instrumentation within a service project.
+
+**Cost model:** Dependent on your company's developer FTE model and project estimation.
+
+**Estimation:** This tends to be dependent on the scope of the project and the amount of instrumentation work required.
+
+* Initial: 8 hours per developer per service
+* Recurring: 4 hours/Q maintenance
+* Per developer a project estimation of 16-32 hours developing and maintaining service instrumentation
+  </Collapser>
+</CollapserGroup>
+
+### Returns [#returns]
+
+<CollapserGroup>
+  <Collapser
+    id="returns-aqm-impact"
+    title="AQM impact"
+  >
+Our [Alert quality management practice](/docs/new-relic-solutions/observability-maturity/uptime-performance-reliability/aqm-implementation-guide) delivers significant benefit to the operations team by ensuring the alert notifications from variant system performance are dealt with swiftly. This improves service delivery and resource allocation during incident remediation.
+
+An effective instrumentation practice federated into your observability program will greatly improve your team's ability to create meaningful alerts.
+
+**KPIs:**
+
+* Volume: incident count
+* Volume: accumulated incident duration
+* Volume: mean-time-to-close (MTTC)
+* User engagement: mean time to investigate
+
+**Outcomes:**
+* Less alert noise
+* Greater alert and incident responsiveness
+* Less unknown root cause
+* Increased operations productivity
+* Improved service delivery
+  </Collapser>
+
+  <Collapser
+    id="returns-service-quality-improvement"
+    title="Service quality improvement"
+  >
+Improving your service quality will have a direct impact on the key financial metrics for your service. This will require that you have a well rationalized financial model for your application. Typically this return can be projected by associating a currency value for each percent improvement on a core service quality measure like errors or apdex attainment.
+
+As your investment in service instrumentation increases, you should see improved attainment on your service quality measures.
+
+**KPI:** Service quality (business KPI)
+
+**Outcomes:**
+* Decreased number of user impacting errors
+* More performant and resilient service components
+  </Collapser>
+
+  <Collapser
+    id="returns-service-delivery-improvement"
+    title="Service delivery improvement"
+  >
+By providing better telemetry from your service instances, your delivery organization should be able to more quickly detect volatility or downtime and remediate faster. This will lead to better overall service delivery KPIs and decrease episodes of outage or degradation.
+
+Cost can be associated with the amount of time it takes to detect, investigate and remediate an incident. This might be related to the value the Service provides your organization that will be lost during an event, or may be related to the general cost to deal with the poorly behaving Service.
+
+**KPIs:**
+* Mean time to detect (MTTD)
+* Mean time to identify (MTTI)
+* Mean time to resolution (MTTR)
+
+**Outcomes:**
+* Decreased time to detect incidents
+* Decreased time to resolve incidents
+  </Collapser>
+</CollapserGroup>
+
+## Resources [#resources]
+
+* [New Relic University](https://learn.newrelic.com/).
+* [APM agent install](/docs/new-relic-one/install-configure/install-new-relic/#apm-install) and [configure](/docs/new-relic-one/install-configure/configure-new-relic-agents)
+* Instrumentation guides:
+  * [C-SDK](/docs/apm/agents/c-sdk/instrumentation/instrument-your-app-c-sdk)
+  * [Go](/docs/apm/agents/go-agent/instrumentation)
+  * [Java](/docs/apm/agents/java-agent/custom-instrumentation/java-custom-instrumentation)
+  * [.NET](/docs/apm/agents/net-agent/custom-instrumentation/introduction-net-custom-instrumentation)
+  * [Node.js](/docs/apm/agents/nodejs-agent/extend-your-instrumentation/nodejs-custom-instrumentation)
+  * [PHP](/docs/apm/agents/php-agent/php-agent-api/)
+  * [Python](/docs/apm/agents/python-agent/custom-instrumentation/python-custom-instrumentation/)
+  * [Ruby](/docs/apm/agents/ruby-agent/api-guides/ruby-custom-instrumentation/)
+  * [OpenTelemetry SDKs](https://opensource.newrelic.com/projects/open-telemetry)
+* [Introduction to New Relic synthetic monitoring](/docs/synthetics/)

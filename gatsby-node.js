@@ -3,6 +3,11 @@ const { prop } = require('./scripts/utils/functional.js');
 const externalRedirects = require('./src/data/external-redirects.json');
 const { createFilePath } = require('gatsby-source-filesystem');
 const createSingleNav = require('./scripts/createSingleNav');
+const generateTOC = require('mdast-util-toc');
+// are needed for our tableOfContents override
+const genMDX = require('gatsby-plugin-mdx/utils/gen-mdx.js');
+const defaultOptions = require('gatsby-plugin-mdx/utils/default-options.js');
+const getTableOfContents = require('gatsby-plugin-mdx/utils/get-table-of-content.js');
 
 const TEMPLATE_DIR = 'src/templates/';
 const TRAILING_SLASH = /\/$/;
@@ -250,32 +255,6 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
     }
   });
 
-  const createEmbed = (node, defer = false) => {
-    const {
-      fields: { fileRelativePath, slug },
-    } = node;
-
-    if (
-      fileRelativePath.includes('src/content/docs/release-notes') ||
-      fileRelativePath.includes('src/content/whats-new')
-    ) {
-      return;
-    }
-
-    const pagePath = path.join(slug, 'embed', '/');
-
-    createPage({
-      path: pagePath,
-      component: path.resolve(`src/templates/embedPage.js`),
-      context: {
-        slug,
-        fileRelativePath,
-        layout: 'EmbedLayout',
-      },
-      defer,
-    });
-  };
-
   const translatedContentNodes = allI18nMdx.edges.map(({ node }) => node);
 
   allMdx.edges.concat(allMarkdownRemark.edges).forEach(({ node }) => {
@@ -296,10 +275,6 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
     }
 
     createPageFromNode(node, { createPage });
-    createEmbed(
-      node,
-      true // enable dsg
-    );
 
     locales.forEach((locale) => {
       const i18nNode = translatedContentNodes.find(
@@ -341,7 +316,20 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
   });
 };
 
-exports.createSchemaCustomization = ({ actions }) => {
+exports.createSchemaCustomization = (
+  {
+    getNode,
+    getNodes,
+    pathPrefix,
+    reporter,
+    cache,
+    actions,
+    schema,
+    store,
+    ...helpers
+  },
+  pluginOptions
+) => {
   const { createTypes } = actions;
 
   const typeDefs = `
@@ -364,8 +352,8 @@ exports.createSchemaCustomization = ({ actions }) => {
   type Frontmatter {
     isFeatured: Boolean
     translationType: String
-    dataSource: String
     hideNavs: Boolean
+    eolDate: String
     downloadLink: String
     signupBanner: SignupBanner
     features: [String]
@@ -380,7 +368,64 @@ exports.createSchemaCustomization = ({ actions }) => {
 
   `;
 
-  createTypes(typeDefs);
+  // this was taken from gatsby-plugin-mdx/gatsby/create-schema-customization.js
+  const options = defaultOptions(pluginOptions);
+
+  const pendingPromises = new WeakMap();
+  const processMDX = ({ node }) => {
+    let promise = pendingPromises.get(node);
+    if (!promise) {
+      promise = genMDX({
+        node,
+        options,
+        store,
+        pathPrefix,
+        getNode,
+        getNodes,
+        cache,
+        reporter,
+        actions,
+        schema,
+        ...helpers,
+      });
+      pendingPromises.set(node, promise);
+      promise.then(() => {
+        pendingPromises.delete(node);
+      });
+    }
+    return promise;
+  };
+
+  const tocExtension = schema.buildObjectType({
+    name: `Mdx`,
+    fields: {
+      tableOfContents: {
+        type: `JSON`,
+        args: {
+          maxDepth: {
+            type: `Int`,
+            default: 6,
+          },
+        },
+        async resolve(mdxNode, { maxDepth }) {
+          const { mdast } = await processMDX({ node: mdxNode });
+          const toc = generateTOC(mdast, {
+            maxDepth,
+
+            // override gatsby-plugin-mdx tableOfContents options
+            // to allow Step headers to show in PageTools
+            parents: [
+              (node) => node.type === 'mdxBlockElement' && node.name === 'Step',
+              'root',
+            ],
+          });
+
+          return getTableOfContents(toc.map, {});
+        },
+      },
+    },
+  });
+  createTypes([typeDefs, tocExtension]);
 };
 
 exports.createResolvers = ({ createResolvers }) => {
@@ -411,13 +456,13 @@ exports.createResolvers = ({ createResolvers }) => {
             ? source.translationType
             : null,
       },
-      dataSource: {
-        resolve: (source) =>
-          hasOwnProperty(source, 'dataSource') ? source.dataSource : null,
-      },
       hideNavs: {
         resolve: (source) =>
           hasOwnProperty(source, 'hideNavs') ? source.hideNavs : null,
+      },
+      eolDate: {
+        resolve: (source) =>
+          hasOwnProperty(source, 'eolDate') ? source.eolDate : null,
       },
       downloadLink: {
         resolve: (source) =>

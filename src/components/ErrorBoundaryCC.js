@@ -9,8 +9,10 @@ class ErrorBoundary extends React.Component {
     return { hasError: true };
   }
 
-  componentDidCatch() {
+  componentDidCatch(error, errorInfo) {
     this.props.tessen.track({
+      error,
+      errorInfo,
       category: 'PageErrored',
       eventName: this.props.eventName,
     });
