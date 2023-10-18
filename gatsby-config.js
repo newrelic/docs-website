@@ -4,7 +4,6 @@ const parse = require('rehype-parse');
 const unified = require('unified');
 const rehypeStringify = require('rehype-stringify');
 const addAbsoluteImagePath = require('./rehype-plugins/utils/addAbsoluteImagePath');
-const getAgentName = require('./src/utils/getAgentName');
 
 const siteUrl = 'https://docs.newrelic.com';
 const additionalLocales = ['jp', 'kr'];
@@ -159,7 +158,6 @@ module.exports = {
         // If this is addressed in MDX v2, we can safely remove this.
         remarkPlugins: [],
         rehypePlugins: [
-          require('./rehype-plugins/image-sizing'),
           [
             require('./rehype-plugins/gatsby-inline-images'),
             { spacing: '0.5rem' },
@@ -235,7 +233,6 @@ module.exports = {
         path: `./src/install/config/`,
       },
     },
-    // 'gatsby-plugin-generate-doc-json',
     {
       resolve: 'gatsby-plugin-generate-json',
       options: {
