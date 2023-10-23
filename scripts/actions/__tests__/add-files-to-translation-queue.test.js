@@ -1,6 +1,6 @@
 'use strict';
 const fs = require('fs');
-const frontmatter = require('@github-docs/frontmatter');
+const { frontmatter } = require('../../utils/frontmatter');
 const { getLocalizedFileData } = require('../add-files-to-translation-queue');
 
 const MOCK_CONSTANTS = {
@@ -12,7 +12,7 @@ const MOCK_CONSTANTS = {
 
 jest.mock('fs');
 jest.mock('path');
-jest.mock('@github-docs/frontmatter');
+jest.mock('../../utils/frontmatter');
 jest.mock('../translation_workflow/database');
 jest.mock('../utils/vendor-request');
 
@@ -57,7 +57,7 @@ describe('add-files-to-translation-queue tests', () => {
     test('Adds the Human Translation Project Id for locale under `translate` in frontmatter', async () => {
       const file = '/content/bar.mdx';
       mockReadFileSync(['jp']);
-      frontmatter.mockReturnValueOnce({ data: { translate: ['jp'] } });
+      frontmatter.mockReturnValueOnce({ attributes: { translate: ['jp'] } });
       const toBeTranslated = getLocalizedFileData(file);
       expect(toBeTranslated).toEqual([
         { filename: '/content/bar.mdx', locale: 'ja-JP', project_id: 'HT_ID' },
@@ -68,7 +68,7 @@ describe('add-files-to-translation-queue tests', () => {
     test('Adds the Machine Translation Project Id when there is no `translate` in frontmatter', async () => {
       const file = '/content/bar.mdx';
       mockReadFileSync();
-      frontmatter.mockReturnValueOnce({ data: {} });
+      frontmatter.mockReturnValueOnce({ attributes: {} });
       const toBeTranslated = getLocalizedFileData(file);
 
       expect(toBeTranslated).toEqual([
@@ -89,14 +89,14 @@ describe('add-files-to-translation-queue tests', () => {
         getLocalizedFileData,
       } = require('../add-files-to-translation-queue');
       const fs = require('fs');
-      const frontmatter = require('@github-docs/frontmatter');
+      const { frontmatter } = require('../../utils/frontmatter');
 
       jest.doMock('fs');
-      jest.doMock('@github-docs/frontmatter');
+      jest.doMock('../../utils/frontmatter');
 
       const mdx = mockMdx(['jp']);
       fs.readFileSync.mockReturnValueOnce(mdx);
-      frontmatter.mockReturnValueOnce({ data: { translate: ['jp'] } });
+      frontmatter.mockReturnValueOnce({ attributes: { translate: ['jp'] } });
 
       const toBeTranslated = getLocalizedFileData(file);
       expect(toBeTranslated).toEqual([

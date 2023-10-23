@@ -14,7 +14,7 @@ const path = require('path');
 const fs = require('fs');
 
 const yaml = require('js-yaml');
-const fm = require('front-matter');
+const { frontmatter } = require('../utils/frontmatter');
 
 const InputUrl = object({
   title: string(),
@@ -69,10 +69,17 @@ const MdxFilePath = define('MdxFilePath', (value) => {
 
   try {
     const file = fs.readFileSync(path.join(process.cwd(), value), 'utf8');
-    const data = fm(file);
-    const frontmatter = yaml.load(data.frontmatter);
+    const { attributes, error: parseError } = frontmatter(file);
 
-    const [error] = validate(frontmatter, Frontmatter);
+    if (parseError != null) {
+      console.log('❌ frontmatter error:');
+      console.log(value);
+      console.log(error.reason);
+      console.log(error.mark.snippet);
+      return parseError;
+    }
+
+    const [error] = validate(attributes, Frontmatter);
 
     if (error) {
       return error;
