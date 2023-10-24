@@ -9,6 +9,8 @@ const allDocs = await glob('src/content/docs/**/*.mdx', {
 });
 
 const allDocsAndDates = allDocs.map((doc) => {
+  // mtime is the last modified time of a particular file
+  // https://nodejs.org/api/fs.html#statsmtime
   const modifiedDate = statSync(doc).mtime;
   return [doc, modifiedDate.toDateString()];
 });
