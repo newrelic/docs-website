@@ -15,4 +15,4 @@ This feature is currently available only for AWS RDS clusters, with support for 
 
 
 
-![AWS RDS cluster health ](./images/aws_databases.png "A screenshot that AWS RDS health status")
+![AWS RDS cluster health ](./images/aws_databases.webp "A screenshot that AWS RDS health status")
