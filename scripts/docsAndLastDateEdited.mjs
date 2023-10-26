@@ -38,9 +38,9 @@ stringify(allDocsAndDates, function (err, output) {
         'Some error occured - file either not saved or corrupted file saved.'
       );
     } else {
+      console.timeEnd('csvCreation');
       console.log('CSV Created!');
       progressBar.stop();
-      console.timeEnd('csvCreation');
     }
   });
 });
