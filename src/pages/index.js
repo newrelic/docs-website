@@ -12,6 +12,7 @@ import {
   useTessen,
   useLoggedIn,
 } from '@newrelic/gatsby-theme-newrelic';
+import { useMedia } from 'react-use';
 import HomepageBanner from '../components/HomepageBanner';
 import { DocTile } from '../components/DocTile';
 import FindYourQuickStart from '../components/FindYourQuickstart';
@@ -23,6 +24,7 @@ import {
 } from '../components/ToggleView';
 import HomepageVideo from '../components/HomepageVideo';
 import ErrorBoundary from '../components/ErrorBoundary';
+import FeedbackModal from '../components/FeedbackModal';
 
 const SAVED_TOGGLE_VIEW_KEY = 'docs-website/homepage-selected-view';
 
@@ -37,6 +39,7 @@ const HomePage = ({ data }) => {
   const hasToggled = useRef(false);
   const [currentView, setCurrentView] = useState(TOGGLE_VIEWS.newUserView);
   const [showTooltip, setShowTooltip] = useState(); // used for tooltip
+  const [showFeedbackModal, setShowFeedbackModal] = useState(true);
   const updateView = (id) => {
     hasToggled.current = true;
     setCurrentView(id);
@@ -81,6 +84,7 @@ const HomePage = ({ data }) => {
   }, [currentView]);
 
   const mobileBreakpoint = '450px';
+  const isMobileScreen = useMedia(`(max-width: ${mobileBreakpoint})`);
 
   const latestWhatsNewPosts = whatsNewPosts.map((edge) => {
     return {
@@ -277,6 +281,9 @@ const HomePage = ({ data }) => {
           </Section>
         </ToggleView>
       </ToggleViewContext.Provider>
+      {showFeedbackModal && !isMobileScreen && (
+        <FeedbackModal onClose={() => setShowFeedbackModal(false)} />
+      )}
     </ErrorBoundary>
   );
 };
@@ -304,7 +311,7 @@ HomePage.propTypes = {
   }),
 };
 export const pageQuery = graphql`
-  query($quicklaunchSlug: String!) {
+  query ($quicklaunchSlug: String!) {
     site {
       layout {
         contentPadding
