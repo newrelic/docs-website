@@ -1,6 +1,6 @@
 ---
 title: 'NRQL Query Result Limits are Increasing'
-summary: 'The maximum limit for NRQL is increasing from 2000 to 5000'
+summary: 'The maximum result limit for NRQL queries is increasing from 2000 to 5000'
 releaseDate: '2023-11-07'
 learnMoreLink: 'TODO'
 ---
