@@ -1,6 +1,6 @@
 ---
 title: 'New Relic errors inbox now includes version tracking'
-summary: 'Easily pinpoint the specific code release version associated with any newly discovered errors for faster triage'
+summary: 'Pinpoint the specific code release version associated with any newly discovered errors for faster triage'
 releaseDate: '2023-11-07'
 learnMoreLink: 'https://docs.newrelic.com/docs/errors-inbox/version-tracking/'
 ---
