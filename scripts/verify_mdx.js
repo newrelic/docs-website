@@ -49,7 +49,7 @@ const readFile = async (filePath) => {
 
 const verifyMDX = async (filePaths) => {
   console.log(
-    `🔍\x1b[92mReading MDX files. This may take a few moments... \n\x1b[0m`
+    `\n\n🔍\x1b[92mReading MDX files. This may take a few moments... \n\x1b[0m`
   );
   progressBar.start(filePaths.length, 1);
 
@@ -63,7 +63,7 @@ const verifyMDX = async (filePaths) => {
 
   const results = allResults.filter(Boolean);
 
-  console.log(`\x1b[35mFailed MDX file count:\x1b[0m ${results.length}`);
+  console.log(`\n\n\x1b[35mFailed MDX file count:\x1b[0m ${results.length}`);
   console.log(results);
 
   if (mdxErrors.length > 0) {
@@ -73,7 +73,7 @@ const verifyMDX = async (filePaths) => {
     );
     process.exitCode = 1;
   } else {
-    console.log('🎉 No MDX issues found');
+    console.log('\n\n🎉 No MDX issues found');
   }
 };
 
@@ -87,10 +87,10 @@ const verifyImages = (filePaths) => {
     imageErrors.forEach((error, i) =>
       console.error(`\n\n\x1b[35mError ${i + 1}:\x1b[0m ${error}`)
     );
-    console.error('-------------------------- \n \n');
+    console.error('\n\n-------------------------- ');
     process.exitCode = 1;
   } else {
-    console.log('🎉 No image import issues found');
+    console.log('\n\n🎉 No image import issues found');
   }
 };
 

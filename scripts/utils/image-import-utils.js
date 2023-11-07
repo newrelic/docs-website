@@ -37,7 +37,7 @@ const checkImportStatements = (files) => {
   const importStatements = files.flatMap((file, i) => {
     progressBar.update(i + 1);
 
-    if (file === 'src/content/docs/style-guide/images/embed-images.mdx') {
+    if (file.includes('src/content/docs/style-guide/images/embed-images.mdx')) {
       return null;
     }
     const textfile = fs.readFileSync(file, 'utf-8');
@@ -104,7 +104,7 @@ const getAllImages = () => {
 };
 
 exports.verifyImageImports = (files) => {
-  console.log(`🔍\x1b[92mChecking image imports... \n\x1b[0m`);
+  console.log(`\n\n🔍\x1b[92mChecking image imports... \n\x1b[0m`);
 
   // validates imports and returns them to check against image files for further validation
   const importStatements = checkImportStatements(files);
