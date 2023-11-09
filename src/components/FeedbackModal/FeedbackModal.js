@@ -2,12 +2,18 @@ import React, { useState } from 'react';
 import { css } from '@emotion/react';
 import styled from '@emotion/styled';
 import shuffle from 'lodash/shuffle';
-import { Button, Icon, Portal } from '@newrelic/gatsby-theme-newrelic';
+import {
+  Button,
+  Icon,
+  Portal,
+  useTranslation,
+} from '@newrelic/gatsby-theme-newrelic';
 
 import Agreeance from './Agreeance';
 import NumberRater from './NumberRater';
 
 const FORM_VERSION = 1;
+
 const FeedbackModal = ({ onClose }) => {
   const [step, setStep] = useState(0);
   const advance = () => setStep((s) => s + 1);
@@ -53,16 +59,21 @@ const FeedbackModal = ({ onClose }) => {
   );
 };
 
-const NpsScore = ({ onSubmit }) => (
-  <>
-    <Title>How likely are you to recommend our docs site?</Title>
-    <NumberRater onSelect={onSubmit} />
-  </>
-);
+const NpsScore = ({ onSubmit }) => {
+  const { t } = useTranslation();
+
+  return (
+    <>
+      <Title>{t('surveyModal.npsIntro')}</Title>
+      <NumberRater onSelect={onSubmit} />
+    </>
+  );
+};
 
 // how many questions to display at once.
 const CHUNK_SIZE = 2;
 const SuprQ = ({ onSubmit }) => {
+  const { t } = useTranslation();
   const [step, setStep] = useState(0);
   const [responses, setResponses] = useState({});
   const numChunks = questions.length / CHUNK_SIZE;
@@ -73,7 +84,7 @@ const SuprQ = ({ onSubmit }) => {
     step * CHUNK_SIZE + CHUNK_SIZE
   );
   const canContinue = currentQuestions.every(
-    (question) => question.id in responses
+    (questionId) => questionId in responses
   );
 
   const advance = () => {
@@ -86,21 +97,18 @@ const SuprQ = ({ onSubmit }) => {
 
   return (
     <>
-      <Title>
-        Please rate how much you agree or disagree with the following
-        statements:
-      </Title>
-      {currentQuestions.map((question) => (
+      <Title>{t('surveyModal.suprQ.intro')}</Title>
+      {currentQuestions.map((questionId) => (
         <Agreeance
-          id={question.id}
-          key={question.id}
+          id={questionId}
+          key={questionId}
           onChange={(response) =>
             setResponses((responses) => ({
               ...responses,
-              [question.id]: response,
+              [questionId]: response,
             }))
           }
-          statement={question.statement}
+          statement={t(`surveyModal.suprQ.${questionId}`)}
         />
       ))}
       <Steps>
@@ -115,9 +123,11 @@ const SuprQ = ({ onSubmit }) => {
 
 const Freetext = ({ onSubmit }) => {
   const [text, setText] = useState('');
+  const { t } = useTranslation();
+
   return (
     <>
-      <Title>Thanks for your feedback!</Title>
+      <Title>{t('surveyModal.freeTextIntro')}</Title>
       <p
         css={css`
           font-size: 1.125rem;
@@ -125,14 +135,14 @@ const Freetext = ({ onSubmit }) => {
           max-width: 92%;
         `}
       >
-        Take a few more minutes to share your thoughts on how we can improve
+        {t('surveyModal.freeTextQuestion')}
       </p>
       <textarea
         css={css`
-          background: rgba(255, 255, 255, 0.2);
+          background: var(--primary-contrast-color);
           border-radius: 4px;
           border: 1px solid rgba(255, 255, 255, 0.2);
-          color: #fafbfb;
+          color: var(--primary-text-color);
           font-size: 0.875rem;
           height: 10rem;
           margin-bottom: 40px;
@@ -152,46 +162,16 @@ const Freetext = ({ onSubmit }) => {
   );
 };
 
-const questions = shuffle([
-  {
-    statement: 'The information on the docs site is credible.',
-    id: 'q1',
-  },
-  {
-    statement: "It's easy to navigate the docs site.",
-    id: 'q2',
-  },
-  {
-    statement: 'question 3',
-    id: 'q3',
-  },
-  {
-    statement: 'question 4',
-    id: 'q4',
-  },
-  {
-    statement: 'question 5',
-    id: 'q5',
-  },
-  {
-    statement: 'question 6',
-    id: 'q6',
-  },
-]);
-
+const questions = shuffle(['q1', 'q2', 'q3', 'q4', 'q5', 'q6', 'q7', 'q8']);
 const Container = styled.aside`
   align-items: center;
-  background: #1d252c;
+  background: var(--modal-background-color);
   border-radius: 4px;
   display: grid;
   grid-template-columns: 1fr 1fr;
   padding: 24px;
   width: max(550px, 30rem);
-
-  @media (prefers-color-scheme: dark) {
-    background: #293338;
-    border: 1px solid var(--system-background-selected-low-contrast-light);
-  }
+  border: 1px solid var(--divider-color);
 
   & > fieldset,
   & > h1,
@@ -207,7 +187,7 @@ const CloseButton = styled.button`
   aspect-ratio: 1/1;
   border: 0;
   background: transparent;
-  color: #fff;
+  color: var(--primary-text-color);
   cursor: pointer;
   display: grid;
   font-size: 2rem;
@@ -219,7 +199,7 @@ const CloseButton = styled.button`
 `;
 
 const Steps = styled.p`
-  color: #fff;
+  color: var(--primary-text-color);
   font-size: 1rem;
   margin: 0;
 `;
@@ -232,7 +212,7 @@ const SubmitButton = styled(Button)`
 `;
 
 const Title = styled.h1`
-  color: var(--brand-button-primary-accent);
+  color: var(--primary-text-color);
   font-size: 1.25rem;
   font-weight: 500;
   line-height: 1.4;
@@ -242,6 +222,9 @@ const Title = styled.h1`
    * more than one word.
    */
   max-width: max(82%, 430px);
+  .dark-mode & {
+    color: var(--brand-button-primary-accent);
+  }
 `;
 
 export default FeedbackModal;
