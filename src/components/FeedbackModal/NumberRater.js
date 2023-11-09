@@ -41,8 +41,8 @@ const RatingContainer = styled.fieldset`
 
 const NumberRater = ({ onSelect }) => (
   <RatingContainer>
-    {range(1, 11).map((n) => (
-      <div>
+    {range(0, 11).map((n) => (
+      <div key={`number-rater-${n}`}>
         <input
           id={`number-rater-${n}`}
           name="number-rater"
@@ -50,7 +50,7 @@ const NumberRater = ({ onSelect }) => (
           type="radio"
           value={n}
         />
-        <label for={`number-rater-${n}`}>{n}</label>
+        <label htmlFor={`number-rater-${n}`}>{n}</label>
       </div>
     ))}
   </RatingContainer>
