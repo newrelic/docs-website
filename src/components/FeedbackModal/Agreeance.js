@@ -20,7 +20,7 @@ const Container = styled.fieldset`
   }
 
   & legend {
-    color: #fafbfb;
+    color: var(--primary-text-color);
     font-size: 1.125rem;
     margin-bottom: 24px;
   }
@@ -33,7 +33,7 @@ const Container = styled.fieldset`
   }
 
   & label {
-    color: #d4d6d7;
+    color: var(--primary-text-color);
     font-size: 0.875rem;
     /* this ensures every label is two lines at any font size */
     max-width: 10ch;
@@ -43,7 +43,7 @@ const Container = styled.fieldset`
   & input {
     --size: 24px;
     appearance: none;
-    border: 2px solid #f3f4f4;
+    border: 2px solid var(--accent-text-color);
     border-radius: 50%;
     background: rgba(132, 137, 140, 0.2);
     display: grid;
@@ -77,7 +77,9 @@ const Agreeance = ({ id, onChange, statement }) => (
   <Container onChange={(e) => onChange(e.target.value)}>
     <legend>{statement}</legend>
     <div>
-      <label for={`agreeance-strongly-disagree-${id}`}>Strongly disagree</label>
+      <label htmlFor={`agreeance-strongly-disagree-${id}`}>
+        Strongly disagree
+      </label>
       <input
         type="radio"
         id={`agreeance-strongly-disagree-${id}`}
@@ -86,7 +88,9 @@ const Agreeance = ({ id, onChange, statement }) => (
       />
     </div>
     <div>
-      <label for={`agreeance-somewhat-disagree-${id}`}>Somewhat disagree</label>
+      <label htmlFor={`agreeance-somewhat-disagree-${id}`}>
+        Somewhat disagree
+      </label>
       <input
         type="radio"
         id={`agreeance-somewhat-disagree-${id}`}
@@ -95,7 +99,9 @@ const Agreeance = ({ id, onChange, statement }) => (
       />
     </div>
     <div>
-      <label for={`agreeance-neutral-${id}`}>Neither agree nor disagree</label>
+      <label htmlFor={`agreeance-neutral-${id}`}>
+        Neither agree nor disagree
+      </label>
       <input
         type="radio"
         id={`agreeance-neutral-${id}`}
@@ -104,7 +110,7 @@ const Agreeance = ({ id, onChange, statement }) => (
       />
     </div>
     <div>
-      <label for={`agreeance-somewhat-agree-${id}`}>Somewhat agree</label>
+      <label htmlFor={`agreeance-somewhat-agree-${id}`}>Somewhat agree</label>
       <input
         type="radio"
         id={`agreeance-somewhat-agree-${id}`}
@@ -113,7 +119,7 @@ const Agreeance = ({ id, onChange, statement }) => (
       />
     </div>
     <div>
-      <label for={`agreeance-strongly-agree-${id}`}>Strongly agree</label>
+      <label htmlFor={`agreeance-strongly-agree-${id}`}>Strongly agree</label>
       <input
         type="radio"
         id={`agreeance-strongly-agree-${id}`}
