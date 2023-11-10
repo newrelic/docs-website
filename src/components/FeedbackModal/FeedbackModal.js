@@ -8,6 +8,7 @@ import {
   Portal,
   useTranslation,
 } from '@newrelic/gatsby-theme-newrelic';
+import Cookies from 'js-cookie';
 
 import Agreeance from './Agreeance';
 import NumberRater from './NumberRater';
@@ -15,8 +16,14 @@ import NumberRater from './NumberRater';
 const FORM_VERSION = 1;
 
 const FeedbackModal = ({ onClose }) => {
+  const surveyDismissed = Cookies.get('surveyDismissed') === 'true';
   const [step, setStep] = useState(0);
   const advance = () => setStep((s) => s + 1);
+
+  const setCookieAndClose = () => {
+    Cookies.set('surveyDismissed', 'true', { expires: 90 });
+    onClose();
+  };
 
   const submitNpsScore = (score) => {
     console.log('nps score:', score);
@@ -33,29 +40,31 @@ const FeedbackModal = ({ onClose }) => {
   const submitFreetext = (text) => {
     console.log('freetext:', text);
     // TODO: submit to tessen and survey service
-    onClose();
+    setCookieAndClose();
   };
 
   return (
-    <Portal
-      initializer={(node) => {
-        if (node) {
-          node.style.position = 'fixed';
-          node.style.bottom = '2rem';
-          node.style.right = '1.5rem';
-        }
-      }}
-    >
-      <Container>
-        {step === 0 && <NpsScore onSubmit={submitNpsScore} />}
-        {step === 1 && <SuprQ onSubmit={submitSuprQ} />}
-        {step === 2 && <Freetext onSubmit={submitFreetext} />}
+    !surveyDismissed && (
+      <Portal
+        initializer={(node) => {
+          if (node) {
+            node.style.position = 'fixed';
+            node.style.bottom = '2rem';
+            node.style.right = '1.5rem';
+          }
+        }}
+      >
+        <Container>
+          {step === 0 && <NpsScore onSubmit={submitNpsScore} />}
+          {step === 1 && <SuprQ onSubmit={submitSuprQ} />}
+          {step === 2 && <Freetext onSubmit={submitFreetext} />}
 
-        <CloseButton aria-label="Close" onClick={onClose}>
-          <Icon name="fe-x" size="1rem" />
-        </CloseButton>
-      </Container>
-    </Portal>
+          <CloseButton aria-label="Close" onClick={setCookieAndClose}>
+            <Icon name="fe-x" size="1rem" />
+          </CloseButton>
+        </Container>
+      </Portal>
+    )
   );
 };
 
