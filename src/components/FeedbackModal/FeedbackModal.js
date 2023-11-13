@@ -6,40 +6,118 @@ import {
   Button,
   Icon,
   Portal,
+  useLocale,
   useTranslation,
+  useTessen,
 } from '@newrelic/gatsby-theme-newrelic';
+import RecaptchaFooter from '@newrelic/gatsby-theme-newrelic/src/components/SignupModal/RecaptchaFooter';
 import Cookies from 'js-cookie';
+import { v4 as uuidv4 } from 'uuid';
 
 import Agreeance from './Agreeance';
 import NumberRater from './NumberRater';
+import { SUPRQ_QUESTIONS } from '../../utils/constants';
 
 const FORM_VERSION = 1;
 
+const recaptchaReady = () => {
+  return new Promise((resolve, reject) => {
+    try {
+      window.grecaptcha.ready(resolve);
+    } catch (err) {
+      reject(err);
+    }
+  });
+};
+
+const generateRecaptchaToken = () => {
+  // turn the recaptcha thenable into an actual promise
+  return new Promise((resolve, reject) => {
+    window.grecaptcha
+      .execute(window._nr_survey.reCaptchaToken, {
+        action: 'surveyFeedback',
+      })
+      .then(resolve, reject);
+  });
+};
+
 const FeedbackModal = ({ onClose }) => {
   const surveyDismissed = Cookies.get('surveyDismissed') === 'true';
+  const tessen = useTessen();
+  const locale = useLocale();
   const [step, setStep] = useState(0);
   const advance = () => setStep((s) => s + 1);
+  const [guid] = useState(uuidv4());
 
   const setCookieAndClose = () => {
     Cookies.set('surveyDismissed', 'true', { expires: 90 });
     onClose();
   };
 
-  const submitNpsScore = (score) => {
-    console.log('nps score:', score);
-    // TODO: submit to tessen and survey service
+  const submitNpsScore = async (score) => {
+    tessen.track({
+      eventName: 'npsScoreSubmitted',
+      category: 'SurveyFeedback',
+      responseId: guid,
+      response: score,
+      formVersion: FORM_VERSION,
+    });
+    // const npsSubmission = {
+    //   responseId: guid,
+    //   response: score,
+    //   formVersion: FORM_VERSION,
+    //   pageUrl: location.href,
+    //   locale,
+    //   recaptchaToken,
+    //   type: 'nps',
+    // };
+    // await recaptchaReady();
+    // const recaptchaToken = await generateRecaptchaToken();
+    // fetch(
+    //   'https://docs-user-feedback-service.newrelic-external.com/survey-feedback',
+    //   {
+    //     method: 'POST',
+    //     headers: {
+    //       Accept: 'application/json',
+    //       'Content-Type': 'application/json',
+    //     },
+    //     body: JSON.stringify(npsSubmission),
+    //   }
+    // );
+    // TODO: submit to survey service
+    // add locale as well (built into tessen)
     advance();
   };
 
-  const submitSuprQ = (responses) => {
-    console.log('responses:', responses);
-    // TODO: submit to tessen and survey service
+  const submitSuprQ = async (responseObj) => {
+    const responses = Object.entries(responseObj);
+    responses.forEach((response) => {
+      const [questionId, answer] = response;
+      tessen.track({
+        eventName: 'suprQSubmitted',
+        category: 'SurveyFeedback',
+        responseId: guid,
+        question: SUPRQ_QUESTIONS[questionId],
+        response: answer,
+        formVersion: FORM_VERSION,
+      });
+    });
+
+    // TODO: submit to survey service
+    // add locale as well (built into tessen)
     advance();
   };
 
-  const submitFreetext = (text) => {
-    console.log('freetext:', text);
-    // TODO: submit to tessen and survey service
+  const submitFreetext = async (text) => {
+    tessen.track({
+      eventName: 'freeTextSubmitted',
+      category: 'SurveyFeedback',
+      responseId: guid,
+      response: text,
+      formVersion: FORM_VERSION,
+    });
+    // TODO: submit to survey service
+    // add locale as well (built into tessen)
     setCookieAndClose();
   };
 
@@ -62,6 +140,7 @@ const FeedbackModal = ({ onClose }) => {
           <CloseButton aria-label="Close" onClick={setCookieAndClose}>
             <Icon name="fe-x" size="1rem" />
           </CloseButton>
+          <RecaptchaFooter />
         </Container>
       </Portal>
     )
