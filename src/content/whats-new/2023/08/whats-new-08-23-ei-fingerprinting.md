@@ -10,7 +10,7 @@ We’ve rolled out errors inbox custom fingerprinting, which enables you to grou
 
 With this enhancement, you’ll get: 
 * **Simplified error prioritization and triage:** Reduce inbox clutter by creating your own custom groups by simply using a call-back function or naming a group via a custom attribute.
-* **Faster set-up:**Simple implementation in minutes to help you prioritize the right issues you need to resolve before it affects your customer.
+* **Faster set-up:** Simple implementation in minutes to help you prioritize the right issues you need to resolve before it affects your customer.
 
 !["View Custom Errors"](./images/Errors_Fingerprinting.webp "View Custom Errors")
 

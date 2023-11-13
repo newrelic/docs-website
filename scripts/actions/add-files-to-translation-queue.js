@@ -1,6 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-const frontmatter = require('@github-docs/frontmatter');
+const { frontmatter } = require('../utils/frontmatter');
 const { Command } = require('commander');
 const glob = require('glob');
 const {
@@ -83,9 +83,16 @@ const getProjectId = (translateFM) => (locale) => {
 
 const getLocalizedFileData = (mdxFile) => {
   const contents = fs.readFileSync(path.join(process.cwd(), mdxFile));
-  const { data } = frontmatter(contents);
-  const checkLocale = getProjectId(data.translate);
-  const contentType = data.type;
+  const { attributes, error } = frontmatter(contents);
+  if (error != null) {
+    console.log('❌ frontmatter error:');
+    console.log(mdxFile);
+    console.log(error.reason);
+    console.log(error.mark.snippet);
+    return null;
+  }
+  const checkLocale = getProjectId(attributes.translate);
+  const contentType = attributes.type;
 
   return Object.keys(LOCALE_IDS).map((locale) => ({
     filename: mdxFile,
@@ -97,7 +104,9 @@ const getLocalizedFileData = (mdxFile) => {
 
 const addFilesToTranslationQueue = async (fileNames, options) => {
   const machineTranslation = options.machineTranslation || false;
-  const allLocalizedFileData = fileNames.flatMap(getLocalizedFileData);
+  const allLocalizedFileData = fileNames
+    .filter(Boolean)
+    .flatMap(getLocalizedFileData);
 
   const filesToTranslate = machineTranslation
     ? allLocalizedFileData.filter(
