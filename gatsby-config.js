@@ -479,6 +479,12 @@ module.exports = {
             process.env.RECAPTCHA_TOKEN ||
             '6LeGFt8UAAAAANfnpE8si2Z6NnAqYKnPAYgMpStu',
         },
+        survey: {
+          environment: process.env.ENVIRONMENT || 'staging',
+          reCaptchaToken:
+            process.env.RECAPTCHA_TOKEN ||
+            '6Lehf-4oAAAAAK-sCeVSRUrRQfImJdwgc2pPkOwZ',
+        },
         newRelicRequestingServicesHeader: 'docs-website',
       },
     },
