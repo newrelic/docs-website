@@ -1,5 +1,6 @@
 import styled from '@emotion/styled';
 import PropTypes from 'prop-types';
+import { useTranslation } from '@newrelic/gatsby-theme-newrelic';
 
 const Container = styled.fieldset`
   accent-color: var(--brand-button-primary-accent);
@@ -73,62 +74,69 @@ const Container = styled.fieldset`
   }
 `;
 
-const Agreeance = ({ id, onChange, statement }) => (
-  <Container onChange={(e) => onChange(e.target.value)}>
-    <legend>{statement}</legend>
-    <div>
-      <label htmlFor={`agreeance-strongly-disagree-${id}`}>
-        Strongly disagree
-      </label>
-      <input
-        type="radio"
-        id={`agreeance-strongly-disagree-${id}`}
-        name={`agreeance-${id}`}
-        value="strongly-disagree"
-      />
-    </div>
-    <div>
-      <label htmlFor={`agreeance-somewhat-disagree-${id}`}>
-        Somewhat disagree
-      </label>
-      <input
-        type="radio"
-        id={`agreeance-somewhat-disagree-${id}`}
-        name={`agreeance-${id}`}
-        value="somewhat-disagree"
-      />
-    </div>
-    <div>
-      <label htmlFor={`agreeance-neutral-${id}`}>
-        Neither agree nor disagree
-      </label>
-      <input
-        type="radio"
-        id={`agreeance-neutral-${id}`}
-        name={`agreeance-${id}`}
-        value="neutral"
-      />
-    </div>
-    <div>
-      <label htmlFor={`agreeance-somewhat-agree-${id}`}>Somewhat agree</label>
-      <input
-        type="radio"
-        id={`agreeance-somewhat-agree-${id}`}
-        name={`agreeance-${id}`}
-        value="somewhat-agree"
-      />
-    </div>
-    <div>
-      <label htmlFor={`agreeance-strongly-agree-${id}`}>Strongly agree</label>
-      <input
-        type="radio"
-        id={`agreeance-strongly-agree-${id}`}
-        name={`agreeance-${id}`}
-        value="strongly-agree"
-      />
-    </div>
-  </Container>
-);
+const Agreeance = ({ id, onChange, statement }) => {
+  const { t } = useTranslation();
+  return (
+    <Container onChange={(e) => onChange(e.target.value)}>
+      <legend>{statement}</legend>
+      <div>
+        <label htmlFor={`agreeance-strongly-disagree-${id}`}>
+          {t('surveyModal.suprQ.agreeance.strongly-disagree')}
+        </label>
+        <input
+          type="radio"
+          id={`agreeance-strongly-disagree-${id}`}
+          name={`agreeance-${id}`}
+          value="strongly-disagree"
+        />
+      </div>
+      <div>
+        <label htmlFor={`agreeance-somewhat-disagree-${id}`}>
+          {t('surveyModal.suprQ.agreeance.somewhat-disagree')}
+        </label>
+        <input
+          type="radio"
+          id={`agreeance-somewhat-disagree-${id}`}
+          name={`agreeance-${id}`}
+          value="somewhat-disagree"
+        />
+      </div>
+      <div>
+        <label htmlFor={`agreeance-neutral-${id}`}>
+          {t('surveyModal.suprQ.agreeance.neutral')}
+        </label>
+        <input
+          type="radio"
+          id={`agreeance-neutral-${id}`}
+          name={`agreeance-${id}`}
+          value="neutral"
+        />
+      </div>
+      <div>
+        <label htmlFor={`agreeance-somewhat-agree-${id}`}>
+          {t('surveyModal.suprQ.agreeance.somewhat-agree')}
+        </label>
+        <input
+          type="radio"
+          id={`agreeance-somewhat-agree-${id}`}
+          name={`agreeance-${id}`}
+          value="somewhat-agree"
+        />
+      </div>
+      <div>
+        <label htmlFor={`agreeance-strongly-agree-${id}`}>
+          {t('surveyModal.suprQ.agreeance.strongly-agree')}
+        </label>
+        <input
+          type="radio"
+          id={`agreeance-strongly-agree-${id}`}
+          name={`agreeance-${id}`}
+          value="strongly-agree"
+        />
+      </div>
+    </Container>
+  );
+};
 
 Agreeance.propTypes = {
   id: PropTypes.string.isRequired,
