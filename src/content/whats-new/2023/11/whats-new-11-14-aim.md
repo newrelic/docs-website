@@ -1,5 +1,5 @@
 ---
-title: 'Get early access to New Relic AI Monitoring - Industry's first APM for AI'
+title: 'Get early access to New Relic AI Monitoring - Industry''s first APM for AI'
 summary: 'Gain in-depth insights across the AI application stack to optimize for performance, quality and cost'
 releaseDate: '2023-11-14'
 learnMoreLink: 'https://newrelic.com/blog/how-to-relic/ai-monitoring'
