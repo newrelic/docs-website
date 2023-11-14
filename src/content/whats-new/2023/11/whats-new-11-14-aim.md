@@ -3,7 +3,7 @@ title: 'Get early access to New Relic AI Monitoring - Industry''s first APM for 
 summary: 'Gain in-depth insights across the AI application stack to optimize for performance, quality and cost'
 releaseDate: '2023-11-14'
 learnMoreLink: 'https://newrelic.com/blog/how-to-relic/ai-monitoring'
-getStartedLink: 'https://newrelic.com/platform/ai-monitoring-early-access'
+getStartedLink: 'https://newrelic.com/platform/ai-monitoring'
 ---
 
 New Relic AI Monitoring(AIM) provides unprecedented visibility and insights across the entire AI application stack enabling engineers to troubleshoot and optimize their AI applications for performance, quality and cost. 
