@@ -34,7 +34,7 @@ const generateRecaptchaToken = () => {
   // turn the recaptcha thenable into an actual promise
   return new Promise((resolve, reject) => {
     window.grecaptcha
-      .execute(window._nr_survey.reCaptchaToken, {
+      .execute('6Lehf-4oAAAAAK-sCeVSRUrRQfImJdwgc2pPkOwZ', {
         action: 'surveyFeedback',
       })
       .then(resolve, reject);
@@ -42,6 +42,13 @@ const generateRecaptchaToken = () => {
 };
 
 const FeedbackModal = ({ onClose }) => {
+  const SUPRQ_SCORE = {
+    'strongly-disagree': 1,
+    'somewhat-disagree': 2,
+    neutral: 3,
+    'somewhat-agree': 4,
+    'strongly-agree': 5,
+  };
   const surveyDismissed = Cookies.get('surveyDismissed') === 'true';
   const tessen = useTessen();
   const locale = useLocale();
@@ -62,49 +69,68 @@ const FeedbackModal = ({ onClose }) => {
       response: score,
       formVersion: FORM_VERSION,
     });
-    // const npsSubmission = {
-    //   responseId: guid,
-    //   response: score,
-    //   formVersion: FORM_VERSION,
-    //   pageUrl: location.href,
-    //   locale,
-    //   recaptchaToken,
-    //   type: 'nps',
-    // };
-    // await recaptchaReady();
-    // const recaptchaToken = await generateRecaptchaToken();
-    // fetch(
-    //   'https://docs-user-feedback-service.newrelic-external.com/survey-feedback',
-    //   {
-    //     method: 'POST',
-    //     headers: {
-    //       Accept: 'application/json',
-    //       'Content-Type': 'application/json',
-    //     },
-    //     body: JSON.stringify(npsSubmission),
-    //   }
-    // );
-    // TODO: submit to survey service
-    // add locale as well (built into tessen)
+    await recaptchaReady();
+    const recaptchaToken = await generateRecaptchaToken();
+    const npsSubmission = {
+      responseId: guid,
+      response: score,
+      formVersion: FORM_VERSION,
+      pageUrl: location.href,
+      locale: locale.locale,
+      recaptchaToken,
+      type: 'nps',
+    };
+    fetch(
+      'https://docs-user-feedback-service.newrelic-external.com/survey-feedback',
+      {
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(npsSubmission),
+      }
+    );
     advance();
   };
 
   const submitSuprQ = async (responseObj) => {
     const responses = Object.entries(responseObj);
-    responses.forEach((response) => {
+    responses.forEach(async (response) => {
+      const recaptchaToken = await generateRecaptchaToken();
       const [questionId, answer] = response;
       tessen.track({
         eventName: 'suprQSubmitted',
         category: 'SurveyFeedback',
         responseId: guid,
-        question: SUPRQ_QUESTIONS[questionId],
+        suprQuestion: SUPRQ_QUESTIONS[questionId],
         response: answer,
+        score: SUPRQ_SCORE[answer],
         formVersion: FORM_VERSION,
       });
+      const suprQSubmission = {
+        responseId: guid,
+        suprQuestion: SUPRQ_QUESTIONS[questionId],
+        response: answer,
+        score: SUPRQ_SCORE[answer],
+        formVersion: FORM_VERSION,
+        pageUrl: location.href,
+        locale: locale.locale,
+        recaptchaToken,
+        type: 'suprQ',
+      };
+      fetch(
+        'https://docs-user-feedback-service.newrelic-external.com/survey-feedback',
+        {
+          method: 'POST',
+          headers: {
+            Accept: 'application/json',
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(suprQSubmission),
+        }
+      );
     });
-
-    // TODO: submit to survey service
-    // add locale as well (built into tessen)
     advance();
   };
 
@@ -116,8 +142,27 @@ const FeedbackModal = ({ onClose }) => {
       response: text,
       formVersion: FORM_VERSION,
     });
-    // TODO: submit to survey service
-    // add locale as well (built into tessen)
+    const recaptchaToken = await generateRecaptchaToken();
+    const freetextSubmission = {
+      responseId: guid,
+      response: text,
+      formVersion: FORM_VERSION,
+      pageUrl: location.href,
+      locale: locale.locale,
+      recaptchaToken,
+      type: 'freeText',
+    };
+    fetch(
+      'https://docs-user-feedback-service.newrelic-external.com/survey-feedback',
+      {
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(freetextSubmission),
+      }
+    );
     setCookieAndClose();
   };
 
