@@ -4,7 +4,7 @@ summary: 'New Relic Cloud Monitoring Polling integrations [AWS/Azure/GCP] will n
 releaseDate: '2023-12-01'
 ---
 
-As of Dec 1st 2223, you'll have access to additional metrics for your New Relic cloud  monitoring integrations. The list of new metrics are:
+As of Dec 1st 2223, the New Relic cloud monitoring integrations will report additional metrics. The new metrics are:
 
 AWS EC2:
 * `diskReadOps`
@@ -41,4 +41,4 @@ GCP Compute Engine (VMs):
 
 The infrastructure agent is no longer necessary to fetch these metrics.
 
-Note that these metrics may incur additional data ingestion (3-4KB per metric per hour) when the any of the three integrations (AWS API Polling, Azure Polling, and GCP integration) are enabled.
+Note that these metrics may incur additional data ingestion (3-4KB per metric per hour) when any of the three integrations (AWS API Polling, Azure Polling, and GCP integration) are enabled.
