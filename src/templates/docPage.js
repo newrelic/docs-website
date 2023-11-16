@@ -4,6 +4,7 @@ import { css } from '@emotion/react';
 import { graphql } from 'gatsby';
 import { takeWhile } from 'lodash';
 import { CSSTransition } from 'react-transition-group';
+import { useMedia } from 'react-use';
 import { createLocalStorageStateHook } from 'use-local-storage-state';
 import DocPageBanner from '../components/DocPageBanner';
 import PageTitle from '../components/PageTitle';
@@ -22,6 +23,7 @@ import GithubSlugger from 'github-slugger';
 import { TYPES } from '../utils/constants';
 import { useMainLayoutContext } from '../components/MainLayoutContext';
 import ErrorBoundary from '../components/ErrorBoundary';
+import FeedbackModal from '../components/FeedbackModal';
 
 const BANNER_HEIGHT = '78px';
 
@@ -87,9 +89,13 @@ const BasicDoc = ({ data, location, pageContext }) => {
     `docBannerDismissed-${title}`
   );
   const [bannerDismissed, setBannerDismissed] = useBannerDismissed(false);
+  const [showFeedbackModal, setShowFeedbackModal] = useState(true);
   const [mounted, setMounted] = useState(false);
   const bannerVisible =
     !loggedIn && !bannerDismissed && signupBanner && mounted;
+  const mobileBreakpoint = '450px';
+  const isMobileScreen = useMedia(`(max-width: ${mobileBreakpoint})`);
+
   useEffect(() => {
     setMounted(true);
   }, []);
@@ -176,6 +182,9 @@ const BasicDoc = ({ data, location, pageContext }) => {
         <LoggedInProvider>
           <Layout.Content>
             <MDXContainer body={body} />
+            {showFeedbackModal && !isMobileScreen && (
+              <FeedbackModal onClose={() => setShowFeedbackModal(false)} />
+            )}{' '}
           </Layout.Content>
         </LoggedInProvider>
         {!hidePageTools && (

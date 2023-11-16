@@ -19,6 +19,11 @@ import NumberRater from './NumberRater';
 import { SUPRQ_QUESTIONS } from '../../utils/constants';
 
 const FORM_VERSION = 1;
+const questions = shuffle(['q1', 'q2', 'q3', 'q4', 'q5', 'q6', 'q7', 'q8']);
+// 1/20 chance to see the modal
+const nat20 = Math.floor(Math.random() * 20) + 1 === 20;
+const hadChanceToShow = Cookies.get('hadChanceToShow') === 'true';
+const shouldShow = nat20 && !hadChanceToShow;
 
 const recaptchaReady = () => {
   return new Promise((resolve, reject) => {
@@ -56,8 +61,10 @@ const FeedbackModal = ({ onClose }) => {
   const advance = () => setStep((s) => s + 1);
   const [guid] = useState(uuidv4());
 
-  const setCookieAndClose = () => {
+  const setCookiesAndClose = () => {
     Cookies.set('surveyDismissed', 'true', { expires: 90 });
+    onClose();
+    Cookies.set('hadChanceToShow', 'true', { expires: 1 });
     onClose();
   };
 
@@ -163,11 +170,12 @@ const FeedbackModal = ({ onClose }) => {
         body: JSON.stringify(freetextSubmission),
       }
     );
-    setCookieAndClose();
+    setCookiesAndClose();
   };
 
   return (
-    !surveyDismissed && (
+    !surveyDismissed &&
+    shouldShow && (
       <Portal
         initializer={(node) => {
           if (node) {
@@ -182,7 +190,7 @@ const FeedbackModal = ({ onClose }) => {
           {step === 1 && <SuprQ onSubmit={submitSuprQ} />}
           {step === 2 && <Freetext onSubmit={submitFreetext} />}
 
-          <CloseButton aria-label="Close" onClick={setCookieAndClose}>
+          <CloseButton aria-label="Close" onClick={setCookiesAndClose}>
             <Icon name="fe-x" size="1rem" />
           </CloseButton>
           <RecaptchaFooter />
@@ -295,7 +303,6 @@ const Freetext = ({ onSubmit }) => {
   );
 };
 
-const questions = shuffle(['q1', 'q2', 'q3', 'q4', 'q5', 'q6', 'q7', 'q8']);
 const Container = styled.aside`
   align-items: center;
   background: var(--modal-background-color);
