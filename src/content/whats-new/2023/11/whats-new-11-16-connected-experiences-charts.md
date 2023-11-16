@@ -6,14 +6,14 @@ learnMoreLink: 'https://docs.newrelic.com/docs/query-your-data/explore-query-dat
 getStartedLink: 'https://one.newrelic.com/dashboards'
 ---
 
-We’ve updated our charts to make it easier to see the right data in the right view in fewer clicks!
+We’ve updated our charts to make it easier to see the right data in the right view with fewer clicks!
 
-Dashboards help you query, visualize, and correlate data from multiple sources across your stack. When dips and spikes appear on your charts, you want to quickly understand the underlying source and go from broad exploration to deep diving into your data.
+Dashboards help you query, visualize, and correlate data from multiple sources across your stack. When dips and spikes appear on your charts, you want to quickly understand the reason why and go from a broader view to a deep diving into your data.
 
 Now, you can click on time series charts from anywhere in New Relic to go directly to associated entities as well as their traces and logs. This allows you to:
-- **Troubleshoot faster with context.** Take the right next steps by seeing associated entities.
-- **Deep dive to the right data easier.**  Automatically connect with relevant services, hosts, and more. 
-- **Get context from anywhere in the platform**, pivoting to the right pages in a single click.
+- **Troubleshoot faster with context**: Take the right next steps by seeing associated entities.
+- **Deep dive to the right data easier**:  Automatically connect with relevant services, hosts, and more. 
+- **Get context from anywhere in the platform**: Pivot to the right pages in a single click.
 
 <iframe width="560" height="315" src="https://fast.wistia.net/embed/iframe/5jkkp2wbu7" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
 
