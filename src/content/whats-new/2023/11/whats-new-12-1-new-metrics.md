@@ -4,7 +4,7 @@ summary: 'New Relic Cloud Monitoring Polling integrations [AWS/Azure/GCP] will n
 releaseDate: '2023-12-01'
 ---
 
-As of Dec 1st 2223, the New Relic cloud monitoring integrations will report additional metrics. The new metrics are:
+As of December 1st 2023, the New Relic cloud monitoring integrations will report additional metrics. The new metrics are:
 
 AWS EC2:
 * `diskReadOps`
