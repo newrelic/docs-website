@@ -54,7 +54,6 @@ const DEFAULT_REASON = 'Invalid frontmatter entry';
  */
 const frontmatter = (mdString) => {
   let result;
-
   try {
     const { content, data } = grayMatter(mdString);
 
@@ -78,6 +77,67 @@ const frontmatter = (mdString) => {
   return result;
 };
 
+/**
+ * Parse the frontmatter and check for required freshnessValidatedDate field on most content doc pages. 
+ * Valid options are `never` or `YYYY-MM-DD`
+ *
+ * @example
+ * ```yaml
+ * ---
+ * title: This is a doc page
+ * freshnessValidatedDate: 2021-03-15
+ * ---
+ * ```
+ * 
+ *```js
+ * // error.message = undefined
+ * ``` 
+ * 
+ * ```yaml
+ * ---
+ * title: This is a doc page with an invalid date
+ * freshnessValidatedDate: 21-03-15
+ * ---
+ * ```
+ * 
+ *```js
+ * // error.message = freshnessValidatedDate is not a valid value. Must be date format YYYY-MM-DD or `never`
+ * ```
+
+ *
+ *
+ *
+ * @param {string} mdString - Full content of the MD(X) file to parse.
+ * @returns error | undefined
+ */
+
+const validateFreshnessDate = (mdString) => {
+  let error;
+
+  const { data } = grayMatter(mdString);
+
+  const isValidDate = (date) => {
+    return !isNaN(new Date(date));
+  };
+
+  // freshnessValidatedDate is a required field and must be a date or `never`
+  if (data.freshnessValidatedDate) {
+    if (
+      !isValidDate(data.freshnessValidatedDate) &&
+      !data.freshnessValidatedDate.includes('never')
+    ) {
+      error = new Error(
+        'freshnessValidatedDate is not a valid value. Must be date format YYYY-MM-DD or `never`'
+      );
+    }
+  } else {
+    error = new Error('freshnessValidatedDate field missing from frontmatter');
+  }
+
+  return error;
+};
+
 module.exports = {
   frontmatter,
+  validateFreshnessDate,
 };

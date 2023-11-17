@@ -1,5 +1,5 @@
 /* eslint-disable no-console */
-const { frontmatter } = require('./utils/frontmatter');
+const { frontmatter, validateFreshnessDate } = require('./utils/frontmatter');
 const { verifyImageImports } = require('./utils/image-import-utils.js');
 const mdx = require('@mdx-js/mdx');
 const fs = require('fs');
@@ -35,13 +35,30 @@ const readFile = async (filePath) => {
 
     failed = true;
   }
+  const excludeFromFreshnessRegex = [
+    'src/content/docs/release-notes/',
+    'src/content/whats-new/',
+    'src/content/docs/security/new-relic-security/security-bulletins/',
+    'src/i18n/content/',
+  ];
+  const shouldValidateFreshnessDate = !excludeFromFreshnessRegex.some(
+    (excludedPath) => filePath.includes(excludedPath)
+  );
 
   const { error } = frontmatter(mdxText);
+
   if (error != null) {
     mdxErrors.push(`\x1b[35m Frontmatter error:\x1b[0m ${filePath} \n
       \x1b[31m${error.reason}\x1b[0m
     ${error.mark.snippet}`);
     failed = true;
+  } else if (shouldValidateFreshnessDate) {
+    const error = validateFreshnessDate(mdxText);
+    if (error) {
+      mdxErrors.push(`\x1b[35m Frontmatter field error:\x1b[0m ${filePath} \n
+        \x1b[31m${error.message}\x1b[0m`);
+      failed = true;
+    }
   }
 
   return failed ? filePath : null;
