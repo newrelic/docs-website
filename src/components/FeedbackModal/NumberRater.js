@@ -20,10 +20,11 @@ const RatingContainer = styled.fieldset`
     place-items: center;
     position: relative;
     width: 2.25rem;
+    transition: 0.3s;
   }
   & > div:hover,
   & > div:focus-within {
-    background: #e1e4e4;
+    background: var(--brand-button-primary-accent);
   }
 
   & > div > input {
