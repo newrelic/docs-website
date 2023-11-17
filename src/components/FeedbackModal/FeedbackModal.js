@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { css } from '@emotion/react';
 import styled from '@emotion/styled';
 import shuffle from 'lodash/shuffle';
@@ -22,7 +22,7 @@ const FORM_VERSION = 1;
 const questions = shuffle(['q1', 'q2', 'q3', 'q4', 'q5', 'q6', 'q7', 'q8']);
 // 1/20 chance to see the modal
 const nat20 = Math.floor(Math.random() * 20) + 1 === 20;
-const hadChanceToShow = Cookies.get('hadChanceToShow') === 'true';
+const hadChanceToShow = Cookies.get('surveyHadChanceToShow') === 'true';
 const shouldShow = nat20 && !hadChanceToShow;
 
 const recaptchaReady = () => {
@@ -58,14 +58,18 @@ const FeedbackModal = ({ onClose }) => {
   const tessen = useTessen();
   const locale = useLocale();
   const [step, setStep] = useState(0);
+  const [showThankYou, setShowThankYou] = useState(false);
   const advance = () => setStep((s) => s + 1);
   const [guid] = useState(uuidv4());
 
-  const setCookiesAndClose = () => {
-    Cookies.set('surveyDismissed', 'true', { expires: 90 });
-    onClose();
-    Cookies.set('hadChanceToShow', 'true', { expires: 1 });
-    onClose();
+  useEffect(() => Cookies.set('surveyHadChanceToShow', 'true', { expires: 1 }));
+
+  const setDismissedCookieAndClose = () => {
+    const timer = setTimeout(() => {
+      onClose();
+      Cookies.set('surveyDismissed', 'true', { expires: 90 });
+    }, 2000);
+    return () => clearTimeout(timer);
   };
 
   const submitNpsScore = async (score) => {
@@ -170,7 +174,8 @@ const FeedbackModal = ({ onClose }) => {
         body: JSON.stringify(freetextSubmission),
       }
     );
-    setCookiesAndClose();
+    setShowThankYou(true);
+    setDismissedCookieAndClose();
   };
 
   return (
@@ -188,12 +193,15 @@ const FeedbackModal = ({ onClose }) => {
         <Container>
           {step === 0 && <NpsScore onSubmit={submitNpsScore} />}
           {step === 1 && <SuprQ onSubmit={submitSuprQ} />}
-          {step === 2 && <Freetext onSubmit={submitFreetext} />}
+          {step === 2 && !showThankYou && (
+            <Freetext onSubmit={submitFreetext} />
+          )}
+          {showThankYou && <ThankYou />}
 
-          <CloseButton aria-label="Close" onClick={setCookiesAndClose}>
-            <Icon name="fe-x" size="1rem" />
+          <CloseButton aria-label="Close" onClick={setDismissedCookieAndClose}>
+            <Icon name="fe-x" size="1.5rem" />
           </CloseButton>
-          <RecaptchaFooter />
+          {!showThankYou && <RecaptchaFooter />}
         </Container>
       </Portal>
     )
@@ -303,6 +311,16 @@ const Freetext = ({ onSubmit }) => {
   );
 };
 
+const ThankYou = () => (
+  <Title
+    css={css`
+      margin: 0;
+    `}
+  >
+    Thank you for the feedback! 🎉
+  </Title>
+);
+
 const Container = styled.aside`
   align-items: center;
   background: var(--modal-background-color);
@@ -312,6 +330,7 @@ const Container = styled.aside`
   padding: 24px;
   width: max(550px, 30rem);
   border: 1px solid var(--divider-color);
+  box-shadow: var(--shadow-3);
 
   & > fieldset,
   & > h1,
@@ -330,7 +349,6 @@ const CloseButton = styled.button`
   color: var(--primary-text-color);
   cursor: pointer;
   display: grid;
-  font-size: 2rem;
   padding: 16px;
   place-items: center;
   position: absolute;
