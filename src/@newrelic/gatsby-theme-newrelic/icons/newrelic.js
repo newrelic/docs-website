@@ -11,6 +11,8 @@ import InfrastructureIcon from './newrelic/infrastructure';
 import BrowserIcon from './newrelic/browser';
 import AlertsAiIcon from './newrelic/alerts-ai';
 import ApmIcon from './newrelic/apm';
+import StackTraceIcon from './newrelic/stack-trace';
+import LatencyIcon from './newrelic/latency';
 
 export default {
   ...defaultIcons,
@@ -26,4 +28,6 @@ export default {
   browser: BrowserIcon,
   'alerts-ai': AlertsAiIcon,
   apm: ApmIcon,
+  'stack-trace': StackTraceIcon,
+  latency: LatencyIcon,
 };
