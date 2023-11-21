@@ -2,13 +2,12 @@
 
 import { execSync } from 'child_process';
 import { glob } from 'glob10';
-import { writeFileSync, writeFile, readFileSync } from 'fs';
+import { writeFile, readFileSync } from 'fs';
 import { stringify } from 'csv-stringify';
 import cliProgress from 'cli-progress';
 
 console.log('Building CSV file...');
 console.time('csvCreation');
-
 const allDocs = await glob('src/content/docs/**/*.mdx', {
   ignore: [
     '**/index.mdx',
@@ -52,6 +51,7 @@ const progressBar = new cliProgress.SingleBar(
 progressBar.start(allDocs.length, 0);
 
 const allDocsAndDates = allDocs.map((doc, i) => {
+  // get date of most recent commit
   const gitLogModifiedDate = execSync(
     `git log -1 --pretty=format:%aI ${doc}`
   ).toString();
@@ -59,12 +59,33 @@ const allDocsAndDates = allDocs.map((doc, i) => {
   const dateModified = new Date(gitLogModifiedDate).toDateString();
   const freshnessDate = getFreshnessFrontmatter(doc);
 
+  // get author and date for each commit in last 180 days. split into an array
+  const authorData = execSync(
+    `git log --format=%an,%aI --since=180.days ${doc}`
+  )
+    .toString()
+    .split('\n');
+
+  // remove empty element from trailing new line
+  authorData.pop();
+
+  // shorten date to YYYY-MM-DD and return author data formatted for readability
+  const authorsAndDates = authorData.map((author) => {
+    const split = author.split(',');
+    return `[${split[0]} - ${split[1]?.slice(0, 10)}]`;
+  });
+
   progressBar.update(i + 1);
 
-  return [doc, freshnessDate, dateModified];
+  return [doc, freshnessDate, dateModified, authorsAndDates.toString()];
 });
 
-const headers = ['Doc', 'Freshness Date', 'Last Modified Date'];
+const headers = [
+  'Doc',
+  'Freshness Date',
+  'Last Modified Date',
+  'Recent Authors',
+];
 
 allDocsAndDates.unshift(headers);
 
