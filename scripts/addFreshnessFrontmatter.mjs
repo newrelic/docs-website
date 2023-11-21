@@ -12,6 +12,7 @@ const allDocs = await glob('src/content/docs/**/*.mdx', {
   ignore: [
     '**/index.mdx',
     'src/content/docs/release-notes/**/*.mdx',
+    'src/content/docs/style-guide/**/*.mdx',
     'src/content/whats-new/**/*.mdx',
     'src/content/docs/security/new-relic-security/security-bulletins/**/*.mdx',
   ],
@@ -51,7 +52,7 @@ const addFreshnessFrontmatter = (allDocs) => {
     const content = fileData.split('---');
 
     // modify the frontmatter adding the freshness field if it does not have it already
-    if (!content[1].includes(freshnessFrontmatterKey)) {
+    if (!content[1]?.includes(freshnessFrontmatterKey)) {
       content[1] = `${content[1]}${freshnessFrontmatterKey}${
         isDocStale(created) ? 'never' : created.toISOString().slice(0, 10)
       }\n`;

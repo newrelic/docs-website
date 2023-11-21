@@ -12,6 +12,7 @@ const allDocs = await glob('src/content/docs/**/*.mdx', {
   ignore: [
     '**/index.mdx',
     'src/content/docs/release-notes/**/*.mdx',
+    'src/content/docs/style-guide/**/*.mdx',
     'src/content/whats-new/**/*.mdx',
     'src/content/docs/security/new-relic-security/security-bulletins/**/*.mdx',
   ],
@@ -29,7 +30,7 @@ const getFreshnessFrontmatter = (doc) => {
   const frontmatter = readFileSync(doc, 'utf-8').split('---')[1];
   let freshnessDate;
 
-  if (frontmatter.includes(freshnessFrontmatterKey)) {
+  if (frontmatter?.includes(freshnessFrontmatterKey)) {
     freshnessDate = frontmatter
       .split('\n')
       // find the line with the freshnessDate, there should always be one, and remove the key
