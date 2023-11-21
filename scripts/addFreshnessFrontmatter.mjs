@@ -12,6 +12,7 @@ const allDocs = await glob('src/content/docs/**/*.mdx', {
   ignore: [
     '**/index.mdx',
     'src/content/docs/release-notes/**/*.mdx',
+    'src/content/docs/style-guide/**/*.mdx',
     'src/content/whats-new/**/*.mdx',
     'src/content/docs/security/new-relic-security/security-bulletins/**/*.mdx',
   ],
