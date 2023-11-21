@@ -14,7 +14,7 @@ With quick actions and widgets on mobile, you get:
 * **Customizable widgets and shortcuts:** Customize your shortcuts and widgets to fit your unique workflow and priorities. Whether you're interested in Issue Counts, service levels, or any other custom chart, these features let you take control of your data access and management.
 * **All the data you need at your fingertips:** Add widgets directly to your device's lock screen (_Android only, iOS coming soon!_). Keep a close eye on system health, performance metrics, and alerts without unlocking your device, so that you can stay informed and responsive.
 
-![A screenshot showing mobile app quick actions and widgets.](./images/mobile-quick-access.png "A screenshot showing mobile app quick actions and widgets.")
+![A screenshot showing mobile app quick actions and widgets.](./images/mobile-quick-access.webp "A screenshot showing mobile app quick actions and widgets.")
 
 **Next steps**
 
