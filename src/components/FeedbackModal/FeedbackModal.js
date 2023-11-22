@@ -21,9 +21,9 @@ import { SUPRQ_QUESTIONS } from '../../utils/constants';
 const FORM_VERSION = 1;
 const questions = shuffle(['q1', 'q2', 'q3', 'q4', 'q5', 'q6', 'q7', 'q8']);
 // 1/20 chance to see the modal
-const nat20 = Math.floor(Math.random() * 20) + 1 === 20;
-const hadChanceToShow = Cookies.get('surveyHadChanceToShow') === 'true';
-const shouldShow = nat20 && !hadChanceToShow;
+// const nat20 = Math.floor(Math.random() * 20) + 1 === 20;
+// const hadChanceToShow = Cookies.get('surveyHadChanceToShow') === 'true';
+const shouldShow = true;
 
 const recaptchaReady = () => {
   return new Promise((resolve, reject) => {
@@ -107,8 +107,32 @@ const FeedbackModal = ({ onClose }) => {
 
   const submitSuprQ = async (responseObj) => {
     const responses = Object.entries(responseObj);
-    responses.forEach(async (response) => {
-      const recaptchaToken = await generateRecaptchaToken();
+    const recaptchaToken = await generateRecaptchaToken();
+    const suprQSubmission = {
+      responseId: guid,
+      formVersion: FORM_VERSION,
+      pageUrl: location.href,
+      locale: locale.locale,
+      responses: responses.map(([questionId, answer]) => ({
+        suprQuestion: SUPRQ_QUESTIONS[questionId],
+        response: answer,
+        score: SUPRQ_SCORE[answer],
+      })),
+      recaptchaToken,
+      type: 'suprQ',
+    };
+    fetch(
+      'https://docs-user-feedback-service.newrelic-external.com/survey-feedback',
+      {
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(suprQSubmission),
+      }
+    );
+    responses.forEach((response) => {
       const [questionId, answer] = response;
       tessen.track({
         eventName: 'suprQSubmitted',
@@ -119,28 +143,6 @@ const FeedbackModal = ({ onClose }) => {
         score: SUPRQ_SCORE[answer],
         formVersion: FORM_VERSION,
       });
-      const suprQSubmission = {
-        responseId: guid,
-        suprQuestion: SUPRQ_QUESTIONS[questionId],
-        response: answer,
-        score: SUPRQ_SCORE[answer],
-        formVersion: FORM_VERSION,
-        pageUrl: location.href,
-        locale: locale.locale,
-        recaptchaToken,
-        type: 'suprQ',
-      };
-      fetch(
-        'https://docs-user-feedback-service.newrelic-external.com/survey-feedback',
-        {
-          method: 'POST',
-          headers: {
-            Accept: 'application/json',
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(suprQSubmission),
-        }
-      );
     });
     advance();
   };
