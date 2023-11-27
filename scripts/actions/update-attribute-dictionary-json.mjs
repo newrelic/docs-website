@@ -6,7 +6,7 @@ import deepEqual from 'deep-equal';
 import sortBy from 'lodash/fp/sortBy.js';
 
 // this should be prod nerdgraph
-const NERDGRAPH_API_URL = 'https://staging-api.newrelic.com/graphql';
+const NERDGRAPH_API_URL = 'https://api.newrelic.com/graphql';
 const JSON_FILE_PATH = 'src/data/attribute-dictionary.json';
 
 const GQL_QUERY = `
@@ -59,10 +59,32 @@ async function updateJson() {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({ query: GQL_QUERY }),
-  }).then((res) => res.json());
+  })
+    .then((res) => {
+      if (res.status === 200) {
+        return res.json();
+      } else {
+        throw res;
+      }
+    })
+    .catch(async (res) => {
+      console.log(`Fetch failed with status code ${res.status}`);
+      const contentTypeHeader = res.headers.get('content-type');
+      const contentType = contentTypeHeader?.split(';')?.[0];
+
+      if (contentType === 'application/json') {
+        const json = await res.json();
+        console.log(json);
+      } else {
+        const text = await res.text();
+        console.log(text);
+      }
+
+      process.exit(1);
+    });
 
   if (newData.hasOwnProperty('error')) {
-    console.error('Issue with fetching attribute dictionary:', error);
+    console.error('Issue with fetching attribute dictionary:', newData.error);
     process.exit(1);
   }
   console.log('Fetch successful!');
