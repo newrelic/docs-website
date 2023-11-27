@@ -62,14 +62,20 @@ const FeedbackModal = ({ onClose }) => {
   const advance = () => setStep((s) => s + 1);
   const [guid] = useState(uuidv4());
 
-  useEffect(() => Cookies.set('surveyHadChanceToShow', 'true', { expires: 1 }));
+  useEffect(() => {
+    if (shouldShow && !surveyDismissed) {
+      tessen.track({
+        eventName: 'surveyDisplayed',
+        category: 'SurveyFeedback',
+        formVersion: FORM_VERSION,
+      });
+    }
+    Cookies.set('surveyHadChanceToShow', 'true', { expires: 1 });
+  }, [tessen, surveyDismissed]);
 
   const setDismissedCookieAndClose = () => {
-    const timer = setTimeout(() => {
-      onClose();
-      Cookies.set('surveyDismissed', 'true', { expires: 90 });
-    }, 2000);
-    return () => clearTimeout(timer);
+    onClose();
+    Cookies.set('surveyDismissed', 'true', { expires: 90 });
   };
 
   const submitNpsScore = async (score) => {
@@ -177,7 +183,10 @@ const FeedbackModal = ({ onClose }) => {
       }
     );
     setShowThankYou(true);
-    setDismissedCookieAndClose();
+    const timer = setTimeout(() => {
+      setDismissedCookieAndClose();
+    }, 2000);
+    return () => clearTimeout(timer);
   };
 
   return (
@@ -200,7 +209,18 @@ const FeedbackModal = ({ onClose }) => {
           )}
           {showThankYou && <ThankYou />}
 
-          <CloseButton aria-label="Close" onClick={setDismissedCookieAndClose}>
+          <CloseButton
+            aria-label="Close"
+            onClick={() => {
+              tessen.track({
+                eventName: 'surveyClosed',
+                category: 'SurveyFeedback',
+                formVersion: FORM_VERSION,
+                step,
+              });
+              setDismissedCookieAndClose();
+            }}
+          >
             <Icon name="fe-x" size="1.5rem" />
           </CloseButton>
           {!showThankYou && <RecaptchaFooter />}
