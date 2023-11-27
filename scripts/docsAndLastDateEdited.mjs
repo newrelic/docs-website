@@ -72,8 +72,8 @@ const allDocsAndDates = allDocs.map((doc, i) => {
 
   // shorten date to YYYY-MM-DD and return author data formatted for readability
   const authorsAndDates = authorData.map((author) => {
-    const split = author.split(',');
-    return `[${split[0]} - ${split[1]?.slice(0, 10)}]`;
+    const [name, date] = author.split(',');
+    return `[${name} - ${date?.slice(0, 10)}]`;
   });
 
   progressBar.update(i + 1);
