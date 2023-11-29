@@ -57,7 +57,7 @@ howdy: cowboy 🤠
 list:
   - item 1
   - item 2
-freshnessValidatedDate: 2023-12-02
+freshnessValidatedDate: '2023-12-02'
 ---
 some content!
 `;
@@ -67,7 +67,7 @@ howdy: cowboy 🤠
 list:
   - item 1
   - item 2
-freshnessValidatedDate: 23-12-02
+freshnessValidatedDate: '23-12-02'
 ---
 some content!
 `;
