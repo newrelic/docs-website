@@ -17,4 +17,4 @@ Installation of addon to EKS clusters comes with advantage to
 
 **Next steps**
 
-* Check out our documentation for [eks-add-on]([https://docs.newrelic.com/docs/mobile-apps/quick-actions/](https://docs.newrelic.com/docs/infrastructure/amazon-integrations/connect/eks-add-on/))
+* Check out our documentation for [eks-add-on]([https://docs.newrelic.com/docs/infrastructure/amazon-integrations/connect/eks-add-on/])
