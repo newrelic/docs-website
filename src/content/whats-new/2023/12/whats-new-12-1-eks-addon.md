@@ -12,9 +12,8 @@ Installation of addon to EKS clusters comes with advantage to
 * **Customizable crd:** After installation of EKS Addon, you can apply customizable CRD to enable/disable pods as per the monitoring requirements
 * 
 
-![A screenshot showing mobile app quick actions and widgets.](./images/mobile-quick-access.webp "A screenshot showing mobile app quick actions and widgets.")
+![A screenshot showing K8s operator in AWS Marketplace.](./images/aws-newrelic-eks-addon.webp")
 
 **Next steps**
 
-* Check out our documentation for [quick actions](https://docs.newrelic.com/docs/mobile-apps/quick-actions/) and widgetes for [Android](https://docs.newrelic.com/docs/mobile-apps/android-widgets/) and [iOS](https://docs.newrelic.com/docs/mobile-apps/ios-widgets/)
-* Watch the [databyte video](https://youtu.be/qSprakQpUTM).
+* Check out our documentation for [eks-add-on]([https://docs.newrelic.com/docs/mobile-apps/quick-actions/](https://docs.newrelic.com/docs/infrastructure/amazon-integrations/connect/eks-add-on/))
