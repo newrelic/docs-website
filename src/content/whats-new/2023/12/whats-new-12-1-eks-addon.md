@@ -9,8 +9,9 @@ Monitor your AWS EKS Clusters with New Relic EKS AddOn available at AWS EKS Mark
 Installation of addon to EKS clusters comes with advantage to 
 
 * **Check health of your nodes in your cluster:**  This includes monitoring the status of each node as wwell as resources available to them (such as CPU, memory usasge etc)
-* **Customizable crd:** After installation of EKS Addon, you can apply customizable CRD to enable/disable pods as per the monitoring requirements
-* 
+* **Customizable crd:** After installation of EKS Addon, you can apply customizable CRD to enable/disable various pods as per the monitoring requirements
+* **Detailed events:** Detailed kubernetes events can be monitored to monitor health of the cluster
+  
 
 ![A screenshot showing K8s operator in AWS Marketplace.](./images/aws-newrelic-eks-addon.webp")
 
