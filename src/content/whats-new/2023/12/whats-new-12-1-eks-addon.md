@@ -13,7 +13,7 @@ Installation of addon to EKS clusters comes with advantage to
 * **Detailed events:** Detailed kubernetes events can be monitored to monitor health of the cluster
   
 
-![A screenshot showing K8s operator in AWS Marketplace](./images/aws-newrelic-eks-addon.webp")
+![A screenshot showing K8s operator in AWS Marketplace](./images/aws-newrelic-eks-addon.webp)
 
 **Next steps**
 
