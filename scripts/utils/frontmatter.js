@@ -10,6 +10,7 @@
 // library hasn't been updated in years and this fork updates the `js-yaml`
 // dependency, which is much smaller and more performant.
 const grayMatter = require('@gr2m/gray-matter');
+const yaml = require('js-yaml');
 
 const DEFAULT_REASON = 'Invalid frontmatter entry';
 
@@ -114,7 +115,13 @@ const frontmatter = (mdString) => {
 const validateFreshnessDate = (mdString) => {
   let error;
 
-  const { data } = grayMatter(mdString);
+  const { data } = grayMatter(mdString, {
+    engines: {
+      yaml: {
+        parse: (string) => yaml.safeLoad(string, { schema: yaml.JSON_SCHEMA }),
+      },
+    },
+  });
 
   const isValidDate = (date) => {
     return !isNaN(new Date(date));
