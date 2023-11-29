@@ -116,8 +116,10 @@ const validateFreshnessDate = (mdString) => {
 
   const { data } = grayMatter(mdString);
 
-  const isValidDate = (date) => {
-    return !isNaN(new Date(date));
+  const isValidDate = (dateString) => {
+    const regex = /^\d{4}-\d{2}-\d{2}$/;
+
+    return regex.test(dateString);
   };
 
   // freshnessValidatedDate is a required field and must be a date or `never`
