@@ -13,7 +13,7 @@ there is an optional option `--output` or `-o` that will write the results to a 
 
 ## verify-mdx.js
 
-This script run on MD/MDX files to troubleshooting errors and verifying content during PR checks. It shows a progress bar in the terminal as it can take several minutes to read every file. It outputs any errors found when it is complete.
+This script runs on MD/MDX files to troubleshooting errors and verify content during PR checks. It shows a progress bar in the terminal as it can take several minutes to read every file. It outputs any errors found when it is complete.
 
 It can optionally take an array of files supplied in the terminal separated by spaces.
 
@@ -27,8 +27,8 @@ Otherwise, it will read all files under `/src/content/` and `src/i18n/content`.
 
 - markdown and JSX syntax
 - valid yaml frontmatter
-  - We also check for the required field `freshnessValidatedDate` which must be a date (`YYY-MM-DD`) or `never`
-- `<img />` sources and imports which runs the [image-import-utils script](#image-import-utils.js)
+  - We also check for the required field `freshnessValidatedDate` which must be a date (`YYYY-MM-DD`) or `never`
+- `<img />` sources and imports which utilizes the [image-import-utils script](#image-import-utils.js)
   - this util has its own progress bar and error output section in the terminal
 
 ## image-import-utils.js
@@ -44,7 +44,7 @@ Script used by `verify-mdx.js` that verifies the use of images in content files.
 
 ## docsAndLastDateEdited.mjs
 
-This script scans all english MDX docs excluding `/whats-new/`, `/release-notes/`, `/security-bulletins/`, and `/style-guide/` and outputs a CSV. The columns contains the Doc relative filepath, last rename date (freshness date) if within 180 days, last edited date in the git commit history, and an array of all recent authors from the last 180 days. It takes no arguments and will run in around ~5 mins. There's a handy progress bar that shows in the terminal during execution.
+This script scans all english MDX docs excluding `/whats-new/`, `/release-notes/`, `/security-bulletins/`, and `/style-guide/` and outputs a CSV. The columns contains the doc's relative filepath, last rename date (freshness date) if within 180 days, last edited date in the git commit history, and an array of all recent authors from the last 180 days. It takes no arguments and will run in around ~5 mins. There's a handy progress bar that shows in the terminal during execution.
 
 `yarn docs-freshness` will run this script.
 
@@ -59,5 +59,5 @@ This script scans all english MDX docs excluding `/whats-new/`, `/release-notes/
 
 ## addFreshnessToFrontmatter.mjs
 
-This script scans all english MDX docs excluding `/whats-new/`, `/release-notes/`, `/security-bulletins/`, and `/style-guide/` and inserts a new frontmatter field: `freshnessValidatedDate`. It checks if a doc is stale (created more than 180 days ago). if it is, the value is set to `never`, otherwise it is set to that date (`YYY-MM-DD`).
-It takes no arguments and takes about ~20min to complete. It was created to be run once on the whole repo, though we it could be modified in the future to add this date to specific docs if we find a needs for that.
+This script scans all english MDX docs excluding `/whats-new/`, `/release-notes/`, `/security-bulletins/`, and `/style-guide/` and inserts a new frontmatter field: `freshnessValidatedDate`. It checks if a doc is stale (created more than 180 days ago). If it is, the value is set to `never`, otherwise it is set to that date (`YYYY-MM-DD`).
+It takes no arguments and will complete in about ~20min. It was created to be run once on the repo, though it could be modified in the future to add this date to specific docs if we find a needs for that.
