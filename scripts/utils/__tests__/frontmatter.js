@@ -62,12 +62,21 @@ freshnessValidatedDate: 2023-12-02
 some content!
 `;
 
-const badDateFreshnessMdxString = `---
+const invalidDateFreshnessMdxString = `---
 howdy: cowboy 🤠
 list:
   - item 1
   - item 2
 freshnessValidatedDate: 23-12-02
+---
+some content!
+`;
+const badFormatDateFreshnessMdxString = `---
+howdy: cowboy 🤠
+list:
+  - item 1
+  - item 2
+freshnessValidatedDate: 2023
 ---
 some content!
 `;
@@ -95,7 +104,16 @@ describe('freshness frontmatter field', () => {
   });
 
   it('should throw error for invalid date value', () => {
-    const error = validateFreshnessDate(badDateFreshnessMdxString);
+    const error = validateFreshnessDate(invalidDateFreshnessMdxString);
+
+    const expectedError =
+      'freshnessValidatedDate is not a valid value. Must be date format YYYY-MM-DD or `never`';
+
+    expect(error.message).toEqual(expectedError);
+  });
+
+  it('should throw error for valid date but wrong format', () => {
+    const error = validateFreshnessDate(badFormatDateFreshnessMdxString);
 
     const expectedError =
       'freshnessValidatedDate is not a valid value. Must be date format YYYY-MM-DD or `never`';
