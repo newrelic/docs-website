@@ -4,7 +4,7 @@ summary: 'Monitor EKS cluster with New Relic'
 releaseDate: '2023-12-01'
 ---
 
-Monitor your AWS EKS Clusters with New Relic EKS AddOn available at AWS EKS Marketplace. New Relic then offers end to end visualization on cluster metrics, logs and events. The new EKS AddOn eliminates the time consuming process of installing the helm charts manually. All it requires to do is, follow the guided steps to install the operator.
+Monitor your AWS EKS Clusters with New Relic EKS AddOn available at AWS EKS Marketplace. New Relic then offers end to end visualization on cluster metrics and events. The new EKS AddOn eliminates the time consuming process of installing the helm charts manually. All it requires to do is, follow the guided steps to install the operator.
 
 Installation of addon to EKS clusters comes with advantage to 
 
