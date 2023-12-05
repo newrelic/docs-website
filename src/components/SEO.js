@@ -56,7 +56,6 @@ const DocsSiteSeo = ({
   description,
   type,
   tags,
-  dataSource,
   disableSwiftype,
 }) => (
   <SEO location={location} title={title}>
@@ -96,15 +95,6 @@ const DocsSiteSeo = ({
       />
     )}
 
-    {dataSource && (
-      <meta
-        className="swiftype"
-        name="dataSource"
-        data-type="string"
-        content={dataSource}
-      />
-    )}
-
     {isExcludedFromSwiftype(location.pathname) && (
       <meta name="st:robots" content="noindex, nofollow" />
     )}
@@ -122,7 +112,6 @@ DocsSiteSeo.propTypes = {
   title: PropTypes.string,
   description: PropTypes.string,
   type: PropTypes.string,
-  dataSource: PropTypes.string,
   tags: PropTypes.array,
   disableSwiftype: PropTypes.bool,
 };

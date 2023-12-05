@@ -352,7 +352,6 @@ exports.createSchemaCustomization = (
   type Frontmatter {
     isFeatured: Boolean
     translationType: String
-    dataSource: String
     hideNavs: Boolean
     eolDate: String
     downloadLink: String
@@ -456,10 +455,6 @@ exports.createResolvers = ({ createResolvers }) => {
           hasOwnProperty(source, 'translationType')
             ? source.translationType
             : null,
-      },
-      dataSource: {
-        resolve: (source) =>
-          hasOwnProperty(source, 'dataSource') ? source.dataSource : null,
       },
       hideNavs: {
         resolve: (source) =>

@@ -231,18 +231,6 @@ module.exports = {
       [u('text', '\u00A0')]
     );
   },
-  ImageSizing: (h, node) => {
-    const style = stripNulls({
-      height: findAttribute('height', node),
-      width: findAttribute('width', node),
-      verticalAlign: findAttribute('verticalAlign', node),
-    });
-
-    const [image] = node.children;
-    set(image, 'data.style', compileStyleObject(style));
-
-    return one(h, image, node.parent);
-  },
   TechTile: (h, node) => {
     const attributes = JSON.stringify(getAllAttributes(node));
     return h(

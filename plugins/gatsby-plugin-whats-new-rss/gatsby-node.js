@@ -8,10 +8,6 @@ const unified = require('unified');
 const parse = require('rehype-parse');
 const addAbsoluteImagePath = require('../../rehype-plugins/utils/addAbsoluteImagePath');
 const rehypeStringify = require('rehype-stringify');
-const removeImports = require('remark-mdx-remove-imports');
-const removeExports = require('remark-mdx-remove-exports');
-
-// NOTE: remove-imports and remove-exports are now depreciated
 
 const whatsNewQuery = async (graphql) => {
   const query = `
