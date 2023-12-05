@@ -1,0 +1,206 @@
+---
+title: Timestamp Support
+tags:
+  - Logs
+  - Timestamp
+  - Timestamps
+  - Forwarding Logs
+metaDescription: "How New Relic handles timestamps in logs."
+---
+
+# Introduction # [#introduction]
+
+One of the most important attributes in a log event is the **timestamp**.  It is the exact moment in time that tells when the event happened and is critical for ordering events in chronological order as well as for searching logs in specific timeframes.  The most basic question all logs answer is **what happened, and when** it happened.  In most cases, the timestamp will appear somewhere in the beginning of the log event, but this is not always the case.  In some cases, it may appear much later in the log.  In logs that are in a JSON format they will usually contain some attribute that identifies the timestamp, like `timestamp` or `log_timestamp`, `time`, etc.  Some logs may not contain timestamps at all, and in these cases New Relic will assign a timestamp automatically to the event at the time it is ingested into the system.  New Relic also indexes the timestamp of each log, since they are crucial for efficient querying.
+
+There are many, many different timestamp formats as you can see in some of these example logs below.  There is no single standard for the format of a timestamp.  They may or may not contain certain fields like the date, ms precision, or the timezone. 
+
+```
+time="2023-11-16T14:50:44Z" level=info msg="checking pixie-operator.v0.1.4"
+
+2023-11-16 16:12:49.245 ERROR Servlet.service() for servlet
+
+7:S 16 Nov 14:50:44.359 # Unable to connect to MASTER: Success
+
+102.28.1.1 - - [16/Nov/2023:09:50:44 -0500] "GET /index.html HTTP/1.1" 503 3000 "www.cdn-logs.com" "Mozilla/5.0 (Windows NT 4.0; en-US; rv:1.9.3.20) Gecko/1913-21-08 Firefox/37.0"
+
+I20231116 14:50:45.549868    40 exec.cc:63] Completed query: id=a1e9eac3-664a-4fab-8ece-ae6f19f23020
+
+{"bytes" : "10009528", "cacheStatus" : "1", "cliIP" : "172.16.103.13", "timestamp" : "1700146596212", "tlsOverheadTimeMSec" : "2"}
+```
+
+# How timestamps work for logs # [#how_timestamps_work]
+
+**By default**, New Relic assigns the value of the log `timestamp` attribute (a reserved keyword) at the exact time when the log is ingested, i.e. ingest time.
+
+There are two options to overide this default behavior and assign the `timestamp` value based on a `timestamp` contained in the log.
+1. If we receive a [JSON formatted log](#timestamps_in_json_logs) containing a `timestamp` attribute in one of our supported time formats, we will overide the ingest timestamp value with the value of the timestamp from the json attribute.
+2. You can use [parsing rules](#timestamp_parsing_rules) at ingest to override the igest `timestamp` value to the timestamp value that is contained in the log.  Using a parsing rule you can extract out our supported time formats with simple Grok expressions, or using the `datetime` Grok type and a `pattern` to define the custom timestamp format in your log.
+
+We support two timestamp formats:
+
+- A unix **epoch** timestamp:
+  - The number of seconds (or milliseconds) that have elapsed since 00:00:00 UTC on 1 January 1970.
+  - A unix timestamp in either seconds or milliseconds
+  - Some examples (Fri, 03 Nov 2023 16:06:32 GMT):
+    - 10-digit epoch seconds time: `1699027592`
+    - 13-digit epoch milliseconds time: `1699027592000`
+
+- An **ISO_8601 formatted timestamp**:
+  - Timestamps in this format must follow the pattern yyyy-MM-ddTHH:mm:ss.SSSTZD (e.g. 2023-11-07T14:20:35+04:00) where: 
+    - yyyy: four-digit year
+    - MM: two-digit month (01=January, etc.)
+    - dd: two-digit day of the month (01 through 31)
+    - T: a set character indicating the start of the time element
+    - HH: two digits of an hour (00 through 23)
+    - mm: two digits of a minute (00 through 59)
+    - ss: two digits of a second (00 through 59)
+    - SSS: three digits of a millisecond (optional). Up to nine digits are allowed here, but only the first three will be taken into account. 
+    - TZD: time zone designator (Z or +hh:mm or -hh:mm) (optional). The + or - values indicate how far ahead or behind a time zone is from the UTC (Coordinated Universal Time) zone. If this value is not provided, UTC is assumed.   
+  - Some ISO_8601 timestamp format examples:
+    - yyyy-MM-ddTHH:mm:ss: `2023-11-03T15:28:05`
+    - yyyy-MM-ddTHH:mm:ss.SSS: `2023-11-03T15:28:05.250`
+    - yyyy-MM-ddTHH:mm:ssZ: `2023-11-03T15:28:05Z`
+    - yyyy-MM-ddTHH:mm:ss+HH:mm: `2023-11-03T15:28:05+07:00`
+
+  - The maximum precision for timestamps is milliseconds.  Timestamps expressed more precisely (e.g. nanoseconds or microseconds) will be automatically truncated to milliseconds.
+ 
+# Timestamps in JSON logs # [#timestamps_in_json_logs]
+
+If we receive a JSON formatted log containing a `timestamp` attribute in one of our supported time formats, we will overide the ingest `timestamp` value with the value of the `timestamp` from the json attribute. 
+
+The data type will be:
+- A number, for Unix epoch seconds or milliseconds timestamp
+- A string, for ISO8601-formatted timestamp
+
+Other considerations:
+- If the timestamp field is not present or incorrectly specified (for example, with an invalid format), the message will be timestamped using the ingest time.
+- Timestamps are converted to Unix epoch milliseconds and stored internally as a long data type, with the reserved keyword `timestamp`.
+- Payloads with timestamps older than 48 hours will be dropped.
+
+Depending on the JSON body format, ​the timestamp field can be allocated in three different places:
+- Inside the [simplified set of attributes](https://docs.newrelic.com/docs/logs/log-api/introduction-log-api/#simple-json) of the JSON body message when sending a single JSON object.
+- Inside the [common](https://docs.newrelic.com/docs/logs/log-api/introduction-log-api/#json-common) object in the detailed set of attributes of the JSON body message when sending one or more JSON objects. The timestamp will apply to all log messages of this JSON.
+- Inside each log message in the [logs](https://docs.newrelic.com/docs/logs/log-api/introduction-log-api/#json-logs)] object in the detailed set of attributes of the JSON body message when sending one or more JSON objects. The timestamps will only apply to that log messages.
+- In addition, the timestamp can be indicated in the “message” JSON field when it is a valid JSON message. Our log management capabilities will parse any message attribute as JSON. The resulting JSON attributes in the parsed message will be added to the log. (link) 
+
+Below are some examples of JSON logs with a valid `timestamp`` attribute that will override the ingest `timestamp``:
+
+If we receive a JSON log like this with `timestamp` in **epoch** format (with no ms precisio)n:
+
+```
+{ 
+    "timestamp":1701445572,
+    "message":"2023-12-01T15:46:12.592Z : This is my sample JSON log message with timestamp attribute in epoch format"
+}
+```
+
+We will override the ingest `timestamp` with the epoch `timestamp` contained in the log, and the result will look like this:
+
+```
+"timestamp" : 1701445572000,
+"message":"2023-12-01T15:46:12.592Z : This is my sample JSON log message with timestamp attribute in epoch format"
+```
+
+Or, if we receive a JSON log like this with timestamp in **ISO_8601** format like this:
+
+```
+{
+    "timestamp":"2023-12-01T15:46:26.607Z",
+    "message":"2023-12-01T15:46:26.609Z : This is my sample JSON log message with timestamp attribute in ISO_8601 format"
+}
+```
+
+We will override the ingest `timestamp` with the ISO_8601 `timestamp` (converted to epoch) contained in the log, and the result will look like this:
+
+```
+"timestamp": 1701445586607,
+"message":"2023-12-01T15:46:26.607Z : This is my sample JSON log message with timestamp attribute in ISO_8601 format"
+```
+
+# Setting the log timestamp using Parsing rules [#timestamp_parsing_rules]
+
+You can use **parsing rules** at ingest to override the igest `timestamp` value to the timestamp value that is contained in the log.  Using a parsing rule you can extract out our supported time formats with simple Grok expressions, or using the `datetime` Grok type and `pattern` to define the custom timestamp format in your log. 
+
+- The attribute name extracted by the expression must be `timestamp` and its data type string or long. If it is not provided, it defaults to string.  Note that for epoch timestamps with microsecond or nanosecond precision, you must include the `long` datatype even though timestamp precision will be truncated to milliseconds.
+- If the timestamp in your log is a Unix epoch or ISO_8601 formatted timestamp you can use the default Grok patterns to match them.
+  - To extract a Unix epoch timestamp you can use any expression that matches the vale, like `NUMBER`, `NOTSPACE`, or `GREEDYDATA`.
+  - To extract an ISO_8601 formatted timestamp you should use the `TIMESTAMP_ISO8601` grok expression.
+- You can use the `datetime` Grok type to parse timestamps in non-supported formats.  To do this you must include the `datetime` grok type with the `pattern` matching your logs timestamp format.  The `pattern` must use Java Simple Date and Time Patterns found here.
+  - Example: 
+    - `timestamp` = 11/17/2023 23:55:25.674 
+    - `pattern` = “MM/dd/yyyy HH:mm:ss.SSS”
+    - Grok Expression = `%{GREEDYDATA:timestamp:datetime;MM/dd/yyyy HH:mm:ss.SSS}`
+  - Example:
+    - `timestamp` = 11-17-2023 23:55:25
+    - `pattern` = “MM-dd-yyyy HH:mm:ss”
+    - Grok Expression = `%{GREEDYDATA:timestamp:datetime;MM-dd-yyyy HH:mm:ss`
+  - Example:
+    - `timestamp` = 11/17/2023 09:55:25 AM
+    - `pattern` = “MM/dd/yyyy hh:mm:ss a”
+    - Grok Expression = `%{GREEDYDATA:timestamp:datetime;h:mm:ss a` 
+ 
+Below are some examples on how to parse the `timestamp` from your logs using ingest Parsing rules.
+
+- To parse an ISO_8601 formatted timestamp: `%{TIMESTAMP_ISO8601:timestamp}`
+
+Examples:
+
+For the following log message with timestamp in ISO_8601 format:
+
+```
+2023-12-05T16:50:48.421Z 146.190.212.184: This is my sample non-JSON log message with ISO_8601 timestamp.
+```
+
+And the following parsing rule:
+
+```
+%{TIMESTAMP_ISO8601:timestamp}
+```
+
+Will parse your log as follows:
+
+```
+"ISO8601_TIMEZONE": "Z",
+"message": "2023-12-05T16:50:48.421Z 146.190.212.184: This is my sample non-JSON log message with ISO_8601 timestamp.",
+"timestamp": 1701795048421
+```
+
+For the following log message with timestamp in epoch format:
+
+```
+1701795958504 146.190.212.184: This is my sample non-JSON log message with epoch (with ms) timestamp.
+```
+
+And the following parsing rule:
+
+```
+%{NUNBER:timestamp:long}
+```
+
+Will parse your log as follows:
+
+```
+"message": "1701795958504 146.190.212.184: This is my sample non-JSON log message with epoch (with ms) timestamp.",
+"timestamp": 1701795958504
+```
+
+And for the following log message with an un-supported timestamp format:
+
+```
+12/05/2023 17:12:45.347 146.190.212.184: This is my sample non-JSON log message with un-supported timestamp.
+```
+
+And the following parsing rule:
+
+```
+^%{DATA:timestamp:datetime;MM/dd/yyyy HH:mm:ss.SSS} %{IP:ip}
+```
+
+Will parse your log as follows:
+
+```
+"ip": "146.190.212.184",
+"message": "12/05/2023 17:12:45.347 146.190.212.184: This is my sample non-JSON log message with DATE_US timestamp.",
+"timestamp": 1701796365347
+```
+
