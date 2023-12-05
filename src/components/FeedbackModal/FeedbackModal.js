@@ -20,12 +20,12 @@ import { SUPRQ_QUESTIONS } from '../../utils/constants';
 
 const FORM_VERSION = 1;
 const questions = shuffle(['q1', 'q2', 'q3', 'q4', 'q5', 'q6', 'q7', 'q8']);
-// TODO: Return this to normal
 // 1/20 chance to see the modal
-// const nat20 = Math.floor(Math.random() * 20) + 1 === 20;
-// const hadChanceToShow = Cookies.get('surveyHadChanceToShow') === 'true';
+const nat20 = Math.ceil(Math.random() * 20) === 20;
+const surveyDismissed = Cookies.get('surveyDismissed') === 'true';
+const hadChanceToShow = Cookies.get('surveyHadChanceToShow') === 'true';
 
-const shouldShow = true;
+const shouldShow = nat20 && !hadChanceToShow && !surveyDismissed;
 
 const recaptchaReady = () => {
   return new Promise((resolve, reject) => {
@@ -65,7 +65,7 @@ const FeedbackModal = ({ onClose }) => {
   const [guid] = useState(uuidv4());
 
   useEffect(() => {
-    if (shouldShow && !surveyDismissed) {
+    if (shouldShow) {
       tessen.track({
         eventName: 'surveyDisplayed',
         category: 'SurveyFeedback',
