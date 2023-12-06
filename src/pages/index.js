@@ -211,16 +211,10 @@ HomePage.propTypes = {
   }),
 };
 export const pageQuery = graphql`
-  query($quicklaunchSlug: String!) {
+  query {
     site {
       layout {
         contentPadding
-      }
-    }
-    quicklaunch: mdx(slug: { eq: $quicklaunchSlug }) {
-      body
-      frontmatter {
-        title
       }
     }
     allMarkdownRemark(
