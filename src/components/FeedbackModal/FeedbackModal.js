@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { css } from '@emotion/react';
 import styled from '@emotion/styled';
 import shuffle from 'lodash/shuffle';
@@ -22,11 +22,6 @@ const FORM_VERSION = 1;
 const questions = shuffle(['q1', 'q2', 'q3', 'q4', 'q5', 'q6', 'q7', 'q8']);
 // 1/20 chance to see the modal
 const nat20 = Math.ceil(Math.random() * 20) === 20;
-const surveyDismissed = Cookies.get('surveyDismissed') === 'true';
-const hadChanceToShow = Cookies.get('surveyHadChanceToShow') === 'true';
-
-const shouldShow = nat20 && !hadChanceToShow && !surveyDismissed;
-
 const recaptchaReady = () => {
   return new Promise((resolve, reject) => {
     try {
@@ -57,6 +52,8 @@ const FeedbackModal = ({ onClose }) => {
     'strongly-agree': 5,
   };
   const surveyDismissed = Cookies.get('surveyDismissed') === 'true';
+  const hadChanceToShow = Cookies.get('surveyHadChanceToShow') === 'true';
+  const shouldShow = useRef(nat20 && !hadChanceToShow && !surveyDismissed);
   const tessen = useTessen();
   const locale = useLocale();
   const [step, setStep] = useState(0);
@@ -65,7 +62,7 @@ const FeedbackModal = ({ onClose }) => {
   const [guid] = useState(uuidv4());
 
   useEffect(() => {
-    if (shouldShow) {
+    if (shouldShow.current) {
       tessen.track({
         eventName: 'surveyDisplayed',
         category: 'SurveyFeedback',
@@ -193,7 +190,7 @@ const FeedbackModal = ({ onClose }) => {
 
   return (
     !surveyDismissed &&
-    shouldShow && (
+    shouldShow.current && (
       <Portal
         initializer={(node) => {
           if (node) {
