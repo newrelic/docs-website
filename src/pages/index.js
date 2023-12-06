@@ -11,10 +11,12 @@ import {
   useTranslation,
   useTessen,
 } from '@newrelic/gatsby-theme-newrelic';
+import { useMedia } from 'react-use';
 import HomepageBanner from '../components/HomepageBanner';
 import { DocTile } from '../components/DocTile';
 import FindYourQuickStart from '../components/FindYourQuickstart';
 import ErrorBoundary from '../components/ErrorBoundary';
+import FeedbackModal from '../components/FeedbackModal';
 
 const HomePage = ({ data }) => {
   const {
@@ -23,10 +25,12 @@ const HomePage = ({ data }) => {
   } = data;
   const tessen = useTessen();
   const [searchTerm, setSearchTerm] = useState('');
+  const [showFeedbackModal, setShowFeedbackModal] = useState(true);
 
   const { t } = useTranslation();
 
   const mobileBreakpoint = '450px';
+  const isMobileScreen = useMedia(`(max-width: ${mobileBreakpoint})`);
 
   const latestWhatsNewPosts = whatsNewPosts.map((edge) => {
     return {
@@ -184,6 +188,9 @@ const HomePage = ({ data }) => {
       <Section layout={layout}>
         <FindYourQuickStart />
       </Section>
+      {showFeedbackModal && !isMobileScreen && (
+        <FeedbackModal onClose={() => setShowFeedbackModal(false)} />
+      )}
     </ErrorBoundary>
   );
 };
