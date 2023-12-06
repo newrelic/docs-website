@@ -306,10 +306,10 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
     });
   });
 
-  // Redirect for VSU page to new Introduction to APM doc
+  // Redirect for old VSU Introduction to APM .js doc
   createRedirect({
-    fromPath: '/docs/apm/new-relic-apm/getting-started/introduction-apm/',
-    toPath: '/introduction-apm',
+    fromPath: '/introduction-apm',
+    toPath: '/docs/apm/new-relic-apm/getting-started/introduction-apm/',
     isPermanent: false,
     redirectInBrowser: true,
   });
