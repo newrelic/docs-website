@@ -99,7 +99,6 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
               type
               subject
               redirects
-              hideNavs
             }
           }
         }
@@ -352,7 +351,6 @@ exports.createSchemaCustomization = (
   type Frontmatter {
     isFeatured: Boolean
     translationType: String
-    hideNavs: Boolean
     eolDate: String
     downloadLink: String
     signupBanner: SignupBanner
@@ -455,10 +453,6 @@ exports.createResolvers = ({ createResolvers }) => {
           hasOwnProperty(source, 'translationType')
             ? source.translationType
             : null,
-      },
-      hideNavs: {
-        resolve: (source) =>
-          hasOwnProperty(source, 'hideNavs') ? source.hideNavs : null,
       },
       eolDate: {
         resolve: (source) =>
@@ -573,7 +567,7 @@ const createPageFromNode = (
   defer = false
 ) => {
   const {
-    frontmatter: { subject: agentName, hideNavs },
+    frontmatter: { subject: agentName },
     fields: { fileRelativePath, slug },
   } = node;
 
@@ -621,7 +615,6 @@ const createPageFromNode = (
       context: {
         ...context,
         fileRelativePath,
-        hideNavs,
         slug,
         slugRegex: `${slug}/.+/`,
         disableSwiftype,
