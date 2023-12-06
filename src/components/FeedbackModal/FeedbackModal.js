@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { css } from '@emotion/react';
 import styled from '@emotion/styled';
 import shuffle from 'lodash/shuffle';
@@ -53,7 +53,7 @@ const FeedbackModal = ({ onClose }) => {
   };
   const surveyDismissed = Cookies.get('surveyDismissed') === 'true';
   const hadChanceToShow = Cookies.get('surveyHadChanceToShow') === 'true';
-  const [shouldShow] = useState(nat20 && !hadChanceToShow && !surveyDismissed);
+  const shouldShow = useRef(nat20 && !hadChanceToShow && !surveyDismissed);
   const tessen = useTessen();
   const locale = useLocale();
   const [step, setStep] = useState(0);
@@ -62,7 +62,7 @@ const FeedbackModal = ({ onClose }) => {
   const [guid] = useState(uuidv4());
 
   useEffect(() => {
-    if (shouldShow) {
+    if (shouldShow.current) {
       tessen.track({
         eventName: 'surveyDisplayed',
         category: 'SurveyFeedback',
@@ -70,7 +70,7 @@ const FeedbackModal = ({ onClose }) => {
       });
     }
     Cookies.set('surveyHadChanceToShow', 'true', { expires: 1 });
-  }, [tessen, surveyDismissed, shouldShow]);
+  }, [tessen, surveyDismissed]);
 
   const setDismissedCookieAndClose = () => {
     onClose();
@@ -190,7 +190,7 @@ const FeedbackModal = ({ onClose }) => {
 
   return (
     !surveyDismissed &&
-    shouldShow && (
+    shouldShow.current && (
       <Portal
         initializer={(node) => {
           if (node) {
