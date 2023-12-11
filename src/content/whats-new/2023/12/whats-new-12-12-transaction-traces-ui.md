@@ -5,12 +5,12 @@ releaseDate: '2023-12-12'
 learnMoreLink: 'https://docs.newrelic.com/docs/apm/transactions/transaction-traces/introduction-transaction-traces/' 
 ---
 
-The new Transaction Traces UI now allows you to quickly understand all the data captured on your transaction traces to provide the contextual insights you need for faster root-cause analysis. You can even filter the UI view and expand/collapse specific features as needed so you can focus on key elements that are important for you.
+The new transaction traces UI allows you to understand all the data captured on your transaction traces to provide the context for faster root-cause analysis. You can also filter the UI view and expand or collapse specific features as needed to focus on any key elements you need!
 
-With the updated Transaction Trace UI, now you can:
-* **Instantly identify trace insights:** See all attributes from transaction traces directly in the UI, with a redesigned default view with time-consumed pie charts, comprehensive span details, and segments.
-* **Quickly visualize and analyze traces:** Get to the root cause by leveraging updated functionality in the trace waterfall, allowing you to focus on specific span times for quicker resolution.
-* **See latency at-a-glance:** Identify which segments are causing latency in a single view with the new latency pie chart visualization.
+With the updated transaction trace UI, you can now:
+* **Instantly identify trace insights:** See all attributes from transaction traces directly in the UI, with a redesigned default view containing time-consumed pie charts, comprehensive span details, and segments.
+* **Quickly visualize and analyze traces:** Find root causes by using updated functionality in the trace waterfall, allowing you to focus on specific span times for quicker resolution.
+* **See latency at-a-glance:** Identify which segments cause latency in a single view with the new latency pie chart visualization.
 * **Easily export data for further analysis:** Share insights and collaborate more effectively using the CSV export of database queries.
 
 **Next steps**
