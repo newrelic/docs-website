@@ -4,7 +4,6 @@ const parse = require('rehype-parse');
 const unified = require('unified');
 const rehypeStringify = require('rehype-stringify');
 const addAbsoluteImagePath = require('./rehype-plugins/utils/addAbsoluteImagePath');
-const getAgentName = require('./src/utils/getAgentName');
 
 const siteUrl = 'https://docs.newrelic.com';
 const additionalLocales = ['jp', 'kr'];
@@ -21,6 +20,23 @@ const ignoreFolders = process.env.BUILD_FOLDERS
       )
       .map((folder) => `${__dirname}/src/content/docs/${folder}/*`)
   : [];
+const allI18nFolders = fs
+  .readdirSync(`${__dirname}/src/i18n/content`)
+  .filter((folder) => !folder.startsWith('.'));
+
+const ignoreI18nFolders = () => {
+  if (process.env.BUILD_LANG) {
+    return allI18nFolders
+      .map((folder) => {
+        if (folder !== process.env.BUILD_LANG) {
+          return `${__dirname}/src/i18n/content/${folder}`;
+        }
+        return null;
+      })
+      .filter(Boolean);
+  }
+  return [];
+};
 
 const autoLinkHeaders = {
   resolve: 'gatsby-remark-autolink-headers',
@@ -87,10 +103,7 @@ module.exports = {
       options: {
         name: 'translated-content',
         path: `${__dirname}/src/i18n/content`,
-        ignore:
-          process.env.BUILD_I18N === 'false'
-            ? [`${__dirname}/src/i18n/content/*`]
-            : [],
+        ignore: ignoreI18nFolders(),
       },
     },
     {
@@ -126,7 +139,7 @@ module.exports = {
             resolve: 'gatsby-remark-images',
             options: {
               maxWidth: 850,
-              linkImagesToOriginal: true,
+              linkImagesToOriginal: false,
               backgroundColor: 'transparent',
               disableBgImageOnAlpha: true,
             },
@@ -159,7 +172,6 @@ module.exports = {
         // If this is addressed in MDX v2, we can safely remove this.
         remarkPlugins: [],
         rehypePlugins: [
-          require('./rehype-plugins/image-sizing'),
           [
             require('./rehype-plugins/gatsby-inline-images'),
             { spacing: '0.5rem' },
@@ -235,7 +247,6 @@ module.exports = {
         path: `./src/install/config/`,
       },
     },
-    // 'gatsby-plugin-generate-doc-json',
     {
       resolve: 'gatsby-plugin-generate-json',
       options: {

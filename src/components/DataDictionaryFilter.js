@@ -30,15 +30,15 @@ const DataDictionaryFilter = ({ location, events }) => {
     [events]
   );
 
-  const filteredEvents = useMemo(
-    () =>
-      formState.dataSource
-        ? events.filter((event) =>
-            event.dataSources.includes(formState.dataSource)
-          )
-        : events,
-    [events, formState.dataSource]
-  );
+  const filteredEvents = useMemo(() => {
+    if (formState.dataSource == null) return events;
+
+    return events.filter((event) =>
+      event.dataSources
+        .map((dataSource) => dataSource.name)
+        .includes(formState.dataSource)
+    );
+  }, [events, formState.dataSource]);
 
   useEffect(() => {
     setFormState({
