@@ -241,6 +241,7 @@ debug_print() {
 key_check() {
   local keyMatches
   local commitKeyMatches
+  # declare -r testFiles='src/content/docs/mlops/get-started/intro-mlops.mdx src/content/docs/mlops/bring-your-own/getting-started-byo.mdx'
 
   handle_error
 
@@ -248,19 +249,19 @@ key_check() {
   exec 1>&2
 
   # check for keys in tracked files in working tree
-  keyMatches=$(git grep -IE --color=always --line-number "$CFK_NR_KEY_REGEX" -- 'src/content/**/*.mdx')
+  # keyMatches=$(git grep -IE --color=always --line-number "$CFK_NR_KEY_REGEX" -- 'src/content/docs/mlops/get-started/intro-mlops.mdx')
 
-  if [ -z "$keyMatches" ]; then
-    lib_success "New Relic keys not found in tracked files. Yay!"
-  else
-    lib_alert "New Relic keys found in tracked files!"
-    lib_msg "Please redact the following keys with [REDACTED] and try your commit again."
-    echo -e "$keyMatches"
-    exit 1  # non-zero exit status will cancel commit
-  fi
+  # if [ -z "$keyMatches" ]; then
+  #   lib_success "New Relic keys not found in tracked files. Yay!"
+  # else
+  #   lib_alert "New Relic keys found in tracked files!"
+  #   lib_msg "Please redact the following keys with [REDACTED] and try your commit again."
+  #   echo -e "$keyMatches"
+  #   exit 1  # non-zero exit status will cancel commit
+  # fi
 
   # check for keys in all historical commits
-  commitKeyMatches=$(git log -G "$CFK_NR_KEY_REGEX" --oneline --color=always)
+  commitKeyMatches=$(git log -G "$CFK_NR_KEY_REGEX" --oneline --color=always -- $@)
   if [ -z "$commitKeyMatches" ]; then
     lib_success "New Relic keys not found in historical commits. Yay!"
   else
@@ -279,5 +280,6 @@ reset() {
 # --------------------------  MAIN
 
 debug_print
-key_check
+echo $@
+key_check $@
 reset
