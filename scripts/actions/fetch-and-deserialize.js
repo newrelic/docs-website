@@ -7,7 +7,7 @@ const path = require('path');
 const fetch = require('node-fetch');
 
 const deserializedHtml = require('./deserialize-html');
-const createDirectories = require('../utils/migrate/create-directories');
+const createDirectories = require('./utils/create-directories');
 const { getAccessToken } = require('./utils/vendor-request');
 const { LOCALE_IDS } = require('./utils/constants');
 const {

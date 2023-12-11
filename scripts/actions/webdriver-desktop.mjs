@@ -17,6 +17,7 @@ options.addArguments('disable-dev-shm-usage');
 options.addArguments('headless');
 
 const TIMEOUT = 10000;
+const SLEEP_TIME = 5000;
 
 const waitForXPath = (xpath, timeout = TIMEOUT) =>
   driver.wait(until.elementsLocated(By.xpath(xpath)), timeout);
@@ -32,7 +33,7 @@ const main = async () => {
   await driver.get(testUrl + 'docs/mdx-test-page/');
 
   // Ensure page loads, 2000 ms wait
-  await driver.sleep(2000);
+  await driver.sleep(SLEEP_TIME);
 
   // order here matters — some tests scroll the page
   await collapserTest();
@@ -41,7 +42,7 @@ const main = async () => {
 
   await driver.get(testUrl);
   // Ensure home page loads, 2000 ms wait
-  await driver.sleep(2000);
+  await driver.sleep(SLEEP_TIME);
   await tileTest();
 
   // this step isn't necessary in synthetics
@@ -93,11 +94,8 @@ const searchTest = async () => {
 
 const tileTest = async () => {
   const initialUrl = await driver.getCurrentUrl();
-  const [defaultViewTab] = await waitForXPath(
-    '//main//button[text()="Default view"]'
-  );
-  console.log('clicking Default view tab button');
-  await defaultViewTab.click();
+
+  console.log('clicking Homepage doctile');
 
   // Added this xpath for the scroll function.
   // for some reason, when running in headless mode the site
@@ -113,6 +111,7 @@ const tileTest = async () => {
     'arguments[0].scrollIntoView()',
     popularDocsSection
   );
+
   await firstDocTile.click();
   await driver.wait(
     until.stalenessOf(firstDocTile),
