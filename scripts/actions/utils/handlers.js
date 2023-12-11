@@ -202,10 +202,6 @@ module.exports = {
       );
     },
   },
-  ImageSizing: {
-    serialize: serializeComponent,
-    deserialize: deserializeComponent,
-  },
   InstallFeedback: {
     serialize: serializeComponent,
     deserialize: deserializeComponent,

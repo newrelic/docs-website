@@ -37,6 +37,15 @@ const visualWebsiteOptimizer = (location) => {
   }
 };
 
+const surveyRecaptcha = (
+  <script
+    key="google-recaptcha"
+    async
+    defer
+    src="https://www.google.com/recaptcha/api.js?render=6Lehf-4oAAAAAK-sCeVSRUrRQfImJdwgc2pPkOwZ"
+  />
+);
+
 const isStyleGuidePage = (url) => {
   return url.includes('docs/style-guide');
 };
@@ -56,7 +65,6 @@ const DocsSiteSeo = ({
   description,
   type,
   tags,
-  dataSource,
   disableSwiftype,
 }) => (
   <SEO location={location} title={title}>
@@ -96,15 +104,6 @@ const DocsSiteSeo = ({
       />
     )}
 
-    {dataSource && (
-      <meta
-        className="swiftype"
-        name="dataSource"
-        data-type="string"
-        content={dataSource}
-      />
-    )}
-
     {isExcludedFromSwiftype(location.pathname) && (
       <meta name="st:robots" content="noindex, nofollow" />
     )}
@@ -114,6 +113,7 @@ const DocsSiteSeo = ({
     )}
 
     {visualWebsiteOptimizer(location)}
+    {surveyRecaptcha}
   </SEO>
 );
 
@@ -122,7 +122,6 @@ DocsSiteSeo.propTypes = {
   title: PropTypes.string,
   description: PropTypes.string,
   type: PropTypes.string,
-  dataSource: PropTypes.string,
   tags: PropTypes.array,
   disableSwiftype: PropTypes.bool,
 };
