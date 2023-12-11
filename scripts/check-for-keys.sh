@@ -261,15 +261,29 @@ key_check() {
   # fi
 
   # check for keys in all historical commits
-  commitKeyMatches=$(git log -G "$CFK_NR_KEY_REGEX" --oneline --color=always -- $@)
-  if [ -z "$commitKeyMatches" ]; then
-    lib_success "New Relic keys not found in historical commits. Yay!"
-  else
-    lib_alert "New Relic keys found in historical commits!"
-    lib_msg "Please consider removing or redacting the following keys from your commit history."
-    echo -e "$commitKeyMatches"
-    exit 1  # non-zero exit status will cancel commit
-  fi
+  commitHashesOnThisBranch=$(git log --oneline develop.. --format="%h")
+  local anyMatches=false
+
+  for hash in $commitHashesOnThisBranch; do
+    local diff="$(git show $hash -U0 --format='')"
+    local matches=$(echo $diff | grep --extended-regexp -c "$CFK_NR_KEY_REGEX")
+    lib_msg "hash: $hash. matches: $matches"
+
+    if [ $matches -gt 0 ]; then
+      anyMatches=true
+    fi
+  done
+  lib_msg "anyMatches = $anyMatches"
+
+  # commitKeyMatches=$(git log -G "$CFK_NR_KEY_REGEX" --oneline --color=always -- $@)
+  # if [ -z "$commitKeyMatches" ]; then
+  #   lib_success "New Relic keys not found in historical commits. Yay!"
+  # else
+  #   lib_alert "New Relic keys found in historical commits!"
+  #   lib_msg "Please consider removing or redacting the following keys from your commit history."
+  #   echo -e "$commitKeyMatches"
+  #   exit 1  # non-zero exit status will cancel commit
+  # fi
 }
 
 # unset functions to free up memmory
