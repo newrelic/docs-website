@@ -10,6 +10,7 @@ import {
   Side,
 } from '@newrelic/gatsby-theme-newrelic';
 import { css } from '@emotion/react';
+import cx from 'classnames';
 
 import { DocTile, DocTiles } from './DocTile';
 import EolPage from './EolPage';
@@ -36,6 +37,8 @@ const defaultComponents = {
       <img
         width={props.width ? props.width : 'inherit'}
         src={props.src}
+        // this prevents images from stretching when the width is set to a percent value
+        className={cx(props.className, props.width && 'unbound')}
         alt={props.alt ? props.alt : 'Docs site'}
         title={props.title}
         style={
@@ -49,6 +52,8 @@ const defaultComponents = {
         <img
           width={props.width ? props.width : 'auto'}
           src={props.src}
+          // this prevents images from stretching if the width is set to a percent value
+          className={cx(props.className, props.width && 'unbound')}
           alt={props.alt ? props.alt : 'Docs site'}
           title={props.title}
           style={
