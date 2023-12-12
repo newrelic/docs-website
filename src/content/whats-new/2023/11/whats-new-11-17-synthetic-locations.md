@@ -16,7 +16,7 @@ Legacy US horde IPs:
 Legacy EU horde IPs:
 * 185.221.86.57
 
-**What action is required?** If you utilized synthetics private locations from before August 2023, it’s very likely that you need to clean up network rules. Any configurations allowing outbound connectivity to the IPs listed above can be removed at any time.
+**What action is required?** If you utilized synthetics private locations before August 2023, it’s very likely that you need to clean up network rules. Any configurations allowing outbound connectivity to the IPs listed above can be removed at any time.
 
 **There will be no impact to synthetic monitors using private locations or current private location connectivity.** If you're using private locations today, you're already utilizing the Horde IP ranges that we released in August 2023. 
 
