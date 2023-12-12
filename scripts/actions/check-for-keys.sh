@@ -5,9 +5,9 @@ SCRIPT_HEADER=(
 "# Warn about keys on pre-commit hook                   "
 "#                                                      "
 "# App    : Check For Keys Pre-Commit Hook              "
-"# Author : Keegan Mullaney                             "
+"# Author : Clark McAdoo                                "
 "# Company: New Relic                                   "
-"# Email  : kmullaney@newrelic.com                      "
+"# Email  : jmcadoo@newrelic.com                        "
 "# License: MIT                                         "
 "#                                                      "
 "# debug mode:                                          "
@@ -111,7 +111,7 @@ lib_has() {
 # output message with encoded characters
 # $1 -> string
 lib_msg() {
-  echo -e "$1"
+  echo "$1"
 }
 
 # output message with encoded characters and no trailing newline
@@ -241,49 +241,50 @@ debug_print() {
 key_check() {
   local keyMatches
   local commitKeyMatches
-  # declare -r testFiles='src/content/docs/mlops/get-started/intro-mlops.mdx src/content/docs/mlops/bring-your-own/getting-started-byo.mdx'
+  local changedFiles
 
   handle_error
 
   # redirect STDOUT to STDERR
   exec 1>&2
 
+  changedFiles=$(git diff --name-only develop..)
+  echo $changedFiles
   # check for keys in tracked files in working tree
-  # keyMatches=$(git grep -IE --color=always --line-number "$CFK_NR_KEY_REGEX" -- 'src/content/docs/mlops/get-started/intro-mlops.mdx')
+  keyMatches=$(git grep -IE --color=always --line-number "$CFK_NR_KEY_REGEX" -- $changedFiles)
 
-  # if [ -z "$keyMatches" ]; then
-  #   lib_success "New Relic keys not found in tracked files. Yay!"
-  # else
-  #   lib_alert "New Relic keys found in tracked files!"
-  #   lib_msg "Please redact the following keys with [REDACTED] and try your commit again."
-  #   echo -e "$keyMatches"
-  #   exit 1  # non-zero exit status will cancel commit
-  # fi
+  if [ -z "$keyMatches" ]; then
+    lib_success "New Relic keys not found in tracked files. Yay!"
+  else
+    lib_alert "New Relic keys found in tracked files!"
+    lib_msg "Please redact the following keys with [REDACTED] and try your commit again."
+    echo -e "$keyMatches"
+    exit 1  # non-zero exit status will cancel commit
+  fi
 
   # check for keys in all historical commits
   commitHashesOnThisBranch=$(git log --oneline develop.. --format="%h")
-  local anyMatches=false
+  local anyMatches=()
 
   for hash in $commitHashesOnThisBranch; do
     local diff="$(git show $hash -U0 --format='')"
     local matches=$(echo $diff | grep --extended-regexp -c "$CFK_NR_KEY_REGEX")
-    lib_msg "hash: $hash. matches: $matches"
 
     if [ $matches -gt 0 ]; then
-      anyMatches=true
+      anyMatches+=($hash);
     fi
   done
-  lib_msg "anyMatches = $anyMatches"
 
-  # commitKeyMatches=$(git log -G "$CFK_NR_KEY_REGEX" --oneline --color=always -- $@)
-  # if [ -z "$commitKeyMatches" ]; then
-  #   lib_success "New Relic keys not found in historical commits. Yay!"
-  # else
-  #   lib_alert "New Relic keys found in historical commits!"
-  #   lib_msg "Please consider removing or redacting the following keys from your commit history."
-  #   echo -e "$commitKeyMatches"
-  #   exit 1  # non-zero exit status will cancel commit
-  # fi
+  if [ ${#anyMatches[@]} -gt 0 ]; then
+    lib_alert "New Relic keys found in historical commits!"
+    lib_msg "Please consider removing or redacting the keys from the following commits:"
+    for commit in ${anyMatches[@]}; do
+      lib_msg "$commit"
+    done
+    exit 1 # non-zero exit status will cancel commit
+  else
+    lib_success "New Relic keys not found in historical commits. Yay!"
+  fi
 }
 
 # unset functions to free up memmory
@@ -294,6 +295,5 @@ reset() {
 # --------------------------  MAIN
 
 debug_print
-echo $@
-key_check $@
+key_check
 reset
