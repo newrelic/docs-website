@@ -4,10 +4,10 @@ summary: 'The IPs used for synthetics private locations prior to August 2023 wil
 releaseDate: '2023-11-17' 
 ---
 
-On **January 15, 2024**, the IPs used for synthetics private location communication prior to August 2023 will be returned to Amazon. These IPs could be used by others in the future. 
+On **January 15, 2024**, IPs from pre-August 2023 used for synthetics private location communication will return to Amazon. Once returned to Amazon, these IPs could be used by others in the future. 
 
 **What’s changing?**
-Horde is used by synthetics private locations to retrieve synthetic checks and return results. The IP ranges used by Horde changed in [August 2023](/whats-new/2023/06/whats-new-06-23-synthetics-horde-ip-changes/). The IPs used prior to August 2023 will be returned to Amazon on January 15, 2024 and could be used by others in the future.
+Synthetics private locations use Horde to retrieve synthetic checks and return results. Horde IP ranges changed in [August 2023](/whats-new/2023/06/whats-new-06-23-synthetics-horde-ip-changes/). The IPs used pre-August 2023 will returned to Amazon on January 15, 2024 and could be used by others in the future.
 
 Legacy US horde IPs:
 * 13.248.153.51
@@ -16,10 +16,9 @@ Legacy US horde IPs:
 Legacy EU horde IPs:
 * 185.221.86.57
 
-**What action is required?**
-**There will be no impact to synthetic monitors using private locations or current private location connectivity.** If you are using private locations today, you are already utilizing the Horde IP ranges that were released in August 2023. 
+**What action is required?** If you utilized synthetics private locations from before August 2023, it’s very likely that you need to clean up network rules. Any configurations allowing outbound connectivity to the IPs listed above can be removed at any time.
 
-If you utilized synthetics private locations prior to August 2023, it’s highly likely that you will need to clean up network rules. Any configurations allowing outbound connectivity to the IPs listed above can be removed at any time.
+**There will be no impact to synthetic monitors using private locations or current private location connectivity.** If you're using private locations today, you're already utilizing the Horde IP ranges that we released in August 2023. 
 
 **What if I don't use synthetics private locations?**
 If you don’t use private locations, you don’t need to perform any action. 
