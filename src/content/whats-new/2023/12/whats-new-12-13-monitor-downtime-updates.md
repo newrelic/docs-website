@@ -1,0 +1,16 @@
+---
+title: 'Synthetics monitor downtime updates'
+summary: 'Manage synthetics monitor downtime configurations using a refreshed UI and a new NerdGraph API.'
+releaseDate: '2023-12-13'
+learnMoreLink: 'https://docs.newrelic.com/docs/apis/nerdgraph/examples/nerdgraph-synthetics-tutorial/#monitor-downtimes'
+---
+
+Schedule (monitor downtimes)[/docs/synthetics/synthetic-monitoring/using-monitors/monitor-downtimes-disable-monitoring-during-scheduled-maintenance-times/] to specify times that your synthetic monitors should not run, ceasing alerting and preserving SLA report metrics. 
+
+With the updated monitor downtime experience, you can: 
+* Schedule monitor downtime windows that span more than 24 hours
+* Manage monitor downtime configurations programmatically using (NerdGraph)[/docs/apis/nerdgraph/examples/nerdgraph-synthetics-tutorial/#monitor-downtimes]
+* View relationships between synthetic monitors and monitor downtime configurations using [service maps](/docs/new-relic-solutions/new-relic-one/ui-data/service-maps/service-maps/) and (entity relationship NerdGraph queries)[/docs/apis/nerdgraph/examples/nerdgraph-entities-api-tutorial/#list-relationships].
+
+**Next Steps**
+* Check out our documentation for the monitor downtimes (UI)[/docs/synthetics/synthetic-monitoring/using-monitors/monitor-downtimes-disable-monitoring-during-scheduled-maintenance-times/] and (API)[/docs/apis/nerdgraph/examples/nerdgraph-synthetics-tutorial/#monitor-downtimes]
