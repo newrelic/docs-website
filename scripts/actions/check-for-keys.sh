@@ -241,17 +241,14 @@ debug_print() {
 key_check() {
   local keyMatches
   local commitKeyMatches
-  local changedFiles
 
   handle_error
 
   # redirect STDOUT to STDERR
   exec 1>&2
 
-  changedFiles=$(git diff --name-only develop..)
-  echo $changedFiles
   # check for keys in tracked files in working tree
-  keyMatches=$(git grep -IE --color=always --line-number "$CFK_NR_KEY_REGEX" -- $changedFiles)
+  keyMatches=$(git grep -IE --color=always --line-number "$CFK_NR_KEY_REGEX")
 
   if [ -z "$keyMatches" ]; then
     lib_success "New Relic keys not found in tracked files. Yay!"
