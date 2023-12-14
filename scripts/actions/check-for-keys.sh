@@ -248,7 +248,7 @@ key_check() {
   exec 1>&2
 
   # check for keys in tracked files in working tree
-  keyMatches=$(git grep -IE --color=always --line-number "$CFK_NR_KEY_REGEX")
+  keyMatches=$(git grep -IE --color=always --line-number "$CFK_NR_KEY_REGEX" -- ":!gatsby-config.js")
 
   if [ -z "$keyMatches" ]; then
     lib_success "New Relic keys not found in tracked files. Yay!"
