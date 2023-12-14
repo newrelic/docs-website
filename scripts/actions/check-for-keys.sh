@@ -260,7 +260,7 @@ key_check() {
   fi
 
   # check for keys in all historical commits
-  commitHashesOnThisBranch=$(git log --oneline develop.. --format="%h")
+  commitHashesOnThisBranch=$(git log --oneline origin/develop.. --format="%h")
   local anyMatches=()
 
   for hash in $commitHashesOnThisBranch; do
