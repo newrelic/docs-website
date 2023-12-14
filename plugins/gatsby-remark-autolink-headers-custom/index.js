@@ -66,23 +66,28 @@ module.exports = (
       const label = id.split(`-`).join(` `);
       const method = isIconAfterHeader ? `push` : `unshift`;
       node.children[method]({
-        type: `link`,
-        url: `#${id}`,
-        title: null,
-        children: [],
-        data: {
-          hProperties: {
-            'aria-label': `${label} permalink`,
-            class: `${className} ${isIconAfterHeader ? `after` : `before`}`,
-          },
-          hChildren: [
-            {
-              type: `raw`,
-              // The Octicon link icon is the default. But users can set their own icon via the "icon" option.
-              value: icon,
+        type: 'mdxBlockElement',
+        name: 'HeaderLink',
+        children: [
+          {
+            type: `link`,
+            url: `#${id}`,
+            title: null,
+            children: [],
+            data: {
+              hProperties: {
+                'aria-label': `${label} permalink`,
+                class: `${className} ${isIconAfterHeader ? `after` : `before`}`,
+              },
+              hChildren: [
+                {
+                  type: `raw`,
+                  value: icon,
+                },
+              ],
             },
-          ],
-        },
+          },
+        ],
       });
     }
   });
