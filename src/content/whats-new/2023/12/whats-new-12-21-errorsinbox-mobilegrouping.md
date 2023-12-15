@@ -10,4 +10,4 @@ New Relic errors inbox now lets you automatically group mobile error events into
 * **Analyze more errors with less effort:** Improve user experience for apps with high-volume mobile engagement while staying under cardinality limits so you can capture and examine the errors that matter most
 * **Improve error triage and issue ownership:** Streamline root cause analysis with better insights into mobile user activity to expand full stack coverage with mobile error grouping is part of the New Relic all-in-one observability platform.
 
-To learn more about error gropuing check out our [documentation](https://docs.newrelic.com/docs/errors-inbox/errors-inbox/#how-groups-work) 
+To learn more about error grouping, check out our [documentation](https://docs.newrelic.com/docs/errors-inbox/errors-inbox/#how-groups-work).
