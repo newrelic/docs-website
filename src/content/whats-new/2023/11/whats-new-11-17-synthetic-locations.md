@@ -7,7 +7,7 @@ releaseDate: '2023-11-17'
 On **January 15, 2024**, IPs from pre-August 2023 used for synthetics private location communication will return to Amazon. Once returned to Amazon, these IPs could be used by others in the future. 
 
 **What’s changing?**
-Synthetics private locations use Horde to retrieve synthetic checks and return results. Horde IP ranges changed in [August 2023](/whats-new/2023/06/whats-new-06-23-synthetics-horde-ip-changes/). The IPs used pre-August 2023 will return to Amazon on January 15, 2024 and could be used by others in the future.
+Synthetics private locations use Horde to retrieve synthetic checks and return results. Horde IP ranges changed in [August 2023](https://docs.newrelic.com/whats-new/2023/06/whats-new-06-23-synthetics-horde-ip-changes/). The IPs used pre-August 2023 will return to Amazon on January 15, 2024 and could be used by others in the future.
 
 Legacy US horde IPs:
 * 13.248.153.51
