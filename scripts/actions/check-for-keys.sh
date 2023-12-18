@@ -2,9 +2,9 @@
 
 SCRIPT_HEADER=(
 "# -----------------------------------------------------"
-"# Warn about keys on pre-commit hook                   "
+"# Warn about keys as github action                     "
 "#                                                      "
-"# App    : Check For Keys Pre-Commit Hook              "
+"# App    : Check For Keys Github Action                "
 "# Author : Clark McAdoo                                "
 "# Company: New Relic                                   "
 "# Email  : jmcadoo@newrelic.com                        "

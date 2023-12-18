@@ -64,4 +64,4 @@ It takes no arguments and will complete in about ~20min. It was created to be ru
 
 ## actions/check-for-keys.sh
 
-This scripts runs upon making a PR to the develop branch via a github action (`.github/workflows/check-for-keys.yml`). It scans all files, save one (`gatsby-config.js`), for any potential New Relic API keys based on a list of regex. It also scans all git commit history for any commits made in a PR to develop, looks at the diff for all said commits and scans those for API keys as well. This is intended to ensure no API keys are committed to the docs site or git history.
+This script runs upon making a PR to the develop branch via a github action (`.github/workflows/check-for-keys.yml`). It scans all files, save one (`gatsby-config.js`), for any potential New Relic API keys based on a list of regex. It also scans all git commit history for any commits made in a PR to develop, looks at the diff for all said commits and scans those for API keys as well. This is intended to ensure no API keys are committed to the docs site or git history.
