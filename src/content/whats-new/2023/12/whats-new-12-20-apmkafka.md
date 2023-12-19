@@ -2,7 +2,7 @@
 title: 'Level up your Kafka monitoring with New Relic APM 360'
 summary: 'Spot anomalies, pinpoint bottlenecks and improve throughput with daily insights into your Kafka clusters'
 releaseDate: '2023-12-20'
-learnMoreLink: ''
+learnMoreLink: 'https://docs.newrelic.com/docs/apm/agents/java-agent/instrumentation/java-agent-instrument-kafka-message-queues/'
 getStartedLink: ''
 ---
 
@@ -10,7 +10,7 @@ At New Relic, we run high-throughput Kafka clusters, and know firsthand the chal
 
  With Kafka monitoring in New Relic APM 360 you can get:
 
-* **Instant real-time Kafka insights:** Scrape key client Kafka metrics effortlessly with the Java agent (v8.6+) to quickly gain real time insights by connecting the dots across your hosts and service through an unified UI.
+* **Instant real-time Kafka insights:** Scrape key client Kafka metrics effortlessly with the Java agent to quickly gain real time insights by connecting the dots across your hosts and service through an unified UI.
 * **Spot outliers and troubleshoot faster:**  Instantly spot anomalies in key metrics across all Kafka client components - producers and consumers - to ensure smooth data flow
 * **Pinpoint bottlenecks:** Using latency metrics, throttling rates, queue depth, and retry counts identify bottlenecks that impact data flow and increase latency
 * **Uncover hidden broker issues:** Analyze client-side metrics like producer/consumer throttle time and retry rate growth to detect potential broker-side issues and resource limitations
