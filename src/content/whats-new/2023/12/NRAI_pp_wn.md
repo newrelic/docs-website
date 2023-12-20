@@ -21,4 +21,4 @@ Eligible customers can get early access to New Relic AI today upon acceptance of
 
 ## Important Notes:
 * Acceptance of the pre-release agreement by any user is effective for all users across all child accounts of the shared parent account affiliated with that user. Per the pre-release agreement: **"Your acceptance signifies that you have the legal authority to use the Pre-Release Service(s) personally or on behalf of the entity(ies) associated with your New Relic account."**
-* FedRAMP-enabled, HIPAA-enabled, and EU customers are not eligible to participate in the preview of New Relic AI at this time.
+* FedRAMP-enabled and HIPAA-enabled customers are not eligible to participate in the preview of New Relic AI at this time.
