@@ -7,7 +7,7 @@ learnMoreLink: 'https://docs.newrelic.com/docs/new-relic-solutions/new-relic-one
 
 We've expanded early access for [New Relic AI](https://docs.newrelic.com/docs/new-relic-solutions/new-relic-one/core-concepts/new-relic-ai/), the industry's first generative AI observability assistant.
 
-This preview offers an early taste of what New Relic AI will be able to do once it becomes generally available. Here are some of the capabilities that you'll be able to explore during this preliminary release phase:
+This preview offers an early taste of what New Relic AI will be able to do once it becomes generally available. Here are some of the capabilities that you can explore during this preliminary release phase:
 
 * Translate plain language into New Relic Query Language (NRQL) queries, run NRQL queries, and render the results in plain language or visualize them as a chart or graph.
 * Synthesize how-to guides based on our extensive [documentation](https://docs.newrelic.com/).
