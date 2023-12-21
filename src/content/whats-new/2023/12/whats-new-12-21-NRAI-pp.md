@@ -1,6 +1,6 @@
 ---
 title: 'Join the New Relic AI Preview'
-summary: 'Get early access to the industry's first GenAI observability assistant'
+summary: "Get early access to the industry's first GenAI observability assistant"
 releaseDate: '2023-12-20'
 learnMoreLink: 'https://docs.newrelic.com/docs/new-relic-solutions/new-relic-one/core-concepts/new-relic-ai/'
 ---
