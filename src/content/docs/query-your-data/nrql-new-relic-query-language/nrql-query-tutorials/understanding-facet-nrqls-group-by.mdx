@@ -1,0 +1,180 @@
+---
+title: 'NRQL: Understanding FACET, NRQLs GROUP_BY'
+tags:
+  - Query your data
+  - 'NRQL: New Relic Query Language'
+  - NRQL query deep-dive
+metaDescription: 'NRQL deep-dive on FACET and how it compares to SQL GROUP_BY'
+redirects:
+freshnessValidatedDate: never
+---
+
+import queriesBasicFacet from 'images/nrql-images/queries_screenshot-crop-average-nrdb-query.webp'
+import queriesBasicColumns from 'images/nrql-images/queries_screenshot-crop-basic-nrdb-query-select-star.webp'
+import queriesTopKLimit3 from 'images/nrql-images/queries_screenshot-crop-topk-example.webp'
+import queriesTopKLimit3Alternative from 'images/nrql-images/queries_screenshot-crop-topk-alternative-example.webp'
+import queriesFacetCases from 'images/nrql-images/understanding-facet-nrqls-group-by.webp'
+import queriesOrderBy from 'images/nrql-images/queries_screenshot-crop-facet-order-by.webp'
+import queriesLabeledFacet from 'images/nrql-images/queries_screenshot-crop-labeled-facets'
+import queriesTimeseriesFacet from 'images/nrql-images/queries_screenshot-crop-facet-timeseries'
+import queriesTupleFacet from 'images/nrql-images/queries_screenshot-crop-tuple-facet'
+
+Although NRQL has many visual similarities to SQL, by design, it excludes the `GROUP_BY` clause. Instead, NRQL provides the `FACET` clause as an alternative solution for grouping data together. As we dive into `FACET` we will slowly tease apart the differences between `GROUP_BY` and `FACET` to emphasize why we've named these differently to avoid confusion, and hopefully give you some tools take full advantage of `FACET`!
+
+## What is faceting? [#intro]
+The `FACET` clause allows you to arbitrarily group data into the aggregation(s) of your choosing. As an example, we can look at the `NrdbQuery` event type which appears in all accounts, and represents the execution of a single query against NRDB. We can see that data by selecting the columns as such:
+```sql
+FROM NrdbQuery SELECT durationMs, query.eventType
+```
+<img
+  title="NrdbQuery Columns"
+  alt="A screenshot displaying the columns of the NrdbQuery event"
+  src={queriesBasicColumns}
+/>
+
+As we can see above each NrdbQuery has an associated `durationMs`, and `query.eventType`. Using `FACET` we can find the average duration of each NrdbQuery, by their target event type.
+```sql
+FROM NrdbQuery SELECT average(durationMs) FACET query.eventType
+```
+<img
+  title="NrdbQuery Facet Average"
+  alt="A screenshot displaying the average duration of NrdbQuery event by their event type"
+  src={queriesBasicFacet}
+/>
+
+Faceting is an essential tool to begin analyzing your data. Particularly in tandem with the `TIMESERIES` clause to see those groups through time (See more in the [Advanced Faceting](#advanced) section).
+
+## Facet group selection [#limits]
+
+Limiting is a key different between `FACET` and `GROUP_BY`. By default, a NRQL facet clause will only provide 10 groups, even if there are more than 10 groups in the data set. You can adjust this limit by providing `LIMIT <k>` at the end of the query. `<k>` can be between 1 and 2000, or simply `LIMIT MAX` if you'd like to default our highest value. Since NRDB is a multi-tenant system, queries must be limited to ensure all customers have great and consistent query performance.
+
+<Callout variant="tip">
+  Keep `FACET` limits in mind when designing your internal Event data model. If you have values that you're planning to facet by which are high cardinality, consider breaking those values across distinct Event types, to ensure the cardinality of each Event type is less than `LIMIT MAX`.
+</Callout>
+
+### Facet group limiting [#group-selection]
+
+In the situation where the number of groups far exceeds the provided `LIMIT <k>`, NRDB must select which groups to provide in the given limit. Group selection is the most important and distinct difference between `FACET` and `GROUP_BY`. In general, the group selection is done by finding the "top-k" for the first aggregation provided in the query. For example:
+
+```sql
+FROM NrdbQuery SELECT count(*), average(durationMs) FACET query.eventType LIMIT 3
+```
+<img
+  title="NrdbQuery Facet Limit 3"
+  alt="A screenshot displaying the result of a limit 3 query with count first"
+  src={queriesTopKLimit3}
+/>
+
+In the case above, we've found the `query.eventType`s with the highest `count(*)` results and provided those top-3 in sorted order, descending. In our example, the top value was a count of `20`. Importantly, the `average(durationMs)` was **not** used to decide our top-3. Average was just a "carry-along" value which doesn't impact our facet group selection, and as a result is not our sorted top-k. If we wanted to see the `query.eventType` by our highest `durationMs`, we would need to change the order of our `SELECT` clause, as such:
+
+```sql
+FROM NrdbQuery SELECT average(durationMs), count(*) FACET query.eventType LIMIT 3
+```
+<img
+  title="NrdbQuery Facet Limit 3 Average First"
+  alt="A screenshot displaying the result of a limit 3 query with average first"
+  src={queriesTopKLimit3Alternative}
+/>
+
+Now we can see that we're displaying different labels, and they're selected / sorted by their average `durationMs`!
+
+<Callout variant="important">
+  When combining `FACET` with the `COMPARE WITH` clause. The facets are chosen based on the most recent time window of the query! If the value you're faceting on changes frequently, your past time window could appear empty.
+</Callout>
+
+### Alternative group selection [#order-by]
+
+In some cases, you would like to find groups based on an aggregation that is **different** than your first aggregation, and don't want that alternative selection aggregation to be within your result. In that case, you can use `FACET ... ORDER BY`! The syntax is as follows:
+
+```sql
+FROM NrdbQuery SELECT count(*) FACET query.eventType ORDER BY average(durationMs) LIMIT 3
+```
+<img
+  title="NrdbQuery Facet Order By"
+  alt="A screenshot displaying the result of a facet order by query"
+  src={queriesOrderBy}
+/>
+
+In the above result, each `query.eventType` was chosen for having the highest average `durationMs`, but only return the aggregations select clause which is the `count`.
+
+<Callout variant="caution">
+  In `FACET ... ORDER BY` the `ORDER BY` must follow immediately after the `FACET` clause. If there is another clause between those, like `SINCE` / `UNTIL` it will be treated differently, and generally will be ignored. Additionally, the `ORDER BY &gt;function&lt;` function argument must be an aggregation, such a top-k supported aggregation (See more in the [Top-k Supported Aggregations](#supported-functions) section).
+</Callout>
+
+### Approximations in group selection [#group-selection-approximation]
+
+NRDB is a highly distributed system. The data for a given query could be spread across potentially thousands of different hosts across different availability zones. As a result, the top-k must approximate the sorted order of our groups to decide what groups can fit within our limit. In general, the accuracy very good for the top handful of results, with diminishing accuracy in the tail end.
+
+<Callout variant="tip">
+  The accuracy of the approximations within the top-k selection algorithms increase with the `LIMIT &gt;k&lt;`. If the accuracy of the top values is important, considering increasing the `LIMIT` value, even if the following values aren't important for your use-case.
+</Callout>
+
+#### Top-k Supported Aggregations [#supported-functions]
+The approximations NRDB must make to decide the sorted order of the facets are non-trivial algorithms which are tailored for particular use-cases. As a consequence, there are only a handful of functions which have full supported top-k algorithms associated to them. Algorithms are:
+
+* `Count-k`, the default option for all functions without a specific algorithm assigned
+* `Sum-k`, implemented for `sum`
+* `Average-k`, implemented for `average`, `percentile` and `median`
+* `Min-k`, implemented for `min`
+* `Max-k`, implemented for `max`
+
+Keep in mind, this is a massively simplified overview. There are many cases where NRDB will alter which algorithm is used. For example, the `rate(...)` or `filter(...)` function will use their first argument as the top-k algorithm, rather than defaulting to `count-k`.
+
+## Advanced Faceting [#advanced]
+Now that we have a stronger grasp over `FACET` and some of its technical details, lets jump into some example queries which can help improve your usage of NRQL!
+
+### Facet Timeseries [#facet-timeseries]
+NRDB is a database specialized in timeseries data, so it can be common to want to visualize your facet groups by time. To do that, you can use the `TIMESERIES` clause.
+
+```sql
+FROM NrdbQuery SELECT count(*) FACET query.eventType TIMESERIES
+```
+<img
+  title="NrdbQuery Facet Timeseries"
+  alt="A screenshot displaying the result of a facet timeseries query"
+  src={queriesTimeseriesFacet}
+/>
+
+### Tuple Faceted [#face-tuple]
+Contrary to the examples so far, `FACET` can accept multiple values! Each group is formed by the unique tuple of values found for each row. Example:
+
+```sql
+FROM NrdbQuery SELECT count(*) FACET query.eventType, source.name
+```
+<img
+  title="NrdbQuery Tuple Faceted"
+  alt="A screenshot displaying the result of a facet tuple query"
+  src={queriesTupleFacet}
+/>
+
+
+### Facet Labeling (AS) [#face-labeling]
+There are many cases where you'd like to change the default label provided for a given group. As shown below, you can use the `AS` clause to rename any particular grouping.
+```sql
+FROM NrdbQuery SELECT count(*) FACET hourOf(timestamp) AS 'Timestamp Hour'
+```
+<img
+  title="NrdbQuery Facet Labeling"
+  alt="A screenshot displaying the result of a labeled facet query"
+  src={queriesLabeledFacet}
+/>
+
+### Facet Cases [#face-cases]
+The `cases` function is particularly useful in the `FACET` clause to do advanced grouping. `cases` takes a list of arguments, where each argument is a filter applied in the row to categorize the events into labels. For example:
+
+```sql
+FROM NrdbQuery SELECT count(*) FACET cases(durationMs > 100 as '>100', durationMs > 50 as '>50', durationMs > 0 as '>0')
+```
+<img
+  title="NrdbQuery Facet Cases"
+  alt="A screenshot displaying the result of a facet cases query"
+  src={queriesFacetCases}
+/>
+
+### Manual Facet Selection Optimization [#manual-selection]
+In some unique cases, you may already know what facet values you're intending to select. In that case, you can manually enter your facet value selection `IN` to avoid the cost of running the `top-k` approximation algorithm. Doing this can double query performance in many cases! Here is an example of that being done:
+
+```sql
+FROM NrdbQuery SELECT average(durationMs) FACET query.eventType IN ('NrConsumption', 'Metric')
+```
+The above query will force the result to exclusively group into those `query.eventType` values.
