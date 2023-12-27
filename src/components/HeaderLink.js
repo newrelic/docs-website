@@ -50,8 +50,8 @@ const CopiedMessage = styled.p`
   min-width: 70px;
   padding: 0 0.25rem;
   position: absolute;
-  bottom: 90%;
-  left: -10px;
+  bottom: 0;
+
   animation: ${copyAnimation} 1s ease;
 `;
 
