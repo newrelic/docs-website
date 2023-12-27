@@ -20,8 +20,7 @@ module.exports = (
     className = `anchor`,
     maintainCase = false,
     removeAccents = false,
-    enableCustomId = false,
-    isIconAfterHeader = false,
+    enableCustomId = true,
     elements = null,
   }
 ) => {
@@ -36,9 +35,9 @@ module.exports = (
     let id;
     if (enableCustomId && node.children.length > 0) {
       const last = node.children[node.children.length - 1];
-      // This regex matches to preceding spaces and {#custom-id} at the end of a string.
+      // This regex matches to preceding spaces and #custom-id at the end of a string.
       // Also, checks the text of node won't be empty after the removal of {#custom-id}.
-      const match = /^(.*?)\s*\{#([\w-]+)\}$/.exec(toString(last));
+      const match = /^(.*?)\s*#([\w-]+)$/.exec(toString(last));
       if (match && (match[1] || node.children.length > 1)) {
         id = match[2];
         // Remove the custom ID from the original text.
@@ -64,10 +63,15 @@ module.exports = (
     if (icon !== false) {
       patch(data.hProperties, `style`, `position:relative;`);
       const label = id.split(`-`).join(` `);
-      const method = isIconAfterHeader ? `push` : `unshift`;
+      const method = `push`;
       node.children[method]({
         type: 'mdxBlockElement',
         name: 'HeaderLink',
+        data: {
+          hProperties: {
+            class: `${className} after`,
+          },
+        },
         children: [
           {
             type: `link`,
@@ -77,7 +81,7 @@ module.exports = (
             data: {
               hProperties: {
                 'aria-label': `${label} permalink`,
-                class: `${className} ${isIconAfterHeader ? `after` : `before`}`,
+                class: `${className} after`,
               },
               hChildren: [
                 {
