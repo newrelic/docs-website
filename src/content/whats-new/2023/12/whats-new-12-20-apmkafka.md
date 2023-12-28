@@ -17,5 +17,5 @@ At New Relic, we run high-throughput Kafka clusters, and know firsthand the chal
 * **Boost data flow with client-side optimization:** Identify uncompressed data streams through metrics such as average producer compression ratio and implement efficient compression strategies to shrink data size and improve throughput
 
 
-![Kafka UI](./images/apm_kafka.png "A screenshot that shows the new APM Kafka UI")
+![Kafka UI](./images/apm_kafka.webp "A screenshot that shows the new APM Kafka UI")
 
