@@ -36,8 +36,8 @@ from {
   opacity: 0;
 }
 
-20%, to {
-  transform: translate3d(0, -5px, 0);
+40%, to {
+  transform: translate3d(5px, 0, 0);
   opacity: 1;
 }
 `;
