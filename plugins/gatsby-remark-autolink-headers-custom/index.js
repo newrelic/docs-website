@@ -63,8 +63,7 @@ module.exports = (
     if (icon !== false) {
       patch(data.hProperties, `style`, `position:relative;`);
       const label = id.split(`-`).join(` `);
-      const method = `push`;
-      node.children[method]({
+      node.children.push({
         type: 'mdxBlockElement',
         name: 'HeaderLink',
         data: {
