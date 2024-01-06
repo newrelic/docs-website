@@ -36,8 +36,8 @@ from {
   opacity: 0;
 }
 
-20%, to {
-  transform: translate3d(0, -5px, 0);
+40%, to {
+  transform: translate3d(5px, 0, 0);
   opacity: 1;
 }
 `;
@@ -50,8 +50,8 @@ const CopiedMessage = styled.p`
   min-width: 70px;
   padding: 0 0.25rem;
   position: absolute;
-  bottom: 90%;
-  left: -10px;
+  bottom: 0;
+
   animation: ${copyAnimation} 1s ease;
 `;
 
