@@ -12,4 +12,4 @@ NRQL result limits are increasing from 2,000 to 5,000 results. This increase let
 * Some existing queries that successfully posted results with `LIMIT MAX` may fail. Larger limits can cause timeouts, or result in failure due to complexity.
 * You can use `LIMIT 2000` instead of `LIMIT MAX` to only display 2,000 results.  
 
-This change won't affect existing queries if they lack a `LIMIT` clause, use default result limits, or specify an explicit result below 2000. 
+This change won't affect existing queries if they lack a `LIMIT` clause, use default result limits, or specify an explicit result below 2,000. 
