@@ -99,7 +99,6 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
               type
               subject
               redirects
-              hideNavs
             }
           }
         }
@@ -307,10 +306,10 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
     });
   });
 
-  // Redirect for VSU page to new Introduction to APM doc
+  // Redirect for old VSU Introduction to APM .js doc
   createRedirect({
-    fromPath: '/docs/apm/new-relic-apm/getting-started/introduction-apm/',
-    toPath: '/introduction-apm',
+    fromPath: '/introduction-apm',
+    toPath: '/docs/apm/new-relic-apm/getting-started/introduction-apm/',
     isPermanent: false,
     redirectInBrowser: true,
   });
@@ -352,8 +351,6 @@ exports.createSchemaCustomization = (
   type Frontmatter {
     isFeatured: Boolean
     translationType: String
-    dataSource: String
-    hideNavs: Boolean
     eolDate: String
     downloadLink: String
     signupBanner: SignupBanner
@@ -457,14 +454,6 @@ exports.createResolvers = ({ createResolvers }) => {
             ? source.translationType
             : null,
       },
-      dataSource: {
-        resolve: (source) =>
-          hasOwnProperty(source, 'dataSource') ? source.dataSource : null,
-      },
-      hideNavs: {
-        resolve: (source) =>
-          hasOwnProperty(source, 'hideNavs') ? source.hideNavs : null,
-      },
       eolDate: {
         resolve: (source) =>
           hasOwnProperty(source, 'eolDate') ? source.eolDate : null,
@@ -505,20 +494,6 @@ exports.createResolvers = ({ createResolvers }) => {
 
 exports.onCreatePage = ({ page, actions }) => {
   const { createPage } = actions;
-
-  if (page.path === '/') {
-    page.context.quicklaunchSlug =
-      'docs/new-relic-solutions/get-started/quick-launch-guide';
-    page.context.layout = 'homepage';
-  }
-  if (page.path === '/jp/') {
-    page.context.quicklaunchSlug =
-      'jp/docs/new-relic-solutions/get-started/quick-launch-guide';
-  }
-  if (page.path === '/kr/') {
-    page.context.quicklaunchSlug =
-      'kr/docs/new-relic-solutions/get-started/quick-launch-guide';
-  }
 
   if (page.path.match(/404/)) {
     page.context.layout = 'basic';
@@ -578,7 +553,7 @@ const createPageFromNode = (
   defer = false
 ) => {
   const {
-    frontmatter: { subject: agentName, hideNavs },
+    frontmatter: { subject: agentName },
     fields: { fileRelativePath, slug },
   } = node;
 
@@ -626,7 +601,6 @@ const createPageFromNode = (
       context: {
         ...context,
         fileRelativePath,
-        hideNavs,
         slug,
         slugRegex: `${slug}/.+/`,
         disableSwiftype,

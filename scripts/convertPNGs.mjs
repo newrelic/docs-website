@@ -8,6 +8,7 @@ import { Command } from 'commander';
 import webp from 'webp-converter';
 import { promisify } from 'util';
 import { exec as callback_exec } from 'child_process';
+import core from '@actions/core';
 
 const program = new Command();
 program
@@ -77,6 +78,7 @@ const updateMarkdownReferences = async (mdArray) => {
 };
 
 const convertImages = async (imageArray) => {
+  core.setOutput('convertedImages', imageArray.length);
   console.log(`⏳  Converting ${imageArray.length} images`);
   for (const imagePath of imageArray) {
     const webpPath = swapExtension(imagePath);
