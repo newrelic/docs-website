@@ -17,6 +17,6 @@ The integration brings LambdaTest metrics into a pre-built curated New Relic das
 - **Accelerate troubleshooting** with deeper insights into test failures, anomalies, and environments where errors occurred.
 - **Build better cross-platform experiences** by gaining insights on website and application compatibility and functionality across thousands of different browsers and devices.
 
-### Next steps
+## Next steps
 
 To connect your LambdaTest data to New Relic, all you’ll need is your New Relic license key. Follow the steps in the [docs](https://www.lambdatest.com/support/docs/new-relic-integration/) to configure the integration and install the quickstart dashboard.
