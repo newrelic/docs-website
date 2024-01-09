@@ -10,6 +10,7 @@
 // library hasn't been updated in years and this fork updates the `js-yaml`
 // dependency, which is much smaller and more performant.
 const grayMatter = require('@gr2m/gray-matter');
+const yaml = require('js-yaml');
 
 const DEFAULT_REASON = 'Invalid frontmatter entry';
 
@@ -54,7 +55,6 @@ const DEFAULT_REASON = 'Invalid frontmatter entry';
  */
 const frontmatter = (mdString) => {
   let result;
-
   try {
     const { content, data } = grayMatter(mdString);
 
@@ -78,6 +78,71 @@ const frontmatter = (mdString) => {
   return result;
 };
 
+/**
+ * Parse the frontmatter and check for required freshnessValidatedDate field on most content doc pages. 
+ * Valid options are `never` or `YYYY-MM-DD`
+ *
+ * @example
+ * ```yaml
+ * ---
+ * title: This is a doc page
+ * freshnessValidatedDate: 2021-03-15
+ * ---
+ * ```
+ * 
+ *```js
+ * // error.message = undefined
+ * ``` 
+ * 
+ * ```yaml
+ * ---
+ * title: This is a doc page with an invalid date
+ * freshnessValidatedDate: 21-03-15
+ * ---
+ * ```
+ * 
+ *```js
+ * // error.message = freshnessValidatedDate is not a valid value. Must be date format YYYY-MM-DD or `never`
+ * ```
+
+ *
+ *
+ *
+ * @param {string} mdString - Full content of the MD(X) file to parse.
+ * @returns error | undefined
+ */
+
+const validateFreshnessDate = (mdString) => {
+  let error;
+
+  const { data } = grayMatter(mdString, {
+    engines: {
+      yaml: {
+        parse: (string) => yaml.safeLoad(string, { schema: yaml.JSON_SCHEMA }),
+      },
+    },
+  });
+
+  const isValidDate = (date) => {
+    const regex = /\d{4}\-(0[1-9]|1[012])\-(0[1-9]|[12][0-9]|3[01])/;
+    return regex.test(date);
+  };
+  // freshnessValidatedDate is a required field and must be a date or `never`
+  if (data.freshnessValidatedDate) {
+    const stringDate = data.freshnessValidatedDate.toString();
+    if (!isValidDate(stringDate) && !stringDate.includes('never')) {
+      error = new Error(
+        'freshnessValidatedDate is not a valid value. Must be date format YYYY-MM-DD or `never`'
+      );
+    }
+  } else {
+    error = new Error('freshnessValidatedDate field missing from frontmatter');
+  }
+
+  return error;
+};
+
 module.exports = {
   frontmatter,
+  validateFreshnessDate,
 };
