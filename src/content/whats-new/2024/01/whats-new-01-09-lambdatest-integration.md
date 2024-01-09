@@ -1,7 +1,7 @@
 ---
 title: 'Get test observability with the LambdaTest integration'
 summary: 'New quickstart integration provides visibility into automated app and cross-browser test performance to improve user experience'
-releaseDate: '2023-01-09'
+releaseDate: '2024-01-09'
 learnMoreLink:
 getStartedLink: 'https://newrelic.com/instant-observability/lambdatest'
 ---
