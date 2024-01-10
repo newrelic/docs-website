@@ -6,6 +6,13 @@ const fs = require('fs');
 const glob = require('glob');
 const cliProgress = require('cli-progress');
 const colors = require('ansi-colors');
+const unified = require('unified');
+const visit = require('unist-util-visit');
+const remarkParse = require('remark-parse');
+const remarkMdx = require('remark-mdx');
+const remarkMdxjs = require('remark-mdxjs');
+const remarkStringify = require('remark-stringify');
+const remarkFrontmatter = require('remark-frontmatter');
 
 const progressBar = new cliProgress.SingleBar(
   {
@@ -21,12 +28,51 @@ const progressBar = new cliProgress.SingleBar(
 
 const mdxErrors = [];
 
+const createAST = (mdxText) => {
+  const mdxAst = unified()
+    .use(remarkParse)
+    .use(remarkStringify, {
+      bullet: '*',
+      fences: true,
+      listItemIndent: '1',
+    })
+    .use(remarkMdx)
+    .use(remarkMdxjs)
+    .use(remarkFrontmatter, ['yaml'])
+    .parse(mdxText);
+
+  return mdxAst;
+};
+
+const verifyStepsChildren = (mdxAST) => {
+  let hasNonStepChild = false;
+  let nodeInfo;
+  visit(mdxAST, (node) => {
+    if (node.name !== 'Steps') {
+      return;
+    }
+    hasNonStepChild = node?.children?.some((el) => el.name !== 'Step');
+    nodeInfo = node.position.start;
+  });
+  return { hasNonStepChild, nodeInfo };
+};
+
 const readFile = async (filePath) => {
   let failed = false;
 
   const mdxText = fs.readFileSync(filePath, 'utf8');
   try {
     const jsx = mdx.sync(mdxText);
+    const mdxAst = createAST(mdxText);
+    const { hasNonStepChild, nodeInfo } = verifyStepsChildren(mdxAst);
+    if (hasNonStepChild) {
+      const customError = {
+        reason:
+          '<Steps> component must only contain <Step> components as immediate children',
+        ...nodeInfo,
+      };
+      throw customError;
+    }
   } catch (exception) {
     mdxErrors.push(`\x1b[35m MDX error:\x1b[0m ${filePath} \n
       \x1b[31m${exception.reason}\x1b[0m
