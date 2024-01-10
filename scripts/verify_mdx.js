@@ -28,9 +28,7 @@ const progressBar = new cliProgress.SingleBar(
 
 const mdxErrors = [];
 
-const createAST = (filePath) => {
-  const mdxFile = fs.readFileSync(filePath);
-
+const createAST = (mdxText) => {
   const mdxAst = unified()
     .use(remarkParse)
     .use(remarkStringify, {
@@ -41,7 +39,7 @@ const createAST = (filePath) => {
     .use(remarkMdx)
     .use(remarkMdxjs)
     .use(remarkFrontmatter, ['yaml'])
-    .parse(mdxFile);
+    .parse(mdxText);
 
   return mdxAst;
 };
@@ -65,7 +63,7 @@ const readFile = async (filePath) => {
   const mdxText = fs.readFileSync(filePath, 'utf8');
   try {
     const jsx = mdx.sync(mdxText);
-    const mdxAst = createAST(filePath);
+    const mdxAst = createAST(mdxText);
     const { hasNonStepChild, nodeInfo } = verifyStepsChildren(mdxAst);
     if (hasNonStepChild) {
       const customError = {
