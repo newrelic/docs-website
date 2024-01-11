@@ -14,6 +14,7 @@ import cx from 'classnames';
 
 import { DocTile, DocTiles } from './DocTile';
 import EolPage from './EolPage';
+import HeaderLink from './HeaderLink';
 import LandingPageHero from './LandingPageHero';
 import LandingPageTile from './LandingPageTile';
 import LandingPageTileGrid from './LandingPageTileGrid';
@@ -87,6 +88,7 @@ const defaultComponents = {
   ExternalLink: (props) => (
     <ExternalLink {...props} onClick={(e) => e.stopPropagation()} />
   ),
+  HeaderLink,
   HeroContent: ({ children }) => <>{children}</>,
   LandingPageHero,
   LandingPageTile,
