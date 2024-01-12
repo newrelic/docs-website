@@ -18,4 +18,4 @@ This change won't affect existing queries if they lack a `LIMIT` clause, use def
 
 Existing queries using LIMIT MAX may return more data than before. This could potentially slow down dashboards or reports that use those queries.
 
-To avoid unintended changes, update any queries using LIMIT MAX to specify LIMIT 2000 by February 5th. This will ensure they continue to behave as expected after the limit increase.
+To avoid unintended changes, update any queries using `LIMIT MAX` to specify `LIMIT 2000` by February 5th. This will ensure they continue to behave as expected after the limit increase.
