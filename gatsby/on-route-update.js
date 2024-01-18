@@ -1,10 +1,10 @@
 const onRouteUpdate = ({ location, prevLocation }) => {
   if (
-    window.Tessen &&
+    window.newrelic &&
     location.hash &&
     location.pathname !== prevLocation?.pathname
   ) {
-    window.Tessen.track({
+    window.newrelic.track({
       eventName: 'hashRequest',
       category: 'AnchorClick',
       pathname: location.pathname,

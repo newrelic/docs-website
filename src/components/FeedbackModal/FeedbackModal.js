@@ -8,7 +8,7 @@ import {
   Portal,
   useLocale,
   useTranslation,
-  useTessen,
+  addPageAction,
 } from '@newrelic/gatsby-theme-newrelic';
 import RecaptchaFooter from '@newrelic/gatsby-theme-newrelic/src/components/SignupModal/RecaptchaFooter';
 import Cookies from 'js-cookie';
@@ -54,7 +54,6 @@ const FeedbackModal = ({ onClose }) => {
   const surveyDismissed = Cookies.get('surveyDismissed') === 'true';
   const hadChanceToShow = Cookies.get('surveyHadChanceToShow') === 'true';
   const shouldShow = useRef(nat20 && !hadChanceToShow && !surveyDismissed);
-  const tessen = useTessen();
   const locale = useLocale();
   const [step, setStep] = useState(0);
   const [showThankYou, setShowThankYou] = useState(false);
@@ -63,14 +62,14 @@ const FeedbackModal = ({ onClose }) => {
 
   useEffect(() => {
     if (shouldShow.current) {
-      tessen.track({
+      addPageAction({
         eventName: 'surveyDisplayed',
         category: 'SurveyFeedback',
         formVersion: FORM_VERSION,
       });
     }
     Cookies.set('surveyHadChanceToShow', 'true', { expires: 1 });
-  }, [tessen, surveyDismissed]);
+  }, [surveyDismissed]);
 
   const setDismissedCookieAndClose = () => {
     onClose();
@@ -78,7 +77,7 @@ const FeedbackModal = ({ onClose }) => {
   };
 
   const submitNpsScore = async (score) => {
-    tessen.track({
+    addPageAction({
       eventName: 'npsScoreSubmitted',
       category: 'SurveyFeedback',
       responseId: guid,
@@ -139,7 +138,7 @@ const FeedbackModal = ({ onClose }) => {
     );
     responses.forEach((response) => {
       const [questionId, answer] = response;
-      tessen.track({
+      addPageAction({
         eventName: 'suprQSubmitted',
         category: 'SurveyFeedback',
         responseId: guid,
@@ -153,7 +152,7 @@ const FeedbackModal = ({ onClose }) => {
   };
 
   const submitFreetext = async (text) => {
-    tessen.track({
+    addPageAction({
       eventName: 'freeTextSubmitted',
       category: 'SurveyFeedback',
       responseId: guid,
@@ -211,7 +210,7 @@ const FeedbackModal = ({ onClose }) => {
           <CloseButton
             aria-label="Close"
             onClick={() => {
-              tessen.track({
+              addPageAction({
                 eventName: 'surveyClosed',
                 category: 'SurveyFeedback',
                 formVersion: FORM_VERSION,
