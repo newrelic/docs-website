@@ -10,4 +10,4 @@ With the frequency of software releases increasing, sometimes to many times a da
 * Accelerated issue resolution: Reduce the steps and screens required to detect, identify, and resolve issues with less toil. 
 * Real-time error visibility: Get an up-to-date summary of any new errors introduced by recent software releases and stay ahead of issues before they impact customers.
 
-!["Screenshot showing error occurences by version"](./images/errorsbyversion.png "Screenshot showing error occurences by version")
+!["Screenshot showing error occurences by version"](./images/errorsbyversion.webp "Screenshot showing error occurences by version")
