@@ -1,4 +1,4 @@
-const { findAttribute } = require('../../../codemods/utils/mdxast');
+const { findAttribute } = require('../../../mdx-utils/mdxast');
 const { omit } = require('lodash');
 const all = require('mdast-util-to-hast/lib/all');
 const u = require('unist-builder');

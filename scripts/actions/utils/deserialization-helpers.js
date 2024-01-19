@@ -7,7 +7,7 @@ const unified = require('unified');
 const {
   mdxAttribute,
   mdxValueExpression,
-} = require('../../../codemods/utils/mdxast-builder');
+} = require('../../../mdx-utils/mdxast-builder');
 const visit = require('unist-util-visit');
 const u = require('unist-builder');
 

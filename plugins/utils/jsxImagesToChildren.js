@@ -5,7 +5,7 @@ const {
   findAttribute,
   removeAttribute,
 } = require('../../codemods/utils/mdxast');
-const { mdxBlockElement } = require('../../codemods/utils/mdxast-builder');
+const { mdxBlockElement } = require('../../mdx-utils/mdxast-builder');
 const toMDAST = require('remark-parse');
 const remarkMdx = require('remark-mdx');
 const remarkMdxjs = require('remark-mdxjs');
