@@ -185,7 +185,10 @@ const nodeDescriptor = (node) => {
   }
 
   if (node.type === 'paragraph') {
-    return `"${getNodeText(node).replace('\n', '')}"`;
+    const text = getNodeText(node).replace('\n', '');
+    let truncated = text.slice(0, 30);
+    if (truncated.length !== text.length) truncated += '...';
+    return `"${truncated}"`;
   }
 
   return node.type;
