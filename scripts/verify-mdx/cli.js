@@ -58,7 +58,7 @@ const report = (results) => {
           colors.magenta(` Frontmatter error: `) +
             `${result.filePath} \n
       ${colors.red(error.reason)}
-    ${error.mark.snippet}`
+    ${error.mark.snippet}\n`
         );
       }
 
@@ -66,7 +66,7 @@ const report = (results) => {
         console.log(
           colors.magenta(` Frontmatter field error: `) +
             `${result.filePath} \n
-      ${colors.red(error.message)}`
+      ${colors.red(error.message)}\n`
         );
       }
 
@@ -76,7 +76,7 @@ const report = (results) => {
             `${result.filePath} \n
       ${colors.red(error.reason)}
     line: ${error.line}
-    column: ${error.column}`
+    column: ${error.column}\n`
         );
       }
 
@@ -86,7 +86,7 @@ const report = (results) => {
             `${result.filePath} \n
       ${colors.red(error.reason)}
     line: ${error.line}
-    column: ${error.column}`
+    column: ${error.column}\n`
         );
       }
     });
