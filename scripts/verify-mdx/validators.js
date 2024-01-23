@@ -16,13 +16,11 @@ const validateSteps = (mdxAST) => {
     );
     nonStepChildren.forEach((child) => {
       const nodeInfo = child.position.start;
-      const nodeDescriptor =
-        child.name ?? child.type === 'paragraph'
-          ? `"${getNodeText(child).replace('\n', '')}"`
-          : child.type;
       errors.push({
         ...nodeInfo,
-        reason: `<Steps> component must only contain <Step> components as immediate children but found ${nodeDescriptor}`,
+        reason: `<Steps> component must only contain <Step> components as immediate children but found ${nodeDescriptor(
+          child
+        )}`,
         type: ERROR_TYPES.VALIDATION_ERROR,
       });
     });
@@ -45,13 +43,11 @@ const validateTabs = (mdxAST) => {
     );
     nonTabChildren.forEach((child) => {
       const nodeInfo = child.position.start;
-      const nodeDescriptor =
-        child.name ?? child.type === 'paragraph'
-          ? `"${getNodeText(child).replace('\n', '')}"`
-          : child.type;
       errors.push({
         ...nodeInfo,
-        reason: `<Tabs> component must only contain <TabsBar> and <TabsPages> as immediate children but found ${nodeDescriptor}`,
+        reason: `<Tabs> component must only contain <TabsBar> and <TabsPages> as immediate children but found ${nodeDescriptor(
+          child
+        )}`,
         type: ERROR_TYPES.VALIDATION_ERROR,
       });
     });
@@ -180,6 +176,19 @@ const getDuplicateIdAttributes = (attributes) => {
   return Array.from(counts.entries())
     .filter(([_id, count]) => count > 1)
     .map(([id]) => id);
+};
+
+const nodeDescriptor = (node) => {
+  const isMdxElement = node.type === 'mdxBlockElement';
+  if (isMdxElement) {
+    return `<${node.name}>`;
+  }
+
+  if (node.type === 'paragraph') {
+    return `"${getNodeText(node).replace('\n', '')}"`;
+  }
+
+  return node.type;
 };
 
 module.exports = {
