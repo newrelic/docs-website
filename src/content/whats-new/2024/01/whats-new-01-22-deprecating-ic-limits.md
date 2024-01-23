@@ -1,5 +1,5 @@
 ---
-title: 'Deprecating Inspected Count Limits for All Customers'
+title: 'Deprecating inspected count limits for all customers'
 summary: 'Offering customers a better experience by eliminating dropped queries, removing 15 minute reset time, and doubling query capacity for all data options.'
 releaseDate: '2024-01-22'
 learnMoreLink: 'https://docs.newrelic.com/docs/accounts/accounts-billing/new-relic-one-pricing-billing/data-ingest-billing/'
@@ -11,10 +11,10 @@ When a customer-initiated query is run, either from a query or a UI page load, t
 
 IC limits resulted in a substandard customer experience. When customers exceed these limits, they would need to wait 15 minutes before limits reset. Today, we’re announcing that we have removed IC limits for all customers. This has several immediate benefits:
 
-No dropped queries due to IC limits.
-No 15 minute wait time for limits to reset.
-When the new limits are reached, queries may slow down but will not be rejected.
-Doubling query capacity from 10B to 20B data points per min for Data and 34B to 60B data points per min for Data Plus.
+* No dropped queries due to IC limits.
+* No 15 minute wait time for limits to reset.
+* When the new limits are reached, queries may slow down but will not be rejected.
+* Doubling query capacity from 10B to 20B data points per min for Data and 34B to 60B data points per min for Data Plus.
 
 **Next steps**
 
