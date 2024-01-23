@@ -30,6 +30,8 @@ const verifyImages = (filePaths) => {
   } else {
     console.log('\n\n🎉 No image import issues found');
   }
+
+  return imageErrors;
 };
 
 /**

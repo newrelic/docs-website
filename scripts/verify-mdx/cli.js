@@ -15,7 +15,11 @@ const main = async () => {
     );
   }
 
-  verifyImages(filePaths);
+  const imageErrors = verifyImages(filePaths);
+
+  if (imageErrors.length > 0) {
+    process.exitCode = 1;
+  }
 
   console.log(
     colors.greenBright(
@@ -37,6 +41,10 @@ const main = async () => {
     (result) => result.errors.length > 0
   );
   report(resultsWithErrors);
+
+  if (resultsWithErrors.length > 0) {
+    process.exitCode = 1;
+  }
 };
 
 const report = (results) => {
