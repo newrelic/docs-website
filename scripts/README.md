@@ -28,6 +28,7 @@ Otherwise, it will read all files under `/src/content/` and `src/i18n/content`.
 - markdown and JSX syntax
 - valid yaml frontmatter
   - We also check for the required field `freshnessValidatedDate` which must be a date (`YYYY-MM-DD`) or `never`
+  - `release-notes`, `security-bulletins` and `whats-new` posts will also be scanned for a required `releaseDate` field in the frontmatter.
 - `<img />` sources and imports which utilizes the [image-import-utils script](#image-import-utils.js)
   - this util has its own progress bar and error output section in the terminal
 
