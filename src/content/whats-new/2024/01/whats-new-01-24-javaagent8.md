@@ -1,7 +1,7 @@
 ---
 title: 'Upgrade your Java agent to v8.8.0 to avoid impacts to your alerts/dashboards.'
 summary: 'Java agent v8.0.0-8.7.0 introduced new standard attributes for HTTP status code that might impact alerts/dashboards'
-releaseDate: '2023-01-24'
+releaseDate: '2024-01-24'
 learnMoreLink: 'https://docs.newrelic.com/docs/apm/agents/java-agent/getting-started/migration-8x-guide/'
 getStartedLink: 'https://docs.newrelic.com/docs/release-notes/agent-release-notes/java-release-notes/java-agent-880/'
 ---
