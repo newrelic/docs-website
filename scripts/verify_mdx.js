@@ -1,5 +1,9 @@
 /* eslint-disable no-console */
-const { frontmatter, validateFreshnessDate } = require('./utils/frontmatter');
+const {
+  frontmatter,
+  validateFreshnessDate,
+  validateReleaseDate,
+} = require('./utils/frontmatter');
 const { verifyImageImports } = require('./utils/image-import-utils.js');
 const mdx = require('@mdx-js/mdx');
 const fs = require('fs');
@@ -92,6 +96,10 @@ const readFile = async (filePath) => {
     (excludedPath) => filePath.includes(excludedPath)
   );
 
+  const includeInReleaseDateRegex = /src\/(?!i18n).*(\/security-bulletins\/|\/release-notes\/|\/whats-new\/).*(?<!index)(.mdx|.md)/;
+
+  const shouldValidateReleaseDate = includeInReleaseDateRegex.test(filePath);
+
   const { error } = frontmatter(mdxText);
 
   if (error != null) {
@@ -101,6 +109,13 @@ const readFile = async (filePath) => {
     failed = true;
   } else if (shouldValidateFreshnessDate) {
     const error = validateFreshnessDate(mdxText);
+    if (error) {
+      mdxErrors.push(`\x1b[35m Frontmatter field error:\x1b[0m ${filePath} \n
+        \x1b[31m${error.message}\x1b[0m`);
+      failed = true;
+    }
+  } else if (shouldValidateReleaseDate) {
+    const error = validateReleaseDate(mdxText);
     if (error) {
       mdxErrors.push(`\x1b[35m Frontmatter field error:\x1b[0m ${filePath} \n
         \x1b[31m${error.message}\x1b[0m`);
