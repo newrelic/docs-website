@@ -29,6 +29,7 @@ const main = async () => {
   // running on develop builds because the url is static
   // github workflow triggers on PRs to main
   const testUrl =
+    // TODO: search modal click breaks page on mobile localhost
     process.env.WEBDRIVER_ENV === 'main'
       ? 'https://docswebsitedevelop.gatsbyjs.io/'
       : 'http://localhost:8000/';
@@ -40,13 +41,6 @@ const main = async () => {
   // that come afterwards would have to close the modal
   await collapserTest();
   await searchTest();
-
-  // there's no way to switch the homepage view on mobile with the UI so this is a bit of a hack
-  // in synthetics, this step is being done within the tileTest,
-  // but it's not registering in time here
-  await driver.executeScript(
-    "localStorage.setItem('docs-website/homepage-selected-view', 'default-view')"
-  );
 
   await driver.get(testUrl);
   await tileTest();
