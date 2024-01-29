@@ -33,13 +33,13 @@ we should also catch non-Step MDX elements
     const [paragraphError, calloutError] = errors;
 
     expect(paragraphError.type).toBe(ERROR_TYPES.VALIDATION_ERROR);
-    expect(paragraphError.line).toBe(8);
+    expect(paragraphError.line).toBe(9);
     expect(paragraphError.reason).toBe(
-      '<Steps> component must only contain <Step> components as immediate children but found "bad step 3"'
+      '<Steps> component must only contain <Step> components as immediate children but found "bad paragraph child"'
     );
 
     expect(calloutError.type).toBe(ERROR_TYPES.VALIDATION_ERROR);
-    expect(calloutError.line).toBe(16);
+    expect(calloutError.line).toBe(18);
     expect(calloutError.reason).toBe(
       '<Steps> component must only contain <Step> components as immediate children but found <Callout>'
     );
@@ -102,10 +102,10 @@ we should also catch MDX elements
     expect(paragraphError.type).toBe(ERROR_TYPES.VALIDATION_ERROR);
     expect(paragraphError.line).toBe(11);
     expect(paragraphError.reason).toBe(
-      '<Tabs> component must only contain <TabsBar> and <TabsPages> components as immediate children but found "bad child"'
+      '<Tabs> component must only contain <TabsBar> and <TabsPages> components as immediate children but found "bad paragraph child"'
     );
     expect(calloutError.type).toBe(ERROR_TYPES.VALIDATION_ERROR);
-    expect(calloutError.line).toBe(21);
+    expect(calloutError.line).toBe(26);
     expect(calloutError.reason).toBe(
       '<Tabs> component must only contain <TabsBar> and <TabsPages> components as immediate children but found <Callout>'
     );

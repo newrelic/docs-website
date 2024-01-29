@@ -45,7 +45,7 @@ const validateTabs = (mdxAST) => {
       const nodeInfo = child.position.start;
       errors.push({
         ...nodeInfo,
-        reason: `<Tabs> component must only contain <TabsBar> and <TabsPages> as immediate children but found ${nodeDescriptor(
+        reason: `<Tabs> component must only contain <TabsBar> and <TabsPages> components as immediate children but found ${nodeDescriptor(
           child
         )}`,
         type: ERROR_TYPES.VALIDATION_ERROR,
