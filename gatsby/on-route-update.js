@@ -4,12 +4,7 @@ const onRouteUpdate = ({ location, prevLocation }) => {
     location.hash &&
     location.pathname !== prevLocation?.pathname
   ) {
-    window.newrelic.track({
-      eventName: 'hashRequest',
-      category: 'AnchorClick',
-      pathname: location.pathname,
-      hash: location.hash,
-    });
+    window.newrelic.setCustomAttribute(`hashRequest`, location.hash);
   }
 };
 
