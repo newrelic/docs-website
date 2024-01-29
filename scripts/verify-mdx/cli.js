@@ -66,7 +66,7 @@ const report = (results) => {
         console.log(
           colors.magenta(` Frontmatter field error: `) +
             `${result.filePath} \n
-      ${colors.red(error.message)}\n`
+      ${colors.red(error.reason)}\n`
         );
       }
 
