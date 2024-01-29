@@ -5,7 +5,7 @@ releaseDate: '2024-01-18'
 learnMoreLink: 'https://docs.newrelic.com/docs/query-your-data/nrql-new-relic-query-language/get-started/nrql-syntax-clauses-functions'
 ---
 
-Data isn't always clean, and extracting the right fields in the right format can be difficult without the right tools. That is why today we are excited to announce multiple new NRQL features geared towards helping customers parse and transform their data in new ways. The following functions are now generally available to all customers!:
+Data isn't always clean, and extracting the right fields in the right format can be difficult without the right tools. That is why today we are excited to announce multiple new NRQL features geared towards helping customers parse and transform their data in new ways. The following functions are now generally available to all customers:
 
 * [jsonParse()](https://docs.newrelic.com/docs/query-your-data/nrql-new-relic-query-language/get-started/nrql-syntax-clauses-functions/#func-jparse) - Parse JSON at query time
 * [mapKeys()](https://docs.newrelic.com/docs/query-your-data/nrql-new-relic-query-language/get-started/nrql-syntax-clauses-functions/#func-mapKeys) - Return the keys from your parsed JSON
