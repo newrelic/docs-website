@@ -456,21 +456,6 @@ module.exports = {
             errorBeacon: 'staging-bam-cell.nr-data.net',
           },
         },
-        tessen: {
-          tessenVersion: '1.14.0',
-          product: 'DOC',
-          subproduct: 'TDOC',
-          segmentWriteKey: 'AEfP8c1VSuFxhMdk3jYFQrYQV9sHbUXx',
-          trackPageViews: true,
-          pageView: {
-            eventName: 'pageView',
-            category: 'DocPageView',
-            getProperties: ({ location, env }) => ({
-              path: location.pathname,
-              env: env === 'production' ? 'prod' : env,
-            }),
-          },
-        },
         shouldUpdateScroll: {
           routes: ['/attribute-dictionary'],
         },
@@ -490,6 +475,11 @@ module.exports = {
             '6LeGFt8UAAAAANfnpE8si2Z6NnAqYKnPAYgMpStu',
         },
         newRelicRequestingServicesHeader: 'docs-website',
+        segment: {
+          segmentWriteKey: 'noviNOFjASOSPcSEAkwoRxOt0Y1719KD',
+          section: 'docs',
+          platform: 'docs_pages',
+        },
       },
     },
   ],
