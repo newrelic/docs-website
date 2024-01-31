@@ -4,7 +4,7 @@ import { css } from '@emotion/react';
 import styled from '@emotion/styled';
 import cx from 'classnames';
 import logos from '@newrelic/gatsby-theme-newrelic/src/icons/logo';
-import { useTranslation, useTessen } from '@newrelic/gatsby-theme-newrelic';
+import { useTranslation, addPageAction } from '@newrelic/gatsby-theme-newrelic';
 import dataism from 'images/dataism.webp';
 
 const QUICKSTARTS = [
@@ -63,7 +63,6 @@ const QuickstartChooser = ({
   quickstarts = QUICKSTARTS,
 }) => {
   const { t } = useTranslation();
-  const tessen = useTessen();
 
   return (
     <Container className={cx({ secondary })}>
@@ -82,7 +81,7 @@ const QuickstartChooser = ({
               aria-label={quickstart.name}
               href={quickstart.url}
               onClick={() => {
-                tessen.track({
+                addPageAction({
                   eventName: 'quickstartClick',
                   category: 'QuickstartChooser',
                   quickstart: quickstart.name,
