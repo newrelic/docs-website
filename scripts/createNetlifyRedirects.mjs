@@ -1,4 +1,4 @@
-import frontmatter from 'front-matter';
+import { frontmatter } from './utils/frontmatter.js';
 import { mkdir, readFile, writeFile } from 'fs/promises';
 import { glob } from 'glob10';
 import { join } from 'path';
@@ -8,8 +8,13 @@ import { join } from 'path';
 // but many paths can redirect _to_ `/docs/security/overview`
 const redirects = new Map();
 const LOCALES = ['jp', 'kr'];
+const JP_SITE_URL = 'https://docs-website-netlify-jp.netlify.app';
+const KR_SITE_URL = 'https://docs-website-netlify-kr.netlify.app';
 
 const mdxPaths = await glob('src/content/docs/**/*.{md,mdx}');
+const jpMdxPaths = await glob('src/i18n/content/jp/docs/**/*.{md,mdx}');
+const krMdxPaths = await glob('src/i18n/content/kr/docs/**/*.{md,mdx}');
+
 const urlFromFsPath = (fspath) =>
   fspath.replace(/src\/content/, '').replace(/\.mdx?$/, '');
 
@@ -50,5 +55,38 @@ const redirectsList = Array.from(redirects.entries())
   .map(({ from, to, status }) => `${from} ${to} ${status}`)
   .join('\n');
 
+// rewrites
+const jpRewrites = jpMdxPaths
+  .map((path) => {
+    const urlPath = path
+      .replace('src/i18n/content/jp', '')
+      .replace(/\.mdx?$/, '');
+    const from = urlPath.replace(/^\/docs/, '/docs/jp');
+    const to = JP_SITE_URL + urlPath;
+    return {
+      from,
+      to,
+    };
+  })
+  .map(({ from, to }) => `${from} ${to} 200`)
+  .join('\n');
+
+const krRewrites = krMdxPaths
+  .map((path) => {
+    const urlPath = path
+      .replace('src/i18n/content/kr', '')
+      .replace(/\.mdx?$/, '');
+    const from = urlPath.replace(/^\/docs/, '/docs/kr');
+    const to = KR_SITE_URL + urlPath;
+    return {
+      from,
+      to,
+    };
+  })
+  .map(({ from, to }) => `${from} ${to} 200`)
+  .join('\n');
+
+const redirectsAndReWrites = `${redirectsList}\n${jpRewrites}\n${krRewrites}`;
+
 await mkdir('./public').catch(() => null);
-writeFile('./public/_redirects', redirectsList, 'utf-8');
+writeFile('./public/_redirects', redirectsAndReWrites, 'utf-8');
