@@ -205,26 +205,15 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
     });
   });
 
-  whatsNewPosts.nodes.forEach((node) => {
-    const {
-      fields: { slug },
-    } = node;
-
-    createLocalizedRedirect({
-      locales,
-      fromPath: slug.replace(/\/\d{4}\/\d{2}/, ''),
-      toPath: slug,
-      createRedirect,
-    });
-  });
+  // Disable to try to fix build failure on netlify - we will probably want to replace this redirect if possible
 
   // Redirect for old VSU Introduction to APM .js doc
-  createRedirect({
-    fromPath: '/introduction-apm',
-    toPath: '/docs/apm/new-relic-apm/getting-started/introduction-apm/',
-    isPermanent: false,
-    redirectInBrowser: true,
-  });
+  // createRedirect({
+  //   fromPath: '/introduction-apm',
+  //   toPath: '/docs/apm/new-relic-apm/getting-started/introduction-apm/',
+  //   isPermanent: false,
+  //   redirectInBrowser: true,
+  // });
 };
 
 exports.createSchemaCustomization = (
