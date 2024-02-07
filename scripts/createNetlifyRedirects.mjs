@@ -8,15 +8,34 @@ import { join } from 'path';
 // but many paths can redirect _to_ `/docs/security/overview`
 const redirects = new Map();
 const LOCALES = ['jp', 'kr'];
-const JP_SITE_URL = 'https://docs-website-netlify-jp.netlify.app';
-const KR_SITE_URL = 'https://docs-website-netlify-kr.netlify.app';
 
 const mdxPaths = await glob('src/content/docs/**/*.{md,mdx}');
-const jpMdxPaths = await glob('src/i18n/content/jp/docs/**/*.{md,mdx}');
-const krMdxPaths = await glob('src/i18n/content/kr/docs/**/*.{md,mdx}');
 
 const urlFromFsPath = (fspath) =>
   fspath.replace(/src\/content/, '').replace(/\.mdx?$/, '');
+
+// external redirects
+// take priority over frontmatter defined redirects
+const externalRedirects = JSON.parse(
+  await readFile('./src/data/external-redirects.json', 'utf-8')
+);
+
+for (const redirect of externalRedirects) {
+  const to = redirect.url;
+  for (const from of redirect.paths) {
+    redirects.set(from, to);
+  }
+}
+
+// manual redirects (for non 'src/content/docs' md|x pages)
+// take priority over frontmatter defined redirects
+const manualRedirects = JSON.parse(
+  await readFile('./src/data/manual-redirects.json', 'utf-8')
+);
+
+for (const redirect of manualRedirects) {
+  redirects.set(redirect.from, redirect.to);
+}
 
 // MDX frontmatter redirects
 for (const path of mdxPaths) {
@@ -34,26 +53,6 @@ for (const path of mdxPaths) {
   }
 }
 
-// external redirects
-const externalRedirects = JSON.parse(
-  await readFile('./src/data/external-redirects.json', 'utf-8')
-);
-
-for (const redirect of externalRedirects) {
-  const to = redirect.url;
-  for (const from of redirect.paths) {
-    redirects.set(from, to);
-  }
-}
-// manual redirects
-const manualRedirects = JSON.parse(
-  await readFile('./src/data/manual-redirects.json', 'utf-8')
-);
-
-for (const redirect of manualRedirects) {
-  redirects.set(redirect.from, redirect.to);
-}
-
 const redirectsList = Array.from(redirects.entries())
   .map(([from, to]) => ({
     from,
@@ -63,43 +62,32 @@ const redirectsList = Array.from(redirects.entries())
   .map(({ from, to, status }) => `${from} ${to} ${status}`)
   .join('\n');
 
-// commenting out i18n rewrites until the netlify sites are ready for this
+let redirectsAndRewrites = `${redirectsList}`;
+// commenting out until netlify i18n sites are ready for these paths
 
 // // rewrites
-// // TODO: refactor i18n rewrites when we add more languages
 
-// const jpRewrites = jpMdxPaths
-//   .map((path) => {
-//     const urlPath = path
-//       .replace('src/i18n/content/jp', '')
-//       .replace(/\.mdx?$/, '');
-//     const from = urlPath.replace(/^\/docs/, '/docs/jp');
-//     const to = JP_SITE_URL + urlPath;
-//     return {
-//       from,
-//       to,
-//     };
-//   })
-//   .map(({ from, to }) => `${from} ${to} 200`)
-//   .join('\n');
+// for (const locale of LOCALES) {
+//   const localPaths = await glob(
+//     `src/i18n/content/${locale}/docs/**/*.{md,mdx}`
+//   );
 
-// const krRewrites = krMdxPaths
-//   .map((path) => {
-//     const urlPath = path
-//       .replace('src/i18n/content/kr', '')
-//       .replace(/\.mdx?$/, '');
-//     const from = urlPath.replace(/^\/docs/, '/docs/kr');
-//     const to = KR_SITE_URL + urlPath;
-//     return {
-//       from,
-//       to,
-//     };
-//   })
-//   .map(({ from, to }) => `${from} ${to} 200`)
-//   .join('\n');
-
-// const redirectsAndReWrites = `${redirectsList}\n${jpRewrites}\n${krRewrites}`;
-const redirectsAndRewrites = `${redirectsList}`;
+//   const localeRewrites = localPaths
+//     .map((path) => {
+//       const urlPath = path
+//         .replace(`src/i18n/content/${locale}`, '')
+//         .replace(/\.mdx?$/, '');
+//       const from = urlPath.replace(/^\/docs/, `/docs/${locale}`);
+//       const to = `https://docs-website-${locale}.netlify.app${urlPath}`;
+//       return {
+//         from,
+//         to,
+//       };
+//     })
+//     .map(({ from, to }) => `${from} ${to} 200`)
+//     .join('\n');
+//   redirectsAndRewrites = redirectsAndRewrites.concat('\n', localeRewrites);
+// }
 
 await mkdir('./public').catch(() => null);
 writeFile('./public/_redirects', redirectsAndRewrites, 'utf-8');
