@@ -45,6 +45,14 @@ for (const redirect of externalRedirects) {
     redirects.set(from, to);
   }
 }
+// manual redirects
+const manualRedirects = JSON.parse(
+  await readFile('./src/data/manual-redirects.json', 'utf-8')
+);
+
+for (const redirect of manualRedirects) {
+  redirects.set(redirect.from, redirect.to);
+}
 
 const redirectsList = Array.from(redirects.entries())
   .map(([from, to]) => ({
