@@ -55,38 +55,43 @@ const redirectsList = Array.from(redirects.entries())
   .map(({ from, to, status }) => `${from} ${to} ${status}`)
   .join('\n');
 
-// rewrites
-const jpRewrites = jpMdxPaths
-  .map((path) => {
-    const urlPath = path
-      .replace('src/i18n/content/jp', '')
-      .replace(/\.mdx?$/, '');
-    const from = urlPath.replace(/^\/docs/, '/docs/jp');
-    const to = JP_SITE_URL + urlPath;
-    return {
-      from,
-      to,
-    };
-  })
-  .map(({ from, to }) => `${from} ${to} 200`)
-  .join('\n');
+// commenting out i18n rewrites until the netlify sites are ready for this
 
-const krRewrites = krMdxPaths
-  .map((path) => {
-    const urlPath = path
-      .replace('src/i18n/content/kr', '')
-      .replace(/\.mdx?$/, '');
-    const from = urlPath.replace(/^\/docs/, '/docs/kr');
-    const to = KR_SITE_URL + urlPath;
-    return {
-      from,
-      to,
-    };
-  })
-  .map(({ from, to }) => `${from} ${to} 200`)
-  .join('\n');
+// // rewrites
+// // TODO: refactor i18n rewrites when we add more languages
 
-const redirectsAndReWrites = `${redirectsList}\n${jpRewrites}\n${krRewrites}`;
+// const jpRewrites = jpMdxPaths
+//   .map((path) => {
+//     const urlPath = path
+//       .replace('src/i18n/content/jp', '')
+//       .replace(/\.mdx?$/, '');
+//     const from = urlPath.replace(/^\/docs/, '/docs/jp');
+//     const to = JP_SITE_URL + urlPath;
+//     return {
+//       from,
+//       to,
+//     };
+//   })
+//   .map(({ from, to }) => `${from} ${to} 200`)
+//   .join('\n');
+
+// const krRewrites = krMdxPaths
+//   .map((path) => {
+//     const urlPath = path
+//       .replace('src/i18n/content/kr', '')
+//       .replace(/\.mdx?$/, '');
+//     const from = urlPath.replace(/^\/docs/, '/docs/kr');
+//     const to = KR_SITE_URL + urlPath;
+//     return {
+//       from,
+//       to,
+//     };
+//   })
+//   .map(({ from, to }) => `${from} ${to} 200`)
+//   .join('\n');
+
+// const redirectsAndReWrites = `${redirectsList}\n${jpRewrites}\n${krRewrites}`;
+const redirectsAndRewrites = `${redirectsList}`;
 
 await mkdir('./public').catch(() => null);
-writeFile('./public/_redirects', redirectsAndReWrites, 'utf-8');
+writeFile('./public/_redirects', redirectsAndRewrites, 'utf-8');
