@@ -1,14 +1,14 @@
 ---
 title: 'Try the new and improved querying interface'
-summary: 'Explore your data from anywhere in the platform faster with context '
+summary: 'Explore your data from anywhere in the platform faster with context'
 releaseDate: '2024-02-12'
 learnMoreLink: 'https://docs.newrelic.com/docs/query-your-data/explore-query-data/get-started/introduction-querying-new-relic-data/' 
 getStartedLink: 'https://one.newrelic.com/data-exploration'
 ---
 
-Every engineer needs intuitive and fast access to telemetry data to make informed decisions about their applications and systems. That's why we've redesigned the Query Your Data UI to make it more convenient, powerful, and helpful so you can go from question to insights faster.
+Engineers need intuitive and fast access to telemetry data to make informed decisions about their applications and systems. That's why we've redesigned the Query Your Data UI to be more convenient, powerful, and helpful, so you can go from question to insight faster.
 
-Starting today you can try the new query experience. To try it out, go to the [query your data](https://one.newrelic.com/data-exploration) capability and select the “Try it out” button in the banner.
+Starting today, you can try the new query experience. To try it out, go to the [query your data](https://one.newrelic.com/data-exploration) capability and select the “Try it out” button in the banner.
 
 ![Try the new query experience in New Relic](./images/query_your_data_try.png "Try the new query experience in New Relic.")
 
@@ -32,6 +32,6 @@ New features include:
 - Recommended queries for a jumpstart in exploring your data
 - Keyboard shortcuts to speed up your experience
 
-**Note:** The new experience does not modify URLs, so you must use the “Copy permalink” button, rather than copying the browser URL, to get the query link. 
+**Note:** The new experience does not modify URLs, so you must use the “Copy permalink” button rather than copying the browser URL to get the query link. 
 
 Try the new [query your data](https://one.newrelic.com/data-exploration) experience now.
