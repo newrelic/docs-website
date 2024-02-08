@@ -3,6 +3,13 @@ import { mkdir, readFile, writeFile } from 'fs/promises';
 import { glob } from 'glob10';
 import { join } from 'path';
 
+if (process.env.BUILD_LANG !== 'en') {
+  await mkdir('./public').catch(() => null);
+  writeFile('./public/_redirects', '', 'utf-8');
+  console.log('`BUILD_LANG` is not `en`, writting empty _redirects file');
+  process.exit();
+}
+
 // from -> to key/value structure, since redirects are a 1:many relationship.
 // ie, redirecting _from_ `/docs/security` can only redirect to one place,
 // but many paths can redirect _to_ `/docs/security/overview`
