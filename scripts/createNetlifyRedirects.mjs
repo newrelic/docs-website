@@ -63,31 +63,30 @@ const redirectsList = Array.from(redirects.entries())
   .join('\n');
 
 let redirectsAndRewrites = `${redirectsList}`;
-// commenting out until netlify i18n sites are ready for these paths
 
-// // rewrites
+// rewrites
 
-// for (const locale of LOCALES) {
-//   const localPaths = await glob(
-//     `src/i18n/content/${locale}/docs/**/*.{md,mdx}`
-//   );
+for (const locale of LOCALES) {
+  const localPaths = await glob(
+    `src/i18n/content/${locale}/docs/**/*.{md,mdx}`
+  );
 
-//   const localeRewrites = localPaths
-//     .map((path) => {
-//       const urlPath = path
-//         .replace(`src/i18n/content/${locale}`, '')
-//         .replace(/\.mdx?$/, '');
-//       const from = urlPath.replace(/^\/docs/, `/docs/${locale}`);
-//       const to = `https://docs-website-${locale}.netlify.app${urlPath}`;
-//       return {
-//         from,
-//         to,
-//       };
-//     })
-//     .map(({ from, to }) => `${from} ${to} 200`)
-//     .join('\n');
-//   redirectsAndRewrites = redirectsAndRewrites.concat('\n', localeRewrites);
-// }
+  const localeRewrites = localPaths
+    .map((path) => {
+      const urlPath = path
+        .replace(`src/i18n/content/${locale}`, '')
+        .replace(/\.mdx?$/, '');
+      const from = urlPath.replace(/^\/docs/, `/docs/${locale}`);
+      const to = `https://docs-website-${locale}.netlify.app/${locale}${urlPath}`;
+      return {
+        from,
+        to,
+      };
+    })
+    .map(({ from, to }) => `${from} ${to} 200`)
+    .join('\n');
+  redirectsAndRewrites = redirectsAndRewrites.concat('\n', localeRewrites);
+}
 
 await mkdir('./public').catch(() => null);
 writeFile('./public/_redirects', redirectsAndRewrites, 'utf-8');
