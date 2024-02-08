@@ -10,7 +10,7 @@ class ErrorBoundary extends React.Component {
   }
 
   componentDidCatch(error, errorInfo) {
-    this.props.tessen.track({
+    this.props.addPageAction({
       error,
       errorInfo,
       category: 'PageErrored',
