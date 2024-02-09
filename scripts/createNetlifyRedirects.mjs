@@ -71,29 +71,35 @@ const redirectsList = Array.from(redirects.entries())
 
 let redirectsAndRewrites = `${redirectsList}`;
 
+// trying forced rewrites with splats
+redirectsAndRewrites += `
+/kr/*  https://docs-website-kr.netlify.app/kr/:splat  200!
+/jp/*  https://docs-website-jp.netlify.app/jp/:splat  200!
+`;
+
 // rewrites
 
-for (const locale of LOCALES) {
-  const localPaths = await glob(
-    `src/i18n/content/${locale}/docs/**/*.{md,mdx}`
-  );
+// for (const locale of LOCALES) {
+//   const localPaths = await glob(
+//     `src/i18n/content/${locale}/docs/**/*.{md,mdx}`
+//   );
 
-  const localeRewrites = localPaths
-    .map((path) => {
-      const urlPath = path
-        .replace(`src/i18n/content/${locale}`, '')
-        .replace(/\.mdx?$/, '');
-      const from = urlPath.replace(/^\/docs/, `/${locale}/docs`);
-      const to = `https://docs-website-${locale}.netlify.app/${locale}${urlPath}`;
-      return {
-        from,
-        to,
-      };
-    })
-    .map(({ from, to }) => `${from} ${to} 200`)
-    .join('\n');
-  redirectsAndRewrites = redirectsAndRewrites.concat('\n', localeRewrites);
-}
+//   const localeRewrites = localPaths
+//     .map((path) => {
+//       const urlPath = path
+//         .replace(`src/i18n/content/${locale}`, '')
+//         .replace(/\.mdx?$/, '');
+//       const from = urlPath.replace(/^\/docs/, `/${locale}/docs`);
+//       const to = `https://docs-website-${locale}.netlify.app/${locale}${urlPath}`;
+//       return {
+//         from,
+//         to,
+//       };
+//     })
+//     .map(({ from, to }) => `${from} ${to} 200`)
+//     .join('\n');
+//   redirectsAndRewrites = redirectsAndRewrites.concat('\n', localeRewrites);
+// }
 
 await mkdir('./public').catch(() => null);
 writeFile('./public/_redirects', redirectsAndRewrites, 'utf-8');
