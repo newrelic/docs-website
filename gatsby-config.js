@@ -38,12 +38,23 @@ const ignoreI18nFolders = () => {
   return [];
 };
 
+const assetPrefix = () => {
+  if (process.env.BUILD_LANG === 'jp') {
+    return 'https://docs-website-jp.netlify.app';
+  }
+  if (process.env.BUILD_LANG === 'kr') {
+    return 'https://docs-website-kr.netlify.app';
+  }
+  return '';
+};
+
 module.exports = {
   trailingSlash: 'always',
   flags: {
     DEV_SSR: true,
     PRESERVE_FILE_DOWNLOAD_CACHE: true,
   },
+  assetPrefix: assetPrefix(),
   siteMetadata: {
     title: 'New Relic Documentation',
     titleTemplate: '%s | New Relic Documentation',
