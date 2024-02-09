@@ -83,7 +83,7 @@ for (const locale of LOCALES) {
       const urlPath = path
         .replace(`src/i18n/content/${locale}`, '')
         .replace(/\.mdx?$/, '');
-      const from = urlPath.replace(/^\/docs/, `/docs/${locale}`);
+      const from = urlPath.replace(/^\/docs/, `/${locale}/docs`);
       const to = `https://docs-website-${locale}.netlify.app/${locale}${urlPath}`;
       return {
         from,
