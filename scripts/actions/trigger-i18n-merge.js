@@ -49,13 +49,17 @@ const main = async () => {
   const repo = github.context.repo;
 
   if (locale) {
-    await octokit.rest.repos.merge({
-      owner: repo.owner,
-      repo: repo.repo,
-      base: `main-${locale}`,
-      head: process.env.SOURCE_REF,
-      commit_message: `Merged main into main-${locale}`,
-    });
+    try {
+      await octokit.rest.repos.merge({
+        owner: repo.owner,
+        repo: repo.repo,
+        base: `main-${locale}`,
+        head: process.env.SOURCE_REF,
+        commit_message: `Merged main into main-${locale}`,
+      });
+    } catch (e) {
+      core.setFailed(e.message);
+    }
   }
 
   if (url) {
@@ -65,8 +69,9 @@ const main = async () => {
     );
 
     const sitesToBuild = getSitesToBuild(prFileData);
-    try {
-      if (sitesToBuild.includes('jp')) {
+
+    if (sitesToBuild.includes('jp')) {
+      try {
         await octokit.rest.repos.merge({
           owner: repo.owner,
           repo: repo.repo,
@@ -74,8 +79,12 @@ const main = async () => {
           head: process.env.SOURCE_REF,
           commit_message: 'Merged main into main-jp',
         });
+      } catch (e) {
+        core.setFailed(e.message);
       }
-      if (sitesToBuild.includes('kr')) {
+    }
+    if (sitesToBuild.includes('kr')) {
+      try {
         await octokit.rest.repos.merge({
           owner: repo.owner,
           repo: repo.repo,
@@ -83,9 +92,9 @@ const main = async () => {
           head: process.env.SOURCE_REF,
           commit_message: 'Merged main into main-kr',
         });
+      } catch (e) {
+        core.setFailed(e.message);
       }
-    } catch (e) {
-      core.setFailed(e.message);
     }
   }
 
