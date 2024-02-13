@@ -3,7 +3,12 @@ import React from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/react';
 import styled from '@emotion/styled';
-import { Button, Icon, Link, useTessen } from '@newrelic/gatsby-theme-newrelic';
+import {
+  Button,
+  Icon,
+  Link,
+  addPageAction,
+} from '@newrelic/gatsby-theme-newrelic';
 
 const NavLink = ({
   active,
@@ -19,8 +24,6 @@ const NavLink = ({
   mobileBreakpoint,
   ...props
 }) => {
-  const tessen = useTessen();
-
   const isExternalLink = to && !to.startsWith('/');
   const Element = to ? Link : 'div';
 
@@ -94,7 +97,7 @@ const NavLink = ({
             e.preventDefault();
             e.stopPropagation();
             onToggle && onToggle();
-            tessen.track({
+            addPageAction({
               eventName: 'navLinkInteraction',
               category: 'NavLink',
               name: 'navLinkClick',

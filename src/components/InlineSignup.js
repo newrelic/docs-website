@@ -7,7 +7,7 @@ import {
   Button,
   Trans,
   useLoggedIn,
-  useTessen,
+  addPageAction,
   useTranslation,
 } from '@newrelic/gatsby-theme-newrelic';
 import { createAccountRequest } from '@newrelic/gatsby-theme-newrelic/src/components/SignupModal/signup';
@@ -21,7 +21,6 @@ const MOBILE_BREAKPOINT = '600px';
  */
 const InlineSignup = ({ className, hideWhenLoggedOut = true }) => {
   const [error, setError] = useState(null);
-  const tessen = useTessen();
   const { t } = useTranslation();
   const { loggedIn } = useLoggedIn();
   const submitEvent = {
@@ -34,7 +33,7 @@ const InlineSignup = ({ className, hideWhenLoggedOut = true }) => {
     const { email, name } = Object.fromEntries(new FormData(e.target));
     const organizationId = await createAccountRequest(
       { email, name },
-      tessen,
+      addPageAction,
       submitEvent
     );
 
@@ -47,7 +46,7 @@ const InlineSignup = ({ className, hideWhenLoggedOut = true }) => {
   };
 
   const onFocus = (input) => {
-    tessen.track({
+    addPageAction({
       category: 'InlineSignup',
       eventName: `${input}Focus`,
     });
@@ -58,7 +57,7 @@ const InlineSignup = ({ className, hideWhenLoggedOut = true }) => {
      * when the user clicks away, including the Submit button
      */
     if (e.target.value.length > 0) {
-      tessen.track({
+      addPageAction({
         category: 'InlineSignup',
         eventName: `${input}Input`,
       });
