@@ -1,0 +1,20 @@
+---
+subject: Mobile app for iOS
+releaseDate: '2024-01-26'
+version: 6.1.0
+downloadLink: 'https://apps.apple.com/app/id594038638'
+---
+
+Bug fixes and UI updates
+
+### New features
+
+* Converts to SwiftUI for the majority of top level views, and most APM ones.
+* Adds incident anomaly charts.
+* Adds DotNet VM detail page.
+
+### Improvements
+
+* Fixes lambda invocations and errors not respecting the time window.
+* Fixes some billboard formatting issues.
+* Fixes loading cross account logs when viewing an APM entity.
