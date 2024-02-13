@@ -14,6 +14,8 @@ Live archives, our innovative long-term logs storage solution, is generally avai
 - **Eliminate toil**: Unlike other tools, live archives eliminates toilsome processes required to access your logs, such as rehydration, reloading, re-indexing logs, or moving data to multiple locations or tiers. With live archives, when you need to respond to compliance or audit requests, your logs are right where you expect them to be, without any additional steps.
 - **Reduce costs**: Live archives eliminates the need to pay for ingress and egress, indexing, reformatting data, or the need for additional tools to manage compliance risks. 
 
+![Screenshot of the retention management UI, showing live archives](./logs-live-archives-retention.png "Screenshot of the retention management UI, showing live archives")
+
 ## How to get started
 
 New Relic live archives simplifies the way you approach long-term logs storage and analysis, streamlining the process into just a few simple steps. 
