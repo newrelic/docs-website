@@ -10,7 +10,7 @@ Engineers need intuitive and fast access to telemetry data to make informed deci
 
 Starting today, you can try the new query experience. To try it out, go to the [query your data](https://one.newrelic.com/data-exploration) capability and select the “Try it out” button in the banner.
 
-![Try the new query experience in New Relic](./images/query_your_data_try.png "Try the new query experience in New Relic.")
+![Try the new query experience in New Relic](./images/query-your-data-try.png "Try the new query experience in New Relic.")
 
 The new UI combines the chart editing features of the old query builder with the portability of the old NRQL console. The enhanced user interface helps you:
 
