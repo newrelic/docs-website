@@ -1,6 +1,6 @@
 ---
-title: 'Changes to host GUIDs for hosts instrumented with OpenTelemetry  '
-summary: 'If you've instrumented infrastructure hosts with OpenTelemetry, you will need to update your host GUIDs to avoid breaking changes to your alerts and dashboards'
+title: "Changes to host GUIDs for hosts instrumented with OpenTelemetry"
+summary: "If you've instrumented infrastructure hosts with OpenTelemetry, you will need to update your host GUIDs to avoid breaking changes to your alerts and dashboards"
 releaseDate: '2024-02-16'
 learnMoreLink: 'https://docs.newrelic.com/docs/docs/new-relic-solutions/new-relic-one/core-concepts/what-entiy-new-relic'
 ---
