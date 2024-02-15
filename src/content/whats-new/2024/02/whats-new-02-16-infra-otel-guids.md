@@ -10,7 +10,7 @@ On March 27, 2024, the `entity.guid` value for hosts captured by the OpenTelemet
 ## What's changing?
 
 * This change applies to customers who use the OpenTelemetry collector for instrumenting hosts. This change doesn't affect other hosts instrumented with our other agents. 
-* On March 27, 2024, host IDs for hosts instrumented with OpenTelemetry will stop working after 24 hours. After 24 hours, new host entities will appear for the same resources but with new GUIDs.
+* On March 27, 2024, host IDs for hosts instrumented with OpenTelemetry will stop working after 24 hours and new host entities will appear for the same resources but with new GUIDs.
 * If you've created alerts and custom dashboards for your OpenTelemetry hosts, those alerts and dashboards will stop working.
 
 ## Next steps
