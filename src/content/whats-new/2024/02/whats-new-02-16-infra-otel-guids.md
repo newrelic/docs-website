@@ -1,29 +1,26 @@
 ---
-title: 'Updated GUIs'
-summary: 'OpenTelemetry hosts  '
-releaseDate: '2021-06-30'
-learnMoreLink: 'https://docs.newrelic.com/docs/telemetry-data-platform/manage-data/manage-data-coming-new-relic/#facet-data-ingest'
-getStartedLink: 'https://one.newrelic.com/-/0gbRKzygzwE'
+title: 'Changes to host GUIDs for hosts instrumented with OpenTelemetry  '
+summary: 'If you've instrumented infrastructure hosts with OpenTelemetry, you will need to update your host GUIDs to avoid breaking changes to your alerts and dashboards'
+releaseDate: '2024-02-16'
+learnMoreLink: 'https://docs.newrelic.com/docs/docs/new-relic-solutions/new-relic-one/core-concepts/what-entiy-new-relic'
 ---
 
-Please be aware of the following change(s) to your New Relic account beginning March 27th 2024: 
+On March 27, 2024, the `entity.guid` value for hosts captured by the OpenTelemetry collector will change. This change only affects customers who use OpenTelemetry to instrument their infrastructure hosts. 
 
-This change is applicable only for customers who use OpenTelemetry for infrastructure host instrumentation. 
+## What's changing?
 
-Summary of change: 
+* This change applies to customers who use the OpenTelemetry collector for instrumenting hosts. This change doesn't affect other hosts instrumented with our other agents. 
+* On March 27, 2024, host IDs for hosts instrumented with OpenTelemetry will stop working after 24 hours. After 24 hours, new host entities will appear for the same resources but with new GUIDs.
+* If you've created alerts and custom dashboards for your OpenTelemetry hosts, those alerts and dashboards will stop working.
 
-On Mar 27th 2024,  New Relic OTel telemetry (metrics and logs) for hosts will register New Relic host entities with new unique identifier values (entity.guid value is changing) will start creating new GUIDs for HOST entities.
+## Next steps
 
-Impacts to you: 
+We recommend updating your alert conditions ahead of the change using alternative attributes to identify your hosts. You can use these attributes instead: 
 
-This change is applicable for customers who use OTel agent for instrumenting Hosts. With this change, if you have alerts or custom dashboards created using hardcoded GUIDs in them, it will not work going forward. 
+* `host.name`
+* `host.id` 
+* `entity.name`
 
-After Mar 27th 2024, the existing Host entities that are instrumented by OTel agents will cease to exist after 24 hours. New entities will be created for the same resources with new GUIDs.
+If you can't update your alert conditions or dashboards with alternative attributes, then we recommend updating with the new `entity.guid` after the change on March 27, 2024..
 
-Action(s) required:
-
-We recommend avoiding using GUIDs in alert conditions and use alternative attributes to identify hosts such as host.name, host.id ,entity.name.
-
-If you have alert conditions or custom dashboards that use GUIDs from Hosts instrumented by OTel, and no choice to avoid using it, then they should be updated. In this case, please update using the GUID by using the new entity.guid that is generated after the change on May 27th.
-
-Please refer to the documentation for more information on entity or entity GUID.
+For more information on entity GUIDs, refer to our documentation about [New Relic entities](/docs/new-relic-solutions/new-relic-one/core-concepts/what-entiy-new-relic). 
