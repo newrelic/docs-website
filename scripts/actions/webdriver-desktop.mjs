@@ -94,11 +94,8 @@ const searchTest = async () => {
 
 const tileTest = async () => {
   const initialUrl = await driver.getCurrentUrl();
-  const [defaultViewTab] = await waitForXPath(
-    '//main//button[text()="Default view"]'
-  );
-  console.log('clicking Default view tab button');
-  await defaultViewTab.click();
+
+  console.log('clicking Homepage doctile');
 
   // Added this xpath for the scroll function.
   // for some reason, when running in headless mode the site
@@ -114,6 +111,7 @@ const tileTest = async () => {
     'arguments[0].scrollIntoView()',
     popularDocsSection
   );
+
   await firstDocTile.click();
   await driver.wait(
     until.stalenessOf(firstDocTile),

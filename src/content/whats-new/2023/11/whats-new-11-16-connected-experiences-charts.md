@@ -20,7 +20,7 @@ Now, you can click on time series charts from anywhere in New Relic to go direct
 <figcaption>Explore and troubleshoot faster in relevant UI views with connected experiences for charts in New Relic. </figcaption>
 
 This new feature is available in charts that appear in:
-- [Custom dashboards](http://one.newrelic.com/dashboards)
+- [Custom dashboards](https://one.newrelic.com/dashboards)
 - Curated capability views like [APM](https://one.newrelic.com/apm), [infrastructure](https://one.newrelic.com/infra), [browser](https://one.newrelic.com/browser), and more
 - [Query builder](https://one.newrelic.com/data-exploration)
 
