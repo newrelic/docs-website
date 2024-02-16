@@ -1,7 +1,7 @@
 ---
 title: 'Join the New Relic AI Preview'
 summary: "Get early access to the industry's first GenAI observability assistant"
-releaseDate: '2023-12-20'
+releaseDate: '2023-12-21'
 learnMoreLink: 'https://docs.newrelic.com/docs/new-relic-solutions/new-relic-one/core-concepts/new-relic-ai/'
 ---
 
@@ -15,10 +15,8 @@ This preview offers an early taste of what New Relic AI will be able to do once 
 * Summarize and get recommendations for open dashboards.
 * Understand and fix errors in CodeStream.
 
-Eligible customers can get early access to New Relic AI today upon acceptance of the pre-release agreement, which encompasses both the New Relic [pre-release policy](https://docs.newrelic.com/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy/) and [Generative AI service specific terms](https://newrelic.com/termsandconditions/service-specific). If you haven't already enabled New Relic AI on your account, you can view and accept the pre-release agreement by selecting the **Ask AI** button at the top right corner of your screen.
+Eligible* customers can get early access to New Relic AI today upon acceptance of the New Relic [pre-release policy](https://docs.newrelic.com/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy/) and [service specific terms](https://newrelic.com/termsandconditions/service-specific).
 
-![Screenshot of All Entities with arrow pointing to Ask AI button](./images/all_entities_ask_ai.png "Screenshot of All Entities with arrow pointing to Ask AI button")
+![Screenshot of All Entities with arrow pointing to Ask AI button](./images/all_entities_ask_ai.webp "Screenshot of All Entities with arrow pointing to Ask AI button")
 
-## Important Notes:
-* Acceptance of the pre-release agreement by any user is effective for all users across all child accounts of the shared parent account affiliated with that user. Per the pre-release agreement: **"Your acceptance signifies that you have the legal authority to use the Pre-Release Service(s) personally or on behalf of the entity(ies) associated with your New Relic account."**
-* FedRAMP-enabled and HIPAA-enabled customers aren't eligible to participate in the preview of New Relic AI at this time.
+**FedRAMP-enabled and HIPAA-enabled customers aren't eligible to participate in the preview of New Relic AI at this time.*

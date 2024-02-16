@@ -38,7 +38,7 @@ const InlinePopover = ({ type }) => {
 
   return (
     <PopoverButton
-      tessenCategory={`${capsType}Popover`}
+      nrBrowserAgentCategory={`${capsType}Popover`}
       Popover={(props) => <Popover {...props} {...popover} type={type} />}
     >
       {inlineText}
