@@ -23,4 +23,4 @@ We recommend updating your dashboards and alert conditions ahead of the change u
 
 If you can't update your alert conditions or dashboards with alternative attributes, then we recommend updating `entity.guid` with the new value after the change on March 27, 2024.
 
-For more information on entity GUIDs, refer to our documentation about [New Relic entities](/docs/new-relic-solutions/new-relic-one/core-concepts/what-entiy-new-relic). 
+For more information on entity GUIDs, refer to our documentation about [New Relic entities](/docs/new-relic-solutions/new-relic-one/core-concepts/what-entity-new-relic). 
