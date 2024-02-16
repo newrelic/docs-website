@@ -9,9 +9,11 @@ On March 27, 2024, the `entity.guid` value for hosts captured by the OpenTelemet
 
 ## What's changing?
 
-* This change applies to customers who use the OpenTelemetry collector for instrumenting hosts. This change doesn't affect other hosts instrumented with our other agents. 
-* On March 27, 2024, host IDs for hosts instrumented with OpenTelemetry will stop working after 24 hours and new host entities will appear for the same resources but with new GUIDs.
-* If you've created alerts and custom dashboards for your OpenTelemetry hosts, those alerts and dashboards will stop working.
+* On March 27, 2024, a backend change will regenerate values assigned to `entity.guid` in our database.
+* This change applies to customers who use the OpenTelemetry agent for instrumenting hosts. This change doesn’t affect other hosts instrumented with our other agents.
+* If you’ve created alerts and custom dashboards that use a defined, hardcoded value for `entity.guid`, then those alerts and dashboards will stop working.
+
+For example, let’s say you have a query that begins with: `SELECT average(system.cpu.utilization) FROM Metric WHERE entity.guid = 'MTE5NTI4MDB8SU5GUkF0ZE9TVHwtOTEwOTU4NzE3MzMzMzk2NzA4Mg'` On March 27, 2024, the value `'MTE5NTI4MDB8SU5GUkF0ZE9TVHwtOTEwOTU4NzE3MzMzMzk2NzA4Mg'` assigned to `entity.guid` will regenerate, causing queries that use this value to stop working.
 
 ## Next steps
 
