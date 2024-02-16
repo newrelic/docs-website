@@ -21,6 +21,6 @@ We recommend updating your dashboards alert conditions ahead of the change using
 * `host.id` 
 * `entity.name`
 
-If you can't update your alert conditions or dashboards with alternative attributes, then we recommend updating with the new `entity.guid` after the change on March 27, 2024.
+If you can't update your alert conditions or dashboards with alternative attributes, then we recommend updating with the new `entity.guid` value after the change on March 27, 2024.
 
 For more information on entity GUIDs, refer to our documentation about [New Relic entities](/docs/new-relic-solutions/new-relic-one/core-concepts/what-entiy-new-relic). 
