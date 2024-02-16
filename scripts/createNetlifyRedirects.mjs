@@ -2,6 +2,7 @@ import { frontmatter } from './utils/frontmatter.js';
 import { mkdir, readFile, writeFile } from 'fs/promises';
 import { glob } from 'glob10';
 import { join } from 'path';
+import { LOCALES } from './actions/utils/constants.js';
 
 if (process.env.BUILD_LANG !== 'en') {
   await mkdir('./public').catch(() => null);
@@ -14,7 +15,6 @@ if (process.env.BUILD_LANG !== 'en') {
 // ie, redirecting _from_ `/docs/security` can only redirect to one place,
 // but many paths can redirect _to_ `/docs/security/overview`
 const redirects = new Map();
-const LOCALES = ['jp', 'kr'];
 
 const mdxPaths = await glob('src/content/docs/**/*.{md,mdx}');
 
@@ -72,10 +72,10 @@ const redirectsList = Array.from(redirects.entries())
 let redirectsAndRewrites = `${redirectsList}`;
 
 // trying forced rewrites with splats
-redirectsAndRewrites += `
-/kr/*  https://docs-website-kr.netlify.app/kr/:splat  200!
-/jp/*  https://docs-website-jp.netlify.app/jp/:splat  200!
-`;
+LOCALES.forEach(
+  (locale) =>
+    (redirectsAndRewrites += `\n/${locale}/* https://docs-website-${locale}.netlify.app/${locale}/:splat  200!`)
+);
 
 // rewrites
 
