@@ -59,7 +59,7 @@ yarn start
 
 Your site is now running at [`http://localhost:8000`](http://localhost:8000)!
 
-The first time you build the site locally, it will take upwards of 20 minutes. This is normal, and will take signifigantly less time afterwards.
+The first time you build the site locally, it will take upwards of 20 minutes. This is normal, and will take significantly less time afterward.
 
 ### Dependencies
 
@@ -287,7 +287,7 @@ if you face issues in contributing.
 
 ### General Install, compile or build issues
 
-Many of the common errors you'll face can be resolve by the following:
+Many of the common errors you'll face can be resolved by the following:
 
 1. Ensure you are using `yarn` not `npm`
 2. Always run `git pull` whenever you intend to create a new working branch
