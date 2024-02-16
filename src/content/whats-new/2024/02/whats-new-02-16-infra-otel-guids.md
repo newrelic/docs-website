@@ -2,7 +2,7 @@
 title: "Changes to entity GUIDs for hosts instrumented with OpenTelemetry"
 summary: "If you've instrumented infrastructure hosts with OpenTelemetry, you will need to update your host GUIDs to avoid breaking changes to your alerts and dashboards"
 releaseDate: '2024-02-16'
-learnMoreLink: 'https://docs.newrelic.com/docs/docs/new-relic-solutions/new-relic-one/core-concepts/what-entiy-new-relic'
+learnMoreLink: 'https://docs.newrelic.com/docs/docs/new-relic-solutions/new-relic-one/core-concepts/what-entity-new-relic'
 ---
 
 On March 27, 2024, the `entity.guid` value for hosts captured by the OpenTelemetry collector will change. This change only affects customers who use OpenTelemetry to instrument their infrastructure hosts. 
