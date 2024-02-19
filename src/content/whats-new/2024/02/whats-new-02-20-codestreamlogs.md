@@ -11,7 +11,7 @@ New Relic CodeStream now enables you to search logs and execute queries directly
 * **Faster root cause analysis with log search:** Get to the root cause faster without context switching with log search directly from any line of code, and automatically extract the string where the cursor is positioned.
 !["Screenshot showing log search in IDE"](./images/log_search.png "Screenshot showing log search in IDE")
 * **Instant access to data insights with NRQL query builder:** Access all performance data in the new editor tab, then choose your chart type and export data as CSV or JSON.
-!["Screenshot showing query"](./images/query.png "Screenshot showing query feature")
+!["Screenshot showing query"](./images/query_new.png "Screenshot showing query feature")
  
 
 
