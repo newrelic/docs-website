@@ -45,7 +45,7 @@ const main = async () => {
   const options = getCommandLineOptions();
   const locale = options.locale || null;
   const url = options.url || null;
-  const octokit = github.getOctokit(process.env.OPENSOURCE_BOT_TOKEN);
+  const octokit = github.getOctokit(process.env.GITHUB_TOKEN);
   const repo = github.context.repo;
 
   if (locale) {
