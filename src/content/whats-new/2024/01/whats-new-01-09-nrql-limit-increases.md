@@ -1,5 +1,5 @@
 ---
-title: 'NRQL result limits will increase from 2,000 to 5,000'
+title: 'NRQL result limits increased from 2,000 to 5,000'
 summary: 'The maximum result limit for NRQL queries is increasing from 2,000 to 5,000'
 releaseDate: '2024-01-09'
 learnMoreLink: 'https://docs.newrelic.com/docs/query-your-data/nrql-new-relic-query-language/get-started/nrql-syntax-clauses-functions/#sel-limit'
