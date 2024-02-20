@@ -65,7 +65,7 @@ const main = async () => {
   if (url) {
     const prFileData = await fetchPaginatedGHResults(
       url,
-      process.env.OPENSOURCE_BOT_TOKEN
+      process.env.GITHUB_TOKEN
     );
 
     const sitesToBuild = getSitesToBuild(prFileData);
