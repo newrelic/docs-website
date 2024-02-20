@@ -1,6 +1,8 @@
 import { frontmatter } from './utils/frontmatter.js';
 import { mkdir, readFile, writeFile } from 'fs/promises';
+import { readFileSync } from 'fs';
 import { glob } from 'glob10';
+import yaml from 'js-yaml';
 import { join } from 'path';
 
 if (process.env.BUILD_LANG !== 'en') {
@@ -17,6 +19,7 @@ const redirects = new Map();
 const LOCALES = ['jp', 'kr'];
 
 const mdxPaths = await glob('src/content/docs/**/*.{md,mdx}');
+const installYamlPaths = await glob('src/install/config/**/*.yaml');
 
 const urlFromFsPath = (fspath) =>
   fspath.replace(/src\/content/, '').replace(/\.mdx?$/, '');
@@ -44,12 +47,25 @@ for (const redirect of manualRedirects) {
   redirects.set(redirect.from, redirect.to);
 }
 
-// MDX frontmatter redirects
 for (const path of mdxPaths) {
   const contents = await readFile(join(process.cwd(), path), 'utf-8');
   const to = urlFromFsPath(path);
   const { attributes } = frontmatter(contents);
   const enRedirects = attributes.redirects ?? [];
+
+  enRedirects.forEach((from) => redirects.set(from, to));
+
+  for (const locale of LOCALES) {
+    const localizedTo = `/${locale}${to}`;
+    const localizedRedirects = enRedirects.map((from) => `/${locale}${from}`);
+    localizedRedirects.forEach((from) => redirects.set(from, localizedTo));
+  }
+}
+// install config redirects
+for (const path of installYamlPaths) {
+  const contents = await yaml.load(readFileSync(path));
+  const to = `/install/${contents.agentName}`;
+  const enRedirects = contents.redirects ?? [];
 
   enRedirects.forEach((from) => redirects.set(from, to));
 
