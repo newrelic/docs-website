@@ -63,7 +63,7 @@ for (const path of mdxPaths) {
 }
 // install config redirects
 for (const path of installYamlPaths) {
-  const contents = await yaml.load(readFileSync(path));
+  const contents = await yaml.load(readFileSync(join(process.cwd(), path)));
   const to = `/install/${contents.agentName}`;
   const enRedirects = contents.redirects ?? [];
 
