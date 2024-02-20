@@ -7,7 +7,7 @@ import {
   ContributingGuidelines,
   useQueryParams,
   Layout,
-  useTessen,
+  addPageAction,
 } from '@newrelic/gatsby-theme-newrelic';
 import PageTitle from '../../components/PageTitle';
 import MDXContainer from '../../components/MDXContainer';
@@ -46,8 +46,6 @@ const InstallPage = ({ data, location }) => {
   const [agentConfigUpdate, setAgentConfigUpdate] = useState([]);
   const [isHydrated, setIsHydrated] = useState(false);
 
-  const tessen = useTessen();
-
   if (typeof window !== 'undefined' && typeof newrelic === 'object') {
     window.newrelic.setCustomAttribute('pageType', 'Interactive/Install');
     window.newrelic.setCustomAttribute('agentName', agentName);
@@ -74,7 +72,7 @@ const InstallPage = ({ data, location }) => {
         (option) => option.value === value && option.recommendedGuided === true
       );
       setShowGuided(recommendedGuided);
-      tessen.track({
+      addPageAction({
         eventName: 'appInfoOptionSelected',
         category: `${capitalize(select.optionType)}AppInfoOptionSelect`,
         value,
@@ -89,7 +87,7 @@ const InstallPage = ({ data, location }) => {
 
   const handleAgentConfigChange = ({ name }) => {
     if (!agentConfigUpdate.includes(name)) {
-      tessen.track({
+      addPageAction({
         eventName: 'agentConfigFileUpdated',
         category: `${capitalize(name)}AgentConfigFileUpdated`,
         key: name,
