@@ -24,4 +24,4 @@ New Relic live archives simplifies the way you approach long-term logs storage a
 1. **Set retention periods**: Choose a retention period from 120 days up to seven years. This depends on your compliance needs.
 1. **Choose a partition to archive**: You don't need to archive every log for compliance. Your New Relic administrator can select specific log partitions for archiving.
 1. **Query data in the logs UI**: Live archives logs are queryable alongside your other logs and telemetry data.
-2. **Manage user permissions**: To query your live archives, have a New Relic administrator assign you a custom role so you can access query permissions. 
+2. **Manage user permissions**: To query your live archives, have a New Relic administrator assign you a custom role with query capability.
