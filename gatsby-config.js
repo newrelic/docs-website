@@ -4,6 +4,7 @@ const parse = require('rehype-parse');
 const unified = require('unified');
 const rehypeStringify = require('rehype-stringify');
 const addAbsoluteImagePath = require('./rehype-plugins/utils/addAbsoluteImagePath');
+const { assetPrefix } = require('./env');
 
 const siteUrl = 'https://docs.newrelic.com';
 const additionalLocales = ['jp', 'kr'];
@@ -44,6 +45,7 @@ module.exports = {
     DEV_SSR: true,
     PRESERVE_FILE_DOWNLOAD_CACHE: true,
   },
+  assetPrefix: assetPrefix(),
   siteMetadata: {
     title: 'New Relic Documentation',
     titleTemplate: '%s | New Relic Documentation',
@@ -56,6 +58,7 @@ module.exports = {
       'https://docs.newrelic.com/docs/style-guide/writing-guidelines/create-edit-content/',
   },
   plugins: [
+    `gatsby-plugin-netlify`,
     'gatsby-plugin-react-helmet',
     {
       resolve: `gatsby-source-filesystem`,
@@ -321,7 +324,6 @@ module.exports = {
 
     'gatsby-source-nav',
     'gatsby-source-install-config',
-    'gatsby-plugin-meta-redirect',
     {
       resolve: 'gatsby-plugin-gatsby-cloud',
       options: {
