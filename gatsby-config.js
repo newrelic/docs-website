@@ -382,7 +382,7 @@ module.exports = {
         },
         i18n: {
           translationsPath: `${__dirname}/src/i18n/translations`,
-          LOCALES,
+          additionalLocales: LOCALES,
         },
         prism: {
           languages: [
