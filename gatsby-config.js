@@ -4,6 +4,7 @@ const parse = require('rehype-parse');
 const unified = require('unified');
 const rehypeStringify = require('rehype-stringify');
 const addAbsoluteImagePath = require('./rehype-plugins/utils/addAbsoluteImagePath');
+const { assetPrefix } = require('./env');
 
 const siteUrl = 'https://docs.newrelic.com';
 const additionalLocales = ['jp', 'kr'];
@@ -36,16 +37,6 @@ const ignoreI18nFolders = () => {
       .filter(Boolean);
   }
   return [];
-};
-
-const assetPrefix = () => {
-  if (process.env.BUILD_LANG === 'jp') {
-    return 'https://docs-website-jp.netlify.app';
-  }
-  if (process.env.BUILD_LANG === 'kr') {
-    return 'https://docs-website-kr.netlify.app';
-  }
-  return '';
 };
 
 module.exports = {
