@@ -20,7 +20,7 @@ const getSitesToBuild = (files) => {
   files.forEach((file) => {
     if (
       file.status === 'added' &&
-      !LOCALES.some((locale) => file.raw_url.includes(`/docs/${locale}/`))
+      !LOCALES.every((locale) => file.raw_url.includes(`/docs/${locale}/`))
     ) {
       LOCALES.forEach((locale) => sites.add(locale));
     } else if (file.status === 'modified' || file.status === 'added') {
