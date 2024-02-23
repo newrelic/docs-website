@@ -39,6 +39,6 @@ GCP Compute Engine (VMs):
 
 ## Potential impacts
 
-Note that these metrics may incur additional data ingestion (3-4KB per metric per host) when any of the three integrations (AWS API Polling, Azure Polling, and GCP integration) are enabled.
+When AWS API Polling, Azure Polling, and GCP integrations are enabled, additional metrics may incur data ingestion costs at 3 to 4KB per metric per host.
 
 Contact [support.newrelic.com](https://support.newrelic.com/) to enable these metrics on-demand.
