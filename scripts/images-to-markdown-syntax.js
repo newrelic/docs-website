@@ -37,7 +37,9 @@ const convertImages = () => (tree) => {
       const importPath = importData[3]
         .replace(/"|'/g, '')
         .replace('images/', '');
-      const imgSrc = `https://docs-website-images.s3.us-east-2.amazonaws.com/${importPath}`;
+      console.log(importPath);
+      // const imgSrc = `https://docs-website-images.s3.us-east-2.amazonaws.com/${importPath}`;
+      const imgSrc = `./src/images/${importPath}`;
       allImports[importConst] = imgSrc;
 
       parent.children.splice(index, 1);
@@ -63,7 +65,6 @@ const convertImages = () => (tree) => {
         position: node.position,
       });
       parent.children.splice(index, 1, node);
-      console.log(typeof imgAttributes.title);
       return index;
       //   parent.children.splice(index, 1, node);
     }
