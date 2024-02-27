@@ -7,7 +7,7 @@ learnMoreLink: 'https://docs.newrelic.com/docs/licenses/license-information/usag
 
 The Compute Add On SKU enables you to configure and use all of New Relic’s newest innovations, including our recently-launched Live Archives and IAST, while remaining on the data and user model.
 
-You can now adopt our newest capabilities metered in Compute Capacity Units (CCU) without needing to migrate to New Relic Compute, and benefit from:
+You can now adopt our newest capabilities metered in Compute Capacity Units (CCU), without needing to migrate to New Relic Compute, and benefit from:
 
 * **Flexibility**: Option to stay on the data and user model and get access to new use cases via a single SKU.
 * **Metering consistency**: The same CCU metering applies to all new capabilities, including tracking, billing, invoicing, and reporting.
