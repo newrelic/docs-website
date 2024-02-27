@@ -16,7 +16,7 @@ With this new integration, you can:
 - **Improve environmental transparency:** Monitor, assess, and report on CO2 emissions tied to data center energy consumption, enhancing visibility on organizations' environmental impact. 
 - **Optimize cooling expenses:** Identify ideal data center temperature configurations to safely and efficiently reduce cooling costs.
 
-![Image showing Hardware Sentry quickstart dashboard for New Relic.](./images/hardware_sentry_quickstart.png "Image showing Hardware Sentry quickstart dashboard for New Relic.")
+![Image showing Hardware Sentry quickstart dashboard for New Relic.](./images/hardware_sentry_quickstart.webp "Image showing Hardware Sentry quickstart dashboard for New Relic.")
 
 The integration also includes built-in alerts to stay on top of changes to important indicators like battery charge, devices in failing or warning states, non-responsive hosts, low disk endurance utilization and more.
 
