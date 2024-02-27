@@ -8,7 +8,7 @@ import {
   Portal,
   useLocale,
   useTranslation,
-  useTessen,
+  addPageAction,
 } from '@newrelic/gatsby-theme-newrelic';
 import RecaptchaFooter from '@newrelic/gatsby-theme-newrelic/src/components/SignupModal/RecaptchaFooter';
 import Cookies from 'js-cookie';
@@ -20,8 +20,8 @@ import { SUPRQ_QUESTIONS } from '../../utils/constants';
 
 const FORM_VERSION = 1;
 const questions = shuffle(['q1', 'q2', 'q3', 'q4', 'q5', 'q6', 'q7', 'q8']);
-// 1/20 chance to see the modal
-const nat20 = Math.ceil(Math.random() * 20) === 20;
+// 1/10 chance to see the modal
+const nat20 = Math.ceil(Math.random() * 10) === 10;
 const recaptchaReady = () => {
   return new Promise((resolve, reject) => {
     try {
@@ -54,7 +54,6 @@ const FeedbackModal = ({ onClose }) => {
   const surveyDismissed = Cookies.get('surveyDismissed') === 'true';
   const hadChanceToShow = Cookies.get('surveyHadChanceToShow') === 'true';
   const shouldShow = useRef(nat20 && !hadChanceToShow && !surveyDismissed);
-  const tessen = useTessen();
   const locale = useLocale();
   const [step, setStep] = useState(0);
   const [showThankYou, setShowThankYou] = useState(false);
@@ -63,14 +62,14 @@ const FeedbackModal = ({ onClose }) => {
 
   useEffect(() => {
     if (shouldShow.current) {
-      tessen.track({
+      addPageAction({
         eventName: 'surveyDisplayed',
         category: 'SurveyFeedback',
         formVersion: FORM_VERSION,
       });
     }
     Cookies.set('surveyHadChanceToShow', 'true', { expires: 1 });
-  }, [tessen, surveyDismissed]);
+  }, [surveyDismissed]);
 
   const setDismissedCookieAndClose = () => {
     onClose();
@@ -78,7 +77,7 @@ const FeedbackModal = ({ onClose }) => {
   };
 
   const submitNpsScore = async (score) => {
-    tessen.track({
+    addPageAction({
       eventName: 'npsScoreSubmitted',
       category: 'SurveyFeedback',
       responseId: guid,
@@ -139,7 +138,7 @@ const FeedbackModal = ({ onClose }) => {
     );
     responses.forEach((response) => {
       const [questionId, answer] = response;
-      tessen.track({
+      addPageAction({
         eventName: 'suprQSubmitted',
         category: 'SurveyFeedback',
         responseId: guid,
@@ -149,38 +148,6 @@ const FeedbackModal = ({ onClose }) => {
         formVersion: FORM_VERSION,
       });
     });
-    advance();
-  };
-
-  const submitFreetext = async (text) => {
-    tessen.track({
-      eventName: 'freeTextSubmitted',
-      category: 'SurveyFeedback',
-      responseId: guid,
-      response: text,
-      formVersion: FORM_VERSION,
-    });
-    const recaptchaToken = await generateRecaptchaToken();
-    const freetextSubmission = {
-      responseId: guid,
-      response: text,
-      formVersion: FORM_VERSION,
-      pageUrl: location.href,
-      locale: locale.locale,
-      recaptchaToken,
-      type: 'freeText',
-    };
-    fetch(
-      'https://docs-user-feedback-service.newrelic-external.com/survey-feedback',
-      {
-        method: 'POST',
-        headers: {
-          Accept: 'application/json',
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(freetextSubmission),
-      }
-    );
     setShowThankYou(true);
     const timer = setTimeout(() => {
       setDismissedCookieAndClose();
@@ -202,16 +169,13 @@ const FeedbackModal = ({ onClose }) => {
       >
         <Container>
           {step === 0 && <NpsScore onSubmit={submitNpsScore} />}
-          {step === 1 && <SuprQ onSubmit={submitSuprQ} />}
-          {step === 2 && !showThankYou && (
-            <Freetext onSubmit={submitFreetext} />
-          )}
+          {step === 1 && !showThankYou && <SuprQ onSubmit={submitSuprQ} />}
           {showThankYou && <ThankYou />}
 
           <CloseButton
             aria-label="Close"
             onClick={() => {
-              tessen.track({
+              addPageAction({
                 eventName: 'surveyClosed',
                 category: 'SurveyFeedback',
                 formVersion: FORM_VERSION,
@@ -286,47 +250,6 @@ const SuprQ = ({ onSubmit }) => {
       </Steps>
       <SubmitButton disabled={!canContinue} onClick={advance} variant="primary">
         {buttonText}
-      </SubmitButton>
-    </>
-  );
-};
-
-const Freetext = ({ onSubmit }) => {
-  const [text, setText] = useState('');
-  const { t } = useTranslation();
-
-  return (
-    <>
-      <Title>{t('surveyModal.freeTextIntro')}</Title>
-      <p
-        css={css`
-          font-size: 1.125rem;
-          grid-column: 1 / 3;
-          max-width: 92%;
-        `}
-      >
-        {t('surveyModal.freeTextQuestion')}
-      </p>
-      <textarea
-        css={css`
-          background: var(--primary-contrast-color);
-          border-radius: 4px;
-          border: 1px solid rgba(255, 255, 255, 0.2);
-          color: var(--primary-text-color);
-          font-size: 0.875rem;
-          height: 10rem;
-          margin-bottom: 40px;
-          padding: 8px 12px;
-          &:focus {
-            outline: 2px solid rgba(255, 255, 255, 0.6);
-          }
-        `}
-        onChange={(e) => setText(e.target.value)}
-        placeholder="Enter your text here"
-        value={text}
-      />
-      <SubmitButton onClick={() => onSubmit(text)} variant="primary">
-        Submit
       </SubmitButton>
     </>
   );
