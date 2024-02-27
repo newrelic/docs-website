@@ -1,7 +1,7 @@
 ---
 title: 'Track the carbon footprint of your on-prem infrastructure with the Hardware Sentry integration'
 summary: 'Monitor the hardware health, performance metrics, and sustainability indicators of your IT infrastructure with the pre-built quickstart'
-releaseDate: '2024-02-21'
+releaseDate: '2024-02-27'
 learnMoreLink: 'https://www.sentrysoftware.com/docs/hws-doc/latest/integration/newrelic.html'
 getStartedLink: 'https://newrelic.com/instant-observability/hardware-sentry'
 ---
