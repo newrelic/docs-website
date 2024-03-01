@@ -6,8 +6,9 @@ const rehypeStringify = require('rehype-stringify');
 const addAbsoluteImagePath = require('./rehype-plugins/utils/addAbsoluteImagePath');
 const { assetPrefix } = require('./env');
 
+const { LOCALES } = require('./scripts/actions/utils/constants');
+
 const siteUrl = 'https://docs.newrelic.com';
-const additionalLocales = ['jp', 'kr'];
 const allFolders = fs
   .readdirSync(`${__dirname}/src/content/docs`)
   .filter((folder) => !folder.startsWith('.'));
@@ -381,7 +382,7 @@ module.exports = {
         },
         i18n: {
           translationsPath: `${__dirname}/src/i18n/translations`,
-          additionalLocales,
+          additionalLocales: ['jp', 'kr'],
         },
         prism: {
           languages: [

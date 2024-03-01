@@ -7,6 +7,8 @@ const MOCK_CONSTANTS = {
   LOCALE_IDS: {
     jp: 'ja-JP',
     kr: 'ko-KR',
+    es: 'es-LA',
+    pt: 'pt-BR',
   },
 };
 
@@ -38,8 +40,18 @@ describe('add-files-to-translation-queue tests', () => {
 
   const setup = () => {
     const EXCLUSIONS = {
-      excludePath: { 'ja-JP': ['excluded/path'], 'ko-KR': ['excluded/path'] },
-      excludeType: { 'ja-JP': ['excludedType'], 'ko-KR': ['excludedType'] },
+      excludePath: {
+        'ja-JP': ['excluded/path'],
+        'ko-KR': ['excluded/path'],
+        'es-LA': ['excluded/path'],
+        'pt-BR': ['excluded/path'],
+      },
+      excludeType: {
+        'ja-JP': ['excludedType'],
+        'ko-KR': ['excludedType'],
+        'es-LA': ['excludedType'],
+        'pt-BR': ['excludedType'],
+      },
     };
     const originalAdd = jest.requireActual('../utils/constants.js');
 
@@ -62,6 +74,8 @@ describe('add-files-to-translation-queue tests', () => {
       expect(toBeTranslated).toEqual([
         { filename: '/content/bar.mdx', locale: 'ja-JP', project_id: 'HT_ID' },
         { filename: '/content/bar.mdx', locale: 'ko-KR', project_id: 'MT_ID' },
+        { filename: '/content/bar.mdx', locale: 'es-LA', project_id: 'MT_ID' },
+        { filename: '/content/bar.mdx', locale: 'pt-BR', project_id: 'MT_ID' },
       ]);
     });
 
@@ -74,6 +88,8 @@ describe('add-files-to-translation-queue tests', () => {
       expect(toBeTranslated).toEqual([
         { filename: '/content/bar.mdx', locale: 'ja-JP', project_id: 'MT_ID' },
         { filename: '/content/bar.mdx', locale: 'ko-KR', project_id: 'MT_ID' },
+        { filename: '/content/bar.mdx', locale: 'es-LA', project_id: 'MT_ID' },
+        { filename: '/content/bar.mdx', locale: 'pt-BR', project_id: 'MT_ID' },
       ]);
     });
 
@@ -110,6 +126,16 @@ describe('add-files-to-translation-queue tests', () => {
           locale: 'ko-KR',
           project_id: 'MT_ID',
         },
+        {
+          filename: '/content/bar.mdx',
+          locale: 'es-LA',
+          project_id: 'MT_ID',
+        },
+        {
+          filename: '/content/bar.mdx',
+          locale: 'pt-BR',
+          project_id: 'MT_ID',
+        },
       ]);
     });
 
@@ -117,6 +143,8 @@ describe('add-files-to-translation-queue tests', () => {
       const files = [
         { filename: 'included/path/content/bar.mdx', locale: 'ja-JP' },
         { filename: 'included/path/content/foo.mdx', locale: 'ko-KR' },
+        { filename: 'included/path/content/bar.mdx', locale: 'es-LA' },
+        { filename: 'included/path/content/foo.mdx', locale: 'pt-BR' },
       ];
       setup();
       const { excludeFiles } = require('../add-files-to-translation-queue');
@@ -126,6 +154,8 @@ describe('add-files-to-translation-queue tests', () => {
       expect(includedFiles).toEqual([
         { filename: 'included/path/content/bar.mdx', locale: 'ja-JP' },
         { filename: 'included/path/content/foo.mdx', locale: 'ko-KR' },
+        { filename: 'included/path/content/bar.mdx', locale: 'es-LA' },
+        { filename: 'included/path/content/foo.mdx', locale: 'pt-BR' },
       ]);
     });
 
@@ -161,7 +191,7 @@ describe('add-files-to-translation-queue tests', () => {
         {
           filename: 'included/path/content/bar.mdx',
           contentType: 'excludedType',
-          locale: 'ko-KR',
+          locale: 'es-LA',
         },
         {
           filename: 'included/path/content/bar.mdx',
@@ -193,7 +223,12 @@ describe('add-files-to-translation-queue tests', () => {
         {
           filename: 'included/path/content/bar.mdx',
           contentType: 'excludedType',
-          locale: 'ja-JP',
+          locale: 'pt-BR',
+        },
+        {
+          filename: 'excluded/path/content/bar.mdx',
+          contentType: 'excludedType',
+          locale: 'es-LA',
         },
         {
           filename: 'excluded/path/content/bar.mdx',
