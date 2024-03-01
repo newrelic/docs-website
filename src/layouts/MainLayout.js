@@ -9,7 +9,7 @@ import {
   Icon,
   Button,
   SearchInput,
-  useTessen,
+  addPageAction,
   useTranslation,
   LoggedInProvider,
 } from '@newrelic/gatsby-theme-newrelic';
@@ -25,7 +25,6 @@ import { useLocation, navigate } from '@reach/router';
 import { MainLayoutContext } from '../components/MainLayoutContext';
 
 const MainLayout = ({ children, pageContext }) => {
-  const tessen = useTessen();
   const { sidebarWidth } = useLayout();
   const { locale, slug } = pageContext;
   const location = useLocation();
@@ -105,7 +104,7 @@ const MainLayout = ({ children, pageContext }) => {
           }
         `}
         onClick={() => {
-          tessen.track({
+          addPageAction({
             eventName: sidebar ? 'closeNav' : 'openNav',
             category: 'NavCollapserClick',
           });
@@ -201,7 +200,7 @@ const MainLayout = ({ children, pageContext }) => {
                     alignIcon={SearchInput.ICON_ALIGNMENT.RIGHT}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     onSubmit={() => {
-                      tessen.track({
+                      addPageAction({
                         eventName: 'nonHomepageSidebarSearch',
                         category: 'SearchInput',
                         searchTerm,

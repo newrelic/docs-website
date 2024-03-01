@@ -9,7 +9,7 @@ import {
   SearchInput,
   useInstrumentedHandler,
   useTranslation,
-  useTessen,
+  addPageAction,
 } from '@newrelic/gatsby-theme-newrelic';
 import { useMedia } from 'react-use';
 import HomepageBanner from '../components/HomepageBanner';
@@ -23,7 +23,6 @@ const HomePage = ({ data }) => {
     site: { layout },
     allMarkdownRemark: { edges: whatsNewPosts },
   } = data;
-  const tessen = useTessen();
   const [searchTerm, setSearchTerm] = useState('');
   const [showFeedbackModal, setShowFeedbackModal] = useState(true);
 
@@ -63,7 +62,7 @@ const HomePage = ({ data }) => {
         alignIcon={SearchInput.ICON_ALIGNMENT.RIGHT}
         onChange={(e) => setSearchTerm(e.target.value)}
         onSubmit={() => {
-          tessen.track({
+          addPageAction({
             eventName: 'defaultViewSearch',
             category: 'SearchInput',
           });

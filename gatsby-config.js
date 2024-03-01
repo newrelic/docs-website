@@ -4,9 +4,11 @@ const parse = require('rehype-parse');
 const unified = require('unified');
 const rehypeStringify = require('rehype-stringify');
 const addAbsoluteImagePath = require('./rehype-plugins/utils/addAbsoluteImagePath');
+const { assetPrefix } = require('./env');
+
+const { LOCALES } = require('./scripts/actions/utils/constants');
 
 const siteUrl = 'https://docs.newrelic.com';
-const additionalLocales = ['jp', 'kr'];
 const allFolders = fs
   .readdirSync(`${__dirname}/src/content/docs`)
   .filter((folder) => !folder.startsWith('.'));
@@ -44,6 +46,7 @@ module.exports = {
     DEV_SSR: true,
     PRESERVE_FILE_DOWNLOAD_CACHE: true,
   },
+  assetPrefix: assetPrefix(),
   siteMetadata: {
     title: 'New Relic Documentation',
     titleTemplate: '%s | New Relic Documentation',
@@ -56,6 +59,7 @@ module.exports = {
       'https://docs.newrelic.com/docs/style-guide/writing-guidelines/create-edit-content/',
   },
   plugins: [
+    `gatsby-plugin-netlify`,
     'gatsby-plugin-react-helmet',
     {
       resolve: `gatsby-source-filesystem`,
@@ -321,7 +325,6 @@ module.exports = {
 
     'gatsby-source-nav',
     'gatsby-source-install-config',
-    'gatsby-plugin-meta-redirect',
     {
       resolve: 'gatsby-plugin-gatsby-cloud',
       options: {
@@ -379,7 +382,7 @@ module.exports = {
         },
         i18n: {
           translationsPath: `${__dirname}/src/i18n/translations`,
-          additionalLocales,
+          additionalLocales: ['jp', 'kr'],
         },
         prism: {
           languages: [
@@ -456,21 +459,6 @@ module.exports = {
             errorBeacon: 'staging-bam-cell.nr-data.net',
           },
         },
-        tessen: {
-          tessenVersion: '1.14.0',
-          product: 'DOC',
-          subproduct: 'TDOC',
-          segmentWriteKey: 'AEfP8c1VSuFxhMdk3jYFQrYQV9sHbUXx',
-          trackPageViews: true,
-          pageView: {
-            eventName: 'pageView',
-            category: 'DocPageView',
-            getProperties: ({ location, env }) => ({
-              path: location.pathname,
-              env: env === 'production' ? 'prod' : env,
-            }),
-          },
-        },
         shouldUpdateScroll: {
           routes: ['/attribute-dictionary'],
         },
@@ -490,6 +478,11 @@ module.exports = {
             '6LeGFt8UAAAAANfnpE8si2Z6NnAqYKnPAYgMpStu',
         },
         newRelicRequestingServicesHeader: 'docs-website',
+        segment: {
+          segmentWriteKey: 'noviNOFjASOSPcSEAkwoRxOt0Y1719KD',
+          section: 'docs',
+          platform: 'docs_pages',
+        },
       },
     },
   ],
