@@ -6,12 +6,12 @@ import yaml from 'js-yaml';
 import { join } from 'path';
 import { LOCALES } from './actions/utils/constants.js';
 
-if (process.env.BUILD_LANG !== 'en') {
-  await mkdir('./public').catch(() => null);
-  writeFile('./public/_redirects', '', 'utf-8');
-  console.log('`BUILD_LANG` is not `en`, writting empty _redirects file');
-  process.exit();
-}
+// if (process.env.BUILD_LANG !== 'en') {
+//   await mkdir('./public').catch(() => null);
+//   writeFile('./public/_redirects', '', 'utf-8');
+//   console.log('`BUILD_LANG` is not `en`, writting empty _redirects file');
+//   process.exit();
+// }
 
 // from -> to key/value structure, since redirects are a 1:many relationship.
 // ie, redirecting _from_ `/docs/security` can only redirect to one place,
