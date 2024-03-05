@@ -1,0 +1,219 @@
+---
+title: Create and deploy New Relic Lambda image layers
+metaDescription: After enabling New Relic's Lambda containerized function, you can create a layer as an image.
+redirects:
+freshnessValidatedDate: never
+---
+
+((INTRO))
+
+<Steps>
+<Step>
+### Create New Relic Lambda layer as image
+1. First, you can see which ARN layers are available [here](https://layers.newrelic-external.com/#/get-layers/get).
+2. To create new docker image, use the following code:
+```
+FROM alpine:latest as layer-copy 
+# Create a build stage to copy the files from S3 using credentials ARG AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION:-"region"} 
+ARG AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-"accessKey"} 
+ARG AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-"secretkey"} ENV AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION} 
+ENV AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID} 
+ENV AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY} 
+RUN apk add aws-cli curl unzip 
+RUN mkdir -p /opt 
+RUN curl $(aws lambda get-layer-version-by-arn --arn <ARN Link> --query 'Content.Location' --output text) --output layer.zip 
+RUN unzip layer.zip -d /opt 
+RUN rm layer.zip 
+FROM scratch 
+# Start second stage from blank image to squash all previous history, including credentials. 
+WORKDIR /opt 
+COPY --from=layer-copy /opt .
+```
+3. Push that image to Amazon ECR. 
+
+```
+docker build -t layer-image1:latest .
+```
+4. Deploy the image.
+</Step>
+
+<Step>
+### Deploy the image in AWS ECR
+1. Configure your AWS account from the terminal.
+2. Authenticate to your account by using the following command:
+
+```
+aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 111122223333.dkr.ecr.us-east-1.amazonaws.com
+```
+3. Create a repository in Amazon ECR using the `create-repository` command:
+
+```
+aws ecr create-repository --repository-name hello-world --image-scanning-configuration scanOnPush=true --image-tag-mutability MUTABLE
+```
+4. Copy the `repositoryUri` from the output in the previous step.
+5. Run the docker tag command so you can tag your local image into your Amazon ECR repository as the latest version. To do this:
+```
+Replace docker-image:test with the name and tag of your Docker image.
+```
+6. Replace &lt; ECRrepositoryUri &gt;  with the `repositoryUri` that you copied. Make sure to include `:latest` at the end of the URI. Here is an example: 
+
+```
+docker tag docker-image:test <ECRrepositoryUri>:latest
+```
+7. Run the docker push command to deploy your local image to the Amazon ECR repository. Make sure to include `:latest` at the end of the repository URI. Run:
+```
+docker push 111122223333.dkr.ecr.us-east-1.amazonaws.com/hello-world:latest
+```
+</Step>
+<Step>
+### Create a Lambda function with a New Relic image layer
+1. Use the image URI from the previous steps and add the image URI to your docker file. Here is an example:
+```
+FROM <image uri> AS layer
+```
+2. Add the directory for the layer. Here is an example:
+
+```
+# Layer code
+WORKDIR /opt
+COPY --from=layer /opt/ .
+```
+3. Here is a complete example:
+
+```
+FROM <image uri> AS layer
+FROM public.ecr.aws/lambda/python:3.9
+# Layer code
+WORKDIR /opt
+COPY --from=layer /opt/ .
+# Copy requirements.txt
+COPY requirements.txt ${LAMBDA_TASK_ROOT}
+# Copy function code
+COPY lambda_function.py ${LAMBDA_TASK_ROOT}
+# Install the specified packages
+RUN pip freeze > requirements.txt
+# Set the CMD to your handler (could also be done as a parameter override outside of the Dockerfile)
+CMD [ "lambda_function.handler" ]
+```
+4. Push that image to Amazon ECR.
+```
+docker build -t docker-image-sample:latest 
+```
+</Step>
+<Step>
+###  Test the image locally (optional)
+
+1. Start the Docker image with the docker run command:
+```
+docker run -p 9000:8080 docker-image-sample:latest
+```
+2. From a new terminal window, post an event to the following endpoint using a curl command:
+
+```
+curl "http://localhost:9000/2015-03-31/functions/function/invocations" -d '{}'
+```
+</Step>
+<Step>
+###  Create a container image Lambda function
+
+1. Choose the container image option.
+2. Name your function.
+3. Browse your ECR and select.
+4. Choose your architecture and create.
+5. Once you created the function, then you should add environment variable:
+```
+NEW_RELIC_ACCOUNT_ID : <NR ACCOUNT ID>
+NEW_RELIC_EXTENSION_SEND_FUNCTION_LOGS : boolean value
+NEW_RELIC_LAMBDA_EXTENSION_ENABLED : boolean value
+NEW_RELIC_LAMBDA_HANDLER : index.handler
+NEW_RELIC_LICENSE_KEY : <NR LICENSE KEY>
+NEW_RELIC_LOG_ENDPOINT : <NR LOG END POINT>
+NEW_RELIC_TELEMETRY_ENDPOINT : <NR TELEMETRY END POINT> 
+NEW_RELIC_TRUSTED_ACCOUNT_KEY :<NR ACCOUNT ID> 
+```
+6. The environment endpoints are:
+    * NEW_RELIC_TELEMETRY_ENDPOINT
+        * Production : https://cloud-collector.newrelic.com/aws/lambda/v1
+        * Eu-production : https://cloud-collector.eu01.nr-data.net/aws/lambda/v1
+    * NEW_RELIC_LOG_ENDPOINT
+        *Production : https://log-api.newrelic.com/log/v1
+        * Eu-production : https://log-api.eu.newrelic.com/log/v1
+7. Now, add a CMD handler that based on your language. To learn more, see our [Lamda instrumentation documentation here](/docs/serverless-function-monitoring/aws-lambda-monitoring/enable-lambda-monitoring/instrument-your-own/)
+</Step>
+
+<Step>
+### Create a Lambda function with New Relic a public ECR layer
+1. Check these public layers and copy the image URI based on your runtime.
+2. Add the image URI to your dockerfile. 
+3. Add the directory for layer:
+``` 
+# Layer code
+WORKDIR /opt
+COPY --from=layer /opt/ .
+```
+4. Here is a complete example:
+```
+FROM <image uri> AS layer
+FROM public.ecr.aws/lambda/python:3.9
+# Layer code
+WORKDIR /opt
+COPY --from=layer /opt/ .
+# Copy requirements.txt
+COPY requirements.txt ${LAMBDA_TASK_ROOT}
+# Copy function code
+COPY lambda_function.py ${LAMBDA_TASK_ROOT}
+# Install the specified packages
+RUN pip freeze > requirements.txt
+# Set the CMD to your handler (could also be done as a parameter override outside of the Dockerfile)
+CMD [ "lambda_function.handler" ]
+```
+5.  Push that image to Amazon ECR
+```
+docker build -t docker-image-sample:latest 
+```
+</Step>
+<Step>
+### Test the image locally 
+1. Start the Docker image with the docker run command:
+```
+docker run -p 9000:8080 docker-image-sample:latest
+```
+2. From a new terminal window, post an event to the following endpoint using a curl command:
+
+```
+curl "http://localhost:9000/2015-03-31/functions/function/invocations" -d '{"response":2, "error":0}'
+```
+
+</Step>
+<Step>
+### Create a Container image Lambda function
+
+1. Choose the container image option.
+2. Name your function.
+3. Browse your ECR and select.
+4. Choose your architecture and create
+5. Once you created the function, then you should add environment variable:
+```
+NEW_RELIC_ACCOUNT_ID : <NR ACCOUNT ID>
+NEW_RELIC_EXTENSION_SEND_FUNCTION_LOGS : boolean value
+NEW_RELIC_LAMBDA_EXTENSION_ENABLED : boolean value
+NEW_RELIC_LAMBDA_HANDLER : index.handler
+NEW_RELIC_LICENSE_KEY : <NR LICENSE KEY>
+NEW_RELIC_LOG_ENDPOINT : <NR LOG END POINT>
+NEW_RELIC_TELEMETRY_ENDPOINT : <NR TELEMETRY END POINT> 
+NEW_RELIC_TRUSTED_ACCOUNT_KEY :<NR ACCOUNT ID> 
+```
+6. The environment endpoints are:
+    * NEW_RELIC_TELEMETRY_ENDPOINT
+        * Production : https://cloud-collector.newrelic.com/aws/lambda/v1
+        * Eu-production : https://cloud-collector.eu01.nr-data.net/aws/lambda/v1
+    * NEW_RELIC_LOG_ENDPOINT
+        *Production : https://log-api.newrelic.com/log/v1
+        * Eu-production : https://log-api.eu.newrelic.com/log/v1
+7. Now, add a CMD handler that based on your language. To learn more, see our [Lamda instrumentation documentation here](/docs/serverless-function-monitoring/aws-lambda-monitoring/enable-lambda-monitoring/instrument-your-own/).
+
+
+</Step>
+
+<Step>
+### Add Environment variables
