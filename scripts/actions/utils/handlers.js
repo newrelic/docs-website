@@ -117,6 +117,7 @@ module.exports = {
     serialize: (h, node) =>
       serializeComponent(h, node, {
         classNames: 'notranslate',
+        tagName: 'span',
         wrapChildren: false,
       }),
   },
