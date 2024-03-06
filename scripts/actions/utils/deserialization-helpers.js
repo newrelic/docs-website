@@ -51,6 +51,8 @@ const deserializeComponent = (
   node,
   { type, hasChildrenProp = true } = {}
 ) => {
+  if (Array.isArray(node)) return node;
+
   const { dataComponent, dataProps } = node.properties;
   const name = dataComponent || node.tagName;
   const props = dataProps ? deserializeJSValue(dataProps) : [];

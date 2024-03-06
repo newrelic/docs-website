@@ -113,7 +113,11 @@ module.exports = {
     serialize: serializeComponent,
   },
   DoNotTranslate: {
-    deserialize: () => null,
+    deserialize: (h, node) =>
+      deserializeComponent(
+        h,
+        node.children.map((child) => deserializeComponent(h, child))
+      ),
     serialize: (h, node) =>
       serializeComponent(h, node, {
         classNames: 'notranslate',
