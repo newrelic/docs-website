@@ -31,15 +31,11 @@ const main = async () => {
   const options = getCommandLineOptions();
   const filesString = options.files || null;
   const allFiles = options.allFiles || null;
-  console.log(options);
   if (filesString) {
-    console.log('shouldnt be here');
     const fileNames = parseFilesString(filesString);
-    // await addFilesToTranslationQueue(fileNames, options);
+    await addFilesToTranslationQueue(fileNames, options);
   } else if (allFiles) {
-    console.log('should be here');
     const fileNames = getFilesRecursively('src/content/docs');
-    console.log(fileNames.length, fileNames[0]);
     await addFilesToTranslationQueue(fileNames, options);
   }
 
