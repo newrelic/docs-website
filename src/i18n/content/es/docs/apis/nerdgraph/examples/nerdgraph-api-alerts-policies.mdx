@@ -1,0 +1,257 @@
+---
+title: 'Tutorial de NerdGraph: política de alertas'
+tags:
+  - Alerts and applied intelligence
+  - Alerts
+  - Alerts and Nerdgraph
+metaDescription: 'For New Relic alerts: how to list, create, update, and delete alert policies with our NerdGraph API.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Para las alertas de New Relic, puede administrar su [política de alertas](/docs/alerts-applied-intelligence/new-relic-alerts/alert-policies/create-edit-or-find-alert-policy) utilizando nuestra API NerdGraph.
+
+<Callout variant="tip">
+  Para saber cómo empezar a utilizar NerdGraph, consulte [Introducción a NerdGraph](/docs/apis/nerdgraph/get-started/introduction-new-relic-nerdgraph).
+</Callout>
+
+## Listar y filtrar políticas [#list-and-filter]
+
+La consulta `policiesSearch` le permite paginar todas sus [políticas de alertas](/docs/alerts-applied-intelligence/new-relic-alerts/alert-policies/create-edit-or-find-alert-policy) por cuenta. También permite algunas funciones de filtrado en las políticas de la cuenta.
+
+<CollapserGroup>
+  <Collapser
+    id="list-all-policies"
+    title="Listado de todas las políticas de una cuenta"
+  >
+    He aquí un ejemplo:
+
+    ```graphql
+    {
+      actor {
+        account(id: YOUR_ACCOUNT_ID) {
+          alerts {
+            policiesSearch {
+              policies {
+                id
+                name
+                incidentPreference
+              }
+            }
+          }
+        }
+      }
+    }
+    ```
+  </Collapser>
+
+  <Collapser
+    id="paginate"
+    title="Paginar a través de políticas con paginación del cursor"
+  >
+    Para paginar sus políticas, debe solicitar el campo `nextCursor` en su consulta inicial.
+
+    Con la paginación del cursor, continúa realizando una solicitud a través del conjunto de resultados hasta que el `nextCursor` que se devuelve de la respuesta vuelve vacío. Esto significa que llegó al final de sus resultados.
+
+    He aquí un ejemplo:
+
+    ```graphql
+    {
+      actor {
+        account(id: YOUR_ACCOUNT_ID) {
+          alerts {
+            policiesSearch {
+              nextCursor
+              policies {
+                id
+                name
+                incidentPreference
+              }
+              totalCount
+            }
+          }
+        }
+      }
+    }
+    ```
+
+    El código anterior devuelve un conjunto de resultados como este:
+
+    ```json
+    {
+      "data": {
+        "actor": {
+          "account": {
+            "alerts": {
+              "policiesSearch": {
+                "nextCursor": "/8o0y2qiR54m6thkdgHgwg==:jZTXDFKbTkhKwvMx+CtsPVM=",
+                "policies": [
+                  {
+                    "id": "3455",
+                    "incidentPreference": "PER_POLICY",
+                    "name": "First Policy Name"
+                  },
+                  {
+                    "id": "2123",
+                    "incidentPreference": "PER_POLICY",
+                    "name": "Another Policy"
+                  },
+                  // ... more policies here in reality
+                ],
+                "totalCount": 745
+              }
+            }
+          }
+        }
+      }
+    }
+    ```
+
+    Entonces, en su solicitud posterior, proporcione el cursor así, hasta que el cursor esté vacío:
+
+    ```graphql
+    {
+      actor {
+        account(id: YOUR_ACCOUNT_ID) {
+          alerts {
+            policiesSearch(cursor: "/8o0y2qiR54m6thkdgHgwg==:jZTXDFKbTkhKwvMx+CtsPVM=") {
+              nextCursor
+              policies {
+                id
+                name
+                incidentPreference
+              }
+              totalCount
+            }
+          }
+        }
+      }
+    }
+    ```
+  </Collapser>
+
+  <Collapser
+    id="list-policies-by-id"
+    title="Buscar todas las políticas por identificadores seleccionados"
+  >
+    La API permite la consulta de políticas mediante una subselección de identificadores. Esto solo devolverá la información de estas políticas que usted proporcione.
+
+    ```graphql
+    {
+      actor {
+        account(id: YOUR_ACCOUNT_ID) {
+          alerts {
+            policiesSearch(searchCriteria: {
+              ids: [ A_POLICY_ID, ANOTHER_POLICY_ID ]
+            }) {
+              policies {
+                id
+                name
+                incidentPreference
+              }
+            }
+          }
+        }
+      }
+    }
+    ```
+  </Collapser>
+
+  <Collapser
+    id="find-policies-by-name"
+    title="Buscar todas las pólizas por nombre"
+  >
+    La API permite consultar políticas por nombre. Utilice `name` para hacer coincidencias por nombres exactos o `nameLike` para una coincidencia parcial. Ambos criterios de búsqueda no distinguen entre mayúsculas y minúsculas. Esto solo devolverá la información de las políticas que coincidan con el nombre proporcionado.
+
+    En este ejemplo, queremos buscar políticas con `DevOps` en el nombre:
+
+    ```graphql
+    {
+      actor {
+        account(id: YOUR_ACCOUNT_ID) {
+          alerts {
+            policiesSearch(searchCriteria: {
+              nameLike: "DevOps"
+            }) {
+              policies {
+                id
+                name
+              }
+            }
+          }
+        }
+      }
+    }
+    ```
+  </Collapser>
+
+  <Collapser
+    id="find-by-id"
+    title="Buscar póliza por ID"
+  >
+    La API le permite consultar por ID de política:
+
+    ```graphql
+    {
+      actor {
+        account(id: YOUR_ACCOUNT_ID) {
+          alerts {
+            policy(id: YOUR_POLICY_ID) {
+              id
+              name
+              incidentPreference
+            }
+          }
+        }
+      }
+    }
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Crear una política [#create-policy]
+
+Para crear una política, proporcione un nombre y un `incidentPreference`.
+
+La preferencia de incidente configurará cómo se creará el incidente para cada condición creada en la política. Para obtener más información, consulte la documentación sobre [cómo elegir su preferencia de incidente](/docs/alerts/new-relic-alerts/configuring-alert-policies/specify-when-new-relic-creates-incidents).
+
+```graphql
+mutation {
+  alertsPolicyCreate(accountId: YOUR_ACCOUNT_ID, policy: {
+    name: "Your Policy Name"
+    incidentPreference: PER_CONDITION
+  }) {
+    id
+    name
+    incidentPreference
+  }
+}
+```
+
+## Actualizar una política [#update-policy]
+
+Cuando actualiza una política, tenga en cuenta que no es necesario proporcionar todos los atributos de la política. Por ejemplo, solo necesita proporcionar el nombre si solo desea actualizarlo:
+
+```graphql
+mutation {
+  alertsPolicyUpdate(accountId: YOUR_ACCOUNT_ID, id: YOUR_POLICY_ID, policy: {
+    name: "Updated Policy Name"
+  }) {
+    id
+    name
+    incidentPreference
+  }
+}
+```
+
+## Eliminar una política [#delete-policy]
+
+Puede eliminar políticas a través de la API NerdGraph. Tenga en cuenta que solo se puede solicitar la identificación de un recurso eliminado:
+
+```graphql
+mutation {
+  alertsPolicyDelete(accountId: YOUR_ACCOUNT_ID, id: YOUR_POLICY_ID) {
+    id
+  }
+}
+```
