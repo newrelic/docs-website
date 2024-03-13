@@ -129,7 +129,9 @@ const NavItem = ({
           padding-left: ${root?.icon
             ? 'calc(var(--icon-size) + var(--icon-spacing))'
             : 'var(--nav-link-padding)'};
-
+          &:hover {
+            background: var(--system-background-hover-dark);
+          }
           ${mobileBreakpoint &&
           css`
             @media screen and (max-width: ${mobileBreakpoint}) {
