@@ -56,6 +56,7 @@ const Navigation = ({ nav, className }) => {
                 <p
                   css={css`
                     color: var(--system-text-primary-dark);
+                    opacity: 0.7;
                     margin: 0;
                     font-size: 14px;
                     margin-top: 1rem;
