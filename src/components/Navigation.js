@@ -38,7 +38,7 @@ const Navigation = ({ nav, className }) => {
         }
         span,
         svg {
-          color: var(--system-text-secondary-dark);
+          color: var(--system-text-primary-dark);
           opacity: 0.7;
         }
       `}

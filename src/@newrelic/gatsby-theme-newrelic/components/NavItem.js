@@ -92,12 +92,11 @@ const NavItem = ({
           : 'solid var(--system-background-hover-dark) 2px'};
 
         ${isExpanded &&
-        depth == 0 &&
+        depth === 0 &&
         css`
           span,
           svg {
-            opacity: 1 !important;
-          }
+            opacity: 1;
         `}
 
         ${mobileBreakpoint &&
