@@ -5,6 +5,7 @@ import {
   Walkthrough,
   TableOfContents,
   ContributingGuidelines,
+  ComplexFeedback,
   useQueryParams,
   Layout,
   addPageAction,
@@ -290,6 +291,7 @@ const InstallPage = ({ data, location }) => {
         >
           <ContributingGuidelines />
           <TableOfContents headings={headings} />
+          <ComplexFeedback pageTitle={title} />
         </Layout.PageTools>
       </Layout.Main>
     </ErrorBoundary>
