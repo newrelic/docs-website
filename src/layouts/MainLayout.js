@@ -20,7 +20,6 @@ import { CSSTransition } from 'react-transition-group';
 import Layout from '../components/Layout';
 import SEO from '../components/SEO';
 import RootNavigation from '../components/RootNavigation';
-import NavFooter from '../components/NavFooter';
 import { useLocation, navigate } from '@reach/router';
 import { MainLayoutContext } from '../components/MainLayoutContext';
 
@@ -227,11 +226,6 @@ const MainLayout = ({ children, pageContext }) => {
                       100vh - ${navHeaderHeight} - var(--global-header-height) -
                         4rem
                     );
-                  `}
-                />
-                <NavFooter
-                  css={css`
-                    width: calc(var(--sidebar-width) - 1px);
                   `}
                 />
               </>
