@@ -87,26 +87,18 @@ const NavItem = ({
         --nav-link-padding: 1rem;
         display: ${matchesSearch || !searchTerm ? 'block' : 'none'};
         padding-left: ${parent == null ? '8px' : 'var(--nav-link-padding)'};
-        border-left: ${parent == null ? 'none' : 'solid #0D374A 2px'};
-        span {
-          font-weight: 700;
-        }
-        ${depth > 0 &&
+        border-left: ${parent == null
+          ? 'none'
+          : 'solid var(--system-background-hover-dark) 2px'};
+
+        ${isExpanded &&
+        depth == 0 &&
         css`
-          span {
-            font-weight: 600;
+          span,
+          svg {
+            opacity: 1 !important;
           }
         `}
-        ${depth > 1 &&
-        css`
-          border-left: solid rgba(231, 246, 246, 0.1) 2px;
-          span {
-            font-weight: 500;
-          }
-        `}
-        a > div > span {
-          font-weight: 400;
-        }
 
         ${mobileBreakpoint &&
         css`
@@ -149,7 +141,10 @@ const NavItem = ({
           `}
           ${isCurrentPage &&
           css`
-            background: #0d374a;
+            background: var(--system-background-hover-dark);
+            span {
+              font-weight: 600;
+            }
           `}
         `}
       >

@@ -38,7 +38,8 @@ const Navigation = ({ nav, className }) => {
         }
         span,
         svg {
-          color: #afe2e3;
+          color: var(--system-text-secondary-dark);
+          opacity: 0.7;
         }
       `}
       id="nav"
@@ -54,7 +55,7 @@ const Navigation = ({ nav, className }) => {
               <Flipped flipId={page.flipId} translate>
                 <p
                   css={css`
-                    color: #1dcad3;
+                    color: var(--system-text-primary-dark);
                     margin: 0;
                     font-size: 14px;
                     margin-top: 1rem;
