@@ -90,7 +90,7 @@ const Container = styled.div`
 
 const Heading = styled.h2`
   color: currentColor;
-  font-size: 0.75rem;
+  font-size: 1rem;
   font-weight: 500;
   grid-column: 1 / 3;
   justify-self: start;
@@ -123,7 +123,8 @@ const SecondaryButton = styled(Button)`
 `;
 
 const Text = styled.p`
-  font-size: 0.75rem;
+  font-size: 1rem;
+  font-weight: 300;
   grid-column: 1 / 3;
   margin: 0 0 8px;
 `;

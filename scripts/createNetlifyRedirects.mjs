@@ -1,7 +1,10 @@
 import { frontmatter } from './utils/frontmatter.js';
 import { mkdir, readFile, writeFile } from 'fs/promises';
+import { readFileSync } from 'fs';
 import { glob } from 'glob10';
+import yaml from 'js-yaml';
 import { join } from 'path';
+import { LOCALES } from './actions/utils/constants.js';
 
 if (process.env.BUILD_LANG !== 'en') {
   await mkdir('./public').catch(() => null);
@@ -14,9 +17,9 @@ if (process.env.BUILD_LANG !== 'en') {
 // ie, redirecting _from_ `/docs/security` can only redirect to one place,
 // but many paths can redirect _to_ `/docs/security/overview`
 const redirects = new Map();
-const LOCALES = ['jp', 'kr'];
 
 const mdxPaths = await glob('src/content/docs/**/*.{md,mdx}');
+const installYamlPaths = await glob('src/install/config/**/*.yaml');
 
 const urlFromFsPath = (fspath) =>
   fspath.replace(/src\/content/, '').replace(/\.mdx?$/, '');
@@ -44,12 +47,25 @@ for (const redirect of manualRedirects) {
   redirects.set(redirect.from, redirect.to);
 }
 
-// MDX frontmatter redirects
 for (const path of mdxPaths) {
   const contents = await readFile(join(process.cwd(), path), 'utf-8');
   const to = urlFromFsPath(path);
   const { attributes } = frontmatter(contents);
   const enRedirects = attributes.redirects ?? [];
+
+  enRedirects.forEach((from) => redirects.set(from, to));
+
+  for (const locale of LOCALES) {
+    const localizedTo = `/${locale}${to}`;
+    const localizedRedirects = enRedirects.map((from) => `/${locale}${from}`);
+    localizedRedirects.forEach((from) => redirects.set(from, localizedTo));
+  }
+}
+// install config redirects
+for (const path of installYamlPaths) {
+  const contents = await yaml.load(readFileSync(join(process.cwd(), path)));
+  const to = `/install/${contents.agentName}`;
+  const enRedirects = contents.redirects ?? [];
 
   enRedirects.forEach((from) => redirects.set(from, to));
 
@@ -72,10 +88,10 @@ const redirectsList = Array.from(redirects.entries())
 let redirectsAndRewrites = `${redirectsList}`;
 
 // trying forced rewrites with splats
-redirectsAndRewrites += `
-/kr/*  https://docs-website-kr.netlify.app/kr/:splat  200!
-/jp/*  https://docs-website-jp.netlify.app/jp/:splat  200!
-`;
+LOCALES.forEach(
+  (locale) =>
+    (redirectsAndRewrites += `\n/${locale}/* https://docs-website-${locale}.netlify.app/${locale}/:splat  200!`)
+);
 
 // rewrites
 
