@@ -59,6 +59,7 @@ const Navigation = ({ nav, className }) => {
                     opacity: 0.7;
                     margin: 0;
                     font-size: 14px;
+                    font-weight: 500;
                     margin-top: 1rem;
                   `}
                 >
