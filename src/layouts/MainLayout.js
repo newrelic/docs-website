@@ -89,7 +89,7 @@ const MainLayout = ({ children, pageContext }) => {
       <Button
         variant={Button.VARIANT.PLAIN}
         css={css`
-          background: #7B838A;
+          background: #7b838a;
           color: var(--color-white);
           height: 40px;
           width: 40px;
