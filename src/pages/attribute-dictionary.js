@@ -228,14 +228,7 @@ const EventDefinition = memo(
               position: relative;
             `}
           >
-            <code
-              css={css`
-                background: none !important;
-                padding: 0 !important;
-              `}
-            >
-              {event.name}
-            </code>
+            {event.name}
             <Link
               to={`${location.pathname}?event=${event.name}`}
               className="anchor after"
