@@ -10,9 +10,10 @@ import MDXContainer from '../components/MDXContainer';
 import {
   ContributingGuidelines,
   ComplexFeedback,
-  TableOfContents,
+  TableOfContents as TOC,
   LoggedInProvider,
 } from '@newrelic/gatsby-theme-newrelic';
+import MobileTableOfContents from '../components/MobileTableOfContents';
 import Layout from '../components/Layout';
 import MachineTranslationCallout from '../components/MachineTranslationCallout';
 import SEO from '../components/SEO';
@@ -86,95 +87,134 @@ const BasicDoc = ({ data, location, pageContext }) => {
         tags={tags}
         disableSwiftype={disableSwiftype}
       />
-      <div
-        css={css`
-          display: grid;
-          grid-template-areas:
-            'mt-disclaimer mt-disclaimer'
-            'page-title page-tools'
-            'content page-tools';
-          grid-template-columns: minmax(0, 1fr) 12.8125rem;
-          grid-column-gap: 2rem;
+      {isMobileScreen ? (
+        <div
+          css={css`
+            display: grid;
+            grid-column-gap: 2rem;
 
-          iframe {
-            max-width: 100%;
-          }
+            iframe {
+              max-width: 100%;
+            }
 
-          @media screen and (max-width: 1240px) {
-            grid-template-areas:
-              'mt-disclaimer'
-              'page-title'
-              'content'
-              'page-tools';
-            grid-template-columns: minmax(0, 1fr);
-          }
-        `}
-      >
-        {translationType === 'machine' && (
-          <MachineTranslationCallout
-            englishHref={location.pathname.replace(
-              `/${pageContext.locale}`,
-              ''
-            )}
-          />
-        )}
-        <PageTitle>{title}</PageTitle>
-
-        <LoggedInProvider>
-          <Layout.Content>
-            <MDXContainer body={body} />
-            {showFeedbackModal && !isMobileScreen && (
-              <FeedbackModal onClose={() => setShowFeedbackModal(false)} />
-            )}{' '}
-          </Layout.Content>
-        </LoggedInProvider>
-        <CSSTransition
-          in={sidebar}
-          classNames="page-tools-transition"
-          timeout={300}
+            @media screen and (max-width: 1240px) {
+              grid-template-areas:
+                'mt-disclaimer'
+                'page-title'
+                'content';
+              grid-template-columns: minmax(0, 1fr);
+            }
+          `}
         >
-          <Layout.PageTools
-            css={css`
-              background: var(--primary-background-color);
-
-              &.page-tools-transition-enter {
-                translate: calc(var(--sidebar-width) - 50px);
-              }
-              &.page-tools-transition-enter-active {
-                translate: 0;
-                transition: 300ms translate ease;
-              }
-              &.page-tools-transition-enter-done {
-                translate: 0;
-              }
-
-              &.page-tools-transition-exit {
-                translate: calc(calc(var(--sidebar-width) - 50px) * -1);
-              }
-              &.page-tools-transition-exit-active {
-                translate: 0;
-                transition: 300ms translate ease;
-              }
-              &.page-tools-transition-exit-done {
-                translate: 0;
-              }
-
-              @media screen and (max-width: 1240px) {
-                margin-top: 1rem;
-                position: static;
-              }
-            `}
-          >
-            <TableOfContents headings={headings} />
-            <ComplexFeedback pageTitle={title} />
-            <ContributingGuidelines
-              pageTitle={title}
-              fileRelativePath={fileRelativePath}
-              issueLabels={['feedback', 'feedback-issue']}
+          <MobileTableOfContents headings={headings} />
+          {translationType === 'machine' && (
+            <MachineTranslationCallout
+              englishHref={location.pathname.replace(
+                `/${pageContext.locale}`,
+                ''
+              )}
             />
-          </Layout.PageTools>
-        </CSSTransition>
-      </div>
+          )}
+          <PageTitle>{title}</PageTitle>
+
+          <LoggedInProvider>
+            <Layout.Content>
+              <MDXContainer body={body} />
+              {showFeedbackModal && !isMobileScreen && (
+                <FeedbackModal onClose={() => setShowFeedbackModal(false)} />
+              )}{' '}
+            </Layout.Content>
+          </LoggedInProvider>
+        </div>
+      ) : (
+        <div
+          css={css`
+            display: grid;
+            grid-template-areas:
+              'mt-disclaimer mt-disclaimer'
+              'page-title page-tools'
+              'content page-tools';
+            grid-template-columns: minmax(0, 1fr) 12.8125rem;
+            grid-column-gap: 2rem;
+
+            iframe {
+              max-width: 100%;
+            }
+
+            @media screen and (max-width: 1240px) {
+              grid-template-areas:
+                'mt-disclaimer'
+                'page-title'
+                'content';
+              grid-template-columns: minmax(0, 1fr);
+            }
+          `}
+        >
+          {translationType === 'machine' && (
+            <MachineTranslationCallout
+              englishHref={location.pathname.replace(
+                `/${pageContext.locale}`,
+                ''
+              )}
+            />
+          )}
+          <PageTitle>{title}</PageTitle>
+
+          <LoggedInProvider>
+            <Layout.Content>
+              <MDXContainer body={body} />
+              {showFeedbackModal && !isMobileScreen && (
+                <FeedbackModal onClose={() => setShowFeedbackModal(false)} />
+              )}{' '}
+            </Layout.Content>
+          </LoggedInProvider>
+          <CSSTransition
+            in={sidebar}
+            classNames="page-tools-transition"
+            timeout={300}
+          >
+            <Layout.PageTools
+              css={css`
+                background: var(--primary-background-color);
+
+                &.page-tools-transition-enter {
+                  translate: calc(var(--sidebar-width) - 50px);
+                }
+                &.page-tools-transition-enter-active {
+                  translate: 0;
+                  transition: 300ms translate ease;
+                }
+                &.page-tools-transition-enter-done {
+                  translate: 0;
+                }
+
+                &.page-tools-transition-exit {
+                  translate: calc(calc(var(--sidebar-width) - 50px) * -1);
+                }
+                &.page-tools-transition-exit-active {
+                  translate: 0;
+                  transition: 300ms translate ease;
+                }
+                &.page-tools-transition-exit-done {
+                  translate: 0;
+                }
+
+                @media screen and (max-width: 1240px) {
+                  display: none;
+                }
+              `}
+            >
+              <TOC headings={headings} />
+              <ComplexFeedback pageTitle={title} />
+              <ContributingGuidelines
+                pageTitle={title}
+                fileRelativePath={fileRelativePath}
+                issueLabels={['feedback', 'feedback-issue']}
+              />
+            </Layout.PageTools>
+          </CSSTransition>
+        </div>
+      )}
     </ErrorBoundary>
   );
 };
