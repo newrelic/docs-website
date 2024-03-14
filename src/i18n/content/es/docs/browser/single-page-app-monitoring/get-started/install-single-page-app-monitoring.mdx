@@ -1,0 +1,22 @@
+---
+title: Instalar monitoreo de aplicaciones de página única
+tags:
+  - Browser
+  - Single page app monitoring
+  - Get started
+metaDescription: How to install New Relic's SPA monitoring for your single-page apps or any apps that pull content dynamically.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+El monitoreo de aplicaciones de página única (SPA) viene con la [instalación predeterminada del agente <InlinePopover type="browser"/>](/docs/browser/browser-monitoring/installation/install-browser-monitoring-agent/).
+
+## Requisitos [#requirements]
+
+Puede revisar [la compatibilidad y los requisitos para el monitoreo de SPA aquí](/docs/browser/new-relic-browser/getting-started/compatibility-requirements-browser-monitoring#spa/).
+
+Cuando configura su primera aplicación de monitor en una cuenta de New Relic, debe aceptar los Términos de servicio. Al aceptar los términos, autoriza a New Relic a recopilar fragmentos de hash de las URL. Solo necesita seleccionar la opción de casilla de verificación una vez para una cuenta.
+
+## Habilitar o deshabilitar el monitoreo de SPA [#enable-spa]
+
+Cuando [habilita el monitoreo de navegador](/docs/browser/browser-monitoring/installation/install-browser-monitoring-agent#enable), el monitoreo SPA se incluye de forma predeterminada porque brinda acceso a una variedad de nuestras características más recientes, incluido el rastreo distribuido. Es posible que sea necesario actualizar alguna instalación de agente anterior. Lea más sobre [los tipos de agente del navegador](/docs/browser/browser-monitoring/installation/install-browser-monitoring-agent#agent-types).
