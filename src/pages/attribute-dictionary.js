@@ -298,8 +298,8 @@ const EventDefinition = memo(
                 <tr key={`${event.name}-${attribute.name}`}>
                   <td
                     css={css`
-                      width: 40%;
-                      word-break: break-all;
+                      width: 25%;
+                      word-break: break-word;
                     `}
                   >
                     <Link
