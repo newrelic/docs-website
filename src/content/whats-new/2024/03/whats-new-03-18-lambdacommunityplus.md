@@ -1,7 +1,7 @@
 ---
 title: 'New Relic AWS Lambda Extension: Enhanced Community Collaboration and Support'
 summary: 'New Relic AWS Lambda is a Community Plus extension that is actively maintained and improved by New Relic engineers '
-releaseDate: '2024-04-18'
+releaseDate: '2024-03-18'
 learnMoreLink: ''
 getStartedLink: 'https://github.com/newrelic/newrelic-lambda-extension'
 ---
