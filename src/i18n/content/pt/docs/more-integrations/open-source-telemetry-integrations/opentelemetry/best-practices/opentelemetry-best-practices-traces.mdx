@@ -1,0 +1,167 @@
+---
+title: 'Rastreamento do OpenTelemetry: práticas recomendadas'
+tags:
+  - Integrations
+  - Open source telemetry integrations
+  - OpenTelemetry
+metaDescription: Here are some tips for working with OpenTelemetry traces and New Relic.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Familiarize-se com estes tópicos trace do OpenTelemetry para garantir que seu rastreamento e extensões apareçam no New Relic.
+
+### Os campos obrigatórios [#required]
+
+Os campos `startTimeUnixNano` e `endTimeUnixNano` em intervalos são obrigatórios de acordo com o protocolo OpenTelemetry para [dados de rastreamento](https://github.com/open-telemetry/opentelemetry-proto/blob/74e38fb4882dd500d77b757d44e97de296c65b05/opentelemetry/proto/trace/v1/trace.proto#L145-L159). Quando `startTimeUnixNano` não está presente, o intervalo é eliminado e um [`NrIntegrationError`](/docs/telemetry-data-platform/manage-data/nrintegrationerror/) é criado. Quando `endTimeUnixNano` não está presente, a duração do seu intervalo é grande e negativa.
+
+O campo `timeUnixNano` no evento span é obrigatório. Quando `timeUnixNano` não está presente, o evento span é eliminado e um [`NrIntegrationError`](/docs/telemetry-data-platform/manage-data/nrintegrationerror/) é criado.
+
+Os campos `traceId` e `spanId` em intervalos são obrigatórios de acordo com o protocolo OpenTelemetry para [dados de rastreamento](https://github.com/open-telemetry/opentelemetry-proto/blob/74e38fb4882dd500d77b757d44e97de296c65b05/opentelemetry/proto/trace/v1/trace.proto#L73-L84). Quando `traceId` ou `spanId` não estão presentes, o intervalo é eliminado e um [`NrIntegrationError`](/docs/telemetry-data-platform/manage-data/nrintegrationerror/) é criado.
+
+### Campos obsoletos e removidos [#removed]
+
+Os códigos de status de span foram descontinuados no [OTLP v0.6.0](https://github.com/open-telemetry/opentelemetry-proto/releases/tag/v0.6.0) e foram removidos a partir da [v0.12.0](https://github.com/open-telemetry/opentelemetry-proto/releases/tag/v0.12.0). Os clientes que configurarem e enviarem essas mensagens e campos verão o valor definido como `UNRECOGNIZED`. Entre em contato com o suporte, pois isso causa problemas.
+
+### Amostragem [#sampling]
+
+Dados trace são o tipo de dados OpenTelemetry mais maduro. Por causa disso, a experiência do usuário OpenTelemetry da New Relic é amplamente baseada em dados trace e, portanto, influenciada pela sua estratégia de amostragem.
+
+Você pode configurar a amostragem em vários locais:
+
+* <DoNotTranslate>**Service:**</DoNotTranslate>
+
+  Use o OpenTelemetry SDK para seu idioma.
+
+* <DoNotTranslate>**Collector:**</DoNotTranslate>
+
+  Se você estiver executando sua própria instância do coletor OpenTelemetry, poderá configurá-lo para fazer formas mais sofisticadas de amostragem, como amostras baseadas na cauda ([veja abaixo](#infinite-tracing)).
+
+Confira esta documentação sobre como configurar diferentes tipos de amostragem:
+
+<CollapserGroup>
+  <Collapser
+    className="freq-link"
+    id="built-in"
+    title="Amostradores integrados do OpenTelemetry"
+  >
+    [Amostradores integrados](https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/trace/sdk.md#built-in-samplers) implementados pelo OpenTelemetry SDK para cada linguagem.
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="ot-tail-based"
+    title="Amostradores tail-based OpenTelemetry"
+  >
+    O coletor OpenTelemetry possui um [processador baseado em cauda de amostragem](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor/tailsamplingprocessor).
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="infinite-tracing"
+    title="New Relic amostragem baseada em cauda com rastreamento infinito"
+  >
+    Infinite Tracing é a opção baseada na cauda de amostragem da New Relic. Você pode usar isso em conjunto com os serviços do instrumento OpenTelemetry. Ao configurar o Rastreamento Infinito, você precisa configurar o aplicativo (ou o coletor) para exportar dados trace para o observador trace New Relic usando OTLP gRPC:
+
+    1. Siga as etapas em [Configurar o observador de rastreamento](/docs/distributed-tracing/infinite-tracing/set-trace-observer/) para obter o valor de `YOUR_TRACE_OBSERVER_URL`.
+
+    2. Ao concluir as etapas do [guia de início rápido](/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/opentelemetry-quick-start/#review-settings), use o valor `YOUR_TRACE_OBSERVER_URL` para configurar sua integração. `YOUR_TRACE_OBSERVER_URL` segue o formato `https://{trace-observer}:443/trace/v1`. Ao definir o endpoint OTLP gRPC, retire o sufixo `/trace/v1` , resultando em um URL no formato `https://{trace-observer}:443`.
+
+    3. Como você deseja que o New Relic analise todo o seu rastreamento, certifique-se de verificar se todos os aplicativos envolvidos no trace [configuraram](https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/configuration/sdk-environment-variables.md) o OpenTelemetry SDK com um amostrador que permite amostragem com base na cauda. Os amostradores `parentbased_always_on` padrão e `always_on` são boas escolhas.
+
+       Observe que apenas dados trace podem ser enviados para o endpoint do observador trace . Seu aplicativo (ou coletor) precisará configurar separadamente estratégias de exportação para métrica e log do OpenTelemetry.
+  </Collapser>
+</CollapserGroup>
+
+### Atributo de recursos e bytes armazenados [#resources]
+
+[Os atributos de recurso](https://opentelemetry.io/docs/reference/specification/resource/semantic_conventions/) OpenTelemetry são definidos como uma representação imutável da entidade que produz telemetria e armazenados como `attributes`. É importante entender como esses atributos são aplicados ao rastreamento de dados no New Relic e como eles podem impactar os bytes armazenados. Podemos observar o impacto do atributo de recurso usando um exemplo de carga útil OTLP e inspecionando a saída da consulta NRQL resultante.
+
+Exemplo de carga útil trace OTLP
+
+```json
+{
+    "resourceSpans": [
+        {
+            "resource": {
+                "attributes": [
+                    {
+                        "key": "service.name",
+                        "value": {
+                            "stringValue": "newrelic-otlp-service"
+                        }
+                    },
+                    {
+                        "key": "process.command_line",
+                        "value": {
+                            "stringValue": "/opt/java/openjdk/bin/java -javaagent:agent/opentelemetry-agent.jar"
+                        }
+                    }
+                ]
+            },
+            "scopeSpans": [
+                {
+                    "scope": {
+                        "name": "newrelic-instrumentation-library",
+                        "version": "1.0.0"
+                    },
+                    "spans": [
+                        {
+                            "attributes": [
+                                {
+                                    "key": "message_id",
+                                    "value": {
+                                        "stringValue": "000000-aaaaaa-111111-bbbbbb"
+                                    }
+                                }
+                            ],
+                            "startTimeUnixNano": "1677182057000000000",
+                            "endTimeUnixNano": "1677182059000000000",
+                            "kind": "SPAN_KIND_INTERNAL",
+                            "name": "example-span",
+                            "spanId": "c469d81892057f5f",
+                            "traceId": "aa04993b9acefbedea802f8d96e4bc58"
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}
+```
+
+Representação de consulta NRQL
+
+```json
+{
+    "duration.ms": 2000.0,
+    "entity.guid": "OBFUSCATED",
+    "entity.name": "newrelic-otlp-service",
+    "entity.type": "SERVICE",
+    "entityGuid": "OBFUSCATED",
+    "guid": "c469d81892057f5f",
+    "id": "c469d81892057f5f",
+    "instrumentation.provider": "opentelemetry",
+    "message_id": "000000-aaaaaa-111111-bbbbbb",
+    "name": "example-span",
+    "newRelic.ingestPoint": "api.traces",
+    "newrelic.source": "api.traces.otlp",
+    "nr.isPrimaryEntityData": true,
+    "otel.library.name": "newrelic-instrumentation-library",
+    "otel.library.version": "1.0.0",
+    "process.command_line": "/opt/java/openjdk/bin/java -javaagent:agent/opentelemetry-agent.jar",
+    "service.name": "newrelic-otlp-service",
+    "span.kind": "internal",
+    "timestamp": 1677182057000,
+    "trace.id": "aa04993b9acefbedea802f8d96e4bc58",
+    "traceId": "aa04993b9acefbedea802f8d96e4bc58"
+}
+```
+
+<Callout variant="tip">
+  Este exemplo é uma comparação simplificada destinada a ilustrar os conceitos subjacentes. As versões do mundo real parecerão um pouco diferentes porque têm mais complexidade.
+</Callout>
+
+A coisa mais importante a se notar com a atribuição de recursos é a diferença potencial no tamanho da carga enviada em comparação com o que está armazenado no NRDB. Todos os valores de atributo de recurso serão aplicados a cada período na carga útil do OTLP. O exemplo acima mostra apenas um único período sendo enviado, mas se a carga contivesse 100 períodos, cada um deles teria `process.command_line` e `service.name` aplicados a eles.
+
+Para alguns aplicativos baseados em Java, o atributo `process.command_line` padrão pode ter milhares de caracteres, o que pode resultar em um aumento significativo e inesperado em bytes faturáveis. Se esses atributos de recursos não fornecerem valor, eles poderão ser desativados seguindo o [OpenTelemetry e os comprimentos dos atributos: práticas recomendadas](/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/best-practices/opentelemetry-best-practices-attributes/)
