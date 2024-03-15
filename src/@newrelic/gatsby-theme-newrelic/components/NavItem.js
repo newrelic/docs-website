@@ -96,6 +96,7 @@ const NavItem = ({
         css`
           span,
           svg {
+            color: white;
             opacity: 1;
         `}
 

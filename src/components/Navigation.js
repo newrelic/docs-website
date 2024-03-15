@@ -39,7 +39,7 @@ const Navigation = ({ nav, className }) => {
         span,
         svg {
           color: var(--system-text-primary-dark);
-          opacity: 0.7;
+          opacity: 0.8;
         }
       `}
       id="nav"
@@ -56,7 +56,7 @@ const Navigation = ({ nav, className }) => {
                 <p
                   css={css`
                     color: var(--system-text-primary-dark);
-                    opacity: 0.7;
+                    opacity: 0.8;
                     margin: 0;
                     font-size: 14px;
                     font-weight: 500;
