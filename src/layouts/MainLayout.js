@@ -226,7 +226,7 @@ const MainLayout = ({ children, pageContext }) => {
                     overflow-x: hidden;
                     height: calc(
                       100vh - ${navHeaderHeight} - var(--global-header-height) -
-                        4rem
+                        3rem
                     );
                   `}
                 />
