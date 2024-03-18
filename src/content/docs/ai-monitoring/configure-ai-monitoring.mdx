@@ -1,10 +1,10 @@
 ---
-title: 'Configure AI monitoring'
+title: 'Customize the agent for AI monitoring'
 metaDescription: 'You can apply certain configurations to your APM agents to change how your AI data appears in New Relic.'
 freshnessValidatedDate: never
 ---
 
-Once you install AI monitoring, you can configure the default behavior of the agent or update your app to collect different kinds of data. 
+Once you [install AI monitoring](/install/ai-monitoring), you can configure the default behavior of the agent or update your app to collect different kinds of data. 
 
 ## Configure the agent [#configure-agents]
 
@@ -15,11 +15,15 @@ Update default agent behavior for AI monitoring at these agent configuration doc
 * [Python](/docs/apm/agents/python-agent/configuration/python-agent-configuration/#ai-monitoring)
 * [Ruby](/docs/apm/agents/ruby-agent/configuration/ruby-agent-configuration/#ai-monitoring)
 
-## Enable token count API [#enable-token]
+## Implement token count API [#enable-token]
 
-If you've disabled `ai_monitoring.record_content.enabled`, you may still want to know the number of tokens your app uses in an interaction. If you haven't disabled content from being recorded by the agent, you don't need to invoke the token count API. 
+<Callout variant="tip">
+If you haven't disabled `ai_monitoring.record_content.enabled`, you don't need to implement the token count callback API.
+</Callout>
 
-Update your app code with the below code snippets: 
+Disabling `ai_monitoring.record_content.enabled` stops the agent from sending AI content to New Relic. This means the agent won't send token counts for interactions with your app. You can implement a callback in your app code to determine the token counts locally, then have that information forwarded to New Relic.
+
+Refer to the below snippets as a reference guide for counting tokens locally:
 
 <CollapserGroup>
     <Collapser
@@ -36,22 +40,32 @@ Update your app code with the below code snippets:
     >
 
     ```js
-    // register callback to set token counts 
-      newrelic.setLlmTokenCount(callback)
+    const tiktoken = require('tiktoken')
 
-      /**
-      * Sample callback to calculate token count. Must be a synchronous method.
-      * This callback is optional, and is designed for customers that cannot send
-      * the content in the Llm events but still want token counts in the case
-      * they are not present.
-      * @param {string} model name of model
-      * @param {string} content content of call
-      * @returns {int} token count for content, customers must use relevant libraries to calculate this
-      */
-      function callback(model, content) {
-        // put your business logic to calculate token counts
-        return 10
+    newrelic.setLlmTokenCountCallback(tokenCountCallback)
+
+    /**
+     * Calculate token counts locally based on the model being used and the content.
+     * This callback will be invoked for each message as part of a communication with the LLM.
+     * If the application supports more than one model, it may require finding libraries for
+     * each model to support token counts appropriately.
+     * 
+     * @param {string} model - name of model (i.e. gpt-3.5-turbo)
+     * @param {string} content - prompt or completion response
+     * @returns {number} number of tokens that represent the supplied content for the given model
+     */
+    function tokenCountCallback(model, content) {
+      if (model.includes('gpt')) {
+        const enc = tiktoken.encoding_for_model(model)
+        const count = enc.encoding(content).length()
+        enc.free()
+
+        return count
       }
+
+      // for models that are not supported in the example
+      return 0
+    }
     ```
 
     </Collapser>
@@ -59,35 +73,57 @@ Update your app code with the below code snippets:
         id="python-token-api"
         title="Python"
     >
-        INSERT_TEXT_HERE
+
+    This callback will be invoked for each message as part of a communication with the LLM. If the application supports more than one model, it may require finding libraries for each model to support token counts appropriately.
+
+    Refer to the following arguments when adapting this example:
+
+      * `model`: Name of the model provided by or returned from the LLM
+      * `content`: Context, input or output of the LLM
+
+    ```py
+        def token_count_callback(model, content):
+
+        if "gpt" in model:
+            import tiktoken
+
+            enc = tiktoken.encoding_for_model(model)
+            return len(enc.encode(content))
+
+        # for models that are not supported in the example
+        return 0
+
+        # add this line where your application starts up
+          newrelic.agent.set_llm_token_count_callback(token_count_callback)
+    ```
+
     </Collapser>
     <Collapser
         id="ruby-token-api"
         title="Ruby"
     >
         ```ruby
-          # Write a proc to calculate token counts
-          # The proc should accept a hash as an argument with two keys:
-          :model => [String] 
-          # The name of the LLM model 
-          :content => [String] 
-          # The message content/prompt or 
-          # embedding input
-          # 
-          # It should return an integer representing the token count for 
-          # the content.
-          callback_proc = proc do |hash| 
-            # your calculation behavior
-            hash[:model] + hash[:content]
-            10
-          end 
+          require 'tiktoken_ruby'
 
-          #register this callback proc using the API
-          #if you're using Rails, this might be placed in an initializer
-          NewRelic::Agent.set_llm_token_count_callback(callback_proc)
+          def token_count_callback(model, content)
+              if model.includes? "gpt"
+                  enc = Tiktoken.encoding_for_model(model)
+                  return enc.encode(content).length
+              end
+
+              # for models that are not supported in the example
+              return 0
+          end
+
+          NewRelic::Agent.set_llm_token_count_callback(token_count_callback)
         ```
     </Collapser>
 </CollapserGroup>
+
+Keep in mind that: 
+
+  * It's your responsibility to pick an appropriate tokenizer for your supported models and app languages.
+  * The below snippets are examples for how you might use an LLM token count callback. That said, we do not provide support for setting up the token count API.
 
 ## Enable user feedback API [#enable-feedback]
 
