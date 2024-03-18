@@ -14,7 +14,7 @@ Let’s dive into what this entails for you:
 
 * **Active maintainers:** A dedicated team of engineers within New Relic maintains this project, ensures the extension's stability and continuous improvement.
 * **Open development:** The code is on GitHub, welcoming your contributions through issues and pull requests. 
-* **Community support:** The New Relic Explorers Hub, a vibrant community forum, is your one-stop shop for troubleshooting with fellow users and enthusiasts. If you are 
+* **Community support:** The New Relic Explorers Hub, a vibrant community forum, is your one-stop shop for troubleshooting with fellow users and enthusiasts.
 * **Comprehensive documentation:** Everything you need to get started and leverage the extension's full potential is readily available in the project repository itself.
 
 
