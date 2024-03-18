@@ -99,13 +99,11 @@ const BasicDoc = ({ data, location, pageContext }) => {
           iframe {
             max-width: 100%;
           }
-
           @media screen and (max-width: 1240px) {
             grid-template-areas:
               'mt-disclaimer'
               'page-title'
-              'content'
-              'page-tools';
+              'content';
             grid-template-columns: minmax(0, 1fr);
           }
         `}
@@ -160,8 +158,7 @@ const BasicDoc = ({ data, location, pageContext }) => {
               }
 
               @media screen and (max-width: 1240px) {
-                margin-top: 1rem;
-                position: static;
+                display: none;
               }
             `}
           >
