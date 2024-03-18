@@ -2,6 +2,7 @@ const { Command } = require('commander');
 const core = require('@actions/core');
 const github = require('@actions/github');
 const { fetchPaginatedGHResults } = require('./utils/github-api-helpers');
+const { LOCALES } = require('../actions/utils/constants');
 
 const getCommandLineOptions = () => {
   // Sets up commander to use input arguments for this script from the CLI or GitHub Actions - CM
@@ -19,21 +20,15 @@ const getSitesToBuild = (files) => {
   files.forEach((file) => {
     if (
       file.status === 'added' &&
-      !file.raw_url.includes('/docs/jp/') &&
-      !file.raw_url.includes('/docs/kr/')
+      !LOCALES.every((locale) => file.raw_url.includes(`/docs/${locale}/`))
     ) {
-      sites.add('jp');
-      sites.add('kr');
-    } else if (
-      (file.status === 'modified' || file.status === 'added') &&
-      file.raw_url.includes('/docs/jp/')
-    ) {
-      sites.add('jp');
-    } else if (
-      (file.status === 'modified' || file.status === 'added') &&
-      file.raw_url.includes('/docs/kr/')
-    ) {
-      sites.add('kr');
+      LOCALES.forEach((locale) => sites.add(locale));
+    } else if (file.status === 'modified' || file.status === 'added') {
+      LOCALES.forEach((locale) => {
+        if (file.raw_url.includes(`/docs/${locale}/`)) {
+          sites.add(locale);
+        }
+      });
     }
   });
   return Array.from(sites);
@@ -45,7 +40,7 @@ const main = async () => {
   const options = getCommandLineOptions();
   const locale = options.locale || null;
   const url = options.url || null;
-  const octokit = github.getOctokit(process.env.OPENSOURCE_BOT_TOKEN);
+  const octokit = github.getOctokit(process.env.GITHUB_TOKEN);
   const repo = github.context.repo;
 
   if (locale) {
@@ -65,35 +60,24 @@ const main = async () => {
   if (url) {
     const prFileData = await fetchPaginatedGHResults(
       url,
-      process.env.OPENSOURCE_BOT_TOKEN
+      process.env.GITHUB_TOKEN
     );
 
     const sitesToBuild = getSitesToBuild(prFileData);
 
-    if (sitesToBuild.includes('jp')) {
-      try {
-        await octokit.rest.repos.merge({
-          owner: repo.owner,
-          repo: repo.repo,
-          base: 'main-jp',
-          head: process.env.SOURCE_REF,
-          commit_message: 'Merged main into main-jp',
-        });
-      } catch (e) {
-        core.setFailed(e.message);
-      }
-    }
-    if (sitesToBuild.includes('kr')) {
-      try {
-        await octokit.rest.repos.merge({
-          owner: repo.owner,
-          repo: repo.repo,
-          base: 'main-kr',
-          head: process.env.SOURCE_REF,
-          commit_message: 'Merged main into main-kr',
-        });
-      } catch (e) {
-        core.setFailed(e.message);
+    for (const locale of LOCALES) {
+      if (sitesToBuild.includes(locale)) {
+        try {
+          await octokit.rest.repos.merge({
+            owner: repo.owner,
+            repo: repo.repo,
+            base: `main-${locale}`,
+            head: process.env.SOURCE_REF,
+            commit_message: `Merged main into main-${locale}`,
+          });
+        } catch (e) {
+          core.setFailed(e.message);
+        }
       }
     }
   }
