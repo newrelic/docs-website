@@ -14,7 +14,7 @@ Live archives is our long-term logs storage solution that lets you meet complian
 - **Eliminate toil**: Live archives removes processes that stand between you and your logs. Worry less about rehydrating, reloading, and re-indexing logs, or moving data across multiple locations and tiers. When you need to respond to compliance or audit requests, live archives ensures your logs are right where you expect them to be, without any additional steps.
 - **Reduce costs**: Live archives eliminates the need to pay for ingress and egress, indexing, reformatting data, or the need for additional tools to manage compliance risks. 
 
-![Screenshot of the retention management UI, showing live archives](./logs-live-archives-retention.png "Screenshot of the retention management UI, showing live archives")
+![Screenshot of the retention management UI, showing live archives](./logs-live-archives-retention.webp "Screenshot of the retention management UI, showing live archives")
 
 ## How to get started
 

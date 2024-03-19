@@ -129,7 +129,7 @@ describe('check-jobs-progress tests', () => {
       const slugStatuses = [
         { ok: true, slug: 'fake_slug.txt', locale: 'ja-JP' },
         { ok: false, slug: 'fake_slug_2.txt', locale: 'ko-KR' },
-        { ok: true, slug: 'fake_slug_3.txt', locale: 'ko-KR' },
+        { ok: true, slug: 'fake_slug_3.txt', locale: 'es-LA' },
       ];
 
       await updateTranslationRecords(PROJECT_ID, slugStatuses);
@@ -156,7 +156,7 @@ describe('check-jobs-progress tests', () => {
       expect(updateTranslations.mock.calls[2][0]).toStrictEqual({
         slug: 'fake_slug_3.txt',
         status: 'IN_PROGRESS',
-        locale: 'ko-KR',
+        locale: 'es-LA',
         project_id: '7470e5b60',
       });
       expect(updateTranslations.mock.calls[2][1]).toStrictEqual({
