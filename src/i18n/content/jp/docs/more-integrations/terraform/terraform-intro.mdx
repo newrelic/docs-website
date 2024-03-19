@@ -1,0 +1,436 @@
+---
+title: New Relic と Terraform を使い始める
+metaDescription: 'Learn how to provision New Relic resources using [Terraform](https://www.terraform.io/).'
+translationType: machine
+---
+
+[Terraform](https://www.terraform.io/)は、HashiCorp によって構築された、人気のあるコードとしてのインフラストラクチャ ソフトウェア ツールです。これを使用して、New Relic ダッシュボードやアラートなど、あらゆる種類のインフラストラクチャとサービスをプロビジョニングします。
+
+このガイドでは、Terraform で New Relic アラートを設定する方法を学びます。具体的には、アラート ポリシー、4 つのアラート条件、および通知チャネルをプロビジョニングします。4 つのアラート条件は、 [Google の Site Reliability Engineering book](https://landing.google.com/sre/sre-book/toc/index.html)で紹介されている監視の[4 つのゴールデン シグナル](https://landing.google.com/sre/sre-book/chapters/monitoring-distributed-systems/#xref_monitoring_golden-signals)に基づいています。
+
+* **レイテンシ:**アプリケーションがリクエストを処理するのにかかる時間。
+* **トラフィック:**システムが受け取るリクエストの量。
+* **エラー:**失敗したリクエストの割合。
+* **飽和:**アプリケーションの要求を満たすためのリソースへのストレス。
+
+<Video
+  id="vifxeilp2h"
+  type="wistia"
+/>
+
+## あなたが始める前に
+
+このガイドを使用するには、New Relic と Terraform の両方に関する基本的な知識が必要です。New Relic オープン ソース エージェントをまだデプロイしていない場合は、アプリケーションに[New Relic をインストール](https://docs.newrelic.com/docs/agents/manage-apm-agents/installation/install-agent)します。また、 [Terraform CLI をインストールします](https://learn.hashicorp.com/collections/terraform/cli)。
+
+<Steps>
+  <Step>
+    ## Bootstrap Terraform と New Relic プロバイダー
+
+    まず、作業ディレクトリを初期化し、Terraform 構成ファイルを作成します。
+
+    ```bash
+    mkdir terraform-project && cd terraform-project
+    touch main.tf
+    ```
+
+    次に、 **main.tf**で`terraform`および`required_providers`ブロックを設定して、Terraform に New Relic プロバイダーをインストールして使用するように指示します。
+
+    ```hcl
+    terraform {
+      # Require Terraform version 1.0 (recommended)
+      required_version = "~> 1.0"
+
+      # Require the latest 2.x version of the New Relic provider
+      required_providers {
+        newrelic = {
+          source  = "newrelic/newrelic"
+        }
+      }
+    }
+    ```
+
+    このコード ブロックでは、必要な Terraform のバージョンを 1.0 に設定し、New Relic プロバイダーを最新の 2.x バージョンに設定しています。セットアップに適切な[バージョン制約](https://www.terraform.io/docs/configuration/version-constraints.html)を使用すると、Terraform 実行の安定性が向上します。
+
+    Terraform と New Relic プロバイダーのバージョンを設定したので、New Relic プロバイダーを構成する必要があります。
+  </Step>
+
+  <Step>
+    ## New Relic プロバイダーを構成する
+
+    `terraform`がすべて設定されたら、次の項目で New Relic `provider`を構成します。
+
+    1. あなたの[New Relic アカウント ID](https://docs.newrelic.com/docs/accounts/install-new-relic/account-setup/account-id) 。
+
+    2. あなたの新しいレリック
+
+       <InlinePopover type="userKey"/>
+
+       .ほとんどのユーザー キーはプレフィックス `NRAK-`で始まります。
+
+    3. あなたの[New Relic リージョン](https://docs.newrelic.com/docs/using-new-relic/welcome-new-relic/get-started/our-eu-us-region-data-centers#verifying-account).アカウント設定ページが`one.newrelic.com`にある場合は地域は`US`であり、アカウントが`one.eu.newrelic.com`にある場合は`EU`です。
+
+    **main.tf**で、これらの値をプロバイダーに設定します。
+
+    ```hcl
+    provider "newrelic" {
+      account_id = 12345   # Your New Relic account ID
+      api_key = "NRAK-***" # Your New Relic user key
+      region = "US"        # US or EU (defaults to US)
+    }
+    ```
+
+    New Relic プロバイダーでこれらの値を設定することにより、New Relic API を介してアカウントに代わって変更を行うようにそのプロバイダーを構成します。
+
+    <Callout variant="tip">
+      [環境変数](https://registry.terraform.io/providers/newrelic/newrelic/latest/docs/guides/provider_configuration)を使用して New Relic プロバイダーを設定することもできます。これは、プロバイダー構成のデフォルト値を設定する便利な方法です。
+
+      New Relic プロバイダーの構成の詳細については、公式のプロバイダー[ドキュメント](https://registry.terraform.io/providers/newrelic/newrelic/latest/docs/guides/provider_configuration)を参照してください。
+    </Callout>
+
+    New Relic プロバイダーを構成したら、Terraform を初期化します。
+
+    ```bash
+    terraform init
+    ```
+
+    Terraform が New Relic プロバイダーのインストールと登録を完了すると、成功メッセージと、 `terraform plan`の実行などの次のアクション可能なステップが表示されます。ただし、 `terraform plan`を実行する前に、リソースを作成する必要があります。
+  </Step>
+
+  <Step>
+    ## ゴールデン シグナル アラートを使用して New Relic アラート ポリシーを作成する
+
+    New Relic プロバイダーを構成して初期化したら、アプリケーションのアラート戦略を定義できます。
+
+    特定のアプリケーションをターゲットにしているため、[`newrelic_entity`](https://registry.terraform.io/providers/newrelic/newrelic/latest/docs/data-sources/entity)を使用して New Relic からアプリケーション情報をフェッチし、構成内の別の場所でそのデータを参照できるようにします。
+
+    ```hcl
+    data "newrelic_entity" "example_app" {
+      name = "Your App Name" # Must be an exact match to your application name in New Relic
+      domain = "APM" # or BROWSER, INFRA, MOBILE, SYNTH, depending on your entity's domain
+      type = "APPLICATION"
+    }
+    ```
+
+    次に、 [`newrelic_alert_policy`](https://registry.terraform.io/providers/newrelic/newrelic/latest/docs/resources/alert_policy)を作成します。アプリケーションの名前に基づいて、ポリシーに動的な名前を付けます。これは、ポリシーの範囲を指定するのに役立ちます。
+
+    ```hcl
+    resource "newrelic_alert_policy" "golden_signal_policy" {
+      name = "Golden Signals - ${data.newrelic_entity.example_app.name}"
+    }
+    ```
+
+    この時点で、ドライランで構成をテストできるはずです。
+
+    ```bash
+    terraform plan
+    ```
+
+    Terraform の実行計画を示す出力が表示されます。プランには、 `terraform apply`の実行時に Terraform が実行するアクションが含まれています。
+
+    ```bash copyable=false
+    [output] {muted}# Example output
+    [output] ------------------------------------------------------------------------
+    [output]
+    [output] An execution plan has been generated and is shown below.
+    [output] Resource actions are indicated with the following symbols:
+    [output]   + create
+    [output]
+    [output] Terraform will perform the following actions:
+    [output]
+    [output]   # newrelic_alert_policy.golden_signal_policy will be created
+    [output]   + resource "newrelic_alert_policy" "golden_signal_policy" {
+    [output]       + account_id          = (known after apply)
+    [output]       + id                  = (known after apply)
+    [output]       + incident_preference = "PER_POLICY"
+    [output]       + name                = "Golden Signals - Your App Name"
+    [output]     }
+    [output]
+    [output] Plan: 1 to add, 0 to change, 0 to destroy.
+    [output]
+    [output] ------------------------------------------------------------------------
+    ```
+
+    この場合、プランは、 `terraform apply`を実行すると Terraform が新しいアラート ポリシーを作成することを示しています。詳細を確認したら、プランを実行して、New Relic アカウントにアラート ポリシー リソースをプロビジョニングします。
+
+    ```bash
+    terraform apply
+    ```
+
+    `apply`を変更するたびに、Terraform は、実行するように指示したアクションを確認するよう求めます。「はい」と入力します。
+
+    実行中、Terraform はログをコンソールに送信します。
+
+    ```bash copyable=false
+    [output] {muted}# Example output of `terraform apply`
+    [output] newrelic_alert_policy.golden_signal_policy: Creating...
+    [output] newrelic_alert_policy.golden_signal_policy: Creation complete after 1s [id=111222333]
+    [output]
+    [output] Apply complete! Resources: 1 added, 0 changed, 0 destroyed.
+    ```
+
+    [New Relic にログインし、](https://login.newrelic.com/login) [**アラート ポリシー**に移動し](https://docs.newrelic.com/docs/alerts-applied-intelligence/new-relic-alerts/alert-policies/create-edit-or-find-alert-policy#alert-policy-view)て、Terraform が新しいポリシーを作成したことを確認します。
+
+    アラート条件を作成する次のステップに進む際に、各リソースを構成した後に`terraform apply`を実行できます。アラート ポリシーの Web ページを更新して、新しいリソースを表示します。
+  </Step>
+
+  <Step>
+    ## 4 つのゴールデン シグナルに基づいてアラート条件をプロビジョニングする
+
+    次に、レイテンシ、トラフィック、エラー、飽和の 4 つのゴールデン シグナルに基づいて、アプリケーションのアラート条件を追加します。これらのアラート条件を、前の手順で作成したアラート ポリシーに適用します。
+
+    **レイテンシー**
+
+    ほとんどの人は、応答時間が遅くなることは避けたいと考えています。アプリケーションの全体的な応答時間が 5 分間で 5 秒を超えた場合にトリガーする[`newrelic_alert_condition`](https://registry.terraform.io/providers/newrelic/newrelic/latest/docs/resources/alert_condition)を作成できます。
+
+    ```hcl
+    # Response time
+    resource "newrelic_alert_condition" "response_time_web" {
+      policy_id       = newrelic_alert_policy.golden_signal_policy.id
+      name            = "High Response Time (Web) - ${data.newrelic_entity.example_app.name}"
+      type            = "apm_app_metric"
+      entities        = [data.newrelic_entity.example_app.application_id]
+      metric          = "response_time_web"
+      runbook_url     = "https://www.example.com"
+      condition_scope = "application"
+
+      term {
+        duration      = 5
+        operator      = "above"
+        priority      = "critical"
+        threshold     = "5"
+        time_function = "all"
+      }
+    }
+    ```
+
+    `policy_id`を使用して、このアラート条件を以前に構成したアラート ポリシーにリンクしていることに注意してください。
+
+    **トラフィック**
+
+    トラフィックは、特定の瞬間にシステムにどれだけの需要があるかを表します。スループットは、アプリケーションへのトラフィック量を測定する指標です。アプリケーションの全体的な応答率が 1 分あたり 5 リクエストを 5 分間下回った場合にトリガーする`newrelic_alert_condition`を作成します。
+
+    ```hcl
+    # Low throughput
+    resource "newrelic_alert_condition" "throughput_web" {
+      policy_id       = newrelic_alert_policy.golden_signal_policy.id
+      name            = "Low Throughput (Web)"
+      type            = "apm_app_metric"
+      entities        = [data.newrelic_entity.example_app.application_id]
+      metric          = "throughput_web"
+      condition_scope = "application"
+
+      # Define a critical alert threshold that will
+      # trigger after 5 minutes below 5 requests per minute.
+      term {
+        priority      = "critical"
+        duration      = 5
+        operator      = "below"
+        threshold     = "5"
+        time_function = "all"
+      }
+    }
+    ```
+
+    このタイプのアラートは、1 日を通して一定のベースライン トラフィックが予想される場合に役立ちます。トラフィックの低下は問題を示している可能性があります。
+
+    **エラー**
+
+    アプリケーションのエラー率が急上昇した場合は、それについて知る必要があります。アプリケーションのエラー率が 5 分間 5% を超えた場合にトリガーする`newrelic_alert_condition`を作成します。
+
+    ```hcl
+    # Error percentage
+    resource "newrelic_alert_condition" "error_percentage" {
+      policy_id       = newrelic_alert_policy.golden_signal_policy.id
+      name            = "High Error Percentage"
+      type            = "apm_app_metric"
+      entities        = [data.newrelic_entity.example_app.application_id]
+      metric          = "error_percentage"
+      runbook_url     = "https://www.example.com"
+      condition_scope = "application"
+
+      # Define a critical alert threshold that will trigger after 5 minutes above a 5% error rate.
+      term {
+        duration      = 5
+        operator      = "above"
+        threshold     = "5"
+        time_function = "all"
+      }
+    }
+    ```
+
+    **飽和**
+
+    飽和度は、サービスがどの程度「満杯」であるかを表し、CPU 時間、メモリ割り当て、キューの深さなど、さまざまな形をとることができます。この例では、アプリケーションを提供するホストに[New Relic Infrastructure](https://newrelic.com/products/infrastructure)エージェントが既にインストールされており、CPU 使用率が特定のしきい値を超えたときにアラートを設定したいとします。
+
+    ```hcl
+    # High CPU usage
+    resource "newrelic_infra_alert_condition" "high_cpu" {
+      policy_id   = newrelic_alert_policy.golden_signal_policy.id
+      name        = "High CPU usage"
+      type        = "infra_metric"
+      event       = "SystemSample"
+      select      = "cpuPercent"
+      comparison  = "above"
+      runbook_url = "https://www.example.com"
+      where       = "(`applicationId` = '${data.newrelic_entity.example_app.application_id}')"
+
+      # Define a critical alert threshold that will trigger after 5 minutes above 90% CPU utilization.
+      critical {
+        duration      = 5
+        value         = 90
+        time_function = "all"
+      }
+    }
+    ```
+
+    インフラストラクチャ アラートについては、これらのホストの合計 CPU 使用率が 5 分間で 90% を超えた場合にトリガーする[`newrelic_infra_alert_condition`](https://registry.terraform.io/providers/newrelic/newrelic/latest/docs/resources/infra_alert_condition)を作成しました。
+  </Step>
+
+  <Step>
+    ## アラートがトリガーされたときに通知を受け取る
+
+    いくつかの重要なアラート条件を構成したので、通知先と通知チャネルをアラート ポリシーに追加して、アラートがトリガーされたときに適切な人に通知されるようにします。これを行うには、 [`newrelic_notification_destination`](https://registry.terraform.io/providers/newrelic/newrelic/latest/docs/resources/notification_destination)と[`newrelic_notification_channel`](https://registry.terraform.io/providers/newrelic/newrelic/latest/docs/resources/notification_channel)を使用します。
+
+    まず、メール通知先を作成して受信者リストを構成します。受信者リストは、特定の人またはチームにすることができます。これは、通知チャネルを作成するときに使用されます。
+
+    ```hcl
+    resource "newrelic_notification_destination" "team_email_destination" {
+      name = "email-example"
+      type = "EMAIL"
+
+      property {
+        key = "email"
+        value = "team.member1@email.com,team.member2@email.com,team.member3@email.com"
+      }
+    }
+    ```
+
+    複数の電子メールを指定する場合は、カンマ区切りの電子メール リストを使用します。
+
+    次に、電子メール通知チャネル テンプレートを作成して、アラート通知を電子メールに送信します。チャネルを宛先 ID に関連付けます。
+
+    ```hcl
+    resource "newrelic_notification_channel" "team_email_channel" {
+      name = "email-example"
+      type = "EMAIL"
+      destination_id = newrelic_notification_destination.team_email_destination.id
+      product = "IINT"
+
+      property {
+        key = "subject"
+        value = "New Subject"
+      }
+    }
+    ```
+
+    最後になりましたが、通知チャネルをアラート ポリシーに適用するために、 [`newrelic_workflow`](https://registry.terraform.io/providers/newrelic/newrelic/latest/docs/resources/workflow)を作成します。
+
+    ```hcl
+    resource "newrelic_workflow" "team_workflow" {
+      name = "workflow-example"
+      enrichments_enabled = true
+      destinations_enabled = true
+      workflow_enabled = true
+      muting_rules_handling = "NOTIFY_ALL_ISSUES"
+
+      enrichments {
+        nrql {
+          name = "Log"
+          configurations {
+           query = "SELECT count(*) FROM Metric"
+          }
+        }
+      }
+
+      issues_filter {
+        name = "filter-example"
+        type = "FILTER"
+
+        predicates {
+          attribute = "accumulations.sources"
+          operator = "EXACTLY_MATCHES"
+          values = [ "newrelic" ]
+        }
+      }
+
+      destination_configurations {
+        channel_id = newrelic_notification_channel.team_email_channel.id
+      }
+    }
+    ```
+
+    `newrelic_workflow`は、作成したばかりの通知チャネルをアラートにリンクします。
+
+    通知構成を完了するには、最後にもう一度`terraform apply`を実行して、構成済みのすべてのリソースが最新であることを確認してください。
+
+    ## アラートがトリガーされたときに通知を受け取る (非推奨)
+
+    <Callout variant="important">
+      アラート チャネルは非推奨であり、将来のバージョンではサポートされません。
+    </Callout>
+
+    いくつかの重要なアラート条件を構成したので、通知チャネルをアラート ポリシーに追加して、アラートがトリガーされたときに適切な人が確実に通知されるようにします。そのためには、 [`newrelic_alert_channel`](https://registry.terraform.io/providers/newrelic/newrelic/latest/docs/resources/alert_channel)を使用します。
+
+    まず、メール通知チャネルを作成して、アラート通知をメールに送信します。アラートがトリガーされたときに特定の人またはチームに通知する場合は、これを使用します。
+
+    ```hcl
+    resource "newrelic_alert_channel" "team_email" {
+      name = "example"
+      type = "email"
+
+      config {
+        recipients              = "yourawesometeam@example.com"
+        include_json_attachment = "1"
+      }
+    }
+    ```
+
+    複数の`recipients`を指定する場合は、電子メールのカンマ区切りリストを使用してください。
+
+    最後になりましたが、通知チャネルをアラート ポリシーに適用するために、 [`newrelic_alert_policy_channel`](https://registry.terraform.io/providers/newrelic/newrelic/latest/docs/resources/alert_policy_channel)を作成します。
+
+    ```hcl
+    resource "newrelic_alert_policy_channel" "golden_signals" {
+      policy_id   = newrelic_alert_policy.golden_signal_policy.id
+      channel_ids = [newrelic_alert_channel.team_email.id]
+    }
+    ```
+
+    `newrelic_alert_policy_channel`は、作成したばかりの通知チャネルをアラート ポリシーにリンクします。
+
+    ゴールデン シグナル アラートの構成を完了するには、最後にもう一度`terraform apply`を実行して、構成済みのすべてのリソースが最新であることを確認してください。
+
+    <Callout
+      variant="tip"
+      title="エクストラクレジット"
+    >
+      `new_relic_alert_channel` 電子メール、Slack、PagerDuty など、 [いくつかのタイプの通知チャネルをサポートしています](https://registry.terraform.io/providers/newrelic/newrelic/latest/docs/resources/alert_channel#argument-reference)。したがって、これをさらに詳しく調べたい場合は、Slack などの 2 番目のチャネル タイプのアラート チャネルを作成してみてください。
+
+      ```hcl
+      # Slack notification channel
+      resource "newrelic_alert_channel" "slack_notification" {
+        name = "slack-example"
+        type = "slack"
+
+        config {
+          # Use the URL provided in your New Relic Slack integration
+          url     = "https://hooks.slack.com/services/XXXXXXX/XXXXXXX/XXXXXXXXXX"
+          channel = "your-slack-channel-for-alerts"
+        }
+      }
+      ```
+
+      この変更を`apply`する前に、 [New Relic Slack アプリ](https://slack.com/apps/A0F827KK2-new-relic-alerts)を Slack アカウントに追加し、通知を送信する Slack チャネルを選択する必要があります。この新しいアラート チャネルでは、トリガーされたアラートが選択した Slack チャネルに通知を送信します。
+    </Callout>
+  </Step>
+</Steps>
+
+## 結論
+
+配置したアラート システムをチームが評価すると、アラートのしきい値や期間などの構成値を微調整する必要がある場合があることがわかります。リモート リポジトリで Terraform プロジェクトを管理している場合は、プル リクエストを送信して、チームが残りのコード コントリビューションとともにこれらの変更をレビューできるようにすることができます。
+
+<Callout variant="tip">
+  CI/CD パイプラインでこのプロセスを自動化することも検討してください。Terraform の[推奨プラクティス ガイド](https://www.terraform.io/docs/cloud/guides/recommended-practices/index.html)を使用して、推奨されるワークフローと、プロビジョニング プラクティスを発展させる方法について学習してください。
+</Callout>
+
+おめでとう！コードとしてのオブザーバビリティを公式に実践しています。[New Relic Terraform プロバイダーのドキュメント](https://registry.terraform.io/providers/newrelic/newrelic/latest/docs)を確認して、構成を次のレベルに引き上げる方法を確認してください。

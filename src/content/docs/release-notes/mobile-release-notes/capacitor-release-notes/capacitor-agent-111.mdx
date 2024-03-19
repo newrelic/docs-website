@@ -1,0 +1,10 @@
+---
+subject: Capacitor agent
+releaseDate: '2023-03-24'
+version: 1.1.1
+downloadLink: 'https://www.npmjs.com/package/@newrelic/newrelic-capacitor-plugin/v/1.1.1'
+---
+
+### Fixed in this release
+
+* Fixed an issue where errors would occur when developing for web-native apps.

@@ -4,7 +4,7 @@ const onRouteUpdate = ({ location, prevLocation }) => {
     location.hash &&
     location.pathname !== prevLocation?.pathname
   ) {
-    window.newrelic.addPageAction('hash_request', { hash: location.hash });
+    window.newrelic.setCustomAttribute(`hashRequest`, location.hash);
   }
 };
 

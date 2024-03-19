@@ -7,10 +7,12 @@ import {
   Layout,
   Link,
   MarkdownContainer,
+  ContributingGuidelines,
 } from '@newrelic/gatsby-theme-newrelic';
 import SEO from '../components/SEO';
 import PageTitle from '../components/PageTitle';
 import { TYPES } from '../utils/constants';
+import ErrorBoundary from '../components/ErrorBoundary';
 
 const WhatsNewTemplate = ({ data, location, pageContext }) => {
   const {
@@ -26,13 +28,18 @@ const WhatsNewTemplate = ({ data, location, pageContext }) => {
         learnMoreLink,
         getStartedLink,
       },
+      fields: { fileRelativePath },
     },
   } = data;
 
   const { disableSwiftype } = pageContext;
 
+  if (typeof window !== 'undefined' && typeof newrelic === 'object') {
+    window.newrelic.setCustomAttribute('pageType', 'Template/WhatsNew');
+  }
+
   return (
-    <>
+    <ErrorBoundary eventName="whatsNew">
       <SEO
         location={location}
         title={title}
@@ -57,7 +64,6 @@ const WhatsNewTemplate = ({ data, location, pageContext }) => {
           css={css`
             font-size: 1rem;
             margin-bottom: 1rem;
-            color: var(--color-dark-600);
             display: flex;
             align-items: baseline;
           `}
@@ -132,8 +138,20 @@ const WhatsNewTemplate = ({ data, location, pageContext }) => {
         `}
       >
         <MarkdownContainer dangerouslySetInnerHTML={{ __html: html }} />
+        <ContributingGuidelines
+          css={css`
+            margin-top: 1rem;
+            padding-left: 0;
+            > * {
+              justify-content: flex-start;
+              text-align: left;
+            }
+          `}
+          fileRelativePath={fileRelativePath}
+          issueLabels={['feedback', 'feedback-issue']}
+        />
       </Layout.Content>
-    </>
+    </ErrorBoundary>
   );
 };
 
@@ -144,7 +162,7 @@ WhatsNewTemplate.propTypes = {
 };
 
 export const pageQuery = graphql`
-  query($slug: String!, $locale: String) {
+  query($slug: String!) {
     site {
       siteMetadata {
         siteUrl
@@ -159,9 +177,10 @@ export const pageQuery = graphql`
         learnMoreLink
         getStartedLink
       }
+      fields {
+        fileRelativePath
+      }
     }
-
-    ...MainLayout_query
   }
 `;
 

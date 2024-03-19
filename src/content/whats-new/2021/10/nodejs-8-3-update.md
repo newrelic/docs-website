@@ -1,10 +1,10 @@
 ---
-title: 'Distributed Tracing enabled by default with Node.js Agent Update: Version 8.3'
-summary: 'See distrbuted traces immediately upon upgrading Node.js Agent'
+title: 'Distributed Tracing enabled by default with Node.js agent  version 8.3'
+summary: 'See distrbuted traces immediately upon upgrading Node.js agent'
 releaseDate: '2021-10-07'
 learnMoreLink: 'https://docs.newrelic.com/docs/release-notes/agent-release-notes/nodejs-release-notes/'
 ---
-With the release of [Node Agent version v8.3](https://docs.newrelic.com/docs/release-notes/agent-release-notes/nodejs-release-notes/), upon agent upgrade, customers will now have [Distributed Tracing](https://newrelic.com/products/edge-infinite-tracing) on by default. This eliminates the need to configure the agent in order to have access to distributed traces. Distributed Tracing gives software teams working in modern environments an easy way to capture, visualize, and analyze traces through complex architectures, including architectures that use both monoliths and microservices. 
+With the release of [Node agent version v8.3](https://docs.newrelic.com/docs/release-notes/agent-release-notes/nodejs-release-notes/), upon agent upgrade, customers will now have [Distributed Tracing](https://newrelic.com/products/edge-infinite-tracing) on by default. This eliminates the need to configure the agent in order to have access to distributed traces. Distributed Tracing gives software teams working in modern environments an easy way to capture, visualize, and analyze traces through complex architectures, including architectures that use both monoliths and microservices. 
 
 **What’s the impact?**
 

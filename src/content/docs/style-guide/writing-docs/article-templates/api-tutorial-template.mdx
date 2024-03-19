@@ -1,0 +1,109 @@
+---
+title: 'API tutorial template'
+tags:
+  - Tech writer style guide
+  - API writing guidelines
+redirects:
+  - /docs/new-relic-only/advanced-style-guide/writing-guidelines/nr-only-api-tutorial-template
+  - /docs/new-relic-only/advanced-style-guide/writing-guidelines/api-tutorial-template
+  - /docs/style-guide/article-templates/api-tutorial-template
+---
+
+**This document is a template for an API tutorial document**: Please skim the entire template first to understand the expected structure for this type of doc. Then, clone this doc using the **Clone content** link in the **Page tools** box. Delete all content up to **Introduction (this heading won't be visible)**.
+
+**For the doc title** (the field at top of page): Give your doc a practical name that is focused on the use case. Example: `Add custom attributes to transactions`.
+
+## Introduction (this heading will not be visible) [#intro]
+
+Provide a brief explanation of what this document will teach customers, and why it is valuable for customers to know how to do that. Focus on the value the API provides to the customers and mention specific, common use cases. Include any relevant notes about supported components or compatibility here, too.
+
+Here's an example from the Java API asynchronous tutorial doc:
+
+```
+New Relic for Java includes an API to instrument asynchronous activity. For supported frameworks, the Java agent usually instruments async work automatically. However, the async API can be useful for adding more detail to your data. This document provides examples of using tokens and segments to instrument your app.
+```
+
+## Optional: Provide an overview for complex processes [#roadmap]
+
+This is an optional section for complicated tutorials that involve either using several methods in one procedure or that have different alternate steps you can take to achieve similar results. This section can link to lower-down sections to allow users to skip around as needed. For simple tutorials, this section isn't necessary.
+
+For an example, see our [Java async tutorial](/docs/apm/agents/java-agent/async-instrumentation/java-agent-api-asynchronous-applications) documentation about tokens and segments.
+
+## Provide a procedure to accomplish the task [#do-something]
+
+Tell the user how to accomplish the task, and link to the methods necessary to accomplish that task. As much as possible, we're looking to describe tasks in "procedures" (a series of numbered steps). This may be tough to do for fairly open-ended or variable tasks, but it will usually be possible to chunk the content at a fairly high-level to make it into a procedure. Along the way, explain what the importance of the procedure step is, and how users can verify that the step was done correctly.
+
+For code samples, avoid using large chunks of code. Instead, use smaller pieces of code and give context for how they are being used. If you think a large app code example would be helpful, place that later in the doc in the [example section](#example).
+
+Examples:
+
+* For an example of an open-ended task segmented into procedural chunks, see the asynchronous doc section in [Connecting async threads](/docs/agents/java-agent/async-instrumentation/java-agent-api-asynchronous-applications#tokens).
+
+* For a detailed example with screenshots, see the [Tomcat GAE Flex procedure](/docs/apm/agents/java-agent/additional-installation/install-new-relic-java-agent-gae-flexible-environment/#tomcat-example).
+
+Base your procedure on the following simple structure. Tech writers will edit your content to match our style and formatting requirements.
+
+### Step 1. Do something...
+
+Methods and example code to implement the first step.
+
+For each step, if applicable, indicate the significance of that step (why it's important) and how the user might verify that the step was done correctly (for example, something showing up in UI, or running a verification test of some sort).
+
+### Step 2. Do something else
+
+Methods and example code to implement step 2.
+
+### If needed: Step 3. Do something else
+
+Methods and example code to implement step 3.
+
+### Last step. Verify that the task was completed
+
+Explain how a user will know they've completed the task correctly. In particular, how can the user find the new change or data in the New Relic UI. What New Relic products and pages will the change appear? If new data shows up in NRDB, what event types can it be used?
+
+## Optional: Do something else with the API [#another-do-something]
+
+Same as above. Make as many headings and separate procedures as needed.
+
+## Optional: Large example code block [#example]
+
+If you think a large app code example would be useful, place it here. Within any code block, explain all New Relic functions and methods, not just the main methods. Instead of inline comments, consider using highlighted sections underneath the code block to give additional context. Here's an example:
+
+<CollapserGroup>
+  <Collapser
+    id="code-example"
+    title="Code block example"
+  >
+    The following code example shows a segment starting in the `storeItem` method to measure how long the Lambda statement is waiting in the thread pool. To stop timing the segment, you must call either `.end()` or `.ignore()`. If you **don't** want to report the segment as part of its parent transaction, call `.ignore()`. Otherwise, to report the segment as part of its parent transaction, call `.end()`.
+
+    ```
+    private void storeItem(long id) {
+       Segment segment = NewRelic.getAgent().getTransaction().startSegment("storeItem");
+
+       segment.reportAsExternal(DatastoreParameters
+               .product("H2")
+               .collection(null)
+               .operation("insert")
+               .instance("localhost", 8080)
+               .databaseName("test")
+               .build());
+
+       // fire and forget
+       DB_POOL.submit(() -> {
+           segment.end();
+           insertData(id);
+       });
+    }
+    ```
+
+    The agent API calls in this sample are:
+
+    * `startSegment(...)`: Begins the segment that will time the code. For more on this method, see the [Javadoc in GitHub](https://newrelic.github.io/java-agent-api/javadoc/com/newrelic/api/agent/Segment.html).
+    * `reportAsExternal(DatastoreParameters())`: Associates the time with a datastore external call This will appear in the APM UI with [datastore data](/docs/apm/applications-menu/features/analyze-database-instance-level-performance-issues). For more information, see [reportAsExternal API in GitHub](https://newrelic.github.io/java-agent-api/javadoc/index.html?com/newrelic/api/agent/TracedMethod.html).
+    * `segment.end()`: Stops timing this segment. For more informtion, see the [Javadoc in GitHub](https://newrelic.github.io/java-agent-api/javadoc/com/newrelic/api/agent/Segment.html#end()).
+  </Collapser>
+</CollapserGroup>
+
+## Optional: Troubleshooting [#troubleshooting]
+
+Optional area for any common errors or troubleshooting tips.

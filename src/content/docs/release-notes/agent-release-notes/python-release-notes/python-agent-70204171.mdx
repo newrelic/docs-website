@@ -1,0 +1,25 @@
+---
+subject: Python agent
+releaseDate: '2021-11-11'
+version: 7.2.4.171
+downloadLink: 'https://pypi.python.org/pypi/newrelic'
+features: []
+bugs: ['Fix gRPC retry logic', 'Fix crash in database trace']
+security: []
+---
+
+## Notes
+
+This release of the Python agent fixes an issue with infinite tracing's usage of gRPC allowing subchannels to retry, and fixes failing database traces.
+
+Install the agent using `easy_install/pip/distribute` via the [Python Package Index](https://pypi.python.org/pypi/newrelic) or download it directly from the New Relic [download site](https://download.newrelic.com/python_agent/release).
+
+## Bug Fixes
+
+* **Fix gRPC retry logic**
+
+  Previously gRPC subchannels left open by infinite tracing could cause network congestion and strain our trace observers. This issue has been corrected. As such, specific versions of gRPC are no longer required.
+
+* **Fix crash in database trace**
+
+  A crash in database traces resulting from nullified settings (seen rarely in Django) has been corrected.

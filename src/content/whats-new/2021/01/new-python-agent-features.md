@@ -9,4 +9,4 @@ learnMoreLink: 'https://docs.newrelic.com/docs/agents/python-agent/async-instrum
 
 **Django ASGI instrumentation:** Django’s ASGI mode is also supported through automatic instrumentation.
 
-![Screenshot showing the UI tab "trace details" with Django ASGI information.](./images/python-httpx.png "python-httpx.png")
+![Screenshot showing the UI tab "trace details" with Django ASGI information.](./images/python-httpx.webp "python-httpx.webp")

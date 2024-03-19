@@ -1,0 +1,169 @@
+---
+componentType: appInfo
+optionType: python-server
+headingText: Review uWSGI server information
+---
+
+To integrate the Python agent with your app, you can run the newrelic-admin script in front of your usual app startup command. The admin script was included when you downloaded the Python agent.
+
+You can use the Python agent with [uWSGI](http://projects.unbit.it/uwsgi/) version 1.2.6 or higher (versions lower than 1.2.6 have a bug with the way that uWSGI implements the WSGI specification, which can cause significant inaccuracies in data being reported by the Python agent).
+
+### Mandatory options [#mandatory]
+
+When using uWSGI you will need to supply certain specific command line options to the **uwsgi** executable. The additional options you must use are:
+
+<table>
+  <thead>
+    <tr>
+      <th width={150}>
+        Option
+      </th>
+
+      <th>
+        Purpose
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `--enable-threads`
+      </td>
+
+      <td>
+        By default uWSGI does not enable threading support within the Python interpreter core. This means it is not possible to create background threads from Python code. As the Python agent relies on being able to create background threads, this option is required. This option will be automatically applied if uWSGI is configured for multiple threads using the --threads option.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `--single-interpreter`
+      </td>
+
+      <td>
+        By default uWSGI will execute Python code within a sub interpreter of the process rather than the main Python interpreter created when Python is first initialized. This is done to allow multiple separate Python web applications to be run within the one process but to be sufficiently separated so as to not interfere with each other. Older versions of uWSGI can fail however when using sub interpreters with threading enabled. It is therefore safest to use this option and restrict yourself to a single web application per process. Running a single web application in each process with uWSGI is the normal use case so it would be unlikely that this restriction would be an issue.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+### Admin script integration method [#wrapper-script]
+
+If you are starting your WSGI application under uWSGI using a command of the form:
+
+```
+uwsgi --socket /tmp/uwsgi.sock wsgi.py
+```
+
+Instead, run:
+
+```
+NEW_RELIC_CONFIG_FILE=newrelic.ini newrelic-admin run-program uwsgi --socket /tmp/uwsgi.sock --single-interpreter --enable-threads wsgi.py
+```
+
+When doing this, instead of defining the `NEW_RELIC_CONFIG_FILE` environment variable on the same line as executing the command, it can be separately exported and set in the process environment before running the command.
+
+```
+NEW_RELIC_CONFIG_FILE=newrelic.ini
+export NEW_RELIC_CONFIG_FILE
+
+newrelic-admin run-program uwsgi --socket /tmp/uwsgi.sock --single-interpreter --enable-threads wsgi.py
+```
+
+The path `newrelic.ini` should be replaced with the appropriate absolute or relative path to the location of your actual Python agent configuration file.
+
+If you are using a framework for which the Python agent is not automatically wrapping the WSGI application entry point, you can still use `newrelic-admin` but you will at least need to manually wrap the WSGI application entry point.
+
+### Optional uWSGI configurations [#optional-configs]
+
+<CollapserGroup>
+  <Collapser
+    className="freq-link"
+    id="config-styles"
+    title="Configuration styles"
+  >
+    In addition to configuring uWSGI using command line options, it also supports alternate configuration mechanisms including environment variables, XML, INI, JSON, or YAML files, LDAP, or a database.
+
+    When using such a mechanism you will still need to include the mandatory additional options listed above. These would instead be included in the appropriate configuration file or database.
+
+    For example, if you're using an INI configuration file you would have:
+
+    ```
+    [uwsgi]
+    socket = /tmp/uwsgi.sock
+    enable-threads = true
+    single-interpreter = true
+    file = wsgi.py
+    ```
+
+    Then, you can run:
+
+    ```
+    NEW_RELIC_CONFIG_FILE=newrelic.ini newrelic-admin run-program uwsgi --ini uwsgi.ini
+    ```
+  </Collapser>
+  <Collapser
+    className="freq-link"
+    id="application-mounting"
+    title="Application mounting"
+  >
+    When specifying the WSGI application to be served up by uWSGI, you can give a path to the Python WSGI script file or a direct reference to a module and the contained application. For example, you might use the latter if using Django with the configuration:
+
+    ```
+    [uwsgi]
+    socket = /tmp/uwsgi.sock
+    enable-threads = true
+    single-interpreter = true
+    chdir = /var/www/myapp
+    pythonpath = /var/www
+    env = DJANGO_SETTINGS_MODULE=myapp.settings
+    module = django.core.handlers.wsgi:WSGIHandler()
+    ```
+
+    Using a direct reference in this way to the WSGI application and the module it is contained in will work, but only so long as the framework being used is one which the agent automatically instruments and wraps the WSGI application entry point. If you are using a custom WSGI framework or an unsupported framework you would need to manually wrap the WSGI application entry in your code. For help with this, go back to the framework question and select **Unsupported WSGI framework**
+
+    Alternatively, you can use the ability of uWSGI to evaluate a small snippet of code in the configuration in order to construct the WSGI application entry point.
+
+    ```
+    [uwsgi]
+    socket = /tmp/uwsgi.sock
+    enable-threads = true
+    single-interpreter = true
+    eval = import newrelic.agent, wsgi; application = newrelic.agent.wsgi_application()(wsgi.application)
+    ```
+  </Collapser>
+  <Collapser
+    className="freq-link"
+    id="master-process"
+    title="Master process"
+  >
+    As part of uWSGI's process management features, you can enable a master process to better manage worker processes. When this is enabled the WSGI script file or module will be preloaded into the parent master process. Worker processes will then be forked from this master process.
+
+    This can cause problems if the WSGI script or module when loaded creates a background thread which is supposed to run in each worker process, as that background thread will be killed when the worker process are forked.
+
+    The Python agent uses a background thread to report data back to our data collector on a regular interval. Under normal circumstances this will only be created upon the first web request being received. As that would normally be in the worker processes, use of a master process should not cause a problem.
+
+    However, if you've added instrumentation to track calls to certain functions as background tasks and those functions are called on loading the WSGI script file or module, the agent background thread will be started in the master parent process. With the background thread then being subsequently killed when worker processes are forked, no data will be reported for the actual web application.
+
+    If you're using a master process, and you are seeing no data being reported for the web application running in the worker processes, you should also use lazy loading mode:
+
+    ```
+    [uwsgi]
+    socket = /tmp/uwsgi.sock
+    enable-threads = true
+    single-interpreter = true
+    master = true
+    lazy-apps = true
+    file = wsgi.py
+    ```
+
+    Or, you can use `uwsgi.post_fork_hook()` to register any startup functions which may have a side effect of starting the agent background thread. This ensures they are called after any worker processes are forked.
+
+    Note that if you're using emperor mode, the option for lazy loading must be in the configuration file for the individual vassals. It cannot be specified at the same point where emperor mode is enabled as it will not be inherited by the vassals.
+  </Collapser>
+</CollapserGroup>
+
+<Callout variant="tip">
+  If you have difficulty with this automatic initialization, you can also try our manual instrumentation steps. To get those instructions, go back to the framework question and select **Unsupported WSGI framework**.
+</Callout>

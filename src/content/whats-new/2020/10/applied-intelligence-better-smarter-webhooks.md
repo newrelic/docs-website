@@ -15,7 +15,7 @@ When using webhooks as a destination in Incident Intelligence, you can further r
 * Creating a new configuration? Good news: you don’t need to do anything! The necessary fields are there by default.
 * Have an existing webhook? If you’re using a default payload, you’ll receive this by default. If you’re using a custom webhook, you can update it by visiting your relevant configuration and updating the payload to include the new image and analyze attributes.
 
-  ![Screenshot showing anomaly chart.](./images/whats_new_webhook_1.png "whats_new_webhook_1.png")
+  ![Screenshot showing anomaly chart.](./images/whats_new_webhook_1.webp "whats_new_webhook_1.webp")
 
 ### Reduce the noise and only receive correlated notifications
 

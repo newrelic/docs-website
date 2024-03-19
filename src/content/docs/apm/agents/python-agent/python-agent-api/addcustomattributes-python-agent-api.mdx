@@ -1,0 +1,89 @@
+---
+title: add_custom_attributes (Python agent API)
+type: apiDoc
+shortDescription: Adds one or more custom attributes to a transaction.
+tags:
+  - Agents
+  - Python agent
+  - Python agent API
+metaDescription: 'Python API: This call adds a custom attribute (key/value tuple) to a transaction.'
+freshnessValidatedDate: never
+---
+
+## Syntax
+
+```py
+newrelic.agent.add_custom_attributes(items)
+```
+
+Adds multiple custom attributes to a transaction.
+
+## Description
+
+This call records one or more [custom attributes](/docs/new-relic-solutions/get-started/glossary/#attribute) (a key/value tuple attached to your [transaction](/docs/new-relic-solutions/get-started/glossary/#transaction)).
+
+Attributes may be found in APM if the transaction is associated with an error or if a transaction trace is generated for that transaction. Attributes can also be found and queried in the New Relic UI.
+
+<Callout variant="important">
+  Before you create custom attributes, review our list of [reserved terms used by NRQL](/docs/insights/event-data-sources/custom-events/data-requirements-limits-custom-event-data/#reserved-words).
+</Callout>
+
+## Attributes
+
+<table>
+  <thead>
+    <tr>
+      <th width="25%">
+        Attribute
+      </th>
+
+      <th>
+        Description
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `items`
+
+        _list_
+      </td>
+
+      <td>
+        Required. Each item in the list must be a `tuple`, with the first element being a _key_, and the second its _value_. Each key is a string representing the name of an attribute, and each corresponding value is the value to add to the current transaction for this attribute. Values can be `int`, `float`, `string`, or `boolean`. Only the first 255 characters are retained for both keys and values.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Return values
+
+Returns `True` if all attributes were added successfully.
+
+## Examples
+
+### Adding custom attributes to background task [#custom-attribute-example]
+
+An example of adding custom attributes to a [background task](/docs/agents/python-agent/python-agent-api/background_task):
+
+```py
+@newrelic.agent.background_task()
+def send_request():
+    response = requests.get("http://example.com")
+    newrelic.agent.add_custom_attributes(
+        [("url_path_status_code", response.status_code)]
+    )
+```
+
+### Using custom attributes to troubleshoot [#attribute-troubleshooting]
+
+You can also use custom attributes to troubleshoot performance issues. For example, you might see occasional slow response times from a pool of memcache instances, but you don't know what instance is causing the problem. You might add an attribute to the transaction indicating the server, like so:
+
+```py
+# Set server_ip to be the current server processing the transaction
+newrelic.agent.add_custom_attributes([
+    ("memcache_query_frontend_lookup", server_ip)
+])
+```

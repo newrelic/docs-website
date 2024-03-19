@@ -47,6 +47,9 @@ const LandingPage = ({ data, location, pageContext }) => {
   const { mdx } = data;
   const { frontmatter, body } = mdx;
   const { disableSwiftype } = pageContext;
+  if (typeof window !== 'undefined' && typeof newrelic === 'object') {
+    window.newrelic.setCustomAttribute('pageType', 'Template/LandingPage');
+  }
 
   return (
     <>
@@ -72,7 +75,7 @@ LandingPage.propTypes = {
 };
 
 export const pageQuery = graphql`
-  query($slug: String!, $locale: String) {
+  query($slug: String!) {
     mdx(fields: { slug: { eq: $slug } }) {
       body
       frontmatter {
@@ -80,7 +83,6 @@ export const pageQuery = graphql`
         metaDescription
       }
     }
-    ...MainLayout_query
   }
 `;
 

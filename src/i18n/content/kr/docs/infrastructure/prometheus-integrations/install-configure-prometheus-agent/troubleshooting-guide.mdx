@@ -1,0 +1,106 @@
+---
+title: Prometheus 에이전트 문제 해결 가이드
+tags:
+  - Integrations
+  - Prometheus integrations
+  - Install and configure Prometheus agent
+metaDescription: Troubleshooting guide for the Prometheus agent
+freshnessValidatedDate: never
+translationType: machine
+---
+
+## 자세한 로그 가져오기 [#verbose-logs]
+
+`verboseLog` 또는 `global.verboseLog` 변수를 `true` 로 설정하여 `newrelic-prometheus-agent` 차트에서 상세 로그를 활성화할 수 있습니다.
+
+```yaml
+# (...)
+global:
+  verboseLog: true
+# (...)
+```
+
+이것이 값 파일에서 업데이트되면 다음 helm upgrade 명령을 실행합니다.
+
+```bash
+helm upgrade <RELEASE_NAME> newrelic-prometheus-configurator/newrelic-prometheus-agent \
+--namespace <NEWRELIC_NAMESPACE> \
+-f values-newrelic.yaml \
+[--version fixed-chart-version]
+```
+
+## 대상에 대한 메트릭이 표시되지 않음 [#target-with-no-metrics]
+
+지정된 필터와 일치하는 Kubernetes에서 대상을 검색하는 하나 이상의 `job` 필요합니다. 그렇지 않으면 대상이 `static_target` 로 나열되어야 합니다.
+
+Kubernetes에서 기본 구성을 사용하는 경우 Pod 또는 서비스에 `prometheus.io/scrape=true` 주석이 있는지 확인하세요.
+
+기본적으로 Prometheus 에이전트는 [Prometheus 통합](/docs/infrastructure/prometheus-integrations/integrations-list/integrations-list-intro) 에서만 측정항목을 스크랩합니다. 클러스터의 모든 Prometheus 엔드포인트를 스크레이핑하도록 선택하지 않은 경우 Prometheus 에이전트는 [source_labels](https://github.com/newrelic/newrelic-prometheus-configurator/blob/main/charts/newrelic-prometheus-agent/values.yaml) 에 정의된 레이블을 사용하여 스크랩할 엔드포인트를 필터링합니다.
+
+## 대시보드에 메트릭이 표시되지 않음 [#dashboard-with-no-metrics]
+
+[Prometheus 통합](/docs/infrastructure/prometheus-integrations/integrations-list/integrations-list-intro) 에서 제공하는 일부 대시보드는 Kubernetes 레이블로 필터링되었을 수 있습니다. 자세한 내용은 해당 통합 문서를 확인하십시오.
+
+## 메트릭 상태 확인 [#up-metrics]
+
+모든 대상 스크랩은 모든 대상 지표와 함께 `up` 지표를 생성합니다. 스크래핑에 성공하면 이러한 메트릭의 값은 `1` 입니다. 성공하지 못한 경우 해당 값은 `0` 입니다.
+
+```SQL
+FROM Metric SELECT latest(up) WHERE cluster_name= 'YOUR_CLUSTER_NAME' AND pod = 'TARGET_POD_NAME' TIMESERIES
+```
+
+대상에 대해 이 메트릭이 없으면 삭제되었을 수 있습니다.
+
+값이 `0` 이면 스크래핑이 실패한 것입니다.
+
+## 필터 규칙에 의해 삭제된 대상 [#target-dropped-by-filter]
+
+드롭된 대상을 확인하려면 Prometheus API의 [대상 엔드포인트를](https://prometheus.io/docs/prometheus/latest/querying/api/#targets) 사용할 수 있습니다.
+
+삭제된 모든 대상을 JSON 형식으로 나열하고 검색된 모든 레이블을 표시하려면 다음 명령을 실행하십시오.
+
+```shell
+kubectl exec newrelic-prometheus-agent-0 -- wget -O - 'localhost:9090/api/v1/targets?state=dropped' 2>/dev/null
+```
+
+## 타겟 스크랩 실패 [#target-scrape-fail]
+
+`up` 측정항목에 값이 `0` 인 경우 대상이 Prometheus에 의해 적극적으로 스크랩되지만 스크랩이 실패했음을 의미합니다. 다음과 유사한 로그 항목을 사용하여 상세 로그에서 이유를 확인할 수 있습니다.
+
+```bash
+prometheus ts=timestamp caller=scrape.go:1332 level=debug component="scrape manager" scrape_pool=kubernetes-job-pod target=http://1.2.3.4:80/metrics msg="<error>" err="<error detail>"
+```
+
+Prometheus API의 [대상 엔드포인트를](https://prometheus.io/docs/prometheus/latest/querying/api/#targets) 사용하여 활성 대상 목록을 확인할 수도 있습니다.
+
+JSON의 모든 활성 대상을 나열하고 검색된 모든 레이블을 표시하려면 다음 명령을 실행하십시오.
+
+```shell
+kubectl exec newrelic-prometheus-agent-0 -- wget -O - 'localhost:9090/api/v1/targets?state=active' 2>/dev/null
+```
+
+실패한 대상이 나열되고 다음과 유사한 출력의 `lastError` 필드에서 오류를 사용할 수 있습니다.
+
+```json
+{
+    "status": "success",
+    "data": {
+        "activeTargets": [
+            {
+                "discoveredLabels": <map of labels>,
+                "labels": <map of labels>,
+                "scrapePool": "kubernetes-job-pod",
+                "scrapeUrl": "http://172.17.0.5:80/metrics",
+                "globalUrl": "http://172.17.0.5:80/metrics",
+                "lastError": <error detail>,
+                "lastScrape": "2022-09-19T14:19:20.543747971Z",
+                "lastScrapeDuration": 0.000372542,
+                "health": "down",
+                "scrapeInterval": "15s",
+                "scrapeTimeout": "10s"
+            },
+            ...
+        ]
+    }
+}
+```

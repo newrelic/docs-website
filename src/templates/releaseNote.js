@@ -6,6 +6,7 @@ import { Icon, Layout, Link } from '@newrelic/gatsby-theme-newrelic';
 import PageTitle from '../components/PageTitle';
 import MDXContainer from '../components/MDXContainer';
 import SEO from '../components/SEO';
+import ErrorBoundary from '../components/ErrorBoundary';
 import { TYPES } from '../utils/constants';
 
 const getTitle = ({ title, version, subject }) => {
@@ -29,8 +30,12 @@ const ReleaseNoteTemplate = ({ data, location, pageContext }) => {
 
   const title = getTitle(frontmatter);
 
+  if (typeof window !== 'undefined' && typeof newrelic === 'object') {
+    window.newrelic.setCustomAttribute('pageType', 'Template/ReleaseNote');
+  }
+
   return (
-    <>
+    <ErrorBoundary eventName="releaseNote">
       <SEO
         location={location}
         title={title}
@@ -54,7 +59,6 @@ const ReleaseNoteTemplate = ({ data, location, pageContext }) => {
           justify-content: space-between;
           align-items: center;
           font-size: 0.75rem;
-          color: var(--color-dark-600);
           display: flex;
           align-items: baseline;
           max-width: 850px;
@@ -98,11 +102,15 @@ const ReleaseNoteTemplate = ({ data, location, pageContext }) => {
       <Layout.Content
         css={css`
           max-width: 850px;
+
+          & img {
+            max-height: 460px;
+          }
         `}
       >
         <MDXContainer body={body} />
       </Layout.Content>
-    </>
+    </ErrorBoundary>
   );
 };
 
@@ -113,7 +121,7 @@ ReleaseNoteTemplate.propTypes = {
 };
 
 export const pageQuery = graphql`
-  query($slug: String!, $locale: String) {
+  query($slug: String!) {
     mdx(fields: { slug: { eq: $slug } }) {
       body
       frontmatter {
@@ -125,7 +133,6 @@ export const pageQuery = graphql`
         metaDescription
       }
     }
-    ...MainLayout_query
   }
 `;
 

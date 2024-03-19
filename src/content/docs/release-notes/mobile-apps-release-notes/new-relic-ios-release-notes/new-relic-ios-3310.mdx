@@ -1,0 +1,27 @@
+---
+subject: Mobile app for iOS
+releaseDate: '2017-04-20'
+version: '3.31'
+downloadLink: 'https://itunes.apple.com/us/app/new-relic/id594038638?mt=8'
+redirects:
+  - /docs/release-notes/mobile-apps-release-notes/new-relic-ios-release-notes/new-relic-ios-331
+---
+
+### New features
+
+* Added in summary KPI (Key Performance Indicator) & KPI charts to application incidents.
+* Added acknowledgement of incidents in the push notification
+* Added in the ability to scope the Applications page to a specific host or JVM instance
+* Added in non web transaction charts to applications
+* **iPad**: Added in the browser product
+
+### Improvements
+
+* Added a new activity indicator
+* Re-worked search throughout the app
+* **iPhone**: Expanded all charts in the detail views
+* **iPhone**: Changed pivot 'go to' links in alert violations, so that the back button goes to the violations list.
+
+### Bug fixes
+
+* Fixed a crash when opening a universal link to the Infrastructure product
