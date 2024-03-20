@@ -94,7 +94,7 @@ const BasicDoc = ({ data, location, pageContext }) => {
             'page-title page-tools'
             'content page-tools';
           grid-template-columns: minmax(0, 1fr) 12.8125rem;
-          grid-column-gap: 2rem;
+          grid-column-gap: 5rem;
 
           iframe {
             max-width: 100%;
@@ -190,7 +190,6 @@ export const pageQuery = graphql`
       frontmatter {
         title
         metaDescription
-        type
         tags
         translationType
       }
