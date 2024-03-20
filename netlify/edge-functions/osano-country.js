@@ -2,7 +2,7 @@ import { HTMLRewriter } from 'https://ghuc.cc/worker-tools/html-rewriter/index.t
 
 export default async (request, context) => {
   const response = await context.next();
-  const hasGdpr = [
+  const hasGdpr = new Set([
     'AT',
     'BE',
     'BG',
@@ -30,7 +30,7 @@ export default async (request, context) => {
     'SI',
     'ES',
     'SE',
-  ].includes(context.geo.country.code);
+  ]).has(context.geo.country.code);
 
   if (hasGdpr) {
     return new HTMLRewriter()
