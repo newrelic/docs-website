@@ -374,7 +374,7 @@ module.exports = {
           },
         },
         layout: {
-          contentPadding: '1.5rem',
+          contentPadding: '2.625rem 5rem',
           maxWidth: '1600px',
           component: require.resolve('./src/layouts'),
           mobileBreakpoint: '760px',
