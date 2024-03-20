@@ -1,0 +1,198 @@
+---
+title: Soporte de agente para ARM64/Graviton y x86_64
+tags:
+  - Agents
+  - support
+  - Configuration
+metaDescription: null
+freshnessValidatedDate: never
+translationType: machine
+---
+
+El siguiente agente New Relic admite procesadores AWS Graviton que utilizan ARM64, así como x86_64.
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        New Relic
+      </th>
+
+      <th>
+        Soporte ARM64/Gravitón
+      </th>
+
+      <th>
+        soporte x86_64
+      </th>
+
+      <th>
+        Versión ARM64/Gravitón
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Agente Python
+      </td>
+
+      <td>
+        Sí
+      </td>
+
+      <td>
+        Sí
+      </td>
+
+      <td>
+        Versión [6.8.0.163](/docs/release-notes/agent-release-notes/python-release-notes/python-agent-60800163/) y posteriores
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Agente Ruby
+      </td>
+
+      <td>
+        Sí
+      </td>
+
+      <td>
+        Sí
+      </td>
+
+      <td>
+        Versión [8.0.0](/docs/release-notes/agent-release-notes/ruby-release-notes/ruby-agent-800/) y posteriores
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Agente de Node.js
+      </td>
+
+      <td>
+        Sí
+      </td>
+
+      <td>
+        Sí
+      </td>
+
+      <td>
+        Versión [8.5.0](/docs/agents/nodejs-agent/getting-started/compatibility-requirements-nodejs-agent/) y posteriores
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Agente .NET
+      </td>
+
+      <td>
+        Sí
+      </td>
+
+      <td>
+        Sí
+      </td>
+
+      <td>
+        Versión [9.1.0](/docs/apm/agents/net-agent/getting-started/net-agent-compatibility-requirements-net-core/) y después
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Agente de Go
+      </td>
+
+      <td>
+        Sí
+      </td>
+
+      <td>
+        Sí
+      </td>
+
+      <td>
+        Versión [3.15.1](/docs/release-notes/agent-release-notes/go-release-notes/go-agent-3-15-1/) y posteriores
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Agente PHP
+      </td>
+
+      <td>
+        Sí
+      </td>
+
+      <td>
+        Sí
+      </td>
+
+      <td>
+        Versión [9.18.1](/docs/apm/agents/php-agent/installation/php-agent-installation-arm64/) y posteriores
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Agente de Java
+      </td>
+
+      <td>
+        Sí
+      </td>
+
+      <td>
+        Sí
+      </td>
+
+      <td>
+        Versión [7.4.0](/docs/release-notes/agent-release-notes/java-release-notes/java-agent-740/) y posteriores
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Agente de infraestructura
+      </td>
+
+      <td>
+        Sí
+      </td>
+
+      <td>
+        Sí
+      </td>
+
+      <td>
+        Versión [1.20.6](/docs/infrastructure/install-infrastructure-agent/get-started/requirements-infrastructure-agent/) y posteriores
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Integracion on-host
+      </td>
+
+      <td>
+        Sí
+      </td>
+
+      <td>
+        Sí
+      </td>
+
+      <td>
+        Soporte para ARM64/Graviton, excepto [Oracle base de datos OHI](/docs/integrations/host-integrations/host-integrations-list/oracle-database-monitoring-integration/)
+      </td>
+    </tr>
+  </tbody>
+</table>

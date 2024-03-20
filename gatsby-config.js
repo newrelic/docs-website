@@ -4,9 +4,11 @@ const parse = require('rehype-parse');
 const unified = require('unified');
 const rehypeStringify = require('rehype-stringify');
 const addAbsoluteImagePath = require('./rehype-plugins/utils/addAbsoluteImagePath');
+const { assetPrefix } = require('./env');
+
+const { LOCALES } = require('./scripts/actions/utils/constants');
 
 const siteUrl = 'https://docs.newrelic.com';
-const additionalLocales = ['jp', 'kr'];
 const allFolders = fs
   .readdirSync(`${__dirname}/src/content/docs`)
   .filter((folder) => !folder.startsWith('.'));
@@ -36,16 +38,6 @@ const ignoreI18nFolders = () => {
       .filter(Boolean);
   }
   return [];
-};
-
-const assetPrefix = () => {
-  if (process.env.BUILD_LANG === 'jp') {
-    return 'https://docs-website-jp.netlify.app';
-  }
-  if (process.env.BUILD_LANG === 'kr') {
-    return 'https://docs-website-kr.netlify.app';
-  }
-  return '';
 };
 
 module.exports = {
@@ -382,7 +374,7 @@ module.exports = {
           },
         },
         layout: {
-          contentPadding: '1.5rem',
+          contentPadding: '2.625rem 5rem',
           maxWidth: '1600px',
           component: require.resolve('./src/layouts'),
           mobileBreakpoint: '760px',
@@ -390,7 +382,7 @@ module.exports = {
         },
         i18n: {
           translationsPath: `${__dirname}/src/i18n/translations`,
-          additionalLocales,
+          additionalLocales: ['jp', 'kr'],
         },
         prism: {
           languages: [
@@ -465,6 +457,28 @@ module.exports = {
                 : '35094418',
             beacon: 'staging-bam-cell.nr-data.net',
             errorBeacon: 'staging-bam-cell.nr-data.net',
+            settings: {
+              session_replay: {
+                enabled: true,
+                block_selector: '',
+                mask_text_selector: '*',
+                sampling_rate: 5.0,
+                error_sampling_rate: 100.0,
+                mask_all_inputs: true,
+                collect_fonts: true,
+                inline_images: false,
+                inline_stylesheet: true,
+                mask_input_options: {},
+              },
+              distributed_tracing: { enabled: true },
+              privacy: { cookies_enabled: true },
+              ajax: {
+                deny_list: [
+                  'staging-bam-cell.nr-data.net',
+                  'docs.newrelic.com',
+                ],
+              },
+            },
           },
         },
         shouldUpdateScroll: {
