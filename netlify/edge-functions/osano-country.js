@@ -33,35 +33,21 @@ export default async (request, context) => {
   ].includes(context.geo.country.code);
 
   if (hasGdpr) {
-    return (
-      new HTMLRewriter()
-        // .on('script', {
-        //   text(text) {
-        //     buffer += text.text;
-
-        //     if (text.lastInTextNode) {
-        //       text.replace(buffer.replace(/variant=one/gi, 'variant=two'));
-        //       buffer = '';
-        //     } else {
-        //       text.remove();
-        //     }
-        //   },
-        // })
-        .on('script', {
-          element(element) {
-            const scriptSrc = element.getAttribute('src');
-            if (
-              typeof scriptSrc === 'string' &&
-              scriptSrc.includes('cmp.osano.com/')
-            ) {
-              element.setAttribute(
-                'src',
-                scriptSrc.replace(/variant=one/gi, 'variant=two')
-              );
-            }
-          },
-        })
-        .transform(response)
-    );
+    return new HTMLRewriter()
+      .on('script', {
+        element(element) {
+          const scriptSrc = element.getAttribute('src');
+          if (
+            typeof scriptSrc === 'string' &&
+            scriptSrc.includes('cmp.osano.com/')
+          ) {
+            element.setAttribute(
+              'src',
+              scriptSrc.replace(/variant=one/gi, 'variant=two')
+            );
+          }
+        },
+      })
+      .transform(response);
   }
 };
