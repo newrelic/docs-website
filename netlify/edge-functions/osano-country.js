@@ -30,7 +30,6 @@ export default async (request, context) => {
     'SI',
     'ES',
     'SE',
-    'US',
   ].includes(context.geo.country.code);
 
   if (hasGdpr) {
