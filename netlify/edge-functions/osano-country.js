@@ -30,6 +30,7 @@ export default async (request, context) => {
     'SI',
     'ES',
     'SE',
+    'US',
   ].includes(context.geo.country.code);
 
   if (hasGdpr) {
@@ -39,7 +40,7 @@ export default async (request, context) => {
           const scriptSrc = element.getAttribute('src');
           if (
             typeof scriptSrc === 'string' &&
-            scriptSrc.includes('cmp.osano.com/')
+            scriptSrc.includes('https://cmp.osano.com/')
           ) {
             element.setAttribute(
               'src',
