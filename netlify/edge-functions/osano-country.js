@@ -39,7 +39,7 @@ export default async (request, context) => {
           const scriptSrc = element.getAttribute('src');
           if (
             typeof scriptSrc === 'string' &&
-            scriptSrc.includes('https://cmp.osano.com/')
+            scriptSrc.startsWith('https://cmp.osano.com/')
           ) {
             element.setAttribute(
               'src',
