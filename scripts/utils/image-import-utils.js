@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const cliProgress = require('cli-progress');
 const colors = require('ansi-colors');
+const { getFiles } = require('./getFiles');
 
 const progressBar = new cliProgress.SingleBar(
   {
@@ -15,12 +16,6 @@ const progressBar = new cliProgress.SingleBar(
   },
   cliProgress.Presets.rect
 );
-
-const isFile = (filepath) => fs.statSync(filepath).isFile();
-const pathJoin = (base) => (filepath) => path.join(base, filepath);
-
-const getFiles = (filepath) =>
-  fs.readdirSync(filepath).map(pathJoin(filepath)).filter(isFile);
 
 const errors = [];
 
