@@ -1,34 +1,117 @@
----
-title: Create your own manifest file
-tags:
-  - Integrations
-  - Kubernetes integration
-  - Installation
-metaDescription: How to create a manifest using Helm as a templating system
-freshnessValidatedDate: never
----
+# Kubernetes Integration on Hybrid cluster with Windows and Linux nodes
 
-You can create your own manifest file using Helm to cover all your needs, such as to set the proxy you want to use. To understand all the power of Helm, we recommend you to read [how to install Kubernetes integration using Helm](/docs/kubernetes-pixie/kubernetes-integration/installation/install-kubernetes-integration-using-helm) before going through this document.
+The purpose of this document is to clarify the available options for installing the Kubernetes integration to a mixed Windows/Linux cluster.
 
-## Compatibility and requirements [#compatibility]
+The recipe here is drawn from a combination of two public docs:
 
-* Ensure [Helm](https://github.com/helm/helm#install) matches your Kubernetes integration version. For example, version 3 of the Kubernetes integration requires Helm version 3.
-* A New Relic account. Don't have one? [Sign up for free!](https://newrelic.com/signup) No credit card required.
-* Your New Relic <InlinePopover type="licenseKey" />.
-* Your Kubernetes cluster's name.
-  * If you need a display name for your cluster, you can use the output of the following command:
-    ```shell
-    kubectl config current-context
-    ```
+Preview Windows installation (Only describes newrelic-infrastructure v2 installation, does not address anything else in the bundle): https://docs.newrelic.com/docs/kubernetes-pixie/kubernetes-integration/installation/kubernetes-integration-install-configure/#windows-install
 
-## Templating Kubernetes integration with Helm [#install-k8-helm]
+Helm installation (Only addresses the bundle on Linux nodes, does not address Windows nodes): https://docs.newrelic.com/docs/kubernetes-pixie/kubernetes-integration/installation/kubernetes-integration-install-configure/#man-helm
 
-<Callout variant="important">
-  Installing and upgrading using a manifest isn't supported and is prone to errors. Be completely sure that this is the approach you need for your environment.
-</Callout>
+## Prerequisites
 
-1. Add the New Relic Helm charts repository by running:
-  ```shell
-  helm repo add newrelic https://helm-charts.newrelic.com
-  ```
+A cluster with Windows and Linux nodes, including the ability to pull container images to the Windows nodes (extra steps required on EKS, should "just work" on Azure).
+
+Set up the Helm repo and create a namespace:
+
+```
+helm repo add newrelic https://helm-charts.newrelic.com
+helm repo update
+kubectl create namespace newrelic
+
+```
+
+## Install the current chart bundle
+
+This is the regular bundle with all the latest updates for everything on Linux nodes. Exception is that the newrelic-logging chart can be configured to install to Windows. This is a supported, stable feature of ONLY the logging chart currently.
+
+Other charts currently require a NodeSelector to be configured, to avoid scheduling to Windows. If a customer is failing to install the bundle to a mixed cluster, while using default values from guided install, this is the solution - they must add the nodeSelector values.
+
+Create the values file, let's call it values-newrelic.yaml:
+
+Please note that you can download the values.yaml file from the New Relic UI , add the Kubernetes integration and select the instrumentation method as "Helm".
+
+```
+global:
+  licenseKey: mykey
+  cluster: mycluster
+  lowDataMode: true
+ 
+newrelic-infrastructure:
+  enabled: true
+  nodeSelector:
+    kubernetes.io/os: linux
+ 
+kube-state-metrics:
+  enabled: true
+  image:
+    tag: v2.10.0
+  nodeSelector:
+    kubernetes.io/os: linux
+ 
+nri-kube-events:
+  enabled: true
+  nodeSelector:
+    kubernetes.io/os: linux
+ 
+newrelic-logging:
+  enabled: true
+  enableWindows: true
+ 
+nri-metadata-injection:
+  enabled: true
+  nodeSelector:
+    kubernetes.io/os: linux
+ 
+newrelic-prometheus-agent:
+  enabled: true
+  verboseLog: true
+  config:
+    kubernetes:
+      integrations_filter:
+        enabled: false
+  nodeSelector:
+    kubernetes.io/os: linux
+```
+
+## Install the bundle
+
+```
+helm upgrade --install newrelic-bundle newrelic/nri-bundle --namespace newrelic -f values-newrelic.yaml
+
+```
+
+After Helm returns, you should see all pods successfully started, including a logging pod on each Windows node (but no other New Relic pods on Windows nodes yet).
+
+## Installing newrelic-infrastructure preview for Windows nodes
+
+The example below is for a cluster with Windows 2022 nodegroup/node pool. Adjust the windowsOsList section with the appropriate values from our [docs](https://docs.newrelic.com/docs/kubernetes-pixie/kubernetes-integration/installation/kubernetes-integration-install-configure/#windows-install) if running 2019 or 20h2. Note that the docs are the only place where this reference exists - the values file in the v2 newrelic-infrastructure GitHub does not show the same versions. The preview docs should be considered authoritative.
+
+Create the values file for the newrelic-infrastructure v2 chart, for example windows-values.yaml:
+
+```
+global:
+  licenseKey: mykey
+  cluster: mycluster
+ 
+enableLinux: false
+enableWindows: true
+windowsOsList:
+  - version: 2022
+    imageTag: 2-windows-ltsc2022-alpha
+    buildNumber: 10.0.20348
+windowsNodeSelector:
+  kubernetes.io/os: windows
+```
+Install the v2.7.2 release of the newrelic-infrastructure chart, per our official preview docs:
+
+```
+helm upgrade --install newrelic-windows newrelic/newrelic-infrastructure --namespace newrelic --version 2.7.2 -f windows-values.yaml
+
+```
+After Helm returns, you should see newrelic-windows-newrelic-infrastructure pods on each Windows node.
+
+## Expected results
+
+Windows nodes appear in the Kubernetes cluster UI in New Relic, along with their infrastructure metrics, running pods, etc.
 
