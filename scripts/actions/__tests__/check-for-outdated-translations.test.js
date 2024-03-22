@@ -1,12 +1,18 @@
 const fs = require('fs');
 const fetch = require('node-fetch');
-
-const checkForOutdatedTranslations = require('../check-for-outdated-translations');
+const { fetchPaginatedGHResults } = require('../utils/github-api-helpers');
+const {
+  checkOutdatedTranslations,
+} = require('../check-for-outdated-translations');
 
 // Mock node-fetch so we can avoid calling out to GitHub
 jest.mock('node-fetch');
+jest.mock('../utils/github-api-helpers');
+jest.mock('../utils/check-args');
 
 global.process.exit = jest.fn();
+global.process.argv.push('--arg3', 'url');
+jest.spyOn(global.console, 'log').mockImplementation(() => {});
 
 // Helper function to mock a response from Github
 const mockGithubResponse = (result) => {
@@ -57,9 +63,15 @@ describe('Action: Check for outdated translations', () => {
     mockReadFileSync(['jp']);
     mockExistsSync(false);
 
-    await checkForOutdatedTranslations();
+    fetchPaginatedGHResults.mockReturnValueOnce([
+      {
+        filename,
+        status: STATUS.ADDED,
+      },
+    ]);
 
-    expect(global.process.exit).toHaveBeenLastCalledWith(0);
+    await checkOutdatedTranslations();
+    expect(console.log).toHaveBeenCalledTimes(0);
   });
 
   test('should fail when files are found for deletion', async () => {
@@ -72,8 +84,15 @@ describe('Action: Check for outdated translations', () => {
     ]);
 
     mockExistsSync(true);
-    await checkForOutdatedTranslations();
-
-    expect(global.process.exit).toHaveBeenLastCalledWith(1);
+    fetchPaginatedGHResults.mockReturnValueOnce([
+      {
+        filename,
+        status: STATUS.REMOVED,
+      },
+    ]);
+    await expect(checkOutdatedTranslations()).rejects.toThrow();
+    expect(console.log).toHaveBeenCalledWith(
+      'ACTION NEEDED: Unpaired translation found -> src/i18n/content/jp/content/bar.mdx'
+    );
   });
 });

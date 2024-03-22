@@ -11,6 +11,7 @@ import {
 } from '@newrelic/gatsby-theme-newrelic';
 import Timeline from '../components/Timeline';
 import SEO from '../components/SEO';
+import ErrorBoundary from '../components/ErrorBoundary';
 import { TYPES } from '../utils/constants';
 
 const WhatsNew = ({ data, location, pageContext }) => {
@@ -31,10 +32,14 @@ const WhatsNew = ({ data, location, pageContext }) => {
       .entries()
   );
 
+  if (typeof window !== 'undefined' && typeof newrelic === 'object') {
+    window.newrelic.setCustomAttribute('pageType', 'Dynamic/WhatsNew');
+  }
+
   const { t } = useTranslation();
 
   return (
-    <>
+    <ErrorBoundary eventName="whatsNewOverview">
       <SEO
         location={location}
         title="What's new in New Relic"
@@ -118,7 +123,7 @@ const WhatsNew = ({ data, location, pageContext }) => {
           </Timeline>
         </Layout.Content>
       </div>
-    </>
+    </ErrorBoundary>
   );
 };
 
@@ -129,7 +134,7 @@ WhatsNew.propTypes = {
 };
 
 export const pageQuery = graphql`
-  query($slug: String!, $locale: String) {
+  query {
     allMarkdownRemark(
       sort: {
         fields: [frontmatter___releaseDate, frontmatter___title]
@@ -151,8 +156,6 @@ export const pageQuery = graphql`
         }
       }
     }
-
-    ...MainLayout_query
   }
 `;
 

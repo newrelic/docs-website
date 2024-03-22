@@ -51,6 +51,15 @@ describe('send-and-update-translation-queue tests', () => {
             locale: 'ja-JP',
             status: 'IN_PROGRESS',
           },
+        ])
+        .calledWith({ status: 'ERRORED' })
+        .mockReturnValue([
+          {
+            id: 3,
+            slug: 'hello_world3.txt',
+            locale: 'ja-JP',
+            status: 'ERRORED',
+          },
         ]);
       fs.existsSync.mockReturnValue(true);
 
@@ -93,7 +102,53 @@ describe('send-and-update-translation-queue tests', () => {
             locale: 'ja-JP',
             status: 'IN_PROGRESS',
           },
-        ]);
+        ])
+        .calledWith({ status: 'ERRORED' })
+        .mockReturnValue([]);
+      fs.existsSync.mockReturnValue(true);
+
+      const translations = await getReadyToGoTranslationsForEachLocale();
+
+      expect(translations).toEqual({
+        'ja-JP': [
+          {
+            id: 3,
+            slug: 'hello_world2.txt',
+            locale: 'ja-JP',
+            status: 'PENDING',
+          },
+        ],
+      });
+    });
+
+    test('only returns pending translation if there is no matching errored translation', async () => {
+      when(getTranslations)
+        .calledWith({ status: 'PENDING' })
+        .mockReturnValue([
+          {
+            id: 1,
+            slug: 'hello_world.txt',
+            locale: 'ja-JP',
+            status: 'PENDING',
+          },
+          {
+            id: 3,
+            slug: 'hello_world2.txt',
+            locale: 'ja-JP',
+            status: 'PENDING',
+          },
+        ])
+        .calledWith({ status: 'ERRORED' })
+        .mockReturnValue([
+          {
+            id: 2,
+            slug: 'hello_world.txt',
+            locale: 'ja-JP',
+            status: 'ERRORED',
+          },
+        ])
+        .calledWith({ status: 'IN_PROGRESS' })
+        .mockReturnValue([]);
       fs.existsSync.mockReturnValue(true);
 
       const translations = await getReadyToGoTranslationsForEachLocale();
@@ -128,6 +183,8 @@ describe('send-and-update-translation-queue tests', () => {
           },
         ])
         .calledWith({ status: 'IN_PROGRESS' })
+        .mockReturnValue([])
+        .calledWith({ status: 'ERRORED' })
         .mockReturnValue([]);
 
       when(fs.existsSync)
@@ -175,7 +232,9 @@ describe('send-and-update-translation-queue tests', () => {
             locale: 'ja-JP',
             status: 'IN_PROGRESS',
           },
-        ]);
+        ])
+        .calledWith({ status: 'ERRORED' })
+        .mockReturnValue([]);
       fs.existsSync.mockReturnValue(false);
 
       await getReadyToGoTranslationsForEachLocale();
@@ -198,7 +257,7 @@ describe('send-and-update-translation-queue tests', () => {
           targetLocaleIds: ['fake_locale_2'],
         });
 
-      await createJobs('fake_access_token')(['fake_locale_1', 'fake_locale_2']);
+      await createJobs(['fake_locale_1', 'fake_locale_2']);
 
       expect(vendorRequest.mock.calls.length).toBe(2);
       expect(addJob.mock.calls.length).toBe(2);
@@ -225,7 +284,7 @@ describe('send-and-update-translation-queue tests', () => {
         ],
       };
 
-      await createBatches('fake_access_token')(jobs, translationsPerLocale);
+      await createBatches(jobs, translationsPerLocale);
 
       expect(vendorRequest.mock.calls.length).toBe(1);
       expect(updateJob.mock.calls.length).toBe(1);
@@ -248,7 +307,7 @@ describe('send-and-update-translation-queue tests', () => {
         ],
       };
 
-      await uploadFiles(batches, translationsPerLocale, 'fake_access_token');
+      await uploadFiles(batches, translationsPerLocale);
 
       expect(updateTranslation.mock.calls.length).toBe(0);
     });
@@ -268,7 +327,7 @@ describe('send-and-update-translation-queue tests', () => {
         ],
       };
 
-      await uploadFiles(batches, translationsPerLocale, 'fake_access_token');
+      await uploadFiles(batches, translationsPerLocale);
 
       expect(addTranslationsJobsRecord.mock.calls.length).toBe(1);
       expect(addTranslationsJobsRecord.mock.calls[0]).toEqual([
@@ -292,7 +351,7 @@ describe('send-and-update-translation-queue tests', () => {
         ],
       };
 
-      await uploadFiles(batches, translationsPerLocale, 'fake_access_token');
+      await uploadFiles(batches, translationsPerLocale);
 
       expect(updateTranslation.mock.calls.length).toBe(1);
       expect(updateTranslation.mock.calls[0]).toEqual([

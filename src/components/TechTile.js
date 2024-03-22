@@ -12,6 +12,7 @@ const TileIcon = ({ className, icon }) => {
         className={className}
         css={css`
           flex: 1;
+          max-height: 2rem;
         `}
       />
     );
@@ -78,7 +79,10 @@ const TechTile = ({ name, icon, to }) => (
     <TileIcon
       icon={icon}
       css={css`
-        margin-bottom: 0.5rem;
+        margin-bottom: 0;
+        img {
+          width: 2rem;
+        }
       `}
     />
     <div

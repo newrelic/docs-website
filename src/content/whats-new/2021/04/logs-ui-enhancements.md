@@ -10,7 +10,7 @@ In collaboration with our customers, we’ve made significant changes in the Log
 
 This updated experience also includes colorization of key messages, a message preview, expanded dashboard visualization for displaying long log messages directly in dashboards, and more!
 
-![Screenshot showing the new logs UI](./images/new-logs-ui.png "New logs UI") 
+![Screenshot showing the new logs UI](./images/new-logs-ui.webp "New logs UI") 
 
 To learn more about how to leverage all of the latest innovations for logs in New Relic and specifically the new UI experience, head to our docs by clicking **Learn More** above, or to check it out for yourself in New Relic One, click **Get Started** above.
 

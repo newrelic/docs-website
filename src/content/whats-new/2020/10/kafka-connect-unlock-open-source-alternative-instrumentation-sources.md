@@ -12,4 +12,4 @@ The connector supports the [Metric](https://docs.newrelic.com/docs/telemetry-dat
 
 To get started, head over to [Confluent Hub](https://www.confluent.io/hub/newrelic/newrelic-kafka-connector) and follow the instructions to install the connector into your local Kafka cluster.
 
-![Kafka-Connect-with-New-Relic](./images/kafka-connect-new-relic.png "Kafka Connect with New Relic")
+![Kafka-Connect-with-New-Relic](./images/kafka-connect-new-relic.webp "Kafka Connect with New Relic")

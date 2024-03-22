@@ -6,18 +6,20 @@ const {
 } = require('./translation_workflow/database.js');
 const { getAccessToken, vendorRequest } = require('./utils/vendor-request');
 const fetch = require('node-fetch');
+const { configuration } = require('./configuration');
 
-const PROJECT_ID = process.env.TRANSLATION_VENDOR_PROJECT;
+const PROJECT_ID = configuration.TRANSLATION.VENDOR_PROJECT;
 const DOCS_SITE_URL = 'https://docs.newrelic.com';
 
 /**
  * Updates the "being translated" queue with the batches that are not done.
+ * @param {string} projectId - identifier of project to cleanup associated state
  * @returns {Promise}
  */
-const setInProgressToDone = async () => {
+const setInProgressToDone = async (projectId) => {
   const [completedJobs, completedTranslations] = await Promise.all([
-    getJobs({ status: 'COMPLETED' }),
-    getTranslations({ status: 'COMPLETED' }),
+    getJobs({ status: 'COMPLETED', project_id: projectId }),
+    getTranslations({ status: 'COMPLETED', project_id: projectId }),
   ]);
 
   const deserializedFileUris = completedTranslations.map(
@@ -52,8 +54,6 @@ const setInProgressToDone = async () => {
  * @returns {Promise}
  */
 const removePageContext = async (fileUris) => {
-  const accessToken = await getAccessToken();
-
   const fileNames = fileUris.map((fileUri) => {
     const filepath = fileUri.replace(`src/content/`, '');
     const slug = filepath.replace(`.mdx`, '');
@@ -64,7 +64,6 @@ const removePageContext = async (fileUris) => {
   const { items } = await vendorRequest({
     method: 'GET',
     endpoint: `https://api.smartling.com/context-api/v2/projects/${PROJECT_ID}/contexts`,
-    accessToken,
   });
 
   // Find the smartling context to be removed. This includes context manually
@@ -86,7 +85,7 @@ const removePageContext = async (fileUris) => {
       const options = {
         method: 'DELETE',
         headers: {
-          Authorization: `Bearer ${accessToken}`,
+          Authorization: `Bearer ${await getAccessToken()}`,
         },
       };
 
@@ -110,4 +109,4 @@ const removePageContext = async (fileUris) => {
   }, 'SUCCESS');
 };
 
-setInProgressToDone();
+setInProgressToDone(PROJECT_ID);

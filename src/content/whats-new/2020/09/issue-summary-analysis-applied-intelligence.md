@@ -15,7 +15,7 @@ The issue summary provides bottom-line insights to get you information faster. D
 * **Impacted entities:** Shows a summary of any entities we monitor with one-click access to anomaly analysis if you’ve configured Proactive Detection
 * **Labels sets:** Shows incidents from third-party sources (for example, PagerDuty, AWS CloudWatch, etc.)
 
-![Screenshot showing the analysis summary.](./images/whats_up_ai_summary.png "whats_up_ai_summary.png")
+![Screenshot showing the analysis summary.](./images/whats_up_ai_summary.webp "whats_up_ai_summary.webp")
 
 With these updates to the issue summary and analysis, more information is always a click away.
 

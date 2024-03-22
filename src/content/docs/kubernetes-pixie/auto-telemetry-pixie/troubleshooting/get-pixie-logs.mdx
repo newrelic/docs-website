@@ -1,0 +1,13 @@
+---
+title: Get logs for the Pixie integration
+tags:
+  - Integrations
+  - Pixie Kubernetes integration
+  - Troubleshooting
+metaDescription: "How to debug New Relic's Pixie integration."
+freshnessValidatedDate: never
+---
+
+To check the health of a cluster with Pixie installed, run the [diagnostics script](https://github.com/newrelic-experimental/k8s-diag-utilities/tree/main/pixie-diag).
+
+This simple bash script runs standard Kubernetes commands in the namespace that Pixie is installed in. The output of this script can be used to do a more in-depth investigation on your own or with New Relic Support.

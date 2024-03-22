@@ -7,7 +7,7 @@ learnMoreLink: 'https://docs.newrelic.com/docs/logs/enable-log-management-new-re
 
 In our ongoing commitment to constantly innovate and build more integrations for the most common sources, we’re excited to announce we now provide built-in integration for Heroku.
 
-![heroku-log-management.png](./images/heroku-log-management.png "Heroku log management")
+![heroku-log-management.png](./images/heroku-log-management.webp "Heroku log management")
 
 ## Get started
 
@@ -32,13 +32,11 @@ In our ongoing commitment to constantly innovate and build more integrations for
     "url": "syslog://logs.example.com"
   }
 ```  
-5. Launch [New Relic Logs](https://one.newrelic.com/launcher/logger.log-launcher) and click **Add more data sources**.
+5. Launch [**Logs** in **one.newrelic.com**](https://one.newrelic.com/launcher/logger.log-launcher), and click **Add more data sources**.
 
-![add-more-data-sources-button.png](./images/add-more-data-sources-button.png "Add more data sources button")
+![add-more-data-sources-button.png](./images/add-more-data-sources-button.webp "Add more data sources button")
 
 6. Click on the Heroku tile, add your [drain token](https://devcenter.heroku.com/articles/log-drains#drain-tokens), and select an [Insights Insert API key](https://docs.newrelic.com/docs/apis/get-started/intro-apis/new-relic-api-keys/#insights-insert-key) to map it to.
-
-![heroku-tile.png](./images/heroku-tile.png "Heroku tile")
 
 7. Click **Add Heroku drain log** and logs will begin flowing to your New Relic account within seconds.
 

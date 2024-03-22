@@ -1,34 +1,47 @@
-/// <reference path="./translation_workflow/models/typedefs.js" />
+/* eslint-disable no-console */
+// / <reference path="./translation_workflow/models/typedefs.js" />
 'use strict';
 
 const fs = require('fs');
 const path = require('path');
 
-const {
-  vendorRequest,
-  getAccessToken,
-  uploadFile,
-} = require('./utils/vendor-request');
+const { vendorRequest, uploadFile } = require('./utils/vendor-request');
 const Database = require('./translation_workflow/database');
+const {
+  trackTranslationError,
+  trackTranslationEvent,
+  TRACKING_TARGET,
+} = require('./utils/translation-monitoring');
 
 const PROJECT_ID = process.env.TRANSLATION_VENDOR_PROJECT;
+
+const defaultTrackingMetadata = {
+  projectId: PROJECT_ID,
+  workflow: 'sendAndUpdateTranslationQueue',
+};
 
 /**
  *
  * @returns {Promise<Object.<string, Translation[]>>} object whose keys are locales, whose values are an array of translation requests for that locale
  */
 const getReadyToGoTranslationsForEachLocale = async () => {
-  const [pendingTranslations, inProgressTranslations] = await Promise.all([
-    Database.getTranslations({ status: 'PENDING' }),
-    Database.getTranslations({ status: 'IN_PROGRESS' }),
+  const [
+    pendingTranslations,
+    inProgressTranslations,
+    erroredTranslations,
+  ] = await Promise.all([
+    Database.getTranslations({ status: 'PENDING', project_id: PROJECT_ID }),
+    Database.getTranslations({ status: 'IN_PROGRESS', project_id: PROJECT_ID }),
+    Database.getTranslations({ status: 'ERRORED', project_id: PROJECT_ID }),
   ]);
 
   /*
    * We only want to send a translation if:
    * 1. It's in a pending state.
    * 2. There isn't a matching record whose status === 'IN_PROGRESS'. A record matches if there exists another record with the same slug and locale.
+   * 3. There isn't a matching record whose status === 'ERRORED'. A record matches if there exists another record with the same slug and locale.
    *
-   * This is to avoid sending multiple translation requests for {hello_world.txt, ja-JP} as an example, and allows us have to an in progress translation, and one ready to go that is queued up in the database.
+   * This is to avoid sending multiple translation requests for {hello_world.txt, ja-JP} as an example, and allows us to have an in progress translation, and one ready to go that is queued up in the database.
    *
    * 3. The file (slug) that is associated with the translation record still exists.
    */
@@ -36,11 +49,19 @@ const getReadyToGoTranslationsForEachLocale = async () => {
 
   const readyToGoTranslations = pendingTranslations
     .filter(
-      (t1) =>
-        !Boolean(
-          inProgressTranslations.find(
-            (t2) => t1.slug === t2.slug && t1.locale === t2.locale
-          )
+      (pendingTranslation) =>
+        !inProgressTranslations.find(
+          (inProgressTranslation) =>
+            pendingTranslation.slug === inProgressTranslation.slug &&
+            pendingTranslation.locale === inProgressTranslation.locale
+        )
+    )
+    .filter(
+      (pendingTranslation) =>
+        !erroredTranslations.find(
+          (erroredTranslation) =>
+            pendingTranslation.slug === erroredTranslation.slug &&
+            pendingTranslation.locale === erroredTranslation.locale
         )
     )
     .filter((translation) => {
@@ -62,7 +83,7 @@ const getReadyToGoTranslationsForEachLocale = async () => {
     })
   );
 
-  let translationsPerLocale = {};
+  const translationsPerLocale = {};
   for (const translation of readyToGoTranslations) {
     translationsPerLocale[translation.locale] = [
       ...(translationsPerLocale[translation.locale] || []),
@@ -74,11 +95,10 @@ const getReadyToGoTranslationsForEachLocale = async () => {
 };
 
 /**
- *
- * @param {string} accessToken
- * @returns {(locales: string[]) => Promise<Job[]>} array of created jobs
+ * @param {string[]} locales
+ * @returns {Promise<Job[]>} array of created jobs
  */
-const createJobs = (accessToken) => async (locales) => {
+const createJobs = async (locales) => {
   const jobResponses = await Promise.all(
     locales.map((locale) => {
       const body = {
@@ -89,36 +109,33 @@ const createJobs = (accessToken) => async (locales) => {
         method: 'POST',
         endpoint: `/jobs-api/v3/projects/${PROJECT_ID}/jobs`,
         body,
-        accessToken,
       });
     })
   );
 
-  return await Promise.all(
+  return Promise.all(
     jobResponses.map(async (jobResponse) => {
-      return await Database.addJob({
+      return Database.addJob({
         job_uid: jobResponse.translationJobUid,
         status: 'PENDING',
         locale: jobResponse.targetLocaleIds[0],
+        project_id: PROJECT_ID,
       });
     })
   );
 };
 
 /**
- *
- * @param {string} accessToken
+ * @param {Job[]} jobRecords
+ * @param {Object.<string, Translation[]>} translationsPerLocale
  * @example
- * await createBatches(accessToken)(
+ * await createBatches(
  *  job: { id: 1, locale: 'ja-JP'},
  *  translationsPerLocale: { 'ja-jP': ['src/content/hello_world.txt']}
  * );
- * @returns {(jobs: Job[], translationsPerLocale: Object.<string, Translation[]>) => Promise<[{ batchUid: string, locale: string, jobId: string }]>}
+ * @returns {Promise<[{ batchUid: string, locale: string, jobId: string }]>}
  */
-const createBatches = (accessToken) => async (
-  jobRecords,
-  translationsPerLocale
-) => {
+const createBatches = async (jobRecords, translationsPerLocale) => {
   const createBatchResponses = await Promise.all(
     // create a batch for each job
     jobRecords.map(async (job) => {
@@ -130,11 +147,10 @@ const createBatches = (accessToken) => async (
         ), // for the job's locale, grab slugs corresponding to that locale
       };
 
-      var createBatchResponse = await vendorRequest({
+      const createBatchResponse = await vendorRequest({
         method: 'POST',
         endpoint: `/job-batches-api/v2/projects/${PROJECT_ID}/batches`,
         body,
-        accessToken,
       });
 
       await Database.updateJob(job.id, {
@@ -152,9 +168,8 @@ const createBatches = (accessToken) => async (
  *
  * @param {[{ batchUid: string, locale: string, jobId: string }]} batches
  * @param {Object.<string, Translation[]>} translationsPerLocale
- * @param {string} accessToken
  */
-const uploadFiles = async (batches, translationsPerLocale, accessToken) => {
+const uploadFiles = async (batches, translationsPerLocale) => {
   for (const batch of batches) {
     let successCount = 0;
 
@@ -163,8 +178,7 @@ const uploadFiles = async (batches, translationsPerLocale, accessToken) => {
       try {
         const fileUploadResponse = await uploadFile(
           batch.locale,
-          batch.batchUid,
-          accessToken
+          batch.batchUid
         )(translation);
 
         if (fileUploadResponse.code === 'ACCEPTED') {
@@ -175,6 +189,15 @@ const uploadFiles = async (batches, translationsPerLocale, accessToken) => {
           successCount += 1;
         }
       } catch (error) {
+        await trackTranslationError({
+          ...defaultTrackingMetadata,
+          target: TRACKING_TARGET.FILE,
+          slug: translation.slug,
+          locale: batch.locale,
+          jobId: batch.jobId,
+          error,
+          errorMessage: `Error occured during upload process for: ${translation.slug}`,
+        });
         console.log(
           `Error occured during upload process for: ${translation.slug}`
         );
@@ -187,6 +210,15 @@ const uploadFiles = async (batches, translationsPerLocale, accessToken) => {
     if (successCount > 0) {
       // if at least one file was successfully uploaded, set job to in progress
       await Database.updateJob(batch.jobId, { status: 'IN_PROGRESS' });
+
+      await trackTranslationEvent({
+        target: TRACKING_TARGET.JOB,
+        status: 'IN_PROGRESS',
+        jobId: batch.jobId,
+        locale: batch.locale,
+        successCount,
+        ...defaultTrackingMetadata,
+      });
     }
   }
 };
@@ -194,7 +226,6 @@ const uploadFiles = async (batches, translationsPerLocale, accessToken) => {
 /** Entrypoint. */
 const main = async () => {
   try {
-    const accessToken = await getAccessToken();
     const translationsPerLocale = await getReadyToGoTranslationsForEachLocale();
 
     // exit early if no translations are ready
@@ -205,17 +236,29 @@ const main = async () => {
 
     console.log(`Records to be sent: ${JSON.stringify(translationsPerLocale)}`);
 
-    const createdJobs = await createJobs(accessToken)(
-      Object.keys(translationsPerLocale)
-    );
-    const createdBatches = await createBatches(accessToken)(
+    const createdJobs = await createJobs(Object.keys(translationsPerLocale));
+    const createdBatches = await createBatches(
       createdJobs,
       translationsPerLocale
     );
-    await uploadFiles(createdBatches, translationsPerLocale, accessToken);
+    await uploadFiles(createdBatches, translationsPerLocale);
+
+    await trackTranslationEvent({
+      ...defaultTrackingMetadata,
+      target: TRACKING_TARGET.WORKFLOW,
+      createdJobsCount: createdJobs.length,
+      createdBatchesCount: createdBatches.length,
+    });
   } catch (error) {
+    await trackTranslationError({
+      ...defaultTrackingMetadata,
+      target: TRACKING_TARGET.WORKFLOW,
+      error,
+      errorMessage: `Unable to send and update translation queue to vendor`,
+    });
     console.log(`Error encountered: ${error}`);
     console.log(error.stack);
+    // eslint-disable-next-line require-atomic-updates
     process.exitCode = 1;
   }
 };

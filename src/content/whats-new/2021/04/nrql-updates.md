@@ -20,12 +20,12 @@ lets you tightly control the IPs that match your query. There are some limitatio
 # Smooth, accurate charts with sliding time windows
 ​
 ‘Sliding time windows’ sounds a bit like a magical patio door. But it refers to an ability to smooth charts for clearer signaling. Using a sliding time window, a set of small, high spikes will tend to group up into one, more visible spike.
-![a high resolution chart without any clear peaks](./images/nrql-1.png)
+![a high resolution chart without any clear peaks](./images/nrql-1.webp)
 ​
 Adding the `SLIDE BY` clause will let each data point contain average data about its neighbors:
 ​
 `SELECT average(duration) from Transaction TIMESERIES 5 minutes SLIDE BY 1 minute`
-![a chart with slide by set which shows a clear peak](./images/nrql-2.png)
+![a chart with slide by set which shows a clear peak](./images/nrql-2.webp)
 The documentation [illustrates how these queries work ](https://docs.newrelic.com/docs/query-your-data/nrql-new-relic-query-language/nrql-query-tutorials/create-smoother-charts-sliding-windows/)and how you can use them today.
 ​
 ​

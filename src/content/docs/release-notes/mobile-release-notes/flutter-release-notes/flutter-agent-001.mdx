@@ -1,0 +1,10 @@
+---
+subject: Flutter agent
+releaseDate: '2023-03-21'
+version: 0.0.1
+downloadLink: 'https://pub.dev/packages/newrelic_mobile/versions/0.0.1'
+---
+
+## The Mobile agent team is proud to announce GA support for Flutter!
+
+To learn more, see our [Flutter agent documentation](/docs/mobile-monitoring/new-relic-mobile-flutter/monitor-your-flutter-application/).

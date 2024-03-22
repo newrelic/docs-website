@@ -1,5 +1,5 @@
 ---
-title: 'Kubernetes: Metric Update'
+title: 'Kubernetes: Metric update'
 summary: 'Moving to container_memory_working_set_bytes and away from container_memory_usage_bytes metric'
 releaseDate: '2021-03-30'
 getStartedLink: 'https://docs.newrelic.com/docs/integrations/kubernetes-integration/installation/kubernetes-integration-install-configure/'

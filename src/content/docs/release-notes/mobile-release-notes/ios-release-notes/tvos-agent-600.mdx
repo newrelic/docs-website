@@ -1,0 +1,30 @@
+---
+subject: iOS agent
+title: tvOS agent v6.0.0
+releaseDate: '2017-11-08'
+version: 6.0.0
+downloadLink: 'https://download.newrelic.com/tvos_agent/NewRelic_tvOS_Agent_6.0.0.zip'
+---
+
+### Major release
+
+This agent release was built with Xcode 9, breaking backwards compatibility with older versions of Xcode.
+
+### Improvements
+
+* Swift error support.
+
+This release adds a new API in the `NewRelic` object `+recordError:(NSError*)error withAttributes:(NSDictionary*)attributes;`. This allows Swift errors to be recorded as `MobileHandledException` events and to be viewable in the Handled Exception Mobile UI page.
+
+* MobileRequest events are on by default.
+
+MobileRequest events will now be transmitted by default. They can be turned off by calling `[NewRelic disableFeatures:NRFeatureFlag_NetworkRequestEvents]` before `[NewRelic startWithApplicationToken:...]`.
+
+* Improved post build script.
+
+Symbol files will now be processed at build time and uploaded to New Relic using the postbuild.sh, rather than uploading the entire dSYM at build time. This will reduce network overhead as well as improve the time it takes for crashes to symbolicate.
+
+### Fixes
+
+* Fixed low frequency crash in `NRMAHarvestableMetric.m:45`.
+* Resolved memory leaks.
