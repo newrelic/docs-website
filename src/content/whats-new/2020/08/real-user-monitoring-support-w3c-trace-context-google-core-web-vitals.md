@@ -7,7 +7,7 @@ releaseDate: '2020-08-26'
 While it has a new home within our [Full-Stack Observability](https://newrelic.com/platform/full-stack-observability) product, we’ve made improvements to our [Browser agent](https://newrelic.com/products/browser-monitoring) and [real user monitoring capabilities](/docs/browser/new-relic-browser/getting-started/introduction-browser-monitoring), including:
 
 * [W3C trace context](https://www.w3.org/TR/trace-context/) standardization
-* [Cumulative Layout Shift](https://web.dev/cls/) to measure a page’s visual stability
+* [Cumulative layout shift](https://web.dev/cls/) to measure a page’s visual stability
 
 These new improvements help both frontend and web developers, who are increasingly spending time in incident resolution, focus on their main role of solving problems with software.
 
@@ -21,7 +21,7 @@ See our [docs](/docs/release-notes/new-relic-browser-release-notes/browser-agent
 
 ### New Metric: Cumulative Layout Shift
 
-We're excited to announce the release of [Cumulative Layout Shift (CLS)](https://web.dev/cls/), the third and final metric in [Google Core Web Vitals](https://web.dev/vitals/). This metric is an important user-centric metric for measuring visual stability, because it helps quantify how often users experience unexpected layout shifts. A low CLS score helps ensure that your page is delightful and visually stable.
+We're excited to announce the release of [Cumulative layout shift (CLS)](https://web.dev/cls/), the third and final metric in [Google Core Web Vitals](https://web.dev/vitals/). This metric is an important user-centric metric for measuring visual stability, because it helps quantify how often users experience unexpected layout shifts. A low CLS score helps ensure that your page is delightful and visually stable.
 
 The current set of core web vitals focuses on three aspects of the user experience: loading, interactivity, and visual stability. These are the following metrics and their thresholds:
 
