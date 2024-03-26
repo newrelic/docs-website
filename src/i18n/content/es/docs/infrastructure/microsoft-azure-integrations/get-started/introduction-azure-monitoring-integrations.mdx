@@ -1,0 +1,16 @@
+---
+title: Introducción a las soluciones de monitoreo de Azure
+tags:
+  - Integrations
+  - Microsoft Azure integrations
+  - Get started
+metaDescription: 'New Relic has several options for monitoring Microsoft Azure services and products, giving a comprehensive view of your Azure ecosystem.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Tenemos varias formas de monitor su aplicación y servicios [Microsoft Azure](https://azure.microsoft.com) . A continuación se ofrece una descripción general de estas ofertas y de por qué utilizaría una frente a la otra.
+
+* New Relic en Azure: con nuestro [servicio New Relic nativo de Azure](/docs/infrastructure/microsoft-azure-integrations/get-started/azure-native), puede implementar New Relic creado en Azure, directamente desde el portal de Azure. Esta opción le brinda el equivalente de las dos características siguientes (y también el monitoreo de aplicaciones Java) y puede configurarla directamente desde Azure Portal.
+* Nuestra integración de Azure: Nuestra [integración de infraestructura de Azure](/docs/infrastructure/microsoft-azure-integrations/get-started/activate-azure-integrations) admite docenas de servicios de Azure.
+* .NET APM: Puede instalar [nuestro .NET agente APM](/install/dotnet) para monitor su aplicación Azure y recibir telemetry data detallados.
