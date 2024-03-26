@@ -19,7 +19,7 @@ Additionally, W3C trace context offers the same advantages when using open sourc
 
 See our [docs](/docs/release-notes/new-relic-browser-release-notes/browser-agent-release-notes/browser-agent-v1173) for more information about standard trace context.
 
-### New Metric: cumulative layout shift
+### New Metric: Cumulative Layout Shift
 
 We're excited to announce the release of [Cumulative Layout Shift (CLS)](https://web.dev/cls/), the third and final metric in [Google Core Web Vitals](https://web.dev/vitals/). This metric is an important user-centric metric for measuring visual stability, because it helps quantify how often users experience unexpected layout shifts. A low CLS score helps ensure that your page is delightful and visually stable.
 
