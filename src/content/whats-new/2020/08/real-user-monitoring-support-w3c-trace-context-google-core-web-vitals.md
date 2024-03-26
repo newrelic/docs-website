@@ -26,7 +26,7 @@ We're excited to announce the release of [Cumulative Layout Shift (CLS)](https:/
 The current set of core web vitals focuses on three aspects of the user experience: loading, interactivity, and visual stability. These are the following metrics and their thresholds:
 
 * Largest contentful paint (LCP): measures loading performance. To provide a good user experience, LCP should occur within 2.5 seconds of when the page starts loading.
-* Interaction to next paint: measures interactivity. To provide a good user experience, pages should have a INP of less than 200 milliseconds.
+* Interaction to next paint (INP): measures interactivity. To provide a good user experience, pages should have a INP of less than 200 milliseconds.
 * Cumulative layout shift (CLS): measures visual stability. To provide a good user experience, pages should maintain a CLS of less than 0.1.
 
 For each of the above metrics, to ensure you're hitting the recommended target for most of your users, a good threshold to measure is the 75th percentile of page loads, segmented across mobile and desktop devices. To learn more about the research and methodology behind these recommendations, see: [Defining the Core Web Vitals metrics thresholds](https://web.dev/defining-core-web-vitals-thresholds/). Tools that assess Core Web Vitals compliance should consider a page passing if it meets the recommended targets at the 75th percentile for all of these three metrics.
