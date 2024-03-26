@@ -31,7 +31,6 @@ const Navigation = ({ nav, className }) => {
         height: 100%;
         overflow: auto;
         margin: 16px 0;
-        padding-bottom: 2rem;
         -ms-overflow-style: none;
         scrollbar-width: none;
         &::-webkit-scrollbar {
@@ -39,7 +38,8 @@ const Navigation = ({ nav, className }) => {
         }
         span,
         svg {
-          color: #afe2e3;
+          color: var(--system-text-primary-dark);
+          opacity: 0.8;
         }
       `}
       id="nav"
@@ -55,9 +55,11 @@ const Navigation = ({ nav, className }) => {
               <Flipped flipId={page.flipId} translate>
                 <p
                   css={css`
-                    color: #1dcad3;
+                    color: var(--system-text-primary-dark);
+                    opacity: 0.8;
                     margin: 0;
                     font-size: 14px;
+                    font-weight: 500;
                     margin-top: 1rem;
                   `}
                 >
