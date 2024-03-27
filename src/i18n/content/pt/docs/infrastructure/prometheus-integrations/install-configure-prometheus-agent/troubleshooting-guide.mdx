@@ -1,0 +1,106 @@
+---
+title: Guia de resolução de problemas para o agente Prometheus
+tags:
+  - Integrations
+  - Prometheus integrations
+  - Install and configure Prometheus agent
+metaDescription: Troubleshooting guide for the Prometheus agent
+freshnessValidatedDate: never
+translationType: machine
+---
+
+## Obtenha um registro detalhado [#verbose-logs]
+
+Você pode ativar o registro detalhado no gráfico `newrelic-prometheus-agent` definindo as variáveis `verboseLog` ou `global.verboseLog` como `true`.
+
+```yaml
+# (...)
+global:
+  verboseLog: true
+# (...)
+```
+
+Depois que isso for atualizado nos arquivos de valores, execute o seguinte comando helm upgrade:
+
+```bash
+helm upgrade <RELEASE_NAME> newrelic-prometheus-configurator/newrelic-prometheus-agent \
+--namespace <NEWRELIC_NAMESPACE> \
+-f values-newrelic.yaml \
+[--version fixed-chart-version]
+```
+
+## Não vendo métrica para um destino [#target-with-no-metrics]
+
+Você precisa de pelo menos um `job` que descubra o destino no Kubernetes que corresponda ao filtro especificado ou o destino deve ser listado como `static_target`.
+
+Se você estiver usando a configuração padrão no Kubernetes, verifique se seu pod ou serviço tem a anotação `prometheus.io/scrape=true` .
+
+Por padrão, o agente Prometheus extrai métricas apenas do [Prometheus integração](/docs/infrastructure/prometheus-integrations/integrations-list/integrations-list-intro). A menos que você tenha optado por extrair todos os endpoints do Prometheus no cluster, o agente do Prometheus filtra o endpoint a ser copiado usando os rótulos definidos em [source_labels](https://github.com/newrelic/newrelic-prometheus-configurator/blob/main/charts/newrelic-prometheus-agent/values.yaml).
+
+## Não vendo métrica em um dashboard [#dashboard-with-no-metrics]
+
+Alguns dos painéis fornecidos pela [integração do Prometheus](/docs/infrastructure/prometheus-integrations/integrations-list/integrations-list-intro) podem ter sido filtrados por um rótulo Kubernetes . Verifique a documentação de integração correspondente para obter mais informações.
+
+## Verifique o status da métrica [#up-metrics]
+
+Cada raspagem de destino gera a métrica `up` com toda a métrica de destino. Se a raspagem for bem-sucedida, essas métricas terão `1` como valor. Se não for bem-sucedido, o valor será `0`.
+
+```SQL
+FROM Metric SELECT latest(up) WHERE cluster_name= 'YOUR_CLUSTER_NAME' AND pod = 'TARGET_POD_NAME' TIMESERIES
+```
+
+Se esta métrica não existir para o destino, ela poderá ter sido descartada.
+
+Se os valores forem `0`, a extração falhou.
+
+## Destino descartado pelas regras de filtro [#target-dropped-by-filter]
+
+Para verificar o destino descartado, você pode usar o API [destino endpoint](https://prometheus.io/docs/prometheus/latest/querying/api/#targets) da Prometheus.
+
+Para listar todos os destinos eliminados no formato JSON e mostrar todos os rótulos descobertos, execute o seguinte comando:
+
+```shell
+kubectl exec newrelic-prometheus-agent-0 -- wget -O - 'localhost:9090/api/v1/targets?state=dropped' 2>/dev/null
+```
+
+## Falha na raspagem do destino [#target-scrape-fail]
+
+Se a métrica `up` tiver `0` como valor, significa que o destino foi raspado ativamente pelo Prometheus, mas a raspagem falhou. Você pode verificar o motivo no log detalhado com uma entrada log semelhante a esta:
+
+```bash
+prometheus ts=timestamp caller=scrape.go:1332 level=debug component="scrape manager" scrape_pool=kubernetes-job-pod target=http://1.2.3.4:80/metrics msg="<error>" err="<error detail>"
+```
+
+Você também pode verificar a lista de destinos ativos usando API de [destino da endpoint](https://prometheus.io/docs/prometheus/latest/querying/api/#targets) do Prometheus.
+
+Para listar todos os destinos ativos em JSON e mostrar todos os rótulos descobertos, execute o seguinte comando:
+
+```shell
+kubectl exec newrelic-prometheus-agent-0 -- wget -O - 'localhost:9090/api/v1/targets?state=active' 2>/dev/null
+```
+
+O destino com falha será listado e o erro estará disponível no campo `lastError` em uma saída semelhante a esta:
+
+```json
+{
+    "status": "success",
+    "data": {
+        "activeTargets": [
+            {
+                "discoveredLabels": <map of labels>,
+                "labels": <map of labels>,
+                "scrapePool": "kubernetes-job-pod",
+                "scrapeUrl": "http://172.17.0.5:80/metrics",
+                "globalUrl": "http://172.17.0.5:80/metrics",
+                "lastError": <error detail>,
+                "lastScrape": "2022-09-19T14:19:20.543747971Z",
+                "lastScrapeDuration": 0.000372542,
+                "health": "down",
+                "scrapeInterval": "15s",
+                "scrapeTimeout": "10s"
+            },
+            ...
+        ]
+    }
+}
+```
