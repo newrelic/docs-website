@@ -1,0 +1,22 @@
+---
+title: Plantilla de archivo de configuración (newrelic-infra.yml)
+tags:
+  - Infrastructure
+  - Install the infrastructure agent
+  - Configuration
+metaDescription: An example configuration file for the New Relic infrastructure agent.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+El agente de infraestructura lee el archivo `newrelic-infra.yml` para su [configuración](/docs/infrastructure/install-configure-infrastructure/configuration/configure-infrastructure-agent). Puede encontrar la plantilla de configuración más reciente en el [repositorio de infra-agente en GitHub](https://github.com/newrelic/infrastructure-agent/blob/master/assets/examples/infrastructure/newrelic-infra-template.yml.example).
+
+<Callout variant="tip">
+  Recomendamos [borrar](http://www.yamllint.com/) los archivos de configuración YAML antes de usarlos para evitar problemas de formato.
+</Callout>
+
+Para obtener más información sobre cada configuración, consulte [Opciones de configuración de infraestructura](/docs/infrastructure/install-configure-manage-infrastructure/configuration/infrastructure-configuration-settings).
+
+<Callout variant="important">
+  [Reinicie siempre el agente](/docs/infrastructure-start-stop-restart-check-agent-status) o su servidor web después de cambiar la configuración.
+</Callout>
