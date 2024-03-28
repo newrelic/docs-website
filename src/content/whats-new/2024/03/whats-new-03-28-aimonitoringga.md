@@ -17,6 +17,8 @@ New Relic AI monitoring gives you deep insights and unprecedented visibility acr
 * **Enhanced data security:** Safeguard sensitive data (PII) sent to your AI application with the new drop filter functionality that allows you to selectively exclude specific data types from monitoring, ensuring compliance and protecting user privacy.
 * **Optimized model performance and cost:** Compare performance and cost across models or services in a single view to choose the model that best fits your need.
 
+* ![AI Monitoring screenshot](./images/aimonitoringga.png "A screenshot that shows the tracing view")
+
 
 
 
