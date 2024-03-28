@@ -18,7 +18,7 @@ With New Relic AIM you can:
 
 * **Instantly monitor any AI ecosystem:** 50+ integrations and counting for popular LLMs, vector data stores and more. AIM is the most comprehensive solution for monitoring any AI ecosystem.
 
-![AIM image](./images/aim-whats-new.png "A screenshot showing AIM response view and tracing")
+![AIM image](./images/aim-whats-new.webp "A screenshot showing AIM response view and tracing")
 
 
 
