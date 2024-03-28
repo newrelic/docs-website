@@ -15,7 +15,7 @@ Please refer to our [transition guide](https://docs.newrelic.com/docs/synthetics
 
 The new runtimes provide many customer benefits that cannot be replicated in the legacy runtime environment, including but not limited to: 
 - The elimination of security CVE findings that cannot be resolved due to the legacy runtime design and backward compatibility requirements of the Containerized Private Minion (CPM)
-- Support for newer Chrome and Node versions, including easier upgrade paths
+- Support for newer Chrome and Node.js versions, including easier upgrade paths
 - More frequent browser version updates
 - Access to newer capabilities, such as device emulation
 
