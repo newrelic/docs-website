@@ -2,7 +2,7 @@
 title: 'New Relic AI monitoring is now generally available'
 summary: 'Gain in-depth insights across your AI application stack to improve performance, quality and cost'
 releaseDate: '2024-03-26'
-learnMoreLink: 'https://newrelic.com/blog/nerdlog/ai-monitoring-ga'
+learnMoreLink: ''
 getStartedLink: 'https://docs.newrelic.com/docs/ai-monitoring/intro-to-ai-monitoring/'
 ---
 
