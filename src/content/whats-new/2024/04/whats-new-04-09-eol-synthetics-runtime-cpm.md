@@ -9,7 +9,7 @@ getStartedLink: ''
 On October 9, 2024, New Relic will end-of-life (EOL):
 
  * The Containerized Private Minion (CPM) capability
- * Legacy synthetics runtimes, including our legacy Chrome 72 (and older) and Node.js 10 (and older) runtimes. 
+ * Legacy synthetics runtimes, including our legacy Chrome 72 (and older) and Node version 10 (and older) runtimes. 
 
 Please refer to our [transition guide](https://docs.newrelic.com/docs/synthetics/synthetic-monitoring/using-monitors/new-runtime/) to update to the latest runtimes or contact support. 
 
