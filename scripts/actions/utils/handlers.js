@@ -26,10 +26,13 @@ module.exports = {
     }),
   },
   import: {
-    deserialize: (h, node) => {
+    deserialize: (_state, node) => {
       const value = Buffer.from(node.properties.dataValue, 'base64').toString();
 
-      return h(node, 'import', value);
+      return {
+        type: 'import',
+        value,
+      };
     },
     serialize: (h, node) =>
       h(node, 'div', {
@@ -38,7 +41,7 @@ module.exports = {
       }),
   },
   frontmatter: {
-    deserialize: (state, node) => {
+    deserialize: (_state, node) => {
       const data = deserializeJSValue(node.properties.dataValue);
       const frontMatterAtt = node.children.reduce((acc, child) => {
         const key = child.properties.dataKey;
@@ -135,11 +138,11 @@ module.exports = {
     serialize: serializeComponent,
   },
   InlinePopover: {
-    deserialize: (h, node) => {
+    deserialize: (state, node) => {
       // this is to remove the `span`'s children to make this
       // a self closing tag.
       node.children = [];
-      return deserializeComponent(h, node, { tagName: 'InlinePopover' });
+      return deserializeComponent(state, node, { tagName: 'InlinePopover' });
     },
     // serialize: serializeComponent,
     serialize: (h, node) =>
@@ -157,8 +160,8 @@ module.exports = {
     serialize: serializeComponent,
   },
   Icon: {
-    deserialize: (h, node) =>
-      deserializeComponent(h, node, { hasChildrenProp: false }),
+    deserialize: (state, node) =>
+      deserializeComponent(state, node, { hasChildrenProp: false }),
     serialize: (h, node) =>
       serializeComponent(h, node, {
         wrapChildren: false,
