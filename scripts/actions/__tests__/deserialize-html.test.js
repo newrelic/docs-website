@@ -1,4 +1,4 @@
-import deserializeHTML from '../deserialize-html';
+import deserializeHTML from '../deserialize-html.mjs';
 import serializeMDX from '../serialize-mdx';
 import fs from 'fs';
 

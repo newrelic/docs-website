@@ -47,7 +47,7 @@ const deserializeAttributeValue = (h, node) => {
 };
 
 const deserializeComponent = (
-  h,
+  state,
   node,
   { type, hasChildrenProp = true } = {}
 ) => {
@@ -55,7 +55,7 @@ const deserializeComponent = (
   const name = dataComponent || node.tagName;
   const props = dataProps ? deserializeJSValue(dataProps) : [];
   const inferredType =
-    node.tagName === 'span' ? 'mdxSpanElement' : 'mdxBlockElement';
+    node.tagName === 'span' ? 'mdxJsxTextElement' : 'mdxJsxFlowElement';
 
   const hasWrappedChildren = hasChildren(node)
     ? node.children.some(
@@ -87,15 +87,12 @@ const deserializeComponent = (
         ];
   }, props);
 
-  const newNode = h(
-    node,
-    type || inferredType,
-    {
-      name: name === 'React.Fragment' ? null : name,
-      attributes,
-    },
-    childrenNode && hasChildrenProp ? all(h, childrenNode) : []
-  );
+  const newNode = {
+    type: type || inferredType,
+    name: name === 'React.Fragment' ? null : name,
+    attributes,
+    children: childrenNode && hasChildrenProp ? state.all(childrenNode) : [],
+  };
 
   return newNode;
 };

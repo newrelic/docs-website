@@ -6,7 +6,7 @@ const { writeSync } = require('to-vfile');
 const path = require('path');
 const fetch = require('node-fetch');
 
-const deserializedHtml = require('./deserialize-html');
+const deserializedHtml = require('./deserialize-html.mjs');
 const createDirectories = require('./utils/create-directories');
 const { getAccessToken } = require('./utils/vendor-request');
 const { LOCALE_IDS } = require('./utils/constants');

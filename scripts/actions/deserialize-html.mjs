@@ -1,17 +1,16 @@
-const unified = require('unified');
-const parse = require('rehype-parse');
-const rehype2remark = require('rehype-remark');
-const stringify = require('remark-stringify');
-const frontmatter = require('remark-frontmatter');
-const remarkMdx = require('remark-mdx');
-const remarkMdxjs = require('remark-mdxjs');
-const handlers = require('./utils/handlers');
-const defaultHandlers = require('hast-util-to-mdast/lib/handlers');
-const heading = require('hast-util-to-mdast/lib/handlers/heading');
-const u = require('unist-builder');
-const { last } = require('lodash');
-const yaml = require('js-yaml');
-const { configuration } = require('./configuration');
+import { unified } from 'unified11';
+import parse from 'rehype-parse9';
+import rehype2remark from 'rehype-remark10';
+import stringify from 'remark-stringify10';
+import frontmatter from 'remark-frontmatter5';
+import remarkMdx from 'remark-mdx2.3';
+import remarkMdxjs from 'remark-mdxjs';
+import handlers from './utils/handlers.js';
+import { defaultHandlers } from 'hast-util-to-mdast9';
+import u from 'unist-builder';
+import last from 'lodash/last.js';
+import yaml from 'js-yaml';
+import { configuration } from './configuration.js';
 
 const component = (h, node) => {
   if (!node.properties || !node.properties.dataType) {
@@ -38,8 +37,8 @@ const component = (h, node) => {
   return handler.deserialize(h, node);
 };
 
-const headingWithCustomId = (h, node) => {
-  const result = heading(h, node);
+const headingWithCustomId = (state, node) => {
+  const result = defaultHandlers.h1(state, node);
   const { id } = node.properties || {};
 
   if (!id) {
@@ -117,14 +116,14 @@ const processor = unified()
     listItemIndent: '1',
   })
   .use(remarkMdx)
-  .use(remarkMdxjs)
-  .use(frontmatter, ['yaml'])
-  .use(stripTranslateFrontmatter);
+  // .use(remarkMdxjs)
+  .use(frontmatter, ['yaml']);
+// .use(stripTranslateFrontmatter);
 
 const deserializeHTML = async (html) => {
-  const { contents } = await processor.process(html);
+  const vfile = await processor.process(html);
 
-  return contents.trim();
+  return vfile.toString().trim();
 };
 
-module.exports = deserializeHTML;
+export default deserializeHTML;

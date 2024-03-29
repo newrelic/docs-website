@@ -20,8 +20,10 @@ module.exports = {
         'data-component': 'CodeBlock',
         'data-props': serializeJSValue(omit(node, ['type'])),
       }),
-    deserialize: (h, node) =>
-      h(node, 'code', deserializeJSValue(node.properties.dataProps)),
+    deserialize: (state, node) => ({
+      type: 'code',
+      children: state.all(deserializeJSValue(node.properties.dataProps)),
+    }),
   },
   import: {
     deserialize: (h, node) => {
@@ -36,7 +38,7 @@ module.exports = {
       }),
   },
   frontmatter: {
-    deserialize: (h, node) => {
+    deserialize: (state, node) => {
       const data = deserializeJSValue(node.properties.dataValue);
       const frontMatterAtt = node.children.reduce((acc, child) => {
         const key = child.properties.dataKey;
@@ -44,13 +46,12 @@ module.exports = {
         return { ...acc, [key]: value };
       }, {});
 
-      return h(
-        node,
-        'yaml',
-        yaml
+      return {
+        type: 'yaml',
+        value: yaml
           .safeDump({ ...data, ...frontMatterAtt }, { lineWidth: Infinity })
-          .trim()
-      );
+          .trim(),
+      };
     },
     serialize: (h, node) => {
       const data = yaml.safeLoad(node.value);
