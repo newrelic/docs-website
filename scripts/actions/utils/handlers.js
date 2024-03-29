@@ -20,17 +20,21 @@ module.exports = {
         'data-component': 'CodeBlock',
         'data-props': serializeJSValue(omit(node, ['type'])),
       }),
-    deserialize: (state, node) => ({
-      type: 'code',
-      children: state.all(deserializeJSValue(node.properties.dataProps)),
-    }),
+    deserialize: (state, node) => {
+      const { lang, value } = deserializeJSValue(node.properties.dataProps);
+      return {
+        type: 'code',
+        value,
+        lang,
+      };
+    },
   },
   import: {
     deserialize: (_state, node) => {
       const value = Buffer.from(node.properties.dataValue, 'base64').toString();
 
       return {
-        type: 'import',
+        type: 'mdxjsEsm',
         value,
       };
     },

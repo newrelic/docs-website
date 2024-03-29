@@ -15,7 +15,7 @@ const hasChildren = (node) => node.children && node.children.length;
 
 const inlineCodeAttribute = () => (tree) => {
   visit(tree, 'inlineCode', (node) => {
-    node.type = 'mdxJsxTextElement';
+    node.type = 'mdxSpanElement';
     node.name = 'InlineCode';
     node.children = [u('text', node.value)];
   });
@@ -37,7 +37,7 @@ const deserializeAttributeValue = (h, node) => {
   }
 
   if (node.type === 'element') {
-    const tree = deserializeComponent(h, node, { type: 'mdxJsxTextElement' });
+    const tree = deserializeComponent(h, node, { type: 'mdxSpanElement' });
     const transformedTree = attributeProcessor.runSync(tree);
 
     return mdxValueExpression(attributeProcessor.stringify(transformedTree));
@@ -55,7 +55,7 @@ const deserializeComponent = (
   const name = dataComponent || node.tagName;
   const props = dataProps ? deserializeJSValue(dataProps) : [];
   const inferredType =
-    node.tagName === 'span' ? 'mdxJsxTextElement' : 'mdxJsxFlowElement';
+    node.tagName === 'span' ? 'mdxSpanElement' : 'mdxBlockElement';
 
   const hasWrappedChildren = hasChildren(node)
     ? node.children.some(
@@ -75,7 +75,7 @@ const deserializeComponent = (
 
   const attributes = textProps.reduce((attributes, node) => {
     const { dataProp: name } = node.properties;
-    const value = deserializeAttributeValue(h, node.children[0]);
+    const value = deserializeAttributeValue(state, node.children[0]);
     const idx = attributes.findIndex((attr) => attr.name === name);
 
     return idx === -1
