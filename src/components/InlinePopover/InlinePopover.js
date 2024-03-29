@@ -6,6 +6,9 @@ import { PopoverButton, useLocale } from '@newrelic/gatsby-theme-newrelic';
 import enJson from '../../data/popovers_en.json';
 import jpJson from '../../data/popovers_jp.json';
 import krJson from '../../data/popovers_kr.json';
+import esJson from '../../data/popovers_es.json';
+import ptJson from '../../data/popovers_pt.json';
+
 import { TwoButton } from './layouts';
 
 const Layouts = {
@@ -13,7 +16,7 @@ const Layouts = {
 };
 
 /**
- * Reads JSON from `src/data/popovers_{en,jp,kr}.json` to render pre-defined Popovers.
+ * Reads JSON from `src/data/popovers_{en,jp,kr, es, pt}.json` to render pre-defined Popovers.
  */
 const InlinePopover = ({ type }) => {
   const { locale } = useLocale();
@@ -21,6 +24,8 @@ const InlinePopover = ({ type }) => {
     if (locale === 'en') return enJson;
     if (locale === 'kr') return krJson;
     if (locale === 'jp') return jpJson;
+    if (locale === 'es') return esJson;
+    if (locale === 'pt') return ptJson;
     return enJson;
   })();
 
