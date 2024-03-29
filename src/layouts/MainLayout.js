@@ -241,6 +241,7 @@ const MainLayout = ({ children, pageContext }) => {
                 css={css`
                   display: ${isMobileNavOpen ? 'none' : 'block'};
                   position: relative;
+                  padding-top: 2.75rem;
 
                   @media (min-width: 760px) {
                     ${!sidebar &&
