@@ -22,8 +22,8 @@ const MDXLink = ({ href, ...props }) => {
 
   const brokenAssetPrefix = assetPrefix.replace('://', ':/');
 
-  if (href.startsWith(brokenAssetPrefix)) {
-    cleanHref = href.slice(brokenAssetPrefix.length);
+  if (href.contains(brokenAssetPrefix)) {
+    cleanHref = href.replace(brokenAssetPrefix + '/', '');
   }
 
   return <Link to={cleanHref} {...props} />;
