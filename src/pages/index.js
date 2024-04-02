@@ -10,9 +10,13 @@ import {
 } from '@newrelic/gatsby-theme-newrelic';
 import { useMedia } from 'react-use';
 import HomepageBanner from '../components/HomepageBanner';
-import { DocTile } from '../components/DocTile';
+import { DocTile, DocTiles } from '../components/DocTile';
 import ErrorBoundary from '../components/ErrorBoundary';
 import FeedbackModal from '../components/FeedbackModal';
+
+import popularDocs1 from '../images/popular-docs1.jpeg';
+import popularDocs2 from '../images/popular-docs2.jpeg';
+import popularDocs3 from '../images/popular-docs3.jpeg';
 
 const HomePage = ({ data }) => {
   const {
@@ -39,46 +43,46 @@ const HomePage = ({ data }) => {
         `}
       >
         <SectionTitle title={t('home.popularDocs.title')} />
-        <div
-          css={css`
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            grid-gap: 1rem;
-            counter-reset: welcome-tile;
-            flex: 2;
-            align-self: flex-start;
-            @media screen and (max-width: 1500px) {
-              align-self: auto;
-            }
-            @media screen and (max-width: 1050px) {
-              grid-template-columns: 1fr;
-            }
-            @media screen and (max-width: 760px) {
+        <div>
+          <DocTiles
+            variant="homepage"
+            css={css`
+              display: grid;
               grid-template-columns: repeat(3, 1fr);
-            }
-            @media screen and (max-width: 650px) {
-              grid-template-columns: 1fr;
-            }
-          `}
-        >
-          <DocTile
-            label={{ text: 'Get started', color: '#F4CBE7' }}
-            path="/docs/apm/new-relic-apm/getting-started/introduction-apm"
+              grid-gap: 1rem;
+              counter-reset: welcome-tile;
+              flex: 2;
+              align-self: flex-start;
+              @media screen and (max-width: 1500px) {
+                align-self: auto;
+              }
+              @media screen and (max-width: 1050px) {
+                grid-template-columns: 1fr;
+              }
+              @media screen and (max-width: 760px) {
+                grid-template-columns: repeat(3, 1fr);
+              }
+              @media screen and (max-width: 650px) {
+                grid-template-columns: 1fr;
+              }
+            `}
           >
-            {t('home.popularDocs.t1.title')}
-          </DocTile>
-          <DocTile
-            label={{ text: 'Get started', color: '#F4CBE7' }}
-            path="/docs/browser/browser-monitoring/getting-started/introduction-browser-monitoring/"
-          >
-            {t('home.popularDocs.t2.title')}
-          </DocTile>
-          <DocTile
-            label={{ text: 'Get started', color: '#F4CBE7' }}
-            path="/docs/synthetics/synthetic-monitoring/getting-started/get-started-synthetic-monitoring/"
-          >
-            {t('home.popularDocs.t3.title')}
-          </DocTile>
+            <DocTile
+              variant="light"
+              path="/docs/apm/new-relic-apm/getting-started/introduction-apm"
+            >
+              <img alt="Popular docs tile" src={popularDocs1} />
+              {t('home.popularDocs.t1.title')}
+            </DocTile>
+            <DocTile path="/docs/browser/browser-monitoring/getting-started/introduction-browser-monitoring/">
+              <img alt="Popular docs tile" src={popularDocs2} />
+              {t('home.popularDocs.t2.title')}
+            </DocTile>
+            <DocTile path="/docs/synthetics/synthetic-monitoring/getting-started/get-started-synthetic-monitoring/">
+              <img alt="Popular docs tile" src={popularDocs3} />
+              {t('home.popularDocs.t3.title')}
+            </DocTile>
+          </DocTiles>
         </div>
       </Section>
 

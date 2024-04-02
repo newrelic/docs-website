@@ -84,8 +84,32 @@ export const DocTile = ({
         .doc-tiles-default & {
           background: var(--secondary-background-color);
         }
-        .dark-mode & {
+        .dark-mode .doc-tiles-default & {
           background: var(--secondary-background-color);
+        }
+        .doc-tiles-homepage & {
+          max-width: 340px;
+          height: 132px;
+          background: var(--system-text-primary-light);
+          padding: 1rem;
+          border-radius: 11px;
+          h4 {
+            font-size: 18px;
+            color: white;
+            font-weight: 300;
+          }
+          img {
+            height: 100px;
+            width: 100px;
+            border-radius: 4px;
+            object-fit: cover;
+          }
+        }
+        .doc-tiles-homepage & .dark-mode {
+          background: var(--system-border-regular-dark);
+          h4 {
+            color: white;
+          }
         }
 
         .doc-tiles-labs & {
@@ -125,6 +149,8 @@ export const DocTile = ({
           css={css`
             display: flex;
             justify-content: space-between;
+            .doc-tiles-homepage & {
+              display: none;
           `}
         >
           {label && (
@@ -241,7 +267,7 @@ DocTiles.propTypes = {
   animated: PropTypes.bool,
   children: PropTypes.node,
   numbered: PropTypes.bool,
-  variant: PropTypes.oneOf(['default', 'labs', 'light']),
+  variant: PropTypes.oneOf(['default', 'labs', 'light', 'homepage']),
 };
 
 const Number = styled.span`
