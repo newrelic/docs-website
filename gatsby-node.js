@@ -369,6 +369,9 @@ exports.onCreatePage = ({ page, actions }) => {
   if (page.path.match(/404/)) {
     page.context.layout = 'basic';
   }
+  if (page.path === '/') {
+    page.context.layout = 'homepage';
+  }
 
   if (page.path.match(/404/) && page.path.match(/\/docs\//)) {
     page.context.layout = 'default';

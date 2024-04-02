@@ -42,8 +42,6 @@ const MainLayout = ({ children, pageContext }) => {
     }
   };
 
-  const isHomepage = location.pathname === '/';
-
   useEffect(() => {
     setIsMobileNavOpen(false);
     setSidebar(!isNavClosed());
@@ -133,118 +131,107 @@ const MainLayout = ({ children, pageContext }) => {
         <MainLayoutContext.Provider value={[sidebar]}>
           <Layout
             css={css`
-              --sidebar-width: ${isHomepage ? 0 : sidebarWidth};
+              --sidebar-width: ${sidebarWidth};
               -webkit-font-smoothing: antialiased;
               font-size: 1.125rem;
               @media screen and (max-width: 1240px) {
-                --sidebar-width: ${isHomepage ? 0 : '278px'};
+                --sidebar-width: 278px;
               }
             `}
           >
-            {/* Hide Nav on homepage */}
-            {isHomepage ? (
-              <Layout.Sidebar
-                css={css`
-                  display: none;
-                `}
-              />
-            ) : (
-              <>
-                {navCollapser}
-                <Layout.Sidebar
-                  aria-hidden={!sidebar}
-                  css={css`
-                    padding: 0;
-                    > div {
-                      height: 100%;
-                      overflow: hidden;
-                    }
-                    background: var(--erno-black);
+            {navCollapser}
+            <Layout.Sidebar
+              aria-hidden={!sidebar}
+              css={css`
+                padding: 0;
+                > div {
+                  height: 100%;
+                  overflow: hidden;
+                }
+                background: var(--erno-black);
 
-                    hr {
-                      border: none;
-                      height: 1rem;
-                      margin: 0;
-                    }
+                hr {
+                  border: none;
+                  height: 1rem;
+                  margin: 0;
+                }
+              `}
+            >
+              <div
+                css={css`
+                  height: ${navHeaderHeight};
+                `}
+              >
+                <div
+                  css={css`
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
                   `}
                 >
-                  <div
+                  <Link
+                    to="/"
                     css={css`
-                      height: ${navHeaderHeight};
+                      display: flex;
+                      justify-content: center;
+                      align-items: center;
+                      text-decoration: none;
+                      color: var(--system-text-primary-dark);
+                      &:hover {
+                        color: var(--system-text-primary-dark);
+                      }
                     `}
                   >
-                    <div
+                    <Logo
                       css={css`
-                        display: flex;
-                        justify-content: space-between;
-                        align-items: center;
-                      `}
-                    >
-                      <Link
-                        to="/"
-                        css={css`
-                          display: flex;
-                          justify-content: center;
-                          align-items: center;
-                          text-decoration: none;
-                          color: var(--system-text-primary-dark);
-                          &:hover {
-                            color: var(--system-text-primary-dark);
-                          }
+                        ${!sidebar &&
+                        css`
+                          display: none;
                         `}
-                      >
-                        <Logo
-                          css={css`
-                            ${!sidebar &&
-                            css`
-                              display: none;
-                            `}
-                          `}
-                        />
-                      </Link>
-                    </div>
-                    {sidebar && (
-                      <SearchInput
-                        placeholder={t('home.search.placeholder')}
-                        value={searchTerm || ''}
-                        iconName={SearchInput.ICONS.SEARCH}
-                        isIconClickable
-                        alignIcon={SearchInput.ICON_ALIGNMENT.RIGHT}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        onSubmit={() => {
-                          addPageAction({
-                            eventName: 'nonHomepageSidebarSearch',
-                            category: 'SearchInput',
-                            searchTerm,
-                          });
-                          navigate(`?q=${searchTerm || ''}`);
-                        }}
-                        css={css`
-                          margin: 1.5rem 0 2rem;
-                          svg {
-                            color: var(--primary-text-color);
-                          }
-                        `}
-                      />
-                    )}
-                  </div>
-
-                  <>
-                    <RootNavigation
-                      isStyleGuide={isStyleGuide}
-                      locale={locale}
-                      css={css`
-                        overflow-x: hidden;
-                        height: calc(
-                          100vh - ${navHeaderHeight} -
-                            var(--global-header-height) - 3rem
-                        );
                       `}
                     />
-                  </>
-                </Layout.Sidebar>
+                  </Link>
+                </div>
+                {sidebar && (
+                  <SearchInput
+                    placeholder={t('home.search.placeholder')}
+                    value={searchTerm || ''}
+                    iconName={SearchInput.ICONS.SEARCH}
+                    isIconClickable
+                    alignIcon={SearchInput.ICON_ALIGNMENT.RIGHT}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    onSubmit={() => {
+                      addPageAction({
+                        eventName: 'nonHomepageSidebarSearch',
+                        category: 'SearchInput',
+                        searchTerm,
+                      });
+                      navigate(`?q=${searchTerm || ''}`);
+                    }}
+                    css={css`
+                      margin: 1.5rem 0 2rem;
+                      svg {
+                        color: var(--primary-text-color);
+                      }
+                    `}
+                  />
+                )}
+              </div>
+
+              <>
+                <RootNavigation
+                  isStyleGuide={isStyleGuide}
+                  locale={locale}
+                  css={css`
+                    overflow-x: hidden;
+                    height: calc(
+                      100vh - ${navHeaderHeight} - var(--global-header-height) -
+                        3rem
+                    );
+                  `}
+                />
               </>
-            )}
+            </Layout.Sidebar>
             <CSSTransition
               in={sidebar}
               timeout={300}
@@ -253,18 +240,11 @@ const MainLayout = ({ children, pageContext }) => {
               <Layout.Main
                 css={css`
                   display: ${isMobileNavOpen ? 'none' : 'block'};
-                  padding: ${isHomepage
-                    ? 0
-                    : 'var(--site-content-padding)'}; // override padding from theme on homepage
                   position: relative;
 
                   @media (min-width: 760px) {
                     ${!sidebar &&
-                    `padding-left: calc(var(--site-content-padding) + 50px);`}// override padding from theme on homepage
-                  }
-
-                  @media screen and (max-width: 1000px) {
-                    padding: ${isHomepage ? 0 : '1.5rem'};
+                    `padding-left: calc(var(--site-content-padding) + 50px);`}
                   }
 
                   &.main-transition-enter {

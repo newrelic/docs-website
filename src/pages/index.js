@@ -33,8 +33,9 @@ const HomePage = ({ data }) => {
         css={css`
           border: none;
           background: var(--tertiary-background-color);
-          max-width: 90%;
+          max-width: 1200px;
           margin: auto;
+          padding: 2.5rem 3rem;
         `}
       >
         <SectionTitle title={t('home.popularDocs.title')} />
