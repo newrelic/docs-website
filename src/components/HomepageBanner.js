@@ -8,7 +8,7 @@ import {
   useTranslation,
   addPageAction,
 } from '@newrelic/gatsby-theme-newrelic';
-import bannerBackground from '../images/bannerBackground.png';
+import bannerBackground from '../images/bannerBackground.svg';
 
 const HomepageBanner = () => {
   const bannerHeight = '250px';
@@ -42,6 +42,7 @@ const HomepageBanner = () => {
           font-weight: 500;
           color: #1ce783;
           padding-top: 3rem;
+          margin-bottom: 1.25rem;
 
           line-height: 1;
           @media screen and (max-width: ${mobileBreakpoint}) {
@@ -76,7 +77,7 @@ const HomepageBanner = () => {
       />
       <div
         css={css`
-          margin-top: 1rem;
+          margin-top: 0.75rem;
           width: 40%;
           color: white;
           display: flex;
@@ -84,7 +85,8 @@ const HomepageBanner = () => {
           justify-content: center;
           width: 100%;
           flex-wrap: wrap;
-          font-weight: 500;
+          font-weight: 400;
+          font-size: 1rem;
           a {
             margin-left: 0.25rem;
           }
