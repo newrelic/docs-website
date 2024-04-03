@@ -1,0 +1,39 @@
+---
+title: Límites de uso de Sintético y seguimiento de uso
+tags:
+  - Synthetics
+  - Synthetic monitoring
+  - Using monitors
+metaDescription: The number of New Relic synthetic monitor checks that are included per month with each pricing edition.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+[La edición de precios](/docs/accounts/accounts-billing/new-relic-one-pricing-billing/new-relic-one-pricing-billing/#editions) de su organización (Standard, Pro o Enterprise) determina cuántos checks de monitoreo sintético se incluyen de forma gratuita por mes.
+
+Una verificación de monitoreo sintético es una ejecución individual de un monitor Sintético. Cuando un monitor se ejecuta desde una ubicación, cuenta como una verificación, por lo que también puede considerar las comprobaciones sintéticas como un trabajo sintético o una ejecución de trabajo.
+
+Por ejemplo, si un monitor está configurado para ejecutarse una vez por hora desde 5 ubicaciones, eso equivale a `24 * 5` comprobaciones por día, con un total de 120 comprobaciones. La edición de precios de su organización determina sus límites de checks y usted puede ver y facetar el número de checks que se han ejecutado.
+
+## Recuentos de checks incluidos por edición [#edition-limits]
+
+Su [edición de precios](/docs/accounts/accounts-billing/new-relic-one-pricing-billing/new-relic-one-pricing-billing/#editions) determina cuántos checks de monitoreo sintético se incluyen gratis por mes. Estos límites se aplican a todos [los tipos de monitor](/docs/synthetics/synthetic-monitoring/getting-started/types-synthetic-monitors) excepto al monitor de ping simple.
+
+Los siguientes son los checks sintéticos incluidos de forma gratuita en cada edición de precios:
+
+* Gratis: 500 por mes
+* Estándar: 10K por mes
+* Ventaja: 1 millón por mes
+* Empresa: 10 millones por mes
+
+## Cantidad excedida gratuita [#exceeding-free]
+
+Para obtener información sobre el costo de exceder la cantidad gratuita de revisiones del monitor, consulte la [tabla de precios de lista](/docs/licenses/license-information/usage-plans/new-relic-usage-plan/#list-price). Desplácese hacia abajo para ver los precios adicionales, que incluyen checks sintéticos.
+
+## Marca de tiempo de uso [#usage-timestamps]
+
+Nuestros [datos relacionados con el uso](/docs/accounts/accounts-billing/new-relic-one-pricing-billing/usage-queries-alerts) tienen una marca de tiempo que utiliza el momento en que se recibe y procesa el resultado de un check sintético. Esto puede causar una ligera diferencia entre el momento en que se ejecutó un check sintético y el momento en nuestros datos de uso.
+
+## Ver el uso histórico de Sintético [#usage]
+
+Para saber cómo consultar su uso de Sintético, consulte [consulta y alerta de uso](/docs/accounts/accounts-billing/new-relic-one-pricing-billing/usage-queries-alerts/#synthetics-usage).

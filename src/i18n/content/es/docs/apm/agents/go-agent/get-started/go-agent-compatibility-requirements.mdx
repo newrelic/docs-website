@@ -1,0 +1,587 @@
+---
+title: Compatibilidad del agente Go y requisitos
+tags:
+  - Agents
+  - Go agent
+  - Get started
+metaDescription: A summary of the New Relic Go agent's system requirements and integrations with other New Relic features.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Si aún no tiene una, [cree una cuenta New Relic](https://newrelic.com/signup). Es gratis, para siempre. Antes de [instalar New Relic for Go](/docs/agents/go-agent/installation/install-new-relic-go), asegúrese de que su sistema cumpla con estos requisitos.
+
+## Versiones de Golang [#golang-release]
+
+New Relic es compatible con [Golang 1.19 o superior](https://go.dev/doc/devel/release).
+
+## Entornos operativos [#operating-systems]
+
+El agente es compatible con Linux, macOS y Windows. También puede utilizar el agente Go en un [entorno flexible de Google App Engine (GAE)](/docs/agents/go-agent/get-started/install-new-relic-go-agent-gae-flexible-environment).
+
+## Integracion [#frameworks]
+
+Los siguientes [paquetes de integración](https://godoc.org/github.com/newrelic/go-agent/_integrations) amplían el paquete base [newrelic](https://godoc.org/github.com/newrelic/go-agent) para admitir otros marcos y bibliotecas. Si framework y base de datos no tienen un paquete de integración, aún puedes instrumentarlos usando las primitivas del paquete [newrelic](https://godoc.org/github.com/newrelic/go-agent) . Para obtener más información sobre cómo instrumentar su base de datos usando estas primitivas, consulte la [documentación de segmentos de almacenamiento de datos del agente Go en GitHub](https://github.com/newrelic/go-agent/blob/master/GUIDE.md#datastore-segments).
+
+Los siguientes paquetes de integración deben importarse junto con el paquete [newrelic](https://godoc.org/github.com/newrelic/go-agent/v3/newrelic) , como se muestra en el [ejemplo de nrgin en GitHub](https://github.com/newrelic/go-agent/blob/master/v3/integrations/nrgin/example/main.go).
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        Proyecto
+      </th>
+
+      <th>
+        Paquete de integración
+      </th>
+
+      <th>
+        Objetivo
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        [aws/aws-sdk-go](https://github.com/aws/aws-sdk-go)
+      </td>
+
+      <td>
+        [v3/integrations/nrawssdk-v1](https://godoc.org/github.com/newrelic/go-agent/v3/integrations/nrawssdk-v1)
+      </td>
+
+      <td>
+        Instrumentar llamadas salientes realizadas con Go AWS SDK
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [aws/aws-sdk-go-v2](https://github.com/aws/aws-sdk-go-v2)
+      </td>
+
+      <td>
+        [v3/integrations/nrawssdk-v2](https://godoc.org/github.com/newrelic/go-agent/v3/integrations/nrawssdk-v2)
+      </td>
+
+      <td>
+        Instrumentar llamadas salientes realizadas con Go AWS SDK v2
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [labstack/echo](https://github.com/labstack/echo)
+      </td>
+
+      <td>
+        [v3/integrations/nrecho-v3](https://godoc.org/github.com/newrelic/go-agent/v3/integrations/nrecho-v3)
+      </td>
+
+      <td>
+        Instrumentar las solicitudes entrantes a través de la versión 3 del framework Echo
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [labstack/echo](https://github.com/labstack/echo)
+      </td>
+
+      <td>
+        [v3/integrations/nrecho-v4](https://godoc.org/github.com/newrelic/go-agent/v3/integrations/nrecho-v4)
+      </td>
+
+      <td>
+        Instrumentar las solicitudes entrantes a través de la versión 4 del framework Echo
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [gin-gonic/gin](https://github.com/gin-gonic/gin)
+      </td>
+
+      <td>
+        [v3/integrations/nrgin](https://godoc.org/github.com/newrelic/go-agent/v3/integrations/nrgin)
+      </td>
+
+      <td>
+        Instrumentar las solicitudes entrantes a través del framework Gin.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [gorilla/mux](https://github.com/gorilla/mux)
+      </td>
+
+      <td>
+        [v3/integrations/nrgorilla](https://godoc.org/github.com/newrelic/go-agent/v3/integrations/nrgorilla)
+      </td>
+
+      <td>
+        Instrumentar las solicitudes entrantes a través del framework Gorilla
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [julienschmidt/httprouter](https://github.com/julienschmidt/httprouter)
+      </td>
+
+      <td>
+        [v3/integrations/nrhttprouter](https://godoc.org/github.com/newrelic/go-agent/v3/integrations/nrhttprouter)
+      </td>
+
+      <td>
+        Instrumentar las solicitudes entrantes a través del framework HttpRouter
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [aws/aws-lambda-go](https://github.com/aws/aws-lambda-go)
+      </td>
+
+      <td>
+        [v3/integrations/nrlambda](https://godoc.org/github.com/newrelic/go-agent/v3/integrations/nrlambda)
+      </td>
+
+      <td>
+        Instrumentar AWS Lambda aplicación
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [sirupsen/logrus](https://github.com/sirupsen/logrus)
+      </td>
+
+      <td>
+        [v3/integrations/nrlogrus](https://godoc.org/github.com/newrelic/go-agent/v3/integrations/nrlogrus)
+      </td>
+
+      <td>
+        Enviar mensaje de registro del agente a Logrus
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [rs/zerolog](https://github.com/rs/zerolog)
+      </td>
+
+      <td>
+        [v3/integrations/logcontext-v2/zerologWriter](https://godoc.org/github.com/newrelic/go-agent/v3/integrations/logcontext-v2/zerologWriter)
+      </td>
+
+      <td>
+        Capture y envíe datos de logs en el contexto desde el registro escrito en zerolog
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [sirupsen/logrus](https://github.com/sirupsen/logrus)
+      </td>
+
+      <td>
+        [v3/integrations/logcontext-v2/nrlogrus](https://godoc.org/github.com/newrelic/go-agent/v3/integrations/logcontext-v2/nrlogrus)
+      </td>
+
+      <td>
+        Capture y envíe datos de logs en el contexto desde el registro escrito en logrus
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [log](https://pkg.go.dev/log)
+      </td>
+
+      <td>
+        [v3/integrations/logcontext-v2/logWriter](https://godoc.org/github.com/newrelic/go-agent/v3/integrations/logcontext-v2/logWriter)
+      </td>
+
+      <td>
+        Capture y envíe datos de logs en el contexto desde el registro escrito en el paquete log de biblioteca estándar
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [mgutz/logxi](https://github.com/mgutz/logxi)
+      </td>
+
+      <td>
+        [v3/integrations/nrlogxi](https://godoc.org/github.com/newrelic/go-agent/v3/integrations/nrlogxi)
+      </td>
+
+      <td>
+        Enviar mensaje de registro del agente a Logxi
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [uber-go/zap](https://github.com/uber-go/zap)
+      </td>
+
+      <td>
+        [v3/integrations/nrzap](https://godoc.org/github.com/newrelic/go-agent/v3/integrations/nrzap)
+      </td>
+
+      <td>
+        Enviar mensaje de registro del agente a Zap
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [pkg/errors](https://github.com/pkg/errors)
+      </td>
+
+      <td>
+        [v3/integrations/nrpkgerrors](https://godoc.org/github.com/newrelic/go-agent/v3/integrations/nrpkgerrors)
+      </td>
+
+      <td>
+        Ajuste los errores de pkg/errors para mejorar el rastreo del stack y la información de clase de error
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [openzipkin/b3-propagation](https://github.com/openzipkin/b3-propagation)
+      </td>
+
+      <td>
+        [v3/integrations/nrb3](https://godoc.org/github.com/newrelic/go-agent/v3/integrations/nrb3)
+      </td>
+
+      <td>
+        Agregue encabezados B3 a las solicitudes salientes
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [Database/sql](https://godoc.org/database/sql)
+      </td>
+
+      <td>
+        Utilice un controlador de base de datos compatible o [instrumentación integrada](https://godoc.org/github.com/newrelic/go-agent/v3/newrelic#InstrumentSQLConnector)
+      </td>
+
+      <td>
+        Instrumentar base de datos llamadas con SQL
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [jmoiron/sqlx](https://github.com/jmoiron/sqlx)
+      </td>
+
+      <td>
+        Utilice un [controlador de base de datos](https://godoc.org/github.com/newrelic/go-agent/v3/integrations/nrpq/example/sqlx) compatible o [instrumentación integrada](https://godoc.org/github.com/newrelic/go-agent/v3/newrelic#InstrumentSQLConnector)
+      </td>
+
+      <td>
+        Instrumentar base de datos llamadas con SQLx
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [go-sql-driver/mysql](https://github.com/go-sql-driver/mysql)
+      </td>
+
+      <td>
+        [v3/integrations/nrmysql](https://godoc.org/github.com/newrelic/go-agent/v3/integrations/nrmysql)
+      </td>
+
+      <td>
+        Instrumentar las llamadas de la base de datos a MySQL
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [lib/pq/pq](https://github.com/lib/pq)
+      </td>
+
+      <td>
+        [v3/integrations/nrpq](https://godoc.org/github.com/newrelic/go-agent/v3/integrations/nrpq)
+      </td>
+
+      <td>
+        Instrumentar las llamadas de la base de datos a Postgres usando la biblioteca `database/sql` y `pq`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [jackc/pgx](https://github.com/jackc/pgx)
+      </td>
+
+      <td>
+        [v3/integrations/nrpgx](https://godoc.org/github.com/newrelic/go-agent/v3/integrations/nrpgx)
+      </td>
+
+      <td>
+        Instrumentar las llamadas de la base de datos a Postgres usando la biblioteca `database/sql` y `jackc/pgx`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [jackc/pgx/v5](https://github.com/jackc/pgx/v5)
+      </td>
+
+      <td>
+        [v3/integrations/nrpgx5](https://godoc.org/github.com/newrelic/go-agent/v3/integrations/nrpgx5)
+      </td>
+
+      <td>
+        Instrumentar base de datos llamadas a Postgres usando la biblioteca `jackc/pgx/v5` para llamadas directas de Postgres sin `database/sql`.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [snowflakedb/gosnowflake](https://github.com/snowflakedb/gosnowflake)
+      </td>
+
+      <td>
+        [v3/integrations/nrsnowflake](https://godoc.org/github.com/newrelic/go-agent/v3/integrations/nrsnowflake)
+      </td>
+
+      <td>
+        Instrumentar las llamadas de la base de datos a Snowflake
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [go-redis/redis](https://github.com/go-redis/redis)
+      </td>
+
+      <td>
+        [v3/integrations/nrredis-v7](https://godoc.org/github.com/newrelic/go-agent/v3/integrations/nrredis-v7)
+      </td>
+
+      <td>
+        Instrumentar las llamadas a Redis Versión 7
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [go-redis/redis](https://github.com/go-redis/redis)
+      </td>
+
+      <td>
+        [v3/integrations/nrredis-v8](https://godoc.org/github.com/newrelic/go-agent/v3/integrations/nrredis-v8)
+      </td>
+
+      <td>
+        Instrumentar las llamadas a Redis Versión 8
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [mattn/go-sqlite3](https://github.com/mattn/go-sqlite3)
+      </td>
+
+      <td>
+        [v3/integrations/nrsqlite3](https://godoc.org/github.com/newrelic/go-agent/v3/integrations/nrsqlite3)
+      </td>
+
+      <td>
+        Instrumentar las llamadas de la base de datos a SQLite
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [mongodb/mongo-go-driver](https://github.com/mongodb/mongo-go-driver)
+      </td>
+
+      <td>
+        [v3/integrations/nrmongo](https://godoc.org/github.com/newrelic/go-agent/v3/integrations/nrmongo)
+      </td>
+
+      <td>
+        Instrumentar llamadas MongoDB
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [google.golang.org/grpc](https://github.com/grpc/grpc-go)
+      </td>
+
+      <td>
+        [v3/integrations/nrgrpc](https://godoc.org/github.com/newrelic/go-agent/v3/integrations/nrgrpc)
+      </td>
+
+      <td>
+        Instrumentar los servidores y clientes gRPC
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [micro/go-micro](https://github.com/micro/go-micro)
+      </td>
+
+      <td>
+        [v3/integrations/nrmicro](https://godoc.org/github.com/newrelic/go-agent/v3/integrations/nrmicro)
+      </td>
+
+      <td>
+        Instrumentar servidores, clientes, editores y suscriptores a través del marco Micro.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [nats-io/nats.go](https://github.com/nats-io/nats.go)
+      </td>
+
+      <td>
+        [v3/integrations/nrnats](https://godoc.org/github.com/newrelic/go-agent/v3/integrations/nrnats)
+      </td>
+
+      <td>
+        Instrumentar a los editores y suscriptores utilizando el cliente NATS
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [nats-io/stan.go](https://github.com/nats-io/stan.go)
+      </td>
+
+      <td>
+        [v3/integrations/nrstan](https://godoc.org/github.com/newrelic/go-agent/v3/integrations/nrstan)
+      </td>
+
+      <td>
+        Instrumentar a los editores y suscriptores utilizando el cliente de transmisión NATS
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [graphql-go/graphql](https://github.com/graphql-go/graphql)
+      </td>
+
+      <td>
+        [v3/integrations/nrgraphqlgo](https://godoc.org/github.com/newrelic/go-agent/v3/integrations/nrgraphqlgo)
+      </td>
+
+      <td>
+        Instrument the inbound requests using graphql-go/graphql
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [graph-gophers/graphql-go](https://github.com/graph-gophers/graphql-go)
+      </td>
+
+      <td>
+        [v3/integrations/nrgraphgophers](https://godoc.org/github.com/newrelic/go-agent/v3/integrations/nrgraphgophers)
+      </td>
+
+      <td>
+        Instrumentar las solicitudes entrantes utilizando `graph-gophers/graphql-go`
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Rendimiento a nivel de instancia y base de datos
+
+New Relic recopila [detalles de instancia para una variedad de base de datos y controlador de la base de datos](/docs/apm/applications-menu/features/analyze-database-instance-level-performance-issues). La capacidad de ver instancias específicas y los tipos de información de la base de datos en <InlinePopover type="apm"/>depende de la versión de su agente.
+
+La [versión 1.4 o superior](/docs/release-notes/agent-release-notes/go-release-notes/go-agent-14) del agente New Relic Go admite detalles de instancia para todos los controladores de la base de datos.
+
+## Conectar el agente a otras características. [#digital-intelligence-platform]
+
+El agente Go se integra con otras características para brindarle observabilidad en toda su stack:
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        Producto
+      </th>
+
+      <th>
+        Capacidad
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        [Monitoreo de IA](/docs/ai-monitoring/intro-to-ai-monitoring)
+      </td>
+
+      <td>
+        Si tiene la versión 3.31.0 o superior de Go agente, puede recopilar datos de IA de cierta biblioteca y marco de IA:
+
+        * [Biblioteca Go OpenAI](https://github.com/sashabaranov/go-openai) versiones 3.4.0 y por encima
+        * [AWS SDK para Go v2](https://github.com/aws/aws-sdk-go-v2) versiones 1.6.0 y superiores
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [Monitoreo de infraestructura](/docs/infrastructure/new-relic-infrastructure/getting-started/introduction-new-relic-infrastructure)
+      </td>
+
+      <td>
+        Cuando instalas la infraestructura y el agente APM en el mismo host, se detectan automáticamente entre sí. Luego puede ver una lista de hosts en la UI de APM y filtrar sus hosts por aplicación de APM en nuestra UI de infraestructura. Para obtener más información, consulte [Datos de APM en monitoreo de infraestructura](/docs/infrastructure/new-relic-infrastructure/data-instrumentation/new-relic-apm-data-infrastructure).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [New Relic](/docs/insights/use-insights-ui/getting-started/introduction-new-relic-insights)
+      </td>
+
+      <td>
+        El agente Go envía [el evento y atributo predeterminados a New Relic](/docs/insights/insights-data-sources/default-events-attributes/apm-default-event-attributes) para consulta NRQL. También puedes [grabar eventos personalizados](/docs/insights/insights-data-sources/custom-data/insert-custom-events-new-relic-apm-agents) para análisis avanzado.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [Monitoreo sintetico](/docs/synthetics/new-relic-synthetics/getting-started/introduction-new-relic-synthetics)
+      </td>
+
+      <td>
+        [Sintético traza de la transacción](/docs/synthetics/new-relic-synthetics/using-monitors/collect-synthetic-transaction-traces) conecta las solicitudes del monitor Sintético a la transacción APM subyacente.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [monitoreo del navegador](/docs/browser/new-relic-browser/getting-started/introduction-new-relic-browser)
+      </td>
+
+      <td>
+        El agente Go tiene una [API para devolver el JavaScript del agente del browser](/docs/agents/go-agent/features/install-new-relic-browser-go-apps) . Después de usar este método API en cada solicitud, puede ver los datos del browser en la [página Resumen de APM](/docs/apm/applications-menu/monitoring/apm-overview-page) y cambiar rápidamente entre el APM y los datos del browser para una aplicación en particular.
+      </td>
+    </tr>
+  </tbody>
+</table>
