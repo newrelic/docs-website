@@ -56,14 +56,13 @@ const HomePage = ({ data }) => {
               @media screen and (max-width: 1500px) {
                 align-self: auto;
               }
-              @media screen and (max-width: 1050px) {
+              @media screen and (max-width: 1000px) {
                 grid-template-columns: 1fr;
+                padding: 0 5rem;
               }
               @media screen and (max-width: 760px) {
-                grid-template-columns: repeat(3, 1fr);
-              }
-              @media screen and (max-width: 650px) {
                 grid-template-columns: 1fr;
+                padding: 0 3rem;
               }
             `}
           >

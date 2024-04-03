@@ -93,6 +93,7 @@ export const DocTile = ({
           background: var(--system-text-primary-light);
           padding: 1rem;
           border-radius: 11px;
+          box-shadow: none;
           h4 {
             font-size: 18px;
             color: white;
@@ -104,12 +105,25 @@ export const DocTile = ({
             border-radius: 4px;
             object-fit: cover;
           }
-        }
-        .doc-tiles-homepage & .dark-mode {
-          background: var(--system-border-regular-dark);
-          h4 {
-            color: white;
+          &:hover {
+            box-shadow: rgba(0, 0, 0, 0.3) 0px 4px 6px -1px,
+              rgba(0, 0, 0, 0.1) 0px 2px 4px -1px;
           }
+          .dark-mode &:hover {
+            box-shadow: unset;
+            border: var(--brand-button-primary-accent) solid 1px;
+          }
+
+          @media screen and (max-width: 1000px) {
+            max-width: unset;
+            img {
+              height: 100px;
+              width: 150px;
+            }
+          }
+        }
+        .dark-mode .doc-tiles-homepage & {
+          border: var(--system-text-primary-light) solid 1px; // prevent shifting on hover
         }
 
         .doc-tiles-labs & {
