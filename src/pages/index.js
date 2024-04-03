@@ -14,9 +14,9 @@ import { DocTile, DocTiles } from '../components/DocTile';
 import ErrorBoundary from '../components/ErrorBoundary';
 import FeedbackModal from '../components/FeedbackModal';
 
-import popularDocs1 from '../images/popular-docs1.jpeg';
-import popularDocs2 from '../images/popular-docs2.jpeg';
-import popularDocs3 from '../images/popular-docs3.jpeg';
+import popularDocs1 from '../images/homepage-images/popular-docs1.webp';
+import popularDocs2 from '../images/homepage-images/popular-docs2.webp';
+import popularDocs3 from '../images/homepage-images/popular-docs3.webp';
 
 const HomePage = ({ data }) => {
   const {
