@@ -31,8 +31,9 @@ const HomepageBanner = () => {
         min-height: ${bannerHeight};
 
         @media screen and (max-width: ${mobileBreakpoint}) {
-          flex-direction: column-reverse;
-          background-position: 0 150px;
+          min-height: 175px;
+          background-size: 200%;
+          background-position: center 8px;
         }
       `}
     >
@@ -42,10 +43,11 @@ const HomepageBanner = () => {
           font-weight: 500;
           color: #1ce783;
           padding-top: 3rem;
-          margin-bottom: 1.25rem;
+          margin-bottom: 1.5rem;
 
           line-height: 1;
           @media screen and (max-width: ${mobileBreakpoint}) {
+            padding-top: 2.75rem;
             font-size: 1.5rem;
           }
         `}
