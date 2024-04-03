@@ -46,6 +46,9 @@ const HomepageBanner = () => {
           margin-bottom: 1.5rem;
 
           line-height: 1;
+          @media screen and (max-width: 550px) {
+            font-size: 2rem;
+          }
           @media screen and (max-width: ${mobileBreakpoint}) {
             padding-top: 2.75rem;
             font-size: 1.5rem;
@@ -92,6 +95,10 @@ const HomepageBanner = () => {
           a {
             margin-left: 0.25rem;
           }
+          @media screen and (max-width: 550px) {
+            font-size: 0.75rem;
+          }
+
           @media screen and (max-width: ${mobileBreakpoint}) {
             display: none;
           }
