@@ -64,12 +64,13 @@ const HomePage = ({ data }) => {
                 grid-template-columns: 1fr;
                 padding: 0 3rem;
               }
+              @media screen and (max-width: 750px) {
+                grid-template-columns: 1fr;
+                padding: 0 0.5rem;
+              }
             `}
           >
-            <DocTile
-              variant="light"
-              path="/docs/apm/new-relic-apm/getting-started/introduction-apm"
-            >
+            <DocTile path="/docs/apm/new-relic-apm/getting-started/introduction-apm">
               <img alt="Popular docs tile" src={popularDocs1} />
               {t('home.popularDocs.t1.title')}
             </DocTile>

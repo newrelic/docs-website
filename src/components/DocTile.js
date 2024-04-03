@@ -98,6 +98,7 @@ export const DocTile = ({
             font-size: 18px;
             color: white;
             font-weight: 300;
+            padding: 0;
           }
           img {
             height: 100px;
@@ -114,6 +115,10 @@ export const DocTile = ({
             border: var(--brand-button-primary-accent) solid 1px;
           }
 
+          .dark-mode & {
+            border: var(--system-text-primary-light) solid 1px; // prevent shifting on hover
+          }
+
           @media screen and (max-width: 1000px) {
             max-width: unset;
             img {
@@ -121,9 +126,22 @@ export const DocTile = ({
               width: 150px;
             }
           }
-        }
-        .dark-mode .doc-tiles-homepage & {
-          border: var(--system-text-primary-light) solid 1px; // prevent shifting on hover
+
+          @media screen and (max-width: 525px) {
+            img {
+              height: 75px;
+              width: 75px;
+              // display: none;
+            }
+            min-height: unset;
+            height: 100px;
+            padding: 0.75rem;
+          }
+          @media screen and (max-width: 525px) {
+            h4 {
+              font-size: 1rem;
+            }
+          }
         }
 
         .doc-tiles-labs & {
@@ -264,6 +282,9 @@ export const DocTiles = ({
 
         &.doc-tiles-labs {
           grid-template-columns: 1fr;
+        }
+
+        &.doc-tiles-homepage {
         }
 
         a {
