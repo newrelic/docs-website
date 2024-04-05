@@ -131,7 +131,6 @@ export const DocTile = ({
             img {
               height: 75px;
               width: 75px;
-              // display: none;
             }
             min-height: unset;
             height: 100px;
