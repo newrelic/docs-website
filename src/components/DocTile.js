@@ -284,9 +284,6 @@ export const DocTiles = ({
           grid-template-columns: 1fr;
         }
 
-        &.doc-tiles-homepage {
-        }
-
         a {
           margin: 0;
         }
