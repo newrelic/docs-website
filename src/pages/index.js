@@ -60,11 +60,8 @@ const HomePage = ({ data }) => {
                 grid-template-columns: 1fr;
                 padding: 0 5rem;
               }
+
               @media screen and (max-width: 760px) {
-                grid-template-columns: 1fr;
-                padding: 0 3rem;
-              }
-              @media screen and (max-width: 750px) {
                 grid-template-columns: 1fr;
                 padding: 0 0.5rem;
               }
