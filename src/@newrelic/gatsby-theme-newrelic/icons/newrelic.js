@@ -13,6 +13,7 @@ import AlertsAiIcon from './newrelic/alerts-ai';
 import ApmIcon from './newrelic/apm';
 import StackTraceIcon from './newrelic/stack-trace';
 import LatencyIcon from './newrelic/latency';
+import SoftwareIcon from './newrelic/software';
 
 export default {
   ...defaultIcons,
@@ -30,4 +31,5 @@ export default {
   apm: ApmIcon,
   'stack-trace': StackTraceIcon,
   latency: LatencyIcon,
+  software: SoftwareIcon,
 };
