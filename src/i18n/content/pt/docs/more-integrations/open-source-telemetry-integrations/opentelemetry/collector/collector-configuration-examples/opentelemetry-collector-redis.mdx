@@ -1,0 +1,179 @@
+---
+title: Coletor para Redis
+tags:
+  - Integrations
+  - Open source telemetry integrations
+  - OpenTelemetry
+  - Redis
+metaDescription: You can collect redis metrics using the OpenTelemetry collector.
+freshnessValidatedDate: '2023-09-06T00:00:00.000Z'
+translationType: machine
+---
+
+import infrastructureRedisOTELDashboard from 'images/infrastructure_screenshot-crop_redis-otel-dashboard.webp'
+
+Você pode coletar métricas sobre sua instância Redis com o coletor OpenTelemetry. O coletor é um componente do OpenTelemetry que coleta, processa e exporta dados de telemetria para o New Relic (ou qualquer backend de observabilidade). O receptor Redis foi projetado para recuperar dados Redis INFO de uma única instância Redis, construir métricas a partir desses dados e enviá-los ao próximo consumidor em um intervalo configurável.
+
+<img
+  title="Redis OpenTelemetry quickstart dashboard"
+  alt="Image of the dashboard available through the Redis OpenTelemetry quickstart"
+  src={infrastructureRedisOTELDashboard}
+/>
+
+Depois de passar pelas etapas de instalação, você visualizará esses dados de métrica em um painel pré-construído, criará políticas de alertas e criará consultas e gráficos personalizados.
+
+## Pré-requisitos [#prereq]
+
+Para começar a coletar Redis métrica, você precisa se cadastrar em uma conta New Relic gratuita.
+
+<InlineSignup/>
+
+Depois de se inscrever, certifique-se de configurar:
+
+* O componente [receptorRedis ](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/receiver/redisreceiver), pois o coletor requer acesso ao Redis por meio de um endpoint. A versão mínima recomendada é v0.83.0.
+* O coletor OpenTelemetry seguindo [os documentos do OpenTelemetry](https://opentelemetry.io/docs/collector/getting-started/)
+
+## Instale o coletor OpenTelemetry [#collect]
+
+<Steps>
+  <Step>
+    ### Instale uma distribuição OpenTelemetry
+
+    Você precisará instalar [o OpenTelemetry coletor Contrib Distro](https://github.com/open-telemetry/opentelemetry-collector-releases/tree/main/distributions/otelcol-contrib). Se você estiver usando outra distribuição, confirme se a distribuição escolhida possui os seguintes componentes:
+
+    * [Receptor Redis](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/receiver/redisreceiver)
+    * [Exportador OTLP/HTTP](https://github.com/open-telemetry/opentelemetry-collector/tree/main/exporter/otlphttpexporter)
+    * [Processador de atributos](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/processor/attributesprocessor/README.md)
+    * [Processador de recursos](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/processor/resourceprocessor/README.md)
+    * [Processador de detecção de recursos](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/processor/resourcedetectionprocessor/README.md)
+
+    <Callout variant="important">
+      Se a sua distribuição não tiver esses componentes, o arquivo de configuração da próxima etapa **não** se aplicará.
+    </Callout>
+  </Step>
+
+  <Step>
+    ### Configurar o coletor OpenTelemetry
+
+    Atualize ou crie um novo arquivo chamado `config.yaml`. Insira o seguinte trecho em seu novo arquivo:
+
+    ```yaml
+    receivers:
+      redis:
+        endpoint: "<YOUR_REDIS_HOSTNAME>:<REDIS_PORT>"
+        metrics:
+          # Enable redis.maxmemory optional metric
+          redis.maxmemory:
+            enabled: true
+
+    processors:
+      # This is needed since redis receiver is not currently adding any means to understand to which redis server the metrics are referring to
+      attributes/redis_metrics:
+        include:
+          match_type: regexp
+          metric_names:
+            # Notice that if with single or without quotes just one backslash is needed 'redis\..*'
+            - "redis\\..*"
+        actions:
+          - action: upsert
+            key: server.address
+            value: "<YOUR_REDIS_HOSTNAME>"
+          - action: upsert
+            key: server.port
+            value: "<REDIS_PORT>"
+      # resource and resource-detection processors allow decorating the metrics with host attributes
+      resource:
+        attributes:
+          - key: host.id
+            from_attribute: host.name
+            action: insert
+      resourcedetection:
+        detectors: ["env", "system"]
+      resourcedetection/cloud:
+        detectors: ["gcp", "ec2", "azure"]
+        timeout: 2s
+        override: false
+
+    exporters:
+      otlphttp:
+        endpoint: https://otlp.nr-data.net
+        headers:
+          api-key: <NEW_RELIC_LICENSE_KEY>
+
+    service:
+      telemetry:
+        logs:
+      pipelines:
+        metrics:
+          receivers: [redis]
+          processors:
+            - resourcedetection
+            - resourcedetection/cloud
+            - resource
+            - attributes/redis_metrics
+          exporters: [otlphttp]
+    ```
+
+    * Substitua `NEW_RELIC_LICENSE_KEY` no arquivo pelos seus próprios valores. Para obter mais informações, consulte a [chave de licença do New Relic](/docs/apis/intro-apis/new-relic-api-keys/#license-key).
+    * Como nenhum identificador é anexado pelo receptor OTel à métrica Redis , é necessário um processador de atributo para decorar a métrica com metadados `server.address` e `server.port`. Os atributo `server.address` e `server.port` são necessários para poder consultar e facetar dados diferenciando entre servidores Redis e criar entidade New Relic.
+    * Além disso, pipelines separados com diferentes instâncias de `resource/redis_metrics` são necessários no caso de vários servidores Redis serem monitorados a partir de um único coletor otel para decorar cada instância com os metadados correspondentes.
+
+    Para ver outras opções de configuração, consulte:
+
+    * [Documentação do receptor Redis](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/receiver/redisreceiver#configuration)
+    * [Documentação do Coletor OpenTelemetry](https://opentelemetry.io/docs/collector/configuration/)
+    * [Processador em lote](https://github.com/open-telemetry/opentelemetry-collector/blob/main/processor/batchprocessor/README.md)
+  </Step>
+
+  <Step>
+    ### Execute o coletor
+
+    Execute o coletor OpenTelemetry (a forma de executá-lo pode variar dependendo do método de instalação escolhido). Exemplo:
+
+    ```yaml
+    /usr/bin/otelcol-contrib --config ./config.yaml
+    ```
+  </Step>
+
+  <Step>
+    ### Explore seus dados
+
+    Os dados de telemetria provenientes do receptor OpenTelemetry Redis, se devidamente decorados, geram entidade Redis . [Entidades](/docs/new-relic-solutions/new-relic-one/core-concepts/what-entity-new-relic/) são qualquer coisa que reporte dados à New Relic e seja identificada por um ID de entidade exclusivo.
+
+    Sua entidade monitor são os drivers de recurso como entidade Explorer, workload e Lookout. Consulte este [documento](/docs/new-relic-solutions/new-relic-one/core-concepts/new-relic-explorer-view-performance-across-apps-services-hosts/) para obter mais informações sobre como se beneficiar dessas experiências.
+  </Step>
+
+  <Step>
+    ### Consulte seus dados com o métrica explorer
+
+    Você pode usar o [explorador métrico](/docs/query-your-data/explore-query-data/browse-data/introduction-data-explorer) para verificar a métrica que está sendo ingerida. Todas as métricas reportadas pelo receptor Redis começam pelo prefixo `"redis."`.
+
+    As seguintes consultas de NRQL mostram exemplos para ajudá-lo a consultar a métrica que você recebeu:
+
+    * Listagem do número de atualizações métricas ingeridas por nome métrico:
+
+      ```sql
+      SELECT count(*) FROM Metric WHERE metricName LIKE 'redis.%' and instrumentation.provider='opentelemetry' facet metricName LIMIT max
+      ```
+
+    * Consultando uma métrica específica facetada por host:
+
+      ```sql
+        SELECT average(redis.commands.processed) FROM Metric WHERE instrumentation.provider='opentelemetry' FACET host.name TIMESERIES
+      ```
+
+    * Listagem de dimensões disponíveis para uma determinada métrica:
+
+      ```sql
+      SELECT keyset() FROM Metric WHERE metricName = 'redis.commands.processed'
+      ```
+
+    Para obter uma lista de todas as métricas suportadas, consulte [a referência de métricas do receptor Redis ](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/receiver/redisreceiver/documentation.md).
+  </Step>
+</Steps>
+
+## Qual é o próximo? [#next]
+
+Com o relatório de dados do Redis para o New Relic, você pode instalar o de [telemetria Redis Open](https://newrelic.com/instant-observability/redis-otel) dashboard. Isso oferece uma experiência dashboard predefinida para que você possa rastrear e monitor sua infraestrutura Redis.
+
+Se você estiver procurando ajuda com outros casos de uso do coletor, consulte o repositório [newrelic-OpenTelemetry-examples](https://github.com/newrelic/newrelic-opentelemetry-examples) .
