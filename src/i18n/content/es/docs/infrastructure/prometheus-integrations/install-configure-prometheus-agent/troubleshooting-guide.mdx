@@ -1,0 +1,106 @@
+---
+title: Guía de resolución de problemas para el agente Prometheus.
+tags:
+  - Integrations
+  - Prometheus integrations
+  - Install and configure Prometheus agent
+metaDescription: Troubleshooting guide for the Prometheus agent
+freshnessValidatedDate: never
+translationType: machine
+---
+
+## Obtener un registro detallado [#verbose-logs]
+
+Puede habilitar el registro detallado en el gráfico `newrelic-prometheus-agent` configurando las variables `verboseLog` o `global.verboseLog` en `true`.
+
+```yaml
+# (...)
+global:
+  verboseLog: true
+# (...)
+```
+
+Una vez que esto se haya actualizado en los archivos de valores, ejecute el siguiente comando de actualización de helm:
+
+```bash
+helm upgrade <RELEASE_NAME> newrelic-prometheus-configurator/newrelic-prometheus-agent \
+--namespace <NEWRELIC_NAMESPACE> \
+-f values-newrelic.yaml \
+[--version fixed-chart-version]
+```
+
+## No ver métrica para un objetivo. [#target-with-no-metrics]
+
+Necesita, al menos, un `job` que esté descubriendo el objetivo en Kubernetes que coincida con el filtro especificado, o el objetivo debe aparecer como `static_target`.
+
+Si está utilizando la configuración predeterminada en Kubernetes, verifique que su pod o servicio tenga la anotación `prometheus.io/scrape=true` .
+
+De forma predeterminada, el agente Prometheus extrae métrica solo de [Prometheus integración](/docs/infrastructure/prometheus-integrations/integrations-list/integrations-list-intro). A menos que haya seleccionado eliminar todos los extremos de Prometheus en el clúster, el agente Prometheus filtra el extremo que se va a eliminar utilizando las etiquetas definidas en [source_labels](https://github.com/newrelic/newrelic-prometheus-configurator/blob/main/charts/newrelic-prometheus-agent/values.yaml).
+
+## No ver métrica en un dashboard [#dashboard-with-no-metrics]
+
+Es posible que parte del panel proporcionado por la [integración de Prometheus](/docs/infrastructure/prometheus-integrations/integrations-list/integrations-list-intro) haya sido filtrado por una etiqueta Kubernetes . Consulta la documentación de integración correspondiente para obtener más información.
+
+## Consultar estado métrico [#up-metrics]
+
+Cada raspado de objetivo genera la métrica `up` con la métrica de todo objetivo. Si el scraping tiene éxito, estas métricas tienen `1` como valor. Si no tiene éxito, su valor es `0`.
+
+```SQL
+FROM Metric SELECT latest(up) WHERE cluster_name= 'YOUR_CLUSTER_NAME' AND pod = 'TARGET_POD_NAME' TIMESERIES
+```
+
+Si esta métrica no existe para el objetivo, es posible que se haya eliminado.
+
+Si los valores son `0`, el raspado ha fallado.
+
+## Objetivo eliminado por reglas de filtro [#target-dropped-by-filter]
+
+Para comprobar el objetivo eliminado, puede utilizar el API [objetivo extremo](https://prometheus.io/docs/prometheus/latest/querying/api/#targets) de la de Prometheus.
+
+Para enumerar todos los objetivos eliminados en formato JSON y mostrar todas las etiquetas descubiertas, ejecute el siguiente comando:
+
+```shell
+kubectl exec newrelic-prometheus-agent-0 -- wget -O - 'localhost:9090/api/v1/targets?state=dropped' 2>/dev/null
+```
+
+## Error al raspar el objetivo [#target-scrape-fail]
+
+Si la `up` métrica tiene `0` como valor, significa que Prometheus elimina activamente el objetivo, pero el raspado ha fallado. Puede verificar el motivo en el registro detallado con una entrada log similar a esta:
+
+```bash
+prometheus ts=timestamp caller=scrape.go:1332 level=debug component="scrape manager" scrape_pool=kubernetes-job-pod target=http://1.2.3.4:80/metrics msg="<error>" err="<error detail>"
+```
+
+También puede consultar la lista de objetivos activos utilizando el API [objetivo extremo](https://prometheus.io/docs/prometheus/latest/querying/api/#targets) de la de Prometheus.
+
+Para enumerar todos los objetivos activos en JSON y mostrar todas las etiquetas descubiertas, ejecute el siguiente comando:
+
+```shell
+kubectl exec newrelic-prometheus-agent-0 -- wget -O - 'localhost:9090/api/v1/targets?state=active' 2>/dev/null
+```
+
+El objetivo fallido aparecerá en la lista y el error estará disponible en el campo `lastError` en un resultado similar a este:
+
+```json
+{
+    "status": "success",
+    "data": {
+        "activeTargets": [
+            {
+                "discoveredLabels": <map of labels>,
+                "labels": <map of labels>,
+                "scrapePool": "kubernetes-job-pod",
+                "scrapeUrl": "http://172.17.0.5:80/metrics",
+                "globalUrl": "http://172.17.0.5:80/metrics",
+                "lastError": <error detail>,
+                "lastScrape": "2022-09-19T14:19:20.543747971Z",
+                "lastScrapeDuration": 0.000372542,
+                "health": "down",
+                "scrapeInterval": "15s",
+                "scrapeTimeout": "10s"
+            },
+            ...
+        ]
+    }
+}
+```

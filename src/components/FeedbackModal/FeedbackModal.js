@@ -20,8 +20,8 @@ import { SUPRQ_QUESTIONS } from '../../utils/constants';
 
 const FORM_VERSION = 1;
 const questions = shuffle(['q1', 'q2', 'q3', 'q4', 'q5', 'q6', 'q7', 'q8']);
-// 1/20 chance to see the modal
-const nat20 = Math.ceil(Math.random() * 20) === 20;
+// 1/10 chance to see the modal
+const nat20 = Math.ceil(Math.random() * 10) === 10;
 const recaptchaReady = () => {
   return new Promise((resolve, reject) => {
     try {
@@ -148,38 +148,6 @@ const FeedbackModal = ({ onClose }) => {
         formVersion: FORM_VERSION,
       });
     });
-    advance();
-  };
-
-  const submitFreetext = async (text) => {
-    addPageAction({
-      eventName: 'freeTextSubmitted',
-      category: 'SurveyFeedback',
-      responseId: guid,
-      response: text,
-      formVersion: FORM_VERSION,
-    });
-    const recaptchaToken = await generateRecaptchaToken();
-    const freetextSubmission = {
-      responseId: guid,
-      response: text,
-      formVersion: FORM_VERSION,
-      pageUrl: location.href,
-      locale: locale.locale,
-      recaptchaToken,
-      type: 'freeText',
-    };
-    fetch(
-      'https://docs-user-feedback-service.newrelic-external.com/survey-feedback',
-      {
-        method: 'POST',
-        headers: {
-          Accept: 'application/json',
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(freetextSubmission),
-      }
-    );
     setShowThankYou(true);
     const timer = setTimeout(() => {
       setDismissedCookieAndClose();
@@ -201,10 +169,7 @@ const FeedbackModal = ({ onClose }) => {
       >
         <Container>
           {step === 0 && <NpsScore onSubmit={submitNpsScore} />}
-          {step === 1 && <SuprQ onSubmit={submitSuprQ} />}
-          {step === 2 && !showThankYou && (
-            <Freetext onSubmit={submitFreetext} />
-          )}
+          {step === 1 && !showThankYou && <SuprQ onSubmit={submitSuprQ} />}
           {showThankYou && <ThankYou />}
 
           <CloseButton
@@ -285,47 +250,6 @@ const SuprQ = ({ onSubmit }) => {
       </Steps>
       <SubmitButton disabled={!canContinue} onClick={advance} variant="primary">
         {buttonText}
-      </SubmitButton>
-    </>
-  );
-};
-
-const Freetext = ({ onSubmit }) => {
-  const [text, setText] = useState('');
-  const { t } = useTranslation();
-
-  return (
-    <>
-      <Title>{t('surveyModal.freeTextIntro')}</Title>
-      <p
-        css={css`
-          font-size: 1.125rem;
-          grid-column: 1 / 3;
-          max-width: 92%;
-        `}
-      >
-        {t('surveyModal.freeTextQuestion')}
-      </p>
-      <textarea
-        css={css`
-          background: var(--primary-contrast-color);
-          border-radius: 4px;
-          border: 1px solid rgba(255, 255, 255, 0.2);
-          color: var(--primary-text-color);
-          font-size: 0.875rem;
-          height: 10rem;
-          margin-bottom: 40px;
-          padding: 8px 12px;
-          &:focus {
-            outline: 2px solid rgba(255, 255, 255, 0.6);
-          }
-        `}
-        onChange={(e) => setText(e.target.value)}
-        placeholder="Enter your text here"
-        value={text}
-      />
-      <SubmitButton onClick={() => onSubmit(text)} variant="primary">
-        Submit
       </SubmitButton>
     </>
   );

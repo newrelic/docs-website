@@ -1,0 +1,434 @@
+---
+title: 'Tutorial de NerdGraph: Ver y administrar carga de trabajo'
+tags:
+  - APIs
+  - NerdGraph
+  - Examples
+metaDescription: How to use New Relic NerdGraph API to query and update workloads.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+New Relic te permite agrupar entidades en agrupaciones llamadas [carga de trabajo](/docs/new-relic-one/use-new-relic-one/core-concepts/new-relic-one-workloads-isolate-resolve-incidents-faster). Esto permite un mejor monitoreo del stack completo utilizado por un equipo o proyecto.
+
+Aquí le mostramos cómo utilizar nuestra [API NerdGraph](/docs/apis/nerdgraph/get-started/introduction-new-relic-nerdgraph) para realizar algunas tareas relacionadas con la carga de trabajo:
+
+* [Obtener la carga de trabajo de una cuenta](#get_workloads)
+* [Obtener la lista de entidades en una carga de trabajo](#get_entities_list)
+* [Obtener el estado de una carga de trabajo](#get_status)
+* [Crear una carga de trabajo](#create-workload)
+* [Modificar una carga de trabajo](#modify)
+* [Establecer un estado estático para una carga de trabajo](#static)
+* [Modificar las reglas de estado automático para una carga de trabajo](#automatic)
+* [Duplicar una carga de trabajo](#duplicate)
+* [Eliminar una carga de trabajo](#delete)
+
+Consulte también [nuestra publicación sobre cómo personalizar los gráficos que ve en su carga de trabajo](https://discuss.newrelic.com/t/how-to-customize-the-charts-you-see-on-a-workload/140029).
+
+<Callout variant="important">
+  También puede utilizar la [CLI](http://developer.newrelic.com/build-tools/new-relic-one-applications/cli) y [el recurso Terraform](https://www.terraform.io/docs/providers/newrelic/r/workload) para automatizar estas tareas.
+</Callout>
+
+## Obtener la carga de trabajo de una cuenta [#get_workloads]
+
+Para obtener toda la carga de trabajo de una cuenta, utilice la siguiente [consulta GraphQL](https://api.newrelic.com/graphiql) y pase el ID de la cuenta a través del campo `id` . En este ejemplo, recuperamos tres campos básicos:
+
+* `guid`: el GUID de la carga de trabajo.
+* `name`: el nombre de la carga de trabajo.
+* `permalink`: las URL permanentes en la UI de New Relic.
+
+```
+{
+  actor {
+    entitySearch(query: "accountId = YOUR_ACCOUNT_ID and type = 'WORKLOAD'") {
+      results {
+        entities {
+          guid
+          name
+          permalink
+        }
+      }
+    }
+  }
+}
+```
+
+La respuesta incluye este tipo de datos para cada carga de trabajo:
+
+```
+{
+  "data": {
+    "actor": {
+      "entitySearch": {
+        "results": {
+          "entities": [
+            {
+              "guid": "MTY...NTY",
+              "name": "Acme Telco - Fulfillment Chain",
+              "permalink": "https://one.newrelic.com/redirect/entity/MTY...NTY"
+            },
+            ...
+          ]
+        }
+      }
+    }
+  },
+  "extensions": { ... }
+}
+```
+
+## Obtener la lista de entidades en una carga de trabajo [#get_entities_list]
+
+Puede obtener la entidad que pertenece a una carga de trabajo con la siguiente consulta, simplemente pasando el GUID de la carga de trabajo (`guid`) como argumento. En este ejemplo también recuperamos algunos metadatos de la carga de trabajo:
+
+* `accountId`: la cuenta de carga de trabajo.
+
+* `name`: el nombre de la carga de trabajo.
+
+* `permalink`: la URL permanente de la carga de trabajo en la UI de New Relic.
+
+* `alertSeverity`: el estado de la carga de trabajo. Este valor puede tener hasta 10 minutos de retraso; Si desea forzar el cálculo del estado de la carga de trabajo en el momento de la consulta, utilice el ejemplo [Obtener el estado de una carga de trabajo](#get_status) .
+
+* Los objetos anidados `collection`, `members` y `results` , que contienen la lista real de entidades:
+
+  * El argumento `name` en el objeto `collection` toma el valor `WORKLOAD`.
+  * `count`: Número de entidad en la carga de trabajo.
+
+```
+{
+  actor {
+    entity(guid: "YOUR_WORKLOAD_GUID") {
+      accountId
+      name
+      permalink
+      ... on AlertableEntity {
+        alertSeverity
+      }
+      ... on CollectionEntity {
+        collection(name: "WORKLOAD") {
+          members {
+            count
+            results {
+              entities {
+                accountId
+                entityType
+                name
+                guid
+                ... on AlertableEntityOutline {
+                  alertSeverity
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+La consulta devuelve una lista de entidades similar a esta:
+
+```
+{
+  "data": {
+    "actor": {
+      "entity": {
+        "accountId": 1606862,
+        "name": "Acme Telco - Ecommerce",
+        "permalink": "https://one.newrelic.com/redirect/entity/MTYwNjg2MnxOUjF8V09SS0xPQUR8MTIyMzQ",
+        "alertSeverity": "CRITICAL",
+        "collection": {
+          "members": {
+            "count": 201,
+            "results": {
+              "entities": [
+                {
+                  "accountId": 1606862,
+                  "alertSeverity": "CRITICAL",
+                  "entityType": "APM_APPLICATION_ENTITY",
+                  "guid": "MTYwNjg2MnxBUE18QVBQTElDQVRJT058NDMxOTIwNTg",
+                  "name": "Fulfillment Service"
+                },
+                {
+                  "accountId": 1606862,
+                  "alertSeverity": "NOT_ALERTING",
+                  "entityType": "INFRASTRUCTURE_HOST_ENTITY",
+                  "guid": "MTYwNjg2MnxJTkZSQXxOQXw3MDQzMzA2NzIyMjk2NDg4Mzc",
+                  "name": "ip-172-31-16-222"
+                },
+                {
+                  "accountId": 1606862,
+                  "alertSeverity": "NOT_ALERTING",
+                  "entityType": "INFRASTRUCTURE_AWS_LAMBDA_FUNCTION_ENTITY",
+                  "guid": "MTYwNjg2MnxJTkZSQXxOQXw1MjMyNzM2ODgzNjAwNjYyMjE1",
+                  "name": "TelcoDT-purchase-log-lambda"
+                },
+                ...
+              ]
+            }
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+## Obtener el estado de una carga de trabajo [#get_status]
+
+Si desea forzar el cálculo del estado de una carga de trabajo, puede utilizar la siguiente consulta, pasando el ID de la cuenta (`id`) como argumento para el campo `account` y el GUID de la carga de trabajo (`guid`) como el argumento para el campo `collection` .
+
+```
+{
+  actor {
+    entity(guid: "YOUR_WORKLOAD_GUID") {
+      ... on WorkloadEntity {
+        guid
+        workloadStatus {
+          statusValue
+        }
+      }
+    }
+  }
+}
+```
+
+Y esto es lo que obtendrás en la respuesta:
+
+```
+{
+  "data": {
+    "actor": {
+      "entity": {
+        "guid": "MTYwNjg2MnxOUjF8V09SS0xPQUR8MTIyMzQ",
+        "workloadStatus": {
+          "statusValue": "OPERATIONAL"
+        }
+      }
+    }
+  }
+}
+```
+
+Tenga en cuenta que el valor de estado `DISRUPTED` es sinónimo de estado `CRITICAL` .
+
+## Crear una carga de trabajo [#create-workload]
+
+El siguiente es un ejemplo de llamada a NerdGraph que crea una carga de trabajo utilizando la consulta [de mutación](/docs/apis/nerdgraph/get-started/introduction-new-relic-nerdgraph#terminology) `workloadCreate` :
+
+```
+mutation {
+  workloadCreate(
+    accountId: NEW_WORKLOAD_ACCOUNT_ID,
+    workload: {
+      name: "NAME_OF_WORKLOAD",
+      entityGuids: ["ENTITY_GUID_1", "ENTITY_GUID_2", ...],
+      entitySearchQueries: [
+        {
+          query: "(type = 'SERVICE') and tags.label.environment = 'production'"
+        },
+        ...
+      ],
+      scopeAccounts: {
+        accountIds: [NEW_RELIC_ACCOUNT_ID_1, NEW_RELIC_ACCOUNT_ID_2, ...]
+      }
+    }
+  )
+  {
+    guid
+  }
+}
+```
+
+Algunos detalles sobre partes de esta consulta:
+
+* `account`: El [ID de la cuenta de carga de trabajo](/docs/new-relic-one/use-new-relic-one/core-concepts/new-relic-one-workloads-isolate-resolve-incidents-faster#workload-account). La carga de trabajo no se puede mover entre cuentas, por lo que no es posible cambiar este valor más adelante.
+
+* `name`: una cadena con un nombre fácil de usar para la carga de trabajo.
+
+* `scopeAccounts`: [Las cuentas de alcance](/docs/new-relic-one/use-new-relic-one/core-concepts/new-relic-one-workloads-isolate-resolve-incidents-faster#scope-accounts) son las cuentas de donde se obtienen los datos de la entidad. Las cuentas de alcance deben pertenecer a un grupo de la misma cuenta principal o asociación empresarial que la cuenta de carga de trabajo.
+
+* Para definir la entidad en la carga de trabajo, puede utilizar una o ambas de estas opciones:
+
+  * `entitySearchQueries`: Esto le permite [generar dinámicamente una matriz de entidad](/docs/new-relic-one/use-new-relic-one/core-concepts/new-relic-one-workloads-isolate-resolve-incidents-faster#dynamic). No es necesario un nombre para cada consulta. A continuación se muestra un ejemplo de consulta dinámica:
+
+    ```
+    (domain = 'INFRA' and type = 'HOST') and tags.label.environment = 'production'
+    ```
+
+  * `entityGuids`: Esto es para elegir GUID de entidad específicos para su inclusión en la carga de trabajo.
+
+* `guid`: Esto devuelve la carga de trabajo `guid`. Debido a que NerdGraph proporciona unión de esquemas, puede obtener otros detalles sobre la carga de trabajo, como `permalink`.
+
+## Modificar una carga de trabajo [#modify]
+
+Para modificar una carga de trabajo, utilice la mutación `workloadUpdate` . Debe conocer el `guid` de la carga de trabajo.
+
+La cuenta de carga de trabajo no se puede cambiar.
+
+Para los campos que puedes modificar, consulta [Crear carga de trabajo](#create-workload-fields). Se aplican estas reglas adicionales:
+
+* `entitySearchQueries`: Este campo debe contener todas las consultas tal como espera que se almacenen. Si desea agregar una nueva consulta, inclúyala en el campo `query` y no proporcione ninguna consulta `id`. Si desea modificar una consulta existente, inclúyala en el campo `query` y proporcione su `id` existente. Si desea eliminar una consulta existente, simplemente no agregue ninguna consulta con ese `id` .
+
+A continuación se muestra un ejemplo de la consulta `workloadUpdate` :
+
+```
+mutation {
+  workloadUpdate(
+    guid: "YOUR_WORKLOAD_GUID",
+    workload: {
+      name: "A new name for the workload",
+      entityGuids: ["ENTITY_GUID_1", "ENTITY_GUID_2", ...],
+      entitySearchQueries: [
+        {
+          query: "(domain = 'INFRA' and type = 'HOST') and tags.label.environment = 'staging'"
+        },
+        {
+          id: AN_EXISTING_QUERY_ID,
+          query: "(type = 'SERVICE') and tags.label.environment = 'staging'"
+        },
+        ...
+      ],
+      scopeAccounts: {
+        accountIds: [NEW_RELIC_ACCOUNT_ID_1, NEW_RELIC_ACCOUNT_ID_2, ...]
+      }
+    }
+  )
+  {
+    guid
+  }
+}
+```
+
+## Establecer un estado estático para una carga de trabajo [#static]
+
+Puede configurar un estado estático para una carga de trabajo, que anula cualquier cálculo de estado automático.
+
+Para establecer un estado estático, debe conocer el `guid` de la carga de trabajo y utilizar los siguientes campos:
+
+* `enabled`: Recuerde establecer este campo en `true` para propagar el valor de estado.
+* `status`: el valor de estado que desea establecer para esta carga de trabajo. Los valores admitidos son `OPERATIONAL`, `DEGRADED` o `DISRUPTED`.
+* `description`: un campo de texto para proporcionar detalles adicionales.
+
+```
+mutation {
+  workloadUpdate(
+    guid: "YOUR_WORKLOAD_GUID",
+    workload: {
+      statusConfig: {
+        static: {
+          enabled: true,
+          status: DEGRADED,
+          description: "Game day. Expect some turbulence today between 8 and 9am PST."
+        }
+      }
+    }
+  )
+  {
+    guid
+    updatedAt
+    status {
+      value
+    }
+  }
+}
+```
+
+## Modificar las reglas de estado automático para una carga de trabajo [#automatic]
+
+Cuando crea una carga de trabajo, puede usar el objeto `statusConfig` para definir qué reglas automáticas desea usar para calcular el estado de la carga de trabajo. Si deja la matriz `rules` vacía, no se configurarán reglas para su carga de trabajo.
+
+Sin embargo, si simplemente no utiliza el objeto `statusConfig` cuando crea una carga de trabajo, se agregarán las siguientes reglas de forma predeterminada:
+
+```
+"statusConfig": {
+  "automatic": {
+    "enabled": true,
+    "rules": [
+      {
+        "entitySearchQueries": [{"query": "(domain = 'APM' and type = 'APPLICATION')"}],
+        "rollup": {
+          "strategy": "WORST_STATUS_WINS",
+          "thresholdType": null,
+          "thresholdValue": null
+        }
+      },
+      {
+        "entitySearchQueries": [{"query": "(domain = 'MOBILE' and type = 'APPLICATION')"}],
+        "rollup": {
+          "strategy": "WORST_STATUS_WINS",
+          "thresholdType": null,
+          "thresholdValue": null
+        }
+      },
+      {
+        "entitySearchQueries": [{"query": "(domain = 'BROWSER' and type = 'APPLICATION')"}],
+        "rollup": {
+          "strategy": "WORST_STATUS_WINS",
+          "thresholdType": null,
+          "thresholdValue": null
+        }
+      },
+      {
+        "entitySearchQueries": [{"query": "(domain = 'SYNTH' and type = 'MONITOR')"}],
+        "rollup": {
+          "strategy": "WORST_STATUS_WINS",
+          "thresholdType": null,
+          "thresholdValue": null
+        }
+      }
+    ],
+    "remainingEntitiesRule": {
+      "rollup": {
+        "groupBy": "ENTITY_TYPE",
+        "strategy": "BEST_STATUS_WINS",
+        "thresholdType": null,
+        "thresholdValue": null
+      }
+    }
+  }
+}
+```
+
+Así se lee la configuración:
+
+* `enabled`: El cálculo automático del estado está habilitado cuando este campo se establece en `true`.
+* `rules`: Una matriz de reglas. En la configuración predeterminada, se establecen cuatro reglas para aquellos tipos de entidades que se acercan más a la experiencia digital (es decir, monitor sintético, aplicación de browser , aplicación móvil y servicios). Para cada uno de estos grupos, el estado de los más insalubres aumenta.
+* `remainingEntitiesRule`: Esta es la regla que se aplicará a todas las entidades que no hayan sido evaluadas en ninguna otra regla. En la configuración predeterminada, las entidades restantes se agrupan por tipo de entidad y hacemos que el estado de cada grupo coincida con el de su entidad más saludable.
+
+Si desea modificar estas reglas, debe utilizar la mutación `workloadUpdate` y enviar el nuevo objeto `statusConfig` completo que desea utilizar.
+
+Puede desactivar el cálculo automático del estado mientras mantiene la configuración, configurando `statucConfig.automatic.enabled` en `false`.
+
+Alternativamente, puede eliminar todas las reglas regulares automáticas enviando una matriz vacía. Y puede eliminar la regla para la entidad restante simplemente sin agregar el objeto `remainingEntitiesRule` .
+
+## Duplicar una carga de trabajo [#duplicate]
+
+Para duplicar una carga de trabajo, primero necesita saber su `guid`. En la mutación `workloadDuplicate` debes pasar como parámetro:
+
+* `accountId`: la cuenta donde desea crear la nueva carga de trabajo.
+* `sourceGuid`: el `guid` de la carga de trabajo que desea duplicar.
+* `workload.name`: Opcional. Puede especificar un nombre para la nueva carga de trabajo. Si no especifica uno, a la nueva carga de trabajo se le agregará el nombre de la carga de trabajo original con `- Copy`.
+
+Después de duplicar una carga de trabajo, puede [modificarla](#modify).
+
+```
+mutation {
+  workloadDuplicate(
+    accountId: NEW_WORKLOAD_ACCOUNT_ID,
+    sourceGuid: "ORIGINAL_WORKLOAD_GUID",
+    workload: {
+      name: "New workload"
+    }
+  ) {
+     guid
+  }
+}
+```
+
+## Eliminar una carga de trabajo [#delete]
+
+Para eliminar una carga de trabajo, utilice la mutación `workloadDelete` y especifique el GUID de la carga de trabajo.
+
+Cuando elimina una carga de trabajo, también se elimina todo el historial y los metadatos.
