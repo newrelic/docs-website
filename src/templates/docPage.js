@@ -134,7 +134,7 @@ const BasicDoc = ({ data, location, pageContext }) => {
           <Layout.PageTools
             css={css`
               background: var(--primary-background-color);
-              top: 0;
+              top: calc(var(--global-header-height) + 3rem);
               &.page-tools-transition-enter {
                 translate: calc(var(--sidebar-width) - 50px);
               }
