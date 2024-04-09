@@ -17,6 +17,7 @@ const Layout = ({ className, children }) => {
       css={css`
         overflow: clip;
         width: 100%;
+        font-display: swap;
       `}
     >
       <div
