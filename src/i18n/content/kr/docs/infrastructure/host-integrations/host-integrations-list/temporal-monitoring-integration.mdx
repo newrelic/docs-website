@@ -37,6 +37,7 @@ Temporal 측정항목을 얻으려면 다음과 같은 몇 가지 단계를 수�
 호스트에 docker 및 docker-compose를 설치합니다.
 
 ```yml
+sudo apt-get update
 sudo apt install docker
 sudo apt install docker-compose
 ```
@@ -45,98 +46,174 @@ sudo apt install docker-compose
 
 1. 저장소를 복제합니다.
 
-```yml
-git clone https://github.com/temporalio/docker-compose.git
-```
+   ```yml
+   git clone https://github.com/temporalio/docker-compose.git
+   ```
 
-2. 디렉터리를 프로젝트 루트로 변경하고 `docker-compose.yml` 파일에 prometheus 엔드포인트와 포트를 추가해야 합니다.
+2. 디렉터리를 프로젝트 루트로 변경하고 `docker-compose.yml` 파일에 Prometheus 엔드포인트와 포트를 추가합니다.
 
-```yml
-sudo nano docker-compose/docker-compose.yml
-```
+   ```yml
+   sudo nano docker-compose/docker-compose.yml
+   ```
 
-```yml
-Environment:
-  - PROMETHEUS_ENDPOINT=0.0.0.0:8000
-ports:
-  - 8000:8000
-```
+   * 환경 섹션의 `container_name: temporal` 아래에 다음과 같이 Prometheus 엔드포인트를 포함합니다. `- PROMETHEUS_ENDPOINT=0.0.0.0:8000`.
+   * 마찬가지로 동일한 컨테이너 내에서 포트 섹션 아래에 포트를 `- 8000:8000` 으로 지정합니다.
+   * 다음은 로컬 docker-compose 임시 클러스터 설정에서 Prometheus 엔드포인트를 노출하는 방법에 대한 예입니다.
+
+   ```yml
+   Environment:
+     - PROMETHEUS_ENDPOINT=0.0.0.0:8000
+   ports:
+     - 8000:8000
+   ```
 
 3. `docker-compose up` 명령을 실행합니다.
 
-```yml
-sudo docker-compose up
-```
+   ```yml
+   sudo docker-compose up
+   ```
 
-아래 URL에서 실행 중인 Temporal 서버를 확인할 수 있습니다.
+   아래 URL에서 실행 중인 Temporal 서버를 확인할 수 있습니다.
 
 * Temporal Server 은 `localhost:7233` 에 출시됩니다.
 * Temporal Web UI는 다음에서 사용할 수 있습니다. `http://<YOUR_DOMAIN>:8080`
-* Temporal 서버 측정항목은 다음에서 사용할 수 있습니다 `http://<YOUR_DOMAIN>:8080/metrics`
+* Temporal 서버 측정항목은 다음에서 사용할 수 있습니다 `http://<YOUR_DOMAIN>:8000/metrics`
 
 ## Java SDK 지표 노출 [#expose-java-sdk-metrics]
 
 다음과 같은 방법으로 Prometheus 레지스트리 및 Micrometer 통계 보고자를 설정하고, 범위를 설정하고, Prometheus가 SDK 클라이언트 지표를 스크랩할 수 있는 엔드포인트를 노출할 수 있습니다.
 
-1. 아래와 같이 프로젝트 기본 폴더에 `MetricsWorker.java` 파일을 생성합니다.
+1. Java SDK 임시에 대한 지표를 설정하려면 프로젝트의 루트 디렉터리에 `MetricsWorker.java` 파일을 생성합니다.
 
-```java
-//...
-// You need to import the following packages to set up metrics in Java.
-// See the Developer's guide for packages required for the other SDKs.
-import com.sun.net.httpserver.HttpServer;
-import com.uber.m3.tally.RootScopeBuilder;
-import com.uber.m3.tally.Scope;
-import com.uber.m3.util.Duration;
-import com.uber.m3.util.ImmutableMap;
+   ```java
+   package <add_your_project_main_directory>; // please add your java application main directory name.
 
-  // See the Micrometer documentation for configuration details on other supported monitoring systems.
-  // This example shows how to set up the Prometheus registry and stats reported.
+   import com.sun.net.httpserver.HttpServer;
+   import com.uber.m3.tally.RootScopeBuilder;
+   import com.uber.m3.tally.Scope;
+   import com.uber.m3.tally.StatsReporter;
+   import com.uber.m3.util.ImmutableMap;
+   import io.micrometer.prometheus.PrometheusConfig;
+   import io.micrometer.prometheus.PrometheusMeterRegistry;
+   import io.temporal.client.WorkflowClient;
+   import io.temporal.client.WorkflowClientOptions;
+   import io.temporal.common.reporter.MicrometerClientStatsReporter;
+   import io.temporal.serviceclient.WorkflowServiceStubs;
+   import io.temporal.serviceclient.WorkflowServiceStubsOptions;
+   import io.temporal.worker.Worker;
+   import io.temporal.worker.WorkerFactory;
 
-  PrometheusMeterRegistry registry = new PrometheusMeterRegistry(PrometheusConfig.DEFAULT);
-  StatsReporter reporter = new MicrometerClientStatsReporter(registry);
+   public class MetricsWorker {
+       static final String WORK_FLOW_TASK_QUEUE = "WORK_FLOW_TASK_QUEUE"; //This can be a work flow task name used to differentiate the metrics logs from other work flow
 
-   // set up a new scope, report every 10 seconds
-    Scope scope = new RootScopeBuilder()
-            .tags(ImmutableMap.of(
-                         "workerCustomTag1",
-                         "workerCustomTag1Value",
-                         "workerCustomTag2",
-                         "workerCustomTag2Value"))
-            .reporter(reporter)
-            .reportEvery(com.uber.m3.util.Duration.ofSeconds(10));
+       public static void main(String[] args) {
 
-  // For Prometheus collection, expose the scrape endpoint at port 8077. See Micrometer documentation for details on starting the Prometheus scrape endpoint. For example,
-  HttpServer scrapeEndpoint = MetricsUtils.startPrometheusScrapeEndpoint(registry, 8077); //note: MetricsUtils is a utility file with the scrape endpoint configuration. See Micrometer docs for details on this configuration.
-  // Stopping the starter stops the HTTP server that exposes the scrape endpoint.
-  //Runtime.getRuntime().addShutdownHook(new Thread(() -> scrapeEndpoint.stop(1)));
+           PrometheusMeterRegistry registry = new PrometheusMeterRegistry(PrometheusConfig.DEFAULT);
+           StatsReporter reporter = new MicrometerClientStatsReporter(registry);
 
-  //Create Workflow service stubs to connect to the Frontend Service.
-  WorkflowServiceStubs service = WorkflowServiceStubs.newServiceStubs(
-         WorkflowServiceStubsOptions.newBuilder()
-                 .setMetricsScope(scope) //set the metrics scope for the WorkflowServiceStubs
-                 .build());
+           // set up a new scope, report every 10 seconds
+           Scope scope = new RootScopeBuilder()
+                   .tags(ImmutableMap.of(
+                           "workerCustomTag1",
+                           "workerCustomTag1Value",
+                           "workerCustomTag2",
+                           "workerCustomTag2Value"))
+                   .reporter(reporter)
+                   .reportEvery(com.uber.m3.util.Duration.ofSeconds(10));
 
-  //Create a Workflow service client, which can be used to start, signal, and query Workflow Executions.
-  WorkflowClient yourClient = WorkflowClient.newInstance(service,
-         WorkflowClientOptions.newBuilder().build());
+           // For Prometheus collection, expose the scrape endpoint at port 8077. See Micrometer documentation for details on starting the Prometheus scrape endpoint. For example,
+           HttpServer scrapeEndpoint = MetricsUtils.startPrometheusScrapeEndpoint(registry, 8077); //note: MetricsUtils is a utility file with the scrape endpoint configuration. See Micrometer docs for details on this configuration.
+           // Stopping the starter stops the HTTP server that exposes the scrape endpoint.
+           //Runtime.getRuntime().addShutdownHook(new Thread(() -> scrapeEndpoint.stop(1)));
 
-  //...
-```
+           //Create Workflow service stubs to connect to the Frontend Service.
+           WorkflowServiceStubs service = WorkflowServiceStubs.newServiceStubs(
+                   WorkflowServiceStubsOptions.newBuilder()
+                           .setMetricsScope(scope) //set the metrics scope for the WorkflowServiceStubs
+                           .build());
 
-2. 프로젝트 디렉토리로 이동하여 빌드하십시오.
+           //Create a Workflow service client, which can be used to start, signal, and query Workflow Executions.
+           WorkflowClient yourClient = WorkflowClient.newInstance(service,
+                   WorkflowClientOptions.newBuilder().build());
 
-```yml
-./gradlew build
-```
 
-3. 작업자를 시작합니다.
+           Runtime.getRuntime().addShutdownHook(new Thread(() -> scrapeEndpoint.stop(1)));
+           // Add metrics scope to workflow service stub options
+           WorkerFactory factory = WorkerFactory.newInstance(yourClient);
 
-```yml
-./gradlew -q execute -PmainClass=<YOUR_METRICS_FILE>
-```
+           Worker worker = factory.newWorker(WORK_FLOW_TASK_QUEUE);
+           worker.registerWorkflowImplementationTypes(SampleWorkflowImpl.class);//Design a workflow incorporating temporal elements and invoking activities within it. Determine where to capture metrics logs and register them with the worker
+           worker.registerActivitiesImplementations(new SampleActivityImpl());  // Develop an Activity interface utilizing temporal annotations, proceed to its implementation, and establish a connection with the worker by mapping it to registerActivities
 
-4. 노출된 Prometheus Scrape 엔드포인트의 작업자 지표를 확인하세요: `http://<YOUR_DOMAIN>:8077/metrics`.
+           factory.start();
+       }
+   }
+   ```
+
+2. 스크래핑 엔드포인트에 대한 설정을 포함하는 `MetricsUtils.java` 파일을 프로젝트의 기본 디렉터리에 생성합니다.
+
+   ```java
+   package <add_your_project_main_directory>; // please add your java application main directory name.
+
+   import com.sun.net.httpserver.HttpServer;
+   import io.micrometer.prometheus.PrometheusMeterRegistry;
+   import static java.nio.charset.StandardCharsets.UTF_8;
+   import java.io.IOException;
+   import java.io.OutputStream;
+   import java.net.InetSocketAddress;
+
+   public class MetricsUtils {
+      public static HttpServer startPrometheusScrapeEndpoint(
+              PrometheusMeterRegistry registry, int port) {
+          try {
+              HttpServer server = HttpServer.create(new InetSocketAddress(port), 0);
+              server.createContext(
+                      "/metrics",
+                      httpExchange -> {
+                          String response = registry.scrape();
+                          httpExchange.sendResponseHeaders(200, response.getBytes(UTF_8).length);
+                          try (OutputStream os = httpExchange.getResponseBody()) {
+                              os.write(response.getBytes(UTF_8));
+                          }
+                      });
+
+              server.start();
+              return server;
+          } catch (IOException e) {
+              throw new RuntimeException(e);
+          }
+      }
+   }
+   ```
+
+3. `dependency section` 아래의 `build.gradle` 파일에 의존성/종속성을 추가합니다.
+
+   ```java
+   implementation "io.micrometer:micrometer-registry-prometheus"
+   ```
+
+4. 아래 스니펫을 복사하고 `build.gradle` 파일 작업에서 프로젝트와 관련된 디렉터리로 `mainClass` 를 수정하여 작업자를 시작합니다.
+
+   ```java
+   task startMetricsWorker(type: JavaExec) {
+      mainClass = '<ProjectRoot.MetricsWorker>' // Add your MetricsWorker file directory.
+      classpath = sourceSets.main.runtimeClasspath
+   }
+   ```
+
+5. 프로젝트 디렉토리로 이동하여 빌드하십시오.
+
+   ```yml
+   ./gradlew build
+   ```
+
+6. 작업자를 시작합니다.
+
+   ```yml
+   ./gradlew startMetricsWorker
+   ```
+
+7. 노출된 Prometheus Scrape 엔드포인트의 작업자 지표를 확인하세요: `http://<YOUR_DOMAIN>:8077/metrics`.
 
 <Callout
   title="메모"
@@ -149,13 +226,13 @@ import com.uber.m3.util.ImmutableMap;
 
 성공적으로 설치되면 블루베리 인프라 에이전트가 실행됩니다. nri-prometheus 설정 파일을 생성하려면 다음 단계를 따르십시오.
 
-1. 다음 경로에 이름이 `nri-prometheus-temporal-config.yml` 인 파일을 만듭니다.
+1\. 이 경로에 이름이 `nri-prometheus-temporal-config.yml` 인 파일을 만듭니다.
 
 ```yml
 cd /etc/newrelic-infra/integrations.d/
 ```
 
-`nri-prometheus-temporal-config.yml` 파일을 생성한 후 `YOUR_HOST_IP` 로 URL을 업데이트해야 합니다.
+`nri-prometheus-temporal-config.yml` 파일을 생성한 후 `YOUR_HOST_IP` 사용하여 URL을 업데이트해야 합니다.
 
 URL: `["http://<YOUR_HOST_IP>:8000/metrics", "http://<YOUR_HOST_IP>:8077/metrics"]`
 
@@ -190,7 +267,45 @@ integrations:
     timeout: 10s
 ```
 
-2. 데이터 읽기를 시작하기 전에 [인프라 에이전트 문서](https://docs.newrelic.com/docs/infrastructure/install-infrastructure-agent/manage-your-agent/start-stop-restart-infrastructure-agent/) 의 지침을 사용하여 인프라 에이전트를 다시 시작하세요.
+### 임시 로그 설정 [#temporal-logs-configuration]
+
+임시 로그를 구성하려면 아래 설명된 단계를 따르세요.
+
+1. 다음 docker 명령을 실행하여 실행 중인 컨테이너의 상태를 확인합니다.
+
+```shell
+sudo docker ps
+```
+
+2. **임시UI** 컨테이너의 컨테이너 ID를 복사하고 제공된 명령을 실행합니다.
+
+```shell
+sudo docker logs -f <container_id> &> /tmp/temporal.log &
+```
+
+그런 다음 `temporal.log` 이라는 `/tmp/` 디렉터리에 있는 로그 파일을 확인합니다.
+
+### 뉴렐릭으로 임시 로그 전달 중 [#temporal-logs-to-newrelic]
+
+우리의 [로그 포워딩을](https://docs.newrelic.com/docs/logs/forward-logs/forward-your-logs-using-infrastructure-agent/) 사용하여 임시 로그를 뉴렐릭으로 전달할 수 있습니다. Linux 시스템에서는 log.yml이라는 로그 파일이 다음 경로에 있어야 합니다.
+
+```shell
+cd /etc/newrelic-infra/logging.d/
+```
+
+로그 파일이 생성되면 후속 스크립트를 `logging.yml` 파일에 포함합니다.
+
+```yml
+logs:
+  - name: temporal_logs
+    file: /tmp/temporal.log
+    attributes:
+      logtype: temporal_logs
+```
+
+### 인프라 에이전트 다시 시작
+
+데이터 읽기를 시작하기 전에 [인프라 에이전트 문서](https://docs.newrelic.com/docs/infrastructure/install-infrastructure-agent/manage-your-agent/start-stop-restart-infrastructure-agent/) 의 지침을 사용하여 인프라 에이전트를 다시 시작하세요.
 
 ```bash
 sudo systemctl restart newrelic-infra.service
@@ -212,6 +327,6 @@ Temporal 대시보드는 사용자 정의 대시보드로 간주되며 대시보
 다음은 Temporal 요청 대기 시간 합계를 확인하는 NRQL 쿼리입니다:
 
 ```sql
-SELECT sum(temp oral_request_latency_sum) FROM Metric WHERE scrapedTargetURL = 'http://<YOUR_DOMAIN>:8000/metrics'
+SELECT sum(temporal_request_latency_sum) FROM Metric
 
 ```

@@ -244,15 +244,9 @@ exports.createSchemaCustomization = (
     translationType: String
     eolDate: String
     downloadLink: String
-    signupBanner: SignupBanner
     features: [String]
     bugs: [String]
     security: [String]
-  }
-  type SignupBanner {
-    cta: String
-    url: String
-    text: String
   }
 
   `;
@@ -364,20 +358,6 @@ exports.createResolvers = ({ createResolvers }) => {
       security: {
         resolve: (source) =>
           hasOwnProperty(source, 'security') ? source.security : null,
-      },
-    },
-    SignupBanner: {
-      cta: {
-        resolve: (source) =>
-          hasOwnProperty(source, 'cta') ? source.cta : null,
-      },
-      url: {
-        resolve: (source) =>
-          hasOwnProperty(source, 'url') ? source.url : null,
-      },
-      text: {
-        resolve: (source) =>
-          hasOwnProperty(source, 'text') ? source.text : null,
       },
     },
   });

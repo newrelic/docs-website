@@ -45,7 +45,6 @@ const NavLink = ({
         margin: 0 calc(var(--nav-link-padding) * -1);
         font-size: 0.875rem;
         text-decoration: none;
-        border-radius: 0.25rem;
 
         &:hover {
           color: var(--secondary-text-color);

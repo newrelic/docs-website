@@ -1,5 +1,5 @@
 ---
-title: 'Analyze errors and rootcause faster with errors inbox enhancements for OpenTelemetry'
+title: 'Analyze errors and root cause faster with errors inbox enhancements for OpenTelemetry'
 summary: 'Dynamically group and filter errors for deeper insights and analysis'
 releaseDate: '2024-03-11'
 learnMoreLink: 'https://docs.newrelic.com/docs/errors-inbox/otel-tab/'
