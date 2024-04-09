@@ -439,7 +439,7 @@ module.exports = {
             'md',
             'java',
             'razor',
-            'hcl'
+            'hcl',
           ],
         },
         newrelic: {
@@ -460,16 +460,7 @@ module.exports = {
             errorBeacon: 'staging-bam-cell.nr-data.net',
             settings: {
               session_replay: {
-                enabled: true,
-                block_selector: '',
-                mask_text_selector: '*',
-                sampling_rate: 5.0,
-                error_sampling_rate: 100.0,
-                mask_all_inputs: true,
-                collect_fonts: true,
-                inline_images: false,
-                inline_stylesheet: true,
-                mask_input_options: {},
+                enabled: false,
               },
               distributed_tracing: { enabled: true },
               privacy: { cookies_enabled: true },
