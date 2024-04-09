@@ -6,8 +6,6 @@ import {
   useTranslation,
   Trans,
 } from '@newrelic/gatsby-theme-newrelic';
-import bannerBackground from '../images/bannerBackground.svg';
-import bannerBackgroundDark from '../images/bannerBackgroundDark.svg';
 
 const HomepageBanner = () => {
   const bannerHeight = '250px';
@@ -20,7 +18,6 @@ const HomepageBanner = () => {
         position: relative;
         border-radius: 4px;
         background: var(--system-text-primary-light);
-        background-image: url(${bannerBackground});
         background-repeat: no-repeat;
         background-size: cover;
         display: flex;
@@ -29,7 +26,6 @@ const HomepageBanner = () => {
 
         .dark-mode & {
           background-color: var(--system-background-floating-dark);
-          background-image: url(${bannerBackgroundDark});
         }
         @media screen and (max-width: ${mobileBreakpoint}) {
           flex-direction: column-reverse;
