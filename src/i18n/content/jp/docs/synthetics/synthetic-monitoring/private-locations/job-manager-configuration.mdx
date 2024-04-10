@@ -11,6 +11,7 @@ translationType: machine
 
 このドキュメントでは、次の方法を示して[、外形監視ジョブ マネージャー](/docs/synthetics/synthetic-monitoring/private-locations/install-job-manager)の構成について説明します。
 
+* [](#custom-modules)[スクリプトAPI](/docs/synthetics/synthetic-monitoring/scripting-monitors/write-synthetic-api-tests/) または[ スクリプトbrowser](/docs/synthetics/new-relic-synthetics/scripting-monitors/write-scripted-browsers) モニターの カスタム モジュール を設定します。
 * 設定に[ユーザー定義の変数](#user-defined-vars)を提供します。
 * 外形監視ジョブ マネージャーを起動するときに、他の[環境変数を](#environment-variables)更新します。
 
@@ -104,6 +105,91 @@ translationType: machine
 
 <Callout variant="caution">
   ユーザー定義の環境変数はログから削除されません。 機密情報には[安全な認証情報](/docs/synthetics/new-relic-synthetics/using-monitors/secure-credentials-store-credentials-information-scripted-browsers)機能を使用することを検討してください。
+</Callout>
+
+## カスタムノードモジュール [#custom-modules]
+
+カスタム ノード モジュールは、1分間あたりの呼出し回数と SJM の両方で提供されます。 これらを使用すると、カスタマイズされた[ノード モジュール](https://docs.npmjs.com/about-packages-and-modules)のセットを作成し、外形監視用のスクリプト モニター (スクリプトAPIおよびスクリプトbrowser ) で使用できます。
+
+モジュールをセットアップするには
+
+1. ルート フォルダーに[npm の公式ガイドライン](https://docs.npmjs.com/files/package.json)に従って、 `package.json`ファイルを含むディレクトリを作成します。 SJMはpackage.jsonにリストされている依存関係をインストールします。 `dependencies`フィールド。 これらの依存関係は、プライベート外形監視ジョブ マネージャーでモニターを実行するときに使用できます。 以下の例をご覧ください。
+
+<CollapserGroup>
+  <Collapser
+    id="example-module-directory"
+    title="カスタムモジュールのディレクトリ"
+  >
+    この例では、次のような構造のカスタムモジュールディレクトリを使用しています。
+
+    ```
+    /example-custom-modules-dir/
+          ├── counter
+          │   ├── index.js
+          │   └── package.json
+          └── package.json            ⇦ the only mandatory file
+    ```
+
+    `package.json`は`dependencies`ローカル モジュール (例: `counter` ) とホストされたモジュール (例: `smallest`バージョン`1.0.1` ) の両方として定義します。
+
+    ```
+    {
+          "name": "custom-modules",
+          "version": "1.0.0",           ⇦ optional
+          "description": "example custom modules directory", ⇦ optional
+          "dependencies": {
+            "smallest": "1.0.1",          ⇦ hosted module
+            "counter": "file:./counter" ⇦ local module
+          }
+        }
+    ```
+  </Collapser>
+</CollapserGroup>
+
+2. カスタム モジュール ディレクトリと `package.json` を作成したら、それをdockerおよびKubernetesの SJM に適用します。
+
+   <CollapserGroup>
+     <Collapser
+       id="docker"
+       title="Docker"
+     >
+       dockerの場合、リリース SJM はディレクトリを `/var/lib/newrelic/synthetics/modules` にマウントします。 例えば：
+
+       ```
+       docker run ... -v /example-custom-modules-dir:/var/lib/newrelic/synthetics/modules:rw ...
+       ```
+     </Collapser>
+
+     <Collapser
+       id="kubernetes"
+       title="Kubernetes"
+     >
+       次の項目を完了します。
+
+       1. SJM をリリースし、インストール中にコマンドラインまたは YAML ファイルのいずれかで`persistence.customModules`設定値を設定します。 値には、カスタム モジュール ファイルが存在する外形監視ジョブ マネージャーの永続ボリューム上のサブパスを指定する必要があります。 例えば：
+
+          ```
+          helm install ... --set persistence.customModules=<custom-modules-subpath> ...
+          ```
+
+       2. カスタムモジュールディレクトリがミニオンポッドで利用可能であることを確認してください。ホストからミニオンにディレクトリをコピーする1つの方法として`kubectl cp`を使用できます。例えば：
+
+          ```
+          kubectl cp /example-custom-modules-dir <namespace>/<pod_name>:/var/lib/newrelic/synthetics/modules
+          ```
+     </Collapser>
+   </CollapserGroup>
+
+3. モジュールが正しくインストールされたかどうか、またはエラーが発生したかどうかを確認するには、 [SJM ログの](/docs/synthetics/new-relic-synthetics/private-locations/job-manager-maintenance-monitoring#monitor-docker-logs)`"... Initialization of Custom Modules ..."`というセクションを確認します。 これらのログには、インストレーション プロセスと発生した潜在的なエラーに関する情報を提供する npm インストレーション ログが含まれます。
+
+これで、このプライベートな場所に送信するモニターの[スクリプト](/docs/synthetics/new-relic-synthetics/scripting-monitors/write-scripted-browsers)に`"require('smallest');"`を追加できます。
+
+### カスタムモジュールの`package.json`を変更 [#change-package-json]
+
+ローカル モジュールとホスト モジュールに加えて、 [Node.js モジュール](/docs/synthetics/new-relic-synthetics/scripting-monitors/import-nodejs-modules)も利用できます。 SJM で使用されるカスタム モジュールを更新するには、 `package.json`ファイルに変更を加えて、SJM を再起動します。 再起動プロセス中に、SJM は設定の変更を認識し、クリーンアップと再インストール操作を自動的に実行して、更新されたモジュールが確実に適用されるようにします。
+
+<Callout variant="caution">
+  ローカル モジュール: `package.json`には任意のローカル モジュールを含めることができますが、これらのモジュールはカスタム モジュール ディレクトリの下のツリー内に存在する必要があります。 ツリー外に保存すると、初期化プロセスが失敗し、SJM を起動した後に[dockerログ](/docs/synthetics/new-relic-synthetics/private-locations/job-manager-maintenance-monitoring#monitor-docker-logs)にエラー メッセージが表示されます。
 </Callout>
 
 ## データの永久保存 [#permanent-data-storage]
