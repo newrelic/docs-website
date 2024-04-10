@@ -17,6 +17,7 @@ import { DocTile } from '../components/DocTile';
 import FindYourQuickStart from '../components/FindYourQuickstart';
 import ErrorBoundary from '../components/ErrorBoundary';
 import FeedbackModal from '../components/FeedbackModal';
+import { OnboardingContainer, OnboardingStep } from '../components/Onboarding';
 
 const HomePage = ({ data }) => {
   const {
@@ -101,6 +102,14 @@ const HomePage = ({ data }) => {
         </Link>
       </div>
       <HomepageBanner />
+      <Section>
+        <OnboardingContainer>
+          <OnboardingStep number={0} text={'Sign up for a New Relic account to unlock powerful monitoring and observability tools.'} title={'Create an account'}/>
+          <OnboardingStep number={1} text={`Begin your New Relic journey by delving into the documentation, where you'll discover a overview of its features and functionalities.`} title={'Read into to New Relic docs'}/>
+          <OnboardingStep number={2} text={'Installing New Relic empowers you to quickly integrate its powerful monitoring solutions into your digital infrastructure.'} title={'Install New Relic'}/>
+          <OnboardingStep number={3} text={'Explore the tutorial documentation for New Relic to quickly grasp its features and leverage its capabilities effectively.'} title={'Check out the tutorial docs'}/>
+        </OnboardingContainer>
+      </Section>
       <Section
         layout={layout}
         css={css`
