@@ -65,7 +65,7 @@ const BasicDoc = ({ data, location, pageContext }) => {
     });
   }, [tableOfContents]);
 
-  const { title, metaDescription, tags, type, translationType } = frontmatter;
+  const { title, metaDescription, tags, translationType } = frontmatter;
 
   if (typeof window !== 'undefined' && typeof newrelic === 'object') {
     window.newrelic.setCustomAttribute('pageType', 'Template/DocPage');
@@ -82,7 +82,7 @@ const BasicDoc = ({ data, location, pageContext }) => {
         location={location}
         title={title}
         description={metaDescription}
-        type={type ? TYPES.BASIC_PAGE[type] : TYPES.BASIC_PAGE.default}
+        type={TYPES.BASIC_PAGE.default}
         tags={tags}
         disableSwiftype={disableSwiftype}
       />
