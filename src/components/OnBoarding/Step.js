@@ -76,8 +76,8 @@ const Card = styled.div`
 
 const Container = styled.div`
   background-image: url(${(p) => p.background});
-  background-repeat: no-repeat;
   background-position: center top;
+  background-repeat: no-repeat;
   background-size: 100% 100%;
   padding: 20px 10px 56px 10px;
   position: relative;
@@ -97,25 +97,26 @@ const Container = styled.div`
   }
 
   @media screen and (max-width: 1000px) {
+    align-items: center;
     background-image: url(${onboardingVerticle});
     display: flex;
     flex-direction: column;
-    align-items: center;
+    padding: 32px 10px 40px 10px;
     width: 100%;
   }
 `;
 
 const CTA = styled(Button)`
   bottom: 20px;
-  border-color: ${(p) => (p.number === 0 ? 'white' : 'black')};
-  color: ${(p) => (p.number === 0 ? 'white' : 'black')};
+  border-color: ${(p) => (p.number === 0 ? 'white' : 'var(--button-border-color)')};
+  color: ${(p) => (p.number === 0 ? 'white' : 'var(--button-border-color)')};
   position: absolute;
   right: 50px;
 
   @media screen and (max-width: 1000px) {
-    border-color: black;
+    border-color: var(--button-border-color);
     bottom: 0;
-    color: black;
+    color: var(--button-border-color);
     position: relative;
     right: 0;
   }
@@ -123,7 +124,7 @@ const CTA = styled(Button)`
 
 const ReadDocs = styled.a`
   bottom: 20px;
-  color: black;
+  color: var(--button-border-color);
   display: flex;
   position: absolute;
   right: 50px;
@@ -142,28 +143,28 @@ const ReadDocs = styled.a`
 `;
 
 const Text = styled.p`
-  color: ${(p) => (p.number === 0 ? 'white' : 'black')};
+  color: ${(p) => (p.number === 0 ? 'white' : 'var(--button-border-color)')};
   font-size: 14px;
   font-weight: 300;
   line-height: 20px;
-  width: 80%;
+  width: ${(p) => (p.number === 3 ? '100%' : '80%')};
 
   @media screen and (max-width: 1000px) {
-    color: black;
+    color: var(--button-border-color);
     text-align: center;
     width: 100%;
   }
 `;
 
 const Title = styled.h4`
-  color: ${(p) => (p.number === 0 ? 'white' : 'black')};
+  color: ${(p) => (p.number === 0 ? 'white' : 'var(--button-border-color)')};
   font-size: 1rem;
   margin: 0 0 8px;
   position: relative;
   width: 90%;
 
   @media screen and (max-width: 1000px) {
-    color: black;
+    color: var(--button-border-color);
     text-align: center;
     width: 100%;
   }
@@ -186,8 +187,8 @@ const Title = styled.h4`
     width: 24px;
 
     @media screen and (max-width: 1000px) {
-      background-color: white;
-      color: black;
+      background-color: transparent;
+      color: var(--button-border-color);
       content: '${(p) => p.number}.';
       margin-right: 8px;
     }

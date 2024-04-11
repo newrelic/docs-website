@@ -18,7 +18,7 @@ const Container = styled.div`
 `;
 
 const Steps = styled.div`
-  background: white;
+  background: var(--secondary-background-color);
   border-radius: 10px;
   display: flex;
   padding: 0;
