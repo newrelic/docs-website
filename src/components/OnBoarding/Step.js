@@ -66,10 +66,7 @@ const Step = ({ button, buttonHref, number, readDocsHref, text, title }) => {
 
 const Card = styled.div`
   background-color: transparent;
-  left: 24px;
-  overflow: hidden;
   position: relative;
-  top: 20px;
   z-index: 10;
 `;
 
@@ -78,9 +75,13 @@ const Container = styled.div`
   background-repeat: no-repeat;
   background-position: center top;
   background-size: 100% 100%;
-  min-height: 196px;
+  padding: 20px 10px 56px 10px;
   position: relative;
   width: 26%;
+
+  &:first-child {
+    padding-left: 24px;
+  }
 
   &:last-child {
     width: 23%;
@@ -122,6 +123,7 @@ const Title = styled.h4`
   font-size: 1rem;
   margin: 0 0 8px;
   position: relative;
+  width: 90%;
 
   &:before {
     background: ${(p) => (p.number === 0 ? 'white' : 'lightgrey')};
