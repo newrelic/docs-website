@@ -325,16 +325,7 @@ module.exports = {
 
     'gatsby-source-nav',
     'gatsby-source-install-config',
-    {
-      resolve: 'gatsby-plugin-gatsby-cloud',
-      options: {
-        allPageHeaders: [
-          'Referrer-Policy: no-referrer-when-downgrade',
-          'Content-Security-Policy: frame-ancestors *.newrelic.com',
-          'Cache-Control: no-cache',
-        ],
-      },
-    },
+
     // https://www.gatsbyjs.com/plugins/gatsby-plugin-typegen/
     {
       resolve: 'gatsby-plugin-typegen',
