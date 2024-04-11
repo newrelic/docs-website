@@ -9,7 +9,7 @@ import PropTypes from 'prop-types';
 import onboarding1 from 'images/onboarding-1.png';
 import onboarding2 from 'images/onboarding-second.png';
 import onboarding3 from 'images/onboarding-third.png';
-import onboardingVerticle from 'images/onboarding-verticle.png';
+import onboardingVerticle from 'images/onboarding-vertical.png';
 
 const BACKGROUND_IMAGES = [onboarding1, onboarding2, onboarding3];
 
@@ -68,6 +68,10 @@ const Card = styled.div`
   background-color: transparent;
   position: relative;
   z-index: 10;
+
+  @media screen and (max-width: 1000px) {
+    margin-bottom: 24px;
+  }
 `;
 
 const Container = styled.div`
@@ -85,6 +89,19 @@ const Container = styled.div`
 
   &:last-child {
     width: 23%;
+
+    @media screen and (max-width: 1000px) {
+      background-image: none;
+      width: 100%;
+    }
+  }
+
+  @media screen and (max-width: 1000px) {
+    background-image: url(${onboardingVerticle});
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
   }
 `;
 
@@ -94,6 +111,14 @@ const CTA = styled(Button)`
   color: ${(p) => (p.number === 0 ? 'white' : 'black')};
   position: absolute;
   right: 50px;
+
+  @media screen and (max-width: 1000px) {
+    border-color: black;
+    bottom: 0;
+    color: black;
+    position: relative;
+    right: 0;
+  }
 `;
 
 const ReadDocs = styled.a`
@@ -108,6 +133,12 @@ const ReadDocs = styled.a`
     margin-bottom: 0;
     margin-right: 0.5rem;
   }
+
+  @media screen and (max-width: 1000px) {
+    bottom: 0;
+    position: relative;
+    right: 0;
+  }
 `;
 
 const Text = styled.p`
@@ -116,6 +147,12 @@ const Text = styled.p`
   font-weight: 300;
   line-height: 20px;
   width: 80%;
+
+  @media screen and (max-width: 1000px) {
+    color: black;
+    text-align: center;
+    width: 100%;
+  }
 `;
 
 const Title = styled.h4`
@@ -124,6 +161,12 @@ const Title = styled.h4`
   margin: 0 0 8px;
   position: relative;
   width: 90%;
+
+  @media screen and (max-width: 1000px) {
+    color: black;
+    text-align: center;
+    width: 100%;
+  }
 
   &:before {
     background: ${(p) => (p.number === 0 ? 'white' : 'lightgrey')};
@@ -141,6 +184,13 @@ const Title = styled.h4`
     text-align: center;
     top: 6px;
     width: 24px;
+
+    @media screen and (max-width: 1000px) {
+      background-color: white;
+      color: black;
+      content: '${(p) => p.number}.';
+      margin-right: 8px;
+    }
   }
 `;
 

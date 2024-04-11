@@ -23,6 +23,10 @@ const Steps = styled.div`
   display: flex;
   padding: 0;
   width: 100%;
+
+  @media screen and (max-width: 1000px) {
+    flex-direction: column;
+  }
 `
 
 const Title = styled.h2`
