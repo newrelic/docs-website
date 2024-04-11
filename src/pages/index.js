@@ -115,42 +115,27 @@ const HomePage = ({ data }) => {
             }
           `}
         >
-          <DocTile
-            label={{ text: 'Get started', color: '#F4CBE7' }}
-            path="/docs/apm/new-relic-apm/getting-started/introduction-apm"
+          <ProductTile
+            to="/"
+            title={t('home.productRow1.t1.title')}
+            icon="nr-software"
           >
-            {t('home.popularDocs.t1.title')}
-          </DocTile>
-          <DocTile
-            label={{ text: 'Get started', color: '#F4CBE7' }}
-            path="/docs/browser/browser-monitoring/getting-started/introduction-browser-monitoring/"
+            {t('home.productRow1.t1.body')}
+          </ProductTile>
+          <ProductTile
+            to="/"
+            title={t('home.productRow1.t1.title')}
+            icon="nr-software"
           >
-            {t('home.popularDocs.t2.title')}
-          </DocTile>
-          <DocTile
-            label={{ text: 'Get started', color: '#F4CBE7' }}
-            path="/docs/synthetics/synthetic-monitoring/getting-started/get-started-synthetic-monitoring/"
+            {t('home.productRow1.t1.body')}
+          </ProductTile>
+          <ProductTile
+            to="/"
+            title={t('home.productRow1.t1.title')}
+            icon="nr-software"
           >
-            {t('home.popularDocs.t3.title')}
-          </DocTile>
-          <DocTile
-            label={{ text: 'Get started', color: '#F4CBE7' }}
-            path="/docs/apm/new-relic-apm/getting-started/introduction-apm"
-          >
-            {t('home.popularDocs.t1.title')}
-          </DocTile>
-          <DocTile
-            label={{ text: 'Get started', color: '#F4CBE7' }}
-            path="/docs/browser/browser-monitoring/getting-started/introduction-browser-monitoring/"
-          >
-            {t('home.popularDocs.t2.title')}
-          </DocTile>
-          <DocTile
-            label={{ text: 'Get started', color: '#F4CBE7' }}
-            path="/docs/synthetics/synthetic-monitoring/getting-started/get-started-synthetic-monitoring/"
-          >
-            {t('home.popularDocs.t3.title')}
-          </DocTile>
+            {t('home.productRow1.t1.body')}
+          </ProductTile>
         </div>
       </Section>
       <Section
@@ -186,37 +171,27 @@ const HomePage = ({ data }) => {
             }
           `}
         >
-          <ProductTile to="/" title={t('home.productRow1.t1.title')}>{t('home.productRow1.t1.body')}</ProductTile>
-          <DocTile
-            label={{ text: 'Get started', color: '#F4CBE7' }}
-            path="/docs/browser/browser-monitoring/getting-started/introduction-browser-monitoring/"
+          <ProductTile
+            to="/"
+            title={t('home.productRow1.t1.title')}
+            icon="nr-software"
           >
-            {t('home.popularDocs.t2.title')}
-          </DocTile>
-          <DocTile
-            label={{ text: 'Get started', color: '#F4CBE7' }}
-            path="/docs/synthetics/synthetic-monitoring/getting-started/get-started-synthetic-monitoring/"
+            {t('home.productRow1.t1.body')}
+          </ProductTile>
+          <ProductTile
+            to="/"
+            title={t('home.productRow1.t1.title')}
+            icon="nr-software"
           >
-            {t('home.popularDocs.t3.title')}
-          </DocTile>
-          <DocTile
-            label={{ text: 'Get started', color: '#F4CBE7' }}
-            path="/docs/apm/new-relic-apm/getting-started/introduction-apm"
+            {t('home.productRow1.t1.body')}
+          </ProductTile>
+          <ProductTile
+            to="/"
+            title={t('home.productRow1.t1.title')}
+            icon="nr-software"
           >
-            {t('home.popularDocs.t1.title')}
-          </DocTile>
-          <DocTile
-            label={{ text: 'Get started', color: '#F4CBE7' }}
-            path="/docs/browser/browser-monitoring/getting-started/introduction-browser-monitoring/"
-          >
-            {t('home.popularDocs.t2.title')}
-          </DocTile>
-          <DocTile
-            label={{ text: 'Get started', color: '#F4CBE7' }}
-            path="/docs/synthetics/synthetic-monitoring/getting-started/get-started-synthetic-monitoring/"
-          >
-            {t('home.popularDocs.t3.title')}
-          </DocTile>
+            {t('home.productRow1.t1.body')}
+          </ProductTile>
         </div>
       </Section>
 

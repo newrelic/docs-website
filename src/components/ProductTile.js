@@ -2,23 +2,14 @@ import React, { useState } from 'react';
 import { css } from '@emotion/react';
 import SurfaceLink from './SurfaceLink';
 import { Icon } from '@newrelic/gatsby-theme-newrelic';
-import { useSpring, animated, useTransition } from '@react-spring/web';
+import { useSpring, animated } from '@react-spring/web';
 
-const ProductTile = ({ children, to, title }) => {
-  const [isActive, setIsActive] = useState(false);
-  const springConfig = {
-    mass: 3,
-    tension: 160,
-    friction: 15,
-  };
-  const [style, api] = useSpring(() => {
-    scale: 2, springConfig;
-  });
-
-  console.log(api);
+const ProductTile = ({ children, to, title, icon }) => {
+  const [tileStyle, tileApi] = useSpring(() => {});
+  const [textStyle, textApi] = useSpring(() => {});
 
   return (
-    <animated.div style={style}>
+    <animated.div style={tileStyle}>
       <SurfaceLink
         css={css`
           height: 138px;
@@ -31,21 +22,55 @@ const ProductTile = ({ children, to, title }) => {
           p {
             margin: 0;
           }
+          &:hover {
+            color: var(--primary-text-color);
+          }
         `}
         to={to}
         onMouseEnter={() => {
-          setIsActive(true);
-          api.start({ scale: 1 });
+          tileApi.start({
+            from: { scale: 1 },
+            to: { scale: 1.25 },
+          });
+          textApi.start({
+            from: { opacity: 0 },
+            to: { opacity: 1 },
+          });
         }}
         onMouseLeave={() => {
-          setIsActive(false);
-          api.reverse();
+          tileApi.start({
+            from: { scale: 1.25 },
+            to: { scale: 1 },
+          });
+          textApi.start({ from: { opacity: 1 }, to: { opacity: 0 } });
         }}
       >
-        <p>{title}</p>
-        {isActive && <p>{children}</p>}
+        <p
+          css={css`
+            font-size: 1.25rem;
+          `}
+        >
+          {title}
+        </p>
+
+        <animated.div
+          style={textStyle}
+          css={css`
+            display: flex;
+            flex-direction: column;
+          `}
+        >
+          <p
+            css={css`
+              font-size: 0.875rem;
+              line-height: 1.15;
+            `}
+          >
+            {children}
+          </p>
+        </animated.div>
         <Icon
-          name="nr-software"
+          name={icon}
           size="2rem"
           css={css`
             flex: 1;
