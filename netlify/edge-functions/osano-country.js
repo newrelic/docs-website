@@ -48,6 +48,12 @@ export default async (request, context) => {
           }
         },
       })
-      .transform(response);
+      .transform(
+        new Response(response, {
+          headers: {
+            'cache-control': 'public, s-maxage=604800',
+          },
+        })
+      );
   }
 };
