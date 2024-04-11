@@ -49,5 +49,7 @@ export default async (request, context) => {
         },
       })
       .transform(response);
+  } else {
+    return;
   }
 };
