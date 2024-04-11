@@ -50,7 +50,7 @@ const Step = ({ button, buttonHref, number, readDocsHref, text, title }) => {
         </ReadDocs>
       )}
       {button && (
-        <CTA number={number} variant={Button.VARIANT.OUTLINE} href={buttonHref} >
+        <CTA number={number} variant={Button.VARIANT.OUTLINE} href={buttonHref}>
           <Icon
             css={css`
               margin-right: 4px;
@@ -108,7 +108,8 @@ const Container = styled.div`
 
 const CTA = styled(Button)`
   bottom: 20px;
-  border-color: ${(p) => (p.number === 0 ? 'white' : 'var(--button-border-color)')};
+  border-color: ${(p) =>
+    p.number === 0 ? 'white' : 'var(--button-border-color)'};
   color: ${(p) => (p.number === 0 ? 'white' : 'var(--button-border-color)')};
   position: absolute;
   right: 50px;
