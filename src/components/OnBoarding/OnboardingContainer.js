@@ -4,7 +4,7 @@ import styled from '@emotion/styled';
 const OnboardingContainer = ({children}) => {
   return (
     <Container>
-      <h2>Get started in three easy steps</h2>
+      <Title>Get started in four easy steps</Title>
       <Steps>{children}</Steps>
     </Container>
   )
@@ -24,6 +24,13 @@ const Steps = styled.div`
   padding: 0;
   width: 100%;
 `
+
+const Title = styled.h2`
+  font-size: 24px;
+  line-height: 48px;
+  margin-bottom: 24px;
+`;
+
 
 
 
