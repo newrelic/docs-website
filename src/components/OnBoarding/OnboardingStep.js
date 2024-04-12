@@ -13,7 +13,14 @@ import onboardingVerticle from 'images/onboarding-vertical.png';
 
 const BACKGROUND_IMAGES = [onboarding1, onboarding2, onboarding3];
 
-const OnboardingStep = ({ button, buttonHref, number, readDocsHref, text, title }) => {
+const OnboardingStep = ({
+  button,
+  buttonHref,
+  number,
+  readDocsHref,
+  text,
+  title,
+}) => {
   const springConfig = {
     mass: 3,
     tension: 160,
