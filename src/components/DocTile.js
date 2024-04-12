@@ -6,6 +6,7 @@ import { css } from '@emotion/react';
 import styled from '@emotion/styled';
 import PropTypes from 'prop-types';
 import { animated, useTrail } from 'react-spring';
+import useBoop from 'use-boop';
 
 export const DocTile = ({
   children,
@@ -60,6 +61,17 @@ export const DocTile = ({
     </h4>
   );
 
+  const springConfig = {
+    mass: 3,
+    tension: 160,
+    friction: 15,
+  };
+
+  const [rightButton, triggerRight] = useBoop({
+    x: 20,
+    springConfig,
+  });
+
   return (
     <SurfaceLink
       base={Surface.BASE.SECONDARY}
@@ -67,6 +79,7 @@ export const DocTile = ({
       interactive
       instrumentation={instrumentation}
       className={className}
+      onMouseEnter={buttonText ? triggerRight : ''}
       css={css`
         color: var(--primary-text-color);
         background: var(--secondary-background-color);
@@ -181,15 +194,17 @@ export const DocTile = ({
             `}
           >
             {buttonText}
-            <Icon
-              name="fe-arrow-right"
-              css={css`
-                color: var(--link-color);
-                margin-left: 8px;
-                margin-top: 2px;
-                size: 1.5rem;
-              `}
-            />
+            <animated.div style={rightButton}>
+              <Icon
+                name="fe-arrow-right"
+                css={css`
+                  color: var(--link-color);
+                  margin-left: 8px;
+                  margin-top: 2px;
+                  size: 1.5rem;
+                `}
+              />
+            </animated.div>
           </Button>
         )}
         <div
