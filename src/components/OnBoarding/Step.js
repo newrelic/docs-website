@@ -51,13 +51,13 @@ const Step = ({ button, buttonHref, number, readDocsHref, text, title }) => {
       )}
       {button && (
         <CTA number={number} variant={Button.VARIANT.OUTLINE} href={buttonHref}>
+          {button}
           <Icon
             css={css`
-              margin-right: 4px;
+              margin-left: 4px;
             `}
             name="fe-external-link"
           />
-          {button}
         </CTA>
       )}
     </Container>
