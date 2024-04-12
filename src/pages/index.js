@@ -14,10 +14,6 @@ import { DocTile, DocTiles } from '../components/DocTile';
 import ErrorBoundary from '../components/ErrorBoundary';
 import FeedbackModal from '../components/FeedbackModal';
 
-import popularDocs1 from '../images/homepage-images/popular-docs1.webp';
-import popularDocs2 from '../images/homepage-images/popular-docs2.webp';
-import popularDocs3 from '../images/homepage-images/popular-docs3.webp';
-
 const HomePage = ({ data }) => {
   const {
     site: { layout },
@@ -63,20 +59,28 @@ const HomePage = ({ data }) => {
 
               @media screen and (max-width: 760px) {
                 grid-template-columns: 1fr;
-                padding: 0 0.5rem;
+                padding: 0;
+              }
+              @media screen and (max-width: 400px) {
               }
             `}
           >
-            <DocTile path="/docs/apm/new-relic-apm/getting-started/introduction-apm">
-              <img alt="Popular docs tile" src={popularDocs1} />
+            <DocTile
+              buttonText={t('home.popularDocs.learnMore')}
+              path="/docs/apm/new-relic-apm/getting-started/introduction-apm"
+            >
               {t('home.popularDocs.t1.title')}
             </DocTile>
-            <DocTile path="/docs/browser/browser-monitoring/getting-started/introduction-browser-monitoring/">
-              <img alt="Popular docs tile" src={popularDocs2} />
+            <DocTile
+              buttonText={t('home.popularDocs.learnMore')}
+              path="/docs/browser/browser-monitoring/getting-started/introduction-browser-monitoring/"
+            >
               {t('home.popularDocs.t2.title')}
             </DocTile>
-            <DocTile path="/docs/synthetics/synthetic-monitoring/getting-started/get-started-synthetic-monitoring/">
-              <img alt="Popular docs tile" src={popularDocs3} />
+            <DocTile
+              buttonText={t('home.popularDocs.learnMore')}
+              path="/docs/synthetics/synthetic-monitoring/getting-started/get-started-synthetic-monitoring/"
+            >
               {t('home.popularDocs.t3.title')}
             </DocTile>
           </DocTiles>

@@ -1,5 +1,5 @@
 import React, { cloneElement } from 'react';
-import { Icon, Surface, Tag } from '@newrelic/gatsby-theme-newrelic';
+import { Button, Icon, Surface, Tag } from '@newrelic/gatsby-theme-newrelic';
 import cx from 'classnames';
 import SurfaceLink from './SurfaceLink';
 import { css } from '@emotion/react';
@@ -16,6 +16,7 @@ export const DocTile = ({
   number,
   className,
   title,
+  buttonText,
 }) => {
   const body = title ? (
     <>
@@ -95,16 +96,10 @@ export const DocTile = ({
           border-radius: 11px;
           box-shadow: none;
           h4 {
-            font-size: 18px;
+            font-size: 1.25rem;
             color: white;
             font-weight: 300;
             padding: 0;
-          }
-          img {
-            height: 100px;
-            width: 100px;
-            border-radius: 4px;
-            object-fit: cover;
           }
           &:hover {
             box-shadow: rgba(0, 0, 0, 0.3) 0px 4px 6px -1px,
@@ -121,22 +116,19 @@ export const DocTile = ({
 
           @media screen and (max-width: 1000px) {
             max-width: unset;
-            img {
-              height: 100px;
-              width: 150px;
+            padding: 0.8rem;
+            h4 {
+              font-size: 1.25rem;
             }
+          }
+          @media screen and (max-width: 760px) {
+            max-width: unset;
           }
 
           @media screen and (max-width: 525px) {
-            img {
-              height: 75px;
-              width: 75px;
-            }
             min-height: unset;
-            height: 100px;
-            padding: 0.75rem;
-          }
-          @media screen and (max-width: 525px) {
+            height: 125px;
+            padding: 0.7rem;
             h4 {
               font-size: 1rem;
             }
@@ -176,6 +168,30 @@ export const DocTile = ({
         `}
       >
         {body}
+        {buttonText && (
+          <Button
+            variant={Button.VARIANT.LINK}
+            css={css`
+              height: 24px;
+              font-size: 16px;
+              font-weight: 500;
+              align-self: end;
+              padding: 1px 8px;
+              color: var(--link-color);
+            `}
+          >
+            {buttonText}
+            <Icon
+              name="fe-arrow-right"
+              css={css`
+                color: var(--link-color);
+                margin-left: 8px;
+                margin-top: 2px;
+                size: 1.5rem;
+              `}
+            />
+          </Button>
+        )}
         <div
           css={css`
             display: flex;
