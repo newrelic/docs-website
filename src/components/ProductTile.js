@@ -2,48 +2,50 @@ import React, { useState } from 'react';
 import { css } from '@emotion/react';
 import SurfaceLink from './SurfaceLink';
 import { Icon } from '@newrelic/gatsby-theme-newrelic';
-import { useSpring, animated } from '@react-spring/web';
 
 const ProductTile = ({ children, to, title, icon }) => {
-  const [tileStyle, tileApi] = useSpring(() => {});
-  const [textStyle, textApi] = useSpring(() => {});
 
   return (
-    <animated.div style={tileStyle}>
+    <div css={css`
+      background: var(--secondary-background-color);
+      height: 138px;
+      position: relative;
+    `}>
       <SurfaceLink
         css={css`
-          height: 138px;
-          padding: 1.375rem;
-          color: var(--primary-text-color);
           background: var(--secondary-background-color);
+          color: var(--primary-text-color);
           display: flex;
           flex-direction: column;
+          height: 100%;
           justify-content: space-between;
+          left: 0;
+          padding: 1.375rem;
+          position: absolute;
+          top: 0;
+          transform: translate(0, 0);
+          transition: height 500ms, transform 500ms, width 500ms;
+          width: 100%;
+
           p {
             margin: 0;
           }
+
           &:hover {
             color: var(--primary-text-color);
+            height: 130%;
+            transform: translate(-15%, -15%);
+            transition: height 500ms, transform 500ms, width 500ms;
+            width: 130%;
+            z-index: 10;
+
+            .text {
+              opacity: 1;
+              transition: opacity 200ms;
+            }
           }
         `}
         to={to}
-        onMouseEnter={() => {
-          tileApi.start({
-            from: { scale: 1 },
-            to: { scale: 1.25 },
-          });
-          textApi.start({
-            from: { opacity: 0 },
-            to: { opacity: 1 },
-          });
-        }}
-        onMouseLeave={() => {
-          tileApi.start({
-            from: { scale: 1.25 },
-            to: { scale: 1 },
-          });
-          textApi.start({ from: { opacity: 1 }, to: { opacity: 0 } });
-        }}
       >
         <p
           css={css`
@@ -52,23 +54,17 @@ const ProductTile = ({ children, to, title, icon }) => {
         >
           {title}
         </p>
-
-        <animated.div
-          style={textStyle}
+        <p
+          className='text'
           css={css`
-            display: flex;
-            flex-direction: column;
+            font-size: 0.875rem;
+            line-height: 1.15;
+            opacity: 0;
+            transition: opacity 200ms;
           `}
         >
-          <p
-            css={css`
-              font-size: 0.875rem;
-              line-height: 1.15;
-            `}
-          >
-            {children}
-          </p>
-        </animated.div>
+          {children}
+        </p>
         <Icon
           name={icon}
           size="2rem"
@@ -79,7 +75,7 @@ const ProductTile = ({ children, to, title, icon }) => {
           `}
         />
       </SurfaceLink>
-    </animated.div>
+    </div>
   );
 };
 
