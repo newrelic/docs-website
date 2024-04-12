@@ -130,12 +130,6 @@ export const DocTile = ({
           @media screen and (max-width: 1000px) {
             max-width: unset;
             padding: 0.8rem;
-            h4 {
-              font-size: 1.25rem;
-            }
-          }
-          @media screen and (max-width: 760px) {
-            max-width: unset;
           }
 
           @media screen and (max-width: 525px) {

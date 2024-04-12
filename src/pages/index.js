@@ -58,10 +58,7 @@ const HomePage = ({ data }) => {
               }
 
               @media screen and (max-width: 760px) {
-                grid-template-columns: 1fr;
                 padding: 0;
-              }
-              @media screen and (max-width: 400px) {
               }
             `}
           >
