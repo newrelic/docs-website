@@ -34,8 +34,9 @@ const HomePage = ({ data }) => {
         css={css`
           border: none;
           background: var(--tertiary-background-color);
-          max-width: 1600px;
-          margin: auto;
+          max-width: 1440px;
+          margin: 0 auto;
+          padding: 0 4vw;
         `}
       >
         <OnboardingContainer>

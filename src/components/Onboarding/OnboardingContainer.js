@@ -15,8 +15,6 @@ const Container = styled.div`
   display: flex;
   flex-direction: column;
   justify-content: center;
-  max-width: 1600px;
-  margin: 0 1.5rem;
 `;
 
 const Steps = styled.div`
