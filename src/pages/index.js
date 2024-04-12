@@ -10,7 +10,7 @@ import {
 } from '@newrelic/gatsby-theme-newrelic';
 import { useMedia } from 'react-use';
 import HomepageBanner from '../components/HomepageBanner';
-import { DocTile } from '../components/DocTile';
+import { DocTile, DocTiles } from '../components/DocTile';
 import ErrorBoundary from '../components/ErrorBoundary';
 import FeedbackModal from '../components/FeedbackModal';
 
@@ -39,46 +39,48 @@ const HomePage = ({ data }) => {
         `}
       >
         <SectionTitle title={t('home.popularDocs.title')} />
-        <div
-          css={css`
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            grid-gap: 1rem;
-            counter-reset: welcome-tile;
-            flex: 2;
-            align-self: flex-start;
-            @media screen and (max-width: 1500px) {
-              align-self: auto;
-            }
-            @media screen and (max-width: 1050px) {
-              grid-template-columns: 1fr;
-            }
-            @media screen and (max-width: 760px) {
+        <div>
+          <DocTiles
+            variant="homepage"
+            css={css`
+              display: grid;
               grid-template-columns: repeat(3, 1fr);
-            }
-            @media screen and (max-width: 650px) {
-              grid-template-columns: 1fr;
-            }
-          `}
-        >
-          <DocTile
-            label={{ text: 'Get started', color: '#F4CBE7' }}
-            path="/docs/apm/new-relic-apm/getting-started/introduction-apm"
+              grid-gap: 1rem;
+              counter-reset: welcome-tile;
+              flex: 2;
+              align-self: flex-start;
+              @media screen and (max-width: 1500px) {
+                align-self: auto;
+              }
+              @media screen and (max-width: 1000px) {
+                grid-template-columns: 1fr;
+                padding: 0 5rem;
+              }
+
+              @media screen and (max-width: 760px) {
+                padding: 0;
+              }
+            `}
           >
-            {t('home.popularDocs.t1.title')}
-          </DocTile>
-          <DocTile
-            label={{ text: 'Get started', color: '#F4CBE7' }}
-            path="/docs/browser/browser-monitoring/getting-started/introduction-browser-monitoring/"
-          >
-            {t('home.popularDocs.t2.title')}
-          </DocTile>
-          <DocTile
-            label={{ text: 'Get started', color: '#F4CBE7' }}
-            path="/docs/synthetics/synthetic-monitoring/getting-started/get-started-synthetic-monitoring/"
-          >
-            {t('home.popularDocs.t3.title')}
-          </DocTile>
+            <DocTile
+              buttonText={t('home.popularDocs.learnMore')}
+              path="/docs/apm/new-relic-apm/getting-started/introduction-apm"
+            >
+              {t('home.popularDocs.t1.title')}
+            </DocTile>
+            <DocTile
+              buttonText={t('home.popularDocs.learnMore')}
+              path="/docs/browser/browser-monitoring/getting-started/introduction-browser-monitoring/"
+            >
+              {t('home.popularDocs.t2.title')}
+            </DocTile>
+            <DocTile
+              buttonText={t('home.popularDocs.learnMore')}
+              path="/docs/synthetics/synthetic-monitoring/getting-started/get-started-synthetic-monitoring/"
+            >
+              {t('home.popularDocs.t3.title')}
+            </DocTile>
+          </DocTiles>
         </div>
       </Section>
 

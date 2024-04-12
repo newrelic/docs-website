@@ -1,11 +1,12 @@
 import React, { cloneElement } from 'react';
-import { Icon, Surface, Tag } from '@newrelic/gatsby-theme-newrelic';
+import { Button, Icon, Surface, Tag } from '@newrelic/gatsby-theme-newrelic';
 import cx from 'classnames';
 import SurfaceLink from './SurfaceLink';
 import { css } from '@emotion/react';
 import styled from '@emotion/styled';
 import PropTypes from 'prop-types';
 import { animated, useTrail } from 'react-spring';
+import useBoop from 'use-boop';
 
 export const DocTile = ({
   children,
@@ -16,6 +17,7 @@ export const DocTile = ({
   number,
   className,
   title,
+  buttonText,
 }) => {
   const body = title ? (
     <>
@@ -59,6 +61,17 @@ export const DocTile = ({
     </h4>
   );
 
+  const springConfig = {
+    mass: 3,
+    tension: 160,
+    friction: 15,
+  };
+
+  const [rightButton, triggerRight] = useBoop({
+    x: 20,
+    springConfig,
+  });
+
   return (
     <SurfaceLink
       base={Surface.BASE.SECONDARY}
@@ -66,6 +79,7 @@ export const DocTile = ({
       interactive
       instrumentation={instrumentation}
       className={className}
+      onMouseEnter={buttonText ? triggerRight : ''}
       css={css`
         color: var(--primary-text-color);
         background: var(--secondary-background-color);
@@ -84,8 +98,48 @@ export const DocTile = ({
         .doc-tiles-default & {
           background: var(--secondary-background-color);
         }
-        .dark-mode & {
+        .dark-mode .doc-tiles-default & {
           background: var(--secondary-background-color);
+        }
+        .doc-tiles-homepage & {
+          max-width: 340px;
+          height: 132px;
+          background: var(--system-text-primary-light);
+          padding: 1rem;
+          border-radius: 11px;
+          box-shadow: none;
+          h4 {
+            font-size: 1.25rem;
+            color: white;
+            font-weight: 300;
+            padding: 0;
+          }
+          &:hover {
+            box-shadow: rgba(0, 0, 0, 0.3) 0px 4px 6px -1px,
+              rgba(0, 0, 0, 0.1) 0px 2px 4px -1px;
+          }
+          .dark-mode &:hover {
+            box-shadow: unset;
+            border: var(--brand-button-primary-accent) solid 1px;
+          }
+
+          .dark-mode & {
+            border: var(--system-text-primary-light) solid 1px; // prevent shifting on hover
+          }
+
+          @media screen and (max-width: 1000px) {
+            max-width: unset;
+            padding: 0.8rem;
+          }
+
+          @media screen and (max-width: 525px) {
+            min-height: unset;
+            height: 125px;
+            padding: 0.7rem;
+            h4 {
+              font-size: 1rem;
+            }
+          }
         }
 
         .doc-tiles-labs & {
@@ -121,10 +175,38 @@ export const DocTile = ({
         `}
       >
         {body}
+        {buttonText && (
+          <Button
+            variant={Button.VARIANT.LINK}
+            css={css`
+              height: 24px;
+              font-size: 16px;
+              font-weight: 500;
+              align-self: end;
+              padding: 1px 8px;
+              color: var(--link-color);
+            `}
+          >
+            {buttonText}
+            <animated.div style={rightButton}>
+              <Icon
+                name="fe-arrow-right"
+                css={css`
+                  color: var(--link-color);
+                  margin-left: 8px;
+                  margin-top: 2px;
+                  size: 1.5rem;
+                `}
+              />
+            </animated.div>
+          </Button>
+        )}
         <div
           css={css`
             display: flex;
             justify-content: space-between;
+            .doc-tiles-homepage & {
+              display: none;
           `}
         >
           {label && (
@@ -241,7 +323,7 @@ DocTiles.propTypes = {
   animated: PropTypes.bool,
   children: PropTypes.node,
   numbered: PropTypes.bool,
-  variant: PropTypes.oneOf(['default', 'labs', 'light']),
+  variant: PropTypes.oneOf(['default', 'labs', 'light', 'homepage']),
 };
 
 const Number = styled.span`
