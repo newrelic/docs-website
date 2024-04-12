@@ -17,7 +17,8 @@ import { DocTile } from '../components/DocTile';
 import FindYourQuickStart from '../components/FindYourQuickstart';
 import ErrorBoundary from '../components/ErrorBoundary';
 import FeedbackModal from '../components/FeedbackModal';
-import { OnboardingContainer, OnboardingStep } from '../components/Onboarding';
+import OnboardingContainer from '../components/Onboarding/OnboardingContainer';
+import OnboardingStep from '../components/Onboarding/OnboardingStep';
 
 const HomePage = ({ data }) => {
   const {

@@ -13,7 +13,7 @@ import onboardingVerticle from 'images/onboarding-vertical.png';
 
 const BACKGROUND_IMAGES = [onboarding1, onboarding2, onboarding3];
 
-const Step = ({ button, buttonHref, number, readDocsHref, text, title }) => {
+const OnboardingStep = ({ button, buttonHref, number, readDocsHref, text, title }) => {
   const springConfig = {
     mass: 3,
     tension: 160,
@@ -196,7 +196,7 @@ const Title = styled.h4`
   }
 `;
 
-Step.propTypes = {
+OnboardingStep.propTypes = {
   button: PropTypes.string,
   buttonHref: PropTypes.string,
   number: PropTypes.number.isRequired,
@@ -205,4 +205,4 @@ Step.propTypes = {
   title: PropTypes.string,
 };
 
-export default Step;
+export default OnboardingStep;
