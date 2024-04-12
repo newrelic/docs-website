@@ -90,7 +90,7 @@ const BasicDoc = ({ data, location, pageContext }) => {
         css={css`
           display: grid;
           grid-template-areas:
-            'mt-disclaimer mt-disclaimer'
+            'mt-disclaimer page-tools'
             'page-title page-tools'
             'content page-tools';
           grid-template-columns: minmax(0, 1fr) 12.8125rem;
@@ -134,7 +134,7 @@ const BasicDoc = ({ data, location, pageContext }) => {
           <Layout.PageTools
             css={css`
               background: var(--primary-background-color);
-
+              top: calc(var(--global-header-height) + 3rem);
               &.page-tools-transition-enter {
                 translate: calc(var(--sidebar-width) - 50px);
               }
