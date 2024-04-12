@@ -61,7 +61,7 @@ const OnboardingStep = ({
           {button}
           <Icon
             css={css`
-              margin-left: 4px;
+              margin-left: 8px;
             `}
             name="fe-external-link"
           />
@@ -117,7 +117,12 @@ const CTA = styled(Button)`
   bottom: 20px;
   border-color: ${(p) =>
     p.number === 0 ? 'white' : 'var(--button-border-color)'};
+  border-radius: 4px;
   color: ${(p) => (p.number === 0 ? 'white' : 'var(--button-border-color)')};
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1rem;
+  padding: .25rem .5rem;
   position: absolute;
   right: 50px;
 
