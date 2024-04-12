@@ -122,7 +122,7 @@ const CTA = styled(Button)`
   font-size: 12px;
   font-weight: 500;
   line-height: 1rem;
-  padding: .25rem .5rem;
+  padding: 0.25rem 0.5rem;
   position: absolute;
   right: 50px;
 
