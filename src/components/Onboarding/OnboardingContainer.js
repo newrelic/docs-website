@@ -4,7 +4,6 @@ import styled from '@emotion/styled';
 const OnboardingContainer = ({ children }) => {
   return (
     <Container>
-      <Title>Get started in four easy steps</Title>
       <Steps>{children}</Steps>
     </Container>
   );
@@ -27,12 +26,6 @@ const Steps = styled.div`
   @media screen and (max-width: 1000px) {
     flex-direction: column;
   }
-`;
-
-const Title = styled.h2`
-  font-size: 24px;
-  line-height: 48px;
-  margin-bottom: 24px;
 `;
 
 export default OnboardingContainer;

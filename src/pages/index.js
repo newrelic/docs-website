@@ -35,10 +35,11 @@ const HomePage = ({ data }) => {
           border: none;
           background: var(--tertiary-background-color);
           max-width: 1440px;
-          margin: 0 auto;
+          margin: 2rem auto 0;
           padding: 0 4vw;
         `}
       >
+        <SectionTitle title={t('home.getStarted')} />
         <OnboardingContainer>
           <OnboardingStep
             button={t('home.onBoarding.0.button')}
