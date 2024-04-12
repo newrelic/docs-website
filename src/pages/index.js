@@ -1,20 +1,16 @@
 import React, { useState } from 'react';
-import { navigate } from '@reach/router';
 import { css } from '@emotion/react';
 import { graphql } from 'gatsby';
 import PropTypes from 'prop-types';
 import {
   Link,
   Icon,
-  SearchInput,
   useInstrumentedHandler,
   useTranslation,
-  addPageAction,
 } from '@newrelic/gatsby-theme-newrelic';
 import { useMedia } from 'react-use';
 import HomepageBanner from '../components/HomepageBanner';
-import { DocTile } from '../components/DocTile';
-import FindYourQuickStart from '../components/FindYourQuickstart';
+import { DocTile, DocTiles } from '../components/DocTile';
 import ErrorBoundary from '../components/ErrorBoundary';
 import FeedbackModal from '../components/FeedbackModal';
 import { OnboardingContainer, OnboardingStep } from '../components/Onboarding';
@@ -22,9 +18,7 @@ import { OnboardingContainer, OnboardingStep } from '../components/Onboarding';
 const HomePage = ({ data }) => {
   const {
     site: { layout },
-    allMarkdownRemark: { edges: whatsNewPosts },
   } = data;
-  const [searchTerm, setSearchTerm] = useState('');
   const [showFeedbackModal, setShowFeedbackModal] = useState(true);
 
   const { t } = useTranslation();
@@ -32,75 +26,8 @@ const HomePage = ({ data }) => {
   const mobileBreakpoint = '450px';
   const isMobileScreen = useMedia(`(max-width: ${mobileBreakpoint})`);
 
-  const latestWhatsNewPosts = whatsNewPosts.map((edge) => {
-    return {
-      title: edge.node.frontmatter.title,
-      releaseDate: edge.node.frontmatter.releaseDate,
-      path: edge.node.fields.slug,
-    };
-  });
-
   return (
     <ErrorBoundary eventName="homepage">
-      <h1
-        css={css`
-          font-size: 3.5rem;
-          font-weight: 500;
-          line-height: 1;
-          @media screen and (max-width: ${mobileBreakpoint}) {
-            font-size: 1.5rem;
-          }
-        `}
-      >
-        {t('home.pageTitle')}
-      </h1>
-      <SearchInput
-        placeholder={t('home.search.placeholder')}
-        size={SearchInput.SIZE.LARGE}
-        value={searchTerm || ''}
-        iconName={SearchInput.ICONS.SEARCH}
-        isIconClickable
-        alignIcon={SearchInput.ICON_ALIGNMENT.RIGHT}
-        onChange={(e) => setSearchTerm(e.target.value)}
-        onSubmit={() => {
-          addPageAction({
-            eventName: 'defaultViewSearch',
-            category: 'SearchInput',
-          });
-          navigate(`?q=${searchTerm || ''}`);
-        }}
-        css={css`
-          @media screen and (max-width: ${mobileBreakpoint}) {
-            margin-bottom: 1rem;
-          }
-        `}
-      />
-      <div
-        css={css`
-          margin-top: 1rem;
-          width: 40%;
-          display: flex;
-          width: 100%;
-          flex-wrap: wrap;
-          a {
-            margin-left: 0.75rem;
-          }
-          @media screen and (max-width: ${mobileBreakpoint}) {
-            display: none;
-          }
-        `}
-      >
-        <p>{t('home.search.popularSearches.title')}: </p>
-        <Link to="?q=nrql">{t('home.search.popularSearches.options.0')}</Link>
-        <Link to="?q=logs">{t('home.search.popularSearches.options.1')}</Link>
-        <Link to="?q=alert">{t('home.search.popularSearches.options.2')}</Link>
-        <Link to="?q=best practices">
-          {t('home.search.popularSearches.options.3')}
-        </Link>
-        <Link to="?q=kubernetes">
-          {t('home.search.popularSearches.options.4')}
-        </Link>
-      </div>
       <HomepageBanner />
       <Section>
         <OnboardingContainer>
@@ -137,87 +64,57 @@ const HomePage = ({ data }) => {
         css={css`
           border: none;
           background: var(--tertiary-background-color);
+          max-width: 1200px;
+          margin: auto;
+          padding: 2.5rem 3rem;
         `}
       >
         <SectionTitle title={t('home.popularDocs.title')} />
-        <div
-          css={css`
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            grid-gap: 1rem;
-            counter-reset: welcome-tile;
-            flex: 2;
-            align-self: flex-start;
-            @media screen and (max-width: 1500px) {
-              align-self: auto;
-            }
-            @media screen and (max-width: 1050px) {
-              grid-template-columns: 1fr;
-            }
-            @media screen and (max-width: 760px) {
+        <div>
+          <DocTiles
+            variant="homepage"
+            css={css`
+              display: grid;
               grid-template-columns: repeat(3, 1fr);
-            }
-            @media screen and (max-width: 650px) {
-              grid-template-columns: 1fr;
-            }
-          `}
-        >
-          <DocTile
-            label={{ text: 'Get started', color: '#F4CBE7' }}
-            path="/docs/apm/new-relic-apm/getting-started/introduction-apm"
-          >
-            {t('home.popularDocs.t1.title')}
-          </DocTile>
-          <DocTile
-            label={{ text: 'Get started', color: '#F4CBE7' }}
-            path="/docs/browser/browser-monitoring/getting-started/introduction-browser-monitoring/"
-          >
-            {t('home.popularDocs.t2.title')}
-          </DocTile>
-          <DocTile
-            label={{ text: 'Get started', color: '#F4CBE7' }}
-            path="/docs/synthetics/synthetic-monitoring/getting-started/get-started-synthetic-monitoring/"
-          >
-            {t('home.popularDocs.t3.title')}
-          </DocTile>
-        </div>
-      </Section>
-      <Section layout={layout}>
-        <SectionTitle title={t('home.whatsNew.title')} />
-        <div
-          css={css`
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            grid-gap: 1rem;
-            counter-reset: welcome-tile;
-            flex: 2;
-            align-self: flex-start;
-            @media screen and (max-width: 1500px) {
-              align-self: auto;
-            }
-            @media screen and (max-width: 1050px) {
-              grid-template-columns: 1fr;
-            }
+              grid-gap: 1rem;
+              counter-reset: welcome-tile;
+              flex: 2;
+              align-self: flex-start;
+              @media screen and (max-width: 1500px) {
+                align-self: auto;
+              }
+              @media screen and (max-width: 1000px) {
+                grid-template-columns: 1fr;
+                padding: 0 5rem;
+              }
 
-            @media screen and (max-width: 760px) {
-              grid-template-columns: repeat(3, 1fr);
-            }
-
-            @media screen and (max-width: 650px) {
-              grid-template-columns: 1fr;
-            }
-          `}
-        >
-          {latestWhatsNewPosts.map((post) => (
-            <DocTile key={post.title} date={post.releaseDate} path={post.path}>
-              {post.title}
+              @media screen and (max-width: 760px) {
+                padding: 0;
+              }
+            `}
+          >
+            <DocTile
+              buttonText={t('home.popularDocs.learnMore')}
+              path="/docs/apm/new-relic-apm/getting-started/introduction-apm"
+            >
+              {t('home.popularDocs.t1.title')}
             </DocTile>
-          ))}
+            <DocTile
+              buttonText={t('home.popularDocs.learnMore')}
+              path="/docs/browser/browser-monitoring/getting-started/introduction-browser-monitoring/"
+            >
+              {t('home.popularDocs.t2.title')}
+            </DocTile>
+            <DocTile
+              buttonText={t('home.popularDocs.learnMore')}
+              path="/docs/synthetics/synthetic-monitoring/getting-started/get-started-synthetic-monitoring/"
+            >
+              {t('home.popularDocs.t3.title')}
+            </DocTile>
+          </DocTiles>
         </div>
       </Section>
-      <Section layout={layout}>
-        <FindYourQuickStart />
-      </Section>
+
       {showFeedbackModal && !isMobileScreen && (
         <FeedbackModal onClose={() => setShowFeedbackModal(false)} />
       )}
@@ -252,27 +149,6 @@ export const pageQuery = graphql`
     site {
       layout {
         contentPadding
-      }
-    }
-    allMarkdownRemark(
-      sort: {
-        fields: [frontmatter___releaseDate, frontmatter___title]
-        order: [DESC, ASC]
-      }
-      filter: { fields: { slug: { regex: "/whats-new/" } } }
-      limit: 3
-    ) {
-      edges {
-        node {
-          id
-          frontmatter {
-            title
-            releaseDate(formatString: "MMMM DD, YYYY")
-          }
-          fields {
-            slug
-          }
-        }
       }
     }
   }
@@ -322,8 +198,10 @@ const SectionTitle = ({ title, icon, to }) => {
         css={css`
           display: flex;
           align-items: center;
-          font-size: 2rem;
-          font-weight: 400;
+          justify-content: center;
+          font-size: 1.5rem;
+          font-weight: 500;
+          margin-bottom: 24px;
         `}
       >
         {icon && (

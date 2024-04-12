@@ -184,6 +184,9 @@ const MainLayout = ({ children, pageContext }) => {
                   >
                     <Logo
                       css={css`
+                        .text-color {
+                          fill: var(--system-text-primary-dark);
+                        }
                         ${!sidebar &&
                         css`
                           display: none;
