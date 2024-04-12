@@ -6,12 +6,12 @@ import useBoop from 'use-boop';
 import { animated } from 'react-spring';
 import PropTypes from 'prop-types';
 
-import onboarding1 from 'images/onboarding-1.png';
-import onboarding2 from 'images/onboarding-second.png';
-import onboarding3 from 'images/onboarding-third.png';
-import onboardingVerticle from 'images/onboarding-vertical.png';
+import onboarding0 from 'images/onboarding-0.svg';
+import onboarding1 from 'images/onboarding-1.svg';
+import onboarding2 from 'images/onboarding-2.svg';
+import onboardingVerticle from 'images/onboarding-vertical.svg';
 
-const BACKGROUND_IMAGES = [onboarding1, onboarding2, onboarding3];
+const BACKGROUND_IMAGES = [onboarding0, onboarding1, onboarding2];
 
 const OnboardingStep = ({
   button,
@@ -75,6 +75,7 @@ const Card = styled.div`
   background-color: transparent;
   position: relative;
   z-index: 10;
+  margin-left: 10px;
 
   @media screen and (max-width: 1000px) {
     margin-bottom: 24px;
@@ -83,15 +84,16 @@ const Card = styled.div`
 
 const Container = styled.div`
   background-image: url(${(p) => p.background});
-  background-position: center top;
+  background-position: right center;
   background-repeat: no-repeat;
-  background-size: 100% 100%;
+  background-size: 39px 100%;
   padding: 20px 10px 56px 10px;
   position: relative;
   width: 26%;
 
   &:first-child {
     padding-left: 24px;
+    background-size: 100% 100%;
   }
 
   &:last-child {
@@ -106,10 +108,17 @@ const Container = styled.div`
   @media screen and (max-width: 1000px) {
     align-items: center;
     background-image: url(${onboardingVerticle});
+    background-size: 100% 32px;
+    background-position: bottom center;
     display: flex;
     flex-direction: column;
-    padding: 32px 10px 40px 10px;
+    padding: 16px 10px 24px 10px;
     width: 100%;
+    &:first-child {
+      background-size: 100% 32px;
+      padding-left: unset;
+      padding-top: 40px;
+    }
   }
 `;
 
