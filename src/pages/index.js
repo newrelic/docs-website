@@ -29,7 +29,15 @@ const HomePage = ({ data }) => {
   return (
     <ErrorBoundary eventName="homepage">
       <HomepageBanner />
-      <Section>
+      <Section
+        layout={layout}
+        css={css`
+          border: none;
+          background: var(--tertiary-background-color);
+          max-width: 1200px;
+          margin: auto;
+        `}
+      >
         <OnboardingContainer>
           <OnboardingStep
             button={t('home.onBoarding.0.button')}
