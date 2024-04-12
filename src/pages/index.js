@@ -34,7 +34,7 @@ const HomePage = ({ data }) => {
         css={css`
           border: none;
           background: var(--tertiary-background-color);
-          max-width: 1200px;
+          max-width: 1600px;
           margin: auto;
         `}
       >
