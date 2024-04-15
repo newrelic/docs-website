@@ -27,7 +27,6 @@ import NotesEditIcon from './newrelic/notes-edit';
 import InboxIcon from './newrelic/inbox';
 import IASTIcon from './newrelic/iast';
 import NeedsInstrumentationIcon from './newrelic/needs-instrumentation';
-import VulnerabilityIcon from './newrelic/vulnerability';
 import NotesAddIcon from './newrelic/notes-add';
 import UserIcon from './newrelic/user';
 import AreaChartIcon from './newrelic/area-chart';
@@ -65,7 +64,6 @@ export default {
   inbox: InboxIcon,
   iast: IASTIcon,
   'needs-instrumentation': NeedsInstrumentationIcon,
-  vulnerability: VulnerabilityIcon,
   'notes-add': NotesAddIcon,
   user: UserIcon,
   'area-chart': AreaChartIcon,

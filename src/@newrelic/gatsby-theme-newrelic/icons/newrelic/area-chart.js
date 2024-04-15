@@ -14,10 +14,10 @@ const AreaChartIcon = (props) => (
     `}
   >
     <path
-      fill-rule="evenodd"
+      fillRule="evenodd"
       d="M2 1v12h13v1H1V1h1zm12 1.293V11H4V8.5l3.5-3.7 1.995 1.997L14 2.293zm-1.001 2.415L9.495 8.211 7.519 6.234l-2.52 2.664V10h8V4.708z"
-      clip-rule="evenodd"
-    ></path>
+      clipRule="evenodd"
+    />
   </SVG>
 );
 

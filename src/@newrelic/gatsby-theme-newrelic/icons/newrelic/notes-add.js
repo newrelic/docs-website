@@ -14,10 +14,10 @@ const NotesAddIcon = (props) => (
     `}
   >
     <path
-      fill-rule="evenodd"
+      fillRule="evenodd"
       d="M2 2h12v7h1V1H1v13h8v-1H2V2zm2 2h8v1H4V4zm8 3H4v1h8V7zm-8 3h4v1H4v-1zm10 1v2h2v1h-2v2h-1v-2h-2v-1h2v-2h1z"
-      clip-rule="evenodd"
-    ></path>
+      clipRule="evenodd"
+    />
   </SVG>
 );
 

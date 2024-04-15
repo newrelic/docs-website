@@ -14,10 +14,10 @@ const NeedsInstrumentationIcon = (props) => (
     `}
   >
     <path
-      fill-rule="evenodd"
+      fillRule="evenodd"
       d="M11 5L5.5 2 0 5v6l5.5 3 5.5-3V5zm-1 .5L5.5 3 1 5.5v5L5.5 13l4.5-2.5v-5z"
-      clip-rule="evenodd"
-    ></path>
+      clipRule="evenodd"
+    />
   </SVG>
 );
 

@@ -14,10 +14,10 @@ const UpstreamDeploymentIcon = (props) => (
     `}
   >
     <path
-      fill-rule="evenodd"
+      fillRule="evenodd"
       d="M11 0L6 6h3v3h4V6h3l-5-6zm1 5v3h-2V5H8.1L11 1.6 13.9 5H12zM0 13h3v3h4v-3h3L5 7l-5 6zm6-1v3H4v-3H2.1L5 8.6 7.9 12H6z"
-      clip-rule="evenodd"
-    ></path>
+      clipRule="evenodd"
+    />
   </SVG>
 );
 

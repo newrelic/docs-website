@@ -14,10 +14,10 @@ const HorizontalChartIcon = (props) => (
     `}
   >
     <path
-      fill-rule="evenodd"
+      fillRule="evenodd"
       d="M1 5v6h14V5H1zm11 1H8v4h4V6zm1 0v4h1V6h-1zM2 6h5v4H2V6z"
-      clip-rule="evenodd"
-    ></path>
+      clipRule="evenodd"
+    />
   </SVG>
 );
 
