@@ -4,7 +4,6 @@ const parse = require('rehype-parse');
 const unified = require('unified');
 const rehypeStringify = require('rehype-stringify');
 const addAbsoluteImagePath = require('./rehype-plugins/utils/addAbsoluteImagePath');
-const { assetPrefix } = require('./env');
 
 const { LOCALES } = require('./scripts/actions/utils/constants');
 
@@ -38,6 +37,16 @@ const ignoreI18nFolders = () => {
       .filter(Boolean);
   }
   return [];
+};
+
+const assetPrefix = () => {
+  if (process.env.BUILD_LANG === 'jp') {
+    return 'https://docs-website-jp.netlify.app';
+  }
+  if (process.env.BUILD_LANG === 'kr') {
+    return 'https://docs-website-kr.netlify.app';
+  }
+  return '';
 };
 
 module.exports = {
@@ -325,7 +334,16 @@ module.exports = {
 
     'gatsby-source-nav',
     'gatsby-source-install-config',
-
+    {
+      resolve: 'gatsby-plugin-gatsby-cloud',
+      options: {
+        allPageHeaders: [
+          'Referrer-Policy: no-referrer-when-downgrade',
+          'Content-Security-Policy: frame-ancestors *.newrelic.com',
+          'Cache-Control: no-cache',
+        ],
+      },
+    },
     // https://www.gatsbyjs.com/plugins/gatsby-plugin-typegen/
     {
       resolve: 'gatsby-plugin-typegen',
@@ -451,7 +469,16 @@ module.exports = {
             errorBeacon: 'staging-bam-cell.nr-data.net',
             settings: {
               session_replay: {
-                enabled: false,
+                enabled: true,
+                block_selector: '',
+                mask_text_selector: '*',
+                sampling_rate: 5.0,
+                error_sampling_rate: 100.0,
+                mask_all_inputs: true,
+                collect_fonts: true,
+                inline_images: false,
+                inline_stylesheet: true,
+                mask_input_options: {},
               },
               distributed_tracing: { enabled: true },
               privacy: { cookies_enabled: true },
