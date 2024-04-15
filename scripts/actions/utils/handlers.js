@@ -202,7 +202,7 @@ module.exports = {
   },
   InlineCode: {
     deserialize: (state, node) => ({
-      type: 'mdxJsxTextElement',
+      type: 'mdxSpanElement',
       name: 'InlineCode',
       children: state.all(node),
     }),
@@ -366,7 +366,7 @@ module.exports = {
   },
   var: {
     deserialize: (state, node) =>
-      deserializeComponent(state, node, { type: 'mdxJsxTextElement' }),
+      deserializeComponent(state, node, { type: 'mdxSpanElement' }),
     serialize: (h, node) =>
       serializeComponent(h, node, {
         wrapChildren: false,
@@ -376,7 +376,7 @@ module.exports = {
   },
   mark: {
     deserialize: (state, node) =>
-      deserializeComponent(state, node, { type: 'mdxJsxTextElement' }),
+      deserializeComponent(state, node, { type: 'mdxSpanElement' }),
     serialize: (h, node) =>
       serializeComponent(h, node, {
         wrapChildren: false,
