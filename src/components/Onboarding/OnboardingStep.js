@@ -31,7 +31,10 @@ const OnboardingStep = ({
 
   return (
     <Container
-      background={number === 3 ? 'null' : number === 0 ? onboardingFull : onboardingArrow}
+      background={
+        // eslint-disable-next-line no-nested-ternary
+        number === 3 ? 'null' : number === 0 ? onboardingFull : onboardingArrow
+      }
       onMouseEnter={triggerRight}
     >
       <Card>
