@@ -55,7 +55,7 @@ const deserializeComponent = (
   const name = dataComponent || node.tagName;
   const props = dataProps ? deserializeJSValue(dataProps) : [];
   const inferredType =
-    node.tagName === 'span' ? 'mdxSpanElement' : 'mdxBlockElement';
+    node.tagName === 'span' ? 'mdxJsxTextElement' : 'mdxJsxFlowElement';
 
   const hasWrappedChildren = hasChildren(node)
     ? node.children.some(
