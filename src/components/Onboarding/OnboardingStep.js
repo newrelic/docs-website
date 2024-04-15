@@ -6,12 +6,9 @@ import useBoop from 'use-boop';
 import { animated } from 'react-spring';
 import PropTypes from 'prop-types';
 
-import onboarding0 from 'images/onboarding-0.svg';
-import onboarding1 from 'images/onboarding-1.svg';
-import onboarding2 from 'images/onboarding-2.svg';
+import onboardingFull from 'images/onboarding-0.svg';
+import onboardingArrow from 'images/onboarding-2.svg';
 import onboardingVerticle from 'images/onboarding-vertical.svg';
-
-const BACKGROUND_IMAGES = [onboarding0, onboarding1, onboarding2];
 
 const OnboardingStep = ({
   button,
@@ -34,7 +31,7 @@ const OnboardingStep = ({
 
   return (
     <Container
-      background={BACKGROUND_IMAGES[number] ?? null}
+      background={number === 3 ? 'null' : number === 0 ? onboardingFull : onboardingArrow}
       onMouseEnter={triggerRight}
     >
       <Card>
@@ -91,7 +88,7 @@ const Container = styled.div`
   position: relative;
   width: 26%;
 
-  &:first-child {
+  &:first-of-type {
     padding-left: 24px;
     background-size: 100% 100%;
   }
