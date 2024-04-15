@@ -13,6 +13,7 @@ import HomepageBanner from '../components/HomepageBanner';
 import { DocTile, DocTiles } from '../components/DocTile';
 import ErrorBoundary from '../components/ErrorBoundary';
 import FeedbackModal from '../components/FeedbackModal';
+import { OnboardingContainer, OnboardingStep } from '../components/Onboarding';
 
 const HomePage = ({ data }) => {
   const {
@@ -28,6 +29,46 @@ const HomePage = ({ data }) => {
   return (
     <ErrorBoundary eventName="homepage">
       <HomepageBanner />
+      <Section
+        layout={layout}
+        css={css`
+          border: none;
+          background: var(--tertiary-background-color);
+          max-width: 1440px;
+          margin: 2rem auto 0;
+          padding: 0 4vw;
+        `}
+      >
+        <SectionTitle title={t('home.getStarted')} />
+        <OnboardingContainer>
+          <OnboardingStep
+            button={t('home.onBoarding.0.button')}
+            buttonHref={t('home.onBoarding.0.buttonHref')}
+            number={0}
+            text={t('home.onBoarding.0.text')}
+            title={t('home.onBoarding.0.title')}
+          />
+          <OnboardingStep
+            readDocsHref={t('home.onBoarding.1.readDocsHref')}
+            number={1}
+            text={t('home.onBoarding.1.text')}
+            title={t('home.onBoarding.1.title')}
+          />
+          <OnboardingStep
+            button={t('home.onBoarding.2.button')}
+            buttonHref={t('home.onBoarding.2.buttonHref')}
+            number={2}
+            text={t('home.onBoarding.2.text')}
+            title={t('home.onBoarding.2.title')}
+          />
+          <OnboardingStep
+            readDocsHref={t('home.onBoarding.3.readDocsHref')}
+            number={3}
+            text={t('home.onBoarding.3.text')}
+            title={t('home.onBoarding.3.title')}
+          />
+        </OnboardingContainer>
+      </Section>
       <Section
         layout={layout}
         css={css`

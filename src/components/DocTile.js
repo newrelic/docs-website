@@ -103,7 +103,7 @@ export const DocTile = ({
         }
         .doc-tiles-homepage & {
           max-width: 340px;
-          height: 132px;
+          height: 8.25rem;
           background: var(--system-text-primary-light);
           padding: 1rem;
           border-radius: 11px;
@@ -134,7 +134,7 @@ export const DocTile = ({
 
           @media screen and (max-width: 525px) {
             min-height: unset;
-            height: 125px;
+            height: 7.8125rem;
             padding: 0.7rem;
             h4 {
               font-size: 1rem;
