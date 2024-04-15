@@ -29,6 +29,7 @@ const HomePage = ({ data }) => {
   return (
     <ErrorBoundary eventName="homepage">
       <HomepageBanner />
+      <Icon name="nr-vulnerability" />
       <Section
         layout={layout}
         css={css`

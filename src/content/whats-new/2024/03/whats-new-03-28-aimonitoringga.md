@@ -8,7 +8,7 @@ getStartedLink: 'https://docs.newrelic.com/docs/ai-monitoring/intro-to-ai-monito
 
 We’re happy to announce that the industry’s first APM for AI, New Relic AI monitoring, is now available to all our customers.
 
-![AI monitoring screenshot](./images/aimonitoringga.png "A screenshot that shows the tracing view")
+![AI monitoring screenshot](./images/aimonitoringga.webp "A screenshot that shows the tracing view")
 
 New Relic AI monitoring gives you deep insights and unprecedented visibility across your entire AI stack, so you can build and run AI applications with confidence.  You can now take advantage of:
 
