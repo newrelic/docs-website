@@ -1,16 +1,17 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { css } from '@emotion/react';
 import SurfaceLink from './SurfaceLink';
 import { Icon } from '@newrelic/gatsby-theme-newrelic';
 
 const ProductTile = ({ children, to, title, icon }) => {
-
   return (
-    <div css={css`
-      background: var(--secondary-background-color);
-      height: 138px;
-      position: relative;
-    `}>
+    <div
+      css={css`
+        background: var(--secondary-background-color);
+        height: 138px;
+        position: relative;
+      `}
+    >
       <SurfaceLink
         css={css`
           background: var(--secondary-background-color);
@@ -60,7 +61,7 @@ const ProductTile = ({ children, to, title, icon }) => {
           {title}
         </p>
         <p
-          className='text'
+          className="text"
           css={css`
             font-size: 0.875rem;
             line-height: 1.5rem;
