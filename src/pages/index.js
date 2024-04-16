@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { css } from '@emotion/react';
+import styled from '@emotion/styled';
 import { graphql } from 'gatsby';
 import PropTypes from 'prop-types';
 import {
@@ -29,40 +30,9 @@ const HomePage = ({ data }) => {
   return (
     <ErrorBoundary eventName="homepage">
       <HomepageBanner />
-      <Icon name="nr-vulnerability" />
-      <Section
-        layout={layout}
-        css={css`
-          border: none;
-          background: var(--tertiary-background-color);
-          max-width: 1200px;
-          margin: auto;
-          padding: 2.5rem 3rem;
-        `}
-      >
+      <Section layout={layout}>
         <SectionTitle title={t('home.popularDocs.title')} />
-        <div
-          css={css`
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            grid-gap: 1rem;
-            counter-reset: welcome-tile;
-            flex: 2;
-            align-self: flex-start;
-            @media screen and (max-width: 1500px) {
-              align-self: auto;
-            }
-            @media screen and (max-width: 1050px) {
-              grid-template-columns: 1fr;
-            }
-            @media screen and (max-width: 760px) {
-              grid-template-columns: repeat(3, 1fr);
-            }
-            @media screen and (max-width: 650px) {
-              grid-template-columns: 1fr;
-            }
-          `}
-        >
+        <SectionContent>
           <DocTile
             label={{ text: 'Get started', color: '#F4CBE7' }}
             path="/docs/apm/new-relic-apm/getting-started/introduction-apm"
@@ -81,121 +51,243 @@ const HomePage = ({ data }) => {
           >
             {t('home.popularDocs.t3.title')}
           </DocTile>
-        </div>
+        </SectionContent>
       </Section>
-      <Section
-        layout={layout}
-        css={css`
-          border: none;
-          background: var(--tertiary-background-color);
-          max-width: 1200px;
-          margin: auto;
-          padding: 2.5rem 3rem;
-        `}
-      >
+      <Section layout={layout}>
         <SectionTitle title={t('home.productRow1.title')} />
-        <div
-          css={css`
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            grid-gap: 1rem;
-            counter-reset: welcome-tile;
-            flex: 2;
-            align-self: flex-start;
-            @media screen and (max-width: 1500px) {
-              align-self: auto;
-            }
-            @media screen and (max-width: 1050px) {
-              grid-template-columns: 1fr;
-            }
-            @media screen and (max-width: 760px) {
-              grid-template-columns: repeat(3, 1fr);
-            }
-            @media screen and (max-width: 650px) {
-              grid-template-columns: 1fr;
-            }
-          `}
-        >
+        <SectionContent>
           <ProductTile
-            to="/"
+            to="/docs/ai-monitoring/intro-to-ai-monitoring/"
             title={t('home.productRow1.t1.title')}
-            icon="nr-software"
+            icon="nr-ai-monitoring"
           >
             {t('home.productRow1.t1.body')}
           </ProductTile>
           <ProductTile
-            to="/"
-            title={t('home.productRow1.t1.title')}
-            icon="nr-software"
+            to="/docs/apm/new-relic-apm/getting-started/introduction-apm/"
+            title={t('home.productRow1.t2.title')}
+            icon="nr-apm"
           >
-            {t('home.productRow1.t1.body')}
+            {t('home.productRow1.t2.body')}
           </ProductTile>
           <ProductTile
-            to="/"
-            title={t('home.productRow1.t1.title')}
-            icon="nr-software"
+            to="/docs/browser/browser-monitoring/getting-started/introduction-browser-monitoring/"
+            title={t('home.productRow1.t3.title')}
+            icon="nr-browser"
           >
-            {t('home.productRow1.t1.body')}
+            {t('home.productRow1.t3.body')}
           </ProductTile>
-        </div>
+          <ProductTile
+            to="/docs/infrastructure/infrastructure-monitoring/get-started/get-started-infrastructure-monitoring/"
+            title={t('home.productRow1.t4.title')}
+            icon="nr-infrastructure"
+          >
+            {t('home.productRow1.t4.body')}
+          </ProductTile>
+          <ProductTile
+            to="/docs/kubernetes-pixie/kubernetes-integration/get-started/introduction-kubernetes-integration/"
+            title={t('home.productRow1.t5.title')}
+            icon="nr-k8s-cluster"
+          >
+            {t('home.productRow1.t5.body')}
+          </ProductTile>
+          <ProductTile
+            to="/docs/logs/get-started/get-started-log-management/"
+            title={t('home.productRow1.t6.title')}
+            icon="nr-logs"
+          >
+            {t('home.productRow1.t6.body')}
+          </ProductTile>
+          <ProductTile
+            to="/docs/mobile-monitoring/new-relic-mobile/get-started/introduction-mobile-monitoring/"
+            title={t('home.productRow1.t7.title')}
+            icon="nr-mobile"
+          >
+            {t('home.productRow1.t7.body')}
+          </ProductTile>
+          <ProductTile
+            to="/docs/mlops/get-started/intro-mlops/"
+            title={t('home.productRow1.t8.title')}
+            icon="nr-learning-models"
+          >
+            {t('home.productRow1.t8.body')}
+          </ProductTile>
+          <ProductTile
+            to="/docs/network-performance-monitoring/get-started/npm-introduction/"
+            title={t('home.productRow1.t9.title')}
+            icon="nr-network-monitoring"
+          >
+            {t('home.productRow1.t9.body')}
+          </ProductTile>
+          <ProductTile
+            to="/docs/serverless-function-monitoring/overview/"
+            title={t('home.productRow1.t10.title')}
+            icon="nr-ml-endpoints"
+          >
+            {t('home.productRow1.t10.body')}
+          </ProductTile>
+          <ProductTile
+            to="/docs/synthetics/synthetic-monitoring/getting-started/get-started-synthetic-monitoring/"
+            title={t('home.productRow1.t11.title')}
+            icon="nr-synthetics"
+          >
+            {t('home.productRow1.t11.body')}
+          </ProductTile>
+        </SectionContent>
       </Section>
-      <Section
-        layout={layout}
-        css={css`
-          border: none;
-          background: var(--tertiary-background-color);
-          max-width: 1200px;
-          margin: auto;
-          padding: 2.5rem 3rem;
-        `}
-      >
+      <Section layout={layout}>
         <SectionTitle title={t('home.productRow2.title')} />
-        <div
-          css={css`
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            grid-gap: 1rem;
-            counter-reset: welcome-tile;
-            flex: 2;
-            align-self: flex-start;
-            @media screen and (max-width: 1500px) {
-              align-self: auto;
-            }
-            @media screen and (max-width: 1050px) {
-              grid-template-columns: 1fr;
-            }
-            @media screen and (max-width: 760px) {
-              grid-template-columns: repeat(3, 1fr);
-            }
-            @media screen and (max-width: 650px) {
-              grid-template-columns: 1fr;
-            }
-          `}
-        >
+        <SectionContent>
           <ProductTile
-            to="/"
-            title={t('home.productRow1.t1.title')}
-            icon="nr-software"
+            to="/docs/alerts-applied-intelligence/overview/"
+            title={t('home.productRow2.t1.title')}
+            icon="nr-alerts-ai"
           >
-            {t('home.productRow1.t1.body')}
+            {t('home.productRow2.t1.body')}
           </ProductTile>
           <ProductTile
-            to="/"
-            title={t('home.productRow1.t1.title')}
-            icon="nr-software"
+            to="/docs/change-tracking/change-tracking-introduction/"
+            title={t('home.productRow2.t2.title')}
+            icon="nr-upstream-deployment"
           >
-            {t('home.productRow1.t1.body')}
+            {t('home.productRow2.t2.body')}
           </ProductTile>
           <ProductTile
-            to="/"
-            title={t('home.productRow1.t1.title')}
-            icon="nr-software"
+            to="/docs/query-your-data/explore-query-data/get-started/introduction-querying-new-relic-data/"
+            title={t('home.productRow2.t3.title')}
+            icon="nr-dashboard"
           >
-            {t('home.productRow1.t1.body')}
+            {t('home.productRow2.t3.body')}
           </ProductTile>
-        </div>
+          <ProductTile
+            to="/docs/distributed-tracing/concepts/introduction-distributed-tracing/"
+            title={t('home.productRow2.t4.title')}
+            icon="nr-service-map"
+          >
+            {t('home.productRow2.t4.body')}
+          </ProductTile>
+          <ProductTile
+            to="/docs/nrql/get-started/introduction-nrql-new-relics-query-language/"
+            title={t('home.productRow2.t5.title')}
+            icon="nr-query"
+          >
+            {t('home.productRow2.t5.body')}
+          </ProductTile>
+          <ProductTile
+            to="/docs/service-level-management/intro-slm/"
+            title={t('home.productRow2.t6.title')}
+            icon="nr-horizontal-chart"
+          >
+            {t('home.productRow2.t6.body')}
+          </ProductTile>
+        </SectionContent>
       </Section>
-
+      <Section layout={layout}>
+        <SectionTitle title={t('home.productRow3.title')} />
+        <SectionContent>
+          <ProductTile
+            to="/docs/codestream/start-here/what-is-codestream/"
+            title={t('home.productRow3.t1.title')}
+            icon="nr-notes-edit"
+          >
+            {t('home.productRow3.t1.body')}
+          </ProductTile>
+          <ProductTile
+            to="/docs/tutorial-error-tracking/respond-outages/"
+            title={t('home.productRow3.t2.title')}
+            icon="nr-inbox"
+          >
+            {t('home.productRow3.t2.body')}
+          </ProductTile>
+          <ProductTile
+            to="/docs/iast/introduction/"
+            title={t('home.productRow3.t3.title')}
+            icon="nr-iast"
+          >
+            {t('home.productRow3.t3.body')}
+          </ProductTile>
+          <ProductTile
+            to="/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/opentelemetry-introduction/"
+            title={t('home.productRow3.t4.title')}
+            icon="nr-needs-instrumentation"
+          >
+            {t('home.productRow3.t4.body')}
+          </ProductTile>
+          <ProductTile
+            to="/docs/vulnerability-management/overview/"
+            title={t('home.productRow3.t5.title')}
+            icon="nr-vulnerability"
+          >
+            {t('home.productRow3.t5.body')}
+          </ProductTile>
+          <ProductTile
+            to="/docs/website-performance-monitoring/increase-user-engagement/"
+            title={t('home.productRow3.t6.title')}
+            icon="nr-dashboard"
+          >
+            {t('home.productRow3.t6.body')}
+          </ProductTile>
+        </SectionContent>
+      </Section>
+      <Section layout={layout}>
+        <SectionTitle title={t('home.productRow4.title')} />
+        <SectionContent>
+          <ProductTile
+            to="/docs/release-notes/"
+            title={t('home.productRow4.t1.title')}
+            icon="nr-notes-edit"
+          >
+            {t('home.productRow4.t1.body')}
+          </ProductTile>
+          <ProductTile
+            to="/whats-new/"
+            title={t('home.productRow4.t2.title')}
+            icon="nr-notes-add"
+          >
+            {t('home.productRow4.t2.body')}
+          </ProductTile>
+        </SectionContent>
+      </Section>
+      <Section layout={layout}>
+        <SectionTitle title={t('home.productRow5.title')} />
+        <SectionContent>
+          <ProductTile
+            to="/docs/accounts/accounts-billing/account-setup/create-your-new-relic-account/"
+            title={t('home.productRow5.t1.title')}
+            icon="nr-user"
+          >
+            {t('home.productRow5.t1.body')}
+          </ProductTile>
+          <ProductTile
+            to="/docs/data-apis/get-started/nrdb-horsepower-under-hood/"
+            title={t('home.productRow5.t2.title')}
+            icon="nr-area-chart"
+          >
+            {t('home.productRow5.t2.body')}
+          </ProductTile>
+          <ProductTile
+            to="/attribute-dictionary/"
+            title={t('home.productRow5.t3.title')}
+            icon="nr-bookmark"
+          >
+            {t('home.productRow5.t3.body')}
+          </ProductTile>
+          <ProductTile
+            to="/docs/security/overview/"
+            title={t('home.productRow5.t4.title')}
+            icon="nr-private"
+          >
+            {t('home.productRow5.t4.body')}
+          </ProductTile>
+          <ProductTile
+            to="/docs/licenses/overview/"
+            title={t('home.productRow5.t5.title')}
+            icon="nr-attachment"
+          >
+            {t('home.productRow5.t5.body')}
+          </ProductTile>
+        </SectionContent>
+      </Section>
       {showFeedbackModal && !isMobileScreen && (
         <FeedbackModal onClose={() => setShowFeedbackModal(false)} />
       )}
@@ -239,12 +331,14 @@ const Section = ({ ...props }) => {
     <section
       css={css`
         padding-top: 2.5rem;
-        .dark-mode & {
-          background: var(--tertiary-background-color);
-        }
         &:first-child {
           padding-top: 0;
         }
+        border: none;
+        background: var(--tertiary-background-color);
+        max-width: 1200px;
+        margin: auto;
+        padding: 2.5rem 3rem;
       `}
       {...props}
     />
@@ -256,6 +350,26 @@ Section.propTypes = {
     contentPadding: PropTypes.string,
   }),
 };
+const SectionContent = styled.div`
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-gap: 1rem;
+  counter-reset: welcome-tile;
+  flex: 2;
+  align-self: flex-start;
+  @media screen and (max-width: 1500px) {
+    align-self: auto;
+  }
+  @media screen and (max-width: 1050px) {
+    grid-template-columns: 1fr;
+  }
+  @media screen and (max-width: 760px) {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  @media screen and (max-width: 650px) {
+    grid-template-columns: 1fr;
+  }
+`;
 const SectionTitle = ({ title, icon, to }) => {
   const handleClick = useInstrumentedHandler({
     eventName: 'sectionTitleClick',
