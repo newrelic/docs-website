@@ -374,7 +374,7 @@ module.exports = {
           },
         },
         layout: {
-          contentPadding: '1.5rem',
+          contentPadding: '5rem',
           maxWidth: '1600px',
           component: require.resolve('./src/layouts'),
           mobileBreakpoint: '760px',
@@ -382,7 +382,7 @@ module.exports = {
         },
         i18n: {
           translationsPath: `${__dirname}/src/i18n/translations`,
-          additionalLocales: ['jp', 'kr'],
+          additionalLocales: LOCALES,
         },
         prism: {
           languages: [
@@ -439,6 +439,7 @@ module.exports = {
             'md',
             'java',
             'razor',
+            'hcl'
           ],
         },
         newrelic: {

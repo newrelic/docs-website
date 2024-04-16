@@ -89,8 +89,8 @@ const MainLayout = ({ children, pageContext }) => {
       <Button
         variant={Button.VARIANT.PLAIN}
         css={css`
-          background: #7b838a;
-          color: var(--color-white);
+          background: var(--system-background-hover-dark);
+          color: var(--brand-button-primary-accent);
           height: 40px;
           width: 40px;
           padding: 0;
@@ -241,6 +241,7 @@ const MainLayout = ({ children, pageContext }) => {
                 css={css`
                   display: ${isMobileNavOpen ? 'none' : 'block'};
                   position: relative;
+                  padding-top: 2.75rem;
 
                   @media (min-width: 760px) {
                     ${!sidebar &&
