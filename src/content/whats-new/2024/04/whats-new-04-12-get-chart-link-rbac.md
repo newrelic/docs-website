@@ -1,7 +1,7 @@
 ---
 title: 'Important permission update for sharing charts'
 summary: 'Update gives you more control over who can use the Get chart link feature'
-releaseDate: '2024-04-12'
+releaseDate: '2024-04-16'
 learnMoreLink: 'https://docs.newrelic.com/docs/query-your-data/explore-query-data/dashboards/manage-your-dashboard/#data-share'
 getStartedLink: ''
 ---
