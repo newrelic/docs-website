@@ -11,10 +11,11 @@ import {
 } from '@newrelic/gatsby-theme-newrelic';
 import { useMedia } from 'react-use';
 import HomepageBanner from '../components/HomepageBanner';
-import { DocTile } from '../components/DocTile';
+import { DocTile, DocTiles } from '../components/DocTile';
 import ProductTile from '../components/ProductTile';
 import ErrorBoundary from '../components/ErrorBoundary';
 import FeedbackModal from '../components/FeedbackModal';
+import { OnboardingContainer, OnboardingStep } from '../components/Onboarding';
 
 const HomePage = ({ data }) => {
   const {
@@ -31,27 +32,81 @@ const HomePage = ({ data }) => {
     <ErrorBoundary eventName="homepage">
       <HomepageBanner />
       <Section layout={layout}>
+        <SectionTitle title={t('home.getStarted')} />
+        <OnboardingContainer>
+          <OnboardingStep
+            button={t('home.onBoarding.0.button')}
+            buttonHref={t('home.onBoarding.0.buttonHref')}
+            number={0}
+            text={t('home.onBoarding.0.text')}
+            title={t('home.onBoarding.0.title')}
+          />
+          <OnboardingStep
+            readDocsHref={t('home.onBoarding.1.readDocsHref')}
+            number={1}
+            text={t('home.onBoarding.1.text')}
+            title={t('home.onBoarding.1.title')}
+          />
+          <OnboardingStep
+            button={t('home.onBoarding.2.button')}
+            buttonHref={t('home.onBoarding.2.buttonHref')}
+            number={2}
+            text={t('home.onBoarding.2.text')}
+            title={t('home.onBoarding.2.title')}
+          />
+          <OnboardingStep
+            readDocsHref={t('home.onBoarding.3.readDocsHref')}
+            number={3}
+            text={t('home.onBoarding.3.text')}
+            title={t('home.onBoarding.3.title')}
+          />
+        </OnboardingContainer>
+      </Section>
+      <Section layout={layout}>
         <SectionTitle title={t('home.popularDocs.title')} />
-        <SectionContent>
-          <DocTile
-            label={{ text: 'Get started', color: '#F4CBE7' }}
-            path="/docs/apm/new-relic-apm/getting-started/introduction-apm"
+        <div>
+          <DocTiles
+            variant="homepage"
+            css={css`
+              display: grid;
+              grid-template-columns: repeat(3, 1fr);
+              grid-gap: 1rem;
+              counter-reset: welcome-tile;
+              flex: 2;
+              align-self: flex-start;
+              @media screen and (max-width: 1500px) {
+                align-self: auto;
+              }
+              @media screen and (max-width: 1000px) {
+                grid-template-columns: 1fr;
+                padding: 0 5rem;
+              }
+
+              @media screen and (max-width: 760px) {
+                padding: 0;
+              }
+            `}
           >
-            {t('home.popularDocs.t1.title')}
-          </DocTile>
-          <DocTile
-            label={{ text: 'Get started', color: '#F4CBE7' }}
-            path="/docs/browser/browser-monitoring/getting-started/introduction-browser-monitoring/"
-          >
-            {t('home.popularDocs.t2.title')}
-          </DocTile>
-          <DocTile
-            label={{ text: 'Get started', color: '#F4CBE7' }}
-            path="/docs/synthetics/synthetic-monitoring/getting-started/get-started-synthetic-monitoring/"
-          >
-            {t('home.popularDocs.t3.title')}
-          </DocTile>
-        </SectionContent>
+            <DocTile
+              buttonText={t('home.popularDocs.learnMore')}
+              path="/docs/apm/new-relic-apm/getting-started/introduction-apm"
+            >
+              {t('home.popularDocs.t1.title')}
+            </DocTile>
+            <DocTile
+              buttonText={t('home.popularDocs.learnMore')}
+              path="/docs/browser/browser-monitoring/getting-started/introduction-browser-monitoring/"
+            >
+              {t('home.popularDocs.t2.title')}
+            </DocTile>
+            <DocTile
+              buttonText={t('home.popularDocs.learnMore')}
+              path="/docs/synthetics/synthetic-monitoring/getting-started/get-started-synthetic-monitoring/"
+            >
+              {t('home.popularDocs.t3.title')}
+            </DocTile>
+          </DocTiles>
+        </div>
       </Section>
       <Section layout={layout}>
         <SectionTitle title={t('home.productRow1.title')} />

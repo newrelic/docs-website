@@ -30,8 +30,13 @@ const HomepageBanner = () => {
         align-items: center;
         min-height: ${bannerHeight};
 
+        @media screen and (max-width: 550px) {
+          justify-content: center;
+          background-size: 150%;
+          background-position: center 20px;
+        }
         @media screen and (max-width: ${mobileBreakpoint}) {
-          min-height: 175px;
+          min-height: 200px;
           background-size: 200%;
           background-position: center 8px;
         }
@@ -44,13 +49,14 @@ const HomepageBanner = () => {
           color: #1ce783;
           padding-top: 3rem;
           margin-bottom: 1.5rem;
+          text-align: center;
 
           line-height: 1;
           @media screen and (max-width: 550px) {
             font-size: 2rem;
+            padding: 0 1rem 0;
           }
           @media screen and (max-width: ${mobileBreakpoint}) {
-            padding-top: 2.75rem;
             font-size: 1.5rem;
           }
         `}
@@ -75,9 +81,6 @@ const HomepageBanner = () => {
         css={css`
           max-width: 880px;
           width: 80%;
-          @media screen and (max-width: ${mobileBreakpoint}) {
-            margin-bottom: 1rem;
-          }
         `}
       />
       <div
@@ -90,7 +93,7 @@ const HomepageBanner = () => {
           justify-content: center;
           width: 100%;
           flex-wrap: wrap;
-          font-weight: 400;
+          font-weight: 500;
           font-size: 1rem;
           a {
             margin-left: 0.25rem;
