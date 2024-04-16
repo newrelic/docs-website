@@ -8,7 +8,7 @@ const ProductTile = ({ children, to, title, icon }) => {
     <div
       css={css`
         background: var(--secondary-background-color);
-        height: 138px;
+        height: 8.625rem;
         position: relative;
       `}
     >
@@ -30,7 +30,6 @@ const ProductTile = ({ children, to, title, icon }) => {
           p {
             margin: 0;
             overflow: visible;
-            width: 250px;
           }
 
           &:hover {
@@ -43,6 +42,9 @@ const ProductTile = ({ children, to, title, icon }) => {
 
             .hover-hide {
               display: none;
+            }
+            .hover-show {
+              display: block;
             }
 
             .text {
@@ -67,6 +69,7 @@ const ProductTile = ({ children, to, title, icon }) => {
             line-height: 1.5rem;
             opacity: 0;
             transition: opacity 325ms;
+            width: 400px;
           `}
         >
           {children}
@@ -82,6 +85,20 @@ const ProductTile = ({ children, to, title, icon }) => {
             max-height: 1.5625rem;
             position: absolute;
             right: 1rem;
+          `}
+        />
+        <Icon
+          name="fe-arrow-right"
+          size="1.5rem"
+          className="hover-show"
+          css={css`
+            align-self: flex-end;
+            bottom: 1rem;
+            flex: 1;
+            max-height: 1.5625rem;
+            position: absolute;
+            right: 1rem;
+            display: none;
           `}
         />
       </SurfaceLink>
