@@ -97,6 +97,15 @@ const ProductTile = ({ children, icon, title, to }) => {
               width: ${textWidth}px;
             }
           }
+
+          .dark-mode &:hover {
+            box-shadow: unset;
+            border: var(--brand-button-primary-accent) solid 1px;
+          }
+
+          .dark-mode & {
+            border: var(--secondary-background-color) solid 1px; // prevent shifting on hover
+          }
         `}
         to={to}
       >
