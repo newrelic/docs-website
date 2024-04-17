@@ -60,7 +60,8 @@ const HomePage = ({ data }) => {
             title={t('home.onBoarding.0.title')}
           />
           <OnboardingStep
-            readDocsHref={t('home.onBoarding.1.readDocsHref')}
+            docsHref={t('home.onBoarding.1.docsHref')}
+            hrefText={t('home.onBoarding.1.hrefText')}
             number={1}
             text={t('home.onBoarding.1.text')}
             title={t('home.onBoarding.1.title')}
@@ -73,7 +74,8 @@ const HomePage = ({ data }) => {
             title={t('home.onBoarding.2.title')}
           />
           <OnboardingStep
-            readDocsHref={t('home.onBoarding.3.readDocsHref')}
+            docsHref={t('home.onBoarding.3.docsHref')}
+            hrefText={t('home.onBoarding.3.hrefText')}
             number={3}
             text={t('home.onBoarding.3.text')}
             title={t('home.onBoarding.3.title')}
