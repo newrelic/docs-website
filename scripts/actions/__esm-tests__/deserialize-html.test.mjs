@@ -1,16 +1,23 @@
-import deserializeHTML from '../deserialize-html.mjs';
-import serializeMDX from '../serialize-mdx';
 import fs from 'fs';
+import path, { dirname } from 'path';
+import { expect } from 'expect';
+import { fileURLToPath } from 'url';
+import { test } from 'uvu';
+// import { mock } from 'node:test';
 
-const { configuration } = require('../configuration');
+// import { configuration } from '../configuration.js';
+import deserializeHTML from '../deserialize-html.mjs';
+import serializeMDX from '../serialize-mdx.js';
 
-jest.mock('../configuration', () => ({
-  configuration: {
-    TRANSLATION: {
-      TYPE: 'human',
-    },
-  },
-}));
+const __dirname = dirname(fileURLToPath(import.meta.url));
+
+// mock('../configuration', () => ({
+//   configuration: {
+//     TRANSLATION: {
+//       TYPE: 'human',
+//     },
+//   },
+// }));
 
 test('deserializes mdx with DoNotTranslate', async () => {
   const input = `
@@ -23,6 +30,7 @@ test('deserializes mdx with DoNotTranslate', async () => {
 
   const mdx = await deserializeHTML(await serializeMDX(input));
 
+  // assert.is(mdx, input.trim());
   expect(mdx).toEqual(input.trim());
 });
 
@@ -153,9 +161,7 @@ test('deserializes SideBySide components', async () => {
   `;
 
   const html = await serializeMDX(input);
-  console.log('html', html);
   const mdx = await deserializeHTML(html);
-  console.log('mdx', mdx.trim());
 
   expect(mdx).toEqual(input.trim());
 });
@@ -163,11 +169,7 @@ test('deserializes SideBySide components', async () => {
 test('deserializes TechTileGrid components', async () => {
   const input = `
 <TechTileGrid>
-  <TechTile
-    name="iOS"
-    icon="logo-apple"
-    to="/agents/ios-agent"
-  />
+  <TechTile name="iOS" icon="logo-apple" to="/agents/ios-agent" />
 </TechTileGrid>
   `;
 
@@ -177,7 +179,10 @@ test('deserializes TechTileGrid components', async () => {
 });
 
 test('kitchen sink', async () => {
-  const input = fs.readFileSync(`${__dirname}/kitchen-sink.mdx`, 'utf-8');
+  const input = fs.readFileSync(
+    path.resolve(`${__dirname}/../__tests__/kitchen-sink.mdx`),
+    'utf-8'
+  );
 
   const mdx = await deserializeHTML(await serializeMDX(input));
 
@@ -247,29 +252,24 @@ test('deserializes Tabs Component', async () => {
 });
 
 test('deserializes InlinePopover component', async () => {
-  const input = '<InlinePopover/>';
+  const input = '<InlinePopover />';
 
   const mdx = await deserializeHTML(await serializeMDX(input));
   expect(mdx).toEqual(input);
 });
 
 test('deserialize iframes', async () => {
-  const input = `<iframe
-  width="560"
-  height="315"
-  src="https://www.youtube.com/embed/04JP0ky_hjI"
-  frameborder="0"
-  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-  allowfullscreen
-/>`;
+  const input = `<iframe width="560" height="315" src="https://www.youtube.com/embed/04JP0ky_hjI" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen />`;
 
   const mdx = await deserializeHTML(await serializeMDX(input));
   expect(mdx).toEqual(input);
 });
 
 test('deserializes InlineSignup component', async () => {
-  const input = '<InlineSignup/>';
+  const input = '<InlineSignup />';
 
   const mdx = await deserializeHTML(await serializeMDX(input));
   expect(mdx).toEqual(input);
 });
+
+test.run();
