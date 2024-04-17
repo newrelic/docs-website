@@ -1,9 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { css } from '@emotion/react';
-import SurfaceLink from './SurfaceLink';
 import { Icon } from '@newrelic/gatsby-theme-newrelic';
 
-const ProductTile = ({ children, to, title, icon }) => {
+import SurfaceLink from './SurfaceLink';
+
+const ProductTile = ({ children, icon, title, to }) => {
   const [textWidth, setTextWidth] = useState('');
   const [titleWidth, setTitleWidth] = useState('');
   const textRef = useRef(null);
