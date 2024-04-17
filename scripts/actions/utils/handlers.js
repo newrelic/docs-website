@@ -202,7 +202,7 @@ module.exports = {
   },
   InlineCode: {
     deserialize: (state, node) => ({
-      type: 'mdxSpanElement',
+      type: 'mdxJsxTextElement',
       name: 'InlineCode',
       children: state.all(node),
     }),
