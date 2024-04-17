@@ -29,8 +29,22 @@ const ProductTile = ({ children, icon, title, to }) => {
     <div
       css={css`
         background: var(--secondary-background-color);
+        border-radius: 8px;
+        flex: 0 1 calc(24% - 8px);
         height: 8.625rem;
         position: relative;
+
+        @media screen and (max-width: 1439px) {
+          flex: 0 1 calc(32% - 8px);
+        }
+
+        @media screen and (max-width: 1000px) {
+          flex: 0 1 calc(49% - 8px);
+        }
+
+        @media screen and (max-width: 600px) {
+          flex: 0 1 100%;
+        }
       `}
     >
       <SurfaceLink
