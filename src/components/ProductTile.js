@@ -43,6 +43,7 @@ const ProductTile = ({ children, icon, title, to }) => {
           left: 0;
           overflow: hidden;
           padding: 1.375rem;
+          padding-top: 1.125rem;
           position: absolute;
           top: 0;
           transform: translate(0, 0);
