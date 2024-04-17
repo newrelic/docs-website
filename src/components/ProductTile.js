@@ -1,9 +1,30 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { css } from '@emotion/react';
-import SurfaceLink from './SurfaceLink';
 import { Icon } from '@newrelic/gatsby-theme-newrelic';
 
-const ProductTile = ({ children, to, title, icon }) => {
+import SurfaceLink from './SurfaceLink';
+
+const ProductTile = ({ children, icon, title, to }) => {
+  const [textWidth, setTextWidth] = useState('');
+  const [titleWidth, setTitleWidth] = useState('');
+  const textRef = useRef(null);
+  const titleRef = useRef(null);
+
+  useEffect(() => {
+    if (!textRef.current) {
+      return null;
+    }
+    if (!titleRef.current) {
+      return null;
+    }
+
+    const textRect = textRef.current.getBoundingClientRect();
+    const titleRect = titleRef.current.getBoundingClientRect();
+
+    setTextWidth(textRect.width);
+    setTitleWidth(titleRect.width);
+  }, []);
+
   return (
     <div
       css={css`
@@ -20,6 +41,7 @@ const ProductTile = ({ children, to, title, icon }) => {
           flex-direction: column;
           height: 100%;
           left: 0;
+          overflow: hidden;
           padding: 1.375rem;
           position: absolute;
           top: 0;
@@ -27,9 +49,16 @@ const ProductTile = ({ children, to, title, icon }) => {
           transition: height 500ms, transform 500ms, width 500ms;
           width: 100%;
 
-          p {
+          .text {
             margin: 0;
             overflow: visible;
+            transition: width 500ms;
+            width: 130%;
+          }
+
+          .title {
+            margin-bottom: 0.5rem;
+            width: ${titleWidth}px;
           }
 
           &:hover {
@@ -50,18 +79,22 @@ const ProductTile = ({ children, to, title, icon }) => {
             .text {
               opacity: 1;
               transition: opacity 500ms;
+              width: ${textWidth}px;
             }
           }
         `}
         to={to}
       >
-        <p
+        <h3
           css={css`
             font-size: 1.25rem;
+            font-weight: 400;
           `}
+          className="title"
+          ref={titleRef}
         >
           {title}
-        </p>
+        </h3>
         <p
           className="text"
           css={css`
@@ -69,8 +102,9 @@ const ProductTile = ({ children, to, title, icon }) => {
             line-height: 1.5rem;
             opacity: 0;
             transition: opacity 325ms;
-            width: 400px;
+            width: 100%;
           `}
+          ref={textRef}
         >
           {children}
         </p>
@@ -94,11 +128,11 @@ const ProductTile = ({ children, to, title, icon }) => {
           css={css`
             align-self: flex-end;
             bottom: 1rem;
+            display: none;
             flex: 1;
             max-height: 1.5625rem;
             position: absolute;
             right: 1rem;
-            display: none;
           `}
         />
       </SurfaceLink>
