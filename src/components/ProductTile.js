@@ -29,7 +29,9 @@ const ProductTile = ({ children, icon, title, to }) => {
     <div
       css={css`
         background: var(--secondary-background-color);
+        border-radius: 8px;
         height: 8.625rem;
+        min-width: 300px;
         position: relative;
       `}
     >

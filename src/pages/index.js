@@ -49,7 +49,16 @@ const HomePage = ({ data }) => {
   return (
     <ErrorBoundary eventName="homepage">
       <HomepageBanner />
-      <Section layout={layout}>
+      <Section
+        layout={layout}
+        css={css`
+          border: none;
+          background: var(--tertiary-background-color);
+          max-width: 1440px;
+          margin: 2rem auto 0;
+          padding: 0 4vw;
+        `}
+      >
         <SectionTitle title={t('home.getStarted')} />
         <OnboardingContainer>
           <OnboardingStep
@@ -134,6 +143,10 @@ const HomePage = ({ data }) => {
           h3:nth-of-type(2) {
               padding-top: 0;
             }
+            max-width: 1440px;
+            padding: 0 20px
+
+
           }
         `}
       >
@@ -205,23 +218,14 @@ Section.propTypes = {
   }),
 };
 const SectionContent = styled.div`
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  grid-gap: 1rem;
-  counter-reset: welcome-tile;
-  flex: 2;
-  align-self: flex-start;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px 24px;
+  align-content: space-between;
   @media screen and (max-width: 1500px) {
     align-self: auto;
   }
-  @media screen and (max-width: 1050px) {
-    grid-template-columns: 1fr;
-  }
-  @media screen and (max-width: 760px) {
-    grid-template-columns: repeat(3, 1fr);
-  }
-  @media screen and (max-width: 650px) {
-    grid-template-columns: 1fr;
+  @media screen and (max-width: 1000px) {
   }
 `;
 
