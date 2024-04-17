@@ -128,11 +128,11 @@ const ProductTile = ({ children, icon, title, to }) => {
           css={css`
             align-self: flex-end;
             bottom: 1rem;
+            display: none;
             flex: 1;
             max-height: 1.5625rem;
             position: absolute;
             right: 1rem;
-            display: none;
           `}
         />
       </SurfaceLink>
