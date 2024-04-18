@@ -81,6 +81,10 @@ const HomepageBanner = () => {
         css={css`
           max-width: 880px;
           width: 80%;
+          svg {
+            color: red;
+            color: var(--primary-text-color);
+          }
         `}
       />
       <div

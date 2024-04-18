@@ -302,6 +302,7 @@ const ProductTileSection = ({ sections }) => {
             color: #7b838a;
             font-weight: 400;
             padding: 0.75rem 0 0.4375rem;
+            margin-left: 0.5rem;
             .dark-mode && {
               color: #b5b6b6;
             }

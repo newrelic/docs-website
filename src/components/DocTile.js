@@ -106,7 +106,7 @@ export const DocTile = ({
           height: 8.25rem;
           background: var(--system-text-primary-light);
           padding: 1rem;
-          border-radius: 11px;
+          border-radius: 10px;
           box-shadow: none;
           h4 {
             font-size: 1.25rem;

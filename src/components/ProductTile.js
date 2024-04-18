@@ -29,7 +29,7 @@ const ProductTile = ({ children, icon, title, to }) => {
     <div
       css={css`
         background: var(--secondary-background-color);
-        border-radius: 8px;
+        border-radius: 10px;
         height: 8.625rem;
         margin: 1.5rem 0.5rem;
         position: relative;
@@ -64,6 +64,7 @@ const ProductTile = ({ children, icon, title, to }) => {
           transform: translate(0, 0);
           transition: height 500ms, transform 500ms, width 500ms;
           width: 100%;
+          border-radius: 10px;
 
           .text {
             margin: 0;
