@@ -1,19 +1,21 @@
 /* eslint-disable no-console */
 'use strict';
-const AdmZip = require('adm-zip');
-const vfile = require('vfile');
-const { writeSync } = require('to-vfile');
-const path = require('path');
-const fetch = require('node-fetch');
+import AdmZip from 'adm-zip';
+import vfile from 'vfile';
+import toVfile from 'to-vfile';
+import path from 'path';
+import fetch from 'node-fetch';
 
-const deserializedHtml = require('./deserialize-html.mjs');
-const createDirectories = require('./utils/create-directories');
-const { getAccessToken } = require('./utils/vendor-request');
-const { LOCALE_IDS } = require('./utils/constants');
-const {
+import deserializedHtml from './deserialize-html.mjs';
+import createDirectories from './utils/create-directories.js';
+import { getAccessToken } from './utils/vendor-request.js';
+import { LOCALE_IDS } from './utils/constants.js';
+import {
   trackTranslationError,
   TRACKING_TARGET,
-} = require('./utils/translation-monitoring');
+} from './utils/translation-monitoring.js';
+
+const { writeSync } = toVfile;
 
 const projectId = process.env.TRANSLATION_VENDOR_PROJECT;
 const defaultTrackingMetadata = {
@@ -42,7 +44,7 @@ const defaultTrackingMetadata = {
  * Method which writes translated content to the 'src/content/i18n' path.
  * @param {vfile.VFile[]} vfiles
  */
-const writeFilesSync = (vfiles) => {
+export const writeFilesSync = (vfiles) => {
   vfiles.forEach((file) => {
     writeSync(file, 'utf-8');
   });
@@ -54,7 +56,7 @@ const writeFilesSync = (vfiles) => {
  * @param {Number} batchSize - maximum batch size
  * @returns {FileUriBatches}
  */
-const createFileUriBatches = ({ fileUris }, batchSize = 50) => {
+export const createFileUriBatches = ({ fileUris }, batchSize = 50) => {
   const batches = [];
   let currentBatch = [];
 
@@ -209,7 +211,7 @@ const deserializeHtmlToMdx = (locale) => {
  * @param {String[]} input.fileUris - list of file paths used for download & deserialization. This will be the complete singular list prior to batching.
  * @returns {Promise<SlugStatus[]>}
  */
-const fetchAndDeserializeFiles = async ({ locale, fileUris }) => {
+export const fetchAndDeserializeFiles = async ({ locale, fileUris }) => {
   const batches = createFileUriBatches({ fileUris });
 
   console.log(`Created ${batches.length} batches of files.`);
@@ -229,10 +231,4 @@ const fetchAndDeserializeFiles = async ({ locale, fileUris }) => {
   );
 
   return slugStatuses;
-};
-
-module.exports = {
-  createFileUriBatches,
-  writeFilesSync,
-  fetchAndDeserializeFiles,
 };
