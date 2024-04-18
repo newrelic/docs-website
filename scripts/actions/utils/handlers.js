@@ -269,7 +269,7 @@ module.exports = {
     serialize: serializeComponent,
   },
   UserJourneyControls: {
-    deserialize: (h, node) => {
+    deserialize: (state, node) => {
       const data = deserializeJSValue(node.properties.dataValue);
       const translatedProps = node.children.reduce((acc, child) => {
         const key = child.properties.dataKey;
@@ -286,7 +286,11 @@ module.exports = {
 
       data.attributes = stuff;
 
-      return h(node, 'mdxBlockElement', data);
+      return {
+        ...node,
+        ...data,
+        type: 'mdxJsxFlowElement',
+      };
     },
     serialize: (h, node) => {
       const serializeAttribute = (name, attribute) => {
