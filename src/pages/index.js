@@ -34,13 +34,20 @@ const HomePage = ({ data }) => {
   const { t } = useTranslation();
 
   const { locale } = useLocale();
-  const tileJson = (() => {
-    if (locale === 'en') return enJson;
-    if (locale === 'kr') return krJson;
-    if (locale === 'jp') return jpJson;
-    if (locale === 'es') return esJson;
-    if (locale === 'pt') return ptJson;
-    return enJson;
+
+  // using the json content to generate the Product tiles section
+  const productTileJson = (() => {
+    if (locale === 'en' && enJson.home.productTiles)
+      return enJson.home.productTiles;
+    if (locale === 'kr' && krJson.home.productTiles)
+      return krJson.home.productTiles;
+    if (locale === 'jp' && jpJson.home.productTiles)
+      return jpJson.home.productTiles;
+    if (locale === 'es' && esJson.home.productTiles)
+      return esJson.home.productTiles;
+    if (locale === 'pt' && ptJson.home.productTiles)
+      return ptJson.home.productTiles;
+    return enJson.home.productTiles;
   })();
 
   const mobileBreakpoint = '450px';
@@ -49,6 +56,8 @@ const HomePage = ({ data }) => {
   return (
     <ErrorBoundary eventName="homepage">
       <HomepageBanner />
+
+      {/* ------ Onboarding steps ------ */}
       <Section
         layout={layout}
         css={css`
@@ -92,6 +101,7 @@ const HomePage = ({ data }) => {
         </OnboardingContainer>
       </Section>
 
+      {/* ------ Popular docs ------ */}
       <Section layout={layout}>
         <SectionTitle title={t('home.popularDocs.title')} />
         <div>
@@ -139,6 +149,7 @@ const HomePage = ({ data }) => {
         </div>
       </Section>
 
+      {/* ------ Product tiles ------ */}
       <Section
         layout={layout}
         css={css`
@@ -152,7 +163,7 @@ const HomePage = ({ data }) => {
       >
         <SectionTitle title={t('home.productTilesHeader')} />
 
-        <ProductTileSection sections={tileJson.home.productTiles} />
+        <ProductTileSection sections={productTileJson} />
       </Section>
 
       {showFeedbackModal && !isMobileScreen && (
@@ -229,45 +240,6 @@ const SectionContent = styled.div`
   }
 `;
 
-const ProductTileSection = ({ sections }) => {
-  const tileSections = [];
-
-  for (const contents of Object.values(sections)) {
-    tileSections.push(
-      <>
-        <h3
-          css={css`
-            font-size: 1.25rem;
-            color: #7b838a;
-            font-weight: 400;
-            padding: 2.25rem 0 1.9375rem;
-            .dark-mode && {
-              color: #b5b6b6;
-            }
-          `}
-        >
-          {contents.sectionTitle.toUpperCase()}
-        </h3>
-        <SectionContent>
-          {contents.tiles.map((tile, i) => {
-            return (
-              <ProductTile
-                key={i}
-                to={tile.to}
-                title={tile.title}
-                icon={tile.icon}
-              >
-                {tile.text}
-              </ProductTile>
-            );
-          })}
-        </SectionContent>
-      </>
-    );
-  }
-  return tileSections;
-};
-
 const SectionTitle = ({ title, icon, to }) => {
   const handleClick = useInstrumentedHandler({
     eventName: 'sectionTitleClick',
@@ -317,4 +289,47 @@ SectionTitle.propTypes = {
   icon: PropTypes.elementType,
   to: PropTypes.string,
 };
+
+const ProductTileSection = ({ sections }) => {
+  const tileSections = [];
+
+  for (const contents of Object.values(sections)) {
+    tileSections.push(
+      <>
+        <h3
+          css={css`
+            font-size: 1.25rem;
+            color: #7b838a;
+            font-weight: 400;
+            padding: 2.25rem 0 1.9375rem;
+            .dark-mode && {
+              color: #b5b6b6;
+            }
+          `}
+        >
+          {contents.sectionTitle.toUpperCase()}
+        </h3>
+        <SectionContent>
+          {contents.tiles.map((tile, i) => {
+            return (
+              <ProductTile
+                key={i}
+                to={tile.to}
+                title={tile.title}
+                icon={tile.icon}
+              >
+                {tile.text}
+              </ProductTile>
+            );
+          })}
+        </SectionContent>
+      </>
+    );
+  }
+  return tileSections;
+};
+ProductTileSection.propTypes = {
+  sections: PropTypes.string,
+};
+
 export default HomePage;
