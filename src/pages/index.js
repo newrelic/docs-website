@@ -56,7 +56,7 @@ const HomePage = ({ data }) => {
           background: var(--tertiary-background-color);
           max-width: 1440px;
           margin: 2rem auto 0;
-          padding: 0 4vw;
+          padding: 0 calc(5% + 8px); // to match the product tiles outer edges
         `}
       >
         <SectionTitle title={t('home.getStarted')} />
@@ -91,6 +91,7 @@ const HomePage = ({ data }) => {
           />
         </OnboardingContainer>
       </Section>
+
       <Section layout={layout}>
         <SectionTitle title={t('home.popularDocs.title')} />
         <div>
@@ -137,18 +138,17 @@ const HomePage = ({ data }) => {
           </DocTiles>
         </div>
       </Section>
+
       <Section
         layout={layout}
         css={css`
-          h3:nth-of-type(2) {
-              padding-top: 0;
+            h3:nth-of-type(2) {
+                padding-top: 0;
+              }
+              max-width: 1440px;
+              padding: 0 5% 2rem;
             }
-            max-width: 1440px;
-            padding: 0 20px
-
-
-          }
-        `}
+          `}
       >
         <SectionTitle title={t('home.productTilesHeader')} />
 
@@ -161,6 +161,7 @@ const HomePage = ({ data }) => {
     </ErrorBoundary>
   );
 };
+
 HomePage.propTypes = {
   data: PropTypes.shape({
     site: PropTypes.shape({
@@ -184,6 +185,7 @@ HomePage.propTypes = {
     }),
   }),
 };
+
 export const pageQuery = graphql`
   query {
     site {
@@ -193,6 +195,7 @@ export const pageQuery = graphql`
     }
   }
 `;
+
 const Section = ({ ...props }) => {
   return (
     <section
@@ -217,15 +220,12 @@ Section.propTypes = {
     contentPadding: PropTypes.string,
   }),
 };
+
 const SectionContent = styled.div`
   display: flex;
   flex-wrap: wrap;
-  gap: 16px 24px;
-  align-content: space-between;
   @media screen and (max-width: 1500px) {
     align-self: auto;
-  }
-  @media screen and (max-width: 1000px) {
   }
 `;
 
@@ -311,6 +311,7 @@ const SectionTitle = ({ title, icon, to }) => {
     </Wrapper>
   );
 };
+
 SectionTitle.propTypes = {
   title: PropTypes.string,
   icon: PropTypes.elementType,

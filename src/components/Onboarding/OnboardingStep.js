@@ -222,7 +222,7 @@ OnboardingStep.propTypes = {
   button: PropTypes.string,
   buttonHref: PropTypes.string,
   number: PropTypes.number.isRequired,
-  readDocsHref: PropTypes.string,
+  docsHref: PropTypes.string,
   text: PropTypes.string,
   title: PropTypes.string,
 };

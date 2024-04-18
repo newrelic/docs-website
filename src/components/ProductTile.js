@@ -31,8 +31,21 @@ const ProductTile = ({ children, icon, title, to }) => {
         background: var(--secondary-background-color);
         border-radius: 8px;
         height: 8.625rem;
-        min-width: 300px;
+        margin: 1.5rem 0.5rem;
         position: relative;
+        width: calc(25% - 16px);
+
+        @media screen and (max-width: 1439px) {
+          width: calc(33% - 16px);
+        }
+
+        @media screen and (max-width: 1000px) {
+          width: calc(50% - 16px);
+        }
+
+        @media screen and (max-width: 600px) {
+          flex: 0 1 100%;
+        }
       `}
     >
       <SurfaceLink
@@ -84,6 +97,15 @@ const ProductTile = ({ children, icon, title, to }) => {
               transition: opacity 500ms;
               width: ${textWidth}px;
             }
+          }
+
+          .dark-mode &:hover {
+            box-shadow: unset;
+            border: var(--brand-button-primary-accent) solid 1px;
+          }
+
+          .dark-mode & {
+            border: var(--secondary-background-color) solid 1px; // prevent shifting on hover
           }
         `}
         to={to}
