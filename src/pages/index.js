@@ -330,7 +330,17 @@ const ProductTileSection = ({ sections }) => {
 };
 
 ProductTileSection.propTypes = {
-  sections: PropTypes.object,
+  sections: PropTypes.shape({
+    sectionTitle: PropTypes.string,
+    tiles: PropTypes.arrayOf(
+      PropTypes.shape({
+        to: PropTypes.string,
+        title: PropTypes.string,
+        icon: PropTypes.string,
+        text: PropTypes.string,
+      })
+    ),
+  }),
 };
 
 export default HomePage;
