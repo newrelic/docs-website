@@ -18,7 +18,6 @@ import ErrorBoundary from '../components/ErrorBoundary';
 import FeedbackModal from '../components/FeedbackModal';
 import { OnboardingContainer, OnboardingStep } from '../components/Onboarding';
 
-// to map over the items to generate the product tiles
 import enJson from '../i18n/translations/en/translation.json';
 import krJson from '../i18n/translations/kr/translation.json';
 import jpJson from '../i18n/translations/jp/translation.json';
@@ -301,7 +300,7 @@ const ProductTileSection = ({ sections }) => {
             font-size: 1.25rem;
             color: #7b838a;
             font-weight: 400;
-            padding: 2.25rem 0 1.9375rem;
+            padding: 0.75rem 0 0.4375rem;
             .dark-mode && {
               color: #b5b6b6;
             }
