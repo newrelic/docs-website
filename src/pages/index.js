@@ -1,19 +1,28 @@
 import React, { useState } from 'react';
 import { css } from '@emotion/react';
+import styled from '@emotion/styled';
 import { graphql } from 'gatsby';
 import PropTypes from 'prop-types';
 import {
   Link,
   Icon,
+  useLocale,
   useInstrumentedHandler,
   useTranslation,
 } from '@newrelic/gatsby-theme-newrelic';
 import { useMedia } from 'react-use';
 import HomepageBanner from '../components/HomepageBanner';
 import { DocTile, DocTiles } from '../components/DocTile';
+import ProductTile from '../components/ProductTile';
 import ErrorBoundary from '../components/ErrorBoundary';
 import FeedbackModal from '../components/FeedbackModal';
 import { OnboardingContainer, OnboardingStep } from '../components/Onboarding';
+
+import enJson from '../i18n/translations/en/translation.json';
+import krJson from '../i18n/translations/kr/translation.json';
+import jpJson from '../i18n/translations/jp/translation.json';
+import esJson from '../i18n/translations/es/translation.json';
+import ptJson from '../i18n/translations/pt/translation.json';
 
 const HomePage = ({ data }) => {
   const {
@@ -23,13 +32,31 @@ const HomePage = ({ data }) => {
 
   const { t } = useTranslation();
 
+  const { locale } = useLocale();
+
+  // using the json content to generate the Product tiles section
+  const productTileJson = (() => {
+    if (locale === 'en' && enJson.home.productTiles)
+      return enJson.home.productTiles;
+    if (locale === 'kr' && krJson.home.productTiles)
+      return krJson.home.productTiles;
+    if (locale === 'jp' && jpJson.home.productTiles)
+      return jpJson.home.productTiles;
+    if (locale === 'es' && esJson.home.productTiles)
+      return esJson.home.productTiles;
+    if (locale === 'pt' && ptJson.home.productTiles)
+      return ptJson.home.productTiles;
+    return enJson.home.productTiles;
+  })();
+
   const mobileBreakpoint = '450px';
   const isMobileScreen = useMedia(`(max-width: ${mobileBreakpoint})`);
 
   return (
     <ErrorBoundary eventName="homepage">
       <HomepageBanner />
-      <Icon name="nr-vulnerability" />
+
+      {/* ------ Onboarding steps ------ */}
       <Section
         layout={layout}
         css={css`
@@ -37,7 +64,7 @@ const HomePage = ({ data }) => {
           background: var(--tertiary-background-color);
           max-width: 1440px;
           margin: 2rem auto 0;
-          padding: 0 4vw;
+          padding: 0 calc(5% + 8px); // to match the product tiles outer edges
         `}
       >
         <SectionTitle title={t('home.getStarted')} />
@@ -50,7 +77,8 @@ const HomePage = ({ data }) => {
             title={t('home.onBoarding.0.title')}
           />
           <OnboardingStep
-            readDocsHref={t('home.onBoarding.1.readDocsHref')}
+            docsHref={t('home.onBoarding.1.docsHref')}
+            hrefText={t('home.onBoarding.1.hrefText')}
             number={1}
             text={t('home.onBoarding.1.text')}
             title={t('home.onBoarding.1.title')}
@@ -63,23 +91,17 @@ const HomePage = ({ data }) => {
             title={t('home.onBoarding.2.title')}
           />
           <OnboardingStep
-            readDocsHref={t('home.onBoarding.3.readDocsHref')}
+            docsHref={t('home.onBoarding.3.docsHref')}
+            hrefText={t('home.onBoarding.3.hrefText')}
             number={3}
             text={t('home.onBoarding.3.text')}
             title={t('home.onBoarding.3.title')}
           />
         </OnboardingContainer>
       </Section>
-      <Section
-        layout={layout}
-        css={css`
-          border: none;
-          background: var(--tertiary-background-color);
-          max-width: 1200px;
-          margin: auto;
-          padding: 2.5rem 3rem;
-        `}
-      >
+
+      {/* ------ Popular docs ------ */}
+      <Section layout={layout}>
         <SectionTitle title={t('home.popularDocs.title')} />
         <div>
           <DocTiles
@@ -126,12 +148,30 @@ const HomePage = ({ data }) => {
         </div>
       </Section>
 
+      {/* ------ Product tiles ------ */}
+      <Section
+        layout={layout}
+        css={css`
+            h3:nth-of-type(2) {
+                padding-top: 0;
+              }
+              max-width: 1440px;
+              padding: 0 5% 2rem;
+            }
+          `}
+      >
+        <SectionTitle title={t('home.productTilesHeader')} />
+
+        <ProductTileSection sections={productTileJson} />
+      </Section>
+
       {showFeedbackModal && !isMobileScreen && (
         <FeedbackModal onClose={() => setShowFeedbackModal(false)} />
       )}
     </ErrorBoundary>
   );
 };
+
 HomePage.propTypes = {
   data: PropTypes.shape({
     site: PropTypes.shape({
@@ -155,6 +195,7 @@ HomePage.propTypes = {
     }),
   }),
 };
+
 export const pageQuery = graphql`
   query {
     site {
@@ -164,28 +205,41 @@ export const pageQuery = graphql`
     }
   }
 `;
+
 const Section = ({ ...props }) => {
   return (
     <section
       css={css`
         padding-top: 2.5rem;
-        .dark-mode & {
-          background: var(--tertiary-background-color);
-        }
         &:first-child {
           padding-top: 0;
         }
+        border: none;
+        background: var(--tertiary-background-color);
+        max-width: 1200px;
+        margin: auto;
+        padding: 2.5rem 3rem;
       `}
       {...props}
     />
   );
 };
+
 Section.propTypes = {
   alternate: PropTypes.bool,
   layout: PropTypes.shape({
     contentPadding: PropTypes.string,
   }),
 };
+
+const SectionContent = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  @media screen and (max-width: 1500px) {
+    align-self: auto;
+  }
+`;
+
 const SectionTitle = ({ title, icon, to }) => {
   const handleClick = useInstrumentedHandler({
     eventName: 'sectionTitleClick',
@@ -229,9 +283,64 @@ const SectionTitle = ({ title, icon, to }) => {
     </Wrapper>
   );
 };
+
 SectionTitle.propTypes = {
   title: PropTypes.string,
   icon: PropTypes.elementType,
   to: PropTypes.string,
 };
+
+const ProductTileSection = ({ sections }) => {
+  const tileSections = [];
+
+  for (const contents of Object.values(sections)) {
+    tileSections.push(
+      <>
+        <h3
+          css={css`
+            font-size: 1.25rem;
+            color: #7b838a;
+            font-weight: 400;
+            padding: 0.75rem 0 0.4375rem;
+            .dark-mode && {
+              color: #b5b6b6;
+            }
+          `}
+        >
+          {contents.sectionTitle.toUpperCase()}
+        </h3>
+        <SectionContent>
+          {contents.tiles.map((tile, i) => {
+            return (
+              <ProductTile
+                key={i}
+                to={tile.to}
+                title={tile.title}
+                icon={tile.icon}
+              >
+                {tile.text}
+              </ProductTile>
+            );
+          })}
+        </SectionContent>
+      </>
+    );
+  }
+  return tileSections;
+};
+
+ProductTileSection.propTypes = {
+  sections: PropTypes.shape({
+    sectionTitle: PropTypes.string,
+    tiles: PropTypes.arrayOf(
+      PropTypes.shape({
+        to: PropTypes.string,
+        title: PropTypes.string,
+        icon: PropTypes.string,
+        text: PropTypes.string,
+      })
+    ),
+  }),
+};
+
 export default HomePage;

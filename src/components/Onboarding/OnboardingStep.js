@@ -14,7 +14,8 @@ const OnboardingStep = ({
   button,
   buttonHref,
   number,
-  readDocsHref,
+  docsHref,
+  hrefText,
   text,
   title,
 }) => {
@@ -41,9 +42,9 @@ const OnboardingStep = ({
         <Title number={number}>{title}</Title>
         <Text number={number}>{text}</Text>
       </Card>
-      {readDocsHref && (
-        <ReadDocs href={readDocsHref}>
-          <p>Read docs</p>
+      {docsHref && (
+        <ReadDocs href={docsHref}>
+          <p>{hrefText}</p>
           <animated.div style={rightButton}>
             <Icon
               name="fe-arrow-right"
@@ -221,7 +222,7 @@ OnboardingStep.propTypes = {
   button: PropTypes.string,
   buttonHref: PropTypes.string,
   number: PropTypes.number.isRequired,
-  readDocsHref: PropTypes.string,
+  docsHref: PropTypes.string,
   text: PropTypes.string,
   title: PropTypes.string,
 };
