@@ -224,6 +224,7 @@ const Section = ({ ...props }) => {
     />
   );
 };
+
 Section.propTypes = {
   alternate: PropTypes.bool,
   layout: PropTypes.shape({
@@ -327,8 +328,9 @@ const ProductTileSection = ({ sections }) => {
   }
   return tileSections;
 };
+
 ProductTileSection.propTypes = {
-  sections: PropTypes.string,
+  sections: PropTypes.object,
 };
 
 export default HomePage;
