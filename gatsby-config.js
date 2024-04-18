@@ -224,6 +224,12 @@ module.exports = {
               './plugins/gatsby-remark-remove-button-paragraphs'
             ),
           },
+          {
+            resolve: require.resolve(`./plugins/fix-remark-path-prefix-plugin`),
+            options: {
+              basePath: '' // your site's basePath, optional
+            }
+          }
         ],
       },
     },
