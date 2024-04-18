@@ -49,109 +49,111 @@ const HomePage = ({ data }) => {
   return (
     <ErrorBoundary eventName="homepage">
       <HomepageBanner />
-      <Section
-        layout={layout}
-        css={css`
-          border: none;
-          background: var(--tertiary-background-color);
-          max-width: 1440px;
-          margin: 2rem auto 0;
-          padding: 0 5%;
-        `}
-      >
-        <SectionTitle title={t('home.getStarted')} />
-        <OnboardingContainer>
-          <OnboardingStep
-            button={t('home.onBoarding.0.button')}
-            buttonHref={t('home.onBoarding.0.buttonHref')}
-            number={0}
-            text={t('home.onBoarding.0.text')}
-            title={t('home.onBoarding.0.title')}
-          />
-          <OnboardingStep
-            docsHref={t('home.onBoarding.1.docsHref')}
-            hrefText={t('home.onBoarding.1.hrefText')}
-            number={1}
-            text={t('home.onBoarding.1.text')}
-            title={t('home.onBoarding.1.title')}
-          />
-          <OnboardingStep
-            button={t('home.onBoarding.2.button')}
-            buttonHref={t('home.onBoarding.2.buttonHref')}
-            number={2}
-            text={t('home.onBoarding.2.text')}
-            title={t('home.onBoarding.2.title')}
-          />
-          <OnboardingStep
-            docsHref={t('home.onBoarding.3.docsHref')}
-            hrefText={t('home.onBoarding.3.hrefText')}
-            number={3}
-            text={t('home.onBoarding.3.text')}
-            title={t('home.onBoarding.3.title')}
-          />
-        </OnboardingContainer>
-      </Section>
-      <Section layout={layout}>
-        <SectionTitle title={t('home.popularDocs.title')} />
-        <div>
-          <DocTiles
-            variant="homepage"
-            css={css`
-              display: grid;
-              grid-template-columns: repeat(3, 1fr);
-              grid-gap: 1rem;
-              counter-reset: welcome-tile;
-              flex: 2;
-              align-self: flex-start;
-              @media screen and (max-width: 1500px) {
-                align-self: auto;
-              }
-              @media screen and (max-width: 1000px) {
-                grid-template-columns: 1fr;
-                padding: 0 5rem;
-              }
-
-              @media screen and (max-width: 760px) {
-                padding: 0;
-              }
-            `}
-          >
-            <DocTile
-              buttonText={t('home.popularDocs.learnMore')}
-              path="/docs/apm/new-relic-apm/getting-started/introduction-apm"
-            >
-              {t('home.popularDocs.t1.title')}
-            </DocTile>
-            <DocTile
-              buttonText={t('home.popularDocs.learnMore')}
-              path="/docs/browser/browser-monitoring/getting-started/introduction-browser-monitoring/"
-            >
-              {t('home.popularDocs.t2.title')}
-            </DocTile>
-            <DocTile
-              buttonText={t('home.popularDocs.learnMore')}
-              path="/docs/synthetics/synthetic-monitoring/getting-started/get-started-synthetic-monitoring/"
-            >
-              {t('home.popularDocs.t3.title')}
-            </DocTile>
-          </DocTiles>
-        </div>
-      </Section>
-      <Section
-        layout={layout}
-        css={css`
-          h3:nth-of-type(2) {
-              padding-top: 0;
-            }
+        <Section
+          layout={layout}
+          css={css`
+            border: none;
+            background: var(--tertiary-background-color);
             max-width: 1440px;
-            padding: 0 5% 2rem;
-          }
-        `}
-      >
-        <SectionTitle title={t('home.productTilesHeader')} />
+            margin: 2rem auto 0;
+            padding: 0 calc(5% + 8px); // to match the product tiles outer edges
+          `}
+        >
+          <SectionTitle title={t('home.getStarted')} />
+          <OnboardingContainer>
+            <OnboardingStep
+              button={t('home.onBoarding.0.button')}
+              buttonHref={t('home.onBoarding.0.buttonHref')}
+              number={0}
+              text={t('home.onBoarding.0.text')}
+              title={t('home.onBoarding.0.title')}
+            />
+            <OnboardingStep
+              docsHref={t('home.onBoarding.1.docsHref')}
+              hrefText={t('home.onBoarding.1.hrefText')}
+              number={1}
+              text={t('home.onBoarding.1.text')}
+              title={t('home.onBoarding.1.title')}
+            />
+            <OnboardingStep
+              button={t('home.onBoarding.2.button')}
+              buttonHref={t('home.onBoarding.2.buttonHref')}
+              number={2}
+              text={t('home.onBoarding.2.text')}
+              title={t('home.onBoarding.2.title')}
+            />
+            <OnboardingStep
+              docsHref={t('home.onBoarding.3.docsHref')}
+              hrefText={t('home.onBoarding.3.hrefText')}
+              number={3}
+              text={t('home.onBoarding.3.text')}
+              title={t('home.onBoarding.3.title')}
+            />
+          </OnboardingContainer>
+        </Section>
 
-        <ProductTileSection sections={tileJson.home.productTiles} />
-      </Section>
+        <Section layout={layout}>
+          <SectionTitle title={t('home.popularDocs.title')} />
+          <div>
+            <DocTiles
+              variant="homepage"
+              css={css`
+                display: grid;
+                grid-template-columns: repeat(3, 1fr);
+                grid-gap: 1rem;
+                counter-reset: welcome-tile;
+                flex: 2;
+                align-self: flex-start;
+                @media screen and (max-width: 1500px) {
+                  align-self: auto;
+                }
+                @media screen and (max-width: 1000px) {
+                  grid-template-columns: 1fr;
+                  padding: 0 5rem;
+                }
+
+                @media screen and (max-width: 760px) {
+                  padding: 0;
+                }
+              `}
+            >
+              <DocTile
+                buttonText={t('home.popularDocs.learnMore')}
+                path="/docs/apm/new-relic-apm/getting-started/introduction-apm"
+              >
+                {t('home.popularDocs.t1.title')}
+              </DocTile>
+              <DocTile
+                buttonText={t('home.popularDocs.learnMore')}
+                path="/docs/browser/browser-monitoring/getting-started/introduction-browser-monitoring/"
+              >
+                {t('home.popularDocs.t2.title')}
+              </DocTile>
+              <DocTile
+                buttonText={t('home.popularDocs.learnMore')}
+                path="/docs/synthetics/synthetic-monitoring/getting-started/get-started-synthetic-monitoring/"
+              >
+                {t('home.popularDocs.t3.title')}
+              </DocTile>
+            </DocTiles>
+          </div>
+        </Section>
+
+        <Section
+          layout={layout}
+          css={css`
+            h3:nth-of-type(2) {
+                padding-top: 0;
+              }
+              max-width: 1440px;
+              padding: 0 5% 2rem;
+            }
+          `}
+        >
+          <SectionTitle title={t('home.productTilesHeader')} />
+
+          <ProductTileSection sections={tileJson.home.productTiles} />
+        </Section>
 
       {showFeedbackModal && !isMobileScreen && (
         <FeedbackModal onClose={() => setShowFeedbackModal(false)} />
@@ -159,6 +161,7 @@ const HomePage = ({ data }) => {
     </ErrorBoundary>
   );
 };
+
 HomePage.propTypes = {
   data: PropTypes.shape({
     site: PropTypes.shape({
@@ -182,6 +185,7 @@ HomePage.propTypes = {
     }),
   }),
 };
+
 export const pageQuery = graphql`
   query {
     site {
@@ -191,6 +195,7 @@ export const pageQuery = graphql`
     }
   }
 `;
+
 const Section = ({ ...props }) => {
   return (
     <section
@@ -215,10 +220,10 @@ Section.propTypes = {
     contentPadding: PropTypes.string,
   }),
 };
+
 const SectionContent = styled.div`
   display: flex;
   flex-wrap: wrap;
-  gap: 16px 24px;
   @media screen and (max-width: 1500px) {
     align-self: auto;
   }
@@ -306,6 +311,7 @@ const SectionTitle = ({ title, icon, to }) => {
     </Wrapper>
   );
 };
+
 SectionTitle.propTypes = {
   title: PropTypes.string,
   icon: PropTypes.elementType,

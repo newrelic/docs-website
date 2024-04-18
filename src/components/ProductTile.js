@@ -30,16 +30,17 @@ const ProductTile = ({ children, icon, title, to }) => {
       css={css`
         background: var(--secondary-background-color);
         border-radius: 8px;
-        flex: 0 1 calc(24% - 8px);
         height: 8.625rem;
+        margin: 1.5rem 0.5rem;
         position: relative;
+        width: calc(25% - 16px);
 
         @media screen and (max-width: 1439px) {
-          flex: 0 1 calc(32% - 8px);
+          width: calc(33% - 16px);
         }
 
         @media screen and (max-width: 1000px) {
-          flex: 0 1 calc(49% - 8px);
+          width: calc(50% - 16px);
         }
 
         @media screen and (max-width: 600px) {
