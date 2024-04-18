@@ -10,6 +10,7 @@
 // library hasn't been updated in years and this fork updates the `js-yaml`
 // dependency, which is much smaller and more performant.
 const grayMatter = require('@gr2m/gray-matter');
+const yaml = require('js-yaml');
 
 const DEFAULT_REASON = 'Invalid frontmatter entry';
 
@@ -114,18 +115,22 @@ const frontmatter = (mdString) => {
 const validateFreshnessDate = (mdString) => {
   let error;
 
-  const { data } = grayMatter(mdString);
+  const { data } = grayMatter(mdString, {
+    engines: {
+      yaml: {
+        parse: (string) => yaml.safeLoad(string, { schema: yaml.JSON_SCHEMA }),
+      },
+    },
+  });
 
   const isValidDate = (date) => {
-    return !isNaN(new Date(date));
+    const regex = /\d{4}\-(0[1-9]|1[012])\-(0[1-9]|[12][0-9]|3[01])/;
+    return regex.test(date);
   };
-
   // freshnessValidatedDate is a required field and must be a date or `never`
   if (data.freshnessValidatedDate) {
-    if (
-      !isValidDate(data.freshnessValidatedDate) &&
-      !data.freshnessValidatedDate.includes('never')
-    ) {
+    const stringDate = data.freshnessValidatedDate.toString();
+    if (!isValidDate(stringDate) && !stringDate.includes('never')) {
       error = new Error(
         'freshnessValidatedDate is not a valid value. Must be date format YYYY-MM-DD or `never`'
       );
@@ -137,7 +142,71 @@ const validateFreshnessDate = (mdString) => {
   return error;
 };
 
+/**
+ * Parse the frontmatter and check for required releaseDate field on whats-new, security-bulletins, and release-notes. 
+ * Valid format is `YYYY-MM-DD`
+ *
+ * @example
+ * ```yaml
+ * ---
+ * title: This is a security bulletin
+ * releaseDate: '2021-03-15'
+ * ---
+ * ```
+ * 
+ *```js
+ * // error.message = undefined
+ * ``` 
+ * 
+ * ```yaml
+ * ---
+ * title: This is a security bulletin with an invalid date
+ * releaseDate: 21-03-15
+ * ---
+ * ```
+ * 
+ *```js
+ * // error.message = releaseDate is not a valid value. Must be date string formatted like 'YYYY-MM-DD' wrapped in single quotes
+ * ```
+
+ *
+ *
+ *
+ * @param {string} mdString - Full content of the MD(X) file to parse.
+ * @returns error | undefined
+ */
+
+const validateReleaseDate = (mdString) => {
+  let error;
+
+  const { data } = grayMatter(mdString, {
+    engines: {
+      yaml: {
+        parse: (string) => yaml.safeLoad(string, { schema: yaml.JSON_SCHEMA }),
+      },
+    },
+  });
+
+  const isValidDate = (date) => {
+    const regex = /\d{4}\-(0[1-9]|1[012])\-(0[1-9]|[12][0-9]|3[01])/;
+    return regex.test(date);
+  };
+  // releaseDate is a required field and must be a date wrapped in single quotes
+  if (data.releaseDate) {
+    if (!isValidDate(data.releaseDate)) {
+      error = new Error(
+        "releaseDate is not a valid value. Must be date string formatted like 'YYYY-MM-DD' wrapped in single quotes"
+      );
+    }
+  } else {
+    error = new Error('releaseDate field missing from frontmatter');
+  }
+
+  return error;
+};
+
 module.exports = {
   frontmatter,
   validateFreshnessDate,
+  validateReleaseDate,
 };

@@ -1,0 +1,43 @@
+---
+title: Introducción al rastreo infinito
+tags:
+  - Understand dependencies
+  - Distributed tracing
+  - Infinite Tracing
+metaDescription: 'Use Infinite Tracing in New Relic to send all your trace data to our cloud-based service, and rely on Infinite Tracing to make sampling decisions.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Infinite Tracing es una solución basada en la nube completamente administrada que puede analizar el 100% de sus datos de traza y elegir la mayor cantidad de datos accionables, permitiéndole investigar y resolver problemas rápidamente.
+
+Este documento solo aplica a la característica Infinite Tracing. Si está buscando nuestra solución estándar de rastreo distribuido, consulte nuestras [opciones de configuración](/docs/distributed-tracing/enable-configure/quick-start).
+
+## ¿Qué es el rastreo infinito? [#understand-infinite-tracing]
+
+Infinite Tracing le permite enviar todos sus datos de traza a nuestro servicio basado en la nube y confiar en Infinite Tracing para tomar decisiones de muestreo. Puede configurar Infinite Tracing de varias maneras para asegurarse de que mantenga los datos de traza que necesita ver.
+
+A diferencia de nuestras opciones estándar de distribución de rastreo, Infinite Tracing puede procesar más datos de traza. Utiliza [una muestreo al final](/docs/understand-dependencies/distributed-tracing/get-started/how-new-relic-distributed-tracing-works#sampling) superior (muestreo después de recopilar los datos), a diferencia del muestreo al inicio que utiliza nuestra característica de rastreo estándar.
+
+Recursos para aprender más sobre Infinite Tracing:
+
+* [Detalles técnicos sobre muestreo y arquitectura.](/docs/understand-dependencies/distributed-tracing/get-started/how-new-relic-distributed-tracing-works#sampling)
+
+## Requisitos [#requirements]
+
+Los requisitos difieren según su [modelo de precios](/docs/accounts/original-accounts-billing/original-product-based-pricing/overview-pricing-models):
+
+* Modelo de precios basado en el uso: requiere Pro o edición Enterprise.
+* Modelo de precios original: requiere la ayuda de New Relic para habilitarlo en su organización. Si tiene preguntas, comuníquese con su representante de cuenta de New Relic.
+
+La capacidad de configurar esta característica se rige por [los permisos relacionados con Infinited Tracing](/docs/accounts/accounts-billing/new-relic-one-user-management/user-permissions#infinite-tracing).
+
+## Habilitar seguimiento infinito [#enable-infinite-tracing]
+
+Al habilitar Infinite Tracing, idealmente debería habilitarlo para todos los servicios asociados. Si tiene habilitada una combinación de Infinite Tracing y nuestras soluciones de seguimiento estándar, traza tendrá [problemas de conflicto de configuración](/docs/understand-dependencies/distributed-tracing/troubleshooting/infinite-tracing-trace-configuration-conflicts).
+
+Las instrucciones para configurar Infinite Tracing se encuentran en los documentos específicos de nuestras soluciones. Para comenzar, consulte nuestra [guía de inicio rápido](/docs/distributed-tracing/enable-configure/quick-start).
+
+## Configurar el seguimiento infinito [#configure]
+
+Después de habilitar Infinite Tracing, hay varias formas de configurarlo para asegurarse de que conserva los datos que desea. Consulte [Configurar](/docs/configure-trace-observer#configure).

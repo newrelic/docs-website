@@ -6,7 +6,7 @@ import {
   Surface,
   Button,
   Icon,
-  useTessen,
+  addPageAction,
   useTranslation,
   isValidEmail,
 } from '@newrelic/gatsby-theme-newrelic';
@@ -19,7 +19,6 @@ const InstallFeedback = () => {
   const [shouldSubmit, setShouldSubmit] = useState(false);
   const [formSubmitted, setFormSubmitted] = useState(false);
 
-  const tessen = useTessen();
   const { t } = useTranslation();
 
   const isCommentBoxEmpty = (comment) => {
@@ -28,7 +27,7 @@ const InstallFeedback = () => {
 
   const handleClick = () => {
     setCommentButtonClicked(true);
-    tessen.track({
+    addPageAction({
       eventName: 'installFeedbackClick',
       category: 'LeaveAComment',
       path: location.pathname,
@@ -66,7 +65,7 @@ const InstallFeedback = () => {
 
     await recaptchaReady();
     const recaptchaToken = await generateRecaptchaToken();
-    tessen.track({
+    addPageAction({
       eventName: 'installFeedbackSubmitted',
       category: 'Comment',
       path: location.pathname,
