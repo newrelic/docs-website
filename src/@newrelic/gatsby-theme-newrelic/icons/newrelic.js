@@ -34,6 +34,7 @@ import AreaChartIcon from './newrelic/area-chart';
 import BookmarkIcon from './newrelic/bookmark';
 import PrivateIcon from './newrelic/private';
 import AttachmentIcon from './newrelic/attachment';
+import DocLinkIcon from './newrelic/doc-link';
 
 export default {
   ...defaultIcons,
@@ -72,4 +73,5 @@ export default {
   bookmark: BookmarkIcon,
   private: PrivateIcon,
   attachment: AttachmentIcon,
+  'doc-link': DocLinkIcon,
 };
