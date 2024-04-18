@@ -1,0 +1,261 @@
+---
+title: Recolector para monitoreo de host
+tags:
+  - Integrations
+  - Open source telemetry integrations
+  - OpenTelemetry
+metaDescription: 'The OpenTelemetry Collector is a central tool to collect, process, and export your telemetry.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Puede recopilar métricas y iniciar sesión desde los hosts de su infraestructura con OpenTelemetry y aprovechar las mismas experiencias de infraestructura que están disponibles para el agente New Relic. Se requieren receptores y procesadores específicos en el recolector OTel para recopilar e informar la telemetría del host.
+
+Si busca ayuda con otros casos de uso del recolector, consulte el repositorio [newrelic-OpenTelemetry-examples](https://github.com/newrelic/newrelic-opentelemetry-examples) .
+
+## Paso 1: requisitos previos [#prereqs]
+
+Asegúrese de haber completado lo siguiente antes de continuar:
+
+* Si aún no lo ha hecho, regístrese para obtener una [cuenta gratuita de New Relic](https://newrelic.com/signup).
+
+* Obtenga el
+
+  <InlinePopover type="licenseKey"/>
+
+  para la cuenta de New Relic a la que desea informar datos.
+
+## Paso 2: Instale el recolector OpenTelemetry [#install-generic]
+
+Para realizar una instalación básica para hosts únicos en la nube o localmente, consulte [las instrucciones de OpenTelemetry](https://opentelemetry.io/docs/collector/getting-started/#linux-packaging) para conocer los pasos de instalación actualizados de la comunidad. Hay instrucciones disponibles para lo siguiente:
+
+* Linux: sistemas Debian
+* Linux: sombrero rojo
+* Windows
+* Docker, Kubernetes y otras opciones
+
+Su experiencia de implementación puede variar según las distribuciones específicas del proveedor que utilice. Por ejemplo, la instalación a través de un administrador de paquetes podría estar disponible para hosts Linux.
+
+<Callout variant="important">
+  Para configurar el monitoreo de infraestructura, debe instalar y configurar los componentes que se incluyen en la versión `collector-contrib` . Por ejemplo, el receptor del host debe recopilar métricas básicas del host, como CPU, memoria, disco y estadísticas de red, y solo está disponible en la versión [OpenTelemetry recolector-contrib](https://github.com/open-telemetry/opentelemetry-collector-contrib) .
+</Callout>
+
+## Paso 3: Configurar host métrica y log [#host-receiver]
+
+Este ejemplo de recolector está destinado a servir como punto de partida desde el cual puede ampliar, personalizar y validar la configuración antes de usarlos en producción.
+
+La versión `collector-contrib` incluye:
+
+* El receptor `hostmetrics` que genera métrica sobre el sistema extraído de varias fuentes. desplegar el recolector como agente cuando uses un receptor `hostmetrics` .
+* El receptor `filelog` que sigue y analiza el registro de los archivos.
+
+Al utilizar el receptor `hostmetrics` como parte de la configuración del recolector, New Relic detectará el host métrico como parte de una entidad `Host` . Esto significa que tendrá la misma experiencia que con el agente New Relic Infrastructure . Para que esto funcione, debe cumplir con los siguientes requisitos de configuración:
+
+* `host.id` El atributo está presente en el host métrico.
+* `service.name` y `container.id` atributo no están presentes en host métrica.
+
+Obtenga más información sobre las métricas disponibles y la configuración avanzada en la [documentación de OpenTelemetry en GitHub](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/receiver/hostmetricsreceiver).
+
+Aquí hay un archivo YAML de configuración de muestra para un host Linux. Asegúrese de hacer lo siguiente:
+
+* Establezca la variable de entorno `$NEW_RELIC_OTLP_ENDPOINT` en el [extremo](/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/get-started/opentelemetry-set-up-your-app/#review-settings) apropiado.
+
+* Establezca la `$NEW_RELIC_API_KEY` var de entorno para su
+
+  <InlinePopover type="licenseKey"/>
+
+  .
+
+* Ajuste el objetivo archivo de registro en la sección del receptor de registros de archivos según sus requisitos.
+
+* Ajuste los valores predeterminados `memory_limiter` según los requisitos de su entorno.
+
+* Varios elementos de configuración son útiles para la demostración local, pero probablemente no sean necesarios para las implementaciones de producción. Revise estas secciones y comentarios explicativos y elimínelos según sea necesario.
+
+Consulte [Monitoreo de host con OpenTelemetry Collector Setup](https://github.com/newrelic/newrelic-opentelemetry-examples/tree/main/other-examples/collector/host-monitoring) para ver un ejemplo de código funcional.
+
+```yaml
+extensions:
+  health_check:
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+      http:
+
+  hostmetrics:
+    # Mount the host file system when running in docker so we can monitor the host system,
+    # not the docker container. For more info see:
+    # https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/receiver/hostmetricsreceiver#collecting-host-metrics-from-inside-a-container-linux-only
+    # Delete for production deployments.
+    root_path: ${HOST_METRICS_ROOT_PATH}
+    collection_interval: 20s
+    scrapers:
+      cpu:
+        metrics:
+          system.cpu.utilization:
+            enabled: true
+      load:
+      memory:
+        metrics:
+          system.memory.utilization:
+            enabled: true
+      disk:
+      filesystem:
+        metrics:
+          system.filesystem.utilization:
+            enabled: true
+        # Reading /containers/services causes error running in docker.
+        # Delete for production deployments.
+        exclude_mount_points:
+          mount_points: ["/containers/services"]
+          match_type: strict
+      network:
+      paging:
+        metrics:
+          system.paging.utilization:
+            enabled: true
+      processes:
+      process:
+        metrics:
+          process.cpu.utilization:
+            enabled: true
+          process.cpu.time:
+            enabled: false
+        # Mute various errors reading process metrics running locally in docker.
+        # Delete for production deployments.
+        mute_process_exe_error: true
+        mute_process_user_error: true
+        mute_process_io_error: true
+
+  filelog:
+    include:
+      - /var/log/alternatives.log
+      - /var/log/cloud-init.log
+      - /var/log/auth.log
+      - /var/log/dpkg.log
+      - /var/log/syslog
+      - /var/log/messages
+      - /var/log/secure
+      - /var/log/yum.log
+
+processors:
+
+  transform/truncate:
+    trace_statements:
+      - context: span
+        statements:
+          - truncate_all(attributes, 4095)
+          - truncate_all(resource.attributes, 4095)
+    log_statements:
+      - context: log
+        statements:
+          - truncate_all(attributes, 4095)
+          - truncate_all(resource.attributes, 4095)
+
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 1000
+    spike_limit_mib: 200
+
+  batch:
+
+  resourcedetection:
+    detectors: ["env", "system"]
+    system:
+      hostname_sources: ["os"]
+      resource_attributes:
+        host.id:
+          enabled: true
+
+  resourcedetection/cloud:
+    detectors: ["gcp", "ec2", "azure"]
+    timeout: 2s
+    override: false
+
+  # host.id is required for NewRelic host entity synthesis and relationships, but is
+  # not included by any resourcedetection detector when running with docker on macOS.
+  # We include a fallback value for demonstration purposes.
+  # Delete for production deployments.
+  resource:
+    attributes:
+      - key: host.id
+        value: localhost
+        action: upsert
+
+exporters:
+  otlphttp:
+    endpoint: $NEW_RELIC_OTLP_ENDPOINT
+    headers:
+      api-key: $NEW_RELIC_API_KEY
+
+service:
+  pipelines:
+
+    metrics/hostmetrics:
+      receivers: [hostmetrics]
+      processors: [memory_limiter, resourcedetection, resourcedetection/cloud, resource, batch]
+      exporters: [otlphttp]
+
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, transform/truncate, resourcedetection, resourcedetection/cloud, resource, batch]
+      exporters: [otlphttp]
+
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, transform/truncate, resourcedetection, resourcedetection/cloud, resource, batch]
+      exporters: [otlphttp]
+
+    logs:
+      receivers: [otlp, filelog]
+      processors: [memory_limiter, transform/truncate, resourcedetection, resourcedetection/cloud, resource, batch]
+      exporters: [otlphttp]
+
+  extensions: [health_check]
+```
+
+## Paso 4: vea sus datos [#view-data]
+
+Puede ver los datos de su recolector en una variedad de lugares en la UI de New Relic.
+
+### Explorar los datos del host en UI de la infraestructura [#using-ui]
+
+Al utilizar la configuración recomendada en el recolector, puede ver datos a través de la característica estándar en la experiencia de la [UI de infraestructura](/docs/infrastructure/infrastructure-ui-pages/infra-ui-overview) .
+
+### Consulta host métrica y log [#query-host-metrics]
+
+Una vez que la telemetría se ingiere exitosamente en New Relic, están disponibles en [métrica y evento](/docs/query-your-data/explore-query-data/browse-data/introduction-data-explorer) y [generador de consultas](/docs/query-your-data/explore-query-data/query-builder/introduction-query-builder).
+
+La siguiente consulta NRQL muestra ejemplos para ayudarle a explorar la métrica que recibió:
+
+* Listado del número de actualizaciones métricas ingeridas por nombre de métrica
+
+  ```sql
+  SELECT count(*) FROM Metric WHERE metricName LIKE 'system.%' FACET metricName LIMIT max
+  ```
+
+* Consulta de métricas específicas facetadas por host
+
+  ```sql
+  SELECT average(system.disk.operations) FROM Metric FACET host.name TIMESERIES
+  ```
+
+* Listado de dimensiones disponibles para una métrica determinada
+
+  ```sql
+  SELECT keyset() FROM Metric WHERE metricName = 'system.disk.operations'
+  ```
+
+* Consultando número de log de eventos por host
+
+  ```sql
+  SELECT count(*) FROM Log FACET host.name TIMESERIES
+  ```
+
+Obtenga más información sobre [cómo consultar el tipo de datos de métrica](/docs/data-apis/understand-data/metric-data/query-metric-data-type).
+
+## ¿Que sigue? [#next]
+
+Después de configurar su recolector, consulte nuestra guía [de mejores prácticas](/docs/integrations/open-source-telemetry-integrations/opentelemetry/opentelemetry-concepts/) para obtener sugerencias para mejorar el uso de OpenTelemetry y New Relic.

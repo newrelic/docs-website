@@ -59,7 +59,7 @@ yarn start
 
 Your site is now running at [`http://localhost:8000`](http://localhost:8000)!
 
-The first time you build the site locally, it will take upwards of 20 minutes. This is normal, and will take signifigantly less time afterwards.
+The first time you build the site locally, it will take upwards of 20 minutes. This is normal, and will take significantly less time afterward.
 
 ### Dependencies
 
@@ -105,8 +105,9 @@ If the workflows are enabled and running, you will want to disable them. You can
 2. Make your changes.
 3. Test your changes! Review the project's [READ ME](README.md) for instructions on how to build and run tests locally.
 4. Submit a `Pull Request` to this project with your changes.
-5. If/when your `PR` is accepted, the automation in this project will build the site and deploy a new version of the code to `docs.newrelic.com`.
-6. And you are done!
+5. A preview will start building automatically when a PR is opened. To update the preview after further commits, leave a comment on the PR that says `netlify build`.
+6. If/when your `PR` is accepted, the automation in this project will build the site and deploy a new version of the code to `docs.newrelic.com`.
+7. And you are done!
 
 ### Submitting a PR from a cloned repo
 
@@ -116,8 +117,9 @@ If the workflows are enabled and running, you will want to disable them. You can
 3. Make your changes.
 4. Test your changes! Review the project's [READ ME](README.md) for instructions on how to build and run tests locally.
 5. Submit a `Pull Request` to this project with your changes.
-6. If/when your `PR` is accepted, the automation in this project will build the site and deploy a new version of the code to `docs.newrelic.com`.
-7. And you are done!
+6. A preview will start building automatically when a PR is opened. To update the preview after further commits, leave a comment on the PR that says `netlify build`.
+7. If/when your `PR` is accepted, the automation in this project will build the site and deploy a new version of the code to `docs.newrelic.com`.
+8. And you are done!
 
 ### Using the `develop` branch
 
@@ -287,7 +289,7 @@ if you face issues in contributing.
 
 ### General Install, compile or build issues
 
-Many of the common errors you'll face can be resolve by the following:
+Many of the common errors you'll face can be resolved by the following:
 
 1. Ensure you are using `yarn` not `npm`
 2. Always run `git pull` whenever you intend to create a new working branch

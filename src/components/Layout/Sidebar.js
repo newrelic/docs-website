@@ -27,7 +27,7 @@ const Sidebar = ({ children, className }) => {
           bottom: 0;
           left: 0;
           right: 0;
-          padding: var(--site-content-padding);
+          padding: 1.5rem;
           overflow: auto;
         `}
       >
