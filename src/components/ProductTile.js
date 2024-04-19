@@ -65,6 +65,7 @@ const ProductTile = ({ children, icon, title, to }) => {
           transition: height 500ms, transform 500ms, width 500ms;
           width: 100%;
           border-radius: 10px;
+          box-shadow: none;
 
           .text {
             margin: 0;
@@ -137,7 +138,7 @@ const ProductTile = ({ children, icon, title, to }) => {
         <Icon
           name={icon}
           size="1rem"
-          className="hover-hide"
+          className="hover-hide product-icon"
           css={css`
             align-self: flex-end;
             bottom: 1rem;

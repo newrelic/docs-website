@@ -114,9 +114,17 @@ export const DocTile = ({
             font-weight: 300;
             padding: 0;
           }
+          button {
+            text-decoration: underline;
+          }
+
           &:hover {
             box-shadow: rgba(0, 0, 0, 0.3) 0px 4px 6px -1px,
               rgba(0, 0, 0, 0.1) 0px 2px 4px -1px;
+            button,
+            svg {
+              color: var(--brand-button-primary-accent);
+            }
           }
           .dark-mode &:hover {
             box-shadow: unset;

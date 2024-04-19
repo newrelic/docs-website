@@ -30,6 +30,7 @@ const HomePageLayout = ({ children, pageContext }) => {
               @media screen and (max-width: 1240px) {
                 --sidebar-width: 0;
               }
+              --link-color: rgb(243, 244, 244);
             `}
           >
             <Layout.Sidebar

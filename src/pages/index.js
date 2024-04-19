@@ -152,13 +152,25 @@ const HomePage = ({ data }) => {
       <Section
         layout={layout}
         css={css`
-            h3:nth-of-type(2) {
-                padding-top: 0;
-              }
-              max-width: 1440px;
-              padding: 0 5% 2rem;
+          h3:nth-of-type(2) {
+            padding-top: 0;
+          }
+          max-width: 1440px;
+          padding: 0 5% 2rem;
+
+          > div:nth-of-type(3n + 1) .product-icon {
+            color: #ff8300;
+          }
+          > div:nth-of-type(3n + 2) .product-icon {
+            color: #ff40b4;
+          }
+          > div:nth-of-type(3n + 3) .product-icon {
+            color: #0095a9;
+            .dark-mode & {
+              color: #1dcad3;
             }
-          `}
+          }
+        `}
       >
         <SectionTitle title={t('home.productTilesHeader')} />
 

@@ -82,7 +82,6 @@ const HomepageBanner = () => {
           max-width: 880px;
           width: 80%;
           svg {
-            color: red;
             color: var(--primary-text-color);
           }
         `}
@@ -101,6 +100,9 @@ const HomepageBanner = () => {
           font-size: 1rem;
           a {
             margin-left: 0.25rem;
+            &:hover {
+              color: var(--brand-button-primary-accent);
+            }
           }
           @media screen and (max-width: 550px) {
             font-size: 0.75rem;
@@ -112,11 +114,11 @@ const HomepageBanner = () => {
         `}
       >
         <p>{t('home.search.popularSearches.title')}: </p>
-        <Link to="?q=nrql">{t('home.search.popularSearches.options.0')}</Link>
-        <Link to="?q=logs">{t('home.search.popularSearches.options.1')}</Link>
-        <Link to="?q=alert">{t('home.search.popularSearches.options.2')}</Link>
+        <Link to="?q=nrql">{t('home.search.popularSearches.options.0')},</Link>
+        <Link to="?q=logs">{t('home.search.popularSearches.options.1')},</Link>
+        <Link to="?q=alert">{t('home.search.popularSearches.options.2')},</Link>
         <Link to="?q=best practices">
-          {t('home.search.popularSearches.options.3')}
+          {t('home.search.popularSearches.options.3')},
         </Link>
         <Link to="?q=kubernetes">
           {t('home.search.popularSearches.options.4')}
