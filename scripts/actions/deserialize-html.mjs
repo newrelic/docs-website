@@ -12,9 +12,9 @@ import last from 'lodash/last.js';
 import yaml from 'js-yaml';
 import { configuration } from './configuration.js';
 
-const component = (h, node) => {
+const component = (state, node) => {
   if (!node.properties || !node.properties.dataType) {
-    return defaultHandlers[node.tagName](h, node);
+    return defaultHandlers[node.tagName](state, node);
   }
 
   const { dataType, dataComponent } = node.properties;
@@ -34,7 +34,7 @@ const component = (h, node) => {
     );
   }
 
-  return handler.deserialize(h, node);
+  return handler.deserialize(state, node);
 };
 
 const headingWithCustomId = (state, node) => {
