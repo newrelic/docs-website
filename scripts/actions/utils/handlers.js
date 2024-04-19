@@ -22,8 +22,12 @@ module.exports = {
       }),
     deserialize: (state, node) => {
       const { lang, value } = deserializeJSValue(node.properties.dataProps);
+      const { meta } = JSON.parse(
+        Buffer.from(node.properties.dataProps ?? '', 'base64').toString()
+      );
       return {
         type: 'code',
+        meta,
         value,
         lang,
       };
