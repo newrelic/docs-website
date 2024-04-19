@@ -15,7 +15,7 @@ Update to the latest runtimes by [following procedures in our transition guide](
 
 The new runtimes improve on our legacy runtime environment, including but not limited to these changes:  
 
-* Updating to the new runtime will remove certain CVE findings that cannot be resolved with legacy runtime environments. The legacy runtime design and Containerized Private Minion (CPM) include deprecated technologies that may trigger CVE findings that cannot be resolved without impacting the functionality of legacy runtimes.
+* Updating to the new runtime will remove certain CVE findings that cannot be resolved due to  the legacy runtime design and backward compatibility requirements of the Containerized Private Minion (CPM)
 * Support for newer Chrome and Node.js versions, including easier upgrade paths
 * More frequent browser version updates
 * Access device emulation and other new capabilities 
