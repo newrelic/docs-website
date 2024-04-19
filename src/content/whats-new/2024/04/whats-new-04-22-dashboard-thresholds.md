@@ -1,7 +1,7 @@
 ---
 title: 'New thresholds markers for line charts and tables'
 summary: 'Configure thresholds on line charts and tables to add context and make your data easier to interpret.'
-releaseDate: '2023-04-22'
+releaseDate: '2024-04-22'
 learnMoreLink: 'https://docs.newrelic.com/docs/query-your-data/explore-query-data/use-charts/use-your-charts/#thresholds' 
 getStartedLink: ''
 ---
@@ -22,6 +22,7 @@ With thresholds you can:
 
 ## How to configure thresholds
 In time series charts:
+
 1. Edit the chart and expand the **Thresholds** menu.
 2. Select **+** to add a threshold and enter a **Name**.
 3. Enter values for **From** and **To**. If you want to create a single line, enter the same number for both fields.
