@@ -206,7 +206,7 @@ module.exports = {
   },
   InlineCode: {
     deserialize: (state, node) => ({
-      type: 'mdxJsxTextElement',
+      type: 'mdxJsxFlowElement',
       name: 'InlineCode',
       children: state.all(node),
     }),

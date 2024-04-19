@@ -127,7 +127,9 @@ test('deserializes components with children', async () => {
 
 test('deserializes InlineCode components', async () => {
   const input = `
-<InlineCode>agent.send_custom_event</InlineCode>
+<InlineCode>
+  agent.send_custom_event
+</InlineCode>
   `;
 
   const mdx = await deserializeHTML(await serializeMDX(input));
