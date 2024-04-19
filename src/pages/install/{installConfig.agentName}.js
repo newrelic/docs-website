@@ -220,6 +220,7 @@ const InstallPage = ({ data, location }) => {
             'content page-tools';
           grid-template-columns: minmax(0, 1fr) 12.8125rem;
           grid-column-gap: 2rem;
+          padding: 0;
 
           @media screen and (max-width: 1240px) {
             grid-template-areas:

@@ -101,6 +101,7 @@ const HomePage = ({ data }) => {
         </Link>
       </div>
       <HomepageBanner />
+      <Icon name="nr-vulnerability" />
       <Section
         layout={layout}
         css={css`
