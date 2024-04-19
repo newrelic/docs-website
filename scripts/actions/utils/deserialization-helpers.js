@@ -37,7 +37,7 @@ const deserializeAttributeValue = (h, node) => {
   }
 
   if (node.type === 'element') {
-    const tree = deserializeComponent(h, node, { type: 'mdxSpanElement' });
+    const tree = deserializeComponent(h, node, { type: 'mdxJsxTextElement' });
     const transformedTree = attributeProcessor.runSync(tree);
 
     return mdxValueExpression(attributeProcessor.stringify(transformedTree));

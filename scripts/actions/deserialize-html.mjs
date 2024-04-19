@@ -110,15 +110,18 @@ const processor = unified()
       h6: headingWithCustomId,
     },
   })
+  // order matters here.
+  // remark-mdx must come before remark-stringify, because it adds handlers
+  // for MDX nodes like `mdxJsxTextElement` and otherwise, remark-stringfy
+  // won't know how to stringify those nodes.
+  .use(remarkMdx)
   .use(stringify, {
     bullet: '*',
     fences: true,
     listItemIndent: '1',
   })
-  .use(remarkMdx)
-  // .use(remarkMdxjs)
-  .use(frontmatter, ['yaml']);
-// .use(stripTranslateFrontmatter);
+  .use(frontmatter, ['yaml'])
+  .use(stripTranslateFrontmatter);
 
 const deserializeHTML = async (html) => {
   const vfile = await processor.process(html);

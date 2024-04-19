@@ -370,7 +370,7 @@ module.exports = {
   },
   var: {
     deserialize: (state, node) =>
-      deserializeComponent(state, node, { type: 'mdxSpanElement' }),
+      deserializeComponent(state, node, { type: 'mdxJsxTextElement' }),
     serialize: (h, node) =>
       serializeComponent(h, node, {
         wrapChildren: false,
@@ -380,7 +380,7 @@ module.exports = {
   },
   mark: {
     deserialize: (state, node) =>
-      deserializeComponent(state, node, { type: 'mdxSpanElement' }),
+      deserializeComponent(state, node, { type: 'mdxJsxTextElement' }),
     serialize: (h, node) =>
       serializeComponent(h, node, {
         wrapChildren: false,
