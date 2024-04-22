@@ -4,9 +4,9 @@ summary: 'Ingest logs with ANSI color codes to display in the log table'
 releaseDate: '2024-04-22'
 ---
 
-View your logs with ANSI respected colors in its text with this new change to the Logs UI!
+The records you view in the **Logs** UI are now color coded. This new addition displays log text in ANSI supported colors.
 
-To get started, ingest logs with ANSI color codes attached to a log attribute. Ensure that proper unicode escape characters are used when sending in ANSI color codes.
+When a log line is ingested that has ANSI color codes attached to a log attribute, that log line is parsed and displayed automatically in the log table with the ANSI codes respected. You do not need to add additional parsing rules, just ensure that proper unicode escape characters are used in the logs. If no ANSI color codes are supplied at ingest, then the log line will be displayed in the default color of the log table.
 
 Example log: 
 ```
@@ -16,7 +16,7 @@ Example log:
 }
 ``` 
 
-Once ingested, go to the **Logs UI** and you will see your log lines with their respective ANSI colors. Note: this update supports the extended 256 ANSI color set. 
+Once the logs are ingested, go to the **Logs** UI where you'll see your log lines with their respective ANSI colors.
 
 For more information on ingesting logs, read the [Forwarding logs documentation](https://docs.newrelic.com/docs/logs/forward-logs/enable-log-management-new-relic/).
 
