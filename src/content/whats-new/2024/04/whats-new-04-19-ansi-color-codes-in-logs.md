@@ -16,7 +16,7 @@ Example log:
 }
 ``` 
 
-Once the logs are ingested, go to the **Logs** UI where you'll see your log lines with their respective ANSI colors.
+Once the logs are ingested, go to the **Logs** UI where you'll see your log lines with their respective ANSI colors. Note: this update supports the extended 256 ANSI color set. 
 
 For more information on ingesting logs, read the [Forwarding logs documentation](https://docs.newrelic.com/docs/logs/forward-logs/enable-log-management-new-relic/).
 
