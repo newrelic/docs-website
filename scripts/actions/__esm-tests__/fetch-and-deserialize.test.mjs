@@ -1,12 +1,12 @@
 import esmock from 'esmock';
 import { expect } from 'expect';
+import sinon from 'sinon';
 import { test } from 'uvu';
 import vfile from 'vfile';
 
-// Jest mocks had a way to track this built into mock functions,
-// esmock does not.
-let copySyncCalls = 0;
+// for some reason, sinon.stub just does not work for this function
 let writeSyncCalls = 0;
+const copySync = sinon.stub();
 const { writeFilesSync, createFileUriBatches } = await esmock(
   '../fetch-and-deserialize.mjs',
   {
@@ -18,9 +18,7 @@ const { writeFilesSync, createFileUriBatches } = await esmock(
       },
     },
     'fs-extra': {
-      copySync: () => {
-        copySyncCalls += 1;
-      },
+      copySync,
       existsSync: () => {},
     },
   }
@@ -53,7 +51,7 @@ test('should call writeSync for each file', () => {
 test('should not copy directories that dont have images', () => {
   writeFilesSync(testFiles);
 
-  expect(copySyncCalls).toEqual(0);
+  expect(copySync.callCount).toEqual(0);
 });
 
 // TODO: make this work for uvu
