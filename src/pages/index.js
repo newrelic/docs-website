@@ -36,15 +36,15 @@ const HomePage = ({ data }) => {
 
   // using the json content to generate the Product tiles section
   const productTileJson = (() => {
-    if (locale === 'en' && enJson.home.productTiles)
+    if (locale === 'en' && 'productTiles' in enJson.home)
       return enJson.home.productTiles;
-    if (locale === 'kr' && krJson.home.productTiles)
+    if (locale === 'kr' && 'productTiles' in krJson.home)
       return krJson.home.productTiles;
-    if (locale === 'jp' && jpJson.home.productTiles)
+    if (locale === 'jp' && 'productTiles' in jpJson.home)
       return jpJson.home.productTiles;
-    if (locale === 'es' && esJson.home.productTiles)
+    if (locale === 'es' && 'productTiles' in esJson.home)
       return esJson.home.productTiles;
-    if (locale === 'pt' && ptJson.home.productTiles)
+    if (locale === 'pt' && 'productTiles' in ptJson.home)
       return ptJson.home.productTiles;
     return enJson.home.productTiles;
   })();
