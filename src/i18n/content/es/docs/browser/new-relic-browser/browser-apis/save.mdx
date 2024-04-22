@@ -1,0 +1,62 @@
+---
+title: save (SPA API)
+type: apiDoc
+shortDescription: Garantiza que una interacción browser SPA se guardará cuando finalice.
+tags:
+  - Browser
+  - Browser monitoring
+  - Browser agent and SPA API
+metaDescription: SPA API call with browser monitoring to ensures an interaction will be saved when it ends.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+## Sintaxis
+
+```js
+newrelic.interaction().save()
+```
+
+Garantiza que una interacción browser SPA se guardará cuando finalice.
+
+## Requisitos
+
+* Browser Pro+SPA agente (v963 o superior)
+
+* Si está utilizando npm para instalar el agente del navegador, debe habilitar la característica `spa` al crear una instancia de la clase `BrowserAgent` . En la matriz `features` , agregue lo siguiente:
+
+  ```js
+  import { Spa } from '@newrelic/browser-agent/features/spa';
+
+  const options = {
+    info: { ... },
+    loader_config: { ... },
+    init: { ... },
+    features: [
+      Spa
+    ]
+  }
+  ```
+
+  Para obtener más información, consulte la [documentación de instalación del navegador npm](https://www.npmjs.com/package/@newrelic/browser-agent#new-relic-browser-agent).
+
+## Descripción
+
+Este método SPA garantiza que la interacción browser se guardará cuando finalice. Normalmente, una interacción solo se guarda y se envía a New Relic si se trata de una carga de página inicial o si resulta en una URL o un cambio de hash. Debe llamar a este método para anular este comportamiento y garantizar que se registre la interacción.
+
+## Valores de retorno
+
+Este método devuelve el mismo objeto API creado por `interaction()`, que está asociado con un [evento`BrowserInteraction` ](/docs/insights/explore-data/attributes/browser-default-attributes-insights#browserinteraction-attributes).
+
+## Ejemplos
+
+```js
+window.addEventListener('scroll', () => {
+  if (atBottomOfPage()) {
+    newrelic.interaction() // Start monitoring this interaction.
+      .setName('loadNextPage') // Set name of interaction.
+      .save(); // Ensure that this interaction will be saved as a BrowserInteraction event when it ends.
+    loadNextPage(); // Start loading the next page.
+  }
+});
+```

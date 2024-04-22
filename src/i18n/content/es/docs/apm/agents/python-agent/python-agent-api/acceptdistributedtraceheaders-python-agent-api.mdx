@@ -1,0 +1,120 @@
+---
+title: Accept_distributed_trace_headers (API del agente Python)
+type: apiDoc
+shortDescription: Este método se utiliza para aceptar los encabezados utilizados para conectar transacciones dentro de un rastreo distribuido.
+tags:
+  - Agents
+  - Python agent
+  - Python agent API
+metaDescription: 'Python API: Used for implementing distributed tracing.'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+## Sintaxis
+
+```py
+newrelic.agent.accept_distributed_trace_headers(headers, transport_type='HTTP')
+```
+
+Este método se utiliza para aceptar los encabezados utilizados para conectar transacciones dentro de un rastreo distribuido.
+
+## Requisitos
+
+Agente Python versión 5.6.0.135 o superior.
+
+rastreo distribuido debe estar [habilitado](/docs/enable-distributed-tracing#python).
+
+## Descripción
+
+Para obtener contexto sobre cómo utilizar esta llamada, primero lea la llamada API de su socio [`insert_distributed_trace_headers`](/docs/agents/python-agent/python-agent-api/insertdistributedtraceheaders-python-agent-api) y [Habilitar rastreo distribuido con API de agente](/docs/enable-distributed-tracing#agent-apis).
+
+Esta llamada se utiliza para vincular transacciones analizando los encabezados del rastreo distribuido generados por [`insert_distributed_trace_headers`](/docs/agents/python-agent/python-agent-api/insertdistributedtraceheaders-python-agent-api).
+
+## Parámetros
+
+<table>
+  <thead>
+    <tr>
+      <th width="25%">
+        Parámetro
+      </th>
+
+      <th>
+        Descripción
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `headers`
+
+        _diccionario o lista_
+      </td>
+
+      <td>
+        Requerido. Los encabezados que se aceptarán. Puede proporcionarse como un iterable de (`header_name`, `header_value`) o como un diccionario.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `transport_type`
+
+        _cadena_
+      </td>
+
+      <td>
+        Opcional, el valor predeterminado es `HTTP`. El tipo de transporte que envió esta carga útil. Debe ser uno de los siguientes: `HTTP`, `HTTPS`, `Kafka`, `JMS`, `IronMQ`, `AMQP`, `Queue` o `Other`.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Valores de retorno
+
+Cuando tiene éxito, devuelve `True`.
+
+Si no tiene éxito, devuelve `False`. La aceptación de una carga útil puede fallar por varios motivos:
+
+* La transacción actual no está habilitada.
+* Se llamó a Accept fuera del alcance de una transacción.
+* La carga útil está vacía.
+* rastreo distribuido no está [habilitado](/docs/enable-distributed-tracing).
+* `accept_distributed_trace_*` fue llamado después de que se había creado una carga útil y no antes.
+* `accept_distributed_trace_*` fue llamado varias veces en una sola transacción.
+* No se pudo analizar la carga útil.
+* La carga útil se envió desde una cuenta que no es de confianza.
+
+## Ejemplos
+
+### Aceptar una carga útil de rastreo distribuida dentro de una tarea en segundo plano [#function-trace-example]
+
+Un ejemplo de uso de `accept_distributed_trace_payload` en una tarea en segundo plano:
+
+```py
+@newrelic.agent.background_task()
+def handle(request):
+    newrelic.agent.accept_distributed_trace_headers(request.headers)
+
+    _do_some_work()
+```
+
+### Consumir en cola [#function-trace-example]
+
+Un ejemplo de uso `accept_distributed_trace_payload` y creación de una [tarea en segundo plano](/docs/agents/python-agent/supported-features/python-background-tasks) para cada mensaje:
+
+```py
+import newrelic.agent
+newrelic.agent.initialize('newrelic.ini')
+application = newrelic.agent.register_application(timeout=10.0)
+
+def main(queue):
+    for message in queue.consume():
+        with newrelic.agent.BackgroundTask(application, 'Queue Consume'):
+            newrelic.agent.accept_distributed_trace_headers(message.headers,
+                    transport_type='Queue')
+            _process_message(message)
+```
