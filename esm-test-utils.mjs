@@ -9,7 +9,8 @@ const SNAPSHOT_DIR = './__snapshots__/';
 /**
  * create snapshot tests.
  * a snapshot is created on the first run of a test if one doesn't already exist.
- * snapshots can be updated by setting `UPDATE_UVU_SNAPSHOTS=true`.
+ * snapshots can be updated by setting `UPDATE_UVU_SNAPSHOTS=true` as an environment variable.
+ * ie: `UPDATE_UVU_SNAPSHOTS=true yarn test:esm`
  *
  * @example
  * ```js
@@ -25,7 +26,7 @@ const SNAPSHOT_DIR = './__snapshots__/';
  */
 export const initSnapshots = async (suiteName) => {
   const suiteDir = path.join(SNAPSHOT_DIR, slugify(suiteName));
-  // this will error if the path already exists
+  // this will error if the path already exists, the catch ignores it
   await fs.mkdir(suiteDir, { recursive: true }).catch(() => {});
 
   return async (testName, actual) => {
