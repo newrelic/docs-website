@@ -9,6 +9,7 @@ import { defaultHandlers } from 'hast-util-to-mdast9';
 import u from 'unist-builder';
 import last from 'lodash/last.js';
 import yaml from 'js-yaml';
+import { visit } from 'unist-util-visit4';
 import { configuration } from './configuration.js';
 
 /**
@@ -36,7 +37,7 @@ const component = (state, node) => {
     );
   }
 
-  return handler.deserialize(state, node);
+  return handler.deserialize(state, node, undefined, attributeProcessor);
 };
 
 const headingWithCustomId = (state, node) => {
@@ -87,6 +88,28 @@ const stripTranslateFrontmatter = () => {
 
   return transformer;
 };
+
+const inlineCodeAttribute = () => (tree) => {
+  visit(tree, 'inlineCode', (node) => {
+    node.type = 'mdxJsxSpanElement';
+    node.name = 'InlineCode';
+    node.children = [u('text', node.value)];
+  });
+};
+
+// previously, this processor was defined in `deserialization-helpers`.
+// upgrading unified there would have involved changing a lot of CJS modules to ESM.
+// this is a sort of workaround to avoid doing all that,
+// but still allow attribute deserialization to work with the new node types
+// introduced in newer versions of remarkMDX. (`mdxJsx*` nodes vs `mdx*` nodes.)
+const attributeProcessor = unified()
+  .use(stringify, {
+    bullet: '*',
+    fences: true,
+    listItemIndent: '1',
+  })
+  .use(remarkMdx)
+  .use(inlineCodeAttribute);
 
 const processor = unified()
   .use(parse)

@@ -3,21 +3,11 @@ import path, { dirname } from 'path';
 import { expect } from 'expect';
 import { fileURLToPath } from 'url';
 import { test } from 'uvu';
-// import { mock } from 'node:test';
 
-// import { configuration } from '../configuration.js';
 import deserializeHTML from '../deserialize-html.mjs';
 import serializeMDX from '../serialize-mdx.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-
-// mock('../configuration', () => ({
-//   configuration: {
-//     TRANSLATION: {
-//       TYPE: 'human',
-//     },
-//   },
-// }));
 
 test('deserializes mdx with DoNotTranslate', async () => {
   const input = `
@@ -101,7 +91,16 @@ test('deserializes components with text props', async () => {
 
 test('deserializes components with text props as JSX expressions', async () => {
   const input = `
-<Collapser title={<><InlineCode>agent.send_custom_event</InlineCode> API</>}>
+<Collapser
+  title={<>
+    <InlineCode>
+      agent.send_custom_event
+    </InlineCode>
+
+    API
+  </>
+  }
+>
   All about that API
 </Collapser>
   `;
@@ -114,7 +113,16 @@ test('deserializes components with text props as JSX expressions', async () => {
 test('deserializes components with children', async () => {
   const input = `
 <CollapserGroup>
-  <Collapser title={<><InlineCode>agent.send_custom_event</InlineCode> API</>}>
+  <Collapser
+    title={<>
+      <InlineCode>
+        agent.send_custom_event
+      </InlineCode>
+
+      API
+    </>
+    }
+  >
     All about that API
   </Collapser>
 </CollapserGroup>
