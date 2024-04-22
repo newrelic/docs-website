@@ -1,11 +1,21 @@
+import esmock from 'esmock';
 import fs from 'fs';
 import path, { dirname } from 'path';
 import { expect } from 'expect';
 import { fileURLToPath } from 'url';
 import { test } from 'uvu';
 
-import deserializeHTML from '../deserialize-html.mjs';
 import serializeMDX from '../serialize-mdx.js';
+
+const deserializeHTML = await esmock('../deserialize-html.mjs', {
+  '../configuration.js': {
+    configuration: {
+      TRANSLATION: {
+        TYPE: 'human',
+      },
+    },
+  },
+});
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
