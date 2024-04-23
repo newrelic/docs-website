@@ -28,7 +28,7 @@ In time series charts:
 3. Enter values for **From** and **To**. If you want to create a single line, enter the same number for both fields.
 4. Select a **Severity level**. This determines the color of the line and/or region.
 
-![Setting thresholds in a line chart](./images/thresholds-timeseries.png "Setting thresholds in a line chart")
+![Setting thresholds in a line chart](./images/thresholds-timeseries.webp "Setting thresholds in a line chart")
 
 In tables:
 1. Edit the table widget and expand the **Thresholds** menu.
@@ -36,7 +36,7 @@ In tables:
 3. Enter values for **From** and **To**. To set an upper bound, leave the **From** field empty. To set a lower bound, leave the **To** field empty.
 4. Select a **Severity level**. This determines the color of the cell.
 
-![Setting thresholds in a table widget](./images/thresholds-table.png "Setting thresholds in a table widget")
+![Setting thresholds in a table widget](./images/thresholds-table.webp "Setting thresholds in a table widget")
 
 ## Remove a threshold
 To remove a threshold marker or region, hover over one of the fields and select the **-** symbol beside the Name field.
