@@ -20,7 +20,7 @@ Once the logs are ingested, go to the **Logs** UI where you'll see your log line
 
 For more information on ingesting logs, read the [Forwarding logs documentation](https://docs.newrelic.com/docs/logs/forward-logs/enable-log-management-new-relic/).
 
-!["A screenshot of an example log with ANSI color coding."](./images/ansi-color-codes-in-log-table.png "A screenshot of an example log with ANSI color coding.")
+!["A screenshot of an example log with ANSI color coding."](./images/ansi-color-codes-in-log-table.webp "A screenshot of an example log with ANSI color coding.")
 <figcaption>
   A screenshot of an example log with ANSI color coding.  
 </figcaption>
