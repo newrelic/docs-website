@@ -36,17 +36,17 @@ const HomePage = ({ data }) => {
 
   // using the json content to generate the Product tiles section
   const productTileJson = (() => {
-    if (locale === 'en' && 'productTiles' in enJson.home)
-      return enJson.home.productTiles;
+    if (locale === 'en' && 'productTiles' in enJson.strings.home)
+      return enJson.strings.home.productTiles;
     if (locale === 'kr' && 'productTiles' in krJson.home)
-      return krJson.home.productTiles;
+      return krJson.strings.home.productTiles;
     if (locale === 'jp' && 'productTiles' in jpJson.home)
-      return jpJson.home.productTiles;
+      return jpJson.strings.home.productTiles;
     if (locale === 'es' && 'productTiles' in esJson.home)
-      return esJson.home.productTiles;
+      return esJson.strings.home.productTiles;
     if (locale === 'pt' && 'productTiles' in ptJson.home)
-      return ptJson.home.productTiles;
-    return enJson.home.productTiles;
+      return ptJson.strings.home.productTiles;
+    return enJson.strings.home.productTiles;
   })();
 
   const mobileBreakpoint = '450px';
@@ -67,42 +67,42 @@ const HomePage = ({ data }) => {
           padding: 0 calc(5% + 8px); // to match the product tiles outer edges
         `}
       >
-        <SectionTitle title={t('home.getStarted')} />
+        <SectionTitle title={t('strings.home.getStarted')} />
         <OnboardingContainer>
           <OnboardingStep
-            button={t('home.onBoarding.0.button')}
-            buttonHref={t('home.onBoarding.0.buttonHref')}
+            button={t('strings.home.onBoarding.0.button')}
+            buttonHref={t('strings.home.onBoarding.0.buttonHref')}
             number={0}
-            text={t('home.onBoarding.0.text')}
-            title={t('home.onBoarding.0.title')}
+            text={t('strings.home.onBoarding.0.text')}
+            title={t('strings.home.onBoarding.0.title')}
           />
           <OnboardingStep
-            docsHref={t('home.onBoarding.1.docsHref')}
-            hrefText={t('home.onBoarding.1.hrefText')}
+            docsHref={t('strings.home.onBoarding.1.docsHref')}
+            hrefText={t('strings.home.onBoarding.1.hrefText')}
             number={1}
-            text={t('home.onBoarding.1.text')}
-            title={t('home.onBoarding.1.title')}
+            text={t('strings.home.onBoarding.1.text')}
+            title={t('strings.home.onBoarding.1.title')}
           />
           <OnboardingStep
-            button={t('home.onBoarding.2.button')}
-            buttonHref={t('home.onBoarding.2.buttonHref')}
+            button={t('strings.home.onBoarding.2.button')}
+            buttonHref={t('strings.home.onBoarding.2.buttonHref')}
             number={2}
-            text={t('home.onBoarding.2.text')}
-            title={t('home.onBoarding.2.title')}
+            text={t('strings.home.onBoarding.2.text')}
+            title={t('strings.home.onBoarding.2.title')}
           />
           <OnboardingStep
-            docsHref={t('home.onBoarding.3.docsHref')}
-            hrefText={t('home.onBoarding.3.hrefText')}
+            docsHref={t('strings.home.onBoarding.3.docsHref')}
+            hrefText={t('strings.home.onBoarding.3.hrefText')}
             number={3}
-            text={t('home.onBoarding.3.text')}
-            title={t('home.onBoarding.3.title')}
+            text={t('strings.home.onBoarding.3.text')}
+            title={t('strings.home.onBoarding.3.title')}
           />
         </OnboardingContainer>
       </Section>
 
       {/* ------ Popular docs ------ */}
       <Section layout={layout}>
-        <SectionTitle title={t('home.popularDocs.title')} />
+        <SectionTitle title={t('strings.home.popularDocs.title')} />
         <div>
           <DocTiles
             variant="homepage"
@@ -127,22 +127,22 @@ const HomePage = ({ data }) => {
             `}
           >
             <DocTile
-              buttonText={t('home.popularDocs.learnMore')}
+              buttonText={t('strings.home.popularDocs.learnMore')}
               path="/docs/apm/new-relic-apm/getting-started/introduction-apm"
             >
-              {t('home.popularDocs.t1.title')}
+              {t('strings.home.popularDocs.t1.title')}
             </DocTile>
             <DocTile
-              buttonText={t('home.popularDocs.learnMore')}
+              buttonText={t('strings.home.popularDocs.learnMore')}
               path="/docs/browser/browser-monitoring/getting-started/introduction-browser-monitoring/"
             >
-              {t('home.popularDocs.t2.title')}
+              {t('strings.home.popularDocs.t2.title')}
             </DocTile>
             <DocTile
-              buttonText={t('home.popularDocs.learnMore')}
+              buttonText={t('strings.home.popularDocs.learnMore')}
               path="/docs/synthetics/synthetic-monitoring/getting-started/get-started-synthetic-monitoring/"
             >
-              {t('home.popularDocs.t3.title')}
+              {t('strings.home.popularDocs.t3.title')}
             </DocTile>
           </DocTiles>
         </div>
@@ -172,7 +172,7 @@ const HomePage = ({ data }) => {
           }
         `}
       >
-        <SectionTitle title={t('home.productTilesHeader')} />
+        <SectionTitle title={t('strings.home.productTilesHeader')} />
 
         <ProductTileSection sections={productTileJson} />
       </Section>

@@ -61,10 +61,10 @@ const HomepageBanner = () => {
           }
         `}
       >
-        {t('home.pageTitle')}
+        {t('strings.home.pageTitle')}
       </h1>
       <SearchInput
-        placeholder={t('home.search.placeholder')}
+        placeholder={t('strings.home.search.placeholder')}
         size={SearchInput.SIZE.MEDIUM}
         value={searchTerm || ''}
         iconName={SearchInput.ICONS.SEARCH}
@@ -113,15 +113,21 @@ const HomepageBanner = () => {
           }
         `}
       >
-        <p>{t('home.search.popularSearches.title')}: </p>
-        <Link to="?q=nrql">{t('home.search.popularSearches.options.0')},</Link>
-        <Link to="?q=logs">{t('home.search.popularSearches.options.1')},</Link>
-        <Link to="?q=alert">{t('home.search.popularSearches.options.2')},</Link>
+        <p>{t('strings.home.search.popularSearches.title')}: </p>
+        <Link to="?q=nrql">
+          {t('strings.home.search.popularSearches.options.0')},
+        </Link>
+        <Link to="?q=logs">
+          {t('strings.home.search.popularSearches.options.1')},
+        </Link>
+        <Link to="?q=alert">
+          {t('strings.home.search.popularSearches.options.2')},
+        </Link>
         <Link to="?q=best practices">
-          {t('home.search.popularSearches.options.3')},
+          {t('strings.home.search.popularSearches.options.3')},
         </Link>
         <Link to="?q=kubernetes">
-          {t('home.search.popularSearches.options.4')}
+          {t('strings.home.search.popularSearches.options.4')}
         </Link>
       </div>
     </section>
