@@ -30,7 +30,6 @@ test('deserializes mdx with DoNotTranslate', async () => {
 
   const mdx = await deserializeHTML(await serializeMDX(input));
 
-  // assert.is(mdx, input.trim());
   expect(mdx).toEqual(input.trim());
 });
 
