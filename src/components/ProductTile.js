@@ -33,14 +33,14 @@ const ProductTile = ({ children, icon, title, to }) => {
         height: 8.625rem;
         margin: 1.5rem 0.5rem;
         position: relative;
-        width: calc(25% - 16px);
+        width: calc(25% - 1rem);
 
         @media screen and (max-width: 1439px) {
-          width: calc(33% - 16px);
+          width: calc(33% - 1rem);
         }
 
         @media screen and (max-width: 1000px) {
-          width: calc(50% - 16px);
+          width: calc(50% - 1rem);
         }
 
         @media screen and (max-width: 600px) {
