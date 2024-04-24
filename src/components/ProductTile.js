@@ -114,7 +114,7 @@ const ProductTile = ({ children, icon, title, to }) => {
       >
         <h3
           css={css`
-            font-size: 1.25rem;
+            font-size: 20px;
             font-weight: 400;
           `}
           className="title"
@@ -125,8 +125,8 @@ const ProductTile = ({ children, icon, title, to }) => {
         <p
           className="text"
           css={css`
-            font-size: 0.875rem;
-            line-height: 1.5rem;
+            font-size: 14px;
+            line-height: 24px;
             opacity: 0;
             transition: opacity 325ms;
             width: 100%;
@@ -137,13 +137,12 @@ const ProductTile = ({ children, icon, title, to }) => {
         </p>
         <Icon
           name={icon}
-          size="1rem"
+          size="20px"
           className="hover-hide product-icon"
           css={css`
             align-self: flex-end;
             bottom: 1rem;
             flex: 1;
-            max-height: 1.5625rem;
             position: absolute;
             right: 1rem;
           `}
