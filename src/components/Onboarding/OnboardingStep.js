@@ -1,7 +1,7 @@
 import React from 'react';
 import styled from '@emotion/styled';
 import { css } from '@emotion/react';
-import { Button, Icon } from '@newrelic/gatsby-theme-newrelic';
+import { Button, Icon, Link } from '@newrelic/gatsby-theme-newrelic';
 import useBoop from 'use-boop';
 import { animated } from 'react-spring';
 import PropTypes from 'prop-types';
@@ -58,7 +58,12 @@ const OnboardingStep = ({
         </ReadDocs>
       )}
       {button && (
-        <CTA number={number} variant={Button.VARIANT.OUTLINE} href={buttonHref}>
+        <CTA
+          number={number}
+          variant={Button.VARIANT.OUTLINE}
+          as={Link}
+          to={buttonHref}
+        >
           {button}
           <Icon
             css={css`
@@ -135,6 +140,12 @@ const CTA = styled(Button)`
   padding: 0.25rem 0.5rem;
   position: absolute;
   right: 50px;
+  &:hover {
+    border-color: ${(p) =>
+      p.number === 0 ? 'var(--brand-button-primary-accent-hover)' : '#00ac69'};
+    color: ${(p) =>
+      p.number === 0 ? 'var(--brand-button-primary-accent-hover)' : '#00ac69'};
+  }
 
   @media screen and (max-width: 1000px) {
     border-color: var(--button-border-color);
@@ -151,6 +162,10 @@ const ReadDocs = styled.a`
   display: flex;
   position: absolute;
   right: 50px;
+  &:hover {
+    border-color: var(--brand-button-primary-accent-hover);
+    color: var(--brand-button-primary-accent-hover);
+  }
 
   p {
     font-size: 14px;
