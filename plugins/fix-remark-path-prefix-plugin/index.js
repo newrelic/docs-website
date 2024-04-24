@@ -1,6 +1,6 @@
 const visit = require('unist-util-visit');
 
-module.exports = ({ markdownAST, pathPrefix, reporter }, { basePath = ''}) => {
+module.exports = ({ markdownAST, pathPrefix }, { basePath = ''}) => {
   // https://github.com/gatsbyjs/gatsby/issues/38362
 
   if (pathPrefix?.match('^(https?:\\/\\/)?')) {
