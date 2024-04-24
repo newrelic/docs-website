@@ -54,24 +54,23 @@ test('should not copy directories that dont have images', () => {
   expect(copySync.callCount).toEqual(0);
 });
 
-// TODO: make this work for uvu
-// it.each`
-//   inputSize | batchSize | numberOfBatches
-//   ${0}      | ${2}      | ${0}
-//   ${1}      | ${2}      | ${1}
-//   ${2}      | ${2}      | ${1}
-//   ${11}     | ${3}      | ${4}
-// `(
-//   "should create '$numberofBatches' when input size is '$inputSize' and batch size is '$batchSize'",
-//   ({ inputSize, batchSize, numberOfBatches }) => {
-//     const batches = createFileUriBatches(
-//       { fileUris: Array(inputSize) },
-//       batchSize
-//     );
+test('should created correct number of batches', () => {
+  const expected = [
+    { inputSize: 0, batchSize: 2, numberOfBatches: 0 },
+    { inputSize: 1, batchSize: 2, numberOfBatches: 1 },
+    { inputSize: 2, batchSize: 2, numberOfBatches: 1 },
+    { inputSize: 11, batchSize: 3, numberOfBatches: 4 },
+  ];
 
-//     expect(batches).toHaveLength(numberOfBatches);
-//   }
-// );
+  expected.forEach(({ inputSize, batchSize, numberOfBatches }) => {
+    const batches = createFileUriBatches(
+      { fileUris: Array(inputSize) },
+      batchSize
+    );
+
+    expect(batches).toHaveLength(numberOfBatches);
+  });
+});
 
 test('splits batches with correct content', () => {
   /**
