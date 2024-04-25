@@ -97,7 +97,7 @@ const AttributeDictionary = ({ pageContext, location }) => {
           }
         `}
       >
-        <PageTitle>{t('dataDictionary.title')}</PageTitle>
+        <PageTitle>{t('strings.dataDictionary.title')}</PageTitle>
         <div
           css={css`
             grid-area: 'page-description';
@@ -110,12 +110,12 @@ const AttributeDictionary = ({ pageContext, location }) => {
               margin-bottom: 1rem;
             `}
           >
-            <p>{t('dataDictionary.intro')}</p>
-            <p>{t('dataDictionary.introNot.0')}</p>
+            <p>{t('strings.dataDictionary.intro')}</p>
+            <p>{t('strings.dataDictionary.introNot.0')}</p>
             <ul>
-              <li>{t('dataDictionary.introNot.1')}</li>
-              <li>{t('dataDictionary.introNot.2')}</li>
-              <li>{t('dataDictionary.introNot.3')}</li>
+              <li>{t('strings.dataDictionary.introNot.1')}</li>
+              <li>{t('strings.dataDictionary.introNot.2')}</li>
+              <li>{t('strings.dataDictionary.introNot.3')}</li>
             </ul>
           </div>
 
