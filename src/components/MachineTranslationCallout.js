@@ -46,7 +46,7 @@ const MachineTranslationCallout = ({ englishHref }) => {
             font-size: 0.875em;
           `}
         >
-          <h4>{t('machineTranslation.calloutHeading')}</h4>
+          <h4>{t('strings.machineTranslation.calloutHeading')}</h4>
           <Trans i18nKey="machineTranslation.calloutBody" parent="p">
             In the event of any inconsistency between the English version and
             the translated version, the{' '}
