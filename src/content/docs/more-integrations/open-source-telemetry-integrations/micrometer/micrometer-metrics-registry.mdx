@@ -7,94 +7,144 @@ redirects:
 freshnessValidatedDate: never
 ---
 
-You can configure the OpenTelemetry (OTel) bridge to forward Micrometer data to New Relic. The OTel Micrometer bridge directs Micrometer to record telemetry to OTel, which you can then export to New Relic with the OpenTelemtry SDK. 
+You can configure the OpenTelemetry bridge to forward Micrometer data to New Relic. The OpenTelemetry Micrometer bridge directs Micrometer to record telemetry to OpenTelemetry, which you can then export to New Relic with the OpenTelemtry SDK. 
 
 This doc walks you through procedures to forward Micrometer data with an example Spring app. These are generalized steps that you may want to update to fit your specific environment. 
 
-## Prerequisites [#prereqs]
+## Compatibility and requirements [#requirements]
 
-Before you get started, we recommend that you:
+Before you get started, we recommend that review the requirements outlined in the [Getting started](https://github.com/open-telemetry/opentelemetry-java-instrumentation?tab=readme-ov-file#getting-started) section of the OpenTelemetry Java instrumentation repo. Once you've reviewed this section, return to this doc.
 
-* A Springboot app with Micrometer enabled. Your Springboot app should be instrumented with Micrometer out of the box.
-* Review the [Getting started](https://docs.newrelic.com/docs/style-guide/capitalization/product-capability-feature-usage/) section of the OpenTelemetry Java instrumentation repo. 
-* At minimum, ensure your OTel Java agent is the latest version.
+At minimum, you should:
 
-## Forward Micrometer data to New Relic [#forward-data-otel]
+* Have a Springboot app with Micrometer enabled. Your Springboot app should be instrumented with Micrometer out of the box.
+* Ensure your OpenTelemetry Java agent is the latest version.
+
+## Forward Micrometer data to New Relic [#forward-data-OpenTelemetry]
 
 <Steps>
     <Step>
 
 ### Add OpenTelemetry Micrometer instrumentation
 
-Add OTel Micrometer instrumentation to the alpha modules section of your `build.gradle` file:
+Add OpenTelemetry Micrometer instrumentation to the alpha modules section of your `build.gradle` file:
 
-    ```gradle
+    ```java
+    //Alpha modules
     implementation 'io.opentelemetry.instrumentation:opentelemetry-micrometer-1.5'
     ```
 
     </Step>
     <Step>
 
-        ### Add OTel API and SDK dependencies
+### Add OpenTelemetry API and SDK dependencies
         
-In the dependencies argument, add the OTel API and SDK:
+In the `dependencies()` argument, add the OpenTelemetry API and SDK:
 
-    ```
-    implementation 'io.opentelemetry:opentelemetry-api'
-    implementation 'io.opentelemetry:opentelemetry-sdk'
+    ```java
+    dependencies {
+        implementation 'io.opentelemetry:opentelemetry-api'
+        implementation 'io.opentelemetry:opentelemetry-sdk'
+    }
     ```
     
 An example completed file might look something like this:
 
-    ```
-    import org.springframework.boot.gradle.plugin.SpringBootPlugin
-
+    ```java
     plugins {
-    id 'java-library'
-    id 'org.springframework.boot'
+        id 'java-library'
+        id 'org.springframework.boot'
     }
 
     bootRun {
-    mainClass.set 'io.opentelemetry.example.micrometer.Application'
+        mainClass.set 'io.opentelemetry.example.micrometer.Application'
     }
 
     dependencies {
-    //api and sdk dependencies
-    implementation 'io.opentelemetry:opentelemetry-api'
-    implementation 'io.opentelemetry:opentelemetry-sdk'
+        //OpenTelemetry API and SDK
+        implementation 'io.opentelemetry:opentelemetry-api'
+        implementation 'io.opentelemetry:opentelemetry-sdk'
+        //Alpha modules where Micrometer instrumentation appears
+        implementation 'io.opentelemetry.instrumentation:opentelemetry-micrometer-1.5'
+        implementation 'io.opentelemetry:opentelemetry-exporter-otlp'
 
-    //alpha modules with micrometer instrumentation
-    implementation 'io.opentelemetry.instrumentation:opentelemetry-micrometer-1.5'
-    implementation 'io.opentelemetry:opentelemetry-exporter-otlp'
-
-    //spring modules
-    implementation platform(SpringBootPlugin.BOM_COORDINATES)
-    implementation 'org.springframework.boot:spring-boot-starter-web'
-    implementation 'org.springframework.boot:spring-boot-starter-actuator'
-    implementation 'org.springframework.boot:spring-boot-starter-aop'
+        implementation platform(SpringBootPlugin.BOM_COORDINATES)
+        implementation 'org.springframework.boot:spring-boot-starter-web'
+        implementation 'org.springframework.boot:spring-boot-starter-actuator'
+        implementation 'org.springframework.boot:spring-boot-starter-aop'
     }
     ```
 
     </Step>
     <Step>
 
-        ### Configure Micrometer to use OTel Micrometer instrumentation
+### Configure Micrometer to forward data to New Relic
+
+Below is an example code snippet that directs Micrometer to use the OpenTelemetry Micrometer bridge. This snippet updates your code so OpenTelemetry can:
+
+* Detect Micrometer data
+* Forward that data to New Relic
+
+```java
+public OpenTelemetry openTelemetry() {
+    return OpenTelemetrySdk.builder()
+        .setMeterProvider(
+            SdkMeterProvider.builder()
+                .setResource(
+                    Resource.getDefault().toBuilder()
+                        .put("service.name", "micrometer-shim")
+                        // Include instrumentation.provider=micrometer to enable micrometer metrics
+                        // experience in New Relic
+                        .put("instrumentation.provider", "micrometer")
+                        .build())
+                .registerMetricReader(
+                    PeriodicMetricReader.builder(
+                            OtlpHttpMetricExporter.builder()
+                                .setEndpoint("https://otlp.nr-data.net")
+                                .addHeader(
+                                    "api-key",
+                                    Optional.ofNullable(System.getenv("NEW_RELIC_LICENSE_KEY"))
+                                        .filter(str -> !str.isEmpty() && !str.isBlank())
+                                        .orElseThrow())
+                                // IMPORTANT: New Relic requires metrics to be delta temporality
+                                .setAggregationTemporalitySelector(
+                                    AggregationTemporalitySelector.deltaPreferred())
+                                // Use exponential histogram aggregation for histogram instruments
+                                // to
+                                // produce better data and compression
+                                .setDefaultAggregationSelector(
+                                    DefaultAggregationSelector.getDefault()
+                                        .with(
+                                            InstrumentType.HISTOGRAM,
+                                            Aggregation.base2ExponentialBucketHistogram()))
+                                .build())
+                        // Match default micrometer collection interval of 60 seconds
+                        .setInterval(Duration.ofSeconds(60))
+                        .build())
+                .build())
+        .build();
+    }
+```
+    
         
     </Step>
 
         <Step>
 
-        ### Configure OTel to send data to New Relic
-        
-    </Step>
+### Find your data in New Relic 
 
-        <Step>
+Wait a few minutes, trigger some test data, then go to **[one.newrelic.com](https://one.newrelic.com) > All Capabilities > APM & Services**, then choose the service instrumented with Micrometer.
 
-        ### Find your data in New Relic 
-        
+If you've instrumented correctly, your data will appear as APM data. 
     </Step>
     
 </Steps>
 
 ## What's next? [#whats-next]
 
+To learn more about BLAHBLAHBLAH, see our docs:
+
+* Dashboards
+* Core APM, My app is slow 
+* Query
+* Alerts
