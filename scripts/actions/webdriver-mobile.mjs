@@ -34,7 +34,7 @@ const main = async () => {
   // // TODO: search modal click breaks page on mobile localhost
   // process.env.WEBDRIVER_ENV === 'main'
   //   ? 'https://develop--docs-website-netlify.netlify.app/'
-  //   : 'http://localhost:8001/';
+  //   : 'http://localhost:8000/';
 
   console.log('\n🔍 looking for site at', testUrl);
 
@@ -44,7 +44,6 @@ const main = async () => {
   // and the current homepage does not have the hamburger menu for `navTest`
   await driver.get(testUrl);
   await tileTest();
-  // await driver.get(testUrl + 'docs/mdx-test-page/');
   await navTest();
   await driver.get(testUrl + 'docs/mdx-test-page/');
   await collapserTest();
