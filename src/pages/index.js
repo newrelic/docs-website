@@ -38,13 +38,13 @@ const HomePage = ({ data }) => {
   const productTileJson = (() => {
     if (locale === 'en' && 'productTiles' in enJson.strings.home)
       return enJson.strings.home.productTiles;
-    if (locale === 'kr' && 'productTiles' in krJson.home)
+    if (locale === 'kr' && 'productTiles' in krJson.strings.home)
       return krJson.strings.home.productTiles;
-    if (locale === 'jp' && 'productTiles' in jpJson.home)
+    if (locale === 'jp' && 'productTiles' in jpJson.strings.home)
       return jpJson.strings.home.productTiles;
-    if (locale === 'es' && 'productTiles' in esJson.home)
+    if (locale === 'es' && 'productTiles' in esJson.strings.home)
       return esJson.strings.home.productTiles;
-    if (locale === 'pt' && 'productTiles' in ptJson.home)
+    if (locale === 'pt' && 'productTiles' in ptJson.strings.home)
       return ptJson.strings.home.productTiles;
     return enJson.strings.home.productTiles;
   })();
