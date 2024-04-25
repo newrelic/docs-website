@@ -15,9 +15,9 @@ const options = new Options().setMobileEmulation({
   deviceName: 'iPhone 12 Pro',
 });
 // options required for github action to run chromedriver properly
-// options.addArguments('no-sandbox');
-// options.addArguments('disable-dev-shm-usage');
-// options.addArguments('headless');
+options.addArguments('no-sandbox');
+options.addArguments('disable-dev-shm-usage');
+options.addArguments('headless');
 
 const TIMEOUT = 10000;
 const SLEEP_TIME = 500;
@@ -30,11 +30,11 @@ const main = async () => {
 
   // running on develop builds because the url is static
   // github workflow triggers on PRs to main
-  const testUrl = 'https://develop--docs-website-netlify.netlify.app/';
-  // // TODO: search modal click breaks page on mobile localhost
-  // process.env.WEBDRIVER_ENV === 'main'
-  //   ? 'https://develop--docs-website-netlify.netlify.app/'
-  //   : 'http://localhost:8000/';
+  const testUrl =
+    // TODO: search modal click breaks page on mobile localhost
+    process.env.WEBDRIVER_ENV === 'main'
+      ? 'https://develop--docs-website-netlify.netlify.app/'
+      : 'http://localhost:8000/';
 
   console.log('\n🔍 looking for site at', testUrl);
 
