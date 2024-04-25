@@ -23,9 +23,26 @@ const mdxElement = (h, node) => {
   return handler.serialize(h, node);
 };
 
+// this ensures we keep brackets around MDX expressions inside attributes
+// for instance, this example:
+//
+// ```mdx
+//   <Collapser title={<InlineCode>hey! {'hi' + 'there'}</InlineCode>}>
+//     hi!
+//   </Collapser>
+// ```
+//
+// would lose the brackets around `'hi' + 'there'` and this would deserialize incorrectly.
+const mdxSpanExpression = (h, node) => {
+  node.value = `{${node.value}}`;
+  return h.handlers.text(h, node);
+};
+
 const processor = unified()
   .use(toMDAST)
   .use(remarkMdx)
+  // `remark-mdxjs` is v old and is _supposed_ to do the same things as `remarkMdx`, but without this, import statements aren't parsed correctly and generally things are kinda fucky.
+  // when we upgrade the rest of our packages here, we can probably remove it.
   .use(remarkMdxjs)
   .use(frontmatter, ['yaml'])
   .use(fencedCodeBlock)
@@ -35,6 +52,7 @@ const processor = unified()
       import: handlers.import.serialize,
       yaml: handlers.frontmatter.serialize,
       mdxSpanElement: mdxElement,
+      mdxSpanExpression,
       mdxBlockElement: mdxElement,
       code: handlers.CodeBlock.serialize,
     },
