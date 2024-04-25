@@ -145,6 +145,16 @@ const CTA = styled(Button)`
       p.number === 0 ? 'var(--brand-button-primary-accent-hover)' : '#00ac69'};
     color: ${(p) =>
       p.number === 0 ? 'var(--brand-button-primary-accent-hover)' : '#00ac69'};
+    .dark-mode & {
+      border-color: ${(p) =>
+        p.number === 0
+          ? 'var(--brand-button-primary-accent-hover)'
+          : 'var(--brand-button-primary-accent)'};
+      color: ${(p) =>
+        p.number === 0
+          ? 'var(--brand-button-primary-accent-hover)'
+          : 'var(--brand-button-primary-accent)'};
+    }
   }
 
   @media screen and (max-width: 1000px) {
@@ -163,8 +173,18 @@ const ReadDocs = styled.a`
   position: absolute;
   right: 50px;
   &:hover {
-    border-color: var(--brand-button-primary-accent-hover);
-    color: var(--brand-button-primary-accent-hover);
+    border-color: #00ac69;
+    color: #00ac69;
+    svg {
+      color: #00ac69;
+    }
+    .dark-mode & {
+      border-color: var(--brand-button-primary-accent);
+      color: var(--brand-button-primary-accent);
+      svg {
+        color: var(--brand-button-primary-accent);
+      }
+    }
   }
 
   p {
