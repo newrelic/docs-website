@@ -81,7 +81,7 @@ const Agreeance = ({ id, onChange, statement }) => {
       <legend>{statement}</legend>
       <div>
         <label htmlFor={`agreeance-strongly-disagree-${id}`}>
-          {t('surveyModal.suprQ.agreeance.strongly-disagree')}
+          {t('strings.surveyModal.suprQ.agreeance.strongly-disagree')}
         </label>
         <input
           type="radio"
@@ -92,7 +92,7 @@ const Agreeance = ({ id, onChange, statement }) => {
       </div>
       <div>
         <label htmlFor={`agreeance-somewhat-disagree-${id}`}>
-          {t('surveyModal.suprQ.agreeance.somewhat-disagree')}
+          {t('strings.surveyModal.suprQ.agreeance.somewhat-disagree')}
         </label>
         <input
           type="radio"
@@ -103,7 +103,7 @@ const Agreeance = ({ id, onChange, statement }) => {
       </div>
       <div>
         <label htmlFor={`agreeance-neutral-${id}`}>
-          {t('surveyModal.suprQ.agreeance.neutral')}
+          {t('strings.surveyModal.suprQ.agreeance.neutral')}
         </label>
         <input
           type="radio"
@@ -114,7 +114,7 @@ const Agreeance = ({ id, onChange, statement }) => {
       </div>
       <div>
         <label htmlFor={`agreeance-somewhat-agree-${id}`}>
-          {t('surveyModal.suprQ.agreeance.somewhat-agree')}
+          {t('strings.surveyModal.suprQ.agreeance.somewhat-agree')}
         </label>
         <input
           type="radio"
@@ -125,7 +125,7 @@ const Agreeance = ({ id, onChange, statement }) => {
       </div>
       <div>
         <label htmlFor={`agreeance-strongly-agree-${id}`}>
-          {t('surveyModal.suprQ.agreeance.strongly-agree')}
+          {t('strings.surveyModal.suprQ.agreeance.strongly-agree')}
         </label>
         <input
           type="radio"

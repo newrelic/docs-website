@@ -198,7 +198,7 @@ const NpsScore = ({ onSubmit }) => {
 
   return (
     <>
-      <Title>{t('surveyModal.npsIntro')}</Title>
+      <Title>{t('strings.surveyModal.npsIntro')}</Title>
       <NumberRater onSelect={onSubmit} />
     </>
   );
@@ -231,7 +231,7 @@ const SuprQ = ({ onSubmit }) => {
 
   return (
     <>
-      <Title>{t('surveyModal.suprQ.intro')}</Title>
+      <Title>{t('strings.surveyModal.suprQ.intro')}</Title>
       {currentQuestions.map((questionId) => (
         <Agreeance
           id={questionId}

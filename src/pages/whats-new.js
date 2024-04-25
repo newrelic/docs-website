@@ -62,7 +62,7 @@ const WhatsNew = ({ data, location, pageContext }) => {
             }
           `}
         >
-          <span>{t('whatsNew.title')}</span>
+          <span>{t('strings.whatsNew.title')}</span>
           <Link
             to={`${slug}/feed.xml`}
             css={css`
