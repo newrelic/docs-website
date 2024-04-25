@@ -16,6 +16,7 @@ import AlertsAiIcon from './newrelic/alerts-ai';
 import ApmIcon from './newrelic/apm';
 import StackTraceIcon from './newrelic/stack-trace';
 import LatencyIcon from './newrelic/latency';
+import SoftwareIcon from './newrelic/software';
 import LearningModelsIcon from './newrelic/learning-models';
 import MachineLearningEndpointsIcon from './newrelic/ml-endpoints';
 import SyntheticsIcon from './newrelic/synthetics';
@@ -33,6 +34,7 @@ import AreaChartIcon from './newrelic/area-chart';
 import BookmarkIcon from './newrelic/bookmark';
 import PrivateIcon from './newrelic/private';
 import AttachmentIcon from './newrelic/attachment';
+import DocLinkIcon from './newrelic/doc-link';
 
 export default {
   ...defaultIcons,
@@ -50,6 +52,7 @@ export default {
   apm: ApmIcon,
   'stack-trace': StackTraceIcon,
   latency: LatencyIcon,
+  software: SoftwareIcon,
   monitoring: MonitoringIcon,
   'ai-monitoring': AIMonitoringIcon,
   'k8s-cluster': K8sClusterIcon,
@@ -70,4 +73,5 @@ export default {
   bookmark: BookmarkIcon,
   private: PrivateIcon,
   attachment: AttachmentIcon,
+  'doc-link': DocLinkIcon,
 };
