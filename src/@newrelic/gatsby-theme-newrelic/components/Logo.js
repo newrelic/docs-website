@@ -10,7 +10,7 @@ const Logo = ({ className, width }) => (
       width: ${width || '118px'};
 
       .text-color {
-        fill: #e7f6f6;
+        fill: var(--primary-text-color);
       }
       .brand-color {
         fill: #1ce783;
