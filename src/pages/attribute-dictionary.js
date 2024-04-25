@@ -97,7 +97,7 @@ const AttributeDictionary = ({ pageContext, location }) => {
           }
         `}
       >
-        <PageTitle>{t('dataDictionary.title')}</PageTitle>
+        <PageTitle>{t('strings.dataDictionary.title')}</PageTitle>
         <div
           css={css`
             grid-area: 'page-description';
@@ -110,12 +110,12 @@ const AttributeDictionary = ({ pageContext, location }) => {
               margin-bottom: 1rem;
             `}
           >
-            <p>{t('dataDictionary.intro')}</p>
-            <p>{t('dataDictionary.introNot.0')}</p>
+            <p>{t('strings.dataDictionary.intro')}</p>
+            <p>{t('strings.dataDictionary.introNot.0')}</p>
             <ul>
-              <li>{t('dataDictionary.introNot.1')}</li>
-              <li>{t('dataDictionary.introNot.2')}</li>
-              <li>{t('dataDictionary.introNot.3')}</li>
+              <li>{t('strings.dataDictionary.introNot.1')}</li>
+              <li>{t('strings.dataDictionary.introNot.2')}</li>
+              <li>{t('strings.dataDictionary.introNot.3')}</li>
             </ul>
           </div>
 
@@ -228,20 +228,13 @@ const EventDefinition = memo(
               position: relative;
             `}
           >
+            {event.name}
             <Link
               to={`${location.pathname}?event=${event.name}`}
-              className="anchor before"
+              className="anchor after"
             >
               <Icon name="fe-link-2" focusable={false} size="1rem" />
             </Link>
-            <code
-              css={css`
-                background: none !important;
-                padding: 0 !important;
-              `}
-            >
-              {event.name}
-            </code>
           </div>
         </h2>
         <div
@@ -298,8 +291,8 @@ const EventDefinition = memo(
                 <tr key={`${event.name}-${attribute.name}`}>
                   <td
                     css={css`
-                      width: 40%;
-                      word-break: break-all;
+                      width: 25%;
+                      word-break: break-word;
                     `}
                   >
                     <Link

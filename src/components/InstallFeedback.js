@@ -6,7 +6,7 @@ import {
   Surface,
   Button,
   Icon,
-  useTessen,
+  addPageAction,
   useTranslation,
   isValidEmail,
 } from '@newrelic/gatsby-theme-newrelic';
@@ -19,7 +19,6 @@ const InstallFeedback = () => {
   const [shouldSubmit, setShouldSubmit] = useState(false);
   const [formSubmitted, setFormSubmitted] = useState(false);
 
-  const tessen = useTessen();
   const { t } = useTranslation();
 
   const isCommentBoxEmpty = (comment) => {
@@ -28,7 +27,7 @@ const InstallFeedback = () => {
 
   const handleClick = () => {
     setCommentButtonClicked(true);
-    tessen.track({
+    addPageAction({
       eventName: 'installFeedbackClick',
       category: 'LeaveAComment',
       path: location.pathname,
@@ -66,7 +65,7 @@ const InstallFeedback = () => {
 
     await recaptchaReady();
     const recaptchaToken = await generateRecaptchaToken();
-    tessen.track({
+    addPageAction({
       eventName: 'installFeedbackSubmitted',
       category: 'Comment',
       path: location.pathname,
@@ -136,7 +135,7 @@ const InstallFeedback = () => {
                   color: #1d252c;
                 `}
               >
-                {t('installFeedback.question')}
+                {t('strings.installFeedback.question')}
               </h2>
             </div>
             {!commentButtonClicked && (
@@ -191,7 +190,7 @@ const InstallFeedback = () => {
                     }
                   `}
                 >
-                  {t('installFeedback.commentButton')}
+                  {t('strings.installFeedback.commentButton')}
                   <Icon
                     size="1.5rem"
                     name="fe-contact-us"
@@ -245,7 +244,7 @@ const InstallFeedback = () => {
                 }
               `}
             >
-              <p>{t('installFeedback.comment')}</p>
+              <p>{t('strings.installFeedback.comment')}</p>
               <textarea
                 value={userComments}
                 maxLength="30000"
@@ -262,7 +261,7 @@ const InstallFeedback = () => {
                   margin-bottom: 1rem;
                 `}
               />
-              <p>{t('installFeedback.email')}</p>
+              <p>{t('strings.installFeedback.email')}</p>
               <input
                 value={userEmail}
                 placeholder="datanerd@example.com"
@@ -291,7 +290,7 @@ const InstallFeedback = () => {
                   width: 50%;
                 `}
               >
-                {t('installFeedback.emailDisclaimer')}
+                {t('strings.installFeedback.emailDisclaimer')}
               </p>
 
               {userEmail && !isValidEmail(userEmail) && (
@@ -305,7 +304,7 @@ const InstallFeedback = () => {
                     }
                   `}
                 >
-                  {t('installFeedback.validEmail')}
+                  {t('strings.installFeedback.validEmail')}
                 </p>
               )}
               <div>
@@ -335,7 +334,7 @@ const InstallFeedback = () => {
                     }
                   `}
                 >
-                  {t('installFeedback.submitButton')}
+                  {t('strings.installFeedback.submitButton')}
                 </Button>
               </div>
               <div
@@ -361,7 +360,7 @@ const InstallFeedback = () => {
             color: #1d252c;
           `}
         >
-          {t('installFeedback.submitMessage')}
+          {t('strings.installFeedback.submitMessage')}
         </p>
       )}
     </Surface>

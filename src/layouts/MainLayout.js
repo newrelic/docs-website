@@ -9,7 +9,7 @@ import {
   Icon,
   Button,
   SearchInput,
-  useTessen,
+  addPageAction,
   useTranslation,
   LoggedInProvider,
 } from '@newrelic/gatsby-theme-newrelic';
@@ -20,12 +20,10 @@ import { CSSTransition } from 'react-transition-group';
 import Layout from '../components/Layout';
 import SEO from '../components/SEO';
 import RootNavigation from '../components/RootNavigation';
-import NavFooter from '../components/NavFooter';
 import { useLocation, navigate } from '@reach/router';
 import { MainLayoutContext } from '../components/MainLayoutContext';
 
 const MainLayout = ({ children, pageContext }) => {
-  const tessen = useTessen();
   const { sidebarWidth } = useLayout();
   const { locale, slug } = pageContext;
   const location = useLocation();
@@ -89,8 +87,10 @@ const MainLayout = ({ children, pageContext }) => {
       `}
     >
       <Button
-        variant={Button.VARIANT.PRIMARY}
+        variant={Button.VARIANT.PLAIN}
         css={css`
+          background: var(--system-background-hover-dark);
+          color: var(--brand-button-primary-accent);
           height: 40px;
           width: 40px;
           padding: 0;
@@ -105,7 +105,7 @@ const MainLayout = ({ children, pageContext }) => {
           }
         `}
         onClick={() => {
-          tessen.track({
+          addPageAction({
             eventName: sidebar ? 'closeNav' : 'openNav',
             category: 'NavCollapserClick',
           });
@@ -184,6 +184,9 @@ const MainLayout = ({ children, pageContext }) => {
                   >
                     <Logo
                       css={css`
+                        .text-color {
+                          fill: var(--system-text-primary-dark);
+                        }
                         ${!sidebar &&
                         css`
                           display: none;
@@ -194,14 +197,14 @@ const MainLayout = ({ children, pageContext }) => {
                 </div>
                 {sidebar && (
                   <SearchInput
-                    placeholder={t('home.search.placeholder')}
+                    placeholder={t('strings.home.search.placeholder')}
                     value={searchTerm || ''}
                     iconName={SearchInput.ICONS.SEARCH}
                     isIconClickable
                     alignIcon={SearchInput.ICON_ALIGNMENT.RIGHT}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     onSubmit={() => {
-                      tessen.track({
+                      addPageAction({
                         eventName: 'nonHomepageSidebarSearch',
                         category: 'SearchInput',
                         searchTerm,
@@ -226,13 +229,8 @@ const MainLayout = ({ children, pageContext }) => {
                     overflow-x: hidden;
                     height: calc(
                       100vh - ${navHeaderHeight} - var(--global-header-height) -
-                        4rem
+                        3rem
                     );
-                  `}
-                />
-                <NavFooter
-                  css={css`
-                    width: calc(var(--sidebar-width) - 1px);
                   `}
                 />
               </>
@@ -246,6 +244,7 @@ const MainLayout = ({ children, pageContext }) => {
                 css={css`
                   display: ${isMobileNavOpen ? 'none' : 'block'};
                   position: relative;
+                  padding-top: 2.75rem;
 
                   @media (min-width: 760px) {
                     ${!sidebar &&

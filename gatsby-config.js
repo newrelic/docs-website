@@ -4,9 +4,11 @@ const parse = require('rehype-parse');
 const unified = require('unified');
 const rehypeStringify = require('rehype-stringify');
 const addAbsoluteImagePath = require('./rehype-plugins/utils/addAbsoluteImagePath');
+const { assetPrefix } = require('./env');
+
+const { LOCALES } = require('./scripts/actions/utils/constants');
 
 const siteUrl = 'https://docs.newrelic.com';
-const additionalLocales = ['jp', 'kr'];
 const allFolders = fs
   .readdirSync(`${__dirname}/src/content/docs`)
   .filter((folder) => !folder.startsWith('.'));
@@ -38,20 +40,13 @@ const ignoreI18nFolders = () => {
   return [];
 };
 
-const autoLinkHeaders = {
-  resolve: 'gatsby-remark-autolink-headers',
-  options: {
-    icon:
-      '<svg xmlns="http://www.w3.org/2000/svg" focusable="false" width="1rem" height="1rem" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 7h3a5 5 0 0 1 5 5 5 5 0 0 1-5 5h-3m-6 0H6a5 5 0 0 1-5-5 5 5 0 0 1 5-5h3"></path><line x1="8" y1="12" x2="16" y2="12"></line></svg>',
-  },
-};
-
 module.exports = {
   trailingSlash: 'always',
   flags: {
     DEV_SSR: true,
     PRESERVE_FILE_DOWNLOAD_CACHE: true,
   },
+  assetPrefix: assetPrefix(),
   siteMetadata: {
     title: 'New Relic Documentation',
     titleTemplate: '%s | New Relic Documentation',
@@ -64,6 +59,7 @@ module.exports = {
       'https://docs.newrelic.com/docs/style-guide/writing-guidelines/create-edit-content/',
   },
   plugins: [
+    `gatsby-plugin-netlify`,
     'gatsby-plugin-react-helmet',
     {
       resolve: `gatsby-source-filesystem`,
@@ -187,7 +183,11 @@ module.exports = {
               disableBgImageOnAlpha: true,
             },
           },
-          autoLinkHeaders,
+          {
+            resolve: require.resolve(
+              './plugins/gatsby-remark-autolink-headers-custom'
+            ),
+          },
           // This MUST come after `gatsby-remark-autolink-headers` to ensure the
           // link created for the icon has the proper id.
           //
@@ -224,6 +224,9 @@ module.exports = {
               './plugins/gatsby-remark-remove-button-paragraphs'
             ),
           },
+          {
+            resolve: require.resolve('./plugins/fix-remark-path-prefix-plugin'),
+          }
         ],
       },
     },
@@ -325,7 +328,6 @@ module.exports = {
 
     'gatsby-source-nav',
     'gatsby-source-install-config',
-    'gatsby-plugin-meta-redirect',
     {
       resolve: 'gatsby-plugin-gatsby-cloud',
       options: {
@@ -375,7 +377,7 @@ module.exports = {
           },
         },
         layout: {
-          contentPadding: '1.5rem',
+          contentPadding: '5rem',
           maxWidth: '1600px',
           component: require.resolve('./src/layouts'),
           mobileBreakpoint: '760px',
@@ -383,7 +385,7 @@ module.exports = {
         },
         i18n: {
           translationsPath: `${__dirname}/src/i18n/translations`,
-          additionalLocales,
+          additionalLocales: LOCALES,
         },
         prism: {
           languages: [
@@ -440,6 +442,7 @@ module.exports = {
             'md',
             'java',
             'razor',
+            'hcl'
           ],
         },
         newrelic: {
@@ -458,21 +461,28 @@ module.exports = {
                 : '35094418',
             beacon: 'staging-bam-cell.nr-data.net',
             errorBeacon: 'staging-bam-cell.nr-data.net',
-          },
-        },
-        tessen: {
-          tessenVersion: '1.14.0',
-          product: 'DOC',
-          subproduct: 'TDOC',
-          segmentWriteKey: 'AEfP8c1VSuFxhMdk3jYFQrYQV9sHbUXx',
-          trackPageViews: true,
-          pageView: {
-            eventName: 'pageView',
-            category: 'DocPageView',
-            getProperties: ({ location, env }) => ({
-              path: location.pathname,
-              env: env === 'production' ? 'prod' : env,
-            }),
+            settings: {
+              session_replay: {
+                enabled: true,
+                block_selector: '',
+                mask_text_selector: '*',
+                sampling_rate: 5.0,
+                error_sampling_rate: 100.0,
+                mask_all_inputs: true,
+                collect_fonts: true,
+                inline_images: false,
+                inline_stylesheet: true,
+                mask_input_options: {},
+              },
+              distributed_tracing: { enabled: true },
+              privacy: { cookies_enabled: true },
+              ajax: {
+                deny_list: [
+                  'staging-bam-cell.nr-data.net',
+                  'docs.newrelic.com',
+                ],
+              },
+            },
           },
         },
         shouldUpdateScroll: {
@@ -494,6 +504,11 @@ module.exports = {
             '6LeGFt8UAAAAANfnpE8si2Z6NnAqYKnPAYgMpStu',
         },
         newRelicRequestingServicesHeader: 'docs-website',
+        segment: {
+          segmentWriteKey: 'noviNOFjASOSPcSEAkwoRxOt0Y1719KD',
+          section: 'docs',
+          platform: 'docs_pages',
+        },
       },
     },
   ],

@@ -17,7 +17,7 @@ const MachineTranslationCallout = ({ englishHref }) => {
       variant="important"
       title=" "
       css={css`
-        margin: 2em 0;
+        margin-bottom: 2em;
         padding: 0.5em;
       `}
     >
@@ -40,9 +40,13 @@ const MachineTranslationCallout = ({ englishHref }) => {
           }
         `}
       >
-        <Icon name="globe" size="2em" />
-        <div>
-          <h4>{t('machineTranslation.calloutHeading')}</h4>
+        <Icon name="globe" size="3em" />
+        <div
+          css={css`
+            font-size: 0.875em;
+          `}
+        >
+          <h4>{t('strings.machineTranslation.calloutHeading')}</h4>
           <Trans i18nKey="machineTranslation.calloutBody" parent="p">
             In the event of any inconsistency between the English version and
             the translated version, the{' '}

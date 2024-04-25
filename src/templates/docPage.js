@@ -1,11 +1,10 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/react';
 import { graphql } from 'gatsby';
 import { takeWhile } from 'lodash';
 import { CSSTransition } from 'react-transition-group';
-import { createLocalStorageStateHook } from 'use-local-storage-state';
-import DocPageBanner from '../components/DocPageBanner';
+import { useMedia } from 'react-use';
 import PageTitle from '../components/PageTitle';
 import MDXContainer from '../components/MDXContainer';
 import {
@@ -13,7 +12,6 @@ import {
   ComplexFeedback,
   TableOfContents,
   LoggedInProvider,
-  useLoggedIn,
 } from '@newrelic/gatsby-theme-newrelic';
 import Layout from '../components/Layout';
 import MachineTranslationCallout from '../components/MachineTranslationCallout';
@@ -22,8 +20,7 @@ import GithubSlugger from 'github-slugger';
 import { TYPES } from '../utils/constants';
 import { useMainLayoutContext } from '../components/MainLayoutContext';
 import ErrorBoundary from '../components/ErrorBoundary';
-
-const BANNER_HEIGHT = '78px';
+import FeedbackModal from '../components/FeedbackModal';
 
 /**
  * Some `title`s from the `tableOfContents` field are
@@ -50,7 +47,7 @@ const BasicDoc = ({ data, location, pageContext }) => {
     body,
     fields: { fileRelativePath },
   } = mdx;
-  const { disableSwiftype, hidePageTools } = pageContext;
+  const { disableSwiftype } = pageContext;
 
   const headings = useMemo(() => {
     const slugs = new GithubSlugger();
@@ -68,35 +65,16 @@ const BasicDoc = ({ data, location, pageContext }) => {
     });
   }, [tableOfContents]);
 
-  const {
-    title,
-    metaDescription,
-    tags,
-    type,
-    translationType,
-    signupBanner,
-  } = frontmatter;
+  const { title, metaDescription, tags, translationType } = frontmatter;
 
   if (typeof window !== 'undefined' && typeof newrelic === 'object') {
     window.newrelic.setCustomAttribute('pageType', 'Template/DocPage');
   }
 
-  const { loggedIn } = useLoggedIn();
   const [sidebar] = useMainLayoutContext();
-  const useBannerDismissed = createLocalStorageStateHook(
-    `docBannerDismissed-${title}`
-  );
-  const [bannerDismissed, setBannerDismissed] = useBannerDismissed(false);
-  const [mounted, setMounted] = useState(false);
-  const bannerVisible =
-    !loggedIn && !bannerDismissed && signupBanner && mounted;
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  const onCloseBanner = () => {
-    setBannerDismissed(true);
-  };
+  const [showFeedbackModal, setShowFeedbackModal] = useState(true);
+  const mobileBreakpoint = '450px';
+  const isMobileScreen = useMedia(`(max-width: ${mobileBreakpoint})`);
 
   return (
     <ErrorBoundary eventName="doc">
@@ -104,63 +82,30 @@ const BasicDoc = ({ data, location, pageContext }) => {
         location={location}
         title={title}
         description={metaDescription}
-        type={type ? TYPES.BASIC_PAGE[type] : TYPES.BASIC_PAGE.default}
+        type={TYPES.BASIC_PAGE.default}
         tags={tags}
         disableSwiftype={disableSwiftype}
       />
-      {bannerVisible && (
-        <DocPageBanner
-          height={BANNER_HEIGHT}
-          onClose={onCloseBanner}
-          {...signupBanner}
-        />
-      )}
       <div
         css={css`
           display: grid;
           grid-template-areas:
-            'mt-disclaimer mt-disclaimer'
+            'mt-disclaimer page-tools'
             'page-title page-tools'
             'content page-tools';
           grid-template-columns: minmax(0, 1fr) 12.8125rem;
-          grid-column-gap: 2rem;
-
-          ${bannerVisible &&
-          css`
-            margin-top: ${BANNER_HEIGHT};
-            @media screen and (max-width: 760px) {
-              margin-top: 0;
-            }
-          `}
+          grid-column-gap: 5rem;
 
           iframe {
             max-width: 100%;
           }
-
           @media screen and (max-width: 1240px) {
             grid-template-areas:
               'mt-disclaimer'
               'page-title'
-              'content'
-              'page-tools';
+              'content';
             grid-template-columns: minmax(0, 1fr);
           }
-          ${hidePageTools &&
-          css`
-            grid-template-areas:
-              'mt-disclaimer'
-              'page-title page'
-              'content';
-              grid-template-columns: 1fr;
-
-            @media screen and (max-width: 1240px) {
-              grid-template-areas:
-                'mt-disclaimer'
-                'page-title'
-                'content'
-              grid-template-columns: minmax(0, 1fr);
-            }
-          `}
         `}
       >
         {translationType === 'machine' && (
@@ -176,59 +121,56 @@ const BasicDoc = ({ data, location, pageContext }) => {
         <LoggedInProvider>
           <Layout.Content>
             <MDXContainer body={body} />
+            {showFeedbackModal && !isMobileScreen && (
+              <FeedbackModal onClose={() => setShowFeedbackModal(false)} />
+            )}{' '}
           </Layout.Content>
         </LoggedInProvider>
-        {!hidePageTools && (
-          // TODO pass nodeRef to avoid `findDOMNode` usage
-          // this transition is the inverse of the page `translate` transition
-          // it keeps the PageTools in the same place when the nav opens/ closes
-          <CSSTransition
-            in={sidebar}
-            classNames="page-tools-transition"
-            timeout={300}
+        <CSSTransition
+          in={sidebar}
+          classNames="page-tools-transition"
+          timeout={300}
+        >
+          <Layout.PageTools
+            css={css`
+              background: var(--primary-background-color);
+              top: calc(var(--global-header-height) + 3rem);
+              &.page-tools-transition-enter {
+                translate: calc(var(--sidebar-width) - 50px);
+              }
+              &.page-tools-transition-enter-active {
+                translate: 0;
+                transition: 300ms translate ease;
+              }
+              &.page-tools-transition-enter-done {
+                translate: 0;
+              }
+
+              &.page-tools-transition-exit {
+                translate: calc(calc(var(--sidebar-width) - 50px) * -1);
+              }
+              &.page-tools-transition-exit-active {
+                translate: 0;
+                transition: 300ms translate ease;
+              }
+              &.page-tools-transition-exit-done {
+                translate: 0;
+              }
+
+              @media screen and (max-width: 1240px) {
+                display: none;
+              }
+            `}
           >
-            <Layout.PageTools
-              css={css`
-                background: var(--primary-background-color);
-
-                &.page-tools-transition-enter {
-                  translate: calc(var(--sidebar-width) - 50px);
-                }
-                &.page-tools-transition-enter-active {
-                  translate: 0;
-                  transition: 300ms translate ease;
-                }
-                &.page-tools-transition-enter-done {
-                  translate: 0;
-                }
-
-                &.page-tools-transition-exit {
-                  translate: calc(calc(var(--sidebar-width) - 50px) * -1);
-                }
-                &.page-tools-transition-exit-active {
-                  translate: 0;
-                  transition: 300ms translate ease;
-                }
-                &.page-tools-transition-exit-done {
-                  translate: 0;
-                }
-
-                @media screen and (max-width: 1240px) {
-                  margin-top: 1rem;
-                  position: static;
-                }
-              `}
-            >
-              <TableOfContents headings={headings} />
-              <ComplexFeedback pageTitle={title} />
-              <ContributingGuidelines
-                pageTitle={title}
-                fileRelativePath={fileRelativePath}
-                issueLabels={['feedback', 'feedback-issue']}
-              />
-            </Layout.PageTools>
-          </CSSTransition>
-        )}
+            <TableOfContents headings={headings} />
+            <ComplexFeedback pageTitle={title} />
+            <ContributingGuidelines
+              pageTitle={title}
+              fileRelativePath={fileRelativePath}
+              issueLabels={['feedback', 'feedback-issue']}
+            />
+          </Layout.PageTools>
+        </CSSTransition>
       </div>
     </ErrorBoundary>
   );
@@ -248,14 +190,8 @@ export const pageQuery = graphql`
       frontmatter {
         title
         metaDescription
-        type
         tags
         translationType
-        signupBanner {
-          cta
-          text
-          url
-        }
       }
       fields {
         fileRelativePath

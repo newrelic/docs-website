@@ -1,0 +1,126 @@
+---
+title: Resolución de problemas OpenTelemetry con New Relic
+tags:
+  - Integrations
+  - Open source telemetry integrations
+  - OpenTelemetry
+metaDescription: Troubleshoot tips for when you use OpenTelemetry with New Relic
+freshnessValidatedDate: never
+translationType: machine
+---
+
+import moreintegrationsOtlpFacetQuery from 'images/more-integrations_screenshot-crop_otlp-facet-query.webp'
+
+La resolución de problemas OpenTelemetry con New Relic puede ser solo una cuestión de asegurarse de seguir [las mejores prácticas](/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/opentelemetry-concepts), pero a veces es posible que deba tomar medidas adicionales para diagnosticar sus problemas. A continuación se muestran algunos ejemplos de problemas específicos que puede encontrar, junto con los pasos y herramientas para resolverlos.
+
+## Los datos de OpenTelemetry enviados a través de OTLP no se pueden consultar
+
+### Problema
+
+Enviaste OpenTelemetry métrica, log o traza usando OTLP y no puedes ver los datos. Antes de profundizar más, asegúrese de haber verificado lo siguiente:
+
+* El extremo OTLP configurado coincide con uno de nuestros [extremos documentados](/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/get-started/opentelemetry-set-up-your-app/#review-settings), está formateado correctamente e incluye el [puerto predeterminado para OTLP/gRPC](https://github.com/open-telemetry/opentelemetry-specification/blob/v1.8.0/specification/protocol/otlp.md#otlpgrpc-default-port), 4317, o el [puerto predeterminado para OTLP/HTTP](https://github.com/open-telemetry/opentelemetry-specification/blob/v1.8.0/specification/protocol/otlp.md#otlphttp-default-port), 4318. El puerto 443 también es compatible con cualquiera de los transportes. Tenga en cuenta el extremo específico para el cumplimiento de FedRAMP, si corresponde.
+
+* Confirme que está utilizando el extremo correcto según su región. Por ejemplo, si tiene su sede en Europa y configura su exportador para enviar datos a nuestro extremo de EE. UU., los datos no se podrán exportar ya que los extremos son específicos de la región.
+
+* El tráfico saliente no está restringido por un firewall. Nuestro documento [de Redes](/docs/using-new-relic/cross-product-functions/install-configure/networks/#opentelemetry) explica los bloques de dominio y de red que es posible que deba permitir explícitamente.
+
+* El cliente está configurado para usar TLS 1.2 o superior y la solicitud incluye el encabezado `api-key` con una New Relic válida
+
+  <InlinePopover type="licenseKey"/>
+
+  .
+
+* Las solicitudes incluyen una carga protobuf válida y utilizan transporte gRPC o HTTP, preferiblemente con [la compresión gzip](/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/opentelemetry-concepts/#compression) habilitada. La carga de la solicitud no debe superar 1 MB (10^6 bytes). También se admite la carga [de protobuf codificada en JSON](https://github.com/open-telemetry/opentelemetry-specification/blob/v1.8.0/specification/protocol/otlp.md#otlphttp-connection) .
+
+* La salida y el registro del cliente no indican que se estén devolviendo códigos de respuesta `4xx` o `5xx` .
+
+### Solución
+
+Hay varias herramientas que puede utilizar para validar la entrega exitosa de telemetry data a nuestra plataforma. Un buen primer paso es verificar el [centro de administración de datos](/docs/data-apis/manage-data/manage-your-data/) para [facetar la ingesta de datos](/docs/data-apis/manage-data/manage-data-coming-new-relic/#facet-data-ingest) y determinar cuántos datos llegan de diversas fuentes. También puedes usar [métrica y evento](/docs/query-your-data/explore-query-data/browse-data/introduction-data-explorer/#use-case-troubleshooting) o [generador de consultas](/docs/query-your-data/explore-query-data/query-builder/use-advanced-nrql-mode-query-data) para buscar datos facetados por `instrumentation.provider` o `newrelic.source` atributo:
+
+```sql
+FROM Log, Metric, Span SELECT datapointcount() WHERE instrumentation.provider = 'opentelemetry' FACET instrumentation.provider, newrelic.source
+```
+
+<img
+  title="Screenshot showing the data point count for logs, metrics, and traces faceted by instrumentation.provider and newrelic.source"
+  alt="Screenshot showing the data point count for logs, metrics, and traces faceted by instrumentation.provider and newrelic.source"
+  src={moreintegrationsOtlpFacetQuery}
+/>
+
+Esta consulta debería indicarle si los datos llegan a través de OTLP. Si los datos que espera no están presentes, pruebe esta consulta alternativa:
+
+```sql
+FROM Log, Metric, Span SELECT count(*) where newrelic.source LIKE 'api.%.otlp'
+```
+
+También puede verificar si hay errores de integración consultando [el evento NrIntegrationError](/docs/data-apis/manage-data/nrintegrationerror/). Esto puede ayudarle a determinar si tiene problemas de configuración o formato o si se ha topado con los límites de nuestra plataforma.
+
+<Callout variant="important">
+  Los límites de ingesta para métrica, log y traza a través de OTLP son los mismos que nuestros otros [límites API de ingesta de datos](/docs/data-apis/manage-data/view-system-limits/#data-ingest-api-limits).
+</Callout>
+
+Varias partes de la UI de New Relic dependen de la presencia de un atributo específico para funcionar correctamente. Puede usar la característica [de la consola NRQL](/docs/query-your-data/explore-query-data/query-builder/nrql-console/) en muchos lugares para verificar las cláusulas `WHERE` o `FACET` de la consulta para el atributo requerido. También puede editar esas cláusulas y volver a ejecutar la consulta para determinar si hay datos presentes a los que les faltan esos atributos. Ejemplos de atributo requerido incluyen `service.name` y `service.instance.id`. Para obtener una lista más completa de ejemplos, consulte [recursos](/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/opentelemetry-concepts/#resources).
+
+## La correlación log de OpenTelemetry no funciona
+
+### Problema
+
+Ha correlacionado su registro con su servicio usando `service.name`([Registro de OpenTelemetry: mejores prácticas](/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/best-practices/opentelemetry-best-practices-logs)) para poder ver el registro asociado con traza, pero no ve ningún registro en la UI de New Relic. En este escenario, los datos log llegaron a New Relic, pero no aparecen en la UI de rastreo distribuida con los intervalos correspondientes.
+
+### Solución
+
+Para correlacionar su registro con los datos de la traza, el registro debe incluir el contexto de traza que contiene `trace_id` y `span_id`. Sin embargo, para garantizar que su registro aparezca en la UI de New Relic, deberá configurar reglas en su proceso log para traducir `trace_id` y `span_id` a `trace.id` y `span.id`.
+
+## Faltan entidades o relaciones de OpenTelemetry
+
+### Problema
+
+Envió datos de OpenTelemetry desde un componente de servicio o infraestructura y la [entidad](/docs/new-relic-one/use-new-relic-one/core-concepts/what-entity-new-relic/) o sus [relaciones](/docs/new-relic-one/use-new-relic-one/core-concepts/what-entity-new-relic/#related-entities) faltan o son incorrectas.
+
+### Solución
+
+Las entidades OpenTelemetry se sintetizarán en función de las [reglas públicas](https://github.com/newrelic/entity-definitions/blob/b8e75d839eed7859044a9bb601a62e5323107350/definitions/ext-service/definition.yml) descritas para el tipo de entidad `EXT-SERVICE` . La regla estándar para hacer coincidir se basa en la presencia de la dimensión `service.name` que sigue las [convenciones semánticas](https://github.com/open-telemetry/opentelemetry-specification/blob/527206ea49e384de957eda105d9425aa8fefca25/specification/overview.md#semantic-conventions) de OpenTelemetry.
+
+Para configurar `service.name` con OpenTelemetry Java SDK, inclúyalo en su [recurso](/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/opentelemetry-concepts/#resources):
+
+```java
+var resource = Resource.getDefault()
+    .merge(Resource.builder().put(SERVICE_NAME, serviceName).build());
+```
+
+Dependiendo del SDK, también puede configurar `service.name` declarándolo en las [variables de entorno](https://github.com/open-telemetry/opentelemetry-specification/blob/20c82de552d08428e8cadaaef3e6cb46812f7c00/specification/sdk-environment-variables.md#general-sdk-configuration) `OTEL_RESOURCE_ATTRIBUTES` o `OTEL_SERVICE_NAME` .
+
+Para <InlinePopover type="logs"/>, puede utilizar una plantilla log estructurada para inyectar el `service.name`. Consulte [logs en el contexto con Log4j2](https://github.com/newrelic/newrelic-opentelemetry-examples/blob/e3f5ee85b4dcd8dd29f8f69d78d122b82a9638ba/other-examples/java/logs-in-context-log4j2/Log4j2EventLayout.json#L2) para ver un ejemplo.
+
+<Callout variant="tip">
+  Para obtener más ejemplos de OpenTelemetry con New Relic, visite el repositorio [newrelic-OpenTelemetry-examples](https://github.com/newrelic/newrelic-opentelemetry-examples) en GitHub.
+</Callout>
+
+## Resolución de problemas del recolector OpenTelemetry [#troubleshooting-collector]
+
+El mejor lugar para obtener consejos para la resolución de problemas y prácticas de monitoreo del recopilador son las pautas actualizadas de la comunidad OpenTelemetry. Consulte los enlaces a continuación para ver los documentos comunitarios de resolución de problemas.
+
+### Registro de recuerdo [#collector-logs]
+
+Establezca el nivel de registros en la configuración `service::telemetry::logs`. El nivel predeterminado es `INFO`. Los niveles admitidos son: `DEBUG`, `INFO`, `WARN`, `ERROR`, `DPANIC`, `PANIC`, `FATAL`.
+
+Para obtener consejos sobre resolución de problemas, consulte [registro de resolución de problemas (GitHub)](https://github.com/open-telemetry/opentelemetry-collector/blob/main/docs/troubleshooting.md#logs).
+
+### Selector métrico [#collector-metrics]
+
+La siguiente consulta NRQL muestra todas las métricas disponibles desde el propio recolector en New Relic:
+
+```sql
+FROM Metric SELECT uniques(metricName) WHERE metricName like ‘otelcol_%’ LIMIT MAX
+```
+
+Para obtener consejos sobre resolución de problemas, consulte:
+
+* [Resolución métrica de problemas (GitHub)](https://github.com/open-telemetry/opentelemetry-collector/blob/main/docs/troubleshooting.md#metrics)
+* [Monitoreo recolector métrico (GitHub)](https://github.com/open-telemetry/opentelemetry-collector/blob/main/docs/monitoring.md)
+
+### Recolector de trazas [#collector-traces]
+
+Para obtener consejos sobre resolución de problemas, consulte [zPages (Github)](https://github.com/open-telemetry/opentelemetry-collector/blob/main/docs/troubleshooting.md#zpages).

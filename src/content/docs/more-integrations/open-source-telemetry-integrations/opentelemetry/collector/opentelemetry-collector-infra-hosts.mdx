@@ -40,29 +40,42 @@ Your deployment experience might vary depending on which vendor-specific distrib
 This collector example is meant to serve as a starting point from which you can extend, customize, and validate configurations before using them in production.
 
 The `collector-contrib` release includes:
-* The `hostreceiver` that generates metrics about the system scraped from various sources. Deploy the collector as an agent when you use a `hostreceiver`.
-* The `filelogreceiver` that tails and parses logs from files.
+* The `hostmetrics` receiver that generates metrics about the system scraped from various sources. Deploy the collector as an agent when you use a `hostmetrics` receiver.
+* The `filelog` receiver that tails and parses logs from files.
 
-When using the host receiver as part of the collector configuration, New Relic automatically detects host metrics as part of a `Host` entity and will synthesize its golden metrics providing the same experience as with the New Relic infrastructure agent. The following are the configuration requirements to enable the `Host` entity experience in New Relic UI:
+When using the `hostmetrics` receiver as part of the collector configuration, New Relic will detect host metrics as part of a `Host` entity. This means you will have the same experience as with the New Relic infrastructure agent. To make this work, you need to meet the following configuration requirements:
 
 * `host.id` attribute is present in host metrics.
 * `service.name` and `container.id` attributes are not present in host metrics.
 
 Learn more about available metrics and advanced configurations from the [OpenTelemetry documentation in GitHub](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/receiver/hostmetricsreceiver).
 
-Here is a sample configuration YAML file for a linux host. Be sure to do the following:
+Here is a sample configuration YAML file for a Linux host. Be sure to do the following:
 
-* Replace `OTLP_ENDPOINT_HERE` with the appropriate [endpoint](/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/get-started/opentelemetry-set-up-your-app/#review-settings).
-* Replace `YOUR_KEY_HERE` with your <InlinePopover type="licenseKey" />.
+* Set the `$NEW_RELIC_OTLP_ENDPOINT` env var to the appropriate [endpoint](/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/get-started/opentelemetry-set-up-your-app/#review-settings).
+* Set the `$NEW_RELIC_API_KEY` env var to you your <InlinePopover type="licenseKey" />.
 * Adjust the target log files in the filelog receiver section based on your requirements.
 * Adjust the `memory_limiter` default values based on your environment requirements.
+* Several bits of config are useful for local demonstration, but likely not needed for production deployments. Review these sections and explanatory comments and remove as needed.
+
+See [Host Monitoring with OpenTelemetry Collector Setup](https://github.com/newrelic/newrelic-opentelemetry-examples/tree/main/other-examples/collector/host-monitoring) for a working code example.
 
 ```yaml
 extensions:
   health_check:
 
 receivers:
+  otlp:
+    protocols:
+      grpc:
+      http:
+
   hostmetrics:
+    # Mount the host file system when running in docker so we can monitor the host system,
+    # not the docker container. For more info see:
+    # https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/receiver/hostmetricsreceiver#collecting-host-metrics-from-inside-a-container-linux-only
+    # Delete for production deployments.
+    root_path: ${HOST_METRICS_ROOT_PATH}
     collection_interval: 20s
     scrapers:
       cpu:
@@ -79,6 +92,11 @@ receivers:
         metrics:
           system.filesystem.utilization:
             enabled: true
+        # Reading /containers/services causes error running in docker.
+        # Delete for production deployments.
+        exclude_mount_points:
+          mount_points: ["/containers/services"]
+          match_type: strict
       network:
       paging:
         metrics:
@@ -91,6 +109,11 @@ receivers:
             enabled: true
           process.cpu.time:
             enabled: false
+        # Mute various errors reading process metrics running locally in docker.
+        # Delete for production deployments.
+        mute_process_exe_error: true
+        mute_process_user_error: true
+        mute_process_io_error: true
 
   filelog:
     include:
@@ -104,7 +127,7 @@ receivers:
       - /var/log/yum.log
 
 processors:
-  
+
   transform/truncate:
     trace_statements:
       - context: span
@@ -121,45 +144,60 @@ processors:
     check_interval: 1s
     limit_mib: 1000
     spike_limit_mib: 200
-  
+
   batch:
-  
+
   resourcedetection:
-    detectors: [env, system]
+    detectors: ["env", "system"]
     system:
       hostname_sources: ["os"]
       resource_attributes:
         host.id:
           enabled: true
-  
+
   resourcedetection/cloud:
     detectors: ["gcp", "ec2", "azure"]
     timeout: 2s
     override: false
 
+  # host.id is required for NewRelic host entity synthesis and relationships, but is
+  # not included by any resourcedetection detector when running with docker on macOS.
+  # We include a fallback value for demonstration purposes.
+  # Delete for production deployments.
+  resource:
+    attributes:
+      - key: host.id
+        value: localhost
+        action: upsert
+
 exporters:
-  otlp:
-    endpoint: OTLP_ENDPOINT_HERE
+  otlphttp:
+    endpoint: $NEW_RELIC_OTLP_ENDPOINT
     headers:
-      api-key: YOUR_KEY_HERE
+      api-key: $NEW_RELIC_API_KEY
 
 service:
   pipelines:
-    
-    metrics:
+
+    metrics/hostmetrics:
       receivers: [hostmetrics]
-      processors: [memory_limiter, resourcedetection, resourcedetection/cloud, batch]
-      exporters: [logging, otlp]
-    
+      processors: [memory_limiter, resourcedetection, resourcedetection/cloud, resource, batch]
+      exporters: [otlphttp]
+
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, transform/truncate, resourcedetection, resourcedetection/cloud, resource, batch]
+      exporters: [otlphttp]
+
     traces:
       receivers: [otlp]
-      processors: [memory_limiter, transform/truncate, resourcedetection, resourcedetection/cloud, batch]
-      exporters: [logging, otlp]
-    
+      processors: [memory_limiter, transform/truncate, resourcedetection, resourcedetection/cloud, resource, batch]
+      exporters: [otlphttp]
+
     logs:
       receivers: [otlp, filelog]
-      processors: [memory_limiter, transform/truncate, resourcedetection, resourcedetection/cloud, batch]
-      exporters: [logging, otlp]
+      processors: [memory_limiter, transform/truncate, resourcedetection, resourcedetection/cloud, resource, batch]
+      exporters: [otlphttp]
 
   extensions: [health_check]
 ```

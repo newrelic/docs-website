@@ -37,6 +37,15 @@ const visualWebsiteOptimizer = (location) => {
   }
 };
 
+const surveyRecaptcha = (
+  <script
+    key="google-recaptcha"
+    async
+    defer
+    src="https://www.google.com/recaptcha/api.js?render=6Lehf-4oAAAAAK-sCeVSRUrRQfImJdwgc2pPkOwZ"
+  />
+);
+
 const isStyleGuidePage = (url) => {
   return url.includes('docs/style-guide');
 };
@@ -104,6 +113,7 @@ const DocsSiteSeo = ({
     )}
 
     {visualWebsiteOptimizer(location)}
+    {surveyRecaptcha}
   </SEO>
 );
 
