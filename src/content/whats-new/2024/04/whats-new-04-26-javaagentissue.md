@@ -15,7 +15,9 @@ This issue is resolved in the subsequent agent release (version 8.11.0). Upgradi
 If you’re unable to upgrade immediately, you can temporarily turn off the instrumentation by adding the following flag: 
 
 ```
--Dnewrelic.config.class_transformer.com.newrelic.instrumentation.httpurlconnection.enabled=false
+  -Dnewrelic.config.class_transformer.com.newrelic
+    .instrumentation.httpurlconnection.enabled=false
+    
 ```
 
 **Note**: Turning off the instrumentation is a temporary measure and not a substitute for upgrading. It will prevent the recording of external client calls, which may impact your application performance monitoring (APM) capabilities.
