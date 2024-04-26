@@ -1,34 +1,23 @@
 ---
-title: Vulnerability Management updates 
-summary: Check out three new changes that expand Vulnerability Management 
+title: New Vulnerability Management enhancements
+summary: Vulnerability Management now supports PHP, RBAC, and enhanced prioritization analytics
 releaseDate: '2024-04-26'
 learnMoreLink: 'https://docs.newrelic.com/docs/vulnerability-management/integrations/intro/#php-packages'
-getStartedLink: ''
 ---
 
-Vulnerability Management now has support for PHP, role based access control, and prioritization analytics! 
+Our latest updates to Vulnerability Management expand language support, access controls, and prioritization insights:
 
-## PHP Language Support
-PHP language support is now enabled within Vulnerability Management.  Starting with PHP agent version 10.17.0.17, 
-customers with access to NRVM can now view CVEs in PHP applications related to packages from the following frameworks: 
-Drupal, Guzzle, Laravel, PHPUnit, Predis, Slim and Wordpress.
+## PHP
+PHP language support is now enabled within Vulnerability Management.  Starting with PHP agent version 10.17.0.17, customers with access to New Relic Vulnerability Management can now view CVEs (commmon vulnerabities and exposures) in PHP applications related to packages from the following frameworks: Drupal, Guzzle, Laravel, PHPUnit, Predis, Slim and Wordpress.
 
-For more details about supported packages and versions, visit the Vulnerability Integrations page in [New Relic docs](https://docs.newrelic.com/docs/vulnerability-management/integrations/intro/#php-packages). 
+More details around supported packages and versions can be found on the [Vulnerability Integrations page in our docs](https://docs.newrelic.com/docs/vulnerability-management/integrations/intro/#php-packages). 
 
-## Vulnerability Management supports RBAC (role based access control)
-RBAC permission allows customers with Pro or Enterprise to restrict which users have access to read vulnerabilities. 
-If a user does **NOT** have this permission, they will be unable to access Vulnerability Management. More details around 
-all permissions used by NRVM can be found in the user [docs](https://docs.newrelic.com/docs/accounts/accounts-billing/new-relic-one-user-management/user-permissions/#security) for NRVM.
+## RBAC (role based access control)
+Account admins on Pro or Enterprise plans may use [RBAC](https://docs.newrelic.com/docs/accounts/accounts-billing/new-relic-one-user-management/user-management-concepts/#overview) to restrict which users have access to read vulnerabilities on their account. If a user does **NOT** have this permission, they will be unable to access Vulnerability Management. More details around all permissions can be found in our [User permissions docs](https://docs.newrelic.com/docs/accounts/accounts-billing/new-relic-one-user-management/user-permissions/#security).
 
-## Vulnerability Management enhances prioritization analytics
-Vulnerability Management now provides additional security analytics that help users quickly and 
-accurately prioritize which risks need to be fixed first.
+## Enhanced prioritization analytics
+Vulnerability Management now provides additional security analytics to help users quickly and accurately prioritize which risks need to be fixed first:
+* In addition to CVSS (Common Vulnerability Scoring System) data, Vulnerability Management now features **EPSS (Exploit Prediction Scoring System)** data, which rates the probability that a vulnerability will be exploited in the wild. In these cases, there are known instances of threat actors taking advantage of the vulnerability, which would elevate the severity of the vulnerability.
+* Vulnerability Management now also includes **Active Ransomware** data. This indicates if the vulnerability has been used in known ransomware campaigns. The severe impacts of ransomware incidents make these vulnerabilities a high priority.
 
-In addition to CVSS data, VM now features **Exploit Prediction Scoring System (EPSS)** data which rates the 
-probability that a vulnerability will be exploited in the wild. In these cases, there are known instances 
-of threat actors taking advantage of the vulnerability, which would elevate the severity of the vulnerability.
-
-**Active Ransomware** data has also been added which indicates if the vulnerability has been used in known ransomware campaigns. 
-The severe impacts of ransomware incidents make these vulnerabilities a high priority.
-
-More details around prioritization data used by NRVM can be found in the [user docs](https://docs.newrelic.com/docs/vulnerability-management/understanding-prioritization/) for NRVM.
+More details around the prioritization data can be found in our [Vulnerability Management docs](https://docs.newrelic.com/docs/vulnerability-management/understanding-prioritization/).
