@@ -2,7 +2,7 @@
 title: PHP Language Support
 summary: PHP enabled within Vulnerability Management
 releaseDate: '2024-04-26'
-[learnMoreLink](https://docs.newrelic.com/docs/vulnerability-management/integrations/intro/#php-packages)
+[learnMoreLink]:(https://docs.newrelic.com/docs/vulnerability-management/integrations/intro/#php-packages)
 getStartedLink: ''
 ---
 
