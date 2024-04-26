@@ -8,9 +8,10 @@ getStartedLink: 'https://docs.newrelic.com/docs/release-notes/agent-release-note
 
 We've identified a potential bug in the New Relic Java agent version 8.10.0 that can lead to higher CPU and memory usage and potentially impact normal operations of your application.
 
-**Upgrade to version 8.11.0.**
+## Upgrade to version 8.11.0.
 This issue is resolved in the subsequent agent release (version 8.11.0). Upgrading to this version is the recommended solution to resolve the issue and gain access to the latest platform features. For more information about this release, please review our doc. 
 
+## If you can't upgrade
 If you’re unable to upgrade immediately, you can temporarily turn off the instrumentation by adding the following flag: 
 
 -Dnewrelic.config.class_transformer.com.newrelic.instrumentation.httpurlconnection.enabled=false. 
