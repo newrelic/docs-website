@@ -85,6 +85,7 @@ const Card = styled.div`
 
   @media screen and (max-width: 1000px) {
     margin-bottom: 24px;
+    margin-left: 0;
   }
 `;
 
