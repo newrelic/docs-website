@@ -3,6 +3,8 @@ import { css } from '@emotion/react';
 import { NavItem } from '@newrelic/gatsby-theme-newrelic';
 import { Flipped, Flipper } from 'react-flip-toolkit';
 
+const slugify = require('../../scripts/utils/slugify');
+
 const Navigation = ({ nav, className }) => {
   const subNav = nav.url === '/docs/style-guide';
   const [flipKey, setFlipKey] = useState();
@@ -86,8 +88,8 @@ const Navigation = ({ nav, className }) => {
 const addFlipIds = (pages, parentKey = []) =>
   pages?.map((page) => ({
     ...page,
-    flipId: [...parentKey, page.title],
-    pages: addFlipIds(page.pages, [...parentKey, page.title]),
+    flipId: [...parentKey, slugify(page.title)],
+    pages: addFlipIds(page.pages, [...parentKey, slugify(page.title)]),
   }));
 
 export default Navigation;
