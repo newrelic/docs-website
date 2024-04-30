@@ -75,7 +75,7 @@ const ProductTile = ({ children, icon, title, to }) => {
             margin: 0;
             opacity: 0;
             overflow: visible;
-            width: 130%
+            width: 130%;
           }
 
           .title {
