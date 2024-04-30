@@ -12,7 +12,9 @@ const ProductTile = ({ children, icon, title, to }) => {
   // Used to calc the width of the text box each time a user hovers over a tile
   // this ensures resizing the screen won't allow text to clip behind parent.
   const calcTextWidth = () => {
-    const textRect = document.querySelector('.productText').getBoundingClientRect();
+    const textRect = document
+      .querySelector('.productText')
+      .getBoundingClientRect();
     setTextWidth(textRect.width);
   };
 
@@ -118,17 +120,10 @@ const ProductTile = ({ children, icon, title, to }) => {
         `}
         to={to}
       >
-        <h3
-          className="title"
-          ref={titleRef}
-        >
+        <h3 className="title" ref={titleRef}>
           {title}
         </h3>
-        <p
-          className="productText"
-        >
-          {children}
-        </p>
+        <p className="productText">{children}</p>
         <Icon
           name={icon}
           size="20px"
