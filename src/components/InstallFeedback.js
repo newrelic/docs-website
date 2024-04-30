@@ -135,7 +135,7 @@ const InstallFeedback = () => {
                   color: #1d252c;
                 `}
               >
-                {t('installFeedback.question')}
+                {t('strings.installFeedback.question')}
               </h2>
             </div>
             {!commentButtonClicked && (
@@ -190,7 +190,7 @@ const InstallFeedback = () => {
                     }
                   `}
                 >
-                  {t('installFeedback.commentButton')}
+                  {t('strings.installFeedback.commentButton')}
                   <Icon
                     size="1.5rem"
                     name="fe-contact-us"
@@ -244,7 +244,7 @@ const InstallFeedback = () => {
                 }
               `}
             >
-              <p>{t('installFeedback.comment')}</p>
+              <p>{t('strings.installFeedback.comment')}</p>
               <textarea
                 value={userComments}
                 maxLength="30000"
@@ -261,7 +261,7 @@ const InstallFeedback = () => {
                   margin-bottom: 1rem;
                 `}
               />
-              <p>{t('installFeedback.email')}</p>
+              <p>{t('strings.installFeedback.email')}</p>
               <input
                 value={userEmail}
                 placeholder="datanerd@example.com"
@@ -290,7 +290,7 @@ const InstallFeedback = () => {
                   width: 50%;
                 `}
               >
-                {t('installFeedback.emailDisclaimer')}
+                {t('strings.installFeedback.emailDisclaimer')}
               </p>
 
               {userEmail && !isValidEmail(userEmail) && (
@@ -304,7 +304,7 @@ const InstallFeedback = () => {
                     }
                   `}
                 >
-                  {t('installFeedback.validEmail')}
+                  {t('strings.installFeedback.validEmail')}
                 </p>
               )}
               <div>
@@ -334,7 +334,7 @@ const InstallFeedback = () => {
                     }
                   `}
                 >
-                  {t('installFeedback.submitButton')}
+                  {t('strings.installFeedback.submitButton')}
                 </Button>
               </div>
               <div
@@ -360,7 +360,7 @@ const InstallFeedback = () => {
             color: #1d252c;
           `}
         >
-          {t('installFeedback.submitMessage')}
+          {t('strings.installFeedback.submitMessage')}
         </p>
       )}
     </Surface>
