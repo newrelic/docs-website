@@ -184,6 +184,9 @@ const MainLayout = ({ children, pageContext }) => {
                   >
                     <Logo
                       css={css`
+                        .text-color {
+                          fill: var(--system-text-primary-dark);
+                        }
                         ${!sidebar &&
                         css`
                           display: none;
@@ -194,7 +197,7 @@ const MainLayout = ({ children, pageContext }) => {
                 </div>
                 {sidebar && (
                   <SearchInput
-                    placeholder={t('home.search.placeholder')}
+                    placeholder={t('strings.home.search.placeholder')}
                     value={searchTerm || ''}
                     iconName={SearchInput.ICONS.SEARCH}
                     isIconClickable
@@ -241,6 +244,7 @@ const MainLayout = ({ children, pageContext }) => {
                 css={css`
                   display: ${isMobileNavOpen ? 'none' : 'block'};
                   position: relative;
+                  padding-top: 2.75rem;
 
                   @media (min-width: 760px) {
                     ${!sidebar &&

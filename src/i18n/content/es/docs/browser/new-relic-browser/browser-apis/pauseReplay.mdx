@@ -1,0 +1,42 @@
+---
+title: pauseReplay
+type: apiDoc
+shortDescription: Un método utilizado para forzar una repetición a pausar la grabación.
+tags:
+  - Browser
+  - Browser monitoring
+  - Browser Agent
+metaDescription: A method used to force a replay to pause recording
+freshnessValidatedDate: '2024-04-22T00:00:00.000Z'
+translationType: machine
+---
+
+## Sintaxis
+
+```js
+newrelic.pauseReplay()
+```
+
+Browser API utilizada para forzar una repetición y pausar la grabación.
+
+## Requisitos
+
+* Browser Pro, o agente Pro+SPA (v1.240.0 o superior)
+
+## Descripción
+
+`newrelic.pauseReplay()` se puede llamar para forzar manualmente una repetición y pausar la grabación.
+
+Si aún no hay una repetición en curso, este método API no tendrá ningún efecto.
+
+## Casos de uso
+
+* Desea activar manualmente una repetición para detener la grabación en ciertas páginas del sitio o bajo ciertas condiciones, como una página de atención médica, una página de información de tarjeta de crédito, etc.
+
+## Ejemplos
+
+### Forzar una repetición para pausar la grabación
+
+```js
+newrelic.pauseReplay()
+```
