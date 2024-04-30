@@ -15,7 +15,7 @@ Gain a complete picture of each execution, including duration and the triggering
 CloudWatch metrics are now integrated with OpenTelemetry to provide valuable insights into the health of your Lambda functions. Monitor critical metrics like invocation frequency, execution duration, errors, throttling events, concurrent executions, and even dead letter queue failures (if configured). 
 
 By monitoring this comprehensive data set, you can:
-* **Optimize Function Efficiency:**Identify areas for improvement and streamline your Lambda functions for peak performance.
+* **Optimize Function Efficiency:** Identify areas for improvement and streamline your Lambda functions for peak performance.
 * **Troubleshoot Issues Quickly:** Pinpoint and resolve problems as soon as they arise, minimizing downtime and ensuring smooth operation.
 * **Proactive Monitoring with CloudWatch Alarms:** Define custom thresholds and configure CloudWatch alarms to receive notifications when critical metrics exceed pre-defined limits, allowing you to proactively manage your serverless applications.
 
