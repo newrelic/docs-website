@@ -7,21 +7,22 @@ import SurfaceLink from './SurfaceLink';
 const ProductTile = ({ children, icon, title, to }) => {
   const [textWidth, setTextWidth] = useState('');
   const [titleWidth, setTitleWidth] = useState('');
-  const textRef = useRef(null);
   const titleRef = useRef(null);
 
+  // Used to calc the width of the text box each time a user hovers over a tile
+  // this ensures resizing the screen won't allow text to clip behind parent.
+  const calcTextWidth = () => {
+    const textRect = document.querySelector('.productText').getBoundingClientRect();
+    setTextWidth(textRect.width);
+  };
+
   useEffect(() => {
-    if (!textRef.current) {
-      return null;
-    }
     if (!titleRef.current) {
       return null;
     }
 
-    const textRect = textRef.current.getBoundingClientRect();
     const titleRect = titleRef.current.getBoundingClientRect();
 
-    setTextWidth(textRect.width);
     setTitleWidth(titleRect.width);
   }, []);
 
@@ -49,6 +50,7 @@ const ProductTile = ({ children, icon, title, to }) => {
       `}
     >
       <SurfaceLink
+        onMouseEnter={calcTextWidth}
         css={css`
           background: var(--secondary-background-color);
           color: var(--primary-text-color);
@@ -67,14 +69,18 @@ const ProductTile = ({ children, icon, title, to }) => {
           border-radius: 10px;
           box-shadow: none;
 
-          .text {
+          .productText {
+            font-size: 14px;
+            line-height: 24px;
             margin: 0;
+            opacity: 0;
             overflow: visible;
-            transition: width 500ms;
-            width: 130%;
+            width: 130%
           }
 
           .title {
+            font-size: 20px;
+            font-weight: 400;
             margin-bottom: 0.5rem;
             width: ${titleWidth}px;
           }
@@ -94,7 +100,7 @@ const ProductTile = ({ children, icon, title, to }) => {
               display: block;
             }
 
-            .text {
+            .productText {
               opacity: 1;
               transition: opacity 500ms;
               width: ${textWidth}px;
@@ -113,25 +119,13 @@ const ProductTile = ({ children, icon, title, to }) => {
         to={to}
       >
         <h3
-          css={css`
-            font-size: 20px;
-            font-weight: 400;
-          `}
           className="title"
           ref={titleRef}
         >
           {title}
         </h3>
         <p
-          className="text"
-          css={css`
-            font-size: 14px;
-            line-height: 24px;
-            opacity: 0;
-            transition: opacity 325ms;
-            width: 100%;
-          `}
-          ref={textRef}
+          className="productText"
         >
           {children}
         </p>
