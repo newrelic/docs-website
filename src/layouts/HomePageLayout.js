@@ -31,6 +31,7 @@ const HomePageLayout = ({ children, pageContext }) => {
                 --sidebar-width: 0;
               }
               --link-color: rgb(243, 244, 244);
+              background: #f3f4f4;
             `}
           >
             <Layout.Sidebar
