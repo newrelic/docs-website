@@ -76,6 +76,11 @@ const ProductTile = ({ children, icon, title, to }) => (
           width: 100%;
         }
 
+        svg {
+          scale: 1;
+          transition: scale 500ms;
+        }
+
         &:hover {
           color: var(--primary-text-color);
           scale: 1.3;
@@ -98,6 +103,11 @@ const ProductTile = ({ children, icon, title, to }) => (
           .productText {
             opacity: 1;
             transition: opacity 500ms;
+          }
+
+          svg {
+            scale: calc(1 / 1.3);
+            transition: scale 500ms;
           }
         }
 
