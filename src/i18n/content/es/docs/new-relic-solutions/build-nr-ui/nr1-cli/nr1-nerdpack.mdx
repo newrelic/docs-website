@@ -1,0 +1,776 @@
+---
+title: Comandos nerdpack
+tags:
+  - New Relic One CLI
+  - Nerdpack commands
+metaDescription: An overview of the CLI commands you can use to set up your New Relic Nerdpacks.
+freshnessValidatedDate: '2024-04-29T00:00:00.000Z'
+translationType: machine
+---
+
+Emplee los siguientes comandos para configurar sus Nerdpacks. Puede hacer clic en cualquier comando para ver sus opciones de uso y detalles adicionales sobre el comando.
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        Dominio
+      </th>
+
+      <th>
+        Descripción
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        [`nr1 nerdpack:build`](#nr1-nerdpackbuild)
+      </td>
+
+      <td>
+        Construye un nerdpack
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [`nr1 nerdpack:clean`](#nr1-nerdpackclean)
+      </td>
+
+      <td>
+        Elimina todos los artefactos construidos.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [`nr1 nerdpack:clone`](#nr1-nerdpackclone)
+      </td>
+
+      <td>
+        Clona un Nerdpack desde un repositorio git
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [`nr1 nerdpack:info`](#nr1-nerdpackinfo)
+      </td>
+
+      <td>
+        Muestra el estado de tu Nerdpack en el registro de New Relic
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [`nr1 nerdpack:publish`](#nr1-nerdpackpublish)
+      </td>
+
+      <td>
+        Publicar este Nerdpack
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [`nr1 nerdpack:serve`](#nr1-nerdpackserve)
+      </td>
+
+      <td>
+        Sirve a tu Nerdpack para fines de prueba y desarrollo.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [`nr1 nerdpack:tag`](#nr1-nerdpacktag)
+      </td>
+
+      <td>
+        etiquetar una versión específica de Nerdpack
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [`nr1 nerdpack:untag`](#nr1-nerdpackuntag)
+      </td>
+
+      <td>
+        Elimina una etiqueta del registro
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [`nr1 nerdpack:uuid`](#nr1-nerdpackuuid)
+      </td>
+
+      <td>
+        Muestra o regenera el UUID de un Nerdpack
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [`nr1 nerdpack:validate`](#nr1-nerdpackvalidate)
+      </td>
+
+      <td>
+        Valida artefactos dentro de tu Nerdpack
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## `nr1 nerdpack:build` [#nr1-nerdpackbuild]
+
+Crea un grupo de nerds.
+
+### Uso [#build-usage]
+
+```sh
+nr1 nerdpack:build
+```
+
+### Opciones [#build-options]
+
+<table>
+  <tbody>
+    <tr>
+      <td>
+        `--extra-metadata-path=extra-metadata-path`
+      </td>
+
+      <td>
+        `default: extra-metadata.json` especifique una ruta de archivo json con metadatos adicionales.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `--prerelease=prerelease`
+      </td>
+
+      <td>
+        Si se especifica, el valor se agregará a la versión actual de los archivos generados. Por ejemplo `--prerelease=abc`. Entonces la versión será `1.2.3-abc`.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `--profile=profile`
+      </td>
+
+      <td>
+        El perfil de autenticación que desea emplear.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `--verbose`
+      </td>
+
+      <td>
+        Agrega información adicional a la salida.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+### Descripción [#build-description]
+
+Ejecuta un proceso de paquete sitio web para ensamblar su Nerdpack en paquetes de JavaScript y CSS . Como muchos otros comandos CLI, debe ejecutar en el nivel `package.json` de tu Nerdpack. Buscará `nr1.json` archivos en sus subdirectorios, los validará e intentará compilarlos. Esto también ejecuta `nr1 nerdpack:validate` antes de iniciar el proceso de compilación.
+
+## `nr1 nerdpack:clean` [#nr1-nerdpackclean]
+
+Elimina todos los artefactos construidos.
+
+### Uso [#clean-usage]
+
+```sh
+nr1 nerdpack:clean
+```
+
+### Opciones [#clean-options]
+
+<table>
+  <tbody>
+    <tr>
+      <td>
+        `--profile=profile`
+      </td>
+
+      <td>
+        El perfil de autenticación que desea emplear.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `--verbose`
+      </td>
+
+      <td>
+        Agrega información adicional a la salida.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+### Descripción [#clean-description]
+
+Limpia y elimina el contenido y las carpetas de desarrollo (`dist/`, `tmp/`).
+
+## `nr1 nerdpack:clone` [#nr1-nerdpackclone]
+
+Clona un nerdpack de un repositorio git.
+
+### Uso [#clone-usage]
+
+```sh
+nr1 nerdpack:clone
+```
+
+### Opciones [#clone-options]
+
+<table>
+  <tbody>
+    <tr>
+      <td>
+        `-f`, `--force`
+      </td>
+
+      <td>
+        Reemplace la carpeta de destino si existe.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-p`, `--path=path`
+      </td>
+
+      <td>
+        Directorio donde clonar (el valor predeterminado es el nombre del repositorio).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-r`, `--repo=repo`
+      </td>
+
+      <td>
+        Esto es **requerido**. Ubicación del repositorio, ya sea una ruta HTTPS o SSH.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `--profile=profile`
+      </td>
+
+      <td>
+        El perfil de autenticación que desea emplear.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `--verbose`
+      </td>
+
+      <td>
+        Agrega información adicional a la salida.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+### Descripción [#clone-description]
+
+Dado un repositorio git, realiza todas las acciones para que puedas comenzar a usarlo. Esto incluye, en orden:
+
+1. Clona el repositorio.
+2. Configure el repositorio como remoto ascendente.
+3. Instale toda su dependencia, usando `npm`.
+4. Genere un nuevo UUID usando su perfil y confírmelo.
+
+## `nr1 nerdpack:info` [#nr1-nerdpackinfo]
+
+Muestra el estado de tu nerdpack en el registro de New Relic.
+
+### Uso [#info-usage]
+
+```sh
+nr1 nerdpack:info
+```
+
+### Opciones [#info-options]
+
+<table>
+  <tbody>
+    <tr>
+      <td>
+        `-a`, `--all`
+      </td>
+
+      <td>
+        Mostrar todas las versiones.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-i`, `--nerdpack-id=nerdpack-id`
+      </td>
+
+      <td>
+        Obtenga información del Nerdpack especificado en lugar del local.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `--profile=profile`
+      </td>
+
+      <td>
+        El perfil de autenticación que desea emplear.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `--verbose`
+      </td>
+
+      <td>
+        Agrega información adicional a la salida.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+### Descripción [#info-description]
+
+La cantidad predeterminada de versiones que se muestran es 10, pero se pueden mostrar todas las versiones si se emplea el indicador `--all` o `-a` .
+
+## `nr1 nerdpack:publish` [#nr1-nerdpackpublish]
+
+Publica este paquete nerd.
+
+### Uso [#publish-usage]
+
+```sh
+nr1 nerdpack:publish
+```
+
+### Opciones [#publish-options]
+
+<table>
+  <tbody>
+    <tr>
+      <td>
+        `-B`, `--skip-build`
+      </td>
+
+      <td>
+        Omita el proceso de compilación anterior.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-T`, `--skip-tag`
+      </td>
+
+      <td>
+        No etiquetar la versión.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-t`, `--tag=tag`
+      </td>
+
+      <td>
+        `default: STABLE`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `--dry-run`
+      </td>
+
+      <td>
+        Proceso de publicación sin publicar nada.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `--extra-metadata-path=extra-metadata-path`
+      </td>
+
+      <td>
+        `default: extra-metadata.json` especifique una ruta de archivo json con metadatos adicionales.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `--prerelease=prerelease`
+      </td>
+
+      <td>
+        Si se especifica, el valor se agregará a la versión actual de los archivos generados. Por ejemplo, `--prerelease=abc`. Entonces la versión será `1.2.3-abc`.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `--profile=profile`
+      </td>
+
+      <td>
+        El perfil de autenticación que desea emplear.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `--verbose`
+      </td>
+
+      <td>
+        Agrega información adicional a la salida.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+### Descripción [#publish-description]
+
+Este comando construirá y cargará su Nerdpack en el registro.
+
+Si no se pasa ningún parámetro adicional, este comando etiquetará automáticamente la versión del nerdpack como `STABLE`. Si desea desactivar este comportamiento, pase el indicador `--skip-tag` al comando.
+
+Consulte `nr1 nerdpack:tag --help` para obtener más información sobre la etiqueta.
+
+## `nr1 nerdpack:serve` [#nr1-nerdpackserve]
+
+Sirve a su nerdpack con fines de prueba y desarrollo.
+
+### Uso [#serve-usage]
+
+```sh
+nr1 nerdpack:serve
+```
+
+### Opciones [#serve-options]
+
+<table>
+  <tbody>
+    <tr>
+      <td>
+        `--profile=profile`
+      </td>
+
+      <td>
+        El perfil de autenticación que desea emplear.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `--verbose`
+      </td>
+
+      <td>
+        Agrega información adicional a la salida.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+### Descripción [#serve-description]
+
+lanza un servidor con tu código local, listo para ser probado en tiempo real en la plataforma.
+
+## `nr1 nerdpack:tag` [#nr1-nerdpacktag]
+
+etiqueta una versión específica de nerdpack.
+
+### Uso [#tag-usage]
+
+```sh
+nr1 nerdpack:tag
+```
+
+### Opciones [#tag-options]
+
+<table>
+  <tbody>
+    <tr>
+      <td>
+        `-V`, `--from-version=from-version`
+      </td>
+
+      <td>
+        Versión para etiqueta. Si no se proporciona, empleará el de `package.json`.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-i`, `--nerdpack-id=nerdpack-id`
+      </td>
+
+      <td>
+        Nerdpack uuid para desplegar. Si no se proporciona, empleará el de `nr1.json`.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-t`, `--tag=tag`
+      </td>
+
+      <td>
+        `default: STABLE` nombre de etiqueta
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `--profile=profile`
+      </td>
+
+      <td>
+        El perfil de autenticación que desea emplear.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `--verbose`
+      </td>
+
+      <td>
+        Agrega información adicional a la salida.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+### Descripción [#tag-description]
+
+Una sola versión puede tener varias etiquetas, pero cada etiqueta sólo se puede aplicar a una versión. etiqueta una versión diferente con una etiqueta existente eliminará la etiqueta anterior.
+
+Recomendamos usar `STABLE` para etiquetar las versiones que desea mostrar a sus suscriptores. Consulte el comando `nr1 nerdpack:subscribe` para obtener más información.
+
+### Alias [#tag-aliases]
+
+```sh
+$ nr1 nerdpack:deploy
+```
+
+## `nr1 nerdpack:untag` [#nr1-nerdpackuntag]
+
+Elimina una etiqueta del registro.
+
+### Uso [#untag-usage]
+
+```sh
+nr1 nerdpack:untag
+```
+
+### Opciones [#untag-options]
+
+<table>
+  <tbody>
+    <tr>
+      <td>
+        `-i`, `--nerdpack-id=nerdpack-id`
+      </td>
+
+      <td>
+        Nerdpack uuid para desplegar. Si no se proporciona, empleará el de `nr1.json`.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-t`, `--tag=tag`
+      </td>
+
+      <td>
+        `default: STABLE` nombre de la etiqueta.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `--profile=profile`
+      </td>
+
+      <td>
+        El perfil de autenticación que desea emplear.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `--verbose`
+      </td>
+
+      <td>
+        Agrega información adicional a la salida.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+### Descripción [#untag-description]
+
+Se eliminará la etiqueta especificada. En realidad, no se eliminará ningún archivo.
+
+### Alias [#untag-aliases]
+
+```sh
+$ nr1 nerdpack:undeploy
+```
+
+## `nr1 nerdpack:uuid` [#nr1-nerdpackuuid]
+
+Muestra o regenera el uuid de un nerdpack.
+
+### Uso [#uuid-usage]
+
+```sh
+nr1 nerdpack:uuid
+```
+
+### Opciones [#uuid-options]
+
+<table>
+  <tbody>
+    <tr>
+      <td>
+        `-f`, `--force`
+      </td>
+
+      <td>
+        Si está presente, anulará el UUID existente sin preguntar.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-g`, `--generate`
+      </td>
+
+      <td>
+        Genera un nuevo UUID si no está disponible.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `--profile=profile`
+      </td>
+
+      <td>
+        El perfil de autenticación que desea emplear.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `--verbose`
+      </td>
+
+      <td>
+        Agrega información adicional a la salida.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+### Descripción [#uuid-description]
+
+De forma predeterminada, imprime la ID universal única del paquete especificado. También permite la generación o regeneración del UUID de su paquete, dependiendo de los indicadores pasados.
+
+## `nr1 nerdpack:validate` [#nr1-nerdpackvalidate]
+
+Valida artefactos dentro de tu nerdpack.
+
+### Uso [#validate-usage]
+
+```sh
+nr1 nerdpack:validate
+```
+
+### Opciones [#validate-options]
+
+<table>
+  <tbody>
+    <tr>
+      <td>
+        `-l`, `--force-local`
+      </td>
+
+      <td>
+        No descargue nuevos archivos de esquema.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `-r`, `--force-remote`
+      </td>
+
+      <td>
+        Forzar la descarga de nuevos archivos de esquema.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `--profile=profile`
+      </td>
+
+      <td>
+        El perfil de autenticación que desea emplear.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `--verbose`
+      </td>
+
+      <td>
+        Agrega información adicional a la salida.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+### Alias [#validate-aliases]
+
+```sh
+nr1 nerdpack:ls
+```
+
+```sh
+nr1 nerdpack:val
+```
