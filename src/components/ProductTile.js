@@ -80,40 +80,41 @@ const ProductTile = ({ children, icon, title, to }) => (
           scale: 1;
           transition: scale 500ms;
         }
+        @media screen and (min-width: 1001px) {
+          &:hover {
+            color: var(--primary-text-color);
+            scale: 1.3;
+            transition: scale 500ms, transform 500ms;
+            z-index: 10;
 
-        &:hover {
-          color: var(--primary-text-color);
-          scale: 1.3;
-          transition: scale 500ms, transform 500ms;
-          z-index: 10;
+            .hover-hide {
+              display: none;
+            }
+            .hover-show {
+              display: block;
+            }
 
-          .hover-hide {
-            display: none;
+            .inverse-transform-container {
+              translate: -15cqw -7.5cqh;
+              scale: calc(1 / 1.3);
+              transition: scale 500ms, translate 500ms;
+            }
+
+            .productText {
+              opacity: 1;
+              transition: opacity 500ms;
+            }
+
+            svg {
+              scale: calc(1 / 1.3);
+              transition: scale 500ms;
+            }
           }
-          .hover-show {
-            display: block;
-          }
 
-          .inverse-transform-container {
-            translate: -15cqw -7.5cqh;
-            scale: calc(1 / 1.3);
-            transition: scale 500ms, translate 500ms;
+          .dark-mode &:hover {
+            box-shadow: unset;
+            border: var(--brand-button-primary-accent) solid 1px;
           }
-
-          .productText {
-            opacity: 1;
-            transition: opacity 500ms;
-          }
-
-          svg {
-            scale: calc(1 / 1.3);
-            transition: scale 500ms;
-          }
-        }
-
-        .dark-mode &:hover {
-          box-shadow: unset;
-          border: var(--brand-button-primary-accent) solid 1px;
         }
 
         .dark-mode & {
@@ -136,21 +137,6 @@ const ProductTile = ({ children, icon, title, to }) => (
           flex: 1;
           position: absolute;
           right: 1rem;
-          
-          .dark-mode & {
-            border: var(--secondary-background-color) solid 1px; // prevent shifting on hover
-          }
-          @media screen and (max-width: 1000px) {
-            &:hover {
-              transform: none;
-              height: 100%;
-              width: 100%;
-
-              .text {
-                display: none;
-              }
-            }
-          }
         `}
       />
       <Icon
