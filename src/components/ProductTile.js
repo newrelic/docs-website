@@ -126,6 +126,21 @@ const ProductTile = ({ children, icon, title, to }) => (
           flex: 1;
           position: absolute;
           right: 1rem;
+          
+          .dark-mode & {
+            border: var(--secondary-background-color) solid 1px; // prevent shifting on hover
+          }
+          @media screen and (max-width: 1000px) {
+            &:hover {
+              transform: none;
+              height: 100%;
+              width: 100%;
+
+              .text {
+                display: none;
+              }
+            }
+          }
         `}
       />
       <Icon
