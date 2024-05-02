@@ -31,7 +31,6 @@ const ProductTile = ({ children, icon, title, to }) => (
     <SurfaceLink
       css={css`
         background: var(--secondary-background-color);
-        border-radius: 10px;
         box-shadow: none;
         container-type: size;
         color: var(--primary-text-color);
@@ -80,6 +79,7 @@ const ProductTile = ({ children, icon, title, to }) => (
           scale: 1;
           transition: scale 500ms;
         }
+
         @media screen and (min-width: 1001px) {
           &:hover {
             color: var(--primary-text-color);
