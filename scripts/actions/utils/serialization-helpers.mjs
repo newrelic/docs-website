@@ -1,12 +1,9 @@
-const { findAttribute } = require('../../../codemods/utils/mdxast');
-const { omit } = require('lodash');
-const all = require('mdast-util-to-hast/lib/all');
-const u = require('unist-builder');
-const toMDAST = require('remark-parse');
-const remarkMdx = require('remark-mdx');
-const remarkMdxjs = require('remark-mdxjs');
-const unified = require('unified');
-const visit = require('unist-util-visit');
+import { findAttribute } from '../../../codemods/utils/mdxast.js';
+import omit from 'lodash';
+import toMDAST from 'remark-parse10';
+import remarkMdx from 'remark-mdx2.3';
+import { unified } from 'unified11';
+import visit from 'unist-util-visit';
 
 const removeParagraphs = () => (tree) => {
   visit(tree, 'paragraph', (node, idx, parent) => {
@@ -24,34 +21,45 @@ const createJsonStr = (str) => JSON.stringify(eval(`const obj = ${str}; obj`));
 const attributeProcessor = unified()
   .use(toMDAST)
   .use(remarkMdx)
-  .use(remarkMdxjs)
   .use(removeParagraphs);
 
-const serializeAttributeValue = (h, attribute) => {
+const serializeAttributeValue = (state, attribute) => {
   if (typeof attribute === 'string') {
-    return u('text', attribute);
+    return { type: 'text', value: attribute };
   }
 
-  if (attribute.type === 'mdxValueExpression') {
+  if (attribute.type === 'mdxJsxAttributeValueExpression') {
     const root = attributeProcessor.parse(attribute.value);
     const { children } = attributeProcessor.runSync(root);
-
-    return serializeComponent(h, children[0]);
+    const childrenWithRefactoredMdxTextExpression = children[0].children.map(
+      (child) => {
+        if (child.type === 'mdxTextExpression') {
+          return { ...child, value: `{${child.value}}` };
+        }
+        return child;
+      }
+    );
+    return serializeComponent(state, {
+      ...children[0],
+      children: childrenWithRefactoredMdxTextExpression,
+    });
   }
 
   throw new Error('Unable to handle attribute');
 };
 
-const serializeTextProp = (h, node, propName) => {
+const serializeTextProp = (state, node, propName) => {
   const attribute = findAttribute(propName, node);
 
   if (!attribute) {
     return;
   }
-
-  return h(node, 'div', { 'data-type': 'prop', 'data-prop': propName }, [
-    serializeAttributeValue(h, attribute),
-  ]);
+  return {
+    type: 'element',
+    tagName: 'div',
+    properties: { 'data-type': 'prop', 'data-prop': propName },
+    children: [serializeAttributeValue(state, attribute)],
+  };
 };
 
 const serializeJSValue = (value) =>
@@ -70,7 +78,7 @@ const serializeProps = (node) => {
 };
 
 const serializeComponent = (
-  h,
+  state,
   node,
   {
     tagName,
@@ -82,31 +90,31 @@ const serializeComponent = (
   } = {}
 ) => {
   node.children = children;
-  const inferredTagName = node.type === 'mdxSpanElement' ? 'span' : 'div';
-
-  return h(
-    node,
-    tagName || inferredTagName,
-    stripNulls({
+  const inferredTagName = node.type === 'mdxJsxTextElement' ? 'span' : 'div';
+  return {
+    type: 'element',
+    tagName: tagName || inferredTagName,
+    properties: stripNulls({
       'data-type': 'component',
       'data-component': identifyComponent ? getComponentName(node) : null,
       'data-props': serializeProps(node),
       class: classNames,
     }),
-    textAttributes
-      .map((name) => serializeTextProp(h, node, name))
+    children: textAttributes
+      .map((name) => serializeTextProp(state, node, name))
       .concat(
-        wrapChildren && node.children.length
-          ? h(
-              node.position,
-              inferredTagName,
-              { 'data-type': 'prop', 'data-prop': 'children' },
-              all(h, node)
-            )
-          : all(h, node)
+        wrapChildren
+          ? node.children.length && {
+              type: 'element',
+              position: node.position,
+              tagName: inferredTagName,
+              properties: { 'data-type': 'prop', 'data-prop': 'children' },
+              children: state.all(node),
+            }
+          : state.all(node)
       )
-      .filter(Boolean)
-  );
+      .filter(Boolean),
+  };
 };
 
 const getComponentName = (node) =>
@@ -115,7 +123,7 @@ const getComponentName = (node) =>
 const stripNulls = (obj) =>
   Object.fromEntries(Object.entries(obj).filter(([, value]) => value != null));
 
-module.exports = {
+export {
   createJsonStr,
   serializeComponent,
   serializeProps,

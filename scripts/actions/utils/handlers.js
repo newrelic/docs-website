@@ -2,7 +2,7 @@ const {
   createJsonStr,
   serializeComponent,
   serializeJSValue,
-} = require('./serialization-helpers');
+} = require('./serialization-helpers.mjs');
 const {
   deserializeComponent,
   deserializeJSValue,
@@ -14,13 +14,18 @@ const { omit } = require('lodash');
 
 module.exports = {
   CodeBlock: {
-    serialize: (h, node) =>
-      h(node, 'pre', {
-        'data-type': 'component',
-        'data-component': 'CodeBlock',
-        'data-props': serializeJSValue(omit(node, ['type'])),
-      }),
-    deserialize: (state, node) => {
+    serialize: (_state, node) => {
+      return {
+        type: 'element',
+        tagName: 'pre',
+        properties: {
+          'data-type': 'component',
+          'data-component': 'CodeBlock',
+          'data-props': serializeJSValue(omit(node, ['type'])),
+        },
+      };
+    },
+    deserialize: (_state, node) => {
       const { lang, value } = deserializeJSValue(node.properties.dataProps);
       const { meta } = JSON.parse(
         Buffer.from(node.properties.dataProps ?? '', 'base64').toString()
@@ -42,11 +47,16 @@ module.exports = {
         value,
       };
     },
-    serialize: (h, node) =>
-      h(node, 'div', {
-        'data-type': 'import',
-        'data-value': Buffer.from(node.value).toString('base64'),
-      }),
+    serialize: (_state, node) => {
+      return {
+        type: 'element',
+        tagName: 'div',
+        properties: {
+          'data-type': 'import',
+          'data-value': Buffer.from(node.value).toString('base64'),
+        },
+      };
+    },
   },
   frontmatter: {
     deserialize: (_state, node) => {
@@ -64,25 +74,31 @@ module.exports = {
           .trim(),
       };
     },
-    serialize: (h, node) => {
+    serialize: (_state, node) => {
       const data = yaml.safeLoad(node.value);
       const serializeValue = (name) =>
-        data[name] &&
-        h(node, 'div', { 'data-key': name }, [u('text', data[name])]);
+        data[name] && {
+          type: 'element',
+          tagName: 'div',
+          properties: {
+            'data-key': name,
+          },
+          children: [{ type: 'text', value: data[name] }],
+        };
 
-      return h(
-        node,
-        'div',
-        {
+      return {
+        type: 'element',
+        tagName: 'div',
+        properties: {
           'data-type': 'frontmatter',
           'data-value': serializeJSValue(data),
         },
-        [
+        children: [
           serializeValue('title'),
           serializeValue('description'),
           serializeValue('shortDescription'),
-        ].filter(Boolean)
-      );
+        ].filter(Boolean),
+      };
     },
   },
   // React fragment
@@ -104,13 +120,13 @@ module.exports = {
   },
   Callout: {
     deserialize: deserializeComponent,
-    serialize: (h, node) =>
-      serializeComponent(h, node, { textAttributes: ['title'] }),
+    serialize: (state, node) =>
+      serializeComponent(state, node, { textAttributes: ['title'] }),
   },
   Collapser: {
     deserialize: deserializeComponent,
-    serialize: (h, node) =>
-      serializeComponent(h, node, { textAttributes: ['title'] }),
+    serialize: (state, node) =>
+      serializeComponent(state, node, { textAttributes: ['title'] }),
   },
   CollapserGroup: {
     deserialize: deserializeComponent,
@@ -126,8 +142,8 @@ module.exports = {
   },
   DoNotTranslate: {
     deserialize: deserializeComponent,
-    serialize: (h, node) =>
-      serializeComponent(h, node, {
+    serialize: (state, node) =>
+      serializeComponent(state, node, {
         classNames: 'notranslate',
         wrapChildren: false,
       }),
@@ -153,8 +169,8 @@ module.exports = {
       return deserializeComponent(state, node, { tagName: 'InlinePopover' });
     },
     // serialize: serializeComponent,
-    serialize: (h, node) =>
-      serializeComponent(h, node, {
+    serialize: (state, node) =>
+      serializeComponent(state, node, {
         classNames: 'notranslate',
         wrapChildren: false,
       }),
@@ -170,8 +186,8 @@ module.exports = {
   Icon: {
     deserialize: (state, node) =>
       deserializeComponent(state, node, { hasChildrenProp: false }),
-    serialize: (h, node) =>
-      serializeComponent(h, node, {
+    serialize: (state, node) =>
+      serializeComponent(state, node, {
         wrapChildren: false,
         // ensure rehype-minify-whitespace does not collapse any whitespace on
         // a text node that follows this node
@@ -180,8 +196,8 @@ module.exports = {
   },
   table: {
     deserialize: deserializeComponent,
-    serialize: (h, node) =>
-      serializeComponent(h, node, {
+    serialize: (state, node) =>
+      serializeComponent(state, node, {
         tagName: 'table',
         wrapChildren: false,
         identifyComponent: false,
@@ -189,8 +205,8 @@ module.exports = {
   },
   LandingPageTile: {
     deserialize: deserializeComponent,
-    serialize: (h, node) =>
-      serializeComponent(h, node, { textAttributes: ['title'] }),
+    serialize: (state, node) =>
+      serializeComponent(state, node, { textAttributes: ['title'] }),
   },
   LandingPageTileGrid: {
     deserialize: deserializeComponent,
@@ -210,16 +226,16 @@ module.exports = {
       name: 'InlineCode',
       children: state.all(node),
     }),
-    serialize: (h, node) => {
-      return h(
-        node,
-        'code',
-        {
+    serialize: (_state, node) => {
+      return {
+        type: 'element',
+        tagName: 'code',
+        properties: {
           'data-type': 'component',
           'data-component': 'InlineCode',
         },
-        [u('text', toString(node))]
-      );
+        children: [u('text', toString(node))],
+      };
     },
   },
   InstallFeedback: {
@@ -263,10 +279,10 @@ module.exports = {
     deserialize: deserializeComponent,
   },
   TechTile: {
-    deserialize: (h, node) =>
-      deserializeComponent(h, node, { hasChildrenProp: false }),
-    serialize: (h, node) =>
-      serializeComponent(h, node, { textAttributes: ['name'] }),
+    deserialize: (state, node) =>
+      deserializeComponent(state, node, { hasChildrenProp: false }),
+    serialize: (state, node) =>
+      serializeComponent(state, node, { textAttributes: ['name'] }),
   },
   TechTileGrid: {
     deserialize: deserializeComponent,
@@ -296,41 +312,61 @@ module.exports = {
         type: 'mdxJsxFlowElement',
       };
     },
-    serialize: (h, node) => {
+    serialize: (_state, node) => {
       const serializeAttribute = (name, attribute) => {
         const attributeValue = JSON.parse(createJsonStr(attribute.value));
         return [
-          h(node, 'div', { 'data-key': `${name}-title` }, [
-            u('text', attributeValue.title),
-          ]),
-          h(node, 'div', { 'data-key': `${name}-body` }, [
-            u('text', attributeValue.body),
-          ]),
+          {
+            type: 'element',
+            tagName: 'div',
+            properties: {
+              'data-key': `${name}-title`,
+            },
+            children: [
+              {
+                type: 'text',
+                value: attributeValue.title,
+              },
+            ],
+          },
+          {
+            type: 'element',
+            tagName: 'div',
+            properties: {
+              'data-key': `${name}-body`,
+            },
+            children: [
+              {
+                type: 'text',
+                value: attributeValue.body,
+              },
+            ],
+          },
         ];
       };
       const serializedAttributes = node.attributes.flatMap((attribute) =>
         serializeAttribute(attribute.name, attribute.value)
       );
-      return h(
-        node,
-        'div',
-        {
+      return {
+        type: 'element',
+        tagName: 'div',
+        properties: {
           'data-type': 'UserJourneyControls',
           'data-value': serializeJSValue(node),
         },
-        serializedAttributes
-      );
+        children: serializedAttributes,
+      };
     },
   },
   Video: {
     deserialize: deserializeComponent,
-    serialize: (h, node) =>
-      serializeComponent(h, node, { textAttributes: ['title'] }),
+    serialize: (state, node) =>
+      serializeComponent(state, node, { textAttributes: ['title'] }),
   },
   thead: {
     deserialize: deserializeComponent,
-    serialize: (h, node) =>
-      serializeComponent(h, node, {
+    serialize: (state, node) =>
+      serializeComponent(state, node, {
         tagName: 'thead',
         wrapChildren: false,
         identifyComponent: false,
@@ -338,8 +374,8 @@ module.exports = {
   },
   tbody: {
     deserialize: deserializeComponent,
-    serialize: (h, node) =>
-      serializeComponent(h, node, {
+    serialize: (state, node) =>
+      serializeComponent(state, node, {
         tagName: 'tbody',
         wrapChildren: false,
         identifyComponent: false,
@@ -347,8 +383,8 @@ module.exports = {
   },
   tr: {
     deserialize: deserializeComponent,
-    serialize: (h, node) =>
-      serializeComponent(h, node, {
+    serialize: (state, node) =>
+      serializeComponent(state, node, {
         tagName: 'tr',
         wrapChildren: false,
         identifyComponent: false,
@@ -356,8 +392,8 @@ module.exports = {
   },
   th: {
     deserialize: deserializeComponent,
-    serialize: (h, node) =>
-      serializeComponent(h, node, {
+    serialize: (state, node) =>
+      serializeComponent(state, node, {
         tagName: 'th',
         wrapChildren: false,
         identifyComponent: false,
@@ -365,8 +401,8 @@ module.exports = {
   },
   td: {
     deserialize: deserializeComponent,
-    serialize: (h, node) =>
-      serializeComponent(h, node, {
+    serialize: (state, node) =>
+      serializeComponent(state, node, {
         tagName: 'td',
         wrapChildren: false,
         identifyComponent: false,
@@ -375,8 +411,8 @@ module.exports = {
   var: {
     deserialize: (state, node) =>
       deserializeComponent(state, node, { type: 'mdxJsxTextElement' }),
-    serialize: (h, node) =>
-      serializeComponent(h, node, {
+    serialize: (state, node) =>
+      serializeComponent(state, node, {
         wrapChildren: false,
         identifyComponent: false,
         tagName: 'var',
@@ -385,8 +421,8 @@ module.exports = {
   mark: {
     deserialize: (state, node) =>
       deserializeComponent(state, node, { type: 'mdxJsxTextElement' }),
-    serialize: (h, node) =>
-      serializeComponent(h, node, {
+    serialize: (state, node) =>
+      serializeComponent(state, node, {
         wrapChildren: false,
         identifyComponent: false,
         tagName: 'mark',
@@ -406,8 +442,8 @@ module.exports = {
   },
   img: {
     deserialize: deserializeComponent,
-    serialize: (h, node) =>
-      serializeComponent(h, node, { textAttributes: ['alt'] }),
+    serialize: (state, node) =>
+      serializeComponent(state, node, { textAttributes: ['alt'] }),
   },
   a: {
     deserialize: deserializeComponent,
