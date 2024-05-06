@@ -3,7 +3,7 @@
 const fetch = require('node-fetch');
 const fs = require('fs');
 const path = require('path');
-const serializeMDX = require('../serialize-mdx');
+const serializeMDX = require('../serialize-mdx.mjs');
 const FormData = require('form-data');
 const NodeCache = require('node-cache');
 const { LOCALE_IDS } = require('./constants');

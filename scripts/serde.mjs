@@ -3,7 +3,7 @@
 import fs from 'fs/promises';
 import { program } from 'commander';
 
-import serializeMDX from './actions/serialize-mdx.js';
+import serializeMDX from './actions/serialize-mdx.mjs';
 import deserializeHTML from './actions/deserialize-html.mjs';
 
 const cantOpenPath = (path) => () => {
