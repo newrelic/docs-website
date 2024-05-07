@@ -43,7 +43,7 @@ There are several ways you can contribute:
 
 - If you wish to make documentation edits or add new
 documentation, follow our [documentation contribution guidelines](https://docs.newrelic.com/docs/style-guide/writing-guidelines/create-edit-content/#edit-doc).
-- If you'd like to to make code contributions, or make content contributions locally, follow the contribution guidelines below.
+- If you'd like to make code contributions, or make content contributions locally, follow the contribution guidelines below.
 
 ## Getting started
 
@@ -63,7 +63,7 @@ The first time you build the site locally, it will take upwards of 20 minutes. T
 
 ### Dependencies
 
-Node v16 is used in this project as specified in [.nvmrc](https://github.com/newrelic/developer-website/blob/master/.nvmrc).
+Node v18 is used in this project as specified in [.nvmrc](https://github.com/newrelic/developer-website/blob/master/.nvmrc).
 
 ### Unit tests
 
