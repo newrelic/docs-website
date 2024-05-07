@@ -1,5 +1,5 @@
 ---
-title: New Relic Snowflake Integration
+title: New Relic Snowflake integration
 summary: New Relic now integrates with Snowflake.
 releaseDate: '2021-01-13'
 learnMoreLink: 'https://blog.newrelic.com/product-news/new-relic-snowflake-integration/'
@@ -13,6 +13,6 @@ New Relic now integrates with [Snowflake](https://github.com/newrelic/newrelic-s
 * Detect potential security issues and failed logins.
 * Monitor and alert on custom Snowflake data.
 
-![screenshot_snowflake_integration_chart.png](./images/screenshot_snowflake_integration_chart.png "screenshot_snowflake_integration_chart.png")
+![screenshot_snowflake_integration_chart.png](./images/screenshot_snowflake_integration_chart.webp "screenshot_snowflake_integration_chart.webp")
 
 An example Snowflake integration chart.

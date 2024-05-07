@@ -1,0 +1,148 @@
+---
+title: Ejecute la integración en el host manualmente (ejecución en seco)
+type: troubleshooting
+tags:
+  - Integrations
+  - On-host integrations
+  - Troubleshooting
+metaDescription: 'For New Relic, run the infrastructure agent on-host integrations manually (dry-run).'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+## Problema
+
+Quiere saber si una integración en el host está configurada como se esperaba y recopilando métrica. Para diagnosticarlo, utilice el indicador de ejecución en seco con el agente de infraestructura o ejecute la integración manualmente.
+
+## Solución
+
+### ejecución en seco de integración
+
+A partir de la versión 1.27.0 del agente de infraestructura, puede ejecutar la integración en modo de prueba para la resolución de problemas. En este modo, el agente ejecutará la integración desde la configuración proporcionada e imprimirá la salida de la integración en la salida estándar.
+
+Este modo admite un único archivo de configuración o una carpeta con varios archivos de configuración.
+
+Bandera de ejecución en seco:
+
+```
+/usr/bin/newrelic-infra -dry_run -integration_config_path PATH_TO_FILE_OR_DIR
+```
+
+Ejemplo: prueba de un único archivo de integración:
+
+```
+/usr/bin/newrelic-infra -dry_run -integration_config_path /any/absolute/path/mysql-config.yml 
+```
+
+Ejemplo: prueba de un único archivo de integración con registro de depuración:
+
+```
+NRIA_LOG_LEVEL=trace /usr/bin/newrelic-infra -dry_run -integration_config_path /any/absolute/path/mysql-config.yml 
+```
+
+Ejemplo: probar todos los archivos dentro de una carpeta:
+
+```
+/usr/bin/newrelic-infra -dry_run -integration_config_path /any/absolute/path 
+```
+
+Para cada ejecución de integración, el comando imprimirá el nombre de la integración y su salida.
+
+```
+----------
+Integration Name: nri-mysql
+Integration Output: {"name":"com.newrelic.mysql","protocol_version":"3","integration_version":"1.8.0","data":[{"entity":{"name":"localhost:3309","type":"node","id_attributes":[]},"metrics":[{"cluster.nodeType":"master","db.handlerRollbackPerSecond":0,"db.innodb.bufferPoolPagesData":1139,"db.innodb.bufferPoolPagesFree":7049,"db.innodb.bufferPoolPagesTotal":8192,"db.innodb.dataReadBytesPerSecond":0,"db.innodb.dataWrittenBytesPerSecond":0,"db.innodb.logWaitsPerSecond":0,"db.innodb.rowLockCurrentWaits"...
+```
+
+Al ejecutar varios archivos, las diferentes salidas de integración se separarán con `----------`
+
+```
+----------
+Integration Name: nri-mysql
+Integration Output: {"name":"com.newrelic.mysql","protocol_version":"3","integration_version":"1.8.0","data":...
+
+----------
+Integration Name: nri-ibmmq
+Integration Output: {"protocol_version":"4","integration":{"name":"nri-ibmmq","version":"0.0.2"},"data":....
+```
+
+### Ejecución manual [#manual]
+
+Utilice los siguientes comandos para ejecutar su integración manualmente:
+
+<CollapserGroup>
+  <Collapser
+    id="kafka"
+    title="kafka"
+  >
+    ```
+    echo 'kafka.network:type=RequestMetrics,name=*,request=*’ | nrjmx -host host -port port
+    ```
+  </Collapser>
+
+  <Collapser
+    id="rabbitmq"
+    title="RabbitMQ"
+  >
+    * Prueba de conexión básica:
+
+      ```
+      ./bin/nri-rabbitmq -hostname rabbitmqhost -username user -password password
+      ```
+
+    * Prueba de conexión de puerto no predeterminado:
+
+      ```
+      ./bin/nri-rabbitmq -hostname rabbitmqhost -username user -password password -port port_number
+      ```
+  </Collapser>
+
+  <Collapser
+    id="mssql"
+    title="MSSQL"
+  >
+    * Prueba de conexión básica:
+
+      ```
+      .\bin\nri-mssql -hostname sqlhost -username user -password password
+      ```
+
+    * Prueba de conexión de instancia:
+
+      ```
+      .\bin\nri-mssql -hostname sqlhost -username user -password password -instance instance_name
+      ```
+
+    * Prueba de conexión de puerto no predeterminado:
+
+      ```
+      .\bin\nri-mssql -hostname sqlhost -username user -password password -port port_number
+      ```
+  </Collapser>
+
+  <Collapser
+    id="oracle"
+    title="Oracle"
+  >
+    ```
+    ORACLE_HOME=/path/to/oracle/home /var/db/newrelic-infra/newrelic-integrations/bin/nri-oracledb -username user -password password -hostname host -port port -service_name name -verbose
+    ```
+  </Collapser>
+
+  <Collapser
+    id="jmx"
+    title="JMX"
+  >
+    ```
+    echo 'java.lang:type=GarbageCollector,name=*' | nrjmx -d -hostname localipv4 -port port_number -username user -password password --verbose true
+    ```
+
+    Para obtener más información, consulte [resolución de problemas mediante jmxterm](https://github.com/newrelic/nrjmx/blob/master/TROUBLESHOOT.md).
+  </Collapser>
+</CollapserGroup>
+
+Toda integración permite las siguientes opciones:
+
+`-help`: Muestra la lista de parámetros permitidos
+
+`-pretty`: Genera JSON bastante formateado

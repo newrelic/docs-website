@@ -10,15 +10,11 @@ const Timeline = ({ children }) => (
       --timeline-width: 4px;
       --ring-size: 1rem;
       --ring-border-width: var(--timeline-width);
-      --timeline-color: var(--color-neutrals-200);
+      --timeline-color: var(--border-color);
 
       display: grid;
       grid-template-columns: auto 1fr;
       grid-column-gap: 2rem;
-
-      .dark-mode & {
-        --timeline-color: var(--color-dark-200);
-      }
 
       @media screen and (max-width: ${MOBILE_BREAKPOINT}) {
         grid-template-columns: auto;

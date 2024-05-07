@@ -5,7 +5,7 @@ releaseDate: '2021-04-14'
 learnMoreLink: 'https://docs.newrelic.com/docs/mobile-monitoring/new-relic-mobile-android/get-started/new-relic-mobile-and-dt/'
 ---
 
-Our new mobile monitoring agents now support distributed tracing! This new feature enables you to see your mobile app activity and connects it directly to the related services that power your app’s experience. By having this enabled, you are now able to see your mobile front-end spans and back-end spans in the same waterfall view.
+Our new mobile monitoring agents now support distributed tracing! This new feature enables you to see your mobile app activity and connects it directly to the related services that power your app’s experience. By having this enabled, you are now able to see your mobile frontend spans and backend spans in the same waterfall view.
 
 **What do I need to do to take advantage of distributed tracing for Mobile?**
 

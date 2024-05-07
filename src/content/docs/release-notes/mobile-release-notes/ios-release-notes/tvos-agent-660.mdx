@@ -1,0 +1,16 @@
+---
+subject: iOS agent
+title: tvOS agent v6.6.0
+releaseDate: '2019-03-14'
+version: 6.6.0
+downloadLink: 'https://download.newrelic.com/tvos_agent/NewRelic_tvOS_Agent_6.6.0.zip'
+---
+
+### Improvements
+
+* Bumped session attribute limit to 128 from 64.
+
+### Fixes
+
+* `+recordCustomEvent:withName:attributes:` no longer requires a dictionary to capture `name`.
+* Values in attributes dictionaries passed to `recordEvent` APIs will no longer be cast to int or float values, which degraded large data types.

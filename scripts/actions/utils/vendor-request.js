@@ -5,16 +5,12 @@ const fs = require('fs');
 const path = require('path');
 const serializeMDX = require('../serialize-mdx');
 const FormData = require('form-data');
+const NodeCache = require('node-cache');
+const { LOCALE_IDS } = require('./constants');
 
+const cache = new NodeCache({ stdTTL: 60 * 4, checkperiod: 2 });
 const PROJECT_ID = process.env.TRANSLATION_VENDOR_PROJECT;
 const DOCS_SITE_URL = 'https://docs.newrelic.com';
-
-// NOTE: the vendor requires the locales in a different format
-// We should consider this into the Gatsby config for each locale.
-const LOCALE_IDS = {
-  jp: 'ja-JP',
-  'ja-JP': 'jp',
-};
 
 const MAX_RETRY = 5;
 const POLL_INTERVAL = 1500;
@@ -68,6 +64,12 @@ const makeRequest = async (url, options, nthTry = 1) => {
  * @returns {Promise<string>}
  */
 const getAccessToken = async () => {
+  const cachedToken = cache.get('access_token');
+  if (cachedToken != undefined) {
+    console.log('using cached access token');
+    return cachedToken;
+  }
+
   const url = new URL(
     '/auth-api/v2/authenticate',
     process.env.TRANSLATION_VENDOR_API_URL
@@ -84,7 +86,11 @@ const getAccessToken = async () => {
     }),
   };
 
+  console.log('grabbing access token');
   const { accessToken } = await makeRequest(url, options);
+
+  console.log('setting cached token');
+  cache.set('access_token', accessToken, 60 * 4);
 
   return accessToken;
 };
@@ -97,7 +103,6 @@ const getAccessToken = async () => {
  * @param {Object} options
  * @param {"GET"|"POST"} options.method The HTTP method used in the request.
  * @param {string} options.endpoint
- * @param {string} options.accessToken
  * @param {Object} [options.body]
  * @param {Object} [options.contentType]
  * @returns {Promise<Object>} The result after making the request.
@@ -105,7 +110,6 @@ const getAccessToken = async () => {
 const vendorRequest = async ({
   method,
   endpoint,
-  accessToken,
   body = {},
   contentType = 'application/json',
 }) => {
@@ -114,7 +118,7 @@ const vendorRequest = async ({
   const options = {
     method,
     headers: {
-      Authorization: `Bearer ${accessToken}`,
+      Authorization: `Bearer ${await getAccessToken()}`,
       'Content-Type': contentType,
     },
   };
@@ -136,7 +140,7 @@ const vendorRequest = async ({
 const sendPageContext = async (fileUri, accessToken) => {
   const filepath = fileUri.replace(`src/content/`, '');
   const slug = filepath.replace(`.mdx`, '');
-  const contextUrl = new URL(slug, DOCS_SITE_URL); //need to change this once we migrate to docs-newrelic-com
+  const contextUrl = new URL(slug, DOCS_SITE_URL);
 
   const res = await fetch(contextUrl.href);
   const html = await res.text();
@@ -177,10 +181,10 @@ const sendPageContext = async (fileUri, accessToken) => {
  *
  * @param {string} locale The locale that this file should be translated to.
  * @param {string} batchUid The batch that is expecting this file.
- * @param {string} accessToken
  * @returns {(translation: Translation) => Promise<{code: string, slug: string, locale: string>}
  */
-const uploadFile = (locale, batchUid, accessToken) => async (translation) => {
+const uploadFile = (locale, batchUid) => async (translation) => {
+  const accessToken = await getAccessToken();
   const mdx = fs.readFileSync(path.join(process.cwd(), translation.slug));
   const html = await serializeMDX(mdx);
 
@@ -189,7 +193,11 @@ const uploadFile = (locale, batchUid, accessToken) => async (translation) => {
     html,
   };
 
-  const filename = `${Buffer.from(LOCALE_IDS[locale] + page.file).toString(
+  const localeKey = Object.keys(LOCALE_IDS).find(
+    (key) => LOCALE_IDS[key] === locale
+  );
+
+  const filename = `${Buffer.from(localeKey + page.file).toString(
     'base64'
   )}.html`;
   const filepath = path.join(process.cwd(), filename);

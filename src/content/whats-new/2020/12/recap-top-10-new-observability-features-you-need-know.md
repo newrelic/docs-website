@@ -40,7 +40,7 @@ If you build, deploy, or maintain apps and critical workloads on AWS, you can no
 
 New Relic One now has a UI dedicated to providing full APM functionality for your OpenTelemetry data. Send your OpenTelemetry data to New Relic using one of the [OpenTelemetry exporters](https://docs.newrelic.com/docs/integrations/open-source-telemetry-integrations/open-source-telemetry-integration-list/new-relics-opentelemetry-integration) and quickly discover and analyze your data to optimize the performance of your applications and services using one of seven key pages. [Learn more.](https://blog.newrelic.com/product-news/opentelemetry-user-experience/)
 
-![What's new? OpenTelemetry UI](./images/new-relic-whats-new-OpenTelemetry.png 'new-relic-whats-new-OpenTelemetry.png')
+![What's new? OpenTelemetry UI](./images/new-relic-whats-new-OpenTelemetry.webp 'new-relic-whats-new-OpenTelemetry.webp')
 
 New Relic OpenTelemetry UI
 
@@ -48,7 +48,7 @@ New Relic OpenTelemetry UI
 
 New Relic users with Pro or Enterprise Full-Stack Observability can now access and benefit from New Relic Edge with a fully managed, cloud-native, tail-based distributed tracing service. This new service observes 100% of all application traces across your distributed systems, and provides visualization and storage for the most actionable data so you can investigate and solve issues faster. [Learn more here.](https://blog.newrelic.com/product-news/new-relic-edge-ga/)
 
-![What's new? Infinite Tracing](./images/whats-new-infinite-tracing.png 'whats-new-infinite-tracing.png')
+![What's new? Infinite Tracing](./images/whats-new-infinite-tracing.webp 'whats-new-infinite-tracing.webp')
 
 New Relic Edge with Infinite Tracing UI
 
@@ -64,7 +64,7 @@ Go to **What's new** to see recent feature additions and updates.
 
 You can now view anomalies with the activity stream, which is visible from the New Relic One homepage, APM summary page, and APM list page. The activity stream displays recent events from alerts and deployments and provides a direct view into what has changed in your system so that you can fix outages quickly. [Learn more here.](https://docs.newrelic.com/whats-new/anomalies-visible-activity-stream)
 
-![New Relic what's new - Anomalies ](./images/whats-new-anomalies.png 'whats-new-anomalies.png')
+![New Relic what's new - Anomalies ](./images/whats-new-anomalies.webp 'whats-new-anomalies.webp')
 
 Anomalies visible in activity stream
 
@@ -72,7 +72,7 @@ Anomalies visible in activity stream
 
 Unlock open source and alternative instrumentation sources by ingesting data from Apache Kafka topics into New Relic One, without writing a single line of code, with the New Relic connector for Kafka Connect. [Learn more here.](https://docs.newrelic.com/whats-new/kafka-connect-unlock-open-source-alternative-instrumentation-sources)
 
-![New Relic Kafka Connect](./images/new-relic-kafka-connect.png 'new-relic-kafka-connect.png')
+![New Relic Kafka Connect](./images/new-relic-kafka-connect.webp 'new-relic-kafka-connect.webp')
 
 New Relic connector for Kafka Conect
 
@@ -80,7 +80,7 @@ New Relic connector for Kafka Conect
 
 You can now send all of your logs to New Relic using the infrastructure agent in Windows. This feature includes new filters to select exactly which log types (application, security, or system) and messages you are interested in, all the way down to the EventID. [Learn more here.](https://docs.newrelic.com/docs/integrations/host-integrations/host-integrations-list/windows-event-log-integration)
 
-![New Relic - Windows support for logs](./images/new-relic-windows-support-logs.jpg 'new-relic-windows-support-logs.jpg')
+![New Relic - Windows support for logs](./images/new-relic-windows-support-logs.webp 'new-relic-windows-support-logs.webp')
 
 We now support Windows logs via our infrastructure agent.
 
@@ -88,7 +88,7 @@ We now support Windows logs via our infrastructure agent.
 
 Share insights, dashboards, and curated views from anywhere in New Relic One by clicking the permalink icon to copy a short, permanent URL to your clipboard automatically. [Learn more here.](https://docs.newrelic.com/whats-new/share-dashboards-curated-views-permalinks)
 
-![What's new? Permalink](./images/new-relic-permalink.png 'new-relic-permalink.png')
+![What's new? Permalink](./images/new-relic-permalink.webp 'new-relic-permalink.webp')
 
 Share New Relic UI views and dashboards with permalinks.
 
@@ -96,7 +96,7 @@ Share New Relic UI views and dashboards with permalinks.
 
 Now you can schedule when you want to mute alerts to avoid messages during maintenance or deployments. [Learn more here.](https://docs.newrelic.com/docs/alerts-applied-intelligence/new-relic-alerts/alert-notifications/muting-rules-suppress-notifications)
 
-![New Relic scheduled alert muting](./images/new-relic-scheduled-alert-muting.png 'new-relic-scheduled-alert-muting.png')
+![New Relic scheduled alert muting](./images/new-relic-scheduled-alert-muting.webp 'new-relic-scheduled-alert-muting.webp')
 
 Schedule times when your alerts are muted.
 

@@ -10,10 +10,10 @@ The activity stream, visible from the New Relic One homepage, APM summary page, 
 
 To expand your view of your system and data to help speed incident response, we’ve further integrated [Applied Intelligence](https://newrelic.com/platform/applied-intelligence) capabilities into New Relic One by providing detected anomalies in context alongside APM information in the activity stream of the New Relic One homepage and on the APM summary page.
 
-![Screenshot showing anomaly stream!](./images/whats_up_anomaly_stream.png "whats_up_anomaly_stream.png")
+![Screenshot showing anomaly stream!](./images/whats_up_anomaly_stream.webp "whats_up_anomaly_stream.webp")
 
 Bringing anomalies into your common workflows will save you time and increase your situational awareness, so that you can more quickly understand changes and respond to incidents faster.
 
-![Screenshot showing anomaly analysis.](./images/whats_up_anomaly_analysis.png "whats_up_anomaly_analysis.png")
+![Screenshot showing anomaly analysis.](./images/whats_up_anomaly_analysis.webp "whats_up_anomaly_analysis.webp")
 
 After you configure your application within Proactive Detection, Applied Intelligence will post open and closed events to the activity stream for specific time windows. For faster troubleshooting, click on any event in the activity stream for event analysis— including related anomalies—suggested queries, and other relevant metrics. Additionally, you can configure Proactive Detection to send anomaly notifications and analysis to Slack and other notification channels or the [Telemetry Data Platform](https://newrelic.com/platform/telemetry-data-platform) for future analysis.

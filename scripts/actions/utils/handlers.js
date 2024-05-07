@@ -1,4 +1,5 @@
 const {
+  createJsonStr,
   serializeComponent,
   serializeJSValue,
 } = require('./serialization-helpers');
@@ -14,16 +15,11 @@ const { omit } = require('lodash');
 module.exports = {
   CodeBlock: {
     serialize: (h, node) =>
-      h(
-        node,
-        'pre',
-        {
-          'data-type': 'component',
-          'data-component': 'CodeBlock',
-          'data-props': serializeJSValue(omit(node, ['type'])),
-        },
-        [h(node, 'code')]
-      ),
+      h(node, 'pre', {
+        'data-type': 'component',
+        'data-component': 'CodeBlock',
+        'data-props': serializeJSValue(omit(node, ['type'])),
+      }),
     deserialize: (h, node) =>
       h(node, 'code', deserializeJSValue(node.properties.dataProps)),
   },
@@ -108,9 +104,52 @@ module.exports = {
     deserialize: deserializeComponent,
     serialize: serializeComponent,
   },
+  DocTile: {
+    deserialize: deserializeComponent,
+    serialize: serializeComponent,
+  },
+  DocTiles: {
+    deserialize: deserializeComponent,
+    serialize: serializeComponent,
+  },
+  DoNotTranslate: {
+    deserialize: deserializeComponent,
+    serialize: (h, node) =>
+      serializeComponent(h, node, {
+        classNames: 'notranslate',
+        wrapChildren: false,
+      }),
+  },
+  CONTRIBUTOR_NOTE: {
+    // this pulls this component out of translated files
+    // there should never be anything to deserialize
+    serialize: () => null,
+  },
+  EolPage: {
+    deserialize: deserializeComponent,
+    serialize: serializeComponent,
+  },
   ExternalLink: {
     deserialize: deserializeComponent,
     serialize: serializeComponent,
+  },
+  InlinePopover: {
+    deserialize: (h, node) => {
+      // this is to remove the `span`'s children to make this
+      // a self closing tag.
+      node.children = [];
+      return deserializeComponent(h, node, { tagName: 'InlinePopover' });
+    },
+    // serialize: serializeComponent,
+    serialize: (h, node) =>
+      serializeComponent(h, node, {
+        classNames: 'notranslate',
+        wrapChildren: false,
+      }),
+  },
+  InlineSignup: {
+    serialize: serializeComponent,
+    deserialize: deserializeComponent,
   },
   Link: {
     deserialize: deserializeComponent,
@@ -160,12 +199,51 @@ module.exports = {
       return h(
         node,
         'code',
-        { 'data-type': 'component', 'data-component': 'InlineCode' },
+        {
+          'data-type': 'component',
+          'data-component': 'InlineCode',
+        },
         [u('text', toString(node))]
       );
     },
   },
-  ImageSizing: {
+  InstallFeedback: {
+    serialize: serializeComponent,
+    deserialize: deserializeComponent,
+  },
+  Side: {
+    serialize: serializeComponent,
+    deserialize: deserializeComponent,
+  },
+  SideBySide: {
+    serialize: serializeComponent,
+    deserialize: deserializeComponent,
+  },
+  Steps: {
+    serialize: serializeComponent,
+    deserialize: deserializeComponent,
+  },
+  Step: {
+    serialize: serializeComponent,
+    deserialize: deserializeComponent,
+  },
+  Tabs: {
+    serialize: serializeComponent,
+    deserialize: deserializeComponent,
+  },
+  TabsBar: {
+    serialize: serializeComponent,
+    deserialize: deserializeComponent,
+  },
+  TabsBarItem: {
+    serialize: serializeComponent,
+    deserialize: deserializeComponent,
+  },
+  TabsPages: {
+    serialize: serializeComponent,
+    deserialize: deserializeComponent,
+  },
+  TabsPageItem: {
     serialize: serializeComponent,
     deserialize: deserializeComponent,
   },
@@ -178,6 +256,52 @@ module.exports = {
   TechTileGrid: {
     deserialize: deserializeComponent,
     serialize: serializeComponent,
+  },
+  UserJourneyControls: {
+    deserialize: (h, node) => {
+      const data = deserializeJSValue(node.properties.dataValue);
+      const translatedProps = node.children.reduce((acc, child) => {
+        const key = child.properties.dataKey;
+        const value = child.children[0].value;
+        return { ...acc, [key]: value };
+      }, {});
+      const stuff = data.attributes.map((attr) => {
+        const prop = JSON.parse(createJsonStr(attr.value.value));
+        prop.title = translatedProps[`${attr.name}-title`];
+        prop.body = translatedProps[`${attr.name}-body`];
+        attr.value.value = JSON.stringify(prop);
+        return attr;
+      });
+
+      data.attributes = stuff;
+
+      return h(node, 'mdxBlockElement', data);
+    },
+    serialize: (h, node) => {
+      const serializeAttribute = (name, attribute) => {
+        const attributeValue = JSON.parse(createJsonStr(attribute.value));
+        return [
+          h(node, 'div', { 'data-key': `${name}-title` }, [
+            u('text', attributeValue.title),
+          ]),
+          h(node, 'div', { 'data-key': `${name}-body` }, [
+            u('text', attributeValue.body),
+          ]),
+        ];
+      };
+      const serializedAttributes = node.attributes.flatMap((attribute) =>
+        serializeAttribute(attribute.name, attribute.value)
+      );
+      return h(
+        node,
+        'div',
+        {
+          'data-type': 'UserJourneyControls',
+          'data-value': serializeJSValue(node),
+        },
+        serializedAttributes
+      );
+    },
   },
   Video: {
     deserialize: deserializeComponent,
@@ -267,6 +391,30 @@ module.exports = {
       serializeComponent(h, node, { textAttributes: ['alt'] }),
   },
   a: {
+    deserialize: deserializeComponent,
+    serialize: serializeComponent,
+  },
+  nobr: {
+    deserialize: deserializeComponent,
+    serialize: serializeComponent,
+  },
+  br: {
+    deserialize: deserializeComponent,
+    serialize: serializeComponent,
+  },
+  strong: {
+    deserialize: deserializeComponent,
+    serialize: serializeComponent,
+  },
+  b: {
+    deserialize: deserializeComponent,
+    serialize: serializeComponent,
+  },
+  sup: {
+    deserialize: deserializeComponent,
+    serialize: serializeComponent,
+  },
+  iframe: {
     deserialize: deserializeComponent,
     serialize: serializeComponent,
   },

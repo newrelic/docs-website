@@ -1,0 +1,9 @@
+---
+title: 'New Azure Database integrations: PostgreSQL and MySQL flexible servers'
+subject: Cloud integrations
+releaseDate: '2022-10-19'
+---
+
+## New
+
+* **Azure PostgreSQL and MyQL flexible servers** integrations are now available. Check [PostgreSQL flexible monitoring integration](https://docs.newrelic.com/docs/infrastructure/microsoft-azure-integrations/azure-integrations-list/azure-database-postgresql-flexible-server-monitoring-integration/) and [MySQL flexible monitoring integration](https://docs.newrelic.com/docs/infrastructure/microsoft-azure-integrations/azure-integrations-list/azure-database-mysql-flexible-server-monitoring-integration/) for details.

@@ -1,0 +1,16 @@
+---
+subject: Mobile app for Android
+releaseDate: '2022-02-18'
+version: 4.2.6
+downloadLink: 'https://play.google.com/store/apps/details?id=com.newrelic.rpm'
+---
+
+### New Feature
+
+* Facet table widgets can use a column value as quick filter for the entire dashboard
+
+### Fixes
+
+* Dashboard Filters not clearing properly
+* Classic Incidents not filtering correctly
+* Old style alert links not taking user to incident

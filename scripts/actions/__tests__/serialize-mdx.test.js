@@ -1,5 +1,39 @@
 import serializeMDX from '../serialize-mdx';
 import fs from 'fs';
+import deserializeHTML from '../deserialize-html';
+
+test('serializes DoNotTranslate wrapping a Collapser', async () => {
+  const html = await serializeMDX(`
+<DoNotTranslate>
+  <Collapser
+    title="Collapse me yo"
+  >
+    These tests are hard to write docs for
+  </Collapser>
+</DoNotTranslate>
+  `);
+
+  expect(html).toMatchSnapshot();
+});
+
+test('serializes DoNotTranslate to html', async () => {
+  const html = await serializeMDX(`
+<DoNotTranslate>
+  # Not all who wander are lost...
+  Testing this line too
+</DoNotTranslate>
+  `);
+
+  expect(html).toMatchSnapshot();
+});
+
+test('serializes DoNotTranslate to html inline', async () => {
+  const html = await serializeMDX(`
+This is an <DoNotTranslate>MDX</DoNotTranslate> file
+  `);
+
+  expect(html).toMatchSnapshot();
+});
 
 test('serializes Button to html', async () => {
   const html = await serializeMDX(`
@@ -106,6 +140,31 @@ test('serializes Link to html', async () => {
 >
   Check out our Ruby agent docs
 </Link>
+  `);
+
+  expect(html).toMatchSnapshot();
+});
+
+test('serializes Side components to html', async () => {
+  const html = await serializeMDX(`
+<Side>
+  This is one side for the SideBySide component
+</Side>
+  `);
+
+  expect(html).toMatchSnapshot();
+});
+
+test('serializes SideBySide to html', async () => {
+  const html = await serializeMDX(`
+<SideBySide>
+  <Side>
+    This will be displayed on the left hand-side
+  </Side>
+  <Side>
+    This will be displayed on the right hand-side
+  </Side>
+</SideBySide>
   `);
 
   expect(html).toMatchSnapshot();
@@ -247,5 +306,136 @@ test('kitchen sink', async () => {
     fs.readFileSync(`${__dirname}/kitchen-sink.mdx`, 'utf-8')
   );
 
+  expect(html).toMatchSnapshot();
+});
+
+test('test <strong> element serializes', async () => {
+  const mdx = `
+The Varnish Cache integration collects both metrics(<strong>M</strong>) and inventory(<strong>I</strong>) information.
+`;
+
+  const html = await serializeMDX(mdx);
+
+  expect(html).toMatchSnapshot();
+});
+
+test('test <b> element serializes', async () => {
+  const mdx = `
+The Varnish Cache integration collects both metrics(<b>M</b>) and inventory(<b>I</b>) information.
+`;
+
+  const html = await serializeMDX(mdx);
+
+  expect(html).toMatchSnapshot();
+});
+
+test("test <InlineCode> element serializes and adds 'notranslate' class to element", async () => {
+  const mdx = `
+<InlineCode>This is a test</InlineCode>
+`;
+
+  const html = await serializeMDX(mdx);
+
+  expect(html).toMatchSnapshot();
+});
+
+test("test <code> element serializes and adds 'notranslate' class to element as backticks in MDX", async () => {
+  const mdx = `
+\`agent.report_custom_element\`
+`;
+
+  const html = await serializeMDX(mdx);
+
+  expect(html).toMatchSnapshot();
+});
+
+test('serialize Tabs Components', async () => {
+  const mdx = `
+  <Tabs>
+    <TabsBar>
+      <TabsBarItem id="grails-run-app">
+        Pass with run-app
+      </TabsBarItem>
+  
+      <TabsBarItem id="grails-run-war">
+        Pass with run-war
+      </TabsBarItem>
+    </TabsBar>
+  
+    <TabsPages>
+      <TabsPageItem id="grails-run-app">
+        1. Begin with an unzipped version of Grails.
+        2. Run this command:
+      </TabsPageItem>
+  
+      <TabsPageItem id="grails-run-war">
+        1. In your Grails app, open this file with your text editor:
+        2. Add or edit the JVM arguments line:
+      </TabsPageItem>
+    </TabsPages>
+  </Tabs>
+`;
+
+  const html = await serializeMDX(mdx);
+
+  expect(html).toMatchSnapshot();
+});
+
+test('serialize InlinePopover component', async () => {
+  const mdx = '<InlinePopover/>';
+  const html = await serializeMDX(mdx);
+  expect(html).toMatchSnapshot();
+});
+
+test('serialize iframes', async () => {
+  const mdx =
+    '<iframe width="560" height="315" src="https://www.youtube.com/embed/04JP0ky_hjI" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>';
+  const html = await serializeMDX(mdx);
+  expect(html).toMatchSnapshot();
+});
+
+test('serialize InlineSignup component', async () => {
+  const mdx = '<InlineSignup />';
+  const html = await serializeMDX(mdx);
+  expect(html).toMatchSnapshot();
+});
+
+test('serializing CONTRIBUTOR_NOTE removes it from translated files', async () => {
+  const html = await serializeMDX(`
+<CONTRIBUTOR_NOTE>
+  This is a note to future authors about the MDX content.
+
+  It does not render in the UI
+</CONTRIBUTOR_NOTE>
+  `);
+
+  expect(html).toMatchSnapshot();
+});
+
+test('serializing components with apostrophes in their props', async () => {
+  const input = `
+    <UserJourneyControls
+    nextStep={{"path": "/docs/tutorial-dd-migration/making-the-switch/", "title": "Next step", "body": "Learn more about New Relic's other features and what you need to make the switch from Datadog"}}
+    previousStep={{"path": "/docs/tutorial-dd-migration/installing-monitor/", "title": "Previous step", "body": "Learn more about ingesting data to monitor"}} />
+    `;
+  // `title` string has a colon
+  const input2 = `
+    <UserJourneyControls
+        nextStep={{"path": "/docs/distributed-tracing/ui-data/trace-details/", "title": "Next step:", "body": "Understand the trace details UI"}}
+    />    
+  `;
+  const html = await serializeMDX(input);
+  const str = await deserializeHTML(html);
+  expect(html).toMatchSnapshot();
+  expect(str.replace(/ |\n/g, '')).toBe(input.replace(/ |\n/g, ''));
+  const html2 = await serializeMDX(input2);
+  const str2 = await deserializeHTML(html2);
+  expect(html2).toMatchSnapshot();
+  expect(str2.replace(/ |\n/g, '')).toBe(input2.replace(/ |\n/g, ''));
+});
+
+test('EolPage', async () => {
+  const input = `<EolPage agent='node' locale='ko' />`;
+  const html = await serializeMDX(input);
   expect(html).toMatchSnapshot();
 });

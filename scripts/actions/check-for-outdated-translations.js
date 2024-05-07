@@ -1,11 +1,12 @@
 const fs = require('fs');
 const path = require('path');
-const frontmatter = require('@github-docs/frontmatter');
 
 const { fetchPaginatedGHResults } = require('./utils/github-api-helpers');
 const checkArgs = require('./utils/check-args');
 const { prop } = require('../utils/functional');
-const { ADDITIONAL_LOCALES } = require('../utils/constants');
+const { LOCALE_IDS } = require('./utils/constants');
+
+const ADDITIONAL_LOCALES = Object.keys(LOCALE_IDS);
 
 const doI18nFilesExist = (fileName, locales) => {
   const i18nPrefix = path.join(process.cwd(), 'src/i18n/content');
@@ -29,32 +30,23 @@ const checkOutdatedTranslations = async (url) => {
     ? files.filter((file) => path.extname(file.filename) === '.mdx')
     : [];
 
-  const mdxFilesContent = mdxFiles
-    .filter((file) => file.status !== 'removed')
-    .reduce((files, file) => {
-      const contents = fs.readFileSync(path.join(process.cwd(), file.filename));
-      const { data } = frontmatter(contents);
-      return [...files, { path: file.filename, locales: data.translate || [] }];
-    }, []);
-
   const removedMdxFileNames = mdxFiles
     .filter((f) => f.status === 'removed')
     .map(prop('filename'));
 
-  // if a locale was removed from the translate frontmatter, we want to remove the translated version of that file.
-
-  const modifiedFiles = mdxFilesContent.flatMap((file) => {
-    const unsetLocales = ADDITIONAL_LOCALES.filter(
-      (l) => !file.locales.includes(l)
-    );
-    return doI18nFilesExist(file.path, unsetLocales);
-  });
+  const renamedMdxFileNames = mdxFiles
+    .filter((f) => f.status === 'renamed')
+    .map(prop('previous_filename'));
 
   const removedFiles = removedMdxFileNames.flatMap((name) =>
     doI18nFilesExist(name, ADDITIONAL_LOCALES)
   );
 
-  const orphanedI18nFiles = [...modifiedFiles, ...removedFiles];
+  const renamedFiles = renamedMdxFileNames.flatMap((name) =>
+    doI18nFilesExist(name, ADDITIONAL_LOCALES)
+  );
+
+  const orphanedI18nFiles = [...removedFiles, ...renamedFiles];
 
   if (orphanedI18nFiles.length > 0) {
     orphanedI18nFiles.forEach((f) =>
@@ -85,4 +77,8 @@ const main = async () => {
   }
 };
 
-module.exports = main;
+if (require.main === module) {
+  main();
+}
+
+module.exports = { main, checkOutdatedTranslations };

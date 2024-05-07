@@ -34,9 +34,6 @@ const MOCK_FAILURE_JSON = {
 };
 
 describe('Action: Send and update translation queue', () => {
-  beforeEach(() => {
-    jest.setTimeout(10000);
-  });
   afterEach(() => {
     jest.resetAllMocks();
     jest.clearAllTimers();
@@ -64,7 +61,7 @@ describe('Action: Send and update translation queue', () => {
       expect(global.console.error).toBeCalledTimes(1);
       expect(global.console.warn).toBeCalledTimes(4);
     }
-  });
+  }, 10000);
 
   test('makeRequest, with no `nthTry` specified, should default to 1 and retry 4 times before throwing an error', async () => {
     for (let i = 0; i < 5; i++) {
@@ -76,7 +73,7 @@ describe('Action: Send and update translation queue', () => {
       expect(global.console.error).toBeCalledTimes(1);
       expect(global.console.warn).toBeCalledTimes(4);
     }
-  });
+  }, 10000);
 
   test('makeRequest, given an nthTry of 3, should retry twice before throwing an error', async () => {
     const mockNth = 3;

@@ -1,0 +1,29 @@
+---
+subject: Browser agent
+releaseDate: '2022-01-06'
+version: '1214'
+---
+
+## Improvements
+
+### Added NetworkInformation attributes to LCP & FI
+
+The Largest Contentful Paint (`largestContentfulPaint`) and First Interaction (`firstInteraction`) `PageViewTiming` events will now include attributes from the [NetworkInformation API](https://developer.mozilla.org/en-US/docs/Web/API/NetworkInformation) (on compatible browsers) observed on the page.  This includes [network type](https://developer.mozilla.org/en-US/docs/Web/API/NetworkInformation/type) (`networkType`), [round trip time](https://developer.mozilla.org/en-US/docs/Web/API/NetworkInformation/rtt) (`rtt`) and [downlink](https://developer.mozilla.org/en-US/docs/Web/API/NetworkInformation/downlink) (`downlink`).
+
+### Added element identification attributes to LargestContentfulPaint
+
+LargestContentfulPaint `PageViewTiming` events will now include the `elementTagName` attribute which represents the triggering element's [tag name](https://developer.mozilla.org/en-US/docs/Web/API/Element/tagName). If the triggering element is an image, the event will also include the `elementUrl` representing the [image URL](https://developer.mozilla.org/en-US/docs/Web/API/LargestContentfulPaint/url) if present.
+
+### Included page view timing data in session trace payload
+
+If observed, the agent will now include `PageViewTiming` events in the session trace waterfall payload. These events will be available in an upcoming update to the session traces UI.
+
+### Added session trace IDs to harvests
+
+If a session trace is active on a page, a session trace ID associated with that trace will now be appended to all subsequent events generated on the page for the linking of session-related datasets downstream. This ID will be appended to any payload that sent after a session trace has been started. `PageView` events are generated before session traces begin and will not contain this ID and in most cases Initial Page Load `BrowserInteraction` events complete before a session trace begins and are not guaranteed to contain this ID.
+
+## Bug fixes
+
+### Exclude Data URL requests from Ajax events and metrics
+
+Previously, XMLHttpRequest and Fetch calls made with [Data URLs](https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/Data_URIs) could prevent the agent from harvesting data.

@@ -7,6 +7,6 @@ getStartedLink: 'https://docs.newrelic.com/docs/logs/log-management/ui-data/expl
 
 Expanding on the log management user analytics, you can now create saved views. This provides the ability to save your table column, time range, and other specific settings with the search in an easy to navigate UI.
 
-![Log management UI](./images/95499-log-management.png "Log management UI")
+![Log management UI](./images/95499-log-management.webp "Log management UI")
 
-**[one.newrelic.com](https://one.newrelic.com) > Logs > Saved Views**
+**[one.newrelic.com](https://one.newrelic.com/all-capabilities) > Logs > Saved Views**

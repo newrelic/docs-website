@@ -1,0 +1,14 @@
+---
+subject: Node.js agent
+releaseDate: '2023-03-14'
+version: 9.12.0
+downloadLink: 'https://www.npmjs.com/package/newrelic'
+---
+
+## Notes
+
+* This version of the agent was not available, and has been deprecated. The NPM release pipeline did not run successfully. New Relic recommends installing Node agent v9.12.1 instead.
+
+### Support statement:
+
+* New Relic recommends that you upgrade the agent regularly to ensure that you're getting the latest features and performance benefits. Additionally, older releases will no longer be supported when they reach [end-of-life](/docs/using-new-relic/cross-product-functions/install-configure/notification-changes-new-relic-saas-features-distributed-software).

@@ -1,6 +1,6 @@
 ---
-title: 'Distributed Tracing enabled by default with Ruby Agent Update: Version 8.0.0'
-summary: 'See distrbuted traces immediately upon upgrading Ruby Agent'
+title: 'Distributed Tracing enabled by default with Ruby agent version 8.0.0'
+summary: 'See distrbuted traces immediately upon upgrading Ruby agent'
 releaseDate: '2021-10-04'
 learnMoreLink: 'https://docs.newrelic.com/docs/release-notes/agent-release-notes/ruby-release-notes/'
 ---

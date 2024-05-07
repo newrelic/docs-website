@@ -4,27 +4,49 @@ const parse = require('rehype-parse');
 const unified = require('unified');
 const rehypeStringify = require('rehype-stringify');
 const addAbsoluteImagePath = require('./rehype-plugins/utils/addAbsoluteImagePath');
-const getAgentName = require('./src/utils/getAgentName');
+const { assetPrefix } = require('./env');
 
-const dataDictionaryPath = `${__dirname}/src/data-dictionary`;
+const { LOCALES } = require('./scripts/actions/utils/constants');
+
 const siteUrl = 'https://docs.newrelic.com';
-const additionalLocales = ['jp'];
-const quote = (str) => `"${str}"`;
+const allFolders = fs
+  .readdirSync(`${__dirname}/src/content/docs`)
+  .filter((folder) => !folder.startsWith('.'));
+const doNotIgnoreFolders =
+  process.env.BUILD_FOLDERS && process.env.BUILD_FOLDERS.split(',');
+const ignoreFolders = process.env.BUILD_FOLDERS
+  ? allFolders
+      .filter(
+        (folder) =>
+          !doNotIgnoreFolders.includes(folder) && folder !== 'release-notes'
+      )
+      .map((folder) => `${__dirname}/src/content/docs/${folder}/*`)
+  : [];
+const allI18nFolders = fs
+  .readdirSync(`${__dirname}/src/i18n/content`)
+  .filter((folder) => !folder.startsWith('.'));
 
-const autoLinkHeaders = {
-  resolve: 'gatsby-remark-autolink-headers',
-  options: {
-    icon:
-      '<svg xmlns="http://www.w3.org/2000/svg" focusable="false" width="1rem" height="1rem" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 7h3a5 5 0 0 1 5 5 5 5 0 0 1-5 5h-3m-6 0H6a5 5 0 0 1-5-5 5 5 0 0 1 5-5h3"></path><line x1="8" y1="12" x2="16" y2="12"></line></svg>',
-  },
+const ignoreI18nFolders = () => {
+  if (process.env.BUILD_LANG) {
+    return allI18nFolders
+      .map((folder) => {
+        if (folder !== process.env.BUILD_LANG) {
+          return `${__dirname}/src/i18n/content/${folder}`;
+        }
+        return null;
+      })
+      .filter(Boolean);
+  }
+  return [];
 };
 
 module.exports = {
+  trailingSlash: 'always',
   flags: {
     DEV_SSR: true,
-    PRESERVE_WEBPACK_CACHE: true,
     PRESERVE_FILE_DOWNLOAD_CACHE: true,
   },
+  assetPrefix: assetPrefix(),
   siteMetadata: {
     title: 'New Relic Documentation',
     titleTemplate: '%s | New Relic Documentation',
@@ -37,6 +59,7 @@ module.exports = {
       'https://docs.newrelic.com/docs/style-guide/writing-guidelines/create-edit-content/',
   },
   plugins: [
+    `gatsby-plugin-netlify`,
     'gatsby-plugin-react-helmet',
     {
       resolve: `gatsby-source-filesystem`,
@@ -47,159 +70,6 @@ module.exports = {
     },
     `gatsby-transformer-sharp`,
     `gatsby-plugin-sharp`,
-    {
-      resolve: '@newrelic/gatsby-theme-newrelic',
-      options: {
-        oneTrustID: 'e66f9ef1-3a12-4043-b7c0-1a2ea66f6d41',
-        forceTrailingSlashes: true,
-        layout: {
-          contentPadding: '2rem',
-          maxWidth: '1600px',
-          component: require.resolve('./src/layouts'),
-          mobileBreakpoint: '760px',
-        },
-        i18n: {
-          translationsPath: `${__dirname}/src/i18n/translations`,
-          additionalLocales,
-        },
-        prism: {
-          languages: [
-            'xml',
-            'xml-doc',
-            'c',
-            'go',
-            'java',
-            'php',
-            'phpdoc',
-            'csharp',
-            'python',
-          ],
-        },
-        splitio: {
-          // Mocked features only used when in localhost mode
-          // https://help.split.io/hc/en-us/articles/360020448791-JavaScript-SDK#localhost-mode
-          features: {
-            free_account_button_color: {
-              treatment: 'off',
-            },
-          },
-          core: {
-            authorizationKey: process.env.SPLITIO_AUTH_KEY || 'localhost',
-          },
-          debug: false,
-        },
-        relatedResources: {
-          swiftype: {
-            resultsPath: `${__dirname}/src/data/swiftype-resources.json`,
-            engineKey: 'Ad9HfGjDw4GRkcmJjUut',
-            refetch: Boolean(process.env.BUILD_RELATED_CONTENT),
-            limit: 3,
-            filter: ({ node }) => {
-              if (node.internal.type !== 'Mdx') {
-                return false;
-              }
-
-              const includedTypes = ['apiDoc', 'troubleshooting'];
-              const excludedFolders = [
-                'src/content/docs/release-notes',
-                'src/content/whats-new',
-              ];
-
-              const {
-                frontmatter,
-                fields: { fileRelativePath },
-              } = node;
-
-              if (
-                excludedFolders.some((path) => fileRelativePath.includes(path))
-              ) {
-                return false;
-              }
-
-              return (
-                frontmatter.type == null ||
-                includedTypes.includes(frontmatter.type)
-              );
-            },
-            getParams: ({ node, slug }) => {
-              const { tags, title } = node.frontmatter;
-
-              const locale = slug && slug.split('/')[0];
-              const postfix = additionalLocales.includes(locale)
-                ? `-${locale}`
-                : '';
-
-              return {
-                q: tags ? tags.map(quote).join(' OR ') : title,
-                search_fields: {
-                  page: [
-                    'tags^10',
-                    'quick_start_name^8',
-                    'body^5',
-                    'title^1.5',
-                    '*',
-                  ],
-                },
-                filters: {
-                  page: {
-                    type: [
-                      `docs${postfix}`,
-                      `developer${postfix}`,
-                      `opensource${postfix}`,
-                      `quickstarts${postfix}`,
-                    ],
-                    document_type: [
-                      '!views_page_menu',
-                      '!term_page_api_menu',
-                      '!term_page_landing_page',
-                    ],
-                  },
-                },
-              };
-            },
-          },
-        },
-        newrelic: {
-          configs: {
-            development: {
-              instrumentationType: 'proAndSPA',
-              accountId: '10956800',
-              trustKey: '1',
-              agentID: '35094418',
-              licenseKey: 'NRJS-649173eb1a7b28cd6ab',
-              applicationID: '35094418',
-              beacon: 'staging-bam-cell.nr-data.net',
-              errorBeacon: 'staging-bam-cell.nr-data.net',
-            },
-            production: {
-              instrumentationType: 'proAndSPA',
-              accountId: '10175106',
-              trustKey: '1',
-              agentID: '29883416',
-              licenseKey: '23448da482',
-              applicationID: '29883416',
-              beacon: 'staging-bam-cell.nr-data.net',
-              errorBeacon: 'staging-bam-cell.nr-data.net',
-            },
-          },
-        },
-        tessen: {
-          tessenVersion: '1.14.0',
-          product: 'DOC',
-          subproduct: 'TDOC',
-          segmentWriteKey: 'AEfP8c1VSuFxhMdk3jYFQrYQV9sHbUXx',
-          trackPageViews: true,
-          pageView: {
-            name: 'pageView',
-            category: 'DocPageView',
-            getProperties: ({ location, env }) => ({
-              path: location.pathname,
-              env: env === 'production' ? 'prod' : env,
-            }),
-          },
-        },
-      },
-    },
     {
       resolve: 'gatsby-plugin-manifest',
       options: {
@@ -221,13 +91,7 @@ module.exports = {
       options: {
         name: 'markdown-pages',
         path: `${__dirname}/src/content`,
-      },
-    },
-    {
-      resolve: 'gatsby-source-filesystem',
-      options: {
-        name: 'data-dictionary',
-        path: dataDictionaryPath,
+        ignore: ignoreFolders,
       },
     },
     {
@@ -235,6 +99,7 @@ module.exports = {
       options: {
         name: 'translated-content',
         path: `${__dirname}/src/i18n/content`,
+        ignore: ignoreI18nFolders(),
       },
     },
     {
@@ -244,6 +109,14 @@ module.exports = {
         path: `${__dirname}/src/i18n/nav`,
       },
     },
+    {
+      resolve: 'gatsby-source-filesystem',
+      options: {
+        name: 'install-docs',
+        path: `${__dirname}/src/install/`,
+      },
+    },
+    'gatsby-transformer-xml',
     {
       resolve: 'gatsby-transformer-json',
       options: {
@@ -262,7 +135,7 @@ module.exports = {
             resolve: 'gatsby-remark-images',
             options: {
               maxWidth: 850,
-              linkImagesToOriginal: true,
+              linkImagesToOriginal: false,
               backgroundColor: 'transparent',
               disableBgImageOnAlpha: true,
             },
@@ -280,9 +153,6 @@ module.exports = {
               maxWidth: 850,
             },
           },
-          autoLinkHeaders,
-          // This MUST come after `gatsby-remark-autolink-headers` to ensure the
-          // link created for the icon has the proper id
           'gatsby-remark-custom-heading-ids',
         ],
       },
@@ -298,7 +168,6 @@ module.exports = {
         // If this is addressed in MDX v2, we can safely remove this.
         remarkPlugins: [],
         rehypePlugins: [
-          require('./rehype-plugins/image-sizing'),
           [
             require('./rehype-plugins/gatsby-inline-images'),
             { spacing: '0.5rem' },
@@ -314,7 +183,11 @@ module.exports = {
               disableBgImageOnAlpha: true,
             },
           },
-          autoLinkHeaders,
+          {
+            resolve: require.resolve(
+              './plugins/gatsby-remark-autolink-headers-custom'
+            ),
+          },
           // This MUST come after `gatsby-remark-autolink-headers` to ensure the
           // link created for the icon has the proper id.
           //
@@ -351,19 +224,32 @@ module.exports = {
               './plugins/gatsby-remark-remove-button-paragraphs'
             ),
           },
+          {
+            resolve: require.resolve('./plugins/fix-remark-path-prefix-plugin'),
+          }
         ],
       },
     },
     `gatsby-transformer-yaml`,
+    `gatsby-transformer-plaintext`,
     {
       resolve: `gatsby-source-filesystem`,
       options: {
-        path: `./src/nav/`,
+        path: `./src/nav/generatedNav.yml`,
       },
     },
-    'gatsby-plugin-generate-doc-json',
-    // Comment in below to run a build that checks links
-    // 'gatsby-plugin-check-links',
+    {
+      resolve: `gatsby-source-filesystem`,
+      options: {
+        path: `./src/nav/style-guide.yml`,
+      },
+    },
+    {
+      resolve: `gatsby-source-filesystem`,
+      options: {
+        path: `./src/install/config/`,
+      },
+    },
     {
       resolve: 'gatsby-plugin-generate-json',
       options: {
@@ -436,100 +322,193 @@ module.exports = {
         },
       },
     },
-    {
-      resolve: `gatsby-plugin-json-output`,
-      options: {
-        siteUrl,
-        graphQLQuery: `
-        {
-          allDataDictionaryEvent {
-            edges {
-              node {
-                name
-                definition {
-                  rawMarkdownBody
-                }
-                dataSources
-                childrenDataDictionaryAttribute {
-                  name
-                  definition {
-                    rawMarkdownBody
-                  }
-                  units
-                }
-              }
-            }
-          }
-        }
-      `,
-        serializeFeed: ({ data }) =>
-          data.allDataDictionaryEvent.edges.map(({ node }) => ({
-            name: node.name,
-            definition:
-              node.definition && node.definition.rawMarkdownBody.trim(),
-            dataSources: node.dataSources,
-            attributes: node.childrenDataDictionaryAttribute.map(
-              (attribute) => ({
-                name: attribute.name,
-                definition: attribute.definition.rawMarkdownBody.trim(),
-                units: attribute.units,
-              })
-            ),
-          })),
-        feedFilename: 'data-dictionary',
-        nodesPerFeedFile: Infinity,
-      },
-    },
-    {
-      resolve: `gatsby-plugin-generate-json`,
-      options: {
-        query: `
-        {
-          allMdx(filter: {fields: {slug: {regex: "/docs/release-notes/"}}}) {
-            nodes {
-              frontmatter {
-                subject
-                releaseDate(fromNow: false)
-                version
-              }
-              excerpt(pruneLength: 5000)
-            }
-          }
-        }
-        `,
-        path: '/api/agent-release-notes.json',
-        serialize: ({ data }) =>
-          data.allMdx.nodes
-            .map(({ frontmatter, excerpt }) => ({
-              agent: getAgentName(frontmatter.subject),
-              date: frontmatter.releaseDate,
-              version: frontmatter.version,
-              description: excerpt,
-            }))
-            .filter(({ date, agent }) => Boolean(date && agent)),
-      },
-    },
     'gatsby-plugin-release-note-rss',
     'gatsby-plugin-whats-new-rss',
     'gatsby-plugin-security-bulletins-rss',
-    {
-      resolve: 'gatsby-source-data-dictionary',
-      options: {
-        path: dataDictionaryPath,
-      },
-    },
+
     'gatsby-source-nav',
-    {
-      resolve: 'gatsby-plugin-auto-index-pages',
-      options: {
-        skippedDirectories: ['', 'whats-new', 'docs/release-notes'],
-      },
-    },
-    'gatsby-plugin-meta-redirect',
+    'gatsby-source-install-config',
     {
       resolve: 'gatsby-plugin-gatsby-cloud',
       options: {
-        allPageHeaders: ['Referrer-Policy: no-referrer-when-downgrade'],
+        allPageHeaders: [
+          'Referrer-Policy: no-referrer-when-downgrade',
+          'Content-Security-Policy: frame-ancestors *.newrelic.com',
+          'Cache-Control: no-cache',
+        ],
+      },
+    },
+    // https://www.gatsbyjs.com/plugins/gatsby-plugin-typegen/
+    {
+      resolve: 'gatsby-plugin-typegen',
+      options: {
+        outputPath: 'src/__generated__/gatsby-types.d.ts',
+        emitSchema: {
+          'src/__generated__/gatsby-schema.graphql': true,
+        },
+      },
+    },
+    {
+      resolve: `gatsby-plugin-typescript`,
+      options: {
+        isTSX: true, // defaults to false
+        jsxPragma: `jsx`, // defaults to "React"
+        allExtensions: true, // defaults to false
+      },
+    },
+    {
+      resolve: '@newrelic/gatsby-theme-newrelic',
+      options: {
+        sitemap: process.env.ENVIRONMENT === 'production',
+        robots: {
+          siteUrl,
+          resolveEnv: () => process.env.ENVIRONMENT || 'development',
+          env: {
+            staging: {
+              host: 'https://docs-dev.newrelic.com',
+              policy: [{ userAgent: '*', disallow: ['/'] }],
+            },
+            development: {
+              policy: [{ userAgent: '*', disallow: ['/'] }],
+            },
+            production: {
+              policy: [{ userAgent: '*', allow: '/' }],
+            },
+          },
+        },
+        layout: {
+          contentPadding: '5rem',
+          maxWidth: '1600px',
+          component: require.resolve('./src/layouts'),
+          mobileBreakpoint: '760px',
+          sidebarWidth: '340px',
+        },
+        i18n: {
+          translationsPath: `${__dirname}/src/i18n/translations`,
+          additionalLocales: LOCALES,
+        },
+        prism: {
+          languages: [
+            'css',
+            'js',
+            'aspnet',
+            'batch',
+            'csv',
+            'cmake',
+            'dart',
+            'dax',
+            'diff',
+            'django',
+            'jinja2',
+            'docker',
+            'dockerfile',
+            'elixir',
+            'erlang',
+            'gettext',
+            'gradle',
+            'groovy',
+            'ini',
+            'kotlin',
+            'pascal',
+            'parser',
+            'nginx',
+            'n1ql',
+            'monkey',
+            'mongodb',
+            'liquid',
+            'json5',
+            'jsdoc',
+            'mustache',
+            'powershell',
+            'promql',
+            'properties',
+            'protobuf',
+            'puppet',
+            'jsx',
+            'regex',
+            'ruby',
+            'scala',
+            'shell',
+            'swift',
+            'systemd',
+            'toml',
+            'velocity',
+            'vim',
+            'php',
+            'phpdoc',
+            'xml',
+            'xml-doc',
+            'csharp',
+            'md',
+            'java',
+            'razor',
+            'hcl'
+          ],
+        },
+        newrelic: {
+          config: {
+            instrumentationType: 'proAndSPA',
+            accountId: '10956800',
+            trustKey: '1',
+            agentID:
+              process.env.ENVIRONMENT === 'production'
+                ? '35094662'
+                : '35094418',
+            licenseKey: 'NRJS-649173eb1a7b28cd6ab',
+            applicationID:
+              process.env.ENVIRONMENT === 'production'
+                ? '35094662'
+                : '35094418',
+            beacon: 'staging-bam-cell.nr-data.net',
+            errorBeacon: 'staging-bam-cell.nr-data.net',
+            settings: {
+              session_replay: {
+                enabled: true,
+                block_selector: '',
+                mask_text_selector: '*',
+                sampling_rate: 5.0,
+                error_sampling_rate: 100.0,
+                mask_all_inputs: true,
+                collect_fonts: true,
+                inline_images: false,
+                inline_stylesheet: true,
+                mask_input_options: {},
+              },
+              distributed_tracing: { enabled: true },
+              privacy: { cookies_enabled: true },
+              ajax: {
+                deny_list: [
+                  'staging-bam-cell.nr-data.net',
+                  'docs.newrelic.com',
+                ],
+              },
+            },
+          },
+        },
+        shouldUpdateScroll: {
+          routes: ['/attribute-dictionary'],
+        },
+        feedback: {
+          environment: process.env.ENVIRONMENT || 'staging',
+          reCaptchaToken:
+            process.env.FEEDBACK_RECAPTCHA_TOKEN ||
+            '6Lfn8wUiAAAAANBY-ZtKg4V9b4rdGZtJuAng62jo',
+        },
+        signup: {
+          environment: process.env.ENVIRONMENT || 'staging',
+          signupUrl:
+            process.env.SIGNUP_URL ||
+            'https://signup-receiver.staging-service.newrelic.com',
+          reCaptchaToken:
+            process.env.RECAPTCHA_TOKEN ||
+            '6LeGFt8UAAAAANfnpE8si2Z6NnAqYKnPAYgMpStu',
+        },
+        newRelicRequestingServicesHeader: 'docs-website',
+        segment: {
+          segmentWriteKey: 'noviNOFjASOSPcSEAkwoRxOt0Y1719KD',
+          section: 'docs',
+          platform: 'docs_pages',
+        },
       },
     },
   ],

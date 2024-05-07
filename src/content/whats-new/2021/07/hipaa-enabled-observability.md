@@ -1,5 +1,5 @@
 ---
-title: 'HIPAA-enabled Observability Platform'
+title: 'HIPAA-enabled observability platform'
 summary: 'The first to support metrics, events, logs, and traces'
 releaseDate: '2021-07-07'
 learnMoreLink: 'https://docs.newrelic.com/docs/security/security-privacy/compliance/hipaa-readiness-new-relic/'
@@ -16,4 +16,4 @@ Our solution supports the following:
 
 Learn more at [HIPAA enablement - what you need to know and do](https://docs.newrelic.com/docs/security/security-privacy/compliance/hipaa-readiness-new-relic/) and reach out to your account representative to get started.
 
-![HIPAA-enabled accounts are now available on New Relic.](./images/hipaa1.png "An image showing New Relic's relationship to HIPAA customers.")
+![HIPAA-enabled accounts are now available on New Relic.](./images/hipaa1.webp "An image showing New Relic's relationship to HIPAA customers.")

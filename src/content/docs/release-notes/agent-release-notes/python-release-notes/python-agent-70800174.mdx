@@ -1,0 +1,28 @@
+---
+subject: Python agent
+releaseDate: '2022-03-31'
+version: 7.8.0.174
+downloadLink: 'https://pypi.python.org/pypi/newrelic'
+features: ['Add support for GraphQL Server', 'Add a log handler', 'Add more robust `should_ignore_error` calls']
+bugs: []
+security: []
+---
+
+## Notes
+
+This release of the Python agent adds support for GraphQL Server, adds a log handler which forwards logs to the New Relic API, and increases functionality to `notice_error`.
+
+Install the agent using `easy_install/pip/distribute` via the [Python Package Index](https://pypi.python.org/pypi/newrelic) or download it directly from the New Relic [download site](https://download.newrelic.com/python_agent/release).
+
+## New features
+
+* **Add support for GraphQL Server**
+  The agent will now automatically instrument and send metrics for applications using the GraphQL Server.
+
+* **Add a Log Handler**
+  The agent is now able to forward logs to the New Relic API.  Thank you to [iamr0b0tx](https://github.com/iamr0b0tx) for your contribution!
+
+## Changes
+
+* **More Robust `should_ignore_error` calls**
+  Pass references to settings where possible to `should_ignore_error` and makes custom `_nr_ignored` logic more defined and incorporated into `notice_error`.

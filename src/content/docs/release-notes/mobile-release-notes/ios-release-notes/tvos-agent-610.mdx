@@ -1,0 +1,16 @@
+---
+subject: iOS agent
+title: tvOS agent v6.1.0
+releaseDate: '2017-12-14'
+version: 6.1.0
+downloadLink: 'https://download.newrelic.com/tvos_agent/NewRelic_tvOS_Agent_6.1.0.zip'
+---
+
+### New in this release
+
+* MobileRequestError events now contain the response body returned in the network request response, if one exists. Response bodies will only be reported if the [http response body capture feature flag](https://docs.newrelic.com/docs/mobile-monitoring/new-relic-mobile-ios/api-guides/ios-agent-configuration-feature-flags#httpResponseBodyCapture) is enabled. HttpResponseBodyCapture is enabled by default. Response body data will be limited to the first 4096 bytes (the Insights attribute limit).
+* MobileRequestError events now also contain any cross-application tracing (CAT) data returned in the response headers. See [Introduction to cross-application traces](https://docs.newrelic.com/docs/apm/transactions/cross-application-traces/introduction-cross-application-traces) for more information.
+
+### Fixed in this release
+
+* Fixed a memory leak in NRMAReachability.

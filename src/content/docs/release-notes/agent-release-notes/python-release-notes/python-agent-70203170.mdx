@@ -1,0 +1,27 @@
+---
+subject: Python agent
+releaseDate: '2021-11-04'
+version: 7.2.3.170
+downloadLink: 'https://pypi.python.org/pypi/newrelic'
+features: []
+bugs: ['Fix FastAPI context propagation error', 'Fix gRPC incompatibilities']
+security: []
+---
+
+## Notes
+
+This release of the Python agent fixes an issue with FastAPI instrumentation, as well as restricts gRPC to compatible versions.
+
+Install the agent using `easy_install/pip/distribute` via the [Python Package Index](https://pypi.python.org/pypi/newrelic) or download it directly from the New Relic [download site](https://download.newrelic.com/python_agent/release).
+
+## Bug Fixes
+
+* **Fix FastAPI context propagation error**
+
+  A runtime instrumentation error stemming from context propagation in FastAPI has been fixed.
+
+* **Fix gRPC incompatibilities**
+
+  The version of gRPC has been pinned until compatiblity can be ensured with newer versions.
+
+  gRPC recently enabled retries by default on channel connections, potentially causing a storm of requests and open threads to starve the host of resources, as well as strain our trace observers. This pin should alleviate these issues until retries can be properly configured.

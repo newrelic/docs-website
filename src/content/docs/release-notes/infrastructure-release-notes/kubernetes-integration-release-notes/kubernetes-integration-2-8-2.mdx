@@ -1,0 +1,9 @@
+---
+subject: Kubernetes integration
+releaseDate: '2021-11-08'
+version: 2.8.2
+---
+
+### Changed
+
+* Updated agent and integrations to their latest versions

@@ -1,0 +1,17 @@
+---
+subject: Node.js agent
+releaseDate: '2022-07-27'
+version: 8.17.0
+features: ["Add instrumentation for `grpc-js` server unary, client-streaming, server-streaming and bidirectional streaming handlers."]
+bugs: []
+security: []
+downloadLink: 'https://www.npmjs.com/package/newrelic'
+---
+
+## Notes
+
+* Added [gRPC server instrumentation](/docs/apm/agents/nodejs-agent/installation-configuration/nodejs-agent-configuration#grpc_server).
+
+### Support statement:
+
+* New Relic recommends that you upgrade the agent regularly to ensure that you're getting the latest features and performance benefits. Additionally, older releases will no longer be supported when they reach [end-of-life](/docs/using-new-relic/cross-product-functions/install-configure/notification-changes-new-relic-saas-features-distributed-software).

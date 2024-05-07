@@ -14,7 +14,6 @@ const LandingPageTile = ({ children, title, icon, href }) => (
 
       padding: ${icon ? '3.25rem' : 'var(--tile-padding)'} var(--tile-padding)
         var(--tile-padding);
-      color: currentColor;
       position: relative;
       min-height: 200px;
 
@@ -23,7 +22,6 @@ const LandingPageTile = ({ children, title, icon, href }) => (
       }
 
       &:hover {
-        color: currentColor;
       }
 
       @media screen and (max-width: 700px) {
@@ -48,7 +46,7 @@ const LandingPageTile = ({ children, title, icon, href }) => (
           border: 1px solid var(--border-color);
 
           .dark-mode & {
-            border: 3px solid var(--color-dark-100);
+            border: 3px solid var(--primary-hover-color);
           }
         `}
       >

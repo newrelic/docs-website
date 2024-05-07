@@ -19,7 +19,7 @@ Anomalies are automatically surfaced in the Applied Intelligence anomalies feed 
 
 We now offer a new capability that uses machine learning to automatically cluster, detect patterns, and surface outliers in your log data, so you can explore millions of log messages in a single click and reduce your manual troubleshooting time. Log Patterns is currently in public beta—if you’d like to turn it on for your New Relic account, reach out to your customer success manager. 
 
-![find-anomalies.png](./images/find-anomalies.png "Find anomalies")
+![find-anomalies.png](./images/find-anomalies.webp "Find anomalies")
 
 ## Investigate alerts analytics
 

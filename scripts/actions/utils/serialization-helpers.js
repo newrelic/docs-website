@@ -14,6 +14,13 @@ const removeParagraphs = () => (tree) => {
   });
 };
 
+// `UserJourneyControls` has the `nextStep` and `prevStep` props,
+// which take objects. when we try to serialize MDX, those props
+// are just strings that look like JS objects.
+// this uses `eval` to "parse" them into actual JS objects,
+// so we can `JSON.stringify them`.
+const createJsonStr = (str) => JSON.stringify(eval(`const obj = ${str}; obj`));
+
 const attributeProcessor = unified()
   .use(toMDAST)
   .use(remarkMdx)
@@ -67,6 +74,7 @@ const serializeComponent = (
   node,
   {
     tagName,
+    classNames = null,
     textAttributes = [],
     wrapChildren = true,
     identifyComponent = true,
@@ -83,6 +91,7 @@ const serializeComponent = (
       'data-type': 'component',
       'data-component': identifyComponent ? getComponentName(node) : null,
       'data-props': serializeProps(node),
+      class: classNames,
     }),
     textAttributes
       .map((name) => serializeTextProp(h, node, name))
@@ -107,8 +116,10 @@ const stripNulls = (obj) =>
   Object.fromEntries(Object.entries(obj).filter(([, value]) => value != null));
 
 module.exports = {
+  createJsonStr,
   serializeComponent,
   serializeProps,
   serializeTextProp,
   serializeJSValue,
+  serializeAttributeValue,
 };

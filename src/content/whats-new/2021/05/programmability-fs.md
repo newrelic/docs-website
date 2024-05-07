@@ -19,4 +19,4 @@ Click **Learn more** to read the blog, or watch the latest Nerdlog episode below
 
 Note: This certification program assumes you already have existing knowledge of [React](https://reactjs.org/docs/getting-started.html), [Git](https://guides.github.com/introduction/git-handbook/), and [GraphQL](https://graphql.org/).
 
-![Logo of observability specialist certification for developers](./images/programmability-certification.png "Logo of observability specialist certification for developers")
+![Logo of observability specialist certification for developers](./images/programmability-certification.webp "Logo of observability specialist certification for developers")

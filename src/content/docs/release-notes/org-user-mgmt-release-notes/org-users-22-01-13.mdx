@@ -1,0 +1,9 @@
+---
+subject: Organization and user management
+releaseDate: '2022-01-12'
+version: '220112'
+---
+
+We released the ability to export user data from the **User management** UI. The data is exportable via TSV. Exportable columns include users’ names, email addresses, current user type, groups, and user ID. Admins can choose to export all users or select a subset of users.
+
+For more details, see [Export user list](/docs/accounts/accounts-billing/new-relic-one-user-management/user-management-ui-and-tasks).

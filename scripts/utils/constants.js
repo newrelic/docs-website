@@ -9,8 +9,6 @@ module.exports = {
   DATA_DIR: 'src/data',
   JP_DIR: 'src/i18n/content/jp',
 
-  ADDITIONAL_LOCALES: ['jp'],
-
   INSTRUCTIONS: {
     ADD: 'ADD',
     MOVE: 'MOVE',
@@ -20,6 +18,14 @@ module.exports = {
     UPDATE: 'UPDATE',
     REORDER: 'REORDER',
   },
+
+  IMAGE_ALLOWLIST: [
+    'quickstartTiles.svg',
+    'quickstartArrow.svg',
+    'favicon.png',
+    'bannerBackground.svg',
+    'bannerBackgroundDark.svg',
+  ],
 
   TYPES: {
     BASIC_PAGE: 'page',

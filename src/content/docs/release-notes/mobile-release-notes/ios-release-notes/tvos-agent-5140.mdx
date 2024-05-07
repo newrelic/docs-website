@@ -1,0 +1,11 @@
+---
+subject: iOS agent
+title: tvOS agent v5.14.0
+releaseDate: '2017-06-20'
+version: 5.14.0
+downloadLink: 'https://download.newrelic.com/tvos_agent/NewRelic_tvOS_Agent_5.14.0.zip'
+---
+
+### New in this release
+
+Now reports network request events to Insights! This feature must be enabled when starting the agent using `[NewRelic enableFeatures:NRFeatureFlag_NetworkRequestEvents]`. When enabled all network calls will be tracked, in addition to network errors. These new events will be available under the MobileNetworkRequest eventType.

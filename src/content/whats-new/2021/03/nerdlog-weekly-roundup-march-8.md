@@ -1,5 +1,5 @@
 ---
-title: 'Nerdlog Roundup: Muting Rules, Custom Data Visualizations, and more AIOps fun!  '
+title: 'Nerdlog Roundup: Muting rules, custom data visualizations, and more AIOps fun!  '
 summary: 'Smarter incident intelligence and custom data visualizations'
 releaseDate: '2021-03-08'
 learnMoreLink: 'https://blog.newrelic.com/product-news/nerdlog-aiops-and-custom-dashboards/'
@@ -13,13 +13,13 @@ Sr. Product Manager Devin Cheevers shows how our Anomalies feed can help give yo
 
 ## **Using AI to find correlated failures**
 
-Principal Product Manager Nate Heinrich shows us how anomalies and alerts can be automatically correlated with other data sources via [Incident Intelligence.](https://docs.newrelic.com/docs/alerts-applied-intelligence/applied-intelligence/incident-intelligence/get-started-incident-intelligence)
+Principal Product Manager Nate Heinrich shows us how anomalies and alerts can be automatically correlated with other data sources via [incident intelligence.](https://docs.newrelic.com/docs/alerts-applied-intelligence/applied-intelligence/incident-intelligence/get-started-incident-intelligence)
 
 <iframe width="560" height="315" src="https://www.youtube.com/embed/SvSvnIY8pG8" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
 
 ## **Smart alert muting**
 
-Sr. Product Manager Brian Goleno shows us how to use muting rules to stop being bombarded by messages you don't want. Once you've spotted the common elements in your unwanted notifications, you can define muting rules that specifically target those elements, while letting other notifications through. Even when a notification is muted, Alerts still gathers data on those violations, which is visible in Applied Intelligence. Learn more about muting rules [here](https://docs.newrelic.com/docs/alerts-applied-intelligence/new-relic-alerts/alert-notifications/muting-rules-suppress-notifications/) and [enable muting rules in New Relic One](https://one.nr/037jbWWYbQy)  
+Sr. Product Manager Brian Goleno shows us how to use muting rules to stop being bombarded by messages you don't want. Once you've spotted the common elements in your unwanted notifications, you can define muting rules that specifically target those elements, while letting other notifications through. Even when a notification is muted, Alerts still gathers data on those incidents, which is visible in Applied Intelligence. Learn more about muting rules [here](https://docs.newrelic.com/docs/alerts-applied-intelligence/new-relic-alerts/alert-notifications/muting-rules-suppress-notifications/) and [enable muting rules in New Relic One](https://one.nr/037jbWWYbQy)  
 
 <iframe width="560" height="315" src="https://www.youtube.com/embed/JC5K8qpqDvU" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
 

@@ -1,0 +1,541 @@
+---
+title: ログに含まれる機密データをハッシュ化またはマスクする (難読化)
+metaDescription: How to hash or mask sensitive data in logs you send to New Relic with our obfuscation UI or API.
+translationType: machine
+---
+
+import obfuscationCreateExpression from 'images/ObfuscationCreateExpression.webp'
+
+import obfuscationCreateRuleUi from 'images/obfuscation-create-rule-ui.webp'
+
+import obfuscationUi from 'images/log-obfuscationUI-041422.webp'
+
+import obfuscationExp from 'images/log-obfuscation-exp051322.webp'
+
+ログの難読化ルールを使用すると、特定の種類の情報がNewRelicに保存されないようにすることができます。
+
+## 要件 [#requirements]
+
+ログの難読化は、 [Data Plusオファリング](https://docs.newrelic.com/whats-new/2022/04/whats-new-4-14-data-updates)の一部として、2022年6月に利用可能になる予定です。詳細については、アカウント担当者にお問い合わせください。
+
+## 概要 [#overview]
+
+ログがNewRelicに送信された後、難読化ルールを使用して、ログ内の機密情報を難読化してから、NewRelicデータベースである[NRDB](/docs/data-apis/get-started/nrdb-horsepower-under-hood/)に保存できます。
+
+機密情報には、クレジットカード番号、社会保障番号、国民ID、または保存時に保護するために規制によって要求される可能性のあるその他のデータなど、個人を特定できる情報が含まれる場合があります。
+
+機密情報に一致する正規表現を定義してから、そのデータを難読化するルールを作成できます。機密情報をマスクするかハッシュするかを選択できます。
+
+## 定義 [#definitions]
+
+* **難読化ルール**は、難読化アクションを適用するログを定義します。
+* **難読化ルールのアクション**は、表示する属性、難読化するテキスト、および難読化する方法（マスキングまたはハッシュのいずれかによる）を定義します。
+* **難読化式**は、どのテキストを難読化するかを識別する正規表現と呼ばれます。
+* **マスキング**すると、情報が完全に削除され、 `X`文字に置き換えられます。これが行われると、特定の値を検索することはできません。
+* **ハッシュ**は情報を隠します。ハッシュツールを使用して機密値のハッシュを取得し、そのハッシュを含むログを検索できます。
+
+## 難読化の仕組み [#overview]
+
+このビデオ（4分未満）を見て、NewRelicUIでの難読化がどのように機能するかを確認してください。
+
+<Video
+  id="0Wfd6UfGcdI"
+  type="youtube"
+  width="560px"
+/>
+
+次の例に表示されているJSONオブジェクトは、難読化APIで使用されるペイロードを簡略化したものです。これにより、さまざまなAPI操作を同等のUI操作とより適切に関連付けることができます。
+
+### 例：難読化前のログレコード [#example-before]
+
+次のようなログ記録があるとします。
+
+```json
+{
+  "message": "The credit card number 4321-5678-9876-2345 belongs to user user@email.com (born on 01/02/2003) with SSN 123-12-1234",
+  "creditCardNumber": "4321-5678-9876-2345",
+  "ssn": "123-12-1234",
+  "department": "sales",
+  "serviceName": "loginService"
+}
+```
+
+このログレコードには、いくつかの機密データが含まれています。理想的には、このようなログに仕上げることです。
+
+```json
+{
+  "message": "The credit card number 9aa9bc1528859aee1b1df75795f1ebd54beb2f0d26c8a1d4580a71a07189cdd5 belongs to user user@email.com (born on XXXXXXXXXX) with SSN 30e6897f76dc102e32ee1d781c43417d259e586eac15c963d75ab8b5187769da",
+  "creditCardNumber": "9aa9bc1528859aee1b1df75795f1ebd54beb2f0d26c8a1d4580a71a07189cdd5",
+  "ssn": "30e6897f76dc102e32ee1d781c43417d259e586eac15c963d75ab8b5187769da",
+  "department": "sales",
+  "serviceName": "loginService"
+}
+```
+
+### 例：基本的なプロセス [#example-process]
+
+この例で機密データを難読化するために使用する基本的なプロセスは次のとおりです。
+
+<CollapserGroup>
+  <Collapser
+    id="example-actions"
+    title="1.適用すべきアクション"
+  >
+    あなたは、そのサービスから来るすべてのログに以下の難読化アクションを適用することを決定します。
+
+    * `HASH` `message`および`creditCardNumber`属性に存在するクレジットカード番号。
+    * `MASK` `message`属性に存在する誕生日。
+    * `HASH` `message`および`ssn`属性に存在する社会保障番号。
+  </Collapser>
+
+  <Collapser
+    id="example-expressions"
+    title="2.センシティブなデータをどのように表現するか"
+  >
+    まず、この機密情報を取得するための難読化表現をいくつか定義する必要があります。
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            難読化表現
+          </th>
+
+          <th>
+            定義
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            クレジットカード番号
+          </td>
+
+          <td>
+            ハイフンで区切られた4桁のグループを4つ取り込む必要があります。
+
+            ```json
+            {
+              "name": "Credit Card Number",
+              "regex": "(\d{4}-\d{4}-\d{4}-\d{4})"
+            }
+            ```
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            社会保障番号
+          </td>
+
+          <td>
+            ハイフンで区切られた3桁、2桁、4桁の3つのグループを捕捉する必要があります。
+
+            ```json
+            {
+              "name": "Social Security Number",
+              "regex": "(\d{3}-\d{2}-\d{4})"
+            }
+            ```
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            生年月日（ `loginService`固有）
+          </td>
+
+          <td>
+            この例では、生まれた日付はログインサービスの一部です。周囲の単語`"(born on 01/02/2003)"`の日付情報に基づいて難読化する部分を定義します。
+
+            ```json
+            {
+              "name": "Born date - loginService specific",
+              "regex": "born on (.*)\)"
+            }
+            ```
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    各難読化表現は、文字列から機密情報を取り出す方法を定義し（正規表現を使用）、後で簡単に識別できるように、いくつかのフレンドリーな名前に関連付けます。
+
+    難読化式**は**再利用可能です。機密データを含むログ属性の命名方法に完全に依存しません。たとえば、上記で定義された社会保障式は、 `ssn` 、 `socialSecurityNumber` 、または`socSecNum`という名前のログ属性に適用できます。
+
+    ただし、それでも、ログ属性の形式と緊密に結合された再利用不可能な難読化式（ `Born date (loginService specific)`など）を作成できます。たとえば、 `born on`と`before`の後に続くものは何でも使用できます。
+  </Collapser>
+
+  <Collapser
+    id="example-rules"
+    title="3.どのログがあなたのルールを使用するか"
+  >
+    機密データをキャプチャする方法を定義したので、どのログを難読化する必要があるか（ログインサービスのもの）、そしてどのように難読化するか（定義した難読化アクションを使用）を指定する必要があります。これを実現するために、難読化ルールを定義します。
+
+    ```json
+    {
+      "name": "Obfuscate Login Service Logs",
+      "filter": "serviceName = 'loginService' AND department = 'sales'",
+      "actions": [
+        {
+          "attributes": ["message", "creditCardNumber"],
+          "expression": {"name": "Credit Card Number"},
+          "method": "HASH_SHA256"
+        },
+        {
+          "attributes": ["message"],
+          "expression": {"name": "Born date - loginService specific"},
+          "method": "MASK"
+        },
+        {
+          "attributes": ["message", "ssn"],
+          "expression": {"name": "Social Security Number"},
+          "method": "HASH_SHA256"
+        }
+      ]
+    }
+    ```
+
+    このルールは主に3つの要素で構成されています。
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            難読化ルールコンポーネント
+          </th>
+
+          <th>
+            説明
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            名前
+          </td>
+
+          <td>
+            この名前は、ルールの機能を簡単に識別するのに役立ちます。この例では、このルールは、ログインサービスからのログのさまざまな属性を難読化する方法を定義します。
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            フィルター
+          </td>
+
+          <td>
+            フィルタはNRQL形式を使用して、ログインサービスからのターゲットログを識別する方法をシステムに通知します。この例では、 `serviceName = loginService`と`department = sales`のログをクエリします。
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            アクション
+          </td>
+
+          <td>
+            最後に、このルールは、フィルターに一致するログに適用する一連の難読化アクションを定義します。各アクションは以下を定義します：
+
+            * 属性の各セットから機密情報を抽出するために使用する難読化式を以前に作成したもの
+
+            * このデータを難読化するために適用する難読化方法（ `HASH_SHA256`または`MASK` ）
+
+              GraphQL APIを介して難読化ルールを定義する場合、名前の代わりに難読化式の`id`を指定する必要があることに注意してください。前の例を読みやすくするために、代わりに難読化式の名前を使用しました。
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    id="example-more"
+    title="4.他のルールでの表現の再利用"
+  >
+    最後の例として、属性`serviceName = checkoutService`とクレジットカード情報を含む`ccn`属性を持つ「CheckoutService」という名前の別のサービスからのログを難読化する必要があると想像してください。
+
+    ```json
+    {
+      "message": "Order completed",
+      "ccn": "4321-5678-9876-2345",
+      "department": "sales",
+      "serviceName": "checkoutService"
+    }
+    ```
+
+    このサービスからのログを難読化するには、これらの特定のログを対象とする別の難読化ルールを定義するだけでよく、以前に作成した`Credit card number`難読化式を再利用するだけです。
+
+    ```json
+    {
+      "name": "Obfuscate Checkout Service Logs",
+      "filter": "serviceName = 'checkoutService' AND department = 'sales'",
+      "actions": [
+        {
+          "attributes": ["ccn"],
+          "expression": {"name": "Credit Card Number"},
+          "method": "HASH_SHA256"
+        }
+      ]
+    }
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## チェックリスト：ログを難読化する手順 [#checklist]
+
+ログを難読化するために
+
+1. ログに表示される機密データのパターンを特定して、ログの形状を調べます。例えば：
+
+* すべてのログに機密情報が含まれていますか？それとも、もっと具体的に（サービスAや地域Bのログのみ）教えてください。
+* クレジットカード番号、運転免許証番号、国民ID、生体認証、その他の値など、どのような機密情報が含まれていますか？
+
+2. 機密データを抽出する方法を識別するための難読化[式](#expressions)を作成します。
+3. ログのセットごとに難読化[ルール](#rules)を定義します。
+
+* NRQLを使ってどのように捕らえるかを定義する。
+* それぞれに適用する必要のある難読化アクションを定義します。自問してみてください：後でこの機密情報を使用してログを照会する必要がありますか（ `HASH`を使用することを検討してください）、またはログからこの情報を完全に削除する必要がありますか（ `MASK`を使用することを検討してください）？
+
+<Callout variant="tip">
+  **Logs Obfuscation** UIには**ハッシュツール**が含まれているため、既知の値からハッシュを見つけてコピーし、他の式やルールで使用できます。
+</Callout>
+
+## CPU制限 [#cpu-limits]
+
+難読化には、1分あたりのCPU制限があります。アカウントがリソース制限に達した場合、ログは期待どおりに難読化されません。 CPU制限を確認するには、NewRelicData**管理**UIの[システム**制限**ページ](/docs/data-apis/manage-data/view-system-limits/#limits-ui)に移動します。
+
+**Logs Obfuscation** UIの\[ **Health** ]タブを使用して、スキップされている難読化ルールがどの程度機能しているか、および微調整が必要かどうかを評価することもできます。難読化ルールはCPUに負荷がかかるため、これらのグラフは、リソースの制限によって最も影響を受けるルールを決定するのに役立ちます。
+
+## 難読化表現 [#expressions]
+
+New Relic UIを使用するか、GraphQL ExplorerであるNerdGraphを使用して、難読化式を作成、読み取り、更新、または削除できます。
+
+<img
+  title="Logs obfuscation expressions in UI"
+  alt="Screenshot of Logs obfuscation expressions UI"
+  src={obfuscationExp}
+/>
+
+<figcaption>
+  **[one.newrelic.com](https://one.newrelic.com) >ログ>難読化**：最初に1つ以上の難読化式を作成し、次に難読化ルールを作成します。
+</figcaption>
+
+<CollapserGroup>
+  <Collapser
+    id="expressions-create"
+    title="難読化表現を作成する"
+  >
+    これらのオプションのいずれかを使用して、難読化式を作成します。
+
+    **ログUIを使用する。**
+
+    1. **[one.newrelic.com](https://one.newrelic.com) > Logs** にアクセスし、左のナビから **Obfuscation** を選択します。
+
+    2. **Create regex** をクリックします。
+
+    3. 新しい難読化ルールの名前と、キャプチャしたい機密データに一致する正規表現を入力します。 [RE2 構文](https://github.com/google/re2/wiki/Syntax) を使用します。
+
+       次の例は、クレジットカード番号にマッチする基本的な難読化表現を示しています。
+
+       <img
+         title="Create an obfuscation expression using the Logs UI"
+         alt="Create an obfuscation expression using the Logs UI"
+         src={obfuscationCreateExpression}
+       />
+
+       **ナードグラフを使って**
+
+       `logConfigurations`の下にある`logConfigurationsCreateObfuscationExpression`ミューテーターを使用します。 GraphiQLに入力された例と、api.newrelic.com/ [**graphiql**の関連ドキュメントを](https://api.newrelic.com/graphiql#query=mutation%20%7B%0A%20%20logConfigurationsCreateObfuscationExpression%28accountId%3A%201234%2C%20expression%3A%20%7Bname%3A%20%22Credit%20Card%20Number%22%2C%20regex%3A%20%22%28%5C%5Cd%7B4%7D-%5C%5Cd%7B4%7D-%5C%5Cd%7B4%7D-%5C%5Cd%7B4%7D%29%22%2C%20description%3A%20%22Reusable%20expression%20to%20capture%20credit%20card%20numbers%22%7D%29%20%7B%0A%20%20%20%20id%0A%20%20%20%20name%0A%20%20%20%20regex%0A%20%20%20%20description%0A%20%20%20%20createdAt%0A%20%20%20%20createdBy%20%7B%0A%20%20%20%20%20%20name%0A%20%20%20%20%20%20email%0A%20%20%20%20%7D%0A%20%20%7D%0A%7D%0A)参照してください。
+
+       <Callout variant="important">
+         NerdGraphを介して導入する場合は、 `regex`をエスケープする必要があります。 `(\\d{4}-\\d{4}-\\d{4}-\\d{4})`
+       </Callout>
+  </Collapser>
+
+  <Collapser
+    id="expressions-read"
+    title="難読化表現を読み込む"
+  >
+    難読化式を照会するには、これらのオプションのいずれかを使用します。
+
+    **ログUIを使用する。**
+
+    1. **[one.newrelic.com](https://one.newrelic.com) > Logs** にアクセスし、左のナビから **Obfuscation** を選択します。
+
+    2. **Expressions** タブを選択すると、利用可能なすべての難読化表現とその定義が表示されます。
+
+       **ナードグラフを使って**
+
+       `actor.account.logConfigurations`の下にある`obfuscationExpressions`フェッチャーを使用します。 GraphiQLに入力された例と、[**api.newrelic.com/graphiql**の関連ドキュメントを](https://api.newrelic.com/graphiql?#query=%7B%0A%20%20actor%20%7B%0A%20%20%20%20account%28id%3A%201234%29%20%7B%0A%20%20%20%20%20%20logConfigurations%20%7B%0A%20%20%20%20%20%20%20%20obfuscationExpressions%20%7B%0A%20%20%20%20%20%20%20%20%20%20id%0A%20%20%20%20%20%20%20%20%20%20name%0A%20%20%20%20%20%20%20%20%20%20regex%0A%20%20%20%20%20%20%20%20%20%20description%0A%20%20%20%20%20%20%20%20%20%20createdAt%0A%20%20%20%20%20%20%20%20%20%20createdBy%20%7B%0A%20%20%20%20%20%20%20%20%20%20%20%20name%0A%20%20%20%20%20%20%20%20%20%20%20%20email%0A%20%20%20%20%20%20%20%20%20%20%7D%0A%20%20%20%20%20%20%20%20%20%20updatedAt%0A%20%20%20%20%20%20%20%20%20%20updatedBy%20%7B%0A%20%20%20%20%20%20%20%20%20%20%20%20name%0A%20%20%20%20%20%20%20%20%20%20%20%20email%0A%20%20%20%20%20%20%20%20%20%20%7D%0A%20%20%20%20%20%20%20%20%7D%0A%20%20%20%20%20%20%7D%0A%20%20%20%20%7D%0A%20%20%7D%0A%7D%0A)参照してください。
+  </Collapser>
+
+  <Collapser
+    id="expressions-update"
+    title="難読化表現を更新する"
+  >
+    難読化表現を更新するには、これらのオプションのいずれかを使用します。
+
+    **ログUIを使用する。**
+
+    1. **[one.newrelic.com](https://one.newrelic.com) > Logs** にアクセスし、左のナビから **Obfuscation** を選択します。
+
+    2. **Expressions** タブを選択します。
+
+    3. 編集したい難読化表現右側の3点メニュー **...** をクリックし、 **Edit** をクリックします。
+
+    4. 必要に応じてフィールドを修正し、 **更新** をクリックします。
+
+       **ナードグラフを使って**
+
+       `logConfigurations`の下にある`logConfigurationsUpdateObfuscationExpression`ミューテーターを使用します。 GraphiQLに入力された例と、[**api.newrelic.com/graphiql**の関連ドキュメントを](https://api.newrelic.com/graphiql?#query=mutation%20%7B%0A%20%20logConfigurationsUpdateObfuscationExpression%28accountId%3A%201234%2C%20expression%3A%20%7Bname%3A%20%22Credit%20Card%20Number%20-%20EDITED%22%2C%20regex%3A%20%22%28%5C%5Cd%7B4%7D-%5C%5Cd%7B4%7D-%5C%5Cd%7B4%7D-%5C%5Cd%7B4%7D%29%22%2C%20description%3A%20%22Reusable%20expression%20to%20capture%20credit%20card%20numbers%20-%20EDITED%22%2C%20id%3A%20%225678%22%7D%29%20%7B%0A%20%20%20%20id%0A%20%20%20%20name%0A%20%20%20%20regex%0A%20%20%20%20description%0A%20%20%20%20createdAt%0A%20%20%20%20createdBy%20%7B%0A%20%20%20%20%20%20name%0A%20%20%20%20%20%20email%0A%20%20%20%20%7D%0A%20%20%20%20updatedAt%0A%20%20%20%20updatedBy%20%7B%0A%20%20%20%20%20%20name%0A%20%20%20%20%20%20email%0A%20%20%20%20%7D%0A%20%20%7D%0A%7D%0A)参照してください。
+
+       <Callout variant="important">
+         NerdGraphを介して導入する場合は、 `regex`をエスケープする必要があります。 `(\\d{4}-\\d{4}-\\d{4}-\\d{4})`
+       </Callout>
+
+       難読化表現を更新する際に、すべてのフィールドを指定する必要はなく、id（必須）と修正したいフィールドのみを指定すればよい。
+  </Collapser>
+
+  <Collapser
+    id="expressions-delete"
+    title="難読化表現の削除"
+  >
+    <Callout variant="important">
+      難読化式が難読化ルールによって現在使用されている場合、難読化式を削除することはできません。
+    </Callout>
+
+    難読化表現を削除するには、これらのオプションのいずれかを使用します。
+
+    **ログUIを使用する。**
+
+    1. **[one.newrelic.com](https://one.newrelic.com) > Logs** にアクセスし、左のナビから **Obfuscation** を選択します。
+
+    2. **Expressions** タブを選択します。
+
+    3. 削除したい難読化表現の右側の3点メニュー **...** をクリックし、 **削除** をクリックします。
+
+    4. **Delete** をクリックして、式を削除することを確認します。
+
+       **ナードグラフを使って**
+
+       `logConfigurations`の下にある`logConfigurationsDeleteObfuscationExpression`ミューテーターを使用します。 GraphiQLに入力された例と、[**api.newrelic.com/graphiql**の関連ドキュメントを](https://api.newrelic.com/graphiql?#query=mutation%20%7B%0A%20%20logConfigurationsDeleteObfuscationExpression%28accountId%3A%201234%2C%20id%3A%205678%29%20%7B%0A%20%20%20%20id%0A%20%20%20%20name%0A%20%20%20%20regex%0A%20%20%20%20description%0A%20%20%20%20createdAt%0A%20%20%20%20createdBy%20%7B%0A%20%20%20%20%20%20email%0A%20%20%20%20%20%20name%0A%20%20%20%20%7D%0A%20%20%20%20updatedAt%0A%20%20%20%20updatedBy%20%7B%0A%20%20%20%20%20%20email%0A%20%20%20%20%20%20name%0A%20%20%20%20%7D%0A%20%20%7D%0A%7D%0A)参照してください。
+
+       変異は、削除される前の式のスナップショットを返します。
+  </Collapser>
+</CollapserGroup>
+
+## 難読化ルール [#rules]
+
+New Relic UIを使用するか、GraphQL ExplorerであるNerdGraphを使用して、難読化ルールを作成、読み取り、更新、または削除できます。
+
+<CollapserGroup>
+  <Collapser
+    id="rules-create"
+    title="難読化ルールの作成"
+  >
+    難読化ルールを作成するには、これらのオプションのいずれかを使用します。
+
+    **ログUIを使用する。**
+
+    1. **[one.newrelic.com](https://one.newrelic.com) > Logs** にアクセスし、左のナビから **Obfuscation** を選択します。
+    2. **難読化ルールの作成** をクリックします。
+    3. 新しい難読化ルールの名前と、難読化したいログのターゲットセットを捕捉するためのマッチング条件（NRQL形式）を入力します。
+    4. 新しい `actions` を追加して（最初のものは自動的に追加されます）、各属性セットをキャプチャする難読化式（正規表現）と、それらを `MASK` または `HASH` するかどうかを指定します。
+
+    * カンマ区切りで複数の属性を指定することができる。
+
+    * `MASK` 一致するすべての文字を`X` esに置き換えます。 `MASK`を使用すると、後で特定の難読化された値を照会できなくなります。
+
+    * `HASH` 機密データをSHA-256ハッシュ値に置き換えます。 `HASH`を使用する場合、クリアテキスト値がわかっていれば、ハッシュツールを使用してそれらをクエリできます。
+
+      ルールは次のようなものです。
+
+      <img
+        title="Create an obfuscation rule using the Logs UI"
+        alt="Create an obfuscation rule using the Logs UI"
+        src={obfuscationCreateRuleUi}
+      />
+
+    5. **Create rule** をクリックし、難読化ルールを作成・有効化します。
+
+       **ナードグラフを使って**
+
+       `logConfigurations`の下にある`logConfigurationsCreateObfuscationRule`ミューテーターを使用します。 GraphiQLに入力された例と、[**api.newrelic.com/graphiql**の関連ドキュメントを](https://api.newrelic.com/graphiql?#query=mutation%20%7B%0A%20%20logConfigurationsCreateObfuscationRule%28accountId%3A%201234%2C%20rule%3A%20%7Bname%3A%20%22Obfuscate%20Login%20Service%20Logs%22%2C%20description%3A%20%22Removes%20PII%20from%20the%20Login%20Service%20Logs%20owned%20by%20the%20Sales%20department.%20Do%20not%20modify%20this%20rule%20without%20contacting%20the%20Sales%20team%20first.%22%2C%20filter%3A%20%22serviceName%20%3D%20%27loginService%27%20AND%20department%20%3D%20%27sales%27%22%2C%20enabled%3A%20true%2C%20actions%3A%20%5B%7Battributes%3A%20%5B%22message%22%2C%20%22creditCardNumber%22%5D%2C%20expressionId%3A%20%2212%22%2C%20method%3A%20HASH_SHA256%7D%2C%20%7Battributes%3A%20%5B%22message%22%5D%2C%20expressionId%3A%20%2234%22%2C%20method%3A%20MASK%7D%2C%20%7Battributes%3A%20%5B%22message%22%2C%20%22ssn%22%5D%2C%20expressionId%3A%20%2256%22%2C%20method%3A%20HASH_SHA256%7D%5D%7D%29%20%7B%0A%20%20%20%20id%0A%20%20%20%20name%0A%20%20%20%20description%0A%20%20%20%20filter%0A%20%20%20%20enabled%0A%20%20%20%20actions%20%7B%0A%20%20%20%20%20%20attributes%0A%20%20%20%20%20%20expression%20%7B%0A%20%20%20%20%20%20%20%20name%0A%20%20%20%20%20%20%7D%0A%20%20%20%20%20%20method%0A%20%20%20%20%7D%0A%20%20%20%20createdAt%0A%20%20%20%20createdBy%20%7B%0A%20%20%20%20%20%20name%0A%20%20%20%20%20%20email%0A%20%20%20%20%7D%0A%20%20%20%20updatedAt%0A%20%20%20%20updatedBy%20%7B%0A%20%20%20%20%20%20name%0A%20%20%20%20%20%20email%0A%20%20%20%20%7D%0A%20%20%7D%0A%7D%0A)参照してください。
+
+       <Callout variant="important">
+         特定の難読化アクションにリンクするには、難読化`expressionId`を指定する必要があります。このIDを取得するに[は、 `obfuscationRules`をクエリします](#rules-read)。
+       </Callout>
+  </Collapser>
+
+  <Collapser
+    id="rules-read"
+    title="難読化ルールを読む"
+  >
+    難読化ルールを照会するには、これらのオプションのいずれかを使用します。
+
+    **ログUIを使用する。**
+
+    1. **[one.newrelic.com](https://one.newrelic.com) > Logs** にアクセスし、左のナビから **Obfuscation** を選択します。
+
+    2. **Rules** タブ（デフォルト）を選択すると、利用可能なすべての難読化ルールとその定義が表示されます。
+
+       **ナードグラフを使って**
+
+       `actor.account.logConfigurations`の下にある`obfuscationRules`フェッチャーを使用します。 GraphiQLに入力された例と、[**api.newrelic.com/graphiql**の関連ドキュメントを](https://api.newrelic.com/graphiql?#query=%7B%0A%20%20actor%20%7B%0A%20%20%20%20account%28id%3A%201234%29%20%7B%0A%20%20%20%20%20%20logConfigurations%20%7B%0A%20%20%20%20%20%20%20%20obfuscationRules%20%7B%0A%20%20%20%20%20%20%20%20%20%20id%0A%20%20%20%20%20%20%20%20%20%20name%0A%20%20%20%20%20%20%20%20%20%20description%0A%20%20%20%20%20%20%20%20%20%20filter%0A%20%20%20%20%20%20%20%20%20%20enabled%0A%20%20%20%20%20%20%20%20%20%20actions%20%7B%0A%20%20%20%20%20%20%20%20%20%20%20%20attributes%0A%20%20%20%20%20%20%20%20%20%20%20%20expression%20%7B%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20name%0A%20%20%20%20%20%20%20%20%20%20%20%20%7D%0A%20%20%20%20%20%20%20%20%20%20%20%20method%0A%20%20%20%20%20%20%20%20%20%20%7D%0A%20%20%20%20%20%20%20%20%20%20createdAt%0A%20%20%20%20%20%20%20%20%20%20createdBy%20%7B%0A%20%20%20%20%20%20%20%20%20%20%20%20name%0A%20%20%20%20%20%20%20%20%20%20%20%20email%0A%20%20%20%20%20%20%20%20%20%20%7D%0A%20%20%20%20%20%20%20%20%20%20updatedAt%0A%20%20%20%20%20%20%20%20%20%20updatedBy%20%7B%0A%20%20%20%20%20%20%20%20%20%20%20%20name%0A%20%20%20%20%20%20%20%20%20%20%20%20email%0A%20%20%20%20%20%20%20%20%20%20%7D%0A%20%20%20%20%20%20%20%20%7D%0A%20%20%20%20%20%20%7D%0A%20%20%20%20%7D%0A%20%20%7D%0A%7D%0A)参照してください。
+  </Collapser>
+
+  <Collapser
+    id="rules-update"
+    title="難読化ルールの更新"
+  >
+    難読化ルールを更新するには、これらのオプションのいずれかを使用します。
+
+    **ログUIを使用する。**
+
+    1. **[one.newrelic.com](https://one.newrelic.com) > Logs** にアクセスし、左のナビから **Obfuscation** を選択します。
+
+    2. **Rules** タブを選択します（デフォルト）。
+
+    3. 編集したい難読化ルールの右側にある3つの点のメニュー **...** をクリックし、 **Edit** をクリックします。
+
+    4. 必要に応じてフィールドを変更し、 **ルールの更新** をクリックします。
+
+       **ナードグラフを使って**
+
+       `logConfigurations`の下にある`logConfigurationsUpdateObfuscationRule`ミューテーターを使用します。 GraphiQLに入力された例と、[**api.newrelic.com/graphiql**の関連ドキュメントを](https://api.newrelic.com/graphiql?#query=mutation%20%7B%0A%20%20logConfigurationsUpdateObfuscationRule%28accountId%3A%201234%2C%20rule%3A%20%7Bid%3A%20%225678%22%2C%20name%3A%20%22EDITED%20-%20Obfuscate%20Login%20Service%20Logs%22%2C%20description%3A%20%22EDITED%20-%20Removes%20PII%20from%20the%20Login%20Service%20Logs%20owned%20by%20the%20Sales%20department.%20Do%20not%20modify%20this%20rule%20without%20contacting%20the%20Sales%20team%20first.%22%2C%20filter%3A%20%22serviceName%20%3D%20%27loginService%27%20AND%20department%20%3D%20%27sales%27%22%2C%20enabled%3A%20true%2C%20actions%3A%20%5B%7Battributes%3A%20%5B%22message%22%2C%20%22creditCardNumber%22%5D%2C%20expressionId%3A%20%2212%22%2C%20method%3A%20HASH_SHA256%7D%2C%20%7Battributes%3A%20%5B%22message%22%5D%2C%20expressionId%3A%20%2234%22%2C%20method%3A%20MASK%7D%2C%20%7Battributes%3A%20%5B%22message%22%2C%20%22ssn%22%5D%2C%20expressionId%3A%20%2256%22%2C%20method%3A%20HASH_SHA256%7D%5D%7D%29%20%7B%0A%20%20%20%20id%0A%20%20%20%20name%0A%20%20%20%20description%0A%20%20%20%20filter%0A%20%20%20%20enabled%0A%20%20%20%20actions%20%7B%0A%20%20%20%20%20%20attributes%0A%20%20%20%20%20%20expression%20%7B%0A%20%20%20%20%20%20%20%20name%0A%20%20%20%20%20%20%7D%0A%20%20%20%20%20%20method%0A%20%20%20%20%7D%0A%20%20%20%20createdAt%0A%20%20%20%20createdBy%20%7B%0A%20%20%20%20%20%20name%0A%20%20%20%20%20%20email%0A%20%20%20%20%7D%0A%20%20%20%20updatedAt%0A%20%20%20%20updatedBy%20%7B%0A%20%20%20%20%20%20name%0A%20%20%20%20%20%20email%0A%20%20%20%20%7D%0A%20%20%7D%0A%7D%0A)参照してください。
+
+       <Callout variant="important">
+         特定の難読化アクションにリンクするには、難読化`expressionId`を指定する必要があります。このIDを取得するには、\[query the `obfuscationRules` ]]（＃rules-read）で説明されているように、 `obfuscationRules`を使用できます。
+       </Callout>
+
+       難読化ルールを更新するときに、すべてのフィールドを指定する必要はありません`id` （必須）と変更するフィールドのみを指定する必要があります。 [名前のみを更新](https://api.newrelic.com/graphiql?#query=mutation%20%7B%0A%20%20logConfigurationsUpdateObfuscationRule%28accountId%3A%201234%2C%20rule%3A%20%7Bid%3A%20%225678%22%2C%20name%3A%20%22EDITED%20-%20Obfuscate%20Login%20Service%20Logs%22%7D%29%20%7B%0A%20%20%20%20id%0A%20%20%20%20name%0A%20%20%20%20description%0A%20%20%20%20filter%0A%20%20%20%20enabled%0A%20%20%20%20actions%20%7B%0A%20%20%20%20%20%20attributes%0A%20%20%20%20%20%20expression%20%7B%0A%20%20%20%20%20%20%20%20name%0A%20%20%20%20%20%20%7D%0A%20%20%20%20%20%20method%0A%20%20%20%20%7D%0A%20%20%20%20createdAt%0A%20%20%20%20createdBy%20%7B%0A%20%20%20%20%20%20name%0A%20%20%20%20%20%20email%0A%20%20%20%20%7D%0A%20%20%20%20updatedAt%0A%20%20%20%20updatedBy%20%7B%0A%20%20%20%20%20%20name%0A%20%20%20%20%20%20email%0A%20%20%20%20%7D%0A%20%20%7D%0A%7D%0A)する例を次に示します。
+  </Collapser>
+
+  <Collapser
+    id="rules-delete"
+    title="難読化ルールの削除"
+  >
+    難読化ルールを削除するには、これらのオプションのいずれかを使用します。
+
+    **ログUIを使用する。**
+
+    1. **[one.newrelic.com](https://one.newrelic.com) > Logs** にアクセスし、左のナビから **Obfuscation** を選択します。
+
+    2. **Rules** タブを選択します（デフォルト）。
+
+    3. 削除したい難読化ルールの右側にある3つの点のメニュー **...** をクリックし、 **削除**... をクリックします。
+
+    4. **Delete** をクリックして、式を削除することを確認します。
+
+       **ナードグラフを使って**
+
+       `logConfigurations`の下にある`logConfigurationsDeleteObfuscationRule`ミューテーターを使用します。 GraphiQLに入力された例と、[**api.newrelic.com/graphiql**の関連ドキュメントを](https://api.newrelic.com/graphiql?#query=mutation%20%7B%0A%20%20logConfigurationsDeleteObfuscationRule%28accountId%3A%201234%2C%20id%3A%205678%29%20%7B%0A%20%20%20%20id%0A%20%20%20%20name%0A%20%20%20%20description%0A%20%20%20%20filter%0A%20%20%20%20enabled%0A%20%20%20%20actions%20%7B%0A%20%20%20%20%20%20attributes%0A%20%20%20%20%20%20expression%20%7B%0A%20%20%20%20%20%20%20%20name%0A%20%20%20%20%20%20%7D%0A%20%20%20%20%20%20method%0A%20%20%20%20%7D%0A%20%20%20%20createdAt%0A%20%20%20%20createdBy%20%7B%0A%20%20%20%20%20%20name%0A%20%20%20%20%20%20email%0A%20%20%20%20%7D%0A%20%20%20%20updatedAt%0A%20%20%20%20updatedBy%20%7B%0A%20%20%20%20%20%20name%0A%20%20%20%20%20%20email%0A%20%20%20%20%7D%0A%20%20%7D%0A%7D%0A)参照してください。
+
+       変異は、削除される前のルールのスナップショットを返します。
+  </Collapser>
+</CollapserGroup>

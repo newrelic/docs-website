@@ -1,0 +1,9 @@
+---
+subject: Organization and user management
+releaseDate: '2022-09-28'
+version: '220928'
+---
+
+You can now query a user's name, user ID, user type, email, and last active date with our NerdGraph API. You can also update a user's user type and email address.
+
+To learn more, see [the NerdGraph docs](/docs/apis/nerdgraph/examples/nerdgraph-manage-users).
