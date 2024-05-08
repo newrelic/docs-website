@@ -97,8 +97,6 @@ const InstallFeedback = () => {
     <Surface
       base={Surface.BASE.PRIMARY}
       css={css`
-        --product-blue: #0e74df;
-        --product-blue-hover: #0958a9;
         padding: 2rem;
         margin: 1rem;
         margin-bottom: 2rem;
