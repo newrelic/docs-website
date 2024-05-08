@@ -150,10 +150,6 @@ const AttributeDictionary = ({ pageContext, location }) => {
         >
           <DataDictionaryFilter events={events} location={location} />
           <ComplexFeedback pageTitle="Attribute dictionary" />
-          <ContributingGuidelines
-            fileRelativePath={pageContext.fileRelativePath}
-            issueLabels={['feedback', 'feedback-issue']}
-          />
         </Layout.PageTools>
       </div>
     </ErrorBoundary>
