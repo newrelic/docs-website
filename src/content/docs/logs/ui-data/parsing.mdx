@@ -119,7 +119,7 @@ Grok is a superset of regular expressions that adds built-in named patterns to b
 Grok patterns have the syntax:
 
   ```
-  %{PATTERN_NAME[:OPTIONAL_EXTRACTED_ATTRIBUTE_NAME[:OPTIONAL_TYPE]]}
+  %{PATTERN_NAME[:OPTIONAL_EXTRACTED_ATTRIBUTE_NAME[:OPTIONAL_TYPE[:OPTIONAL_PARAMETER]]]}
   ```
 
     Where:
@@ -127,6 +127,8 @@ Grok patterns have the syntax:
     * `PATTERN_NAME` is one of the supported Grok patterns. The pattern name is just a user-friendly name representing a regular expression. They are exactly equal to the corresponding regular expression.
     * `OPTIONAL_EXTRACTED_ATTRIBUTE_NAME`, if provided, is the name of the attribute that will be added to your log message with the value matched by the pattern name. It's equivalent to using a named capture group using regular expressions. If this is not provided, then the parsing rule will just match a region of your string, but not extract an attribute with its value.
     * `OPTIONAL_TYPE` specifies the type of attribute value to extract. If omitted, values are extracted as strings. For instance, to extract the value `123` from `"File Size: 123"` as a number into attribute `file_size`, use `value: %{INT:file_size:int}`.
+    * `OPTIONAL_PARAMETER` specifies an optional parameter for certain types. Currently only the `datetime` type takes a parameter, see below for details.
+
 
 You can also use a mix of regular expressions and Grok pattern names in your matching string.
 
@@ -286,29 +288,14 @@ Note that variable names must be explicitly set and be lowercase like `%{URI:uri
         </td>
 
         <td>
-          ISO 8601 time as a `long`
-        </td>
-      </tr>
+          Time as a `long`
 
-      <tr>
-        <td>
-          `string` (default)
-          `text`
-        </td>
 
-        <td>
-          `string`
-        </td>
-      </tr>
+          By default it is interpreted as ISO 8601. If `OPTIONAL_PARAMETER` is present, it specifies
+          the [date and time pattern string](https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/text/SimpleDateFormat.html)to use to interpret the `datetime`.
 
-      <tr>
-        <td>
-          `date`
-          `datetime`
-        </td>
 
-        <td>
-          ISO 8601 time as a `long`
+          Note that this is only available during parsing. We have an additional, [separate timestamp interpretation step](/docs/logs/ui-data/timestamp-support) that occurs for all logs later in the ingestion pipeline.
         </td>
       </tr>
 
@@ -377,7 +364,8 @@ Note that variable names must be explicitly set and be lowercase like `%{URI:uri
     my_attribute_prefix.request.headers.X-Custom: "bar"
     ```
 
-    You can define the list of attributes to extract with the option `keepAttributes`. For example, with the following Grok expression:
+    You can define the list of attributes to extract or drop with the options `keepAttributes` or `dropAttributes`.
+    For example, with the following Grok expression:
 
     ```
     %{TIMESTAMP_ISO8601:containerTimestamp} %{GREEDYDATA:my_attribute_prefix:json({"keepAttributes": ["my_attribute_prefix.event", "my_attribute_prefix.response.headers.X-Custom"]})}
@@ -403,13 +391,39 @@ Note that variable names must be explicitly set and be lowercase like `%{URI:uri
     %{TIMESTAMP_ISO8601:containerTimestamp} %{GREEDYDATA:my_attribute_prefix:json({"noPrefix": true, "keepAttributes": ["status"]})}
     ```
 
-    You can also configure the `json` [Grok type](#grok-syntax) using `:json(_CONFIG_)`:
+    If your JSON has been escaped, you can use the `isEscaped` option to be able to parse it.
+    If your JSON has been escaped and then quoted, you need to match the quotes as well, as shown below.
+    For example, with the following Grok expression:
+
+    ```
+    %{TIMESTAMP_ISO8601:containerTimestamp} "%{GREEDYDATA:my_attribute_prefix:json({"isEscaped": true})}"
+    ```
+
+    Would be able to parse the escaped message:
+
+    ```
+    2015-05-13T23:39:43.945958Z "{\"event\": \"TestRequest\", \"status\": 200, \"response\": {\"headers\": {\"X-Custom\": \"foo\"}}, \"request\": {\"headers\": {\"X-Custom\": \"bar\"}}}"
+    ```
+
+    The resulting log is:
+
+    ```
+    containerTimestamp: "2015-05-13T23:39:43.945958Z"
+    my_attribute_prefix.event: "TestRequest"
+    my_attribute_prefix.status: 200
+    my_attribute_prefix.response.headers.X-Custom: "foo"
+    my_attribute_prefix.request.headers.X-Custom: "bar"
+    ```
+
+To configure the `json` [Grok type](#grok-syntax), use `:json(_CONFIG_)`:
 
     - `json({"dropOriginal": true})`: Drop the JSON snippet that was used in parsing. When set to `true` (default value), the parsing rule will drop the original JSON snippet. Note the JSON attributes will remain in the message field.
     - `json({"dropOriginal": false})`: This will show the JSON payload that was extracted. When set to `false`, the full JSON-only payload will be displayed under an attribute named in `my_attribute_prefix` above. Note the JSON attributes will remain in the message field here as well giving the user 3 different views of the JSON data. If storage of all three versions is a concern it's recommended to use the default of `true` here.
     - `json({"depth": 62})`: Levels of depth you want to parse the JSON value (defaulted to 62).
     - `json({"keepAttributes": ["attr1", "attr2", ..., "attrN"]})`: Specifies which attributes will be extracted from the JSON. The provided list cannot be empty. If this configuration option is not set, all attributes are extracted.
+    - `json({"dropAttributes": ["attr1", "attr2", ..., "attrN"]})`: Specifies which attributes to be dropped from the JSON. If this configuration option is not set, no attributes are dropped.
     - `json({"noPrefix": true})`: Set this option to `true` to remove the prefix from the attributes extracted from the JSON.
+    - `json({"isEscaped": true})`: Set this option to `true` to parse JSON that has been escaped (which you typically see when JSON is stringified, for example `{\"key\": \"value\"}`)
 
 
   </Collapser>

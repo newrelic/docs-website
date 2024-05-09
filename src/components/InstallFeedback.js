@@ -98,9 +98,13 @@ const InstallFeedback = () => {
       base={Surface.BASE.PRIMARY}
       css={css`
         padding: 2rem;
+        margin: 1rem;
         margin-bottom: 2rem;
-        border: 1px solid #1dcad3;
-        background-color: #afe2e3;
+        border: none;
+        background: var(--system-text-primary-dark);
+        .dark-mode && {
+          background: var(--erno-black);
+        }
       `}
     >
       {!formSubmitted ? (
@@ -130,9 +134,10 @@ const InstallFeedback = () => {
             >
               <h2
                 css={css`
+                  font-weight: 500;
                   margin-bottom: 0;
                   text-align: center;
-                  color: #1d252c;
+                  color: var(--primary-text-color);
                 `}
               >
                 {t('strings.installFeedback.question')}
@@ -150,12 +155,12 @@ const InstallFeedback = () => {
                   onClick={() => handleClick()}
                   css={css`
                     font-size: 1.25rem;
-                    color: #00586f;
-                    border: 1px solid #00586f;
-                    border-radius: 0.5rem;
+                    font-weight: 500;
+                    color: var(--system-text-primary-dark);
+                    background: var(--product-blue);
+                    border-radius: 4px;
                     padding: 1rem 2rem;
                     margin-right: 0.5rem;
-                    transition: color 200ms, border-color 200ms;
                     @media screen and (max-width: 1500px) {
                       margin-top: 1rem;
                     }
@@ -175,18 +180,11 @@ const InstallFeedback = () => {
                     }
 
                     svg {
-                      transition: fill 200ms;
+                      fill: var(--system-text-primary-dark);
                     }
 
                     &:hover {
-                      border-color: #0095a9;
-                      color: #0095a9;
-                      transition: color 200ms, border-color 200ms;
-
-                      svg {
-                        fill: #0095a9;
-                        transition: fill 200ms;
-                      }
+                      background: var(--product-blue-hover);
                     }
                   `}
                 >
@@ -234,7 +232,7 @@ const InstallFeedback = () => {
                 }
                 flex-direction: column;
                 p {
-                  color: #1d252c;
+                  color: var(--primary-text-color);
                 }
 
                 p,
@@ -316,17 +314,17 @@ const InstallFeedback = () => {
                   css={css`
                     font-size: 1.25rem;
                     margin: 0.5rem auto 0;
-                    border-radius: 0.5rem;
+                    border-radius: 4px;
                     padding: 1rem 2rem;
                     height: 3rem;
-                    background: #00586f;
+                    background: var(--product-blue);
                     color: var(--system-text-primary-dark);
-                    &:hover {
-                      background: #0095a9;
-                    }
+                    &:hover,
                     .dark-mode &:hover {
                       color: var(--system-text-primary-dark);
+                      background: var(--product-blue-hover);
                     }
+
                     &:disabled,
                     .dark-mode &:disabled {
                       cursor: not-allowed;
