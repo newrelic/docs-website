@@ -82,7 +82,7 @@ const collapserTest = async () => {
 };
 
 const navTest = async () => {
-  const releaseNotesXPath = '//div[@data-flip-id="Release notes"]';
+  const releaseNotesXPath = '//div[@data-flip-id="release-notes"]';
   const nextNodeXPath = `${releaseNotesXPath}/following-sibling::div[1]`;
   const [releaseNotes] = await waitForXPath(releaseNotesXPath);
   const [initialNextNode] = await waitForXPath(nextNodeXPath);
