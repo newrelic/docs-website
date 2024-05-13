@@ -5,8 +5,12 @@ import appleColor from './logo/apple-color';
 import aws from './logo/aws';
 import azure from './logo/azure';
 import c from './logo/c';
+import capacitor from './logo/capacitor';
+import cordova from './logo/cordova';
 import dotnet from './logo/dotnet';
+import dotnetMaui from './logo/dotnet-maui';
 import dropwizard from './logo/dropwizard';
+import flutter from './logo/flutter';
 import gcloud from './logo/gcloud';
 import istio from './logo/istio';
 import java from './logo/java';
@@ -34,7 +38,10 @@ import react from './logo/react';
 import redis from './logo/redis';
 import ruby from './logo/ruby';
 import statsd from './logo/statsd';
+import unity from './logo/unity';
+import unrealEngine from './logo/unreal-engine';
 import windows from './logo/windows';
+import xamarin from './logo/xamarin';
 
 export default {
   ...defaultIcons,
@@ -44,8 +51,12 @@ export default {
   aws,
   azure,
   c,
+  capacitor,
+  cordova,
   dotnet,
+  'dotnet-maui': dotnetMaui,
   dropwizard,
+  flutter,
   gcloud,
   istio,
   java,
@@ -73,5 +84,8 @@ export default {
   ruby,
   react,
   statsd,
+  unity,
+  'unreal-engine': unrealEngine,
   windows,
+  xamarin,
 };
