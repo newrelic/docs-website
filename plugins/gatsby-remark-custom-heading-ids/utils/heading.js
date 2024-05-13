@@ -1,26 +1,25 @@
-const remove = require('unist-util-remove');
 const filter = require('unist-util-filter');
 const toString = require('mdast-util-to-string');
 const convert = require('unist-util-is/convert');
-const { cloneDeep, last } = require('lodash');
+const { last } = require('lodash');
 
-const CUSTOM_ID = /^#[\w-]+$/;
+const CUSTOM_ID = /\[#[\w].*\]+$/;
 const isIgnoredNode = convert(['image']);
 
-const getId = (node) => {
-  const { label } = last(node.children);
+const getIdAndText = (node) => {
+  const { value } = last(node.children);
+  const textAndId = value.split('[');
 
-  return label.replace(/^#/, '');
+  return {
+    id: textAndId[1].replace(']', '').replace('#', ''),
+    text: textAndId[0].trim(),
+  };
 };
 
 const isHeadingWithCustomId = (node) => {
   const lastChild = last(node.children);
-
   return (
-    node.type === 'heading' &&
-    lastChild &&
-    lastChild.type === 'linkReference' &&
-    CUSTOM_ID.test(lastChild.label)
+    node.type === 'heading' && lastChild && CUSTOM_ID.test(lastChild?.value)
   );
 };
 
@@ -32,17 +31,10 @@ const parseHeading = (node) => {
   node = filter(node, (el) => !isIgnoredNode(el));
 
   if (isHeadingWithCustomId(node)) {
-    // make a copy of the node so that removing the linkReference does not
-    // mutate the original node object
-    const nodeCopy = cloneDeep(node);
-    const id = getId(nodeCopy);
-
-    remove(nodeCopy, 'linkReference');
-
-    return { id, text: toString(nodeCopy).trim() };
+    return getIdAndText(node);
   }
 
   return { id: null, text: toString(node) };
 };
 
-module.exports = { getId, parseHeading, isHeadingWithCustomId };
+module.exports = { getIdAndText, parseHeading, isHeadingWithCustomId };
