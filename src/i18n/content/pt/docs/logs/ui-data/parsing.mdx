@@ -120,7 +120,7 @@ Grok é um superconjunto de expressões regulares que adiciona padrões nomeados
 Os padrões Grok têm a sintaxe:
 
 ```
-%{PATTERN_NAME[:OPTIONAL_EXTRACTED_ATTRIBUTE_NAME[:OPTIONAL_TYPE]]}
+%{PATTERN_NAME[:OPTIONAL_EXTRACTED_ATTRIBUTE_NAME[:OPTIONAL_TYPE[:OPTIONAL_PARAMETER]]]}
 ```
 
 Onde:
@@ -128,6 +128,7 @@ Onde:
 * `PATTERN_NAME` é um dos padrões Grok suportados. O nome do padrão é apenas um nome amigável que representa uma expressão regular. Eles são exatamente iguais à expressão regular correspondente.
 * `OPTIONAL_EXTRACTED_ATTRIBUTE_NAME`, se fornecido, é o nome do atributo que será adicionado à sua mensagem do log com o valor correspondente ao nome do padrão. É equivalente a usar um grupo de captura nomeado usando expressões regulares. Se isso não for fornecido, a regra de análise corresponderá apenas a uma região da sua string, mas não extrairá um atributo com seu valor.
 * `OPTIONAL_TYPE` especifica o tipo de valor de atributo a ser extraído. Se omitido, os valores serão extraídos como strings. Por exemplo, para extrair o valor `123` de `"File Size: 123"` como um número para o atributo `file_size`, use `value: %{INT:file_size:int}`.
+* `OPTIONAL_PARAMETER` especifica um parâmetro opcional para determinados tipos. Atualmente apenas o tipo `datetime` recebe um parâmetro. Veja detalhes abaixo.
 
 Você também pode usar uma combinação de expressões regulares e nomes de padrões Grok na string correspondente.
 
@@ -288,27 +289,11 @@ Observe que os nomes das variáveis devem ser definidos explicitamente e estar e
           </td>
 
           <td>
-            Tempo ISO 8601 como `long`
-          </td>
-        </tr>
+            O tempo como `long`
 
-        <tr>
-          <td>
-            `string` (padrão) `text`
-          </td>
+            Por padrão, é interpretado como ISO 8601. Se `OPTIONAL_PARAMETER` estiver presente, ele especifica a [sequência padrão de data e hora](https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/text/SimpleDateFormat.html)a ser usada para interpretar `datetime`.
 
-          <td>
-            `string`
-          </td>
-        </tr>
-
-        <tr>
-          <td>
-            `date` `datetime`
-          </td>
-
-          <td>
-            Tempo ISO 8601 como `long`
+            Observe que isso só está disponível durante a análise. Temos uma [etapa adicional e separada de interpretação timestamp ](/docs/logs/ui-data/timestamp-support)que ocorre para todos os logs posteriormente no pipeline de ingestão.
           </td>
         </tr>
 
@@ -380,7 +365,7 @@ Observe que os nomes das variáveis devem ser definidos explicitamente e estar e
     my_attribute_prefix.request.headers.X-Custom: "bar"
     ```
 
-    Você pode definir a lista de atributos a serem extraídos com a opção `keepAttributes`. Por exemplo, com a seguinte expressão Grok:
+    Você pode definir a lista de atributos a serem extraídos ou descartados com as opções `keepAttributes` ou `dropAttributes`. Por exemplo, com a seguinte expressão Grok:
 
     ```
     %{TIMESTAMP_ISO8601:containerTimestamp} %{GREEDYDATA:my_attribute_prefix:json({"keepAttributes": ["my_attribute_prefix.event", "my_attribute_prefix.response.headers.X-Custom"]})}
@@ -406,13 +391,37 @@ Observe que os nomes das variáveis devem ser definidos explicitamente e estar e
     %{TIMESTAMP_ISO8601:containerTimestamp} %{GREEDYDATA:my_attribute_prefix:json({"noPrefix": true, "keepAttributes": ["status"]})}
     ```
 
-    Você também pode configurar o [tipo](#grok-syntax) `json` Grok usando `:json(_CONFIG_)`:
+    Se seu JSON tiver escapado, você poderá usar a opção `isEscaped` para poder analisá-lo. Se o seu JSON tiver sido escapado e depois citado, você também precisará combinar as aspas, conforme mostrado abaixo. Por exemplo, com a seguinte expressão Grok:
+
+    ```
+    %{TIMESTAMP_ISO8601:containerTimestamp} "%{GREEDYDATA:my_attribute_prefix:json({"isEscaped": true})}"
+    ```
+
+    Seria capaz de analisar a mensagem escapada:
+
+    ```
+    2015-05-13T23:39:43.945958Z "{\"event\": \"TestRequest\", \"status\": 200, \"response\": {\"headers\": {\"X-Custom\": \"foo\"}}, \"request\": {\"headers\": {\"X-Custom\": \"bar\"}}}"
+    ```
+
+    O log resultante é:
+
+    ```
+    containerTimestamp: "2015-05-13T23:39:43.945958Z"
+    my_attribute_prefix.event: "TestRequest"
+    my_attribute_prefix.status: 200
+    my_attribute_prefix.response.headers.X-Custom: "foo"
+    my_attribute_prefix.request.headers.X-Custom: "bar"
+    ```
+
+    Para configurar o tipo `json` [Grok](#grok-syntax), use `:json(_CONFIG_)`:
 
     * `json({"dropOriginal": true})`: elimine o trecho JSON que foi usado na análise. Quando definido como `true` (valor padrão), a regra de análise eliminará o trecho JSON original. Observe que o atributo JSON permanecerá no campo da mensagem.
     * `json({"dropOriginal": false})`: isso mostrará a carga JSON que foi extraída. Quando definido como `false`, a carga completa somente JSON será exibida em um atributo nomeado em `my_attribute_prefix` acima. Observe que o atributo JSON permanecerá no campo de mensagem aqui, dando ao usuário 3 visualizações diferentes dos dados JSON. Se o armazenamento de todas as três versões for uma preocupação, é recomendado usar o padrão `true` aqui.
     * `json({"depth": 62})`: níveis de profundidade que você deseja analisar o valor JSON (padrão 62).
     * `json({"keepAttributes": ["attr1", "attr2", ..., "attrN"]})`: Especifica qual atributo será extraído do JSON. A lista fornecida não pode estar vazia. Se esta opção de configuração não estiver definida, todos os atributos serão extraídos.
+    * `json({"dropAttributes": ["attr1", "attr2", ..., "attrN"]})`: Especifica qual atributo será retirado do JSON. Se esta opção de configuração não for definida, nenhum atributo será eliminado.
     * `json({"noPrefix": true})`: Defina esta opção como `true` para remover o prefixo do atributo extraído do JSON.
+    * `json({"isEscaped": true})`: Defina esta opção como `true` para analisar o JSON que foi escapado (que normalmente você vê quando o JSON é stringificado, por exemplo `{\"key\": \"value\"}`)
   </Collapser>
 
   <Collapser
