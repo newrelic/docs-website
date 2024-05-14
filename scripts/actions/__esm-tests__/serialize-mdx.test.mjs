@@ -5,7 +5,7 @@ import { fileURLToPath } from 'url';
 import { test } from 'uvu';
 
 import { initSnapshots } from '../../../esm-test-utils.mjs';
-import serializeMDX from '../serialize-mdx.js';
+import serializeMDX from '../serialize-mdx.mjs';
 import deserializeHTML from '../deserialize-html.mjs';
 
 const snapshot = await initSnapshots('serialize-mdx');

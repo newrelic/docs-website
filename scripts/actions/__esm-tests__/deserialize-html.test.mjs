@@ -5,7 +5,7 @@ import { expect } from 'expect';
 import { fileURLToPath } from 'url';
 import { test } from 'uvu';
 
-import serializeMDX from '../serialize-mdx.js';
+import serializeMDX from '../serialize-mdx.mjs';
 
 const deserializeHTML = await esmock('../deserialize-html.mjs', {
   '../configuration.js': {

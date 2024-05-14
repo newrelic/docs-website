@@ -1,17 +1,15 @@
 const visit = require('unist-util-visit');
-const remove = require('unist-util-remove');
 const { get, set } = require('lodash');
-const { isHeadingWithCustomId, getId } = require('./heading');
+const { isHeadingWithCustomId, getIdAndText } = require('./heading');
 
 const visitor = () => (tree) => {
   visit(tree, isHeadingWithCustomId, (heading) => {
-    const id = getId(heading);
+    const { id, text } = getIdAndText(heading);
 
     set(heading, 'data.id', id);
     set(heading, 'data.htmlAttributes.id', id);
     set(heading, 'data.hProperties.id', id);
-
-    remove(heading, 'linkReference');
+    set(heading, 'children[0].value', text);
 
     const firstChild = heading.children[0];
 
