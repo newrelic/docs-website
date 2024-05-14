@@ -64,7 +64,7 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
         edges {
           node {
             frontmatter {
-              type
+              subject
             }
             fields {
               fileRelativePath
@@ -82,7 +82,6 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
               slug
             }
             frontmatter {
-              type
               subject
             }
           }
@@ -99,7 +98,6 @@ exports.createPages = async ({ actions, graphql, reporter }) => {
               slug
             }
             frontmatter {
-              type
               subject
               translationType
             }
@@ -369,6 +367,9 @@ exports.onCreatePage = ({ page, actions }) => {
   if (page.path.match(/404/)) {
     page.context.layout = 'basic';
   }
+  if (page.path === '/') {
+    page.context.layout = 'homepage';
+  }
 
   if (page.path.match(/404/) && page.path.match(/\/docs\//)) {
     page.context.layout = 'default';
@@ -451,13 +452,6 @@ const createPageFromNode = (
   }
 };
 
-const TEMPLATES_BY_TYPE = {
-  landingPage: 'landingPage',
-  apiDoc: 'docPage',
-  releaseNote: 'releaseNote',
-  troubleshooting: 'docPage',
-};
-
 const getTemplate = (node) => {
   const {
     frontmatter,
@@ -465,9 +459,6 @@ const getTemplate = (node) => {
   } = node;
 
   switch (true) {
-    case Boolean(frontmatter.type):
-      return { template: TEMPLATES_BY_TYPE[frontmatter.type] };
-
     case /docs\/release-notes\/.*\/index.mdx$/.test(fileRelativePath):
       return {
         template: 'releaseNoteLandingPage',

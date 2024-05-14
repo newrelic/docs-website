@@ -6,7 +6,7 @@ import SVG from '@newrelic/gatsby-theme-newrelic/src/components/SVG';
 const AttachmentIcon = (props) => (
   <SVG
     {...props}
-    viewBox="-.5 -.5 16 16"
+    viewBox="-.5 -.5 16 18"
     css={css`
       fill: currentColor;
       stroke: currentColor;
