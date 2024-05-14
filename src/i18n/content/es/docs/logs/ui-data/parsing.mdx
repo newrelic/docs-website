@@ -120,7 +120,7 @@ Grok es un superconjunto de expresiones regulares que agrega patrones con nombre
 Los patrones de Grok tienen la sintaxis:
 
 ```
-%{PATTERN_NAME[:OPTIONAL_EXTRACTED_ATTRIBUTE_NAME[:OPTIONAL_TYPE]]}
+%{PATTERN_NAME[:OPTIONAL_EXTRACTED_ATTRIBUTE_NAME[:OPTIONAL_TYPE[:OPTIONAL_PARAMETER]]]}
 ```
 
 Dónde:
@@ -128,6 +128,7 @@ Dónde:
 * `PATTERN_NAME` es uno de los patrones Grok admitidos. El nombre del patrón es simplemente un nombre fácil de usar que representa una expresión regular. Son exactamente iguales a la expresión regular correspondiente.
 * `OPTIONAL_EXTRACTED_ATTRIBUTE_NAME`, si se proporciona, es el nombre del atributo que se agregará a su mensaje de registro con el valor que coincide con el nombre del patrón. Es equivalente a utilizar un grupo de captura con nombre utilizando expresiones regulares. Si no se proporciona esto, entonces la regla de análisis simplemente coincidirá con una región de su cadena, pero no extraerá un atributo con su valor.
 * `OPTIONAL_TYPE` especifica el tipo de valor de atributo que se extraerá. Si se omite, los valores se extraen como cadenas. Por ejemplo, para extraer el valor `123` de `"File Size: 123"` como un número en el atributo `file_size`, use `value: %{INT:file_size:int}`.
+* `OPTIONAL_PARAMETER` especifica un parámetro opcional para ciertos tipos. Actualmente, solo el tipo `datetime` toma un parámetro; consulte a continuación para obtener más detalles.
 
 También puedes usar una combinación de expresiones regulares y nombres de patrones de Grok en tu cadena coincidente.
 
@@ -288,27 +289,11 @@ Tenga en cuenta que los nombres de las variables deben establecerse explícitame
           </td>
 
           <td>
-            El tiempo ISO 8601 como `long`
-          </td>
-        </tr>
+            El tiempo como `long`
 
-        <tr>
-          <td>
-            `string` (por defecto) `text`
-          </td>
+            Por defecto se interpreta como ISO 8601. Si `OPTIONAL_PARAMETER` está presente, especifica la [cadena de patrón de fecha y hora](https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/text/SimpleDateFormat.html)que se empleará para interpretar `datetime`.
 
-          <td>
-            `string`
-          </td>
-        </tr>
-
-        <tr>
-          <td>
-            `date` `datetime`
-          </td>
-
-          <td>
-            El tiempo ISO 8601 como `long`
+            Tenga en cuenta que esto sólo está disponible durante el análisis. Disponemos de un [paso adicional e independiente de interpretación timestamp ](/docs/logs/ui-data/timestamp-support)que se produce para todos los registros más adelante en el proceso de ingesta.
           </td>
         </tr>
 
@@ -380,7 +365,7 @@ Tenga en cuenta que los nombres de las variables deben establecerse explícitame
     my_attribute_prefix.request.headers.X-Custom: "bar"
     ```
 
-    Puedes definir la lista de atributos a extraer con la opción `keepAttributes`. Por ejemplo, con la siguiente expresión de Grok:
+    Puede definir la lista de atributos a extraer o soltar con las opciones `keepAttributes` o `dropAttributes`. Por ejemplo, con la siguiente expresión de Grok:
 
     ```
     %{TIMESTAMP_ISO8601:containerTimestamp} %{GREEDYDATA:my_attribute_prefix:json({"keepAttributes": ["my_attribute_prefix.event", "my_attribute_prefix.response.headers.X-Custom"]})}
@@ -406,13 +391,37 @@ Tenga en cuenta que los nombres de las variables deben establecerse explícitame
     %{TIMESTAMP_ISO8601:containerTimestamp} %{GREEDYDATA:my_attribute_prefix:json({"noPrefix": true, "keepAttributes": ["status"]})}
     ```
 
-    También puedes configurar el tipo `json` [Grok](#grok-syntax) usando `:json(_CONFIG_)`:
+    Si se escapó su JSON, puede usar la opción `isEscaped` para poder analizarlo. Si su JSON se escapó y luego se citó, también debe hacer coincidir las comillas, como se muestra a continuación. Por ejemplo, con la siguiente expresión de Grok:
+
+    ```
+    %{TIMESTAMP_ISO8601:containerTimestamp} "%{GREEDYDATA:my_attribute_prefix:json({"isEscaped": true})}"
+    ```
+
+    Podría analizar el mensaje escapado:
+
+    ```
+    2015-05-13T23:39:43.945958Z "{\"event\": \"TestRequest\", \"status\": 200, \"response\": {\"headers\": {\"X-Custom\": \"foo\"}}, \"request\": {\"headers\": {\"X-Custom\": \"bar\"}}}"
+    ```
+
+    El log resultante es:
+
+    ```
+    containerTimestamp: "2015-05-13T23:39:43.945958Z"
+    my_attribute_prefix.event: "TestRequest"
+    my_attribute_prefix.status: 200
+    my_attribute_prefix.response.headers.X-Custom: "foo"
+    my_attribute_prefix.request.headers.X-Custom: "bar"
+    ```
+
+    Para configurar el tipo `json` [Grok](#grok-syntax), emplee `:json(_CONFIG_)`:
 
     * `json({"dropOriginal": true})`: elimine el fragmento JSON que se utilizó en el análisis. Cuando se establece en `true` (valor predeterminado), la regla de análisis eliminará el fragmento JSON original. Tenga en cuenta que el atributo JSON permanecerá en el campo del mensaje.
     * `json({"dropOriginal": false})`: Esto mostrará la carga útil JSON que se extrajo. Cuando se establece en `false`, la carga útil completa solo JSON se mostrará bajo un atributo denominado en `my_attribute_prefix` arriba. Tenga en cuenta que el atributo JSON permanecerá aquí en el campo de mensaje y también brindará al usuario 3 vistas diferentes de los datos JSON. Si le preocupa el almacenamiento de las tres versiones, se recomienda utilizar el valor predeterminado `true` aquí.
     * `json({"depth": 62})`: Niveles de profundidad que desea analizar el valor JSON (predeterminado en 62).
     * `json({"keepAttributes": ["attr1", "attr2", ..., "attrN"]})`: Especifica qué atributo se extraerá del JSON. La lista proporcionada no puede estar vacía. Si esta opción de configuración no está configurada, se extraen todos los atributos.
+    * `json({"dropAttributes": ["attr1", "attr2", ..., "attrN"]})`: Especifica qué atributo se eliminará del JSON. Si esta opción de configuración no está configurada, no se elimina ningún atributo.
     * `json({"noPrefix": true})`: establezca esta opción en `true` para eliminar el prefijo del atributo extraído del JSON.
+    * `json({"isEscaped": true})`: Establezca esta opción en `true` para analizar JSON que se escapó (lo que normalmente se ve cuando JSON está encadenado, por ejemplo, `{\"key\": \"value\"}`).
   </Collapser>
 
   <Collapser
@@ -902,7 +911,7 @@ Para saber qué campos se analizan para cada regla, consulte nuestra documentaci
       </td>
 
       <td>
-        Registro de Rabbitmq
+        Log de Rabbitmq
       </td>
 
       <td>
@@ -916,7 +925,7 @@ Para saber qué campos se analizan para cada regla, consulte nuestra documentaci
       </td>
 
       <td>
-        Registro de Redis
+        Log de Redis
       </td>
 
       <td>
@@ -1097,7 +1106,7 @@ Para crear y administrar sus propias reglas de análisis personalizadas:
 
    <DoNotTranslate>**Manage data**</DoNotTranslate>
 
-   en el panel de navegación izquierdo de la UI de registro, haga clic en
+   en el panel de navegación izquierdo de la UI de log, haga clic en
 
    <DoNotTranslate>**Parsing**</DoNotTranslate>
 
@@ -1111,7 +1120,7 @@ Para crear y administrar sus propias reglas de análisis personalizadas:
 
 4. Seleccione un campo existente para analizar (predeterminado = `message`) o ingrese un nuevo nombre de campo.
 
-5. Introduzca una cláusula NRQL `WHERE` válida que coincida con el registro que desea analizar.
+5. Introduzca una cláusula NRQL `WHERE` válida que coincida con el log que desea analizar.
 
 6. Seleccione un log coincidente, si existe, o haga clic en la pestaña
 
