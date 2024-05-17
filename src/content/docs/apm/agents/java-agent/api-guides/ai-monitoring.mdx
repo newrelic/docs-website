@@ -1,0 +1,99 @@
+---
+title: AI monitoring APIs
+tags:
+  - Agents
+  - Java agent
+  - API guides
+metaDescription: 'For information about customizing New Relic''s Java agent for AI monitoring.'
+freshnessValidatedDate: never
+redirects:
+    - /docs/apm/agents/java-agent/api-guides/java-ai-monitoring-apis
+    - /docs/apm/agents/java-agent/api-guides/java-ai-monitoring
+---
+
+When you've instrumented your app for AI monitoring, the New Relic Java agent automatically collects many AI metrics, but also provides APIs for collecting information on token count and user feedback.
+
+<Callout variant="tip">
+    AI monitoring APIs are available in Java agent version 8.12.0 and higher.
+</Callout>
+
+## Recording token count [#token-count]
+By default, New Relic will attempt to calculate token usage based on the LLM message content or prompt that was reported.
+
+If `ai_monitoring.record_content.enabled=false` is set, or the content could not be captured for other reasons, then it will not be possible for New Relic to calculate token usage. In this scenario, you can set a callback for calculating `token_count` attributes for `LlmEmbedding` and `LlmChatCompletionMessage` events, and then pass that information to New Relic using the [`setLlmTokenCountCallback(LlmTokenCountCallback llmTokenCountCallback)`](https://newrelic.github.io/java-agent-api/javadoc/com/newrelic/api/agent/AiMonitoring.html#setLlmTokenCountCallback) API.
+
+This API should be called only once to set a callback for use with all LLM token calculations. If it is called multiple times, each new callback will replace the old one.
+
+The callback will be called with an implementation of `LlmTokenCountCallback` as its input argument and must return an integer representing the number of tokens used for that particular prompt, completion message, or embedding. Values less than or equal to 0 will not be attached to an event.
+
+An implementation of `LlmTokenCountCallback` must override the `calculateLlmTokenCount(String model, String content)` method to calculate a token count based on a given LLM model name and the LLM message content or prompt:
+```java
+ class MyTokenCountCallback implements LlmTokenCountCallback {
+     @Override
+     public int calculateLlmTokenCount(String model, String content) {
+         // Implement custom token calculating logic here based on the LLM model and content.
+         // Return an integer representing the calculated token count.
+         return 0;
+     }
+ }
+```
+
+To register the callback, create an instance of the `LlmTokenCountCallback` implementation and pass it to the `setLlmTokenCountCallback` API:
+```java
+    LlmTokenCountCallback myTokenCountCallback = new MyTokenCountCallback();
+    NewRelic.getAgent().getAiMonitoring.setLlmTokenCountCallback(myTokenCountCallback);
+```
+
+## Recording user feedback [#user-feedback]
+
+AI monitoring can correlate trace IDs between a generated message from your LLM models and the message feedback from an end user using the [`recordLlmFeedbackEvent(Map<String, Object> llmFeedbackEventAttributes)`](https://newrelic.github.io/java-agent-api/javadoc/com/newrelic/api/agent/AiMonitoring.html#recordLlmFeedbackEvent) API. This API takes a map as an argument that should be constructed using the `LlmFeedbackEventAttributes.Builder` class, which takes the following parameters:
+
+    * `trace_id` (required) - ID of the trace where the chat completion(s) related to the feedback occurred
+    * `rating` (required) - Rating provided by an end user (ex: 'Good', 'Bad', 1, 2, 5, 8, 10)
+    * `category` (optional) - Category of the feedback as provided by the end user (ex: “informative”, “inaccurate”)
+    * `message` (optional) - Freeform text feedback from an end user
+    * `metadata` (optional) - Set of key-value pairs to store any other desired data to submit with the feedback event
+
+If the user feedback is to be recorded on a different thread, or even in a completely different service, from where the LLM prompt/response occurred, then the trace ID will need to be acquired from the originating thread or service and propagated to where the user feedback event will be recorded. The [`TraceMetadata.getTraceId()`](https://newrelic.github.io/java-agent-api/javadoc/com/newrelic/api/agent/TraceMetadata.html#getTraceId) API can be used to acquire the trace ID for the currently executing transaction.
+```java
+String traceId = NewRelic.getAgent().getTraceMetadata().getTraceId();
+```
+
+Below is a complete example of how you could record an LLM feedback event:
+```java
+String traceId = ... // acquired directly from New Relic API or retrieved from some propagation mechanism
+
+Map<String, String> metadata = new HashMap<>();
+metadata.put("interestingKey", "interestingVal");
+
+LlmFeedbackEventAttributes.Builder llmFeedbackEvenAttrBuilder = new LlmFeedbackEventAttributes.Builder(traceId, ratingString);
+
+Map<String, Object> llmFeedbackEventAttributes = llmFeedbackEvenAttrBuilder
+        .category("General")
+        .message("Ok")
+        .metadata(metadata)
+        .build();
+
+NewRelic.getAgent().getAiMonitoring().recordLlmFeedbackEvent(llmFeedbackEventAttributes);
+```
+
+## Adding custom LLM attributes [#custom-llm-attributes]
+
+Any custom attributes added using the [`NewRelic.addCustomParameter(...)`](https://newrelic.github.io/java-agent-api/javadoc/com/newrelic/api/agent/NewRelic.html#addCustomParameter(java.lang.String,boolean)) API that are prefixed with `llm.` will automatically be copied to `LlmEvent`s. For custom attributes added by the `addCustomParameters` API to be added to `LlmEvent`s the API calls must occur before invoking the Bedrock SDK.
+
+One optional custom attribute with special meaning is `llm.conversation_id`, which can be used to group LLM messages into specific conversations in APM.
+
+## LLM event limits [#llm-event-limits]
+
+AI Monitoring instrumentation for supported SDKs will generate the following events to drive the APM experience.
+
+* `LlmEmbedding`: An event that captures data specific to the creation of an embedding.
+* `LlmChatCompletionSummary`: An event that captures high-level data about the creation of a chat completion including request, response, and call information.
+* `LlmChatCompletionMessage`: An event that corresponds to each message (sent and received) from a chat completion call including those created by the user, assistant, and the system.
+
+These events are sent as custom events and contribute towards the `custom_insights_events.max_samples_stored` limit. Because of this, it is recommended to increase `custom_insights_events.max_samples_stored` to the maximum value of `100,000` to minimize the likelihood of sampling occurring.
+
+```yaml
+  custom_insights_events:
+    max_samples_stored: 100000
+```
