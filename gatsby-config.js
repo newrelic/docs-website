@@ -442,8 +442,8 @@ module.exports = {
             'md',
             'java',
             'razor',
-            'hcl'
-          ],
+            'hcl',
+            'profile'          ],
         },
         newrelic: {
           config: {
