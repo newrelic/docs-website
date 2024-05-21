@@ -443,7 +443,8 @@ module.exports = {
             'java',
             'razor',
             'hcl',
-            'profile'          ],
+            'profile'
+          ],
         },
         newrelic: {
           config: {
