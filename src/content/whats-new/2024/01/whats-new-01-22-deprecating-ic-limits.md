@@ -2,10 +2,11 @@
 title: 'Deprecating inspected count limits for all customers'
 summary: 'Offering customers a better experience by eliminating dropped queries, removing 15 minute reset time, and doubling query capacity for all data options.'
 releaseDate: '2024-01-22'
-learnMoreLink: 'https://docs.newrelic.com/docs/accounts/accounts-billing/new-relic-one-pricing-billing/data-ingest-billing/'
+learnMoreLink: 'https://newrelic.com/blog/best-practices/retiring-inspected-count-limits'
 ---
 
 Inspected Count (IC) is the internal unit of measure to calculate the “cost” of a query, or the resourcing cost of how many data points were inspected to process the query.
+https://newrelic.com/blog/best-practices/retiring-inspected-count-limits
 
 When a customer-initiated query is run, either from a query or a UI page load, that query inspects a certain number of data points in the NRDB database. The IC limit is the cumulative cost of inspected customer data points over a 15 minute time range. These limits differ depending on which data option you have.
 

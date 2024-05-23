@@ -1,9 +1,11 @@
 import { frontmatter } from './utils/frontmatter.js';
-import { mkdir, readFile, writeFile } from 'fs/promises';
+import { mkdir, readdir, readFile, writeFile } from 'fs/promises';
 import { readFileSync } from 'fs';
 import { glob } from 'glob10';
 import yaml from 'js-yaml';
+import sortBy from 'lodash/sortBy.js';
 import { join } from 'path';
+import { LOCALES } from './actions/utils/constants.js';
 
 if (process.env.BUILD_LANG !== 'en') {
   await mkdir('./public').catch(() => null);
@@ -16,7 +18,6 @@ if (process.env.BUILD_LANG !== 'en') {
 // ie, redirecting _from_ `/docs/security` can only redirect to one place,
 // but many paths can redirect _to_ `/docs/security/overview`
 const redirects = new Map();
-const LOCALES = ['jp', 'kr'];
 
 const mdxPaths = await glob('src/content/docs/**/*.{md,mdx}');
 const installYamlPaths = await glob('src/install/config/**/*.yaml');
@@ -76,46 +77,75 @@ for (const path of installYamlPaths) {
   }
 }
 
+// adds a rewrite so these URLs work:
+// `release-notes/agent-release-notes/<agent>/current`
+const AGENT_RELEASE_NOTES_DIR =
+  './src/content/docs/release-notes/agent-release-notes';
+const agentDirs = await readdir(AGENT_RELEASE_NOTES_DIR);
+const currentReleaseNotesRedirects = await Promise.all(
+  agentDirs.map(async (agentDir) => {
+    const notesDir = join(AGENT_RELEASE_NOTES_DIR, agentDir);
+    const releaseNoteDirs = (await readdir(notesDir)).map((releaseNote) =>
+      join(notesDir, releaseNote)
+    );
+    const releaseNotes = (
+      await Promise.all(
+        releaseNoteDirs.map(async (path) => {
+          const contents = await readFile(path);
+          const {
+            attributes: { releaseDate },
+          } = frontmatter(contents);
+
+          return [path, releaseDate ? new Date(releaseDate) : null];
+        })
+      )
+    ).filter(([_path, date]) => date != null);
+
+    // this is in ascending order, so the last item is the most recent
+    const sortedReleaseNotes = sortBy(releaseNotes, ([_path, date]) => date);
+    const current = sortedReleaseNotes
+      .at(-1)[0]
+      .replace('src/content', '')
+      .replace(/\.mdx$/, '');
+    const agentPath = join(AGENT_RELEASE_NOTES_DIR, agentDir).replace(
+      'src/content',
+      ''
+    );
+
+    return [join(agentPath, 'current'), [current, 200]];
+  })
+);
+currentReleaseNotesRedirects.forEach(([path, to]) => {
+  redirects.set(path, to);
+});
+
 const redirectsList = Array.from(redirects.entries())
-  .map(([from, to]) => ({
-    from,
-    to,
-    status: 301,
-  }))
+  .map(([from, to]) => {
+    if (typeof to === 'string') {
+      return {
+        from,
+        to,
+        status: 301,
+      };
+    }
+
+    const [path, status] = to;
+    return {
+      from,
+      to: path,
+      status,
+    };
+  })
   .map(({ from, to, status }) => `${from} ${to} ${status}`)
   .join('\n');
 
 let redirectsAndRewrites = `${redirectsList}`;
 
-// trying forced rewrites with splats
-redirectsAndRewrites += `
-/kr/*  https://docs-website-kr.netlify.app/kr/:splat  200!
-/jp/*  https://docs-website-jp.netlify.app/jp/:splat  200!
-`;
-
-// rewrites
-
-// for (const locale of LOCALES) {
-//   const localPaths = await glob(
-//     `src/i18n/content/${locale}/docs/**/*.{md,mdx}`
-//   );
-
-//   const localeRewrites = localPaths
-//     .map((path) => {
-//       const urlPath = path
-//         .replace(`src/i18n/content/${locale}`, '')
-//         .replace(/\.mdx?$/, '');
-//       const from = urlPath.replace(/^\/docs/, `/${locale}/docs`);
-//       const to = `https://docs-website-${locale}.netlify.app/${locale}${urlPath}`;
-//       return {
-//         from,
-//         to,
-//       };
-//     })
-//     .map(({ from, to }) => `${from} ${to} 200`)
-//     .join('\n');
-//   redirectsAndRewrites = redirectsAndRewrites.concat('\n', localeRewrites);
-// }
+// rewrites with splats for i18n sites
+LOCALES.forEach(
+  (locale) =>
+    (redirectsAndRewrites += `\n/${locale}/* https://docs-website-${locale}.netlify.app/${locale}/:splat  200!`)
+);
 
 await mkdir('./public').catch(() => null);
 writeFile('./public/_redirects', redirectsAndRewrites, 'utf-8');

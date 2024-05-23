@@ -20,31 +20,34 @@ options.addArguments('disable-dev-shm-usage');
 options.addArguments('headless');
 
 const TIMEOUT = 10000;
-const SLEEP_TIME = 500;
+const SLEEP_TIME = 5000;
 
 const waitForXPath = (xpath, timeout = TIMEOUT) =>
   driver.wait(until.elementsLocated(By.xpath(xpath)), timeout);
 
 const main = async () => {
+  console.log('\n🧪 Beginning mobile test...');
+
   // running on develop builds because the url is static
   // github workflow triggers on PRs to main
   const testUrl =
     // TODO: search modal click breaks page on mobile localhost
     process.env.WEBDRIVER_ENV === 'main'
-      ? 'https://docswebsitedevelop.gatsbyjs.io/'
+      ? 'https://develop--docs-website-netlify.netlify.app/'
       : 'http://localhost:8000/';
 
-  await driver.get(testUrl + 'docs/mdx-test-page/');
+  console.log('\n🔍 looking for site at', testUrl);
 
   // order here matters — some tests scroll the page
   // `searchTest` opens the search modal, any tests on the same page
   // that come afterwards would have to close the modal
-  await collapserTest();
-  await searchTest();
-
+  // and the current homepage does not have the hamburger menu for `navTest`
   await driver.get(testUrl);
   await tileTest();
   await navTest();
+  await driver.get(testUrl + 'docs/mdx-test-page/');
+  await collapserTest();
+  await searchTest();
 
   // this step isn't necessary in synthetics
   await driver.quit();
@@ -55,7 +58,7 @@ const collapserTest = async () => {
     '//h5[contains(@id, "collapser")]/ancestor::button'
   );
   const { y: initialTop } = await secondCollapser.getRect();
-  console.log('clicking first collapser');
+  console.log('\nClicking first collapser');
   await firstCollapser.click();
   // sleep is required here on mobile to account for the click delay
   await driver.sleep(SLEEP_TIME);
@@ -68,18 +71,19 @@ const collapserTest = async () => {
 };
 
 const navTest = async () => {
-  const releaseNotesXPath = '//div[@data-flip-id="Release notes"]';
+  const releaseNotesXPath = '//div[@data-flip-id="release-notes"]';
   const nextNodeXPath = `${releaseNotesXPath}/following-sibling::div[1]`;
   const [hamburgerButton] = await waitForXPath(
     '//header//button[contains(@aria-label, "Mobile")]'
   );
+  console.log('\nOpening mobile Nav menu');
   await hamburgerButton.click();
   await driver.sleep(SLEEP_TIME);
   // nav on mobile is a new list, the desktop nav comes first in the DOM but is hidden
   const [_desktopRN, releaseNotes] = await waitForXPath(releaseNotesXPath);
   const [_desktopINN, initialNextNode] = await waitForXPath(nextNodeXPath);
   await driver.executeScript('arguments[0].scrollIntoView()', releaseNotes);
-  console.log('clicking Release Notes div');
+  console.log('\nClicking Release Notes div');
   await releaseNotes.click();
   const [_desktopANN, afterNextNode] = await waitForXPath(nextNodeXPath);
   assert.notEqual(
@@ -91,7 +95,7 @@ const navTest = async () => {
 
 const searchTest = async () => {
   const [searchButton] = await waitForXPath('//a[contains(@href, "?q=")]');
-  console.log('clicking search button');
+  console.log('\nClicking search input');
   await searchButton.click();
   // sleep is required here on mobile to account for the click delay
   await driver.sleep(SLEEP_TIME);
@@ -113,7 +117,7 @@ const tileTest = async () => {
     'arguments[0].scrollIntoView(false)',
     firstDocTile
   );
-  console.log('clicking doc tile');
+  console.log('\nClicking home page Doctile');
   await firstDocTile.click();
   await driver.wait(
     until.stalenessOf(firstDocTile),

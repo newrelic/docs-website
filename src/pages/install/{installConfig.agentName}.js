@@ -5,6 +5,7 @@ import {
   Walkthrough,
   TableOfContents,
   ContributingGuidelines,
+  ComplexFeedback,
   useQueryParams,
   Layout,
   addPageAction,
@@ -219,6 +220,7 @@ const InstallPage = ({ data, location }) => {
             'content page-tools';
           grid-template-columns: minmax(0, 1fr) 12.8125rem;
           grid-column-gap: 2rem;
+          padding: 0;
 
           @media screen and (max-width: 1240px) {
             grid-template-areas:
@@ -283,6 +285,7 @@ const InstallPage = ({ data, location }) => {
         </Layout.Content>
         <Layout.PageTools
           css={css`
+            gap: 0;
             @media (max-width: 1240px) {
               display: none;
             }
@@ -290,6 +293,7 @@ const InstallPage = ({ data, location }) => {
         >
           <ContributingGuidelines />
           <TableOfContents headings={headings} />
+          <ComplexFeedback pageTitle={title} />
         </Layout.PageTools>
       </Layout.Main>
     </ErrorBoundary>

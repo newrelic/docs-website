@@ -6,8 +6,9 @@ const rehypeStringify = require('rehype-stringify');
 const addAbsoluteImagePath = require('./rehype-plugins/utils/addAbsoluteImagePath');
 const { assetPrefix } = require('./env');
 
+const { LOCALES } = require('./scripts/actions/utils/constants');
+
 const siteUrl = 'https://docs.newrelic.com';
-const additionalLocales = ['jp', 'kr'];
 const allFolders = fs
   .readdirSync(`${__dirname}/src/content/docs`)
   .filter((folder) => !folder.startsWith('.'));
@@ -223,6 +224,9 @@ module.exports = {
               './plugins/gatsby-remark-remove-button-paragraphs'
             ),
           },
+          {
+            resolve: require.resolve('./plugins/fix-remark-path-prefix-plugin'),
+          }
         ],
       },
     },
@@ -373,7 +377,7 @@ module.exports = {
           },
         },
         layout: {
-          contentPadding: '1.5rem',
+          contentPadding: '5rem',
           maxWidth: '1600px',
           component: require.resolve('./src/layouts'),
           mobileBreakpoint: '760px',
@@ -381,7 +385,7 @@ module.exports = {
         },
         i18n: {
           translationsPath: `${__dirname}/src/i18n/translations`,
-          additionalLocales,
+          additionalLocales: LOCALES,
         },
         prism: {
           languages: [
@@ -438,6 +442,7 @@ module.exports = {
             'md',
             'java',
             'razor',
+            'hcl'
           ],
         },
         newrelic: {
@@ -456,6 +461,28 @@ module.exports = {
                 : '35094418',
             beacon: 'staging-bam-cell.nr-data.net',
             errorBeacon: 'staging-bam-cell.nr-data.net',
+            settings: {
+              session_replay: {
+                enabled: true,
+                block_selector: '',
+                mask_text_selector: '*',
+                sampling_rate: 5.0,
+                error_sampling_rate: 100.0,
+                mask_all_inputs: true,
+                collect_fonts: true,
+                inline_images: false,
+                inline_stylesheet: true,
+                mask_input_options: {},
+              },
+              distributed_tracing: { enabled: true },
+              privacy: { cookies_enabled: true },
+              ajax: {
+                deny_list: [
+                  'staging-bam-cell.nr-data.net',
+                  'docs.newrelic.com',
+                ],
+              },
+            },
           },
         },
         shouldUpdateScroll: {
