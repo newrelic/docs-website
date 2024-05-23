@@ -2,6 +2,7 @@ const { Command } = require('commander');
 const {
   addFilesToTranslationQueue,
 } = require('./add-files-to-translation-queue');
+const { getFilesRecursively } = require('../utils/getFiles');
 
 const getCommandLineOptions = () => {
   const program = new Command();
@@ -14,6 +15,10 @@ const getCommandLineOptions = () => {
     .option(
       '-l, --locale <locale>',
       'Specifiy specific language to be sent to smartling for translation'
+    )
+    .option(
+      '-all, --allFiles',
+      'Boolean to send all files for translation (for new languages)'
     );
   program.parse(process.argv);
   return program.opts();
@@ -25,11 +30,15 @@ const parseFilesString = (filesString) =>
 const main = async () => {
   const options = getCommandLineOptions();
   const filesString = options.files || null;
-
+  const allFiles = options.allFiles || null;
   if (filesString) {
     const fileNames = parseFilesString(filesString);
     await addFilesToTranslationQueue(fileNames, options);
+  } else if (allFiles) {
+    const fileNames = getFilesRecursively('src/content/docs');
+    await addFilesToTranslationQueue(fileNames, options);
   }
+
   process.exit(0);
 };
 
