@@ -19,7 +19,7 @@ options.addArguments('no-sandbox');
 options.addArguments('disable-dev-shm-usage');
 options.addArguments('headless');
 
-const TIMEOUT = 10000;
+const TIMEOUT = 30000;
 const SLEEP_TIME = 5000;
 
 const waitForXPath = (xpath, timeout = TIMEOUT) =>
