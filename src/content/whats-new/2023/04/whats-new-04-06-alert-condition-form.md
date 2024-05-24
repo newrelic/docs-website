@@ -13,7 +13,7 @@ We’re releasing a number of capabilities that simplify alert management, makin
 * Guided point-and-click alert configuration flow
 * Recommended alert configurations to eliminate gaps
 * Delayed signal evaluation for noisy environments
-* Extended alert violation evaluation thresholds (2 hours > 24 hours)
+* Extended alert incident evaluation thresholds (2 hours > 24 hours)
 * Workflows are now taggable entities
 * New issues notifications log with critical workflow details
 * Alert condition creation and management with Terraform
@@ -38,7 +38,7 @@ Alert coverage gaps will highlight areas in your stack where you're missing cove
 
 When alerting on autoscale environments, alerts are configured to start watching new signals automatically as soon as they appear. However, since new signals are often atypical or erratic at first, they quite often trigger false alarms. Now, when creating a NRQL-based alert condition, you can specify how long to wait before we start evaluating a new signal that is covered by that alert.
 
-## Extended alert violation evaluation thresholds (2 hours > 24 hours)
+## Extended alert incident evaluation thresholds (2 hours > 24 hours)
 
 New Relic now allows alert evaluation periods to support the aggregation of up to 24 hours of data, up from 2 hours previously. This gives you more flexibility in alert conditions and furthers the accuracy of alert thresholds to help you limit noisy redundant alerts and ensure coverage across critical services.
 

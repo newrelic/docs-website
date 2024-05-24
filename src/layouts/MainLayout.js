@@ -9,7 +9,7 @@ import {
   Icon,
   Button,
   SearchInput,
-  useTessen,
+  addPageAction,
   useTranslation,
   LoggedInProvider,
 } from '@newrelic/gatsby-theme-newrelic';
@@ -20,12 +20,10 @@ import { CSSTransition } from 'react-transition-group';
 import Layout from '../components/Layout';
 import SEO from '../components/SEO';
 import RootNavigation from '../components/RootNavigation';
-import NavFooter from '../components/NavFooter';
 import { useLocation, navigate } from '@reach/router';
 import { MainLayoutContext } from '../components/MainLayoutContext';
 
 const MainLayout = ({ children, pageContext }) => {
-  const tessen = useTessen();
   const { sidebarWidth } = useLayout();
   const { locale, slug } = pageContext;
   const location = useLocation();
@@ -67,42 +65,56 @@ const MainLayout = ({ children, pageContext }) => {
   }, [sidebar]);
 
   const navCollapser = (
-    <Button
-      variant={Button.VARIANT.PRIMARY}
+    <div
       css={css`
-        height: 40px;
-        width: 40px;
-        padding: 0;
-        border-radius: 50%;
+        grid-column: 1;
+        grid-row: 1;
+        height: calc(100vh - var(--global-header-height));
         left: 269px;
-        position: fixed;
-        top: 102px;
-        transition: 300ms translate ease;
+        padding: 1.5rem 0;
+        position: sticky;
+        top: var(--global-header-height);
+        width: 0;
         z-index: 1;
 
         @media (max-width: 760px) {
           display: none;
         }
 
-        ${!sidebar &&
-        `translate: calc(calc(var(--sidebar-width) * -1) + 80px);`}
-
         @media (max-width: 1240px) {
           left: 208px;
-          ${!sidebar &&
-          `translate: calc(calc(var(--sidebar-width) * -1) + 141px);`}
         }
       `}
-      onClick={() => {
-        tessen.track({
-          eventName: sidebar ? 'closeNav' : 'openNav',
-          category: 'NavCollapserClick',
-        });
-        setSidebar(!sidebar);
-      }}
     >
-      <Icon name="nr-nav-collapse" size="1rem" />
-    </Button>
+      <Button
+        variant={Button.VARIANT.PLAIN}
+        css={css`
+          background: var(--system-background-hover-dark);
+          color: var(--brand-button-primary-accent);
+          height: 40px;
+          width: 40px;
+          padding: 0;
+          border-radius: 50%;
+          transition: 300ms translate ease;
+
+          ${!sidebar && `translate: calc(var(--sidebar-width) / 4);`}
+
+          @media (max-width: 1240px) {
+            ${!sidebar &&
+            `translate: calc(calc(var(--sidebar-width) / 4) + 14px);`}
+          }
+        `}
+        onClick={() => {
+          addPageAction({
+            eventName: sidebar ? 'closeNav' : 'openNav',
+            category: 'NavCollapserClick',
+          });
+          setSidebar(!sidebar);
+        }}
+      >
+        <Icon name="nr-nav-collapse" size="1rem" />
+      </Button>
+    </div>
   );
 
   return (
@@ -117,7 +129,6 @@ const MainLayout = ({ children, pageContext }) => {
       </MobileHeader>
       <LoggedInProvider>
         <MainLayoutContext.Provider value={[sidebar]}>
-          {navCollapser}
           <Layout
             css={css`
               --sidebar-width: ${sidebarWidth};
@@ -128,6 +139,7 @@ const MainLayout = ({ children, pageContext }) => {
               }
             `}
           >
+            {navCollapser}
             <Layout.Sidebar
               aria-hidden={!sidebar}
               css={css`
@@ -172,6 +184,9 @@ const MainLayout = ({ children, pageContext }) => {
                   >
                     <Logo
                       css={css`
+                        .text-color {
+                          fill: var(--system-text-primary-dark);
+                        }
                         ${!sidebar &&
                         css`
                           display: none;
@@ -182,14 +197,14 @@ const MainLayout = ({ children, pageContext }) => {
                 </div>
                 {sidebar && (
                   <SearchInput
-                    placeholder={t('home.search.placeholder')}
+                    placeholder={t('strings.home.search.placeholder')}
                     value={searchTerm || ''}
                     iconName={SearchInput.ICONS.SEARCH}
                     isIconClickable
                     alignIcon={SearchInput.ICON_ALIGNMENT.RIGHT}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     onSubmit={() => {
-                      tessen.track({
+                      addPageAction({
                         eventName: 'nonHomepageSidebarSearch',
                         category: 'SearchInput',
                         searchTerm,
@@ -214,13 +229,8 @@ const MainLayout = ({ children, pageContext }) => {
                     overflow-x: hidden;
                     height: calc(
                       100vh - ${navHeaderHeight} - var(--global-header-height) -
-                        4rem
+                        3rem
                     );
-                  `}
-                />
-                <NavFooter
-                  css={css`
-                    width: calc(var(--sidebar-width) - 1px);
                   `}
                 />
               </>
@@ -234,6 +244,11 @@ const MainLayout = ({ children, pageContext }) => {
                 css={css`
                   display: ${isMobileNavOpen ? 'none' : 'block'};
                   position: relative;
+                  padding-top: 2.75rem;
+
+                  @media (min-width: 1241px) {
+                    padding-right: 1.5rem;
+                  }
 
                   @media (min-width: 760px) {
                     ${!sidebar &&
@@ -269,7 +284,7 @@ const MainLayout = ({ children, pageContext }) => {
             <Layout.Footer
               fileRelativePath={pageContext.fileRelativePath}
               css={css`
-                height: 60px;
+                height: 80px;
                 ${!sidebar &&
                 css`
                   grid-column: 1/3;

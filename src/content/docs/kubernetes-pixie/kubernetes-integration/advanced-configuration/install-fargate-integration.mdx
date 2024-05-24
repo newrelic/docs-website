@@ -1,13 +1,15 @@
 ---
-title: Install EKS Fargate
+title: Install in EKS Fargate
 tags:
   - Integrations
   - Kubernetes integration
   - Installation
-metaDescription: How to install the EKS Fargate integration.
+  - Fargate
+metaDescription: How to install the Infrastructure Operator in EKS Fargate.
 redirects:
   - /docs/integrations/kubernetes-integration/installation/install-fargate-integration
   - /docs/kubernetes-pixie/kubernetes-integration/installation/install-fargate-integration
+freshnessValidatedDate: never
 ---
 
 import kubernetesFargateOverview from 'images/kubernetes_diagram_fargate-overview.svg'
@@ -51,7 +53,7 @@ You can choose between two alternatives for installing New Relic full observabil
 * [Automatic injection (recommended)](#automatic)
 * [Manual injection](#manual)
 
-Regardless of the approach you choose, the experience is exactly the same after it's installed. The only difference is how the container is injected. We do recommend setting up automatic injection with the New Relic Infrastructure Operator since it will eliminate the need to manually edit each deployment you want to monitor.
+Regardless of the approach you choose, the experience is exactly the same after it's installed. The only difference is how the container is injected. We do recommend setting up automatic injection with the New Relic infrastructure monitoring operator because it will eliminate the need to manually edit each deployment you want to monitor.
 
 ### Automatic injection (recommended) [#automatic]
 
@@ -78,6 +80,7 @@ The `ClusterRoleBinding` grants the following permissions to the pod being injec
     - "nodes/proxy"
     - "pods"
     - "services"
+    - "namespaces"
   verbs: ["get", "list"]
 - nonResourceURLs: ["/metrics"]
   verbs: ["get"]
@@ -85,6 +88,10 @@ The `ClusterRoleBinding` grants the following permissions to the pod being injec
 
 <Callout variant="tip">
   In order for the sidecar to be injected, and therefore to get metrics from pods deployed before the operator has been installed, you need to manually perform a rollout (restart) of the affected deployments. This way, when the pods are created, the operator will be able to inject the monitoring sidecar. New Relic has chosen not to do this automatically in order to prevent unexpected service disruptions and resource usage spikes.
+</Callout>
+
+<Callout variant="important">
+  Remember to create a Fargate profile with a selector that declares the `newrelic` namespace (or the namespace you choose for the installation).
 </Callout>
 
 Here's the injection workflow:
@@ -107,44 +114,79 @@ First, add the New Relic Helm repository if you have not done so before:
 helm repo add newrelic https://helm-charts.newrelic.com
 ```
 
-Then, in order to install the operator in charge of injecting the infrastructure sidecar, please create a file named `values-newrelic.yaml`, which will be used to define your configuration:
+Then, in order to install the operator in charge of injecting the infrastructure sidecar, please create a file named `values.yaml`, which will be used to define your configuration:
 
 ```yaml
-global:
-  licenseKey: _YOUR_NEW_RELIC_LICENSE_KEY_
-  cluster: _K8S_CLUSTER_NAME_
-  fargate: true  # Enable fargate support
+## Global values
 
-prometheus:
-  # Automatically scrape prometheus metrics for annotated services in the cluster
-  # Collecting prometheus metrics for large clusters might impact data usage significantly
-  enabled: true
-  lowDataMode: true  # Skip ingesting cluster-level metrics
-webhook:
-  # Deploy our webhook to link APM and Kubernetes entities
-  enabled: true
-kubeEvents:
-  # Report Kubernetes events
-  enabled: true
-logging:
-  # Report logs for containers running in the cluster
-  enabled: true
-ksm:
-  # Deploy kube-state-metrics in the cluster.
-  # Set this to true unless it is already deployed.
-  enabled: true
+global:
+  # -- The cluster name for the Kubernetes cluster.
+  cluster: "_YOUR_K8S_CLUSTER_NAME_"
+
+  # -- The license key for your New Relic Account. This will be preferred configuration option if both `licenseKey` and `customSecret` are specified.
+  licenseKey: "_YOUR_NEW_RELIC_LICENSE_KEY_"
+
+  # -- (bool) In each integration it has different behavior. Enables operating system metric collection on each EC2 K8s node. Not applicable to Fargate nodes.
+  # @default -- false
+  privileged: true
+
+  # -- (bool) Must be set to `true` when deploying in an EKS Fargate environment
+  # @default -- false
+  fargate: true
+
+## Enable nri-bundle sub-charts
+
 newrelic-infra-operator:
-  # Deploy the infrastructure operator, which will inject the monitoring sidecar on fargate pods
+  # Deploys the infrastructure operator, which injects the monitoring sidecar into Fargate pods
   enabled: true
+  tolerations: 
+    - key: "eks.amazonaws.com/compute-type"
+      operator: "Equal"
+      value: "fargate"
+      effect: "NoSchedule"
+  config:
+    ignoreMutationErrors: true
+    infraAgentInjection:
+      # Injection policies can be defined here.  See [values file](https://github.com/newrelic/newrelic-infra-operator/blob/main/charts/newrelic-infra-operator/values.yaml#L114-L125) for more detail.
+      policies:
+      - namespaceName: namespace-a
+      - namespaceName: namespace-b
+
+newrelic-infrastructure:
+  # Deploys the Infrastructure Daemonset to EC2 nodes.  Disable for Fargate-only clusters.
+  enabled: true
+
+nri-metadata-injection:
+  # Deploy our mutating admission webhook to link APM and Kubernetes entities
+  enabled: true
+
+kube-state-metrics:
+  # Deploys Kube State Metrics.  Disable if you are already running KSM in your cluster.
+  enabled: true
+
+nri-kube-events:
+  # Deploy the Kubernetes events integration.
+  enabled: true
+
+newrelic-logging:
+  # Deploys the New Relic's Fluent Bit daemonset to EC2 nodes.  Disable for Fargate-only clusters.
+  enabled: true
+
+newrelic-prometheus-agent:
+  # Deploys the Prometheus agent for scraping Prometheus endpoints.
+  enabled: true
+  config:
+    kubernetes:
+      integrations_filter:
+        enabled: true
+        source_labels: ["app.kubernetes.io/name", "app.newrelic.io/name", "k8s-app"]
+        app_values: ["redis", "traefik", "calico", "nginx", "coredns", "kube-dns", "etcd", "cockroachdb", "velero", "harbor", "argocd", "istio"]
 ```
 
 Finally, after creating and tweaking the file, you can deploy the solution using the following Helm command:
 
 ```shell
-helm upgrade --install newrelic newrelic/nri-bundle \
---namespace newrelic --create-namespace \
--f values-newrelic.yaml \
---devel
+helm upgrade --install newrelic-bundle newrelic/nri-bundle -n newrelic --create-namespace -f values.yaml
 ```
 
 <Callout variant="important">
@@ -417,11 +459,33 @@ Notice that removing the sidecar container will cause the pod to be re-created.
   * See [AWS Lambda for sending CloudWatch logs](/docs/logs/forward-logs/aws-lambda-sending-cloudwatch-logs/).
   * See [Three ways to forward logs from Amazon ECS to New Relic](https://newrelic.com/blog/how-to-relic/forward-logs-from-amazon-ecs-to-new-relic).
 
-## Troubleshooting: DaemonSet replicas are being deployed into Fargate nodes [#troubleshooting]
+## Troubleshooting [#troubleshooting]
+
+### DaemonSet replicas are being deployed into Fargate nodes
 
 If you notice that any Infra `DaemonSet` replicas are being scheduled on Fargate nodes, it might be because the `nodeAffinity` rules are not configured properly.
 
 Double-check that the solution was installed with the `global.fargate` option to `true`, either through the command line (`--set global.fargate=true`) or in the `values.yaml` file. If the installation method was not Helm, you’ll need to manually add `nodeAffinity` rules to exclude Fargate nodes.
+
+### Event `FailedScheduling` due to untolerated taint
+
+Remember to add in the `values.yaml` file the `tolerations` described in [Automatic injection installation](#auto-injection-install) if you get the following event while trying to create a pod:
+
+```
+LAST SEEN | TYPE | REASON | OBJECT | MESSAGE
+:--|:--|:--|:--|:--
+3m9s (x2 over 8m10s) | Warning | FailedScheduling | Pod/no-fargate-deploy-cbddd6ccf-8f9x4 | 0/2 nodes are available: 2 node(s) had untolerated taint {eks.amazonaws.com/compute-type: fargate}. preemption: 0/2 nodes are available: 2 Preemption is not helpful for scheduling..
+```
+
+### Event `FailedScheduling` due to too many pods
+
+Check if there's a Fargate profile with a selector that names the namespace where installation is occurring if you get the following event while trying to create a pod:
+
+```
+LAST SEEN | TYPE | REASON | OBJECT | MESSAGE
+:--|:--|:--|:--|:--
+61s | Warning | FailedScheduling | Pod/newrelic-bundle-newrelic-infra-operator-admission-create-d8ggt | 0/2 nodes are available: 2 Too many pods. preemption: 0/2 nodes are available: 2 No preemption victims found for incoming pod..
+```
 
 ## View your EKS data [#view-data]
 
@@ -435,7 +499,7 @@ Here's an example of what a Fargate node looks like in the New Relic UI:
 
 To view your AWS data:
 
-1. Go to **[one.newrelic.com](https://one.newrelic.com/all-capabilities) > Infrastructure > Kubernetes** and do one of the following:
+1. Go to <DoNotTranslate>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Infrastructure > Kubernetes**</DoNotTranslate> and do one of the following:
    * Select an integration name to view data.
    * Select the Explore data icon to view AWS data.
 2. Filter your data using two Fargate tags:

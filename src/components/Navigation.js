@@ -3,6 +3,8 @@ import { css } from '@emotion/react';
 import { NavItem } from '@newrelic/gatsby-theme-newrelic';
 import { Flipped, Flipper } from 'react-flip-toolkit';
 
+const slugify = require('../../scripts/utils/slugify');
+
 const Navigation = ({ nav, className }) => {
   const subNav = nav.url === '/docs/style-guide';
   const [flipKey, setFlipKey] = useState();
@@ -31,7 +33,6 @@ const Navigation = ({ nav, className }) => {
         height: 100%;
         overflow: auto;
         margin: 16px 0;
-        padding-bottom: 2rem;
         -ms-overflow-style: none;
         scrollbar-width: none;
         &::-webkit-scrollbar {
@@ -39,7 +40,8 @@ const Navigation = ({ nav, className }) => {
         }
         span,
         svg {
-          color: #afe2e3;
+          color: var(--system-text-primary-dark);
+          opacity: 0.8;
         }
       `}
       id="nav"
@@ -55,9 +57,11 @@ const Navigation = ({ nav, className }) => {
               <Flipped flipId={page.flipId} translate>
                 <p
                   css={css`
-                    color: #1dcad3;
+                    color: var(--system-text-primary-dark);
+                    opacity: 0.8;
                     margin: 0;
                     font-size: 14px;
+                    font-weight: 500;
                     margin-top: 1rem;
                   `}
                 >
@@ -84,8 +88,8 @@ const Navigation = ({ nav, className }) => {
 const addFlipIds = (pages, parentKey = []) =>
   pages?.map((page) => ({
     ...page,
-    flipId: [...parentKey, page.title],
-    pages: addFlipIds(page.pages, [...parentKey, page.title]),
+    flipId: [...parentKey, slugify(page.title)],
+    pages: addFlipIds(page.pages, [...parentKey, slugify(page.title)]),
   }));
 
 export default Navigation;

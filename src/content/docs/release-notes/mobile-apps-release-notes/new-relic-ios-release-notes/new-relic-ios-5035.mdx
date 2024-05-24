@@ -1,0 +1,10 @@
+---
+subject: Mobile app for iOS
+releaseDate: '2023-07-24'
+version: 5.3.5
+downloadLink: 'https://apps.apple.com/app/id594038638'
+---
+
+### Fixes
+
+* Fixes potential crash when acting on a push notification

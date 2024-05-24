@@ -17,7 +17,7 @@ Here’s how you can add recommended alerts to APM entities that do not currentl
 ![Alerts in context navigator blog ](./images/alerts-nav.webp "Alerts navigator")
  
 ## Using recommended conditions
-Go to **Services - APM** in [New Relic Navigator](https://docs.newrelic.com/docs/new-relic-one/use-new-relic-one/core-concepts/new-relic-explorer-view-performance-across-apps-services-hosts/) and you’ll see a high-density view of the health of your system. With the traffic-light visual, it’s easy to view which entities are healthy, which entities have violations, and which entities do not have any alerts coverage. If an entity does not have alert coverage, its hexagon will be gray. Recommended conditions helps you automatically add alerts to entities that do not have alerts coverage, those gray hexagons.
+Go to **Services - APM** in [New Relic Navigator](https://docs.newrelic.com/docs/new-relic-one/use-new-relic-one/core-concepts/new-relic-explorer-view-performance-across-apps-services-hosts/) and you’ll see a high-density view of the health of your system. With the traffic-light visual, it’s easy to view which entities are healthy, which entities have incidents, and which entities do not have any alerts coverage. If an entity does not have alert coverage, its hexagon will be gray. Recommended conditions helps you automatically add alerts to entities that do not have alerts coverage, those gray hexagons.
 
 1. **Select an entity:** Click an uncovered entity (gray hexagon). A new option will appear on the right-hand side of the screen. Click Create alert condition as shown in the image below.
 ![Alerts in context navigator blog ](./images/alerts-nav.webp "Alerts navigator")

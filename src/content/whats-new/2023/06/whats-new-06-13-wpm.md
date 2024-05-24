@@ -3,7 +3,7 @@ title: 'Continuous web performance monitoring made easy'
 summary: 'Simply enter a URL and get instant insights to ensure the best web experience'
 releaseDate: '2023-06-13'
 learnMoreLink: 'https://newrelic.com/blog/best-practices/website-performance-monitoring' 
-getStartedLink: 'https://https://newrelic.com/platform/web-performance-monitoring'
+getStartedLink: 'https://newrelic.com/platform/web-performance-monitoring'
 ---
 
 ## Introducing website performance monitoring

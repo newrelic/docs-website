@@ -140,7 +140,12 @@ module.exports = {
       node.children = [];
       return deserializeComponent(h, node, { tagName: 'InlinePopover' });
     },
-    serialize: serializeComponent,
+    // serialize: serializeComponent,
+    serialize: (h, node) =>
+      serializeComponent(h, node, {
+        classNames: 'notranslate',
+        wrapChildren: false,
+      }),
   },
   InlineSignup: {
     serialize: serializeComponent,
@@ -201,10 +206,6 @@ module.exports = {
         [u('text', toString(node))]
       );
     },
-  },
-  ImageSizing: {
-    serialize: serializeComponent,
-    deserialize: deserializeComponent,
   },
   InstallFeedback: {
     serialize: serializeComponent,

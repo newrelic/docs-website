@@ -5,21 +5,23 @@ tags:
   - Log management
   - UI and data
 translate:
+  - jp
   - kr
 metaDescription: How New Relic uses parsing and how to send customized log data.
 redirects:
   - /docs/logs/new-relic-logs/ui-data/customizing-log-data
   - /docs/logs/new-relic-logs/ui-data/customize-logs-using-parsing
   - /docs/logs/log-management/ui-data/parsing
+freshnessValidatedDate: never
 ---
 
 import logsParsingUi from 'images/logs_screenshot-full_parsing-ui.webp'
 
-At New Relic, log **parsing** refers to the process of pulling out [attributes](/docs/new-relic-solutions/get-started/glossary/#attribute) (key:value pairs) from your unstructured log data. You can use these attributes to search for and query logs in more practically useful ways, which in turn helps you build better charts and alerts.
+Log <DoNotTranslate>parsing</DoNotTranslate> is the process of translating unstructured log data into attributes (key:value pairs) based on rules you define. You can use these attributes in your NRQL queries to facet or filter logs in useful ways.
 
 New Relic parses log data automatically according to certain parsing rules. In this doc, you'll learn how logs parsing works, and how to create your own custom parsing rules.
 
-You can also create, query, and manage your log parsing rules by using NerdGraph, our GraphQL API, at [api.newrelic.com/graphiql](https://api.newrelic.com/graphiql). For more information, see our [NerdGraph tutorial for parsing](/docs/apis/nerdgraph/examples/nerdgraph-log-parsing-rules-tutorial/).
+You can also create, query, and manage your log parsing rules by using NerdGraph, our GraphQL API. A helpful tool for this is our [Nerdgraph API explorer](https://api.newrelic.com/graphiql). For more information, see our [NerdGraph tutorial for parsing](/docs/apis/nerdgraph/examples/nerdgraph-log-parsing-rules-tutorial/).
 
 Here's a 5-minute video about log parsing:
 
@@ -38,7 +40,7 @@ A good example is a default NGINX access log containing unstructured text. It's 
 
 In an unparsed format, you would need to do a full text search to answer most questions. After parsing, the log is organized into attributes, like `response code` and `request URL`:
 
-```
+```json
 {
   "remote_addr":"93.180.71.3",
   "time":"1586514731",
@@ -90,8 +92,9 @@ Here's an overview of how New Relic implements parsing of logs:
 
       <td>
         * Parsing will only be applied once to each log message. If multiple parsing rules match the log, only the first that succeeds will be applied.
+        * Parsing rules are unordered. If more than one parsing rules matches a log, one is chosen at random. Be sure to build your parsing rules so that they do not match the same logs.
         * Parsing takes place during log ingestion, before data is written to NRDB. Once data has been written to storage, it can no longer be parsed.
-        * Parsing occurs in the pipeline **before** data enrichments take place. Be careful when defining the matching criteria for a parsing rule. If the criteria is based on an attribute that doesn't exist until after parsing or enrichment take place, that data won't be present in the logs when matching occurs. As a result, no parsing will happen.
+        * Parsing occurs in the pipeline <DoNotTranslate>**before**</DoNotTranslate> data enrichments take place. Be careful when defining the matching criteria for a parsing rule. If the criteria is based on an attribute that doesn't exist until after parsing or enrichment take place, that data won't be present in the logs when matching occurs. As a result, no parsing will happen.
       </td>
     </tr>
 
@@ -116,7 +119,7 @@ Grok is a superset of regular expressions that adds built-in named patterns to b
 Grok patterns have the syntax:
 
   ```
-  %{PATTERN_NAME[:OPTIONAL_EXTRACTED_ATTRIBUTE_NAME[:OPTIONAL_TYPE]]}
+  %{PATTERN_NAME[:OPTIONAL_EXTRACTED_ATTRIBUTE_NAME[:OPTIONAL_TYPE[:OPTIONAL_PARAMETER]]]}
   ```
 
     Where:
@@ -124,6 +127,8 @@ Grok patterns have the syntax:
     * `PATTERN_NAME` is one of the supported Grok patterns. The pattern name is just a user-friendly name representing a regular expression. They are exactly equal to the corresponding regular expression.
     * `OPTIONAL_EXTRACTED_ATTRIBUTE_NAME`, if provided, is the name of the attribute that will be added to your log message with the value matched by the pattern name. It's equivalent to using a named capture group using regular expressions. If this is not provided, then the parsing rule will just match a region of your string, but not extract an attribute with its value.
     * `OPTIONAL_TYPE` specifies the type of attribute value to extract. If omitted, values are extracted as strings. For instance, to extract the value `123` from `"File Size: 123"` as a number into attribute `file_size`, use `value: %{INT:file_size:int}`.
+    * `OPTIONAL_PARAMETER` specifies an optional parameter for certain types. Currently only the `datetime` type takes a parameter, see below for details.
+
 
 You can also use a mix of regular expressions and Grok pattern names in your matching string.
 
@@ -137,7 +142,7 @@ Note that variable names must be explicitly set and be lowercase like `%{URI:uri
     title="Grok example: Getting useful data out of your logs"
   >
     A log record could look something like this:
-    ```
+    ```json
     {
       "message": "54.3.120.2 2048 0"
     }
@@ -145,7 +150,7 @@ Note that variable names must be explicitly set and be lowercase like `%{URI:uri
 
     This information is accurate, but it's not exactly intuitive what it means. Grok patterns help you extract and understand the telemetry data you want. For example, a log record like this is much easier to use:
 
-    ```
+    ```json
     {
       "host_ip": "43.3.120.2",
       "bytes_received": 2048,
@@ -283,29 +288,14 @@ Note that variable names must be explicitly set and be lowercase like `%{URI:uri
         </td>
 
         <td>
-          ISO 8601 time as a `long`
-        </td>
-      </tr>
+          Time as a `long`
 
-      <tr>
-        <td>
-          `string` (default)
-          `text`
-        </td>
 
-        <td>
-          `string`
-        </td>
-      </tr>
+          By default it is interpreted as ISO 8601. If `OPTIONAL_PARAMETER` is present, it specifies
+          the [date and time pattern string](https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/text/SimpleDateFormat.html)to use to interpret the `datetime`.
 
-      <tr>
-        <td>
-          `date`
-          `datetime`
-        </td>
 
-        <td>
-          ISO 8601 time as a `long`
+          Note that this is only available during parsing. We have an additional, [separate timestamp interpretation step](/docs/logs/ui-data/timestamp-support) that occurs for all logs later in the ingestion pipeline.
         </td>
       </tr>
 
@@ -339,13 +329,22 @@ Note that variable names must be explicitly set and be lowercase like `%{URI:uri
   </Collapser>
 
   <Collapser
+    id="grok-multiline"
+    title="Grok multiline parsing"
+  >
+    If you have multiline logs, be aware that the `GREEDYDATA` Grok pattern does not match newlines (it is equivalent to `.*`). 
+
+    So instead of using `%{GREEDYDATA:some_attribute}` directly, you will need to add the multiline flag in front of it: `(?s)%{GREEDYDATA:some_attribute}`
+  </Collapser>
+
+  <Collapser
     id="parsing-json"
     title="Parsing JSON mixed with plain text"
   >
     The New Relic logs pipeline parses your log JSON messages by default, but sometimes you have JSON log messages that are mixed with plain text. In this situation, you may want to be able to parse them and then be able to filter using the JSON attributes.
     If that is the case, you can use the `json` [grok type](#grok-syntax), which will parse the JSON captured by the grok pattern. This format relies on 3 main parts: the grok syntax, the prefex you would like to assign to the parsed json attributes, and the `json` [grok type](#grok-syntax). Using the `json` [grok type](#grok-syntax), you can extract and parse JSON from logs that are not properly formatted; for example, if your logs are prefixed with a date/time string:
 
-    ```
+    ```json
     2015-05-13T23:39:43.945958Z {"event": "TestRequest", "status": 200, "response": {"headers": {"X-Custom": "foo"}}, "request": {"headers": {"X-Custom": "bar"}}}
     ```
 
@@ -365,11 +364,68 @@ Note that variable names must be explicitly set and be lowercase like `%{URI:uri
     my_attribute_prefix.request.headers.X-Custom: "bar"
     ```
 
-    You can also configure the `json` [Grok type](#grok-syntax) using `:json(_CONFIG_)`:
+    You can define the list of attributes to extract or drop with the options `keepAttributes` or `dropAttributes`.
+    For example, with the following Grok expression:
+
+    ```
+    %{TIMESTAMP_ISO8601:containerTimestamp} %{GREEDYDATA:my_attribute_prefix:json({"keepAttributes": ["my_attribute_prefix.event", "my_attribute_prefix.response.headers.X-Custom"]})}
+    ```
+
+    The resulting log is:
+
+    ```
+    containerTimestamp: "2015-05-13T23:39:43.945958Z"
+    my_attribute_prefix.event: "TestRequest"
+    my_attribute_prefix.request.headers.X-Custom: "bar"
+    ```
+
+    If you want to omit the `my_attribute_prefix` prefix, you can include the `"noPrefix": true` in the configuration.
+
+    ```
+    %{TIMESTAMP_ISO8601:containerTimestamp} %{GREEDYDATA:my_attribute_prefix:json({"noPrefix": true})}
+    ```
+
+    If you want to omit the `my_attribute_prefix` prefix and only keep the `status` attribute, you can include `"noPrefix": true` and `"keepAttributes: ["status"]` in the configuration.
+
+    ```
+    %{TIMESTAMP_ISO8601:containerTimestamp} %{GREEDYDATA:my_attribute_prefix:json({"noPrefix": true, "keepAttributes": ["status"]})}
+    ```
+
+    If your JSON has been escaped, you can use the `isEscaped` option to be able to parse it.
+    If your JSON has been escaped and then quoted, you need to match the quotes as well, as shown below.
+    For example, with the following Grok expression:
+
+    ```
+    %{TIMESTAMP_ISO8601:containerTimestamp} "%{GREEDYDATA:my_attribute_prefix:json({"isEscaped": true})}"
+    ```
+
+    Would be able to parse the escaped message:
+
+    ```
+    2015-05-13T23:39:43.945958Z "{\"event\": \"TestRequest\", \"status\": 200, \"response\": {\"headers\": {\"X-Custom\": \"foo\"}}, \"request\": {\"headers\": {\"X-Custom\": \"bar\"}}}"
+    ```
+
+    The resulting log is:
+
+    ```
+    containerTimestamp: "2015-05-13T23:39:43.945958Z"
+    my_attribute_prefix.event: "TestRequest"
+    my_attribute_prefix.status: 200
+    my_attribute_prefix.response.headers.X-Custom: "foo"
+    my_attribute_prefix.request.headers.X-Custom: "bar"
+    ```
+
+To configure the `json` [Grok type](#grok-syntax), use `:json(_CONFIG_)`:
 
     - `json({"dropOriginal": true})`: Drop the JSON snippet that was used in parsing. When set to `true` (default value), the parsing rule will drop the original JSON snippet. Note the JSON attributes will remain in the message field.
     - `json({"dropOriginal": false})`: This will show the JSON payload that was extracted. When set to `false`, the full JSON-only payload will be displayed under an attribute named in `my_attribute_prefix` above. Note the JSON attributes will remain in the message field here as well giving the user 3 different views of the JSON data. If storage of all three versions is a concern it's recommended to use the default of `true` here.
     - `json({"depth": 62})`: Levels of depth you want to parse the JSON value (defaulted to 62).
+    - `json({"keepAttributes": ["attr1", "attr2", ..., "attrN"]})`: Specifies which attributes will be extracted from the JSON. The provided list cannot be empty. If this configuration option is not set, all attributes are extracted.
+    - `json({"dropAttributes": ["attr1", "attr2", ..., "attrN"]})`: Specifies which attributes to be dropped from the JSON. If this configuration option is not set, no attributes are dropped.
+    - `json({"noPrefix": true})`: Set this option to `true` to remove the prefix from the attributes extracted from the JSON.
+    - `json({"isEscaped": true})`: Set this option to `true` to parse JSON that has been escaped (which you typically see when JSON is stringified, for example `{\"key\": \"value\"}`)
+
+
   </Collapser>
   <Collapser
     id="parsing-csv"
@@ -416,11 +472,11 @@ Note that variable names must be explicitly set and be lowercase like `%{URI:uri
 
     While the "columns" configuration is mandatory, it's possible to change the parsing of the CSV with the following settings.
 
-    - **dropOriginal**: (Defaults to `true`) Drop the CSV snippet used in parsing. When set to `true` (default value), the parsing rule drops the original field.
-    - **noPrefix**: (Defaults to `false`) Doesn't include the Grok field name as prefix on the resulting object.
-    - **separator**: (Default to `,`) Defines the character/string that split each column.
+    - <DoNotTranslate>**dropOriginal**</DoNotTranslate>: (Defaults to `true`) Drop the CSV snippet used in parsing. When set to `true` (default value), the parsing rule drops the original field.
+    - <DoNotTranslate>**noPrefix**</DoNotTranslate>: (Defaults to `false`) Doesn't include the Grok field name as prefix on the resulting object.
+    - <DoNotTranslate>**separator**</DoNotTranslate>: (Default to `,`) Defines the character/string that split each column.
       - Another common scenario is tab-separated values (TSV), for that you should indicate `\t` as separator, ex. `%{GREEDYDATA:log:csv({"columns": ["timestamp", "status", "method", "url", "time", "bytes"], "separator": "\t"})`
-    - **quoteChar**: (Default to `"`) Defines the character that optionally surrounds a column content.
+    - <DoNotTranslate>**quoteChar**</DoNotTranslate>: (Default to `"`) Defines the character that optionally surrounds a column content.
   </Collapser>
   <Collapser
     id="geo"
@@ -460,14 +516,14 @@ Note that variable names must be explicitly set and be lowercase like `%{URI:uri
 
     It's mandatory to specify the desired `lookup` fields returned by the `geo` action. At least one item is required from the following options.
 
-    - **city**: Name of city
-    - **countryCode**: Abbreviation of country
-    - **countryName**: Name of country
-    - **latitude**: Latitude
-    - **longitude**: Longitude
-    - **postalCode**: Postal code, zip code, or similar
-    - **region**: Abbreviation of state, province, or territory
-    - **regionName**: Name of state, province, or territory
+    - <DoNotTranslate>**city**</DoNotTranslate>: Name of city
+    - <DoNotTranslate>**countryCode**</DoNotTranslate>: Abbreviation of country
+    - <DoNotTranslate>**countryName**</DoNotTranslate>: Name of country
+    - <DoNotTranslate>**latitude**</DoNotTranslate>: Latitude
+    - <DoNotTranslate>**longitude**</DoNotTranslate>: Longitude
+    - <DoNotTranslate>**postalCode**</DoNotTranslate>: Postal code, zip code, or similar
+    - <DoNotTranslate>**region**</DoNotTranslate>: Abbreviation of state, province, or territory
+    - <DoNotTranslate>**regionName**</DoNotTranslate>: Name of state, province, or territory
   </Collapser>
 </CollapserGroup>
 
@@ -525,9 +581,7 @@ In order to prevent problems, we apply two parsing limits: per-message-per-rule 
       </td>
 
       <td>
-        The per-account limit exists to prevent accounts from using more than their fair share of resources. The limit considers the total time spent processing **all** log messages for an account per-minute.
-
-        The limit is not a fixed value; it scales up or down proportionally to the volume of data stored daily by the account and the environment size that is subsequently allocated to support that customer.
+        The per-account limit exists to prevent accounts from using more than their fair share of resources. The limit considers the total time spent processing <DoNotTranslate>**all**</DoNotTranslate> log messages for an account per-minute.
       </td>
     </tr>
   </tbody>
@@ -535,7 +589,7 @@ In order to prevent problems, we apply two parsing limits: per-message-per-rule 
 
 <Callout variant="tip">
   To easily check if your rate limits have been reached, go to your [system
-  **Limits** page](/docs/telemetry-data-platform/ingest-manage-data/manage-data/view-system-limits#limits-ui) in the New Relic UI.
+  <DoNotTranslate>**Limits**</DoNotTranslate> page](/docs/telemetry-data-platform/ingest-manage-data/manage-data/view-system-limits#limits-ui) in the New Relic UI.
 </Callout>
 
 ## Built-in parsing rules [#built-in-rules]
@@ -896,7 +950,7 @@ Here are some examples of how to add `logtype` to logs sent by some of our [supp
     title="New Relic infrastructure agent example"
   >
     Add `logtype` as an [`attribute`](/docs/logs/forward-logs/forward-your-logs-using-infrastructure-agent#attributes). You must set the logtype for each named source.
-    ```
+    ```yml
     logs:
       - name: file-simple
         file: /path/to/file
@@ -914,8 +968,8 @@ Here are some examples of how to add `logtype` to logs sent by some of our [supp
     id="fluentd-example"
     title="Fluentd example"
   >
-    Add a filter block to the `.conf file`, which uses a `record_transformer` to add a new field. In this example we use a `logtype` of `nginx` to trigger the build-in NGINX parsing rule. Check out other [Fluentd examples](https://github.com/newrelic/fluentd-examples).
-    ```
+    Add a filter block to the `.conf` file, which uses a `record_transformer` to add a new field. In this example we use a `logtype` of `nginx` to trigger the build-in NGINX parsing rule. Check out other [Fluentd examples](https://github.com/newrelic/fluentd-examples).
+    ```apacheconf
     <filter containers>
       @type record_transformer
       enable_ruby true
@@ -938,10 +992,10 @@ Here are some examples of how to add `logtype` to logs sent by some of our [supp
     title="Fluent Bit example"
   >
     Add a filter block to the `.conf` file that uses a `record_modifier` to add a new field. In this example we use a `logtype` of `nginx` to trigger the build-in NGINX parsing rule. Check out other [Fluent Bit examples](https://github.com/newrelic/fluentbit-examples).
-    ```
+    ```ini
     [FILTER]
-        Name record_modifier
-        Match *
+        Name   record_modifier
+        Match  *
         Record logtype nginx
         Record hostname ${HOSTNAME}
         Record service_name Sample-App-Name
@@ -954,7 +1008,7 @@ Here are some examples of how to add `logtype` to logs sent by some of our [supp
     title="Logstash example"
   >
     Add a filter block to the Logstash configuration which uses an `add_field` mutate filter to add a new field. In this example we use a `logtype` of `nginx` to trigger the build-in NGINX parsing rule. Check out other [Logstash examples](https://github.com/newrelic/logstash-examples).
-    ```
+    ```ini
     filter {
       mutate {
         add_field => {
@@ -1001,32 +1055,32 @@ Many logs are formatted or structured in a unique way. In order to parse them, c
   src={logsParsingUi}
 />
 <figcaption>
-  From the left nav in the logs UI, select **Parsing**, then create your own custom parsing rule with a valid NRQL `WHERE` clause and Grok pattern.
+  From the left nav in the logs UI, select <DoNotTranslate>**Parsing**</DoNotTranslate>, then create your own custom parsing rule with a valid NRQL `WHERE` clause and Grok pattern.
 </figcaption>
 
 To create and manage your own, custom parsing rules:
 
-1. Go to **[one.newrelic.com](https://one.newrelic.com/all-capabilities) > Logs**.
-2. From **Manage data** on the left nav of the logs UI, click **Parsing**, then click **Create parsing rule**.
+1. Go to <DoNotTranslate>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Logs**</DoNotTranslate>.
+2. From <DoNotTranslate>**Manage data**</DoNotTranslate> on the left nav of the logs UI, click <DoNotTranslate>**Parsing**</DoNotTranslate>, then click <DoNotTranslate>**Create parsing rule**</DoNotTranslate>.
 3. Enter a name for the new parsing rule.
 4. Select an existing field to parse (default = `message`), or enter a new field name.
 5. Enter a valid NRQL `WHERE` clause to match the logs you want to parse.
-6. Select a matching log if one exists, or click on the **Paste log** tab to paste in a sample log.
-7. Enter the parsing rule and validate it's working by viewing the results in the **Output** section. To learn about Grok and custom parsing rules, read [our blog post about how to parse logs with Grok patterns](https://blog.newrelic.com/product-news/how-to-use-grok-log-parsing).
+6. Select a matching log if one exists, or click on the <DoNotTranslate>**Paste log**</DoNotTranslate> tab to paste in a sample log. Note that if you copy text from the logs UI or the query builder to paste into the parsing UI, ensure that it's the <DoNotTranslate>*Unformatted*</DoNotTranslate> version.
+7. Enter the parsing rule and validate it's working by viewing the results in the <DoNotTranslate>**Output**</DoNotTranslate> section. To learn about Grok and custom parsing rules, read [our blog post about how to parse logs with Grok patterns](https://blog.newrelic.com/product-news/how-to-use-grok-log-parsing).
 8. Enable and save the custom parsing rule.
 
 To view existing parsing rules:
 
-1. Go to **[one.newrelic.com](https://one.newrelic.com/all-capabilities) > Logs**.
-2. From **Manage data** on the left nav of the logs UI, click **Parsing**.
+1. Go to <DoNotTranslate>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Logs**</DoNotTranslate>.
+2. From <DoNotTranslate>**Manage data**</DoNotTranslate> on the left nav of the logs UI, click <DoNotTranslate>**Parsing**</DoNotTranslate>.
 
 ## Troubleshooting [#troubleshooting]
 
 If parsing isn't working the way you intended, it may be due to:
 
-* **Logic:** The parsing rule matching logic doesn't match the logs you want.
-* **Timing:** If your parsing matching rule targets a value that doesn't exist yet, it will fail. This can occur if the value is added later in the pipeline as part of the enrichment process.
-* **Limits:** There is a fixed amount of time available every minute to process logs via parsing, patterns, drop filters, etc. If the maximum amount of time has been spent, parsing will be skipped for additional log event records.
+* <DoNotTranslate>**Logic:**</DoNotTranslate> The parsing rule matching logic doesn't match the logs you want.
+* <DoNotTranslate>**Timing:**</DoNotTranslate> If your parsing matching rule targets a value that doesn't exist yet, it will fail. This can occur if the value is added later in the pipeline as part of the enrichment process.
+* <DoNotTranslate>**Limits:**</DoNotTranslate> There is a fixed amount of time available every minute to process logs via parsing, patterns, drop filters, etc. If the maximum amount of time has been spent, parsing will be skipped for additional log event records.
 
 To resolve these problems, create or adjust your [custom parsing rules](#custom-parsing).
 

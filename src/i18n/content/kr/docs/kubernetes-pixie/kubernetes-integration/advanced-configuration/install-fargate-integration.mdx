@@ -1,10 +1,12 @@
 ---
-title: EKS Fargate 설치
+title: EKS Fargate에 설치
 tags:
   - Integrations
   - Kubernetes integration
   - Installation
-metaDescription: How to install the EKS Fargate integration.
+  - Fargate
+metaDescription: How to install the Infrastructure Operator in EKS Fargate.
+freshnessValidatedDate: never
 translationType: machine
 ---
 
@@ -49,7 +51,7 @@ EKS Fargate 클러스터에 New Relic 전체 관찰 가능성을 설치하기 �
 * [자동 주입(권장)](#automatic)
 * [수동 주입](#manual)
 
-선택한 접근 방식에 관계없이 설치 후 경험은 정확히 동일합니다. 유일한 차이점은 용기가 주입되는 방식입니다. 모니터링하려는 각 배포를 수동으로 편집할 필요가 없으므로 New Relic Infrastructure Operator로 자동 주입을 설정하는 것이 좋습니다.
+선택한 접근 방식에 관계없이 설치 후 경험은 완전히 동일합니다. 유일한 차이점은 컨테이너가 주입되는 방식입니다. 모니터링하려는 각 배포를 수동으로 편집할 필요가 없기 때문에 New Relic 인프라 모니터링 연산자로 자동 주입을 설정하는 것이 좋습니다.
 
 ### 자동 주입(권장) [#automatic]
 
@@ -82,6 +84,7 @@ EKS Fargate 클러스터에 New Relic 전체 관찰 가능성을 설치하기 �
     - "nodes/proxy"
     - "pods"
     - "services"
+    - "namespaces"
   verbs: ["get", "list"]
 - nonResourceURLs: ["/metrics"]
   verbs: ["get"]
@@ -89,6 +92,10 @@ EKS Fargate 클러스터에 New Relic 전체 관찰 가능성을 설치하기 �
 
 <Callout variant="tip">
   사이드카가 주입되고 따라서 운영자가 설치되기 전에 배포된 포드에서 메트릭을 얻으려면 영향을 받는 배포의 롤아웃(다시 시작)을 수동으로 수행해야 합니다. 이렇게 하면 포드가 생성될 때 운영자가 모니터링 사이드카를 삽입할 수 있습니다. New Relic은 예기치 않은 서비스 중단 및 리소스 사용량 급증을 방지하기 위해 이 작업을 자동으로 수행하지 않도록 선택했습니다.
+</Callout>
+
+<Callout variant="important">
+  `newrelic` 네임스페이스(또는 설치를 위해 선택한 네임스페이스)를 선언하는 선택기를 사용하여 Fargate 프로필을 생성해야 합니다.
 </Callout>
 
 주입 워크플로는 다음과 같습니다.
@@ -111,44 +118,79 @@ EKS Fargate 클러스터에 New Relic 전체 관찰 가능성을 설치하기 �
 helm repo add newrelic https://helm-charts.newrelic.com
 ```
 
-그런 다음 인프라 사이드카 주입을 담당하는 운영자를 설치하려면 구성을 정의하는 데 사용할 `values-newrelic.yaml` 파일을 생성하세요.
+그런 다음 인프라 사이드카 주입을 담당하는 운영자를 설치하려면 구성을 정의하는 데 사용할 `values.yaml` 파일을 생성하세요.
 
 ```yaml
-global:
-  licenseKey: _YOUR_NEW_RELIC_LICENSE_KEY_
-  cluster: _K8S_CLUSTER_NAME_
-  fargate: true  # Enable fargate support
+## Global values
 
-prometheus:
-  # Automatically scrape prometheus metrics for annotated services in the cluster
-  # Collecting prometheus metrics for large clusters might impact data usage significantly
-  enabled: true
-  lowDataMode: true  # Skip ingesting cluster-level metrics
-webhook:
-  # Deploy our webhook to link APM and Kubernetes entities
-  enabled: true
-kubeEvents:
-  # Report Kubernetes events
-  enabled: true
-logging:
-  # Report logs for containers running in the cluster
-  enabled: true
-ksm:
-  # Deploy kube-state-metrics in the cluster.
-  # Set this to true unless it is already deployed.
-  enabled: true
+global:
+  # -- The cluster name for the Kubernetes cluster.
+  cluster: "_YOUR_K8S_CLUSTER_NAME_"
+
+  # -- The license key for your New Relic Account. This will be preferred configuration option if both `licenseKey` and `customSecret` are specified.
+  licenseKey: "_YOUR_NEW_RELIC_LICENSE_KEY_"
+
+  # -- (bool) In each integration it has different behavior. Enables operating system metric collection on each EC2 K8s node. Not applicable to Fargate nodes.
+  # @default -- false
+  privileged: true
+
+  # -- (bool) Must be set to `true` when deploying in an EKS Fargate environment
+  # @default -- false
+  fargate: true
+
+## Enable nri-bundle sub-charts
+
 newrelic-infra-operator:
-  # Deploy the infrastructure operator, which will inject the monitoring sidecar on fargate pods
+  # Deploys the infrastructure operator, which injects the monitoring sidecar into Fargate pods
   enabled: true
+  tolerations: 
+    - key: "eks.amazonaws.com/compute-type"
+      operator: "Equal"
+      value: "fargate"
+      effect: "NoSchedule"
+  config:
+    ignoreMutationErrors: true
+    infraAgentInjection:
+      # Injection policies can be defined here.  See [values file](https://github.com/newrelic/newrelic-infra-operator/blob/main/charts/newrelic-infra-operator/values.yaml#L114-L125) for more detail.
+      policies:
+      - namespaceName: namespace-a
+      - namespaceName: namespace-b
+
+newrelic-infrastructure:
+  # Deploys the Infrastructure Daemonset to EC2 nodes.  Disable for Fargate-only clusters.
+  enabled: true
+
+nri-metadata-injection:
+  # Deploy our mutating admission webhook to link APM and Kubernetes entities
+  enabled: true
+
+kube-state-metrics:
+  # Deploys Kube State Metrics.  Disable if you are already running KSM in your cluster.
+  enabled: true
+
+nri-kube-events:
+  # Deploy the Kubernetes events integration.
+  enabled: true
+
+newrelic-logging:
+  # Deploys the New Relic's Fluent Bit daemonset to EC2 nodes.  Disable for Fargate-only clusters.
+  enabled: true
+
+newrelic-prometheus-agent:
+  # Deploys the Prometheus agent for scraping Prometheus endpoints.
+  enabled: true
+  config:
+    kubernetes:
+      integrations_filter:
+        enabled: true
+        source_labels: ["app.kubernetes.io/name", "app.newrelic.io/name", "k8s-app"]
+        app_values: ["redis", "traefik", "calico", "nginx", "coredns", "kube-dns", "etcd", "cockroachdb", "velero", "harbor", "argocd", "istio"]
 ```
 
 마지막으로 파일을 만들고 조정한 후 다음 Helm 명령을 사용하여 솔루션을 배포할 수 있습니다.
 
 ```shell
-helm upgrade --install newrelic newrelic/nri-bundle \
---namespace newrelic --create-namespace \
--f values-newrelic.yaml \
---devel
+helm upgrade --install newrelic-bundle newrelic/nri-bundle -n newrelic --create-namespace -f values.yaml
 ```
 
 <Callout variant="important">
@@ -425,11 +467,33 @@ New Relic 로깅은 AWS의 보안 제약으로 인해 Fargate 노드에서 사�
 * [CloudWatch 로그 전송에 대해서는 AWS Lambda를](/docs/logs/forward-logs/aws-lambda-sending-cloudwatch-logs/)참조하십시오.
 * [Amazon ECS에서 New Relic으로 로그를 전달하는 세 가지 방법을](https://newrelic.com/blog/how-to-relic/forward-logs-from-amazon-ecs-to-new-relic)참조하십시오.
 
-## 문제 해결: DaemonSet 복제본이 Fargate 노드에 배포되고 있습니다. [#troubleshooting]
+## 문제점 해결 [#troubleshooting]
+
+### DaemonSet 복제본이 Fargate 노드에 배포되고 있습니다.
 
 Fargate 노드에서 Infra `DaemonSet` 복제본이 예약되고 있는 것을 발견하면 `nodeAffinity` 규칙이 제대로 구성되지 않았기 때문일 수 있습니다.
 
 명령줄( `--set global.fargate=true` ) 또는 `values.yaml` 파일을 통해 `global.fargate` 옵션을 사용하여 솔루션이 `true` 에 설치되었는지 다시 확인하십시오. 설치 방법이 Helm이 아닌 경우 Fargate 노드를 제외하도록 `nodeAffinity` 규칙을 수동으로 추가해야 합니다.
+
+### 허용되지 않는 오염으로 인한 이벤트 `FailedScheduling`
+
+포드를 생성하려고 시도하는 동안 다음 이벤트가 발생하는 경우 [자동 삽입 설치](#auto-injection-install) 에 설명된 `tolerations` 를 `values.yaml` 파일에 추가해야 합니다.
+
+```
+LAST SEEN | TYPE | REASON | OBJECT | MESSAGE
+:--|:--|:--|:--|:--
+3m9s (x2 over 8m10s) | Warning | FailedScheduling | Pod/no-fargate-deploy-cbddd6ccf-8f9x4 | 0/2 nodes are available: 2 node(s) had untolerated taint {eks.amazonaws.com/compute-type: fargate}. preemption: 0/2 nodes are available: 2 Preemption is not helpful for scheduling..
+```
+
+### 포드가 너무 많아 이벤트 `FailedScheduling`
+
+포드를 생성하려고 시도하는 동안 다음 이벤트가 발생하는 경우 설치가 발생하는 네임스페이스의 이름을 지정하는 선택기가 있는 Fargate 프로필이 있는지 확인하세요.
+
+```
+LAST SEEN | TYPE | REASON | OBJECT | MESSAGE
+:--|:--|:--|:--|:--
+61s | Warning | FailedScheduling | Pod/newrelic-bundle-newrelic-infra-operator-admission-create-d8ggt | 0/2 nodes are available: 2 Too many pods. preemption: 0/2 nodes are available: 2 No preemption victims found for incoming pod..
+```
 
 ## EKS 데이터 보기 [#view-data]
 
@@ -443,7 +507,7 @@ Fargate 노드에서 Infra `DaemonSet` 복제본이 예약되고 있는 것을 �
 
 AWS 데이터를 보려면:
 
-1. **[one.newrelic.com](https://one.newrelic.com/all-capabilities) > Infrastructure > Kubernetes** 로 이동하여 다음 중 하나를 수행합니다.
+1. **[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Infrastructure > Kubernetes** 로 이동하고 다음 중 하나를 수행합니다.
 
    * 데이터를 보려면 통합 이름을 선택하세요.
    * 데이터 탐색 아이콘을 선택하여 AWS 데이터를 봅니다.

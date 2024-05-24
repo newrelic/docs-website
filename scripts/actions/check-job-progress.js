@@ -204,9 +204,14 @@ const updateTranslationRecords = async (project_id, slugStatuses) => {
         { status: StatusEnum.COMPLETED }
       );
 
-      console.log(
-        `Translation ${records[0].id} marked as ${StatusEnum.COMPLETED}`
-      );
+      const id = records[0]?.id;
+
+      if (id == null) {
+        console.log(`Unable to update ${locale} translation for slug ${slug}`);
+        process.exitCode = 1;
+      } else {
+        console.log(`Translation ${id} marked as ${StatusEnum.COMPLETED}`);
+      }
     })
   );
 };

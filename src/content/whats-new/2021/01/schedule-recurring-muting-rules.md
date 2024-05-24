@@ -5,7 +5,7 @@ releaseDate: '2021-01-06'
 learnMoreLink: 'https://docs.newrelic.com/docs/alerts-applied-intelligence/new-relic-alerts/alert-notifications/muting-rules-suppress-notifications#schedule-muting-rule'
 ---
 
-Muting rules now have even more functionality, allowing you to schedule recurring times when you want to mute violation notifications. Scheduling a single occurrence for muting was already possible and now you can specify a start date and time and end date and time and also specify how you would like the rule to repeat out of the three options below:
+Muting rules now have even more functionality, allowing you to schedule recurring times when you want to mute incident notifications. Scheduling a single occurrence for muting was already possible and now you can specify a start date and time and end date and time and also specify how you would like the rule to repeat out of the three options below:
 
 **Daily:** The rule will activate every day, between the times specified.
 

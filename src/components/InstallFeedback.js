@@ -6,7 +6,7 @@ import {
   Surface,
   Button,
   Icon,
-  useTessen,
+  addPageAction,
   useTranslation,
   isValidEmail,
 } from '@newrelic/gatsby-theme-newrelic';
@@ -19,7 +19,6 @@ const InstallFeedback = () => {
   const [shouldSubmit, setShouldSubmit] = useState(false);
   const [formSubmitted, setFormSubmitted] = useState(false);
 
-  const tessen = useTessen();
   const { t } = useTranslation();
 
   const isCommentBoxEmpty = (comment) => {
@@ -28,7 +27,7 @@ const InstallFeedback = () => {
 
   const handleClick = () => {
     setCommentButtonClicked(true);
-    tessen.track({
+    addPageAction({
       eventName: 'installFeedbackClick',
       category: 'LeaveAComment',
       path: location.pathname,
@@ -66,7 +65,7 @@ const InstallFeedback = () => {
 
     await recaptchaReady();
     const recaptchaToken = await generateRecaptchaToken();
-    tessen.track({
+    addPageAction({
       eventName: 'installFeedbackSubmitted',
       category: 'Comment',
       path: location.pathname,
@@ -99,9 +98,13 @@ const InstallFeedback = () => {
       base={Surface.BASE.PRIMARY}
       css={css`
         padding: 2rem;
+        margin: 1rem;
         margin-bottom: 2rem;
-        border: 1px solid #1dcad3;
-        background-color: #afe2e3;
+        border: none;
+        background: var(--system-text-primary-dark);
+        .dark-mode && {
+          background: var(--erno-black);
+        }
       `}
     >
       {!formSubmitted ? (
@@ -131,12 +134,13 @@ const InstallFeedback = () => {
             >
               <h2
                 css={css`
+                  font-weight: 500;
                   margin-bottom: 0;
                   text-align: center;
-                  color: #1d252c;
+                  color: var(--primary-text-color);
                 `}
               >
-                {t('installFeedback.question')}
+                {t('strings.installFeedback.question')}
               </h2>
             </div>
             {!commentButtonClicked && (
@@ -151,12 +155,12 @@ const InstallFeedback = () => {
                   onClick={() => handleClick()}
                   css={css`
                     font-size: 1.25rem;
-                    color: #00586f;
-                    border: 1px solid #00586f;
-                    border-radius: 0.5rem;
+                    font-weight: 500;
+                    color: var(--system-text-primary-dark);
+                    background: var(--product-blue);
+                    border-radius: 4px;
                     padding: 1rem 2rem;
                     margin-right: 0.5rem;
-                    transition: color 200ms, border-color 200ms;
                     @media screen and (max-width: 1500px) {
                       margin-top: 1rem;
                     }
@@ -176,22 +180,15 @@ const InstallFeedback = () => {
                     }
 
                     svg {
-                      transition: fill 200ms;
+                      fill: var(--system-text-primary-dark);
                     }
 
                     &:hover {
-                      border-color: #0095a9;
-                      color: #0095a9;
-                      transition: color 200ms, border-color 200ms;
-
-                      svg {
-                        fill: #0095a9;
-                        transition: fill 200ms;
-                      }
+                      background: var(--product-blue-hover);
                     }
                   `}
                 >
-                  {t('installFeedback.commentButton')}
+                  {t('strings.installFeedback.commentButton')}
                   <Icon
                     size="1.5rem"
                     name="fe-contact-us"
@@ -235,7 +232,7 @@ const InstallFeedback = () => {
                 }
                 flex-direction: column;
                 p {
-                  color: #1d252c;
+                  color: var(--primary-text-color);
                 }
 
                 p,
@@ -245,7 +242,7 @@ const InstallFeedback = () => {
                 }
               `}
             >
-              <p>{t('installFeedback.comment')}</p>
+              <p>{t('strings.installFeedback.comment')}</p>
               <textarea
                 value={userComments}
                 maxLength="30000"
@@ -262,7 +259,7 @@ const InstallFeedback = () => {
                   margin-bottom: 1rem;
                 `}
               />
-              <p>{t('installFeedback.email')}</p>
+              <p>{t('strings.installFeedback.email')}</p>
               <input
                 value={userEmail}
                 placeholder="datanerd@example.com"
@@ -291,7 +288,7 @@ const InstallFeedback = () => {
                   width: 50%;
                 `}
               >
-                {t('installFeedback.emailDisclaimer')}
+                {t('strings.installFeedback.emailDisclaimer')}
               </p>
 
               {userEmail && !isValidEmail(userEmail) && (
@@ -305,7 +302,7 @@ const InstallFeedback = () => {
                     }
                   `}
                 >
-                  {t('installFeedback.validEmail')}
+                  {t('strings.installFeedback.validEmail')}
                 </p>
               )}
               <div>
@@ -317,17 +314,17 @@ const InstallFeedback = () => {
                   css={css`
                     font-size: 1.25rem;
                     margin: 0.5rem auto 0;
-                    border-radius: 0.5rem;
+                    border-radius: 4px;
                     padding: 1rem 2rem;
                     height: 3rem;
-                    background: #00586f;
+                    background: var(--product-blue);
                     color: var(--system-text-primary-dark);
-                    &:hover {
-                      background: #0095a9;
-                    }
+                    &:hover,
                     .dark-mode &:hover {
                       color: var(--system-text-primary-dark);
+                      background: var(--product-blue-hover);
                     }
+
                     &:disabled,
                     .dark-mode &:disabled {
                       cursor: not-allowed;
@@ -335,7 +332,7 @@ const InstallFeedback = () => {
                     }
                   `}
                 >
-                  {t('installFeedback.submitButton')}
+                  {t('strings.installFeedback.submitButton')}
                 </Button>
               </div>
               <div
@@ -361,7 +358,7 @@ const InstallFeedback = () => {
             color: #1d252c;
           `}
         >
-          {t('installFeedback.submitMessage')}
+          {t('strings.installFeedback.submitMessage')}
         </p>
       )}
     </Surface>

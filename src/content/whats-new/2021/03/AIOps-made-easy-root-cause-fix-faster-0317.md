@@ -30,8 +30,8 @@ Adding to our existing two-way integration with PagerDuty, you can now eliminate
 
 Learn more about two-way integration with ServiceNow straight from our product team [here](https://youtu.be/29Ms4wfziB8). 
 
-## Suggested responders for New Relic Alert violations
+## Suggested responders for New Relic Alert incidents
 
-Get [automatic recommendations](https://docs.newrelic.com/docs/alerts-applied-intelligence/applied-intelligence/incident-intelligence/get-started-incident-intelligence/#suggested-responders) for individuals on your team who are best equipped to respond to an issue, either because they are experts in the component failing or have resolved similar issues before. This enhancement builds on our existing support for suggesting responders based on PagerDuty incident data, by suggesting responders for issues that originate from New Relic Alert violations. Best of all, this feature is completely automatic and requires no configuration or model training—it just works out of the box as New Relic learns from the behaviors of responders on your team.
+Get [automatic recommendations](https://docs.newrelic.com/docs/alerts-applied-intelligence/applied-intelligence/incident-intelligence/get-started-incident-intelligence/#suggested-responders) for individuals on your team who are best equipped to respond to an issue, either because they are experts in the component failing or have resolved similar issues before. This enhancement builds on our existing support for suggesting responders based on PagerDuty incident data, by suggesting responders for issues that originate from New Relic Alert incidents. Best of all, this feature is completely automatic and requires no configuration or model training—it just works out of the box as New Relic learns from the behaviors of responders on your team.
 
 ![suggested-responders.png](./images/suggested-responders.webp "Suggested responders")
