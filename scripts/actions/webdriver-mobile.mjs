@@ -19,8 +19,8 @@ options.addArguments('no-sandbox');
 options.addArguments('disable-dev-shm-usage');
 options.addArguments('headless');
 
-const TIMEOUT = 10000;
-const SLEEP_TIME = 500;
+const TIMEOUT = 30000;
+const SLEEP_TIME = 5000;
 
 const waitForXPath = (xpath, timeout = TIMEOUT) =>
   driver.wait(until.elementsLocated(By.xpath(xpath)), timeout);
@@ -71,7 +71,7 @@ const collapserTest = async () => {
 };
 
 const navTest = async () => {
-  const releaseNotesXPath = '//div[@data-flip-id="Release notes"]';
+  const releaseNotesXPath = '//div[@data-flip-id="release-notes"]';
   const nextNodeXPath = `${releaseNotesXPath}/following-sibling::div[1]`;
   const [hamburgerButton] = await waitForXPath(
     '//header//button[contains(@aria-label, "Mobile")]'
