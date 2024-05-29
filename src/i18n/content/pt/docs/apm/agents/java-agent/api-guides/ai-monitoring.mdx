@@ -1,0 +1,156 @@
+---
+title: AI Monitoring API
+tags:
+  - Agents
+  - Java agent
+  - API guides
+metaDescription: For information about customizing New Relic's Java agent for AI monitoring.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+Depois de instrumentar seu aplicativo com AI Monitoring, você pode acessar alguma API para coletar contagem token e feedback do usuário. Para utilizar a AI Monitoring API, verifique se seu agente Java está atualizado para a versão 8.12.0 ou superior.
+
+## Registrar contagem token [#token-count]
+
+Se você desativou o agente com `ai_monitoring.record_content.enabled=false`, poderá usar a [`setLlmTokenCountCallback(LlmTokenCountCallback llmTokenCountCallback)`](https://newrelic.github.io/java-agent-api/javadoc/com/newrelic/api/agent/AiMonitoring.html#setLlmTokenCountCallback) API para calcular `token_count` o atributo. Isso calcula contagens token para eventos `LlmEmbedding` e `LlmChatCompletionMessage` sem gravar o conteúdo da mensagem.
+
+1. Implemente `LlmTokenCountCallback` para que ele substitua o método `calculateLlmTokenCount(String model, String content)`. Isso calcula uma contagem token com base em um determinado nome de modelo LLM e no conteúdo ou prompt da mensagem LLM:
+
+   ```java
+       class MyTokenCountCallback implements LlmTokenCountCallback {
+           @Override
+           public int calculateLlmTokenCount(String model, String content) {
+               // Implement custom token calculating logic here based on the LLM model and content.
+               // Return an integer representing the calculated token count.
+               return 0;
+           }
+       }
+   ```
+
+2. Crie uma instância da implementação `LlmTokenCountCallback` para registrar o retorno de chamada e depois transmita-o para a API `setLlmTokenCountCallback`. Por exemplo:
+
+   ```java
+       LlmTokenCountCallback myTokenCountCallback = new MyTokenCountCallback();
+           // The callback needs to be registered at some point before invoking the LLM model
+       NewRelic.getAgent().getAiMonitoring.setLlmTokenCountCallback(myTokenCountCallback);
+   ```
+
+Para usar o retorno de chamada, implemente `LlmTokenCountCallback` para que:
+
+* Ele retorna um número inteiro que representa o número de tokens para um determinado prompt, mensagem de conclusão ou incorporação.
+* Se os valores forem menores ou iguais a 0, `LlmTokenCountCallbacks` não será anexado a um evento.
+
+Lembre-se de que esta API deve ser chamada apenas uma vez. Chamar esta API várias vezes substituirá cada retorno de chamada anterior.
+
+## Registrar feedback do usuário [#user-feedback]
+
+AI Monitoring pode correlacionar ID do trace entre uma mensagem gerada de seus modelos LLM e o feedback final de um usuário. A API [`recordLlmFeedbackEvent`](https://newrelic.github.io/java-agent-api/javadoc/com/newrelic/api/agent/AiMonitoring.html#recordLlmFeedbackEvent) constrói um argumento com um mapa da classe `LlmFeedbackEventAttributes.Builder`.
+
+O registro do feedback do usuário ocorre em duas etapas:
+
+1. Use a [`TraceMetadata.getTraceId()`](https://newrelic.github.io/java-agent-api/javadoc/com/newrelic/api/agent/TraceMetadata.html#getTraceId) API para adquirir o ID do trace da transação atualmente em execução:
+
+   ```java
+   String traceId = NewRelic.getAgent().getTraceMetadata().getTraceId();
+   ```
+
+2. Adicione [`recordLlmFeedbackEvent(Map<String, Object> llmFeedbackEventAttributes)`](https://newrelic.github.io/java-agent-api/javadoc/com/newrelic/api/agent/AiMonitoring.html#recordLlmFeedbackEvent) para correlacionar o ID do trace com um evento de feedback. Aqui está um exemplo de como você pode registrar um evento de feedback do LLM:
+
+   ```java
+   String traceId = ... // acquired directly from New Relic API or retrieved from some propagation mechanism
+
+   Map<String, String> metadata = new HashMap<>();
+   metadata.put("interestingKey", "interestingVal");
+
+   LlmFeedbackEventAttributes.Builder llmFeedbackEvenAttrBuilder = new LlmFeedbackEventAttributes.Builder(traceId, ratingString);
+
+   Map<String, Object> llmFeedbackEventAttributes = llmFeedbackEvenAttrBuilder
+           .category("General")
+           .message("Ok")
+           .metadata(metadata)
+           .build();
+
+   NewRelic.getAgent().getAiMonitoring().recordLlmFeedbackEvent(llmFeedbackEventAttributes);
+   ```
+
+A classe `LlmFeedbackEventAttributes.Builder` usa o seguinte parâmetro:
+
+<table>
+  <thead>
+    <tr>
+      <th style="width:250px">
+        Parâmetro
+      </th>
+
+      <th>
+        Definição
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `trace_id` (Obrigatório)
+      </td>
+
+      <td>
+        ID do trace onde ocorreram as conclusões do chat relacionadas ao feedback
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `rating` (Obrigatório)
+      </td>
+
+      <td>
+        Uma avaliação do usuário final. Por exemplo, os valores podem ser `good`, `bad` ou uma classificação inteira.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `category` (Opcional)
+      </td>
+
+      <td>
+        Categoria do feedback fornecido pelo usuário final. Por exemplo, os valores podem ser `informative` ou `inaccurate`.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `message` (Opcional)
+      </td>
+
+      <td>
+        Feedback de texto de formato livre de um usuário final
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `metadata` (Opcional)
+      </td>
+
+      <td>
+        Conjunto de pares de valores principais para armazenar quaisquer outros dados desejados para enviar com o evento de feedback
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+Se o feedback do usuário for registrado em um thread ou serviço diferente de onde ocorreu o prompt ou a resposta do LLM, será necessário:
+
+* Adquirir o ID do trace do thread ou serviço de origem
+* Propague esse ID para onde o evento de feedback do usuário será registrado
+
+## Adicionar atributo LLM personalizado [#custom-attributes]
+
+Você pode ajustar seu agente para coletar atributos personalizados do LLM:
+
+* Qualquer atributo personalizado adicionado com a [`NewRelic.addCustomParameter(...)`](https://newrelic.github.io/java-agent-api/javadoc/com/newrelic/api/agent/NewRelic.html#addCustomParameter(java.lang.String,boolean)) API pode ser prefixado com `llm.`. Isso copia automaticamente esses atributos para `LlmEvent`s
+* Se você estiver adicionando atributo personalizado a `LlmEvent`s com a API `addCustomParameters` , certifique-se de que a chamada da API ocorra antes de invocar o Bedrock SDK.
+* Um atributo personalizado opcional com significado especial é `llm.conversation_id`. Você pode usar isso para agrupar mensagens LLM em conversas específicas no APM.
