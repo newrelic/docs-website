@@ -1,0 +1,64 @@
+---
+title: Desplegar tu aplicación
+metaDescription: Spin up your demo services to follow along the lab
+freshnessValidatedDate: never
+translationType: machine
+---
+
+<Callout variant="tip">
+  Este procedimiento es parte del curso que le muestra cómo crear un inicio rápido. Si aún no lo hiciste, consulta la [introducción del curso](/docs/new-relic-solutions/build-nr-ui/contribute-nr-io/contribute-quickstart).
+</Callout>
+
+Antes de crear un inicio rápido, debe poner en marcha sus servicios de demostración.
+
+## Ponga en marcha servicios de demostración [#spin-demo-services]
+
+Clona el repositorio de laboratorio de GitHub:
+
+```bash
+    git clone https://github.com/newrelic-experimental/build-a-quickstart-lab.git
+```
+
+Cambie al directorio de demostración, llamado `flashDB`.
+
+```bash
+
+cd build-a-quickstart-lab/flashDB
+
+```
+
+Este directorio contiene código para dos servicios importantes:
+
+* Un programa de Python que imita la base de datos y también proporciona funciones para operaciones de creación, lectura, actualización y eliminación (CRUD).
+* Un servicio de simulador que genera tráfico de base de datos ficticio para que no tenga que realizar operaciones CRUD manualmente
+
+Ejecute el siguiente comando para ejecutar sus servicios:
+
+```Python
+python simulator.py
+```
+
+Aquí, ejecuta el simulador que genera tráfico simulado en su base de datos. Una vez que el simulador esté en funcionamiento, verá el siguiente resultado en su terminal:
+
+```bash animate
+python simulator.py
+[output] Writing...
+[output] try_send
+[output] Writing...
+[output] try_send
+[output] Reading...
+[output] try_send
+[output] Reading...
+[output] try_send
+[output] Writing...
+[output] try_send
+[output] Writing...
+[output] try_send
+[output] Reading...
+```
+
+A continuación, emplea [la telemetría](https://github.com/newrelic/newrelic-telemetry-sdk-python) para enviar telemetry data desde su servicio flashDB a New Relic.
+
+<Callout variant="tip">
+  Este procedimiento es parte del curso que le muestra cómo crear un inicio rápido. Continúe con la siguiente lección: [envíe telemetry data a New Relic](/docs/new-relic-solutions/build-nr-ui/contribute-nr-io/send-telemetry-to-nr).
+</Callout>
