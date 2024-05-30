@@ -44,8 +44,8 @@ const main = async () => {
   // and the current homepage does not have the hamburger menu for `navTest`
   await driver.get(testUrl);
   await tileTest();
-  await navTest();
   await driver.get(testUrl + 'docs/mdx-test-page/');
+  await navTest();
   await collapserTest();
   await searchTest();
 
@@ -91,6 +91,11 @@ const navTest = async () => {
     afterNextNode,
     'clicking Release Notes in the nav did not expand the Release Notes section'
   );
+  const [navCloseButton] = await waitForXPath(
+    '//div[@id="portal"]//button[@aria-label="Close"]'
+  );
+  await navCloseButton.click();
+  await driver.sleep(1000);
 };
 
 const searchTest = async () => {
