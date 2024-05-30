@@ -1,0 +1,1239 @@
+---
+title: NerdletからNerdStorageVaultにアクセスする
+metaDescription: Access NerdStorageVault from your Nerdlet
+freshnessValidatedDate: never
+translationType: machine
+---
+
+<Callout variant="tip">
+  このレッスンは、New Relic アプリケーションをゼロから構築する方法を学習するコースの一部です。 まだご覧になっていない方は、概要をご覧ください。
+
+  コースの各レッスンは前回のレッスンに基づいて構築されるため、このレッスンを開始する前に、前回のレッスン「Nerdlet から NerdStorage にアクセスする」を完了していることを確認してください。
+</Callout>
+
+このコースでは、ニュースレター登録フォームで A/B テストを実行しているデモ Web サービスからテレメトリ データを収集するNew Relicアプリケーションを構築します。 New Relicアプリケーションの目的は、設計の変更がサービスが得る高品質のニュースレター サブスクリプションの数にどのように影響するかを理解できるようにすることです。 サービスの高品質なニュースレターのサブスクリプションを増やすというビジネス目標は、主に次の 3 つの重要な情報に依存します。
+
+* バージョンごとのページビュー数
+* バージョンごとのサブスクリプション数
+* キャンセル数
+
+キャンセルが重要なのは、ニュースレター登録フォームのデザイン バージョンによってサブスクリプション数が多くなっても、キャンセル数も多くなると、そのサブスクリプションの価値がなくなるためです。
+
+前のレッスンでは、New Relic のデータベース (NRDB) からページ ビューとサブスクリプションのデータを収集しましたが、キャンセル データはまだ必要です。 デモ アプリケーションはキャンセル データを New Relic に報告しないため、そのデータを外部ソースから取得する必要があります。 [https://api.nerdsletter.net/cancellations](https://api.nerdsletter.net/cancellations)でサービスを提供しています このコースの目的のために偽のキャンセルデータを返すこと。 browserでこの URL にアクセスすると、「許可されていません」という短いメッセージが表示されます。 これは、データを要求する人は誰でも、ベアラー トークン`ABC123`を含む Authorization ヘッダーを渡す必要があるという要件を付けてこのサービスを作成したためです。
+
+API .nerdsletter.netからキャンセルデータをリクエストする前に、 アプリケーションにいくつかの新しい動作を実装する必要があります。
+
+* 認証トークンを入力するためのメカニズムを提供する
+* 認証トークンを安全なデータストアに保存する
+
+認証トークンを入力するには、 `Modal`と`TextField`を使用します。 使用する安全なデータ ストアは`NerdStorageVault`と呼ばれます。 これは、ユーザー ストレージのみをサポートし、そのデータを暗号化する点で、前回のレッスンで使用した`NerdStorage`とは異なります。
+
+## APIトークンを保存する [#store]
+
+<Steps>
+  <Step>
+    コースワークリポジトリ の[ ](https://github.com/newrelic-experimental/nru-programmability-course)_add-nerdstoragevault/ab-test_ ディレクトリに変更します。
+
+    ```sh
+    cd nru-programmability-course/add-nerdstoragevault/ab-test
+    ```
+
+    このディレクトリには、コースのこの時点でアプリケーションに含まれることが予想されるコードが含まれています。 各レッスンの開始時に正しいディレクトリに移動することで、カスタム コードが残され、間違ったコードがレッスン間で持ち越されることがなくなります。
+  </Step>
+
+  <Step>
+    Nerdlet の`index.js`ファイルで、 `AbTestNerdletNerdlet`の`state`を`null`トークンのデフォルトで初期化します。
+
+    ```js
+    import React from 'react';
+    import { ChartGroup, Grid, GridItem } from 'nr1';
+    import EndTestSection from './end-test';
+    import NewsletterSignups from './newsletter-signups';
+    import PastTests from './past-tests';
+    import TotalCancellations from './total-cancellations';
+    import TotalSubscriptions from './total-subscriptions';
+    import VersionDescription from './description';
+    import VersionPageViews from './page-views';
+    import VersionTotals from './totals';
+
+    const ACCOUNT_ID = 123456  // <YOUR NEW RELIC ACCOUNT ID>
+    const VERSION_A_DESCRIPTION = 'The newsletter signup message says, "Sign up for our newsletter"'
+    const VERSION_B_DESCRIPTION = 'The newsletter signup message says, "Sign up for our newsletter and get a free shirt!"'
+
+    export default class AbTestNerdletNerdlet extends React.Component {
+        constructor() {
+            super(...arguments);
+
+            this.state = {
+                token: null,
+            }
+        }
+
+        render() {
+            return <div>
+                <Grid className="wrapper">
+                    <GridItem columnSpan={6}>
+                        <VersionDescription
+                            description={VERSION_A_DESCRIPTION}
+                            version="A"
+                        />
+                    </GridItem>
+                    <GridItem columnSpan={6}>
+                        <VersionDescription
+                            description={VERSION_B_DESCRIPTION}
+                            version="B"
+                        />
+                    </GridItem>
+                    <GridItem columnSpan={12}><hr /></GridItem>
+                    <GridItem columnSpan={12}><NewsletterSignups /></GridItem>
+                    <GridItem columnSpan={6}><TotalSubscriptions /></GridItem>
+                    <GridItem columnSpan={6}><TotalCancellations /></GridItem>
+                    <GridItem columnSpan={6}>
+                        <VersionTotals version='a' accountId={ACCOUNT_ID} />
+                    </GridItem>
+                    <GridItem columnSpan={6}>
+                        <VersionTotals version='b' accountId={ACCOUNT_ID} />
+                    </GridItem>
+                    <ChartGroup>
+                        <GridItem columnSpan={6}>
+                            <VersionPageViews version='a' />
+                        </GridItem>
+                        <GridItem columnSpan={6}>
+                            <VersionPageViews version='b' />
+                        </GridItem>
+                    </ChartGroup>
+                    <GridItem columnSpan={12}>
+                        <EndTestSection
+                            accountId={ACCOUNT_ID}
+                            versionADescription={VERSION_A_DESCRIPTION}
+                            versionBDescription={VERSION_B_DESCRIPTION}
+                        />
+                    </GridItem>
+                    <GridItem columnSpan={12}>
+                        <PastTests accountId={ACCOUNT_ID} />
+                    </GridItem>
+                </Grid>
+            </div>
+        }
+    }
+    ```
+
+    Nerdlet はこの`token`状態を使用して、後でサードパーティのサービスに渡す認証トークンを管理します。 ただし、コンポーネントの`state` 、データ管理のための長期的なソリューションではありません。 そのためには、 `NerdStorageVault`が必要です。
+  </Step>
+
+  <Step>
+    NerdStorageVault データを変更する`storeToken()`というメソッドを実装し、そのメソッドを`AbTestNerdletNerdlet`インスタンスにバインドします。
+
+    ```js
+    import React from 'react';
+    import {
+        ChartGroup,
+        Grid,
+        GridItem,
+        NerdGraphMutation,
+    } from 'nr1';
+    import EndTestSection from './end-test';
+    import NewsletterSignups from './newsletter-signups';
+    import PastTests from './past-tests';
+    import TotalCancellations from './total-cancellations';
+    import TotalSubscriptions from './total-subscriptions';
+    import VersionDescription from './description';
+    import VersionPageViews from './page-views';
+    import VersionTotals from './totals';
+
+    const ACCOUNT_ID = 123456  // <YOUR NEW RELIC ACCOUNT ID>
+    const VERSION_A_DESCRIPTION = 'The newsletter signup message says, "Sign up for our newsletter"'
+    const VERSION_B_DESCRIPTION = 'The newsletter signup message says, "Sign up for our newsletter and get a free shirt!"'
+
+    export default class AbTestNerdletNerdlet extends React.Component {
+        constructor() {
+            super(...arguments);
+
+            this.state = {
+                token: null,
+            }
+
+            this.storeToken = this.storeToken.bind(this);
+        }
+
+        storeToken(newToken) {
+            if (newToken != this.state.token) {
+                const mutation = `
+                    mutation($key: String!, $token: SecureValue!) {
+                        nerdStorageVaultWriteSecret(
+                            scope: { actor: CURRENT_USER }
+                            secret: { key: $key, value: $token }
+                        ) {
+                            status
+                            errors {
+                                message
+                                type
+                            }
+                        }
+                    }
+                `;
+                const variables = {
+                    key: "api_token",
+                    token: newToken,
+                };
+                NerdGraphMutation.mutate({ mutation: mutation, variables: variables }).then(
+                    (data) => {
+                        if (data.data.nerdStorageVaultWriteSecret.status === "SUCCESS") {
+                            this.setState({token: newToken})
+                        }
+                    }
+                );
+            }
+        }
+
+        render() {
+            return <div>
+                <Grid className="wrapper">
+                    <GridItem columnSpan={6}>
+                        <VersionDescription
+                            description={VERSION_A_DESCRIPTION}
+                            version="A"
+                        />
+                    </GridItem>
+                    <GridItem columnSpan={6}>
+                        <VersionDescription
+                            description={VERSION_B_DESCRIPTION}
+                            version="B"
+                        />
+                    </GridItem>
+                    <GridItem columnSpan={12}><hr /></GridItem>
+                    <GridItem columnSpan={12}><NewsletterSignups /></GridItem>
+                    <GridItem columnSpan={6}><TotalSubscriptions /></GridItem>
+                    <GridItem columnSpan={6}><TotalCancellations /></GridItem>
+                    <GridItem columnSpan={6}>
+                        <VersionTotals version='a' accountId={ACCOUNT_ID} />
+                    </GridItem>
+                    <GridItem columnSpan={6}>
+                        <VersionTotals version='b' accountId={ACCOUNT_ID} />
+                    </GridItem>
+                    <ChartGroup>
+                        <GridItem columnSpan={6}>
+                            <VersionPageViews version='a' />
+                        </GridItem>
+                        <GridItem columnSpan={6}>
+                            <VersionPageViews version='b' />
+                        </GridItem>
+                    </ChartGroup>
+                    <GridItem columnSpan={12}>
+                        <EndTestSection
+                            accountId={ACCOUNT_ID}
+                            versionADescription={VERSION_A_DESCRIPTION}
+                            versionBDescription={VERSION_B_DESCRIPTION}
+                        />
+                    </GridItem>
+                    <GridItem columnSpan={12}>
+                        <PastTests accountId={ACCOUNT_ID} />
+                    </GridItem>
+                </Grid>
+            </div>
+        }
+    }
+    ```
+
+    新しいトークン値で`storeToken()`を呼び出すと、Nerdlet は`NerdGraph` API を使用して`api_token`キーの`NerdStorageVault`データを変更します。 `NerdGraph`へのリクエストが成功した場合、 `storeToken()`新しいトークンがローカルでアクセスできるように`state.token`を更新します。
+
+    利便性のためにクエリとミューテーションのコンポーネントを備えた`NerdStorage`とは異なり、 `NerdStorageVault`は SDK にコンポーネントがありません。 代わりに、 `NerdGraphQuery`と`NerdGraphMutation`を使用して操作する必要があります。
+
+    <Callout variant="important">
+      `NerdStorageVault`はユーザー スコープに制限されていることを覚えておくことが重要です。 New Relic アプリケーションの他のユーザーには、独自の`NerdStorageVault`データがあります。 つまり、アカウントの他のユーザーもトークンを個別に入力する必要があります。
+    </Callout>
+  </Step>
+</Steps>
+
+## APIトークンをクエリする [#query]
+
+<Steps>
+  <Step>
+    まず、API トークンのプロンプトを表示および非表示にするメソッドと`state`を作成します。
+
+    ```js
+    import React from 'react';
+    import {
+        ChartGroup,
+        Grid,
+        GridItem,
+        NerdGraphMutation,
+    } from 'nr1';
+    import EndTestSection from './end-test';
+    import NewsletterSignups from './newsletter-signups';
+    import PastTests from './past-tests';
+    import TotalCancellations from './total-cancellations';
+    import TotalSubscriptions from './total-subscriptions';
+    import VersionDescription from './description';
+    import VersionPageViews from './page-views';
+    import VersionTotals from './totals';
+
+    const ACCOUNT_ID = 123456  // <YOUR NEW RELIC ACCOUNT ID>
+    const VERSION_A_DESCRIPTION = 'The newsletter signup message says, "Sign up for our newsletter"'
+    const VERSION_B_DESCRIPTION = 'The newsletter signup message says, "Sign up for our newsletter and get a free shirt!"'
+
+    export default class AbTestNerdletNerdlet extends React.Component {
+        constructor() {
+            super(...arguments);
+
+            this.state = {
+                hideTokenPrompt: true,
+                token: null,
+            }
+
+            this.storeToken = this.storeToken.bind(this);
+            this.showPrompt = this.showPrompt.bind(this);
+            this.hidePrompt = this.hidePrompt.bind(this);
+        }
+
+        storeToken(newToken) {
+            if (newToken != this.state.token) {
+                const mutation = `
+                    mutation($key: String!, $token: SecureValue!) {
+                        nerdStorageVaultWriteSecret(
+                            scope: { actor: CURRENT_USER }
+                            secret: { key: $key, value: $token }
+                        ) {
+                            status
+                            errors {
+                                message
+                                type
+                            }
+                        }
+                    }
+                `;
+                const variables = {
+                    key: "api_token",
+                    token: newToken,
+                };
+                NerdGraphMutation.mutate({ mutation: mutation, variables: variables }).then(
+                    (data) => {
+                        if (data.data.nerdStorageVaultWriteSecret.status === "SUCCESS") {
+                            this.setState({token: newToken})
+                        }
+                    }
+                );
+            }
+        }
+
+        showPrompt() {
+            this.setState({ hideTokenPrompt: false });
+        }
+
+        hidePrompt() {
+            this.setState({ hideTokenPrompt: true });
+        }
+
+        render() {
+            return <div>
+                <Grid className="wrapper">
+                    <GridItem columnSpan={6}>
+                        <VersionDescription
+                            description={VERSION_A_DESCRIPTION}
+                            version="A"
+                        />
+                    </GridItem>
+                    <GridItem columnSpan={6}>
+                        <VersionDescription
+                            description={VERSION_B_DESCRIPTION}
+                            version="B"
+                        />
+                    </GridItem>
+                    <GridItem columnSpan={12}><hr /></GridItem>
+                    <GridItem columnSpan={12}><NewsletterSignups /></GridItem>
+                    <GridItem columnSpan={6}><TotalSubscriptions /></GridItem>
+                    <GridItem columnSpan={6}><TotalCancellations /></GridItem>
+                    <GridItem columnSpan={6}>
+                        <VersionTotals version='a' accountId={ACCOUNT_ID} />
+                    </GridItem>
+                    <GridItem columnSpan={6}>
+                        <VersionTotals version='b' accountId={ACCOUNT_ID} />
+                    </GridItem>
+                    <ChartGroup>
+                        <GridItem columnSpan={6}>
+                            <VersionPageViews version='a' />
+                        </GridItem>
+                        <GridItem columnSpan={6}>
+                            <VersionPageViews version='b' />
+                        </GridItem>
+                    </ChartGroup>
+                    <GridItem columnSpan={12}>
+                        <EndTestSection
+                            accountId={ACCOUNT_ID}
+                            versionADescription={VERSION_A_DESCRIPTION}
+                            versionBDescription={VERSION_B_DESCRIPTION}
+                        />
+                    </GridItem>
+                    <GridItem columnSpan={12}>
+                        <PastTests accountId={ACCOUNT_ID} />
+                    </GridItem>
+                </Grid>
+            </div>
+        }
+    }
+    ```
+
+    `state.hideTokenPrompt` プロンプトが表示されるかどうかを決定します。 ここで、デフォルトでは非表示になっているプロンプトを表示するためのメカニズムが必要になります。
+  </Step>
+
+  <Step>
+    `api_token`について NerdStorageVault にクエリを実行します:
+
+    ```js
+    import React from 'react';
+    import {
+        ChartGroup,
+        Grid,
+        GridItem,
+        NerdGraphMutation,
+        NerdGraphQuery,
+    } from 'nr1';
+    import EndTestSection from './end-test';
+    import NewsletterSignups from './newsletter-signups';
+    import PastTests from './past-tests';
+    import TotalCancellations from './total-cancellations';
+    import TotalSubscriptions from './total-subscriptions';
+    import VersionDescription from './description';
+    import VersionPageViews from './page-views';
+    import VersionTotals from './totals';
+
+    const ACCOUNT_ID = 123456  // <YOUR NEW RELIC ACCOUNT ID>
+    const VERSION_A_DESCRIPTION = 'The newsletter signup message says, "Sign up for our newsletter"'
+    const VERSION_B_DESCRIPTION = 'The newsletter signup message says, "Sign up for our newsletter and get a free shirt!"'
+
+    export default class AbTestNerdletNerdlet extends React.Component {
+        constructor() {
+            super(...arguments);
+
+            this.state = {
+                hideTokenPrompt: true,
+                token: null,
+            }
+
+            this.storeToken = this.storeToken.bind(this);
+            this.showPrompt = this.showPrompt.bind(this);
+            this.hidePrompt = this.hidePrompt.bind(this);
+        }
+
+        storeToken(newToken) {
+            if (newToken != this.state.token) {
+                const mutation = `
+                    mutation($key: String!, $token: SecureValue!) {
+                        nerdStorageVaultWriteSecret(
+                            scope: { actor: CURRENT_USER }
+                            secret: { key: $key, value: $token }
+                        ) {
+                            status
+                            errors {
+                                message
+                                type
+                            }
+                        }
+                    }
+                `;
+                const variables = {
+                    key: "api_token",
+                    token: newToken,
+                };
+                NerdGraphMutation.mutate({ mutation: mutation, variables: variables }).then(
+                    (data) => {
+                        if (data.data.nerdStorageVaultWriteSecret.status === "SUCCESS") {
+                            this.setState({token: newToken})
+                        }
+                    }
+                );
+            }
+        }
+
+        showPrompt() {
+            this.setState({ hideTokenPrompt: false });
+        }
+
+        hidePrompt() {
+            this.setState({ hideTokenPrompt: true });
+        }
+
+        componentDidMount() {
+            const query = `
+                query($key: String!) {
+                    actor {
+                        nerdStorageVault {
+                            secret(key: $key) {
+                                value
+                            }
+                        }
+                    }
+                }
+            `;
+            const variables = {
+                key: "api_token",
+            };
+
+            NerdGraphQuery.query(
+                {
+                    query: query,
+                    variables: variables,
+                }
+            ).then(
+                ({ loading, error, data }) => {
+                    if (error) {
+                        console.error(error);
+                        this.showPrompt();
+                    }
+
+                    if (data && data.actor.nerdStorageVault.secret) {
+                        this.setState({ token: data.actor.nerdStorageVault.secret.value })
+                    } else {
+                        this.showPrompt();
+                    }
+                }
+            )
+        }
+
+        render() {
+            return <div>
+                <Grid className="wrapper">
+                    <GridItem columnSpan={6}>
+                        <VersionDescription
+                            description={VERSION_A_DESCRIPTION}
+                            version="A"
+                        />
+                    </GridItem>
+                    <GridItem columnSpan={6}>
+                        <VersionDescription
+                            description={VERSION_B_DESCRIPTION}
+                            version="B"
+                        />
+                    </GridItem>
+                    <GridItem columnSpan={12}><hr /></GridItem>
+                    <GridItem columnSpan={12}><NewsletterSignups /></GridItem>
+                    <GridItem columnSpan={6}><TotalSubscriptions /></GridItem>
+                    <GridItem columnSpan={6}><TotalCancellations /></GridItem>
+                    <GridItem columnSpan={6}>
+                        <VersionTotals version='a' accountId={ACCOUNT_ID} />
+                    </GridItem>
+                    <GridItem columnSpan={6}>
+                        <VersionTotals version='b' accountId={ACCOUNT_ID} />
+                    </GridItem>
+                    <ChartGroup>
+                        <GridItem columnSpan={6}>
+                            <VersionPageViews version='a' />
+                        </GridItem>
+                        <GridItem columnSpan={6}>
+                            <VersionPageViews version='b' />
+                        </GridItem>
+                    </ChartGroup>
+                    <GridItem columnSpan={12}>
+                        <EndTestSection
+                            accountId={ACCOUNT_ID}
+                            versionADescription={VERSION_A_DESCRIPTION}
+                            versionBDescription={VERSION_B_DESCRIPTION}
+                        />
+                    </GridItem>
+                    <GridItem columnSpan={12}>
+                        <PastTests accountId={ACCOUNT_ID} />
+                    </GridItem>
+                </Grid>
+            </div>
+        }
+    }
+    ```
+
+    ここで、 `componentDidMount()`では、 `api_token`データを`NerdGraph`にクエリしました。 `componentDidMount()`は、コンポーネントがコンポーネント ツリーにマウントされたときに呼び出される React ライフサイクル メソッドです。 つまり、セットアップ プロセスの早い段階で、アプリケーションは`api_token`を要求します。
+
+    `NerdGraph`クエリが`NerdStorageVault`からのトークンで正常に応答した場合、そのトークンは`state`に設定されます。 それ以外の場合は、トークンを入力できるようにプロンプトが表示されます。
+
+    これは初期トークンを保存するのに最適ですが、間違ったトークンを入力したり、API が変更されたりした場合はどうなるでしょうか? プロンプトをオンデマンドで表示する方法が必要です。 次に、実際のトークン プロンプトと、プロンプトを手動で呼び出すボタンを作成します。
+  </Step>
+</Steps>
+
+## トークンプロンプトを作成する [#create]
+
+<Steps>
+  <Step>
+    `nerdlets/ab-test-nerdlet`に、 `token-prompt.js`という名前の新しい Javascript ファイルを追加します。
+
+    ```sh
+    touch token-prompt.js
+    ```
+  </Step>
+
+  <Step>
+    この新しいファイルで、必要に応じて新しいトークンを入力できるボタンを作成します。
+
+    ```js
+    import React from 'react';
+    import { Button } from 'nr1';
+
+    class ApiTokenButton extends React.Component {
+        constructor(props) {
+            super(props)
+        }
+
+        render() {
+            return (
+                <Button onClick={this.props.showPrompt}>Update API token</Button>
+            )
+        }
+    }
+    ```
+
+    `ApiTokenButton` プロパティで`showPrompt()`を受け取り、 `Button`がクリックされたときにそのメソッドを呼び出します。
+  </Step>
+
+  <Step>
+    `Modal`と`TextField`を使用してトークン プロンプトを作成します。
+
+    ```js
+    import React from 'react';
+    import {
+        Button,
+        Modal,
+        TextField,
+    } from 'nr1';
+
+    class ApiTokenButton extends React.Component {
+        constructor(props) {
+            super(props)
+        }
+
+        render() {
+            return (
+                <Button onClick={this.props.showPrompt}>Update API token</Button>
+            )
+        }
+    }
+
+    class ApiTokenPrompt extends React.Component {
+        constructor() {
+            super(...arguments);
+
+            this.state = {
+                token: null,
+                tokenError: false,
+            };
+
+            this.submitToken = this.submitToken.bind(this);
+            this.hideTokenError = this.hideTokenError.bind(this);
+            this.changeToken = this.changeToken.bind(this);
+            this.keyPress = this.keyPress.bind(this);
+        }
+
+        showTokenError() {
+            this.setState({ tokenError: true });
+        }
+
+        hideTokenError() {
+            this.setState({ tokenError: false });
+        }
+
+        changeToken(event) {
+            this.setState({ token: event.target.value });
+        }
+
+        submitToken(event) {
+            event.preventDefault();
+
+            if (this.state.token) {
+                this.props.storeToken(this.state.token)
+                this.hideTokenError()
+                this.props.hidePrompt()
+            } else {
+                this.showTokenError()
+            }
+        }
+
+        keyPress(event) {
+            if(event.keyCode == 13) {
+                event.preventDefault();
+
+                this.submitToken(event);
+            }
+        }
+
+        render() {
+            return <Modal hidden={this.props.hideTokenPrompt} onClose={this.props.hidePrompt}>
+                To see cancellation data, you need to enter an API token for your backend service:
+                <form>
+                    <TextField label="API token" onChange={this.changeToken} onKeyDown={this.keyPress} invalid={this.state.tokenError ? "Token required" : false} />
+                    <Button type={Button.TYPE.PRIMARY} onClick={this.submitToken}>Submit</Button>
+                </form>
+            </Modal>
+        }
+    }
+    ```
+
+    `ApiTokenPrompt` `TextField` 、 `Button` 、および説明プロンプトを含む`Modal`をレンダリングします。 API トークンを入力するには`Modal`を使用します。 また、トークン値なしでフォームを送信しようとした場合の基本的なエラー処理も提供します。
+
+    `AbTestNerdletNerdlet.state`の`token`と`ApiTokenPrompt.state`の`token`を区別することが重要です。 Nerdlet の`state`内の`token`は、Nerdlet が現在認識しているトークンです。 `NerdStorageVault`の内容と一致するのはこのトークンです。 `ApiTokenPrompt.state`の`token`は、 `TextField`のテキストを更新すると変化する流動的な値です。 モーダルで**Submit** \[送信] を押すと、 `ApiTokenPrompt`は`token`を Nerdlet の`storeToken()`メソッドに送信します。 次に、 `storeToken()` `NerdStorageVault`を新しいトークンに変更します。
+
+    また、ユーザーエクスペリエンスを向上させるためにいくつかのメソッドも実装しました。
+
+    * `keyPress()` `RETURN`キーが押されたときにトークンを送信します
+    * `showTokenError()` `hideTokenError()`は、フォームを送信する前にトークンを入力する必要があることをユーザーに通知します。
+  </Step>
+
+  <Step>
+    コンポーネントをエクスポートして、Nerdlet で使用できるようにします。
+
+    ```js
+    import React from 'react';
+    import {
+        Button,
+        Modal,
+        TextField,
+    } from 'nr1';
+
+    class ApiTokenButton extends React.Component {
+        constructor(props) {
+            super(props)
+        }
+
+        render() {
+            return (
+                <Button onClick={this.props.showPrompt}>Update API token</Button>
+            )
+        }
+    }
+
+    class ApiTokenPrompt extends React.Component {
+        constructor() {
+            super(...arguments);
+
+            this.state = {
+                token: null,
+                tokenError: false,
+            };
+
+            this.submitToken = this.submitToken.bind(this);
+            this.hideTokenError = this.hideTokenError.bind(this);
+            this.changeToken = this.changeToken.bind(this);
+            this.keyPress = this.keyPress.bind(this);
+        }
+
+        showTokenError() {
+            this.setState({ tokenError: true });
+        }
+
+        hideTokenError() {
+            this.setState({ tokenError: false });
+        }
+
+        changeToken(event) {
+            this.setState({ token: event.target.value });
+        }
+
+        submitToken(event) {
+            event.preventDefault();
+
+            if (this.state.token) {
+                this.props.storeToken(this.state.token)
+                this.hideTokenError()
+                this.props.hidePrompt()
+            } else {
+                this.showTokenError()
+            }
+        }
+
+        keyPress(event) {
+            if(event.keyCode == 13) {
+                event.preventDefault();
+
+                this.submitToken(event);
+            }
+        }
+
+        render() {
+            return <Modal hidden={this.props.hideTokenPrompt} onClose={this.props.hidePrompt}>
+                To see cancellation data, you need to enter an API token for your backend service:
+                <form>
+                    <TextField label="API token" onChange={this.changeToken} onKeyDown={this.keyPress} invalid={this.state.tokenError ? "Token required" : false} />
+                    <Button type={Button.TYPE.PRIMARY} onClick={this.submitToken}>Submit</Button>
+                </form>
+            </Modal>
+        }
+    }
+
+    export { ApiTokenButton, ApiTokenPrompt }
+    ```
+  </Step>
+
+  <Step>
+    Nerdlet の`index.js`ファイルで、 `ApiTokenButton`と`ApiTokenPrompt`をインポートし、 `render()`に追加します。
+
+    ```js
+    import React from 'react';
+    import {
+        ChartGroup,
+        Grid,
+        GridItem,
+        NerdGraphMutation,
+        NerdGraphQuery,
+    } from 'nr1';
+    import EndTestSection from './end-test';
+    import NewsletterSignups from './newsletter-signups';
+    import PastTests from './past-tests';
+    import TotalCancellations from './total-cancellations';
+    import TotalSubscriptions from './total-subscriptions';
+    import VersionDescription from './description';
+    import VersionPageViews from './page-views';
+    import VersionTotals from './totals';
+    import { ApiTokenButton, ApiTokenPrompt } from './token-prompt';
+
+    const ACCOUNT_ID = 123456  // <YOUR NEW RELIC ACCOUNT ID>
+    const VERSION_A_DESCRIPTION = 'The newsletter signup message says, "Sign up for our newsletter"'
+    const VERSION_B_DESCRIPTION = 'The newsletter signup message says, "Sign up for our newsletter and get a free shirt!"'
+
+    export default class AbTestNerdletNerdlet extends React.Component {
+        constructor() {
+            super(...arguments);
+
+            this.state = {
+                hideTokenPrompt: true,
+                token: null,
+            }
+
+            this.storeToken = this.storeToken.bind(this);
+            this.showPrompt = this.showPrompt.bind(this);
+            this.hidePrompt = this.hidePrompt.bind(this);
+        }
+
+        storeToken(newToken) {
+            if (newToken != this.state.token) {
+                const mutation = `
+                    mutation($key: String!, $token: SecureValue!) {
+                        nerdStorageVaultWriteSecret(
+                            scope: { actor: CURRENT_USER }
+                            secret: { key: $key, value: $token }
+                        ) {
+                            status
+                            errors {
+                                message
+                                type
+                            }
+                        }
+                    }
+                `;
+                const variables = {
+                    key: "api_token",
+                    token: newToken,
+                };
+                NerdGraphMutation.mutate({ mutation: mutation, variables: variables }).then(
+                    (data) => {
+                        if (data.data.nerdStorageVaultWriteSecret.status === "SUCCESS") {
+                            this.setState({token: newToken})
+                        }
+                    }
+                );
+            }
+        }
+
+        showPrompt() {
+            this.setState({ hideTokenPrompt: false });
+        }
+
+        hidePrompt() {
+            this.setState({ hideTokenPrompt: true });
+        }
+
+        componentDidMount() {
+            const query = `
+                query($key: String!) {
+                    actor {
+                        nerdStorageVault {
+                            secret(key: $key) {
+                                value
+                            }
+                        }
+                    }
+                }
+            `;
+            const variables = {
+                key: "api_token",
+            };
+
+            NerdGraphQuery.query(
+                {
+                    query: query,
+                    variables: variables,
+                }
+            ).then(
+                ({ loading, error, data }) => {
+                    if (error) {
+                        console.error(error);
+                        this.showPrompt();
+                    }
+
+                    if (data && data.actor.nerdStorageVault.secret) {
+                        this.setState({ token: data.actor.nerdStorageVault.secret.value })
+                    } else {
+                        this.showPrompt();
+                    }
+                }
+            )
+        }
+
+        render() {
+            return <div>
+                <ApiTokenPrompt
+                    hideTokenPrompt={this.state.hideTokenPrompt}
+                    hidePrompt={this.hidePrompt}
+                    showPrompt={this.showPrompt}
+                    storeToken={this.storeToken}
+                />
+
+                <Grid className="wrapper">
+                    <GridItem columnSpan={6}>
+                        <VersionDescription
+                            description={VERSION_A_DESCRIPTION}
+                            version="A"
+                        />
+                    </GridItem>
+                    <GridItem columnSpan={6}>
+                        <VersionDescription
+                            description={VERSION_B_DESCRIPTION}
+                            version="B"
+                        />
+                    </GridItem>
+                    <GridItem columnSpan={12}><hr /></GridItem>
+                    <GridItem columnSpan={12}><NewsletterSignups /></GridItem>
+                    <GridItem columnSpan={6}><TotalSubscriptions /></GridItem>
+                    <GridItem columnSpan={6}><TotalCancellations /></GridItem>
+                    <GridItem columnSpan={6}>
+                        <VersionTotals version='a' accountId={ACCOUNT_ID} />
+                    </GridItem>
+                    <GridItem columnSpan={6}>
+                        <VersionTotals version='b' accountId={ACCOUNT_ID} />
+                    </GridItem>
+                    <ChartGroup>
+                        <GridItem columnSpan={6}>
+                            <VersionPageViews version='a' />
+                        </GridItem>
+                        <GridItem columnSpan={6}>
+                            <VersionPageViews version='b' />
+                        </GridItem>
+                    </ChartGroup>
+                    <GridItem columnSpan={12}>
+                        <EndTestSection
+                            accountId={ACCOUNT_ID}
+                            versionADescription={VERSION_A_DESCRIPTION}
+                            versionBDescription={VERSION_B_DESCRIPTION}
+                        />
+                    </GridItem>
+                    <GridItem columnSpan={12}>
+                        <PastTests accountId={ACCOUNT_ID} />
+                    </GridItem>
+                    <GridItem columnSpan={12}>
+                        <ApiTokenButton showPrompt={this.showPrompt} />
+                    </GridItem>
+                </Grid>
+            </div>
+        }
+    }
+    ```
+  </Step>
+
+  <Step>
+    `nru-programmability-course/add-nerdstoragevault/ab-test`にある Nerdpack のルートに移動します。
+  </Step>
+
+  <Step>
+    Nerdpack の新しい UUID を生成します。
+
+    ```sh
+    nr1 nerdpack:uuid -gf
+    ```
+
+    既存の Nerdpack を含むコースワーク リポジトリを複製したため、独自の一意の識別子を生成する必要があります。 この UUID は Nerdpack を New Relic アカウントにマッピングします。 また、アプリがアカウントに代わって Nerdgraph リクエストを行うことも可能になります。
+  </Step>
+
+  <Step>
+    アプリケーションをローカルで提供します。
+
+    ```sh
+    nr1 nerdpack:serve
+    ```
+  </Step>
+
+  <Step>
+    [https://one.newrelic.com?nerdpacks=local](https://one.newrelic.com?nerdpacks=local)にアクセスし、 **Apps \[アプリ] > Your apps \[あなたのアプリ]**でアプリケーションを表示します。
+
+    アプリケーションに初めてアクセスすると、プロンプトが自動的に表示されます。 `TextField`に「ABC123」と入力します。これはサードパーティのサービスが期待するトークンです。 トークンを送信して Nerdlet がプロンプトを非表示にしたら、New Relic アプリケーションの下部にある**Update API token** \[API トークンの更新]をクリックして再度表示します。
+
+    <Callout variant="tip">
+      何かがうまくいかない場合は、 browserのデバッグ ツールを使用して問題を特定してください。
+
+      **以下の点を確認してください:**
+
+      * レッスンからコードを正しくコピーしました
+      * 新しいUUIDを生成しました
+      * プロジェクト内の`<YOUR NEW RELIC ACCOUNT ID>`のすべてのインスタンスを実際の New Relic[アカウント ID](https://docs.newrelic.com/docs/accounts/accounts-billing/account-setup/account-id)に置き換えました
+    </Callout>
+  </Step>
+</Steps>
+
+## APIトークンを渡す `TotalCancellations` [#pass]
+
+<Steps>
+  <Step>
+    `index.js`で、API トークンを`TotalCancellations`に渡して、サードパーティのサービスにリクエストを送信する準備をします。
+
+    ```js
+    import React from 'react';
+    import {
+        ChartGroup,
+        Grid,
+        GridItem,
+        NerdGraphMutation,
+        NerdGraphQuery,
+    } from 'nr1';
+    import EndTestSection from './end-test';
+    import NewsletterSignups from './newsletter-signups';
+    import PastTests from './past-tests';
+    import TotalCancellations from './total-cancellations';
+    import TotalSubscriptions from './total-subscriptions';
+    import VersionDescription from './description';
+    import VersionPageViews from './page-views';
+    import VersionTotals from './totals';
+    import { ApiTokenButton, ApiTokenPrompt } from './token-prompt';
+
+    const ACCOUNT_ID = 123456  // <YOUR NEW RELIC ACCOUNT ID>
+    const VERSION_A_DESCRIPTION = 'The newsletter signup message says, "Sign up for our newsletter"'
+    const VERSION_B_DESCRIPTION = 'The newsletter signup message says, "Sign up for our newsletter and get a free shirt!"'
+
+    export default class AbTestNerdletNerdlet extends React.Component {
+        constructor() {
+            super(...arguments);
+
+            this.state = {
+                hideTokenPrompt: true,
+                token: null,
+            }
+
+            this.storeToken = this.storeToken.bind(this);
+            this.showPrompt = this.showPrompt.bind(this);
+            this.hidePrompt = this.hidePrompt.bind(this);
+        }
+
+        storeToken(newToken) {
+            if (newToken != this.state.token) {
+                const mutation = `
+                    mutation($key: String!, $token: SecureValue!) {
+                        nerdStorageVaultWriteSecret(
+                            scope: { actor: CURRENT_USER }
+                            secret: { key: $key, value: $token }
+                        ) {
+                            status
+                            errors {
+                                message
+                                type
+                            }
+                        }
+                    }
+                `;
+                const variables = {
+                    key: "api_token",
+                    token: newToken,
+                };
+                NerdGraphMutation.mutate({ mutation: mutation, variables: variables }).then(
+                    (data) => {
+                        if (data.data.nerdStorageVaultWriteSecret.status === "SUCCESS") {
+                            this.setState({token: newToken})
+                        }
+                    }
+                );
+            }
+        }
+
+        showPrompt() {
+            this.setState({ hideTokenPrompt: false });
+        }
+
+        hidePrompt() {
+            this.setState({ hideTokenPrompt: true });
+        }
+
+        componentDidMount() {
+            const query = `
+                query($key: String!) {
+                    actor {
+                        nerdStorageVault {
+                            secret(key: $key) {
+                                value
+                            }
+                        }
+                    }
+                }
+            `;
+            const variables = {
+                key: "api_token",
+            };
+
+            NerdGraphQuery.query(
+                {
+                    query: query,
+                    variables: variables,
+                }
+            ).then(
+                ({ loading, error, data }) => {
+                    if (error) {
+                        console.error(error);
+                        this.showPrompt();
+                    }
+
+                    if (data && data.actor.nerdStorageVault.secret) {
+                        this.setState({ token: data.actor.nerdStorageVault.secret.value })
+                    } else {
+                        this.showPrompt();
+                    }
+                }
+            )
+        }
+
+        render() {
+            return <div>
+                <ApiTokenPrompt
+                    hideTokenPrompt={this.state.hideTokenPrompt}
+                    hidePrompt={this.hidePrompt}
+                    showPrompt={this.showPrompt}
+                    storeToken={this.storeToken}
+                />
+
+                <Grid className="wrapper">
+                    <GridItem columnSpan={6}>
+                        <VersionDescription
+                            description={VERSION_A_DESCRIPTION}
+                            version="A"
+                        />
+                    </GridItem>
+                    <GridItem columnSpan={6}>
+                        <VersionDescription
+                            description={VERSION_B_DESCRIPTION}
+                            version="B"
+                        />
+                    </GridItem>
+                    <GridItem columnSpan={12}><hr /></GridItem>
+                    <GridItem columnSpan={12}><NewsletterSignups /></GridItem>
+                    <GridItem columnSpan={6}><TotalSubscriptions /></GridItem>
+                    <GridItem columnSpan={6}>
+                        <TotalCancellations token={this.state.token} />
+                    </GridItem>
+                    <GridItem columnSpan={6}>
+                        <VersionTotals version='a' accountId={ACCOUNT_ID} />
+                    </GridItem>
+                    <GridItem columnSpan={6}>
+                        <VersionTotals version='b' accountId={ACCOUNT_ID} />
+                    </GridItem>
+                    <ChartGroup>
+                        <GridItem columnSpan={6}>
+                            <VersionPageViews version='a' />
+                        </GridItem>
+                        <GridItem columnSpan={6}>
+                            <VersionPageViews version='b' />
+                        </GridItem>
+                    </ChartGroup>
+                    <GridItem columnSpan={12}>
+                        <EndTestSection
+                            accountId={ACCOUNT_ID}
+                            versionADescription={VERSION_A_DESCRIPTION}
+                            versionBDescription={VERSION_B_DESCRIPTION}
+                        />
+                    </GridItem>
+                    <GridItem columnSpan={12}>
+                        <PastTests accountId={ACCOUNT_ID} />
+                    </GridItem>
+                    <GridItem columnSpan={12}>
+                        <ApiTokenButton showPrompt={this.showPrompt} />
+                    </GridItem>
+                </Grid>
+            </div>
+        }
+    }
+    ```
+  </Step>
+
+  <Step>
+    `total-cancellations.js` で、 browserコンソールにトークンをログに記録します。
+
+    ```js
+    import React from 'react';
+    import { HeadingText, PieChart } from 'nr1';
+
+    export default class TotalCancellations extends React.Component {
+        constructor() {
+            super(...arguments);
+
+            this.state = {
+                lastToken: null
+            }
+        }
+
+        componentDidUpdate() {
+            if (this.props.token && this.props.token != this.state.lastToken) {
+                console.log(`requesting data with api token ${this.props.token}`)
+                this.setState({lastToken: this.props.token})
+            }
+        }
+
+        render() {
+            const cancellationsA = {
+                metadata: {
+                    id: 'cancellations-A',
+                    name: 'Version A',
+                    viz: 'main',
+                    color: 'blue',
+                },
+                data: [
+                    { y: 118 },
+                ],
+            }
+            const cancellationsB = {
+                metadata: {
+                    id: 'cancellations-B',
+                    name: 'Version B',
+                    viz: 'main',
+                    color: 'green',
+                },
+                data: [
+                    { y: 400 },
+                ],
+            }
+            return <div>
+                <HeadingText className="chartHeader">
+                    Total cancellations per version
+                </HeadingText>
+                <PieChart data={[cancellationsA, cancellationsB]} fullWidth />
+            </div>
+        }
+    }
+    ```
+
+    ここでは、 `componentDidUpdate()`と呼ばれる別の React ライフサイクル メソッドを実装しました。 これで、Nerdlet の`state.token`が変更されるたびに、 `TotalCancellations`新しいトークン プロパティを取得し、 `componentDidUpdate()`がトリガーされます。 `componentDidUpdate()`では、受信したトークンが、ローカル状態に保存されている最後に認識したトークンと同じではないことを確認します。 受信したトークンが異なる場合は、新しいトークンを使用してメッセージをログに記録し、 `state.lastToken`を更新します。
+
+    このロジックは、サードパーティのサービスへのリクエストで API トークンを使用するための将来の変更に備えてコードを準備します。
+  </Step>
+
+  <Step>
+    Nerdpack がローカルで提供されている場合は、[ のコンソールで](https://one.newrelic.com?nerdpacks=local) からのログを確認するには、 アプリケーションを表示します`TotalCancellations` browser。トークンを変更すると、更新されたトークンを含む`TotalCancellations`からの別のログが表示されます。
+
+    <Callout variant="tip">
+      何かがうまくいかない場合は、 browserのデバッグ ツールを使用して問題を特定してください。
+
+      **以下の点を確認してください:**
+
+      * レッスンからコードを正しくコピーしました
+      * 新しいUUIDを生成しました
+      * プロジェクト内の`<YOUR NEW RELIC ACCOUNT ID>`のすべてのインスタンスを実際の New Relic[アカウント ID](https://docs.newrelic.com/docs/accounts/accounts-billing/account-setup/account-id)に置き換えました
+    </Callout>
+
+    完了したら、ローカル サーバーのターミナル ウィンドウで`CTRL+C`を押して、New Relic アプリケーションの提供を停止します。
+  </Step>
+</Steps>
+
+これで、 `NerdGraphQuery`と`NerdGraphMutation`を使用して`NerdStorageVault`のデータを管理する方法がわかりました。New Relic アプリケーションの非機密データには`NerdStorage`を使用し、トークン、パスワード、その他のシークレットなどの機密データには`NerdStorageVault`使用することを忘れないでください。 ボーナスとして、ユーザー インタフェースから`NerdStorageVault`でトークンを管理する方法も作成しました。 また、後で使用するためにトークンを`TotalCancellations`コンポーネントに渡しました。
+
+`NrqlQuery` 、 `AccountStorageQuery` 、 `AccountStorageMutation` 、 `NerdGraphQuery` 、 `NerdGraphMutation`のいずれを使用しても、New Relic アプリケーションで New Relic データと対話するいくつかの方法を学習しました。 しかし、New Relic アプリケーションは、New Relic データを表示する単なる別の方法ではありません。 New Relic アプリケーションの目的は、ソフトウェアがビジネス目標の達成にどのように役立っているかを示すことです。 場合によっては、New Relic のデータだけで実現できますが、ギャップを埋めるために New Relic 以外のデータを探す必要がある場合もあります。
+
+<Callout variant="tip">
+  このレッスンは、New Relic アプリケーションをゼロから構築する方法を学習するコースの一部です。 次のレッスン「サードパーティのサービスからデータを取得する」に進みます。
+</Callout>
