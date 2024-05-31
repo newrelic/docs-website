@@ -1,167 +1,262 @@
 ---
-title: OpenTelemetryトレース：ベストプラクティス
+title: New Relic の OpenTelemetry トレース
 tags:
   - Integrations
   - Open source telemetry integrations
   - OpenTelemetry
-metaDescription: Here are some tips for working with OpenTelemetry traces and New Relic.
-freshnessValidatedDate: never
+metaDescription: Details on how New Relic works with OpenTelemetry traces
+freshnessValidatedDate: '2024-05-23T00:00:00.000Z'
 translationType: machine
 ---
 
-これらのOpenTelemetryトレーストピックをよく理解して、トレースとスパンがNewRelicに表示されるようにしてください。
+OpenTelemetry 、トレース テレメトリを記録するための[API](https://opentelemetry.io/docs/specs/otel/trace/api/) 、スパン データをエクスポートするための[SDK](https://opentelemetry.io/docs/specs/otel/trace/sdk/) 、アプリケーション境界を越えてトレースするための[コンテキスト トレース](https://opentelemetry.io/docs/specs/otel/context/api-propagators/)など、豊富なトレース エコシステムを提供します。
 
-### 必須項目 [#required]
+このページでは、New Relic が[New Relic OTLP エンドポイント](/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/best-practices/opentelemetry-otlp)経由で受信した OpenTelemetry スパンをどのように処理するかについて説明します。 OpenTelemetryをNew Relicと統合するには、この エージェント にエクスポートするようにトレース ソースを構成する必要があります。 エージェント 設定の要件を確認してください。 OpenTelemetryを使用してサービスを構成する方法については、 [OpenTelemetry APM監視」](/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/get-started/apm-monitoring/opentelemetry-apm-intro)を参照してください。
 
-[トレースデータ](https://github.com/open-telemetry/opentelemetry-proto/blob/74e38fb4882dd500d77b757d44e97de296c65b05/opentelemetry/proto/trace/v1/trace.proto#L145-L159)のOpenTelemetryプロトコルに従って、スパンの`startTimeUnixNano`フィールドと`endTimeUnixNano`フィールドが必要です。 `startTimeUnixNano`が存在しない場合、スパンは削除され、 [`NrIntegrationError`](/docs/telemetry-data-platform/manage-data/nrintegrationerror/)が作成されます。 `endTimeUnixNano`が存在しない場合、スパンの期間は長く、負になります。
+## OTLPスパンマッピング [#otlp-mapping]
 
-スパンイベントの`timeUnixNano`フィールドは必須です。 `timeUnixNano`が存在しない場合、spanイベントはドロップされ、 [`NrIntegrationError`](/docs/telemetry-data-platform/manage-data/nrintegrationerror/)が作成されます。
+New Relic は OTLP スパンを`Span`データ型にマッピングします。 次の表は、 [Span proto メッセージ](https://github.com/open-telemetry/opentelemetry-proto/blob/main/opentelemetry/proto/trace/v1/trace.proto)のフィールドがどのように解釈されるかを示しています。
 
-[トレースデータ](https://github.com/open-telemetry/opentelemetry-proto/blob/74e38fb4882dd500d77b757d44e97de296c65b05/opentelemetry/proto/trace/v1/trace.proto#L73-L84)のOpenTelemetryプロトコルに従って、スパンの`traceId`フィールドと`spanId`フィールドが必要です。 `traceId`または`spanId`が存在しない場合、スパンは削除され、 [`NrIntegrationError`](/docs/telemetry-data-platform/manage-data/nrintegrationerror/)が作成されます。
+<table>
+  <thead>
+    <tr>
+      <th>
+        OTLP スパンのプロトフィールド
+      </th>
 
-### 非推奨および削除されたフィールド [#removed]
+      <th>
+        New Relic `Span`フィールド
+      </th>
+    </tr>
+  </thead>
 
-スパン ステータス コードは[OTLP v0.6.0](https://github.com/open-telemetry/opentelemetry-proto/releases/tag/v0.6.0)で廃止され、 [v0.12.0](https://github.com/open-telemetry/opentelemetry-proto/releases/tag/v0.12.0)で削除されました。これらのメッセージとフィールドを設定して送信するクライアントには、 `UNRECOGNIZED`に設定された値が表示されます。これにより問題が発生する場合は、サポートにお問い合わせください。
+  <tbody>
+    <tr>
+      <td>
+        `ResourceSpans.Resource.attributes`
+      </td>
 
-### サンプリング [#sampling]
+      <td>
+        各キー値は`Span`の属性である**\[1]**
+      </td>
+    </tr>
 
-トレースデータは、最も成熟したOpenTelemetryのデータタイプです。このため、New Relic の OpenTelemetry のユーザーエクスペリエンスは、主にトレースデータに基づいており、したがって、サンプリング戦略に影響されます。
+    <tr>
+      <td>
+        `ScopeSpans.InstrumentationScope.name`
+      </td>
 
-サンプリングの設定は様々な場所で行うことができます。
+      <td>
+        `otel.library.name`
+      </td>
+    </tr>
 
-* <DoNotTranslate>**Service:**</DoNotTranslate>
+    <tr>
+      <td>
+        `ScopeSpans.InstrumentationScope.version`
+      </td>
 
-  ご使用の言語に応じた OpenTelemetry SDK を使用してください。
+      <td>
+        `otel.library.version`
+      </td>
+    </tr>
 
-* <DoNotTranslate>**Collector:**</DoNotTranslate>
+    <tr>
+      <td>
+        `ScopeSpans.InstrumentationScope.attributes`
+      </td>
 
-  独自のOpenTelemetry Collector インスタンスを実行している場合は、tailベースサンプリング ([以下を参照](#infinite-tracing)) などのより高度な形式のサンプリングを実行するように設定できます。
+      <td>
+        各キー値は`Span`の属性である**\[1]**
+      </td>
+    </tr>
 
-さまざまなタイプのサンプリングを設定する方法については、こちらのドキュメントをご覧ください。
+    <tr>
+      <td>
+        `Span.trace_id`
+      </td>
 
-<CollapserGroup>
-  <Collapser
-    className="freq-link"
-    id="built-in"
-    title="OpenTelemetry内蔵サンプラー"
-  >
-    [内蔵サンプラー](https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/trace/sdk.md#built-in-samplers) OpenTelemetry SDKで各言語ごとに実装されています。
-  </Collapser>
+      <td>
+        `trace.id`
+      </td>
+    </tr>
 
-  <Collapser
-    className="freq-link"
-    id="ot-tail-based"
-    title="OpenTelemetryのテールベース・サンプラー"
-  >
-    OpenTelemetry Collector [には、テールベースのサンプリング プロセッサが](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor/tailsamplingprocessor)あります。
-  </Collapser>
+    <tr>
+      <td>
+        `Span.span_id`
+      </td>
 
-  <Collapser
-    className="freq-link"
-    id="infinite-tracing"
-    title="無限トレースによるNew Relic tail ベースサンプリング"
-  >
-    無限トレースはNew Relicの tailbase サンプリング オプションです。 これをOpenTelemetryインストゥルメントされたサービスと組み合わせて使用できます。 Infinite トレースを設定するには、OTLP gRPC を使用してトレース データを New Relic トレース オブザーバーにエクスポートするようにアプリケーション (またはコレクター) を構成する必要があります。
+      <td>
+        `id`
+      </td>
+    </tr>
 
-    1. `YOUR_TRACE_OBSERVER_URL`の値を取得するには [、トレース オブザーバーを設定する](/docs/distributed-tracing/infinite-tracing/set-trace-observer/) の手順に従います。
+    <tr>
+      <td>
+        `Span.trace_state`
+      </td>
 
-    2. [クイック スタート ガイド](/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/opentelemetry-quick-start/#review-settings)の手順を完了したら、 `YOUR_TRACE_OBSERVER_URL`の値を使用して統合を構成します。 `YOUR_TRACE_OBSERVER_URL` `https://{trace-observer}:443/trace/v1`の形式に従います。 OTLP gRPC エンドポイントを設定するときに、 `/trace/v1`サフィックスを削除すると、 `https://{trace-observer}:443`の形式の URL になります。
+      <td>
+        `w3c.tracestate`
+      </td>
+    </tr>
 
-    3. New Relic にすべてのトレースを分析してもらいたいため、トレースに関与するすべてのアプリケーションがテールベースのサンプリングを可能にするサンプラーを使用して OpenTelemetry SDK [を構成して](https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/configuration/sdk-environment-variables.md)いることを必ず確認してください。デフォルトの`parentbased_always_on`と`always_on`サンプラーが適切な選択です。
+    <tr>
+      <td>
+        `Span.parent_span_id`
+      </td>
 
-       トレース・オブザーバー・エンドポイントに送信できるのは、トレース・データのみであることに注意してください。アプリケーション（またはコレクター）は、OpenTelemetryのメトリクスとログのエクスポート戦略を別途設定する必要があります。
-  </Collapser>
-</CollapserGroup>
+      <td>
+        `parent.id`
+      </td>
+    </tr>
 
-### リソース属性と格納されたバイト [#resources]
+    <tr>
+      <td>
+        `Span.name`
+      </td>
 
-OpenTelemetry [リソース属性は、](https://opentelemetry.io/docs/reference/specification/resource/semantic_conventions/) テレメトリを生成するエンティティの不変の表現として定義され、 `attributes`として保存されます。 これらの属性が New Relic 内のトレース データにどのように適用され、保存されたバイトにどのように影響するかを理解することが重要です。OTLP ペイロードの例を使用し、結果の NRQL クエリ出力を検査することで、リソース属性の影響を観察できます。
+      <td>
+        `name`
+      </td>
+    </tr>
 
-OTLP トレース ペイロードの例
+    <tr>
+      <td>
+        `Span.kind`
+      </td>
 
-```json
-{
-    "resourceSpans": [
-        {
-            "resource": {
-                "attributes": [
-                    {
-                        "key": "service.name",
-                        "value": {
-                            "stringValue": "newrelic-otlp-service"
-                        }
-                    },
-                    {
-                        "key": "process.command_line",
-                        "value": {
-                            "stringValue": "/opt/java/openjdk/bin/java -javaagent:agent/opentelemetry-agent.jar"
-                        }
-                    }
-                ]
-            },
-            "scopeSpans": [
-                {
-                    "scope": {
-                        "name": "newrelic-instrumentation-library",
-                        "version": "1.0.0"
-                    },
-                    "spans": [
-                        {
-                            "attributes": [
-                                {
-                                    "key": "message_id",
-                                    "value": {
-                                        "stringValue": "000000-aaaaaa-111111-bbbbbb"
-                                    }
-                                }
-                            ],
-                            "startTimeUnixNano": "1677182057000000000",
-                            "endTimeUnixNano": "1677182059000000000",
-                            "kind": "SPAN_KIND_INTERNAL",
-                            "name": "example-span",
-                            "spanId": "c469d81892057f5f",
-                            "traceId": "aa04993b9acefbedea802f8d96e4bc58"
-                        }
-                    ]
-                }
-            ]
-        }
-    ]
-}
-```
+      <td>
+        `span.kind`
+      </td>
+    </tr>
 
-NRQLクエリの表現
+    <tr>
+      <td>
+        `Span.start_time_unix_nano`
+      </td>
 
-```json
-{
-    "duration.ms": 2000.0,
-    "entity.guid": "OBFUSCATED",
-    "entity.name": "newrelic-otlp-service",
-    "entity.type": "SERVICE",
-    "entityGuid": "OBFUSCATED",
-    "guid": "c469d81892057f5f",
-    "id": "c469d81892057f5f",
-    "instrumentation.provider": "opentelemetry",
-    "message_id": "000000-aaaaaa-111111-bbbbbb",
-    "name": "example-span",
-    "newRelic.ingestPoint": "api.traces",
-    "newrelic.source": "api.traces.otlp",
-    "nr.isPrimaryEntityData": true,
-    "otel.library.name": "newrelic-instrumentation-library",
-    "otel.library.version": "1.0.0",
-    "process.command_line": "/opt/java/openjdk/bin/java -javaagent:agent/opentelemetry-agent.jar",
-    "service.name": "newrelic-otlp-service",
-    "span.kind": "internal",
-    "timestamp": 1677182057000,
-    "trace.id": "aa04993b9acefbedea802f8d96e4bc58",
-    "traceId": "aa04993b9acefbedea802f8d96e4bc58"
-}
-```
+      <td>
+        `timestamp`
+      </td>
+    </tr>
 
-<Callout variant="tip">
-  この例は、基本的な概念を説明するための単純化された比較です。実際のバージョンは、より複雑であるため、外観が少し異なります。
-</Callout>
+    <tr>
+      <td>
+        `Span.end_time_unix_nano`
+      </td>
 
-リソース属性で注意すべき最も重要なことは、送信されるペイロードのサイズが NRDB に格納されているものと比べて異なる可能性があることです。すべてのリソース属性値は、OTLP ペイロードのすべてのスパンに適用されます。上記の例では、単一のスパンのみが送信されていますが、ペイロードに 100 のスパンが含まれている場合、それぞれに`process.command_line`と`service.name`が適用されます。
+      <td>
+        `druation.ms` （計算は `Span.start_time_unix_nano`
+      </td>
+    </tr>
 
-一部の Java ベースのアプリケーションでは、デフォルトの`process.command_line`属性の長さが数千文字になる場合があり、その結果、課金対象バイトが大幅に予期せず増加する可能性があります。 これらのリソース属性が値を提供しない場合は、 [属性の制限](/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/best-practices/opentelemetry-otlp/#attribute-limits)で説明されているベストプラクティスに従って無効にすることができます。
+    <tr>
+      <td>
+        `Span.attributes`
+      </td>
+
+      <td>
+        各キー値は`Span`の属性である**\[1]**
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `Span.dropped_attribute_count`
+      </td>
+
+      <td>
+        `otel.dropped_attributes_count`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `Span.events`
+      </td>
+
+      <td>
+        各イベントは`SpanEvent`として記録され、 `span.id` / `trace.id`はソーススパンを参照し、カウントは次のように保存されます。 `nr.spanEventCount`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `Span.events[*].time_unix_nano`
+      </td>
+
+      <td>
+        `timestamp`として保存 `SpanEvent`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `Span.events[*].name`
+      </td>
+
+      <td>
+        `name`として保存 `SpanEvent`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `Span.events[*].attributes`
+      </td>
+
+      <td>
+        各キー値は、 `SpanEvent`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `Span.events[*].dropped_attributes_count`
+      </td>
+
+      <td>
+        `ote.dropped_Attributes_count`として保存 `SpanEvent`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `Span.dropped_events_count`
+      </td>
+
+      <td>
+        `otel.dropped_events_count`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `Span.status.message`
+      </td>
+
+      <td>
+        `otel.status_description`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `Span.status.code`
+      </td>
+
+      <td>
+        `otel.status_code`
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+### 表の脚注 [#otlp-mapping-notes]
+
+**\[1]**リソース属性、スコープ属性、スパン属性、および最上位のスパンフィールドで競合が発生した場合、優先順位（最高から最低）は次のようになります：最上位の`Span.*`フィールド > `Span.attributes` > `ScopeSpans.InstrumentationScope.attributes` > `ResourceSpans.Resource.attributes` 。
+
+## スパリンクのサポート [#span-links-support]
+
+OpenTelemetry[スパンのリンクは](https://opentelemetry.io/docs/concepts/signals/traces/#span-links)現在 New Relic ではサポートされていません。
