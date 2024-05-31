@@ -1,6 +1,7 @@
 import React from 'react';
 import Markdown from './Markdown';
 import PropTypeInfo from './PropsStuff';
+import { MDXCodeBlock } from '@newrelic/gatsby-theme-newrelic';
 
 const PropList = ({ propTypes }) => {
   return (
@@ -22,8 +23,11 @@ const PropList = ({ propTypes }) => {
               ${prop.deprecation.description}
             </Callout>`}
             <Markdown>{prop.description}</Markdown>
-            {prop.type.raw}
             <PropTypeInfo type={prop.type} />
+            {prop.examples &&
+              prop.examples.map((example) => (
+                <MDXCodeBlock>{example.sourceCode}</MDXCodeBlock>
+              ))}
           </td>
         </tr>
       ))}
