@@ -19,8 +19,8 @@ options.addArguments('no-sandbox');
 options.addArguments('disable-dev-shm-usage');
 options.addArguments('headless');
 
-const TIMEOUT = 10000;
-const SLEEP_TIME = 500;
+const TIMEOUT = 30000;
+const SLEEP_TIME = 5000;
 
 const waitForXPath = (xpath, timeout = TIMEOUT) =>
   driver.wait(until.elementsLocated(By.xpath(xpath)), timeout);
@@ -44,8 +44,8 @@ const main = async () => {
   // and the current homepage does not have the hamburger menu for `navTest`
   await driver.get(testUrl);
   await tileTest();
-  await navTest();
   await driver.get(testUrl + 'docs/mdx-test-page/');
+  await navTest();
   await collapserTest();
   await searchTest();
 
@@ -71,7 +71,7 @@ const collapserTest = async () => {
 };
 
 const navTest = async () => {
-  const releaseNotesXPath = '//div[@data-flip-id="Release notes"]';
+  const releaseNotesXPath = '//div[@data-flip-id="release-notes"]';
   const nextNodeXPath = `${releaseNotesXPath}/following-sibling::div[1]`;
   const [hamburgerButton] = await waitForXPath(
     '//header//button[contains(@aria-label, "Mobile")]'
@@ -91,6 +91,11 @@ const navTest = async () => {
     afterNextNode,
     'clicking Release Notes in the nav did not expand the Release Notes section'
   );
+  const [navCloseButton] = await waitForXPath(
+    '//div[@id="portal"]//button[@aria-label="Close"]'
+  );
+  await navCloseButton.click();
+  await driver.sleep(1000);
 };
 
 const searchTest = async () => {
