@@ -7,7 +7,7 @@ const PropList = ({ propTypes }) => {
   return (
     <table>
       {propTypes.map((prop) => (
-        <tr>
+        <tr key={prop.name}>
           <td>
             <code>{prop.name}</code>
             {prop.deprecation && <h5>DEPRECATED</h5>}

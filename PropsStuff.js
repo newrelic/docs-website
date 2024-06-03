@@ -2,28 +2,15 @@ import React from 'react';
 import { css } from '@emotion/react';
 import PropTypes from 'prop-types';
 import PropList from './PropList';
+import FunctionDefinition from './FunctionDefinition';
 
 const PropTypeInfo = ({ type }) => {
   switch (type.raw) {
     case 'func':
-      return (
-        <>
-          <h5>REPLACE WITH CUSTOM COMPONENT</h5>
-          {type.meta.returnValue.map((value) => (
-            <>
-              <p>return value type: {value.type}</p>
-              <p>return value description: {value.description}</p>
-            </>
-          ))}
-          {type.meta.arguments.map((argument) => (
-            <>
-              <p>argument name: {argument.name}</p>
-              <p>argument type: {argument.type}</p>
-              <p>argument description: {argument.description}</p>
-            </>
-          ))}
-        </>
-      );
+      return `<FunctionDefinition
+          returnValue={${JSON.stringify(type.meta.returnValue)}}
+          arguments={${JSON.stringify(type.meta.arguments)}}
+        />`;
     case 'arrayOf': {
       const { itemTypes } = type.meta;
 

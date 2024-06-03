@@ -33,18 +33,34 @@ const serializeMdxToHtml = async (path, outputPath) => {
 };
 
 const deserializeHtmlToMdx = async (path, outputPath) => {
-  const html = await fs.readFile(path, 'utf-8').catch(cantOpenPath(path));
-  const mdx = await deserializeHTML(html).catch((err) => {
-    console.error('❌ error deserializing HTML');
-    console.error(err);
-    process.exit(1);
+  const htmls = await fs.readdir(path);
+  console.log(htmls);
+  htmls.forEach(async (htmlguy) => {
+    const frontmatter = `---
+title: '${htmlguy.replace('.html', '')}'
+metaDescription: 'Learn how to work the ${htmlguy.replace(
+      '.html',
+      ''
+    )} component'
+freshnessValidatedDate: 2024-06-03
+---\n`;
+    const html = await fs
+      .readFile(path + htmlguy, 'utf-8')
+      .catch(cantOpenPath(path));
+    const mdx = await deserializeHTML(html).catch((err) => {
+      console.error('❌ error deserializing HTML');
+      console.error(err);
+      process.exit(1);
+    });
+    fs.writeFile(
+      `/Users/lbaker/gatsby/docs-website/src/content/docs/new-relic-solutions/build-nr-ui/sdk-component/${htmlguy.replace(
+        '.html',
+        '.mdx'
+      )}`,
+      frontmatter.concat(mdx),
+      'utf-8'
+    );
   });
-
-  if (outputPath) {
-    fs.writeFile(outputPath, mdx, 'utf-8');
-  } else {
-    console.log(mdx);
-  }
 };
 
 const serde = program

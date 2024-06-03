@@ -5,6 +5,8 @@ import { saveAs } from 'file-saver';
 import Markdown from './Markdown';
 import PropList from './PropList';
 import { MDXCodeBlock, Callout } from '@newrelic/gatsby-theme-newrelic';
+import MethodReference from './MethodReference';
+import TypeDefReference from './TypeDefReference';
 
 const components = componentJson.data.allNewRelicSdkComponent.nodes;
 
@@ -15,35 +17,30 @@ const makeHTML = (components) => {
 const Tada = () => {
   const allhtml = components.map((component, i) => {
     // console.log({ index: i, component });
-    return renderToStaticMarkup(<Ohlala component={component} />);
+    return {
+      name: component.name,
+      html: renderToStaticMarkup(<Ohlala component={component} />),
+    };
   });
 
-  console.log('HELLOOOOO', allhtml);
+  // console.log('HELLOOOOO', allhtml);
 
-  // console.log(
-  //   'HELLOOOOO',
-  //   components.length,
-  //   renderToStaticMarkup(<Ohlala component={components[54]} />)
-  // );
+  console.log(allhtml[0]);
 
-  // const downloadAll = allhtml.forEach((html, i) => {
-  //   const blob = new Blob([html], { type: 'html' });
-  //   saveAs(blob, `test${i}.html`);
-  // });
+  const downloadAll = () =>
+    allhtml.slice(90, 100).forEach((component, i) => {
+      console.log('DOWNLOADING:', i);
+      const blob = new Blob([component.html], { type: 'html' });
+      return saveAs(blob, `${component.name}.html`);
+    });
 
   return (
     <div>
-      {/* <p
-        onClick={() => {
-          console.log('hi');
-        }}
-      >
-        hi!
-      </p> */}
-      {/* {components.map((component) => (
+      <button onClick={downloadAll}>hi!</button>
+      {components.map((component) => (
         <Ohlala component={component} />
-      ))} */}
-      <Ohlala component={components[54]} />
+      ))}
+      {/* <Ohlala component={components[54]} /> */}
     </div>
   );
 };
@@ -64,7 +61,7 @@ const Ohlala = ({ component }) => {
       {componentDescription && <Markdown>{componentDescription}</Markdown>}
       <h3>Usage</h3>
       <MDXCodeBlock>{usage}</MDXCodeBlock>
-      {examples && (
+      {examples.length > 0 && (
         <>
           <h3>Examples</h3>
           {examples.map((example, i) => (
@@ -75,20 +72,27 @@ const Ohlala = ({ component }) => {
           ))}
         </>
       )}
-      {propTypes && (
+      {propTypes.length > 0 && (
         <>
           <h3>Props</h3>
           <PropList propTypes={propTypes} />
         </>
       )}
-      {methods && (
+      {methods.length > 0 && (
         <>
           <h3>Methods</h3>
+          {methods.map((method) => (
+            <MethodReference method={method} />
+          ))}
         </>
       )}
-      {typeDefs && (
+      {typeDefs.length > 0 && (
         <>
           <h3>Type definitions</h3>
+          {typeDefs.map(
+            (typeDef) =>
+              `<TypeDefReference typeDef={${JSON.stringify(typeDef)}} />`
+          )}
         </>
       )}
     </div>
