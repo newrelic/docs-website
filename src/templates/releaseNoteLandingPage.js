@@ -105,6 +105,7 @@ const ReleaseNoteLandingPage = ({ data, pageContext, location }) => {
       </PageTitle>
       <Layout.Content
         css={css`
+          overflow-wrap: anywhere;
           & img {
             max-height: 460px;
           }
