@@ -1,0 +1,416 @@
+---
+title: OpenTelemetryでアプリを自動的に計測
+metaDescription: Automatically instrument your app with OpenTelemetry
+freshnessValidatedDate: never
+translationType: machine
+---
+
+OpenTelemetry 、Telemetry での作業方法を標準化します。 したがって、 OpenTelemetryとは何か、どのように機能するか、そしてなぜそれが価値があるのかを学ぶ前に、Telemetry とは何かをしっかりと理解する必要があります。
+
+## 目的 [#objectives]
+
+この最初の章では、次のような質問に対する答えを学びます。
+
+* テレメトリーとは何ですか?
+* どのような種類のデータが関係しているのでしょうか?
+* テレメトリーデータを扱う従来の方法は何ですか?
+
+## 前提知識 [#prereq-knowledge]
+
+この章では TELEMETRY の基礎を紹介するので、これについて事前に経験がある必要はありません。 そうは言っても、以下の点について知っておくと役に立ちます。
+
+* [トレース](/docs/data-apis/understand-data/new-relic-data-types/#trace-data)
+* [指標](/docs/data-apis/understand-data/new-relic-data-types/#dimensional-metrics)
+* [ログ](/docs/data-apis/understand-data/new-relic-data-types/#log-data)
+* テレメトリーエージェント、 New Relicのような
+
+## 手順 [#procedures]
+
+<Steps>
+  <Step>
+    ### ラボ環境を設定する [#set-up]
+
+    1. ラボリポジトリをクローンします。
+
+       ```bash
+       git clone https://github.com/newrelic-experimental/opentelemetry-dotnet-lab-materials
+       ```
+
+    2. 依存関係を復元し、アプリケーションをビルドして実行します。
+
+       ```
+       cd opentelemetry-dotnet-lab-materials
+       dotnet restore app
+       dotnet build app
+       dotnet run --project app
+       ```
+
+       出力には、アプリの URL が表示されます。
+
+       ```bash
+       [output]   Determining projects to restore...
+       [output]   All projects are up-to-date for restore.
+       [output] Microsoft (R) Build Engine version 17.0.0+c9eb9dd64 for .NET
+       [output] Copyright (C) Microsoft Corporation. All rights reserved.
+       [output]
+       [output]   Determining projects to restore...
+       [output]   All projects are up-to-date for restore.
+       [output]   opentelemetry-dotnet-lab-materials -> /workspace/opentelemetry-dotnet-lab-materials/app/bin/Debug/net6.0/opentelemetry-dotnet-lab-materials.dll
+       [output]
+       [output] {success}Build succeeded.
+       [output]     0 Warning(s)
+       [output]     0 Error(s)
+       [output]
+       [output] Time Elapsed 00:00:01.42
+       [output] Building...
+       [output] {success}info: {plain}Microsoft.Hosting.Lifetime[14]
+       [output]       Now listening on: {blue}https://localhost:7072
+       [output] {success}info: {plain}Microsoft.Hosting.Lifetime[0]
+       [output]       Application started. Press Ctrl+C to shut down.
+       [output] {success}info: {plain}Microsoft.Hosting.Lifetime[0]
+       [output]       Hosting environment: Development
+       [output] {success}info: {plain}Microsoft.Hosting.Lifetime[0]
+       [output]       Content root path: /workspace/opentelemetry-dotnet-lab-materials/app/
+       ```
+
+       アプリケーションには `/WeatherForcast` に 1 つの エージェント があり、 browserまたは curl を使用してアクセスできます。
+
+       ```bash
+       curl -k https://localhost:7072/WeatherForecast
+       [output] [{"date":"2021-11-18T16:03:02.655159-05:00","temperatureC":38,"temperatureF":100,"summary":"Chilly"},{"date":"2021-11-19T16:03:02.655161-05:00","temperatureC":-3,"temperatureF":27,"summary":"Mild"},{"date":"2021-11-20T16:03:02.655162-05:00","temperatureC":-8,"temperatureF":18,"summary":"Hot"},{"date":"2021-11-21T16:03:02.655162-05:00","temperatureC":3,"temperatureF":37,"summary":"Cool"},{"date":"2021-11-22T16:03:02.655162-05:00","temperatureC":10,"temperatureF":49,"summary":"Warm"}]
+       ```
+
+       <Callout variant="tip">
+         `-k`オプションを使用して、curl にサイトの SSL 証明書を検証しないように指示します。 これは、localhost に対してリクエストを行っているため問題ありません。
+       </Callout>
+
+       これを開いたままにして、リクエストをシミュレートできるようにします。
+
+    3. 別のターミナル ウィンドウで、負荷ジェネレーターを実行します。
+
+       ```bash
+       cd opentelemetry-dotnet-lab-materials/sim
+       pip install requests
+       python simulator.py
+       ```
+  </Step>
+
+  <Step>
+    ### OpenTelemetryでアプリケーションを計測する [#instrument]
+
+    .NET アプリケーションが実行されており、大量のトラフィックが発生しています。 OpenTelemetry を使用すると、単一のベンダーに縛られることがなくなり、オープンであり、セキュリティ分野の多くの関係者によってサポートされているため、 OpenTelemetryで実装することをお勧めします。
+
+    ここでは、 [OpenTelemetry SDK を](https://github.com/open-telemetry/opentelemetry-dotnet)簡単に構成して、アプリケーションからメトリックとトレースを自動的に収集し、 New Relicに送信して後で結果を分析できるようにする方法について説明します。
+
+    1. サーバーをシャットダウンします。
+
+       開発サーバーを実行しているターミナル ウィンドウで、 `<CTRL-C>`を押します。 サーバーがシャットダウンされたことがわかります。 これで、依存関係を追加してアプリのロジックを更新できます。
+
+    2. OpenTelemetry SDK とサポート パッケージを追加します。
+
+       ```bash
+       dotnet add app package --prerelease OpenTelemetry
+       dotnet add app package --prerelease OpenTelemetry.Instrumentation.AspNetCore
+       dotnet add app package --prerelease OpenTelemetry.Exporter.OpenTelemetryProtocol
+       dotnet add app package --prerelease OpenTelemetry.Extensions.Hosting
+       ```
+
+    3. OpenTelemetry パイプラインを構成するために使用する 2 つの環境変数を作成します。 プレースホルダーを実際の値に置き換えることを忘れないでください。
+
+       ```bash
+       export OTEL_EXPORTER_OTLP_ENDPOINT=<REGION-BASED-OTLP-ENDPOINT>
+       export NR_LICENSE_KEY=<YOUR-NEW-RELIC-LICENSE-KEY>
+       ```
+
+       [OpenTelemetry プロトコル](https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/protocol/otlp.md)(OTLP) エンドポイントは、OpenTelemetry レシーバーの URL です。 サービスは、このエンドポイントを通じてデータを直接 New Relic に送信します。 [米国のエンドポイントと EU のエンドポイントがあります](/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/get-started/opentelemetry-get-started-intro/)ので、地域に応じて適切なものを選択してください。
+
+       には、それぞれ異なる目的を果たす、いくつかの異なるタイプのAPI キーが用意されています。New RelicOpenTelemetryを使用してアプリケーションを計測するには、[ライセンス](/docs/apis/intro-apis/new-relic-api-keys)が必要です。
+
+    4. `app/Program.cs`でリソース ビルダーを作成します。
+
+       ```jsx fileName=app/Program.cs
+       using OpenTelemetry.Resources;
+
+       var builder = WebApplication.CreateBuilder(args);
+
+       builder.Services.AddControllers();
+       builder.Services.AddEndpointsApiExplorer();
+       builder.Services.AddSwaggerGen();
+
+       var resourceBuilder = ResourceBuilder
+           .CreateDefault()
+           .AddService("Weather-Forecast")
+           .AddAttributes(new Dictionary<string, object> {
+               { "environment", "production" }
+           })
+           .AddTelemetrySdk();
+
+       var app = builder.Build();
+
+       if (app.Environment.IsDevelopment())
+       {
+           app.UseSwagger();
+           app.UseSwaggerUI();
+       }
+
+       app.UseHttpsRedirection();
+
+       app.UseAuthorization();
+
+       app.MapControllers();
+
+       app.Run();
+       ```
+
+       [OpenTelemetry リソースは、](https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/resource/sdk.md)サービスを属性のコレクションとして記述します。
+
+       ここでは、デフォルトのリソース属性に加えて、サービス名と環境を定義します。 また、 `AddTelemetrySdk()`を呼び出すと、次のような OpenTelemetry のセマンティック規則内で定義された一連の標準属性が追加されます。
+
+       * `telemetry.sdk.name`
+       * `telemetry.sdk.language`
+       * `telemetry.sdk.version`
+
+       これは、New Relic がアプリケーションに合わせてカスタマイズされたエクスペリエンスを提供するのに役立つため重要です。 このリソース ビルダーを使用して、テレメトリ パイプラインを構成します。 こうすることで、これらの属性は、このサービスが生成するすべてのメトリックとトレースに関連付けられます。
+
+    5. [トレース](/docs/apm/transactions/transaction-traces/introduction-transaction-traces)用に OpenTelemetry SDK を設定します。
+
+       ```jsx fileName=app/Program.cs
+       using OpenTelemetry.Resources;
+       using OpenTelemetry.Trace;
+
+       var builder = WebApplication.CreateBuilder(args);
+
+       builder.Services.AddControllers();
+       builder.Services.AddEndpointsApiExplorer();
+       builder.Services.AddSwaggerGen();
+
+       var resourceBuilder = ResourceBuilder
+           .CreateDefault()
+           .AddService("Weather-Forecast")
+           .AddAttributes(new Dictionary<string, object> {
+               { "environment", "production" }
+           })
+           .AddTelemetrySdk();
+
+       builder.Services.AddOpenTelemetryTracing(tracerProviderBuilder =>
+       {
+           tracerProviderBuilder
+               .SetResourceBuilder(resourceBuilder);
+
+           tracerProviderBuilder
+               .AddAspNetCoreInstrumentation(options =>
+               {
+                   options.RecordException = true;
+                   options.Filter = (context) =>
+                   {
+                       return context.Request.Method == "GET";
+                   };
+               });
+
+           tracerProviderBuilder
+               .AddSource("WeatherForecast");
+
+           tracerProviderBuilder
+               .AddOtlpExporter(options =>
+               {
+                   options.Endpoint = new Uri($"{Environment.GetEnvironmentVariable("OTEL_EXPORTER_OTLP_ENDPOINT")}");
+                   options.Headers = $"api-key={Environment.GetEnvironmentVariable("NR_LICENSE_KEY")}";
+               });
+       });
+
+       var app = builder.Build();
+
+       if (app.Environment.IsDevelopment())
+       {
+           app.UseSwagger();
+           app.UseSwaggerUI();
+       }
+
+       app.UseHttpsRedirection();
+
+       app.UseAuthorization();
+
+       app.MapControllers();
+
+       app.Run();
+       ```
+
+       `AddOpenTelemetryTracing()` トレーサー プロバイダーを構築するデリゲートを受け取り、そのトレーサー プロバイダーは OpenTelemetry エクスポーターにトレースを自動的に提供します。
+
+       まず、トレーサー プロバイダーを構成する際に、最後の手順で作成したリソース ビルダーを指定します。 これにより、以前に定義した属性がサービスからのすべてのトレースに関連付けられます。 次に、 `tracerProviderBuilder.AddAspNetCoreInstrumentation()`を使用して、自動インストゥルメンテーションをリッスンするように SDK を構成します。 また、例外を記録し、GETリクエストのみを追跡するように指示します。 最後に、先ほど定義した環境変数を使用して、トレースを New Relic にエクスポートするように OTLP エクスポーターを構成します。
+
+    6. [メトリクス](/docs/data-apis/understand-data/new-relic-data-types)用の OpenTelemetry SDK を設定します。
+
+       ```jsx fileName=app/Program.cs
+       using OpenTelemetry.Metrics;
+       using OpenTelemetry.Resources;
+       using OpenTelemetry.Trace;
+
+       var builder = WebApplication.CreateBuilder(args);
+
+       builder.Services.AddControllers();
+       builder.Services.AddEndpointsApiExplorer();
+       builder.Services.AddSwaggerGen();
+
+       var resourceBuilder = ResourceBuilder
+           .CreateDefault()
+           .AddService("Weather-Forecast")
+           .AddAttributes(new Dictionary<string, object> {
+               { "environment", "production" }
+           })
+           .AddTelemetrySdk();
+
+       builder.Services.AddOpenTelemetryTracing(tracerProviderBuilder =>
+       {
+           tracerProviderBuilder
+               .SetResourceBuilder(resourceBuilder);
+
+           tracerProviderBuilder
+               .AddAspNetCoreInstrumentation(options =>
+               {
+                   options.RecordException = true;
+                   options.Filter = (context) =>
+                   {
+                       return context.Request.Method == "GET";
+                   };
+               });
+
+           tracerProviderBuilder
+               .AddSource("WeatherForecast");
+
+           tracerProviderBuilder
+               .AddOtlpExporter(options =>
+               {
+                   options.Endpoint = new Uri($"{Environment.GetEnvironmentVariable("OTEL_EXPORTER_OTLP_ENDPOINT")}");
+                   options.Headers = $"api-key={Environment.GetEnvironmentVariable("NR_LICENSE_KEY")}";
+               });
+       });
+
+       builder.Services.AddOpenTelemetryMetrics(meterProviderBuilder =>
+       {
+           meterProviderBuilder
+               .SetResourceBuilder(resourceBuilder);
+
+           meterProviderBuilder
+               .AddAspNetCoreInstrumentation();
+
+           meterProviderBuilder
+               .AddOtlpExporter(options =>
+               {
+                   options.Endpoint = new Uri($"{Environment.GetEnvironmentVariable("OTEL_EXPORTER_OTLP_ENDPOINT")}");
+                   options.Headers = $"api-key={Environment.GetEnvironmentVariable("NR_LICENSE_KEY")}";
+                   options.AggregationTemporality = AggregationTemporality.Delta;
+               });
+       });
+
+       var app = builder.Build();
+
+       if (app.Environment.IsDevelopment())
+       {
+           app.UseSwagger();
+           app.UseSwaggerUI();
+       }
+
+       app.UseHttpsRedirection();
+
+       app.UseAuthorization();
+
+       app.MapControllers();
+
+       app.Run();
+       ```
+
+       `MetricsProviderBuilder`を構成すること以外は、トレースを構成する方法とほぼ同じです。
+
+       ただし、重要な詳細が 1 つあります。 現在、 New Relic [デルタ集約テンポラリティ](https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/metrics/datamodel.md#temporality)を使用した OTLP 経由のメトリックの送信のみをサポートしています。 SDK のデフォルトの集計時間性は累積的であるため、ここでは`Delta`を指定します。
+
+    **アプリケーションを再起動します**
+
+    アプリケーション ロジックを変更したので、ローカル サーバーを再起動する必要があります。 必ず、環境変数を設定したのと同じターミナル ウィンドウでこれを実行してください。
+
+    1. 再起動します:
+
+       ```bash
+       dotnet restore app
+       dotnet build app
+       dotnet run --project app
+       [output]
+       [output]   Determining projects to restore...
+       [output]   All projects are up-to-date for restore.
+       [output] Microsoft (R) Build Engine version 17.0.0+c9eb9dd64 for .NET
+       [output] Copyright (C) Microsoft Corporation. All rights reserved.
+       [output]
+       [output]   Determining projects to restore...
+       [output]   All projects are up-to-date for restore.
+       [output]   opentelemetry-dotnet-lab-materials -> /workspace/opentelemetry-dotnet-lab-materials/app/bin/Debug/net6.0/app.dll
+       [output]
+       [output] {success}Build succeeded.
+       [output]     0 Warning(s)
+       [output]     0 Error(s)
+       [output]
+       [output] Time Elapsed 00:00:01.16
+       [output] Building...
+       [output] {green}info: {plain}Microsoft.Hosting.Lifetime[14]
+       [output]       Now listening on: {blue}https://localhost:7072
+       [output] {green}info: {plain}Microsoft.Hosting.Lifetime[0]
+       [output]       Application started. Press Ctrl+C to shut down.
+       [output] {green}info: {plain}Microsoft.Hosting.Lifetime[0]
+       [output]       Hosting environment: Development
+       [output] {green}info: {plain}Microsoft.Hosting.Lifetime[0]
+       [output]       Content root path: /workspace/opentelemetry-dotnet-lab-materials/app/
+       [output] {green}info: {plain}Microsoft.Hosting.Lifetime[0]
+       ```
+
+       これで、サーバーが再び稼働します。 ただし、シャットダウンしたため、負荷ジェネレーターがアプリを見つけられず、失敗した可能性があります。 実行されていない場合は、これも再起動してください。
+
+    2. 負荷ジェネレーターを実行したターミナル ウィンドウで、負荷ジェネレーターを再起動します。
+
+       ```bash
+       python simulator.py
+       ```
+
+       OTLP レシーバーを使用してメトリックとトレースをNew Relicに送信するアプリケーションをインストゥルメントしました。 サービスと負荷ジェネレーターも再起動しました。 さて、データを見てみましょう。
+  </Step>
+
+  <Step>
+    ### OpenTelemetryのデータをNew Relicで見ることができます。 [#view]
+
+    OpenTelemetryを使用して天気予報アプリケーションをインストゥルメントし、メトリックとトレース データをNew Relicに送信しています。
+
+    ここで、 New Relicに移動して、 OpenTelemetryがわずか数行の SDK コードで自動的に収集できた詳細なテレメトリーデータの種類を確認します。
+
+    1. [New Relic](https://one.newrelic.com)にログインします。
+
+    2. エンティティ エクスプローラーで、 **Weather-Forecast** OpenTelemetry サービスをクリックします。これにより、次のようなアプリケーションからのトレース データを表示するサービス ビューが表示されます。
+
+       * レスポンスタイム
+       * スループット
+       * エラー率
+
+    3. 左側のナビゲーションで、 **Distributed tracing**\[ディストリビューティッド（分散）トレーシング]をクリックします。 これには、OpenTelemetry SDK がサービスで自動的にキャプチャした次のようなトレース データが表示されます。
+
+       * トレース数
+       * トレース時間
+       * トレースグループ
+
+    4. **Trace groups**\[トレース グループ]の下で、 **WeatherForecast**グループをクリックします。 このグループも同様の痕跡を示しています。 アプリケーションにはエンドポイントが 1 つしかないため、すべてのトレースがグループ化されます。
+
+    5. トレースの 1 つをクリックします。 天気予報アプリケーションはシンプルなので、トレースにはスパンが 1 つだけあります。
+
+    6. スパンをクリックします。 ここでは、パフォーマンス メトリックだけでなく、 OpenTelemetryが送信した属性も含め、特定のスパンに関する情報が表示されます。
+
+    7. **Attributes**\[属性]をクリックします。 ここで表示される属性の多くは、SDK コードで構成しました。
+
+    8. New Relicにはまだ .NET OpenTelemetryメトリックス データのキュレートされたエクスペリエンスはありませんが、メトリックス エクスプローラーでメトリックスを確認できます。
+  </Step>
+</Steps>
+
+## 概要 [#summary]
+
+WeatherForecast の開発者として、 OpenTelemetryを使用してアプリケーションをインストゥルメントし、収集されたメトリックとトレースを自動的にNew Relicに送信できるようになりました。 また、.NET エージェントではなくOpenTelemetryを使用してアプリをインストゥルメントしたため、データの使用方法がより柔軟になります。 たとえば、New Relic 以外のバックエンド データ ソースを追加する場合、別のベンダー固有のエージェントを追加しなくても簡単に変更できます。
+
+OpenTelemetryを使用して .NET アプリケーションを設計し、そのデータをNew Relicに送信する方法がわかったので、次にNew RelicとOpenTelemetryについてさらに理解を深めるために実行できる操作をいくつか紹介します。
+
+* [OpenTelemetryの例のリポジトリ](https://github.com/newrelic/newrelic-opentelemetry-examples)をご覧ください
+* [OpenTelemetry の .NET SDK](https://github.com/open-telemetry/opentelemetry-dotnet)の詳細
+* [New Relic + OpenTelemetryに関するドキュメントを](/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/opentelemetry-introduction/)読む
