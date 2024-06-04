@@ -17,7 +17,6 @@ import ProductTile from '../components/ProductTile';
 import ErrorBoundary from '../components/ErrorBoundary';
 import FeedbackModal from '../components/FeedbackModal';
 import { OnboardingContainer, OnboardingStep } from '../components/Onboarding';
-import Tada from '../../createHtml';
 
 import enJson from '../i18n/translations/en/translation.json';
 import krJson from '../i18n/translations/kr/translation.json';
@@ -56,8 +55,6 @@ const HomePage = ({ data }) => {
   return (
     <ErrorBoundary eventName="homepage">
       <HomepageBanner />
-      <Tada />
-
       {/* ------ Onboarding steps ------ */}
       <Section
         layout={layout}

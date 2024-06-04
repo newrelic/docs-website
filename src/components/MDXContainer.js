@@ -14,6 +14,7 @@ import cx from 'classnames';
 
 import { DocTile, DocTiles } from './DocTile';
 import EolPage from './EolPage';
+import FunctionDefinition from '../../FunctionDefinition';
 import HeaderLink from './HeaderLink';
 import LandingPageHero from './LandingPageHero';
 import LandingPageTile from './LandingPageTile';
@@ -25,11 +26,13 @@ import MDXButton from './MDXButton';
 import MDXButtonGroup from './MDXButtonGroup';
 import ContributorNote from './ContributorNote';
 import MDXTechTileGrid from './MDXTechTileGrid';
+import OptionReference from '../../OptionReference';
 import PropTypes from 'prop-types';
 import React from 'react';
 import TechTile from './TechTile';
 import UserJourneyControls from './UserJourneyControls';
 import WhatsNextTile from './WhatsNextTile';
+import TypeDefReference from '../../TypeDefReference';
 
 const defaultComponents = {
   a: (props) => <MDXLink {...props} displayExternalIcon />,
@@ -88,11 +91,13 @@ const defaultComponents = {
   ExternalLink: (props) => (
     <ExternalLink {...props} onClick={(e) => e.stopPropagation()} />
   ),
+  FunctionDefinition,
   HeaderLink,
   HeroContent: ({ children }) => <>{children}</>,
   LandingPageHero,
   LandingPageTile,
   LandingPageTileGrid,
+  OptionReference,
   TechTile,
   TechTileGrid: MDXTechTileGrid,
   Button: MDXButton,
@@ -105,6 +110,7 @@ const defaultComponents = {
   TabsBarItem: Tabs.BarItem,
   TabsPageItem: Tabs.Page,
   TabsPages: Tabs.Pages,
+  TypeDefReference,
   InlineSignup,
   InlinePopover,
   InstallFeedback,
