@@ -1,7 +1,7 @@
 ---
 title: 'Manage vulnerabilities with new “Ignored” feature'
 summary: 'Remove noncritical vulnerabilities from Vulnerability Management default views.'
-releaseDate: '2023-05-13'
+releaseDate: '2024-06-04'
 learnMoreLink: 'https://docs.newrelic.com/docs/vulnerability-management/change-vulnerability-status/' 
 getStartedLink: 'https://docs.newrelic.com/docs/vulnerability-management'
 ---
