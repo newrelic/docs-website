@@ -20,7 +20,7 @@ options.addArguments('disable-dev-shm-usage');
 options.addArguments('--headless=new');
 
 const TIMEOUT = 30000;
-const SLEEP_TIME = 5000;
+const SLEEP_TIME = 2000;
 
 const waitForXPath = (xpath, timeout = TIMEOUT) =>
   driver.wait(until.elementsLocated(By.xpath(xpath)), timeout);
