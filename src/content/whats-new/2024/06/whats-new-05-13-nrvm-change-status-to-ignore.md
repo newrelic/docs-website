@@ -1,7 +1,7 @@
 ---
 title: 'Manage vulnerabilities with new “Ignored” feature'
 summary: 'Remove noncritical vulnerabilities from Vulnerability Management default views.'
-releaseDate: '2024-06-04'
+releaseDate: '2024-06-05'
 learnMoreLink: 'https://docs.newrelic.com/docs/vulnerability-management/change-vulnerability-status/' 
 getStartedLink: 'https://docs.newrelic.com/docs/vulnerability-management'
 ---
@@ -9,8 +9,6 @@ getStartedLink: 'https://docs.newrelic.com/docs/vulnerability-management'
 Vulnerability Management now allows you to remove noncritical vulnerabilities from views by assigning individual entities the **Ignored** status so specific vulnerabilities no longer appear in default views. This can reduce the volume of vulnerabilities that require your attention.
 
 If you're in DevSecOp, this option let's you claim back time spent triaging and remediating noncritical vulnerabilities by providing industry-leading prioritization capabilities and the ability to customize vulnerability notifications so you can focus on those risks that matter. 
-
-The **Ignored** status capability allows you to assign individual entities the **Ignored** status so their vulnerabilities no longer appear in Vulnerability Management default views, removing those items from triaging and remediation workflows which improves user productivity and reduces toil.
 
 Key Capabilities:
 * **Ignore specific or groups of entities**: Vulnerability Management users can ignore vulnerabilities for a specific entity or ignore a vulnerability across multiple instances. Once the status of an instance is set to **Ignored**, this instance will be excluded from the summary tiles and vulnerability list by default.
