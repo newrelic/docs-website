@@ -17,7 +17,7 @@ const options = new Options().setMobileEmulation({
 // options required for github action to run chromedriver properly
 options.addArguments('no-sandbox');
 options.addArguments('disable-dev-shm-usage');
-options.addArguments('headless');
+options.addArguments('--headless=new');
 
 const TIMEOUT = 30000;
 const SLEEP_TIME = 5000;
