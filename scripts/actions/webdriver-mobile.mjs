@@ -79,12 +79,15 @@ const navTest = async () => {
   console.log('\nOpening mobile Nav menu');
   let _desktopRN;
   let releaseNotes;
+  const MAX_TRIES = 3;
+  let tries = 0;
   do {
     await hamburgerButton.click();
     await driver.sleep(SLEEP_TIME);
     // nav on mobile is a new list, the desktop nav comes first in the DOM but is hidden
     [_desktopRN, releaseNotes] = await waitForXPath(releaseNotesXPath);
-  } while (releaseNotes == null);
+    tries += 1;
+  } while (releaseNotes == null && tries < MAX_TRIES);
   const [_desktopINN, initialNextNode] = await waitForXPath(nextNodeXPath);
   await driver.executeScript('arguments[0].scrollIntoView()', releaseNotes);
   console.log('\nClicking Release Notes div');
