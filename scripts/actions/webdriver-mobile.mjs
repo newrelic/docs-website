@@ -77,15 +77,14 @@ const navTest = async () => {
     '//header//button[contains(@aria-label, "Mobile")]'
   );
   console.log('\nOpening mobile Nav menu');
-  await hamburgerButton.click();
-  await driver.sleep(SLEEP_TIME);
-  // nav on mobile is a new list, the desktop nav comes first in the DOM but is hidden
-  let [_desktopRN, releaseNotes] = await waitForXPath(releaseNotesXPath);
-  while (releaseNotes == null) {
-    const result = await waitForXPath(releaseNotesXPath);
-    _desktopRN = result[0];
-    releaseNotes = result[1];
-  }
+  let _desktopRN;
+  let releaseNotes;
+  do {
+    await hamburgerButton.click();
+    await driver.sleep(SLEEP_TIME);
+    // nav on mobile is a new list, the desktop nav comes first in the DOM but is hidden
+    [_desktopRN, releaseNotes] = await waitForXPath(releaseNotesXPath);
+  } while (releaseNotes == null);
   const [_desktopINN, initialNextNode] = await waitForXPath(nextNodeXPath);
   await driver.executeScript('arguments[0].scrollIntoView()', releaseNotes);
   console.log('\nClicking Release Notes div');
