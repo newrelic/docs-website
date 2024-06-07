@@ -1,0 +1,1000 @@
+---
+title: Presentar un modal de confirmación de finalización de la prueba.
+metaDescription: Present an end test confirmation modal
+freshnessValidatedDate: never
+translationType: machine
+---
+
+<Callout variant="tip">
+  Esta lección es parte de un curso que le muestra cómo crear una aplicación New Relic desde cero. Si aún no lo hiciste, consulta la descripción general.
+
+  Cada lección del curso se basa en la anterior, así que cerciorar de completar la última lección y persista en la versión seleccionada, antes de comenzar esta.
+</Callout>
+
+En este tutorial, estás creando una aplicación Prueba A/B. La aplicación muestra datos sobre una Prueba A/B en curso en su sitio web, que luego emplea para decidir qué versión de diseño de página es más efectiva para atraer al usuario. Como parte de ese objetivo general, está creando una sección que le permitirá finalizar la prueba decidiendo un ganador del experimento.
+
+Lamentablemente, existen algunos problemas con el código y el diseño de esta sección. Al final de este curso, al presionar **End test** le indicará al servidor backend de su sitio web que todos los clientes deberían ver la versión seleccionada aquí. Este es un comportamiento destructivo porque realiza un cambio irreversible en su sitio web. Para tener en cuenta la destructividad de presionar **End test**, debes modificar alguna característica de tu aplicación:
+
+* Haz que el botón parezca importante para llamar tu atención
+* Síguete con un mensaje de confirmación antes de finalizar la prueba para cerciorarte de no finalizarla prematuramente.
+
+## Muestra y oculta tu modal de confirmación [#show-hide]
+
+<Steps>
+  <Step>
+    Cambie al directorio `present-confirmation-modal/ab-test` del [repositorio de trabajos del curso](https://github.com/newrelic-experimental/nru-programmability-course):
+
+    ```sh
+    cd nru-programmability-course/present-confirmation-modal/ab-test
+    ```
+
+    Este directorio contiene el código que su aplicación debe tener en este punto del curso. Al navegar al directorio correcto al comienzo de cada lección, deja atrás su código personalizado, proteger así de llevar código incorrecto de una lección a la siguiente.
+  </Step>
+
+  <Step>
+    En `nerdlets/ab-test-nerdlet/end-test.js`, actualice `Button` para usar el estilo `DESTRUCTIVE` :
+
+    ```js
+    import React from 'react';
+    import {
+        Button,
+        Grid,
+        GridItem,
+        HeadingText,
+        Select,
+        SelectItem,
+    } from 'nr1';
+
+    class VersionSelector extends React.Component {
+        constructor(props) {
+            super(props);
+        }
+
+        render() {
+            return <Select onChange={this.props.selectVersion} value={this.props.selectedVersion}>
+                <SelectItem value={'A'}>Version A</SelectItem>
+                <SelectItem value={'B'}>Version B</SelectItem>
+            </Select>
+        }
+    }
+
+    class EndTestButton extends React.Component {
+        render() {
+            return <div>
+                <Button type={Button.TYPE.DESTRUCTIVE}>End test</Button>
+            </div>
+        }
+    }
+
+    export default class EndTestSection extends React.Component {
+        constructor() {
+            super(...arguments);
+
+            this.state = {
+                selectedVersion: 'A',
+            };
+
+            this.selectVersion = this.selectVersion.bind(this);
+        }
+
+        selectVersion(event, value) {
+            this.setState({ selectedVersion: value });
+        }
+
+        render() {
+            return <Grid className="endTestSection">
+                <GridItem columnSpan={12}>
+                    <HeadingText className="endTestHeader">
+                        Pick the winner of your A/B test:
+                    </HeadingText>
+                </GridItem>
+                <GridItem columnStart={5} columnEnd={6} className="versionSelector">
+                    <VersionSelector
+                        selectedVersion={this.state.selectedVersion}
+                        selectVersion={this.selectVersion}
+                    />
+                </GridItem>
+                <GridItem columnStart={7} columnEnd={8}>
+                    <EndTestButton>End test</EndTestButton>
+                </GridItem>
+            </Grid>
+        }
+    }
+    ```
+  </Step>
+
+  <Step>
+    Navega hasta la raíz de tu Nerdpack en `nru-programmability-course/present-confirmation-modal/ab-test`.
+  </Step>
+
+  <Step>
+    Genera un nuevo UUID para tu Nerdpack:
+
+    ```sh
+    nr1 nerdpack:uuid -gf
+    ```
+
+    Debido a que clonaste el repositorio de trabajos del curso que contenía un Nerdpack existente, necesitas generar tu propio identificador único. Este UUID asigna su Nerdpack a su cuenta New Relic.
+  </Step>
+
+  <Step>
+    Entregue su aplicación localmente:
+
+    ```sh
+    nr1 nerdpack:serve
+    ```
+  </Step>
+
+  <Step>
+    Vaya a [https://one.newrelic.com?nerdpacks=local](https://one.newrelic.com?nerdpacks=local) y vea su aplicación en **Apps > Your apps**.
+
+    Ahora diseñó su botón para transmitir sus consecuencias destructivas, pero eso no es suficiente para evitar que haga clic en él accidentalmente. A continuación, crea un escudo para el backend de su sitio web. Esta capa adicional de protección requiere que usted confirme que tiene la intención de finalizar la prueba antes de hacerlo.
+  </Step>
+
+  <Step>
+    Agregue un `Modal` a `EndTestButton`:
+
+    ```js
+    import React from 'react';
+    import {
+        BlockText,
+        Button,
+        Grid,
+        GridItem,
+        HeadingText,
+        Modal,
+        Select,
+        SelectItem,
+    } from 'nr1';
+
+    class VersionSelector extends React.Component {
+        constructor(props) {
+            super(props);
+        }
+
+        render() {
+            return <Select onChange={this.props.selectVersion} value={this.props.selectedVersion}>
+                <SelectItem value={'A'}>Version A</SelectItem>
+                <SelectItem value={'B'}>Version B</SelectItem>
+            </Select>
+        }
+    }
+
+    class EndTestButton extends React.Component {
+        render() {
+            return <div>
+                <Button type={Button.TYPE.DESTRUCTIVE}>End test</Button>
+
+                <Modal>
+                    <HeadingText>Are you sure?</HeadingText>
+                    <BlockText>
+                        If you end the test, all your users will receive the version you selected:
+                    </BlockText>
+
+                    <BlockText spacingType={[BlockText.SPACING_TYPE.LARGE]}>
+                        <b>Version A</b>
+                    </BlockText>
+
+                    <Button>No, continue test</Button>
+                    <Button type={Button.TYPE.DESTRUCTIVE}>Yes, end test</Button>
+                </Modal>
+            </div>
+        }
+    }
+
+    export default class EndTestSection extends React.Component {
+        constructor() {
+            super(...arguments);
+
+            this.state = {
+                selectedVersion: 'A',
+            };
+
+            this.selectVersion = this.selectVersion.bind(this);
+        }
+
+        selectVersion(event, value) {
+            this.setState({ selectedVersion: value });
+        }
+
+        render() {
+            return <Grid className="endTestSection">
+                <GridItem columnSpan={12}>
+                    <HeadingText className="endTestHeader">
+                        Pick the winner of your A/B test:
+                    </HeadingText>
+                </GridItem>
+                <GridItem columnStart={5} columnEnd={6} className="versionSelector">
+                    <VersionSelector
+                        selectedVersion={this.state.selectedVersion}
+                        selectVersion={this.selectVersion}
+                    />
+                </GridItem>
+                <GridItem columnStart={7} columnEnd={8}>
+                    <EndTestButton>End test</EndTestButton>
+                </GridItem>
+            </Grid>
+        }
+    }
+    ```
+
+    Su nuevo modal contiene un encabezado, un mensaje de confirmación, la versión del diseño ganador y dos botones. Explorará algunos de estos componentes más adelante en este curso.
+
+    Con su Nerdpack servido localmente, [vea su aplicación](https://one.newrelic.com?nerdpacks=local) para ver su nuevo `Modal`.
+
+    <Callout variant="tip">
+      Recuerde, mientras su servidor esté funcionando, se actualizará automáticamente cuando almacene su código.
+    </Callout>
+
+    El modal se ve muy bien, pero tiene tres problemas:
+
+    * Estaba presente antes de hacer clic en **End test**
+    * No puedes descartarlo
+    * Siempre dice que seleccionó la "Versión A", incluso si no lo hizo
+
+    En los siguientes pasos, corregirá estos tres problemas.
+  </Step>
+
+  <Step>
+    En `EndTestButton`, inicializa `state` con un valor para `modalHidden`:
+
+    ```js
+    import React from 'react';
+    import {
+        BlockText,
+        Button,
+        Grid,
+        GridItem,
+        HeadingText,
+        Modal,
+        Select,
+        SelectItem,
+    } from 'nr1';
+
+    class VersionSelector extends React.Component {
+        constructor(props) {
+            super(props);
+        }
+
+        render() {
+            return <Select onChange={this.props.selectVersion} value={this.props.selectedVersion}>
+                <SelectItem value={'A'}>Version A</SelectItem>
+                <SelectItem value={'B'}>Version B</SelectItem>
+            </Select>
+        }
+    }
+
+    class EndTestButton extends React.Component {
+        constructor(props) {
+            super(props);
+
+            this.state = {
+                modalHidden: true,
+            }
+        }
+
+        render() {
+            return <div>
+                <Button type={Button.TYPE.DESTRUCTIVE}>End test</Button>
+
+                <Modal>
+                    <HeadingText>Are you sure?</HeadingText>
+                    <BlockText>
+                        If you end the test, all your users will receive the version you selected:
+                    </BlockText>
+
+                    <BlockText spacingType={[BlockText.SPACING_TYPE.LARGE]}>
+                        <b>Version A</b>
+                    </BlockText>
+
+                    <Button>No, continue test</Button>
+                    <Button type={Button.TYPE.DESTRUCTIVE}>Yes, end test</Button>
+                </Modal>
+            </div>
+        }
+    }
+
+    export default class EndTestSection extends React.Component {
+        constructor() {
+            super(...arguments);
+
+            this.state = {
+                selectedVersion: 'A',
+            };
+
+            this.selectVersion = this.selectVersion.bind(this);
+        }
+
+        selectVersion(event, value) {
+            this.setState({ selectedVersion: value });
+        }
+
+        render() {
+            return <Grid className="endTestSection">
+                <GridItem columnSpan={12}>
+                    <HeadingText className="endTestHeader">
+                        Pick the winner of your A/B test:
+                    </HeadingText>
+                </GridItem>
+                <GridItem columnStart={5} columnEnd={6} className="versionSelector">
+                    <VersionSelector
+                        selectedVersion={this.state.selectedVersion}
+                        selectVersion={this.selectVersion}
+                    />
+                </GridItem>
+                <GridItem columnStart={7} columnEnd={8}>
+                    <EndTestButton>End test</EndTestButton>
+                </GridItem>
+            </Grid>
+        }
+    }
+    ```
+
+    `modalHidden` determina si se oculta o no el modal. El valor predeterminado de `modalHidden` es `true` porque solo desea mostrar el modal cuando selecciona **End test**.
+  </Step>
+
+  <Step>
+    Suministrar `modalHidden` al `Modal`:
+
+    ```js
+    import React from 'react';
+    import {
+        BlockText,
+        Button,
+        Grid,
+        GridItem,
+        HeadingText,
+        Modal,
+        Select,
+        SelectItem,
+    } from 'nr1';
+
+    class VersionSelector extends React.Component {
+        constructor(props) {
+            super(props);
+        }
+
+        render() {
+            return <Select onChange={this.props.selectVersion} value={this.props.selectedVersion}>
+                <SelectItem value={'A'}>Version A</SelectItem>
+                <SelectItem value={'B'}>Version B</SelectItem>
+            </Select>
+        }
+    }
+
+    class EndTestButton extends React.Component {
+        constructor() {
+            super(...arguments);
+
+            this.state = {
+                modalHidden: true,
+            }
+        }
+
+        render() {
+            return <div>
+                <Button type={Button.TYPE.DESTRUCTIVE}>End test</Button>
+
+                <Modal hidden={this.state.modalHidden}>
+                    <HeadingText>Are you sure?</HeadingText>
+                    <BlockText>
+                        If you end the test, all your users will receive the version you selected:
+                    </BlockText>
+
+                    <BlockText spacingType={[BlockText.SPACING_TYPE.LARGE]}>
+                        <b>Version A</b>
+                    </BlockText>
+
+                    <Button>No, continue test</Button>
+                    <Button type={Button.TYPE.DESTRUCTIVE}>Yes, end test</Button>
+                </Modal>
+            </div>
+        }
+    }
+
+    export default class EndTestSection extends React.Component {
+        constructor() {
+            super(...arguments);
+
+            this.state = {
+                selectedVersion: 'A',
+            };
+
+            this.selectVersion = this.selectVersion.bind(this);
+        }
+
+        selectVersion(event, value) {
+            this.setState({ selectedVersion: value });
+        }
+
+        render() {
+            return <Grid className="endTestSection">
+                <GridItem columnSpan={12}>
+                    <HeadingText className="endTestHeader">
+                        Pick the winner of your A/B test:
+                    </HeadingText>
+                </GridItem>
+                <GridItem columnStart={5} columnEnd={6} className="versionSelector">
+                    <VersionSelector
+                        selectedVersion={this.state.selectedVersion}
+                        selectVersion={this.selectVersion}
+                    />
+                </GridItem>
+                <GridItem columnStart={7} columnEnd={8}>
+                    <EndTestButton>End test</EndTestButton>
+                </GridItem>
+            </Grid>
+        }
+    }
+    ```
+
+    Primero, creó un constructor para aceptar accesorios de componentes. Esto proporciona a su componente acceso al accesorio `modalHidden` que pasó en `EndTestSection`. Luego proporciona el valor de `modalHidden` a la propiedad `hidden` del componente `Modal`.
+  </Step>
+
+  <Step>
+    Agregue y vincule dos nuevos métodos a `EndTestSection`:
+
+    ```js
+    import React from 'react';
+    import {
+        BlockText,
+        Button,
+        Grid,
+        GridItem,
+        HeadingText,
+        Modal,
+        Select,
+        SelectItem,
+    } from 'nr1';
+
+    class VersionSelector extends React.Component {
+        constructor(props) {
+            super(props);
+        }
+
+        render() {
+            return <Select onChange={this.props.selectVersion} value={this.props.selectedVersion}>
+                <SelectItem value={'A'}>Version A</SelectItem>
+                <SelectItem value={'B'}>Version B</SelectItem>
+            </Select>
+        }
+    }
+
+    class EndTestButton extends React.Component {
+        constructor() {
+            super(...arguments);
+
+            this.state = {
+                modalHidden: true,
+            }
+
+            this.showModal = this.showModal.bind(this);
+            this.closeModal = this.closeModal.bind(this);
+        }
+
+        closeModal() {
+            this.setState({ modalHidden: true });
+        }
+
+        showModal() {
+            this.setState({ modalHidden: false });
+        }
+
+        render() {
+            return <div>
+                <Button type={Button.TYPE.DESTRUCTIVE}>End test</Button>
+
+                <Modal hidden={this.state.modalHidden}>
+                    <HeadingText>Are you sure?</HeadingText>
+                    <BlockText>
+                        If you end the test, all your users will receive the version you selected:
+                    </BlockText>
+
+                    <BlockText spacingType={[BlockText.SPACING_TYPE.LARGE]}>
+                        <b>Version A</b>
+                    </BlockText>
+
+                    <Button>No, continue test</Button>
+                    <Button type={Button.TYPE.DESTRUCTIVE}>Yes, end test</Button>
+                </Modal>
+            </div>
+        }
+    }
+
+    export default class EndTestSection extends React.Component {
+        constructor() {
+            super(...arguments);
+
+            this.state = {
+                selectedVersion: 'A',
+            };
+
+            this.selectVersion = this.selectVersion.bind(this);
+        }
+
+        selectVersion(event, value) {
+            this.setState({ selectedVersion: value });
+        }
+
+        render() {
+            return <Grid className="endTestSection">
+                <GridItem columnSpan={12}>
+                    <HeadingText className="endTestHeader">
+                        Pick the winner of your A/B test:
+                    </HeadingText>
+                </GridItem>
+                <GridItem columnStart={5} columnEnd={6} className="versionSelector">
+                    <VersionSelector
+                        selectedVersion={this.state.selectedVersion}
+                        selectVersion={this.selectVersion}
+                    />
+                </GridItem>
+                <GridItem columnStart={7} columnEnd={8}>
+                    <EndTestButton>End test</EndTestButton>
+                </GridItem>
+            </Grid>
+        }
+    }
+    ```
+
+    Emplee `closeModal` y `showModal` para cerrar y mostrar su modal, respectivamente, dependiendo de cómo interactúa un usuario con el modal.
+  </Step>
+
+  <Step>
+    Muestra el modal al hacer clic en **End test**:
+
+    ```js
+    import React from 'react';
+    import {
+        BlockText,
+        Button,
+        Grid,
+        GridItem,
+        HeadingText,
+        Modal,
+        Select,
+        SelectItem,
+    } from 'nr1';
+
+    class VersionSelector extends React.Component {
+        constructor(props) {
+            super(props);
+        }
+
+        render() {
+            return <Select onChange={this.props.selectVersion} value={this.props.selectedVersion}>
+                <SelectItem value={'A'}>Version A</SelectItem>
+                <SelectItem value={'B'}>Version B</SelectItem>
+            </Select>
+        }
+    }
+
+    class EndTestButton extends React.Component {
+        constructor() {
+            super(...arguments);
+
+            this.state = {
+                modalHidden: true,
+            }
+
+            this.showModal = this.showModal.bind(this);
+            this.closeModal = this.closeModal.bind(this);
+        }
+
+        closeModal() {
+            this.setState({ modalHidden: true });
+        }
+
+        showModal() {
+            this.setState({ modalHidden: false });
+        }
+
+        render() {
+            return <div>
+                <Button type={Button.TYPE.DESTRUCTIVE} onClick={this.showModal}>End test</Button>
+
+                <Modal hidden={this.state.modalHidden}>
+                    <HeadingText>Are you sure?</HeadingText>
+                    <BlockText>
+                        If you end the test, all your users will receive the version you selected:
+                    </BlockText>
+
+                    <BlockText spacingType={[BlockText.SPACING_TYPE.LARGE]}>
+                        <b>Version A</b>
+                    </BlockText>
+
+                    <Button>No, continue test</Button>
+                    <Button type={Button.TYPE.DESTRUCTIVE}>Yes, end test</Button>
+                </Modal>
+            </div>
+        }
+    }
+
+    export default class EndTestSection extends React.Component {
+        constructor() {
+            super(...arguments);
+
+            this.state = {
+                selectedVersion: 'A',
+            };
+
+            this.selectVersion = this.selectVersion.bind(this);
+        }
+
+        selectVersion(event, value) {
+            this.setState({ selectedVersion: value });
+        }
+
+        render() {
+            return <Grid className="endTestSection">
+                <GridItem columnSpan={12}>
+                    <HeadingText className="endTestHeader">
+                        Pick the winner of your A/B test:
+                    </HeadingText>
+                </GridItem>
+                <GridItem columnStart={5} columnEnd={6} className="versionSelector">
+                    <VersionSelector
+                        selectedVersion={this.state.selectedVersion}
+                        selectVersion={this.selectVersion}
+                    />
+                </GridItem>
+                <GridItem columnStart={7} columnEnd={8}>
+                    <EndTestButton>End test</EndTestButton>
+                </GridItem>
+            </Grid>
+        }
+    }
+    ```
+
+    Aquí, proporcionó `showModal()` como devolución de llamada para el evento `onClick` del componente `Button`.
+
+    Vuelva a [https://one.newrelic.com?nerdpacks=local](https://one.newrelic.com?nerdpacks=local) y vea sus cambios.
+
+    El modal está oculto por defecto. Haga clic en **End test** para ver el modal.
+  </Step>
+
+  <Step>
+    Cierre el modal desde la devolución de llamada `onClose` del componente `Modal` y desde los botones **Yes, end test** y **No, continue test** :
+
+    ```js
+    import React from 'react';
+    import {
+        BlockText,
+        Button,
+        Grid,
+        GridItem,
+        HeadingText,
+        Modal,
+        Select,
+        SelectItem,
+    } from 'nr1';
+
+    class VersionSelector extends React.Component {
+        constructor(props) {
+            super(props);
+        }
+
+        render() {
+            return <Select onChange={this.props.selectVersion} value={this.props.selectedVersion}>
+                <SelectItem value={'A'}>Version A</SelectItem>
+                <SelectItem value={'B'}>Version B</SelectItem>
+            </Select>
+        }
+    }
+
+    class EndTestButton extends React.Component {
+        constructor() {
+            super(...arguments);
+
+            this.state = {
+                modalHidden: true,
+            }
+
+            this.showModal = this.showModal.bind(this);
+            this.closeModal = this.closeModal.bind(this);
+        }
+
+        closeModal() {
+            this.setState({ modalHidden: true });
+        }
+
+        showModal() {
+            this.setState({ modalHidden: false });
+        }
+
+        render() {
+            return <div>
+                <Button type={Button.TYPE.DESTRUCTIVE} onClick={this.showModal}>End test</Button>
+
+                <Modal hidden={this.state.modalHidden} onClose={this.closeModal}>
+                    <HeadingText>Are you sure?</HeadingText>
+                    <BlockText>
+                        If you end the test, all your users will receive the version you selected:
+                    </BlockText>
+
+                    <BlockText spacingType={[BlockText.SPACING_TYPE.LARGE]}>
+                        <b>Version A</b>
+                    </BlockText>
+
+                    <Button onClick={this.closeModal}>No, continue test</Button>
+                    <Button type={Button.TYPE.DESTRUCTIVE} onClick={this.closeModal}>Yes, end test</Button>
+                </Modal>
+            </div>
+        }
+    }
+
+    export default class EndTestSection extends React.Component {
+        constructor() {
+            super(...arguments);
+
+            this.state = {
+                selectedVersion: 'A',
+            };
+
+            this.selectVersion = this.selectVersion.bind(this);
+        }
+
+        selectVersion(event, value) {
+            this.setState({ selectedVersion: value });
+        }
+
+        render() {
+            return <Grid className="endTestSection">
+                <GridItem columnSpan={12}>
+                    <HeadingText className="endTestHeader">
+                        Pick the winner of your A/B test:
+                    </HeadingText>
+                </GridItem>
+                <GridItem columnStart={5} columnEnd={6} className="versionSelector">
+                    <VersionSelector
+                        selectedVersion={this.state.selectedVersion}
+                        selectVersion={this.selectVersion}
+                    />
+                </GridItem>
+                <GridItem columnStart={7} columnEnd={8}>
+                    <EndTestButton>End test</EndTestButton>
+                </GridItem>
+            </Grid>
+        }
+    }
+    ```
+
+    Vuelva a [https://one.newrelic.com?nerdpacks=local](https://one.newrelic.com?nerdpacks=local) y vea sus cambios.
+
+    Haga clic en **End test**. El modal se abre y muestra su mensaje de confirmación. Cierra el modal haciendo clic en **X** en la parte superior derecha, en cualquiera de sus botones o incluso en el espacio oscuro a su izquierda.
+
+    Observe que el modal dice que eligió la "Versión A", incluso si elige la "Versión B". Esto se debe a que la "Versión A" está codificada en el texto `Modal`. A continuación, harás esa dinámica.
+  </Step>
+</Steps>
+
+## Usa la versión que seleccionaste en tu modal [#use-version]
+
+<Steps>
+  <Step>
+    En `EndTestSection`, pase `selectedVersion` al `EndTestButton`:
+
+    ```js
+    import React from 'react';
+    import {
+        BlockText,
+        Button,
+        Grid,
+        GridItem,
+        HeadingText,
+        Modal,
+        Select,
+        SelectItem,
+    } from 'nr1';
+
+    class VersionSelector extends React.Component {
+        constructor(props) {
+            super(props);
+        }
+
+        render() {
+            return <Select onChange={this.props.selectVersion} value={this.props.selectedVersion}>
+                <SelectItem value={'A'}>Version A</SelectItem>
+                <SelectItem value={'B'}>Version B</SelectItem>
+            </Select>
+        }
+    }
+
+    class EndTestButton extends React.Component {
+        constructor() {
+            super(...arguments);
+
+            this.state = {
+                modalHidden: true,
+            }
+
+            this.showModal = this.showModal.bind(this);
+            this.closeModal = this.closeModal.bind(this);
+        }
+
+        closeModal() {
+            this.setState({ modalHidden: true });
+        }
+
+        showModal() {
+            this.setState({ modalHidden: false });
+        }
+
+        render() {
+            return <div>
+                <Button type={Button.TYPE.DESTRUCTIVE} onClick={this.showModal}>End test</Button>
+
+                <Modal hidden={this.state.modalHidden} onClose={this.closeModal}>
+                    <HeadingText>Are you sure?</HeadingText>
+                    <BlockText>
+                        If you end the test, all your users will receive the version you selected:
+                    </BlockText>
+
+                    <BlockText spacingType={[BlockText.SPACING_TYPE.LARGE]}>
+                        <b>Version A</b>
+                    </BlockText>
+
+                    <Button onClick={this.closeModal}>No, continue test</Button>
+                    <Button type={Button.TYPE.DESTRUCTIVE} onClick={this.closeModal}>Yes, end test</Button>
+                </Modal>
+            </div>
+        }
+    }
+
+    export default class EndTestSection extends React.Component {
+        constructor() {
+            super(...arguments);
+
+            this.state = {
+                selectedVersion: 'A',
+            };
+
+            this.selectVersion = this.selectVersion.bind(this);
+        }
+
+        selectVersion(event, value) {
+            this.setState({ selectedVersion: value });
+        }
+
+        render() {
+            return <Grid className="endTestSection">
+                <GridItem columnSpan={12}>
+                    <HeadingText className="endTestHeader">
+                        Pick the winner of your A/B test:
+                    </HeadingText>
+                </GridItem>
+                <GridItem columnStart={5} columnEnd={6} className="versionSelector">
+                    <VersionSelector
+                        selectedVersion={this.state.selectedVersion}
+                        selectVersion={this.selectVersion}
+                    />
+                </GridItem>
+                <GridItem columnStart={7} columnEnd={8}>
+                    <EndTestButton selectedVersion={this.state.selectedVersion}>End test</EndTestButton>
+                </GridItem>
+            </Grid>
+        }
+    }
+    ```
+
+    Ahora puede acceder a la versión seleccionada desde los accesorios del componente `EndTestButton`.
+  </Step>
+
+  <Step>
+    Emplee `selectedVersion` en su mensaje de confirmación:
+
+    ```js
+    import React from 'react';
+    import {
+        BlockText,
+        Button,
+        Grid,
+        GridItem,
+        HeadingText,
+        Modal,
+        Select,
+        SelectItem,
+    } from 'nr1';
+
+    class VersionSelector extends React.Component {
+        constructor(props) {
+            super(props);
+        }
+
+        render() {
+            return <Select onChange={this.props.selectVersion} value={this.props.selectedVersion}>
+                <SelectItem value={'A'}>Version A</SelectItem>
+                <SelectItem value={'B'}>Version B</SelectItem>
+            </Select>
+        }
+    }
+
+    class EndTestButton extends React.Component {
+        constructor() {
+            super(...arguments);
+
+            this.state = {
+                modalHidden: true,
+            }
+
+            this.showModal = this.showModal.bind(this);
+            this.closeModal = this.closeModal.bind(this);
+        }
+
+        closeModal() {
+            this.setState({ modalHidden: true });
+        }
+
+        showModal() {
+            this.setState({ modalHidden: false });
+        }
+
+        render() {
+            return <div>
+                <Button type={Button.TYPE.DESTRUCTIVE} onClick={this.showModal}>End test</Button>
+
+                <Modal hidden={this.state.modalHidden} onClose={this.closeModal}>
+                    <HeadingText>Are you sure?</HeadingText>
+                    <BlockText>
+                        If you end the test, all your users will receive the version you selected:
+                    </BlockText>
+
+                    <BlockText spacingType={[BlockText.SPACING_TYPE.LARGE]}>
+                        <b>Version {this.props.selectedVersion}</b>
+                    </BlockText>
+
+                    <Button onClick={this.closeModal}>No, continue test</Button>
+                    <Button type={Button.TYPE.DESTRUCTIVE} onClick={this.closeModal}>Yes, end test</Button>
+                </Modal>
+            </div>
+        }
+    }
+
+    export default class EndTestSection extends React.Component {
+        constructor() {
+            super(...arguments);
+
+            this.state = {
+                selectedVersion: 'A',
+            };
+
+            this.selectVersion = this.selectVersion.bind(this);
+        }
+
+        selectVersion(event, value) {
+            this.setState({ selectedVersion: value });
+        }
+
+        render() {
+            return <Grid className="endTestSection">
+                <GridItem columnSpan={12}>
+                    <HeadingText className="endTestHeader">
+                        Pick the winner of your A/B test:
+                    </HeadingText>
+                </GridItem>
+                <GridItem columnStart={5} columnEnd={6} className="versionSelector">
+                    <VersionSelector
+                        selectedVersion={this.state.selectedVersion}
+                        selectVersion={this.selectVersion}
+                    />
+                </GridItem>
+                <GridItem columnStart={7} columnEnd={8}>
+                    <EndTestButton selectedVersion={this.state.selectedVersion}>End test</EndTestButton>
+                </GridItem>
+            </Grid>
+        }
+    }
+    ```
+
+    Vuelva a [https://one.newrelic.com?nerdpacks=local](https://one.newrelic.com?nerdpacks=local) y vea sus cambios.
+
+    Seleccione "Versión B" en el menú. Haga clic en **End test** para ver la "Versión B" en el modo de confirmación.
+
+    Cuando terminó, deje de servir su aplicación New Relic presionando `CTRL+C` en la ventana de terminal de su servidor local.
+  </Step>
+</Steps>
+
+¡Felicidades! Trabajó mucho y se nota en la utilidad de su aplicación. Creó gráficos que muestran datos simulados. Organizó sus gráficos en una estructura legible. Agregó una interfaz para que su usuario interactúe con la prueba. Ahora necesitas algunos datos reales. En la siguiente lección, reemplazará los datos simulados en sus gráficos con datos reales de su servicio backend.
+
+<Callout variant="tip">
+  Esta lección es parte de un curso que le muestra cómo crear una aplicación New Relic desde cero. Continúe con la siguiente lección: Agregue componentes NrqlQuery a su nerdlet.
+</Callout>
