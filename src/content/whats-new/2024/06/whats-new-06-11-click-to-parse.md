@@ -1,3 +1,4 @@
+---
 title: 'Click-to-parse (GA) and AI-powered parsing (Preview) for streamlined querying'
 summary: 'parse any variables from string attributes without writing any additional script'
 releaseDate: '2024-06-11'
