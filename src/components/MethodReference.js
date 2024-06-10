@@ -24,7 +24,7 @@ const MethodReference = ({ className, method }) => {
         returnValue={${JSON.stringify(method.returnValue)}}
       />`}
       {method.examples.map((example, i) => (
-        <MDXCodeBlock>{example.sourceCode}</MDXCodeBlock>
+        <MDXCodeBlock key={i}>{example.sourceCode}</MDXCodeBlock>
       ))}
     </div>
   );
