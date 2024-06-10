@@ -5,44 +5,79 @@ headingText: Install the Kubernetes integration
 
 You can manually install Kubernetes integration from a simple manifest with pre-populated required values. 
 
-<Tabs>
-<TabsBar>
-    <TabsBarItem id="helm">Using Helm</TabsBarItem>
-    <TabsBarItem id="values">Through the `values.yaml` file</TabsBarItem>
-</TabsBar>
+1. Create a file named yaml file, for example `newrelic-manifest.yaml`. Include the configuration you need. The file must follow this structure:
+    
+    ```yaml
+    global:
+        licenseKey: _YOUR_NEW_RELIC_LICENSE_KEY_
+        cluster: _K8S_CLUSTER_NAME_
+        namespace: newrelic
+    newrelic-infrastructure.privileged:
+        enabled: false
+    global.lowDataMode:
+        enabled: true
+    kube-state-metrics.image.tag:
+        "'${KSM_IMAGE_VERSION}'"
+    kube-state-metrics:
+        # Deploy kube-state-metrics in the cluster.
+        # Set this to true unless it is already deployed.
+        enabled: true
+    kubeEvents:
+        # Report Kubernetes events
+        enabled: true
+    newrelic-prometheus-agent:
+        # Automatically scrape prometheus metrics for annotated services in the cluster
+        enabled: true
+    newrelic-prometheus-agent.lowDataMode:
+        enabled: true
+    newrelic-prometheus-agent.config.kubernetes.integrations_filter:
+        enabled: false
+    logging.enabled:
+        enabled: true
+    newrelic-logging.lowDataMode:
+        # Report logs for containers running in the cluster
+        enabled: true
+    newrelic-logging.fluentBit.linuxMountPath:
+        /var/log
+    storageClass:
+        enabled: standard-rwx
+    ```
 
-<TabsPages>
-    <TabsPageItem id="helm">
-
-1. Enter your license key. You can create a new one or use an existing key.
-
-2. Run this command to add a Kubernetes cluster name:
+2. Run this command to apply the manifest generated:
 
     ```shell
-    **ASK FOR THIS COMMAND**
-
-    --set global.cluster=clusterName
-    kubectl config set-cluster
+    kubectl -n newrelic apply -f newrelic-manifest.yaml
     ```
-3. Run this command to add a namespace for the integration. The default namespace is `newrelic`:
 
-    ```shell
+3.  If you're going to use a GKE AutoPilot cluster, your Helm command should include the following:
 
-    **verify this command**
-
-    helm repo add newrelic https://helm-charts.newrelic.com
-    helm repo update
-    kubectl create namespace newrelic
+    ```yaml
+    --set newrelic-infrastructure.controlPlane.enabled=false \
+    --set newrelic-infrastructure.kubelet.config.scheme=http \
+    --set newrelic-infrastructure.kubelet.config.port=10255 \
     ```
-4.  Keep in mind that if you use a GKE AutoPilot cluster, these parameters will change:
 
-    * Privileged, ControlPlane, and Pixie set to `false`.
-    * Kubelet scheme set to `HTTP`.
-    * Kubelet port to `10255`.
+    [Fluent Bit](https://fluentbit.io/) can use a FileStore volume to prevent data loss or duplicated logs during Fluent Bit pod restarts or redeploys.  Google FileStore API needs to be enabled in your GKE project. Check this [document](https://support.google.com/googleapi/answer/6158841) to know more about enabling APIs. 
 
-5. Decide if you want to install and configure the Prometheus endpoints to scrape. See [Install and configure the Prometheus agent on Kubernetes clusters](/docs/infrastructure/prometheus-integrations/install-configure-prometheus-agent/install-prometheus-agent/) for more info. We recommend to scrape all Prometheus endpoints except core Kubernetes system metrics. Kubernetes integration already collects core Kubernetes system metrics in other components. 
+    To use FileStore, add the following:
 
-6. Gather Log data. You can:
+    ```yaml
+    --set newrelic-logging.fluentBit.persistence.mode=persistentVolume
+    --set newrelic-logging.fluentBit.persistence.persistentVolume.storageClass=standard-rwx
+    ```
+
+    <Callout variant="important">
+    The use of FileStore will result in additional costs, as charged by Google. See your Google Cloud Admin or the [FileStore](https://cloud.google.com/filestore/pricing) doc for more info.
+    </Callout>
+
+    If you don't want to use FileStore:
+
+    * Set `"newrelic-logging.fluentBit.persistence.mode"` to `"none"`
+    * Remove `"newrelic-logging.fluentBit.persistence.persistentVolume.storageClass"`
+
+4. Decide if you want to install and configure the Prometheus endpoints to scrape. See [Install and configure the Prometheus agent on Kubernetes clusters](/docs/infrastructure/prometheus-integrations/install-configure-prometheus-agent/install-prometheus-agent/) for more info. We recommend to scrape all Prometheus endpoints except core Kubernetes system metrics. Kubernetes integration already collects core Kubernetes system metrics in other components. 
+
+5. Gather Log data. You can:
 
     * Forward all logs with full enrichment. Full enrichment ensures that all Kubernetes metadata, including labels and annotations, are associated with each log record. See [Fluent Bit](https://docs.fluentbit.io/manual/installation/kubernetes#concepts) documentation for more info.
 
@@ -50,83 +85,14 @@ You can manually install Kubernetes integration from a simple manifest with pre-
 
     We recommend you forward all logs with minimal enrichment. This is a low-data mode that excludes labels excludes labels and annotations from log records, but keeps a minimal set of Kubernetes metadata. This set includes `cluster_name`, `container_name`, `namespace_name`, and `pod_name`.
 
-7. If you want to use a Google FileStore volume to keep track of forwarded logs, run this command:
 
-8. If you want to use a proxy, run this command:
+You should see the following:
 
-    ```shell
-    **verify this command**
+    * `newrelic-nrk8s-ksm` pod.
+    * `newrelic-nrk8s-kubelet` pod for each node in your cluster.
+    * `newrelic-nrk8s-control-plane` pod for each master node in your cluster, if any.
+    * `newrelic-kube-state-metrics` pod, if you included KSM with our installation.
+    * `newrelic-nri-kube-events` pod, if you enabled Kubernetes events reporting.
+    * `prometheus-agent` pod, if you enabled the [Prometheus agent](/docs/infrastructure/prometheus-integrations/install-configure-prometheus-agent/install-prometheus-agent) integration.
+    * `newrelic-newrelic-logging` pod for each node in your cluster, if you enabled the logging integration.
 
-    HTTPS_PROXY=https://my-proxy:3128
-    ```
-9. Test your connection and see your data.
-
-    </TabsPageItem>
-<TabsPageItem id="values">
-
-1. Run this command to add the New Relic Helm charts repository:
-
-    ```shell
-    helm repo add newrelic https://helm-charts.newrelic.com
-    ```
-2. Create a file named `values-newrelic.yaml`. It will define your configuration and follow this structure:
-    
-    ```yaml
-    global:
-      licenseKey: YOUR_NEW_RELIC_LICENSE_KEY
-      cluster: YOUR_K8S_CLUSTER_NAME
-    
-    newrelic-prometheus-agent:
-      # Automatically scrape prometheus metrics for annotated services in the cluster
-      enabled: true
-    nri-metadata-injection:
-      # Deploy our webhook to link APM and Kubernetes entities
-      enabled: true
-    nri-kube-events:
-      # Report Kubernetes events
-      enabled: true
-    newrelic-logging:
-      # Report logs for containers running in the cluster
-      enabled: true
-    kube-state-metrics:
-      # Deploy kube-state-metrics in the cluster.
-      # Set this to true unless it is already deployed.
-      enabled: true
-    ```
-
-3. Make sure you have correctly configured everything in the chart. Run the following command. Notice that we're specifying `--dry-run` and `--debug`, so nothing is installed in this step:
-
-    ```shell
-    helm upgrade --install newrelic newrelic/nri-bundle \
-    --namespace newrelic --create-namespace \
-    -f values-newrelic.yaml \
-    --dry-run \
-    --debug
-    ```
-
-    Please notice and modify these values:
-    
-        * `global.licenseKey=YOUR_NEW_RELIC_LICENSE_KEY`. Set it to a valid New Relic <InlinePopover type="licenseKey" /> for your account.
-        * `global.cluster=K8S_CLUSTER_NAME`. Set it to identify the cluster in New Relic, so it should be a unique descriptive value.
-        * `kube-state-metrics.enabled=true`. Setting it to `true` will automatically install Kube State Metrics (KSM) for you, which is required for our integration to run. You can set this to `false` if KSM is already present in your cluster, even if it's on a different namespace.
-        * `newrelic-prometheus-agent.enabled=true`. Set it to `true` to deploy our Prometheus agent, which automatically collects data from Prometheus endpoints present in the cluster.
-        * `nri-metadata-injection.enabled=true`. Set it to `true` to install our minimal webhook, which adds environment variables that allow [linking applications instrumented with New Relic APM to Kubernetes](/docs/kubernetes-pixie/kubernetes-integration/link-your-applications/link-your-applications-kubernetes).
-    
-        <Callout variant="tip">
-        Our Kubernetes charts have a comprehensive set of flags and tunables that you can edit to fit your particular needs. Check how to configure the integration below to see what you can modify.
-        </Callout>
-4. Template the Kubernetes integration. Run this command:
-
-    ```shell
-    helm template newrelic newrelic/nri-bundle \
-    --namespace newrelic --create-namespace \
-    -f values-newrelic.yaml > templated-nri-bundle.yaml
-    ```
-5. Run this command to apply the manifest generated:
-
-    ```shell
-    kubectl -n newrelic apply -f templated-nri-bundle.yaml
-    ```
-    </TabsPageItem>
-</TabsPages>
-</Tabs>
