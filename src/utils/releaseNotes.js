@@ -2,7 +2,7 @@
  * given a release note's frontmatter,
  * return what the title of the release note should be.
  */
-export const getTitle = (frontmatter) => {
+const getTitle = (frontmatter) => {
   const { title, version, subject } = frontmatter;
 
   if (title) {
@@ -14,4 +14,8 @@ export const getTitle = (frontmatter) => {
   }
 
   return version ? `${subject} v${version}` : subject;
+};
+
+module.exports = {
+  getTitle,
 };
