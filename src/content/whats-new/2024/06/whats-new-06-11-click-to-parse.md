@@ -6,7 +6,11 @@ learnMoreLink: 'https://newrelic.com/blog/how-to-relic/click-to-parse'
 getStartedLink: 'https://youtu.be/tvK6MlkvD6Y?si=5klygPBzQyY5qsI8'
 ---
 
-While the majority of valuable parsing information is automatically gathered during the ingestion of logs into the New Relic platform, building additional queries can be labor-intensive. New Relic's click-to-parse productivity hack allows you to select any string from your log file easily and then parse out repeatable values for alpha-numeric input, reducing manual entry and time to create queries. You can parse any variables from string attributes with a single click without writing any additional script.
+New Relic has released two tools to help streamline querying your logs: query time parsing and NRAI parsing assistance. 
+
+## Query time parsing 
+
+New Relic automatically ingests valuable data and metrics, but parsing that data with additional queries can be manual and labor-intensive. New Relic's query time parsing allows you to easily select any string from your log file and then parse out repeatable values for alpha-numeric input, reducing manual entry and time to create queries. You can parse variables from string attributes with a single click without writing any additional script.
 
 To get started:
 1. [Read our blog post](https://newrelic.com/blog/how-to-relic/click-to-parse)
@@ -19,10 +23,10 @@ To get started:
 
 ## Ingest parsing with AI assistance
 
-We are expanding our public preview for our AI-powered ingest to increase the efficiency of capturing parsing rules upon ingest. This preview offers capabilities that allow you to:
+We are expanding New Relic AI to help you create and troubleshoot parsing rules. This preview offers capabilities that can help:
 
-* Translate plain language within logs into New Relic Query Language (NRQL) queries, run NRQL queries, and render the results in plain language or visualize them as charts or graphs.
-* Surface New Relic Lookout insights and anomaly data from logs in response to root cause analysis (RCA)-style prompts.
+* **Suggest parsing rules**: When you create a parsing rule in the UI, as NRAI to create the parsing rule for you. 
+* **Explain parsing rules**: If you don't understand the parsing rule our AI suggests, you can ask AI to explain the rule and suggest an even more efficient one if available. 
 
 ![A screenshot showing NRAI enabled.](./images/pic1.png "A screenshot showing NRAI enabled.")
 
@@ -33,4 +37,4 @@ To try the new AI-powered log parsing capability, join our public preview:
 1. Go to the user menu at the bottom left of the New Relic UI.
 2. Click the **Features** tab.
 3. Scroll down to the **New Relic** AI section and click **Enable**.
-4. **Give Us Feedback** by following the option under the Help pulldown.
+4. Let us know how we're doing! Select **Give Us Feedback** under the **Help** dropdown.
