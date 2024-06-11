@@ -11,7 +11,7 @@ While the majority of valuable parsing information is automatically gathered dur
 * Ingest parsing: These are rules that create permanent changes in your logs and are based on Grok rules. In the past, you had to create your own Grok rules, but now we can create these complex rules for you with our NRAI assistant.  
 * Query time parsing: We generate temporary parsing rules written in NRQL as you make log selections in our UI.
 
-## Ingest parsing with AI assistance
+## Ingest parsing with AI assistance [#ingest-parsing-AI]
 
 We are expanding our public preview for our AI-powered ingest to allow you to parse your logs using automatically generated Grok rules. New Relic AI can help you create and troubleshoot parsing rules by:
 
