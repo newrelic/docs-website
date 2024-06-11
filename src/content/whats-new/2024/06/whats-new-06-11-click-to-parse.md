@@ -1,5 +1,5 @@
 ---
-title: 'Streamline your queries with click-to-parse and AI-powered parsing'
+title: 'Streamline your queries with query time parsing and New Relic AI'
 summary: 'Parse any variables from string attributes without writing any additional script'
 releaseDate: '2024-06-11'
 learnMoreLink: 'https://newrelic.com/blog/how-to-relic/click-to-parse'
