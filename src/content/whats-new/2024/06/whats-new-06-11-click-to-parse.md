@@ -1,16 +1,37 @@
 ---
-title: 'Streamline your queries with query time parsing and New Relic AI'
-summary: 'Parse any variables from string attributes without writing any additional script'
+title: 'Streamline log parsing'
+summary: 'Use our new options to generate ingest parsing or query time parsing rules'
 releaseDate: '2024-06-11'
 learnMoreLink: 'https://newrelic.com/blog/how-to-relic/click-to-parse'
 getStartedLink: 'https://youtu.be/tvK6MlkvD6Y?si=5klygPBzQyY5qsI8'
 ---
 
-New Relic has released two tools to help streamline querying your logs: query time parsing and NRAI parsing assistance. 
+While the majority of valuable parsing information is automatically gathered during the ingestion of logs into the New Relic platform, building additional queries can be labor-intensive. Logs parsing just became easier for both types of parsing at New Relic: 
 
-## Query time parsing 
+* Ingest parsing: These are rules that create permanent changes in your logs and are based on Grok rules. In the past, you had to create your own Grok rules, but now we can create these complex rules for you with our NRAI assistant.  
+* Query time parsing: We generate temporary parsing rules written in NRQL as you make log selections in our UI.
 
-New Relic automatically ingests valuable data and metrics, but parsing that data with additional queries can be manual and labor-intensive. New Relic's query time parsing allows you to easily select any string from your log file and then parse out repeatable values for alpha-numeric input, reducing manual entry and time to create queries. You can parse variables from string attributes with a single click without writing any additional script.
+## Ingest parsing with AI assistance
+
+We are expanding our public preview for our AI-powered ingest to increase the efficiency of capturing parsing rules upon ingest. This preview offers capabilities that allow you to:
+
+* Parse your logs using automatically generated Grok rules.
+* Surface New Relic Lookout insights and anomaly data from logs in response to root cause analysis (RCA)-style prompts.
+
+![A screenshot showing NRAI enabled.](./images/pic1.png "A screenshot showing NRAI enabled.")
+
+<figcaption>Ask AI to help you generate Grok patterns for ingest parsing.</figcaption>
+
+To try the new AI-powered log parsing capability, join our public preview:
+
+1. Go to the user menu at the bottom left of the New Relic UI.
+2. Click the **Features** tab.
+3. Scroll down to the **New Relic** AI section and click **Enable**.
+4. **Give Us Feedback** by following the option under the Help pulldown.
+
+## Query time parsing rules
+
+New Relic's query time parsing feature allows you to select any string from your log file and then parse out repeatable values, reducing the time it takes to create queries. We do all the work for you by creating the NRQL query as you make selections from your logs in the UI.
 
 To get started:
 1. [Read our blog post](https://newrelic.com/blog/how-to-relic/click-to-parse)
@@ -20,21 +41,3 @@ To get started:
 ![A screenshot showing how to extract a value from a string.](./images/pic2.png "A screenshot showing how to extract a value from a string.")
 
 <figcaption>Use click-to-parse to extract the value from a string for easy querying.</figcaption>
-
-## Ingest parsing with AI assistance
-
-We are expanding New Relic AI to help you create and troubleshoot parsing rules. This preview offers capabilities that can help:
-
-* **Suggest parsing rules**: When you create a parsing rule in the UI, as NRAI to create the parsing rule for you. 
-* **Explain parsing rules**: If you don't understand the parsing rule our AI suggests, you can ask AI to explain the rule and suggest an even more efficient one if available. 
-
-![A screenshot showing NRAI enabled.](./images/pic1.png "A screenshot showing NRAI enabled.")
-
-<figcaption>Ask AI to help you run NRQL queries to perform root cause analysis.</figcaption>
-
-To try the new AI-powered log parsing capability, join our public preview:
-
-1. Go to the user menu at the bottom left of the New Relic UI.
-2. Click the **Features** tab.
-3. Scroll down to the **New Relic** AI section and click **Enable**.
-4. Let us know how we're doing! Select **Give Us Feedback** under the **Help** dropdown.
