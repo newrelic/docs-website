@@ -26,7 +26,7 @@ To try the new AI-powered log parsing capability, join our public preview:
 
 1. Go to the user menu at the bottom left of the New Relic UI.
 2. Click the **Features** tab.
-3. Scroll down to the **New Relic** AI section and click **Enable**.
+3. Scroll down to the **New Relic AI** section and click **Enable**.
 4. **Give Us Feedback** by following the option under the Help pulldown.
 
 ## Query time parsing rules
