@@ -1,10 +1,10 @@
 #! /usr/bin/env node
 
-const fs = require('fs/promises');
-const { program } = require('commander');
+import fs from 'fs/promises';
+import { program } from 'commander';
 
-const serializeMDX = require('./actions/serialize-mdx');
-const deserializeHTML = require('./actions/deserialize-html');
+import serializeMDX from './actions/serialize-mdx.js';
+import deserializeHTML from './actions/deserialize-html.mjs';
 
 const cantOpenPath = (path) => () => {
   console.error(`😵 unable to open path ${path}`);

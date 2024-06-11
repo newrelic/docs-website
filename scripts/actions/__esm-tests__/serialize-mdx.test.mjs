@@ -1,6 +1,15 @@
-import serializeMDX from '../serialize-mdx';
+import { expect } from 'expect';
 import fs from 'fs';
-import deserializeHTML from '../deserialize-html';
+import path, { dirname } from 'path';
+import { fileURLToPath } from 'url';
+import { test } from 'uvu';
+
+import { initSnapshots } from '../../../esm-test-utils.mjs';
+import serializeMDX from '../serialize-mdx.js';
+import deserializeHTML from '../deserialize-html.mjs';
+
+const snapshot = await initSnapshots('serialize-mdx');
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 test('serializes DoNotTranslate wrapping a Collapser', async () => {
   const html = await serializeMDX(`
@@ -8,12 +17,12 @@ test('serializes DoNotTranslate wrapping a Collapser', async () => {
   <Collapser
     title="Collapse me yo"
   >
-    These tests are hard to write docs for
+    These tests are hard to write docs fo
   </Collapser>
 </DoNotTranslate>
   `);
 
-  expect(html).toMatchSnapshot();
+  await snapshot('serializes DoNotTranslate wrapping a Collapser', html);
 });
 
 test('serializes DoNotTranslate to html', async () => {
@@ -24,7 +33,7 @@ test('serializes DoNotTranslate to html', async () => {
 </DoNotTranslate>
   `);
 
-  expect(html).toMatchSnapshot();
+  await snapshot('serializes DoNotTranslate to html', html);
 });
 
 test('serializes DoNotTranslate to html inline', async () => {
@@ -32,7 +41,7 @@ test('serializes DoNotTranslate to html inline', async () => {
 This is an <DoNotTranslate>MDX</DoNotTranslate> file
   `);
 
-  expect(html).toMatchSnapshot();
+  await snapshot('serializes DoNotTranslate to html inline', html);
 });
 
 test('serializes Button to html', async () => {
@@ -44,7 +53,7 @@ test('serializes Button to html', async () => {
 </Button>
   `);
 
-  expect(html).toMatchSnapshot();
+  await snapshot('serializes Button to html', html);
 });
 
 test('serializes ButtonLink to html', async () => {
@@ -57,7 +66,7 @@ test('serializes ButtonLink to html', async () => {
 </ButtonLink>
   `);
 
-  expect(html).toMatchSnapshot();
+  await snapshot('serializes ButtonLink to html', html);
 });
 
 test('serializes Callouts with title to html', async () => {
@@ -70,7 +79,7 @@ test('serializes Callouts with title to html', async () => {
 </Callout>
   `);
 
-  expect(html).toMatchSnapshot();
+  await snapshot('serializes Callouts with title to html', html);
 });
 
 test('serializes Callouts without title to html', async () => {
@@ -80,7 +89,7 @@ test('serializes Callouts without title to html', async () => {
 </Callout>
   `);
 
-  expect(html).toMatchSnapshot();
+  await snapshot('serializes Callouts without title to html', html);
 });
 
 test('serializes Collapser with plain text title to html', async () => {
@@ -92,7 +101,7 @@ test('serializes Collapser with plain text title to html', async () => {
 </Collapser>
   `);
 
-  expect(html).toMatchSnapshot();
+  await snapshot('serializes Collapser with plain text title to html', html);
 });
 
 test('serializes Collapser with JSX title to html', async () => {
@@ -104,7 +113,7 @@ test('serializes Collapser with JSX title to html', async () => {
 </Collapser>
   `);
 
-  expect(html).toMatchSnapshot();
+  await snapshot('serializes Collapser with JSX title to html', html);
 });
 
 test('serializes CollapserGroup to html', async () => {
@@ -118,7 +127,7 @@ test('serializes CollapserGroup to html', async () => {
 </CollapserGroup>
   `);
 
-  expect(html).toMatchSnapshot();
+  await snapshot('serializes CollapserGroup to html', html);
 });
 
 test('serializes ExternalLink to html', async () => {
@@ -130,7 +139,7 @@ test('serializes ExternalLink to html', async () => {
 </ExternalLink>
   `);
 
-  expect(html).toMatchSnapshot();
+  await snapshot('serializes ExternalLink to html', html);
 });
 
 test('serializes Link to html', async () => {
@@ -142,7 +151,7 @@ test('serializes Link to html', async () => {
 </Link>
   `);
 
-  expect(html).toMatchSnapshot();
+  await snapshot('serializes Link to html', html);
 });
 
 test('serializes Side components to html', async () => {
@@ -152,7 +161,7 @@ test('serializes Side components to html', async () => {
 </Side>
   `);
 
-  expect(html).toMatchSnapshot();
+  await snapshot('serializes Side components to html', html);
 });
 
 test('serializes SideBySide to html', async () => {
@@ -167,7 +176,7 @@ test('serializes SideBySide to html', async () => {
 </SideBySide>
   `);
 
-  expect(html).toMatchSnapshot();
+  await snapshot('serializes SideBySide to html', html);
 });
 
 test('serializes Table to html', async () => {
@@ -192,7 +201,7 @@ test('serializes Table to html', async () => {
 </table>
   `);
 
-  expect(html).toMatchSnapshot();
+  await snapshot('serializes Table to html', html);
 });
 
 test('serializes LandingPageTile to html', async () => {
@@ -207,7 +216,7 @@ test('serializes LandingPageTile to html', async () => {
 </LandingPageTile>
 `);
 
-  expect(html).toMatchSnapshot();
+  await snapshot('serializes LandingPageTile to html', html);
 });
 
 test('serializes LandingPageTileGrid to html', async () => {
@@ -224,7 +233,7 @@ test('serializes LandingPageTileGrid to html', async () => {
 </LandingPageTileGrid>
 `);
 
-  expect(html).toMatchSnapshot();
+  await snapshot('serializes LandingPageTileGrid to html', html);
 });
 
 test('serializes InlineCode to html', async () => {
@@ -232,7 +241,7 @@ test('serializes InlineCode to html', async () => {
 <InlineCode>agent.report_custom_event()</InlineCode>
 `);
 
-  expect(html).toMatchSnapshot();
+  await snapshot('serializes InlineCode to html', html);
 });
 
 test('serializes Video to html', async () => {
@@ -240,7 +249,7 @@ test('serializes Video to html', async () => {
 <Video id="abcd" type="wistia" />
 `);
 
-  expect(html).toMatchSnapshot();
+  await snapshot('serializes Video to html', html);
 });
 
 test('serializes Video with title to html', async () => {
@@ -248,7 +257,7 @@ test('serializes Video with title to html', async () => {
 <Video id="abcd" type="wistia" title="The video title" />
 `);
 
-  expect(html).toMatchSnapshot();
+  await snapshot('serializes Video with title to html', html);
 });
 
 test('serializes Icon to html', async () => {
@@ -256,7 +265,7 @@ test('serializes Icon to html', async () => {
 <Icon name="fe-external-link" size="1rem" />
 `);
 
-  expect(html).toMatchSnapshot();
+  await snapshot('serializes Icon to html', html);
 });
 
 test('serialize Icon inline with text to HTML', async () => {
@@ -264,7 +273,7 @@ test('serialize Icon inline with text to HTML', async () => {
 This is some text with a star <Icon name="fe-star" size="1rem" /> and some more text after it
 `);
 
-  expect(html).toMatchSnapshot();
+  await snapshot('serialize Icon inline with text to HTML', html);
 });
 
 test('serializes Icon to html', async () => {
@@ -272,19 +281,19 @@ test('serializes Icon to html', async () => {
 <Icon name="fe-external-link" size="1rem" />
 `);
 
-  expect(html).toMatchSnapshot();
+  await snapshot('serializes Icon to html', html);
 });
 
 test('serializes var to html', async () => {
   const html = await serializeMDX(`<var>JAVA_AGENT_VERSION</var>`);
 
-  expect(html).toMatchSnapshot();
+  await snapshot('serializes var to html', html);
 });
 
 test('serializes mark to html', async () => {
   const html = await serializeMDX(`<mark>PDF</mark>`);
 
-  expect(html).toMatchSnapshot();
+  await snapshot('serializes mark to html', html);
 });
 
 test('serializes TechTileGrid to html', async () => {
@@ -298,15 +307,18 @@ test('serializes TechTileGrid to html', async () => {
 </TechTileGrid>
 `);
 
-  expect(html).toMatchSnapshot();
+  await snapshot('serializes TechTileGrid to html', html);
 });
 
 test('kitchen sink', async () => {
   const html = await serializeMDX(
-    fs.readFileSync(`${__dirname}/kitchen-sink.mdx`, 'utf-8')
+    fs.readFileSync(
+      path.resolve(`${__dirname}/../__tests__/kitchen-sink.mdx`),
+      'utf-8'
+    )
   );
 
-  expect(html).toMatchSnapshot();
+  await snapshot('kitchen sink', html);
 });
 
 test('test <strong> element serializes', async () => {
@@ -316,7 +328,7 @@ The Varnish Cache integration collects both metrics(<strong>M</strong>) and inve
 
   const html = await serializeMDX(mdx);
 
-  expect(html).toMatchSnapshot();
+  await snapshot('test <strong> element serializes', html);
 });
 
 test('test <b> element serializes', async () => {
@@ -326,7 +338,7 @@ The Varnish Cache integration collects both metrics(<b>M</b>) and inventory(<b>I
 
   const html = await serializeMDX(mdx);
 
-  expect(html).toMatchSnapshot();
+  await snapshot('test <b> element serializes', html);
 });
 
 test("test <InlineCode> element serializes and adds 'notranslate' class to element", async () => {
@@ -336,7 +348,10 @@ test("test <InlineCode> element serializes and adds 'notranslate' class to eleme
 
   const html = await serializeMDX(mdx);
 
-  expect(html).toMatchSnapshot();
+  await snapshot(
+    "test <InlineCode> element serializes and adds 'notranslate' class to element",
+    html
+  );
 });
 
 test("test <code> element serializes and adds 'notranslate' class to element as backticks in MDX", async () => {
@@ -346,7 +361,10 @@ test("test <code> element serializes and adds 'notranslate' class to element as 
 
   const html = await serializeMDX(mdx);
 
-  expect(html).toMatchSnapshot();
+  await snapshot(
+    "test <code> element serializes and adds 'notranslate' class to element as backticks in MDX",
+    html
+  );
 });
 
 test('serialize Tabs Components', async () => {
@@ -378,26 +396,26 @@ test('serialize Tabs Components', async () => {
 
   const html = await serializeMDX(mdx);
 
-  expect(html).toMatchSnapshot();
+  await snapshot('serialize Tabs Components', html);
 });
 
 test('serialize InlinePopover component', async () => {
   const mdx = '<InlinePopover/>';
   const html = await serializeMDX(mdx);
-  expect(html).toMatchSnapshot();
+  await snapshot('serialize InlinePopover component', html);
 });
 
 test('serialize iframes', async () => {
   const mdx =
     '<iframe width="560" height="315" src="https://www.youtube.com/embed/04JP0ky_hjI" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>';
   const html = await serializeMDX(mdx);
-  expect(html).toMatchSnapshot();
+  await snapshot('serialize iframes', html);
 });
 
 test('serialize InlineSignup component', async () => {
   const mdx = '<InlineSignup />';
   const html = await serializeMDX(mdx);
-  expect(html).toMatchSnapshot();
+  await snapshot('serialize InlineSignup component', html);
 });
 
 test('serializing CONTRIBUTOR_NOTE removes it from translated files', async () => {
@@ -409,7 +427,10 @@ test('serializing CONTRIBUTOR_NOTE removes it from translated files', async () =
 </CONTRIBUTOR_NOTE>
   `);
 
-  expect(html).toMatchSnapshot();
+  await snapshot(
+    'serializing CONTRIBUTOR_NOTE removes it from translated files',
+    html
+  );
 });
 
 test('serializing components with apostrophes in their props', async () => {
@@ -422,20 +443,28 @@ test('serializing components with apostrophes in their props', async () => {
   const input2 = `
     <UserJourneyControls
         nextStep={{"path": "/docs/distributed-tracing/ui-data/trace-details/", "title": "Next step:", "body": "Understand the trace details UI"}}
-    />    
+    />
   `;
   const html = await serializeMDX(input);
   const str = await deserializeHTML(html);
-  expect(html).toMatchSnapshot();
+  await snapshot(
+    'serializing components with apostrophes in their props',
+    html
+  );
   expect(str.replace(/ |\n/g, '')).toBe(input.replace(/ |\n/g, ''));
   const html2 = await serializeMDX(input2);
   const str2 = await deserializeHTML(html2);
-  expect(html2).toMatchSnapshot();
+  await snapshot(
+    'serializing components with apostrophes in their props 2',
+    html2
+  );
   expect(str2.replace(/ |\n/g, '')).toBe(input2.replace(/ |\n/g, ''));
 });
 
 test('EolPage', async () => {
   const input = `<EolPage agent='node' locale='ko' />`;
   const html = await serializeMDX(input);
-  expect(html).toMatchSnapshot();
+  await snapshot('EolPage', html);
 });
+
+test.run();

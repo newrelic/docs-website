@@ -1,21 +1,23 @@
-const unified = require('unified');
-const parse = require('rehype-parse');
-const rehype2remark = require('rehype-remark');
-const stringify = require('remark-stringify');
-const frontmatter = require('remark-frontmatter');
-const remarkMdx = require('remark-mdx');
-const remarkMdxjs = require('remark-mdxjs');
-const handlers = require('./utils/handlers');
-const defaultHandlers = require('hast-util-to-mdast/lib/handlers');
-const heading = require('hast-util-to-mdast/lib/handlers/heading');
-const u = require('unist-builder');
-const { last } = require('lodash');
-const yaml = require('js-yaml');
-const { configuration } = require('./configuration');
+import { unified } from 'unified11';
+import parse from 'rehype-parse9';
+import rehype2remark from 'rehype-remark10';
+import stringify from 'remark-stringify10';
+import frontmatter from 'remark-frontmatter5';
+import remarkMdx from 'remark-mdx2.3';
+import handlers from './utils/handlers.js';
+import { defaultHandlers } from 'hast-util-to-mdast9';
+import u from 'unist-builder';
+import last from 'lodash/last.js';
+import yaml from 'js-yaml';
+import { visit } from 'unist-util-visit4';
+import { configuration } from './configuration.js';
 
-const component = (h, node) => {
+/**
+ * Deserialize a node from the HTML AST into a node for the MDX AST.
+ */
+const component = (state, node) => {
   if (!node.properties || !node.properties.dataType) {
-    return defaultHandlers[node.tagName](h, node);
+    return defaultHandlers[node.tagName](state, node);
   }
 
   const { dataType, dataComponent } = node.properties;
@@ -35,11 +37,11 @@ const component = (h, node) => {
     );
   }
 
-  return handler.deserialize(h, node);
+  return handler.deserialize(state, node, undefined, attributeProcessor);
 };
 
-const headingWithCustomId = (h, node) => {
-  const result = heading(h, node);
+const headingWithCustomId = (state, node) => {
+  const result = defaultHandlers.h1(state, node);
   const { id } = node.properties || {};
 
   if (!id) {
@@ -87,6 +89,28 @@ const stripTranslateFrontmatter = () => {
   return transformer;
 };
 
+const inlineCodeAttribute = () => (tree) => {
+  visit(tree, 'inlineCode', (node) => {
+    node.type = 'mdxJsxSpanElement';
+    node.name = 'InlineCode';
+    node.children = [u('text', node.value)];
+  });
+};
+
+// previously, this processor was defined in `deserialization-helpers`.
+// upgrading unified there would have involved changing a lot of CJS modules to ESM.
+// this is a sort of workaround to avoid doing all that,
+// but still allow attribute deserialization to work with the new node types
+// introduced in newer versions of remarkMDX. (`mdxJsx*` nodes vs `mdx*` nodes.)
+const attributeProcessor = unified()
+  .use(stringify, {
+    bullet: '*',
+    fences: true,
+    listItemIndent: '1',
+  })
+  .use(remarkMdx)
+  .use(inlineCodeAttribute);
+
 const processor = unified()
   .use(parse)
   .use(rehype2remark, {
@@ -111,20 +135,23 @@ const processor = unified()
       h6: headingWithCustomId,
     },
   })
+  // order matters here.
+  // remark-mdx must come before remark-stringify, because it adds handlers
+  // for MDX nodes like `mdxJsxTextElement` and otherwise, remark-stringfy
+  // won't know how to stringify those nodes.
+  .use(remarkMdx)
   .use(stringify, {
     bullet: '*',
     fences: true,
     listItemIndent: '1',
   })
-  .use(remarkMdx)
-  .use(remarkMdxjs)
   .use(frontmatter, ['yaml'])
   .use(stripTranslateFrontmatter);
 
 const deserializeHTML = async (html) => {
-  const { contents } = await processor.process(html);
+  const vfile = await processor.process(html);
 
-  return contents.trim();
+  return vfile.toString().trim();
 };
 
-module.exports = deserializeHTML;
+export default deserializeHTML;

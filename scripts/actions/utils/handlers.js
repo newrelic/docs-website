@@ -20,14 +20,27 @@ module.exports = {
         'data-component': 'CodeBlock',
         'data-props': serializeJSValue(omit(node, ['type'])),
       }),
-    deserialize: (h, node) =>
-      h(node, 'code', deserializeJSValue(node.properties.dataProps)),
+    deserialize: (state, node) => {
+      const { lang, value } = deserializeJSValue(node.properties.dataProps);
+      const { meta } = JSON.parse(
+        Buffer.from(node.properties.dataProps ?? '', 'base64').toString()
+      );
+      return {
+        type: 'code',
+        meta,
+        value,
+        lang,
+      };
+    },
   },
   import: {
-    deserialize: (h, node) => {
+    deserialize: (_state, node) => {
       const value = Buffer.from(node.properties.dataValue, 'base64').toString();
 
-      return h(node, 'import', value);
+      return {
+        type: 'mdxjsEsm',
+        value,
+      };
     },
     serialize: (h, node) =>
       h(node, 'div', {
@@ -36,7 +49,7 @@ module.exports = {
       }),
   },
   frontmatter: {
-    deserialize: (h, node) => {
+    deserialize: (_state, node) => {
       const data = deserializeJSValue(node.properties.dataValue);
       const frontMatterAtt = node.children.reduce((acc, child) => {
         const key = child.properties.dataKey;
@@ -44,13 +57,12 @@ module.exports = {
         return { ...acc, [key]: value };
       }, {});
 
-      return h(
-        node,
-        'yaml',
-        yaml
+      return {
+        type: 'yaml',
+        value: yaml
           .safeDump({ ...data, ...frontMatterAtt }, { lineWidth: Infinity })
-          .trim()
-      );
+          .trim(),
+      };
     },
     serialize: (h, node) => {
       const data = yaml.safeLoad(node.value);
@@ -134,11 +146,11 @@ module.exports = {
     serialize: serializeComponent,
   },
   InlinePopover: {
-    deserialize: (h, node) => {
+    deserialize: (state, node) => {
       // this is to remove the `span`'s children to make this
       // a self closing tag.
       node.children = [];
-      return deserializeComponent(h, node, { tagName: 'InlinePopover' });
+      return deserializeComponent(state, node, { tagName: 'InlinePopover' });
     },
     // serialize: serializeComponent,
     serialize: (h, node) =>
@@ -156,8 +168,8 @@ module.exports = {
     serialize: serializeComponent,
   },
   Icon: {
-    deserialize: (h, node) =>
-      deserializeComponent(h, node, { hasChildrenProp: false }),
+    deserialize: (state, node) =>
+      deserializeComponent(state, node, { hasChildrenProp: false }),
     serialize: (h, node) =>
       serializeComponent(h, node, {
         wrapChildren: false,
@@ -193,8 +205,11 @@ module.exports = {
     serialize: serializeComponent,
   },
   InlineCode: {
-    deserialize: (h, node) =>
-      h(node, 'mdxSpanElement', { name: 'InlineCode' }, node.children),
+    deserialize: (state, node) => ({
+      type: 'mdxJsxFlowElement',
+      name: 'InlineCode',
+      children: state.all(node),
+    }),
     serialize: (h, node) => {
       return h(
         node,
@@ -258,7 +273,7 @@ module.exports = {
     serialize: serializeComponent,
   },
   UserJourneyControls: {
-    deserialize: (h, node) => {
+    deserialize: (state, node) => {
       const data = deserializeJSValue(node.properties.dataValue);
       const translatedProps = node.children.reduce((acc, child) => {
         const key = child.properties.dataKey;
@@ -275,7 +290,11 @@ module.exports = {
 
       data.attributes = stuff;
 
-      return h(node, 'mdxBlockElement', data);
+      return {
+        ...node,
+        ...data,
+        type: 'mdxJsxFlowElement',
+      };
     },
     serialize: (h, node) => {
       const serializeAttribute = (name, attribute) => {
@@ -354,8 +373,8 @@ module.exports = {
       }),
   },
   var: {
-    deserialize: (h, node) =>
-      deserializeComponent(h, node, { type: 'mdxSpanElement' }),
+    deserialize: (state, node) =>
+      deserializeComponent(state, node, { type: 'mdxJsxTextElement' }),
     serialize: (h, node) =>
       serializeComponent(h, node, {
         wrapChildren: false,
@@ -364,8 +383,8 @@ module.exports = {
       }),
   },
   mark: {
-    deserialize: (h, node) =>
-      deserializeComponent(h, node, { type: 'mdxSpanElement' }),
+    deserialize: (state, node) =>
+      deserializeComponent(state, node, { type: 'mdxJsxTextElement' }),
     serialize: (h, node) =>
       serializeComponent(h, node, {
         wrapChildren: false,

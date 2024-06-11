@@ -1,16 +1,23 @@
-import deserializeHTML from '../deserialize-html';
-import serializeMDX from '../serialize-mdx';
+import esmock from 'esmock';
 import fs from 'fs';
+import path, { dirname } from 'path';
+import { expect } from 'expect';
+import { fileURLToPath } from 'url';
+import { test } from 'uvu';
 
-const { configuration } = require('../configuration');
+import serializeMDX from '../serialize-mdx.js';
 
-jest.mock('../configuration', () => ({
-  configuration: {
-    TRANSLATION: {
-      TYPE: 'human',
+const deserializeHTML = await esmock('../deserialize-html.mjs', {
+  '../configuration.js': {
+    configuration: {
+      TRANSLATION: {
+        TYPE: 'human',
+      },
     },
   },
-}));
+});
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 test('deserializes mdx with DoNotTranslate', async () => {
   const input = `
@@ -93,7 +100,16 @@ test('deserializes components with text props', async () => {
 
 test('deserializes components with text props as JSX expressions', async () => {
   const input = `
-<Collapser title={<><InlineCode>agent.send_custom_event</InlineCode> API</>}>
+<Collapser
+  title={<>
+    <InlineCode>
+      agent.send_custom_event
+    </InlineCode>
+
+    API
+  </>
+  }
+>
   All about that API
 </Collapser>
   `;
@@ -106,7 +122,16 @@ test('deserializes components with text props as JSX expressions', async () => {
 test('deserializes components with children', async () => {
   const input = `
 <CollapserGroup>
-  <Collapser title={<><InlineCode>agent.send_custom_event</InlineCode> API</>}>
+  <Collapser
+    title={<>
+      <InlineCode>
+        agent.send_custom_event
+      </InlineCode>
+
+      API
+    </>
+    }
+  >
     All about that API
   </Collapser>
 </CollapserGroup>
@@ -119,7 +144,9 @@ test('deserializes components with children', async () => {
 
 test('deserializes InlineCode components', async () => {
   const input = `
-<InlineCode>agent.send_custom_event</InlineCode>
+<InlineCode>
+  agent.send_custom_event
+</InlineCode>
   `;
 
   const mdx = await deserializeHTML(await serializeMDX(input));
@@ -153,9 +180,7 @@ test('deserializes SideBySide components', async () => {
   `;
 
   const html = await serializeMDX(input);
-  console.log('html', html);
   const mdx = await deserializeHTML(html);
-  console.log('mdx', mdx.trim());
 
   expect(mdx).toEqual(input.trim());
 });
@@ -163,11 +188,7 @@ test('deserializes SideBySide components', async () => {
 test('deserializes TechTileGrid components', async () => {
   const input = `
 <TechTileGrid>
-  <TechTile
-    name="iOS"
-    icon="logo-apple"
-    to="/agents/ios-agent"
-  />
+  <TechTile name="iOS" icon="logo-apple" to="/agents/ios-agent" />
 </TechTileGrid>
   `;
 
@@ -177,7 +198,10 @@ test('deserializes TechTileGrid components', async () => {
 });
 
 test('kitchen sink', async () => {
-  const input = fs.readFileSync(`${__dirname}/kitchen-sink.mdx`, 'utf-8');
+  const input = fs.readFileSync(
+    path.resolve(`${__dirname}/../__tests__/kitchen-sink.mdx`),
+    'utf-8'
+  );
 
   const mdx = await deserializeHTML(await serializeMDX(input));
 
@@ -247,29 +271,24 @@ test('deserializes Tabs Component', async () => {
 });
 
 test('deserializes InlinePopover component', async () => {
-  const input = '<InlinePopover/>';
+  const input = '<InlinePopover />';
 
   const mdx = await deserializeHTML(await serializeMDX(input));
   expect(mdx).toEqual(input);
 });
 
 test('deserialize iframes', async () => {
-  const input = `<iframe
-  width="560"
-  height="315"
-  src="https://www.youtube.com/embed/04JP0ky_hjI"
-  frameborder="0"
-  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-  allowfullscreen
-/>`;
+  const input = `<iframe width="560" height="315" src="https://www.youtube.com/embed/04JP0ky_hjI" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen />`;
 
   const mdx = await deserializeHTML(await serializeMDX(input));
   expect(mdx).toEqual(input);
 });
 
 test('deserializes InlineSignup component', async () => {
-  const input = '<InlineSignup/>';
+  const input = '<InlineSignup />';
 
   const mdx = await deserializeHTML(await serializeMDX(input));
   expect(mdx).toEqual(input);
 });
+
+test.run();

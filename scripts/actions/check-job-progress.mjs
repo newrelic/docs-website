@@ -1,22 +1,24 @@
 /* eslint-disable no-console */
 'use strict';
-const core = require('@actions/core');
-const {
+import core from '@actions/core';
+import process from 'process';
+import { fileURLToPath } from 'url';
+import {
   getJobs,
   updateJob,
   getTranslationsJobsRecords,
   updateTranslations,
   StatusEnum,
-} = require('./translation_workflow/database.js');
+} from './translation_workflow/database.js';
 
-const { vendorRequest } = require('./utils/vendor-request');
-const { fetchAndDeserializeFiles } = require('./fetch-and-deserialize');
-const { configuration } = require('./configuration');
-const {
+import { vendorRequest } from './utils/vendor-request.js';
+import { fetchAndDeserializeFiles } from './fetch-and-deserialize.mjs';
+import { configuration } from './configuration.js';
+import {
   trackTranslationError,
   trackTranslationEvent,
   TRACKING_TARGET,
-} = require('./utils/translation-monitoring.js');
+} from './utils/translation-monitoring.js';
 
 const PROJECT_ID = configuration.TRANSLATION.VENDOR_PROJECT;
 
@@ -325,13 +327,13 @@ const main = async () => {
 /**
  * This allows us to check if the script was invoked directly from the command line, i.e 'node validate_packs.js', or if it was imported.
  * This would be true if this was used in one of our GitHub workflows, but false when imported for use in a test.
- * See here: https://nodejs.org/docs/latest/api/modules.html#modules_accessing_the_main_module
+ * this used to use `require.main` but had to switch to a somewhat less reliable workaround for ESM.
  */
-if (require.main === module) {
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
   main();
 }
 
-module.exports = {
+export {
   getBatchStatus,
   aggregateStatuses,
   updateTranslationRecords,
