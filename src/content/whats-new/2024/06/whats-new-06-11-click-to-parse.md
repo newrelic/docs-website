@@ -13,10 +13,10 @@ While the majority of valuable parsing information is automatically gathered dur
 
 ## Ingest parsing with AI assistance
 
-We are expanding our public preview for our AI-powered ingest to increase the efficiency of capturing parsing rules upon ingest. This preview offers capabilities that allow you to:
+We are expanding our public preview for our AI-powered ingest to allow you to parse your logs using automatically generated Grok rules. New Relic AI can help you create and troubleshoot parsing rules by:
 
-* Parse your logs using automatically generated Grok rules.
-* Surface New Relic Lookout insights and anomaly data from logs in response to root cause analysis (RCA)-style prompts.
+* **Suggesting parsing rules**: When you create a parsing rule in the UI, ask NRAI to create the parsing rule for you. 
+* **Explaining parsing rules**: If you don't understand the parsing rule our AI suggests, you can ask AI to explain the rule and suggest an even more efficient one if available. 
 
 ![A screenshot showing NRAI enabled.](./images/pic1.png "A screenshot showing NRAI enabled.")
 
@@ -39,5 +39,7 @@ To get started:
 3. [Watch a step-by-step video](https://www.youtube.com/watch?v=tvK6MlkvD6Y)
 
 ![A screenshot showing how to extract a value from a string.](./images/pic2.png "A screenshot showing how to extract a value from a string.")
+<figcaption>Use query time parsing to extract the value from a string for easy querying.</figcaption>
 
-<figcaption>Use click-to-parse to extract the value from a string for easy querying.</figcaption>
+
+
