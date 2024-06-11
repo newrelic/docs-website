@@ -10,6 +10,7 @@ import {
   useInstrumentedHandler,
   useTranslation,
 } from '@newrelic/gatsby-theme-newrelic';
+import Tada from '../../createHtml';
 import { useMedia } from 'react-use';
 import HomepageBanner from '../components/HomepageBanner';
 import { DocTile, DocTiles } from '../components/DocTile';
@@ -54,6 +55,7 @@ const HomePage = ({ data }) => {
 
   return (
     <ErrorBoundary eventName="homepage">
+      <Tada />
       <HomepageBanner />
       {/* ------ Onboarding steps ------ */}
       <Section

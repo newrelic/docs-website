@@ -1,6 +1,6 @@
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import componentJson from './sdkcomponents.json';
+import apiJson from './sdkcomponents.json';
 import { saveAs } from 'file-saver';
 import Markdown from './Markdown';
 import PropList from './PropList';
@@ -8,7 +8,7 @@ import { MDXCodeBlock, Callout } from '@newrelic/gatsby-theme-newrelic';
 import MethodReference from './MethodReference';
 import TypeDefReference from './TypeDefReference';
 
-const components = componentJson.data.allNewRelicSdkComponent.nodes;
+const components = apiJson.data.allNewRelicSdkApi.nodes;
 
 const makeHTML = (components) => {
   const htmlstring = `<pre>${components[0].examples[0].sourceCode}</pre>`;
@@ -25,10 +25,10 @@ const Tada = () => {
 
   // console.log('HELLOOOOO', allhtml);
 
-  console.log(allhtml[0]);
+  console.log(allhtml.length, allhtml);
 
   const downloadAll = () =>
-    allhtml.slice(90, 100).forEach((component, i) => {
+    allhtml.forEach((component, i) => {
       console.log('DOWNLOADING:', i);
       const blob = new Blob([component.html], { type: 'html' });
       return saveAs(blob, `${component.name}.html`);
@@ -72,7 +72,7 @@ const Ohlala = ({ component }) => {
           ))}
         </>
       )}
-      {propTypes.length > 0 && (
+      {propTypes?.length > 0 && (
         <>
           <h3>Props</h3>
           <PropList propTypes={propTypes} />

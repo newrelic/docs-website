@@ -34,14 +34,11 @@ const serializeMdxToHtml = async (path, outputPath) => {
 
 const deserializeHtmlToMdx = async (path, outputPath) => {
   const htmls = await fs.readdir(path);
-  console.log(htmls);
+  console.log('hi', htmls);
   htmls.forEach(async (htmlguy) => {
     const frontmatter = `---
 title: '${htmlguy.replace('.html', '')}'
-metaDescription: 'Learn how to work the ${htmlguy.replace(
-      '.html',
-      ''
-    )} component'
+metaDescription: 'Learn how to use the ${htmlguy.replace('.html', '')} API'
 freshnessValidatedDate: 2024-06-03
 ---\n`;
     const html = await fs
