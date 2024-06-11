@@ -6,7 +6,7 @@ learnMoreLink: 'https://newrelic.com/blog/how-to-relic/click-to-parse'
 getStartedLink: 'https://youtu.be/tvK6MlkvD6Y?si=5klygPBzQyY5qsI8'
 ---
 
-While the majority of valuable parsing information is automatically gathered during the ingestion of logs into the New Relic platform, building additional queries can be labor-intensive. Logs parsing just became easier for both types of parsing at New Relic: 
+While New Relic applies built-in parsing rules during the ingestion of logs into the New Relic platform, you may want to create additional parsing rules yourself. Logs parsing just became easier for both types of parsing at New Relic: 
 
 * Ingest parsing: These are rules that create permanent changes in your logs and are based on Grok rules. In the past, you had to create your own Grok rules, but now we can create these complex rules for you with our NRAI assistant.  
 * Query time parsing: We generate temporary parsing rules written in NRQL as you make log selections in our UI.
