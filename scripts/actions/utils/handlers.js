@@ -418,4 +418,28 @@ module.exports = {
     deserialize: deserializeComponent,
     serialize: serializeComponent,
   },
+  h1: {
+    deserialize: deserializeComponent,
+    serialize: serializeComponent,
+  },
+  h2: {
+    deserialize: deserializeComponent,
+    serialize: serializeComponent,
+  },
+  h3: {
+    deserialize: deserializeComponent,
+    serialize: serializeComponent,
+  },
+  h4: {
+    deserialize: deserializeComponent,
+    serialize: serializeComponent,
+  },
+  h5: {
+    deserialize: deserializeComponent,
+    serialize: serializeComponent,
+  },
+  h6: {
+    deserialize: deserializeComponent,
+    serialize: serializeComponent,
+  },
 };
