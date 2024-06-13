@@ -419,27 +419,33 @@ module.exports = {
     serialize: serializeComponent,
   },
   h1: {
-    deserialize: deserializeComponent,
+    deserialize: (h, node) =>
+      deserializeComponent(h, node, { type: 'mdxSpanElement' }),
     serialize: serializeComponent,
   },
   h2: {
-    deserialize: deserializeComponent,
+    deserialize: (h, node) =>
+      deserializeComponent(h, node, { type: 'mdxSpanElement' }),
     serialize: serializeComponent,
   },
   h3: {
-    deserialize: deserializeComponent,
+    deserialize: (h, node) =>
+      deserializeComponent(h, node, { type: 'mdxSpanElement' }),
     serialize: serializeComponent,
   },
   h4: {
-    deserialize: deserializeComponent,
+    deserialize: (h, node) =>
+      deserializeComponent(h, node, { type: 'mdxSpanElement' }),
     serialize: serializeComponent,
   },
   h5: {
-    deserialize: deserializeComponent,
+    deserialize: (h, node) =>
+      deserializeComponent(h, node, { type: 'mdxSpanElement' }),
     serialize: serializeComponent,
   },
   h6: {
-    deserialize: deserializeComponent,
+    deserialize: (h, node) =>
+      deserializeComponent(h, node, { type: 'mdxSpanElement' }),
     serialize: serializeComponent,
   },
 };
