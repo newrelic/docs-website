@@ -83,7 +83,7 @@ const addRemoveRedirects = program
   .description('create or delete redirects for all files in a given directory');
 
 addRemoveRedirects
-  .command('addRedirects')
+  .command('add')
   .description(
     "add a redirect for the file's current location for all files in a given directory (and any sub-directories)"
   )
@@ -94,7 +94,7 @@ addRemoveRedirects
   });
 
 addRemoveRedirects
-  .command('removeRedirects')
+  .command('remove')
   .description(
     "remove a redirect for the file's current location for all files in a given directory (and any sub-directories)"
   )
