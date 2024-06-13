@@ -111,7 +111,7 @@ const removeRedirect = ({ frontmatterData, slug, ...rest }) => {
  */
 const getFilePaths = (directory) => {
   const subDir = directory.length ? directory : '/docs/';
-  return globSync(`${__dirname}/../${subDir}/**/*.mdx`);
+  return globSync(`${__dirname}/../../${subDir}/**/*.mdx`);
 };
 
 module.exports = {

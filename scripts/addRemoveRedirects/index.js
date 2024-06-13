@@ -6,7 +6,7 @@ const {
   joinData,
   addRedirect,
   removeRedirect,
-} = require('./handlers');
+} = require('./utils');
 const { program } = require('commander');
 const fs = require('fs');
 
