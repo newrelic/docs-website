@@ -1,6 +1,6 @@
 /* eslint-disable no-console */
 const { globSync } = require('glob10');
-const frontmatterGH = require('@github-docs/frontmatter');
+const { frontmatter, stringifyFrontmatter } = require('../utils/frontmatter');
 const fs = require('fs');
 
 /**
@@ -42,8 +42,8 @@ const getSlugFromPath = (filepath) => {
 const separateData = (path) => {
   const file = fs.readFileSync(path, 'utf8');
   const slug = getSlugFromPath(path);
-  const separateData = frontmatterGH(file);
-  const { data: frontmatterData, content } = separateData;
+  const separateData = frontmatter(file);
+  const { attributes: frontmatterData, body: content } = separateData;
   if (!frontmatterData.redirects) {
     frontmatterData.redirects = [];
   }
@@ -56,7 +56,7 @@ const separateData = (path) => {
  * @returns {Object} Combined data and path
  */
 const joinData = ({ content, frontmatterData, path }) => {
-  const data = frontmatterGH.stringify(content, frontmatterData, {
+  const data = stringifyFrontmatter(content, frontmatterData, {
     lineWidth: -1,
   });
 
