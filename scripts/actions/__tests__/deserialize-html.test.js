@@ -273,3 +273,10 @@ test('deserializes InlineSignup component', async () => {
   const mdx = await deserializeHTML(await serializeMDX(input));
   expect(mdx).toEqual(input);
 });
+
+test('deserializes headers as a span element', async () => {
+  const input = `<h5>test</h5>`;
+
+  const mdx = await deserializeHTML(await serializeMDX(input));
+  expect(mdx).toEqual(input);
+});
