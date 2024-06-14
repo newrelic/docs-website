@@ -85,14 +85,14 @@ the file at path src/contents/docs/taco/cheese.mdx will now have a new redirect
 
 ```
 redirects:
-- /docs/taco/cheese.mdx
+- /docs/taco/cheese
 ```
 
 and the file at src/contents/docs/taco/beans.mdx will also have a new redirect
 
 ```
 redirects:
-- /docs/taco/beans.mdx
+- /docs/taco/beans
 ```
 
 These files can then be moved to a new directory with a redirect that references their original directory
