@@ -133,6 +133,10 @@ module.exports = {
     deserialize: deserializeComponent,
     serialize: serializeComponent,
   },
+  FunctionDefinition: {
+    deserialize: deserializeComponent,
+    serialize: serializeComponent,
+  },
   InlinePopover: {
     deserialize: (h, node) => {
       // this is to remove the `span`'s children to make this
@@ -165,6 +169,10 @@ module.exports = {
         // a text node that follows this node
         children: [u('text', '\u00A0')],
       }),
+  },
+  OptionReference: {
+    deserialize: deserializeComponent,
+    serialize: serializeComponent,
   },
   table: {
     deserialize: deserializeComponent,
@@ -254,6 +262,10 @@ module.exports = {
       serializeComponent(h, node, { textAttributes: ['name'] }),
   },
   TechTileGrid: {
+    deserialize: deserializeComponent,
+    serialize: serializeComponent,
+  },
+  TypeDefReference: {
     deserialize: deserializeComponent,
     serialize: serializeComponent,
   },
