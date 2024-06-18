@@ -6,7 +6,7 @@ learnMoreLink: 'https://docs.newrelic.com/docs/ai-monitoring/explore-ai-data/vie
 getStartedLink: 'https://docs.newrelic.com/docs/ai-monitoring/intro-to-ai-monitoring/#get-started'
 ---
 
-New Relic AI monitoring gives you deep insights and unprecedented visibility across your entire AI stack, so you can build and run AI applications with confidence.  Model inventory, the latest addition to  AI monitoring, simplifies isolating and troubleshooting any model-related performance, error, or cost issues. With model inventory :
+New Relic AI monitoring gives you deep insights and unprecedented visibility across your entire AI stack, so you can build and run AI applications with confidence. The latest addition to AI monitoring, model inventory, offers a unified and comprehensive view of key model metrics across all models. This makes it easy to isolate and troubleshoot any model-related performance, error, or cost issues. With model inventory:
 
 * **Gain holistic view of your model data:** Overview the requests, token usage, and completions across models for all services and accounts, ensuring complete visibility and control.
 
