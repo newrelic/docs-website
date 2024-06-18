@@ -88,15 +88,6 @@ const Heading = styled.h2`
   margin: 0;
 `;
 
-const Link = styled.a`
-  color: currentColor;
-  text-decoration: underline;
-
-  &:hover {
-    color: currentColor;
-  }
-`;
-
 const PrimaryButton = styled(Button)`
   cursor: pointer;
   width: 100%;
