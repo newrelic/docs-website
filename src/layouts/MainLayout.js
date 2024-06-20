@@ -246,6 +246,10 @@ const MainLayout = ({ children, pageContext }) => {
                   position: relative;
                   padding-top: 2.75rem;
 
+                  @media (min-width: 1241px) {
+                    padding-right: 1.5rem;
+                  }
+
                   @media (min-width: 760px) {
                     ${!sidebar &&
                     `padding-left: calc(var(--site-content-padding) + 50px);`}
@@ -280,7 +284,7 @@ const MainLayout = ({ children, pageContext }) => {
             <Layout.Footer
               fileRelativePath={pageContext.fileRelativePath}
               css={css`
-                height: 60px;
+                height: 80px;
                 ${!sidebar &&
                 css`
                   grid-column: 1/3;
