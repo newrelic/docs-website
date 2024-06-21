@@ -13,6 +13,7 @@ import { css } from '@emotion/react';
 import cx from 'classnames';
 
 import { DocTile, DocTiles } from './DocTile';
+import DeveloperIcons from './DeveloperIcons';
 import EolPage from './EolPage';
 import FunctionDefinition from './FunctionDefinition';
 import HeaderLink from './HeaderLink';
@@ -119,6 +120,7 @@ const defaultComponents = {
   SideBySide,
   UserJourneyControls,
   EolPage,
+  DeveloperIcons,
 };
 
 const MDXContainer = ({ body, children, components }) => {
