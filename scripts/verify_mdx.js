@@ -179,7 +179,7 @@ const main = async () => {
   if (filePaths.length === 0) {
     // if user did not supply paths, default to all
     filePaths = glob.sync(
-      `${__dirname}/../src{/content/**/*.mdx,/i18n/content/**/*.mdx}`
+      `${__dirname}/../src{/content/**/*.mdx,/i18n/content/**/*.mdx,/install/**/*.mdx}`
     );
   }
 
