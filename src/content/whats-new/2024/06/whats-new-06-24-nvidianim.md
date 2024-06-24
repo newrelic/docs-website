@@ -1,12 +1,17 @@
 ---
 title: 'New Relic AI Monitoring now integrates with NVIDIA NIM inference microservices'
-summary: 'Gain in-depth insights across the AI stack for applications built with NVIDIA NIM'
+summary: 'Troubleshoot and optimize your AI apps built with NVIDIA NIM using in-depth insights across the AI stack'
 releaseDate: '2024-06-24'
-learnMoreLink: ''
+learnMoreLink: 'https://newrelic.com/blog/nerdlog/nvidia-nim-ai-monitoring'
 getStartedLink: 'https://docs.newrelic.com/docs/ai-monitoring/intro-to-ai-monitoring/#get-started'
 ---
 
-New Relic AI Monitoring empowers engineers to quickly troubleshoot AI applications built with NVIDIA NIM and optimize their performance, quality, cost, ultimately helping organizations adopt AI faster and achieve quicker ROI.
+Building, deploying, and monitoring generative AI applications is a complex undertaking. This is where NVIDIA and New Relic join forces to provide a streamlined path for developing, deploying, and monitoring AI-powered enterprise applications in production.
+
+NVIDIA NIM is a set of inference microservices that provides pre-built, optimized LLM models that simplify the deployment across NVIDIA accelerated infrastructure in the data center and cloud.
+
+New Relic AI Monitoring now integrates with NVIDIA NIM to empower engineers to quickly troubleshoot and optimize the performance, quality, cost of AI applications, ultimately helping organizations adopt AI faster and achieve quicker ROI. 
+![NIM integration](./images/nim1.png "A screenshot that shows the NIM integration")
 
 * **Full AI stack visibility:** Spot issues faster with a holistic view across apps, NVIDIA GPU-based infrastructure and AI layer.
 * **Deep trace insights for every response:** Fix performance and quality issues like bias, toxicity, and hallucinations by tracing the entire lifecycle of AI responses 
