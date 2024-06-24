@@ -2,7 +2,7 @@
 title: 'New Relic AI monitoring now integrates with NVIDIA NIM inference microservices'
 summary: 'Troubleshoot and optimize your AI apps built with NVIDIA NIM using in-depth insights across the AI stack'
 releaseDate: '2024-06-24'
-learnMoreLink: 'https://newrelic.com/blog/nerdlog/nvidia-nim-ai-monitoring'
+learnMoreLink: 'https://newrelic.com/blog/how-to-relic/ai-monitoring-for-nvidia-nim'
 getStartedLink: 'https://docs.newrelic.com/docs/ai-monitoring/intro-to-ai-monitoring/#get-started'
 ---
 
