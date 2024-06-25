@@ -12,7 +12,7 @@ NVIDIA NIM is a set of inference microservices that provides pre-built, optimize
 
 New Relic AI monitoring now integrates with NVIDIA NIM to help engineers quickly troubleshoot and optimize the performance, quality, cost of AI applications, ultimately helping organizations adopt AI faster and achieve quicker ROI. 
 
-![NIM integration](./images/nim1.png "A screenshot that shows the NIM integration")
+![NIM integration](./images/nim1.webp "A screenshot that shows the NIM integration")
 
 * **Full AI stack visibility:** Spot issues faster with a holistic view across apps, NVIDIA GPU-based infrastructure and AI layer.
 * **Deep trace insights for every response:** Fix performance and quality issues like bias, toxicity, and hallucinations by tracing the entire lifecycle of AI responses 
