@@ -12,6 +12,7 @@ const main = async () => {
       `${__dirname}/../src{/content/**/*.mdx,/i18n/content/**/*.mdx,/install/**/*.mdx}`
     );
     // if user supplies a path that is a directory, get all files recursively
+    // assumes one path is supplied
   } else if (!path.extname(filePaths[0])) {
     // remove a possible trailing slash
     const dirPath = filePaths[0].endsWith('/')
