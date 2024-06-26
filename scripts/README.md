@@ -23,7 +23,7 @@ OR Optionally, you can supply it a directory path and it will read all files and
 
 - `yarn verify-mdx src/content/folder-of-cool-stuff`
 
-Otherwise, it will read all files under `/src/content/` and `src/i18n/content`.
+Otherwise, it will read all files under `/src/content/`,`src/i18n/content`, and `src/install`.
 
 - `yarn verify-mdx`
 
