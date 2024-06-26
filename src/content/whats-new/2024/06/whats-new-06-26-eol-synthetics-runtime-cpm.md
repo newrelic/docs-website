@@ -1,12 +1,12 @@
 ---
 title: 'Update to the new synthetic monitor runtime to prevent impacts to your synthetic monitors'
-summary: 'Support for legacy synthetics runtimes and Containerized Private Minion will be concluded on October 22, 2024'
-releaseDate: '2024-04-22'
+summary: 'Support for legacy synthetics runtimes and Containerized Private Minion will be concluded on October 22, 2024. As of August 26, 2024, customers will be unable to create new monitors using legacy runtimes.'
+releaseDate: '2024-06-26'
 learnMoreLink: 'https://docs.newrelic.com/docs/synthetics/synthetic-monitoring/using-monitors/runtime-upgrade-ui'
 getStartedLink: ''
 ---
 
-On October 22, 2024, New Relic will end-of-life (EOL):
+Reminder - On October 22, 2024, New Relic will end-of-life (EOL):
 
 * The Containerized Private Minion (CPM) capability
 * Legacy synthetic monitoring runtimes, including our legacy Chrome 72 (or older) and Node version 10 (or older) runtimes 
@@ -30,7 +30,7 @@ Below are some notes about how the update affects your public or private locatio
 
 * New Relic will update all broken link and certificate check monitors to the new runtime.
 * Customers should update their scripted API, scripted browser, and step monitors to the new runtime [using the runtime upgrade UI](https://docs.newrelic.com/docs/synthetics/synthetic-monitoring/using-monitors/runtime-upgrade-ui) before October 22, 2024. 
-   * If you do not update, we’ll force update your monitors to the new runtime on the EOL date. **This may result in check failures and triggered alerts.**
+   * If you do not update, we'll force update your monitors to the new runtime on the EOL date. **This may result in check failures and triggered alerts.**
    * Remember to use the test results from the runtime upgrade UI to determine the monitors that may require modifications before updating to the new runtime.
 * As of **August 26, 2024**, customers will be unable to create new monitors using legacy runtimes on public locations.
 
