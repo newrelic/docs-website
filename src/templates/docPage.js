@@ -134,6 +134,7 @@ const BasicDoc = ({ data, location, pageContext }) => {
           <Layout.PageTools
             css={css`
               background: var(--primary-background-color);
+              gap: 0;
               top: calc(var(--global-header-height) + 3rem);
               &.page-tools-transition-enter {
                 translate: calc(var(--sidebar-width) - 50px);
@@ -168,6 +169,20 @@ const BasicDoc = ({ data, location, pageContext }) => {
               pageTitle={title}
               fileRelativePath={fileRelativePath}
               issueLabels={['feedback', 'feedback-issue']}
+              css={css`
+                margin-top: 1rem;
+                background: var(--system-text-primary-dark);
+
+                .dark-mode && {
+                  background: var(--erno-black);
+                }
+                a {
+                  color: var(--primary-system-text);
+                  font-size: 1rem;
+                  border-radius: 3px;
+                  border: none;
+                }
+              `}
             />
           </Layout.PageTools>
         </CSSTransition>
