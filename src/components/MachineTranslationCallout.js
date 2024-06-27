@@ -47,7 +47,7 @@ const MachineTranslationCallout = ({ englishHref }) => {
           `}
         >
           <h4>{t('strings.machineTranslation.calloutHeading')}</h4>
-          <Trans i18nKey="machineTranslation.calloutBody" parent="p">
+          <Trans i18nKey="strings.machineTranslation.calloutBody" parent="p">
             In the event of any inconsistency between the English version and
             the translated version, the{' '}
             <Link to={englishHref} shouldAutoLocalize={false}>
