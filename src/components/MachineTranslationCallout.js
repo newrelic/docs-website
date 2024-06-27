@@ -52,7 +52,7 @@ const MachineTranslationCallout = ({ englishHref }) => {
             the translated version, the{' '}
             <Link to={englishHref} shouldAutoLocalize={false}>
               English version
-            </Link>
+            </Link>{' '}
             will take priority. Please visit{' '}
             <Link to="/docs/licenses/translated-documentation/translation-disclaimer/">
               this page
