@@ -19,7 +19,11 @@ It can optionally take an array of files supplied in the terminal separated by s
 
 - `yarn verify-mdx src/content/file1.mdx src/content/file2.mdx`
 
-Otherwise, it will read all files under `/src/content/` and `src/i18n/content`.
+OR Optionally, you can supply it a directory path and it will read all files and folders recursively within it
+
+- `yarn verify-mdx src/content/folder-of-cool-stuff`
+
+Otherwise, it will read all files under `/src/content/`,`src/i18n/content`, and `src/install`.
 
 - `yarn verify-mdx`
 
