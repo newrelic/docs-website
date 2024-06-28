@@ -12,7 +12,3 @@ You can now view logs related to span-based transaction traces directly in the t
 <figcaption>A screenshot showing logs in the context of a transaction trace.</figcaption>
 
 To get started, open the transaction trace details view for any span-based transaction trace and click the new **Logs** tab. A logs view will open where you can explore your logs related to the transaction trace. In addition, we’ve improved our logs in context views to show a timeseries of your logs by log level in a stacked bar chart. 
-
-For more information on how to use this feature, see [Introduction to transaction traces](https://docs.newrelic.com/docs/apm/transactions/transaction-traces/introduction-transaction-traces/).
-
-
