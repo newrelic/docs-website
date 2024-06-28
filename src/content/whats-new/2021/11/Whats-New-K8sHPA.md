@@ -18,6 +18,6 @@ With Kubernetes v1.6, it became possible to autoscale off of user-defined custom
 
 New Relic metric adapter is only available for Kubernetes v1.16 and above. To see the list full of requirements check the following [link](https://docs.newrelic.com/docs/kubernetes-pixie/kubernetes-integration/newrelic-hpa-metrics-adapter/newrelic-metrics-adapter/#installation).
 
-By using Helm charts any New Relic user can easily install our [Kubernetes integration](https://docs.newrelic.com/docs/kubernetes-pixie/kubernetes-integration/installation/kubernetes-integration-install-configure/) with HPA or simply update it to enable the New Relic metric adapter.
+By using Helm charts any New Relic user can easily install our [Kubernetes integration](https://docs.newrelic.com/install/kubernetes) with HPA or simply update it to enable the New Relic metric adapter.
 
 Find more information about the installation process [here](https://docs.newrelic.com/docs/kubernetes-pixie/kubernetes-integration/newrelic-hpa-metrics-adapter/newrelic-metrics-adapter/#installation).
