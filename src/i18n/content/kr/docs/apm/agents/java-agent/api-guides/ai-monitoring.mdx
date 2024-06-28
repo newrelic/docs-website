@@ -1,0 +1,82 @@
+---
+title: AI 모니터링 API
+tags:
+  - Agents
+  - Java agent
+  - API guides
+metaDescription: For information about customizing New Relic's Java agent for AI monitoring.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+AI 모니터링을 사용하여 앱을 업로드하면 사용량 및 사용자 피드백을 수집하기 위한 일부 API 액세스할 수 있습니다. AI 모니터링 API 사용하려면 저항 에이전트가 버전 8.12.0 이상으로 업데이트되었는지 확인하세요.
+
+이 문서에서는 [토큰 수 및 사용자 피드백 API에](https://newrelic.github.io/java-agent-api/javadoc/com/newrelic/api/agent/AiMonitoring.html#recordLlmFeedbackEvent) 액세스하기 위해 코드를 업데이트하는 절차를 제공합니다.
+
+## 토큰 수 기록 [#token-count]
+
+`ai_monitoring.record_content.enabled=false` 사용하여 에이전트를 비활성화한 경우 `setLlmTokenCountCallback(LlmTokenCountCallback llmTokenCountCallback)` API를 사용하여 토큰 수 속성을 계산할 수 있습니다. 이는 메시지 내용 자체를 기록하지 않고 LLM 포함 및 완료 프로세스와 관련된 이벤트의 토큰 수를 계산합니다. 토큰 수를 수집하려면 다음 단계를 따르세요.
+
+1. `calculateLlmTokenCount(String model, String content)` 메서드를 재정의하도록 `LlmTokenCountCallback` 를 구현합니다. 이는 주어진 LLM 모델 이름과 LLM 메시지 내용 또는 프롬프트를 기반으로 토큰 수를 계산합니다.
+
+   ```java
+       class MyTokenCountCallback implements LlmTokenCountCallback {
+           @Override
+           public int calculateLlmTokenCount(String model, String content) {
+               // Implement custom token calculating logic here based on the LLM model and content.
+               // Return an integer representing the calculated token count.
+               return 0;
+           }
+       }
+   ```
+
+2. 콜백을 등록하기 위한 `LlmTokenCountCallback` 구현의 인스턴스를 생성한 다음 이를 `setLlmTokenCountCallback` API에 전달합니다. 예를 들어:
+
+   ```java
+       LlmTokenCountCallback myTokenCountCallback = new MyTokenCountCallback();
+           // The callback needs to be registered at some point before invoking the LLM model
+       NewRelic.getAgent().getAiMonitoring.setLlmTokenCountCallback(myTokenCountCallback);
+   ```
+
+콜백을 사용하려면 특정 프롬프트, 완료 메시지 또는 삽입에 대한 토큰 수를 나타내는 정수를 반환하도록 `LlmTokenCountCallback` 구현합니다. 값이 `0` 보다 작거나 같으면 `LlmTokenCountCallbacks` 이벤트에 연결되지 않습니다. 이 API는 한 번만 호출해야 한다는 점을 명심하세요. 이 API를 여러 번 호출하면 이전의 각 콜백이 대체됩니다.
+
+## 사용자 피드백 기록 [#user-feedback]
+
+AI 모니터링은 LLM 모델에서 생성된 메시지와 최종 사용자의 피드백 간의 트레이스 ID를 연관시킬 수 있습니다. `recordLlmFeedbackEvent` API는 `LlmFeedbackEventAttributes.Builder` 클래스의 맵을 사용하여 인수를 생성합니다. 사용자 피드백을 기록하려면 다음 단계를 따르세요.
+
+1. 다음을 실행할 때 [`TraceMetadata.getTraceId()`](https://newrelic.github.io/java-agent-api/javadoc/com/newrelic/api/agent/TraceMetadata.html#getTraceId) API 사용하여 프로세서용 트레이스 ID를 획득합니다.
+
+   ```java
+   String traceId = NewRelic.getAgent().getTraceMetadata().getTraceId();
+   ```
+
+2. 트레이스 ID를 피드백 이벤트와 연관시키려면 [`recordLlmFeedbackEvent(Map<String, Object> llmFeedbackEventAttributes)`](https://newrelic.github.io/java-agent-api/javadoc/com/newrelic/api/agent/AiMonitoring.html#recordLlmFeedbackEvent) 추가하세요. 다음은 LLM 피드백 이벤트를 기록하는 방법의 예입니다.
+
+   ```java
+   String traceId = ... // acquired directly from New Relic API or retrieved from some propagation mechanism
+
+   Map<String, String> metadata = new HashMap<>();
+   metadata.put("interestingKey", "interestingVal");
+
+   LlmFeedbackEventAttributes.Builder llmFeedbackEvenAttrBuilder = new LlmFeedbackEventAttributes.Builder(traceId, ratingString);
+
+   Map<String, Object> llmFeedbackEventAttributes = llmFeedbackEvenAttrBuilder
+           .category("General")
+           .message("Ok")
+           .metadata(metadata)
+           .build();
+
+   NewRelic.getAgent().getAiMonitoring().recordLlmFeedbackEvent(llmFeedbackEventAttributes);
+   ```
+
+사용자 피드백이 LLM 프레임 또는 응답이 발생한 위치와 다른 스레드 또는 다른 서비스를 기록하는 경우 원래 스레드 또는 서비스에서 트레이스 ID를 획득해야 합니다. 트레이스 ID를 획득한 후 사용자 피드백 이벤트가 기록될 곳에 전파하세요.
+
+`LlmFeedbackEventAttributes.Builder` 클래스가 수행하는 모범 사례를 보려면 [AI 모델링 API 문서에서 메서드 세부 정보를 검토하세요](https://newrelic.github.io/java-agent-api/javadoc/com/newrelic/api/agent/AiMonitoring.html#recordLlmFeedbackEvent).
+
+## 사용자 정의 LLM 속성 추가 [#custom-attributes]
+
+사용자 정의 LLM 속성을 수집하도록 에이전트를 조정할 수 있습니다.
+
+* [`NewRelic.addCustomParameter(...)`](https://newrelic.github.io/java-agent-api/javadoc/com/newrelic/api/agent/NewRelic.html#addCustomParameter(java.lang.String,boolean)) API 로 추가된 모든 맞춤 속성에는 `llm.` 접두사가 붙을 수 있습니다. 이렇게 하면 해당 속성이 `LlmEvent`에 자동으로 복사됩니다.
+* `addCustomParameters` API 사용하여 `LlmEvent`에 맞춤 속성을 추가하는 경우 Bedrock SDK를 호출하기 전에 API 호출이 발생하는지 확인하세요.
+* 특별한 의미를 지닌 선택적 사용자 정의 속성 중 하나는 `llm.conversation_id` 입니다. 이를 사용하여 LLM 메시지를 APM의 특정 대화로 그룹화할 수 있습니다.

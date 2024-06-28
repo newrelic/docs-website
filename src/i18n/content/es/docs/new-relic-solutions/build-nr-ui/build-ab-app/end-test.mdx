@@ -1,0 +1,235 @@
+---
+title: Agrega una sección para finalizar tu prueba
+metaDescription: Add a section to end your test
+freshnessValidatedDate: never
+translationType: machine
+---
+
+<Callout variant="tip">
+  Esta lección es parte de un curso que le muestra cómo crear una aplicación New Relic desde cero. Si aún no lo hiciste, consulta la descripción general.
+
+  Cada lección del curso se basa en la anterior, así que cerciorar de completar la última lección, Agregar descripciones de versiones, antes de comenzar esta.
+</Callout>
+
+En este curso, crearás una aplicación Prueba A/B en New Relic. La aplicación presenta una gran cantidad de datos, a través de sus gráficos, sobre la efectividad de cada versión de diseño que estás probando en tu sitio web de demostración. En última instancia, podrá emplear esos datos para decidir qué diseño es más efectivo y mostrarlo a cada usuario que visite su sitio. En esta lección, creará un formulario en su aplicación que le permitirá elegir qué diseño desea mostrar a cada usuario de su sitio.
+
+Esta nueva sección tiene tres componentes principales:
+
+* Un título con texto instructivo: "Elija una versión para finalizar la prueba".
+* Un componente que coronará la versión ganadora de la Prueba A/B
+* Un botón para confirmar el ganador que seleccionaste
+
+<Steps>
+  <Step>
+    Cambie al directorio _add-end-test-section/ab-test_ del [repositorio de trabajos del curso](https://github.com/newrelic-experimental/nru-programmability-course):
+
+    ```sh
+    cd nru-programmability-course/add-end-test-section/ab-test
+    ```
+  </Step>
+
+  <Step>
+    En `nerdlets/ab-test-nerdlet`, agregue un nuevo archivo Javascript llamado `end-test.js`:
+
+    ```sh
+    touch end-test.js
+    ```
+  </Step>
+
+  <Step>
+    En este nuevo archivo, cree un componente `VersionSelector` para encapsular un `Select` y sus `SelectItem` componentes secundarios:
+
+    ```js
+    import React from 'react';
+    import { Select, SelectItem } from 'nr1';
+
+    class VersionSelector extends React.Component {
+        render() {
+            return <Select>
+                <SelectItem value={'A'}>Version A</SelectItem>
+                <SelectItem value={'B'}>Version B</SelectItem>
+            </Select>
+        }
+    }
+    ```
+
+    `VersionSelector` representa un componente `Select` con dos opciones. En cada `SelectItem`, especificas una propiedad `value`. En este caso, emplea `'A'` para representar la versión A y `'B'` para representar la versión B.
+  </Step>
+
+  <Step>
+    Cree otro componente para un `Button` que usará para finalizar su prueba:
+
+    ```js
+    import React from 'react';
+    import { Button, Select, SelectItem } from 'nr1';
+
+    class VersionSelector extends React.Component {
+        render() {
+            return <Select>
+                <SelectItem value={'A'}>Version A</SelectItem>
+                <SelectItem value={'B'}>Version B</SelectItem>
+            </Select>
+        }
+    }
+
+    class EndTestButton extends React.Component {
+        render() {
+            return <div>
+                <Button>End test</Button>
+            </div>
+        }
+    }
+    ```
+
+    Esto parece trivial, pero encapsulará la lógica del botón a medida que itera en el código de su aplicación.
+  </Step>
+
+  <Step>
+    Cree un componente final para toda la sección que usará para marcar el final de su prueba:
+
+    ```js
+    import React from 'react';
+    import {
+        Button,
+        Grid,
+        GridItem,
+        HeadingText,
+        Select,
+        SelectItem,
+    } from 'nr1';
+
+    class VersionSelector extends React.Component {
+        render() {
+            return <Select>
+                <SelectItem value={'A'}>Version A</SelectItem>
+                <SelectItem value={'B'}>Version B</SelectItem>
+            </Select>
+        }
+    }
+
+    class EndTestButton extends React.Component {
+        render() {
+            return <div>
+                <Button>End test</Button>
+            </div>
+        }
+    }
+
+    export default class EndTestSection extends React.Component {
+        render() {
+            return <Grid className="endTestSection">
+                <GridItem columnSpan={12}>
+                    <HeadingText className="endTestHeader">
+                        Pick the winner of your A/B test:
+                    </HeadingText>
+                </GridItem>
+                <GridItem columnStart={5} columnEnd={6} className="versionSelector">
+                    <VersionSelector />
+                </GridItem>
+                <GridItem columnStart={7} columnEnd={8}>
+                    <EndTestButton>End test</EndTestButton>
+                </GridItem>
+            </Grid>
+        }
+    }
+    ```
+
+    Aquí, crea un `Grid` con tres elementos. Primero, crea un `GridItem` que contiene un `HeadingText` y abarca las 12 columnas. En la siguiente fila, tienes dos elementos:
+
+    * El componente `VersionSelector` que creó en el paso anterior
+    * Un `Button` que dice "Finalizar prueba"
+
+    Cada uno de estos elementos abarca una columna, pero en lugar de usar `columnSpan`, usan una combinación de `columnStart` y `columnEnd` para especificar qué columnas cubren.
+  </Step>
+
+  <Step>
+    En el archivo `index.js` de tu Nerdlet, agrega `EndTestSection` a tu Nerdlet:
+
+    ```js
+    import React from 'react';
+    import { ChartGroup, Grid, GridItem } from 'nr1';
+    import EndTestSection from './end-test';
+    import NewsletterSignups from './newsletter-signups';
+    import PastTests from './past-tests';
+    import TotalCancellations from './total-cancellations';
+    import TotalSubscriptions from './total-subscriptions';
+    import VersionDescription from './description';
+    import VersionPageViews from './page-views';
+    import VersionTotals from './totals';
+
+    const VERSION_A_DESCRIPTION = 'The newsletter signup message says, "Sign up for our newsletter"'
+    const VERSION_B_DESCRIPTION = 'The newsletter signup message says, "Sign up for our newsletter and get a free shirt!"'
+
+    export default class AbTestNerdletNerdlet extends React.Component {
+        render() {
+            return <div>
+                <Grid className="wrapper">
+                    <GridItem columnSpan={6}>
+                        <VersionDescription
+                            description={VERSION_A_DESCRIPTION}
+                            version="A"
+                        />
+                    </GridItem>
+                    <GridItem columnSpan={6}>
+                        <VersionDescription
+                            description={VERSION_B_DESCRIPTION}
+                            version="B"
+                        />
+                    </GridItem>
+                    <GridItem columnSpan={12}><hr /></GridItem>
+                    <GridItem columnSpan={12}><NewsletterSignups /></GridItem>
+                    <GridItem columnSpan={6}><TotalSubscriptions /></GridItem>
+                    <GridItem columnSpan={6}><TotalCancellations /></GridItem>
+                    <GridItem columnSpan={6}><VersionTotals version='a' /></GridItem>
+                    <GridItem columnSpan={6}><VersionTotals version='b' /></GridItem>
+                    <ChartGroup>
+                        <GridItem columnSpan={6}>
+                            <VersionPageViews version='a' />
+                        </GridItem>
+                        <GridItem columnSpan={6}>
+                            <VersionPageViews version='b' />
+                        </GridItem>
+                    </ChartGroup>
+                    <GridItem columnSpan={12}><EndTestSection /></GridItem>
+                    <GridItem columnSpan={12}><PastTests /></GridItem>
+                </Grid>
+            </div>
+        }
+    }
+    ```
+  </Step>
+
+  <Step>
+    Navega hasta la raíz de tu Nerdpack en `nru-programmability-course/add-end-test-section/ab-test`.
+  </Step>
+
+  <Step>
+    Genera un nuevo UUID para tu Nerdpack:
+
+    ```sh
+    nr1 nerdpack:uuid -gf
+    ```
+
+    Debido a que clonaste el repositorio de trabajos del curso que contenía un Nerdpack existente, necesitas generar tu propio identificador único. Este UUID asigna su Nerdpack a su cuenta New Relic.
+  </Step>
+
+  <Step>
+    Entregue su aplicación localmente:
+
+    ```sh
+    nr1 nerdpack:serve
+    ```
+  </Step>
+
+  <Step>
+    Vaya a [https://one.newrelic.com?nerdpacks=local](https://one.newrelic.com?nerdpacks=local) y vea su aplicación en **Apps > Your apps**.
+
+    Cuando terminó, deje de servir su aplicación New Relic presionando `CTRL+C` en la ventana de terminal de su servidor local.
+  </Step>
+</Steps>
+
+Sin embargo, es necesario realizar algunas mejoras en este código. Cuando selecciona una versión, el valor seleccionado en el componente no cambia. Debes controlar el valor que muestra `Select` usando su accesorio `value` y su controlador de eventos `onChange`. En la siguiente lección, actualizará su código para conservar su elección de versión en el componente `Select`.
+
+<Callout variant="course">
+  Esta lección es parte de un curso que le muestra cómo crear una aplicación New Relic desde cero. Continúe con la siguiente lección: persista en la versión seleccionada.
+</Callout>
