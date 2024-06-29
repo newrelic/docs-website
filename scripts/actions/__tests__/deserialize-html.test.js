@@ -12,13 +12,13 @@ jest.mock('../configuration', () => ({
   },
 }));
 
-test('deserializes mdx with DoNotTranslate', async () => {
+test('deserializes mdx with DNT', async () => {
   const input = `
-<DoNotTranslate>
+<DNT>
   # Not all who wander are lost...
 
   but some probably are...
-</DoNotTranslate>
+</DNT>
   `;
 
   const mdx = await deserializeHTML(await serializeMDX(input));
@@ -26,13 +26,13 @@ test('deserializes mdx with DoNotTranslate', async () => {
   expect(mdx).toEqual(input.trim());
 });
 
-test('serializes DoNotTranslate wrapping a Collapser', async () => {
+test('serializes DNT wrapping a Collapser', async () => {
   const input = `
-<DoNotTranslate>
+<DNT>
   <Collapser title="Collapse me yo">
     These tests are hard to write docs for
   </Collapser>
-</DoNotTranslate>
+</DNT>
   `;
 
   const mdx = await deserializeHTML(await serializeMDX(input));

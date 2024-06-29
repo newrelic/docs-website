@@ -112,7 +112,8 @@ module.exports = {
     deserialize: deserializeComponent,
     serialize: serializeComponent,
   },
-  DoNotTranslate: {
+  // DoNotTranslate component
+  DNT: {
     deserialize: deserializeComponent,
     serialize: (h, node) =>
       serializeComponent(h, node, {
