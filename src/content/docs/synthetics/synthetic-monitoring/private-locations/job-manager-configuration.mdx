@@ -872,18 +872,211 @@ To set up the modules:
        id="kubernetes"
        title="Kubernetes"
      >
-       Complete the following:
+       For Kubernetes, the directory at `/var/lib/newrelic/synthetics/modules` needs to exist on a PV prior to launching the SJM with custom modules enabled.
 
-       1. Launch the SJM, setting a value for the `persistence.customModules` configuration value either in the command line or in a YAML file during installation. The value should specify the subpath on your synthetics job manager Persistent Volume where your custom modules files exist. For example:
+       <Callout variant="tip">
+         The PV access mode should be ReadWriteMany if you need to share storage across multiple pods.
+       </Callout>
 
-          ```
-          helm install ... --set persistence.customModules=<custom-modules-subpath> ...
-          ```
-       2. Make sure that your custom modules directory is available on the Minion Pod. You can use `kubectl cp` as one method to copy the directory from your host to the Minion. For example:
+       One method is to create a pod that mounts the PV just for the purpose of copying your custom modules directory to the PV. The following example uses Amazon EFS with Amazon EKS:
 
-          ```
-          kubectl cp /example-custom-modules-dir <namespace>/<pod_name>:/var/lib/newrelic/synthetics/modules
-          ```
+       ### Create the namespace, persistent volume, and persistent volume claim
+
+       Make sure you've already set up your EFS filesystem and installed the [EFS CSI driver](https://github.com/kubernetes-sigs/aws-efs-csi-driver) on your cluster. You will also need your EFS filesystem ID for the PV's `spec.csi.volumeHandle`.
+      
+       ```sh
+       kubectl apply -f - <<EOF
+       apiVersion: v1
+       kind: Namespace
+       metadata:
+         name: newrelic
+      
+       ---
+       kind: StorageClass
+       apiVersion: storage.k8s.io/v1
+       metadata:
+         name: efs-sc
+       provisioner: efs.csi.aws.com
+      
+       ---
+       apiVersion: v1
+       kind: PersistentVolume
+       metadata:
+         name: custom-modules-pvc
+       spec:
+         capacity:
+           storage: 5Gi
+         volumeMode: Filesystem
+         accessModes:
+           - ReadWriteMany
+         persistentVolumeReclaimPolicy: Retain
+         storageClassName: efs-sc
+         csi:
+           driver: efs.csi.aws.com
+           volumeHandle: <your-efs-filesystem-id>
+      
+       ---
+       apiVersion: v1
+       kind: PersistentVolumeClaim
+       metadata:
+         name: custom-modules-pvc
+         namespace: newrelic
+       spec:
+         accessModes:
+           - ReadWriteMany
+         storageClassName: efs-sc
+         resources:
+           requests:
+             storage: 5Gi
+       EOF
+       ```
+      
+       Switch to the `newrelic` namespace in your `~/.kube/config`.
+
+       ```sh
+       kubectl config get-contexts
+       kubectl config set-context <your-context> --namespace=newrelic
+       kubectl config view --minify | grep namespace:
+       ```
+
+       At this point, the PVC should be bound to the PV with RWX access mode.
+
+       ```sh
+       $ kubectl get pv,pvc
+       NAME                                  CAPACITY   ACCESS MODES   RECLAIM POLICY   STATUS   CLAIM                         STORAGECLASS   VOLUMEATTRIBUTESCLASS   REASON   AGE
+       persistentvolume/custom-modules-pvc   5Gi        RWX            Retain           Bound    newrelic/custom-modules-pvc   efs-sc         <unset>                          4m46s
+
+       NAME                                       STATUS   VOLUME               CAPACITY   ACCESS MODES   STORAGECLASS   VOLUMEATTRIBUTESCLASS   AGE
+       persistentvolumeclaim/custom-modules-pvc   Bound    custom-modules-pvc   5Gi        RWX            efs-sc         <unset>                 4m10s
+       ```
+
+       ### Create `mount-custom-mods-pod` to copy your custom-modules directory
+
+       ```sh
+       kubectl apply -f - <<EOF
+       apiVersion: v1
+       kind: Pod
+       metadata:
+         name: mount-custom-mods-pod
+       spec:
+         containers:
+         - name: mount-custom-mods-pod
+           image: nginx
+           resources:
+             requests:
+               memory: "64Mi"
+               cpu: "250m"
+             limits:
+               memory: "128Mi"
+               cpu: "500m"
+           volumeMounts:
+             - mountPath: "/var/lib/newrelic/synthetics/modules"
+               name: custom-modules-storage
+         volumes:
+         - name: custom-modules-storage
+           persistentVolumeClaim:
+             claimName: custom-modules-pvc
+       EOF
+       ```
+
+       At this point, the `mount-custom-mods-pod` should be created and configured to use the volume.
+
+       ```sh
+       $ kubectl describe po mount-custom-mods-pod | grep -A4 Volumes:
+       Volumes:
+         custom-modules-storage:
+           Type:       PersistentVolumeClaim (a reference to a PersistentVolumeClaim in the same namespace)
+           ClaimName:  custom-modules-pvc
+           ReadOnly:   false
+       ```
+
+       Check events for any warnings related to the PV, PVC, or `mount-custom-mods-pod`.
+
+       ```sh
+       kubectl get events --field-selector type=Warning --sort-by='.lastTimestamp'
+       ```
+
+       ### Copy your custom-modules directory to the PV
+
+       It is not necessary to copy `node_modules` as it will be generated by the SJM on `npm install`.
+
+       ```sh
+       cd custom-modules
+       rm -rf node_modules && cd ..
+       ```
+
+       Check that the `mount-custom-mods-pod` is running.
+
+       ```sh
+       $ kubectl get po
+       NAME                    READY   STATUS    RESTARTS   AGE
+       mount-custom-mods-pod   1/1     Running   0          5m43s
+       ```
+
+       Copy to the PV.
+
+       ```sh
+       kubectl cp custom-modules newrelic/mount-custom-mods-pod:/var/lib/newrelic/synthetics/modules
+       ```
+
+       Check that `/var/lib/newrelic/synthetics/modules/custom-modules/package.json` exists on the PV.
+
+       ```sh
+       $ kubectl exec -it mount-custom-mods-pod -- bash
+       root@mount-custom-mods-pod:/# cd /var/lib/newrelic/synthetics/modules/
+       root@mount-custom-mods-pod:/var/lib/newrelic/synthetics/modules# ls -l
+       total 4
+       drwxr-xr-x 2 root root 6144 Jun 29 03:49 custom-modules
+       root@mount-custom-mods-pod:/var/lib/newrelic/synthetics/modules# ls -l custom-modules/
+       total 4
+       -rw-r--r-- 1 501 staff 299 Jun 29 03:49 package.json
+       ```
+
+       ### Launch the SJM with custom modules feature enabled
+
+       Set values for `persistence.existingClaimName` and `customNodeModules.customNodeModulesPath` either in the command line or in a YAML file during installation. The `customNodeModules.customNodeModulesPath` value should specify the subpath on the Persistent Volume where your custom modules files exist. For example:
+
+       ```
+       $ helm upgrade --install synthetics-job-manager newrelic/synthetics-job-manager -n newrelic --set global.persistence.existingClaimName=custom-modules-pvc --set global.customNodeModules.customNodeModulesPath=custom-modules --set synthetics.privateLocationKey=<your-private-location-key>
+       Release "synthetics-job-manager" does not exist. Installing it now.
+       NAME: synthetics-job-manager
+       LAST DEPLOYED: Fri Jun 28 16:53:28 2024
+       NAMESPACE: newrelic
+       STATUS: deployed
+       REVISION: 1
+       TEST SUITE: None
+       ```
+
+       The `custom-modules` directory should now contain the installed packages in `node_modules`.
+
+       ```sh
+       $ kubectl exec -it mount-custom-mods-pod -- bash
+       root@mount-custom-mods-pod:/# cd /var/lib/newrelic/synthetics/modules/
+       root@mount-custom-mods-pod:/var/lib/newrelic/synthetics/modules# ls -l custom-modules/
+       total 16
+       -rw-r--r--  1 root root   836 Jun 29 03:51 README
+       drwxr-xr-x 18 root root  6144 Jun 29 03:51 node_modules
+       -rw-r--r--  1  501 staff  299 Jun 29 03:49 package.json
+       -rw-r--r--  1 root root   190 Jun 29 03:51 package.json.shasum
+       ```
+
+       Look for the following in synthetics-job-manager pod logs:
+
+       ```log
+       2024-06-29 03:51:28,407{UTC} [main] INFO  c.n.s.j.p.options.CustomModules - Detected mounted path for custom node modules
+       2024-06-29 03:51:28,408{UTC} [main] INFO  c.n.s.j.p.options.CustomModules - Validating permission for custom node modules package.json file
+       2024-06-29 03:51:28,409{UTC} [main] INFO  c.n.s.j.p.options.CustomModules - Installing custom node modules...
+       2024-06-29 03:51:44,670{UTC} [main] INFO  c.n.s.j.p.options.CustomModules - Custom node modules installed successfully.
+       ```
+
+       If custom node modules are not detected, adjust permissions on the `custom-modules` directory and `package.json` file.
+
+       ```sh
+       $ kubectl exec -it mount-custom-mods-pod -- bash
+       root@mount-custom-mods-pod:/# cd /var/lib/newrelic/synthetics/modules/
+       root@mount-custom-mods-pod:/var/lib/newrelic/synthetics/modules# chmod -R 777 custom-modules
+       root@mount-custom-mods-pod:/var/lib/newrelic/synthetics/modules# chown -R 2000:2000 custom-modules
+       ```
 
      </Collapser>
    </CollapserGroup>
