@@ -1,0 +1,451 @@
+---
+title: Introduction to instrumenting New Relic with your Lambda Function
+metaDescription: 
+redirects:
+freshnessValidatedDate: never
+---
+
+As companies transition towards FaaS architecture, it’s important to understand what’s happening within your function each time it’s invoked. After you instrument New Relic with your function, each time your function runs, New Relic does too. You will be able to see performance data like detailed duration, cold starts, exceptions, and tracebacks. AWS CloudWatch will automatically collect these metrics, but you can also access this data in New Relic in a few different ways: through the Lambda extension or the Logs extension function. You can also disable the Lambda extension and send data to Cloudwatch only.
+
+## Which instrumentation method should you use? 
+
+Reliability: 
+Cost: 
+
+## How the Lambda instrumentation works
+
+There are three essential elements of the AWS Lambda instrumentation with New Relic:
+
+Your function: Your function is the code you want to understand. You want to know when it's encountering errors, why it's slow, or how often it gets invoked.
+The New Relic Agent or SDK: This is a library that New Relic provides for the language that your function is written in. Its job is to do the actual monitoring of your code. It measures the duration of your function invocations, notes errors that occur, records details about the source events, and your functions responses. To do this, it needs to wrap around your Lambda invocation handler function. With a bit more work on your part, you can break your invocation into interesting segments, and tie together the interaction of your function with other functions and services, providing a holistic view of your serverless application.
+The Lambda extension: This sidecar process runs inside the Lambda execution environment, alongside your code. It enhances the telemetry that the agent collects, and sends it to New Relic's backend in batches. It can also send your function's logs to New Relic. The extension is a small application that integrates tightly with the AWS Lambda lifecycle, and works to minimize both the time it takes your telemetry to arrive at New Relic, and the impact that instrumentation has on your function's latency and throughput.
+
+## Before you begin:
+
+To enable serverless monitoring using our Lambda layer, you need the following:
+
+* [AWS CLI v2](https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2.html) installed and configured using `aws configure`.
+* [Python](https://www.python.org/downloads/) version 3.3 or higher installed.
+* [newrelic-lambda CLI](https://github.com/newrelic/newrelic-lambda-cli#installation), which you can install by running `pip3 install newrelic-lambda-cli`.
+* A New Relic account. You must have an admin role or have the <DoNotTranslate>**Infrastructure manager**</DoNotTranslate> [add-on role](/docs/accounts/original-accounts-billing/original-users-roles/users-roles-original-user-model#add-on).
+* A <InlinePopover type="userKey" />.
+* An AWS account with permissions for creating IAM resources, managed secrets, and Lambdas. You also need permissions for creating CloudFormation stacks and S3 buckets.
+
+For in-depth detail about the CLI, see [our CLI repo](https://github.com/newrelic/newrelic-lambda-cli#installation).
+
+Recommended AWS Lambda language runtimes: 
+
+* Node.js: `nodejs16.x`, `nodejs18.x`, `nodejs20.x`
+* Python: `python3.7`, `python3.8`, `python3.9`, `python3.10`, `python3.11`, `python3.12`
+* Go: `provided.al2`
+* Java: `java8.al2`, `java11`, `java17`
+* Ruby: `ruby3.2`, `ruby3.3`
+* .NET: `dotnet6`, `dotnet8`
+
+<Callout variant="tip">
+For the following services, only the "target" (Lambda function name, SNS topic ARN, DynamoDB table name, etc.) is reported: Autoscaling, Athena, Batch, Cloud9, CodeBuild, DynamoDB, Greengrass, IoT, Kinesis (Streams, Firehose, Analytics, Video), Lambda, Lex, Machine Learning, MQ, Redshift, Rekognition, S3, SES, SimpleDB, SNS, SQS, Storage Gateway, and STS.
+</Callout>
+
+
+## About AWS costs 
+
+<DoNotTranslate>**Enabling serverless monitoring for AWS Lambda may result in Amazon Web Services charges.**</DoNotTranslate> Our [`newrelic-log-ingestion` Lambda function](/docs/install-enable-new-relics-monitoring-aws-lambda#manual-nr-lambda), which reports your Lambda data to us, is considered a [Third Party Service](/docs/licenses/license-information/acceptable-use-policy/acceptable-use-policy): AWS charges resulting from your use of it are your responsibility.
+
+If you use the [Lambda Extension](https://github.com/newrelic/newrelic-lambda-extension), you can avoid the CloudWatch Logs ingest charge for the telemetry gathered by New Relic.
+
+## Link accounts
+
+This is the first step to [enable New Relic's AWS Lambda monitoring](/docs/serverless-function-monitoring/aws-lambda-monitoring/enable-lambda-monitoring/enable-aws-lambda-monitoring).
+
+When you link your AWS account to New Relic, you're granting permission to New Relic to create an inventory of your AWS account, and gather CloudWatch metrics for your Lambda functions. Resources in your AWS account then show up as entities in the [entity explorer](/docs/new-relic-solutions/new-relic-one/core-concepts/new-relic-explorer-view-performance-across-apps-services-hosts#find), decorated with config information.
+
+For Lambda serverless function monitoring to work, it requires either an [API Polling](/docs/infrastructure/amazon-integrations/connect/connect-aws-new-relic-infrastructure-monitoring) or [Metric Streams](/docs/infrastructure/amazon-integrations/connect/aws-metric-stream) integration. You can set up your choice of integration before you start this account linking, or you can let the CLI install the API Polling integration for you.
+
+
+<Steps>
+<Step>
+
+    To create this inventory, we need an IAM role that grants these IAM permissions, at a minimum:
+
+    ```yaml
+    Resource: "*"
+    Action:
+      - "cloudwatch:GetMetricStatistics"
+      - "cloudwatch:ListMetrics"
+      - "cloudwatch:GetMetricData"
+      - "lambda:GetAccountSettings"
+      - "lambda:ListFunctions"
+      - "lambda:ListAliases"
+      - "lambda:ListTags"
+      - "lambda:ListEventSourceMappings"
+    ```
+
+    By default, we use the AWS Managed Policy `ReadOnlyAccess`. This allows the Infrastructure integration to see
+    all the resources in your account, rather than just your Lambda functions and CloudWatch metrics. New Relic
+    recommends this default, but we understand that some organizations have a very conservative security posture for
+    third party integrations. A role with the permissions above is sufficient to allow Lambda telemetry collection,
+    though traces that interact with other services may not work well.
+
+In this integration step, we'll also store your New Relic <InlinePopover type="licenseKey" /> in the AWS Secrets Manager service, so that we
+can send your telemetry to your New Relic account.
+
+</Step>
+
+<Step>
+## Instrument your New Relic's Lambda layer with the  `newrelic-lambda` CLI
+
+The CLI uses the AWS SDK to interact with AWS. The SDK will act using the same default profile as the AWS CLI.
+This profile needs, at a minimum, the following AWS permissions to run the CLI.
+
+    ```json
+    {
+        "Version": "2012-10-17",
+        "Statement": [
+            {
+                "Sid": "CLIAccessPolicy",
+                "Action": [
+                    "cloudformation:CreateChangeSet",
+                    "cloudformation:CreateStack",
+                    "cloudformation:DescribeStacks",
+                    "cloudformation:ExecuteChangeSet",
+                    "iam:AttachRolePolicy",
+                    "iam:CreateRole",
+                    "iam:GetRole",
+                    "iam:PassRole",
+                    "lambda:AddPermission",
+                    "lambda:CreateFunction",
+                    "lambda:GetFunction",
+                    "logs:DeleteSubscriptionFilter",
+                    "logs:DescribeSubscriptionFilters",
+                    "logs:PutSubscriptionFilter",
+                    "s3:GetObject",
+                    "serverlessrepo:CreateCloudFormationChangeSet",
+                    "secretsmanager:CreateSecret"
+                ],
+                "Effect": "Allow",
+                "Resource": "*"
+            },
+            {
+                "Sid": "NRLogAccessPolicy",
+                "Effect": "Allow",
+                "Action": [
+                    "serverlessrepo:CreateCloudFormationTemplate",
+                    "serverlessrepo:GetCloudFormationTemplate"
+                ],
+                "Resource": "arn:aws:serverlessrepo:us-east-1:463657938898:applications/NewRelic-log-ingestion"
+            }
+        ]
+    }
+    ```
+
+</Step>
+
+<Step>
+
+Since Lambda serverless function monitoring requires either an [API Polling](/docs/infrastructure/amazon-integrations/connect/connect-aws-new-relic-infrastructure-monitoring) or [Metric Streams](/docs/infrastructure/amazon-integrations/connect/aws-metric-stream) integration, the CLI will automatically install API Polling if it doesn't see an integration. If you prefer Metric Streams, install that now before running the CLI.
+
+When all the [requirements](#requirements) are in place, link your AWS account with your New Relic account by running the following command using your [user key](/docs/apis/get-started/intro-apis/types-new-relic-api-keys#personal-api-key) (replace all the highlighted values):
+</Step>
+
+<Step>
+
+## Environment variables 
+    <DoNotTranslate>**Setting the region**</DoNotTranslate>
+    To configure your region, use this [environment variable](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-envvars.html) to override the default region:
+
+    ```bash
+    export AWS_DEFAULT_REGION=MY_REGION # us-west-2, for example
+    ```
+
+    The CLI tool also allows passing this per-command using `--aws-region`.
+
+    <DoNotTranslate>**Setting profiles**</DoNotTranslate>
+
+    If you have multiple AWS profiles and don't want to use the default, use `AWS_PROFILE` [environment variable](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-envvars.html) to set another profile name. Ensure the profile is properly configured (including the default region). Example:
+
+    ```bash
+    export AWS_PROFILE=MY_PROFILE
+    ```
+
+</Step>
+</Steps>
+
+```
+newrelic-lambda integrations install --nr-account-id <a href="/docs/accounts/accounts-billing/account-setup/account-id">YOUR_NR_ACCOUNT_ID</a> \
+    --nr-api-key <a href="https://docs.newrelic.com/docs/apis/get-started/intro-apis/types-new-relic-api-keys#user-api-key">YOUR_NEW_RELIC_USER_KEY</a>
+```
+
+The `newrelic-lambda` CLI adds your New Relic <InlinePopover type="licenseKey" /> as a secret in [AWS Secret Manager](https://aws.amazon.com/secrets-manager/) for greater security.
+
+<Callout variant="tip">
+  <DoNotTranslate>**Storing the New Relic license key in the AWS Secrets Manager**</DoNotTranslate>
+
+  Your <InlinePopover type="licenseKey" /> identifies and authenticates you to New Relic, allowing us to associate your telemetry with your New Relic account. Each function that sends telemetry needs access to this value, and it needs to be managed securely. The AWS Secrets Manager solves these problems.
+
+  If your organization prevents you from using AWS Secrets Manager or if you need to store more than one secret per region, see below for an alternative method to set your license key.
+</Callout>
+
+## Alternative method [#alt]
+
+<CollapserGroup>
+  <Collapser
+    id="manual-linking"
+    title="Linking accounts manually"
+  >
+    ### The infrastructure monitoring UI
+
+    The CLI is the least complicated way to link your accounts. Current CLI behavior limits the setup of one managed secret per region. If you need more control or need to integrate more than one New Relic account per region, you can go through the [linking process](/docs/integrations/amazon-integrations/get-started/connect-aws-new-relic-infrastructure-monitoring) manually. Be sure to enable Lambda when selecting services to be monitored.
+
+    Don't forget to configure the <InlinePopover type="licenseKey" /> secret manually, as described next.
+
+    ### Manually configure the license key secret
+
+    In addition to linking your accounts, you need to configure the license key secret.
+
+    1. Download this CloudFormation Template: [`license-key-secret.yaml`](https://github.com/newrelic/newrelic-lambda-cli/blob/master/newrelic_lambda_cli/templates/license-key-secret.yaml)
+    2. Using the AWS CLI, or the AWS CloudFormation Console, install the template, supplying the `LicenseKey` parameter.
+       It
+       will be labeled "INGEST - LICENSE". Be sure to use the <InlinePopover type="licenseKey" /> for the account you configured with the Infrastructure UI above.
+
+       AWS CLI example:
+
+       Be sure to replace `YOUR_LICENSE_KEY` and `YOUR_ACCOUNT_ID` with the license key and account ID you found above.
+
+       ```bash
+       aws cloudformation create-stack --stack-name NewRelicLicenseKeySecret
+           --template-body file://license-key-secret.yaml
+           --parameters 'ParameterKey=LicenseKey,ParameterValue=YOUR_LICENSE_KEY'
+           'ParameterKey=NrAccountId,ParameterValue=YOUR_ACCOUNT_ID'
+           --capabilities CAPABILITY_NAMED_IAM
+       ```
+
+       See also our [legacy docs on how to manually instrument your account](/docs/serverless-function-monitoring/aws-lambda-monitoring/enable-lambda-monitoring/enable-serverless-monitoring-aws-lambda-legacy/).
+  </Collapser>
+
+  <Collapser
+    id="env-var"
+    title="Lambda environment variables"
+  >
+    For reference, these are the available environment variables for configuring and controlling the module behavior.
+
+    <DoNotTranslate>**Required**</DoNotTranslate>:
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "350px" }}>
+            Environment variable
+          </th>
+
+          <th>
+            Description
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `NEW_RELIC_ACCOUNT_ID`
+          </td>
+
+          <td>
+            Required for distributed tracing.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `NEW_RELIC_LAMBDA_HANDLER`
+          </td>
+
+          <td>
+            Required for Node, Python, Ruby, and Java.
+            Optional for .NET.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `NEW_RELIC_TRUSTED_ACCOUNT_KEY`
+          </td>
+
+          <td>
+            Required for distributed tracing. This is your account's ID. If your account is a child account, this is the account ID for the root/parent account.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <DoNotTranslate>**Optional**</DoNotTranslate>:
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "350px" }}>
+            Environment variable
+          </th>
+
+          <th>
+            Description
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            `NEW_RELIC_DISTRIBUTED_TRACING_ENABLED`
+          </td>
+
+          <td>
+            Used in [legacy set-ups](/docs/serverless-function-monitoring/aws-lambda-monitoring/enable-lambda-monitoring/enable-serverless-monitoring-aws-lambda-legacy/). `true` by default for most agents.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `NEW_RELIC_EXTENSION_LOG_LEVEL`
+          </td>
+
+          <td>
+            Set to `DEBUG` to enable debug logging.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `NEW_RELIC_EXTENSION_SEND_FUNCTION_LOGS`
+          </td>
+
+          <td>
+            `false` by default. Set to `true` to send function logs to New Relic directly, bypassing CloudWatch and the `newrelic-log-ingestion` Lambda.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `NEW_RELIC_LAMBDA_EXTENSION_ENABLED`
+          </td>
+
+          <td>
+            Set to `false` to disable the extension, and use the CloudWatch telemetry path.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            `NEW_RELIC_LICENSE_KEY` / `NEW_RELIC_LICENSE_KEY_SECRET`
+          </td>
+
+          <td>
+            The <InlinePopover type="licenseKey" /> is associated to your New Relic account, while the secret is the name of the AWS Managed Secret containing the license key. If `NEW_RELIC_LICENSE_KEY` is not set, we look for the key in `NEW_RELIC_LICENSE_KEY_SECRET`. To ensure the contents of the keys are formatted correctly, we recommend to use the [CLI](#rec) to enable lambda monitoring.
+
+            Learn more about the <InlinePopover type="licenseKey" />.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+</CollapserGroup>
+
+<InstallFeedback />
+
+## Troubleshooting [#troubleshooting]
+
+### Cannot use AWS secrets manager [#cannot-use-secrets]
+
+If your organization does not allow the use of AWS Secrets Manager, the New Relic Lambda Extension will accept a `NEW_RELIC_LICENSE_KEY` environment variable. Add the `--disable-license-key-secret` flag from the `newrelic-lambda integrations install` command. Then set this environment variable to your <InlinePopover type="licenseKey" /> in your Lambda function configuration.
+
+### Multiple AWS regions and accounts [#multiple-regions-accounts]
+
+The `newrelic-lambda` CLI should be run once per region, with the `--aws-region` parameter. Use the same linked account name, and the tool will detect that the account link has been created already. The <InlinePopover type="licenseKey" /> secret needs to be created in each region.
+
+Similarly, several AWS accounts can be linked to a New Relic account. Give each account a different linked account name. The `--aws-profile` argument to the CLI tool will select the named profile. The tool uses the same configuration as the AWS CLI.
+
+### Lambda function not showing as instrumented [#not-instrumented]
+
+You've instrumented your Lambda function but it is not showing as instrumented in the <DoNotTranslate>**Amazon Web Services -> Lambda functions**</DoNotTranslate> section of New Relic.
+
+You've linked both an [API polling](/docs/infrastructure/amazon-integrations/connect/connect-aws-new-relic-infrastructure-monitoring/) and [Metric Streams](/docs/infrastructure/amazon-integrations/connect/aws-metric-stream/) integration to your New Relic account manually in the UI.
+
+In this scenario with two integrations for the same AWS account in one New Relic account, a race condition will occur when instrumented payloads are received from the instrumented Lambda function at the New Relic [cloud-collector endpoint](https://github.com/newrelic/newrelic-lambda-extension/blob/54ccfd44765feb4b3da77ae606323c18d9db7593/telemetry/client.go#L18-L19). The payload will be randomly assigned to one of the two integrations. If assigned to the integration not linked to your function entity, the payload will be dropped and the function will not show as instrumented. Only functions that have received at least one payload in the last 30 days to the `AwsLambdaInvocation` event will show as instrumented.
+
+```sql
+FROM AwsLambdaInvocation SELECT count(*) SINCE 30 days ago WHERE entityGuid = 'ENTITY_GUID' LIMIT 1
+```
+
+To prevent creating two integrations for the same AWS account, we recommend you use the `newrelic-lambda` CLI, as mentioned above, because it will detect an existing integration and use it.
+
+If two integrations have already been created, choose one to keep and unlink the other by clicking <DoNotTranslate>**Unlink this account**</DoNotTranslate> at <DoNotTranslate>**Infrastructure > AWS**</DoNotTranslate> in New Relic.
+
+<Callout variant="tip">
+  There are some [limitations to Metric Streams integrations](/docs/infrastructure/amazon-integrations/connect/aws-metric-stream/#integrations-not-replaced-streams) that should be considered before unlinking an API polling integration. There are also some [limitations to Infrastructure Dimensional metrics queries](/docs/query-your-data/nrql-new-relic-query-language/nrql-query-tutorials/query-infrastructure-dimensional-metrics-nrql/#known-limitations) which should be considered before fully committing to a Metric Streams integration.
+</Callout>
+
+### Failure to retrieve license key `AccessDeniedException` [#fail-retrieve-license]
+
+Your lambda code requires the execution role which has permission to read AWS Secrets Manager. If you find a log like the following, add the appropriate permission to the policy of the execution role. In our examples, check out the `template.yaml` file to see an easy way to grant this permission.
+
+```
+Failed to retrieve license key AccessDeniedException: User: <ARN> is not authorized to perform: secretsmanager:GetSecretValue on resource: <ARN>
+```
+
+
+## Test example functions
+
+
+New Relic provides working minimal examples as a starting point for instrumenting your own serverless functions, so that you can become familiar with the necessary elements, test the account link, and use them as a reference for your own instrumentation.
+
+While there are many ways to manage and deploy Lambda functions, AWS CloudFormation is the mechanism we use for our examples. It requires minimal tooling, has first-party support, and underpins many of the third party deployment options as well.
+
+## Example features [#features]
+
+Each of our basic examples is functionally identical, and illustrates the following New Relic features:
+
+* Sending invocation telemetry to New Relic, via the New Relic Lambda Extension
+* Adding custom attributes to the invocation event
+* Adding custom events to the telemetry
+
+In addition, each demonstrates:
+
+* Using the New Relic Lambda layer with your function
+* Adding permissions to the function to access the AWS Secrets Manager and retrieve the New Relic <InlinePopover type="licenseKey" />
+* Runtime-specific techniques for wrapping your handler, so that New Relic can capture telemetry
+* Managing function log retention in CloudWatch
+* Optionally, forwarding function logs to New Relic's logging product via the Lambda Extension
+
+## Examples [#examples]
+
+Our examples are published, alongside the New Relic Lambda Extension, in this
+[GitHub repository](https://github.com/newrelic/newrelic-lambda-extension). There's one for each Lambda runtime that
+New Relic can instrument:
+
+* [Node.js](https://github.com/newrelic/newrelic-lambda-extension/tree/main/examples/sam/node)
+* [Python](https://github.com/newrelic/newrelic-lambda-extension/tree/main/examples/sam/python)
+* [Go](https://github.com/newrelic/newrelic-lambda-extension/tree/main/examples/sam/go)
+* [Java](https://github.com/newrelic/newrelic-lambda-extension/tree/main/examples/sam/java)
+* [Ruby](https://github.com/newrelic/newrelic-lambda-extension/tree/main/examples/sam/ruby)
+* [.NET](https://github.com/newrelic/newrelic-lambda-extension/tree/main/examples/sam/dotnet)
+
+<Callout variant="tip">
+  As you test the examples, you may notice that telemetry isn't always sent right away. The AWS Lambda lifecycle places certain constraints on the execution of our agent and Lambda Extension. In addition, valuable platform telemetry is only available after an invocation has completed. The New Relic Extension balances overall performance against the need for timely telemetry delivery by buffering telemetry for a period of time, and delivering it to New Relic in batches, during a subsequent invocation (or during shutdown).
+
+  In a production function, we find this works very well. When manually testing, it's often necessary to wait seven seconds, and then invoke a function again to give it an opportunity to deliver previously buffered telemetry.
+</Callout>
+
+While we make an effort to keep the templates in our examples up to date, you can always find the latest New Relic Lambda layer for your region and runtime at our [layers site](https://layers.newrelic-external.com/). This site also offers an API, which you're welcome to use in your CI/CD pipeline to keep your own templates up to date.
+
+## Distributed tracing [#dt]
+
+In addition to our basic examples, we offer an example of how to integrate distributed tracing into a non-trivial serverless application in our
+[distributed tracing example](https://github.com/newrelic/newrelic-lambda-extension/tree/main/examples/sam/distributedtracing). It illustrates manual trace propagation for SQS and SNS, two of the more popular services that might invoke Lambda functions, with Node, Python, Ruby and Java functions.
+
+<InstallFeedback />
+
+
+
+
+
+
+
