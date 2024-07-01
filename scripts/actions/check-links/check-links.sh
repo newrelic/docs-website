@@ -1,8 +1,8 @@
 #!/bin/bash
 
-find ./src/content/docs/browser/new-relic-browser/troubleshooting \
+unfiltered_list=$(find ./src/content/docs/accounts/accounts/billing \
  -type f \
  -name '*.mdx' \
- -print0 | xargs -0 -n1 npx markdown-link-check --quiet --config $(dirname "$0")/markdown-link-check-config.json >> $(dirname "$0")/broken-links.txt
+| xargs -n1 npx markdown-link-check --quiet --config $(dirname "$0")/markdown-link-check-config.json)
 
- exec cat ./$(dirname "$0")/broken-links.txt | uniq >> $(dirname "$0")/broken-links-filter.txt
+echo $unfiltered_list | sed 's/\[✖\]/\n[✖]/g' | sort | uniq 
