@@ -19,7 +19,11 @@ It can optionally take an array of files supplied in the terminal separated by s
 
 - `yarn verify-mdx src/content/file1.mdx src/content/file2.mdx`
 
-Otherwise, it will read all files under `/src/content/` and `src/i18n/content`.
+OR Optionally, you can supply it a directory path and it will read all files and folders recursively within it
+
+- `yarn verify-mdx src/content/folder-of-cool-stuff`
+
+Otherwise, it will read all files under `/src/content/`,`src/i18n/content`, and `src/install`.
 
 - `yarn verify-mdx`
 
@@ -66,3 +70,33 @@ It takes no arguments and will complete in about ~20min. It was created to be ru
 ## actions/check-for-keys.sh
 
 This script runs upon making a PR to the develop branch via a github action (`.github/workflows/check-for-keys.yml`). It scans all files, save one (`gatsby-config.js`), for any potential New Relic API keys based on a list of regex. It also scans all git commit history for any commits made in a PR to develop, looks at the diff for all said commits and scans those for API keys as well. This is intended to ensure no API keys are committed to the docs site or git history.
+
+## addRemoveRedirects.js
+
+This script has two options: one will add redirects for all files' current paths in a given directory (including all sub-directories), or it will remove any redirects of a file's current path in a given directory.
+
+#### Commands:
+
+`yarn redirects add <directory>`
+
+`yarn redirects remove <directory>`
+
+#### Example:
+
+`yarn redirects add src/contents/docs/taco`
+
+the file at path src/contents/docs/taco/cheese.mdx will now have a new redirect
+
+```
+redirects:
+- /docs/taco/cheese
+```
+
+and the file at src/contents/docs/taco/beans.mdx will also have a new redirect
+
+```
+redirects:
+- /docs/taco/beans
+```
+
+These files can then be moved to a new directory with a redirect that references their original directory

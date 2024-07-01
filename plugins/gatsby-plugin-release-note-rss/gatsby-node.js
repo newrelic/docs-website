@@ -11,6 +11,7 @@ const removeExports = require('remark-mdx-remove-exports');
 const parseISO = preferDefault(require('date-fns/parseISO'));
 const jsxImagesToChildren = require('../utils/jsxImagesToChildren');
 const handlers = require('../utils/handlers');
+const { getTitle } = require('../../src/utils/releaseNotes');
 
 // NOTE: remove-imports and remove-exports are now depreciated
 const htmlGenerator = unified()
@@ -106,7 +107,7 @@ const getFeedItem = (node, siteMetadata, imageHashMap) => {
 
   return {
     guid: id,
-    title: `${subject} ${version}`,
+    title: getTitle(frontmatter),
     custom_elements: [
       { link },
       { pubDate },
