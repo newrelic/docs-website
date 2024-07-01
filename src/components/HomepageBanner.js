@@ -75,6 +75,7 @@ const HomepageBanner = () => {
           addPageAction({
             eventName: 'swiftypeSearchInput',
             category: 'SearchInput',
+            searchTerm,
             searchLocation: 'homepage',
           });
           navigate(`?q=${searchTerm || ''}`);
