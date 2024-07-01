@@ -1,0 +1,34 @@
+---
+title: Monitor scheduled jobs
+tags:
+  - Alerts
+  - Alert conditions
+metaDescription: How to use loss of signal settings to monitor jobs and be alerted when they don't happen.
+freshnessValidatedDate: never
+redirects:
+  - /docs/alerts-applied-intelligence/new-relic-alerts/advanced-alerts/advanced-techniques/monitor-scheduled-jobs
+---
+
+You can use [critical thresholds](/docs/alerts-applied-intelligence/new-relic-alerts/advanced-alerts/advanced-techniques/set-thresholds-alert-condition) and [loss of signal settings](/docs/alerts-applied-intelligence/new-relic-alerts/alert-conditions/create-nrql-alert-conditions#signal-loss) to monitor scheduled jobs and be notified when they don't happen.
+
+For example, if your system has scheduled maintenance every 24 hours, you'd like to know when that maintenance doesn't happen.
+
+This technique only works for regularly scheduled jobs that occur more frequently than the maximum loss of signal threshold time of 48 hours.
+
+## What you need to know
+
+In order to get the most out of this procedure, you'll need to know how to [create a condition](/docs/alerts-applied-intelligence/new-relic-alerts/alert-conditions/create-alert-conditions).
+
+This only works for <DNT>**Static**</DNT> or <DNT>**Anomaly**</DNT> [threshold types](/docs/alerts-applied-intelligence/new-relic-alerts/alert-conditions/create-nrql-alert-conditions#threshold-types)..
+
+## How it works
+
+Typically, conditions use critical thresholds to trigger incidents. However, you can also trigger incidents with a loss of signal. To monitor a scheduled job and be notified if it doesn't happen, set your condition's threshold high or low enough so that it won't trigger an incident. That way, only a loss of signal will trigger an incident.
+
+## Monitor a scheduled job
+
+1. [Create a condition](/docs/alerts-applied-intelligence/new-relic-alerts/alert-conditions/create-alert-conditions) related to the job you want to monitor.
+2. In <DNT>**Set your condition thresholds**</DNT>, set the <DNT>**Critical**</DNT> threshold above or below where it would ever trigger.
+3. Click <DNT>**+ Add lost signal threshold**</DNT>, then set the signal expiration duration time longer than your monitored job's scheduled cycle.
+4. Check <DNT>**Add lost signal threshold**</DNT>.
+5. Make sure you name your condition before you save it.
