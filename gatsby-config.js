@@ -226,7 +226,7 @@ module.exports = {
           },
           {
             resolve: require.resolve('./plugins/fix-remark-path-prefix-plugin'),
-          }
+          },
         ],
       },
     },
@@ -442,7 +442,7 @@ module.exports = {
             'md',
             'java',
             'razor',
-            'hcl'
+            'hcl',
           ],
         },
         newrelic: {
