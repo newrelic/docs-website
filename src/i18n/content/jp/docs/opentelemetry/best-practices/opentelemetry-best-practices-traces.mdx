@@ -1,0 +1,262 @@
+---
+title: New Relic の OpenTelemetry トレース
+tags:
+  - Integrations
+  - Open source telemetry integrations
+  - OpenTelemetry
+metaDescription: Details on how New Relic works with OpenTelemetry traces
+freshnessValidatedDate: '2024-05-23T00:00:00.000Z'
+translationType: machine
+---
+
+OpenTelemetry 、トレース テレメトリを記録するための[API](https://opentelemetry.io/docs/specs/otel/trace/api/) 、スパン データをエクスポートするための[SDK](https://opentelemetry.io/docs/specs/otel/trace/sdk/) 、アプリケーション境界を越えてトレースするための[コンテキスト トレース](https://opentelemetry.io/docs/specs/otel/context/api-propagators/)など、豊富なトレース エコシステムを提供します。
+
+このページでは、New Relic が New Relic OTLP エンドポイント経由で受信した OpenTelemetry スパンをどのように処理するかについて説明します。 OpenTelemetryトレースをNew Relicに送信するには、データをNew Relic OpenTelemetryコレクター(OTLP) エージェントにエクスポートするようにトレースソースを構成する必要があります(具体的な エージェント設定要件については[、 New Relic OTLP エージェントを](/docs/opentelemetry/best-practices/opentelemetry-otlp)参照してください)。 OpenTelemetryを使用してサービスを構成する方法については、 [OpenTelemetry APM監視」](/docs/opentelemetry/get-started/apm-monitoring/opentelemetry-apm-intro)を参照してください。
+
+## OTLPスパンマッピング [#otlp-mapping]
+
+New Relic は OTLP スパンを`Span`データ型にマッピングします。 次の表は、 [Span proto メッセージ](https://github.com/open-telemetry/opentelemetry-proto/blob/main/opentelemetry/proto/trace/v1/trace.proto)のフィールドがどのように解釈されるかを示しています。
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        OTLP スパンのプロトフィールド
+      </th>
+
+      <th>
+        New Relic `Span`フィールド
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `ResourceSpans.Resource.attributes`
+      </td>
+
+      <td>
+        各キー値は`Span`の属性である**\[1]**
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `ScopeSpans.InstrumentationScope.name`
+      </td>
+
+      <td>
+        `otel.library.name`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `ScopeSpans.InstrumentationScope.version`
+      </td>
+
+      <td>
+        `otel.library.version`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `ScopeSpans.InstrumentationScope.attributes`
+      </td>
+
+      <td>
+        各キー値は`Span`の属性である**\[1]**
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `Span.trace_id`
+      </td>
+
+      <td>
+        `trace.id`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `Span.span_id`
+      </td>
+
+      <td>
+        `id`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `Span.trace_state`
+      </td>
+
+      <td>
+        `w3c.tracestate`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `Span.parent_span_id`
+      </td>
+
+      <td>
+        `parent.id`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `Span.name`
+      </td>
+
+      <td>
+        `name`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `Span.kind`
+      </td>
+
+      <td>
+        `span.kind`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `Span.start_time_unix_nano`
+      </td>
+
+      <td>
+        `timestamp`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `Span.end_time_unix_nano`
+      </td>
+
+      <td>
+        `druation.ms` （計算は `Span.start_time_unix_nano`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `Span.attributes`
+      </td>
+
+      <td>
+        各キー値は`Span`の属性である**\[1]**
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `Span.dropped_attribute_count`
+      </td>
+
+      <td>
+        `otel.dropped_attributes_count`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `Span.events`
+      </td>
+
+      <td>
+        各イベントは`SpanEvent`として記録され、 `span.id` / `trace.id`はソーススパンを参照し、カウントは次のように保存されます。 `nr.spanEventCount`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `Span.events[*].time_unix_nano`
+      </td>
+
+      <td>
+        `timestamp`として保存 `SpanEvent`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `Span.events[*].name`
+      </td>
+
+      <td>
+        `name`として保存 `SpanEvent`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `Span.events[*].attributes`
+      </td>
+
+      <td>
+        各キー値は、 `SpanEvent`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `Span.events[*].dropped_attributes_count`
+      </td>
+
+      <td>
+        `ote.dropped_Attributes_count`として保存 `SpanEvent`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `Span.dropped_events_count`
+      </td>
+
+      <td>
+        `otel.dropped_events_count`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `Span.status.message`
+      </td>
+
+      <td>
+        `otel.status_description`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `Span.status.code`
+      </td>
+
+      <td>
+        `otel.status_code`
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+### 表の脚注 [#otlp-mapping-notes]
+
+**\[1]**リソース属性、スコープ属性、スパン属性、および最上位のスパンフィールドで競合が発生した場合、優先順位（最高から最低）は次のようになります：最上位の`Span.*`フィールド > `Span.attributes` > `ScopeSpans.InstrumentationScope.attributes` > `ResourceSpans.Resource.attributes` 。
+
+## スパリンクのサポート [#span-links-support]
+
+OpenTelemetry[スパンのリンクは](https://opentelemetry.io/docs/concepts/signals/traces/#span-links)現在 New Relic ではサポートされていません。
