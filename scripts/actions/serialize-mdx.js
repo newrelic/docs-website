@@ -37,6 +37,9 @@ const processor = unified()
       mdxSpanElement: mdxElement,
       mdxBlockElement: mdxElement,
       code: handlers.CodeBlock.serialize,
+      listItem: {
+        type: 'listItem',
+      },
     },
   })
   .use(format)
