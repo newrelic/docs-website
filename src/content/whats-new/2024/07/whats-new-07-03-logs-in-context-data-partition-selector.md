@@ -1,17 +1,17 @@
 ---
-title: 'Data partitions are now available in logs in context'
+title: 'Data partitions now available in logs in context'
 summary: 'Filter and query logs by partitions in logs in context views'
 releaseDate: '2024-07-03'
 learnMoreLink: 'https://docs.newrelic.com/docs/logs/ui-data/data-partitions/'
 ---
 
-We're bringing you more functionality to the tool you already know and use, the data partition selection menu is now available in logs in context views. You can now filter and query your logs by data partitions in APM, hosts, traces, and transactions just like you do in the main logs view.
+We're bringing you more functionality to the data partition selection menu by making at available in logs in context views. You can now filter and query your logs by data partitions in APM, hosts, traces, and transaction veiws, just like you do in the main logs view.
 
 ## Data partitions in logs in context
 
-Make your workflow easier by filtering your logs by partition exactly where you are without having to switch to the main logs view. To view logs from specific partitions open the data partition menu and select the partitions you would like to see logs from and click done. 
+Make your workflow easier by filtering your logs by partition without having to switch to the main logs view. To view logs from specific partitions, open the data partition menu and select the partitions you'd like to see logs from. Then, just click **Done**! 
 
-This feature is now available in:
+You can access this feature from:
 - APM
 ![Data partition selection menu in APM log summary.](./images/APM_screenshot-full_logs-in-context-data-partition-selection-menu.webp "Data partition selection menu in APM log summary.")
 - Hosts
@@ -21,4 +21,4 @@ This feature is now available in:
 - Transactions
 ![Data partition selection menu in transactions logs in context.](./images/transactions_screenshot-full_logs-in-context-data-partition-selection-menu.webp "Data partition selection menu in transactions logs in context.")
 
-For more info on how to use Data Partitions to improve your workflow, visit [the docs page](https://docs.newrelic.com/docs/logs/ui-data/data-partitions/).
+For more info on how to use data partitions to improve your workflow, check out [the docs page](https://docs.newrelic.com/docs/logs/ui-data/data-partitions/).
