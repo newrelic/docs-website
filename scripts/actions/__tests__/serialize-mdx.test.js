@@ -2,34 +2,34 @@ import serializeMDX from '../serialize-mdx';
 import fs from 'fs';
 import deserializeHTML from '../deserialize-html';
 
-test('serializes DoNotTranslate wrapping a Collapser', async () => {
+test('serializes DNT wrapping a Collapser', async () => {
   const html = await serializeMDX(`
-<DoNotTranslate>
+<DNT>
   <Collapser
     title="Collapse me yo"
   >
     These tests are hard to write docs for
   </Collapser>
-</DoNotTranslate>
+</DNT>
   `);
 
   expect(html).toMatchSnapshot();
 });
 
-test('serializes DoNotTranslate to html', async () => {
+test('serializes DNT to html', async () => {
   const html = await serializeMDX(`
-<DoNotTranslate>
+<DNT>
   # Not all who wander are lost...
   Testing this line too
-</DoNotTranslate>
+</DNT>
   `);
 
   expect(html).toMatchSnapshot();
 });
 
-test('serializes DoNotTranslate to html inline', async () => {
+test('serializes DNT to html inline', async () => {
   const html = await serializeMDX(`
-This is an <DoNotTranslate>MDX</DoNotTranslate> file
+This is an <DNT>MDX</DNT> file
   `);
 
   expect(html).toMatchSnapshot();
