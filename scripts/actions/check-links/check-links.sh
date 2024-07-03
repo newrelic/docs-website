@@ -1,6 +1,6 @@
 #!/bin/bash
 
-unfiltered_list=$(find ./src/content/docs/accounts/accounts/billing \
+unfiltered_list=$(find ./src/content/docs \
  -type f \
  -name '*.mdx' \
 | xargs -n1 npx markdown-link-check --quiet --config $(dirname "$0")/markdown-link-check-config.json)
