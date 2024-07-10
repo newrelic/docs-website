@@ -21,7 +21,13 @@ const EolTemplate = ({ data, location, pageContext }) => {
     },
     markdownRemark: {
       html,
-      frontmatter: { title, summary, eolEffectiveDate: eolDate, learnMoreLink },
+      frontmatter: {
+        title,
+        summary,
+        eolEffectiveDate,
+        publishDate,
+        learnMoreLink,
+      },
       fields: { fileRelativePath },
     },
   } = data;
@@ -54,25 +60,13 @@ const EolTemplate = ({ data, location, pageContext }) => {
           max-width: 850px;
         `}
       >
-        <div
-          css={css`
-            font-size: 1rem;
-            margin-bottom: 1rem;
-            display: flex;
-            align-items: baseline;
-          `}
-        >
-          <Icon
-            name="fe-calendar"
-            size="1rem"
-            css={css`
-              position: relative;
-              top: 1px;
-              margin-right: 0.25rem;
-            `}
-          />
-          {eolDate}
-        </div>
+        <DateIcon icon="fe-calendar" dateString={publishDate}>
+          Published:
+        </DateIcon>
+        <DateIcon icon="fe-minus-circle" dateString={eolEffectiveDate}>
+          EOL effective:
+        </DateIcon>
+
         <div
           css={css`
             color: var(--secondary-text-color);
@@ -80,10 +74,7 @@ const EolTemplate = ({ data, location, pageContext }) => {
             line-height: 1.75;
             padding-bottom: 1rem;
             border-bottom: 1px solid var(--divider-color);
-
-            && {
-              margin-bottom: 1rem;
-            }
+            margin: 1rem 0;
           `}
         >
           <p>{summary}</p>
@@ -108,13 +99,11 @@ const EolTemplate = ({ data, location, pageContext }) => {
                 }
               `}
             >
-              {learnMoreLink && (
-                <li>
-                  <MetaLink to={learnMoreLink} siteUrl={siteUrl}>
-                    Learn more
-                  </MetaLink>
-                </li>
-              )}
+              <li>
+                <MetaLink to={learnMoreLink} siteUrl={siteUrl}>
+                  Learn more
+                </MetaLink>
+              </li>
             </ul>
           )}
         </div>
@@ -160,6 +149,7 @@ export const pageQuery = graphql`
       frontmatter {
         title
         eolEffectiveDate(formatString: "MMMM D, YYYY")
+        publishDate(formatString: "MMMM D, YYYY")
         summary
         learnMoreLink
       }
@@ -170,6 +160,41 @@ export const pageQuery = graphql`
   }
 `;
 
+const DateIcon = ({ children, icon, dateString }) => {
+  return (
+    <div
+      css={css`
+        font-size: 1rem;
+        display: flex;
+        align-items: baseline;
+        margin: 1rem 0 0.5rem;
+      `}
+    >
+      <Icon
+        name={icon}
+        size="1rem"
+        css={css`
+          position: relative;
+          top: 1px;
+        `}
+      />
+      <b
+        css={css`
+          margin: 0 0.25rem;
+        `}
+      >
+        {children}
+      </b>
+      {dateString}
+    </div>
+  );
+};
+
+DateIcon.propTypes = {
+  children: PropTypes.node.isRequired,
+  icon: PropTypes.string.isRequired,
+  dateString: PropTypes.string.isRequired,
+};
 const MetaLink = ({ children, to, siteUrl }) => {
   const isExternalLink = to.startsWith('http') && !to.startsWith(siteUrl);
 
