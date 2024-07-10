@@ -468,6 +468,9 @@ const getTemplate = (node) => {
     case fileRelativePath.includes('src/content/docs/release-notes'):
       return { template: 'releaseNote' };
 
+    case fileRelativePath.includes('src/content/eol'):
+      return { template: 'eol' };
+
     case fileRelativePath.includes('src/content/whats-new'):
       return { template: 'whatsNew' };
 
