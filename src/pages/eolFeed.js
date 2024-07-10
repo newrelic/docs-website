@@ -23,10 +23,10 @@ const Eol = ({ data, location }) => {
   const postsByDate = Array.from(
     posts
       .reduce((map, post) => {
-        const { eolCommsDate } = post.frontmatter;
-        const [monthOnly, year] = eolCommsDate.split(', ');
+        const { eolEffectiveDate } = post.frontmatter;
+        const [monthOnly, year] = eolEffectiveDate.split(', ');
         const key =
-          year === now.getFullYear().toString() ? monthOnly : eolCommsDate;
+          year === now.getFullYear().toString() ? monthOnly : eolEffectiveDate;
 
         return map.set(key, [...(map.get(key) || []), post]);
       }, new Map())
@@ -43,7 +43,7 @@ const Eol = ({ data, location }) => {
     <ErrorBoundary eventName="eolOverview">
       <SEO
         location={location}
-        title="🪦EOL Announcements"
+        title="EOL Announcements"
         type={TYPES.EOL_PAGE}
         disableSwiftype
       />
@@ -137,7 +137,7 @@ export const pageQuery = graphql`
   query {
     allMarkdownRemark(
       sort: {
-        fields: [frontmatter___eolCommsDate, frontmatter___title]
+        fields: [frontmatter___eolEffectiveDate, frontmatter___title]
         order: [DESC, ASC]
       }
       filter: { fields: { slug: { regex: "/^/eol/" } } }
@@ -148,7 +148,7 @@ export const pageQuery = graphql`
           frontmatter {
             title
             summary
-            eolCommsDate(formatString: "MMMM D, YYYY")
+            eolEffectiveDate(formatString: "MMMM D, YYYY")
           }
           fields {
             slug

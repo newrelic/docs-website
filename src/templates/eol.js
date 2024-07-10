@@ -21,7 +21,7 @@ const EolTemplate = ({ data, location, pageContext }) => {
     },
     markdownRemark: {
       html,
-      frontmatter: { title, summary, eolCommsDate: eolDate, learnMoreLink },
+      frontmatter: { title, summary, eolEffectiveDate: eolDate, learnMoreLink },
       fields: { fileRelativePath },
     },
   } = data;
@@ -159,7 +159,7 @@ export const pageQuery = graphql`
       html
       frontmatter {
         title
-        eolCommsDate(formatString: "MMMM D, YYYY")
+        eolEffectiveDate(formatString: "MMMM D, YYYY")
         summary
         learnMoreLink
       }
