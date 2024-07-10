@@ -469,7 +469,7 @@ const getTemplate = (node) => {
       return { template: 'releaseNote' };
 
     case fileRelativePath.includes('src/content/eol'):
-      return { template: 'eol' };
+      return { template: 'eolAnnouncement' };
 
     case fileRelativePath.includes('src/content/whats-new'):
       return { template: 'whatsNew' };
