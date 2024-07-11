@@ -18,22 +18,34 @@ import { TYPES } from '../utils/constants';
 const Eol = ({ data, location }) => {
   const [sortByPublishDate, setSortByPublishDate] = useState(true);
 
-  const now = useMemo(() => new Date(), []);
-  const { allMarkdownRemark } = data;
+  // const now = useMemo(() => new Date(), []);
+  const { queryByEOLDate, queryByPublishDate } = data;
 
-  const posts = allMarkdownRemark.edges.map(({ node }) => node);
-
-  const postsByDate = Array.from(
-    posts
+  const postsByPublish = Array.from(
+    queryByPublishDate.edges
+      .map(({ node }) => node)
       .reduce((map, post) => {
-        const { eolEffectiveDate, publishDate } = post.frontmatter;
+        const { publishDate } = post.frontmatter;
 
-        const sortBy = sortByPublishDate ? publishDate : eolEffectiveDate;
-
-        return map.set(sortBy, [...(map.get(sortBy) || []), post]);
+        return map.set(publishDate, [...(map.get(publishDate) || []), post]);
       }, new Map())
       .entries()
   );
+  const postsByEOL = Array.from(
+    queryByEOLDate.edges
+      .map(({ node }) => node)
+      .reduce((map, post) => {
+        const { eolEffectiveDate } = post.frontmatter;
+
+        return map.set(eolEffectiveDate, [
+          ...(map.get(eolEffectiveDate) || []),
+          post,
+        ]);
+      }, new Map())
+      .entries()
+  );
+
+  const postsByDate = sortByPublishDate ? postsByPublish : postsByEOL;
 
   if (typeof window !== 'undefined' && typeof newrelic === 'object') {
     window.newrelic.setCustomAttribute('pageType', 'Dynamic/Eol');
@@ -90,6 +102,7 @@ const Eol = ({ data, location }) => {
               setSortByPublishDate(!sortByPublishDate);
             }}
           >
+            {/* TODO translate these strings */}
             {sortByPublishDate ? 'Sort by EOL date' : 'Sort by Publish date'}
           </Button>
           <div>{sortByPublishDate ? 'Publish date' : 'EOL Date'}</div>
@@ -201,7 +214,29 @@ DateIcon.propTypes = {
 
 export const pageQuery = graphql`
   query {
-    allMarkdownRemark(
+    queryByPublishDate: allMarkdownRemark(
+      sort: {
+        fields: [frontmatter___publishDate, frontmatter___title]
+        order: [DESC, ASC]
+      }
+      filter: { fields: { slug: { regex: "/^/eol/" } } }
+    ) {
+      edges {
+        node {
+          id
+          frontmatter {
+            title
+            summary
+            eolEffectiveDate(formatString: "MMMM D, YYYY")
+            publishDate(formatString: "MMMM D, YYYY")
+          }
+          fields {
+            slug
+          }
+        }
+      }
+    }
+    queryByEOLDate: allMarkdownRemark(
       sort: {
         fields: [frontmatter___eolEffectiveDate, frontmatter___title]
         order: [DESC, ASC]

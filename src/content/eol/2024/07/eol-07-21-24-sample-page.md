@@ -1,8 +1,8 @@
 ---
 title: 'Welcome back to my channel'
 summary: 'Use code ENDOFLIFED for 15% off'
-publishDate: '2024-07-10'
-eolEffectiveDate: '2024-09-03'
+publishDate: '2024-08-03'
+eolEffectiveDate: '2024-09-02'
 ---
 
 Nal cala pahta vacco sú. Mí nírë ilca tanga aha. Mí vírë sarnë vailë tam, fánë sondë rondë ván an.

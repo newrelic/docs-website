@@ -1,8 +1,8 @@
 ---
 title: "I have already been EOL'd"
 summary: 'Add some visual to show the EOL date has passed'
-publishDate: '2024-06-30'
-eolEffectiveDate: '2024-07-06'
+publishDate: '2024-06-01'
+eolEffectiveDate: '2024-07-01'
 ---
 
 Nal cala pahta vacco sú. Mí nírë ilca tanga aha. Mí vírë sarnë vailë tam, fánë sondë rondë ván an.

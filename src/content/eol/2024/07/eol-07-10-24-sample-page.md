@@ -1,7 +1,7 @@
 ---
 title: 'Titles are for naming things'
 summary: 'This is where the summary will be'
-publishDate: '2024-07-24'
+publishDate: '2024-07-02'
 eolEffectiveDate: '2024-10-03'
 ---
 
