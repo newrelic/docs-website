@@ -2,7 +2,7 @@
 title: 'Titles are for naming things'
 summary: 'This is where the summary will be'
 publishDate: '2024-07-24'
-eolEffectiveDate: '2024-08-03'
+eolEffectiveDate: '2024-10-03'
 ---
 
 Nal cala pahta vacco sú. Mí nírë ilca tanga aha. Mí vírë sarnë vailë tam, fánë sondë rondë ván an.
