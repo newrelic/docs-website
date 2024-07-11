@@ -1,6 +1,6 @@
 ---
-title: 'Welcome back to my channel'
-summary: 'Use code ENDOFLIFED for 15% off'
+title: 'This is an example EOL post'
+summary: "too long, didn't read."
 publishDate: '2024-08-03'
 eolEffectiveDate: '2024-09-02'
 ---

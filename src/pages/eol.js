@@ -4,48 +4,83 @@ import { css } from '@emotion/react';
 import PageTitle from '../components/PageTitle';
 import { graphql } from 'gatsby';
 import {
-  Button,
   Layout,
   Icon,
   Link,
   useTranslation,
 } from '@newrelic/gatsby-theme-newrelic';
-import Timeline from '../components/Timeline';
+import EolTable from '../components/EolTable';
 import SEO from '../components/SEO';
 import ErrorBoundary from '../components/ErrorBoundary';
 import { TYPES } from '../utils/constants';
 
 const Eol = ({ data, location }) => {
-  const [sortByPublishDate, setSortByPublishDate] = useState(true);
-
+  const SORT_BY_FIELDS = {
+    PUBLISH_DATE: 'publishDate',
+    EOL_DATE: 'eolDate',
+  };
+  const [sortField, setSortField] = useState(SORT_BY_FIELDS.PUBLISH_DATE);
   const now = useMemo(() => new Date(), []);
   const { queryByEOLDate, queryByPublishDate } = data;
 
-  const postsByPublish = Array.from(
-    queryByPublishDate.edges
-      .map(({ node }) => node)
-      .reduce((map, post) => {
-        const { publishDate } = post.frontmatter;
+  const tableHeaders = [
+    { label: 'Published', contentId: 'publishDate', sort: true },
+    { label: 'EOL Effective', contentId: 'eolDate', sort: true },
+    { label: '', contentId: 'details', sort: false },
+  ];
 
-        return map.set(publishDate, [...(map.get(publishDate) || []), post]);
-      }, new Map())
-      .entries()
-  );
-  const postsByEOL = Array.from(
-    queryByEOLDate.edges
-      .map(({ node }) => node)
-      .reduce((map, post) => {
-        const { eolEffectiveDate } = post.frontmatter;
+  const shapePostDate = (posts) => {
+    const details = posts.edges.map((post) => {
+      const { frontmatter } = post.node;
+      const eolDate = new Date(frontmatter.eolEffectiveDate);
+      const passedEOL = now > eolDate;
 
-        return map.set(eolEffectiveDate, [
-          ...(map.get(eolEffectiveDate) || []),
-          post,
-        ]);
-      }, new Map())
-      .entries()
-  );
+      return {
+        publishDate: frontmatter.publishDate,
+        eolDate: frontmatter.eolEffectiveDate,
+        details: (
+          <div
+            key={post.id}
+            css={css`
+              margin-bottom: 2rem;
 
-  const postsByDate = sortByPublishDate ? postsByPublish : postsByEOL;
+              * {
+                opacity: ${passedEOL ? '75%' : '100%'};
+                font-style: ${passedEOL ? 'italic' : 'normal'};
+              }
+            `}
+          >
+            <Link
+              to={post.node.fields.slug}
+              css={css`
+                display: inline-block;
+                font-size: 1.25rem;
+                margin-bottom: 0.5rem;
+              `}
+            >
+              {frontmatter.title}
+            </Link>
+            <p
+              css={css`
+                margin-bottom: 0;
+              `}
+            >
+              {frontmatter.summary}
+            </p>
+          </div>
+        ),
+      };
+    });
+    return details;
+  };
+
+  const postsByPublish = shapePostDate(queryByPublishDate);
+  const postsByEOL = shapePostDate(queryByEOLDate);
+
+  const postsByDate = {
+    publishDate: postsByPublish,
+    eolDate: postsByEOL,
+  };
 
   if (typeof window !== 'undefined' && typeof newrelic === 'object') {
     window.newrelic.setCustomAttribute('pageType', 'Dynamic/Eol');
@@ -96,83 +131,12 @@ const Eol = ({ data, location }) => {
           </Link>
         </PageTitle>
         <Layout.Content>
-          <Button
-            variant={Button.VARIANT.PRIMARY}
-            onClick={() => {
-              setSortByPublishDate(!sortByPublishDate);
-            }}
-          >
-            {/* TODO translate these strings */}
-            {sortByPublishDate ? 'Sort by EOL date' : 'Sort by Publish date'}
-          </Button>
-          <div>{sortByPublishDate ? 'Publish date' : 'EOL Date'}</div>
-          <Timeline>
-            {postsByDate.map(([date, posts], idx) => {
-              const isLast = idx === postsByDate.length - 1;
-
-              return (
-                <Timeline.Item label={date} key={date}>
-                  {posts.map((post) => {
-                    const {
-                      title,
-                      eolEffectiveDate,
-                      publishDate,
-                      summary,
-                    } = post.frontmatter;
-
-                    const eolDate = new Date(eolEffectiveDate);
-                    const passedEOL = now > eolDate;
-
-                    return (
-                      <div
-                        key={post.id}
-                        css={css`
-                          margin-bottom: 2rem;
-                          &:last-child {
-                            margin-bottom: ${isLast ? 0 : '4rem'};
-                          }
-                          * {
-                            opacity: ${passedEOL ? '75%' : '100%'};
-                            font-style: ${passedEOL ? 'italic' : 'normal'};
-                          }
-                        `}
-                      >
-                        <Link
-                          to={post.fields.slug}
-                          css={css`
-                            display: inline-block;
-                            font-size: 1.25rem;
-                            margin-bottom: 0.5rem;
-                          `}
-                        >
-                          {title}
-                        </Link>
-                        <DateIcon
-                          icon={
-                            sortByPublishDate
-                              ? 'fe-minus-circle'
-                              : 'fe-calendar'
-                          }
-                          dateString={
-                            sortByPublishDate ? eolEffectiveDate : publishDate
-                          }
-                        >
-                          {sortByPublishDate ? 'EOL effective:' : 'Published:'}
-                        </DateIcon>
-                        <p
-                          css={css`
-                            margin-bottom: 0;
-                          `}
-                        >
-                          {summary}
-                        </p>
-                      </div>
-                    );
-                  })}
-                </Timeline.Item>
-              );
-            })}
-          </Timeline>
+          <EolTable
+            headers={tableHeaders}
+            data={postsByDate[sortField]}
+            sortField={sortField}
+            setSortField={setSortField}
+          />
         </Layout.Content>
       </div>
     </ErrorBoundary>
@@ -182,42 +146,6 @@ const Eol = ({ data, location }) => {
 Eol.propTypes = {
   data: PropTypes.object.isRequired,
   location: PropTypes.object.isRequired,
-};
-
-const DateIcon = ({ children, icon, dateString }) => {
-  return (
-    <div
-      css={css`
-        font-size: 1rem;
-        display: flex;
-        align-items: baseline;
-        margin: 1rem 0 0.5rem;
-      `}
-    >
-      <Icon
-        name={icon}
-        size="1rem"
-        css={css`
-          position: relative;
-          top: 1px;
-        `}
-      />
-      <b
-        css={css`
-          margin: 0 0.25rem;
-        `}
-      >
-        {children}
-      </b>
-      {dateString}
-    </div>
-  );
-};
-
-DateIcon.propTypes = {
-  children: PropTypes.node.isRequired,
-  icon: PropTypes.string.isRequired,
-  dateString: PropTypes.string.isRequired,
 };
 
 export const pageQuery = graphql`
