@@ -18,7 +18,7 @@ import { TYPES } from '../utils/constants';
 const Eol = ({ data, location }) => {
   const [sortByPublishDate, setSortByPublishDate] = useState(true);
 
-  // const now = useMemo(() => new Date(), []);
+  const now = useMemo(() => new Date(), []);
   const { queryByEOLDate, queryByPublishDate } = data;
 
   const postsByPublish = Array.from(
@@ -119,6 +119,10 @@ const Eol = ({ data, location }) => {
                       publishDate,
                       summary,
                     } = post.frontmatter;
+
+                    const eolDate = new Date(eolEffectiveDate);
+                    const passedEOL = now > eolDate;
+
                     return (
                       <div
                         key={post.id}
@@ -126,6 +130,10 @@ const Eol = ({ data, location }) => {
                           margin-bottom: 2rem;
                           &:last-child {
                             margin-bottom: ${isLast ? 0 : '4rem'};
+                          }
+                          * {
+                            opacity: ${passedEOL ? '75%' : '100%'};
+                            font-style: ${passedEOL ? 'italic' : 'normal'};
                           }
                         `}
                       >
