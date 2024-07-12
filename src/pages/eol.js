@@ -26,7 +26,7 @@ const Eol = ({ data, location }) => {
   const tableHeaders = [
     { label: 'Published', contentId: 'publishDate', sort: true },
     { label: 'EOL Effective', contentId: 'eolDate', sort: true },
-    { label: '', contentId: 'details', sort: false },
+    { label: '', contentId: 'details' },
   ];
 
   const shapePostData = (posts) =>
@@ -36,6 +36,7 @@ const Eol = ({ data, location }) => {
       const passedEOL = now > eolDate;
 
       return {
+        id: post.node.id,
         publishDate: frontmatter.publishDate,
         eolDate: frontmatter.eolEffectiveDate,
         details: (
@@ -131,7 +132,7 @@ const Eol = ({ data, location }) => {
         <Layout.Content>
           <EolTable
             headers={tableHeaders}
-            data={postsByDate[sortField]}
+            body={postsByDate[sortField]}
             sortField={sortField}
             setSortField={setSortField}
           />

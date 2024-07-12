@@ -15,12 +15,13 @@ const TableHeader = ({ headers, sortField, setSortField }) => {
       `}
     >
       <tr>
-        {headers.map(({ label, contentId, sort }) => {
+        {headers.map(({ label, contentId, sort = false }) => {
           const isActiveSort = sortField === contentId;
           return (
             <th key={contentId}>
               {sort ? (
                 <Button
+                  variant={Button.VARIANT.PLAIN}
                   onClick={() => setSortField(contentId)}
                   css={css`
                     background: none;
@@ -55,7 +56,15 @@ const TableHeader = ({ headers, sortField, setSortField }) => {
   );
 };
 TableHeader.propTypes = {
-  children: PropTypes.node.isRequired,
+  headers: PropTypes.arrayOf(
+    PropTypes.shape({
+      label: PropTypes.string.isRequired,
+      contentId: PropTypes.string.isRequired,
+      sort: PropTypes.bool,
+    })
+  ).isRequired,
+  sortField: PropTypes.string.isRequired,
+  setSortField: PropTypes.func.isRequired,
 };
 
 export default TableHeader;

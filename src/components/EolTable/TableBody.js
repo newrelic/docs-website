@@ -2,7 +2,7 @@ import React from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/react';
 
-const TableBody = ({ tableData, headers }) => {
+const TableBody = ({ body, headers }) => {
   return (
     <tbody
       css={css`
@@ -12,11 +12,11 @@ const TableBody = ({ tableData, headers }) => {
         }
       `}
     >
-      {tableData.map((data) => {
+      {body.map((content) => {
         return (
-          <tr key={data.id}>
+          <tr key={content.id}>
             {headers.map(({ contentId }) => {
-              return <td key={contentId}>{data[contentId]}</td>;
+              return <td key={contentId}>{content[contentId]}</td>;
             })}
           </tr>
         );
@@ -25,7 +25,16 @@ const TableBody = ({ tableData, headers }) => {
   );
 };
 TableBody.propTypes = {
-  children: PropTypes.node.isRequired,
+  headers: PropTypes.arrayOf(
+    PropTypes.shape({
+      label: PropTypes.string.isRequired,
+      contentId: PropTypes.string.isRequired,
+      sort: PropTypes.bool,
+    })
+  ).isRequired,
+  body: PropTypes.arrayOf(
+    PropTypes.objectOf(PropTypes.oneOfType([PropTypes.string, PropTypes.node]))
+  ).isRequired,
 };
 
 export default TableBody;
