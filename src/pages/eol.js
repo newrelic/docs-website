@@ -29,8 +29,8 @@ const Eol = ({ data, location }) => {
     { label: '', contentId: 'details', sort: false },
   ];
 
-  const shapePostDate = (posts) => {
-    const details = posts.edges.map((post) => {
+  const shapePostData = (posts) =>
+    posts.edges.map((post) => {
       const { frontmatter } = post.node;
       const eolDate = new Date(frontmatter.eolEffectiveDate);
       const passedEOL = now > eolDate;
@@ -71,11 +71,9 @@ const Eol = ({ data, location }) => {
         ),
       };
     });
-    return details;
-  };
 
-  const postsByPublish = shapePostDate(queryByPublishDate);
-  const postsByEOL = shapePostDate(queryByEOLDate);
+  const postsByPublish = shapePostData(queryByPublishDate);
+  const postsByEOL = shapePostData(queryByEOLDate);
 
   const postsByDate = {
     publishDate: postsByPublish,
