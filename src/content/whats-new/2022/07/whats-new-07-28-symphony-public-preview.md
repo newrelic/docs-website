@@ -16,7 +16,7 @@ The enhanced user interface includes:
 * **Less distractions**: Declutter your workspace by collapsing the side menu to focus on what matters most. 
 * **Intuitive navigation**: Get to your data faster with simple and consistent navigation across the entire platform.
 * **Full customization**: Personalize your experience by pinning your most used tools and features to the nav bar. 
-* **Easier instrumentation**: Immediately access hundreds of data sources, pre-built dashboards, alert configurations, and custom applications that help you monitor your stack from the “Add data” button in the nav bar. 
+* **Easier instrumentation**: Immediately access hundreds of data sources, pre-built dashboards, alert configurations, and custom applications that help you monitor your stack from the “Integrations & Agents” button in the nav bar. 
 
 [Read our blog](https://newrelic.com/blog/nerdlog/new-ui-new-relic), check out our [docs page](https://docs.newrelic.com/docs/new-relic-solutions/new-relic-one/new-navigation-transition-guide), and watch the demo video below for more tips and tricks on using the new interface. 
 

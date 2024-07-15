@@ -19,7 +19,7 @@ Use the [Guided install](https://one.newrelic.com/marketplace?state=49e6d628-79a
 ![The New Relic guided install offers an enhanced instrumentation experience providing agent installation and incorporating alerts, dashboards, and logs in context.](./images/GuidedInstall.webp "The New Relic guided install offers an enhanced instrumentation experience providing agent installation and incorporating alerts, dashboards, and logs in context.")
 The New Relic guided install offers an enhanced instrumentation experience providing agent installation and incorporating alerts, dashboards, and logs in context.
 
-Installing the infrastructure agent with +Add data and using the Guided install from within the New Relic platform is the fastest way to start monitoring your instances.
+Installing the infrastructure agent with +Integrations & Agents and using the Guided install from within the New Relic platform is the fastest way to start monitoring your instances.
 
 ![Amazon Linux 2023 instance instrumented with the New Relic infrastructure monitoring agent.](./images/AL2023wAgent.webp "Amazon Linux 2023 instance instrumented with the New Relic infrastructure monitoring agent.")
 Amazon Linux 2023 instance instrumented with the New Relic infrastructure monitoring agent.
