@@ -1,7 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import PropTypes from 'prop-types';
 import { css } from '@emotion/react';
-import PageTitle from '../components/PageTitle';
 import { graphql } from 'gatsby';
 import {
   Layout,
@@ -10,6 +9,7 @@ import {
   useTranslation,
 } from '@newrelic/gatsby-theme-newrelic';
 import EolTable from '../components/EolTable';
+import PageTitle from '../components/PageTitle';
 import SEO from '../components/SEO';
 import ErrorBoundary from '../components/ErrorBoundary';
 import { TYPES } from '../utils/constants';
