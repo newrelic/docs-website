@@ -1,0 +1,1259 @@
+---
+title: Introdução ao monitoramento do AWS Lambda
+metaDescription: This provides an overview of New Relic's AWS Lambda monitoring and details how to link your accounts.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+import serverlessShippingMethods from 'images/serverless_diagram_shipping-methods.webp'
+
+À medida que sua organização faz a transição para uma arquitetura de função como serviço (FaaS) com AWS Lambda, compreender e otimizar o desempenho da função torna-se fundamental para garantir uma experiência do usuário contínua e eficiente. Cada invocação do Lambda representa um potencial gargalo ou oportunidade de melhoria.
+
+A instrumentação da New Relic para AWS Lambda fornece visibilidade profunda do funcionamento interno de suas funções. Ao adicionar o agente New Relic à sua função, cada vez que sua função é invocada, o New Relic também o é. Você pode obter insights sobre as principais métricas de desempenho, como duração, partidas a frio, exceções e rastreamentos.
+
+Este documento explicará a arquitetura de monitoramento Lambda da New Relic e orientará você na vinculação de suas contas AWS e New Relic. Você precisará vincular suas contas antes de implementar suas funções.
+
+## Como funciona a instrumentação Lambda [#how]
+
+Estes são os elementos essenciais da instrumentação AWS Lambda com New Relic:
+
+* **Sua função**: sua função é o código que você deseja entender. Você quer saber quando ele encontra erros, por que está lento ou com que frequência é invocado.
+* **O agente ou SDK do New Relic **: Dependendo do idioma em que sua função está escrita, New Relic fornece diferentes agentes ou SDKs. Seu trabalho é fazer o monitoramento real do seu código. Ele mede a duração de suas invocações de função, observa os erros que ocorrem, registra detalhes sobre o evento de origem e as respostas de suas funções. Para fazer isso, ele precisa envolver a função do manipulador de invocação do Lambda.
+* **A extensão New Relic Lambda**: Quando você instrumenta a extensão New Relic Lambda em sua função, ela será executada dentro do ambiente de execução Lambda, junto com seu código. Ele aprimora a telemetria que o agente coleta e envia para o backend da New Relic em lotes. Ele também pode enviar o log da sua função para New Relic. Você não precisa da extensão Lambda para monitor sua função com New Relic.
+
+## Escolha seu método de envio [#method]
+
+Existem três maneiras de enviar sua telemetria New Relic AWS Lambda. O método de envio que você escolher depende de suas necessidades de dados.
+
+<img
+  title="shipping methods"
+  alt="A screenshot depicting the different shipping methods for Lambda"
+  src={serverlessShippingMethods}
+/>
+
+* **Custo**: A maneira mais econômica de usar AWS Lambda é usando qualquer uma de nossas camadas, que inclui a extensão Lambda. Por padrão, nossa extensão nunca envia dados para o AWS CloudWatch.
+* **Confiabilidade**: você pode enviar seus dados somente por meio do CloudWatch. Para fazer isso, você desativará a extensão New Relic Lambda. Isso significa que sua função do Lambda será mais leve e não terá nenhum processo adicional para executar quando for invocada. Neste caso, o log e a carga serão enviados para a New Relic através do CloudWatch e não através da extensão.
+* **O melhor dos dois mundos**: usar a extensão com o AWS CloudWatch como alternativa ajuda a manter os custos baixos e, ao mesmo tempo, fornece proteção contra falhas caso haja um problema com a extensão.
+
+Mostraremos como instrumentar sua função do Lambda usando cada método em nossos documentos de instrumentação:
+
+* [instrumento sua função conteinerizada do Lambda](/docs/serverless-function-monitoring/aws-lambda-monitoring/enable-lambda-monitoring/containerized-images/)
+* [instrumento sua função não-containerizada do Lambda](/docs/serverless-function-monitoring/aws-lambda-monitoring/instrument-lambda-function/instrument-your-own/)
+* [instrumento sua função layerless do Lambda](/docs/serverless-function-monitoring/aws-lambda-monitoring/instrument-lambda-function/enable-serverless-monioring-lambda-monitoring-layerless/)
+
+## Antes de você começar [#begin]
+
+Antes de habilitar o monitoramento Serverless usando nossa camada Lambda, você precisará de:
+
+1. Uma conta New Relic com função de administrador ou com o **Infrastructure manager** [função complementar](/docs/accounts/original-accounts-billing/original-users-roles/users-roles-original-user-model#add-on).
+
+2. Um
+
+   <InlinePopover type="userKey"/>
+
+   .
+
+3. Uma conta AWS com permissões para criar recursos IAM, segredos gerenciados e Lambdas. Você também precisa de permissões para criar pilha do CloudFormation e buckets S3.
+
+Então você precisará concluir o seguinte:
+
+1. Instale a configuração[da AWS CLI v2](https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2.html) usando `aws configure`. Você precisará de um ID de chave de acesso da AWS e uma chave de acesso secreta da AWS.
+
+2. Instale [o Python](https://www.python.org/downloads/) versão 3.3 ou superior.
+
+3. Instale a [CLI newrelic-lambda](https://github.com/newrelic/newrelic-lambda-cli#installation). Para instalar, execute o seguinte:
+
+   ```brew
+       pip3 install newrelic-lambda-cli
+   ```
+
+4. Por padrão, usamos a política gerenciada pela AWS `ReadOnlyAccess`. Isso permite que a integração da infraestrutura veja todos os recursos da sua conta, e não apenas a sua função do Lambda e as métricas do CloudWatch. New Relic recomenda este padrão, mas entendemos que algumas organizações preferem uma postura de segurança rigorosa para integração de terceiros. Se você quiser limitar o acesso do New Relic, a função IAM pode ser concedida com um mínimo destas permissões:
+
+```yaml
+    Resource: "*"
+    Action:
+    - "cloudwatch:GetMetricStatistics"
+    - "cloudwatch:ListMetrics"
+    - "cloudwatch:GetMetricData"
+    - "lambda:GetAccountSettings"
+    - "lambda:ListFunctions"
+    - "lambda:ListAliases"
+    - "lambda:ListTags"
+    - "lambda:ListEventSourceMappings"
+```
+
+5. Antes de executar a CLI, você precisará conceder à New Relic um mínimo destas permissões na AWS:
+
+```json
+    {
+        "Version": "2012-10-17",
+        "Statement": [
+            {
+                "Sid": "CLIAccessPolicy",
+                "Action": [
+                    "cloudformation:CreateChangeSet",
+                    "cloudformation:CreateStack",
+                    "cloudformation:DescribeStacks",
+                    "cloudformation:ExecuteChangeSet",
+                    "iam:AttachRolePolicy",
+                    "iam:CreateRole",
+                    "iam:GetRole",
+                    "iam:PassRole",
+                    "lambda:AddPermission",
+                    "lambda:CreateFunction",
+                    "lambda:GetFunction",
+                    "logs:DeleteSubscriptionFilter",
+                    "logs:DescribeSubscriptionFilters",
+                    "logs:PutSubscriptionFilter",
+                    "s3:GetObject",
+                    "serverlessrepo:CreateCloudFormationChangeSet",
+                    "secretsmanager:CreateSecret"
+                ],
+                "Effect": "Allow",
+                "Resource": "*"
+            },
+            {
+                "Sid": "NRLogAccessPolicy",
+                "Effect": "Allow",
+                "Action": [
+                    "serverlessrepo:CreateCloudFormationTemplate",
+                    "serverlessrepo:GetCloudFormationTemplate"
+                ],
+                "Resource": "arn:aws:serverlessrepo:us-east-1:463657938898:applications/NewRelic-log-ingestion"
+            }
+        ]
+    }
+```
+
+Se quiser saber mais sobre nossa CLI, consulte [nosso repositório CLI](https://github.com/newrelic/newrelic-lambda-cli#installation).
+
+## Tempos de execução de linguagem AWS Lambda recomendados [#recommended]
+
+Recomendamos os seguintes tempos de execução:
+
+* Node.js: `nodejs16.x`, `nodejs18.x`, `nodejs20.x`
+* Python: `python3.8`, `python3.9`, `python3.10`, `python3.11`, `python3.12`
+* Go: `provided.al2`
+* Java: `java8.al2`, `java11`, `java17`
+* Ruby: `ruby3.2`, `ruby3.3`
+* .NET: `dotnet6`, `dotnet8`
+
+## Considere os custos [#costs]
+
+Ativar o monitoramento Serverless para AWS Lambda pode resultar em cobranças da Amazon Web Services. Nossa `newrelic-log-ingestion` função do Lambda, que nos reporta seus dados Lambda, é considerada um [serviço de terceiros](/docs/licenses/license-information/acceptable-use-policy/acceptable-use-policy): as cobranças AWS resultantes de seu uso são de sua responsabilidade.
+
+Se você usar a [extensão Lambda](https://github.com/newrelic/newrelic-lambda-extension), poderá evitar a cobrança de ingestão de log do CloudWatch para telemetria coletada pelo New Relic.
+
+## Vincule suas contas AWS e New Relic [#link]
+
+Antes de poder instrumentar sua função, você precisará vincular sua conta AWS ao New Relic. Ao vincular contas, você está concedendo permissão New Relic para criar um inventário de sua conta AWS e coletar automaticamente informações do CloudWatch para sua função do Lambda. Depois de vincular as contas, os recursos da sua conta AWS aparecerão como entidade no explorador de entidades.
+
+<Steps>
+  <Step>
+    ## Camada Lambda do instrumento New Relic com a CLI `newrelic-lambda`
+
+    Para usar a camada Lambda do instrumento New Relic, execute:
+
+    ```bash
+    newrelic-lambda integrations install --nr-account-id YOUR_NR_ACCOUNT_ID
+    --nr-api-key YOUR_NEW_RELIC_USER_KEY
+    ```
+
+    A CLI `newrelic-lambda` adiciona New Relic como um segredo no [AWS Secret Manager](https://aws.amazon.com/secrets-manager/) para maior segurança.
+  </Step>
+
+  <Step>
+    ## Instalar Streams métricos [#metric-streams]
+
+    Para que New Relic monitor sua função do Lambda, você precisará instalar [o métrica Streams](/docs/infrastructure/amazon-integrations/connect/aws-metric-stream) ou [API Polling](/docs/infrastructure/amazon-integrations/connect/connect-aws-new-relic-infrastructure-monitoring). Recomendamos o uso de métrica Streams, mas você também pode deixar que a CLI instale automaticamente a integração API Polling para você.
+
+    Se você quiser usar o métrica Streams, instale-o agora antes de executar a CLI. Você pode instalar isso usando nossa [integração Connect AWS usando a documentação do métrica Streams](docs/infrastructure/amazon-integrations/connect/aws-metric-stream/) .
+  </Step>
+
+  <Step>
+    ## Variáveis ambientais [#environment]
+
+    Quando você utiliza a camada Lambda do New Relic com a CLI, suas variáveis de ambiente são configuradas automaticamente. Você pode alterar algumas das configurações padrão e configurar sua função do Lambda com as variáveis de ambiente que atendem às suas necessidades de monitoramento. Escolha seu tempo de execução para ver as variáveis de ambiente disponíveis e nossas recomendações para configurações padrão.
+
+    <CollapserGroup>
+      <Collapser
+        id="go"
+        title="Go"
+      >
+        <table>
+          <thead>
+            <tr>
+              <th>
+                Variável de ambiente
+              </th>
+
+              <th>
+                Valor padrão
+              </th>
+
+              <th>
+                Opções
+              </th>
+
+              <th>
+                Descrição
+              </th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <tr>
+              <td>
+                `NEW_RELIC_ACCOUNT_ID`
+              </td>
+
+              <td/>
+
+              <td/>
+
+              <td>
+                ID da sua conta New Relic
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NEW_RELIC_TRUSTED_ACCOUNT_KEY`
+              </td>
+
+              <td/>
+
+              <td/>
+
+              <td>
+                Seu ID de conta New Relic ou ID de pai, se existir
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </Collapser>
+
+      <Collapser
+        id="java"
+        title="Java OpenTracing"
+      >
+        <table>
+          <thead>
+            <tr>
+              <th>
+                Variável de ambiente
+              </th>
+
+              <th>
+                Valor padrão
+              </th>
+
+              <th>
+                Opções
+              </th>
+
+              <th>
+                Descrição
+              </th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <tr>
+              <td>
+                `NEW_RELIC_ACCOUNT_ID`
+              </td>
+
+              <td/>
+
+              <td/>
+
+              <td>
+                ID da sua conta New Relic
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NEW_RELIC_TRUSTED_ACCOUNT_KEY`
+              </td>
+
+              <td/>
+
+              <td/>
+
+              <td>
+                Seu ID de conta New Relic ou ID de pai, se existir
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NEW_RELIC_DISTRIBUTED_TRACING_ENABLED`
+              </td>
+
+              <td>
+                `false`
+              </td>
+
+              <td>
+                `true`, `false`
+              </td>
+
+              <td>
+                Habilitar ou desabilitar distributed tracing
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NEW_RELIC_PRIMARY_APPLICATION_ID`
+              </td>
+
+              <td/>
+
+              <td/>
+
+              <td>
+                ID da sua conta New Relic
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NEW_RELIC_DEBUG`
+              </td>
+
+              <td>
+                `false`
+              </td>
+
+              <td>
+                `true`, `false`
+              </td>
+
+              <td>
+                Nível de agente de log
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </Collapser>
+
+      <Collapser
+        id="node-js"
+        title="Node.js"
+      >
+        <table>
+          <thead>
+            <tr>
+              <th>
+                Variável de ambiente
+              </th>
+
+              <th>
+                Valor padrão
+              </th>
+
+              <th>
+                Opções
+              </th>
+
+              <th>
+                Descrição
+              </th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <tr>
+              <td>
+                `NEW_RELIC_ACCOUNT_ID`
+              </td>
+
+              <td/>
+
+              <td/>
+
+              <td>
+                ID da sua conta New Relic
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NEW_RELIC_TRUSTED_ACCOUNT_KEY`
+              </td>
+
+              <td/>
+
+              <td/>
+
+              <td>
+                Seu ID de conta New Relic ou ID de pai, se existir
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NEW_RELIC_DISTRIBUTED_TRACING_ENABLED`
+              </td>
+
+              <td>
+                `false`
+              </td>
+
+              <td>
+                `true`, `false`
+              </td>
+
+              <td>
+                Habilitar ou desabilitar distributed tracing (Java excluído)
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NEW_RELIC_NO_CONFIG_FILE`
+              </td>
+
+              <td>
+                `false`
+              </td>
+
+              <td>
+                `true`, `false`
+              </td>
+
+              <td>
+                O agente Node.js usa variáveis de ambiente no Lambda, portanto, isso deve ser definido como `true`
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NEW_RELIC_APP_NAME`
+              </td>
+
+              <td/>
+
+              <td/>
+
+              <td>
+                Deve ser definido, mas não é usado na interface do New Relic. Em vez disso, os nomes das entidades vêm da integração AWS .
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NEW_RELIC_LOG_ENABLED`
+              </td>
+
+              <td>
+                `false`
+              </td>
+
+              <td>
+                `true`,`false`
+              </td>
+
+              <td>
+                Gera o log do agente para o CloudWatch
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NEW_RELIC_LOG_LEVEL`
+              </td>
+
+              <td>
+                `info`
+              </td>
+
+              <td>
+                `fatal`, `error`, `warn`, `info`, `debug`, `trace`
+              </td>
+
+              <td>
+                Nível de agente de log
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NEW_RELIC_LOG`
+              </td>
+
+              <td>
+                `stdout`
+              </td>
+
+              <td>
+                `stdout`
+              </td>
+
+              <td>
+                O caminho log do agente deve ser stdout para o agente Node.js no modo sem servidor
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NEW_RELIC_USE_ESM`
+              </td>
+
+              <td>
+                `false`
+              </td>
+
+              <td>
+                `true`, `false`
+              </td>
+
+              <td>
+                Funções ESM que usam async/await e não retorno de chamada
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NEW_RELIC_NATIVE_METRICS_ENABLED`
+              </td>
+
+              <td>
+                `true`
+              </td>
+
+              <td>
+                `true`, `false`
+              </td>
+
+              <td>
+                Deve ser definido como falso para reduzir a duração da partida a frio. Quando definido como `false` não coleta métricas VM
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        Você pode encontrar mais variáveis de ambiente em nossa [documentação de configuração do Node.js.](/docs/apm/agents/nodejs-agent/installation-configuration/nodejs-agent-configuration/)
+      </Collapser>
+
+      <Collapser
+        id="python"
+        title="Python"
+      >
+        <table>
+          <thead>
+            <tr>
+              <th>
+                Variável de ambiente
+              </th>
+
+              <th>
+                Valor padrão
+              </th>
+
+              <th>
+                Opções
+              </th>
+
+              <th>
+                Descrição
+              </th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <tr>
+              <td>
+                `NEW_RELIC_ACCOUNT_ID`
+              </td>
+
+              <td/>
+
+              <td/>
+
+              <td>
+                ID da sua conta New Relic
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NEW_RELIC_TRUSTED_ACCOUNT_KEY`
+              </td>
+
+              <td/>
+
+              <td/>
+
+              <td>
+                Seu ID de conta New Relic ou ID de pai, se existir
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NEW_RELIC_DISTRIBUTED_TRACING_ENABLED`
+              </td>
+
+              <td>
+                `false`
+              </td>
+
+              <td>
+                `true`, `false`
+              </td>
+
+              <td>
+                Habilitar ou desabilitar distributed tracing (Java excluído)
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NEW_RELIC_NO_CONFIG_FILE`
+              </td>
+
+              <td>
+                `false`
+              </td>
+
+              <td>
+                `true`, `false`
+              </td>
+
+              <td>
+                O agente usa variáveis de ambiente no Lambda, portanto, isso deve ser definido como verdadeiro
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NEW_RELIC_APP_NAME`
+              </td>
+
+              <td/>
+
+              <td/>
+
+              <td>
+                Deve ser definido, mas não é usado na interface do New Relic. Em vez disso, os nomes das entidades vêm da integração AWS .
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NEW_RELIC_LOG`
+              </td>
+
+              <td>
+                `stderr`
+              </td>
+
+              <td>
+                `stderr`
+              </td>
+
+              <td>
+                O caminho log do agente deve ser `stderr `para o agente Python no modo sem servidor
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NEW_RELIC_LOG_LEVEL`
+              </td>
+
+              <td>
+                `info`
+              </td>
+
+              <td>
+                `critical`, `error`, `warning`, `info`, `debug`
+              </td>
+
+              <td>
+                Nível de agente de log
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NEW_RELIC_SERVERLESS_MODE_ENABLED`
+              </td>
+
+              <td>
+                `false`
+              </td>
+
+              <td>
+                `true`, `false`
+              </td>
+
+              <td>
+                Deve ser definido como `true` para que o agente seja executado no modo sem servidor
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NEW_RELIC_PACKAGE_REPORTING_ENABLED`
+              </td>
+
+              <td>
+                `true`
+              </td>
+
+              <td>
+                `true`, `false`
+              </td>
+
+              <td>
+                Os relatórios do pacote do agente Python devem ser definidos como `false` para melhorar os tempos de inicialização a frio
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        Você pode encontrar mais variáveis de ambiente em nossa [documentação de configuração do Python](/docs/apm/agents/python-agent/configuration/python-agent-configuration).
+      </Collapser>
+
+      <Collapser
+        id="ruby"
+        title="Ruby"
+      >
+        <table>
+          <thead>
+            <tr>
+              <th>
+                Variável de ambiente
+              </th>
+
+              <th>
+                Valor padrão
+              </th>
+
+              <th>
+                Opções
+              </th>
+
+              <th>
+                Descrição
+              </th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <tr>
+              <td>
+                `NEW_RELIC_ACCOUNT_ID`
+              </td>
+
+              <td/>
+
+              <td/>
+
+              <td>
+                ID da sua conta New Relic
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NEW_RELIC_TRUSTED_ACCOUNT_KEY`
+              </td>
+
+              <td/>
+
+              <td/>
+
+              <td>
+                Seu ID de conta New Relic ou ID de pai, se existir
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NEW_RELIC_DISTRIBUTED_TRACING_ENABLED`
+              </td>
+
+              <td>
+                `false`
+              </td>
+
+              <td>
+                `true`, `false`
+              </td>
+
+              <td>
+                Habilitar ou desabilitar distributed tracing
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NEW_RELIC_LAMBDA_HANDLER`
+              </td>
+
+              <td/>
+
+              <td/>
+
+              <td>
+                Defina o valor original do manipulador da sua função
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </Collapser>
+
+      <Collapser
+        id="dotnet"
+        title=".NET"
+      >
+        <table>
+          <thead>
+            <tr>
+              <th>
+                Variável de ambiente
+              </th>
+
+              <th>
+                Valor padrão
+              </th>
+
+              <th>
+                Opções
+              </th>
+
+              <th>
+                Descrição
+              </th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <tr>
+              <td>
+                `CORECLR_ENABLE_PROFILING`
+              </td>
+
+              <td/>
+
+              <td>
+                `0`, `1`
+              </td>
+
+              <td>
+                Obrigatório: deve ser definido como `1` para que o agente .NET possa instrumentalizar seu aplicativo.
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `CORECLR_PROFILER`
+              </td>
+
+              <td/>
+
+              <td>
+                `{36032161-FFC0-4B61-B559-F6C5D41BAE5A}`
+              </td>
+
+              <td>
+                Obrigatório: deve ser definido como `{36032161-FFC0-4B61-B559-F6C5D41BAE5A}` para que o agente .NET possa instrumentalizar seu aplicativo.
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `CORECLR_NEWRELIC_HOME`
+              </td>
+
+              <td/>
+
+              <td>
+                `/opt/lib/newrelic-dotnet-agent`
+              </td>
+
+              <td>
+                Obrigatório: deve ser definido como `/opt/lib/newrelic-dotnet-agent` para que o agente .NET possa instrumentalizar seu aplicativo.
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `CORECLR_PROFILER_PATH`
+              </td>
+
+              <td/>
+
+              <td>
+                `/opt/lib/newrelic-dotnet-agent/libNewRelicProfiler.so`
+              </td>
+
+              <td>
+                Obrigatório: deve ser definido como `/opt/lib/newrelic-dotnet-agent/libNewRelicProfiler.so` para que o agente .NET possa instrumentalizar seu aplicativo.
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NEW_RELIC_APP_NAME`
+              </td>
+
+              <td/>
+
+              <td/>
+
+              <td>
+                Deve ser definido, mas não é usado na interface do New Relic. Em vez disso, os nomes das entidades vêm da integração AWS .
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NEW_RELIC_LOG_LEVEL`
+              </td>
+
+              <td>
+                `info`
+              </td>
+
+              <td>
+                `info`, `debug`, `finest`
+              </td>
+
+              <td>
+                Nível de agente de log
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NEWRELIC_LOG_CONSOLE`
+              </td>
+
+              <td>
+                `0`
+              </td>
+
+              <td>
+                `1`, `0`
+              </td>
+
+              <td>
+                Enviar mensagem do log para o console
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        Você pode encontrar mais variáveis de ambiente em nossa [documentação de configuração do .NET](/docs/apm/agents/net-agent/configuration/net-agent-configuration/).
+      </Collapser>
+
+      <Collapser
+        id="extension"
+        title="Extensão Lambda"
+      >
+        <table>
+          <thead>
+            <tr>
+              <th>
+                Variável de ambiente
+              </th>
+
+              <th>
+                Valor padrão
+              </th>
+
+              <th>
+                Opções
+              </th>
+
+              <th>
+                Descrição
+              </th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <tr>
+              <td>
+                `NEW_RELIC_LAMBDA_EXTENSION_ENABLED`
+              </td>
+
+              <td>
+                `true`
+              </td>
+
+              <td>
+                `true`, `false`
+              </td>
+
+              <td>
+                Habilite ou desabilite a extensão
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NEW_RELIC_LICENSE_KEY`
+              </td>
+
+              <td/>
+
+              <td/>
+
+              <td>
+                Sua chave de ingestão da New Relic. Isso substitui o Secrets Manager
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NEW_RELIC_LICENSE_KEY_SECRET`
+              </td>
+
+              <td>
+                `NEW_RELIC_LICENSE_KEY`
+              </td>
+
+              <td/>
+
+              <td>
+                Nome secreto personalizado no AWS Secrets Manager
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NEW_RELIC_LAMBDA_HANDLER`
+              </td>
+
+              <td/>
+
+              <td/>
+
+              <td>
+                Se você não usa [o método de empacotamento manual](https://github.com/newrelic/newrelic-lambda-layers?tab=readme-ov-file#note-on-performance-for-es-module-functions) do New Relic, este é o manipulador da sua função.
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NEW_RELIC_DATA_COLLECTION_TIMEOUT`
+              </td>
+
+              <td>
+                10s
+              </td>
+
+              <td/>
+
+              <td>
+                Reduza a duração do tempo limite quando por `Telemetry client error`
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NEW_RELIC_EXTENSION_LOGS_ENABLED`
+              </td>
+
+              <td>
+                `true`
+              </td>
+
+              <td>
+                `true`, `false`
+              </td>
+
+              <td>
+                Ativar ou desativar `NR_EXT` linhas log
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NEW_RELIC_EXTENSION_LOG_LEVEL`
+              </td>
+
+              <td>
+                `info`
+              </td>
+
+              <td>
+                `INFO`, `DEBUG`
+              </td>
+
+              <td>
+                nível de log para linhas de log NR_EXT
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NEW_RELIC_EXTENSION_SEND_FUNCTION_LOGS`
+              </td>
+
+              <td>
+                `false`
+              </td>
+
+              <td>
+                `true`, `false`
+              </td>
+
+              <td>
+                Enviar log de funções
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NEW_RELIC_LOG_ENDPOINT`
+              </td>
+
+              <td/>
+
+              <td/>
+
+              <td>
+                Defina como [https://log-api.newrelic.com/log/v](https://log-api.newrelic.com/log/v)
+              </td>
+            </tr>
+
+            <tr>
+              <td>
+                `NEW_RELIC_TELEMETRY_ENDPOINT`
+              </td>
+
+              <td>
+                Definir como [endpoint dos EUA](https://cloud-collector.newrelic.com/aws/lambda/v1)
+              </td>
+
+              <td/>
+
+              <td>
+                [End point opcional da UE](https://github.com/newrelic/newrelic-lambda-extension/blob/3c4218dd7727d0b0467f24f0902b616b7f4e46b7/telemetry/client.go#L24-L27)
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        Veja mais variáveis de ambiente para a extensão New Relic em nossa [documentação](https://github.com/newrelic/newrelic-lambda-extension/blob/cf86fb53f0bd816e1d09d07f7b5c5ab4841010a0/config/config.go#L41-L55).
+      </Collapser>
+    </CollapserGroup>
+  </Step>
+
+  <Step>
+    ## Experimente nossas funções de exemplo
+
+    Depois de instrumentar a camada Lambda do New Relic, recomendamos fortemente experimentar nossas funções de exemplo. Esses exemplos de trabalho devem ser usados como ponto de partida para instrumentar sua própria função serverless. O uso desses exemplos pode ajudá-lo a se familiarizar com a camada New Relic Lambda, testando o link da conta, e eles podem ser usados como referência para sua própria instrumentação. Each example demonstrates adding permissions, runtime-specific techniques for wrapping your handler, managing function log retention in CloudWatch, and more.
+
+    Embora existam muitas maneiras de gerenciar e implantar a função do Lambda, AWS CloudFormation é o mecanismo que usamos em nossos exemplos.
+
+    Nossos exemplos são publicados, juntamente com a extensão New Relic Lambda, neste [repositório GitHub](https://github.com/newrelic/newrelic-lambda-extension). Há um para cada tempo de execução do Lambda que o New Relic suporta:
+
+    * [Node.js](https://github.com/newrelic/newrelic-lambda-extension/tree/main/examples/sam/node)
+    * [Python](https://github.com/newrelic/newrelic-lambda-extension/tree/main/examples/sam/python)
+    * [Go](https://github.com/newrelic/newrelic-lambda-extension/tree/main/examples/sam/go)
+    * [Java](https://github.com/newrelic/newrelic-lambda-extension/tree/main/examples/sam/java)
+    * [Ruby](https://github.com/newrelic/newrelic-lambda-extension/tree/main/examples/sam/ruby)
+    * [.NET](https://github.com/newrelic/newrelic-lambda-extension/tree/main/examples/sam/dotnet)
+
+    Você também pode aprender como transformar distributed tracing em um aplicativo sem servidor não trivial em nosso [exemplodistributed tracing ](https://github.com/newrelic/newrelic-lambda-extension/tree/main/examples/sam/distributedtracing). Ele ilustra a propagação manual trace para SQS e SNS, dois dos serviços mais populares que podem invocar a função do Lambda, com funções Node, Python, Ruby e Java.
+
+    <Callout variant="tip">
+      Ao testar manualmente, os dados de telemetria podem ser atrasados. Recomendamos aguardar sete segundos antes de invocar a função novamente, permitindo que qualquer telemetria armazenada em buffer seja entregue.
+    </Callout>
+  </Step>
+</Steps>
+
+## Resolução de problemas [#troubleshooting]
+
+Se você tiver problemas instrumentados em sua função do Lambda, aqui estão algumas dicas comuns de resolução de problemas:
+
+<CollapserGroup>
+  <Collapser
+    id="no-secrets"
+    title="Não é possível usar o gerenciador de segredos da AWS"
+  >
+    Se sua organização não permitir o uso do AWS Secrets Manager, a extensão New Relic Lambda aceitará uma variável de ambiente `NEW_RELIC_LICENSE_KEY` . Adicione o sinalizador `--disable-license-key-secret` do comando `newrelic-lambda integrations install` . Em seguida, defina esta variável de ambiente como <InlinePopover type="licenseKey"/>na configuração da função do Lambda.
+  </Collapser>
+
+  <Collapser
+    id="multiple"
+    title="Várias regiões e contas da AWS"
+  >
+    A CLI `newrelic-lambda` deve ser executada uma vez por região, com o parâmetro `--aws-region` . Use o mesmo nome de conta vinculada e a ferramenta detectará que o link da conta já foi criado. O segredo <InlinePopover type="licenseKey"/>precisa ser criado em cada região.
+
+    Da mesma forma, várias contas AWS podem ser vinculadas a uma conta New Relic. Dê a cada conta um nome de conta vinculada diferente. O argumento `--aws-profile` para a ferramenta CLI selecionará o perfil nomeado. A ferramenta usa a mesma configuração da AWS CLI.
+  </Collapser>
+
+  <Collapser
+    id="not-instrumented"
+    title="Função do Lambda não aparece como instrumento"
+  >
+    Você instrumentou sua função do Lambda, mas ela não está aparecendo como instrumento na seção <DNT>**Amazon Web Services -> Lambda functions**</DNT> do New Relic.
+
+    Você vinculou uma [pesquisa de API](/docs/infrastructure/amazon-integrations/connect/connect-aws-new-relic-infrastructure-monitoring/) e uma integração [métrica Streams](/docs/infrastructure/amazon-integrations/connect/aws-metric-stream/) à sua conta New Relic manualmente na interface.
+
+    Neste cenário com duas integrações para a mesma conta AWS em uma conta New Relic, uma condição de corrida ocorrerá quando a carga do instrumento for recebida do instrumento função do Lambda no [endpoint do coletor de nuvem](https://github.com/newrelic/newrelic-lambda-extension/blob/54ccfd44765feb4b3da77ae606323c18d9db7593/telemetry/client.go#L18-L19) New Relic. A carga útil será atribuída aleatoriamente a uma das duas integração. Se atribuído à integração não vinculada à sua entidade de função, a carga útil será descartada e a função não aparecerá como instrumento. Somente funções que receberam pelo menos uma carga nos últimos 30 dias do evento `AwsLambdaInvocation` aparecerão como instrumento.
+
+    ```sql
+    FROM AwsLambdaInvocation 
+            SELECT count (*)
+            SINCE 30 days ago 
+            WHERE entityGuid = 'ENTITY_GUID' 
+            LIMIT 1
+    ```
+
+    Para evitar a criação de duas integrações para a mesma conta AWS, recomendamos que você use a CLI `newrelic-lambda` , conforme mencionado acima, porque ela detectará uma integração existente e a utilizará.
+
+    Caso já tenham sido criadas duas integrações, escolha uma para manter e desvincule a outra clicando em <DNT>**Unlink this account**</DNT> em <DNT>**Infrastructure > AWS**</DNT> no New Relic.
+
+    <Callout variant="tip">
+      Existem algumas [limitações nas integrações métricas do Streams](/docs/infrastructure/amazon-integrations/connect/aws-metric-stream/#integrations-not-replaced-streams) que devem ser consideradas antes de desvincular uma integração de polling de API. Existem também algumas [limitações à consulta métrica Dimensional de Infraestrutura](/docs/query-your-data/nrql-new-relic-query-language/nrql-query-tutorials/query-infrastructure-dimensional-metrics-nrql/#known-limitations) que devem ser consideradas antes de se comprometer totalmente com uma integração métrica de Streams.
+    </Callout>
+  </Collapser>
+
+  <Collapser
+    id="fail-retrieve-license"
+    title="Falha ao recuperar a chave de licença `AccessDeniedException`"
+  >
+    Seu código lambda requer a função de execução que tem permissão para ler o AWS Secrets Manager. Se você encontrar um log como o seguinte, adicione a permissão apropriada à política da função de execução. Em nossos exemplos, confira o arquivo `template.yaml` para ver uma maneira fácil de conceder essa permissão.
+
+    ```bash
+    Failed to retrieve license key AccessDeniedException: User: <ARN> is not authorized to perform: secretsmanager:GetSecretValue on resource: <ARN>
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Qual é o próximo
+
+<DocTiles>
+  <DocTile
+    title="Containerized Lambda functions"
+    path="/docs/serverless-function-monitoring/aws-lambda-monitoring/instrument-lambda-function/containerized-images"
+  >
+    Se você possui a função do Lambda conteinerizada, clique aqui para instrumento.
+  </DocTile>
+
+  <DocTile
+    title="Non-containerized Lambda functions"
+    path="/docs/serverless-function-monitoring/aws-lambda-monitoring/instrument-lambda-function/instrument-your-own"
+  >
+    Se você possui função do Lambda não conteinerizada, clique aqui para instrumento.
+  </DocTile>
+
+  <DocTile
+    title="Layerless Lambda functions"
+    path="/docs/serverless-function-monitoring/aws-lambda-monitoring/instrument-lambda-function/enable-serverless-monitoring-aws-lambda-layerless"
+  >
+    Se você possui a função do Lambda sem camadas, clique aqui para instrumento.
+  </DocTile>
+</DocTiles>
