@@ -48,8 +48,7 @@ test('serializes DoNotTranslate wrapping a Collapser', async () => {
 });
 
 test('deserializes mdx with frontmatter', async () => {
-  const input = `
----
+  const input = `---
 title: The doc
 translationType: human
 ---

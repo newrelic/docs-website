@@ -1,3 +1,4 @@
+// TODO: rewrite to uwu
 'use strict';
 const fs = require('fs');
 const { frontmatter } = require('../../utils/frontmatter');
@@ -16,7 +17,7 @@ jest.mock('fs');
 jest.mock('path');
 jest.mock('../../utils/frontmatter');
 jest.mock('../translation_workflow/database');
-jest.mock('../utils/vendor-request');
+jest.mock('../utils/vendor-request.mjs');
 
 const mockMdx = (translate = []) => {
   return `---

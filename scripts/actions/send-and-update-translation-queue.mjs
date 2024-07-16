@@ -2,16 +2,18 @@
 // / <reference path="./translation_workflow/models/typedefs.js" />
 'use strict';
 
-const fs = require('fs');
-const path = require('path');
+import fs from 'fs';
+import path from 'path';
+import process from 'process';
+import { fileURLToPath } from 'url';
 
-const { vendorRequest, uploadFile } = require('./utils/vendor-request');
-const Database = require('./translation_workflow/database');
-const {
+import { vendorRequest, uploadFile } from './utils/vendor-request.mjs';
+import Database from './translation_workflow/database.js';
+import {
   trackTranslationError,
   trackTranslationEvent,
   TRACKING_TARGET,
-} = require('./utils/translation-monitoring');
+} from './utils/translation-monitoring.js';
 
 const PROJECT_ID = process.env.TRANSLATION_VENDOR_PROJECT;
 
@@ -25,15 +27,15 @@ const defaultTrackingMetadata = {
  * @returns {Promise<Object.<string, Translation[]>>} object whose keys are locales, whose values are an array of translation requests for that locale
  */
 const getReadyToGoTranslationsForEachLocale = async () => {
-  const [
-    pendingTranslations,
-    inProgressTranslations,
-    erroredTranslations,
-  ] = await Promise.all([
-    Database.getTranslations({ status: 'PENDING', project_id: PROJECT_ID }),
-    Database.getTranslations({ status: 'IN_PROGRESS', project_id: PROJECT_ID }),
-    Database.getTranslations({ status: 'ERRORED', project_id: PROJECT_ID }),
-  ]);
+  const [pendingTranslations, inProgressTranslations, erroredTranslations] =
+    await Promise.all([
+      Database.getTranslations({ status: 'PENDING', project_id: PROJECT_ID }),
+      Database.getTranslations({
+        status: 'IN_PROGRESS',
+        project_id: PROJECT_ID,
+      }),
+      Database.getTranslations({ status: 'ERRORED', project_id: PROJECT_ID }),
+    ]);
 
   /*
    * We only want to send a translation if:
@@ -263,16 +265,17 @@ const main = async () => {
   }
 };
 
+// TODO: fix this
 /**
  * This allows us to check if the script was invoked directly from the command line, i.e 'node validate_packs.js', or if it was imported.
  * This would be true if this was used in one of our GitHub workflows, but false when imported for use in a test.
  * See here: https://nodejs.org/docs/latest/api/modules.html#modules_accessing_the_main_module
  */
-if (require.main === module) {
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
   main();
 }
 
-module.exports = {
+export {
   main,
   getReadyToGoTranslationsForEachLocale,
   createJobs,

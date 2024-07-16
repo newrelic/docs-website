@@ -1,12 +1,13 @@
 'use strict';
 
-const fetch = require('node-fetch');
-const fs = require('fs');
-const path = require('path');
-const serializeMDX = require('../serialize-mdx.mjs');
-const FormData = require('form-data');
-const NodeCache = require('node-cache');
-const { LOCALE_IDS } = require('./constants');
+import fetch from 'node-fetch';
+import fs from 'fs';
+import path from 'path';
+import FormData from 'form-data';
+import NodeCache from 'node-cache';
+
+import { LOCALE_IDS } from './constants.js';
+import serializeMDX from '../serialize-mdx.mjs';
 
 const cache = new NodeCache({ stdTTL: 60 * 4, checkperiod: 2 });
 const PROJECT_ID = process.env.TRANSLATION_VENDOR_PROJECT;
@@ -27,7 +28,7 @@ const sleep = (millSeconds) => {
  * @param {Object} options
  * @param {String} url
  * @param {Number} nthTry
- * @returns {Object} data The result after making the request.
+ * @returns {Promise<Object>} data The result after making the request.
  * @throws {Error} Will throw an error if the response "code" is not 'SUCCESS' after retrying
  */
 const makeRequest = async (url, options, nthTry = 1) => {
@@ -238,7 +239,7 @@ const uploadFile = (locale, batchUid) => async (translation) => {
   return { code, translation };
 };
 
-module.exports = {
+export {
   vendorRequest,
   getAccessToken,
   sendPageContext,

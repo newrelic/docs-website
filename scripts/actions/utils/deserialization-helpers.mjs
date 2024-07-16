@@ -1,7 +1,7 @@
-const {
+import {
   mdxJsxAttribute,
   mdxJsxAttributeValueExpression,
-} = require('../../../codemods/utils/mdxast-builder');
+} from '../../../codemods/utils/mdxast-builder.js';
 
 const hasChildren = (node) => node.children && node.children.length;
 
@@ -78,4 +78,4 @@ const deserializeComponent = (
   return newNode;
 };
 
-module.exports = { deserializeComponent, deserializeJSValue };
+export { deserializeComponent, deserializeJSValue };

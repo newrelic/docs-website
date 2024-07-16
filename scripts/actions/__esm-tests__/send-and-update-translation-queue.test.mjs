@@ -23,9 +23,9 @@ const {
   createBatches,
   uploadFiles,
 } = await esmock(
-  '../send-and-update-translation-queue',
+  '../send-and-update-translation-queue.mjs',
   {
-    './utils/vendor-request.js': {
+    '../utils/vendor-request.mjs': {
       vendorRequest,
       uploadFile,
     },
@@ -34,7 +34,7 @@ const {
     },
   },
   {
-    '../translation_workflow/database': {
+    '../translation_workflow/database.js': {
       addJob,
       updateJob,
       updateTranslation,

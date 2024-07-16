@@ -6,16 +6,19 @@ const { last } = require('lodash');
 const CUSTOM_ID = /\[#[\w].*\]+$/;
 const isIgnoredNode = convert(['image']);
 
-const getIdAndText = (node) => {
+const getId = (node) => {
+  // `value` here looks like ' [#some-id]'
   const { value } = last(node.children);
-  const textAndId = value.split('[');
+  // capture group grabs everything between the `#` and the right bracket `]`
+  const id = [...value.matchAll(/\[#(.+)\]/g)]?.[0]?.[1];
 
-  return {
-    id: textAndId[1].replace(']', '').replace('#', ''),
-    text: textAndId[0].trim(),
-  };
+  return id;
 };
 
+/**
+ * Returns true for heading `node`s with a custom id.
+ * These look like `## some heading [#heading-id]`.
+ */
 const isHeadingWithCustomId = (node) => {
   const lastChild = last(node.children);
   return (
@@ -31,10 +34,10 @@ const parseHeading = (node) => {
   node = filter(node, (el) => !isIgnoredNode(el));
 
   if (isHeadingWithCustomId(node)) {
-    return getIdAndText(node);
+    return getId(node);
   }
 
   return { id: null, text: toString(node) };
 };
 
-module.exports = { getIdAndText, parseHeading, isHeadingWithCustomId };
+module.exports = { getId, parseHeading, isHeadingWithCustomId };

@@ -4,12 +4,13 @@ import rehype2remark from 'rehype-remark10';
 import stringify from 'remark-stringify10';
 import frontmatter from 'remark-frontmatter5';
 import remarkMdx from 'remark-mdx2.3';
-import handlers from './utils/handlers.js';
 import { defaultHandlers } from 'hast-util-to-mdast9';
 import u from 'unist-builder';
 import last from 'lodash/last.js';
 import yaml from 'js-yaml';
 import { visit } from 'unist-util-visit4';
+
+import handlers from './utils/handlers.mjs';
 import { configuration } from './configuration.js';
 
 /**

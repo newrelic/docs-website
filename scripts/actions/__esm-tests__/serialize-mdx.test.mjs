@@ -467,4 +467,59 @@ test('EolPage', async () => {
   await snapshot('EolPage', html);
 });
 
+test('serializing headings with custom ids', async () => {
+  const BACKTICK = '`';
+  const input = `# regular text heading 1 [#test-id-1]
+ 
+## regular text heading 2 [#test-id-2]
+
+### regular text heading 3 [#test-id-3]
+
+#### regular text heading 4 [#test-id-4]
+
+##### regular text heading 5 [#test-id-5]
+
+###### regular text heading 6 [#test-id-6]
+
+# **bold text heading 1** [#bold-id-1]
+ 
+## **bold text heading 2** [#bold-id-2]
+
+### **bold text heading 3** [#bold-id-3]
+
+#### **bold text heading 4** [#bold-id-4]
+
+##### **bold text heading 5** [#bold-id-5]
+
+###### **bold text heading 6** [#bold-id-6]
+
+# _emphasis text heading 1_ [#emphasis-id-1]
+ 
+## _emphasis text heading 2_ [#emphasis-id-2]
+
+### _emphasis text heading 3_ [#emphasis-id-3]
+
+#### _emphasis text heading 4_ [#emphasis-id-4]
+
+##### _emphasis text heading 5_ [#emphasis-id-5]
+
+###### _emphasis text heading 6_ [#emphasis-id-6]
+
+# ${BACKTICK}code text heading 1${BACKTICK} [#code-id-1]
+ 
+## ${BACKTICK}code text heading 2${BACKTICK} [#code-id-2]
+
+### ${BACKTICK}code text heading 3${BACKTICK} [#code-id-3]
+
+#### ${BACKTICK}code text heading 4${BACKTICK} [#code-id-4]
+
+##### ${BACKTICK}code text heading 5${BACKTICK} [#code-id-5]
+
+###### ${BACKTICK}code text heading 6${BACKTICK} [#code-id-6]
+`;
+
+  const html = await serializeMDX(input);
+  await snapshot('serializing headings with custom ids', html);
+});
+
 test.run();

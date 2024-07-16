@@ -1,18 +1,19 @@
-const {
+import yaml from 'js-yaml';
+import omit from 'lodash/omit.js';
+import toString from 'mdast-util-to-string';
+import u from 'unist-builder';
+
+import {
   createJsonStr,
   serializeComponent,
   serializeJSValue,
-} = require('./serialization-helpers.mjs');
-const {
+} from './serialization-helpers.mjs';
+import {
   deserializeComponent,
   deserializeJSValue,
-} = require('./deserialization-helpers');
-const yaml = require('js-yaml');
-const u = require('unist-builder');
-const toString = require('mdast-util-to-string');
-const { omit } = require('lodash');
+} from './deserialization-helpers.mjs';
 
-module.exports = {
+export default {
   CodeBlock: {
     serialize: (_state, node) => {
       return {

@@ -8,7 +8,7 @@ import fetch from 'node-fetch';
 
 import deserializedHtml from './deserialize-html.mjs';
 import createDirectories from './utils/create-directories.js';
-import { getAccessToken } from './utils/vendor-request.js';
+import { getAccessToken } from './utils/vendor-request.mjs';
 import { LOCALE_IDS } from './utils/constants.js';
 import {
   trackTranslationError,

@@ -11,7 +11,7 @@ import {
   StatusEnum,
 } from './translation_workflow/database.js';
 
-import { vendorRequest } from './utils/vendor-request.js';
+import { vendorRequest } from './utils/vendor-request.mjs';
 import { fetchAndDeserializeFiles } from './fetch-and-deserialize.mjs';
 import { configuration } from './configuration.js';
 import {

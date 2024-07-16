@@ -1,12 +1,12 @@
-const {
+import {
   getJobs,
   getTranslations,
   deleteJob,
   deleteTranslation,
-} = require('./translation_workflow/database.js');
-const { getAccessToken, vendorRequest } = require('./utils/vendor-request');
-const fetch = require('node-fetch');
-const { configuration } = require('./configuration');
+} from './translation_workflow/database.js';
+import { getAccessToken, vendorRequest } from './utils/vendor-request';
+import fetch from 'node-fetch';
+import { configuration } from './configuration';
 
 const PROJECT_ID = configuration.TRANSLATION.VENDOR_PROJECT;
 const DOCS_SITE_URL = 'https://docs.newrelic.com';

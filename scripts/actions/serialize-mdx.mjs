@@ -1,4 +1,4 @@
-import handlers from './utils/handlers.js';
+import handlers from './utils/handlers.mjs';
 import fencedCodeBlock from './utils/fencedCodeBlock.js';
 import { unified } from 'unified11';
 import toMDAST from 'remark-parse10';
@@ -9,6 +9,8 @@ import addClasses from 'rehype-add-classes';
 import rehypeStringify from 'rehype-stringify10';
 import format from 'rehype-format';
 import customHeadingIds from '../../plugins/gatsby-remark-custom-heading-ids/utils/visitor.js';
+
+import { inspect } from 'util';
 
 const mdxElement = (state, node) => {
   const handler = handlers[node.name];
@@ -43,6 +45,11 @@ const processor = unified()
   .use(frontmatter, ['yaml'])
   .use(fencedCodeBlock)
   .use(customHeadingIds)
+  .use(function () {
+    return function (tree) {
+      console.log('MDX 🌲', inspect(tree, true, 8));
+    };
+  })
   .use(remark2rehype, {
     handlers: {
       yaml: handlers.frontmatter.serialize,
