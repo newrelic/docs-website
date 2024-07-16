@@ -14,7 +14,7 @@ import PageTitle from '../components/PageTitle';
 import { TYPES } from '../utils/constants';
 import ErrorBoundary from '../components/ErrorBoundary';
 
-const EolTemplate = ({ data, location, pageContext }) => {
+const EolAnnouncement = ({ data, location, pageContext }) => {
   const {
     site: {
       siteMetadata: { siteUrl },
@@ -60,12 +60,56 @@ const EolTemplate = ({ data, location, pageContext }) => {
           max-width: 850px;
         `}
       >
-        <DateIcon icon="fe-calendar" dateString={publishDate}>
-          Published:
-        </DateIcon>
-        <DateIcon icon="fe-minus-circle" dateString={eolEffectiveDate}>
-          EOL effective:
-        </DateIcon>
+        <div
+          css={css`
+            font-size: 1rem;
+            display: flex;
+            align-items: baseline;
+            margin: 1rem 0 0.5rem;
+          `}
+        >
+          <Icon
+            name="fe-calendar"
+            size="1rem"
+            css={css`
+              position: relative;
+              top: 1px;
+            `}
+          />
+          <b
+            css={css`
+              margin: 0 0.25rem;
+            `}
+          >
+            Published:
+          </b>
+          {publishDate}
+        </div>
+        <div
+          css={css`
+            font-size: 1rem;
+            display: flex;
+            align-items: baseline;
+            margin: 1rem 0 0.5rem;
+          `}
+        >
+          <Icon
+            name="fe-minus-circle"
+            size="1rem"
+            css={css`
+              position: relative;
+              top: 1px;
+            `}
+          />
+          <b
+            css={css`
+              margin: 0 0.25rem;
+            `}
+          >
+            EOL effective:
+          </b>
+          {eolEffectiveDate}
+        </div>
 
         <div
           css={css`
@@ -131,7 +175,7 @@ const EolTemplate = ({ data, location, pageContext }) => {
   );
 };
 
-EolTemplate.propTypes = {
+EolAnnouncement.propTypes = {
   data: PropTypes.object.isRequired,
   location: PropTypes.object.isRequired,
   pageContext: PropTypes.object.isRequired,
@@ -160,41 +204,6 @@ export const pageQuery = graphql`
   }
 `;
 
-const DateIcon = ({ children, icon, dateString }) => {
-  return (
-    <div
-      css={css`
-        font-size: 1rem;
-        display: flex;
-        align-items: baseline;
-        margin: 1rem 0 0.5rem;
-      `}
-    >
-      <Icon
-        name={icon}
-        size="1rem"
-        css={css`
-          position: relative;
-          top: 1px;
-        `}
-      />
-      <b
-        css={css`
-          margin: 0 0.25rem;
-        `}
-      >
-        {children}
-      </b>
-      {dateString}
-    </div>
-  );
-};
-
-DateIcon.propTypes = {
-  children: PropTypes.node.isRequired,
-  icon: PropTypes.string.isRequired,
-  dateString: PropTypes.string.isRequired,
-};
 const MetaLink = ({ children, to, siteUrl }) => {
   const isExternalLink = to.startsWith('http') && !to.startsWith(siteUrl);
 
@@ -225,4 +234,4 @@ MetaLink.propTypes = {
   siteUrl: PropTypes.string.isRequired,
 };
 
-export default EolTemplate;
+export default EolAnnouncement;
