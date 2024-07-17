@@ -265,7 +265,6 @@ const main = async () => {
   }
 };
 
-// TODO: fix this
 /**
  * This allows us to check if the script was invoked directly from the command line, i.e 'node validate_packs.js', or if it was imported.
  * This would be true if this was used in one of our GitHub workflows, but false when imported for use in a test.
