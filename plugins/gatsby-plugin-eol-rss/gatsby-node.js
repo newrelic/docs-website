@@ -53,8 +53,6 @@ const getFeedItem = (node, siteMetadata) => {
   } = node;
   const { title, publishDate, summary } = frontmatter;
 
-  console.log('publishDate - eol', publishDate);
-
   const parsedHtml = htmlParser.runSync(htmlAst);
 
   // time is necessary for RSS validity
