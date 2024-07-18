@@ -19,13 +19,13 @@ const deserializeHTML = await esmock('../deserialize-html.mjs', {
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-test('deserializes mdx with DoNotTranslate', async () => {
+test('deserializes mdx with DNT', async () => {
   const input = `
-<DoNotTranslate>
+<DNT>
   # Not all who wander are lost...
 
   but some probably are...
-</DoNotTranslate>
+</DNT>
   `;
 
   const mdx = await deserializeHTML(await serializeMDX(input));
@@ -33,13 +33,13 @@ test('deserializes mdx with DoNotTranslate', async () => {
   expect(mdx).toEqual(input.trim());
 });
 
-test('serializes DoNotTranslate wrapping a Collapser', async () => {
+test('serializes DNT wrapping a Collapser', async () => {
   const input = `
-<DoNotTranslate>
+<DNT>
   <Collapser title="Collapse me yo">
     These tests are hard to write docs for
   </Collapser>
-</DoNotTranslate>
+</DNT>
   `;
 
   const mdx = await deserializeHTML(await serializeMDX(input));
@@ -285,6 +285,13 @@ test('deserialize iframes', async () => {
 
 test('deserializes InlineSignup component', async () => {
   const input = '<InlineSignup />';
+
+  const mdx = await deserializeHTML(await serializeMDX(input));
+  expect(mdx).toEqual(input);
+});
+
+test('deserializes headers as a span element', async () => {
+  const input = `<h5>test</h5>`;
 
   const mdx = await deserializeHTML(await serializeMDX(input));
   expect(mdx).toEqual(input);

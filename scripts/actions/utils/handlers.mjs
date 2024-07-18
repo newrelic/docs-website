@@ -141,7 +141,8 @@ export default {
     deserialize: deserializeComponent,
     serialize: serializeComponent,
   },
-  DoNotTranslate: {
+  // DoNotTranslate component
+  DNT: {
     deserialize: deserializeComponent,
     serialize: (state, node) =>
       serializeComponent(state, node, {
@@ -159,6 +160,10 @@ export default {
     serialize: serializeComponent,
   },
   ExternalLink: {
+    deserialize: deserializeComponent,
+    serialize: serializeComponent,
+  },
+  FunctionDefinition: {
     deserialize: deserializeComponent,
     serialize: serializeComponent,
   },
@@ -194,6 +199,10 @@ export default {
         // a text node that follows this node
         children: [u('text', '\u00A0')],
       }),
+  },
+  OptionReference: {
+    deserialize: deserializeComponent,
+    serialize: serializeComponent,
   },
   table: {
     deserialize: deserializeComponent,
@@ -286,6 +295,10 @@ export default {
       serializeComponent(state, node, { textAttributes: ['name'] }),
   },
   TechTileGrid: {
+    deserialize: deserializeComponent,
+    serialize: serializeComponent,
+  },
+  TypeDefReference: {
     deserialize: deserializeComponent,
     serialize: serializeComponent,
   },
@@ -472,6 +485,36 @@ export default {
   },
   iframe: {
     deserialize: deserializeComponent,
+    serialize: serializeComponent,
+  },
+  h1: {
+    deserialize: (h, node) =>
+      deserializeComponent(h, node, { type: 'mdxSpanElement' }),
+    serialize: serializeComponent,
+  },
+  h2: {
+    deserialize: (h, node) =>
+      deserializeComponent(h, node, { type: 'mdxSpanElement' }),
+    serialize: serializeComponent,
+  },
+  h3: {
+    deserialize: (h, node) =>
+      deserializeComponent(h, node, { type: 'mdxSpanElement' }),
+    serialize: serializeComponent,
+  },
+  h4: {
+    deserialize: (h, node) =>
+      deserializeComponent(h, node, { type: 'mdxSpanElement' }),
+    serialize: serializeComponent,
+  },
+  h5: {
+    deserialize: (h, node) =>
+      deserializeComponent(h, node, { type: 'mdxSpanElement' }),
+    serialize: serializeComponent,
+  },
+  h6: {
+    deserialize: (h, node) =>
+      deserializeComponent(h, node, { type: 'mdxSpanElement' }),
     serialize: serializeComponent,
   },
 };

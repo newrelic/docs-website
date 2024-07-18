@@ -11,34 +11,34 @@ import deserializeHTML from '../deserialize-html.mjs';
 const snapshot = await initSnapshots('serialize-mdx');
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-test('serializes DoNotTranslate wrapping a Collapser', async () => {
+test('serializes DNT wrapping a Collapser', async () => {
   const html = await serializeMDX(`
-<DoNotTranslate>
+<DNT>
   <Collapser
     title="Collapse me yo"
   >
     These tests are hard to write docs fo
   </Collapser>
-</DoNotTranslate>
+</DNT>
   `);
 
   await snapshot('serializes DoNotTranslate wrapping a Collapser', html);
 });
 
-test('serializes DoNotTranslate to html', async () => {
+test('serializes DNT to html', async () => {
   const html = await serializeMDX(`
-<DoNotTranslate>
+<DNT>
   # Not all who wander are lost...
   Testing this line too
-</DoNotTranslate>
+</DNT>
   `);
 
   await snapshot('serializes DoNotTranslate to html', html);
 });
 
-test('serializes DoNotTranslate to html inline', async () => {
+test('serializes DNT to html inline', async () => {
   const html = await serializeMDX(`
-This is an <DoNotTranslate>MDX</DoNotTranslate> file
+This is an <DNT>MDX</DNT> file
   `);
 
   await snapshot('serializes DoNotTranslate to html inline', html);
