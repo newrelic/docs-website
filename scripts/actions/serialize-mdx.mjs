@@ -45,11 +45,6 @@ const processor = unified()
   .use(frontmatter, ['yaml'])
   .use(fencedCodeBlock)
   .use(customHeadingIds)
-  .use(function () {
-    return function (tree) {
-      console.log('MDX 🌲', inspect(tree, true, 8));
-    };
-  })
   .use(remark2rehype, {
     handlers: {
       yaml: handlers.frontmatter.serialize,
