@@ -1,5 +1,5 @@
 ---
-title: 'Add data: A simple way to instrument and visualize your data'
+title: 'Integrations & Agents: A simple way to instrument and visualize your data'
 summary: 'New data onboarding UI helps you easily instrument data from any telemetry source in New Relic and get pre-built dashboards and alerts to monitor your entire stack'
 releaseDate: '2022-07-14'
 getStartedLink: 'https://one.newrelic.com/marketplace?state=7ca7c800-845d-8b31-4677-d21bcc061961'
@@ -19,8 +19,8 @@ The best part is that it only takes a few minutes to get started&mdash;no need f
 - **Improved discovery and onboarding**: A new user interface guides you through each step of installation and deployment based on your preferred technologies, with hundreds of data sources to choose from.
 - **New install method support**: Get more flexibility when instrumenting your data, to seamlessly and successfully monitor your applications regardless of whether they run on hosts, providers, Docker, or other environments.
 - **A richer, more connected platform experience**: It's now easier to get more value from your data. Go directly from instrumentation to the most relevant New Relic view such as application management, log management, or infrastructure monitoring.
-- **A single place to install anything**: Instrument data sources, deploy ready-made dashboards, set up alerts, or do it all. The new **Add data** view gives you more granular control over what you install and how you explore your stack so you can focus on the job to be done.
+- **A single place to install anything**: Instrument data sources, deploy ready-made dashboards, set up alerts, or do it all. The new **Integrations & Agents** view gives you more granular control over what you install and how you explore your stack so you can focus on the job to be done.
 
-![Add data view in New Relic](./images/add_data_darkmode.webp "A screenshot that shows the add data view in New Relic.")
+![Integrations & Agents view in New Relic](./images/add_data_darkmode.webp "A screenshot that shows the Integrations & Agents view in New Relic.")
 
-<figcaption>Choose from hundreds of data sources, pre-built dashboards, and more in the new <b>Add data</b> catalog. Select one to install your resources in minutes.</figcaption>
+<figcaption>Choose from hundreds of data sources, pre-built dashboards, and more in the new <b>Integrations & Agents</b> catalog. Select one to install your resources in minutes.</figcaption>
