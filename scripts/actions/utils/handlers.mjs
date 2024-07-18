@@ -489,32 +489,32 @@ export default {
   },
   h1: {
     deserialize: (h, node) =>
-      deserializeComponent(h, node, { type: 'mdxSpanElement' }),
+      deserializeComponent(h, node, { type: 'mdxJsxTextElement' }),
     serialize: serializeComponent,
   },
   h2: {
     deserialize: (h, node) =>
-      deserializeComponent(h, node, { type: 'mdxSpanElement' }),
+      deserializeComponent(h, node, { type: 'mdxJsxTextElement' }),
     serialize: serializeComponent,
   },
   h3: {
     deserialize: (h, node) =>
-      deserializeComponent(h, node, { type: 'mdxSpanElement' }),
+      deserializeComponent(h, node, { type: 'mdxJsxTextElement' }),
     serialize: serializeComponent,
   },
   h4: {
     deserialize: (h, node) =>
-      deserializeComponent(h, node, { type: 'mdxSpanElement' }),
+      deserializeComponent(h, node, { type: 'mdxJsxTextElement' }),
     serialize: serializeComponent,
   },
   h5: {
     deserialize: (h, node) =>
-      deserializeComponent(h, node, { type: 'mdxSpanElement' }),
+      deserializeComponent(h, node, { type: 'mdxJsxTextElement' }),
     serialize: serializeComponent,
   },
   h6: {
     deserialize: (h, node) =>
-      deserializeComponent(h, node, { type: 'mdxSpanElement' }),
+      deserializeComponent(h, node, { type: 'mdxJsxTextElement' }),
     serialize: serializeComponent,
   },
 };
