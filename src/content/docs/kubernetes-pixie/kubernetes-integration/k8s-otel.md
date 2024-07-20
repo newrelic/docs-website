@@ -7,6 +7,20 @@ metaDescription: "Learn how to monitor your Kubernetes Cluster using OpenTelemet
 freshnessValidatedDate: 2024-07-20
 ---
 
+
+import k8sOTelDiagram from 'images/infrastructure_diagram_k8s-otel-stack.webp'
+
+
+Kubernetes is an open-source tool for automating deployments, scaling, and managing containerized applications. The New Relic Kubernetes monitoring integration gives you a quick and easy way to see what's going on with your Kubernetes clusters and workloads, whether they're hosted on-premises or in the cloud.
+
+Once you've got the [Kubernetes integration up and running](/docs/kubernetes-pixie/kubernetes-integration/installation/kubernetes-integration-install-configure/), you can start monitoring all the services running on Kubernetes in one place with to our [Kubernetes out-of-the-box experiences](/docs/integrations/kubernetes-integration/cluster-explorer/kubernetes-cluster-explorer). It shows you everything from the top of the control plane down to the applications running on a single pod, so you can get to the heart of how your cluster works.
+
+    <img
+    title="K8s OTel diagram"
+    alt="K8s OTel diagram"
+    src={k8sOTelDiagram}
+    />
+
 <Callout title="preview">
     We're still working on this feature, but we'd love for you to try it out!
     This feature is currently provided as part of a preview program pursuant to our [pre-release policies](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy).
@@ -93,6 +107,8 @@ The [nr-k8s-otel-collector](https://github.com/newrelic/helm-charts/tree/master/
 
 - Deamonset collector : Deployed on each worker node and responsible for gathering metrics of the underlying host in the node, cAdvisor, Kubelet and for picking up logs from the containers.
 - Deployment collector : Deployed on the master node and responsible for gathering metrics of Kube State Metrics and Kubernetes cluster events.
+
+  
 
 ## Reduce data ingest [#reduce]
 
