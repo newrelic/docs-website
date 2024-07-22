@@ -3,7 +3,7 @@ releaseDate: '2024-07-23'
 learnMoreLink: 'https://docs.newrelic.com/docs/kubernetes-pixie/kubernetes-integration/installation/k8s-otel/' 
 
 ---
-**Native support for open standards: OpenTelemetry instrumented kubernetes and Prometheus instrumented hosts**
+**Native support for open standards: OpenTelemetry instrumented Kubernetes and Prometheus instrumented hosts**
 
 Analyzing OpenTelemetry and/or Prometheus metrics alongside the rest of your performance data typically requires significant expertise and effort to set up instrumentation and build custom dashboards. And then you still have to manually correlate data across different screens. 
 
