@@ -1,0 +1,503 @@
+---
+title: Descripción general
+tags:
+  - Integrations
+  - Kubernetes integration v2
+  - Changelog
+metaDescription: Kubernetes integration v2
+freshnessValidatedDate: '2024-07-22T00:00:00.000Z'
+translationType: machine
+---
+
+La versión 2 de integración de Kubernetes tiene algunas configuraciones y requisitos diferentes a los de la versión 3. Este documento repasa las configuraciones que son diferentes de la versión 3 y que necesitará para la versión 2. Si no especificamos nada diferente, puede usar la configuración de la versión 3.
+
+<Callout variant="caution">
+  Tenga en cuenta que reemplazamos la versión 2 y no debe usarla. Mantenemos esta documentación para los usuarios que todavía usan la versión 2.
+
+  Consulte [Introducción a la integración de Kubernetes](/docs/kubernetes-pixie/kubernetes-integration/get-started/introduction-kubernetes-integration/) para comenzar con la versión actual de Kubernetes.
+</Callout>
+
+Para comprender los cambios de la versión 3, consulte los [cambios introducidos en el documento de integración de Kubernetes versión 3](/docs/kubernetes-pixie/kubernetes-integration/advanced-configuration/k8s-version2/changes-since-v3) .
+
+## Monitoreo plano de control con integración versión 2 [#monitoring-control-plane]
+
+Esta sección cubre cómo configurar el monitoreo del plano de control en las versiones 2 y anteriores de la integración.
+
+Tenga en cuenta que estas versiones tenían opciones de descubrimiento automático menos flexibles y no admitían extremos externos. Le recomendamos encarecidamente que actualice a [la versión 3](/docs/kubernetes-pixie/kubernetes-integration/advanced-configuration/k8s-version2/changes-since-v3) lo antes posible.
+
+### Detección automática y configuración predeterminada: `hostNetwork` y `privileged` [#hostnetwork-privileged]
+
+En versiones inferiores a la v3, cuando la integración se implementa usando `privileged: false`, la configuración `hostNetwork` para el componente del plano de control también se establecerá en `false`.
+
+### Descubrimiento de nodos maestros y componentes del plano de control. [#discover-nodes-components]
+
+La integración de Kubernetes se basa en las convenciones de etiquetado [`kubeadm`](https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/create-cluster-kubeadm/) para descubrir los nodos maestros y los componentes del plano de control. Esto significa que los nodos maestros deben etiquetar con `node-role.kubernetes.io/master=""` o `kubernetes.io/role="master"`.
+
+Los componentes del plano de control deben tener las etiquetas `k8s-app` o `tier` y `component` . Consulte esta tabla para conocer las combinaciones de etiquetas y los valores aceptados:
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "110px" }}>
+        Componente
+      </th>
+
+      <th>
+        Etiqueta
+      </th>
+
+      <th style={{ width: "200px" }}>
+        Extremo
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Servidor API
+      </td>
+
+      <td>
+        <DNT>
+          **Kubeadm / Kops / ClusterAPI**
+        </DNT>
+
+        `k8s-app=kube-apiserver`
+
+        `tier=control-plane component=kube-apiserver`
+
+        <DNT>
+          **OpenShift**
+        </DNT>
+
+        `app=openshift-kube-apiserver apiserver=true`
+      </td>
+
+      <td>
+        `localhost:443/metrics` de forma predeterminada (se puede configurar) si la solicitud falla vuelve a `localhost:8080/metrics`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        etcd
+      </td>
+
+      <td>
+        <DNT>
+          **Kubeadm / Kops / ClusterAPI**
+        </DNT>
+
+        `k8s-app=etcd-manager-main`
+
+        `tier=control-plane component=etcd`
+
+        <DNT>
+          **OpenShift**
+        </DNT>
+
+        `k8s-app=etcd`
+      </td>
+
+      <td>
+        `localhost:4001/metrics`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Programador
+      </td>
+
+      <td>
+        <DNT>
+          **Kubeadm / Kops / ClusterAPI**
+        </DNT>
+
+        `k8s-app=kube-scheduler`
+
+        `tier=control-plane component=kube-scheduler`
+
+        <DNT>
+          **OpenShift**
+        </DNT>
+
+        `app=openshift-kube-scheduler scheduler=true`
+      </td>
+
+      <td>
+        `localhost:10251/metrics`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Administrador del controlador
+      </td>
+
+      <td>
+        <DNT>
+          **Kubeadm / Kops / ClusterAPI**
+        </DNT>
+
+        `k8s-app=kube-controller-manager`
+
+        `tier=control-plane component=kube-controller-manager​`
+
+        <DNT>
+          **OpenShift**
+        </DNT>
+
+        `app=kube-controller-manager kube-controller-manager=true`
+      </td>
+
+      <td>
+        `localhost:10252/metrics`
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+Cuando la integración detecta que se está ejecutando dentro de un nodo maestro, intenta encontrar qué componentes se están ejecutando en el nodo buscando pods que coincidan con las etiquetas enumeradas en la tabla anterior. Para cada componente en ejecución, la integración realiza una solicitud a su extremo métrico.
+
+### Configuración
+
+El monitoreo del plano de control es automático para el agente que se ejecuta dentro de los nodos maestros. El único componente que requiere un paso adicional para ejecutarse es etcd, porque utiliza autenticación TLS mutua (mTLS) para las solicitudes de los clientes. El servidor API también se puede configurar para consultar mediante el [puerto seguro](https://kubernetes.io/docs/reference/access-authn-authz/controlling-access/#api-server-ports-and-ips).
+
+<Callout variant="important">
+  El monitoreo del plano de control para [OpenShift](http://learn.openshift.com/?extIdCarryOver=true&sc_cid=701f2000001OH7iAAG) 4.x requiere una configuración adicional. Para obtener más información, consulte la sección [de configuración de OpenShift 4.x.](#openshift-4x-configuration)
+</Callout>
+
+#### etcd
+
+Para configurar mTLS para consultar etcd, debe configurar estas dos opciones de configuración:
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "280px" }}>
+        Opción
+      </th>
+
+      <th>
+        Valor
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `ETCD_TLS_SECRET_NAME`
+      </td>
+
+      <td>
+        Nombre de un secreto de Kubernetes que contiene la configuración mTLS.
+
+        El secreto debe contener las siguientes claves:
+
+        * `cert`: el certificado que identifica al cliente que realiza la solicitud. Debe estar firmado por una CA confiable de etcd.
+
+        * `key`: la clave privada utilizada para generar el certificado de cliente.
+
+        * `cacert`: la CA raíz utilizada para identificar el certificado del servidor etcd.
+
+          Si la opción `ETCD_TLS_SECRET_NAME` no está configurada, no se recuperará etcd métrica.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `ETCD_TLS_SECRET_NAMESPACE`
+      </td>
+
+      <td>
+        El namespace donde se creó el secreto especificado en `ETCD_TLS_SECRET_NAME`. Si no se establece, se utiliza el namespace `default`.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+#### Servidor API
+
+De forma predeterminada, el servidor API métrico se consulta utilizando el extremo no seguro `localhost:8080`. Si este puerto está deshabilitado, también puedes consultar estas métricas a través del puerto seguro. Para habilitar esto, establezca la siguiente opción de configuración en el archivo de manifiesto de integración de Kubernetes:
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "250px" }}>
+        Opción
+      </th>
+
+      <th>
+        Valor
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `API_SERVER_ENDPOINT_URL`
+      </td>
+
+      <td>
+        La URL (segura) para consultar la métrica. El servidor API utiliza `localhost:443` de forma predeterminada
+
+        Asegúrese de que `ClusterRole` se haya actualizado a la versión más reciente que se encuentra en el manifiesto.
+
+        Agregado en la versión 1.15.0
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<Callout variant="important">
+  Tenga en cuenta que el puerto puede ser diferente según el puerto seguro utilizado por el servidor API.
+
+  Por ejemplo, en Minikube, el puerto seguro del servidor API es 8443 y, por lo tanto `API_SERVER_ENDPOINT_URL` debe configurarse en `https://localhost:8443`
+</Callout>
+
+## Configuración de OpenShift [#openshift-configuration]
+
+Los componentes del plano de control en [OpenShift](http://learn.openshift.com/?extIdCarryOver=true&sc_cid=701f2000001OH7iAAG) 4.x emplean URL extremas que requieren SSL y autenticación basada en cuenta de servicio. Por lo tanto, no puede emplear [las URL extremas predeterminadas](/docs/kubernetes-pixie/kubernetes-integration/advanced-configuration/configure-control-plane-monitoring/#static-endpoints-limitations) .
+
+<Callout variant="important">
+  Al instalar `openshift` a través de Helm, especifique la configuración para incluir automáticamente estos extremos. La configuración `openshift.enabled=true` y `openshift.version="4.x"` incluirá el extremo seguro y habilitará el tiempo de ejecución `/var/run/crio.sock` .
+</Callout>
+
+Para configurar el monitoreo del plano de control en OpenShift, descomente las siguientes variables de entorno en el [manifiesto personalizado](/install/kubernetes/?dropdown1=manifest). Los valores de URL están preconfigurados según las URL base predeterminadas para el monitoreo métrico extremo del plano de control en [OpenShift](http://learn.openshift.com/?extIdCarryOver=true&sc_cid=701f2000001OH7iAAG) 4.x.
+
+```yaml
+        - name: "SCHEDULER_ENDPOINT_URL"
+        value: "https://localhost:10259
+        - name: "ETCD_ENDPOINT_URL"
+        value: "https://localhost:9979"
+        - name: "CONTROLLER_MANAGER_ENDPOINT_URL"
+        value: "https://localhost:10257"
+        - name: "API_SERVER_ENDPOINT_URL"
+        value: "https://localhost:6443"
+```
+
+<Callout variant="important">
+  Aunque el `ETCD_ENDPOINT_URL` personalizado esté definido, etcd requiere que se configure la autenticación HTTPS y mTLS. Para obtener más información sobre la configuración de mTLS para etcd en OpenShift, consulte [Configurar mTLS para etcd en OpenShift](/docs/kubernetes-pixie/kubernetes-integration/advanced-configuration/configure-control-plane-monitoring/#mtls-how-to-openshift).
+</Callout>
+
+## Registro Kubernetes [#logs-version2]
+
+Si desea generar un registro detallado y obtener información de versión y configuración, simplemente consulte la información a continuación.
+
+<CollapserGroup>
+  <Collapser
+    id="verbose-with-manifest"
+    title="Habilite el registro detallado usando un archivo de manifiesto"
+  >
+    Para la integración Kubernetes , el agente de infraestructura solo agrega una entrada log en caso de error. Los errores más comunes se muestran en el registro estándar (no detallado). Si está realizando una investigación más profunda por su cuenta o con el soporte de New Relic, puede habilitar el modo detallado.
+
+    <Callout variant="caution">
+      El modo detallado aumenta significativamente la cantidad de información enviada al archivo de registro. Habilite este modo solo temporalmente para propósitos de resolución de problemas y restablezca el nivel de registros cuando termine.
+    </Callout>
+
+    Para habilitar el registro detallado mediante un archivo de manifiesto:
+
+    1. Habilite el registro detallado: en el archivo desplegable, establezca el valor de `NRIA_VERBOSE` en `1`.
+
+    2. Aplique la configuración modificada ejecutando:
+
+       ```shell
+           kubectl apply -f your_newrelic_k8s.yaml
+       ```
+
+    3. Déjelo en modo detallado durante unos minutos o hasta que se haya producido suficiente actividad.
+
+    4. Deshabilitar el modo detallado: establezca el valor `NRIA_VERBOSE` nuevamente en `0`.
+
+    5. Aplique la configuración restaurada ejecutando:
+
+       ```shell
+           kubectl apply -f your_newrelic_k8s.yaml
+       ```
+
+    6. Obtenga una lista de nodos en el entorno:
+
+       ```shell
+           kubectl get nodes --all-namespaces
+       ```
+
+    7. Obtenga una lista de infraestructura y kube-state-métrica pod:
+
+       ```shell
+           kubectl get pods --all-namespaces -o wide | egrep 'newrelic|kube-state-metrics'
+       ```
+
+    8. [Obtenga el registro del pod que se conecta a `kube-state-metrics`](#logs-pod-kubestatemetrics).
+
+    9. [Recuperar la configuración del servicio `kube-state-metrics` ](/docs/kubernetes-pixie/kubernetes-integration/advanced-configuration/get-logs-version/#kube-state-metrics-version).
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="verbose-helm"
+    title="Habilite el registro detallado usando Helm"
+  >
+    Para la integración Kubernetes , el agente de infraestructura solo agrega una entrada log en caso de error. Los errores más comunes se muestran en el registro estándar (no detallado). Si está realizando una investigación más profunda por su cuenta o con el soporte de New Relic, puede habilitar el modo detallado.
+
+    <Callout variant="caution">
+      El modo detallado aumenta significativamente la cantidad de información enviada al archivo de registro. Habilite este modo solo temporalmente para propósitos de resolución de problemas y restablezca el nivel de registros cuando termine.
+    </Callout>
+
+    Para habilitar el registro detallado usando Helm:
+
+    1. Ejecute este comando:
+
+       ```shell
+           helm upgrade -n <namespace> --reuse-values newrelic-bundle --set newrelic-infrastructure.verboseLog=true newrelic/nri-bundle
+       ```
+
+    2. Déjelo en modo detallado durante unos minutos o hasta que se haya producido suficiente actividad.
+
+    3. Cuando tenga la información que necesita, deshabilite el registro detallado:
+
+       ```shell
+           helm upgrade --reuse-values newrelic-bundle --set newrelic-infrastructure.verboseLog=false newrelic/nri-bundle
+       ```
+
+    4. Aplique la configuración restaurada ejecutando:
+
+       ```shell
+           kubectl apply -f your_newrelic_k8s.yaml
+       ```
+
+    5. Obtenga una lista de nodos en el entorno:
+
+       ```shell
+           kubectl get nodes --all-namespaces
+       ```
+
+    6. Obtenga una lista de infraestructura y kube-state-métrica pod:
+
+       ```shell
+           kubectl get pods --all-namespaces -o wide | egrep 'newrelic|kube-state-metrics'
+       ```
+
+    7. [Obtenga el registro del pod que se conecta a `kube-state-metrics`](#logs-pod-kubestatemetrics).
+
+    8. [Recuperar la configuración del servicio `kube-state-metrics` ](/docs/kubernetes-pixie/kubernetes-integration/advanced-configuration/get-logs-version/#kube-state-metrics-version).
+  </Collapser>
+
+  <Collapser
+    id="logs-pod-kubestatemetrics"
+    title="Obtener registro del pod que se conecta a kube-state-métrica"
+  >
+    Para obtener el registro del pod que se conecta a `kube-state-metrics`:
+
+    1. Ejecute este comando:
+
+       ```shell
+           kubectl get pods --all-namespaces -o wide | grep kube-state-metrics
+       ```
+
+       Busque un resultado similar a este:
+
+       ```shell
+           kube-system   kube-state-metrics-5c6f5cb9b5-pclhh     2/2
+           Running   4          4d        172.17.0.3   minikube
+       ```
+
+    2. Obtenga el pod New Relic que se ejecuta en el mismo nodo que `kube-state-metrics`:
+
+       ```shell
+       kubectl describe node minikube | grep newrelic-infra
+       ```
+
+       Busque un resultado similar a este:
+
+       ```shell
+       default                    newrelic-infra-5wcv6                     100m (5%)
+       0 (0%)      100Mi (5%)       100Mi (5%)
+       ```
+
+    3. Recupere el registro de los nodos ejecutando:
+
+       ```shell
+           kubectl logs newrelic-infra-5wcv6
+       ```
+  </Collapser>
+
+  <Collapser
+    id="logs-pod-kubestatemetrics"
+    title="Obtener el registro de un pod que se ejecuta en un nodo maestro"
+  >
+    Para obtener el registro de un pod que se ejecuta en un nodo maestro:
+
+    1. Obtenga los nodos etiquetados como maestros:
+
+       ```shell
+       kubectl get nodes -l node-role.kubernetes.io/master=""
+       ```
+
+       O,
+
+       ```shell
+       kubectl get nodes -l kubernetes.io/role="master"
+       ```
+
+       Busque un resultado similar a este:
+
+       ```shell
+       NAME                         STATUS  ROLES   AGE   VERSION
+       ip-10-42-24-4.ec2.internal   Ready   master  42d   v1.14.8
+       ```
+
+    2. Obtenga el pod New Relic que se está ejecutando en uno de los nodos devueltos en el paso anterior:
+
+       ```shell
+       kubectl get pods --field-selector spec.nodeName=ip-10-42-24-4.ec2.internal -l name=newrelic-infra --all-namespaces
+       ```
+
+       Busque un resultado similar a este:
+
+       ```shell
+       newrelic-infra-whvzt
+       ```
+
+    3. Recupere el registro de los nodos ejecutando este comando:
+
+       ```shell
+       kubectl logs newrelic-infra-whvzt
+       ```
+  </Collapser>
+</CollapserGroup>
+
+## Monitor los servicios que se ejecutan en Kubernetes [#monitor-services]
+
+Los servicios de monitoreo en Kubernetes funcionan aprovechando nuestro [agente de infraestructura e integración en el host](/docs/infrastructure/host-integrations/installation/install-infrastructure-host-integrations) y un mecanismo de descubrimiento automático para señalarlos al pod con un selector específico.
+
+Consulte el documento [Habilitar el monitoreo de servicios usando el Helm Chart](/docs/kubernetes-pixie/kubernetes-integration/advanced-configuration/monitor-services/monitor-services-running-kubernetes/#enable) para saber cómo hacerlo. Consulte este ejemplo para la versión 2, que muestra la configuración `yaml` para la integración de Redis agregada al archivo `values.yml` del gráfico `nri-bundle` .
+
+```yaml
+    newrelic-infrastructure:
+    integrations_config:
+    - name: nri-redis.yaml
+    data:
+    discovery:
+    command:
+    # Run NRI Discovery for Kubernetes
+    # https://github.com/newrelic/nri-discovery-kubernetes
+    exec: /var/db/newrelic-infra/nri-discovery-kubernetes --tls --port 10250
+    match:
+    label.app: redis
+    integrations:
+    - name: nri-redis
+    env:
+    # using the discovered IP as the hostname address
+    HOSTNAME: ${discovery.ip}
+    PORT: 6379
+    labels:
+    env: test
+```
+
+### Agregue un servicio YAML a la configuración de integración de Kubernetes [#add-service-yaml]
+
+Si está empleando la versión 2 de integración de Kubernetes, debe agregar una entrada para este ConfigMap en las secciones `volumes` y `volumeMounts` del `spec` de DaemonSet, para garantizar que todos los archivos en ConfigMap estén montados en `/etc/newrelic-infra/integrations.d/`.
