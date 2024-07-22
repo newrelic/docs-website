@@ -5,10 +5,12 @@ import stringify from 'remark-stringify10';
 import frontmatter from 'remark-frontmatter5';
 import remarkMdx from 'remark-mdx2.3';
 import { defaultHandlers } from 'hast-util-to-mdast9';
+import { defaultHandlers as defaultStringifyHandlers } from 'mdast-util-to-markdown';
 import u from 'unist-builder';
 import last from 'lodash/last.js';
 import yaml from 'js-yaml';
 import { visit } from 'unist-util-visit4';
+import { encode as htmlEncode } from 'html-entities';
 
 import handlers from './utils/handlers.mjs';
 import { configuration } from './configuration.js';
@@ -112,6 +114,7 @@ const attributeProcessor = unified()
   .use(remarkMdx)
   .use(inlineCodeAttribute);
 
+let alreadyModifiedUnsafe = false;
 const processor = unified()
   .use(parse)
   .use(rehype2remark, {
@@ -145,6 +148,34 @@ const processor = unified()
     bullet: '*',
     fences: true,
     listItemIndent: '1',
+    handlers: {
+      // by the time this processor gets to the stringify step,
+      // we've already turned the HTML into a MDX AST.
+      // by default, remark-stringify (which uses `mdast-util-to-markdown` internally)
+      // will backslash escape unsafe characters, like `<`.
+      // however, this is incompatible with `gatsby-plugin-mdx` which will error
+      // upon encountering `\<` because it doesn't process the escape and thinks
+      // we're trying to open a tag.
+      // this handler replaces `<` and other HTML-unsafe characters
+      // with their ampersand encoded equivalent before passing the text
+      // to `mdast-util-to-markdown`.
+      text(node, _, state, info) {
+        // this is a bit of a hack, meaning:
+        // `mdast-util-to-markdown` supports adding new rules in the config
+        // via the `unsafe` option, but not replacing the existing rules.
+        // so we have to hack it out with a saw.
+        if (!alreadyModifiedUnsafe) {
+          const index = state.unsafe.findIndex(
+            (rule) => rule.character === '&'
+          );
+          state.unsafe.splice(index, 1);
+          alreadyModifiedUnsafe = true;
+        }
+
+        node.value = htmlEncode(node.value);
+        return defaultStringifyHandlers.text(node, _, state, info);
+      },
+    },
   })
   .use(frontmatter, ['yaml'])
   .use(stripTranslateFrontmatter);
