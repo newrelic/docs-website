@@ -114,7 +114,6 @@ const attributeProcessor = unified()
   .use(remarkMdx)
   .use(inlineCodeAttribute);
 
-let alreadyModifiedUnsafe = false;
 const processor = unified()
   .use(parse)
   .use(rehype2remark, {
@@ -164,12 +163,9 @@ const processor = unified()
         // `mdast-util-to-markdown` supports adding new rules in the config
         // via the `unsafe` option, but not replacing the existing rules.
         // so we have to hack it out with a saw.
-        if (!alreadyModifiedUnsafe) {
-          const index = state.unsafe.findIndex(
-            (rule) => rule.character === '&'
-          );
+        const index = state.unsafe.findIndex((rule) => rule.character === '&');
+        if (index !== -1) {
           state.unsafe.splice(index, 1);
-          alreadyModifiedUnsafe = true;
         }
 
         node.value = htmlEncode(node.value);
