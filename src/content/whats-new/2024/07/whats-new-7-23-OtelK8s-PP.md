@@ -20,6 +20,6 @@ We’ve eliminated those challenges, with native support for OpenTelemetry- and 
 - [**Documentation OpenTelemetry instrumented Kubernetes**](https://docs.newrelic.com/docs/kubernetes-pixie/kubernetes-integration/installation/k8s-otel/)
 - [**Documentation Prometheus instrumented hosts**](https://docs.newrelic.com/docs/infrastructure/prometheus-integrations/integrations-list/node-exporter-integration//)
 
-![A screenshot showing add description here.](InfraOTelK8/images/automap_preview.png.png "A screenshot showing OpenTelemetry instrumented kubernetes and Prometheus instrumented hosts")
+![A screenshot showing add description here.](images/OtelK8s.webp "A screenshot showing OpenTelemetry instrumented kubernetes and Prometheus instrumented hosts")
 
 <figcaption>OpenTelemetry instrumented kubernetes and Prometheus instrumented hosts</figcaption>
