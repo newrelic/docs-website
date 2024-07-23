@@ -13,7 +13,7 @@ We've eliminated those challenges with native support for hosts instrumented wit
 ## Capabilities
 
 * One-step instrumentation for Kubernetes clusters using the OpenTelemetry collector.
-* One-step instrumentation for Prometheus-instrumented host with Node Exporter.
+* One-step instrumentation for Prometheus-instrumented hosts with Node Exporter.
 * Native UIs populated with OpenTelemetry and Prometheus-generated golden signals. 
 * Automatic service and infrastructure relationship mapping to understand dependencies across your stack.
 * Automatic correlation between OpenTelemetry-instrumented applications and infrastructure resources to understand how the performance of each layer impacts each other.
