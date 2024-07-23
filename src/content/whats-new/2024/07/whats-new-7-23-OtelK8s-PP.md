@@ -1,3 +1,4 @@
+Title: Native support for open standards: OpenTelemetry instrumented Kubernetes and Prometheus instrumented hosts
 summary: 'OpenTelemetry instrumented kubernetes and Prometheus instrumented hosts'
 releaseDate: '2024-07-23'
 learnMoreLink: 'https://docs.newrelic.com/docs/kubernetes-pixie/kubernetes-integration/installation/k8s-otel/' 
