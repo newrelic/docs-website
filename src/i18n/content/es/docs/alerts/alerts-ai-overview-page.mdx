@@ -1,0 +1,355 @@
+---
+title: Página de descripción general de alertas
+tags:
+  - Alerts
+  - Get started
+metaDescription: How to interpret what you see on the Alerts overview page.
+freshnessValidatedDate: never
+translationType: machine
+---
+
+En la página <InlinePopover type="alerts"/><DNT>**Overview**</DNT> , encontrará una vista consolidada de su incidente de alerta actual. La página <DNT>**Issues & activity**</DNT> tiene vistas de sus problemas activos y de incidentes recientes.
+
+## Por qué es importante [#why]
+
+Las páginas <DNT>**Overview**</DNT> y <DNT>**Issues & activity**</DNT> proporcionan análisis sobre el rendimiento (o no) de su sistema. Puede cambiar rápidamente entre [<DNT>**Overview**</DNT>](#summary), [<DNT>**Issues**</DNT>](#issues) y [<DNT>**Incidents**</DNT>](#incidents) para buscar problemas críticos que afecten a sus sistemas.
+
+## Página de descripción general [#summary]
+
+La página de descripción general muestra una vista de alto nivel del incidente de alerta reciente y actual. Con esta página, obtendrá rápidamente información valiosa sobre cuántos incidentes críticos tiene, cuántos se han cerrado y qué políticas están creando la mayor cantidad de incidentes. Esta página también muestra las principales fuentes de su incidente silenciado.
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        Título dashboard
+      </th>
+
+      <th>
+        Lo que es
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Incidente abierto por prioridad (series temporales)
+      </td>
+
+      <td>
+        Una vista de serie temporal que cuenta el número de incidentes abiertos durante un período de tiempo. Este gráfico solo rastrea el evento abierto. No rastrea el estado abierto o cerrado del incidente.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Incidente abierto por prioridad (tarta)
+      </td>
+
+      <td>
+        Este gráfico utiliza los mismos datos que el gráfico de series temporales del mismo nombre. Le muestra rápidamente el desglose entre advertencia e incidente crítico. Haga clic en el gráfico circular para filtrar toda la página por advertencia o incidente crítico.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Duraciones de incidentes cerrados
+      </td>
+
+      <td>
+        Una distribución de cuánto tiempo estuvo abierto cada incidente (duración), antes de cerrarse. Generalmente, es mejor tener una duración más corta para su incidente. Si observa muchos incidentes de larga duración, es posible que desee escribir un filtro personalizado para investigarlos más profundamente.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Incidente silenciado
+      </td>
+
+      <td>
+        Si ha escrito algunas reglas de silenciamiento, las verá aquí. Si no estás utilizando ninguna regla de silenciamiento, verás un incidente 100% "No silenciado". Haga clic en este gráfico para filtrar por incidente silenciado y ver rápidamente de dónde provienen.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Principales políticas que crean incidentes
+      </td>
+
+      <td>
+        Un gráfico de las cinco políticas principales que generan la mayor incidencia. Haga clic en el nombre de una política para filtrar toda la página según el incidente de esa política.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Principales condiciones que crean incidentes
+      </td>
+
+      <td>
+        Un gráfico de las cinco condiciones principales que generan la mayor incidencia. Haga clic en el nombre de una política para filtrar toda la página según el incidente de esa condición.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Principales fuentes de incidentes
+      </td>
+
+      <td>
+        Un gráfico de la entidad que genera más incidentes. Si está disponible, utiliza el nombre de la entidad. De lo contrario, utilizará el tipo de evento. Haga clic en una entidad para filtrar toda la página según el incidente de esa entidad.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Asuntos
+
+En la página <DNT>**Issues & activity**</DNT> , los problemas son grupos de incidentes que describen el problema subyacente de sus síntomas. Cuando se crea un nuevo incidente, la inteligencia de incidentes abre un problema y evalúa otros problemas abiertos en busca de correlaciones. Un asunto contendrá una matriz de todas las etiquetas (metadatos) de todos los incidentes que contiene.
+
+El feed de problemas incluye todos sus problemas y se puede buscar y filtrar utilizando el componente de la parte superior de la página.
+
+De forma predeterminada, la fuente de problemas se filtra para mostrar solo los problemas activos. También puede filtrar por prioridad del problema, fuente, condición de alerta, política de alerta, entidad o ID del problema.
+
+De forma predeterminada, los problemas se ordenan por el problema creado más recientemente.
+
+Haga clic en un problema para abrir su página de problemas.
+
+### Columnas del feed de problemas
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        Nombre de columna
+      </th>
+
+      <th>
+        Valores
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Estado
+      </td>
+
+      <td>
+        Creado, activo, reconocido, cerrado
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Prioridad
+      </td>
+
+      <td>
+        Bajo, medio, alto, crítico
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Nombre del problema
+      </td>
+
+      <td>
+        El nombre del problema
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Creado
+      </td>
+
+      <td>
+        Cuándo se creó la emisión (en tiempo absoluto o relativo)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Duración
+      </td>
+
+      <td>
+        ¿Cuánto tiempo ha pasado desde que se creó el problema?
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Entidad
+      </td>
+
+      <td>
+        Una lista de las entidades impactadas. Si la lista es demasiado larga para mostrarse, pase el mouse sobre el valor para ver la lista.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Resumen del análisis
+      </td>
+
+      <td>
+        El resultado del módulo de aprendizaje automático para el problema
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Camino
+      </td>
+
+      <td>
+        Las Fuentes -> Ruta de destino
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Incidentes
+      </td>
+
+      <td>
+        El número de incidentes relacionados.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Incidentes
+
+En la página <DNT>**Issues & activity**</DNT> , los incidentes son eventos que describen los síntomas que afectan su sistema a lo largo del tiempo. Estos síntomas son detectados por sus herramientas de monitoreo, que evalúan sus flujos de datos y eventos.
+
+Los metadatos de incidentes de New Relic provienen de cualquiera de las siguientes fuentes:
+
+* Heredar toda la etiqueta de la condición de alerta que la desencadenó
+* Todas las facetas, valores y condiciones donde se agregan como etiqueta si la condición de alerta NRQL contiene una faceta o condición donde
+* Todas las etiquetas de una entidad se agregan si el resultado de la condición de alerta NRQL se puede asignar a esa única entidad.
+
+Los medatos [de incidentes externos](/docs/data-apis/ingest-apis/event-api/incident-event-rest-api/) son los que se recibieron como etiqueta.\*.
+
+El feed de incidentes incluye todos sus incidentes: el incidente de New Relic y el incidente externo.
+
+Puede filtrar el feed por fuente, estado del incidente y prioridad.
+
+### Comportamiento por defecto [#default]
+
+De forma predeterminada, el feed está ordenado por última actualización en la parte superior.
+
+Haga clic en la fila de un incidente para ver los detalles del incidente.
+
+### Columnas de alimentación de incidentes [#incident-feed]
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        Nombre de columna
+      </th>
+
+      <th>
+        Valores
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Estado
+      </td>
+
+      <td>
+        Abrir cerrado
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Prioridad
+      </td>
+
+      <td>
+        Bajo, Medio, Alto, Crítico
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Nombre del incidente
+      </td>
+
+      <td>
+        El nombre del incidente.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Creado
+      </td>
+
+      <td>
+        Cuándo se creó el incidente (en tiempo absoluto o relativo)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Duración
+      </td>
+
+      <td>
+        ¿Cuánto tiempo ha pasado desde que se creó el incidente?
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Entidad
+      </td>
+
+      <td>
+        Una lista de la entidad afectada por el incidente. Si la lista es demasiado larga para mostrarse, pase el mouse sobre el valor para ver la lista.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Resumen del análisis
+      </td>
+
+      <td>
+        El resultado del módulo de aprendizaje automático para el incidente
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Fuente
+      </td>
+
+      <td>
+        El sistema fuente del incidente.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Evento
+      </td>
+
+      <td>
+        El número de eventos agregados en el incidente.
+      </td>
+    </tr>
+  </tbody>
+</table>

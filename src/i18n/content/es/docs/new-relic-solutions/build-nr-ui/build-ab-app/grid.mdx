@@ -1,0 +1,115 @@
+---
+title: Agregar una cuadrícula
+metaDescription: Add a grid
+freshnessValidatedDate: never
+translationType: machine
+---
+
+<Callout variant="tip">
+  Esta lección es parte de un curso que le muestra cómo crear una aplicación New Relic desde cero. Si aún no lo hiciste, consulta la descripción general.
+
+  Cada lección del curso se basa en la anterior, así que cerciorar de completar la última lección, Agregar UI, antes de comenzar esta.
+</Callout>
+
+En lecciones prácticas anteriores, creó todos los gráficos a partir de su guía de diseño. Desafortunadamente, no están dispuestos como en el diseño. El SDK de New Relic One proporciona múltiples soluciones para organizar sus componentes. El que aprenderá en esta lección es el componente `Grid`.
+
+Para organizar sus gráficos, colóquelos en un `Grid`. Un `Grid` es un contenedor que emplea para organizar su contenido en filas de 12 columnas. Un `GridItem` es el componente básico de un `Grid`. Usted especifica el `columnSpan` de un `GridItem` entre _1_ y _12_ para determinar qué parte de la fila debe cubrir el `GridItem`. Por lo tanto, si desea que un gráfico se extienda a lo ancho de la vista, debe colocar el gráfico en un `GridItem` con un `columnSpan` de _12_. Si desea que quepan doce gráficos en una sola fila, emplee un `columnSpan` de _1_.
+
+Una vez que planeó cómo organizará sus columnas, puede escribir código para realizar sus planes.
+
+<Steps>
+  <Step>
+    Cambie al directorio `add-a-grid/ab-test` del [repositorio de trabajos del curso](https://github.com/newrelic-experimental/nru-programmability-course):
+
+    ```sh
+    cd nru-programmability-course/add-a-grid/ab-test
+    ```
+  </Step>
+
+  <Step>
+    En el archivo `index.js` de tu Nerdlet, importa `Grid` y `GridItem`. Luego, actualice el método `render()` de su Nerdlet colocando cada gráfico en un `GrildItem`. Finalmente, coloque todos sus artículos en un `Grid`:
+
+    ```js
+    import React from 'react';
+    import { ChartGroup, Grid, GridItem } from 'nr1';
+    import NewsletterSignups from './newsletter-signups';
+    import PastTests from './past-tests';
+    import TotalCancellations from './total-cancellations';
+    import TotalSubscriptions from './total-subscriptions';
+    import VersionPageViews from './page-views';
+    import VersionTotals from './totals';
+
+    export default class AbTestNerdletNerdlet extends React.Component {
+        render() {
+            return <div>
+                <Grid className="wrapper">
+                    <GridItem columnSpan={12}><NewsletterSignups /></GridItem>
+                    <GridItem columnSpan={6}><TotalSubscriptions /></GridItem>
+                    <GridItem columnSpan={6}><TotalCancellations /></GridItem>
+                    <GridItem columnSpan={6}><VersionTotals version='a' /></GridItem>
+                    <GridItem columnSpan={6}><VersionTotals version='b' /></GridItem>
+                    <ChartGroup>
+                        <GridItem columnSpan={6}>
+                            <VersionPageViews version='a' />
+                        </GridItem>
+                        <GridItem columnSpan={6}>
+                            <VersionPageViews version='b' />
+                        </GridItem>
+                    </ChartGroup>
+                    <GridItem columnSpan={12}><PastTests /></GridItem>
+                </Grid>
+            </div>
+        }
+    }
+    ```
+
+    El `columnSpan` de cada gráfico coincide con el plan de diseño. Cada gráfico que ocupa la mitad de la fila de 12 columnas tiene un `columnSpan` de _6_ y cada gráfico que ocupa toda la fila tiene un `columnSpan` de _12_. Observe que cada uno de los gráficos en `ChartGroup`, pero no el `ChartGroup` en sí, está en `GridItem`. Un `ChartGroup` conecta los comportamientos de los gráficos, no sus ubicaciones.
+
+    Cada gráfico llena su `columnSpan` porque usa el accesorio `fullWidth`. `fullWidth` hace que el gráfico llene su espacio horizontal disponible y `GridItem.columnSpan` restringe ese espacio a una fracción de la fila. Elimine un accesorio `fullWidth` y vea cómo reacciona el gráfico.
+
+    <Callout
+      variant="tip"
+      title="Detalle técnico"
+    >
+      Observe la clase `wrapper` aplicada al `Grid`. ¡Proporcionamos silenciosamente algunos estilos CSS para ayudar a que esta aplicación se vea genial! Este no es un curso CSS , por lo que no cubriremos todo lo que agregamos, solo incluiremos los estilos que pretendemos que uses en el fragmento de código. Solo sepa que cada componente UI en el SDK New Relic One proporciona un accesorio `className` donde puede proporcionar un nombre de clase CSS.
+
+      Puedes ver los estilos en `nerdlets/ab-test-nerdlet/styles.scss`.
+    </Callout>
+  </Step>
+
+  <Step>
+    Navega hasta la raíz de tu Nerdpack en `nru-programmability-course/add-a-grid/ab-test`.
+  </Step>
+
+  <Step>
+    Genera un nuevo UUID para tu Nerdpack:
+
+    ```sh
+    nr1 nerdpack:uuid -gf
+    ```
+
+    Debido a que clonaste el repositorio de trabajos del curso que contenía un Nerdpack existente, necesitas generar tu propio identificador único. Este UUID asigna su Nerdpack a su cuenta New Relic.
+  </Step>
+
+  <Step>
+    Entregue su aplicación localmente:
+
+    ```sh
+    nr1 nerdpack:serve
+    ```
+  </Step>
+
+  <Step>
+    Vea sus cambios en [New Relic](https://one.newrelic.com?nerdpacks=local).
+
+    Aquí verá sus gráficos diseñados y organizados en una cuadrícula.
+
+    Cuando terminó, deje de servir su aplicación New Relic presionando `CTRL+C` en la ventana de terminal de su servidor local.
+  </Step>
+</Steps>
+
+En solo seis pasos, mejoró significativamente la legibilidad y usabilidad de su aplicación Prueba A/B, pero puede tomar medidas adicionales para mejorar la usabilidad de sus gráficos. En la siguiente lección, agregará encabezados a sus gráficos para recordar qué datos presenta cada gráfico.
+
+<Callout variant="course">
+  Esta lección es parte de un curso que le muestra cómo crear una aplicación New Relic desde cero. Cuando esté listo, continúe con la siguiente lección: Agregar encabezados de gráficos.
+</Callout>
