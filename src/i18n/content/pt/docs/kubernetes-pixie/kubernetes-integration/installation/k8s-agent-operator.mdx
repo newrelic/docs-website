@@ -1,0 +1,304 @@
+---
+title: Operador de agente Kubernetes
+tags:
+  - Integrations
+  - Kubernetes integration
+  - Agent Operator
+metaDescription: Learn how to use the Kubernetes agent operator to automatically manage your APM agents.
+freshnessValidatedDate: '2024-06-28T00:00:00.000Z'
+translationType: machine
+---
+
+<Callout title="visualização">
+  Ainda estamos trabalhando nesse recurso, mas adoraríamos que você experimentasse!
+
+  Atualmente, esse recurso é fornecido como parte de um programa de visualização de acordo com nossas [políticas de pré-lançamento](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy).
+</Callout>
+
+O operador agente Kubernetes agiliza a observabilidade fullstack para ambientes Kubernetes automatizando a instrumentação APM junto com a implantação do agente Kubernetes . Ao habilitar a instrumentação automática APM , os desenvolvedores não precisam mais gerenciar manualmente [o agente APM](/docs/apm/new-relic-apm/getting-started/introduction-apm/). O operador do agente Kubernetes instalará, atualizará e removerá automaticamente o agente APM.
+
+Atualmente [suporta](#k8s-supported-versions) Java, .NET, Node.js, Python e Ruby com linguagens adicionais (PHP e Go) a caminho. Ele foi testado em EKS e cluster local executando nós AMD.
+
+## Antes de você começar [#before-begin]
+
+Antes de instalar o operador, verifique o seguinte:
+
+* [Helm](https://helm.sh/): Você deve instalá-lo para usar os gráficos. Consulte a [documentação do Helm](https://helm.sh/docs/) se precisar de ajuda para começar.
+* [Kubectl](https://kubernetes.io/docs/tasks/tools/): você deve configurá-lo para se comunicar com seu cluster.
+* [Gerenciador de certificados](https://cert-manager.io/): você deve instalá-lo no cluster.
+
+### instalação da dependência `cert-manager` [#install-cert-manager]
+
+Para instalar a dependência do gerenciador de certificados, execute estes comandos:
+
+```shell
+helm repo add jetstack https://charts.jetstack.io
+helm install cert-manager jetstack/cert-manager \
+    --namespace cert-manager \
+    --create-namespace \
+    --set crds.enabled=true
+```
+
+## instalação do operador agente Kubernetes [#install-k8s-operator]
+
+Dependendo da sua necessidade, você pode optar por instalar o operador agente de forma independente ou em conjunto com nossa integração K8s.
+
+Recomendamos fortemente instalá-lo junto com a integração Kubernetes para aproveitar toda a nossa experiência [full-stackde observabilidade](/docs/apm/apm-ui-pages/monitoring/kubernetes-summary-page/) .
+
+### Instalação do pacote além da integração do Kubernetes (recomendado) [#bundle-installation]
+
+O gráfico do operador do agente Kubernetes é integrado como parte do gráfico [nri-bundle](https://github.com/newrelic/helm-charts/tree/master/charts/nri-bundle) , que gerencia a instalação de todos os componentes necessários para permitir uma observabilidade completa do Kubernetes.
+
+Adicione o parâmetro `k8s-agents-operator.enabled=true` ao comando do helm ou inclua-o em um arquivo [`values.yaml`](https://github.com/newrelic/helm-charts/blob/master/charts/nri-bundle/values.yaml) .
+
+Consulte a página [Instalar a integração do Kubernetes](/install/kubernetes/?dropdown1=helm) para obter mais informações sobre como usar o Helm ou confira o gráfico [nri-bundle](https://github.com/newrelic/helm-charts/tree/master/charts/nri-bundle) .
+
+Veja este exemplo de comando Helm usando parâmetro:
+
+```shell
+helm repo add newrelic https://helm-charts.newrelic.com
+
+helm upgrade --install newrelic-bundle newrelic/nri-bundle \
+    --set global.licenseKey=<NEW RELIC INGEST LICENSE KEY> \
+    --set global.cluster=<CLUSTER_NAME> \
+    --namespace=newrelic \
+    --set newrelic-infrastructure.privileged=true \
+    --set global.lowDataMode=true \
+    --set kube-state-metrics.enabled=true \
+    --set kubeEvents.enabled=true \
+    --set k8s-agents-operator.enabled=true \
+    --create-namespace
+```
+
+### Instalação autônoma [#standalone-installation]
+
+Para instalar o operador do agente Kubernetes com a configuração padrão, execute estes comandos:
+
+```shell
+helm repo add newrelic-k8s https://newrelic.github.io/k8s-agents-operator
+helm upgrade --install k8s-agents-operator newrelic-k8s/k8s-agents-operator \
+    --namespace newrelic \
+    --create-namespace \
+    --set licenseKey=<YOUR_NEW_RELIC_INGEST_LICENSE_KEY>
+```
+
+Para obter uma lista completa de opções de configuração, consulte o gráfico [README](https://github.com/newrelic/k8s-agents-operator/tree/main/charts/k8s-agents-operator#values) .
+
+## Configurando um namespace para ativar o operador [#configuring-namespace]
+
+Cada namespace requer um processo de duas etapas para permitir a instrumentação automática do aplicativo implantado nele.
+
+1. Crie um segredo contendo uma [chave de licença de ingestão válida New Relic ](/docs/apis/intro-apis/new-relic-api-keys/#license-key)para cada namespace que você deseja que o operador utilize.
+
+   ```shell
+       kubectl create secret generic newrelic-key-secret \
+           --namespace <NAMESPACE_TO_MONITOR> \
+           --from-literal=new_relic_license_key=<YOUR_NEW_RELIC_INGEST_LICENSE_KEY>
+   ```
+
+   Certifique-se de substituir `<YOUR_NEW_RELIC_INGEST_LICENSE_KEY>` pela sua chave de licença válida do New Relic.
+
+2. Aplique o seguinte CRD a cada namespace que você deseja auto-instrumento. Execute este comando:
+
+   ```shell
+   kubectl apply -f <YOUR_YAML_FILE> -n <NAMESPACE_TO_MONITOR>
+   ```
+
+   Arquivo YAML a ser aplicado:
+
+   ```yaml
+   apiVersion: newrelic.com/v1alpha1
+   kind: Instrumentation
+   metadata:
+       labels:
+           app.kubernetes.io/name: instrumentation
+           app.kubernetes.io/created-by: k8s-agents-operator
+       name: newrelic-instrumentation
+   spec:
+       java:
+           image: newrelic/newrelic-java-init:latest
+           # env:
+           # Example New Relic agent supported environment variables
+           # - name: NEW_RELIC_LABELS
+           #   value: "environment:auto-injection"
+           # Example overriding the appName configuration
+           # - name: NEW_RELIC_POD_NAME
+           #   valueFrom:
+           #     fieldRef:
+           #       fieldPath: metadata.name
+           # - name: NEW_RELIC_APP_NAME
+           #   value: "$(NEW_RELIC_LABELS)-$(NEW_RELIC_POD_NAME)"
+       nodejs:
+           image: newrelic/newrelic-node-init:latest
+       python:
+           image: newrelic/newrelic-python-init:latest
+       dotnet:
+           image: newrelic/newrelic-dotnet-init:latest
+       ruby:
+           image: newrelic/newrelic-ruby-init:latest
+   ```
+
+## Habilitar instrumentação automática APM no aplicativo [#enable-apm-instrumentation]
+
+O operador do agente Kubernetes procura anotações específicas do idioma ao agendar seu pod para saber qual aplicativo monitor.
+
+Veja as anotações atualmente suportadas:
+
+```shell
+instrumentation.newrelic.com/inject-java: "true"
+instrumentation.newrelic.com/inject-nodejs: "true"
+instrumentation.newrelic.com/inject-python: "true"
+instrumentation.newrelic.com/inject-dotnet: "true"
+instrumentation.newrelic.com/inject-ruby: "true"
+```
+
+Veja este exemplo de implantação com anotação para instrumento do agente Java:
+
+```yaml
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+        name: spring-petclinic
+    spec:
+      selector:
+        matchLabels:
+          app: spring-petclinic
+      replicas: 1
+      template:
+        metadata:
+          labels:
+            app: spring-petclinic
+          annotations:
+            instrumentation.newrelic.com/inject-java: "true"
+        spec:
+          containers:
+            - name: spring-petclinic
+              image: ghcr.io/pavolloffay/spring-petclinic:latest
+              ports:
+                - containerPort: 8080
+              env:
+              - name: NEW_RELIC_APP_NAME
+                value: spring-petclinic-demo
+```
+
+## Atualize a instrumentação APM no aplicativo [#upgrade-apm-instrumention]
+
+Por padrão, o operador do agente Kubernetes instala automaticamente as versões mais recentes disponíveis do [agente APM](/docs/apm/new-relic-apm/getting-started/introduction-apm/) correspondente.
+
+Depois que um aplicativo é monitorado, ele não é atualizado automaticamente para uma versão mais recente, a menos que o usuário opte por atualizar. Você pode atualizar facilmente o aplicativo para uma versão mais recente simplesmente reimplantando o pod ou reiniciando sua implantação.
+
+## Remover instrumentação APM no aplicativo [#remove-apm-instrumentation]
+
+Para remover a instrumentação do APM em um aplicativo, você deve remover as anotações usadas pelo operador do agente Kubernetes. Em alguns segundos, você verá que o agente APM foi removido automaticamente.
+
+## Atualizando o operador do agente Kubernetes [#upgrading-k8s-operator]
+
+### Instalação do pacote
+
+Execute uma atualização do gráfico nri-bundle com o seguinte parâmetro:
+
+```shell
+ k8s-agents-operator.enabled=true
+```
+
+### Instalação autônoma
+
+Execute o comando `helm upgrade` para atualizar para uma versão mais recente do operador do agente Kubernetes.
+
+```shell
+    helm upgrade k8s-agents-operator newrelic/k8s-agents-operator -n newrelic
+```
+
+## Desinstalando o operador do agente Kubernetes [#uninstall-k8s-operator]
+
+### Instalação do pacote
+
+Desinstale o gráfico nri-bundle ou se desejar apenas remover o operador, execute uma atualização do helm com o seguinte parâmetro:
+
+```shell
+ k8s-agents-operator.enabled=false
+```
+
+### Instalação autônoma
+
+Para desinstalar e excluir o operador do agente Kubernetes, execute este comando:
+
+```shell
+    helm uninstall k8s-agents-operator -n newrelic
+```
+
+## Encontre e use dados [#find-data]
+
+* Obtenha insights do seu aplicativo e resolva incidentes usando a página [de resumo APM](/docs/apm/agents/manage-apm-agents/agent-data/triage-run-diagnostics/).
+* Confira a página [de resumo do Kubernetes](/docs/apm/apm-ui-pages/monitoring/kubernetes-summary-page/) . Ele fornece Kubernetes insights no contexto do seu aplicativo de monitor.
+
+## Perguntas frequentes [#faq]
+
+<CollapserGroup>
+  <Collapser
+    id="route-apps-telemetry"
+    title="Posso rotear meu aplicativo telemetria para contas diferentes?"
+  >
+    Sim, você só precisa alterar sua [chave de licença](/docs/apis/intro-apis/new-relic-api-keys/#license-key) injetada no segredo no namespace apropriado.
+
+    <Callout variant="important">
+      A [experiência K8s APM ](/docs/apm/apm-ui-pages/monitoring/kubernetes-summary-page/)está disponível apenas na conta onde os dados do aplicativo e do cluster K8s estão disponíveis.
+    </Callout>
+  </Collapser>
+
+  <Collapser
+    id="setup-operator"
+    title="Posso configurar o operador para injetar uma versão específica de um agente APM?"
+  >
+    Durante a visualização, oferecemos suporte apenas à versão mais recente de cada [agente APM](/docs/apm/new-relic-apm/getting-started/introduction-apm/). Após GA, permitiremos que o usuário altere a versão do agente APM.
+  </Collapser>
+
+  <Collapser
+    id="modify-conf-apm"
+    title="Posso instalar o operador agente K8s se meus aplicativos já estiverem instrumentados?"
+  >
+    A instalação de dois agentes APM no mesmo aplicativo pode levar a problemas inesperados. Portanto, recomendamos fortemente a remoção de qualquer instrumentação existente antes de instalar o operador.
+  </Collapser>
+</CollapserGroup>
+
+## Resolução de problemas [#troubleshooting]
+
+Caso seu aplicativo não esteja instrumentado, você deverá verificar o seguinte:
+
+* Certifique-se de reimplantar ou implantar o novo aplicativo após a instalação do operador. Informamos que a operadora apenas auto-instrumentará o novo aplicativo para implantar no cluster.
+
+* Verifique se o segredo e o CRD de instrumentação estão instalados no namespace do aplicativo.
+
+  ```shell
+  kubectl get secrets -n <NAMESPACE>
+  kubectl get instrumentation -n <NAMESPACE>
+  ```
+
+* Verifique se o pod possui anotações que permitem a instrumentação automática.
+
+  ```shell
+      kubectl get pod <POD> -n <NAMESPACE>  -o jsonpath='{.metadata.annotations}'
+  ```
+
+* Obtenha o log do pod do operador do agente.
+
+  ```shell
+      kubectl logs <AGENT_OPERATOR_POD> -n newrelic
+  ```
+
+* Verifique se o contêiner `init` foi injetado e executado com êxito dentro do pod do aplicativo.
+
+  ```shell
+      kubectl describe pod <POD> -n <NAMESPACE>
+  ```
+
+## Apoiar [#support]
+
+O operador agente Kubernetes atualmente suporta a versão mais recente destes agentes APM: Java, .NET, Node.js, Python e Ruby.
+
+Assim que o operador estiver em disponibilidade geral, as 3 versões mais recentes de cada agente APM serão suportadas.
+
+Para problemas com o operador do agente Kubernetes:
+
+* Revise a [seção de problemas no GitHub](https://github.com/newrelic/k8s-agents-operator/issues) para encontrar problemas semelhantes ou considere abrir um novo problema.
+* Você pode entrar em contato com a equipe [de suporte da New Relic](https://support.newrelic.com/) para obter assistência.
