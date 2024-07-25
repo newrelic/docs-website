@@ -56,7 +56,7 @@ const defaultComponents = {
       <Lightbox>
         <img
           width={props.width ? props.width : 'auto'}
-          src={props.src}
+          src={`/.netlify/images?url=${props.src}&w=500`}
           // this prevents images from stretching if the width is set to a percent value
           className={cx(props.className, props.width && 'unbound')}
           alt={props.alt ? props.alt : 'Docs site'}
