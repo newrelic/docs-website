@@ -16,4 +16,4 @@ The latest quickstarts to help you get started with Kubernetes and Prometheus ob
 * [Redis](https://onenr.io/0ERz3W2Xpjr): discover all critical performance and health metrics relevant to your Redis system monitored by Prometheus.
 * [Prometheus Node Exporter](https://onenr.io/0bRmDEd1Bwy): dashboard view for host metrics gathered through Node Exporter.
 
-Learn more about integrating [Kubernetes](https://docs.newrelic.com/docs/kubernetes-pixie/kubernetes-integration/installation/kubernetes-integration-install-configure/) and [Prometheus](https://docs.newrelic.com/docs/infrastructure/prometheus-integrations/get-started/send-prometheus-metric-data-new-relic/) with New Relic.
+Learn more about integrating [Kubernetes](https://docs.newrelic.com/install/kubernetes) and [Prometheus](https://docs.newrelic.com/docs/infrastructure/prometheus-integrations/get-started/send-prometheus-metric-data-new-relic/) with New Relic.

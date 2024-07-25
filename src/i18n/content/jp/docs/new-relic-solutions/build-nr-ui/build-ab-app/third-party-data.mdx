@@ -1,0 +1,185 @@
+---
+title: サードパーティのサービスからデータを取得する
+metaDescription: Fetch data from a third-party service
+freshnessValidatedDate: never
+translationType: machine
+---
+
+<Callout variant="tip">
+  このレッスンは、New Relic アプリケーションをゼロから構築する方法を学習するコースの一部です。 まだご覧になっていない方は、概要をご覧ください。
+
+  コースの各レッスンは前回のレッスンに基づいて構築されるため、このレッスンを開始する前に、前回のレッスン「Nerdlet から NerdStorageVault にアクセスする」を完了していることを確認してください。
+</Callout>
+
+前のレッスンでは、New Relic アプリケーションの**Total cancellations per version** \[バージョンごとの合計キャンセル数]チャートの模擬キャンセル データを取得するために使用できるサードパーティ サービスについて学習しました。 このサービス内のデータは偽物ですが、このレッスンの本当の価値は、サードパーティのサービスを使用して New Relic アプリケーションにデータを供給する方法を学ぶことです。
+
+キャンセルデータを含むモックサービスにリクエストを送信する場合（ [https://api.nerdsletter.net/cancellations](https://api.nerdsletter.net/cancellations) ） 「Unauthorized」というメッセージが表示され、リクエストを拒否する応答が表示されます。
+
+```sh
+curl https://api.nerdsletter.net/cancellations
+[output] Unauthorized
+```
+
+これは、Nerdsletter API に`Authorization`ヘッダーが必要であるためです。 具体的には、データへの承認されたアクセスを取得するには、 `ABC123`のベアラー トークンを渡す必要があります。 ヘッダー`Authorization: Bearer ABC123`を使用してサービスにリクエストを送信すると、モックされたキャンセル データを含む成功応答が返されます。
+
+```sh
+curl https://api.nerdsletter.net/cancellations -H 'Authorization: Bearer ABC123'
+[output] {"a": 15, "b": 78}
+```
+
+前回のレッスンでは、 `NerdGraph`を使用してこの API トークンを New Relic アプリケーションの`NerdStorageVault`データ ストアに保存しました。 また、トークンを `TotalCancellations` コンポーネントに渡し、その使用状況をbrowserのコンソールにログに記録しました。 このレッスンでは、そのログ ステートメントに続いて、認証トークンを使用して Nerdsletter API に実際のリクエストを送信します。 次に、その外部リソースからのデータを**Total cancellations per version** \[バージョンごとの合計キャンセル数]グラフに入力します。
+
+<Steps>
+  <Step>
+    コースワークリポジトリ [の](https://github.com/newrelic-experimental/nru-programmability-course)_ third-party-services/ab-test_ ディレクトリに変更します。
+
+    ```sh
+    cd nru-programmability-course/third-party-services/ab-test
+    ```
+
+    このディレクトリには、コースのこの時点でアプリケーションに含まれることが予想されるコードが含まれています。 各レッスンの開始時に正しいディレクトリに移動することで、カスタム コードが残され、間違ったコードがレッスン間で持ち越されることがなくなります。
+  </Step>
+
+  <Step>
+    `nerdlets/ab-test-nerdlet/total-cancellations.js`で、API トークンを使用して`api.nerdsletter.net`にリクエストを送信します。 結果を状態に保存し、その状態を`render()`で使用します。
+
+    ```js
+    import React from 'react';
+    import { HeadingText, PieChart } from 'nr1';
+
+    export default class TotalCancellations extends React.Component {
+        constructor() {
+            super(...arguments);
+
+            this.state = {
+                cancellations: [],
+                lastToken: null
+            }
+        }
+
+        generateChartData(data) {
+            const cancellationsA = data ? data.a : 0;
+            const cancellationsB = data ? data.b : 0;
+
+            return [
+                {
+                    metadata: {
+                        id: 'cancellations-A',
+                        name: 'Version A',
+                        viz: 'main',
+                        color: 'blue',
+                    },
+                    data: [
+                        { y: cancellationsA },
+                    ],
+                },
+                {
+                    metadata: {
+                        id: 'cancellations-B',
+                        name: 'Version B',
+                        viz: 'main',
+                        color: 'green',
+                    },
+                    data: [
+                        { y: cancellationsB },
+                    ],
+                },
+            ]
+        }
+
+        componentDidUpdate() {
+            if (this.props.token && this.props.token != this.state.lastToken) {
+                console.log(`Requesting data with api token ${this.props.token}`)
+
+                fetch(
+                    "https://api.nerdsletter.net/cancellations",
+                    {headers: {"Authorization": `Bearer ${this.props.token}`}}
+                ).then(
+                    (response) => {
+                        if (response.status == 200) {
+                            return response.json()
+                        } else if (response.status == 401) {
+                            console.error("Incorrect auth header")
+                        } else {
+                            console.error(response.text())
+                        }
+                    }
+                ).then(
+                    (data) => {
+                        if (data) {
+                            this.setState({
+                                cancellations: this.generateChartData(data),
+                                lastToken: this.props.token
+                            })
+                        }
+                    }
+                )
+            }
+        }
+
+        render() {
+            return <div>
+                <HeadingText className="chartHeader">
+                    Total cancellations per version
+                </HeadingText>
+                <PieChart data={this.state.cancellations} fullWidth />
+            </div>
+        }
+    }
+    ```
+
+    このコードでは、各シリーズの y 値を、以前にハードコードされた値ではなく、ゼロで`TotalCancellations.state.cancellations`初期化します。 これにより、New Relic アプリが Nerdsletter API からデータを正常に要求しなかった場合、チャートに表示される内容をより現実的に表現できるようになります。 次に、Javascript の`fetch()`関数を使用して、Nerdsletter API に HTTP リクエストを送信します。 次に、リクエストの`Authorization`ヘッダーでトークンを渡します。 リクエストが成功した場合は、 `TotalCancellations.state`のキャンセル データを更新して、そのデータがコンポーネントのレンダリング メソッドに反映されるようにします。
+  </Step>
+
+  <Step>
+    `nru-programmability-course/third-party-service/ab-test`にある Nerdpack のルートに移動します。
+  </Step>
+
+  <Step>
+    Nerdpack の新しい UUID を生成します。
+
+    ```sh
+    nr1 nerdpack:uuid -gf
+    ```
+
+    既存の Nerdpack を含むコースワーク リポジトリを複製したため、独自の一意の識別子を生成する必要があります。 この UUID は Nerdpack を New Relic アカウントにマッピングします。 また、アプリがアカウントに代わって Nerdgraph リクエストを行うことも可能になります。
+  </Step>
+
+  <Step>
+    アプリケーションをローカルで提供します。
+
+    ```sh
+    nr1 nerdpack:serve
+    ```
+  </Step>
+
+  <Step>
+    [https://one.newrelic.com?nerdpacks=local](https://one.newrelic.com?nerdpacks=local)にアクセスし、 **Apps \[アプリ] > Your apps \[あなたのアプリ]**でアプリケーションを表示します。
+
+    `NerdStorageVault`のトークンが「ABC123」でない場合、コンソールに「認証ヘッダーが正しくありません」というエラーが表示されます。
+
+    トークンを「ABC123」に設定すると、**Total cancellations per version** \[バージョンごとのキャンセルの合計数が]更新され、サードパーティ サービスからの値が表示されます。
+
+    <Callout variant="tip">
+      何かがうまくいかない場合は、 browserのデバッグ ツールを使用して問題を特定してください。
+
+      **以下の点を確認してください:**
+
+      * レッスンからコードを正しくコピーしました
+      * 新しいUUIDを生成しました
+      * プロジェクト内の`<YOUR NEW RELIC ACCOUNT ID>`のすべてのインスタンスを実際の New Relic[アカウント ID](https://docs.newrelic.com/docs/accounts/accounts-billing/account-setup/account-id)に置き換えました
+    </Callout>
+
+    完了したら、ローカル サーバーのターミナル ウィンドウで`CTRL+C`を押して、New Relic アプリケーションの提供を停止します。
+  </Step>
+</Steps>
+
+よくやった！ `nr1 nerdpack:create`を初めて実行してから長い道のりを歩んできました。
+
+さまざまなスタイルの 8 つのグラフを作成し、複数のソースからの動的なデータをグラフに提供しました。 New Relic One SDK について学び、そのコンポーネントの多くを使用しました。 サードパーティのサービスからデータを収集し、それをNew Relicデータとシームレスに混合して、A/B テストで競合するバージョンが互いにどのようにパフォーマンスするかを完全に把握できるようになりました。
+
+ここから、New Relic One SDK でまだ入手していない API セットは、プラットフォーム API だけです。 これらは、New Relic アプリケーションの使いやすさを向上させるのに役立ちます。
+
+<Callout variant="tip">
+  このレッスンは、New Relic アプリケーションをゼロから構築する方法を学習するコースの一部です。 次のレッスンに進みましょう: ナードレットに PlatformStateContext を追加します。
+</Callout>

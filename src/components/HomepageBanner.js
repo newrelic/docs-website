@@ -73,8 +73,10 @@ const HomepageBanner = () => {
         onChange={(e) => setSearchTerm(e.target.value)}
         onSubmit={() => {
           addPageAction({
-            eventName: 'defaultViewSearch',
+            eventName: 'swiftypeSearchInput',
             category: 'SearchInput',
+            searchTerm,
+            searchLocation: 'homepage',
           });
           navigate(`?q=${searchTerm || ''}`);
         }}

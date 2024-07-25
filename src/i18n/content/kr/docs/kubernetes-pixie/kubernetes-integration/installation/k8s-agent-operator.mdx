@@ -1,0 +1,304 @@
+---
+title: Kubernetes 에이전트 운영자
+tags:
+  - Integrations
+  - Kubernetes integration
+  - Agent Operator
+metaDescription: Learn how to use the Kubernetes agent operator to automatically manage your APM agents.
+freshnessValidatedDate: '2024-06-28T00:00:00.000Z'
+translationType: machine
+---
+
+<Callout title="시사">
+  이 기능은 아직 개발 중이지만 꼭 사용해 보시기 바랍니다!
+
+  이 기능은 현재 [출시 전 정책](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy) 에 따라 미리보기 프로그램의 일부로 제공됩니다.
+</Callout>
+
+Kubernetes 에이전트 운영자는 Kubernetes 에이전트 배포와 함께 APM 리소스를 자동화하여 Kubernetes 환경을 위한 풀스택 옵션을 간소화합니다. APM 자동 측정을 활성화하면 개발자는 더 이상 [APM 에이전트를](/docs/apm/new-relic-apm/getting-started/introduction-apm/) 수동으로 관리할 필요가 없습니다. Kubernetes 에이전트 운영자는 APM 에이전트를 자동으로 설치, 업그레이드 및 제거합니다.
+
+현재 Java, .NET, Node.js를 [지원합니다](#k8s-supported-versions) . Python 및 루비에 추가 언어(PHP 및 Go)가 추가될 예정입니다. AMD 노드를 실행하는 EKS 및 온프레미스 클러스터에서 테스트되었습니다.
+
+## 시작하기 전에 [#before-begin]
+
+오퍼레이터를 설치하기 전에 다음 사항을 확인하십시오.
+
+* [Helm](https://helm.sh/): 차트를 사용하기 위해서는 반드시 설치해야 합니다. 시작하는 데 도움이 필요하면 [Helm 문서를](https://helm.sh/docs/) 참조하세요.
+* [Kubectl](https://kubernetes.io/docs/tasks/tools/): 클러스터와 통신하도록 구성해야 합니다.
+* [인증서 관리자](https://cert-manager.io/): 클러스터에 설치해야 합니다.
+
+### `cert-manager` 의존성/종속성 설치 [#install-cert-manager]
+
+인증서 관리자 의존성/종속성을 설치하려면 다음 명령을 실행하세요.
+
+```shell
+helm repo add jetstack https://charts.jetstack.io
+helm install cert-manager jetstack/cert-manager \
+    --namespace cert-manager \
+    --create-namespace \
+    --set crds.enabled=true
+```
+
+## Kubernetes 에이전트 운영자 설치 [#install-k8s-operator]
+
+필요한 사항에 따라 에이전트 운영자를 독립적으로 설치하거나 K8s 통합과 함께 설치하도록 선택할 수 있습니다.
+
+[전체 풀스택 옵저버빌리티](/docs/apm/apm-ui-pages/monitoring/kubernetes-summary-page/) 경험을 활용하려면 통합과 함께 설치하는 것이 좋습니다.Kubernetes
+
+### Kubernetes 통합에 추가로 번들 설치(권장) [#bundle-installation]
+
+Kubernetes 에이전트 운영자 차트는 [](https://github.com/newrelic/helm-charts/tree/master/charts/nri-bundle)전체 Kubernetes 옵저버빌리티를 활성화하는 데 필요한 모든 구성 요소의 설치를 관리하는 nri-번들 차트의 일부로 통합됩니다.
+
+helm 명령에 `k8s-agents-operator.enabled=true` 모범 사례를 추가하거나 이를 [`values.yaml`](https://github.com/newrelic/helm-charts/blob/master/charts/nri-bundle/values.yaml) 파일에 포함합니다.
+
+Helm 사용에 대한 자세한 내용은 [Kubernetes 통합 설치](/install/kubernetes/?dropdown1=helm) 페이지를 참조하거나 [nri-번들](https://github.com/newrelic/helm-charts/tree/master/charts/nri-bundle) 차트를 확인하세요.
+
+시위를 사용하여 Helm 명령 샘플을 참조하세요.
+
+```shell
+helm repo add newrelic https://helm-charts.newrelic.com
+
+helm upgrade --install newrelic-bundle newrelic/nri-bundle \
+    --set global.licenseKey=<NEW RELIC INGEST LICENSE KEY> \
+    --set global.cluster=<CLUSTER_NAME> \
+    --namespace=newrelic \
+    --set newrelic-infrastructure.privileged=true \
+    --set global.lowDataMode=true \
+    --set kube-state-metrics.enabled=true \
+    --set kubeEvents.enabled=true \
+    --set k8s-agents-operator.enabled=true \
+    --create-namespace
+```
+
+### 독립형 설치 [#standalone-installation]
+
+기본 설정으로 Kubernetes 에이전트 연산자를 설치하려면 다음 명령을 실행하세요.
+
+```shell
+helm repo add newrelic-k8s https://newrelic.github.io/k8s-agents-operator
+helm upgrade --install k8s-agents-operator newrelic-k8s/k8s-agents-operator \
+    --namespace newrelic \
+    --create-namespace \
+    --set licenseKey=<YOUR_NEW_RELIC_INGEST_LICENSE_KEY>
+```
+
+설정 옵션의 전체 목록을 보려면 [README](https://github.com/newrelic/k8s-agents-operator/tree/main/charts/k8s-agents-operator#values) 차트를 참조하세요.
+
+## 연산자를 활성화하도록 네임스페이스 구성 [#configuring-namespace]
+
+각 지우개 스페이스에는 그 내에서 디자인 구현, 배포를 자동으로 활성화하기 위한 2단계 프로세스가 필요합니다.
+
+1. 연산자가 리소스를 사용하도록 하려는 각 컨테이너 공간에 대해 유효한 [뉴렐릭 수집 볼륨 키가](/docs/apis/intro-apis/new-relic-api-keys/#license-key) 포함된 비밀을 생성하세요.
+
+   ```shell
+       kubectl create secret generic newrelic-key-secret \
+           --namespace <NAMESPACE_TO_MONITOR> \
+           --from-literal=new_relic_license_key=<YOUR_NEW_RELIC_INGEST_LICENSE_KEY>
+   ```
+
+   `<YOUR_NEW_RELIC_INGEST_LICENSE_KEY>` 유효한 뉴렐릭 클러스터 키로 바꾸세요.
+
+2. 자동으로 로그업하려는 각 쿼리스페이스에 다음 CRD를 적용하세요. 다음 명령을 실행하세요:
+
+   ```shell
+   kubectl apply -f <YOUR_YAML_FILE> -n <NAMESPACE_TO_MONITOR>
+   ```
+
+   적용할 YAML 파일:
+
+   ```yaml
+   apiVersion: newrelic.com/v1alpha1
+   kind: Instrumentation
+   metadata:
+       labels:
+           app.kubernetes.io/name: instrumentation
+           app.kubernetes.io/created-by: k8s-agents-operator
+       name: newrelic-instrumentation
+   spec:
+       java:
+           image: newrelic/newrelic-java-init:latest
+           # env:
+           # Example New Relic agent supported environment variables
+           # - name: NEW_RELIC_LABELS
+           #   value: "environment:auto-injection"
+           # Example overriding the appName configuration
+           # - name: NEW_RELIC_POD_NAME
+           #   valueFrom:
+           #     fieldRef:
+           #       fieldPath: metadata.name
+           # - name: NEW_RELIC_APP_NAME
+           #   value: "$(NEW_RELIC_LABELS)-$(NEW_RELIC_POD_NAME)"
+       nodejs:
+           image: newrelic/newrelic-node-init:latest
+       python:
+           image: newrelic/newrelic-python-init:latest
+       dotnet:
+           image: newrelic/newrelic-dotnet-init:latest
+       ruby:
+           image: newrelic/newrelic-ruby-init:latest
+   ```
+
+## 애플리케이션에서 자동 APM 계측 활성화 [#enable-apm-instrumentation]
+
+Kubernetes 에이전트 운영자는 모니터링할 기능을 파악하기 위해 필드를 예약할 때 언어별 주석을 찾습니다.
+
+현재 지원되는 주석을 확인하세요.
+
+```shell
+instrumentation.newrelic.com/inject-java: "true"
+instrumentation.newrelic.com/inject-nodejs: "true"
+instrumentation.newrelic.com/inject-python: "true"
+instrumentation.newrelic.com/inject-dotnet: "true"
+instrumentation.newrelic.com/inject-ruby: "true"
+```
+
+부하 에이전트에 대한 주석이 포함된 배포 예시를 참조하세요.
+
+```yaml
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+        name: spring-petclinic
+    spec:
+      selector:
+        matchLabels:
+          app: spring-petclinic
+      replicas: 1
+      template:
+        metadata:
+          labels:
+            app: spring-petclinic
+          annotations:
+            instrumentation.newrelic.com/inject-java: "true"
+        spec:
+          containers:
+            - name: spring-petclinic
+              image: ghcr.io/pavolloffay/spring-petclinic:latest
+              ports:
+                - containerPort: 8080
+              env:
+              - name: NEW_RELIC_APP_NAME
+                value: spring-petclinic-demo
+```
+
+## 애플리케이션에서 APM 계측 업그레이드 [#upgrade-apm-instrumention]
+
+기본적으로 Kubernetes 에이전트 운영자는 해당 [APM 에이전트](/docs/apm/new-relic-apm/getting-started/introduction-apm/) 의 사용 가능한 최신 버전을 자동으로 설치합니다.
+
+애플리케이션이 모니터링되면 사용자가 업그레이드를 선택하지 않는 한 자동으로 최신 버전으로 업그레이드되지 않습니다. 단순히 파드를 재배포하거나 배포를 다시 시작하여 기능을 최신 버전으로 원활하게 업그레이드할 수 있습니다.
+
+## 애플리케이션에서 APM 계측 제거 [#remove-apm-instrumentation]
+
+애플리케이션에서 APM 계측을 제거하려면 Kubernetes 에이전트 운영자가 사용하는 주석을 제거해야 합니다. 몇 초 안에 APM 에이전트가 자동으로 제거된 것을 확인할 수 있습니다.
+
+## Kubernetes 에이전트 연산자 업데이트 [#upgrading-k8s-operator]
+
+### 번들 설치
+
+다음과 같은 방법으로 nri-bundle 차트의 업그레이드를 실행하십시오:
+
+```shell
+ k8s-agents-operator.enabled=true
+```
+
+### 독립형 설치
+
+`helm upgrade` 명령어를 실행하여 최신 버전의 Kubernetes 에이전트 연산자로 업데이트하세요.
+
+```shell
+    helm upgrade k8s-agents-operator newrelic/k8s-agents-operator -n newrelic
+```
+
+## Kubernetes 에이전트 오퍼레이터 제거 [#uninstall-k8s-operator]
+
+### 번들 설치
+
+nri-번들 차트를 제거하거나 연산자만 제거하려는 경우 다음 매개변수를 사용하여 helm 업그레이드를 실행하십시오.
+
+```shell
+ k8s-agents-operator.enabled=false
+```
+
+### 독립형 설치
+
+Kubernetes 에이전트 연산자를 제거하고 삭제하려면 다음 명령을 실행하세요.
+
+```shell
+    helm uninstall k8s-agents-operator -n newrelic
+```
+
+## 데이터 찾기 및 사용 [#find-data]
+
+* [APM 요약](/docs/apm/agents/manage-apm-agents/agent-data/triage-run-diagnostics/) 페이지를 사용하여 인사이트를 얻고 인시던트를 해결하세요.
+* [Kubernetes 요약](/docs/apm/apm-ui-pages/monitoring/kubernetes-summary-page/) 페이지를 확인하세요. 이는 모니터의 맥락에서 Kubernetes 인사이트를 제공합니다.
+
+## 자주 묻는 질문 [#faq]
+
+<CollapserGroup>
+  <Collapser
+    id="route-apps-telemetry"
+    title="내 기능 프레임워크를 다른 계정으로 라우팅할 수 있나요?"
+  >
+    예, 적절한 네임스페이스의 비밀에 삽입된 [라이선스 키를](/docs/apis/intro-apis/new-relic-api-keys/#license-key) 변경하기만 하면 됩니다.
+
+    <Callout variant="important">
+      [K8s APM 경험은](/docs/apm/apm-ui-pages/monitoring/kubernetes-summary-page/) 애플리케이션과 K8s 클러스터의 데이터를 사용할 수 있는 계정에서만 사용할 수 있습니다.
+    </Callout>
+  </Collapser>
+
+  <Collapser
+    id="setup-operator"
+    title="특정 버전의 APM 에이전트를 주입하도록 운영자를 설정할 수 있습니까?"
+  >
+    미리 보기 중에는 각 [APM 에이전트](/docs/apm/new-relic-apm/getting-started/introduction-apm/) 의 최신 버전만 지원됩니다. GA 이후에는 사용자가 APM 에이전트 버전을 변경할 수 있도록 허용할 예정입니다.
+  </Collapser>
+
+  <Collapser
+    id="modify-conf-apm"
+    title="내 기능이 이미 포함된 경우 K8s 에이전트 오퍼레이터를 설치할 수 있나요?"
+  >
+    동일한 APM 에이전트 2개를 설치하면 예상치 못한 문제가 발생할 수 있습니다. 따라서 오퍼레이터를 설치하기 전에 기존 계측기를 모두 제거하는 것이 좋습니다.
+  </Collapser>
+</CollapserGroup>
+
+## 문제점 해결 [#troubleshooting]
+
+로그가 포함되지 않은 경우 다음을 확인해야 합니다.
+
+* 반드시 오퍼레이터를 설치한 후 재배포하거나 구현하거나, 새로 배치하시기 바랍니다. 클러스터에서는 연산자만 auto-계측된 새로운 기능을 구현하다, 배포하다는 점 참고하시기 바랍니다.
+
+* 비밀과 계측 CRD가 앱의 네임스페이스에 설치되어 있는지 확인하세요.
+
+  ```shell
+  kubectl get secrets -n <NAMESPACE>
+  kubectl get instrumentation -n <NAMESPACE>
+  ```
+
+* 파드에 자동 로그를 활성화하는 주석이 있는지 확인하세요.
+
+  ```shell
+      kubectl get pod <POD> -n <NAMESPACE>  -o jsonpath='{.metadata.annotations}'
+  ```
+
+* 에이전트 운영자 Padd로부터 로그를 받으세요.
+
+  ```shell
+      kubectl logs <AGENT_OPERATOR_POD> -n newrelic
+  ```
+
+* `init` 컨테이너가 삽입되어 있고 제작의 파드 내부에 성공적으로 실행되었는지 확인하세요.
+
+  ```shell
+      kubectl describe pod <POD> -n <NAMESPACE>
+  ```
+
+## 지원하다 [#support]
+
+Kubernetes 에이전트 운영자는 현재 Java, .NET, Node.js와 같은 APM 에이전트의 최신 버전을 지원합니다. 파이썬과 루비.
+
+운영자가 일반 공급 상태가 되면 각 APM 에이전트의 최신 3개 버전이 지원됩니다.
+
+Kubernetes 에이전트 연산자 관련 문제의 경우:
+
+* 비슷한 문제가 있는지 [GitHub의 문제 섹션을](https://github.com/newrelic/k8s-agents-operator/issues) 검토하거나 새 문제를 여는 것을 고려해 보세요.
+* [뉴렐릭 지원팀](https://support.newrelic.com/) 에 연락하여 도움을 받으실 수 있습니다.

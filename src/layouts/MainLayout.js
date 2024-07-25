@@ -205,9 +205,10 @@ const MainLayout = ({ children, pageContext }) => {
                     onChange={(e) => setSearchTerm(e.target.value)}
                     onSubmit={() => {
                       addPageAction({
-                        eventName: 'nonHomepageSidebarSearch',
+                        eventName: 'swiftypeSearchInput',
                         category: 'SearchInput',
                         searchTerm,
+                        searchLocation: 'sidebar',
                       });
                       navigate(`?q=${searchTerm || ''}`);
                     }}
