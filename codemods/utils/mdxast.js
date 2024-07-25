@@ -16,6 +16,9 @@ const isMdxElement = curry(
   (name, node) => isMdxBlockElement(name, node) || isMdxSpanElement(name, node)
 );
 
+const isEmptyParagraph = (el) =>
+  el.type === 'paragraph' && el.children.length === 0;
+
 const hasOnlyChild = curry(
   (name, node) => node.children.length === 1 && isType(name, node.children[0])
 );
@@ -122,6 +125,12 @@ const containsImport = (tree, node) => {
   });
 };
 
+const getNodeText = (node) =>
+  node.children
+    .filter((child) => child.type === 'text')
+    .map((child) => child.value)
+    .join();
+
 module.exports = {
   addAttribute,
   containsImport,
@@ -140,4 +149,6 @@ module.exports = {
   removeChild,
   isType,
   setAttribute,
+  getNodeText,
+  isEmptyParagraph,
 };
