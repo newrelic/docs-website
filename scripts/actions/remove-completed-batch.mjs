@@ -4,7 +4,7 @@ import {
   deleteJob,
   deleteTranslation,
 } from './translation_workflow/database.js';
-import { getAccessToken, vendorRequest } from './utils/vendor-request';
+import { getAccessToken, vendorRequest } from './utils/vendor-request.mjs';
 import fetch from 'node-fetch';
 import { configuration } from './configuration';
 
