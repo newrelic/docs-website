@@ -5,7 +5,6 @@ const wnImages = glob.sync('src/content/whats-new/**/*.*', {
   ignore: ['**/.gitkeep', '**/*.md'],
 });
 const wnImageDirs = glob.sync('src/content/whats-new/**/images', {});
-console.log(wnImageDirs);
 
 // get all images in whats new image dirs
 // then strip off the image file name to construct the new path
@@ -25,6 +24,8 @@ console.log(wnImageDirs);
 // });
 
 // delete image directories and all contents (.gitignore's)
+// src/content/whats-new/2024/05/images/whats-new-05-08-sessiontraces.md
+// src/content/whats-new/2024/07/images/whats-new-07-02-apmk8s.md
 // there are two whats new posts in image directories we will need to pull out and rerun this
 
 wnImageDirs.forEach((dir) => {
