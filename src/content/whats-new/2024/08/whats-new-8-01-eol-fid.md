@@ -61,6 +61,8 @@ Use the following [alerts-specific NerdGraph query](https://docs.newrelic.com/do
 Use the following [browser monitoring and Service Levels-specific NerdGraph](https://docs.newrelic.com/docs/apis/nerdgraph/get-started/introduction-new-relic-nerdgraph/) queries in your account to determine which SLIs are affected:
 
 1. Get the GUID of all the browser monitoring apps that have SLIs:
+
+```
 {
   actor {
     entitySearch(
@@ -74,9 +76,11 @@ Use the following [browser monitoring and Service Levels-specific NerdGraph](htt
     }
   }
 }
+```
 
 2. For each of these browser monitoring apps, get the list of SLIs and check if in the `WHERE` clause of the query there is a reference to `firstInputDelay`:
 
+```
 {
   actor {
     entity(guid: "<browser_guid>") {
@@ -92,3 +96,4 @@ Use the following [browser monitoring and Service Levels-specific NerdGraph](htt
     }
   }
 }
+```
