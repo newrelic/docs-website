@@ -45,24 +45,35 @@ const convertImages = () => (tree) => {
   visit(
     tree,
     (node) =>
-      node.attributes?.some((attr) => attr.value.type === 'mdxValueExpression'),
+      node.attributes?.some(
+        // some components have images embeded in their attributes
+        // ex: techtile icons, collapser titles
+        (attr) => attr?.value?.type === 'mdxValueExpression'
+      ),
     (node) => {
       const newAttributes = node.attributes.map((attr) => {
         if (
           attr.value.type === 'mdxValueExpression' &&
           attr.value.value.includes('src={')
         ) {
-          const attribute = attr.value.value;
-          const oldSrc = Array.from(attribute.matchAll(/src=\{(.*?)\}/g))[0][1];
-          attr.value.value = attribute.replace(
-            /src=\{.*?\}/,
-            `src="${allImports[oldSrc]}"`
-          );
-          console.log(
-            `🧱${node.name.toUpperCase()}: replacing ${oldSrc} with ${
-              allImports[oldSrc]
-            }`
-          );
+          let attribute = attr.value.value;
+          // some collapsers have multiple images in a single title
+          // ex: src/i18n/content/pt/docs/infrastructure/host-integrations/installation/install-infrastructure-host-integrations.mdx
+          const oldSrcs = Array.from(attribute.matchAll(/src=\{(.*?)\}/g));
+          oldSrcs.forEach((src) => {
+            const oldSrc = src[1];
+            attribute = attribute.replace(
+              /src=\{.*?\}/,
+              `src="${allImports[oldSrc]}"`
+            );
+            console.log(
+              `🧱${node.name.toUpperCase()}: replacing ${oldSrc} with ${
+                allImports[oldSrc]
+              }`
+            );
+            return src;
+          });
+          attr.value.value = attribute;
 
           return attr;
         }
@@ -118,10 +129,7 @@ const runConvertImages = async (paths = []) => {
   }
 
   if (paths.length === 0) {
-    filePaths = glob.sync(
-      'src/i18n/content/pt/docs/synthetics/synthetic-monitoring/private-locations/containerized-private-minion-cpm-maintenance-monitoring.mdx'
-    );
-    // filePaths = glob.sync('src/i18n/content/pt/**/*.mdx');
+    filePaths = glob.sync('src/content/docs/**/*.mdx');
   }
 
   const allResults = await Promise.all(
