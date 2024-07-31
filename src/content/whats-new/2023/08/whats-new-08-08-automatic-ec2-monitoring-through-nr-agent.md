@@ -12,10 +12,10 @@ To get started, deploy the [CloudFormation template](https://github.com/aws-quic
 
 **_New Relic infrastructure agent installation logs_**
 
-![NewRelic infrastructure agent installation logs])/images/nr_agent_installation_logs.webp "EC2 Metrics")
+![NewRelic infrastructure agent installation logs](/images/nr_agent_installation_logs.webp 'EC2 Metrics')
 
 The EC2 CloudFormation template has undergone testing to ensure successful deployment. It not only installs the infrastructure agent but also sends the installation status of the agent as log data.
 
 **_EC2 metrics dashboard in NewRelic_**
 
-![EC2 Metrics Dashboard])/images/ec2_metrics_from_agent.webp "EC2 Metrics")
+![EC2 Metrics Dashboard](/images/ec2_metrics_from_agent.webp 'EC2 Metrics')

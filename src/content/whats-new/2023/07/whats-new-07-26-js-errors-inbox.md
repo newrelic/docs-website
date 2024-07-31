@@ -16,7 +16,7 @@ We’ve given the browser experience a whole new look and feel that connects you
 
 - **Seamless transition from analysis to triage to act on errors with confidence and speed**. Each individual error occurrence is now connected to the static error group it belongs for faster triaging.
 
-![JS Errors])/images/errorsinbox_browser.webp "JS Errors")
+![JS Errors](/images/errorsinbox_browser.webp 'JS Errors')
 
 <figcaption>JS Errors.</figcaption>
 

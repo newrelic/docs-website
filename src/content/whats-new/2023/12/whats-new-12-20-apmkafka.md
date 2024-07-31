@@ -16,4 +16,4 @@ With Kafka monitoring in New Relic APM 360 you can get:
 - **Uncover hidden broker issues:** Analyze client-side metrics like producer/consumer throttle time and retry rate growth to detect potential broker-side issues and resource limitations
 - **Boost data flow with client-side optimization:** Identify uncompressed data streams through metrics such as average producer compression ratio and implement efficient compression strategies to shrink data size and improve throughput
 
-![Kafka UI])/images/apm_kafka.webp "A screenshot that shows the new APM Kafka UI")
+![Kafka UI](/images/apm_kafka.webp 'A screenshot that shows the new APM Kafka UI')

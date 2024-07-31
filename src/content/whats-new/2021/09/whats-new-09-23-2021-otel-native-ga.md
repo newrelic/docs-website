@@ -14,4 +14,4 @@ Today, New Relic is excited to announce the general availability of our native s
 
 Combine this with AWS Distro for OpenTelemetry to provide a powerful observability solution for your AWS workloads and infrastructure.
 
-!["A screenshot showing OpenTelemetry data in the New Relic UI"])/images/otel.webp "OpenTelemetry data in the New Relic UI")
+!["A screenshot showing OpenTelemetry data in the New Relic UI"](/images/otel.webp 'OpenTelemetry data in the New Relic UI')

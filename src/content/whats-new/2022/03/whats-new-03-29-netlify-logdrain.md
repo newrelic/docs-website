@@ -22,4 +22,4 @@ Open the [Instant Observability (I/O) quickstart](https://newrelic.com/instant-o
 
 Alternatively, you can follow along manually using the [documentation](https://docs.netlify.com/monitor-sites/log-drains/).
 
-![Netlify Dashboard])/images/netlify-logs_dashboard_2022-03-30.webp "Netlify Dashboard")
+![Netlify Dashboard](/images/netlify-logs_dashboard_2022-03-30.webp 'Netlify Dashboard')

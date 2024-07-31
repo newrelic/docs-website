@@ -10,6 +10,6 @@ You can now view logs related to span-based transaction traces directly in the t
 
 To get started, open the transaction trace details view for any span-based transaction trace and click the new **Logs** tab. A logs view will open where you can explore your logs related to the transaction trace. In addition, we’ve improved our logs in context views to show a timeseries of your logs by log level in a stacked bar chart.
 
-![A screenshot showing logs in the context of a transaction trace.])/images/WhatsNewAPMLogsInContextTransactionTrace.webp "A screenshot showing logs in the context of a transaction trace.")
+![A screenshot showing logs in the context of a transaction trace.](/images/WhatsNewAPMLogsInContextTransactionTrace.webp 'A screenshot showing logs in the context of a transaction trace.')
 
 <figcaption>A screenshot showing logs in the context of a transaction trace.</figcaption>

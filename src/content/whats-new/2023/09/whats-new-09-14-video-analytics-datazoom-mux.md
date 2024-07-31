@@ -6,7 +6,7 @@ learnMoreLink: 'https://newrelic.com/blog/how-to-relic/mux-integration-video-exp
 getStartedLink: 'https://newrelic.com/instant-observability/datazoom'
 ---
 
-![New Relic, Mux, and Datazoom])/images/newrelic_mux_datazoom_logos.webp "New Relic, Mux, and Datazoom")
+![New Relic, Mux, and Datazoom](/images/newrelic_mux_datazoom_logos.webp 'New Relic, Mux, and Datazoom')
 
 Our connected infrastructure and APM experience allows you to correlate your app performance with video streaming performance. We’re announcing quickstarts dashboards from our partners [Datazoom](http://www.datazoom.io) and [Mux](https://www.mux.com/data) that enable you to centralize your streaming performance data in the New Relic platform.
 
@@ -22,7 +22,7 @@ We’ve partnered with Datazoom Relic to create a dashboard that visualizes data
 
 - Check out the [setup guide](https://help.datazoom.io/hc/en-us/articles/360022667532-New-Relic-One).
 
-![Datazoom quickstart dashboard])/images/datazoom_quickstart.webp "Datazoom quickstart dashboard")
+![Datazoom quickstart dashboard](/images/datazoom_quickstart.webp 'Datazoom quickstart dashboard')
 
 ## Mux Integration
 

@@ -7,7 +7,7 @@ getStartedLink: 'https://newrelic.com/instant-observability/'
 ---
 
 In case you missed it, [New Relic I/O](https://docs.newrelic.com/whats-new/2021/10/instant-observability-10-13-21) helps you instrument, monitor, and analyze your stack in minutes. The secret ingredient: [450+ free expert-built quickstarts](https://developer.newrelic.com/instant-observability/) that bundle the integrations, guides, dashboards, and alerts for the technologies you rely on.
-![Partners contributing quickstarts to Instant Observability])/images/new_io_partners2.webp "Partners contributing quickstarts to Instant Observability")
+![Partners contributing quickstarts to Instant Observability](/images/new_io_partners2.webp 'Partners contributing quickstarts to Instant Observability')
 
 ## New integrations for instant observability
 
@@ -31,7 +31,7 @@ The latest cohort of partners contributing to making observability a daily habit
 
 - [Atlassian Jira for Errors Inbox](https://newrelic.com/instant-observability/jira-errors-inbox/06734d77-b06a-4410-aafa-eed1944c0ac4/) | [tutorial](https://www.youtube.com/watch?v=AidzzD4SHko)
 
-![Dashboard with CircleCI job metrics metrics])/images/CircleCI_quickstart_dashboard.webp "Dashboard with CircleCI job metrics metrics")
+![Dashboard with CircleCI job metrics metrics](/images/CircleCI_quickstart_dashboard.webp 'Dashboard with CircleCI job metrics metrics')
 
 ## Visualize and monitor all your data in one platform
 

@@ -6,7 +6,7 @@ releaseDate: '2022-05-13'
 
 [New Relic Instant Observability](https://newrelic.com/blog/nerdlog/instant-observability-quickstarts) helps you instrument, monitor, and analyze your stack in minutes with hundreds of pre-built quickstarts. If your tech stack includes Kubernetes or Prometheus you can benefit from an easy instrumentation experience, curated dashboards, and pre-configured alerts for Istio, ArgoCD, CoreDNS, NGINX, Redis, and the Prometheus Node Exporter.
 
-![New dashboards available])/images/quickstarts-k8s-prometheus.webp "New dashboards available")
+![New dashboards available](/images/quickstarts-k8s-prometheus.webp 'New dashboards available')
 
 The latest quickstarts to help you get started with Kubernetes and Prometheus observability include:
 

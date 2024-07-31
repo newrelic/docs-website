@@ -18,7 +18,7 @@ The new tabbed query builder streamlines your querying experience so you can get
 - **Tab management made easy**. Organize your insights by naming your tabs.
 - **Faster loading**. Switching between queries is snappier than ever thanks to improved caching.
 
-!["Organize query tabs in New Relic."])/images/query-tabs.webp "Organize query tabs in New Relic.")
+!["Organize query tabs in New Relic."](/images/query-tabs.webp 'Organize query tabs in New Relic.')
 
 <figcaption>
   Click on the ⌄ icon beside your tab name to quickly organize your tabs.  

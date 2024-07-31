@@ -18,7 +18,7 @@ We are expanding our public preview for our AI-powered ingest to allow you to pa
 - **Suggesting parsing rules**: When you create a parsing rule in the UI, ask NRAI to create the parsing rule for you.
 - **Explaining parsing rules**: If you don't understand the parsing rule our AI suggests, you can ask AI to explain the rule and suggest an even more efficient one if available.
 
-![A screenshot showing NRAI enabled.])/images/new_relic_ai_logs_parsing.webp "A screenshot showing NRAI enabled.")
+![A screenshot showing NRAI enabled.](/images/new_relic_ai_logs_parsing.webp 'A screenshot showing NRAI enabled.')
 
 <figcaption>Ask AI to help you generate Grok patterns for ingest parsing.</figcaption>
 
@@ -39,6 +39,6 @@ To get started:
 2. [Review our docs page](https://docs.newrelic.com/docs/logs/ui-data/query-time-parsing/)
 3. [Watch a step-by-step video](https://www.youtube.com/watch?v=tvK6MlkvD6Y)
 
-![A screenshot showing how to extract a value from a string.])/images/logs_screenshot-full_logs-detail-entry-point.webp "A screenshot showing how to extract a value from a string.")
+![A screenshot showing how to extract a value from a string.](/images/logs_screenshot-full_logs-detail-entry-point.webp 'A screenshot showing how to extract a value from a string.')
 
 <figcaption>Use query time parsing to extract the value from a string for easy querying.</figcaption>

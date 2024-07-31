@@ -14,7 +14,7 @@ Windows Services are core components of the Microsoft Windows operating system a
 
 This integration allows you to track key metrics and gain critical insights into how your services in Windows are performing.
 
-![Windows Services dashboard showing service count and status state])/images/Windows-Services-Dashboard-New-Relic-One.webp "Windows Services dashboard showing service count and status state")
+![Windows Services dashboard showing service count and status state](/images/Windows-Services-Dashboard-New-Relic-One.webp 'Windows Services dashboard showing service count and status state')
 Windows Services dashboard showing service count and status state
 
 ## Key benefits

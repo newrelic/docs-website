@@ -10,7 +10,7 @@ The NRQL query builder provides a rich set of functionalities — including auto
 
 Go directly from your logs to the query builder with a single click:
 
-![Dive into nrql])/images//dive-into-nrql-from-logs.webp "A screenshot that shows link to query builder from logs")
+![Dive into nrql](/images//dive-into-nrql-from-logs.webp 'A screenshot that shows link to query builder from logs')
 
 - Save time by starting a search with one of your most recent queries.
 - Make complex searches readable with multi-line queries.

@@ -18,7 +18,7 @@ We’re releasing a number of capabilities that simplify alert management, makin
 - New issues notifications log with critical workflow details
 - Alert condition creation and management with Terraform
 
-![The new alert condition creation form in New Relic])/images/alert_condition_form_screenshot.webp "A screenshot of the New Relic alert condition creation form.")
+![The new alert condition creation form in New Relic](/images/alert_condition_form_screenshot.webp 'A screenshot of the New Relic alert condition creation form.')
 
 # Deep dive into each capability:
 

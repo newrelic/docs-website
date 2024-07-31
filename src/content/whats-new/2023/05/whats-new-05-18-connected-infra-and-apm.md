@@ -15,7 +15,7 @@ The connected infrastructure and APM solution allows you to correlate your perfo
 - **In-context application health**: Dynamic charts provide host- and APM-specific metrics to correlate drops in performance across infrastructure and the applications running on them.
 - **Embedded change tracking**: Analyze how application deployments impact host performance.
 
-![Infra UI])/images/infra-ui.webp "The infra opt-in UI experience")
+![Infra UI](/images/infra-ui.webp 'The infra opt-in UI experience')
 
 ## Get started
 

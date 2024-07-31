@@ -20,4 +20,4 @@ With this update, you can:
 - If you currently are using monotonic cumulative sum metrics in your queries or alerts, see the [Transition guide](https://docs.newrelic.com/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/get-started/cumulative-metrics-transition-guide).
 - Get started with [OpenTelemetry](https://docs.newrelic.com/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/opentelemetry-introduction) or [Prometheus](https://docs.newrelic.com/docs/infrastructure/prometheus-integrations/get-started/send-prometheus-metric-data-new-relic) with New Relic.
 
-!["View how to query cumulative metrics"])/images/cumulative-metrics-query.webp "Image showing how to query cumulative metrics")
+!["View how to query cumulative metrics"](/images/cumulative-metrics-query.webp 'Image showing how to query cumulative metrics')

@@ -29,4 +29,4 @@ The new flexibility and simplified visualization gives you more autonomy and hel
 4. In the upper right corner, select the **Lookout** view to access the interface.
 5. From here, explore the new visualization and filtration options, making it easier to detect anomalous behavior across your entire stack.
 
-![Screenshot of New Relic Lookout’s new square visualization.])/images/lookoutsquarevisualization.webp "A screenshot showing the New Relic Lookout square visualization.")
+![Screenshot of New Relic Lookout’s new square visualization.](/images/lookoutsquarevisualization.webp 'A screenshot showing the New Relic Lookout square visualization.')

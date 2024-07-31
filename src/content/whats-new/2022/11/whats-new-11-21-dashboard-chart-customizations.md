@@ -30,7 +30,7 @@ See some use cases and how to make the most of the Markdown widget:
 
 ## Try it yourself with the template dashboard
 
-![Screenshot showing sample dashboard in New Relic])/images/samplecustomdashboard.webp "Screenshot showing sample dashboard in New Relic")
+![Screenshot showing sample dashboard in New Relic](/images/samplecustomdashboard.webp 'Screenshot showing sample dashboard in New Relic')
 
 <figcaption>Import the sample dashboard to test out the new customization options.</figcaption>
 

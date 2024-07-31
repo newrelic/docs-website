@@ -17,6 +17,6 @@ This preview offers an early taste of what New Relic AI will be able to do once 
 
 Eligible\* customers can get early access to New Relic AI today upon acceptance of the New Relic [pre-release policy](https://docs.newrelic.com/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy/) and [service specific terms](https://newrelic.com/termsandconditions/service-specific).
 
-![Screenshot of All Entities with arrow pointing to Ask AI button])/images/all_entities_ask_ai.webp "Screenshot of All Entities with arrow pointing to Ask AI button")
+![Screenshot of All Entities with arrow pointing to Ask AI button](/images/all_entities_ask_ai.webp 'Screenshot of All Entities with arrow pointing to Ask AI button')
 
 \*_FedRAMP-enabled and HIPAA-enabled customers aren't eligible to participate in the preview of New Relic AI at this time._

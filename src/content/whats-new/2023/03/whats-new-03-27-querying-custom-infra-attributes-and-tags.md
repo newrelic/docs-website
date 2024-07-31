@@ -17,12 +17,12 @@ Whether you use your infrastructure tags to designate responsible teams, reflect
 
 By adding the following code snippet containing custom attributes to your newrelic-infra.yml file...
 
-![Adding custom attributes to the YML file.])/images/adding-custom-attributes.webp "Adding custom attributes to the YML file.")
+![Adding custom attributes to the YML file.](/images/adding-custom-attributes.webp 'Adding custom attributes to the YML file.')
 Adding custom attributes to the YML file.
 
 ...you’ll be able to query them using their names.
 
-![Querying for custom attributes using SystemSample.])/images/query-for-attributes.webp "Querying for custom attributes using SystemSample.")
+![Querying for custom attributes using SystemSample.](/images/query-for-attributes.webp 'Querying for custom attributes using SystemSample.')
 Querying for custom attributes using SystemSample.
 
 ## Create tags in the UI
@@ -30,12 +30,12 @@ Querying for custom attributes using SystemSample.
 Here's an example of how to create and query tags in the UI:
 
 1. Add a `businessRegion: emea` tag to the docker-desktop host.
-   ![Adding a “businessRegion: emea” tag to the docker-desktop host.])/images/adding-business-region-ui-tag.webp "Adding a “businessRegion: emea” tag to the docker-desktop host.")
+   ![Adding a “businessRegion: emea” tag to the docker-desktop host.](/images/adding-business-region-ui-tag.webp 'Adding a “businessRegion: emea” tag to the docker-desktop host.')
 2. Add a `businessDepartment: finance` tag to the docker-desktop host.
-   ![Adding a “businessDepartment: finance” tag to the docker-desktop host.])/images/adding-business-department-ui-tag.webp "Adding a “businessDepartment: finance” tag to the docker-desktop host.")
+   ![Adding a “businessDepartment: finance” tag to the docker-desktop host.](/images/adding-business-department-ui-tag.webp 'Adding a “businessDepartment: finance” tag to the docker-desktop host.')
 3. Query them with a `tags.` prefix:
-   ![And then query them with a tags. prefix.])/images/query-for-ui-tags.webp "And then query them with a tags. prefix.")
+   ![And then query them with a tags. prefix.](/images/query-for-ui-tags.webp 'And then query them with a tags. prefix.')
 4. Query these newly created custom attributes and UI tags all together like this:
-   ![Querying these newly created custom attributes and UI tags all together.])/images/querying-attributes-and-tags-as-table.webp "Querying these newly created custom attributes and UI tags all together.")
+   ![Querying these newly created custom attributes and UI tags all together.](/images/querying-attributes-and-tags-as-table.webp 'Querying these newly created custom attributes and UI tags all together.')
 
 To get started, use the documentation link [here](https://docs.newrelic.com/docs/new-relic-solutions/new-relic-one/core-concepts/use-tags-help-organize-find-your-data/#query-infra-tags).

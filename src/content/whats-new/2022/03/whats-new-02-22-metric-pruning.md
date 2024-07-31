@@ -14,4 +14,4 @@ Metric aggregate pruning is ideal for high cardinality attributes sometimes incl
 
 To learn more, check out our [Docs](https://docs.newrelic.com/docs/data-apis/manage-data/drop-data-using-nerdgraph/#drop-attributes-on-dimensional-metric-rollups).
 
-![Screenshot showing GraphQL mutation for drop rules])/images/metric-pruning.webp "Screenshot showing GraphQL mutation for drop rules")
+![Screenshot showing GraphQL mutation for drop rules](/images/metric-pruning.webp 'Screenshot showing GraphQL mutation for drop rules')

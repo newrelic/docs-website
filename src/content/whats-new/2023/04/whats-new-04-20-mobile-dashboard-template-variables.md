@@ -14,7 +14,7 @@ With template variables on mobile, you can:
 - **Share important insights with ease** by generating links from your mobile device that carry over your custom filters.
 - **Focus on what matters most** by quickly filtering and visualizing the most relevant and impactful data.
 
-!["Image showing how to navigate dashboard template variables on mobile"])/images/dashboard-variables.webp "Image showing how to navigate dashboard template variables on mobile")
+!["Image showing how to navigate dashboard template variables on mobile"](/images/dashboard-variables.webp 'Image showing how to navigate dashboard template variables on mobile')
 
 **Next steps**
 

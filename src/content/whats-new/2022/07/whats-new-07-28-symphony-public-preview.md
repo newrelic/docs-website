@@ -9,7 +9,7 @@ Every engineer needs intuitive and fast access to telemetry data to make informe
 
 Starting today, you can test the new UI in a public preview. To try out the new features, go to your user menu in the top right corner, and toggle **New design** to **On**.
 
-!["Gif showing how to toggle new design"])/images/toggle-design.gif "Gif showing how to toggle new design")
+!["Gif showing how to toggle new design"](/images/toggle-design.gif 'Gif showing how to toggle new design')
 
 The enhanced user interface includes:
 

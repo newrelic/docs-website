@@ -6,7 +6,7 @@ releaseDate: '2023-12-01'
 
 Monitor your AWS EKS Clusters with [New Relic EKS integration](https://aws.amazon.com/marketplace/pp/prodview-gcywa6keq2ajy), available on AWS EKS Marketplace. New Relic offers end-to-end visualization on cluster metrics and events, and our new add-on eliminates the time consuming process of installing the helm charts manually.
 
-![A screenshot showing K8s operator in AWS Marketplace])/images/aws-newrelic-eks-addon.webp)
+![A screenshot showing K8s operator in AWS Marketplace](/images/aws-newrelic-eks-addon.webp)
 
 Installation of the New Relic EKS integration offers the following advantages:
 

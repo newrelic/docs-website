@@ -13,4 +13,4 @@ New Relic APM 360 already lets you unlock daily insights through a unified view 
 
 This feature is currently available only for AWS RDS clusters, with support for other databases in the coming months.
 
-![AWS RDS cluster health ])/images/aws_databases.webp "A screenshot that AWS RDS health status")
+![AWS RDS cluster health ](/images/aws_databases.webp 'A screenshot that AWS RDS health status')

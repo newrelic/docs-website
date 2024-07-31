@@ -10,6 +10,6 @@ Using New Relic, along with other health and performance telemetry, you will now
 
 Note: At this point of time, you can get Lambda Response streaming telemetry only through our [AWS integrations](https://docs.newrelic.com/docs/infrastructure/amazon-integrations/get-started/introduction-aws-integrations/).
 
-![AWS Lambda Streaming metrics displayed in New Relic])/images/LambdaStreaming.webp "AWS Lambda Streaming metrics displayed in New Relic")
+![AWS Lambda Streaming metrics displayed in New Relic](/images/LambdaStreaming.webp 'AWS Lambda Streaming metrics displayed in New Relic')
 
 <figcaption>AWS Lambda Streaming metrics displayed in New Relic</figcaption>

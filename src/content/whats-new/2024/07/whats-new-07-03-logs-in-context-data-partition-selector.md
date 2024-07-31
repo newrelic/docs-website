@@ -14,12 +14,12 @@ Make your workflow easier by filtering your logs by partition without having to 
 You can access this feature from:
 
 - APM
-  ![Data partition selection menu in APM log summary.])/images/APM_screenshot-full_logs-in-context-data-partition-selection-menu.webp "Data partition selection menu in APM log summary.")
+  ![Data partition selection menu in APM log summary.](/images/APM_screenshot-full_logs-in-context-data-partition-selection-menu.webp 'Data partition selection menu in APM log summary.')
 - Hosts
-  ![Data partition selection menu in hosts logs in context.])/images/hosts_screenshot-full_logs-in-context-data-partition-selection-menu.webp "Data partition selection menu in hosts logs in context.")
+  ![Data partition selection menu in hosts logs in context.](/images/hosts_screenshot-full_logs-in-context-data-partition-selection-menu.webp 'Data partition selection menu in hosts logs in context.')
 - Traces
-  ![Data partition selection menu in traces logs in context.])/images/traces_screenshot-full_logs-in-context-data-partition-selection-menu.webp "Data partition selection menu in traces logs in context.")
+  ![Data partition selection menu in traces logs in context.](/images/traces_screenshot-full_logs-in-context-data-partition-selection-menu.webp 'Data partition selection menu in traces logs in context.')
 - Transactions
-  ![Data partition selection menu in transactions logs in context.])/images/transactions_screenshot-full_logs-in-context-data-partition-selection-menu.webp "Data partition selection menu in transactions logs in context.")
+  ![Data partition selection menu in transactions logs in context.](/images/transactions_screenshot-full_logs-in-context-data-partition-selection-menu.webp 'Data partition selection menu in transactions logs in context.')
 
 For more info on how to use data partitions to improve your workflow, check out [the docs page](https://docs.newrelic.com/docs/logs/ui-data/data-partitions/).

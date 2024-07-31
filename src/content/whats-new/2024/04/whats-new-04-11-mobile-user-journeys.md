@@ -10,7 +10,7 @@ Limited visibility into user interactions before a crash can severely restrict y
 
 To overcome these challenges, we are thrilled to announce New Relic Mobile User Journeys, an integral part of our Digital Experience Monitoring (DEM) solutions. This update goes beyond reactive measures by providing a comprehensive view of every user interaction leading up to a crash, thereby enabling teams to anticipate and prevent potential disruptions before they affect the user experience.
 
-![Overview of Mobile User Journeys])/images/mobile-user-journeys.gif "Overview of Mobile User Journeys")
+![Overview of Mobile User Journeys](/images/mobile-user-journeys.gif 'Overview of Mobile User Journeys')
 
 ## Overview
 
