@@ -7,7 +7,7 @@ learnMoreLink: 'https://forum.newrelic.com/s/hubtopic/aAXPh0000002q8z/upcoming-e
 
 ## What you need to do
 
-On September 9, 2024, [Google is deprecating the FID metric](https://developers.google.com/search/blog/2023/05/introducing-inp), in favor of Interaction to Next Paint (“INP”).  Since New Relic uses certain libraries and APIs that leverage the FID metric, you will need to take the actions below before September 9, 2024 to avoid inaccurate or unexpected behavior with dashboards, alerts, and service level reporting. 
+On September 9, 2024, [Google is deprecating the FID metric](https://developers.google.com/search/blog/2023/05/introducing-inp), in favor of Interaction to Next Paint (“INP”). Since New Relic uses certain libraries and APIs that leverage the FID metric, you will need to take the actions below before September 9, 2024 to avoid inaccurate or unexpected behavior with dashboards, alerts, and service level reporting. 
 
 ## Action needed
 
