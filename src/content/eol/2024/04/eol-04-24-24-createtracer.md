@@ -1,15 +1,15 @@
 ---
-title: "EOL for the browser monitoring `createTracer()` API call"
+title: "End of life for the browser monitoring `createTracer()` API call"
 summary: "We're end-of-lifing this API call, because it's blocking our ability to update and improve the browser SPA agent."
 publishDate: '2024-04-24'
 eolEffectiveDate: '2024-10-15'
 ---
 
-On October 15, 2024, New Relic will for the browser monitoring `createTracer()` API call.   
+On October 15, 2024, New Relic will end of life the browser monitoring `createTracer()` API call.   
 
-New Relic is updating the browser SPA agent to be more performant, with improved accuracy and fewer lines of code. These updates simplify the agent, letting customers diagnose issues with their browser apps more easily. Before New Relic can update the browser SPA agent, we need to first end-of-life the createTracer() API.
+New Relic is updating the browser SPA agent to be more performant, with improved accuracy and fewer lines of code. These updates simplify the agent, letting customers diagnose issues with their browser apps more easily. Before New Relic can update the browser SPA agent, we need to remove the `createTracer()` API.
 
-Accounts using the `createTracer()` API at the time of EOL will lose performance metrics about their SPAs.
+Accounts using the `createTracer()` API at the time of end of life will lose performance metrics about their SPAs.
 
 ## What you need to do
 
