@@ -12,7 +12,7 @@ On December 1, 2024, New Relic will end support for the Azure SQL database integ
 
 If you’re using the Polling API to report data to the Azure SQL Database integration, we recommend that you migrate to the Azure Monitor integration. 
 
-You can access the Azure monitoring integration by going to <DNT>**one.newrelic.com > Infrastructure > Azure**</DNT>. Once you’ve enabled the Azure monitoring integration, go to <DNT>**Limit resource types**</DNT> and set it to <DNT>**microsoft.Sql/servers/databases**</DNT>.
+You can access the Azure monitoring integration by going to **one.newrelic.com > Infrastructure > Azure**. Once you’ve enabled the Azure monitoring integration, go to **Limit resource types** and set it to **microsoft.Sql/servers/databases**.
 
 If there are alerts/dashboards that use metrics from the Azure SQL database monitoring polling API, replace them with metrics from the Azure monitoring integration for them to continue working.
 
