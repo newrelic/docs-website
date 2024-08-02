@@ -31,7 +31,7 @@ exports.onCreateWebpackConfig = ({ actions }) => {
         zlib: false,
       },
       alias: {
-        images: path.resolve(__dirname, 'src/images/'),
+        images: path.resolve(__dirname, 'static/images/'),
       },
     },
   });

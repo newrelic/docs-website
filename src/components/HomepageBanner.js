@@ -8,7 +8,7 @@ import {
   useTranslation,
   addPageAction,
 } from '@newrelic/gatsby-theme-newrelic';
-import bannerBackground from '../images/bannerBackground.svg';
+import bannerBackground from 'images/bannerBackground.svg';
 
 const HomepageBanner = () => {
   const bannerHeight = '250px';
