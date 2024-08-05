@@ -50,7 +50,7 @@ Additionally, we've recently added the ability to have content be machine transl
   - [Locales](#locales)
   - [Statuses](#statuses)
   - [Serialization / Deserialization](#serialization--deserialization)
-- [Gatsby Cloud](#gatsby-cloud)
+- [Netlify sites](#netlify-sites)
 - [Context](#context)
 <!-- toc -->
 
@@ -285,9 +285,9 @@ When getting this content back from TV, we get back the same format that we sent
 
 This can be tested via the `yarn serialize` && `yarn deserialize` scripts. These scripts are used by passing a file path to them and will output the result of the function to the terminal. ex: `yarn serialize path/to/file.mdx`.
 
-# Gatsby Cloud
+# Netlify sites
 
-Although not listed on the diagrams above, Gatsby Cloud is where we host and deploy our site. Every time we merge into the main branch, Gatsby Cloud is triggered to build the latest updates from GitHub. It fetches the code from the main branch and builds the site. Once the site has passed the checks, it deploys the built site to [docs.newrelic.com](https://docs.newrelic.com). If the site fails to build, then the new version is not deployed and the engineers are notified.
+Although not listed on the diagrams above, Netlify is where we host and deploy [docs.newrelic.com](https://docs.newrelic.com). We build each language on it's own Netlify site. Every time we merge into the main branch, Netlify is triggered to build the latest `EN` updates from GitHub by default. `trigger-i18n-merge` is a Github action that runs on each release PR to see if any files were modified in the `src/i18n/` directories. For each language with modifications, a build is also triggered in that Netlify site. It fetches the code from the main branch and builds that site with its translated content. If any of these sites fail to build, then the new version is not deployed and the engineers are notified via the Netlify Slack app integration.
 
 # Context
 
