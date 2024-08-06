@@ -88,7 +88,7 @@ What's new workflow from new `.mdx` page to rendering in Product UI:
 
 1. New post is merged into `develop`
 2. Release PR #1 is opened to `main`
-3. `update-whats-new-ids.yml` runs > adds post path & id to json > commits changes to ``develop`
+3. `update-whats-new-ids.yml` runs > adds post path & id to json > commits changes to `develop`
 4. Release PR #2 is released and `/api/nr1/content/nr1-announcements.json` endpoint is updated
 5. Product service picks up changes and is able to display new post in UI
 
