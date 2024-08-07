@@ -32,7 +32,7 @@ const Eol = ({ data, location }) => {
 
   const tableHeaders = [
     { label: 'Published', contentId: 'publishDate', sort: true },
-    { label: 'EOL Effective', contentId: 'eolDate', sort: true },
+    { label: 'EOL effective', contentId: 'eolDate', sort: true },
     { label: '', contentId: 'details' },
   ];
 
@@ -103,7 +103,7 @@ const Eol = ({ data, location }) => {
     <ErrorBoundary eventName="eolOverview">
       <SEO
         location={location}
-        title="EOL Announcements"
+        title="End-of-life announcements"
         type={TYPES.EOL_PAGE}
         disableSwiftype
       />
