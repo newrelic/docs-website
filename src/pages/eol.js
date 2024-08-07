@@ -14,6 +14,10 @@ import SEO from '../components/SEO';
 import ErrorBoundary from '../components/ErrorBoundary';
 import { TYPES } from '../utils/constants';
 
+// @tw: add any body content here.
+// it will go under the main heading and above the EOL timeline.
+const body = <p>howdy 🤠</p>;
+
 const Eol = ({ data, location }) => {
   const SORT_BY_FIELDS = {
     PUBLISH_DATE: 'publishDate',
@@ -130,6 +134,7 @@ const Eol = ({ data, location }) => {
           </Link>
         </PageTitle>
         <Layout.Content>
+          {body}
           <EolTable
             headers={tableHeaders}
             body={postsByDate[sortField]}

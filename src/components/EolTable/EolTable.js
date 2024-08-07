@@ -10,6 +10,7 @@ const EolTable = ({ headers, body, setSortField, sortField }) => {
     <>
       <table
         css={css`
+          padding-right: 4rem;
           width: 100%;
         `}
       >
