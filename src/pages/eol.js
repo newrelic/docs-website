@@ -9,6 +9,7 @@ import {
   useTranslation,
 } from '@newrelic/gatsby-theme-newrelic';
 import EolTable from '../components/EolTable';
+import { DIRECTION } from '../components/EolTable/TableHeader';
 import PageTitle from '../components/PageTitle';
 import SEO from '../components/SEO';
 import ErrorBoundary from '../components/ErrorBoundary';
@@ -18,11 +19,13 @@ import { TYPES } from '../utils/constants';
 // it will go under the main heading and above the EOL timeline.
 const body = <p>howdy 🤠</p>;
 
+const SORT_BY_FIELDS = {
+  PUBLISH_DATE: 'publishDate',
+  EOL_DATE: 'eolDate',
+};
+
 const Eol = ({ data, location }) => {
-  const SORT_BY_FIELDS = {
-    PUBLISH_DATE: 'publishDate',
-    EOL_DATE: 'eolDate',
-  };
+  const [sortDirection, setSortDirection] = useState(DIRECTION.ASC);
   const [sortField, setSortField] = useState(SORT_BY_FIELDS.PUBLISH_DATE);
   const now = useMemo(() => new Date(), []);
   const { queryByEOLDate, queryByPublishDate } = data;
@@ -77,8 +80,13 @@ const Eol = ({ data, location }) => {
       };
     });
 
-  const postsByPublish = shapePostData(queryByPublishDate);
-  const postsByEOL = shapePostData(queryByEOLDate);
+  let postsByPublish = shapePostData(queryByPublishDate);
+  let postsByEOL = shapePostData(queryByEOLDate);
+
+  if (sortDirection === DIRECTION.DESC) {
+    postsByPublish.reverse();
+    postsByEOL.reverse();
+  }
 
   const postsByDate = {
     publishDate: postsByPublish,
@@ -138,6 +146,8 @@ const Eol = ({ data, location }) => {
           <EolTable
             headers={tableHeaders}
             body={postsByDate[sortField]}
+            sortDirection={sortDirection}
+            setSortDirection={setSortDirection}
             sortField={sortField}
             setSortField={setSortField}
           />
