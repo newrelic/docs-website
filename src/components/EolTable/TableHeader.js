@@ -49,10 +49,8 @@ const TableHeader = ({
                   </b>
                   <Icon
                     name={
-                      isActiveSort
-                        ? sortDirection === DIRECTION.ASC
-                          ? 'fe-arrow-down'
-                          : 'fe-arrow-up'
+                      isActiveSort && sortDirection === DIRECTION.DESC
+                        ? 'fe-arrow-up'
                         : 'fe-arrow-down'
                     }
                     size="1rem"
