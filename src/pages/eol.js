@@ -80,8 +80,8 @@ const Eol = ({ data, location }) => {
       };
     });
 
-  let postsByPublish = shapePostData(queryByPublishDate);
-  let postsByEOL = shapePostData(queryByEOLDate);
+  const postsByPublish = shapePostData(queryByPublishDate);
+  const postsByEOL = shapePostData(queryByEOLDate);
 
   if (sortDirection === DIRECTION.DESC) {
     postsByPublish.reverse();
