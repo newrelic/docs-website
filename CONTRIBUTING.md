@@ -20,7 +20,7 @@
       - [Use `chore`](#use-chore)
       - [Use `fix`](#use-fix)
       - [Use `feat`](#use-feat)
-    - [Deploy previews with Gatsby Cloud](#deploy-previews-with-gatsby-cloud)
+    - [Deploy previews with Netlify](#deploy-previews-with-netlify)
   - [Reusable components](#reusable-components)
   - [Editing existing pages](#editing-existing-pages)
   - [Private edits](#private-edits)
@@ -42,7 +42,7 @@ The Documentation Team and Developer Enablement Team at New Relic welcome contri
 There are several ways you can contribute:
 
 - If you wish to make documentation edits or add new
-documentation, follow our [documentation contribution guidelines](https://docs.newrelic.com/docs/style-guide/writing-guidelines/create-edit-content/#edit-doc).
+  documentation, follow our [documentation contribution guidelines](https://docs.newrelic.com/docs/style-guide/writing-guidelines/create-edit-content/#edit-doc).
 - If you'd like to make code contributions, or make content contributions locally, follow the contribution guidelines below.
 
 ## Getting started
@@ -135,7 +135,7 @@ If you plan on coordinating changes across several people, and feel your code is
 use a shared working branch strategy.
 
 1. create a new branch to collaborate with others via GIT and push that branch up to the remote repository. `git checkout -b shared-branch`
-2. share that branch with others you are collaborating with. They'll need to run:  `git pull origin shared-branch`
+2. share that branch with others you are collaborating with. They'll need to run: `git pull origin shared-branch`
 3. All contributors should keep that branch up to date by running `git pull origin develop` frequently.
 4. Push all changes to the remote repository: `git push origin shared-branch`
 5. Resolve any merge conflicts.
@@ -151,7 +151,7 @@ The `develop` and `main` branches have "Branch Protection" enabled in Github. In
 
 You can review full Branch Protection details [here](https://docs.google.com/document/d/1O1SGS0i3OmPfvPhylpFe1CTMkE20889iAOF_cMFJ344/edit#heading=h.oh6pex9x0dx4), and check out a visual representation of the workflow below:
 
-![Branch protection workflow](src/images/Docs_site_branch_protection_workflow.png "branch-protection-workflow")
+![Branch protection workflow](src/images/Docs_site_branch_protection_workflow.png 'branch-protection-workflow')
 
 ### Draft PRs
 
@@ -207,9 +207,15 @@ Feat is for major functional changes or additions to code.
 git commit -m "feat(errors inbox): add new documents"
 ```
 
-### Deploy previews with Gatsby Cloud
+### Deploy previews with Netlify
 
-PRs that are opened from a branch in this repo (not forks) will generate preview links on Gatsby Cloud automatically. Gatsby Cloud preview links are posted as comments on your pull request when they are done building. You can monitor the progress via the `Gatsby Build Service` job under the `Checks` section.
+PRs that are opened from a branch in this repo will generate preview links on Netlify automatically.
+
+`netlify bot` will leave a comment on your PR. You can monitor the progress via the comment details which include:
+
+- The status of the preview build. (`processing`, `ready`, or `failed`)
+- The commit that is being built or has failed.
+- Once the build succeeds, the comment will update with a link to view the preview site.
 
 ## Reusable components
 
