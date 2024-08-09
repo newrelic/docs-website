@@ -106,7 +106,7 @@ const EolAnnouncement = ({ data, location, pageContext }) => {
               margin: 0 0.25rem;
             `}
           >
-            EOL effective:
+            End of life effective:
           </b>
           {eolEffectiveDate}
         </div>

@@ -9,23 +9,30 @@ import {
   useTranslation,
 } from '@newrelic/gatsby-theme-newrelic';
 import EolTable from '../components/EolTable';
+import { DIRECTION } from '../components/EolTable/TableHeader';
 import PageTitle from '../components/PageTitle';
 import SEO from '../components/SEO';
 import ErrorBoundary from '../components/ErrorBoundary';
 import { TYPES } from '../utils/constants';
 
+// @tw: add any body content here.
+// it will go under the main heading and above the EOL timeline.
+const body = <p>howdy 🤠</p>;
+
+const SORT_BY_FIELDS = {
+  PUBLISH_DATE: 'publishDate',
+  EOL_DATE: 'eolDate',
+};
+
 const Eol = ({ data, location }) => {
-  const SORT_BY_FIELDS = {
-    PUBLISH_DATE: 'publishDate',
-    EOL_DATE: 'eolDate',
-  };
+  const [sortDirection, setSortDirection] = useState(DIRECTION.ASC);
   const [sortField, setSortField] = useState(SORT_BY_FIELDS.PUBLISH_DATE);
   const now = useMemo(() => new Date(), []);
   const { queryByEOLDate, queryByPublishDate } = data;
 
   const tableHeaders = [
     { label: 'Published', contentId: 'publishDate', sort: true },
-    { label: 'EOL Effective', contentId: 'eolDate', sort: true },
+    { label: 'EOL effective', contentId: 'eolDate', sort: true },
     { label: '', contentId: 'details' },
   ];
 
@@ -76,6 +83,11 @@ const Eol = ({ data, location }) => {
   const postsByPublish = shapePostData(queryByPublishDate);
   const postsByEOL = shapePostData(queryByEOLDate);
 
+  if (sortDirection === DIRECTION.DESC) {
+    postsByPublish.reverse();
+    postsByEOL.reverse();
+  }
+
   const postsByDate = {
     publishDate: postsByPublish,
     eolDate: postsByEOL,
@@ -91,7 +103,7 @@ const Eol = ({ data, location }) => {
     <ErrorBoundary eventName="eolOverview">
       <SEO
         location={location}
-        title="EOL Announcements"
+        title="End-of-life announcements"
         type={TYPES.EOL_PAGE}
         disableSwiftype
       />
@@ -130,9 +142,12 @@ const Eol = ({ data, location }) => {
           </Link>
         </PageTitle>
         <Layout.Content>
+          {body}
           <EolTable
             headers={tableHeaders}
             body={postsByDate[sortField]}
+            sortDirection={sortDirection}
+            setSortDirection={setSortDirection}
             sortField={sortField}
             setSortField={setSortField}
           />

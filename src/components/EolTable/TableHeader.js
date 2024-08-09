@@ -3,7 +3,13 @@ import { css } from '@emotion/react';
 
 import { Button, Icon } from '@newrelic/gatsby-theme-newrelic';
 
-const TableHeader = ({ headers, sortField, setSortField }) => {
+const TableHeader = ({
+  headers,
+  setSortDirection,
+  setSortField,
+  sortDirection,
+  sortField,
+}) => {
   return (
     <thead
       css={css`
@@ -22,7 +28,14 @@ const TableHeader = ({ headers, sortField, setSortField }) => {
               {sort ? (
                 <Button
                   variant={Button.VARIANT.PLAIN}
-                  onClick={() => setSortField(contentId)}
+                  onClick={() => {
+                    if (sortField === contentId) {
+                      setSortDirection(DIRECTION.opposite(sortDirection));
+                    } else {
+                      setSortField(contentId);
+                      setSortDirection(DIRECTION.ASC);
+                    }
+                  }}
                   css={css`
                     background: none;
                   `}
@@ -35,7 +48,11 @@ const TableHeader = ({ headers, sortField, setSortField }) => {
                     {label}
                   </b>
                   <Icon
-                    name="fe-arrow-down"
+                    name={
+                      isActiveSort && sortDirection === DIRECTION.DESC
+                        ? 'fe-arrow-up'
+                        : 'fe-arrow-down'
+                    }
                     size="1rem"
                     css={css`
                       position: relative;
@@ -55,6 +72,7 @@ const TableHeader = ({ headers, sortField, setSortField }) => {
     </thead>
   );
 };
+
 TableHeader.propTypes = {
   headers: PropTypes.arrayOf(
     PropTypes.shape({
@@ -66,5 +84,12 @@ TableHeader.propTypes = {
   sortField: PropTypes.string.isRequired,
   setSortField: PropTypes.func.isRequired,
 };
+
+export const DIRECTION = {
+  ASC: 'asc',
+  DESC: 'desc',
+};
+DIRECTION.opposite = (direction) =>
+  direction === DIRECTION.ASC ? DIRECTION.DESC : DIRECTION.ASC;
 
 export default TableHeader;
