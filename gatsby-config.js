@@ -82,10 +82,6 @@ module.exports = {
         icon: 'static/images/favicon.png', // This path is relative to the root of the site.
       },
     },
-    // this (optional) plugin enables Progressive Web App + Offline functionality
-    // To learn more, visit: https://gatsby.dev/offline
-    // `gatsby-plugin-offline`,
-    //
     {
       resolve: 'gatsby-source-filesystem',
       options: {
@@ -328,16 +324,6 @@ module.exports = {
 
     'gatsby-source-nav',
     'gatsby-source-install-config',
-    {
-      resolve: 'gatsby-plugin-gatsby-cloud',
-      options: {
-        allPageHeaders: [
-          'Referrer-Policy: no-referrer-when-downgrade',
-          'Content-Security-Policy: frame-ancestors *.newrelic.com',
-          'Cache-Control: no-cache',
-        ],
-      },
-    },
     // https://www.gatsbyjs.com/plugins/gatsby-plugin-typegen/
     {
       resolve: 'gatsby-plugin-typegen',
