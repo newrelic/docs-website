@@ -1,5 +1,5 @@
 ---
-title: "Kubernetes Horizontal Pod Autoscaler (HPA) support"
+title: 'Kubernetes Horizontal Pod Autoscaler (HPA) support'
 summary: 'New Relic support for HPA'
 releaseDate: '2021-11-02'
 learnMoreLink: 'https://discuss.newrelic.com/t/horizontal-pod-autoscaling-based-on-nr-metrics-is-now-available/165851'
@@ -12,7 +12,7 @@ The [Horizontal Pod Autoscaling](https://kubernetes.io/docs/tasks/run-applicatio
 
 With Kubernetes v1.6, it became possible to autoscale off of user-defined custom [external metrics](https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale-walkthrough/#autoscaling-on-metrics-not-related-to-kubernetes-objects) collected from within the cluster.
 
-![A diagram that shows how New Relic's metrics adapter works with HPA.](./images/K8sHPA-NR.webp "K8s HAP Architecture with New Relic")
+![A diagram that shows how New Relic's metrics adapter works with HPA.](/images/K8sHPA-NR.webp 'K8s HAP Architecture with New Relic')
 
 ## Get started with the New Relic Metrics adapter.
 
