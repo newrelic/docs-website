@@ -8,7 +8,7 @@ getStartedLink: 'https://docs.newrelic.com/docs/using-new-relic/welcome-new-reli
 
 You wanted it, and we delivered. Dark mode is here! Head to the account dropdown to switch between dark mode and light mode.
 
-![An animated image showing where to choose dark mode in the account dropdown.](./images/dark-mode-example.gif 'Set dark mode theme in your account dropdown.')
+![An animated image showing where to choose dark mode in the account dropdown.](/images/dark-mode-example.gif 'Set dark mode theme in your account dropdown.')
 
 ## UI walkthrough
 
