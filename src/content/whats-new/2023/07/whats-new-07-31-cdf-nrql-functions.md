@@ -11,6 +11,6 @@ In NRQL, you now can use the `cdfPercentage()` function to show what percentage 
 
 For example, this query returns the percentages of page views where first paint happens in 0.5 seconds or less, and in 1 second or less:
 
-!["Screenshot showing cdf function usage"](./images/cdf.webp "Screenshot showing cdf function usage")
+!["Screenshot showing cdf function usage"](/images/cdf.webp 'Screenshot showing cdf function usage')
 
 Take a look at our documentation on [cdfPercentage()](https://docs.newrelic.com/docs/query-your-data/nrql-new-relic-query-language/get-started/nrql-syntax-clauses-functions/#func-cdfPercentage) and [getCdfCount()](https://docs.newrelic.com/docs/query-your-data/nrql-new-relic-query-language/get-started/nrql-syntax-clauses-functions/#func-getCdfCount) to learn more!
