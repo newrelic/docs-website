@@ -129,7 +129,7 @@ const runConvertImages = async (paths = []) => {
   }
 
   if (paths.length === 0) {
-    filePaths = glob.sync('src/i18n/content/pt/**/*.mdx');
+    filePaths = glob.sync('src/content/docs/**/*.mdx');
   }
 
   const allResults = await Promise.all(

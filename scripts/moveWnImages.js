@@ -6,6 +6,20 @@ const wnImages = glob.sync('src/content/whats-new/**/*.*', {
 });
 const wnImageDirs = glob.sync('src/content/whats-new/**/images', {});
 
+// images not in expected image folders:
+// 'src/components/backend.webp',
+// 'src/components/curlyAndDots.webp',
+// 'src/components/curlyAndDotsDM.webp',
+// 'src/components/devops.webp',
+// 'src/components/frontend.webp',
+
+// these i think can be remove ^
+
+// 'src/content/docs/apm/agents/net-agent/configuration/images/dotnetlogo.webp',
+// 'src/content/docs/new-relic-solutions/transition-user-menu.webp'
+
+// these just seem incorrect ^
+
 // get all images in whats new image dirs
 // then strip off the image file name to construct the new path
 
