@@ -1,0 +1,301 @@
+---
+title: Kubernetesインテグレーション エラー v2
+type: troubleshooting
+tags:
+  - Integrations
+  - Kubernetes integration
+  - Troubleshooting
+metaDescription: Some of the more common error messages found in the infrastructure agent logs for New Relic Kubernetes integration v2.
+freshnessValidatedDate: '2024-07-22T00:00:00.000Z'
+translationType: machine
+---
+
+バージョン 2 を実行している場合は、次の一般的なKubernetesインテグレーション エラーを確認してください。 これらのエラーは、標準の非冗長インフラストラクチャ エージェント ログに表示されます。 より詳細なログが必要な場合は、 [Kubernetes ログ](/docs/kubernetes-pixie/kubernetes-integration/troubleshooting/get-logs-version/)を参照してください。
+
+<CollapserGroup>
+  <Collapser
+    id="unable-find-kube-state-metrics-v2"
+    title="kube-state-metricsの検出に失敗しました。"
+  >
+    Kubernetesには[`kube-state-metrics` が](https://github.com/kubernetes/kube-state-metrics)必要です。 これが欠落している場合は、 `newrelic-infra`コンテナ ログに次のようなエラーが表示されます。
+
+    ```shell
+    2018-04-11T08:02:41.765236022Z time="2018-04-11T08:02:41Z" level=error 
+    msg="executing data source" data prefix="integration/com.newrelic.kubernetes" 
+    error="exit status 1" plugin name=nri-kubernetes stderr="time=\"2018-04-11T08:02:41Z\" 
+    level=fatal msg=\"failed to discover kube-state-metrics endpoint, 
+    got error: no service found by label k8s-app=kube-state-metrics\"\n"
+    ```
+
+    このエラーが発生する一般的な理由は以下の通りです。
+
+    * `kube-state-metrics` クラスターにデプロイされていません。
+    * `kube-state-metrics` カスタム展開を使用して展開されます。
+    * `kube-state-metrics`の複数のバージョンが実行されており、Kubernetes統合が正しいバージョンを検出していません。
+
+    Kubernetes統合は、次のロジックを使用してクラスター内の`kube-state-metrics`を自動的に検出します。
+
+    1. `kube-system`名前空間で実行されている`kube-state-metrics`サービスを探します。
+    2. それが見つからない場合は、ラベル`"k8s-app: kube-state-metrics"`でタグ付けされたサービスを探します。
+
+    統合には、kube-state-metricsポッドに`k8s-app: kube-state-metrics`または`app: kube-state-metrics`のラベルが必要です。どちらも見つからない場合は、次のようなログエントリがあります。
+
+    ```shell
+    2018-04-11T09:25:00.825532798Z time="2018-04-11T09:25:00Z" level=error 
+    msg="executing data source" data prefix="integration/com.newrelic.kubernetes" 
+    error="exit status 1" plugin name=nri-kubernetes stderr="time=\"2018-04-11T09:25:00Z\" 
+    level=fatal msg=\"failed to discover nodeIP with kube-state-metrics, 
+    got error: no pod found by label k8s-app=kube-state-metrics\"\n
+    ```
+
+    この問題を解決するには、 `k8s-app=kube-state-metrics`ラベルを`kube-state-metrics`ポッドに追加します。
+  </Collapser>
+
+  <Collapser
+    id="metrics-missing"
+    title="ネームスペース、デプロイメント、ReplicaSetsのメトリクスの欠落"
+  >
+    Kubernetesノード、ポッド、およびコンテナーのメトリクスは表示されているが、ネームスペース、デプロイメント、および `ReplicaSets` のメトリクスが表示されていない場合、 Kubernetesインテグレーションは `kube-state-metrics` に接続できません。
+
+    <CollapserGroup>
+      <Collapser
+        id="indicators"
+        title="データ欠損の指標"
+      >
+        欠落している名前空間、デプロイメント、および`ReplicaSet`データのインジケーター：
+
+        * <DNT>
+            **# of K8s objects**
+          </DNT>
+
+          チャートではそのデータが欠落しています。
+
+        * `K8sNamespaceSample` 、 `K8sDeploymentSample` 、および`K8sReplicasetSample`のクエリでは、データは表示されません。
+      </Collapser>
+    </CollapserGroup>
+
+    これにはいくつかの理由が考えられます。
+
+    1. `kube-state-metrics` サービスはポート 80 でリッスンするようにカスタマイズされています。 別のポートを使用している場合は、 `verbose`ログに次のようなエラーが表示されることがあります。
+
+       ```shell
+       time="2018-04-04T09:35:47Z" level=error msg="executing data source" 
+       data prefix="integration/com.newrelic.kubernetes" error="exit status 1" 
+       plugin name=nri-kubernetes stderr="time=\"2018-04-04T09:35:47Z\" 
+       level=fatal msg=\"Non-recoverable error group: error querying KSM. 
+       Get http://kube-state-metrics.kube-system.svc.cluster.local:0/metrics: 
+       net/http: request canceled while waiting for connection (Client.Timeout exceeded while awaiting headers)\"\n"
+       ```
+
+       これは、統合に送信する前に`kube-state-metrics`がすべてのクラスターの情報を収集するのに時間がかかりすぎる一部のクラスターで発生する既知の問題です。
+
+       回避策として、 [kube-state-metrics client timeout](/docs/integrations/kubernetes-integration/installation/kubernetes-installation-configuration#kube-state-metrics-timeout-change) を増やしてください。
+
+    2. `kube-state-metrics` インスタンスは`kube-rbac-proxy`より遅れて実行されています。 New Relic現在この設定をサポートしていません。 `verbose`ログに次のようなエラーが表示される場合があります。
+
+       ```shell
+       time="2018-03-28T23:09:12Z" level=error msg="executing data source" 
+       data prefix="integration/com.newrelic.kubernetes" error="exit status 1" 
+       plugin name=nri-kubernetes stderr="time=\"2018-03-28T23:09:12Z\" 
+       level=fatal msg=\"Non-recoverable error group: error querying KSM. 
+       Get http://192.168.132.37:8443/metrics: net/http: HTTP/1.x 
+       transport connection broken: malformed HTTP response \\\"\\\\x15\\\\x03\\\\x01\\\\x00\\\\x02\\\\x02\\\"\"\n"
+       ```
+
+    3. KSMペイロードは非常に大きく、日付を処理するKubernetes統合はOOM-killされています。統合はコンテナのメインプロセスではないため、ポッドは再起動されません。この状況は、KSMの同じノードで実行されている`newrelic-infra`ポッドのログで確認できます。
+
+       ```shell
+       time="2020-12-10T17:40:44Z" level=error msg="Integration command failed" error="signal: killed" instance=nri-kubernetes integration=com.newrelic.kubernetes
+       ```
+
+       回避策としては、DaemonSetのメモリ制限を増やして、プロセスが殺されないようにします。
+  </Collapser>
+
+  <Collapser
+    id="cannot-list-pods-for-cluster"
+    title="クラスタスコープでポッドをリストアップできない"
+  >
+    Newrelicのポッドとnewrelicのサービスアカウントが同じ名前空間にデプロイされません。これは通常、現在のコンテキストが名前空間を指定しているためです。このような場合は、以下のようなエラーが表示されます。
+
+    ```shell
+    time=\"2018-05-31T10:55:39Z\" level=panic msg=\"p
+    ods is forbidden: User \\\"system:serviceaccount:kube-system:newrelic\\\" cannot list pods at the cluster scope\"
+    ```
+
+    これを確認するには、次のように実行します。
+
+    ```shell
+    kubectl describe serviceaccount newrelic | grep Namespace
+    kubectl get pods -l name=newrelic-infra --all-namespaces
+    kubectl config get-contexts
+    ```
+
+    この問題を解決するには、New Relic `DaemonSet` YAMLファイルのサービスアカウントの名前空間を、現在のコンテキストの名前空間と同じになるように変更します。
+
+    ```yaml
+    - kind: ServiceAccount
+      name: newrelic
+      namespace: default
+    ---
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## コントロールプレーンデータが見えない [#control-plane-data]
+
+<CollapserGroup>
+  <Collapser
+    id="invalid-license"
+    title="マスターノードのラベルが正しいかどうか"
+  >
+    以下のコマンドを実行して、手動でマスターノードを探します。
+
+    ```shell
+    kubectl get nodes -l node-role.kubernetes.io/master=""
+    ```
+
+    ```shell
+    kubectl get nodes -l kubernetes.io/role="master"
+    ```
+
+    マスター ノードが[コントロール プレーン コンポーネント](/docs/kubernetes-pixie/kubernetes-integration/advanced-configuration/configure-control-plane-monitoring/#component)で定義されたラベル付け規則に従っている場合は、次のような出力が表示されます。
+
+    ```shell
+    NAME                         STATUS  ROLES   AGE   VERSION
+    ip-10-42-24-4.ec2.internal   Ready   master  42d   v1.14.8
+    ```
+
+    ノードが見つからない場合、2つのシナリオがあります。
+
+    マスター ノードには、マスターとして識別するための必要なラベルがありません。 この場合、両方のラベルをマスターノードに追加する必要があります。
+
+    管理対象クラスター内におり、プロバイダーがマスターノードを処理しています。 この場合、プロバイダーがそれらのノードへのアクセスを制限しているため、何もできません。
+  </Collapser>
+
+  <Collapser
+    id="unable-connect"
+    title="マスターノードで統合が実行されていることを確認する"
+  >
+    マスターノードで実行されている統合ポッドを識別するには、次のコマンドの`NODE_NAME`を、前の手順でリストされたノード名のいずれかに置き換えます。
+
+    ```shell
+    kubectl get pods --field-selector spec.nodeName=NODE_NAME -l name=newrelic-infra --all-namespaces
+    ```
+
+    次のコマンドは前のコマンドと同じですが、ノードを選択するだけです。
+
+    ```shell
+    kubectl get pods --field-selector spec.nodeName=$(kubectl get nodes -l node-role.kubernetes.io/master="" -o jsonpath="{.items[0].metadata.name}") -l name=newrelic-infra --all-namespaces
+    ```
+
+    すべてが正しく行われていれば、次のような出力が得られるはずです。
+
+    ```shell
+    NAME                   READY   STATUS    RESTARTS   AGE
+    newrelic-infra-whvzt   1/1     Running   0          6d20h
+    ```
+
+    マスターノードで統合が実行されていない場合は、デーモンセットに必要なインスタンスがすべて実行され、準備ができていることを確認してください。
+
+    ```shell
+    kubectl get daemonsets -l app=newrelic-infra --all-namespaces
+    ```
+  </Collapser>
+
+  <Collapser
+    id="indicators"
+    title="コントロール・プレーンのコンポーネントに必要なラベルが貼られていることを確認する"
+  >
+    [discovery of master nodes and control plane components documentation section](/docs/integrations/kubernetes-integration/installation/configure-control-plane-monitoring#discover-nodes-components) を参照し、インテグレーションがコンポーネントの検出に使用しているラベルを探します。次に、以下のコマンドを実行して、このようなラベルを持つポッドがあるかどうか、またそれらが実行されているノードを確認します。
+
+    ```shell
+    kubectl get pods -l k8s-app=kube-apiserver --all-namespaces
+    ```
+
+    与えられたラベルを持つコンポーネントがあれば、次のような表示になります。
+
+    ```shell
+    NAMESPACE    NAME                                        READY  STATUS   RESTARTS  AGE
+    kube-system  kube-apiserver-ip-10-42-24-42.ec2.internal  1/1    Running  3         49d
+    ```
+
+    残りの部品も同様にしてください。
+
+    ```shell
+    kubectl get pods -l k8s-app=etcd-manager-main --all-namespaces
+    ```
+
+    ```shell
+    kubectl get pods -l k8s-app=kube-scheduler --all-namespaces
+    ```
+
+    ```shell
+    kubectl get pods -l k8s-app=kube-kube-controller-manager --all-namespaces
+    ```
+  </Collapser>
+
+  <Collapser
+    id="cannot-list-pods-for-cluster"
+    title="マスターノードで実行されている統合の1つの冗長ログを取得し、コントロールプレーンコンポーネントのジョブをチェックする"
+  >
+    ログを取得するには、 [「マスター ノードで実行されているポッドからログを取得する」](/docs/integrations/kubernetes-integration/troubleshooting/get-logs-version)の手順に従います。 すべてのコンポーネントの統合ログには、次のメッセージ`Running job: COMPONENT_NAME`が記録されます。 例:
+
+    ```shell
+    Running job: scheduler
+    ```
+
+    ```shell
+    Running job: etcd
+    ```
+
+    ```shell
+    Running job: controller-manager
+    ```
+
+    ```shell
+    Running job: api-server
+    ```
+
+    `ETCD_TLS_SECRET_NAME`設定オプションを指定しなかった場合、ログに次のメッセージが表示されます。
+
+    ```shell
+    Skipping job creation for component etcd: etcd requires TLS configuration, none given
+    ```
+
+    コンポーネントのメトリクスのクエリ中にエラーが発生した場合は、 `Running job`メッセージの後にログが記録されます。
+  </Collapser>
+
+  <Collapser
+    id="cannot-list-pods-for-cluster"
+    title="コンポーネントのメトリクスを手動で照会"
+  >
+    クエリを実行するコントロール プレーン コンポーネントのエンドポイントを取得するには、「 [コントロール プレーン コンポーネント」](/docs/kubernetes-pixie/kubernetes-integration/advanced-configuration/configure-control-plane-monitoring/#component)を参照してください。 エンドポイントを使用すると、コンポーネントと同じノード上で動作する統合ポッドを使用して書くことができます。 Kubernetes スケジューラをクエリする方法については、次の例を参照してください。
+
+    ```shell
+    kubectl exec -ti POD_NAME -- wget -O - localhost:10251/metrics
+    ```
+
+    次のコマンドは前のコマンドと同じことを行いますが、ポッドも自動的に選択します。
+
+    ```shell
+    kubectl exec -ti $(kubectl get pods --all-namespaces --field-selector spec.nodeName=$(kubectl get nodes -l node-role.kubernetes.io/master="" -o jsonpath="{.items[0].metadata.name}") -l name=newrelic-infra -o jsonpath="{.items[0].metadata.name}") -- wget -O - localhost:10251/metrics
+    ```
+
+    すべてが正しければ、次のような Prometheus 形式のメトリクスが得られるはずです。
+
+    ```shell
+    Connecting to localhost:10251 (127.0.0.1:10251)
+    # HELP apiserver_audit_event_total Counter of audit events generated and sent to the audit backend.
+    # TYPE apiserver_audit_event_total counter
+    apiserver_audit_event_total 0
+    # HELP apiserver_audit_requests_rejected_total Counter of apiserver requests rejected due to an error in audit logging backend.
+    # TYPE apiserver_audit_requests_rejected_total counter
+    apiserver_audit_requests_rejected_total 0
+    # HELP apiserver_client_certificate_expiration_seconds Distribution of the remaining lifetime on the certificate used to authenticate a request.
+    # TYPE apiserver_client_certificate_expiration_seconds histogram
+    apiserver_client_certificate_expiration_seconds_bucket{le="0"} 0
+    apiserver_client_certificate_expiration_seconds_bucket{le="1800"} 0
+    apiserver_client_certificate_expiration_seconds_bucket{le="3600"} 0
+    ```
+  </Collapser>
+</CollapserGroup>
