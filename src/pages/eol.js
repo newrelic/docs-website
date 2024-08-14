@@ -17,7 +17,14 @@ import { TYPES } from '../utils/constants';
 
 // @tw: add any body content here.
 // it will go under the main heading and above the EOL timeline.
-const body = <p>howdy 🤠</p>;
+// const body = (
+//   <>
+//     <p>
+//       🤠 howdy. here is a <a href="/">link</a>
+//     </p>
+//   </>
+// );
+const body = '';
 
 const SORT_BY_FIELDS = {
   PUBLISH_DATE: 'publishDate',
