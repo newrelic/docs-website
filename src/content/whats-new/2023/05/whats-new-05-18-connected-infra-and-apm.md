@@ -2,7 +2,7 @@
 title: 'Connected infrastructure monitoring and APM is now in public preview'
 summary: 'Eliminate screen swivels and surprise bills with other tools'
 releaseDate: '2023-05-18'
-learnMoreLink: 'https://newrelic.com/blog/nerdlog/connected-infrastructure-and-apm' 
+learnMoreLink: 'https://newrelic.com/blog/nerdlog/connected-infrastructure-and-apm'
 getStartedLink: 'https://docs.newrelic.com/docs/infrastructure/infrastructure-ui-pages/hosts-new-view/'
 ---
 
@@ -15,7 +15,8 @@ The connected infrastructure and APM solution allows you to correlate your perfo
 - **In-context application health**: Dynamic charts provide host- and APM-specific metrics to correlate drops in performance across infrastructure and the applications running on them.
 - **Embedded change tracking**: Analyze how application deployments impact host performance.
 
-![Infra UI](./images/infra-ui.webp "The infra opt-in UI experience")
+![Infra UI](/images/infra-ui.webp 'The infra opt-in UI experience')
+
 ## Get started
 
 1. Install the [**infrastructure monitoring agent**](https://docs.newrelic.com/docs/infrastructure/install-infrastructure-agent/get-started/install-infrastructure-agent/)
