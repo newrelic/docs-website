@@ -10,9 +10,10 @@ The new LambdaTest integration and quickstart dashboard make it easier to unders
 
 [LambdaTest](https://www.lambdatest.com) is an AI-powered test orchestration and execution platform for running manual and automated tests at scale. Common use cases for LambdaTest include cross-browser, mobile app, automation, visual regression, load, and security testing. Test websites and mobile applications across 3000+ real browsers, devices, and operating systems to ensure high-quality product delivery.
 
-![LambdaTest quickstart dashboard.](./images/lambdatest.webp "LambdaTest quickstart dashboard.")
+![LambdaTest quickstart dashboard.](/images/lambdatest.webp 'LambdaTest quickstart dashboard.')
 
 The integration brings LambdaTest metrics into a pre-built curated New Relic dashboard, and allows you to:
+
 - **Proactively improve digital experiences** by monitoring key metrics such as test executions, durations, failure rates, and errors.
 - **Accelerate troubleshooting** with deeper insights into test failures, anomalies, and environments where errors occurred.
 - **Build better cross-platform experiences** by gaining insights on website and application compatibility and functionality across thousands of different browsers and devices.

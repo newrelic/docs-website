@@ -1,16 +1,17 @@
 ---
-title: 'New Relic adds App Runner integration' 
-summary: 'Monitor the health of your AWS App Runner service using New Relic to collect logs and metrics.' 
-releaseDate: '2022-11-04' 
-learnMoreLink: 'https://discuss.newrelic.com/t/monitor-aws-app-runner-with-new-relic/190715' 
+title: 'New Relic adds App Runner integration'
+summary: 'Monitor the health of your AWS App Runner service using New Relic to collect logs and metrics.'
+releaseDate: '2022-11-04'
+learnMoreLink: 'https://discuss.newrelic.com/t/monitor-aws-app-runner-with-new-relic/190715'
 getStartedLink: 'https://newrelic.com/instant-observability/aws-apprunner'
 ---
 
-Amazon Web Services (AWS) offers AWS App Runner as a fully managed service to enable developers to quickly build and deploy containerized web applications, mobile backends, and APIs securely, at scale, and with no prior infrastructure experience required. 
+Amazon Web Services (AWS) offers AWS App Runner as a fully managed service to enable developers to quickly build and deploy containerized web applications, mobile backends, and APIs securely, at scale, and with no prior infrastructure experience required.
 
 New Relic now integrates with App Runner and you can use this to monitor and optimize your containerized applications, ensure they perform as expected, and validate that the App Runner service was deployed correctly. In addition, the reporting of metrics, events, and logs gives complete visibility into your containerized application.
 
-![Metrics and logs for AWS App Runner displayed in New Relic](./images/AppRunnerDashboard.webp "Metrics and logs for AWS App Runner displayed in New Relic")
+![Metrics and logs for AWS App Runner displayed in New Relic](/images/AppRunnerDashboard.webp 'Metrics and logs for AWS App Runner displayed in New Relic')
+
 <figcaption>Metrics and logs for AWS App Runner displayed in New Relic</figcaption>
 
 In this example dashboard provided in the [AWS App Runner quickstart](https://newrelic.com/instant-observability/aws-apprunner) from New Relic Instant Observability, you can see the data needed to monitor the health of your App Runner deployment, including latency, traffic, errors, and utilization.

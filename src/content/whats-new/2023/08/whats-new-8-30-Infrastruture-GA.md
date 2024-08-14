@@ -31,6 +31,6 @@ Learn more:
 - [**Documentation**](https://docs.newrelic.com/docs/infrastructure/infrastructure-monitoring/get-started/get-started-infrastructure-monitoring/)
 - [**Best practices guide**](https://docs.newrelic.com/docs/new-relic-solutions/best-practices-guides/full-stack-observability/infrastructure-monitoring-best-practices-guide/)
 - [**Data Byte video**](https://www.youtube.com/watch?v=X1MjJ_k6LNs)
-![A screenshot showing the infrastructure monitoring experience.](./images/Infrastructure_GA.webp "A screenshot showing the infrastructure monitoring experience.")
+  ![A screenshot showing the infrastructure monitoring experience.](/images/Infrastructure_GA.webp 'A screenshot showing the infrastructure monitoring experience.')
 
 <figcaption>A screenshot showing the infrastucture monitoring experience.</figcaption>

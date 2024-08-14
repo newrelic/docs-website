@@ -1,0 +1,472 @@
+---
+title: OpenTelemetry 데이터 수집 볼륨 관리
+tags:
+  - Integrations
+  - Open source telemetry integrations
+  - OpenTelemetry
+  - OTLP
+metaDescription: Optimize your OpenTelemetry data pipeline in New Relic. Discover key factors and tools for efficient management.
+freshnessValidatedDate: '2024-07-23T00:00:00.000Z'
+translationType: machine
+---
+
+OpenTelemetry 의 핵심 강점 중 하나는 텔레메트리 데이터 파이프라인에 대한 탁월한 제어 기능을 제공하는 풍부한 도구 세트입니다. 이 컨트롤은 뉴렐릭 의 [단위 요금제](https://newrelic.com/pricing#pricing_plan-data) 모델을 보완합니다.
+
+이 페이지에서는 뉴렐릭과 함께 OpenTelemetry 사용할 때 데이터 볼륨에 기여하는 다양한 개념과 텔레메트리 데이터 파이프라인을 관리하는 데 사용할 수 있는 도구/패턴에 대해 설명합니다. [리소스](#concept-resources), [트레이스](#concept-traces), [인덱스](#concept-metrics) 및 [로그](#concept-logs) 의 데이터 볼륨에 기여하는 주요 개념에 대해 설명하는 섹션으로 구성되어 있으며, 볼륨 관리에 사용할 수 있는 [도구 카탈로그](#tool-catalog) 가 뒤따릅니다.
+
+## 주요 개념: 리소스 [#concept-resources]
+
+[OTLP는](https://opentelemetry.io/docs/specs/otlp/) 모든 신호에 걸쳐 유사한 계층적 메시지 구조를 정의하여 레코드 전체에 걸쳐 정보를 공유함으로써 프로토콜 수준에서 반복을 방지합니다.
+
+* 각 내보내기 요청에는 여러 개의 `Resource{SignalRecord}`이 포함되어 있습니다.
+* 각 `Resource{SignalRecord}` 에는 여러 개의 `Scope{SignalRecord}`이 포함되어 있습니다.
+* 각 `Scope{SignalRecord}` 에는 여러 개의 `{SignalRecord}`이 포함되어 있습니다.
+* `{SignalRecord}` `Span`, `Metric` 및 `LogRecord`
+
+이 계층 구조는 뉴렐릭 엔드포인트로 전송될 때 평면화되고, 각 리소스 속성은 개별 `Span`, `Metric` 및 `Log` 레코드로 비정규화됩니다. 뉴렐릭에서 OpenTelemetry 데이터가 처리되는 방법에 대한 자세한 내용은 다음 페이지를 참조하세요.
+
+* [트레이스](/docs/opentelemetry/best-practices/opentelemetry-best-practices-traces/)
+* [메트릭](/docs/opentelemetry/best-practices/opentelemetry-best-practices-metrics/)
+* [로그](/docs/opentelemetry/best-practices/opentelemetry-best-practices-logs/)
+
+대부분의 OpenTelemetry 언어 구현은 환경에서 감지된 정보를 기반으로 리소스 속성을 제공하는 [리소스 감지기가](https://opentelemetry.io/docs/specs/otel/resource/sdk/#detecting-resource-information-from-the-environment) 포함된 패키지를 제공합니다. 이러한 속성은 매우 유용할 수 있지만 필요한 것보다 더 많은 정보가 포함될 수 있습니다.
+
+자세한 내용은 다음을 참조하세요.
+
+* [SDK 리소스 감지기](#sdk-resource-detectors)
+* [수집기 리소스 프로세서](#collector-resource-processor)
+* [수집기 변환 프로세서](#collector-transform-processor).
+
+## 주요 개념: 트레이스 [#concept-traces]
+
+### 견본 추출 [#concept-sampling]
+
+[샘플링은](https://opentelemetry.io/docs/concepts/sampling/) 어떤 스팬을 옵저버빌리티 백앤드로 내보낼지 제어하는 프로세스입니다. 트레이스 데이터는 매우 귀중한 인사이트를 제공할 수 있지만 확인하지 않으면 하드 드라이브(및 청구서!)가 빠르게 채워질 수 있습니다.
+
+기본적으로 OpenTelemetry SDK는 [`ParentBased(root=AlwaysOn)`](https://opentelemetry.io/docs/specs/otel/trace/sdk/#parentbased) 샘플러를 사용합니다. `ParentBased` 샘플러는 상위 스팬이 있는지, 해당 상위가 현재 프로세스에 대해 로컬인지 원격인지, 해당 상위가 샘플링되는지 여부에 따라 다양한 구성 가능한 샘플러에 위임합니다. 기본 `ParentBased(root=AlwaysOn)` 샘플러는 다음 중 하나가 참인 경우 범위를 샘플링합니다.
+
+* 상위 스팬이 없습니다(즉, 이 스팬이 루트입니다).
+* 상위가 로컬인지 원격인지에 관계없이 상위가 샘플링됩니다.
+
+즉, 상위 항목이 샘플링되지 않는 한 범위를 샘플링합니다.
+
+이는 사용자가 먼저 샘플링 개념을 알 필요 없이 소스를 설치하고 트레이스 데이터를 볼 수 있도록 해주기 때문에 OpenTelemetry 커뮤니티에 좋은 기본값입니다. 그러나 OpenTelemetry의 프로덕션 배포에는 주의해야 합니다. 이 정책에 따라 다운스트림 시스템이 준수할 지능형 샘플링 결정을 내리는 일부 업스트림 구성 요소 또는 게이트웨이가 없는 한 _모든 범위가_ 샘플링됩니다.
+
+대안은 다음을 참조하세요.
+
+* [ParentBased(root=TraceIdRatioBased) 샘플러](#sdk-parentbased-traceidratiobased-sampler)
+* [수집기 필터 프로세서](#collector-filter-processor)
+* [수집기 테일샘플링 프로세서](#collector-tailsampling-processor)
+
+### 스팬 데이터 [#concept-span-data]
+
+OpenTelemetry 스팬은 다양한 최상위 필드(이름, 종류 등), 속성, 스팬 이벤트 및 스팬 링크로 구성됩니다. 스팬에 첨부된 데이터의 양은 뉴렐릭의 데이터 양과 직접적으로 일치합니다.
+
+계측 라이브러리는 종종 [의미론적 규칙에](https://opentelemetry.io/docs/specs/semconv/) 따라 범위에 연결할 정보를 결정합니다. 예외가 발생하면 해당 정보가 [예외 범위 이벤트](https://opentelemetry.io/docs/specs/semconv/exceptions/exceptions-spans/) 형태로 범위에 첨부되는 경우가 많습니다. 이 이벤트에는 언어 및 애플리케이션에 따라 수천 바이트로 구성될 수 있는 예외 메시지, 유형 및 스택 추적을 나타내는 속성이 포함됩니다. 예외가 자주 발생하는 경우 그리드 추적으로 인해 뉴렐릭 에서 많은 양의 데이터가 생성될 수 있습니다.
+
+범위 데이터 관리 전략은 다음을 참조하세요.
+
+* [SDK 범위 제한](#sdk-span-limits)
+* [수집기 변환 프로세서](#collector-transform-processor)
+
+### 트레이서 [#concept-tracers]
+
+[계측 범위는](https://opentelemetry.io/docs/specs/otel/glossary/#instrumentation-scope) 이와 관련된 텔넷리와 함께 기능 코드의 논리적 단위입니다. 각 로그 라이브러리에는 하나 이상의 고유 범위와 해당 트레이서가 있습니다.
+
+가치가 높은 트레이스 데이터를 생성하지 않는 트레이서는 트레이스를 깨뜨리지 않고 선택적으로 비활성화할 수 있습니다.
+
+자세한 내용은 [SDK 비활성화 트레이서, 미터, 로거를](#sdk-disable-tracers-meters-loggers) 참조하세요.
+
+## 주요 개념: 지표 [#concept-metrics]
+
+### 수집 간격 [#concept-collection-interval]
+
+지표는 개별 측정값을 집계하고 집계된 상태를 프로세스 외부로 내보냅니다. OTLP와 같은 푸시 기반 프로토콜의 경우 기본적으로 `60s` 으로 설정되는 구성 가능한 간격으로 내보내기가 발생합니다. 이 간격은 뉴렐릭의 데이터 양과 직접적으로 일치합니다. 간격을 `30s` 로 줄이면 데이터 볼륨이 대략 두 배가 됩니다. 간격을 `120s` 로 늘리면 데이터 볼륨이 대략 절반으로 줄어듭니다.
+
+`60s` 기본 간격은 데이터 볼륨과 옵저버빌리티 지연 간의 균형을 맞추기 때문에 합리적인 기본값입니다. 간격을 너무 높게 늘리면 크리렐릭 대시보드 및 알림에 도달하는 중요한 신호가 지연되어 문제가 악화될 수 있습니다.
+
+자세한 내용은 [SDK 주기적 내보내기 지표 리더 `exportIntervalMillis`를](#sdk-pmr-interval) 참조하세요.
+
+### 카디널리티 [#concept-cardinality]
+
+메트릭이 집계하는 측정값은 속성 세트와 연결됩니다. 고유한 속성 집합의 수를 카디널리티라고 합니다. 카디널리티는 측정값의 집계된 상태를 유지하는 데 필요한 메모리의 양, 각 수집 간격마다 내보내지는 데이터의 양, 뉴렐릭의 데이터 볼륨을 결정하기 때문에 중요합니다.
+
+카디널리티가 너무 높으면 이에 기여하는 속성을 생략하는 것이 좋습니다. 계측을 제어하면 각 측정에 대해 더 적은 수의 속성을 기록할 수 있습니다. 그러나 계측을 직접 구성할 수 없는 경우가 많습니다.
+
+지표에서 속성을 삭제하는 방법에 대한 자세한 내용은 다음을 참조하세요.
+
+* [SDK 지표 보기](#sdk-metric-views)
+* [수집기 메트릭 변환 프로세서](#collector-metricstransform-processor)
+
+### 집계 시간성 [#concept-aggregation-temporality]
+
+OpenTelemetry 지표에서 [집계 시간성](https://opentelemetry.io/docs/specs/otel/metrics/data-model/#temporality) 개념은 집계된 측정값의 상태가 각 수집 후 재설정되는지 여부를 정의합니다. 집계 시간성이 누적되는 경우 집계 상태는 재설정되지 않으며 메트릭은 애플리케이션 시작 이후 누적 값을 나타냅니다. 집계 시간성이 델타인 경우 집계된 상태는 각 수집 후에 재설정되고 지표는 이전 수집 이후의 차이를 나타냅니다.
+
+뉴렐릭의 [OTLP 끝점은 누적 집계 시간성을 지원하는](docs/opentelemetry/best-practices/opentelemetry-otlp/#metric-aggregation-temporality) 반면, 뉴렐릭 쿼리는 델타 지표 시스템입니다. 기본 누적 설정을 사용하면 일반적으로 SDK에서 더 많은 메모리 사용량이 발생하고 데이터 수집량이 많아집니다. 누적에서 델타 집계로의 변환은 상태 저장 활동입니다. 차이를 계산하려면 각 시계열의 이전 지점을 유지해야 하기 때문입니다. 이러한 이유로 SDK에서 집계 시간성을 구성하는 것이 가장 좋습니다. 이를 통해 애플리케이션 메모리를 절약하고 다운스트림의 추가 복잡성을 피할 수 있습니다.
+
+자세한 내용은 다음을 참조하세요.
+
+* [SDK 델타 집계 시간성](#sdk-delta-temporality)
+* [수집기 누적todelta 프로세서](#collector-cumulativetodelta-processor)
+
+### 미터 및 사용 가능 [#concept-meters-instruments]
+
+[개발자 범위는](https://opentelemetry.io/docs/specs/otel/glossary/#instrumentation-scope) HTML과 연관된 HTML 코드의 논리적 단위입니다. 각 로그는 하나 이상의 고유한 범위와 해당 미터를 가지며, 각 미터에는 하나 이상의 리소스가 있습니다.
+
+중요한 지표 데이터를 제공하지 않는 미터 또는 감소된 항목은 선택적으로 비활성화될 수 있습니다.
+
+자세한 내용은 다음을 참조하세요.
+
+* [SDK 비활성화 트레이서, 미터, 로거](#sdk-disable-tracers-meters-loggers)
+* [SDK 지표 보기](#sdk-metric-views)
+
+## 주요 개념: 로그 [#concept-logs]
+
+### 로그기록 데이터 [#concept-logrecord-data]
+
+OpenTelemetry 로그 기록은 다양한 최상위 필드(타임스탬프, 심각도, 본문 등)와 속성으로 구성됩니다. 로그 기록에 첨부되는 데이터의 양은 뉴렐릭의 데이터 양과 직접적으로 일치합니다.
+
+로그 라이브러리([로그](https://opentelemetry.io/docs/specs/otel/logs/supplementary-guidelines/#how-to-create-a-log4j-log-appender) 브리지 는 OpenTelemetry 로그 에서 로 브리징하기 위한 것이므로 로그 공간에서 로그 어펜더 라고 함)는 종종 OpenTelemetry API API OpenTelemetry [의미론적 규칙](https://opentelemetry.io/docs/specs/semconv/) 에 따라 레코드에 첨부할 정보 조각을 결정합니다.
+
+로그 데이터 관리 전략은 다음을 참조하세요.
+
+* [SDK 로그 기록 제한](#sdk-logrecord-limits)
+* [SDK 구성 로그 어펜더](#sdk-log-appenders)
+* [수집기 필터 프로세서](#collector-filter-processor)
+* [수집기 변환 프로세서](#collector-transform-processor)
+
+### 로거 [#concept-loggers]
+
+[계측 범위는](https://opentelemetry.io/docs/specs/otel/glossary/#instrumentation-scope) 이와 관련된 텔넷리와 함께 기능 코드의 논리적 단위입니다. OpenTelemetry 로깅의 경우 각 개별 로거(OpenTelemetry 로그 브리지 API를 사용하여 로그 추가기로 브리지됨)에는 고유한 계측 범위가 있습니다.
+
+높은 가치의 로그 데이터를 생성하지 않는 로거는 선택적으로 비활성화할 수 있습니다.
+
+자세한 내용은 다음을 참조하세요.
+
+* [SDK 비활성화 트레이서, 미터, 로거](#sdk-disable-tracers-meters-loggers)
+* [SDK 구성 로그 어펜더](#sdk-log-appenders)
+
+## 파이프라인 관리 도구 카탈로그 [#tool-catalog]
+
+다음 표에는 OpenTelemetry 데이터 파이프라인을 관리하는 데 유용한 다양한 도구가 나열되어 있습니다. OpenTelemetry는 확장성이 뛰어난 생태계입니다. 이러한 도구가 충분하지 않은 경우 다른 도구를 사용하거나 언어 SDK 또는 수집기에 대한 사용자 지정 확장 논리를 작성하여 목표를 달성할 수 있습니다.
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        이름
+      </th>
+
+      <th>
+        수집기 또는 SDK?
+      </th>
+
+      <th>
+        설명
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr id="sdk-resource-detectors">
+      <td>
+        [SDK 리소스 감지기](https://opentelemetry.io/docs/specs/otel/resource/sdk/#detecting-resource-information-from-the-environment)
+      </td>
+
+      <td>
+        SDK
+      </td>
+
+      <td>
+        OpenTelemetry 언어 SDK 패키지 감지기는 환경에 따라 리소스 속성을 제공합니다. 이들 중 일부 세트는
+
+        [측](https://opentelemetry.io/docs/zero-code/)
+
+        OpenTelemetry 에이전트와 같은 제로 코드 계측 옵션을 통해 기본적으로 활성화되는 경우가 많습니다. 리소스 탐지기를 활성화/비활성화하는 방법에 대한 자세한 내용은
+
+        [언어 문서를](https://opentelemetry.io/docs/languages/)
+
+        참조하세요.
+      </td>
+    </tr>
+
+    <tr id="sdk-parentbased-traceidratiobased-sampler">
+      <td>
+        [SDK `ParentBased(root=TraceIdRatioBased) sampler`](https://opentelemetry.io/docs/specs/otel/configuration/sdk-environment-variables/#general-sdk-configuration)
+      </td>
+
+      <td>
+        SDK
+      </td>
+
+      <td>
+        루트가 `TraceIdRatioBased` 샘플러로 설정된 `ParentBased` 샘플러는 루트가 `AlwaysOn` 로 설정된 기본 `ParentBased` 샘플러에 대한 간단하고 합리적인 대안입니다. 루트를 `TraceIdRatioBased` 로 설정하면 새 트레이스를 나타내는 스팬이 확률적으로 샘플링되고 하위 스팬은 상위의 샘플링 결정에 따라 샘플링됩니다(다른 구성이 동일한 샘플링 정책으로 구성되는 경우). 샘플러는 SDK `TracerProvider` 에서 프로그래밍 방식으로 구성할 수 있지만 env 변수를 사용하는 것이 일반적입니다.
+
+        ```shell
+        export OTEL_TRACES_SAMPLER=parentbased_traceidratio
+        export OTEL_TRACES_SAMPLER_ARG=0.25
+        ```
+
+        루트 범위의 25%를 샘플링하도록 `TraceIdRatioBased` 샘플러를 설정합니다.
+      </td>
+    </tr>
+
+    <tr id="sdk-span-limits">
+      <td>
+        [SDK 범위 제한](https://opentelemetry.io/docs/specs/otel/configuration/sdk-environment-variables/#span-limits)
+      </td>
+
+      <td>
+        SDK
+      </td>
+
+      <td>
+        OpenTelemetry 트레이스 SDK를 사용하면 속성의 최대 길이와 수량, 최대 범위 이벤트 수, 최대 범위 링크 수를 지정하도록 범위 제한을 구성할 수 있습니다. 범위 제한은 SDK `TracerProvider` 에서 프로그래밍 방식으로 구성할 수 있지만 환경 변수를 사용하는 것이 일반적입니다.
+
+        ```shell
+        export OTEL_SPAN_ATTRIBUTE_VALUE_LENGTH_LIMIT=4095
+        export OTEL_SPAN_ATTRIBUTE_COUNT_LIMIT=64
+        ```
+
+        뉴웰릭 OTLP 엔드포인트의 [속성 제한](docs/opentelemetry/best-practices/opentelemetry-otlp/#attribute-limits) 에 맞게 범위 제한을 설정합니다.
+      </td>
+    </tr>
+
+    <tr id="sdk-logrecord-limits">
+      <td>
+        [SDK 로그 기록 제한](https://opentelemetry.io/docs/specs/otel/configuration/sdk-environment-variables/#logrecord-limits)
+      </td>
+
+      <td>
+        SDK
+      </td>
+
+      <td>
+        OpenTelemetry 로그 SDK를 사용하면 범위 제한을 구성하여 속성의 최대 길이와 수량을 지정할 수 있습니다. LogRecord 제한은 SDK `LoggerProvider` 에서 프로그래밍 방식으로 구성할 수 있지만 env 변수를 사용하는 것이 일반적입니다.
+
+        ```shell
+        export OTEL_LOGRECORD_ATTRIBUTE_VALUE_LENGTH_LIMIT=4095
+        export OTEL_LOGRECORD_ATTRIBUTE_COUNT_LIMIT=64
+        ```
+
+        뉴웰릭 OTLP 엔드포인트의 [속성 제한](docs/opentelemetry/best-practices/opentelemetry-otlp/#attribute-limits) 에 맞게 로그 레코드 제한을 설정합니다.
+      </td>
+    </tr>
+
+    <tr id="sdk-disable-tracers-meters-loggers">
+      <td>
+        SDK 비활성화
+
+        [트레이서](https://opentelemetry.io/docs/specs/otel/trace/sdk/#tracerconfigurator)
+
+        ,
+
+        [미터](https://opentelemetry.io/docs/specs/otel/metrics/sdk/#meterconfigurator)
+
+        ,
+
+        [로거](https://opentelemetry.io/docs/specs/otel/logs/sdk/#loggerconfigurator)
+      </td>
+
+      <td>
+        SDK
+      </td>
+
+      <td>
+        OpenTelemetry SDK는 트레이서, 미터 및 로거를 각각 구성하고 비활성화하기 위해
+
+        `TracerConfigurator`
+
+        ,
+
+        `MeterConfigurator`
+
+        및
+
+        `LoggerConfigurator`
+
+        를 정의합니다. 이 개념은 현재 개발 중이며 모든 언어 구현에서 사용할 수 있는 것은 아닙니다. 개별
+
+        [언어 문서를](https://opentelemetry.io/docs/languages/)
+
+        확인하고 언어 관리자에게 연락하여 상태를 확인하세요.
+      </td>
+    </tr>
+
+    <tr id="sdk-pmr-interval">
+      <td>
+        [SDK 정기 내보내기 지표 리더 `exportIntervalMillis`](https://opentelemetry.io/docs/specs/otel/configuration/sdk-environment-variables/#periodic-exporting-metricreader)
+      </td>
+
+      <td>
+        SDK
+      </td>
+
+      <td>
+        OpenTelemetry 지표 SDK를 사용하면 정기적으로 내보내기 지표 판독기의 수집 간격을 구성할 수 있습니다. 간격은 프로그래밍 방식으로 구성할 수 있지만 env var를 사용하는 것이 일반적입니다.
+
+        ```shell
+        export OTEL_METRIC_EXPORT_INTERVAL=60000
+        ```
+
+        수집 간격을 60초(60kms)로 설정합니다. 이는 기본값이지만 상황에 맞게 조정할 수 있습니다.
+      </td>
+    </tr>
+
+    <tr id="sdk-metric-views">
+      <td>
+        [SDK 지표 보기](https://opentelemetry.io/docs/specs/otel/metrics/sdk/#view)
+      </td>
+
+      <td>
+        SDK
+      </td>
+
+      <td>
+        OpenTelemetry 지표 SDK를 사용하면 유지할 속성 키 집합, 집계 유형, 지표 삭제 등 다양한 옵션을 지정하는 보기로
+
+        `MeterProvider`
+
+        을 구성할 수 있습니다. 일반적으로 보기는 프로그래밍 방식으로 구성됩니다. 해당 언어의 대안을 확인하려면 개별
+
+        [언어 문서를](https://opentelemetry.io/docs/languages/)
+
+        참조하세요. 예를 들어 OpenTelemetry Java는
+
+        [YAML 파일](https://github.com/open-telemetry/opentelemetry-java/tree/main/sdk-extensions/incubator#view-file-configuration)
+
+        에서 뷰 구성을 실험적으로 지원합니다.
+      </td>
+    </tr>
+
+    <tr id="sdk-delta-temporality">
+      <td>
+        [SDK 델타 집계 시간성](https://opentelemetry.io/docs/specs/otel/metrics/sdk_exporters/otlp/#additional-configuration)
+      </td>
+
+      <td>
+        SDK
+      </td>
+
+      <td>
+        OpenTelemetry 메트릭 SDK를 사용하면 OTLP 내보내기에 대해 집계 시간성을 구성할 수 있습니다. 이 시간성은 프로그래밍 방식으로 구성할 수 있지만 env 변수를 사용하는 것이 일반적입니다.
+
+        ```shell
+        export OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE=delta
+        ```
+
+        뉴렐릭 OTLP 엔드포인트의 [기본 설정](docs/opentelemetry/best-practices/opentelemetry-otlp/#metric-aggregation-temporality) 에 맞춰 OTLP 지표 내보내기 집계 시간성을 델타로 설정합니다.
+      </td>
+    </tr>
+
+    <tr id="sdk-log-appenders">
+      <td>
+        [SDK 구성 로그 어펜더](https://opentelemetry.io/docs/specs/otel/logs/supplementary-guidelines/)
+      </td>
+
+      <td>
+        SDK
+      </td>
+
+      <td>
+        OpenTelemetry 로그 브리지 API 는 로그 API 를 OpenTelemetry 로 연결하는 로그 어펜더에서 사용하도록 설계되었습니다. 이러한 로그 어펜더는
+
+        [](https://opentelemetry.io/docs/zero-code/)
+
+        OpenTelemetry 잔류 에이전트와 같은 제로 코드 계측 옵션을 사용하여 자동으로 설치되거나 수동 설치 단계가 필요할 수 있습니다. 어떤 로그인과 어떤 데이터가 OpenTelemetry 에 연결되는지 지정하는 설정 옵션이 있는 경우가 많습니다. 또한, 어떤 로그(심각도 또는 로거 이름 기준)를 로그 어펜더에 전달해야 하는지 지정하기 위해 브리지되는 로그 API 구성하는 것이 가능한 경우가 많습니다. 자세한 내용은 개별
+
+        [언어 문서를](https://opentelemetry.io/docs/languages/)
+
+        참조하세요.
+      </td>
+    </tr>
+
+    <tr id="collector-filter-processor">
+      <td>
+        [수집기 필터 프로세서](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor/filterprocessor)
+      </td>
+
+      <td>
+        수집기
+      </td>
+
+      <td>
+        수집기 필터 프로세서는 옵저버빌리티 파이프라인에서 범위, 지표 및 로그 레코드를 필터링하는 데 사용할 수 있습니다. 스팬의 경우 완료된 스팬에 대해 작동하지만 전체 트레이스에 액세스하지 않고 간단한 테일 샘플러로 작동할 수 있습니다(참고: 이로 인해 트레이스가 깨질 수 있음). 지표의 경우 가치가 높지 않은 지표나 계열을 삭제하는 데 사용할 수 있습니다. 로그인의 경우, 가치가 높지 않은 로그인 레코드를 삭제하는 데 사용할 수 있습니다(예: 세밀한 심각도의 로그 또는 시끄러운 로거의 로그).
+      </td>
+    </tr>
+
+    <tr id="collector-tailsampling-processor">
+      <td>
+        [수집기 테일샘플링 프로세서](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor/tailsamplingprocessor)
+      </td>
+
+      <td>
+        수집기
+      </td>
+
+      <td>
+        수집기 tailsampling을 사용하면 완료된 트레이스를 기준으로 샘플링 여부를 결정할 수 있습니다. 예를 들어, 오류가 있거나 시스템의 관심도가 높은 영역을 다루는 트레이를 유지하는 것을 강조할 수 있습니다. 단점은 테일 샘플링 프로세서가 옵저버빌리티 파이프라인에 복잡성을 더한다는 점입니다. 트레이스의 모든 범위가 동일한 수집기 외부로 라우팅되어야 하고 수집기가 트레이스가 완료될 때까지 기다리는 동안 메모리에 범위를 유지해야 하기 때문입니다. 귀하의 옵저버빌리티 파이프라인이 단일 수집기로서 처리할 수 없는 규모에 도달하는 경우 신중한 계획이 필요합니다.
+      </td>
+    </tr>
+
+    <tr id="collector-resource-processor">
+      <td>
+        [수집기 리소스 프로세서](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor/resourceprocessor)
+      </td>
+
+      <td>
+        수집기
+      </td>
+
+      <td>
+        수집기 리소스 프로세서를 사용하면 범위, 지표 및 로그의 리소스 속성을 조작하는 간단한 규칙을 작성할 수 있습니다. 예를 들어, 가치가 높지 않은 속성을 삭제할 수 있습니다.
+      </td>
+    </tr>
+
+    <tr id="collector-metricstransform-processor">
+      <td>
+        [수집기 메트릭 변환 프로세서](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor/metricstransformprocessor)
+      </td>
+
+      <td>
+        수집기
+      </td>
+
+      <td>
+        수집기 메트릭 변환 프로세서를 사용하면 메트릭 데이터를 조작할 수 있습니다. 예를 들어, 값이 높지 않은 계열을 삭제하거나 시계열을 병합하여 카디널리티를 줄일 수 있습니다(공간 재집계라고도 함).
+      </td>
+    </tr>
+
+    <tr id="collector-transform-processor">
+      <td>
+        [수집기 변환 프로세서](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor/transformprocessor)
+      </td>
+
+      <td>
+        수집기
+      </td>
+
+      <td>
+        수집기 변환 프로세서를 사용하면 데이터를 선택하는 조건과 수정하는 명령문을 사용하여 옵저버빌리티 데이터를 변환할 수 있습니다. 예를 들어 리소스 속성을 제거하고, 속성을 자르고, 범위, 지표, 로그 레코드의 최상위 필드를 변경하는 등의 작업을 수행할 수 있습니다.
+      </td>
+    </tr>
+
+    <tr id="collector-cumulativetodelta-processor">
+      <td>
+        [수집기 누적todelta 프로세서](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor/cumulativetodeltaprocessor)
+      </td>
+
+      <td>
+        수집기
+      </td>
+
+      <td>
+        수집기 cumulativetodelta 프로세서를 사용하면 메트릭 집계 시간성을 누적에서 델타로 변환할 수 있습니다. 이는
+
+        [뉴렐릭의 OTLP 엔드포인트의 기본 집계 시간성과](docs/opentelemetry/best-practices/opentelemetry-otlp/#metric-aggregation-temporality)
+
+        지표를 정렬하는 데 유용합니다. 누적에서 델타 집계로의 변환은 상태 저장 프로세스이므로 수집기가 컴퓨트를 수행하고 차이를 내보내기 위해 각 시계열의 마지막 지점을 메모리에 저장해야 합니다. 이를 위해서는 동일한 시리즈의 모든 포인트가 동일한 수집기 밖에 도착하도록 수집기 메모리 리소스를 신중하게 계획하고 옵저버빌리티 파이프라인을 구조화해야 합니다.
+      </td>
+    </tr>
+  </tbody>
+</table>
