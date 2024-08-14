@@ -1,5 +1,5 @@
 ---
-title: 'Automatically Monitor APM and Kubernetes with New Relics Kubernetes Agent Operator'
+title: 'Automatically monitor APM and Kubernetes with the New Relic Kubernetes agent operator'
 summary: 'Break down team silos and accelerate full stack observability with one step APM and K8s instrumentation'
 releaseDate: '2024-07-02'
 learnMoreLink: ''

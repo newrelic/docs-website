@@ -71,6 +71,27 @@ It takes no arguments and will complete in about ~20min. It was created to be ru
 
 This script runs upon making a PR to the develop branch via a github action (`.github/workflows/check-for-keys.yml`). It scans all files, save one (`gatsby-config.js`), for any potential New Relic API keys based on a list of regex. It also scans all git commit history for any commits made in a PR to develop, looks at the diff for all said commits and scans those for API keys as well. This is intended to ensure no API keys are committed to the docs site or git history.
 
+## actions/generate-whats-new-ids.js
+
+This script generates id's for What's new posts upon opening a PR to `main` in a github action (`.github/workflows/update-whats-new-ids.yml`). These are referenced by the NR One product from `/api/nr1/content/nr1-announcements.json` and used to show What's new posts to customers within the UI.
+
+When the action runs, it checks out `develop` and compares the content in `src/data/whats-new-ids.json` vs posts in `src/content/whats-new/`. If there is a new posts not in the json, the script adds a new item to the array containing the path to the post and a new generated id:
+
+```json
+"/whats-new/2020/09/new-post-slug": "12345",
+```
+
+> [!IMPORTANT]  
+> The changes made to the json are committed to **`develop`** and will not be published and available to the NR One UI until a second release is merged that contains the updated json!
+
+What's new workflow from new `.mdx` page to rendering in Product UI:
+
+1. New post is merged into `develop`
+2. Release PR #1 is opened to `main`
+3. `update-whats-new-ids.yml` runs > adds post path & id to json > commits changes to `develop`
+4. Release PR #2 is released and `/api/nr1/content/nr1-announcements.json` endpoint is updated
+5. Product service picks up changes and is able to display new post in UI
+
 ## addRemoveRedirects.js
 
 This script has two options: one will add redirects for all files' current paths in a given directory (including all sub-directories), or it will remove any redirects of a file's current path in a given directory.

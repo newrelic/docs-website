@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import github from '@actions/github';
 import { exec } from 'child_process';
 import fs from 'fs';
@@ -14,9 +15,8 @@ if (!token) {
 
 const octokit = github.getOctokit(token);
 
-const { data } = await octokit.repos.compareCommits({
-  base: lastRelease,
-  head: 'develop',
+const { data } = await octokit.rest.repos.compareCommitsWithBasehead({
+  basehead: `${lastRelease}...develop`,
   owner: 'newrelic',
   repo: 'docs-website',
 });
