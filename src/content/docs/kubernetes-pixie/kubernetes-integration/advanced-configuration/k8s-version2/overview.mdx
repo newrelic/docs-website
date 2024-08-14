@@ -1,0 +1,500 @@
+---
+title: Overview
+tags:
+    - Integrations
+    - Kubernetes integration v2
+    - Changelog
+metaDescription: Kubernetes integration v2
+freshnessValidatedDate: 2024-07-22
+---
+
+The Kubernetes integration version 2 has some different settings and requirements than version 3. This document goes over the settings that are different from version 3 and that you'll need for version 2. If we don't specify anything different, you can use the settings for version 3.
+
+<Callout variant="caution">
+  Keep in mind that we've replaced version 2 and you should not use it. We maintain this documentation for users who are still using version 2.
+
+  See [Introduction to the Kubernetes integration](/docs/kubernetes-pixie/kubernetes-integration/get-started/introduction-kubernetes-integration/) to get started with the current version of Kubernetes.
+</Callout>
+
+To understand version 3 changes, see the [Changes introduced in the Kubernetes integration version 3](/docs/kubernetes-pixie/kubernetes-integration/advanced-configuration/k8s-version2/changes-since-v3) document.
+
+## Monitoring control plane with integration version 2 [#monitoring-control-plane]
+
+This section covers how to configure control plane monitoring on versions 2 and earlier of the integration.
+
+Please note that these versions had a less flexible autodiscovery options, and did not support external endpoints. We strongly recommend you to update to [version 3](/docs/kubernetes-pixie/kubernetes-integration/advanced-configuration/k8s-version2/changes-since-v3) at your earliest convenience.
+
+### Autodiscovery and default configuration: `hostNetwork` and `privileged` [#hostnetwork-privileged]
+
+In versions lower than v3, when the integration is deployed using `privileged: false`, the `hostNetwork` setting for the control plane component will be also be set to `false`.
+
+### Discovery of master nodes and control plane components [#discover-nodes-components]
+
+The Kubernetes integration relies on the [`kubeadm`](https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/create-cluster-kubeadm/) labeling conventions to discover the master nodes and the control plane components. This means that master nodes should be labeled with `node-role.kubernetes.io/master=""` or `kubernetes.io/role="master"`.
+
+The control plane components should have either the `k8s-app` or the `tier` and `component` labels. See this table for accepted label combinations and values:
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "110px" }}>
+        Component
+      </th>
+
+      <th>
+        Label
+      </th>
+
+      <th style={{ width: "200px" }}>
+        Endpoint
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        API server
+      </td>
+
+      <td>
+        <DNT>
+          **Kubeadm / Kops / ClusterAPI**
+        </DNT>
+
+        `k8s-app=kube-apiserver`
+
+        `tier=control-plane component=kube-apiserver`
+
+        <DNT>
+          **OpenShift**
+        </DNT>
+
+        `app=openshift-kube-apiserver apiserver=true`
+      </td>
+
+      <td>
+        `localhost:443/metrics` by default (can be configured) if the request fails falls back to `localhost:8080/metrics`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        etcd
+      </td>
+
+      <td>
+        <DNT>
+          **Kubeadm / Kops / ClusterAPI**
+        </DNT>
+
+        `k8s-app=etcd-manager-main`
+
+        `tier=control-plane component=etcd`
+
+        <DNT>
+          **OpenShift**
+        </DNT>
+
+        `k8s-app=etcd`
+      </td>
+
+      <td>
+        `localhost:4001/metrics`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Scheduler
+      </td>
+
+      <td>
+        <DNT>
+          **Kubeadm / Kops / ClusterAPI**
+        </DNT>
+
+        `k8s-app=kube-scheduler`
+
+        `tier=control-plane component=kube-scheduler`
+
+        <DNT>
+          **OpenShift**
+        </DNT>
+
+        `app=openshift-kube-scheduler scheduler=true`
+      </td>
+
+      <td>
+        `localhost:10251/metrics`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Controller manager
+      </td>
+
+      <td>
+        <DNT>
+          **Kubeadm / Kops / ClusterAPI**
+        </DNT>
+
+        `k8s-app=kube-controller-manager`
+
+        `tier=control-plane component=kube-controller-manager​`
+
+        <DNT>
+          **OpenShift**
+        </DNT>
+
+        `app=kube-controller-manager kube-controller-manager=true`
+      </td>
+
+      <td>
+        `localhost:10252/metrics`
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+When the integration detects that it's running inside a master node, it tries to find which components are running on the node by looking for pods that match the labels listed in the table above. For every running component, the integration makes a request to its metrics endpoint.
+
+### Configuration
+
+Control plane monitoring is automatic for agents running inside master nodes. The only component that requires an extra step to run is etcd, because it uses mutual TLS authentication (mTLS) for client requests. The API Server can also be configured to be queried using the [Secure Port](https://kubernetes.io/docs/reference/access-authn-authz/controlling-access/#api-server-ports-and-ips).
+
+<Callout variant="important">
+  Control plane monitoring for [OpenShift](http://learn.openshift.com/?extIdCarryOver=true&sc_cid=701f2000001OH7iAAG) 4.x requires additional configuration. For more information, see the [OpenShift 4.x Configuration](#openshift-4x-configuration) section.
+</Callout>
+
+#### etcd
+
+In order to set mTLS for querying etcd, you need to set these two configuration options:
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "280px" }}>
+        Option
+      </th>
+
+      <th>
+        Value
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `ETCD_TLS_SECRET_NAME`
+      </td>
+
+      <td>
+        Name of a Kubernetes secret that contains the mTLS configuration.
+
+        The secret should contain the following keys:
+
+        * `cert`: the certificate that identifies the client making the request. It should be signed by an etcd trusted CA.
+        * `key`: the private key used to generate the client certificate.
+        * `cacert`: the root CA used to identify the etcd server certificate.
+
+          If the `ETCD_TLS_SECRET_NAME` option is not set, etcd metrics won't be fetched.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `ETCD_TLS_SECRET_NAMESPACE`
+      </td>
+
+      <td>
+        The namespace where the secret specified in the `ETCD_TLS_SECRET_NAME` was created. If not set, the `default` namespace is used.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+#### API server
+
+By default, the API server metrics are queried using the `localhost:8080` unsecured endpoint. If this port is disabled, you can also query these metrics over the secure port. To enable this, set the following configuration option in the Kubernetes integration manifest file:
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "250px" }}>
+        Option
+      </th>
+
+      <th>
+        Value
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `API_SERVER_ENDPOINT_URL`
+      </td>
+
+      <td>
+        The (secure) URL to query the metrics. The API server uses `localhost:443` by default
+
+        Ensure that the `ClusterRole` has been updated to the newest version found in the manifest
+
+        Added in version 1.15.0
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<Callout variant="important">
+  Note that the port can be different according to the secure port used by the API server.
+
+  For example, in Minikube the API server secure port is 8443 and therefore `API_SERVER_ENDPOINT_URL` should be set to `https://localhost:8443`
+</Callout>
+
+## OpenShift configuration [#openshift-configuration]
+
+Control plane components on [OpenShift](http://learn.openshift.com/?extIdCarryOver=true&sc_cid=701f2000001OH7iAAG) 4.x use endpoint URLs that require SSL and service account based authentication. Therefore, you can't use [the default](/docs/kubernetes-pixie/kubernetes-integration/advanced-configuration/configure-control-plane-monitoring/#static-endpoints-limitations) endpoint URLs.
+
+<Callout variant="important">
+  When installing `openshift` through Helm, specify the configuration to automatically include these endpoints. Setting `openshift.enabled=true` and `openshift.version="4.x"` will include the secure endpoints and enable the `/var/run/crio.sock` runtime.
+</Callout>
+
+To configure control plane monitoring on OpenShift, uncomment the following environment variables in the [customized manifest](/install/kubernetes/?dropdown1=manifest). URL values are pre-configured to the default base URLs for the control plane monitoring metrics endpoints in [OpenShift](http://learn.openshift.com/?extIdCarryOver=true&sc_cid=701f2000001OH7iAAG) 4.x.
+
+```yaml
+        - name: "SCHEDULER_ENDPOINT_URL"
+        value: "https://localhost:10259
+        - name: "ETCD_ENDPOINT_URL"
+        value: "https://localhost:9979"
+        - name: "CONTROLLER_MANAGER_ENDPOINT_URL"
+        value: "https://localhost:10257"
+        - name: "API_SERVER_ENDPOINT_URL"
+        value: "https://localhost:6443"
+```
+
+<Callout variant="important">
+  Even though the custom `ETCD_ENDPOINT_URL` is defined, etcd requires HTTPS and mTLS authentication to be configured. For more on configuring mTLS for etcd in OpenShift, see [Set up mTLS for etcd in OpenShift](/docs/kubernetes-pixie/kubernetes-integration/advanced-configuration/configure-control-plane-monitoring/#mtls-how-to-openshift).
+</Callout>
+
+## Kubernetes logs [#logs-version2]
+
+If you want to generate verbose logs and get version and configuration information, just check out the info below.
+
+<CollapserGroup>
+  <Collapser
+    id="verbose-with-manifest"
+    title="Enable verbose logging using a manifest file"
+  >
+    For the Kubernetes integration, the infrastructure agent only adds a log entry in the event of an error. Most common errors are displayed in the standard (non-verbose) logs. If you're doing a more in-depth investigation on your own or with New Relic Support, you can enable verbose mode.
+
+    <Callout variant="caution">
+      Verbose mode significantly increases the amount of info sent to log files. Only enable this mode temporarily for troubleshooting purposes, and reset the log level when finished.
+    </Callout>
+
+    To enable verbose logging using a manifest file:
+
+    1. Enable verbose logging: In the deployment file, set the value of `NRIA_VERBOSE` to `1`.
+
+    2. Apply the modified configuration by running:
+
+       ```shell
+           kubectl apply -f your_newrelic_k8s.yaml
+       ```
+
+    3. Leave on verbose mode for a few minutes, or until enough activity has occurred.
+
+    4. Disable verbose mode: Set the `NRIA_VERBOSE` value back to `0`.
+
+    5. Apply the restored configuration by running:
+
+       ```shell
+           kubectl apply -f your_newrelic_k8s.yaml
+       ```
+
+    6. Get a list of nodes in the environment:
+
+       ```shell
+           kubectl get nodes --all-namespaces
+       ```
+
+    7. Get a list of infrastructure and kube-state-metrics pods:
+
+       ```shell
+           kubectl get pods --all-namespaces -o wide | egrep 'newrelic|kube-state-metrics'
+       ```
+
+    8. [Get logs from the pods connecting to `kube-state-metrics`](#logs-pod-kubestatemetrics).
+
+    9. [Retrieve `kube-state-metrics` service configuration](/docs/kubernetes-pixie/kubernetes-integration/advanced-configuration/get-logs-version/#kube-state-metrics-version).
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="verbose-helm"
+    title="Enable verbose logging using Helm"
+  >
+    For the Kubernetes integration, the infrastructure agent only adds a log entry in the event of an error. Most common errors are displayed in the standard (non-verbose) logs. If you are doing a more in-depth investigation on your own or with New Relic Support, you can enable verbose mode.
+
+    <Callout variant="caution">
+      Verbose mode significantly increases the amount of info sent to log files. Only enable this mode temporarily for troubleshooting purposes, and reset the log level when finished.
+    </Callout>
+
+    To enable verbose logging using Helm:
+
+    1. Run this command:
+
+       ```shell
+           helm upgrade -n <namespace> --reuse-values newrelic-bundle --set newrelic-infrastructure.verboseLog=true newrelic/nri-bundle
+       ```
+
+    2. Leave on verbose mode for a few minutes, or until enough activity has occurred.
+
+    3. When you have the information you need, disable verbose logging:
+
+       ```shell
+           helm upgrade --reuse-values newrelic-bundle --set newrelic-infrastructure.verboseLog=false newrelic/nri-bundle
+       ```
+
+    4. Apply the restored configuration by running:
+
+       ```shell
+           kubectl apply -f your_newrelic_k8s.yaml
+       ```
+
+    5. Get a list of nodes in the environment:
+
+       ```shell
+           kubectl get nodes --all-namespaces
+       ```
+
+    6. Get a list of infrastructure and kube-state-metrics pods:
+
+       ```shell
+           kubectl get pods --all-namespaces -o wide | egrep 'newrelic|kube-state-metrics'
+       ```
+
+    7. [Get logs from the pods connecting to `kube-state-metrics`](#logs-pod-kubestatemetrics).
+
+    8. [Retrieve `kube-state-metrics` service configuration](/docs/kubernetes-pixie/kubernetes-integration/advanced-configuration/get-logs-version/#kube-state-metrics-version).
+  </Collapser>
+
+  <Collapser
+    id="logs-pod-kubestatemetrics"
+    title="Get logs from pods connecting to kube-state-metrics"
+  >
+    To get the logs from pods connecting to `kube-state-metrics`:
+
+    1. Run this command:
+
+       ```shell
+           kubectl get pods --all-namespaces -o wide | grep kube-state-metrics
+       ```
+
+       Look for output similar to this:
+
+       ```shell
+           kube-system   kube-state-metrics-5c6f5cb9b5-pclhh     2/2
+           Running   4          4d        172.17.0.3   minikube
+       ```
+
+    2. Get the New Relic pods that are running on the same node as `kube-state-metrics`:
+
+       ```shell
+       kubectl describe node minikube | grep newrelic-infra
+       ```
+
+       Look for output similar to this:
+
+       ```shell
+       default                    newrelic-infra-5wcv6                     100m (5%)
+       0 (0%)      100Mi (5%)       100Mi (5%)
+       ```
+
+    3. Retrieve the logs for the nodes by running:
+
+       ```shell
+           kubectl logs newrelic-infra-5wcv6
+       ```
+  </Collapser>
+
+  <Collapser
+    id="logs-pod-kubestatemetrics"
+    title="Get logs from a pod running on a master node"
+  >
+    To get the logs from a pod running on a master node:
+
+    1. Get the nodes that are labelled as master:
+
+       ```shell
+       kubectl get nodes -l node-role.kubernetes.io/master=""
+       ```
+
+       Or,
+
+       ```shell
+       kubectl get nodes -l kubernetes.io/role="master"
+       ```
+
+       Look for output similar to this:
+
+       ```shell
+       NAME                         STATUS  ROLES   AGE   VERSION
+       ip-10-42-24-4.ec2.internal   Ready   master  42d   v1.14.8
+       ```
+
+    2. Get the New Relic pods that are running on one of the nodes returned in the previous step:
+
+       ```shell
+       kubectl get pods --field-selector spec.nodeName=ip-10-42-24-4.ec2.internal -l name=newrelic-infra --all-namespaces
+       ```
+
+       Look for output similar to this:
+
+       ```shell
+       newrelic-infra-whvzt
+       ```
+
+    3. Retrieve the logs for the nodes by running this command:
+
+       ```shell
+       kubectl logs newrelic-infra-whvzt
+       ```
+  </Collapser>
+</CollapserGroup>
+
+## Monitor services running on Kubernetes [#monitor-services]
+
+Monitoring services in Kubernetes works by leveraging our [infrastructure agent and on-host integrations](/docs/infrastructure/host-integrations/installation/install-infrastructure-host-integrations) and an autodiscovery mechanism to point them to pods with a specified selector.
+
+Check the [Enable monitoring of services using the Helm Chart](/docs/kubernetes-pixie/kubernetes-integration/advanced-configuration/monitor-services/monitor-services-running-kubernetes/#enable) doc to know how to do it. Check out this example for version 2, which shows the `yaml` config for the Redis integration added to the `values.yml` file of the `nri-bundle` chart.
+
+```yaml
+    newrelic-infrastructure:
+    integrations_config:
+    - name: nri-redis.yaml
+    data:
+    discovery:
+    command:
+    # Run NRI Discovery for Kubernetes
+    # https://github.com/newrelic/nri-discovery-kubernetes
+    exec: /var/db/newrelic-infra/nri-discovery-kubernetes --tls --port 10250
+    match:
+    label.app: redis
+    integrations:
+    - name: nri-redis
+    env:
+    # using the discovered IP as the hostname address
+    HOSTNAME: ${discovery.ip}
+    PORT: 6379
+    labels:
+    env: test
+```
+
+### Add a service YAML to the Kubernetes integration config [#add-service-yaml]
+
+If you're using Kubernetes integration version 2, you need to add an entry for this ConfigMap in the `volumes` and `volumeMounts` section of the DaemonSet's `spec`, to ensure all the files in the ConfigMap are mounted in `/etc/newrelic-infra/integrations.d/`.

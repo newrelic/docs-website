@@ -1,0 +1,407 @@
+---
+title: "Charts"
+metaDescription: "How to use charts in your NR app."
+freshnessValidatedDate: never
+---
+
+In your application, you can display data in charts, like those used elsewhere in New Relic's user interface. The New Relic One SDK provides React components for different chart types.
+
+Once you decide the kind of data you want to present, either from New Relic or some other source, you supply that data to your chart, using [props](https://reactjs.org/docs/components-and-props.html).
+
+## Query New Relic data [#query]
+
+In some cases, you want to fetch data from New Relic's database. For example, you may want to display a line chart which plots the number of transactions your application receives over time.
+
+With your chart component, set the `accountId` and `query` props to query your New Relic data using [NRQL](/docs/query-your-data/nrql-new-relic-query-language/get-started/introduction-nrql-new-relics-query-language):
+
+```jsx
+<LineChart accountId={1234} query="SELECT count(*) FROM Transaction" />
+```
+
+Alternatively, you can fetch data with a `NrqlQuery` and set the `data` prop:
+
+```jsx
+<NrqlQuery accountId={1234} query="SELECT count(*) FROM Transaction">
+  {({ data }) => <LineChart data={data} />}
+</NrqlQuery>
+```
+
+If you're looking to visualize New Relic data, such as your web application's response times or your server's throughput, querying data in your charts is the way to go. But what if you want to create charts that aren't focused on New Relic data? The `data` prop is flexible enough that you can supply any arbitrary data, as long as it matches the standardized format.
+
+## Craft custom data [#custom-data]
+
+Whether you use custom data sets or the results of a `NrqlQuery`, a chart's `data` prop must be an array of objects where each object has both of the following fields:
+
+* `metadata`: Defines how the chart presents its data
+* `data`: An array of data points that appear on the chart
+
+For example, create a chart consisting of a line between two points by supplying two x-y coordinates in its `data` field:
+
+```jsx
+const data = [
+  {
+    metadata: {
+      id: 'series-1',
+      name: 'My series',
+      viz: 'main',
+      color: 'blue',
+    },
+    data: [
+      {
+        x: 0,
+        y: 0,
+      },
+      {
+        x: 20,
+        y: 10,
+      },
+    ],
+  },
+];
+<LineChart data={data} />;
+```
+
+This `LineChart` plots a line between coordinates `(0, 0)` and `(20, 10)`. Use x-y coordinates for all two-dimensional chart formats. For other formats, which you'll learn more about later, use other types of data points.
+
+Because `data` accepts an array, you can supply two series to the same chart:
+
+```jsx
+const data = [
+  {
+    metadata: {
+      id: 'series-1',
+      name: 'My series',
+      viz: 'main',
+      color: 'blue',
+    },
+    data: [
+      {
+        x: 0,
+        y: 0,
+      },
+      {
+        x: 20,
+        y: 10,
+      },
+    ],
+  },
+  {
+    metadata: {
+      id: 'series-2',
+      name: 'My second series',
+      viz: 'main',
+      color: 'red',
+    },
+    data: [
+      {
+        x: 0,
+        y: 50,
+      },
+      {
+        x: 20,
+        y: 100,
+      },
+    ],
+  },
+];
+
+<LineChart data={data} />;
+```
+
+In this example, you create a single chart with two series. The first series contains the line from the last example. The second series contains a line between points `(0, 50)` and `(20, 100)`. When using two series in a single chart, like this, you may want to define how the chart represents each series. Use `metadata` to define those elements.
+
+### Metadata [#metadata]
+
+A series's `metadata` defines certain features of the series, itself, such as how it should be displayed in your chart. `metadata` consists of the following attributes:
+
+<Table>
+  <thead>
+    <tr>
+      <th>
+        Attribute
+      </th>
+
+      <th>
+        Description
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `id`
+      </td>
+
+      <td>
+        The series's identifier. Two series having the same `id` are considered the same series, regardless of where they are located.
+
+        In general, use a unique `id` for each series. However, if you use the same series for multiple charts, keeping the `id` consistent can help with some cross-chart functionality, like simultaneously highlighting multiple charts.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `name`
+      </td>
+
+      <td>
+        The series's name. `name` is used in legends, tooltips, and other areas to indicate which series you’re looking at.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `color`
+      </td>
+
+      <td>
+        The series's color. Most visualizations use this value to differentiate series. Some visualizations, like `BillboardChart` or `JsonChart`, ignore it.
+
+        Use any valid CSS color representation, such as `#RRGGBB`, `hsl(HHH, SS%, LL%)`, or `rgba(RR, GG, BB, .AA)`. Avoid tweaking the alpha value, when possible, because charts use alpha to highlight or dim certain series.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `viz`
+      </td>
+
+      <td>
+        The series's visual style. While you most often use `main`, this field accepts several options:
+
+        * `main`: Show the series based on chart's type. For instance, a `LineChart` shows the series as a line, and an `AreaChart` shows the series as an area.
+        * `line`: Show the series as a line, regardless of the chart's type. This setting applies only to `AreaChart` and `ScatterChart`. Other chart types will not show the series.
+        * `area`: Show the series as an area, regardless of the chart's type. This setting applies only to `LineChart` and `ScatterChart`. Other chart types will not show the series.
+        * `event`: Show the series as an event, regardless of the chart's type. Charts represent an event as a vertical area behind the main visualization. Events are often used to show alerts. This setting applies only to `AreaChart`, `LineChart`, and `ScatterChart`. Other chart types will not show the series.
+        * `target-line`: Show the series as a vertical line. This setting applies only to `AreaChart`, `LineChart`, and `ScatterChart`. Other chart types will not show the series.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `units_data`
+      </td>
+
+      <td>
+        You can assign a unit type to each axis on a chart. The chart will present data according to the unit type you set with `units_data`. To set `unit_data`, pass a JSON object with maps the axis to one of the following unit types:
+
+        * `UNKNOWN`: The chart displays the series with no special units.
+        * `COUNT`: Each value in the chart represents a count. The chart formats values with their International System prefix. For example, "k" represents thousands, "M" represents millions, and "G" represents billions.
+        * `PERCENTAGE`: Each value in the chart represents a percentage. Typically, you provide values ranging from `0` to `1`. The chart formats a value of `1` as "100%", a value of `2` as "200%", and a value of `0.01` as "1%".
+        * `MS`: Each value in the chart represents some number of milliseconds. The chart represents values higher than 1 as a human-readable time duration. For example, `60000` is represented as "1 minute". The chart represents values lower than 1 using SI prefixes. For example, `0.001` is represented as 1 μs.
+        * `TIMESTAMP`: Each value in the chart represents a timestamp, the number milliseconds since midnight UTC on January 1, 1970, the UNIX Epoch. The chart formats each value as a date.
+        * `BITS`: Each value in the chart represents some number of bits. The chart formats these values using "b". When upscaling, the chart will display decimal prefixes instead of binary ones. For example, the chart displays `1000` as "1 kb".
+        * `BITS_PER_SECOND`: Each value in the chart represents some number of bits per second. The chart formats these values using "b/s". When upscaling, the chart will display decimal prefixes instead of binary ones. For example, the chart displays `1000` as "1 kb/s".
+        * `BYTES`: Each value in the chart represents some number of bytes. The chart formats these values using "B". For example, the chart displays `1000` as "1 kB".
+        * `BYTES_PER_SECOND`: Each value in the chart represents some number of bytes per second. The chart formats these values using "B/s". For example, the chart displays `1000` as "1 kB/s".
+
+        So, to represent the y-axis for your series in bits, set the y-value in `units_data`:
+
+        ```json copyable=false
+        { "units_data": { "y": "BITS" } }
+        ```
+      </td>
+    </tr>
+  </tbody>
+</Table>
+
+### Data [#data]
+
+While a data series can contain any arbitrary values, a chart only uses values which adhere to its type. So, create your data points according to the chart type:
+
+<Table>
+  <thead>
+    <tr>
+      <th>
+        Series Type
+      </th>
+
+      <th>
+        Example
+      </th>
+
+      <th>
+        Description
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Unidimensional
+      </td>
+
+      <td>
+        ```json copyable=false
+        [{ "y": 10 }, { "y": 20 }]
+        ```
+      </td>
+
+      <td>
+        The chart plots data points using `y` values. Use this format with `BarChart`, `BillboardChart`, `PieChart`, `StackedBarChart`.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Two-dimensional
+      </td>
+
+      <td>
+        ```json copyable=false
+        [
+          { "x": 10, "y": 20 },
+          { "x": 20, "y": 30 }
+        ]
+        ```
+      </td>
+
+      <td>
+        The chart plots data points using `x` and `y` values. Use this format with `AreaChart`, `LineChart`, `ScatterChart`, `SparklineChart`,
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Funnel
+      </td>
+
+      <td>
+        ```json copyable=false
+        [{ "label1": 10, "label2": 20 }]
+        ```
+      </td>
+
+      <td>
+        The chart plots data according to labels. Use this format with `FunnelChart`.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Table
+      </td>
+
+      <td>
+        ```json copyable=false
+        [{ "jobType": "SIMPLE", "count": 18 }]
+        ```
+      </td>
+
+      <td>
+        The chart plots data according to table columns. You must specify table columns in the `metadata`. Use this format with `TableChart`.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Event
+      </td>
+
+      <td>
+        ```json copyable=false
+        [
+          {
+            "x0": 0,
+            "x1": 5
+          },
+          {
+            "x0": 10,
+            "x1": 15
+          }
+        ]
+        ```
+      </td>
+
+      <td>
+        The chart plots the event's width based on `x0` and `x1` values.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Histogram
+      </td>
+
+      <td>
+        ```json copyable=false
+        [
+          { "x0": 10, "x1": 20, "y": 100 },
+          { "x0": 30, "x1": 40, "y": 150 }
+        ]
+        ```
+      </td>
+
+      <td>
+        The chart plots the series's width based on `x0` and `x1` and height based on `y`. Use this format with `HistogramChart` and `HeatmapChart`.
+      </td>
+    </tr>
+  </tbody>
+</Table>
+
+<Callout variant="tip">
+  `JsonChart` is a special case because it processes any valid data. For example, you can set an arbitrary JSON object for the chart's `data`:
+
+  ```jsx
+  const data = {
+      data: [
+          {
+              id: 1,
+              name: 'Foo',
+              price: 123,
+              tags: ['Bar', 'Eek'],
+              stock: {
+                  warehouse: 300,
+                  retail: 20,
+              }
+          }
+      ],
+  }
+
+  <JsonChart data={data} />
+  ```
+</Callout>
+
+### Special States
+
+In previous sections, you learned that a chart's `data` is an array of series. But you can use special values to present special chart states:
+
+* `null` or `undefined`: Indicates the chart is “loading” its data. In this state, the chart shows a placeholder data set.
+* `[]`: Indicates there is no data to show. The chart states, "No chart data available".
+
+## Configure your chart
+
+As you've seen, you use `query` or `data` to supply data to your chart, but you can configure other aspects of your chart, too, such as visual settings and click and hover event listeners. Read the documentation for the chart you're using for more specific information.
+
+## Chart Groups
+
+Under some circumstances, you might want to synchronize events, such as dragging or scrubbing, across multiple charts. To do this, use a `ChartGroup`. All charts in a `ChartGroup` synchronize their events:
+
+```jsx
+<ChartGroup>
+  <Stack>
+    <StackItem>
+      <LineChart
+        accountId={1}
+        query="SELECT count(*) FROM Transaction SINCE 1 hour ago"
+      />
+    </StackItem>
+    <StackItem>
+      <AreaChart
+        accountId={1}
+        query="SELECT count(*) FROM Synthetics SINCE 1 day ago"
+      />
+    </StackItem>
+  </Stack>
+</ChartGroup>
+```
+
+<br/>
+
+Ideally, group charts that are conceptually related, and separate charts that are conceptually unrelated.
+
+## Next Step
+
+Read the documentation specific to the chart you'd like to use to learn specifics about that chart's behavior and configuration.

@@ -1,0 +1,1400 @@
+---
+title: Configure correlation logic with decisions
+metaDescription: "For New Relic's alerts, how to configure the correlation logic using decisions."
+redirects:
+  - /docs/new-relic-solutions/best-practices-guides/alerts-applied-intelligence/best-practices-ai-decisions/
+  - /docs/new-relic-one/use-new-relic-one/new-relic-ai/get-started-decisions/
+  - /docs/new-relic-ai-beta-docs
+  - /docs/new-relic-one/use-new-relic-one/new-relic-ai/get-started-incident-intelligence#configure-source-nr-alerts
+  - /docs/alerts-applied-intelligence/applied-intelligence/incident-intelligence/get-started-incident-intelligence/#1-configure-sources
+  - /docs/alerts-applied-intelligence/applied-intelligence/incident-intelligence/change-applied-intelligence-correlation-logic-decisions
+freshnessValidatedDate: never
+---
+
+With alerts' correlation logic, related issues are grouped together to reduce distracting and redundant alerts. As events come into your system they are eligible for our correlation logic. Eligible issues are evaluated based on time, alert context, and relationship data. If multiple issues are related then our correlation logic will funnel the related incidents into a single, comprehensive [issue](/docs/alerts-applied-intelligence/overview/#concepts-terms).
+
+We call this correlation logic <DNT>**decisions**</DNT>. We have built-in decisions but you can also create and customize your own on the decisions page. To find the decisions page go to <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Alerts > Decisions**</DNT>. The more you configure your decisions to best suit your needs,  the better New Relic can correlate your incidents, reduce noise, and provide increased context for on-call teams.
+
+<img
+  title="NRAI_Decisions_Page.png"
+  alt="A screenshot that shows the alert decisions UI."
+  src="/images/alerts_screenshot-full_new-relic-decisions-page.webp"
+/>
+
+<figcaption>
+  <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Alerts > Incident intelligence > Decisions**</DNT>: Our UI shows how each decision correlates incidents.
+</figcaption>
+
+## What is correlation and how does it work? [#what-is-correlaton]
+
+Your most recent and active incidents are available for our correlation logic. For example, let's say your system has received two alerts saying a synthetic monitor is failing in Australia and London. These two alerts will have created their own unique incidents. Those incidents will generate their own unique issues based on your teams existing [incident creation policy](/docs/alerts-applied-intelligence/new-relic-alerts/alert-policies/specify-when-alerts-create-incidents/#preference-target). The correlation logic of New Relic will then test those incidents against each other to find similarities. In this case, it's the same monitor that is failing across multiple locations, so New Relic will merge both incidents into a single issue that contains each relevant event.
+
+When we correlate events, we check every pair of combinations against each other and combine as many as possible. For example:
+
+* Our algorithm correlates incident A and B (call it "AB").
+* Our algorithm correlates incident B and C (call it "BC").
+* Because B is present in both issues, the algorithm then correlates all three incidents together into one issue.
+
+## Configure correlation policy [#configure-correlation]
+
+To enable correlation on [alert](/docs/alerts-applied-intelligence/overview/#concepts-terms)-based issues, you'll need to connect to correlation for the respective [alert policy](/docs/alerts-applied-intelligence/new-relic-alerts/alert-policies/create-edit-or-find-alert-policy/#alert-policy-name).
+
+<img
+  title="Decision - enable correlation for alert policy"
+  alt="A screenshot of how to enable correlation for an alert policy."
+  src="/images/alerts_screenshot-full_decision-policy-.webp"
+/>
+
+<figcaption>
+  Check the box <DNT>**Correlate and suppress noise**</DNT> to enable correlation for the alert policy.
+</figcaption>
+
+## Decision types [#decision-types]
+
+Decisions determine how incident intelligence correlates issues together. The correlation logic of New Relic is available to your team in three different decision types:
+
+* <DNT>**Global decision**</DNT>: A broad set of default decisions are automatically enabled when you start using alerts.
+* <DNT>**Suggested decision**</DNT>: New Relic's correlation engine constantly evaluates your event data to suggest decisions that capture correlation patterns to reduce noise. You can preview simulation results of a suggested decision and choose to activate.
+* <DNT>**Custom decision**</DNT>: Your team can customize decisions based on your use case to enhance correlation effectiveness. The decision UI of New Relic gives you flexibility to configure all dimensions in a decision.
+
+## Review your active decisions [#decisions]
+
+To review your teams existing decisions:
+
+1. Go to <DNT>**[one.newrelic.com](https://one.newrelic.com/all-capabilities)> Alerts >  Incident intelligence > Decisions**</DNT>.
+2. Review the list of active decisions. To see the rule logic that creates correlations between your issues, click the decision.
+3. To see examples of incidents the decision correlated, click the <DNT>**Recent correlations**</DNT> tab.
+4. You have the option to enable or disable these global decisions.
+
+## Configure sources [#configure-sources]
+
+Before configuring your decisions, it's important to determine the sources you would like to correlate. Sources are your data inputs.
+
+You can get data from any of the following sources:
+
+<CollapserGroup>
+  <Collapser
+    className="freq-link"
+    id="configure-source-nr-alerts"
+    title="Alerts"
+  >
+    By enabling incident intelligence for your <InlinePopover type="alerts"/> policies, you can get context and correlations from what you're monitoring.
+    To get data from alerts:
+
+    1. From <DNT>**[one.newrelic.com](https://one.newrelic.com/all-capabilities)**</DNT>, click <DNT>**Alerts**</DNT>.
+    2. On the left under <DNT>**incident intelligence**</DNT>, click <DNT>**Sources**</DNT>, and then click <DNT>**Alerts**</DNT>.
+    3. Select the policies you want to connect to alerts, and click <DNT>**Connect**</DNT>.
+
+       You can add additional alerts policies or remove policies you've already connected in <DNT>**Sources > Alerts**</DNT>.
+
+       <Callout variant="tip">
+         Adding alerts as a source will not affect your current configuration or notifications.
+       </Callout>
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="configure-aporia"
+    title="Aporia (MLOps)"
+  >
+    By integrating incident intelligence with your Aporia machine-learning models, you can monitor your machine learning model performance. To configure our Aporia integration, see our [docs](/docs/integrations/mlops-integrations/aporia-mlops-integration/).
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="configure-aporia"
+    title="Superwise (MLOps)"
+  >
+    By integrating incident intelligence with your Superwise machine-learning models, you can monitor your machine learning model performance. To configure our Superwise integration, see our [docs](/docs/alerts-applied-intelligence/mlops/integrations/superwise-mlops-integration/).
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="configure-source-rest-api"
+    title="REST API"
+  >
+    Incident intelligence supports a dedicated REST API interface that lets you integrate with additional systems. The interface allows instrumentation of your code or other monitoring solutions to report any kind of metric or event.
+
+    * A metric can be a raw data point such as CPU, memory, disk utilization, or business KPI.
+    * An event can be a monitoring alert, deployment event, incident, exceptions, or any other change in state that you want to describe.
+
+      You can also send any type of data to incident intelligence straight from your own systems or applications. The REST API supports secure token-based authentication and accepts JSON content as input.
+
+      For more information on authentication and the full API reference, see [REST API for New Relic alerts](/docs/rest-api-new-relic-ai).
+  </Collapser>
+</CollapserGroup>
+
+### Global decisions [#global-decisions]
+
+Global decisions are automatically enabled when your team starts using alerts. They require no configuration and are immediately available for your team. Global decisions cover a variety of correlation scenarios.
+
+The table below provides descriptions for all of the global decisions that are automatically enabled.
+
+<table id="global-decision-descriptions">
+  <thead>
+    <tr>
+      <th style={{ width: "250px" }}>
+        Decision name
+      </th>
+
+      <th>
+        Description
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Same New Relic Target Name (NRQL)
+      </td>
+
+      <td>
+        Correlation is activated when the entity name with an exceeded threshold and NRQL query are the same. Relevant events from the same [NRQL alert condition](/docs/alerts-applied-intelligence/new-relic-alerts/alert-conditions/create-nrql-alert-conditions) will be identified. This decision helps relate issues that have the same transaction query latency deviation for example.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Same New Relic Target Name (Non-NRQL)
+      </td>
+
+      <td>
+        Correlation is activated because the New Relic non-NRQL alert thresholds are the same. Does not apply to REST source. Non-NRQL entity refers to [entity](/docs/new-relic-solutions/new-relic-one/core-concepts/what-entity-new-relic/), typically APPLICATION, HOST types, see [New Relic GitHub repo on entity synthesis](https://github.com/newrelic/entity-definitions#entity-definitions). With this decision, relevant issues from the same entity will be identified. For example, host high memory issue and host not-reporting issue could be highly possible due to the same cause.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Same New Relic Target ID
+      </td>
+
+      <td>
+        Correlation is activated because the New Relic non-NRQL alert thresholds are the same. Does not apply to REST source. Use entity ID to uniquely identify an entity instance, learn more about [entity.guid](/docs/new-relic-solutions/new-relic-one/core-concepts/what-entity-new-relic#reserved-attributes).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Same New Relic Condition
+      </td>
+
+      <td>
+        Correlation is activated because the New Relic [condition IDs](/docs/new-relic-solutions/get-started/glossary/#condition_id) are the same. For example, cpu usage increase with related services will trigger incidents from the same cpu usage condition, and thus be identified. This logic is valuable beyond [alert policy issue creation preference option](/docs/alerts-applied-intelligence/new-relic-alerts/alert-policies/specify-when-alerts-create-incidents/#preference-options) for one issue per condition, due to condition-level granularity and flexibity in defining correlation time window.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Same New Relic Condition and Deep Link Url
+      </td>
+
+      <td>
+        Correlation is activated because the New Relic [condition IDs](/docs/new-relic-solutions/get-started/glossary/#condition_id) and deep link url are the same. Deep link url provides time series and time range information in addition to [alert condition](/docs/alerts-applied-intelligence/new-relic-alerts/alert-conditions/create-alert-conditions/). Correlating these issues make it easier for you to look at related incidents in the incident response flow with time-scoped metrics, and perform deep analysis. Deep link url can be automatically generated if incidents are triggered by New Relic alert conditions, while for REST source [deepLinkUrl](/docs/data-apis/ingest-apis/event-api/incident-event-rest-api/#api-specs) should be user defined.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Same New Relic Condition and Title
+      </td>
+
+      <td>
+        Correlation is activated because the New Relic [condition names and titles](/docs/alerts-applied-intelligence/new-relic-alerts/advanced-alerts/understand-technical-concepts/incident-event-attributes/#attributes) are the same. This is a refined option by comparing titles in addition to conditions to reveal tighter relevance with the same alert message.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Same k8s Deployment
+      </td>
+
+      <td>
+        Correlation logic is activated because the kubernetes deployments are the same. Many incidents are from single deployment changes. This decision is to reduce issues from the same troublesome Kubernetes entity deployment.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Same Application Name, Policy and Id
+      </td>
+
+      <td>
+        Correlation logic is activated because custom application name, policy and custom ID are the same. We correlate issues with these elements to reduce application issues, particularly cater to custom tag users. Learn more about [tags](/docs/new-relic-solutions/new-relic-one/core-concepts/use-tags-help-organize-find-your-data/). Custom tag ID could be defined by condition family ID or other ID values used as a key to identify connections between data.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Similar Alert Message
+      </td>
+
+      <td>
+        Correlation is activated because incidents have similar titles, and are from the same entity. This is to reduce issues from the same entity that are caused by similar [alert conditions](/docs/alerts-applied-intelligence/new-relic-alerts/alert-conditions/create-alert-conditions/).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Same Secure Credential, Public Location and Type
+      </td>
+
+      <td>
+        Correlation is activated because the secure credential, public location and custom type are the same respectively. This is to correlate issues from the same geo location/region with the same security credentials that are normally triggered by a single root cause (for example, synthetics monitor failure), and could highly probable be addressed with the same solution. [Add tags](/docs/new-relic-solutions/new-relic-one/core-concepts/use-tags-help-organize-find-your-data/#add-tags) to benefit from this decision.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Similar Issue Structure
+      </td>
+
+      <td>
+        Correlation is activated because both incidents have similar attributes structure and data contents. This is a simpler version of clustering, it adopts advanced similarity algorithms in matrix computation to reduce highly related issues.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Topologically Dependent
+      </td>
+
+      <td>
+        Correlation is activated because incidents are generated from instances that have dependent relationships. Learn more about [topology correlation out-of-the-box](#topology-requirements).
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+### Use suggested decisions [#suggested-decisions]
+
+The data from your selected sources is continuously inspected for patterns to help reduce noise. Once patterns have been observed in your data, our correlation logic will suggest unique decisions that would allow these types of events to correlate in the future.
+
+To get started, click <DNT>**Suggested decisions**</DNT> tab on the topic of <DNT>**Decisions**</DNT> UI page. You can see the logic behind the suggested decision, and the estimated correlation rate by clicking each suggested decision.
+
+<img
+  title="Suggested decision block"
+  alt="A screenshot of a suggested decision block"
+  src="/images/alerts_screenshot-full_suggested-decisions.webp"
+/>
+
+<figcaption>
+  <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Alerts > Decisions**</DNT>: Some example statistics from the decisions UI.
+</figcaption>
+
+To enable a suggested decision, click <DNT>**Add to your decisions**</DNT>. Once activated, the decision will appear in your teams main decision table. All suggested decisions will show the creator as New Relic AI (this refers to New Relic alerts).
+
+If the suggested decision isn't relevant to your needs, click <DNT>**Dismiss**</DNT>.
+
+## Create custom decisions [#customize]
+
+You can reduce noise and improve correlation by building your own custom decisions. To start building a decision, go to <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Alerts > Decisions**</DNT>, then click <DNT>**Create new decision**</DNT>.
+
+There are two versions of the decision builder:
+
+* Basic decision builder (in preview)
+* Advanced decision builder
+
+For more on how to use these decision builders, keep reading.
+
+### Decision elements [#decision-elements]
+
+A decision is composed of these elements:
+
+* Correlate by attributes: Correlate all incidents by similarities or differences in their attributes.
+* Filter by specific values: Narrow down the incidents to those with specific values.
+* Filter by related entities: Select the kinds of shared connections or dependencies you want us to look for.
+* Correlation time range: Sets the maximum allowed time difference between the creation times of two incidents for them to be considered for correlation.
+
+Once the connections between incidents is set up, our [algorithm](#what-is-correlaton) groups correlated incidents into a single issue.
+
+### Basic decision builder [#basic-decision-builder]
+
+<DNT>**This feature is currently in preview and available for only some customers.**</DNT> If you don't have access, see the instructions for the [advanced decision builder](#advanced-decision-builder).
+
+Here's a short video (3:25 minutes) showing how to use the basic decision builder:
+
+<Video
+  type="wistia"
+  id="xmbcv8rhuu"
+/>
+
+The basic decision builder covers the majority of use cases and focuses on "correlate by attribute," where you can specify filter conditions for correlation matches. You can also apply the same filter logic for specific values to both incidents being correlated. For example, you can correlate incidents if the entity name is `host 1` for both.
+
+To create your own custom decision using the basic decision builder complete the following steps. Keep in mind that steps 1, 2, and 3 are optional on their own, but at least one of the three must be defined in order to create a decision.
+
+#### Step 1: Correlate by attributes [#basic-correlate-attributes]
+
+Choose an attribute from the dropdown menu. The `equal` operator, the most popular option, is preselected, or you can choose another [operator](#operators).
+
+The second attribute usually matches the first, so it's autopopulated. You can keep the autopopulated option or choose another operator.
+
+Once you're done, a [simulation](#simulations) runs automatically.
+
+You can repeat these steps to add up to eight logic filters.
+
+<CollapserGroup>
+  <Collapser
+    id="basic-correlate-attributes-ui"
+    title="See a UI screenshot"
+  >
+    <img
+      title="A screenshot of the basic decision builder, correlating with attributes."
+      alt="A screenshot of the basic decision builder, correlating with attributes."
+      src="/images/alerts_screenshot-crop_basic-decision-builder-correlate-attributes.webp"
+    />
+  </Collapser>
+</CollapserGroup>
+
+#### Step 2: Filter by specific values [#basic-filter-values]
+
+1. To open the `Filter by specific values` section and see additional filters, click <DNT>**See more options**</DNT>.
+2. Choose an attribute.
+3. The `equal` operator is preselected, or you can select another [operator](#operators).
+4. Select expected values for the chosen attributes, with multiple selections supported.
+
+When complete, the [simulation](#simulations) will run automatically.
+
+You can repeat these steps to add up to eight logic filters.
+
+<CollapserGroup>
+  <Collapser
+    id="basic-builder-filer-values-ui"
+    title="See a UI screenshot"
+  >
+    <img
+      title="A screenshot of the basic decision builder, filtering by values."
+      alt="A screenshot of the basic decision builder, filtering by values."
+      src="/images/alerts_screenshot-crop_basic-decision-builder-filter-values.webp"
+    />
+  </Collapser>
+</CollapserGroup>
+
+#### Step 3: Filter by related entities [#basic-filter-related-entities]
+
+Click <DNT>**Filter by related entities**</DNT> and choose the entity classes.
+
+When your data is collected by [New Relic agents](/docs/new-relic-solutions/new-relic-one/install-configure/compatibility-requirements-new-relic-agents-products/), you get automatic topology correlation. [Learn more about our default topology correlation](#topology-requirements).
+
+You can also set up [topology settings using our NerdGraph API](/docs/apis/nerdgraph/examples/topology-nerdgraph-tutorial). This allows any topology-related decision to be matched with your topology data. [Learn more about setting up topology correlation](#topology).
+
+<CollapserGroup>
+  <Collapser
+    id="basic-builder-related-entities-ui"
+    title="See a UI screenshot"
+  >
+    <img
+      title="A screenshot of the basic decision builder, filtering by entities."
+      alt="A screenshot of the basic decision builder, filtering by entities."
+      src="/images/alerts_screenshot-crop_basic-decision-builder-filter-related-entities.webp"
+    />
+  </Collapser>
+</CollapserGroup>
+
+#### Step 4: Set correlation time range [#basic-set-time-range]
+
+This sets the maximum allowed time difference between the creation times of two incidents for them to be considered for correlation. Incidents within this range will be assessed based on specified rules, while those outside the range won't be correlated.
+
+The time range is set to 20 minutes by default. You can adjust it between 1-120 minutes.
+
+<CollapserGroup>
+  <Collapser
+    id="basic-builder-time-range"
+    title="See a UI screenshot"
+  >
+    <img
+      title="A screenshot of the basic decision builder, setting a correlation time range."
+      alt="A screenshot of the basic decision builder, setting a correlation time range."
+      src="/images/alerts_screenshot-crop_basic-decision-builder-time-range.webp"
+    />
+  </Collapser>
+</CollapserGroup>
+
+#### Step 5: Testing your decision using a simulation [#basic-test-with-simulation]
+
+After adding a filter logic, the system automatically runs a [simulation](#simulations) using the past 7 days of incident data.
+
+You can also manually trigger the simulation by clicking <DNT>**Simulate**</DNT>, which you may want to do if something is changed in the decision.
+
+<CollapserGroup>
+  <Collapser
+    id="basic-builder-test-with-simulation-ui"
+    title="See a UI screenshot"
+  >
+    <img
+      title="A screenshot of the basic decision builder, testing with a simulation."
+      alt="A screenshot of the basic decision builder, testing with a simulation."
+      src="/images/alerts_screenshot-crop_basic-decision-builder-run-simulation.webp"
+    />
+  </Collapser>
+</CollapserGroup>
+
+#### Step 6: Name and save your decision [#basic-name-save-decision]
+
+To access the name and description panel, click <DNT>**Create decision**</DNT>. The system generates a name based on your decision. Customize the name and description as desired.
+
+<CollapserGroup>
+  <Collapser
+    id="basic-builder-save-decision-ui"
+    title="See a UI screenshot"
+  >
+    <img
+      title="A screenshot of the basic decision builder: naming and saving the decision"
+      alt="A screenshot of the basic decision builder: naming and saving the decision"
+      src="/images/alerts_screenshot-crop_basic-decision-builder-name-describe.webp"
+    />
+  </Collapser>
+</CollapserGroup>
+
+### Advanced decision builder [#advanced-decision-builder]
+
+The advanced decision builder allows for more complex decision creation by applying different logic filters to the two incidents being correlated. For example, you can correlate incidents if one has entity name `host 1` and the other has entity name `host 2`. There are also more advanced settings besides being only able to configure the time window.
+
+To use the advanced decision builder:
+
+1. Go to <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Alerts > Decisions**</DNT>.
+2. Click <DNT>**Create new decision**</DNT>, and then click <DNT>**Use advanced builder**</DNT>.
+
+For details on the available options, keep reading.
+
+Important terms:
+
+* Logic filter: Logic condition defined with an [operator](#operators) on an [attribute](/docs/alerts-applied-intelligence/new-relic-alerts/advanced-alerts/understand-technical-concepts/incident-event-attributes/#attributes).
+* Segment: A group of incidents that satisfy a combination of logic filters.
+
+To create your own custom decision complete the following steps. Keep in mind that steps 1, 2, and 3 are optional on their own, but at least one of the three must be defined in order to create a decision.
+
+#### Step 1: Filter your data [#filter-data]
+
+Correlation occurs between any two incidents. If no filters are defined then all incoming incidents will be considered by the decision. The more you configure your decisions to suit your needs, the better we can correlate your incidents, reduce noise, and provide increased context for on-call teams.
+
+Your team can define your filters for the first segment of incidents, and the second segment of incidents. Filter [operators](#operators) range from substring matching to [regex matching](#regex) to help you target the incident events you want and exclude those you don't.
+
+<CollapserGroup>
+  <Collapser
+    id="advanced-decision-builder-filter-data-ui"
+    title="See a UI screenshot"
+  >
+    <img
+      title="A screenshot of the advanced decision builder: filter your data"
+      alt="A screenshot of the basic decision builder: filter your data"
+      src="/images/alerts_screenshot-crop_advanced-decision-builder-filter-data.webp"
+    />
+  </Collapser>
+</CollapserGroup>
+
+#### Step 2: Correlate by attributes [#correlate-context]
+
+Once you've filtered your data, define the logic used when comparing the incidents' context. You can correlate events based on the following methods:
+
+* Attribute value comparisons with standard operators
+* Attribute value similarity using [similarity algorithms](#algorithms)
+* Attribute value [regex with capture groups](#regex)
+* Entire incident comparisons using similarity or clustering algorithms
+
+<CollapserGroup>
+  <Collapser
+    id="advanced-decision-builder-correlate-attributes-ui"
+    title="See a UI screenshot"
+  >
+    <img
+      title="A screenshot of the advanced decision builder: correlate by attributes"
+      alt="A screenshot of the basic decision builder: correlate by attributes"
+      src="/images/alerts_screenshot-crop_advanced-decision-builder-correlate-attributes.webp"
+    />
+  </Collapser>
+</CollapserGroup>
+
+#### Step 3: Correlate by related entities [#topology-correlation]
+
+For automatic topology correlation, make sure your telemetry data is collected by [New Relic agents](/docs/new-relic-solutions/new-relic-one/install-configure/compatibility-requirements-new-relic-agents-products/). Learn more about [topology correlation out-of-the-box](#topology-requirements).
+
+You can also set up [topology settings using our NerdGraph API](/docs/apis/nerdgraph/examples/topology-nerdgraph-tutorial). This allows any topology-related decision to be matched with your topology data. [Learn more about setting up topology correlation](#topology).
+
+<CollapserGroup>
+  <Collapser
+    id="advanced-builder-related-entities-ui"
+    title="See a UI screenshot"
+  >
+    <img
+      title="A screenshot of the advanced decision builder: correlate by related entities"
+      alt="A screenshot of the basic decision builder: correlate by related entities"
+      src="/images/alerts_screenshot-crop_advanced-decision-builder-related-entities.webp"
+    />
+  </Collapser>
+</CollapserGroup>
+
+#### Step 4: Give it a name [#name-your-decision]
+
+After you configure your decision logic, give it a recognizable name, and description.
+
+<Callout variant="tip">
+  Minimize security concerns by ensuring you don't add sensitive or personal information to these open text fields.
+</Callout>
+
+This is used in notifications and other areas of the UI to indicate which decision caused a pair of incidents to be correlated together. If you don't want to update default advanced settings in the next step, click <DNT>**Create decision**</DNT> to finish the creation.
+
+<CollapserGroup>
+  <Collapser
+    id="advanced-builder-name-decision"
+    title="See a UI screenshot"
+  >
+    <img
+      title="A screenshot of the advanced decision builder: name decision"
+      alt="A screenshot of the basic decision builder: name decision"
+      src="/images/alerts_screenshot-crop_advanced-decision-builder-name-decision.webp"
+    />
+  </Collapser>
+</CollapserGroup>
+
+#### Step 5: Use advanced settings [#advanced-settings]
+
+Use the advanced settings area to further customize how your decision behaves when correlating events. Each setting has a default value so customization is optional.
+
+* <DNT>**Time window**</DNT>: Sets the maximum time between two incidents created time for them to be eligible for correlation.
+* <DNT>**Issue priority**</DNT>: Overrides the default priority setting (`inherit priority`) to add higher or lower priority if the incidents are correlated.
+* <DNT>**Frequency**</DNT>: Modifies the minimum number of incidents that need to meet the decision logic for the decision to trigger.
+* <DNT>**Similarity**</DNT>: If you're using `similar to` operators in your decision logic, you can choose from a list of algorithms and set its sensitivity. This will apply to all `similar to` operators in your decision.
+
+<CollapserGroup>
+  <Collapser
+    id="advanced-builder-advanced-settings-ui"
+    title="See a UI screenshot"
+  >
+    <img
+      title="Decision - advanced settings"
+      alt="A screenshot of the decision builder showing how to configure advanced settings."
+      src="/images/alerts_screenshot-full_decision-builder-settings.webp"
+    />
+  </Collapser>
+</CollapserGroup>
+
+## Logic operators [#operators]
+
+Decision provides a set of operators to help you flexibly define how an incident's attribute value evaluates in a logic filter.
+The basic ones are <DNT>**equals**</DNT>, <DNT>**contains**</DNT>, <DNT>**starts with**</DNT>, <DNT>**ends with**</DNT>, <DNT>**exists**</DNT>, and their negate operators accordingly. For example, <DNT>**does not equal**</DNT>.
+
+There is a similarity operator <DNT>**is similar to**</DNT>, the underlying [similarity algorithm](#algorithms) can be specified for this operator. By default, it uses Levenshtein Distance.
+
+The <DNT>**contains (regex)**</DNT> operator allows define [regex](#regex) condition. Powerful to match arbitrary data values.
+
+### Similarity algorithms [#algorithms]
+
+Here are technical details on the similarity algorithms we use:
+
+<CollapserGroup>
+  <Collapser
+    id="levenshtein-distance"
+    title="Levenshtein distance"
+  >
+    This measure is useful for comparing short strings with static schema and fixed length, like host names. Levenshtein distance is also known as edit distance.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            Details
+          </th>
+
+          <th>
+            Description
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            How it works
+          </td>
+
+          <td>
+            The Levenshtein distance between two strings is the minimum number of single-character edits to get from one string to the other. Allowed edit operations are deletion, insertion, and substitution.
+
+            The default similarity threshold for alert decisions is an edit distance of 3. You can change this in the <DNT>**Advanced mode**</DNT> of the decision builder.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            When to use it
+          </td>
+
+          <td>
+            This measure is most useful for comparing relatively short strings with static schema and fixed length. Common applications include spell checkers, computational biology, and speech recognition.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Examples
+          </td>
+
+          <td>
+            `number/bumble: 3 (number → bumber → bumblr → bumble)`
+
+            `trying/lying: 2 (trying → rying → lying)`
+
+            `strong/through: 4 (strong → htrong → throng → throug → through)`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Potential drawbacks
+          </td>
+
+          <td>
+            The levenshtein distance algorithm is not normalized by default to take into account string lengths.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    id="fuzzy-score"
+    title="Fuzzy score"
+  >
+    This metric is useful for comparing same-length strings where the same prefix would be a good indicator of correlation.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            Details
+          </th>
+
+          <th>
+            Description
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            How it works
+          </td>
+
+          <td>
+            The fuzzy score algorithm works by allocating "points" for character matches between strings:
+
+            * One point for each matching character
+            * Two bonus points for subsequent matches
+
+              The higher the fuzzy score, the greater the similarity between two strings.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            When to use it
+          </td>
+
+          <td>
+            Fuzzy score is most useful for strings that have the same and relatively short prefixes (ideally fewer than five characters). A minimum guaranteed score would be `(length(expected prefix) * 3) - 2`.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Examples
+          </td>
+
+          <td>
+            Example: `Decisions / dcsions`
+
+            `d: 1`
+
+            `c: 1`
+
+            `i 1`
+
+            `s: 2`
+
+            `o: 1`
+
+            `n: 1`
+
+            `si: 2`
+
+            `io: 2`
+
+            `on: 2`
+
+            `ns: 2`
+
+            `= 15 points`
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Potential drawbacks
+          </td>
+
+          <td>
+            If the first character of the first string can't be found in the second string, no points are awarded.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    id="fuzzy-wuzzy-ratio"
+    title="Fuzzy wuzzy ratio"
+  >
+    This metric is useful for comparing strings of similar length.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            Details
+          </th>
+
+          <th>
+            Description
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            How it works
+          </td>
+
+          <td>
+            The <DNT>**fuzzy wuzzy**</DNT> family of similarity measures was [developed by SeatGeek](https://chairnerd.seatgeek.com/fuzzywuzzy-fuzzy-string-matching-in-python/) to help find tickets for the same event that have different labels across multiple platforms. The fuzzy wuzzy ratio for two strings is expressed as a percentage, where a higher number indicates a more similar string. It's based on the [SequenceMatcher algorithm](https://docs.python.org/3/library/difflib.html) in Python's difflib.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            When to use it
+          </td>
+
+          <td>
+            Fuzzy wuzzy ratio is effective for very short strings (such as hostname) or very long strings (such as event description), especially in comparing strings of similar length.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Potential drawbacks
+          </td>
+
+          <td>
+            This algorithm is too sensitive to be used effectively for 3-10 word strings. One of the other modifications to fuzzy wuzzy (see below) may be a better choice.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    id="fuzzzy-wuzzy-partial"
+    title="Fuzzy wuzzy partial ratio"
+  >
+    This metric is useful for comparing strings of different length. This modification to the fuzzy wuzzy algorithm helps address the effective length limitation.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            Details
+          </th>
+
+          <th>
+            Description
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            How it works
+          </td>
+
+          <td>
+            With fuzzy wuzzy partial ratio, the shorter string is compared to each substring of the same length within the longer string. The score of the "best matching" substring is used to determine the fuzzy wuzzy partial ratio.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            When to use it
+          </td>
+
+          <td>
+            Fuzzy wuzzy partial ratio is especially effective for the types of comparisons the basic fuzzy wuzzy algorithm fails at: 3-10 word strings where some significant substrings are likely to be overlapping.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Examples
+          </td>
+
+          <td>
+            For example, between the following strings:
+
+            `DevOps and SRE teams`
+
+            `DevOps`
+
+            `DevOps` (the shorter string, length = 6) would be compared to each substring with length 6 within `DevOps and SRE teams`. Since one of those substrings (`DevOps`) is a perfect match, the fuzzy wuzzy partial ratio for these two strings will be high.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Potential drawbacks
+          </td>
+
+          <td>
+            Where fuzzy wuzzy may be too conservative, fuzzy wuzzy partial match may be more liberal than expected with correlations. You can adjust the threshold in the decision builder according to your needs.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    id="fuzzy-wuzzy-token"
+    title="Fuzzy wuzzy token set ratio"
+  >
+    This metric is useful for comparing strings where the information may not be in the same order, and of possible different lengths. It works best for sentences such as messages, descriptions, etc.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            Details
+          </th>
+
+          <th>
+            Description
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            How it works
+          </td>
+
+          <td>
+            The token set ratio algorithm follows a few steps to compare strings:
+
+            1. Tokenize each string (for example, “DevOps and SRE teams” to "DevOps" "and" "SRE" "teams"; "SRE team and DevOps engineers" to "SRE" "teams" "and" "DevOps" "engineers")
+
+            2. Combine intersecting tokens into a new string, leaving the remaining tokens (for example intersecting: "DevOps", "and", "SRE"; remainder1: "teams"; remainder2: "team", "engineers")
+
+            3. Alphabetize each token group (eg. “and, DevOps, SRE”, “teams”, engineers, team”)
+
+            4. Compare the following pairs of strings:
+
+            5. Intersection group
+
+            6. Intersection group + remainder1
+
+            7. Intersection group + remainder2
+
+            The comparison from these pairs ("best matches") is the fuzzy wuzzy token set ratio.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            When to use it
+          </td>
+
+          <td>
+            This metric is helpful in cases where similar strings may have overlapping words but different construction; for example, event descriptions for different issues with the same resource.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Potential drawbacks
+          </td>
+
+          <td>
+            Where fuzzy wuzzy may be too conservative, fuzzy wuzzy token set match may be more liberal than expected with correlations. You can adjust the threshold in the decision builder according to your needs.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    id="Jaro-winkler-distance"
+    title="Jaro-winkler distance"
+  >
+    This metric is useful for short strings where identical prefixes are a strong indication of correlation.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            Details
+          </th>
+
+          <th>
+            Description
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            How it works
+          </td>
+
+          <td>
+            This metric uses a scale of 0-1 to indicate the similarity between two strings, where 0 is no similarity (0 matching characters between strings) and 1 is an exact match. Jaro-Winkler similarity takes into account:
+
+            * `matching`: two characters that are the same and in similar positions in the strings.
+            * `transpositions`: matching characters that are in different sequence order in the strings.
+            * `prefix scale`: the Jaro-Winkler distance is adjusted favorably if strings match from the beginning (a prefix is up to 4 characters).
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            When to use it
+          </td>
+
+          <td>
+            This metric is fairly tolerant of transpositions, but transpositions further apart in the string are less useful.
+
+            A generally safe number to use for Jaro-Winkler similarity in moderate to long strings is 0.9; you could use `{~}0.85` in cases where more leniency is okay (for example, if you have other, more specific logic in the decision).
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    id="cosine-distance"
+    title="Cosine distance"
+  >
+    This measure is most commonly used to compare large blocks of text (for example, incident descriptions) and provides an easy visualization of similarity.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            Details
+          </th>
+
+          <th>
+            Description
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            How it works
+          </td>
+
+          <td>
+            For each text block you're comparing, a vector is calculated to represent the count of each unique word in the block. The cosine distance of the resulting vectors is their dot product divided by the product of their magnitudes.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            When to use it
+          </td>
+
+          <td>
+            This measure is most useful to compare long blocks of text, specifically when the comparison is meant to consider the text as a whole, and not differences or misspellings in individual words.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Examples
+          </td>
+
+          <td>
+            ```
+            It is not length of life, but depth of life.
+            Depth of life does not depend on length.
+            ```
+
+            Here are the word counts for these sentences:
+
+            `it 1 0`
+
+            `is 0 1`
+
+            `not 1 1`
+
+            `length 1 1`
+
+            `of 2 1`
+
+            `life 2 1`
+
+            `but 1 0`
+
+            `depth 1 1`
+
+            `does 0 1`
+
+            `depend 0 1`
+
+            `on 0 1`
+
+            And here are those counts represented as a vector:
+
+            ```
+            [1, 0, 1, 1, 2, 2, 1, 1, 0, 0, 0]
+            [0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1]
+            ```
+
+            The cosine distance of these vectors is about 0.9 (1 is the highest similarity).
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Potential drawbacks
+          </td>
+
+          <td>
+            Cosine distance is less useful for situations where small character differences in words are insignificant. Also, cosine distance ignores word order in the text blocks.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    For more information on cosine distance implementation, see the [detailed walkthrough at blog.christianperone.com](http://blog.christianperone.com/2013/09/machine-learning-cosine-similarity-for-vector-space-models-part-iii/).
+  </Collapser>
+
+  <Collapser
+    id="hamming-distance"
+    title="Hamming distance"
+  >
+    This measure is useful for shorter text with static schema, but it works only for same-length strings.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            Details
+          </th>
+
+          <th>
+            Description
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            When to use it
+          </td>
+
+          <td>
+            Hamming distance requires the compared strings to be of equal length. This is a useful similarity metric for situations where the difference between two strings may be due to typos, or where you want to compare two attributes with known lengths. For example:
+
+            ```
+            Low Disk Space in application myapp in data center us01
+            ```
+
+            If you wanted to be tolerant to data center changes, the hamming distance should be set to 4. An average use case for Hamming distance would be around 2-3.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Examples
+          </td>
+
+          <td>
+            A simpler version of "edit distance" metrics like Levenshtein distance, the Hamming distance between two strings is the number of characters in the string that don't match (in the same position). For example, in the strings below, the Hamming distance is 2:
+
+            ```
+            flowers / florets
+            ```
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Potential drawbacks
+          </td>
+
+          <td>
+            In the example above, if the application name changes instead of the data center, a correlation would also be created. As the distance grows, the usefulness of Hamming Distance plummets. For this reason, for anything remotely more complicated than being tolerant to 1-2 character substitutions (or if the string lengths will not match), use a different similarity measurement.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+
+  <Collapser
+    id="Jaccard-distance"
+    title="Jaccard distance"
+  >
+    This measure is useful for comparing large blocks of text, like descriptions or entire incidents.
+
+    <table>
+      <thead>
+        <tr>
+          <th style={{ width: "200px" }}>
+            Details
+          </th>
+
+          <th>
+            Description
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr>
+          <td>
+            How it works
+          </td>
+
+          <td>
+            The distance, denoted as a percentage (0 being completely similar; 1 being totally dissimilar) is calculated with the following formula:
+
+            ```
+            1 - [(# of characters in both sets) / (# of characters in either set) * 100]
+            ```
+
+            In other words, the Jaccard distance is the number of shared characters divided by the total number of characters (shared and un-shared). A Jaccard distance of 0.1 means that 10% or fewer characters between two incidents are different.
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            When to use it
+          </td>
+
+          <td>
+            Jaccard distance is very easy to interpret and especially useful in cases with large data sets. For example, in comparing the similarity between two entire incidents (as opposed to one attribute).
+          </td>
+        </tr>
+
+        <tr>
+          <td>
+            Potential drawbacks
+          </td>
+
+          <td>
+            It's less effective for small data sets or situations with missing data. Also, different permutations of the character set don't affect Jaccard distance, so take care to prevent false positives.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </Collapser>
+</CollapserGroup>
+
+### Regex operators [#regex]
+
+When [building a decision](#customize), available operators include:
+
+* `contains (regex)`: used in [Step 1: Filter your data](#customize).
+* `regular expression match`: used in [Step 2: Contextual correlation](#customize).
+
+The decision builder follows the standards outlined in [these documents for regular expressions](https://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html).
+
+<CollapserGroup>
+  <Collapser
+    id="regex-step-1"
+    title="Regex in Step 1"
+  >
+    In order for your regex to test as true, the entire attribute value (the data you're evaluating) must be matched by the regular expression provided. Captured groups can be used but are not explicitly evaluated.
+
+    For instance, if the attribute value is `foobarbaz`, these examples would meet the criteria and test as true:
+
+    * `foo.*`
+    * `^.*baz`
+    * `\w+`
+  </Collapser>
+
+  <Collapser
+    id="regex-step-2"
+    title="Regex in Step 2"
+  >
+    In order for your regex to test as true, the entire attribute values for incident 1 and incident 2 must be included in the match. Also, each captured group (expressions in `( )` parentheses) must exist in both values (incident 1 and incident 2 attributes), and have the same value:
+
+    * The number of captured groups must be equal for both incident attributes.
+
+    * Each group must be equal to the corresponding group between attribute values: the value of the first captured group in the incident 1 attribute value is equal to the value of the first captured group in the incident 2 attribute.
+
+      For instance, if attribute value 1 is `abc-123-xyz` and attribute value 2 is `abc-777-xyz`, then `(\w+)-(?:\w+)-(\w+)` would meet the criteria:
+
+    * The whole value is matched by the expression.
+
+    * The first and third captured groups have the same respective values.
+
+    * The second group is not captured using `?:`, which allows the whole value to match but isn’t used in the capture group comparison.
+  </Collapser>
+
+  <Collapser
+    id="flags"
+    title="About flags"
+  >
+    No flags are enabled by default. Some useful flags to include in regular expressions in the decision builder are:
+
+    * CASE_INSENSITIVE: (?i)
+    * MULTILINE: (?m)
+    * DOTALL: (?s)
+
+      See [Oracle's field detail documentation](https://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html#field.detail) for more notes on the function and implementation of each of these flags.
+  </Collapser>
+</CollapserGroup>
+
+## Correlation assistant [#assistant]
+
+You can use the correlation assistant to more quickly analyze [incidents](/docs/alerts-applied-intelligence/new-relic-alerts/get-started/alerts-ai-overview-page/#incidents), create decision logic, and test the logic with a simulation. To use the correlation assistant:
+
+1. Go to <DNT>**[one.newrelic.com > All capabilities](https://one.newrelic.com/all-capabilities) > Alerts > Issues & activity > Incidents**</DNT> tab.
+2. Check the boxes of incidents you'd like to correlate. Then, at the bottom of the incident list, click <DNT>**Correlate incidents**</DNT>.
+3. For best results for correlating incidents, select common attributes with a low frequency percentage. [Learn more about using frequency](#frequency-tips).
+4. Click <DNT>**Simulate**</DNT> to see the likely effect of your new decision on the last week of your data.
+5. Click on examples of correlation pairs to determine which correlations to use.
+6. If you like what's been simulated, click <DNT>**Next**</DNT>, and then name and describe your decision.
+7. If the simulation result shows too many potential incidents, you may want to choose a different set of attributes and incidents for your decision, and run another simulation. [Learn more about simulation](#simulations).
+
+<CollapserGroup>
+  <Collapser
+    id="frequency-tips"
+    title="Attribute analysis"
+  >
+    Two types of attribute analysis appear in the UI:
+
+    * <DNT>**Common attributes:**</DNT> This analysis simply highlights attributes and values that are the exact same between all selected incidents.
+
+    * <DNT>**Similar attributes:**</DNT> Similarity analysis uses the Levenshtein algorithm with a distance of 3 to find attributes whose values would be the same if 3 or fewer character changes are performed. Numerical values as well as single character values are filtered out of the results. Similar attributes require two incidents to be selected, similarity analysis is not performed when 3, or more incidents are selected.
+
+      To create the best decisions, we recommend choosing common attributes that have a lower frequency in your incidents. Here are tips for understanding how choosing low or high frequency attributes affects your decisions:
+
+    * <DNT>**Low frequency:**</DNT> As an example, an attribute with a 0% in the frequency column is likely a unique identifier or an attribute that only recently reported in your data in the last month. Choosing low frequency attributes may correlate few events.
+
+    * <DNT>**High frequency:**</DNT> On the other end, an attribute with 100% frequency would be one that is present on all your data. Choosing these attributes would correlate all of your events together.
+
+      By default, the attributes are sorted by least frequency. Click an attribute's frequency percentage to get information about the distribution of values we've seen reported for that attribute in the last month.
+  </Collapser>
+</CollapserGroup>
+
+### Using simulation [#simulations]
+
+Simulation will test the logic against the last week of your data and show you how many correlations would have happened. Here's a breakdown of the decision preview information displayed when you simulate:
+
+* <DNT>**Potential correlation rate:**</DNT> The percentage of tested incidents this decision would have affected.
+* <DNT>**Total created incidents:**</DNT> The number of incidents tested by this decision.
+* <DNT>**Total estimated correlated incidents:**</DNT> The estimated number of incidents this decision would have correlated.
+* <DNT>**Incident examples:**</DNT> A list of incident pairs that the decision would have correlated, including the rule's attributes and values, as well as other popular attributes in each pair. Click on incidents to view details.
+
+Run the simulation with different attributes as many times as you need until you see results you like. When you're ready, follow the UI prompts to save your decision.
+
+## Topology correlation [#topology]
+
+For New Relic alerts, topology is a representation of your service map: how the services and resources in your infrastructure relate to one another.
+
+For decisions users, a [default topology decision](#global-decisions) is added and enabled in your account. You also have the option to [create custom decisions](#customize).
+
+Our topology correlation finds relationships between incident sources to determine if [incidents](/docs/alerts-applied-intelligence/new-relic-alerts/get-started/alerts-ai-overview-page/#incidents) and thus their respective issues should correlate. Topology correlation is designed to improve the quality of your correlations and the speed at which they're found.
+
+### Requirements [#topology-requirements]
+
+For automatic topology correlation (without the need to explicitly set up topology graph), make sure your telemetry data is collected by [New Relic agents](/docs/new-relic-solutions/new-relic-one/install-configure/compatibility-requirements-new-relic-agents-products/). The more types of New Relic agents are installed in your services and environment, the more opportunities for topology decisions to correlate your incidents.
+
+### How does topology correlation work? [#topology-explained]
+
+<img
+  title="topology-4.png"
+  alt="A screenshot of New Relic topology explained"
+  src="/images/alerts_diagram_topology-4.webp"
+/>
+
+<figcaption>
+  In this service map, the hosts and apps are the vertices, and the lines showing their relationships are the edges.
+</figcaption>
+
+To set up your topology in addition to the [entities and relationships](/docs/new-relic-solutions/new-relic-one/core-concepts/what-entity-new-relic/) collected by [New Relic agents](/docs/new-relic-solutions/new-relic-one/install-configure/compatibility-requirements-new-relic-agents-products/), use our [NerdGraph API](#create-topology-graph).
+
+Customized topology correlation relies on two main concepts:
+
+* <DNT>**Vertex:**</DNT> A vertex represents a monitored entity. It's the source from which your incident events are coming from, or describing a problematic symptom about. A vertex has attributes (key/value pairs) configured for it, like entity GUIDs or other IDs, which allow it be associated with incoming incident events.
+* <DNT>**Edges:**</DNT> An edge is a connection between two vertices. Edges describe the relationship between vertices.
+
+It may help to understand how topology is used to correlate incidents:
+
+1. First, New Relic gathers all relevant incidents. This includes incidents where [decision logic steps 1 and 2](#customize) are true and that are also within the defined time window in advanced settings.
+
+   <img
+     title="topology-1.png"
+     alt="A screenshot of New Relic topology explained"
+     src="/images/alerts_diagram_topology-1.webp"
+   />
+
+2. Next, we attempt to associate each incident to a vertex in your [topology graph](#create-topology-graph), using a vertex's defining attributes and the available attributes on the incident.
+
+   <img
+     title="topology-2.png"
+     alt="A screenshot of New Relic topology explained"
+     src="/images/alerts_diagram_topology-2.webp"
+   />
+
+   <figcaption>
+     An example of the steps for associating incidents with the information in the topology graph.
+   </figcaption>
+
+3. Then, the pairs of vertices which were associated with incidents are tested using the "topologically dependent" operator to determine if these vertices are connected to each other.
+
+   <img
+     title="topology-3.png"
+     alt="A screenshot of New Relic topology explained"
+     src="/images/alerts_diagram_topology-3.webp"
+   />
+
+   <figcaption>
+     This operator checks to see if there is any path in the graph that connect the two vertices within five hops.
+   </figcaption>
+
+   The incidents are then correlated and the issues are merged together.
+
+### Add attributes to incident events [#add-attributes]
+
+Incidents are connected to vertices using a vertex's defining attributes. (In the example topology under [Topology explained](#topology-explained), each vertex has a defining attribute "CID" with a unique value.) Next, New Relic's alerts system finds a vertex that matches the attribute.
+
+If the defining attribute you'd like to use on your vertices isn't already on your incident events, use either of these options to add it:
+
+<CollapserGroup>
+  <Collapser
+    id="tag-entities"
+    title="Tag your entities in New Relic"
+  >
+    By [tagging your entities](/docs/new-relic-one/use-new-relic-one/core-concepts/use-tags-help-organize-find-your-data), those tags will enrich the incident events generated by alerts. For example, if you've tagged your entities with `CID` and their corresponding unique values, then you can have defining attributes on your vertex as follows: `'newrelic/tags/CID' : CID_VALUE`
+  </Collapser>
+
+  <Collapser
+    id="facet-data"
+    title="Tag your entities in New Relic"
+  >
+    Creating [NRQL alert conditions](/docs/alerts-applied-intelligence/new-relic-alerts/alert-conditions/create-nrql-alert-conditions) with one or more [facets](/docs/alerts-applied-intelligence/new-relic-alerts/alert-conditions/create-nrql-alert-conditions#syntax) defined will group your data by attribute. Also, incident events emitted will be enriched with those attributes and values. For incidents, faceted attributes follow the same format: `newrelic/tags/ATTRIBUTE_NAME`
+  </Collapser>
+</CollapserGroup>
+
+### Create or view topology [#create-topology-graph]
+
+To set up your topology or view existing topology, see the [NerdGraph topology tutorial](/docs/apis/nerdgraph/examples/topology-nerdgraph-tutorial).

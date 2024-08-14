@@ -1,0 +1,458 @@
+---
+title: Métricas de OpenTelemetry en New Relic
+tags:
+  - Integrations
+  - Open source telemetry integrations
+  - OpenTelemetry
+metaDescription: Details on how New Relic works with OpenTelemetry metrics
+freshnessValidatedDate: '2024-05-23T00:00:00.000Z'
+translationType: machine
+---
+
+OpenTelemetry proporciona un [modelo de datos](https://opentelemetry.io/docs/specs/otel/metrics/data-model/) métrico dimensional, una [API](https://opentelemetry.io/docs/specs/otel/metrics/api/) para registrar telemetría métrica y un [SDK](https://opentelemetry.io/docs/specs/otel/metrics/sdk/) para agregar y exportar datos métricos.
+
+Esta página describe cómo New Relic maneja OpenTelemetry métrica que recibe a través del [extremo OTLPNew Relic ](/docs/opentelemetry/best-practices/opentelemetry-otlp). La integración de OpenTelemetry métrica con New Relic requiere configurar la fuente métrica para exportar a este extremo; revise los requisitos de configuración del extremo. Para información sobre la configuración de servicios con OpenTelemetry métrica consulte [OpenTelemetry APM monitoreo](/docs/opentelemetry/get-started/apm-monitoring/opentelemetry-apm-intro).
+
+## Tipo de instrumento para mapeo tipo métrica [#instrument-mapping]
+
+La OpenTelemetry métrica API define [varios tipos de instrumentos](https://opentelemetry.io/docs/specs/otel/metrics/api/#instrument). mediciones de registro instrumentado, que se agregan y exportan a través de OTLP como un tipo métrico particular. La siguiente tabla describe el comportamiento predeterminado sobre cómo cada instrumento OpenTelemetry agrega y exporta. Consulte [OTLP métrica mapeo](#otlp-mapping) para obtener detalles sobre cómo se trata cada tipo de métrica en New Relic.
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        Tipo de instrumento
+      </th>
+
+      <th>
+        Uso de ejemplo
+      </th>
+
+      <th>
+        Agregación predeterminada
+      </th>
+
+      <th>
+        Tipo de métrica exportada
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        [`Counter`](https://opentelemetry.io/docs/specs/otel/metrics/api/#counter)
+      </td>
+
+      <td>
+        Bytes procesados
+      </td>
+
+      <td>
+        [Suma](https://opentelemetry.io/docs/specs/otel/metrics/sdk/#sum-aggregation)
+      </td>
+
+      <td>
+        [`Sum` métrica](https://github.com/open-telemetry/opentelemetry-proto/blob/a05597bff803d3d9405fcdd1e1fb1f42bed4eb7a/opentelemetry/proto/metrics/v1/metrics.proto#L217-L226), con `is_monotonic=true`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [Contador asincrónico](https://opentelemetry.io/docs/specs/otel/metrics/api/#asynchronous-counter)
+      </td>
+
+      <td>
+        Observe el tiempo total de CPU del proceso
+      </td>
+
+      <td>
+        [Suma](https://opentelemetry.io/docs/specs/otel/metrics/sdk/#sum-aggregation)
+      </td>
+
+      <td>
+        [`Sum` métrica](https://github.com/open-telemetry/opentelemetry-proto/blob/a05597bff803d3d9405fcdd1e1fb1f42bed4eb7a/opentelemetry/proto/metrics/v1/metrics.proto#L217-L226), con `is_monotonic=true`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [`UpDownCounter`](https://opentelemetry.io/docs/specs/otel/metrics/api/#updowncounter)
+      </td>
+
+      <td>
+        Artículos en una cola
+      </td>
+
+      <td>
+        [Suma](https://opentelemetry.io/docs/specs/otel/metrics/sdk/#sum-aggregation)
+      </td>
+
+      <td>
+        [`Sum` métrica](https://github.com/open-telemetry/opentelemetry-proto/blob/a05597bff803d3d9405fcdd1e1fb1f42bed4eb7a/opentelemetry/proto/metrics/v1/metrics.proto#L217-L226), con `is_monotonic=false`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [UpDownCounter asincrónico](https://opentelemetry.io/docs/specs/otel/metrics/api/#asynchronous-updowncounter)
+      </td>
+
+      <td>
+        Observe el uso actual de la memoria
+      </td>
+
+      <td>
+        [Suma](https://opentelemetry.io/docs/specs/otel/metrics/sdk/#sum-aggregation)
+      </td>
+
+      <td>
+        [`Sum` métrica](https://github.com/open-telemetry/opentelemetry-proto/blob/a05597bff803d3d9405fcdd1e1fb1f42bed4eb7a/opentelemetry/proto/metrics/v1/metrics.proto#L217-L226), con `is_monotonic=false`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [`Histogram`](https://opentelemetry.io/docs/specs/otel/metrics/api/#histogram)
+      </td>
+
+      <td>
+        Duración de las solicitudes http
+      </td>
+
+      <td>
+        [Histograma de cubo explícito](https://opentelemetry.io/docs/specs/otel/metrics/sdk/#explicit-bucket-histogram-aggregation)
+      </td>
+
+      <td>
+        [`Histogram` métrica](https://github.com/open-telemetry/opentelemetry-proto/blob/a05597bff803d3d9405fcdd1e1fb1f42bed4eb7a/opentelemetry/proto/metrics/v1/metrics.proto#L230-L236) **\[1]**
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [`Gauge`](https://opentelemetry.io/docs/specs/otel/metrics/api/#gauge)
+      </td>
+
+      <td>
+        Cambiar evento para la velocidad del ventilador de la CPU
+      </td>
+
+      <td>
+        [Último valor](https://opentelemetry.io/docs/specs/otel/metrics/sdk/#last-value-aggregation)
+      </td>
+
+      <td>
+        [`Gauge` métrica](https://github.com/open-telemetry/opentelemetry-proto/blob/a05597bff803d3d9405fcdd1e1fb1f42bed4eb7a/opentelemetry/proto/metrics/v1/metrics.proto#L211-L213)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [Medidor asincrónico](https://opentelemetry.io/docs/specs/otel/metrics/api/#asynchronous-gauge)
+      </td>
+
+      <td>
+        Observe la temperatura ambiente actual
+      </td>
+
+      <td>
+        [Último valor](https://opentelemetry.io/docs/specs/otel/metrics/sdk/#last-value-aggregation)
+      </td>
+
+      <td>
+        [`Gauge` métrica](https://github.com/open-telemetry/opentelemetry-proto/blob/a05597bff803d3d9405fcdd1e1fb1f42bed4eb7a/opentelemetry/proto/metrics/v1/metrics.proto#L211-L213)
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+Consulte [las pautas complementariasOpenTelemetry métrica](https://opentelemetry.io/docs/specs/otel/metrics/supplementary-guidelines/) para obtener detalles sobre cómo elegir el tipo de instrumento correcto.
+
+**\[1]** El histograma instrumentado también se puede agregar al histograma métrico exponencial. Consulte [el histograma métrico de OTLP](#otlp-histogram) para obtener más detalles.
+
+## Mapeo de métrica OTLP [#otlp-mapping]
+
+New Relic asigna OTLP métrica al [tipo de datos`Metric` ](https://docs.newrelic.com/docs/data-apis/understand-data/metric-data/metric-data-type/#metric-types). La siguiente tabla describe cómo se interpretan los campos de los [protomensajes métricos](https://github.com/open-telemetry/opentelemetry-proto/blob/main/opentelemetry/proto/metrics/v1/metrics.proto). Consulte [tipo de instrumento a tipo métrico](#instrument-mapping) para obtener detalles sobre cómo los SDK/OpenTelemetry API producen los distintos tipos de métrica.
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        Protocampo métrico OTLP
+      </th>
+
+      <th>
+        Campo New Relic `Metric`
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `ResourceMetrics.Resource.attributes`
+      </td>
+
+      <td>
+        Cada valor principal es un atributo en el `Metric`**\[1]**
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `ScopeMetrics.InstrumentationScope.name`
+      </td>
+
+      <td>
+        `otel.library.name`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `ScopeMetrics.InstrumentationScope.version`
+      </td>
+
+      <td>
+        `otel.library.version`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `ScopeMetrics.InstrumentationScope.attributes`
+      </td>
+
+      <td>
+        Cada valor principal es un atributo en el `Metric`**\[1]**
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `Metric.name`
+      </td>
+
+      <td>
+        `metricName`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `Metric.description`
+      </td>
+
+      <td>
+        `description`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `Metric.unit`
+      </td>
+
+      <td>
+        `unit`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `Metric.*.data_points.start_time_unix_nano`
+      </td>
+
+      <td>
+        `timestamp`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `Metric.*.data_points.time_unix_nano`
+      </td>
+
+      <td>
+        `endTimestamp`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `Metric.*.data_points.attributes`
+      </td>
+
+      <td>
+        Cada valor principal es un atributo en el `Metric`**\[1]**
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `Metric.gauge.data_points`
+      </td>
+
+      <td>
+        Mapas de New Relic [`gauge`](/docs/data-apis/understand-data/metric-data/metric-data-type/#metric-types)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `Metric.sum.data_points`
+      </td>
+
+      <td>
+        Mapas de New Relic [`count`, `cumulativeCount` o `gauge`](/docs/data-apis/understand-data/metric-data/metric-data-type/#metric-types)
+
+        Ver [métricas OTLP sum](#otlp-sum)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `Metric.histogram.data_points`
+      </td>
+
+      <td>
+        Mapas de New Relic [`distribution`](/docs/data-apis/understand-data/metric-data/metric-data-type/#metric-types)
+
+        Ver [histograma métrico OTLP](#otlp-histogram)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `Metric.exponential_histogram.data_points`
+      </td>
+
+      <td>
+        Mapas de New Relic [`distribution`](/docs/data-apis/understand-data/metric-data/metric-data-type/#metric-types)
+
+        Ver [histograma métrico OTLP](#otlp-histogram)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `Metric.summary.data_points`
+      </td>
+
+      <td>
+        Mapas de New Relic [`summary`](/docs/data-apis/understand-data/metric-data/metric-data-type/#metric-types)
+
+        Ver [resumen OTLP métrica](https://github.com/open-telemetry/opentelemetry-proto/blob/a05597bff803d3d9405fcdd1e1fb1f42bed4eb7a/opentelemetry/proto/metrics/v1/metrics.proto#L254-L256)
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+**\[1]**: En caso de conflicto en los campos atributo de recurso, atributo alcance, atributo punto métrico y campos métricos de nivel superior, el orden de precedente (de mayor a menor) es: campos `Metric.*` de nivel superior > `Metric.*.data_points.attributes` > `ScopeMetrics.InstrumentationScope.attributes` > `ResourceMetrics.Resource.attributes`.
+
+### Métrica OTLP sum [#otlp-sum]
+
+OTLP [suma métrica](https://github.com/open-telemetry/opentelemetry-proto/blob/a05597bff803d3d9405fcdd1e1fb1f42bed4eb7a/opentelemetry/proto/metrics/v1/metrics.proto#L217-L226) representa la suma de medidas a lo largo del tiempo. Las sumas incluyen un campo [`aggregation_temporality`](#aggregation-temporality) y un campo `is_monotonic` , que indica si los valores aumentan monótonamente (es decir, solo pueden subir) o no (es decir, pueden subir y bajar). La siguiente tabla describe cómo New Relic trata las diferentes variedades de suma:
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        `is_monotonic`
+      </th>
+
+      <th>
+        `aggregation_temporality`
+      </th>
+
+      <th>
+        Comportamiento
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `true`
+      </td>
+
+      <td>
+        `cumulative`
+      </td>
+
+      <td>
+        Mapas de New Relic [`cumulativeCount`](/docs/data-apis/understand-data/metric-data/metric-data-type/#metric-types)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `true`
+      </td>
+
+      <td>
+        `delta`
+      </td>
+
+      <td>
+        Mapas de New Relic [`count`](/docs/data-apis/understand-data/metric-data/metric-data-type/#metric-types)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `false`
+      </td>
+
+      <td>
+        `cumulative`
+      </td>
+
+      <td>
+        Mapas de New Relic [`gauge`](/docs/data-apis/understand-data/metric-data/metric-data-type/#metric-types)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `false`
+      </td>
+
+      <td>
+        `delta`
+      </td>
+
+      <td>
+        No se admite porque los datos no son significativos. Vea [esta discusión](https://github.com/open-telemetry/opentelemetry-specification/pull/2314#pullrequestreview-877408961) para más detalles.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+### Histograma métrico OTLP [#otlp-histogram]
+
+[El histograma métrico](https://github.com/open-telemetry/opentelemetry-proto/blob/a05597bff803d3d9405fcdd1e1fb1f42bed4eb7a/opentelemetry/proto/metrics/v1/metrics.proto#L230-L236) OTLP y [el histograma métrico exponencial](https://github.com/open-telemetry/opentelemetry-proto/blob/a05597bff803d3d9405fcdd1e1fb1f42bed4eb7a/opentelemetry/proto/metrics/v1/metrics.proto#L240-L246) resumen una población de mediciones con información como suma, recuento, mínimo, máximo y depósitos que describen la distribución de los valores de medición. La variedad de histograma (también llamado histograma de depósito explícito) tiene depósitos con límites explícitos. La variedad exponencial tiene categorías con límites descritos por una fórmula exponencial. Ambas variedades incluyen un campo [de temporalidad de agregación](#aggregation-temporality).
+
+Ambas variedades de histograma se traducen a New Relic [`distribution`](/docs/data-apis/understand-data/metric-data/metric-data-type/#metric-types), que está respaldado por una representación interna de histograma exponencial de base 2. Esta representación refleja fielmente el formato de histograma exponencial de OpenTelemetry. Por esta razón, New Relic prefiere el histograma exponencial (consulte [Agregación de mistogramas métricos](/docs/opentelemetry/best-practices/opentelemetry-otlp/#metric-mistogram-aggregation) para obtener detalles sobre cómo configurar OTLP para preferir el histograma exponencial). La variedad de histograma de depósito explícito de OpenTelemetry se traduce a la representación exponencial mediante interpolación lineal. Consulte [NrSketch](https://github.com/newrelic-experimental/newrelic-sketch-java#new-relic-sketch) para obtener una explicación detallada.
+
+Los depósitos con límites en el infinito negativo y positivo se representan en New Relic como depósitos de ancho cero. Por ejemplo, un depósito de OpenTelemetry con límites `[-∞, 10)` se representa en New Relic como `[10, 10)`. Como resultado, es posible que vea recuentos de depósitos exagerados al final de su distribución.
+
+### Métrica de resumen OTLP [#otlp-summary]
+
+[Las métricas resumidas](https://github.com/open-telemetry/opentelemetry-proto/blob/a05597bff803d3d9405fcdd1e1fb1f42bed4eb7a/opentelemetry/proto/metrics/v1/metrics.proto#L254-L256) de OTLP son similares al histograma en que resumen una población de medidas, incluida la suma y el conteo. Sin embargo, cuando los histogramas incluyen categorías para describir la distribución de las mediciones, los resúmenes incluyen cuantiles. Estos cuantiles son de uso limitado ya que no pueden sufrir reagregación espacial o temporal. Los resúmenes incluidos en OpenTelemetry para legacy soporte , y OpenTelemetry API y el SDK no producen resúmenes.
+
+Los resúmenes están traducidos a New Relic [`summary`](/docs/data-apis/understand-data/metric-data/metric-data-type/#metric-types).
+
+## Temporalidad de agregación [#aggregation-temporality]
+
+La OpenTelemetry noción de [temporalidad de](https://opentelemetry.io/docs/specs/otel/metrics/data-model/#temporality) agregación define si un punto de datos métrico individuo agrega un conjunto acumulativo de mediciones (generalmente desde el inicio de la aplicación) o el conjunto delta de mediciones desde la última exportación. OTLP [sum métrica](#otlp-sum) y [histograma métrica](#otlp-histogram) tienen un campo `aggregation_temporality` que describe la semántica de sus puntos.
+
+Aunque aceptamos tanto la temporalidad métrica acumulativa como la delta, New Relic es generalmente un sistema delta métrica, y recomendamos al usuario que [configure su exportador OTLP para que prefiera la temporalidad delta](/docs/opentelemetry/best-practices/opentelemetry-otlp/#metric-aggregation-temporality).
+
+Cuando la temporalidad es acumulativa, las métricas se convierten en una representación delta (con el valor acumulativo retenido para [`cumulativeCount`](/docs/data-apis/understand-data/metric-data/metric-data-type/#metric-types), el uso de una traducción con estado es un proceso con estado en el que se calcula el delta a partir de dos puntos acumulativos consecutivos del mismo serial. El `Metric.*.data_points.start_time_unix_nano` se emplea para detectar reinicios de seriales.
+
+## Apoyo de ejemplares [#exemplars]
+
+[Ejemplares](https://opentelemetry.io/docs/specs/otel/metrics/data-model/#exemplars) métricos de OpenTelemetry no son actualmente compatibles con New Relic.

@@ -1,0 +1,304 @@
+---
+title: Kubernetes エージェント オペレーター
+tags:
+  - Integrations
+  - Kubernetes integration
+  - Agent Operator
+metaDescription: Learn how to use the Kubernetes agent operator to automatically manage your APM agents.
+freshnessValidatedDate: '2024-06-28T00:00:00.000Z'
+translationType: machine
+---
+
+<Callout title="プレビュー">
+  この機能はまだ開発中ですが、ぜひお試しください。
+
+  この機能は現在、弊社の[プレリリース ポリシー](/docs/licenses/license-information/referenced-policies/new-relic-pre-release-policy)に従ってプレビュー プログラムの一部として提供されています。
+</Callout>
+
+Kubernetesエージェント オペレーターは、 Kubernetesエージェント とともにAPMインストゥルメントを自動化することで、 Kubernetes環境のフルスタックの可用性を合理化します。 APM自動インストゥルメンテーションを有効にすると、開発者は[APMエージェント](/docs/apm/new-relic-apm/getting-started/introduction-apm/)を手動で管理する必要がなくなります。 Kubernetesエージェント オペレーターは、 APMエージェントを自動的にインストール、アップグレード、削除します。
+
+現在、Java、.NET、Node.js[をサポートしています](#k8s-supported-versions)。 Python、Ruby に加え、追加言語 (PHP および Go) も開発中です。 EKS および AMD ノードを実行するオンプレミス クラスターでテストされています。
+
+## あなたが始める前に [#before-begin]
+
+オペレーターをインストールする前に、次の点を確認してください。
+
+* [Helm](https://helm.sh/) : チャートを使用するにはこれをインストールする必要があります。 開始する際にサポートが必要な場合は、 [Helm のドキュメントを](https://helm.sh/docs/)参照してください。
+* [Kubectl](https://kubernetes.io/docs/tasks/tools/) : クラスターと通信するように設定する必要があります。
+* [証明書マネージャー](https://cert-manager.io/): クラスターにインストールする必要があります。
+
+### `cert-manager`の配電 [#install-cert-manager]
+
+証明書マネージャーの依存関係をインストールするには、次のコマンドを実行します。
+
+```shell
+helm repo add jetstack https://charts.jetstack.io
+helm install cert-manager jetstack/cert-manager \
+    --namespace cert-manager \
+    --create-namespace \
+    --set crds.enabled=true
+```
+
+## Kubernetesエージェントオペレーターのインストレーション [#install-k8s-operator]
+
+ニーズに応じて、エージェント オペレーターを単独でインストールするか、K8s インテグレーションと一緒にインストールするかを選択できます。
+
+[フルスタックのサバビリティエクスペリエンス](/docs/apm/apm-ui-pages/monitoring/kubernetes-summary-page/) 全体を活用するには、Kubernetes インテグレーションと一緒にインストールすることを強くお勧めします。
+
+### Kubernetesインテグレーションに加えてインストレーションをバンドルする（推奨） [#bundle-installation]
+
+Kubernetesエージェント オペレーター チャートは、 完全な可用性を実現するために必要なすべてのコンポーネントのインストレーションを管理する[ nri-bundle](https://github.com/newrelic/helm-charts/tree/master/charts/nri-bundle)Kubernetes チャートの一部として統合されています。
+
+`k8s-agents-operator.enabled=true`引数を helm コマンドに追加するか、 [`values.yaml`](https://github.com/newrelic/helm-charts/blob/master/charts/nri-bundle/values.yaml)ファイルに含めます。
+
+Helm の使用に関する詳細については[、 Kubernetesインテグレーションのインストール」](/install/kubernetes/?dropdown1=helm)ページを参照するか、 [nri-bundle](https://github.com/newrelic/helm-charts/tree/master/charts/nri-bundle)チャートを確認してください。
+
+インスタンスを使用した Helm コマンドのサンプルを参照してください。
+
+```shell
+helm repo add newrelic https://helm-charts.newrelic.com
+
+helm upgrade --install newrelic-bundle newrelic/nri-bundle \
+    --set global.licenseKey=<NEW RELIC INGEST LICENSE KEY> \
+    --set global.cluster=<CLUSTER_NAME> \
+    --namespace=newrelic \
+    --set newrelic-infrastructure.privileged=true \
+    --set global.lowDataMode=true \
+    --set kube-state-metrics.enabled=true \
+    --set kubeEvents.enabled=true \
+    --set k8s-agents-operator.enabled=true \
+    --create-namespace
+```
+
+### スタンドアロン インストール [#standalone-installation]
+
+Kubernetesエージェント オペレーターをデフォルト設定でインストールするには、次のコマンドを実行します。
+
+```shell
+helm repo add newrelic-k8s https://newrelic.github.io/k8s-agents-operator
+helm upgrade --install k8s-agents-operator newrelic-k8s/k8s-agents-operator \
+    --namespace newrelic \
+    --create-namespace \
+    --set licenseKey=<YOUR_NEW_RELIC_INGEST_LICENSE_KEY>
+```
+
+設定オプションの完全なリストについては、 [README](https://github.com/newrelic/k8s-agents-operator/tree/main/charts/k8s-agents-operator#values)チャートを参照してください。
+
+## オペレータを有効にするネームスペースの設定 [#configuring-namespace]
+
+各ネームスペースでは、その内部でのアプリケーションデプロイの自動インストゥルメンテーションを有効にするために 2 段階のプロセスが必要です。
+
+1. オペレーターに測定させるネームスペースごとに、有効な[New Relic取り込みライセンス](/docs/apis/intro-apis/new-relic-api-keys/#license-key)を含むシークレットを作成します。
+
+   ```shell
+       kubectl create secret generic newrelic-key-secret \
+           --namespace <NAMESPACE_TO_MONITOR> \
+           --from-literal=new_relic_license_key=<YOUR_NEW_RELIC_INGEST_LICENSE_KEY>
+   ```
+
+   `<YOUR_NEW_RELIC_INGEST_LICENSE_KEY>` を有効なNew Relicライセンスキーに置き換えてください。
+
+2. 自動計装するネームスペースごとに次の CRD を適用します。 次のコマンドを実行します:
+
+   ```shell
+   kubectl apply -f <YOUR_YAML_FILE> -n <NAMESPACE_TO_MONITOR>
+   ```
+
+   適用する YAML ファイル:
+
+   ```yaml
+   apiVersion: newrelic.com/v1alpha1
+   kind: Instrumentation
+   metadata:
+       labels:
+           app.kubernetes.io/name: instrumentation
+           app.kubernetes.io/created-by: k8s-agents-operator
+       name: newrelic-instrumentation
+   spec:
+       java:
+           image: newrelic/newrelic-java-init:latest
+           # env:
+           # Example New Relic agent supported environment variables
+           # - name: NEW_RELIC_LABELS
+           #   value: "environment:auto-injection"
+           # Example overriding the appName configuration
+           # - name: NEW_RELIC_POD_NAME
+           #   valueFrom:
+           #     fieldRef:
+           #       fieldPath: metadata.name
+           # - name: NEW_RELIC_APP_NAME
+           #   value: "$(NEW_RELIC_LABELS)-$(NEW_RELIC_POD_NAME)"
+       nodejs:
+           image: newrelic/newrelic-node-init:latest
+       python:
+           image: newrelic/newrelic-python-init:latest
+       dotnet:
+           image: newrelic/newrelic-dotnet-init:latest
+       ruby:
+           image: newrelic/newrelic-ruby-init:latest
+   ```
+
+## アプリケーションで自動APMインストゥルメンテーションを有効にする [#enable-apm-instrumentation]
+
+Kubernetesエージェント オペレーターは、ポッドをスケジュールするときに言語固有のアノテーションを探して、どのアプリケーションを監視するかを判断します。
+
+現在サポートされている注釈を参照してください:
+
+```shell
+instrumentation.newrelic.com/inject-java: "true"
+instrumentation.newrelic.com/inject-nodejs: "true"
+instrumentation.newrelic.com/inject-python: "true"
+instrumentation.newrelic.com/inject-dotnet: "true"
+instrumentation.newrelic.com/inject-ruby: "true"
+```
+
+Javaエージェントを計装するためのアノテーション付きのエージェントの例を参照してください。
+
+```yaml
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+        name: spring-petclinic
+    spec:
+      selector:
+        matchLabels:
+          app: spring-petclinic
+      replicas: 1
+      template:
+        metadata:
+          labels:
+            app: spring-petclinic
+          annotations:
+            instrumentation.newrelic.com/inject-java: "true"
+        spec:
+          containers:
+            - name: spring-petclinic
+              image: ghcr.io/pavolloffay/spring-petclinic:latest
+              ports:
+                - containerPort: 8080
+              env:
+              - name: NEW_RELIC_APP_NAME
+                value: spring-petclinic-demo
+```
+
+## アプリケーション内のAPMインストゥルメンテーションをアップグレードする [#upgrade-apm-instrumention]
+
+デフォルトでは、 Kubernetesエージェント オペレーターは、対応する[APMエージェント](/docs/apm/new-relic-apm/getting-started/introduction-apm/)の利用可能な最新バージョンを自動的にインストールします。
+
+アプリケーションがモニターされると、ユーザーがアップグレードを選択しない限り、新しいバージョンに自動的にアップグレードされることはありません。 ポッドを再デプロイするか、デプロイメントを再起動するだけで、アプリケーションを新しいバージョンにシームレスにアップグレードできます。
+
+## アプリケーション内のAPMインストゥルメンテーションを削除します [#remove-apm-instrumentation]
+
+アプリケーション内のAPMインストゥルメンテーションを削除するには、 Kubernetesエージェント オペレーターによって使用されるアノテーションを削除する必要があります。 数秒後、 APMエージェントが自動的に削除されたことがわかります。
+
+## Kubernetes エージェント オペレーターの更新 [#upgrading-k8s-operator]
+
+### バンドル インストレーション
+
+次の構文を使用して、nri-bundle チャートのアップグレードを実行します。
+
+```shell
+ k8s-agents-operator.enabled=true
+```
+
+### スタンドアロン インストール
+
+`helm upgrade`コマンドを実行して、Kubernetes エージェント オペレーターの新しいバージョンに更新します。
+
+```shell
+    helm upgrade k8s-agents-operator newrelic/k8s-agents-operator -n newrelic
+```
+
+## Kubernetes エージェント オペレーターのアンインストール [#uninstall-k8s-operator]
+
+### バンドル インストレーション
+
+nri-bundle チャートをアンインストールするか、オペレーターのみを削除する場合は、次の引数で helm upgrade を実行します。
+
+```shell
+ k8s-agents-operator.enabled=false
+```
+
+### スタンドアロン インストール
+
+Kubernetes エージェント オペレーターをアンインストールして削除するには、次のコマンドを実行します。
+
+```shell
+    helm uninstall k8s-agents-operator -n newrelic
+```
+
+## データを見つけて使用する [#find-data]
+
+* アプリケーションのサイトを取得し、 [APMサマリー](/docs/apm/agents/manage-apm-agents/agent-data/triage-run-diagnostics/)ページを使用して問題を解決します。
+* [Kubernetes の概要](/docs/apm/apm-ui-pages/monitoring/kubernetes-summary-page/)ページを確認してください。 モニターアプリケーションのコンテキストでKubernetesインサイト を提供します。
+
+## よくあるご質問 [#faq]
+
+<CollapserGroup>
+  <Collapser
+    id="route-apps-telemetry"
+    title="アプリケーションテレメトリを別のアカウントにルーティングできますか?"
+  >
+    はい、適切なネームスペースのシークレットに挿入された[ライセンスキー](/docs/apis/intro-apis/new-relic-api-keys/#license-key)を変更するだけです。
+
+    <Callout variant="important">
+      [K8s APM エクスペリエンスは](/docs/apm/apm-ui-pages/monitoring/kubernetes-summary-page/)、アプリケーションと K8s クラスターからのデータが利用可能なアカウントでのみ利用できます。
+    </Callout>
+  </Collapser>
+
+  <Collapser
+    id="setup-operator"
+    title="特定のバージョンのAPMエージェントを挿入するようにオペレーターを設定できますか?"
+  >
+    プレビュー期間中は、各[APMエージェント](/docs/apm/new-relic-apm/getting-started/introduction-apm/)の最新バージョンのみがサポートされます。 GA 後、ユーザーはAPMエージェントのバージョンを変更できるようになります。
+  </Collapser>
+
+  <Collapser
+    id="modify-conf-apm"
+    title="アプリケーションがすでにインストゥルメントされている場合、K8s エージェント オペレーターをインストールできますか?"
+  >
+    同じアプリケーションに 2 つのAPMエージェントをインストールすると、予期しない問題が発生する可能性があります。 したがって、オペレータをインストールする前に、既存のインストゥルメンテーションを削除することを強くお勧めします。
+  </Collapser>
+</CollapserGroup>
+
+## トラブルシューティング [#troubleshooting]
+
+アプリケーションがインストゥルメントされていない場合は、次の点を確認してください。
+
+* オペレーターをインストールした後は、必ず再デプロイまたは新しいアプリケーションをデプロイしてください。 オペレータはクラスタ内で新規アプリケーションを自動導入するだけなので注意してください。
+
+* シークレットとインストゥルメンテーション CRD がアプリのネームスペースにインストールされていることを確認します。
+
+  ```shell
+  kubectl get secrets -n <NAMESPACE>
+  kubectl get instrumentation -n <NAMESPACE>
+  ```
+
+* ポッドに自動インストゥルメンテーションを有効にする注釈があることを確認します。
+
+  ```shell
+      kubectl get pod <POD> -n <NAMESPACE>  -o jsonpath='{.metadata.annotations}'
+  ```
+
+* エージェント オペレーター ポッドからログを取得します。
+
+  ```shell
+      kubectl logs <AGENT_OPERATOR_POD> -n newrelic
+  ```
+
+* `init`コンテナがアプリケーションのポッド内に挿入され、正常に実行されたことを確認します。
+
+  ```shell
+      kubectl describe pod <POD> -n <NAMESPACE>
+  ```
+
+## サポート [#support]
+
+Kubernetesエージェントオペレーターは現在、Java、.NET、Node.jsなどのAPMエージェントの最新バージョンをサポートしています。 Python と Ruby。
+
+オペレーターが一般公開されると、各APMエージェントの最新の 3 つのバージョンがサポートされるようになります。
+
+Kubernetes エージェント オペレーターの問題の場合:
+
+* 同様の問題がないか[GitHub の問題セクション](https://github.com/newrelic/k8s-agents-operator/issues)を確認するか、新しい問題を開くことを検討してください。
+* [New Relic サポート](https://support.newrelic.com/)チームに問い合わせてサポートを受けることができます。

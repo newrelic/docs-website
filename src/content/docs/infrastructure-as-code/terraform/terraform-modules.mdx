@@ -1,0 +1,416 @@
+---
+title: Using Terraform Modules and Remote Storage
+template: GuideTemplate
+metaDescription: Learn how to use [Terraform](https://www.terraform.io/) modules in your configurations and store them remotely.
+freshnessValidatedDate: never
+redirects:
+  - /docs/more-integrations/terraform/terraform-modules
+---
+
+[Terraform](https://www.terraform.io/) is a popular infrastructure-as-code software tool built by HashiCorp. You use it to provision all kinds of infrastructure and services, including New Relic dashboards and alerts.
+
+In this guide, you learn to use Terraform modules in your New Relic configurations. Specifically, you will create modules, import data, store modules on Github, and manage state remotely Amazon S3.
+
+In the video, we review additional steps installing Terraform and set up New Relic alerts. If you need help getting started with Terraform, the [Getting started with New Relic and Terraform](/docs/more-integrations/terraform/terraform-intro/) shows how to install Terraform, set up New Relic alerts, and specify a notification channel.
+
+<Video
+  id="2gl4kt4j14"
+  type="wistia"
+/>
+
+## Before you begin
+
+To use this guide, you should have some basic knowledge of both New Relic and Terraform. If you haven't deployed a New Relic open source agent yet, [install New Relic](/docs/agents/manage-apm-agents/installation/install-agent) for your application. Also, [install the Terraform CLI](https://www.terraform.io/intro/getting-started/install.html).
+
+Start by initializing a working directory:
+
+```bash
+mkdir terraform-config && cd terraform-config
+```
+
+To follow the examples in this gude, the accompanying example code is available on [GitHub](https://github.com/jsbnr/nr-terraform-intro-example)
+
+```bash
+git clone https://github.com/jsbnr/nr-terraform-intro-example.git
+```
+
+<Steps>
+  <Step>
+    ## Creating a Terraform Module
+
+    Terraform modules allow you to reuse, share, and store your Terraform configurations using version control like Github. In the next steps, you will move your New Relic configurations into a reusable module.
+
+    First, in your project root, create a new directory to store your modules named  `modules`:
+
+    ```bash
+    mkdir modules && cd modules
+    ```
+
+    In the modules directory, create a new directory for a new module called HostConditions and create a new file named `main.tf`:
+
+    ```bash
+    mkdir HostConditions && cd HostConditions
+    touch main.tf
+    ```
+
+    Remove the two alert conditions from the root project's `main.tf` file and copy it to the new `main.tf` file in the `HostConditions` directory.
+
+    In the root directory's `main.tf` file call the new module using a module block:
+
+    ```hcl
+    module "HostConditions" {
+      source = "./modules/HostConditions"
+    }
+    ```
+
+    Try testing your configurations, run `terraform plan` and
+    `terraform init`:
+
+    ```bash copyable=false
+    [output] {muted}# Example output
+    [output] ------------------------------------------------------------------------
+    [output] 
+    [output] Initializing modules...
+    [output] - HostConditions in
+    [output] 
+    [output] Error: Unreadable module directory
+    [output] 
+    [output] Unable to evaluate directory symlink: lstat modules/HostConditions: no such
+    [output] file or directory
+    [output] 
+    [output] 
+    [output] Error: Failed to read module directory
+    [output] 
+    [output] Module directory  does not exist or cannot be read.
+    [output] 
+    [output] 
+    [output] Error: Unreadable module directory
+    [output] 
+    [output] Unable to evaluate directory symlink: lstat modules/HostConditions: no such
+    [output] file or directory
+    [output] 
+    [output] 
+    [output] Error: Failed to read module directory
+    [output] 
+    [output] Module directory  does not exist or cannot be read.
+    ```
+
+    You see an error in your console due to the lack of provider details in your modules directory. To fix the error, create a copy of the root provider.tf in your `HostConditions` directory :
+
+    ```hcl
+    provider "newrelic" {
+     account_id = 12345 # Your New Relic account ID
+     api_key = "NRAK-zzzzzz" # Your New Relic user key
+     region = "US" # US or EU (defaults to US)
+    }
+    ```
+
+    Try testing your configurations, run `terraform plan` and `terraform init`:
+
+    ```bash copyable=false
+    [output] {muted}# Example output
+    [output] ------------------------------------------------------------------------
+    [output] 
+    [output] Error: Reference to undeclared resource
+    [output] 
+    [output]   on modules/HostConditions/main.tf line 2, in resource "newrelic_infra_alert_condition"
+    [output] "cpuhot":
+    [output]    2:   policy_id = newrelic_alert_policy.DemoPolicy.id
+    [output] 
+    [output] A managed resource "newrelic_alert_policy" "DemoPolicy" has not been declared
+    [output] in module.HostConditions.
+    [output] 
+    [output] 
+    [output] Error: Reference to undeclared resource
+    [output] 
+    [output]   on modules/HostConditions/main.tf line 24, in resource "newrelic_infra_alert_condition"
+    [output] "highDiskUsage":
+    [output]   24:   policy_id = newrelic_alert_policy.DemoPolicy.id
+    [output] 
+    [output] A managed resource "newrelic_alert_policy" "DemoPolicy" has not been declared
+    [output] in module.HostConditions.
+    ```
+
+    Terraform init no longer shows an error, but running terraform plan still causes an error to occur.
+
+    The error is due to the policy id used in the `./modules/HostConditions/provider.tf` doesn't exist. A variable is needed to pass into the module.
+  </Step>
+
+  <Step>
+    ## Create a Variable
+
+    Variables pass details into your module and set default values.
+
+    First, at the top of your `HostConditions/provider.tf` create a new variable:
+
+    ```hcl
+    variable "providerId" {}
+    ```
+
+    Next, in the resource block, replace the existing `policyId` with the new variable:
+
+    ```hcl
+    var.policy
+    ```
+
+    ### Passing a variable into a module
+
+    To make a module dynamic, you will pass your variables into the module using the module resource block.
+
+    In the root directory `main.tf`, update the module block to add the `policyId` variable:
+
+    ```hcl
+    module "HostConditions" {
+      source = "./modules/HostConditions"
+      policyId = newrelic_alert_policy.DemoPolicy.id
+    }
+    ```
+
+    Run `terraform plan` after adding your variable to the module.
+
+    ```bash
+    terraform plan
+    ```
+
+    Now, add more variables and replace the values CPU critical, CPU warning, and disk percent. Then, pass the new variables into the module.
+
+    Add the new variables to `HostConditions/main.tf`:
+
+    ```hcl
+    variable cpu_warning {}
+    variable cpu_critical {}
+    variable diskPercent {}
+    ```
+
+    Update the alert conditions to use the new variables added in the `HostConditons/main.tf`:
+
+    ```hcl
+    resource "newrelic_infra_alert_condition" "cpuhot" {
+      policy_id = var.policyId
+
+      name       = "CPU hot!"
+      type       = "infra_metric"
+      event      = "SystemSample"
+      select     = "cpuPercent"
+      comparison = "above"
+      where      = "(hostname LIKE '%myhost%')"
+
+      critical {
+        duration      = 5
+        value         = var.cpu_critical
+        time_function = "all"
+      }
+      warning {
+        duration      = 5
+        value         = var.cpu_warning
+        time_function = "all"
+      }
+    }
+
+    resource "newrelic_infra_alert_condition" "highDiskUsage" {
+      policy_id = var.policyId
+
+      name       = "high disk usage"
+      type       = "infra_metric"
+      event      = "SystemSample"
+      select     = "diskUsedPercent"
+      comparison = "above"
+      where      = "(hostname LIKE '%myhost%')"
+
+      critical {
+        duration      = 5
+        value         = var.diskPercent
+        time_function = "all"
+      }
+    }
+    ```
+
+    Run `terraform plan` after adding your variables to the module.  An error message displays due to the missing variable values. Values can be added in the module block or as default values.
+
+    ```bash
+    terraform plan
+    ```
+
+    ### Adding default values
+
+    Add default variable values to `HostConditions/main.tf`:
+
+    ```hcl
+    variable cpu_warning { default=80}
+    variable cpu_critical { default=90}
+    variable diskPercent { default=60 }
+    ```
+
+    ### Pass variable values using module block
+
+    In the root directory `main.tf`, update the module block to add the `cpu_critical`, `cpu_warning`, and `diskPercentage` variables:
+
+    ```hcl
+    module "HostConditions" {
+      source = "./modules/HostConditions"
+      policyId = newrelic_alert_policy.DemoPolicy.id
+      cpu_critical = 88
+      cpu_warning = 78
+      diskPercentage = 66
+    }
+    ```
+
+    Run `terraform plan` after adding your variables to the module.
+
+    ```bash
+    terraform plan
+    ```
+  </Step>
+
+  <Step>
+    ## Reusing a module
+
+    You can reuse your module connecting to a New Relic policy that already exists. Before you start, in your New Relic account, create a new alert policy named **Preexisting Policy**.
+
+    ### Connecting an existing alert policy
+
+    First, In your root `main.tf` file add the data block to import an existing policy:
+
+    ```hcl
+    data "newrelic_alert_policy" "ExistingPolicy" {
+    	name = "Preexisting Policy"
+    }
+    ```
+
+    Next, create a second module block name `HostConditions2`. Add the alert conditions to the Preexisting Policy.
+
+    ```hcl
+    module "HostConditions2" {
+      source = "./modules/HostConditions"
+      policyId = data.newrelic_alert_policy.ExistingPolicy.id
+      cpu_critical = 87
+      cpu_warning = 77
+      diskPercentage = 67
+    }
+    ```
+
+    Run `terraform init` to initialize the new module and
+    run `terraform apply` to apply the changes to your New Relic account.
+
+    The terraform scripts create a new alert policy and two conditions, but it also applies the alert conditions to the Preexisting Policy.
+
+    Look in your New Relic account at the Preexisting Policy and see alerts conditions added for CPU Hot and High Disk Usage.
+  </Step>
+
+  <Step>
+    ## Store a module in Github
+
+    After you have created a module, if you want to store the module somewhere other people can use, Github is how you can do it.
+
+    ### Create a new Github repo
+
+    First, inside of your HostModules directory, initialize a new Github repo. Add your `main.tf` and `provider.tf` to the stage for commit:
+
+    ```bash
+    git add main.tf provider.tf
+    git commit -m "init"
+    ```
+
+    Next, using the commands provided in your new repo, push your commit to Github:
+
+    ```bash
+    git remote add origin <repo_url>
+    git branch -M main
+    git push -u origin main
+    ```
+
+    ### Using a module saved on Github
+
+    Check the Github repo and see the `main.tf` and `provider.tf` are now in your repo. Copy the GitHub repo's web URL to clone your repo.
+
+    Update the root `main.tf` file using GitHub as the source for the `HostConditions`:
+
+    ```hcl
+    module "HostConditions" {
+      source = "git::https://github.com/<your_username>/<your_repo_name>" # Add your repo URL
+      policyId = newrelic_alert_policy.DemoPolicy.id
+      cpu_critical = 88
+      cpu_warning = 78
+      diskPercentage = 66
+    }
+
+    module "HostConditions2" {
+      source = "git::https://github.com/<your_username>/<your_repo_name>" # Add your repo URL
+      policyId = data.newrelic_alert_policy.ExistingPolicy.id
+      cpu_critical = 87
+      cpu_warning = 77
+      diskPercentage = 67
+    }
+    ```
+
+    Run `terraform init` to initialize the new module. When you run `terraform init`, Terraform clones the repository locally. Run `terraform plan`
+
+    If you need to update your local module with updates made to the git repo, run `terraform get -update`
+  </Step>
+
+  <Step>
+    ## Manage state remotely in Amazon S3
+
+    The state file is the representation that terraform holds about the created resources. The state file is in the root directory, but if deleted or corrupted would cause trouble.
+    Storing the state file remote provides security and allows sharing and remote access.
+
+    In the `provider.tf` in the root directory, add a terraform backend block for Amazon S3:
+
+    ```hcl
+    terraform {
+    	backend "s3" {
+    		bucket = "<s3_bucket_name>"
+    		key = "<s3_bucket_key>"
+    		region = "<s3_bucket_region>"
+    	}
+    }
+    ```
+
+    Variables are needed to provide the correct S3 bucket details, and access is required.
+
+    To give access to the S3 bucket in your Amazon account, create an IAM user. Give the IAM user access to the S3 bucket storing the terraform state.
+
+    Add the profile to the terraform backend block:
+
+    ```hcl
+    terraform {
+    	backend "s3" {
+    		bucket = "<s3_bucket_name>"
+    		key = "<s3_bucket_key>"
+    		region = "<s3_bucket_region>"
+    		profile = "<iam_user_profile_name>"
+    	}
+    }
+    ```
+
+    Before saving your state to Amazon S3, destroy the current configurations to start from a clean slate:
+
+    ```bash
+    terraform destroy
+    ```
+
+    Initialize Terraform, run Terraform init:
+
+    ```bash
+    terraform init
+    ```
+
+    In the terminal, the output shows the backend initialized as S3. Delete the local state as it is not needed
+
+    ```bash
+    rm terraform.*
+    ```
+
+    Run `terraform apply` to apply your Terraform configuration changes.
+
+    ```bash
+    terraform apply
+    ```
+
+    The state file is now stored in S3 instead of locally. Look in your S3 bucket and see the terraform state exists.
+  </Step>
+</Steps>
+
+## Conclusion
+
+Congratulations! You're using modules to make your terraform configurations more flexible. Review the [New Relic Terraform provider documentation](https://registry.terraform.io/providers/newrelic/newrelic/latest/docs) to learn how you can take your configuration to the next level.

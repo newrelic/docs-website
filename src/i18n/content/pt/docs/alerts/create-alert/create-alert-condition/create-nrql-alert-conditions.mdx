@@ -1,0 +1,944 @@
+---
+title: Criar condição de alerta NRQL
+tags:
+  - Alerts
+  - Alert conditions
+metaDescription: How to define thresholds that trigger alert notifications based on your NRQL queries.
+freshnessValidatedDate: '2024-08-01T00:00:00.000Z'
+translationType: machine
+---
+
+Recomendamos a criação de um alerta usando um NRQL condição do alerta. Este documento irá guiá-lo na formatação e configuração do seu NRQL condição do alerta para maximizar a eficiência e reduzir o ruído. Se você acabou de começar com New Relic ou ainda não criou uma condição do alerta, recomendamos começar com [condição do alerta](/docs/alerts/create-alert/create-alert-condition/alert-conditions/).
+
+Você pode criar uma condição do alerta a partir de:
+
+* [Um gráfico](/docs/tutorial-create-alerts/create-an-alert/)
+* [Uma página de política](https://one.newrelic.com/nr1-core/condition-builder/policy-entity)
+
+* [A página](https://one.newrelic.com/alerts-ai/detection-gaps/)
+
+  <DNT>
+    [**Alert coverage gaps**](https://one.newrelic.com/alerts-ai/detection-gaps/)
+  </DNT>
+
+Você também pode usar um de nossos criadores de alerta:
+
+* Use
+
+  <DNT>
+    **Write your own query**
+  </DNT>
+
+  para criar alertas do zero.
+
+* <DNT>
+    Use **Guided mode**
+  </DNT>
+
+  para escolher entre as opções recomendadas e criar sua consulta NRQL para você.
+
+Não importa onde você comece a criar uma condição de alerta, seja por meio de um gráfico ou escrevendo sua própria consulta, NRQL é o alicerce sobre o qual você pode definir seu sinal e definir seu limite.
+
+## Sintaxe de alerta NRQL [#syntax]
+
+Aqui está a sintaxe básica para criar todas as condições do alerta NRQL.
+
+```sql
+SELECT function(attribute)
+	FROM Event
+	WHERE attribute [comparison] [AND|OR ...]
+```
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "300px" }}>
+        <DNT>**Clause**</DNT>
+      </th>
+
+      <th>
+        <DNT>**Notes**</DNT>
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `SELECT function(attribute)`
+
+        <DNT>**Required**</DNT>
+      </td>
+
+      <td>
+        [As funções](/docs/query-your-data/nrql-new-relic-query-language/get-started/nrql-syntax-clauses-functions/#functions) suportadas que retornam números incluem:
+
+        * `apdex`
+
+        * `average`
+
+        * `count`
+
+        * `latest`
+
+        * `max`
+
+        * `min`
+
+        * `percentage`
+
+        * `percentile`
+
+        * `sum`
+
+        * `uniqueCount`
+
+          <Callout variant="tip">
+            Se você usar o agregador `percentile` em uma condição do alerta facetada com muitas facetas, isso poderá causar este erro:
+
+            `An error occurred while fetching chart data.`
+
+            Se você vir esse erro, use `average` .
+          </Callout>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `FROM data type`
+
+        <DNT>**Required**</DNT>
+      </td>
+
+      <td>
+        Vários [tipos de dados](/docs/data-apis/understand-data/new-relic-data-types/) podem ser destino.
+
+        Tipos de dados suportados:
+
+        * Evento
+        * `Metric` (Os pontos de dados RAW serão retornados)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `WHERE attribute [comparison] [AND|OR ...]`
+      </td>
+
+      <td>
+        Use a cláusula `WHERE` para especificar uma série de uma ou mais condições. Todos os [operadores](/docs/insights/new-relic-insights/using-new-relic-query-language/nrql-reference#where-operators) são suportados. É usado para filtrar os dados retornados na consulta.
+      </td>
+    </tr>
+
+    <tr>
+      <td id="facet">
+        `FACET` atributo
+      </td>
+
+      <td>
+        Inclua uma cláusula `FACET` opcional na sintaxe NRQL dependendo do [tipo de limite](#threshold-types) (estático ou anomalia).
+
+        Use a cláusula [`FACET`](/docs/query-your-data/nrql-new-relic-query-language/get-started/nrql-syntax-clauses-functions/#sel-facet) para separar seus resultados por atributo e alertar cada atributo de forma independente. Nenhuma cláusula `LIMIT` é permitida, mas todas as consultas receberão o máximo de facetas possíveis.
+
+        A consulta facetada pode retornar no máximo 5.000 valores para condições [estáticas e de anomalia](#threshold-types) .
+
+        <Callout variant="important">
+          Se a consulta retornar mais que o número máximo de valores, a condição do alerta não poderá ser criada. Se você criar a condição e a consulta retornar mais que esse número posteriormente, o alerta falhará. Modifique sua consulta para que ela retorne um número menor de valores.
+        </Callout>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Reformatando NRQL incompatível [#reformatting]
+
+Alguns elementos do NRQL usados nos gráficos não fazem sentido no contexto do alerta de streaming. Aqui está uma lista dos elementos incompatíveis mais comuns e sugestões para reformatar uma consulta de alerta NRQL para obter o mesmo efeito.
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "300px" }}>
+        <DNT>**Element**</DNT>
+      </th>
+
+      <th>
+        <DNT>**Notes**</DNT>
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `SINCE` e `UNTIL`
+      </td>
+
+      <td>
+        Exemplo:
+
+        ```sql
+        SELECT percentile(largestContentfulPaint, 75) FROM PageViewTiming WHERE (appId = 837807) SINCE yesterday
+        ```
+
+        As condições NRQL produzem um fluxo interminável de resultados de consulta em janela, portanto, as palavras-chave `SINCE` e `UNTIL` para definir o escopo da consulta até um momento específico não são compatíveis. Por conveniência, removemos automaticamente `SINCE` e `UNTIL` de uma consulta ao criar uma condição no contexto de um gráfico.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `TIMESERIES`
+      </td>
+
+      <td>
+        Na consulta NRQL, a cláusula `TIMESERIES` é usada para retornar dados como uma série temporal dividida por um período de tempo especificado.
+
+        Para condições NRQL e se não estiver usando agregação de janela deslizante, a propriedade equivalente a `TIMESERIES` é a duração da janela de agregação de dados. Se você estiver usando agregação de janela deslizante, a propriedade equivalente será o valor da agregação de janela deslizante.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `histogram()`
+      </td>
+
+      <td>
+        A função de agregação `histogram()` é usada para gerar o histograma.
+
+        `histogram()` não é compatível com alertas NRQL: as agregações do histograma não podem ser formatadas como uma série temporal. Para criar um alerta a partir de uma parte de um histograma (por exemplo, percentil 95), use a função de agregação [`percentile()`](/docs/query-your-data/nrql-new-relic-query-language/get-started/nrql-syntax-clauses-functions/#func-percentile) .
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `bytecountestimate()`, `cardinality()`
+      </td>
+
+      <td>
+        Estas funções ainda não são suportadas para alertas NRQL.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Múltiplas funções de agregação
+      </td>
+
+      <td>
+        Cada condição só pode destinar um único valor agregado. Para alertar sobre vários valores simultaneamente, será necessário decompô-los em condições individuais dentro da mesma política.
+
+        Consulta original:
+
+        ```sql
+        SELECT count(foo), average(bar), max(baz) from Transaction
+        ```
+
+        Decomposto:
+
+        ```sql
+        SELECT count(foo) from Transaction
+
+        SELECT average(bar) from Transaction
+
+        SELECT max(baz) from Transaction
+        ```
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `COMPARE WITH`
+      </td>
+
+      <td>
+        A cláusula `COMPARE WITH` é usada para comparar os valores de dois intervalos de tempo diferentes. Este tipo de consulta é incompatível com alertas NRQL. Recomendamos usar uma [condição de anomalia do alerta](/docs/alerts-applied-intelligence/applied-intelligence/anomaly-detection/custom-anomalies/) para detectar dinamicamente o Desvio para um sinal específico.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `SLIDE BY`
+      </td>
+
+      <td>
+        A cláusula `SLIDE BY` oferece suporte a um recurso conhecido como [janelas deslizantes](#sliding-window-aggregation). Com janelas deslizantes, `SLIDE BY` os dados são reunidos em &amp;quot;janelas&amp;quot; de tempo que se sobrepõem entre si. Essas janelas podem ajudar a suavizar gráficos de linha com muita variação nos casos em que o agregado móvel (como uma média móvel) é mais importante do que agregados de janelas estreitas de tempo.
+
+        Você pode ativar janelas deslizantes na interface. Ao criar ou editar uma condição, vá para <DNT>**Adjust to signal behavior &gt; Data aggregation settings &gt; Use sliding window aggregation**</DNT>.
+
+        Por exemplo, para criar uma condição do alerta equivalente a
+
+        ```sql
+        SELECT count(*) from Transaction TIMESERIES 1 minute SLIDE BY 5 minutes
+        ```
+
+        Você usaria uma janela de agregação de dados com duração de 5 minutos, com uma janela de agregação deslizante de 1 minuto.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `LIMIT`
+      </td>
+
+      <td>
+        Na consulta NRQL, a cláusula `LIMIT` é usada para controlar a quantidade de dados que uma consulta retorna, seja o número máximo de valores de faceta retornados por `FACET` consulta ou o número máximo de itens retornados por `SELECT \*` consulta.
+
+        `LIMIT` não é compatível com alertas NRQL: a avaliação é sempre realizada no conjunto completo de resultados.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Subconsultas
+      </td>
+
+      <td>
+        [As subconsultas](/docs/query-your-data/nrql-new-relic-query-language/get-started/subqueries-in-nrql) não são compatíveis com streaming <InlinePopover type="alerts" />porque a execução da subconsulta requer diversas passagens pelos dados.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        JOINs de subconsulta
+      </td>
+
+      <td>
+        [Os JOINS de subconsulta](/docs/query-your-data/nrql-new-relic-query-language/nrql-query-tutorials/subquery-joins) não são compatíveis com alerta de streaming porque a execução da subconsulta requer múltiplas passagens pelos dados.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Exemplos de limite de alerta NRQL [#examples]
+
+Aqui estão alguns casos de uso comuns para condições NRQL. Estas consultas funcionarão para [tipos de condições](#threshold-types) estáticas e de anomalia.
+
+<CollapserGroup>
+  <Collapser id="constrained-alerts" title="Alerta sobre segmentos específicos de seus dados">
+    Crie alertas restritos que destinam um segmento específico de seus dados, como alguns clientes principais ou um intervalo de dados. Use a cláusula `WHERE` para definir essas condições.
+
+    ```sql
+    SELECT average(duration) FROM Transaction WHERE account_id in (91290, 102021, 20230)
+    ```
+
+    ```sql
+    SELECT percentile(duration, 95) FROM Transaction WHERE name LIKE 'Controller/checkout/%'
+    ```
+  </Collapser>
+
+  <Collapser id="nth-percentile" title="Alerta sobre o enésimo percentil dos seus dados">
+    Crie um alerta quando um enésimo percentil de seus dados atingir um limite especificado; por exemplo, mantendo o nível de serviço do SLA. Como avaliamos a consulta NRQL com base na duração da janela de agregação, o percentil será calculado para cada duração separadamente.
+
+    ```sql
+    SELECT percentile(duration, 95) FROM Transaction
+    ```
+
+    ```sql
+    SELECT percentile(databaseDuration, 75) FROM Transaction
+    ```
+  </Collapser>
+
+  <Collapser id="max-min-avg" title="Alerta sobre máximo, mínimo, média de seus dados">
+    Crie alerta quando seus dados atingirem um determinado máximo, mínimo ou média; por exemplo, garantindo que uma duração ou tempo de resposta não ultrapasse um determinado limite.
+
+    ```sql
+    SELECT max(duration) FROM Transaction
+    ```
+
+    ```sql
+    SELECT average(duration) FROM Transaction
+    ```
+  </Collapser>
+
+  <Collapser id="percentage" title="Alerta sobre uma porcentagem dos seus dados">
+    Crie um alerta quando uma proporção dos seus dados estiver acima ou abaixo de um determinado limite.
+
+    ```sql
+    SELECT percentage(count(*), WHERE duration > 2) FROM Transaction
+    ```
+
+    ```sql
+    SELECT percentage(count(*), WHERE http.statusCode = '500') FROM Transaction
+    ```
+  </Collapser>
+
+  <Collapser id="apdex" title="Alerta no Apdex com qualquer valor T">
+    Crie alerta no [Apdex](/docs/apm/new-relic-apm/apdex/apdex-measuring-user-satisfaction), aplicando seu próprio valor T para determinada transação. Por exemplo, receba uma notificação de alerta quando seu Apdex para um valor T de 500 ms na transação para aplicativos de produção ficar abaixo de 0,8.
+
+    ```sql
+    SELECT apdex(duration, t:0.5) FROM Transaction WHERE appName like '%prod%'
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## Condições NRQL e ordem de operações de consulta [#query-order]
+
+Por padrão, a duração da janela de agregação é de 1 minuto, mas você pode alterar a janela de acordo com suas necessidades. Qualquer que seja a janela de agregação, o New Relic coletará dados para essa janela usando a função na consulta da condição NRQL. A consulta é analisada e executada por nossos sistemas na seguinte ordem:
+
+1. `FROM` cláusula. Qual tipo de evento precisa ser capturado?
+2. `WHERE` cláusula. O que pode ser filtrado?
+3. `SELECT` cláusula. Quais informações precisam ser retornadas do conjunto de dados agora filtrado?
+
+### Exemplo: valor nulo retornado [#example-null]
+
+Digamos que esta seja a sua consulta de condição de alerta:
+
+```sql
+SELECT count(*) FROM SyntheticCheck WHERE monitorName = 'My Cool Monitor' AND result = 'FAILED'
+```
+
+Se não houver falhas na janela de agregação:
+
+1. O sistema executará a cláusula `FROM` capturando todos os eventos `SyntheticCheck` da sua conta.
+2. Em seguida, ele executará a cláusula `WHERE` para filtrar esses eventos, procurando apenas aqueles que correspondem ao nome do monitor e ao resultado especificado.
+3. Se ainda houver eventos para verificar após a conclusão das operações `FROM` e `WHERE` , a cláusula `SELECT` será executada. Se não houver nenhum evento restante, a cláusula `SELECT` não será executada.
+
+Isso significa que agregadores como `count()` e `uniqueCount()` nunca retornarão um valor zero. Quando há uma contagem de 0, a cláusula `SELECT` é ignorada e nenhum dado é retornado, resultando em um valor de `NULL`.
+
+### Exemplo: valor zero retornado [#example-zero]
+
+Se você tiver uma fonte de dados que fornece zeros numéricos legítimos, a consulta retornará valores zero e não valores nulos.
+
+Digamos que esta seja sua consulta de condição do alerta e que `MyCoolEvent` seja um atributo que às vezes pode retornar um valor zero.
+
+```sql
+SELECT average(MyCoolAttribute) FROM MyCoolEvent
+```
+
+Se, na janela de agregação que está sendo avaliada, houver pelo menos uma instância de `MyCoolEvent` e se o valor médio de todos os atributos `MyCoolAttribute` dessa janela for igual a zero, então será retornado um valor `0` . Se não houver nenhum evento `MyCoolEvent` durante esse minuto, então um `NULL` será retornado devido à ordem das operações.
+
+### Exemplo: valor nulo vs. valor zero retornado [#example-null-zero]
+
+Para determinar como os valores nulos serão tratados, ajuste as configurações de perda de sinal e preenchimento de lacunas na [condição do alerta interface](/docs/alerts-applied-intelligence/new-relic-alerts/alert-conditions/create-nrql-alert-conditions/#signal-loss).
+
+Você pode evitar valores `NULL` totalmente com um atalho de ordem de consulta de operações. Para fazer isso, use uma subcláusula `filter` e inclua todos os elementos de filtro dentro dessa subcláusula. O corpo principal da consulta deve incluir uma cláusula `WHERE` que defina pelo menos uma entidade para que, para qualquer janela de agregação onde o monitor realize uma verificação, o sinal seja vinculado a essa entidade. A cláusula `SELECT` será então executada e aplicará os elementos de filtro aos dados retornados pelo corpo principal da consulta, que retornará um valor de `0` se os elementos de filtro não resultarem em dados correspondentes.
+
+Aqui está um exemplo para alertar sobre `FAILED` resultados:
+
+```sql
+SELECT filter(count(*), WHERE result = 'FAILED') FROM SyntheticCheck WHERE monitorName = 'My Favorite Monitor'
+```
+
+Neste exemplo, uma janela com um resultado bem-sucedido retornaria `0`, permitindo que o limite da condição fosse resolvido por conta própria.
+
+Para obter mais informações, confira nossa [postagem no blog](https://discuss.newrelic.com/t/relic-solution-how-can-i-figure-out-when-to-use-gap-filling-and-loss-of-signal/120401) sobre resolução de problemas para valores zero versus valores nulos.
+
+## Alerta NRQL de agregação aninhada [#h2-nested-aggregation-nrql-alerts]
+
+[As consultas de agregação aninhadas](/docs/query-your-data/nrql-new-relic-query-language/nrql-query-tutorials/nested-aggregation-make-ordered-computations-single-query) são uma forma poderosa de consultar seus dados. No entanto, eles têm algumas restrições que é importante observar.
+
+<CollapserGroup>
+  <Collapser id="non-faceted_innermost_query" title="Consultas aninhadas com uma consulta interna não facetada não são suportadas atualmente">
+    Sem `FACET`, a consulta interna produz um único resultado, não fornecendo nada para agregar à consulta externa. Se você estiver usando uma consulta aninhada, certifique-se de que sua consulta interna esteja facetada.
+
+    ```sql
+    SELECT max(cpu) FROM (FROM SystemSample SELECT min(cpuPercent) as 'cpu' FACET hostname) ​​​​
+    ```
+  </Collapser>
+
+  <Collapser id="aggregation_window_size" title="Consulta em todos os níveis deve ter o mesmo tamanho de janela de agregação">
+    Com uma janela de agregação de alerta de 1 minuto, a consulta interna produziria duas janelas menores de 30 segundos. Em teoria, essas duas janelas poderiam ser agregadas pela consulta externa. No entanto, isso não é suportado atualmente.
+
+    ```sql
+    SELECT max(cpu) FROM (FROM Event SELECT min(cpuTime) as cpu TIMESERIES 30 seconds)​​
+    ```
+  </Collapser>
+
+  <Collapser id="signal_loss" title="A perda de sinal ainda não é compatível com consultas aninhadas">
+    Para obter mais informações sobre perda de sinal, consulte [API NerdGraph: Perda de sinal e preenchimento de lacunas](/docs/alerts-applied-intelligence/new-relic-alerts/alerts-nerdgraph/nerdgraph-api-loss-signal-gap-filling).
+  </Collapser>
+
+  <Collapser id="with_metric_format" title="Consultas aninhadas sobre dados de métrica de fração de tempo não são suportadas atualmente">
+    A consulta aninhada para [métrica de fração de tempo](/docs/data-apis/understand-data/new-relic-data-types/#timeslice-data) não é suportada. Mais especificamente, estes termos não são permitidos na consulta interna do NRQL condição do alerta:
+
+    * `WITH METRIC_FORMAT`
+    * `metricTimesliceName`
+    * `keyset`, `uniques`, `nativesizeestimate` ou `bytecountestimate` chamado no tipo `Metric`
+    * `newrelic.timeslice.value`
+    * `apm.service.*`, `apm.browser.*` , `apm.mobile.*`, `apm.key.transaction.*`
+  </Collapser>
+</CollapserGroup>
+
+## Dicas de criação de condição NRQL [#condition-tips]
+
+Aqui estão algumas dicas para criar e usar uma condição NRQL:
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "200px" }}>
+        Tema
+      </th>
+
+      <th>
+        Pontas
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Tipos de condição
+      </td>
+
+      <td>
+        Os tipos de condição NRQL incluem [estática e anomalia](#threshold-types).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Crie uma descrição
+      </td>
+
+      <td>
+        Para condições NRQL, você pode criar uma [descrição](/docs/alerts/new-relic-alerts/defining-conditions/alert-condition-descriptions) personalizada para adicionar a cada incidente. As descrições podem ser aprimoradas com substituição de variáveis com base em metadados no incidente específico.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Resultados da consulta
+      </td>
+
+      <td>
+        Consulta deve retornar um número. A condição avalia o número retornado em relação ao limite que você definiu.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Período de tempo
+      </td>
+
+      <td>
+        As condições NRQL avaliam os dados com base em como eles são agregados, usando janelas de agregação de 30 segundos a 120 minutos, em incrementos de 15 segundos. Para obter melhores resultados, recomendamos usar os métodos de agregação de fluxo de eventos ou temporizador de eventos.
+
+        Para o método de agregação de cadência, a cláusula `SINCE ... UNTIL` implícita que especifica qual minuto avaliar é controlada pela configuração [de atraso/temporizador](#delay-timer) . Como os dados muito recentes podem estar incompletos, você pode querer consultar os dados de 3 minutos atrás ou mais, especialmente para:
+
+        * Aplicativo que é executado em vários hosts.
+        * `SyntheticCheck` dados: os tempos limite podem levar 3 minutos, portanto, 5 minutos ou mais são recomendados.
+
+          Além disso, se uma consulta gerar dados intermitentes, considere usar a opção de sinal avançado [`slide by`](#sliding-window-aggregation) .
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Limite de sinal perdido (perda de detecção de sinal)
+      </td>
+
+      <td>
+        Você pode usar a detecção de perda de sinal para alertar quando seus dados (um sinal de telemetria) devem ser considerados perdidos. Uma perda de sinal pode indicar que um serviço ou entidade não está mais online ou que um trabalho periódico falhou na execução. Você também pode usar isso para garantir que os incidentes de dados esporádicos, como contagens de erros, sejam fechados quando nenhum sinal estiver chegando.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Configurações avançadas de sinal
+      </td>
+
+      <td>
+        Essas configurações oferecem opções para lidar melhor com sinais de dados de streaming contínuos que às vezes podem estar faltando. Essas configurações incluem a duração da janela de agregação, o atraso/temporizador e uma opção para preencher lacunas de dados. Para obter mais informações sobre como usá-los, consulte [Configurações avançadas de sinal](#advanced-signal).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Configurações de condição
+      </td>
+
+      <td>
+        Use <DNT>**Condition settings**</DNT> para:
+
+        * Crie um [nome de condição](/docs/alerts/new-relic-alerts/configuring-alert-policies/define-alert-conditions#rename-condition) conciso e descritivo.
+
+        * Forneça uma descrição personalizada do incidente para a condição na página
+
+          <DNT>
+            **Add details**
+          </DNT>
+
+          que será incluída nos incidentes e na notificação.
+
+        * Adicione a URL do runbook para incluir os procedimentos da sua organização para lidar com incidentes. Você também pode adicionar essas informações à descrição personalizada do incidente.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Limites de condições
+      </td>
+
+      <td>
+        Veja os [valores máximos](/docs/alerts/new-relic-alerts/getting-started/minimum-maximum-values).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Estado de saúde
+      </td>
+
+      <td>
+        Para que uma condição de alerta [status de saúde](/docs/alerts-applied-intelligence/new-relic-alerts/alert-conditions/view-entity-health-status-find-entities-without-alert-conditions) do NRQL funcione corretamente, a consulta deve ter como escopo uma única entidade. Para fazer isso, use uma cláusula WHERE (por exemplo, `WHERE appName = 'MyFavoriteApp'`) ou uma cláusula FACET para definir o escopo de cada sinal para uma única entidade (por exemplo, `FACET hostname` ou `FACET appName`).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        Exemplos
+      </td>
+
+      <td>
+        Para mais informações, veja:
+
+        * [Sintaxe NRQL esperada](#syntax)
+        * [Exemplos de consulta de condição NRQL](#examples)
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Gerenciando tags em condições [#condition-edit]
+
+Ao editar uma condição NRQL existente, você tem a opção de adicionar ou remover a tag associada à entidade da condição. Para fazer isso, clique no botão <DNT>**Manage tags**</DNT> abaixo do nome da condição. No menu que aparece, adicione ou exclua uma tag.
+
+## As edições de condições podem redefinir a avaliação de condições [#evaluation-resets]
+
+Ao editar a condição do alerta do NRQL de algumas maneiras específicas (detalhadas abaixo), suas avaliações são redefinidas, o que significa que qualquer avaliação até esse ponto é perdida e a avaliação recomeça a partir desse ponto. As duas maneiras pelas quais isso afetará você são:
+
+* Para o limite &quot;por pelo menos x minutos&quot;: como a janela de avaliação foi redefinida, haverá um atraso de pelo menos x minutos antes que qualquer incidente possa ser relatado.
+* Para [condições de anomalia](/docs/alerts-applied-intelligence/applied-intelligence/anomaly-detection/custom-anomalies/): a condição recomeça e todo o aprendizado da anomalia é perdido.
+
+As ações a seguir causam uma redefinição de avaliação para condições NRQL:
+
+* Alterando a consulta
+* Alterar a janela de agregação, o método de agregação ou a configuração de atraso/temporizador de agregação
+* Alterando a configuração &quot;fecho incidente na perda de sinal&quot;
+* Alterando quaisquer configurações de preenchimento de lacuna
+* Alterar a direção da anomalia (se aplicável) – superior, inferior ou superior/inferior
+* Alterar o valor limite, a janela limite ou o operador limite
+* Alterar o intervalo de deslizamento (somente em condições [de agregação de janelas deslizantes](/docs/alerts-applied-intelligence/new-relic-alerts/alert-conditions/create-nrql-alert-conditions/#sliding-window-aggregation) )
+
+As seguintes ações (juntamente com quaisquer outras ações não incluídas na lista acima) **não** redefinirão a avaliação:
+
+* Alteração da janela de tempo de perda de sinal (duração da expiração)
+* Alterar a função de tempo (alterar &quot;pelo menos&quot; para &quot;pelo menos uma vez&quot; ou vice-versa)
+* Alternando a configuração &quot;incidente aberto em caso de perda de sinal&quot;
+
+## Condição do alerta tipos [#threshold-types]
+
+Ao criar um alerta NRQL, você pode escolher entre diferentes tipos de condições:
+
+<table>
+  <thead>
+    <tr>
+      <th style={{ width: "150px" }}>
+        Condição NRQL dos tipos de alerta
+      </th>
+
+      <th>
+        Descrição
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        Estático
+      </td>
+
+      <td>
+        Este é o tipo mais simples de condição NRQL. Ele permite criar uma condição baseada em uma consulta NRQL que retorna um valor numérico.
+
+        Opcional: inclua uma cláusula `FACET` .
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        [anomalia](/docs/alerts-applied-intelligence/applied-intelligence/anomaly-detection/custom-anomalies/) (anomalia dinâmica)
+      </td>
+
+      <td>
+        Usa uma condição autoajustável com base no comportamento anterior dos valores do monitor. Usa o mesmo formulário de consulta NRQL que o tipo estático, incluindo a cláusula opcional `FACET` .
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+## Defina o limite de perda de sinal [#signal-loss]
+
+<Callout variant="important">
+  O recurso de perda de sinal requer que um sinal esteja presente antes de poder detectar que o sinal foi perdido. Se você ativar uma condição enquanto um sinal não estiver presente, nenhuma perda de sinal será detectada e o recurso de perda de sinal não será ativado.
+</Callout>
+
+A perda de sinal ocorre quando nenhum dado corresponde à condição NRQL durante um período específico de tempo. Você pode definir a duração do limite de perda de sinal e também o que acontece quando o limite é ultrapassado.
+
+<img
+  width="80%;"
+  title="signal-loss-ui.png"
+  alt="signal-loss-ui.png"
+  src="/images/queries-nrql_screenshot-full_signal-loss-ui.webp"
+/>
+
+<figcaption>
+  Vá para <DNT>**[one.newrelic.com &gt; All capabilities](https://one.newrelic.com/all-capabilities) &amp;gt; Alerts &amp;gt; Alert conditions (Policies)**</DNT> e depois <DNT>**+ New alert condition**</DNT>. A perda de sinal está disponível apenas para condições NRQL.
+</figcaption>
+
+Você também pode gerenciar essas configurações usando a API GraphQL (recomendado) ou a API REST. Clique aqui para obter [exemplos específicos da API GraphQL](/docs/alerts-applied-intelligence/new-relic-alerts/alerts-nerdgraph/nerdgraph-api-loss-signal-gap-filling).
+
+<DNT>**Loss of signal settings:**</DNT>
+
+As configurações de perda de sinal incluem uma duração de tempo e algumas ações.
+
+* <DNT>
+    **Signal loss expiration time**
+  </DNT>
+
+  * Rótulo de interface:
+
+    <DNT>
+      **Signal is lost after:**
+    </DNT>
+
+  * Rótulo de interface: <DNT>**Signal is lost after:**</DNT>
+  * Nó GraphQL: [expiration.expirationDuration](/docs/apis/nerdgraph/examples/nerdgraph-api-loss-signal-gap-filling/#loss-of-signal)
+  * A duração da expiração é um temporizador que inicia e reinicia quando recebemos um ponto de dados no pipeline de alerta de streaming. Se não recebermos outro ponto de dados antes que o seu &apos;tempo de expiração&apos; expire, consideramos que o sinal foi perdido. Isso pode ocorrer porque nenhum dado está sendo enviado para o New Relic ou a cláusula `WHERE` da sua consulta NRQL está filtrando esses dados antes de serem transmitidos para o pipeline de alerta. Observe que quando você tem uma consulta facetada, cada faceta é um sinal. Portanto, se qualquer um desses sinais terminar durante o período especificado, isso será considerado uma perda de sinal.
+  * O tempo de expiração da perda do sinal é independente da duração do limite e é acionado assim que o temporizador expira.
+  * A duração máxima de expiração é de 48 horas. Isto é útil no monitoramento para a execução de trabalhos pouco frequentes. O mínimo é 30 segundos, mas recomendamos usar pelo menos 3 a 5 minutos.
+
+* <DNT>**Loss of signal actions**</DNT> Quando um sinal é considerado perdido, você tem algumas opções:
+
+  * Fechar todos os incidentes abertos atuais: Fecha todos os incidentes abertos relacionados a um sinal específico. Não fechará necessariamente todos os incidentes de uma condição. Se você estiver alertando sobre um serviço efêmero ou sobre um sinal esporádico, escolha esta ação para garantir que os incidentes sejam fechados corretamente. O nome do nó GraphQL para isso é [&quot;closeViolationsOnExpiration](/docs/apis/nerdgraph/examples/nerdgraph-api-loss-signal-gap-filling/#loss-of-signal)&amp;quot;
+  * Abrir novos incidentes: abrirá um novo incidente quando o sinal for considerado perdido. Esses incidentes indicarão que são devidos a perda de sinal. Com base nas suas preferências de incidente, isso deverá acionar uma notificação. O nome do nó graphQL para isso é [&quot;openViolationOnExpiration](/docs/apis/nerdgraph/examples/nerdgraph-api-loss-signal-gap-filling/#loss-of-signal)&amp;quot;
+  * Ao habilitar ambas as ações acima, fecharemos todos os incidentes abertos primeiro e, em seguida, abriremos um novo incidente por perda de sinal.
+  * Não abra o incidente &quot;sinal perdido&quot; no término esperado. Quando um sinal estiver previsto para terminar, você pode optar por não abrir um novo incidente. Isso é útil quando você sabe que um sinal será perdido em um determinado momento e não quer abrir um novo incidente para essa perda de sinal. O nome do nó GraphQL para isso é [`ignoreOnExpectedTermination`](/docs/apis/nerdgraph/examples/nerdgraph-api-loss-signal-gap-filling/#loss-of-signal).
+
+<Callout variant="important">
+  Para evitar que um incidente de perda de sinal seja aberto quando &quot;Não abrir o incidente de &quot;sinal perdido&quot; no término esperado&quot;, a tag `termination: expected` deve ser adicionada à entidade. Esta tag nos informa que o sinal deveria terminar. Veja [como adicionar a tag diretamente na entidade](/docs/new-relic-solutions/new-relic-one/core-concepts/use-tags-help-organize-find-your-data/#add-tags).
+</Callout>
+
+Para criar um alerta NRQL configurado com detecção de perda de sinal na interface:
+
+1. Siga as [instruções para criar um NRQL condição do alerta](/docs/alerts/create-alert/create-alert-condition/alert-conditions/#set-your-signal-behavior).
+2. Na [etapa<DNT>Set thresholds</DNT> ](/docs/alerts/create-alert/create-alert-condition/alert-conditions/#thresholds)você encontrará a opção <DNT>Add lost signal threshold</DNT>. Clique neste botão.
+3. Defina o tempo de duração da expiração do sinal em minutos ou segundos no campo <DNT>**Consider the signal lost after**</DNT> .
+4. Escolha o que você quer que aconteça quando o sinal for perdido. Você pode marcar qualquer uma ou todas as seguintes opções: <DNT>**Close all current open incidents**</DNT>, <DNT>**Open new &quot;lost signal&quot; incident**</DNT>, <DNT>**Do not open &quot;lost signal&quot; incident on expected termination**</DNT>. Elas controlam como a perda de sinal incidente será tratada para a condição.
+5. Opcionalmente, você pode adicionar ou remover limites numéricos estáticos/anômalos. Uma condição que tem apenas um limite de perda de sinal e nenhum limite numérico estático/anômalo é válida e é considerada uma condição de perda de sinal &quot;autônoma&quot;.
+6. Continue seguindo os passos para salvar sua condição.
+7. Se você selecionou &quot;<DNT>**Do not open &quot;lost signal&quot; incident on expected termination**</DNT>&amp;quot;, deverá adicionar a tag `termination: expected` à entidade para evitar que um incidente de perda de sinal seja aberto. Veja [como adicionar a tag diretamente na entidade](/docs/new-relic-solutions/new-relic-one/core-concepts/use-tags-help-organize-find-your-data/#add-tags).
+
+   <DNT>
+     **Select a product**
+   </DNT>
+
+   , clique em
+
+   <DNT>
+     **NRQL**
+   </DNT>
+
+   e em
+
+   <DNT>
+     **Next, define thresholds**
+   </DNT>
+
+   .
+
+2. Escreva uma [consulta NRQL](/docs/alerts/new-relic-alerts/defining-conditions/create-alert-conditions-nrql-queries#syntax) que retorne os valores sobre os quais você deseja alertar.
+
+3. Para
+
+   <DNT>
+     **Threshold type**
+   </DNT>
+
+   , selecione
+
+   <DNT>
+     **Static**
+   </DNT>
+
+   ou
+
+   <DNT>
+     **Anomaly**
+   </DNT>
+
+   .
+
+4. Clique em
+
+   <DNT>
+     **+ Add lost signal threshold**
+   </DNT>
+
+   e defina o tempo de expiração do sinal em minutos ou segundos no campo
+
+   <DNT>
+     **Consider the signal lost after**
+   </DNT>
+
+   .
+
+5. Escolha o que você deseja que aconteça quando o sinal for perdido. Você pode verificar um ou ambos
+
+   <DNT>
+     **Close all current open incidents**
+   </DNT>
+
+   e
+
+   <DNT>
+     **Open new "lost signal" incident**
+   </DNT>
+
+   . Eles controlam como o incidente de perda de sinal será tratado para a condição.
+
+6. Certifique-se de nomear sua condição antes de salvá-la.
+
+Incidente aberto por perda de sinal de fechamento quando:
+
+* o sinal volta. O incidente de sinal perdido recém-aberto será fechado imediatamente quando novos dados forem avaliados.
+* a condição a que pertencem expira. Por padrão, as condições expiram após 3 dias.
+
+* você fecha manualmente o incidente com a opção
+
+  <DNT>
+    **Close all current open incidents**
+  </DNT>
+
+  .
+
+<Callout variant="tip">
+  A detecção de perda de sinal não funciona em consultas NRQL que usam agregação aninhada ou subconsulta.
+</Callout>
+
+## Configurações avançadas de sinal [#advanced-signal]
+
+<img
+  width="80%;"
+  title="Screenshot showing advanced signal settings"
+  alt="Screenshot showing advanced signal settings"
+  src="/images/queries-nrql_screenshot-full_fine-tune-signals.webp"
+/>
+
+<figcaption>
+  Ao criar uma condição de alerta NRQL, use as configurações avançadas de sinal para controlar [o streaming de dados de alerta](/docs/alerts-applied-intelligence/new-relic-alerts/get-started/streaming-alerts-key-terms-concepts) e evitar alarmes falsos.
+</figcaption>
+
+Ao criar uma condição NRQL, existem várias [configurações avançadas de sinal](/docs/alerts-applied-intelligence/new-relic-alerts/get-started/your-first-nrql-condition/#advanced-signal-settings):
+
+* Duração da janela de agregação
+* Agregação de janela deslizante
+* Método de streaming
+* Atraso/temporizador
+* Preencha lacunas de dados
+* Atraso na avaliação
+
+Para ler uma explicação sobre o que são essas configurações e como elas se relacionam entre si, consulte [Conceitos de alerta de streaming](/docs/alerts-applied-intelligence/new-relic-alerts/get-started/streaming-alerts-key-terms-concepts). Abaixo estão instruções e dicas sobre como configurá-los.
+
+### Duração da janela de agregação [#window-duration]
+
+Você pode definir a [duração da janela de agregação](/docs/alerts-applied-intelligence/new-relic-alerts/advanced-alerts/understand-technical-concepts/streaming-alerts-key-terms-concepts/#window-duration) para escolher por quanto tempo os dados serão acumulados em uma janela de tempo de streaming antes de serem agregados. Você pode configurá-lo para qualquer coisa entre 30 segundos e 120 minutos. O padrão é um minuto.
+
+### Agregação de janela deslizante [#sliding-window-aggregation]
+
+Você pode usar [janelas deslizantes](/docs/query-your-data/nrql-new-relic-query-language/nrql-query-tutorials/create-smoother-charts-sliding-windows) para criar gráficos mais suaves. Isso é feito criando janelas de dados sobrepostas.
+
+Aprenda como configurar janelas deslizantes neste pequeno vídeo (2:30 minutos):
+
+<Video id="-5--8DZynFE" type="youtube" />
+
+Uma vez ativado, defina o &quot;intervalo de deslizamento&quot; para controlar quanto tempo de sobreposição suas janelas agregadas têm. O intervalo deve ser menor que a janela de agregação e, ao mesmo tempo, dividir-se igualmente nela.
+
+<Callout variant="important">
+  Imediatamente após você criar uma nova janela deslizante condição do alerta ou executar qualquer ação que possa causar uma [redefinição de avaliação](#evaluation-resets), sua condição precisará de tempo para criar um &amp;quot;buffer agregado&amp;quot; durante a primeira janela de agregação. Durante esse período, nenhum incidente será desencadeado. Depois que essa única janela de agregação tiver passado, um &amp;quot;buffer&amp;quot; completo terá sido construído e a condição funcionará normalmente.
+</Callout>
+
+### Método de streaming [#streaming]
+
+Escolha entre [três métodos de agregação de streaming](/docs/alerts-applied-intelligence/new-relic-alerts/advanced-alerts/understand-technical-concepts/streaming-alerts-key-terms-concepts/#aggregation-methods) para obter os melhores resultados de avaliação para suas condições.
+
+### Atraso/temporizador [#delay-timer]
+
+Você pode ajustar o [atraso/temporizador](/docs/alerts-applied-intelligence/new-relic-alerts/advanced-alerts/understand-technical-concepts/streaming-alerts-key-terms-concepts/#delay-timer) para coordenar [nosso algoritmo de alerta de streaming](/docs/new-relic-solutions/get-started/glossary/#streaming-algorithm) com o comportamento dos seus dados. Se seus dados forem esparsos ou inconsistentes, você pode usar o método de agregação de temporizador de evento.
+
+Para o método de cadência, a latência total suportada é a soma da duração da janela de agregação e do atraso.
+
+Se o tipo de dados vier de um [agente de linguagem APM](/docs/apm/new-relic-apm/getting-started/introduction-apm) e for agregado de muitas instâncias de aplicativo (por exemplo, `Transactions`, `TransactionErrors` etc.), recomendamos usar o método de fluxo de eventos com as configurações padrão.
+
+<Callout variant="important">
+  Ao criar condições NRQL para dados coletados de [infraestrutura de integração na nuvem,](/docs/infrastructure/infrastructure-integrations/get-started/introduction-infrastructure-integrations/#cloud) como AWS CloudWatch ou Azure, recomendamos que você use o método de timer de evento.
+</Callout>
+
+### Preencha lacunas de dados [#data-gaps]
+
+O preenchimento de lacunas permite personalizar os valores a serem usados quando seus sinais não possuem dados. Você pode preencher lacunas em seus fluxos de dados com uma destas configurações:
+
+* <DNT>
+    **None**
+  </DNT>
+
+  : (Padrão) Escolha esta opção se não quiser realizar nenhuma ação em janelas de agregação vazias. Na avaliação, uma janela de agregação vazia redefinirá o temporizador de duração limite. Por exemplo, se uma condição disser que todas as janelas de agregação devem ter pontos de dados acima do limite durante 5 minutos, e 1 das 5 janelas de agregação estiver vazia, então a condição não será um incidente.
+
+* <DNT>
+    **Custom static value**
+  </DNT>
+
+  : escolha esta opção se desejar inserir um valor estático personalizado nas janelas de agregação vazias antes de serem avaliadas. Esta opção tem um parâmetro adicional obrigatório de `fillValue` (conforme nomeado na API) que especifica qual valor estático deve ser usado. O padrão é `0`.
+
+* <DNT>
+    **Last known value**
+  </DNT>
+
+  : esta opção insere o último valor visto antes da avaliação ocorrer. Mantemos o estado do último valor visto por no mínimo 2 horas. Se a duração do limite configurada for superior a 2 horas, esse valor será mantido durante essa duração.
+
+<Callout variant="tip">
+  O sistema de alerta preenche lacunas nos sinais reportados ativamente. Este histórico de sinais é eliminado após um período de inatividade e, para preencher lacunas, os pontos de dados recebidos após este período de inatividade são tratados como novos sinais. A duração da inatividade é de 2 horas ou a duração limite configurada, o que for maior.
+
+  Para saber mais sobre perda de sinal, preenchimento de lacunas e como solicitar acesso a esses recursos, veja [este post do Fórum de Suporte](https://discuss.newrelic.com/t/announcing-new-relic-one-streaming-alerts-for-nrql-conditions/115361).
+</Callout>
+
+Opções para editar configurações de lacuna de dados:
+
+* Na interface das condições NRQL, acesse
+
+  <DNT>
+    **Condition settings > Advanced signal settings > fill data gaps with**
+  </DNT>
+
+  e escolha uma opção.
+
+* Se estiver usando nossa [API Nerdgraph](/docs/alerts-applied-intelligence/new-relic-alerts/alerts-nerdgraph/nerdgraph-api-loss-signal-gap-filling) (preferencial), este nó está localizado em: `actor : account : alerts : nrqlCondition : signal : fillOption | fillValue`
+
+* NerdGraph é nossa API recomendada para isso, mas se você estiver usando nossa API REST, poderá encontrar essa configuração no explorador da API REST na seção
+
+  <DNT>
+    **"signal"**
+  </DNT>
+
+  [da API de condições NRQL de alerta](https://rpm.newrelic.com/api/explore/alerts_nrql_conditions/list).
+
+### Atraso na avaliação [#evaluation-delay]
+
+Você pode ativar a sinalização `Use evaluation delay` e configurar até 120 minutos para atrasar a avaliação dos sinais recebidos.
+
+Quando novas entidades são implantadas pela primeira vez, a utilização de recursos na entidade é muitas vezes invulgarmente elevada. Em ambientes de autoescala, isso pode facilmente criar muitos alertas falsos. Ao atrasar o início da detecção de alertas sobre sinais emitidos por novas entidades é possível reduzir significativamente o número de falsos alarmes associados à implantação em ambientes orquestrados ou de autoescala.
+
+Opções para ativar o atraso na avaliação:
+
+* Na interface de condições NRQL, acesse <DNT>**Adjust to signal behavior &gt; Use evaluation delay**</DNT>.
+* Se estiver usando nossa [API Nerdgraph](/docs/apis/nerdgraph/examples/nerdgraph-api-nrql-condition-alerts/#static-condition), este nó está localizado em: `actor : account : alerts : nrqlCondition : signal : evaluationDelay`
+
+  <DNT>
+    **Adjust to signal behavior > Use evaluation delay**
+  </DNT>
+
+  .
+
+* Se estiver usando nossa [API Nerdgraph](/docs/apis/nerdgraph/examples/nerdgraph-api-nrql-condition-alerts/#static-condition), este nó está localizado em: `actor : account : alerts : nrqlCondition : signal : evaluationDelay`

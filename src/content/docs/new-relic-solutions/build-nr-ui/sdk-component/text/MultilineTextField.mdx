@@ -1,0 +1,397 @@
+---
+title: 'MultilineTextField'
+metaDescription: 'Learn how to work the MultilineTextField component'
+freshnessValidatedDate: 2024-06-03
+---
+
+Component used for multiline input purposes in forms.
+
+### Usage
+
+```js
+import { MultilineTextField } from 'nr1'
+```
+
+### Examples
+
+#### Basic
+
+```js
+<MultilineTextField label="Summary" placeholder="Enter a short description" />
+```
+
+#### With inline label
+
+```js
+<MultilineTextField
+  label="Summary"
+  labelInline
+  placeholder="Enter a short description"
+/>
+```
+
+#### Preformatted
+
+```js
+<MultilineTextField
+  type={MultilineTextField.TYPE.PREFORMATTED}
+  label="Build command"
+  placeholder="npm run build"
+/>
+```
+
+#### Loading
+
+```js
+<MultilineTextField loading placeholder="Enter a short description" />
+```
+
+#### Disabled
+
+```js
+<MultilineTextField disabled placeholder="Enter a short description" />
+```
+
+#### Read only
+
+```js
+<MultilineTextField
+  readOnly
+  defaultValue="Some value"
+  placeholder="Enter a short description"
+/>
+```
+
+#### With description
+
+```js
+<MultilineTextField
+  description="Description value"
+  placeholder="Enter a short description"
+/>
+```
+
+#### With invalid message
+
+```js
+<MultilineTextField
+  invalid="Not enough text, needs more"
+  placeholder="Enter a short description"
+/>
+```
+
+### Props
+
+<table>
+  <tbody>
+    <tr>
+      <td>
+        `ariaLabel` <h5>string</h5>
+      </td>
+
+      <td>
+        Provide a label for screen readers to describe this input. This is only required if the screen reader label should be different to the `label` prop, or if you are not providing a `label` prop at all.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `ariaLabelledBy` <h5>string</h5>
+      </td>
+
+      <td>
+        Provide the unique `id` of an element whose contents describe this input for screen readers. This is only required if the screen reader label should be different to the `label` prop, or if you are not providing a `label` prop at all. Use this or `ariaLabel`, not both.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `autoFocus` <h5>boolean</h5>
+      </td>
+
+      <td>
+        If `true`, the multiline text field will autofocus on mount.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `className` <h5>string</h5>
+      </td>
+
+      <td>
+        Appends class names to the component.Should be used only for positioning and spacing purposes.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `defaultValue` <h5>string</h5>
+      </td>
+
+      <td>
+        Default value of the multiline text field.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `description` <h5>string</h5>
+      </td>
+
+      <td>
+        Message with instructions on how to fill the form field.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `disabled` <h5>boolean</h5>
+      </td>
+
+      <td>
+        Establishes whether the field can be editable or not.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `info` <h5>string</h5>
+      </td>
+
+      <td>
+        Additional information can be displayed in an info tooltip next to the Label.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `invalid` <h5>boolean|string</h5>
+      </td>
+
+      <td>
+        When true, sets the field in an invalid state, in order to notify the user attention is needed over this particular field. This property can be a `boolean` field or a `string`. When it is a `string`, as well as the invalid state being shown, the text will be shown below.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `label` <h5>string</h5>
+      </td>
+
+      <td>
+        Text to display as label.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `labelInline` <h5>boolean</h5>
+      </td>
+
+      <td>
+        Display the label inline the form control.Use only when the component is not inside a `Form`. In that case set `layoutType` to `Form.LAYOUT_TYPE.SPLIT` in the `Form` component.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `loading` <h5>boolean</h5>
+      </td>
+
+      <td>
+        If loading a list of data or something else into a form field, indicate to the user that something is loading by using the loading state form.Used to inform that the field might load values dynamically. When set to `true`, shows a loading spinner; and when set to `false`, reserves some space in the UI so that the spinner can potentially be shown.Do not set the property (or set it to `undefined`) if the field is not expected to get loading at any given point in time.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `onBlur` <h5>function</h5>
+      </td>
+
+      <td>
+        Callback which is fired when the multiline text field loses focus.
+
+        <FunctionDefinition
+          returnValue={[]}
+          arguments={[{"name":"event","type":"React.FocusEvent","description":"Event source of the callback."}]}
+        />
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `onChange` <h5>function</h5>
+      </td>
+
+      <td>
+        Callback which is fired when the multiline text field value changes.
+
+        <FunctionDefinition
+          returnValue={[]}
+          arguments={[{"name":"event","type":"React.ChangeEvent","description":"Event source of the callback. You can pull out the new value by accessing `event.target.value`."}]}
+        />
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `onFocus` <h5>function</h5>
+      </td>
+
+      <td>
+        Callback which is fired when the multiline text field gets focus.
+
+        <FunctionDefinition
+          returnValue={[]}
+          arguments={[{"name":"event","type":"React.FocusEvent","description":"Event source of the callback."}]}
+        />
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `onKeyDown` <h5>function</h5>
+      </td>
+
+      <td>
+        Callback which is fired when a key is pressed.
+
+        <FunctionDefinition
+          returnValue={[]}
+          arguments={[{"name":"event","type":"React.KeyboardEvent","description":"Event source of the callback."}]}
+        />
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `onKeyUp` <h5>function</h5>
+      </td>
+
+      <td>
+        Callback which is fired when a key is released.
+
+        <FunctionDefinition
+          returnValue={[]}
+          arguments={[{"name":"event","type":"React.KeyboardEvent","description":"Event source of the callback."}]}
+        />
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `placeholder` <h5>string</h5>
+      </td>
+
+      <td>
+        Hint displayed in the multiline text field when it has no value.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `readOnly` <h5>boolean</h5>
+      </td>
+
+      <td>
+        If `true`, makes the multiline text field read only.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `required` <h5>boolean</h5>
+      </td>
+
+      <td>
+        If `true`, denotes the form field as required.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `rows` <h5>number</h5>
+      </td>
+
+      <td>
+        Amount of rows in the text field.The minimum required is five rows.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `spacingType` <h5>enum\[]</h5>
+      </td>
+
+      <td>
+        Spacing property. Spacing is defined as a tuple of zero to four values, which follow the same conventions as CSS properties like `margin` or `padding`. To omit a value, use `SPACING_TYPE.OMIT`.
+
+        <OptionReference array>
+          MultilineTextField.SPACING_TYPE.EXTRA_LARGE,
+          MultilineTextField.SPACING_TYPE.LARGE,
+          MultilineTextField.SPACING_TYPE.MEDIUM,
+          MultilineTextField.SPACING_TYPE.NONE,
+          MultilineTextField.SPACING_TYPE.OMIT,
+          MultilineTextField.SPACING_TYPE.SMALL,
+        </OptionReference>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `spellCheck` <h5>boolean</h5>
+      </td>
+
+      <td>
+        If `true`, enables the browser check for spelling errors.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `style` <h5>object</h5>
+      </td>
+
+      <td>
+        Inline style for custom styling.Should be used only for positioning and spacing purposes.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `testId` <h5>string</h5>
+      </td>
+
+      <td>
+        Adds a `data-test-id` attribute. Use it to target the component in unit and E2E tests.For a test id to be valid, prefix it with your nerdpack id, followed up by a dot.For example, `my-nerdpack.some-element`.
+
+        **Note:** You might not see `data-test-id` attributes as they are removed from the DOM, to debug them pass a `e2e-test` query parameter to the URL.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `type` <h5>enum</h5>
+      </td>
+
+      <td>
+        * NORMAL — when a user inputs text into a field \* PERFORMATTED — when a user needs to enter monospaced content
+          <OptionReference>
+            MultilineTextField.TYPE.NORMAL,
+            MultilineTextField.TYPE.PREFORMATTED,
+          </OptionReference>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `value` <h5>string</h5>
+      </td>
+
+      <td>
+        Value of the multiline text field.This is required for a controlled component.
+      </td>
+    </tr>
+  </tbody>
+</table>

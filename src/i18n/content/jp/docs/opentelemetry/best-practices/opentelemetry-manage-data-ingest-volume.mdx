@@ -1,0 +1,474 @@
+---
+title: OpenTelemetryデータの取り込み量を管理する
+tags:
+  - Integrations
+  - Open source telemetry integrations
+  - OpenTelemetry
+  - OTLP
+metaDescription: Optimize your OpenTelemetry data pipeline in New Relic. Discover key factors and tools for efficient management.
+freshnessValidatedDate: '2024-07-23T00:00:00.000Z'
+translationType: machine
+---
+
+OpenTelemetryの中核的な強みの 1 つは、テレメトリーデータ パイプラインに対する比類のない制御を提供する豊富なツール セットです。 このコントロールはNew Relicの[使用量ベースの価格設定](https://newrelic.com/pricing#pricing_plan-data)モデルを補完します。
+
+このページでは、 OpenTelemetry New Relicと併用する場合にデータ量に影響するさまざまな概念と、テレメトリデータ パイプラインを管理するために使用できるツールやパターンについて説明します。 [リソース、](#concept-resources)[トレース](#concept-traces)、[メトリクス](#concept-metrics)、[ログ](#concept-logs)のデータ量に寄与する主要な概念について説明するセクションに分かれており、その後に量の管理に役立つ[ツールのカタログ](#tool-catalog)が続きます。
+
+## 重要な概念: リソース [#concept-resources]
+
+[OTLP は、](https://opentelemetry.io/docs/specs/otlp/)すべての信号にわたって同様の階層型メッセージ構造を定義し、レコード間で情報を共有することでプロトコル レベルでの繰り返しを回避します。
+
+* 各エクスポート要求には多数の`Resource{SignalRecord}`が含まれています
+* 各`Resource{SignalRecord}`には多数の`Scope{SignalRecord}`が含まれています
+* 各`Scope{SignalRecord}`には多数の`{SignalRecord}`が含まれています
+* `{SignalRecord}` は`Span` 、 `Metric` 、そして `LogRecord`
+
+この階層構造は、New Relic エンドポイントに送信されるときに平坦化され、各リソース属性は個別の`Span` 、 `Metric` 、および`Log`レコードに非正規化されます。 New Relic で OpenTelemetry データがどのように処理されるかの詳細については、次のページを参照してください。
+
+* [トレース](/docs/opentelemetry/best-practices/opentelemetry-best-practices-traces/)
+* [指標](/docs/opentelemetry/best-practices/opentelemetry-best-practices-metrics/)
+* [ログ](/docs/opentelemetry/best-practices/opentelemetry-best-practices-logs/)
+
+ほとんどの OpenTelemetry 言語実装では、環境で検出された情報に基づいてリソース属性を提供する[リソース検出器](https://opentelemetry.io/docs/specs/otel/resource/sdk/#detecting-resource-information-from-the-environment)を備えたパッケージが提供されます。 これらの属性は非常に便利ですが、必要以上の情報が含まれる可能性があります。
+
+詳細については、以下を参照してください。
+
+* [SDK リソース検出器](#sdk-resource-detectors)
+* [コレクターリソースプロセッサ](#collector-resource-processor)
+* [コレクター変換プロセッサ](#collector-transform-processor)。
+
+## 重要な概念: トレース [#concept-traces]
+
+### サンプリング [#concept-sampling]
+
+[サンプリングは](https://opentelemetry.io/docs/concepts/sampling/)、どのスパンをオブザーバビリティ バックエンドにエクスポートするかを制御するプロセスです。 トレース データは非常に価値のあるインサイトを提供しますが、チェックを怠るとハード ドライブ (そして請求書も!) がすぐにいっぱいになってしまいます。
+
+デフォルトでは、OpenTelemetry SDK は[`ParentBased(root=AlwaysOn)`](https://opentelemetry.io/docs/specs/otel/trace/sdk/#parentbased)サンプラーを使用します。 `ParentBased`サンプラーは、親スパンが存在するかどうか、その親が現在のプロセスに対してローカルかリモートか、およびその親がサンプリングされているかどうかに基づいて、さまざまな構成可能なサンプラーに委任します。 デフォルトの`ParentBased(root=AlwaysOn)`サンプラーは、次のいずれかが当てはまる場合にスパンをサンプリングします。
+
+* 親スパンはありません（つまり、このスパンはルートです）
+* 親がローカルかリモートかに関係なく、親がサンプリングされます。
+
+つまり、親がサンプリングされていない限り、スパンをサンプリングします。
+
+これは、ユーザーが最初にサンプリングの概念を意識する必要なく、インストゥルメンテーションをインストールしてトレース データを確認できるため、 OpenTelemetryコミュニティにとって適切なデフォルトです。 ただし、 OpenTelemetryの実稼働デプロイメントには注意が必要です。 このポリシーでは、下流システムが準拠すべきインテリジェントなサンプリング決定を行う上流コンポーネントまたはゲートウェイがない限り、_すべてのスパン_がサンプリングされます。
+
+代替案については、以下を参照してください。
+
+* [ParentBased(root=TraceIdRatioBased) サンプラー](#sdk-parentbased-traceidratiobased-sampler)
+* [コレクターフィルタープロセッサ](#collector-filter-processor)
+* [コレクターテールサンプリングプロセッサ](#collector-tailsampling-processor)
+
+### スパンデータ [#concept-span-data]
+
+OpenTelemetry スパンは、さまざまなトップレベル フィールド (名前、種類など)、属性、スパン イベント、およびスパン リンクで構成されます。 スパンの添付データの量は、New Relic のデータ量に直接対応します。
+
+インストゥルメンテーション ライブラリは、多くの場合、[セマンティック規約](https://opentelemetry.io/docs/specs/semconv/)に従って、どの情報をスパンに添付するかを決定します。 例外が発生すると、その情報は[例外スパン イベント](https://opentelemetry.io/docs/specs/semconv/exceptions/exceptions-spans/)の形式でスパンに添付されることがよくあります。 このイベントには、例外メッセージ、タイプ、およびスタックトレースを表すプロパティが含まれており、言語やアプリケーションによっては、数千バイトで構成される場合があります。 例外が頻繁に発生する場合、スタックトレースによりNew Relicで大量のデータが生成される可能性があります。
+
+スパン データの管理戦略については、以下を参照してください。
+
+* [SDK スパン制限](#sdk-span-limits)
+* [コレクター変換プロセッサ](#collector-transform-processor)
+
+### トレーサー [#concept-tracers]
+
+[計測スコープは](https://opentelemetry.io/docs/specs/otel/glossary/#instrumentation-scope)、テレメトリーが関連付けられたアプリケーション コードの論理単位です。 各インストゥルメンテーション ライブラリには 1 つ (または複数) の固有のスコープと、対応するトレーサーがあります。
+
+高い値のトレース データを生成しないトレーサーは、トレースを中断することなく選択的に無効にすることができます。
+
+詳細については、 [「SDK のトレーサー、メーター、ロガーの無効化」](#sdk-disable-tracers-meters-loggers)を参照してください。
+
+## 重要な概念: メトリクス [#concept-metrics]
+
+### 収集間隔 [#concept-collection-interval]
+
+メトリクスは個々の測定値を集計し、集計された状態をプロセス外にエクスポートします。 OTLP などのプッシュベースのプロトコルの場合、エクスポートは構成可能な間隔で行われ、デフォルトでは`60s`になります。 この間隔は New Relic のデータ量に直接対応します。 間隔を`30s`に短縮すると、データ量は約 2 倍になります。 間隔を`120s`に増やすと、データ量は約半分に削減されます。
+
+`60s`のデフォルト間隔は、データ量とオブザーバビリティのラグの間のトレードオフのバランスをとるため、適切なデフォルトです。 間隔を長くしすぎると、重要な信号が New Relic ダッシュボードやアラートに到達するまでに遅延が発生し、問題が悪化する可能性があります。
+
+詳細については、 [「SDK の定期エクスポート Metriks Reader `exportIntervalMillis`](#sdk-pmr-interval)を参照してください。
+
+### 基数 [#concept-cardinality]
+
+メトリクスが集約する測定値は、一連のプロパティに関連付けられます。 異なる属性セットの数をカーディナリティと呼びます。 カーディナリティは、測定値の集計状態を維持するために必要なアプリケーション メモリの量、各収集間隔でエクスポートされるデータの量、および New Relic のデータ量を決定するため重要です。
+
+カーディナリティが高すぎる場合は、カーディナリティに寄与する属性を省略することを検討してください。 検査を制御すると、各測定で記録する特性が少なくなる可能性があります。 ただし、多くの場合、インストゥルメンテーションは直接構成できません。
+
+メトリクスからプロパティを削除する方法の詳細については、以下を参照してください。
+
+* [SDK メトリックビュー](#sdk-metric-views)
+* [コレクターメトリック変換プロセッサ](#collector-metricstransform-processor)
+
+### 集約の時間性 [#concept-aggregation-temporality]
+
+OpenTelemetryでは、[集約時間](https://opentelemetry.io/docs/specs/otel/metrics/data-model/#temporality)の概念によって、集約された測定値の状態が各収集後にリセットされるかどうかが定義されます。 集約の一時性が累積的である場合、集約状態はリセットされず、メトリクスはアプリケーションの開始以来の累積値を表します。 集計のテンポラリティーがデルタの場合、集計状態は各コレクションの後にリセットされ、メトリックは前回のコレクションからの差異を表します。
+
+New Relicの[OTLP エンドポイントは累積集約時間性をサポートしています](docs/opentelemetry/best-practices/opentelemetry-otlp/#metric-aggregation-temporality)が、 New Relicメトリクス アーキテクチャーはデルタ メトリクス システムです。 デフォルトの累積設定を使用すると、通常、SDK からのメモリ使用量が増加し、データの取り込み量が多くなります。 累積集計からデルタ集計への変換は、差異を計算するために各時系列の前のポイントを保持する必要があるため、ステートフル アクティビティです。 このため、SDK で集約の一時性を構成することが最善です。これにより、アプリケーションのメモリが節約され、下流の余分な複雑さが回避されます。
+
+詳細については、以下を参照してください。
+
+* [SDK デルタ集計の時間性](#sdk-delta-temporality)
+* [コレクター累積デルタプロセッサー](#collector-cumulativetodelta-processor)
+
+### メーターとインストゥルメントが施された [#concept-meters-instruments]
+
+[インストゥルメンテーション スコープは、](https://opentelemetry.io/docs/specs/otel/glossary/#instrumentation-scope)テレメトリーが関連付けられたアプリケーション コードの論理単位です。 各インストゥルメンテーション ライブラリには 1 つ (または複数) の固有のスコープと対応するメーターがあり、各メーターには 1 つまたは複数のインストゥルメントが作成されます。
+
+貴重なメトリクス データを提供しないメーターまたはインストゥルメントは、選択的に無効にすることができます。
+
+詳細については、以下を参照してください。
+
+* [SDK はトレーサー、メーター、ロガーを無効化します](#sdk-disable-tracers-meters-loggers)
+* [SDK メトリックビュー](#sdk-metric-views)
+
+## 重要な概念: ログ [#concept-logs]
+
+### ログレコードデータ [#concept-logrecord-data]
+
+OpenTelemetry ログ レコードは、さまざまなトップレベル フィールド (タイムスタンプ、重大度、本文など) と属性で構成されます。 ログ レコードに添付されるデータの量は、New Relic のデータ量に直接対応します。
+
+インストゥルメンテーション ライブラリ ( ブリッジログ[ ](https://opentelemetry.io/docs/specs/otel/logs/supplementary-guidelines/#how-to-create-a-log4j-log-appender)OpenTelemetryOpenTelemetryAPIはログ から にログをブリッジすることを目的としているため、 ログ空間では ログ アペンダーAPI OpenTelemetryと呼ばれます) は、多くの場合、[ セマンティック規則 に従って、ログ](https://opentelemetry.io/docs/specs/semconv/) レコードにどの情報を添付するかを決定します。
+
+ログ データの管理に関する戦略については、以下を参照してください。
+
+* [SDK ログレコードの制限](#sdk-logrecord-limits)
+* [SDK ログ アペンダーを構成する](#sdk-log-appenders)
+* [コレクターフィルタープロセッサ](#collector-filter-processor)
+* [コレクター変換プロセッサ](#collector-transform-processor)
+
+### ロガー [#concept-loggers]
+
+[計測スコープは](https://opentelemetry.io/docs/specs/otel/glossary/#instrumentation-scope)、テレメトリーが関連付けられたアプリケーション コードの論理単位です。 OpenTelemetryログの場合、各個別のロガー ( OpenTelemetryブリッジログAPIを使用してログ アペンダーによってブリッジされる) には、固有の監視スコープがあります。
+
+高価値のログ データを生成しないロガーは、選択的に無効にすることができます。
+
+詳細については、以下を参照してください。
+
+* [SDK はトレーサー、メーター、ロガーを無効化します](#sdk-disable-tracers-meters-loggers)
+* [SDK ログ アペンダーを構成する](#sdk-log-appenders)
+
+## パイプライン管理ツールカタログ [#tool-catalog]
+
+次の表には、OpenTelemetry データ パイプラインを管理するためのさまざまな便利なツールがリストされています。 OpenTelemetry は高度に拡張可能なエコシステムであることに注意してください。 これらのツールが十分でない場合は、他のツールを利用できるか、言語 SDK またはコレクター用のカスタム拡張ロジックを記述して目標を達成できる可能性があります。
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        名前
+      </th>
+
+      <th>
+        コレクターか SDK か?
+      </th>
+
+      <th>
+        説明
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr id="sdk-resource-detectors">
+      <td>
+        [SDK リソース検出器](https://opentelemetry.io/docs/specs/otel/resource/sdk/#detecting-resource-information-from-the-environment)
+      </td>
+
+      <td>
+        開発キット
+      </td>
+
+      <td>
+        OpenTelemetry 言語 SDK は、環境に基づいてリソース属性を提供する検出器をパッケージ化します。
+
+        [](https://opentelemetry.io/docs/zero-code/)
+
+        これらの一部のセットは、OpenTelemetry Javaagent などの ゼロコード計測 オプションによってデフォルトで有効になっていることがよくあります。リソース検出器を有効/無効にする方法の詳細については、
+
+        [言語ドキュメント](https://opentelemetry.io/docs/languages/)
+
+        を参照してください。
+      </td>
+    </tr>
+
+    <tr id="sdk-parentbased-traceidratiobased-sampler">
+      <td>
+        [開発キット `ParentBased(root=TraceIdRatioBased) sampler`](https://opentelemetry.io/docs/specs/otel/configuration/sdk-environment-variables/#general-sdk-configuration)
+      </td>
+
+      <td>
+        開発キット
+      </td>
+
+      <td>
+        ルートが`TraceIdRatioBased`サンプラーに設定された`ParentBased`サンプラーは、ルートが`AlwaysOn`に設定されたデフォルトの`ParentBased`サンプラーのシンプルで適切な代替手段です。 ルートを`TraceIdRatioBased`に設定すると、新しいトレースを表すスパンは確率的にサンプリングされ、子スパンは親のサンプリング決定に従ってサンプリングされます (他のアプリケーションが同じサンプリング ポリシーで構成されている場合)。 サンプラーは SDK `TracerProvider`でプログラム的に設定できますが、環境変数を使用するのが一般的です。
+
+        ```shell
+        export OTEL_TRACES_SAMPLER=parentbased_traceidratio
+        export OTEL_TRACES_SAMPLER_ARG=0.25
+        ```
+
+        `TraceIdRatioBased`サンプラーを設定して、ルート スパンの 25% をサンプリングします。
+      </td>
+    </tr>
+
+    <tr id="sdk-span-limits">
+      <td>
+        [SDK スパン制限](https://opentelemetry.io/docs/specs/otel/configuration/sdk-environment-variables/#span-limits)
+      </td>
+
+      <td>
+        開発キット
+      </td>
+
+      <td>
+        OpenTelemetry トレース SDK を使用すると、スパン制限を構成して、属性の最大長と数量、スパン イベントの最大数、およびスパン リンクの最大数を指定できます。 スパン制限は SDK `TracerProvider`でプログラム的に設定できますが、環境変数を使用するのが一般的です。
+
+        ```shell
+        export OTEL_SPAN_ATTRIBUTE_VALUE_LENGTH_LIMIT=4095
+        export OTEL_SPAN_ATTRIBUTE_COUNT_LIMIT=64
+        ```
+
+        New Relic OTLP エンドポイントの[属性制限](docs/opentelemetry/best-practices/opentelemetry-otlp/#attribute-limits)に合わせてスパン制限を設定します。
+      </td>
+    </tr>
+
+    <tr id="sdk-logrecord-limits">
+      <td>
+        [SDK ログレコードの制限](https://opentelemetry.io/docs/specs/otel/configuration/sdk-environment-variables/#logrecord-limits)
+      </td>
+
+      <td>
+        開発キット
+      </td>
+
+      <td>
+        OpenTelemetry ログ SDK を使用すると、スパン制限を構成して、属性の最大長と数を指定できます。 LogRecord の制限は SDK `LoggerProvider`でプログラム的に設定できますが、環境変数を使用するのが一般的です。
+
+        ```shell
+        export OTEL_LOGRECORD_ATTRIBUTE_VALUE_LENGTH_LIMIT=4095
+        export OTEL_LOGRECORD_ATTRIBUTE_COUNT_LIMIT=64
+        ```
+
+        ログ レコードの制限を、New Relic OTLP エンドポイントの[属性制限](docs/opentelemetry/best-practices/opentelemetry-otlp/#attribute-limits)に合わせて設定します。
+      </td>
+    </tr>
+
+    <tr id="sdk-disable-tracers-meters-loggers">
+      <td>
+        SDK は
+
+        [トレーサー](https://opentelemetry.io/docs/specs/otel/trace/sdk/#tracerconfigurator)
+
+        、
+
+        [メーター](https://opentelemetry.io/docs/specs/otel/metrics/sdk/#meterconfigurator)
+
+        、
+
+        [ロガーを](https://opentelemetry.io/docs/specs/otel/logs/sdk/#loggerconfigurator)
+
+        無効にします
+      </td>
+
+      <td>
+        開発キット
+      </td>
+
+      <td>
+        OpenTelemetry SDK は、トレーサー、メーター、ロガーをそれぞれ構成および無効化するために
+
+        `TracerConfigurator`
+
+        、
+
+        `MeterConfigurator`
+
+        、
+
+        `LoggerConfigurator`
+
+        を定義します。 このコンセプトは現在開発中であり、すべての言語実装で利用できるわけではありません。 個々の
+
+        [言語のドキュメント](https://opentelemetry.io/docs/languages/)
+
+        を参照し、言語のメンテナーに連絡してステータスを確認してください。
+      </td>
+    </tr>
+
+    <tr id="sdk-pmr-interval">
+      <td>
+        [SDK定期エクスポートMetrix Reader `exportIntervalMillis`](https://opentelemetry.io/docs/specs/otel/configuration/sdk-environment-variables/#periodic-exporting-metricreader)
+      </td>
+
+      <td>
+        開発キット
+      </td>
+
+      <td>
+        OpenTelemetryメトリクス SDK を使用すると、定期的にエクスポートするメトリクス リーダーの収集間隔を設定できます。 間隔はプログラムで設定できますが、環境変数を使用するのが一般的です。
+
+        ```shell
+        export OTEL_METRIC_EXPORT_INTERVAL=60000
+        ```
+
+        収集間隔を 60 秒 (60k ミリ秒) に設定します。 これはデフォルトですが、必要に応じて調整できます。
+      </td>
+    </tr>
+
+    <tr id="sdk-metric-views">
+      <td>
+        [SDK メトリックビュー](https://opentelemetry.io/docs/specs/otel/metrics/sdk/#view)
+      </td>
+
+      <td>
+        開発キット
+      </td>
+
+      <td>
+        OpenTelemetryメトリクス SDK を使用すると、保持するプロパティ キーのセット、集計タイプ、メトリクスの削除などのさまざまなオプションを指定するビューを使用して
+
+        `MeterProvider`
+
+        を構成できます。 通常、ビューはプログラムによって構成されます。 ご使用の言語での代替手段を確認するには、個々の
+
+        [言語のドキュメント](https://opentelemetry.io/docs/languages/)
+
+        を参照してください。 たとえば、OpenTelemetry Java では、
+
+        [YAML ファイル](https://github.com/open-telemetry/opentelemetry-java/tree/main/sdk-extensions/incubator#view-file-configuration)
+
+        でビューを構成するための実験的なサポートがあります。
+      </td>
+    </tr>
+
+    <tr id="sdk-delta-temporality">
+      <td>
+        [SDK デルタ集計の時間性](https://opentelemetry.io/docs/specs/otel/metrics/sdk_exporters/otlp/#additional-configuration)
+      </td>
+
+      <td>
+        開発キット
+      </td>
+
+      <td>
+        OpenTelemetryメトリクス SDK を使用すると、OTLP エクスポーターに対して集約の一時性を構成できます。 この時間性はプログラムで設定できますが、環境変数を使用するのが一般的です。
+
+        ```shell
+        export OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE=delta
+        ```
+
+        New Relic OTLP エンド[ポイント](docs/opentelemetry/best-practices/opentelemetry-otlp/#metric-aggregation-temporality)の設定に合わせて、OTLP メトリクス エクスポーターの集約時間性をデルタに設定します。
+      </td>
+    </tr>
+
+    <tr id="sdk-log-appenders">
+      <td>
+        [SDK ログ アペンダーを構成する](https://opentelemetry.io/docs/specs/otel/logs/supplementary-guidelines/)
+      </td>
+
+      <td>
+        開発キット
+      </td>
+
+      <td>
+        OpenTelemetryログ ブリッジAPI 、ログAPIからOpenTelemetryにログをブリッジするログ アペンダーで使用するように設計されています。 これらのログ
+
+        [](https://opentelemetry.io/docs/zero-code/)
+
+        OpenTelemetryアペンダは、 Java エージェントなどの ゼロコード計測 オプションを使用して自動的にインストールされる場合もあれば、手動のインストール手順が必要な場合もあります。多くの場合、どのログとどのデータをOpenTelemetryにブリッジするかを指定する設定オプションがあります。 さらに、多くの場合、ブリッジされるログAPIを構成して、どのログ (重大度またはロガー名に基づいて) をログ アペンダーに渡すかを指定することができます。 詳細については、個々の
+
+        [言語のドキュメント](https://opentelemetry.io/docs/languages/)
+
+        を参照してください。
+      </td>
+    </tr>
+
+    <tr id="collector-filter-processor">
+      <td>
+        [コレクターフィルタープロセッサ](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor/filterprocessor)
+      </td>
+
+      <td>
+        コレクター
+      </td>
+
+      <td>
+        コレクター フィルター プロセッサを使用すると、オブザーバビリティ パイプラインからスパン、メトリクス、ログ レコードをフィルターで除外できます。 スパンの場合には、単純なテール サンプラーとして機能し、完了したスパンに対して動作しますが、完全なトレースにはアクセスできません (注: これにより、トレースが壊れる可能性があります)。 メトリクスの場合、価値の高くないメトリクスやシリーズをドロップするために使用できます。 ログの場合、価値の高くないログ レコードを削除するために使用できます (例: 細粒度の重大度を持つログやノイズの多いロガーからのログなど)。
+      </td>
+    </tr>
+
+    <tr id="collector-tailsampling-processor">
+      <td>
+        [コレクターテールサンプリングプロセッサ](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor/tailsamplingprocessor)
+      </td>
+
+      <td>
+        コレクター
+      </td>
+
+      <td>
+        コレクターのテールサンプリングを使用すると、完了したトレースに基づいてサンプリングするかどうかを決定できます。 たとえば、エラーがあるトレースや、システムの重要な領域に関係するトレースの保持を強調できます。 欠点は、テールサンプリング プロセッサでは、トレースのすべてのスパンを同じコレクター インスタンスにルーティングする必要があり、トレースが完了するまでコレクターがスパンをメモリに保持する必要があるため、オブザーバビリティ パイプラインが複雑になることです。 オブザーバビリティ パイプラインが単一のコレクター インスタンスでは処理できない規模に達した場合は、慎重な計画が必要になります。
+      </td>
+    </tr>
+
+    <tr id="collector-resource-processor">
+      <td>
+        [コレクターリソースプロセッサ](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor/resourceprocessor)
+      </td>
+
+      <td>
+        コレクター
+      </td>
+
+      <td>
+        コレクター リソース プロセッサを使用すると、スパン、メトリクス、ログのリソース プロパティを操作する簡単なルールを作成できます。 たとえば、価値が高くない属性を削除できます。
+      </td>
+    </tr>
+
+    <tr id="collector-metricstransform-processor">
+      <td>
+        [コレクターメトリック変換プロセッサ](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor/metricstransformprocessor)
+      </td>
+
+      <td>
+        コレクター
+      </td>
+
+      <td>
+        コレクター メトリクス変換プロセッサを使用すると、メトリクス データを操作できます。 たとえば、価値が高くないシリーズを削除したり、時系列を結合してカーディナリティを減らしたりすることができます (空間再集約と呼ばれることもあります)。
+      </td>
+    </tr>
+
+    <tr id="collector-transform-processor">
+      <td>
+        [コレクター変換プロセッサ](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor/transformprocessor)
+      </td>
+
+      <td>
+        コレクター
+      </td>
+
+      <td>
+        コレクター変換プロセッサーを使用すると、データを選択する条件とそれを変更するステートメントを使用して、観察データを変換できます。 たとえば、リソースのプロパティの削除、プロパティの切り捨て、スパン、メトリクス、ログ レコードのトップレベル フィールドの変更などを行うことができます。
+      </td>
+    </tr>
+
+    <tr id="collector-cumulativetodelta-processor">
+      <td>
+        [コレクター累積デルタプロセッサー](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor/cumulativetodeltaprocessor)
+      </td>
+
+      <td>
+        コレクター
+      </td>
+
+      <td>
+        コレクターcumulativetodeltaプロセッサを使用すると、メトリクス集計の時間性を累積からデルタに変換できます。 これは
+
+        [、New Relic の OTLP エンドポイントの優先集計時間](docs/opentelemetry/best-practices/opentelemetry-otlp/#metric-aggregation-temporality)
+
+        に合わせてメトリクスを調整するのに役立ちます。 累積集計から差分集計への変換はステートフルなプロセスであり、コレクターは差分を計算して出力するために各時系列の最後のポイントをメモリに保存する必要があることに注意してください。 これには、コレクター メモリ リソースを慎重に計画し、同じシリーズのすべてのポイントが同じコレクター インスタンスに確実に到着するようにオブザーバビリティ パイプラインを構築する必要があります。
+      </td>
+    </tr>
+  </tbody>
+</table>

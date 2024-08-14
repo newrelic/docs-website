@@ -1,0 +1,43 @@
+---
+title: 'ngql'
+metaDescription: 'Learn how to use the ngql API'
+freshnessValidatedDate: 2024-06-03
+---
+
+A JavaScript template literal tag that parses GraphQL query strings into GraphQL documents that can be used to do NerdGraph queries.
+
+### Usage
+
+```js
+import { ngql } from 'nr1'
+```
+
+### Examples
+
+#### Example 1
+
+```js
+import { ngql } from 'nr1';
+
+
+const query = ngql`
+  {
+    actor {
+      user {
+        id
+        email
+        name
+      }
+    }
+  }
+`;
+
+
+function render() {
+  return (
+    <NerdGraphQuery query={query}>
+      {({ data }) => JSON.stringify(data, null, 2)}
+    </NerdGraphQuery>
+  );
+}
+```

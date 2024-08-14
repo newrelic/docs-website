@@ -1,0 +1,839 @@
+---
+title: Notification migration 
+metaDescription: Migrating notifications from alerts
+redirects:
+  - /docs/alerts-applied-intelligence/applied-intelligence/incident-workflows/migration-to-workflows
+freshnessValidatedDate: never
+---
+
+Workflows are replacing the classic notification system for <InlinePopover type="alerts"/>. This is good news because workflows is an improved, flexible notification system. Workflows help your team learn about potential errors within the greater context of your stack so you can take immediate and efficient action.
+
+What does [this migration](https://discuss.newrelic.com/t/plan-to-upgrade-alert-notification-channels-to-workflows-and-destinations/188205) mean for your team? In our previous notification model, your team would create an alert condition with different thresholds and parameters. If that condition was associated with a specific policy, was breached, and you wanted your team to know about it right away, you would add <DNT>**notification settings**</DNT>. Our notification settings would tell New Relic what data to send where.
+
+Now, we've added workflows. Going forward, instead of configuring classic notification channels and associating them to policies, notification destinations are created and associated to workflows. Workflows can process data from a range of policies and can use attributes like tags or priority to organize notifications.
+
+## What to expect [#what-to-expect]
+
+The migration from the classic notification system to workflows creates a <DNT>**destination**</DNT> for each <DNT>**classic notification channel**</DNT> and connects them to <DNT>**workflows**</DNT> created for each <DNT>**policy.**</DNT> Only policies with channel associations will be migrated.
+
+1. New Relic will automatically migrate accounts from January 23rd to May 15th, 2023.
+2. New Relic can migrate accounts earlier, just reach out to your account team.
+3. Your team can avoid the automated migration by removing channels from policies.
+4. The notification channel APIs and Terraform resources will continue to work until December 31st, 2023.
+
+## Known changes [#known-changes]
+
+Notifications will not substantially change during the migration. They will continue to have the same attribute names and most of the same values. The migration to workflows will change the following:
+
+* All \_url attribute values will change and lead to issue based pages, not incident based pages.
+  `condition_id` will now always have the same value as `condition_family_id`.
+* `issue_id` has been added. Consumers should switch all integrations to using the `issue_id` instead of the `incident_id`, as the `incident_id` will be removed at some point.
+* `radar_entity.entityGuid` and `targets[0].id` will be an entity guid when one is available for all types except for Webhooks.
+* `targets[0].labels` will contain all tags from the issue, not just the tags for the entity defined by the target.
+* `targets[0].link` and `violation_callback_url` will lead to the issue page.
+* `open_violations_count.critical` will contain the count of all open incidents across all priorities. Priority specific counts are unavailable.
+* `open_violations_count.warning` will always be `0`. Priority specific counts are unavailable.
+* `closed_violations_count.critical` will contain the count of all closed incidents across all priorities. Priority specific counts are unavailable.
+* `closed_violations_count.warning` will always be `0`. Priority specific counts are unavailable.
+* `owner` will have a value of NA if the issue has not been acknowledged.
+* `timestamp_utc_string` will switch from the `YYYY-MM-DD, HH:MM UTC` to the ISO 8601 compliant `YYYY-MM-DDThh:mm:ss.sssZ` format.
+* `violation_chart_url` will have a value of `Not Available` if chart generation failed or did not return in a timely manner.
+* The email sender will change to `noreply@notifications.newrelic.com`.
+
+### incident_id
+
+The `incident_id` on PagerDuty, Webhook, VictorOps, OpsGenie and xMatters notifications refers to the classic incident id. The classic incident id is deprecated. Consumers should start using the `issue_id` instead.
+
+`Incident_id` changes:
+
+* A unique `incident_id` will still be generated for every issue.  The value will be different than those used in the deprecated Incident API.
+* To limit the impact to VictorOps, OpsGenie and xMatters notifications, the `incident_id` will be populated by the issue id. That will cause the New Relic steps to acknowledge or close an incident in xMatters to no longer work.
+
+## Configuring custom payloads [#configure-custom-payloads]
+
+When moving from notification channels to workflows your team may want to make some tweaks to your custom payloads. Workflows still function in the same way as notifications in that, when a condition is breached then a notification is sent to a webhook and when it is sent, it goes with its custom payload. The migration from notification channels to workflows requires changing some of the terminology in this payload.
+
+The following table provides a translation between what the webhook payload names used in our classic notification system and their new, corresponding names in the issue payload. [Handlebars](/docs/alerts-applied-intelligence/notifications/message-templates/#handlebars-syntax) is the simple templating language used for writing message templates.
+
+For many keys, the issue payload may contain a list of values. To provide a one-to-one mapping, only the first value is used in the replacement.
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        <DNT>
+          **Alerts (classic) name**
+        </DNT>
+      </th>
+
+      <th>
+        <DNT>
+          **Alerts (classic) variable**
+        </DNT>
+      </th>
+
+      <th>
+        <DNT>
+          **Workflow message template replacement**
+        </DNT>
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `account_id`
+      </td>
+
+      <td>
+        `$ACCOUNT_ID`
+      </td>
+
+      <td>
+        `{{nrAccountId}}`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `account_name`
+      </td>
+
+      <td>
+        `$ACCOUNT_NAME`
+      </td>
+
+      <td>
+        `{{json accumulations.tag.account.[0]}}`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `closed_violations_count_critical`
+      </td>
+
+      <td>
+        `$CLOSED_VIOLATIONS_COUNT_CRITICAL`
+      </td>
+
+      <td>
+        `{{closedIncidentsCount}}`
+
+        The number of closed incidents across all priorities.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `closed_violations_count_warning`
+      </td>
+
+      <td>
+        `$CLOSED_VIOLATIONS_COUNT_WARNING`
+      </td>
+
+      <td>
+        `0`
+
+        There is no replacement for warning counts.  All closed incident counts will be represented as critical to avoid double counting incidents.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `condition_description`
+      </td>
+
+      <td>
+        `$DESCRIPTION`
+      </td>
+
+      <td>
+        `{{escape accumulations.conditionDescription.[0]}}`
+
+        The custom incident description, if one is defined.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `condition_id`
+      </td>
+
+      <td>
+        `$CONDITION_ID`
+      </td>
+
+      <td>
+        `{{accumulations.conditionFamilyId.[0]}}`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `condition_metric_name`
+      </td>
+
+      <td>
+        N/A
+      </td>
+
+      <td>
+        `{{escape accumulations.evaluationName.[0]}}`
+
+        Only valid for <InlinePopover type="apm"/> conditions.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `condition_metric_value_function`
+      </td>
+
+      <td>
+        N/A
+      </td>
+
+      <td>
+        `{{escape accumulations.evaluationMetricValueFunction.[0]}}`
+
+        Only valid for <InlinePopover type="apm"/> conditions.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `condition_name`
+      </td>
+
+      <td>
+        `$CONDITION_NAME`
+      </td>
+
+      <td>
+        `{{escape accumulations.conditionName.[0]}}`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `current_state`
+      </td>
+
+      <td>
+        `$EVENT_STATE`
+      </td>
+
+      <td>
+        `{{#if issueClosedAt}}"closed"{{else if issueAcknowledgedAt}}"acknowledged"{{else}}"open"{{/if}}`
+
+        The state of an issue has more states, but doesn't have one for acknowledged.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `details`
+      </td>
+
+      <td>
+        `$EVENT_DETAILS`
+      </td>
+
+      <td>
+        `{{escape issueTitle}}`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `duration`
+      </td>
+
+      <td>
+        `$DURATION`
+      </td>
+
+      <td>
+        `{{#if issueDurationMs}}{{issueDurationMs}}{{else}}0{{/if}}`
+
+        `issueDurationMs` is only available when an issue closes
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `event_type`
+      </td>
+
+      <td>
+        `$EVENT_TYPE`
+      </td>
+
+      <td>
+        `"INCIDENT"`
+
+        There is no matching attribute on the issue level.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `incident_acknowledge_url`
+      </td>
+
+      <td>
+        `$INCIDENT_ACKNOWLEDGE_URL`
+      </td>
+
+      <td>
+        `{{json issueAckUrl}}`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `incident_id`
+      </td>
+
+      <td>
+        `$INCIDENT_ID`
+      </td>
+
+      <td>
+        `{{issueId}}`
+        OR
+        `{{labels.nrIncidentId.[0]}}`
+
+        Prefer `issueId` since `labels.nrIncidentId` will be removed at some point.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `incident_url`
+      </td>
+
+      <td>
+        `$INCIDENT_URL`
+      </td>
+
+      <td>
+        `{{json issuePageUrl}}`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `issue_id`
+      </td>
+
+      <td>
+        `N/A`
+      </td>
+
+      <td>
+        `{{issueId}}`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `metadata`
+      </td>
+
+      <td>
+        `METADATA`
+      </td>
+
+      <td>
+        ```handlebars
+        {{#if locationStatusesObject}}"location_statuses": {{locationStatusesObject}},{{/if}}
+        {{#if accumulations.metadata_entity_type}}"entity.type": {{json accumulations.metadata_entity_type.[0]}},{{/if}}
+        {{#if accumulations.metadata_entity_name}}"entity.name": {{json accumulations.metadata_entity_name.[0]}}{{/if}}
+        ```
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `open_violations_count_critical`
+      </td>
+
+      <td>
+        `$OPEN_VIOLATIONS_COUNT_CRITICAL`
+      </td>
+
+      <td>
+        `{{openIncidentsCount}}`
+
+        Open incident counts of all incident regardless of priority.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `open_violations_count_warning`
+      </td>
+
+      <td>
+        `$OPEN_VIOLATIONS_COUNT_WARNING`
+      </td>
+
+      <td>
+        `N/A`
+
+        Open incident counts of all incidents regardless of priority.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `owner`
+      </td>
+
+      <td>
+        `$EVENT_OWNER`
+      </td>
+
+      <td>
+        `{{escape owner}}`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `policy_name`
+      </td>
+
+      <td>
+        `$POLICY_NAME`
+      </td>
+
+      <td>
+        `{{escape accumulations.policyName.[0]}}`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `policy_url`
+      </td>
+
+      <td>
+        `$POLICY_URL`
+      </td>
+
+      <td>
+        `{{json policyUrl}}`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `runbook_url`
+      </td>
+
+      <td>
+        `$RUNBOOK_URL`
+      </td>
+
+      <td>
+        `{{json accumulations.runbookUrl.[0]}}`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `severity`
+      </td>
+
+      <td>
+        `$SEVERITY`
+      </td>
+
+      <td>
+        `{{#eq 'HIGH' priority}}WARNING{{else}}{{priority}}{{/eq}}`
+
+        An issue has priority, which can have different values than severity.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `targets`
+      </td>
+
+      <td>
+        `$TARGETS`
+      </td>
+
+      <td>
+        ```handlebars
+        [
+          {
+            "id": "{{labels.targetId.[0]}}",
+            "name": "{{#if accumulations.targetName}}{{accumulations.targetName.[0]}}{{else if entitiesData.entities}}{{entitiesData.entities.[0].name}}{{else}}N/A{{/if}}",
+            "link": "{{issuePageUrl}}",
+            "product": "{{accumulations.conditionProduct.[0]}}",
+            "type": "{{#if entitiesData.types.[0]}}{{entitiesData.types.[0]}}{{else}}N/A{{/if}}",
+            "labels": { {{#each accumulations.rawTag}}"{{escape @key}}": {{#if this.[0]}}{{json this.[0]}}{{else}}"empty"{{/if}}{{#unless @last}},{{/unless}}{{/each}} }
+          }
+        ]
+        ```
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `timestamp`
+      </td>
+
+      <td>
+        `$TIMESTAMP`
+      </td>
+
+      <td>
+        `{{updatedAt}}`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `timestamp_utc_string`
+      </td>
+
+      <td>
+        `$TIMESTAMP_UTC_STRING`
+      </td>
+
+      <td>
+        `{{issueUpdatedAt}}`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `version`
+      </td>
+
+      <td>
+        `$VERSION`
+      </td>
+
+      <td>
+        `"1.0"`
+
+        There is no matching attribute on the issue level.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `violation_callback_url`
+      </td>
+
+      <td>
+        `$VIOLATION_CALLBACK_URL`
+      </td>
+
+      <td>
+        `{{json issuePageUrl}}`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `violation_chart_url`
+      </td>
+
+      <td>
+        `$VIOLATION_CHART_URL`
+      </td>
+
+      <td>
+        `{{json violationChartUrl}}`
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<CollapserGroup>
+  <Collapser
+    id=""
+    title=" Migrated workflow payload for Alerts (classic) default webhook channels"
+  >
+    The following template maps the issue payload to the default payload used by the classic webhook channel. You can use some or all of the dynamic variables, along with any custom variables, to define your own payload.
+
+    ```handlebars
+    { 
+      "account_id": {{nrAccountId}},
+      "account_name": {{json accumulations.tag.account.[0]}},
+      "closed_violations_count": {"critical": {{closedIncidentsCount}}, "warning": 0},
+      "closed_violations_count_warning": 0,
+      "closed_violations_count_critical": {{closedIncidentsCount}},
+      "open_violations_count_warning": 0,
+      "open_violations_count_critical": {{openIncidentsCount}},
+      "condition_family_id": {{accumulations.conditionFamilyId.[0]}},
+      "condition_id": {{accumulations.conditionFamilyId.[0]}},
+      "condition_name": "{{escape accumulations.conditionName.[0]}}",
+      "condition_description": "{{escape accumulations.conditionDescription.[0]}}",
+      "current_state": "{{#if issueClosedAtUtc}}closed{{else if issueAcknowledgedAt}}acknowledged{{else}}open{{/if}}",
+      "details": {{json issueTitle}},
+      "duration": {{#if issueDurationMs}}{{issueDurationMs}}{{else}}0{{/if}},
+      "event_type": "INCIDENT",
+      "incident_acknowledge_url": {{json issueAckUrl}},
+      "incident_id": {{#if labels.nrIncidentId}}{{labels.nrIncidentId.[0]}}{{else}}-1{{/if}},
+      "incident_url": {{json issuePageUrl}},
+      "issue_id": {{json issueId}},
+      "metadata": {
+        {{#if locationStatusesObject}}"location_statuses": {{json locationStatusesObject}},{{/if}}
+        {{#if accumulations.metadata_entity_type}}"entity.type": {{json accumulations.metadata_entity_type.[0]}},{{/if}}
+        {{#if accumulations.metadata_entity_name}}"entity.name": {{json accumulations.metadata_entity_name.[0]}},{{/if}}
+        "section": "metadata"
+      },
+      "open_violations_count": {
+        "critical": {{openIncidentsCount}},
+        "warning": 0
+      },
+      "owner": {{json owner}},
+      "policy_name": {{json accumulations.policyName.[0]}},
+      "policy_url": {{json policyUrl}},
+      "runbook_url": {{json accumulations.runbookUrl.[0]}},
+      "severity": "{{#eq HIGH priority}}WARNING{{else}}{{priority}}{{/eq}}",
+      "targets": [
+        {
+          "id": "{{labels.targetId.[0]}}",
+          "name": "{{#if accumulations.targetName}}{{escape accumulations.targetName.[0]}}{{else if entitiesData.entities}}{{escape entitiesData.entities.[0].name}}{{else}}N/A{{/if}}",
+          "link": "{{issuePageUrl}}",
+          "product": "{{accumulations.conditionProduct.[0]}}",
+          "type": "{{#if entitiesData.types.[0]}}{{entitiesData.types.[0]}}{{else}}N/A{{/if}}",
+          "labels": {
+            {{#each accumulations.rawTag}}"{{escape @key}}": {{#if this.[0]}}{{json this.[0]}}{{else}}"empty"{{/if}}{{#unless @last}},{{/unless}}{{/each}}
+          }
+        }
+      ],
+      "timestamp": {{updatedAt}},
+      "timestamp_utc_string": {{json issueUpdatedAt}},
+      "version": 1.0,
+      "violation_callback_url": {{json issuePageUrl}},
+      "violation_chart_url": {{json violationChartUrl}}
+    }
+    ```
+  </Collapser>
+
+  <Collapser
+    id=""
+    title=" Migrated workflow payload for Alerts (classic) VictorOps and xMatters channels"
+  >
+    The following template maps the issue payload to the payload used by the classic VictorOps and xMatters channels.  You can use some or all of the dynamic variables, along with any custom variables, to define your own payload.
+
+    ```handlebars
+    {
+      {{#if nrAccountId}}"account_id": {{nrAccountId}},{{/if}}
+      "account_name": {{json accumulations.tag.account.[0]}},
+      {{#if accumulations.tag.action}}"action":{{json accumulations.tag.action.[0]}},{{/if}}
+      "closed_violations_count": {
+        "critical": {{#if closedIncidentsCount}}{{closedIncidentsCount}}{{else}}0{{/if}},
+        "warning": 0,
+        "total": {{#if closedIncidentsCount}}{{closedIncidentsCount}}{{else}}0{{/if}}
+      },
+      "condition_family_id": {{accumulations.conditionFamilyId.[0]}},
+      "condition_id": {{accumulations.conditionFamilyId.[0]}},
+      "condition_name": {{json accumulations.conditionName.[0]}},
+      {{#if accumulations.evaluationName}}"condition_metric_name": {{json accumulations.evaluationName.[0]}},{{/if}}
+      {{#if accumulations.evaluationMetricValueFunction}}"condition_metric_value_function": {{json accumulations.evaluationMetricValueFunction.[0]}},{{/if}}
+      "current_state": {{#if issueClosedAt}}"closed"{{else if issueAcknowledgedAt}}"acknowledged"{{else}}"open"{{/if}},
+      "details": {{json issueTitle}},
+      "duration": {{#if issueDurationMs}}{{issueDurationMs}}{{else}}0{{/if}},
+      "event_type": "INCIDENT",
+      "incident_acknowledge_url": {{json issueAckUrl}},
+      "incident_url": {{json issuePageUrl}},
+      "incident_id": {{json issueId}},
+      "issue_close_url": {{json issueCloseUrl}},
+      "metadata": {
+        {{#if locationStatusesObject}}"location_statuses": {{json locationStatusesObject}},{{/if}}
+        {{#if accumulations.metadata_entity_type}}"entity.type": {{json accumulations.metadata_entity_type.[0]}},{{/if}}
+        {{#if accumulations.metadata_entity_name}}"entity.name": {{json accumulations.metadata_entity_name.[0]}}{{/if}}
+      },
+      "open_violations_count": {
+        "critical": {{#if openIncidentsCount}}{{openIncidentsCount}}{{else}}0{{/if}},
+        "warning": 0,
+        "total": {{#if openIncidentsCount}}{{openIncidentsCount}}{{else}}0{{/if}}
+      },
+      "policy_name": {{json accumulations.policyName.[0]}},
+      {{#if policyUrl}}"policy_url": {{json policyUrl}},{{/if}}
+      "radar_entity": {
+        "accountId": {{json accumulations.tag.accountId.[0]}},
+        "domain": {{json accumulations.conditionProduct.[0]}},
+        "domainId": {{json issueId}},
+        "entityGuid": {{json entitiesData.entities.[0].id}},
+        "name": {{#if accumulations.targetName}}{{json accumulations.targetName.[0]}}{{else if entitiesData.entities}}{{json entitiesData.entities.[0].name}}{{else}}"NA"{{/if}},
+        "type": {{#if entitiesData.types.[0]}}{{json entitiesData.types.[0]}}{{else}}"NA"{{/if}}
+      },
+      {{#if accumulations.runbookUrl}}"runbook_url": {{json accumulations.runbookUrl.[0]}},{{/if}}
+      "severity": "{{#eq 'HIGH' priority}}WARNING{{else}}{{priority}}{{/eq}}",
+      "state": {{json state}},
+      "status": {{json status}},
+      "targets": [
+        {
+          "id": {{#if entitiesData.entities.[0].id}}{{json entitiesData.entities.[0].id}}{{else if accumulations.nrqlEventType}}{{json accumulations.nrqlEventType.[0]}}{{else}}"N/A"{{/if}},
+          "name": {{#if accumulations.targetName}}{{json accumulations.targetName.[0]}}{{else if entitiesData.entities}}{{json entitiesData.entities.[0].name}}{{else}}"NA"{{/if}},
+          "link": {{json issuePageUrl}},
+          "product": {{json accumulations.conditionProduct.[0]}},
+          "type": {{#if entitiesData.types.[0]}}{{json entitiesData.types.[0]}}{{else}}"NA"{{/if}},
+          "labels": {
+            {{#each accumulations.rawTag}}"{{escape @key}}": {{#if this.[0]}}{{json this.[0]}}{{else}}"empty"{{/if}}{{#unless @last}},{{/unless}}{{/each}}
+          }
+        }
+      ],
+      "timestamp": {{updatedAt}},
+      "timestamp_utc_string": {{json issueUpdatedAt}},
+      "version": 1.0,
+      {{#if accumulations.conditionDescription}}"VIOLATION DESCRIPTION": {{json accumulations.conditionDescription.[0]}},{{/if}}
+      {{#if violationChartUrl}}"violation_chart_url": {{json violationChartUrl}},{{/if}}
+      "violation_callback_url": {{json issuePageUrl}}
+    }
+    ```
+  </Collapser>
+
+  <Collapser
+    id=""
+    title=" Migrated workflow payload for Alerts (classic) OpsGenie channels"
+  >
+    The following template maps the issue payload to the payload used by the classic OpsGenie channel.  You can use some or all of the dynamic variables, along with any custom variables, to define your own payload.
+
+    ```handlebars
+    {
+      "tags": "enter your tags here",
+      "teams": "enter your teams here",
+      "recipients": "enter your recipients here",
+      "payload": {
+        "condition_id": {{json accumulations.conditionFamilyId.[0]}},
+        "condition_name": {{json accumulations.conditionName.[0] }},
+        "current_state": {{#if issueClosedAtUtc}} "closed" {{else if issueAcknowledgedAt}} "acknowledged" {{else}} "open"{{/if}},
+        "details": {{json issueTitle}},
+        "event_type": "Incident",
+        "incident_acknowledge_url": {{json issueAckUrl }},
+        "incident_api_url": "N/A",
+        "incident_id": {{json issueId }},
+        "incident_url": {{json issuePageUrl }},
+        "owner": "N/A",
+        "policy_name": {{ json accumulations.policyName.[0] }},
+        "policy_url":  {{json issuePageUrl }},
+        "runbook_url": {{ json accumulations.runbookUrl.[0] }},
+        "severity": "{{#eq 'HIGH' priority}}WARNING{{else}}{{priority}}{{/eq}}",
+        "targets": [  
+          {
+            "id": "{{labels.targetId.[0]}}", 
+            "name": "{{#if accumulations.targetName}}{{escape accumulations.targetName.[0]}}{{else if entitiesData.entities}}{{escape entitiesData.entities.[0].name}}{{else}}N/A{{/if}}", 
+            "link": "{{issuePageUrl}}", 
+            "product": "{{accumulations.conditionProduct.[0]}}", 
+            "type": "{{#if entitiesData.types.[0]}}{{entitiesData.types.[0]}}{{else}}N/A{{/if}}", 
+            "labels": {
+              {{#each accumulations.rawTag}}"{{escape @key}}": {{#if this.[0]}}{{json this.[0]}}{{else}}"empty"{{/if}}{{#unless @last}},{{/unless}}{{/each}}
+            }
+          }
+        ],
+        "metadata": {
+          {{#if locationStatusesObject}}"location_statuses": {{json locationStatusesObject}},{{/if}}
+          {{#if accumulations.metadata_entity_type}}"entity.type": {{json accumulations.metadata_entity_type.[0]}},{{/if}}
+          {{#if accumulations.metadata_entity_name}}"entity.name": {{json accumulations.metadata_entity_name.[0]}},{{/if}}
+          "section": "metadata"
+        },
+        "radar_entity": {
+          "accountId": {{json accumulations.tag.accountId.[0]}}, 
+          "domain": {{json accumulations.conditionProduct.[0]}},
+          "domainId": {{json issueId}},
+          "entityGuid": {{json entitiesData.entities.[0].id}},
+          "name": {{#if accumulations.targetName}}{{json accumulations.targetName.[0]}}{{else if entitiesData.entities}}{{json entitiesData.entities.[0].name}}{{else}}"NA"{{/if}},
+          "type": {{#if entitiesData.types.[0]}}{{json entitiesData.types.[0]}}{{else}}"NA"{{/if}}
+        },
+        {{#if accumulations.evaluationName}}"condition_metric_name": {{json accumulations.evaluationName.[0]}},{{/if}}
+        {{#if accumulations.evaluationMetricValueFunction}}"condition_metric_value_function": {{json accumulations.evaluationMetricValueFunction.[0]}}, {{/if}}
+        {{#if nrAccountId}} "account_id": {{nrAccountId}},{{/if}}
+        "account_name": {{json accumulations.tag.account.[0]}},
+        "timestamp": {{updatedAt}}
+      }
+    }
+    ```
+  </Collapser>
+
+  <Collapser
+    id=""
+    title=" Migrated workflow payload for Alerts (classic) PagerDuty channels"
+  >
+    The following template maps the issue payload to the default payload used by the classic PagerDuty channel. You can use some or all of the dynamic variables, along with any custom variables, to define your own payload.
+
+    ```handlebars
+    {
+      {{#if nrAccountId}}"account_id": {{nrAccountId}},{{/if}}
+      "account_name": {{json accumulations.tag.account.[0]}},
+      {{#if accumulations.tag.action}}"action":{{json accumulations.tag.action.[0]}},{{/if}}
+      "closed_violations_count": {
+        "critical": {{#if closedIncidentsCount}}{{closedIncidentsCount}}{{else}}0{{/if}},
+        "warning": 0,
+        "total": {{#if closedIncidentsCount}}{{closedIncidentsCount}}{{else}}0{{/if}}
+      },
+      "condition_family_id": {{accumulations.conditionFamilyId.[0]}},
+      "condition_id": {{accumulations.conditionFamilyId.[0]}},
+      "condition_name": {{json accumulations.conditionName.[0]}},
+      {{#if accumulations.evaluationName}}"condition_metric_name": {{json accumulations.evaluationName.[0]}},{{/if}}
+      {{#if accumulations.evaluationMetricValueFunction}}"condition_metric_value_function": {{json accumulations.evaluationMetricValueFunction.[0]}},{{/if}}
+      "current_state": {{#if issueClosedAt}}"closed"{{else if issueAcknowledgedAt}}"acknowledged"{{else}}"open"{{/if}},
+      "details": {{json issueTitle}},
+      "duration": {{#if issueDurationMs}}{{issueDurationMs}}{{else}}0{{/if}},
+      "event_type": "INCIDENT",
+      "incident_acknowledge_url": {{json issueAckUrl}},
+      {{#if labels.nrIncidentId}}"incident_id": {{labels.nrIncidentId.[0]}},{{/if}}
+      "incident_url": {{json issuePageUrl}},
+      "issue_id": {{json issueId}},
+      "metadata": {
+        {{#if locationStatusesObject}}"location_statuses": {{json locationStatusesObject}},{{/if}}
+        {{#if accumulations.metadata_entity_type}}"entity.type": {{json accumulations.metadata_entity_type.[0]}},{{/if}}
+        {{#if accumulations.metadata_entity_name}}"entity.name": {{json accumulations.metadata_entity_name.[0]}}{{/if}}
+      },
+      "open_violations_count": {
+        "critical": {{#if openIncidentsCount}}{{openIncidentsCount}}{{else}}0{{/if}},
+        "warning": 0,
+        "total": {{#if openIncidentsCount}}{{openIncidentsCount}}{{else}}0{{/if}}
+      },
+      {{#if owner}}"owner": {{json owner}},{{/if}}
+      "policy_name": {{json accumulations.policyName.[0]}},
+      {{#if policyUrl}}"policy_url": {{json policyUrl}},{{/if}}
+      "radar_entity": {
+        "accountId": {{json accumulations.tag.accountId.[0]}},
+        "domain": {{json accumulations.conditionProduct.[0]}},
+        "domainId": {{json issueId}},
+        "entityGuid": {{json entitiesData.entities.[0].id}},
+        "name": {{#if accumulations.targetName}}{{json accumulations.targetName.[0]}}{{else if entitiesData.entities}}{{json entitiesData.entities.[0].name}}{{else}}"NA"{{/if}},
+        "type": {{#if entitiesData.types.[0]}}{{json entitiesData.types.[0]}}{{else}}"NA"{{/if}}
+      },
+      {{#if accumulations.runbookUrl}}"runbook_url": {{json accumulations.runbookUrl.[0]}},{{/if}}
+      "severity": "{{#eq 'HIGH' priority}}WARNING{{else}}{{priority}}{{/eq}}",
+      "state": {{json state}},
+      "status": {{json status}},
+      "targets": [
+        {
+          "id": {{#if entitiesData.entities.[0].id}}{{json entitiesData.entities.[0].id}}{{else if accumulations.nrqlEventType}}{{json accumulations.nrqlEventType.[0]}}{{else}}"N/A"{{/if}},
+          "name": {{#if accumulations.targetName}}{{json accumulations.targetName.[0]}}{{else if entitiesData.entities}}{{json entitiesData.entities.[0].name}}{{else}}"NA"{{/if}},
+          "link": {{json issuePageUrl}},
+          "product": {{json accumulations.conditionProduct.[0]}},
+          "type": {{#if entitiesData.types.[0]}}{{json entitiesData.types.[0]}}{{else}}"NA"{{/if}},
+          "labels": {
+            {{#each accumulations.rawTag}}{{#if this.[0]}}"{{escape @key}}":{{escape this.[0]}}{{#unless @last}},{{/unless}}{{/if}}{{/each}}
+          }
+        }
+      ],
+      "timestamp": {{updatedAt}},
+      "timestamp_utc_string": {{json issueUpdatedAt}},
+      "version": "1.0",
+      {{#if accumulations.conditionDescription}}"VIOLATION DESCRIPTION": {{json accumulations.conditionDescription.[0]}},{{/if}}
+      {{#if violationChartUrl}}"violation_chart_url": {{json violationChartUrl}},{{/if}}
+      "violation_callback_url": {{json issuePageUrl}}
+    }
+    ```
+  </Collapser>
+</CollapserGroup>

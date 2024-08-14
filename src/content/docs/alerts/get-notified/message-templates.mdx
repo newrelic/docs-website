@@ -1,0 +1,438 @@
+---
+title: Notification message templates
+tags:
+  - Alerts 
+  - Notification templates
+metaDescription: "Read about various notification message templates you can use and apply."
+freshnessValidatedDate: never
+redirects:
+  - /docs/alerts-applied-intelligence/notifications/message-templates
+---
+
+Notification message templates enable you to customize your notification event data before it's sent to your third-party destination. The templates map your custom values to the values used by your third-party destination.
+
+This gives you full control over what data will be sent and where, as well as being able to fully engage with the services you use.
+
+## Message template variables [#variables]
+
+A message template is what you use to convert New Relic event data to data that's consumable by your third-party service. Variables are specific attributes that are mapped to data fields in your third-party service.
+
+Message templates are written in a simple templating language called [Handlebars](https://handlebarsjs.com/guide/). Variables in the message templates are written as [expressions](https://handlebarsjs.com/guide/expressions.html) inside double curly braces `{{ }}`.
+
+<img
+  title="An example webhook notification message template."
+  alt="A screenshot of an example webhook notification message template."
+  src="/images/accounts_screenshot-crop_notification-payload-template.webp"
+/>
+
+<figcaption>
+  Use the notification message template to map your New Relic notifications to the fields in your external services.
+</figcaption>
+
+## The variables menu [#variables-menu]
+
+The New Relic variable names are listed in the message template variables menu. The variables are grouped into subcategories.
+
+In the variables menu, type `{{` to select from a list of variables. As you type, variable names appear via autocomplete. The variable type is written on the right-hand side. If the workflow has [enrichments](/docs/alerts-applied-intelligence/applied-intelligence/incident-workflows/incident-workflows/#enrichments), they'll appear at the top of the list after typing `{{`.
+
+<img
+  title="The variables menu that shows the breadth of variable options available."
+  alt="A screenshot of the variables menu that. shows the breadth of variable options available."
+  src="/images/accounts_screenshot-crop_notification-custom-variables.webp"
+/>
+
+<figcaption>
+  The variables menu shows the options you have when mapping New Relic notification fields onto the fields in your external service.
+</figcaption>
+
+<Callout variant="important">
+  Issue specific variables, such as `accumulations.tag.foo` won't appear unless there's already been an issue containing this metadata. To create a message template which includes them before an issue has occured, use the [`#if` statement](/docs/alerts-applied-intelligence/notifications/message-templates/#missing-attributes) described below.
+</Callout>
+
+## Use the Handlebars syntax [#handlebars-syntax]
+
+When an event generates a notification, the message template uses the Handlebar variables to map the notification data to the fields used by your third-party service.
+
+The Handlebars language provides many features in addition to basic variable replacement, including evaluating [nested input objects](https://handlebarsjs.com/guide/#nested-input-objects) and functions, such as iterations (loops), conditional statements, and more. In Handlebars, these functions are called helpers.
+Click [here](/docs/alerts-applied-intelligence/applied-intelligence/incident-workflows/custom-variables-incident-workflows/) for an explanation of the variables used for Workflows.
+
+## Helper functions [#help-functions]
+
+Our message templates support the Handlebars [built-in helpers](https://handlebarsjs.com/guide/builtin-helpers.html).
+
+In addition, we've added other helpers that might be useful to you.
+
+<CollapserGroup>
+  <Collapser
+    className="freq-link"
+    id="json"
+    title="JSON"
+  >
+    The `{{json}}` helper converts text to a JSON element.
+
+    Use this when you're configuring a Webhook’s payload, which uses a JSON syntax, and any other situation you might want to pass JSON formatted data.
+
+    For example, with a variable called `data`.
+
+    ```json
+    {
+      "data":{
+        "tags":["infra, team-a"]
+      }
+    }
+    ```
+
+    To get the `tags` array as a JSON element, use the `{{json}}` helper:
+
+    ```handlebars
+    {{json data.tags}}
+    ```
+
+    to get:
+
+    ```json
+     ["infra","team-a"]
+    ```
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="escape"
+    title="Escape"
+  >
+    Similar to the `{{json}}` helper, the `{{escape}}` helper escapes JSON breaking characters, but doesn't generate JSON output.
+
+    Use the escape helper when the value of the variable contains text with JSON-breaking characters, such as `"`, that must be escaped for the message template to have the correct syntax.
+
+    For example, the following needs to be sent as text, such as when sending to a Slack webhook endpoint:
+
+    ```json
+    {
+      "text": "id:{{ escape issueId }},\nEnrichment Data: {{ escape [latest my_enrichment] }},\nDescription:{{ escape accumulations.conditionDescription }}"
+    }
+    ```
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="equality"
+    title="Equality"
+  >
+    Use the equality `{{#eq}}` helper to compare variables.
+
+    ```handlebars
+    Compares variables a and b, renders 'yes' or 'no':
+
+    {{#eq a b}} yes {{else}} no {{/eq}}
+
+    Compares string value "a" to variable b, renders 'yes' or 'no':
+
+    {{#eq "a" b}} yes {{else}} no {{/eq}}
+
+    Renders 'true' or 'false':
+
+    {{eq a b}}
+
+    Renders 'y' or 'n':
+
+    {{eq a b yes='y' no='n'}}
+    ```
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="contains"
+    title="Contains"
+  >
+    Use the `{{#contains}}` helper to compare variables.
+
+    ```handlebars
+    Asserts that b contains a, renders 'yes' or 'no':
+
+    {{#contains a b}} yes {{else}} no {{/contains}}
+
+    Asserts that variable b contains string value "a", renders 'yes' or 'no':
+
+    {{#contains "a" b}} yes {{else}} no {{/contains}}
+
+    Renders 'true' or 'false':
+
+    {{contains a b}}
+
+    Renders 'y' or 'n':
+
+    {{contains a b yes='y' no='n'}}
+    ```
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="math"
+    title="Math"
+  >
+    Use the `{{#math}}` to perform simple math operations.
+
+    ```handlebars
+    Renders addition of two number values:
+
+    {{#math openIncidentsCount '+' closedIncidentsCount}} {{/math}}
+
+    Renders subtraction of two number values:
+
+    {{#math createdAt '-' closedAt}}{{/math}}
+
+    Renders multiplication of two number values:
+
+    {{#math 3 '*' 3}}{{/math}}
+
+    Renders division of two number values:
+
+    {{#math 9 '/' 3}}{{/math}}
+    ```
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="timezone"
+    title="Timezone"
+  >
+    Use the `{{#timezone}}` to convert epoch time to a date in the format of 'yyyy-MM-dd HH:mm:ss zzz'.
+    You can find a list of tz database timezones [here](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones).
+
+    Example #1: convert createdAt in epoch time to US Eastern timezone:
+
+    ```handlebars
+    {{#timezone createdAt 'US/Eastern'}}{{/timezone}}
+    ```
+
+    to get:
+
+    ```
+    "2023-06-06 09:45:07 EDT"
+    ```
+
+    Example #2: convert epoch time to Paris timezone::
+
+    ```handlebars
+    {{#timezone 1686059107319 'Europe/Paris'}}{{/timezone}}
+    ```
+
+    to get:
+
+    ```
+    "2023-06-06 15:45:07 GMT+2"
+    ```
+  </Collapser>
+
+  <Collapser
+    className="freq-link"
+    id="replace"
+    title="Replace"
+  >
+    The `replace` helper replaces instances of the first parameter in the second parameter with the child block.
+
+    Use `else` clause to specify what happens when no instance of the first parameter is found. If it is omitted an empty string will be generated.
+
+    Example #1: replace the word `dog` with `cat` in the sentence `The dog likes to eat`:
+
+    ```handlebars
+    {{#replace "dog" "The dog likes to eat"}}cat{{/replace}}
+    ```
+
+    to get:
+
+    ```
+    The cat likes to eat
+    ```
+
+    Example #2: replace the word `cat` with `mouse` in the sentence `The dog likes to eat`:
+
+    ```handlebars
+    {{#replace "cat" "The dog likes to eat"}}mouse{{/replace}}
+    ```
+
+    to get an empty string:
+
+    ```
+
+    ```
+
+    Example #3: replace the word `cat` with `mouse` in the sentence `The dog likes to eat`, using the `else` clause:
+
+    ```handlebars
+    {{#replace "cat" "The dog likes to eat"}}mouse{{else}}There is no cat to replace{{/replace}}
+    ```
+
+    to get:
+
+    ```
+    There is no cat to replace
+    ```
+
+    Example #4: replace the word `dog` with `cat` in the sentence `The DOG likes to eat` while ignoring case:
+
+    ```handlebars
+    {{#replace "/dog/i" "The DOG likes to eat"}}cat{{/replace}}
+    ```
+
+    to get:
+
+    ```
+    The cat likes to eat
+    ```
+
+    Example #5: replace the variable `{{needle}}` with the variable `{{replacement}}` in the variable `{{haystack}}`:
+
+    ```handlebars
+    {{#replace needle haystack}}{{replacement}}{{/replace}}
+    ```
+
+    using this data:
+
+    ```json
+    {
+      "needle": "/dog/i",
+      "haystack": "The DOG likes to eat",
+      "replacement": "cat"
+    }
+    ```
+
+    to get:
+
+    ```
+    The cat likes to eat
+    ```
+  </Collapser>
+</CollapserGroup>
+
+Our helper functions can also be nested. Here is an example:
+
+```handlebars
+{{#eq "a" b}} yes1 {{else}}{{#eq "a" c}} yes2 {{else}} no {{/eq}}{{/eq}}
+```
+
+## Usage examples [#usage-examples]
+
+The examples are based on a variable called `data`:
+
+```json
+"data": {
+  "tags":["infra, team-a"],
+  "id":123456789,
+  "name": "Alice",
+}
+```
+
+The `data` value has an equivalent, dot-notated format:
+
+```json
+"data.tags": ["infra, team-a"]
+"data.id": 123456789
+"data.name": "Alice"
+```
+
+### Validate data [#validate]
+
+If `id` equals `123456789`, then the output is `valid`. If not, the output is `not valid`.
+
+```handlebars
+{{eq data.name "Alice" yes='valid' no='not valid'}}
+```
+
+If `name` equals `Alice`, then the output is `valid`.
+
+### Return JSON [#json]
+
+Get the `tags` and object’s properties in a JSON form:
+
+```handlebars
+{{json data.tags}}
+```
+
+This would return the following JSON:
+
+```json
+["infra","team-a"]
+```
+
+### Get values from an array [#array]
+
+Get the first tag from the `tags` array:
+
+```handlebars
+{{json data.tags.[0]}}
+```
+
+This would return the first value from the array:
+
+```
+"infra"
+```
+
+### Iterate through an array [#iterate-array]
+
+Iterate a variable of type array and aggregate the values into a string:
+
+```handlebars
+{{#each tags}}{{this}}{{#unless @last}}, {{/unless}}{{/each}}
+```
+
+The result contains the tags, seperated by commas (the trailing comma is omitted):
+
+```
+infra, team
+```
+
+Similarly, iterate the `data` variable, aggregate the object’s values, and output a JSON element:
+
+```handlebars
+{{#each (json data)}}{{this}}{{/each}}
+```
+
+This would return a JSON such as:
+
+```json
+{
+  "tags":["infra, team-a"],
+  "name":"Alice",
+  "id":"123456789"
+}
+```
+
+Iterate the `data` variable, then aggregate the object’s entries to a string:
+
+```handlebars
+{{#each data}}{{@key}}: {{this}}{{#unless @last}}, {{/unless}}{{/each}}
+```
+
+This would return a string such as:
+
+```
+tags: infra,team-a, name: Alice, id: 123456789
+```
+
+### Handle missing attributes [#missing-attributes]
+
+In some cases, such as for tags that weren't present in previous issues, an attribute may be missing from the [variables menu](/docs/alerts-applied-intelligence/notifications/message-templates/#variables-menu), or not exist whatsoever.
+
+We can use the `#if` statement to set a fallback, such as:
+
+```handlebars
+{{#if data.type}}{{ json data.type }}{{else}}"N/A"{{/if}}
+```
+
+This would return the string `"N/A"`.
+
+<Callout variant="caution">
+  If a missing attribute also has a nested value, rendering will fail, so we will not save the webhook payload. For example, the case:
+
+  ```handlebars
+  {{#if data.type}}{{ json data.type }}{{else}}"N/A"{{/if}}
+  ```
+
+  will need to be changed to:
+
+  ```handlebars
+  {{#if data}}{{#if data.type}}{{ json data.type }}{{else}}"N/A"{{else}}"N/A"{{/if}}
+  ```
+</Callout>

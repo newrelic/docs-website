@@ -17,10 +17,10 @@ const options = new Options().setMobileEmulation({
 // options required for github action to run chromedriver properly
 options.addArguments('no-sandbox');
 options.addArguments('disable-dev-shm-usage');
-options.addArguments('headless');
+options.addArguments('--headless=new');
 
 const TIMEOUT = 30000;
-const SLEEP_TIME = 5000;
+const SLEEP_TIME = 2000;
 
 const waitForXPath = (xpath, timeout = TIMEOUT) =>
   driver.wait(until.elementsLocated(By.xpath(xpath)), timeout);
@@ -77,10 +77,17 @@ const navTest = async () => {
     '//header//button[contains(@aria-label, "Mobile")]'
   );
   console.log('\nOpening mobile Nav menu');
-  await hamburgerButton.click();
-  await driver.sleep(SLEEP_TIME);
-  // nav on mobile is a new list, the desktop nav comes first in the DOM but is hidden
-  const [_desktopRN, releaseNotes] = await waitForXPath(releaseNotesXPath);
+  let _desktopRN;
+  let releaseNotes;
+  const MAX_TRIES = 3;
+  let tries = 0;
+  do {
+    await hamburgerButton.click();
+    await driver.sleep(SLEEP_TIME);
+    // nav on mobile is a new list, the desktop nav comes first in the DOM but is hidden
+    [_desktopRN, releaseNotes] = await waitForXPath(releaseNotesXPath);
+    tries += 1;
+  } while (releaseNotes == null && tries < MAX_TRIES);
   const [_desktopINN, initialNextNode] = await waitForXPath(nextNodeXPath);
   await driver.executeScript('arguments[0].scrollIntoView()', releaseNotes);
   console.log('\nClicking Release Notes div');

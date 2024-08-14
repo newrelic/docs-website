@@ -1,0 +1,248 @@
+---
+title: 'Checkbox'
+metaDescription: 'Learn how to work the Checkbox component'
+freshnessValidatedDate: 2024-06-03
+---
+
+When a user chooses one or more options provided
+
+The checkbox state can be controlled through the `checked` and `indeterminate` property. If neither of those is provided the checkbox will manage its own state.
+
+You can listen to the checkbox state changes through the `onChange` prop.
+
+**Note**: Setting `checked` will override `defaultChecked` as it puts the component into a controlled state. `defaultChecked` should only be used for uncontrolled checkboxes.
+
+### Usage
+
+```js
+import { Checkbox } from 'nr1'
+```
+
+### Examples
+
+#### Basic
+
+```js
+<div className="nr1-Docs-prettify">
+  <Checkbox onChange={(event) => alert('Foo')} label="Foo" />
+  <Checkbox indeterminate label="Bar" />
+  <Checkbox checked disabled label="Baz" />
+</div>
+```
+
+#### With info
+
+```js
+<Checkbox onChange={(event) => alert('Foo')} info="Info value" label="Foo" />
+```
+
+#### With description
+
+```js
+<Checkbox
+  onChange={(event) => alert('Foo')}
+  description="Description value"
+  label="Foo"
+/>
+```
+
+#### With invalid message
+
+```js
+<Checkbox
+  onChange={(event) => alert('Foo')}
+  invalid="Invalid message value"
+  label="Foo"
+/>
+```
+
+#### Controlled component
+
+```js
+class MyNerdlet extends React.PureComponent {
+  constructor(props) {
+    super(props);
+
+
+    this.state = {
+      isChecked: false,
+    };
+
+
+    this.onChange = this.onChange.bind(this);
+  }
+
+
+  onChange(event) {
+    console.log(event);
+    const isChecked = event.target.checked;
+
+
+    this.setState({ isChecked });
+  }
+
+
+  render() {
+    return (
+      <Checkbox
+        checked={this.state.isChecked}
+        onChange={this.onChange}
+        label="Foo"
+      />
+    );
+  }
+}
+```
+
+### Props
+
+<table>
+  <tbody>
+    <tr>
+      <td>
+        `checked` <h5>boolean</h5>
+      </td>
+
+      <td>
+        If `true`, the checkbox is checked.If defined, it turns the component into a [controlled component](https://facebook.github.io/react/docs/forms.html).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `className` <h5>string</h5>
+      </td>
+
+      <td>
+        Appends class names to the component.Should be used only for positioning and spacing purposes.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `defaultChecked` <h5>boolean</h5>
+      </td>
+
+      <td>
+        If `true`, the initial state of the checkbox is `checked`.Useful when you don't want to use a [controlled component](https://facebook.github.io/react/docs/forms.html).
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `description` <h5>string</h5>
+      </td>
+
+      <td>
+        Message with instructions on how to fill the form field.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `disabled` <h5>boolean</h5>
+      </td>
+
+      <td>
+        If `true`, the checkbox is not available for interaction.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `indeterminate` <h5>boolean</h5>
+      </td>
+
+      <td>
+        If `true`, the checkbox is in an indeterminate state.If both the `checked` and `indeterminate` prop are provided then the `indeterminate` prop will prevail.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `info` <h5>string</h5>
+      </td>
+
+      <td>
+        Additional information can be displayed in an info tooltip next to the Label.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `invalid` <h5>boolean|string</h5>
+      </td>
+
+      <td>
+        When true, sets the field in an invalid state, in order to notify the user attention is needed over this particular field. This property can be a `boolean` field or a `string`. When it is a `string`, as well as the invalid state being shown, the text will be shown below.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `label` <h5>string</h5>
+      </td>
+
+      <td>
+        Text to display as label.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `onChange` <h5>function</h5>
+      </td>
+
+      <td>
+        Callback fired any time the selected state of the checkbox changes.<FunctionDefinition returnValue={[]} arguments={[{"name":"event","type":"React.ChangeEvent","description":"The event source of the callback. You can access the new value with `event.target.checked`."}]}/>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `spacingType` <h5>enum\[]</h5>
+      </td>
+
+      <td>
+        Spacing property. Spacing is defined as a tuple of zero to four values, which follow the same conventions as CSS properties like `margin` or `padding`. To omit a value, use `SPACING_TYPE.OMIT`.
+        <OptionReference array>Checkbox.SPACING_TYPE.EXTRA_LARGE,
+        Checkbox.SPACING_TYPE.LARGE,
+        Checkbox.SPACING_TYPE.MEDIUM,
+        Checkbox.SPACING_TYPE.NONE,
+        Checkbox.SPACING_TYPE.OMIT,
+        Checkbox.SPACING_TYPE.SMALL
+        </OptionReference>
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `style` <h5>object</h5>
+      </td>
+
+      <td>
+        Inline style for custom styling.Should be used only for positioning and spacing purposes.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `testId` <h5>string</h5>
+      </td>
+
+      <td>
+        Adds a `data-test-id` attribute. Use it to target the component in unit and E2E tests.For a test id to be valid, prefix it with your nerdpack id, followed up by a dot.For example, `my-nerdpack.some-element`.**Note:** You might not see `data-test-id` attributes as they are removed from the DOM, to debug them pass a `e2e-test` query parameter to the URL.
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `value` <h5>string</h5>
+      </td>
+
+      <td>
+        The value of the component. This goes into the inner checkbox input, not the component itself, and is returned as part of the `onChange` event target element.
+      </td>
+    </tr>
+  </tbody>
+</table>

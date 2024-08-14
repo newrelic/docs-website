@@ -1,0 +1,303 @@
+---
+title: Errores de integración de Kubernetes v2
+type: troubleshooting
+tags:
+  - Integrations
+  - Kubernetes integration
+  - Troubleshooting
+metaDescription: Some of the more common error messages found in the infrastructure agent logs for New Relic Kubernetes integration v2.
+freshnessValidatedDate: '2024-07-22T00:00:00.000Z'
+translationType: machine
+---
+
+Si está ejecutando la versión 2, consulte estos errores comunes de integración de Kubernetes. Estos errores aparecen en el registro estándar no detallado del agente de infraestructura. Si necesita un registro más detallado, consulte [RegistroKubernetes ](/docs/kubernetes-pixie/kubernetes-integration/troubleshooting/get-logs-version/).
+
+<CollapserGroup>
+  <Collapser
+    id="unable-find-kube-state-metrics-v2"
+    title="No se pudo descubrir kube-state-métrica"
+  >
+    La integración de Kubernetes requiere [`kube-state-metrics`](https://github.com/kubernetes/kube-state-metrics). Si falta esto, verá un error como el siguiente en el registro del contenedor `newrelic-infra` :
+
+    ```shell
+    2018-04-11T08:02:41.765236022Z time="2018-04-11T08:02:41Z" level=error 
+    msg="executing data source" data prefix="integration/com.newrelic.kubernetes" 
+    error="exit status 1" plugin name=nri-kubernetes stderr="time=\"2018-04-11T08:02:41Z\" 
+    level=fatal msg=\"failed to discover kube-state-metrics endpoint, 
+    got error: no service found by label k8s-app=kube-state-metrics\"\n"
+    ```
+
+    Las razones comunes para este error incluyen:
+
+    * `kube-state-metrics` no se ha implementado en el clúster.
+    * `kube-state-metrics` es desplegar usando un despliegue personalizado.
+    * Hay varias versiones de `kube-state-metrics` ejecutándose y la integración de Kubernetes no encuentra la correcta.
+
+    La integración de Kubernetes descubre automáticamente `kube-state-metrics` en su clúster usando esta lógica:
+
+    1. Busca un servicio `kube-state-metrics` ejecutándose en el namespace `kube-system`.
+    2. Si no lo encuentra, busca un servicio etiquetado con la etiqueta `"k8s-app: kube-state-metrics"`.
+
+    La integración también requiere que el pod kube-state-métrica tenga la etiqueta `k8s-app: kube-state-metrics` o `app: kube-state-metrics`. Si no se encuentra ninguno de ellos, habrá una entrada log como la siguiente:
+
+    ```shell
+    2018-04-11T09:25:00.825532798Z time="2018-04-11T09:25:00Z" level=error 
+    msg="executing data source" data prefix="integration/com.newrelic.kubernetes" 
+    error="exit status 1" plugin name=nri-kubernetes stderr="time=\"2018-04-11T09:25:00Z\" 
+    level=fatal msg=\"failed to discover nodeIP with kube-state-metrics, 
+    got error: no pod found by label k8s-app=kube-state-metrics\"\n
+    ```
+
+    Para resolver este problema, agregue la etiqueta `k8s-app=kube-state-metrics` al pod `kube-state-metrics` .
+  </Collapser>
+
+  <Collapser
+    id="metrics-missing"
+    title="Falta métrica para espacio de nombres, despliegue y ReplicaSets"
+  >
+    Si se muestran las métricas para los nodos, pod y contenedor Kubernetes , pero faltan las métricas para el espacio de nombres, la implementación y `ReplicaSets`, la integración Kubernetes no puede conectarse a `kube-state-metrics`.
+
+    <CollapserGroup>
+      <Collapser
+        id="indicators"
+        title="Indicadores de datos faltantes"
+      >
+        Indicadores de namespace faltantes, implementación y datos `ReplicaSet`:
+
+        * En el gráfico
+
+          <DNT>
+            **# of K8s objects**
+          </DNT>
+
+          , faltan esos datos.
+
+        * Consulta para `K8sNamespaceSample`, `K8sDeploymentSample` y `K8sReplicasetSample` no muestra ningún dato.
+      </Collapser>
+    </CollapserGroup>
+
+    Hay algunas razones posibles para esto:
+
+    1. `kube-state-metrics` El servicio se personalizó para escuchar en el puerto 80. Si está empleando un puerto diferente, es posible que vea un error como el siguiente en el registro `verbose` :
+
+       ```shell
+       time="2018-04-04T09:35:47Z" level=error msg="executing data source" 
+       data prefix="integration/com.newrelic.kubernetes" error="exit status 1" 
+       plugin name=nri-kubernetes stderr="time=\"2018-04-04T09:35:47Z\" 
+       level=fatal msg=\"Non-recoverable error group: error querying KSM. 
+       Get http://kube-state-metrics.kube-system.svc.cluster.local:0/metrics: 
+       net/http: request canceled while waiting for connection (Client.Timeout exceeded while awaiting headers)\"\n"
+       ```
+
+       Este es un problema conocido que ocurre en algún clúster donde le toma demasiado tiempo a `kube-state-metrics` recopilar toda la información del clúster antes de enviarla a la integración.
+
+       Como solución alternativa, [aumente el tiempo de espera del cliente kube-state-métrica](/docs/integrations/kubernetes-integration/installation/kubernetes-installation-configuration#kube-state-metrics-timeout-change).
+
+    2. `kube-state-metrics` la instancia se está ejecutando detrás `kube-rbac-proxy`. New Relic actualmente no admite esta configuración. Es posible que vea un error como el siguiente en el registro `verbose` :
+
+       ```shell
+       time="2018-03-28T23:09:12Z" level=error msg="executing data source" 
+       data prefix="integration/com.newrelic.kubernetes" error="exit status 1" 
+       plugin name=nri-kubernetes stderr="time=\"2018-03-28T23:09:12Z\" 
+       level=fatal msg=\"Non-recoverable error group: error querying KSM. 
+       Get http://192.168.132.37:8443/metrics: net/http: HTTP/1.x 
+       transport connection broken: malformed HTTP response \\\"\\\\x15\\\\x03\\\\x01\\\\x00\\\\x02\\\\x02\\\"\"\n"
+       ```
+
+    3. La carga útil de KSM es bastante grande y la integración de Kubernetes que procesa la fecha está siendo eliminada por OOM. Dado que la integración no es el proceso principal del contenedor, el pod no se reinicia. Esta situación se puede detectar en el registro del pod `newrelic-infra` que se ejecuta en el mismo nodo de KSM:
+
+       ```shell
+       time="2020-12-10T17:40:44Z" level=error msg="Integration command failed" error="signal: killed" instance=nri-kubernetes integration=com.newrelic.kubernetes
+       ```
+
+       Como solución alternativa, aumente los límites de memoria de DaemonSet para que el proceso no finalice.
+  </Collapser>
+
+  <Collapser
+    id="cannot-list-pods-for-cluster"
+    title="No se puede enumerar el pod en el ámbito del clúster"
+  >
+    Newrelic pod y la cuenta de servicio newrelic no se implementan en el mismo namespace. Esto suele deberse a que el contexto actual especifica un namespace. Si este es el caso, verá un error como el siguiente:
+
+    ```shell
+    time=\"2018-05-31T10:55:39Z\" level=panic msg=\"p
+    ods is forbidden: User \\\"system:serviceaccount:kube-system:newrelic\\\" cannot list pods at the cluster scope\"
+    ```
+
+    Para comprobar si este es el caso, ejecute:
+
+    ```shell
+    kubectl describe serviceaccount newrelic | grep Namespace
+    kubectl get pods -l name=newrelic-infra --all-namespaces
+    kubectl config get-contexts
+    ```
+
+    Para resolver este problema, cambie el namespace de la cuenta de servicio en el archivo YAML New Relic `DaemonSet` para que sea el mismo namespace para el contexto actual:
+
+    ```yaml
+    - kind: ServiceAccount
+      name: newrelic
+      namespace: default
+    ---
+    ```
+  </Collapser>
+</CollapserGroup>
+
+## No ver datos del plano de control [#control-plane-data]
+
+<CollapserGroup>
+  <Collapser
+    id="invalid-license"
+    title="Verifique que los nodos maestros tengan las etiquetas correctas"
+  >
+    Ejecute los siguientes comandos para buscar manualmente los nodos maestros:
+
+    ```shell
+    kubectl get nodes -l node-role.kubernetes.io/master=""
+    ```
+
+    ```shell
+    kubectl get nodes -l kubernetes.io/role="master"
+    ```
+
+    Si los nodos maestros siguen la convención de etiquetado definida en el [componente Plano de control](/docs/kubernetes-pixie/kubernetes-integration/advanced-configuration/configure-control-plane-monitoring/#component), debería obtener un resultado como:
+
+    ```shell
+    NAME                         STATUS  ROLES   AGE   VERSION
+    ip-10-42-24-4.ec2.internal   Ready   master  42d   v1.14.8
+    ```
+
+    Si no se encuentran nodos, existen dos escenarios:
+
+    Sus nodos maestros no tienen las etiquetas requeridas que los identifiquen como maestros. En este caso, debes agregar ambas etiquetas a tus nodos maestros.
+
+    Estás en un clúster gestionado y tu proveedor maneja los nodos maestros por ti. En este caso no hay nada que puedas hacer, ya que tu proveedor está limitando el acceso a esos nodos.
+  </Collapser>
+
+  <Collapser
+    id="unable-connect"
+    title="Verifique que la integración se esté ejecutando en los nodos maestros"
+  >
+    Para identificar un pod de integración que se ejecuta en un nodo maestro, reemplace `NODE_NAME` en el siguiente comando con uno de los nombres de nodo enumerados en el paso anterior:
+
+    ```shell
+    kubectl get pods --field-selector spec.nodeName=NODE_NAME -l name=newrelic-infra --all-namespaces
+    ```
+
+    El siguiente comando es el mismo que el anterior, solo que selecciona el nodo por ti:
+
+    ```shell
+    kubectl get pods --field-selector spec.nodeName=$(kubectl get nodes -l node-role.kubernetes.io/master="" -o jsonpath="{.items[0].metadata.name}") -l name=newrelic-infra --all-namespaces
+    ```
+
+    Si todo es correcto deberías obtener algún resultado como:
+
+    ```shell
+    NAME                   READY   STATUS    RESTARTS   AGE
+    newrelic-infra-whvzt   1/1     Running   0          6d20h
+    ```
+
+    Si la integración no se está ejecutando en sus nodos maestros, verifique que el daemonset tenga todas las instancias deseadas ejecutándose y listas.
+
+    ```shell
+    kubectl get daemonsets -l app=newrelic-infra --all-namespaces
+    ```
+  </Collapser>
+
+  <Collapser
+    id="indicators"
+    title="Verifique que los componentes del plano de control tengan las etiquetas requeridas"
+  >
+    Consulte la [sección de documentación sobre descubrimiento de nodos maestros y componentes del plano de control](/docs/integrations/kubernetes-integration/installation/configure-control-plane-monitoring#discover-nodes-components) y busque las etiquetas que utiliza la integración para descubrir los componentes. Luego ejecute los siguientes comandos para ver si hay algún pod con dichas etiquetas y los nodos donde se están ejecutando:
+
+    ```shell
+    kubectl get pods -l k8s-app=kube-apiserver --all-namespaces
+    ```
+
+    Si hay un componente con la etiqueta dada, deberías ver algo como:
+
+    ```shell
+    NAMESPACE    NAME                                        READY  STATUS   RESTARTS  AGE
+    kube-system  kube-apiserver-ip-10-42-24-42.ec2.internal  1/1    Running  3         49d
+    ```
+
+    Lo mismo se debe hacer con el resto de componentes:
+
+    ```shell
+    kubectl get pods -l k8s-app=etcd-manager-main --all-namespaces
+    ```
+
+    ```shell
+    kubectl get pods -l k8s-app=kube-scheduler --all-namespaces
+    ```
+
+    ```shell
+    kubectl get pods -l k8s-app=kube-kube-controller-manager --all-namespaces
+    ```
+  </Collapser>
+
+  <Collapser
+    id="cannot-list-pods-for-cluster"
+    title="Recupere el registro detallado de una de las integraciones que se ejecutan en un nodo maestro y verifique los trabajos de los componentes del plano de control."
+  >
+    Para recuperar el registro, siga las instrucciones sobre [cómo obtener el registro del pod que se ejecuta en un nodo maestro](/docs/integrations/kubernetes-integration/troubleshooting/get-logs-version). El registro de integración para cada componente muestra el siguiente mensaje `Running job: COMPONENT_NAME`. Por ejemplo:
+
+    ```shell
+    Running job: scheduler
+    ```
+
+    ```shell
+    Running job: etcd
+    ```
+
+    ```shell
+    Running job: controller-manager
+    ```
+
+    ```shell
+    Running job: api-server
+    ```
+
+    Si no especificaste la opción de configuración `ETCD_TLS_SECRET_NAME` , encontrarás este mensaje en el registro:
+
+    ```shell
+    Skipping job creation for component etcd: etcd requires TLS configuration, none given
+    ```
+
+    Si ocurre algún error al consultar la métrica de cualquier componente, se registrará luego del mensaje `Running job` .
+  </Collapser>
+
+  <Collapser
+    id="cannot-list-pods-for-cluster"
+    title="Consultar manualmente la métrica de los componentes."
+  >
+    Para obtener el extremo del componente del plano de control que desea consultar, consulte el [componente Plano de control](/docs/kubernetes-pixie/kubernetes-integration/advanced-configuration/configure-control-plane-monitoring/#component). Con el extremo, puede emplear el pod de integración que se ejecuta en el mismo nodo que el componente a consultar. Vea estos ejemplos sobre cómo consultar el programador Kubernetes :
+
+    ```shell
+    kubectl exec -ti POD_NAME -- wget -O - localhost:10251/metrics
+    ```
+
+    El siguiente comando hace lo mismo que el anterior, pero también elige el pod por usted:
+
+    ```shell
+    kubectl exec -ti $(kubectl get pods --all-namespaces --field-selector spec.nodeName=$(kubectl get nodes -l node-role.kubernetes.io/master="" -o jsonpath="{.items[0].metadata.name}") -l name=newrelic-infra -o jsonpath="{.items[0].metadata.name}") -- wget -O - localhost:10251/metrics
+    ```
+
+    Si todo está correcto, deberías obtener alguna métrica en el formato Prometheus, algo como esto:
+
+    ```shell
+    Connecting to localhost:10251 (127.0.0.1:10251)
+    # HELP apiserver_audit_event_total Counter of audit events generated and sent to the audit backend.
+    # TYPE apiserver_audit_event_total counter
+    apiserver_audit_event_total 0
+    # HELP apiserver_audit_requests_rejected_total Counter of apiserver requests rejected due to an error in audit logging backend.
+    # TYPE apiserver_audit_requests_rejected_total counter
+    apiserver_audit_requests_rejected_total 0
+    # HELP apiserver_client_certificate_expiration_seconds Distribution of the remaining lifetime on the certificate used to authenticate a request.
+    # TYPE apiserver_client_certificate_expiration_seconds histogram
+    apiserver_client_certificate_expiration_seconds_bucket{le="0"} 0
+    apiserver_client_certificate_expiration_seconds_bucket{le="1800"} 0
+    apiserver_client_certificate_expiration_seconds_bucket{le="3600"} 0
+    ```
+  </Collapser>
+</CollapserGroup>

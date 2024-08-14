@@ -1,0 +1,490 @@
+---
+title: Primeiros passos com New Relic e Terraform
+metaDescription: 'Learn how to provision New Relic resources using [Terraform](https://www.terraform.io/).'
+freshnessValidatedDate: never
+translationType: machine
+---
+
+[Terraform](https://www.terraform.io/) é uma ferramenta popular de software de infraestrutura como código desenvolvida pela HashiCorp. Você o usa para provisionar todos os tipos de infraestrutura e serviços, incluindo New Relic <InlinePopover type="dashboards"/>e alerta.
+
+Neste guia, você aprende como configurar o New Relic <InlinePopover type="alerts"/>com o Terraform. Mais especificamente, você fornece uma política de alertas, quatro condições de alerta e um canal de notificação. As quatro condições do alerta são baseadas nos [quatro sinais clássicos](https://landing.google.com/sre/sre-book/chapters/monitoring-distributed-systems/#xref_monitoring_golden-signals) de monitoramento introduzidos no [livro Site Reliability Engineering do Google](https://landing.google.com/sre/sre-book/toc/index.html):
+
+* <DNT>
+    **Latency:**
+  </DNT>
+
+  A quantidade de tempo que seu aplicativo leva para atender uma solicitação.
+
+* <DNT>
+    **Traffic:**
+  </DNT>
+
+  A quantidade de solicitações que seu sistema recebe.
+
+* <DNT>
+    **Errors:**
+  </DNT>
+
+  A taxa de solicitações que falham.
+
+* <DNT>
+    **Saturation:**
+  </DNT>
+
+  A pressão sobre os recursos para atender às demandas do seu aplicativo.
+
+<Video
+  id="vifxeilp2h"
+  type="wistia"
+/>
+
+## Antes de você começar
+
+Para usar este guia, você deve ter algum conhecimento básico do New Relic e do Terraform. Se você ainda não implantou um agente de código aberto New Relic, [instale o New Relic](/docs/agents/manage-apm-agents/installation/install-agent) para seu aplicativo. Além disso, [instale a CLI do Terraform](https://learn.hashicorp.com/collections/terraform/cli).
+
+<Steps>
+  <Step>
+    ## Bootstrap Terraform e o provedor New Relic
+
+    Comece inicializando um diretório de trabalho e criando um arquivo de configuração do Terraform:
+
+    ```bash
+    mkdir terraform-project && cd terraform-project
+    touch main.tf
+    ```
+
+    Em seguida, instrua o Terraform a instalar e usar o provedor New Relic, definindo os blocos `terraform` e `required_providers` em <DNT>**main.tf**</DNT>:
+
+    ```hcl
+    terraform {
+      # Require Terraform version 1.0 (recommended)
+      required_version = "~> 1.0"
+
+      # Require the latest 2.x version of the New Relic provider
+      required_providers {
+        newrelic = {
+          source  = "newrelic/newrelic"
+        }
+      }
+    }
+    ```
+
+    Neste bloco de código, você está configurando a versão necessária do Terraform para 1.0 e configurando o provedor New Relic para a versão 2.x mais recente. Usar as [restrições de versão](https://www.terraform.io/docs/configuration/version-constraints.html) corretas para sua configuração fornecerá melhor estabilidade nas execuções do Terraform.
+
+    Agora que você definiu as versões do provedor Terraform e New Relic, será necessário configurar o provedor New Relic.
+  </Step>
+
+  <Step>
+    ## Configurar o provedor New Relic
+
+    Com `terraform` tudo configurado, configure a New Relic `provider` com os seguintes itens:
+
+    1. Seu [ID de conta New Relic](/docs/accounts/install-new-relic/account-setup/account-id).
+
+    2. Sua New Relic
+
+       <InlinePopover type="userKey"/>
+
+       . A maioria das chaves de usuário começa com o prefixo `NRAK-`.
+
+    3. Sua [região New Relic ](/docs/using-new-relic/welcome-new-relic/get-started/our-eu-us-region-data-centers#verifying-account). Sua região será `US` se o URL do New Relic for `one.newrelic.com` e `EU` se o seu URL estiver em `one.eu.newrelic.com`.
+
+       Em <DNT>**main.tf**</DNT>, defina esses valores no provedor:
+
+       ```hcl
+       provider "newrelic" {
+         account_id = 12345   # Your New Relic account ID
+         api_key = "NRAK-***" # Your New Relic user key
+         region = "US"        # US or EU (defaults to US)
+       }
+       ```
+
+       Ao definir esses valores no provedor New Relic, você está configurando esse provedor para fazer alterações em nome de sua conta por meio API New Relic .
+
+       <Callout variant="tip">
+         Você também pode configurar o provedor New Relic usando [variáveis de ambiente](https://registry.terraform.io/providers/newrelic/newrelic/latest/docs/guides/provider_configuration). Esta é uma maneira útil de definir valores padrão para a configuração do seu provedor.
+
+         Para obter mais informações sobre como configurar o provedor New Relic, sinta-se à vontade para verificar nossa [documentação](https://registry.terraform.io/providers/newrelic/newrelic/latest/docs/guides/provider_configuration) oficial do provedor.
+       </Callout>
+
+       Com seu provedor New Relic configurado, inicialize o Terraform:
+
+       ```bash
+       terraform init
+       ```
+
+       Quando o Terraform terminar de instalar e registrar o provedor New Relic, você receberá uma mensagem de sucesso e algumas próximas etapas acionáveis, como executar `terraform plan`. Antes de poder executar `terraform plan`, entretanto, você precisa criar seus recursos.
+  </Step>
+
+  <Step>
+    ## Crie uma política de alertas New Relic com os sinais clássicos de alertas
+
+    Com o provedor New Relic configurado e inicializado, você pode definir uma estratégia de alerta para seu aplicativo.
+
+    Como você está direcionando um aplicativo específico, use um [`newrelic_entity`](https://registry.terraform.io/providers/newrelic/newrelic/latest/docs/data-sources/entity) para buscar as informações do aplicativo no New Relic e nos permitir referenciar esses dados em outro lugar na configuração:
+
+    ```hcl
+    data "newrelic_entity" "example_app" {
+      name = "Your App Name" # Must be an exact match to your application name in New Relic
+      domain = "APM" # or BROWSER, INFRA, MOBILE, SYNTH, depending on your entity's domain
+      type = "APPLICATION"
+    }
+    ```
+
+    Em seguida, crie um [`newrelic_alert_policy`](https://registry.terraform.io/providers/newrelic/newrelic/latest/docs/resources/alert_policy). Dê à política um nome dinâmico com base no nome do seu aplicativo. Isso ajuda a especificar o escopo da política:
+
+    ```hcl
+    resource "newrelic_alert_policy" "golden_signal_policy" {
+      name = "Golden Signals - ${data.newrelic_entity.example_app.name}"
+    }
+    ```
+
+    Neste ponto, você poderá testar sua configuração com uma simulação:
+
+    ```bash
+    terraform plan
+    ```
+
+    Você deverá ver a saída que exibe o plano de execução do Terraform. O plano contém as ações que o Terraform executa quando você executa `terraform apply`:
+
+    ```bash copyable=false
+    [output] {muted}# Example output
+    [output] ------------------------------------------------------------------------
+    [output]
+    [output] An execution plan has been generated and is shown below.
+    [output] Resource actions are indicated with the following symbols:
+    [output]   + create
+    [output]
+    [output] Terraform will perform the following actions:
+    [output]
+    [output]   # newrelic_alert_policy.golden_signal_policy will be created
+    [output]   + resource "newrelic_alert_policy" "golden_signal_policy" {
+    [output]       + account_id          = (known after apply)
+    [output]       + id                  = (known after apply)
+    [output]       + incident_preference = "PER_POLICY"
+    [output]       + name                = "Golden Signals - Your App Name"
+    [output]     }
+    [output]
+    [output] Plan: 1 to add, 0 to change, 0 to destroy.
+    [output]
+    [output] ------------------------------------------------------------------------
+    ```
+
+    Nesse caso, o plano mostra que o Terraform criará uma nova política de alertas quando você executar `terraform apply`. Após verificar os detalhes, execute o plano para provisionar o recurso política de alertas em sua conta New Relic:
+
+    ```bash
+    terraform apply
+    ```
+
+    Cada vez que você `apply` muda, o Terraform solicita que você confirme as ações que você instruiu para executar. Digite "sim".
+
+    Enquanto está em execução, o Terraform envia log para seu console:
+
+    ```bash copyable=false
+    [output] {muted}# Example output of `terraform apply`
+    [output] newrelic_alert_policy.golden_signal_policy: Creating...
+    [output] newrelic_alert_policy.golden_signal_policy: Creation complete after 1s [id=111222333]
+    [output]
+    [output] Apply complete! Resources: 1 added, 0 changed, 0 destroyed.
+    ```
+
+    [Login no New Relic](https://login.newrelic.com/login) e [navegue até <DNT>**Alert Policies**</DNT>](/docs/alerts-applied-intelligence/new-relic-alerts/alert-policies/create-edit-or-find-alert-policy#alert-policy-view) para confirmar que o Terraform criou sua nova política.
+
+    À medida que avança nas próximas etapas de criação da condição do alerta, você pode executar `terraform apply` após configurar cada recurso. Atualize sua página da política de alertas para ver os novos recursos.
+  </Step>
+
+  <Step>
+    ## Disponibilização da condição do alerta com base nos quatro sinais clássicos
+
+    A seguir, adicione condição do alerta para sua aplicação com base nos quatro sinais clássicos: latência, tráfego, erros e saturação. Aplique estas condições do alerta à política de alertas que você criou na etapa anterior.
+
+    <DNT>
+      **Latency**
+    </DNT>
+
+    A maioria das pessoas deseja evitar um ritmo de resposta lento. Você pode criar um [`newrelic_alert_condition`](https://registry.terraform.io/providers/newrelic/newrelic/latest/docs/resources/alert_condition) que será acionado se o tempo de resposta geral do seu aplicativo ultrapassar cinco segundos durante cinco minutos:
+
+    ```hcl
+    # Response time
+    resource "newrelic_alert_condition" "response_time_web" {
+      policy_id       = newrelic_alert_policy.golden_signal_policy.id
+      name            = "High Response Time (Web) - ${data.newrelic_entity.example_app.name}"
+      type            = "apm_app_metric"
+      entities        = [data.newrelic_entity.example_app.application_id]
+      metric          = "response_time_web"
+      runbook_url     = "https://www.example.com"
+      condition_scope = "application"
+
+      term {
+        duration      = 5
+        operator      = "above"
+        priority      = "critical"
+        threshold     = "5"
+        time_function = "all"
+      }
+    }
+    ```
+
+    Observe que você está vinculando esta condição do alerta à política de alertas configurada anteriormente com `policy_id`.
+
+    O `newrelic_alert_condition` está sendo descontinuado e você desejará usar o alerta NRQL no futuro. Você pode usar a seguinte configuração para criar um alerta NRQL que execute a mesma função acima:
+
+    ```hcl
+    # Response time - Create Alert Condition
+    resource "newrelic_nrql_alert_condition" "response_time_alert" {
+      policy_id                    = newrelic_alert_policy.golden_signal_policy.id
+      type                         = "static"
+      name                         = "Response Time - ${data.newrelic_entity.example_app.name}"
+      description                  = "High Transaction Response Time"
+      runbook_url                  = "https://www.example.com"
+      enabled                      = true
+      violation_time_limit_seconds = 3600
+
+      nrql {
+        query             = "SELECT filter(average(newrelic.timeslice.value), WHERE metricTimesliceName = 'HttpDispatcher') OR 0 FROM Metric WHERE appId IN (${data.newrelic_entity.example_app.application_id}) AND metricTimesliceName IN ('HttpDispatcher', 'Agent/MetricsReported/count')"
+      }
+
+      critical {
+        operator              = "above"
+        threshold             = 5
+        threshold_duration    = 300
+        threshold_occurrences = "ALL"
+      }
+    }
+    ```
+
+    <DNT>
+      **Traffic**
+    </DNT>
+
+    O tráfego representa quanta demanda é colocada em seu sistema em um determinado momento. taxas de transferência é uma métrica que mede quanto tráfego vai para sua aplicação. Crie um `newrelic_alert_condition` que seja acionado se a taxa de resposta geral do seu aplicativo ficar abaixo de cinco solicitações por minuto durante cinco minutos:
+
+    ```hcl
+    # Low throughput
+    resource "newrelic_alert_condition" "throughput_web" {
+      policy_id       = newrelic_alert_policy.golden_signal_policy.id
+      name            = "Low Throughput (Web)"
+      type            = "apm_app_metric"
+      entities        = [data.newrelic_entity.example_app.application_id]
+      metric          = "throughput_web"
+      condition_scope = "application"
+
+      # Define a critical alert threshold that will
+      # trigger after 5 minutes below 5 requests per minute.
+      term {
+        priority      = "critical"
+        duration      = 5
+        operator      = "below"
+        threshold     = "5"
+        time_function = "all"
+      }
+    }
+    ```
+
+    Esse tipo de alerta é útil quando você espera uma baseline constante de tráfego ao longo do dia – uma queda no tráfego pode indicar um problema.
+
+    <DNT>
+      **Errors**
+    </DNT>
+
+    Se a taxa de erros do seu aplicativo aumentar, você precisa saber disso. Crie um `newrelic_alert_condition` que seja acionado se a taxa de erros do seu aplicativo ultrapassar 5% por cinco minutos:
+
+    ```hcl
+    # Error percentage
+    resource "newrelic_alert_condition" "error_percentage" {
+      policy_id       = newrelic_alert_policy.golden_signal_policy.id
+      name            = "High Error Percentage"
+      type            = "apm_app_metric"
+      entities        = [data.newrelic_entity.example_app.application_id]
+      metric          = "error_percentage"
+      runbook_url     = "https://www.example.com"
+      condition_scope = "application"
+
+      # Define a critical alert threshold that will trigger after 5 minutes above a 5% error rate.
+      term {
+        duration      = 5
+        operator      = "above"
+        threshold     = "5"
+        time_function = "all"
+      }
+    }
+    ```
+
+    <DNT>
+      **Saturation**
+    </DNT>
+
+    A saturação representa o quão “cheio” está o seu serviço e pode assumir várias formas, como tempo de CPU, alocação de memória ou profundidade da fila. Neste exemplo, suponha que você já tenha um agente [New Relic Infrastructure](https://newrelic.com/products/infrastructure) instalado nos hosts que atendem seu aplicativo e queira configurar um alerta para quando a utilização da CPU ultrapassar um determinado limite:
+
+    ```hcl
+    # High CPU usage
+    resource "newrelic_infra_alert_condition" "high_cpu" {
+      policy_id   = newrelic_alert_policy.golden_signal_policy.id
+      name        = "High CPU usage"
+      type        = "infra_metric"
+      event       = "SystemSample"
+      select      = "cpuPercent"
+      comparison  = "above"
+      runbook_url = "https://www.example.com"
+      where       = "(`applicationId` = '${data.newrelic_entity.example_app.application_id}')"
+
+      # Define a critical alert threshold that will trigger after 5 minutes above 90% CPU utilization.
+      critical {
+        duration      = 5
+        value         = 90
+        time_function = "all"
+      }
+    }
+    ```
+
+    Para o alerta de infraestrutura, você criou um [`newrelic_infra_alert_condition`](https://registry.terraform.io/providers/newrelic/newrelic/latest/docs/resources/infra_alert_condition) que é acionado se o uso agregado da CPU nesses hosts ultrapassar 90% por cinco minutos.
+  </Step>
+
+  <Step>
+    ## Seja notificado quando um alerta for acionado
+
+    Agora que você configurou algumas condições importantes do alerta, adicione um destino de notificação e um canal de notificação à sua política de alertas para garantir que as pessoas adequadas sejam notificadas quando um alerta for acionado. Para fazer isso, use um [`newrelic_notification_destination`](https://registry.terraform.io/providers/newrelic/newrelic/latest/docs/resources/notification_destination) e um [`newrelic_notification_channel`](https://registry.terraform.io/providers/newrelic/newrelic/latest/docs/resources/notification_channel).
+
+    Para começar, crie um destino de notificação por email para configurar sua lista de destinatários, que pode ser uma pessoa específica ou uma equipe. Isso será usado ao criar um canal de notificação:
+
+    ```hcl
+    resource "newrelic_notification_destination" "team_email_destination" {
+      name = "email-example"
+      type = "EMAIL"
+
+      property {
+        key = "email"
+        value = "team.member1@email.com,team.member2@email.com,team.member3@email.com"
+      }
+    }
+    ```
+
+    Se você quiser especificar vários e-mails, use uma lista de e-mails delimitados por vírgulas.
+
+    Em seguida, crie um modelo de canal de notificação por e-mail para enviar notificações de alerta para o seu e-mail. Associe o canal ao ID de destino:
+
+    ```hcl
+    resource "newrelic_notification_channel" "team_email_channel" {
+      name = "email-example"
+      type = "EMAIL"
+      destination_id = newrelic_notification_destination.team_email_destination.id
+      product = "IINT"
+
+      property {
+        key = "subject"
+        value = "New Subject"
+      }
+    }
+    ```
+
+    Por último, mas não menos importante, para aplicar o canal de notificação à sua política de alertas, crie um [`newrelic_workflow`](https://registry.terraform.io/providers/newrelic/newrelic/latest/docs/resources/workflow):
+
+    ```hcl
+    resource "newrelic_workflow" "team_workflow" {
+      name = "workflow-example"
+      enrichments_enabled = true
+      destinations_enabled = true
+      workflow_enabled = true
+      muting_rules_handling = "NOTIFY_ALL_ISSUES"
+
+      enrichments {
+        nrql {
+          name = "Log"
+          configurations {
+           query = "SELECT count(*) FROM Metric"
+          }
+        }
+      }
+
+      issues_filter {
+        name = "filter-example"
+        type = "FILTER"
+
+        predicate {
+          attribute = "accumulations.sources"
+          operator = "EXACTLY_MATCHES"
+          values = [ "newrelic" ]
+        }
+      }
+
+      destination {
+        channel_id = newrelic_notification_channel.team_email_channel.id
+      }
+    }
+    ```
+
+    Um `newrelic_workflow` vincula o canal de notificação que você acabou de criar ao seu alerta.
+
+    Para finalizar a configuração da sua notificação, execute `terraform apply` uma última vez para garantir que todos os recursos configurados estejam atualizados.
+
+    ## Seja notificado quando um alerta for acionado (obsoleto)
+
+    <Callout variant="important">
+      Os canais de alerta estão obsoletos e não terão suporte em versões futuras.
+    </Callout>
+
+    Agora que você configurou algumas condições de alerta importantes, adicione um canal de notificação à sua política de alertas para garantir que as pessoas adequadas sejam notificadas quando um alerta for acionado. Para fazer isso, use um [`newrelic_alert_channel`](https://registry.terraform.io/providers/newrelic/newrelic/latest/docs/resources/alert_channel).
+
+    Para começar, crie um canal de notificação por e-mail para enviar notificações de alerta para o seu e-mail. Use isto quando quiser notificar uma pessoa ou equipe específica quando alertas forem acionados:
+
+    ```hcl
+    resource "newrelic_alert_channel" "team_email" {
+      name = "example"
+      type = "email"
+
+      config {
+        recipients              = "yourawesometeam@example.com"
+        include_json_attachment = "1"
+      }
+    }
+    ```
+
+    Se você quiser especificar vários `recipients`, use uma lista de e-mails delimitados por vírgulas.
+
+    Por último, mas não menos importante, para aplicar o canal de notificação à sua política de alertas, crie um [`newrelic_alert_policy_channel`](https://registry.terraform.io/providers/newrelic/newrelic/latest/docs/resources/alert_policy_channel):
+
+    ```hcl
+    resource "newrelic_alert_policy_channel" "golden_signals" {
+      policy_id   = newrelic_alert_policy.golden_signal_policy.id
+      channel_ids = [newrelic_alert_channel.team_email.id]
+    }
+    ```
+
+    Um `newrelic_alert_policy_channel` vincula o canal de notificação que você acabou de criar à sua política de alertas.
+
+    Para finalizar a configuração dos sinais clássicos de alerta, execute `terraform apply` uma última vez para garantir que todos os recursos configurados estejam atualizados.
+
+    <Callout
+      variant="tip"
+      title="Crédito extra"
+    >
+      `new_relic_alert_channel` [suporta vários tipos](https://registry.terraform.io/providers/newrelic/newrelic/latest/docs/resources/alert_channel#argument-reference) de canal de notificação, incluindo email, Slack e PagerDuty. Então, se você quiser explorar isso mais, tente criar um canal de alerta para um segundo tipo de canal, como o Slack:
+
+      ```hcl
+      # Slack notification channel
+      resource "newrelic_alert_channel" "slack_notification" {
+        name = "slack-example"
+        type = "slack"
+
+        config {
+          # Use the URL provided in your New Relic Slack integration
+          url     = "https://hooks.slack.com/services/XXXXXXX/XXXXXXX/XXXXXXXXXX"
+          channel = "your-slack-channel-for-alerts"
+        }
+      }
+      ```
+
+      Antes de `apply` fazer essa alteração, você precisa adicionar o [aplicativo New Relic Slack](https://slack.com/apps/A0F827KK2-new-relic-alerts) à sua conta do Slack e selecionar um canal do Slack para enviar a notificação. Com este novo canal de alerta, os alertas acionados enviam notificação para o canal Slack de sua preferência.
+    </Callout>
+  </Step>
+</Steps>
+
+## Conclusão
+
+À medida que sua equipe avalia o sistema de alerta que você implementou, você descobrirá que pode ser necessário ajustar os valores de configuração, como o limite e a duração do alerta. Se você gerencia seu projeto Terraform em um repositório remoto, poderá enviar uma pull request para que sua equipe possa revisar essas alterações junto com o restante de suas contribuições de código.
+
+<Callout variant="tip">
+  Você também pode considerar automatizar esse processo em seu pipeline de CI/CD. Use [o guia de práticas recomendadas](https://www.terraform.io/docs/cloud/guides/recommended-practices/index.html) do Terraform para saber mais sobre o fluxo de trabalho recomendado e como evoluir suas práticas de provisionamento.
+</Callout>
+
+Parabéns! Você está praticando oficialmente a observabilidade como código. Revise a [documentação do provedor New Relic Terraform](https://registry.terraform.io/providers/newrelic/newrelic/latest/docs) para saber como levar sua configuração para o próximo nível.

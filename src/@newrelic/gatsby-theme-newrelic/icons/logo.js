@@ -30,6 +30,7 @@ import nginx from './logo/nginx';
 import nodejs from './logo/nodejs';
 import opencensus from './logo/opencensus';
 import opentelemetry from './logo/opentelemetry';
+import opentelemetryColor from './logo/opentelemetry-color';
 import php from './logo/php';
 import postgresql from './logo/postgresql';
 import prometheus from './logo/prometheus';
@@ -76,6 +77,7 @@ export default {
   nodejs,
   opencensus,
   opentelemetry,
+  'opentelemetry-color': opentelemetryColor,
   php,
   postgresql,
   prometheus,

@@ -1,0 +1,472 @@
+---
+title: Gerenciar o volume de ingestão de dados do OpenTelemetry
+tags:
+  - Integrations
+  - Open source telemetry integrations
+  - OpenTelemetry
+  - OTLP
+metaDescription: Optimize your OpenTelemetry data pipeline in New Relic. Discover key factors and tools for efficient management.
+freshnessValidatedDate: '2024-07-23T00:00:00.000Z'
+translationType: machine
+---
+
+Um dos principais pontos fortes do OpenTelemetry é seu rico conjunto de ferramentas que fornece controle incomparável sobre seu pipeline de dados de telemetria. Esse controle complementa [o modelo de preços baseados no consumo](https://newrelic.com/pricing#pricing_plan-data) da New Relic.
+
+Esta página fala sobre uma variedade de conceitos que contribuem para o volume de dados ao usar OpenTelemetry com New Relic e ferramentas/padrões disponíveis para gerenciar seu pipeline de dados de telemetria. Ele está organizado em seções que falam sobre os principais conceitos que contribuem para o volume de dados para [recursos](#concept-resources), [traces](#concept-traces), [métrica](#concept-metrics) e [log](#concept-logs), seguidos por um [catálogo de ferramentas](#tool-catalog) disponíveis para ajudar a gerenciar o volume.
+
+## Conceitos-chave: Recursos [#concept-resources]
+
+[OTLP](https://opentelemetry.io/docs/specs/otlp/) define uma estrutura de mensagem hierárquica semelhante em todos os sinais, o que evita a repetição no nível do protocolo, compartilhando informações entre registros.
+
+* Cada solicitação de exportação contém muitos `Resource{SignalRecord}`s
+* Cada `Resource{SignalRecord}` contém muitos `Scope{SignalRecord}`s
+* Cada `Scope{SignalRecord}` contém muitos `{SignalRecord}`s
+* `{SignalRecord}` é `Span`, `Metric` e `LogRecord`
+
+Essa estrutura hierárquica é nivelada quando enviada ao endpoint New Relic, e cada atributo de recurso é desnormalizado em registros `Span`, `Metric` e `Log` individuais. Para obter mais informações sobre como os dados do OpenTelemetry são tratados no New Relic, consulte as páginas a seguir:
+
+* [Traces](/docs/opentelemetry/best-practices/opentelemetry-best-practices-traces/)
+* [Métrica](/docs/opentelemetry/best-practices/opentelemetry-best-practices-metrics/)
+* [Registro](/docs/opentelemetry/best-practices/opentelemetry-best-practices-logs/)
+
+A maioria das implementações da linguagem OpenTelemetry fornecem pacotes com [detectores de recursos](https://opentelemetry.io/docs/specs/otel/resource/sdk/#detecting-resource-information-from-the-environment), que contribuem com atribuição de recursos com base nas informações detectadas no ambiente. Estes atributos podem ser extremamente úteis, mas podem incluir mais informações do que o necessário.
+
+Para obter mais detalhes, consulte o seguinte:
+
+* [Detectores de recursos SDK](#sdk-resource-detectors)
+* [Processador de recursos do coletor](#collector-resource-processor)
+* [Processador de transformação de coletor](#collector-transform-processor).
+
+## Conceitos-chave: traces [#concept-traces]
+
+### Amostragem [#concept-sampling]
+
+[Amostragem](https://opentelemetry.io/docs/concepts/sampling/) é o processo de controlar quais spans são exportados para um backend de observabilidade. Os dados de trace podem fornecer insights altamente valiosas, mas se não forem verificados, podem rapidamente encher os discos rígidos (e as contas!).
+
+Por padrão, os SDKs do OpenTelemetry usam o amostrador [`ParentBased(root=AlwaysOn)`](https://opentelemetry.io/docs/specs/otel/trace/sdk/#parentbased). O amostrador `ParentBased` delega para diferentes amostradores configuráveis com base na existência de um span pai, se esse pai é local para o processo atual ou remoto e se esse pai é amostrado. O amostrador `ParentBased(root=AlwaysOn)` padrão fará a amostragem de um intervalo se uma das seguintes afirmações for verdadeira:
+
+* Não há span pai (ou seja, este span é a raiz)
+* O pai é amostrado, independentemente de o pai ser local ou remoto
+
+Em outras palavras, ele amostrará o intervalo, a menos que o pai não esteja amostrado.
+
+Este é um bom padrão para a comunidade OpenTelemetry , pois permite ao usuário instalar instrumentação e ver dados trace sem primeiro precisar estar ciente do conceito de amostragem. No entanto, você deve ter cuidado com a implantação de produção do OpenTelemetry. De acordo com esta política, _todos os spans_ são amostrados, a menos que haja algum componente upstream ou gateway tomando decisões de amostragem inteligentes para os sistemas downstream se conformarem.
+
+Para alternativas, consulte o seguinte:
+
+* [Amostrador ParentBased(root=TraceIdRatioBased)](#sdk-parentbased-traceidratiobased-sampler)
+* [Processador de filtro coletor](#collector-filter-processor)
+* [Processador de amostragem traseira do coletor](#collector-tailsampling-processor)
+
+### Dados de extensão [#concept-span-data]
+
+Os spans OpenTelemetry são compostos por uma variedade de campos de nível superior (nome, tipo, etc.), atributo, span evento e span links. A quantidade de dados anexados aos spans corresponde diretamente ao volume de dados no New Relic.
+
+Instrumentação biblioteca toma decisões sobre quais informações anexar aos spans, muitas vezes seguindo as [convenções semânticas](https://opentelemetry.io/docs/specs/semconv/). Quando ocorrem exceções, as informações geralmente são anexadas ao intervalo na forma de um [evento de intervalo de exceção](https://opentelemetry.io/docs/specs/semconv/exceptions/exceptions-spans/). Este evento inclui um atributo que representa a mensagem de exceção, o tipo e stack trace, que, dependendo do idioma e do aplicativo, pode consistir em milhares de bytes. Se exceções ocorrerem com frequência, o trace stack poderá produzir um grande volume de dados no New Relic.
+
+Para estratégias de gerenciamento de dados de span, consulte o seguinte:
+
+* [Limites de extensão do SDK](#sdk-span-limits)
+* [Processador de transformação de coletor](#collector-transform-processor)
+
+### Marcador [#concept-tracers]
+
+Um [escopo de instrumentação](https://opentelemetry.io/docs/specs/otel/glossary/#instrumentation-scope) é uma unidade lógica de código de aplicativo com telemetria associada a ele. Cada biblioteca de instrumentação possui um (ou mais) escopos exclusivos, e tracer(es) correspondente(s).
+
+Rastreadores que não produzem dados trace de alto valor podem ser desativados seletivamente sem interromper o trace.
+
+Para obter mais detalhes, consulte [SDK desativar rastreador, medidor, agente](#sdk-disable-tracers-meters-loggers).
+
+## Conceitos-chave: métrica [#concept-metrics]
+
+### Intervalo de coleta [#concept-collection-interval]
+
+Métrica agrega medições individuais e exporta o estado agregado fora do processo. Para protocolos baseados em push, como OTLP, a exportação ocorre em um intervalo configurável, cujo padrão é `60s`. Este intervalo corresponde diretamente ao volume de dados no New Relic. Reduza o intervalo para `30s` e o volume de dados deverá aproximadamente dobrar. Aumente o intervalo para `120s` e o volume de dados deverá ser reduzido aproximadamente pela metade.
+
+O intervalo padrão `60s` é um padrão razoável, pois equilibra a compensação entre o volume de dados e o atraso de observabilidade. Aumente o intervalo muito alto e atrasos nos sinais críticos que chegam ao dashboard e alertas New Relic podem agravar os problemas.
+
+Para mais detalhes, consulte [Leitor de métricas de exportação periódica do SDK `exportIntervalMillis`](#sdk-pmr-interval).
+
+### Cardinalidade [#concept-cardinality]
+
+As medidas que a métrica agrega estão associadas a um conjunto de atributo. O número de conjuntos distintos de atributo é chamado de cardinalidade. A cardinalidade é importante porque determina quanta memória do aplicativo é necessária para manter o estado agregado das medições, quantos dados são exportados em cada intervalo de coleta e o volume de dados no New Relic.
+
+Se a cardinalidade for muito alta, considere omitir os atributos que contribuem para ela. Se você controlar a instrumentação, isso pode significar gravar menos atributos a cada medição. No entanto, a instrumentação muitas vezes não é diretamente configurável.
+
+Para detalhes sobre como retirar atributo da métrica, veja o seguinte:
+
+* [Visualizações métricas do SDK](#sdk-metric-views)
+* [Processador de transformação de métricas do coletor](#collector-metricstransform-processor)
+
+### Temporalidade de agregação [#concept-aggregation-temporality]
+
+Na métrica OpenTelemetry , o conceito de [temporalidade de agregação](https://opentelemetry.io/docs/specs/otel/metrics/data-model/#temporality) define se o estado das medidas agregadas é redefinido ou não após cada coleta. Quando a temporalidade da agregação é cumulativa, o estado agregado não é zerado e a métrica representa os valores cumulativos desde o início do aplicativo. Quando a temporalidade da agregação é delta, o estado agregado é redefinido após cada coleta e a métrica representa a diferença desde a coleta anterior.
+
+Embora o endpoint OTLP do New Relic [endpoint a temporalidade de agregação cumulativa](docs/opentelemetry/best-practices/opentelemetry-otlp/#metric-aggregation-temporality), a arquitetura métrica New Relic é um sistema delta métrico. Usar a configuração cumulativa padrão geralmente incorrerá em mais uso de memória dos SDKs e resultará em uma alta ingestão de dados. A conversão de agregação cumulativa para agregação delta é uma atividade com estado, pois é necessário manter o ponto anterior de cada série temporal para calcular a diferença. Por esse motivo, é melhor configurar a temporalidade de agregação no SDK, o que economiza memória do aplicativo e evita complexidade extra no downstream.
+
+Para obter mais detalhes, consulte o seguinte:
+
+* [Temporalidade da agregação delta do SDK](#sdk-delta-temporality)
+* [Coletor cumulativo processador todelta](#collector-cumulativetodelta-processor)
+
+### Metros e instrumento [#concept-meters-instruments]
+
+Um [escopo de instrumentação](https://opentelemetry.io/docs/specs/otel/glossary/#instrumentation-scope) é uma unidade lógica de código de aplicativo com telemetria associada a ela. Cada biblioteca de instrumentação possui um (ou mais) escopos exclusivos e medidor(es) correspondente(s), e cada medidor possui um ou mais instrumentos.
+
+Medidores ou instrumentos que não fornecem dados métricos valiosos podem ser desativados seletivamente.
+
+Para obter mais detalhes, consulte o seguinte:
+
+* [SDK desabilita rastreador, medidor, agente](#sdk-disable-tracers-meters-loggers)
+* [Visualizações métricas do SDK](#sdk-metric-views)
+
+## Conceitos-chave: logs [#concept-logs]
+
+### Dados do LogRecord [#concept-logrecord-data]
+
+OpenTelemetry log Os registros são compostos por uma variedade de campos de nível superior (timestamp, gravidade, corpo, etc.) e atributo. A quantidade de dados anexados aos registros de log corresponde diretamente ao volume de dados no New Relic.
+
+Biblioteca de instrumentação (chamada de [log anexadores](https://opentelemetry.io/docs/specs/otel/logs/supplementary-guidelines/#how-to-create-a-log4j-log-appender) no espaço , uma OpenTelemetry log vez que a de OpenTelemetry log ponte API se destina a conectar o log da log API ao OpenTelemetry) toma decisões sobre quais informações anexar aos log logs, geralmente seguindo as [convenções semânticas](https://opentelemetry.io/docs/specs/semconv/).
+
+Para estratégias sobre como gerenciar dados de log, consulte o seguinte:
+
+* [Limites do SDK LogRecord](#sdk-logrecord-limits)
+* [SDK configura anexadores de log](#sdk-log-appenders)
+* [Processador de filtro coletor](#collector-filter-processor)
+* [Processador de transformação de coletor](#collector-transform-processor)
+
+### Agente [#concept-loggers]
+
+Um [escopo de instrumentação](https://opentelemetry.io/docs/specs/otel/glossary/#instrumentation-scope) é uma unidade lógica de código de aplicativo com telemetria associada a ele. Para OpenTelemetry registro em log , cada agente distinto (ligado por um log anexador usando a de OpenTelemetry log ponte API) possui um escopo de instrumentação exclusivo.
+
+agente que não produz dados log de alto valor pode ser desabilitado seletivamente.
+
+Para obter mais detalhes, consulte o seguinte:
+
+* [SDK desabilita rastreador, medidor, agente](#sdk-disable-tracers-meters-loggers)
+* [SDK configura anexadores de log](#sdk-log-appenders)
+
+## Catálogo de ferramentas de gerenciamento de pipeline [#tool-catalog]
+
+A tabela a seguir lista uma variedade de ferramentas úteis para gerenciar seu pipeline de dados OpenTelemetry. Observe que OpenTelemetry é um ecossistema altamente extensível. Se essas ferramentas não forem suficientes, outras ferramentas poderão estar disponíveis ou você poderá escrever uma lógica de extensão personalizada para os SDKs ou coletor de linguagem para atingir seus objetivos.
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        Nome
+      </th>
+
+      <th>
+        Coletor ou SDK?
+      </th>
+
+      <th>
+        Descrição
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr id="sdk-resource-detectors">
+      <td>
+        [Detectores de recursos SDK](https://opentelemetry.io/docs/specs/otel/resource/sdk/#detecting-resource-information-from-the-environment)
+      </td>
+
+      <td>
+        SDK
+      </td>
+
+      <td>
+        Os SDKs da linguagem OpenTelemetry empacotam detectores para fornecer atributo de recursos com base no ambiente. Alguns conjuntos deles geralmente são habilitados por padrão com opções
+
+        [de instrumentação de código zero,](https://opentelemetry.io/docs/zero-code/)
+
+        como o agente OpenTelemetry Java. Consulte
+
+        [a documentação do idioma](https://opentelemetry.io/docs/languages/)
+
+        para obter detalhes sobre como ativar/desativar detectores de recursos.
+      </td>
+    </tr>
+
+    <tr id="sdk-parentbased-traceidratiobased-sampler">
+      <td>
+        [SDK `ParentBased(root=TraceIdRatioBased) sampler`](https://opentelemetry.io/docs/specs/otel/configuration/sdk-environment-variables/#general-sdk-configuration)
+      </td>
+
+      <td>
+        SDK
+      </td>
+
+      <td>
+        O amostrador `ParentBased` com a raiz definida como `TraceIdRatioBased` é uma alternativa simples e razoável ao amostrador `ParentBased` padrão com a raiz definida como `AlwaysOn`. Com a raiz definida como `TraceIdRatioBased`, os spans que representam o novo trace são amostrados probabilisticamente, com o span filho amostrado de acordo com a decisão de amostragem de seu pai (desde que outros aplicativos sejam configurados com a mesma política de amostragem). O amostrador pode ser configurado programaticamente no SDK `TracerProvider`, mas é comum usar env vars:
+
+        ```shell
+        export OTEL_TRACES_SAMPLER=parentbased_traceidratio
+        export OTEL_TRACES_SAMPLER_ARG=0.25
+        ```
+
+        Defina o amostrador `TraceIdRatioBased` para amostrar 25% dos períodos raiz.
+      </td>
+    </tr>
+
+    <tr id="sdk-span-limits">
+      <td>
+        [Limites de extensão do SDK](https://opentelemetry.io/docs/specs/otel/configuration/sdk-environment-variables/#span-limits)
+      </td>
+
+      <td>
+        SDK
+      </td>
+
+      <td>
+        O OpenTelemetry trace SDK permite que os limites de span sejam configurados para especificar o comprimento máximo e a quantidade de atributo, o número máximo de eventos de span e o número máximo de links de span. Os limites de período podem ser configurados programaticamente no SDK `TracerProvider`, mas é comum usar env vars:
+
+        ```shell
+        export OTEL_SPAN_ATTRIBUTE_VALUE_LENGTH_LIMIT=4095
+        export OTEL_SPAN_ATTRIBUTE_COUNT_LIMIT=64
+        ```
+
+        Defina os limites de extensão para alinhar com os endpoint [limites de atributo do](docs/opentelemetry/best-practices/opentelemetry-otlp/#attribute-limits) OTLP do New Relic.
+      </td>
+    </tr>
+
+    <tr id="sdk-logrecord-limits">
+      <td>
+        [Limites do SDK LogRecord](https://opentelemetry.io/docs/specs/otel/configuration/sdk-environment-variables/#logrecord-limits)
+      </td>
+
+      <td>
+        SDK
+      </td>
+
+      <td>
+        O OpenTelemetry log SDK permite que limites de extensão sejam configurados para especificar o comprimento máximo e a quantidade de atributo. Os limites do LogRecord podem ser configurados programaticamente no SDK `LoggerProvider`, mas é comum usar env vars:
+
+        ```shell
+        export OTEL_LOGRECORD_ATTRIBUTE_VALUE_LENGTH_LIMIT=4095
+        export OTEL_LOGRECORD_ATTRIBUTE_COUNT_LIMIT=64
+        ```
+
+        Defina os log limites de registro para alinhar com os endpoint [limites de atributo do](docs/opentelemetry/best-practices/opentelemetry-otlp/#attribute-limits) OTLP do New Relic.
+      </td>
+    </tr>
+
+    <tr id="sdk-disable-tracers-meters-loggers">
+      <td>
+        SDK desabilita
+
+        [rastreador](https://opentelemetry.io/docs/specs/otel/trace/sdk/#tracerconfigurator)
+
+        ,
+
+        [medidores](https://opentelemetry.io/docs/specs/otel/metrics/sdk/#meterconfigurator)
+
+        ,
+
+        [agente](https://opentelemetry.io/docs/specs/otel/logs/sdk/#loggerconfigurator)
+      </td>
+
+      <td>
+        SDK
+      </td>
+
+      <td>
+        O OpenTelemetry SDK define
+
+        `TracerConfigurator`
+
+        ,
+
+        `MeterConfigurator`
+
+        e
+
+        `LoggerConfigurator`
+
+        para configurar e desabilitar rastreador, medidores e agente respectivamente. Este conceito está atualmente em desenvolvimento e não está disponível em todas as implementações de linguagem. Consulte
+
+        [documentos de idiomas](https://opentelemetry.io/docs/languages/)
+
+        individuais e entre em contato com os mantenedores do idioma para verificar o status.
+      </td>
+    </tr>
+
+    <tr id="sdk-pmr-interval">
+      <td>
+        [Leitor métrico de exportação periódica SDK `exportIntervalMillis`](https://opentelemetry.io/docs/specs/otel/configuration/sdk-environment-variables/#periodic-exporting-metricreader)
+      </td>
+
+      <td>
+        SDK
+      </td>
+
+      <td>
+        O OpenTelemetry métrica SDK permite configurar o intervalo de coleta do leitor métrico exportador periódico. O intervalo pode ser configurado programaticamente, mas é comum usar env vars:
+
+        ```shell
+        export OTEL_METRIC_EXPORT_INTERVAL=60000
+        ```
+
+        Defina o intervalo de coleta como 60s (60k ms). Este é o padrão, mas pode ser ajustado para se adequar.
+      </td>
+    </tr>
+
+    <tr id="sdk-metric-views">
+      <td>
+        [Visualizações métricas do SDK](https://opentelemetry.io/docs/specs/otel/metrics/sdk/#view)
+      </td>
+
+      <td>
+        SDK
+      </td>
+
+      <td>
+        O OpenTelemetry métrica SDK permite que
+
+        `MeterProvider`
+
+        seja configurado com visualizações para especificar várias opções, incluindo o conjunto de chaves de atributos a serem retidas, o tipo de agregação e a eliminação da métrica. Geralmente, as visualizações são configuradas programaticamente. Consulte
+
+        [a documentação de cada idioma](https://opentelemetry.io/docs/languages/)
+
+        para verificar alternativas em seu idioma. Por exemplo, OpenTelemetry Java tem suporte experimental para configuração de visualizações em um
+
+        [arquivo YAML](https://github.com/open-telemetry/opentelemetry-java/tree/main/sdk-extensions/incubator#view-file-configuration)
+
+        .
+      </td>
+    </tr>
+
+    <tr id="sdk-delta-temporality">
+      <td>
+        [Temporalidade da agregação delta do SDK](https://opentelemetry.io/docs/specs/otel/metrics/sdk_exporters/otlp/#additional-configuration)
+      </td>
+
+      <td>
+        SDK
+      </td>
+
+      <td>
+        O OpenTelemetry métrica SDK permite configurar a temporalidade de agregação para o exportador OTLP. Essa temporalidade pode ser configurada programaticamente, mas é comum usar env vars:
+
+        ```shell
+        export OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE=delta
+        ```
+
+        Defina a temporalidade de agregação do exportador de métrica OTLP como delta, alinhando-se com a [preferência](docs/opentelemetry/best-practices/opentelemetry-otlp/#metric-aggregation-temporality) do endpoint OTLP da New Relic.
+      </td>
+    </tr>
+
+    <tr id="sdk-log-appenders">
+      <td>
+        [SDK configura anexadores de log](https://opentelemetry.io/docs/specs/otel/logs/supplementary-guidelines/)
+      </td>
+
+      <td>
+        SDK
+      </td>
+
+      <td>
+        A de OpenTelemetry log ponte API foi projetada para uso por log anexadores , que conectam o log da log API de ao OpenTelemetry. Esses anexadores log podem ser instalados automaticamente com opções
+
+        [de instrumentação de código zero,](https://opentelemetry.io/docs/zero-code/)
+
+        como o agente OpenTelemetry Java, ou podem exigir etapas de instalação manuais. Eles geralmente têm opções de configuração para especificar quais logs e quais dados serão transferidos para OpenTelemetry. Além disso, muitas vezes é possível configurar a que está log API sendo interligada para especificar qual log (com base na gravidade ou no nome do agente) deve ser passado para o log anexador. Consulte
+
+        [a documentação de cada idioma](https://opentelemetry.io/docs/languages/)
+
+        para obter detalhes.
+      </td>
+    </tr>
+
+    <tr id="collector-filter-processor">
+      <td>
+        [Processador de filtro coletor](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor/filterprocessor)
+      </td>
+
+      <td>
+        Coletor
+      </td>
+
+      <td>
+        O processador de filtro coletor pode ser usado para filtrar registros de extensão, métrica e log do seu pipeline de observabilidade. Para vãos, ele pode funcionar como um simples amostrador de cauda, agindo em vãos completos, mas sem acesso ao trace completo (Nota: isso pode resultar em traços quebrados). Para métrica, pode ser utilizado para descartar métricas ou séries que não tenham valor alto. Para log, pode ser usado para descartar registros log que não sejam de alto valor (por exemplo log com severidade de granulação fina ou de agente barulhento).
+      </td>
+    </tr>
+
+    <tr id="collector-tailsampling-processor">
+      <td>
+        [Processador de amostragem traseira do coletor](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor/tailsamplingprocessor)
+      </td>
+
+      <td>
+        Coletor
+      </td>
+
+      <td>
+        O coletor tailsampling permite que você decida se deseja amostrar com base no trace concluído. Por exemplo, você pode enfatizar a retenção de rastreios que contenham erros ou que afetem áreas de alto interesse do sistema. A desvantagem é que o processador tailsampling adiciona complexidade ao pipeline de observabilidade, pois exige que todos os spans de um trace sejam roteados para a mesma instância do coletor, e que o coletor mantenha os spans na memória enquanto aguarda a conclusão do trace. Isso requer um planejamento cuidadoso quando seu pipeline de observabilidade atinge uma escala que não pode ser tratada por uma única instância de coletor.
+      </td>
+    </tr>
+
+    <tr id="collector-resource-processor">
+      <td>
+        [Processador de recursos do coletor](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor/resourceprocessor)
+      </td>
+
+      <td>
+        Coletor
+      </td>
+
+      <td>
+        O processador de recursos coletor permite escrever regras simples para manipular atributo de recursos de spans, métricas e log. Por exemplo, você pode excluir atributos que não sejam de alto valor.
+      </td>
+    </tr>
+
+    <tr id="collector-metricstransform-processor">
+      <td>
+        [Processador de transformação de métricas do coletor](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor/metricstransformprocessor)
+      </td>
+
+      <td>
+        Coletor
+      </td>
+
+      <td>
+        O processador de transformada métrica permite manipular dados métricos. Por exemplo, você pode excluir séries que não tenham valor alto ou mesclar séries temporais para reduzir a cardinalidade (às vezes chamada de reagregação espacial).
+      </td>
+    </tr>
+
+    <tr id="collector-transform-processor">
+      <td>
+        [Processador de transformação de coletor](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor/transformprocessor)
+      </td>
+
+      <td>
+        Coletor
+      </td>
+
+      <td>
+        O processador de transformação do coletor permite transformar dados de observabilidade usando condições para selecionar dados e instruções para modificá-los. Por exemplo, você pode remover atributos de recursos, truncar atributos, alterar campos de nível superior para spans, métricas e logs de log e muito mais.
+      </td>
+    </tr>
+
+    <tr id="collector-cumulativetodelta-processor">
+      <td>
+        [Coletor cumulativo processador todelta](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor/cumulativetodeltaprocessor)
+      </td>
+
+      <td>
+        Coletor
+      </td>
+
+      <td>
+        O processador coletor cumulativo para delta permite transformar a temporalidade da agregação de métrica de cumulativa para delta. Isto é útil para alinhar sua métrica com a
+
+        [temporalidade de agregação preferida do OTLP endpoint](docs/opentelemetry/best-practices/opentelemetry-otlp/#metric-aggregation-temporality)
+
+        da New Relic. Observe que a tradução da agregação cumulativa para a agregação delta é um processo stateful, exigindo que o coletor armazene o último ponto de cada série temporal na memória para calcular e emitir a diferença. Isso requer um planejamento cuidadoso dos recursos de memória do coletor e a estruturação do pipeline de observabilidade para garantir que todos os pontos da mesma série cheguem à mesma instância do coletor.
+      </td>
+    </tr>
+  </tbody>
+</table>

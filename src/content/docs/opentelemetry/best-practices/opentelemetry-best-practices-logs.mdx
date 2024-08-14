@@ -1,0 +1,207 @@
+---
+title: OpenTelemetry logs in New Relic
+tags:
+  - Integrations
+  - Open source telemetry integrations
+  - OpenTelemetry
+  - Logs
+translate:
+  - kr
+metaDescription: Details on how New Relic works with OpenTelemetry logs
+freshnessValidatedDate: 2024-05-17T00:00:00.000Z
+redirects:
+  - /docs/more-integrations/open-source-telemetry-integrations/opentelemetry/view-your-data/opentelemetry-logs-page
+  - /docs/more-integrations/open-source-telemetry-integrations/opentelemetry/best-practices/opentelemetry-best-practices-logs
+---
+
+This documentation focuses on how New Relic processes OpenTelemetry logs received through its dedicated OTLP endpoint.
+
+There are two typical workflows for sending OpenTelemetry logs to New Relic:
+
+* [Direct to collector](https://opentelemetry.io/docs/specs/otel/logs/#direct-to-collector):
+
+  * Applications can send logs directly to the New Relic OTLP endpoint.
+  * Refer to the relevant [OpenTelemetry language documentation](https://opentelemetry.io/docs/languages/) for specific implementation details, and [OpenTelemetry APM monitoring](/docs/opentelemetry/get-started/apm-monitoring/opentelemetry-apm-intro/) for details on monitoring services with New Relic.
+
+* [Via file or `stdout`](https://opentelemetry.io/docs/specs/otel/logs/#via-file-or-stdout-logs):
+  * This method involves scraping application logs written to files or standard output (`stdout`).
+  * The OpenTelemetry collector is typically used for this task. Scraped logs are then forwarded to the New Relic OTLP endpoint.
+  * In-depth configuration information can be found in the following OpenTelemetry resources:
+    * [OpenTelemetry collector](https://opentelemetry.io/docs/collector/)
+    * [Filelog receiver with kubernetes](https://opentelemetry.io/docs/kubernetes/collector/components/#filelog-receiver)
+    * [A practical example demonstrating this workflow for Java applications using Log4j2](https://github.com/newrelic/newrelic-opentelemetry-examples/tree/main/other-examples/java/logs-in-context-log4j2)
+
+Regardless of the chosen collection method, successful integration requires configuring your log source to export logs to this endpoint. Make sure to review the [endpoint configuration requirements](/docs/opentelemetry/best-practices/opentelemetry-otlp/#configure-endpoint-port-protocol) before proceeding.
+
+## OTLP log record mapping [#otlp-log-mapping]
+
+New Relic maps OTLP log records to the `Log` data type. The table below describes how fields from the [`LogRecord` proto message](https://github.com/open-telemetry/opentelemetry-proto/blob/main/opentelemetry/proto/logs/v1/logs.proto) are mapped to New Relic `Log`:
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        OTLP `logs.proto` field
+      </th>
+
+      <th>
+        New Relic `Log` field
+      </th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td>
+        `ResourceLogs.Resource.attributes`
+      </td>
+
+      <td>
+        Each key/value is an attribute on the `Log` field **[1]**
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `ScopeLogs.InstrumentationScope.name`
+      </td>
+
+      <td>
+        `otel.library.name`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `ScopeLogs.InstrumentationScope.version`
+      </td>
+
+      <td>
+        `otel.library.version`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `ScopeLogs.InstrumentationScope.attributes`
+      </td>
+
+      <td>
+        Each key/value is an attribute on the `Log` field **[1]**
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `LogRecord.time_unix_nanos`
+      </td>
+
+      <td>
+        `timestamp` **[2]**
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `LogRecord.severity_number`
+      </td>
+
+      <td>
+        `severity.number`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `LogRecord.severity_text`
+      </td>
+
+      <td>
+        `severity.text`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `LogRecord.body`
+      </td>
+
+      <td>
+        `message`, and possibly parsed attributes **[3]**
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `LogRecord.attributes`
+      </td>
+
+      <td>
+        Each key/value is an attribute on the `Log` field **[1]**
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `LogRecord.dropped_attribute_count`
+      </td>
+
+      <td>
+        `otel.dropped_attributes_count`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `LogRecord.flags`
+      </td>
+
+      <td>
+        `w3c.flags` (integer)
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `LogRecord.trace_id`
+      </td>
+
+      <td>
+        `trace.id`
+      </td>
+    </tr>
+
+    <tr>
+      <td>
+        `LogRecord.span_id`
+      </td>
+
+      <td>
+        `span.id`
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+### Table footnotes [#otlp-mapping-notes]
+
+**[1]** In case of conflict in resource attributes, scope attributes, log record attributes, top level log record fields, and parsed attributes from the `LogRecord.body` **[3]**, the order of precedent (highest to lowest) is: parsed attributes from `LogRecord.body` -> top level `LogRecord.*` fields > `LogRecord.attributes` > `ScopeLogs.InstrumentationScope.attributes` > `ResourceLogs.Resource.attributes`.
+
+**[2]** If `LogRecord.time_unix_nanos` is not present, `timestamp` is set to the time New Relic received the data.
+
+**[3]** [Log parsing](/docs/logs/ui-data/parsing/) is applied to the `LogRecord.body` to attempt to extract attributes from plain log text. For example, if a JSON structured log format is used, the key / values become attributes on the resulting log. This is particularly useful when collecting logs from files or `stdout`. In this case, it's common to have no resource attributes associated with the log record (required for [APM service correlation](#service-correlation)) and no value for `LogRecord.trace_id` / `LogRecord.span_id` (required for [trace correlation](#trace-correlation)). Correlation will function as intended if the required fields can be successfully parsed.
+
+## Correlation with OpenTelemetry APM service [#service-correlation]
+
+Log are correlated with a service entity if they include the [required attributes](/docs/opentelemetry/best-practices/opentelemetry-best-practices-resources/#required-attributes). Typically, these come from the log's resource attributes, such as `ResourceLogs.Resource.attributes`, but they can also be parsed from the `LogRecord.body` as described in [footnote #3 of OTLP mapping](#otlp-mapping-notes).
+
+To view a service's logs, navigate to the [Logs page](/docs/logs/ui-data/use-logs-ui/) for that service.
+
+## Correlation with traces [#trace-correlation]
+
+Logs are correlated with a trace if `trace.id` and `span.id` attributes can be resolved. Typically, these come from `LogRecord.trace_id` and `LogRecord.span_id` fields, but can also be parsed from the `LogRecord.body` as described in footnote 3 of [OTLP mapping](#otlp-mapping-notes).
+
+To view logs recorded in the context of a particular trace, you have two options:
+
+* Navigate to the **Logs** tab within the [trace details page](/docs/distributed-tracing/ui-data/trace-details/#view-your-logs).
+* Navigate to the [Logs page](/docs/logs/ui-data/use-logs-ui/) for a service and click on a log to open log details. If it's associated with a trace, you'll be able to navigate from **Log details** to **Trace details**.
